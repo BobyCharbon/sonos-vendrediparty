@@ -324,16 +324,32 @@ def test_blackjack_round_with_chips():
     assert g["phase"] == "bet" and g["bj"]["hands"] == {}
 
 
-def test_blackjack_with_alcohol_double():
-    g = games.new_game("blackjack", host="a", name="Ana", sips=2)
+def test_blackjack_drinks_mode_bets_sips():
+    g = games.new_game("blackjack", host="a", name="Ana", sips=3)  # mise max 3 gorgées
     games.start(g)
+    with pytest.raises(games.GameError):
+        games.bj_bet(g, "a", 4)
     rigged(g, ["5S", "6H", "TC", "7D", "TD"])
-    games.bj_bet(g, "a", 10)
-    games.bj_double(g, "a")  # 5+6+10 = 21 contre 17 ; mise doublée à 20
+    games.bj_bet(g, "a", 2)
+    games.bj_double(g, "a")  # 5+6+10 = 21 contre 17 ; mise doublée à 4 gorgées
     h = g["bj"]["hands"]["a"]
-    assert h["bet"] == 20 and h["result"] == "win" and h["delta"] == 20
-    assert h["sips"] == 4  # gorgées doublées aussi : distribue 4
-    assert g["bj"]["chips"]["a"] == 120
+    assert h["bet"] == 4 and h["result"] == "win" and h["sips"] == 8  # gagné : distribue le double
+    assert g["bj"]["chips"]["a"] == 100  # aucun jeton en jeu
+
+
+@pytest.mark.parametrize("cards, sips", [
+    (["TS", "6H", "TC", "9D", "KD"], -2),  # 16 contre 19 : perdu, bois sa mise
+    (["AS", "KH", "TC", "9D"], 6),  # blackjack : distribue le triple
+    (["TS", "9H", "TC", "9D"], 0),  # 19 partout : égalité
+])
+def test_blackjack_drinks_outcomes(cards, sips):
+    g = games.new_game("blackjack", host="a", name="Ana", sips=5)
+    games.start(g)
+    rigged(g, cards)
+    games.bj_bet(g, "a", 2)
+    if g["phase"] == "play":
+        games.bj_stand(g, "a")
+    assert g["bj"]["hands"]["a"]["sips"] == sips
 
 
 def test_blackjack_player_leaving_on_his_turn_passes_hand():
@@ -381,8 +397,8 @@ def test_blackjack_log_and_give_tally():
     g = games.new_game("blackjack", host="a", name="Ana", sips=1)
     games.start(g)
     rigged(g, ["5S", "6H", "TC", "7D", "TD"])
-    games.bj_bet(g, "a", 10)
+    games.bj_bet(g, "a", 1)
     games.bj_hit(g, "a")  # 5+6+10 = 21 : reste automatiquement
     log = [e["text"] for e in games.view(g, "a")["bj"]["log"]]
     assert "tire 10♦ → 21" in log and any(t.startswith("retourne 7♦") for t in log)
-    assert games.view(g, "a")["me"]["give"] == 1
+    assert games.view(g, "a")["me"]["give"] == 2  # gagné : distribue le double de sa mise

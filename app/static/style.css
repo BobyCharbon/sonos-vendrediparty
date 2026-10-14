@@ -296,3 +296,5 @@ button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2
 .bj-log { margin-top: 12px; display: flex; flex-direction: column; gap: 2px; font-size: .85rem; color: var(--g-soft, var(--muted)); }
 .bj-log .last { font-size: 1rem; color: #fff; }
 .bj-log .fresh { animation: pop .35s ease-out; }
+.g-facts { background: rgba(0,0,0,.22); border-radius: 14px; padding: 10px 12px; margin-bottom: 12px; }
+.g-facts h3 { margin-top: 0 !important; }
