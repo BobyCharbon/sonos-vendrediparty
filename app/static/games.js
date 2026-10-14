@@ -417,10 +417,16 @@ function resultsHtml(g) {
 // 🎆 Animation de fin de main, seulement sur l'écran du joueur concerné.
 let fxSeen = "";
 function bjOutcomeFx(g) {
-  if (!isBJ(g) || g.phase !== "results" || !g.me) return;
+  if (!isBJ(g) || !g.me) return;
   const h = g.bj.seats.find((x) => x.pid === g.me.pid)?.hand;
   const key = g.id + ":" + g.round;
-  if (!h?.result || fxSeen === key) return;
+  if (!h || fxSeen === key) return;
+  // Sauté (plus de 21) : le joueur sait déjà qu'il a perdu, on l'affiche tout de suite (une seule fois par main).
+  if (g.phase === "play" && h.status === "bust") {
+    fxSeen = key;
+    return playFx("bust", drinks(g) ? `🍻 Bois ${sipWord(h.bet)}` : `-${h.bet} jetons`);
+  }
+  if (g.phase !== "results" || !h.result) return;
   fxSeen = key;
   // Page en arrière-plan, ou main terminée depuis longtemps (page rechargée) : pas d'animation en différé.
   if (document.hidden || (g.bj.finished_age ?? 0) > 12) return;

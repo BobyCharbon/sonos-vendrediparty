@@ -398,7 +398,9 @@ addEventListener("DOMContentLoaded", async () => {
 });
 
 // Proposition d'ajout à l'écran d'accueil (iOS : explication, Android/Chrome : vrai bouton).
-const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+// App installée sur l'écran d'accueil ? iPhone : navigator.standalone ; Android et autres : le mode d'affichage du manifeste.
+const standalone = ["standalone", "fullscreen", "minimal-ui"].some((m) => matchMedia(`(display-mode: ${m})`).matches) || navigator.standalone === true;
+const android = /Android/i.test(navigator.userAgent);
 const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 let installEvent = null;
 function offerInstall() {
@@ -421,10 +423,11 @@ $("installBtn").onclick = async () => {
 };
 $("installClose").onclick = (ev) => { ev.stopPropagation(); store("vp_install_dismissed", "1"); $("install").classList.add("hidden"); };
 // iPhone : toucher le bandeau ouvre la fenêtre d'installation guidée.
-$("install").addEventListener("click", (ev) => { if (ios && !ev.target.closest("button")) openInstallSheet(); });
+$("install").addEventListener("click", (ev) => { if ((ios || android) && !ev.target.closest("button")) openInstallSheet(); });
 
 // 📲 Installation guidée sur iPhone (Safari d'iOS 26 : « Partager » est dans le menu ••• de la barre d'adresse).
 const ICONS = {
+  menu: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>`,
   more: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="7.5" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="16.5" cy="12" r="1" fill="currentColor"/></svg>`,
   share: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M8 7l4-4 4 4"/><path d="M8 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-2"/></svg>`,
   add: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8M8 12h8"/></svg>`,
@@ -435,6 +438,11 @@ function installSteps() {
   const chrome = /CriOS/.test(ua), firefox = /FxiOS/.test(ua);
   const safariVersion = +((ua.match(/Version\/(\d+)/) || [])[1] || 0);
   const step = (icon, html) => `<li><span class="i-ico">${ICONS[icon]}</span><span>${html}</span></li>`;
+  if (android) return [
+    step("menu", `Touche le menu <b>⋮</b> en haut à droite du navigateur.`),
+    step("add", `Touche <b>« Installer l'application »</b> ou <b>« Ajouter à l'écran d'accueil »</b>.`),
+    step("app", `Confirme avec <b>Installer</b> : VendrediParty apparaît avec tes applis.`),
+  ];
   if (chrome || firefox) return [
     step("share", `Touche <b>Partager</b> en haut à droite, à côté de l'adresse.`),
     step("add", `Touche <b>« Ajouter à l'écran d'accueil »</b>.`),
@@ -451,22 +459,36 @@ function installSteps() {
 }
 function openInstallSheet() {
   $("iSteps").innerHTML = installSteps().join("");
-  // Sans menu de partage (navigateur trop ancien) : on affiche directement les étapes.
-  const canShare = !!navigator.share;
-  $("iShare").classList.toggle("hidden", !canShare);
-  $("iThen").classList.toggle("hidden", !canShare);
-  $("installSheet").querySelector(".i-manual").open = !canShare;
+  // iPhone : le bouton ouvre « Partager ». Android : il lance l'installation (si Chrome la propose).
+  // Sinon (navigateur sans ces fonctions) : on affiche directement les étapes.
+  const direct = android ? !!installEvent : !!navigator.share;
+  $("iShare").lastChild.textContent = android ? " Installer l'application" : " Ouvrir « Partager »";
+  $("iShare").classList.toggle("hidden", !direct);
+  $("iThen").classList.toggle("hidden", !direct || android);
+  $("installSheet").querySelector(".i-manual").open = !direct;
+  $("installSheet").querySelector(".i-manual summary").textContent = direct ? "Le bouton ne marche pas ? Fais-le à la main" : "Comment faire";
   $("installSheet").classList.remove("hidden");
 }
-function maybeInstallSheet() {
-  // Une fois par visite, au moment où l'on demande le prénom (sur iPhone, hors app installée).
-  if (!ios || standalone || store("vp_install_dismissed")) return;
+async function maybeInstallSheet() {
+  // Une fois par visite, au moment où l'on demande le prénom, seulement dans le navigateur (pas dans l'app installée).
+  if (!(ios || android) || standalone || store("vp_install_dismissed")) return;
+  // Android : l'app est peut-être déjà installée alors qu'on est dans Chrome (déclarée dans le manifeste).
+  try { if ((await navigator.getInstalledRelatedApps?.())?.length) return; } catch {}
   try { if (sessionStorage.getItem("vp_install_sheet")) return; sessionStorage.setItem("vp_install_sheet", "1"); } catch {}
   setTimeout(openInstallSheet, 400);
 }
 $("iShare").onclick = async () => {
+  if (android && installEvent) {
+    installEvent.prompt();
+    const { outcome } = await installEvent.userChoice;
+    installEvent = null;
+    if (outcome === "accepted") { $("installSheet").classList.add("hidden"); $("install").classList.add("hidden"); }
+    return;
+  }
   try { await navigator.share({ title: "VendrediParty", url: location.origin + "/" }); } catch {}
 };
+// L'app vient d'être installée (Android) : plus besoin de la proposer.
+addEventListener("appinstalled", () => { store("vp_install_dismissed", "1"); $("install").classList.add("hidden"); $("installSheet").classList.add("hidden"); });
 $("iLater").onclick = () => $("installSheet").classList.add("hidden");
 $("installSheet").addEventListener("click", (ev) => { if (ev.target.id === "installSheet") $("installSheet").classList.add("hidden"); });
 setTimeout(offerInstall, 1500);
