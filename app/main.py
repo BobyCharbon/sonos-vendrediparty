@@ -342,6 +342,21 @@ def admin_queue_action(body: QueueAction):
     return admin_state()
 
 
+class Reply(BaseModel):
+    id: str
+    text: str
+
+
+@app.post("/api/admin/messages/reply", dependencies=[Depends(require_admin)])
+def admin_reply(body: Reply):
+    text = body.text.strip()[:300]
+    if not text:
+        raise HTTPException(400, "Réponse vide")
+    if store.reply(body.id, text) is None:
+        raise HTTPException(404, "Message introuvable")
+    return admin_state()
+
+
 class MessageAction(BaseModel):
     ids: list[str] | None = None  # None : tous les messages
     action: str  # read | unread | delete
@@ -415,11 +430,15 @@ def state(request: Request, guest_id: str = ""):
     if not s.active:
         return {"active": False}
     store.seen(guest_id)
-    blocked = ban_message(guest_id, client_ip(request))
+    base = {
+        "active": True, "room": s.room_name, "blocked": ban_message(guest_id, client_ip(request)),
+        # Ses propres messages et les réponses de l'hôte.
+        "messages": [{k: m.get(k) for k in ("id", "text", "at", "reply", "reply_at")} for m in store.messages_of(guest_id)] if guest_id else [],
+    }
     try:
-        return {"active": True, "room": s.room_name, "blocked": blocked, **public_sonos(snapshot(), guest_id)}
+        return {**base, **public_sonos(snapshot(), guest_id)}
     except Exception:
-        return {"active": True, "room": s.room_name, "blocked": blocked, "error": "Sonos injoignable pour le moment"}
+        return {**base, "error": "Sonos injoignable pour le moment"}
 
 
 @app.get("/api/search", dependencies=[Depends(require_guest)])

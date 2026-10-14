@@ -146,6 +146,16 @@ class PartyStore:
         self.save()
         return msg
 
+    def reply(self, message_id: str, text: str) -> dict | None:
+        msg = next((m for m in self.session.messages if m["id"] == message_id), None)
+        if msg is not None:
+            msg.update(reply=text, reply_at=time.time(), read=True)
+            self.save()
+        return msg
+
+    def messages_of(self, guest_id: str) -> list[dict]:
+        return [m for m in self.session.messages if m["guest_id"] == guest_id]
+
     def update_messages(self, ids: set[str] | None, *, read: bool = False, delete: bool = False):
         """Marque comme lus ou supprime des messages (ids=None : tous)."""
         hit = lambda m: ids is None or m["id"] in ids

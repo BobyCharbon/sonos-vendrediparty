@@ -54,6 +54,7 @@
     <div id="upcoming" class="list"></div>
 
     <h2>Un message pour l'hôte ?</h2>
+    <div id="myMessages" class="list" style="margin-bottom:8px"></div>
     <form id="msgForm" class="card">
       <textarea id="msgText" maxlength="300" placeholder="Une dédicace, une demande particulière…"></textarea>
       <div class="row" style="margin-top:8px">
@@ -136,6 +137,7 @@ async function refresh() {
   } else {
     $("now").innerHTML = `<div class="artist">Rien ne joue pour l'instant</div>`;
   }
+  renderMyMessages(s.messages || []);
   const up = s.upcoming || [];
   $("count").textContent = s.upcoming_total ? `(${s.upcoming_total})` : "";
   $("upcoming").innerHTML = up.length
@@ -144,6 +146,21 @@ async function refresh() {
 }
 
 let searchTimer, lastResults = [], blocked = "";
+let seenReplies = null;
+
+function renderMyMessages(msgs) {
+  // Nouvelle réponse de l'hôte depuis le dernier rafraîchissement : on prévient.
+  const replied = new Set(msgs.filter((m) => m.reply).map((m) => m.id + m.reply_at));
+  if (seenReplies && [...replied].some((k) => !seenReplies.has(k))) { toast("L'hôte t'a répondu 💌", "ok"); navigator.vibrate?.(200); }
+  seenReplies = replied;
+  const t = (x) => new Date(x * 1000).toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
+  $("myMessages").innerHTML = msgs.slice().reverse().map((m) => `
+    <div class="msg">
+      <div class="artist">Toi · ${t(m.at)}</div><div class="text">${esc(m.text)}</div>
+      ${m.reply ? `<div class="reply">💬 <b>L'hôte</b> <span class="artist">· ${t(m.reply_at)}</span><div class="text">${esc(m.reply)}</div></div>`
+                : `<div class="artist" style="font-size:.8rem">En attente de réponse…</div>`}
+    </div>`).join("");
+}
 $("q").addEventListener("input", () => {
   clearTimeout(searchTimer);
   const q = $("q").value.trim();

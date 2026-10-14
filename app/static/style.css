@@ -90,3 +90,5 @@ textarea:focus { border-color: var(--accent); }
 .icon-btns { display: flex; gap: 4px; flex: none; }
 .icon-btns button { padding: 8px 10px; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 4px; vertical-align: middle; }
+.reply { margin: 6px 0 2px; padding: 8px 10px; border-radius: 10px; background: var(--card-2); }
+.reply .text { margin: 2px 0 0; }

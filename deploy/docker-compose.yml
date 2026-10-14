@@ -15,7 +15,7 @@ services:
       SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET}
       SPOTIFY_MARKET: ${SPOTIFY_MARKET:-CH}
       SONOS_IP: ${SONOS_IP:-192.168.50.186}
-      PUBLIC_URL: ${PUBLIC_URL:-http://192.168.50.204:8090}
+      PUBLIC_URL: ${PUBLIC_URL:-https://party.bobycharbon.ch}
       # IP de HAProxy (pfSense) : seule source autorisée à transmettre la vraie IP des invités.
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-192.168.50.1}
     volumes:

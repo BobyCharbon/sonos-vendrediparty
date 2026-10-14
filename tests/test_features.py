@@ -78,3 +78,16 @@ def test_guest_appears_on_hello_and_sends_message(admin):
     assert msgs[0]["text"] == "Un peu de Daft Punk ?" and not msgs[0]["read"]
     msgs = admin.post("/api/admin/messages", json={"ids": None, "action": "read"}).json()["messages"]
     assert all(m["read"] for m in msgs)
+
+
+def test_admin_replies_and_guest_sees_it(admin):
+    guest = TestClient(main.app)
+    guest.post("/api/join", json={"pin": main.store.session.guest_pin})
+    guest.post("/api/message", json={"guest_id": "guest-5678", "guest_name": "Tom", "text": "Tu passes du Queen ?"})
+    msg = admin.get("/api/admin/state").json()["messages"][0]
+
+    admin.post("/api/admin/messages/reply", json={"id": msg["id"], "text": "Juste après ce titre 😉"})
+    mine = guest.get("/api/state?guest_id=guest-5678").json()["messages"]
+    assert mine[0]["reply"] == "Juste après ce titre 😉"
+    # Les autres invités ne voient pas cette conversation.
+    assert guest.get("/api/state?guest_id=guest-9999").json()["messages"] == []

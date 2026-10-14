@@ -184,6 +184,7 @@ function render(s) {
 
 const hhmm = (t) => new Date(t * 1000).toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
 let seenMessages = null;
+const drafts = {};  // réponses en cours de saisie, conservées entre deux rafraîchissements
 
 function renderMessages(s) {
   const unread = s.messages.filter((m) => !m.read);
@@ -198,6 +199,8 @@ function renderMessages(s) {
     if (fresh.length) { toast(`💬 ${fresh[0].name} : ${fresh[0].text}`, "ok"); navigator.vibrate?.(200); }
   }
   seenMessages = ids;
+  const focused = document.activeElement?.dataset?.reply;
+  const caret = focused ? document.activeElement.selectionStart : 0;
   $("messages").innerHTML = s.messages.length ? s.messages.map((m) => `
     <div class="msg ${m.read ? "" : "unread"}">
       <div class="row"><div class="grow"><b>${esc(m.name)}</b> <span class="artist">· ${hhmm(m.at)}</span></div>
@@ -206,7 +209,17 @@ function renderMessages(s) {
           <button class="danger" data-msg="delete" data-id="${esc(m.id)}" title="Supprimer">✕</button>
         </div></div>
       <div class="text">${esc(m.text)}</div>
+      ${m.reply ? `<div class="reply">↩︎ <b>Ta réponse</b> <span class="artist">· ${hhmm(m.reply_at)}</span><div class="text">${esc(m.reply)}</div></div>` : ""}
+      <form class="row" data-reply-form="${esc(m.id)}" style="margin-top:6px">
+        <input class="grow" type="text" maxlength="300" data-reply="${esc(m.id)}" placeholder="${m.reply ? "Modifier ta réponse…" : "Répondre…"}">
+        <button>↩︎</button>
+      </form>
     </div>`).join("") : `<p class="empty" style="padding:12px">Aucun message</p>`;
+  document.querySelectorAll("[data-reply]").forEach((el) => {
+    el.value = drafts[el.dataset.reply] || "";
+    el.addEventListener("input", () => { drafts[el.dataset.reply] = el.value; });
+    if (el.dataset.reply === focused) { el.focus(); el.setSelectionRange(caret, caret); }
+  });
 }
 
 function renderQueue(s) {
@@ -320,6 +333,19 @@ $("newPin").onclick = async () => {
   try { render(await api("/api/admin/pin", {})); toast("Nouveau code : " + state.guest_pin, "ok"); }
   catch (e) { toast(e.message, "err"); }
 };
+document.addEventListener("submit", async (ev) => {
+  const form = ev.target.closest("[data-reply-form]");
+  if (!form) return;
+  ev.preventDefault();
+  const id = form.dataset.replyForm, text = (drafts[id] || "").trim();
+  if (!text) return;
+  form.querySelector("button").disabled = true;
+  try {
+    delete drafts[id];
+    render(await api("/api/admin/messages/reply", { id, text }));
+    toast("Réponse envoyée ↩︎", "ok");
+  } catch (e) { drafts[id] = text; toast(e.message, "err"); form.querySelector("button").disabled = false; }
+});
 $("msgReadAll").onclick = async () => {
   try { render(await api("/api/admin/messages", { ids: null, action: "read" })); } catch (e) { toast(e.message, "err"); }
 };
