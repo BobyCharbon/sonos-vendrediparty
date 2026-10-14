@@ -16,3 +16,11 @@ def test_pages_are_not_cached():
     client = TestClient(app)
     for path in ["/", "/admin", "/static/style.css"]:
         assert client.get(path).headers["cache-control"] == "no-cache"
+
+
+def test_home_screen_names():
+    client = TestClient(app)
+    assert client.get("/static/manifest.json").json()["name"] == "VendrediParty"
+    admin = client.get("/static/manifest-admin.json").json()
+    assert admin["start_url"] == "/admin"
+    assert 'content="VendrediParty"' in client.get("/").text

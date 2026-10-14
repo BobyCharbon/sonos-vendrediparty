@@ -11,7 +11,7 @@
   <link rel="manifest" href="/static/manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Vendredi Party">
+  <meta name="apple-mobile-web-app-title" content="VendrediParty">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
@@ -62,6 +62,16 @@
         <button>Envoyer 💬</button>
       </div>
     </form>
+  </div>
+
+  <div id="install" class="install hidden">
+    <img src="/static/apple-touch-icon.png" alt="">
+    <div class="grow">
+      <b>Ajoute VendrediParty à ton écran d'accueil</b>
+      <div class="artist" id="installHelp"></div>
+    </div>
+    <button id="installBtn" class="hidden">Installer</button>
+    <button id="installClose" class="secondary" aria-label="Fermer">✕</button>
   </div>
 
   <div id="toast" class="toast hidden"></div>
@@ -263,6 +273,31 @@ $("pinInput").addEventListener("input", () => {
   // Filet de sécurité si le flux en direct est coupé.
   setInterval(() => { if ($("pin").classList.contains("hidden")) refresh(); }, 15000);
 })();
+
+// Proposition d'ajout à l'écran d'accueil (iOS : explication, Android/Chrome : vrai bouton).
+const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+let installEvent = null;
+function offerInstall() {
+  if (standalone || store("vp_install_dismissed")) return;
+  if (ios) {
+    $("installHelp").innerHTML = `Touche <b>Partager</b> <span aria-hidden="true">⎙</span> puis <b>« Sur l'écran d'accueil »</b>.`;
+  } else if (installEvent) {
+    $("installHelp").textContent = "Retrouve la soirée en un geste.";
+    $("installBtn").classList.remove("hidden");
+  } else return;
+  $("install").classList.remove("hidden");
+}
+addEventListener("beforeinstallprompt", (ev) => { ev.preventDefault(); installEvent = ev; offerInstall(); });
+$("installBtn").onclick = async () => {
+  if (!installEvent) return;
+  installEvent.prompt();
+  await installEvent.userChoice;
+  installEvent = null;
+  $("install").classList.add("hidden");
+};
+$("installClose").onclick = () => { store("vp_install_dismissed", "1"); $("install").classList.add("hidden"); };
+setTimeout(offerInstall, 1500);
 
 // Mises à jour en direct : le serveur signale chaque changement, on rafraîchit aussitôt.
 let source, refreshTimer;
