@@ -904,7 +904,7 @@ class GameAction(BaseModel):
 
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
-HOST_ACTIONS = {"start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge"}
+HOST_ACTIONS = {"start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote"}
 
 
 @app.post("/api/games/{code}")
@@ -937,6 +937,7 @@ def game_action(code: str, body: GameAction, request: Request):
         "crebuy": (games.casino_rebuy, me), "cspin": (games.casino_spin,),
         "dnext": (games.divan_next, me), "djoker": (games.divan_joker, me), "dback": (games.divan_back, me), "dheart": (games.divan_heart, me),
         "tanswer": (games.tmc_answer, me, body.guess), "tjudge": (games.tmc_judge, me, body.amount),
+        "addguest": (games.add_guest, body.guess), "mvote": (games.vote_for, target, body.guess),
         "tq": (games.tmc_change_question,), "treveal": (games.tmc_reveal,), "finish": (games.tmc_finish,),
     }
     if a not in actions:

@@ -819,6 +819,15 @@ async function dvRelease(ev) {
 document.addEventListener("pointerup", dvRelease);
 document.addEventListener("pointercancel", dvRelease);
 
+// 📵 Participants sans téléphone : l'animateur les ajoute à la main et agit pour eux.
+const MANUAL_GAMES = ["divan", "tmc", "never"];
+const playerTag = (g, p) => !MANUAL_GAMES.includes(g.type) ? "" : p.manual
+  ? ` <span class="pill tag-manual" title="Ajouté·e à la main par l'animateur">✍️ sans téléphone</span>`
+  : ` <span class="tag-phone" title="Joue sur son téléphone">📱</span>`;
+const manualForm = (g) => !g.is_host || !MANUAL_GAMES.includes(g.type) || g.phase === "end" ? "" : `
+  <form data-gform="addguest" class="row" style="margin-top:8px"><input class="grow" type="text" id="manualName" maxlength="30" placeholder="Prénom (sans téléphone)" autocomplete="off"><button class="secondary">＋ Ajouter</button></form>
+  <div class="artist" style="margin-top:4px">Pour quelqu'un qui joue sans téléphone : c'est toi qui agiras pour lui ou elle.</div>`;
+
 function renderDivanHost(g, btn) {
   const d = g.divan;
   const controls = g.phase === "lobby"
@@ -829,9 +838,10 @@ function renderDivanHost(g, btn) {
     <h2>Autour du divan (${g.players.length})</h2>
     <div class="list">${g.players.map((p) => `
       <div class="track ${p.pid === d.current?.pid && g.phase === "card" ? "bj-turn" : ""}">
-        <div class="meta"><div class="title">${p.pid === d.current?.pid && g.phase === "card" ? "🛋️ " : ""}${esc(p.name)}${p.host ? " 🎲" : ""}</div></div>
+        <div class="meta"><div class="title">${p.pid === d.current?.pid && g.phase === "card" ? "🛋️ " : ""}${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}</div></div>
         ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la séance">✕</button>` : ""}
       </div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
+    ${manualForm(g)}
     ${g.is_host && !g.me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
 }
 
@@ -852,7 +862,8 @@ function tmcHtml(g) {
   const form = (ph) => `<form data-gform="tanswer" class="row" style="margin-top:10px"><input class="grow" type="text" id="guessInput" maxlength="80" placeholder="${ph}" autocomplete="off"><button>Valider</button></form>`;
   if (g.phase === "answer") {
     let zone;
-    if (d.role === "subject") zone = d.mine ? "" : `<div class="artist" style="margin-top:8px">Écris <b>ta vraie réponse</b>, en secret. Elle sera révélée après que ${G} aura deviné à voix haute.</div>${form("Ta vraie réponse")}`;
+    if (d.proxy) zone = `<div class="tm-speak" style="font-size:1rem">📵 ${S} n'a pas de téléphone : passe-lui le tien pour qu'il ou elle écrive sa réponse en secret.</div>${form(`Réponse de ${d.subject.name}`)}`;
+    else if (d.role === "subject") zone = d.mine ? "" : `<div class="artist" style="margin-top:8px">Écris <b>ta vraie réponse</b>, en secret. Elle sera révélée après que ${G} aura deviné à voix haute.</div>${form("Ta vraie réponse")}`;
     else if (d.role === "guesser") zone = `<div class="artist" style="margin-top:8px">${S} écrit sa réponse en secret… Prépare-toi : tu devras la deviner <b>à voix haute</b>.</div>`;
     else zone = `<div class="artist" style="margin-top:8px">${S} écrit sa réponse en secret…</div>`;
     return duo + q + zone;
@@ -913,9 +924,10 @@ function renderTmcHost(g, btn) {
     <h2>Joueurs (${g.players.length})</h2>
     <div class="list">${g.players.map((p) => `
       <div class="track ${t.duo && g.phase !== "end" && [t.duo.guesser.pid, t.duo.subject.pid].includes(p.pid) ? "bj-turn" : ""}">
-        <div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}</div></div>
+        <div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}</div></div>
         ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie">✕</button>` : ""}
       </div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
+    ${manualForm(g)}
     ${g.is_host && !g.me && (g.phase === "lobby" || g.phase === "end") ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
 }
 
@@ -1215,15 +1227,19 @@ function renderGameHost(g) {
     <h2>${speaking ? "Ordre de parole" : "Joueurs"} (${g.players.length})${g.master && g.type === "undercover" ? ` <button class="secondary" data-gact="roles" style="padding:2px 8px">${showRoles ? "🙈 Cacher" : "👁 Rôles"}</button>` : ""}</h2>
     <div class="list">${list.map((p, i) => `
       <div class="track" style="${p.alive ? "" : "opacity:.55"}">
-        <div class="meta"><div class="title" ${p.waiting ? 'title="Joue à la prochaine partie"' : ""}>${speaking && p.alive ? `${i + 1}. ` : ""}${p.waiting ? "⏳ " : p.alive ? "" : "✝︎ "}${esc(p.name)}${p.host ? " 🎲" : ""}${(g.phase === "vote" || g.phase === "question") && p.voted ? " ✓" : ""}${sipsBadge(p)}</div>
+        <div class="meta"><div class="title" ${p.waiting ? 'title="Joue à la prochaine partie"' : ""}>${speaking && p.alive ? `${i + 1}. ` : ""}${p.waiting ? "⏳ " : p.alive ? "" : "✝︎ "}${esc(p.name)}${p.host ? " 🎲" : ""}${(g.phase === "vote" || g.phase === "question") && p.voted ? " ✓" : ""}${sipsBadge(p)}${playerTag(g, p)}</div>
           ${p.role && (seeRoles || !p.alive) ? `<div class="artist">${esc(p.role)}${seeRoles && p.word ? " · " + esc(p.word) : ""}</div>` : ""}</div>
         <div class="icon-btns">
+          ${g.is_host && p.manual && g.type === "never" && g.phase === "question" ? `
+            <button class="${p.answer === "yes" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="yes" title="L'a déjà fait">🍻</button>
+            <button class="${p.answer === "no" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="no" title="Jamais">😇</button>` : ""}
           ${canMove && p.alive && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter">⬆</button>` : ""}
           ${canMove && p.alive && i < (speaking ? g.order_pids.length : list.length) - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre">⬇</button>` : ""}
           ${canEliminate && p.alive ? `<button class="danger" data-gact="eliminate" data-target="${esc(p.pid)}" title="Éliminer (vote à main levée)">Éliminer</button>` : ""}
           ${canRemove && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie">✕</button>` : ""}
         </div>
       </div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
+    ${manualForm(g)}
     ${g.is_host && !g.me && (g.phase === "lobby" || g.phase === "end") ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
 }
 
@@ -1276,7 +1292,13 @@ document.addEventListener("click", (ev) => {
   if (a === "addplayers") return gameAction("names", { names: game.names.concat(game.players.map((p) => p.name)) });
   if (a === "eliminate" && !confirm("Éliminer ce joueur ?")) return;
   if (a === "remove" && !confirm("Exclure ce joueur de la partie ? Il ne pourra pas revenir.")) return;
-  gameAction(a, { target: b.dataset.target || "", amount: +(b.dataset.amount || 0) });
+  gameAction(a, { target: b.dataset.target || "", amount: +(b.dataset.amount || 0), guess: b.dataset.guess || "" });
+});
+document.addEventListener("submit", (ev) => {
+  if (!ev.target.closest("[data-gform=addguest]")) return;
+  ev.preventDefault();
+  const name = $("manualName").value.trim();
+  if (name) gameAction("addguest", { guess: name }).then(() => $("manualName")?.focus());
 });
 document.addEventListener("submit", (ev) => {
   if (!ev.target.closest("[data-gform=addname]")) return;

@@ -301,6 +301,36 @@ def join(g: dict, gid: str, name: str = ""):
                          "waiting": waiting})
 
 
+MANUAL_GAMES = ("divan", "tmc", "never")  # jeux où l'animateur peut ajouter des participants sans téléphone
+
+
+def add_guest(g: dict, name: str):
+    """L'animateur ajoute un participant sans téléphone (tapé à la main) : c'est lui qui agit pour lui."""
+    if g["type"] not in MANUAL_GAMES:
+        raise GameError("Pas possible dans ce jeu")
+    name = " ".join((name or "").split())[:30]
+    if not name:
+        raise GameError("Écris un prénom")
+    if len(g["players"]) >= 30:
+        raise GameError("La partie est complète")
+    taken = {p["pid"] for p in g["players"]}
+    while (pid := secrets.token_hex(4)) in taken:
+        pass
+    g["players"].append({"id": "manual-" + secrets.token_hex(6), "pid": pid, "name": name, "alive": True, "role": None,
+                         "word": None, "waiting": False, "manual": True})
+
+
+def is_manual(g: dict, gid: str) -> bool:
+    return bool((player(g, gid) or {}).get("manual"))
+
+
+def vote_for(g: dict, target: str, answer: str, rng: random.Random = random):
+    """Je n'ai jamais : l'animateur enregistre la réponse d'un participant sans téléphone."""
+    if not is_manual(g, target):
+        raise GameError("Ce joueur répond sur son téléphone")
+    vote(g, target, answer, rng)
+
+
 def leave(g: dict, gid: str):
     """Un joueur part (ou est exclu), même en pleine partie : la partie continue sans lui."""
     p = player(g, gid)
@@ -314,7 +344,7 @@ def leave(g: dict, gid: str):
         g["candidates"] = [c for c in g["candidates"] if c != gid] or None
     # L'animateur s'en va : le joueur suivant reprend la main.
     if g["host"] == gid:
-        nxt = g["players"][0] if g["players"] else None
+        nxt = next((p for p in g["players"] if not p.get("manual")), None)
         g["host"], g["host_name"] = (nxt["id"], nxt["name"]) if nxt else ("", "")
     if g["type"] in BLACKJACKS:
         bj = g["bj"]
@@ -938,11 +968,12 @@ def tmc_answer(g: dict, gid: str, text: str):
     """Seule la personne interrogée écrit sa réponse (en secret) ; le devin, lui, parle à voix haute."""
     d = g["tmc"]["duo"]
     text = " ".join((text or "").split())[:80]
-    if g["phase"] != "answer" or not d or gid != d["subject"]:
+    proxy = gid == g["host"] and is_manual(g, d["subject"]) if d else False  # téléphone de l'animateur prêté
+    if g["phase"] != "answer" or not d or (gid != d["subject"] and not proxy):
         raise GameError("C'est à la personne interrogée d'écrire sa réponse")
     if not text:
         raise GameError("Écris une réponse")
-    d["answers"][gid] = text
+    d["answers"][d["subject"]] = text  # au nom du sujet, même saisi sur le téléphone de l'animateur
     g["phase"] = "guess"
 
 
@@ -1002,6 +1033,8 @@ def tmc_view(g: dict, gid: str) -> dict:
         duo = {"guesser": who(d["guesser"]), "subject": who(d["subject"]), "question": d["q"],
                "role": "guesser" if gid == d["guesser"] else "subject" if gid == d["subject"] else None,
                "mine": d["answers"].get(gid),  # la personne interrogée revoit sa propre réponse
+               # Sujet sans téléphone : l'animateur lui prête le sien pour écrire en secret.
+               "proxy": g["phase"] == "answer" and gid == g["host"] and is_manual(g, d["subject"]),
                "answer": d["answers"].get(d["subject"]) if reveal else None,
                "verdict": d["verdict"], "can_judge": g["phase"] == "judge" and gid == g["host"]}
     # Classement : points, et nombre de questions où chacun a deviné.
@@ -1258,7 +1291,9 @@ def view(g: dict, gid: str) -> dict:
         t = g.get("tally", {}).get(p["id"], {})
         out = {"pid": p["pid"], "name": p["name"], "alive": p["alive"] and not waiting, "waiting": waiting,
                "voted": p["id"] in g["votes"], "host": p["id"] == g["host"],
-               "drink": t.get("drink", 0), "give": t.get("give", 0)}
+               "drink": t.get("drink", 0), "give": t.get("give", 0), "manual": bool(p.get("manual"))}
+        if p.get("manual") and gid == g["host"] and g["type"] == "never":
+            out["answer"] = g["votes"].get(p["id"])  # l'animateur voit ce qu'il a saisi pour lui
         # Un éliminé dévoile son rôle, pas son mot (celui d'un civil aiderait les undercovers restants).
         if (ended or master or not p["alive"]) and p["role"]:
             out["role"] = ROLE_LABELS[p["role"]]

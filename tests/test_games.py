@@ -598,3 +598,51 @@ def test_tmc_player_leaving_mid_duo():
     games.leave(g, gone)
     d = g["tmc"]["duo"]
     assert gone not in (d["guesser"], d["subject"]) and g["phase"] == "answer"
+
+
+def test_manual_players_without_phone():
+    # Le Divan : l'animateur ajoute des participants tapés à la main et mène pour eux.
+    g = games.new_game("divan", host="h", name="Hôte")
+    games.add_guest(g, "  Mamie  ")
+    with pytest.raises(games.GameError):
+        games.add_guest(g, " ")
+    assert [p["name"] for p in g["players"]] == ["Hôte", "Mamie"] and g["players"][1]["manual"]
+    assert [p["manual"] for p in games.view(g, "h")["players"]] == [False, True]
+    games.start(g, random.Random(1))
+    games.divan_next(g, "h")  # Mamie sur le divan : l'animateur fait avancer
+    assert games.view(g, "h")["divan"]["current"]["name"] == "Mamie"
+    with pytest.raises(games.GameError):
+        games.add_guest(games.new_game("undercover", host="h"), "Zoé")  # pas dans tous les jeux
+
+    # Je n'ai jamais : l'animateur saisit la réponse du participant sans téléphone.
+    g = games.new_game("never", host="h", name="Hôte")
+    games.add_guest(g, "Papi")
+    papi = g["players"][1]["id"]
+    games.start(g, random.Random(1))
+    with pytest.raises(games.GameError):
+        games.vote_for(g, "h", "yes")  # l'animateur a un téléphone : il vote lui-même
+    games.vote_for(g, papi, "yes")
+    assert next(p for p in games.view(g, "h")["players"] if p["name"] == "Papi")["answer"] == "yes"
+    games.vote(g, "h", "no")
+    assert g["phase"] == "results" and [papi, "yes"] in g["results"]
+
+    # Tu me connais ? : sujet sans téléphone, l'animateur lui prête le sien.
+    g = games.new_game("tmc", host="h", name="Hôte")
+    games.add_guest(g, "Léa")
+    games.start(g, random.Random(1))
+    d = g["tmc"]["duo"]
+    if d["subject"] == "h":
+        games.tmc_answer(g, "h", "Rouge")
+    else:
+        assert games.view(g, "h")["tmc"]["duo"]["proxy"]
+        games.tmc_answer(g, "h", "Rouge")
+        assert games.view(g, "h")["tmc"]["duo"]["mine"] is None  # l'animateur ne la revoit pas
+    assert g["phase"] == "guess"
+
+
+def test_host_leaving_never_passes_to_manual_player():
+    g = games.new_game("divan", host="h", name="Hôte")
+    games.add_guest(g, "Mamie")
+    games.join(g, "a", "Ana")
+    games.leave(g, "h")
+    assert g["host"] == "a"

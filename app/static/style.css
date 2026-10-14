@@ -540,3 +540,7 @@ button.cs-spin { height: 54px; font-size: 1rem; background: #f2c14e; color: #2b1
 .tm-mine { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
 .tm-mine > div { padding: 10px 12px; border-radius: 12px; background: var(--card-2, rgba(255,255,255,.06)); }
 .tm-mine span { float: right; opacity: .75; font-variant-numeric: tabular-nums; }
+
+/* 📵 Participants sans téléphone */
+.tag-manual { font-size: .72rem; padding: 2px 8px; margin-left: 4px; vertical-align: middle; background: rgba(255,255,255,.12); }
+.tag-phone { font-size: .8rem; opacity: .7; }
