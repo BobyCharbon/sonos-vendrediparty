@@ -100,6 +100,8 @@ const GAME_RULES = {
       <li><b>💗 Émotions</b> : ce qui te touche, te pèse ou te rend heureux.</li>
       <li><b>🤝 Relations</b> : amitié, amour, famille, les autres et toi.</li>
       <li><b>🧸 Enfance</b> : souvenirs, famille, l'enfant que tu étais.</li>
+      <li><b>🌠 Rêves & avenir</b> : projets, envies, la personne que tu veux devenir.</li>
+      <li><b>🔮 Et si…</b> : questions imaginaires (« Si tu pouvais… ») qui en disent long sur toi.</li>
       <li><b>💞 Mode couple</b> (à part, remplace les autres) : à deux ou entre couples. Votre histoire, vos souvenirs, et « devine comment l'autre réagirait ». Rien de gênant : « l'autre », c'est la personne avec qui tu es.</li>
     </ul>
     <h3>Les règles d'or</h3>
@@ -295,12 +297,13 @@ document.getElementById("gamesRoot").innerHTML = `
           <div class="g-meta"><div class="g-title">Le Divan</div><div class="g-tag">Des cartes pour parler vrai.</div></div>
           ${helpBtn("divan")}
         </div>
-        <p class="g-desc">Chacun passe à son tour sur le divan : une carte est tirée et tu y réponds à voix haute. Souvenirs, émotions, relations, enfance… et un mode couple pour (re)découvrir l'autre. Pour se découvrir autrement, avec bienveillance.</p>
-        <div class="g-chips"><span>2+ joueurs</span><span>500 cartes</span><span>Sans alcool</span></div>
+        <p class="g-desc">Chacun passe à son tour sur le divan : une carte est tirée et tu y réponds à voix haute. Souvenirs, émotions, relations, enfance, rêves, « et si… » et un mode couple pour (re)découvrir l'autre. Pour se découvrir autrement, avec bienveillance.</p>
+        <div class="g-chips"><span>2+ joueurs</span><span>7 000 cartes</span><span>Sans alcool</span></div>
         <div class="g-label">Catégories</div>
         <div class="g-modes dv-cats" data-opt-group="cats">
           <button type="button" data-val="experiences" class="on">🌄 Expériences</button><button type="button" data-val="emotions" class="on">💗 Émotions</button>
           <button type="button" data-val="relations" class="on">🤝 Relations</button><button type="button" data-val="childhood" class="on">🧸 Enfance</button>
+          <button type="button" data-val="dreams" class="on">🌠 Rêves & avenir</button><button type="button" data-val="whatif" class="on">🔮 Et si…</button>
           <button type="button" data-val="couple">💞 Mode couple</button>
         </div>
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
@@ -711,7 +714,7 @@ function renderBJHost(g, btn) {
 }
 
 // 🛋️ Le Divan : une grande carte de couleur, retournée à chaque tirage.
-const DV_ICONS = { experiences: "🌄", emotions: "💗", relations: "🤝", childhood: "🧸", couple: "💞" };
+const DV_ICONS = { experiences: "🌄", emotions: "💗", relations: "🤝", childhood: "🧸", dreams: "🌠", whatif: "🔮", couple: "💞" };
 let dvSeen = 0;
 function divanHtml(g) {
   const d = g.divan;

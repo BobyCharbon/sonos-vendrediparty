@@ -206,7 +206,7 @@ def mode_label(g: dict) -> str | None:
 
 # Le Divan : questions pour parler vrai, dans quatre catégories (textes originaux).
 DIVAN_LABELS = {"experiences": "Expériences", "emotions": "Émotions", "relations": "Relations", "childhood": "Enfance",
-                "couple": "Couple"}
+                "dreams": "Rêves & avenir", "whatif": "Et si…", "couple": "Couple"}
 # Catégories proposées par défaut ; le mode couple se choisit à part (il remplace les autres).
 DIVAN_DEFAULT = [c for c in DIVAN_CARDS if c != "couple"]
 
@@ -797,7 +797,8 @@ def _divan_current(g: dict) -> dict | None:
 def _divan_draw(g: dict, rng):
     d = g["divan"]
     pool = [(c, q) for c in d["cats"] for q in DIVAN_CARDS[c]]
-    left = [x for x in pool if x[1] not in d["used"]] or pool
+    used = set(d["used"])
+    left = [x for x in pool if x[1] not in used] or pool
     cat, text = rng.choice(left)
     d["used"] = (d["used"] + [text])[-(len(pool) - 1):]
     d["n"] += 1
