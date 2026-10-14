@@ -9,7 +9,8 @@ GAME_ICONS.never = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" s
 GAME_ICONS.roulette = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="27" r="17"/><circle cx="24" cy="27" r="3"/><path d="M24 10v14M24 30v14M7 27h14M27 27h14M12 15l10 10M26 29l10 10M36 15L26 25M22 29L12 39"/><path d="M20 3h8l-4 6z"/></svg>`;
 GAME_ICONS.blackjack = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="21" height="29" rx="3" transform="rotate(-10 15.5 25.5)"/><rect x="21" y="8" width="21" height="29" rx="3" transform="rotate(8 31.5 22.5)"/><path d="M31.5 15.5c-2.8 2.8-5.5 4.6-5.5 7.2a2.7 2.7 0 0 0 4.6 1.9l-.9 3h3.6l-.9-3a2.7 2.7 0 0 0 4.6-1.9c0-2.6-2.7-4.4-5.5-7.2z"/></svg>`;
 GAME_ICONS.casino = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="24" r="19"/><circle cx="24" cy="24" r="10"/><path d="M24 5v9M24 34v9M5 24h9M34 24h9M10.6 10.6l6.3 6.3M31.1 31.1l6.3 6.3M37.4 10.6l-6.3 6.3M16.9 31.1l-6.3 6.3"/><circle cx="24" cy="24" r="2.5" fill="currentColor"/><circle cx="36" cy="8" r="3" fill="currentColor" stroke="none"/></svg>`;
-const GAME_THEME = { undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs" };
+GAME_ICONS.divan = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 24v-7a5 5 0 0 1 5-5h18a5 5 0 0 1 5 5v7"/><path d="M6 24a4 4 0 0 1 8 0v4h20v-4a4 4 0 0 1 8 0v10H6z"/><path d="M10 34v4M38 34v4"/></svg>`;
+const GAME_THEME = { undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv" };
 const isBJ = (g) => g.type === "blackjack";
 const helpBtn = (type, inGame = false) => `<button type="button" class="g-help" data-rules="${type}" ${inGame ? "data-ingame" : ""} aria-label="Règles du jeu">?</button>`;
 
@@ -81,6 +82,31 @@ const CASINO_RULES_DRINKS = `
     <p>Exemple : 2 gorgées sur Rouge et 1 sur le 17. Le 17 (noir) sort : tu bois 2 (Rouge perdu) et tu distribues 10 (jackpot) !</p>
     <p>Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi. Buvez avec modération !</p>`;
 const GAME_RULES = {
+  divan: `
+    <h3>Le principe</h3>
+    <p>Un jeu de cartes pour parler de soi : chacun passe à son tour <b>sur le divan</b> et répond à une question. Pas de points, pas de gagnant : juste de vraies conversations.</p>
+    <h3>Une séance</h3>
+    <ol>
+      <li>L'animateur choisit les catégories et ouvre la séance.</li>
+      <li>Une carte s'affiche sur tous les téléphones. La personne <b>sur le divan</b> y répond à voix haute, aussi longuement qu'elle le veut.</li>
+      <li>Elle a <b>un joker par tour</b> : une autre carte si celle-ci ne lui parle pas.</li>
+      <li>Les autres écoutent, peuvent poser une question de relance… et envoyer du <b>soutien ❤️</b>.</li>
+      <li>« Au suivant » : le divan passe au joueur suivant, avec une nouvelle carte.</li>
+    </ol>
+    <h3>Les catégories</h3>
+    <ul>
+      <li><b>🌄 Expériences</b> : moments marquants, choix, fiertés, regrets.</li>
+      <li><b>💗 Émotions</b> : ce qui te touche, te pèse ou te rend heureux.</li>
+      <li><b>🤝 Relations</b> : amitié, amour, famille, les autres et toi.</li>
+      <li><b>🧸 Enfance</b> : souvenirs, famille, l'enfant que tu étais.</li>
+    </ul>
+    <h3>Les règles d'or</h3>
+    <ul>
+      <li><b>Bienveillance</b> : on écoute sans juger, sans se moquer, sans interrompre.</li>
+      <li><b>Liberté</b> : on a toujours le droit de passer ou de rester en surface.</li>
+      <li><b>Confidentialité</b> : ce qui se dit sur le divan reste sur le divan.</li>
+    </ul>
+    <p>C'est un jeu de discussion, pas une vraie thérapie : si un sujet réveille quelque chose de lourd, parles-en à un professionnel.</p>`,
   casino: CASINO_RULES_COMMON + CASINO_RULES_CHIPS + CASINO_RULES_DRINKS,
   blackjack: BJ_RULES_COMMON + `
     <h3>Mode jetons</h3>
@@ -261,6 +287,23 @@ document.getElementById("gamesRoot").innerHTML = `
         <button class="g-go" data-create="roulette">Créer une roulette</button>
       </div>
 
+      <div class="gcard g-dv">
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.divan}</div>
+          <div class="g-meta"><div class="g-title">Le Divan</div><div class="g-tag">Des cartes pour parler vrai.</div></div>
+          ${helpBtn("divan")}
+        </div>
+        <p class="g-desc">Chacun passe à son tour sur le divan : une carte est tirée et tu y réponds à voix haute. Souvenirs, émotions, relations, enfance… Pour se découvrir autrement, avec bienveillance.</p>
+        <div class="g-chips"><span>2+ joueurs</span><span>80 cartes</span><span>Sans alcool</span></div>
+        <div class="g-label">Catégories</div>
+        <div class="g-modes dv-cats" data-opt-group="cats">
+          <button type="button" data-val="experiences" class="on">🌄 Expériences</button><button type="button" data-val="emotions" class="on">💗 Émotions</button>
+          <button type="button" data-val="relations" class="on">🤝 Relations</button><button type="button" data-val="childhood" class="on">🧸 Enfance</button>
+        </div>
+        <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
+        <button class="g-go" data-create="divan">Ouvrir une séance</button>
+      </div>
+
       <div class="gcard g-cs">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.casino}</div>
@@ -334,7 +377,7 @@ document.getElementById("gamesRoot").innerHTML = `
 // 🎮 Jeux : n'importe qui crée une partie (code + QR) et l'anime ; les autres la rejoignent avec son code.
 let myGame = store("vp_game") || "", game = null, wordShown = "", wordUntil = 0, guessDraft = "", showRoles = false, autoJoin = false;
 const GAME_PHASES = { lobby: "Inscriptions", words: "Indices", vote: "Vote", white_guess: "Devinette de Mr. White",
-  reveal: "Résultat de la manche", end: "Partie terminée", question: "Question", results: "Résultats", spun: "Résultat", bet: "Mises", play: "Partie" };
+  reveal: "Résultat de la manche", end: "Partie terminée", question: "Question", results: "Résultats", spun: "Résultat", bet: "Mises", play: "Partie", card: "En séance" };
 const phaseLabel = (g) => (g.type === "roulette" || isBJ(g) || g.type === "casino") && g.phase === "lobby" ? "Préparation"
   : g.type === "casino" && g.phase === "bet" ? "Faites vos jeux" : GAME_PHASES[g.phase];
 const WINNERS = { civils: "Les civils ont gagné 🎉", impostors: "Les undercovers ont gagné 🕵️", white: "Mr. White a trouvé le mot et gagne 🎩" };
@@ -379,12 +422,14 @@ function renderGame(g) {
   renderCasino(g);  // avant le texte : il dépend de l'état de la bille (en train de rouler ou arrêtée)
   const title = `<div class="g-head g-play-head"><div class="g-icon">${GAME_ICONS[g.type] || ""}</div>
     <div class="g-meta"><div class="g-title">${esc(g.name)}</div>
-    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${phaseLabel(g)}${g.round && g.phase !== "lobby" ? ` · ${{ undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour" }[g.type] || "question"} ${g.round}` : ""}</div></div>
+    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${phaseLabel(g)}${g.round && g.phase !== "lobby" ? ` · ${{ undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte" }[g.type] || "question"} ${g.round}` : ""}</div></div>
     ${helpBtn(g.type, true)}</div>`;
   const lastLine = g.last?.name ? `<p class="sub" style="margin:8px 0">${esc(g.last.name)} était <b>${esc(g.last.role)}</b>.${g.last.guess ? ` Mr. White a proposé « ${esc(g.last.guess)} »… raté !` : ""}</p>` : "";
   let body = "";
 
-  if (g.type === "casino") {
+  if (g.type === "divan") {
+    body = divanHtml(g);
+  } else if (g.type === "casino") {
     body = casinoStatusHtml(g);
   } else if (isBJ(g)) {
     body = bjTableHtml(g);
@@ -641,6 +686,44 @@ function renderBJHost(g, btn) {
         ${g.is_host && x.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(x.pid)}" title="Exclure de la table">✕</button>` : ""}
       </div>`;
     }).join("") || `<p class="empty" style="padding:12px">Personne à la table : fais scanner le QR ci-dessous.</p>`}</div>
+    ${g.is_host && !g.me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
+}
+
+// 🛋️ Le Divan : une grande carte de couleur, retournée à chaque tirage.
+const DV_ICONS = { experiences: "🌄", emotions: "💗", relations: "🤝", childhood: "🧸" };
+let dvSeen = 0;
+function divanHtml(g) {
+  const d = g.divan;
+  if (g.phase === "lobby") return `<div class="title">${g.is_host ? "Ouvre la séance quand tout le monde est installé." : "La séance va commencer…"}</div>
+    <div class="artist" style="margin-top:6px">Catégories : ${d.cats.map((c) => `${DV_ICONS[c]} ${d.labels[c]}`).join(" · ")}</div>
+    ${!g.me && !g.master ? `<button data-gact="join" style="width:100%;margin-top:12px">Rejoindre la séance</button>` : ""}`;
+  const c = d.card, fresh = c && c.id > dvSeen;
+  if (c) dvSeen = Math.max(dvSeen, c.id);
+  if (fresh && d.my_turn) navigator.vibrate?.(80);
+  return `<div class="dv-who">${d.my_turn ? "🛋️ <b>C'est ton tour sur le divan</b>" : `🛋️ Sur le divan : <b>${esc(d.current?.name || "…")}</b>`}</div>
+    ${c ? `<div class="dv-card dv-${c.cat} ${fresh ? "dv-flip" : ""}">
+      <div class="dv-cat">${DV_ICONS[c.cat]} ${d.labels[c.cat]}</div>
+      <div class="dv-q">${esc(c.text)}</div>
+      <div class="dv-foot">Le Divan · carte ${c.id}</div></div>` : ""}
+    <div class="dv-actions">
+      ${!d.my_turn && g.me ? `<button class="${d.hearted ? "" : "secondary"}" data-gact="dheart" ${d.hearted ? "disabled" : ""}>${d.hearted ? "❤️ Soutien envoyé" : "🤍 Envoyer du soutien"}</button>` : ""}
+      ${d.hearts ? `<div class="dv-hearts" aria-label="${d.hearts} soutiens">${"❤️".repeat(Math.min(d.hearts, 12))}</div>` : ""}
+    </div>
+    ${!g.me && !g.master ? `<button data-gact="join" style="width:100%;margin-top:12px">Rejoindre la séance</button>` : ""}`;
+}
+function renderDivanHost(g, btn) {
+  const d = g.divan;
+  const controls = g.phase === "lobby"
+    ? (g.is_host ? btn("start", "▶︎ Ouvrir la séance", "grow", g.players.length ? "" : "disabled") : "")
+    : d.can_lead ? btn("djoker", d.joker ? "Joker utilisé" : "🃏 Joker : autre carte", "secondary grow", d.joker ? "disabled" : "") + btn("dnext", "Au suivant ▶︎", "grow") : "";
+  $("gameHost").innerHTML = `
+    ${controls ? `<div class="row" style="margin-top:10px">${controls}</div>` : ""}
+    <h2>Autour du divan (${g.players.length})</h2>
+    <div class="list">${g.players.map((p) => `
+      <div class="track ${p.pid === d.current?.pid && g.phase === "card" ? "bj-turn" : ""}">
+        <div class="meta"><div class="title">${p.pid === d.current?.pid && g.phase === "card" ? "🛋️ " : ""}${esc(p.name)}${p.host ? " 🎲" : ""}</div></div>
+        ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la séance">✕</button>` : ""}
+      </div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
     ${g.is_host && !g.me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
 }
 
@@ -926,6 +1009,7 @@ function renderGameHost(g) {
   if (g.type === "roulette") return renderRouletteHost(g, btn);
   if (isBJ(g)) return renderBJHost(g, btn);
   if (g.type === "casino") return renderCasinoHost(g, btn);
+  if (g.type === "divan") return renderDivanHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
   const canRemove = g.is_host;
   const seeRoles = g.phase === "end" || (g.master && showRoles);
@@ -1012,6 +1096,7 @@ document.addEventListener("click", async (ev) => {
       white: card.querySelector("[data-opt=white]")?.checked ?? true, plays: card.querySelector("[data-opt=plays]")?.checked ?? false,
       mode: card.querySelector("[data-opt-group=mode] .on")?.dataset.val || "soft",
       // Blackjack : gorgées seulement si « Alcool » est coché.
+      cats: [...card.querySelectorAll("[data-opt-group=cats] .on")].map((x) => x.dataset.val),
       sips: card.querySelector("[data-opt=alcohol]") && !card.querySelector("[data-opt=alcohol]").checked ? 0
         : +(card.querySelector("[data-opt-group=sips] [data-val-out]")?.textContent || 0) });
     setGame(g.code); renderGame(g);
@@ -1044,7 +1129,7 @@ function rulesFor(type, g) {
 
 // « ? » : règles détaillées du jeu.
 const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", never: "Je n'ai jamais", roulette: "Roulette",
-  blackjack: "Blackjack", casino: "Casino" };
+  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");
   if (open) {
@@ -1072,6 +1157,11 @@ document.addEventListener("change", (ev) => {
 
 // Options de création : mode (boutons) et gorgées (− / +).
 document.addEventListener("click", (ev) => {
+  const cat = ev.target.closest("[data-opt-group=cats] [data-val]");
+  if (cat) {
+    const on = cat.parentElement.querySelectorAll(".on");
+    if (!(cat.classList.contains("on") && on.length === 1)) cat.classList.toggle("on");
+  }
   const opt = ev.target.closest("[data-opt-group=mode] [data-val]");
   if (opt) opt.parentElement.querySelectorAll("[data-val]").forEach((b) => b.classList.toggle("on", b === opt));
   const step = ev.target.closest("[data-opt-group=sips] [data-step]");

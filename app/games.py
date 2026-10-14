@@ -21,6 +21,7 @@ GAMES = {
     "roulette": "Roulette",
     "blackjack": "Blackjack",
     "casino": "Casino",
+    "divan": "Le Divan",
 }
 BLACKJACKS = ("blackjack",)
 
@@ -201,6 +202,99 @@ def mode_label(g: dict) -> str | None:
     return QUESTION_GAMES[g["type"]][0][g["options"].get("mode", "soft")][0]
 
 
+# Le Divan : questions pour parler vrai, dans quatre catégories (textes originaux).
+DIVAN_CARDS = {
+    "experiences": [
+        "Quel moment de ta vie aimerais-tu revivre, juste une journée ?",
+        "Quelle décision a le plus changé ta trajectoire ?",
+        "Quand t'es-tu senti·e vraiment fier·e de toi pour la dernière fois ?",
+        "Quel échec t'a finalement rendu service ?",
+        "Quelle peur as-tu surmontée, et comment ?",
+        "Quel voyage ou quel lieu t'a transformé·e ?",
+        "Raconte un moment où tu t'es senti·e complètement libre.",
+        "Qu'as-tu appris cette année que tu ignorais l'an dernier ?",
+        "Quel conseil donnerais-tu à la personne que tu étais il y a cinq ans ?",
+        "Quelle rencontre a changé ta façon de voir les choses ?",
+        "Quelle est la chose la plus courageuse que tu aies faite ?",
+        "Y a-t-il un « et si… » qui te trotte encore dans la tête ?",
+        "Quel moment difficile t'a le plus appris sur toi ?",
+        "Raconte une fois où tu as dit non alors que c'était difficile.",
+        "Quelle habitude a vraiment amélioré ta vie ?",
+        "Où et avec qui as-tu l'impression d'être à ta place ?",
+        "Quel rêve as-tu mis de côté, et pourquoi ?",
+        "Quel jour de ta vie mériterait d'être un film ?",
+        "Qu'aimerais-tu avoir vécu ou accompli dans dix ans ?",
+        "Quelle petite victoire de ces derniers temps personne n'a remarquée ?",
+    ],
+    "emotions": [
+        "Qu'est-ce qui te met en colère, et que cache cette colère ?",
+        "Quand t'es-tu senti·e seul·e alors que tu étais entouré·e ?",
+        "Qu'est-ce qui t'apaise quand tout va trop vite ?",
+        "Quelle émotion as-tu le plus de mal à montrer ?",
+        "De quoi as-tu peur en ce moment ?",
+        "Quand as-tu pleuré pour la dernière fois, et pourquoi ?",
+        "Qu'est-ce qui te rend profondément heureux·se, tout simplement ?",
+        "Y a-t-il quelque chose que tu ne t'es jamais pardonné ?",
+        "Quelle critique t'a le plus touché·e, et pourquoi ?",
+        "À quels signes sais-tu que tu as besoin d'une pause ?",
+        "Qu'est-ce qui te pèse le plus aujourd'hui ?",
+        "Qu'est-ce qui réveille ta jalousie ?",
+        "Dans quels moments te sens-tu le plus vivant·e ?",
+        "Comment réagis-tu quand quelqu'un te déçoit ?",
+        "Quelle chanson te ramène instantanément une émotion forte ?",
+        "Qu'aimerais-tu qu'on te dise plus souvent ?",
+        "Quand t'es-tu senti·e incompris·e ?",
+        "Qu'est-ce qui te rassure quand tu doutes ?",
+        "Quelle émotion aimerais-tu ressentir plus souvent ?",
+        "Qu'est-ce que tu gardes pour toi, de peur de déranger ?",
+    ],
+    "relations": [
+        "Qui t'a profondément marqué·e, sans le savoir ?",
+        "Qu'attends-tu vraiment d'une amitié ?",
+        "Quelle relation aimerais-tu réparer ?",
+        "À qui n'as-tu jamais vraiment dit merci ?",
+        "Qu'est-ce qui te fait accorder ta confiance… ou la retirer ?",
+        "Comment montres-tu aux autres que tu les aimes ?",
+        "Quelle est la plus belle preuve d'amitié qu'on t'ait donnée ?",
+        "Qu'est-ce que tes histoires d'amour t'ont appris ?",
+        "Quelle limite as-tu du mal à poser avec les autres ?",
+        "Avec qui peux-tu être totalement toi-même ?",
+        "Qu'est-ce qu'on comprend souvent mal chez toi ?",
+        "Qui admires-tu dans ton entourage, et pourquoi ?",
+        "Raconte une dispute qui t'a finalement rapproché·e de quelqu'un.",
+        "As-tu déjà dû laisser partir quelqu'un que tu aimais ?",
+        "Que fais-tu quand quelqu'un a besoin de toi ?",
+        "Quel compliment t'a vraiment touché·e ?",
+        "De qui te sens-tu loin, alors qu'il ou elle est proche ?",
+        "Qu'aimerais-tu que les personnes présentes sachent de toi ?",
+        "Dis à quelqu'un ici ce que tu apprécies chez lui ou chez elle.",
+        "Quel rôle joues-tu le plus souvent dans un groupe d'amis ?",
+    ],
+    "childhood": [
+        "Quel est ton plus beau souvenir d'enfance ?",
+        "Qui étais-tu à dix ans, et que rêvais-tu de devenir ?",
+        "Quelle règle de ta famille t'a marqué·e ?",
+        "Qu'est-ce qui te faisait peur quand tu étais petit·e ?",
+        "Quel adulte t'a fait te sentir important·e ?",
+        "Quelle odeur ou quel goût te ramène directement en enfance ?",
+        "De quoi as-tu manqué, enfant ?",
+        "Qu'as-tu hérité de tes parents, en bien comme en moins bien ?",
+        "Quel jeu ou quelle cachette adorais-tu ?",
+        "Quelle bêtise d'enfance te fait encore sourire ?",
+        "Comment exprimait-on les émotions chez toi ?",
+        "Quel moment de ton enfance a été plus dur qu'on ne le croit ?",
+        "Avais-tu un refuge, un endroit rien qu'à toi ?",
+        "Quel cadeau t'a le plus marqué·e ?",
+        "Que dirais-tu aujourd'hui à l'enfant de huit ans que tu étais ?",
+        "Qu'est-ce que l'école t'a appris sur toi ?",
+        "Quelle tradition familiale aimerais-tu transmettre ?",
+        "En quoi ressembles-tu encore à l'enfant que tu étais ?",
+        "Quel héros ou quelle héroïne t'inspirait ?",
+        "Qu'aurais-tu aimé qu'on te dise plus souvent, enfant ?",
+    ],
+}
+DIVAN_LABELS = {"experiences": "Expériences", "emotions": "Émotions", "relations": "Relations", "childhood": "Enfance"}
+
 ROLE_LABELS = {"civil": "Civil", "undercover": "Undercover", "white": "Mr. White"}
 
 
@@ -242,6 +336,8 @@ def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code
         "bj": {"shoe": [], "dealer": [], "seats": [], "turn": None, "hands": {}, "chips": {}, "rebuys": {}},
         # Casino (roulette européenne) : mises du tour, jetons, dernier lancer et numéros sortis.
         "casino": {"bets": {}, "chips": {}, "rebuys": {}, "spin": None, "history": [], "results": {}},
+        # Le Divan : catégories choisies, joueur sur le divan, carte en cours, soutiens reçus.
+        "divan": {"cats": list(DIVAN_CARDS), "turn": 0, "card": None, "used": [], "hearts": [], "joker": False, "n": 0},
     }
     if host and plays:
         join(g, host, name)
@@ -770,9 +866,81 @@ def casino_view(g: dict, gid: str) -> dict:
     }
 
 
+# --- Le Divan ---
+
+def divan_set_cats(g: dict, cats: list[str]):
+    cats = [c for c in DIVAN_CARDS if c in cats]
+    if not cats:
+        raise GameError("Choisis au moins une catégorie")
+    g["divan"]["cats"] = cats
+
+
+def _divan_current(g: dict) -> dict | None:
+    return g["players"][g["divan"]["turn"] % len(g["players"])] if g["players"] else None
+
+
+def _divan_draw(g: dict, rng):
+    d = g["divan"]
+    pool = [(c, q) for c in d["cats"] for q in DIVAN_CARDS[c]]
+    left = [x for x in pool if x[1] not in d["used"]] or pool
+    cat, text = rng.choice(left)
+    d["used"] = (d["used"] + [text])[-(len(pool) - 1):]
+    d["n"] += 1
+    d.update(card={"cat": cat, "text": text, "id": d["n"]}, hearts=[])
+    g["round"] = d["n"]
+
+
+def _divan_can_lead(g: dict, gid: str):
+    cur = _divan_current(g)
+    if g["phase"] != "card" or not (gid == g["host"] or (cur and cur["id"] == gid)):
+        raise GameError("C'est à la personne sur le divan (ou à l'animateur) de décider")
+
+
+def divan_next(g: dict, gid: str, rng: random.Random = random):
+    """Au suivant : le divan passe au joueur suivant, nouvelle carte."""
+    _divan_can_lead(g, gid)
+    g["divan"]["turn"] = (g["divan"]["turn"] + 1) % len(g["players"])
+    g["divan"]["joker"] = False
+    _divan_draw(g, rng)
+
+
+def divan_joker(g: dict, gid: str, rng: random.Random = random):
+    """Joker : une autre carte pour la même personne (une fois par tour)."""
+    _divan_can_lead(g, gid)
+    if g["divan"]["joker"]:
+        raise GameError("Le joker de ce tour a déjà été utilisé")
+    g["divan"]["joker"] = True
+    _divan_draw(g, rng)
+
+
+def divan_heart(g: dict, gid: str):
+    """Un soutien ❤️ pour la personne sur le divan (une fois par carte)."""
+    d = g["divan"]
+    cur = _divan_current(g)
+    if g["phase"] != "card" or not player(g, gid) or (cur and cur["id"] == gid):
+        raise GameError("Pas de soutien possible")
+    if gid not in d["hearts"]:
+        d["hearts"].append(gid)
+
+
+def divan_view(g: dict, gid: str) -> dict:
+    d = g["divan"]
+    cur = _divan_current(g)
+    return {"cats": d["cats"], "labels": DIVAN_LABELS, "card": d["card"], "hearts": len(d["hearts"]),
+            "hearted": gid in d["hearts"], "joker": d["joker"],
+            "current": {"pid": cur["pid"], "name": cur["name"]} if cur else None,
+            "my_turn": bool(cur) and cur["id"] == gid, "can_lead": bool(gid) and (gid == g["host"] or (bool(cur) and cur["id"] == gid))}
+
+
 def start(g: dict, rng: random.Random = random):
     """Distribue les rôles (Undercover) ou pose la première question (Qui de nous ?)."""
-    if g["type"] == "casino":
+    if g["type"] == "divan":
+        if not g["players"]:
+            raise GameError("Il faut au moins 1 joueur")
+        g["phase"] = "card"
+        g["divan"]["turn"] = 0
+        _divan_draw(g, rng)
+    elif g["type"] == "casino":
         casino_open(g)
     elif g["type"] in BLACKJACKS:
         bj_open_bets(g)
@@ -1006,6 +1174,8 @@ def view(g: dict, gid: str) -> dict:
         out["bj"] = bj_view(g, gid)
     if g["type"] == "casino":
         out["casino"] = casino_view(g, gid)
+    if g["type"] == "divan":
+        out["divan"] = divan_view(g, gid)
     if g["type"] == "roulette":
         out["names"] = g.get("names", [])
         out["history"] = list(reversed(g.get("history", [])))

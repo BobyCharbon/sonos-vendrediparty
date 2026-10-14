@@ -469,3 +469,28 @@ def test_casino_even_money_rules():
     assert games.casino_wins("color", "red", 1) and not games.casino_wins("color", "red", 2)
     assert games.casino_wins("parity", "even", 2) and not games.casino_wins("parity", "even", 0)
     assert games.casino_wins("half", "high", 19) and games.casino_wins("dozen", "3", 36)
+
+
+def test_divan_turns_joker_and_hearts():
+    g = games.new_game("divan", host="h", name="Hôte")
+    games.join(g, "a", "Ana")
+    games.divan_set_cats(g, ["childhood"])
+    with pytest.raises(games.GameError):
+        games.divan_set_cats(g, ["inconnue"])
+    games.start(g)
+    v = games.view(g, "h")["divan"]
+    assert v["current"]["name"] == "Hôte" and v["card"]["cat"] == "childhood" and v["my_turn"]
+    games.divan_heart(g, "a")
+    games.divan_heart(g, "a")  # une seule fois par carte
+    assert games.view(g, "h")["divan"]["hearts"] == 1
+    with pytest.raises(games.GameError):
+        games.divan_next(g, "a")  # Ana n'est ni sur le divan ni animatrice
+    first = g["divan"]["card"]["text"]
+    games.divan_joker(g, "h")
+    assert g["divan"]["card"]["text"] != first and g["divan"]["hearts"] == []
+    with pytest.raises(games.GameError):
+        games.divan_joker(g, "h")  # un seul joker par tour
+    games.divan_next(g, "h")
+    v = games.view(g, "a")["divan"]
+    assert v["current"]["name"] == "Ana" and v["my_turn"] and not v["joker"]
+    assert sum(len(q) for q in games.DIVAN_CARDS.values()) == 80

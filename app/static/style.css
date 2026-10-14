@@ -449,3 +449,29 @@ button.cs-spin { height: 54px; font-size: 1rem; background: #f2c14e; color: #2b1
 .rt-win { box-shadow: 0 0 0 3px #f2c14e, 0 0 18px #f2c14e; animation: rt-glow 1s ease-in-out infinite; z-index: 2; }
 @keyframes rt-glow { 50% { box-shadow: 0 0 0 3px #fff3c4, 0 0 28px #f2c14e; } }
 @media (prefers-reduced-motion: reduce) { .rt-win, .cw-num { animation: none; } }
+
+/* 🛋️ Le Divan */
+.g-dv { --g-bg: #2e3a59; --g-accent: #f2d0a4; --g-ink: #2b1d10; --g-soft: #dfe6f5; --g-chip: #222c45; }
+.game.g-dv { background: var(--g-bg); border: 0; color: #fff; border-radius: 22px; }
+.game.g-dv .artist { color: var(--g-soft); }
+.game.g-dv button:not(.secondary) { background: var(--g-accent); color: var(--g-ink); }
+.game.g-dv button.secondary { background: var(--g-chip); color: #fff; }
+.game.g-dv button.g-help { background: rgba(255,255,255,.16); color: #fff; }
+.dv-cats button { font-size: .85rem; }
+.dv-who { margin-top: 4px; font-size: 1.05rem; }
+.dv-card { --c1: #f4a261; --c2: #e76f51; position: relative; margin: 14px auto 4px; max-width: 340px; aspect-ratio: 5 / 7; box-sizing: border-box;
+  border-radius: 22px; padding: 22px 20px; display: flex; flex-direction: column; justify-content: space-between;
+  background: linear-gradient(160deg, var(--c1), var(--c2)); color: #1d1420; box-shadow: 0 18px 40px rgba(0,0,0,.45);
+  border: 6px solid rgba(255,255,255,.85); outline: 1px solid rgba(0,0,0,.08); }
+.dv-card.dv-emotions { --c1: #f7a8c4; --c2: #e0607e; }
+.dv-card.dv-relations { --c1: #9cc3ff; --c2: #5b7fe0; }
+.dv-card.dv-childhood { --c1: #b7e4a8; --c2: #5fb36c; }
+.dv-cat { font: 800 .85rem system-ui; letter-spacing: .12em; text-transform: uppercase; opacity: .8; }
+.dv-q { font: 800 clamp(1.35rem, 6.2vw, 1.8rem)/1.2 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: -0.01em; text-wrap: balance; }
+.dv-foot { font-size: .75rem; opacity: .6; text-align: right; }
+.dv-flip { animation: dv-flip .7s cubic-bezier(.2, .8, .3, 1.1); }
+@keyframes dv-flip { 0% { transform: perspective(900px) rotateY(90deg) scale(.9); opacity: .3; } 100% { transform: none; opacity: 1; } }
+.dv-actions { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 12px; }
+.dv-actions button { width: 100%; }
+.dv-hearts { font-size: 1.3rem; letter-spacing: 2px; animation: pop .3s ease-out; }
+@media (prefers-reduced-motion: reduce) { .dv-flip { animation: none; } }
