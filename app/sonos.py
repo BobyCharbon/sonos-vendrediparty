@@ -223,13 +223,18 @@ class Sonos:
     def launch_playlist(self, uid: str, playlist_id: str, keep: list[tuple[str, str]]):
         """Remplace la file par la playlist, en aléatoire (avec répétition) et fondu enchaîné.
         keep : (track_id, titre) des demandes à garder ; elles passent en premier."""
-        if playlist_id not in getattr(self, "_playlists", {}):
-            self.playlists()
-        if playlist_id not in self._playlists:
-            raise LookupError("Playlist introuvable")
         coord = self.coordinator(uid)
-        coord.clear_queue()
-        coord.add_to_queue(self._playlists[playlist_id][1])
+        if playlist_id.startswith("spotify:playlist:"):
+            # Playlist Spotify (même hors des favoris) : Sonos la lit avec le compte Spotify lié.
+            coord.clear_queue()
+            ShareLinkPlugin(coord).add_share_link_to_queue(playlist_id)
+        else:
+            if playlist_id not in getattr(self, "_playlists", {}):
+                self.playlists()
+            if playlist_id not in self._playlists:
+                raise LookupError("Playlist introuvable")
+            coord.clear_queue()
+            coord.add_to_queue(self._playlists[playlist_id][1])
         # Sonos mélange réellement la file : l'ordre de la file reste l'ordre de lecture.
         coord.play_mode = "SHUFFLE"
         coord.cross_fade = True

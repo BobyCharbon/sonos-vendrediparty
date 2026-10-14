@@ -307,10 +307,61 @@ class PlaylistRef(BaseModel):
     id: str
 
 
+SPOTIFY_PLAYLIST_RE = re.compile(r"(?:open\.spotify\.com/(?:intl-[a-z-]+/)?playlist/|spotify:playlist:)([A-Za-z0-9]{22})")
+
+
+def spotify_playlist_title(playlist_id: str) -> str:
+    # oEmbed : public, sans compte, et marche aussi pour les playlists éditoriales de Spotify.
+    try:
+        r = httpx.get("https://open.spotify.com/oembed", params={"url": f"https://open.spotify.com/playlist/{playlist_id}"}, timeout=8)
+        r.raise_for_status()
+        return r.json().get("title") or "Playlist Spotify"
+    except Exception:
+        return "Playlist Spotify"
+
+
+class TopPlaylist(BaseModel):
+    action: str  # add | remove | up
+    id: str = ""
+    url: str = ""
+
+
+@app.post("/api/admin/playlists/top", dependencies=[Depends(require_admin)])
+def admin_top_playlists(body: TopPlaylist):
+    """Liste des playlists favorites (Réglages) : ajout par lien Spotify ou depuis Sonos, retrait, ordre."""
+    top = store.session.top_playlists
+    if body.action == "add":
+        if body.url:
+            m = SPOTIFY_PLAYLIST_RE.search(body.url)
+            if not m:
+                raise HTTPException(400, "Colle le lien d'une playlist Spotify (Partager → Copier le lien)")
+            entry = {"id": f"spotify:playlist:{m.group(1)}", "title": spotify_playlist_title(m.group(1))}
+        else:
+            item = next((p for p in sonos.playlists() if p["id"] == body.id), None)
+            if item is None:
+                raise HTTPException(404, "Playlist introuvable")
+            entry = {"id": item["id"], "title": item["title"].strip()}
+        if any(p["id"] == entry["id"] for p in top):
+            raise HTTPException(409, "Cette playlist est déjà dans la liste")
+        top.append(entry)
+    elif body.action == "remove":
+        store.session.top_playlists = [p for p in top if p["id"] != body.id]
+    elif body.action == "up":
+        i = next((i for i, p in enumerate(top) if p["id"] == body.id), 0)
+        if i > 0:
+            top[i - 1], top[i] = top[i], top[i - 1]
+    else:
+        raise HTTPException(400, "Action inconnue")
+    store.save()
+    return admin_state()
+
+
 @app.post("/api/admin/playlist", dependencies=[Depends(require_admin)])
 def admin_playlist(body: PlaylistRef):
     """Remplace la file par une playlist Sonos, en aléatoire avec fondu enchaîné."""
     require_active()
+    if not (body.id.startswith(("sq:", "fav:")) or re.fullmatch(r"spotify:playlist:[A-Za-z0-9]{22}", body.id)):
+        raise HTTPException(400, "Playlist invalide")
     launch_playlist(body.id)
     return admin_state()
 
@@ -579,6 +630,7 @@ def admin_state():
         "guests": store.guests(),
         "bans": [{"guest_id": g, **b} for g, b in store.active_bans().items()],
         "messages": list(reversed(s.messages)),
+        "top_playlists": s.top_playlists,
     }
     if s.active:
         try:

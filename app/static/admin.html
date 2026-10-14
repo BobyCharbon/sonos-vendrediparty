@@ -32,15 +32,13 @@
     <section data-view="home">
       <!-- Pas de session -->
       <div id="setup" class="hidden">
-        <p class="sub">Choisis la pièce et une playlist (ou lance-la toi-même depuis l'app Sonos), puis démarre la soirée.</p>
+        <p class="sub">1. Lance ta playlist depuis l'app Sonos.<br>2. Choisis la pièce et démarre la soirée.<br>Tu pourras ensuite changer de playlist dans Réglages → Top playlists.</p>
         <div class="card">
           <h2 style="margin-top:0">Pièce Sonos</h2>
           <div class="row">
             <select id="room" class="grow"></select>
             <button class="secondary" id="reloadRooms" type="button" title="Actualiser">↻</button>
           </div>
-          <h2>Playlist</h2>
-          <select id="startPlaylist"><option value="">Garder ce qui joue (lancé depuis l'app Sonos)</option></select>
           <h2>Mode d'insertion</h2>
           <div class="seg" data-mode-picker></div>
           <button id="start" style="width:100%;margin-top:16px">🎉 Démarrer la soirée</button>
@@ -65,14 +63,6 @@
           <span id="volumeLabel" style="width:2.5em;text-align:right;font-variant-numeric:tabular-nums"></span>
         </div>
 
-        <h2>Playlists <button class="secondary" id="reloadPlaylists" type="button" style="padding:2px 8px;margin-left:4px" title="Actualiser">↻</button></h2>
-        <p class="sub" style="margin-top:-4px;font-size:.85rem">Remplace la file et lance la playlist en aléatoire avec fondu enchaîné. Les demandes des invités en attente sont gardées et passent en premier.</p>
-        <div id="playlists" class="chips"></div>
-        <details id="favBox" class="hidden" style="margin-top:8px">
-          <summary><span class="artist">Favoris Sonos ▸</span></summary>
-          <div id="favorites" class="chips" style="margin-top:8px"></div>
-        </details>
-
         <h2>Ajouter un titre</h2>
         <input id="addQ" type="search" placeholder="Titre, artiste…" autocomplete="off" enterkeyhint="search">
         <div id="addResults" class="list" style="margin-top:8px"></div>
@@ -95,6 +85,21 @@
         <div class="row" id="msgActions" style="margin-top:8px">
           <button class="secondary grow" id="msgReadAll" type="button">✓ Tout marquer comme lu</button>
         </div>
+
+        <h2>Top playlists</h2>
+        <p class="sub" style="margin-top:-4px;font-size:.85rem">▶︎ remplace la file et lance la playlist en aléatoire avec fondu enchaîné. Les demandes des invités en attente sont gardées et passent en premier.</p>
+        <div id="topPlaylists" class="list"></div>
+        <details style="margin-top:8px">
+          <summary><span class="artist">＋ Ajouter une playlist ▸</span></summary>
+          <form id="addPlaylistLink" class="row" style="margin-top:8px">
+            <input class="grow" type="text" id="playlistLink" placeholder="Lien Spotify d'une playlist" autocomplete="off">
+            <button>Ajouter</button>
+          </form>
+          <div class="row" style="margin-top:8px">
+            <select class="grow" id="sonosPlaylists"><option value="">Depuis Sonos (playlists et favoris)…</option></select>
+            <button type="button" class="secondary" id="addSonosPlaylist">Ajouter</button>
+          </div>
+        </details>
 
         <h2>Mode d'insertion</h2>
         <div class="seg" data-mode-picker></div>
@@ -279,6 +284,7 @@ function render(s) {
   }
   renderGuests(s);
   renderMessages(s);
+  renderTopPlaylists(s);
   renderQueue(s);
   const labels = { queued: "en attente", played: "joué", removed: "retiré" };
   $("requests").innerHTML = s.requests.length ? s.requests.map((r) => `
@@ -441,7 +447,7 @@ function listen() {
 
 $("login").addEventListener("submit", async (ev) => {
   ev.preventDefault();
-  try { await api("/api/admin/login", { pin: $("pin").value }); $("pin").value = ""; listen(); await refresh(); if (!state.active) loadRooms(); loadPlaylists(); initNotifications(); }
+  try { await api("/api/admin/login", { pin: $("pin").value }); $("pin").value = ""; listen(); await refresh(); if (!state.active) loadRooms(); initNotifications(); }
   catch (e) { toast(e.message, "err"); }
 });
 $("reloadRooms").onclick = loadRooms;
@@ -449,7 +455,7 @@ $("start").onclick = async () => {
   if (!$("room").value) return toast("Choisis une pièce", "err");
   $("start").disabled = true;
   try {
-    render(await api("/api/admin/start", { room_uid: $("room").value, mode: chosenMode, playlist: $("startPlaylist").value || null }));
+    render(await api("/api/admin/start", { room_uid: $("room").value, mode: chosenMode }));
     toast("Soirée démarrée 🎉", "ok");
   } catch (e) { toast(e.message, "err"); }
   $("start").disabled = false;
@@ -590,35 +596,48 @@ document.addEventListener("submit", async (ev) => {
 $("msgReadAll").onclick = async () => {
   try { render(await api("/api/admin/messages", { ids: null, action: "read" })); } catch (e) { toast(e.message, "err"); }
 };
-// Playlists Sonos et favoris : lancées en aléatoire avec fondu enchaîné.
-let playlists = null;
-async function loadPlaylists(force = false) {
-  if (playlists && !force) return renderPlaylists();
-  try { playlists = await api("/api/admin/playlists"); } catch (e) { $("playlists").innerHTML = `<span class="artist">${esc(e.message)}</span>`; return; }
-  renderPlaylists();
+// Top playlists (Réglages) : lancées en aléatoire avec fondu enchaîné.
+function renderTopPlaylists(s) {
+  const top = s.top_playlists || [];
+  $("topPlaylists").innerHTML = top.length ? top.map((p, i) => `
+    <div class="track">
+      <div class="meta"><div class="title">${p.id.startsWith("spotify:") ? "🟢" : "🔀"} ${esc(p.title)}</div>
+        <div class="artist">${p.id.startsWith("spotify:") ? "Spotify" : "Sonos"}</div></div>
+      <div class="icon-btns">
+        <button data-top="launch" data-id="${esc(p.id)}" title="Lancer en aléatoire" ${s.active ? "" : "disabled"}>▶︎</button>
+        ${i > 0 ? `<button class="secondary" data-top="up" data-id="${esc(p.id)}" title="Monter">⬆</button>` : ""}
+        <button class="danger" data-top="remove" data-id="${esc(p.id)}" title="Retirer de la liste">✕</button>
+      </div>
+    </div>`).join("") : `<p class="empty" style="padding:12px">Aucune playlist : ajoute un lien Spotify ci-dessous</p>`;
 }
-function renderPlaylists() {
-  const chip = (p) => `<button class="secondary" data-playlist="${esc(p.id)}" title="${esc(p.title)}">${p.kind === "sonos" ? "🔀" : "★"} ${esc(p.title)}</button>`;
-  const mine = playlists.filter((p) => p.kind === "sonos"), favs = playlists.filter((p) => p.kind !== "sonos");
-  $("playlists").innerHTML = mine.map(chip).join("") || `<span class="artist">Aucune playlist Sonos : enregistre-en une depuis l'app Sonos.</span>`;
-  $("favorites").innerHTML = favs.map(chip).join("");
-  $("favBox").classList.toggle("hidden", !favs.length);
-  const keep = $("startPlaylist").value;
-  $("startPlaylist").innerHTML = `<option value="">Garder ce qui joue (lancé depuis l'app Sonos)</option>`
-    + [["Playlists Sonos", mine], ["Favoris Sonos", favs]].filter(([, l]) => l.length).map(([label, l]) =>
-      `<optgroup label="${label}">${l.map((p) => `<option value="${esc(p.id)}">${esc(p.title)}</option>`).join("")}</optgroup>`).join("");
-  $("startPlaylist").value = keep;
+let sonosPlaylists = null;
+async function loadSonosPlaylists() {
+  if (sonosPlaylists) return;
+  try {
+    sonosPlaylists = await api("/api/admin/playlists");
+    $("sonosPlaylists").innerHTML = `<option value="">Depuis Sonos (playlists et favoris)…</option>`
+      + sonosPlaylists.map((p) => `<option value="${esc(p.id)}">${p.kind === "sonos" ? "Playlist" : "Favori"} · ${esc(p.title)}</option>`).join("");
+  } catch (e) { $("sonosPlaylists").innerHTML = `<option value="">${esc(e.message)}</option>`; }
 }
-$("reloadPlaylists").onclick = () => loadPlaylists(true);
+document.querySelector("#addPlaylistLink").closest("details").addEventListener("toggle", (ev) => { if (ev.target.open) loadSonosPlaylists(); });
+async function editTop(body, msg) {
+  try { render(await api("/api/admin/playlists/top", body)); if (msg) toast(msg, "ok"); return true; }
+  catch (e) { toast(e.message, "err"); return false; }
+}
+$("addPlaylistLink").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  if (await editTop({ action: "add", url: $("playlistLink").value.trim() }, "Playlist ajoutée")) $("playlistLink").value = "";
+});
+$("addSonosPlaylist").onclick = () => $("sonosPlaylists").value && editTop({ action: "add", id: $("sonosPlaylists").value }, "Playlist ajoutée");
 document.addEventListener("click", async (ev) => {
-  const b = ev.target.closest("[data-playlist]");
+  const b = ev.target.closest("[data-top]");
   if (!b) return;
-  const p = playlists.find((x) => x.id === b.dataset.playlist);
+  const p = (state.top_playlists || []).find((x) => x.id === b.dataset.id);
+  if (b.dataset.top !== "launch") return editTop({ action: b.dataset.top, id: p.id });
   if (!confirm(`Lancer « ${p.title} » en aléatoire ?\nLa file actuelle sera remplacée (les demandes en attente sont gardées).`)) return;
-  b.disabled = true;
+  b.disabled = true; b.textContent = "…";
   try { render(await api("/api/admin/playlist", { id: p.id })); toast(`« ${p.title} » lancée en aléatoire 🔀`, "ok"); }
-  catch (e) { toast(e.message, "err"); }
-  b.disabled = false;
+  catch (e) { toast(e.message, "err"); b.disabled = false; b.textContent = "▶︎"; }
 });
 
 // 🔔 Notifications des nouveaux messages (abonnement propre à l'admin : portée « /admin »).
@@ -652,7 +671,7 @@ $("logout").onclick = async (ev) => { ev.preventDefault(); await api("/api/admin
 (async () => {
   await refresh();
   if (state && !state.active) loadRooms();
-  if (state) { loadPlaylists(); initNotifications(); }
+  if (state) initNotifications();
   listen();
   // Filet de sécurité si le flux en direct est coupé (et pour le point « en ligne » des invités).
   setInterval(refresh, 10000);

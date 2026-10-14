@@ -136,3 +136,22 @@ def test_guest_state_has_eta_track_id_and_history(admin):  # noqa: F811
     assert s["now"]["track_id"] == "c" * 22
     assert "eta" in s["upcoming"][0] and s["upcoming"][0]["track_id"] == "a" * 22
     assert [p["title"] for p in s["played"]] == ["Avant"]  # sans le titre en cours
+
+
+def test_top_playlists_add_by_link_reorder_and_remove(admin, monkeypatch):  # noqa: F811
+    monkeypatch.setattr(main, "spotify_playlist_title", lambda pid: f"Titre {pid[:4]}")
+    main.store.session.top_playlists = []
+    link = "https://open.spotify.com/playlist/37i9dQZF1DX05r4Oy3Ln97?si=1faf458f55324fc0"
+    top = admin.post("/api/admin/playlists/top", json={"action": "add", "url": link}).json()["top_playlists"]
+    assert top == [{"id": "spotify:playlist:37i9dQZF1DX05r4Oy3Ln97", "title": "Titre 37i9"}]
+    assert admin.post("/api/admin/playlists/top", json={"action": "add", "url": link}).status_code == 409
+    assert admin.post("/api/admin/playlists/top", json={"action": "add", "url": "https://example.com"}).status_code == 400
+    admin.post("/api/admin/playlists/top", json={"action": "add", "url": "spotify:playlist:2J3eSB2MYy4TdKreAPNoXQ"})
+    top = admin.post("/api/admin/playlists/top", json={"action": "up", "id": "spotify:playlist:2J3eSB2MYy4TdKreAPNoXQ"}).json()["top_playlists"]
+    assert [p["title"] for p in top] == ["Titre 2J3e", "Titre 37i9"]
+    top = admin.post("/api/admin/playlists/top", json={"action": "remove", "id": top[0]["id"]}).json()["top_playlists"]
+    assert [p["title"] for p in top] == ["Titre 37i9"]
+
+
+def test_launch_rejects_unknown_playlist_ids(admin):  # noqa: F811
+    assert admin.post("/api/admin/playlist", json={"id": "http://evil"}).status_code == 400
