@@ -125,6 +125,37 @@ class Sonos:
     def play_at(self, uid: str, position: int):
         self.coordinator(uid).play_from_queue(position - 1)
 
+    def speakers(self, uid: str) -> list[dict]:
+        """Toutes les enceintes visibles, avec leur volume et leur appartenance au groupe de la soirée."""
+        coord = self.coordinator(uid)
+        result = []
+        for z in self._all_zones().values():
+            # On masque caissons, surrounds et 2e enceinte d'une paire stéréo ; mais si aucune
+            # enceinte d'un groupe n'est « visible » (cas de certaines paires), on garde la principale.
+            lone_master = z.uid == z.group.coordinator.uid and not any(m.is_visible for m in z.group.members)
+            if not (z.is_visible or lone_master):
+                continue
+            result.append({
+                "uid": z.uid,
+                "name": z.player_name,
+                "volume": z.volume,
+                "in_group": z.group.coordinator.uid == coord.uid,
+                "coordinator": z.uid == coord.uid,
+            })
+        return sorted(result, key=lambda sp: (not sp["in_group"], sp["name"].lower()))
+
+    def group_speaker(self, uid: str, speaker_uid: str, join: bool):
+        coord = self.coordinator(uid)
+        speaker = self._all_zones()[speaker_uid]
+        if join:
+            speaker.join(coord)
+        elif speaker.uid != coord.uid:
+            speaker.unjoin()
+        self._zones_at = 0  # la composition des groupes a changé
+
+    def set_speaker_volume(self, speaker_uid: str, volume: int):
+        self._all_zones()[speaker_uid].volume = volume
+
     def play(self, uid: str):
         self.coordinator(uid).play()
 

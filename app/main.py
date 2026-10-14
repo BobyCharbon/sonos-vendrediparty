@@ -120,9 +120,21 @@ def require_admin(request: Request):
         raise HTTPException(401, "Code admin requis")
 
 
+def _guest_cookie(nonce: str) -> str:
+    # Un jeton par saisie du code : l'hôte peut déconnecter une personne sans changer le code.
+    return f"{nonce}.{_token('guest', store.session.guest_pin + ':' + nonce)}"
+
+
+def guest_token(request: Request) -> str | None:
+    """Jeton de l'invité s'il est valide pour le code en cours et non révoqué."""
+    nonce, _, _sig = request.cookies.get("vp_guest", "").partition(".")
+    if not nonce or not hmac.compare_digest(request.cookies.get("vp_guest", ""), _guest_cookie(nonce)):
+        return None
+    return None if nonce in store.session.revoked else nonce
+
+
 def is_guest(request: Request) -> bool:
-    token = request.cookies.get("vp_guest", "")
-    return hmac.compare_digest(token, _token("guest", store.session.guest_pin))
+    return guest_token(request) is not None
 
 
 def require_guest(request: Request):
@@ -179,7 +191,7 @@ def guest_join(body: Login, request: Request, response: Response):
         guest_limiter.fail(ip)
         raise HTTPException(401, "Code incorrect")
     guest_limiter.success(ip)
-    set_auth_cookie(request, response, "vp_guest", _token("guest", store.session.guest_pin), "lax")
+    set_auth_cookie(request, response, "vp_guest", _guest_cookie(secrets.token_hex(8)), "lax")
     return {"ok": True}
 
 
@@ -299,6 +311,13 @@ def admin_unban(body: GuestRef):
     return admin_state()
 
 
+@app.post("/api/admin/kick", dependencies=[Depends(require_admin)])
+def admin_kick(body: GuestRef):
+    """Déconnecte un invité : il devra ressaisir le code (ce n'est pas un ban)."""
+    store.kick(body.guest_id)
+    return admin_state()
+
+
 @app.post("/api/admin/purge", dependencies=[Depends(require_admin)])
 def admin_purge(body: GuestRef):
     """Retire de la file tous les titres en attente d'un invité."""
@@ -329,6 +348,48 @@ class Volume(BaseModel):
 def admin_volume(body: Volume):
     require_active()
     sonos.set_volume(store.session.room_uid, max(0, min(100, body.volume)))
+    _snap["data"] = None
+    return {"ok": True}
+
+
+@app.get("/api/admin/speakers", dependencies=[Depends(require_admin)])
+def admin_speakers():
+    require_active()
+    try:
+        return sonos.speakers(store.session.room_uid)
+    except Exception as e:
+        raise HTTPException(502, f"Impossible de joindre les Sonos : {e}")
+
+
+class SpeakerGroup(BaseModel):
+    uid: str
+    join: bool
+
+
+@app.post("/api/admin/speakers/group", dependencies=[Depends(require_admin)])
+def admin_speaker_group(body: SpeakerGroup):
+    """Ajoute une enceinte au groupe de la soirée (elle joue la même musique) ou l'en retire."""
+    require_active()
+    try:
+        sonos.group_speaker(store.session.room_uid, body.uid, body.join)
+    except KeyError:
+        raise HTTPException(404, "Enceinte introuvable")
+    _snap["data"] = None
+    return sonos.speakers(store.session.room_uid)
+
+
+class SpeakerVolume(BaseModel):
+    uid: str
+    volume: int
+
+
+@app.post("/api/admin/speakers/volume", dependencies=[Depends(require_admin)])
+def admin_speaker_volume(body: SpeakerVolume):
+    require_active()
+    try:
+        sonos.set_speaker_volume(body.uid, max(0, min(100, body.volume)))
+    except KeyError:
+        raise HTTPException(404, "Enceinte introuvable")
     _snap["data"] = None
     return {"ok": True}
 
@@ -546,6 +607,7 @@ def state(request: Request, guest_id: str = ""):
     if not s.active:
         return {"active": False}
     store.seen(guest_id)
+    store.link_token(guest_id, guest_token(request))
     base = {
         "active": True, "room": s.room_name, "blocked": ban_message(guest_id, client_ip(request)),
         # Ses propres messages et les réponses de l'hôte.
@@ -593,6 +655,7 @@ def hello(body: Hello, request: Request):
     """L'invité a saisi son prénom : il apparaît dans l'admin."""
     check_guest_id(body.guest_id)
     store.register_guest(body.guest_id, clean_name(body.guest_name), client_ip(request))
+    store.link_token(body.guest_id, guest_token(request))
     store.seen(body.guest_id)
     return {"ok": True}
 

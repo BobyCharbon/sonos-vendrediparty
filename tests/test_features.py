@@ -134,3 +134,29 @@ def test_admin_adds_track_next_or_end(admin, monkeypatch):
     assert admin.post("/api/admin/add", json={"track_id": "a" * 22, "where": "end"}).status_code == 409
     # Les ajouts de l'hôte ne sont pas des demandes d'invités.
     assert main.store.pending() == []
+
+
+def test_kick_asks_code_again_without_banning(admin):
+    guest, other = TestClient(main.app), TestClient(main.app)
+    for c, gid in [(guest, "guest-kick"), (other, "guest-stay")]:
+        c.post("/api/join", json={"pin": main.store.session.guest_pin})
+        c.post("/api/hello", json={"guest_id": gid, "guest_name": gid})
+
+    admin.post("/api/admin/kick", json={"guest_id": "guest-kick"})
+    assert guest.get("/api/state?guest_id=guest-kick").status_code == 401
+    assert other.get("/api/state?guest_id=guest-stay").status_code == 200  # les autres restent connectés
+
+    # Il peut revenir avec le code : ce n'est pas un ban.
+    guest.post("/api/join", json={"pin": main.store.session.guest_pin})
+    assert guest.get("/api/state?guest_id=guest-kick").status_code == 200
+
+
+def test_speaker_group_and_volume(admin):
+    calls = admin.fake.calls
+    admin.fake.group_speaker = lambda uid, sp, join: calls.append(("group", sp, join))
+    admin.fake.set_speaker_volume = lambda sp, v: calls.append(("spvol", sp, v))
+    admin.fake.speakers = lambda uid: [{"uid": "RINCON_B", "name": "Cuisine", "volume": 20, "in_group": True, "coordinator": False}]
+
+    assert admin.post("/api/admin/speakers/group", json={"uid": "RINCON_B", "join": True}).json()[0]["in_group"]
+    admin.post("/api/admin/speakers/volume", json={"uid": "RINCON_B", "volume": -5})
+    assert calls == [("group", "RINCON_B", True), ("spvol", "RINCON_B", 0)]

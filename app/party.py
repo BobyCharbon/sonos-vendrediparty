@@ -41,6 +41,8 @@ class Session:
     guests: dict[str, dict] = field(default_factory=dict)
     # Messages des invités pour l'hôte : {"id", "guest_id", "name", "text", "at", "read"}.
     messages: list[dict] = field(default_factory=list)
+    # Jetons d'accès révoqués (invités déconnectés par l'hôte : ils doivent ressaisir le code).
+    revoked: list[str] = field(default_factory=list)
 
 
 class PartyStore:
@@ -76,7 +78,7 @@ class PartyStore:
         # Les bannissements et le code d'accès survivent d'une soirée à l'autre.
         self.session = Session(
             active=True, room_uid=room_uid, room_name=room_name, mode=mode, started_at=time.time(),
-            bans=self.session.bans, guest_pin=self.session.guest_pin,
+            bans=self.session.bans, guest_pin=self.session.guest_pin, revoked=self.session.revoked,
         )
         self.save()
 
@@ -85,6 +87,7 @@ class PartyStore:
         while (pin := f"{secrets.randbelow(10000):04d}") == old:
             pass
         self.session.guest_pin = pin
+        self.session.revoked = []  # le nouveau code invalide déjà tous les anciens jetons
         self.save()
         return pin
 
@@ -121,6 +124,22 @@ class PartyStore:
         g["name"] = name
         if ip and ip not in self.ignored_ips and ip not in g["ips"]:
             g["ips"].append(ip)
+        self.save()
+
+    def link_token(self, guest_id: str, token: str | None):
+        """Associe le jeton d'accès (cookie) à l'invité, pour pouvoir le déconnecter."""
+        g = self.session.guests.get(guest_id)
+        if g is None or not token or token in g.setdefault("tokens", []):
+            return
+        g["tokens"] = g["tokens"][-9:] + [token]
+        self.save()
+
+    def kick(self, guest_id: str):
+        """Déconnecte un invité : ses jetons sont révoqués, il devra ressaisir le code."""
+        g = self.session.guests.get(guest_id, {})
+        self.session.revoked = (self.session.revoked + g.get("tokens", []))[-500:]
+        g["tokens"] = []
+        self.last_seen.pop(guest_id, None)
         self.save()
 
     def seen(self, guest_id: str):

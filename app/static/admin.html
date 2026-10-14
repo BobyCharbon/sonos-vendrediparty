@@ -55,7 +55,8 @@
           <button class="secondary grow" id="playPause">⏸ Pause</button>
           <button class="secondary grow" id="skip">⏭ Passer</button>
         </div>
-        <div class="card row" style="margin-top:8px">
+        <div class="artist" style="margin:12px 0 4px">Volume global (toutes les enceintes du groupe)</div>
+        <div class="card row">
           <span>🔈</span>
           <input id="volume" class="grow" type="range" min="0" max="100" step="1" aria-label="Volume">
           <span>🔊</span>
@@ -84,6 +85,10 @@
         <h2>Mode d'insertion</h2>
         <div class="seg" data-mode-picker></div>
         <p class="sub" id="modeHelp" style="margin-top:8px"></p>
+
+        <h2>Enceintes</h2>
+        <p class="sub" style="margin-top:-4px;font-size:.85rem">Ajoute des enceintes au groupe de la soirée : elles jouent la même musique. Chaque curseur règle une enceinte ; le volume global est sur la page Soirée.</p>
+        <div id="speakers" class="list"><p class="empty">Chargement…</p></div>
       </div>
 
       <h2>Accès invités</h2>
@@ -158,6 +163,7 @@ function showView(view) {
   document.querySelectorAll("#tabs [data-tab]").forEach((el) => el.classList.toggle("on", el.dataset.tab === view));
   if (location.hash.slice(1) !== view) history.replaceState(null, "", view === "home" ? location.pathname : "#" + view);
   scrollTo(0, 0);
+  if (view === "settings" && typeof loadSpeakers === "function") loadSpeakers();
 }
 document.addEventListener("click", (ev) => {
   const t = ev.target.closest("[data-tab]");
@@ -329,7 +335,8 @@ function renderGuests(s) {
       <div class="row" style="gap:6px">
         ${g.ban
           ? `<button class="secondary" data-act="unban" data-g="${esc(g.guest_id)}">Débloquer</button>`
-          : `<button class="secondary" data-act="ban10" data-g="${esc(g.guest_id)}" title="Bloquer 10 minutes">⏸ 10 min</button>
+          : `<button class="secondary" data-act="kick" data-g="${esc(g.guest_id)}" title="Déconnecter (redemande le code)">⏏︎</button>
+             <button class="secondary" data-act="ban10" data-g="${esc(g.guest_id)}" title="Bloquer 10 minutes">⏸ 10 min</button>
              <button class="danger" data-act="ban" data-g="${esc(g.guest_id)}" title="Bannir">⛔</button>`}
         ${g.queued ? `<button class="danger" data-act="purge" data-g="${esc(g.guest_id)}" title="Retirer ses titres en attente">🗑</button>` : ""}
       </div>
@@ -352,6 +359,7 @@ document.addEventListener("click", async (ev) => {
   if (!b) return;
   const g = b.dataset.g, act = b.dataset.act;
   const calls = {
+    kick: ["/api/admin/kick", { guest_id: g }, "Invité déconnecté : il devra ressaisir le code"],
     ban10: ["/api/admin/ban", { guest_id: g, minutes: 10 }, "Bloqué 10 minutes"],
     ban: ["/api/admin/ban", { guest_id: g, minutes: null }, "Invité banni"],
     unban: ["/api/admin/unban", { guest_id: g }, "Invité débloqué"],
@@ -448,6 +456,52 @@ $("addResults").addEventListener("click", async (ev) => {
     b.textContent = "✓";
   } catch (e) { b.disabled = false; toast(e.message, "err"); }
 });
+
+// Enceintes : groupe de la soirée et volume de chacune.
+let speakersDragging = null, speakersTimer;
+async function loadSpeakers(list) {
+  if (!state || !state.active || $("liveSettings").classList.contains("hidden")) return;
+  try { renderSpeakers(list || await api("/api/admin/speakers")); }
+  catch (e) { $("speakers").innerHTML = `<p class="empty">${esc(e.message)}</p>`; }
+}
+function renderSpeakers(list) {
+  if (speakersDragging) return;  // pas de redessin pendant qu'on fait glisser un curseur
+  $("speakers").innerHTML = list.map((sp) => `
+    <div class="track" style="flex-wrap:wrap;${sp.in_group ? "" : "opacity:.7"}">
+      <div class="meta"><div class="title">${sp.in_group ? "🔊" : "🔈"} ${esc(sp.name)}</div>
+        <div class="artist">${sp.coordinator ? "enceinte principale de la soirée" : sp.in_group ? "dans le groupe" : "hors du groupe"}</div></div>
+      ${sp.coordinator ? "" : `<button class="${sp.in_group ? "danger" : "secondary"}" data-speaker="${esc(sp.uid)}" data-join="${sp.in_group ? "0" : "1"}">${sp.in_group ? "Retirer" : "＋ Ajouter"}</button>`}
+      <div class="row" style="width:100%;margin-top:6px">
+        <input class="grow" type="range" min="0" max="100" step="1" value="${sp.volume}" data-speaker-volume="${esc(sp.uid)}" aria-label="Volume ${esc(sp.name)}">
+        <span style="width:2.5em;text-align:right;font-variant-numeric:tabular-nums">${sp.volume}</span>
+      </div>
+    </div>`).join("") || `<p class="empty">Aucune enceinte trouvée</p>`;
+}
+$("speakers").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-speaker]");
+  if (!b) return;
+  b.disabled = true; b.textContent = "…";
+  try { renderSpeakers(await api("/api/admin/speakers/group", { uid: b.dataset.speaker, join: b.dataset.join === "1" })); }
+  catch (e) { toast(e.message, "err"); loadSpeakers(); }
+});
+$("speakers").addEventListener("input", (ev) => {
+  const r = ev.target.closest("[data-speaker-volume]");
+  if (!r) return;
+  speakersDragging = r.dataset.speakerVolume;
+  r.nextElementSibling.textContent = r.value;
+  clearTimeout(speakersTimer);
+  speakersTimer = setTimeout(() => api("/api/admin/speakers/volume", { uid: r.dataset.speakerVolume, volume: +r.value }).catch((e) => toast(e.message, "err")), 200);
+});
+$("speakers").addEventListener("change", (ev) => {
+  const r = ev.target.closest("[data-speaker-volume]");
+  if (!r) return;
+  clearTimeout(speakersTimer);
+  api("/api/admin/speakers/volume", { uid: r.dataset.speakerVolume, volume: +r.value })
+    .catch((e) => toast(e.message, "err"))
+    .finally(() => { speakersDragging = null; });
+});
+// Rafraîchi à l'ouverture de Réglages, puis toutes les 10 s tant que l'écran est affiché.
+setInterval(() => { if (location.hash === "#settings") loadSpeakers(); }, 10000);
 
 $("newPin").onclick = async () => {
   try { render(await api("/api/admin/pin", {})); toast("Nouveau code : " + state.guest_pin, "ok"); }
