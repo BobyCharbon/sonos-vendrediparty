@@ -628,7 +628,7 @@ def admin_state():
         "started_at": s.started_at,
         "spotify_configured": spotify is not None,
         "requests": [r.__dict__ for r in reversed(s.requests)],
-        "guests": store.guests(),
+        "guests": (store.prune_inactive(), store.guests())[1],
         "bans": [{"guest_id": g, **b} for g, b in store.active_bans().items()],
         "messages": list(reversed(s.messages)),
         "top_playlists": s.top_playlists,
@@ -840,14 +840,41 @@ def create_game(body: GameCreate, request: Request):
         except games.GameError as e:
             raise HTTPException(400, str(e))
     _game_creations[ip] = recent + [time.time()]
+    game_presence(request, body.guest_id, body.name)
     store.session.games[g["code"]] = g
     store.save()
     return games.view(g, body.guest_id)
 
 
+def game_presence(request: Request, guest_id: str, name: str):
+    """Un joueur (même sans le code de la musique) apparaît dans la liste des invités de l'admin."""
+    if not GUEST_ID_RE.match(guest_id or ""):
+        return
+    clean = " ".join((name or "").split())[:30]
+    if clean:
+        store.register_guest(guest_id, clean, client_ip(request), via="games")
+    else:
+        store.seen(guest_id)
+
+
+class Presence(BaseModel):
+    guest_id: str
+    name: str
+
+
+@app.post("/api/presence")
+def presence(body: Presence, request: Request):
+    """Prénom saisi dans l'onglet Jeux : l'hôte voit la personne dans ses Réglages."""
+    check_guest_id(body.guest_id)
+    game_presence(request, body.guest_id, body.name)
+    return {"ok": True}
+
+
 @app.get("/api/games/{code}")
-def game_state(code: str, guest_id: str = ""):
-    return games.view(get_game(code), guest_id)
+def game_state(code: str, request: Request, guest_id: str = "", name: str = ""):
+    g = get_game(code)
+    game_presence(request, guest_id, name)
+    return games.view(g, guest_id)
 
 
 class GameAction(BaseModel):
@@ -868,6 +895,7 @@ HOST_ACTIONS = {"start", "vote_start", "close_vote", "eliminate", "skip_guess", 
 def game_action(code: str, body: GameAction, request: Request):
     check_guest_id(body.guest_id)
     g = get_game(code)
+    game_presence(request, body.guest_id, body.name)
     a, me = body.action, body.guest_id
     # Cible d'un vote : un joueur (pid) ; pour « Je n'ai jamais », une réponse (yes / no).
     target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino") else "")
@@ -983,6 +1011,7 @@ def state(request: Request, guest_id: str = ""):
     s = store.session
     if not s.active:
         return {"active": False}
+    store.prune_inactive()
     store.seen(guest_id)
     store.link_token(guest_id, guest_token(request))
     base = {

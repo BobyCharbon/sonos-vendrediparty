@@ -9,7 +9,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 MODES = ("next", "fair")
-HOST_ID = "host"  # les ajouts de l'hôte sont des demandes comme les autres, signées « Hôte »
+HOST_ID = "host"
+INACTIVE_AFTER = 3 * 3600  # un invité sans activité depuis 3 h est déconnecté  # les ajouts de l'hôte sont des demandes comme les autres, signées « Hôte »
 
 
 @dataclass
@@ -67,6 +68,9 @@ class PartyStore:
         self.version = 0  # incrémenté à chaque modification : les pages ouvertes se rafraîchissent
         if not self.session.guest_pin:
             self.regenerate_pin()
+        # Invités d'avant le suivi d'activité : le délai de 3 h part du démarrage du serveur.
+        for g in self.session.guests.values():
+            g.setdefault("active_at", time.time())
         # Données d'avant la propagation des prénoms : on aligne sur le dernier prénom connu.
         for r in self.session.requests:
             name = self.session.guests.get(r.guest_id, {}).get("name")
@@ -83,8 +87,10 @@ class PartyStore:
         except (FileNotFoundError, ValueError, TypeError):
             return Session()
 
-    def save(self):
-        self.version += 1
+    def save(self, notify: bool = True):
+        # notify=False : on enregistre sans faire rafraîchir toutes les pages ouvertes.
+        if notify:
+            self.version += 1
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".tmp")
         tmp.write_text(json.dumps(asdict(self.session), ensure_ascii=False, indent=2))
@@ -133,13 +139,20 @@ class PartyStore:
         self.save()
         return req
 
-    def register_guest(self, guest_id: str, name: str, ip: str):
-        """Un invité entre (ou change de prénom) : il apparaît tout de suite dans l'admin."""
+    def register_guest(self, guest_id: str, name: str, ip: str, via: str = "music"):
+        """Un invité entre (ou change de prénom) : il apparaît tout de suite dans l'admin.
+        via : « music » (code de la soirée saisi) ou « games » (jeux, sans le code)."""
         g = self.session.guests.get(guest_id)
-        if g and g["name"] == name and (not ip or ip in self.ignored_ips or ip in g["ips"]):
+        if g and g["name"] == name and via in g.get("via", ["music"]) and (not ip or ip in self.ignored_ips or ip in g["ips"]):
+            self.seen(guest_id)
             return
         if g is None:
-            g = self.session.guests[guest_id] = {"name": name, "ips": [], "joined_at": time.time()}
+            if len(self.session.guests) >= 300:
+                return  # garde-fou : la page des jeux est publique
+            g = self.session.guests[guest_id] = {"name": name, "ips": [], "joined_at": time.time(), "via": []}
+        if via not in g.setdefault("via", ["music"]):
+            g["via"].append(via)
+        g["active_at"] = time.time()
         if g["name"] != name:
             self.rename_guest(guest_id, name)
         if ip and ip not in self.ignored_ips and ip not in g["ips"]:
@@ -180,8 +193,24 @@ class PartyStore:
         self.save()
 
     def seen(self, guest_id: str):
-        if guest_id in self.session.guests:
-            self.last_seen[guest_id] = time.time()
+        g = self.session.guests.get(guest_id)
+        if g is None:
+            return
+        now = time.time()
+        self.last_seen[guest_id] = now
+        # Dernière activité enregistrée (au plus toutes les 5 min) : elle survit à un redémarrage du serveur.
+        if now - g.get("active_at", 0) > 300:
+            g["active_at"] = now
+            self.save(notify=False)
+
+    def prune_inactive(self) -> list[str]:
+        """Déconnecte les invités sans activité depuis 3 h (ils devront ressaisir le code)."""
+        now = time.time()
+        idle = [gid for gid, g in self.session.guests.items()
+                if gid != HOST_ID and now - max(g.get("active_at") or g["joined_at"], self.last_seen.get(gid, 0)) > INACTIVE_AFTER]
+        for gid in idle:
+            self.kick(gid)
+        return idle
 
     def guest_ips(self, guest_id: str) -> set[str]:
         ips = set(self.session.guests.get(guest_id, {}).get("ips", []))
@@ -191,7 +220,8 @@ class PartyStore:
     def guests(self) -> list[dict]:
         """Invités entrés pendant la soirée, avec leurs titres et leur statut de blocage."""
         guests = {
-            gid: {"guest_id": gid, "name": g["name"], "joined_at": g["joined_at"], "total": 0, "queued": 0}
+            gid: {"guest_id": gid, "name": g["name"], "joined_at": g["joined_at"], "total": 0, "queued": 0,
+                  "via": g.get("via", ["music"]), "active_at": max(g.get("active_at") or g["joined_at"], self.last_seen.get(gid, 0))}
             for gid, g in self.session.guests.items()
         }
         for r in self.session.requests:

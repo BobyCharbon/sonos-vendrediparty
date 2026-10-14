@@ -271,7 +271,10 @@ function render(s) {
   $("noSpotify").classList.toggle("hidden", s.spotify_configured);
   $("tabs").classList.remove("hidden");
   $("setup").classList.toggle("hidden", s.active);
-  for (const id of ["live", "liveSettings", "liveGuests", "liveHistory"]) $(id).classList.toggle("hidden", !s.active);
+  for (const id of ["live", "liveSettings", "liveHistory"]) $(id).classList.toggle("hidden", !s.active);
+  // Invités : visibles même sans soirée (les jeux se jouent sans le code de la musique).
+  $("liveGuests").classList.toggle("hidden", !s.active && !s.guests.length);
+  renderGuests(s);
   if (!s.active) $("settingsBadge").classList.add("hidden");
   renderBans(s);
   renderGameAdmin(s);
@@ -303,7 +306,6 @@ function render(s) {
   if (so && so.volume != null && !volumeDragging && Date.now() - volumeSentAt > 3000) {
     $("volume").value = so.volume; $("volumeLabel").textContent = so.volume;
   }
-  renderGuests(s);
   renderMessages(s);
   renderTopPlaylists(s);
   renderQueue(s);
@@ -399,11 +401,16 @@ function banLabel(ban) {
   return `⏸ bloqué ${Math.max(1, Math.round((ban.until * 1000 - Date.now()) / 60000))} min`;
 }
 
+// « vu il y a 12 min » (déconnecté automatiquement après 3 h sans activité).
+function seenAgo(t) {
+  const m = Math.max(1, Math.round((Date.now() / 1000 - t) / 60));
+  return m < 60 ? `il y a ${m} min` : `il y a ${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`;
+}
 function renderGuests(s) {
   $("guests").innerHTML = s.guests.length ? s.guests.map((g) => `
     <div class="track" style="flex-wrap:wrap">
-      <div class="meta"><div class="title">${Date.now() / 1000 - g.last_seen < 20 ? `<span class="dot" title="En ligne"></span>` : ""}${esc(g.name)} ${g.ban ? `<span class="pill">${banLabel(g.ban)}</span>` : ""}</div>
-      <div class="artist">arrivé à ${hhmm(g.joined_at)} · ${g.total} titre${g.total > 1 ? "s" : ""} · ${g.queued} en attente</div></div>
+      <div class="meta"><div class="title">${Date.now() / 1000 - g.last_seen < 30 ? `<span class="dot" title="En ligne"></span>` : ""}${esc(g.name)} <span title="${g.via.includes("music") ? "Musique" : ""}${g.via.length > 1 ? " et " : ""}${g.via.includes("games") ? "Jeux" : ""}">${g.via.includes("music") ? "🎵" : ""}${g.via.includes("games") ? "🎮" : ""}</span> ${g.ban ? `<span class="pill">${banLabel(g.ban)}</span>` : ""}</div>
+      <div class="artist">arrivé à ${hhmm(g.joined_at)} · ${Date.now() / 1000 - g.last_seen < 30 ? "en ligne" : `vu ${seenAgo(g.active_at)}`}${g.via.includes("music") ? ` · ${g.total} titre${g.total > 1 ? "s" : ""} · ${g.queued} en attente` : ""}</div></div>
       <div class="row" style="gap:6px">
         ${g.ban
           ? `<button class="secondary" data-act="unban" data-g="${esc(g.guest_id)}">Débloquer</button>`

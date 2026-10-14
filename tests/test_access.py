@@ -84,3 +84,18 @@ def test_admin_three_tries_then_15s_between_each(monkeypatch):
     assert lim.blocked("ip") is not None  # … puis de nouveau 15 s d'attente
     lim.success("ip")
     assert lim.blocked("ip") is None
+
+
+def test_games_players_show_up_and_idle_guests_are_disconnected(monkeypatch):
+    from app import main
+    from app.party import INACTIVE_AFTER
+    client = TestClient(main.app)
+    assert client.post("/api/presence", json={"guest_id": "gamer-presence-1", "name": "Zoé"}).status_code == 200
+    g = main.store.session.guests["gamer-presence-1"]
+    assert g["name"] == "Zoé" and g["via"] == ["games"]
+    # 3 h sans activité : déconnecté (retiré de la liste).
+    g["active_at"] = g["joined_at"] = 0
+    main.store.last_seen.pop("gamer-presence-1", None)
+    assert "gamer-presence-1" in main.store.prune_inactive()
+    assert "gamer-presence-1" not in main.store.session.guests
+    assert INACTIVE_AFTER == 3 * 3600

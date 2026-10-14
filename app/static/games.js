@@ -400,7 +400,7 @@ async function refreshGame() {
   $("gHello").textContent = guestName;
   if (!myGame) return renderGame(null);
   try {
-    const g = await gapi(`/api/games/${myGame}?guest_id=${encodeURIComponent(guestId)}`);
+    const g = await gapi(`/api/games/${myGame}?guest_id=${encodeURIComponent(guestId)}&name=${encodeURIComponent(guestName)}`);
     if (autoJoin && !g.me && !g.is_host) { autoJoin = false; return gameAction("join"); }
     renderGame(g);
   } catch (e) {
@@ -1182,6 +1182,8 @@ $("gNameForm").addEventListener("submit", (ev) => {
   const name = $("gNameInput").value.trim().slice(0, 30);
   if (!name) return;
   guestName = name; store("vp_name", guestName);
+  // L'hôte voit la personne dans ses Réglages dès qu'elle a donné son prénom.
+  gapi("/api/presence", { guest_id: guestId, name: guestName }).catch(() => {});
   refreshGame();
   if (typeof refresh === "function") refresh();
 });
