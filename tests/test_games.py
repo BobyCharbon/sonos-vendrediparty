@@ -412,3 +412,60 @@ def test_21_with_three_cards_is_not_a_blackjack():
     games.bj_hit(g, "a")  # 5 + 6 + 10 = 21, mais en 3 cartes
     h = g["bj"]["hands"]["a"]
     assert h["result"] == "win" and h["sips"] == 4  # simple victoire : le double, pas le triple
+
+
+class FixedRng(random.Random):
+    def __init__(self, n):
+        super().__init__(0)
+        self.n = n
+
+    def randrange(self, *args):
+        return self.n
+
+
+def casino(sips=0):
+    g = games.new_game("casino", host="a", name="Ana", sips=sips)
+    games.join(g, "b", "Bob")
+    games.start(g)
+    return g
+
+
+def test_casino_chips_payouts():
+    g = casino()
+    games.casino_bet(g, "a", "n:17", 10)      # plein gagnant : +350
+    games.casino_bet(g, "a", "color:red", 10)  # 17 est noir : -10
+    games.casino_bet(g, "b", "dozen:2", 20)    # 13-24 : +40
+    with pytest.raises(games.GameError):
+        games.casino_bet(g, "b", "n:37", 5)
+    with pytest.raises(games.GameError):
+        games.casino_bet(g, "b", "color:violet", 5)
+    with pytest.raises(games.GameError):
+        games.casino_bet(g, "b", "half:low", 81)  # plus que ses jetons
+    games.casino_spin(g, FixedRng(17))
+    c = g["casino"]
+    assert c["results"]["a"]["net"] == 340 and c["results"]["a"]["jackpot"] and c["chips"]["a"] == 440
+    assert c["results"]["b"]["net"] == 40 and c["chips"]["b"] == 140
+    with pytest.raises(games.GameError):
+        games.casino_bet(g, "a", "n:1", 5)  # rien ne va plus
+    v = games.view(g, "b")["casino"]
+    assert v["history"][0] == 17 and v["me"]["result"]["net"] == 40
+
+
+def test_casino_zero_and_sips_mode():
+    g = casino(sips=3)
+    games.casino_bet(g, "a", "color:red", 2)
+    with pytest.raises(games.GameError):
+        games.casino_bet(g, "a", "n:5", 2)  # 3 gorgées max par tour
+    games.casino_bet(g, "a", "n:5", 1)
+    games.casino_bet(g, "b", "n:0", 1)
+    games.casino_spin(g, FixedRng(0))
+    r = g["casino"]["results"]
+    assert r["a"] == {"staked": 3, "drink": 4, "give": 0, "net": 0, "jackpot": False}  # 3 perdues + 1 (zéro)
+    assert r["b"]["give"] == 10 and r["b"]["drink"] == 0  # plein sur le 0 : jackpot, pas de pénalité
+    assert games.view(g, "a")["me"]["drink"] == 4
+
+
+def test_casino_even_money_rules():
+    assert games.casino_wins("color", "red", 1) and not games.casino_wins("color", "red", 2)
+    assert games.casino_wins("parity", "even", 2) and not games.casino_wins("parity", "even", 0)
+    assert games.casino_wins("half", "high", 19) and games.casino_wins("dozen", "3", 36)

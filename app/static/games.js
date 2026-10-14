@@ -8,7 +8,8 @@ const GAME_ICONS = {
 GAME_ICONS.never = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7h13l-1.6 14a4.9 4.9 0 0 1-9.8 0z"/><path d="M14.5 26v12"/><path d="M9.5 38h10"/><path d="M27 7h13l-1.6 14a4.9 4.9 0 0 1-9.8 0z"/><path d="M33.5 26v12"/><path d="M28.5 38h10"/><path d="M9 14h11M28 14h11"/></svg>`;
 GAME_ICONS.roulette = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="27" r="17"/><circle cx="24" cy="27" r="3"/><path d="M24 10v14M24 30v14M7 27h14M27 27h14M12 15l10 10M26 29l10 10M36 15L26 25M22 29L12 39"/><path d="M20 3h8l-4 6z"/></svg>`;
 GAME_ICONS.blackjack = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="21" height="29" rx="3" transform="rotate(-10 15.5 25.5)"/><rect x="21" y="8" width="21" height="29" rx="3" transform="rotate(8 31.5 22.5)"/><path d="M31.5 15.5c-2.8 2.8-5.5 4.6-5.5 7.2a2.7 2.7 0 0 0 4.6 1.9l-.9 3h3.6l-.9-3a2.7 2.7 0 0 0 4.6-1.9c0-2.6-2.7-4.4-5.5-7.2z"/></svg>`;
-const GAME_THEME = { undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj" };
+GAME_ICONS.casino = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="24" r="19"/><circle cx="24" cy="24" r="10"/><path d="M24 5v9M24 34v9M5 24h9M34 24h9M10.6 10.6l6.3 6.3M31.1 31.1l6.3 6.3M37.4 10.6l-6.3 6.3M16.9 31.1l-6.3 6.3"/><circle cx="24" cy="24" r="2.5" fill="currentColor"/><circle cx="36" cy="8" r="3" fill="currentColor" stroke="none"/></svg>`;
+const GAME_THEME = { undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs" };
 const isBJ = (g) => g.type === "blackjack";
 const helpBtn = (type, inGame = false) => `<button type="button" class="g-help" data-rules="${type}" ${inGame ? "data-ingame" : ""} aria-label="Règles du jeu">?</button>`;
 
@@ -43,7 +44,44 @@ const BJ_RULES_DRINKS = `
     </ul>
     <p>Exemple : tu mises 2 gorgées. Perdu : tu bois 2. Gagné : tu en distribues 4. Blackjack : tu en distribues 6.</p>
     <p>Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi. Buvez avec modération !</p>`;
+const CASINO_RULES_COMMON = `
+    <h3>Le principe</h3>
+    <p>Une roulette européenne : 37 cases, de 0 à 36 (18 rouges, 18 noires et le 0 vert). On mise sur le tapis, l'animateur lance la bille… et on regarde où elle tombe.</p>
+    <h3>Un tour</h3>
+    <ol>
+      <li><b>Faites vos jeux</b> : choisis un jeton, puis touche une case du tapis. Tu peux miser sur plusieurs cases, et toucher plusieurs fois la même pour ajouter. « Effacer » retire toutes tes mises.</li>
+      <li><b>Rien ne va plus</b> : l'animateur lance la bille. La roue tourne sur tous les téléphones et la bille s'arrête sur un numéro.</li>
+      <li>Les mises sont réglées, et l'animateur lance le tour suivant.</li>
+    </ol>
+    <h3>Les mises</h3>
+    <ul>
+      <li><b>Plein</b> : un numéro (0 à 36).</li>
+      <li><b>Douzaine</b> : 1-12, 13-24 ou 25-36.</li>
+      <li><b>Chances simples</b> : rouge ou noir, pair ou impair, 1-18 (manque) ou 19-36 (passe).</li>
+      <li>Quand le <b>0</b> sort, toutes les douzaines et chances simples perdent.</li>
+    </ul>
+    <p>Sur le tapis, ta mise est en doré ; les mises des autres joueurs en blanc. Les derniers numéros sortis s'affichent sous la roue.</p>`;
+const CASINO_RULES_CHIPS = `
+    <h3>Mode jetons</h3>
+    <ul>
+      <li>Chacun démarre avec <b>100 jetons</b>.</li>
+      <li><b>Plein</b> gagnant : 35 fois la mise. <b>Douzaine</b> : 2 fois. <b>Chance simple</b> : 1 fois (la mise est rendue en plus).</li>
+      <li>Plus de jetons ? « Recharger » redonne 100 jetons, et tout le monde voit les recharges…</li>
+    </ul>`;
+const CASINO_RULES_DRINKS = `
+    <h3>Mode gorgées 🍻</h3>
+    <p>On mise des <b>gorgées</b>, au total jusqu'à la mise maximale choisie par l'animateur pour chaque tour.</p>
+    <ul>
+      <li><b>Mise perdue</b> : tu bois les gorgées misées sur les cases perdantes.</li>
+      <li><b>Chance simple gagnée</b> : tu distribues le <b>double</b> de ta mise.</li>
+      <li><b>Douzaine gagnée</b> : tu distribues le <b>triple</b>.</li>
+      <li><b>Plein gagné : JACKPOT</b>, tu distribues <b>10 fois</b> ta mise, à répartir comme tu veux.</li>
+      <li><b>Le 0 sort</b> : la maison gagne, chaque joueur qui a misé boit <b>1 gorgée de plus</b>… sauf ceux qui avaient misé sur le 0.</li>
+    </ul>
+    <p>Exemple : 2 gorgées sur Rouge et 1 sur le 17. Le 17 (noir) sort : tu bois 2 (Rouge perdu) et tu distribues 10 (jackpot) !</p>
+    <p>Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi. Buvez avec modération !</p>`;
 const GAME_RULES = {
+  casino: CASINO_RULES_COMMON + CASINO_RULES_CHIPS + CASINO_RULES_DRINKS,
   blackjack: BJ_RULES_COMMON + `
     <h3>Mode jetons</h3>
     <ul>
@@ -223,6 +261,22 @@ document.getElementById("gamesRoot").innerHTML = `
         <button class="g-go" data-create="roulette">Créer une roulette</button>
       </div>
 
+      <div class="gcard g-cs">
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.casino}</div>
+          <div class="g-meta"><div class="g-title">Casino</div><div class="g-tag">Faites vos jeux, rien ne va plus !</div></div>
+          ${helpBtn("casino")}
+        </div>
+        <p class="g-desc">Une vraie roulette européenne : chacun mise sur le tapis (numéro, rouge ou noir, pair ou impair, douzaines…), l'animateur lance la bille, et la roue tourne sur tous les téléphones.</p>
+        <div class="g-chips"><span>1+ joueur</span><span>Plein ×35</span><span>Jetons ou gorgées</span></div>
+        <label class="g-opt"><span>🍻 Alcool : on mise des gorgées <small>perdu : tu bois · gagné : tu distribues</small></span><input type="checkbox" class="switch" data-opt="alcohol"></label>
+        <div class="g-opt" data-alcohol-only hidden><span>Mise maximale <small>en gorgées, par tour</small></span>
+          <div class="g-stepper" data-opt-group="sips"><button type="button" data-step="-1" aria-label="Moins">−</button><b data-val-out>3</b><button type="button" data-step="1" aria-label="Plus">+</button></div>
+        </div>
+        <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
+        <button class="g-go" data-create="casino">Ouvrir la table</button>
+      </div>
+
       <div class="gcard g-bj">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.blackjack}</div>
@@ -243,6 +297,14 @@ document.getElementById("gamesRoot").innerHTML = `
     <div id="gamePlay" class="hidden">
       <div id="gameHud" class="g-hud hidden" aria-live="polite"></div>
       <div id="game" class="card game"></div>
+      <div id="casinoWheel" class="cwheel hidden">
+        <div class="cw-wrap">
+          <svg id="cwSvg" viewBox="-110 -110 220 220" role="img" aria-label="Roulette"></svg>
+          <div class="cw-orbit" id="cwOrbit"><div class="cw-ball" id="cwBall"></div></div>
+        </div>
+        <div id="cwResult" class="cw-result" aria-live="polite"></div>
+        <div id="cwHistory" class="cw-history"></div>
+      </div>
       <div id="roulette" class="roulette hidden">
         <div class="wheel-wrap"><div class="wheel-pointer" aria-hidden="true"></div><svg id="wheel" viewBox="-100 -100 200 200" role="img" aria-label="Roue"></svg></div>
         <div id="rouletteResult" class="roulette-result" aria-live="polite"></div>
@@ -273,7 +335,8 @@ document.getElementById("gamesRoot").innerHTML = `
 let myGame = store("vp_game") || "", game = null, wordShown = "", wordUntil = 0, guessDraft = "", showRoles = false, autoJoin = false;
 const GAME_PHASES = { lobby: "Inscriptions", words: "Indices", vote: "Vote", white_guess: "Devinette de Mr. White",
   reveal: "Résultat de la manche", end: "Partie terminée", question: "Question", results: "Résultats", spun: "Résultat", bet: "Mises", play: "Partie" };
-const phaseLabel = (g) => (g.type === "roulette" || isBJ(g)) && g.phase === "lobby" ? "Préparation" : GAME_PHASES[g.phase];
+const phaseLabel = (g) => (g.type === "roulette" || isBJ(g) || g.type === "casino") && g.phase === "lobby" ? "Préparation"
+  : g.type === "casino" && g.phase === "bet" ? "Faites vos jeux" : GAME_PHASES[g.phase];
 const WINNERS = { civils: "Les civils ont gagné 🎉", impostors: "Les undercovers ont gagné 🕵️", white: "Mr. White a trouvé le mot et gagne 🎩" };
 
 async function gapi(path, body) {
@@ -313,14 +376,17 @@ function renderGame(g) {
   const me = g.me;
   const nameOf = (pid) => esc(g.players.find((p) => p.pid === pid)?.name || "?");
   $("game").className = "card game " + (GAME_THEME[g.type] || "");
+  renderCasino(g);  // avant le texte : il dépend de l'état de la bille (en train de rouler ou arrêtée)
   const title = `<div class="g-head g-play-head"><div class="g-icon">${GAME_ICONS[g.type] || ""}</div>
     <div class="g-meta"><div class="g-title">${esc(g.name)}</div>
-    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${phaseLabel(g)}${g.round && g.phase !== "lobby" ? ` · ${{ undercover: "manche", roulette: "tirage", blackjack: "main" }[g.type] || "question"} ${g.round}` : ""}</div></div>
+    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${phaseLabel(g)}${g.round && g.phase !== "lobby" ? ` · ${{ undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour" }[g.type] || "question"} ${g.round}` : ""}</div></div>
     ${helpBtn(g.type, true)}</div>`;
   const lastLine = g.last?.name ? `<p class="sub" style="margin:8px 0">${esc(g.last.name)} était <b>${esc(g.last.role)}</b>.${g.last.guess ? ` Mr. White a proposé « ${esc(g.last.guess)} »… raté !` : ""}</p>` : "";
   let body = "";
 
-  if (isBJ(g)) {
+  if (g.type === "casino") {
+    body = casinoStatusHtml(g);
+  } else if (isBJ(g)) {
     body = bjTableHtml(g);
   } else if (g.type === "roulette") {
     body = g.is_host
@@ -439,16 +505,16 @@ function bjOutcomeFx(g) {
 }
 function playFx(kind, sub) {
   document.querySelector(".fx")?.remove();
-  const title = { win: "GAGNÉ !", blackjack: "BLACKJACK !", push: "ÉGALITÉ", lose: "PERDU", bust: "SAUTÉ !" }[kind];
-  const good = kind === "win" || kind === "blackjack", bad = kind === "lose" || kind === "bust";
+  const title = { win: "GAGNÉ !", blackjack: "BLACKJACK !", jackpot: "JACKPOT !", push: "ÉGALITÉ", mixed: "MITIGÉ", lose: "PERDU", bust: "SAUTÉ !" }[kind];
+  const good = ["win", "blackjack", "jackpot"].includes(kind), bad = kind === "lose" || kind === "bust";
   const fx = document.createElement("div");
-  fx.className = `fx fx-${good ? "good" : bad ? "bad" : "even"}${kind === "blackjack" ? " fx-bj" : ""}`;
+  fx.className = `fx fx-${good ? "good" : bad ? "bad" : "even"}${kind === "blackjack" || kind === "jackpot" ? " fx-bj" : ""}`;
   fx.setAttribute("role", "status");
   let bits = "";
   if (good) {
     // Confettis : chaque morceau part dans une direction au hasard, puis retombe.
     const colors = ["#ffd166", "#ff4f9a", "#4fd1c5", "#8b7bff", "#ffffff", "#3ddc97"];
-    const n = kind === "blackjack" ? 110 : 70;
+    const n = kind === "win" ? 70 : 120;
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, d = 25 + Math.random() * 45;
       bits += `<i class="fx-c" style="--x:${(Math.cos(a) * d).toFixed(1)}vmax;--y:${(Math.sin(a) * d - 10).toFixed(1)}vmax;--r:${Math.round(Math.random() * 720 - 360)}deg;--c:${colors[i % colors.length]};--d:${(Math.random() * 0.25).toFixed(2)}s;--w:${6 + Math.round(Math.random() * 6)}px"></i>`;
@@ -467,14 +533,16 @@ function playFx(kind, sub) {
   const close = () => { fx.classList.add("fx-out"); setTimeout(() => fx.remove(), 350); };
   fx.addEventListener("click", close);
   document.body.append(fx);
-  navigator.vibrate?.({ win: [80, 60, 80], blackjack: [100, 50, 100, 50, 220], push: [60], lose: [320], bust: [120, 60, 320] }[kind]);
-  setTimeout(close, kind === "blackjack" ? 3800 : 3000);
+  navigator.vibrate?.({ win: [80, 60, 80], blackjack: [100, 50, 100, 50, 220], jackpot: [100, 50, 100, 50, 100, 50, 300],
+    push: [60], mixed: [60, 60, 60], lose: [320], bust: [120, 60, 320] }[kind]);
+  setTimeout(close, kind === "blackjack" || kind === "jackpot" ? 3800 : 3000);
 }
 
 // Compteur fixe en haut à droite : mes jetons (blackjack) et mes gorgées (bues / distribuées).
 function renderHud(g) {
   const me = g.me, sips = (g.options?.sips || 0) > 0;
-  const chips = isBJ(g) && me && !sips ? g.bj.seats.find((x) => x.pid === me.pid)?.chips : null;
+  const chips = !me || sips ? null : isBJ(g) ? g.bj.seats.find((x) => x.pid === me.pid)?.chips
+    : g.type === "casino" ? g.casino.me?.chips : null;
   const items = [];
   if (chips != null) items.push(`<div class="hud-item"><span>💰</span><b>${chips}</b><small>jetons</small></div>`);
   if (sips && me) {
@@ -575,6 +643,171 @@ function renderBJHost(g, btn) {
     }).join("") || `<p class="empty" style="padding:12px">Personne à la table : fais scanner le QR ci-dessous.</p>`}</div>
     ${g.is_host && !g.me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
 }
+
+// 🎰 Casino : roue européenne en SVG ; la roue et la bille tournent en sens inverse, même tirage sur tous les écrans.
+const WHEEL = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
+const RED = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
+const numColor = (n) => n === 0 ? "green" : RED.has(n) ? "red" : "black";
+const BET_LABELS = { "color:red": "Rouge", "color:black": "Noir", "parity:even": "Pair", "parity:odd": "Impair",
+  "half:low": "1-18", "half:high": "19-36", "dozen:1": "1-12", "dozen:2": "13-24", "dozen:3": "25-36" };
+const betLabel2 = (key) => BET_LABELS[key] || key.split(":")[1];
+function casinoWins(key, n) {
+  const [kind, t] = key.split(":");
+  if (kind === "n") return +t === n;
+  if (n === 0) return false;
+  return { color: () => RED.has(n) === (t === "red"), parity: () => (n % 2 === 0) === (t === "even"),
+    half: () => (n <= 18) === (t === "low"), dozen: () => Math.floor((n - 1) / 12) + 1 === +t }[kind]();
+}
+let cwBuilt = false, cwSpin = "", cwRot = 0, cbRot = 0, cwShown = "", casinoChip = 0, cwSpinningUntil = 0;
+
+function casinoWheelSvg() {
+  const a = 360 / 37, rad = (d) => (d - 90) * Math.PI / 180;
+  const pt = (r, d) => `${(r * Math.cos(rad(d))).toFixed(2)} ${(r * Math.sin(rad(d))).toFixed(2)}`;
+  let out = `<defs><radialGradient id="cwGold" cx="40%" cy="35%"><stop offset="0" stop-color="#fff3c4"/><stop offset=".5" stop-color="#e2b04a"/><stop offset="1" stop-color="#7a5418"/></radialGradient>
+    <radialGradient id="cwWood" cx="50%" cy="50%"><stop offset=".8" stop-color="#4a2a12"/><stop offset="1" stop-color="#2a170a"/></radialGradient></defs>
+    <circle r="108" fill="url(#cwWood)" stroke="#c9973a" stroke-width="2"/><circle r="94" fill="#1a1012" stroke="#c9973a" stroke-width="1"/>`;
+  WHEEL.forEach((n, i) => {
+    const d0 = (i - 0.5) * a, d1 = (i + 0.5) * a;
+    const fill = { green: "#0f7b3e", red: "#c8102e", black: "#16121f" }[numColor(n)];
+    out += `<path d="M${pt(92, d0)} A92 92 0 0 1 ${pt(92, d1)} L${pt(62, d1)} A62 62 0 0 0 ${pt(62, d0)} Z" fill="${fill}" stroke="#c9973a" stroke-width=".6"/>`;
+    out += `<text transform="rotate(${(i * a).toFixed(2)}) translate(0 -81)" text-anchor="middle" dominant-baseline="middle" fill="#fff" font-size="8.5" font-weight="800" font-family="system-ui">${n}</text>`;
+  });
+  out += `<circle r="62" fill="#2a170a" stroke="#c9973a" stroke-width="1.2"/><circle r="50" fill="url(#cwGold)" opacity=".9"/>`;
+  for (let i = 0; i < 8; i++) out += `<path d="M0 0 L${pt(46, i * 45)}" stroke="#7a5418" stroke-width="3" stroke-linecap="round"/>`;
+  return out + `<circle r="14" fill="url(#cwGold)" stroke="#7a5418" stroke-width="2"/><circle r="5" fill="#fff3c4"/>`;
+}
+
+function revealCasino(g) {
+  const sp = g.casino.spin;
+  const show = g.phase === "results" && sp && cwShown === sp.id;
+  $("cwResult").innerHTML = show
+    ? `<div class="cw-num ${numColor(sp.number)}">${sp.number}</div><div class="cw-desc">${sp.number === 0 ? "Zéro ! La maison gagne" : `${RED.has(sp.number) ? "Rouge" : "Noir"} · ${sp.number % 2 ? "Impair" : "Pair"} · ${sp.number <= 18 ? "1-18" : "19-36"}`}</div>` : "";
+  // Derniers numéros (le tout dernier n'apparaît qu'une fois la bille arrêtée).
+  const hist = (show || g.phase !== "results" ? g.casino.history : g.casino.history.slice(1)).slice(0, 14);
+  $("cwHistory").innerHTML = hist.map((n) => `<span class="cw-h ${numColor(n)}">${n}</span>`).join("");
+}
+
+function casinoFx(g) {
+  const r = g.casino.me?.result, sp = g.casino.spin;
+  if (!r || fxSeen === "c" + sp.id || (sp.age ?? 0) > 20) return;
+  fxSeen = "c" + sp.id;
+  if (document.hidden) return;
+  if (drinks(g)) {
+    const kind = r.give && r.drink ? "mixed" : r.give ? (r.jackpot ? "jackpot" : "win") : "lose";
+    const sub = [r.drink ? `🍻 Bois ${sipWord(r.drink)}` : "", r.give ? `🎉 Distribue ${sipWord(r.give)}` : ""].filter(Boolean).join(" · ");
+    return playFx(kind, sub);
+  }
+  const kind = r.net > 0 ? (r.jackpot ? "jackpot" : "win") : r.net < 0 ? "lose" : "push";
+  playFx(kind, r.net > 0 ? `+${r.net} jetons` : r.net < 0 ? `${r.net} jetons` : "Ni gagné ni perdu");
+}
+
+function renderCasino(g) {
+  const box = $("casinoWheel");
+  box.className = "cwheel " + (g.type === "casino" ? GAME_THEME.casino : "hidden");
+  if (g.type !== "casino") return;
+  if (!cwBuilt) { $("cwSvg").innerHTML = casinoWheelSvg(); cwBuilt = true; }
+  const sp = g.casino.spin;
+  if (g.phase === "results" && sp && sp.id !== cwSpin) {
+    cwSpin = sp.id;
+    const a = 360 / 37, k = WHEEL.indexOf(sp.number), left = Math.max(0, 7 - sp.age);
+    const fresh = left > 0.4;
+    const W = cwRot + (fresh ? 720 : 0) + (((sp.wheel - cwRot) % 360) + 360) % 360;
+    const P = ((k * a + W) % 360 + 360) % 360;
+    const B = cbRot - (fresh ? 360 * 4 : 0) - (((cbRot - P) % 360) + 360) % 360;
+    cwRot = W; cbRot = B;
+    const svg = $("cwSvg"), orbit = $("cwOrbit"), ball = $("cwBall");
+    svg.style.transition = fresh ? `transform ${left}s cubic-bezier(.15,.6,.2,1)` : "none";
+    orbit.style.transition = fresh ? `transform ${left}s cubic-bezier(.2,.62,.25,1)` : "none";
+    svg.style.transform = `rotate(${W}deg)`;
+    orbit.style.transform = `rotate(${B}deg)`;
+    ball.style.animation = "none"; void ball.offsetWidth;
+    ball.style.animation = fresh ? `cw-drop ${left}s linear forwards` : "none";
+    ball.classList.toggle("landed", !fresh);
+    if (fresh) {
+      cwSpinningUntil = Date.now() + left * 1000;
+      setTimeout(() => {
+        cwShown = sp.id;
+        if (game?.casino?.spin?.id === sp.id) renderGame(game);  // résultat, tapis et animation personnelle
+      }, left * 1000 + 150);
+    } else cwShown = sp.id;
+  }
+  if (g.phase === "bet" && !sp) { $("cwBall").classList.remove("landed"); }
+  revealCasino(g);
+  if (cwShown === sp?.id) casinoFx(g);
+}
+
+function casinoStatusHtml(g) {
+  const c = g.casino, me = c.me, sp = c.spin;
+  const rolling = g.phase === "results" && sp && cwShown !== sp.id;
+  if (g.phase === "lobby") return `<div class="title">${g.is_host ? "Ouvre la table quand tout le monde est installé." : "La table va ouvrir…"}</div>`;
+  if (rolling) return `<div class="title">Rien ne va plus… la bille roule ! 🎲</div>`;
+  if (g.phase === "bet") {
+    const limit = c.drinks || me?.chips || 0;
+    return `<div class="title">Faites vos jeux !</div>
+      <div class="artist">${!me ? "Assieds-toi pour miser." : `Ta mise : <b>${me.staked}</b> / ${limit} ${c.drinks ? "gorgée" + (limit > 1 ? "s" : "") : "jetons"}`}</div>
+      ${c.drinks ? `<div class="artist" style="font-size:.8rem;margin-top:4px">Perdu : tu bois ta mise · chance simple : distribue ×2 · douzaine : ×3 · plein : ×10 · zéro : +1 pour tous</div>` : ""}`;
+  }
+  const r = me?.result;
+  const mine = !r ? (me ? "Tu n'avais rien misé." : "")
+    : c.drinks ? [r.drink ? `🍻 tu bois ${sipWord(r.drink)}` : "", r.give ? `🎉 tu distribues ${sipWord(r.give)}` : ""].filter(Boolean).join(" · ") || "Rien à boire"
+    : r.net > 0 ? `Gagné : +${r.net} jetons${r.jackpot ? " 🎯" : ""}` : r.net < 0 ? `Perdu : ${r.net} jetons` : "Ni gagné ni perdu";
+  return `<div class="title">Le ${sp.number} ${sp.number === 0 ? "vert" : RED.has(sp.number) ? "rouge" : "noir"} est sorti !</div><div class="artist">${mine}</div>`;
+}
+
+function renderCasinoHost(g, btn) {
+  const c = g.casino, me = c.me, sp = c.spin, open = g.phase === "bet";
+  const revealed = g.phase === "results" && sp && cwShown === sp.id, rolling = g.phase === "results" && !revealed;
+  const n = revealed ? sp.number : null;
+  const bettors = c.table.filter((t) => t.staked).length;
+  const controls = !g.is_host ? "" : {
+    lobby: btn("start", "▶︎ Ouvrir la table", "grow", g.players.length ? "" : "disabled"),
+    bet: btn("cspin", `🎲 Rien ne va plus ! (${bettors}/${g.players.length} ont misé)`, "grow cs-spin", bettors ? "" : "disabled"),
+    results: btn("next", rolling ? "La bille roule…" : "▶︎ Nouveau tour", "grow cs-spin", rolling ? "disabled" : ""),
+  }[g.phase] || "";
+  // Jetons : valeurs utiles selon le mode ; on garde le dernier choisi.
+  const values = c.drinks ? Array.from({ length: Math.min(c.drinks, 5) }, (_, i) => i + 1) : [1, 5, 10, 25, 50];
+  if (!values.includes(casinoChip)) casinoChip = values[c.drinks ? 0 : 2] ?? values[0];
+  const left = me ? (c.drinks || me.chips) - me.staked : 0;
+  const mineOn = (key) => me?.bets.find((b) => `${b.kind}:${b.target}` === key)?.amount || 0;
+  const cell = (key, label, cls = "") => {
+    const mine = mineOn(key), others = (c.board[key] || 0) - mine;
+    return `<button type="button" class="rt-cell ${cls} ${n != null && casinoWins(key, n) ? "rt-win" : ""}" data-cbet="${key}" ${open && me ? "" : "disabled"}>
+      <span>${label}</span>${mine ? `<i class="rt-chip">${mine}</i>` : ""}${others > 0 ? `<i class="rt-others">${others}</i>` : ""}</button>`;
+  };
+  let grid = cell("n:0", "0", "rt-zero");
+  for (let i = 1; i <= 36; i++) grid += cell(`n:${i}`, i, `rt-${numColor(i)}`);
+  const outside = ["dozen:1", "dozen:2", "dozen:3", "half:low", "parity:even", "color:red", "color:black", "parity:odd", "half:high"]
+    .map((k) => cell(k, BET_LABELS[k], k.startsWith("color") ? `rt-${k.split(":")[1]}` : "rt-out")).join("");
+  const summary = (t) => t.bets.map((b) => `${betLabel2(`${b.kind}:${b.target}`)} ×${b.amount}`).join(" · ");
+  const resultTxt = (t) => !t.result || !revealed ? "" : c.drinks
+    ? [t.result.drink ? `🍻 ${t.result.drink}` : "", t.result.give ? `🎁 ${t.result.give}` : ""].filter(Boolean).join(" · ") || "rien"
+    : (t.result.net > 0 ? `+${t.result.net}` : `${t.result.net}`) + (t.result.jackpot ? " 🎯" : "");
+  $("gameHost").innerHTML = `
+    ${controls ? `<div class="row" style="margin-top:10px">${controls}</div>` : ""}
+    ${!me ? (g.phase !== "lobby" ? `<button data-gact="join" style="width:100%;margin-top:10px">S'asseoir à la table</button>` : "") : `
+      ${open ? `<div class="cs-chips" role="group" aria-label="Valeur du jeton">${values.map((v) => `<button type="button" class="cs-chip v${values.indexOf(v)} ${v === casinoChip ? "on" : ""}" data-cchip="${v}" ${v > left ? "disabled" : ""}>${c.drinks ? `🍻${v}` : v}</button>`).join("")}
+        <button type="button" class="secondary cs-clear" data-gact="cclear" ${me.staked ? "" : "disabled"}>Effacer</button></div>` : ""}
+      ${!c.drinks && me.chips < 1 && !me.staked && open ? `<button data-gact="crebuy" style="width:100%;margin-top:8px">Recharger ${c.start_chips} jetons</button>` : ""}`}
+    <div class="rt ${open && me ? "" : "rt-closed"}">${grid}</div>
+    <div class="rt rt-outside ${open && me ? "" : "rt-closed"}">${outside}</div>
+    <h2>À la table (${g.players.length})</h2>
+    <div class="list">${c.table.map((t) => `
+      <div class="track">
+        <div class="meta"><div class="title">${esc(t.name)}${c.drinks ? "" : `<span class="artist"> · 💰 ${t.chips}${t.rebuys ? ` (rechargé ${t.rebuys}×)` : ""}</span>`}${sipsBadge(g.players.find((p) => p.pid === t.pid) || {})}</div>
+          <div class="artist" style="white-space:normal">${t.staked ? summary(t) : g.phase === "bet" ? "réfléchit…" : "n'a pas misé"}${resultTxt(t) ? ` · <b>${resultTxt(t)}</b>` : ""}</div></div>
+        ${g.is_host && t.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(t.pid)}" title="Exclure de la table">✕</button>` : ""}
+      </div>`).join("") || `<p class="empty" style="padding:12px">Personne à la table : fais scanner le QR ci-dessous.</p>`}</div>
+    ${g.is_host && !g.me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
+}
+document.addEventListener("click", (ev) => {
+  const chip = ev.target.closest("[data-cchip]");
+  if (chip) { casinoChip = +chip.dataset.cchip; return renderGameHost(game); }
+  const cell = ev.target.closest("[data-cbet]");
+  if (cell && game?.type === "casino") {
+    navigator.vibrate?.(15);
+    gameAction("cbet", { target: cell.dataset.cbet, amount: casinoChip });
+  }
+});
 
 // 🎡 Roulette : roue dessinée en SVG, tournée en CSS ; même tirage (index + décalage) sur tous les téléphones.
 const WHEEL_COLORS = ["#ff4f9a", "#ffb347", "#4fd1c5", "#8b7bff", "#ffe14d", "#3ddc97", "#ff7a59", "#5ab0ff"];
@@ -692,6 +925,7 @@ function renderGameHost(g) {
   }[g.phase] || "";
   if (g.type === "roulette") return renderRouletteHost(g, btn);
   if (isBJ(g)) return renderBJHost(g, btn);
+  if (g.type === "casino") return renderCasinoHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
   const canRemove = g.is_host;
   const seeRoles = g.phase === "end" || (g.master && showRoles);
@@ -799,16 +1033,18 @@ function rulesFor(type, g) {
   if (g.mode) facts.push(`Questions : <b>${esc(g.mode)}</b>`);
   if (type === "undercover") facts.push(g.options?.white ? "Avec <b>Mr. White</b> (dès 5 joueurs)" : "<b>Sans</b> Mr. White");
   if (type === "blackjack") facts.push(sips ? `Mode <b>gorgées</b> · mise de 1 à <b>${sipWord(sips)}</b>` : "Mode <b>jetons</b> · 100 jetons au départ");
+  if (type === "casino") facts.push(sips ? `Mode <b>gorgées</b> · jusqu'à <b>${sipWord(sips)}</b> misées par tour` : "Mode <b>jetons</b> · 100 jetons au départ");
   else if (type === "whoof" || type === "never") facts.push(sips ? `<b>${sipWord(sips)}</b> ${type === "whoof" ? "pour la personne désignée" : "pour ceux qui l'ont fait"}` : "<b>Sans alcool</b>");
   facts.push(`Animée par <b>${esc(g.host_name || "?")}</b> · code <b>${esc(g.code)}</b>`);
   let body = GAME_RULES[type];
+  if (type === "casino") body = CASINO_RULES_COMMON + (sips ? CASINO_RULES_DRINKS : CASINO_RULES_CHIPS);
   if (type === "blackjack") body = BJ_RULES_COMMON + (sips ? BJ_RULES_DRINKS : GAME_RULES.blackjack.slice(BJ_RULES_COMMON.length).replace(BJ_RULES_DRINKS, ""));
   return `<div class="g-facts"><h3>Cette partie</h3><ul>${facts.map((f) => `<li>${f}</li>`).join("")}</ul></div>` + body;
 }
 
 // « ? » : règles détaillées du jeu.
 const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", never: "Je n'ai jamais", roulette: "Roulette",
-  blackjack: "Blackjack" };
+  blackjack: "Blackjack", casino: "Casino" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");
   if (open) {

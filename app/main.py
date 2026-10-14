@@ -855,7 +855,7 @@ class GameAction(BaseModel):
 
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
-HOST_ACTIONS = {"start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip"}
+HOST_ACTIONS = {"start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin"}
 
 
 @app.post("/api/games/{code}")
@@ -864,7 +864,7 @@ def game_action(code: str, body: GameAction, request: Request):
     g = get_game(code)
     a, me = body.action, body.guest_id
     # Cible d'un vote : un joueur (pid) ; pour « Je n'ai jamais », une réponse (yes / no).
-    target = games.gid_of(g, body.target) or (body.target if g["type"] == "never" else "")
+    target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino") else "")
     if a in HOST_ACTIONS and g["host"] != me:
         raise HTTPException(403, "Seul l'animateur de la partie peut faire ça")
     if a == "join" and (msg := ban_message(me, client_ip(request))):
@@ -884,6 +884,8 @@ def game_action(code: str, body: GameAction, request: Request):
         "bet": (games.bj_bet, me, body.amount), "hit": (games.bj_hit, me), "stand": (games.bj_stand, me),
         "double": (games.bj_double, me), "rebuy": (games.bj_rebuy, me),
         "deal": (games.bj_deal,), "skip": (games.bj_force_stand,),
+        "cbet": (games.casino_bet, me, body.target, body.amount), "cclear": (games.casino_clear, me),
+        "crebuy": (games.casino_rebuy, me), "cspin": (games.casino_spin,),
     }
     if a not in actions:
         raise HTTPException(400, "Action inconnue")

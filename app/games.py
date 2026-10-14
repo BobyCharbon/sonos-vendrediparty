@@ -20,6 +20,7 @@ GAMES = {
     "never": "Je n'ai jamais",
     "roulette": "Roulette",
     "blackjack": "Blackjack",
+    "casino": "Casino",
 }
 BLACKJACKS = ("blackjack",)
 
@@ -239,6 +240,8 @@ def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code
         "names": [], "spin": None, "history": [],
         # Blackjack : sabot, croupier, mains et jetons (voir plus bas).
         "bj": {"shoe": [], "dealer": [], "seats": [], "turn": None, "hands": {}, "chips": {}, "rebuys": {}},
+        # Casino (roulette européenne) : mises du tour, jetons, dernier lancer et numéros sortis.
+        "casino": {"bets": {}, "chips": {}, "rebuys": {}, "spin": None, "history": [], "results": {}},
     }
     if host and plays:
         join(g, host, name)
@@ -628,9 +631,150 @@ def bj_view(g: dict, gid: str) -> dict:
     }
 
 
+# --- Casino : roulette européenne (un seul zéro) ---
+
+WHEEL_ORDER = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14,
+               31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26]
+RED = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
+CASINO_START_CHIPS = 100
+# Paris : (gain en jetons pour 1 misé, multiplicateur de gorgées à distribuer en mode alcool).
+CASINO_PAYOUTS = {"n": (35, 10), "dozen": (2, 3), "color": (1, 2), "parity": (1, 2), "half": (1, 2)}
+CASINO_TARGETS = {"color": ("red", "black"), "parity": ("even", "odd"), "half": ("low", "high"), "dozen": ("1", "2", "3")}
+
+
+def casino_sips(g: dict) -> int:
+    """Mode alcool : mise totale maximale par tour, en gorgées ; 0 = mode jetons."""
+    return g["options"].get("sips", 0)
+
+
+def casino_wins(kind: str, target: str, n: int) -> bool:
+    if kind == "n":
+        return int(target) == n
+    if n == 0:
+        return False  # le zéro fait perdre toutes les mises extérieures
+    return {
+        "color": lambda: (n in RED) == (target == "red"),
+        "parity": lambda: (n % 2 == 0) == (target == "even"),
+        "half": lambda: (n <= 18) == (target == "low"),
+        "dozen": lambda: (n - 1) // 12 + 1 == int(target),
+    }[kind]()
+
+
+def casino_open(g: dict):
+    if not g["players"]:
+        raise GameError("Il faut au moins 1 joueur")
+    c = g["casino"]
+    for p in g["players"]:
+        c["chips"].setdefault(p["id"], CASINO_START_CHIPS)
+    c.update(bets={}, results={})
+    g["phase"] = "bet"
+    g["round"] += 1
+
+
+def casino_bet(g: dict, gid: str, target: str, amount: int):
+    """Ajoute une mise sur une case du tapis (« n:17 », « color:red », « dozen:2 »…)."""
+    if g["phase"] != "bet" or not player(g, gid):
+        raise GameError("Rien ne va plus : les mises sont fermées")
+    kind, _, value = target.partition(":")
+    if kind == "n":
+        if not value.isdigit() or not 0 <= int(value) <= 36:
+            raise GameError("Case inconnue")
+        value = str(int(value))
+    elif value not in CASINO_TARGETS.get(kind, ()):
+        raise GameError("Case inconnue")
+    c = g["casino"]
+    c["chips"].setdefault(gid, CASINO_START_CHIPS)
+    bets = c["bets"].setdefault(gid, [])
+    total = sum(b["amount"] for b in bets) + amount
+    limit = casino_sips(g) or c["chips"][gid]
+    if amount < 1 or total > limit:
+        raise GameError(f"Tu peux miser {limit} {'gorgée' if casino_sips(g) else 'jeton'}{'s' if limit > 1 else ''} au total par tour"
+                        if limit else "Plus de jetons : recharge-toi")
+    for b in bets:
+        if b["kind"] == kind and b["target"] == value:
+            b["amount"] += amount
+            break
+    else:
+        bets.append({"kind": kind, "target": value, "amount": amount})
+
+
+def casino_clear(g: dict, gid: str):
+    if g["phase"] != "bet":
+        raise GameError("Rien ne va plus : les mises sont fermées")
+    g["casino"]["bets"].pop(gid, None)
+
+
+def casino_rebuy(g: dict, gid: str):
+    c = g["casino"]
+    if casino_sips(g) or c["chips"].get(gid, 0) >= 1 or c["bets"].get(gid):
+        raise GameError("Tu as encore des jetons")
+    c["chips"][gid] = CASINO_START_CHIPS
+    c["rebuys"][gid] = c["rebuys"].get(gid, 0) + 1
+
+
+def casino_spin(g: dict, rng: random.Random = random):
+    """« Rien ne va plus » : la bille tombe sur un numéro, on paie les mises."""
+    c = g["casino"]
+    if g["phase"] != "bet":
+        raise GameError("Ouvre d'abord les mises")
+    if not any(c["bets"].values()):
+        raise GameError("Personne n'a misé")
+    n = rng.randrange(37)
+    c["spin"] = {"id": secrets.token_hex(4), "number": n, "at": time.time(), "wheel": round(rng.uniform(0, 360), 1)}
+    c["history"] = (c["history"] + [n])[-30:]
+    drinks = casino_sips(g)
+    c["results"] = {}
+    for gid, bets in c["bets"].items():
+        if not bets or not player(g, gid):
+            continue
+        staked = sum(b["amount"] for b in bets)
+        won_back = drink = give = 0
+        jackpot = False
+        for b in bets:
+            chips_mult, sips_mult = CASINO_PAYOUTS[b["kind"]]
+            if casino_wins(b["kind"], b["target"], n):
+                won_back += b["amount"] * (chips_mult + 1)
+                give += b["amount"] * sips_mult
+                jackpot = jackpot or b["kind"] == "n"
+            else:
+                drink += b["amount"]
+        if drinks:
+            # Le zéro : la maison gagne, chaque joueur boit 1 gorgée de plus (sauf ceux qui avaient misé sur le 0).
+            if n == 0 and not any(b["kind"] == "n" and b["target"] == "0" for b in bets):
+                drink += 1
+            add_sips(g, gid, drink=drink, give=give)
+            c["results"][gid] = {"staked": staked, "drink": drink, "give": give, "net": 0, "jackpot": jackpot}
+        else:
+            c["chips"][gid] += won_back - staked
+            c["results"][gid] = {"staked": staked, "drink": 0, "give": 0, "net": won_back - staked, "jackpot": jackpot}
+    g["phase"] = "results"
+
+
+def casino_view(g: dict, gid: str) -> dict:
+    c = g["casino"]
+    board: dict[str, int] = {}
+    table = []
+    for p in g["players"]:
+        bets = c["bets"].get(p["id"], [])
+        for b in bets:
+            key = f"{b['kind']}:{b['target']}"
+            board[key] = board.get(key, 0) + b["amount"]
+        table.append({"pid": p["pid"], "name": p["name"], "chips": c["chips"].get(p["id"], CASINO_START_CHIPS),
+                      "rebuys": c["rebuys"].get(p["id"], 0), "staked": sum(b["amount"] for b in bets),
+                      "bets": bets, "result": c["results"].get(p["id"])})
+    spin = c["spin"]
+    me = next((t for t in table if player(g, gid) and t["pid"] == player(g, gid)["pid"]), None)
+    return {
+        "drinks": casino_sips(g), "board": board, "table": table, "me": me, "history": list(reversed(c["history"])),
+        "spin": {**spin, "age": time.time() - spin["at"]} if spin else None, "start_chips": CASINO_START_CHIPS,
+    }
+
+
 def start(g: dict, rng: random.Random = random):
     """Distribue les rôles (Undercover) ou pose la première question (Qui de nous ?)."""
-    if g["type"] in BLACKJACKS:
+    if g["type"] == "casino":
+        casino_open(g)
+    elif g["type"] in BLACKJACKS:
         bj_open_bets(g)
     elif g["type"] == "undercover":
         _deal(g, rng)
@@ -781,6 +925,11 @@ def _check_end(g: dict) -> bool:
 
 
 def next_step(g: dict, rng: random.Random = random):
+    if g["type"] == "casino":
+        if g["phase"] != "results":
+            raise GameError("Pas encore")
+        casino_open(g)
+        return
     if g["type"] in BLACKJACKS:
         if g["phase"] != "results":
             raise GameError("Pas encore")
@@ -855,6 +1004,8 @@ def view(g: dict, gid: str) -> dict:
     }
     if g["type"] in BLACKJACKS:
         out["bj"] = bj_view(g, gid)
+    if g["type"] == "casino":
+        out["casino"] = casino_view(g, gid)
     if g["type"] == "roulette":
         out["names"] = g.get("names", [])
         out["history"] = list(reversed(g.get("history", [])))
