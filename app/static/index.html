@@ -98,6 +98,25 @@
     <button id="installClose" class="secondary" aria-label="Fermer">✕</button>
   </div>
 
+  <div id="installSheet" class="i-modal hidden" role="dialog" aria-modal="true" aria-labelledby="iTitle">
+    <div class="i-sheet">
+      <div class="i-head">
+        <img src="/static/apple-touch-icon.png" alt="">
+        <div><div class="i-title" id="iTitle">Installe VendrediParty</div>
+          <div class="artist">Comme une vraie app : plein écran, toujours à portée de main, avec les notifications.</div></div>
+      </div>
+      <button type="button" id="iShare" class="i-share">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M8 7l4-4 4 4"/><path d="M8 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-2"/></svg>
+        Ouvrir « Partager »</button>
+      <div class="artist i-then" id="iThen">puis touche <b>« Sur l'écran d'accueil »</b> (fais défiler la liste si besoin).</div>
+      <details class="i-manual">
+        <summary>Le bouton ne marche pas ? Fais-le à la main</summary>
+        <ol class="i-steps" id="iSteps"></ol>
+      </details>
+      <button type="button" id="iLater" class="secondary">Plus tard</button>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
 <script src="/static/push.js"></script>
@@ -154,6 +173,7 @@ function trackHtml(t, extra = "") {
 function show(view) {
   for (const v of ["pin", "closed", "hello", "party"]) $(v).classList.toggle("hidden", v !== view);
   if (view === "pin") setTimeout(() => $("pinInput").focus(), 50);
+  if (view === "hello") maybeInstallSheet();
 }
 
 async function refresh() {
@@ -384,7 +404,7 @@ let installEvent = null;
 function offerInstall() {
   if (standalone || store("vp_install_dismissed")) return;
   if (ios) {
-    $("installHelp").innerHTML = `Touche <b>Partager</b> <span aria-hidden="true">⎙</span> puis <b>« Sur l'écran d'accueil »</b>.`;
+    $("installHelp").innerHTML = `Touche ici : on te montre comment, en 10 secondes.`;
   } else if (installEvent) {
     $("installHelp").textContent = "Retrouve la soirée en un geste.";
     $("installBtn").classList.remove("hidden");
@@ -399,7 +419,56 @@ $("installBtn").onclick = async () => {
   installEvent = null;
   $("install").classList.add("hidden");
 };
-$("installClose").onclick = () => { store("vp_install_dismissed", "1"); $("install").classList.add("hidden"); };
+$("installClose").onclick = (ev) => { ev.stopPropagation(); store("vp_install_dismissed", "1"); $("install").classList.add("hidden"); };
+// iPhone : toucher le bandeau ouvre la fenêtre d'installation guidée.
+$("install").addEventListener("click", (ev) => { if (ios && !ev.target.closest("button")) openInstallSheet(); });
+
+// 📲 Installation guidée sur iPhone (Safari d'iOS 26 : « Partager » est dans le menu ••• de la barre d'adresse).
+const ICONS = {
+  more: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="7.5" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="16.5" cy="12" r="1" fill="currentColor"/></svg>`,
+  share: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M8 7l4-4 4 4"/><path d="M8 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-2"/></svg>`,
+  add: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8M8 12h8"/></svg>`,
+  app: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>`,
+};
+function installSteps() {
+  const ua = navigator.userAgent;
+  const chrome = /CriOS/.test(ua), firefox = /FxiOS/.test(ua);
+  const safariVersion = +((ua.match(/Version\/(\d+)/) || [])[1] || 0);
+  const step = (icon, html) => `<li><span class="i-ico">${ICONS[icon]}</span><span>${html}</span></li>`;
+  if (chrome || firefox) return [
+    step("share", `Touche <b>Partager</b> en haut à droite, à côté de l'adresse.`),
+    step("add", `Touche <b>« Ajouter à l'écran d'accueil »</b>.`),
+    step("app", `Touche <b>Ajouter</b> : VendrediParty apparaît sur ton écran d'accueil.`),
+  ];
+  return [
+    safariVersion >= 26
+      ? step("more", `Touche <b>•••</b> à droite de la barre d'adresse, en bas de l'écran.`)
+      : null,
+    step("share", safariVersion >= 26 ? `Touche <b>Partager</b>.` : `Touche <b>Partager</b> en bas de l'écran.`),
+    step("add", `Fais défiler et touche <b>« Sur l'écran d'accueil »</b>${safariVersion >= 26 ? " (dans « Plus » si tu ne le vois pas)" : ""}.`),
+    step("app", `${safariVersion >= 26 ? `Laisse <b>« Ouvrir en tant qu'app web »</b> activé, puis touche` : "Touche"} <b>Ajouter</b>.`),
+  ].filter(Boolean);
+}
+function openInstallSheet() {
+  $("iSteps").innerHTML = installSteps().join("");
+  // Sans menu de partage (navigateur trop ancien) : on affiche directement les étapes.
+  const canShare = !!navigator.share;
+  $("iShare").classList.toggle("hidden", !canShare);
+  $("iThen").classList.toggle("hidden", !canShare);
+  $("installSheet").querySelector(".i-manual").open = !canShare;
+  $("installSheet").classList.remove("hidden");
+}
+function maybeInstallSheet() {
+  // Une fois par visite, au moment où l'on demande le prénom (sur iPhone, hors app installée).
+  if (!ios || standalone || store("vp_install_dismissed")) return;
+  try { if (sessionStorage.getItem("vp_install_sheet")) return; sessionStorage.setItem("vp_install_sheet", "1"); } catch {}
+  setTimeout(openInstallSheet, 400);
+}
+$("iShare").onclick = async () => {
+  try { await navigator.share({ title: "VendrediParty", url: location.origin + "/" }); } catch {}
+};
+$("iLater").onclick = () => $("installSheet").classList.add("hidden");
+$("installSheet").addEventListener("click", (ev) => { if (ev.target.id === "installSheet") $("installSheet").classList.add("hidden"); });
 setTimeout(offerInstall, 1500);
 
 // Mises à jour en direct : le serveur signale chaque changement, on rafraîchit aussitôt.

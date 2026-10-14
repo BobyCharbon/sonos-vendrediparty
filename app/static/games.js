@@ -286,7 +286,11 @@ function setGame(code) { myGame = code; store("vp_game", code); $("gameDot")?.cl
 
 async function refreshGame() {
   $("gName").classList.toggle("hidden", !!guestName);
-  if (!guestName) { $("gHome").classList.add("hidden"); $("gamePlay").classList.add("hidden"); return; }
+  if (!guestName) {
+    $("gHome").classList.add("hidden"); $("gamePlay").classList.add("hidden");
+    if (typeof maybeInstallSheet === "function") maybeInstallSheet();
+    return;
+  }
   $("gHello").textContent = guestName;
   if (!myGame) return renderGame(null);
   try {
