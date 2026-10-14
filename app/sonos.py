@@ -104,5 +104,24 @@ class Sonos:
     def remove_at(self, uid: str, position: int):
         self.coordinator(uid).remove_from_queue(position - 1)
 
+    def move(self, uid: str, from_pos: int, to_pos: int):
+        """Déplace le titre en position from_pos (1-based) pour qu'il arrive en to_pos."""
+        if from_pos == to_pos:
+            return
+        # InsertBefore s'exprime dans la numérotation d'avant le déplacement.
+        insert_before = to_pos if to_pos < from_pos else to_pos + 1
+        self.coordinator(uid).avTransport.ReorderTracksInQueue(
+            [
+                ("InstanceID", 0),
+                ("StartingIndex", from_pos),
+                ("NumberOfTracks", 1),
+                ("InsertBefore", insert_before),
+                ("UpdateID", 0),
+            ]
+        )
+
+    def play_at(self, uid: str, position: int):
+        self.coordinator(uid).play_from_queue(position - 1)
+
     def skip(self, uid: str):
         self.coordinator(uid).next()

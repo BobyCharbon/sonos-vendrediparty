@@ -6,6 +6,13 @@
   <meta name="theme-color" content="#0e0b16">
   <title>Vendredi Party</title>
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Vendredi Party">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
   <h1>🎉 <span>Vendredi Party</span></h1>
@@ -45,6 +52,15 @@
 
     <h2>À venir <span id="count"></span></h2>
     <div id="upcoming" class="list"></div>
+
+    <h2>Un message pour l'hôte ?</h2>
+    <form id="msgForm" class="card">
+      <textarea id="msgText" maxlength="300" placeholder="Une dédicace, une demande particulière…"></textarea>
+      <div class="row" style="margin-top:8px">
+        <span class="grow artist" id="msgCount">0 / 300</span>
+        <button>Envoyer 💬</button>
+      </div>
+    </form>
   </div>
 
   <div id="toast" class="toast hidden"></div>
@@ -59,6 +75,7 @@ function store(key, value) {
 let guestId = store("vp_guest");
 if (!guestId) { guestId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now()); store("vp_guest", guestId); }
 let guestName = store("vp_name") || "";
+let registered = false;  // l'invité s'est présenté au serveur (il apparaît dans l'admin)
 
 let toastTimer;
 function toast(msg, kind = "") {
@@ -95,6 +112,10 @@ async function refresh() {
   try { s = await api("/api/state?guest_id=" + encodeURIComponent(guestId)); } catch { return; }
   if (!s.active) return show("closed");
   if (!guestName) { if ($("hello").classList.contains("hidden")) show("hello"); return; }
+  if (!registered) {
+    registered = true;
+    api("/api/hello", { method: "POST", body: JSON.stringify({ guest_id: guestId, guest_name: guestName }) }).catch(() => { registered = false; });
+  }
   show("party");
   $("room").textContent = s.room;
   $("rename").textContent = guestName;
@@ -165,11 +186,27 @@ $("upcoming").addEventListener("click", async (ev) => {
   } catch (e) { btn.disabled = false; toast(e.message, "err"); }
 });
 
+$("msgText").addEventListener("input", () => { $("msgCount").textContent = `${$("msgText").value.length} / 300`; });
+$("msgForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const text = $("msgText").value.trim();
+  if (!text) return;
+  const btn = $("msgForm").querySelector("button");
+  btn.disabled = true;
+  try {
+    await api("/api/message", { method: "POST", body: JSON.stringify({ guest_id: guestId, guest_name: guestName, text }) });
+    $("msgText").value = ""; $("msgCount").textContent = "0 / 300";
+    toast("Message envoyé à l'hôte 💌", "ok");
+  } catch (e) { toast(e.message, "err"); }
+  btn.disabled = false;
+});
+
 $("nameForm").addEventListener("submit", (ev) => {
   ev.preventDefault();
   guestName = $("nameInput").value.trim().slice(0, 30);
   if (!guestName) return;
   store("vp_name", guestName);
+  registered = false;
   refresh();
 });
 $("rename").addEventListener("click", (ev) => {

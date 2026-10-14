@@ -3,8 +3,13 @@
 Webapp locale qui permet aux invités d'ajouter des titres Spotify dans la **file Sonos**,
 sans compte : la lecture passe par le compte Spotify lié à ton système Sonos.
 
-- **/** : page invités (prénom, recherche, ajout, file à venir)
-- **/admin** : démarrer/arrêter la soirée, choisir la pièce, mode d'insertion, QR code, retirer un titre, passer
+- **/** : page invités (code, prénom, recherche, ajout, file à venir, message pour l'hôte)
+- **/admin** : démarrer/arrêter la soirée, choisir la pièce, mode d'insertion, code + QR code,
+  messages des invités, file d'attente complète modifiable (⏫ jouer ensuite, ⬆⬇ déplacer,
+  ▶︎ jouer maintenant, ✕ retirer), invités présents et modération
+
+La page peut être ajoutée à l'écran d'accueil iOS/Android (icône incluse). Les icônes se
+régénèrent avec `python tools/make_icons.py` (nécessite Pillow).
 
 ## Utilisation
 

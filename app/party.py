@@ -37,6 +37,10 @@ class Session:
     bans: dict[str, dict] = field(default_factory=dict)
     # Code d'accès invités (4 chiffres), conservé d'une soirée à l'autre.
     guest_pin: str = ""
+    # guest_id -> {"name", "ips", "joined_at"} : invités entrés pendant la soirée.
+    guests: dict[str, dict] = field(default_factory=dict)
+    # Messages des invités pour l'hôte : {"id", "guest_id", "name", "text", "at", "read"}.
+    messages: list[dict] = field(default_factory=list)
 
 
 class PartyStore:
@@ -44,6 +48,7 @@ class PartyStore:
         self.path = path
         self.lock = threading.RLock()
         self.session = self._load()
+        self.last_seen: dict[str, float] = {}  # en mémoire : rafraîchi à chaque appel des invités
         if not self.session.guest_pin:
             self.regenerate_pin()
 
@@ -100,28 +105,65 @@ class PartyStore:
         self.save()
         return req
 
+    def register_guest(self, guest_id: str, name: str, ip: str):
+        """Un invité entre (ou change de prénom) : il apparaît tout de suite dans l'admin."""
+        g = self.session.guests.get(guest_id)
+        if g and g["name"] == name and ip in g["ips"]:
+            return
+        if g is None:
+            g = self.session.guests[guest_id] = {"name": name, "ips": [], "joined_at": time.time()}
+        g["name"] = name
+        if ip and ip not in g["ips"]:
+            g["ips"].append(ip)
+        self.save()
+
+    def seen(self, guest_id: str):
+        if guest_id in self.session.guests:
+            self.last_seen[guest_id] = time.time()
+
+    def guest_ips(self, guest_id: str) -> set[str]:
+        ips = set(self.session.guests.get(guest_id, {}).get("ips", []))
+        return ips | {r.ip for r in self.session.requests if r.guest_id == guest_id and r.ip}
+
     def guests(self) -> list[dict]:
-        """Invités ayant ajouté au moins un titre, avec leur statut de blocage."""
-        guests: dict[str, dict] = {}
+        """Invités entrés pendant la soirée, avec leurs titres et leur statut de blocage."""
+        guests = {
+            gid: {"guest_id": gid, "name": g["name"], "joined_at": g["joined_at"], "total": 0, "queued": 0}
+            for gid, g in self.session.guests.items()
+        }
         for r in self.session.requests:
-            g = guests.setdefault(r.guest_id, {"guest_id": r.guest_id, "name": r.guest_name, "ips": set(), "total": 0, "queued": 0})
-            g["name"] = r.guest_name
+            g = guests.setdefault(r.guest_id, {"guest_id": r.guest_id, "name": r.guest_name, "joined_at": r.added_at, "total": 0, "queued": 0})
             g["total"] += 1
             g["queued"] += r.status == "queued"
-            if r.ip:
-                g["ips"].add(r.ip)
-        result = []
         for g in guests.values():
-            g["ban"] = self.ban_status(g["guest_id"], *g.pop("ips"))
-            result.append(g)
-        return sorted(result, key=lambda g: g["name"].lower())
+            g["ban"] = self.ban_status(g["guest_id"], *self.guest_ips(g["guest_id"]))
+            g["last_seen"] = self.last_seen.get(g["guest_id"], 0)
+        return sorted(guests.values(), key=lambda g: g["name"].lower())
+
+    def add_message(self, guest_id: str, name: str, text: str) -> dict:
+        msg = {"id": uuid.uuid4().hex[:12], "guest_id": guest_id, "name": name, "text": text, "at": time.time(), "read": False}
+        self.session.messages.append(msg)
+        self.save()
+        return msg
+
+    def update_messages(self, ids: set[str] | None, *, read: bool = False, delete: bool = False):
+        """Marque comme lus ou supprime des messages (ids=None : tous)."""
+        hit = lambda m: ids is None or m["id"] in ids
+        if delete:
+            self.session.messages = [m for m in self.session.messages if not hit(m)]
+        else:
+            for m in self.session.messages:
+                if hit(m):
+                    m["read"] = read
+        self.save()
 
     def ban(self, guest_id: str, minutes: int | None):
         """Bloque un invité (par identifiant et par IP) ; minutes=None : sans limite."""
         reqs = [r for r in self.session.requests if r.guest_id == guest_id]
+        name = self.session.guests.get(guest_id, {}).get("name") or (reqs[-1].guest_name if reqs else "")
         self.session.bans[guest_id] = {
-            "name": reqs[-1].guest_name if reqs else "",
-            "ips": sorted({r.ip for r in reqs if r.ip}),
+            "name": name,
+            "ips": sorted(self.guest_ips(guest_id)),
             "until": time.time() + minutes * 60 if minutes else 0,
         }
         self.save()

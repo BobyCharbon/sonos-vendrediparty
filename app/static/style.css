@@ -14,7 +14,9 @@
 html, body { margin: 0; background: var(--bg); color: var(--text); }
 body {
   font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  max-width: 640px; margin: 0 auto; padding: 16px 16px 96px;
+  max-width: 640px; margin: 0 auto;
+  /* Plein écran depuis l'écran d'accueil iOS : on évite l'encoche et la barre d'état. */
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 96px max(16px, env(safe-area-inset-left));
   background-image: radial-gradient(circle at 10% -10%, #3a1747 0, transparent 45%),
                     radial-gradient(circle at 110% 10%, #4a2a10 0, transparent 40%);
   background-attachment: fixed; min-height: 100vh;
@@ -76,3 +78,15 @@ button:disabled { opacity: 0.5; cursor: default; }
 .qr { display: block; width: 100%; max-width: 280px; margin: 0 auto; border-radius: 12px; background: #fff; }
 .pin-input { font-size: 1.6rem; letter-spacing: 0.5em; text-align: center; font-variant-numeric: tabular-nums; }
 .big-pin { font-size: 3rem; font-weight: 800; letter-spacing: 0.25em; text-align: center; font-variant-numeric: tabular-nums; margin: 4px 0 8px; }
+textarea {
+  width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid #3a3150;
+  background: var(--card-2); color: var(--text); outline: none; font: inherit; resize: vertical; min-height: 72px;
+}
+textarea:focus { border-color: var(--accent); }
+.badge { display: inline-block; min-width: 20px; padding: 1px 7px; border-radius: 99px; background: var(--accent); color: #fff; font-size: .75rem; text-align: center; vertical-align: middle; }
+.msg { background: var(--card); border-radius: 12px; padding: 10px 12px; }
+.msg.unread { border-left: 3px solid var(--accent-2); background: #2a1f33; }
+.msg .text { white-space: pre-wrap; word-break: break-word; margin: 4px 0 8px; }
+.icon-btns { display: flex; gap: 4px; flex: none; }
+.icon-btns button { padding: 8px 10px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 4px; vertical-align: middle; }

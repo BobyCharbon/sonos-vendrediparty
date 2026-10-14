@@ -281,13 +281,79 @@ def admin_state():
         "requests": [r.__dict__ for r in reversed(s.requests)],
         "guests": store.guests(),
         "bans": [{"guest_id": g, **b} for g, b in store.active_bans().items()],
+        "messages": list(reversed(s.messages)),
     }
     if s.active:
         try:
-            result["sonos"] = public_sonos(snapshot())
+            snap = snapshot()
+            result["sonos"] = public_sonos(snap)
+            result["queue"] = admin_queue(snap)
         except Exception as e:
             result["sonos_error"] = str(e)
     return result
+
+
+def track_key(t: dict) -> str:
+    """Identifie un titre de la file, pour vérifier qu'il n'a pas bougé entre l'affichage et l'action."""
+    return t["track_id"] or f"{t['title']}|{t['artist']}"
+
+
+def admin_queue(snap: dict, limit: int = 150) -> list[dict]:
+    names = {r.track_id: r.guest_name for r in store.session.requests if r.status != "removed"}
+    return [
+        {"pos": t["pos"], "key": track_key(t), "title": t["title"], "artist": t["artist"],
+         "art": art_url(t["art"]), "by": names.get(t["track_id"])}
+        for t in snap["upcoming"][:limit]
+    ]
+
+
+class QueueAction(BaseModel):
+    pos: int
+    key: str
+    action: str  # next | up | down | play | remove
+
+
+@app.post("/api/admin/queue", dependencies=[Depends(require_admin)])
+def admin_queue_action(body: QueueAction):
+    """Modifie n'importe quel titre à venir (invités ou playlist de l'hôte)."""
+    require_active()
+    uid = store.session.room_uid
+    with queue_lock:
+        snap = snapshot(force=True)
+        upcoming = snap["upcoming"]
+        item = next((t for t in upcoming if t["pos"] == body.pos), None)
+        if item is None or track_key(item) != body.key:
+            raise HTTPException(409, "La file a changé entre-temps, réessaie")
+        first, last = snap["current_pos"] + 1, upcoming[-1]["pos"]
+        targets = {"next": first, "up": max(first, body.pos - 1), "down": min(last, body.pos + 1)}
+        if body.action in targets:
+            sonos.move(uid, body.pos, targets[body.action])
+        elif body.action == "play":
+            sonos.play_at(uid, body.pos)
+        elif body.action == "remove":
+            sonos.remove_at(uid, body.pos)
+            for r in store.pending():
+                if item["track_id"] and r.track_id == item["track_id"]:
+                    r.status = "removed"
+            store.save()
+        else:
+            raise HTTPException(400, "Action inconnue")
+        _snap["data"] = None
+    return admin_state()
+
+
+class MessageAction(BaseModel):
+    ids: list[str] | None = None  # None : tous les messages
+    action: str  # read | unread | delete
+
+
+@app.post("/api/admin/messages", dependencies=[Depends(require_admin)])
+def admin_messages(body: MessageAction):
+    if body.action not in ("read", "unread", "delete"):
+        raise HTTPException(400, "Action inconnue")
+    ids = set(body.ids) if body.ids is not None else None
+    store.update_messages(ids, read=body.action == "read", delete=body.action == "delete")
+    return admin_state()
 
 
 # --- Invités ---
@@ -348,6 +414,7 @@ def state(request: Request, guest_id: str = ""):
     s = store.session
     if not s.active:
         return {"active": False}
+    store.seen(guest_id)
     blocked = ban_message(guest_id, client_ip(request))
     try:
         return {"active": True, "room": s.room_name, "blocked": blocked, **public_sonos(snapshot(), guest_id)}
@@ -369,6 +436,63 @@ def search(q: str):
 GUEST_ID_RE = re.compile(r"^[A-Za-z0-9-]{8,64}$")
 
 
+def clean_name(raw: str) -> str:
+    name = " ".join(raw.split())[:30]
+    if not name:
+        raise HTTPException(400, "Indique ton prénom")
+    return name
+
+
+def check_guest_id(guest_id: str):
+    if not GUEST_ID_RE.match(guest_id):
+        raise HTTPException(400, "Requête invalide")
+
+
+class Hello(BaseModel):
+    guest_id: str
+    guest_name: str
+
+
+@app.post("/api/hello", dependencies=[Depends(require_guest)])
+def hello(body: Hello, request: Request):
+    """L'invité a saisi son prénom : il apparaît dans l'admin."""
+    check_guest_id(body.guest_id)
+    store.register_guest(body.guest_id, clean_name(body.guest_name), client_ip(request))
+    store.seen(body.guest_id)
+    return {"ok": True}
+
+
+class Message(BaseModel):
+    guest_id: str
+    guest_name: str
+    text: str
+
+
+_last_message: dict[str, float] = {}
+
+
+@app.post("/api/message", dependencies=[Depends(require_guest)])
+def send_message(body: Message, request: Request):
+    require_active()
+    check_guest_id(body.guest_id)
+    ip = client_ip(request)
+    if msg := ban_message(body.guest_id, ip):
+        raise HTTPException(403, msg)
+    text = body.text.strip()[:300]
+    if not text:
+        raise HTTPException(400, "Message vide")
+    if time.time() - _last_message.get(body.guest_id, 0) < 15:
+        raise HTTPException(429, "Attends quelques secondes avant d'envoyer un autre message")
+    unread = sum(1 for m in store.session.messages if m["guest_id"] == body.guest_id and not m["read"])
+    if unread >= 3:
+        raise HTTPException(429, "L'hôte n'a pas encore lu tes messages, patience 🙂")
+    name = clean_name(body.guest_name)
+    store.register_guest(body.guest_id, name, ip)
+    store.add_message(body.guest_id, name, text)
+    _last_message[body.guest_id] = time.time()
+    return {"ok": True}
+
+
 class Enqueue(BaseModel):
     track_id: str
     guest_id: str
@@ -383,11 +507,11 @@ def enqueue(body: Enqueue, request: Request):
         raise HTTPException(403, msg)
     if spotify is None:
         raise HTTPException(503, "Recherche Spotify non configurée")
-    name = " ".join(body.guest_name.split())[:30]
-    if not name:
-        raise HTTPException(400, "Indique ton prénom")
-    if not GUEST_ID_RE.match(body.guest_id) or not re.match(r"^[A-Za-z0-9]{22}$", body.track_id):
+    name = clean_name(body.guest_name)
+    check_guest_id(body.guest_id)
+    if not re.match(r"^[A-Za-z0-9]{22}$", body.track_id):
         raise HTTPException(400, "Requête invalide")
+    store.register_guest(body.guest_id, name, ip)
 
     track = spotify.track(body.track_id)
     s = store.session

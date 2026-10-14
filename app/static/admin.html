@@ -6,6 +6,13 @@
   <meta name="theme-color" content="#0e0b16">
   <title>Party Admin</title>
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Party Admin">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
   <h1>🎛️ <span>Admin</span></h1>
@@ -47,9 +54,19 @@
         <button class="danger grow" id="stop">Arrêter la soirée</button>
       </div>
 
+      <h2>Messages <span id="msgBadge" class="badge hidden"></span></h2>
+      <div id="messages" class="list"></div>
+      <div class="row" id="msgActions" style="margin-top:8px">
+        <button class="secondary grow" id="msgReadAll" type="button">✓ Tout marquer comme lu</button>
+      </div>
+
       <h2>Mode d'insertion</h2>
       <div class="seg" data-mode-picker></div>
       <p class="sub" id="modeHelp" style="margin-top:8px"></p>
+
+      <h2>File d'attente <span id="queueCount"></span></h2>
+      <p class="sub" style="margin-top:-4px;font-size:.85rem">⏫ jouer ensuite · ⬆⬇ déplacer · ▶︎ jouer maintenant · ✕ retirer</p>
+      <div id="queue" class="list"></div>
 
       <h2>Invités</h2>
       <div id="guests" class="list"></div>
@@ -153,6 +170,8 @@ function render(s) {
   } else $("now").innerHTML = `<div class="artist">Rien ne joue</div>`;
 
   renderGuests(s);
+  renderMessages(s);
+  renderQueue(s);
   const labels = { queued: "en attente", played: "joué", removed: "retiré" };
   $("requests").innerHTML = s.requests.length ? s.requests.map((r) => `
     <div class="track ${r.status === "queued" ? "guest" : ""}" style="${r.status !== "queued" ? "opacity:.55" : ""}">
@@ -163,6 +182,64 @@ function render(s) {
     </div>`).join("") : `<p class="empty">Aucune demande pour l'instant</p>`;
 }
 
+const hhmm = (t) => new Date(t * 1000).toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
+let seenMessages = null;
+
+function renderMessages(s) {
+  const unread = s.messages.filter((m) => !m.read);
+  $("msgBadge").textContent = unread.length;
+  $("msgBadge").classList.toggle("hidden", !unread.length);
+  $("msgActions").classList.toggle("hidden", !unread.length);
+  document.title = (unread.length ? `(${unread.length}) ` : "") + "Party Admin";
+  // Nouveau message depuis le dernier rafraîchissement : on prévient.
+  const ids = new Set(s.messages.map((m) => m.id));
+  if (seenMessages) {
+    const fresh = s.messages.filter((m) => !seenMessages.has(m.id));
+    if (fresh.length) { toast(`💬 ${fresh[0].name} : ${fresh[0].text}`, "ok"); navigator.vibrate?.(200); }
+  }
+  seenMessages = ids;
+  $("messages").innerHTML = s.messages.length ? s.messages.map((m) => `
+    <div class="msg ${m.read ? "" : "unread"}">
+      <div class="row"><div class="grow"><b>${esc(m.name)}</b> <span class="artist">· ${hhmm(m.at)}</span></div>
+        <div class="icon-btns">
+          <button class="secondary" data-msg="${m.read ? "unread" : "read"}" data-id="${esc(m.id)}" title="${m.read ? "Marquer non lu" : "Marquer lu"}">${m.read ? "↺" : "✓"}</button>
+          <button class="danger" data-msg="delete" data-id="${esc(m.id)}" title="Supprimer">✕</button>
+        </div></div>
+      <div class="text">${esc(m.text)}</div>
+    </div>`).join("") : `<p class="empty" style="padding:12px">Aucun message</p>`;
+}
+
+function renderQueue(s) {
+  const q = s.queue || [];
+  $("queueCount").textContent = q.length ? `(${q.length})` : "";
+  $("queue").innerHTML = q.length ? q.map((t, i) => `
+    <div class="track ${t.by ? "guest" : ""}">
+      ${t.art ? `<img src="${esc(t.art)}" alt="" loading="lazy" onerror="this.removeAttribute('src')">` : `<img alt="">`}
+      <div class="meta"><div class="title">${esc(t.title)}</div><div class="artist">${esc(t.artist)}</div>
+        ${t.by ? `<span class="by">ajouté par ${esc(t.by)}</span>` : ""}</div>
+      <div class="icon-btns">
+        ${i > 0 ? `<button class="secondary" data-q="next" data-pos="${t.pos}" data-key="${esc(t.key)}" title="Jouer ensuite">⏫</button>
+                   <button class="secondary" data-q="up" data-pos="${t.pos}" data-key="${esc(t.key)}" title="Monter">⬆</button>` : ""}
+        ${i < q.length - 1 ? `<button class="secondary" data-q="down" data-pos="${t.pos}" data-key="${esc(t.key)}" title="Descendre">⬇</button>` : ""}
+        <button class="secondary" data-q="play" data-pos="${t.pos}" data-key="${esc(t.key)}" title="Jouer maintenant">▶︎</button>
+        <button class="danger" data-q="remove" data-pos="${t.pos}" data-key="${esc(t.key)}" title="Retirer">✕</button>
+      </div>
+    </div>`).join("") : `<p class="empty">La file est vide</p>`;
+}
+
+document.addEventListener("click", async (ev) => {
+  const q = ev.target.closest("[data-q]");
+  const m = ev.target.closest("[data-msg]");
+  if (!q && !m) return;
+  const b = q || m;
+  b.disabled = true;
+  try {
+    if (q) render(await api("/api/admin/queue", { pos: +q.dataset.pos, key: q.dataset.key, action: q.dataset.q }));
+    else render(await api("/api/admin/messages", { ids: [m.dataset.id], action: m.dataset.msg }));
+  } catch (e) { toast(e.message, "err"); refresh(); }
+  b.disabled = false;
+});
+
 function banLabel(ban) {
   if (!ban) return "";
   if (ban.until === 0) return "⛔ banni";
@@ -172,8 +249,8 @@ function banLabel(ban) {
 function renderGuests(s) {
   $("guests").innerHTML = s.guests.length ? s.guests.map((g) => `
     <div class="track" style="flex-wrap:wrap">
-      <div class="meta"><div class="title">${esc(g.name)} ${g.ban ? `<span class="pill">${banLabel(g.ban)}</span>` : ""}</div>
-      <div class="artist">${g.total} titre${g.total > 1 ? "s" : ""} · ${g.queued} en attente</div></div>
+      <div class="meta"><div class="title">${Date.now() / 1000 - g.last_seen < 20 ? `<span class="dot" title="En ligne"></span>` : ""}${esc(g.name)} ${g.ban ? `<span class="pill">${banLabel(g.ban)}</span>` : ""}</div>
+      <div class="artist">arrivé à ${hhmm(g.joined_at)} · ${g.total} titre${g.total > 1 ? "s" : ""} · ${g.queued} en attente</div></div>
       <div class="row" style="gap:6px">
         ${g.ban
           ? `<button class="secondary" data-act="unban" data-g="${esc(g.guest_id)}">Débloquer</button>`
@@ -181,7 +258,7 @@ function renderGuests(s) {
              <button class="danger" data-act="ban" data-g="${esc(g.guest_id)}" title="Bannir">⛔</button>`}
         ${g.queued ? `<button class="danger" data-act="purge" data-g="${esc(g.guest_id)}" title="Retirer ses titres en attente">🗑</button>` : ""}
       </div>
-    </div>`).join("") : `<p class="empty">Personne n'a encore ajouté de titre</p>`;
+    </div>`).join("") : `<p class="empty">Aucun invité pour l'instant</p>`;
 }
 
 function renderBans(s) {
@@ -242,6 +319,9 @@ $("requests").addEventListener("click", async (ev) => {
 $("newPin").onclick = async () => {
   try { render(await api("/api/admin/pin", {})); toast("Nouveau code : " + state.guest_pin, "ok"); }
   catch (e) { toast(e.message, "err"); }
+};
+$("msgReadAll").onclick = async () => {
+  try { render(await api("/api/admin/messages", { ids: null, action: "read" })); } catch (e) { toast(e.message, "err"); }
 };
 $("logout").onclick = async (ev) => { ev.preventDefault(); await api("/api/admin/logout", {}); showLogin(); };
 
