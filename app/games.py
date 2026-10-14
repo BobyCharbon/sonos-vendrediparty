@@ -20,9 +20,8 @@ GAMES = {
     "never": "Je n'ai jamais",
     "roulette": "Roulette",
     "blackjack": "Blackjack",
-    "blackjack_drinks": "Blackjack à boire",
 }
-BLACKJACKS = ("blackjack", "blackjack_drinks")
+BLACKJACKS = ("blackjack",)
 
 # Undercover : les civils reçoivent un mot, les undercovers un mot proche ; Mr. White n'a pas de mot.
 WORD_PAIRS = [
@@ -366,7 +365,7 @@ def spin(g: dict, rng: random.Random = random):
 # --- Blackjack (croupier = l'app ; pas de split ni d'assurance) ---
 
 BJ_START_CHIPS = 100
-BJ_BETS = {"blackjack": (5, 1000), "blackjack_drinks": (1, 5)}  # mise min / max
+BJ_BETS = {"blackjack": (5, 1000)}  # mise min / max (jetons)
 
 
 def _bj_shoe(rng) -> list[str]:
@@ -412,8 +411,7 @@ def bj_bet(g: dict, gid: str, amount: int, rng: random.Random = random):
     lo, hi = BJ_BETS[g["type"]]
     bj = g["bj"]
     bj["chips"].setdefault(gid, BJ_START_CHIPS)
-    if g["type"] == "blackjack":
-        hi = min(hi, bj["chips"][gid])
+    hi = min(hi, bj["chips"][gid])
     if not lo <= amount <= hi:
         raise GameError(f"Mise entre {lo} et {hi}" if hi >= lo else "Plus assez de jetons : recharge-toi")
     bj["hands"][gid] = {"cards": [], "bet": amount, "status": "bet", "doubled": False, "result": None, "delta": 0}
@@ -424,7 +422,7 @@ def bj_bet(g: dict, gid: str, amount: int, rng: random.Random = random):
 
 def bj_rebuy(g: dict, gid: str):
     bj = g["bj"]
-    if g["type"] != "blackjack" or bj["chips"].get(gid, 0) >= BJ_BETS["blackjack"][0]:
+    if bj["chips"].get(gid, 0) >= BJ_BETS["blackjack"][0]:
         raise GameError("Tu as encore des jetons")
     bj["chips"][gid] = BJ_START_CHIPS
     bj["rebuys"][gid] = bj["rebuys"].get(gid, 0) + 1
@@ -443,8 +441,7 @@ def bj_deal(g: dict, rng: random.Random = random):
     bj["seats"] = seats
     for gid in seats:
         h = bj["hands"][gid]
-        if g["type"] == "blackjack":
-            bj["chips"][gid] -= h["bet"]
+        bj["chips"][gid] -= h["bet"]
         h.update(cards=[_bj_draw(g, rng), _bj_draw(g, rng)], status="playing")
         if _bj_is_blackjack(h["cards"]):
             h["status"] = "blackjack"
@@ -495,10 +492,9 @@ def bj_double(g: dict, gid: str, rng: random.Random = random):
     bj = g["bj"]
     if len(h["cards"]) != 2:
         raise GameError("On ne double qu'avec ses 2 premières cartes")
-    if g["type"] == "blackjack":
-        if bj["chips"][gid] < h["bet"]:
-            raise GameError("Pas assez de jetons pour doubler")
-        bj["chips"][gid] -= h["bet"]
+    if bj["chips"][gid] < h["bet"]:
+        raise GameError("Pas assez de jetons pour doubler")
+    bj["chips"][gid] -= h["bet"]
     h["bet"] *= 2
     h["doubled"] = True
     h["cards"].append(_bj_draw(g, rng))
@@ -539,14 +535,13 @@ def _bj_finish(g: dict, rng):
             result = "push"
         h["result"] = result
         bet = h["bet"]
-        if g["type"] == "blackjack":
-            # Jetons : la mise a déjà été retirée ; gain 1:1, blackjack 3:2, égalité = mise rendue.
-            back = {"win": 2 * bet, "blackjack": bet + (3 * bet + 1) // 2, "push": bet, "lose": 0}[result]
-            bj["chips"][gid] += back
-            h["delta"] = back - bet
-        else:
-            # Gorgées : perdu = tu bois ta mise ; gagné = tu la distribues ; blackjack = tu distribues le double.
-            h["delta"] = {"win": bet, "blackjack": 2 * bet, "push": 0, "lose": -bet}[result]
+        # Jetons : la mise a déjà été retirée ; gain 1:1, blackjack 3:2, égalité = mise rendue.
+        back = {"win": 2 * bet, "blackjack": bet + (3 * bet + 1) // 2, "push": bet, "lose": 0}[result]
+        bj["chips"][gid] += back
+        h["delta"] = back - bet
+        # Avec alcool : perdu = tu bois N gorgées, gagné = tu en distribues N, blackjack = 2N ; doubler double tout.
+        n = g["options"].get("sips", 0) * (2 if h["doubled"] else 1)
+        h["sips"] = {"win": n, "blackjack": 2 * n, "push": 0, "lose": -n}[result]
     g["phase"] = "results"
 
 
@@ -564,7 +559,7 @@ def bj_view(g: dict, gid: str) -> dict:
         seats.append({
             "pid": p["pid"], "name": p["name"], "chips": bj["chips"].get(p["id"], BJ_START_CHIPS),
             "rebuys": bj["rebuys"].get(p["id"], 0),
-            "hand": None if not h else {**{k: h[k] for k in ("cards", "bet", "status", "doubled", "result", "delta")},
+            "hand": None if not h else {**{k: h.get(k) for k in ("cards", "bet", "status", "doubled", "result", "delta", "sips")},
                                         "total": bj_value(h["cards"])[0] if h["cards"] else 0},
         })
     turn = bj["seats"][bj["turn"]] if bj["turn"] is not None and bj["turn"] < len(bj["seats"]) else None

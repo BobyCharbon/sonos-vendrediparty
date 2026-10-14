@@ -324,16 +324,16 @@ def test_blackjack_round_with_chips():
     assert g["phase"] == "bet" and g["bj"]["hands"] == {}
 
 
-def test_blackjack_drinks_bust_and_double():
-    g = games.new_game("blackjack_drinks", host="a", name="Ana")
+def test_blackjack_with_alcohol_double():
+    g = games.new_game("blackjack", host="a", name="Ana", sips=2)
     games.start(g)
-    with pytest.raises(games.GameError):
-        games.bj_bet(g, "a", 6)  # 5 gorgées max
     rigged(g, ["5S", "6H", "TC", "7D", "TD"])
-    games.bj_bet(g, "a", 2)
-    games.bj_double(g, "a")  # 5+6+10 = 21, mise doublée à 4
+    games.bj_bet(g, "a", 10)
+    games.bj_double(g, "a")  # 5+6+10 = 21 contre 17 ; mise doublée à 20
     h = g["bj"]["hands"]["a"]
-    assert h["bet"] == 4 and h["result"] == "win" and h["delta"] == 4  # distribue 4 gorgées
+    assert h["bet"] == 20 and h["result"] == "win" and h["delta"] == 20
+    assert h["sips"] == 4  # gorgées doublées aussi : distribue 4
+    assert g["bj"]["chips"]["a"] == 120
 
 
 def test_blackjack_player_leaving_on_his_turn_passes_hand():

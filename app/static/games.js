@@ -8,9 +8,8 @@ const GAME_ICONS = {
 GAME_ICONS.never = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7h13l-1.6 14a4.9 4.9 0 0 1-9.8 0z"/><path d="M14.5 26v12"/><path d="M9.5 38h10"/><path d="M27 7h13l-1.6 14a4.9 4.9 0 0 1-9.8 0z"/><path d="M33.5 26v12"/><path d="M28.5 38h10"/><path d="M9 14h11M28 14h11"/></svg>`;
 GAME_ICONS.roulette = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="27" r="17"/><circle cx="24" cy="27" r="3"/><path d="M24 10v14M24 30v14M7 27h14M27 27h14M12 15l10 10M26 29l10 10M36 15L26 25M22 29L12 39"/><path d="M20 3h8l-4 6z"/></svg>`;
 GAME_ICONS.blackjack = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="21" height="29" rx="3" transform="rotate(-10 15.5 25.5)"/><rect x="21" y="8" width="21" height="29" rx="3" transform="rotate(8 31.5 22.5)"/><path d="M31.5 15.5c-2.8 2.8-5.5 4.6-5.5 7.2a2.7 2.7 0 0 0 4.6 1.9l-.9 3h3.6l-.9-3a2.7 2.7 0 0 0 4.6-1.9c0-2.6-2.7-4.4-5.5-7.2z"/></svg>`;
-GAME_ICONS.blackjack_drinks = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9h20L15 21z"/><path d="M15 21v13M9.5 34h11"/><rect x="24" y="12" width="19" height="27" rx="3" transform="rotate(8 33.5 25.5)"/><path d="M34 19c-2.4 2.4-4.7 4-4.7 6.2a2.3 2.3 0 0 0 3.9 1.6l-.8 2.6h3.1l-.8-2.6a2.3 2.3 0 0 0 3.9-1.6c0-2.2-2.3-3.8-4.6-6.2z"/></svg>`;
-const GAME_THEME = { undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", blackjack_drinks: "g-bd" };
-const isBJ = (g) => g.type === "blackjack" || g.type === "blackjack_drinks";
+const GAME_THEME = { undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj" };
+const isBJ = (g) => g.type === "blackjack";
 const helpBtn = (type) => `<button type="button" class="g-help" data-rules="${type}" aria-label="Règles du jeu">?</button>`;
 
 // Règles détaillées, ouvertes par le « ? » de chaque jeu.
@@ -39,14 +38,14 @@ const GAME_RULES = {
       <li>Chacun commence avec <b>100 jetons</b> et mise de 5 jusqu'à tout son tapis.</li>
       <li>Gagné : tu touches 1 pour 1. <b>Blackjack</b> : 3 pour 2. Égalité : ta mise t'est rendue. Perdu : ta mise est perdue.</li>
       <li>Plus de jetons ? « Recharger » te redonne 100 jetons, et tout le monde voit combien de fois tu as rechargé…</li>
-    </ul>`,
-  blackjack_drinks: BJ_RULES_COMMON + `
-    <h3>Les gorgées</h3>
+    </ul>
+    <h3>Avec alcool 🍻</h3>
+    <p>Si l'animateur a coché « Alcool », chaque main se joue aussi en gorgées (le nombre qu'il a choisi) :</p>
     <ul>
-      <li>On mise de <b>1 à 5 gorgées</b> (doubler double aussi les gorgées).</li>
-      <li><b>Perdu</b> (ou plus de 21) : tu bois ta mise.</li>
-      <li><b>Gagné</b> : tu distribues ta mise à qui tu veux.</li>
+      <li><b>Perdu</b> (ou plus de 21) : tu bois.</li>
+      <li><b>Gagné</b> : tu distribues les gorgées à qui tu veux.</li>
       <li><b>Blackjack</b> : tu distribues le double.</li>
+      <li><b>Mise doublée</b> : les gorgées sont doublées aussi, pour le meilleur ou pour le pire.</li>
       <li>Égalité : personne ne boit.</li>
     </ul>
     <p>Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi. Buvez avec modération !</p>`,
@@ -228,22 +227,14 @@ document.getElementById("gamesRoot").innerHTML = `
           <div class="g-meta"><div class="g-title">Blackjack</div><div class="g-tag">Approche-toi de 21 sans le dépasser.</div></div>
           ${helpBtn("blackjack")}
         </div>
-        <p class="g-desc">Tout le monde joue contre le croupier (l'app). Chacun démarre avec 100 jetons, mise, puis tire des cartes ou reste. Qui finira la soirée les poches pleines ?</p>
+        <p class="g-desc">Tout le monde joue contre le croupier (l'app). Chacun démarre avec 100 jetons, mise, puis tire des cartes ou reste. Avec l'alcool, le perdant boit et le gagnant distribue.</p>
         <div class="g-chips"><span>1+ joueur</span><span>Jetons</span><span>Contre le croupier</span></div>
+        <label class="g-opt"><span>🍻 Alcool <small>perdu : tu bois · gagné : tu distribues</small></span><input type="checkbox" class="switch" data-opt="alcohol"></label>
+        <div class="g-opt" data-alcohol-only hidden><span>Gorgées par main <small>blackjack ou mise doublée : le double</small></span>
+          <div class="g-stepper" data-opt-group="sips"><button type="button" data-step="-1" aria-label="Moins">−</button><b data-val-out>2</b><button type="button" data-step="1" aria-label="Plus">+</button></div>
+        </div>
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="blackjack">Ouvrir une table</button>
-      </div>
-
-      <div class="gcard g-bd">
-        <div class="g-head">
-          <div class="g-icon">${GAME_ICONS.blackjack_drinks}</div>
-          <div class="g-meta"><div class="g-title">Blackjack à boire</div><div class="g-tag">Tu mises des gorgées.</div></div>
-          ${helpBtn("blackjack_drinks")}
-        </div>
-        <p class="g-desc">Le même blackjack, mais on mise de 1 à 5 gorgées. Tu perds : tu bois ta mise. Tu gagnes : tu la distribues. Blackjack : tu distribues le double.</p>
-        <div class="g-chips"><span>1+ joueur</span><span>1 à 5 gorgées</span><span>Contre le croupier</span></div>
-        <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
-        <button class="g-go" data-create="blackjack_drinks">Ouvrir une table</button>
       </div>
     </div>
 
@@ -314,7 +305,7 @@ function renderGame(g) {
   $("game").className = "card game " + (GAME_THEME[g.type] || "");
   const title = `<div class="g-head g-play-head"><div class="g-icon">${GAME_ICONS[g.type] || ""}</div>
     <div class="g-meta"><div class="g-title">${esc(g.name)}</div>
-    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${phaseLabel(g)}${g.round && g.phase !== "lobby" ? ` · ${{ undercover: "manche", roulette: "tirage", blackjack: "main", blackjack_drinks: "main" }[g.type] || "question"} ${g.round}` : ""}</div></div>
+    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${phaseLabel(g)}${g.round && g.phase !== "lobby" ? ` · ${{ undercover: "manche", roulette: "tirage", blackjack: "main" }[g.type] || "question"} ${g.round}` : ""}</div></div>
     ${helpBtn(g.type)}</div>`;
   const lastLine = g.last?.name ? `<p class="sub" style="margin:8px 0">${esc(g.last.name)} était <b>${esc(g.last.role)}</b>.${g.last.guess ? ` Mr. White a proposé « ${esc(g.last.guess)} »… raté !` : ""}</p>` : "";
   let body = "";
@@ -418,13 +409,13 @@ function cardHtml(c, small = false) {
   const rank = c[0] === "T" ? "10" : c[0];
   return `<span class="pcard ${"HD".includes(c[1]) ? "red" : ""} ${small ? "sm" : ""}">${rank}<i>${SUITS[c[1]]}</i></span>`;
 }
-const drinks = (g) => g.type === "blackjack_drinks";
+const drinks = (g) => (g.options?.sips || 0) > 0;
 const sipWord = (n) => `${n} gorgée${n > 1 ? "s" : ""}`;
 function bjResultText(g, h) {
   if (!h?.result) return "";
-  if (drinks(g)) return { lose: `🍻 Bois ${sipWord(-h.delta)}`, win: `🎉 Distribue ${sipWord(h.delta)}`,
-    blackjack: `🃏 Blackjack ! Distribue ${sipWord(h.delta)}`, push: "🤝 Égalité, personne ne boit" }[h.result];
-  return { lose: `Perdu (${h.delta})`, win: `Gagné (+${h.delta})`, blackjack: `Blackjack ! (+${h.delta})`, push: "Égalité (mise rendue)" }[h.result];
+  const chips = { lose: `Perdu (${h.delta})`, win: `Gagné (+${h.delta})`, blackjack: `Blackjack ! (+${h.delta})`, push: "Égalité (mise rendue)" }[h.result];
+  if (!drinks(g) || !h.sips) return chips;
+  return chips + (h.sips < 0 ? ` · 🍻 bois ${sipWord(-h.sips)}` : ` · 🎉 distribue ${sipWord(h.sips)}`);
 }
 let bjTurnSeen = "";
 function bjTableHtml(g) {
@@ -441,19 +432,19 @@ function bjTableHtml(g) {
   if (!me) {
     zone = `<button data-gact="join" style="width:100%;margin-top:12px">S'asseoir à la table</button>`;
   } else if (g.phase === "bet") {
-    const amounts = drinks(g) ? [1, 2, 3, 4, 5] : [5, 10, 25, 50].filter((a) => a <= mine.chips).concat(mine.chips >= t.min_bet ? [mine.chips] : []);
-    zone = `${drinks(g) ? "" : `<div class="artist">Tes jetons : <b>${mine.chips}</b>${mine.rebuys ? ` · rechargé ${mine.rebuys}×` : ""}</div>`}
-      <div class="artist" style="margin-top:6px">${h ? `Mise : <b>${drinks(g) ? sipWord(h.bet) : h.bet}</b> ✓ — en attente des autres (tu peux changer)` : "Ta mise :"}</div>
-      <div class="chips" style="margin-top:8px">${[...new Set(amounts)].map((a) => `<button class="${h?.bet === a ? "" : "secondary"}" data-gact="bet" data-amount="${a}">${drinks(g) ? `🍻 ${a}` : a === mine.chips && a > 50 ? `Tapis (${a})` : a}</button>`).join("")}</div>
-      ${!drinks(g) && mine.chips < t.min_bet ? `<button data-gact="rebuy" style="width:100%;margin-top:8px">Recharger ${t.start_chips} jetons</button>` : ""}`;
+    const amounts = [5, 10, 25, 50].filter((a) => a <= mine.chips).concat(mine.chips >= t.min_bet ? [mine.chips] : []);
+    zone = `<div class="artist">Tes jetons : <b>${mine.chips}</b>${mine.rebuys ? ` · rechargé ${mine.rebuys}×` : ""}${drinks(g) ? ` · 🍻 ${sipWord(g.options.sips)} en jeu` : ""}</div>
+      <div class="artist" style="margin-top:6px">${h ? `Mise : <b>${h.bet}</b> ✓ — en attente des autres (tu peux changer)` : "Ta mise :"}</div>
+      <div class="chips" style="margin-top:8px">${[...new Set(amounts)].map((a) => `<button class="${h?.bet === a ? "" : "secondary"}" data-gact="bet" data-amount="${a}">${a === mine.chips && a > 50 ? `Tapis (${a})` : a}</button>`).join("")}</div>
+      ${mine.chips < t.min_bet ? `<button data-gact="rebuy" style="width:100%;margin-top:8px">Recharger ${t.start_chips} jetons</button>` : ""}`;
   } else if (h && h.cards.length) {
-    zone = `<div class="bj-me"><div class="artist">Ta main · <b>${h.total}</b> · mise ${drinks(g) ? sipWord(h.bet) : h.bet}${h.doubled ? " (doublée)" : ""}</div>
+    zone = `<div class="bj-me"><div class="artist">Ta main · <b>${h.total}</b> · mise ${h.bet}${h.doubled ? " (doublée)" : ""}</div>
       <div class="bj-cards big">${h.cards.map((c) => cardHtml(c)).join("")}</div>
       ${h.status === "bust" && g.phase === "play" ? `<div class="title">Plus de 21 !</div>` : ""}
       ${h.status === "blackjack" && g.phase === "play" ? `<div class="title">Blackjack ! 🃏</div>` : ""}
       ${g.phase === "results" ? `<div class="bj-result ${h.result}">${bjResultText(g, h)}</div>` : ""}</div>
       ${t.my_turn ? `<div class="bj-actions"><button data-gact="hit">Carte</button><button class="secondary" data-gact="stand">Rester</button>
-        ${h.cards.length === 2 && (drinks(g) || mine.chips >= h.bet) ? `<button class="secondary" data-gact="double">Doubler</button>` : ""}</div>` : ""}`;
+        ${h.cards.length === 2 && mine.chips >= h.bet ? `<button class="secondary" data-gact="double">Doubler</button>` : ""}</div>` : ""}`;
   } else if (g.phase === "play" || g.phase === "results") {
     zone = `<div class="artist" style="margin-top:10px">Tu joues à la prochaine main.</div>`;
   }
@@ -473,10 +464,10 @@ function renderBJHost(g, btn) {
     <div class="list">${t.seats.map((x) => {
       const h = x.hand;
       const info = !h ? (g.phase === "bet" ? "mise en cours…" : "attend la prochaine main")
-        : g.phase === "bet" ? `a misé ${drinks(g) ? sipWord(h.bet) : h.bet}`
-        : `${h.total}${h.status === "bust" ? " · sauté" : h.status === "blackjack" ? " · blackjack" : ""} · mise ${drinks(g) ? sipWord(h.bet) : h.bet}`;
+        : g.phase === "bet" ? `a misé ${h.bet}`
+        : `${h.total}${h.status === "bust" ? " · sauté" : h.status === "blackjack" ? " · blackjack" : ""} · mise ${h.bet}`;
       return `<div class="track ${x.pid === t.turn ? "bj-turn" : ""}">
-        <div class="meta"><div class="title">${esc(x.name)}${x.pid === t.turn ? " ⏳" : ""}${drinks(g) ? "" : ` <span class="artist">· ${x.chips} jetons${x.rebuys ? ` (rechargé ${x.rebuys}×)` : ""}</span>`}</div>
+        <div class="meta"><div class="title">${esc(x.name)}${x.pid === t.turn ? " ⏳" : ""}<span class="artist"> · ${x.chips} jetons${x.rebuys ? ` (rechargé ${x.rebuys}×)` : ""}</span></div>
           <div class="artist">${info}${g.phase === "results" && h?.result ? ` · <b>${bjResultText(g, h)}</b>` : ""}</div>
           ${h?.cards.length ? `<div class="bj-cards" style="margin-top:4px">${h.cards.map((c) => cardHtml(c, true)).join("")}</div>` : ""}</div>
         ${g.is_host && x.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(x.pid)}" title="Exclure de la table">✕</button>` : ""}
@@ -686,7 +677,9 @@ document.addEventListener("click", async (ev) => {
     const g = await gapi("/api/games", { guest_id: guestId, name: guestName, type: b.dataset.create,
       white: card.querySelector("[data-opt=white]")?.checked ?? true, plays: card.querySelector("[data-opt=plays]")?.checked ?? false,
       mode: card.querySelector("[data-opt-group=mode] .on")?.dataset.val || "soft",
-      sips: +(card.querySelector("[data-opt-group=sips] [data-val-out]")?.textContent || 0) });
+      // Blackjack : gorgées seulement si « Alcool » est coché.
+      sips: card.querySelector("[data-opt=alcohol]") && !card.querySelector("[data-opt=alcohol]").checked ? 0
+        : +(card.querySelector("[data-opt-group=sips] [data-val-out]")?.textContent || 0) });
     setGame(g.code); renderGame(g);
     toast(`Partie créée : code ${g.code}`, "ok");
   } catch (e) { toast(e.message, "err"); }
@@ -701,7 +694,7 @@ async function joinByCode() {
 }
 // « ? » : règles détaillées du jeu.
 const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", never: "Je n'ai jamais", roulette: "Roulette",
-  blackjack: "Blackjack", blackjack_drinks: "Blackjack à boire" };
+  blackjack: "Blackjack" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");
   if (open) {
@@ -719,6 +712,12 @@ document.addEventListener("click", (ev) => {
     $("rulesModal").classList.add("hidden");
     document.body.style.overflow = "";
   }
+});
+
+// Blackjack : le réglage des gorgées n'apparaît qu'avec « Alcool ».
+document.addEventListener("change", (ev) => {
+  if (ev.target.dataset?.opt !== "alcohol") return;
+  ev.target.closest(".gcard").querySelector("[data-alcohol-only]").hidden = !ev.target.checked;
 });
 
 // Options de création : mode (boutons) et gorgées (− / +).
