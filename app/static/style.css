@@ -485,7 +485,16 @@ button.cs-spin { height: 54px; font-size: 1rem; background: #f2c14e; color: #2b1
 .dv-actions { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 12px; }
 .dv-actions button { width: 100%; }
 .dv-hearts { font-size: 1.3rem; letter-spacing: 2px; animation: pop .3s ease-out; }
-@media (prefers-reduced-motion: reduce) { .dv-flip { animation: none; } }
+.game.g-dv { overflow-x: clip; }  /* la carte glissée ne fait pas défiler la page */
+.dv-swipe { touch-action: pan-y; cursor: grab; user-select: none; -webkit-user-select: none; }
+.dv-swipe:active { cursor: grabbing; }
+.dv-back { transition: transform .3s ease-out, opacity .3s ease-out; }
+.dv-stamp { position: absolute; top: 72px; padding: 4px 10px; border: 3px solid currentColor; border-radius: 10px; font: 800 1rem system-ui;
+  text-transform: uppercase; letter-spacing: .06em; background: rgba(255,255,255,.7); pointer-events: none; opacity: 0; }
+.dv-stamp-next { right: 16px; color: #1d5fbf; transform: rotate(12deg); opacity: var(--next, 0); }
+.dv-stamp-joker { left: 16px; color: #8a2be2; transform: rotate(-12deg); opacity: var(--joker, 0); }
+.dv-hint { text-align: center; font-size: .8rem; color: var(--g-soft); margin-top: 6px; }
+@media (prefers-reduced-motion: reduce) { .dv-flip { animation: none; } .dv-back { transition: none; } }
 
 /* 🏁 Partie terminée par l'hôte */
 .g-ended { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; padding: 20px; background: rgba(5, 3, 10, .72);

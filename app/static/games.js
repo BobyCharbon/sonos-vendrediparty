@@ -92,6 +92,7 @@ const GAME_RULES = {
       <li>Elle a <b>un joker par tour</b> : une autre carte si celle-ci ne lui parle pas.</li>
       <li>Les autres écoutent, peuvent poser une question de relance… et envoyer du <b>soutien ❤️</b>.</li>
       <li>« Au suivant » : le divan passe au joueur suivant, avec une nouvelle carte.</li>
+      <li>Sur le téléphone de la personne sur le divan (et de l'animateur), on peut aussi <b>glisser la carte</b> : vers la gauche pour « Au suivant », vers la droite pour le joker.</li>
     </ol>
     <h3>Les catégories</h3>
     <ul>
@@ -428,6 +429,7 @@ let gameT0 = 0;  // début de la partie, sur l'horloge de ce téléphone
 setInterval(() => { if (game && $("gTimer")) $("gTimer").textContent = fmtDuration(Date.now() / 1000 - gameT0); }, 1000);
 
 function renderGame(g) {
+  if (dvDrag && g) { dvPending = g; return; }  // pas de rafraîchissement pendant qu'on tient la carte
   if (g && g !== game) gameT0 = Date.now() / 1000 - (g.elapsed || 0);  // recalé à chaque réponse du serveur
   game = g;
   $("gHome").classList.toggle("hidden", !!g);
@@ -723,16 +725,59 @@ function divanHtml(g) {
       <div class="dv-who-text"><div class="dv-who-label">${d.my_turn ? "🛋️ C'est ton tour !" : "🛋️ Sur le divan"}</div>
         <div class="dv-who-name">${d.my_turn ? "À toi de répondre" : esc(who)}</div></div>
     </div>
-    ${c ? `<div class="dv-card dv-${c.cat} ${fresh ? "dv-flip" : ""}">
+    ${c ? `<div class="dv-card dv-${c.cat} ${fresh ? "dv-flip" : ""} ${d.can_lead ? "dv-swipe" : ""}">
+      ${d.can_lead ? `<div class="dv-stamp dv-stamp-next">Au suivant ▶︎</div><div class="dv-stamp dv-stamp-joker">${d.joker ? "Joker utilisé" : "🃏 Joker"}</div>` : ""}
       <div class="dv-cat">${DV_ICONS[c.cat]} ${d.labels[c.cat]}</div>
       <div class="dv-q">${esc(c.text)}</div>
-      <div class="dv-foot">Le Divan · carte ${c.id}</div></div>` : ""}
+      <div class="dv-foot">Le Divan · carte ${c.id}</div></div>
+    ${d.can_lead ? `<div class="dv-hint">← Glisse : au suivant · ${d.joker ? "joker déjà utilisé" : "joker : glisse →"}</div>` : ""}` : ""}
     <div class="dv-actions">
       ${!d.my_turn && g.me ? `<button class="${d.hearted ? "" : "secondary"}" data-gact="dheart" ${d.hearted ? "disabled" : ""}>${d.hearted ? "❤️ Soutien envoyé" : "🤍 Envoyer du soutien"}</button>` : ""}
       ${d.hearts ? `<div class="dv-hearts" aria-label="${d.hearts} soutiens">${"❤️".repeat(Math.min(d.hearts, 12))}</div>` : ""}
     </div>
     ${!g.me && !g.master ? `<button data-gact="join" style="width:100%;margin-top:12px">Rejoindre la séance</button>` : ""}`;
 }
+// Glisser la carte, comme Tinder : vers la gauche = au suivant, vers la droite = joker.
+let dvDrag = null, dvPending = null;
+document.addEventListener("pointerdown", (ev) => {
+  const card = ev.target.closest(".dv-swipe");
+  if (!card || ev.button > 0) return;
+  dvDrag = { card, x: ev.clientX, y: ev.clientY, dx: 0, id: ev.pointerId };
+  card.setPointerCapture(ev.pointerId);
+  card.classList.remove("dv-flip", "dv-back");
+});
+document.addEventListener("pointermove", (ev) => {
+  if (!dvDrag || ev.pointerId !== dvDrag.id) return;
+  const dx = ev.clientX - dvDrag.x, dy = ev.clientY - dvDrag.y;
+  dvDrag.dx = dx;
+  dvDrag.card.style.transform = `translate(${dx}px, ${dy * 0.15}px) rotate(${dx / 18}deg)`;
+  dvDrag.card.style.setProperty("--next", Math.max(0, Math.min(1, -dx / 100)));
+  dvDrag.card.style.setProperty("--joker", Math.max(0, Math.min(1, dx / 100)));
+});
+async function dvRelease(ev) {
+  if (!dvDrag || ev.pointerId !== dvDrag.id) return;
+  const { card, dx } = dvDrag, d = game?.divan;
+  dvDrag = null;
+  const limit = Math.min(110, card.offsetWidth * 0.3);
+  const action = dx < -limit ? "dnext" : dx > limit && d && !d.joker ? "djoker" : "";
+  if (dx > limit && d?.joker) toast("Le joker de ce tour a déjà été utilisé", "err");
+  card.style.removeProperty("--next"); card.style.removeProperty("--joker");
+  if (!action) {
+    card.classList.add("dv-back"); card.style.transform = "";
+    if (dvPending) { const g = dvPending; dvPending = null; renderGame(g); }
+    return;
+  }
+  navigator.vibrate?.(30);
+  card.classList.add("dv-back");
+  card.style.transform = `translateX(${Math.sign(dx) * 150}%) rotate(${Math.sign(dx) * 25}deg)`;
+  card.style.opacity = "0";
+  dvPending = null;
+  await gameAction(action);
+  if (game && document.contains(card)) renderGame(game);  // erreur : la carte revient
+}
+document.addEventListener("pointerup", dvRelease);
+document.addEventListener("pointercancel", dvRelease);
+
 function renderDivanHost(g, btn) {
   const d = g.divan;
   const controls = g.phase === "lobby"
