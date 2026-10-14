@@ -240,3 +240,23 @@ def test_game_codes_are_digits_and_never_the_music_pin():
     assert all(games.new_code(set()).isdigit() for _ in range(50))
     taken = {f"{i:04d}" for i in range(10000)} - {"0042"}
     assert games.new_code(taken) == "0042"
+
+
+@pytest.mark.parametrize("mode, pool", [("soft", games.WHOOF_QUESTIONS), ("awkward", games.WHOOF_AWKWARD), ("hot", games.WHOOF_HOT)])
+def test_whoof_modes_pick_from_their_pool_without_repeats(mode, pool):
+    g = games.new_game("whoof", host="h", name="H", mode=mode, sips=3)
+    games.join(g, "a", "A")
+    games.start(g)
+    seen = set()
+    for _ in range(len(pool)):
+        seen.add(g["question"])
+        assert g["question"][len("Qui de nous "):-2] in pool
+        games.next_step(g)
+    assert len(seen) == len(pool)  # toutes les questions avant de repasser par une déjà posée
+    assert games.view(g, "h")["options"]["sips"] == 3 and games.view(g, "h")["mode"]
+
+
+def test_whoof_rejects_unknown_mode_and_clamps_sips():
+    with pytest.raises(games.GameError):
+        games.new_game("whoof", mode="nope")
+    assert games.new_game("whoof", sips=99)["options"]["sips"] == 10

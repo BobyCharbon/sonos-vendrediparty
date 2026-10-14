@@ -158,3 +158,10 @@ details[open] > summary h2::after { content: " ▾"; }
 #tabs ~ .install { bottom: calc(72px + env(safe-area-inset-bottom)); }
 .toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
 #gameDot { color: var(--accent-2); background: transparent; }
+.seg button { font-size: .9rem; }
+.stepper { gap: 6px; flex: none; }
+.stepper button { padding: 6px 12px; }
+.stepper b { min-width: 1.6em; text-align: center; font-variant-numeric: tabular-nums; }
+.game .drink { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: #3a2a10; color: #ffd18a; font-weight: 700; }
+.seg[data-opt-group] { flex-wrap: wrap; }
+.seg[data-opt-group] button { flex: 1 1 40%; }

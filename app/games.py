@@ -75,6 +75,57 @@ WHOOF_QUESTIONS = [
     "gagnerait à Qui veut gagner des millions", "ferait le meilleur prof",
 ]
 
+WHOOF_AWKWARD = [
+    "a déjà stalké son ex sur Instagram cette semaine", "a déjà fait semblant de ne pas voir quelqu'un dans la rue",
+    "a déjà menti sur son âge", "a déjà lu les messages de quelqu'un en cachette",
+    "a déjà envoyé un message à la mauvaise personne", "a déjà ghosté quelqu'un",
+    "a le pire historique de recherche", "a déjà dragué quelqu'un dans cette pièce",
+    "a déjà oublié le prénom de quelqu'un avec qui il est sorti", "a déjà fouillé dans la salle de bain de quelqu'un",
+    "a déjà parlé dans le dos de quelqu'un ici", "a déjà vomi en soirée",
+    "s'est déjà réveillé chez quelqu'un sans savoir comment il y était arrivé", "a déjà fait une déclaration bourré",
+    "a déjà écrit à un ex à 3 h du matin", "a déjà fait semblant de rire à une blague qu'il ne comprenait pas",
+    "a déjà inventé une excuse bidon pour partir d'un date", "a déjà eu un faux compte sur les réseaux",
+    "a déjà liké une vieille photo par erreur en stalkant", "a déjà menti sur son CV",
+    "a déjà offert un cadeau qu'on lui avait offert", "a déjà été jaloux de quelqu'un ici",
+    "cache le plus de secrets", "a les conversations qu'il voudrait le moins qu'on lise",
+    "a déjà eu un crush sur le ou la partenaire d'un ami", "a déjà été surpris en train de se parler tout seul",
+    "a déjà fait pipi dans une piscine", "a déjà fait tomber son téléphone dans les toilettes",
+    "est déjà parti d'un restaurant sans payer", "a déjà fait semblant d'être malade pour sécher le travail",
+    "a déjà pleuré pour obtenir quelque chose", "a déjà raté un rendez-vous parce qu'il dormait",
+    "a déjà mangé un truc tombé par terre devant tout le monde", "a déjà été recalé en public",
+    "a déjà menti dans ce jeu", "a déjà pleuré devant une téléréalité",
+    "a déjà fait un selfie aux toilettes", "a déjà été pris en train de chanter seul dans la rue",
+    "regarde encore les stories de son ex", "a déjà dit « je t'aime » trop tôt",
+]
+
+WHOOF_HOT = [
+    "a le plus d'expérience au lit", "a déjà couché le premier soir", "a déjà fait l'amour dans un lieu public",
+    "a déjà envoyé une photo coquine", "a déjà fait un plan à trois", "a déjà simulé",
+    "a le plus de fantasmes inavoués", "serait le meilleur coup de la soirée",
+    "a déjà couché avec quelqu'un sans connaître son prénom", "a déjà été surpris en pleine action",
+    "possède le plus de sextoys", "a déjà fait un strip-tease", "a déjà eu un sex friend",
+    "a déjà fait l'amour au travail", "a déjà regardé un porno à deux", "a déjà fait du sexe en visio",
+    "a déjà eu une aventure en vacances", "a déjà embrassé quelqu'un du même sexe",
+    "a déjà couché avec un ex après la rupture", "a déjà fait l'amour dans une voiture",
+    "a déjà utilisé des menottes", "a eu le plus de coups d'un soir cette année", "est le plus bruyant au lit",
+    "a déjà couché avec deux personnes la même semaine", "a déjà conclu sur Tinder le soir même",
+    "a déjà fait l'amour à la plage", "a déjà fait des bêtises dans un avion ou un train",
+    "a déjà fantasmé sur quelqu'un dans cette pièce", "a déjà été pris en train de regarder un porno",
+    "a déjà eu un suçon visible au travail", "a déjà envoyé un message coquin à la mauvaise personne",
+    "a déjà testé le bondage", "reste le plus longtemps sous la couette", "ferait le meilleur acteur de film X",
+    "a déjà fait l'amour sous la douche", "a eu le plus de partenaires",
+    "a déjà embrassé plus de trois personnes dans la même soirée", "a déjà fini un jeu à boire déshabillé",
+    "a déjà couché dans le lit de ses parents", "a déjà dormi nu chez quelqu'un",
+]
+
+# Modes de « Qui de nous ? » : (libellé, questions).
+WHOOF_MODES = {
+    "soft": ("😇 Soft", WHOOF_QUESTIONS),
+    "awkward": ("😬 Malaisant", WHOOF_AWKWARD),
+    "hot": ("🔥 Hot", WHOOF_HOT),
+    "mix": ("🎲 Mix", WHOOF_QUESTIONS + WHOOF_AWKWARD + WHOOF_HOT),
+}
+
 ROLE_LABELS = {"civil": "Civil", "undercover": "Undercover", "white": "Mr. White"}
 
 
@@ -95,15 +146,19 @@ def new_code(taken) -> str:
     return code
 
 
-def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code: str = "", plays: bool = True) -> dict:
+def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code: str = "", plays: bool = True,
+             mode: str = "soft", sips: int = 0) -> dict:
     """Nouvelle partie ; son créateur (host) l'anime, et la rejoint comme joueur s'il joue aussi.
     S'il ne joue pas, il est maître du jeu : il peut voir les rôles et les mots."""
     if kind not in GAMES:
         raise GameError("Jeu inconnu")
+    if mode not in WHOOF_MODES:
+        raise GameError("Mode inconnu")
     g = {
         "id": secrets.token_hex(4), "code": code, "type": kind, "phase": "lobby", "host": host, "host_name": name,
         "created_at": time.time(), "updated_at": time.time(),
-        "options": {"white": white}, "players": [], "round": 0, "order": [], "votes": {},
+        # sips : gorgées que boit la personne désignée (« Qui de nous ? »), 0 = sans alcool.
+        "options": {"white": white, "mode": mode, "sips": max(0, min(10, int(sips)))}, "players": [], "round": 0, "order": [], "votes": {},
         "candidates": None, "last": None, "winner": None, "words": None, "used": [],
         "question": None, "results": None, "kicked": [],
     }
@@ -335,10 +390,11 @@ def next_step(g: dict, rng: random.Random = random):
 
 
 def _next_question(g: dict, rng):
-    left = [i for i in range(len(WHOOF_QUESTIONS)) if i not in g["used"]] or list(range(len(WHOOF_QUESTIONS)))
-    i = rng.choice(left)
-    g["used"] = (g["used"] + [i])[-40:]
-    g.update(phase="question", question=f"Qui de nous {WHOOF_QUESTIONS[i]} ?", votes={}, results=None, round=g["round"] + 1)
+    pool = WHOOF_MODES[g["options"].get("mode", "soft")][1]
+    left = [q for q in pool if q not in g["used"]] or pool
+    q = rng.choice(left)
+    g["used"] = (g["used"] + [q])[-(len(pool) - 1):]
+    g.update(phase="question", question=f"Qui de nous {q} ?", votes={}, results=None, round=g["round"] + 1)
 
 
 def restart(g: dict, rng: random.Random = random) -> dict:
@@ -376,6 +432,7 @@ def view(g: dict, gid: str) -> dict:
         players.append(out)
     out = {
         "id": g["id"], "code": g["code"], "type": g["type"], "name": GAMES[g["type"]], "phase": g["phase"],
+        "mode": WHOOF_MODES[g["options"].get("mode", "soft")][0] if g["type"] == "whoof" else None,
         "round": g["round"], "players": players, "is_host": bool(gid) and g["host"] == gid, "master": master,
         "host_name": g.get("host_name", ""),
         "order": [player(g, i)["name"] for i in g["order"] if player(g, i)] if g["type"] == "undercover" else [],
@@ -405,6 +462,7 @@ def view(g: dict, gid: str) -> dict:
 
 def summary(g: dict) -> dict:
     """Vue d'ensemble pour l'admin (sans les secrets)."""
-    return {"code": g["code"], "name": GAMES[g["type"]], "phase": g["phase"], "round": g["round"],
+    name = GAMES[g["type"]] + (" · " + WHOOF_MODES[g["options"].get("mode", "soft")][0] if g["type"] == "whoof" else "")
+    return {"code": g["code"], "name": name, "phase": g["phase"], "round": g["round"],
             "players": [p["name"] for p in g["players"]], "host": g.get("host_name", ""),
             "updated_at": g["updated_at"]}

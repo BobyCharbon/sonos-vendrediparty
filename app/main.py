@@ -802,6 +802,8 @@ class GameCreate(BaseModel):
     type: str
     white: bool = True
     plays: bool = True  # l'animateur joue aussi (sinon : maître du jeu, il voit les rôles)
+    mode: str = "soft"  # Qui de nous ? : soft | awkward | hot | mix
+    sips: int = 0  # Qui de nous ? : gorgées pour la personne désignée
 
 
 @app.post("/api/games")
@@ -819,7 +821,8 @@ def create_game(body: GameCreate, request: Request):
         raise HTTPException(429, "Trop de parties en cours, réessaie plus tard")
     try:
         g = games.new_game(body.type, body.guest_id, clean_name(body.name), body.white,
-                           code=games.new_code(set(store.session.games) | {store.session.guest_pin}), plays=body.plays)
+                           code=games.new_code(set(store.session.games) | {store.session.guest_pin}), plays=body.plays,
+                           mode=body.mode, sips=body.sips)
     except games.GameError as e:
         raise HTTPException(400, str(e))
     _game_creations[ip] = recent + [time.time()]

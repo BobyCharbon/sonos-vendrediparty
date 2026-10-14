@@ -21,6 +21,15 @@ document.getElementById("gamesRoot").innerHTML = `
       <div class="card" style="margin-bottom:10px">
         <div class="title" style="font-weight:700">🙋 Qui de nous ?</div>
         <p class="sub" style="margin:6px 0 10px">Une question (« Qui de nous finira la soirée en pyjama ? »), tout le monde vote en secret, puis on découvre le classement. 2 joueurs minimum.</p>
+        <div class="artist" style="margin-bottom:6px">Type de questions</div>
+        <div class="seg" data-opt-group="mode" style="margin-bottom:10px">
+          <button type="button" data-val="soft" class="on">😇 Soft</button><button type="button" data-val="awkward">😬 Malaisant</button>
+          <button type="button" data-val="hot">🔥 Hot</button><button type="button" data-val="mix">🎲 Mix</button>
+        </div>
+        <div class="switch-row" style="margin-bottom:10px">
+          <span class="grow">🍻 Gorgées pour la personne désignée<span class="artist" style="display:block">0 = sans alcool</span></span>
+          <div class="row stepper" data-opt-group="sips"><button type="button" class="secondary" data-step="-1">−</button><b data-val-out>2</b><button type="button" class="secondary" data-step="1">+</button></div>
+        </div>
         <label class="switch-row" style="margin-bottom:10px"><span class="grow">🙋 Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button data-create="whoof" style="width:100%">Créer la partie</button>
       </div>
@@ -78,7 +87,7 @@ function renderGame(g) {
   if (!g) return;
   const me = g.me;
   const nameOf = (pid) => esc(g.players.find((p) => p.pid === pid)?.name || "?");
-  const title = `<div class="artist">🎮 ${esc(g.name)} · ${GAME_PHASES[g.phase]}${g.round && g.phase !== "lobby" ? ` · ${g.type === "whoof" ? "question" : "manche"} ${g.round}` : ""}</div>`;
+  const title = `<div class="artist">🎮 ${esc(g.name)}${g.mode ? " · " + esc(g.mode) : ""} · ${GAME_PHASES[g.phase]}${g.round && g.phase !== "lobby" ? ` · ${g.type === "whoof" ? "question" : "manche"} ${g.round}` : ""}</div>`;
   const lastLine = g.last?.name ? `<p class="sub" style="margin:8px 0">${esc(g.last.name)} était <b>${esc(g.last.role)}</b>.${g.last.guess ? ` Mr. White a proposé « ${esc(g.last.guess)} »… raté !` : ""}</p>` : "";
   let body = "";
 
@@ -150,7 +159,11 @@ function renderGame(g) {
 function resultsHtml(g) {
   if (!g.results) return "";
   const max = Math.max(1, ...g.results.map((r) => r.count));
-  return `<div class="list" style="margin-top:10px">${g.results.map((r) => `<div class="bar ${r.count === max ? "top" : ""}" style="--w:${Math.round(100 * r.count / max)}%">
+  const sips = g.options?.sips || 0;
+  const drinkers = g.results.filter((r) => r.count === max).map((r) => esc(r.name));
+  const drink = sips && drinkers.length
+    ? `<div class="drink">🍻 ${drinkers.join(" et ")} boi${drinkers.length > 1 ? "vent" : "t"} ${sips} gorgée${sips > 1 ? "s" : ""} !</div>` : "";
+  return drink + `<div class="list" style="margin-top:10px">${g.results.map((r) => `<div class="bar ${r.count === max ? "top" : ""}" style="--w:${Math.round(100 * r.count / max)}%">
     <span>${r.count === max ? "👑 " : ""}${esc(r.name)}</span><b>${r.count}</b></div>`).join("") || `<div class="artist">Personne n'a voté</div>`}</div>`;
 }
 
@@ -242,7 +255,9 @@ document.addEventListener("click", async (ev) => {
   b.disabled = true;
   try {
     const g = await gapi("/api/games", { guest_id: guestId, name: guestName, type: b.dataset.create,
-      white: card.querySelector("[data-opt=white]")?.checked ?? true, plays: card.querySelector("[data-opt=plays]").checked });
+      white: card.querySelector("[data-opt=white]")?.checked ?? true, plays: card.querySelector("[data-opt=plays]").checked,
+      mode: card.querySelector("[data-opt-group=mode] .on")?.dataset.val || "soft",
+      sips: +(card.querySelector("[data-opt-group=sips] [data-val-out]")?.textContent || 0) });
     setGame(g.code); renderGame(g);
     toast(`Partie créée : code ${g.code}`, "ok");
   } catch (e) { toast(e.message, "err"); }
@@ -255,6 +270,16 @@ async function joinByCode() {
   setGame(code); autoJoin = true;
   await refreshGame();
 }
+// Options de création : mode (boutons) et gorgées (− / +).
+document.addEventListener("click", (ev) => {
+  const opt = ev.target.closest("[data-opt-group=mode] [data-val]");
+  if (opt) opt.parentElement.querySelectorAll("[data-val]").forEach((b) => b.classList.toggle("on", b === opt));
+  const step = ev.target.closest("[data-opt-group=sips] [data-step]");
+  if (step) {
+    const out = step.parentElement.querySelector("[data-val-out]");
+    out.textContent = Math.max(0, Math.min(10, +out.textContent + +step.dataset.step));
+  }
+});
 $("gJoinForm").addEventListener("submit", (ev) => { ev.preventDefault(); joinByCode(); });
 // On rejoint dès le 4ᵉ chiffre, comme pour le code de la musique.
 $("gCode").addEventListener("input", () => {
