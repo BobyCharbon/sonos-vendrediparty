@@ -1,0 +1,327 @@
+"""Jeux de soirée : Undercover et « Qui de nous ? ».
+
+L'état d'une partie est un dict sérialisable (persisté avec la session). Les invités jouent depuis
+leur téléphone ; l'hôte ouvre la partie et fait avancer les phases depuis l'admin.
+"""
+
+import random
+import time
+import unicodedata
+import uuid
+
+GAMES = {
+    "undercover": "Undercover",
+    "whoof": "Qui de nous ?",
+}
+
+# Undercover : les civils reçoivent un mot, les undercovers un mot proche ; Mr. White n'a pas de mot.
+WORD_PAIRS = [
+    ("Chat", "Chien"), ("Café", "Thé"), ("Plage", "Piscine"), ("Pizza", "Burger"), ("Guitare", "Violon"),
+    ("Soleil", "Lune"), ("Avion", "Hélicoptère"), ("Vin", "Bière"), ("Train", "Métro"), ("Pomme", "Poire"),
+    ("Football", "Rugby"), ("Ski", "Snowboard"), ("Netflix", "YouTube"), ("Instagram", "TikTok"),
+    ("Chocolat", "Caramel"), ("Fromage", "Beurre"), ("Médecin", "Infirmier"), ("Policier", "Pompier"),
+    ("Lit", "Canapé"), ("Douche", "Bain"), ("Stylo", "Crayon"), ("Livre", "Magazine"), ("Cinéma", "Théâtre"),
+    ("Mariage", "Anniversaire"), ("Noël", "Pâques"), ("Lion", "Tigre"), ("Requin", "Dauphin"),
+    ("Abeille", "Guêpe"), ("Rose", "Tulipe"), ("Vampire", "Zombie"), ("Sorcière", "Fée"), ("Paris", "Londres"),
+    ("Genève", "Lausanne"), ("Raclette", "Fondue"), ("Croissant", "Pain au chocolat"), ("Sushi", "Ramen"),
+    ("Kebab", "Tacos"), ("Vélo", "Trottinette"), ("Moto", "Scooter"), ("Voiture", "Camion"),
+    ("Bateau", "Sous-marin"), ("Pirate", "Viking"), ("Château", "Palais"), ("Roi", "Prince"),
+    ("iPhone", "Android"), ("Mojito", "Caïpirinha"), ("Champagne", "Prosecco"), ("Whisky", "Rhum"),
+    ("Tequila", "Vodka"), ("DJ", "Chanteur"), ("Concert", "Festival"), ("Boîte de nuit", "Bar"),
+    ("Karaoké", "Blind test"), ("Neige", "Grêle"), ("Pluie", "Orage"), ("Été", "Printemps"),
+    ("Lunettes", "Lentilles"), ("Montre", "Bracelet"), ("Bague", "Collier"), ("Chaussette", "Chaussure"),
+    ("Short", "Jupe"), ("Casquette", "Bonnet"), ("Parapluie", "Parasol"), ("Tente", "Caravane"),
+    ("Hôtel", "Camping"), ("Avocat", "Juge"), ("Professeur", "Directeur"), ("École", "Université"),
+    ("Harry Potter", "Le Seigneur des anneaux"), ("Batman", "Superman"), ("Mario", "Sonic"),
+    ("Star Wars", "Star Trek"), ("Titanic", "Avatar"), ("Ketchup", "Mayonnaise"), ("Sel", "Poivre"),
+    ("Miel", "Confiture"), ("Crêpe", "Gaufre"), ("Glace", "Sorbet"), ("Gâteau", "Tarte"), ("Banane", "Mangue"),
+    ("Fraise", "Framboise"), ("Citron", "Orange"), ("Tomate", "Poivron"), ("Frites", "Chips"),
+    ("Poulet", "Dinde"), ("Saumon", "Thon"), ("Lac", "Mer"), ("Forêt", "Jungle"), ("Désert", "Savane"),
+    ("Volcan", "Geyser"), ("Fusée", "Satellite"), ("Astronaute", "Pilote"), ("Robot", "Cyborg"),
+    ("Fantôme", "Squelette"), ("Clown", "Mime"), ("Ange", "Démon"), ("Licorne", "Pégase"),
+    ("Dragon", "Dinosaure"), ("Cheval", "Âne"), ("Vache", "Chèvre"), ("Mouton", "Lama"),
+    ("Souris", "Hamster"), ("Perroquet", "Pigeon"), ("Musculation", "Yoga"), ("Tennis", "Badminton"),
+    ("Basket", "Volley"), ("Golf", "Mini-golf"), ("Bowling", "Billard"), ("Échecs", "Dames"),
+    ("Poker", "Blackjack"), ("Uno", "Monopoly"), ("Selfie", "Photo de groupe"), ("Tatouage", "Piercing"),
+    ("Barbe", "Moustache"), ("Coiffeur", "Barbier"), ("Parfum", "Déodorant"), ("Dentifrice", "Shampoing"),
+    ("Réveil", "Horloge"), ("Ascenseur", "Escalator"), ("Cascade", "Rivière"), ("Igloo", "Cabane"),
+    ("Pyjama", "Peignoir"), ("Barbecue", "Pique-nique"), ("Popcorn", "Barbe à papa"), ("Taxi", "Uber"),
+]
+
+WHOOF_QUESTIONS = [
+    "finira par devenir célèbre", "oubliera son téléphone ici ce soir", "partira le dernier de la soirée",
+    "survivrait le plus longtemps sur une île déserte", "tiendrait un mois sans internet",
+    "se perdrait même avec un GPS", "deviendra millionnaire", "ferait le meilleur président",
+    "chante le plus faux", "est le plus mauvais perdant", "pourrait dormir n'importe où", "mange le plus",
+    "rit à ses propres blagues", "pleure devant un dessin animé", "arrive toujours en retard",
+    "adopterait cinq chats", "sauterait en parachute sans hésiter", "participerait à une téléréalité",
+    "partirait vivre à l'autre bout du monde", "oublierait l'anniversaire de son meilleur ami",
+    "gagnerait un concours de danse", "mourrait en premier dans un film d'horreur",
+    "dépenserait tout son salaire en un week-end", "a le plus de photos dans son téléphone",
+    "cuisine le mieux", "ferait le meilleur espion", "tomberait amoureux en vacances",
+    "lancerait une start-up", "se lèverait à 5 h pour aller courir", "met le plus l'ambiance sur la piste",
+    "choisirait la pire musique", "ferait le meilleur DJ ce soir", "raconte les pires blagues",
+    "garde le mieux un secret", "garde le moins bien un secret", "se marierait sur un coup de tête à Las Vegas",
+    "se ferait un tatouage regrettable", "perdra ses clés ce soir", "finira la soirée en pyjama",
+    "envoie les vocaux les plus longs", "passerait une nuit dans une maison hantée",
+    "répond aux messages trois jours plus tard", "ferait le tour du monde en stop",
+    "regarde une série entière en une nuit", "parle à ses plantes", "connaît toutes les paroles par cœur",
+    "deviendrait le chef d'une bande de pirates", "se ferait passer pour malade pour éviter une soirée",
+    "gagnerait à Qui veut gagner des millions", "ferait le meilleur prof",
+]
+
+ROLE_LABELS = {"civil": "Civil", "undercover": "Undercover", "white": "Mr. White"}
+
+
+class GameError(Exception):
+    pass
+
+
+def normalize(text: str) -> str:
+    """Comparaison tolérante (accents, majuscules, espaces) pour la réponse de Mr. White."""
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+    return " ".join(text.lower().replace("-", " ").split())
+
+
+def new_game(kind: str, white: bool = True) -> dict:
+    if kind not in GAMES:
+        raise GameError("Jeu inconnu")
+    return {
+        "id": uuid.uuid4().hex[:8], "type": kind, "phase": "lobby", "created_at": time.time(),
+        "options": {"white": white}, "players": [], "round": 0, "order": [], "votes": {},
+        "candidates": None, "last": None, "winner": None, "words": None, "used": [],
+        "question": None, "results": None,
+    }
+
+
+def player(g: dict, gid: str) -> dict | None:
+    return next((p for p in g["players"] if p["id"] == gid), None)
+
+
+def alive(g: dict) -> list[dict]:
+    return [p for p in g["players"] if p["alive"]]
+
+
+def join(g: dict, gid: str):
+    if player(g, gid):
+        return
+    # « Qui de nous ? » accepte les retardataires ; Undercover seulement avant la distribution des mots.
+    if g["type"] == "undercover" and g["phase"] != "lobby":
+        raise GameError("La partie a déjà commencé, attends la prochaine 🙂")
+    g["players"].append({"id": gid, "alive": True, "role": None, "word": None})
+
+
+def leave(g: dict, gid: str):
+    if g["type"] == "undercover" and g["phase"] not in ("lobby", "end"):
+        raise GameError("Impossible de quitter en pleine partie")
+    g["players"] = [p for p in g["players"] if p["id"] != gid]
+    g["votes"].pop(gid, None)
+
+
+def start(g: dict, rng: random.Random = random):
+    """Distribue les rôles (Undercover) ou pose la première question (Qui de nous ?)."""
+    if g["type"] == "undercover":
+        _deal(g, rng)
+    else:
+        if len(g["players"]) < 2:
+            raise GameError("Il faut au moins 2 joueurs")
+        _next_question(g, rng)
+
+
+def _deal(g: dict, rng):
+    players = g["players"]
+    n = len(players)
+    if n < 3:
+        raise GameError("Il faut au moins 3 joueurs")
+    undercovers = 1 if n <= 6 else 2 if n <= 9 else 3
+    whites = 1 if g["options"]["white"] and n >= 5 else 0
+    pairs = [i for i in range(len(WORD_PAIRS)) if i not in g["used"]] or list(range(len(WORD_PAIRS)))
+    pair_index = rng.choice(pairs)
+    g["used"] = (g["used"] + [pair_index])[-60:]
+    civil, under = WORD_PAIRS[pair_index]
+    if rng.random() < 0.5:
+        civil, under = under, civil
+    g["words"] = {"civil": civil, "undercover": under}
+    roles = ["undercover"] * undercovers + ["white"] * whites
+    roles += ["civil"] * (n - len(roles))
+    rng.shuffle(roles)
+    for p, role in zip(players, roles):
+        p.update(alive=True, role=role, word={"civil": civil, "undercover": under}.get(role))
+    g.update(round=1, winner=None, last=None, votes={}, candidates=None)
+    _speaking_order(g, rng)
+
+
+def _speaking_order(g: dict, rng):
+    order = [p["id"] for p in alive(g)]
+    rng.shuffle(order)
+    # Mr. White ne commence jamais : il n'a rien pour donner un indice.
+    if len(order) > 1 and player(g, order[0])["role"] == "white":
+        order.append(order.pop(0))
+    g["order"] = order
+    g["phase"] = "words"
+
+
+def start_vote(g: dict):
+    if g["type"] != "undercover" or g["phase"] != "words":
+        raise GameError("Pas le moment de voter")
+    g.update(phase="vote", votes={}, candidates=None)
+
+
+def vote(g: dict, voter: str, target: str, rng: random.Random = random):
+    me, other = player(g, voter), player(g, target)
+    if g["phase"] not in ("vote", "question") or not me:
+        raise GameError("Pas de vote en cours")
+    if g["type"] == "undercover":
+        if not me["alive"]:
+            raise GameError("Tu as été éliminé : tu ne votes plus")
+        if not other or not other["alive"] or target == voter:
+            raise GameError("Vote invalide")
+        if g["candidates"] and target not in g["candidates"]:
+            raise GameError("Vote seulement pour les ex æquo")
+    elif not other:
+        raise GameError("Vote invalide")
+    g["votes"][voter] = target
+    voters = alive(g) if g["type"] == "undercover" else g["players"]
+    if all(p["id"] in g["votes"] for p in voters):
+        close_vote(g, rng)
+
+
+def tally(g: dict) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for target in g["votes"].values():
+        counts[target] = counts.get(target, 0) + 1
+    return counts
+
+
+def close_vote(g: dict, rng: random.Random = random):
+    counts = tally(g)
+    if g["type"] == "whoof":
+        if g["phase"] != "question":
+            raise GameError("Pas de question en cours")
+        g["results"] = sorted(([gid, c] for gid, c in counts.items()), key=lambda x: -x[1])
+        g["phase"] = "results"
+        return
+    if g["phase"] != "vote":
+        raise GameError("Pas de vote en cours")
+    if not counts:
+        raise GameError("Personne n'a encore voté")
+    best = max(counts.values())
+    tied = [gid for gid, c in counts.items() if c == best]
+    if len(tied) > 1 and not g["candidates"]:
+        # Égalité : on revote entre les ex æquo ; à la deuxième égalité, le hasard tranche.
+        g.update(candidates=tied, votes={}, last={"tie": True})
+        return
+    eliminate(g, rng.choice(tied) if len(tied) > 1 else tied[0])
+
+
+def eliminate(g: dict, target: str):
+    p = player(g, target)
+    if g["type"] != "undercover" or g["phase"] not in ("words", "vote") or not p or not p["alive"]:
+        raise GameError("Élimination impossible")
+    p["alive"] = False
+    g.update(votes={}, candidates=None, last={"eliminated": target, "role": p["role"], "round": g["round"]})
+    if p["role"] == "white":
+        g["phase"] = "white_guess"
+    else:
+        _check_end(g) or g.update(phase="reveal")
+
+
+def white_guess(g: dict, gid: str, guess: str):
+    if g["phase"] != "white_guess" or not g["last"] or g["last"]["eliminated"] != gid:
+        raise GameError("Ce n'est pas à toi de deviner")
+    guess = guess.strip()[:40]
+    g["last"]["guess"] = guess
+    if normalize(guess) == normalize(g["words"]["civil"]):
+        g.update(winner="white", phase="end")
+    else:
+        _check_end(g) or g.update(phase="reveal")
+
+
+def skip_white_guess(g: dict):
+    """L'hôte passe la devinette (Mr. White parti ou trop long)."""
+    if g["phase"] != "white_guess":
+        raise GameError("Pas de devinette en cours")
+    _check_end(g) or g.update(phase="reveal")
+
+
+def _check_end(g: dict) -> bool:
+    living = alive(g)
+    impostors = [p for p in living if p["role"] != "civil"]
+    civils = [p for p in living if p["role"] == "civil"]
+    if not impostors:
+        g.update(winner="civils", phase="end")
+    elif len(civils) <= 1:
+        g.update(winner="impostors", phase="end")
+    return g["phase"] == "end"
+
+
+def next_step(g: dict, rng: random.Random = random):
+    if g["type"] == "undercover":
+        if g["phase"] != "reveal":
+            raise GameError("Pas encore")
+        g["round"] += 1
+        g["last"] = None
+        _speaking_order(g, rng)
+    else:
+        if g["phase"] not in ("results", "question"):
+            raise GameError("Pas encore")
+        _next_question(g, rng)
+
+
+def _next_question(g: dict, rng):
+    left = [i for i in range(len(WHOOF_QUESTIONS)) if i not in g["used"]] or list(range(len(WHOOF_QUESTIONS)))
+    i = rng.choice(left)
+    g["used"] = (g["used"] + [i])[-40:]
+    g.update(phase="question", question=f"Qui de nous {WHOOF_QUESTIONS[i]} ?", votes={}, results=None, round=g["round"] + 1)
+
+
+def restart(g: dict, rng: random.Random = random) -> dict:
+    """Nouvelle manche avec les mêmes joueurs."""
+    if g["type"] == "undercover":
+        _deal(g, rng)
+    else:
+        _next_question(g, rng)
+    return g
+
+
+# --- Vues : chaque invité ne voit que ce qu'il a le droit de voir ---
+
+def _public_player(g: dict, p: dict, names: dict, reveal: bool) -> dict:
+    out = {"id": p["id"], "name": names.get(p["id"], "?"), "alive": p["alive"], "voted": p["id"] in g["votes"]}
+    # Un éliminé dévoile son rôle, pas son mot (celui d'un civil aiderait les undercovers restants).
+    if reveal or not p["alive"]:
+        out["role"] = ROLE_LABELS.get(p["role"]) if p["role"] else None
+    if reveal:
+        out["word"] = p["word"]
+    return out
+
+
+def view(g: dict | None, gid: str | None, names: dict) -> dict | None:
+    """gid=None : vue de l'hôte (tout, rôles compris)."""
+    if not g:
+        return None
+    host = gid is None
+    ended = g["phase"] == "end"
+    me = player(g, gid) if gid else None
+    out = {
+        "id": g["id"], "type": g["type"], "name": GAMES[g["type"]], "phase": g["phase"], "round": g["round"],
+        "players": [_public_player(g, p, names, host or ended) for p in g["players"]],
+        "order": [names.get(i, "?") for i in g["order"]] if g["type"] == "undercover" else [],
+        "candidates": g["candidates"], "winner": g["winner"], "question": g["question"],
+        "votes_count": len(g["votes"]), "options": g["options"],
+    }
+    last = g["last"] or {}
+    if last.get("eliminated"):
+        out["last"] = {**last, "name": names.get(last["eliminated"], "?"), "role": ROLE_LABELS.get(last["role"])}
+    elif last.get("tie"):
+        out["last"] = {"tie": True}
+    if g["results"]:
+        out["results"] = [{"id": i, "name": names.get(i, "?"), "count": c} for i, c in g["results"]]
+    if host or ended:
+        out["words"] = g["words"]
+    if host:
+        out["votes"] = {names.get(v, "?"): names.get(t, "?") for v, t in g["votes"].items()}
+    if me:
+        out["me"] = {"alive": me["alive"], "vote": g["votes"].get(gid),
+                     "role": "Mr. White" if me["role"] == "white" else None, "word": me["word"]}
+    return out

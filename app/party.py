@@ -52,6 +52,8 @@ class Session:
     admin_push: list[dict] = field(default_factory=list)
     # Playlists favorites de l'hôte (Réglages) : {"id": "spotify:playlist:…" ou "fav:…"/"sq:…", "title"}.
     top_playlists: list[dict] = field(default_factory=list)
+    # Partie de jeu en cours (voir games.py), ou None.
+    game: dict | None = None
 
 
 class PartyStore:

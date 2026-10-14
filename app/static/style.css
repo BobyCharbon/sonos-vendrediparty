@@ -143,3 +143,14 @@ details > summary h2::after { content: " ▸"; }
 details[open] > summary h2::after { content: " ▾"; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chips button { padding: 8px 12px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.game { margin: 8px 0 12px; border: 1px solid #4a2a5a; background: linear-gradient(160deg, #2a1838, var(--card)); }
+.game .title { white-space: normal; font-weight: 700; font-size: 1.05rem; margin-top: 2px; }
+.game .word { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.01em; }
+.game .secret { background: var(--card-2); border-radius: 12px; padding: 12px; text-align: center; cursor: pointer; }
+.game .order { font-weight: 600; margin-top: 4px; }
+.game .question { font-size: 1.25rem; font-weight: 800; line-height: 1.25; }
+.pill.out { opacity: .5; text-decoration: line-through; }
+.bar { position: relative; display: flex; justify-content: space-between; padding: 8px 12px; border-radius: 10px; background: var(--card-2); overflow: hidden; }
+.bar::before { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--w); background: #3a2350; z-index: 0; }
+.bar.top::before { background: linear-gradient(90deg, var(--accent), #ff6f7d); }
+.bar > * { position: relative; z-index: 1; }

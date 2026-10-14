@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from . import games
 from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
 from .push import Push, valid_subscription
 from .security import Limiter
@@ -631,6 +632,8 @@ def admin_state():
         "bans": [{"guest_id": g, **b} for g, b in store.active_bans().items()],
         "messages": list(reversed(s.messages)),
         "top_playlists": s.top_playlists,
+        "game": games.view(s.game, None, game_names()),
+        "games": games.GAMES,
     }
     if s.active:
         try:
@@ -770,6 +773,81 @@ def admin_messages(body: MessageAction):
     return admin_state()
 
 
+# --- Jeux ---
+
+def game_names() -> dict[str, str]:
+    return {gid: g["name"] for gid, g in store.session.guests.items()}
+
+
+def game_call(fn, *args):
+    """Applique une action de jeu et prévient les pages ouvertes."""
+    g = store.session.game
+    if not g:
+        raise HTTPException(404, "Aucune partie en cours")
+    try:
+        fn(g, *args)
+    except games.GameError as e:
+        raise HTTPException(409, str(e))
+    store.save()
+
+
+class GameAdmin(BaseModel):
+    action: str  # open | start | vote | close_vote | eliminate | skip_guess | next | restart | remove | end
+    type: str = ""
+    white: bool = True
+    guest_id: str = ""
+
+
+@app.post("/api/admin/game", dependencies=[Depends(require_admin)])
+def admin_game(body: GameAdmin):
+    require_active()
+    a = body.action
+    if a == "open":
+        try:
+            store.session.game = games.new_game(body.type, white=body.white)
+        except games.GameError as e:
+            raise HTTPException(400, str(e))
+        store.save()
+    elif a == "end":
+        store.session.game = None
+        store.save()
+    else:
+        actions = {
+            "start": (games.start,), "vote": (games.start_vote,), "close_vote": (games.close_vote,),
+            "eliminate": (games.eliminate, body.guest_id), "skip_guess": (games.skip_white_guess,),
+            "next": (games.next_step,), "restart": (games.restart,), "remove": (games.leave, body.guest_id),
+        }
+        if a not in actions:
+            raise HTTPException(400, "Action inconnue")
+        game_call(*actions[a])
+    return admin_state()
+
+
+class GamePlay(BaseModel):
+    guest_id: str
+    action: str  # join | leave | vote | guess
+    target: str = ""
+    guess: str = ""
+
+
+@app.post("/api/game", dependencies=[Depends(require_guest)])
+def play_game(body: GamePlay, request: Request):
+    require_active()
+    check_guest_id(body.guest_id)
+    if body.guest_id not in store.session.guests:
+        raise HTTPException(409, "Indique d'abord ton prénom")
+    if body.action == "join" and (msg := ban_message(body.guest_id, client_ip(request))):
+        raise HTTPException(403, msg)
+    actions = {
+        "join": (games.join, body.guest_id), "leave": (games.leave, body.guest_id),
+        "vote": (games.vote, body.guest_id, body.target), "guess": (games.white_guess, body.guest_id, body.guess),
+    }
+    if body.action not in actions:
+        raise HTTPException(400, "Action inconnue")
+    game_call(*actions[body.action])
+    return {"ok": True, "game": games.view(store.session.game, body.guest_id, game_names())}
+
+
 # --- Invités ---
 
 def public_sonos(snap: dict, guest_id: str = "") -> dict:
@@ -839,6 +917,7 @@ def state(request: Request, guest_id: str = ""):
         "messages": [{k: m.get(k) for k in ("id", "text", "at", "reply", "reply_at")} for m in store.messages_of(guest_id)] if guest_id else [],
         # Déjà passés (le plus récent d'abord, sans le titre en cours) : pour les retrouver sur Spotify.
         "played": [{**p, "art": art_url(p["art"])} for p in reversed(s.played[-16:-1])],
+        "game": games.view(s.game, guest_id or "-", game_names()),
     }
     try:
         return {**base, **public_sonos(snapshot(), guest_id)}
