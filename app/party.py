@@ -57,6 +57,11 @@ class PartyStore:
         self.version = 0  # incrémenté à chaque modification : les pages ouvertes se rafraîchissent
         if not self.session.guest_pin:
             self.regenerate_pin()
+        # Données d'avant la propagation des prénoms : on aligne sur le dernier prénom connu.
+        for r in self.session.requests:
+            name = self.session.guests.get(r.guest_id, {}).get("name")
+            if name and r.guest_name != name:
+                r.guest_name = name
 
     def _load(self) -> Session:
         try:
@@ -118,13 +123,28 @@ class PartyStore:
     def register_guest(self, guest_id: str, name: str, ip: str):
         """Un invité entre (ou change de prénom) : il apparaît tout de suite dans l'admin."""
         g = self.session.guests.get(guest_id)
-        if g and g["name"] == name and ip in g["ips"]:
+        if g and g["name"] == name and (not ip or ip in self.ignored_ips or ip in g["ips"]):
             return
         if g is None:
             g = self.session.guests[guest_id] = {"name": name, "ips": [], "joined_at": time.time()}
-        g["name"] = name
+        if g["name"] != name:
+            self.rename_guest(guest_id, name)
         if ip and ip not in self.ignored_ips and ip not in g["ips"]:
             g["ips"].append(ip)
+        self.save()
+
+    def rename_guest(self, guest_id: str, name: str):
+        """Nouveau prénom partout : file d'attente, historique, messages, bannissements."""
+        if guest_id in self.session.guests:
+            self.session.guests[guest_id]["name"] = name
+        for r in self.session.requests:
+            if r.guest_id == guest_id:
+                r.guest_name = name
+        for m in self.session.messages:
+            if m["guest_id"] == guest_id:
+                m["name"] = name
+        if guest_id in self.session.bans:
+            self.session.bans[guest_id]["name"] = name
         self.save()
 
     def link_token(self, guest_id: str, token: str | None):

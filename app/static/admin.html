@@ -339,7 +339,8 @@ function renderGuests(s) {
       <div class="row" style="gap:6px">
         ${g.ban
           ? `<button class="secondary" data-act="unban" data-g="${esc(g.guest_id)}">Débloquer</button>`
-          : `<button class="secondary" data-act="kick" data-g="${esc(g.guest_id)}" title="Déconnecter (redemande le code)">⏏︎</button>
+          : `<button class="secondary" data-act="rename" data-g="${esc(g.guest_id)}" data-name="${esc(g.name)}" title="Renommer">✏️</button>
+             <button class="secondary" data-act="kick" data-g="${esc(g.guest_id)}" title="Déconnecter (redemande le code)">⏏︎</button>
              <button class="secondary" data-act="ban10" data-g="${esc(g.guest_id)}" title="Bloquer 10 minutes">⏸ 10 min</button>
              <button class="danger" data-act="ban" data-g="${esc(g.guest_id)}" title="Bannir">⛔</button>`}
         ${g.queued ? `<button class="danger" data-act="purge" data-g="${esc(g.guest_id)}" title="Retirer ses titres en attente">🗑</button>` : ""}
@@ -362,7 +363,13 @@ document.addEventListener("click", async (ev) => {
   const b = ev.target.closest("[data-act]");
   if (!b) return;
   const g = b.dataset.g, act = b.dataset.act;
+  let name;
+  if (act === "rename") {
+    name = prompt("Nouveau prénom :", b.dataset.name || "");
+    if (!name || !name.trim() || name.trim() === b.dataset.name) return;
+  }
   const calls = {
+    rename: ["/api/admin/rename", { guest_id: g, name }, "Invité renommé"],
     kick: ["/api/admin/kick", { guest_id: g }, "Invité déconnecté : il devra ressaisir le code"],
     ban10: ["/api/admin/ban", { guest_id: g, minutes: 10 }, "Bloqué 10 minutes"],
     ban: ["/api/admin/ban", { guest_id: g, minutes: null }, "Invité banni"],

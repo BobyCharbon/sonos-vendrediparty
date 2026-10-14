@@ -311,6 +311,18 @@ def admin_unban(body: GuestRef):
     return admin_state()
 
 
+class Rename(BaseModel):
+    guest_id: str
+    name: str
+
+
+@app.post("/api/admin/rename", dependencies=[Depends(require_admin)])
+def admin_rename(body: Rename):
+    """L'hôte renomme un invité (la page de l'invité reprend ce nom)."""
+    store.rename_guest(body.guest_id, clean_name(body.name))
+    return admin_state()
+
+
 @app.post("/api/admin/kick", dependencies=[Depends(require_admin)])
 def admin_kick(body: GuestRef):
     """Déconnecte un invité : il devra ressaisir le code (ce n'est pas un ban)."""
@@ -618,6 +630,8 @@ def state(request: Request, guest_id: str = ""):
     store.link_token(guest_id, guest_token(request))
     base = {
         "active": True, "room": s.room_name, "blocked": ban_message(guest_id, client_ip(request)),
+        # Prénom connu du serveur (l'hôte a pu le modifier) : la page invité le reprend.
+        "name": s.guests.get(guest_id, {}).get("name"),
         # Ses propres messages et les réponses de l'hôte.
         "messages": [{k: m.get(k) for k in ("id", "text", "at", "reply", "reply_at")} for m in store.messages_of(guest_id)] if guest_id else [],
     }

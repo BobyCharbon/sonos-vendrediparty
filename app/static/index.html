@@ -128,6 +128,9 @@ async function refresh() {
     api("/api/hello", { method: "POST", body: JSON.stringify({ guest_id: guestId, guest_name: guestName }) }).catch(() => { registered = false; });
   }
   show("party");
+  if (s.name && s.name !== guestName) {  // l'hôte a changé le prénom
+    guestName = s.name; store("vp_name", guestName);
+  }
   $("room").textContent = s.room;
   $("rename").textContent = guestName;
 

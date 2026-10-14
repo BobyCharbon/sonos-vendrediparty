@@ -168,3 +168,19 @@ def test_speaker_group_and_volume(admin):
     assert admin.post("/api/admin/speakers/group", json={"uid": "RINCON_B", "join": True}).json()[0]["in_group"]
     admin.post("/api/admin/speakers/volume", json={"uid": "RINCON_B", "volume": -5})
     assert calls == [("group", "RINCON_B", True), ("spvol", "RINCON_B", 0)]
+
+
+def test_rename_updates_queue_and_guest_page(admin):
+    guest = TestClient(main.app)
+    guest.post("/api/join", json={"pin": main.store.session.guest_pin})
+    guest.post("/api/hello", json={"guest_id": "guest-name", "guest_name": "Tom"})
+    main.store.add({"id": "a" * 22, "title": "Un", "artist": "A"}, "guest-name", "Tom")  # « Un » est en position 5
+
+    # L'invité change lui-même son prénom : la file suit.
+    guest.post("/api/hello", json={"guest_id": "guest-name", "guest_name": "Thomas"})
+    assert admin.get("/api/admin/state").json()["queue"][0]["by"] == "Thomas"
+
+    # L'hôte le renomme : la file et la page de l'invité suivent.
+    admin.post("/api/admin/rename", json={"guest_id": "guest-name", "name": "DJ Tom"})
+    assert admin.get("/api/admin/state").json()["queue"][0]["by"] == "DJ Tom"
+    assert guest.get("/api/state?guest_id=guest-name").json()["name"] == "DJ Tom"
