@@ -24,6 +24,7 @@ class Request:
     added_at: float
     status: str = "queued"  # queued | played | removed
     ip: str = ""
+    duration_ms: int = 0
 
 
 @dataclass
@@ -44,6 +45,11 @@ class Session:
     messages: list[dict] = field(default_factory=list)
     # Jetons d'accès révoqués (invités déconnectés par l'hôte : ils doivent ressaisir le code).
     revoked: list[str] = field(default_factory=list)
+    # Titres déjà joués pendant la soirée : {"track_id", "title", "artist", "art", "by", "at"}.
+    played: list[dict] = field(default_factory=list)
+    # Abonnements aux notifications push : guest_id -> [abonnement Web Push] ; l'hôte à part.
+    push: dict[str, list[dict]] = field(default_factory=dict)
+    admin_push: list[dict] = field(default_factory=list)
 
 
 class PartyStore:
@@ -85,6 +91,7 @@ class PartyStore:
         self.session = Session(
             active=True, room_uid=room_uid, room_name=room_name, mode=mode, started_at=time.time(),
             bans=self.session.bans, guest_pin=self.session.guest_pin, revoked=self.session.revoked,
+            push=self.session.push, admin_push=self.session.admin_push,
         )
         self.save()
 
@@ -115,6 +122,7 @@ class PartyStore:
             guest_name=guest_name,
             added_at=time.time(),
             ip=ip,
+            duration_ms=track.get("duration_ms", 0),
         )
         self.session.requests.append(req)
         self.save()
@@ -252,14 +260,37 @@ class PartyStore:
         # Un bannissement sans limite l'emporte sur un blocage temporaire.
         return {"until": 0 if any(b["until"] == 0 for b in found) else max(b["until"] for b in found)}
 
-    def reconcile(self, upcoming_ids: set[str]):
-        """Marque comme jouées les demandes qui ne sont plus à venir dans la file."""
-        changed = False
-        for r in self.pending():
-            if r.track_id not in upcoming_ids:
-                r.status = "played"
-                changed = True
-        if changed:
+    def reconcile(self, upcoming_ids: set[str]) -> list[Request]:
+        """Marque comme jouées les demandes qui ne sont plus à venir dans la file ; les renvoie."""
+        done = [r for r in self.pending() if r.track_id not in upcoming_ids]
+        for r in done:
+            r.status = "played"
+        if done:
+            self.save()
+        return done
+
+    def track_started(self, entry: dict):
+        """Nouveau titre en cours : ajouté à l'historique de la soirée."""
+        self.session.played = self.session.played[-199:] + [{**entry, "at": time.time()}]
+        self.save()
+
+    def add_push(self, guest_id: str | None, sub: dict):
+        """Abonne un invité (ou l'hôte si guest_id est None) ; un appareil n'est abonné qu'une fois."""
+        self.remove_push(sub["endpoint"], save=False)
+        sub = {"endpoint": sub["endpoint"], "keys": {k: sub["keys"][k] for k in ("p256dh", "auth")}}
+        if guest_id is None:
+            self.session.admin_push = self.session.admin_push[-4:] + [sub]
+        else:
+            self.session.push[guest_id] = self.session.push.get(guest_id, [])[-2:] + [sub]
+        self.save()
+
+    def remove_push(self, endpoint: str, save: bool = True):
+        self.session.admin_push = [s for s in self.session.admin_push if s["endpoint"] != endpoint]
+        for gid in list(self.session.push):
+            self.session.push[gid] = [s for s in self.session.push[gid] if s["endpoint"] != endpoint]
+            if not self.session.push[gid]:
+                del self.session.push[gid]
+        if save:
             self.save()
 
 

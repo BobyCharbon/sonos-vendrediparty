@@ -1,10 +1,12 @@
 """Accès local aux enceintes Sonos via SoCo."""
 
+import random
 import re
 import threading
 import time
 
 import soco
+from soco.data_structures import DidlPlaylistContainer
 from soco.exceptions import SoCoUPnPException
 from soco.plugins.sharelink import ShareLinkPlugin
 
@@ -14,6 +16,20 @@ TRACK_ID_RE = re.compile(r"spotify(?:%3a|:)track(?:%3a|:)([A-Za-z0-9]{22})", re.
 def spotify_track_id(uri: str) -> str | None:
     m = TRACK_ID_RE.search(uri or "")
     return m.group(1) if m else None
+
+
+def seconds(hms: str | None) -> int | None:
+    """« 0:03:45 » -> 225 ; None si inconnu (radio, NOT_IMPLEMENTED…)."""
+    try:
+        parts = [int(float(x)) for x in (hms or "").split(":")]
+    except ValueError:
+        return None
+    if not parts or len(parts) > 3:
+        return None
+    total = 0
+    for x in parts:
+        total = total * 60 + x
+    return total
 
 
 class Sonos:
@@ -69,6 +85,7 @@ class Sonos:
             queue = coord.get_queue(start=current_pos - 1, max_items=max_upcoming + 1)
             for offset, item in enumerate(queue):
                 uri = item.resources[0].uri if item.resources else ""
+                duration = seconds(item.resources[0].duration) if item.resources else None
                 items.append(
                     {
                         "pos": current_pos + offset,
@@ -76,6 +93,7 @@ class Sonos:
                         "title": item.title,
                         "artist": getattr(item, "creator", "") or "",
                         "art": getattr(item, "album_art_uri", "") or "",
+                        "duration": duration or None,
                     }
                 )
 
@@ -177,3 +195,39 @@ class Sonos:
 
     def skip(self, uid: str):
         self.coordinator(uid).next()
+
+    def playlists(self) -> list[dict]:
+        """Playlists Sonos, puis favoris qui sont des playlists (Spotify…)."""
+        zone = next(iter(self._all_zones().values()))
+        items = {}
+        for p in zone.get_sonos_playlists():
+            items["sq:" + p.item_id] = ("sonos", p)
+        for f in zone.music_library.get_sonos_favorites():
+            ref = f.reference
+            # Les playlists Sonos mises en favori (SQ:…) sont déjà listées au-dessus.
+            if isinstance(ref, DidlPlaylistContainer) and not ref.item_id.startswith("SQ:"):
+                items["fav:" + ref.item_id] = ("favorite", ref)
+        self._playlists = items
+        return [{"id": k, "title": item.title, "kind": kind} for k, (kind, item) in items.items()]
+
+    def launch_playlist(self, uid: str, playlist_id: str, keep: list[tuple[str, str]]):
+        """Remplace la file par la playlist, en aléatoire (avec répétition) et fondu enchaîné.
+        keep : (track_id, titre) des demandes à garder ; elles passent en premier."""
+        if playlist_id not in getattr(self, "_playlists", {}):
+            self.playlists()
+        if playlist_id not in self._playlists:
+            raise LookupError("Playlist introuvable")
+        coord = self.coordinator(uid)
+        coord.clear_queue()
+        coord.add_to_queue(self._playlists[playlist_id][1])
+        # Sonos mélange réellement la file : l'ordre de la file reste l'ordre de lecture.
+        coord.play_mode = "SHUFFLE"
+        coord.cross_fade = True
+        size = coord.queue_size
+        if not size:
+            raise LookupError("Cette playlist est vide")
+        # Le 1er titre de la file reste le même après mélange : on démarre ailleurs, au hasard.
+        start = random.randint(1, size)
+        for i, (track_id, title) in enumerate(keep):
+            ShareLinkPlugin(coord).add_share_link_to_queue(f"spotify:track:{track_id}", position=start + i, dc_title=title)
+        coord.play_from_queue(start - 1)

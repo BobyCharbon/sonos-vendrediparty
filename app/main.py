@@ -19,8 +19,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
+from .push import Push, valid_subscription
 from .security import Limiter
-from .sonos import Sonos
+from .sonos import Sonos, seconds
 from .spotify import Spotify
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
@@ -38,6 +39,7 @@ spotify = (
     if os.environ.get("SPOTIFY_CLIENT_ID") and os.environ.get("SPOTIFY_CLIENT_SECRET")
     else None
 )
+push = Push(DATA_DIR, PUBLIC_URL)
 
 @contextlib.asynccontextmanager
 async def lifespan(app):
@@ -54,8 +56,40 @@ queue_lock = threading.Lock()
 
 # --- Cache de l'état Sonos (beaucoup de téléphones interrogent en même temps) ---
 
-_snap = {"at": 0.0, "data": None, "fingerprint": None, "version": 0}
+_snap = {"at": 0.0, "data": None, "fingerprint": None, "version": 0, "current": None}
 _snap_lock = threading.Lock()
+
+
+def notify_guest(guest_id: str, payload: dict):
+    subs = store.session.push.get(guest_id)
+    if subs:
+        push.send(list(subs), payload, on_gone=lambda sub: store.remove_push(sub["endpoint"]))
+
+
+def notify_admin(payload: dict):
+    if store.session.admin_push:
+        push.send(list(store.session.admin_push), payload, on_gone=lambda sub: store.remove_push(sub["endpoint"]))
+
+
+def track_changed(data: dict, done: list):
+    """Le titre en cours a changé : historique de la soirée, et notification à l'invité qui l'a demandé."""
+    cur = data["current"]
+    key = (cur["pos"], cur["track_id"] or cur["title"]) if cur else None
+    if key == _snap["current"]:
+        return
+    _snap["current"] = key
+    if cur is None:
+        return
+    names = {r.track_id: r.guest_name for r in store.session.requests if r.status != "removed"}
+    last = store.session.played[-1] if store.session.played else {}
+    # Après un redémarrage du serveur, le titre en cours est peut-être déjà dans l'historique.
+    if (last.get("track_id"), last.get("title")) != (cur["track_id"], cur["title"]):
+        store.track_started({"track_id": cur["track_id"], "title": cur["title"], "artist": cur["artist"],
+                             "art": cur["art"], "by": names.get(cur["track_id"])})
+    for r in done:
+        if r.track_id == cur["track_id"]:
+            notify_guest(r.guest_id, {"title": "🎶 Ton titre passe !", "body": f"{r.title} · {r.artist}",
+                                      "url": "/", "tag": "now-playing"})
 
 
 def snapshot(force: bool = False) -> dict:
@@ -64,7 +98,8 @@ def snapshot(force: bool = False) -> dict:
         if not force and _snap["data"] and time.time() - _snap["at"] < 3:
             return _snap["data"]
         data = sonos.snapshot(s.room_uid)
-        store.reconcile({t["track_id"] for t in data["upcoming"] if t["track_id"]})
+        done = store.reconcile({t["track_id"] for t in data["upcoming"] if t["track_id"]})
+        track_changed(data, done)
         # Le Sonos a changé (titre, file, lecture, volume) : on prévient les pages ouvertes.
         fingerprint = (data["state"], data["current_pos"], data["from_queue"], data.get("volume"),
                        data["now"]["title"], tuple((t["pos"], t["track_id"], t["title"]) for t in data["upcoming"]))
@@ -219,6 +254,7 @@ def admin_rooms():
 class Start(BaseModel):
     room_uid: str
     mode: str = "next"
+    playlist: str | None = None  # lancer aussi une playlist (sinon : ce qui joue déjà)
 
 
 @app.post("/api/admin/start", dependencies=[Depends(require_admin)])
@@ -230,6 +266,52 @@ def admin_start(body: Start):
         raise HTTPException(404, "Pièce introuvable")
     store.start(room["uid"], room["name"], body.mode)
     _snap["data"] = None
+    if body.playlist:
+        launch_playlist(body.playlist)
+    return admin_state()
+
+
+@app.get("/api/admin/playlists", dependencies=[Depends(require_admin)])
+def admin_playlists():
+    try:
+        return sonos.playlists()
+    except Exception as e:
+        raise HTTPException(502, f"Impossible de lire les playlists Sonos : {e}")
+
+
+def launch_playlist(playlist_id: str):
+    with queue_lock:
+        snap = snapshot(force=True)
+        pending = {r.track_id: r for r in store.pending()}
+        # Demandes des invités encore à venir, dans l'ordre de la file : elles passeront en premier.
+        keep = [(t["track_id"], t["title"]) for t in snap["upcoming"] if t["track_id"] in pending]
+        # Pas de lecture de l'état Sonos pendant le remplacement : la file vide ferait croire les demandes jouées.
+        with _snap_lock:
+            try:
+                sonos.launch_playlist(store.session.room_uid, playlist_id, keep)
+            except LookupError as e:
+                raise HTTPException(404, str(e))
+            except Exception as e:
+                raise HTTPException(502, f"Sonos a refusé la playlist : {e}")
+            finally:
+                _snap["data"] = None
+        # Les demandes qui n'étaient plus dans la file (ou sans titre Spotify) ne reviendront pas.
+        kept = {tid for tid, _ in keep}
+        for r in store.pending():
+            if r.track_id not in kept:
+                r.status = "removed"
+        store.save()
+
+
+class PlaylistRef(BaseModel):
+    id: str
+
+
+@app.post("/api/admin/playlist", dependencies=[Depends(require_admin)])
+def admin_playlist(body: PlaylistRef):
+    """Remplace la file par une playlist Sonos, en aléatoire avec fondu enchaîné."""
+    require_active()
+    launch_playlist(body.id)
     return admin_state()
 
 
@@ -266,17 +348,36 @@ class Remove(BaseModel):
     request_id: str
 
 
-def remove_requests(reqs):
-    """Retire des demandes de la file Sonos (de la fin vers le début pour garder les positions valides)."""
+# Suppressions faites par l'hôte, annulables pendant une minute : jeton -> titres à remettre.
+_undo: dict[str, dict] = {}
+
+
+def undo_token(items: list[dict], request_ids: list[str]) -> str | None:
+    items = [it for it in items if it["track_id"]]  # seuls les titres Spotify peuvent être remis
+    if not items:
+        return None
+    for token in [t for t, u in _undo.items() if time.time() - u["at"] > 60]:
+        del _undo[token]
+    token = secrets.token_hex(8)
+    _undo[token] = {"items": items, "request_ids": request_ids, "at": time.time()}
+    return token
+
+
+def remove_requests(reqs) -> str | None:
+    """Retire des demandes de la file Sonos (de la fin vers le début pour garder les positions valides).
+    Renvoie un jeton pour annuler."""
+    removed = []
     with queue_lock:
         snap = snapshot(force=True)
         positions = {t["track_id"]: t["pos"] for t in reversed(snap["upcoming"]) if t["track_id"]}
         for req in sorted(reqs, key=lambda r: positions.get(r.track_id, 0), reverse=True):
             if req.track_id in positions:
                 sonos.remove_at(store.session.room_uid, positions[req.track_id])
+                removed.append({"pos": positions[req.track_id], "track_id": req.track_id, "title": req.title})
             req.status = "removed"
         store.save()
         _snap["data"] = None
+    return undo_token(removed, [r.id for r in reqs])
 
 
 @app.post("/api/admin/remove", dependencies=[Depends(require_admin)])
@@ -285,8 +386,7 @@ def admin_remove(body: Remove):
     req = next((r for r in store.pending() if r.id == body.request_id), None)
     if req is None:
         raise HTTPException(404, "Demande introuvable ou déjà jouée")
-    remove_requests([req])
-    return admin_state()
+    return {**admin_state(), "undo": remove_requests([req])}
 
 
 class Ban(BaseModel):
@@ -335,8 +435,7 @@ def admin_kick(body: GuestRef):
 def admin_purge(body: GuestRef):
     """Retire de la file tous les titres en attente d'un invité."""
     require_active()
-    remove_requests([r for r in store.pending() if r.guest_id == body.guest_id])
-    return admin_state()
+    return {**admin_state(), "undo": remove_requests([r for r in store.pending() if r.guest_id == body.guest_id])}
 
 
 class Playback(BaseModel):
@@ -496,12 +595,30 @@ def track_key(t: dict) -> str:
     return t["track_id"] or f"{t['title']}|{t['artist']}"
 
 
+def etas(snap: dict) -> list[int | None]:
+    """Secondes avant le début de chaque titre à venir (None si inconnu ou si la lecture est en pause)."""
+    upcoming = snap["upcoming"]
+    left = None
+    if snap["state"] in ("PLAYING", "TRANSITIONING"):
+        duration, position = seconds(snap["now"]["duration"]), seconds(snap["now"]["position"])
+        if duration and position is not None:
+            left = max(0, duration - position)
+    # Titres ajoutés par lien Spotify : Sonos ne connaît pas toujours leur durée, Spotify si.
+    known = {r.track_id: r.duration_ms // 1000 for r in store.session.requests if r.duration_ms}
+    result = []
+    for t in upcoming:
+        result.append(left)
+        duration = t.get("duration") or known.get(t["track_id"])
+        left = left + duration if left is not None and duration else None
+    return result
+
+
 def admin_queue(snap: dict, limit: int = 150) -> list[dict]:
     names = {r.track_id: r.guest_name for r in store.session.requests if r.status != "removed"}
     return [
         {"pos": t["pos"], "key": track_key(t), "title": t["title"], "artist": t["artist"],
-         "art": art_url(t["art"]), "by": names.get(t["track_id"])}
-        for t in snap["upcoming"][:limit]
+         "art": art_url(t["art"]), "by": names.get(t["track_id"]), "eta": eta}
+        for t, eta in zip(snap["upcoming"][:limit], etas(snap))
     ]
 
 
@@ -530,12 +647,44 @@ def admin_queue_action(body: QueueAction):
             sonos.play_at(uid, body.pos)
         elif body.action == "remove":
             sonos.remove_at(uid, body.pos)
-            for r in store.pending():
-                if item["track_id"] and r.track_id == item["track_id"]:
-                    r.status = "removed"
+            reqs = [r for r in store.pending() if item["track_id"] and r.track_id == item["track_id"]]
+            for r in reqs:
+                r.status = "removed"
             store.save()
+            undo = undo_token([{"pos": body.pos, "track_id": item["track_id"], "title": item["title"]}], [r.id for r in reqs])
         else:
             raise HTTPException(400, "Action inconnue")
+        _snap["data"] = None
+    return {**admin_state(), "undo": undo if body.action == "remove" else None}
+
+
+class UndoRef(BaseModel):
+    token: str
+
+
+@app.post("/api/admin/undo", dependencies=[Depends(require_admin)])
+def admin_undo(body: UndoRef):
+    """Remet dans la file les titres que l'hôte vient de retirer, à leur place."""
+    require_active()
+    entry = _undo.pop(body.token, None)
+    if entry is None or time.time() - entry["at"] > 60:
+        raise HTTPException(404, "Trop tard pour annuler")
+    with queue_lock:
+        snap = snapshot(force=True)
+        cur = snap["current_pos"]
+        last = snap["upcoming"][-1]["pos"] if snap["upcoming"] else cur
+        # Dans l'ordre croissant : chaque titre retrouve sa position d'origine.
+        for it in sorted(entry["items"], key=lambda it: it["pos"]):
+            pos = 0 if not cur or it["pos"] > last + 1 else max(cur + 1, it["pos"])
+            try:
+                sonos.add_spotify_track(store.session.room_uid, it["track_id"], it["title"], pos)
+            except Exception as e:
+                raise HTTPException(502, f"Sonos a refusé l'ajout : {e}")
+            last += 1
+        for r in store.session.requests:
+            if r.id in entry["request_ids"] and r.status == "removed":
+                r.status = "queued"
+        store.save()
         _snap["data"] = None
     return admin_state()
 
@@ -575,16 +724,17 @@ def public_sonos(snap: dict, guest_id: str = "") -> dict:
     names = {r.track_id: r.guest_name for r in store.session.requests if r.status != "removed"}
     mine = {r.track_id: r.id for r in store.pending() if guest_id and r.guest_id == guest_id}
 
-    def view(t):
-        return {"title": t["title"], "artist": t["artist"], "art": art_url(t["art"]),
-                "by": names.get(t["track_id"]), "rid": mine.get(t["track_id"])}
+    def view(t, eta):
+        return {"title": t["title"], "artist": t["artist"], "art": art_url(t["art"]), "track_id": t["track_id"],
+                "by": names.get(t["track_id"]), "rid": mine.get(t["track_id"]), "eta": eta}
 
     now = snap["now"]
+    current_id = (snap["current"] or {}).get("track_id")
     return {
         "state": snap["state"],
         "from_queue": snap["from_queue"],
-        "now": {**now, "art": art_url(now["art"]), "by": names.get((snap["current"] or {}).get("track_id"))},
-        "upcoming": [view(t) for t in snap["upcoming"][:25]],
+        "now": {**now, "art": art_url(now["art"]), "by": names.get(current_id), "track_id": current_id},
+        "upcoming": [view(t, eta) for t, eta in zip(snap["upcoming"][:25], etas(snap))],
         "upcoming_total": len(snap["upcoming"]),
     }
 
@@ -635,6 +785,8 @@ def state(request: Request, guest_id: str = ""):
         "name": s.guests.get(guest_id, {}).get("name"),
         # Ses propres messages et les réponses de l'hôte.
         "messages": [{k: m.get(k) for k in ("id", "text", "at", "reply", "reply_at")} for m in store.messages_of(guest_id)] if guest_id else [],
+        # Déjà passés (le plus récent d'abord, sans le titre en cours) : pour les retrouver sur Spotify.
+        "played": [{**p, "art": art_url(p["art"])} for p in reversed(s.played[-16:-1])],
     }
     try:
         return {**base, **public_sonos(snapshot(), guest_id)}
@@ -711,6 +863,7 @@ def send_message(body: Message, request: Request):
     store.register_guest(body.guest_id, name, ip)
     store.add_message(body.guest_id, name, text)
     _last_message[body.guest_id] = time.time()
+    notify_admin({"title": f"💬 {name}", "body": text, "url": "/admin#settings", "tag": "message"})
     return {"ok": True}
 
 
@@ -771,6 +924,47 @@ def guest_remove(body: GuestRemove):
     return {"ok": True}
 
 
+@app.get("/api/push/key", dependencies=[Depends(require_viewer)])
+def push_key():
+    return {"key": push.public_key}
+
+
+class PushSubscribe(BaseModel):
+    guest_id: str = ""
+    subscription: dict
+
+
+def checked_subscription(sub: dict) -> dict:
+    if not valid_subscription(sub):
+        raise HTTPException(400, "Abonnement invalide")
+    return sub
+
+
+@app.post("/api/push/subscribe", dependencies=[Depends(require_guest)])
+def push_subscribe(body: PushSubscribe):
+    """L'invité veut être prévenu quand son titre passe."""
+    check_guest_id(body.guest_id)
+    store.add_push(body.guest_id, checked_subscription(body.subscription))
+    return {"ok": True}
+
+
+@app.post("/api/admin/push/subscribe", dependencies=[Depends(require_admin)])
+def admin_push_subscribe(body: PushSubscribe):
+    """L'hôte veut être prévenu des nouveaux messages."""
+    store.add_push(None, checked_subscription(body.subscription))
+    return {"ok": True}
+
+
+class PushUnsubscribe(BaseModel):
+    endpoint: str
+
+
+@app.post("/api/push/unsubscribe", dependencies=[Depends(require_viewer)])
+def push_unsubscribe(body: PushUnsubscribe):
+    store.remove_push(body.endpoint)
+    return {"ok": True}
+
+
 @app.get("/api/events", dependencies=[Depends(require_viewer)])
 async def events(request: Request):
     """Flux SSE : envoie un signal dès que l'état change, la page se rafraîchit aussitôt."""
@@ -821,3 +1015,9 @@ def index():
 @app.get("/admin")
 def admin_page():
     return FileResponse(STATIC / "admin.html", headers=NO_CACHE)
+
+
+@app.get("/sw.js")
+def service_worker():
+    # À la racine du site : le service worker couvre la page invités et l'admin.
+    return FileResponse(STATIC / "sw.js", media_type="text/javascript", headers=NO_CACHE)

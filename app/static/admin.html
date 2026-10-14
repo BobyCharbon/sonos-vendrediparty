@@ -32,13 +32,15 @@
     <section data-view="home">
       <!-- Pas de session -->
       <div id="setup" class="hidden">
-        <p class="sub">1. Lance ta playlist depuis l'app Sonos.<br>2. Choisis la pièce et démarre la soirée.</p>
+        <p class="sub">Choisis la pièce et une playlist (ou lance-la toi-même depuis l'app Sonos), puis démarre la soirée.</p>
         <div class="card">
           <h2 style="margin-top:0">Pièce Sonos</h2>
           <div class="row">
             <select id="room" class="grow"></select>
             <button class="secondary" id="reloadRooms" type="button" title="Actualiser">↻</button>
           </div>
+          <h2>Playlist</h2>
+          <select id="startPlaylist"><option value="">Garder ce qui joue (lancé depuis l'app Sonos)</option></select>
           <h2>Mode d'insertion</h2>
           <div class="seg" data-mode-picker></div>
           <button id="start" style="width:100%;margin-top:16px">🎉 Démarrer la soirée</button>
@@ -63,6 +65,14 @@
           <span id="volumeLabel" style="width:2.5em;text-align:right;font-variant-numeric:tabular-nums"></span>
         </div>
 
+        <h2>Playlists <button class="secondary" id="reloadPlaylists" type="button" style="padding:2px 8px;margin-left:4px" title="Actualiser">↻</button></h2>
+        <p class="sub" style="margin-top:-4px;font-size:.85rem">Remplace la file et lance la playlist en aléatoire avec fondu enchaîné. Les demandes des invités en attente sont gardées et passent en premier.</p>
+        <div id="playlists" class="chips"></div>
+        <details id="favBox" class="hidden" style="margin-top:8px">
+          <summary><span class="artist">Favoris Sonos ▸</span></summary>
+          <div id="favorites" class="chips" style="margin-top:8px"></div>
+        </details>
+
         <h2>Ajouter un titre</h2>
         <input id="addQ" type="search" placeholder="Titre, artiste…" autocomplete="off" enterkeyhint="search">
         <div id="addResults" class="list" style="margin-top:8px"></div>
@@ -77,6 +87,10 @@
     <section data-view="settings" class="hidden">
       <div id="liveSettings" class="hidden">
         <h2 style="margin-top:8px">Messages <span id="msgBadge" class="badge hidden"></span></h2>
+        <label class="card switch-row hidden" id="notifBox" style="margin-bottom:8px">
+          <span class="grow">🔔 Me prévenir des nouveaux messages<span class="artist" id="notifHelp" style="display:block;white-space:normal"></span></span>
+          <input type="checkbox" class="switch" id="notifToggle">
+        </label>
         <div id="messages" class="list"></div>
         <div class="row" id="msgActions" style="margin-top:8px">
           <button class="secondary grow" id="msgReadAll" type="button">✓ Tout marquer comme lu</button>
@@ -130,6 +144,7 @@
 
   <div id="toast" class="toast hidden"></div>
 
+<script src="/static/push.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -142,9 +157,31 @@ let state = null, chosenMode = "next";
 let volumeDragging = false, volumeSentAt = 0, volumeTimer;
 
 let toastTimer;
-function toast(msg, kind = "") {
+function toast(msg, kind = "", action = null) {
   const t = $("toast"); t.textContent = msg; t.className = "toast " + kind;
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("hidden"), 3000);
+  if (action) {
+    const b = document.createElement("button");
+    b.textContent = action.label;
+    b.onclick = () => { t.classList.add("hidden"); action.run(); };
+    t.append(b);
+  }
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("hidden"), action ? 7000 : 3000);
+}
+// Après une suppression : « Annuler » remet les titres à leur place.
+function removedToast(res, msg) {
+  toast(msg, "ok", res.undo ? { label: "Annuler", run: async () => {
+    try { render(await api("/api/admin/undo", { token: res.undo })); toast("Remis dans la file ↩︎", "ok"); }
+    catch (e) { toast(e.message, "err"); }
+  } } : null);
+}
+// Heure de passage : « eta » est en secondes au moment où l'état a été reçu.
+let stateAt = Date.now();
+function etaText(eta) {
+  if (eta == null) return "";
+  const left = eta - (Date.now() - stateAt) / 1000;
+  if (left < 60) return "dans moins d'1 min";
+  if (left < 3600) return `dans ~${Math.round(left / 60)} min`;
+  return "vers " + new Date(Date.now() + left * 1000).toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
 }
 async function api(path, body) {
   const r = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -204,7 +241,7 @@ async function loadRooms() {
 }
 
 function render(s) {
-  state = s;
+  state = s; stateAt = Date.now();
   $("login").classList.add("hidden"); $("panel").classList.remove("hidden");
   $("noSpotify").classList.toggle("hidden", s.spotify_configured);
   $("tabs").classList.remove("hidden");
@@ -229,7 +266,8 @@ function render(s) {
     $("now").innerHTML = `${so.now.art ? `<img src="${esc(so.now.art)}" alt="" onerror="this.removeAttribute('src')">` : `<img alt="">`}
       <div style="min-width:0"><div class="artist">${so.state === "PLAYING" ? "▶︎ En cours" : "⏸ " + esc(so.state)}</div>
       <div class="title">${esc(so.now.title)}</div><div class="artist">${esc(so.now.artist)}</div>
-      ${so.now.by ? `<span class="by">ajouté par ${esc(so.now.by)}</span>` : ""}</div>`;
+      ${so.now.by ? `<span class="by">ajouté par ${esc(so.now.by)}</span><br>` : ""}
+      ${so.now.track_id ? `<a class="sp" href="https://open.spotify.com/track/${esc(so.now.track_id)}" target="_blank" rel="noopener">Ouvrir dans Spotify ↗</a>` : ""}</div>`;
   } else $("now").innerHTML = `<div class="artist">Rien ne joue</div>`;
 
   const playing = so && (so.state === "PLAYING" || so.state === "TRANSITIONING");
@@ -301,7 +339,7 @@ function renderQueue(s) {
     <div class="track ${t.by ? "guest" : ""}">
       ${t.art ? `<img src="${esc(t.art)}" alt="" loading="lazy" onerror="this.removeAttribute('src')">` : `<img alt="">`}
       <div class="meta"><div class="title">${esc(t.title)}</div><div class="artist">${esc(t.artist)}</div>
-        ${t.by ? `<span class="by">ajouté par ${esc(t.by)}</span>` : ""}</div>
+        ${t.by ? `<span class="by">ajouté par ${esc(t.by)}</span>` : ""}${etaText(t.eta) ? `<span class="eta">${etaText(t.eta)}</span>` : ""}</div>
       <div class="icon-btns">
         ${i > 0 ? `<button class="secondary" data-q="next" data-pos="${t.pos}" data-key="${esc(t.key)}" title="Jouer ensuite">⏫</button>
                    <button class="secondary" data-q="up" data-pos="${t.pos}" data-key="${esc(t.key)}" title="Monter">⬆</button>` : ""}
@@ -319,8 +357,11 @@ document.addEventListener("click", async (ev) => {
   const b = q || m;
   b.disabled = true;
   try {
-    if (q) render(await api("/api/admin/queue", { pos: +q.dataset.pos, key: q.dataset.key, action: q.dataset.q }));
-    else render(await api("/api/admin/messages", { ids: [m.dataset.id], action: m.dataset.msg }));
+    if (q) {
+      const res = await api("/api/admin/queue", { pos: +q.dataset.pos, key: q.dataset.key, action: q.dataset.q });
+      render(res);
+      if (q.dataset.q === "remove") removedToast(res, "Titre retiré");
+    } else render(await api("/api/admin/messages", { ids: [m.dataset.id], action: m.dataset.msg }));
   } catch (e) { toast(e.message, "err"); refresh(); }
   b.disabled = false;
 });
@@ -378,8 +419,11 @@ document.addEventListener("click", async (ev) => {
   };
   const [path, body, msg] = calls[act];
   b.disabled = true;
-  try { render(await api(path, body)); toast(msg, "ok"); }
-  catch (e) { b.disabled = false; toast(e.message, "err"); }
+  try {
+    const res = await api(path, body);
+    render(res);
+    if (act === "purge") removedToast(res, msg); else toast(msg, "ok");
+  } catch (e) { b.disabled = false; toast(e.message, "err"); }
 });
 
 async function refresh() {
@@ -397,14 +441,18 @@ function listen() {
 
 $("login").addEventListener("submit", async (ev) => {
   ev.preventDefault();
-  try { await api("/api/admin/login", { pin: $("pin").value }); $("pin").value = ""; listen(); await refresh(); if (!state.active) loadRooms(); }
+  try { await api("/api/admin/login", { pin: $("pin").value }); $("pin").value = ""; listen(); await refresh(); if (!state.active) loadRooms(); loadPlaylists(); initNotifications(); }
   catch (e) { toast(e.message, "err"); }
 });
 $("reloadRooms").onclick = loadRooms;
 $("start").onclick = async () => {
   if (!$("room").value) return toast("Choisis une pièce", "err");
-  try { render(await api("/api/admin/start", { room_uid: $("room").value, mode: chosenMode })); toast("Soirée démarrée 🎉", "ok"); }
-  catch (e) { toast(e.message, "err"); }
+  $("start").disabled = true;
+  try {
+    render(await api("/api/admin/start", { room_uid: $("room").value, mode: chosenMode, playlist: $("startPlaylist").value || null }));
+    toast("Soirée démarrée 🎉", "ok");
+  } catch (e) { toast(e.message, "err"); }
+  $("start").disabled = false;
 };
 $("stop").onclick = async () => {
   try { render(await api("/api/admin/stop", {})); loadRooms(); toast("Soirée arrêtée"); } catch (e) { toast(e.message, "err"); }
@@ -431,7 +479,7 @@ $("requests").addEventListener("click", async (ev) => {
   const b = ev.target.closest("[data-remove]");
   if (!b) return;
   b.disabled = true;
-  try { render(await api("/api/admin/remove", { request_id: b.dataset.remove })); toast("Titre retiré", "ok"); }
+  try { const res = await api("/api/admin/remove", { request_id: b.dataset.remove }); render(res); removedToast(res, "Titre retiré"); }
   catch (e) { b.disabled = false; toast(e.message, "err"); }
 });
 // Ajout de titres par l'hôte : ⏫ juste après le titre en cours, ＋ à la fin de la file.
@@ -542,11 +590,69 @@ document.addEventListener("submit", async (ev) => {
 $("msgReadAll").onclick = async () => {
   try { render(await api("/api/admin/messages", { ids: null, action: "read" })); } catch (e) { toast(e.message, "err"); }
 };
+// Playlists Sonos et favoris : lancées en aléatoire avec fondu enchaîné.
+let playlists = null;
+async function loadPlaylists(force = false) {
+  if (playlists && !force) return renderPlaylists();
+  try { playlists = await api("/api/admin/playlists"); } catch (e) { $("playlists").innerHTML = `<span class="artist">${esc(e.message)}</span>`; return; }
+  renderPlaylists();
+}
+function renderPlaylists() {
+  const chip = (p) => `<button class="secondary" data-playlist="${esc(p.id)}" title="${esc(p.title)}">${p.kind === "sonos" ? "🔀" : "★"} ${esc(p.title)}</button>`;
+  const mine = playlists.filter((p) => p.kind === "sonos"), favs = playlists.filter((p) => p.kind !== "sonos");
+  $("playlists").innerHTML = mine.map(chip).join("") || `<span class="artist">Aucune playlist Sonos : enregistre-en une depuis l'app Sonos.</span>`;
+  $("favorites").innerHTML = favs.map(chip).join("");
+  $("favBox").classList.toggle("hidden", !favs.length);
+  const keep = $("startPlaylist").value;
+  $("startPlaylist").innerHTML = `<option value="">Garder ce qui joue (lancé depuis l'app Sonos)</option>`
+    + [["Playlists Sonos", mine], ["Favoris Sonos", favs]].filter(([, l]) => l.length).map(([label, l]) =>
+      `<optgroup label="${label}">${l.map((p) => `<option value="${esc(p.id)}">${esc(p.title)}</option>`).join("")}</optgroup>`).join("");
+  $("startPlaylist").value = keep;
+}
+$("reloadPlaylists").onclick = () => loadPlaylists(true);
+document.addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-playlist]");
+  if (!b) return;
+  const p = playlists.find((x) => x.id === b.dataset.playlist);
+  if (!confirm(`Lancer « ${p.title} » en aléatoire ?\nLa file actuelle sera remplacée (les demandes en attente sont gardées).`)) return;
+  b.disabled = true;
+  try { render(await api("/api/admin/playlist", { id: p.id })); toast(`« ${p.title} » lancée en aléatoire 🔀`, "ok"); }
+  catch (e) { toast(e.message, "err"); }
+  b.disabled = false;
+});
+
+// 🔔 Notifications des nouveaux messages (abonnement propre à l'admin : portée « /admin »).
+async function initNotifications() {
+  const iosSafari = /iPhone|iPad|iPod/.test(navigator.userAgent) && !(matchMedia("(display-mode: standalone)").matches || navigator.standalone);
+  if (!Push.supported()) {
+    if (iosSafari) {
+      $("notifBox").classList.remove("hidden"); $("notifToggle").disabled = true;
+      $("notifHelp").textContent = "Sur iPhone : ajoute l'admin à l'écran d'accueil (Partager ⎙ → « Sur l'écran d'accueil ») et ouvre-le depuis là.";
+    }
+    return;
+  }
+  $("notifBox").classList.remove("hidden");
+  const sub = await Push.current("/admin").catch(() => null);
+  $("notifToggle").checked = !!sub && Notification.permission === "granted";
+  $("notifHelp").textContent = Notification.permission === "denied" ? "Notifications bloquées dans les réglages du navigateur." : "";
+  if ($("notifToggle").checked) Push.send("/api/admin/push/subscribe", { subscription: sub.toJSON() }).catch(() => {});
+}
+$("notifToggle").addEventListener("change", async () => {
+  const on = $("notifToggle").checked;
+  $("notifToggle").disabled = true;
+  try {
+    if (on) { await Push.subscribe("/admin", "/api/admin/push/subscribe"); toast("Tu seras prévenu des nouveaux messages 🔔", "ok"); }
+    else { await Push.unsubscribe("/admin"); toast("Notifications désactivées"); }
+  } catch (e) { $("notifToggle").checked = !on; toast(e.message, "err"); }
+  $("notifToggle").disabled = false;
+});
+
 $("logout").onclick = async (ev) => { ev.preventDefault(); await api("/api/admin/logout", {}); showLogin(); };
 
 (async () => {
   await refresh();
   if (state && !state.active) loadRooms();
+  if (state) { loadPlaylists(); initNotifications(); }
   listen();
   // Filet de sécurité si le flux en direct est coupé (et pour le point « en ligne » des invités).
   setInterval(refresh, 10000);
