@@ -253,6 +253,32 @@ def admin_purge(body: GuestRef):
     return admin_state()
 
 
+class Playback(BaseModel):
+    action: str  # play | pause
+
+
+@app.post("/api/admin/playback", dependencies=[Depends(require_admin)])
+def admin_playback(body: Playback):
+    require_active()
+    if body.action not in ("play", "pause"):
+        raise HTTPException(400, "Action inconnue")
+    getattr(sonos, body.action)(store.session.room_uid)
+    _snap["data"] = None
+    return admin_state()
+
+
+class Volume(BaseModel):
+    volume: int
+
+
+@app.post("/api/admin/volume", dependencies=[Depends(require_admin)])
+def admin_volume(body: Volume):
+    require_active()
+    sonos.set_volume(store.session.room_uid, max(0, min(100, body.volume)))
+    _snap["data"] = None
+    return {"ok": True}
+
+
 @app.post("/api/admin/skip", dependencies=[Depends(require_admin)])
 def admin_skip():
     require_active()
@@ -286,7 +312,7 @@ def admin_state():
     if s.active:
         try:
             snap = snapshot()
-            result["sonos"] = public_sonos(snap)
+            result["sonos"] = {**public_sonos(snap), "volume": snap.get("volume")}
             result["queue"] = admin_queue(snap)
         except Exception as e:
             result["sonos_error"] = str(e)

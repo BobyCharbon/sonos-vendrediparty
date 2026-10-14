@@ -50,9 +50,16 @@
 
       <div class="card now" id="now"></div>
       <div class="row" style="margin-top:8px">
+        <button class="secondary grow" id="playPause">⏸ Pause</button>
         <button class="secondary grow" id="skip">⏭ Passer</button>
-        <button class="danger grow" id="stop">Arrêter la soirée</button>
       </div>
+      <div class="card row" style="margin-top:8px">
+        <span>🔈</span>
+        <input id="volume" class="grow" type="range" min="0" max="100" step="1" aria-label="Volume">
+        <span>🔊</span>
+        <span id="volumeLabel" style="width:2.5em;text-align:right;font-variant-numeric:tabular-nums"></span>
+      </div>
+      <button class="danger" id="stop" style="width:100%;margin-top:8px">Arrêter la soirée</button>
 
       <h2>Messages <span id="msgBadge" class="badge hidden"></span></h2>
       <div id="messages" class="list"></div>
@@ -104,6 +111,7 @@ const HELP = {
   fair: "Les demandes passent avant ta playlist, une par invité à tour de rôle : personne ne monopolise la file.",
 };
 let state = null, chosenMode = "next";
+let volumeDragging = false, volumeSentAt = 0, volumeTimer;
 
 let toastTimer;
 function toast(msg, kind = "") {
@@ -169,6 +177,13 @@ function render(s) {
       ${so.now.by ? `<span class="by">ajouté par ${esc(so.now.by)}</span>` : ""}</div>`;
   } else $("now").innerHTML = `<div class="artist">Rien ne joue</div>`;
 
+  const playing = so && (so.state === "PLAYING" || so.state === "TRANSITIONING");
+  $("playPause").textContent = playing ? "⏸ Pause" : "▶︎ Lecture";
+  $("playPause").dataset.action = playing ? "pause" : "play";
+  // Pas de mise à jour pendant qu'on fait glisser le curseur.
+  if (so && so.volume != null && !volumeDragging && Date.now() - volumeSentAt > 3000) {
+    $("volume").value = so.volume; $("volumeLabel").textContent = so.volume;
+  }
   renderGuests(s);
   renderMessages(s);
   renderQueue(s);
@@ -319,6 +334,21 @@ $("start").onclick = async () => {
 $("stop").onclick = async () => {
   try { render(await api("/api/admin/stop", {})); loadRooms(); toast("Soirée arrêtée"); } catch (e) { toast(e.message, "err"); }
 };
+$("playPause").onclick = async () => {
+  try { render(await api("/api/admin/playback", { action: $("playPause").dataset.action })); }
+  catch (e) { toast(e.message, "err"); }
+};
+async function sendVolume() {
+  volumeSentAt = Date.now();
+  try { await api("/api/admin/volume", { volume: +$("volume").value }); } catch (e) { toast(e.message, "err"); }
+}
+$("volume").addEventListener("input", () => {
+  volumeDragging = true;
+  $("volumeLabel").textContent = $("volume").value;
+  // Pendant le glissement : au plus un envoi toutes les 250 ms.
+  if (!volumeTimer) volumeTimer = setTimeout(() => { volumeTimer = null; sendVolume(); }, 250);
+});
+$("volume").addEventListener("change", () => { volumeDragging = false; clearTimeout(volumeTimer); volumeTimer = null; sendVolume(); });
 $("skip").onclick = async () => {
   try { await api("/api/admin/skip", {}); setTimeout(refresh, 800); } catch (e) { toast(e.message, "err"); }
 };

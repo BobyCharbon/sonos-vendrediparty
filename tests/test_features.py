@@ -18,6 +18,15 @@ class FakeSonos:
     def play_at(self, uid, pos):
         self.calls.append(("play", pos))
 
+    def play(self, uid):
+        self.calls.append(("resume",))
+
+    def pause(self, uid):
+        self.calls.append(("pause",))
+
+    def set_volume(self, uid, volume):
+        self.calls.append(("volume", volume))
+
 
 def snap():
     track = lambda pos, tid, title: {"pos": pos, "track_id": tid, "title": title, "artist": "A", "art": ""}
@@ -91,3 +100,10 @@ def test_admin_replies_and_guest_sees_it(admin):
     assert mine[0]["reply"] == "Juste après ce titre 😉"
     # Les autres invités ne voient pas cette conversation.
     assert guest.get("/api/state?guest_id=guest-9999").json()["messages"] == []
+
+
+def test_pause_and_volume(admin):
+    admin.post("/api/admin/playback", json={"action": "pause"})
+    admin.post("/api/admin/playback", json={"action": "play"})
+    admin.post("/api/admin/volume", json={"volume": 140})  # borné à 100
+    assert admin.fake.calls == [("pause",), ("resume",), ("volume", 100)]

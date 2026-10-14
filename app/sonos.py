@@ -80,6 +80,8 @@ class Sonos:
 
         return {
             "coordinator_ip": coord.ip_address,
+            # Volume du groupe : toutes les enceintes de la pièce suivent ensemble.
+            "volume": coord.group.volume,
             "room": coord.player_name,
             "state": state,
             "from_queue": from_queue,
@@ -122,6 +124,15 @@ class Sonos:
 
     def play_at(self, uid: str, position: int):
         self.coordinator(uid).play_from_queue(position - 1)
+
+    def play(self, uid: str):
+        self.coordinator(uid).play()
+
+    def pause(self, uid: str):
+        self.coordinator(uid).pause()
+
+    def set_volume(self, uid: str, volume: int):
+        self.coordinator(uid).group.volume = volume
 
     def skip(self, uid: str):
         self.coordinator(uid).next()
