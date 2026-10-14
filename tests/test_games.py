@@ -32,14 +32,40 @@ def test_roles_and_words_dealt():
 
 def test_views_hide_secrets():
     g = undercover(5)
-    names = {p["id"]: p["id"].upper() for p in g["players"]}
     civil = by_role(g, "civil")[0]
-    v = games.view(g, civil, names)
+    v = games.view(g, civil)
     assert v["me"]["word"] == g["words"]["civil"] and v["me"]["role"] is None
-    assert "words" not in v and all("role" not in p for p in v["players"])
+    assert "words" not in v and all("role" not in p and "word" not in p for p in v["players"])
+    # Les guest_id (secrets) des joueurs n'apparaissent jamais : seulement des identifiants publics.
+    assert not any(p["id"] in str(v) for p in g["players"])
     white = by_role(g, "white")[0]
-    assert games.view(g, white, names)["me"] == {"alive": True, "vote": None, "role": "Mr. White", "word": None}
-    assert games.view(g, None, names)["words"] == g["words"]  # l'hôte voit tout
+    assert games.view(g, white)["me"]["role"] == "Mr. White" and games.view(g, white)["me"]["word"] is None
+    assert "me" not in games.view(g, "inconnu") and "words" not in games.view(g, "inconnu")
+
+
+def test_host_who_does_not_play_is_game_master():
+    g = games.new_game("undercover", host="boss", name="Boss", plays=False)
+    for i in range(4):
+        games.join(g, f"p{i}", f"P{i}")
+    assert games.player(g, "boss") is None
+    games.start(g, random.Random(2))
+    v = games.view(g, "boss")
+    assert v["is_host"] and v["master"] and v["words"] == g["words"]
+    assert all(p["role"] and "word" in p for p in v["players"])
+    # Un animateur qui joue ne voit que son propre mot.
+    g2 = games.new_game("undercover", host="boss", name="Boss")
+    for i in range(3):
+        games.join(g2, f"p{i}", f"P{i}")
+    games.start(g2, random.Random(3))
+    v2 = games.view(g2, "boss")
+    assert v2["is_host"] and not v2["master"] and "words" not in v2
+
+
+def test_host_leaving_hands_over():
+    g = games.new_game("whoof", host="h", name="Hôte")
+    games.join(g, "a", "Ana")
+    games.leave(g, "h")
+    assert g["host"] == "a" and g["host_name"] == "Ana"
 
 
 def test_vote_eliminates_and_civils_win():
@@ -50,8 +76,15 @@ def test_vote_eliminates_and_civils_win():
     for v in voters:
         games.vote(g, v, under if v != under else next(x for x in voters if x != under))
     assert g["phase"] == "end" and g["winner"] == "civils"
-    # Un éliminé dévoile son rôle aux autres, pas son mot (sauf en fin de partie).
-    assert games.view(g, voters[0], {})["players"]
+    assert games.view(g, voters[0])["words"] == g["words"]  # tout est dévoilé à la fin
+
+
+def test_eliminated_reveals_role_not_word():
+    g = undercover(5, white=False)
+    civil = by_role(g, "civil")
+    games.eliminate(g, civil[0])
+    out = next(p for p in games.view(g, civil[1])["players"] if not p["alive"])
+    assert out["role"] == "Civil" and "word" not in out
 
 
 def test_tie_revote_then_random():
@@ -113,20 +146,41 @@ def test_whoof_round():
     assert g["phase"] == "question" and g["votes"] == {}
 
 
-def test_game_api_flow(admin):  # noqa: F811
-    players = []
-    for i in range(3):
-        c = TestClient(main.app)
-        c.post("/api/join", json={"pin": main.store.session.guest_pin})
-        c.post("/api/hello", json={"guest_id": f"gamer-{i}-xyz", "guest_name": f"Joueur {i}"})
-        players.append(c)
-    assert admin.post("/api/admin/game", json={"action": "open", "type": "undercover"}).status_code == 200
-    for i, c in enumerate(players):
-        assert c.post("/api/game", json={"guest_id": f"gamer-{i}-xyz", "action": "join"}).status_code == 200
-    state = admin.post("/api/admin/game", json={"action": "start"}).json()
-    assert state["game"]["phase"] == "words" and state["game"]["words"]
-    view = players[0].get("/api/state?guest_id=gamer-0-xyz").json()["game"]
-    assert view["me"]["word"] or view["me"]["role"] and "words" not in view
-    # Un invité non inscrit ne voit pas les mots.
-    assert "me" not in players[0].get("/api/state?guest_id=").json()["game"]
-    assert admin.post("/api/admin/game", json={"action": "end"}).json()["game"] is None
+def test_game_api_flow_without_music_code():
+    clients = [TestClient(main.app) for _ in range(4)]  # aucun n'a saisi le code de la musique
+    host, *others = clients
+    g = host.post("/api/games", json={"guest_id": "host-abcdef12", "name": "Ludo", "type": "undercover", "plays": False}).json()
+    code = g["code"]
+    assert len(code) == 4 and g["is_host"] and g["master"]
+    for i, c in enumerate(others):
+        r = c.post(f"/api/games/{code}", json={"guest_id": f"gamer-{i}-xyz", "name": f"Joueur {i}", "action": "join"})
+        assert r.status_code == 200 and r.json()["me"]
+    # Seul l'animateur fait avancer la partie.
+    assert others[0].post(f"/api/games/{code}", json={"guest_id": "gamer-0-xyz", "action": "start"}).status_code == 403
+    assert host.post(f"/api/games/{code}", json={"guest_id": "host-abcdef12", "action": "start"}).json()["phase"] == "words"
+    me = others[0].get(f"/api/games/{code}?guest_id=gamer-0-xyz").json()["me"]
+    assert me["word"] or me["role"]
+    # Vote par identifiant public.
+    host.post(f"/api/games/{code}", json={"guest_id": "host-abcdef12", "action": "vote_start"})
+    view = others[0].get(f"/api/games/{code}?guest_id=gamer-0-xyz").json()
+    target = next(p["pid"] for p in view["players"] if p["pid"] != view["me"]["pid"])
+    r = others[0].post(f"/api/games/{code}", json={"guest_id": "gamer-0-xyz", "action": "vote", "target": target})
+    assert r.json()["me"]["vote"] == target
+    assert TestClient(main.app).get(f"/qr/game/{code}.svg").status_code == 200
+    host.post(f"/api/games/{code}", json={"guest_id": "host-abcdef12", "action": "end"})
+    assert others[0].get(f"/api/games/{code}").status_code == 404
+
+
+def test_admin_sees_and_closes_games(admin):  # noqa: F811
+    g = TestClient(main.app).post("/api/games", json={"guest_id": "host-zzzz1234", "name": "Zoé", "type": "whoof"}).json()
+    listed = admin.get("/api/admin/state").json()["games"]
+    assert any(x["code"] == g["code"] and x["host"] == "Zoé" for x in listed)
+    admin.post("/api/admin/games/close", json={"guest_id": "admin-console", "action": "end", "target": g["code"]})
+    assert g["code"] not in main.store.session.games
+
+
+def test_game_creation_rate_limited():
+    main._game_creations.clear()  # les autres tests ont créé des parties depuis la même adresse
+    c = TestClient(main.app)
+    codes = [c.post("/api/games", json={"guest_id": f"spam-{i}-abcd", "name": "X", "type": "whoof"}).status_code for i in range(7)]
+    assert codes[:5] == [200] * 5 and codes[5] == 429

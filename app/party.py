@@ -52,8 +52,8 @@ class Session:
     admin_push: list[dict] = field(default_factory=list)
     # Playlists favorites de l'hôte (Réglages) : {"id": "spotify:playlist:…" ou "fav:…"/"sq:…", "title"}.
     top_playlists: list[dict] = field(default_factory=list)
-    # Partie de jeu en cours (voir games.py), ou None.
-    game: dict | None = None
+    # Parties de jeu en cours (voir games.py), par code ; indépendantes de la soirée musique.
+    games: dict[str, dict] = field(default_factory=dict)
 
 
 class PartyStore:
@@ -96,6 +96,7 @@ class PartyStore:
             active=True, room_uid=room_uid, room_name=room_name, mode=mode, started_at=time.time(),
             bans=self.session.bans, guest_pin=self.session.guest_pin, revoked=self.session.revoked,
             push=self.session.push, admin_push=self.session.admin_push, top_playlists=self.session.top_playlists,
+            games=self.session.games,
         )
         self.save()
 

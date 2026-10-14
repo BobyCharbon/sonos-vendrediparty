@@ -604,80 +604,27 @@ document.addEventListener("submit", async (ev) => {
 $("msgReadAll").onclick = async () => {
   try { render(await api("/api/admin/messages", { ids: null, action: "read" })); } catch (e) { toast(e.message, "err"); }
 };
-// 🎮 Jeux : l'hôte ouvre une partie et fait avancer les phases ; les rôles restent cachés par défaut.
-let showRoles = false, gameWhite = true;
+// 🎮 Jeux : créés et animés par les invités (onglet Jeux de leur page) ; ici, vue d'ensemble et fermeture.
 const PHASES = { lobby: "Inscriptions", words: "Indices", vote: "Vote", white_guess: "Devinette de Mr. White",
-  reveal: "Résultat de la manche", end: "Partie terminée", question: "Question", results: "Résultats" };
+  reveal: "Résultat de la manche", end: "Terminée", question: "Question", results: "Résultats" };
 function renderGameAdmin(s) {
-  $("gamesOff").classList.toggle("hidden", s.active);
-  if (!s.active) { $("gamePanel").innerHTML = ""; return; }
-  const g = s.game;
-  if (!g) {
-    $("gamePanel").innerHTML = `
-      <div class="card" style="margin-bottom:10px">
-        <div class="title" style="font-weight:700">🕵️ Undercover</div>
-        <p class="sub" style="margin:6px 0 10px">Chacun reçoit un mot secret ; les undercovers ont un mot proche, Mr. White n'en a pas. Indices à voix haute, puis vote sur les téléphones. 3 joueurs minimum.</p>
-        <label class="switch-row" style="margin-bottom:10px"><span class="grow">🎩 Avec Mr. White (dès 5 joueurs)</span><input type="checkbox" class="switch" id="gameWhite" ${gameWhite ? "checked" : ""}></label>
-        <button data-gadmin="open" data-type="undercover" style="width:100%">Ouvrir la partie</button>
-      </div>
-      <div class="card">
-        <div class="title" style="font-weight:700">🙋 Qui de nous ?</div>
-        <p class="sub" style="margin:6px 0 10px">Une question (« Qui de nous finira la soirée en pyjama ? »), tout le monde vote en secret, puis on découvre le classement. 2 joueurs minimum, on peut rejoindre en cours de route.</p>
-        <button data-gadmin="open" data-type="whoof" style="width:100%">Ouvrir la partie</button>
-      </div>`;
-    return;
-  }
-  const btn = (action, label, cls = "", extra = "") => `<button class="${cls}" data-gadmin="${action}" ${extra}>${label}</button>`;
-  const alive = g.players.filter((p) => p.alive);
-  const controls = {
-    lobby: btn("start", g.type === "undercover" ? "▶︎ Distribuer les mots" : "▶︎ Première question", "grow", g.players.length < (g.type === "undercover" ? 3 : 2) ? "disabled" : ""),
-    words: btn("vote", "🗳 Passer au vote", "grow"),
-    vote: btn("close_vote", `Clore le vote (${g.votes_count}/${alive.length})`, "grow"),
-    white_guess: btn("skip_guess", "Passer la devinette", "secondary grow"),
-    reveal: btn("next", "▶︎ Manche suivante", "grow"),
-    question: btn("close_vote", `Voir les résultats (${g.votes_count}/${g.players.length})`, "grow") + btn("next", "⏭", "secondary", `title="Changer de question"`),
-    results: btn("next", "▶︎ Question suivante", "grow"),
-    end: btn("restart", "🔁 Rejouer avec les mêmes joueurs", "grow"),
-  }[g.phase] || "";
-  const canEliminate = g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
-  const win = { civils: "Les civils ont gagné 🎉", impostors: "Les undercovers ont gagné 🕵️", white: "Mr. White a trouvé le mot 🎩" }[g.winner];
-  let info = "";
-  if (g.last?.tie) info = `Égalité : revote entre ${g.candidates.map((id) => esc(g.players.find((p) => p.id === id)?.name)).join(", ")}`;
-  else if (g.last?.name) info = `${esc(g.last.name)} éliminé·e : ${esc(g.last.role)}${g.last.guess ? ` · devinette « ${esc(g.last.guess)} »` : ""}`;
-  if (g.phase === "end") info = win + (info ? " · " + info : "");
-  if (g.question) info = `<b>${esc(g.question)}</b>` + (info ? "<br>" + info : "");
+  $("gamesOff").classList.add("hidden");
+  const list = s.games || [];
   $("gamePanel").innerHTML = `
-    <div class="card">
-      <div class="row"><div class="grow"><div class="title" style="font-weight:700">🎮 ${esc(g.name)}</div>
-        <div class="artist">${PHASES[g.phase]}${g.round ? ` · ${g.type === "whoof" ? "question" : "manche"} ${g.round}` : ""} · ${g.players.length} joueur${g.players.length > 1 ? "s" : ""}</div></div>
-        ${g.type === "undercover" ? `<button class="secondary" data-gadmin="roles" title="Voir / cacher les rôles">${showRoles ? "🙈" : "👁"}</button>` : ""}</div>
-      ${info ? `<p class="sub" style="margin:10px 0 0">${info}</p>` : ""}
-      ${g.type === "undercover" && g.order.length && g.phase === "words" ? `<p class="sub" style="margin:8px 0 0">Ordre de parole : ${g.order.map(esc).join(" → ")}</p>` : ""}
-      ${showRoles && g.words ? `<p class="sub" style="margin:8px 0 0">Civils : <b>${esc(g.words.civil)}</b> · Undercover : <b>${esc(g.words.undercover)}</b></p>` : ""}
-      <div class="row" style="margin-top:12px">${controls}</div>
-    </div>
-    <h2>Joueurs</h2>
-    <div class="list">${g.players.map((p) => `
-      <div class="track" style="${p.alive ? "" : "opacity:.55"}">
-        <div class="meta"><div class="title">${p.alive ? "" : "✝︎ "}${esc(p.name)}${(g.phase === "vote" || g.phase === "question") && p.voted ? " ✓" : ""}</div>
-          ${(showRoles || g.phase === "end") && p.role ? `<div class="artist">${esc(p.role)}${p.word ? " · " + esc(p.word) : ""}</div>` : !p.alive && p.role ? `<div class="artist">${esc(p.role)}</div>` : ""}</div>
-        <div class="icon-btns">
-          ${canEliminate && p.alive ? `<button class="danger" data-gadmin="eliminate" data-g="${esc(p.id)}" title="Éliminer (vote à main levée)">Éliminer</button>` : ""}
-          ${g.phase === "lobby" || g.type === "whoof" || g.phase === "end" ? `<button class="secondary" data-gadmin="remove" data-g="${esc(p.id)}" title="Retirer de la partie">✕</button>` : ""}
-        </div>
-      </div>`).join("") || `<p class="empty">En attente des joueurs : ils voient « Rejoindre la partie » sur leur page.</p>`}</div>
-    <button class="danger" data-gadmin="end" style="width:100%;margin-top:16px">Fermer la partie</button>`;
+    <p class="sub">N'importe quel invité crée une partie depuis l'onglet 🎮 Jeux de sa page (pas besoin du code de la musique) et la fait rejoindre avec son QR. Pour jouer ou animer toi-même, ouvre la page invités.</p>
+    <div class="list">${list.length ? list.map((g) => `
+      <div class="track">
+        <div class="meta"><div class="title">${esc(g.name)} · <span style="font-variant-numeric:tabular-nums">${esc(g.code)}</span></div>
+          <div class="artist">${PHASES[g.phase] || ""} · animée par ${esc(g.host || "?")} · ${g.players.length} joueur${g.players.length > 1 ? "s" : ""}</div>
+          <div class="artist" style="white-space:normal">${g.players.map(esc).join(", ")}</div></div>
+        <button class="danger" data-close-game="${esc(g.code)}" title="Fermer la partie">Fermer</button>
+      </div>`).join("") : `<p class="empty">Aucune partie en cours</p>`}</div>`;
 }
-document.addEventListener("change", (ev) => { if (ev.target.id === "gameWhite") gameWhite = ev.target.checked; });
 document.addEventListener("click", async (ev) => {
-  const b = ev.target.closest("[data-gadmin]");
-  if (!b) return;
-  const a = b.dataset.gadmin;
-  if (a === "roles") { showRoles = !showRoles; return renderGameAdmin(state); }
-  if (a === "end" && !confirm("Fermer la partie ?")) return;
-  if (a === "eliminate" && !confirm("Éliminer ce joueur ?")) return;
+  const b = ev.target.closest("[data-close-game]");
+  if (!b || !confirm(`Fermer la partie ${b.dataset.closeGame} pour tous ses joueurs ?`)) return;
   b.disabled = true;
-  try { render(await api("/api/admin/game", { action: a, type: b.dataset.type || "", white: gameWhite, guest_id: b.dataset.g || "" })); }
+  try { render(await api("/api/admin/games/close", { guest_id: "admin-console", action: "end", target: b.dataset.closeGame })); toast("Partie fermée", "ok"); }
   catch (e) { toast(e.message, "err"); b.disabled = false; }
 });
 

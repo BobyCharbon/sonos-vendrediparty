@@ -1,13 +1,18 @@
 """Jeux de soirée : Undercover et « Qui de nous ? ».
 
-L'état d'une partie est un dict sérialisable (persisté avec la session). Les invités jouent depuis
-leur téléphone ; l'hôte ouvre la partie et fait avancer les phases depuis l'admin.
+N'importe quel invité crée une partie (avec son propre code / QR) et la fait avancer depuis son
+téléphone ; les autres la rejoignent avec ce code, sans le code de la musique.
+L'état d'une partie est un dict sérialisable (persisté avec la session).
+
+Chaque joueur est identifié en secret par son guest_id (gardé sur son téléphone) et publiquement
+par un « pid » aléatoire : les vues ne contiennent jamais le guest_id des autres, sinon on pourrait
+se faire passer pour eux et lire leur mot.
 """
 
 import random
+import secrets
 import time
 import unicodedata
-import uuid
 
 GAMES = {
     "undercover": "Undercover",
@@ -83,15 +88,35 @@ def normalize(text: str) -> str:
     return " ".join(text.lower().replace("-", " ").split())
 
 
-def new_game(kind: str, white: bool = True) -> dict:
+CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"  # sans I ni O (confondus avec 1 et 0)
+
+
+def new_code(taken) -> str:
+    while (code := "".join(secrets.choice(CODE_LETTERS) for _ in range(4))) in taken:
+        pass
+    return code
+
+
+def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code: str = "", plays: bool = True) -> dict:
+    """Nouvelle partie ; son créateur (host) l'anime, et la rejoint comme joueur s'il joue aussi.
+    S'il ne joue pas, il est maître du jeu : il peut voir les rôles et les mots."""
     if kind not in GAMES:
         raise GameError("Jeu inconnu")
-    return {
-        "id": uuid.uuid4().hex[:8], "type": kind, "phase": "lobby", "created_at": time.time(),
+    g = {
+        "id": secrets.token_hex(4), "code": code, "type": kind, "phase": "lobby", "host": host, "host_name": name,
+        "created_at": time.time(), "updated_at": time.time(),
         "options": {"white": white}, "players": [], "round": 0, "order": [], "votes": {},
         "candidates": None, "last": None, "winner": None, "words": None, "used": [],
         "question": None, "results": None,
     }
+    if host and plays:
+        join(g, host, name)
+    return g
+
+
+def gid_of(g: dict, pid: str) -> str:
+    """guest_id du joueur dont l'identifiant public est pid ("" si inconnu)."""
+    return next((p["id"] for p in g["players"] if p["pid"] == pid), "")
 
 
 def player(g: dict, gid: str) -> dict | None:
@@ -102,13 +127,19 @@ def alive(g: dict) -> list[dict]:
     return [p for p in g["players"] if p["alive"]]
 
 
-def join(g: dict, gid: str):
-    if player(g, gid):
+def join(g: dict, gid: str, name: str = ""):
+    if p := player(g, gid):
+        p["name"] = name or p["name"]
         return
     # « Qui de nous ? » accepte les retardataires ; Undercover seulement avant la distribution des mots.
-    if g["type"] == "undercover" and g["phase"] != "lobby":
+    if g["type"] == "undercover" and g["phase"] not in ("lobby", "end"):
         raise GameError("La partie a déjà commencé, attends la prochaine 🙂")
-    g["players"].append({"id": gid, "alive": True, "role": None, "word": None})
+    if len(g["players"]) >= 30:
+        raise GameError("La partie est complète")
+    taken = {p["pid"] for p in g["players"]}
+    while (pid := secrets.token_hex(4)) in taken:
+        pass
+    g["players"].append({"id": gid, "pid": pid, "name": name or "?", "alive": True, "role": None, "word": None})
 
 
 def leave(g: dict, gid: str):
@@ -116,6 +147,10 @@ def leave(g: dict, gid: str):
         raise GameError("Impossible de quitter en pleine partie")
     g["players"] = [p for p in g["players"] if p["id"] != gid]
     g["votes"].pop(gid, None)
+    # L'animateur s'en va : le joueur suivant reprend la main.
+    if g["host"] == gid:
+        nxt = g["players"][0] if g["players"] else None
+        g["host"], g["host_name"] = (nxt["id"], nxt["name"]) if nxt else ("", "")
 
 
 def start(g: dict, rng: random.Random = random):
@@ -286,42 +321,56 @@ def restart(g: dict, rng: random.Random = random) -> dict:
 
 # --- Vues : chaque invité ne voit que ce qu'il a le droit de voir ---
 
-def _public_player(g: dict, p: dict, names: dict, reveal: bool) -> dict:
-    out = {"id": p["id"], "name": names.get(p["id"], "?"), "alive": p["alive"], "voted": p["id"] in g["votes"]}
-    # Un éliminé dévoile son rôle, pas son mot (celui d'un civil aiderait les undercovers restants).
-    if reveal or not p["alive"]:
-        out["role"] = ROLE_LABELS.get(p["role"]) if p["role"] else None
-    if reveal:
-        out["word"] = p["word"]
-    return out
+def _pid(g: dict, gid: str | None) -> str | None:
+    p = player(g, gid) if gid else None
+    return p["pid"] if p else None
 
 
-def view(g: dict | None, gid: str | None, names: dict) -> dict | None:
-    """gid=None : vue de l'hôte (tout, rôles compris)."""
-    if not g:
-        return None
-    host = gid is None
+def view(g: dict, gid: str) -> dict:
+    """Vue d'un joueur (ou d'un visiteur qui n'a pas encore rejoint) : son mot, jamais celui des autres.
+    Le maître du jeu (animateur qui ne joue pas) voit tout."""
     ended = g["phase"] == "end"
-    me = player(g, gid) if gid else None
+    me = player(g, gid)
+    master = bool(gid) and g["host"] == gid and me is None
+    players = []
+    for p in g["players"]:
+        out = {"pid": p["pid"], "name": p["name"], "alive": p["alive"], "voted": p["id"] in g["votes"],
+               "host": p["id"] == g["host"]}
+        # Un éliminé dévoile son rôle, pas son mot (celui d'un civil aiderait les undercovers restants).
+        if (ended or master or not p["alive"]) and p["role"]:
+            out["role"] = ROLE_LABELS[p["role"]]
+        if ended or master:
+            out["word"] = p["word"]
+        players.append(out)
     out = {
-        "id": g["id"], "type": g["type"], "name": GAMES[g["type"]], "phase": g["phase"], "round": g["round"],
-        "players": [_public_player(g, p, names, host or ended) for p in g["players"]],
-        "order": [names.get(i, "?") for i in g["order"]] if g["type"] == "undercover" else [],
-        "candidates": g["candidates"], "winner": g["winner"], "question": g["question"],
-        "votes_count": len(g["votes"]), "options": g["options"],
+        "id": g["id"], "code": g["code"], "type": g["type"], "name": GAMES[g["type"]], "phase": g["phase"],
+        "round": g["round"], "players": players, "is_host": bool(gid) and g["host"] == gid, "master": master,
+        "host_name": g.get("host_name", ""),
+        "order": [player(g, i)["name"] for i in g["order"] if player(g, i)] if g["type"] == "undercover" else [],
+        "candidates": [_pid(g, i) for i in g["candidates"]] if g["candidates"] else None,
+        "winner": g["winner"], "question": g["question"], "votes_count": len(g["votes"]), "options": g["options"],
     }
     last = g["last"] or {}
     if last.get("eliminated"):
-        out["last"] = {**last, "name": names.get(last["eliminated"], "?"), "role": ROLE_LABELS.get(last["role"])}
+        p = player(g, last["eliminated"])
+        out["last"] = {"pid": p["pid"] if p else None, "name": p["name"] if p else "?",
+                       "role": ROLE_LABELS.get(last["role"]), "guess": last.get("guess"), "me": last["eliminated"] == gid}
     elif last.get("tie"):
         out["last"] = {"tie": True}
     if g["results"]:
-        out["results"] = [{"id": i, "name": names.get(i, "?"), "count": c} for i, c in g["results"]]
-    if host or ended:
+        out["results"] = [{"pid": _pid(g, i), "name": (player(g, i) or {}).get("name", "?"), "count": c}
+                          for i, c in g["results"]]
+    if ended or master:
         out["words"] = g["words"]
-    if host:
-        out["votes"] = {names.get(v, "?"): names.get(t, "?") for v, t in g["votes"].items()}
     if me:
-        out["me"] = {"alive": me["alive"], "vote": g["votes"].get(gid),
-                     "role": "Mr. White" if me["role"] == "white" else None, "word": me["word"]}
+        out["me"] = {"pid": me["pid"], "alive": me["alive"], "vote": _pid(g, g["votes"].get(gid)),
+                     "role": "Mr. White" if me["role"] == "white" else None, "word": me["word"],
+                     "dealt": me["role"] is not None}
     return out
+
+
+def summary(g: dict) -> dict:
+    """Vue d'ensemble pour l'admin (sans les secrets)."""
+    return {"code": g["code"], "name": GAMES[g["type"]], "phase": g["phase"], "round": g["round"],
+            "players": [p["name"] for p in g["players"]], "host": g.get("host_name", ""),
+            "updated_at": g["updated_at"]}

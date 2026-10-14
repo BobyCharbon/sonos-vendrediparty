@@ -632,8 +632,7 @@ def admin_state():
         "bans": [{"guest_id": g, **b} for g, b in store.active_bans().items()],
         "messages": list(reversed(s.messages)),
         "top_playlists": s.top_playlists,
-        "game": games.view(s.game, None, game_names()),
-        "games": games.GAMES,
+        "games": [games.summary(g) for g in s.games.values()],
     }
     if s.active:
         try:
@@ -774,78 +773,127 @@ def admin_messages(body: MessageAction):
 
 
 # --- Jeux ---
+# Ouverts à tous (sans le code de la musique) : n'importe qui crée une partie et la partage par son code / QR.
 
-def game_names() -> dict[str, str]:
-    return {gid: g["name"] for gid, g in store.session.guests.items()}
+GAME_CODE_RE = re.compile(r"^[A-Z]{4}$")
+_game_creations: dict[str, list[float]] = {}
 
 
-def game_call(fn, *args):
-    """Applique une action de jeu et prévient les pages ouvertes."""
-    g = store.session.game
-    if not g:
-        raise HTTPException(404, "Aucune partie en cours")
+def prune_games():
+    """Oublie les parties inactives depuis 4 h."""
+    old = [c for c, g in store.session.games.items() if time.time() - g["updated_at"] > 4 * 3600]
+    for code in old:
+        del store.session.games[code]
+    if old:
+        store.save()
+
+
+def get_game(code: str) -> dict:
+    prune_games()
+    g = store.session.games.get(code.upper()) if GAME_CODE_RE.match(code.upper()) else None
+    if g is None:
+        raise HTTPException(404, "Partie introuvable ou terminée")
+    return g
+
+
+class GameCreate(BaseModel):
+    guest_id: str
+    name: str
+    type: str
+    white: bool = True
+    plays: bool = True  # l'animateur joue aussi (sinon : maître du jeu, il voit les rôles)
+
+
+@app.post("/api/games")
+def create_game(body: GameCreate, request: Request):
+    check_guest_id(body.guest_id)
+    ip = client_ip(request)
+    if msg := ban_message(body.guest_id, ip):
+        raise HTTPException(403, msg)
+    # Page publique : 5 créations par adresse toutes les 10 minutes, 30 parties au plus.
+    recent = [t for t in _game_creations.get(ip, []) if time.time() - t < 600]
+    if len(recent) >= 5 and ip not in PROXY_IPS:
+        raise HTTPException(429, "Trop de parties créées, réessaie dans quelques minutes")
+    prune_games()
+    if len(store.session.games) >= 30:
+        raise HTTPException(429, "Trop de parties en cours, réessaie plus tard")
+    try:
+        g = games.new_game(body.type, body.guest_id, clean_name(body.name), body.white,
+                           code=games.new_code(store.session.games), plays=body.plays)
+    except games.GameError as e:
+        raise HTTPException(400, str(e))
+    _game_creations[ip] = recent + [time.time()]
+    store.session.games[g["code"]] = g
+    store.save()
+    return games.view(g, body.guest_id)
+
+
+@app.get("/api/games/{code}")
+def game_state(code: str, guest_id: str = ""):
+    return games.view(get_game(code), guest_id)
+
+
+class GameAction(BaseModel):
+    guest_id: str
+    name: str = ""
+    action: str
+    target: str = ""  # identifiant public (pid) d'un joueur
+    guess: str = ""
+
+
+# Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
+HOST_ACTIONS = {"start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end"}
+
+
+@app.post("/api/games/{code}")
+def game_action(code: str, body: GameAction, request: Request):
+    check_guest_id(body.guest_id)
+    g = get_game(code)
+    a, me = body.action, body.guest_id
+    target = games.gid_of(g, body.target)
+    if a in HOST_ACTIONS and g["host"] != me:
+        raise HTTPException(403, "Seul l'animateur de la partie peut faire ça")
+    if a == "join" and (msg := ban_message(me, client_ip(request))):
+        raise HTTPException(403, msg)
+    if a == "end":
+        del store.session.games[g["code"]]
+        store.save()
+        return None
+    actions = {
+        "join": (games.join, me, clean_name(body.name) if a == "join" else ""),
+        "leave": (games.leave, me), "vote": (games.vote, me, target), "guess": (games.white_guess, me, body.guess),
+        "start": (games.start,), "vote_start": (games.start_vote,), "close_vote": (games.close_vote,),
+        "eliminate": (games.eliminate, target), "skip_guess": (games.skip_white_guess,),
+        "next": (games.next_step,), "restart": (games.restart,), "remove": (games.leave, target),
+    }
+    if a not in actions:
+        raise HTTPException(400, "Action inconnue")
+    fn, *args = actions[a]
     try:
         fn(g, *args)
     except games.GameError as e:
         raise HTTPException(409, str(e))
+    g["updated_at"] = time.time()
+    if not g["players"] and not g["host"]:
+        del store.session.games[g["code"]]
     store.save()
+    return games.view(g, me)
 
 
-class GameAdmin(BaseModel):
-    action: str  # open | start | vote | close_vote | eliminate | skip_guess | next | restart | remove | end
-    type: str = ""
-    white: bool = True
-    guest_id: str = ""
+@app.get("/qr/game/{code}.svg")
+def game_qr(code: str):
+    g = get_game(code)
+    buf = io.BytesIO()
+    segno.make(f"{guest_url()}?game={g['code']}", error="m").save(buf, kind="svg", scale=8, border=2, dark="#111", light="#fff")
+    return Response(buf.getvalue(), media_type="image/svg+xml", headers={"Cache-Control": "no-cache"})
 
 
-@app.post("/api/admin/game", dependencies=[Depends(require_admin)])
-def admin_game(body: GameAdmin):
-    require_active()
-    a = body.action
-    if a == "open":
-        try:
-            store.session.game = games.new_game(body.type, white=body.white)
-        except games.GameError as e:
-            raise HTTPException(400, str(e))
-        store.save()
-    elif a == "end":
-        store.session.game = None
-        store.save()
-    else:
-        actions = {
-            "start": (games.start,), "vote": (games.start_vote,), "close_vote": (games.close_vote,),
-            "eliminate": (games.eliminate, body.guest_id), "skip_guess": (games.skip_white_guess,),
-            "next": (games.next_step,), "restart": (games.restart,), "remove": (games.leave, body.guest_id),
-        }
-        if a not in actions:
-            raise HTTPException(400, "Action inconnue")
-        game_call(*actions[a])
+@app.post("/api/admin/games/close", dependencies=[Depends(require_admin)])
+def admin_close_game(body: GameAction):
+    """L'hôte de la soirée peut fermer n'importe quelle partie (body.target = code)."""
+    store.session.games.pop(body.target.upper(), None)
+    store.save()
     return admin_state()
-
-
-class GamePlay(BaseModel):
-    guest_id: str
-    action: str  # join | leave | vote | guess
-    target: str = ""
-    guess: str = ""
-
-
-@app.post("/api/game", dependencies=[Depends(require_guest)])
-def play_game(body: GamePlay, request: Request):
-    require_active()
-    check_guest_id(body.guest_id)
-    if body.guest_id not in store.session.guests:
-        raise HTTPException(409, "Indique d'abord ton prénom")
-    if body.action == "join" and (msg := ban_message(body.guest_id, client_ip(request))):
-        raise HTTPException(403, msg)
-    actions = {
-        "join": (games.join, body.guest_id), "leave": (games.leave, body.guest_id),
-        "vote": (games.vote, body.guest_id, body.target), "guess": (games.white_guess, body.guest_id, body.guess),
-    }
-    if body.action not in actions:
-        raise HTTPException(400, "Action inconnue")
-    game_call(*actions[body.action])
-    return {"ok": True, "game": games.view(store.session.game, body.guest_id, game_names())}
 
 
 # --- Invités ---
@@ -917,7 +965,6 @@ def state(request: Request, guest_id: str = ""):
         "messages": [{k: m.get(k) for k in ("id", "text", "at", "reply", "reply_at")} for m in store.messages_of(guest_id)] if guest_id else [],
         # Déjà passés (le plus récent d'abord, sans le titre en cours) : pour les retrouver sur Spotify.
         "played": [{**p, "art": art_url(p["art"])} for p in reversed(s.played[-16:-1])],
-        "game": games.view(s.game, guest_id or "-", game_names()),
     }
     try:
         return {**base, **public_sonos(snapshot(), guest_id)}
@@ -1096,7 +1143,7 @@ def push_unsubscribe(body: PushUnsubscribe):
     return {"ok": True}
 
 
-@app.get("/api/events", dependencies=[Depends(require_viewer)])
+@app.get("/api/events")
 async def events(request: Request):
     """Flux SSE : envoie un signal dès que l'état change, la page se rafraîchit aussitôt."""
     async def stream():
