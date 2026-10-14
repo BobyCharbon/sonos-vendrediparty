@@ -385,7 +385,11 @@ const WINNERS = { civils: "Les civils ont gagné 🎉", impostors: "Les undercov
 async function gapi(path, body) {
   const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
   const data = await r.json().catch(() => null);
-  if (!r.ok) { const e = new Error(data?.detail || "Erreur"); e.status = r.status; throw e; }
+  if (!r.ok) {
+    const e = new Error(typeof data?.detail === "string" ? data.detail : data?.detail?.message || "Erreur");
+    e.status = r.status; e.detail = data?.detail;
+    throw e;
+  }
   return data;
 }
 function setGame(code) { myGame = code; store("vp_game", code); $("gameDot")?.classList.toggle("hidden", !code); }
@@ -405,7 +409,11 @@ async function refreshGame() {
     renderGame(g);
   } catch (e) {
     // Partie introuvable, ou erreur du serveur : on revient à l'accueil des jeux plutôt que de rester sur une page vide.
-    if (e.status === 404) { setGame(""); toast("Cette partie n'existe plus", "err"); }
+    if (e.status === 404) {
+      setGame("");
+      if (e.detail?.ended) showGameEnded(e.detail.ended);
+      else toast("Cette partie n'existe plus", "err");
+    }
     else if (!game) toast("Impossible de charger la partie, réessaie", "err");
     if (e.status === 404 || !game) renderGame(null);
   }
@@ -1047,6 +1055,24 @@ setInterval(() => {
   else if ($("wordCountdown")) $("wordCountdown").textContent = left;
 }, 200);
 
+// 🏁 Partie fermée par l'animateur (ou par l'hôte de la soirée) : on prévient pendant 5 secondes.
+function showGameEnded(info) {
+  document.querySelector(".g-ended")?.remove();
+  const el = document.createElement("div");
+  el.className = "g-ended";
+  el.setAttribute("role", "alert");
+  const who = info.by === "admin" ? "par l'organisateur de la soirée" : `par l'hôte${info.host ? ` (${esc(info.host)})` : ""}`;
+  el.innerHTML = `<div class="g-ended-card"><div class="g-ended-icon">🏁</div>
+    <div class="g-ended-title">Partie terminée</div>
+    <div class="g-ended-sub">${info.game ? `${esc(info.game)} · ` : ""}${who}</div>
+    <div class="g-ended-bar"><i></i></div></div>`;
+  const close = () => { el.classList.add("out"); setTimeout(() => el.remove(), 300); };
+  el.addEventListener("click", close);
+  document.body.append(el);
+  navigator.vibrate?.([80, 60, 80]);
+  setTimeout(close, 5000);
+}
+
 async function gameAction(action, extra = {}) {
   if (!myGame) return;
   try {
@@ -1054,7 +1080,8 @@ async function gameAction(action, extra = {}) {
     if (action === "end" || (action === "leave" && !g?.is_host)) { setGame(""); renderGame(null); return; }
     renderGame(g);
   } catch (e) {
-    toast(e.message, "err");
+    if (e.status === 404 && e.detail?.ended) showGameEnded(e.detail.ended);
+    else toast(e.message, "err");
     if (e.status === 404) { setGame(""); renderGame(null); }
   }
 }

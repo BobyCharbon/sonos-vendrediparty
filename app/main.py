@@ -779,6 +779,15 @@ def admin_messages(body: MessageAction):
 
 GAME_CODE_RE = re.compile(r"^[0-9]{4}$")
 _game_creations: dict[str, list[float]] = {}
+# Parties fermées récemment : les joueurs encore dessus apprennent qui l'a terminée (pendant 15 min).
+_ended_games: dict[str, dict] = {}
+
+
+def end_game(code: str, by: str):
+    g = store.session.games.pop(code, None)
+    if g:
+        _ended_games[code] = {"by": by, "host": g.get("host_name", ""), "game": games.GAMES.get(g["type"], ""), "at": time.time()}
+        store.save()
 
 
 def prune_games():
@@ -802,6 +811,9 @@ def get_game(code: str) -> dict:
     prune_games()
     g = store.session.games.get(code) if GAME_CODE_RE.match(code) else None
     if g is None:
+        ended = _ended_games.get(code)
+        if ended and time.time() - ended["at"] < 900:
+            raise HTTPException(404, {"message": "Partie terminée", "ended": ended})
         raise HTTPException(404, "Partie introuvable ou terminée")
     return g
 
@@ -908,8 +920,7 @@ def game_action(code: str, body: GameAction, request: Request):
     if a == "join" and (msg := ban_message(me, client_ip(request))):
         raise HTTPException(403, msg)
     if a == "end":
-        del store.session.games[g["code"]]
-        store.save()
+        end_game(g["code"], "host")
         return None
     actions = {
         "join": (games.join, me, clean_name(body.name) if a == "join" else ""),
@@ -951,8 +962,7 @@ def game_qr(code: str):
 @app.post("/api/admin/games/close", dependencies=[Depends(require_admin)])
 def admin_close_game(body: GameAction):
     """L'hôte de la soirée peut fermer n'importe quelle partie (body.target = code)."""
-    store.session.games.pop(body.target, None)
-    store.save()
+    end_game(body.target, "admin")
     return admin_state()
 
 

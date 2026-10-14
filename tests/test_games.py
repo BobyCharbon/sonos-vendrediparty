@@ -494,3 +494,13 @@ def test_divan_turns_joker_and_hearts():
     v = games.view(g, "a")["divan"]
     assert v["current"]["name"] == "Ana" and v["my_turn"] and not v["joker"]
     assert sum(len(q) for q in games.DIVAN_CARDS.values()) == 80
+
+
+def test_players_learn_the_host_ended_the_game():
+    host, other = TestClient(main.app), TestClient(main.app)
+    main._game_creations.clear()
+    g = host.post("/api/games", json={"guest_id": "host-end-0001", "name": "Ludo", "type": "whoof"}).json()
+    host.post(f"/api/games/{g['code']}", json={"guest_id": "host-end-0001", "action": "end"})
+    r = other.get(f"/api/games/{g['code']}?guest_id=player-end-01")
+    assert r.status_code == 404
+    assert r.json()["detail"]["ended"] == {**r.json()["detail"]["ended"], "by": "host", "host": "Ludo", "game": "Qui de nous ?"}
