@@ -114,6 +114,7 @@
         <ol class="i-steps" id="iSteps"></ol>
       </details>
       <button type="button" id="iLater" class="secondary">Plus tard</button>
+      <div class="i-version" id="iVersion"></div>
     </div>
     <div class="i-arrow" id="iArrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15"/><path d="M5 12l7 7 7-7"/></svg></div>
   </div>
@@ -428,16 +429,19 @@ $("install").addEventListener("click", (ev) => { if ((ios || android) && !ev.tar
 
 // 📲 Installation guidée sur iPhone (Safari d'iOS 26 : « Partager » est dans le menu ••• de la barre d'adresse).
 const ICONS = {
+  pagemenu: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="4" y="3" width="7" height="6" rx="1.5"/><path d="M4 13h16M4 17h16M4 21h10"/></svg>`,
   menu: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>`,
   more: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="7.5" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="16.5" cy="12" r="1" fill="currentColor"/></svg>`,
   share: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M8 7l4-4 4 4"/><path d="M8 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-2"/></svg>`,
   add: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8M8 12h8"/></svg>`,
   app: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>`,
 };
+// Version de Safari (sur iPhone, le système annonce toujours « iOS 18 » : seule la version de Safari est fiable).
+const safariVersion = () => +((navigator.userAgent.match(/Version\/(\d+)/) || [])[1] || 0);
 function installSteps() {
   const ua = navigator.userAgent;
   const chrome = /CriOS/.test(ua), firefox = /FxiOS/.test(ua);
-  const safariVersion = +((ua.match(/Version\/(\d+)/) || [])[1] || 0);
+  const v = safariVersion();
   const step = (icon, html) => `<li><span class="i-ico">${ICONS[icon]}</span><span>${html}</span></li>`;
   if (android) return [
     step("menu", `Touche le menu <b>⋮</b> en haut à droite du navigateur.`),
@@ -449,13 +453,14 @@ function installSteps() {
     step("add", `Touche <b>« Ajouter à l'écran d'accueil »</b>.`),
     step("app", `Touche <b>Ajouter</b> : « Party ! » apparaît sur ton écran d'accueil.`),
   ];
+  // Safari 27+ : icône de menu à gauche de l'adresse ; Safari 26 : ••• à droite ; avant : Partager au centre de la barre.
   return [
-    safariVersion >= 26
-      ? step("more", `Touche <b>•••</b> à droite de la barre d'adresse, en bas de l'écran.`)
+    v >= 27 ? step("pagemenu", `Touche l'icône de menu <b>à gauche de l'adresse</b>, en bas de l'écran.`)
+      : v >= 26 ? step("more", `Touche <b>•••</b> à droite de la barre d'adresse, en bas de l'écran.`)
       : null,
-    step("share", safariVersion >= 26 ? `Touche <b>Partager</b>.` : `Touche <b>Partager</b> en bas de l'écran.`),
-    step("add", `Fais défiler et touche <b>« Sur l'écran d'accueil »</b>${safariVersion >= 26 ? " (dans « Plus » si tu ne le vois pas)" : ""}.`),
-    step("app", `${safariVersion >= 26 ? `Laisse <b>« Ouvrir en tant qu'app web »</b> activé, puis touche` : "Touche"} <b>Ajouter</b>.`),
+    step("share", v >= 26 ? `Touche <b>Partager</b>.` : `Touche <b>Partager</b> au milieu de la barre du bas.`),
+    step("add", `Fais défiler et touche <b>« Sur l'écran d'accueil »</b>${v >= 26 ? " (dans « Plus » si tu ne le vois pas)" : ""}.`),
+    step("app", `${v >= 26 ? `Laisse <b>« Ouvrir en tant qu'app web »</b> activé, puis touche` : "Touche"} <b>Ajouter</b>.`),
   ].filter(Boolean);
 }
 function openInstallSheet() {
@@ -464,9 +469,11 @@ function openInstallSheet() {
   if (ios) {
     // iPhone : aucune page web ne peut ouvrir le « Partager » de Safari (le seul qui propose « Sur l'écran d'accueil »).
     // Guide en haut de l'écran qui laisse toucher Safari, et flèche vers le bon bouton.
-    const ua = navigator.userAgent, safari26 = +((ua.match(/Version\/(\d+)/) || [])[1] || 0) >= 26;
-    const where = /CriOS|FxiOS/.test(ua) ? "tr" : safari26 ? "br" : "bc";
+    const ua = navigator.userAgent, v = safariVersion(), other = /CriOS|FxiOS/.test(ua);
+    const where = other ? "tr" : v >= 27 ? "bl" : v >= 26 ? "br" : "bc";
     sheet.className = `i-modal i-coach arrow-${where}`;
+    $("install").classList.add("hidden");  // le bandeau du bas gênerait la flèche
+    $("iVersion").textContent = other ? "" : v ? `Safari ${v} détecté` : "";
     $("iShare").classList.add("hidden");
     $("iThen").classList.add("hidden");
     sheet.querySelector(".i-manual").open = true;

@@ -394,3 +394,6 @@ button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2
 .arrow-tr .i-sheet { margin-top: 74px; }
 @keyframes i-bob { 50% { transform: translateY(8px); } }
 @keyframes i-bob-up { 0%, 100% { transform: rotate(180deg); } 50% { transform: rotate(180deg) translateY(8px); } }
+.arrow-bl .i-arrow { left: 18%; bottom: calc(10px + env(safe-area-inset-bottom)); }
+.i-version { text-align: center; font-size: .72rem; color: var(--muted); margin-top: -6px; }
+.i-version:empty { display: none; }
