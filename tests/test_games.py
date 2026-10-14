@@ -360,3 +360,29 @@ def test_old_or_unknown_games_do_not_break_pages(admin):  # noqa: F811
     assert main.store.session.games["9991"]["type"] == "blackjack" and main.store.session.games["9991"]["options"]["sips"] == 2
     assert "9992" not in main.store.session.games
     assert TestClient(main.app).get("/api/games/9991").status_code == 200
+
+
+def test_sips_tally_across_games():
+    g = games.new_game("never", host="h", name="H", sips=2)
+    games.join(g, "a", "A")
+    games.start(g)
+    games.vote(g, "a", "yes")
+    games.vote(g, "h", "no")
+    assert games.view(g, "a")["me"]["drink"] == 2 and games.view(g, "h")["me"]["drink"] == 0
+    w = games.new_game("whoof", host="h", name="H", sips=3)
+    games.join(w, "a", "A")
+    games.start(w)
+    games.vote(w, "a", "h")
+    games.vote(w, "h", "h")
+    assert next(p for p in games.view(w, "a")["players"] if p["name"] == "H")["drink"] == 3
+
+
+def test_blackjack_log_and_give_tally():
+    g = games.new_game("blackjack", host="a", name="Ana", sips=1)
+    games.start(g)
+    rigged(g, ["5S", "6H", "TC", "7D", "TD"])
+    games.bj_bet(g, "a", 10)
+    games.bj_hit(g, "a")  # 5+6+10 = 21 : reste automatiquement
+    log = [e["text"] for e in games.view(g, "a")["bj"]["log"]]
+    assert "tire 10♦ → 21" in log and any(t.startswith("retourne 7♦") for t in log)
+    assert games.view(g, "a")["me"]["give"] == 1

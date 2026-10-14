@@ -245,6 +245,13 @@ def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code
     return g
 
 
+def add_sips(g: dict, gid: str, drink: int = 0, give: int = 0):
+    """Compteur de gorgées de la partie : bues et distribuées, par joueur."""
+    t = g.setdefault("tally", {}).setdefault(gid, {"drink": 0, "give": 0})
+    t["drink"] += drink
+    t["give"] += give
+
+
 def gid_of(g: dict, pid: str) -> str:
     """guest_id du joueur dont l'identifiant public est pid ("" si inconnu)."""
     return next((p["id"] for p in g["players"] if p["pid"] == pid), "")
@@ -387,6 +394,22 @@ def _bj_is_blackjack(cards: list[str]) -> bool:
     return len(cards) == 2 and bj_value(cards)[0] == 21
 
 
+SUIT_SIGNS = {"S": "♠", "H": "♥", "D": "♦", "C": "♣"}
+
+
+def card_label(c: str) -> str:
+    return ("10" if c[0] == "T" else c[0]) + SUIT_SIGNS[c[1]]
+
+
+def _bj_log(g: dict, gid: str | None, text: str):
+    """Dernières actions de la table, affichées sur tous les écrans."""
+    bj = g["bj"]
+    p = player(g, gid) if gid else None
+    entry = {"n": bj.get("log_n", 0) + 1, "pid": p["pid"] if p else None, "name": p["name"] if p else "Croupier", "text": text}
+    bj["log_n"] = entry["n"]
+    bj["log"] = (bj.get("log", []) + [entry])[-8:]
+
+
 def _bj_draw(g: dict, rng) -> str:
     bj = g["bj"]
     if len(bj["shoe"]) < 52:
@@ -447,6 +470,10 @@ def bj_deal(g: dict, rng: random.Random = random):
             h["status"] = "blackjack"
     bj["dealer"] = [_bj_draw(g, rng), _bj_draw(g, rng)]
     g["phase"] = "play"
+    _bj_log(g, None, f"distribue · le croupier montre {card_label(bj['dealer'][0])}")
+    for gid in seats:
+        if bj["hands"][gid]["status"] == "blackjack":
+            _bj_log(g, gid, "Blackjack ! 🃏")
     if _bj_is_blackjack(bj["dealer"]):
         return _bj_finish(g, rng)  # blackjack du croupier : la manche s'arrête là
     _bj_advance(g, from_current=0, rng=rng)
@@ -471,8 +498,10 @@ def _bj_current(g: dict, gid: str) -> dict:
 
 def bj_hit(g: dict, gid: str, rng: random.Random = random):
     h = _bj_current(g, gid)
-    h["cards"].append(_bj_draw(g, rng))
+    card = _bj_draw(g, rng)
+    h["cards"].append(card)
     total = bj_value(h["cards"])[0]
+    _bj_log(g, gid, f"tire {card_label(card)} → {total}" + (" : sauté !" if total > 21 else ""))
     if total > 21:
         h["status"] = "bust"
     elif total == 21:
@@ -484,6 +513,7 @@ def bj_hit(g: dict, gid: str, rng: random.Random = random):
 def bj_stand(g: dict, gid: str, rng: random.Random = random):
     h = _bj_current(g, gid)
     h["status"] = "stand"
+    _bj_log(g, gid, f"reste sur {bj_value(h['cards'])[0]}")
     _bj_advance(g, g["bj"]["turn"] + 1, rng)
 
 
@@ -497,8 +527,11 @@ def bj_double(g: dict, gid: str, rng: random.Random = random):
     bj["chips"][gid] -= h["bet"]
     h["bet"] *= 2
     h["doubled"] = True
-    h["cards"].append(_bj_draw(g, rng))
-    h["status"] = "bust" if bj_value(h["cards"])[0] > 21 else "stand"
+    card = _bj_draw(g, rng)
+    h["cards"].append(card)
+    total = bj_value(h["cards"])[0]
+    h["status"] = "bust" if total > 21 else "stand"
+    _bj_log(g, gid, f"double la mise, tire {card_label(card)} → {total}" + (" : sauté !" if total > 21 else ""))
     _bj_advance(g, bj["turn"] + 1, rng)
 
 
@@ -516,10 +549,15 @@ def _bj_finish(g: dict, rng):
     bj["turn"] = None
     hands = [bj["hands"][gid] for gid in bj["seats"]]
     dealer_bj = _bj_is_blackjack(bj["dealer"])
+    _bj_log(g, None, f"retourne {card_label(bj['dealer'][1])} → {bj_value(bj['dealer'])[0]}" + (" : Blackjack !" if dealer_bj else ""))
     if not dealer_bj and any(h["status"] in ("stand", "playing") for h in hands):
         while bj_value(bj["dealer"])[0] < 17:
-            bj["dealer"].append(_bj_draw(g, rng))
+            card = _bj_draw(g, rng)
+            bj["dealer"].append(card)
+            _bj_log(g, None, f"tire {card_label(card)} → {bj_value(bj['dealer'])[0]}")
     dealer = bj_value(bj["dealer"])[0]
+    if dealer > 21:
+        _bj_log(g, None, "saute ! Tout le monde encore en jeu gagne")
     for gid in bj["seats"]:
         h = bj["hands"][gid]
         mine = bj_value(h["cards"])[0]
@@ -542,6 +580,7 @@ def _bj_finish(g: dict, rng):
         # Avec alcool : perdu = tu bois N gorgées, gagné = tu en distribues N, blackjack = 2N ; doubler double tout.
         n = g["options"].get("sips", 0) * (2 if h["doubled"] else 1)
         h["sips"] = {"win": n, "blackjack": 2 * n, "push": 0, "lose": -n}[result]
+        add_sips(g, gid, drink=max(0, -h["sips"]), give=max(0, h["sips"]))
     g["phase"] = "results"
 
 
@@ -567,7 +606,7 @@ def bj_view(g: dict, gid: str) -> dict:
     return {
         "dealer": dealer, "dealer_total": None if hidden else (bj_value(bj["dealer"])[0] if bj["dealer"] else None),
         "dealer_up": bj_value(bj["dealer"][:1])[0] if bj["dealer"] else None,
-        "seats": seats, "turn": _pid(g, turn), "my_turn": bool(gid) and turn == gid,
+        "seats": seats, "turn": _pid(g, turn), "my_turn": bool(gid) and turn == gid, "log": bj.get("log", []),
         "min_bet": lo, "max_bet": hi, "start_chips": BJ_START_CHIPS,
     }
 
@@ -657,10 +696,17 @@ def close_vote(g: dict, rng: random.Random = random):
     if g["type"] in QUESTION_GAMES:
         if g["phase"] != "question":
             raise GameError("Pas de question en cours")
+        sips = g["options"].get("sips", 0)
         if g["type"] == "never":
             g["results"] = [[gid, answer] for gid, answer in g["votes"].items()]
+            drinkers = [gid for gid, answer in g["votes"].items() if answer == "yes"]
         else:
             g["results"] = sorted(([gid, c] for gid, c in counts.items()), key=lambda x: -x[1])
+            best = g["results"][0][1] if g["results"] else 0
+            drinkers = [gid for gid, c in g["results"] if c == best and best]
+        for gid in drinkers:
+            if sips and player(g, gid):
+                add_sips(g, gid, drink=sips)
         g["phase"] = "results"
         return
     if g["phase"] != "vote":
@@ -769,8 +815,10 @@ def view(g: dict, gid: str) -> dict:
     players = []
     for p in g["players"]:
         waiting = bool(p.get("waiting")) and g["phase"] != "end"
+        t = g.get("tally", {}).get(p["id"], {})
         out = {"pid": p["pid"], "name": p["name"], "alive": p["alive"] and not waiting, "waiting": waiting,
-               "voted": p["id"] in g["votes"], "host": p["id"] == g["host"]}
+               "voted": p["id"] in g["votes"], "host": p["id"] == g["host"],
+               "drink": t.get("drink", 0), "give": t.get("give", 0)}
         # Un éliminé dévoile son rôle, pas son mot (celui d'un civil aiderait les undercovers restants).
         if (ended or master or not p["alive"]) and p["role"]:
             out["role"] = ROLE_LABELS[p["role"]]
@@ -814,7 +862,9 @@ def view(g: dict, gid: str) -> dict:
     if me:
         out["me"] = {"pid": me["pid"], "alive": me["alive"], "waiting": bool(me.get("waiting")) and not ended, "vote": g["votes"].get(gid) if g["type"] == "never" else _pid(g, g["votes"].get(gid)),
                      "role": "Mr. White" if me["role"] == "white" else None, "word": me["word"],
-                     "dealt": me["role"] is not None}
+                     "dealt": me["role"] is not None,
+                     "drink": g.get("tally", {}).get(gid, {}).get("drink", 0),
+                     "give": g.get("tally", {}).get(gid, {}).get("give", 0)}
     return out
 
 

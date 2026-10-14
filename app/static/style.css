@@ -283,3 +283,16 @@ button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2
 .bj-result { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(0,0,0,.25); font-weight: 800; }
 .bj-result.win, .bj-result.blackjack { background: var(--g-accent); color: var(--g-ink); }
 .track.bj-turn { outline: 2px solid var(--accent-2); }
+/* Compteur fixe en haut à droite (jetons, gorgées). */
+.g-hud { position: fixed; z-index: 15; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right));
+  display: flex; gap: 6px; padding: 6px; border-radius: 16px; background: var(--g-bg, #241d35); box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+.hud-item { display: flex; flex-direction: column; align-items: center; min-width: 52px; padding: 4px 8px; border-radius: 12px; background: var(--g-chip, #1a1526); line-height: 1.1; }
+.hud-item span { font-size: .9rem; }
+.hud-item b { font-size: 1.25rem; font-variant-numeric: tabular-nums; color: var(--g-accent, #fff); }
+.hud-item small { font-size: .65rem; color: var(--g-soft, var(--muted)); text-transform: uppercase; letter-spacing: .04em; }
+/* Blackjack : joueur en cours et dernières actions, sur tous les écrans. */
+.bj-spot { margin-top: 12px; padding: 10px 12px; border-radius: 14px; background: rgba(0,0,0,.22); }
+.bj-total { align-self: center; margin-left: 6px; font: 800 1.6rem "Bricolage Grotesque", system-ui, sans-serif; color: var(--g-accent, #fff); }
+.bj-log { margin-top: 12px; display: flex; flex-direction: column; gap: 2px; font-size: .85rem; color: var(--g-soft, var(--muted)); }
+.bj-log .last { font-size: 1rem; color: #fff; }
+.bj-log .fresh { animation: pop .35s ease-out; }

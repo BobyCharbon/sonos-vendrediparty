@@ -239,6 +239,7 @@ document.getElementById("gamesRoot").innerHTML = `
     </div>
 
     <div id="gamePlay" class="hidden">
+      <div id="gameHud" class="g-hud hidden" aria-live="polite"></div>
       <div id="game" class="card game"></div>
       <div id="roulette" class="roulette hidden">
         <div class="wheel-wrap"><div class="wheel-pointer" aria-hidden="true"></div><svg id="wheel" viewBox="-100 -100 200 200" role="img" aria-label="Roue"></svg></div>
@@ -386,6 +387,7 @@ function renderGame(g) {
   const input = $("guessInput");
   if (input) { input.value = guessDraft; input.addEventListener("input", () => { guessDraft = input.value; }); }
   renderRoulette(g);
+  renderHud(g);
   renderGameHost(g);
   $("gameCode").textContent = g.code;
   const qr = `/qr/game/${g.code}.svg`;
@@ -404,6 +406,21 @@ function resultsHtml(g) {
   return drink + `<div class="list" style="margin-top:10px">${g.results.map((r) => `<div class="bar ${r.count === max ? "top" : ""}" style="--w:${Math.round(100 * r.count / max)}%">
     <span>${r.count === max ? "👑 " : ""}${esc(r.name)}</span><b>${r.count}</b></div>`).join("") || `<div class="artist">Personne n'a voté</div>`}</div>`;
 }
+
+// Compteur fixe en haut à droite : mes jetons (blackjack) et mes gorgées (bues / distribuées).
+function renderHud(g) {
+  const me = g.me, sips = (g.options?.sips || 0) > 0;
+  const chips = isBJ(g) && me ? g.bj.seats.find((x) => x.pid === me.pid)?.chips : null;
+  const items = [];
+  if (chips != null) items.push(`<div class="hud-item"><span>💰</span><b>${chips}</b><small>jetons</small></div>`);
+  if (sips && me) {
+    items.push(`<div class="hud-item"><span>🍻</span><b>${me.drink || 0}</b><small>bue${me.drink > 1 ? "s" : ""}</small></div>`);
+    if (isBJ(g)) items.push(`<div class="hud-item"><span>🎁</span><b>${me.give || 0}</b><small>donnée${me.give > 1 ? "s" : ""}</small></div>`);
+  }
+  $("gameHud").innerHTML = items.join("");
+  $("gameHud").className = "g-hud " + (GAME_THEME[g.type] || "") + (items.length ? "" : " hidden");
+}
+const sipsBadge = (p) => p.drink || p.give ? ` <span class="artist">· 🍻 ${p.drink || 0}${p.give ? ` · 🎁 ${p.give}` : ""}</span>` : "";
 
 // 🃏 Blackjack : table (croupier, ma main, mes boutons) et liste des joueurs.
 const SUITS = { S: "♠", H: "♥", D: "♦", C: "♣" };
@@ -451,7 +468,20 @@ function bjTableHtml(g) {
   } else if (g.phase === "play" || g.phase === "results") {
     zone = `<div class="artist" style="margin-top:10px">Tu joues à la prochaine main.</div>`;
   }
-  return `<div class="title">${status}</div>${dealer}${zone}`;
+  // Tout le monde voit la main du joueur en cours, carte par carte.
+  const current = t.seats.find((x) => x.pid === t.turn);
+  const spot = g.phase === "play" && current && !t.my_turn && current.hand
+    ? `<div class="bj-spot"><div class="artist">🎯 Au tour de <b>${esc(current.name)}</b> · mise ${current.hand.bet}</div>
+        <div class="bj-cards big">${current.hand.cards.map((c) => cardHtml(c)).join("")}<span class="bj-total">${current.hand.total}</span></div></div>` : "";
+  return `<div class="title">${status}</div>${dealer}${spot}${zone}${bjLogHtml(t)}`;
+}
+let bjLogSeen = 0;
+function bjLogHtml(t) {
+  const log = (t.log || []).slice(-3).reverse();
+  if (!log.length) return "";
+  const fresh = log[0].n > bjLogSeen;
+  bjLogSeen = Math.max(bjLogSeen, log[0].n);
+  return `<div class="bj-log">${log.map((e, i) => `<div class="${i === 0 ? "last" : ""} ${i === 0 && fresh ? "fresh" : ""}"><b>${esc(e.name)}</b> ${esc(e.text)}</div>`).join("")}</div>`;
 }
 function renderBJHost(g, btn) {
   const t = g.bj, bets = t.seats.filter((x) => x.hand).length, turnName = t.seats.find((x) => x.pid === t.turn)?.name;
@@ -470,7 +500,7 @@ function renderBJHost(g, btn) {
         : g.phase === "bet" ? `a misé ${h.bet}`
         : `${h.total}${h.status === "bust" ? " · sauté" : h.status === "blackjack" ? " · blackjack" : ""} · mise ${h.bet}`;
       return `<div class="track ${x.pid === t.turn ? "bj-turn" : ""}">
-        <div class="meta"><div class="title">${esc(x.name)}${x.pid === t.turn ? " ⏳" : ""}<span class="artist"> · ${x.chips} jetons${x.rebuys ? ` (rechargé ${x.rebuys}×)` : ""}</span></div>
+        <div class="meta"><div class="title">${esc(x.name)}${x.pid === t.turn ? " ⏳" : ""}<span class="artist"> · 💰 ${x.chips}${x.rebuys ? ` (rechargé ${x.rebuys}×)` : ""}</span>${sipsBadge(g.players.find((p) => p.pid === x.pid) || {})}</div>
           <div class="artist">${info}${g.phase === "results" && h?.result ? ` · <b>${bjResultText(g, h)}</b>` : ""}</div>
           ${h?.cards.length ? `<div class="bj-cards" style="margin-top:4px">${h.cards.map((c) => cardHtml(c, true)).join("")}</div>` : ""}</div>
         ${g.is_host && x.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(x.pid)}" title="Exclure de la table">✕</button>` : ""}
@@ -607,7 +637,7 @@ function renderGameHost(g) {
     <h2>${speaking ? "Ordre de parole" : "Joueurs"} (${g.players.length})${g.master && g.type === "undercover" ? ` <button class="secondary" data-gact="roles" style="padding:2px 8px">${showRoles ? "🙈 Cacher" : "👁 Rôles"}</button>` : ""}</h2>
     <div class="list">${list.map((p, i) => `
       <div class="track" style="${p.alive ? "" : "opacity:.55"}">
-        <div class="meta"><div class="title" ${p.waiting ? 'title="Joue à la prochaine partie"' : ""}>${speaking && p.alive ? `${i + 1}. ` : ""}${p.waiting ? "⏳ " : p.alive ? "" : "✝︎ "}${esc(p.name)}${p.host ? " 🎲" : ""}${(g.phase === "vote" || g.phase === "question") && p.voted ? " ✓" : ""}</div>
+        <div class="meta"><div class="title" ${p.waiting ? 'title="Joue à la prochaine partie"' : ""}>${speaking && p.alive ? `${i + 1}. ` : ""}${p.waiting ? "⏳ " : p.alive ? "" : "✝︎ "}${esc(p.name)}${p.host ? " 🎲" : ""}${(g.phase === "vote" || g.phase === "question") && p.voted ? " ✓" : ""}${sipsBadge(p)}</div>
           ${p.role && (seeRoles || !p.alive) ? `<div class="artist">${esc(p.role)}${seeRoles && p.word ? " · " + esc(p.word) : ""}</div>` : ""}</div>
         <div class="icon-btns">
           ${canMove && p.alive && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter">⬆</button>` : ""}
