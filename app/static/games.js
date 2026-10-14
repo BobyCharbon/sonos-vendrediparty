@@ -1,5 +1,67 @@
 // 🎮 Jeux, partagés par la page invités et l'admin.
 // Utilise les globales de la page : $, esc, store, toast, guestId, guestName (chargé après le script de la page).
+// Icônes des jeux (traits, couleur héritée) : chapeau et lunettes d'espion, deux personnes et un « ? ».
+const GAME_ICONS = {
+  undercover: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 22h38"/><path d="M12 22l3-11h18l3 11"/><circle cx="16" cy="32" r="5.5"/><circle cx="32" cy="32" r="5.5"/><path d="M21.5 32h5"/></svg>`,
+  whoof: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13" cy="24" r="5"/><circle cx="35" cy="24" r="5"/><path d="M4 41c1-6 4.5-9 9-9s8 3 9 9"/><path d="M26 41c1-6 4.5-9 9-9s8 3 9 9"/><path d="M20 9.5a4 4 0 1 1 5.5 3.7c-1.2.5-1.5 1.3-1.5 2.8"/><path d="M24 20.5v.1"/></svg>`,
+};
+const GAME_THEME = { undercover: "g-uc", whoof: "g-wh" };
+const helpBtn = (type) => `<button type="button" class="g-help" data-rules="${type}" aria-label="Règles du jeu">?</button>`;
+
+// Règles détaillées, ouvertes par le « ? » de chaque jeu.
+const GAME_RULES = {
+  undercover: `
+    <h3>Le but</h3>
+    <p>Les <b>civils</b> doivent démasquer les intrus. Les <b>undercovers</b> doivent se fondre dans la masse sans se faire repérer. <b>Mr. White</b> doit bluffer… et deviner le mot des civils.</p>
+    <h3>Les rôles</h3>
+    <ul>
+      <li><b>Civils</b> (la majorité) : ils ont tous le même mot, par exemple « Raclette ».</li>
+      <li><b>Undercover</b> : il a un mot proche, par exemple « Fondue ». Il ne sait pas qu'il est undercover !</li>
+      <li><b>Mr. White</b> (option, dès 5 joueurs) : il n'a aucun mot et le sait.</li>
+    </ul>
+    <p>Nombre d'undercovers : 1 jusqu'à 6 joueurs, 2 de 7 à 9 joueurs, 3 au-delà. Il faut au moins 3 joueurs.</p>
+    <h3>Une manche</h3>
+    <ol>
+      <li><b>Ton mot</b> : touche « Voir mon mot » en cachette. Il s'affiche 3 secondes puis se cache.</li>
+      <li><b>Les indices</b> : dans l'ordre de parole affiché, chacun dit à voix haute <b>un indice</b> sur son mot (un mot ou une courte phrase), sans jamais le dire. Pas trop précis pour ne pas aider les intrus, pas trop vague pour ne pas paraître suspect. Mr. White ne commence jamais.</li>
+      <li><b>Le vote</b> : chacun vote sur son téléphone pour la personne qu'il pense être un intrus. On peut changer son vote tant que tout le monde n'a pas voté.</li>
+      <li><b>L'élimination</b> : le joueur qui a le plus de voix est éliminé et son rôle est révélé (pas son mot). En cas d'égalité, on revote entre les ex æquo ; nouvelle égalité, le hasard tranche.</li>
+    </ol>
+    <p>Un joueur éliminé ne parle plus et ne vote plus… et ne révèle rien !</p>
+    <h3>Mr. White démasqué</h3>
+    <p>S'il est éliminé, il a une dernière chance : deviner le mot des civils. S'il trouve (accents et majuscules ignorés), il gagne seul la partie.</p>
+    <h3>Fin de la partie</h3>
+    <ul>
+      <li>Les <b>civils gagnent</b> quand tous les undercovers et Mr. White sont éliminés.</li>
+      <li>Les <b>intrus gagnent</b> s'il ne reste plus qu'un seul civil.</li>
+    </ul>
+    <p>À la fin, tous les rôles et les deux mots sont dévoilés. « Rejouer » relance avec de nouveaux mots.</p>
+    <h3>L'animateur</h3>
+    <p>C'est la personne qui a créé la partie. Il distribue les mots, lance le vote et la manche suivante, peut changer l'ordre de parole, éliminer quelqu'un après un vote à main levée ou exclure un joueur. S'il ne joue pas, il est <b>maître du jeu</b> et peut voir les rôles.</p>
+    <p>Arrivé en retard ? Rejoins quand même : tu joueras à la partie suivante.</p>`,
+  whoof: `
+    <h3>Le but</h3>
+    <p>Découvrir ce que vos amis pensent vraiment de vous… et faire boire la personne désignée.</p>
+    <h3>Une question</h3>
+    <ol>
+      <li>Une question s'affiche, par exemple « Qui de nous finira la soirée en pyjama ? ».</li>
+      <li>Chacun vote sur son téléphone pour la personne qui correspond le mieux. On peut voter pour soi. Les votes sont <b>anonymes</b>.</li>
+      <li>Quand tout le monde a voté (ou quand l'animateur le décide), le classement s'affiche.</li>
+      <li>La personne la plus désignée <b>boit le nombre de gorgées</b> choisi par l'animateur. En cas d'égalité, tous les ex æquo boivent.</li>
+      <li>Le désigné peut se défendre… ou raconter l'anecdote qui va avec. Puis question suivante !</li>
+    </ol>
+    <h3>Les modes</h3>
+    <ul>
+      <li><b>😇 Soft</b> : questions gentilles et drôles, pour tout le monde.</li>
+      <li><b>😬 Malaisant</b> : questions gênantes, souvenirs embarrassants, secrets.</li>
+      <li><b>🔥 Hot</b> : questions sur le sexe et la séduction, entre adultes consentants.</li>
+      <li><b>🎲 Mix</b> : un peu de tout.</li>
+    </ul>
+    <p>Aucune question ne revient avant que toutes celles du mode soient passées. L'animateur peut changer de question avec ⏭.</p>
+    <h3>À savoir</h3>
+    <p>Il faut au moins 2 joueurs, et on peut rejoindre en cours de route. Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi. Avec 0 gorgée, c'est la version sans alcool.</p>`,
+};
+
 document.getElementById("gamesRoot").innerHTML = `
     <div id="gName" class="hidden">
       <p class="sub">Comment tu t'appelles ?</p>
@@ -10,34 +72,46 @@ document.getElementById("gamesRoot").innerHTML = `
     </div>
 
     <div id="gHome" class="hidden">
-      <p class="sub">Salut <b id="gHello"></b> ! Crée une partie et fais scanner son QR, ou rejoins celle d'un ami.</p>
-      <div class="card" style="margin-bottom:10px">
-        <div class="title" style="font-weight:700">🕵️ Undercover</div>
-        <p class="sub" style="margin:6px 0 10px">Chacun reçoit un mot secret ; les undercovers ont un mot proche, Mr. White n'en a pas. Indices à voix haute, puis vote. 3 joueurs minimum.</p>
-        <label class="switch-row" style="margin-bottom:8px"><span class="grow">🎩 Avec Mr. White (dès 5 joueurs)</span><input type="checkbox" class="switch" data-opt="white" checked></label>
-        <label class="switch-row" style="margin-bottom:10px"><span class="grow">🙋 Je joue aussi<span class="artist" style="display:block">Sinon tu es maître du jeu : tu vois les rôles</span></span><input type="checkbox" class="switch" data-opt="plays" checked></label>
-        <button data-create="undercover" style="width:100%">Créer la partie</button>
+      <div class="g-hello">Salut <span id="gHello"></span></div>
+      <h1 class="g-h1">On joue à quoi&nbsp;?</h1>
+
+      <form id="gJoinForm" class="g-code">
+        <label for="gCode">Code d'une partie</label>
+        <input id="gCode" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="• • • •" autocomplete="off">
+      </form>
+
+      <div class="gcard g-uc">
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.undercover}</div>
+          <div class="g-meta"><div class="g-title">Undercover</div><div class="g-tag">Trouve l'intrus avant qu'il ne te trouve.</div></div>
+          ${helpBtn("undercover")}
+        </div>
+        <p class="g-desc">Chacun reçoit un mot secret. Les undercovers ont un mot proche, Mr. White n'en a pas. Indices à voix haute, puis on vote pour éliminer.</p>
+        <div class="g-chips"><span>3+ joueurs</span><span>Mot secret</span><span>Bluff</span></div>
+        <label class="g-opt"><span>Avec Mr. White <small>dès 5 joueurs</small></span><input type="checkbox" class="switch" data-opt="white" checked></label>
+        <label class="g-opt"><span>Je joue aussi <small>sinon tu es maître du jeu et tu vois les rôles</small></span><input type="checkbox" class="switch" data-opt="plays" checked></label>
+        <button class="g-go" data-create="undercover">Créer une partie</button>
       </div>
-      <div class="card" style="margin-bottom:10px">
-        <div class="title" style="font-weight:700">🙋 Qui de nous ?</div>
-        <p class="sub" style="margin:6px 0 10px">Une question (« Qui de nous finira la soirée en pyjama ? »), tout le monde vote en secret, puis on découvre le classement. 2 joueurs minimum.</p>
-        <div class="artist" style="margin-bottom:6px">Type de questions</div>
-        <div class="seg" data-opt-group="mode" style="margin-bottom:10px">
+
+      <div class="gcard g-wh">
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.whoof}</div>
+          <div class="g-meta"><div class="g-title">Qui de nous&nbsp;?</div><div class="g-tag">Votez en secret, découvrez le classement.</div></div>
+          ${helpBtn("whoof")}
+        </div>
+        <p class="g-desc">Une question tombe (« Qui de nous finira la soirée en pyjama ? »), chacun vote pour quelqu'un, puis on découvre qui a été désigné… et qui boit.</p>
+        <div class="g-chips"><span>2+ joueurs</span><span>Soft → Hot</span><span>Gorgées</span></div>
+        <div class="g-label">Type de questions</div>
+        <div class="g-modes" data-opt-group="mode">
           <button type="button" data-val="soft" class="on">😇 Soft</button><button type="button" data-val="awkward">😬 Malaisant</button>
           <button type="button" data-val="hot">🔥 Hot</button><button type="button" data-val="mix">🎲 Mix</button>
         </div>
-        <div class="switch-row" style="margin-bottom:10px">
-          <span class="grow">🍻 Gorgées pour la personne désignée<span class="artist" style="display:block">0 = sans alcool</span></span>
-          <div class="row stepper" data-opt-group="sips"><button type="button" class="secondary" data-step="-1">−</button><b data-val-out>2</b><button type="button" class="secondary" data-step="1">+</button></div>
+        <div class="g-opt"><span>Gorgées pour le désigné <small>0 = sans alcool</small></span>
+          <div class="g-stepper" data-opt-group="sips"><button type="button" data-step="-1" aria-label="Moins">−</button><b data-val-out>2</b><button type="button" data-step="1" aria-label="Plus">+</button></div>
         </div>
-        <label class="switch-row" style="margin-bottom:10px"><span class="grow">🙋 Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
-        <button data-create="whoof" style="width:100%">Créer la partie</button>
+        <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
+        <button class="g-go" data-create="whoof">Créer une partie</button>
       </div>
-      <h2>Rejoindre une partie</h2>
-      <form id="gJoinForm" class="row">
-        <input id="gCode" class="grow pin-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="••••" autocomplete="off">
-        <button>Rejoindre</button>
-      </form>
     </div>
 
     <div id="gamePlay" class="hidden">
@@ -49,6 +123,18 @@ document.getElementById("gamesRoot").innerHTML = `
         <img class="qr" id="gameQr" alt="QR code pour rejoindre la partie">
       </div>
       <button class="danger" id="gameLeave" style="width:100%;margin-top:16px">Quitter la partie</button>
+    </div>
+
+    <div id="rulesModal" class="g-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rulesTitle">
+      <div class="g-sheet">
+        <div class="g-head">
+          <div class="g-icon" id="rulesIcon"></div>
+          <div class="g-meta"><div class="g-title" id="rulesTitle"></div><div class="g-tag">Règles du jeu</div></div>
+          <button type="button" class="g-help" data-rules-close aria-label="Fermer">✕</button>
+        </div>
+        <div class="g-rules" id="rulesBody"></div>
+        <button type="button" class="g-go" data-rules-close>J'ai compris</button>
+      </div>
     </div>
 `;
 
@@ -87,7 +173,11 @@ function renderGame(g) {
   if (!g) return;
   const me = g.me;
   const nameOf = (pid) => esc(g.players.find((p) => p.pid === pid)?.name || "?");
-  const title = `<div class="artist">🎮 ${esc(g.name)}${g.mode ? " · " + esc(g.mode) : ""} · ${GAME_PHASES[g.phase]}${g.round && g.phase !== "lobby" ? ` · ${g.type === "whoof" ? "question" : "manche"} ${g.round}` : ""}</div>`;
+  $("game").className = "card game " + (GAME_THEME[g.type] || "");
+  const title = `<div class="g-head g-play-head"><div class="g-icon">${GAME_ICONS[g.type] || ""}</div>
+    <div class="g-meta"><div class="g-title">${esc(g.name)}</div>
+    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${GAME_PHASES[g.phase]}${g.round && g.phase !== "lobby" ? ` · ${g.type === "whoof" ? "question" : "manche"} ${g.round}` : ""}</div></div>
+    ${helpBtn(g.type)}</div>`;
   const lastLine = g.last?.name ? `<p class="sub" style="margin:8px 0">${esc(g.last.name)} était <b>${esc(g.last.role)}</b>.${g.last.guess ? ` Mr. White a proposé « ${esc(g.last.guess)} »… raté !` : ""}</p>` : "";
   let body = "";
 
@@ -251,7 +341,7 @@ $("gameLeave").onclick = () => {
 document.addEventListener("click", async (ev) => {
   const b = ev.target.closest("[data-create]");
   if (!b) return;
-  const card = b.closest(".card");
+  const card = b.closest(".gcard");
   b.disabled = true;
   try {
     const g = await gapi("/api/games", { guest_id: guestId, name: guestName, type: b.dataset.create,
@@ -270,6 +360,27 @@ async function joinByCode() {
   setGame(code); autoJoin = true;
   await refreshGame();
 }
+// « ? » : règles détaillées du jeu.
+const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?" };
+document.addEventListener("click", (ev) => {
+  const open = ev.target.closest("[data-rules]");
+  if (open) {
+    const t = open.dataset.rules;
+    $("rulesModal").querySelector(".g-sheet").className = "g-sheet " + GAME_THEME[t];
+    $("rulesIcon").innerHTML = GAME_ICONS[t];
+    $("rulesTitle").textContent = GAME_NAMES[t];
+    $("rulesBody").innerHTML = GAME_RULES[t];
+    $("rulesBody").scrollTop = 0;
+    $("rulesModal").classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+    return;
+  }
+  if (ev.target.closest("[data-rules-close]") || ev.target.id === "rulesModal") {
+    $("rulesModal").classList.add("hidden");
+    document.body.style.overflow = "";
+  }
+});
+
 // Options de création : mode (boutons) et gorgées (− / +).
 document.addEventListener("click", (ev) => {
   const opt = ev.target.closest("[data-opt-group=mode] [data-val]");

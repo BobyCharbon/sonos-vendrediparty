@@ -165,3 +165,68 @@ details[open] > summary h2::after { content: " ▾"; }
 .game .drink { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: #3a2a10; color: #ffd18a; font-weight: 700; }
 .seg[data-opt-group] { flex-wrap: wrap; }
 .seg[data-opt-group] button { flex: 1 1 40%; }
+
+/* 🎮 Jeux : une couleur par jeu (maquette A). */
+.g-uc { --g-bg: #17436b; --g-accent: #4fd1c5; --g-ink: #08262b; --g-soft: #bfe6ff; --g-chip: #0f2f4d; }
+.g-wh { --g-bg: #8e1b6a; --g-accent: #ffb347; --g-ink: #3a1500; --g-soft: #ffd6ec; --g-chip: #6b1250; }
+.g-hello { font-size: .8rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+.g-h1, .g-title { font-family: "Bricolage Grotesque", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.02em; }
+.g-h1 { font-size: 2.1rem; line-height: 1.05; margin: 2px 0 16px; }
+.g-code { display: flex; gap: 8px; align-items: center; background: var(--card); border-radius: 16px; padding: 6px 6px 6px 14px; margin-bottom: 16px; }
+.g-code label { font-size: .9rem; color: var(--muted); flex: none; }
+.g-code input { flex: 1; min-width: 0; height: 46px; border: 0; border-radius: 12px; background: var(--card-2); color: var(--text);
+  font: 700 1.3rem system-ui, sans-serif; letter-spacing: .3em; text-align: center; outline: none; }
+.g-code input:focus { box-shadow: 0 0 0 2px var(--accent); }
+.gcard { background: var(--g-bg); color: #fff; border-radius: 26px; padding: 20px; display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; }
+.g-head { display: flex; gap: 14px; align-items: center; }
+.g-icon { width: 56px; height: 56px; border-radius: 18px; background: var(--g-accent); color: var(--g-ink); display: flex; align-items: center; justify-content: center; flex: none; }
+.g-icon svg { width: 34px; height: 34px; }
+.g-meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.g-title { font-size: 1.6rem; line-height: 1.1; }
+.g-tag { font-size: .9rem; color: var(--g-soft); }
+.g-desc { margin: 0; font-size: .92rem; line-height: 1.45; color: var(--g-soft); }
+.g-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.g-chips span { font-size: .75rem; font-weight: 600; padding: 5px 10px; border-radius: 99px; background: var(--g-chip); color: var(--g-soft); }
+.g-label { font-size: .82rem; font-weight: 600; color: var(--g-soft); margin-bottom: -6px; }
+.g-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.g-modes button { background: var(--g-chip); color: var(--g-soft); padding: 10px; font-size: .9rem; }
+.g-modes button.on { background: var(--g-accent); color: var(--g-ink); }
+.g-opt { display: flex; gap: 12px; align-items: center; cursor: pointer; font-weight: 600; font-size: .95rem; }
+.g-opt > span { flex: 1; min-width: 0; }
+.g-opt small { display: block; font-weight: 400; font-size: .8rem; color: var(--g-soft); }
+.gcard input.switch { background: var(--g-chip); }
+.gcard input.switch:checked, .game input.switch:checked { background: var(--g-accent); }
+.g-stepper { display: flex; gap: 6px; align-items: center; flex: none; }
+.g-stepper button { width: 40px; height: 40px; padding: 0; background: var(--g-chip); color: #fff; font-size: 1.2rem; }
+.g-stepper b { min-width: 1.6em; text-align: center; font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+.g-go { height: 52px; border-radius: 16px; background: var(--g-accent); color: var(--g-ink); font-size: 1rem; font-weight: 800; }
+
+/* Écran de partie aux couleurs du jeu. */
+.game.g-uc, .game.g-wh { background: var(--g-bg); border: 0; color: #fff; border-radius: 22px; }
+.game .g-play-head { margin-bottom: 12px; }
+.game .g-play-head .g-icon { width: 44px; height: 44px; border-radius: 14px; }
+.game .g-play-head .g-icon svg { width: 26px; height: 26px; }
+.game .g-play-head .g-title { font-size: 1.3rem; }
+.game.g-uc .artist, .game.g-wh .artist, .game.g-uc .sub, .game.g-wh .sub { color: var(--g-soft); }
+.game.g-uc button:not(.secondary), .game.g-wh button:not(.secondary) { background: var(--g-accent); color: var(--g-ink); }
+.game.g-uc button.secondary, .game.g-wh button.secondary { background: var(--g-chip); color: #fff; }
+.game.g-uc .secret, .game.g-wh .secret { background: var(--g-chip); }
+.game .bar { background: var(--g-chip, var(--card-2)); }
+.game .bar.top::before { background: var(--g-accent, var(--accent)); }
+.game .bar.top { color: var(--g-ink, #fff); }
+.game .drink { background: rgba(0,0,0,.25); color: #fff; }
+.game .question, .game .word { font-family: "Bricolage Grotesque", system-ui, sans-serif; }
+.g-help { width: 36px; height: 36px; padding: 0; margin-left: auto; align-self: flex-start; flex: none; border-radius: 50%;
+  background: rgba(255,255,255,.16); color: #fff; font: 800 1.05rem system-ui, sans-serif; }
+.game.g-uc button.g-help, .game.g-wh button.g-help { background: rgba(255,255,255,.16); color: #fff; }
+.g-modal { position: fixed; inset: 0; z-index: 20; background: rgba(5, 3, 10, .72); display: flex; align-items: flex-end; justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) 0 0; }
+.g-sheet { width: 100%; max-width: 640px; max-height: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px;
+  background: var(--g-bg); color: #fff; border-radius: 26px 26px 0 0; padding: 20px 20px max(20px, env(safe-area-inset-bottom)); }
+.g-rules { overflow-y: auto; min-height: 0; flex: 1; font-size: .95rem; line-height: 1.5; color: var(--g-soft); -webkit-overflow-scrolling: touch; }
+.g-rules h3 { font-family: "Bricolage Grotesque", system-ui, sans-serif; color: #fff; font-size: 1.1rem; margin: 16px 0 4px; }
+.g-rules h3:first-child { margin-top: 0; }
+.g-rules p { margin: 4px 0 8px; }
+.g-rules ul, .g-rules ol { margin: 4px 0 8px; padding-left: 20px; }
+.g-rules li { margin: 4px 0; }
+.g-rules b { color: #fff; }
