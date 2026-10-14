@@ -44,7 +44,7 @@ document.getElementById("gamesRoot").innerHTML = `
 `;
 
 // 🎮 Jeux : n'importe qui crée une partie (code + QR) et l'anime ; les autres la rejoignent avec son code.
-let myGame = store("vp_game") || "", game = null, wordShown = "", guessDraft = "", showRoles = false, autoJoin = false;
+let myGame = store("vp_game") || "", game = null, wordShown = "", wordUntil = 0, guessDraft = "", showRoles = false, autoJoin = false;
 const GAME_PHASES = { lobby: "Inscriptions", words: "Indices", vote: "Vote", white_guess: "Devinette de Mr. White",
   reveal: "Résultat de la manche", end: "Partie terminée", question: "Question", results: "Résultats" };
 const WINNERS = { civils: "Les civils ont gagné 🎉", impostors: "Les undercovers ont gagné 🕵️", white: "Mr. White a trouvé le mot et gagne 🎩" };
@@ -101,8 +101,8 @@ function renderGame(g) {
     const key = g.id + ":" + g.round;
     const secret = me?.role ? `<div class="word">🎩 Tu es Mr. White</div><div class="artist">Tu n'as pas de mot : écoute les autres et bluffe !</div>`
       : `<div class="artist">Ton mot</div><div class="word">${esc(me?.word)}</div>`;
-    const wordBox = !me?.dealt ? "" : wordShown === key
-      ? `<div data-gact="hide" class="secret">${secret}<div class="artist" style="margin-top:4px">Touche pour cacher</div></div>`
+    const wordBox = !me?.dealt ? "" : wordShown === key && Date.now() < wordUntil
+      ? `<div data-gact="hide" class="secret">${secret}<div class="artist" style="margin-top:4px">Se cache dans <b id="wordCountdown">${Math.ceil((wordUntil - Date.now()) / 1000)}</b> s · touche pour cacher</div></div>`
       : `<button class="secondary" data-gact="show" data-key="${esc(key)}" style="width:100%">👁 Voir mon mot (en cachette)</button>`;
     if (g.phase === "end") {
       body = `<div class="title">${WINNERS[g.winner]}</div>
@@ -168,20 +168,34 @@ function renderGameHost(g) {
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
   const canRemove = g.is_host && (g.phase === "lobby" || g.phase === "end" || g.type === "whoof");
   const seeRoles = g.phase === "end" || (g.master && showRoles);
+  const speaking = g.type === "undercover" && g.phase === "words";
+  const canMove = g.is_host && (speaking || g.phase === "lobby");
+  const list = speaking ? g.order_pids.map((pid) => g.players.find((p) => p.pid === pid)).filter(Boolean)
+    .concat(g.players.filter((p) => !g.order_pids.includes(p.pid))) : g.players;
   $("gameHost").innerHTML = `
     ${controls ? `<div class="row" style="margin-top:10px">${controls}</div>` : ""}
-    <h2>Joueurs (${g.players.length})${g.master && g.type === "undercover" ? ` <button class="secondary" data-gact="roles" style="padding:2px 8px">${showRoles ? "🙈 Cacher" : "👁 Rôles"}</button>` : ""}</h2>
-    <div class="list">${g.players.map((p) => `
+    <h2>${speaking ? "Ordre de parole" : "Joueurs"} (${g.players.length})${g.master && g.type === "undercover" ? ` <button class="secondary" data-gact="roles" style="padding:2px 8px">${showRoles ? "🙈 Cacher" : "👁 Rôles"}</button>` : ""}</h2>
+    <div class="list">${list.map((p, i) => `
       <div class="track" style="${p.alive ? "" : "opacity:.55"}">
-        <div class="meta"><div class="title">${p.alive ? "" : "✝︎ "}${esc(p.name)}${p.host ? " 🎲" : ""}${(g.phase === "vote" || g.phase === "question") && p.voted ? " ✓" : ""}</div>
+        <div class="meta"><div class="title">${speaking && p.alive ? `${i + 1}. ` : ""}${p.alive ? "" : "✝︎ "}${esc(p.name)}${p.host ? " 🎲" : ""}${(g.phase === "vote" || g.phase === "question") && p.voted ? " ✓" : ""}</div>
           ${p.role && (seeRoles || !p.alive) ? `<div class="artist">${esc(p.role)}${seeRoles && p.word ? " · " + esc(p.word) : ""}</div>` : ""}</div>
         <div class="icon-btns">
+          ${canMove && p.alive && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter">⬆</button>` : ""}
+          ${canMove && p.alive && i < (speaking ? g.order_pids.length : list.length) - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre">⬇</button>` : ""}
           ${canEliminate && p.alive ? `<button class="danger" data-gact="eliminate" data-target="${esc(p.pid)}" title="Éliminer (vote à main levée)">Éliminer</button>` : ""}
           ${canRemove && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Retirer de la partie">✕</button>` : ""}
         </div>
       </div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
     ${g.is_host && !g.me && (g.phase === "lobby" || g.phase === "end") ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
 }
+
+// Compte à rebours du mot affiché : 3, 2, 1… puis on le cache.
+setInterval(() => {
+  if (!wordShown) return;
+  const left = Math.ceil((wordUntil - Date.now()) / 1000);
+  if (left <= 0) { wordShown = ""; renderGame(game); }
+  else if ($("wordCountdown")) $("wordCountdown").textContent = left;
+}, 200);
 
 async function gameAction(action, extra = {}) {
   if (!myGame) return;
@@ -198,8 +212,8 @@ document.addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-gact]");
   if (!b) return;
   const a = b.dataset.gact;
-  if (a === "show") { wordShown = b.dataset.key; return renderGame(game); }
-  if (a === "hide") { wordShown = ""; return renderGame(game); }
+  if (a === "show") { wordShown = b.dataset.key; wordUntil = Date.now() + 3000; return renderGame(game); }
+  if (a === "hide") { wordShown = ""; wordUntil = 0; return renderGame(game); }
   if (a === "roles") { showRoles = !showRoles; return renderGame(game); }
   if (a === "eliminate" && !confirm("Éliminer ce joueur ?")) return;
   gameAction(a, { target: b.dataset.target || "" });

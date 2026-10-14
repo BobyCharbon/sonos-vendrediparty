@@ -153,6 +153,19 @@ def leave(g: dict, gid: str):
         g["host"], g["host_name"] = (nxt["id"], nxt["name"]) if nxt else ("", "")
 
 
+def move(g: dict, gid: str, delta: int):
+    """L'animateur change l'ordre : ordre de parole pendant les indices, sinon ordre de la liste."""
+    if g["type"] == "undercover" and g["phase"] == "words":
+        items, key = g["order"], gid
+    else:
+        items, key = g["players"], player(g, gid)
+    if key not in items:
+        raise GameError("Joueur introuvable")
+    i = items.index(key)
+    j = max(0, min(len(items) - 1, i + delta))
+    items.insert(j, items.pop(i))
+
+
 def start(g: dict, rng: random.Random = random):
     """Distribue les rôles (Undercover) ou pose la première question (Qui de nous ?)."""
     if g["type"] == "undercover":
@@ -347,6 +360,7 @@ def view(g: dict, gid: str) -> dict:
         "round": g["round"], "players": players, "is_host": bool(gid) and g["host"] == gid, "master": master,
         "host_name": g.get("host_name", ""),
         "order": [player(g, i)["name"] for i in g["order"] if player(g, i)] if g["type"] == "undercover" else [],
+        "order_pids": [_pid(g, i) for i in g["order"] if player(g, i)] if g["type"] == "undercover" else [],
         "candidates": [_pid(g, i) for i in g["candidates"]] if g["candidates"] else None,
         "winner": g["winner"], "question": g["question"], "votes_count": len(g["votes"]), "options": g["options"],
     }

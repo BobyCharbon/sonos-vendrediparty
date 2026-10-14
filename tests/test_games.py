@@ -184,3 +184,17 @@ def test_game_creation_rate_limited():
     c = TestClient(main.app)
     codes = [c.post("/api/games", json={"guest_id": f"spam-{i}-abcd", "name": "X", "type": "whoof"}).status_code for i in range(7)]
     assert codes[:5] == [200] * 5 and codes[5] == 429
+
+
+def test_host_reorders_speaking_order_and_lobby():
+    g = games.new_game("undercover", host="h", name="H")
+    for i in range(3):
+        games.join(g, f"p{i}", f"P{i}")
+    games.move(g, "p2", -1)
+    assert [p["id"] for p in g["players"]] == ["h", "p0", "p2", "p1"]
+    games.start(g, random.Random(4))
+    first, second = g["order"][:2]
+    games.move(g, second, -1)
+    assert g["order"][:2] == [second, first]
+    games.move(g, second, -1)  # déjà en tête : ne bouge plus
+    assert g["order"][0] == second
