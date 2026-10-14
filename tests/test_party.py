@@ -86,3 +86,28 @@ def test_permanent_ban_survives_new_party(tmp_path):
     assert store.ban_status("guest-aaaa") == {"until": 0}
     store.unban("guest-aaaa")
     assert store.ban_status("guest-aaaa", "192.168.50.40") is None
+
+
+def test_fair_moves_reorders_existing_queue():
+    from app.party import fair_moves
+
+    # A a spammé 3 titres, puis B et C en ont ajouté un ; p1/p2 = playlist de l'hôte.
+    reqs = [req("A", "a1"), req("A", "a2"), req("A", "a3"), req("B", "b1"), req("C", "c1")]
+    for i, r in enumerate(reqs):
+        r.added_at = i
+    queue = ["a3", "a2", "a1", "c1", "b1", "p1", "p2"]  # ordre « juste après » (dernier ajouté en tête)
+    current = 10
+    moves = fair_moves(current, [(current + 1 + i, t) for i, t in enumerate(queue)], reqs)
+
+    # Rejoue les déplacements comme le ferait Sonos.
+    for src, dst in moves:
+        queue.insert(dst - current - 1, queue.pop(src - current - 1))
+    assert queue == ["a1", "b1", "c1", "a2", "a3", "p1", "p2"]
+
+
+def test_fair_moves_nothing_to_do_when_already_fair():
+    from app.party import fair_moves
+
+    reqs = [req("A", "a1"), req("B", "b1")]
+    reqs[1].added_at = 1
+    assert fair_moves(3, [(4, "a1"), (5, "b1"), (6, "p1")], reqs) == []

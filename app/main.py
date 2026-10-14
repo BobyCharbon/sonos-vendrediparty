@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .party import MODES, PartyStore, insert_position
+from .party import MODES, PartyStore, fair_moves, insert_position
 from .security import Limiter
 from .sonos import Sonos
 from .spotify import Spotify
@@ -233,7 +233,17 @@ def admin_mode(body: Mode):
         raise HTTPException(400, "Mode inconnu")
     store.session.mode = body.mode
     store.save()
-    return admin_state()
+    moved = 0
+    if body.mode == "fair" and store.session.active:
+        # Remet tout de suite la file actuelle au tour par tour (utile en cas d'abus).
+        with queue_lock:
+            snap = snapshot(force=True)
+            upcoming = [(t["pos"], t["track_id"]) for t in snap["upcoming"]]
+            for src, dst in fair_moves(snap["current_pos"], upcoming, store.pending()):
+                sonos.move(store.session.room_uid, src, dst)
+                moved += 1
+            _snap["data"] = None
+    return {**admin_state(), "reordered": moved}
 
 
 class Remove(BaseModel):

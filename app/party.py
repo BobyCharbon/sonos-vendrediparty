@@ -248,3 +248,29 @@ def insert_position(
     my_round = rounds.get(guest_id, 0) + 1
     before = [pos for pos, rnd in placed if rnd <= my_round]
     return (max(before) if before else current_pos) + 1
+
+
+def fair_moves(current_pos: int, upcoming: list[tuple[int, str]], pending: list[Request]) -> list[tuple[int, int]]:
+    """Déplacements (de, vers) à appliquer dans l'ordre pour remettre la file au tour par tour.
+
+    Les titres d'invités en attente sont regroupés juste après le titre en cours :
+    1er titre de chaque invité, puis 2e, etc. (invités dans l'ordre de leur première demande,
+    titres d'un même invité dans l'ordre d'ajout). Le reste de la file garde son ordre.
+    """
+    if current_pos <= 0:
+        return []
+    queue = [track_id for _, track_id in upcoming]
+    by_guest: dict[str, list[Request]] = {}
+    for r in sorted(pending, key=lambda r: r.added_at):
+        if r.track_id in queue:
+            by_guest.setdefault(r.guest_id, []).append(r)
+    rounds = max((len(v) for v in by_guest.values()), default=0)
+    target = [reqs[k].track_id for k in range(rounds) for reqs in by_guest.values() if k < len(reqs)]
+
+    moves = []
+    for i, track_id in enumerate(target):
+        src = queue.index(track_id)
+        if src != i:
+            queue.insert(i, queue.pop(src))
+            moves.append((current_pos + 1 + src, current_pos + 1 + i))
+    return moves

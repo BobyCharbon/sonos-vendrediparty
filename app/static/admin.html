@@ -135,7 +135,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":
 const MODES = { next: "Juste après", fair: "Équitable" };
 const HELP = {
   next: "Chaque titre ajouté passe juste après celui en cours (le dernier ajouté passe en premier).",
-  fair: "Les demandes passent avant ta playlist, une par invité à tour de rôle : personne ne monopolise la file.",
+  fair: "Les demandes passent avant ta playlist, une par invité à tour de rôle : personne ne monopolise la file. L'activer réorganise aussi la file actuelle.",
 };
 let state = null, chosenMode = "next";
 let volumeDragging = false, volumeSentAt = 0, volumeTimer;
@@ -180,7 +180,11 @@ document.addEventListener("click", async (ev) => {
   const b = ev.target.closest("[data-mode]");
   if (!b) return;
   if (state && state.active) {
-    try { render(await api("/api/admin/mode", { mode: b.dataset.mode })); toast("Mode : " + MODES[b.dataset.mode], "ok"); }
+    try {
+      const res = await api("/api/admin/mode", { mode: b.dataset.mode });
+      render(res);
+      toast("Mode : " + MODES[b.dataset.mode] + (res.reordered ? ` · file réorganisée (${res.reordered} déplacement${res.reordered > 1 ? "s" : ""})` : ""), "ok");
+    }
     catch (e) { toast(e.message, "err"); }
   } else { chosenMode = b.dataset.mode; renderModes(chosenMode); }
 });
