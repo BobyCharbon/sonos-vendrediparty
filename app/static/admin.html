@@ -75,8 +75,11 @@
 
     <!-- 🎮 Jeux -->
     <section data-view="games" class="hidden">
-      <p class="sub" id="gamesOff">Démarre d'abord une soirée : les invités rejoignent les parties depuis leur page.</p>
+      <p class="sub hidden" id="gamesOff"></p>
+      <h2 style="margin-top:8px">Parties en cours</h2>
       <div id="gamePanel"></div>
+      <h2>Ma partie</h2>
+      <div id="gamesRoot"></div>
     </section>
 
     <!-- ⚙️ Réglages -->
@@ -159,6 +162,13 @@
 <script src="/static/push.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
+function store(key, value) {
+  try { if (value === undefined) return localStorage.getItem(key); localStorage.setItem(key, value); } catch { return null; }
+}
+// Identité de joueur (mêmes clés que la page invités) : l'hôte crée et rejoint des parties d'ici aussi.
+let guestId = store("vp_guest");
+if (!guestId) { guestId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now()); store("vp_guest", guestId); }
+let guestName = store("vp_name") || "";
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const MODES = { next: "Juste après", fair: "Équitable" };
 const HELP = {
@@ -217,6 +227,7 @@ function showView(view) {
   if (location.hash.slice(1) !== view) history.replaceState(null, "", view === "home" ? location.pathname : "#" + view);
   scrollTo(0, 0);
   if (view === "settings" && typeof loadSpeakers === "function") loadSpeakers();
+  if (view === "games" && typeof refreshGame === "function") refreshGame();
 }
 document.addEventListener("click", (ev) => {
   const t = ev.target.closest("[data-tab]");
@@ -608,18 +619,25 @@ $("msgReadAll").onclick = async () => {
 const PHASES = { lobby: "Inscriptions", words: "Indices", vote: "Vote", white_guess: "Devinette de Mr. White",
   reveal: "Résultat de la manche", end: "Terminée", question: "Question", results: "Résultats" };
 function renderGameAdmin(s) {
-  $("gamesOff").classList.add("hidden");
   const list = s.games || [];
-  $("gamePanel").innerHTML = `
-    <p class="sub">N'importe quel invité crée une partie depuis l'onglet 🎮 Jeux de sa page (pas besoin du code de la musique) et la fait rejoindre avec son QR. Pour jouer ou animer toi-même, ouvre la page invités.</p>
-    <div class="list">${list.length ? list.map((g) => `
+  $("gamePanel").innerHTML = `<div class="list">${list.length ? list.map((g) => `
       <div class="track">
-        <div class="meta"><div class="title">${esc(g.name)} · <span style="font-variant-numeric:tabular-nums">${esc(g.code)}</span></div>
+        <div class="meta"><div class="title"><span class="pill" style="font-weight:800;letter-spacing:.1em;color:var(--text)">${esc(g.code)}</span> ${esc(g.name)}</div>
           <div class="artist">${PHASES[g.phase] || ""} · animée par ${esc(g.host || "?")} · ${g.players.length} joueur${g.players.length > 1 ? "s" : ""}</div>
           <div class="artist" style="white-space:normal">${g.players.map(esc).join(", ")}</div></div>
-        <button class="danger" data-close-game="${esc(g.code)}" title="Fermer la partie">Fermer</button>
-      </div>`).join("") : `<p class="empty">Aucune partie en cours</p>`}</div>`;
+        <div class="icon-btns">
+          ${typeof myGame !== "undefined" && myGame === g.code ? `<span class="pill live">ta partie</span>` : `<button data-join-game="${esc(g.code)}" title="Rejoindre">Rejoindre</button>`}
+          <button class="danger" data-close-game="${esc(g.code)}" title="Fermer la partie">✕</button>
+        </div>
+      </div>`).join("") : `<p class="empty" style="padding:12px">Aucune partie : crée-en une ci-dessous, ou un invité depuis l'onglet 🎮 Jeux de sa page.</p>`}</div>`;
+  if (typeof myGame !== "undefined" && myGame && location.hash === "#games") refreshGame();
 }
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-join-game]");
+  if (!b) return;
+  setGame(b.dataset.joinGame); autoJoin = true; refreshGame();
+  $("gamesRoot").scrollIntoView({ behavior: "smooth" });
+});
 document.addEventListener("click", async (ev) => {
   const b = ev.target.closest("[data-close-game]");
   if (!b || !confirm(`Fermer la partie ${b.dataset.closeGame} pour tous ses joueurs ?`)) return;
@@ -709,5 +727,6 @@ $("logout").onclick = async (ev) => { ev.preventDefault(); await api("/api/admin
   setInterval(refresh, 10000);
 })();
 </script>
+<script src="/static/games.js"></script>
 </body>
 </html>
