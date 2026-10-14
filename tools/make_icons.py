@@ -1,4 +1,4 @@
-"""Génère les icônes de l'app (écran d'accueil iOS, Android, favicon) depuis tools/icon-source.jpg.
+"""Génère les icônes de l'app (écran d'accueil iOS, Android, favicon) depuis tools/icon-source.png.
 
 Usage : python tools/make_icons.py   (nécessite Pillow, uniquement pour régénérer les PNG)
 """
@@ -9,12 +9,12 @@ from PIL import Image
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE.parent / "app" / "static"
-# Recadrage sur le cadre néon : retire la bordure sombre et la signature en bas à droite.
-CROP = 40 / 1024
+# Image « Party ! » déjà cadrée : pas de recadrage.
+CROP = 0
 
 
 def main():
-    src = Image.open(HERE / "icon-source.jpg").convert("RGB")
+    src = Image.open(HERE / "icon-source.png").convert("RGB")
     w, h = src.size
     side = min(w, h)
     left, top = (w - side) // 2, (h - side) // 2
