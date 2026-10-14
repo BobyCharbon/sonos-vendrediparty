@@ -13,7 +13,7 @@
   <link rel="manifest" href="/static/manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="VendrediParty">
+  <meta name="apple-mobile-web-app-title" content="Party !">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
@@ -91,7 +91,7 @@
   <div id="install" class="install hidden">
     <img src="/static/apple-touch-icon.png" alt="">
     <div class="grow">
-      <b>Ajoute VendrediParty à ton écran d'accueil</b>
+      <b>Ajoute « Party ! » à ton écran d'accueil</b>
       <div class="artist" id="installHelp"></div>
     </div>
     <button id="installBtn" class="hidden">Installer</button>
@@ -102,7 +102,7 @@
     <div class="i-sheet">
       <div class="i-head">
         <img src="/static/apple-touch-icon.png" alt="">
-        <div><div class="i-title" id="iTitle">Installe VendrediParty</div>
+        <div><div class="i-title" id="iTitle">Installe « Party ! »</div>
           <div class="artist">Comme une vraie app : plein écran, toujours à portée de main, avec les notifications.</div></div>
       </div>
       <button type="button" id="iShare" class="i-share">
@@ -248,7 +248,7 @@ async function initNotifications() {
     if (ios && !standalone) {
       $("notifBox").classList.remove("hidden");
       $("notifToggle").disabled = true;
-      $("notifHelp").textContent = "Ajoute VendrediParty à l'écran d'accueil (Partager ⎙ → « Sur l'écran d'accueil »), puis ouvre-la depuis là.";
+      $("notifHelp").textContent = "Installe « Party ! » sur ton écran d'accueil, puis ouvre-la depuis là.";
     }
     return;
   }
@@ -441,12 +441,12 @@ function installSteps() {
   if (android) return [
     step("menu", `Touche le menu <b>⋮</b> en haut à droite du navigateur.`),
     step("add", `Touche <b>« Installer l'application »</b> ou <b>« Ajouter à l'écran d'accueil »</b>.`),
-    step("app", `Confirme avec <b>Installer</b> : VendrediParty apparaît avec tes applis.`),
+    step("app", `Confirme avec <b>Installer</b> : « Party ! » apparaît avec tes applis.`),
   ];
   if (chrome || firefox) return [
     step("share", `Touche <b>Partager</b> en haut à droite, à côté de l'adresse.`),
     step("add", `Touche <b>« Ajouter à l'écran d'accueil »</b>.`),
-    step("app", `Touche <b>Ajouter</b> : VendrediParty apparaît sur ton écran d'accueil.`),
+    step("app", `Touche <b>Ajouter</b> : « Party ! » apparaît sur ton écran d'accueil.`),
   ];
   return [
     safariVersion >= 26
@@ -485,7 +485,7 @@ $("iShare").onclick = async () => {
     if (outcome === "accepted") { $("installSheet").classList.add("hidden"); $("install").classList.add("hidden"); }
     return;
   }
-  try { await navigator.share({ title: "VendrediParty", url: location.origin + "/" }); } catch {}
+  try { await navigator.share({ title: "Party !", url: location.origin + "/" }); } catch {}
 };
 // L'app vient d'être installée (Android) : plus besoin de la proposer.
 addEventListener("appinstalled", () => { store("vp_install_dismissed", "1"); $("install").classList.add("hidden"); $("installSheet").classList.add("hidden"); });
