@@ -436,11 +436,23 @@ def qr(request: Request):
     return Response(buf.getvalue(), media_type="image/svg+xml", headers={"Cache-Control": "no-cache"})
 
 
+# Les pages et le CSS sont revérifiés à chaque visite : une mise à jour est visible tout de suite.
+NO_CACHE = {"Cache-Control": "no-cache"}
+
+
+@app.middleware("http")
+async def no_cache_static(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 @app.get("/")
 def index():
-    return FileResponse(STATIC / "index.html")
+    return FileResponse(STATIC / "index.html", headers=NO_CACHE)
 
 
 @app.get("/admin")
 def admin_page():
-    return FileResponse(STATIC / "admin.html")
+    return FileResponse(STATIC / "admin.html", headers=NO_CACHE)
