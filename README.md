@@ -20,6 +20,16 @@ sans compte : la lecture passe par le compte Spotify lié à ton système Sonos.
 
 Les doublons (titre déjà dans la file à venir) sont refusés.
 
+### Code d'accès invités
+
+La page invités est protégée par un code à 4 chiffres, affiché dans `/admin` avec un QR code
+qui l'inclut (scanner = entrer directement). **🔄 Nouveau code** en génère un autre et
+déconnecte tous les invités. Les essais sont limités : 5 échecs → IP bloquée 15 min,
+30 échecs au total en 10 min → tout le monde bloqué 10 min.
+
+Derrière un reverse proxy (HAProxy), renseigne `FORWARDED_ALLOW_IPS` avec l'IP du proxy pour que
+l'app voie la vraie IP des invités (limitation des essais et bannissements).
+
 ### Modération
 
 - Chaque invité peut retirer ses propres titres encore en attente.

@@ -51,17 +51,21 @@
       <div class="seg" data-mode-picker></div>
       <p class="sub" id="modeHelp" style="margin-top:8px"></p>
 
-      <h2>QR code invités</h2>
-      <div class="card" style="text-align:center">
-        <img class="qr" src="/qr.svg" alt="QR code vers la page invités">
-        <p class="sub" style="margin:10px 0 0" id="guestUrl"></p>
-      </div>
-
       <h2>Invités</h2>
       <div id="guests" class="list"></div>
 
       <h2>Demandes des invités</h2>
       <div id="requests" class="list"></div>
+    </div>
+
+    <h2>Accès invités</h2>
+    <div class="card" style="text-align:center">
+      <div class="artist">Code de la soirée</div>
+      <div class="big-pin" id="guestPin">····</div>
+      <img class="qr" id="qr" alt="QR code vers la page invités (code inclus)">
+      <p class="sub" style="margin:10px 0" id="guestUrl"></p>
+      <button class="secondary" id="newPin" type="button">🔄 Nouveau code</button>
+      <p class="sub" style="margin:8px 0 0;font-size:.85rem">Un nouveau code déconnecte tous les invités : ils devront saisir le nouveau ou rescanner le QR.</p>
     </div>
 
     <div id="bansBox" class="hidden">
@@ -128,11 +132,14 @@ function render(s) {
   $("setup").classList.toggle("hidden", s.active);
   $("live").classList.toggle("hidden", !s.active);
   renderBans(s);
+  $("guestPin").textContent = s.guest_pin;
+  const qrSrc = "/qr.svg?v=" + s.guest_pin;
+  if ($("qr").getAttribute("src") !== qrSrc) $("qr").src = qrSrc;
+  $("guestUrl").textContent = (s.public_url || location.origin) + "/";
   if (!s.active) { renderModes(chosenMode); return; }
 
   renderModes(s.mode);
   $("liveRoom").textContent = s.room_name;
-  $("guestUrl").textContent = location.origin + "/";
   const so = s.sonos;
   const warn = s.sonos_error ? "Sonos injoignable : " + s.sonos_error
     : so && !so.from_queue ? "⚠️ La musique ne joue pas depuis la file Sonos (Spotify Connect / Jam ?). Lance une playlist depuis l'app Sonos pour que les ajouts fonctionnent." : "";
@@ -232,6 +239,10 @@ $("requests").addEventListener("click", async (ev) => {
   try { render(await api("/api/admin/remove", { request_id: b.dataset.remove })); toast("Titre retiré", "ok"); }
   catch (e) { b.disabled = false; toast(e.message, "err"); }
 });
+$("newPin").onclick = async () => {
+  try { render(await api("/api/admin/pin", {})); toast("Nouveau code : " + state.guest_pin, "ok"); }
+  catch (e) { toast(e.message, "err"); }
+};
 $("logout").onclick = async (ev) => { ev.preventDefault(); await api("/api/admin/logout", {}); showLogin(); };
 
 (async () => {

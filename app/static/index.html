@@ -10,6 +10,15 @@
 <body>
   <h1>🎉 <span>Vendredi Party</span></h1>
 
+  <div id="pin" class="hidden">
+    <p class="sub">Entre le code de la soirée pour rejoindre la file d'attente.</p>
+    <form id="pinForm" class="row">
+      <input id="pinInput" class="grow pin-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+             placeholder="••••" autocomplete="one-time-code" required>
+      <button>Entrer</button>
+    </form>
+  </div>
+
   <div id="closed" class="hidden">
     <p class="empty">Pas de soirée en cours pour le moment.<br>Reviens quand la musique démarre 🎶</p>
   </div>
@@ -60,6 +69,7 @@ function toast(msg, kind = "") {
 async function api(path, opts = {}) {
   const r = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
   const data = await r.json().catch(() => ({}));
+  if (r.status === 401 && path !== "/api/join") { show("pin"); throw new Error("Code d'accès requis"); }
   if (!r.ok) throw new Error(data.detail || "Erreur");
   return data;
 }
@@ -76,7 +86,8 @@ function trackHtml(t, extra = "") {
 }
 
 function show(view) {
-  for (const v of ["closed", "hello", "party"]) $(v).classList.toggle("hidden", v !== view);
+  for (const v of ["pin", "closed", "hello", "party"]) $(v).classList.toggle("hidden", v !== view);
+  if (view === "pin") setTimeout(() => $("pinInput").focus(), 50);
 }
 
 async function refresh() {
@@ -166,8 +177,35 @@ $("rename").addEventListener("click", (ev) => {
   $("nameInput").value = guestName; guestName = ""; show("hello"); $("nameInput").focus();
 });
 
-refresh();
-setInterval(refresh, 5000);
+async function join(pin) {
+  try {
+    await api("/api/join", { method: "POST", body: JSON.stringify({ pin }) });
+    $("pinInput").value = "";
+    await refresh();
+  } catch (e) {
+    $("pinInput").value = "";
+    show("pin");
+    toast(e.message, "err");
+  }
+}
+$("pinForm").addEventListener("submit", (ev) => { ev.preventDefault(); join($("pinInput").value.trim()); });
+$("pinInput").addEventListener("input", () => {
+  $("pinInput").value = $("pinInput").value.replace(/\D/g, "");
+  if ($("pinInput").value.length === 4) join($("pinInput").value);
+});
+
+(async () => {
+  // QR code : le code est dans l'URL, on entre directement puis on le retire de la barre d'adresse.
+  const params = new URLSearchParams(location.search);
+  if (params.has("pin")) {
+    const pin = params.get("pin");
+    history.replaceState(null, "", location.pathname);
+    await join(pin);
+  } else {
+    await refresh();
+  }
+  setInterval(() => { if ($("pin").classList.contains("hidden")) refresh(); }, 5000);
+})();
 </script>
 </body>
 </html>

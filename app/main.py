@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .party import MODES, PartyStore, insert_position
+from .security import Limiter
 from .sonos import Sonos
 from .spotify import Spotify
 
@@ -70,17 +71,40 @@ def _secret() -> bytes:
     return path.read_text().encode()
 
 
-def _admin_token() -> str:
-    return hmac.new(_secret(), ADMIN_PIN.encode(), hashlib.sha256).hexdigest()
+def _token(kind: str, pin: str) -> str:
+    # Le cookie dépend du code : changer le code déconnecte tout le monde.
+    return hmac.new(_secret(), f"{kind}:{pin}".encode(), hashlib.sha256).hexdigest()
+
+
+def is_admin(request: Request) -> bool:
+    token = request.cookies.get("vp_admin", "")
+    return bool(ADMIN_PIN) and hmac.compare_digest(token, _token("admin", ADMIN_PIN))
 
 
 def require_admin(request: Request):
-    token = request.cookies.get("vp_admin", "")
-    if not ADMIN_PIN or not hmac.compare_digest(token, _admin_token()):
+    if not is_admin(request):
         raise HTTPException(401, "Code admin requis")
 
 
-_failures: dict[str, tuple[int, float]] = {}
+def require_guest(request: Request):
+    """Invité ayant saisi le code d'accès (l'admin passe toujours)."""
+    token = request.cookies.get("vp_guest", "")
+    if not (hmac.compare_digest(token, _token("guest", store.session.guest_pin)) or is_admin(request)):
+        raise HTTPException(401, "Code d'accès requis")
+
+
+def client_ip(request: Request) -> str:
+    # Derrière HAProxy, uvicorn remplace l'IP par X-Forwarded-For (FORWARDED_ALLOW_IPS).
+    return request.client.host if request.client else ""
+
+
+def set_auth_cookie(request: Request, response: Response, name: str, value: str, samesite: str):
+    response.set_cookie(name, value, httponly=True, samesite=samesite, max_age=86400 * 30,
+                        secure=request.url.scheme == "https")
+
+
+admin_limiter = Limiter(per_ip=5, ip_lock=900, global_max=20, global_window=900, global_lock=900)
+guest_limiter = Limiter(per_ip=5, ip_lock=900, global_max=30, global_window=600, global_lock=600)
 
 
 class Login(BaseModel):
@@ -91,17 +115,34 @@ class Login(BaseModel):
 def admin_login(body: Login, request: Request, response: Response):
     if not ADMIN_PIN:
         raise HTTPException(503, "ADMIN_PIN n'est pas configuré sur le serveur")
-    ip = request.client.host if request.client else "?"
-    count, until = _failures.get(ip, (0, 0))
-    if time.time() < until:
-        raise HTTPException(429, "Trop d'essais, réessaie dans quelques minutes")
+    ip = client_ip(request)
+    if msg := admin_limiter.blocked(ip):
+        raise HTTPException(429, msg)
     if not hmac.compare_digest(body.pin, ADMIN_PIN):
-        count += 1
-        _failures[ip] = (count, time.time() + 300 if count >= 5 else 0)
+        admin_limiter.fail(ip)
         raise HTTPException(401, "Code incorrect")
-    _failures.pop(ip, None)
-    response.set_cookie("vp_admin", _admin_token(), httponly=True, samesite="strict", max_age=86400 * 30)
+    admin_limiter.success(ip)
+    set_auth_cookie(request, response, "vp_admin", _token("admin", ADMIN_PIN), "strict")
     return {"ok": True}
+
+
+@app.post("/api/join")
+def guest_join(body: Login, request: Request, response: Response):
+    ip = client_ip(request)
+    if msg := guest_limiter.blocked(ip):
+        raise HTTPException(429, msg)
+    if not hmac.compare_digest(body.pin.strip(), store.session.guest_pin):
+        guest_limiter.fail(ip)
+        raise HTTPException(401, "Code incorrect")
+    guest_limiter.success(ip)
+    set_auth_cookie(request, response, "vp_guest", _token("guest", store.session.guest_pin), "lax")
+    return {"ok": True}
+
+
+@app.post("/api/admin/pin", dependencies=[Depends(require_admin)])
+def admin_new_pin():
+    store.regenerate_pin()
+    return admin_state()
 
 
 @app.post("/api/admin/logout")
@@ -220,10 +261,17 @@ def admin_skip():
     return {"ok": True}
 
 
+def guest_url(request: Request | None = None) -> str:
+    base = PUBLIC_URL or (str(request.base_url).rstrip("/") if request else "")
+    return base + "/"
+
+
 @app.get("/api/admin/state", dependencies=[Depends(require_admin)])
 def admin_state():
     s = store.session
     result = {
+        "guest_pin": s.guest_pin,
+        "public_url": PUBLIC_URL,
         "active": s.active,
         "room_uid": s.room_uid,
         "room_name": s.room_name,
@@ -270,7 +318,7 @@ def art_url(url: str) -> str:
     return f"/art?p={quote(m.group(1), safe='')}" if m else url
 
 
-@app.get("/art")
+@app.get("/art", dependencies=[Depends(require_guest)])
 def art(p: str):
     if not p.startswith("/getaa?") or not store.session.room_uid:
         raise HTTPException(404)
@@ -285,10 +333,6 @@ def art(p: str):
                     headers={"Cache-Control": "public, max-age=86400"})
 
 
-def client_ip(request: Request) -> str:
-    return request.client.host if request.client else ""
-
-
 def ban_message(guest_id: str, ip: str) -> str | None:
     ban = store.ban_status(guest_id, ip)
     if ban is None:
@@ -299,7 +343,7 @@ def ban_message(guest_id: str, ip: str) -> str | None:
     return f"Pause forcée : tu pourras de nouveau ajouter des titres dans {minutes} min ⏳"
 
 
-@app.get("/api/state")
+@app.get("/api/state", dependencies=[Depends(require_guest)])
 def state(request: Request, guest_id: str = ""):
     s = store.session
     if not s.active:
@@ -311,7 +355,7 @@ def state(request: Request, guest_id: str = ""):
         return {"active": True, "room": s.room_name, "blocked": blocked, "error": "Sonos injoignable pour le moment"}
 
 
-@app.get("/api/search")
+@app.get("/api/search", dependencies=[Depends(require_guest)])
 def search(q: str):
     require_active()
     if spotify is None:
@@ -331,7 +375,7 @@ class Enqueue(BaseModel):
     guest_name: str
 
 
-@app.post("/api/queue")
+@app.post("/api/queue", dependencies=[Depends(require_guest)])
 def enqueue(body: Enqueue, request: Request):
     require_active()
     ip = client_ip(request)
@@ -371,7 +415,7 @@ class GuestRemove(BaseModel):
     guest_id: str
 
 
-@app.post("/api/queue/remove")
+@app.post("/api/queue/remove", dependencies=[Depends(require_guest)])
 def guest_remove(body: GuestRemove):
     """Un invité retire un de ses propres titres encore en attente."""
     require_active()
@@ -382,12 +426,13 @@ def guest_remove(body: GuestRemove):
     return {"ok": True}
 
 
-@app.get("/qr.svg")
+@app.get("/qr.svg", dependencies=[Depends(require_admin)])
 def qr(request: Request):
-    url = PUBLIC_URL or str(request.base_url).rstrip("/")
+    # Le code est inclus : scanner le QR suffit pour entrer.
+    url = f"{guest_url(request)}?pin={store.session.guest_pin}"
     buf = io.BytesIO()
     # Fichier SVG autonome (avec xmlns) : svg_inline ne s'affiche pas dans une balise <img>.
-    segno.make(url + "/", error="m").save(buf, kind="svg", scale=8, border=2, dark="#111", light="#fff")
+    segno.make(url, error="m").save(buf, kind="svg", scale=8, border=2, dark="#111", light="#fff")
     return Response(buf.getvalue(), media_type="image/svg+xml", headers={"Cache-Control": "no-cache"})
 
 

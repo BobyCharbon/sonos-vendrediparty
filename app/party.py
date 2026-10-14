@@ -1,6 +1,7 @@
 """État de la soirée (persisté en JSON) et logique d'insertion dans la file."""
 
 import json
+import secrets
 import threading
 import time
 import uuid
@@ -34,6 +35,8 @@ class Session:
     requests: list[Request] = field(default_factory=list)
     # guest_id -> {"name", "ips", "until"} ; until = 0 : banni sans limite.
     bans: dict[str, dict] = field(default_factory=dict)
+    # Code d'accès invités (4 chiffres), conservé d'une soirée à l'autre.
+    guest_pin: str = ""
 
 
 class PartyStore:
@@ -41,6 +44,8 @@ class PartyStore:
         self.path = path
         self.lock = threading.RLock()
         self.session = self._load()
+        if not self.session.guest_pin:
+            self.regenerate_pin()
 
     def _load(self) -> Session:
         try:
@@ -57,9 +62,20 @@ class PartyStore:
         tmp.replace(self.path)
 
     def start(self, room_uid: str, room_name: str, mode: str):
-        # Les bannissements survivent d'une soirée à l'autre.
-        self.session = Session(True, room_uid, room_name, mode, time.time(), [], self.session.bans)
+        # Les bannissements et le code d'accès survivent d'une soirée à l'autre.
+        self.session = Session(
+            active=True, room_uid=room_uid, room_name=room_name, mode=mode, started_at=time.time(),
+            bans=self.session.bans, guest_pin=self.session.guest_pin,
+        )
         self.save()
+
+    def regenerate_pin(self) -> str:
+        old = self.session.guest_pin
+        while (pin := f"{secrets.randbelow(10000):04d}") == old:
+            pass
+        self.session.guest_pin = pin
+        self.save()
+        return pin
 
     def stop(self):
         self.session.active = False
