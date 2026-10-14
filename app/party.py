@@ -51,6 +51,8 @@ class Session:
     # Abonnements aux notifications push : guest_id -> [abonnement Web Push] ; l'hôte à part.
     push: dict[str, list[dict]] = field(default_factory=dict)
     admin_push: list[dict] = field(default_factory=list)
+    # Ce dont l'hôte veut être prévenu : nouveaux messages, nouvelles parties de jeu.
+    admin_notify: dict = field(default_factory=lambda: {"messages": True, "games": False})
     # Playlists favorites de l'hôte (Réglages) : {"id": "spotify:playlist:…" ou "fav:…"/"sq:…", "title"}.
     top_playlists: list[dict] = field(default_factory=list)
     # Parties de jeu en cours (voir games.py), par code ; indépendantes de la soirée musique.
@@ -101,7 +103,7 @@ class PartyStore:
         self.session = Session(
             active=True, room_uid=room_uid, room_name=room_name, mode=mode, started_at=time.time(),
             bans=self.session.bans, guest_pin=self.session.guest_pin, revoked=self.session.revoked,
-            push=self.session.push, admin_push=self.session.admin_push, top_playlists=self.session.top_playlists,
+            push=self.session.push, admin_push=self.session.admin_push, admin_notify=self.session.admin_notify, top_playlists=self.session.top_playlists,
             games=self.session.games,
         )
         self.save()

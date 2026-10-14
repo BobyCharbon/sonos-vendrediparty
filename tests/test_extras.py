@@ -155,3 +155,21 @@ def test_top_playlists_add_by_link_reorder_and_remove(admin, monkeypatch):  # no
 
 def test_launch_rejects_unknown_playlist_ids(admin):  # noqa: F811
     assert admin.post("/api/admin/playlist", json={"id": "http://evil"}).status_code == 400
+
+
+def test_admin_notified_of_new_game_only_if_wanted(admin, push):  # noqa: F811
+    admin.post("/api/admin/push/subscribe", json={"subscription": SUB})
+    main._game_creations.clear()
+    TestClient(main.app).post("/api/games", json={"guest_id": "notif-game-1", "name": "Léa", "type": "whoof"})
+    assert not any(p["tag"].startswith("game-") for _, p in push.sent)  # désactivé par défaut
+    assert admin.post("/api/admin/notify", json={"kind": "games", "on": True}).json()["admin_notify"]["games"]
+    g = TestClient(main.app).post("/api/games", json={"guest_id": "notif-game-2", "name": "Tom", "type": "casino"}).json()
+    assert push.sent[-1][1] == {"title": "🎮 Casino", "body": f"Tom lance une partie · code {g['code']}", "url": "/admin#games", "tag": f"game-{g['code']}"}
+    # Messages coupés : plus de notification de message.
+    admin.post("/api/admin/notify", json={"kind": "messages", "on": False})
+    n = len(push.sent)
+    guest_client("notif-msg-1", "Zoé").post("/api/message", json={"guest_id": "notif-msg-1", "guest_name": "Zoé", "text": "Coucou"})
+    assert len(push.sent) == n
+    admin.post("/api/admin/notify", json={"kind": "messages", "on": True})
+    admin.post("/api/admin/notify", json={"kind": "games", "on": False})
+    main.store.remove_push(SUB["endpoint"])

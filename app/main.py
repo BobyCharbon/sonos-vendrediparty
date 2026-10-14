@@ -67,8 +67,9 @@ def notify_guest(guest_id: str, payload: dict):
         push.send(list(subs), payload, on_gone=lambda sub: store.remove_push(sub["endpoint"]))
 
 
-def notify_admin(payload: dict):
-    if store.session.admin_push:
+def notify_admin(payload: dict, kind: str = "messages"):
+    """kind : « messages » ou « games », selon ce que l'hôte a choisi de recevoir."""
+    if store.session.admin_notify.get(kind, kind == "messages") and store.session.admin_push:
         push.send(list(store.session.admin_push), payload, on_gone=lambda sub: store.remove_push(sub["endpoint"]))
 
 
@@ -632,6 +633,7 @@ def admin_state():
         "bans": [{"guest_id": g, **b} for g, b in store.active_bans().items()],
         "messages": list(reversed(s.messages)),
         "top_playlists": s.top_playlists,
+        "admin_notify": s.admin_notify,
         "games": [games.summary(g) for g in (prune_games() or s.games).values()],
     }
     if s.active:
@@ -841,6 +843,8 @@ def create_game(body: GameCreate, request: Request):
             raise HTTPException(400, str(e))
     _game_creations[ip] = recent + [time.time()]
     game_presence(request, body.guest_id, body.name)
+    notify_admin({"title": f"🎮 {games.GAMES[g['type']]}", "body": f"{g['host_name']} lance une partie · code {g['code']}",
+                  "url": "/admin#games", "tag": f"game-{g['code']}"}, kind="games")
     store.session.games[g["code"]] = g
     store.save()
     return games.view(g, body.guest_id)
@@ -1188,6 +1192,20 @@ def admin_push_subscribe(body: PushSubscribe):
     """L'hôte veut être prévenu des nouveaux messages."""
     store.add_push(None, checked_subscription(body.subscription))
     return {"ok": True}
+
+
+class AdminNotify(BaseModel):
+    kind: str  # messages | games
+    on: bool
+
+
+@app.post("/api/admin/notify", dependencies=[Depends(require_admin)])
+def admin_notify(body: AdminNotify):
+    if body.kind not in ("messages", "games"):
+        raise HTTPException(400, "Type inconnu")
+    store.session.admin_notify[body.kind] = body.on
+    store.save(notify=False)
+    return {"admin_notify": store.session.admin_notify}
 
 
 class PushUnsubscribe(BaseModel):

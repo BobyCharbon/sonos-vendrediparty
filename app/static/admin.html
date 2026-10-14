@@ -78,6 +78,10 @@
     <!-- 🎮 Jeux -->
     <section data-view="games" class="hidden">
       <p class="sub hidden" id="gamesOff"></p>
+      <label class="card switch-row hidden" id="notifGamesBox" style="margin-top:8px">
+        <span class="grow">🔔 Me prévenir quand quelqu'un lance un jeu<span class="artist" id="notifGamesHelp" style="display:block;white-space:normal"></span></span>
+        <input type="checkbox" class="switch" id="notifGamesToggle">
+      </label>
       <h2 style="margin-top:8px">Parties en cours</h2>
       <div id="gamePanel"></div>
       <h2>Ma partie</h2>
@@ -699,31 +703,49 @@ document.addEventListener("click", async (ev) => {
   catch (e) { toast(e.message, "err"); b.disabled = false; b.textContent = "▶︎"; }
 });
 
-// 🔔 Notifications des nouveaux messages (abonnement propre à l'admin : portée « /admin »).
+// 🔔 Notifications de l'hôte (abonnement propre à l'admin : portée « /admin ») :
+// nouveaux messages et nouvelles parties de jeu, réglables séparément.
+const NOTIF = { messages: ["notifBox", "notifToggle", "notifHelp", "des nouveaux messages"],
+  games: ["notifGamesBox", "notifGamesToggle", "notifGamesHelp", "des nouvelles parties"] };
 async function initNotifications() {
   const iosSafari = /iPhone|iPad|iPod/.test(navigator.userAgent) && !(matchMedia("(display-mode: standalone)").matches || navigator.standalone);
-  if (!Push.supported()) {
-    if (iosSafari) {
-      $("notifBox").classList.remove("hidden"); $("notifToggle").disabled = true;
-      $("notifHelp").textContent = "Sur iPhone : ajoute l'admin à l'écran d'accueil (Partager ⎙ → « Sur l'écran d'accueil ») et ouvre-le depuis là.";
+  for (const [kind, [box, toggle, help]] of Object.entries(NOTIF)) {
+    if (!Push.supported()) {
+      if (iosSafari) {
+        $(box).classList.remove("hidden"); $(toggle).disabled = true;
+        $(help).textContent = "Sur iPhone : ajoute l'admin à l'écran d'accueil (Partager → « Sur l'écran d'accueil ») et ouvre-le depuis là.";
+      }
+      continue;
     }
-    return;
+    $(box).classList.remove("hidden");
+    $(help).textContent = Notification.permission === "denied" ? "Notifications bloquées dans les réglages du navigateur." : "";
   }
-  $("notifBox").classList.remove("hidden");
+  if (!Push.supported()) return;
   const sub = await Push.current("/admin").catch(() => null);
-  $("notifToggle").checked = !!sub && Notification.permission === "granted";
-  $("notifHelp").textContent = Notification.permission === "denied" ? "Notifications bloquées dans les réglages du navigateur." : "";
-  if ($("notifToggle").checked) Push.send("/api/admin/push/subscribe", { subscription: sub.toJSON() }).catch(() => {});
+  const ok = !!sub && Notification.permission === "granted";
+  const prefs = state?.admin_notify || { messages: true, games: false };
+  for (const [kind, [, toggle]] of Object.entries(NOTIF)) $(toggle).checked = ok && !!prefs[kind];
+  if (ok) Push.send("/api/admin/push/subscribe", { subscription: sub.toJSON() }).catch(() => {});
 }
-$("notifToggle").addEventListener("change", async () => {
-  const on = $("notifToggle").checked;
-  $("notifToggle").disabled = true;
-  try {
-    if (on) { await Push.subscribe("/admin", "/api/admin/push/subscribe"); toast("Tu seras prévenu des nouveaux messages 🔔", "ok"); }
-    else { await Push.unsubscribe("/admin"); toast("Notifications désactivées"); }
-  } catch (e) { $("notifToggle").checked = !on; toast(e.message, "err"); }
-  $("notifToggle").disabled = false;
-});
+for (const [kind, [, toggle, , what]] of Object.entries(NOTIF)) {
+  $(toggle).addEventListener("change", async () => {
+    const on = $(toggle).checked;
+    $(toggle).disabled = true;
+    try {
+      if (on && !(await Push.current("/admin"))) await Push.subscribe("/admin", "/api/admin/push/subscribe");
+      const { admin_notify } = await api("/api/admin/notify", { kind, on });
+      if (state) state.admin_notify = admin_notify;
+      // Plus rien à recevoir : on désabonne cet appareil.
+      if (!Object.values(admin_notify).some(Boolean)) await Push.unsubscribe("/admin");
+      else if (on) {
+        // Les deux réglages partagent le même abonnement : l'autre interrupteur reflète l'état réel.
+        for (const [k, [, t]] of Object.entries(NOTIF)) $(t).checked = !!admin_notify[k];
+      }
+      toast(on ? `Tu seras prévenu ${what} 🔔` : `Plus de notifications ${what}`, on ? "ok" : "");
+    } catch (e) { $(toggle).checked = !on; toast(e.message, "err"); }
+    $(toggle).disabled = false;
+  });
+}
 
 $("logout").onclick = async (ev) => { ev.preventDefault(); await api("/api/admin/logout", {}); showLogin(); };
 
