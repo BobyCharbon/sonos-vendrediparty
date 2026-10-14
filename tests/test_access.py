@@ -53,12 +53,16 @@ def test_global_lock_against_many_ips():
     assert lim.blocked("4.4.4.4") is not None
 
 
-def test_public_url_set_from_admin_goes_into_qr(client):
-    client.post("/api/admin/login", json={"pin": "9999"})
-    assert client.post("/api/admin/public-url", json={"url": "pas une adresse"}).status_code == 400
-    state = client.post("/api/admin/public-url", json={"url": "https://party.bobycharbon.ch/"}).json()
-    assert state["public_url"] == "https://party.bobycharbon.ch"
+def test_qr_always_points_to_public_address(client):
     assert main.guest_url() == "https://party.bobycharbon.ch/"
-    # Conservée quand une nouvelle soirée démarre.
-    main.store.start("RINCON_X", "Salon", "next")
-    assert main.store.session.public_url == "https://party.bobycharbon.ch"
+    client.post("/api/admin/login", json={"pin": "9999"})
+    assert client.get("/api/admin/state").json()["guest_url"] == "https://party.bobycharbon.ch/"
+
+
+def test_old_session_file_fields_are_ignored(tmp_path):
+    import json
+    from app.party import PartyStore
+
+    path = tmp_path / "s.json"
+    path.write_text(json.dumps({"active": True, "guest_pin": "4321", "public_url": "x", "requests": []}))
+    assert PartyStore(path).session.guest_pin == "4321"  # le code n'est pas perdu

@@ -25,7 +25,8 @@ from .spotify import Spotify
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
 ADMIN_PIN = os.environ.get("ADMIN_PIN", "")
-PUBLIC_URL = os.environ.get("PUBLIC_URL", "").rstrip("/")
+# Adresse de la page invités encodée dans le QR code (avec ?pin=<code>).
+PUBLIC_URL = "https://party.bobycharbon.ch"
 STATIC = Path(__file__).parent / "static"
 
 store = PartyStore(DATA_DIR / "session.json")
@@ -338,24 +339,45 @@ def admin_skip():
     return {"ok": True}
 
 
-def guest_url(request: Request | None = None) -> str:
-    # Priorité : adresse réglée dans l'admin, puis variable PUBLIC_URL, puis adresse utilisée par l'admin.
-    base = store.session.public_url or PUBLIC_URL or (str(request.base_url).rstrip("/") if request else "")
-    return base + "/"
+def guest_url() -> str:
+    return PUBLIC_URL + "/"
 
 
-class PublicUrl(BaseModel):
-    url: str
+@app.get("/api/admin/search", dependencies=[Depends(require_admin)])
+def admin_search(q: str):
+    if spotify is None:
+        raise HTTPException(503, "Recherche Spotify non configurée")
+    q = q.strip()[:100]
+    return spotify.search(q) if len(q) >= 2 else []
 
 
-@app.post("/api/admin/public-url", dependencies=[Depends(require_admin)])
-def admin_public_url(body: PublicUrl):
-    url = body.url.strip().rstrip("/")
-    if url and not re.match(r"^https?://[A-Za-z0-9.-]+(:\d+)?$", url):
-        raise HTTPException(400, "Adresse invalide (ex : https://party.exemple.ch)")
-    store.session.public_url = url
-    store.save()
-    return admin_state()
+class AdminAdd(BaseModel):
+    track_id: str
+    where: str = "next"  # next : juste après le titre en cours | end : fin de la file
+
+
+@app.post("/api/admin/add", dependencies=[Depends(require_admin)])
+def admin_add(body: AdminAdd):
+    """L'hôte ajoute un titre (hors demandes d'invités : pas concerné par le mode équitable)."""
+    require_active()
+    if spotify is None:
+        raise HTTPException(503, "Recherche Spotify non configurée")
+    if body.where not in ("next", "end") or not re.match(r"^[A-Za-z0-9]{22}$", body.track_id):
+        raise HTTPException(400, "Requête invalide")
+    track = spotify.track(body.track_id)
+    with queue_lock:
+        snap = snapshot(force=True)
+        if not snap["from_queue"]:
+            raise HTTPException(409, "La musique ne joue pas depuis la file Sonos : lance une playlist depuis l'app Sonos.")
+        if any(t and t["track_id"] == track["id"] for t in [snap["current"]] + snap["upcoming"]):
+            raise HTTPException(409, "Ce titre est déjà dans la file")
+        pos = snap["current_pos"] + 1 if body.where == "next" and snap["current_pos"] else 0
+        try:
+            sonos.add_spotify_track(store.session.room_uid, track["id"], track["title"], pos)
+        except Exception as e:
+            raise HTTPException(502, f"Sonos a refusé l'ajout : {e}")
+        _snap["data"] = None
+    return {**admin_state(), "added": track}
 
 
 @app.get("/api/admin/state", dependencies=[Depends(require_admin)])
@@ -363,7 +385,7 @@ def admin_state():
     s = store.session
     result = {
         "guest_pin": s.guest_pin,
-        "public_url": store.session.public_url or PUBLIC_URL,
+        "guest_url": guest_url(),
         "active": s.active,
         "room_uid": s.room_uid,
         "room_name": s.room_name,
@@ -684,7 +706,7 @@ async def events(request: Request):
 @app.get("/qr.svg", dependencies=[Depends(require_admin)])
 def qr(request: Request):
     # Le code est inclus : scanner le QR suffit pour entrer.
-    url = f"{guest_url(request)}?pin={store.session.guest_pin}"
+    url = f"{guest_url()}?pin={store.session.guest_pin}"
     buf = io.BytesIO()
     # Fichier SVG autonome (avec xmlns) : svg_inline ne s'affiche pas dans une balise <img>.
     segno.make(url, error="m").save(buf, kind="svg", scale=8, border=2, dark="#111", light="#fff")

@@ -62,6 +62,10 @@
           <span id="volumeLabel" style="width:2.5em;text-align:right;font-variant-numeric:tabular-nums"></span>
         </div>
 
+        <h2>Ajouter un titre</h2>
+        <input id="addQ" type="search" placeholder="Titre, artiste…" autocomplete="off" enterkeyhint="search">
+        <div id="addResults" class="list" style="margin-top:8px"></div>
+
         <h2>File d'attente <span id="queueCount"></span></h2>
         <p class="sub" style="margin-top:-4px;font-size:.85rem">⏫ jouer ensuite · ⬆⬇ déplacer · ▶︎ jouer maintenant · ✕ retirer</p>
         <div id="queue" class="list"></div>
@@ -87,11 +91,7 @@
         <div class="artist">Code de la soirée</div>
         <div class="big-pin" id="guestPin">····</div>
         <img class="qr" id="qr" alt="QR code vers la page invités (code inclus)">
-        <form id="urlForm" class="row" style="margin:12px 0 8px">
-          <input id="publicUrl" class="grow" type="url" inputmode="url" placeholder="https://party.exemple.ch" aria-label="Adresse publique">
-          <button>Enregistrer</button>
-        </form>
-        <p class="sub" style="margin:0 0 10px;font-size:.85rem">Adresse encodée dans le QR code : <span id="guestUrl"></span></p>
+        <p class="sub" style="margin:10px 0" id="guestUrl"></p>
         <button class="secondary" id="newPin" type="button">🔄 Nouveau code</button>
         <p class="sub" style="margin:8px 0 0;font-size:.85rem">Un nouveau code déconnecte tous les invités : ils devront saisir le nouveau ou rescanner le QR.</p>
       </div>
@@ -203,9 +203,8 @@ function render(s) {
   if (!s.active) $("settingsBadge").classList.add("hidden");
   renderBans(s);
   $("guestPin").textContent = s.guest_pin;
-  $("guestUrl").textContent = (s.public_url || location.origin) + "/?pin=" + s.guest_pin;
-  if (document.activeElement !== $("publicUrl")) $("publicUrl").value = s.public_url || "";
-  const qrKey = "/qr.svg?v=" + s.guest_pin + "&u=" + encodeURIComponent(s.public_url || "");
+  $("guestUrl").textContent = s.guest_url + "?pin=" + s.guest_pin;
+  const qrKey = "/qr.svg?v=" + s.guest_pin;
   if ($("qr").getAttribute("src") !== qrKey) $("qr").src = qrKey;
   if (!s.active) { renderModes(chosenMode); return; }
 
@@ -416,11 +415,40 @@ $("requests").addEventListener("click", async (ev) => {
   try { render(await api("/api/admin/remove", { request_id: b.dataset.remove })); toast("Titre retiré", "ok"); }
   catch (e) { b.disabled = false; toast(e.message, "err"); }
 });
-$("urlForm").addEventListener("submit", async (ev) => {
-  ev.preventDefault();
-  try { render(await api("/api/admin/public-url", { url: $("publicUrl").value })); $("publicUrl").blur(); toast("Adresse du QR code enregistrée", "ok"); }
-  catch (e) { toast(e.message, "err"); }
+// Ajout de titres par l'hôte : ⏫ juste après le titre en cours, ＋ à la fin de la file.
+let addTimer, addResults = [];
+$("addQ").addEventListener("input", () => {
+  clearTimeout(addTimer);
+  const q = $("addQ").value.trim();
+  if (q.length < 2) { $("addResults").innerHTML = ""; return; }
+  addTimer = setTimeout(async () => {
+    try {
+      addResults = await api("/api/admin/search?q=" + encodeURIComponent(q));
+      if ($("addQ").value.trim() !== q) return;
+      $("addResults").innerHTML = addResults.length ? addResults.map((t, i) => `
+        <div class="track">
+          ${t.image ? `<img src="${esc(t.image)}" alt="" loading="lazy">` : `<img alt="">`}
+          <div class="meta"><div class="title">${esc(t.title)}</div><div class="artist">${esc(t.artist)}${t.explicit ? " · 🅴" : ""}</div></div>
+          <div class="icon-btns">
+            <button data-add="next" data-i="${i}" title="Jouer ensuite">⏫</button>
+            <button class="secondary" data-add="end" data-i="${i}" title="Ajouter à la fin">＋</button>
+          </div>
+        </div>`).join("") : `<p class="empty">Aucun résultat</p>`;
+    } catch (e) { toast(e.message, "err"); }
+  }, 350);
 });
+$("addResults").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-add]");
+  if (!b) return;
+  const t = addResults[+b.dataset.i];
+  b.disabled = true;
+  try {
+    render(await api("/api/admin/add", { track_id: t.id, where: b.dataset.add }));
+    toast(`« ${t.title} » ${b.dataset.add === "next" ? "passera juste après" : "ajouté à la fin"} 🎶`, "ok");
+    b.textContent = "✓";
+  } catch (e) { b.disabled = false; toast(e.message, "err"); }
+});
+
 $("newPin").onclick = async () => {
   try { render(await api("/api/admin/pin", {})); toast("Nouveau code : " + state.guest_pin, "ok"); }
   catch (e) { toast(e.message, "err"); }

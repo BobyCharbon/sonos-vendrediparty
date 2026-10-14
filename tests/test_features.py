@@ -27,6 +27,9 @@ class FakeSonos:
     def set_volume(self, uid, volume):
         self.calls.append(("volume", volume))
 
+    def add_spotify_track(self, uid, track_id, title, pos):
+        self.calls.append(("add", track_id, pos))
+
 
 def snap():
     track = lambda pos, tid, title: {"pos": pos, "track_id": tid, "title": title, "artist": "A", "art": ""}
@@ -116,3 +119,18 @@ def test_new_pin_disconnects_guest_even_in_admin_browser(admin):
     assert admin.get("/api/state").status_code == 401
     # L'admin garde ses pochettes (et son flux en direct).
     assert admin.get("/art?p=/getaa%3Fx").status_code != 401
+
+
+def test_admin_adds_track_next_or_end(admin, monkeypatch):
+    class FakeSpotify:
+        def track(self, tid):
+            return {"id": tid, "title": "T", "artist": "A", "image": ""}
+
+    monkeypatch.setattr(main, "spotify", FakeSpotify())
+    admin.post("/api/admin/add", json={"track_id": "d" * 22, "where": "next"})
+    admin.post("/api/admin/add", json={"track_id": "e" * 22, "where": "end"})
+    assert admin.fake.calls == [("add", "d" * 22, 5), ("add", "e" * 22, 0)]
+    # Déjà dans la file : refusé.
+    assert admin.post("/api/admin/add", json={"track_id": "a" * 22, "where": "end"}).status_code == 409
+    # Les ajouts de l'hôte ne sont pas des demandes d'invités.
+    assert main.store.pending() == []
