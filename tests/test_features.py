@@ -107,3 +107,12 @@ def test_pause_and_volume(admin):
     admin.post("/api/admin/playback", json={"action": "play"})
     admin.post("/api/admin/volume", json={"volume": 140})  # borné à 100
     assert admin.fake.calls == [("pause",), ("resume",), ("volume", 100)]
+
+
+def test_new_pin_disconnects_guest_even_in_admin_browser(admin):
+    admin.post("/api/join", json={"pin": main.store.session.guest_pin})
+    assert admin.get("/api/state").status_code == 200
+    admin.post("/api/admin/pin")
+    assert admin.get("/api/state").status_code == 401
+    # L'admin garde ses pochettes (et son flux en direct).
+    assert admin.get("/art?p=/getaa%3Fx").status_code != 401

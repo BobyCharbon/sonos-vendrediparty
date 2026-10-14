@@ -117,10 +117,20 @@ def require_admin(request: Request):
         raise HTTPException(401, "Code admin requis")
 
 
-def require_guest(request: Request):
-    """Invité ayant saisi le code d'accès (l'admin passe toujours)."""
+def is_guest(request: Request) -> bool:
     token = request.cookies.get("vp_guest", "")
-    if not (hmac.compare_digest(token, _token("guest", store.session.guest_pin)) or is_admin(request)):
+    return hmac.compare_digest(token, _token("guest", store.session.guest_pin))
+
+
+def require_guest(request: Request):
+    """Invité ayant saisi le code d'accès en cours. L'admin aussi : un nouveau code déconnecte tout le monde."""
+    if not is_guest(request):
+        raise HTTPException(401, "Code d'accès requis")
+
+
+def require_viewer(request: Request):
+    """Pochettes et flux en direct : utilisés à la fois par la page invités et par l'admin."""
+    if not (is_guest(request) or is_admin(request)):
         raise HTTPException(401, "Code d'accès requis")
 
 
@@ -456,7 +466,7 @@ def art_url(url: str) -> str:
     return f"/art?p={quote(m.group(1), safe='')}" if m else url
 
 
-@app.get("/art", dependencies=[Depends(require_guest)])
+@app.get("/art", dependencies=[Depends(require_viewer)])
 def art(p: str):
     if not p.startswith("/getaa?") or not store.session.room_uid:
         raise HTTPException(404)
@@ -626,7 +636,7 @@ def guest_remove(body: GuestRemove):
     return {"ok": True}
 
 
-@app.get("/api/events", dependencies=[Depends(require_guest)])
+@app.get("/api/events", dependencies=[Depends(require_viewer)])
 async def events(request: Request):
     """Flux SSE : envoie un signal dès que l'état change, la page se rafraîchit aussitôt."""
     async def stream():
