@@ -6,11 +6,29 @@ const GAME_ICONS = {
   whoof: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13" cy="24" r="5"/><circle cx="35" cy="24" r="5"/><path d="M4 41c1-6 4.5-9 9-9s8 3 9 9"/><path d="M26 41c1-6 4.5-9 9-9s8 3 9 9"/><path d="M20 9.5a4 4 0 1 1 5.5 3.7c-1.2.5-1.5 1.3-1.5 2.8"/><path d="M24 20.5v.1"/></svg>`,
 };
 GAME_ICONS.never = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7h13l-1.6 14a4.9 4.9 0 0 1-9.8 0z"/><path d="M14.5 26v12"/><path d="M9.5 38h10"/><path d="M27 7h13l-1.6 14a4.9 4.9 0 0 1-9.8 0z"/><path d="M33.5 26v12"/><path d="M28.5 38h10"/><path d="M9 14h11M28 14h11"/></svg>`;
-const GAME_THEME = { undercover: "g-uc", whoof: "g-wh", never: "g-nv" };
+GAME_ICONS.roulette = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="27" r="17"/><circle cx="24" cy="27" r="3"/><path d="M24 10v14M24 30v14M7 27h14M27 27h14M12 15l10 10M26 29l10 10M36 15L26 25M22 29L12 39"/><path d="M20 3h8l-4 6z"/></svg>`;
+const GAME_THEME = { undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl" };
 const helpBtn = (type) => `<button type="button" class="g-help" data-rules="${type}" aria-label="Règles du jeu">?</button>`;
 
 // Règles détaillées, ouvertes par le « ? » de chaque jeu.
 const GAME_RULES = {
+  roulette: `
+    <h3>Le principe</h3>
+    <p>Une roue avec des noms. On la lance, elle tourne… et celui sur qui elle s'arrête <b>a perdu</b>.</p>
+    <h3>Comment jouer</h3>
+    <ol>
+      <li>L'animateur note les participants : en tapant leurs noms, ou en un geste avec « Ajouter les joueurs inscrits ». Il faut au moins 2 noms.</li>
+      <li>Il lance la roue. Elle tourne en même temps sur tous les téléphones de la partie, et tout le monde voit le même résultat.</li>
+      <li>Le nom désigné a perdu ! L'animateur peut le retirer de la roue pour un tirage par élimination, ou relancer tel quel.</li>
+    </ol>
+    <h3>Des idées</h3>
+    <ul>
+      <li>Qui boit (ou qui boit cul sec).</li>
+      <li>Qui paie la prochaine tournée.</li>
+      <li>Qui fait la vaisselle ou va chercher les pizzas.</li>
+      <li>Qui choisit la prochaine musique, qui commence un jeu, qui relève un défi.</li>
+    </ul>
+    <p>Pas besoin d'être inscrit pour regarder : il suffit d'ouvrir la partie avec son code ou son QR. Les derniers perdants restent affichés.</p>`,
   never: `
     <h3>Le but</h3>
     <p>Découvrir ce que vos amis ont (ou n'ont jamais) fait… et boire quand on avoue.</p>
@@ -154,10 +172,25 @@ document.getElementById("gamesRoot").innerHTML = `
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="never">Créer une partie</button>
       </div>
+
+      <div class="gcard g-rl">
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.roulette}</div>
+          <div class="g-meta"><div class="g-title">Roulette</div><div class="g-tag">La roue a parlé.</div></div>
+          ${helpBtn("roulette")}
+        </div>
+        <p class="g-desc">Note les participants, lance la roue : celui qu'elle désigne a perdu. Pour savoir qui boit, qui paie la tournée, qui fait la vaisselle… La roue tourne sur tous les téléphones.</p>
+        <div class="g-chips"><span>2+ noms</span><span>Hasard</span><span>Pour tout trancher</span></div>
+        <button class="g-go" data-create="roulette">Créer une roulette</button>
+      </div>
     </div>
 
     <div id="gamePlay" class="hidden">
       <div id="game" class="card game"></div>
+      <div id="roulette" class="roulette hidden">
+        <div class="wheel-wrap"><div class="wheel-pointer" aria-hidden="true"></div><svg id="wheel" viewBox="-100 -100 200 200" role="img" aria-label="Roue"></svg></div>
+        <div id="rouletteResult" class="roulette-result" aria-live="polite"></div>
+      </div>
       <div id="gameHost"></div>
       <div class="card" style="text-align:center;margin-top:20px">
         <div class="artist">Pour rejoindre : scanne ce QR ou entre le code</div>
@@ -183,7 +216,8 @@ document.getElementById("gamesRoot").innerHTML = `
 // 🎮 Jeux : n'importe qui crée une partie (code + QR) et l'anime ; les autres la rejoignent avec son code.
 let myGame = store("vp_game") || "", game = null, wordShown = "", wordUntil = 0, guessDraft = "", showRoles = false, autoJoin = false;
 const GAME_PHASES = { lobby: "Inscriptions", words: "Indices", vote: "Vote", white_guess: "Devinette de Mr. White",
-  reveal: "Résultat de la manche", end: "Partie terminée", question: "Question", results: "Résultats" };
+  reveal: "Résultat de la manche", end: "Partie terminée", question: "Question", results: "Résultats", spun: "Résultat" };
+const phaseLabel = (g) => g.type === "roulette" && g.phase === "lobby" ? "Préparation" : GAME_PHASES[g.phase];
 const WINNERS = { civils: "Les civils ont gagné 🎉", impostors: "Les undercovers ont gagné 🕵️", white: "Mr. White a trouvé le mot et gagne 🎩" };
 
 async function gapi(path, body) {
@@ -218,12 +252,17 @@ function renderGame(g) {
   $("game").className = "card game " + (GAME_THEME[g.type] || "");
   const title = `<div class="g-head g-play-head"><div class="g-icon">${GAME_ICONS[g.type] || ""}</div>
     <div class="g-meta"><div class="g-title">${esc(g.name)}</div>
-    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${GAME_PHASES[g.phase]}${g.round && g.phase !== "lobby" ? ` · ${g.type === "undercover" ? "manche" : "question"} ${g.round}` : ""}</div></div>
+    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${phaseLabel(g)}${g.round && g.phase !== "lobby" ? ` · ${{ undercover: "manche", roulette: "tirage" }[g.type] || "question"} ${g.round}` : ""}</div></div>
     ${helpBtn(g.type)}</div>`;
   const lastLine = g.last?.name ? `<p class="sub" style="margin:8px 0">${esc(g.last.name)} était <b>${esc(g.last.role)}</b>.${g.last.guess ? ` Mr. White a proposé « ${esc(g.last.guess)} »… raté !` : ""}</p>` : "";
   let body = "";
 
-  if (g.kicked) {
+  if (g.type === "roulette") {
+    body = g.is_host
+      ? `<div class="artist">${g.names.length < 2 ? "Note au moins 2 noms ci-dessous, puis lance la roue." : "Prêt ? Lance la roue !"}</div>`
+      : `<div class="artist">${g.phase === "spun" ? "La roue a parlé…" : `${esc(g.host_name)} prépare la roue…`}</div>
+         ${!me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:10px">Je participe (l'animateur pourra m'ajouter à la roue)</button>` : ""}`;
+  } else if (g.kicked) {
     body = `<div class="title">L'animateur t'a retiré de cette partie</div><div class="artist">Tu peux en créer ou en rejoindre une autre.</div>`;
   } else if (!me && !g.master) {
     // Visiteur : pas encore dans la partie (Undercover en cours : il attendra la prochaine).
@@ -288,6 +327,7 @@ function renderGame(g) {
   $("game").innerHTML = title + body;
   const input = $("guessInput");
   if (input) { input.value = guessDraft; input.addEventListener("input", () => { guessDraft = input.value; }); }
+  renderRoulette(g);
   renderGameHost(g);
   $("gameCode").textContent = g.code;
   const qr = `/qr/game/${g.code}.svg`;
@@ -305,6 +345,94 @@ function resultsHtml(g) {
     ? `<div class="drink">🍻 ${drinkers.join(" et ")} boi${drinkers.length > 1 ? "vent" : "t"} ${sips} gorgée${sips > 1 ? "s" : ""} !</div>` : "";
   return drink + `<div class="list" style="margin-top:10px">${g.results.map((r) => `<div class="bar ${r.count === max ? "top" : ""}" style="--w:${Math.round(100 * r.count / max)}%">
     <span>${r.count === max ? "👑 " : ""}${esc(r.name)}</span><b>${r.count}</b></div>`).join("") || `<div class="artist">Personne n'a voté</div>`}</div>`;
+}
+
+// 🎡 Roulette : roue dessinée en SVG, tournée en CSS ; même tirage (index + décalage) sur tous les téléphones.
+const WHEEL_COLORS = ["#ff4f9a", "#ffb347", "#4fd1c5", "#8b7bff", "#ffe14d", "#3ddc97", "#ff7a59", "#5ab0ff"];
+let wheelSig = null, wheelSpinId = "", wheelRot = 0, wheelShown = "", spinningUntil = 0;
+
+function wheelSvg(names) {
+  const n = names.length, r = 96;
+  if (!n) return `<circle r="${r}" fill="#241d35"/><text y="5" text-anchor="middle" fill="#a79fba" font-size="12">Ajoute des noms</text>`;
+  const fs = Math.max(7, Math.min(13, 150 / n));
+  let out = "";
+  names.forEach((name, i) => {
+    const a0 = (i / n) * 2 * Math.PI - Math.PI / 2, a1 = ((i + 1) / n) * 2 * Math.PI - Math.PI / 2;
+    const color = WHEEL_COLORS[i % WHEEL_COLORS.length] === WHEEL_COLORS[0] && i === n - 1 && n > 1 ? WHEEL_COLORS[2] : WHEEL_COLORS[i % WHEEL_COLORS.length];
+    out += n === 1 ? `<circle r="${r}" fill="${color}"/>`
+      : `<path d="M0 0 L${(r * Math.cos(a0)).toFixed(2)} ${(r * Math.sin(a0)).toFixed(2)} A${r} ${r} 0 ${1 / n > 0.5 ? 1 : 0} 1 ${(r * Math.cos(a1)).toFixed(2)} ${(r * Math.sin(a1)).toFixed(2)} Z" fill="${color}" stroke="#0e0b16" stroke-width="1"/>`;
+    const mid = ((i + 0.5) / n) * 360;
+    const label = name.length > 14 ? name.slice(0, 13) + "…" : name;
+    out += `<text transform="rotate(${mid.toFixed(2)}) translate(0 ${-r * 0.56}) rotate(-90)" text-anchor="middle" dominant-baseline="middle" fill="#1a1020" font-size="${fs}" font-weight="700">${esc(label)}</text>`;
+  });
+  return out + `<circle r="11" fill="#0e0b16" stroke="#fff" stroke-width="2"/>`;
+}
+
+function setWheel(rot, seconds) {
+  const w = $("wheel");
+  w.style.transition = seconds ? `transform ${seconds}s cubic-bezier(.12,.8,.12,1)` : "none";
+  w.style.transform = `rotate(${rot}deg)`;
+}
+
+function showRouletteResult(g) {
+  const sp = g.spin;
+  const show = g.phase === "spun" && sp && wheelShown === sp.id;
+  $("rouletteResult").innerHTML = show
+    ? `<div class="roulette-loser">🎯 ${esc(sp.names[sp.index])}</div><div class="artist">a perdu !</div>` : "";
+}
+
+function renderRoulette(g) {
+  $("roulette").classList.toggle("hidden", g.type !== "roulette");
+  $("roulette").className = "roulette " + (g.type === "roulette" ? GAME_THEME.roulette : "hidden");
+  if (g.type !== "roulette") return;
+  const sp = g.phase === "spun" ? g.spin : null;
+  const names = sp ? sp.names : g.names;
+  const sig = names.join("|");
+  if (sig !== wheelSig) {
+    wheelSig = sig;
+    $("wheel").innerHTML = wheelSvg(names);
+    if (!sp && Date.now() > spinningUntil) { wheelRot = 0; setWheel(0, 0); }
+  }
+  if (sp && sp.id !== wheelSpinId) {
+    wheelSpinId = sp.id;
+    const n = sp.names.length, target = (sp.index + 0.5 + (sp.jitter || 0)) * (360 / n);
+    const left = Math.max(0, 4.8 - sp.age);
+    const base = wheelRot + 360 * (left ? 6 : 1);
+    wheelRot = base - (((base + target) % 360) + 360) % 360;
+    if (left > 0.3) {
+      // Tirage tout frais : la roue tourne, le perdant s'affiche à l'arrêt.
+      spinningUntil = Date.now() + left * 1000;
+      setWheel(wheelRot, left);
+      setTimeout(() => {
+        wheelShown = sp.id;
+        if (game?.spin?.id === sp.id) { showRouletteResult(game); renderGameHost(game); }
+        navigator.vibrate?.(150);
+      }, left * 1000 + 100);
+    } else {
+      setWheel(wheelRot, 0);
+      wheelShown = sp.id;
+    }
+  }
+  showRouletteResult(g);
+}
+
+function renderRouletteHost(g, btn) {
+  const sp = g.spin, spinning = Date.now() < spinningUntil;
+  const loser = g.phase === "spun" && sp && wheelShown === sp.id ? sp.names[sp.index] : "";
+  const joined = g.players.map((p) => p.name).filter((n) => !g.names.some((x) => x.toLowerCase() === n.toLowerCase()));
+  $("gameHost").innerHTML = `
+    ${g.is_host ? `
+      <div class="row" style="margin-top:10px">${btn("spin", spinning ? "La roue tourne…" : "🎡 Lancer la roue", "grow g-spin", g.names.length < 2 || spinning ? "disabled" : "")}</div>
+      ${loser && g.names.includes(loser) ? `<button class="secondary" data-gact="dropname" data-name="${esc(loser)}" style="width:100%;margin-top:8px">Retirer ${esc(loser)} de la roue</button>` : ""}
+      <h2>Sur la roue (${g.names.length})</h2>
+      <form data-gform="addname" class="row">
+        <input class="grow" type="text" id="rouletteName" maxlength="20" placeholder="Ajouter un nom" autocomplete="off">
+        <button>Ajouter</button>
+      </form>
+      <div class="chips" style="margin-top:8px">${g.names.map((n) => `<span class="pill name-chip">${esc(n)}<button type="button" class="chip-x" data-gact="dropname" data-name="${esc(n)}" aria-label="Retirer ${esc(n)}">✕</button></span>`).join("") || `<span class="artist">Aucun nom pour l'instant</span>`}</div>
+      ${joined.length ? `<button class="secondary" data-gact="addplayers" style="width:100%;margin-top:8px">👥 Ajouter les joueurs inscrits (${joined.length})</button>` : ""}` : ""}
+    ${g.history?.length ? `<h2>Derniers perdants</h2><div class="chips">${g.history.slice(0, 10).map((n, i) => `<span class="pill" style="${i === 0 ? "color:var(--text)" : ""}">${esc(n)}</span>`).join("")}</div>` : ""}
+    ${g.players.length ? `<h2>Spectateurs (${g.players.length})</h2><div class="chips">${g.players.map((p) => `<span class="pill">${esc(p.name)}</span>`).join("")}</div>` : ""}`;
 }
 
 // « Je n'ai jamais » : ceux qui l'ont déjà fait boivent.
@@ -333,6 +461,7 @@ function renderGameHost(g) {
     results: btn("next", "▶︎ Question suivante", "grow"),
     end: btn("restart", "🔁 Rejouer avec les mêmes joueurs", "grow"),
   }[g.phase] || "";
+  if (g.type === "roulette") return renderRouletteHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
   const canRemove = g.is_host;
   const seeRoles = g.phase === "end" || (g.master && showRoles);
@@ -383,9 +512,18 @@ document.addEventListener("click", (ev) => {
   if (a === "show") { wordShown = b.dataset.key; wordUntil = Date.now() + 3000; return renderGame(game); }
   if (a === "hide") { wordShown = ""; wordUntil = 0; return renderGame(game); }
   if (a === "roles") { showRoles = !showRoles; return renderGame(game); }
+  if (a === "dropname") return gameAction("names", { names: game.names.filter((n) => n !== b.dataset.name) });
+  if (a === "addplayers") return gameAction("names", { names: game.names.concat(game.players.map((p) => p.name)) });
   if (a === "eliminate" && !confirm("Éliminer ce joueur ?")) return;
   if (a === "remove" && !confirm("Exclure ce joueur de la partie ? Il ne pourra pas revenir.")) return;
   gameAction(a, { target: b.dataset.target || "" });
+});
+document.addEventListener("submit", (ev) => {
+  if (!ev.target.closest("[data-gform=addname]")) return;
+  ev.preventDefault();
+  const name = $("rouletteName").value.trim();
+  if (!name) return;
+  gameAction("names", { names: game.names.concat([name]) }).then(() => $("rouletteName")?.focus());
 });
 $("game").addEventListener("submit", (ev) => {
   if (!ev.target.closest("[data-gform]")) return;
@@ -407,7 +545,7 @@ document.addEventListener("click", async (ev) => {
   b.disabled = true;
   try {
     const g = await gapi("/api/games", { guest_id: guestId, name: guestName, type: b.dataset.create,
-      white: card.querySelector("[data-opt=white]")?.checked ?? true, plays: card.querySelector("[data-opt=plays]").checked,
+      white: card.querySelector("[data-opt=white]")?.checked ?? true, plays: card.querySelector("[data-opt=plays]")?.checked ?? false,
       mode: card.querySelector("[data-opt-group=mode] .on")?.dataset.val || "soft",
       sips: +(card.querySelector("[data-opt-group=sips] [data-val-out]")?.textContent || 0) });
     setGame(g.code); renderGame(g);
@@ -423,7 +561,7 @@ async function joinByCode() {
   await refreshGame();
 }
 // « ? » : règles détaillées du jeu.
-const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", never: "Je n'ai jamais" };
+const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", never: "Je n'ai jamais", roulette: "Roulette" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");
   if (open) {

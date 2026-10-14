@@ -275,3 +275,15 @@ def test_never_have_i_ever_round():
     v = games.view(g, "h")
     assert v["phase"] == "results" and {r["name"]: r["answer"] for r in v["results"]} == {"Ana": "yes", "H": "no"}
     assert v["mode"] == "😬 Malaisant" and games.summary(g)["name"] == "Je n'ai jamais · 😬 Malaisant"
+
+
+def test_roulette_names_and_spin():
+    g = games.new_game("roulette", host="h", name="H", plays=False)
+    games.set_names(g, ["  Léa ", "Tom", "léa", "", "Zoé"])
+    assert g["names"] == ["Léa", "Tom", "Zoé"]  # nettoyés, sans doublon
+    games.spin(g, random.Random(1))
+    v = games.view(g, "spectateur")
+    assert v["phase"] == "spun" and v["spin"]["names"][v["spin"]["index"]] == v["history"][0]
+    games.set_names(g, ["Seul"])
+    with pytest.raises(games.GameError):
+        games.spin(g)

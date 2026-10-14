@@ -241,3 +241,21 @@ details[open] > summary h2::after { content: " ▾"; }
 .never-res { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
 .never-col { background: var(--g-chip, var(--card-2)); border-radius: 14px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
 .never-col .pill { background: rgba(0,0,0,.25); color: #fff; }
+.g-rl { --g-bg: #1d5c2e; --g-accent: #ffd166; --g-ink: #2b1d00; --g-soft: #d4f5dc; --g-chip: #154522; }
+.game.g-rl { background: var(--g-bg); border: 0; color: #fff; border-radius: 22px; }
+.game.g-rl .artist, .game.g-rl .sub { color: var(--g-soft); }
+.game.g-rl button:not(.secondary) { background: var(--g-accent); color: var(--g-ink); }
+.game.g-rl button.secondary { background: var(--g-chip); color: #fff; }
+.game.g-rl button.g-help { background: rgba(255,255,255,.16); color: #fff; }
+.roulette { margin-top: 12px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.wheel-wrap { position: relative; width: min(100%, 340px); aspect-ratio: 1; }
+.wheel-wrap svg { width: 100%; height: 100%; display: block; border-radius: 50%; box-shadow: 0 0 0 6px var(--g-bg, #1d5c2e), 0 0 0 9px var(--g-accent, #ffd166), 0 12px 40px rgba(0,0,0,.5); }
+.wheel-pointer { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); z-index: 2; width: 0; height: 0;
+  border-left: 16px solid transparent; border-right: 16px solid transparent; border-top: 30px solid var(--g-accent, #ffd166);
+  filter: drop-shadow(0 3px 4px rgba(0,0,0,.5)); }
+.roulette-result { min-height: 64px; text-align: center; }
+.roulette-loser { font-family: "Bricolage Grotesque", system-ui, sans-serif; font-size: 2rem; font-weight: 800; animation: pop .4s ease-out; }
+@keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.name-chip { display: inline-flex; align-items: center; gap: 4px; color: var(--text); padding-right: 4px; }
+.chip-x { background: transparent; color: var(--muted); padding: 2px 6px; font-size: .8rem; }
+button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2b1d00; }

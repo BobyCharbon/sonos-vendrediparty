@@ -18,6 +18,7 @@ GAMES = {
     "undercover": "Undercover",
     "whoof": "Qui de nous ?",
     "never": "Je n'ai jamais",
+    "roulette": "Roulette",
 }
 
 # Undercover : les civils reçoivent un mot, les undercovers un mot proche ; Mr. White n'a pas de mot.
@@ -232,6 +233,8 @@ def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code
         "options": {"white": white, "mode": mode, "sips": max(0, min(10, int(sips)))}, "players": [], "round": 0, "order": [], "votes": {},
         "candidates": None, "last": None, "winner": None, "words": None, "used": [],
         "question": None, "results": None, "kicked": [],
+        # Roulette : noms notés par l'animateur, dernier tirage et perdants précédents.
+        "names": [], "spin": None, "history": [],
     }
     if host and plays:
         join(g, host, name)
@@ -308,6 +311,37 @@ def move(g: dict, gid: str, delta: int):
     i = items.index(key)
     j = max(0, min(len(items) - 1, i + delta))
     items.insert(j, items.pop(i))
+
+
+def set_names(g: dict, names: list[str]):
+    """Roulette : l'animateur note les participants (pas forcément inscrits à la partie)."""
+    if g["type"] != "roulette":
+        raise GameError("Pas une roulette")
+    clean = []
+    for n in names:
+        n = " ".join(str(n).split())[:20]
+        if n and n.lower() not in [c.lower() for c in clean]:
+            clean.append(n)
+    if len(clean) > 30:
+        raise GameError("30 noms au maximum")
+    g["names"] = clean
+    # Roue modifiée après un tirage : on revient à la préparation (le résultat affiché ne correspond plus).
+    if g["spin"] and clean != g["spin"]["names"]:
+        g["phase"] = "lobby"
+
+
+def spin(g: dict, rng: random.Random = random):
+    """Lance la roue : tout le monde voit la même animation et le même perdant."""
+    if g["type"] != "roulette":
+        raise GameError("Pas une roulette")
+    if len(g["names"]) < 2:
+        raise GameError("Il faut au moins 2 noms sur la roue")
+    i = rng.randrange(len(g["names"]))
+    g["spin"] = {"id": secrets.token_hex(4), "index": i, "names": list(g["names"]), "at": time.time(),
+                 "jitter": round(rng.uniform(-0.35, 0.35), 3)}
+    g["history"] = (g["history"] + [g["names"][i]])[-20:]
+    g["phase"] = "spun"
+    g["round"] += 1
 
 
 def start(g: dict, rng: random.Random = random):
@@ -519,6 +553,11 @@ def view(g: dict, gid: str) -> dict:
         "winner": g["winner"], "question": g["question"], "votes_count": len(g["votes"]), "options": g["options"],
         "kicked": bool(gid) and gid in g.get("kicked", []),
     }
+    if g["type"] == "roulette":
+        out["names"] = g.get("names", [])
+        out["history"] = list(reversed(g.get("history", [])))
+        if g.get("spin"):
+            out["spin"] = {**g["spin"], "age": time.time() - g["spin"]["at"]}
     last = g["last"] or {}
     if last.get("eliminated"):
         p = player(g, last["eliminated"])
