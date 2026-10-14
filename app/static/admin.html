@@ -62,17 +62,10 @@
           <span id="volumeLabel" style="width:2.5em;text-align:right;font-variant-numeric:tabular-nums"></span>
         </div>
 
-        <h2>À suivre</h2>
-        <div id="queuePreview" class="list"></div>
-        <button class="secondary" data-tab="queue" type="button" style="width:100%;margin-top:8px">📋 Voir toute la file d'attente</button>
+        <h2>File d'attente <span id="queueCount"></span></h2>
+        <p class="sub" style="margin-top:-4px;font-size:.85rem">⏫ jouer ensuite · ⬆⬇ déplacer · ▶︎ jouer maintenant · ✕ retirer</p>
+        <div id="queue" class="list"></div>
       </div>
-    </section>
-
-    <!-- 📋 File d'attente -->
-    <section data-view="queue" class="hidden">
-      <h2 style="margin-top:8px">File d'attente <span id="queueCount"></span></h2>
-      <p class="sub" style="margin-top:-4px;font-size:.85rem">⏫ jouer ensuite · ⬆⬇ déplacer · ▶︎ jouer maintenant · ✕ retirer</p>
-      <div id="queue" class="list"></div>
     </section>
 
     <!-- ⚙️ Réglages -->
@@ -126,8 +119,7 @@
   </div>
 
   <nav id="tabs" class="tabs hidden">
-    <button type="button" data-tab="home">🎵<span>Lecture</span></button>
-    <button type="button" data-tab="queue">📋<span>File</span><i id="queueBadge" class="badge hidden"></i></button>
+    <button type="button" data-tab="home">🎵<span>Soirée</span></button>
     <button type="button" data-tab="settings">⚙️<span>Réglages</span><i id="settingsBadge" class="badge hidden"></i></button>
   </nav>
 
@@ -158,8 +150,8 @@ async function api(path, body) {
 }
 function showLogin() { $("login").classList.remove("hidden"); $("panel").classList.add("hidden"); $("tabs").classList.add("hidden"); }
 
-// Trois écrans : 🎵 Lecture, 📋 File, ⚙️ Réglages (mémorisé dans l'adresse : /admin#queue…).
-const VIEWS = ["home", "queue", "settings"];
+// Deux écrans : 🎵 Soirée (lecture + file complète) et ⚙️ Réglages (/admin#settings).
+const VIEWS = ["home", "settings"];
 function showView(view) {
   if (!VIEWS.includes(view)) view = "home";
   document.querySelectorAll("[data-view]").forEach((el) => el.classList.toggle("hidden", el.dataset.view !== view));
@@ -208,10 +200,7 @@ function render(s) {
   $("tabs").classList.remove("hidden");
   $("setup").classList.toggle("hidden", s.active);
   for (const id of ["live", "liveSettings", "liveGuests", "liveHistory"]) $(id).classList.toggle("hidden", !s.active);
-  if (!s.active) {
-    $("queue").innerHTML = `<p class="empty">Aucune soirée en cours</p>`;
-    $("queueCount").textContent = ""; $("queueBadge").classList.add("hidden"); $("settingsBadge").classList.add("hidden");
-  }
+  if (!s.active) $("settingsBadge").classList.add("hidden");
   renderBans(s);
   $("guestPin").textContent = s.guest_pin;
   $("guestUrl").textContent = (s.public_url || location.origin) + "/?pin=" + s.guest_pin;
@@ -261,7 +250,7 @@ const drafts = {};  // réponses en cours de saisie, conservées entre deux rafr
 function renderMessages(s) {
   const unread = s.messages.filter((m) => !m.read);
   for (const b of ["msgBadge", "settingsBadge"]) {
-    $(b).textContent = unread.length; $(b).classList.toggle("hidden", !unread.length);
+    $(b).textContent = unread.length > 9 ? "9+" : unread.length; $(b).classList.toggle("hidden", !unread.length);
   }
   $("msgActions").classList.toggle("hidden", !unread.length);
   document.title = (unread.length ? `(${unread.length}) ` : "") + "Party Admin";
@@ -298,14 +287,7 @@ function renderMessages(s) {
 function renderQueue(s) {
   const q = s.queue || [];
   $("queueCount").textContent = q.length ? `(${q.length})` : "";
-  $("queueBadge").textContent = q.length > 99 ? "99+" : q.length;
-  $("queueBadge").classList.toggle("hidden", !q.length);
-  $("queuePreview").innerHTML = q.length ? q.slice(0, 5).map((t) => `
-    <div class="track ${t.by ? "guest" : ""}">
-      ${t.art ? `<img src="${esc(t.art)}" alt="" loading="lazy" onerror="this.removeAttribute('src')">` : `<img alt="">`}
-      <div class="meta"><div class="title">${esc(t.title)}</div><div class="artist">${esc(t.artist)}</div>
-        ${t.by ? `<span class="by">ajouté par ${esc(t.by)}</span>` : ""}</div>
-    </div>`).join("") : `<p class="empty">La file est vide</p>`;
+
   $("queue").innerHTML = q.length ? q.map((t, i) => `
     <div class="track ${t.by ? "guest" : ""}">
       ${t.art ? `<img src="${esc(t.art)}" alt="" loading="lazy" onerror="this.removeAttribute('src')">` : `<img alt="">`}
