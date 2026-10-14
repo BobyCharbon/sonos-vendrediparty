@@ -470,7 +470,7 @@ def bj_deal(g: dict, rng: random.Random = random):
             h["status"] = "blackjack"
     bj["dealer"] = [_bj_draw(g, rng), _bj_draw(g, rng)]
     g["phase"] = "play"
-    _bj_log(g, None, f"distribue · le croupier montre {card_label(bj['dealer'][0])}")
+    _bj_log(g, None, f"distribue et montre {card_label(bj['dealer'][0])}")
     for gid in seats:
         if bj["hands"][gid]["status"] == "blackjack":
             _bj_log(g, gid, "Blackjack ! 🃏")
