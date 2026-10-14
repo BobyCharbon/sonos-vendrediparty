@@ -10,7 +10,8 @@ GAME_ICONS.roulette = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor
 GAME_ICONS.blackjack = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="21" height="29" rx="3" transform="rotate(-10 15.5 25.5)"/><rect x="21" y="8" width="21" height="29" rx="3" transform="rotate(8 31.5 22.5)"/><path d="M31.5 15.5c-2.8 2.8-5.5 4.6-5.5 7.2a2.7 2.7 0 0 0 4.6 1.9l-.9 3h3.6l-.9-3a2.7 2.7 0 0 0 4.6-1.9c0-2.6-2.7-4.4-5.5-7.2z"/></svg>`;
 GAME_ICONS.casino = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="24" r="19"/><circle cx="24" cy="24" r="10"/><path d="M24 5v9M24 34v9M5 24h9M34 24h9M10.6 10.6l6.3 6.3M31.1 31.1l6.3 6.3M37.4 10.6l-6.3 6.3M16.9 31.1l-6.3 6.3"/><circle cx="24" cy="24" r="2.5" fill="currentColor"/><circle cx="36" cy="8" r="3" fill="currentColor" stroke="none"/></svg>`;
 GAME_ICONS.divan = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 24v-7a5 5 0 0 1 5-5h18a5 5 0 0 1 5 5v7"/><path d="M6 24a4 4 0 0 1 8 0v4h20v-4a4 4 0 0 1 8 0v10H6z"/><path d="M10 34v4M38 34v4"/></svg>`;
-const GAME_THEME = { undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv" };
+GAME_ICONS.tmc = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="15" cy="15" r="6"/><circle cx="33" cy="15" r="6"/><path d="M4 38c1-7 5-11 11-11 3 0 5 1 7 3M44 38c-1-7-5-11-11-11-3 0-5 1-7 3"/><path d="M24 44s-6-3.6-6-7.6a3 3 0 0 1 6-1 3 3 0 0 1 6 1c0 4-6 7.6-6 7.6z"/></svg>`;
+const GAME_THEME = { undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv", tmc: "g-tm" };
 const isBJ = (g) => g.type === "blackjack";
 const helpBtn = (type, inGame = false) => `<button type="button" class="g-help" data-rules="${type}" ${inGame ? "data-ingame" : ""} aria-label="Règles du jeu">?</button>`;
 
@@ -82,6 +83,24 @@ const CASINO_RULES_DRINKS = `
     <p>Exemple : 2 gorgées sur Rouge et 1 sur le 17. Le 17 (noir) sort : tu bois 2 (Rouge perdu) et tu distribues 10 (jackpot) !</p>
     <p>Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi. Buvez avec modération !</p>`;
 const GAME_RULES = {
+  tmc: `
+    <h3>Le principe</h3>
+    <p>Qui te connaît le mieux ? À chaque tour, <b>deux joueurs</b> sont tirés au sort : l'un répond à une question sur lui-même, l'autre doit <b>deviner sa réponse</b>.</p>
+    <h3>Un tour</h3>
+    <ol>
+      <li>Une question s'affiche, par exemple « Quelle est ta voiture de rêve ? ».</li>
+      <li>La personne interrogée écrit <b>sa vraie réponse</b>, en secret.</li>
+      <li>Son ou sa partenaire du tour écrit ce qu'il ou elle pense qu'elle a répondu.</li>
+      <li>Les deux réponses s'affichent sur tous les téléphones. La personne interrogée juge : <b>✅ juste</b> (1 point), <b>🤏 presque</b> (½ point) ou <b>❌ faux</b>.</li>
+      <li>L'animateur passe au duo suivant. L'app fait tourner les duos : chacun devine chacun, dans les deux sens, avant qu'un duo ne revienne.</li>
+    </ol>
+    <h3>Les points</h3>
+    <ul>
+      <li><b>Classement général</b> : les points de chaque joueur quand il devine.</li>
+      <li><b>Tes amitiés</b> : qui tu connais le mieux, et qui te connaît le mieux (en % de bonnes réponses).</li>
+      <li><b>Meilleurs duos</b> : les paires qui se connaissent le mieux dans les deux sens.</li>
+    </ul>
+    <p>Quand vous voulez, l'animateur termine la partie pour afficher le bilan. Pas de nombre de joueurs maximum (à partir de 2).</p>`,
   divan: `
     <h3>Le principe</h3>
     <p>Un jeu de cartes pour parler de soi : chacun passe à son tour <b>sur le divan</b> et répond à une question. Pas de points, pas de gagnant : juste de vraies conversations.</p>
@@ -292,6 +311,18 @@ document.getElementById("gamesRoot").innerHTML = `
         <button class="g-go" data-create="roulette">Créer une roulette</button>
       </div>
 
+      <div class="gcard g-tm">
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.tmc}</div>
+          <div class="g-meta"><div class="g-title">Tu me connais ?</div><div class="g-tag">Qui te connaît le mieux ?</div></div>
+          ${helpBtn("tmc")}
+        </div>
+        <p class="g-desc">Deux joueurs sont tirés au sort : l'un répond en secret à une question sur lui, l'autre devine sa réponse. Points au classement général… et par duo, pour savoir qui connaît le mieux qui.</p>
+        <div class="g-chips"><span>2+ joueurs</span><span>Questions ouvertes</span><span>Points d'amitié</span></div>
+        <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
+        <button class="g-go" data-create="tmc">Créer une partie</button>
+      </div>
+
       <div class="gcard g-dv">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.divan}</div>
@@ -384,7 +415,8 @@ document.getElementById("gamesRoot").innerHTML = `
 // 🎮 Jeux : n'importe qui crée une partie (code + QR) et l'anime ; les autres la rejoignent avec son code.
 let myGame = store("vp_game") || "", game = null, wordShown = "", wordUntil = 0, guessDraft = "", showRoles = false, autoJoin = false;
 const GAME_PHASES = { lobby: "Inscriptions", words: "Indices", vote: "Vote", white_guess: "Devinette de Mr. White",
-  reveal: "Résultat de la manche", end: "Partie terminée", question: "Question", results: "Résultats", spun: "Résultat", bet: "Mises", play: "Partie", card: "En séance" };
+  reveal: "Résultat de la manche", end: "Partie terminée", question: "Question", results: "Résultats", spun: "Résultat", bet: "Mises", play: "Partie", card: "En séance",
+  answer: "Réponses en secret", judge: "Verdict", scored: "Résultat du duo" };
 const phaseLabel = (g) => (g.type === "roulette" || isBJ(g) || g.type === "casino") && g.phase === "lobby" ? "Préparation"
   : g.type === "casino" && g.phase === "bet" ? "Faites vos jeux" : GAME_PHASES[g.phase];
 const WINNERS = { civils: "Les civils ont gagné 🎉", impostors: "Les undercovers ont gagné 🕵️", white: "Mr. White a trouvé le mot et gagne 🎩" };
@@ -447,13 +479,15 @@ function renderGame(g) {
   renderCasino(g);  // avant le texte : il dépend de l'état de la bille (en train de rouler ou arrêtée)
   const title = `<div class="g-head g-play-head"><div class="g-icon">${GAME_ICONS[g.type] || ""}</div>
     <div class="g-meta"><div class="g-title">${esc(g.name)}</div>
-    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${phaseLabel(g)}${g.round && g.phase !== "lobby" ? ` · ${{ undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte" }[g.type] || "question"} ${g.round}` : ""} · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
+    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${phaseLabel(g)}${g.round && g.phase !== "lobby" ? ` · ${{ undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte", tmc: "duo" }[g.type] || "question"} ${g.round}` : ""} · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
     ${helpBtn(g.type, true)}</div>`;
   const lastLine = g.last?.name ? `<p class="sub" style="margin:8px 0">${esc(g.last.name)} était <b>${esc(g.last.role)}</b>.${g.last.guess ? ` Mr. White a proposé « ${esc(g.last.guess)} »… raté !` : ""}</p>` : "";
   let body = "";
 
   if (g.type === "divan") {
     body = divanHtml(g);
+  } else if (g.type === "tmc" && g.phase !== "lobby" && (me || g.master) && !g.kicked) {
+    body = tmcHtml(g);
   } else if (g.type === "casino") {
     body = casinoStatusHtml(g);
   } else if (isBJ(g)) {
@@ -801,6 +835,85 @@ function renderDivanHost(g, btn) {
     ${g.is_host && !g.me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
 }
 
+// 💞 Tu me connais ? : le sujet répond en secret, le devin devine, le sujet juge.
+const tmcPts = (x) => Number.isInteger(x) ? String(x) : `${Math.floor(x) || ""}½`;
+const TMC_VERDICT = { 1: ["✅", "Juste !"], 0.5: ["🤏", "Presque !"], 0: ["❌", "Raté !"] };
+function tmcHtml(g) {
+  const t = g.tmc, d = t.duo;
+  if (!d) return "";
+  const G = esc(d.guesser.name), S = esc(d.subject.name);
+  const duo = `<div class="tm-duo"><span class="tm-who ${d.role === "guesser" ? "me" : ""}">🔮 ${d.role === "guesser" ? "Toi" : G}<small>devine</small></span>
+    <span class="tm-arrow">→</span><span class="tm-who ${d.role === "subject" ? "me" : ""}">🎯 ${d.role === "subject" ? "Toi" : S}<small>répond</small></span></div>`;
+  const q = `<div class="tm-q">${esc(d.question)}</div>`;
+  const form = (ph) => `<form data-gform="tanswer" class="row" style="margin-top:10px"><input class="grow" type="text" id="guessInput" maxlength="80" placeholder="${ph}" autocomplete="off"><button>Valider</button></form>`;
+  if (g.phase === "answer") {
+    const done = (p) => d.answered[p.pid] ? "✓" : "…";
+    let zone;
+    if (d.role && d.mine) zone = `<div class="tm-sent">✓ Ta réponse : « ${esc(d.mine)} »</div>
+      <div class="artist" style="margin-top:6px">En attente de ${d.role === "subject" ? G : S}…</div>`;
+    else if (d.role === "subject") zone = `<div class="artist" style="margin-top:8px">Réponds <b>en secret</b> : ${G} doit deviner ta réponse.</div>${form("Ta vraie réponse")}`;
+    else if (d.role === "guesser") zone = `<div class="artist" style="margin-top:8px">Que va répondre <b>${S}</b> ? Devine !</div>${form(`Ce que ${d.subject.name} va répondre`)}`;
+    else zone = `<div class="artist" style="margin-top:8px">${S} répond en secret ${done(d.subject)} · ${G} devine ${done(d.guesser)}</div>`;
+    return duo + q + zone;
+  }
+  const a = d.answers || {};
+  const reveal = `<div class="tm-answers"><div><small>${S} a répondu</small><b>${esc(a.subject || "—")}</b></div>
+    <div><small>${G} a deviné</small><b>${esc(a.guesser || "—")}</b></div></div>`;
+  let zone = "";
+  if (g.phase === "judge") {
+    zone = d.can_judge
+      ? `<div class="artist" style="margin-top:10px">${d.role === "subject" ? "C'est juste ?" : `${S} ne répond pas ? Tu peux juger à sa place :`}</div>
+        <div class="tm-judge"><button data-gact="tjudge" data-amount="2">✅ Juste</button><button class="secondary" data-gact="tjudge" data-amount="1">🤏 Presque</button><button class="secondary" data-gact="tjudge" data-amount="0">❌ Faux</button></div>`
+      : `<div class="artist" style="margin-top:10px">${S} juge la réponse…</div>`;
+  } else if (d.verdict !== null && d.verdict !== undefined) {
+    const [icon, word] = TMC_VERDICT[d.verdict];
+    zone = `<div class="tm-verdict v${String(d.verdict).replace(".", "")}">${icon} ${word} ${d.verdict ? `+${tmcPts(d.verdict)} pour ${d.role === "guesser" ? "toi" : G}` : ""}</div>`;
+  }
+  if (g.phase === "end") return `<div class="title">🏁 Bilan de la partie</div>${tmcPodium(g)}${tmcMine(g)}`;
+  return duo + q + reveal + zone;
+}
+function tmcPodium(g) {
+  const r = g.tmc.ranking.filter((x) => x.asked);
+  const medal = ["🥇", "🥈", "🥉"];
+  return r.length ? `<div class="list" style="margin-top:10px">${r.map((x, i) => `<div class="bar ${i === 0 ? "top" : ""}" style="--w:${Math.round(100 * x.pts / Math.max(1, r[0].pts))}%">
+    <span>${medal[i] || ""} ${esc(x.name)}</span><b>${tmcPts(x.pts)}/${x.asked}</b></div>`).join("")}</div>` : `<div class="artist">Aucun point pour l'instant.</div>`;
+}
+// Mes amitiés : qui je connais le mieux, qui me connaît le mieux.
+function tmcMine(g) {
+  const me = g.me?.pid;
+  if (!me) return "";
+  const best = (rows) => rows.sort((a, b) => b.pct - a.pct || b.pts - a.pts)[0];
+  const k = best(g.tmc.pairs.filter((p) => p.guesser.pid === me)), b = best(g.tmc.pairs.filter((p) => p.subject.pid === me));
+  if (!k && !b) return "";
+  return `<div class="tm-mine">${k ? `<div>🔮 Tu connais le mieux <b>${esc(k.subject.name)}</b> <span>${tmcPts(k.pts)}/${k.asked} · ${k.pct} %</span></div>` : ""}
+    ${b ? `<div>🎯 Te connaît le mieux : <b>${esc(b.guesser.name)}</b> <span>${tmcPts(b.pts)}/${b.asked} · ${b.pct} %</span></div>` : ""}</div>`;
+}
+function renderTmcHost(g, btn) {
+  const t = g.tmc;
+  const controls = !g.is_host ? "" : {
+    lobby: btn("start", "▶︎ Premier duo", "grow", g.players.length < 2 ? "disabled" : ""),
+    answer: btn("tq", "🔄 Autre question", "secondary") + btn("next", "⏭ Autre duo", "secondary grow"),
+    judge: btn("next", "⏭ Passer", "secondary grow"),
+    scored: btn("next", "▶︎ Duo suivant", "grow"),
+    end: btn("restart", "🔁 Rejouer (scores à zéro)", "grow"),
+  }[g.phase] || "";
+  const finish = g.is_host && !["lobby", "end"].includes(g.phase) ? `<button class="secondary" data-gact="finish" style="width:100%;margin-top:8px">🏁 Terminer et voir le bilan</button>` : "";
+  const playing = g.phase !== "lobby";
+  $("gameHost").innerHTML = `
+    ${controls ? `<div class="row" style="margin-top:10px">${controls}</div>` : ""}${finish}
+    ${playing && g.phase !== "end" ? tmcMine(g) : ""}
+    ${playing && g.phase !== "end" ? `<h2>Classement</h2>${tmcPodium(g)}` : ""}
+    ${playing && t.duos.length ? `<h2>Meilleurs duos</h2><div class="list">${t.duos.slice(0, 5).map((x, i) => `<div class="track"><div class="meta">
+      <div class="title">${i === 0 ? "💞 " : ""}${esc(x.a.name)} & ${esc(x.b.name)}</div><div class="artist">${tmcPts(x.pts)}/${x.asked} · ${x.pct} % de bonnes réponses</div></div></div>`).join("")}</div>` : ""}
+    <h2>Joueurs (${g.players.length})</h2>
+    <div class="list">${g.players.map((p) => `
+      <div class="track ${t.duo && g.phase !== "end" && [t.duo.guesser.pid, t.duo.subject.pid].includes(p.pid) ? "bj-turn" : ""}">
+        <div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}</div></div>
+        ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie">✕</button>` : ""}
+      </div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
+    ${g.is_host && !g.me && (g.phase === "lobby" || g.phase === "end") ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
+}
+
 // 🎰 Casino : roue européenne en SVG ; la roue et la bille tournent en sens inverse, même tirage sur tous les écrans.
 const WHEEL = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
 const RED = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
@@ -1084,6 +1197,7 @@ function renderGameHost(g) {
   if (isBJ(g)) return renderBJHost(g, btn);
   if (g.type === "casino") return renderCasinoHost(g, btn);
   if (g.type === "divan") return renderDivanHost(g, btn);
+  if (g.type === "tmc") return renderTmcHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
   const canRemove = g.is_host;
   const seeRoles = g.phase === "end" || (g.master && showRoles);
@@ -1170,7 +1284,7 @@ $("game").addEventListener("submit", (ev) => {
   if (!ev.target.closest("[data-gform]")) return;
   ev.preventDefault();
   if (!guessDraft.trim()) return;
-  gameAction("guess", { guess: guessDraft.trim() });
+  gameAction(ev.target.closest("[data-gform]").dataset.gform === "tanswer" ? "tanswer" : "guess", { guess: guessDraft.trim() });
   guessDraft = "";
 });
 $("gameLeave").onclick = () => {
@@ -1222,7 +1336,7 @@ function rulesFor(type, g) {
 
 // « ? » : règles détaillées du jeu.
 const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", never: "Je n'ai jamais", roulette: "Roulette",
-  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan" };
+  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");
   if (open) {

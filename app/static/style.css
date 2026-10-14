@@ -511,3 +511,31 @@ button.cs-spin { height: 54px; font-size: 1rem; background: #f2c14e; color: #2b1
 .g-ended-bar { margin-top: 18px; height: 4px; border-radius: 99px; background: #2c2440; overflow: hidden; }
 .g-ended-bar i { display: block; height: 100%; background: var(--accent); animation: g-ended-bar 5s linear forwards; }
 @keyframes g-ended-bar { from { width: 100%; } to { width: 0; } }
+
+/* 💞 Tu me connais ? */
+.g-tm { --g-bg: #5b2a86; --g-accent: #ff8fab; --g-ink: #3a0018; --g-soft: #f3d9ff; --g-chip: #46206a; }
+.game.g-tm { background: var(--g-bg); border: 0; color: #fff; border-radius: 22px; }
+.game.g-tm .artist { color: var(--g-soft); }
+.game.g-tm button:not(.secondary) { background: var(--g-accent); color: var(--g-ink); }
+.game.g-tm button.secondary { background: var(--g-chip); color: #fff; }
+.game.g-tm button.g-help { background: rgba(255,255,255,.16); color: #fff; }
+.tm-duo { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 6px; }
+.tm-who { display: flex; flex-direction: column; align-items: center; padding: 8px 14px; border-radius: 14px; background: rgba(0,0,0,.22); font-weight: 800; font-size: 1.1rem; }
+.tm-who small { font-size: .72rem; font-weight: 600; opacity: .7; text-transform: uppercase; letter-spacing: .08em; }
+.tm-who.me { background: var(--g-accent); color: var(--g-ink); }
+.tm-arrow { font-size: 1.4rem; opacity: .7; }
+.tm-q { margin-top: 12px; padding: 16px; border-radius: 16px; background: var(--g-soft); color: #241030; text-align: center;
+  font: 800 clamp(1.2rem, 5.5vw, 1.5rem)/1.25 "Bricolage Grotesque", system-ui, sans-serif; }
+.tm-sent { margin-top: 10px; font-weight: 700; }
+.tm-answers { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.tm-answers > div { padding: 10px; border-radius: 12px; background: rgba(0,0,0,.22); min-width: 0; }
+.tm-answers small { display: block; font-size: .75rem; opacity: .75; }
+.tm-answers b { font-size: 1.1rem; overflow-wrap: anywhere; }
+.tm-judge { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
+.tm-judge button { padding-left: 4px; padding-right: 4px; }
+.tm-verdict { margin-top: 12px; padding: 12px; border-radius: 14px; text-align: center; font-weight: 800; font-size: 1.2rem; animation: pop .4s ease-out; background: rgba(0,0,0,.25); }
+.tm-verdict.v1 { background: #2e8b57; color: #fff; }
+.tm-verdict.v05 { background: #c98a1b; color: #fff; }
+.tm-mine { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.tm-mine > div { padding: 10px 12px; border-radius: 12px; background: var(--card-2, rgba(255,255,255,.06)); }
+.tm-mine span { float: right; opacity: .75; font-variant-numeric: tabular-nums; }

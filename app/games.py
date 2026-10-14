@@ -15,6 +15,7 @@ import time
 import unicodedata
 
 from .divan_cards import DIVAN_CARDS
+from .tmc_questions import TMC_QUESTIONS
 
 GAMES = {
     "undercover": "Undercover",
@@ -24,6 +25,7 @@ GAMES = {
     "blackjack": "Blackjack",
     "casino": "Casino",
     "divan": "Le Divan",
+    "tmc": "Tu me connais ?",
 }
 BLACKJACKS = ("blackjack",)
 
@@ -253,6 +255,8 @@ def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code
         "casino": {"bets": {}, "chips": {}, "rebuys": {}, "spin": None, "history": [], "results": {}},
         # Le Divan : catégories choisies, joueur sur le divan, carte en cours, soutiens reçus.
         "divan": {"cats": list(DIVAN_DEFAULT), "turn": 0, "card": None, "used": [], "hearts": [], "joker": False, "n": 0},
+        # Tu me connais ? : duo en cours, points par joueur et par duo (« a>b » : a devine b), noms des joueurs partis.
+        "tmc": {"duo": None, "scores": {}, "pairs": {}, "names": {}, "used": [], "last": []},
     }
     if host and plays:
         join(g, host, name)
@@ -326,6 +330,8 @@ def leave(g: dict, gid: str):
                 bj["turn"] = bj["seats"].index(current)
         elif g["phase"] == "bet" and bj["hands"] and all(p["id"] in bj["hands"] for p in g["players"]):
             bj_deal(g)  # il ne manquait que sa mise
+    if g["type"] == "tmc":
+        tmc_left(g, gid)
     if g["type"] == "undercover":
         if g["phase"] == "white_guess" and g["last"] and g["last"]["eliminated"] == gid:
             skip_white_guess(g)  # Mr. White parti avant de deviner
@@ -878,9 +884,148 @@ def divan_view(g: dict, gid: str) -> dict:
             "can_back": bool(gid) and bool(d.get("back")) and (gid == g["host"] or (bool(cur) and cur["id"] == gid) or d["back"][-1]["by"] == gid)}
 
 
+# --- Tu me connais ? ---
+# Deux joueurs sont tirés : l'un (le sujet) répond en secret à une question sur lui-même,
+# l'autre (le devin) essaie de deviner sa réponse. Le sujet juge : juste (1 point), presque (½) ou faux (0).
+
+TMC_VERDICTS = {0: 0.0, 1: 0.5, 2: 1.0}  # body.amount → points
+
+
+def _tmc_pick(g: dict, rng):
+    """Duo suivant : d'abord les duos (dans ce sens) les moins joués, en évitant le duo précédent."""
+    t, ids = g["tmc"], [p["id"] for p in g["players"]]
+    pairs = [(a, b) for a in ids for b in ids if a != b]
+    last = set(t["last"])
+
+    def cost(ab):
+        return t["pairs"].get(f"{ab[0]}>{ab[1]}", {}).get("asked", 0) * 10 + len(last & set(ab))
+    best = min(cost(ab) for ab in pairs)
+    return rng.choice([ab for ab in pairs if cost(ab) == best])
+
+
+def _tmc_question(g: dict, rng) -> str:
+    t = g["tmc"]
+    left = [q for q in TMC_QUESTIONS if q not in t["used"]] or TMC_QUESTIONS
+    q = rng.choice(left)
+    t["used"] = (t["used"] + [q])[-(len(TMC_QUESTIONS) - 1):]
+    return q
+
+
+def tmc_next(g: dict, rng: random.Random = random):
+    """Nouveau duo et nouvelle question."""
+    if g["phase"] == "end" or len(g["players"]) < 2:
+        raise GameError("Il faut au moins 2 joueurs")
+    t = g["tmc"]
+    guesser, subject = _tmc_pick(g, rng)
+    for i in (guesser, subject):
+        t["names"][i] = player(g, i)["name"]
+    t["duo"] = {"guesser": guesser, "subject": subject, "q": _tmc_question(g, rng), "answers": {}, "verdict": None}
+    t["last"] = [guesser, subject]
+    g["phase"] = "answer"
+    g["round"] += 1
+
+
+def tmc_change_question(g: dict, rng: random.Random = random):
+    """Même duo, autre question (tant que personne n'a répondu… ou si la question ne plaît pas)."""
+    d = g["tmc"]["duo"]
+    if g["phase"] != "answer" or not d:
+        raise GameError("Pas maintenant")
+    d.update(q=_tmc_question(g, rng), answers={})
+
+
+def tmc_answer(g: dict, gid: str, text: str):
+    d = g["tmc"]["duo"]
+    text = " ".join((text or "").split())[:80]
+    if g["phase"] != "answer" or not d or gid not in (d["guesser"], d["subject"]):
+        raise GameError("Ce n'est pas à toi de répondre")
+    if not text:
+        raise GameError("Écris une réponse")
+    d["answers"][gid] = text
+    if len(d["answers"]) == 2:
+        g["phase"] = "judge"
+
+
+def tmc_judge(g: dict, gid: str, amount: int):
+    """Le sujet (ou l'animateur) dit si le devin a vu juste."""
+    t = g["tmc"]
+    d = t["duo"]
+    if g["phase"] != "judge" or not d or gid not in (d["subject"], g["host"]):
+        raise GameError("C'est à la personne interrogée de juger")
+    if amount not in TMC_VERDICTS:
+        raise GameError("Verdict inconnu")
+    pts = TMC_VERDICTS[amount]
+    d["verdict"] = pts
+    pair = t["pairs"].setdefault(f"{d['guesser']}>{d['subject']}", {"asked": 0, "pts": 0.0})
+    pair["asked"] += 1
+    pair["pts"] += pts
+    t["scores"][d["guesser"]] = t["scores"].get(d["guesser"], 0.0) + pts
+    g["phase"] = "scored"
+
+
+def tmc_finish(g: dict):
+    if g["phase"] in ("lobby", "end"):
+        raise GameError("Pas maintenant")
+    g["phase"] = "end"
+
+
+def tmc_left(g: dict, gid: str, rng=random):
+    """Un joueur du duo s'en va en pleine question : on passe au duo suivant."""
+    d = g["tmc"]["duo"]
+    if d and gid in (d["guesser"], d["subject"]) and g["phase"] in ("answer", "judge"):
+        if len(g["players"]) >= 2:
+            tmc_next(g, rng)
+        else:
+            g["phase"], g["tmc"]["duo"] = "end", None
+
+
+def _tmc_pct(pair: dict) -> int:
+    return round(100 * pair["pts"] / pair["asked"]) if pair.get("asked") else 0
+
+
+def tmc_view(g: dict, gid: str) -> dict:
+    t = g["tmc"]
+    d = t["duo"]
+    pid = lambda i: _pid(g, i)
+    name = lambda i: (player(g, i) or {}).get("name") or t["names"].get(i, "?")
+    who = lambda i: {"pid": pid(i), "name": name(i)}
+    duo = None
+    if d:
+        reveal = g["phase"] in ("judge", "scored", "end")
+        duo = {"guesser": who(d["guesser"]), "subject": who(d["subject"]), "question": d["q"],
+               "role": "guesser" if gid == d["guesser"] else "subject" if gid == d["subject"] else None,
+               "answered": {pid(i): True for i in d["answers"]}, "mine": d["answers"].get(gid),
+               "answers": {"guesser": d["answers"].get(d["guesser"]), "subject": d["answers"].get(d["subject"])} if reveal else None,
+               "verdict": d["verdict"], "can_judge": g["phase"] == "judge" and gid in (d["subject"], g["host"])}
+    # Classement : points, et nombre de questions où chacun a deviné.
+    asked = {}
+    for k, p in t["pairs"].items():
+        a = k.split(">")[0]
+        asked[a] = asked.get(a, 0) + p["asked"]
+    everyone = list(dict.fromkeys([p["id"] for p in g["players"]] + list(t["scores"])))
+    ranking = sorted(({**who(i), "pts": t["scores"].get(i, 0.0), "asked": asked.get(i, 0)} for i in everyone),
+                     key=lambda r: (-r["pts"], r["asked"], r["name"].lower()))
+    pairs = [{"guesser": who(k.split(">")[0]), "subject": who(k.split(">")[1]), "asked": p["asked"], "pts": p["pts"],
+              "pct": _tmc_pct(p)} for k, p in t["pairs"].items() if p["asked"]]
+    # Duos d'amis : points des deux sens réunis.
+    duos = {}
+    for k, p in t["pairs"].items():
+        a, b = k.split(">")
+        key = tuple(sorted((a, b)))
+        x = duos.setdefault(key, {"asked": 0, "pts": 0.0})
+        x["asked"] += p["asked"]
+        x["pts"] += p["pts"]
+    best_duos = sorted(({"a": who(a), "b": who(b), "asked": x["asked"], "pts": x["pts"], "pct": _tmc_pct(x)}
+                        for (a, b), x in duos.items() if x["asked"]), key=lambda r: (-r["pct"], -r["pts"]))
+    return {"duo": duo, "ranking": ranking, "pairs": pairs, "duos": best_duos}
+
+
 def start(g: dict, rng: random.Random = random):
     """Distribue les rôles (Undercover) ou pose la première question (Qui de nous ?)."""
-    if g["type"] == "divan":
+    if g["type"] == "tmc":
+        if len(g["players"]) < 2:
+            raise GameError("Il faut au moins 2 joueurs")
+        tmc_next(g, rng)
+    elif g["type"] == "divan":
         if not g["players"]:
             raise GameError("Il faut au moins 1 joueur")
         g["phase"] = "card"
@@ -1039,6 +1184,9 @@ def _check_end(g: dict) -> bool:
 
 
 def next_step(g: dict, rng: random.Random = random):
+    if g["type"] == "tmc":
+        tmc_next(g, rng)
+        return
     if g["type"] == "casino":
         if g["phase"] != "results":
             raise GameError("Pas encore")
@@ -1072,7 +1220,11 @@ def _next_question(g: dict, rng):
 
 def restart(g: dict, rng: random.Random = random) -> dict:
     """Nouvelle manche avec les mêmes joueurs."""
-    if g["type"] == "undercover":
+    if g["type"] == "tmc":
+        g["tmc"].update(scores={}, pairs={}, last=[])
+        g["round"] = 0
+        start(g, rng)
+    elif g["type"] == "undercover":
         _deal(g, rng)
     else:
         _next_question(g, rng)
@@ -1124,6 +1276,8 @@ def view(g: dict, gid: str) -> dict:
         out["casino"] = casino_view(g, gid)
     if g["type"] == "divan":
         out["divan"] = divan_view(g, gid)
+    if g["type"] == "tmc":
+        out["tmc"] = tmc_view(g, gid)
     if g["type"] == "roulette":
         out["names"] = g.get("names", [])
         out["history"] = list(reversed(g.get("history", [])))
