@@ -557,6 +557,7 @@ def _bj_finish(g: dict, rng):
     """Le croupier tire jusqu'à 17 (il reste sur 17 souple), puis on règle les mises."""
     bj = g["bj"]
     bj["turn"] = None
+    bj["finished_at"] = time.time()
     hands = [bj["hands"][gid] for gid in bj["seats"]]
     dealer_bj = _bj_is_blackjack(bj["dealer"])
     _bj_log(g, None, f"retourne {card_label(bj['dealer'][1])} → {bj_value(bj['dealer'])[0]}" + (" : Blackjack !" if dealer_bj else ""))
@@ -618,6 +619,8 @@ def bj_view(g: dict, gid: str) -> dict:
     lo, hi = (1, bj_drinks(g)) if bj_drinks(g) else BJ_BETS[g["type"]]
     return {
         "drinks": bj_drinks(g),
+        # Secondes depuis la fin de la main : l'animation de résultat ne se joue que si elle est toute fraîche.
+        "finished_age": time.time() - bj["finished_at"] if bj.get("finished_at") else None,
         "dealer": dealer, "dealer_total": None if hidden else (bj_value(bj["dealer"])[0] if bj["dealer"] else None),
         "dealer_up": bj_value(bj["dealer"][:1])[0] if bj["dealer"] else None,
         "seats": seats, "turn": _pid(g, turn), "my_turn": bool(gid) and turn == gid, "log": bj.get("log", []),

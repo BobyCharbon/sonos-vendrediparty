@@ -402,3 +402,13 @@ def test_blackjack_log_and_give_tally():
     log = [e["text"] for e in games.view(g, "a")["bj"]["log"]]
     assert "tire 10♦ → 21" in log and any(t.startswith("retourne 7♦") for t in log)
     assert games.view(g, "a")["me"]["give"] == 2  # gagné : distribue le double de sa mise
+
+
+def test_21_with_three_cards_is_not_a_blackjack():
+    g = games.new_game("blackjack", host="a", name="Ana", sips=3)
+    games.start(g)
+    rigged(g, ["5S", "6H", "TC", "7D", "TD"])
+    games.bj_bet(g, "a", 2)
+    games.bj_hit(g, "a")  # 5 + 6 + 10 = 21, mais en 3 cartes
+    h = g["bj"]["hands"]["a"]
+    assert h["result"] == "win" and h["sips"] == 4  # simple victoire : le double, pas le triple

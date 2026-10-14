@@ -390,6 +390,7 @@ function renderGame(g) {
   if (input) { input.value = guessDraft; input.addEventListener("input", () => { guessDraft = input.value; }); }
   renderRoulette(g);
   renderHud(g);
+  bjOutcomeFx(g);
   renderGameHost(g);
   $("gameCode").textContent = g.code;
   const qr = `/qr/game/${g.code}.svg`;
@@ -407,6 +408,57 @@ function resultsHtml(g) {
     ? `<div class="drink">🍻 ${drinkers.join(" et ")} boi${drinkers.length > 1 ? "vent" : "t"} ${sips} gorgée${sips > 1 ? "s" : ""} !</div>` : "";
   return drink + `<div class="list" style="margin-top:10px">${g.results.map((r) => `<div class="bar ${r.count === max ? "top" : ""}" style="--w:${Math.round(100 * r.count / max)}%">
     <span>${r.count === max ? "👑 " : ""}${esc(r.name)}</span><b>${r.count}</b></div>`).join("") || `<div class="artist">Personne n'a voté</div>`}</div>`;
+}
+
+// 🎆 Animation de fin de main, seulement sur l'écran du joueur concerné.
+let fxSeen = "";
+function bjOutcomeFx(g) {
+  if (!isBJ(g) || g.phase !== "results" || !g.me) return;
+  const h = g.bj.seats.find((x) => x.pid === g.me.pid)?.hand;
+  const key = g.id + ":" + g.round;
+  if (!h?.result || fxSeen === key) return;
+  fxSeen = key;
+  // Page en arrière-plan, ou main terminée depuis longtemps (page rechargée) : pas d'animation en différé.
+  if (document.hidden || (g.bj.finished_age ?? 0) > 12) return;
+  const kind = h.status === "bust" ? "bust" : h.result;
+  const sub = drinks(g)
+    ? { win: `🎉 Distribue ${sipWord(h.sips)}`, blackjack: `🃏 Distribue ${sipWord(h.sips)}`, push: "Personne ne boit",
+        lose: `🍻 Bois ${sipWord(-h.sips)}`, bust: `🍻 Bois ${sipWord(-h.sips)}` }[kind]
+    : { win: `+${h.delta} jetons`, blackjack: `+${h.delta} jetons`, push: "Mise rendue", lose: `${h.delta} jetons`, bust: `${h.delta} jetons` }[kind];
+  playFx(kind, sub);
+}
+function playFx(kind, sub) {
+  document.querySelector(".fx")?.remove();
+  const title = { win: "GAGNÉ !", blackjack: "BLACKJACK !", push: "ÉGALITÉ", lose: "PERDU", bust: "SAUTÉ !" }[kind];
+  const good = kind === "win" || kind === "blackjack", bad = kind === "lose" || kind === "bust";
+  const fx = document.createElement("div");
+  fx.className = `fx fx-${good ? "good" : bad ? "bad" : "even"}${kind === "blackjack" ? " fx-bj" : ""}`;
+  fx.setAttribute("role", "status");
+  let bits = "";
+  if (good) {
+    // Confettis : chaque morceau part dans une direction au hasard, puis retombe.
+    const colors = ["#ffd166", "#ff4f9a", "#4fd1c5", "#8b7bff", "#ffffff", "#3ddc97"];
+    const n = kind === "blackjack" ? 110 : 70;
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, d = 25 + Math.random() * 45;
+      bits += `<i class="fx-c" style="--x:${(Math.cos(a) * d).toFixed(1)}vmax;--y:${(Math.sin(a) * d - 10).toFixed(1)}vmax;--r:${Math.round(Math.random() * 720 - 360)}deg;--c:${colors[i % colors.length]};--d:${(Math.random() * 0.25).toFixed(2)}s;--w:${6 + Math.round(Math.random() * 6)}px"></i>`;
+    }
+  } else if (bad) {
+    for (let i = 0; i < 14; i++) {
+      bits += `<i class="fx-drop" style="--x:${Math.round(Math.random() * 100)}vw;--d:${(0.2 + Math.random() * 1.2).toFixed(2)}s;--s:${(0.8 + Math.random() * 0.8).toFixed(2)}">${drinks(game) ? "🍻" : "💸"}</i>`;
+    }
+  }
+  fx.innerHTML = `${good ? `<div class="fx-rays"></div>` : ""}${bits}
+    <div class="fx-box">
+      ${kind === "blackjack" ? `<div class="fx-cards"><span class="pcard">A<i>♠</i></span><span class="pcard red">K<i>♥</i></span></div>` : ""}
+      <div class="fx-title" data-text="${title}">${title}</div>
+      <div class="fx-sub">${esc(sub)}</div>
+    </div>`;
+  const close = () => { fx.classList.add("fx-out"); setTimeout(() => fx.remove(), 350); };
+  fx.addEventListener("click", close);
+  document.body.append(fx);
+  navigator.vibrate?.({ win: [80, 60, 80], blackjack: [100, 50, 100, 50, 220], push: [60], lose: [320], bust: [120, 60, 320] }[kind]);
+  setTimeout(close, kind === "blackjack" ? 3800 : 3000);
 }
 
 // Compteur fixe en haut à droite : mes jetons (blackjack) et mes gorgées (bues / distribuées).

@@ -298,3 +298,60 @@ button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2
 .bj-log .fresh { animation: pop .35s ease-out; }
 .g-facts { background: rgba(0,0,0,.22); border-radius: 14px; padding: 10px 12px; margin-bottom: 12px; }
 .g-facts h3 { margin-top: 0 !important; }
+
+/* 🎆 Animation de fin de main (blackjack), plein écran. */
+.fx { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; overflow: hidden; cursor: pointer;
+  animation: fx-in .25s ease-out; -webkit-tap-highlight-color: transparent; }
+.fx.fx-out { animation: fx-fade .35s ease-in forwards; }
+.fx-good { background: radial-gradient(circle at 50% 45%, rgba(255, 209, 102, .55), rgba(14, 11, 22, .92) 62%); }
+.fx-bj { background: radial-gradient(circle at 50% 45%, rgba(255, 230, 140, .75), rgba(120, 60, 0, .55) 40%, rgba(14, 11, 22, .95) 70%); }
+.fx-bad { background: radial-gradient(circle at 50% 45%, rgba(200, 16, 46, .45), rgba(10, 4, 8, .94) 65%); }
+.fx-bad::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 18vmin rgba(255, 40, 70, .55); animation: fx-pulse 1s ease-in-out infinite; pointer-events: none; }
+.fx-even { background: radial-gradient(circle at 50% 45%, rgba(139, 123, 255, .45), rgba(14, 11, 22, .92) 62%); }
+.fx-box { position: relative; z-index: 2; text-align: center; padding: 0 12px; width: 100%; box-sizing: border-box; }
+.fx-title { font: 800 clamp(2.4rem, 14vw, 6rem)/1 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: -0.03em; position: relative; white-space: nowrap;
+  animation: fx-zoom .7s cubic-bezier(.2, 1.6, .4, 1) both; }
+.fx-good .fx-title { background: linear-gradient(180deg, #fffbe6 0%, #ffd166 45%, #ff9f1c 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 18px rgba(255, 209, 102, .8)) drop-shadow(0 6px 0 rgba(120, 60, 0, .6)); }
+.fx-bj .fx-title { font-size: clamp(2.2rem, 11vw, 5.5rem); background: linear-gradient(110deg, #ffd166 20%, #fffbe6 40%, #ffd166 60%) 0 0 / 250% 100%;
+  -webkit-background-clip: text; background-clip: text; animation: fx-zoom .7s cubic-bezier(.2, 1.6, .4, 1) both, fx-shine 1.6s linear .6s infinite; }
+.fx-bad .fx-title { color: #ff3b5c; text-shadow: 0 0 24px rgba(255, 59, 92, .7); animation: fx-slam .45s cubic-bezier(.3, 1.5, .5, 1) both; }
+.fx-bad .fx-box { animation: fx-shake .5s .4s both; }
+.fx-bad .fx-title::before, .fx-bad .fx-title::after { content: attr(data-text); position: absolute; inset: 0; opacity: .8; }
+.fx-bad .fx-title::before { color: #4fd1c5; animation: fx-glitch 1.2s steps(2) .45s infinite; mix-blend-mode: screen; }
+.fx-bad .fx-title::after { color: #ff4f9a; animation: fx-glitch 1.2s steps(2) .55s infinite reverse; mix-blend-mode: screen; }
+.fx-even .fx-title { color: #d9d2ff; animation: fx-bounce .8s cubic-bezier(.3, 1.8, .5, 1) both; }
+.fx-sub { margin-top: 14px; font-size: clamp(1.15rem, 5vw, 1.6rem); font-weight: 800; color: #fff; animation: fx-up .5s .35s both; }
+.fx-rays { position: absolute; left: 50%; top: 45%; width: 180vmax; height: 180vmax; margin: -90vmax 0 0 -90vmax; z-index: 0;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 220, 130, .2) 0 8deg, transparent 8deg 18deg);
+  -webkit-mask: radial-gradient(circle, #000 0 20%, transparent 55%); mask: radial-gradient(circle, #000 0 20%, transparent 55%);
+  animation: fx-spin 9s linear infinite; }
+.fx-c { position: absolute; left: 50%; top: 45%; width: var(--w); height: calc(var(--w) * 1.6); background: var(--c); border-radius: 2px; z-index: 1;
+  animation: fx-burst 2.2s cubic-bezier(.12, .75, .3, 1) var(--d) both; }
+.fx-drop { position: absolute; top: -10vh; left: var(--x); font-size: calc(2rem * var(--s)); z-index: 1; font-style: normal;
+  animation: fx-fall 1.9s cubic-bezier(.5, 0, .8, .4) var(--d) both; }
+.fx-cards { display: flex; justify-content: center; gap: 10px; margin-bottom: 14px; }
+.fx-cards .pcard { width: 70px; height: 100px; font-size: 1.8rem; animation: fx-card .8s cubic-bezier(.2, 1.4, .4, 1) both; box-shadow: 0 10px 30px rgba(0, 0, 0, .5); }
+.fx-cards .pcard + .pcard { animation-delay: .12s; --rot: 12deg; }
+.fx-cards .pcard:first-child { --rot: -12deg; }
+@keyframes fx-in { from { opacity: 0; } }
+@keyframes fx-fade { to { opacity: 0; transform: scale(1.04); } }
+@keyframes fx-zoom { 0% { transform: scale(.2) rotate(-8deg); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes fx-slam { 0% { transform: scale(2.6); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes fx-bounce { 0% { transform: translateY(-40px) scale(.7); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes fx-up { from { transform: translateY(16px); opacity: 0; } }
+@keyframes fx-shine { to { background-position: -250% 0; } }
+@keyframes fx-spin { to { transform: rotate(360deg); } }
+@keyframes fx-pulse { 50% { opacity: .35; } }
+@keyframes fx-shake { 10%, 90% { transform: translateX(-2px); } 20%, 80% { transform: translateX(5px); } 30%, 50%, 70% { transform: translateX(-9px); } 40%, 60% { transform: translateX(9px); } }
+@keyframes fx-glitch { 0% { transform: translate(0); clip-path: inset(0 0 60% 0); } 25% { transform: translate(-4px, 2px); clip-path: inset(40% 0 20% 0); }
+  50% { transform: translate(4px, -2px); clip-path: inset(70% 0 5% 0); } 75% { transform: translate(-3px, 1px); clip-path: inset(10% 0 70% 0); } 100% { transform: translate(0); clip-path: inset(0 0 60% 0); } }
+@keyframes fx-burst { 0% { transform: translate(-50%, -50%) scale(.2); opacity: 1; }
+  45% { transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) rotate(var(--r)); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y) + 70vh)) rotate(calc(var(--r) * 2)); opacity: 0; } }
+@keyframes fx-fall { 0% { transform: translateY(0) rotate(-20deg); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(120vh) rotate(25deg); opacity: .8; } }
+@keyframes fx-card { 0% { transform: translateY(60vh) rotate(180deg) scale(.4); opacity: 0; } 100% { transform: rotate(var(--rot)); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .fx *, .fx, .fx::after, .fx-title::before, .fx-title::after { animation: none !important; }
+  .fx-c, .fx-drop, .fx-rays { display: none; }
+}
