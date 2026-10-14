@@ -66,3 +66,21 @@ def test_old_session_file_fields_are_ignored(tmp_path):
     path = tmp_path / "s.json"
     path.write_text(json.dumps({"active": True, "guest_pin": "4321", "public_url": "x", "requests": []}))
     assert PartyStore(path).session.guest_pin == "4321"  # le code n'est pas perdu
+
+
+def test_admin_three_tries_then_15s_between_each(monkeypatch):
+    import app.security as sec
+
+    now = [1000.0]
+    monkeypatch.setattr(sec.time, "time", lambda: now[0])
+    lim = Limiter(per_ip=3, ip_lock=15, global_max=30, global_window=900, global_lock=900, cooldown=True)
+    for _ in range(3):
+        assert lim.blocked("ip") is None
+        lim.fail("ip")
+    assert lim.blocked("ip") == "Trop d'essais, réessaie dans 15 s"
+    now[0] += 15
+    assert lim.blocked("ip") is None      # un essai possible…
+    lim.fail("ip")
+    assert lim.blocked("ip") is not None  # … puis de nouveau 15 s d'attente
+    lim.success("ip")
+    assert lim.blocked("ip") is None

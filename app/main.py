@@ -159,7 +159,8 @@ def set_auth_cookie(request: Request, response: Response, name: str, value: str,
                         secure=request.url.scheme == "https")
 
 
-admin_limiter = Limiter(per_ip=5, ip_lock=900, global_max=20, global_window=900, global_lock=900)
+# Admin : 3 essais, puis 15 s d'attente entre chaque essai (le verrou global reste contre les attaques réparties).
+admin_limiter = Limiter(per_ip=3, ip_lock=15, global_max=30, global_window=900, global_lock=900, cooldown=True)
 guest_limiter = Limiter(per_ip=5, ip_lock=900, global_max=30, global_window=600, global_lock=600)
 
 
