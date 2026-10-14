@@ -359,7 +359,7 @@ addEventListener("DOMContentLoaded", async () => {
   const params = new URLSearchParams(location.search);
   $("gameDot").classList.toggle("hidden", !myGame);
   if (params.has("game")) {
-    setGame(params.get("game").toUpperCase().slice(0, 4)); autoJoin = true;
+    setGame(params.get("game").replace(/\D/g, "").slice(0, 4)); autoJoin = true;
     history.replaceState(null, "", location.pathname);
     showTab("games");
   } else showTab(params.has("pin") ? "music" : store("vp_tab") || "music");

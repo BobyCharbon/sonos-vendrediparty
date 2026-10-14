@@ -26,7 +26,7 @@ document.getElementById("gamesRoot").innerHTML = `
       </div>
       <h2>Rejoindre une partie</h2>
       <form id="gJoinForm" class="row">
-        <input id="gCode" class="grow pin-input" type="text" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off">
+        <input id="gCode" class="grow pin-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="••••" autocomplete="off">
         <button>Rejoindre</button>
       </form>
     </div>
@@ -248,14 +248,19 @@ document.addEventListener("click", async (ev) => {
   } catch (e) { toast(e.message, "err"); }
   b.disabled = false;
 });
-$("gJoinForm").addEventListener("submit", async (ev) => {
-  ev.preventDefault();
-  const code = $("gCode").value.trim().toUpperCase();
-  if (code.length !== 4) return;
-  setGame(code); autoJoin = true; $("gCode").value = "";
+async function joinByCode() {
+  const code = $("gCode").value.trim();
+  if (!/^\d{4}$/.test(code)) return;
+  $("gCode").value = ""; $("gCode").blur();
+  setGame(code); autoJoin = true;
   await refreshGame();
+}
+$("gJoinForm").addEventListener("submit", (ev) => { ev.preventDefault(); joinByCode(); });
+// On rejoint dès le 4ᵉ chiffre, comme pour le code de la musique.
+$("gCode").addEventListener("input", () => {
+  $("gCode").value = $("gCode").value.replace(/\D/g, "");
+  if ($("gCode").value.length === 4) joinByCode();
 });
-$("gCode").addEventListener("input", () => { $("gCode").value = $("gCode").value.toUpperCase().replace(/[^A-Z]/g, ""); });
 $("gNameForm").addEventListener("submit", (ev) => {
   ev.preventDefault();
   const name = $("gNameInput").value.trim().slice(0, 30);

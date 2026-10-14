@@ -88,11 +88,9 @@ def normalize(text: str) -> str:
     return " ".join(text.lower().replace("-", " ").split())
 
 
-CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"  # sans I ni O (confondus avec 1 et 0)
-
-
 def new_code(taken) -> str:
-    while (code := "".join(secrets.choice(CODE_LETTERS) for _ in range(4))) in taken:
+    """Code à 4 chiffres, comme celui de la musique (plus simple à taper)."""
+    while (code := f"{secrets.randbelow(10000):04d}") in taken:
         pass
     return code
 

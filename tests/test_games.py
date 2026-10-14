@@ -234,3 +234,9 @@ def test_host_reorders_speaking_order_and_lobby():
     assert g["order"][:2] == [second, first]
     games.move(g, second, -1)  # déjà en tête : ne bouge plus
     assert g["order"][0] == second
+
+
+def test_game_codes_are_digits_and_never_the_music_pin():
+    assert all(games.new_code(set()).isdigit() for _ in range(50))
+    taken = {f"{i:04d}" for i in range(10000)} - {"0042"}
+    assert games.new_code(taken) == "0042"

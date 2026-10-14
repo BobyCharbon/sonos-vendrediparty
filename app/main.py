@@ -775,7 +775,7 @@ def admin_messages(body: MessageAction):
 # --- Jeux ---
 # Ouverts à tous (sans le code de la musique) : n'importe qui crée une partie et la partage par son code / QR.
 
-GAME_CODE_RE = re.compile(r"^[A-Z]{4}$")
+GAME_CODE_RE = re.compile(r"^[0-9]{4}$")
 _game_creations: dict[str, list[float]] = {}
 
 
@@ -790,7 +790,7 @@ def prune_games():
 
 def get_game(code: str) -> dict:
     prune_games()
-    g = store.session.games.get(code.upper()) if GAME_CODE_RE.match(code.upper()) else None
+    g = store.session.games.get(code) if GAME_CODE_RE.match(code) else None
     if g is None:
         raise HTTPException(404, "Partie introuvable ou terminée")
     return g
@@ -819,7 +819,7 @@ def create_game(body: GameCreate, request: Request):
         raise HTTPException(429, "Trop de parties en cours, réessaie plus tard")
     try:
         g = games.new_game(body.type, body.guest_id, clean_name(body.name), body.white,
-                           code=games.new_code(store.session.games), plays=body.plays)
+                           code=games.new_code(set(store.session.games) | {store.session.guest_pin}), plays=body.plays)
     except games.GameError as e:
         raise HTTPException(400, str(e))
     _game_creations[ip] = recent + [time.time()]
@@ -892,7 +892,7 @@ def game_qr(code: str):
 @app.post("/api/admin/games/close", dependencies=[Depends(require_admin)])
 def admin_close_game(body: GameAction):
     """L'hôte de la soirée peut fermer n'importe quelle partie (body.target = code)."""
-    store.session.games.pop(body.target.upper(), None)
+    store.session.games.pop(body.target, None)
     store.save()
     return admin_state()
 
