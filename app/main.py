@@ -1,4 +1,5 @@
 import hashlib
+import io
 import hmac
 import os
 import re
@@ -384,8 +385,10 @@ def guest_remove(body: GuestRemove):
 @app.get("/qr.svg")
 def qr(request: Request):
     url = PUBLIC_URL or str(request.base_url).rstrip("/")
-    svg = segno.make(url + "/", error="m").svg_inline(scale=8, border=2, dark="#111", light="#fff")
-    return Response(svg, media_type="image/svg+xml")
+    buf = io.BytesIO()
+    # Fichier SVG autonome (avec xmlns) : svg_inline ne s'affiche pas dans une balise <img>.
+    segno.make(url + "/", error="m").save(buf, kind="svg", scale=8, border=2, dark="#111", light="#fff")
+    return Response(buf.getvalue(), media_type="image/svg+xml", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/")
