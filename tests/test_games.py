@@ -504,3 +504,10 @@ def test_players_learn_the_host_ended_the_game():
     r = other.get(f"/api/games/{g['code']}?guest_id=player-end-01")
     assert r.status_code == 404
     assert r.json()["detail"]["ended"] == {**r.json()["detail"]["ended"], "by": "host", "host": "Ludo", "game": "Qui de nous ?"}
+
+
+def test_elapsed_since_creation():
+    g = games.new_game("undercover", host="h", name="Hôte")
+    g["created_at"] -= 125
+    assert 125 <= games.view(g, "h")["elapsed"] < 127
+    assert 125 <= games.summary(g)["elapsed"] < 127

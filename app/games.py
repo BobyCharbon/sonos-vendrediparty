@@ -1169,6 +1169,8 @@ def view(g: dict, gid: str) -> dict:
         "candidates": [_pid(g, i) for i in g["candidates"]] if g["candidates"] else None,
         "winner": g["winner"], "question": g["question"], "votes_count": len(g["votes"]), "options": g["options"],
         "kicked": bool(gid) and gid in g.get("kicked", []),
+        # Durée de la partie en secondes (calculée ici : l'horloge des téléphones peut être décalée).
+        "elapsed": time.time() - g.get("created_at", g["updated_at"]),
     }
     if g["type"] in BLACKJACKS:
         out["bj"] = bj_view(g, gid)
@@ -1211,4 +1213,4 @@ def summary(g: dict) -> dict:
     name = GAMES[g["type"]] + (" · " + mode_label(g) if mode_label(g) else "")
     return {"code": g["code"], "name": name, "phase": g["phase"], "round": g["round"],
             "players": [p["name"] for p in g["players"]], "host": g.get("host_name", ""),
-            "updated_at": g["updated_at"]}
+            "updated_at": g["updated_at"], "elapsed": time.time() - g.get("created_at", g["updated_at"])}

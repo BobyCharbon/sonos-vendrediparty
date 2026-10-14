@@ -636,7 +636,7 @@ function renderGameAdmin(s) {
   $("gamePanel").innerHTML = `<div class="list">${list.length ? list.map((g) => `
       <div class="track">
         <div class="meta"><div class="title"><span class="pill" style="font-weight:800;letter-spacing:.1em;color:var(--text)">${esc(g.code)}</span> ${esc(g.name)}</div>
-          <div class="artist">${PHASES[g.phase] || ""} · animée par ${esc(g.host || "?")} · ${g.players.length} joueur${g.players.length > 1 ? "s" : ""}</div>
+          <div class="artist">${PHASES[g.phase] || ""} · animée par ${esc(g.host || "?")} · ${g.players.length} joueur${g.players.length > 1 ? "s" : ""}${typeof fmtDuration === "function" ? ` · ⏱ ${fmtDuration(g.elapsed)}` : ""}</div>
           <div class="artist" style="white-space:normal">${g.players.map(esc).join(", ")}</div></div>
         <div class="icon-btns">
           ${typeof myGame !== "undefined" && myGame === g.code ? `<span class="pill live">ta partie</span>` : `<button data-join-game="${esc(g.code)}" title="Rejoindre">Rejoindre</button>`}

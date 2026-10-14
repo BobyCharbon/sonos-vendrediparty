@@ -419,7 +419,16 @@ async function refreshGame() {
   }
 }
 
+// ⏱ Durée de la partie : « 4:07 », ou « 1:02:33 » au-delà d'une heure.
+function fmtDuration(sec) {
+  const t = Math.max(0, Math.floor(sec || 0)), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = String(t % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}
+let gameT0 = 0;  // début de la partie, sur l'horloge de ce téléphone
+setInterval(() => { if (game && $("gTimer")) $("gTimer").textContent = fmtDuration(Date.now() / 1000 - gameT0); }, 1000);
+
 function renderGame(g) {
+  if (g && g !== game) gameT0 = Date.now() / 1000 - (g.elapsed || 0);  // recalé à chaque réponse du serveur
   game = g;
   $("gHome").classList.toggle("hidden", !!g);
   $("gamePlay").classList.toggle("hidden", !g);
@@ -430,7 +439,7 @@ function renderGame(g) {
   renderCasino(g);  // avant le texte : il dépend de l'état de la bille (en train de rouler ou arrêtée)
   const title = `<div class="g-head g-play-head"><div class="g-icon">${GAME_ICONS[g.type] || ""}</div>
     <div class="g-meta"><div class="g-title">${esc(g.name)}</div>
-    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${phaseLabel(g)}${g.round && g.phase !== "lobby" ? ` · ${{ undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte" }[g.type] || "question"} ${g.round}` : ""}</div></div>
+    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${phaseLabel(g)}${g.round && g.phase !== "lobby" ? ` · ${{ undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte" }[g.type] || "question"} ${g.round}` : ""} · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
     ${helpBtn(g.type, true)}</div>`;
   const lastLine = g.last?.name ? `<p class="sub" style="margin:8px 0">${esc(g.last.name)} était <b>${esc(g.last.role)}</b>.${g.last.guess ? ` Mr. White a proposé « ${esc(g.last.guess)} »… raté !` : ""}</p>` : "";
   let body = "";
