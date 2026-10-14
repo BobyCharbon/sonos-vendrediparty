@@ -198,11 +198,21 @@ class Sonos:
 
     def playlists(self) -> list[dict]:
         """Playlists Sonos, puis favoris qui sont des playlists (Spotify…)."""
-        zone = next(iter(self._all_zones().values()))
+        # Une enceinte principale : les caissons et surrounds refusent ces requêtes.
+        zones = sorted(self._all_zones().values(), key=lambda z: (z.ip_address != self.seed_ip, not z.is_visible))
+        error = None
+        for zone in zones[:4]:
+            try:
+                playlists, favorites = zone.get_sonos_playlists(), zone.music_library.get_sonos_favorites()
+                break
+            except Exception as e:
+                error = e
+        else:
+            raise error or LookupError("Aucune enceinte Sonos")
         items = {}
-        for p in zone.get_sonos_playlists():
+        for p in playlists:
             items["sq:" + p.item_id] = ("sonos", p)
-        for f in zone.music_library.get_sonos_favorites():
+        for f in favorites:
             ref = f.reference
             # Les playlists Sonos mises en favori (SQ:…) sont déjà listées au-dessus.
             if isinstance(ref, DidlPlaylistContainer) and not ref.item_id.startswith("SQ:"):
