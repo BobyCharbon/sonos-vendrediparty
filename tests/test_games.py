@@ -555,19 +555,20 @@ def test_tmc_duo_answers_and_scores():
     games.start(g, random.Random(1))
     d = g["tmc"]["duo"]
     guesser, subject = d["guesser"], d["subject"]
-    other = next(p["id"] for p in g["players"] if p["id"] not in (guesser, subject))
     with pytest.raises(games.GameError):
-        games.tmc_answer(g, other, "Tesla")  # pas dans le duo
+        games.tmc_answer(g, guesser, "Tesla")  # le devin parle à voix haute, il n'écrit rien
     games.tmc_answer(g, subject, "Une 2CV")
-    v = games.view(g, guesser)["tmc"]["duo"]
-    assert v["role"] == "guesser" and v["answers"] is None  # la réponse du sujet reste cachée
-    games.tmc_answer(g, guesser, "2CV")
-    assert g["phase"] == "judge"
+    assert g["phase"] == "guess"
+    v = games.view(g, "h")["tmc"]["duo"]
+    assert v["answer"] is None  # cachée jusqu'à la révélation, même pour l'animateur
+    assert games.view(g, subject)["tmc"]["duo"]["mine"] == "Une 2CV"
+    games.tmc_reveal(g)
+    assert games.view(g, guesser)["tmc"]["duo"]["answer"] == "Une 2CV"
     with pytest.raises(games.GameError):
-        games.tmc_judge(g, guesser, 2)  # le devin ne se juge pas lui-même
-    games.tmc_judge(g, subject, 2)
+        games.tmc_judge(g, subject, 2)  # seul l'animateur attribue les points
+    games.tmc_judge(g, "h", 2)
     assert g["phase"] == "scored" and g["tmc"]["scores"][guesser] == 1
-    t = games.view(g, other)["tmc"]
+    t = games.view(g, subject)["tmc"]
     assert t["ranking"][0]["name"] == games.player(g, guesser)["name"] and t["pairs"][0]["pct"] == 100
     # Duos suivants : chaque sens de chaque paire passe avant qu'un duo ne revienne.
     seen = {(guesser, subject)}
@@ -575,8 +576,8 @@ def test_tmc_duo_answers_and_scores():
         games.next_step(g, random.Random(len(seen)))
         d = g["tmc"]["duo"]
         games.tmc_answer(g, d["subject"], "x")
-        games.tmc_answer(g, d["guesser"], "y")
-        games.tmc_judge(g, "h", 1)  # l'animateur peut juger : presque = ½ point
+        games.tmc_reveal(g)
+        games.tmc_judge(g, "h", 1)  # presque = ½ point
         seen.add((d["guesser"], d["subject"]))
     assert len(seen) == 6
     games.tmc_finish(g)

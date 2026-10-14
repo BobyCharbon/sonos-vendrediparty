@@ -631,7 +631,7 @@ $("msgReadAll").onclick = async () => {
 // 🎮 Jeux : créés et animés par les invités (onglet Jeux de leur page) ; ici, vue d'ensemble et fermeture.
 const PHASES = { lobby: "Inscriptions", words: "Indices", vote: "Vote", white_guess: "Devinette de Mr. White",
   reveal: "Résultat de la manche", end: "Terminée", question: "Question", results: "Résultats",
-  answer: "Réponses", judge: "Verdict", scored: "Résultat du duo" };
+  answer: "Réponse en secret", guess: "À voix haute", judge: "Points", scored: "Résultat du duo" };
 function renderGameAdmin(s) {
   const list = s.games || [];
   $("gamePanel").innerHTML = `<div class="list">${list.length ? list.map((g) => `

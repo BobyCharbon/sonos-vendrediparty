@@ -885,8 +885,9 @@ def divan_view(g: dict, gid: str) -> dict:
 
 
 # --- Tu me connais ? ---
-# Deux joueurs sont tirés : l'un (le sujet) répond en secret à une question sur lui-même,
-# l'autre (le devin) essaie de deviner sa réponse. Le sujet juge : juste (1 point), presque (½) ou faux (0).
+# Deux joueurs sont tirés : l'un (le sujet) écrit en secret sa réponse à une question sur lui-même
+# (impossible de mentir ensuite), l'autre (le devin) devine à voix haute. L'animateur révèle la réponse écrite
+# puis attribue les points : juste (1), presque (½) ou faux (0).
 
 TMC_VERDICTS = {0: 0.0, 1: 0.5, 2: 1.0}  # body.amount → points
 
@@ -934,23 +935,30 @@ def tmc_change_question(g: dict, rng: random.Random = random):
 
 
 def tmc_answer(g: dict, gid: str, text: str):
+    """Seule la personne interrogée écrit sa réponse (en secret) ; le devin, lui, parle à voix haute."""
     d = g["tmc"]["duo"]
     text = " ".join((text or "").split())[:80]
-    if g["phase"] != "answer" or not d or gid not in (d["guesser"], d["subject"]):
-        raise GameError("Ce n'est pas à toi de répondre")
+    if g["phase"] != "answer" or not d or gid != d["subject"]:
+        raise GameError("C'est à la personne interrogée d'écrire sa réponse")
     if not text:
         raise GameError("Écris une réponse")
     d["answers"][gid] = text
-    if len(d["answers"]) == 2:
-        g["phase"] = "judge"
+    g["phase"] = "guess"
+
+
+def tmc_reveal(g: dict):
+    """L'animateur révèle la réponse écrite, une fois que le devin a parlé."""
+    if g["phase"] != "guess":
+        raise GameError("Pas maintenant")
+    g["phase"] = "judge"
 
 
 def tmc_judge(g: dict, gid: str, amount: int):
-    """Le sujet (ou l'animateur) dit si le devin a vu juste."""
+    """L'animateur attribue les points au devin."""
     t = g["tmc"]
     d = t["duo"]
-    if g["phase"] != "judge" or not d or gid not in (d["subject"], g["host"]):
-        raise GameError("C'est à la personne interrogée de juger")
+    if g["phase"] != "judge" or not d or gid != g["host"]:
+        raise GameError("C'est à l'animateur d'attribuer les points")
     if amount not in TMC_VERDICTS:
         raise GameError("Verdict inconnu")
     pts = TMC_VERDICTS[amount]
@@ -971,7 +979,7 @@ def tmc_finish(g: dict):
 def tmc_left(g: dict, gid: str, rng=random):
     """Un joueur du duo s'en va en pleine question : on passe au duo suivant."""
     d = g["tmc"]["duo"]
-    if d and gid in (d["guesser"], d["subject"]) and g["phase"] in ("answer", "judge"):
+    if d and gid in (d["guesser"], d["subject"]) and g["phase"] in ("answer", "guess", "judge"):
         if len(g["players"]) >= 2:
             tmc_next(g, rng)
         else:
@@ -993,9 +1001,9 @@ def tmc_view(g: dict, gid: str) -> dict:
         reveal = g["phase"] in ("judge", "scored", "end")
         duo = {"guesser": who(d["guesser"]), "subject": who(d["subject"]), "question": d["q"],
                "role": "guesser" if gid == d["guesser"] else "subject" if gid == d["subject"] else None,
-               "answered": {pid(i): True for i in d["answers"]}, "mine": d["answers"].get(gid),
-               "answers": {"guesser": d["answers"].get(d["guesser"]), "subject": d["answers"].get(d["subject"])} if reveal else None,
-               "verdict": d["verdict"], "can_judge": g["phase"] == "judge" and gid in (d["subject"], g["host"])}
+               "mine": d["answers"].get(gid),  # la personne interrogée revoit sa propre réponse
+               "answer": d["answers"].get(d["subject"]) if reveal else None,
+               "verdict": d["verdict"], "can_judge": g["phase"] == "judge" and gid == g["host"]}
     # Classement : points, et nombre de questions où chacun a deviné.
     asked = {}
     for k, p in t["pairs"].items():

@@ -89,9 +89,9 @@ const GAME_RULES = {
     <h3>Un tour</h3>
     <ol>
       <li>Une question s'affiche, par exemple « Quelle est ta voiture de rêve ? ».</li>
-      <li>La personne interrogée écrit <b>sa vraie réponse</b>, en secret.</li>
-      <li>Son ou sa partenaire du tour écrit ce qu'il ou elle pense qu'elle a répondu.</li>
-      <li>Les deux réponses s'affichent sur tous les téléphones. La personne interrogée juge : <b>✅ juste</b> (1 point), <b>🤏 presque</b> (½ point) ou <b>❌ faux</b>.</li>
+      <li>La personne interrogée écrit <b>sa vraie réponse</b>, en secret : impossible de tricher ensuite.</li>
+      <li>L'autre joueur du duo devine <b>à voix haute</b>.</li>
+      <li>L'animateur révèle la réponse écrite sur tous les téléphones, puis attribue les points : <b>✅ 1 point</b>, <b>🤏 ½ point</b> ou <b>❌ 0</b>.</li>
       <li>L'animateur passe au duo suivant. L'app fait tourner les duos : chacun devine chacun, dans les deux sens, avant qu'un duo ne revienne.</li>
     </ol>
     <h3>Les points</h3>
@@ -317,7 +317,7 @@ document.getElementById("gamesRoot").innerHTML = `
           <div class="g-meta"><div class="g-title">Tu me connais ?</div><div class="g-tag">Qui te connaît le mieux ?</div></div>
           ${helpBtn("tmc")}
         </div>
-        <p class="g-desc">Deux joueurs sont tirés au sort : l'un répond en secret à une question sur lui, l'autre devine sa réponse. Points au classement général… et par duo, pour savoir qui connaît le mieux qui.</p>
+        <p class="g-desc">Deux joueurs sont tirés au sort : l'un écrit en secret sa réponse à une question sur lui, l'autre la devine à voix haute. Points au classement général… et par duo, pour savoir qui connaît le mieux qui.</p>
         <div class="g-chips"><span>2+ joueurs</span><span>Questions ouvertes</span><span>Points d'amitié</span></div>
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="tmc">Créer une partie</button>
@@ -416,7 +416,7 @@ document.getElementById("gamesRoot").innerHTML = `
 let myGame = store("vp_game") || "", game = null, wordShown = "", wordUntil = 0, guessDraft = "", showRoles = false, autoJoin = false;
 const GAME_PHASES = { lobby: "Inscriptions", words: "Indices", vote: "Vote", white_guess: "Devinette de Mr. White",
   reveal: "Résultat de la manche", end: "Partie terminée", question: "Question", results: "Résultats", spun: "Résultat", bet: "Mises", play: "Partie", card: "En séance",
-  answer: "Réponses en secret", judge: "Verdict", scored: "Résultat du duo" };
+  answer: "Réponse en secret", guess: "À voix haute", judge: "Points", scored: "Résultat du duo" };
 const phaseLabel = (g) => (g.type === "roulette" || isBJ(g) || g.type === "casino") && g.phase === "lobby" ? "Préparation"
   : g.type === "casino" && g.phase === "bet" ? "Faites vos jeux" : GAME_PHASES[g.phase];
 const WINNERS = { civils: "Les civils ont gagné 🎉", impostors: "Les undercovers ont gagné 🕵️", white: "Mr. White a trouvé le mot et gagne 🎩" };
@@ -838,36 +838,40 @@ function renderDivanHost(g, btn) {
 // 💞 Tu me connais ? : le sujet répond en secret, le devin devine, le sujet juge.
 const tmcPts = (x) => Number.isInteger(x) ? String(x) : `${Math.floor(x) || ""}½`;
 const TMC_VERDICT = { 1: ["✅", "Juste !"], 0.5: ["🤏", "Presque !"], 0: ["❌", "Raté !"] };
+let tmSeen = "";
 function tmcHtml(g) {
   const t = g.tmc, d = t.duo;
   if (!d) return "";
+  // Animation seulement quand l'étape change (pas à chaque rafraîchissement).
+  const key = `${g.id}:${g.round}:${g.phase}`, anim = key !== tmSeen ? "tm-anim" : "";
+  tmSeen = key;
   const G = esc(d.guesser.name), S = esc(d.subject.name);
   const duo = `<div class="tm-duo"><span class="tm-who ${d.role === "guesser" ? "me" : ""}">🔮 ${d.role === "guesser" ? "Toi" : G}<small>devine</small></span>
     <span class="tm-arrow">→</span><span class="tm-who ${d.role === "subject" ? "me" : ""}">🎯 ${d.role === "subject" ? "Toi" : S}<small>répond</small></span></div>`;
   const q = `<div class="tm-q">${esc(d.question)}</div>`;
   const form = (ph) => `<form data-gform="tanswer" class="row" style="margin-top:10px"><input class="grow" type="text" id="guessInput" maxlength="80" placeholder="${ph}" autocomplete="off"><button>Valider</button></form>`;
   if (g.phase === "answer") {
-    const done = (p) => d.answered[p.pid] ? "✓" : "…";
     let zone;
-    if (d.role && d.mine) zone = `<div class="tm-sent">✓ Ta réponse : « ${esc(d.mine)} »</div>
-      <div class="artist" style="margin-top:6px">En attente de ${d.role === "subject" ? G : S}…</div>`;
-    else if (d.role === "subject") zone = `<div class="artist" style="margin-top:8px">Réponds <b>en secret</b> : ${G} doit deviner ta réponse.</div>${form("Ta vraie réponse")}`;
-    else if (d.role === "guesser") zone = `<div class="artist" style="margin-top:8px">Que va répondre <b>${S}</b> ? Devine !</div>${form(`Ce que ${d.subject.name} va répondre`)}`;
-    else zone = `<div class="artist" style="margin-top:8px">${S} répond en secret ${done(d.subject)} · ${G} devine ${done(d.guesser)}</div>`;
+    if (d.role === "subject") zone = d.mine ? "" : `<div class="artist" style="margin-top:8px">Écris <b>ta vraie réponse</b>, en secret. Elle sera révélée après que ${G} aura deviné à voix haute.</div>${form("Ta vraie réponse")}`;
+    else if (d.role === "guesser") zone = `<div class="artist" style="margin-top:8px">${S} écrit sa réponse en secret… Prépare-toi : tu devras la deviner <b>à voix haute</b>.</div>`;
+    else zone = `<div class="artist" style="margin-top:8px">${S} écrit sa réponse en secret…</div>`;
     return duo + q + zone;
   }
-  const a = d.answers || {};
-  const reveal = `<div class="tm-answers"><div><small>${S} a répondu</small><b>${esc(a.subject || "—")}</b></div>
-    <div><small>${G} a deviné</small><b>${esc(a.guesser || "—")}</b></div></div>`;
+  if (g.phase === "guess") {
+    const mine = d.role === "subject" ? `<div class="tm-sent">✓ Ta réponse : « ${esc(d.mine)} »</div>` : "";
+    return duo + q + mine + `<div class="tm-speak ${anim}">🗣 ${d.role === "guesser" ? "À toi ! Dis à voix haute ce que" : `${G}, à toi ! Dis à voix haute ce que`} ${S} a répondu.</div>
+      <div class="artist" style="margin-top:6px">${g.is_host ? "Quand c'est dit, révèle la réponse." : "L'animateur va révéler la réponse…"}</div>`;
+  }
+  const reveal = `<div class="tm-answer ${g.phase === "judge" ? anim : ""}"><small>${S} avait écrit</small><b>${esc(d.answer || "—")}</b></div>`;
   let zone = "";
   if (g.phase === "judge") {
     zone = d.can_judge
-      ? `<div class="artist" style="margin-top:10px">${d.role === "subject" ? "C'est juste ?" : `${S} ne répond pas ? Tu peux juger à sa place :`}</div>
-        <div class="tm-judge"><button data-gact="tjudge" data-amount="2">✅ Juste</button><button class="secondary" data-gact="tjudge" data-amount="1">🤏 Presque</button><button class="secondary" data-gact="tjudge" data-amount="0">❌ Faux</button></div>`
-      : `<div class="artist" style="margin-top:10px">${S} juge la réponse…</div>`;
+      ? `<div class="artist" style="margin-top:10px">Est-ce que ${G} a vu juste ?</div>
+        <div class="tm-judge"><button data-gact="tjudge" data-amount="2">✅ 1 point</button><button class="secondary" data-gact="tjudge" data-amount="1">🤏 ½ point</button><button class="secondary" data-gact="tjudge" data-amount="0">❌ 0</button></div>`
+      : `<div class="artist" style="margin-top:10px">L'animateur attribue les points…</div>`;
   } else if (d.verdict !== null && d.verdict !== undefined) {
     const [icon, word] = TMC_VERDICT[d.verdict];
-    zone = `<div class="tm-verdict v${String(d.verdict).replace(".", "")}">${icon} ${word} ${d.verdict ? `+${tmcPts(d.verdict)} pour ${d.role === "guesser" ? "toi" : G}` : ""}</div>`;
+    zone = `<div class="tm-verdict ${anim} v${String(d.verdict).replace(".", "")}">${icon} ${word} ${d.verdict ? `+${tmcPts(d.verdict)} pour ${d.role === "guesser" ? "toi" : G}` : ""}</div>`;
   }
   if (g.phase === "end") return `<div class="title">🏁 Bilan de la partie</div>${tmcPodium(g)}${tmcMine(g)}`;
   return duo + q + reveal + zone;
@@ -893,6 +897,7 @@ function renderTmcHost(g, btn) {
   const controls = !g.is_host ? "" : {
     lobby: btn("start", "▶︎ Premier duo", "grow", g.players.length < 2 ? "disabled" : ""),
     answer: btn("tq", "🔄 Autre question", "secondary") + btn("next", "⏭ Autre duo", "secondary grow"),
+    guess: btn("treveal", "👁 Révéler la réponse", "grow") + btn("next", "⏭", "secondary", `title="Passer ce duo"`),
     judge: btn("next", "⏭ Passer", "secondary grow"),
     scored: btn("next", "▶︎ Duo suivant", "grow"),
     end: btn("restart", "🔁 Rejouer (scores à zéro)", "grow"),
