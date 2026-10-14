@@ -260,3 +260,18 @@ def test_whoof_rejects_unknown_mode_and_clamps_sips():
     with pytest.raises(games.GameError):
         games.new_game("whoof", mode="nope")
     assert games.new_game("whoof", sips=99)["options"]["sips"] == 10
+
+
+def test_never_have_i_ever_round():
+    g = games.new_game("never", host="h", name="H", mode="awkward", sips=2)
+    games.join(g, "a", "Ana")
+    games.start(g)
+    assert g["question"].startswith("Je n'ai jamais ") and g["question"][len("Je n'ai jamais "):-1] in games.NEVER_AWKWARD
+    with pytest.raises(games.GameError):
+        games.vote(g, "a", "peut-être")
+    games.vote(g, "a", "yes")
+    assert games.view(g, "a")["me"]["vote"] == "yes"
+    games.vote(g, "h", "no")
+    v = games.view(g, "h")
+    assert v["phase"] == "results" and {r["name"]: r["answer"] for r in v["results"]} == {"Ana": "yes", "H": "no"}
+    assert v["mode"] == "😬 Malaisant" and games.summary(g)["name"] == "Je n'ai jamais · 😬 Malaisant"

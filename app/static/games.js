@@ -5,11 +5,33 @@ const GAME_ICONS = {
   undercover: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 22h38"/><path d="M12 22l3-11h18l3 11"/><circle cx="16" cy="32" r="5.5"/><circle cx="32" cy="32" r="5.5"/><path d="M21.5 32h5"/></svg>`,
   whoof: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13" cy="24" r="5"/><circle cx="35" cy="24" r="5"/><path d="M4 41c1-6 4.5-9 9-9s8 3 9 9"/><path d="M26 41c1-6 4.5-9 9-9s8 3 9 9"/><path d="M20 9.5a4 4 0 1 1 5.5 3.7c-1.2.5-1.5 1.3-1.5 2.8"/><path d="M24 20.5v.1"/></svg>`,
 };
-const GAME_THEME = { undercover: "g-uc", whoof: "g-wh" };
+GAME_ICONS.never = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7h13l-1.6 14a4.9 4.9 0 0 1-9.8 0z"/><path d="M14.5 26v12"/><path d="M9.5 38h10"/><path d="M27 7h13l-1.6 14a4.9 4.9 0 0 1-9.8 0z"/><path d="M33.5 26v12"/><path d="M28.5 38h10"/><path d="M9 14h11M28 14h11"/></svg>`;
+const GAME_THEME = { undercover: "g-uc", whoof: "g-wh", never: "g-nv" };
 const helpBtn = (type) => `<button type="button" class="g-help" data-rules="${type}" aria-label="Règles du jeu">?</button>`;
 
 // Règles détaillées, ouvertes par le « ? » de chaque jeu.
 const GAME_RULES = {
+  never: `
+    <h3>Le but</h3>
+    <p>Découvrir ce que vos amis ont (ou n'ont jamais) fait… et boire quand on avoue.</p>
+    <h3>Une phrase</h3>
+    <ol>
+      <li>Une phrase s'affiche, par exemple « Je n'ai jamais dansé sur une table ».</li>
+      <li>Chacun répond sur son téléphone : <b>🍻 Je l'ai déjà fait</b> ou <b>😇 Jamais</b>. Les réponses restent cachées tant que tout le monde n'a pas répondu (on peut changer d'avis jusque-là).</li>
+      <li>Quand tout le monde a répondu (ou quand l'animateur le décide), les réponses sont <b>révélées</b> : on voit qui l'a déjà fait.</li>
+      <li>Tous ceux qui l'ont fait <b>boivent le nombre de gorgées</b> choisi par l'animateur.</li>
+      <li>On a le droit de demander des détails… et de raconter l'histoire ! Puis phrase suivante.</li>
+    </ol>
+    <h3>Les modes</h3>
+    <ul>
+      <li><b>😇 Soft</b> : souvenirs et expériences pour tout le monde.</li>
+      <li><b>😬 Malaisant</b> : petites hontes, mensonges et secrets.</li>
+      <li><b>🔥 Hot</b> : sexe et séduction, entre adultes consentants.</li>
+      <li><b>🎲 Mix</b> : un peu de tout.</li>
+    </ul>
+    <p>Aucune phrase ne revient avant que toutes celles du mode soient passées. L'animateur peut changer de phrase avec ⏭.</p>
+    <h3>À savoir</h3>
+    <p>Il faut au moins 2 joueurs, et on peut rejoindre en cours de route. On joue honnêtement ! Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi. Avec 0 gorgée, c'est la version sans alcool.</p>`,
   undercover: `
     <h3>Le but</h3>
     <p>Les <b>civils</b> doivent démasquer les intrus. Les <b>undercovers</b> doivent se fondre dans la masse sans se faire repérer. <b>Mr. White</b> doit bluffer… et deviner le mot des civils.</p>
@@ -112,6 +134,26 @@ document.getElementById("gamesRoot").innerHTML = `
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="whoof">Créer une partie</button>
       </div>
+
+      <div class="gcard g-nv">
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.never}</div>
+          <div class="g-meta"><div class="g-title">Je n'ai jamais</div><div class="g-tag">Avoue… ou bois.</div></div>
+          ${helpBtn("never")}
+        </div>
+        <p class="g-desc">Une phrase tombe (« Je n'ai jamais dansé sur une table »). Chacun répond en secret « déjà fait » ou « jamais », puis tout est révélé : ceux qui l'ont fait boivent.</p>
+        <div class="g-chips"><span>2+ joueurs</span><span>Soft → Hot</span><span>Aveux</span></div>
+        <div class="g-label">Type de phrases</div>
+        <div class="g-modes" data-opt-group="mode">
+          <button type="button" data-val="soft" class="on">😇 Soft</button><button type="button" data-val="awkward">😬 Malaisant</button>
+          <button type="button" data-val="hot">🔥 Hot</button><button type="button" data-val="mix">🎲 Mix</button>
+        </div>
+        <div class="g-opt"><span>Gorgées pour ceux qui l'ont fait <small>0 = sans alcool</small></span>
+          <div class="g-stepper" data-opt-group="sips"><button type="button" data-step="-1" aria-label="Moins">−</button><b data-val-out>1</b><button type="button" data-step="1" aria-label="Plus">+</button></div>
+        </div>
+        <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
+        <button class="g-go" data-create="never">Créer une partie</button>
+      </div>
     </div>
 
     <div id="gamePlay" class="hidden">
@@ -176,7 +218,7 @@ function renderGame(g) {
   $("game").className = "card game " + (GAME_THEME[g.type] || "");
   const title = `<div class="g-head g-play-head"><div class="g-icon">${GAME_ICONS[g.type] || ""}</div>
     <div class="g-meta"><div class="g-title">${esc(g.name)}</div>
-    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${GAME_PHASES[g.phase]}${g.round && g.phase !== "lobby" ? ` · ${g.type === "whoof" ? "question" : "manche"} ${g.round}` : ""}</div></div>
+    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${GAME_PHASES[g.phase]}${g.round && g.phase !== "lobby" ? ` · ${g.type === "undercover" ? "manche" : "question"} ${g.round}` : ""}</div></div>
     ${helpBtn(g.type)}</div>`;
   const lastLine = g.last?.name ? `<p class="sub" style="margin:8px 0">${esc(g.last.name)} était <b>${esc(g.last.role)}</b>.${g.last.guess ? ` Mr. White a proposé « ${esc(g.last.guess)} »… raté !` : ""}</p>` : "";
   let body = "";
@@ -229,6 +271,13 @@ function renderGame(g) {
     } else if (g.phase === "reveal") {
       body = `${lastLine}<div class="artist">${g.is_host ? "Lance la manche suivante quand vous êtes prêts." : "L'animateur lance la manche suivante…"}</div>`;
     }
+  } else if (g.phase === "question" && g.type === "never") {
+    body = `<div class="question">${esc(g.question)}</div>
+      <div class="never-btns">
+        <button class="${me.vote === "yes" ? "" : "secondary"}" data-gact="vote" data-target="yes">${me.vote === "yes" ? "✓ " : ""}🍻 Je l'ai déjà fait</button>
+        <button class="${me.vote === "no" ? "" : "secondary"}" data-gact="vote" data-target="no">${me.vote === "no" ? "✓ " : ""}😇 Jamais</button>
+      </div>
+      <div class="artist" style="margin-top:8px">${g.votes_count}/${g.players.length} réponses · révélées à la fin</div>`;
   } else if (g.phase === "question") {  // Qui de nous ?
     body = `<div class="question">${esc(g.question)}</div>
       <div class="chips" style="margin-top:10px">${g.players.map((p) => `<button class="${me.vote === p.pid ? "" : "secondary"}" data-gact="vote" data-target="${esc(p.pid)}">${me.vote === p.pid ? "✓ " : ""}${p.pid === me.pid ? "Moi" : esc(p.name)}</button>`).join("")}</div>
@@ -248,6 +297,7 @@ function renderGame(g) {
 
 function resultsHtml(g) {
   if (!g.results) return "";
+  if (g.type === "never") return neverResultsHtml(g);
   const max = Math.max(1, ...g.results.map((r) => r.count));
   const sips = g.options?.sips || 0;
   const drinkers = g.results.filter((r) => r.count === max).map((r) => esc(r.name));
@@ -255,6 +305,18 @@ function resultsHtml(g) {
     ? `<div class="drink">🍻 ${drinkers.join(" et ")} boi${drinkers.length > 1 ? "vent" : "t"} ${sips} gorgée${sips > 1 ? "s" : ""} !</div>` : "";
   return drink + `<div class="list" style="margin-top:10px">${g.results.map((r) => `<div class="bar ${r.count === max ? "top" : ""}" style="--w:${Math.round(100 * r.count / max)}%">
     <span>${r.count === max ? "👑 " : ""}${esc(r.name)}</span><b>${r.count}</b></div>`).join("") || `<div class="artist">Personne n'a voté</div>`}</div>`;
+}
+
+// « Je n'ai jamais » : ceux qui l'ont déjà fait boivent.
+function neverResultsHtml(g) {
+  const did = g.results.filter((r) => r.answer === "yes"), never = g.results.filter((r) => r.answer === "no");
+  const sips = g.options?.sips || 0;
+  const drink = sips && did.length
+    ? `<div class="drink">🍻 ${did.map((r) => esc(r.name)).join(", ")} boi${did.length > 1 ? "vent" : "t"} ${sips} gorgée${sips > 1 ? "s" : ""} !</div>`
+    : !did.length ? `<div class="drink">😇 Personne ne l'a fait… tout le monde est sage ?</div>` : "";
+  const col = (label, list) => `<div class="never-col"><div class="artist">${label} (${list.length})</div>
+    <div class="chips">${list.map((r) => `<span class="pill">${esc(r.name)}</span>`).join("") || `<span class="artist">personne</span>`}</div></div>`;
+  return drink + `<div class="never-res">${col("🍻 Déjà fait", did)}${col("😇 Jamais", never)}</div>`;
 }
 
 // Commandes de l'animateur (créateur de la partie) et liste des joueurs.
@@ -361,7 +423,7 @@ async function joinByCode() {
   await refreshGame();
 }
 // « ? » : règles détaillées du jeu.
-const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?" };
+const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", never: "Je n'ai jamais" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");
   if (open) {

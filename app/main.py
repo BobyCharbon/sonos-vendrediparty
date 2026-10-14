@@ -853,7 +853,8 @@ def game_action(code: str, body: GameAction, request: Request):
     check_guest_id(body.guest_id)
     g = get_game(code)
     a, me = body.action, body.guest_id
-    target = games.gid_of(g, body.target)
+    # Cible d'un vote : un joueur (pid) ; pour « Je n'ai jamais », une réponse (yes / no).
+    target = games.gid_of(g, body.target) or (body.target if g["type"] == "never" else "")
     if a in HOST_ACTIONS and g["host"] != me:
         raise HTTPException(403, "Seul l'animateur de la partie peut faire ça")
     if a == "join" and (msg := ban_message(me, client_ip(request))):

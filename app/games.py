@@ -17,6 +17,7 @@ import unicodedata
 GAMES = {
     "undercover": "Undercover",
     "whoof": "Qui de nous ?",
+    "never": "Je n'ai jamais",
 }
 
 # Undercover : les civils reçoivent un mot, les undercovers un mot proche ; Mr. White n'a pas de mot.
@@ -125,6 +126,76 @@ WHOOF_MODES = {
     "hot": ("🔥 Hot", WHOOF_HOT),
     "mix": ("🎲 Mix", WHOOF_QUESTIONS + WHOOF_AWKWARD + WHOOF_HOT),
 }
+
+# « Je n'ai jamais… » : chacun répond « déjà fait » ou « jamais » ; ceux qui l'ont fait boivent.
+NEVER_SOFT = [
+    "pris l'avion", "chanté au karaoké", "fait une nuit blanche", "raté un train ou un avion",
+    "dormi à la belle étoile", "mangé des escargots", "regardé une série entière en un week-end",
+    "oublié l'anniversaire d'un proche", "fait un tatouage", "teint mes cheveux d'une couleur flashy",
+    "gagné à un jeu à gratter", "fait du stop", "parlé à une célébrité", "été dans le journal ou à la télé",
+    "cassé l'écran de mon téléphone", "pleuré devant un Disney", "dansé sur une table", "sauté en parachute",
+    "nagé dans une eau à moins de 15 degrés", "cuisiné pour plus de 10 personnes",
+    "inventé une excuse pour annuler une soirée", "joué à un jeu vidéo toute une nuit",
+    "été en retard à un rendez-vous important", "fait un road trip", "dormi dans un festival",
+    "fait un selfie avec un inconnu", "parlé à mes plantes", "raté un gâteau", "fait une sieste de plus de 3 heures",
+    "visité plus de 10 pays", "monté sur scène", "perdu mes clés plus de trois fois cette année",
+    "fait une fausse note en chantant devant du monde", "adopté un animal sur un coup de tête",
+    "mangé un repas entier avec les doigts au restaurant", "fini un marathon de films en une journée",
+    "eu peur dans une maison hantée", "appelé un prof « maman » ou « papa »", "fait du camping sauvage",
+    "été pris en photo par la presse",
+]
+NEVER_AWKWARD = [
+    "stalké un ex sur les réseaux", "lu les messages de quelqu'un en cachette", "menti sur mon âge",
+    "ghosté quelqu'un", "envoyé un message à la mauvaise personne", "fait semblant d'être malade pour sécher le travail",
+    "vomi en soirée", "écrit à un ex en étant bourré", "oublié le prénom de quelqu'un en pleine conversation",
+    "fait pipi dans une piscine", "volé quelque chose dans un magasin", "menti sur mon CV",
+    "regretté un message vocal", "été viré", "dit « je t'aime » sans le penser",
+    "fait semblant de ne pas voir quelqu'un dans la rue", "pleuré au travail", "fouillé dans la salle de bain de quelqu'un",
+    "mangé un truc tombé par terre", "offert un cadeau qu'on m'avait offert", "eu un crush sur quelqu'un dans cette pièce",
+    "eu un faux compte sur les réseaux", "liké une vieille photo par erreur en stalkant", "dormi au travail",
+    "été mis à la porte d'un bar ou d'une boîte", "pris quelqu'un en photo en cachette",
+    "répété un secret qu'on m'avait confié", "fait semblant d'aimer un cadeau", "triché à un examen",
+    "fait semblant d'avoir oublié mon porte-monnaie", "été jaloux d'un ami", "googlé mon propre nom",
+    "parlé dans le dos de quelqu'un ici", "été recalé devant tout le monde", "eu un fou rire à un enterrement",
+    "envoyé à 4 h du matin un message que j'ai regretté", "fait semblant de connaître une chanson",
+    "raccroché au nez de quelqu'un", "lu le journal intime de quelqu'un", "menti dans ce genre de jeu",
+]
+NEVER_HOT = [
+    "couché le premier soir", "fait l'amour dans un lieu public", "envoyé une photo coquine", "fait un plan à trois",
+    "simulé", "eu un sex friend", "couché avec un ex après la rupture", "fait l'amour dans une voiture",
+    "utilisé des menottes", "eu un coup d'un soir", "fait l'amour au travail", "regardé un porno à deux",
+    "fait du sexe en visio", "embrassé quelqu'un du même sexe", "fait un strip-tease", "eu une aventure en vacances",
+    "couché avec quelqu'un sans connaître son prénom", "été surpris en pleine action", "fait l'amour à la plage",
+    "fait l'amour sous la douche", "utilisé un sextoy", "conclu sur Tinder le soir même",
+    "embrassé plus de trois personnes dans la même soirée", "fantasmé sur quelqu'un dans cette pièce",
+    "dormi nu chez quelqu'un", "eu un suçon visible au travail", "fait des bêtises dans un avion ou un train",
+    "testé le bondage", "fini un jeu à boire déshabillé", "couché avec deux personnes la même semaine",
+    "fait l'amour dans le lit de mes parents", "envoyé un message coquin à la mauvaise personne",
+    "été attiré par le ou la partenaire d'un ami", "eu une histoire avec un collègue",
+    "fait l'amour plus de trois fois dans la même nuit", "acheté de la lingerie pour séduire",
+    "joué à un jeu de rôle coquin", "embrassé quelqu'un dans cette pièce", "fait l'amour en pleine nature",
+    "été réveillé par les voisins… à cause de moi",
+]
+
+NEVER_MODES = {
+    "soft": ("😇 Soft", NEVER_SOFT),
+    "awkward": ("😬 Malaisant", NEVER_AWKWARD),
+    "hot": ("🔥 Hot", NEVER_HOT),
+    "mix": ("🎲 Mix", NEVER_SOFT + NEVER_AWKWARD + NEVER_HOT),
+}
+# Jeux à questions : modes et formulation de la question.
+QUESTION_GAMES = {
+    "whoof": (WHOOF_MODES, "Qui de nous {} ?"),
+    "never": (NEVER_MODES, "Je n'ai jamais {}."),
+}
+NEVER_ANSWERS = ("yes", "no")  # « je l'ai déjà fait » / « jamais »
+
+
+def mode_label(g: dict) -> str | None:
+    if g["type"] not in QUESTION_GAMES:
+        return None
+    return QUESTION_GAMES[g["type"]][0][g["options"].get("mode", "soft")][0]
+
 
 ROLE_LABELS = {"civil": "Civil", "undercover": "Undercover", "white": "Mr. White"}
 
@@ -299,6 +370,9 @@ def vote(g: dict, voter: str, target: str, rng: random.Random = random):
             raise GameError("Vote invalide")
         if g["candidates"] and target not in g["candidates"]:
             raise GameError("Vote seulement pour les ex æquo")
+    elif g["type"] == "never":
+        if target not in NEVER_ANSWERS:
+            raise GameError("Réponse invalide")
     elif not other:
         raise GameError("Vote invalide")
     g["votes"][voter] = target
@@ -316,10 +390,13 @@ def tally(g: dict) -> dict[str, int]:
 
 def close_vote(g: dict, rng: random.Random = random):
     counts = tally(g)
-    if g["type"] == "whoof":
+    if g["type"] in QUESTION_GAMES:
         if g["phase"] != "question":
             raise GameError("Pas de question en cours")
-        g["results"] = sorted(([gid, c] for gid, c in counts.items()), key=lambda x: -x[1])
+        if g["type"] == "never":
+            g["results"] = [[gid, answer] for gid, answer in g["votes"].items()]
+        else:
+            g["results"] = sorted(([gid, c] for gid, c in counts.items()), key=lambda x: -x[1])
         g["phase"] = "results"
         return
     if g["phase"] != "vote":
@@ -390,11 +467,12 @@ def next_step(g: dict, rng: random.Random = random):
 
 
 def _next_question(g: dict, rng):
-    pool = WHOOF_MODES[g["options"].get("mode", "soft")][1]
+    modes, phrasing = QUESTION_GAMES[g["type"]]
+    pool = modes[g["options"].get("mode", "soft")][1]
     left = [q for q in pool if q not in g["used"]] or pool
     q = rng.choice(left)
     g["used"] = (g["used"] + [q])[-(len(pool) - 1):]
-    g.update(phase="question", question=f"Qui de nous {q} ?", votes={}, results=None, round=g["round"] + 1)
+    g.update(phase="question", question=phrasing.format(q), votes={}, results=None, round=g["round"] + 1)
 
 
 def restart(g: dict, rng: random.Random = random) -> dict:
@@ -432,7 +510,7 @@ def view(g: dict, gid: str) -> dict:
         players.append(out)
     out = {
         "id": g["id"], "code": g["code"], "type": g["type"], "name": GAMES[g["type"]], "phase": g["phase"],
-        "mode": WHOOF_MODES[g["options"].get("mode", "soft")][0] if g["type"] == "whoof" else None,
+        "mode": mode_label(g),
         "round": g["round"], "players": players, "is_host": bool(gid) and g["host"] == gid, "master": master,
         "host_name": g.get("host_name", ""),
         "order": [player(g, i)["name"] for i in g["order"] if player(g, i)] if g["type"] == "undercover" else [],
@@ -448,13 +526,17 @@ def view(g: dict, gid: str) -> dict:
                        "role": ROLE_LABELS.get(last["role"]), "guess": last.get("guess"), "me": last["eliminated"] == gid}
     elif last.get("tie"):
         out["last"] = {"tie": True}
-    if g["results"]:
+    if g["results"] and g["type"] == "never":
+        # Pas anonyme, comme le vrai jeu : on voit qui l'a déjà fait (et qui boit).
+        out["results"] = [{"pid": _pid(g, i), "name": (player(g, i) or {}).get("name", "?"), "answer": a}
+                          for i, a in g["results"]]
+    elif g["results"]:
         out["results"] = [{"pid": _pid(g, i), "name": (player(g, i) or {}).get("name", "?"), "count": c}
                           for i, c in g["results"]]
     if ended or master:
         out["words"] = g["words"]
     if me:
-        out["me"] = {"pid": me["pid"], "alive": me["alive"], "waiting": bool(me.get("waiting")) and not ended, "vote": _pid(g, g["votes"].get(gid)),
+        out["me"] = {"pid": me["pid"], "alive": me["alive"], "waiting": bool(me.get("waiting")) and not ended, "vote": g["votes"].get(gid) if g["type"] == "never" else _pid(g, g["votes"].get(gid)),
                      "role": "Mr. White" if me["role"] == "white" else None, "word": me["word"],
                      "dealt": me["role"] is not None}
     return out
@@ -462,7 +544,7 @@ def view(g: dict, gid: str) -> dict:
 
 def summary(g: dict) -> dict:
     """Vue d'ensemble pour l'admin (sans les secrets)."""
-    name = GAMES[g["type"]] + (" · " + WHOOF_MODES[g["options"].get("mode", "soft")][0] if g["type"] == "whoof" else "")
+    name = GAMES[g["type"]] + (" · " + mode_label(g) if mode_label(g) else "")
     return {"code": g["code"], "name": name, "phase": g["phase"], "round": g["round"],
             "players": [p["name"] for p in g["players"]], "host": g.get("host_name", ""),
             "updated_at": g["updated_at"]}
