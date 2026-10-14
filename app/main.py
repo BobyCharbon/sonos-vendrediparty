@@ -417,6 +417,7 @@ def admin_search(q: str):
 class AdminAdd(BaseModel):
     track_id: str
     where: str = "next"  # next : juste après le titre en cours | end : fin de la file
+    force: bool = False  # ajouter même si le titre est déjà dans la file
 
 
 @app.post("/api/admin/add", dependencies=[Depends(require_admin)])
@@ -432,8 +433,10 @@ def admin_add(body: AdminAdd):
         snap = snapshot(force=True)
         if not snap["from_queue"]:
             raise HTTPException(409, "La musique ne joue pas depuis la file Sonos : lance une playlist depuis l'app Sonos.")
-        if any(t and t["track_id"] == track["id"] for t in [snap["current"]] + snap["upcoming"]):
-            raise HTTPException(409, "Ce titre est déjà dans la file")
+        dup = next((i for i, t in enumerate([snap["current"]] + snap["upcoming"]) if t and t["track_id"] == track["id"]), None)
+        if dup is not None and not body.force:
+            where = "en cours de lecture" if dup == 0 else f"en {dup}ᵉ position"
+            raise HTTPException(409, {"duplicate": True, "message": f"« {track['title']} » est déjà dans la file ({where}). L'ajouter quand même ?"})
         pos = snap["current_pos"] + 1 if body.where == "next" and snap["current_pos"] else 0
         try:
             sonos.add_spotify_track(store.session.room_uid, track["id"], track["title"], pos)

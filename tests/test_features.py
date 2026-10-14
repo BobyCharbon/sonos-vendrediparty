@@ -129,9 +129,13 @@ def test_admin_adds_track_next_or_end(admin, monkeypatch):
     monkeypatch.setattr(main, "spotify", FakeSpotify())
     admin.post("/api/admin/add", json={"track_id": "d" * 22, "where": "next"})
     admin.post("/api/admin/add", json={"track_id": "e" * 22, "where": "end"})
-    assert admin.fake.calls == [("add", "d" * 22, 5), ("add", "e" * 22, 0)]
-    # Déjà dans la file : refusé.
-    assert admin.post("/api/admin/add", json={"track_id": "a" * 22, "where": "end"}).status_code == 409
+    assert admin.fake.calls[:2] == [("add", "d" * 22, 5), ("add", "e" * 22, 0)]
+    # Déjà dans la file : on demande confirmation…
+    r = admin.post("/api/admin/add", json={"track_id": "a" * 22, "where": "end"})
+    assert r.status_code == 409 and r.json()["detail"]["duplicate"]
+    # … et l'hôte peut forcer.
+    assert admin.post("/api/admin/add", json={"track_id": "a" * 22, "where": "end", "force": True}).status_code == 200
+    assert admin.fake.calls[-1] == ("add", "a" * 22, 0)
     # Les ajouts de l'hôte ne sont pas des demandes d'invités.
     assert main.store.pending() == []
 

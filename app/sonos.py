@@ -5,6 +5,7 @@ import threading
 import time
 
 import soco
+from soco.exceptions import SoCoUPnPException
 from soco.plugins.sharelink import ShareLinkPlugin
 
 TRACK_ID_RE = re.compile(r"spotify(?:%3a|:)track(?:%3a|:)([A-Za-z0-9]{22})", re.I)
@@ -163,7 +164,16 @@ class Sonos:
         self.coordinator(uid).pause()
 
     def set_volume(self, uid: str, volume: int):
-        self.coordinator(uid).group.volume = volume
+        group = self.coordinator(uid).group
+        try:
+            group.volume = volume
+        except SoCoUPnPException:
+            # Erreur 801 intermittente : Sonos veut un « snapshot » du volume de groupe avant de le régler.
+            if len(group.members) == 1:
+                group.coordinator.volume = volume
+                return
+            group.coordinator.groupRenderingControl.SnapshotGroupVolume([("InstanceID", 0)])
+            group.volume = volume
 
     def skip(self, uid: str):
         self.coordinator(uid).next()
