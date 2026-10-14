@@ -111,3 +111,22 @@ def test_fair_moves_nothing_to_do_when_already_fair():
     reqs = [req("A", "a1"), req("B", "b1")]
     reqs[1].added_at = 1
     assert fair_moves(3, [(4, "a1"), (5, "b1"), (6, "p1")], reqs) == []
+
+
+def test_proxy_ip_never_bans_everyone(tmp_path):
+    # Données enregistrées avant la prise en compte du proxy : tout le monde a l'IP de pfSense.
+    store = PartyStore(tmp_path / "s.json", ignored_ips={"192.168.50.1"})
+    store.start("RINCON_X", "Salon", "next")
+    store.session.guests = {
+        "guest-spam": {"name": "Spam", "ips": ["192.168.50.1", "86.220.23.199"], "joined_at": 0},
+        "guest-ok11": {"name": "Ok", "ips": ["192.168.50.1"], "joined_at": 0},
+    }
+    store.register_guest("guest-new1", "Nouveau", "192.168.50.1")
+    assert store.session.guests["guest-new1"]["ips"] == []
+
+    store.ban("guest-spam", None)
+    assert store.session.bans["guest-spam"]["ips"] == ["86.220.23.199"]
+    assert store.ban_status("guest-ok11", "192.168.50.1") is None
+    assert store.ban_status("guest-new1", "192.168.50.1") is None
+    assert store.ban_status("guest-spam", "192.168.50.1") is not None
+    assert store.ban_status("autre-onglet", "86.220.23.199") is not None

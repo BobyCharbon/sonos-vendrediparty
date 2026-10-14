@@ -29,7 +29,9 @@ ADMIN_PIN = os.environ.get("ADMIN_PIN", "")
 PUBLIC_URL = "https://party.bobycharbon.ch"
 STATIC = Path(__file__).parent / "static"
 
-store = PartyStore(DATA_DIR / "session.json")
+# Proxies de confiance (même variable qu'uvicorn) : leur IP n'identifie personne.
+PROXY_IPS = {ip.strip() for ip in os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1").split(",") if ip.strip()}
+store = PartyStore(DATA_DIR / "session.json", ignored_ips=PROXY_IPS)
 sonos = Sonos(os.environ.get("SONOS_IP") or None)
 spotify = (
     Spotify(os.environ["SPOTIFY_CLIENT_ID"], os.environ["SPOTIFY_CLIENT_SECRET"], os.environ.get("SPOTIFY_MARKET", "CH"))

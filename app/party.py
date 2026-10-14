@@ -44,8 +44,10 @@ class Session:
 
 
 class PartyStore:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, ignored_ips: set[str] | None = None):
         self.path = path
+        # IP du reverse proxy : partagée par tous les invités externes, jamais utilisée pour un ban.
+        self.ignored_ips = ignored_ips or set()
         self.lock = threading.RLock()
         self.session = self._load()
         self.last_seen: dict[str, float] = {}  # en mémoire : rafraîchi à chaque appel des invités
@@ -117,7 +119,7 @@ class PartyStore:
         if g is None:
             g = self.session.guests[guest_id] = {"name": name, "ips": [], "joined_at": time.time()}
         g["name"] = name
-        if ip and ip not in g["ips"]:
+        if ip and ip not in self.ignored_ips and ip not in g["ips"]:
             g["ips"].append(ip)
         self.save()
 
@@ -127,7 +129,8 @@ class PartyStore:
 
     def guest_ips(self, guest_id: str) -> set[str]:
         ips = set(self.session.guests.get(guest_id, {}).get("ips", []))
-        return ips | {r.ip for r in self.session.requests if r.guest_id == guest_id and r.ip}
+        ips |= {r.ip for r in self.session.requests if r.guest_id == guest_id and r.ip}
+        return ips - self.ignored_ips - {""}
 
     def guests(self) -> list[dict]:
         """Invités entrés pendant la soirée, avec leurs titres et leur statut de blocage."""
@@ -197,8 +200,8 @@ class PartyStore:
 
     def ban_status(self, guest_id: str, *ips: str) -> dict | None:
         """{"until": timestamp ou 0} si l'invité ou l'une de ses IP est bloqué."""
-        ips = {ip for ip in ips if ip}
-        found = [b for g, b in self.active_bans().items() if g == guest_id or ips & set(b["ips"])]
+        ips = {ip for ip in ips if ip} - self.ignored_ips
+        found = [b for g, b in self.active_bans().items() if g == guest_id or ips & (set(b["ips"]) - self.ignored_ips)]
         if not found:
             return None
         # Un bannissement sans limite l'emporte sur un blocage temporaire.
