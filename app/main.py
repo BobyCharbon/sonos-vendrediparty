@@ -935,7 +935,7 @@ def game_action(code: str, body: GameAction, request: Request):
         "deal": (games.bj_deal,), "skip": (games.bj_force_stand,),
         "cbet": (games.casino_bet, me, body.target, body.amount), "cclear": (games.casino_clear, me),
         "crebuy": (games.casino_rebuy, me), "cspin": (games.casino_spin,),
-        "dnext": (games.divan_next, me), "djoker": (games.divan_joker, me), "dheart": (games.divan_heart, me),
+        "dnext": (games.divan_next, me), "djoker": (games.divan_joker, me), "dback": (games.divan_back, me), "dheart": (games.divan_heart, me),
     }
     if a not in actions:
         raise HTTPException(400, "Action inconnue")

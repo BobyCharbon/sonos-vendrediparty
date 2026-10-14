@@ -812,9 +812,37 @@ def _divan_can_lead(g: dict, gid: str):
         raise GameError("C'est à la personne sur le divan (ou à l'animateur) de décider")
 
 
+DIVAN_BACK = 20  # retours en arrière possibles
+
+
+def _divan_save(g: dict, gid: str):
+    """Mémorise l'état avant « Au suivant » ou le joker, pour pouvoir revenir en arrière."""
+    d = g["divan"]
+    back = d.setdefault("back", [])
+    back.append({"turn": d["turn"], "card": d["card"], "joker": d["joker"], "hearts": list(d["hearts"]),
+                 "n": d["n"], "used": len(d["used"]), "by": gid})
+    del back[:-DIVAN_BACK]
+
+
+def divan_back(g: dict, gid: str):
+    """Retour en arrière : annule le dernier « Au suivant » ou joker (la carte écartée retourne dans le paquet)."""
+    d = g["divan"]
+    back = d.get("back") or []
+    if g["phase"] != "card" or not back:
+        raise GameError("Rien à annuler")
+    if back[-1]["by"] != gid:
+        _divan_can_lead(g, gid)
+    s = back.pop()
+    if len(d["used"]) > s["used"]:
+        del d["used"][s["used"]:]
+    d.update(turn=s["turn"] % len(g["players"]), card=s["card"], joker=s["joker"], hearts=s["hearts"], n=s["n"])
+    g["round"] = s["n"]
+
+
 def divan_next(g: dict, gid: str, rng: random.Random = random):
     """Au suivant : le divan passe au joueur suivant, nouvelle carte."""
     _divan_can_lead(g, gid)
+    _divan_save(g, gid)
     g["divan"]["turn"] = (g["divan"]["turn"] + 1) % len(g["players"])
     g["divan"]["joker"] = False
     _divan_draw(g, rng)
@@ -825,6 +853,7 @@ def divan_joker(g: dict, gid: str, rng: random.Random = random):
     _divan_can_lead(g, gid)
     if g["divan"]["joker"]:
         raise GameError("Le joker de ce tour a déjà été utilisé")
+    _divan_save(g, gid)
     g["divan"]["joker"] = True
     _divan_draw(g, rng)
 
@@ -845,7 +874,8 @@ def divan_view(g: dict, gid: str) -> dict:
     return {"cats": d["cats"], "labels": DIVAN_LABELS, "card": d["card"], "hearts": len(d["hearts"]),
             "hearted": gid in d["hearts"], "joker": d["joker"],
             "current": {"pid": cur["pid"], "name": cur["name"]} if cur else None,
-            "my_turn": bool(cur) and cur["id"] == gid, "can_lead": bool(gid) and (gid == g["host"] or (bool(cur) and cur["id"] == gid))}
+            "my_turn": bool(cur) and cur["id"] == gid, "can_lead": bool(gid) and (gid == g["host"] or (bool(cur) and cur["id"] == gid)),
+            "can_back": bool(gid) and bool(d.get("back")) and (gid == g["host"] or (bool(cur) and cur["id"] == gid) or d["back"][-1]["by"] == gid)}
 
 
 def start(g: dict, rng: random.Random = random):

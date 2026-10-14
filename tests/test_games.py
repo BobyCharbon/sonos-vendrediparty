@@ -521,3 +521,25 @@ def test_elapsed_since_creation():
     g["created_at"] -= 125
     assert 125 <= games.view(g, "h")["elapsed"] < 127
     assert 125 <= games.summary(g)["elapsed"] < 127
+
+
+def test_divan_back_undoes_next_and_joker():
+    g = games.new_game("divan", host="h", name="Hôte")
+    games.join(g, "a", "Ana")
+    games.join(g, "b", "Bob")
+    games.start(g, random.Random(1))
+    with pytest.raises(games.GameError):
+        games.divan_back(g, "h")  # rien à annuler
+    first, used = dict(g["divan"]["card"]), len(g["divan"]["used"])
+    games.divan_heart(g, "a")
+    games.divan_next(g, "h", random.Random(2))
+    assert g["divan"]["turn"] == 1 and g["divan"]["hearts"] == []
+    games.divan_joker(g, "a", random.Random(3))
+    games.divan_back(g, "a")  # Ana annule son joker
+    assert not g["divan"]["joker"]
+    with pytest.raises(games.GameError):
+        games.divan_back(g, "b")  # Bob n'est ni sur le divan, ni animateur, ni l'auteur de l'action
+    games.divan_back(g, "h")
+    d = g["divan"]
+    assert d["card"] == first and d["turn"] == 0 and d["hearts"] == ["a"] and len(d["used"]) == used
+    assert g["round"] == first["id"]

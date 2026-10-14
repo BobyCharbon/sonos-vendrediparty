@@ -93,6 +93,7 @@ const GAME_RULES = {
       <li>Les autres écoutent, peuvent poser une question de relance… et envoyer du <b>soutien ❤️</b>.</li>
       <li>« Au suivant » : le divan passe au joueur suivant, avec une nouvelle carte.</li>
       <li>Sur le téléphone de la personne sur le divan (et de l'animateur), on peut aussi <b>glisser la carte</b> : vers la gauche pour « Au suivant », vers la droite pour le joker.</li>
+      <li>Erreur de manipulation ? « ↩︎ Retour » revient à la carte précédente (et à la personne précédente).</li>
     </ol>
     <h3>Les catégories</h3>
     <ul>
@@ -721,8 +722,9 @@ function divanHtml(g) {
   if (g.phase === "lobby") return `<div class="title">${g.is_host ? "Ouvre la séance quand tout le monde est installé." : "La séance va commencer…"}</div>
     <div class="artist" style="margin-top:6px">Catégories : ${d.cats.map((c) => `${DV_ICONS[c]} ${d.labels[c]}`).join(" · ")}</div>
     ${!g.me && !g.master ? `<button data-gact="join" style="width:100%;margin-top:12px">Rejoindre la séance</button>` : ""}`;
-  const c = d.card, fresh = c && c.id > dvSeen;
-  if (c) dvSeen = Math.max(dvSeen, c.id);
+  // Nouvelle carte (ou retour en arrière) : on la retourne à l'écran.
+  const c = d.card, fresh = c && c.id !== dvSeen;
+  if (c) dvSeen = c.id;
   if (fresh && d.my_turn) navigator.vibrate?.(80);
   const who = d.current?.name || "…";
   return `<div class="dv-who ${d.my_turn ? "me" : ""} ${fresh ? "dv-new" : ""}">
@@ -787,7 +789,7 @@ function renderDivanHost(g, btn) {
   const d = g.divan;
   const controls = g.phase === "lobby"
     ? (g.is_host ? btn("start", "▶︎ Ouvrir la séance", "grow", g.players.length ? "" : "disabled") : "")
-    : d.can_lead ? btn("djoker", d.joker ? "Joker utilisé" : "🃏 Joker : autre carte", "secondary grow", d.joker ? "disabled" : "") + btn("dnext", "Au suivant ▶︎", "grow") : "";
+    : d.can_lead || d.can_back ? (d.can_back ? btn("dback", "↩︎ Retour", "secondary") : "") + (!d.can_lead ? "" : btn("djoker", d.joker ? "Joker utilisé" : "🃏 Joker : autre carte", "secondary grow", d.joker ? "disabled" : "") + btn("dnext", "Au suivant ▶︎", "grow")) : "";
   $("gameHost").innerHTML = `
     ${controls ? `<div class="row" style="margin-top:10px">${controls}</div>` : ""}
     <h2>Autour du divan (${g.players.length})</h2>
