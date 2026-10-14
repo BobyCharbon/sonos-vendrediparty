@@ -318,7 +318,7 @@ document.getElementById("gamesRoot").innerHTML = `
           ${helpBtn("tmc")}
         </div>
         <p class="g-desc">Deux joueurs sont tirés au sort : l'un écrit en secret sa réponse à une question sur lui, l'autre la devine à voix haute. Points au classement général… et par duo, pour savoir qui connaît le mieux qui.</p>
-        <div class="g-chips"><span>2+ joueurs</span><span>330+ questions</span><span>Points d'amitié</span></div>
+        <div class="g-chips"><span>2+ joueurs</span><span>334 questions</span><span>Points d'amitié</span></div>
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="tmc">Créer une partie</button>
       </div>
