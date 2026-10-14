@@ -3,6 +3,8 @@
 services:
   vendrediparty:
     image: ghcr.io/bobycharbon/sonos-vendrediparty:latest
+    # Retélécharge l'image à chaque déploiement (sinon un redeploy garde l'ancienne version).
+    pull_policy: always
     container_name: vendrediparty
     restart: unless-stopped
     network_mode: host
