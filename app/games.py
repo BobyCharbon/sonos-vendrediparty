@@ -107,7 +107,7 @@ def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code
         "created_at": time.time(), "updated_at": time.time(),
         "options": {"white": white}, "players": [], "round": 0, "order": [], "votes": {},
         "candidates": None, "last": None, "winner": None, "words": None, "used": [],
-        "question": None, "results": None,
+        "question": None, "results": None, "kicked": [],
     }
     if host and plays:
         join(g, host, name)
@@ -124,33 +124,53 @@ def player(g: dict, gid: str) -> dict | None:
 
 
 def alive(g: dict) -> list[dict]:
-    return [p for p in g["players"] if p["alive"]]
+    """Joueurs encore en lice (pas les éliminés, ni ceux qui attendent la prochaine partie)."""
+    return [p for p in g["players"] if p["alive"] and not p.get("waiting")]
 
 
 def join(g: dict, gid: str, name: str = ""):
     if p := player(g, gid):
         p["name"] = name or p["name"]
         return
-    # « Qui de nous ? » accepte les retardataires ; Undercover seulement avant la distribution des mots.
-    if g["type"] == "undercover" and g["phase"] not in ("lobby", "end"):
-        raise GameError("La partie a déjà commencé, attends la prochaine 🙂")
+    if gid in g.get("kicked", []):
+        raise GameError("L'animateur t'a retiré de cette partie")
     if len(g["players"]) >= 30:
         raise GameError("La partie est complète")
     taken = {p["pid"] for p in g["players"]}
     while (pid := secrets.token_hex(4)) in taken:
         pass
-    g["players"].append({"id": gid, "pid": pid, "name": name or "?", "alive": True, "role": None, "word": None})
+    # Undercover déjà lancé : le retardataire attend la prochaine partie (il reçoit un mot à « Rejouer »).
+    waiting = g["type"] == "undercover" and g["phase"] not in ("lobby", "end")
+    g["players"].append({"id": gid, "pid": pid, "name": name or "?", "alive": True, "role": None, "word": None,
+                         "waiting": waiting})
 
 
 def leave(g: dict, gid: str):
-    if g["type"] == "undercover" and g["phase"] not in ("lobby", "end"):
-        raise GameError("Impossible de quitter en pleine partie")
-    g["players"] = [p for p in g["players"] if p["id"] != gid]
-    g["votes"].pop(gid, None)
+    """Un joueur part (ou est exclu), même en pleine partie : la partie continue sans lui."""
+    p = player(g, gid)
+    if p is None:
+        raise GameError("Joueur introuvable")
+    in_play = p in alive(g)
+    g["players"].remove(p)
+    g["votes"] = {v: t for v, t in g["votes"].items() if v != gid and t != gid}
+    g["order"] = [i for i in g["order"] if i != gid]
+    if g["candidates"]:
+        g["candidates"] = [c for c in g["candidates"] if c != gid] or None
     # L'animateur s'en va : le joueur suivant reprend la main.
     if g["host"] == gid:
         nxt = g["players"][0] if g["players"] else None
         g["host"], g["host_name"] = (nxt["id"], nxt["name"]) if nxt else ("", "")
+    if g["type"] == "undercover":
+        if g["phase"] == "white_guess" and g["last"] and g["last"]["eliminated"] == gid:
+            skip_white_guess(g)  # Mr. White parti avant de deviner
+        elif in_play and g["phase"] in ("words", "vote", "reveal"):
+            _check_end(g)
+
+
+def kick(g: dict, gid: str):
+    """L'animateur exclut un joueur : il ne peut plus revenir dans cette partie."""
+    leave(g, gid)
+    g.setdefault("kicked", []).append(gid)
 
 
 def move(g: dict, gid: str, delta: int):
@@ -194,7 +214,7 @@ def _deal(g: dict, rng):
     roles += ["civil"] * (n - len(roles))
     rng.shuffle(roles)
     for p, role in zip(players, roles):
-        p.update(alive=True, role=role, word={"civil": civil, "undercover": under}.get(role))
+        p.update(alive=True, waiting=False, role=role, word={"civil": civil, "undercover": under}.get(role))
     g.update(round=1, winner=None, last=None, votes={}, candidates=None)
     _speaking_order(g, rng)
 
@@ -220,9 +240,9 @@ def vote(g: dict, voter: str, target: str, rng: random.Random = random):
     if g["phase"] not in ("vote", "question") or not me:
         raise GameError("Pas de vote en cours")
     if g["type"] == "undercover":
-        if not me["alive"]:
-            raise GameError("Tu as été éliminé : tu ne votes plus")
-        if not other or not other["alive"] or target == voter:
+        if me not in alive(g):
+            raise GameError("Tu ne votes pas pendant cette manche")
+        if not other or other not in alive(g) or target == voter:
             raise GameError("Vote invalide")
         if g["candidates"] and target not in g["candidates"]:
             raise GameError("Vote seulement pour les ex æquo")
@@ -264,7 +284,7 @@ def close_vote(g: dict, rng: random.Random = random):
 
 def eliminate(g: dict, target: str):
     p = player(g, target)
-    if g["type"] != "undercover" or g["phase"] not in ("words", "vote") or not p or not p["alive"]:
+    if g["type"] != "undercover" or g["phase"] not in ("words", "vote") or not p or p not in alive(g):
         raise GameError("Élimination impossible")
     p["alive"] = False
     g.update(votes={}, candidates=None, last={"eliminated": target, "role": p["role"], "round": g["round"]})
@@ -347,8 +367,9 @@ def view(g: dict, gid: str) -> dict:
     master = bool(gid) and g["host"] == gid and me is None
     players = []
     for p in g["players"]:
-        out = {"pid": p["pid"], "name": p["name"], "alive": p["alive"], "voted": p["id"] in g["votes"],
-               "host": p["id"] == g["host"]}
+        waiting = bool(p.get("waiting")) and g["phase"] != "end"
+        out = {"pid": p["pid"], "name": p["name"], "alive": p["alive"] and not waiting, "waiting": waiting,
+               "voted": p["id"] in g["votes"], "host": p["id"] == g["host"]}
         # Un éliminé dévoile son rôle, pas son mot (celui d'un civil aiderait les undercovers restants).
         if (ended or master or not p["alive"]) and p["role"]:
             out["role"] = ROLE_LABELS[p["role"]]
@@ -363,6 +384,7 @@ def view(g: dict, gid: str) -> dict:
         "order_pids": [_pid(g, i) for i in g["order"] if player(g, i)] if g["type"] == "undercover" else [],
         "candidates": [_pid(g, i) for i in g["candidates"]] if g["candidates"] else None,
         "winner": g["winner"], "question": g["question"], "votes_count": len(g["votes"]), "options": g["options"],
+        "kicked": bool(gid) and gid in g.get("kicked", []),
     }
     last = g["last"] or {}
     if last.get("eliminated"):
@@ -377,7 +399,7 @@ def view(g: dict, gid: str) -> dict:
     if ended or master:
         out["words"] = g["words"]
     if me:
-        out["me"] = {"pid": me["pid"], "alive": me["alive"], "vote": _pid(g, g["votes"].get(gid)),
+        out["me"] = {"pid": me["pid"], "alive": me["alive"], "waiting": bool(me.get("waiting")) and not ended, "vote": _pid(g, g["votes"].get(gid)),
                      "role": "Mr. White" if me["role"] == "white" else None, "word": me["word"],
                      "dealt": me["role"] is not None}
     return out

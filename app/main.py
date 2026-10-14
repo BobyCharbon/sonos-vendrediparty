@@ -864,7 +864,7 @@ def game_action(code: str, body: GameAction, request: Request):
         "leave": (games.leave, me), "vote": (games.vote, me, target), "guess": (games.white_guess, me, body.guess),
         "start": (games.start,), "vote_start": (games.start_vote,), "close_vote": (games.close_vote,),
         "eliminate": (games.eliminate, target), "skip_guess": (games.skip_white_guess,),
-        "next": (games.next_step,), "restart": (games.restart,), "remove": (games.leave, target),
+        "next": (games.next_step,), "restart": (games.restart,), "remove": (games.kick, target),
         "up": (games.move, target, -1), "down": (games.move, target, 1),
     }
     if a not in actions:

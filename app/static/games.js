@@ -82,13 +82,16 @@ function renderGame(g) {
   const lastLine = g.last?.name ? `<p class="sub" style="margin:8px 0">${esc(g.last.name)} était <b>${esc(g.last.role)}</b>.${g.last.guess ? ` Mr. White a proposé « ${esc(g.last.guess)} »… raté !` : ""}</p>` : "";
   let body = "";
 
-  if (!me && !g.master) {
-    // Visiteur : pas encore dans la partie.
-    const canJoin = g.phase === "lobby" || g.phase === "end" || g.type === "whoof";
-    body = canJoin
-      ? `<div class="title">Partie de ${esc(g.host_name || "quelqu'un")}</div><div class="artist">${g.players.length} joueur${g.players.length > 1 ? "s" : ""}</div>
-         <button data-gact="join" style="width:100%;margin-top:10px">Rejoindre la partie</button>`
-      : `<div class="title">Partie déjà commencée</div><div class="artist">Tu pourras rejoindre la prochaine manche.</div>`;
+  if (g.kicked) {
+    body = `<div class="title">L'animateur t'a retiré de cette partie</div><div class="artist">Tu peux en créer ou en rejoindre une autre.</div>`;
+  } else if (!me && !g.master) {
+    // Visiteur : pas encore dans la partie (Undercover en cours : il attendra la prochaine).
+    const running = g.type === "undercover" && g.phase !== "lobby" && g.phase !== "end";
+    body = `<div class="title">Partie de ${esc(g.host_name || "quelqu'un")}</div>
+      <div class="artist">${g.players.length} joueur${g.players.length > 1 ? "s" : ""}${running ? " · partie en cours, tu joueras à la suivante" : ""}</div>
+      <button data-gact="join" style="width:100%;margin-top:10px">Rejoindre la partie</button>`;
+  } else if (me?.waiting) {
+    body = `<div class="title">Tu es inscrit ⏳</div><div class="artist">Une partie est en cours : tu recevras ton mot à la prochaine.</div>`;
   } else if (g.master && g.phase !== "end") {
     body = `<div class="title">Tu es maître du jeu 🎲</div><div class="artist">Tu ne joues pas : tu fais avancer la partie${g.type === "undercover" ? " et tu peux voir les rôles (👁)" : ""}.</div>
       ${g.question ? `<div class="question" style="margin-top:10px">${esc(g.question)}</div>` : ""}${lastLine}
@@ -166,7 +169,7 @@ function renderGameHost(g) {
     end: btn("restart", "🔁 Rejouer avec les mêmes joueurs", "grow"),
   }[g.phase] || "";
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
-  const canRemove = g.is_host && (g.phase === "lobby" || g.phase === "end" || g.type === "whoof");
+  const canRemove = g.is_host;
   const seeRoles = g.phase === "end" || (g.master && showRoles);
   const speaking = g.type === "undercover" && g.phase === "words";
   const canMove = g.is_host && (speaking || g.phase === "lobby");
@@ -177,13 +180,13 @@ function renderGameHost(g) {
     <h2>${speaking ? "Ordre de parole" : "Joueurs"} (${g.players.length})${g.master && g.type === "undercover" ? ` <button class="secondary" data-gact="roles" style="padding:2px 8px">${showRoles ? "🙈 Cacher" : "👁 Rôles"}</button>` : ""}</h2>
     <div class="list">${list.map((p, i) => `
       <div class="track" style="${p.alive ? "" : "opacity:.55"}">
-        <div class="meta"><div class="title">${speaking && p.alive ? `${i + 1}. ` : ""}${p.alive ? "" : "✝︎ "}${esc(p.name)}${p.host ? " 🎲" : ""}${(g.phase === "vote" || g.phase === "question") && p.voted ? " ✓" : ""}</div>
+        <div class="meta"><div class="title" ${p.waiting ? 'title="Joue à la prochaine partie"' : ""}>${speaking && p.alive ? `${i + 1}. ` : ""}${p.waiting ? "⏳ " : p.alive ? "" : "✝︎ "}${esc(p.name)}${p.host ? " 🎲" : ""}${(g.phase === "vote" || g.phase === "question") && p.voted ? " ✓" : ""}</div>
           ${p.role && (seeRoles || !p.alive) ? `<div class="artist">${esc(p.role)}${seeRoles && p.word ? " · " + esc(p.word) : ""}</div>` : ""}</div>
         <div class="icon-btns">
           ${canMove && p.alive && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter">⬆</button>` : ""}
           ${canMove && p.alive && i < (speaking ? g.order_pids.length : list.length) - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre">⬇</button>` : ""}
           ${canEliminate && p.alive ? `<button class="danger" data-gact="eliminate" data-target="${esc(p.pid)}" title="Éliminer (vote à main levée)">Éliminer</button>` : ""}
-          ${canRemove && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Retirer de la partie">✕</button>` : ""}
+          ${canRemove && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie">✕</button>` : ""}
         </div>
       </div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
     ${g.is_host && !g.me && (g.phase === "lobby" || g.phase === "end") ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
@@ -216,6 +219,7 @@ document.addEventListener("click", (ev) => {
   if (a === "hide") { wordShown = ""; wordUntil = 0; return renderGame(game); }
   if (a === "roles") { showRoles = !showRoles; return renderGame(game); }
   if (a === "eliminate" && !confirm("Éliminer ce joueur ?")) return;
+  if (a === "remove" && !confirm("Exclure ce joueur de la partie ? Il ne pourra pas revenir.")) return;
   gameAction(a, { target: b.dataset.target || "" });
 });
 $("game").addEventListener("submit", (ev) => {
@@ -228,7 +232,7 @@ $("game").addEventListener("submit", (ev) => {
 $("gameLeave").onclick = () => {
   if (!game) return;
   if (game.is_host) { if (confirm("Fermer la partie pour tout le monde ?")) gameAction("end"); }
-  else if (!game.me) { setGame(""); renderGame(null); }
+  else if (!game.me || game.kicked) { setGame(""); renderGame(null); }
   else if (confirm("Quitter la partie ?")) gameAction("leave");
 };
 document.addEventListener("click", async (ev) => {

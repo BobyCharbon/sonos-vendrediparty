@@ -124,10 +124,46 @@ def test_impostors_win_when_one_civil_left():
     assert g["winner"] == "impostors"
 
 
-def test_late_join_refused_for_undercover():
-    g = undercover(3)
+def test_late_joiner_waits_for_next_game():
+    g = undercover(4, white=False)
+    games.join(g, "late", "Retard")
+    v = games.view(g, "late")
+    assert v["me"]["waiting"] and v["me"]["word"] is None
+    assert next(p for p in v["players"] if p["name"] == "Retard")["waiting"]
+    games.start_vote(g)
     with pytest.raises(games.GameError):
-        games.join(g, "late")
+        games.vote(g, "late", "p0")  # ne vote pas
+    with pytest.raises(games.GameError):
+        games.vote(g, "p0", next(p["pid"] for p in g["players"] if p["id"] == "late") and "late")  # ni ne peut être visé
+    # Les votes des 4 joueurs en lice suffisent à clore le vote.
+    under = by_role(g, "undercover")[0]
+    for v in ["p0", "p1", "p2", "p3"]:
+        games.vote(g, v, under if v != under else next(x for x in ["p0", "p1"] if x != under))
+    assert g["phase"] == "end"
+    games.restart(g, random.Random(5))
+    assert games.player(g, "late")["role"] and not games.player(g, "late")["waiting"]
+
+
+def test_host_kicks_mid_game():
+    g = undercover(5, white=False)
+    under = by_role(g, "undercover")[0]
+    games.start_vote(g)
+    games.vote(g, "p0" if under != "p0" else "p1", under)
+    games.kick(g, under)
+    # Le seul undercover est parti : les civils gagnent ; il ne peut pas revenir.
+    assert g["winner"] == "civils" and games.player(g, under) is None
+    with pytest.raises(games.GameError):
+        games.join(g, under, "Revenant")
+    assert games.view(g, under)["kicked"]
+
+
+def test_player_can_leave_mid_game():
+    g = undercover(4, white=False)
+    civil = by_role(g, "civil")[0]
+    games.leave(g, civil)
+    assert games.player(g, civil) is None and civil not in g["order"]
+    games.join(g, civil, "De retour")  # partir de soi-même n'empêche pas de revenir
+    assert games.player(g, civil)["waiting"]
 
 
 def test_whoof_round():
