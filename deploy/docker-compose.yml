@@ -1,0 +1,21 @@
+# Stack à coller dans Dockhand / Portainer.
+# Les variables (ADMIN_PIN, SPOTIFY_*, PUBLIC_URL…) se renseignent dans l'interface de la stack.
+services:
+  vendrediparty:
+    image: ghcr.io/bobycharbon/sonos-vendrediparty:latest
+    container_name: vendrediparty
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      PORT: ${PORT:-8090}
+      ADMIN_PIN: ${ADMIN_PIN}
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET}
+      SPOTIFY_MARKET: ${SPOTIFY_MARKET:-CH}
+      SONOS_IP: ${SONOS_IP:-192.168.50.186}
+      PUBLIC_URL: ${PUBLIC_URL:-http://192.168.50.204:8090}
+    volumes:
+      - vendrediparty-data:/data
+
+volumes:
+  vendrediparty-data:

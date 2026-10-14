@@ -51,13 +51,24 @@ set -a; source .env; set +a
 .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### Docker (Proxmox LXC, NAS…)
+### Docker en local
 
 ```bash
 docker compose up -d --build
 ```
 
 Le conteneur utilise `network_mode: host`. L'état de la soirée est conservé dans `./data`.
+
+### Production (serveur Docker, mises à jour par Git)
+
+1. Chaque push sur `main` lance les tests, puis publie l'image
+   `ghcr.io/bobycharbon/sonos-vendrediparty:latest` (GitHub Actions).
+2. Sur le serveur, la stack `deploy/docker-compose.yml` utilise cette image (port `8090` par défaut,
+   l'agent Edge de Portainer occupant souvent le 8000). Renseigne `ADMIN_PIN`, `SPOTIFY_CLIENT_ID`
+   et `SPOTIFY_CLIENT_SECRET` dans les variables de la stack.
+3. Dockhand détecte la nouvelle image : mise à jour en un clic ou automatique.
+
+L'image est privée : le serveur doit être connecté à `ghcr.io` avec un token GitHub `read:packages`.
 
 ## Tests
 
