@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0e0b16">
+  <title>Party Admin</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <h1>🎛️ <span>Admin</span></h1>
+
+  <form id="login" class="hidden">
+    <p class="sub">Entre ton code admin.</p>
+    <div class="row">
+      <input id="pin" class="grow" type="password" inputmode="numeric" placeholder="Code PIN" autocomplete="current-password">
+      <button>Entrer</button>
+    </div>
+  </form>
+
+  <div id="panel" class="hidden">
+    <div id="noSpotify" class="warn hidden">Spotify n'est pas configuré (SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET) : les invités ne pourront pas chercher de titres.</div>
+
+    <!-- Pas de session -->
+    <div id="setup" class="hidden">
+      <p class="sub">1. Lance ta playlist depuis l'app Sonos.<br>2. Choisis la pièce et démarre la soirée.</p>
+      <div class="card">
+        <h2 style="margin-top:0">Pièce Sonos</h2>
+        <div class="row">
+          <select id="room" class="grow"></select>
+          <button class="secondary" id="reloadRooms" type="button" title="Actualiser">↻</button>
+        </div>
+        <h2>Mode d'insertion</h2>
+        <div class="seg" data-mode-picker></div>
+        <button id="start" style="width:100%;margin-top:16px">🎉 Démarrer la soirée</button>
+      </div>
+    </div>
+
+    <!-- Session active -->
+    <div id="live" class="hidden">
+      <p class="sub"><span class="pill live">● Soirée en cours</span> <span id="liveRoom"></span></p>
+      <div id="sonosWarn" class="warn hidden"></div>
+
+      <div class="card now" id="now"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="secondary grow" id="skip">⏭ Passer</button>
+        <button class="danger grow" id="stop">Arrêter la soirée</button>
+      </div>
+
+      <h2>Mode d'insertion</h2>
+      <div class="seg" data-mode-picker></div>
+      <p class="sub" id="modeHelp" style="margin-top:8px"></p>
+
+      <h2>QR code invités</h2>
+      <div class="card" style="text-align:center">
+        <img class="qr" src="/qr.svg" alt="QR code vers la page invités">
+        <p class="sub" style="margin:10px 0 0" id="guestUrl"></p>
+      </div>
+
+      <h2>Invités</h2>
+      <div id="guests" class="list"></div>
+
+      <h2>Demandes des invités</h2>
+      <div id="requests" class="list"></div>
+    </div>
+
+    <div id="bansBox" class="hidden">
+      <h2>Bloqués / bannis</h2>
+      <div id="bans" class="list"></div>
+    </div>
+
+    <p style="text-align:center;margin-top:32px"><a href="#" id="logout" style="color:var(--muted)">Se déconnecter</a></p>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const MODES = { next: "Juste après", fair: "Équitable" };
+const HELP = {
+  next: "Chaque titre ajouté passe juste après celui en cours (le dernier ajouté passe en premier).",
+  fair: "Les demandes passent avant ta playlist, une par invité à tour de rôle : personne ne monopolise la file.",
+};
+let state = null, chosenMode = "next";
+
+let toastTimer;
+function toast(msg, kind = "") {
+  const t = $("toast"); t.textContent = msg; t.className = "toast " + kind;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("hidden"), 3000);
+}
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await r.json().catch(() => ({}));
+  if (r.status === 401) { showLogin(); throw new Error(data.detail || "Non autorisé"); }
+  if (!r.ok) throw new Error(data.detail || "Erreur");
+  return data;
+}
+function showLogin() { $("login").classList.remove("hidden"); $("panel").classList.add("hidden"); }
+
+function renderModes(current) {
+  document.querySelectorAll("[data-mode-picker]").forEach((el) => {
+    el.innerHTML = Object.entries(MODES).map(([k, v]) => `<button type="button" data-mode="${k}" class="${k === current ? "on" : ""}">${v}</button>`).join("");
+  });
+  $("modeHelp").textContent = HELP[current];
+}
+document.addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-mode]");
+  if (!b) return;
+  if (state && state.active) {
+    try { render(await api("/api/admin/mode", { mode: b.dataset.mode })); toast("Mode : " + MODES[b.dataset.mode], "ok"); }
+    catch (e) { toast(e.message, "err"); }
+  } else { chosenMode = b.dataset.mode; renderModes(chosenMode); }
+});
+
+async function loadRooms() {
+  $("room").innerHTML = `<option>Recherche des enceintes…</option>`;
+  try {
+    const rooms = await api("/api/admin/rooms");
+    $("room").innerHTML = rooms.map((r) => `<option value="${esc(r.uid)}">${esc(r.name)}</option>`).join("");
+  } catch (e) { $("room").innerHTML = `<option value="">${esc(e.message)}</option>`; }
+}
+
+function render(s) {
+  state = s;
+  $("login").classList.add("hidden"); $("panel").classList.remove("hidden");
+  $("noSpotify").classList.toggle("hidden", s.spotify_configured);
+  $("setup").classList.toggle("hidden", s.active);
+  $("live").classList.toggle("hidden", !s.active);
+  renderBans(s);
+  if (!s.active) { renderModes(chosenMode); return; }
+
+  renderModes(s.mode);
+  $("liveRoom").textContent = s.room_name;
+  $("guestUrl").textContent = location.origin + "/";
+  const so = s.sonos;
+  const warn = s.sonos_error ? "Sonos injoignable : " + s.sonos_error
+    : so && !so.from_queue ? "⚠️ La musique ne joue pas depuis la file Sonos (Spotify Connect / Jam ?). Lance une playlist depuis l'app Sonos pour que les ajouts fonctionnent." : "";
+  $("sonosWarn").textContent = warn; $("sonosWarn").classList.toggle("hidden", !warn);
+
+  if (so && so.now && so.now.title) {
+    $("now").innerHTML = `${so.now.art ? `<img src="${esc(so.now.art)}" alt="" onerror="this.removeAttribute('src')">` : `<img alt="">`}
+      <div style="min-width:0"><div class="artist">${so.state === "PLAYING" ? "▶︎ En cours" : "⏸ " + esc(so.state)}</div>
+      <div class="title">${esc(so.now.title)}</div><div class="artist">${esc(so.now.artist)}</div>
+      ${so.now.by ? `<span class="by">ajouté par ${esc(so.now.by)}</span>` : ""}</div>`;
+  } else $("now").innerHTML = `<div class="artist">Rien ne joue</div>`;
+
+  renderGuests(s);
+  const labels = { queued: "en attente", played: "joué", removed: "retiré" };
+  $("requests").innerHTML = s.requests.length ? s.requests.map((r) => `
+    <div class="track ${r.status === "queued" ? "guest" : ""}" style="${r.status !== "queued" ? "opacity:.55" : ""}">
+      ${r.image ? `<img src="${esc(r.image)}" alt="">` : `<img alt="">`}
+      <div class="meta"><div class="title">${esc(r.title)}</div><div class="artist">${esc(r.artist)}</div>
+      <span class="by">${esc(r.guest_name)} · ${new Date(r.added_at * 1000).toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" })} · ${labels[r.status]}</span></div>
+      ${r.status === "queued" ? `<button class="danger" data-remove="${esc(r.id)}" title="Retirer de la file">✕</button>` : ""}
+    </div>`).join("") : `<p class="empty">Aucune demande pour l'instant</p>`;
+}
+
+function banLabel(ban) {
+  if (!ban) return "";
+  if (ban.until === 0) return "⛔ banni";
+  return `⏸ bloqué ${Math.max(1, Math.round((ban.until * 1000 - Date.now()) / 60000))} min`;
+}
+
+function renderGuests(s) {
+  $("guests").innerHTML = s.guests.length ? s.guests.map((g) => `
+    <div class="track" style="flex-wrap:wrap">
+      <div class="meta"><div class="title">${esc(g.name)} ${g.ban ? `<span class="pill">${banLabel(g.ban)}</span>` : ""}</div>
+      <div class="artist">${g.total} titre${g.total > 1 ? "s" : ""} · ${g.queued} en attente</div></div>
+      <div class="row" style="gap:6px">
+        ${g.ban
+          ? `<button class="secondary" data-act="unban" data-g="${esc(g.guest_id)}">Débloquer</button>`
+          : `<button class="secondary" data-act="ban10" data-g="${esc(g.guest_id)}" title="Bloquer 10 minutes">⏸ 10 min</button>
+             <button class="danger" data-act="ban" data-g="${esc(g.guest_id)}" title="Bannir">⛔</button>`}
+        ${g.queued ? `<button class="danger" data-act="purge" data-g="${esc(g.guest_id)}" title="Retirer ses titres en attente">🗑</button>` : ""}
+      </div>
+    </div>`).join("") : `<p class="empty">Personne n'a encore ajouté de titre</p>`;
+}
+
+function renderBans(s) {
+  // Les bannis des soirées précédentes n'apparaissent plus dans la liste des invités.
+  const listed = new Set(s.active ? s.guests.map((g) => g.guest_id) : []);
+  const others = s.bans.filter((b) => !listed.has(b.guest_id));
+  $("bansBox").classList.toggle("hidden", !others.length);
+  $("bans").innerHTML = others.map((b) => `
+    <div class="track"><div class="meta"><div class="title">${esc(b.name || "Invité")}</div>
+    <div class="artist">${banLabel(b)}</div></div>
+    <button class="secondary" data-act="unban" data-g="${esc(b.guest_id)}">Débloquer</button></div>`).join("");
+}
+
+document.addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-act]");
+  if (!b) return;
+  const g = b.dataset.g, act = b.dataset.act;
+  const calls = {
+    ban10: ["/api/admin/ban", { guest_id: g, minutes: 10 }, "Bloqué 10 minutes"],
+    ban: ["/api/admin/ban", { guest_id: g, minutes: null }, "Invité banni"],
+    unban: ["/api/admin/unban", { guest_id: g }, "Invité débloqué"],
+    purge: ["/api/admin/purge", { guest_id: g }, "Titres retirés"],
+  };
+  const [path, body, msg] = calls[act];
+  b.disabled = true;
+  try { render(await api(path, body)); toast(msg, "ok"); }
+  catch (e) { b.disabled = false; toast(e.message, "err"); }
+});
+
+async function refresh() {
+  try { render(await api("/api/admin/state")); } catch {}
+}
+
+$("login").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  try { await api("/api/admin/login", { pin: $("pin").value }); $("pin").value = ""; await refresh(); if (!state.active) loadRooms(); }
+  catch (e) { toast(e.message, "err"); }
+});
+$("reloadRooms").onclick = loadRooms;
+$("start").onclick = async () => {
+  if (!$("room").value) return toast("Choisis une pièce", "err");
+  try { render(await api("/api/admin/start", { room_uid: $("room").value, mode: chosenMode })); toast("Soirée démarrée 🎉", "ok"); }
+  catch (e) { toast(e.message, "err"); }
+};
+$("stop").onclick = async () => {
+  try { render(await api("/api/admin/stop", {})); loadRooms(); toast("Soirée arrêtée"); } catch (e) { toast(e.message, "err"); }
+};
+$("skip").onclick = async () => {
+  try { await api("/api/admin/skip", {}); setTimeout(refresh, 800); } catch (e) { toast(e.message, "err"); }
+};
+$("requests").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-remove]");
+  if (!b) return;
+  b.disabled = true;
+  try { render(await api("/api/admin/remove", { request_id: b.dataset.remove })); toast("Titre retiré", "ok"); }
+  catch (e) { b.disabled = false; toast(e.message, "err"); }
+});
+$("logout").onclick = async (ev) => { ev.preventDefault(); await api("/api/admin/logout", {}); showLogin(); };
+
+(async () => {
+  await refresh();
+  if (state && !state.active) loadRooms();
+  setInterval(() => { if (state && state.active) refresh(); }, 5000);
+})();
+</script>
+</body>
+</html>

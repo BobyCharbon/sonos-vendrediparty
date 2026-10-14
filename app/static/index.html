@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0e0b16">
+  <title>Vendredi Party</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <h1>🎉 <span>Vendredi Party</span></h1>
+
+  <div id="closed" class="hidden">
+    <p class="empty">Pas de soirée en cours pour le moment.<br>Reviens quand la musique démarre 🎶</p>
+  </div>
+
+  <div id="hello" class="hidden">
+    <p class="sub">Ajoute tes sons à la file d'attente. Comment tu t'appelles ?</p>
+    <form id="nameForm" class="row">
+      <input id="nameInput" class="grow" type="text" maxlength="30" placeholder="Ton prénom" autocomplete="given-name" required>
+      <button>C'est parti</button>
+    </form>
+  </div>
+
+  <div id="party" class="hidden">
+    <p class="sub"><span class="pill live">● En direct</span> <span id="room"></span> · Salut <a href="#" id="rename" style="color:var(--accent-2)"></a></p>
+
+    <div id="warn" class="warn hidden"></div>
+    <div id="blocked" class="warn hidden"></div>
+
+    <div class="card now" id="now"></div>
+
+    <h2>Ajouter un titre</h2>
+    <input id="q" type="search" placeholder="Titre, artiste…" autocomplete="off" enterkeyhint="search">
+    <div id="results" class="list" style="margin-top:8px"></div>
+
+    <h2>À venir <span id="count"></span></h2>
+    <div id="upcoming" class="list"></div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function store(key, value) {
+  try { if (value === undefined) return localStorage.getItem(key); localStorage.setItem(key, value); } catch { return null; }
+}
+let guestId = store("vp_guest");
+if (!guestId) { guestId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now()); store("vp_guest", guestId); }
+let guestName = store("vp_name") || "";
+
+let toastTimer;
+function toast(msg, kind = "") {
+  const t = $("toast"); t.textContent = msg; t.className = "toast " + kind;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("hidden"), 3000);
+}
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || "Erreur");
+  return data;
+}
+
+const img = (src, lazy = true) => src
+  ? `<img src="${esc(src)}" alt="" ${lazy ? 'loading="lazy"' : ""} onerror="this.removeAttribute('src')">`
+  : `<img alt="">`;
+
+function trackHtml(t, extra = "") {
+  return `<div class="track ${t.by ? "guest" : ""}">
+    ${img(t.art || t.image)}
+    <div class="meta"><div class="title">${esc(t.title)}</div><div class="artist">${esc(t.artist)}</div>
+    ${t.by ? `<span class="by">ajouté par ${esc(t.by)}</span>` : ""}</div>${extra}</div>`;
+}
+
+function show(view) {
+  for (const v of ["closed", "hello", "party"]) $(v).classList.toggle("hidden", v !== view);
+}
+
+async function refresh() {
+  let s;
+  try { s = await api("/api/state?guest_id=" + encodeURIComponent(guestId)); } catch { return; }
+  if (!s.active) return show("closed");
+  if (!guestName) { if ($("hello").classList.contains("hidden")) show("hello"); return; }
+  show("party");
+  $("room").textContent = s.room;
+  $("rename").textContent = guestName;
+
+  const warn = s.error || (s.from_queue === false ? "La musique ne joue pas depuis la file Sonos : les ajouts sont en pause." : "");
+  $("warn").textContent = warn; $("warn").classList.toggle("hidden", !warn);
+  blocked = s.blocked || "";
+  $("blocked").textContent = blocked; $("blocked").classList.toggle("hidden", !blocked);
+  $("q").disabled = !!blocked;
+  if (blocked) $("results").innerHTML = "";
+
+  if (s.now && s.now.title) {
+    const n = s.now;
+    $("now").innerHTML = `${img(n.art, false)}
+      <div style="min-width:0"><div class="artist">${s.state === "PLAYING" ? "▶︎ En cours" : "⏸ En pause"}</div>
+      <div class="title">${esc(n.title)}</div><div class="artist">${esc(n.artist)}</div>
+      ${n.by ? `<span class="by">ajouté par ${esc(n.by)}</span>` : ""}</div>`;
+  } else {
+    $("now").innerHTML = `<div class="artist">Rien ne joue pour l'instant</div>`;
+  }
+  const up = s.upcoming || [];
+  $("count").textContent = s.upcoming_total ? `(${s.upcoming_total})` : "";
+  $("upcoming").innerHTML = up.length
+    ? up.map((t) => trackHtml(t, t.rid ? `<button class="danger" data-rid="${esc(t.rid)}" title="Retirer mon titre">✕</button>` : "")).join("")
+    : `<p class="empty">La file est vide, à toi de jouer !</p>`;
+}
+
+let searchTimer, lastResults = [], blocked = "";
+$("q").addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  const q = $("q").value.trim();
+  if (q.length < 2) { $("results").innerHTML = ""; return; }
+  searchTimer = setTimeout(async () => {
+    try {
+      lastResults = await api("/api/search?q=" + encodeURIComponent(q));
+      if ($("q").value.trim() !== q) return;
+      $("results").innerHTML = lastResults.length
+        ? lastResults.map((t, i) => trackHtml({ ...t, artist: t.artist + (t.explicit ? " · 🅴" : "") }, `<button data-i="${i}">+</button>`)).join("")
+        : `<p class="empty">Aucun résultat</p>`;
+    } catch (e) { toast(e.message, "err"); }
+  }, 350);
+});
+
+$("results").addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("button[data-i]");
+  if (!btn) return;
+  const t = lastResults[+btn.dataset.i];
+  btn.disabled = true; btn.textContent = "…";
+  try {
+    await api("/api/queue", { method: "POST", body: JSON.stringify({ track_id: t.id, guest_id: guestId, guest_name: guestName }) });
+    btn.textContent = "✓";
+    toast(`« ${t.title} » ajouté à la file 🎶`, "ok");
+    refresh();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = "+";
+    toast(e.message, "err");
+  }
+});
+
+$("upcoming").addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("button[data-rid]");
+  if (!btn) return;
+  btn.disabled = true;
+  try {
+    await api("/api/queue/remove", { method: "POST", body: JSON.stringify({ request_id: btn.dataset.rid, guest_id: guestId }) });
+    toast("Titre retiré de la file", "ok");
+    refresh();
+  } catch (e) { btn.disabled = false; toast(e.message, "err"); }
+});
+
+$("nameForm").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  guestName = $("nameInput").value.trim().slice(0, 30);
+  if (!guestName) return;
+  store("vp_name", guestName);
+  refresh();
+});
+$("rename").addEventListener("click", (ev) => {
+  ev.preventDefault();
+  $("nameInput").value = guestName; guestName = ""; show("hello"); $("nameInput").focus();
+});
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

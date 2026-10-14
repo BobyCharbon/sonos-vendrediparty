@@ -1,0 +1,10 @@
+services:
+  vendrediparty:
+    build: .
+    container_name: vendrediparty
+    restart: unless-stopped
+    # Réseau "host" : nécessaire pour la découverte Sonos (multicast) et l'accès direct aux enceintes.
+    network_mode: host
+    env_file: .env
+    volumes:
+      - ./data:/data
