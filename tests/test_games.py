@@ -584,6 +584,11 @@ def test_tmc_duo_answers_and_scores():
     assert g["phase"] == "end" and games.view(g, "h")["tmc"]["duos"]
 
 
+def test_tmc_questions_bank():
+    from app.tmc_questions import TMC_QUESTIONS
+    assert len(TMC_QUESTIONS) >= 300 and len(set(TMC_QUESTIONS)) == len(TMC_QUESTIONS)
+
+
 def test_tmc_player_leaving_mid_duo():
     g = games.new_game("tmc", host="h", name="Hôte")
     for i in "abc":
