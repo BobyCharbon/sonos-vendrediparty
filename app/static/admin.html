@@ -320,9 +320,18 @@ async function refresh() {
   try { render(await api("/api/admin/state")); } catch {}
 }
 
+// Mises à jour en direct : le serveur signale chaque changement, on rafraîchit aussitôt.
+let source, refreshTimer;
+function listen() {
+  if (source) source.close();
+  source = new EventSource("/api/events");
+  source.onmessage = () => { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 100); };
+  source.onerror = () => { source.close(); setTimeout(listen, 3000); };
+}
+
 $("login").addEventListener("submit", async (ev) => {
   ev.preventDefault();
-  try { await api("/api/admin/login", { pin: $("pin").value }); $("pin").value = ""; await refresh(); if (!state.active) loadRooms(); }
+  try { await api("/api/admin/login", { pin: $("pin").value }); $("pin").value = ""; listen(); await refresh(); if (!state.active) loadRooms(); }
   catch (e) { toast(e.message, "err"); }
 });
 $("reloadRooms").onclick = loadRooms;
@@ -384,7 +393,9 @@ $("logout").onclick = async (ev) => { ev.preventDefault(); await api("/api/admin
 (async () => {
   await refresh();
   if (state && !state.active) loadRooms();
-  setInterval(() => { if (state && state.active) refresh(); }, 5000);
+  listen();
+  // Filet de sécurité si le flux en direct est coupé (et pour le point « en ligne » des invités).
+  setInterval(refresh, 10000);
 })();
 </script>
 </body>

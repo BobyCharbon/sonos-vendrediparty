@@ -235,6 +235,7 @@ async function join(pin) {
   try {
     await api("/api/join", { method: "POST", body: JSON.stringify({ pin }) });
     $("pinInput").value = "";
+    if (source) listen();
     await refresh();
   } catch (e) {
     $("pinInput").value = "";
@@ -258,8 +259,19 @@ $("pinInput").addEventListener("input", () => {
   } else {
     await refresh();
   }
-  setInterval(() => { if ($("pin").classList.contains("hidden")) refresh(); }, 5000);
+  listen();
+  // Filet de sécurité si le flux en direct est coupé.
+  setInterval(() => { if ($("pin").classList.contains("hidden")) refresh(); }, 15000);
 })();
+
+// Mises à jour en direct : le serveur signale chaque changement, on rafraîchit aussitôt.
+let source, refreshTimer;
+function listen() {
+  if (source) source.close();
+  source = new EventSource("/api/events");
+  source.onmessage = () => { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 100); };
+  source.onerror = () => { source.close(); setTimeout(listen, 3000); };
+}
 </script>
 </body>
 </html>

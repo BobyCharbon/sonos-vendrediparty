@@ -49,6 +49,7 @@ class PartyStore:
         self.lock = threading.RLock()
         self.session = self._load()
         self.last_seen: dict[str, float] = {}  # en mémoire : rafraîchi à chaque appel des invités
+        self.version = 0  # incrémenté à chaque modification : les pages ouvertes se rafraîchissent
         if not self.session.guest_pin:
             self.regenerate_pin()
 
@@ -61,6 +62,7 @@ class PartyStore:
             return Session()
 
     def save(self):
+        self.version += 1
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".tmp")
         tmp.write_text(json.dumps(asdict(self.session), ensure_ascii=False, indent=2))

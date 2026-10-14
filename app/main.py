@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import hashlib
 import io
 import hmac
@@ -12,7 +14,7 @@ from urllib.parse import quote
 import httpx
 import segno
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -34,7 +36,13 @@ spotify = (
     else None
 )
 
-app = FastAPI(title="Vendredi Party")
+@contextlib.asynccontextmanager
+async def lifespan(app):
+    threading.Thread(target=watch_sonos, daemon=True).start()
+    yield
+
+
+app = FastAPI(title="Vendredi Party", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 # Un seul ajout/suppression à la fois : la position d'insertion dépend de l'état de la file.
@@ -43,17 +51,40 @@ queue_lock = threading.Lock()
 
 # --- Cache de l'état Sonos (beaucoup de téléphones interrogent en même temps) ---
 
-_snap = {"at": 0.0, "data": None}
+_snap = {"at": 0.0, "data": None, "fingerprint": None, "version": 0}
+_snap_lock = threading.Lock()
 
 
 def snapshot(force: bool = False) -> dict:
     s = store.session
-    if not force and _snap["data"] and time.time() - _snap["at"] < 2:
-        return _snap["data"]
-    data = sonos.snapshot(s.room_uid)
-    store.reconcile({t["track_id"] for t in data["upcoming"] if t["track_id"]})
-    _snap.update(at=time.time(), data=data)
-    return data
+    with _snap_lock:
+        if not force and _snap["data"] and time.time() - _snap["at"] < 3:
+            return _snap["data"]
+        data = sonos.snapshot(s.room_uid)
+        store.reconcile({t["track_id"] for t in data["upcoming"] if t["track_id"]})
+        # Le Sonos a changé (titre, file, lecture, volume) : on prévient les pages ouvertes.
+        fingerprint = (data["state"], data["current_pos"], data["from_queue"], data.get("volume"),
+                       data["now"]["title"], tuple((t["pos"], t["track_id"], t["title"]) for t in data["upcoming"]))
+        if fingerprint != _snap["fingerprint"]:
+            _snap["fingerprint"] = fingerprint
+            _snap["version"] += 1
+        _snap.update(at=time.time(), data=data)
+        return data
+
+
+def watch_sonos():
+    """Interroge le Sonos en continu pendant la soirée pour détecter les changements faits ailleurs."""
+    while True:
+        if store.session.active:
+            try:
+                snapshot(force=True)
+            except Exception:
+                pass  # Sonos momentanément injoignable : on réessaie au tour suivant
+        time.sleep(1.5)
+
+
+def events_version() -> str:
+    return f"{store.version}.{_snap['version']}"
 
 
 def require_active():
@@ -593,6 +624,26 @@ def guest_remove(body: GuestRemove):
         raise HTTPException(404, "Titre introuvable ou déjà joué")
     remove_requests([req])
     return {"ok": True}
+
+
+@app.get("/api/events", dependencies=[Depends(require_guest)])
+async def events(request: Request):
+    """Flux SSE : envoie un signal dès que l'état change, la page se rafraîchit aussitôt."""
+    async def stream():
+        last, last_ping = None, time.time()
+        while not await request.is_disconnected():
+            version = events_version()
+            if version != last:
+                last = version
+                yield f"data: {version}\n\n"
+            elif time.time() - last_ping > 15:
+                # Garde la connexion ouverte à travers HAProxy.
+                yield ": ping\n\n"
+                last_ping = time.time()
+            await asyncio.sleep(0.3)
+
+    return StreamingResponse(stream(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @app.get("/qr.svg", dependencies=[Depends(require_admin)])
