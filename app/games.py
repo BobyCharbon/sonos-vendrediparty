@@ -19,7 +19,10 @@ GAMES = {
     "whoof": "Qui de nous ?",
     "never": "Je n'ai jamais",
     "roulette": "Roulette",
+    "blackjack": "Blackjack",
+    "blackjack_drinks": "Blackjack à boire",
 }
+BLACKJACKS = ("blackjack", "blackjack_drinks")
 
 # Undercover : les civils reçoivent un mot, les undercovers un mot proche ; Mr. White n'a pas de mot.
 WORD_PAIRS = [
@@ -235,6 +238,8 @@ def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code
         "question": None, "results": None, "kicked": [],
         # Roulette : noms notés par l'animateur, dernier tirage et perdants précédents.
         "names": [], "spin": None, "history": [],
+        # Blackjack : sabot, croupier, mains et jetons (voir plus bas).
+        "bj": {"shoe": [], "dealer": [], "seats": [], "turn": None, "hands": {}, "chips": {}, "rebuys": {}},
     }
     if host and plays:
         join(g, host, name)
@@ -287,6 +292,20 @@ def leave(g: dict, gid: str):
     if g["host"] == gid:
         nxt = g["players"][0] if g["players"] else None
         g["host"], g["host_name"] = (nxt["id"], nxt["name"]) if nxt else ("", "")
+    if g["type"] in BLACKJACKS:
+        bj = g["bj"]
+        turn = bj["turn"]
+        current = bj["seats"][turn] if turn is not None and turn < len(bj["seats"]) else None
+        if gid in bj["seats"]:
+            bj["seats"].remove(gid)
+        bj["hands"].pop(gid, None)
+        if g["phase"] == "play":
+            if current == gid:
+                _bj_advance(g, turn)  # le suivant a pris sa place dans la liste
+            elif current:
+                bj["turn"] = bj["seats"].index(current)
+        elif g["phase"] == "bet" and bj["hands"] and all(p["id"] in bj["hands"] for p in g["players"]):
+            bj_deal(g)  # il ne manquait que sa mise
     if g["type"] == "undercover":
         if g["phase"] == "white_guess" and g["last"] and g["last"]["eliminated"] == gid:
             skip_white_guess(g)  # Mr. White parti avant de deviner
@@ -344,9 +363,225 @@ def spin(g: dict, rng: random.Random = random):
     g["round"] += 1
 
 
+# --- Blackjack (croupier = l'app ; pas de split ni d'assurance) ---
+
+BJ_START_CHIPS = 100
+BJ_BETS = {"blackjack": (5, 1000), "blackjack_drinks": (1, 5)}  # mise min / max
+
+
+def _bj_shoe(rng) -> list[str]:
+    shoe = [r + s for _ in range(6) for s in "SHDC" for r in ("A", "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K")]
+    rng.shuffle(shoe)
+    return shoe
+
+
+def bj_value(cards: list[str]) -> tuple[int, bool]:
+    """(total, souple) : un as compte 11 tant que ça ne dépasse pas 21."""
+    total = sum(11 if c[0] == "A" else 10 if c[0] in "TJQK" else int(c[0]) for c in cards)
+    aces = sum(c[0] == "A" for c in cards)
+    while total > 21 and aces:
+        total, aces = total - 10, aces - 1
+    return total, aces > 0
+
+
+def _bj_is_blackjack(cards: list[str]) -> bool:
+    return len(cards) == 2 and bj_value(cards)[0] == 21
+
+
+def _bj_draw(g: dict, rng) -> str:
+    bj = g["bj"]
+    if len(bj["shoe"]) < 52:
+        bj["shoe"] = _bj_shoe(rng)  # sabot presque vide : on rebat 6 jeux
+    return bj["shoe"].pop()
+
+
+def bj_open_bets(g: dict):
+    if not g["players"]:
+        raise GameError("Il faut au moins 1 joueur")
+    bj = g["bj"]
+    for p in g["players"]:
+        bj["chips"].setdefault(p["id"], BJ_START_CHIPS)
+    bj.update(dealer=[], seats=[], turn=None, hands={})
+    g["phase"] = "bet"
+    g["round"] += 1
+
+
+def bj_bet(g: dict, gid: str, amount: int, rng: random.Random = random):
+    if g["phase"] != "bet" or not player(g, gid):
+        raise GameError("Les mises sont fermées")
+    lo, hi = BJ_BETS[g["type"]]
+    bj = g["bj"]
+    bj["chips"].setdefault(gid, BJ_START_CHIPS)
+    if g["type"] == "blackjack":
+        hi = min(hi, bj["chips"][gid])
+    if not lo <= amount <= hi:
+        raise GameError(f"Mise entre {lo} et {hi}" if hi >= lo else "Plus assez de jetons : recharge-toi")
+    bj["hands"][gid] = {"cards": [], "bet": amount, "status": "bet", "doubled": False, "result": None, "delta": 0}
+    # Tout le monde a misé : on distribue.
+    if all(p["id"] in bj["hands"] for p in g["players"]):
+        bj_deal(g, rng)
+
+
+def bj_rebuy(g: dict, gid: str):
+    bj = g["bj"]
+    if g["type"] != "blackjack" or bj["chips"].get(gid, 0) >= BJ_BETS["blackjack"][0]:
+        raise GameError("Tu as encore des jetons")
+    bj["chips"][gid] = BJ_START_CHIPS
+    bj["rebuys"][gid] = bj["rebuys"].get(gid, 0) + 1
+
+
+def bj_deal(g: dict, rng: random.Random = random):
+    bj = g["bj"]
+    if g["phase"] != "bet":
+        raise GameError("Pas le moment de distribuer")
+    seats = [p["id"] for p in g["players"] if p["id"] in bj["hands"]]
+    if not seats:
+        raise GameError("Personne n'a misé")
+    for gid in list(bj["hands"]):
+        if gid not in seats:
+            del bj["hands"][gid]
+    bj["seats"] = seats
+    for gid in seats:
+        h = bj["hands"][gid]
+        if g["type"] == "blackjack":
+            bj["chips"][gid] -= h["bet"]
+        h.update(cards=[_bj_draw(g, rng), _bj_draw(g, rng)], status="playing")
+        if _bj_is_blackjack(h["cards"]):
+            h["status"] = "blackjack"
+    bj["dealer"] = [_bj_draw(g, rng), _bj_draw(g, rng)]
+    g["phase"] = "play"
+    if _bj_is_blackjack(bj["dealer"]):
+        return _bj_finish(g, rng)  # blackjack du croupier : la manche s'arrête là
+    _bj_advance(g, from_current=0, rng=rng)
+
+
+def _bj_advance(g: dict, from_current: int = 0, rng: random.Random = random):
+    """Donne la main au prochain joueur qui joue encore ; sinon le croupier joue."""
+    bj = g["bj"]
+    for i in range(from_current, len(bj["seats"])):
+        if bj["hands"][bj["seats"][i]]["status"] == "playing":
+            bj["turn"] = i
+            return
+    _bj_finish(g, rng)
+
+
+def _bj_current(g: dict, gid: str) -> dict:
+    bj = g["bj"]
+    if g["phase"] != "play" or bj["turn"] is None or bj["seats"][bj["turn"]] != gid:
+        raise GameError("Ce n'est pas ton tour")
+    return bj["hands"][gid]
+
+
+def bj_hit(g: dict, gid: str, rng: random.Random = random):
+    h = _bj_current(g, gid)
+    h["cards"].append(_bj_draw(g, rng))
+    total = bj_value(h["cards"])[0]
+    if total > 21:
+        h["status"] = "bust"
+    elif total == 21:
+        h["status"] = "stand"
+    if h["status"] != "playing":
+        _bj_advance(g, g["bj"]["turn"] + 1, rng)
+
+
+def bj_stand(g: dict, gid: str, rng: random.Random = random):
+    h = _bj_current(g, gid)
+    h["status"] = "stand"
+    _bj_advance(g, g["bj"]["turn"] + 1, rng)
+
+
+def bj_double(g: dict, gid: str, rng: random.Random = random):
+    h = _bj_current(g, gid)
+    bj = g["bj"]
+    if len(h["cards"]) != 2:
+        raise GameError("On ne double qu'avec ses 2 premières cartes")
+    if g["type"] == "blackjack":
+        if bj["chips"][gid] < h["bet"]:
+            raise GameError("Pas assez de jetons pour doubler")
+        bj["chips"][gid] -= h["bet"]
+    h["bet"] *= 2
+    h["doubled"] = True
+    h["cards"].append(_bj_draw(g, rng))
+    h["status"] = "bust" if bj_value(h["cards"])[0] > 21 else "stand"
+    _bj_advance(g, bj["turn"] + 1, rng)
+
+
+def bj_force_stand(g: dict, rng: random.Random = random):
+    """L'animateur passe le tour d'un joueur qui traîne (il reste sur sa main)."""
+    bj = g["bj"]
+    if g["phase"] != "play" or bj["turn"] is None:
+        raise GameError("Personne ne joue")
+    bj_stand(g, bj["seats"][bj["turn"]], rng)
+
+
+def _bj_finish(g: dict, rng):
+    """Le croupier tire jusqu'à 17 (il reste sur 17 souple), puis on règle les mises."""
+    bj = g["bj"]
+    bj["turn"] = None
+    hands = [bj["hands"][gid] for gid in bj["seats"]]
+    dealer_bj = _bj_is_blackjack(bj["dealer"])
+    if not dealer_bj and any(h["status"] in ("stand", "playing") for h in hands):
+        while bj_value(bj["dealer"])[0] < 17:
+            bj["dealer"].append(_bj_draw(g, rng))
+    dealer = bj_value(bj["dealer"])[0]
+    for gid in bj["seats"]:
+        h = bj["hands"][gid]
+        mine = bj_value(h["cards"])[0]
+        if h["status"] == "bust":
+            result = "lose"
+        elif h["status"] == "blackjack":
+            result = "push" if dealer_bj else "blackjack"
+        elif dealer_bj or (dealer <= 21 and dealer > mine):
+            result = "lose"
+        elif dealer > 21 or mine > dealer:
+            result = "win"
+        else:
+            result = "push"
+        h["result"] = result
+        bet = h["bet"]
+        if g["type"] == "blackjack":
+            # Jetons : la mise a déjà été retirée ; gain 1:1, blackjack 3:2, égalité = mise rendue.
+            back = {"win": 2 * bet, "blackjack": bet + (3 * bet + 1) // 2, "push": bet, "lose": 0}[result]
+            bj["chips"][gid] += back
+            h["delta"] = back - bet
+        else:
+            # Gorgées : perdu = tu bois ta mise ; gagné = tu la distribues ; blackjack = tu distribues le double.
+            h["delta"] = {"win": bet, "blackjack": 2 * bet, "push": 0, "lose": -bet}[result]
+    g["phase"] = "results"
+
+
+def _bj_card_view(cards: list[str]) -> list[str]:
+    return list(cards)
+
+
+def bj_view(g: dict, gid: str) -> dict:
+    bj = g["bj"]
+    hidden = g["phase"] == "play"  # la 2e carte du croupier reste cachée pendant que les joueurs jouent
+    dealer = bj["dealer"][:1] + (["??"] if hidden and len(bj["dealer"]) > 1 else bj["dealer"][1:])
+    seats = []
+    for p in g["players"]:
+        h = bj["hands"].get(p["id"])
+        seats.append({
+            "pid": p["pid"], "name": p["name"], "chips": bj["chips"].get(p["id"], BJ_START_CHIPS),
+            "rebuys": bj["rebuys"].get(p["id"], 0),
+            "hand": None if not h else {**{k: h[k] for k in ("cards", "bet", "status", "doubled", "result", "delta")},
+                                        "total": bj_value(h["cards"])[0] if h["cards"] else 0},
+        })
+    turn = bj["seats"][bj["turn"]] if bj["turn"] is not None and bj["turn"] < len(bj["seats"]) else None
+    lo, hi = BJ_BETS[g["type"]]
+    return {
+        "dealer": dealer, "dealer_total": None if hidden else (bj_value(bj["dealer"])[0] if bj["dealer"] else None),
+        "dealer_up": bj_value(bj["dealer"][:1])[0] if bj["dealer"] else None,
+        "seats": seats, "turn": _pid(g, turn), "my_turn": bool(gid) and turn == gid,
+        "min_bet": lo, "max_bet": hi, "start_chips": BJ_START_CHIPS,
+    }
+
+
 def start(g: dict, rng: random.Random = random):
     """Distribue les rôles (Undercover) ou pose la première question (Qui de nous ?)."""
-    if g["type"] == "undercover":
+    if g["type"] in BLACKJACKS:
+        bj_open_bets(g)
+    elif g["type"] == "undercover":
         _deal(g, rng)
     else:
         if len(g["players"]) < 2:
@@ -488,6 +723,11 @@ def _check_end(g: dict) -> bool:
 
 
 def next_step(g: dict, rng: random.Random = random):
+    if g["type"] in BLACKJACKS:
+        if g["phase"] != "results":
+            raise GameError("Pas encore")
+        bj_open_bets(g)
+        return
     if g["type"] == "undercover":
         if g["phase"] != "reveal":
             raise GameError("Pas encore")
@@ -553,6 +793,8 @@ def view(g: dict, gid: str) -> dict:
         "winner": g["winner"], "question": g["question"], "votes_count": len(g["votes"]), "options": g["options"],
         "kicked": bool(gid) and gid in g.get("kicked", []),
     }
+    if g["type"] in BLACKJACKS:
+        out["bj"] = bj_view(g, gid)
     if g["type"] == "roulette":
         out["names"] = g.get("names", [])
         out["history"] = list(reversed(g.get("history", [])))

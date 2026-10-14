@@ -287,3 +287,64 @@ def test_roulette_names_and_spin():
     games.set_names(g, ["Seul"])
     with pytest.raises(games.GameError):
         games.spin(g)
+
+
+def rigged(g, cards):
+    """Sabot truqué : les cartes sont tirées dans l'ordre donné."""
+    g["bj"]["shoe"] = ["2S"] * 60 + list(reversed(cards))
+
+
+def test_blackjack_values():
+    assert games.bj_value(["AS", "KD"]) == (21, True)
+    assert games.bj_value(["AS", "AD", "9C"]) == (21, True)
+    assert games.bj_value(["KS", "QD", "5C"]) == (25, False)
+
+
+def test_blackjack_round_with_chips():
+    g = games.new_game("blackjack", host="a", name="Ana")
+    games.join(g, "b", "Bob")
+    games.start(g)
+    assert g["phase"] == "bet"
+    with pytest.raises(games.GameError):
+        games.bj_bet(g, "a", 500)  # plus que ses jetons
+    g["bj"]["shoe"] = []
+    games.bj_bet(g, "a", 10)
+    # Ordre de distribution : Ana 2 cartes, Bob 2 cartes, croupier 2 cartes, puis tirages.
+    rigged(g, ["TS", "9H", "AS", "KD", "TC", "7D", "5S"])
+    games.bj_bet(g, "b", 20)  # tout le monde a misé : distribution automatique
+    assert g["phase"] == "play" and g["bj"]["hands"]["b"]["status"] == "blackjack"
+    assert games.view(g, "b")["bj"]["dealer"][1] == "??"  # carte cachée du croupier
+    with pytest.raises(games.GameError):
+        games.bj_hit(g, "b")  # pas son tour
+    games.bj_stand(g, "a")  # Ana reste sur 19, croupier 17
+    assert g["phase"] == "results"
+    assert g["bj"]["hands"]["a"]["result"] == "win" and g["bj"]["chips"]["a"] == 110
+    assert g["bj"]["hands"]["b"]["result"] == "blackjack" and g["bj"]["chips"]["b"] == 130
+    games.next_step(g)
+    assert g["phase"] == "bet" and g["bj"]["hands"] == {}
+
+
+def test_blackjack_drinks_bust_and_double():
+    g = games.new_game("blackjack_drinks", host="a", name="Ana")
+    games.start(g)
+    with pytest.raises(games.GameError):
+        games.bj_bet(g, "a", 6)  # 5 gorgées max
+    rigged(g, ["5S", "6H", "TC", "7D", "TD"])
+    games.bj_bet(g, "a", 2)
+    games.bj_double(g, "a")  # 5+6+10 = 21, mise doublée à 4
+    h = g["bj"]["hands"]["a"]
+    assert h["bet"] == 4 and h["result"] == "win" and h["delta"] == 4  # distribue 4 gorgées
+
+
+def test_blackjack_player_leaving_on_his_turn_passes_hand():
+    g = games.new_game("blackjack", host="a", name="Ana")
+    games.join(g, "b", "Bob")
+    games.start(g)
+    rigged(g, ["TS", "6H", "9S", "7H", "TC", "8D"])
+    games.bj_bet(g, "a", 5)
+    games.bj_bet(g, "b", 5)
+    assert g["bj"]["seats"][g["bj"]["turn"]] == "a"
+    games.leave(g, "a")
+    assert g["bj"]["seats"][g["bj"]["turn"]] == "b"
+    games.bj_stand(g, "b")
+    assert g["phase"] == "results"

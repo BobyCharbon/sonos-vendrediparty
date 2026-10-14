@@ -843,10 +843,11 @@ class GameAction(BaseModel):
     target: str = ""  # identifiant public (pid) d'un joueur
     guess: str = ""
     names: list[str] = []  # roulette : participants notés par l'animateur
+    amount: int = 0  # blackjack : mise
 
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
-HOST_ACTIONS = {"start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin"}
+HOST_ACTIONS = {"start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip"}
 
 
 @app.post("/api/games/{code}")
@@ -872,6 +873,9 @@ def game_action(code: str, body: GameAction, request: Request):
         "next": (games.next_step,), "restart": (games.restart,), "remove": (games.kick, target),
         "up": (games.move, target, -1), "down": (games.move, target, 1),
         "names": (games.set_names, body.names), "spin": (games.spin,),
+        "bet": (games.bj_bet, me, body.amount), "hit": (games.bj_hit, me), "stand": (games.bj_stand, me),
+        "double": (games.bj_double, me), "rebuy": (games.bj_rebuy, me),
+        "deal": (games.bj_deal,), "skip": (games.bj_force_stand,),
     }
     if a not in actions:
         raise HTTPException(400, "Action inconnue")

@@ -259,3 +259,27 @@ details[open] > summary h2::after { content: " ▾"; }
 .name-chip { display: inline-flex; align-items: center; gap: 4px; color: var(--text); padding-right: 4px; }
 .chip-x { background: transparent; color: var(--muted); padding: 2px 6px; font-size: .8rem; }
 button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2b1d00; }
+.g-bj { --g-bg: #0f5136; --g-accent: #f5c542; --g-ink: #2b1d00; --g-soft: #cdeedd; --g-chip: #0b3d29; }
+.g-bd { --g-bg: #6e1530; --g-accent: #ff9fb2; --g-ink: #3a0010; --g-soft: #ffd6df; --g-chip: #4f0f22; }
+.game.g-bj, .game.g-bd { background: var(--g-bg); border: 0; color: #fff; border-radius: 22px; }
+.game.g-bj .artist, .game.g-bd .artist { color: var(--g-soft); }
+.game.g-bj button:not(.secondary), .game.g-bd button:not(.secondary) { background: var(--g-accent); color: var(--g-ink); }
+.game.g-bj button.secondary, .game.g-bd button.secondary { background: var(--g-chip); color: #fff; }
+.game.g-bj button.g-help, .game.g-bd button.g-help { background: rgba(255,255,255,.16); color: #fff; }
+.bj-dealer, .bj-me { margin-top: 12px; }
+.bj-cards { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.pcard { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; width: 44px; height: 62px;
+  border-radius: 8px; background: #fbf8f1; color: #16121f; font: 800 1.1rem/1 system-ui, sans-serif; box-shadow: 0 3px 8px rgba(0,0,0,.35);
+  animation: deal .25s ease-out; }
+.pcard i { font-style: normal; font-size: 1.15rem; margin-top: 2px; }
+.pcard.red { color: #c8102e; }
+.pcard.sm { width: 28px; height: 40px; font-size: .78rem; border-radius: 5px; box-shadow: none; animation: none; }
+.pcard.sm i { font-size: .8rem; margin-top: 0; }
+.bj-cards.big .pcard { width: 56px; height: 80px; font-size: 1.35rem; }
+.pcard.back { background: repeating-linear-gradient(45deg, #b3243c 0 6px, #8e1a2f 6px 12px); border: 3px solid #fbf8f1; box-sizing: border-box; }
+@keyframes deal { from { transform: translateY(-14px) rotate(-6deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.bj-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.bj-actions button { height: 54px; font-size: 1.05rem; }
+.bj-result { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(0,0,0,.25); font-weight: 800; }
+.bj-result.win, .bj-result.blackjack { background: var(--g-accent); color: var(--g-ink); }
+.track.bj-turn { outline: 2px solid var(--accent-2); }
