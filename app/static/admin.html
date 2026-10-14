@@ -94,7 +94,11 @@
         <div class="artist">Code de la soirée</div>
         <div class="big-pin" id="guestPin">····</div>
         <img class="qr" id="qr" alt="QR code vers la page invités (code inclus)">
-        <p class="sub" style="margin:10px 0" id="guestUrl"></p>
+        <form id="urlForm" class="row" style="margin:12px 0 8px">
+          <input id="publicUrl" class="grow" type="url" inputmode="url" placeholder="https://party.exemple.ch" aria-label="Adresse publique">
+          <button>Enregistrer</button>
+        </form>
+        <p class="sub" style="margin:0 0 10px;font-size:.85rem">Adresse encodée dans le QR code : <span id="guestUrl"></span></p>
         <button class="secondary" id="newPin" type="button">🔄 Nouveau code</button>
         <p class="sub" style="margin:8px 0 0;font-size:.85rem">Un nouveau code déconnecte tous les invités : ils devront saisir le nouveau ou rescanner le QR.</p>
       </div>
@@ -210,9 +214,10 @@ function render(s) {
   }
   renderBans(s);
   $("guestPin").textContent = s.guest_pin;
-  const qrSrc = "/qr.svg?v=" + s.guest_pin;
-  if ($("qr").getAttribute("src") !== qrSrc) $("qr").src = qrSrc;
-  $("guestUrl").textContent = (s.public_url || location.origin) + "/";
+  $("guestUrl").textContent = (s.public_url || location.origin) + "/?pin=" + s.guest_pin;
+  if (document.activeElement !== $("publicUrl")) $("publicUrl").value = s.public_url || "";
+  const qrKey = "/qr.svg?v=" + s.guest_pin + "&u=" + encodeURIComponent(s.public_url || "");
+  if ($("qr").getAttribute("src") !== qrKey) $("qr").src = qrKey;
   if (!s.active) { renderModes(chosenMode); return; }
 
   renderModes(s.mode);
@@ -428,6 +433,11 @@ $("requests").addEventListener("click", async (ev) => {
   b.disabled = true;
   try { render(await api("/api/admin/remove", { request_id: b.dataset.remove })); toast("Titre retiré", "ok"); }
   catch (e) { b.disabled = false; toast(e.message, "err"); }
+});
+$("urlForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  try { render(await api("/api/admin/public-url", { url: $("publicUrl").value })); $("publicUrl").blur(); toast("Adresse du QR code enregistrée", "ok"); }
+  catch (e) { toast(e.message, "err"); }
 });
 $("newPin").onclick = async () => {
   try { render(await api("/api/admin/pin", {})); toast("Nouveau code : " + state.guest_pin, "ok"); }

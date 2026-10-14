@@ -37,6 +37,8 @@ class Session:
     bans: dict[str, dict] = field(default_factory=dict)
     # Code d'accès invités (4 chiffres), conservé d'une soirée à l'autre.
     guest_pin: str = ""
+    # Adresse publique de la page invités (QR code), réglée depuis l'admin.
+    public_url: str = ""
     # guest_id -> {"name", "ips", "joined_at"} : invités entrés pendant la soirée.
     guests: dict[str, dict] = field(default_factory=dict)
     # Messages des invités pour l'hôte : {"id", "guest_id", "name", "text", "at", "read"}.
@@ -72,7 +74,7 @@ class PartyStore:
         # Les bannissements et le code d'accès survivent d'une soirée à l'autre.
         self.session = Session(
             active=True, room_uid=room_uid, room_name=room_name, mode=mode, started_at=time.time(),
-            bans=self.session.bans, guest_pin=self.session.guest_pin,
+            bans=self.session.bans, guest_pin=self.session.guest_pin, public_url=self.session.public_url,
         )
         self.save()
 

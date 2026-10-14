@@ -339,8 +339,23 @@ def admin_skip():
 
 
 def guest_url(request: Request | None = None) -> str:
-    base = PUBLIC_URL or (str(request.base_url).rstrip("/") if request else "")
+    # Priorité : adresse réglée dans l'admin, puis variable PUBLIC_URL, puis adresse utilisée par l'admin.
+    base = store.session.public_url or PUBLIC_URL or (str(request.base_url).rstrip("/") if request else "")
     return base + "/"
+
+
+class PublicUrl(BaseModel):
+    url: str
+
+
+@app.post("/api/admin/public-url", dependencies=[Depends(require_admin)])
+def admin_public_url(body: PublicUrl):
+    url = body.url.strip().rstrip("/")
+    if url and not re.match(r"^https?://[A-Za-z0-9.-]+(:\d+)?$", url):
+        raise HTTPException(400, "Adresse invalide (ex : https://party.exemple.ch)")
+    store.session.public_url = url
+    store.save()
+    return admin_state()
 
 
 @app.get("/api/admin/state", dependencies=[Depends(require_admin)])
@@ -348,7 +363,7 @@ def admin_state():
     s = store.session
     result = {
         "guest_pin": s.guest_pin,
-        "public_url": PUBLIC_URL,
+        "public_url": store.session.public_url or PUBLIC_URL,
         "active": s.active,
         "room_uid": s.room_uid,
         "room_name": s.room_name,

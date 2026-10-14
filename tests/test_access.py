@@ -51,3 +51,14 @@ def test_global_lock_against_many_ips():
     for ip in ["1.1.1.1", "2.2.2.2", "3.3.3.3"]:
         lim.fail(ip)
     assert lim.blocked("4.4.4.4") is not None
+
+
+def test_public_url_set_from_admin_goes_into_qr(client):
+    client.post("/api/admin/login", json={"pin": "9999"})
+    assert client.post("/api/admin/public-url", json={"url": "pas une adresse"}).status_code == 400
+    state = client.post("/api/admin/public-url", json={"url": "https://party.bobycharbon.ch/"}).json()
+    assert state["public_url"] == "https://party.bobycharbon.ch"
+    assert main.guest_url() == "https://party.bobycharbon.ch/"
+    # Conservée quand une nouvelle soirée démarre.
+    main.store.start("RINCON_X", "Salon", "next")
+    assert main.store.session.public_url == "https://party.bobycharbon.ch"
