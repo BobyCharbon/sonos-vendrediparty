@@ -101,3 +101,16 @@ textarea:focus { border-color: var(--accent); }
 .install img { width: 44px; height: 44px; border-radius: 10px; flex: none; }
 .install .grow { flex: 1; min-width: 0; }
 .install button { padding: 8px 12px; flex: none; }
+.tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; display: flex; justify-content: center; gap: 4px;
+  padding: 6px max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  background: rgba(20, 15, 32, .92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid #2c2440;
+}
+.tabs button {
+  position: relative; flex: 1; max-width: 200px; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: transparent; color: var(--muted); font-size: 1.25rem; padding: 6px 4px; border-radius: 12px;
+}
+.tabs button span { font-size: .72rem; font-weight: 600; }
+.tabs button.on { color: var(--text); background: var(--card-2); }
+.tabs .badge { position: absolute; top: 2px; left: calc(50% + 8px); font-style: normal; font-size: .68rem; }

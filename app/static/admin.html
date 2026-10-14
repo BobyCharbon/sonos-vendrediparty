@@ -28,77 +28,104 @@
   <div id="panel" class="hidden">
     <div id="noSpotify" class="warn hidden">Spotify n'est pas configuré (SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET) : les invités ne pourront pas chercher de titres.</div>
 
-    <!-- Pas de session -->
-    <div id="setup" class="hidden">
-      <p class="sub">1. Lance ta playlist depuis l'app Sonos.<br>2. Choisis la pièce et démarre la soirée.</p>
-      <div class="card">
-        <h2 style="margin-top:0">Pièce Sonos</h2>
-        <div class="row">
-          <select id="room" class="grow"></select>
-          <button class="secondary" id="reloadRooms" type="button" title="Actualiser">↻</button>
+    <!-- 🎵 Lecture -->
+    <section data-view="home">
+      <!-- Pas de session -->
+      <div id="setup" class="hidden">
+        <p class="sub">1. Lance ta playlist depuis l'app Sonos.<br>2. Choisis la pièce et démarre la soirée.</p>
+        <div class="card">
+          <h2 style="margin-top:0">Pièce Sonos</h2>
+          <div class="row">
+            <select id="room" class="grow"></select>
+            <button class="secondary" id="reloadRooms" type="button" title="Actualiser">↻</button>
+          </div>
+          <h2>Mode d'insertion</h2>
+          <div class="seg" data-mode-picker></div>
+          <button id="start" style="width:100%;margin-top:16px">🎉 Démarrer la soirée</button>
         </div>
-        <h2>Mode d'insertion</h2>
-        <div class="seg" data-mode-picker></div>
-        <button id="start" style="width:100%;margin-top:16px">🎉 Démarrer la soirée</button>
-      </div>
-    </div>
-
-    <!-- Session active -->
-    <div id="live" class="hidden">
-      <p class="sub"><span class="pill live">● Soirée en cours</span> <span id="liveRoom"></span></p>
-      <div id="sonosWarn" class="warn hidden"></div>
-
-      <div class="card now" id="now"></div>
-      <div class="row" style="margin-top:8px">
-        <button class="secondary grow" id="playPause">⏸ Pause</button>
-        <button class="secondary grow" id="skip">⏭ Passer</button>
-      </div>
-      <div class="card row" style="margin-top:8px">
-        <span>🔈</span>
-        <input id="volume" class="grow" type="range" min="0" max="100" step="1" aria-label="Volume">
-        <span>🔊</span>
-        <span id="volumeLabel" style="width:2.5em;text-align:right;font-variant-numeric:tabular-nums"></span>
-      </div>
-      <button class="danger" id="stop" style="width:100%;margin-top:8px">Arrêter la soirée</button>
-
-      <h2>Messages <span id="msgBadge" class="badge hidden"></span></h2>
-      <div id="messages" class="list"></div>
-      <div class="row" id="msgActions" style="margin-top:8px">
-        <button class="secondary grow" id="msgReadAll" type="button">✓ Tout marquer comme lu</button>
       </div>
 
-      <h2>Mode d'insertion</h2>
-      <div class="seg" data-mode-picker></div>
-      <p class="sub" id="modeHelp" style="margin-top:8px"></p>
+      <!-- Session active -->
+      <div id="live" class="hidden">
+        <p class="sub"><span class="pill live">● Soirée en cours</span> <span id="liveRoom"></span></p>
+        <div id="sonosWarn" class="warn hidden"></div>
 
-      <h2>File d'attente <span id="queueCount"></span></h2>
+        <div class="card now" id="now"></div>
+        <div class="row" style="margin-top:8px">
+          <button class="secondary grow" id="playPause">⏸ Pause</button>
+          <button class="secondary grow" id="skip">⏭ Passer</button>
+        </div>
+        <div class="card row" style="margin-top:8px">
+          <span>🔈</span>
+          <input id="volume" class="grow" type="range" min="0" max="100" step="1" aria-label="Volume">
+          <span>🔊</span>
+          <span id="volumeLabel" style="width:2.5em;text-align:right;font-variant-numeric:tabular-nums"></span>
+        </div>
+
+        <h2>À suivre</h2>
+        <div id="queuePreview" class="list"></div>
+        <button class="secondary" data-tab="queue" type="button" style="width:100%;margin-top:8px">📋 Voir toute la file d'attente</button>
+      </div>
+    </section>
+
+    <!-- 📋 File d'attente -->
+    <section data-view="queue" class="hidden">
+      <h2 style="margin-top:8px">File d'attente <span id="queueCount"></span></h2>
       <p class="sub" style="margin-top:-4px;font-size:.85rem">⏫ jouer ensuite · ⬆⬇ déplacer · ▶︎ jouer maintenant · ✕ retirer</p>
       <div id="queue" class="list"></div>
+    </section>
 
-      <h2>Invités</h2>
-      <div id="guests" class="list"></div>
+    <!-- ⚙️ Réglages -->
+    <section data-view="settings" class="hidden">
+      <div id="liveSettings" class="hidden">
+        <h2 style="margin-top:8px">Messages <span id="msgBadge" class="badge hidden"></span></h2>
+        <div id="messages" class="list"></div>
+        <div class="row" id="msgActions" style="margin-top:8px">
+          <button class="secondary grow" id="msgReadAll" type="button">✓ Tout marquer comme lu</button>
+        </div>
 
-      <h2>Demandes des invités</h2>
-      <div id="requests" class="list"></div>
-    </div>
+        <h2>Mode d'insertion</h2>
+        <div class="seg" data-mode-picker></div>
+        <p class="sub" id="modeHelp" style="margin-top:8px"></p>
+      </div>
 
-    <h2>Accès invités</h2>
-    <div class="card" style="text-align:center">
-      <div class="artist">Code de la soirée</div>
-      <div class="big-pin" id="guestPin">····</div>
-      <img class="qr" id="qr" alt="QR code vers la page invités (code inclus)">
-      <p class="sub" style="margin:10px 0" id="guestUrl"></p>
-      <button class="secondary" id="newPin" type="button">🔄 Nouveau code</button>
-      <p class="sub" style="margin:8px 0 0;font-size:.85rem">Un nouveau code déconnecte tous les invités : ils devront saisir le nouveau ou rescanner le QR.</p>
-    </div>
+      <h2>Accès invités</h2>
+      <div class="card" style="text-align:center">
+        <div class="artist">Code de la soirée</div>
+        <div class="big-pin" id="guestPin">····</div>
+        <img class="qr" id="qr" alt="QR code vers la page invités (code inclus)">
+        <p class="sub" style="margin:10px 0" id="guestUrl"></p>
+        <button class="secondary" id="newPin" type="button">🔄 Nouveau code</button>
+        <p class="sub" style="margin:8px 0 0;font-size:.85rem">Un nouveau code déconnecte tous les invités : ils devront saisir le nouveau ou rescanner le QR.</p>
+      </div>
 
-    <div id="bansBox" class="hidden">
-      <h2>Bloqués / bannis</h2>
-      <div id="bans" class="list"></div>
-    </div>
+      <div id="liveGuests" class="hidden">
+        <h2>Invités</h2>
+        <div id="guests" class="list"></div>
+      </div>
 
-    <p style="text-align:center;margin-top:32px"><a href="#" id="logout" style="color:var(--muted)">Se déconnecter</a></p>
+      <div id="bansBox" class="hidden">
+        <h2>Bloqués / bannis</h2>
+        <div id="bans" class="list"></div>
+      </div>
+
+      <div id="liveHistory" class="hidden">
+        <h2>Demandes des invités</h2>
+        <div id="requests" class="list"></div>
+
+        <h2>Soirée</h2>
+        <button class="danger" id="stop" style="width:100%">Arrêter la soirée</button>
+      </div>
+
+      <p style="text-align:center;margin-top:32px"><a href="#" id="logout" style="color:var(--muted)">Se déconnecter</a></p>
+    </section>
   </div>
+
+  <nav id="tabs" class="tabs hidden">
+    <button type="button" data-tab="home">🎵<span>Lecture</span></button>
+    <button type="button" data-tab="queue">📋<span>File</span><i id="queueBadge" class="badge hidden"></i></button>
+    <button type="button" data-tab="settings">⚙️<span>Réglages</span><i id="settingsBadge" class="badge hidden"></i></button>
+  </nav>
 
   <div id="toast" class="toast hidden"></div>
 
@@ -125,7 +152,23 @@ async function api(path, body) {
   if (!r.ok) throw new Error(data.detail || "Erreur");
   return data;
 }
-function showLogin() { $("login").classList.remove("hidden"); $("panel").classList.add("hidden"); }
+function showLogin() { $("login").classList.remove("hidden"); $("panel").classList.add("hidden"); $("tabs").classList.add("hidden"); }
+
+// Trois écrans : 🎵 Lecture, 📋 File, ⚙️ Réglages (mémorisé dans l'adresse : /admin#queue…).
+const VIEWS = ["home", "queue", "settings"];
+function showView(view) {
+  if (!VIEWS.includes(view)) view = "home";
+  document.querySelectorAll("[data-view]").forEach((el) => el.classList.toggle("hidden", el.dataset.view !== view));
+  document.querySelectorAll("#tabs [data-tab]").forEach((el) => el.classList.toggle("on", el.dataset.tab === view));
+  if (location.hash.slice(1) !== view) history.replaceState(null, "", view === "home" ? location.pathname : "#" + view);
+  scrollTo(0, 0);
+}
+document.addEventListener("click", (ev) => {
+  const t = ev.target.closest("[data-tab]");
+  if (t) showView(t.dataset.tab);
+});
+addEventListener("hashchange", () => showView(location.hash.slice(1)));
+showView(location.hash.slice(1));
 
 function renderModes(current) {
   document.querySelectorAll("[data-mode-picker]").forEach((el) => {
@@ -154,8 +197,13 @@ function render(s) {
   state = s;
   $("login").classList.add("hidden"); $("panel").classList.remove("hidden");
   $("noSpotify").classList.toggle("hidden", s.spotify_configured);
+  $("tabs").classList.remove("hidden");
   $("setup").classList.toggle("hidden", s.active);
-  $("live").classList.toggle("hidden", !s.active);
+  for (const id of ["live", "liveSettings", "liveGuests", "liveHistory"]) $(id).classList.toggle("hidden", !s.active);
+  if (!s.active) {
+    $("queue").innerHTML = `<p class="empty">Aucune soirée en cours</p>`;
+    $("queueCount").textContent = ""; $("queueBadge").classList.add("hidden"); $("settingsBadge").classList.add("hidden");
+  }
   renderBans(s);
   $("guestPin").textContent = s.guest_pin;
   const qrSrc = "/qr.svg?v=" + s.guest_pin;
@@ -203,8 +251,9 @@ const drafts = {};  // réponses en cours de saisie, conservées entre deux rafr
 
 function renderMessages(s) {
   const unread = s.messages.filter((m) => !m.read);
-  $("msgBadge").textContent = unread.length;
-  $("msgBadge").classList.toggle("hidden", !unread.length);
+  for (const b of ["msgBadge", "settingsBadge"]) {
+    $(b).textContent = unread.length; $(b).classList.toggle("hidden", !unread.length);
+  }
   $("msgActions").classList.toggle("hidden", !unread.length);
   document.title = (unread.length ? `(${unread.length}) ` : "") + "Party Admin";
   // Nouveau message depuis le dernier rafraîchissement : on prévient.
@@ -240,6 +289,14 @@ function renderMessages(s) {
 function renderQueue(s) {
   const q = s.queue || [];
   $("queueCount").textContent = q.length ? `(${q.length})` : "";
+  $("queueBadge").textContent = q.length > 99 ? "99+" : q.length;
+  $("queueBadge").classList.toggle("hidden", !q.length);
+  $("queuePreview").innerHTML = q.length ? q.slice(0, 5).map((t) => `
+    <div class="track ${t.by ? "guest" : ""}">
+      ${t.art ? `<img src="${esc(t.art)}" alt="" loading="lazy" onerror="this.removeAttribute('src')">` : `<img alt="">`}
+      <div class="meta"><div class="title">${esc(t.title)}</div><div class="artist">${esc(t.artist)}</div>
+        ${t.by ? `<span class="by">ajouté par ${esc(t.by)}</span>` : ""}</div>
+    </div>`).join("") : `<p class="empty">La file est vide</p>`;
   $("queue").innerHTML = q.length ? q.map((t, i) => `
     <div class="track ${t.by ? "guest" : ""}">
       ${t.art ? `<img src="${esc(t.art)}" alt="" loading="lazy" onerror="this.removeAttribute('src')">` : `<img alt="">`}
