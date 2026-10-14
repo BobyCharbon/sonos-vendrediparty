@@ -493,7 +493,7 @@ def test_divan_turns_joker_and_hearts():
     games.divan_next(g, "h")
     v = games.view(g, "a")["divan"]
     assert v["current"]["name"] == "Ana" and v["my_turn"] and not v["joker"]
-    assert sum(len(q) for q in games.DIVAN_CARDS.values()) == 100
+    assert all(len(set(q)) >= 100 for q in games.DIVAN_CARDS.values())  # 100 cartes au moins par catégorie
 
 
 def test_divan_couple_mode_is_exclusive():
@@ -501,7 +501,6 @@ def test_divan_couple_mode_is_exclusive():
     assert "couple" not in g["divan"]["cats"]  # pas proposé par défaut entre amis
     games.divan_set_cats(g, ["emotions", "couple"])
     assert g["divan"]["cats"] == ["couple"]
-    assert len(set(games.DIVAN_CARDS["couple"])) == 20
 
 
 def test_players_learn_the_host_ended_the_game():

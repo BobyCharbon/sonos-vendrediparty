@@ -296,7 +296,7 @@ document.getElementById("gamesRoot").innerHTML = `
           ${helpBtn("divan")}
         </div>
         <p class="g-desc">Chacun passe à son tour sur le divan : une carte est tirée et tu y réponds à voix haute. Souvenirs, émotions, relations, enfance… et un mode couple pour (re)découvrir l'autre. Pour se découvrir autrement, avec bienveillance.</p>
-        <div class="g-chips"><span>2+ joueurs</span><span>100 cartes</span><span>Sans alcool</span></div>
+        <div class="g-chips"><span>2+ joueurs</span><span>500 cartes</span><span>Sans alcool</span></div>
         <div class="g-label">Catégories</div>
         <div class="g-modes dv-cats" data-opt-group="cats">
           <button type="button" data-val="experiences" class="on">🌄 Expériences</button><button type="button" data-val="emotions" class="on">💗 Émotions</button>
