@@ -377,3 +377,20 @@ button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2
   font: 800 .8rem/24px system-ui; text-align: center; }
 .i-ico { flex: none; width: 34px; height: 34px; border-radius: 10px; background: #2c2440; color: #0a84ff; display: grid; place-items: center; }
 .i-ico svg { width: 22px; height: 22px; }
+/* iPhone : guide en haut qui laisse toucher Safari, avec une flèche vers le bouton à toucher. */
+.i-coach { background: transparent; pointer-events: none; align-items: flex-start; }
+.i-coach .i-sheet { pointer-events: auto; border-radius: 22px; margin: max(12px, env(safe-area-inset-top)) 10px 0; width: calc(100% - 20px);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .6); border: 1px solid #3a3150; animation: i-down .3s cubic-bezier(.2, .9, .3, 1); padding-bottom: 16px; }
+@keyframes i-down { from { transform: translateY(-120%); } }
+.i-coach .i-manual summary { pointer-events: none; list-style: none; color: var(--text); font-weight: 600; }
+.i-coach .i-manual summary::-webkit-details-marker { display: none; }
+.i-arrow { display: none; }
+.i-coach .i-arrow { display: grid; place-items: center; position: fixed; width: 56px; height: 56px; border-radius: 50%; background: #0a84ff; color: #fff;
+  box-shadow: 0 8px 24px rgba(10, 132, 255, .55); animation: i-bob 1s ease-in-out infinite; }
+.i-coach .i-arrow svg { width: 30px; height: 30px; }
+.arrow-br .i-arrow { right: 14px; bottom: calc(10px + env(safe-area-inset-bottom)); }
+.arrow-bc .i-arrow { left: calc(50% - 28px); bottom: calc(10px + env(safe-area-inset-bottom)); }
+.arrow-tr .i-arrow { right: 14px; top: 8px; transform: rotate(180deg); animation-name: i-bob-up; }
+.arrow-tr .i-sheet { margin-top: 74px; }
+@keyframes i-bob { 50% { transform: translateY(8px); } }
+@keyframes i-bob-up { 0%, 100% { transform: rotate(180deg); } 50% { transform: rotate(180deg) translateY(8px); } }

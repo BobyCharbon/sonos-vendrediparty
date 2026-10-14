@@ -115,6 +115,7 @@
       </details>
       <button type="button" id="iLater" class="secondary">Plus tard</button>
     </div>
+    <div class="i-arrow" id="iArrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15"/><path d="M5 12l7 7 7-7"/></svg></div>
   </div>
 
   <div id="toast" class="toast hidden"></div>
@@ -459,9 +460,23 @@ function installSteps() {
 }
 function openInstallSheet() {
   $("iSteps").innerHTML = installSteps().join("");
-  // iPhone : le bouton ouvre « Partager ». Android : il lance l'installation (si Chrome la propose).
-  // Sinon (navigateur sans ces fonctions) : on affiche directement les étapes.
-  const direct = android ? !!installEvent : !!navigator.share;
+  const sheet = $("installSheet");
+  if (ios) {
+    // iPhone : aucune page web ne peut ouvrir le « Partager » de Safari (le seul qui propose « Sur l'écran d'accueil »).
+    // Guide en haut de l'écran qui laisse toucher Safari, et flèche vers le bon bouton.
+    const ua = navigator.userAgent, safari26 = +((ua.match(/Version\/(\d+)/) || [])[1] || 0) >= 26;
+    const where = /CriOS|FxiOS/.test(ua) ? "tr" : safari26 ? "br" : "bc";
+    sheet.className = `i-modal i-coach arrow-${where}`;
+    $("iShare").classList.add("hidden");
+    $("iThen").classList.add("hidden");
+    sheet.querySelector(".i-manual").open = true;
+    sheet.querySelector(".i-manual summary").textContent = "Suis ces étapes (la flèche montre où toucher)";
+    $("iLater").textContent = "J'ai compris";
+    return;
+  }
+  sheet.className = "i-modal";
+  // Android : le bouton lance l'installation (si Chrome la propose) ; sinon on affiche les étapes.
+  const direct = !!installEvent;
   $("iShare").lastChild.textContent = android ? " Installer l'application" : " Ouvrir « Partager »";
   $("iShare").classList.toggle("hidden", !direct);
   $("iThen").classList.toggle("hidden", !direct || android);
