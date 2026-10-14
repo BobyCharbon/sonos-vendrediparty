@@ -156,10 +156,13 @@ class PartyStore:
         self.save()
 
     def kick(self, guest_id: str):
-        """Déconnecte un invité : ses jetons sont révoqués, il devra ressaisir le code."""
-        g = self.session.guests.get(guest_id, {})
+        """Déconnecte un invité : jetons révoqués, il disparaît de la liste jusqu'à ce qu'il ressaisisse le code."""
+        g = self.session.guests.pop(guest_id, {})
         self.session.revoked = (self.session.revoked + g.get("tokens", []))[-500:]
-        g["tokens"] = []
+        # Garde ses IP pour qu'un ban ultérieur reste possible via ses demandes.
+        for r in self.session.requests:
+            if r.guest_id == guest_id and not r.ip and g.get("ips"):
+                r.ip = g["ips"][-1]
         self.last_seen.pop(guest_id, None)
         self.save()
 
@@ -179,9 +182,10 @@ class PartyStore:
             for gid, g in self.session.guests.items()
         }
         for r in self.session.requests:
-            g = guests.setdefault(r.guest_id, {"guest_id": r.guest_id, "name": r.guest_name, "joined_at": r.added_at, "total": 0, "queued": 0})
-            g["total"] += 1
-            g["queued"] += r.status == "queued"
+            g = guests.get(r.guest_id)  # seulement les invités présents (pas ceux déconnectés)
+            if g is not None:
+                g["total"] += 1
+                g["queued"] += r.status == "queued"
         guests.pop(HOST_ID, None)  # l'hôte n'est pas un invité (pas de ban, pas de déconnexion)
         for g in guests.values():
             g["ban"] = self.ban_status(g["guest_id"], *self.guest_ips(g["guest_id"]))

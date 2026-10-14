@@ -152,11 +152,15 @@ def test_kick_asks_code_again_without_banning(admin):
 
     admin.post("/api/admin/kick", json={"guest_id": "guest-kick"})
     assert guest.get("/api/state?guest_id=guest-kick").status_code == 401
+    names = [g["guest_id"] for g in admin.get("/api/admin/state").json()["guests"]]
+    assert "guest-kick" not in names and "guest-stay" in names  # il disparaît de la liste
     assert other.get("/api/state?guest_id=guest-stay").status_code == 200  # les autres restent connectés
 
     # Il peut revenir avec le code : ce n'est pas un ban.
     guest.post("/api/join", json={"pin": main.store.session.guest_pin})
+    guest.post("/api/hello", json={"guest_id": "guest-kick", "guest_name": "guest-kick"})
     assert guest.get("/api/state?guest_id=guest-kick").status_code == 200
+    assert "guest-kick" in [g["guest_id"] for g in admin.get("/api/admin/state").json()["guests"]]
 
 
 def test_speaker_group_and_volume(admin):

@@ -254,6 +254,7 @@ async function join(pin) {
   try {
     await api("/api/join", { method: "POST", body: JSON.stringify({ pin }) });
     $("pinInput").value = "";
+    registered = false;  // se représenter : un invité déconnecté réapparaît dans la liste de l'hôte
     if (source) listen();
     await refresh();
   } catch (e) {
