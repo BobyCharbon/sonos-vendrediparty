@@ -292,8 +292,34 @@ DIVAN_CARDS = {
         "Quel héros ou quelle héroïne t'inspirait ?",
         "Qu'aurais-tu aimé qu'on te dise plus souvent, enfant ?",
     ],
+    # Mode couple : à deux (ou entre couples), « l'autre » est la personne avec qui l'on est.
+    "couple": [
+        "Quel est ton tout premier souvenir de l'autre ?",
+        "Qu'as-tu pensé la première fois que tu as vu l'autre ?",
+        "Raconte votre premier rendez-vous comme si c'était un film.",
+        "À quel moment as-tu su que c'était sérieux entre vous ?",
+        "Quelle petite habitude de l'autre te fait sourire à chaque fois ?",
+        "Qu'est-ce que tu admires le plus chez l'autre ?",
+        "Quelle qualité de l'autre les gens ne voient pas assez ?",
+        "Raconte une fois où l'autre t'a vraiment surpris·e.",
+        "Qu'est-ce que l'autre t'a appris sans même s'en rendre compte ?",
+        "Quel petit geste de l'autre te fait te sentir aimé·e ?",
+        "Selon toi, que ferait l'autre en premier en gagnant au loto ?",
+        "Selon toi, comment réagirait l'autre en trouvant un chiot abandonné devant la porte ?",
+        "Devine : quelle est, pour l'autre, ta manie la plus attachante ?",
+        "Devine quel souvenir à deux l'autre aimerait revivre.",
+        "Quand l'autre a eu une journée difficile, qu'est-ce qui lui fait du bien ?",
+        "Quel moment compliqué avez-vous traversé qui vous a rapprochés ?",
+        "Quel est votre plus beau fou rire à deux ?",
+        "Quelle chanson te fait penser à l'autre, et pourquoi ?",
+        "Quelle petite tradition avez-vous inventée rien qu'à vous ?",
+        "Quel rêve aimerais-tu réaliser à deux dans les prochaines années ?",
+    ],
 }
-DIVAN_LABELS = {"experiences": "Expériences", "emotions": "Émotions", "relations": "Relations", "childhood": "Enfance"}
+DIVAN_LABELS = {"experiences": "Expériences", "emotions": "Émotions", "relations": "Relations", "childhood": "Enfance",
+                "couple": "Couple"}
+# Catégories proposées par défaut ; le mode couple se choisit à part (il remplace les autres).
+DIVAN_DEFAULT = [c for c in DIVAN_CARDS if c != "couple"]
 
 ROLE_LABELS = {"civil": "Civil", "undercover": "Undercover", "white": "Mr. White"}
 
@@ -337,7 +363,7 @@ def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code
         # Casino (roulette européenne) : mises du tour, jetons, dernier lancer et numéros sortis.
         "casino": {"bets": {}, "chips": {}, "rebuys": {}, "spin": None, "history": [], "results": {}},
         # Le Divan : catégories choisies, joueur sur le divan, carte en cours, soutiens reçus.
-        "divan": {"cats": list(DIVAN_CARDS), "turn": 0, "card": None, "used": [], "hearts": [], "joker": False, "n": 0},
+        "divan": {"cats": list(DIVAN_DEFAULT), "turn": 0, "card": None, "used": [], "hearts": [], "joker": False, "n": 0},
     }
     if host and plays:
         join(g, host, name)
@@ -869,7 +895,7 @@ def casino_view(g: dict, gid: str) -> dict:
 # --- Le Divan ---
 
 def divan_set_cats(g: dict, cats: list[str]):
-    cats = [c for c in DIVAN_CARDS if c in cats]
+    cats = ["couple"] if "couple" in cats else [c for c in DIVAN_CARDS if c in cats]
     if not cats:
         raise GameError("Choisis au moins une catégorie")
     g["divan"]["cats"] = cats

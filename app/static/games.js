@@ -100,6 +100,7 @@ const GAME_RULES = {
       <li><b>💗 Émotions</b> : ce qui te touche, te pèse ou te rend heureux.</li>
       <li><b>🤝 Relations</b> : amitié, amour, famille, les autres et toi.</li>
       <li><b>🧸 Enfance</b> : souvenirs, famille, l'enfant que tu étais.</li>
+      <li><b>💞 Mode couple</b> (à part, remplace les autres) : à deux ou entre couples. Votre histoire, vos souvenirs, et « devine comment l'autre réagirait ». Rien de gênant : « l'autre », c'est la personne avec qui tu es.</li>
     </ul>
     <h3>Les règles d'or</h3>
     <ul>
@@ -294,12 +295,13 @@ document.getElementById("gamesRoot").innerHTML = `
           <div class="g-meta"><div class="g-title">Le Divan</div><div class="g-tag">Des cartes pour parler vrai.</div></div>
           ${helpBtn("divan")}
         </div>
-        <p class="g-desc">Chacun passe à son tour sur le divan : une carte est tirée et tu y réponds à voix haute. Souvenirs, émotions, relations, enfance… Pour se découvrir autrement, avec bienveillance.</p>
-        <div class="g-chips"><span>2+ joueurs</span><span>80 cartes</span><span>Sans alcool</span></div>
+        <p class="g-desc">Chacun passe à son tour sur le divan : une carte est tirée et tu y réponds à voix haute. Souvenirs, émotions, relations, enfance… et un mode couple pour (re)découvrir l'autre. Pour se découvrir autrement, avec bienveillance.</p>
+        <div class="g-chips"><span>2+ joueurs</span><span>100 cartes</span><span>Sans alcool</span></div>
         <div class="g-label">Catégories</div>
         <div class="g-modes dv-cats" data-opt-group="cats">
           <button type="button" data-val="experiences" class="on">🌄 Expériences</button><button type="button" data-val="emotions" class="on">💗 Émotions</button>
           <button type="button" data-val="relations" class="on">🤝 Relations</button><button type="button" data-val="childhood" class="on">🧸 Enfance</button>
+          <button type="button" data-val="couple">💞 Mode couple</button>
         </div>
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="divan">Ouvrir une séance</button>
@@ -709,7 +711,7 @@ function renderBJHost(g, btn) {
 }
 
 // 🛋️ Le Divan : une grande carte de couleur, retournée à chaque tirage.
-const DV_ICONS = { experiences: "🌄", emotions: "💗", relations: "🤝", childhood: "🧸" };
+const DV_ICONS = { experiences: "🌄", emotions: "💗", relations: "🤝", childhood: "🧸", couple: "💞" };
 let dvSeen = 0;
 function divanHtml(g) {
   const d = g.divan;
@@ -1247,6 +1249,10 @@ document.addEventListener("click", (ev) => {
   if (cat) {
     const on = cat.parentElement.querySelectorAll(".on");
     if (!(cat.classList.contains("on") && on.length === 1)) cat.classList.toggle("on");
+    // Le mode couple remplace les autres catégories (et inversement).
+    const couple = cat.parentElement.querySelector("[data-val=couple]");
+    if (cat === couple && cat.classList.contains("on")) on.forEach((b) => b !== cat && b.classList.remove("on"));
+    else if (cat !== couple && cat.classList.contains("on")) couple?.classList.remove("on");
   }
   const opt = ev.target.closest("[data-opt-group=mode] [data-val]");
   if (opt) opt.parentElement.querySelectorAll("[data-val]").forEach((b) => b.classList.toggle("on", b === opt));

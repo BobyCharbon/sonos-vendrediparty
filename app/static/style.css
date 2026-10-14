@@ -477,6 +477,7 @@ button.cs-spin { height: 54px; font-size: 1rem; background: #f2c14e; color: #2b1
 .dv-card.dv-emotions { --c1: #f7a8c4; --c2: #e0607e; }
 .dv-card.dv-relations { --c1: #9cc3ff; --c2: #5b7fe0; }
 .dv-card.dv-childhood { --c1: #b7e4a8; --c2: #5fb36c; }
+.dv-card.dv-couple { --c1: #ffc3a0; --c2: #d6457a; }
 .dv-cat { font: 800 .85rem system-ui; letter-spacing: .12em; text-transform: uppercase; opacity: .8; }
 .dv-q { font: 800 clamp(1.35rem, 6.2vw, 1.8rem)/1.2 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: -0.01em; text-wrap: balance; }
 .dv-foot { font-size: .75rem; opacity: .6; text-align: right; }
