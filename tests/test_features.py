@@ -127,17 +127,21 @@ def test_admin_adds_track_next_or_end(admin, monkeypatch):
             return {"id": tid, "title": "T", "artist": "A", "image": ""}
 
     monkeypatch.setattr(main, "spotify", FakeSpotify())
+    # Un invité a demandé « Un » (position 5) ; « Deux » et « Trois » = suite de la playlist.
+    main.store.add({"id": "a" * 22, "title": "Un", "artist": "A"}, "guest-1111", "Léa")
     admin.post("/api/admin/add", json={"track_id": "d" * 22, "where": "next"})
     admin.post("/api/admin/add", json={"track_id": "e" * 22, "where": "end"})
-    assert admin.fake.calls[:2] == [("add", "d" * 22, 5), ("add", "e" * 22, 0)]
+    # ⏫ juste après le titre en cours ; ＋ juste après la dernière demande, pas tout en bas.
+    assert admin.fake.calls[:2] == [("add", "d" * 22, 5), ("add", "e" * 22, 6)]
+    hosts = [r for r in main.store.pending() if r.guest_id == "host"]
+    assert [r.guest_name for r in hosts] == ["Hôte", "Hôte"]
+    assert "Hôte" not in [g["name"] for g in admin.get("/api/admin/state").json()["guests"]]
     # Déjà dans la file : on demande confirmation…
     r = admin.post("/api/admin/add", json={"track_id": "a" * 22, "where": "end"})
     assert r.status_code == 409 and r.json()["detail"]["duplicate"]
     # … et l'hôte peut forcer.
     assert admin.post("/api/admin/add", json={"track_id": "a" * 22, "where": "end", "force": True}).status_code == 200
-    assert admin.fake.calls[-1] == ("add", "a" * 22, 0)
-    # Les ajouts de l'hôte ne sont pas des demandes d'invités.
-    assert main.store.pending() == []
+    assert admin.fake.calls[-1][:2] == ("add", "a" * 22)
 
 
 def test_kick_asks_code_again_without_banning(admin):

@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 MODES = ("next", "fair")
+HOST_ID = "host"  # les ajouts de l'hôte sont des demandes comme les autres, signées « Hôte »
 
 
 @dataclass
@@ -161,6 +162,7 @@ class PartyStore:
             g = guests.setdefault(r.guest_id, {"guest_id": r.guest_id, "name": r.guest_name, "joined_at": r.added_at, "total": 0, "queued": 0})
             g["total"] += 1
             g["queued"] += r.status == "queued"
+        guests.pop(HOST_ID, None)  # l'hôte n'est pas un invité (pas de ban, pas de déconnexion)
         for g in guests.values():
             g["ban"] = self.ban_status(g["guest_id"], *self.guest_ips(g["guest_id"]))
             g["last_seen"] = self.last_seen.get(g["guest_id"], 0)
@@ -298,3 +300,13 @@ def fair_moves(current_pos: int, upcoming: list[tuple[int, str]], pending: list[
             queue.insert(i, queue.pop(src))
             moves.append((current_pos + 1 + src, current_pos + 1 + i))
     return moves
+
+
+def end_of_requests(current_pos: int, upcoming: list[tuple[int, str]], pending: list[Request]) -> int:
+    """Position (1-based) juste après la dernière demande en attente : la fin de « notre » file,
+    avant la suite de la playlist de l'hôte. 0 = fin de la file Sonos (rien ne joue)."""
+    if current_pos <= 0:
+        return 0
+    requested = {r.track_id for r in pending}
+    last = max((pos for pos, track_id in upcoming if track_id in requested), default=current_pos)
+    return last + 1

@@ -443,7 +443,7 @@ $("addQ").addEventListener("input", () => {
           <div class="meta"><div class="title">${esc(t.title)}</div><div class="artist">${esc(t.artist)}${t.explicit ? " · 🅴" : ""}</div></div>
           <div class="icon-btns">
             <button data-add="next" data-i="${i}" title="Jouer ensuite">⏫</button>
-            <button class="secondary" data-add="end" data-i="${i}" title="Ajouter à la fin">＋</button>
+            <button class="secondary" data-add="end" data-i="${i}" title="À la suite des demandes">＋</button>
           </div>
         </div>`).join("") : `<p class="empty">Aucun résultat</p>`;
     } catch (e) { toast(e.message, "err"); }
@@ -464,7 +464,7 @@ $("addResults").addEventListener("click", async (ev) => {
       res = await add(true);
     }
     render(res);
-    toast(`« ${t.title} » ${b.dataset.add === "next" ? "passera juste après" : "ajouté à la fin"} 🎶`, "ok");
+    toast(`« ${t.title} » ${b.dataset.add === "next" ? "passera juste après" : "ajouté à la suite des demandes"} 🎶`, "ok");
     b.textContent = "✓";
   } catch (e) { b.disabled = false; toast(e.message, "err"); }
 });

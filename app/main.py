@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .party import MODES, PartyStore, fair_moves, insert_position
+from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
 from .security import Limiter
 from .sonos import Sonos
 from .spotify import Spotify
@@ -416,13 +416,13 @@ def admin_search(q: str):
 
 class AdminAdd(BaseModel):
     track_id: str
-    where: str = "next"  # next : juste après le titre en cours | end : fin de la file
+    where: str = "next"  # next : juste après le titre en cours | end : après la dernière demande
     force: bool = False  # ajouter même si le titre est déjà dans la file
 
 
 @app.post("/api/admin/add", dependencies=[Depends(require_admin)])
 def admin_add(body: AdminAdd):
-    """L'hôte ajoute un titre (hors demandes d'invités : pas concerné par le mode équitable)."""
+    """L'hôte ajoute un titre : ensuite, ou à la suite des demandes (avant la suite de la playlist)."""
     require_active()
     if spotify is None:
         raise HTTPException(503, "Recherche Spotify non configurée")
@@ -437,11 +437,16 @@ def admin_add(body: AdminAdd):
         if dup is not None and not body.force:
             where = "en cours de lecture" if dup == 0 else f"en {dup}ᵉ position"
             raise HTTPException(409, {"duplicate": True, "message": f"« {track['title']} » est déjà dans la file ({where}). L'ajouter quand même ?"})
-        pos = snap["current_pos"] + 1 if body.where == "next" and snap["current_pos"] else 0
+        if body.where == "next":
+            pos = snap["current_pos"] + 1 if snap["current_pos"] else 0
+        else:
+            upcoming = [(t["pos"], t["track_id"]) for t in snap["upcoming"]]
+            pos = end_of_requests(snap["current_pos"], upcoming, store.pending())
         try:
             sonos.add_spotify_track(store.session.room_uid, track["id"], track["title"], pos)
         except Exception as e:
             raise HTTPException(502, f"Sonos a refusé l'ajout : {e}")
+        store.add(track, HOST_ID, "Hôte")
         _snap["data"] = None
     return {**admin_state(), "added": track}
 

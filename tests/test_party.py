@@ -130,3 +130,13 @@ def test_proxy_ip_never_bans_everyone(tmp_path):
     assert store.ban_status("guest-new1", "192.168.50.1") is None
     assert store.ban_status("guest-spam", "192.168.50.1") is not None
     assert store.ban_status("autre-onglet", "86.220.23.199") is not None
+
+
+def test_end_of_requests_is_before_host_playlist():
+    from app.party import end_of_requests
+
+    pending = [req("A", "a1"), req("B", "b1")]
+    upcoming = [(6, "a1"), (7, "b1"), (8, "p1"), (9, "p2")]
+    assert end_of_requests(5, upcoming, pending) == 8   # après b1, avant p1
+    assert end_of_requests(5, [(6, "p1")], []) == 6     # aucune demande : juste après le titre en cours
+    assert end_of_requests(0, upcoming, pending) == 0   # rien ne joue : fin de file
