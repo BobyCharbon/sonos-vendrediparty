@@ -123,14 +123,16 @@ async function refresh() {
   try { s = await api("/api/state?guest_id=" + encodeURIComponent(guestId)); } catch { return; }
   if (!s.active) return show("closed");
   if (!guestName) { if ($("hello").classList.contains("hidden")) show("hello"); return; }
+  // Le serveur fait foi pour le prénom (l'hôte a pu le changer) : on le reprend AVANT de se présenter,
+  // sinon l'ancien prénom gardé sur le téléphone écraserait le renommage.
+  if (s.name && s.name !== guestName) {
+    guestName = s.name; store("vp_name", guestName);
+  }
   if (!registered) {
     registered = true;
     api("/api/hello", { method: "POST", body: JSON.stringify({ guest_id: guestId, guest_name: guestName }) }).catch(() => { registered = false; });
   }
   show("party");
-  if (s.name && s.name !== guestName) {  // l'hôte a changé le prénom
-    guestName = s.name; store("vp_name", guestName);
-  }
   $("room").textContent = s.room;
   $("rename").textContent = guestName;
 
@@ -233,11 +235,15 @@ $("msgForm").addEventListener("submit", async (ev) => {
 
 $("nameForm").addEventListener("submit", (ev) => {
   ev.preventDefault();
-  guestName = $("nameInput").value.trim().slice(0, 30);
-  if (!guestName) return;
+  const name = $("nameInput").value.trim().slice(0, 30);
+  if (!name) return;
+  guestName = name;
   store("vp_name", guestName);
-  registered = false;
-  refresh();
+  // Nouveau prénom choisi par l'invité : on l'envoie au serveur avant de rafraîchir.
+  registered = true;
+  api("/api/hello", { method: "POST", body: JSON.stringify({ guest_id: guestId, guest_name: guestName }) })
+    .catch(() => { registered = false; })
+    .finally(refresh);
 });
 $("rename").addEventListener("click", (ev) => {
   ev.preventDefault();
