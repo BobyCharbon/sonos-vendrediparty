@@ -291,7 +291,10 @@ async function refreshGame() {
     if (autoJoin && !g.me && !g.is_host) { autoJoin = false; return gameAction("join"); }
     renderGame(g);
   } catch (e) {
-    if (e.status === 404) { setGame(""); renderGame(null); toast("Cette partie n'existe plus", "err"); }
+    // Partie introuvable, ou erreur du serveur : on revient à l'accueil des jeux plutôt que de rester sur une page vide.
+    if (e.status === 404) { setGame(""); toast("Cette partie n'existe plus", "err"); }
+    else if (!game) toast("Impossible de charger la partie, réessaie", "err");
+    if (e.status === 404 || !game) renderGame(null);
   }
 }
 

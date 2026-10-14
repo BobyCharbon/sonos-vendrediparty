@@ -348,3 +348,15 @@ def test_blackjack_player_leaving_on_his_turn_passes_hand():
     assert g["bj"]["seats"][g["bj"]["turn"]] == "b"
     games.bj_stand(g, "b")
     assert g["phase"] == "results"
+
+
+def test_old_or_unknown_games_do_not_break_pages(admin):  # noqa: F811
+    old = games.new_game("blackjack")
+    old.update(type="blackjack_drinks", code="9991")
+    gone = games.new_game("whoof")
+    gone.update(type="jeu_supprime", code="9992")
+    main.store.session.games.update({"9991": old, "9992": gone})
+    assert admin.get("/api/admin/state").status_code == 200
+    assert main.store.session.games["9991"]["type"] == "blackjack" and main.store.session.games["9991"]["options"]["sips"] == 2
+    assert "9992" not in main.store.session.games
+    assert TestClient(main.app).get("/api/games/9991").status_code == 200

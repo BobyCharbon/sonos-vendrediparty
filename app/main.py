@@ -632,7 +632,7 @@ def admin_state():
         "bans": [{"guest_id": g, **b} for g, b in store.active_bans().items()],
         "messages": list(reversed(s.messages)),
         "top_playlists": s.top_playlists,
-        "games": [games.summary(g) for g in s.games.values()],
+        "games": [games.summary(g) for g in (prune_games() or s.games).values()],
     }
     if s.active:
         try:
@@ -780,11 +780,19 @@ _game_creations: dict[str, list[float]] = {}
 
 
 def prune_games():
-    """Oublie les parties inactives depuis 4 h."""
-    old = [c for c, g in store.session.games.items() if time.time() - g["updated_at"] > 4 * 3600]
+    """Oublie les parties inactives depuis 4 h, et celles d'un jeu qui n'existe plus."""
+    changed = False
+    for g in store.session.games.values():
+        # Ancien « Blackjack à boire » : devenu le Blackjack avec l'option alcool.
+        if g["type"] == "blackjack_drinks":
+            g["type"] = "blackjack"
+            g["options"]["sips"] = g["options"].get("sips") or 2
+            changed = True
+    old = [c for c, g in store.session.games.items()
+           if time.time() - g["updated_at"] > 4 * 3600 or g["type"] not in games.GAMES]
     for code in old:
         del store.session.games[code]
-    if old:
+    if old or changed:
         store.save()
 
 
