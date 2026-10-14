@@ -700,7 +700,12 @@ function divanHtml(g) {
   const c = d.card, fresh = c && c.id > dvSeen;
   if (c) dvSeen = Math.max(dvSeen, c.id);
   if (fresh && d.my_turn) navigator.vibrate?.(80);
-  return `<div class="dv-who">${d.my_turn ? "🛋️ <b>C'est ton tour sur le divan</b>" : `🛋️ Sur le divan : <b>${esc(d.current?.name || "…")}</b>`}</div>
+  const who = d.current?.name || "…";
+  return `<div class="dv-who ${d.my_turn ? "me" : ""} ${fresh ? "dv-new" : ""}">
+      <div class="dv-avatar" aria-hidden="true">${esc([...who][0]?.toUpperCase() || "?")}</div>
+      <div class="dv-who-text"><div class="dv-who-label">${d.my_turn ? "🛋️ C'est ton tour !" : "🛋️ Sur le divan"}</div>
+        <div class="dv-who-name">${d.my_turn ? "À toi de répondre" : esc(who)}</div></div>
+    </div>
     ${c ? `<div class="dv-card dv-${c.cat} ${fresh ? "dv-flip" : ""}">
       <div class="dv-cat">${DV_ICONS[c.cat]} ${d.labels[c.cat]}</div>
       <div class="dv-q">${esc(c.text)}</div>

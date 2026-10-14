@@ -458,7 +458,18 @@ button.cs-spin { height: 54px; font-size: 1rem; background: #f2c14e; color: #2b1
 .game.g-dv button.secondary { background: var(--g-chip); color: #fff; }
 .game.g-dv button.g-help { background: rgba(255,255,255,.16); color: #fff; }
 .dv-cats button { font-size: .85rem; }
-.dv-who { margin-top: 4px; font-size: 1.05rem; }
+.dv-who { margin-top: 8px; display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 18px; background: rgba(0,0,0,.22); }
+.dv-avatar { flex: none; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--g-accent); color: var(--g-ink);
+  font: 800 1.6rem "Bricolage Grotesque", system-ui, sans-serif; box-shadow: 0 0 0 4px rgba(242,208,164,.25); }
+.dv-who-text { min-width: 0; }
+.dv-who-label { font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--g-soft); }
+.dv-who-name { font: 800 clamp(1.6rem, 8vw, 2.2rem)/1.1 "Bricolage Grotesque", system-ui, sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dv-who.me { background: var(--g-accent); color: var(--g-ink); animation: dv-glow 1.6s ease-in-out infinite; }
+.dv-who.me .dv-who-label { color: var(--g-ink); opacity: .75; }
+.dv-who.me .dv-avatar { background: var(--g-ink); color: var(--g-accent); }
+.dv-new { animation: pop .45s ease-out; }
+.dv-who.me.dv-new { animation: pop .45s ease-out, dv-glow 1.6s ease-in-out .45s infinite; }
+@keyframes dv-glow { 50% { box-shadow: 0 0 0 4px rgba(242,208,164,.45), 0 0 26px rgba(242,208,164,.6); } }
 .dv-card { --c1: #f4a261; --c2: #e76f51; position: relative; margin: 14px auto 4px; max-width: 340px; aspect-ratio: 5 / 7; box-sizing: border-box;
   border-radius: 22px; padding: 22px 20px; display: flex; flex-direction: column; justify-content: space-between;
   background: linear-gradient(160deg, var(--c1), var(--c2)); color: #1d1420; box-shadow: 0 18px 40px rgba(0,0,0,.45);
