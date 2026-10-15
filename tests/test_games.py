@@ -646,3 +646,110 @@ def test_host_leaving_never_passes_to_manual_player():
     games.join(g, "a", "Ana")
     games.leave(g, "h")
     assert g["host"] == "a"
+
+
+# --- Pyramide ---
+
+def pyramid(n=2, floors=5, seed=7):
+    g = games.new_game("pyramid", host="p0", name="P0")
+    for i in range(1, n):
+        games.join(g, f"p{i}", f"P{i}")
+    g["options"]["floors"] = floors
+    games.start(g, random.Random(seed))
+    return g
+
+
+def test_pyramid_limits_players_to_one_deck():
+    assert games.pyr_max_players(5) == 9 and games.pyr_max_players(8) == 4
+    with pytest.raises(games.GameError):
+        pyramid(n=5, floors=8)
+    assert [games.pyr_floor(5, i) for i in (0, 4, 5, 14)] == [1, 1, 2, 5]
+
+
+def test_pyramid_deal_rules_and_hidden_hands():
+    g = pyramid()
+    P = g["pyr"]
+    P["deck"] += ["3S", "KD", "9H", "5C", "QC", "8H", "2S", "AD"]  # tirés depuis la fin
+    with pytest.raises(games.GameError):
+        games.pyr_answer(g, "p1", "red")  # pas son tour
+    games.pyr_answer(g, "p0", "red")       # AD rouge : réussi
+    assert P["last"]["ok"] and games.view(g, "p1")["me"]["give"] == 0
+    games.pyr_answer(g, "p1", "red")       # 2S noir : raté, boit 1
+    assert games.view(g, "p1")["me"]["drink"] == 1
+    games.pyr_answer(g, "p0", "plus")      # 8H > A
+    games.pyr_answer(g, "p1", "moins")     # QC > 2 : raté
+    games.pyr_answer(g, "p0", "dedans")    # 5C entre 1 et 8
+    games.pyr_answer(g, "p1", "dedans")    # 9H entre 2 et 12
+    games.pyr_answer(g, "p0", "D")         # KD carreau
+    games.pyr_answer(g, "p1", "S")         # 3S pique
+    assert g["phase"] == "pyramid"
+    v = games.view(g, "p0")["pyr"]
+    assert all(c == "??" for s in v["seats"] for c in s["cards"])  # plus personne ne voit ses cartes
+    assert v["pyramid"] == ["??"] * 15
+
+
+def finish_deal(g):
+    P = g["pyr"]
+    while g["phase"] == "deal":
+        games.pyr_answer(g, P["order"][P["turn"]], games.PYR_STEPS[P["step"]][0])
+
+
+def test_pyramid_claim_accuse_reveal_and_peek():
+    g = pyramid()
+    finish_deal(g)
+    P = g["pyr"]
+    games.pyr_flip(g)
+    assert P["pyramid"][0] == games.view(g, "p1")["pyr"]["current"]
+    games.pyr_claim(g, "p1")
+    with pytest.raises(games.GameError):
+        games.pyr_claim(g, "p1")
+    claim = P["claims"][0]
+    games.pyr_judge(g, claim["id"], liar=True)
+    P["hands"]["p1"][2] = P["pyramid"][0][0] + "H"  # il avait bien la carte
+    games.pyr_reveal(g, "p1", 2)
+    v = games.view(g, "p0")["pyr"]
+    assert v["reveal"]["truth"] and v["seats"][1]["cards"][2] != "??"  # visible par tous 3 s
+    P["reveal"]["at"] -= 4
+    assert games.view(g, "p0")["pyr"]["seats"][1]["cards"][2] == "??"
+    games.pyr_peek(g, "p0", [0, 3])
+    games.pyr_peek_decide(g, P["peeks"][0]["id"], True)
+    mine = games.view(g, "p0")["pyr"]["seats"][0]["cards"]
+    assert mine[0] != "??" and mine[3] != "??" and mine[1] == "??"
+    assert games.view(g, "p1")["pyr"]["seats"][0]["cards"][0] == "??"  # coup d'œil privé
+    assert games.view(g, "p0")["me"]["drink"] >= 4  # 2 gorgées par carte
+
+
+def test_pyramid_top_memory_roulette_and_boat():
+    g = pyramid(n=3)
+    finish_deal(g)
+    P = g["pyr"]
+    for _ in range(15):
+        games.pyr_flip(g)
+    top = P["pyramid"][-1]
+    with pytest.raises(games.GameError):
+        games.pyr_claim(g, "p0")  # au sommet : pas de bluff
+    P["hands"]["p1"][0] = top[0] + "S"
+    P["hands"]["p2"] = [c for c in P["hands"]["p2"]]
+    P["hands"]["p2"] = ["2S", "2H", "2D", "2C"] if top[0] != "2" else ["3S", "3H", "3D", "3C"]
+    games.pyr_top(g, "p1")
+    games.pyr_top(g, "p2")
+    assert games.view(g, "p1")["pyr"]["top_me"] is True and games.view(g, "p2")["pyr"]["liars"] == ["P2"]
+    games.pyr_to_memory(g)
+    games.pyr_memory(g, "p0", [c[0] for c in P["hands"]["p0"]])           # 0 erreur
+    games.pyr_memory(g, "p1", ["K", "K", "K", "K"] if P["hands"]["p1"][0][0] != "K" else ["Q"] * 4)
+    games.pyr_memory(g, "p2", ["10" if c[0] == "T" else c[0] for c in P["hands"]["p2"]])
+    assert g["phase"] == "memres"
+    assert {c["name"] for c in games.view(g, "p0")["pyr"]["candidates"]} >= {"P2"}  # menteur au sommet
+    games.pyr_pick_boat(g, random.Random(1))
+    assert g["phase"] == "boatpick"
+    games.pyr_boat_start(g)
+    boat = P["boat"]
+    P["deck"] = ["KS", "2H", "9D", "8S", "AH"]  # AH rouge ✓, 8S plus ✓, 9D dehors? 1..8 → 9 dehors ✓, 2H…
+    games.pyr_boat_answer(g, boat, "red")
+    games.pyr_boat_answer(g, boat, "plus")
+    games.pyr_boat_answer(g, boat, "dehors")
+    games.pyr_boat_answer(g, boat, "S")  # 2H : raté → 1 gorgée, retour au début
+    b = P["bstate"]
+    assert b["step"] == 1 and b["sips"] == 1
+    games.pyr_boat_answer(g, boat, "black")  # KS noir ✓ puis paquet vide : fin
+    assert g["phase"] == "end" and b["result"] == "deck"

@@ -26,6 +26,7 @@ GAMES = {
     "casino": "Casino",
     "divan": "Le Divan",
     "tmc": "Tu me connais ?",
+    "pyramid": "Pyramide",
 }
 BLACKJACKS = ("blackjack",)
 
@@ -244,7 +245,7 @@ def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code
         "id": secrets.token_hex(4), "code": code, "type": kind, "phase": "lobby", "host": host, "host_name": name,
         "created_at": time.time(), "updated_at": time.time(),
         # sips : gorgées que boit la personne désignée (« Qui de nous ? »), 0 = sans alcool.
-        "options": {"white": white, "mode": mode, "sips": max(0, min(10, int(sips)))}, "players": [], "round": 0, "order": [], "votes": {},
+        "options": {"white": white, "mode": mode, "sips": max(0, min(10, int(sips))), "floors": 5}, "players": [], "round": 0, "order": [], "votes": {},
         "candidates": None, "last": None, "winner": None, "words": None, "used": [],
         "question": None, "results": None, "kicked": [],
         # Roulette : noms notés par l'animateur, dernier tirage et perdants précédents.
@@ -301,7 +302,7 @@ def join(g: dict, gid: str, name: str = ""):
                          "waiting": waiting})
 
 
-MANUAL_GAMES = ("divan", "tmc", "never")  # jeux où l'animateur peut ajouter des participants sans téléphone
+MANUAL_GAMES = ("divan", "tmc", "never", "pyramid")  # jeux où l'animateur peut ajouter des participants sans téléphone
 
 
 def add_guest(g: dict, name: str):
@@ -338,6 +339,8 @@ def leave(g: dict, gid: str):
         raise GameError("Joueur introuvable")
     in_play = p in alive(g)
     g["players"].remove(p)
+    if g["type"] == "pyramid":
+        pyr_leave(g, gid)
     g["votes"] = {v: t for v, t in g["votes"].items() if v != gid and t != gid}
     g["order"] = [i for i in g["order"] if i != gid]
     if g["candidates"]:
@@ -1060,8 +1063,358 @@ def tmc_view(g: dict, gid: str) -> dict:
     return {"duo": duo, "ranking": ranking, "pairs": pairs, "duos": best_duos}
 
 
+# --- Pyramide (jeu de cartes à boire, joueurs autour de la même table) ---
+# 1. Distribution : 4 questions par joueur (rouge/noir, plus/moins, dedans/dehors, symbole), une carte chacune.
+# 2. Pyramide : l'animateur retourne les cartes ; on peut donner les gorgées de l'étage, bluff compris ;
+#    accusé de mentir, on retourne une de ses cartes 3 s. Sommet : cul sec, sans bluff.
+# 3. Mémoire : chacun retrouve ses 4 valeurs dans l'ordre. 4. Bateau pour celui qui en rate le plus.
+
+PYR_RANKS = "A23456789TJQK"
+PYR_SUITS = "SHDC"
+PYR_STEPS = {1: ("red", "black"), 2: ("plus", "moins"), 3: ("dedans", "dehors"), 4: tuple(PYR_SUITS)}
+
+
+def pyr_size(floors: int) -> int:
+    return floors * (floors + 1) // 2
+
+
+def pyr_max_players(floors: int) -> int:
+    return (52 - pyr_size(floors)) // 4  # un seul paquet de 52 cartes
+
+
+def pyr_value(card: str) -> int:
+    return PYR_RANKS.index(card[0]) + 1  # l'As vaut 1
+
+
+def pyr_floor(floors: int, index: int) -> int:
+    """Étage (1 = la base) de la carte n° index, dans l'ordre où on les retourne (de bas en haut, de gauche à droite)."""
+    for floor in range(1, floors + 1):
+        width = floors - floor + 1
+        if index < width:
+            return floor
+        index -= width
+    raise ValueError(index)
+
+
+def _pyr_check(step: int, value: str, previous: list[str], card: str) -> bool:
+    if value not in PYR_STEPS[step]:
+        raise GameError("Réponse invalide")
+    v = pyr_value(card)
+    if step == 1:
+        return (value == "red") == (card[1] in "HD")
+    if step == 2:
+        first = pyr_value(previous[0])
+        return v > first if value == "plus" else v < first  # même valeur : raté
+    if step == 3:
+        lo, hi = sorted(pyr_value(c) for c in previous[:2])
+        return lo < v < hi if value == "dedans" else (v < lo or v > hi)  # sur le poteau : raté
+    return card[1] == value
+
+
+def _pyr_event(P: dict) -> int:
+    P["n"] += 1
+    return P["n"]
+
+
+def pyr_start(g: dict, rng):
+    floors = g["options"].get("floors", 5)
+    order = [p["id"] for p in g["players"]]
+    if len(order) < 2:
+        raise GameError("Il faut au moins 2 joueurs")
+    if len(order) > pyr_max_players(floors):
+        raise GameError(f"Trop de joueurs pour {floors} étages : {pyr_max_players(floors)} au plus avec un seul paquet")
+    deck = [r + s for r in PYR_RANKS for s in PYR_SUITS]
+    rng.shuffle(deck)
+    g["pyr"] = {"floors": floors, "deck": deck, "order": order, "turn": 0, "step": 1, "hands": {gid: [] for gid in order},
+                "pyramid": [deck.pop() for _ in range(pyr_size(floors))], "flipped": 0, "claims": [], "reveal": None,
+                "peeks": [], "top": {}, "liars": [], "memory": {}, "errors": {}, "candidates": [], "boat": None,
+                "spin": None, "bstate": None, "last": None, "n": 0}
+    g["phase"] = "deal"
+    g["round"] = 1
+
+
+def pyr_answer(g: dict, actor: str, value: str):
+    """Phase 1 : le joueur dont c'est le tour répond ; il reçoit sa carte (bonne réponse : il distribue, sinon il boit)."""
+    P = g["pyr"]
+    if g["phase"] != "deal":
+        raise GameError("La distribution est terminée")
+    cur = P["order"][P["turn"]]
+    if actor != cur:
+        raise GameError("Ce n'est pas ton tour")
+    hand, step = P["hands"][cur], P["step"]
+    if value not in PYR_STEPS[step]:
+        raise GameError("Réponse invalide")
+    card = P["deck"].pop()
+    ok = _pyr_check(step, value, hand, card)
+    hand.append(card)
+    add_sips(g, cur, drink=0 if ok else step, give=step if ok else 0)
+    P["last"] = {"n": _pyr_event(P), "gid": cur, "step": step, "value": value, "card": card, "ok": ok, "sips": step}
+    P["turn"] += 1
+    if P["turn"] >= len(P["order"]):
+        P["turn"] = 0
+        P["step"] += 1
+        g["round"] = P["step"]
+        if P["step"] > 4:
+            g["phase"] = "pyramid"  # les mains se retournent : plus personne ne voit ses cartes
+
+
+def pyr_flip(g: dict):
+    P = g["pyr"]
+    if g["phase"] != "pyramid":
+        raise GameError("Pas le moment")
+    if P["flipped"] >= len(P["pyramid"]):
+        raise GameError("La pyramide est entièrement retournée")
+    P["flipped"] += 1
+    P.update(claims=[], reveal=None, top={})
+    _pyr_event(P)
+
+
+def _pyr_current(P: dict) -> tuple[str, int, bool]:
+    i = P["flipped"] - 1
+    return P["pyramid"][i], pyr_floor(P["floors"], i), P["flipped"] == len(P["pyramid"])
+
+
+def pyr_claim(g: dict, actor: str):
+    """« Je donne N gorgées » : possible pour tout le monde, qu'on ait la carte ou non (bluff permis)."""
+    P = g["pyr"]
+    if g["phase"] != "pyramid" or not P["flipped"]:
+        raise GameError("Aucune carte retournée")
+    _, floor, top = _pyr_current(P)
+    if top:
+        raise GameError("Au sommet, pas de bluff : annonce si tu as la carte")
+    if actor not in P["order"] or any(c["gid"] == actor for c in P["claims"]):
+        raise GameError("Déjà annoncé")
+    P["claims"].append({"id": _pyr_event(P), "gid": actor, "sips": floor, "status": "pending"})
+
+
+def pyr_judge(g: dict, claim_id: str, liar: bool):
+    """L'animateur : gorgées bues, ou « menteur ! » (l'accusé doit alors retourner une carte)."""
+    P = g["pyr"]
+    c = next((c for c in P["claims"] if str(c["id"]) == str(claim_id)), None)
+    if not c or c["status"] != "pending":
+        raise GameError("Annonce introuvable")
+    c["status"] = "accused" if liar else "drunk"
+    _pyr_event(P)
+
+
+def pyr_reveal(g: dict, actor: str, slot: int):
+    """L'accusé retourne une de ses cartes : visible 3 s par tous, puis cachée à nouveau."""
+    P = g["pyr"]
+    c = next((c for c in P["claims"] if c["gid"] == actor and c["status"] == "accused"), None)
+    if not c:
+        raise GameError("Personne ne t'accuse")
+    if not 0 <= slot < len(P["hands"][actor]):
+        raise GameError("Choisis une de tes cartes")
+    card = P["hands"][actor][slot]
+    truth = pyr_value(card) == pyr_value(_pyr_current(P)[0])
+    c["status"] = "truth" if truth else "lie"
+    P["reveal"] = {"n": _pyr_event(P), "gid": actor, "slot": slot, "card": card, "truth": truth, "at": time.time()}
+
+
+def pyr_peek(g: dict, actor: str, slots: list[int]):
+    """Demande à l'animateur de revoir 1 à 4 de ses cartes (2 gorgées de pénalité par carte)."""
+    P = g["pyr"]
+    if g["phase"] != "pyramid" or actor not in P["order"]:
+        raise GameError("Pas le moment")
+    slots = sorted({int(x) for x in slots if 0 <= int(x) < 4})
+    if not slots:
+        raise GameError("Choisis au moins une carte")
+    if any(r["gid"] == actor and r["status"] == "pending" for r in P["peeks"]):
+        raise GameError("Une demande est déjà en attente")
+    P["peeks"].append({"id": _pyr_event(P), "gid": actor, "slots": slots, "status": "pending", "at": 0})
+
+
+def pyr_peek_decide(g: dict, req_id: str, ok: bool):
+    P = g["pyr"]
+    r = next((r for r in P["peeks"] if str(r["id"]) == str(req_id) and r["status"] == "pending"), None)
+    if not r:
+        raise GameError("Demande introuvable")
+    r.update(status="ok" if ok else "no", at=time.time())
+    if ok:
+        add_sips(g, r["gid"], drink=2 * len(r["slots"]))
+    _pyr_event(P)
+
+
+def pyr_top(g: dict, actor: str):
+    """Sommet (cul sec) : on annonce avoir la carte, sans bluff ; l'app vérifie."""
+    P = g["pyr"]
+    if g["phase"] != "pyramid" or not P["flipped"] or not _pyr_current(P)[2]:
+        raise GameError("Ce n'est pas encore le sommet")
+    if actor not in P["order"] or actor in P["top"]:
+        raise GameError("Déjà annoncé")
+    has = any(pyr_value(c) == pyr_value(_pyr_current(P)[0]) for c in P["hands"][actor])
+    P["top"][actor] = has
+    if not has and actor not in P["liars"]:
+        P["liars"].append(actor)  # il tentera sa chance à la roulette du bateau
+    _pyr_event(P)
+
+
+def pyr_to_memory(g: dict):
+    P = g["pyr"]
+    if g["phase"] != "pyramid" or P["flipped"] < len(P["pyramid"]):
+        raise GameError("Retourne d'abord toute la pyramide")
+    g["phase"] = "memory"
+    _pyr_event(P)
+
+
+def pyr_memory(g: dict, actor: str, values: list[str]):
+    """Test de mémoire : les 4 valeurs, dans l'ordre (gauche à droite)."""
+    P = g["pyr"]
+    if g["phase"] != "memory" or actor not in P["order"]:
+        raise GameError("Pas le moment")
+    vals = [("T" if str(v).upper() == "10" else str(v).upper()[:1]) for v in values]
+    if len(vals) != 4 or any(v not in PYR_RANKS for v in vals):
+        raise GameError("Donne tes 4 valeurs")
+    P["memory"][actor] = vals
+    _pyr_event(P)
+    if all(gid in P["memory"] for gid in P["order"]):
+        pyr_results(g)
+
+
+def pyr_results(g: dict):
+    P = g["pyr"]
+    if g["phase"] != "memory":
+        raise GameError("Pas le moment")
+    for gid in P["order"]:
+        guess = P["memory"].get(gid, [])
+        P["errors"][gid] = sum(1 for i, c in enumerate(P["hands"][gid]) if i >= len(guess) or guess[i] != c[0])
+    worst = max(P["errors"].values(), default=0)
+    cands = [gid for gid in P["order"] if P["errors"][gid] == worst]
+    P["candidates"] = cands + [gid for gid in P["liars"] if gid not in cands and gid in P["order"]]
+    g["phase"] = "memres"
+    _pyr_event(P)
+
+
+def pyr_pick_boat(g: dict, rng):
+    """Qui fait le bateau ? Le seul candidat, sinon la roulette tranche."""
+    P = g["pyr"]
+    if g["phase"] != "memres" or not P["candidates"]:
+        raise GameError("Pas le moment")
+    cands = P["candidates"]
+    i = rng.randrange(len(cands))
+    P["boat"] = cands[i]
+    P["spin"] = None if len(cands) == 1 else {"id": secrets.token_hex(4), "names": [player(g, x)["name"] for x in cands],
+                                               "index": i, "at": time.time(), "jitter": round(rng.uniform(-0.35, 0.35), 3)}
+    g["phase"] = "boatpick"
+    _pyr_event(P)
+
+
+def pyr_boat_start(g: dict):
+    P = g["pyr"]
+    if g["phase"] != "boatpick":
+        raise GameError("Pas le moment")
+    P["bstate"] = {"step": 1, "cards": [], "sips": 0, "last": None, "result": None, "tries": 1}
+    g["phase"] = "boat"
+    _pyr_event(P)
+
+
+def pyr_boat_answer(g: dict, actor: str, value: str):
+    """Le bateau : les 4 questions d'affilée ; une erreur = 1 gorgée et retour au début."""
+    P = g["pyr"]
+    b = P["bstate"]
+    if g["phase"] != "boat" or actor != P["boat"]:
+        raise GameError("Ce n'est pas à toi")
+    if value not in PYR_STEPS[b["step"]]:
+        raise GameError("Réponse invalide")
+    card = P["deck"].pop()
+    ok = _pyr_check(b["step"], value, b["cards"], card)
+    b["last"] = {"n": _pyr_event(P), "step": b["step"], "value": value, "card": card, "ok": ok}
+    if ok:
+        b["cards"].append(card)
+        b["step"] += 1
+        if b["step"] > 4:
+            b["result"] = "won"
+            g["phase"] = "end"
+            return
+    else:
+        b["sips"] += 1
+        add_sips(g, actor, drink=1)
+        b["cards"], b["step"] = [], 1
+        b["tries"] += 1
+    if not P["deck"]:
+        b["result"] = "deck"  # paquet terminé : le bateau s'arrête là
+        g["phase"] = "end"
+
+
+def pyr_leave(g: dict, gid: str):
+    P = g.get("pyr")
+    if not P or gid not in P["order"]:
+        return
+    i = P["order"].index(gid)
+    P["order"].remove(gid)
+    if g["phase"] == "deal":
+        if i < P["turn"]:
+            P["turn"] -= 1
+        if P["turn"] >= len(P["order"]):
+            P["turn"], P["step"] = 0, P["step"] + 1
+            if P["step"] > 4:
+                g["phase"] = "pyramid"
+    P["candidates"] = [c for c in P["candidates"] if c != gid]
+    if g["phase"] in ("memory",) and P["order"] and all(x in P["memory"] for x in P["order"]):
+        pyr_results(g)
+
+
+def pyr_view(g: dict, gid: str) -> dict:
+    P = g.get("pyr") or {}
+    if not P:
+        floors = g["options"].get("floors", 5)
+        return {"floors": floors, "size": pyr_size(floors), "max_players": pyr_max_players(floors)}
+    now = time.time()
+    name = lambda x: (player(g, x) or {}).get("name", "?")
+    pid = lambda x: (player(g, x) or {}).get("pid")
+    hidden = g["phase"] not in ("deal", "memres", "boatpick", "boat", "end")
+    reveal = P["reveal"]
+    seats = []
+    for x in P["order"]:
+        hand = P["hands"][x]
+        cards = list(hand) if not hidden else ["??"] * len(hand)
+        if hidden and reveal and reveal["gid"] == x and now - reveal["at"] < 3:
+            cards[reveal["slot"]] = hand[reveal["slot"]]  # carte retournée devant tout le monde, 3 secondes
+        if hidden and x == gid:
+            for r in P["peeks"]:
+                if r["gid"] == x and r["status"] == "ok" and now - r["at"] < 5:
+                    for sl in r["slots"]:
+                        cards[sl] = hand[sl]  # coup d'œil privé, 5 secondes
+        seats.append({"pid": pid(x), "name": name(x), "cards": cards, "manual": is_manual(g, x),
+                      "memory": P["memory"].get(x) if not hidden and g["phase"] != "deal" else None,
+                      "answered": x in P["memory"], "errors": P["errors"].get(x)})
+    cur_card = top = None
+    floor = 0
+    if P["flipped"]:
+        cur_card, floor, top = _pyr_current(P)
+    last = P["last"]
+    out = {
+        "floors": P["floors"], "size": len(P["pyramid"]), "flipped": P["flipped"],
+        "pyramid": [c if i < P["flipped"] else "??" for i, c in enumerate(P["pyramid"])],
+        "current": cur_card, "floor": floor, "is_top": bool(top), "deck_left": len(P["deck"]),
+        "seats": seats, "turn": pid(P["order"][P["turn"]]) if g["phase"] == "deal" and P["order"] else None,
+        "step": P["step"], "event": P["n"],
+        "last": {**last, "pid": pid(last["gid"]), "name": name(last["gid"]), "gid": None} if last else None,
+        "claims": [{"id": c["id"], "pid": pid(c["gid"]), "name": name(c["gid"]), "sips": c["sips"], "status": c["status"],
+                    "mine": c["gid"] == gid} for c in P["claims"]],
+        "reveal": {"n": reveal["n"], "pid": pid(reveal["gid"]), "name": name(reveal["gid"]), "slot": reveal["slot"],
+                   "card": reveal["card"] if now - reveal["at"] < 3 else None, "truth": reveal["truth"],
+                   "age": now - reveal["at"]} if reveal else None,
+        "peeks": [{"id": r["id"], "pid": pid(r["gid"]), "name": name(r["gid"]), "count": len(r["slots"]),
+                   "status": r["status"], "mine": r["gid"] == gid, "age": now - r["at"] if r["at"] else None}
+                  for r in P["peeks"] if r["status"] == "pending" or now - (r["at"] or now) < 8],
+        "top_me": P["top"].get(gid), "top_done": [name(x) for x in P["top"]],
+        "liars": [name(x) for x in P["liars"]],
+        "memory_done": sum(1 for x in P["order"] if x in P["memory"]),
+        "candidates": [{"pid": pid(x), "name": name(x), "errors": P["errors"].get(x), "liar": x in P["liars"]} for x in P["candidates"]],
+        "boat": {"pid": pid(P["boat"]), "name": name(P["boat"])} if P["boat"] else None,
+        "spin": {**P["spin"], "age": now - P["spin"]["at"]} if P["spin"] else None,
+        "bstate": P["bstate"],
+        "me": {"seat": next((i for i, x in enumerate(P["order"]) if x == gid), None), "boat": gid == P["boat"]},
+    }
+    return out
+
+
 def start(g: dict, rng: random.Random = random):
     """Distribue les rôles (Undercover) ou pose la première question (Qui de nous ?)."""
+    if g["type"] == "pyramid":
+        pyr_start(g, rng)
+        return
     if g["type"] == "tmc":
         if len(g["players"]) < 2:
             raise GameError("Il faut au moins 2 joueurs")
@@ -1261,7 +1614,10 @@ def _next_question(g: dict, rng):
 
 def restart(g: dict, rng: random.Random = random) -> dict:
     """Nouvelle manche avec les mêmes joueurs."""
-    if g["type"] == "tmc":
+    if g["type"] == "pyramid":
+        g["pyr"] = {}
+        start(g, rng)
+    elif g["type"] == "tmc":
         g["tmc"].update(scores={}, pairs={}, last=[])
         g["round"] = 0
         start(g, rng)
@@ -1319,6 +1675,8 @@ def view(g: dict, gid: str) -> dict:
         out["casino"] = casino_view(g, gid)
     if g["type"] == "divan":
         out["divan"] = divan_view(g, gid)
+    if g["type"] == "pyramid":
+        out["pyr"] = pyr_view(g, gid)
     if g["type"] == "tmc":
         out["tmc"] = tmc_view(g, gid)
     if g["type"] == "roulette":

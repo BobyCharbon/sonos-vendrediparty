@@ -4,6 +4,7 @@ import hashlib
 import io
 import hmac
 import os
+import random
 import re
 import secrets
 import threading
@@ -827,6 +828,7 @@ class GameCreate(BaseModel):
     mode: str = "soft"  # Qui de nous ? : soft | awkward | hot | mix
     sips: int = 0  # Qui de nous ? : gorgées pour la personne désignée
     cats: list[str] = []  # Le Divan : catégories de cartes
+    floors: int = 5  # Pyramide : nombre d'étages (5 à 8)
 
 
 @app.post("/api/games")
@@ -848,6 +850,8 @@ def create_game(body: GameCreate, request: Request):
                            mode=body.mode, sips=body.sips)
     except games.GameError as e:
         raise HTTPException(400, str(e))
+    if body.type == "pyramid":
+        g["options"]["floors"] = max(5, min(8, body.floors))
     if body.type == "divan" and body.cats:
         try:
             games.divan_set_cats(g, body.cats)
@@ -901,10 +905,14 @@ class GameAction(BaseModel):
     guess: str = ""
     names: list[str] = []  # roulette : participants notés par l'animateur
     amount: int = 0  # blackjack : mise
+    who: str = ""  # Pyramide : l'animateur agit pour ce joueur (pid)
+    slots: list[int] = []  # Pyramide : cartes à revoir
+    values: list[str] = []  # Pyramide : valeurs du test de mémoire
 
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
-HOST_ACTIONS = {"start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote"}
+HOST_ACTIONS = {"start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
+                "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo"}
 
 
 @app.post("/api/games/{code}")
@@ -914,7 +922,9 @@ def game_action(code: str, body: GameAction, request: Request):
     game_presence(request, body.guest_id, body.name)
     a, me = body.action, body.guest_id
     # Cible d'un vote : un joueur (pid) ; pour « Je n'ai jamais », une réponse (yes / no).
-    target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino") else "")
+    target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino", "pyramid") else "")
+    # Pyramide : l'animateur peut agir pour un joueur (participant sans téléphone, ou qui traîne).
+    actor = games.gid_of(g, body.who) if body.who and me == g["host"] and games.gid_of(g, body.who) else me
     if a in HOST_ACTIONS and g["host"] != me:
         raise HTTPException(403, "Seul l'animateur de la partie peut faire ça")
     if a == "join" and (msg := ban_message(me, client_ip(request))):
@@ -939,6 +949,13 @@ def game_action(code: str, body: GameAction, request: Request):
         "tanswer": (games.tmc_answer, me, body.guess), "tjudge": (games.tmc_judge, me, body.amount),
         "addguest": (games.add_guest, body.guess), "mvote": (games.vote_for, target, body.guess),
         "tq": (games.tmc_change_question,), "treveal": (games.tmc_reveal,), "finish": (games.tmc_finish,),
+        "pans": (games.pyr_answer, actor, body.target), "pflip": (games.pyr_flip,), "pclaim": (games.pyr_claim, actor),
+        "pbu": (games.pyr_judge, body.target, False), "pliar": (games.pyr_judge, body.target, True),
+        "preveal": (games.pyr_reveal, actor, body.amount), "ppeek": (games.pyr_peek, actor, body.slots),
+        "ppeek_ok": (games.pyr_peek_decide, body.target, True), "ppeek_no": (games.pyr_peek_decide, body.target, False),
+        "ptop": (games.pyr_top, actor), "pmemory": (games.pyr_to_memory,), "pmem": (games.pyr_memory, actor, body.values),
+        "presults": (games.pyr_results,), "pboat": (games.pyr_pick_boat, random), "pboatgo": (games.pyr_boat_start,),
+        "pbans": (games.pyr_boat_answer, actor, body.target),
     }
     if a not in actions:
         raise HTTPException(400, "Action inconnue")

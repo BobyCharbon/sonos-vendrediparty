@@ -11,7 +11,8 @@ GAME_ICONS.blackjack = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColo
 GAME_ICONS.casino = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="24" r="19"/><circle cx="24" cy="24" r="10"/><path d="M24 5v9M24 34v9M5 24h9M34 24h9M10.6 10.6l6.3 6.3M31.1 31.1l6.3 6.3M37.4 10.6l-6.3 6.3M16.9 31.1l-6.3 6.3"/><circle cx="24" cy="24" r="2.5" fill="currentColor"/><circle cx="36" cy="8" r="3" fill="currentColor" stroke="none"/></svg>`;
 GAME_ICONS.divan = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 24v-7a5 5 0 0 1 5-5h18a5 5 0 0 1 5 5v7"/><path d="M6 24a4 4 0 0 1 8 0v4h20v-4a4 4 0 0 1 8 0v10H6z"/><path d="M10 34v4M38 34v4"/></svg>`;
 GAME_ICONS.tmc = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="15" cy="15" r="6"/><circle cx="33" cy="15" r="6"/><path d="M4 38c1-7 5-11 11-11 3 0 5 1 7 3M44 38c-1-7-5-11-11-11-3 0-5 1-7 3"/><path d="M24 44s-6-3.6-6-7.6a3 3 0 0 1 6-1 3 3 0 0 1 6 1c0 4-6 7.6-6 7.6z"/></svg>`;
-const GAME_THEME = { undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv", tmc: "g-tm" };
+GAME_ICONS.pyramid = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="19" y="5" width="10" height="12" rx="2"/><rect x="12" y="19" width="10" height="12" rx="2"/><rect x="26" y="19" width="10" height="12" rx="2"/><rect x="5" y="33" width="10" height="12" rx="2"/><rect x="19" y="33" width="10" height="12" rx="2"/><rect x="33" y="33" width="10" height="12" rx="2"/></svg>`;
+const GAME_THEME = { pyramid: "g-py", undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv", tmc: "g-tm" };
 const isBJ = (g) => g.type === "blackjack";
 const helpBtn = (type, inGame = false) => `<button type="button" class="g-help" data-rules="${type}" ${inGame ? "data-ingame" : ""} aria-label="Règles du jeu">?</button>`;
 
@@ -83,6 +84,33 @@ const CASINO_RULES_DRINKS = `
     <p>Exemple : 2 gorgées sur Rouge et 1 sur le 17. Le 17 (noir) sort : tu bois 2 (Rouge perdu) et tu distribues 10 (jackpot) !</p>
     <p>Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi. Buvez avec modération !</p>`;
 const GAME_RULES = {
+  pyramid: `
+    <h3>Le principe</h3>
+    <p>Un jeu de cartes à boire, autour de la même table : chacun reçoit 4 cartes, les retourne face cachée… et doit s'en souvenir jusqu'au bout. Chaque téléphone montre la même partie.</p>
+    <h3>1. La distribution</h3>
+    <p>À tour de rôle, chacun répond à 4 questions et reçoit une carte à chaque fois :</p>
+    <ol>
+      <li><b>Rouge ou noir ?</b></li>
+      <li><b>Plus ou moins</b> que ta 1re carte ?</li>
+      <li><b>Dedans ou dehors</b> : entre tes 2 premières cartes, ou à l'extérieur ?</li>
+      <li><b>Quel symbole</b> : ♠ ♥ ♦ ♣ ?</li>
+    </ol>
+    <p>Raté : tu bois 1, 2, 3 puis 4 gorgées selon le tour. Réussi : tu en distribues autant. Une égalité (même valeur, ou carte « sur le poteau ») compte comme ratée. L'As vaut 1. Ensuite, toutes les mains se retournent : <b>plus personne ne voit ses cartes</b>.</p>
+    <h3>2. La pyramide</h3>
+    <ul>
+      <li>L'animateur retourne les cartes une par une, de la base vers le sommet. Étage 1 : 1 gorgée, étage 2 : 2 gorgées…</li>
+      <li>Si tu penses avoir la même valeur, touche <b>« Je donne N gorgées »</b> et distribue-les à voix haute (tu peux les partager). <b>Le bluff est permis !</b></li>
+      <li>L'animateur tranche : <b>bu</b>, ou quelqu'un crie <b>« menteur ! »</b>. L'accusé retourne alors une de ses cartes : tout le monde la voit 3 secondes, puis elle se recache. « Il dit la vérité » ou « Bouuuh, menteur ! » : à vous de vous arranger pour les gorgées.</li>
+      <li>Oublié tes cartes ? Demande à <b>en revoir</b> 1 à 4 (2 gorgées par carte) : l'animateur accepte et tu les vois 5 secondes, en privé.</li>
+      <li><b>Le sommet, c'est cul sec</b>, sans bluff : annonce si tu as la carte. Si tu l'as, tu le sais en privé et tu distribues ton cul sec. Sinon, tout le monde le sait… et tu passes par la roulette du bateau.</li>
+    </ul>
+    <h3>3. Le test de mémoire</h3>
+    <p>Chacun tape les valeurs de ses 4 cartes, de gauche à droite. L'app retourne les vraies cartes et compte les erreurs.</p>
+    <h3>4. Le bateau</h3>
+    <p>Celui qui a fait le plus d'erreurs fait le bateau (égalité, ou menteurs au sommet : la roulette décide). Il refait les 4 questions avec le reste du paquet : à chaque erreur, 1 gorgée et retour au début. Ça s'arrête quand il réussit les 4 d'affilée… ou quand le paquet est vide.</p>
+    <h3>L'animateur</h3>
+    <p>Il distribue, retourne les cartes, valide « bu » ou « menteur », accepte les demandes pour revoir ses cartes, lance le test de mémoire et le bateau. Il peut répondre à la place d'un joueur (participant sans téléphone, ou qui a laissé son téléphone).</p>
+    <p>Buvez avec modération : un verre d'eau compte aussi.</p>`,
   tmc: `
     <h3>Le principe</h3>
     <p>Qui te connaît le mieux ? À chaque tour, <b>deux joueurs</b> sont tirés au sort : l'un répond à une question sur lui-même, l'autre doit <b>deviner sa réponse</b>.</p>
@@ -311,6 +339,21 @@ document.getElementById("gamesRoot").innerHTML = `
         <button class="g-go" data-create="roulette">Créer une roulette</button>
       </div>
 
+      <div class="gcard g-py">
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.pyramid}</div>
+          <div class="g-meta"><div class="g-title">Pyramide</div><div class="g-tag">Mémoire, bluff… et cul sec.</div></div>
+          ${helpBtn("pyramid")}
+        </div>
+        <p class="g-desc">Rouge ou noir, plus ou moins, dedans ou dehors, symbole : 4 cartes chacun, puis on les retourne face cachée. La pyramide se dévoile, on donne des gorgées (bluff permis !), cul sec au sommet… et celui qui a la pire mémoire fait le bateau.</p>
+        <div class="g-chips"><span>2+ joueurs, même table</span><span>Plein écran</span><span>Bluff</span></div>
+        <div class="g-opt"><span>Étages de la pyramide <small>5 étages : 9 joueurs max · 8 étages : 4 joueurs max</small></span>
+          <div class="g-stepper" data-opt-group="floors"><button type="button" data-step="-1" aria-label="Moins">−</button><b data-val-out>5</b><button type="button" data-step="1" aria-label="Plus">+</button></div>
+        </div>
+        <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
+        <button class="g-go" data-create="pyramid">Ouvrir la table</button>
+      </div>
+
       <div class="gcard g-tm">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.tmc}</div>
@@ -391,7 +434,7 @@ document.getElementById("gamesRoot").innerHTML = `
         <div id="rouletteResult" class="roulette-result" aria-live="polite"></div>
       </div>
       <div id="gameHost"></div>
-      <div class="card" style="text-align:center;margin-top:20px">
+      <div class="card" id="gameInvite" style="text-align:center;margin-top:20px">
         <div class="artist">Pour rejoindre : scanne ce QR ou entre le code</div>
         <div class="big-pin" id="gameCode"></div>
         <img class="qr" id="gameQr" alt="QR code pour rejoindre la partie">
@@ -559,7 +602,17 @@ function renderGame(g) {
   } else if (g.phase === "results") {
     body = `<div class="question">${esc(g.question)}</div>${resultsHtml(g)}`;
   }
-  $("game").innerHTML = title + body;
+  if (g.type === "pyramid") {
+    // Plein écran : ni titre, ni onglets, ni QR ; « ‹ » revient à la vue normale (code, QR, joueurs).
+    const full = pyrFull && g.phase !== "lobby";
+    document.body.classList.toggle("pyr-full", full);
+    $("game").innerHTML = full ? pyrHtml(g) : title + (g.phase === "lobby" ? pyrHtml(g).replace(pyrTopBar(g), "")
+      : `<button class="py-main" data-pyr="enter">⛶ Revenir au jeu en plein écran</button>`);
+    if (full) pyrWheel(g);
+  } else {
+    document.body.classList.remove("pyr-full");
+    $("game").innerHTML = title + body;
+  }
   const input = $("guessInput");
   if (input) { input.value = guessDraft; input.addEventListener("input", () => { guessDraft = input.value; }); }
   renderRoulette(g);
@@ -748,6 +801,296 @@ function renderBJHost(g, btn) {
     ${g.is_host && !g.me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
 }
 
+// 🔺 Pyramide : plein écran néon ; tout le monde suit la même table, l'animateur mène la partie.
+const PYR_Q = {
+  1: { q: "Rouge ou noir ?", opts: [["red", "Rouge", "♥ ♦", "py-red"], ["black", "Noir", "♠ ♣", "py-black"]] },
+  2: { q: "Plus ou moins ?", opts: [["plus", "Plus", "▲", "py-cyan"], ["moins", "Moins", "▼", "py-pink"]] },
+  3: { q: "Dedans ou dehors ?", opts: [["dedans", "Dedans", "→ ←", "py-cyan"], ["dehors", "Dehors", "← →", "py-pink"]] },
+  4: { q: "Quel symbole ?", opts: [["S", "Pique", "♠", "py-black"], ["H", "Cœur", "♥", "py-red"], ["D", "Carreau", "♦", "py-red"], ["C", "Trèfle", "♣", "py-black"]] },
+};
+const PYR_ANS = { red: "rouge", black: "noir", plus: "plus", moins: "moins", dedans: "dedans", dehors: "dehors", S: "pique ♠", H: "cœur ♥", D: "carreau ♦", C: "trèfle ♣" };
+const PYR_VALUES = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+let pyrFull = true, pyrSeen = { last: 0, reveal: 0, liars: 0, flip: 0, peek: 0, top: null }, pyrPeekSel = [], pyrMem = ["", "", "", ""], pyrMemSlot = 0,
+  pyrMemFor = "", pyrTimer = null, pyrWheelSpin = "", pyrWheelRot = 0, pyrWheelShown = "";
+const cardLabel = (c) => (c[0] === "T" ? "10" : c[0]) + SUITS[c[1]];
+function pyCard(c, size = "", extra = "") {
+  if (!c || c === "??") return `<span class="py-card back ${size}" ${extra}><i></i></span>`;
+  return `<span class="py-card ${"HD".includes(c[1]) ? "red" : ""} ${size}" ${extra}><b>${c[0] === "T" ? "10" : c[0]}</b><i>${SUITS[c[1]]}</i></span>`;
+}
+// Grande annonce animée, la même sur tous les téléphones (réponse, menteur, cul sec…).
+function pyrFlash(kind, title, sub = "", card = "") {
+  document.querySelector(".py-flash")?.remove();
+  const el = document.createElement("div");
+  el.className = `py-flash py-${kind}`;
+  el.setAttribute("role", "status");
+  el.innerHTML = `<div class="py-flash-box">${card ? `<div class="py-flash-card">${pyCard(card, "xl")}</div>` : ""}
+    <div class="py-flash-title">${title}</div>${sub ? `<div class="py-flash-sub">${sub}</div>` : ""}</div>`;
+  el.addEventListener("click", () => el.remove());
+  document.body.append(el);
+  navigator.vibrate?.(kind === "bad" || kind === "liar" ? [200] : [60, 40, 60]);
+  setTimeout(() => el.classList.add("out"), 2300);
+  setTimeout(() => el.remove(), 2700);
+}
+function pyrEvents(g) {
+  const v = g.pyr;
+  if (!v.event) return;
+  const first = pyrSeen.init !== g.id;  // première vue (page rechargée) : pas d'annonce en différé
+  if (first) {
+    pyrSeen = { init: g.id, last: v.last?.n || 0, reveal: v.reveal?.n || 0, liars: v.liars.length, flip: v.flipped, peek: 0, top: v.top_me ?? null };
+    return;
+  }
+  if (v.last && v.last.n > pyrSeen.last) {
+    pyrSeen.last = v.last.n;
+    const l = v.last, mine = l.pid === g.me?.pid;
+    pyrFlash(l.ok ? "good" : "bad", l.ok ? `${mine ? "Bien joué" : esc(l.name)} !` : `Raté${mine ? "" : ` pour ${esc(l.name)}`} !`,
+      `${esc(PYR_ANS[l.value])} · ${l.ok ? `distribue ${sipWord(l.sips)}` : `boit ${sipWord(l.sips)}`}`, l.card);
+  }
+  if (v.flipped > pyrSeen.flip) {
+    pyrSeen.flip = v.flipped;
+    if (v.is_top) pyrFlash("summit", "CUL SEC !", "Dernière carte : pas de bluff. Tu l'as ? Annonce-le.", v.current);
+  }
+  if (v.reveal && v.reveal.n > pyrSeen.reveal) {
+    pyrSeen.reveal = v.reveal.n;
+    const r = v.reveal;
+    setTimeout(() => pyrFlash(r.truth ? "good" : "liar", r.truth ? "Il dit la vérité !" : "Bouuuh, menteur !",
+      `${esc(r.name)} a retourné ${r.card ? cardLabel(r.card) : "sa carte"}`), 900);
+    clearTimeout(pyrTimer); pyrTimer = setTimeout(refreshGame, 3200);  // la carte se recache après 3 s
+  }
+  if (v.liars.length > pyrSeen.liars) {
+    pyrSeen.liars = v.liars.length;
+    pyrFlash("liar", "Bouuuh, menteur !", `${esc(v.liars[v.liars.length - 1])} n'a pas la carte : direction la roulette du bateau`);
+  }
+  if (v.top_me != null && pyrSeen.top !== v.top_me) {
+    pyrSeen.top = v.top_me;
+    if (v.top_me) pyrFlash("good", "Tu as la carte !", "Distribue ton cul sec… en privé 🤫");
+  }
+  const peek = v.peeks.find((r) => r.mine && r.status === "ok" && r.age < 5);
+  if (peek && peek.id !== pyrSeen.peek) {
+    pyrSeen.peek = peek.id;
+    clearTimeout(pyrTimer); pyrTimer = setTimeout(refreshGame, Math.max(500, (5 - peek.age) * 1000));  // les cartes se recachent
+  }
+}
+
+function pyrTopBar(g) {
+  const v = g.pyr;
+  const phase = { lobby: "Préparation", deal: `Distribution · tour ${v.step || 1}/4`, pyramid: `Pyramide · ${v.flipped || 0}/${v.size}`,
+    memory: "Test de mémoire", memres: "Résultats", boatpick: "Qui fait le bateau ?", boat: "Le bateau", end: "Fin" }[g.phase] || "";
+  return `<div class="py-top">
+    <button type="button" class="py-icon" data-pyr="exit" aria-label="Quitter le plein écran (code, joueurs)">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <div class="py-top-mid"><div class="py-phase">${phase}</div><div class="py-code">code <b>${esc(g.code)}</b></div></div>
+    ${helpBtn("pyramid", true)}</div>`;
+}
+function pyrSeats(g, opts = {}) {
+  const v = g.pyr;
+  return `<div class="py-seats">${v.seats.map((s) => `
+    <div class="py-seat ${s.pid === v.turn ? "on" : ""} ${s.pid === g.me?.pid ? "me" : ""}">
+      <div class="py-seat-name">${esc(s.name)}${s.manual ? " ✍️" : ""}${sipsBadge(g.players.find((p) => p.pid === s.pid) || {})}</div>
+      <div class="py-seat-cards">${s.cards.map((c, i) => pyCard(c, "sm", opts.memory && s.memory ? `data-ok="${s.memory[i] === c[0]}"` : "")).join("") || `<span class="artist">—</span>`}</div>
+      ${opts.memory && s.memory ? `<div class="py-guess">${s.memory.map((m, i) => `<span class="${m === s.cards[i]?.[0] ? "ok" : "ko"}">${m === "T" ? "10" : m}</span>`).join("")}<b>${s.errors} erreur${s.errors > 1 ? "s" : ""}</b></div>` : ""}
+    </div>`).join("")}</div>`;
+}
+function pyrQuestion(g, step, ref, actFor, action) {
+  const Q = PYR_Q[step];
+  return `<div class="py-q">${Q.q}</div>
+    ${ref.length ? `<div class="py-ref">${ref.map((c) => pyCard(c, "md")).join("")}<span class="py-card ghost md"><b>?</b></span></div>` : ""}
+    <div class="py-opts n${Q.opts.length}">${Q.opts.map(([val, label, sym, cls]) =>
+      `<button type="button" class="py-opt ${cls}" data-pyr="${action}" data-val="${val}" ${actFor ? `data-who="${esc(actFor)}"` : ""}><span>${sym}</span><b>${label}</b></button>`).join("")}</div>`;
+}
+
+function pyrHtml(g) {
+  const v = g.pyr, me = g.me, host = g.is_host;
+  pyrEvents(g);
+  let body = "";
+  if (g.phase === "lobby") {
+    body = `<div class="py-hero"><div class="py-hero-k">🔺 Pyramide</div><div class="py-hero-t">${v.floors} étages · ${v.size} cartes</div>
+      <div class="artist">${g.players.length} joueur${g.players.length > 1 ? "s" : ""} · ${v.max_players} au plus (un seul paquet)</div></div>
+      ${host ? `<button class="py-main" data-gact="start" ${g.players.length < 2 || g.players.length > v.max_players ? "disabled" : ""}>▶︎ Distribuer les cartes</button>`
+        : `<div class="py-wait">${me ? "Tu es à la table ✓ L'animateur va distribuer…" : ""}</div>`}
+      ${!me && !g.master ? `<button class="py-main" data-gact="join">S'asseoir à la table</button>` : ""}`;
+  } else if (g.phase === "deal") {
+    const cur = v.seats.find((s) => s.pid === v.turn), mine = cur && cur.pid === me?.pid;
+    const ref = v.step === 2 ? cur.cards.slice(0, 1) : v.step === 3 ? cur.cards.slice(0, 2) : [];
+    const canAct = mine || host;
+    if (mine && pyrSeen.turnBuzz !== `${v.step}-${v.turn}`) { pyrSeen.turnBuzz = `${v.step}-${v.turn}`; navigator.vibrate?.(120); }
+    body = `<div class="py-steps">${[1, 2, 3, 4].map((i) => `<span class="${i < v.step ? "done" : i === v.step ? "on" : ""}">${i}</span>`).join("<i></i>")}</div>
+      <div class="py-turn ${mine ? "me" : ""}"><div class="py-turn-k">${mine ? "C'est ton tour" : "C'est au tour de"}</div>
+        <div class="py-turn-name">${mine ? "À TOI !" : esc(cur?.name || "…")}</div></div>
+      <div class="py-stake">Raté : bois <b>${sipWord(v.step)}</b> · Réussi : distribue <b>${v.step}</b></div>
+      ${canAct ? pyrQuestion(g, v.step, ref, mine ? "" : cur.pid, "pans") + (mine ? "" : `<div class="py-proxy">Tu réponds pour ${esc(cur.name)}${cur.manual ? " (sans téléphone)" : ""}</div>`)
+        : `<div class="py-q">${PYR_Q[v.step].q}</div>${ref.length ? `<div class="py-ref">${ref.map((c) => pyCard(c, "md")).join("")}<span class="py-card ghost md"><b>?</b></span></div>` : ""}
+           <div class="py-wait">${esc(cur?.name)} réfléchit…</div>`}
+      <h3 class="py-h">Les mains</h3>${pyrSeats(g)}`;
+  } else if (g.phase === "pyramid") {
+    body = pyrBoard(g) + pyrCurrent(g) + pyrHand(g) + `<h3 class="py-h">La table</h3>${pyrSeats(g)}`;
+  } else if (g.phase === "memory") {
+    body = pyrMemory(g);
+  } else if (g.phase === "memres") {
+    const worst = v.candidates;
+    body = `<div class="py-hero"><div class="py-hero-k">🧠 Test de mémoire</div><div class="py-hero-t">Les vraies cartes</div></div>
+      ${pyrSeats(g, { memory: true })}
+      <div class="py-cands"><div class="py-turn-k">Candidats au bateau</div>${worst.map((c) => `<span class="pill">${esc(c.name)} · ${c.errors} err.${c.liar ? " · menteur au cul sec" : ""}</span>`).join("")}</div>
+      ${host ? `<button class="py-main" data-gact="pboat">🚢 Qui fait le bateau ?${worst.length > 1 ? " (roulette)" : ""}</button>` : ""}`;
+  } else if (g.phase === "boatpick") {
+    const sp = v.spin, shown = !sp || pyrWheelShown === sp.id;
+    body = `<div class="py-hero"><div class="py-hero-k">🚢 Le bateau</div><div class="py-hero-t">${sp ? "La roulette décide…" : "Désigné d'office"}</div></div>
+      ${sp ? `<div class="wheel-wrap py-wheel"><div class="wheel-pointer" aria-hidden="true"></div><svg id="pyrWheel" viewBox="-100 -100 200 200" role="img" aria-label="Roue">${wheelSvg(sp.names)}</svg></div>` : ""}
+      <div class="py-boat-name ${shown ? "show" : ""}">${shown ? `${esc(v.boat.name)} fait le bateau !` : ""}</div>
+      ${host && shown ? `<button class="py-main" data-gact="pboatgo">⛵ Lancer le bateau</button>` : ""}`;
+  } else if (g.phase === "boat" || g.phase === "end") {
+    body = pyrBoat(g);
+  }
+  return pyrTopBar(g) + `<div class="py-body">${body}</div>`;
+}
+
+function pyrBoard(g) {
+  const v = g.pyr, rows = [];
+  let i = 0;
+  for (let f = 1; f <= v.floors; f++) {
+    const w = v.floors - f + 1, cards = [];
+    for (let k = 0; k < w; k++, i++) cards.push({ c: v.pyramid[i], i, cur: i === v.flipped - 1 });
+    rows.push({ f, cards });
+  }
+  const size = v.floors >= 7 ? "xs" : v.floors === 6 ? "sm" : "";
+  return `<div class="py-board">${rows.reverse().map((r) => `
+    <div class="py-row ${r.f === v.floor ? "now" : ""}"><span class="py-mult f${Math.min(r.f, 5)}">${r.f === v.floors ? "🥃" : `×${r.f}`}</span>
+      <div class="py-row-cards">${r.cards.map((x) => pyCard(x.c, size, `data-i="${x.i}"${x.cur ? ` data-cur="1"` : ""}`)).join("")}</div></div>`).join("")}</div>`;
+}
+
+function pyrCurrent(g) {
+  const v = g.pyr, me = g.me, host = g.is_host;
+  const next = host ? (v.flipped < v.size ? `<button class="py-main" data-gact="pflip">${v.flipped ? "Retourner la carte suivante ▶︎" : "▶︎ Retourner la première carte"}</button>`
+    : `<button class="py-main" data-gact="pmemory">🧠 Lancer le test de mémoire</button>`) : "";
+  if (!v.flipped) return `<div class="py-panel"><div class="py-turn-k">Mémorisez bien vos cartes…</div><div class="py-panel-t">La pyramide va commencer</div>${next}</div>`;
+  const label = cardLabel(v.current);
+  const claims = v.claims.map((c) => {
+    const status = { pending: host ? `<button class="py-mini ok" data-gact="pbu" data-target="${c.id}">Bu ✓</button><button class="py-mini bad" data-gact="pliar" data-target="${c.id}">Menteur !</button>` : `<span class="py-tag">bu ?</span>`,
+      drunk: `<span class="py-tag ok">bu ✓</span>`, accused: `<span class="py-tag bad">accusé·e !</span>`,
+      truth: `<span class="py-tag ok">vérité ✓</span>`, lie: `<span class="py-tag bad">menteur ✗</span>` }[c.status];
+    return `<div class="py-claim ${c.status}"><span><b>${esc(c.name)}</b> donne ${sipWord(c.sips)}</span><span class="py-claim-act">${status}</span></div>`;
+  }).join("");
+  const accused = v.claims.find((c) => c.status === "accused" && (c.mine || host));
+  const mySeat = v.seats.find((s) => s.pid === me?.pid);
+  const pick = accused ? `<div class="py-pick"><div class="py-turn-k">${accused.mine ? "On t'accuse ! Retourne la carte qui le prouve" : `${esc(accused.name)} est accusé·e : retourner sa carte pour lui`}</div>
+    <div class="py-pick-cards">${[0, 1, 2, 3].map((k) => `<button type="button" class="py-pick-btn" data-pyr="reveal" data-slot="${k}" ${accused.mine ? "" : `data-who="${esc(accused.pid)}"`}>${pyCard("??", "md")}<small>${k + 1}</small></button>`).join("")}</div></div>` : "";
+  let mine = "";
+  if (me && mySeat) {
+    if (v.is_top) mine = v.top_me == null ? `<button class="py-main py-cul" data-gact="ptop">🥃 J'ai cette carte !</button>`
+      : v.top_me ? `<div class="py-ok">Tu as la carte : distribue ton cul sec en privé 🤫</div>` : `<div class="py-bad">Raté… tu iras à la roulette du bateau</div>`;
+    else if (!v.claims.some((c) => c.mine)) mine = `<button class="py-main py-give" data-gact="pclaim">🍻 Je donne ${sipWord(v.floor)}</button>`;
+  }
+  const manualGive = host && !v.is_top ? v.seats.filter((s) => s.manual && !v.claims.some((c) => c.pid === s.pid))
+    .map((s) => `<button class="py-mini" data-pyr="claimfor" data-who="${esc(s.pid)}">${esc(s.name)} donne</button>`).join("") : "";
+  return `<div class="py-panel ${v.is_top ? "top" : ""}">
+    <div class="py-now">${pyCard(v.current, "lg", 'data-flip="1"')}
+      <div><div class="py-turn-k">${v.is_top ? "Le sommet" : `Étage ${v.floor}`}</div>
+        <div class="py-panel-t">${v.is_top ? "CUL SEC" : `Un ${esc(label)} !`}</div>
+        <div class="artist">${v.is_top ? "Pas de bluff : seul celui qui l'a vraiment distribue" : `${sipWord(v.floor)} à donner · bluff permis`}</div></div></div>
+    ${mine}${manualGive ? `<div class="py-manual">${manualGive}</div>` : ""}
+    ${claims ? `<div class="py-claims">${claims}</div>` : ""}${pick}
+    ${v.is_top && v.top_done.length ? `<div class="artist" style="margin-top:6px">Ont annoncé : ${v.top_done.map(esc).join(", ")}</div>` : ""}
+    ${next}</div>`;
+}
+
+function pyrHand(g) {
+  const v = g.pyr, me = g.me, host = g.is_host, seat = v.seats.find((s) => s.pid === me?.pid);
+  const pending = v.peeks.filter((r) => r.status === "pending");
+  const hostReqs = host ? pending.map((r) => `<div class="py-claim"><span><b>${esc(r.name)}</b> veut revoir ${r.count} carte${r.count > 1 ? "s" : ""} (+${2 * r.count} gorgées)</span>
+    <span class="py-claim-act"><button class="py-mini ok" data-gact="ppeek_ok" data-target="${r.id}">OK</button><button class="py-mini bad" data-gact="ppeek_no" data-target="${r.id}">Non</button></span></div>`).join("") : "";
+  const recent = v.peeks.filter((r) => r.status === "ok" && !r.mine && r.age < 8).map((r) => `<div class="artist">👀 ${esc(r.name)} revoit ${r.count} carte${r.count > 1 ? "s" : ""} : +${2 * r.count} gorgées</div>`).join("");
+  if (!seat) return hostReqs ? `<div class="py-panel">${hostReqs}</div>` : "";
+  const myPending = pending.some((r) => r.mine);
+  const seeing = v.peeks.some((r) => r.mine && r.status === "ok" && r.age < 5);
+  return `<div class="py-panel py-hand">
+    <div class="py-turn-k">Ta main ${seeing ? "· regarde vite !" : "· face cachée"}</div>
+    <div class="py-hand-cards">${seat.cards.map((c, k) => `<button type="button" class="py-pick-btn ${pyrPeekSel.includes(k) ? "sel" : ""}" data-pyr="peeksel" data-slot="${k}" ${myPending || c !== "??" ? "disabled" : ""}>${pyCard(c, "md")}<small>${k + 1}</small></button>`).join("")}</div>
+    ${myPending ? `<div class="artist">Demande envoyée à l'animateur…</div>`
+      : `<button class="py-sub" data-pyr="peek" ${pyrPeekSel.length ? "" : "disabled"}>👀 Revoir ${pyrPeekSel.length ? `${pyrPeekSel.length} carte${pyrPeekSel.length > 1 ? "s" : ""} (+${2 * pyrPeekSel.length} gorgées)` : "des cartes : touche-les d'abord"}</button>`}
+    ${hostReqs}${recent}</div>`;
+}
+
+function pyrMemory(g) {
+  const v = g.pyr, me = g.me, host = g.is_host, seat = v.seats.find((s) => s.pid === me?.pid);
+  const manual = host ? v.seats.filter((s) => s.manual && !s.answered) : [];
+  const forSeat = pyrMemFor ? v.seats.find((s) => s.pid === pyrMemFor) : seat;
+  const done = forSeat ? forSeat.answered : true;
+  return `<div class="py-hero"><div class="py-hero-k">🧠 Test de mémoire</div><div class="py-hero-t">Tes 4 cartes, de gauche à droite</div>
+      <div class="artist">${v.memory_done}/${v.seats.length} ont répondu · seule la valeur compte</div></div>
+    ${manual.length ? `<div class="py-manual">${manual.map((s) => `<button class="py-mini ${pyrMemFor === s.pid ? "ok" : ""}" data-pyr="memfor" data-who="${esc(s.pid)}">✍️ ${esc(s.name)}</button>`).join("")}${pyrMemFor ? `<button class="py-mini" data-pyr="memfor" data-who="">Moi</button>` : ""}</div>` : ""}
+    ${forSeat && !done ? `<div class="py-panel">
+      ${pyrMemFor ? `<div class="py-proxy">Tu réponds pour ${esc(forSeat.name)}</div>` : ""}
+      <div class="py-mem-slots">${pyrMem.map((m, k) => `<button type="button" class="py-mem ${k === pyrMemSlot ? "on" : ""}" data-pyr="memslot" data-slot="${k}"><b>${m || "?"}</b><small>${k + 1}</small></button>`).join("")}</div>
+      <div class="py-keys">${PYR_VALUES.map((x) => `<button type="button" data-pyr="memkey" data-val="${x}">${x}</button>`).join("")}</div>
+      <button class="py-main" data-pyr="memsend" ${pyrMem.every(Boolean) ? "" : "disabled"}>Valider mes 4 cartes</button></div>`
+      : `<div class="py-wait">${forSeat ? "C'est noté ✓ En attente des autres…" : "Les joueurs fouillent leur mémoire…"}</div>`}
+    ${host ? `<button class="py-sub" data-gact="presults">Voir les résultats maintenant</button>` : ""}`;
+}
+
+function pyrBoat(g) {
+  const v = g.pyr, b = v.bstate || {}, me = g.me, host = g.is_host, mine = v.boat?.pid === me?.pid;
+  const steps = [1, 2, 3, 4].map((i) => `<span class="${i < b.step ? "done" : i === b.step && g.phase === "boat" ? "on" : ""}">${i}</span>`).join("<i></i>");
+  if (b.last && b.last.n > (pyrSeen.boat || 0)) {
+    const first = pyrSeen.boat === undefined;
+    pyrSeen.boat = b.last.n;
+    if (!first) pyrFlash(b.last.ok ? "good" : "bad", b.last.ok ? "Bien vu !" : "Raté ! Retour au début", b.last.ok ? esc(PYR_ANS[b.last.value]) : "1 gorgée", b.last.card);
+  }
+  const ref = b.step === 2 ? b.cards.slice(0, 1) : b.step === 3 ? b.cards.slice(0, 2) : [];
+  const end = g.phase === "end" ? `<div class="py-hero"><div class="py-hero-k">${b.result === "won" ? "🏆 Bateau réussi" : "🌊 Paquet terminé"}</div>
+      <div class="py-hero-t">${esc(v.boat.name)} : ${sipWord(b.sips)} en ${b.tries} essai${b.tries > 1 ? "s" : ""}</div></div>
+      ${host ? `<button class="py-main" data-gact="restart">🔁 Rejouer avec les mêmes joueurs</button>` : ""}` : "";
+  return `<div class="py-turn ${mine ? "me" : ""}"><div class="py-turn-k">🚢 Le bateau</div><div class="py-turn-name">${mine ? "C'EST TOI !" : esc(v.boat?.name || "")}</div></div>
+    <div class="py-steps">${steps}</div>
+    <div class="py-stake">Essai ${b.tries || 1} · ${sipWord(b.sips || 0)} bue${(b.sips || 0) > 1 ? "s" : ""} · ${v.deck_left} cartes restantes</div>
+    <div class="py-ref">${b.cards?.map((c) => pyCard(c, "md")).join("") || ""}</div>
+    ${end || ((mine || host) ? pyrQuestion(g, b.step, ref, mine ? "" : v.boat.pid, "pbans") : `<div class="py-q">${PYR_Q[b.step].q}</div><div class="py-wait">${esc(v.boat.name)} réfléchit…</div>`)}`;
+}
+
+// Roue du bateau (égalité au test de mémoire) : même tirage sur tous les écrans.
+function pyrWheel(g) {
+  const sp = g.pyr?.spin;
+  if (g.phase !== "boatpick" || !sp || !$("pyrWheel")) return;
+  const w = $("pyrWheel"), n = sp.names.length, target = (sp.index + 0.5 + (sp.jitter || 0)) * (360 / n);
+  if (pyrWheelSpin === sp.id) { w.style.transform = `rotate(${pyrWheelRot}deg)`; return; }
+  pyrWheelSpin = sp.id;
+  const left = Math.max(0, 4.8 - sp.age), base = 360 * (left ? 6 : 1);
+  pyrWheelRot = base - ((target % 360) + 360) % 360;
+  if (left > 0.3) {
+    w.style.transition = "none"; w.style.transform = "rotate(0deg)"; void w.getBoundingClientRect();
+    w.style.transition = `transform ${left}s cubic-bezier(.12,.8,.12,1)`; w.style.transform = `rotate(${pyrWheelRot}deg)`;
+    setTimeout(() => { pyrWheelShown = sp.id; if (game?.pyr?.spin?.id === sp.id) { renderGame(game); pyrFlash("bad", `${esc(game.pyr.boat.name)} fait le bateau !`, "🚢 Bon courage…"); } }, left * 1000 + 100);
+  } else { w.style.transform = `rotate(${pyrWheelRot}deg)`; pyrWheelShown = sp.id; }
+}
+
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-pyr]");
+  if (!b || !game) return;
+  const a = b.dataset.pyr, who = b.dataset.who || "";
+  if (a === "exit") { pyrFull = false; return renderGame(game); }
+  if (a === "enter") { pyrFull = true; return renderGame(game); }
+  if (a === "pans" || a === "pbans") { navigator.vibrate?.(20); return gameAction(a, { target: b.dataset.val, who }); }
+  if (a === "reveal") return gameAction("preveal", { amount: +b.dataset.slot, who });
+  if (a === "claimfor") return gameAction("pclaim", { who });
+  if (a === "peeksel") { const k = +b.dataset.slot; pyrPeekSel = pyrPeekSel.includes(k) ? pyrPeekSel.filter((x) => x !== k) : [...pyrPeekSel, k]; return renderGame(game); }
+  if (a === "peek") { const slots = pyrPeekSel; pyrPeekSel = []; return gameAction("ppeek", { slots }); }
+  if (a === "memfor") { pyrMemFor = who; pyrMem = ["", "", "", ""]; pyrMemSlot = 0; return renderGame(game); }
+  if (a === "memslot") { pyrMemSlot = +b.dataset.slot; return renderGame(game); }
+  if (a === "memkey") { pyrMem[pyrMemSlot] = b.dataset.val; pyrMemSlot = Math.min(3, pyrMemSlot + 1); return renderGame(game); }
+  if (a === "memsend") {
+    const values = pyrMem.slice(), forWho = pyrMemFor;
+    pyrMem = ["", "", "", ""]; pyrMemSlot = 0; pyrMemFor = "";
+    return gameAction("pmem", { values, who: forWho });
+  }
+});
+
+function renderPyrHost(g) {
+  $("gameHost").innerHTML = `<h2>À la table (${g.players.length})</h2>
+    <div class="list">${g.players.map((p) => `<div class="track"><div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}${sipsBadge(p)}</div></div>
+      ${g.is_host && p.pid !== g.me?.pid && g.phase === "lobby" ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Retirer">✕</button>` : ""}</div>`).join("")
+      || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
+    ${g.phase === "lobby" ? manualForm(g) : ""}
+    ${g.is_host && !g.me && g.phase === "lobby" ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
+}
+
 // 🛋️ Le Divan : une grande carte de couleur, retournée à chaque tirage.
 const DV_ICONS = { experiences: "🌄", emotions: "💗", relations: "🤝", childhood: "🧸", dreams: "🌠", whatif: "🔮", couple: "💞" };
 let dvSeen = 0;
@@ -820,7 +1163,7 @@ document.addEventListener("pointerup", dvRelease);
 document.addEventListener("pointercancel", dvRelease);
 
 // 📵 Participants sans téléphone : l'animateur les ajoute à la main et agit pour eux.
-const MANUAL_GAMES = ["divan", "tmc", "never"];
+const MANUAL_GAMES = ["divan", "tmc", "never", "pyramid"];
 const playerTag = (g, p) => !MANUAL_GAMES.includes(g.type) ? "" : p.manual
   ? ` <span class="pill tag-manual" title="Ajouté·e à la main par l'animateur">✍️ sans téléphone</span>`
   : ` <span class="tag-phone" title="Joue sur son téléphone">📱</span>`;
@@ -1229,6 +1572,7 @@ function renderGameHost(g) {
   if (isBJ(g)) return renderBJHost(g, btn);
   if (g.type === "casino") return renderCasinoHost(g, btn);
   if (g.type === "divan") return renderDivanHost(g, btn);
+  if (g.type === "pyramid") return renderPyrHost(g);
   if (g.type === "tmc") return renderTmcHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
   const canRemove = g.is_host;
@@ -1350,6 +1694,7 @@ document.addEventListener("click", async (ev) => {
       mode: card.querySelector("[data-opt-group=mode] .on")?.dataset.val || "soft",
       // Blackjack : gorgées seulement si « Alcool » est coché.
       cats: [...card.querySelectorAll("[data-opt-group=cats] .on")].map((x) => x.dataset.val),
+      floors: +(card.querySelector("[data-opt-group=floors] [data-val-out]")?.textContent || 5),
       sips: card.querySelector("[data-opt=alcohol]") && !card.querySelector("[data-opt=alcohol]").checked ? 0
         : +(card.querySelector("[data-opt-group=sips] [data-val-out]")?.textContent || 0) });
     setGame(g.code); renderGame(g);
@@ -1382,7 +1727,7 @@ function rulesFor(type, g) {
 
 // « ? » : règles détaillées du jeu.
 const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", never: "Je n'ai jamais", roulette: "Roulette",
-  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?" };
+  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");
   if (open) {
@@ -1421,6 +1766,11 @@ document.addEventListener("click", (ev) => {
   }
   const opt = ev.target.closest("[data-opt-group=mode] [data-val]");
   if (opt) opt.parentElement.querySelectorAll("[data-val]").forEach((b) => b.classList.toggle("on", b === opt));
+  const fl = ev.target.closest("[data-opt-group=floors] [data-step]");
+  if (fl) {
+    const out = fl.parentElement.querySelector("[data-val-out]");
+    out.textContent = Math.max(5, Math.min(8, +out.textContent + +fl.dataset.step));
+  }
   const step = ev.target.closest("[data-opt-group=sips] [data-step]");
   if (step) {
     const out = step.parentElement.querySelector("[data-val-out]");
