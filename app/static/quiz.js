@@ -149,7 +149,7 @@ function quizHtml(g) {
     const prePause = canPause && (q.mine !== null || q.locked)
       ? `<button type="button" class="py-sub qz-pause ${v.paused ? "on" : ""}" data-qz-pause>${v.paused ? "✓ Pause après la réponse (annuler)" : "⏸ Pause après la réponse"}</button>` : "";
     return top + qzTimerHtml(q.left, q.dur) + qzQuestionHtml(q, { mine: q.mine, locked: q.locked, disabled: !me || q.out })
-      + status + prePause + (lead ? `<button class="py-sub" data-gact="next">⏭ Révéler maintenant</button>` : "");
+      + status + prePause + (lead ? `<button class="py-sub" data-gact="next" data-guess="${esc(v.token)}">⏭ Révéler maintenant</button>` : "");
   }
   // Révélation
   const mine = q.res.find((r) => r.me);
@@ -161,7 +161,7 @@ function quizHtml(g) {
     + qzMiniBoard(v.board, s.mode)
     + `<div class="qz-next">${v.paused ? `<span class="qz-paused">⏸ En pause${lead || g.players.length <= 1 ? "" : " (l'animateur reprendra)"}</span>`
         : `<span>Question suivante dans <b id="qzNextS">${Math.ceil(q.next_in)}</b> s</span>`}
-      <span class="qz-next-btns">${lead || g.players.length <= 1 ? qzPauseBtn(v.paused) : ""}${lead && !v.paused ? `<button class="py-sub" data-gact="next">Suivante ▶</button>` : ""}</span></div>`;
+      <span class="qz-next-btns">${lead || g.players.length <= 1 ? qzPauseBtn(v.paused) : ""}${lead && !v.paused ? `<button class="py-sub" data-gact="next" data-guess="${esc(v.token)}">Suivante ▶</button>` : ""}</span></div>`;
 }
 
 function qzMiniBoard(board, mode, n = 5) {
@@ -287,20 +287,33 @@ function quizAfter(g, fresh = true) {
   qzSeen.key = key;
 }
 
+// Réponse : envoyée dès que le doigt touche le bouton (sans attendre qu'il se relève), une seule fois,
+// avec le jeton de la question : une réponse en retard ne compte jamais pour la question suivante.
+function qzAnswer(a) {
+  if (!a || a.disabled || !game?.quiz) return;
+  a.classList.add("picked");
+  document.querySelectorAll("[data-qz-ans]").forEach((b) => { b.disabled = true; if (b !== a) b.classList.add("dim"); });
+  navigator.vibrate?.(30);
+  gameAction("qans", { amount: +a.dataset.qzAns, guess: game.quiz.token }, { quiet: true });
+}
+document.addEventListener("pointerdown", (ev) => {
+  if (ev.button !== 0) return;
+  const a = ev.target.closest("[data-qz-ans]");
+  if (a) { ev.preventDefault(); qzAnswer(a); }
+});
 document.addEventListener("click", (ev) => {
   const a = ev.target.closest("[data-qz-ans]");
-  if (a && !a.disabled) {
-    a.classList.add("picked");
-    document.querySelectorAll("[data-qz-ans]").forEach((b) => { b.disabled = true; if (b !== a) b.classList.add("dim"); });
-    navigator.vibrate?.(30);
-    return gameAction("qans", { amount: +a.dataset.qzAns });
-  }
+  if (a) return qzAnswer(a);  // clavier (ou navigateur sans pointerdown)
   const j = ev.target.closest("[data-qz-joker]");
-  if (j && !j.disabled) return gameAction("qjoker", { guess: j.dataset.qzJoker });
-  if (ev.target.closest("[data-qz-stop]")) return gameAction("qstop");
-  if (ev.target.closest("[data-qz-pause]")) return gameAction("qpause");
+  if (j && !j.disabled) return pressed(j, gameAction("qjoker", { guess: j.dataset.qzJoker }));
+  const st = ev.target.closest("[data-qz-stop]");
+  if (st) return pressed(st, gameAction("qstop"));
+  const pa = ev.target.closest("[data-qz-pause]");
+  if (pa) return pressed(pa, gameAction("qpause"));
   const set = ev.target.closest("[data-qz-set]");
   if (set && !set.disabled) {
+    // Effet immédiat à l'écran, confirmé par le serveur juste après.
+    set.parentElement.querySelectorAll("[data-qz-set]").forEach((x) => x.classList.toggle("on", x === set));
     const raw = set.dataset.val;
     return gameAction("qset", { settings: { [set.dataset.qzSet]: /^\d+$/.test(raw) && set.dataset.qzSet !== "diff" ? +raw : raw } });
   }
@@ -309,6 +322,8 @@ document.addEventListener("click", (ev) => {
     const id = th.dataset.qzTheme;
     let cur = [...game.quiz.settings.themes];
     cur = !id ? [] : cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    th.classList.toggle("on");
+    if (!id) document.querySelectorAll("[data-qz-theme]").forEach((x) => x.classList.toggle("on", !x.dataset.qzTheme));
     return gameAction("qset", { settings: { themes: cur } });
   }
 });

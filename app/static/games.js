@@ -497,7 +497,7 @@ document.getElementById("gamesRoot").innerHTML = `
         </div>
         <div id="gDrawerPlayers"></div>
         <button type="button" class="secondary" data-gdrawer="minimize" style="width:100%;margin-top:12px">↙ Réduire le jeu (revenir aux onglets)</button>
-        <button class="danger" id="gameLeave" style="width:100%;margin-top:8px">Quitter la partie</button>
+        <div id="gDrawerExit"></div>
       </div>
     </aside>
 
@@ -673,7 +673,7 @@ function renderGame(g) {
     const fresh = el.dataset.qzSig !== sig || !el.querySelector(".qz-root");
     if (fresh) {
       const key = quizAnimKey(g);
-      el.innerHTML = lobbyInvite(g) + `<div class="qz-root ${key !== qzAnimKey ? "anim" : ""}">${quizHtml(g)}</div>`;
+      el.innerHTML = lobbyInvite(g) + `<div class="qz-root ${key !== qzAnimKey ? "anim" : ""} ${g.quiz.settings.mode === "chrono" ? "fast" : ""}">${quizHtml(g)}</div>`;
       el.dataset.qzSig = sig;
       qzAnimKey = key;
     }
@@ -695,7 +695,6 @@ function renderGame(g) {
   $("gameCode").textContent = g.code;
   const qr = `/qr/game/${g.code}.svg`;
   if ($("gameQr").getAttribute("src") !== qr) $("gameQr").src = qr;
-  $("gameLeave").textContent = g.is_host ? "Fermer la partie" : "Quitter la partie";
 }
 
 function resultsHtml(g) {
@@ -1962,6 +1961,7 @@ function renderDrawer(g) {
     ${movable && ["biskit", "pyramid"].includes(g.type) ? `<p class="artist" style="margin-top:6px">Range les joueurs dans l'ordre où ils sont assis (vers la gauche).</p>` : ""}
     ${(g.type !== "pyramid" || g.phase === "lobby") ? manualForm(g) : ""}
     ${lead && !g.me && (g.phase === "lobby" || g.phase === "end") ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">🙋 Je joue aussi</button>` : ""}`;
+  $("gDrawerExit").innerHTML = exitHtml(g);
 }
 function openDrawer() { $("gDrawer").classList.remove("hidden"); requestAnimationFrame(() => $("gDrawer").classList.add("open")); }
 function closeDrawer() { $("gDrawer").classList.remove("open"); setTimeout(() => $("gDrawer").classList.add("hidden"), 250); }
@@ -1995,17 +1995,32 @@ function showGameEnded(info) {
   setTimeout(close, 5000);
 }
 
-async function gameAction(action, extra = {}) {
+// Une même action n'est envoyée qu'une fois à la fois (double toucher, réseau lent).
+const gInflight = new Set();
+async function gameAction(action, extra = {}, opts = {}) {
   if (!myGame) return;
+  const key = action + JSON.stringify(extra);
+  if (gInflight.has(key)) return;
+  gInflight.add(key);
   try {
     const g = await gapi(`/api/games/${myGame}`, { guest_id: guestId, name: guestName, action, ...extra });
     if (action === "end" || (action === "leave" && !g?.is_host)) { setGame(""); renderGame(null); return; }
     renderGame(g);
   } catch (e) {
     if (e.status === 404 && e.detail?.ended) showGameEnded(e.detail.ended);
+    else if (opts.quiet && e.status === 409) refreshGame();  // arrivé trop tard : on se recale sans message
     else toast(e.message, "err");
     if (e.status === 404) { setGame(""); renderGame(null); }
+  } finally {
+    gInflight.delete(key);
   }
+}
+// Bouton touché : il s'enfonce et patiente tout de suite, jusqu'à la réponse du serveur.
+function pressed(b, promise) {
+  if (!b) return promise;
+  b.classList.add("busy");
+  Promise.resolve(promise).finally(() => b.classList.remove("busy"));
+  return promise;
 }
 document.addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-gact]");
@@ -2018,7 +2033,7 @@ document.addEventListener("click", (ev) => {
   if (a === "addplayers") return gameAction("names", { names: game.names.concat(game.players.map((p) => p.name)) });
   if (a === "eliminate" && !confirm("Éliminer ce joueur ?")) return;
   if (a === "remove" && !confirm("Exclure ce joueur de la partie ? Il ne pourra pas revenir.")) return;
-  gameAction(a, { target: b.dataset.target || "", amount: +(b.dataset.amount || 0), guess: b.dataset.guess || "" });
+  pressed(b, gameAction(a, { target: b.dataset.target || "", amount: +(b.dataset.amount || 0), guess: b.dataset.guess || "" }));
 });
 document.addEventListener("submit", (ev) => {
   if (!ev.target.closest("[data-gform=addguest]")) return;
@@ -2044,12 +2059,43 @@ $("game").addEventListener("submit", (ev) => {
   gameAction(ev.target.closest("[data-gform]").dataset.gform === "tanswer" ? "tanswer" : "guess", { guess: guessDraft.trim() });
   guessDraft = "";
 });
-$("gameLeave").onclick = () => {
-  if (!game) return;
-  if (game.is_host) { if (confirm("Fermer la partie pour tout le monde ?")) gameAction("end"); }
-  else if (!game.me || game.kicked) { setGame(""); renderGame(null); }
-  else if (confirm("Quitter la partie ?")) gameAction("leave");
-};
+// Sortie de la partie (menu ☰) : l'animateur passe la main à un joueur de son choix avant de partir.
+let handoverOpen = false;
+function exitHtml(g) {
+  const cands = g.players.filter((p) => p.pid !== g.me?.pid && !p.manual && !p.pending && !p.host);
+  const out = [];
+  if (g.is_owner) {
+    if (cands.length) {
+      out.push(`<button type="button" class="secondary g-exit" data-exit="pick">👑 Passer la main et quitter</button>`);
+      if (handoverOpen) out.push(`<div class="g-handover"><div class="artist">Qui devient l'animateur ?</div>
+        ${cands.map((p) => `<button type="button" class="secondary" data-exit="to" data-target="${esc(p.pid)}">👑 ${esc(p.name)}</button>`).join("")}</div>`);
+    }
+  } else if (g.me && !g.kicked) {
+    out.push(`<button type="button" class="secondary g-exit" data-exit="leave">🚪 Quitter la partie</button>`);
+  } else {
+    out.push(`<button type="button" class="secondary g-exit" data-exit="away">🚪 Quitter</button>`);
+  }
+  if (g.is_host) out.push(`<button type="button" class="danger g-exit" data-exit="end">Fermer la partie pour tout le monde</button>`);
+  return out.join("");
+}
+document.addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-exit]");
+  if (!b || !game) return;
+  const a = b.dataset.exit;
+  if (a === "pick") { handoverOpen = !handoverOpen; return renderDrawer(game); }
+  if (a === "to") {
+    const p = game.players.find((x) => x.pid === b.dataset.target);
+    if (!p || !confirm(`${p.name} devient l'animateur${game.me ? " et tu quittes la partie" : ""}. Continuer ?`)) return;
+    handoverOpen = false;
+    closeDrawer();
+    await gameAction("handover", { target: p.pid });
+    setGame(""); renderGame(null);
+    return toast(`${p.name} anime maintenant la partie`, "ok");
+  }
+  if (a === "end") { if (confirm("Fermer la partie pour tout le monde ?")) { closeDrawer(); gameAction("end"); } return; }
+  if (a === "leave") { if (confirm("Quitter la partie ?")) { closeDrawer(); gameAction("leave"); } return; }
+  if (a === "away") { closeDrawer(); setGame(""); renderGame(null); }
+});
 document.addEventListener("click", async (ev) => {
   const b = ev.target.closest("[data-create]");
   if (!b) return;

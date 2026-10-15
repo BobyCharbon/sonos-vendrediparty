@@ -170,3 +170,53 @@ def test_speed_needs_two_players():
     g2["players"].pop()  # le deuxième joueur est parti
     with pytest.raises(games.GameError):
         games.start(g2)
+
+
+def test_late_answer_and_double_next_are_ignored():
+    g = qgame(1)
+    games.start(g, random.Random(9))
+    tok = quiz.token(g, "p0")
+    quiz.answer(g, "p0", g["quiz"]["cur"]["ans"], tok=tok)
+    assert g["phase"] == "rev"
+    rev_tok = quiz.token(g, "")
+    quiz.next_step(g, tok=rev_tok)
+    assert g["quiz"]["n"] == 2
+    quiz.next_step(g, tok=rev_tok)  # deuxième clic sur « Suivante » : ignoré
+    assert g["quiz"]["n"] == 2 and g["phase"] == "q"
+    with pytest.raises(quiz.QuizError):
+        quiz.answer(g, "p0", 0, tok=tok)  # réponse destinée à la question 1 : refusée
+
+
+def test_chrono_double_tap_does_not_answer_next_question():
+    g = qgame(1, mode="chrono")
+    games.start(g, random.Random(10))
+    tok = quiz.token(g, "p0")
+    quiz.answer(g, "p0", 0, tok=tok)
+    with pytest.raises(quiz.QuizError):
+        quiz.answer(g, "p0", 0, tok=tok)
+    assert g["quiz"]["scores"]["p0"]["n"] == 1
+
+
+@pytest.mark.parametrize("kind", ["quiz", "biskit", "never", "undercover", "casino"])
+def test_handover_in_every_game(kind):
+    g = games.new_game(kind, host="h", name="Ludo")
+    games.join(g, "a", "Léa")
+    games.join(g, "b", "Tom")
+    games.handover(g, "h", "a")
+    assert g["host"] == "a" and g["host_name"] == "Léa" and not games.player(g, "h")
+    assert games.view(g, "a")["is_owner"] and not games.view(g, "b")["is_owner"]
+    with pytest.raises(games.GameError):
+        games.handover(g, "a", "a")
+
+
+def test_handover_api_only_for_lead():
+    main._game_creations.clear()
+    h, o = TestClient(main.app), TestClient(main.app)
+    g = h.post("/api/games", json={"guest_id": "hand-host-0001", "name": "Ludo", "type": "quiz", "plays": True}).json()
+    v = o.post(f"/api/games/{g['code']}", json={"guest_id": "hand-other-001", "name": "Léa", "action": "join"}).json()
+    lea = next(p["pid"] for p in v["players"] if p["name"] == "Léa")
+    assert o.post(f"/api/games/{g['code']}", json={"guest_id": "hand-other-001", "action": "handover", "target": lea}).status_code == 403
+    r = h.post(f"/api/games/{g['code']}", json={"guest_id": "hand-host-0001", "action": "handover", "target": lea})
+    assert r.status_code == 200
+    v = o.get(f"/api/games/{g['code']}?guest_id=hand-other-001").json()
+    assert v["is_owner"] and v["is_host"] and [p["name"] for p in v["players"]] == ["Léa"]

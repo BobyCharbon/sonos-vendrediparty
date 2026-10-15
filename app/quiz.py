@@ -173,10 +173,21 @@ def _next_question(g: dict, rng):
     g["phase"] = "q"
 
 
-def answer(g: dict, gid: str, choice: int, rng=random):
+def token(g: dict, gid: str) -> str:
+    """Identifie la question affichée : une réponse ou un « Suivante » arrivé en retard est ignoré."""
+    Q = g["quiz"]
+    if g["phase"] == "run":
+        P = Q["personal"].get(gid) or {}
+        return f"p{P.get('i', 0)}{'b' if P.get('between') else ''}"
+    return f"{g['phase']}{Q['n']}"
+
+
+def answer(g: dict, gid: str, choice: int, rng=random, tok: str = ""):
     init(g)
     Q = g["quiz"]
     tick(g, rng)
+    if tok and tok != token(g, gid):
+        raise QuizError("Trop tard : la question a changé")
     if not any(p["id"] == gid for p in g["players"]):
         raise QuizError("Rejoins la partie pour répondre")
     if g["phase"] == "run":
@@ -240,9 +251,12 @@ def _over(g: dict) -> bool:
     return Q["n"] >= s["count"]
 
 
-def next_step(g: dict, rng=random):
+def next_step(g: dict, rng=random, tok: str = ""):
     """L'animateur passe à la suite (sans attendre la fin du temps ou de la révélation)."""
     init(g)
+    tick(g, rng)
+    if tok and tok != token(g, ""):
+        return  # double clic (ou deux animateurs) : on ne saute pas une question
     g["quiz"]["paused"] = False
     if g["phase"] == "q":
         _reveal(g)
@@ -540,7 +554,7 @@ def view(g: dict, gid: str) -> dict:
     out = {
         "settings": s, "mode_label": MODES[s["mode"]][0], "mode_icon": MODES[s["mode"]][1], "diff_label": DIFFS[s["diff"]],
         "theme_labels": [f"{qb.THEMES[t][1]} {qb.THEMES[t][0]}" for t in s["themes"]] or ["🎲 Tous les thèmes"],
-        "n": Q["n"], "server_now": now, "paused": bool(Q.get("paused")),
+        "n": Q["n"], "server_now": now, "paused": bool(Q.get("paused")), "token": token(g, gid),
         "board": [{"pid": p["pid"], "name": p["name"], "pts": sc["pts"], "ok": sc["ok"], "n": sc["n"], "streak": sc["streak"],
                    "best": sc["best"], "lives": sc["lives"], "out": sc["out"], "me": p["id"] == gid,
                    "level": Q["personal"].get(p["id"], {}).get("level"), "done": Q["personal"].get(p["id"], {}).get("done", False)}

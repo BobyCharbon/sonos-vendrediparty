@@ -393,6 +393,21 @@ def leave(g: dict, gid: str):
             _check_end(g)
 
 
+def handover(g: dict, actor: str, target: str):
+    """L'animateur passe la main à un autre joueur (qui a son téléphone), puis quitte la partie s'il y jouait.
+    Valable pour tous les jeux : la partie continue avec le nouvel animateur."""
+    p = player(g, target)
+    if not p or target == actor:
+        raise GameError("Choisis un autre joueur")
+    if p.get("manual") or p.get("pending"):
+        raise GameError("Choisis un joueur présent avec son téléphone")
+    g["host"], g["host_name"] = target, p["name"]
+    if actor in g.get("leads", []):
+        g["leads"].remove(actor)
+    if player(g, actor):
+        leave(g, actor)
+
+
 def kick(g: dict, gid: str):
     """L'animateur exclut un joueur : il ne peut plus revenir dans cette partie."""
     leave(g, gid)
@@ -2153,7 +2168,7 @@ def view(g: dict, gid: str) -> dict:
     out = {
         "id": g["id"], "code": g["code"], "type": g["type"], "name": GAMES[g["type"]], "phase": g["phase"],
         "mode": mode_label(g),
-        "round": g["round"], "players": players, "is_host": is_lead(g, gid), "master": master,
+        "round": g["round"], "players": players, "is_host": is_lead(g, gid), "is_owner": bool(gid) and gid == g["host"], "master": master,
         "host_name": g.get("host_name", ""),
         "order": [player(g, i)["name"] for i in g["order"] if player(g, i)] if g["type"] == "undercover" else [],
         "order_pids": [_pid(g, i) for i in g["order"] if player(g, i)] if g["type"] == "undercover" else [],

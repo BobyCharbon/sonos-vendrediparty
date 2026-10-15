@@ -1055,7 +1055,7 @@ class GameAction(BaseModel):
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
 HOST_ACTIONS = {"start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
-                "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset"}
+                "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover"}
 
 
 @app.post("/api/games/{code}")
@@ -1105,12 +1105,13 @@ def game_action(code: str, body: GameAction, request: Request):
         "paccept": (games.pyr_accept, target), "prefuse": (games.pyr_refuse, target),
         "bdraw": (games.bk_draw, actor, random), "bpick": (games.bk_complete, actor, target, body.guess, random),
         "btap": (games.bk_tap, actor), "bclose": (games.bk_close_reflex,),
-        "qset": (quiz.configure, body.settings), "qans": (quiz.answer, actor, body.amount, random),
+        "qset": (quiz.configure, body.settings), "qans": (quiz.answer, actor, body.amount, random, body.guess),
+        "handover": (games.handover, me, target),
         "qjoker": (quiz.joker, actor, body.guess, random), "qstop": (quiz.stop, actor),
         "qpause": (quiz.pause, actor, games.is_lead(g, me) or len(g["players"]) <= 1, random),
     }
     if g["type"] == "quiz" and a == "next":
-        actions["next"] = (quiz.next_step, random)
+        actions["next"] = (quiz.next_step, random, body.guess)
     if a not in actions:
         raise HTTPException(400, "Action inconnue")
     fn, *args = actions[a]
