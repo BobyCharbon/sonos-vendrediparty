@@ -755,7 +755,7 @@ function renderHud(g) {
     if (isBJ(g)) items.push(`<div class="hud-item"><span>🎁</span><b>${me.give || 0}</b><small>donnée${me.give > 1 ? "s" : ""}</small></div>`);
   }
   $("gameHud").innerHTML = items.join("");
-  $("gameHud").className = "g-hud " + (GAME_THEME[g.type] || "") + (items.length ? "" : " hidden");
+  $("gameHud").className = "g-hud " + (GAME_THEME[g.type] || "") + (items.length && g.phase !== "lobby" ? "" : " hidden");
 }
 const sipsBadge = (p) => p.drink || p.give ? ` <span class="artist">· 🍻 ${p.drink || 0}${p.give ? ` · 🎁 ${p.give}` : ""}</span>` : "";
 
