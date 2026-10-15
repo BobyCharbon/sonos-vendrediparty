@@ -1667,6 +1667,9 @@ def _bk_dice(g: dict, actor: str, red: bool, rng):
         _bk_out(g, "Rien ne se passe… cette fois 😏", head="Rien ne se passe 😏")
 
 
+BK_PAUSE = 5  # secondes pour que tout le monde lise le gage avant la carte suivante
+
+
 def bk_draw(g: dict, actor: str, rng: random.Random = random):
     """Le joueur dont c'est le tour tire une carte ; son effet dépend de sa valeur et de sa couleur."""
     B = g["bk"]
@@ -1679,10 +1682,13 @@ def bk_draw(g: dict, actor: str, rng: random.Random = random):
         raise GameError(f"{_bk_name(g, B['await']['gid'])} doit d'abord terminer son action")
     if B["reflex"] and not B["reflex"]["done"]:
         raise GameError("Attendez la fin du réflexe !")
+    if (wait := B.get("ready_at", 0) - time.time()) > 0:
+        raise GameError(f"Laisse tout le monde lire le gage ({int(wait) + 1} s)")
     if not B["deck"]:
         g["phase"] = "end"
         raise GameError("Le paquet est vide : fin de la partie")
     card = B["deck"].pop()
+    B["ready_at"] = time.time() + BK_PAUSE
     rank, red = card[0], card[1] in "HD"
     m = _bk_mult(g)
     B.update(card=card, key=f"{rank}-{'red' if red else 'black'}", drawer=cur, dice=None, reflex=None, duel=None, outcomes=[])
@@ -1786,6 +1792,7 @@ def bk_complete(g: dict, actor: str, target: str = "", text: str = "", rng: rand
         B["rules"].remove(r)
         _bk_out(g, f"Règle supprimée : « {r['text']} »")
     B["await"] = None
+    B["ready_at"] = time.time() + BK_PAUSE  # le résultat du choix aussi doit être lu
     B["n"] += 1
 
 
@@ -1814,6 +1821,7 @@ def _bk_close_reflex(g: dict, losers: list[str]):
     B, m = g["bk"], _bk_mult(g)
     r = B["reflex"]
     r.update(done=True, losers=losers)
+    B["ready_at"] = time.time() + BK_PAUSE
     if losers:
         who = ", ".join(_bk_name(g, x) for x in losers)
         _bk_out(g, f"Trop lent : {who} boi{'vent' if len(losers) > 1 else 't'} {m}", drink={x: m for x in losers},
@@ -1861,6 +1869,7 @@ def bk_view(g: dict, gid: str) -> dict:
                    "mate": any(x in m for m in B["mates"]), "manual": bool((player(g, x) or {}).get("manual"))} for x in B["order"]],
         "turn": pid(cur), "my_turn": cur == gid, "card": B["card"], "key": B["key"], "drawer": pid(B["drawer"]),
         "drawer_name": _bk_name(g, B["drawer"]) if B["drawer"] else None, "drawn": B["drawn"], "deck_left": len(B["deck"]),
+        "wait": max(0.0, B.get("ready_at", 0) - now),
         "kings": B["kings"], "outcomes": B["outcomes"], "rules": B["rules"],
         "mates": [[_bk_name(g, a), _bk_name(g, b)] for a, b in B["mates"]],
         "biskit": _bk_name(g, B["biskit"]), "qmaster": _bk_name(g, B["qmaster"]) if B["qmaster"] else None,

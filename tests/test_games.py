@@ -898,6 +898,7 @@ def biskit(n=3, sips=1):
 
 def draw(g, card, rng=None):
     g["bk"]["deck"].append(card)
+    g["bk"]["ready_at"] = 0  # pas de pause de lecture dans les tests
     cur = g["bk"]["order"][g["bk"]["turn"]]
     games.bk_draw(g, cur, rng or random.Random(0))
     return cur
@@ -966,3 +967,16 @@ def test_admin_has_animator_rights_in_every_game(admin):  # noqa: F811
     r = admin.post(f"/api/games/{g['code']}", json={"guest_id": "admin-rights-01", "action": "start"})
     assert r.status_code == 200 and r.json()["phase"] == "question"
     assert admin.post(f"/api/games/{g['code']}", json={"guest_id": "admin-rights-01", "action": "next"}).status_code == 200
+
+
+def test_biskit_pause_before_next_card():
+    """5 s pour lire le gage : la carte suivante est refusée avant, le serveur l'impose."""
+    g = biskit()
+    draw(g, "4S")  # 4 noir : rien de spécial à choisir
+    g["bk"]["ready_at"] = games.time.time() + games.BK_PAUSE
+    cur = g["bk"]["order"][g["bk"]["turn"]]
+    with pytest.raises(games.GameError, match="lire le gage"):
+        games.bk_draw(g, cur)
+    assert games.view(g, cur)["bk"]["wait"] > 4
+    g["bk"]["ready_at"] = 0
+    games.bk_draw(g, cur)

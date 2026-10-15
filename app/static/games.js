@@ -866,7 +866,7 @@ function pyCard(c, size = "", extra = "") {
   return `<span class="py-card ${"HD".includes(c[1]) ? "red" : ""} ${size}" ${extra}><b>${c[0] === "T" ? "10" : c[0]}</b><i>${SUITS[c[1]]}</i></span>`;
 }
 // Grande annonce animée, la même sur tous les téléphones (réponse, menteur, cul sec…).
-function pyrFlash(kind, title, sub = "", card = "") {
+function pyrFlash(kind, title, sub = "", card = "", ms = 2300) {
   document.querySelector(".py-flash")?.remove();
   const el = document.createElement("div");
   el.className = `py-flash py-${kind}`;
@@ -876,8 +876,8 @@ function pyrFlash(kind, title, sub = "", card = "") {
   el.addEventListener("click", () => el.remove());
   document.body.append(el);
   navigator.vibrate?.(kind === "bad" || kind === "liar" ? [200] : [60, 40, 60]);
-  setTimeout(() => el.classList.add("out"), 2300);
-  setTimeout(() => el.remove(), 2700);
+  setTimeout(() => el.classList.add("out"), ms);
+  setTimeout(() => el.remove(), ms + 400);
 }
 function pyrEvents(g) {
   const v = g.pyr;
@@ -1221,6 +1221,20 @@ function bkRulesHtml() {
     <p>Buvez avec modération : un verre d'eau compte aussi.</p>`;
 }
 
+// Bouton « Tirer » : bloqué quelques secondes après chaque carte, le temps que tout le monde lise le gage.
+function bkDrawBtn(cls, label, wait, who) {
+  const at = Date.now() + (wait || 0) * 1000;
+  return `<button class="${cls}" data-bk="draw" ${who ? `data-who="${esc(who)}"` : ""} data-ready-at="${at}" data-label="${esc(label)}"
+    ${wait > 0 ? "disabled" : ""}>${wait > 0 ? `⏳ Lis le gage… ${Math.ceil(wait)} s` : label}</button>`;
+}
+setInterval(() => {
+  document.querySelectorAll("[data-ready-at]").forEach((b) => {
+    const left = Number(b.dataset.readyAt) - Date.now();
+    if (left > 0) { b.disabled = true; b.textContent = `⏳ Lis le gage… ${Math.ceil(left / 1000)} s`; }
+    else if (b.disabled) { b.disabled = false; b.innerHTML = b.dataset.label; b.removeAttribute("data-ready-at"); navigator.vibrate?.(60); }
+  });
+}, 250);
+
 function bkHtml(g) {
   const v = g.bk, me = g.me, host = g.is_host;
   const seat = (pid) => v.seats?.find((s) => s.pid === pid);
@@ -1239,6 +1253,15 @@ function bkHtml(g) {
   const turnKey = `${v.drawn}-${v.turn}`;
   if (v.my_turn && bkSeen.turnBuzz !== turnKey && !v.await) { bkSeen.turnBuzz = turnKey; navigator.vibrate?.(100); }
   if (v.reflex && !v.reflex.done && bkSeen.reflex !== v.reflex.id) { bkSeen.reflex = v.reflex.id; navigator.vibrate?.([200, 80, 200]); }
+  // Nouvelle carte : le gage en plein écran sur tous les téléphones (pas en différé après un rechargement).
+  if (bkSeen.game !== g.id) { bkSeen.game = g.id; bkSeen.drawn = v.drawn; }
+  else if (v.drawn > (bkSeen.drawn || 0) && v.card && v.key) {
+    bkSeen.drawn = v.drawn;
+    const r = BK_RULES[v.key], o = v.outcomes.find((x) => typeof x === "object" && x.tone !== "info") || v.outcomes[0];
+    const head = o ? esc(typeof o === "string" ? o : o.head) : "";
+    pyrFlash(o?.tone === "give" ? "good" : o?.tone === "drink" || o?.tone === "all" ? "bad" : "summit",
+      `${r[0]} ${r[1]}`, `${me && v.drawer === me.pid ? "Ta carte" : `Carte de ${esc(v.drawer_name)}`}${head ? `<br><b class="bk-flash-who">${head}</b>` : ""}`, v.card, 4300);
+  }
   const fresh = v.event !== bkSeen.n;
   bkSeen.n = v.event;
   const cur = seat(v.turn);
@@ -1284,9 +1307,9 @@ function bkHtml(g) {
   let next = "";
   if (resolved) {
     next = v.my_turn ? `<div class="bk-now me"><div class="bk-now-k">C'est ton tour</div><div class="bk-now-t">À TOI !</div>
-        <button class="py-main" data-bk="draw">🃏 Tirer une carte</button></div>`
+        ${bkDrawBtn("py-main", "🃏 Tirer une carte", v.wait, "")}</div>`
       : `<div class="bk-now"><div class="bk-now-k">Au tour de</div><div class="bk-now-t">${esc(cur?.name || "…")}</div>
-        ${host && cur ? `<button class="py-sub" data-bk="draw" data-who="${esc(cur.pid)}">🃏 Tirer pour ${esc(cur.name)}</button>` : `<div class="artist">Attends qu'il ou elle tire…</div>`}</div>`;
+        ${host && cur ? bkDrawBtn("py-sub", `🃏 Tirer pour ${esc(cur.name)}`, v.wait, cur.pid) : `<div class="artist">Attends qu'il ou elle tire…</div>`}</div>`;
   }
   const mineCard = me && v.drawer === me.pid;
   const last = v.card ? `<section class="bk-last ${resolved ? "past" : "live"}">
@@ -1301,7 +1324,7 @@ function bkHtml(g) {
     <div class="py-seat ${s.pid === v.turn && g.phase === "play" ? "on" : ""} ${s.pid === me?.pid ? "me" : ""}">
       <div class="py-seat-name">${esc(s.name)}${s.manual ? " ✍️" : ""}${s.biskit ? " 🍪" : ""}${s.qmaster ? " 🤐" : ""}${s.thumb ? " 👍" : ""}${s.mate ? " 🤝" : ""}</div>
       <span class="artist">🍻 ${s.drink} · 🎁 ${s.give}</span></div>`).join("")}</div>`;
-  return `<div class="py-body">${status}${end}${last}${next}${rules}</div>`;
+  return `<div class="py-body">${status}${end}${next}${last}${rules}</div>`;
 }
 document.addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-bk]");
