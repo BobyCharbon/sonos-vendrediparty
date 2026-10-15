@@ -58,7 +58,7 @@
     </label>
 
     <h2>Ajouter un titre</h2>
-    <input id="q" type="search" placeholder="Titre, artiste…" autocomplete="off" enterkeyhint="search">
+    <input id="q" type="search" placeholder="Titre, artiste… ou colle un lien (Spotify, Deezer, YouTube)" autocomplete="off" enterkeyhint="search">
     <div id="results" class="list" style="margin-top:8px"></div>
 
     <h2>À venir <span id="count"></span></h2>
@@ -317,7 +317,7 @@ $("q").addEventListener("input", () => {
       lastResults = await api("/api/search?q=" + encodeURIComponent(q));
       if ($("q").value.trim() !== q) return;
       $("results").innerHTML = lastResults.length
-        ? lastResults.map((t, i) => trackHtml({ ...t, artist: t.artist + (t.explicit ? " · 🅴" : "") }, `<button data-i="${i}">+</button>`)).join("")
+        ? lastResults.map((t, i) => trackHtml({ ...t, artist: t.artist + (t.explicit ? " · 🅴" : "") + (t.via ? ` · 🔗 ${t.via}` : "") }, `<button data-i="${i}">+</button>`)).join("")
         : `<p class="empty">Aucun résultat</p>`;
     } catch (e) { toast(e.message, "err"); }
   }, 350);

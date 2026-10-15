@@ -76,7 +76,7 @@
         </div>
 
         <h2>Ajouter un titre</h2>
-        <input id="addQ" type="search" placeholder="Titre, artiste…" autocomplete="off" enterkeyhint="search">
+        <input id="addQ" type="search" placeholder="Titre, artiste… ou colle un lien (Spotify, Deezer, YouTube)" autocomplete="off" enterkeyhint="search">
         <div id="addResults" class="list" style="margin-top:8px"></div>
 
         <h2>File d'attente <span id="queueCount"></span></h2>
@@ -598,7 +598,7 @@ $("addQ").addEventListener("input", () => {
       $("addResults").innerHTML = addResults.length ? addResults.map((t, i) => `
         <div class="track">
           ${t.image ? `<img src="${esc(t.image)}" alt="" loading="lazy">` : `<img alt="">`}
-          <div class="meta"><div class="title">${esc(t.title)}</div><div class="artist">${esc(t.artist)}${t.explicit ? " · 🅴" : ""}</div></div>
+          <div class="meta"><div class="title">${esc(t.title)}</div><div class="artist">${esc(t.artist)}${t.explicit ? " · 🅴" : ""}${t.via ? ` · 🔗 ${esc(t.via)}` : ""}</div></div>
           <div class="icon-btns">
             <button data-add="next" data-i="${i}" title="Jouer ensuite">⏫</button>
             <button class="secondary" data-add="end" data-i="${i}" title="À la suite des demandes">＋</button>

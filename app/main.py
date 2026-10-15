@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, RedirectResponse, Response, Streamin
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import games
+from . import games, links
 from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
 from .push import Push, valid_subscription
 from .security import Limiter
@@ -662,12 +662,30 @@ def guest_url() -> str:
     return PUBLIC_URL + "/"
 
 
-@app.get("/api/admin/search", dependencies=[Depends(require_admin)])
-def admin_search(q: str):
+_link_http = httpx.Client(timeout=8)
+
+
+def search_or_link(q: str) -> list[dict]:
+    """Recherche Spotify, ou lien collé (Spotify, Deezer, YouTube, Apple Music) → le titre sur Spotify."""
     if spotify is None:
         raise HTTPException(503, "Recherche Spotify non configurée")
+    try:
+        found = links.resolve(q.strip()[:500], spotify, _link_http)
+    except links.LinkError as e:
+        raise HTTPException(400, str(e))
+    except (httpx.HTTPError, KeyError, ValueError):
+        raise HTTPException(502, "Impossible de lire ce lien pour le moment")
+    if found is not None:
+        if not found["tracks"]:
+            raise HTTPException(404, f"Titre introuvable sur Spotify ({found['via']})")
+        return [{**t, "via": found["via"]} for t in found["tracks"]]
     q = q.strip()[:100]
     return spotify.search(q) if len(q) >= 2 else []
+
+
+@app.get("/api/admin/search", dependencies=[Depends(require_admin)])
+def admin_search(q: str):
+    return search_or_link(q)
 
 
 class AdminAdd(BaseModel):
@@ -1179,12 +1197,7 @@ def state(request: Request, guest_id: str = ""):
 @app.get("/api/search", dependencies=[Depends(require_guest)])
 def search(q: str):
     require_active()
-    if spotify is None:
-        raise HTTPException(503, "Recherche Spotify non configurée")
-    q = q.strip()[:100]
-    if len(q) < 2:
-        return []
-    return spotify.search(q)
+    return search_or_link(q)
 
 
 GUEST_ID_RE = re.compile(r"^[A-Za-z0-9-]{8,64}$")
