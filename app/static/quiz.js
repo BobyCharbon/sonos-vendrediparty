@@ -32,7 +32,18 @@ const QZ_MODE_DESC = {
 const QZ_FLAG = /([\u{1F1E6}-\u{1F1FF}]{2})/gu;
 const qzText = (t) => esc(t).replace(QZ_FLAG, '<span class="qz-flag">$1</span>');
 const fmtPts = (n) => Number(n || 0).toLocaleString("fr-CH").replace(/[’']/g, " ");
-let qzSeen = { key: "", end: "" }, qzTimer = null, qzRefreshAt = 0;
+let qzSeen = { key: "", end: "" }, qzTimer = null, qzRefreshAt = 0, qzAnimKey = "";
+// Signature de ce qui s'affiche, sans les compteurs de temps (qui changent à chaque requête).
+const QZ_TIME_KEYS = new Set(["left", "next_in", "deadline_in", "server_now", "age", "elapsed"]);
+function quizSig(g) {
+  return JSON.stringify([g.phase, g.is_host, g.me?.pid, g.players.map((p) => p.name + p.pid), pyrFull,
+    JSON.stringify(g.quiz, (k, v) => (QZ_TIME_KEYS.has(k) ? undefined : v))]);
+}
+// Les animations d'entrée ne se jouent qu'à l'arrivée d'une nouvelle question, d'une révélation ou d'un nouvel écran.
+function quizAnimKey(g) {
+  const v = g.quiz;
+  return [g.id, g.phase, v.n, v.q?.text || "", v.me?.q?.text || "", v.me?.done || false].join("|");
+}
 
 // --- Lobby : réglages (animateur) et classement général ---
 function qzSettingsHtml(g) {
@@ -207,7 +218,7 @@ function qzEndHtml(g) {
 let qzCatalog = null;
 
 // Après le rendu : chronomètres, rafraîchissement à la fin du temps, annonces plein écran.
-function quizAfter(g) {
+function quizAfter(g, fresh = true) {
   const v = g.quiz;
   if (v.catalog) qzCatalog = v.catalog;
   clearInterval(qzTimer);
@@ -217,7 +228,7 @@ function quizAfter(g) {
   if (g.phase === "run" && v.me?.q && v.settings.mode === "ladder") bars.push(["qzBar", v.me.q.left, v.me.q.dur]);
   if (g.phase === "run" && v.settings.mode === "chrono") bars.push(["qzChronoBar", v.deadline_in || 0, v.settings.chrono]);
   // La barre se vide en continu (transition CSS), le nombre se met à jour chaque seconde.
-  requestAnimationFrame(() => bars.forEach(([id, left]) => {
+  if (fresh) requestAnimationFrame(() => bars.forEach(([id, left]) => {
     const el = $(id);
     if (el) { el.style.transitionDuration = left + "s"; el.style.width = "0%"; }
   }));

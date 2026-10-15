@@ -668,8 +668,16 @@ function renderGame(g) {
     // Jeu réduit : un bandeau pour revenir dedans.
     $("game").innerHTML = `<button class="py-main" data-pyr="enter">⛶ Reprendre ${esc(g.name)} en plein écran</button>`;
   } else if (g.type === "quiz") {
-    $("game").innerHTML = lobbyInvite(g) + quizHtml(g);
-    quizAfter(g);
+    // Pas de nouveau rendu (ni d'animation) si rien n'a changé : sinon l'écran « flashe » à chaque rafraîchissement.
+    const sig = quizSig(g), el = $("game");
+    const fresh = el.dataset.qzSig !== sig || !el.querySelector(".qz-root");
+    if (fresh) {
+      const key = quizAnimKey(g);
+      el.innerHTML = lobbyInvite(g) + `<div class="qz-root ${key !== qzAnimKey ? "anim" : ""}">${quizHtml(g)}</div>`;
+      el.dataset.qzSig = sig;
+      qzAnimKey = key;
+    }
+    quizAfter(g, fresh);
   } else if (g.type === "pyramid" || g.type === "biskit") {
     $("game").innerHTML = lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g));
     if (g.type === "pyramid") pyrWheel(g);

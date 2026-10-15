@@ -895,7 +895,8 @@ body.pyr-full #game.g-qz { background: transparent; border: 0; padding: 0; box-s
 .qz-sec { position: absolute; right: 8px; top: -1px; font: 800 .7rem/16px system-ui; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
 @keyframes qz-pulse { to { box-shadow: 0 0 14px rgba(255,79,109,.7), inset 0 2px 4px rgba(0,0,0,.4); } }
 .qz-qcard { padding: 18px 16px; border-radius: 24px; margin-bottom: 12px; text-align: center; background: linear-gradient(170deg, #ffffff, #e9e6ff); color: #171a3d;
-  box-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 -3px 0 rgba(0,0,0,.08); animation: qz-in .45s cubic-bezier(.2,.9,.3,1.2); }
+  box-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 -3px 0 rgba(0,0,0,.08); }
+.qz-root.anim .qz-qcard { animation: qz-in .45s cubic-bezier(.2,.9,.3,1.2); }
 .qz-qmeta { display: flex; justify-content: space-between; font-size: .78rem; font-weight: 700; color: #6b67a3; margin-bottom: 8px; }
 .qz-stars { color: #f0a500; letter-spacing: 1px; }
 .qz-qtext { font: 800 clamp(1.25rem, 6vw, 1.75rem)/1.2 "Bricolage Grotesque", system-ui, sans-serif; }
@@ -905,9 +906,10 @@ body.pyr-full #game.g-qz { background: transparent; border: 0; padding: 0; box-s
 .qz-answers.long { grid-template-columns: 1fr; }
 .qz-ans { position: relative; display: flex; align-items: center; gap: 10px; min-height: 76px; padding: 12px; border: 0; border-radius: 18px; color: #fff; text-align: left;
   font: 700 1rem/1.2 system-ui, sans-serif; box-shadow: 0 6px 0 rgba(0,0,0,.28), 0 14px 24px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.25);
-  transition: transform .12s, box-shadow .12s, opacity .25s, filter .25s; animation: qz-pop .35s ease-out backwards; }
+  transition: transform .12s, box-shadow .12s, opacity .25s, filter .25s; }
+.qz-root.anim .qz-ans { animation: qz-pop .35s ease-out backwards; }
 .qz-answers.long .qz-ans { min-height: 58px; }
-.qz-ans:nth-child(2) { animation-delay: .05s; } .qz-ans:nth-child(3) { animation-delay: .1s; } .qz-ans:nth-child(4) { animation-delay: .15s; }
+.qz-root.anim .qz-ans:nth-child(2) { animation-delay: .05s; } .qz-root.anim .qz-ans:nth-child(3) { animation-delay: .1s; } .qz-root.anim .qz-ans:nth-child(4) { animation-delay: .15s; }
 @keyframes qz-pop { from { opacity: 0; transform: scale(.85) translateY(10px); } }
 .qz-ans:not(:disabled):active { transform: translateY(5px); box-shadow: 0 1px 0 rgba(0,0,0,.28), 0 6px 12px rgba(0,0,0,.35); }
 .qz-ans:disabled { cursor: default; }
@@ -920,11 +922,13 @@ body.pyr-full #game.g-qz { background: transparent; border: 0; padding: 0; box-s
 .qz-d { background: linear-gradient(160deg, #3ed37a, #1c8f48); }
 .qz-ans.dim { opacity: .35; filter: saturate(.4); }
 .qz-ans.picked { box-shadow: 0 0 0 4px #fff, 0 14px 30px rgba(0,0,0,.45); transform: scale(1.03); }
-.qz-ans.right { opacity: 1; filter: none; box-shadow: 0 0 0 4px #fff, 0 0 28px rgba(62,211,122,.9); animation: qz-right .6s ease-out; }
-.qz-ans.right::after { content: "✓"; position: absolute; top: -10px; right: -8px; width: 30px; height: 30px; border-radius: 50%; background: #fff; color: #1c8f48;
+.qz-ans.right { opacity: 1; filter: none; outline: 5px solid #2fe07a; outline-offset: 3px; box-shadow: 0 0 26px rgba(47,224,122,.85), 0 14px 24px rgba(0,0,0,.35); }
+.qz-root.anim .qz-ans.right { animation: qz-right .6s ease-out; }
+.qz-ans.right::after { content: "✓"; position: absolute; top: -10px; right: -8px; width: 30px; height: 30px; border-radius: 50%; background: #2fe07a; color: #fff;
   display: grid; place-items: center; font-weight: 900; box-shadow: 0 4px 10px rgba(0,0,0,.4); }
-.qz-ans.wrong { opacity: .9; filter: grayscale(.2); animation: qz-shake .45s; }
-.qz-ans.wrong::after { content: "✗"; position: absolute; top: -10px; right: -8px; width: 30px; height: 30px; border-radius: 50%; background: #fff; color: #d4163a;
+.qz-ans.wrong { opacity: 1; filter: none; outline: 5px solid #ff3b5c; outline-offset: 3px; box-shadow: 0 0 26px rgba(255,59,92,.85), 0 14px 24px rgba(0,0,0,.35); }
+.qz-root.anim .qz-ans.wrong { animation: qz-shake .45s; }
+.qz-ans.wrong::after { content: "✗"; position: absolute; top: -10px; right: -8px; width: 30px; height: 30px; border-radius: 50%; background: #ff3b5c; color: #fff;
   display: grid; place-items: center; font-weight: 900; box-shadow: 0 4px 10px rgba(0,0,0,.4); }
 .qz-ans.cut { visibility: hidden; }
 @keyframes qz-right { 0% { transform: scale(1); } 40% { transform: scale(1.08); } 100% { transform: scale(1); } }
@@ -933,13 +937,15 @@ body.pyr-full #game.g-qz { background: transparent; border: 0; padding: 0; box-s
 .qz-status.ok { background: rgba(62,211,122,.18); color: #b6ffd2; }
 .qz-status.bad, .qz-status.out { background: rgba(255,84,112,.18); color: #ffc2cc; }
 .qz-verdict { margin-bottom: 10px; padding: 14px; border-radius: 18px; text-align: center; font: 800 1.35rem "Bricolage Grotesque", system-ui, sans-serif;
-  animation: qz-in .4s ease-out; box-shadow: 0 12px 28px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.2); }
+  box-shadow: 0 12px 28px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.2); }
+.qz-root.anim .qz-verdict { animation: qz-in .4s ease-out; }
 .qz-verdict.ok { background: linear-gradient(160deg, #3ed37a, #148a45); }
 .qz-verdict.bad { background: linear-gradient(160deg, #ff5470, #b3123a); }
 .qz-speedwin { margin-bottom: 10px; text-align: center; color: #ffe27a; font-weight: 700; }
 .qz-mini { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
 .qz-mini-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 14px; background: rgba(255,255,255,.06);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.05); animation: py-in .35s ease-out backwards; }
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
+.qz-root.anim .qz-mini-row { animation: py-in .35s ease-out backwards; }
 .qz-mini-row b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qz-mini-row small { color: #a9a4d8; }
 .qz-mini-row.me { background: rgba(124,92,255,.28); box-shadow: 0 0 0 1px rgba(255,255,255,.25); }
@@ -972,7 +978,8 @@ body.pyr-full #game.g-qz { background: transparent; border: 0; padding: 0; box-s
 /* Fin */
 .qz-end-t { text-align: center; font: 800 1.6rem "Bricolage Grotesque", system-ui, sans-serif; margin: 4px 0 14px; text-shadow: 0 4px 16px rgba(124,92,255,.6); }
 .qz-podium { display: grid; grid-template-columns: repeat(3, 1fr); align-items: end; gap: 8px; margin-bottom: 8px; }
-.qz-pod { text-align: center; animation: qz-rise .7s cubic-bezier(.2,.9,.3,1.2) backwards; }
+.qz-pod { text-align: center; }
+.qz-root.anim .qz-pod { animation: qz-rise .7s cubic-bezier(.2,.9,.3,1.2) backwards; }
 .qz-pod.p1 { animation-delay: .5s; } .qz-pod.p2 { animation-delay: .25s; }
 .qz-pod-name { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .qz-pod-pts { font-size: .8rem; color: #ffd84d; margin-bottom: 6px; }
@@ -983,7 +990,8 @@ body.pyr-full #game.g-qz { background: transparent; border: 0; padding: 0; box-s
 .qz-pod.p3 .qz-pod-step { height: 64px; background: linear-gradient(180deg, #f0b27a, #9a5420); }
 @keyframes qz-rise { from { opacity: 0; transform: translateY(40px); } }
 .qz-solo { text-align: center; padding: 22px; border-radius: 24px; margin-bottom: 12px; background: linear-gradient(135deg, #3b2bd1, #9b5cff);
-  box-shadow: 0 18px 40px rgba(60,40,200,.5), inset 0 1px 0 rgba(255,255,255,.25); animation: qz-in .5s ease-out; }
+  box-shadow: 0 18px 40px rgba(60,40,200,.5), inset 0 1px 0 rgba(255,255,255,.25); }
+.qz-root.anim .qz-solo { animation: qz-in .5s ease-out; }
 .qz-solo-k { font: 800 .8rem system-ui; letter-spacing: .16em; text-transform: uppercase; opacity: .85; }
 .qz-solo-v { font: 800 clamp(2.4rem, 12vw, 3.4rem)/1.1 "Bricolage Grotesque", system-ui, sans-serif; margin: 6px 0; }
 .qz-solo .artist { color: rgba(255,255,255,.85); }
