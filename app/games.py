@@ -1083,7 +1083,7 @@ def pyr_max_players(floors: int) -> int:
 
 
 def pyr_value(card: str) -> int:
-    return PYR_RANKS.index(card[0]) + 1  # l'As vaut 1
+    return "23456789TJQKA".index(card[0]) + 2  # l'As est la carte la plus forte (au-dessus du Roi)
 
 
 def pyr_floor(floors: int, index: int) -> int:
@@ -1109,6 +1109,11 @@ def _pyr_check(step: int, value: str, previous: list[str], card: str) -> bool:
         lo, hi = sorted(pyr_value(c) for c in previous[:2])
         return lo < v < hi if value == "dedans" else (v < lo or v > hi)  # sur le poteau : raté
     return card[1] == value
+
+
+def pyr_step_sips(g: dict, step: int) -> int:
+    """Distribution : mode hard = 1, 2, 3 puis 4 gorgées ; mode soft = 1 gorgée à chaque carte."""
+    return step if g["options"].get("pmode", "hard") == "hard" else 1
 
 
 def _pyr_event(P: dict) -> int:
@@ -1147,8 +1152,9 @@ def pyr_answer(g: dict, actor: str, value: str):
     card = P["deck"].pop()
     ok = _pyr_check(step, value, hand, card)
     hand.append(card)
-    add_sips(g, cur, drink=0 if ok else step, give=step if ok else 0)
-    P["last"] = {"n": _pyr_event(P), "gid": cur, "step": step, "value": value, "card": card, "ok": ok, "sips": step}
+    sips = pyr_step_sips(g, step)
+    add_sips(g, cur, drink=0 if ok else sips, give=sips if ok else 0)
+    P["last"] = {"n": _pyr_event(P), "gid": cur, "step": step, "value": value, "card": card, "ok": ok, "sips": sips}
     P["turn"] += 1
     if P["turn"] >= len(P["order"]):
         P["turn"] = 0
@@ -1281,7 +1287,8 @@ def pyr_results(g: dict):
     worst = max(P["errors"].values(), default=0)
     cands = [gid for gid in P["order"] if P["errors"][gid] == worst]
     P["candidates"] = cands + [gid for gid in P["liars"] if gid not in cands and gid in P["order"]]
-    g["phase"] = "memres"
+    # Sans bateau, la partie s'arrête sur les résultats du test de mémoire.
+    g["phase"] = "memres" if g["options"].get("boat", True) else "end"
     _pyr_event(P)
 
 
@@ -1299,10 +1306,13 @@ def pyr_pick_boat(g: dict, rng):
     _pyr_event(P)
 
 
-def pyr_boat_start(g: dict):
+def pyr_boat_start(g: dict, rng: random.Random = random):
     P = g["pyr"]
     if g["phase"] != "boatpick":
         raise GameError("Pas le moment")
+    # Le bateau repart avec un paquet complet, bien mélangé.
+    P["deck"] = [r + s for r in PYR_RANKS for s in PYR_SUITS]
+    rng.shuffle(P["deck"])
     P["bstate"] = {"step": 1, "cards": [], "sips": 0, "last": None, "result": None, "tries": 1}
     g["phase"] = "boat"
     _pyr_event(P)
@@ -1358,7 +1368,8 @@ def pyr_view(g: dict, gid: str) -> dict:
     P = g.get("pyr") or {}
     if not P:
         floors = g["options"].get("floors", 5)
-        return {"floors": floors, "size": pyr_size(floors), "max_players": pyr_max_players(floors)}
+        return {"floors": floors, "size": pyr_size(floors), "max_players": pyr_max_players(floors),
+                "hard": g["options"].get("pmode", "hard") == "hard", "boat_on": g["options"].get("boat", True)}
     now = time.time()
     name = lambda x: (player(g, x) or {}).get("name", "?")
     pid = lambda x: (player(g, x) or {}).get("pid")
@@ -1388,7 +1399,8 @@ def pyr_view(g: dict, gid: str) -> dict:
         "pyramid": [c if i < P["flipped"] else "??" for i, c in enumerate(P["pyramid"])],
         "current": cur_card, "floor": floor, "is_top": bool(top), "deck_left": len(P["deck"]),
         "seats": seats, "turn": pid(P["order"][P["turn"]]) if g["phase"] == "deal" and P["order"] else None,
-        "step": P["step"], "event": P["n"],
+        "step": P["step"], "event": P["n"], "step_sips": pyr_step_sips(g, min(P["step"], 4)),
+        "hard": g["options"].get("pmode", "hard") == "hard", "boat_on": g["options"].get("boat", True),
         "last": {**last, "pid": pid(last["gid"]), "name": name(last["gid"]), "gid": None} if last else None,
         "claims": [{"id": c["id"], "pid": pid(c["gid"]), "name": name(c["gid"]), "sips": c["sips"], "status": c["status"],
                     "mine": c["gid"] == gid} for c in P["claims"]],

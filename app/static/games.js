@@ -95,7 +95,7 @@ const GAME_RULES = {
       <li><b>Dedans ou dehors</b> : entre tes 2 premières cartes, ou à l'extérieur ?</li>
       <li><b>Quel symbole</b> : ♠ ♥ ♦ ♣ ?</li>
     </ol>
-    <p>Raté : tu bois 1, 2, 3 puis 4 gorgées selon le tour. Réussi : tu en distribues autant. Une égalité (même valeur, ou carte « sur le poteau ») compte comme ratée. L'As vaut 1. Ensuite, toutes les mains se retournent : <b>plus personne ne voit ses cartes</b>.</p>
+    <p>Raté : tu bois ; réussi : tu distribues. En mode <b>soft</b>, 1 gorgée à chaque carte ; en mode <b>hard</b>, 1, 2, 3 puis 4 gorgées selon le tour. Une égalité (même valeur, ou carte « sur le poteau ») compte comme ratée. <b>L'As est la carte la plus forte.</b> Ensuite, toutes les mains se retournent : <b>plus personne ne voit ses cartes</b>.</p>
     <h3>2. La pyramide</h3>
     <ul>
       <li>L'animateur retourne les cartes une par une, de la base vers le sommet. Étage 1 : 1 gorgée, étage 2 : 2 gorgées…</li>
@@ -107,7 +107,7 @@ const GAME_RULES = {
     <h3>3. Le test de mémoire</h3>
     <p>Chacun tape les valeurs de ses 4 cartes, de gauche à droite. L'app retourne les vraies cartes et compte les erreurs.</p>
     <h3>4. Le bateau</h3>
-    <p>Celui qui a fait le plus d'erreurs fait le bateau (égalité, ou menteurs au sommet : la roulette décide). Il refait les 4 questions avec le reste du paquet : à chaque erreur, 1 gorgée et retour au début. Ça s'arrête quand il réussit les 4 d'affilée… ou quand le paquet est vide.</p>
+    <p>Si l'animateur a gardé le bateau : celui qui a fait le plus d'erreurs le fait (égalité, ou menteurs au sommet : la roulette décide). Il refait les 4 questions avec <b>un paquet neuf</b> : à chaque erreur, 1 gorgée et retour au début. Ça s'arrête quand il réussit les 4 d'affilée… ou quand le paquet est vide.</p>
     <h3>L'animateur</h3>
     <p>Il distribue, retourne les cartes, valide « bu » ou « menteur », accepte les demandes pour revoir ses cartes, lance le test de mémoire et le bateau. Il peut répondre à la place d'un joueur (participant sans téléphone, ou qui a laissé son téléphone).</p>
     <p>Buvez avec modération : un verre d'eau compte aussi.</p>`,
@@ -347,6 +347,11 @@ document.getElementById("gamesRoot").innerHTML = `
         </div>
         <p class="g-desc">Rouge ou noir, plus ou moins, dedans ou dehors, symbole : 4 cartes chacun, puis on les retourne face cachée. La pyramide se dévoile, on donne des gorgées (bluff permis !), cul sec au sommet… et celui qui a la pire mémoire fait le bateau.</p>
         <div class="g-chips"><span>2+ joueurs, même table</span><span>Plein écran</span><span>Bluff</span></div>
+        <div class="g-label">Gorgées à la distribution</div>
+        <div class="g-modes" data-opt-group="pmode">
+          <button type="button" data-val="soft" class="on">😇 Soft · 1 par carte</button><button type="button" data-val="hard">🔥 Hard · 1, 2, 3, 4</button>
+        </div>
+        <label class="g-opt"><span>🚢 Avec le bateau <small>pour celui qui a la pire mémoire</small></span><input type="checkbox" class="switch" data-opt="boat" checked></label>
         <div class="g-opt"><span>Étages de la pyramide <small>5 étages : 9 joueurs max · 8 étages : 4 joueurs max</small></span>
           <div class="g-stepper" data-opt-group="floors"><button type="button" data-step="-1" aria-label="Moins">−</button><b data-val-out>5</b><button type="button" data-step="1" aria-label="Plus">+</button></div>
         </div>
@@ -904,6 +909,7 @@ function pyrHtml(g) {
   let body = "";
   if (g.phase === "lobby") {
     body = `<div class="py-hero"><div class="py-hero-k">🔺 Pyramide</div><div class="py-hero-t">${v.floors} étages · ${v.size} cartes</div>
+      <div class="artist">${v.hard ? "🔥 Hard : 1, 2, 3, 4 gorgées" : "😇 Soft : 1 gorgée par carte"} · ${v.boat_on ? "avec le bateau 🚢" : "sans bateau"}</div>
       <div class="artist">${g.players.length} joueur${g.players.length > 1 ? "s" : ""} · ${v.max_players} au plus (un seul paquet)</div></div>
       ${host ? `<button class="py-main" data-gact="start" ${g.players.length < 2 || g.players.length > v.max_players ? "disabled" : ""}>▶︎ Distribuer les cartes</button>`
         : `<div class="py-wait">${me ? "Tu es à la table ✓ L'animateur va distribuer…" : ""}</div>`}
@@ -916,7 +922,7 @@ function pyrHtml(g) {
     body = `<div class="py-steps">${[1, 2, 3, 4].map((i) => `<span class="${i < v.step ? "done" : i === v.step ? "on" : ""}">${i}</span>`).join("<i></i>")}</div>
       <div class="py-turn ${mine ? "me" : ""}"><div class="py-turn-k">${mine ? "C'est ton tour" : "C'est au tour de"}</div>
         <div class="py-turn-name">${mine ? "À TOI !" : esc(cur?.name || "…")}</div></div>
-      <div class="py-stake">Raté : bois <b>${sipWord(v.step)}</b> · Réussi : distribue <b>${v.step}</b></div>
+      <div class="py-stake">Raté : bois <b>${sipWord(v.step_sips)}</b> · Réussi : distribue <b>${v.step_sips}</b></div>
       ${canAct ? pyrQuestion(g, v.step, ref, mine ? "" : cur.pid, "pans") + (mine ? "" : `<div class="py-proxy">Tu réponds pour ${esc(cur.name)}${cur.manual ? " (sans téléphone)" : ""}</div>`)
         : `<div class="py-q">${PYR_Q[v.step].q}</div>${ref.length ? `<div class="py-ref">${ref.map((c) => pyCard(c, "md")).join("")}<span class="py-card ghost md"><b>?</b></span></div>` : ""}
            <div class="py-wait">${esc(cur?.name)} réfléchit…</div>`}
@@ -937,6 +943,11 @@ function pyrHtml(g) {
       ${sp ? `<div class="wheel-wrap py-wheel"><div class="wheel-pointer" aria-hidden="true"></div><svg id="pyrWheel" viewBox="-100 -100 200 200" role="img" aria-label="Roue">${wheelSvg(sp.names)}</svg></div>` : ""}
       <div class="py-boat-name ${shown ? "show" : ""}">${shown ? `${esc(v.boat.name)} fait le bateau !` : ""}</div>
       ${host && shown ? `<button class="py-main" data-gact="pboatgo">⛵ Lancer le bateau</button>` : ""}`;
+  } else if (g.phase === "end" && !v.boat) {
+    body = `<div class="py-hero"><div class="py-hero-k">🏁 Partie terminée</div><div class="py-hero-t">Les vraies cartes</div>
+      <div class="artist">Pire mémoire : ${v.candidates.map((c) => esc(c.name)).join(", ") || "personne"}</div></div>
+      ${pyrSeats(g, { memory: true })}
+      ${g.is_host ? `<button class="py-main" data-gact="restart">🔁 Rejouer avec les mêmes joueurs</button>` : ""}`;
   } else if (g.phase === "boat" || g.phase === "end") {
     body = pyrBoat(g);
   }
@@ -1695,6 +1706,8 @@ document.addEventListener("click", async (ev) => {
       // Blackjack : gorgées seulement si « Alcool » est coché.
       cats: [...card.querySelectorAll("[data-opt-group=cats] .on")].map((x) => x.dataset.val),
       floors: +(card.querySelector("[data-opt-group=floors] [data-val-out]")?.textContent || 5),
+      pmode: card.querySelector("[data-opt-group=pmode] .on")?.dataset.val || "soft",
+      boat: card.querySelector("[data-opt=boat]")?.checked ?? true,
       sips: card.querySelector("[data-opt=alcohol]") && !card.querySelector("[data-opt=alcohol]").checked ? 0
         : +(card.querySelector("[data-opt-group=sips] [data-val-out]")?.textContent || 0) });
     setGame(g.code); renderGame(g);
@@ -1716,6 +1729,8 @@ function rulesFor(type, g) {
   if (g.mode) facts.push(`Questions : <b>${esc(g.mode)}</b>`);
   if (type === "undercover") facts.push(g.options?.white ? "Avec <b>Mr. White</b> (dès 5 joueurs)" : "<b>Sans</b> Mr. White");
   if (type === "blackjack") facts.push(sips ? `Mode <b>gorgées</b> · mise de 1 à <b>${sipWord(sips)}</b>` : "Mode <b>jetons</b> · 100 jetons au départ");
+  if (type === "pyramid") facts.push(`${g.pyr?.floors || g.options?.floors || 5} étages`,
+    g.pyr?.hard ? "Mode <b>hard</b> : 1, 2, 3, 4 gorgées" : "Mode <b>soft</b> : 1 gorgée par carte", g.pyr?.boat_on ? "<b>Avec</b> le bateau" : "<b>Sans</b> bateau");
   if (type === "casino") facts.push(sips ? `Mode <b>gorgées</b> · jusqu'à <b>${sipWord(sips)}</b> misées par tour` : "Mode <b>jetons</b> · 100 jetons au départ");
   else if (type === "whoof" || type === "never") facts.push(sips ? `<b>${sipWord(sips)}</b> ${type === "whoof" ? "pour la personne désignée" : "pour ceux qui l'ont fait"}` : "<b>Sans alcool</b>");
   facts.push(`Animée par <b>${esc(g.host_name || "?")}</b> · code <b>${esc(g.code)}</b>`);
@@ -1764,6 +1779,8 @@ document.addEventListener("click", (ev) => {
     if (cat === couple && cat.classList.contains("on")) on.forEach((b) => b !== cat && b.classList.remove("on"));
     else if (cat !== couple && cat.classList.contains("on")) couple?.classList.remove("on");
   }
+  const pm = ev.target.closest("[data-opt-group=pmode] [data-val]");
+  if (pm) pm.parentElement.querySelectorAll("[data-val]").forEach((x) => x.classList.toggle("on", x === pm));
   const opt = ev.target.closest("[data-opt-group=mode] [data-val]");
   if (opt) opt.parentElement.querySelectorAll("[data-val]").forEach((b) => b.classList.toggle("on", b === opt));
   const fl = ev.target.closest("[data-opt-group=floors] [data-step]");

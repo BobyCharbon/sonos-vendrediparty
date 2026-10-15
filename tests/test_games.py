@@ -676,7 +676,7 @@ def test_pyramid_deal_rules_and_hidden_hands():
     assert P["last"]["ok"] and games.view(g, "p1")["me"]["give"] == 0
     games.pyr_answer(g, "p1", "red")       # 2S noir : raté, boit 1
     assert games.view(g, "p1")["me"]["drink"] == 1
-    games.pyr_answer(g, "p0", "plus")      # 8H > A
+    games.pyr_answer(g, "p0", "moins")     # 8H < A (l'As est la plus forte)
     games.pyr_answer(g, "p1", "moins")     # QC > 2 : raté
     games.pyr_answer(g, "p0", "dedans")    # 5C entre 1 et 8
     games.pyr_answer(g, "p1", "dedans")    # 9H entre 2 et 12
@@ -744,7 +744,7 @@ def test_pyramid_top_memory_roulette_and_boat():
     assert g["phase"] == "boatpick"
     games.pyr_boat_start(g)
     boat = P["boat"]
-    P["deck"] = ["KS", "2H", "9D", "8S", "AH"]  # AH rouge ✓, 8S plus ✓, 9D dehors? 1..8 → 9 dehors ✓, 2H…
+    P["deck"] = ["KS", "3C", "9D", "8S", "2H"]  # 2H rouge ✓, 8S plus ✓, 9D dehors ✓, 3C pas pique ✗
     games.pyr_boat_answer(g, boat, "red")
     games.pyr_boat_answer(g, boat, "plus")
     games.pyr_boat_answer(g, boat, "dehors")
@@ -753,3 +753,32 @@ def test_pyramid_top_memory_roulette_and_boat():
     assert b["step"] == 1 and b["sips"] == 1
     games.pyr_boat_answer(g, boat, "black")  # KS noir ✓ puis paquet vide : fin
     assert g["phase"] == "end" and b["result"] == "deck"
+
+
+def test_pyramid_soft_mode_no_boat_and_fresh_deck():
+    g = games.new_game("pyramid", host="p0", name="P0")
+    games.join(g, "p1", "P1")
+    g["options"].update(pmode="soft", boat=False)
+    games.start(g, random.Random(3))
+    finish_deal(g)
+    assert all(t["drink"] + t["give"] == 4 for t in g["tally"].values())  # 1 gorgée par carte
+    for _ in range(15):
+        games.pyr_flip(g)
+    games.pyr_to_memory(g)
+    games.pyr_memory(g, "p0", ["A"] * 4)
+    games.pyr_memory(g, "p1", ["K"] * 4)
+    assert g["phase"] == "end"  # pas de bateau
+    h = pyramid()
+    finish_deal(h)
+    for _ in range(15):
+        games.pyr_flip(h)
+    games.pyr_to_memory(h)
+    games.pyr_results(h)
+    games.pyr_pick_boat(h, random.Random(0))
+    games.pyr_boat_start(h, random.Random(0))
+    assert len(h["pyr"]["deck"]) == 52  # paquet neuf pour le bateau
+
+
+def test_pyramid_ace_is_highest():
+    assert games.pyr_value("AS") > games.pyr_value("KS") > games.pyr_value("2S")
+    assert games._pyr_check(2, "plus", ["KD"], "AH") and not games._pyr_check(2, "plus", ["AD"], "KH")
