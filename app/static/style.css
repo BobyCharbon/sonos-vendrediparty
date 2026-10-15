@@ -824,3 +824,16 @@ body.pyr-full .top-head { display: none; }
 .bk-o.give { background: linear-gradient(160deg, #2fd39a, #0f7d5a); }
 .bk-o.all { background: linear-gradient(160deg, #a35cff, #5a1fb8); }
 .bk-o.info { background: linear-gradient(160deg, #3a3150, #241d36); }
+/* Biskit : la carte d'un autre (passée) bien séparée de ton tour à toi */
+.bk-last { border-radius: 22px; padding: 10px; transition: opacity .3s, transform .3s; }
+.bk-last.live { background: rgba(255,255,255,.04); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+.bk-last.past { opacity: .55; transform: scale(.96); filter: saturate(.7); background: rgba(0,0,0,.2); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
+.bk-last.past .bk-o b { font-size: clamp(1.1rem, 5.5vw, 1.5rem); }
+.bk-last-k { font: 800 .75rem system-ui; letter-spacing: .14em; text-transform: uppercase; color: #a79fba; margin: 2px 4px 8px; }
+.bk-now { margin-top: 14px; padding: 16px; border-radius: 24px; text-align: center; background: linear-gradient(160deg, #2a2142, #17112a);
+  box-shadow: 0 16px 36px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.1); animation: pop .45s ease-out; }
+.bk-now.me { background: linear-gradient(160deg, #ff4f9a, #8a1fd1); box-shadow: 0 0 0 3px rgba(255,255,255,.25), 0 18px 44px rgba(255,79,154,.45); }
+.bk-now-k { font: 800 .8rem system-ui; letter-spacing: .16em; text-transform: uppercase; opacity: .85; }
+.bk-now-t { font: 800 clamp(2rem, 10vw, 3rem)/1.05 "Bricolage Grotesque", system-ui, sans-serif; margin: 4px 0 12px; text-shadow: 0 4px 16px rgba(0,0,0,.35); }
+.bk-now.me .py-main { background: #fff; color: #8a1fd1; }
+.bk-last.past .bk-effect-d { display: none; }

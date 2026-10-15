@@ -1251,7 +1251,7 @@ function bkHtml(g) {
   const card = v.card ? `<div class="bk-card ${v.key?.endsWith("red") ? "red" : "black"}">
       <div class="bk-card-face">${pyCard(v.card, "xl")}</div>
       <div class="bk-effect"><div class="bk-effect-t">${rule[0]} ${rule[1]}</div><div class="bk-effect-d">${rule[2]}</div>
-        <div class="artist">tirée par ${esc(v.drawer_name)}</div></div></div>` : `<div class="py-wait">Personne n'a encore tiré de carte…</div>`;
+        </div></div>` : "";
   const dice = v.dice ? `<div class="bk-dice ${v.dice.age < 2 ? "roll" : ""}"><span>${BK_DICE[v.dice.d[0]]}</span><span>${BK_DICE[v.dice.d[1]]}</span>
       <small>lancés par ${esc(v.dice.roller_name)} · total ${v.dice.d[0] + v.dice.d[1]}</small></div>` : "";
   const duel = v.duel ? `<div class="bk-duel ${v.duel.age < 2 ? "roll" : ""}"><b>${esc(v.duel.a_name)}</b> <span>${BK_DICE[v.duel.da]}</span> contre <span>${BK_DICE[v.duel.db]}</span> <b>${esc(v.duel.b_name)}</b></div>` : "";
@@ -1277,21 +1277,31 @@ function bkHtml(g) {
         <form data-bk-form="rule" class="row"><input class="grow" type="text" id="bkRule" maxlength="120" placeholder="Ex. : interdit de dire « boire »" autocomplete="off"><button class="py-mini ok">OK</button></form>${who}</div>`;
     else action = `<div class="py-panel"><div class="py-turn-k">Quelle règle supprimer ?</div>
         <div class="bk-pick">${v.rules.map((r) => `<button class="py-sub" data-bk="pick" data-target="${esc(r.id)}" ${v.await.mine ? "" : `data-who="${esc(v.await.pid)}"`}>❌ ${esc(r.text)}</button>`).join("")}</div>${who}</div>`;
-  } else if (g.phase === "play" && (!v.reflex || v.reflex.done)) {
-    action = v.my_turn ? `<button class="py-main" data-bk="draw">🃏 Tirer une carte</button>`
-      : host && cur ? `<button class="py-sub" data-bk="draw" data-who="${esc(cur.pid)}">🃏 Tirer pour ${esc(cur.name)}</button>` : "";
   }
+  // La carte est résolue (plus de choix ni de réflexe en attente) : elle devient « la carte précédente »,
+  // et le tour suivant s'affiche à part, pour ne jamais confondre l'action d'un autre avec la sienne.
+  const resolved = g.phase === "play" && !v.await && (!v.reflex || v.reflex.done);
+  let next = "";
+  if (resolved) {
+    next = v.my_turn ? `<div class="bk-now me"><div class="bk-now-k">C'est ton tour</div><div class="bk-now-t">À TOI !</div>
+        <button class="py-main" data-bk="draw">🃏 Tirer une carte</button></div>`
+      : `<div class="bk-now"><div class="bk-now-k">Au tour de</div><div class="bk-now-t">${esc(cur?.name || "…")}</div>
+        ${host && cur ? `<button class="py-sub" data-bk="draw" data-who="${esc(cur.pid)}">🃏 Tirer pour ${esc(cur.name)}</button>` : `<div class="artist">Attends qu'il ou elle tire…</div>`}</div>`;
+  }
+  const mineCard = me && v.drawer === me.pid;
+  const last = v.card ? `<section class="bk-last ${resolved ? "past" : "live"}">
+      <div class="bk-last-k">${resolved ? `🕘 Carte précédente · ${mineCard ? "c'était la tienne" : `tirée par ${esc(v.drawer_name)}`}`
+        : mineCard ? "🃏 Ta carte" : `🃏 Carte de ${esc(v.drawer_name)}`}</div>
+      ${card}${dice}${duel}${outs}${reflex}${action}</section>` : (g.phase === "play" ? `<div class="py-wait">Personne n'a encore tiré de carte…</div>` : "");
   const end = g.phase === "end" ? `<div class="py-hero"><div class="py-hero-k">🏁 Fin de la partie</div>
       <div class="py-hero-t">${v.final ? `${esc(v.final)} boit la coupe du Roi 👑` : "Le paquet est vide"}</div></div>
       ${host ? `<button class="py-main" data-gact="restart">🔁 Rejouer</button>` : ""}` : "";
-  const turn = g.phase === "play" ? `<div class="py-turn ${v.my_turn ? "me" : ""}"><div class="py-turn-k">${v.my_turn ? "C'est ton tour" : "C'est au tour de"}</div>
-      <div class="py-turn-name">${v.my_turn ? "À TOI !" : esc(cur?.name || "…")}</div></div>` : "";
   const rules = v.rules.length ? `<div class="py-panel bk-active"><div class="py-turn-k">📜 Règles en cours</div>${v.rules.map((r) => `<div>« ${esc(r.text)} » <small>par ${esc(r.by)}</small></div>`).join("")}</div>` : "";
   const table = `<h3 class="py-h">La table (vers la gauche ↓)</h3><div class="py-seats">${v.seats.map((s) => `
     <div class="py-seat ${s.pid === v.turn && g.phase === "play" ? "on" : ""} ${s.pid === me?.pid ? "me" : ""}">
       <div class="py-seat-name">${esc(s.name)}${s.manual ? " ✍️" : ""}${s.biskit ? " 🍪" : ""}${s.qmaster ? " 🤐" : ""}${s.thumb ? " 👍" : ""}${s.mate ? " 🤝" : ""}</div>
       <span class="artist">🍻 ${s.drink} · 🎁 ${s.give}</span></div>`).join("")}</div>`;
-  return `<div class="py-body">${status}${end}${turn}${card}${dice}${duel}${outs}${reflex}${action}${rules}</div>`;
+  return `<div class="py-body">${status}${end}${last}${next}${rules}</div>`;
 }
 document.addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-bk]");
