@@ -454,6 +454,7 @@ document.getElementById("gamesRoot").innerHTML = `
     </div>
 
     <div id="gamePlay" class="hidden">
+      <div id="gTop" class="g-top"></div>
       <div id="gameHud" class="g-hud hidden" aria-live="polite"></div>
       <div id="game" class="card game"></div>
       <div id="casinoWheel" class="cwheel hidden">
@@ -469,13 +470,22 @@ document.getElementById("gamesRoot").innerHTML = `
         <div id="rouletteResult" class="roulette-result" aria-live="polite"></div>
       </div>
       <div id="gameHost"></div>
-      <div class="card" id="gameInvite" style="text-align:center;margin-top:20px">
-        <div class="artist">Pour rejoindre : scanne ce QR ou entre le code</div>
-        <div class="big-pin" id="gameCode"></div>
-        <img class="qr" id="gameQr" alt="QR code pour rejoindre la partie">
-      </div>
-      <button class="danger" id="gameLeave" style="width:100%;margin-top:16px">Quitter la partie</button>
     </div>
+
+    <aside id="gDrawer" class="g-drawer hidden" aria-label="Menu de la partie">
+      <div class="g-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="gDrawerTitle">
+        <div class="g-drawer-head"><b id="gDrawerTitle">Menu de la partie</b>
+          <button type="button" class="py-icon" data-gdrawer="close" aria-label="Fermer le menu">✕</button></div>
+        <div class="card" id="gameInvite" style="text-align:center">
+          <div class="artist">Pour rejoindre : scanne ce QR ou entre le code</div>
+          <div class="big-pin" id="gameCode"></div>
+          <img class="qr" id="gameQr" alt="QR code pour rejoindre la partie">
+        </div>
+        <div id="gDrawerPlayers"></div>
+        <button type="button" class="secondary" data-gdrawer="minimize" style="width:100%;margin-top:12px">↙ Réduire le jeu (revenir aux onglets)</button>
+        <button class="danger" id="gameLeave" style="width:100%;margin-top:8px">Quitter la partie</button>
+      </div>
+    </aside>
 
     <div id="rulesModal" class="g-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rulesTitle">
       <div class="g-sheet">
@@ -550,7 +560,9 @@ function renderGame(g) {
   game = g;
   $("gHome").classList.toggle("hidden", !!g);
   $("gamePlay").classList.toggle("hidden", !g);
-  if (!g) return;
+  // Un jeu se joue toujours en plein écran ; « Réduire » (menu) revient aux onglets sans quitter la partie.
+  document.body.classList.toggle("pyr-full", !!g && pyrFull);
+  if (!g) { closeDrawer(); return; }
   const me = g.me;
   const nameOf = (pid) => esc(g.players.find((p) => p.pid === pid)?.name || "?");
   $("game").className = "card game " + (GAME_THEME[g.type] || "");
@@ -637,18 +649,18 @@ function renderGame(g) {
   } else if (g.phase === "results") {
     body = `<div class="question">${esc(g.question)}</div>${resultsHtml(g)}`;
   }
-  if (g.type === "pyramid" || g.type === "biskit") {
-    // Plein écran : ni titre, ni onglets, ni QR ; « ‹ » revient à la vue normale (code, QR, joueurs).
-    const full = pyrFull && g.phase !== "lobby";
-    document.body.classList.toggle("pyr-full", full);
-    const html = g.type === "biskit" ? bkHtml(g) : pyrHtml(g);
-    $("game").innerHTML = full ? html : title + (g.phase === "lobby" ? (g.type === "biskit" ? html : html.replace(pyrTopBar(g), ""))
-      : `<button class="py-main" data-pyr="enter">⛶ Revenir au jeu en plein écran</button>`);
-    if (full && g.type === "pyramid") pyrWheel(g);
+  $("gTop").innerHTML = gameTopBar(g);
+  if (!pyrFull) {
+    // Jeu réduit : un bandeau pour revenir dedans.
+    $("game").innerHTML = `<button class="py-main" data-pyr="enter">⛶ Reprendre ${esc(g.name)} en plein écran</button>`;
+  } else if (g.type === "pyramid" || g.type === "biskit") {
+    $("game").innerHTML = g.type === "biskit" ? bkHtml(g) : pyrHtml(g);
+    if (g.type === "pyramid") pyrWheel(g);
   } else {
-    document.body.classList.remove("pyr-full");
-    $("game").innerHTML = title + body;
+    $("game").innerHTML = body;
   }
+  renderDrawer(g);
+  gameFlashes(g);
   const input = $("guessInput");
   if (input) { input.value = guessDraft; input.addEventListener("input", () => { guessDraft = input.value; }); }
   renderRoulette(g);
@@ -912,15 +924,10 @@ function pyrEvents(g) {
   }
 }
 
-function pyrTopBar(g) {
+function pyrPhase(g) {
   const v = g.pyr;
-  const phase = { lobby: "Préparation", deal: `Distribution · tour ${v.step || 1}/4`, pyramid: `Pyramide · ${v.flipped || 0}/${v.size}`,
+  return { lobby: "Préparation", deal: `Distribution · tour ${v.step || 1}/4`, pyramid: `Pyramide · ${v.flipped || 0}/${v.size}`,
     memory: "Test de mémoire", memres: "Résultats", boatpick: "Qui fait le bateau ?", boat: "Le bateau", end: "Fin" }[g.phase] || "";
-  return `<div class="py-top">
-    <button type="button" class="py-icon" data-pyr="exit" aria-label="Quitter le plein écran (code, joueurs)">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
-    <div class="py-top-mid"><div class="py-phase">${phase}</div><div class="py-code">code <b>${esc(g.code)}</b></div></div>
-    ${helpBtn("pyramid", true)}</div>`;
 }
 function pyrSeats(g, opts = {}) {
   const v = g.pyr;
@@ -975,7 +982,7 @@ function pyrHtml(g) {
         : `<div class="py-q">${PYR_Q[L.step].q}</div>${ref.length ? `<div class="py-ref">${ref.map((c) => pyCard(c, "md")).join("")}<span class="py-card ghost md"><b>?</b></span></div>` : ""}<div class="py-wait">${esc(L.name)} réfléchit…</div>`}
       ${pyrBoard(g)}`;
   } else if (g.phase === "pyramid") {
-    body = pyrBoard(g) + pyrCurrent(g) + pyrHand(g) + `<h3 class="py-h">La table</h3>${pyrSeats(g)}`;
+    body = pyrBoard(g) + pyrCurrent(g) + pyrHand(g);
   } else if (g.phase === "memory") {
     body = pyrMemory(g);
   } else if (g.phase === "memres") {
@@ -1010,7 +1017,7 @@ function pyrHtml(g) {
   const outsider = g.phase !== "lobby" && !g.master && (!me || (v.me && v.me.seat == null && !v.me.pending && !(v.queue || []).length));
   const wait = g.phase !== "lobby" && v.me?.pending ? `<div class="py-panel py-pend"><div class="py-wait">⏳ L'animateur doit accepter ton arrivée…</div></div>`
     : !me && outsider ? `<button class="py-sub" data-gact="join">🙋 Demander à rejoindre la partie</button>` : "";
-  return pyrTopBar(g) + `<div class="py-body">${pend}${wait}${body}</div>`;
+  return `<div class="py-body">${pend}${wait}${body}</div>`;
 }
 
 function pyrBoard(g) {
@@ -1282,7 +1289,7 @@ function bkHtml(g) {
     <div class="py-seat ${s.pid === v.turn && g.phase === "play" ? "on" : ""} ${s.pid === me?.pid ? "me" : ""}">
       <div class="py-seat-name">${esc(s.name)}${s.manual ? " ✍️" : ""}${s.biskit ? " 🍪" : ""}${s.qmaster ? " 🤐" : ""}${s.thumb ? " 👍" : ""}${s.mate ? " 🤝" : ""}</div>
       <span class="artist">🍻 ${s.drink} · 🎁 ${s.give}</span></div>`).join("")}</div>`;
-  return top + `<div class="py-body">${status}${end}${turn}${card}${dice}${duel}${outs}${reflex}${action}${rules}${table}</div>`;
+  return `<div class="py-body">${status}${end}${turn}${card}${dice}${duel}${outs}${reflex}${action}${rules}</div>`;
 }
 document.addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-bk]");
@@ -1796,8 +1803,7 @@ function renderGameHost(g) {
   if (isBJ(g)) return renderBJHost(g, btn);
   if (g.type === "casino") return renderCasinoHost(g, btn);
   if (g.type === "divan") return renderDivanHost(g, btn);
-  if (g.type === "pyramid") return renderPyrHost(g);
-  if (g.type === "biskit") return renderBkHost(g);
+  if (g.type === "pyramid" || g.type === "biskit") { $("gameHost").innerHTML = ""; return; }
   if (g.type === "tmc") return renderTmcHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
   const canRemove = g.is_host;
@@ -1834,6 +1840,68 @@ setInterval(() => {
   if (left <= 0) { wordShown = ""; renderGame(game); }
   else if ($("wordCountdown")) $("wordCountdown").textContent = left;
 }, 200);
+
+// Moments forts en plein écran (annonce animée sur tous les téléphones), pour les jeux qui n'ont pas la leur.
+const gfSeen = {};
+function gameFlashes(g) {
+  const sig = [g.phase, g.round, g.last?.name || "", g.winner || ""].join("|");
+  const prev = gfSeen[g.id];
+  gfSeen[g.id] = sig;
+  if (!prev || prev === sig) return;  // première vue (page rechargée) : pas d'annonce en différé
+  const [pPhase, , pLast] = prev.split("|");
+  if (g.type === "undercover") {
+    const win = { civils: "Les civils gagnent !", impostors: "Les undercovers gagnent !", white: "Mr. White gagne !" }[g.winner];
+    if (g.phase === "end" && pPhase !== "end" && win) return pyrFlash("summit", `🏆 ${win}`, g.words ? `Civils : ${esc(g.words.civil)} · Undercover : ${esc(g.words.undercover)}` : "");
+    if (g.last?.name && g.last.name !== pLast) return pyrFlash(g.last.role === "Civil" ? "bad" : "good", `${esc(g.last.name)} est éliminé·e`, `C'était ${esc(g.last.role)} !`);
+  }
+  if (g.type === "whoof" && g.phase === "results" && pPhase !== "results" && g.results?.length) {
+    const max = Math.max(...g.results.map((r) => r.count)), top = g.results.filter((r) => r.count === max).map((r) => esc(r.name));
+    return pyrFlash("summit", `👑 ${top.join(" et ")}`, `${esc(g.question || "")}${g.options?.sips ? ` · ${sipWord(g.options.sips)} !` : ""}`);
+  }
+  if (g.type === "never" && g.phase === "results" && pPhase !== "results" && g.results) {
+    const did = g.results.filter((r) => r.answer === "yes").map((r) => esc(r.name));
+    return pyrFlash(did.length ? "good" : "summit", did.length ? `🍻 ${did.length} l'ont déjà fait` : "😇 Personne ne l'a fait", did.join(", "));
+  }
+}
+
+// Barre du haut commune à tous les jeux : ☰ menu, nom + phase + chrono, ? règles.
+function gameTopBar(g) {
+  const phase = g.type === "pyramid" && g.pyr ? pyrPhase(g) : phaseLabel(g);
+  const round = g.round && g.phase !== "lobby" && !["pyramid"].includes(g.type)
+    ? ` · ${{ undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte", tmc: "duo", biskit: "carte" }[g.type] || "question"} ${g.round}` : "";
+  const alerts = (g.pyr?.pending?.length || 0) + (g.is_host ? (g.pyr?.peeks || []).filter((r) => r.status === "pending").length : 0);
+  return `<button type="button" class="py-icon g-burger" data-gdrawer="open" aria-label="Menu : joueurs, code, QR">☰${alerts ? `<i class="badge">${alerts}</i>` : ""}</button>
+    <div class="g-top-mid"><div class="g-top-name"><span class="g-top-ico" aria-hidden="true">${GAME_ICONS[g.type] || ""}</span>${esc(g.name)}</div>
+      <div class="g-top-sub">${g.mode ? esc(g.mode) + " · " : ""}${phase}${round} · code <b>${esc(g.code)}</b> · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
+    ${helpBtn(g.type, true)}`;
+}
+// Menu latéral : code, QR, participants (et outils de l'animateur ou de l'admin), réduire, quitter.
+function renderDrawer(g) {
+  const lead = g.is_host, movable = lead && g.phase === "lobby";
+  $("gDrawerPlayers").innerHTML = `<h2>Participants (${g.players.length})</h2>
+    <div class="list">${g.players.map((p, i) => `<div class="track"><div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${p.pid === g.me?.pid ? " (toi)" : ""}${playerTag(g, p)}${p.pending ? " ⏳" : ""}${sipsBadge(p)}</div></div>
+      <div class="icon-btns">
+        ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter">⬆</button>` : ""}
+        ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre">⬇</button>` : ""}
+        ${lead && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie">✕</button>` : ""}
+      </div></div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR.</p>`}</div>
+    ${movable && ["biskit", "pyramid"].includes(g.type) ? `<p class="artist" style="margin-top:6px">Range les joueurs dans l'ordre où ils sont assis (vers la gauche).</p>` : ""}
+    ${(g.type !== "pyramid" || g.phase === "lobby") ? manualForm(g) : ""}
+    ${lead && !g.me && (g.phase === "lobby" || g.phase === "end") ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">🙋 Je joue aussi</button>` : ""}`;
+}
+function openDrawer() { $("gDrawer").classList.remove("hidden"); requestAnimationFrame(() => $("gDrawer").classList.add("open")); }
+function closeDrawer() { $("gDrawer").classList.remove("open"); setTimeout(() => $("gDrawer").classList.add("hidden"), 250); }
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-gdrawer]");
+  if (b) {
+    const a = b.dataset.gdrawer;
+    if (a === "open") openDrawer();
+    else if (a === "close") closeDrawer();
+    else if (a === "minimize") { pyrFull = false; closeDrawer(); if (game) renderGame(game); }
+    return;
+  }
+  if (ev.target.id === "gDrawer") closeDrawer();  // toucher à côté du menu le ferme
+});
 
 // 🏁 Partie fermée par l'animateur (ou par l'hôte de la soirée) : on prévient pendant 5 secondes.
 function showGameEnded(info) {

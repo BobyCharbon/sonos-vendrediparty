@@ -551,12 +551,44 @@ button.cs-spin { height: 54px; font-size: 1rem; background: #f2c14e; color: #2b1
 .game.g-py .artist { color: var(--g-soft); }
 .game.g-py button.g-help { background: rgba(255,255,255,.12); color: #fff; }
 body.pyr-full { overflow: hidden; }
-body.pyr-full > h1, body.pyr-full #tabs, body.pyr-full .install, body.pyr-full #gameHud,
-body.pyr-full #gameHost, body.pyr-full #gameInvite, body.pyr-full #gameLeave, body.pyr-full #gamePlay > .card:not(#game) { display: none !important; }
-body.pyr-full #game { position: fixed; inset: 0; z-index: 20; margin: 0; border: 0; border-radius: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
-  padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
-  background: radial-gradient(circle at 50% -10%, #3a1460 0, transparent 55%), #0b0716; }
-body.pyr-full #game > * { max-width: 560px; margin-left: auto; margin-right: auto; }
+/* 🎮 Cadre commun des jeux : plein écran, barre du haut, menu latéral, relief. */
+body.pyr-full > h1, body.pyr-full .top-head, body.pyr-full #tabs, body.pyr-full .install { display: none !important; }
+#gTop { display: none; }
+body.pyr-full #gamePlay { position: fixed; inset: 0; z-index: 20; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  background: radial-gradient(circle at 50% -15%, rgba(255,79,154,.28), transparent 55%), radial-gradient(circle at 110% 110%, rgba(56,232,255,.14), transparent 50%), #0b0716; }
+body.pyr-full #gamePlay > *:not(.g-hud) { width: 100%; max-width: 560px; margin-left: auto; margin-right: auto; box-sizing: border-box; }
+body.pyr-full #gTop { display: flex; align-items: center; gap: 10px; position: sticky; top: calc(-1 * max(10px, env(safe-area-inset-top))); z-index: 6;
+  margin-top: calc(-1 * max(10px, env(safe-area-inset-top))); padding: max(10px, env(safe-area-inset-top)) 0 10px;
+  background: linear-gradient(180deg, rgba(11,7,22,.95) 70%, rgba(11,7,22,0)); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+body.pyr-full #game { margin: 0; box-shadow: 0 22px 50px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08); }
+body.pyr-full #game.g-py, body.pyr-full #game.g-bk { background: transparent; border: 0; padding: 0; box-shadow: none; }
+body.pyr-full .g-hud { z-index: 25; top: calc(70px + env(safe-area-inset-top)); }
+.g-burger { position: relative; font-size: 1.25rem; box-shadow: 0 6px 16px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.08); }
+.g-burger .badge { position: absolute; top: -6px; right: -6px; font-style: normal; font-size: .7rem; box-shadow: 0 0 10px var(--accent); animation: pop .4s ease-out; }
+.g-top-mid { flex: 1; min-width: 0; text-align: center; }
+.g-top-name { font: 800 1.05rem "Bricolage Grotesque", system-ui, sans-serif; display: flex; align-items: center; justify-content: center; gap: 6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 2px 12px rgba(255,79,154,.5); }
+.g-top-ico { display: inline-flex; width: 22px; height: 22px; color: var(--accent-2); } .g-top-ico svg { width: 22px; height: 22px; }
+.g-top-sub { font-size: .74rem; color: #a79fba; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-top-sub b { color: #fff; letter-spacing: .08em; }
+#gTop .g-help { width: 44px; height: 44px; margin: 0; align-self: center; box-shadow: 0 6px 16px rgba(0,0,0,.4); }
+/* Menu latéral */
+.g-drawer { position: fixed; inset: 0; z-index: 45; background: rgba(5,3,10,0); transition: background .25s; }
+.g-drawer.open { background: rgba(5,3,10,.6); }
+.g-drawer-panel { position: absolute; top: 0; bottom: 0; left: 0; width: min(88vw, 380px); box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain;
+  padding: max(14px, env(safe-area-inset-top)) 14px max(20px, env(safe-area-inset-bottom)); background: linear-gradient(180deg, #1c1430, #120d20);
+  box-shadow: 24px 0 60px rgba(0,0,0,.65), inset -1px 0 0 rgba(255,255,255,.06); transform: translateX(-105%); transition: transform .28s cubic-bezier(.2,.85,.3,1); }
+.g-drawer.open .g-drawer-panel { transform: none; }
+.g-drawer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; font-size: 1.1rem; }
+.g-drawer .qr { max-width: 220px; }
+.g-drawer .big-pin { font-size: 2.4rem; }
+/* Relief général des jeux */
+body.pyr-full .game .py-opt, body.pyr-full .py-main, body.pyr-full .g-go { box-shadow: 0 10px 22px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.18); }
+body.pyr-full .py-main:active, body.pyr-full .py-opt:active { transform: translateY(2px) scale(.98); box-shadow: 0 4px 10px rgba(0,0,0,.4); }
+body.pyr-full .py-panel, body.pyr-full .py-seat, body.pyr-full .bk-card { box-shadow: 0 14px 30px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06); }
+body.pyr-full .py-card:not(.back):not(.ghost) { box-shadow: 0 8px 18px rgba(0,0,0,.45), inset 0 -2px 0 rgba(0,0,0,.08); }
 .py-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .py-top-mid { flex: 1; min-width: 0; text-align: center; }
 .py-phase { font: 800 .82rem system-ui; letter-spacing: .14em; text-transform: uppercase; color: var(--py-cyan); }
