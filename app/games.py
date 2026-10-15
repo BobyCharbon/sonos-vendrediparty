@@ -272,6 +272,11 @@ def add_sips(g: dict, gid: str, drink: int = 0, give: int = 0):
     t["give"] += give
 
 
+def is_lead(g: dict, gid: str | None) -> bool:
+    """Droits d'animateur : le créateur de la partie, ou l'admin de la soirée (toujours au moins les mêmes droits)."""
+    return bool(gid) and (gid == g.get("host") or gid in g.get("leads", []))
+
+
 def gid_of(g: dict, pid: str) -> str:
     """guest_id du joueur dont l'identifiant public est pid ("" si inconnu)."""
     return next((p["id"] for p in g["players"] if p["pid"] == pid), "")
@@ -901,7 +906,7 @@ def _divan_draw(g: dict, rng):
 
 def _divan_can_lead(g: dict, gid: str):
     cur = _divan_current(g)
-    if g["phase"] != "card" or not (gid == g["host"] or (cur and cur["id"] == gid)):
+    if g["phase"] != "card" or not (is_lead(g, gid) or (cur and cur["id"] == gid)):
         raise GameError("C'est à la personne sur le divan (ou à l'animateur) de décider")
 
 
@@ -967,8 +972,8 @@ def divan_view(g: dict, gid: str) -> dict:
     return {"cats": d["cats"], "labels": DIVAN_LABELS, "card": d["card"], "hearts": len(d["hearts"]),
             "hearted": gid in d["hearts"], "joker": d["joker"],
             "current": {"pid": cur["pid"], "name": cur["name"]} if cur else None,
-            "my_turn": bool(cur) and cur["id"] == gid, "can_lead": bool(gid) and (gid == g["host"] or (bool(cur) and cur["id"] == gid)),
-            "can_back": bool(gid) and bool(d.get("back")) and (gid == g["host"] or (bool(cur) and cur["id"] == gid) or d["back"][-1]["by"] == gid)}
+            "my_turn": bool(cur) and cur["id"] == gid, "can_lead": bool(gid) and (is_lead(g, gid) or (bool(cur) and cur["id"] == gid)),
+            "can_back": bool(gid) and bool(d.get("back")) and (is_lead(g, gid) or (bool(cur) and cur["id"] == gid) or d["back"][-1]["by"] == gid)}
 
 
 # --- Tu me connais ? ---
@@ -1025,7 +1030,7 @@ def tmc_answer(g: dict, gid: str, text: str):
     """Seule la personne interrogée écrit sa réponse (en secret) ; le devin, lui, parle à voix haute."""
     d = g["tmc"]["duo"]
     text = " ".join((text or "").split())[:80]
-    proxy = gid == g["host"] and is_manual(g, d["subject"]) if d else False  # téléphone de l'animateur prêté
+    proxy = is_lead(g, gid) and is_manual(g, d["subject"]) if d else False  # téléphone de l'animateur prêté
     if g["phase"] != "answer" or not d or (gid != d["subject"] and not proxy):
         raise GameError("C'est à la personne interrogée d'écrire sa réponse")
     if not text:
@@ -1045,7 +1050,7 @@ def tmc_judge(g: dict, gid: str, amount: int):
     """L'animateur attribue les points au devin."""
     t = g["tmc"]
     d = t["duo"]
-    if g["phase"] != "judge" or not d or gid != g["host"]:
+    if g["phase"] != "judge" or not d or not is_lead(g, gid):
         raise GameError("C'est à l'animateur d'attribuer les points")
     if amount not in TMC_VERDICTS:
         raise GameError("Verdict inconnu")
@@ -1091,9 +1096,9 @@ def tmc_view(g: dict, gid: str) -> dict:
                "role": "guesser" if gid == d["guesser"] else "subject" if gid == d["subject"] else None,
                "mine": d["answers"].get(gid),  # la personne interrogée revoit sa propre réponse
                # Sujet sans téléphone : l'animateur lui prête le sien pour écrire en secret.
-               "proxy": g["phase"] == "answer" and gid == g["host"] and is_manual(g, d["subject"]),
+               "proxy": g["phase"] == "answer" and is_lead(g, gid) and is_manual(g, d["subject"]),
                "answer": d["answers"].get(d["subject"]) if reveal else None,
-               "verdict": d["verdict"], "can_judge": g["phase"] == "judge" and gid == g["host"]}
+               "verdict": d["verdict"], "can_judge": g["phase"] == "judge" and is_lead(g, gid)}
     # Classement : points, et nombre de questions où chacun a deviné.
     asked = {}
     for k, p in t["pairs"].items():
@@ -2068,7 +2073,7 @@ def view(g: dict, gid: str) -> dict:
     Le maître du jeu (animateur qui ne joue pas) voit tout."""
     ended = g["phase"] == "end"
     me = player(g, gid)
-    master = bool(gid) and g["host"] == gid and me is None
+    master = is_lead(g, gid) and me is None
     players = []
     for p in g["players"]:
         waiting = bool(p.get("waiting")) and g["phase"] != "end"
@@ -2076,7 +2081,7 @@ def view(g: dict, gid: str) -> dict:
         out = {"pid": p["pid"], "name": p["name"], "alive": p["alive"] and not waiting, "waiting": waiting,
                "voted": p["id"] in g["votes"], "host": p["id"] == g["host"],
                "drink": t.get("drink", 0), "give": t.get("give", 0), "manual": bool(p.get("manual"))}
-        if p.get("manual") and gid == g["host"] and g["type"] == "never":
+        if p.get("manual") and is_lead(g, gid) and g["type"] == "never":
             out["answer"] = g["votes"].get(p["id"])  # l'animateur voit ce qu'il a saisi pour lui
         # Un éliminé dévoile son rôle, pas son mot (celui d'un civil aiderait les undercovers restants).
         if (ended or master or not p["alive"]) and p["role"]:
@@ -2087,7 +2092,7 @@ def view(g: dict, gid: str) -> dict:
     out = {
         "id": g["id"], "code": g["code"], "type": g["type"], "name": GAMES[g["type"]], "phase": g["phase"],
         "mode": mode_label(g),
-        "round": g["round"], "players": players, "is_host": bool(gid) and g["host"] == gid, "master": master,
+        "round": g["round"], "players": players, "is_host": is_lead(g, gid), "master": master,
         "host_name": g.get("host_name", ""),
         "order": [player(g, i)["name"] for i in g["order"] if player(g, i)] if g["type"] == "undercover" else [],
         "order_pids": [_pid(g, i) for i in g["order"] if player(g, i)] if g["type"] == "undercover" else [],

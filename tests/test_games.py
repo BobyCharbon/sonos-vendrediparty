@@ -949,3 +949,20 @@ def test_biskit_dice_double_three_makes_new_biskit():
             return 3
     a = draw(g, "4H", R())
     assert g["bk"]["biskit"] == a and g["bk"]["dice"]["d"] == [3, 3]
+
+
+def test_admin_has_animator_rights_in_every_game(admin):  # noqa: F811
+    """L'admin (cookie) peut faire avancer n'importe quelle partie, comme l'animateur."""
+    main._game_creations.clear()
+    host = TestClient(main.app)
+    g = host.post("/api/games", json={"guest_id": "host-rights-01", "name": "Léa", "type": "never", "plays": True}).json()
+    guest = TestClient(main.app)
+    guest.post(f"/api/games/{g['code']}", json={"guest_id": "guest-rights-1", "name": "Tom", "action": "join"})
+    # Un simple joueur ne peut pas lancer…
+    assert guest.post(f"/api/games/{g['code']}", json={"guest_id": "guest-rights-1", "action": "start"}).status_code == 403
+    # … l'admin si, même sans être l'animateur, et il voit les commandes.
+    view = admin.get(f"/api/games/{g['code']}?guest_id=admin-rights-01").json()
+    assert view["is_host"]
+    r = admin.post(f"/api/games/{g['code']}", json={"guest_id": "admin-rights-01", "action": "start"})
+    assert r.status_code == 200 and r.json()["phase"] == "question"
+    assert admin.post(f"/api/games/{g['code']}", json={"guest_id": "admin-rights-01", "action": "next"}).status_code == 200

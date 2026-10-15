@@ -1008,6 +1008,13 @@ def presence(body: Presence, request: Request):
     return {"ok": True}
 
 
+def admin_lead(g: dict, request: Request, guest_id: str):
+    """L'admin de la soirée a toujours au moins les droits de l'animateur, dans tous les jeux."""
+    if guest_id and is_admin(request) and guest_id not in g.setdefault("leads", []):
+        g["leads"].append(guest_id)
+        store.save(notify=False)
+
+
 def sync_player_name(g: dict, guest_id: str, name: str):
     """Le joueur a changé de prénom (en haut à droite) : la partie en cours le reprend."""
     p = games.player(g, guest_id) if guest_id else None
@@ -1024,6 +1031,7 @@ def game_state(code: str, request: Request, guest_id: str = "", name: str = ""):
     g = get_game(code)
     game_presence(request, guest_id, name)
     sync_player_name(g, guest_id, name)
+    admin_lead(g, request, guest_id)
     return games.view(g, guest_id)
 
 
@@ -1051,12 +1059,13 @@ def game_action(code: str, body: GameAction, request: Request):
     g = get_game(code)
     game_presence(request, body.guest_id, body.name)
     sync_player_name(g, body.guest_id, body.name)
+    admin_lead(g, request, body.guest_id)
     a, me = body.action, body.guest_id
     # Cible d'un vote : un joueur (pid) ; pour « Je n'ai jamais », une réponse (yes / no).
     target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino", "pyramid", "biskit") else "")
     # Pyramide : l'animateur peut agir pour un joueur (participant sans téléphone, ou qui traîne).
-    actor = games.gid_of(g, body.who) if body.who and me == g["host"] and games.gid_of(g, body.who) else me
-    if a in HOST_ACTIONS and g["host"] != me:
+    actor = games.gid_of(g, body.who) if body.who and games.is_lead(g, me) and games.gid_of(g, body.who) else me
+    if a in HOST_ACTIONS and not games.is_lead(g, me):
         raise HTTPException(403, "Seul l'animateur de la partie peut faire ça")
     if a == "join" and (msg := ban_message(me, client_ip(request))):
         raise HTTPException(403, msg)
