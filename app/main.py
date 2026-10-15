@@ -1042,7 +1042,7 @@ class GameAction(BaseModel):
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
 HOST_ACTIONS = {"start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
-                "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse"}
+                "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose"}
 
 
 @app.post("/api/games/{code}")
@@ -1053,7 +1053,7 @@ def game_action(code: str, body: GameAction, request: Request):
     sync_player_name(g, body.guest_id, body.name)
     a, me = body.action, body.guest_id
     # Cible d'un vote : un joueur (pid) ; pour « Je n'ai jamais », une réponse (yes / no).
-    target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino", "pyramid") else "")
+    target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino", "pyramid", "biskit") else "")
     # Pyramide : l'animateur peut agir pour un joueur (participant sans téléphone, ou qui traîne).
     actor = games.gid_of(g, body.who) if body.who and me == g["host"] and games.gid_of(g, body.who) else me
     if a in HOST_ACTIONS and g["host"] != me:
@@ -1089,6 +1089,8 @@ def game_action(code: str, body: GameAction, request: Request):
         "presults": (games.pyr_results,), "pboat": (games.pyr_pick_boat, random), "pboatgo": (games.pyr_boat_start,),
         "pbans": (games.pyr_boat_answer, actor, body.target),
         "paccept": (games.pyr_accept, target), "prefuse": (games.pyr_refuse, target),
+        "bdraw": (games.bk_draw, actor, random), "bpick": (games.bk_complete, actor, target, body.guess, random),
+        "btap": (games.bk_tap, actor), "bclose": (games.bk_close_reflex,),
     }
     if a not in actions:
         raise HTTPException(400, "Action inconnue")

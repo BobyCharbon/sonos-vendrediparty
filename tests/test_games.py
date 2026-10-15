@@ -884,3 +884,68 @@ def test_admin_summary_has_details_without_secrets():
     assert g["words"]["civil"] not in str(s) and g["words"]["undercover"] not in str(s)
     c = games.new_game("casino", host="h", name="H")
     assert games.summary(c)["players_detail"][0]["extra"] == "💰 100"
+
+
+# --- Biskit Royal ---
+
+def biskit(n=3, sips=1):
+    g = games.new_game("biskit", host="p0", name="P0", sips=sips)
+    for i in range(1, n):
+        games.join(g, f"p{i}", f"P{i}")
+    games.start(g, random.Random(5))
+    return g
+
+
+def draw(g, card, rng=None):
+    g["bk"]["deck"].append(card)
+    cur = g["bk"]["order"][g["bk"]["turn"]]
+    games.bk_draw(g, cur, rng or random.Random(0))
+    return cur
+
+
+def test_biskit_simple_cards_and_turns():
+    g = biskit(sips=2)
+    with pytest.raises(games.GameError):
+        games.bk_draw(g, "p1")  # pas son tour
+    a = draw(g, "3H")  # 3 rouge : distribue 3 × 2
+    assert g["tally"][a]["give"] == 6 and g["bk"]["key"] == "3-red"
+    b = draw(g, "2S")  # 2 noir : bois 2 × 2
+    assert g["tally"][b]["drink"] == 4 and b != a
+
+
+def test_biskit_reflex_last_one_drinks():
+    g = biskit()
+    draw(g, "7H")
+    with pytest.raises(games.GameError):
+        draw(g, "2S")  # attendre la fin du réflexe
+    games.bk_tap(g, "p1"); games.bk_tap(g, "p0"); games.bk_tap(g, "p2")
+    assert g["bk"]["reflex"]["losers"] == ["p2"] and g["tally"]["p2"]["drink"] == 1
+
+
+def test_biskit_await_actions_rules_duel_and_kings():
+    g = biskit()
+    a = draw(g, "JH")
+    with pytest.raises(games.GameError):
+        draw(g, "2S")
+    games.bk_complete(g, a, text="Interdit de dire « boire »")
+    assert g["bk"]["rules"][0]["text"] == "Interdit de dire « boire »"
+    b = draw(g, "JS")
+    games.bk_complete(g, b, target=g["bk"]["rules"][0]["id"])
+    assert g["bk"]["rules"] == []
+    c = draw(g, "QS")
+    other = next(x for x in g["bk"]["order"] if x != c)
+    games.bk_complete(g, c, target=other, rng=random.Random(1))
+    assert g["bk"]["duel"] and any("Duel" in o for o in g["bk"]["outcomes"])
+    for _ in range(4):
+        draw(g, "KD")
+    assert g["phase"] == "end" and g["bk"]["final"]
+
+
+def test_biskit_dice_double_three_makes_new_biskit():
+    g = biskit()
+
+    class R(random.Random):
+        def randint(self, a, b):
+            return 3
+    a = draw(g, "4H", R())
+    assert g["bk"]["biskit"] == a and g["bk"]["dice"]["d"] == [3, 3]

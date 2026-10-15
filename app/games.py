@@ -27,6 +27,7 @@ GAMES = {
     "divan": "Le Divan",
     "tmc": "Tu me connais ?",
     "pyramid": "Pyramide",
+    "biskit": "Biskit Royal",
 }
 BLACKJACKS = ("blackjack",)
 
@@ -304,7 +305,7 @@ def join(g: dict, gid: str, name: str = ""):
                          "waiting": waiting, "pending": pending})
 
 
-MANUAL_GAMES = ("divan", "tmc", "never", "pyramid")  # jeux où l'animateur peut ajouter des participants sans téléphone
+MANUAL_GAMES = ("divan", "tmc", "never", "pyramid", "biskit")  # jeux où l'animateur peut ajouter des participants sans téléphone
 
 
 def add_guest(g: dict, name: str):
@@ -346,6 +347,8 @@ def leave(g: dict, gid: str):
     g["players"].remove(p)
     if g["type"] == "pyramid":
         pyr_leave(g, gid)
+    if g["type"] == "biskit":
+        bk_leave(g, gid)
     g["votes"] = {v: t for v, t in g["votes"].items() if v != gid and t != gid}
     g["order"] = [i for i in g["order"] if i != gid]
     if g["candidates"]:
@@ -1568,8 +1571,273 @@ def pyr_view(g: dict, gid: str) -> dict:
     return out
 
 
+# --- Biskit Royal : le Roi des cartes (chaque carte, rouge ou noire, a son effet) + les dés du Biskit ---
+# La table tourne vers la gauche : le voisin de gauche est le joueur suivant, celui de droite le précédent.
+
+def _bk_mult(g: dict) -> int:
+    return max(1, g["options"].get("sips", 1) or 1)
+
+
+def bk_start(g: dict, rng):
+    order = [p["id"] for p in g["players"] if not p.get("pending")]
+    if len(order) < 2:
+        raise GameError("Il faut au moins 2 joueurs")
+    deck = [r + s for r in PYR_RANKS for s in PYR_SUITS]
+    rng.shuffle(deck)
+    g["bk"] = {"deck": deck, "order": order, "turn": 0, "card": None, "key": None, "drawer": None, "drawn": 0,
+               "kings": 0, "biskit": rng.choice(order), "mates": [], "qmaster": None, "thumb": None, "rules": [],
+               "dice": None, "reflex": None, "duel": None, "await": None, "outcomes": [], "final": None, "n": 0}
+    g["phase"] = "play"
+    g["round"] = 0
+
+
+def _bk_side(B: dict, gid: str, step: int) -> str:
+    o = B["order"]
+    return o[(o.index(gid) + step) % len(o)]
+
+
+def _bk_out(g: dict, text: str, drink: dict | None = None, give: dict | None = None):
+    """Un effet de la carte, affiché sur tous les écrans (et compté dans les gorgées)."""
+    for x, n in (drink or {}).items():
+        add_sips(g, x, drink=n)
+    for x, n in (give or {}).items():
+        add_sips(g, x, give=n)
+    g["bk"]["outcomes"].append(text)
+
+
+def _bk_name(g: dict, gid: str) -> str:
+    return (player(g, gid) or {}).get("name", "?")
+
+
+def _bk_dice(g: dict, actor: str, red: bool, rng):
+    """Les dés du Biskit. Rouge : tu lances pour toi. Noir : ton voisin lance, et c'est toi la cible."""
+    B, m = g["bk"], _bk_mult(g)
+    roller = actor if red else _bk_side(B, actor, 1)
+    d1, d2 = rng.randint(1, 6), rng.randint(1, 6)
+    B["dice"] = {"id": secrets.token_hex(4), "d": [d1, d2], "roller": roller, "at": time.time()}
+    total, threes, n = d1 + d2, [d1, d2].count(3), _bk_name
+    if d1 == d2 == 3:
+        B["biskit"] = actor
+        _bk_out(g, f"Double 3 : {n(g, actor)} devient le Biskit 🍪")
+    elif threes:
+        _bk_out(g, f"Un 3 : le Biskit ({n(g, B['biskit'])}) boit {threes * m}", drink={B["biskit"]: threes * m})
+    if red:
+        if total == 7:
+            left = _bk_side(B, actor, 1)
+            _bk_out(g, f"Total 7 : {n(g, left)} (à gauche) boit {2 * m}", drink={left: 2 * m})
+        elif total == 11:
+            right = _bk_side(B, actor, -1)
+            _bk_out(g, f"Total 11 : {n(g, right)} (à droite) boit {2 * m}", drink={right: 2 * m})
+        elif total == 9:
+            _bk_out(g, f"Total 9 : {n(g, actor)} invente une mini-règle ou choisit qui boit {2 * m}")
+        if d1 == d2 != 3:
+            _bk_out(g, f"Double {d1} : {n(g, actor)} distribue {d1 * m}", give={actor: d1 * m})
+    else:
+        if total in (7, 11):
+            _bk_out(g, f"Total {total} : {n(g, actor)} boit {2 * m}", drink={actor: 2 * m})
+        elif total == 9:
+            _bk_out(g, f"Total 9 : {n(g, actor)} boit {m}", drink={actor: m})
+        if d1 == d2 != 3:
+            _bk_out(g, f"Double {d1} : {n(g, actor)} boit {d1 * m}", drink={actor: d1 * m})
+    if not B["outcomes"]:
+        _bk_out(g, "Rien ne se passe… cette fois 😏")
+
+
+def bk_draw(g: dict, actor: str, rng: random.Random = random):
+    """Le joueur dont c'est le tour tire une carte ; son effet dépend de sa valeur et de sa couleur."""
+    B = g["bk"]
+    if g["phase"] != "play":
+        raise GameError("La partie est terminée")
+    cur = B["order"][B["turn"] % len(B["order"])]
+    if actor != cur:
+        raise GameError("Ce n'est pas ton tour")
+    if B["await"]:
+        raise GameError(f"{_bk_name(g, B['await']['gid'])} doit d'abord terminer son action")
+    if B["reflex"] and not B["reflex"]["done"]:
+        raise GameError("Attendez la fin du réflexe !")
+    if not B["deck"]:
+        g["phase"] = "end"
+        raise GameError("Le paquet est vide : fin de la partie")
+    card = B["deck"].pop()
+    rank, red = card[0], card[1] in "HD"
+    m = _bk_mult(g)
+    B.update(card=card, key=f"{rank}-{'red' if red else 'black'}", drawer=cur, dice=None, reflex=None, duel=None, outcomes=[])
+    B["await"] = None
+    B["drawn"] += 1
+    g["round"] = B["drawn"]
+    if rank in "23":
+        k = int(rank) * m
+        _bk_out(g, f"{_bk_name(g, cur)} {'distribue' if red else 'boit'} {k}", **({"give": {cur: k}} if red else {"drink": {cur: k}}))
+    elif rank == "4":
+        _bk_dice(g, cur, red, rng)
+    elif rank == "7":
+        B["reflex"] = {"id": secrets.token_hex(4), "kind": "paradis" if red else "nez", "at": time.time(), "taps": {}, "done": False, "losers": []}
+    elif rank == "8":
+        if red:
+            B["await"] = {"kind": "mate", "gid": cur}
+        else:
+            mate = _bk_side(B, cur, -1)
+            B["mates"] = [[cur, mate]]
+            _bk_out(g, f"{_bk_name(g, cur)} et {_bk_name(g, mate)} sont potes de boisson 🤝")
+    elif rank == "T":
+        if red:
+            B["qmaster"] = cur
+            _bk_out(g, f"{_bk_name(g, cur)} est le maître des questions 🤐")
+        else:
+            B["thumb"] = cur
+            _bk_out(g, f"{_bk_name(g, cur)} est le maître du pouce 👍")
+    elif rank == "J":
+        if red:
+            B["await"] = {"kind": "rule", "gid": cur}
+        elif B["rules"]:
+            B["await"] = {"kind": "unrule", "gid": cur}
+        else:
+            _bk_out(g, "Aucune règle à supprimer")
+    elif rank == "Q":
+        B["await"] = {"kind": "queen" if red else "duel", "gid": cur}
+    elif rank == "K":
+        B["kings"] += 1
+        if B["kings"] >= 4:
+            B["final"] = cur
+            _bk_out(g, f"4e Roi ! {_bk_name(g, cur)} boit la coupe du Roi 👑")
+            g["phase"] = "end"
+        else:
+            _bk_out(g, f"{_bk_name(g, cur)} verse dans la coupe du Roi ({B['kings']}/4)")
+    B["turn"] = (B["order"].index(cur) + 1) % len(B["order"])
+    B["n"] += 1
+    if not B["deck"] and g["phase"] == "play":
+        g["phase"] = "end"
+
+
+def bk_complete(g: dict, actor: str, target: str = "", text: str = "", rng: random.Random = random):
+    """Le tireur termine son action : choisir un joueur, écrire ou supprimer une règle."""
+    B = g["bk"]
+    a = B.get("await")
+    if not a or a["gid"] != actor:
+        raise GameError("Rien à faire pour toi")
+    m, n = _bk_mult(g), _bk_name
+    kind = a["kind"]
+    if kind in ("mate", "queen", "duel"):
+        if target not in B["order"] or target == actor:
+            raise GameError("Choisis un autre joueur")
+        if kind == "mate":
+            B["mates"] = [[actor, target]]
+            _bk_out(g, f"{n(g, actor)} et {n(g, target)} sont potes de boisson 🤝")
+        elif kind == "queen":
+            _bk_out(g, f"{n(g, target)} boit {2 * m} 💃", drink={target: 2 * m})
+        else:
+            x, y = rng.randint(1, 6), rng.randint(1, 6)
+            B["duel"] = {"id": secrets.token_hex(4), "a": actor, "b": target, "da": x, "db": y, "at": time.time()}
+            if x == y:
+                _bk_out(g, f"Duel : égalité {x}-{y}, les deux boivent {m}", drink={actor: m, target: m})
+            else:
+                loser = actor if x < y else target
+                _bk_out(g, f"Duel : {x} contre {y}, {n(g, loser)} boit {2 * m} 🎯", drink={loser: 2 * m})
+    elif kind == "rule":
+        t = " ".join(text.split())[:120]
+        if not t:
+            raise GameError("Écris ta règle")
+        B["rules"].append({"id": secrets.token_hex(3), "text": t, "by": n(g, actor)})
+        _bk_out(g, f"Nouvelle règle : « {t} »")
+    elif kind == "unrule":
+        r = next((r for r in B["rules"] if r["id"] == target), None)
+        if not r:
+            raise GameError("Choisis une règle")
+        B["rules"].remove(r)
+        _bk_out(g, f"Règle supprimée : « {r['text']} »")
+    B["await"] = None
+    B["n"] += 1
+
+
+def bk_tap(g: dict, actor: str):
+    """Paradis / doigt sur le nez : chacun touche ; le dernier boit."""
+    B = g["bk"]
+    r = B.get("reflex")
+    if not r or r["done"] or actor not in B["order"] or actor in r["taps"]:
+        return
+    r["taps"][actor] = time.time()
+    if all(x in r["taps"] for x in B["order"]):
+        _bk_close_reflex(g, [max(r["taps"], key=r["taps"].get)])
+
+
+def bk_close_reflex(g: dict):
+    """L'animateur clôt le réflexe : ceux qui n'ont pas touché boivent."""
+    B = g["bk"]
+    r = B.get("reflex")
+    if not r or r["done"]:
+        raise GameError("Pas de réflexe en cours")
+    late = [x for x in B["order"] if x not in r["taps"]] or ([max(r["taps"], key=r["taps"].get)] if r["taps"] else [])
+    _bk_close_reflex(g, late)
+
+
+def _bk_close_reflex(g: dict, losers: list[str]):
+    B, m = g["bk"], _bk_mult(g)
+    r = B["reflex"]
+    r.update(done=True, losers=losers)
+    if losers:
+        _bk_out(g, f"Trop lent : {', '.join(_bk_name(g, x) for x in losers)} boi{'vent' if len(losers) > 1 else 't'} {m}",
+                drink={x: m for x in losers})
+    B["n"] += 1
+
+
+def bk_leave(g: dict, gid: str):
+    B = g.get("bk")
+    if not B or gid not in B["order"]:
+        return
+    i = B["order"].index(gid)
+    B["order"].remove(gid)
+    if not B["order"]:
+        g["phase"] = "end"
+        return
+    if i < B["turn"]:
+        B["turn"] -= 1
+    B["turn"] %= len(B["order"])
+    B["mates"] = [m for m in B["mates"] if gid not in m]
+    if B.get("await") and B["await"]["gid"] == gid:
+        B["await"] = None
+    if B["biskit"] == gid:
+        B["biskit"] = B["order"][0]
+    for k in ("qmaster", "thumb"):
+        if B[k] == gid:
+            B[k] = None
+    if B.get("reflex") and not B["reflex"]["done"] and all(x in B["reflex"]["taps"] for x in B["order"]):
+        _bk_close_reflex(g, [max(B["reflex"]["taps"], key=B["reflex"]["taps"].get)])
+
+
+def bk_view(g: dict, gid: str) -> dict:
+    B = g.get("bk") or {}
+    pid = lambda x: (player(g, x) or {}).get("pid") if x else None
+    if not B:
+        return {"mult": _bk_mult(g), "alcohol": bool(g["options"].get("sips", 1))}
+    tally = g.get("tally", {})
+    r, d, du = B.get("reflex"), B.get("dice"), B.get("duel")
+    cur = B["order"][B["turn"] % len(B["order"])] if B["order"] else None
+    now = time.time()
+    return {
+        "mult": _bk_mult(g), "alcohol": bool(g["options"].get("sips", 1)), "event": B["n"],
+        "seats": [{"pid": pid(x), "name": _bk_name(g, x), "drink": tally.get(x, {}).get("drink", 0), "give": tally.get(x, {}).get("give", 0),
+                   "biskit": x == B["biskit"], "qmaster": x == B["qmaster"], "thumb": x == B["thumb"],
+                   "mate": any(x in m for m in B["mates"]), "manual": bool((player(g, x) or {}).get("manual"))} for x in B["order"]],
+        "turn": pid(cur), "my_turn": cur == gid, "card": B["card"], "key": B["key"], "drawer": pid(B["drawer"]),
+        "drawer_name": _bk_name(g, B["drawer"]) if B["drawer"] else None, "drawn": B["drawn"], "deck_left": len(B["deck"]),
+        "kings": B["kings"], "outcomes": B["outcomes"], "rules": B["rules"],
+        "mates": [[_bk_name(g, a), _bk_name(g, b)] for a, b in B["mates"]],
+        "biskit": _bk_name(g, B["biskit"]), "qmaster": _bk_name(g, B["qmaster"]) if B["qmaster"] else None,
+        "thumb": _bk_name(g, B["thumb"]) if B["thumb"] else None, "final": _bk_name(g, B["final"]) if B["final"] else None,
+        "dice": {**d, "roller": pid(d["roller"]), "roller_name": _bk_name(g, d["roller"]), "age": now - d["at"]} if d else None,
+        "duel": {**du, "a": pid(du["a"]), "b": pid(du["b"]), "a_name": _bk_name(g, du["a"]), "b_name": _bk_name(g, du["b"]), "age": now - du["at"]} if du else None,
+        "reflex": {"id": r["id"], "kind": r["kind"], "done": r["done"], "tapped": [pid(x) for x in r["taps"]], "me_tapped": gid in r["taps"],
+                   "losers": [_bk_name(g, x) for x in r["losers"]], "age": now - r["at"]} if r else None,
+        "await": {"kind": B["await"]["kind"], "pid": pid(B["await"]["gid"]), "name": _bk_name(g, B["await"]["gid"]),
+                  "mine": B["await"]["gid"] == gid} if B.get("await") else None,
+    }
+
+
 def start(g: dict, rng: random.Random = random):
     """Distribue les rôles (Undercover) ou pose la première question (Qui de nous ?)."""
+    if g["type"] == "biskit":
+        bk_start(g, rng)
+        return
     if g["type"] == "pyramid":
         pyr_start(g, rng)
         return
@@ -1772,7 +2040,9 @@ def _next_question(g: dict, rng):
 
 def restart(g: dict, rng: random.Random = random) -> dict:
     """Nouvelle manche avec les mêmes joueurs."""
-    if g["type"] == "pyramid":
+    if g["type"] == "biskit":
+        start(g, rng)
+    elif g["type"] == "pyramid":
         g["pyr"] = {}
         start(g, rng)
     elif g["type"] == "tmc":
@@ -1835,6 +2105,8 @@ def view(g: dict, gid: str) -> dict:
         out["divan"] = divan_view(g, gid)
     if g["type"] == "pyramid":
         out["pyr"] = pyr_view(g, gid)
+    if g["type"] == "biskit":
+        out["bk"] = bk_view(g, gid)
     if g["type"] == "tmc":
         out["tmc"] = tmc_view(g, gid)
     if g["type"] == "roulette":
@@ -1900,6 +2172,13 @@ def _summary_facts(g: dict) -> list[str]:
         facts.append(f"{g.get('divan', {}).get('n', 0)} carte(s) tirée(s)")
     if t == "tmc":
         facts.append(f"{g['round']} question(s) posée(s)")
+    if t == "biskit":
+        B = g.get("bk") or {}
+        facts.append(f"Gorgées ×{_bk_mult(g)}" if o.get("sips", 1) else "Sans alcool")
+        if B:
+            facts.append(f"{B.get('drawn', 0)} carte(s) tirée(s) · coupe du Roi {B.get('kings', 0)}/4 · Biskit : {_bk_name(g, B.get('biskit'))}")
+            if B.get("rules"):
+                facts.append("Règles : " + " · ".join(r["text"] for r in B["rules"]))
     return facts
 
 

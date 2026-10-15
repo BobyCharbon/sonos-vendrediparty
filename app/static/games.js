@@ -12,7 +12,8 @@ GAME_ICONS.casino = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" 
 GAME_ICONS.divan = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 24v-7a5 5 0 0 1 5-5h18a5 5 0 0 1 5 5v7"/><path d="M6 24a4 4 0 0 1 8 0v4h20v-4a4 4 0 0 1 8 0v10H6z"/><path d="M10 34v4M38 34v4"/></svg>`;
 GAME_ICONS.tmc = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="15" cy="15" r="6"/><circle cx="33" cy="15" r="6"/><path d="M4 38c1-7 5-11 11-11 3 0 5 1 7 3M44 38c-1-7-5-11-11-11-3 0-5 1-7 3"/><path d="M24 44s-6-3.6-6-7.6a3 3 0 0 1 6-1 3 3 0 0 1 6 1c0 4-6 7.6-6 7.6z"/></svg>`;
 GAME_ICONS.pyramid = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="19" y="5" width="10" height="12" rx="2"/><rect x="12" y="19" width="10" height="12" rx="2"/><rect x="26" y="19" width="10" height="12" rx="2"/><rect x="5" y="33" width="10" height="12" rx="2"/><rect x="19" y="33" width="10" height="12" rx="2"/><rect x="33" y="33" width="10" height="12" rx="2"/></svg>`;
-const GAME_THEME = { pyramid: "g-py", undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv", tmc: "g-tm" };
+GAME_ICONS.biskit = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 18l6 6 10-12 10 12 6-6-3 16H11z"/><rect x="15" y="34" width="18" height="10" rx="3"/><circle cx="21" cy="39" r="1" fill="currentColor"/><circle cx="27" cy="39" r="1" fill="currentColor"/></svg>`;
+const GAME_THEME = { biskit: "g-bk", pyramid: "g-py", undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv", tmc: "g-tm" };
 const isBJ = (g) => g.type === "blackjack";
 const helpBtn = (type, inGame = false) => `<button type="button" class="g-help" data-rules="${type}" ${inGame ? "data-ingame" : ""} aria-label="Règles du jeu">?</button>`;
 
@@ -84,6 +85,7 @@ const CASINO_RULES_DRINKS = `
     <p>Exemple : 2 gorgées sur Rouge et 1 sur le 17. Le 17 (noir) sort : tu bois 2 (Rouge perdu) et tu distribues 10 (jackpot) !</p>
     <p>Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi. Buvez avec modération !</p>`;
 const GAME_RULES = {
+  get biskit() { return bkRulesHtml(); },
   pyramid: `
     <h3>Le principe</h3>
     <p>Un jeu de cartes à boire, autour de la même table : chacun reçoit 4 cartes, les retourne face cachée… et doit s'en souvenir jusqu'au bout. Chaque téléphone montre la même partie.</p>
@@ -340,6 +342,23 @@ document.getElementById("gamesRoot").innerHTML = `
         <p class="g-desc">Note les participants, lance la roue : celui qu'elle désigne a perdu. Pour savoir qui boit, qui paie la tournée, qui fait la vaisselle… La roue tourne sur tous les téléphones.</p>
         <div class="g-chips"><span>2+ noms</span><span>Hasard</span><span>Pour tout trancher</span></div>
         <button class="g-go" data-create="roulette">Créer une roulette</button>
+      </div>
+
+      <div class="gcard g-bk">
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.biskit}</div>
+          <div class="g-meta"><div class="g-title">Biskit Royal</div><div class="g-tag">Chaque carte a son effet. Le Roi a sa coupe.</div></div>
+          ${helpBtn("biskit")}
+        </div>
+        <p class="g-desc">Le Roi des cartes et les dés du Biskit réunis : tire une carte, rouge ou noire, chacune a son effet (cascade, duel, potes de boisson, règles inventées, réflexes…). Le 4e Roi boit la coupe !</p>
+        <div class="g-chips"><span>2+ joueurs, même table</span><span>52 cartes + dés</span><span>Plein écran</span></div>
+        <label class="g-opt"><span>🍻 Avec alcool <small>sinon des points de gage</small></span><input type="checkbox" class="switch" data-opt="bkalcohol" checked></label>
+        <div class="g-label">Gorgées</div>
+        <div class="g-modes" data-opt-group="bkmult">
+          <button type="button" data-val="1" class="on">×1 · normal</button><button type="button" data-val="2">×2 · hard</button>
+        </div>
+        <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
+        <button class="g-go" data-create="biskit">Ouvrir la table</button>
       </div>
 
       <div class="gcard g-py">
@@ -618,13 +637,14 @@ function renderGame(g) {
   } else if (g.phase === "results") {
     body = `<div class="question">${esc(g.question)}</div>${resultsHtml(g)}`;
   }
-  if (g.type === "pyramid") {
+  if (g.type === "pyramid" || g.type === "biskit") {
     // Plein écran : ni titre, ni onglets, ni QR ; « ‹ » revient à la vue normale (code, QR, joueurs).
     const full = pyrFull && g.phase !== "lobby";
     document.body.classList.toggle("pyr-full", full);
-    $("game").innerHTML = full ? pyrHtml(g) : title + (g.phase === "lobby" ? pyrHtml(g).replace(pyrTopBar(g), "")
+    const html = g.type === "biskit" ? bkHtml(g) : pyrHtml(g);
+    $("game").innerHTML = full ? html : title + (g.phase === "lobby" ? (g.type === "biskit" ? html : html.replace(pyrTopBar(g), ""))
       : `<button class="py-main" data-pyr="enter">⛶ Revenir au jeu en plein écran</button>`);
-    if (full) pyrWheel(g);
+    if (full && g.type === "pyramid") pyrWheel(g);
   } else {
     document.body.classList.remove("pyr-full");
     $("game").innerHTML = title + body;
@@ -1143,6 +1163,154 @@ function renderPyrHost(g) {
     ${g.is_host && !g.me && g.phase === "lobby" ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
 }
 
+// 🎲👑 Biskit Royal : chaque carte (rouge ou noire) a son effet ; certaines font rouler les dés du Biskit.
+const BK_RANKS = [["A", "As"], ["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7"], ["8", "8"], ["9", "9"], ["T", "10"], ["J", "Valet"], ["Q", "Dame"], ["K", "Roi"]];
+const BK_RULES = {
+  "A-red": ["🌊", "Cascade", "Tu commences à boire, tout le monde suit dans l'ordre de la table. Chacun peut s'arrêter seulement quand son voisin de droite s'est arrêté."],
+  "A-black": ["🌊", "Cascade inversée", "Ton voisin de gauche commence, toute la table suit… et toi tu t'arrêtes en dernier."],
+  "2-red": ["🎁", "Distribue 2", "Tu distribues 2 gorgées à qui tu veux."],
+  "2-black": ["🍻", "Bois 2", "Tu bois 2 gorgées."],
+  "3-red": ["🎁", "Distribue 3", "Tu distribues 3 gorgées à qui tu veux."],
+  "3-black": ["🍻", "Bois 3", "Tu bois 3 gorgées."],
+  "4-red": ["🎲", "Biskit", "Tu lances les dés. Un 3 : le Biskit boit (un double 3 : tu deviens le Biskit). Total 7 : ton voisin de gauche boit 2. Total 11 : ton voisin de droite boit 2. Total 9 : tu inventes une mini-règle ou tu choisis qui boit 2. Un double : tu distribues la valeur d'un dé."],
+  "4-black": ["🎲", "Biskit contre toi", "Ton voisin de gauche lance les dés pour toi : c'est toi la cible. Total 7 ou 11 : tu bois 2. Total 9 : tu bois 1. Un double : tu bois la valeur d'un dé. Un 3 : le Biskit boit quand même (double 3 : tu deviens le Biskit)."],
+  "5-red": ["🙅", "Je n'ai jamais", "Tu dis « Je n'ai jamais… » : tous ceux qui l'ont déjà fait boivent."],
+  "5-black": ["🙅", "Je n'ai jamais (contre toi)", "Les autres te posent un « Je n'ai jamais… » : si tu l'as déjà fait, tu bois."],
+  "6-red": ["👭", "Les filles boivent", "Toutes les filles de la table boivent."],
+  "6-black": ["👬", "Les gars boivent", "Tous les garçons de la table boivent."],
+  "7-red": ["☝️", "Paradis", "Un bouton apparaît sur tous les téléphones : lève la main ET touche-le. Le dernier boit."],
+  "7-black": ["👃", "Doigt sur le nez", "Un bouton apparaît sur tous les téléphones : doigt sur le nez ET touche-le. Le dernier boit."],
+  "8-red": ["🤝", "Pote de boisson", "Choisis ton pote : chaque fois que l'un de vous boit, l'autre boit aussi, jusqu'au prochain 8."],
+  "8-black": ["🤝", "Pote imposé", "Ton voisin de droite devient ton pote de boisson, jusqu'au prochain 8."],
+  "9-red": ["🗂️", "Catégories", "Choisis un thème (marques de bière, pays…) : chacun cite un mot à tour de rôle. Le premier qui sèche ou se répète boit."],
+  "9-black": ["🎤", "Rimes", "Dis un mot : chacun trouve une rime à tour de rôle. Le premier qui sèche boit."],
+  "T-red": ["🤐", "Maître des questions", "Jusqu'au prochain 10 rouge : quiconque répond à une de tes questions boit."],
+  "T-black": ["👍", "Maître du pouce", "Jusqu'au prochain 10 noir : quand tu poses ton pouce sur la table, le dernier à t'imiter boit."],
+  "J-red": ["📜", "Invente une règle", "Écris une règle (« interdit de dire boire »…) : elle s'affiche sur tous les écrans. Qui l'enfreint boit."],
+  "J-black": ["❌", "Supprime une règle", "Choisis une règle en cours et supprime-la."],
+  "Q-red": ["💃", "La Reine désigne", "Tu désignes quelqu'un : il boit 2."],
+  "Q-black": ["🎯", "Duel", "Choisis un adversaire : chacun lance un dé, le plus petit boit 2 (égalité : les deux boivent 1)."],
+  "K-red": ["👑", "Coupe du Roi", "Verse un peu de ton verre dans la coupe du Roi. Le 4e Roi tiré boit la coupe entière… et la partie s'arrête !"],
+  "K-black": ["👑", "Coupe du Roi", "Verse un peu de ton verre dans la coupe du Roi. Le 4e Roi tiré boit la coupe entière… et la partie s'arrête !"],
+};
+const BK_DICE = ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+let bkSeen = { n: -1, reflex: "", turnBuzz: "" }, bkRuleDraft = "";
+
+function bkRulesHtml() {
+  return `
+    <h3>Le principe</h3>
+    <p>Chacun son tour, on tire une carte (elle s'affiche sur tous les téléphones). <b>Chaque valeur a deux effets selon sa couleur</b> : ♥♦ rouge plutôt « tu donnes », ♠♣ noir plutôt « tu prends ». La table tourne vers la <b>gauche</b> (le voisin de gauche est le joueur suivant).</p>
+    <p>Les gorgées indiquées sont doublées si l'animateur a choisi ×2. Sans alcool, ce sont des points de gage.</p>
+    <h3>Les cartes</h3>
+    <div class="bk-rules">${BK_RANKS.map(([r, label]) => `
+      <div class="bk-rule-rank"><div class="bk-rule-name">${label}</div>
+        ${["red", "black"].map((c) => { const [ic, t, txt] = BK_RULES[`${r}-${c}`]; return `<div class="bk-rule ${c}" data-rule="${r}-${c}">
+          <span class="bk-rule-col">${c === "red" ? "♥♦" : "♠♣"}</span><div><b>${ic} ${t}</b><div>${txt}</div></div></div>`; }).join("")}
+      </div>`).join("")}</div>
+    <h3>🍪 Le Biskit</h3>
+    <p>Un joueur tiré au sort au début porte le titre de <b>Biskit</b> (affiché en permanence). Chaque fois qu'un dé fait 3, il boit. Un double 3 fait changer le Biskit de main.</p>
+    <h3>Fin de partie</h3>
+    <p>Au <b>4e Roi</b> (qui boit la coupe) ou quand le paquet est vide. Les règles inventées, les potes de boisson et les maîtres sont affichés en permanence sur tous les écrans.</p>
+    <p>Buvez avec modération : un verre d'eau compte aussi.</p>`;
+}
+
+function bkHtml(g) {
+  const v = g.bk, me = g.me, host = g.is_host;
+  const seat = (pid) => v.seats?.find((s) => s.pid === pid);
+  const top = `<div class="py-top">
+    <button type="button" class="py-icon" data-pyr="exit" aria-label="Quitter le plein écran (code, joueurs)">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <div class="py-top-mid"><div class="py-phase">Biskit Royal${v.drawn ? ` · carte ${v.drawn}` : ""}</div><div class="py-code">code <b>${esc(g.code)}</b></div></div>
+    ${helpBtn("biskit", true)}</div>`;
+  if (g.phase === "lobby") {
+    return `<div class="py-hero"><div class="py-hero-k">🎲👑 Biskit Royal</div><div class="py-hero-t">${g.players.length} joueur${g.players.length > 1 ? "s" : ""}</div>
+      <div class="artist">${v.alcohol ? `Avec alcool · gorgées ×${v.mult}` : "Sans alcool (points de gage)"} · l'ordre des joueurs = l'ordre autour de la table</div></div>
+      ${host ? `<button class="py-main" data-gact="start" ${g.players.length < 2 ? "disabled" : ""}>▶︎ Commencer la partie</button>`
+        : me ? `<div class="py-wait">Tu es à la table ✓ L'animateur va lancer…</div>` : `<button class="py-main" data-gact="join">S'asseoir à la table</button>`}`;
+  }
+  // Événements : vibration quand c'est ton tour ou qu'un réflexe démarre.
+  const turnKey = `${v.drawn}-${v.turn}`;
+  if (v.my_turn && bkSeen.turnBuzz !== turnKey && !v.await) { bkSeen.turnBuzz = turnKey; navigator.vibrate?.(100); }
+  if (v.reflex && !v.reflex.done && bkSeen.reflex !== v.reflex.id) { bkSeen.reflex = v.reflex.id; navigator.vibrate?.([200, 80, 200]); }
+  const fresh = v.event !== bkSeen.n;
+  bkSeen.n = v.event;
+  const cur = seat(v.turn);
+  const status = `<div class="bk-status">
+    <span class="bk-chip">👑 Coupe <b>${v.kings}/4</b></span><span class="bk-chip">🍪 Biskit <b>${esc(v.biskit)}</b></span>
+    ${v.qmaster ? `<span class="bk-chip">🤐 <b>${esc(v.qmaster)}</b></span>` : ""}${v.thumb ? `<span class="bk-chip">👍 <b>${esc(v.thumb)}</b></span>` : ""}
+    ${v.mates.map(([a, b]) => `<span class="bk-chip">🤝 <b>${esc(a)} + ${esc(b)}</b></span>`).join("")}
+    <span class="bk-chip">🃏 ${v.deck_left}</span></div>`;
+  const rule = v.key ? BK_RULES[v.key] : null;
+  const card = v.card ? `<div class="bk-card ${v.key?.endsWith("red") ? "red" : "black"}">
+      <div class="bk-card-face">${pyCard(v.card, "xl")}</div>
+      <div class="bk-effect"><div class="bk-effect-t">${rule[0]} ${rule[1]}</div><div class="bk-effect-d">${rule[2]}</div>
+        <div class="artist">tirée par ${esc(v.drawer_name)}</div></div></div>` : `<div class="py-wait">Personne n'a encore tiré de carte…</div>`;
+  const dice = v.dice ? `<div class="bk-dice ${v.dice.age < 2 ? "roll" : ""}"><span>${BK_DICE[v.dice.d[0]]}</span><span>${BK_DICE[v.dice.d[1]]}</span>
+      <small>lancés par ${esc(v.dice.roller_name)} · total ${v.dice.d[0] + v.dice.d[1]}</small></div>` : "";
+  const duel = v.duel ? `<div class="bk-duel ${v.duel.age < 2 ? "roll" : ""}"><b>${esc(v.duel.a_name)}</b> <span>${BK_DICE[v.duel.da]}</span> contre <span>${BK_DICE[v.duel.db]}</span> <b>${esc(v.duel.b_name)}</b></div>` : "";
+  const outs = v.outcomes.length ? `<div class="bk-outs">${v.outcomes.map((o) => `<div>${esc(o)}</div>`).join("")}</div>` : "";
+  let reflex = "";
+  if (v.reflex && !v.reflex.done) {
+    const label = v.reflex.kind === "paradis" ? "☝️ PARADIS !" : "👃 DOIGT SUR LE NEZ !";
+    reflex = `<div class="bk-reflex">${me && v.seats.some((s) => s.pid === me.pid) && !v.reflex.me_tapped
+      ? `<button class="bk-tap" data-gact="btap">${label}<small>${v.reflex.kind === "paradis" ? "main levée + touche vite !" : "doigt sur le nez + touche vite !"}</small></button>`
+      : `<div class="py-wait">✓ ${v.reflex.tapped.length}/${v.seats.length} ont touché…</div>`}
+      ${host ? `<button class="py-sub" data-gact="bclose">Clore : ceux qui n'ont pas touché boivent</button>` : ""}</div>`;
+  }
+  let action = "";
+  if (v.await) {
+    const canDo = v.await.mine || host, others = v.seats.filter((s) => s.pid !== v.await.pid);
+    const who = canDo && !v.await.mine ? `<div class="py-proxy">Tu choisis pour ${esc(v.await.name)}</div>` : "";
+    if (!canDo) action = `<div class="py-wait">${esc(v.await.name)} choisit…</div>`;
+    else if (["mate", "queen", "duel"].includes(v.await.kind)) action = `<div class="py-panel"><div class="py-turn-k">${{ mate: "Choisis ton pote de boisson", queen: "Qui boit 2 ?", duel: "Contre qui ce duel ?" }[v.await.kind]}</div>
+        <div class="chips bk-pick">${others.map((s) => `<button class="py-mini" data-bk="pick" data-target="${esc(s.pid)}" ${v.await.mine ? "" : `data-who="${esc(v.await.pid)}"`}>${esc(s.name)}</button>`).join("")}</div>${who}</div>`;
+    else if (v.await.kind === "rule") action = `<div class="py-panel"><div class="py-turn-k">Écris ta règle</div>
+        <form data-bk-form="rule" class="row"><input class="grow" type="text" id="bkRule" maxlength="120" placeholder="Ex. : interdit de dire « boire »" autocomplete="off"><button class="py-mini ok">OK</button></form>${who}</div>`;
+    else action = `<div class="py-panel"><div class="py-turn-k">Quelle règle supprimer ?</div>
+        <div class="bk-pick">${v.rules.map((r) => `<button class="py-sub" data-bk="pick" data-target="${esc(r.id)}" ${v.await.mine ? "" : `data-who="${esc(v.await.pid)}"`}>❌ ${esc(r.text)}</button>`).join("")}</div>${who}</div>`;
+  } else if (g.phase === "play" && (!v.reflex || v.reflex.done)) {
+    action = v.my_turn ? `<button class="py-main" data-bk="draw">🃏 Tirer une carte</button>`
+      : host && cur ? `<button class="py-sub" data-bk="draw" data-who="${esc(cur.pid)}">🃏 Tirer pour ${esc(cur.name)}</button>` : "";
+  }
+  const end = g.phase === "end" ? `<div class="py-hero"><div class="py-hero-k">🏁 Fin de la partie</div>
+      <div class="py-hero-t">${v.final ? `${esc(v.final)} boit la coupe du Roi 👑` : "Le paquet est vide"}</div></div>
+      ${host ? `<button class="py-main" data-gact="restart">🔁 Rejouer</button>` : ""}` : "";
+  const turn = g.phase === "play" ? `<div class="py-turn ${v.my_turn ? "me" : ""}"><div class="py-turn-k">${v.my_turn ? "C'est ton tour" : "C'est au tour de"}</div>
+      <div class="py-turn-name">${v.my_turn ? "À TOI !" : esc(cur?.name || "…")}</div></div>` : "";
+  const rules = v.rules.length ? `<div class="py-panel bk-active"><div class="py-turn-k">📜 Règles en cours</div>${v.rules.map((r) => `<div>« ${esc(r.text)} » <small>par ${esc(r.by)}</small></div>`).join("")}</div>` : "";
+  const table = `<h3 class="py-h">La table (vers la gauche ↓)</h3><div class="py-seats">${v.seats.map((s) => `
+    <div class="py-seat ${s.pid === v.turn && g.phase === "play" ? "on" : ""} ${s.pid === me?.pid ? "me" : ""}">
+      <div class="py-seat-name">${esc(s.name)}${s.manual ? " ✍️" : ""}${s.biskit ? " 🍪" : ""}${s.qmaster ? " 🤐" : ""}${s.thumb ? " 👍" : ""}${s.mate ? " 🤝" : ""}</div>
+      <span class="artist">🍻 ${s.drink} · 🎁 ${s.give}</span></div>`).join("")}</div>`;
+  return top + `<div class="py-body">${status}${end}${turn}${card}${dice}${duel}${outs}${reflex}${action}${rules}${table}</div>`;
+}
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-bk]");
+  if (!b || !game) return;
+  if (b.dataset.bk === "draw") { navigator.vibrate?.(20); return gameAction("bdraw", { who: b.dataset.who || "" }); }
+  if (b.dataset.bk === "pick") return gameAction("bpick", { target: b.dataset.target, who: b.dataset.who || "" });
+});
+document.addEventListener("submit", (ev) => {
+  const f = ev.target.closest("[data-bk-form]");
+  if (!f || !game) return;
+  ev.preventDefault();
+  const text = $("bkRule").value.trim();
+  if (text) gameAction("bpick", { guess: text, who: game.bk.await && !game.bk.await.mine ? game.bk.await.pid : "" });
+});
+function renderBkHost(g) {
+  const movable = g.is_host && g.phase === "lobby";
+  $("gameHost").innerHTML = `<h2>Autour de la table (${g.players.length})</h2>
+    ${movable ? `<p class="artist" style="margin:-4px 0 8px">Range les joueurs dans l'ordre où ils sont assis (vers la gauche) avec ⬆ ⬇.</p>` : ""}
+    <div class="list">${g.players.map((p, i) => `<div class="track"><div class="meta"><div class="title">${i + 1}. ${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}${sipsBadge(p)}</div></div>
+      <div class="icon-btns">
+        ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter">⬆</button>` : ""}
+        ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre">⬇</button>` : ""}
+        ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure">✕</button>` : ""}
+      </div></div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
+    ${g.phase === "lobby" ? manualForm(g) : ""}
+    ${g.is_host && !g.me && g.phase === "lobby" ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
+}
+
 // 🛋️ Le Divan : une grande carte de couleur, retournée à chaque tirage.
 const DV_ICONS = { experiences: "🌄", emotions: "💗", relations: "🤝", childhood: "🧸", dreams: "🌠", whatif: "🔮", couple: "💞" };
 let dvSeen = 0;
@@ -1215,7 +1383,7 @@ document.addEventListener("pointerup", dvRelease);
 document.addEventListener("pointercancel", dvRelease);
 
 // 📵 Participants sans téléphone : l'animateur les ajoute à la main et agit pour eux.
-const MANUAL_GAMES = ["divan", "tmc", "never", "pyramid"];
+const MANUAL_GAMES = ["divan", "tmc", "never", "pyramid", "biskit"];
 const playerTag = (g, p) => !MANUAL_GAMES.includes(g.type) ? "" : p.manual
   ? ` <span class="pill tag-manual" title="Ajouté·e à la main par l'animateur">✍️ sans téléphone</span>`
   : ` <span class="tag-phone" title="Joue sur son téléphone">📱</span>`;
@@ -1629,6 +1797,7 @@ function renderGameHost(g) {
   if (g.type === "casino") return renderCasinoHost(g, btn);
   if (g.type === "divan") return renderDivanHost(g, btn);
   if (g.type === "pyramid") return renderPyrHost(g);
+  if (g.type === "biskit") return renderBkHost(g);
   if (g.type === "tmc") return renderTmcHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
   const canRemove = g.is_host;
@@ -1750,6 +1919,7 @@ document.addEventListener("click", async (ev) => {
       mode: card.querySelector("[data-opt-group=mode] .on")?.dataset.val || "soft",
       // Blackjack : gorgées seulement si « Alcool » est coché.
       cats: [...card.querySelectorAll("[data-opt-group=cats] .on")].map((x) => x.dataset.val),
+      ...(b.dataset.create === "biskit" ? { sips: card.querySelector("[data-opt=bkalcohol]").checked ? +card.querySelector("[data-opt-group=bkmult] .on").dataset.val : 0 } : {}),
       floors: +(card.querySelector("[data-opt-group=floors] [data-val-out]")?.textContent || 5),
       pmode: card.querySelector("[data-opt-group=pmode] .on")?.dataset.val || "soft",
       poteau: card.querySelector("[data-opt-group=poteau] .on")?.dataset.val || "soft",
@@ -1772,7 +1942,8 @@ async function joinByCode() {
 // Dans une partie : les réglages choisis en tête, et seulement les règles du mode joué.
 function rulesFor(type, g) {
   if (!g) return GAME_RULES[type];
-  const sips = g.options?.sips || 0, facts = [];
+  const sips = g.options?.sips || 0;
+  let facts = [];
   if (g.mode) facts.push(`Questions : <b>${esc(g.mode)}</b>`);
   if (type === "undercover") facts.push(g.options?.white ? "Avec <b>Mr. White</b> (dès 5 joueurs)" : "<b>Sans</b> Mr. White");
   if (type === "blackjack") facts.push(sips ? `Mode <b>gorgées</b> · mise de 1 à <b>${sipWord(sips)}</b>` : "Mode <b>jetons</b> · 100 jetons au départ");
@@ -1780,9 +1951,12 @@ function rulesFor(type, g) {
     g.pyr?.hard ? "Distribution <b>hard</b> : 1, 2, 3, 4 gorgées" : "Distribution <b>soft</b> : 1 gorgée par carte",
     g.pyr?.poteau_hard ? "Poteau <b>hard</b> : cul sec pour le tireur" : "Poteau <b>soft</b> : tout le monde boit 1",
     g.pyr?.double ? "Étages : <b>2, 4, 6…</b> gorgées" : "Étages : <b>1, 2, 3…</b> gorgées", g.pyr?.boat_on ? "<b>Avec</b> le bateau" : "<b>Sans</b> bateau");
+  if (type === "biskit") facts.push(g.bk?.alcohol ? `Avec alcool · gorgées <b>×${g.bk.mult}</b>` : "<b>Sans alcool</b> (points de gage)",
+    g.bk?.biskit ? `Le Biskit : <b>${esc(g.bk.biskit)}</b>` : "", g.bk?.key ? `Dernière carte : <b>${esc(BK_RULES[g.bk.key][1])}</b> (surlignée plus bas)` : "");
   if (type === "casino") facts.push(sips ? `Mode <b>gorgées</b> · jusqu'à <b>${sipWord(sips)}</b> misées par tour` : "Mode <b>jetons</b> · 100 jetons au départ");
   else if (type === "whoof" || type === "never") facts.push(sips ? `<b>${sipWord(sips)}</b> ${type === "whoof" ? "pour la personne désignée" : "pour ceux qui l'ont fait"}` : "<b>Sans alcool</b>");
   facts.push(`Animée par <b>${esc(g.host_name || "?")}</b> · code <b>${esc(g.code)}</b>`);
+  facts = facts.filter(Boolean);
   let body = GAME_RULES[type];
   if (type === "casino") body = CASINO_RULES_COMMON + (sips ? CASINO_RULES_DRINKS : CASINO_RULES_CHIPS);
   if (type === "blackjack") body = BJ_RULES_COMMON + (sips ? BJ_RULES_DRINKS : GAME_RULES.blackjack.slice(BJ_RULES_COMMON.length).replace(BJ_RULES_DRINKS, ""));
@@ -1791,7 +1965,7 @@ function rulesFor(type, g) {
 
 // « ? » : règles détaillées du jeu.
 const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", never: "Je n'ai jamais", roulette: "Roulette",
-  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide" };
+  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");
   if (open) {
@@ -1801,6 +1975,11 @@ document.addEventListener("click", (ev) => {
     $("rulesTitle").textContent = GAME_NAMES[t];
     $("rulesBody").innerHTML = rulesFor(t, open.hasAttribute("data-ingame") ? game : null);
     $("rulesBody").scrollTop = 0;
+    // Biskit Royal en pleine partie : la ligne de la carte tirée est surlignée, et on y va directement.
+    if (t === "biskit" && open.hasAttribute("data-ingame") && game?.bk?.key) {
+      const row = $("rulesBody").querySelector(`[data-rule="${game.bk.key}"]`);
+      if (row) { row.classList.add("hl"); setTimeout(() => row.scrollIntoView({ block: "center", behavior: "smooth" }), 250); }
+    }
     $("rulesModal").classList.remove("hidden");
     document.body.style.overflow = "hidden";
     return;
@@ -1828,7 +2007,7 @@ document.addEventListener("click", (ev) => {
     if (cat === couple && cat.classList.contains("on")) on.forEach((b) => b !== cat && b.classList.remove("on"));
     else if (cat !== couple && cat.classList.contains("on")) couple?.classList.remove("on");
   }
-  const pm = ev.target.closest("[data-opt-group=pmode] [data-val], [data-opt-group=poteau] [data-val], [data-opt-group=floorsips] [data-val]");
+  const pm = ev.target.closest("[data-opt-group=pmode] [data-val], [data-opt-group=poteau] [data-val], [data-opt-group=floorsips] [data-val], [data-opt-group=bkmult] [data-val]");
   if (pm) pm.parentElement.querySelectorAll("[data-val]").forEach((x) => x.classList.toggle("on", x === pm));
   const opt = ev.target.closest("[data-opt-group=mode] [data-val]");
   if (opt) opt.parentElement.querySelectorAll("[data-val]").forEach((b) => b.classList.toggle("on", b === opt));
