@@ -14,6 +14,7 @@ import secrets
 import time
 import unicodedata
 
+from . import quiz
 from .divan_cards import DIVAN_CARDS
 from .tmc_questions import TMC_QUESTIONS
 
@@ -28,6 +29,7 @@ GAMES = {
     "tmc": "Tu me connais ?",
     "pyramid": "Pyramide",
     "biskit": "Biskit Royal",
+    "quiz": "Quiz",
 }
 BLACKJACKS = ("blackjack",)
 
@@ -260,6 +262,8 @@ def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code
         # Tu me connais ? : duo en cours, points par joueur et par duo (« a>b » : a devine b), noms des joueurs partis.
         "tmc": {"duo": None, "scores": {}, "pairs": {}, "names": {}, "used": [], "last": []},
     }
+    if kind == "quiz":
+        quiz.init(g)
     if host and plays:
         join(g, host, name)
     return g
@@ -354,6 +358,10 @@ def leave(g: dict, gid: str):
         pyr_leave(g, gid)
     if g["type"] == "biskit":
         bk_leave(g, gid)
+    if g["type"] == "quiz":
+        g["quiz"]["personal"].pop(gid, None)
+        if g["phase"] == "run" and g["quiz"]["personal"] and all(x["done"] for x in g["quiz"]["personal"].values()):
+            quiz._finish(g)
     g["votes"] = {v: t for v, t in g["votes"].items() if v != gid and t != gid}
     g["order"] = [i for i in g["order"] if i != gid]
     if g["candidates"]:
@@ -1885,6 +1893,12 @@ def bk_view(g: dict, gid: str) -> dict:
 
 def start(g: dict, rng: random.Random = random):
     """Distribue les rôles (Undercover) ou pose la première question (Qui de nous ?)."""
+    if g["type"] == "quiz":
+        try:
+            quiz.start(g, rng)
+        except quiz.QuizError as e:
+            raise GameError(str(e))
+        return
     if g["type"] == "biskit":
         bk_start(g, rng)
         return
@@ -2090,7 +2104,9 @@ def _next_question(g: dict, rng):
 
 def restart(g: dict, rng: random.Random = random) -> dict:
     """Nouvelle manche avec les mêmes joueurs."""
-    if g["type"] == "biskit":
+    if g["type"] == "quiz":
+        start(g, rng)
+    elif g["type"] == "biskit":
         start(g, rng)
     elif g["type"] == "pyramid":
         g["pyr"] = {}
@@ -2157,6 +2173,8 @@ def view(g: dict, gid: str) -> dict:
         out["pyr"] = pyr_view(g, gid)
     if g["type"] == "biskit":
         out["bk"] = bk_view(g, gid)
+    if g["type"] == "quiz":
+        out["quiz"] = quiz.view(g, gid)
     if g["type"] == "tmc":
         out["tmc"] = tmc_view(g, gid)
     if g["type"] == "roulette":
@@ -2222,6 +2240,8 @@ def _summary_facts(g: dict) -> list[str]:
         facts.append(f"{g.get('divan', {}).get('n', 0)} carte(s) tirée(s)")
     if t == "tmc":
         facts.append(f"{g['round']} question(s) posée(s)")
+    if t == "quiz":
+        facts += quiz.summary_facts(g)
     if t == "biskit":
         B = g.get("bk") or {}
         facts.append(f"Gorgées ×{_bk_mult(g)}" if o.get("sips", 1) else "Sans alcool")
@@ -2234,6 +2254,8 @@ def _summary_facts(g: dict) -> list[str]:
 
 def _summary_extra(g: dict, p: dict) -> str:
     """Score ou jetons d'un joueur, selon le jeu."""
+    if g["type"] == "quiz":
+        return quiz.summary_extra(g, p["id"])
     if g["type"] == "blackjack":
         return f"💰 {g['bj']['chips'].get(p['id'], BJ_START_CHIPS)}" if not bj_drinks(g) else ""
     if g["type"] == "casino" and not casino_sips(g):

@@ -838,3 +838,161 @@ body.pyr-full .top-head { display: none; }
 .bk-now.me .py-main { background: #fff; color: #8a1fd1; }
 .bk-flash-who { display: inline-block; margin-top: 10px; font: 800 clamp(1.6rem, 8vw, 2.4rem)/1.1 "Bricolage Grotesque", system-ui, sans-serif; text-transform: uppercase; }
 .bk-now button:disabled { opacity: .75; filter: grayscale(.4); }
+
+/* 🧠 Quiz */
+.g-qz { --g-bg: #10153a; --g-accent: #7c5cff; --g-ink: #fff; --g-soft: #d9d6ff; --g-chip: #1e2560; }
+body.pyr-full #game.g-qz { background: transparent; border: 0; padding: 0; box-shadow: none; color: #fff; }
+.qz-hero { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 22px; margin-bottom: 12px;
+  background: linear-gradient(135deg, #3b2bd1, #7c5cff 55%, #c04cff); box-shadow: 0 16px 36px rgba(60,40,200,.45), inset 0 1px 0 rgba(255,255,255,.25); }
+.qz-hero-i { font-size: 2.4rem; filter: drop-shadow(0 4px 8px rgba(0,0,0,.35)); }
+.qz-hero-t { font: 800 1.5rem/1.1 "Bricolage Grotesque", system-ui, sans-serif; }
+.qz-hero .artist { color: rgba(255,255,255,.85); }
+.qz-go { margin-bottom: 14px; font-size: 1.15rem; }
+.qz-setup .g-label { margin: 14px 0 6px; color: #b9b3ff; display: flex; justify-content: space-between; }
+.qz-setup .g-label small { color: #8f89c9; text-transform: none; letter-spacing: 0; }
+.qz-modes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.qz-mode { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 8px; text-align: left; padding: 10px 12px;
+  border-radius: 16px; border: 0; background: #1b2150; color: #fff; box-shadow: 0 8px 18px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08); transition: transform .15s; }
+.qz-mode-i { grid-row: span 2; font-size: 1.6rem; align-self: center; }
+.qz-mode small { color: #a9a4d8; font-size: .72rem; line-height: 1.2; }
+.qz-mode.on { background: linear-gradient(135deg, #5b3df5, #9b5cff); box-shadow: 0 0 0 2px #fff, 0 12px 26px rgba(124,92,255,.5); transform: translateY(-2px); }
+.qz-mode.on small { color: #efeaff; }
+.qz-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.qz-chips button { border: 0; padding: 9px 14px; border-radius: 999px; background: #1b2150; color: #fff; font-weight: 700; box-shadow: inset 0 1px 0 rgba(255,255,255,.08); }
+.qz-chips button.on { background: #7c5cff; box-shadow: 0 6px 16px rgba(124,92,255,.5); }
+.qz-themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.qz-theme { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border-radius: 16px; border: 0;
+  background: #1b2150; color: #fff; box-shadow: 0 6px 14px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.08); transition: transform .15s; }
+.qz-theme-i { font-size: 1.6rem; }
+.qz-theme-n { font-weight: 700; font-size: .82rem; text-align: center; line-height: 1.15; }
+.qz-theme small { color: #8f89c9; font-size: .68rem; }
+.qz-theme.on { background: linear-gradient(160deg, #2fd39a, #10875f); box-shadow: 0 0 0 2px #fff, 0 10px 22px rgba(47,211,154,.4); transform: translateY(-2px); }
+.qz-theme.on small { color: #e6fff5; }
+.qz-theme.all { grid-column: 1 / -1; flex-direction: row; justify-content: center; gap: 10px; }
+.qz-setup button:disabled { opacity: .75; }
+.qz-lb { margin-top: 18px; padding: 14px; border-radius: 20px; background: linear-gradient(180deg, #1a2056, #121741); box-shadow: 0 14px 30px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.08); }
+.qz-lb h3 { margin: 0 0 10px; font: 800 1.05rem "Bricolage Grotesque", system-ui, sans-serif; }
+.qz-lb ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.qz-lb li { display: grid; grid-template-columns: auto 1fr auto; column-gap: 10px; align-items: center; padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,.04); }
+.qz-lb li small { grid-column: 2 / -1; color: #9d97d1; font-size: .72rem; }
+.qz-lb-pts { font-weight: 800; color: #ffd84d; }
+.qz-rank { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #2a3170; font-weight: 800; font-size: .85rem; }
+.qz-rank.r1 { background: linear-gradient(160deg, #ffe27a, #d9a400); color: #3a2a00; box-shadow: 0 0 12px rgba(255,216,77,.6); }
+.qz-rank.r2 { background: linear-gradient(160deg, #eef2f7, #a9b4c4); color: #1d2533; }
+.qz-rank.r3 { background: linear-gradient(160deg, #f0b27a, #b0652a); color: #2b1300; }
+.qz-recs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.qz-rec { font-size: .74rem; padding: 5px 9px; border-radius: 999px; background: rgba(124,92,255,.18); color: #ddd8ff; }
+/* Question */
+.qz-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; font-size: .9rem; color: #c9c4f2; }
+.qz-top b { color: #fff; }
+.qz-mypts { padding: 5px 10px; border-radius: 999px; background: rgba(255,255,255,.08); font-weight: 700; color: #fff; }
+.qz-lives { letter-spacing: 1px; }
+.qz-timer { position: relative; height: 14px; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; margin-bottom: 12px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.4); }
+.qz-bar { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #2fd39a, #7c5cff); transition-property: width; transition-timing-function: linear; }
+.qz-timer.urgent .qz-bar { background: linear-gradient(90deg, #ff4f6d, #ff9f43); }
+.qz-timer.urgent { animation: qz-pulse .5s ease-in-out infinite alternate; }
+.qz-sec { position: absolute; right: 8px; top: -1px; font: 800 .7rem/16px system-ui; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+@keyframes qz-pulse { to { box-shadow: 0 0 14px rgba(255,79,109,.7), inset 0 2px 4px rgba(0,0,0,.4); } }
+.qz-qcard { padding: 18px 16px; border-radius: 24px; margin-bottom: 12px; text-align: center; background: linear-gradient(170deg, #ffffff, #e9e6ff); color: #171a3d;
+  box-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 -3px 0 rgba(0,0,0,.08); animation: qz-in .45s cubic-bezier(.2,.9,.3,1.2); }
+.qz-qmeta { display: flex; justify-content: space-between; font-size: .78rem; font-weight: 700; color: #6b67a3; margin-bottom: 8px; }
+.qz-stars { color: #f0a500; letter-spacing: 1px; }
+.qz-qtext { font: 800 clamp(1.25rem, 6vw, 1.75rem)/1.2 "Bricolage Grotesque", system-ui, sans-serif; }
+.qz-qtext.long { font-size: clamp(1.05rem, 4.8vw, 1.4rem); }
+@keyframes qz-in { from { opacity: 0; transform: translateY(14px) scale(.96) rotateX(12deg); } to { opacity: 1; transform: none; } }
+.qz-answers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; perspective: 800px; }
+.qz-answers.long { grid-template-columns: 1fr; }
+.qz-ans { position: relative; display: flex; align-items: center; gap: 10px; min-height: 76px; padding: 12px; border: 0; border-radius: 18px; color: #fff; text-align: left;
+  font: 700 1rem/1.2 system-ui, sans-serif; box-shadow: 0 6px 0 rgba(0,0,0,.28), 0 14px 24px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.25);
+  transition: transform .12s, box-shadow .12s, opacity .25s, filter .25s; animation: qz-pop .35s ease-out backwards; }
+.qz-answers.long .qz-ans { min-height: 58px; }
+.qz-ans:nth-child(2) { animation-delay: .05s; } .qz-ans:nth-child(3) { animation-delay: .1s; } .qz-ans:nth-child(4) { animation-delay: .15s; }
+@keyframes qz-pop { from { opacity: 0; transform: scale(.85) translateY(10px); } }
+.qz-ans:not(:disabled):active { transform: translateY(5px); box-shadow: 0 1px 0 rgba(0,0,0,.28), 0 6px 12px rgba(0,0,0,.35); }
+.qz-ans:disabled { cursor: default; }
+.qz-shape { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: rgba(0,0,0,.18); font-size: 1.1rem; }
+.qz-txt { flex: 1; }
+.qz-count { flex: none; min-width: 28px; padding: 3px 8px; border-radius: 999px; background: rgba(0,0,0,.25); font-weight: 800; text-align: center; }
+.qz-a { background: linear-gradient(160deg, #ff5470, #d4163a); }
+.qz-b { background: linear-gradient(160deg, #3d8bff, #1258c4); }
+.qz-c { background: linear-gradient(160deg, #ffc93c, #d99a00); color: #2c1d00; }
+.qz-d { background: linear-gradient(160deg, #3ed37a, #1c8f48); }
+.qz-ans.dim { opacity: .35; filter: saturate(.4); }
+.qz-ans.picked { box-shadow: 0 0 0 4px #fff, 0 14px 30px rgba(0,0,0,.45); transform: scale(1.03); }
+.qz-ans.right { opacity: 1; filter: none; box-shadow: 0 0 0 4px #fff, 0 0 28px rgba(62,211,122,.9); animation: qz-right .6s ease-out; }
+.qz-ans.right::after { content: "✓"; position: absolute; top: -10px; right: -8px; width: 30px; height: 30px; border-radius: 50%; background: #fff; color: #1c8f48;
+  display: grid; place-items: center; font-weight: 900; box-shadow: 0 4px 10px rgba(0,0,0,.4); }
+.qz-ans.wrong { opacity: .9; filter: grayscale(.2); animation: qz-shake .45s; }
+.qz-ans.wrong::after { content: "✗"; position: absolute; top: -10px; right: -8px; width: 30px; height: 30px; border-radius: 50%; background: #fff; color: #d4163a;
+  display: grid; place-items: center; font-weight: 900; box-shadow: 0 4px 10px rgba(0,0,0,.4); }
+.qz-ans.cut { visibility: hidden; }
+@keyframes qz-right { 0% { transform: scale(1); } 40% { transform: scale(1.08); } 100% { transform: scale(1); } }
+@keyframes qz-shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+.qz-status { margin-top: 12px; padding: 12px; border-radius: 16px; text-align: center; font-weight: 700; background: rgba(255,255,255,.07); }
+.qz-status.ok { background: rgba(62,211,122,.18); color: #b6ffd2; }
+.qz-status.bad, .qz-status.out { background: rgba(255,84,112,.18); color: #ffc2cc; }
+.qz-verdict { margin-bottom: 10px; padding: 14px; border-radius: 18px; text-align: center; font: 800 1.35rem "Bricolage Grotesque", system-ui, sans-serif;
+  animation: qz-in .4s ease-out; box-shadow: 0 12px 28px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.2); }
+.qz-verdict.ok { background: linear-gradient(160deg, #3ed37a, #148a45); }
+.qz-verdict.bad { background: linear-gradient(160deg, #ff5470, #b3123a); }
+.qz-speedwin { margin-bottom: 10px; text-align: center; color: #ffe27a; font-weight: 700; }
+.qz-mini { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.qz-mini-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 14px; background: rgba(255,255,255,.06);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05); animation: py-in .35s ease-out backwards; }
+.qz-mini-row b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qz-mini-row small { color: #a9a4d8; }
+.qz-mini-row.me { background: rgba(124,92,255,.28); box-shadow: 0 0 0 1px rgba(255,255,255,.25); }
+.qz-mini-row.out { opacity: .5; }
+.qz-p { font-weight: 800; color: #ffd84d; }
+.qz-next { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; color: #c9c4f2; }
+.qz-next .py-sub { width: auto; margin: 0; }
+.qz-flash { position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 30; padding: 16px 26px; border-radius: 22px; pointer-events: none;
+  font: 800 1.6rem "Bricolage Grotesque", system-ui, sans-serif; animation: qz-flash 1.1s ease-out forwards; box-shadow: 0 20px 40px rgba(0,0,0,.5); }
+.qz-flash.ok { background: #1c8f48; } .qz-flash.bad { background: #d4163a; font-size: 1.1rem; }
+@keyframes qz-flash { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.6); } 20% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -60%) scale(1); } }
+/* Paliers */
+.qz-ladwrap { display: grid; grid-template-columns: 1fr 104px; gap: 10px; align-items: start; }
+.qz-ladwrap .qz-answers { grid-template-columns: 1fr; }
+.qz-ladwrap .qz-ans { min-height: 54px; }
+.qz-ladder { list-style: none; margin: 0; padding: 6px; border-radius: 16px; background: #121741; box-shadow: inset 0 2px 8px rgba(0,0,0,.5); display: flex; flex-direction: column; gap: 2px; }
+.qz-ladder li { display: flex; justify-content: space-between; gap: 4px; padding: 3px 6px; border-radius: 8px; font-size: .7rem; color: #8f89c9; }
+.qz-ladder li b { color: #c9c4f2; font-weight: 700; }
+.qz-ladder li.safe b { color: #fff; } .qz-ladder li.safe { background: rgba(255,216,77,.12); }
+.qz-ladder li.won { color: #b6ffd2; } .qz-ladder li.won b { color: #3ed37a; }
+.qz-ladder li.cur { background: linear-gradient(90deg, #ffb703, #ff7b00); color: #2c1d00; box-shadow: 0 0 14px rgba(255,183,3,.6); }
+.qz-ladder li.cur b { color: #2c1d00; }
+.qz-jokers { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.qz-joker { flex: 1; min-width: 90px; padding: 10px; border: 0; border-radius: 14px; background: #1b2150; color: #fff; font-weight: 800;
+  box-shadow: 0 6px 0 rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.1); }
+.qz-joker:disabled { opacity: .3; text-decoration: line-through; }
+.qz-joker.stop { background: linear-gradient(160deg, #ffb703, #e07a00); color: #2c1d00; }
+.qz-done { text-align: center; padding: 18px; border-radius: 22px; background: linear-gradient(170deg, #1d2463, #121741); box-shadow: 0 16px 36px rgba(0,0,0,.45); }
+.qz-done-t { font: 800 1.5rem/1.2 "Bricolage Grotesque", system-ui, sans-serif; margin-bottom: 8px; }
+/* Fin */
+.qz-end-t { text-align: center; font: 800 1.6rem "Bricolage Grotesque", system-ui, sans-serif; margin: 4px 0 14px; text-shadow: 0 4px 16px rgba(124,92,255,.6); }
+.qz-podium { display: grid; grid-template-columns: repeat(3, 1fr); align-items: end; gap: 8px; margin-bottom: 8px; }
+.qz-pod { text-align: center; animation: qz-rise .7s cubic-bezier(.2,.9,.3,1.2) backwards; }
+.qz-pod.p1 { animation-delay: .5s; } .qz-pod.p2 { animation-delay: .25s; }
+.qz-pod-name { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qz-pod-pts { font-size: .8rem; color: #ffd84d; margin-bottom: 6px; }
+.qz-pod-step { display: grid; place-items: start center; padding-top: 10px; border-radius: 14px 14px 4px 4px; font-size: 1.8rem;
+  box-shadow: 0 14px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.3); }
+.qz-pod.p1 .qz-pod-step { height: 120px; background: linear-gradient(180deg, #ffe27a, #c48d00); }
+.qz-pod.p2 .qz-pod-step { height: 88px; background: linear-gradient(180deg, #eef2f7, #8996a8); }
+.qz-pod.p3 .qz-pod-step { height: 64px; background: linear-gradient(180deg, #f0b27a, #9a5420); }
+@keyframes qz-rise { from { opacity: 0; transform: translateY(40px); } }
+.qz-solo { text-align: center; padding: 22px; border-radius: 24px; margin-bottom: 12px; background: linear-gradient(135deg, #3b2bd1, #9b5cff);
+  box-shadow: 0 18px 40px rgba(60,40,200,.5), inset 0 1px 0 rgba(255,255,255,.25); animation: qz-in .5s ease-out; }
+.qz-solo-k { font: 800 .8rem system-ui; letter-spacing: .16em; text-transform: uppercase; opacity: .85; }
+.qz-solo-v { font: 800 clamp(2.4rem, 12vw, 3.4rem)/1.1 "Bricolage Grotesque", system-ui, sans-serif; margin: 6px 0; }
+.qz-solo .artist { color: rgba(255,255,255,.85); }
+.qz-more { margin-top: 12px; }
+.qz-more summary { cursor: pointer; padding: 12px; border-radius: 14px; background: rgba(255,255,255,.06); font-weight: 700; }
+.g-qz .py-main { background: linear-gradient(135deg, #2fd39a, #12a06e); color: #fff; border: 0; box-shadow: 0 8px 0 #0b6b49, 0 16px 30px rgba(47,211,154,.35); }
+.g-qz .py-main:active { transform: translateY(6px); box-shadow: 0 2px 0 #0b6b49; }
+.g-qz .py-sub { background: rgba(255,255,255,.08); color: #fff; border: 0; }
+.qz-flag { font-size: 2.6em; line-height: 1; vertical-align: middle; display: inline-block; filter: drop-shadow(0 4px 6px rgba(0,0,0,.25)); }
+.qz-qtext .qz-flag { display: block; font-size: 3.4em; margin: 6px auto 0; }
+.qz-ans .qz-flag { font-size: 2.4rem; }
+.qz-ans.cut { visibility: visible; opacity: .12; text-decoration: line-through; }

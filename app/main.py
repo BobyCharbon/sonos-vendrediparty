@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, RedirectResponse, Response, Streamin
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import games, links
+from . import games, links, quiz
 from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
 from .push import Push, valid_subscription
 from .security import Limiter
@@ -49,6 +49,7 @@ BUILD_ID = build_id()
 # Proxies de confiance (même variable qu'uvicorn) : leur IP n'identifie personne.
 PROXY_IPS = {ip.strip() for ip in os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1").split(",") if ip.strip()}
 store = PartyStore(DATA_DIR / "session.json", ignored_ips=PROXY_IPS)
+quiz.STATS_PATH = DATA_DIR / "quiz_stats.json"  # classement général du Quiz, toutes parties confondues
 sonos = Sonos(os.environ.get("SONOS_IP") or None)
 spotify = (
     Spotify(os.environ["SPOTIFY_CLIENT_ID"], os.environ["SPOTIFY_CLIENT_SECRET"], os.environ.get("SPOTIFY_MARKET", "CH"))
@@ -1032,6 +1033,9 @@ def game_state(code: str, request: Request, guest_id: str = "", name: str = ""):
     game_presence(request, guest_id, name)
     sync_player_name(g, guest_id, name)
     admin_lead(g, request, guest_id)
+    if quiz.tick(g):  # Quiz : le temps a avancé (fin d'une question, question suivante…)
+        g["updated_at"] = time.time()
+        store.save()
     return games.view(g, guest_id)
 
 
@@ -1046,11 +1050,12 @@ class GameAction(BaseModel):
     who: str = ""  # Pyramide : l'animateur agit pour ce joueur (pid)
     slots: list[int] = []  # Pyramide : cartes à revoir
     values: list[str] = []  # Pyramide : valeurs du test de mémoire
+    settings: dict = {}  # Quiz : réglages de la partie (mode, thèmes, difficulté…)
 
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
 HOST_ACTIONS = {"start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
-                "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose"}
+                "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset"}
 
 
 @app.post("/api/games/{code}")
@@ -1100,13 +1105,17 @@ def game_action(code: str, body: GameAction, request: Request):
         "paccept": (games.pyr_accept, target), "prefuse": (games.pyr_refuse, target),
         "bdraw": (games.bk_draw, actor, random), "bpick": (games.bk_complete, actor, target, body.guess, random),
         "btap": (games.bk_tap, actor), "bclose": (games.bk_close_reflex,),
+        "qset": (quiz.configure, body.settings), "qans": (quiz.answer, actor, body.amount, random),
+        "qjoker": (quiz.joker, actor, body.guess, random), "qstop": (quiz.stop, actor),
     }
+    if g["type"] == "quiz" and a == "next":
+        actions["next"] = (quiz.next_step, random)
     if a not in actions:
         raise HTTPException(400, "Action inconnue")
     fn, *args = actions[a]
     try:
         fn(g, *args)
-    except games.GameError as e:
+    except (games.GameError, quiz.QuizError) as e:
         raise HTTPException(409, str(e))
     g["updated_at"] = time.time()
     if not g["players"] and not g["host"]:
