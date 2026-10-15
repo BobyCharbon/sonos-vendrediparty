@@ -19,6 +19,7 @@ THEMES = {
     "geo": ("Géographie", "🌍"),
     "histoire": ("Histoire", "🏛️"),
     "sciences": ("Sciences", "🔬"),
+    "tech": ("Informatique & IA", "💻"),
     "corps": ("Corps humain", "🫀"),
     "animaux": ("Animaux", "🦁"),
     "espace": ("Espace", "🚀"),
@@ -81,10 +82,10 @@ def load_written(theme: str) -> list[dict]:
 
 
 def _build() -> dict[str, list[dict]]:
-    from . import gen_culture, gen_cuisine, gen_divert, gen_geo, gen_histoire, gen_nature, gen_sciences, gen_sport, gen_suisse
+    from . import gen_culture, gen_cuisine, gen_divert, gen_geo, gen_histoire, gen_nature, gen_sciences, gen_sport, gen_suisse, gen_tech
 
     bank: dict[str, list[dict]] = {t: load_written(t) for t in THEMES}
-    for mod in (gen_geo, gen_suisse, gen_sciences, gen_histoire, gen_culture, gen_cuisine, gen_divert, gen_sport, gen_nature):
+    for mod in (gen_geo, gen_suisse, gen_sciences, gen_histoire, gen_culture, gen_cuisine, gen_divert, gen_sport, gen_nature, gen_tech):
         for q in mod.generate():
             if q:
                 bank[q["t"]].append(q)

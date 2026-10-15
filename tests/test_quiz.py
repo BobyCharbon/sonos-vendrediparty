@@ -117,3 +117,15 @@ def test_solo_and_api():
     other = TestClient(main.app)
     other.post(f"/api/games/{code}", json={"guest_id": "quiz-other-001", "name": "Léa", "action": "join"})
     assert other.post(f"/api/games/{code}", json={"guest_id": "quiz-other-001", "action": "qset", "settings": {"mode": "speed"}}).status_code == 403
+
+
+def test_bank_has_no_draft_leftovers():
+    """Toutes les mauvaises réponses sont de vraies réponses (pas de brouillons « … seul », « — »…) et tous les thèmes ont 1000+ questions."""
+    import re
+    for t, qs in qb.BANK.items():
+        assert len(qs) >= 1000, t
+        for q in qs:
+            txt = " | ".join([q["q"], q["a"], *q["w"]])
+            assert not re.search(r"\bseule?s?\b", " ".join(q["w"])), txt
+            assert "—" not in txt and "non :" not in txt, txt
+            assert len({c.lower() for c in [q["a"], *q["w"]]}) == 4, txt

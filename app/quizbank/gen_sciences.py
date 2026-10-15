@@ -222,7 +222,7 @@ WRITTEN = [
     (2, "Les pôles identiques de deux aimants…", "Se repoussent", ["S'attirent", "S'annulent", "N'interagissent pas"]),
     (2, "Quel métal est attiré par un aimant ?", "Le fer", ["Le cuivre", "L'aluminium", "L'or"]),
     (2, "Comment s'appelle un matériau qui ne conduit pas l'électricité ?", "Un isolant", ["Un conducteur", "Un semi-conducteur", "Un électrolyte"]),
-    (2, "Quel matériau semi-conducteur est à la base des puces électroniques ?", "Le silicium", ["Le cuivre", "Le germanium seul", "Le carbone"]),
+    (2, "Quel matériau semi-conducteur est à la base des puces électroniques ?", "Le silicium", ["Le cuivre", "Le graphène", "Le carbone"]),
     (2, "Que signifie l'abréviation LED ?", "Diode électroluminescente", ["Lampe à économie d'énergie", "Laser électronique diffus", "Lumière électrique directe"]),
     (2, "Quel est le nom du changement d'une chenille en papillon ?", "La métamorphose", ["La mue", "La mitose", "La photosynthèse"]),
     (2, "Comment s'appelle la division d'une cellule en deux cellules identiques ?", "La mitose", ["La méiose", "La fécondation", "L'osmose"]),
