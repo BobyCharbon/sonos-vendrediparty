@@ -687,3 +687,5 @@ body.pyr-full #game > * { max-width: 560px; margin-left: auto; margin-right: aut
 .py-liar { background: radial-gradient(circle, rgba(138,22,69,.6), rgba(7,4,14,.9) 70%); }
 .py-summit .py-flash-title { color: #ffd166; text-shadow: 0 0 26px rgba(255,209,102,.9); }
 @media (prefers-reduced-motion: reduce) { .py-card, .py-flash-box, .py-turn-name, .py-claim, .py-wait { animation: none !important; } }
+.py-kick { width: 32px; height: 32px; padding: 0; border-radius: 10px; background: #2a1f45; color: #a79fba; font-size: .85rem; flex: none; }
+.py-pend { border-color: #ffd166; box-shadow: 0 0 18px rgba(255,209,102,.3); animation: py-in .35s ease-out; }

@@ -95,6 +95,7 @@ const GAME_RULES = {
       <li><b>Dedans ou dehors</b> : entre tes 2 premières cartes, ou à l'extérieur ?</li>
       <li><b>Quel symbole</b> : ♠ ♥ ♦ ♣ ?</li>
     </ol>
+    <p><b>Poteau !</b> Si tu reçois une carte de même valeur qu'une carte que tu as déjà, <b>tout le monde boit 1 gorgée</b> (au bateau aussi).</p>
     <p>Raté : tu bois ; réussi : tu distribues. En mode <b>soft</b>, 1 gorgée à chaque carte ; en mode <b>hard</b>, 1, 2, 3 puis 4 gorgées selon le tour. Une égalité (même valeur, ou carte « sur le poteau ») compte comme ratée. <b>L'As est la carte la plus forte.</b> Ensuite, toutes les mains se retournent : <b>plus personne ne voit ses cartes</b>.</p>
     <h3>2. La pyramide</h3>
     <ul>
@@ -108,8 +109,10 @@ const GAME_RULES = {
     <p>Chacun tape les valeurs de ses 4 cartes, de gauche à droite. L'app retourne les vraies cartes et compte les erreurs.</p>
     <h3>4. Le bateau</h3>
     <p>Si l'animateur a gardé le bateau : celui qui a fait le plus d'erreurs le fait (égalité, ou menteurs au sommet : la roulette décide). Il refait les 4 questions avec <b>un paquet neuf</b> : à chaque erreur, 1 gorgée et retour au début. Ça s'arrête quand il réussit les 4 d'affilée… ou quand le paquet est vide.</p>
+    <h3>Arriver en cours de partie</h3>
+    <p>Demande à rejoindre : l'animateur accepte, et tu fais ta propre distribution (les 4 questions), sous les yeux de tous. Puis tes cartes se retournent et la pyramide reprend. Après la pyramide, tu regardes la fin de la partie.</p>
     <h3>L'animateur</h3>
-    <p>Il distribue, retourne les cartes, valide « bu » ou « menteur », accepte les demandes pour revoir ses cartes, lance le test de mémoire et le bateau. Il peut répondre à la place d'un joueur (participant sans téléphone, ou qui a laissé son téléphone).</p>
+    <p>Il peut exclure un joueur à tout moment (✕). Il distribue, retourne les cartes, valide « bu » ou « menteur », accepte les demandes pour revoir ses cartes, lance le test de mémoire et le bateau. Il peut répondre à la place d'un joueur (participant sans téléphone, ou qui a laissé son téléphone).</p>
     <p>Buvez avec modération : un verre d'eau compte aussi.</p>`,
   tmc: `
     <h3>Le principe</h3>
@@ -849,7 +852,11 @@ function pyrEvents(g) {
     const l = v.last, mine = l.pid === g.me?.pid;
     pyrFlash(l.ok ? "good" : "bad", l.ok ? `${mine ? "Bien joué" : esc(l.name)} !` : `Raté${mine ? "" : ` pour ${esc(l.name)}`} !`,
       `${esc(PYR_ANS[l.value])} · ${l.ok ? `distribue ${sipWord(l.sips)}` : `boit ${sipWord(l.sips)}`}`, l.card);
+    if (l.poteau) setTimeout(() => pyrFlash("summit", "POTEAU !", `${esc(l.name)} a deux fois la même carte · tout le monde boit 1 gorgée 🍻`, l.card), 2500);
   }
+  const lateName = v.late?.name || "";
+  if (pyrSeen.lateName && !lateName && g.phase === "pyramid") setTimeout(() => pyrFlash("good", "Cartes retournées !", `${esc(pyrSeen.lateName)} est dans la partie`), 2600);
+  pyrSeen.lateName = lateName;
   if (v.flipped > pyrSeen.flip) {
     pyrSeen.flip = v.flipped;
     if (v.is_top) pyrFlash("summit", "CUL SEC !", "Dernière carte : pas de bluff. Tu l'as ? Annonce-le.", v.current);
@@ -891,6 +898,7 @@ function pyrSeats(g, opts = {}) {
   return `<div class="py-seats">${v.seats.map((s) => `
     <div class="py-seat ${s.pid === v.turn ? "on" : ""} ${s.pid === g.me?.pid ? "me" : ""}">
       <div class="py-seat-name">${esc(s.name)}${s.manual ? " ✍️" : ""}${sipsBadge(g.players.find((p) => p.pid === s.pid) || {})}</div>
+      ${g.is_host && s.pid !== g.me?.pid ? `<button type="button" class="py-kick" data-gact="remove" data-target="${esc(s.pid)}" aria-label="Exclure ${esc(s.name)}">✕</button>` : ""}
       <div class="py-seat-cards">${s.cards.map((c, i) => pyCard(c, "sm", opts.memory && s.memory ? `data-ok="${s.memory[i] === c[0]}"` : "")).join("") || `<span class="artist">—</span>`}</div>
       ${opts.memory && s.memory ? `<div class="py-guess">${s.memory.map((m, i) => `<span class="${m === s.cards[i]?.[0] ? "ok" : "ko"}">${m === "T" ? "10" : m}</span>`).join("")}<b>${s.errors} erreur${s.errors > 1 ? "s" : ""}</b></div>` : ""}
     </div>`).join("")}</div>`;
@@ -927,6 +935,17 @@ function pyrHtml(g) {
         : `<div class="py-q">${PYR_Q[v.step].q}</div>${ref.length ? `<div class="py-ref">${ref.map((c) => pyCard(c, "md")).join("")}<span class="py-card ghost md"><b>?</b></span></div>` : ""}
            <div class="py-wait">${esc(cur?.name)} réfléchit…</div>`}
       <h3 class="py-h">Les mains</h3>${pyrSeats(g)}`;
+  } else if (g.phase === "pyramid" && v.late) {
+    const L = v.late, seat = v.seats.find((s) => s.pid === L.pid), mine = L.pid === me?.pid;
+    const ref = L.step === 2 ? seat.cards.slice(0, 1) : L.step === 3 ? seat.cards.slice(0, 2) : [];
+    body = `<div class="py-hero"><div class="py-hero-k">🆕 Nouveau joueur</div><div class="py-hero-t">${esc(L.name)} rejoint la partie</div>
+        <div class="artist">Sa distribution, puis ses cartes se retournent et la pyramide reprend</div></div>
+      <div class="py-steps">${[1, 2, 3, 4].map((i) => `<span class="${i < L.step ? "done" : i === L.step ? "on" : ""}">${i}</span>`).join("<i></i>")}</div>
+      <div class="py-turn ${mine ? "me" : ""}"><div class="py-turn-name">${mine ? "À TOI !" : esc(L.name)}</div></div>
+      <div class="py-stake">Raté : bois <b>${sipWord(L.step_sips)}</b> · Réussi : distribue <b>${L.step_sips}</b></div>
+      ${(mine || host) ? pyrQuestion(g, L.step, ref, mine ? "" : L.pid, "pans") + (mine ? "" : `<div class="py-proxy">Tu réponds pour ${esc(L.name)}</div>`)
+        : `<div class="py-q">${PYR_Q[L.step].q}</div>${ref.length ? `<div class="py-ref">${ref.map((c) => pyCard(c, "md")).join("")}<span class="py-card ghost md"><b>?</b></span></div>` : ""}<div class="py-wait">${esc(L.name)} réfléchit…</div>`}
+      ${pyrBoard(g)}`;
   } else if (g.phase === "pyramid") {
     body = pyrBoard(g) + pyrCurrent(g) + pyrHand(g) + `<h3 class="py-h">La table</h3>${pyrSeats(g)}`;
   } else if (g.phase === "memory") {
@@ -951,7 +970,14 @@ function pyrHtml(g) {
   } else if (g.phase === "boat" || g.phase === "end") {
     body = pyrBoat(g);
   }
-  return pyrTopBar(g) + `<div class="py-body">${body}</div>`;
+  // Arrivées en cours de partie : l'animateur accepte ou refuse ; le nouveau venu patiente.
+  const pend = g.phase !== "lobby" && host && v.pending?.length ? `<div class="py-panel py-pend">${v.pending.map((p) => `
+      <div class="py-claim"><span>🙋 <b>${esc(p.name)}</b> veut rejoindre</span><span class="py-claim-act">
+        <button class="py-mini ok" data-gact="paccept" data-target="${esc(p.pid)}">Accepter</button><button class="py-mini bad" data-gact="prefuse" data-target="${esc(p.pid)}">Refuser</button></span></div>`).join("")}</div>` : "";
+  const outsider = g.phase !== "lobby" && !g.master && (!me || (v.me && v.me.seat == null && !v.me.pending && !(v.queue || []).length));
+  const wait = g.phase !== "lobby" && v.me?.pending ? `<div class="py-panel py-pend"><div class="py-wait">⏳ L'animateur doit accepter ton arrivée…</div></div>`
+    : !me && outsider ? `<button class="py-sub" data-gact="join">🙋 Demander à rejoindre la partie</button>` : "";
+  return pyrTopBar(g) + `<div class="py-body">${pend}${wait}${body}</div>`;
 }
 
 function pyrBoard(g) {
@@ -1043,7 +1069,10 @@ function pyrBoat(g) {
   if (b.last && b.last.n > (pyrSeen.boat || 0)) {
     const first = pyrSeen.boat === undefined;
     pyrSeen.boat = b.last.n;
-    if (!first) pyrFlash(b.last.ok ? "good" : "bad", b.last.ok ? "Bien vu !" : "Raté ! Retour au début", b.last.ok ? esc(PYR_ANS[b.last.value]) : "1 gorgée", b.last.card);
+    if (!first) {
+      pyrFlash(b.last.ok ? "good" : "bad", b.last.ok ? "Bien vu !" : "Raté ! Retour au début", b.last.ok ? esc(PYR_ANS[b.last.value]) : "1 gorgée", b.last.card);
+      if (b.last.poteau) setTimeout(() => pyrFlash("summit", "POTEAU !", "Deux fois la même carte · tout le monde boit 1 gorgée 🍻", b.last.card), 2500);
+    }
   }
   const ref = b.step === 2 ? b.cards.slice(0, 1) : b.step === 3 ? b.cards.slice(0, 2) : [];
   const end = g.phase === "end" ? `<div class="py-hero"><div class="py-hero-k">${b.result === "won" ? "🏆 Bateau réussi" : "🌊 Paquet terminé"}</div>
@@ -1096,7 +1125,7 @@ document.addEventListener("click", (ev) => {
 function renderPyrHost(g) {
   $("gameHost").innerHTML = `<h2>À la table (${g.players.length})</h2>
     <div class="list">${g.players.map((p) => `<div class="track"><div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}${sipsBadge(p)}</div></div>
-      ${g.is_host && p.pid !== g.me?.pid && g.phase === "lobby" ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Retirer">✕</button>` : ""}</div>`).join("")
+      ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie">✕</button>` : ""}</div>`).join("")
       || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
     ${g.phase === "lobby" ? manualForm(g) : ""}
     ${g.is_host && !g.me && g.phase === "lobby" ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;

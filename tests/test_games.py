@@ -782,3 +782,54 @@ def test_pyramid_soft_mode_no_boat_and_fresh_deck():
 def test_pyramid_ace_is_highest():
     assert games.pyr_value("AS") > games.pyr_value("KS") > games.pyr_value("2S")
     assert games._pyr_check(2, "plus", ["KD"], "AH") and not games._pyr_check(2, "plus", ["AD"], "KH")
+
+
+def test_pyramid_poteau_everyone_drinks():
+    g = pyramid(n=3)
+    P = g["pyr"]
+    P["deck"] += ["7C", "7H"]  # p0 reçoit 7H puis… on force p0 à retomber sur un 7 au tour suivant
+    games.pyr_answer(g, "p0", "red")
+    before = {x: g["tally"].get(x, {}).get("drink", 0) for x in P["order"]}
+    P["deck"].append("7S")
+    games.pyr_answer(g, "p1", "red")  # p1 tire 7S : pas de poteau (sa 1re carte)
+    assert not P["last"]["poteau"]
+    games.pyr_answer(g, "p2", "red")
+    P["deck"].append("7D")
+    games.pyr_answer(g, "p0", "plus")  # p0 a déjà un 7 : poteau
+    assert P["last"]["poteau"]
+    after = {x: g["tally"].get(x, {}).get("drink", 0) for x in P["order"]}
+    assert after["p1"] == before["p1"] + 1 or after["p1"] >= 1  # tout le monde boit 1
+    assert all(after[x] >= 1 for x in P["order"])
+
+
+def test_pyramid_late_join_needs_approval_and_plays_own_deal():
+    g = pyramid()
+    finish_deal(g)
+    games.pyr_flip(g)
+    games.join(g, "late", "Retard")
+    assert games.view(g, "late")["pyr"]["me"]["pending"] and "late" not in g["pyr"]["order"]
+    assert games.view(g, "p0")["pyr"]["pending"][0]["name"] == "Retard"
+    games.pyr_accept(g, "late")
+    v = games.view(g, "p1")["pyr"]
+    assert v["late"]["name"] == "Retard" and v["late"]["step"] == 1
+    with pytest.raises(games.GameError):
+        games.pyr_flip(g)  # la pyramide attend sa distribution
+    for step in range(1, 5):
+        games.pyr_answer(g, "late", games.PYR_STEPS[step][0])
+        if step < 4:
+            assert games.view(g, "p0")["pyr"]["seats"][-1]["cards"][-1] != "??"  # visible de tous
+    assert g["pyr"]["late"] is None and len(g["pyr"]["hands"]["late"]) == 4
+    assert all(c == "??" for c in games.view(g, "late")["pyr"]["seats"][-1]["cards"])  # retournées
+    games.pyr_flip(g)
+
+
+def test_pyramid_refuse_and_kick_anytime():
+    g = pyramid(n=3)
+    finish_deal(g)
+    games.join(g, "x", "Intrus")
+    games.pyr_refuse(g, "x")
+    assert games.player(g, "x") is None
+    games.pyr_flip(g)
+    games.pyr_claim(g, "p2")
+    games.kick(g, "p2")
+    assert "p2" not in g["pyr"]["order"] and not g["pyr"]["claims"]

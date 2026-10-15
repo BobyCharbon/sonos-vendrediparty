@@ -298,8 +298,10 @@ def join(g: dict, gid: str, name: str = ""):
         pass
     # Undercover déjà lancé : le retardataire attend la prochaine partie (il reçoit un mot à « Rejouer »).
     waiting = g["type"] == "undercover" and g["phase"] not in ("lobby", "end")
+    # Pyramide déjà lancée : l'animateur doit accepter l'arrivée (puis le nouveau fait sa distribution).
+    pending = g["type"] == "pyramid" and g["phase"] not in ("lobby",) and bool(g.get("pyr"))
     g["players"].append({"id": gid, "pid": pid, "name": name or "?", "alive": True, "role": None, "word": None,
-                         "waiting": waiting})
+                         "waiting": waiting, "pending": pending})
 
 
 MANUAL_GAMES = ("divan", "tmc", "never", "pyramid")  # jeux où l'animateur peut ajouter des participants sans téléphone
@@ -317,8 +319,11 @@ def add_guest(g: dict, name: str):
     taken = {p["pid"] for p in g["players"]}
     while (pid := secrets.token_hex(4)) in taken:
         pass
-    g["players"].append({"id": "manual-" + secrets.token_hex(6), "pid": pid, "name": name, "alive": True, "role": None,
-                         "word": None, "waiting": False, "manual": True})
+    new = {"id": "manual-" + secrets.token_hex(6), "pid": pid, "name": name, "alive": True, "role": None,
+           "word": None, "waiting": False, "manual": True}
+    g["players"].append(new)
+    if g["type"] == "pyramid" and g.get("pyr"):
+        pyr_accept(g, new["id"])  # ajouté par l'animateur : déjà accepté
 
 
 def is_manual(g: dict, gid: str) -> bool:
@@ -1138,23 +1143,45 @@ def pyr_start(g: dict, rng):
     g["round"] = 1
 
 
+def _pyr_poteau(g: dict, previous: list[str], card: str) -> bool:
+    """Poteau : le joueur a deux fois la même valeur ; tout le monde boit une gorgée."""
+    if not any(pyr_value(c) == pyr_value(card) for c in previous):
+        return False
+    for x in g["pyr"]["order"]:
+        add_sips(g, x, drink=1)
+    return True
+
+
 def pyr_answer(g: dict, actor: str, value: str):
-    """Phase 1 : le joueur dont c'est le tour répond ; il reçoit sa carte (bonne réponse : il distribue, sinon il boit)."""
+    """Distribution : le joueur dont c'est le tour répond ; il reçoit sa carte (bonne réponse : il distribue, sinon il boit).
+    Sert aussi à un joueur arrivé en cours de partie (sa distribution perso, pendant la pyramide)."""
     P = g["pyr"]
-    if g["phase"] != "deal":
+    late = P.get("late")
+    if g["phase"] == "pyramid" and late:
+        cur, step = late["gid"], late["step"]
+    elif g["phase"] == "deal":
+        cur, step = P["order"][P["turn"]], P["step"]
+    else:
         raise GameError("La distribution est terminée")
-    cur = P["order"][P["turn"]]
     if actor != cur:
         raise GameError("Ce n'est pas ton tour")
-    hand, step = P["hands"][cur], P["step"]
+    hand = P["hands"][cur]
     if value not in PYR_STEPS[step]:
         raise GameError("Réponse invalide")
     card = P["deck"].pop()
     ok = _pyr_check(step, value, hand, card)
+    poteau = _pyr_poteau(g, hand, card)
     hand.append(card)
     sips = pyr_step_sips(g, step)
     add_sips(g, cur, drink=0 if ok else sips, give=sips if ok else 0)
-    P["last"] = {"n": _pyr_event(P), "gid": cur, "step": step, "value": value, "card": card, "ok": ok, "sips": sips}
+    P["last"] = {"n": _pyr_event(P), "gid": cur, "step": step, "value": value, "card": card, "ok": ok, "sips": sips,
+                 "poteau": poteau, "late": bool(late)}
+    if late:
+        late["step"] += 1
+        if late["step"] > 4:
+            P["late"] = None  # ses cartes se retournent : la pyramide reprend
+            _pyr_next_late(g)
+        return
     P["turn"] += 1
     if P["turn"] >= len(P["order"]):
         P["turn"] = 0
@@ -1162,6 +1189,46 @@ def pyr_answer(g: dict, actor: str, value: str):
         g["round"] = P["step"]
         if P["step"] > 4:
             g["phase"] = "pyramid"  # les mains se retournent : plus personne ne voit ses cartes
+            _pyr_next_late(g)
+
+
+def _pyr_next_late(g: dict):
+    """Lance la distribution perso du prochain joueur accepté en cours de partie."""
+    P = g["pyr"]
+    while not P.get("late") and P.get("queue"):
+        gid = P["queue"].pop(0)
+        if not player(g, gid):
+            continue
+        if len(P["deck"]) < 4:
+            raise GameError("Plus assez de cartes dans le paquet")
+        P["order"].append(gid)
+        P["hands"][gid] = []
+        P["late"] = {"gid": gid, "step": 1}
+        _pyr_event(P)
+
+
+def pyr_accept(g: dict, target: str):
+    """L'animateur accepte un joueur arrivé en cours de partie."""
+    P = g["pyr"]
+    p = player(g, target)
+    if not p:
+        raise GameError("Joueur introuvable")
+    p["pending"] = False
+    if g["phase"] in ("deal", "pyramid") and target not in P["order"] and target not in P.setdefault("queue", []):
+        if len(P["deck"]) - 4 * len(P["queue"]) < 4:
+            raise GameError("Plus assez de cartes dans le paquet pour un joueur de plus")
+        P["queue"].append(target)
+        if g["phase"] == "pyramid":
+            _pyr_next_late(g)
+    _pyr_event(P)  # après la pyramide : il regarde, sans cartes
+
+
+def pyr_refuse(g: dict, target: str):
+    p = player(g, target)
+    if not p or not p.get("pending"):
+        raise GameError("Demande introuvable")
+    g["players"].remove(p)
+    _pyr_event(g["pyr"])
 
 
 def pyr_flip(g: dict):
@@ -1170,6 +1237,8 @@ def pyr_flip(g: dict):
         raise GameError("Pas le moment")
     if P["flipped"] >= len(P["pyramid"]):
         raise GameError("La pyramide est entièrement retournée")
+    if P.get("late"):
+        raise GameError("Attends la fin de la distribution du nouveau joueur")
     P["flipped"] += 1
     P.update(claims=[], reveal=None, top={})
     _pyr_event(P)
@@ -1328,7 +1397,8 @@ def pyr_boat_answer(g: dict, actor: str, value: str):
         raise GameError("Réponse invalide")
     card = P["deck"].pop()
     ok = _pyr_check(b["step"], value, b["cards"], card)
-    b["last"] = {"n": _pyr_event(P), "step": b["step"], "value": value, "card": card, "ok": ok}
+    poteau = _pyr_poteau(g, b["cards"], card)
+    b["last"] = {"n": _pyr_event(P), "step": b["step"], "value": value, "card": card, "ok": ok, "poteau": poteau}
     if ok:
         b["cards"].append(card)
         b["step"] += 1
@@ -1348,7 +1418,18 @@ def pyr_boat_answer(g: dict, actor: str, value: str):
 
 def pyr_leave(g: dict, gid: str):
     P = g.get("pyr")
-    if not P or gid not in P["order"]:
+    if not P:
+        return
+    if gid in P.get("queue", []):
+        P["queue"].remove(gid)
+    if P.get("late") and P["late"]["gid"] == gid:
+        P["late"] = None
+    if gid == P.get("boat") and g["phase"] in ("boatpick", "boat"):
+        g["phase"] = "end"  # le joueur du bateau est parti : fin de partie
+        if P.get("bstate"):
+            P["bstate"]["result"] = "left"
+    if gid not in P["order"]:
+        _pyr_next_late(g) if g["phase"] == "pyramid" else None
         return
     i = P["order"].index(gid)
     P["order"].remove(gid)
@@ -1360,6 +1441,9 @@ def pyr_leave(g: dict, gid: str):
             if P["step"] > 4:
                 g["phase"] = "pyramid"
     P["candidates"] = [c for c in P["candidates"] if c != gid]
+    P["claims"] = [c for c in P["claims"] if c["gid"] != gid]
+    if g["phase"] == "pyramid":
+        _pyr_next_late(g)
     if g["phase"] in ("memory",) and P["order"] and all(x in P["memory"] for x in P["order"]):
         pyr_results(g)
 
@@ -1375,10 +1459,12 @@ def pyr_view(g: dict, gid: str) -> dict:
     pid = lambda x: (player(g, x) or {}).get("pid")
     hidden = g["phase"] not in ("deal", "memres", "boatpick", "boat", "end")
     reveal = P["reveal"]
+    late = P.get("late")
     seats = []
     for x in P["order"]:
         hand = P["hands"][x]
-        cards = list(hand) if not hidden else ["??"] * len(hand)
+        # Distribution perso d'un nouveau venu : ses cartes restent visibles de tous jusqu'à la 4e.
+        cards = list(hand) if not hidden or (late and late["gid"] == x) else ["??"] * len(hand)
         if hidden and reveal and reveal["gid"] == x and now - reveal["at"] < 3:
             cards[reveal["slot"]] = hand[reveal["slot"]]  # carte retournée devant tout le monde, 3 secondes
         if hidden and x == gid:
@@ -1417,7 +1503,12 @@ def pyr_view(g: dict, gid: str) -> dict:
         "boat": {"pid": pid(P["boat"]), "name": name(P["boat"])} if P["boat"] else None,
         "spin": {**P["spin"], "age": now - P["spin"]["at"]} if P["spin"] else None,
         "bstate": P["bstate"],
-        "me": {"seat": next((i for i, x in enumerate(P["order"]) if x == gid), None), "boat": gid == P["boat"]},
+        "me": {"seat": next((i for i, x in enumerate(P["order"]) if x == gid), None), "boat": gid == P["boat"],
+               "pending": bool((player(g, gid) or {}).get("pending"))},
+        "pending": [{"pid": p["pid"], "name": p["name"]} for p in g["players"] if p.get("pending")],
+        "late": {"pid": pid(late["gid"]), "name": name(late["gid"]), "step": late["step"],
+                 "step_sips": pyr_step_sips(g, late["step"])} if late else None,
+        "queue": [name(x) for x in P.get("queue", [])],
     }
     return out
 

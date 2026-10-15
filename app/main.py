@@ -914,7 +914,7 @@ class GameAction(BaseModel):
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
 HOST_ACTIONS = {"start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
-                "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo"}
+                "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse"}
 
 
 @app.post("/api/games/{code}")
@@ -958,6 +958,7 @@ def game_action(code: str, body: GameAction, request: Request):
         "ptop": (games.pyr_top, actor), "pmemory": (games.pyr_to_memory,), "pmem": (games.pyr_memory, actor, body.values),
         "presults": (games.pyr_results,), "pboat": (games.pyr_pick_boat, random), "pboatgo": (games.pyr_boat_start,),
         "pbans": (games.pyr_boat_answer, actor, body.target),
+        "paccept": (games.pyr_accept, target), "prefuse": (games.pyr_refuse, target),
     }
     if a not in actions:
         raise HTTPException(400, "Action inconnue")
