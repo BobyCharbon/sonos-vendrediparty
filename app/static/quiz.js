@@ -34,7 +34,8 @@ const qzText = (t) => esc(t).replace(QZ_FLAG, '<span class="qz-flag">$1</span>')
 const fmtPts = (n) => Number(n || 0).toLocaleString("fr-CH").replace(/[’']/g, " ");
 let qzSeen = { key: "", end: "" }, qzTimer = null, qzRefreshAt = 0, qzAnimKey = "";
 // Signature de ce qui s'affiche, sans les compteurs de temps (qui changent à chaque requête).
-const QZ_TIME_KEYS = new Set(["left", "next_in", "deadline_in", "server_now", "age", "elapsed"]);
+const QZ_TIME_KEYS = new Set(["left", "next_in", "deadline_in", "server_now", "age", "elapsed", "between_in"]);
+const qzPauseBtn = (paused) => `<button type="button" class="py-sub qz-pause ${paused ? "on" : ""}" data-qz-pause>${paused ? "▶ Continuer" : "⏸ Pause"}</button>`;
 function quizSig(g) {
   return JSON.stringify([g.phase, g.is_host, g.me?.pid, g.players.map((p) => p.name + p.pid), pyrFull,
     JSON.stringify(g.quiz, (k, v) => (QZ_TIME_KEYS.has(k) ? undefined : v))]);
@@ -54,8 +55,12 @@ function qzSettingsHtml(g) {
   const total = cat.themes.reduce((n, t) => n + t.count, 0);
   const themes = cat.themes.map((t) => `<button type="button" class="qz-theme ${s.themes.includes(t.id) ? "on" : ""}" data-qz-theme="${t.id}" ${dis}>
       <span class="qz-theme-i">${t.icon}</span><span class="qz-theme-n">${esc(t.name)}</span><small>${fmtPts(t.count)}</small></button>`).join("");
-  const modes = cat.modes.map((m) => `<button type="button" class="qz-mode ${s.mode === m.id ? "on" : ""}" data-qz-set="mode" data-val="${m.id}" ${dis}>
-      <span class="qz-mode-i">${m.icon}</span><b>${esc(m.name)}</b><small>${QZ_MODE_DESC[m.id]}</small></button>`).join("");
+  const solo = g.players.length < 2;
+  const modes = cat.modes.map((m) => {
+    const off = m.id === "speed" && solo;  // la Rapidité n'a de sens qu'à plusieurs
+    return `<button type="button" class="qz-mode ${s.mode === m.id ? "on" : ""} ${off ? "off" : ""}" data-qz-set="mode" data-val="${m.id}" ${dis || (off ? "disabled" : "")}>
+      <span class="qz-mode-i">${m.icon}</span><b>${esc(m.name)}</b><small>${off ? "2 joueurs minimum" : QZ_MODE_DESC[m.id]}</small></button>`;
+  }).join("");
   const chips = (key, vals, fmt) => `<div class="qz-chips">${vals.map((x) => `<button type="button" class="${String(s[key]) === String(x) ? "on" : ""}" data-qz-set="${key}" data-val="${x}" ${dis}>${fmt(x)}</button>`).join("")}</div>`;
   const extra = {
     classic: `<div class="g-label">Questions</div>${chips("count", [10, 15, 20, 30, 50], (x) => x)}<div class="g-label">Temps par question</div>${chips("time", [10, 15, 20, 30], (x) => x + " s")}`,
@@ -120,7 +125,8 @@ function quizHtml(g) {
     const n = g.players.length;
     return `<div class="qz-hero"><div class="qz-hero-i">${v.mode_icon}</div><div><div class="qz-hero-t">${esc(v.mode_label)}</div>
         <div class="artist">${v.theme_labels.map(esc).join(" · ")}${s.mode !== "ladder" && s.mode !== "survival" ? ` · ${esc(v.diff_label)}` : ""}</div></div></div>
-      ${lead ? `<button class="py-main qz-go" data-gact="start" ${n < 1 ? "disabled" : ""}>▶︎ ${n <= 1 ? "Jouer en solo" : `Lancer le quiz · ${n} joueurs`}</button>`
+      ${lead ? (s.mode === "speed" && n < 2 ? `<div class="py-wait">⚡ La Rapidité se joue à 2 au moins : attends un deuxième joueur ou choisis un autre mode.</div>`
+        : `<button class="py-main qz-go" data-gact="start" ${n < 1 ? "disabled" : ""}>▶︎ ${n <= 1 ? "Jouer en solo" : `Lancer le quiz · ${n} joueurs`}</button>`)
         : me ? `<div class="py-wait">Tu es inscrit·e ✓ L'animateur choisit les réglages et lance…</div>` : `<button class="py-main" data-gact="join">Rejoindre le quiz</button>`}
       ${qzSettingsHtml(g)}
       ${qzLeaderboardHtml(v.leaderboard)}`;
@@ -139,8 +145,11 @@ function quizHtml(g) {
       : q.locked ? `<div class="qz-status bad">❌ Raté ! Bloqué·e jusqu'à la prochaine question</div>`
       : q.mine !== null ? `<div class="qz-status ok">✓ Réponse envoyée · ${q.answered}/${q.players} ont répondu</div>`
       : !me ? `<div class="qz-status">👀 Tu regardes la partie</div>` : `<div class="qz-status">${q.answered}/${q.players} ont répondu</div>`;
+    const canPause = lead || g.players.length <= 1;
+    const prePause = canPause && (q.mine !== null || q.locked)
+      ? `<button type="button" class="py-sub qz-pause ${v.paused ? "on" : ""}" data-qz-pause>${v.paused ? "✓ Pause après la réponse (annuler)" : "⏸ Pause après la réponse"}</button>` : "";
     return top + qzTimerHtml(q.left, q.dur) + qzQuestionHtml(q, { mine: q.mine, locked: q.locked, disabled: !me || q.out })
-      + status + (lead ? `<button class="py-sub" data-gact="next">⏭ Révéler maintenant</button>` : "");
+      + status + prePause + (lead ? `<button class="py-sub" data-gact="next">⏭ Révéler maintenant</button>` : "");
   }
   // Révélation
   const mine = q.res.find((r) => r.me);
@@ -150,7 +159,9 @@ function quizHtml(g) {
   const winner = s.mode === "speed" ? `<div class="qz-speedwin">${q.winner ? `⚡ <b>${esc(q.winner)}</b> a trouvé en premier !` : "Personne n'a trouvé…"}</div>` : "";
   return top + verdict + winner + qzQuestionHtml(q, { mine: q.mine, correct: q.correct, dist: q.dist })
     + qzMiniBoard(v.board, s.mode)
-    + `<div class="qz-next"><span>Question suivante dans <b id="qzNextS">${Math.ceil(q.next_in)}</b> s</span>${lead ? `<button class="py-sub" data-gact="next">Suivante ▶</button>` : ""}</div>`;
+    + `<div class="qz-next">${v.paused ? `<span class="qz-paused">⏸ En pause${lead || g.players.length <= 1 ? "" : " (l'animateur reprendra)"}</span>`
+        : `<span>Question suivante dans <b id="qzNextS">${Math.ceil(q.next_in)}</b> s</span>`}
+      <span class="qz-next-btns">${lead || g.players.length <= 1 ? qzPauseBtn(v.paused) : ""}${lead && !v.paused ? `<button class="py-sub" data-gact="next">Suivante ▶</button>` : ""}</span></div>`;
 }
 
 function qzMiniBoard(board, mode, n = 5) {
@@ -187,6 +198,14 @@ function qzLadderHtml(g) {
     return `<div class="qz-done"><div class="qz-done-t">${title}</div>
       ${m.last && !m.last.ok ? `<div class="artist">${esc(m.last.text)}<br>Il fallait répondre : <b>${esc(m.last.answer)}</b></div>` : ""}
       <div class="py-wait">En attente des autres joueurs…</div></div>` + qzMiniBoard(v.board, "ladder", 10);
+  }
+  if (m.between_in !== undefined && m.q) {
+    const won = v.ladder[m.level - 1];
+    return `<div class="qz-verdict ok">✓ Bonne réponse ! <b>${fmtPts(won)}</b></div>`
+      + `<div class="qz-ladwrap"><div class="qz-ladmain">${qzQuestionHtml(m.q, { mine: m.last?.c, correct: m.last?.ans })}
+        <div class="qz-next">${m.paused ? `<span class="qz-paused">⏸ En pause</span>` : `<span>Palier suivant dans <b id="qzBetweenS">${Math.ceil(m.between_in)}</b> s</span>`}
+          <span class="qz-next-btns">${qzPauseBtn(m.paused)}</span></div>
+        <div class="qz-jokers"><button type="button" class="qz-joker stop" data-qz-stop>🛑 Garder ${fmtPts(won)}</button></div></div>${ladder}</div>`;
   }
   const cur = v.ladder[m.i], safe = m.level ? v.ladder[Math.max(...v.safe.filter((x) => x < m.level), -1)] || 0 : 0;
   const jok = `<div class="qz-jokers">
@@ -234,12 +253,16 @@ function quizAfter(g, fresh = true) {
   }));
   let wake = Infinity;
   bars.forEach(([, left]) => { wake = Math.min(wake, left); });
-  if (g.phase === "rev" && v.q) wake = Math.min(wake, v.q.next_in);
+  if (g.phase === "rev" && v.q && !v.paused) wake = Math.min(wake, v.q.next_in);
+  const between = v.me?.between_in !== undefined && !v.me?.paused ? v.me.between_in : null;
+  if (between !== null) { bars.length = 0; wake = between; }
   qzTimer = setInterval(() => {
     const dt = (Date.now() - t0) / 1000;
     bars.forEach(([id, left]) => { const s = $(id + "S"); if (s) s.textContent = Math.max(0, Math.ceil(left - dt)); });
     const cs = $("qzChronoS");
     if (cs) cs.textContent = Math.max(0, Math.ceil((v.deadline_in || 0) - dt));
+    const bs = $("qzBetweenS");
+    if (bs && between !== null) bs.textContent = Math.max(0, Math.ceil(between - dt));
     const ns = $("qzNextS");
     if (ns && v.q) ns.textContent = Math.max(0, Math.ceil(v.q.next_in - dt));
     const urgent = bars.some(([, left]) => left - dt < 5 && left - dt > 0);
@@ -275,6 +298,7 @@ document.addEventListener("click", (ev) => {
   const j = ev.target.closest("[data-qz-joker]");
   if (j && !j.disabled) return gameAction("qjoker", { guess: j.dataset.qzJoker });
   if (ev.target.closest("[data-qz-stop]")) return gameAction("qstop");
+  if (ev.target.closest("[data-qz-pause]")) return gameAction("qpause");
   const set = ev.target.closest("[data-qz-set]");
   if (set && !set.disabled) {
     const raw = set.dataset.val;

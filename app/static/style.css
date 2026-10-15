@@ -1004,3 +1004,9 @@ body.pyr-full #game.g-qz { background: transparent; border: 0; padding: 0; box-s
 .qz-qtext .qz-flag { display: block; font-size: 3.4em; margin: 6px auto 0; }
 .qz-ans .qz-flag { font-size: 2.4rem; }
 .qz-ans.cut { visibility: visible; opacity: .12; text-decoration: line-through; }
+.qz-next-btns { display: flex; gap: 8px; }
+.qz-pause { width: auto; margin: 0; }
+.qz-status + .qz-pause { width: 100%; margin-top: 8px; }
+.qz-pause.on { background: linear-gradient(135deg, #2fd39a, #12a06e) !important; color: #fff; }
+.qz-paused { font-weight: 800; color: #ffd84d; }
+.qz-mode.off { opacity: .35; filter: grayscale(1); cursor: not-allowed; }

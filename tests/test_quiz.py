@@ -82,7 +82,10 @@ def test_ladder_safe_level_jokers_and_stop():
     P = g["quiz"]["personal"]["p0"]
     for _ in range(6):
         quiz.answer(g, "p0", P["q"]["ans"])
-    assert P["level"] == 6
+        assert P["between"]  # la bonne réponse reste affichée un moment
+        P["between"] = 1  # (temps écoulé)
+        quiz.tick(g)
+    assert P["level"] == 6 and not P.get("between")
     quiz.joker(g, "p0", "5050", random.Random(1))
     assert len(P["cut"]) == 2 and P["q"]["ans"] not in P["cut"]
     with pytest.raises(quiz.QuizError):
@@ -129,3 +132,41 @@ def test_bank_has_no_draft_leftovers():
             assert not re.search(r"\bseule?s?\b", " ".join(q["w"])), txt
             assert "—" not in txt and "non :" not in txt, txt
             assert len({c.lower() for c in [q["a"], *q["w"]]}) == 4, txt
+
+
+def test_pause_after_answer():
+    g = qgame(1)
+    games.start(g, random.Random(7))
+    quiz.answer(g, "p0", g["quiz"]["cur"]["ans"])
+    assert g["phase"] == "rev"
+    quiz.pause(g, "p0", True)
+    g["quiz"]["cur"]["next_at"] = 0
+    quiz.tick(g)
+    assert g["phase"] == "rev"  # en pause : on reste sur la réponse
+    quiz.pause(g, "p0", True)
+    assert g["phase"] == "q" and g["quiz"]["n"] == 2 and not g["quiz"]["paused"]
+    with pytest.raises(quiz.QuizError):
+        quiz.pause(g, "p1", False)  # un simple joueur ne peut pas
+
+
+def test_ladder_pause_between_questions():
+    g = qgame(1, mode="ladder")
+    games.start(g, random.Random(8))
+    P = g["quiz"]["personal"]["p0"]
+    quiz.answer(g, "p0", P["q"]["ans"])
+    quiz.pause(g, "p0", False)
+    P["between"] = 1
+    quiz.tick(g)
+    assert P["paused"] and P["between"]  # pas de nouvelle question pendant la pause
+    quiz.pause(g, "p0", False)
+    assert not P.get("between") and P["i"] == 1
+
+
+def test_speed_needs_two_players():
+    g = qgame(1)
+    with pytest.raises(quiz.QuizError):
+        quiz.configure(g, {"mode": "speed"})
+    g2 = qgame(2, mode="speed")
+    g2["players"].pop()  # le deuxième joueur est parti
+    with pytest.raises(games.GameError):
+        games.start(g2)

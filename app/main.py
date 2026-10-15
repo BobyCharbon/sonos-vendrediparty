@@ -1107,6 +1107,7 @@ def game_action(code: str, body: GameAction, request: Request):
         "btap": (games.bk_tap, actor), "bclose": (games.bk_close_reflex,),
         "qset": (quiz.configure, body.settings), "qans": (quiz.answer, actor, body.amount, random),
         "qjoker": (quiz.joker, actor, body.guess, random), "qstop": (quiz.stop, actor),
+        "qpause": (quiz.pause, actor, games.is_lead(g, me) or len(g["players"]) <= 1, random),
     }
     if g["type"] == "quiz" and a == "next":
         actions["next"] = (quiz.next_step, random)

@@ -55,6 +55,8 @@ def configure(g: dict, s: dict):
         raise QuizError("La partie est en cours")
     cur = g["quiz"]["settings"]
     if s.get("mode") in MODES:
+        if s["mode"] == "speed" and len(g["players"]) < 2:
+            raise QuizError("La Rapidité se joue à 2 joueurs au moins")
         cur["mode"] = s["mode"]
     if isinstance(s.get("themes"), list):
         cur["themes"] = [t for t in s["themes"] if qb.BANK.get(t)]
@@ -140,10 +142,12 @@ def start(g: dict, rng=random):
     Q = g["quiz"]
     if not g["players"]:
         raise QuizError("Il faut au moins 1 joueur")
+    if Q["settings"]["mode"] == "speed" and len(g["players"]) < 2:
+        raise QuizError("La Rapidité se joue à 2 joueurs au moins : choisis un autre mode ou attends un deuxième joueur")
     for p in g["players"]:
         p["waiting"] = False
     lives = Q["settings"]["lives"]
-    Q.update(used=Q["used"][-500:], scores={}, cur=None, personal={}, deadline=None, n=0, recorded=False, last=None)
+    Q.update(used=Q["used"][-500:], scores={}, cur=None, personal={}, deadline=None, n=0, recorded=False, last=None, paused=False)
     for p in g["players"]:
         _sc(g, p["id"])["lives"] = lives
     mode = Q["settings"]["mode"]
@@ -239,6 +243,7 @@ def _over(g: dict) -> bool:
 def next_step(g: dict, rng=random):
     """L'animateur passe à la suite (sans attendre la fin du temps ou de la révélation)."""
     init(g)
+    g["quiz"]["paused"] = False
     if g["phase"] == "q":
         _reveal(g)
     elif g["phase"] == "rev":
@@ -268,7 +273,7 @@ def tick(g: dict, rng=random) -> bool:
         if now >= c["end"] or done or (Q["settings"]["mode"] == "speed" and c["winner"]):
             _reveal(g)
             changed = True
-    if g["phase"] == "rev" and now >= Q["cur"].get("next_at", 0):
+    if g["phase"] == "rev" and not Q.get("paused") and now >= Q["cur"].get("next_at", 0):
         _advance(g, rng)
         changed = True
     if g["phase"] == "run":
@@ -297,6 +302,8 @@ def _personal_answer(g: dict, gid: str, choice: int, rng):
     P = Q["personal"][gid]
     if P["done"]:
         raise QuizError("Tu as fini : attends les autres")
+    if P.get("between"):
+        raise QuizError("Question suivante dans un instant")
     q = P["q"]
     now = time.time()
     if now > q["end"] + 0.5:
@@ -320,7 +327,8 @@ def _personal_answer(g: dict, gid: str, choice: int, rng):
                 P["done"] = True
                 s["pts"] += 1000
             else:
-                _personal_next(g, gid, rng)
+                # La bonne réponse reste affichée un moment (ou jusqu'à la fin de la pause).
+                P.update(between=now + REVEAL, paused=False)
         else:
             safe = max([i + 1 for i in LADDER_SAFE if i + 1 <= P["level"]], default=0)
             P.update(done=True, fell=True, level=safe)
@@ -335,6 +343,8 @@ def joker(g: dict, gid: str, kind: str, rng=random):
     P = Q["personal"].get(gid)
     if g["phase"] != "run" or Q["settings"]["mode"] != "ladder" or not P or P["done"]:
         raise QuizError("Pas de joker ici")
+    if P.get("between"):
+        raise QuizError("Attends la question suivante")
     if kind not in P["jokers"]:
         raise QuizError("Joker déjà utilisé")
     P["jokers"].remove(kind)
@@ -347,6 +357,33 @@ def joker(g: dict, gid: str, kind: str, rng=random):
         now = time.time()
         P["q"] = {**_draw(g, rng, lvl), "start": now, "end": now + LADDER_TIME}
         P["cut"] = []
+
+
+def pause(g: dict, gid: str, lead: bool, rng=random):
+    """⏸ / ▶ après avoir répondu. Paliers : chacun pour soi ; autres modes : l'animateur (ou l'admin, ou le joueur seul)."""
+    init(g)
+    Q = g["quiz"]
+    tick(g, rng)
+    if g["phase"] == "run":
+        P = Q["personal"].get(gid)
+        if Q["settings"]["mode"] != "ladder" or not P or not P.get("between"):
+            raise QuizError("Pas de pause possible maintenant")
+        if P.get("paused"):  # reprise : question suivante tout de suite
+            P.update(between=None, paused=False)
+            _personal_next(g, gid, rng)
+        else:
+            P["paused"] = True
+        return
+    if not lead:
+        raise QuizError("Seul l'animateur peut mettre en pause")
+    if g["phase"] not in ("q", "rev"):
+        raise QuizError("Pas de pause possible maintenant")
+    if Q.get("paused"):
+        Q["paused"] = False
+        if g["phase"] == "rev":
+            _advance(g, rng)
+    else:
+        Q["paused"] = True
 
 
 def stop(g: dict, gid: str):
@@ -376,6 +413,12 @@ def _personal_tick(g: dict, rng) -> bool:
             return True
         return changed
     for gid, P in Q["personal"].items():
+        if P.get("between"):
+            if not P.get("paused") and now >= P["between"]:
+                P.update(between=None, paused=False)
+                _personal_next(g, gid, rng)
+                changed = True
+            continue
         if not P["done"] and now > P["q"]["end"] + 0.5:
             # Temps écoulé aux Paliers : comme une mauvaise réponse.
             _count(g, gid, P["q"]["qid"], False)
@@ -497,7 +540,7 @@ def view(g: dict, gid: str) -> dict:
     out = {
         "settings": s, "mode_label": MODES[s["mode"]][0], "mode_icon": MODES[s["mode"]][1], "diff_label": DIFFS[s["diff"]],
         "theme_labels": [f"{qb.THEMES[t][1]} {qb.THEMES[t][0]}" for t in s["themes"]] or ["🎲 Tous les thèmes"],
-        "n": Q["n"], "server_now": now,
+        "n": Q["n"], "server_now": now, "paused": bool(Q.get("paused")),
         "board": [{"pid": p["pid"], "name": p["name"], "pts": sc["pts"], "ok": sc["ok"], "n": sc["n"], "streak": sc["streak"],
                    "best": sc["best"], "lives": sc["lives"], "out": sc["out"], "me": p["id"] == gid,
                    "level": Q["personal"].get(p["id"], {}).get("level"), "done": Q["personal"].get(p["id"], {}).get("done", False)}
@@ -531,6 +574,9 @@ def view(g: dict, gid: str) -> dict:
             q = P["q"]
             mv = {"i": P["i"], "done": P["done"], "level": P["level"], "jokers": P["jokers"], "fell": P.get("fell", False),
                   "stopped": P.get("stopped", False), "streak": _sc(g, gid)["streak"], "pts": _sc(g, gid)["pts"]}
+            if P.get("between"):
+                mv["between_in"] = max(0.0, P["between"] - now)
+                mv["paused"] = bool(P.get("paused"))
             if not P["done"]:
                 mv["q"] = {**_qview(q["qid"], q["choices"]), "left": max(0.0, q["end"] - now), "cut": P["cut"],
                            "dur": LADDER_TIME if s["mode"] == "ladder" else s["chrono"]}
