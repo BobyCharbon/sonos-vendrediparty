@@ -13,6 +13,18 @@ from soco.plugins.sharelink import ShareLinkPlugin
 TRACK_ID_RE = re.compile(r"spotify(?:%3a|:)track(?:%3a|:)([A-Za-z0-9]{22})", re.I)
 
 
+# Services musicaux Sonos (paramètre « sid » de l'adresse du titre) : on affiche d'où vient un titre non Spotify.
+SERVICES = {"9": "Spotify", "284": "YouTube Music", "204": "Apple Music", "2": "Deezer", "160": "SoundCloud",
+            "303": "Sonos Radio", "254": "TuneIn", "201": "Amazon Music", "31": "Qobuz", "174": "Tidal"}
+
+
+def service_name(uri: str) -> str:
+    m = re.search(r"[?&]sid=(\d+)", uri or "")
+    if m:
+        return SERVICES.get(m.group(1), "Sonos")
+    return "Bibliothèque" if (uri or "").startswith(("x-file-cifs:", "x-smb:")) else "Sonos"
+
+
 def spotify_track_id(uri: str) -> str | None:
     m = TRACK_ID_RE.search(uri or "")
     return m.group(1) if m else None
@@ -94,6 +106,7 @@ class Sonos:
                         "artist": getattr(item, "creator", "") or "",
                         "art": getattr(item, "album_art_uri", "") or "",
                         "duration": duration or None,
+                        "service": service_name(uri),
                     }
                 )
 

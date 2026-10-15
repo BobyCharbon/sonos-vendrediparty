@@ -188,3 +188,14 @@ def test_rename_updates_queue_and_guest_page(admin):
     admin.post("/api/admin/rename", json={"guest_id": "guest-name", "name": "DJ Tom"})
     assert admin.get("/api/admin/state").json()["queue"][0]["by"] == "DJ Tom"
     assert guest.get("/api/state?guest_id=guest-name").json()["name"] == "DJ Tom"
+
+
+def test_tracks_added_from_sonos_app_are_tagged(admin, monkeypatch):
+    from app.sonos import service_name
+    assert service_name("x-sonosapi-hls-static:ALk?sid=284&flags=8232") == "YouTube Music"
+    assert service_name("x-sonos-spotify:spotify%3atrack%3a1?sid=9") == "Spotify"
+    s = snap()
+    s["upcoming"][1]["service"] = "YouTube Music"
+    monkeypatch.setattr(main, "snapshot", lambda force=False: s)
+    q = admin.get("/api/admin/state").json()["queue"]
+    assert q[1]["service"] == "YouTube Music" and q[0].get("service") is None

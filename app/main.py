@@ -785,7 +785,9 @@ def admin_queue(snap: dict, limit: int = 150) -> list[dict]:
     names = {r.track_id: r.guest_name for r in store.session.requests if r.status != "removed"}
     return [
         {"pos": t["pos"], "key": track_key(t), "title": t["title"], "artist": t["artist"],
-         "art": art_url(t["art"]), "by": names.get(t["track_id"]), "eta": eta}
+         "art": art_url(t["art"]), "by": names.get(t["track_id"]), "eta": eta,
+         # Titre ajouté depuis l'app Sonos (YouTube Music…) : on l'indique.
+         "service": t.get("service") if t.get("service") and t.get("service") != "Spotify" else None}
         for t, eta in zip(snap["upcoming"][:limit], etas(snap))
     ]
 
@@ -1125,7 +1127,8 @@ def public_sonos(snap: dict, guest_id: str = "") -> dict:
 
     def view(t, eta):
         return {"title": t["title"], "artist": t["artist"], "art": art_url(t["art"]), "track_id": t["track_id"],
-                "by": names.get(t["track_id"]), "rid": mine.get(t["track_id"]), "eta": eta}
+                "by": names.get(t["track_id"]), "rid": mine.get(t["track_id"]), "eta": eta,
+                "service": t.get("service") if t.get("service") and t.get("service") != "Spotify" else None}
 
     now = snap["now"]
     current_id = (snap["current"] or {}).get("track_id")

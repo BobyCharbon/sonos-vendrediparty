@@ -400,7 +400,7 @@ function renderQueue(s) {
     <div class="track ${t.by ? "guest" : ""}">
       ${t.art ? `<img src="${esc(t.art)}" alt="" loading="lazy" onerror="this.removeAttribute('src')">` : `<img alt="">`}
       <div class="meta"><div class="title">${esc(t.title)}</div><div class="artist">${esc(t.artist)}</div>
-        ${t.by ? `<span class="by">ajouté par ${esc(t.by)}</span>` : ""}${etaText(t.eta) ? `<span class="eta">${etaText(t.eta)}</span>` : ""}</div>
+        ${t.by ? `<span class="by">ajouté par ${esc(t.by)}</span>` : ""}${t.service ? `<span class="svc">🎧 via Sonos · ${esc(t.service)}</span>` : ""}${etaText(t.eta) ? `<span class="eta">${etaText(t.eta)}</span>` : ""}</div>
       <div class="icon-btns">
         ${i > 0 ? `<button class="secondary" data-q="next" data-pos="${t.pos}" data-key="${esc(t.key)}" title="Jouer ensuite">⏫</button>
                    <button class="secondary" data-q="up" data-pos="${t.pos}" data-key="${esc(t.key)}" title="Monter">⬆</button>` : ""}

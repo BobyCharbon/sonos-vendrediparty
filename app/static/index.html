@@ -172,7 +172,7 @@ function trackHtml(t, extra = "") {
   return `<div class="track ${t.by ? "guest" : ""} ${t.rid ? "mine" : ""}">
     ${img(t.art || t.image)}
     <div class="meta"><div class="title">${esc(t.title)}</div><div class="artist">${esc(t.artist)}</div>
-    ${t.by ? `<span class="by">ajouté par ${esc(t.by)}</span>` : ""}${eta ? `<span class="eta">${eta}</span>` : ""}</div>${extra}</div>`;
+    ${t.by ? `<span class="by">ajouté par ${esc(t.by)}</span>` : ""}${t.service ? `<span class="svc">🎧 via Sonos · ${esc(t.service)}</span>` : ""}${eta ? `<span class="eta">${eta}</span>` : ""}</div>${extra}</div>`;
 }
 
 function show(view) {
