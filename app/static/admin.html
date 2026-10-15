@@ -616,7 +616,11 @@ $("addResults").addEventListener("click", async (ev) => {
     }
     render(res);
     toast(`« ${t.title} » ${b.dataset.add === "next" ? "passera juste après" : "ajouté à la suite des demandes"} 🎶`, "ok");
-    b.textContent = "✓";
+    // Titre ajouté : on ferme la recherche (champ vidé, clavier fermé) et on montre la file.
+    clearTimeout(addTimer);
+    $("addQ").value = ""; $("addResults").innerHTML = ""; addResults = [];
+    $("addQ").blur();
+    $("queue").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (e) { b.disabled = false; toast(e.message, "err"); }
 });
 
