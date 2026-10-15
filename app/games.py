@@ -1601,13 +1601,32 @@ def _bk_side(B: dict, gid: str, step: int) -> str:
     return o[(o.index(gid) + step) % len(o)]
 
 
-def _bk_out(g: dict, text: str, drink: dict | None = None, give: dict | None = None):
-    """Un effet de la carte, affiché sur tous les écrans (et compté dans les gorgées)."""
-    for x, n in (drink or {}).items():
+def _bk_out(g: dict, text: str, drink: dict | None = None, give: dict | None = None, tone: str = "", head: str = ""):
+    """Un effet de la carte, affiché sur tous les écrans (et compté dans les gorgées).
+    tone : drink (boit) | give (distribue) | all (tout le monde) | info ; head : le titre court en très gros."""
+    B = g["bk"]
+    drink = dict(drink or {})
+    # Potes de boisson : quand l'un boit, l'autre boit autant.
+    extra = []
+    for x, n in list(drink.items()):
+        for pair in B.get("mates", []):
+            if x in pair:
+                other = pair[1] if pair[0] == x else pair[0]
+                if other not in drink:
+                    drink[other] = n
+                    extra.append(f"🤝 {_bk_name(g, other)} boit aussi (pote de boisson)")
+    for x, n in drink.items():
         add_sips(g, x, drink=n)
     for x, n in (give or {}).items():
         add_sips(g, x, give=n)
-    g["bk"]["outcomes"].append(text)
+    if not head and drink:
+        first = next(iter(drink))
+        head = f"{_bk_name(g, first)} boit {drink[first]}"
+    if not head and give:
+        first = next(iter(give))
+        head = f"{_bk_name(g, first)} distribue {give[first]}"
+    B["outcomes"].append({"text": text, "head": head or text, "tone": tone or ("drink" if drink else "give" if give else "info"),
+                          "extra": extra})
 
 
 def _bk_name(g: dict, gid: str) -> str:
@@ -1645,7 +1664,7 @@ def _bk_dice(g: dict, actor: str, red: bool, rng):
         if d1 == d2 != 3:
             _bk_out(g, f"Double {d1} : {n(g, actor)} boit {d1 * m}", drink={actor: d1 * m})
     if not B["outcomes"]:
-        _bk_out(g, "Rien ne se passe… cette fois 😏")
+        _bk_out(g, "Rien ne se passe… cette fois 😏", head="Rien ne se passe 😏")
 
 
 def bk_draw(g: dict, actor: str, rng: random.Random = random):
@@ -1670,6 +1689,22 @@ def bk_draw(g: dict, actor: str, rng: random.Random = random):
     B["await"] = None
     B["drawn"] += 1
     g["round"] = B["drawn"]
+    name = _bk_name(g, cur)
+    if rank == "A":
+        starter = cur if red else _bk_side(B, cur, 1)
+        _bk_out(g, f"Tout le monde boit en cascade : {_bk_name(g, starter)} commence" + ("" if red else f", {name} s'arrête en dernier"),
+                tone="all", head="Cascade : tout le monde boit")
+    elif rank == "5":
+        _bk_out(g, f"{name} dit « Je n'ai jamais… » : ceux qui l'ont fait boivent" if red
+                else f"Les autres posent un « Je n'ai jamais… » à {name} : s'il l'a fait, il boit", tone="info",
+                head=f"{name} : Je n'ai jamais" if red else f"Je n'ai jamais… contre {name}")
+    elif rank == "6":
+        _bk_out(g, "Toutes les filles de la table boivent" if red else "Tous les garçons de la table boivent", tone="all",
+                head="Les filles boivent 👭" if red else "Les gars boivent 👬")
+    elif rank == "9":
+        _bk_out(g, f"{name} choisit un thème, chacun cite un mot : le premier qui sèche boit" if red
+                else f"{name} dit un mot, chacun trouve une rime : le premier qui sèche boit", tone="info",
+                head="Catégories" if red else "Rimes")
     if rank in "23":
         k = int(rank) * m
         _bk_out(g, f"{_bk_name(g, cur)} {'distribue' if red else 'boit'} {k}", **({"give": {cur: k}} if red else {"drink": {cur: k}}))
@@ -1780,8 +1815,9 @@ def _bk_close_reflex(g: dict, losers: list[str]):
     r = B["reflex"]
     r.update(done=True, losers=losers)
     if losers:
-        _bk_out(g, f"Trop lent : {', '.join(_bk_name(g, x) for x in losers)} boi{'vent' if len(losers) > 1 else 't'} {m}",
-                drink={x: m for x in losers})
+        who = ", ".join(_bk_name(g, x) for x in losers)
+        _bk_out(g, f"Trop lent : {who} boi{'vent' if len(losers) > 1 else 't'} {m}", drink={x: m for x in losers},
+                head=f"{who} boi{'vent' if len(losers) > 1 else 't'} {m}")
     B["n"] += 1
 
 

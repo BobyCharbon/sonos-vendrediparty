@@ -813,3 +813,14 @@ body.pyr-full .top-head { display: none; }
 .g-lobby-code { font: 800 2.8rem/1 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: .22em; text-shadow: 0 4px 18px rgba(255,79,154,.55); }
 .g-lobby-players { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 4px; }
 .g-lobby-players .pill { color: var(--text); animation: py-in .3s ease-out; }
+/* Biskit : « qui boit ? » en très gros */
+.bk-who { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+.bk-o { display: flex; flex-direction: column; gap: 4px; padding: 16px 18px; border-radius: 20px; text-align: center; animation: pop .45s ease-out;
+  box-shadow: 0 14px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.2); }
+.bk-o b { font: 800 clamp(1.6rem, 8vw, 2.4rem)/1.05 "Bricolage Grotesque", system-ui, sans-serif; text-transform: uppercase; text-shadow: 0 3px 12px rgba(0,0,0,.35); }
+.bk-o span { font-size: .95rem; opacity: .92; }
+.bk-o .bk-x { font-weight: 700; }
+.bk-o.drink { background: linear-gradient(160deg, #ff4f6d, #b3123a); }
+.bk-o.give { background: linear-gradient(160deg, #2fd39a, #0f7d5a); }
+.bk-o.all { background: linear-gradient(160deg, #a35cff, #5a1fb8); }
+.bk-o.info { background: linear-gradient(160deg, #3a3150, #241d36); }

@@ -935,7 +935,7 @@ def test_biskit_await_actions_rules_duel_and_kings():
     c = draw(g, "QS")
     other = next(x for x in g["bk"]["order"] if x != c)
     games.bk_complete(g, c, target=other, rng=random.Random(1))
-    assert g["bk"]["duel"] and any("Duel" in o for o in g["bk"]["outcomes"])
+    assert g["bk"]["duel"] and any("Duel" in o["text"] for o in g["bk"]["outcomes"])
     for _ in range(4):
         draw(g, "KD")
     assert g["phase"] == "end" and g["bk"]["final"]

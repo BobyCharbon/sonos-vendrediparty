@@ -1255,7 +1255,9 @@ function bkHtml(g) {
   const dice = v.dice ? `<div class="bk-dice ${v.dice.age < 2 ? "roll" : ""}"><span>${BK_DICE[v.dice.d[0]]}</span><span>${BK_DICE[v.dice.d[1]]}</span>
       <small>lancés par ${esc(v.dice.roller_name)} · total ${v.dice.d[0] + v.dice.d[1]}</small></div>` : "";
   const duel = v.duel ? `<div class="bk-duel ${v.duel.age < 2 ? "roll" : ""}"><b>${esc(v.duel.a_name)}</b> <span>${BK_DICE[v.duel.da]}</span> contre <span>${BK_DICE[v.duel.db]}</span> <b>${esc(v.duel.b_name)}</b></div>` : "";
-  const outs = v.outcomes.length ? `<div class="bk-outs">${v.outcomes.map((o) => `<div>${esc(o)}</div>`).join("")}</div>` : "";
+  // Qui boit ? En très gros, une couleur par type d'effet (boit, distribue, tout le monde, info).
+  const outs = v.outcomes.length ? `<div class="bk-who">${v.outcomes.map((o) => typeof o === "string" ? `<div class="bk-o info"><b>${esc(o)}</b></div>`
+    : `<div class="bk-o ${esc(o.tone)}"><b>${esc(o.head)}</b>${o.head !== o.text ? `<span>${esc(o.text)}</span>` : ""}${(o.extra || []).map((x) => `<span class="bk-x">${esc(x)}</span>`).join("")}</div>`).join("")}</div>` : "";
   let reflex = "";
   if (v.reflex && !v.reflex.done) {
     const label = v.reflex.kind === "paradis" ? "☝️ PARADIS !" : "👃 DOIGT SUR LE NEZ !";
