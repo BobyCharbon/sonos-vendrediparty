@@ -1169,19 +1169,33 @@ function renderRouletteHost(g, btn) {
   const sp = g.spin, spinning = Date.now() < spinningUntil;
   const loser = g.phase === "spun" && sp && wheelShown === sp.id ? sp.names[sp.index] : "";
   const joined = g.players.map((p) => p.name).filter((n) => !g.names.some((x) => x.toLowerCase() === n.toLowerCase()));
-  $("gameHost").innerHTML = `
-    ${g.is_host ? `
-      <div class="row" style="margin-top:10px">${btn("spin", spinning ? "La roue tourne…" : "🎡 Lancer la roue", "grow g-spin", g.names.length < 2 || spinning ? "disabled" : "")}</div>
-      ${loser && g.names.includes(loser) ? `<button class="secondary" data-gact="dropname" data-name="${esc(loser)}" style="width:100%;margin-top:8px">Retirer ${esc(loser)} de la roue</button>` : ""}
-      <h2>Sur la roue (${g.names.length})</h2>
-      <form data-gform="addname" class="row">
-        <input class="grow" type="text" id="rouletteName" maxlength="20" placeholder="Ajouter un nom" autocomplete="off">
-        <button>Ajouter</button>
-      </form>
-      <div class="chips" style="margin-top:8px">${g.names.map((n) => `<span class="pill name-chip">${esc(n)}<button type="button" class="chip-x" data-gact="dropname" data-name="${esc(n)}" aria-label="Retirer ${esc(n)}">✕</button></span>`).join("") || `<span class="artist">Aucun nom pour l'instant</span>`}</div>
-      ${joined.length ? `<button class="secondary" data-gact="addplayers" style="width:100%;margin-top:8px">👥 Ajouter les joueurs inscrits (${joined.length})</button>` : ""}` : ""}
-    ${g.history?.length ? `<h2>Derniers perdants</h2><div class="chips">${g.history.slice(0, 10).map((n, i) => `<span class="pill" style="${i === 0 ? "color:var(--text)" : ""}">${esc(n)}</span>`).join("")}</div>` : ""}
-    ${g.players.length ? `<h2>Spectateurs (${g.players.length})</h2><div class="chips">${g.players.map((p) => `<span class="pill">${esc(p.name)}</span>`).join("")}</div>` : ""}`;
+  const host = $("gameHost"), kind = "roulette:" + g.id + ":" + g.is_host;
+  // Squelette posé une seule fois : le champ « Ajouter un nom » n'est jamais recréé, le clavier reste ouvert.
+  if (host.dataset.kind !== kind) {
+    host.dataset.kind = kind;
+    host.innerHTML = `
+      <div id="rlControls"></div>
+      ${g.is_host ? `<h2 id="rlTitle"></h2>
+        <form data-gform="addname" class="row">
+          <input class="grow" type="text" id="rouletteName" maxlength="20" placeholder="Ajouter un nom" autocomplete="off" autocapitalize="words" enterkeyhint="enter">
+          <button type="submit" id="rouletteAdd">Ajouter</button>
+        </form>
+        <div class="chips" id="rlNames" style="margin-top:8px"></div>
+        <div id="rlPlayers"></div>` : ""}
+      <div id="rlHistory"></div>
+      <div id="rlSpect"></div>`;
+    // Toucher « Ajouter » ne doit pas retirer le focus du champ (sinon le clavier se ferme).
+    $("rouletteAdd")?.addEventListener("pointerdown", (ev) => ev.preventDefault());
+  }
+  $("rlControls").innerHTML = g.is_host ? `<div class="row" style="margin-top:10px">${btn("spin", spinning ? "La roue tourne…" : "🎡 Lancer la roue", "grow g-spin", g.names.length < 2 || spinning ? "disabled" : "")}</div>
+    ${loser && g.names.includes(loser) ? `<button class="secondary" data-gact="dropname" data-name="${esc(loser)}" style="width:100%;margin-top:8px">Retirer ${esc(loser)} de la roue</button>` : ""}` : "";
+  if (g.is_host) {
+    $("rlTitle").textContent = `Sur la roue (${g.names.length})`;
+    $("rlNames").innerHTML = g.names.map((n) => `<span class="pill name-chip">${esc(n)}<button type="button" class="chip-x" data-gact="dropname" data-name="${esc(n)}" aria-label="Retirer ${esc(n)}">✕</button></span>`).join("") || `<span class="artist">Aucun nom pour l'instant</span>`;
+    $("rlPlayers").innerHTML = joined.length ? `<button class="secondary" data-gact="addplayers" style="width:100%;margin-top:8px">👥 Ajouter les joueurs inscrits (${joined.length})</button>` : "";
+  }
+  $("rlHistory").innerHTML = g.history?.length ? `<h2>Derniers perdants</h2><div class="chips">${g.history.slice(0, 10).map((n, i) => `<span class="pill" style="${i === 0 ? "color:var(--text)" : ""}">${esc(n)}</span>`).join("")}</div>` : "";
+  $("rlSpect").innerHTML = g.players.length ? `<h2>Spectateurs (${g.players.length})</h2><div class="chips">${g.players.map((p) => `<span class="pill">${esc(p.name)}</span>`).join("")}</div>` : "";
 }
 
 // « Je n'ai jamais » : ceux qui l'ont déjà fait boivent.
@@ -1199,6 +1213,7 @@ function neverResultsHtml(g) {
 // Commandes de l'animateur (créateur de la partie) et liste des joueurs.
 function renderGameHost(g) {
   const btn = (action, label, cls = "", extra = "") => `<button class="${cls}" data-gact="${action}" ${extra}>${label}</button>`;
+  if (g.type !== "roulette") delete $("gameHost").dataset.kind;  // un autre jeu redessine tout
   const alive = g.players.filter((p) => p.alive);
   const controls = !g.is_host ? "" : {
     lobby: btn("start", g.type === "undercover" ? "▶︎ Distribuer les mots" : "▶︎ Première question", "grow", g.players.length < (g.type === "undercover" ? 3 : 2) ? "disabled" : ""),
@@ -1300,12 +1315,16 @@ document.addEventListener("submit", (ev) => {
   const name = $("manualName").value.trim();
   if (name) gameAction("addguest", { guess: name }).then(() => $("manualName")?.focus());
 });
+let nameQueue = Promise.resolve();
 document.addEventListener("submit", (ev) => {
   if (!ev.target.closest("[data-gform=addname]")) return;
   ev.preventDefault();
-  const name = $("rouletteName").value.trim();
+  const input = $("rouletteName"), name = input.value.trim();
   if (!name) return;
-  gameAction("names", { names: game.names.concat([name]) }).then(() => $("rouletteName")?.focus());
+  // On vide le champ tout de suite (le focus reste dedans) : on peut enchaîner les prénoms.
+  input.value = "";
+  // Envois en file : chaque prénom part avec la liste à jour, aucun ne se perd si on tape vite.
+  nameQueue = nameQueue.then(() => gameAction("names", { names: game.names.concat([name]) }));
 });
 $("game").addEventListener("submit", (ev) => {
   if (!ev.target.closest("[data-gform]")) return;
