@@ -108,6 +108,8 @@
         <div><div class="i-title" id="iTitle">Installe « Party ! »</div>
           <div class="artist">Comme une vraie app : plein écran, toujours à portée de main, avec les notifications.</div></div>
       </div>
+      <div class="i-bar" id="iBar">Ta barre d'adresse :
+        <button type="button" data-bar="bottom">⬇ en bas</button><button type="button" data-bar="top">⬆ en haut</button></div>
       <button type="button" id="iShare" class="i-share">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M8 7l4-4 4 4"/><path d="M8 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-2"/></svg>
         Ouvrir « Partager »</button>
@@ -119,7 +121,7 @@
       <button type="button" id="iLater" class="secondary">Plus tard</button>
       <div class="i-version" id="iVersion"></div>
     </div>
-    <div class="i-arrow" id="iArrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15"/><path d="M5 12l7 7 7-7"/></svg></div>
+    <div id="iArrows" aria-hidden="true"></div>
   </div>
 
   <div id="toast" class="toast hidden"></div>
@@ -436,6 +438,7 @@ const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform 
 let installEvent = null;
 function offerInstall() {
   if (standalone || store("vp_install_dismissed")) return;
+  if (!$("installSheet").classList.contains("hidden")) return;  // guide déjà ouvert : le bandeau masquerait la flèche
   if (ios) {
     $("installHelp").innerHTML = `Touche ici : on te montre comment, en 10 secondes.`;
   } else if (installEvent) {
@@ -467,27 +470,48 @@ const ICONS = {
 };
 // Version de Safari (sur iPhone, le système annonce toujours « iOS 18 » : seule la version de Safari est fiable).
 const safariVersion = () => +((navigator.userAgent.match(/Version\/(\d+)/) || [])[1] || 0);
+const ipad = ios && !/iPhone|iPod/.test(navigator.userAgent);
+const otherIosBrowser = () => /CriOS|FxiOS|EdgiOS/.test(navigator.userAgent);
+// Où est la barre d'adresse ? Depuis iOS 26, chacun la met en haut ou en bas (Réglages > Safari) et aucune page web
+// ne peut le savoir : on demande, on retient la réponse ; sans réponse, on montre les deux emplacements possibles.
+const barPos = () => ipad ? "top" : (store("vp_bar") || "");
+function arrowSpots(pos) {
+  const v = safariVersion();
+  const spot = (p) => otherIosBrowser() || ipad ? (p === "top" ? "tr" : "br")
+    : p === "top" ? (v >= 27 ? "tl" : "bc")  // barre en haut : menu à gauche de l'adresse (27) ou Partager dans la barre du bas
+    : v >= 27 ? "bl" : v >= 26 ? "br" : "bc";
+  return pos ? [spot(pos)] : [...new Set([spot("bottom"), spot("top")])];
+}
 function installSteps() {
   const ua = navigator.userAgent;
-  const chrome = /CriOS/.test(ua), firefox = /FxiOS/.test(ua);
-  const v = safariVersion();
+  const chrome = /CriOS|EdgiOS/.test(ua), firefox = /FxiOS/.test(ua);
+  const v = safariVersion(), pos = barPos();
+  const where = pos === "top" ? "en haut de l'écran" : pos === "bottom" ? "en bas de l'écran" : "en haut ou en bas, selon où est ta barre d'adresse";
   const step = (icon, html) => `<li><span class="i-ico">${ICONS[icon]}</span><span>${html}</span></li>`;
   if (android) return [
-    step("menu", `Touche le menu <b>⋮</b> en haut à droite du navigateur.`),
+    step("menu", `Touche le menu du navigateur (<b>⋮</b> ou <b>≡</b>), en haut ou en bas à droite.`),
     step("add", `Touche <b>« Installer l'application »</b> ou <b>« Ajouter à l'écran d'accueil »</b>.`),
     step("app", `Confirme avec <b>Installer</b> : « Party ! » apparaît avec tes applis.`),
   ];
   if (chrome || firefox) return [
-    step("share", `Touche <b>Partager</b> en haut à droite, à côté de l'adresse.`),
+    step("share", `Touche <b>Partager</b> à côté de la barre d'adresse (${where}).`),
     step("add", `Touche <b>« Ajouter à l'écran d'accueil »</b>.`),
     step("app", `Touche <b>Ajouter</b> : « Party ! » apparaît sur ton écran d'accueil.`),
   ];
-  // Safari 27+ : icône de menu à gauche de l'adresse ; Safari 26 : ••• à droite ; avant : Partager au centre de la barre.
+  if (ipad) return [
+    step("share", `Touche <b>Partager</b> en haut à droite${v >= 26 ? ` (ou <b>•••</b> puis <b>Partager</b>)` : ""}.`),
+    step("add", `Touche <b>« Sur l'écran d'accueil »</b>${v >= 26 ? " (dans « Plus » si tu ne le vois pas)" : ""}.`),
+    step("app", `Touche <b>Ajouter</b>.`),
+  ];
+  // Safari 27+ : icône de menu à gauche de l'adresse ; Safari 26 : ••• à droite (barre en bas) ou Partager dans
+  // la barre du bas (barre en haut) ; avant : Partager au centre de la barre du bas.
+  const first = v >= 27 ? step("pagemenu", `Touche l'icône de menu <b>à gauche de l'adresse</b>, ${where}.`)
+    : v >= 26 && pos === "bottom" ? step("more", `Touche <b>•••</b> à droite de la barre d'adresse, en bas de l'écran.`)
+    : v >= 26 && !pos ? step("more", `Barre d'adresse en bas : touche <b>•••</b> à droite de l'adresse. Barre en haut : passe à l'étape 2.`)
+    : null;
   return [
-    v >= 27 ? step("pagemenu", `Touche l'icône de menu <b>à gauche de l'adresse</b>, en bas de l'écran.`)
-      : v >= 26 ? step("more", `Touche <b>•••</b> à droite de la barre d'adresse, en bas de l'écran.`)
-      : null,
-    step("share", v >= 26 ? `Touche <b>Partager</b>.` : `Touche <b>Partager</b> au milieu de la barre du bas.`),
+    first,
+    step("share", v >= 27 || (v >= 26 && pos === "bottom") ? `Touche <b>Partager</b>.` : `Touche <b>Partager</b> au milieu de la barre du bas.`),
     step("add", `Fais défiler et touche <b>« Sur l'écran d'accueil »</b>${v >= 26 ? " (dans « Plus » si tu ne le vois pas)" : ""}.`),
     step("app", `${v >= 26 ? `Laisse <b>« Ouvrir en tant qu'app web »</b> activé, puis touche` : "Touche"} <b>Ajouter</b>.`),
   ].filter(Boolean);
@@ -498,11 +522,14 @@ function openInstallSheet() {
   if (ios) {
     // iPhone : aucune page web ne peut ouvrir le « Partager » de Safari (le seul qui propose « Sur l'écran d'accueil »).
     // Guide en haut de l'écran qui laisse toucher Safari, et flèche vers le bon bouton.
-    const ua = navigator.userAgent, v = safariVersion(), other = /CriOS|FxiOS/.test(ua);
-    const where = other ? "tr" : v >= 27 ? "bl" : v >= 26 ? "br" : "bc";
-    sheet.className = `i-modal i-coach arrow-${where}`;
+    const v = safariVersion(), other = otherIosBrowser(), pos = barPos(), spots = arrowSpots(pos);
+    sheet.className = `i-modal i-coach${spots.some((x) => x[0] === "t") ? " has-top" : ""}`;
+    $("iArrows").innerHTML = spots.map((x) => `<div class="i-arrow at-${x}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15"/><path d="M5 12l7 7 7-7"/></svg></div>`).join("");
+    const ask = !ipad && arrowSpots("").length > 1;  // inutile si les deux dispositions ont le même bouton
+    $("iBar").classList.toggle("hidden", !ask);
+    $("iBar").querySelectorAll("[data-bar]").forEach((b) => b.classList.toggle("on", b.dataset.bar === pos));
     $("install").classList.add("hidden");  // le bandeau du bas gênerait la flèche
-    $("iVersion").textContent = other ? "" : v ? `Safari ${v} détecté` : "";
+    $("iVersion").textContent = [other ? "" : v ? `Safari ${v} détecté` : "", ipad ? "iPad" : !ask ? "" : pos ? `barre ${pos === "top" ? "en haut" : "en bas"}` : "position de la barre : à choisir"].filter(Boolean).join(" · ");
     $("iShare").classList.add("hidden");
     $("iThen").classList.add("hidden");
     sheet.querySelector(".i-manual").open = true;
@@ -511,6 +538,8 @@ function openInstallSheet() {
     return;
   }
   sheet.className = "i-modal";
+  $("iArrows").innerHTML = "";
+  $("iBar").classList.add("hidden");
   // Android : le bouton lance l'installation (si Chrome la propose) ; sinon on affiche les étapes.
   const direct = !!installEvent;
   $("iShare").lastChild.textContent = android ? " Installer l'application" : " Ouvrir « Partager »";
@@ -541,6 +570,13 @@ $("iShare").onclick = async () => {
 // L'app vient d'être installée (Android) : plus besoin de la proposer.
 addEventListener("appinstalled", () => { store("vp_install_dismissed", "1"); $("install").classList.add("hidden"); $("installSheet").classList.add("hidden"); });
 $("iLater").onclick = () => $("installSheet").classList.add("hidden");
+// Barre d'adresse en haut ou en bas : on retient le choix et on replace la flèche.
+$("iBar").addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-bar]");
+  if (!b) return;
+  store("vp_bar", b.dataset.bar);
+  openInstallSheet();
+});
 $("installSheet").addEventListener("click", (ev) => { if (ev.target.id === "installSheet") $("installSheet").classList.add("hidden"); });
 setTimeout(offerInstall, 1500);
 

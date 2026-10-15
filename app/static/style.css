@@ -388,13 +388,20 @@ button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2
 .i-coach .i-arrow { display: grid; place-items: center; position: fixed; width: 56px; height: 56px; border-radius: 50%; background: #0a84ff; color: #fff;
   box-shadow: 0 8px 24px rgba(10, 132, 255, .55); animation: i-bob 1s ease-in-out infinite; }
 .i-coach .i-arrow svg { width: 30px; height: 30px; }
-.arrow-br .i-arrow { right: 14px; bottom: calc(10px + env(safe-area-inset-bottom)); }
-.arrow-bc .i-arrow { left: calc(50% - 28px); bottom: calc(10px + env(safe-area-inset-bottom)); }
-.arrow-tr .i-arrow { right: 14px; top: 8px; transform: rotate(180deg); animation-name: i-bob-up; }
-.arrow-tr .i-sheet { margin-top: 74px; }
+.at-br { right: 14px; bottom: calc(10px + env(safe-area-inset-bottom)); }
+.at-bc { left: calc(50% - 28px); bottom: calc(10px + env(safe-area-inset-bottom)); }
+.at-bl { left: 18%; bottom: calc(10px + env(safe-area-inset-bottom)); }
+.i-coach .i-arrow.at-tr, .i-coach .i-arrow.at-tl { top: 8px; transform: rotate(180deg); animation-name: i-bob-up; }
+.at-tr { right: 14px; }
+.at-tl { left: 18%; }
+.i-coach.has-top .i-sheet { margin-top: 74px; }
 @keyframes i-bob { 50% { transform: translateY(8px); } }
 @keyframes i-bob-up { 0%, 100% { transform: rotate(180deg); } 50% { transform: rotate(180deg) translateY(8px); } }
-.arrow-bl .i-arrow { left: 18%; bottom: calc(10px + env(safe-area-inset-bottom)); }
+/* Barre d'adresse en haut ou en bas (réglage de Safari que la page ne peut pas lire) */
+.i-bar { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; font-size: .9rem; color: var(--muted); }
+.i-bar button { padding: 6px 10px; font-size: .9rem; background: var(--card-2); color: var(--text); }
+.i-bar button.on { background: #0a84ff; color: #fff; }
+.i-coach .i-arrow { pointer-events: none; }
 .i-version { text-align: center; font-size: .72rem; color: var(--muted); margin-top: -6px; }
 .i-version:empty { display: none; }
 
