@@ -470,10 +470,23 @@ async function refresh() {
 
 // Mises à jour en direct : le serveur signale chaque changement, on rafraîchit aussitôt.
 let source, refreshTimer;
+
+// 🔄 Nouvelle version du site déployée : on recharge la page (tout de suite, ou au retour si elle est en arrière-plan).
+let siteBuild = "", reloadPending = false;
+function checkBuild(data) {
+  const build = String(data || "").split("|")[0];
+  if (!build || !String(data).includes("|")) return;
+  if (!siteBuild) { siteBuild = build; return; }
+  if (build !== siteBuild && !reloadPending) {
+    reloadPending = true;
+    if (document.hidden) addEventListener("visibilitychange", () => { if (!document.hidden) location.reload(); });
+    else setTimeout(() => location.reload(), 300);
+  }
+}
 function listen() {
   if (source) source.close();
   source = new EventSource("/api/events");
-  source.onmessage = () => { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 100); };
+  source.onmessage = (ev) => { checkBuild(ev.data); clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 100); };
   source.onerror = () => { source.close(); setTimeout(listen, 3000); };
 }
 

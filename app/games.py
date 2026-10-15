@@ -721,7 +721,7 @@ def casino_open(g: dict):
     c = g["casino"]
     for p in g["players"]:
         c["chips"].setdefault(p["id"], CASINO_START_CHIPS)
-    c.update(bets={}, results={})
+    c.update(bets={}, results={}, stack={}, ready=[])
     g["phase"] = "bet"
     g["round"] += 1
 
@@ -751,12 +751,57 @@ def casino_bet(g: dict, gid: str, target: str, amount: int):
             break
     else:
         bets.append({"kind": kind, "target": value, "amount": amount})
+    # Historique des mises posées (pour « Annuler »), et on n'est plus « prêt » après un changement.
+    c.setdefault("stack", {}).setdefault(gid, []).append([kind, value, amount])
+    _casino_unready(c, gid)
+
+
+def _casino_unready(c: dict, gid: str):
+    if gid in c.setdefault("ready", []):
+        c["ready"].remove(gid)
+
+
+def casino_undo(g: dict, gid: str):
+    """Annule la dernière mise posée."""
+    c = g["casino"]
+    if g["phase"] != "bet":
+        raise GameError("Rien ne va plus : les mises sont fermées")
+    stack = c.setdefault("stack", {}).get(gid) or []
+    if not stack:
+        raise GameError("Aucune mise à annuler")
+    kind, value, amount = stack.pop()
+    bets = c["bets"].get(gid, [])
+    for b in bets:
+        if b["kind"] == kind and b["target"] == value:
+            b["amount"] -= amount
+            if b["amount"] <= 0:
+                bets.remove(b)
+            break
+    _casino_unready(c, gid)
 
 
 def casino_clear(g: dict, gid: str):
     if g["phase"] != "bet":
         raise GameError("Rien ne va plus : les mises sont fermées")
-    g["casino"]["bets"].pop(gid, None)
+    c = g["casino"]
+    c["bets"].pop(gid, None)
+    c.setdefault("stack", {}).pop(gid, None)
+    _casino_unready(c, gid)
+
+
+def casino_ready(g: dict, gid: str, rng: random.Random = random):
+    """« Je suis prêt » (ou plus prêt) ; quand toute la table est prête, la bille part toute seule."""
+    c = g["casino"]
+    if g["phase"] != "bet" or not player(g, gid):
+        raise GameError("Rien ne va plus : les mises sont fermées")
+    ready = c.setdefault("ready", [])
+    if gid in ready:
+        ready.remove(gid)
+        return
+    ready.append(gid)
+    seated = [p["id"] for p in g["players"] if not p.get("pending")]
+    if all(x in ready for x in seated) and any(c["bets"].values()):
+        casino_spin(g, rng)
 
 
 def casino_rebuy(g: dict, gid: str):
@@ -816,7 +861,8 @@ def casino_view(g: dict, gid: str) -> dict:
             board[key] = board.get(key, 0) + b["amount"]
         table.append({"pid": p["pid"], "name": p["name"], "chips": c["chips"].get(p["id"], CASINO_START_CHIPS),
                       "rebuys": c["rebuys"].get(p["id"], 0), "staked": sum(b["amount"] for b in bets),
-                      "bets": bets, "result": c["results"].get(p["id"])})
+                      "bets": bets, "result": c["results"].get(p["id"]), "ready": p["id"] in c.get("ready", []),
+                      "can_undo": bool(c.get("stack", {}).get(p["id"]))})
     spin = c["spin"]
     me = next((t for t in table if player(g, gid) and t["pid"] == player(g, gid)["pid"]), None)
     return {

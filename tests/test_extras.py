@@ -173,3 +173,7 @@ def test_admin_notified_of_new_game_only_if_wanted(admin, push):  # noqa: F811
     admin.post("/api/admin/notify", json={"kind": "messages", "on": True})
     admin.post("/api/admin/notify", json={"kind": "games", "on": False})
     main.store.remove_push(SUB["endpoint"])
+
+
+def test_build_id_is_stable_and_short():
+    assert main.build_id() == main.BUILD_ID and len(main.BUILD_ID) == 12

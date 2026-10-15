@@ -284,7 +284,7 @@ button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2
 .bj-result.win, .bj-result.blackjack { background: var(--g-accent); color: var(--g-ink); }
 .track.bj-turn { outline: 2px solid var(--accent-2); }
 /* Compteur fixe en haut à droite (jetons, gorgées). */
-.g-hud { position: fixed; z-index: 15; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right));
+.g-hud { position: fixed; z-index: 15; top: calc(58px + env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right));
   display: flex; gap: 6px; padding: 6px; border-radius: 16px; background: var(--g-bg, #241d35); box-shadow: 0 8px 24px rgba(0,0,0,.45); }
 .hud-item { display: flex; flex-direction: column; align-items: center; min-width: 52px; padding: 4px 8px; border-radius: 12px; background: var(--g-chip, #1a1526); line-height: 1.1; }
 .hud-item span { font-size: .9rem; }
@@ -692,3 +692,12 @@ body.pyr-full #game > * { max-width: 560px; margin-left: auto; margin-right: aut
 .py-alert { border-color: #ffd166; background: #2a2008; box-shadow: 0 0 24px rgba(255,209,102,.5); animation: py-in .35s ease-out, py-alert 1.4s ease-in-out .35s infinite; }
 .py-alert .py-claim { background: #3a2d0c; }
 @keyframes py-alert { 50% { box-shadow: 0 0 36px rgba(255,209,102,.8); } }
+.cs-edit { margin-top: 8px; }
+.cs-ready { width: 100%; min-height: 54px; margin-top: 8px; border-radius: 16px; background: #1f6f5c; color: #fff; font-size: 1.05rem; font-weight: 800; }
+.cs-ready.on { background: #2b3a33; color: #9ff0c9; box-shadow: inset 0 0 0 2px #3ddc97; }
+/* 👤 Prénom en haut à droite (page invités) */
+.top-head { display: flex; align-items: center; gap: 10px; }
+.top-head h1 { flex: 1; min-width: 0; }
+.name-chip-top { flex: none; max-width: 46%; padding: 8px 12px; border-radius: 99px; background: var(--card-2); color: var(--text);
+  font-size: .85rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid #3a3150; }
+body.pyr-full .top-head { display: none; }

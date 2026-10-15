@@ -854,3 +854,20 @@ def test_pyramid_poteau_hard_and_double_floor_sips():
         games.pyr_flip(g)
     games.pyr_claim(g, "p1")
     assert P["claims"][0]["sips"] == 4 and games.view(g, "p0")["pyr"]["floor_sips"] == 4
+
+
+def test_casino_undo_and_ready_starts_spin():
+    g = casino()
+    games.casino_bet(g, "a", "color:red", 10)
+    games.casino_bet(g, "a", "color:red", 5)
+    games.casino_bet(g, "a", "n:7", 5)
+    games.casino_undo(g, "a")  # retire le 7
+    games.casino_undo(g, "a")  # retire 5 sur Rouge
+    assert g["casino"]["bets"]["a"] == [{"kind": "color", "target": "red", "amount": 10}]
+    games.casino_ready(g, "a", FixedRng(3))
+    assert g["phase"] == "bet"  # Bob n'est pas prêt
+    games.casino_bet(g, "a", "n:3", 5)  # changer sa mise annule « prêt »
+    assert not g["casino"]["ready"] or "a" not in g["casino"]["ready"]
+    games.casino_ready(g, "a", FixedRng(3))
+    games.casino_ready(g, "b", FixedRng(3))  # Bob prêt sans miser : tout le monde est prêt → la bille part
+    assert g["phase"] == "results" and g["casino"]["spin"]["number"] == 3

@@ -17,7 +17,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
-  <h1>🎉 <span>Vendredi Party</span></h1>
+  <header class="top-head">
+    <h1>🎉 <span>Vendredi Party</span></h1>
+    <button type="button" id="nameChip" class="name-chip-top hidden" aria-label="Changer de prénom"></button>
+  </header>
 
   <section data-view="music">
   <div id="pin" class="hidden">
@@ -197,6 +200,7 @@ async function refresh() {
   show("party");
   $("room").textContent = s.room;
   $("rename").textContent = guestName;
+  renderNameChip();
 
   const warn = s.error || (s.from_queue === false ? "La musique ne joue pas depuis la file Sonos : les ajouts sont en pause." : "");
   $("warn").textContent = warn; $("warn").classList.toggle("hidden", !warn);
@@ -231,6 +235,25 @@ async function refresh() {
 }
 
 let searchTimer, lastResults = [], blocked = "", myTracks = new Set();
+
+// 👤 Prénom en haut à droite : le joueur peut le changer à tout moment (musique, jeux, parties en cours).
+function renderNameChip() {
+  $("nameChip").classList.toggle("hidden", !guestName);
+  $("nameChip").textContent = `👤 ${guestName} ✏️`;
+}
+async function changeName() {
+  const name = (prompt("Ton prénom :", guestName) || "").trim().slice(0, 30);
+  if (!name || name === guestName) return;
+  guestName = name; store("vp_name", guestName);
+  renderNameChip();
+  // Musique (si le code a été saisi) et jeux : le nouveau prénom est envoyé partout.
+  api("/api/hello", { method: "POST", body: JSON.stringify({ guest_id: guestId, guest_name: guestName }) }).catch(() => {});
+  fetch("/api/presence", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ guest_id: guestId, name: guestName }) }).catch(() => {});
+  toast(`C'est noté, ${guestName} !`, "ok");
+  refresh();
+  if (typeof refreshGame === "function") refreshGame();
+}
+$("nameChip").addEventListener("click", changeName);
 
 // Deux onglets : 🎵 Musique (code de l'hôte) et 🎮 Jeux (ouverts à tous).
 function showTab(tab) {
@@ -352,6 +375,7 @@ $("nameForm").addEventListener("submit", (ev) => {
   if (!name) return;
   guestName = name;
   store("vp_name", guestName);
+  renderNameChip();
   // Nouveau prénom choisi par l'invité : on l'envoie au serveur avant de rafraîchir.
   registered = true;
   api("/api/hello", { method: "POST", body: JSON.stringify({ guest_id: guestId, guest_name: guestName }) })
@@ -383,6 +407,7 @@ $("pinInput").addEventListener("input", () => {
 });
 
 addEventListener("DOMContentLoaded", async () => {
+  renderNameChip();
   // QR code : le code est dans l'URL, on entre directement puis on le retire de la barre d'adresse.
   const params = new URLSearchParams(location.search);
   $("gameDot").classList.toggle("hidden", !myGame);
@@ -521,10 +546,24 @@ setTimeout(offerInstall, 1500);
 
 // Mises à jour en direct : le serveur signale chaque changement, on rafraîchit aussitôt.
 let source, refreshTimer;
+
+// 🔄 Nouvelle version du site déployée : on recharge la page (tout de suite, ou au retour si elle est en arrière-plan).
+let siteBuild = "", reloadPending = false;
+function checkBuild(data) {
+  const build = String(data || "").split("|")[0];
+  if (!build || !String(data).includes("|")) return;
+  if (!siteBuild) { siteBuild = build; return; }
+  if (build !== siteBuild && !reloadPending) {
+    reloadPending = true;
+    if (document.hidden) addEventListener("visibilitychange", () => { if (!document.hidden) location.reload(); });
+    else setTimeout(() => location.reload(), 300);
+  }
+}
 function listen() {
   if (source) source.close();
   source = new EventSource("/api/events");
-  source.onmessage = () => {
+  source.onmessage = (ev) => {
+    checkBuild(ev.data);
     clearTimeout(refreshTimer);
     refreshTimer = setTimeout(() => { refresh(); if (myGame) refreshGame(); }, 100);
   };

@@ -32,6 +32,19 @@ ADMIN_PIN = os.environ.get("ADMIN_PIN", "")
 PUBLIC_URL = "https://party.bobycharbon.ch"
 STATIC = Path(__file__).parent / "static"
 
+
+def build_id() -> str:
+    """Empreinte du code déployé (pages, scripts, serveur) : change à chaque mise à jour du site."""
+    h = hashlib.sha1()
+    for f in sorted(list(STATIC.rglob("*")) + list(Path(__file__).parent.glob("*.py"))):
+        if f.is_file():
+            h.update(f.name.encode())
+            h.update(f.read_bytes())
+    return h.hexdigest()[:12]
+
+
+BUILD_ID = build_id()
+
 # Proxies de confiance (même variable qu'uvicorn) : leur IP n'identifie personne.
 PROXY_IPS = {ip.strip() for ip in os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1").split(",") if ip.strip()}
 store = PartyStore(DATA_DIR / "session.json", ignored_ips=PROXY_IPS)
@@ -895,10 +908,22 @@ def presence(body: Presence, request: Request):
     return {"ok": True}
 
 
+def sync_player_name(g: dict, guest_id: str, name: str):
+    """Le joueur a changé de prénom (en haut à droite) : la partie en cours le reprend."""
+    p = games.player(g, guest_id) if guest_id else None
+    clean = " ".join((name or "").split())[:30]
+    if p and clean and p["name"] != clean and not p.get("manual"):
+        p["name"] = clean
+        if g.get("host") == guest_id:
+            g["host_name"] = clean
+        store.save()
+
+
 @app.get("/api/games/{code}")
 def game_state(code: str, request: Request, guest_id: str = "", name: str = ""):
     g = get_game(code)
     game_presence(request, guest_id, name)
+    sync_player_name(g, guest_id, name)
     return games.view(g, guest_id)
 
 
@@ -925,6 +950,7 @@ def game_action(code: str, body: GameAction, request: Request):
     check_guest_id(body.guest_id)
     g = get_game(code)
     game_presence(request, body.guest_id, body.name)
+    sync_player_name(g, body.guest_id, body.name)
     a, me = body.action, body.guest_id
     # Cible d'un vote : un joueur (pid) ; pour « Je n'ai jamais », une réponse (yes / no).
     target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino", "pyramid") else "")
@@ -950,6 +976,7 @@ def game_action(code: str, body: GameAction, request: Request):
         "deal": (games.bj_deal,), "skip": (games.bj_force_stand,),
         "cbet": (games.casino_bet, me, body.target, body.amount), "cclear": (games.casino_clear, me),
         "crebuy": (games.casino_rebuy, me), "cspin": (games.casino_spin,),
+        "cundo": (games.casino_undo, me), "cready": (games.casino_ready, me, random),
         "dnext": (games.divan_next, me), "djoker": (games.divan_joker, me), "dback": (games.divan_back, me), "dheart": (games.divan_heart, me),
         "tanswer": (games.tmc_answer, me, body.guess), "tjudge": (games.tmc_judge, me, body.amount),
         "addguest": (games.add_guest, body.guess), "mvote": (games.vote_for, target, body.guess),
@@ -1263,7 +1290,8 @@ async def events(request: Request):
             version = events_version()
             if version != last:
                 last = version
-                yield f"data: {version}\n\n"
+                # « version du site|version de l'état » : une page dont la version du site change se recharge.
+                yield f"data: {BUILD_ID}|{version}\n\n"
             elif time.time() - last_ping > 15:
                 # Garde la connexion ouverte à travers HAProxy.
                 yield ": ping\n\n"

@@ -1443,7 +1443,7 @@ function renderCasinoHost(g, btn) {
   const bettors = c.table.filter((t) => t.staked).length;
   const controls = !g.is_host ? "" : {
     lobby: btn("start", "▶︎ Ouvrir la table", "grow", g.players.length ? "" : "disabled"),
-    bet: btn("cspin", `🎲 Rien ne va plus ! (${bettors}/${g.players.length} ont misé)`, "grow cs-spin", bettors ? "" : "disabled"),
+    bet: btn("cspin", `🎲 Lancer sans attendre (${c.table.filter((t) => t.ready).length}/${g.players.length} prêts)`, "grow cs-spin", bettors ? "" : "disabled"),
     results: btn("next", rolling ? "La bille roule…" : "▶︎ Nouveau tour", "grow cs-spin", rolling ? "disabled" : ""),
   }[g.phase] || "";
   // Jetons : valeurs utiles selon le mode ; on garde le dernier choisi.
@@ -1468,14 +1468,18 @@ function renderCasinoHost(g, btn) {
     ${controls ? `<div class="row" style="margin-top:10px">${controls}</div>` : ""}
     ${!me ? (g.phase !== "lobby" ? `<button data-gact="join" style="width:100%;margin-top:10px">S'asseoir à la table</button>` : "") : `
       ${open ? `<div class="cs-chips" role="group" aria-label="Valeur du jeton">${values.map((v) => `<button type="button" class="cs-chip v${values.indexOf(v)} ${v === casinoChip ? "on" : ""}" data-cchip="${v}" ${v > left ? "disabled" : ""}>${c.drinks ? `🍻${v}` : v}</button>`).join("")}
-        <button type="button" class="secondary cs-clear" data-gact="cclear" ${me.staked ? "" : "disabled"}>Effacer</button></div>` : ""}
+        </div>
+        <div class="row cs-edit"><button type="button" class="secondary grow" data-gact="cundo" ${me.can_undo ? "" : "disabled"}>↶ Annuler</button>
+          <button type="button" class="secondary grow" data-gact="cclear" ${me.staked ? "" : "disabled"}>✕ Tout effacer</button></div>
+        <button type="button" class="cs-ready ${me.ready ? "on" : ""}" data-gact="cready">${me.ready
+          ? `✓ Prêt · en attente des autres (${c.table.filter((t) => t.ready).length}/${c.table.length})` : "✓ Je suis prêt"}</button>` : ""}
       ${!c.drinks && me.chips < 1 && !me.staked && open ? `<button data-gact="crebuy" style="width:100%;margin-top:8px">Recharger ${c.start_chips} jetons</button>` : ""}`}
     <div class="rt ${open && me ? "" : "rt-closed"}">${grid}</div>
     <div class="rt rt-outside ${open && me ? "" : "rt-closed"}">${outside}</div>
     <h2>À la table (${g.players.length})</h2>
     <div class="list">${c.table.map((t) => `
       <div class="track">
-        <div class="meta"><div class="title">${esc(t.name)}${c.drinks ? "" : `<span class="artist"> · 💰 ${t.chips}${t.rebuys ? ` (rechargé ${t.rebuys}×)` : ""}</span>`}${sipsBadge(g.players.find((p) => p.pid === t.pid) || {})}</div>
+        <div class="meta"><div class="title">${esc(t.name)}${open && t.ready ? ` <span class="pill live">prêt ✓</span>` : ""}${c.drinks ? "" : `<span class="artist"> · 💰 ${t.chips}${t.rebuys ? ` (rechargé ${t.rebuys}×)` : ""}</span>`}${sipsBadge(g.players.find((p) => p.pid === t.pid) || {})}</div>
           <div class="artist" style="white-space:normal">${t.staked ? summary(t) : g.phase === "bet" ? "réfléchit…" : "n'a pas misé"}${resultTxt(t) ? ` · <b>${resultTxt(t)}</b>` : ""}</div></div>
         ${g.is_host && t.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(t.pid)}" title="Exclure de la table">✕</button>` : ""}
       </div>`).join("") || `<p class="empty" style="padding:12px">Personne à la table : fais scanner le QR ci-dessous.</p>`}</div>
@@ -1851,6 +1855,7 @@ $("gNameForm").addEventListener("submit", (ev) => {
   const name = $("gNameInput").value.trim().slice(0, 30);
   if (!name) return;
   guestName = name; store("vp_name", guestName);
+  if (typeof renderNameChip === "function") renderNameChip();
   // L'hôte voit la personne dans ses Réglages dès qu'elle a donné son prénom.
   gapi("/api/presence", { guest_id: guestId, name: guestName }).catch(() => {});
   refreshGame();
