@@ -38,6 +38,7 @@ class Session:
     # Party extérieur : file des demandes gardée ici (ids Spotify), et la demande déjà glissée chez Spotify.
     vqueue: list[str] = field(default_factory=list)
     vpushed: str = ""
+    vpushed_during: str = ""  # titre qui jouait quand la demande a été envoyée (une seule par titre)
     mode: str = "next"
     started_at: float = 0
     requests: list[Request] = field(default_factory=list)
@@ -113,10 +114,12 @@ class PartyStore:
         )
         self.save()
 
-    def regenerate_pin(self) -> str:
+    def regenerate_pin(self, pin: str | None = None) -> str:
+        """Nouveau code d'accès : tiré au hasard, ou choisi par l'hôte (4 chiffres)."""
         old = self.session.guest_pin
-        while (pin := f"{secrets.randbelow(10000):04d}") == old:
-            pass
+        if pin is None:
+            while (pin := f"{secrets.randbelow(10000):04d}") == old:
+                pass
         self.session.guest_pin = pin
         self.session.revoked = []  # le nouveau code invalide déjà tous les anciens jetons
         self.save()

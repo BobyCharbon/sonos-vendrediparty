@@ -177,3 +177,10 @@ def test_admin_notified_of_new_game_only_if_wanted(admin, push):  # noqa: F811
 
 def test_build_id_is_stable_and_short():
     assert main.build_id() == main.BUILD_ID and len(main.BUILD_ID) == 12
+
+
+def test_admin_chooses_guest_pin(admin):  # noqa: F811
+    assert admin.post("/api/admin/pin", json={"pin": "12a4"}).status_code == 400
+    assert admin.post("/api/admin/pin", json={"pin": "4242"}).json()["guest_pin"] == "4242"
+    assert admin.post("/api/admin/pin", json={"pin": "4242"}).status_code == 409  # déjà le code actuel
+    assert admin.post("/api/admin/pin", json={}).json()["guest_pin"] != "4242"  # au hasard

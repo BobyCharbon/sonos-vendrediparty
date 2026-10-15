@@ -146,7 +146,14 @@
         <div class="big-pin" id="guestPin">····</div>
         <img class="qr" id="qr" alt="QR code vers la page invités (code inclus)">
         <p class="sub" style="margin:10px 0" id="guestUrl"></p>
-        <button class="secondary" id="newPin" type="button">🔄 Nouveau code</button>
+        <div class="row" style="justify-content:center;gap:8px;flex-wrap:wrap">
+          <button class="secondary" id="newPin" type="button">🔄 Code au hasard</button>
+        </div>
+        <form id="pinChoose" class="row" style="margin-top:10px;justify-content:center">
+          <input id="pinCustom" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="Ton code" autocomplete="off"
+                 style="width:9em;text-align:center;font-size:1.2rem;letter-spacing:.3em" aria-label="Choisir le code (4 chiffres)">
+          <button class="secondary">✓ Utiliser ce code</button>
+        </form>
         <p class="sub" style="margin:8px 0 0;font-size:.85rem">Un nouveau code déconnecte tous les invités : ils devront saisir le nouveau ou rescanner le QR.</p>
       </div>
 
@@ -670,6 +677,15 @@ $("speakers").addEventListener("change", (ev) => {
 // Rafraîchi à l'ouverture de Réglages, puis toutes les 10 s tant que l'écran est affiché.
 setInterval(() => { if (location.hash === "#settings") loadSpeakers(); }, 10000);
 
+$("pinCustom").addEventListener("input", () => { $("pinCustom").value = $("pinCustom").value.replace(/\D/g, ""); });
+$("pinChoose").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const pin = $("pinCustom").value;
+  if (!/^\d{4}$/.test(pin)) return toast("Le code doit faire 4 chiffres", "err");
+  if (!confirm(`Utiliser le code ${pin} ? Tous les invités devront le saisir (ou rescanner le QR).`)) return;
+  try { render(await api("/api/admin/pin", { pin })); $("pinCustom").value = ""; $("pinCustom").blur(); toast("Nouveau code : " + state.guest_pin, "ok"); }
+  catch (e) { toast(e.message, "err"); }
+});
 $("newPin").onclick = async () => {
   try { render(await api("/api/admin/pin", {})); toast("Nouveau code : " + state.guest_pin, "ok"); }
   catch (e) { toast(e.message, "err"); }

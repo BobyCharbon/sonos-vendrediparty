@@ -261,9 +261,22 @@ def guest_join(body: Login, request: Request, response: Response):
     return {"ok": True}
 
 
+class PinChoice(BaseModel):
+    pin: str | None = None  # None : code tiré au hasard
+
+
 @app.post("/api/admin/pin", dependencies=[Depends(require_admin)])
-def admin_new_pin():
-    store.regenerate_pin()
+def admin_new_pin(body: PinChoice | None = None):
+    """Nouveau code de la musique : au hasard, ou celui que l'hôte choisit (déconnecte tous les invités)."""
+    pin = (body.pin or "").strip() if body else ""
+    if pin:
+        if not re.fullmatch(r"[0-9]{4}", pin):
+            raise HTTPException(400, "Le code doit faire exactement 4 chiffres")
+        if pin == store.session.guest_pin:
+            raise HTTPException(409, "C'est déjà le code actuel")
+        if pin in store.session.games:
+            raise HTTPException(409, "Ce code est utilisé par une partie de jeu en cours : choisis-en un autre")
+    store.regenerate_pin(pin or None)
     return admin_state()
 
 

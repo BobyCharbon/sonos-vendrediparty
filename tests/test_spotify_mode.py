@@ -92,3 +92,28 @@ def test_start_requires_spotify_account(ext, monkeypatch):
     monkeypatch.setattr(ext.user.__class__, "connected", False)
     r = ext.post("/api/admin/start", json={"source": "spotify", "mode": "next"})
     assert r.status_code == 409
+
+
+def test_push_happens_once_even_if_spotify_answers_badly(ext):
+    ext.post("/api/admin/add", json={"track_id": "a" * 22, "where": "next"})
+    ext.user.pb["progress_ms"] = 190_000
+
+    def flaky(tid):  # Spotify ajoute bien le titre… mais répond de travers
+        ext.user.calls.append(("queue", tid))
+        raise ValueError("réponse illisible")
+    ext.user.queue = flaky
+    for _ in range(8):
+        try:
+            main.snapshot(force=True)
+        except Exception:
+            pass
+    assert ext.user.calls.count(("queue", "a" * 22)) == 1
+
+
+def test_relinked_track_is_recognised(ext):
+    ext.post("/api/admin/add", json={"track_id": "a" * 22, "where": "next"})
+    ext.user.pb["progress_ms"] = 190_000
+    main.snapshot(force=True)
+    ext.user.pb.update(progress_ms=1000, item={**ext.user.pb["item"], "id": "z" * 22, "linked_from": {"id": "a" * 22}})
+    main.snapshot(force=True)
+    assert main.store.session.vqueue == [] and main.store.session.vpushed == ""

@@ -44,18 +44,20 @@ class SpotifyPlayer:
             pb = self.user.playback()
             item = (pb or {}).get("item") or {}
             cur_id = item.get("id")
+            # Spotify remplace parfois un titre par sa version locale : on garde aussi l'identifiant d'origine.
+            ids = {cur_id, (item.get("linked_from") or {}).get("id")} - {None}
             s = self.store.session
-            # La demande poussée vers Spotify a démarré : elle quitte notre file.
-            if s.vpushed and cur_id == s.vpushed:
+            if s.vpushed and cur_id and (s.vpushed in ids or cur_id != s.vpushed_during):
+                # La demande envoyée a démarré (ou le titre a changé autrement) : elle quitte notre file.
                 if s.vpushed in self.q:
                     self.q.remove(s.vpushed)
-                s.vpushed = ""
+                s.vpushed = s.vpushed_during = ""
                 self._save()
-            # Fin du titre en cours proche : on glisse la prochaine demande dans la file Spotify.
+            # Fin du titre en cours proche : on glisse la prochaine demande dans la file Spotify (une seule fois par titre).
             playing = bool(pb and pb.get("is_playing"))
             left = (item.get("duration_ms") or 0) - ((pb or {}).get("progress_ms") or 0)
             if playing and not s.vpushed and self.q and cur_id and left < PUSH_BEFORE_END_MS:
-                self._push()
+                self._push(cur_id)
             images = (item.get("album") or {}).get("images") or []
             art = images[0]["url"] if images else ""
             current = {"pos": 1, "track_id": cur_id, "title": item.get("name", ""),
@@ -76,12 +78,13 @@ class SpotifyPlayer:
                 "device": device.get("name", ""),
             }
 
-    def _push(self):
-        """Envoie la première demande dans la file Spotify (elle passera juste après le titre en cours)."""
+    def _push(self, during: str = ""):
+        """Envoie la première demande dans la file Spotify (elle passera juste après le titre en cours).
+        Marquée envoyée AVANT l'appel : même si Spotify répond mal, on ne la renvoie jamais en boucle."""
         s = self.store.session
-        self.user.queue(self.q[0])
-        s.vpushed = self.q[0]
+        s.vpushed, s.vpushed_during = self.q[0], during or s.vpushed_during
         self._save()
+        self.user.queue(self.q[0])
 
     def add_spotify_track(self, uid: str, track_id: str, title: str, position: int) -> int:
         with self._lock:
@@ -120,15 +123,21 @@ class SpotifyPlayer:
             s = self.store.session
             if not (s.vpushed and self.q[0] == s.vpushed):
                 self.q.insert(0, self.q.pop(i))
-                self._push()
+                self._push(self._current_id())
             self.user.next()
 
     def skip(self, uid: str = ""):
         with self._lock:
             s = self.store.session
             if self.q and not s.vpushed:
-                self._push()  # la prochaine demande passe tout de suite
+                self._push(self._current_id())  # la prochaine demande passe tout de suite
             self.user.next()
+
+    def _current_id(self) -> str:
+        try:
+            return ((self.user.playback() or {}).get("item") or {}).get("id") or ""
+        except SpotifyError:
+            return ""
 
     def play(self, uid: str = ""):
         self.user.play()

@@ -171,7 +171,11 @@ class SpotifyUser:
             if reason == "VOLUME_CONTROL_DISALLOW":
                 raise SpotifyError("Ce téléphone ne laisse pas régler le volume à distance : utilise ses boutons")
             raise SpotifyError(f"Spotify : {msg}")
-        return r.json()
+        # Certaines réponses réussies (ajout à la file…) ne sont pas du JSON : ce n'est pas une erreur.
+        try:
+            return r.json()
+        except ValueError:
+            return None
 
     # Lecture
     def playback(self) -> dict | None:
