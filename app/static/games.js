@@ -654,10 +654,10 @@ function renderGame(g) {
     // Jeu réduit : un bandeau pour revenir dedans.
     $("game").innerHTML = `<button class="py-main" data-pyr="enter">⛶ Reprendre ${esc(g.name)} en plein écran</button>`;
   } else if (g.type === "pyramid" || g.type === "biskit") {
-    $("game").innerHTML = g.type === "biskit" ? bkHtml(g) : pyrHtml(g);
+    $("game").innerHTML = lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g));
     if (g.type === "pyramid") pyrWheel(g);
   } else {
-    $("game").innerHTML = body;
+    $("game").innerHTML = lobbyInvite(g) + body;
   }
   renderDrawer(g);
   gameFlashes(g);
@@ -1862,6 +1862,20 @@ function gameFlashes(g) {
     const did = g.results.filter((r) => r.answer === "yes").map((r) => esc(r.name));
     return pyrFlash(did.length ? "good" : "summit", did.length ? `🍻 ${did.length} l'ont déjà fait` : "😇 Personne ne l'a fait", did.join(", "));
   }
+}
+
+// Partie créée mais pas lancée : le QR et le code au premier plan, pour que tout le monde rejoigne facilement.
+// Dès le lancement, l'écran n'affiche plus que le jeu (le QR reste dans le menu ☰).
+function lobbyInvite(g) {
+  if (g.phase !== "lobby") return "";
+  const n = g.players.length;
+  return `<div class="g-lobby">
+    <div class="g-lobby-k">Scannez pour rejoindre</div>
+    <img class="g-lobby-qr" src="/qr/game/${esc(g.code)}.svg" alt="QR code pour rejoindre la partie">
+    <div class="g-lobby-code">${esc(g.code)}</div>
+    <div class="artist">ou onglet 🎮 Jeux → « Rejoindre une partie » avec ce code</div>
+    <div class="g-lobby-players">${n ? g.players.map((p) => `<span class="pill">${p.host ? "🎲 " : ""}${esc(p.name)}</span>`).join("") : `<span class="artist">En attente des joueurs…</span>`}</div>
+  </div>`;
 }
 
 // Barre du haut commune à tous les jeux : ☰ menu, nom + phase + chrono, ? règles.
