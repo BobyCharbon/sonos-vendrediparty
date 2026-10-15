@@ -1116,6 +1116,11 @@ def _pyr_check(step: int, value: str, previous: list[str], card: str) -> bool:
     return card[1] == value
 
 
+def pyr_floor_sips(g: dict, floor: int) -> int:
+    """Gorgées d'un étage : 1, 2, 3… ou, en mode double, 2, 4, 6…"""
+    return floor * (2 if g["options"].get("double") else 1)
+
+
 def pyr_step_sips(g: dict, step: int) -> int:
     """Distribution : mode hard = 1, 2, 3 puis 4 gorgées ; mode soft = 1 gorgée à chaque carte."""
     return step if g["options"].get("pmode", "hard") == "hard" else 1
@@ -1144,11 +1149,12 @@ def pyr_start(g: dict, rng):
 
 
 def _pyr_poteau(g: dict, previous: list[str], card: str) -> bool:
-    """Poteau : le joueur a deux fois la même valeur ; tout le monde boit une gorgée."""
+    """Poteau : le joueur a deux fois la même valeur. Soft : tout le monde boit 1 gorgée ; hard : lui, cul sec."""
     if not any(pyr_value(c) == pyr_value(card) for c in previous):
         return False
-    for x in g["pyr"]["order"]:
-        add_sips(g, x, drink=1)
+    if g["options"].get("poteau", "soft") == "soft":
+        for x in g["pyr"]["order"]:
+            add_sips(g, x, drink=1)
     return True
 
 
@@ -1259,7 +1265,7 @@ def pyr_claim(g: dict, actor: str):
         raise GameError("Au sommet, pas de bluff : annonce si tu as la carte")
     if actor not in P["order"] or any(c["gid"] == actor for c in P["claims"]):
         raise GameError("Déjà annoncé")
-    P["claims"].append({"id": _pyr_event(P), "gid": actor, "sips": floor, "status": "pending"})
+    P["claims"].append({"id": _pyr_event(P), "gid": actor, "sips": pyr_floor_sips(g, floor), "status": "pending"})
 
 
 def pyr_judge(g: dict, claim_id: str, liar: bool):
@@ -1453,7 +1459,8 @@ def pyr_view(g: dict, gid: str) -> dict:
     if not P:
         floors = g["options"].get("floors", 5)
         return {"floors": floors, "size": pyr_size(floors), "max_players": pyr_max_players(floors),
-                "hard": g["options"].get("pmode", "hard") == "hard", "boat_on": g["options"].get("boat", True)}
+                "hard": g["options"].get("pmode", "hard") == "hard", "boat_on": g["options"].get("boat", True),
+                "double": bool(g["options"].get("double")), "poteau_hard": g["options"].get("poteau", "soft") == "hard"}
     now = time.time()
     name = lambda x: (player(g, x) or {}).get("name", "?")
     pid = lambda x: (player(g, x) or {}).get("pid")
@@ -1486,6 +1493,8 @@ def pyr_view(g: dict, gid: str) -> dict:
         "current": cur_card, "floor": floor, "is_top": bool(top), "deck_left": len(P["deck"]),
         "seats": seats, "turn": pid(P["order"][P["turn"]]) if g["phase"] == "deal" and P["order"] else None,
         "step": P["step"], "event": P["n"], "step_sips": pyr_step_sips(g, min(P["step"], 4)),
+        "floor_sips": pyr_floor_sips(g, floor) if floor else 0, "double": bool(g["options"].get("double")),
+        "poteau_hard": g["options"].get("poteau", "soft") == "hard",
         "hard": g["options"].get("pmode", "hard") == "hard", "boat_on": g["options"].get("boat", True),
         "last": {**last, "pid": pid(last["gid"]), "name": name(last["gid"]), "gid": None} if last else None,
         "claims": [{"id": c["id"], "pid": pid(c["gid"]), "name": name(c["gid"]), "sips": c["sips"], "status": c["status"],

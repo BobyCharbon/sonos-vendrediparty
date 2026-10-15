@@ -95,11 +95,11 @@ const GAME_RULES = {
       <li><b>Dedans ou dehors</b> : entre tes 2 premières cartes, ou à l'extérieur ?</li>
       <li><b>Quel symbole</b> : ♠ ♥ ♦ ♣ ?</li>
     </ol>
-    <p><b>Poteau !</b> Si tu reçois une carte de même valeur qu'une carte que tu as déjà, <b>tout le monde boit 1 gorgée</b> (au bateau aussi).</p>
+    <p><b>Poteau !</b> Si tu reçois une carte de même valeur qu'une carte que tu as déjà (au bateau aussi) : en mode soft, <b>tout le monde boit 1 gorgée</b> ; en mode hard, <b>celui qui l'a tirée boit cul sec</b>.</p>
     <p>Raté : tu bois ; réussi : tu distribues. En mode <b>soft</b>, 1 gorgée à chaque carte ; en mode <b>hard</b>, 1, 2, 3 puis 4 gorgées selon le tour. Une égalité (même valeur, ou carte « sur le poteau ») compte comme ratée. <b>L'As est la carte la plus forte.</b> Ensuite, toutes les mains se retournent : <b>plus personne ne voit ses cartes</b>.</p>
     <h3>2. La pyramide</h3>
     <ul>
-      <li>L'animateur retourne les cartes une par une, de la base vers le sommet. Étage 1 : 1 gorgée, étage 2 : 2 gorgées…</li>
+      <li>L'animateur retourne les cartes une par une, de la base vers le sommet. Étage 1 : 1 gorgée, étage 2 : 2 gorgées… (ou 2, 4, 6… si l'animateur a choisi les gorgées doublées).</li>
       <li>Si tu penses avoir la même valeur, touche <b>« Je donne N gorgées »</b> et distribue-les à voix haute (tu peux les partager). <b>Le bluff est permis !</b></li>
       <li>L'animateur tranche : <b>bu</b>, ou quelqu'un crie <b>« menteur ! »</b>. L'accusé retourne alors une de ses cartes : tout le monde la voit 3 secondes, puis elle se recache. « Il dit la vérité » ou « Bouuuh, menteur ! » : à vous de vous arranger pour les gorgées.</li>
       <li>Oublié tes cartes ? Demande à <b>en revoir</b> 1 à 4 (2 gorgées par carte) : l'animateur accepte et tu les vois 5 secondes, en privé.</li>
@@ -112,7 +112,7 @@ const GAME_RULES = {
     <h3>Arriver en cours de partie</h3>
     <p>Demande à rejoindre : l'animateur accepte, et tu fais ta propre distribution (les 4 questions), sous les yeux de tous. Puis tes cartes se retournent et la pyramide reprend. Après la pyramide, tu regardes la fin de la partie.</p>
     <h3>L'animateur</h3>
-    <p>Il peut exclure un joueur à tout moment (✕). Il distribue, retourne les cartes, valide « bu » ou « menteur », accepte les demandes pour revoir ses cartes, lance le test de mémoire et le bateau. Il peut répondre à la place d'un joueur (participant sans téléphone, ou qui a laissé son téléphone).</p>
+    <p>Il peut exclure un joueur à tout moment (✕, depuis la vue normale : touche ‹ en haut). Il distribue, retourne les cartes, valide « bu » ou « menteur », accepte les demandes pour revoir ses cartes, lance le test de mémoire et le bateau. Il peut répondre à la place d'un joueur (participant sans téléphone, ou qui a laissé son téléphone).</p>
     <p>Buvez avec modération : un verre d'eau compte aussi.</p>`,
   tmc: `
     <h3>Le principe</h3>
@@ -353,6 +353,14 @@ document.getElementById("gamesRoot").innerHTML = `
         <div class="g-label">Gorgées à la distribution</div>
         <div class="g-modes" data-opt-group="pmode">
           <button type="button" data-val="soft" class="on">😇 Soft · 1 par carte</button><button type="button" data-val="hard">🔥 Hard · 1, 2, 3, 4</button>
+        </div>
+        <div class="g-label">Poteau (deux fois la même carte)</div>
+        <div class="g-modes" data-opt-group="poteau">
+          <button type="button" data-val="soft" class="on">😇 Tout le monde boit 1</button><button type="button" data-val="hard">🥃 Le tireur boit cul sec</button>
+        </div>
+        <div class="g-label">Gorgées par étage de la pyramide</div>
+        <div class="g-modes" data-opt-group="floorsips">
+          <button type="button" data-val="1" class="on">1, 2, 3, 4…</button><button type="button" data-val="2">2, 4, 6, 8…</button>
         </div>
         <label class="g-opt"><span>🚢 Avec le bateau <small>pour celui qui a la pire mémoire</small></span><input type="checkbox" class="switch" data-opt="boat" checked></label>
         <div class="g-opt"><span>Étages de la pyramide <small>5 étages : 9 joueurs max · 8 étages : 4 joueurs max</small></span>
@@ -852,7 +860,8 @@ function pyrEvents(g) {
     const l = v.last, mine = l.pid === g.me?.pid;
     pyrFlash(l.ok ? "good" : "bad", l.ok ? `${mine ? "Bien joué" : esc(l.name)} !` : `Raté${mine ? "" : ` pour ${esc(l.name)}`} !`,
       `${esc(PYR_ANS[l.value])} · ${l.ok ? `distribue ${sipWord(l.sips)}` : `boit ${sipWord(l.sips)}`}`, l.card);
-    if (l.poteau) setTimeout(() => pyrFlash("summit", "POTEAU !", `${esc(l.name)} a deux fois la même carte · tout le monde boit 1 gorgée 🍻`, l.card), 2500);
+    if (l.poteau) setTimeout(() => pyrFlash("summit", "POTEAU !", v.poteau_hard ? `${esc(l.name)} a deux fois la même carte · cul sec ! 🥃`
+      : `${esc(l.name)} a deux fois la même carte · tout le monde boit 1 gorgée 🍻`, l.card), 2500);
   }
   const lateName = v.late?.name || "";
   if (pyrSeen.lateName && !lateName && g.phase === "pyramid") setTimeout(() => pyrFlash("good", "Cartes retournées !", `${esc(pyrSeen.lateName)} est dans la partie`), 2600);
@@ -898,7 +907,6 @@ function pyrSeats(g, opts = {}) {
   return `<div class="py-seats">${v.seats.map((s) => `
     <div class="py-seat ${s.pid === v.turn ? "on" : ""} ${s.pid === g.me?.pid ? "me" : ""}">
       <div class="py-seat-name">${esc(s.name)}${s.manual ? " ✍️" : ""}${sipsBadge(g.players.find((p) => p.pid === s.pid) || {})}</div>
-      ${g.is_host && s.pid !== g.me?.pid ? `<button type="button" class="py-kick" data-gact="remove" data-target="${esc(s.pid)}" aria-label="Exclure ${esc(s.name)}">✕</button>` : ""}
       <div class="py-seat-cards">${s.cards.map((c, i) => pyCard(c, "sm", opts.memory && s.memory ? `data-ok="${s.memory[i] === c[0]}"` : "")).join("") || `<span class="artist">—</span>`}</div>
       ${opts.memory && s.memory ? `<div class="py-guess">${s.memory.map((m, i) => `<span class="${m === s.cards[i]?.[0] ? "ok" : "ko"}">${m === "T" ? "10" : m}</span>`).join("")}<b>${s.errors} erreur${s.errors > 1 ? "s" : ""}</b></div>` : ""}
     </div>`).join("")}</div>`;
@@ -971,9 +979,14 @@ function pyrHtml(g) {
     body = pyrBoat(g);
   }
   // Arrivées en cours de partie : l'animateur accepte ou refuse ; le nouveau venu patiente.
-  const pend = g.phase !== "lobby" && host && v.pending?.length ? `<div class="py-panel py-pend">${v.pending.map((p) => `
+  const peekReqs = host ? (v.peeks || []).filter((r) => r.status === "pending") : [];
+  if (peekReqs.length && pyrSeen.peekAlert !== peekReqs[0].id) { pyrSeen.peekAlert = peekReqs[0].id; navigator.vibrate?.([120, 60, 120]); }
+  const peekAlert = peekReqs.length ? `<div class="py-panel py-pend py-alert">${peekReqs.map((r) => `
+      <div class="py-claim"><span>👀 <b>${esc(r.name)}</b> veut revoir ${r.count} carte${r.count > 1 ? "s" : ""} <small>(+${2 * r.count} gorgées)</small></span><span class="py-claim-act">
+        <button class="py-mini ok" data-gact="ppeek_ok" data-target="${r.id}">Accepter</button><button class="py-mini bad" data-gact="ppeek_no" data-target="${r.id}">Refuser</button></span></div>`).join("")}</div>` : "";
+  const pend = peekAlert + (g.phase !== "lobby" && host && v.pending?.length ? `<div class="py-panel py-pend">${v.pending.map((p) => `
       <div class="py-claim"><span>🙋 <b>${esc(p.name)}</b> veut rejoindre</span><span class="py-claim-act">
-        <button class="py-mini ok" data-gact="paccept" data-target="${esc(p.pid)}">Accepter</button><button class="py-mini bad" data-gact="prefuse" data-target="${esc(p.pid)}">Refuser</button></span></div>`).join("")}</div>` : "";
+        <button class="py-mini ok" data-gact="paccept" data-target="${esc(p.pid)}">Accepter</button><button class="py-mini bad" data-gact="prefuse" data-target="${esc(p.pid)}">Refuser</button></span></div>`).join("")}</div>` : "");
   const outsider = g.phase !== "lobby" && !g.master && (!me || (v.me && v.me.seat == null && !v.me.pending && !(v.queue || []).length));
   const wait = g.phase !== "lobby" && v.me?.pending ? `<div class="py-panel py-pend"><div class="py-wait">⏳ L'animateur doit accepter ton arrivée…</div></div>`
     : !me && outsider ? `<button class="py-sub" data-gact="join">🙋 Demander à rejoindre la partie</button>` : "";
@@ -990,7 +1003,7 @@ function pyrBoard(g) {
   }
   const size = v.floors >= 7 ? "xs" : v.floors === 6 ? "sm" : "";
   return `<div class="py-board">${rows.reverse().map((r) => `
-    <div class="py-row ${r.f === v.floor ? "now" : ""}"><span class="py-mult f${Math.min(r.f, 5)}">${r.f === v.floors ? "🥃" : `×${r.f}`}</span>
+    <div class="py-row ${r.f === v.floor ? "now" : ""}"><span class="py-mult f${Math.min(r.f, 5)}">${r.f === v.floors ? "🥃" : `×${v.double ? r.f * 2 : r.f}`}</span>
       <div class="py-row-cards">${r.cards.map((x) => pyCard(x.c, size, `data-i="${x.i}"${x.cur ? ` data-cur="1"` : ""}`)).join("")}</div></div>`).join("")}</div>`;
 }
 
@@ -1014,7 +1027,7 @@ function pyrCurrent(g) {
   if (me && mySeat) {
     if (v.is_top) mine = v.top_me == null ? `<button class="py-main py-cul" data-gact="ptop">🥃 J'ai cette carte !</button>`
       : v.top_me ? `<div class="py-ok">Tu as la carte : distribue ton cul sec en privé 🤫</div>` : `<div class="py-bad">Raté… tu iras à la roulette du bateau</div>`;
-    else if (!v.claims.some((c) => c.mine)) mine = `<button class="py-main py-give" data-gact="pclaim">🍻 Je donne ${sipWord(v.floor)}</button>`;
+    else if (!v.claims.some((c) => c.mine)) mine = `<button class="py-main py-give" data-gact="pclaim">🍻 Je donne ${sipWord(v.floor_sips)}</button>`;
   }
   const manualGive = host && !v.is_top ? v.seats.filter((s) => s.manual && !v.claims.some((c) => c.pid === s.pid))
     .map((s) => `<button class="py-mini" data-pyr="claimfor" data-who="${esc(s.pid)}">${esc(s.name)} donne</button>`).join("") : "";
@@ -1022,7 +1035,7 @@ function pyrCurrent(g) {
     <div class="py-now">${pyCard(v.current, "lg", 'data-flip="1"')}
       <div><div class="py-turn-k">${v.is_top ? "Le sommet" : `Étage ${v.floor}`}</div>
         <div class="py-panel-t">${v.is_top ? "CUL SEC" : `Un ${esc(label)} !`}</div>
-        <div class="artist">${v.is_top ? "Pas de bluff : seul celui qui l'a vraiment distribue" : `${sipWord(v.floor)} à donner · bluff permis`}</div></div></div>
+        <div class="artist">${v.is_top ? "Pas de bluff : seul celui qui l'a vraiment distribue" : `${sipWord(v.floor_sips)} à donner · bluff permis`}</div></div></div>
     ${mine}${manualGive ? `<div class="py-manual">${manualGive}</div>` : ""}
     ${claims ? `<div class="py-claims">${claims}</div>` : ""}${pick}
     ${v.is_top && v.top_done.length ? `<div class="artist" style="margin-top:6px">Ont annoncé : ${v.top_done.map(esc).join(", ")}</div>` : ""}
@@ -1032,8 +1045,7 @@ function pyrCurrent(g) {
 function pyrHand(g) {
   const v = g.pyr, me = g.me, host = g.is_host, seat = v.seats.find((s) => s.pid === me?.pid);
   const pending = v.peeks.filter((r) => r.status === "pending");
-  const hostReqs = host ? pending.map((r) => `<div class="py-claim"><span><b>${esc(r.name)}</b> veut revoir ${r.count} carte${r.count > 1 ? "s" : ""} (+${2 * r.count} gorgées)</span>
-    <span class="py-claim-act"><button class="py-mini ok" data-gact="ppeek_ok" data-target="${r.id}">OK</button><button class="py-mini bad" data-gact="ppeek_no" data-target="${r.id}">Non</button></span></div>`).join("") : "";
+  const hostReqs = "";  // affichées en haut de l'écran de l'animateur (voir pyrHtml)
   const recent = v.peeks.filter((r) => r.status === "ok" && !r.mine && r.age < 8).map((r) => `<div class="artist">👀 ${esc(r.name)} revoit ${r.count} carte${r.count > 1 ? "s" : ""} : +${2 * r.count} gorgées</div>`).join("");
   if (!seat) return hostReqs ? `<div class="py-panel">${hostReqs}</div>` : "";
   const myPending = pending.some((r) => r.mine);
@@ -1071,7 +1083,7 @@ function pyrBoat(g) {
     pyrSeen.boat = b.last.n;
     if (!first) {
       pyrFlash(b.last.ok ? "good" : "bad", b.last.ok ? "Bien vu !" : "Raté ! Retour au début", b.last.ok ? esc(PYR_ANS[b.last.value]) : "1 gorgée", b.last.card);
-      if (b.last.poteau) setTimeout(() => pyrFlash("summit", "POTEAU !", "Deux fois la même carte · tout le monde boit 1 gorgée 🍻", b.last.card), 2500);
+      if (b.last.poteau) setTimeout(() => pyrFlash("summit", "POTEAU !", v.poteau_hard ? `Deux fois la même carte · ${esc(v.boat?.name)} boit cul sec ! 🥃` : "Deux fois la même carte · tout le monde boit 1 gorgée 🍻", b.last.card), 2500);
     }
   }
   const ref = b.step === 2 ? b.cards.slice(0, 1) : b.step === 3 ? b.cards.slice(0, 2) : [];
@@ -1736,6 +1748,8 @@ document.addEventListener("click", async (ev) => {
       cats: [...card.querySelectorAll("[data-opt-group=cats] .on")].map((x) => x.dataset.val),
       floors: +(card.querySelector("[data-opt-group=floors] [data-val-out]")?.textContent || 5),
       pmode: card.querySelector("[data-opt-group=pmode] .on")?.dataset.val || "soft",
+      poteau: card.querySelector("[data-opt-group=poteau] .on")?.dataset.val || "soft",
+      double: card.querySelector("[data-opt-group=floorsips] .on")?.dataset.val === "2",
       boat: card.querySelector("[data-opt=boat]")?.checked ?? true,
       sips: card.querySelector("[data-opt=alcohol]") && !card.querySelector("[data-opt=alcohol]").checked ? 0
         : +(card.querySelector("[data-opt-group=sips] [data-val-out]")?.textContent || 0) });
@@ -1759,7 +1773,9 @@ function rulesFor(type, g) {
   if (type === "undercover") facts.push(g.options?.white ? "Avec <b>Mr. White</b> (dès 5 joueurs)" : "<b>Sans</b> Mr. White");
   if (type === "blackjack") facts.push(sips ? `Mode <b>gorgées</b> · mise de 1 à <b>${sipWord(sips)}</b>` : "Mode <b>jetons</b> · 100 jetons au départ");
   if (type === "pyramid") facts.push(`${g.pyr?.floors || g.options?.floors || 5} étages`,
-    g.pyr?.hard ? "Mode <b>hard</b> : 1, 2, 3, 4 gorgées" : "Mode <b>soft</b> : 1 gorgée par carte", g.pyr?.boat_on ? "<b>Avec</b> le bateau" : "<b>Sans</b> bateau");
+    g.pyr?.hard ? "Distribution <b>hard</b> : 1, 2, 3, 4 gorgées" : "Distribution <b>soft</b> : 1 gorgée par carte",
+    g.pyr?.poteau_hard ? "Poteau <b>hard</b> : cul sec pour le tireur" : "Poteau <b>soft</b> : tout le monde boit 1",
+    g.pyr?.double ? "Étages : <b>2, 4, 6…</b> gorgées" : "Étages : <b>1, 2, 3…</b> gorgées", g.pyr?.boat_on ? "<b>Avec</b> le bateau" : "<b>Sans</b> bateau");
   if (type === "casino") facts.push(sips ? `Mode <b>gorgées</b> · jusqu'à <b>${sipWord(sips)}</b> misées par tour` : "Mode <b>jetons</b> · 100 jetons au départ");
   else if (type === "whoof" || type === "never") facts.push(sips ? `<b>${sipWord(sips)}</b> ${type === "whoof" ? "pour la personne désignée" : "pour ceux qui l'ont fait"}` : "<b>Sans alcool</b>");
   facts.push(`Animée par <b>${esc(g.host_name || "?")}</b> · code <b>${esc(g.code)}</b>`);
@@ -1808,7 +1824,7 @@ document.addEventListener("click", (ev) => {
     if (cat === couple && cat.classList.contains("on")) on.forEach((b) => b !== cat && b.classList.remove("on"));
     else if (cat !== couple && cat.classList.contains("on")) couple?.classList.remove("on");
   }
-  const pm = ev.target.closest("[data-opt-group=pmode] [data-val]");
+  const pm = ev.target.closest("[data-opt-group=pmode] [data-val], [data-opt-group=poteau] [data-val], [data-opt-group=floorsips] [data-val]");
   if (pm) pm.parentElement.querySelectorAll("[data-val]").forEach((x) => x.classList.toggle("on", x === pm));
   const opt = ev.target.closest("[data-opt-group=mode] [data-val]");
   if (opt) opt.parentElement.querySelectorAll("[data-val]").forEach((b) => b.classList.toggle("on", b === opt));

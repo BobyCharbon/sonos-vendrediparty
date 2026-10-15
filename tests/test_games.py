@@ -833,3 +833,24 @@ def test_pyramid_refuse_and_kick_anytime():
     games.pyr_claim(g, "p2")
     games.kick(g, "p2")
     assert "p2" not in g["pyr"]["order"] and not g["pyr"]["claims"]
+
+
+def test_pyramid_poteau_hard_and_double_floor_sips():
+    g = pyramid()
+    g["options"].update(poteau="hard", double=True)
+    P = g["pyr"]
+    P["deck"] += ["5S", "5H"]
+    games.pyr_answer(g, "p0", "red")       # 5H
+    games.pyr_answer(g, "p1", "black")     # 5S (sa 1re carte : pas de poteau)
+    before = g["tally"].get("p1", {}).get("drink", 0)
+    P["deck"].append("5D")
+    games.pyr_answer(g, "p0", "plus")      # p0 retombe sur un 5 : poteau hard (cul sec, pas de gorgée pour les autres)
+    assert P["last"]["poteau"] and g["tally"].get("p1", {}).get("drink", 0) == before
+    finish_deal(g)
+    games.pyr_flip(g)
+    games.pyr_claim(g, "p0")
+    assert P["claims"][0]["sips"] == 2  # étage 1 en mode double
+    for _ in range(5):
+        games.pyr_flip(g)
+    games.pyr_claim(g, "p1")
+    assert P["claims"][0]["sips"] == 4 and games.view(g, "p0")["pyr"]["floor_sips"] == 4

@@ -831,6 +831,8 @@ class GameCreate(BaseModel):
     floors: int = 5  # Pyramide : nombre d'étages (5 à 8)
     pmode: str = "hard"  # Pyramide : soft (1 gorgée par carte) | hard (1, 2, 3, 4)
     boat: bool = True  # Pyramide : phase du bateau à la fin
+    poteau: str = "soft"  # Pyramide : soft (tout le monde boit 1) | hard (celui qui tire boit cul sec)
+    double: bool = False  # Pyramide : gorgées par étage 2, 4, 6… au lieu de 1, 2, 3…
 
 
 @app.post("/api/games")
@@ -853,7 +855,8 @@ def create_game(body: GameCreate, request: Request):
     except games.GameError as e:
         raise HTTPException(400, str(e))
     if body.type == "pyramid":
-        g["options"].update(floors=max(5, min(8, body.floors)), pmode="soft" if body.pmode == "soft" else "hard", boat=body.boat)
+        g["options"].update(floors=max(5, min(8, body.floors)), pmode="soft" if body.pmode == "soft" else "hard", boat=body.boat,
+                            poteau="hard" if body.poteau == "hard" else "soft", double=body.double)
     if body.type == "divan" and body.cats:
         try:
             games.divan_set_cats(g, body.cats)
