@@ -871,3 +871,16 @@ def test_casino_undo_and_ready_starts_spin():
     games.casino_ready(g, "a", FixedRng(3))
     games.casino_ready(g, "b", FixedRng(3))  # Bob prêt sans miser : tout le monde est prêt → la bille part
     assert g["phase"] == "results" and g["casino"]["spin"]["number"] == 3
+
+
+def test_admin_summary_has_details_without_secrets():
+    g = games.new_game("undercover", host="h", name="Hôte")
+    for i in range(3):
+        games.join(g, f"p{i}", f"P{i}")
+    games.start(g, random.Random(1))
+    s = games.summary(g)
+    assert s["host"] == "Hôte" and s["created_at"] and len(s["players_detail"]) == 4
+    assert "Avec Mr. White" in s["facts"]
+    assert g["words"]["civil"] not in str(s) and g["words"]["undercover"] not in str(s)
+    c = games.new_game("casino", host="h", name="H")
+    assert games.summary(c)["players_detail"][0]["extra"] == "💰 100"

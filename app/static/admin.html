@@ -157,6 +157,11 @@
         <p class="sub" style="margin:8px 0 0;font-size:.85rem">Un nouveau code déconnecte tous les invités : ils devront saisir le nouveau ou rescanner le QR.</p>
       </div>
 
+      <div id="gamesSettingsBox" class="hidden">
+        <h2>Jeux en cours <span id="gamesCount" class="badge"></span></h2>
+        <div id="gamesSettings" class="list"></div>
+      </div>
+
       <div id="liveGuests" class="hidden">
         <h2>Invités</h2>
         <div id="guests" class="list"></div>
@@ -304,6 +309,7 @@ function render(s) {
   if (!s.active) $("settingsBadge").classList.add("hidden");
   renderBans(s);
   renderGameAdmin(s);
+  renderGamesSettings(s);
   $("guestPin").textContent = s.guest_pin;
   $("guestUrl").textContent = s.guest_url + "?pin=" + s.guest_pin;
   const qrKey = "/qr.svg?v=" + s.guest_pin;
@@ -709,7 +715,51 @@ $("msgReadAll").onclick = async () => {
 // 🎮 Jeux : créés et animés par les invités (onglet Jeux de leur page) ; ici, vue d'ensemble et fermeture.
 const PHASES = { lobby: "Inscriptions", words: "Indices", vote: "Vote", white_guess: "Devinette de Mr. White",
   reveal: "Résultat de la manche", end: "Terminée", question: "Question", results: "Résultats",
-  answer: "Réponse en secret", guess: "À voix haute", judge: "Points", scored: "Résultat du duo" };
+  answer: "Réponse en secret", guess: "À voix haute", judge: "Points", scored: "Résultat du duo",
+  bet: "Mises", play: "Partie en cours", spun: "Résultat", card: "En séance", deal: "Distribution", pyramid: "Pyramide",
+  memory: "Test de mémoire", memres: "Résultats de mémoire", boatpick: "Qui fait le bateau ?", boat: "Le bateau" };
+// ⚙️ Réglages : toutes les parties en cours, en blocs compacts ; un toucher déplie le détail.
+const GAME_EMOJI = { undercover: "🕵️", whoof: "🙋", never: "🍻", roulette: "🎡", blackjack: "🃏", casino: "🎰", divan: "🛋️", tmc: "💞", pyramid: "🔺" };
+const gsOpen = new Set();
+const fmtDur = (sec) => { const m = Math.max(0, Math.floor(sec / 60)); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`; };
+function renderGamesSettings(s) {
+  const list = s.games || [];
+  $("gamesSettingsBox").classList.toggle("hidden", !list.length);
+  $("gamesCount").textContent = list.length;
+  $("gamesSettings").innerHTML = list.map((g) => {
+    const open = gsOpen.has(g.code), mine = typeof myGame !== "undefined" && myGame === g.code;
+    const players = g.players_detail || [];
+    return `<div class="gs-card ${open ? "open" : ""}">
+      <button type="button" class="gs-head" data-gs="${esc(g.code)}" aria-expanded="${open}">
+        <span class="gs-ico" aria-hidden="true">${GAME_EMOJI[g.type] || "🎮"}</span>
+        <span class="gs-main"><b>${esc(g.name)}</b>
+          <small>créée à ${hhmm(g.created_at)} · ⏱ <span data-gs-timer="${g.created_at}">${fmtDur(Date.now() / 1000 - g.created_at)}</span> · par ${esc(g.host || "?")}</small>
+          <small>${PHASES[g.phase] || g.phase}${g.round ? ` · ${g.type === "undercover" ? "manche" : g.type === "casino" ? "tour" : g.type === "pyramid" ? "tour" : "n°"} ${g.round}` : ""} · ${players.length} joueur${players.length > 1 ? "s" : ""}</small></span>
+        <span class="gs-code">${esc(g.code)}</span><span class="gs-chev" aria-hidden="true">▾</span>
+      </button>
+      <div class="gs-players">${players.map((p) => `<span class="pill">${p.host ? "🎲 " : ""}${esc(p.name)}${p.manual ? " ✍️" : ""}${p.pending ? " ⏳" : ""}</span>`).join("") || `<span class="artist">Personne pour l'instant</span>`}</div>
+      ${open ? `<div class="gs-more">
+        ${g.facts?.length ? `<ul class="gs-facts">${g.facts.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : ""}
+        <div class="gs-table">${players.map((p) => `<div class="gs-row"><span class="grow">${p.host ? "🎲 " : ""}${esc(p.name)}${p.manual ? " <small>✍️ sans téléphone</small>" : ""}${p.pending ? " <small>⏳ attend l'animateur</small>" : ""}</span>
+          <span>${p.extra ? esc(p.extra) + " · " : ""}🍻 ${p.drink} · 🎁 ${p.give}</span></div>`).join("")}</div>
+        <div class="artist">Dernière activité à ${hhmm(g.updated_at)} · code ${esc(g.code)}</div>
+        <div class="row" style="margin-top:8px">
+          ${mine ? `<span class="pill live">ta partie</span>` : `<button class="secondary grow" data-join-game="${esc(g.code)}">Rejoindre</button>`}
+          <button class="danger grow" data-close-game="${esc(g.code)}">Fermer la partie</button>
+        </div></div>` : ""}
+    </div>`;
+  }).join("");
+}
+document.addEventListener("click", (ev) => {
+  const h = ev.target.closest("[data-gs]");
+  if (!h) return;
+  const code = h.dataset.gs;
+  gsOpen.has(code) ? gsOpen.delete(code) : gsOpen.add(code);
+  renderGamesSettings(state);
+});
+// Durée des parties : à jour chaque seconde.
+setInterval(() => document.querySelectorAll("[data-gs-timer]").forEach((el) => { el.textContent = fmtDur(Date.now() / 1000 - +el.dataset.gsTimer); }), 1000);
+
 function renderGameAdmin(s) {
   const list = s.games || [];
   $("gamePanel").innerHTML = `<div class="list">${list.length ? list.map((g) => `
@@ -727,7 +777,8 @@ function renderGameAdmin(s) {
 document.addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-join-game]");
   if (!b) return;
-  setGame(b.dataset.joinGame); autoJoin = true; refreshGame();
+  setGame(b.dataset.joinGame); autoJoin = true;
+  if (location.hash !== "#games") showView("games"); else refreshGame();
   $("gamesRoot").scrollIntoView({ behavior: "smooth" });
 });
 document.addEventListener("click", async (ev) => {
@@ -836,6 +887,8 @@ $("logout").onclick = async (ev) => { ev.preventDefault(); await api("/api/admin
     history.replaceState(null, "", location.pathname + location.hash);
   }
   await refresh();
+  // Ouverte directement sur l'onglet Jeux : le module des jeux est chargé maintenant, on affiche « Ma partie ».
+  if (location.hash === "#games" && typeof refreshGame === "function") refreshGame();
   if (state && !state.active) loadRooms();
   if (state) initNotifications();
   listen();

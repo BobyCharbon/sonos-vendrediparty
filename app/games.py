@@ -1867,9 +1867,66 @@ def view(g: dict, gid: str) -> dict:
     return out
 
 
+def _summary_facts(g: dict) -> list[str]:
+    """Infos utiles pour l'hôte de la soirée (réglages, avancement), sans aucun secret (mots, cartes…)."""
+    o, t, facts = g["options"], g["type"], []
+    sips = o.get("sips", 0)
+    if mode_label(g):
+        facts.append(f"Questions : {mode_label(g)}")
+    if t == "undercover":
+        facts.append("Avec Mr. White" if o.get("white") else "Sans Mr. White")
+    if t in ("whoof", "never", "blackjack", "casino"):
+        facts.append(f"Alcool : {sips} gorgée{'s' if sips > 1 else ''}" if sips else "Sans alcool")
+    if t in ("whoof", "never") and g["round"]:
+        facts.append(f"{g['round']} question{'s' if g['round'] > 1 else ''} posée{'s' if g['round'] > 1 else ''}")
+    if t == "pyramid":
+        P = g.get("pyr") or {}
+        facts.append(f"{o.get('floors', 5)} étages · distribution {'hard' if o.get('pmode', 'hard') == 'hard' else 'soft'}"
+                     f" · poteau {o.get('poteau', 'soft')} · {'avec' if o.get('boat', True) else 'sans'} bateau")
+        if P:
+            facts.append(f"Pyramide : {P.get('flipped', 0)}/{len(P.get('pyramid', []))} cartes retournées")
+            if P.get("boat"):
+                b = P.get("bstate") or {}
+                facts.append(f"Bateau : {(player(g, P['boat']) or {}).get('name', '?')} · {b.get('sips', 0)} gorgée(s), essai {b.get('tries', 1)}")
+    if t == "casino":
+        c = g.get("casino", {})
+        if c.get("history"):
+            facts.append("Derniers numéros : " + ", ".join(str(n) for n in reversed(c["history"][-8:])))
+    if t == "roulette":
+        facts.append(f"{len(g.get('names', []))} noms sur la roue")
+        if g.get("history"):
+            facts.append("Derniers perdants : " + ", ".join(reversed(g["history"][-5:])))
+    if t == "divan":
+        facts.append(f"{g.get('divan', {}).get('n', 0)} carte(s) tirée(s)")
+    if t == "tmc":
+        facts.append(f"{g['round']} question(s) posée(s)")
+    return facts
+
+
+def _summary_extra(g: dict, p: dict) -> str:
+    """Score ou jetons d'un joueur, selon le jeu."""
+    if g["type"] == "blackjack":
+        return f"💰 {g['bj']['chips'].get(p['id'], BJ_START_CHIPS)}" if not bj_drinks(g) else ""
+    if g["type"] == "casino" and not casino_sips(g):
+        return f"💰 {g['casino']['chips'].get(p['id'], CASINO_START_CHIPS)}"
+    if g["type"] == "tmc":
+        sc = g.get("tmc", {}).get("scores", {}).get(p["id"])
+        return f"⭐ {sc}" if sc is not None else ""
+    if g["type"] == "pyramid":
+        err = (g.get("pyr") or {}).get("errors", {}).get(p["id"])
+        return f"🧠 {err} erreur(s)" if err is not None else ""
+    return ""
+
+
 def summary(g: dict) -> dict:
     """Vue d'ensemble pour l'admin (sans les secrets)."""
     name = GAMES[g["type"]] + (" · " + mode_label(g) if mode_label(g) else "")
-    return {"code": g["code"], "name": name, "phase": g["phase"], "round": g["round"],
+    tally = g.get("tally", {})
+    return {"code": g["code"], "type": g["type"], "name": name, "phase": g["phase"], "round": g["round"],
             "players": [p["name"] for p in g["players"]], "host": g.get("host_name", ""),
-            "updated_at": g["updated_at"], "elapsed": time.time() - g.get("created_at", g["updated_at"])}
+            "created_at": g.get("created_at", g["updated_at"]), "updated_at": g["updated_at"],
+            "elapsed": time.time() - g.get("created_at", g["updated_at"]), "facts": _summary_facts(g),
+            "players_detail": [{"name": p["name"], "host": p["id"] == g["host"], "manual": bool(p.get("manual")),
+                                "pending": bool(p.get("pending")), "drink": tally.get(p["id"], {}).get("drink", 0),
+                                "give": tally.get(p["id"], {}).get("give", 0), "extra": _summary_extra(g, p)}
+                               for p in g["players"]]}
