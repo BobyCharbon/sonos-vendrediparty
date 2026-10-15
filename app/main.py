@@ -15,7 +15,7 @@ from urllib.parse import quote
 import httpx
 import segno
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -24,7 +24,8 @@ from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, inse
 from .push import Push, valid_subscription
 from .security import Limiter
 from .sonos import Sonos, seconds
-from .spotify import Spotify
+from .spotify import Spotify, SpotifyError, SpotifyUser
+from .spotify_player import SpotifyPlayer
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
 ADMIN_PIN = os.environ.get("ADMIN_PIN", "")
@@ -55,6 +56,19 @@ spotify = (
     else None
 )
 push = Push(DATA_DIR, PUBLIC_URL)
+# Party extérieur : compte Spotify de l'hôte (connecté une fois depuis l'admin) qui pilote son téléphone.
+spotify_user = (SpotifyUser(os.environ["SPOTIFY_CLIENT_ID"], os.environ["SPOTIFY_CLIENT_SECRET"], DATA_DIR / "spotify_user.json",
+                            PUBLIC_URL + "/api/spotify/callback") if spotify else None)
+spotify_player = SpotifyPlayer(spotify_user, spotify, store) if spotify else None
+
+
+def player():
+    """Le lecteur de la soirée : les Sonos (Party maison) ou le téléphone de l'hôte via Spotify (Party extérieur)."""
+    if store.session.source == "spotify":
+        if spotify_player is None:
+            raise HTTPException(503, "Spotify n'est pas configuré sur le serveur")
+        return spotify_player
+    return sonos
 
 @contextlib.asynccontextmanager
 async def lifespan(app):
@@ -113,7 +127,7 @@ def snapshot(force: bool = False) -> dict:
     with _snap_lock:
         if not force and _snap["data"] and time.time() - _snap["at"] < 3:
             return _snap["data"]
-        data = sonos.snapshot(s.room_uid)
+        data = player().snapshot(s.room_uid)
         done = store.reconcile({t["track_id"] for t in data["upcoming"] if t["track_id"]})
         track_changed(data, done)
         # Le Sonos a changé (titre, file, lecture, volume) : on prévient les pages ouvertes.
@@ -268,8 +282,9 @@ def admin_rooms():
 
 
 class Start(BaseModel):
-    room_uid: str
+    room_uid: str = ""
     mode: str = "next"
+    source: str = "sonos"  # sonos (Party maison) | spotify (Party extérieur)
     playlist: str | None = None  # lancer aussi une playlist (sinon : ce qui joue déjà)
 
 
@@ -277,6 +292,12 @@ class Start(BaseModel):
 def admin_start(body: Start):
     if body.mode not in MODES:
         raise HTTPException(400, "Mode inconnu")
+    if body.source == "spotify":
+        if not (spotify_user and spotify_user.connected):
+            raise HTTPException(409, "Connecte d'abord ton compte Spotify (Réglages)")
+        store.start("spotify", "Spotify · ton téléphone", body.mode, source="spotify")
+        _snap["data"] = None
+        return admin_state()
     room = next((r for r in sonos.rooms() if r["uid"] == body.room_uid), None)
     if room is None:
         raise HTTPException(404, "Pièce introuvable")
@@ -304,7 +325,7 @@ def launch_playlist(playlist_id: str):
         # Pas de lecture de l'état Sonos pendant le remplacement : la file vide ferait croire les demandes jouées.
         with _snap_lock:
             try:
-                sonos.launch_playlist(store.session.room_uid, playlist_id, keep)
+                player().launch_playlist(store.session.room_uid, playlist_id, keep)
             except LookupError as e:
                 raise HTTPException(404, str(e))
             except Exception as e:
@@ -317,6 +338,40 @@ def launch_playlist(playlist_id: str):
             if r.track_id not in kept:
                 r.status = "removed"
         store.save()
+
+
+_spotify_states: dict[str, float] = {}
+
+
+@app.get("/api/admin/spotify/login", dependencies=[Depends(require_admin)])
+def spotify_login():
+    """Party extérieur : connexion (une fois) du compte Spotify de l'hôte."""
+    if not spotify_user:
+        raise HTTPException(503, "Spotify n'est pas configuré sur le serveur")
+    state = secrets.token_urlsafe(16)
+    _spotify_states[state] = time.time()
+    return RedirectResponse(spotify_user.auth_url(state))
+
+
+@app.get("/api/spotify/callback")
+def spotify_callback(code: str = "", state: str = "", error: str = ""):
+    if not spotify_user:
+        raise HTTPException(503)
+    if error or time.time() - _spotify_states.pop(state, 0) > 600:
+        return RedirectResponse("/admin?spotify=refus#settings")
+    try:
+        spotify_user.exchange(code)
+    except SpotifyError:
+        return RedirectResponse("/admin?spotify=erreur#settings")
+    store.save()
+    return RedirectResponse("/admin?spotify=ok#settings")
+
+
+@app.post("/api/admin/spotify/logout", dependencies=[Depends(require_admin)])
+def spotify_logout():
+    if spotify_user:
+        spotify_user.disconnect()
+    return admin_state()
 
 
 class PlaylistRef(BaseModel):
@@ -405,7 +460,7 @@ def admin_mode(body: Mode):
             snap = snapshot(force=True)
             upcoming = [(t["pos"], t["track_id"]) for t in snap["upcoming"]]
             for src, dst in fair_moves(snap["current_pos"], upcoming, store.pending()):
-                sonos.move(store.session.room_uid, src, dst)
+                player().move(store.session.room_uid, src, dst)
                 moved += 1
             _snap["data"] = None
     return {**admin_state(), "reordered": moved}
@@ -439,7 +494,7 @@ def remove_requests(reqs) -> str | None:
         positions = {t["track_id"]: t["pos"] for t in reversed(snap["upcoming"]) if t["track_id"]}
         for req in sorted(reqs, key=lambda r: positions.get(r.track_id, 0), reverse=True):
             if req.track_id in positions:
-                sonos.remove_at(store.session.room_uid, positions[req.track_id])
+                player().remove_at(store.session.room_uid, positions[req.track_id])
                 removed.append({"pos": positions[req.track_id], "track_id": req.track_id, "title": req.title})
             req.status = "removed"
         store.save()
@@ -514,7 +569,10 @@ def admin_playback(body: Playback):
     require_active()
     if body.action not in ("play", "pause"):
         raise HTTPException(400, "Action inconnue")
-    getattr(sonos, body.action)(store.session.room_uid)
+    try:
+        getattr(player(), body.action)(store.session.room_uid)
+    except SpotifyError as e:
+        raise HTTPException(409, str(e))
     _snap["data"] = None
     return admin_state()
 
@@ -526,7 +584,10 @@ class Volume(BaseModel):
 @app.post("/api/admin/volume", dependencies=[Depends(require_admin)])
 def admin_volume(body: Volume):
     require_active()
-    sonos.set_volume(store.session.room_uid, max(0, min(100, body.volume)))
+    try:
+        player().set_volume(store.session.room_uid, max(0, min(100, body.volume)))
+    except SpotifyError as e:
+        raise HTTPException(409, str(e))
     _snap["data"] = None
     return {"ok": True}
 
@@ -535,7 +596,7 @@ def admin_volume(body: Volume):
 def admin_speakers():
     require_active()
     try:
-        return sonos.speakers(store.session.room_uid)
+        return player().speakers(store.session.room_uid)
     except Exception as e:
         raise HTTPException(502, f"Impossible de joindre les Sonos : {e}")
 
@@ -576,7 +637,10 @@ def admin_speaker_volume(body: SpeakerVolume):
 @app.post("/api/admin/skip", dependencies=[Depends(require_admin)])
 def admin_skip():
     require_active()
-    sonos.skip(store.session.room_uid)
+    try:
+        player().skip(store.session.room_uid)
+    except SpotifyError as e:
+        raise HTTPException(409, str(e))
     _snap["data"] = None
     return {"ok": True}
 
@@ -622,7 +686,7 @@ def admin_add(body: AdminAdd):
             upcoming = [(t["pos"], t["track_id"]) for t in snap["upcoming"]]
             pos = end_of_requests(snap["current_pos"], upcoming, store.pending())
         try:
-            sonos.add_spotify_track(store.session.room_uid, track["id"], track["title"], pos)
+            player().add_spotify_track(store.session.room_uid, track["id"], track["title"], pos)
         except Exception as e:
             raise HTTPException(502, f"Sonos a refusé l'ajout : {e}")
         store.add(track, HOST_ID, "Hôte")
@@ -647,6 +711,9 @@ def admin_state():
         "bans": [{"guest_id": g, **b} for g, b in store.active_bans().items()],
         "messages": list(reversed(s.messages)),
         "top_playlists": s.top_playlists,
+        "source": s.source,
+        "spotify_account": {"connected": spotify_user.connected, "name": spotify_user.name,
+                            "premium": spotify_user.data.get("premium", True)} if spotify_user else None,
         "admin_notify": s.admin_notify,
         "games": [games.summary(g) for g in (prune_games() or s.games).values()],
     }
@@ -712,11 +779,11 @@ def admin_queue_action(body: QueueAction):
         first, last = snap["current_pos"] + 1, upcoming[-1]["pos"]
         targets = {"next": first, "up": max(first, body.pos - 1), "down": min(last, body.pos + 1)}
         if body.action in targets:
-            sonos.move(uid, body.pos, targets[body.action])
+            player().move(uid, body.pos, targets[body.action])
         elif body.action == "play":
-            sonos.play_at(uid, body.pos)
+            player().play_at(uid, body.pos)
         elif body.action == "remove":
-            sonos.remove_at(uid, body.pos)
+            player().remove_at(uid, body.pos)
             reqs = [r for r in store.pending() if item["track_id"] and r.track_id == item["track_id"]]
             for r in reqs:
                 r.status = "removed"
@@ -747,7 +814,7 @@ def admin_undo(body: UndoRef):
         for it in sorted(entry["items"], key=lambda it: it["pos"]):
             pos = 0 if not cur or it["pos"] > last + 1 else max(cur + 1, it["pos"])
             try:
-                sonos.add_spotify_track(store.session.room_uid, it["track_id"], it["title"], pos)
+                player().add_spotify_track(store.session.room_uid, it["track_id"], it["title"], pos)
             except Exception as e:
                 raise HTTPException(502, f"Sonos a refusé l'ajout : {e}")
             last += 1
@@ -1093,7 +1160,7 @@ def state(request: Request, guest_id: str = ""):
     try:
         return {**base, **public_sonos(snapshot(), guest_id)}
     except Exception:
-        return {**base, "error": "Sonos injoignable pour le moment"}
+        return {**base, "error": "La musique est injoignable pour le moment"}
 
 
 @app.get("/api/search", dependencies=[Depends(require_guest)])
@@ -1202,7 +1269,7 @@ def enqueue(body: Enqueue, request: Request):
         upcoming = [(t["pos"], t["track_id"]) for t in snap["upcoming"]]
         pos = insert_position(s.mode, snap["current_pos"], upcoming, store.pending(), body.guest_id)
         try:
-            sonos.add_spotify_track(s.room_uid, track["id"], track["title"], pos)
+            player().add_spotify_track(s.room_uid, track["id"], track["title"], pos)
         except Exception as e:
             raise HTTPException(502, f"Sonos a refusé l'ajout : {e}")
         store.add(track, body.guest_id, name, ip)

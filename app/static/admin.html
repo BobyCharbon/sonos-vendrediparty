@@ -34,12 +34,22 @@
     <section data-view="home">
       <!-- Pas de session -->
       <div id="setup" class="hidden">
-        <p class="sub">1. Lance ta playlist depuis l'app Sonos.<br>2. Choisis la pièce et démarre la soirée.<br>Tu pourras ensuite changer de playlist dans Réglages → Top playlists.</p>
+        <div class="src-pick" role="group" aria-label="Où se passe la soirée ?">
+          <button type="button" class="src on" data-src="sonos"><b>🏠 Party maison</b><small>Sur tes Sonos</small></button>
+          <button type="button" class="src" data-src="spotify"><b>🏕️ Party extérieur</b><small>Spotify sur ton téléphone → enceinte Bluetooth</small></button>
+        </div>
         <div class="card">
-          <h2 style="margin-top:0">Pièce Sonos</h2>
-          <div class="row">
-            <select id="room" class="grow"></select>
-            <button class="secondary" id="reloadRooms" type="button" title="Actualiser">↻</button>
+          <div id="srcSonos">
+            <p class="sub" style="margin-top:0">1. Lance ta playlist depuis l'app Sonos.<br>2. Choisis la pièce et démarre la soirée.</p>
+            <h2 style="margin-top:0">Pièce Sonos</h2>
+            <div class="row">
+              <select id="room" class="grow"></select>
+              <button class="secondary" id="reloadRooms" type="button" title="Actualiser">↻</button>
+            </div>
+          </div>
+          <div id="srcSpotify" class="hidden">
+            <p class="sub" style="margin-top:0">1. Connecte ton téléphone à l'enceinte Bluetooth.<br>2. Lance une playlist dans l'app Spotify (aléatoire et fondu se règlent dans Spotify).<br>3. Démarre la soirée : les demandes des invités passeront entre les titres de ta playlist.</p>
+            <div id="spotifyStart"></div>
           </div>
           <h2>Mode d'insertion</h2>
           <div class="seg" data-mode-picker></div>
@@ -57,7 +67,7 @@
           <button class="secondary grow" id="playPause">⏸ Pause</button>
           <button class="secondary grow" id="skip">⏭ Passer</button>
         </div>
-        <div class="artist" style="margin:12px 0 4px">Volume global (toutes les enceintes du groupe)</div>
+        <div class="artist" style="margin:12px 0 4px" id="volumeLabelText">Volume global (toutes les enceintes du groupe)</div>
         <div class="card row">
           <span>🔈</span>
           <input id="volume" class="grow" type="range" min="0" max="100" step="1" aria-label="Volume">
@@ -120,10 +130,15 @@
         <div class="seg" data-mode-picker></div>
         <p class="sub" id="modeHelp" style="margin-top:8px"></p>
 
+        <div id="speakersBox">
         <h2>Enceintes</h2>
         <p class="sub" style="margin-top:-4px;font-size:.85rem">Ajoute des enceintes au groupe de la soirée : elles jouent la même musique. Chaque curseur règle une enceinte ; le volume global est sur la page Soirée.</p>
         <div id="speakers" class="list"><p class="empty">Chargement…</p></div>
+        </div>
       </div>
+
+      <h2>Compte Spotify <span class="artist" style="text-transform:none;letter-spacing:0">(Party extérieur)</span></h2>
+      <div class="card" id="spotifyAccount"></div>
 
       <h2>Accès invités</h2>
       <div class="card" style="text-align:center">
@@ -286,12 +301,18 @@ function render(s) {
   $("guestUrl").textContent = s.guest_url + "?pin=" + s.guest_pin;
   const qrKey = "/qr.svg?v=" + s.guest_pin;
   if ($("qr").getAttribute("src") !== qrKey) $("qr").src = qrKey;
+  $("spotifyStart").innerHTML = spotifyAccountHtml(s);
+  $("spotifyAccount").innerHTML = spotifyAccountHtml(s);
   if (!s.active) { renderModes(chosenMode); return; }
 
   renderModes(s.mode);
-  $("liveRoom").textContent = s.room_name;
+  const ext = s.source === "spotify";
+  $("liveRoom").textContent = ext ? `🏕️ Party extérieur · Spotify${s.sonos?.device ? ` · ${s.sonos.device}` : ""}` : s.room_name;
+  $("speakersBox").classList.toggle("hidden", ext);
+  $("volumeLabelText").textContent = ext ? "Volume (téléphone)" : "Volume global (toutes les enceintes du groupe)";
   const so = s.sonos;
-  const warn = s.sonos_error ? "Sonos injoignable : " + s.sonos_error
+  const warn = s.sonos_error ? (ext ? "Spotify : " : "Sonos injoignable : ") + s.sonos_error
+    : ext && so && so.state === "STOPPED" ? "⚠️ Rien ne joue sur Spotify : lance une playlist sur ton téléphone. Les demandes sont gardées en attendant."
     : so && !so.from_queue ? "⚠️ La musique ne joue pas depuis la file Sonos (Spotify Connect / Jam ?). Lance une playlist depuis l'app Sonos pour que les ajouts fonctionnent." : "";
   $("sonosWarn").textContent = warn; $("sonosWarn").classList.toggle("hidden", !warn);
 
@@ -496,11 +517,35 @@ $("login").addEventListener("submit", async (ev) => {
   catch (e) { toast(e.message, "err"); }
 });
 $("reloadRooms").onclick = loadRooms;
+let chosenSource = "sonos";
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-src]");
+  if (!b) return;
+  chosenSource = b.dataset.src;
+  document.querySelectorAll("[data-src]").forEach((x) => x.classList.toggle("on", x === b));
+  $("srcSonos").classList.toggle("hidden", chosenSource !== "sonos");
+  $("srcSpotify").classList.toggle("hidden", chosenSource !== "spotify");
+});
+// Compte Spotify de l'hôte (Party extérieur) : connexion une seule fois.
+function spotifyAccountHtml(s) {
+  const a = s.spotify_account;
+  if (!a) return `<p class="sub">Spotify n'est pas configuré sur le serveur.</p>`;
+  return a.connected
+    ? `<div class="row"><div class="grow">🟢 Connecté à Spotify : <b>${esc(a.name)}</b>${a.premium ? "" : ` <span class="pill">⚠️ Premium requis</span>`}</div>
+        <button class="secondary" type="button" id="spotifyLogout">Déconnecter</button></div>`
+    : `<a class="sp-connect" href="/api/admin/spotify/login">Se connecter à Spotify</a>
+       <p class="sub" style="margin:8px 0 0;font-size:.85rem">Une seule fois : Spotify Premium est nécessaire pour piloter la lecture.</p>`;
+}
+document.addEventListener("click", async (ev) => {
+  if (ev.target.id !== "spotifyLogout" || !confirm("Déconnecter ton compte Spotify ?")) return;
+  try { render(await api("/api/admin/spotify/logout", {})); toast("Compte Spotify déconnecté"); } catch (e) { toast(e.message, "err"); }
+});
 $("start").onclick = async () => {
-  if (!$("room").value) return toast("Choisis une pièce", "err");
+  if (chosenSource === "sonos" && !$("room").value) return toast("Choisis une pièce", "err");
+  if (chosenSource === "spotify" && !state?.spotify_account?.connected) return toast("Connecte d'abord ton compte Spotify", "err");
   $("start").disabled = true;
   try {
-    render(await api("/api/admin/start", { room_uid: $("room").value, mode: chosenMode }));
+    render(await api("/api/admin/start", { room_uid: $("room").value, mode: chosenMode, source: chosenSource }));
     toast("Soirée démarrée 🎉", "ok");
   } catch (e) { toast(e.message, "err"); }
   $("start").disabled = false;
@@ -578,7 +623,7 @@ $("addResults").addEventListener("click", async (ev) => {
 // Enceintes : groupe de la soirée et volume de chacune.
 let speakersDragging = null, speakersTimer;
 async function loadSpeakers(list) {
-  if (!state || !state.active || $("liveSettings").classList.contains("hidden")) return;
+  if (!state || !state.active || state.source === "spotify" || $("liveSettings").classList.contains("hidden")) return;
   try { renderSpeakers(list || await api("/api/admin/speakers")); }
   catch (e) { $("speakers").innerHTML = `<p class="empty">${esc(e.message)}</p>`; }
 }
@@ -764,6 +809,12 @@ for (const [kind, [, toggle, , what]] of Object.entries(NOTIF)) {
 $("logout").onclick = async (ev) => { ev.preventDefault(); await api("/api/admin/logout", {}); showLogin(); };
 
 (async () => {
+  // Retour de la connexion Spotify.
+  const sp = new URLSearchParams(location.search).get("spotify");
+  if (sp) {
+    toast({ ok: "Compte Spotify connecté 🎧", refus: "Connexion Spotify annulée", erreur: "Spotify a refusé la connexion : vérifie l'adresse de retour dans ton tableau de bord Spotify" }[sp] || "", sp === "ok" ? "ok" : "err");
+    history.replaceState(null, "", location.pathname + location.hash);
+  }
   await refresh();
   if (state && !state.active) loadRooms();
   if (state) initNotifications();
