@@ -2,7 +2,7 @@ name: Image Docker
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
 permissions:
@@ -32,8 +32,9 @@ jobs:
         with:
           context: .
           push: true
+          # main → :latest (production) ; develop → :develop (site de test party.test.bobycharbon.ch)
           tags: |
-            ghcr.io/bobycharbon/sonos-vendrediparty:latest
+            ghcr.io/bobycharbon/sonos-vendrediparty:${{ github.ref_name == 'main' && 'latest' || 'develop' }}
             ghcr.io/bobycharbon/sonos-vendrediparty:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

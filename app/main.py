@@ -15,7 +15,7 @@ from urllib.parse import quote
 import httpx
 import segno
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
+from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -1442,14 +1442,28 @@ async def no_cache_static(request: Request, call_next):
     return response
 
 
+APP_ENV = os.environ.get("APP_ENV", "prod")  # « test » : site de test (branche develop), avec un bandeau bien visible
+TEST_BANNER = ('<div style="position:fixed;top:0;left:0;right:0;z-index:9999;padding:3px 8px;text-align:center;'
+               'font:800 11px/1.4 system-ui,sans-serif;letter-spacing:.12em;color:#1a1200;background:repeating-linear-gradient('
+               '45deg,#ffd84d 0 12px,#ffb703 12px 24px);pointer-events:none">🧪 VERSION DE TEST</div>')
+
+
+def page(name: str):
+    if APP_ENV != "test":
+        return FileResponse(STATIC / name, headers=NO_CACHE)
+    html = (STATIC / name).read_text(encoding="utf-8")
+    html = html.replace("<title>", "<title>[TEST] ", 1).replace("<body>", "<body>" + TEST_BANNER, 1)
+    return HTMLResponse(html, headers=NO_CACHE)
+
+
 @app.get("/")
 def index():
-    return FileResponse(STATIC / "index.html", headers=NO_CACHE)
+    return page("index.html")
 
 
 @app.get("/admin")
 def admin_page():
-    return FileResponse(STATIC / "admin.html", headers=NO_CACHE)
+    return page("admin.html")
 
 
 @app.get("/sw.js")
