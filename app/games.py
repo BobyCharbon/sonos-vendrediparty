@@ -304,9 +304,11 @@ def join(g: dict, gid: str, name: str = ""):
         p["name"] = name or p["name"]
         return
     if gid in g.get("kicked", []):
-        raise GameError("L'animateur t'a retiré de cette partie")
+        raise GameError("Tu as été banni de cette partie : tu ne peux plus la rejoindre")
     if len(g["players"]) >= 30:
         raise GameError("La partie est complète")
+    if gid in g.get("removed", []):  # revenir après une exclusion efface la marque
+        g["removed"].remove(gid)
     taken = {p["pid"] for p in g["players"]}
     while (pid := secrets.token_hex(4)) in taken:
         pass
@@ -413,9 +415,20 @@ def handover(g: dict, actor: str, target: str):
 
 
 def kick(g: dict, gid: str):
-    """L'animateur exclut un joueur : il ne peut plus revenir dans cette partie."""
+    """L'animateur exclut un joueur (absent, parti…) : il pourra revenir quand il veut avec le code."""
     leave(g, gid)
-    g.setdefault("kicked", []).append(gid)
+    if gid not in g.setdefault("removed", []):
+        g["removed"].append(gid)
+
+
+def ban(g: dict, gid: str):
+    """L'animateur bannit un joueur : il ne peut plus revenir dans cette partie avec ce code."""
+    if player(g, gid):
+        leave(g, gid)
+    if gid not in g.setdefault("kicked", []):
+        g["kicked"].append(gid)
+    if gid in g.get("removed", []):
+        g["removed"].remove(gid)
 
 
 def move(g: dict, gid: str, delta: int):
@@ -2182,7 +2195,8 @@ def view(g: dict, gid: str) -> dict:
         "order_pids": [_pid(g, i) for i in g["order"] if player(g, i)] if g["type"] == "undercover" else [],
         "candidates": [_pid(g, i) for i in g["candidates"]] if g["candidates"] else None,
         "winner": g["winner"], "question": g["question"], "votes_count": len(g["votes"]), "options": g["options"],
-        "kicked": bool(gid) and gid in g.get("kicked", []),
+        "kicked": bool(gid) and gid in g.get("kicked", []),  # banni : ne peut plus revenir
+        "excluded": bool(gid) and gid in g.get("removed", []) and not player(g, gid),  # exclu : peut revenir
         # Durée de la partie en secondes (calculée ici : l'horloge des téléphones peut être décalée).
         "elapsed": time.time() - g.get("created_at", g["updated_at"]),
     }

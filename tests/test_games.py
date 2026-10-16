@@ -149,12 +149,22 @@ def test_host_kicks_mid_game():
     under = by_role(g, "undercover")[0]
     games.start_vote(g)
     games.vote(g, "p0" if under != "p0" else "p1", under)
-    games.kick(g, under)
-    # Le seul undercover est parti : les civils gagnent ; il ne peut pas revenir.
+    games.ban(g, under)
+    # Le seul undercover est parti : les civils gagnent ; banni, il ne peut pas revenir.
     assert g["winner"] == "civils" and games.player(g, under) is None
     with pytest.raises(games.GameError):
         games.join(g, under, "Revenant")
     assert games.view(g, under)["kicked"]
+
+
+def test_excluded_player_can_come_back():
+    g = undercover(4, white=False)
+    civil = by_role(g, "civil")[0]
+    games.kick(g, civil)
+    v = games.view(g, civil)
+    assert games.player(g, civil) is None and v["excluded"] and not v["kicked"]
+    games.join(g, civil, "De retour")  # exclu (absent) : il peut revenir quand il veut
+    assert games.player(g, civil) and not games.view(g, civil)["excluded"]
 
 
 def test_player_can_leave_mid_game():

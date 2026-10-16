@@ -1138,7 +1138,7 @@ class GameAction(BaseModel):
 
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
-HOST_ACTIONS = {"start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
+HOST_ACTIONS = {"ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
                 "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover"}
 
 
@@ -1173,7 +1173,7 @@ def game_action(code: str, body: GameAction, request: Request):
         "leave": (games.leave, me), "vote": (games.vote, me, target), "guess": (games.white_guess, me, body.guess),
         "start": (games.start,), "vote_start": (games.start_vote,), "close_vote": (games.close_vote,),
         "eliminate": (games.eliminate, target), "skip_guess": (games.skip_white_guess,),
-        "next": (games.next_step,), "restart": (games.restart,), "remove": (games.kick, target),
+        "next": (games.next_step,), "restart": (games.restart,), "remove": (games.kick, target), "ban": (games.ban, target),
         "up": (games.move, target, -1), "down": (games.move, target, 1),
         "names": (games.set_names, body.names), "spin": (games.spin,),
         "bet": (games.bj_bet, me, body.amount), "hit": (games.bj_hit, me), "stand": (games.bj_stand, me),
@@ -1222,6 +1222,8 @@ def game_action(code: str, body: GameAction, request: Request):
                 games.leave(other, me)
             elif a == "remove" and target and games.player(other, target):
                 games.kick(other, target)
+            elif a == "ban" and target:
+                games.ban(other, target)
             elif a == "handover" and target:
                 # Le nouvel animateur l'est aussi de l'autre (salle ou jeu) ; l'ancien quitte les deux.
                 other["host"], other["host_name"] = target, g["host_name"]

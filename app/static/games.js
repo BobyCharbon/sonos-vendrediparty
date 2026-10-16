@@ -670,6 +670,7 @@ function minimizeGame() {
 // Changement d'onglet (page invités ou admin) : on remet le plein écran / la mini-barre à jour.
 document.addEventListener("click", (ev) => { if (ev.target.closest("[data-tab]")) setTimeout(syncGameChrome, 0); });
 
+let gSeq = 0;  // numéro du dernier chargement de la partie demandé
 async function refreshGame() {
   $("gName").classList.toggle("hidden", !!guestName);
   if (!guestName) {
@@ -679,8 +680,13 @@ async function refreshGame() {
   }
   $("gHello").textContent = guestName;
   if (!myGame) return renderGame(null);
+  const seq = ++gSeq, code = myGame;
   try {
     const g = await gapi(`/api/games/${myGame}?guest_id=${encodeURIComponent(guestId)}&name=${encodeURIComponent(guestName)}`);
+    // Deux rechargements presque simultanés : une réponse plus ancienne n'écrase jamais une plus récente.
+    if (seq !== gSeq || code !== myGame) return;
+    // Lien ou QR d'une partie : on rejoint une seule fois (déjà inscrit ou retiré par l'animateur : on ne réessaie pas).
+    if (autoJoin && (g.me || g.is_host || g.kicked)) autoJoin = false;
     if (autoJoin && !g.me && !g.is_host) { autoJoin = false; return gameAction("join"); }
     if (routeRoom(g)) return;
     renderGame(g);
@@ -738,6 +744,34 @@ function morphNode(x, y) {
 const QUESTION_TYPES = ["whoof", "never"];  // jeux à questions (« Qui de nous ? », « Je n'ai jamais »)
 // Raccourci : patch.gameHost = html  ⇔  morph($("gameHost"), html)
 const patch = new Proxy({}, { set(_, id, html) { morph($(id), html); return true; } });
+// Retiré de la partie par l'animateur ou l'admin : message 5 secondes, puis retour à l'accueil des jeux.
+let kickTimer = 0, kickCode = "";
+function renderKicked(g) {
+  $("gTop").innerHTML = gameTopBar(g);
+  patch.gameHost = ""; patch.gameHud = "";
+  const code = myGame;
+  if (kickCode !== code) {
+    kickCode = code;
+    clearInterval(kickTimer);
+    const until = Date.now() + 5000;
+    kickTimer = setInterval(() => {
+      const left = Math.ceil((until - Date.now()) / 1000);
+      if (left > 0 && myGame === code) { if ($("kickLeft")) $("kickLeft").textContent = left; return; }
+      clearInterval(kickTimer); kickCode = "";
+      if (myGame !== code) return;  // déjà parti ailleurs entre-temps
+      myRoom = ""; store("vp_room", "");
+      closeDrawer(); setGame(""); renderGame(null);
+    }, 250);
+    haptic([80, 60, 80]);
+  }
+  setGameHtml(`<div class="kicked" role="alert">
+    <div class="kicked-ico" aria-hidden="true">${g.kicked ? "🚫" : "👋"}</div>
+    <div class="kicked-t">${g.kicked ? "Tu as été banni·e de" : "L'animateur t'a retiré·e de"} ${g.type === "room" ? "la salle" : "la partie"}</div>
+    <p class="kicked-s">${g.kicked ? "Tu ne peux plus la rejoindre avec ce code." : `Tu pourras la rejoindre à nouveau avec le code <b>${esc(g.room || g.code)}</b>.`}</p>
+    <p class="kicked-s">Retour à l'accueil dans <b id="kickLeft">5</b> s</p>
+    <button type="button" class="secondary" data-exit="away">Revenir maintenant</button>
+  </div>`);
+}
 function setGameHtml(html) {
   const el = $("game");
   if (el.dataset.html === html && el.firstChild) return false;
@@ -757,6 +791,8 @@ function renderGame(g) {
   const me = g.me;
   const nameOf = (pid) => esc(g.players.find((p) => p.pid === pid)?.name || "?");
   $("game").className = "card game " + (GAME_THEME[g.type] || "");
+  if (g.me || g.is_host || g.kicked) autoJoin = false;  // déjà dans la partie (ou banni) : plus de « rejoindre » automatique
+  if (g.kicked || (g.excluded && !autoJoin)) return renderKicked(g);
   renderCasino(g);  // avant le texte : il dépend de l'état de la bille (en train de rouler ou arrêtée)
   const title = `<div class="g-head g-play-head"><div class="g-icon">${GAME_ICONS[g.type] || ""}</div>
     <div class="g-meta"><div class="g-title">${esc(g.name)}</div>
@@ -780,8 +816,6 @@ function renderGame(g) {
       ? `<div class="artist">${g.names.length < 2 ? "Note au moins 2 noms ci-dessous, puis lance la roue." : "Prêt ? Lance la roue !"}</div>`
       : `<div class="artist">${g.phase === "spun" ? "La roue a parlé…" : `${esc(g.host_name)} prépare la roue…`}</div>
          ${!me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:10px">Je participe (l'animateur pourra m'ajouter à la roue)</button>` : ""}`;
-  } else if (g.kicked) {
-    body = `<div class="title">L'animateur t'a retiré de cette partie</div><div class="artist">Tu peux en créer ou en rejoindre une autre.</div>`;
   } else if (!me && !g.master) {
     // Visiteur : pas encore dans la partie (Undercover en cours : il attendra la prochaine).
     const running = g.type === "undercover" && g.phase !== "lobby" && g.phase !== "end";
@@ -2191,6 +2225,33 @@ function openRoomSheet(type) {
   wrap.addEventListener("click", (ev) => { if (ev.target === wrap) closeRoomSheet(); });
   document.body.append(wrap);
 }
+// ✕ sur un joueur : l'exclure (il peut revenir quand il veut) ou le bannir (ce code lui est refusé).
+function openKickSheet(pid) {
+  const p = game?.players.find((x) => x.pid === pid);
+  if (!p) return;
+  if (p.manual) return gameAction("remove", { target: pid });  // sans téléphone : on le retire simplement
+  closeRoomSheet(true);
+  const name = esc(p.name);
+  const wrap = document.createElement("div");
+  wrap.className = "g-modal g-room-modal g-kick-modal";
+  wrap.innerHTML = `<div class="g-sheet g-room-sheet g-kick" role="dialog" aria-modal="true" aria-labelledby="kickTitle">
+    <div class="g-sheet-grab" aria-hidden="true"></div>
+    <div class="g-kick-who">${avatar(p)}<b id="kickTitle">Retirer ${name} ?</b></div>
+    <button type="button" class="g-kick-opt" data-kick="remove"><span class="g-kick-ico" aria-hidden="true">👋</span>
+      <span><b>Exclure</b><small>${name} quitte la partie et pourra revenir avec le code. Pratique en cas d'absence.</small></span></button>
+    <button type="button" class="g-kick-opt ban" data-kick="ban"><span class="g-kick-ico" aria-hidden="true">🚫</span>
+      <span><b>Bannir</b><small>${name} ne pourra plus rejoindre cette partie avec ce code.</small></span></button>
+    <button type="button" class="secondary" data-kick="cancel">Annuler</button>
+  </div>`;
+  wrap.addEventListener("click", (ev) => {
+    const k = ev.target.closest("[data-kick]")?.dataset.kick;
+    if (ev.target !== wrap && !k) return;
+    closeRoomSheet();
+    if (k === "remove" || k === "ban") gameAction(k, { target: pid }).then(() => toast(k === "ban" ? `🚫 ${p.name} : banni·e de la partie` : `👋 ${p.name} : retiré·e (retour possible avec le code)`, "ok"));
+  });
+  document.body.append(wrap);
+  wrap.querySelector("[data-kick=remove]").focus();
+}
 function closeRoomSheet(now = false) {
   const w = document.querySelector(".g-room-modal");
   if (!w) return;
@@ -2274,6 +2335,7 @@ async function gameAction(action, extra = {}, opts = {}) {
   gInflight.add(key);
   try {
     const room = game?.room;
+    const seq = ++gSeq;
     const g = await gapi(`/api/games/${myGame}`, { guest_id: guestId, name: guestName, action, ...extra });
     if (action === "end" && room) { setGame(room); refreshGame(); return; }  // fin d'un jeu de la salle : retour à la salle
     if (action === "end" || (action === "leave" && !g?.is_host)) {
@@ -2281,7 +2343,8 @@ async function gameAction(action, extra = {}, opts = {}) {
       setGame(""); renderGame(null); return;
     }
     if (routeRoom(g)) return;
-    renderGame(g);
+    if (seq === gSeq) renderGame(g);
+    else refreshGame();  // un rechargement est parti entre-temps : on se recale sur l'état le plus récent
   } catch (e) {
     if (e.status === 404 && e.detail?.ended) showGameEnded(e.detail.ended);
     else if (opts.quiet && e.status === 409) refreshGame();  // arrivé trop tard : on se recale sans message
@@ -2308,7 +2371,7 @@ document.addEventListener("click", (ev) => {
   if (a === "dropname") return gameAction("names", { names: game.names.filter((n) => n !== b.dataset.name) });
   if (a === "addplayers") return gameAction("names", { names: game.names.concat(game.players.map((p) => p.name)) });
   if (a === "eliminate" && !confirm("Éliminer ce joueur ?")) return;
-  if (a === "remove" && !confirm("Exclure ce joueur de la partie ? Il ne pourra pas revenir.")) return;
+  if (a === "remove") return openKickSheet(b.dataset.target);
   pressed(b, gameAction(a, { target: b.dataset.target || "", amount: +(b.dataset.amount || 0), guess: b.dataset.guess || "" }));
 });
 document.addEventListener("submit", (ev) => {
@@ -2375,7 +2438,10 @@ document.addEventListener("click", async (ev) => {
     return;
   }
   if (a === "leave") { if (confirm("Quitter la partie ?")) { closeDrawer(); gameAction("leave"); } return; }
-  if (a === "away") { closeDrawer(); setGame(""); renderGame(null); }
+  if (a === "away") {
+    if (game?.kicked || game?.excluded) { clearInterval(kickTimer); kickCode = ""; myRoom = ""; store("vp_room", ""); }
+    closeDrawer(); setGame(""); renderGame(null);
+  }
 });
 // Options choisies sur la carte d'un jeu (création directe, ou lancement depuis la salle de jeux).
 function gamePayload(card, type) {
