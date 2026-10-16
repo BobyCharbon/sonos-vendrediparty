@@ -16,7 +16,8 @@ GAME_ICONS.tmc = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" str
 GAME_ICONS.pyramid = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="19" y="5" width="10" height="12" rx="2"/><rect x="12" y="19" width="10" height="12" rx="2"/><rect x="26" y="19" width="10" height="12" rx="2"/><rect x="5" y="33" width="10" height="12" rx="2"/><rect x="19" y="33" width="10" height="12" rx="2"/><rect x="33" y="33" width="10" height="12" rx="2"/></svg>`;
 GAME_ICONS.biskit = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 18l6 6 10-12 10 12 6-6-3 16H11z"/><rect x="15" y="34" width="18" height="10" rx="3"/><circle cx="21" cy="39" r="1" fill="currentColor"/><circle cx="27" cy="39" r="1" fill="currentColor"/></svg>`;
 GAME_ICONS.quiz = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M24 4a15 15 0 0 1 9 27c-2 1.6-3 3.4-3 6v1H18v-1c0-2.6-1-4.4-3-6A15 15 0 0 1 24 4z"/><path d="M19 43h10"/><path d="M20 17a4 4 0 1 1 6 3.4c-1.3.8-2 1.7-2 3.1"/><circle cx="24" cy="29" r="0.6" fill="currentColor"/></svg>`;
-const GAME_THEME = { biskit: "g-bk", pyramid: "g-py", undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv", tmc: "g-tm" };
+GAME_ICONS.room = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 22L24 8l17 14"/><path d="M11 19v21h26V19"/><rect x="19" y="27" width="10" height="13" rx="2"/><path d="M30 13V9h5v8"/></svg>`;
+const GAME_THEME = { room: "g-rm", biskit: "g-bk", pyramid: "g-py", undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv", tmc: "g-tm" };
 const isBJ = (g) => g.type === "blackjack";
 const helpBtn = (type, inGame = false) => `<button type="button" class="g-help" data-rules="${type}" ${inGame ? "data-ingame" : ""} aria-label="Règles du jeu">?</button>`;
 
@@ -88,6 +89,16 @@ const CASINO_RULES_DRINKS = `
     <p>Exemple : 2 gorgées sur Rouge et 1 sur le 17. Le 17 (noir) sort : tu bois 2 (Rouge perdu) et tu distribues 10 (jackpot) !</p>
     <p>Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi. Buvez avec modération !</p>`;
 const GAME_RULES = {
+  room: `
+    <h3>Le principe</h3>
+    <p>Une <b>salle de jeux</b> réunit tout le monde pour la soirée, avec <b>un seul code</b> (et un seul QR). On la rejoint une fois.</p>
+    <h3>Pour l'animateur</h3>
+    <p>Choisis un jeu dans la salle, règle ses options, puis <b>« Lancer pour toute la salle »</b> : chaque téléphone bascule tout seul dans le jeu, avec tous les joueurs déjà inscrits (y compris ceux sans téléphone).</p>
+    <p>Quand le jeu est fini, <b>☰ → « Terminer ce jeu et revenir à la salle »</b> : tout le monde revient à la salle, prêt pour le suivant.</p>
+    <h3>Le tableau de la soirée</h3>
+    <p>Les points du Quiz et les gorgées de tous les jeux s'additionnent d'un jeu à l'autre.</p>
+    <h3>Arriver en retard</h3>
+    <p>Scanner le QR de la salle suffit : on rejoint la salle et le jeu en cours.</p>`,
   get biskit() { return bkRulesHtml(); },
   pyramid: `
     <h3>Le principe</h3>
@@ -282,6 +293,19 @@ document.getElementById("gamesRoot").innerHTML = `
         <label for="gCode">Code d'une partie</label>
         <input id="gCode" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="• • • •" autocomplete="off">
       </form>
+
+      <div class="gcard g-rm g-room-card">
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.room}</div>
+          <div class="g-meta"><div class="g-title">Salle de jeux</div><div class="g-tag">Un seul code pour toute la soirée.</div></div>
+          ${helpBtn("room")}
+        </div>
+        <p class="g-desc">Tout le monde rejoint une fois. L'animateur lance les jeux les uns après les autres : chaque téléphone bascule tout seul, puis revient à la salle, avec le tableau de la soirée.</p>
+        <div class="g-chips"><span>✨ Recommandé</span><span>Tous les jeux</span><span>Tableau de la soirée</span></div>
+        <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
+        <button class="g-go" data-create="room">Ouvrir une salle</button>
+      </div>
+      <div class="g-sep"><span>ou une partie seule</span></div>
 
       <div class="gcard g-qz">
         <div class="g-head">
@@ -517,6 +541,16 @@ document.getElementById("gamesRoot").innerHTML = `
 `;
 
 // 🎮 Jeux : n'importe qui crée une partie (code + QR) et l'anime ; les autres la rejoignent avec son code.
+let myRoom = store("vp_room") || "";
+// Salle de jeux : si l'animateur a lancé un jeu, on y bascule tout seul ; true si on a changé de partie.
+function routeRoom(g) {
+  if (g?.type === "room") {
+    myRoom = g.code; store("vp_room", g.code);
+    const cur = g.room_info?.current;
+    if (cur && (g.me || g.is_host)) { setGame(cur.code); refreshGame(); return true; }
+  } else if (g?.room) { myRoom = g.room; store("vp_room", g.room); }
+  return false;
+}
 let myGame = store("vp_game") || "", game = null, wordShown = "", wordUntil = 0, guessDraft = "", showRoles = false, autoJoin = false;
 const GAME_PHASES = { lobby: "Inscriptions", words: "Indices", vote: "Vote", white_guess: "Devinette de Mr. White",
   reveal: "Résultat de la manche", end: "Partie terminée", question: "Question", results: "Résultats", spun: "Résultat", bet: "Mises", play: "Partie", card: "En séance",
@@ -605,10 +639,15 @@ async function refreshGame() {
   try {
     const g = await gapi(`/api/games/${myGame}?guest_id=${encodeURIComponent(guestId)}&name=${encodeURIComponent(guestName)}`);
     if (autoJoin && !g.me && !g.is_host) { autoJoin = false; return gameAction("join"); }
+    if (routeRoom(g)) return;
     renderGame(g);
   } catch (e) {
     // Partie introuvable, ou erreur du serveur : on revient à l'accueil des jeux plutôt que de rester sur une page vide.
     if (e.status === 404) {
+      // Jeu terminé dans une salle : tout le monde revient à la salle.
+      const back = e.detail?.ended?.room || (myRoom && myGame !== myRoom ? myRoom : "");
+      if (back) { setGame(back); toast("🏠 Retour à la salle", "ok"); return refreshGame(); }
+      if (myRoom && myRoom === myGame) { myRoom = ""; store("vp_room", ""); }
       setGame("");
       if (e.detail?.ended) showGameEnded(e.detail.ended);
       else toast("Cette partie n'existe plus", "err");
@@ -646,7 +685,9 @@ function renderGame(g) {
   const lastLine = g.last?.name ? `<p class="sub" style="margin:8px 0">${esc(g.last.name)} était <b>${esc(g.last.role)}</b>.${g.last.guess ? ` Mr. White a proposé « ${esc(g.last.guess)} »… raté !` : ""}</p>` : "";
   let body = "";
 
-  if (g.type === "divan") {
+  if (g.type === "room") {
+    body = roomHtml(g);
+  } else if (g.type === "divan") {
     body = divanHtml(g);
   } else if (g.type === "tmc" && g.phase !== "lobby" && (me || g.master) && !g.kicked) {
     body = tmcHtml(g);
@@ -750,8 +791,9 @@ function renderGame(g) {
   renderHud(g);
   bjOutcomeFx(g);
   renderGameHost(g);
-  $("gameCode").textContent = g.code;
-  const qr = `/qr/game/${g.code}.svg`;
+  const joinCode = g.room || g.code;  // dans une salle : on invite à rejoindre la salle (puis le jeu suit)
+  $("gameCode").textContent = joinCode;
+  const qr = `/qr/game/${joinCode}.svg`;
   if ($("gameQr").getAttribute("src") !== qr) $("gameQr").src = qr;
 }
 
@@ -1507,7 +1549,7 @@ document.addEventListener("pointerup", dvRelease);
 document.addEventListener("pointercancel", dvRelease);
 
 // 📵 Participants sans téléphone : l'animateur les ajoute à la main et agit pour eux.
-const MANUAL_GAMES = ["divan", "tmc", "never", "pyramid", "biskit"];
+const MANUAL_GAMES = ["divan", "tmc", "never", "pyramid", "biskit", "room"];
 const playerTag = (g, p) => !MANUAL_GAMES.includes(g.type) ? "" : p.manual
   ? ` <span class="pill tag-manual" title="Ajouté·e à la main par l'animateur">✍️ sans téléphone</span>`
   : ` <span class="tag-phone" title="Joue sur son téléphone">📱</span>`;
@@ -1920,7 +1962,7 @@ function renderGameHost(g) {
   if (isBJ(g)) return renderBJHost(g, btn);
   if (g.type === "casino") return renderCasinoHost(g, btn);
   if (g.type === "divan") return renderDivanHost(g, btn);
-  if (g.type === "pyramid" || g.type === "biskit" || g.type === "quiz") { $("gameHost").innerHTML = ""; return; }
+  if (["pyramid", "biskit", "quiz", "room"].includes(g.type)) { $("gameHost").innerHTML = ""; return; }
   if (g.type === "tmc") return renderTmcHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
   const canRemove = g.is_host;
@@ -1988,12 +2030,57 @@ function lobbyInvite(g) {
   const n = g.players.length;
   return `<div class="g-lobby">
     <div class="g-lobby-k">Scannez pour rejoindre</div>
-    <img class="g-lobby-qr" src="/qr/game/${esc(g.code)}.svg" alt="QR code pour rejoindre la partie">
-    <div class="g-lobby-code">${esc(g.code)}</div>
-    <div class="artist">ou onglet 🎮 Jeux → « Rejoindre une partie » avec ce code</div>
+    <img class="g-lobby-qr" src="/qr/game/${esc(g.room || g.code)}.svg" alt="QR code pour rejoindre la partie">
+    <div class="g-lobby-code">${esc(g.room || g.code)}</div>
+    <div class="artist g-lobby-hint">ou onglet 🎮 Jeux → entre ce code</div>
     <div class="g-lobby-players">${n ? g.players.map((p) => `<span class="pill">${p.host ? "🎲 " : ""}${esc(p.name)}</span>`).join("") : `<span class="artist">En attente des joueurs…</span>`}</div>
   </div>`;
 }
+
+// ── Salle de jeux ──
+function roomHtml(g) {
+  const R = g.room_info || {}, lead = g.is_host;
+  const cur = R.current;
+  const resume = cur ? `<button class="py-main g-room-resume" data-room-goto="${esc(cur.code)}">🎮 ${esc(cur.name)} en cours · rejoindre</button>` : "";
+  const pick = lead && !cur ? `<div class="g-room-block"><div class="g-room-h">Lancer un jeu pour la salle</div>
+      <div class="g-room-grid">${(R.catalog || []).map((c) => `<button type="button" class="g-room-tile ${GAME_THEME[c.type] || ""}" data-room-pick="${c.type}">
+        <span class="g-room-tile-i">${GAME_ICONS[c.type] || ""}</span><b>${esc(c.name)}</b></button>`).join("")}</div></div>`
+    : !cur ? `<div class="g-room-wait"><span class="g-room-dots"><i></i><i></i><i></i></span>${esc(g.host_name || "L'animateur")} choisit le prochain jeu…</div>` : "";
+  const board = (R.board || []).filter((r) => r.pts || r.drink || r.give);
+  const tally = board.length ? `<div class="g-room-block"><div class="g-room-h">🏆 Tableau de la soirée</div>
+      ${board.map((r, i) => `<div class="g-room-row ${r.me ? "me" : ""}"><span class="qz-rank r${i + 1}">${i + 1}</span><b>${esc(r.name)}</b>
+        ${r.pts ? `<span class="g-room-pts">${r.pts.toLocaleString("fr-CH")} pts</span>` : ""}${r.drink ? `<span class="g-room-sips">🍻 ${r.drink}</span>` : ""}</div>`).join("")}</div>` : "";
+  const hist = (R.history || []).length ? `<div class="g-room-block"><div class="g-room-h">Déjà joué ce soir</div><div class="g-room-hist">
+      ${R.history.map((h) => `<span class="g-room-chip ${GAME_THEME[h.type] || ""}"><i>${GAME_ICONS[h.type] || ""}</i>${esc(h.name)}${h.winner ? ` · 🏆 ${esc(h.winner)}` : ""}</span>`).join("")}</div></div>` : "";
+  return resume + pick + tally + hist;
+}
+function openRoomSheet(type) {
+  const src = [...document.querySelectorAll("#gHome .gcard")].find((c) => c.querySelector(`[data-create="${type}"]`));
+  if (!src) return;
+  closeRoomSheet(true);
+  const card = src.cloneNode(true);
+  const go = card.querySelector("[data-create]");
+  go.textContent = "▶ Lancer pour toute la salle";
+  const wrap = document.createElement("div");
+  wrap.className = "g-modal g-room-modal";
+  wrap.innerHTML = `<div class="g-sheet g-room-sheet" role="dialog" aria-modal="true" aria-label="Lancer un jeu"><div class="g-sheet-grab" aria-hidden="true"></div></div>`;
+  wrap.firstElementChild.append(card);
+  wrap.addEventListener("click", (ev) => { if (ev.target === wrap) closeRoomSheet(); });
+  document.body.append(wrap);
+}
+function closeRoomSheet(now = false) {
+  const w = document.querySelector(".g-room-modal");
+  if (!w) return;
+  if (now) return w.remove();
+  w.classList.add("out");
+  setTimeout(() => w.remove(), 260);
+}
+document.addEventListener("click", (ev) => {
+  const t = ev.target.closest("[data-room-pick]");
+  if (t) return openRoomSheet(t.dataset.roomPick);
+  const go = ev.target.closest("[data-room-goto]");
+  if (go) { setGame(go.dataset.roomGoto); autoJoin = true; refreshGame(); }
+});
 
 // Barre du haut commune à tous les jeux : ☰ menu, nom + phase + chrono, ? règles.
 function gameTopBar(g) {
@@ -2003,7 +2090,7 @@ function gameTopBar(g) {
   const alerts = (g.pyr?.pending?.length || 0) + (g.is_host ? (g.pyr?.peeks || []).filter((r) => r.status === "pending").length : 0);
   return `<button type="button" class="py-icon g-burger" data-gdrawer="open" aria-label="Menu : joueurs, code, QR">☰${alerts ? `<i class="badge">${alerts}</i>` : ""}</button>
     <div class="g-top-mid"><div class="g-top-name"><span class="g-top-ico" aria-hidden="true">${GAME_ICONS[g.type] || ""}</span>${esc(g.name)}</div>
-      <div class="g-top-sub">${g.mode ? esc(g.mode) + " · " : ""}${phase}${round} · code <b>${esc(g.code)}</b> · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
+      <div class="g-top-sub">${g.mode ? esc(g.mode) + " · " : ""}${g.type === "room" ? "Soirée" : phase}${round} · ${g.room || g.type === "room" ? "salle" : "code"} <b>${esc(g.room || g.code)}</b> · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
     <button type="button" class="py-icon g-min" data-gdrawer="minimize" aria-label="Réduire le jeu (revenir à la musique)">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
     ${helpBtn(g.type, true)}`;
@@ -2063,8 +2150,14 @@ async function gameAction(action, extra = {}, opts = {}) {
   if (gInflight.has(key)) return;
   gInflight.add(key);
   try {
+    const room = game?.room;
     const g = await gapi(`/api/games/${myGame}`, { guest_id: guestId, name: guestName, action, ...extra });
-    if (action === "end" || (action === "leave" && !g?.is_host)) { setGame(""); renderGame(null); return; }
+    if (action === "end" && room) { setGame(room); refreshGame(); return; }  // fin d'un jeu de la salle : retour à la salle
+    if (action === "end" || (action === "leave" && !g?.is_host)) {
+      if (action === "leave" || game?.type === "room") { myRoom = ""; store("vp_room", ""); }
+      setGame(""); renderGame(null); return;
+    }
+    if (routeRoom(g)) return;
     renderGame(g);
   } catch (e) {
     if (e.status === 404 && e.detail?.ended) showGameEnded(e.detail.ended);
@@ -2135,7 +2228,8 @@ function exitHtml(g) {
   } else {
     out.push(`<button type="button" class="secondary g-exit" data-exit="away">🚪 Quitter</button>`);
   }
-  if (g.is_host) out.push(`<button type="button" class="danger g-exit" data-exit="end">Fermer la partie pour tout le monde</button>`);
+  if (g.is_host) out.push(g.room ? `<button type="button" class="secondary g-exit" data-exit="end">🏠 Terminer ce jeu et revenir à la salle</button>`
+    : `<button type="button" class="danger g-exit" data-exit="end">${g.type === "room" ? "Fermer la salle pour tout le monde" : "Fermer la partie pour tout le monde"}</button>`);
   return out.join("");
 }
 document.addEventListener("click", async (ev) => {
@@ -2152,32 +2246,46 @@ document.addEventListener("click", async (ev) => {
     setGame(""); renderGame(null);
     return toast(`${p.name} anime maintenant la partie`, "ok");
   }
-  if (a === "end") { if (confirm("Fermer la partie pour tout le monde ?")) { closeDrawer(); gameAction("end"); } return; }
+  if (a === "end") {
+    const msg = game.room ? "Terminer ce jeu ? Tout le monde revient à la salle." : game.type === "room" ? "Fermer la salle pour tout le monde ?" : "Fermer la partie pour tout le monde ?";
+    if (confirm(msg)) { closeDrawer(); gameAction("end"); }
+    return;
+  }
   if (a === "leave") { if (confirm("Quitter la partie ?")) { closeDrawer(); gameAction("leave"); } return; }
   if (a === "away") { closeDrawer(); setGame(""); renderGame(null); }
 });
+// Options choisies sur la carte d'un jeu (création directe, ou lancement depuis la salle de jeux).
+function gamePayload(card, type) {
+  const q = (sel) => card.querySelector(sel);
+  let sips = q("[data-opt=alcohol]") && !q("[data-opt=alcohol]").checked ? 0 : +(q("[data-opt-group=sips] [data-val-out]")?.textContent || 0);
+  if (type === "quiz") sips = q("[data-opt=qzsips]")?.checked ? 1 : 0;
+  if (type === "biskit") sips = q("[data-opt=bkalcohol]")?.checked ? +(q("[data-opt-group=bkmult] .on")?.dataset.val || 1) : 0;
+  return {
+    type, sips, white: q("[data-opt=white]")?.checked ?? true, plays: q("[data-opt=plays]")?.checked ?? true,
+    mode: q("[data-opt-group=mode] .on")?.dataset.val || "soft",
+    cats: [...card.querySelectorAll("[data-opt-group=cats] .on")].map((x) => x.dataset.val),
+    floors: +(q("[data-opt-group=floors] [data-val-out]")?.textContent || 5),
+    pmode: q("[data-opt-group=pmode] .on")?.dataset.val || "soft",
+    poteau: q("[data-opt-group=poteau] .on")?.dataset.val || "soft",
+    double: q("[data-opt-group=floorsips] .on")?.dataset.val === "2",
+    boat: q("[data-opt=boat]")?.checked ?? true,
+  };
+}
 document.addEventListener("click", async (ev) => {
   const b = ev.target.closest("[data-create]");
   if (!b) return;
   const card = b.closest(".gcard");
+  const payload = gamePayload(card, b.dataset.create);
+  // Dans la salle de jeux : le jeu est lancé pour tout le monde (personne ne retape de code).
+  if (b.closest(".g-room-sheet")) {
+    closeRoomSheet();
+    return pressed(b, gameAction("launch", { settings: payload }));
+  }
   b.disabled = true;
   try {
-    const g = await gapi("/api/games", { guest_id: guestId, name: guestName, type: b.dataset.create,
-      white: card.querySelector("[data-opt=white]")?.checked ?? true, plays: card.querySelector("[data-opt=plays]")?.checked ?? false,
-      mode: card.querySelector("[data-opt-group=mode] .on")?.dataset.val || "soft",
-      // Blackjack : gorgées seulement si « Alcool » est coché.
-      cats: [...card.querySelectorAll("[data-opt-group=cats] .on")].map((x) => x.dataset.val),
-      ...(b.dataset.create === "quiz" ? { sips: card.querySelector("[data-opt=qzsips]").checked ? 1 : 0 } : {}),
-      ...(b.dataset.create === "biskit" ? { sips: card.querySelector("[data-opt=bkalcohol]").checked ? +card.querySelector("[data-opt-group=bkmult] .on").dataset.val : 0 } : {}),
-      floors: +(card.querySelector("[data-opt-group=floors] [data-val-out]")?.textContent || 5),
-      pmode: card.querySelector("[data-opt-group=pmode] .on")?.dataset.val || "soft",
-      poteau: card.querySelector("[data-opt-group=poteau] .on")?.dataset.val || "soft",
-      double: card.querySelector("[data-opt-group=floorsips] .on")?.dataset.val === "2",
-      boat: card.querySelector("[data-opt=boat]")?.checked ?? true,
-      sips: card.querySelector("[data-opt=alcohol]") && !card.querySelector("[data-opt=alcohol]").checked ? 0
-        : +(card.querySelector("[data-opt-group=sips] [data-val-out]")?.textContent || 0) });
+    const g = await gapi("/api/games", { guest_id: guestId, name: guestName, ...payload });
     setGame(g.code); renderGame(g);
-    toast(`Partie créée : code ${g.code}`, "ok");
+    toast(g.type === "room" ? `Salle ouverte : code ${g.code}` : `Partie créée : code ${g.code}`, "ok");
   } catch (e) { toast(e.message, "err"); }
   b.disabled = false;
 });
@@ -2214,7 +2322,7 @@ function rulesFor(type, g) {
 
 // « ? » : règles détaillées du jeu.
 const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", never: "Je n'ai jamais", roulette: "Roulette",
-  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal", quiz: "Quiz" };
+  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal", quiz: "Quiz", room: "Salle de jeux" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");
   if (open) {

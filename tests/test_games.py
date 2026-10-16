@@ -981,3 +981,38 @@ def test_biskit_pause_before_next_card():
     g["bk"]["ready_at"] = 0
     games.bk_draw(g, cur)
 
+
+
+def test_game_room_flow():
+    """Salle de jeux : un code pour la soirée ; l'animateur lance un jeu, tout le monde y est ; à la fin, retour à la salle."""
+    main._game_creations.clear()
+    h, o = TestClient(main.app), TestClient(main.app)
+    r = h.post("/api/games", json={"guest_id": "room-host-0001", "name": "Ludo", "type": "room", "plays": True}).json()
+    code = r["code"]
+    assert r["room_info"]["current"] is None and any(c["type"] == "quiz" for c in r["room_info"]["catalog"])
+    o.post(f"/api/games/{code}", json={"guest_id": "room-other-001", "name": "Léa", "action": "join"})
+    h.post(f"/api/games/{code}", json={"guest_id": "room-host-0001", "action": "addguest", "guess": "Tom"})
+    # Un simple joueur ne lance pas de jeu
+    assert o.post(f"/api/games/{code}", json={"guest_id": "room-other-001", "action": "launch", "settings": {"type": "quiz"}}).status_code == 403
+    v = h.post(f"/api/games/{code}", json={"guest_id": "room-host-0001", "action": "launch", "settings": {"type": "biskit", "sips": 1}}).json()
+    cur = v["room_info"]["current"]
+    assert cur["type"] == "biskit" and cur["players"] == 3  # Ludo, Léa et Tom (sans téléphone) d'office
+    child = o.get(f"/api/games/{cur['code']}?guest_id=room-other-001").json()
+    assert child["room"] == code and child["me"] and not child["is_host"]
+    assert h.get(f"/api/games/{cur['code']}?guest_id=room-host-0001").json()["is_host"]
+    # Un retardataire rejoint la salle : il est aussi inscrit au jeu en cours
+    z = TestClient(main.app)
+    z.post(f"/api/games/{code}", json={"guest_id": "room-late-0001", "name": "Zoé", "action": "join"})
+    assert any(p["name"] == "Zoé" for p in z.get(f"/api/games/{cur['code']}?guest_id=room-late-0001").json()["players"])
+    # Fin du jeu : retour à la salle, le jeu figure dans l'historique de la soirée
+    main.store.session.games[cur["code"]]["tally"] = {"room-other-001": {"drink": 3, "give": 1}}
+    h.post(f"/api/games/{cur['code']}", json={"guest_id": "room-host-0001", "action": "end"})
+    back = o.get(f"/api/games/{code}?guest_id=room-other-001").json()["room_info"]
+    assert back["current"] is None and back["history"][0]["type"] == "biskit"
+    assert next(b for b in back["board"] if b["name"] == "Léa")["drink"] == 3
+    # Passer la main dans la salle : le nouvel animateur l'est aussi du jeu suivant
+    lea = next(p["pid"] for p in back and o.get(f"/api/games/{code}?guest_id=room-other-001").json()["players"] if p["name"] == "Léa")
+    h.post(f"/api/games/{code}", json={"guest_id": "room-host-0001", "action": "handover", "target": lea})
+    v = o.post(f"/api/games/{code}", json={"guest_id": "room-other-001", "action": "launch", "settings": {"type": "quiz"}}).json()
+    q = o.get(f"/api/games/{v['room_info']['current']['code']}?guest_id=room-other-001").json()
+    assert q["is_owner"] and not any(p["name"] == "Ludo" for p in q["players"])

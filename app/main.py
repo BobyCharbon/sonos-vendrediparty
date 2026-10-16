@@ -901,7 +901,14 @@ _ended_games: dict[str, dict] = {}
 def end_game(code: str, by: str):
     g = store.session.games.pop(code, None)
     if g:
-        _ended_games[code] = {"by": by, "host": g.get("host_name", ""), "game": games.GAMES.get(g["type"], ""), "at": time.time()}
+        room = store.session.games.get(g.get("room") or "")
+        if room and room.get("current") == code:
+            games.room_merge(room, g)  # retour à la salle, avec le tableau de la soirée mis à jour
+            room["updated_at"] = time.time()
+        if g["type"] == "room" and g.get("current"):
+            store.session.games.pop(g["current"], None)
+        _ended_games[code] = {"by": by, "host": g.get("host_name", ""), "game": games.GAMES.get(g["type"], ""), "at": time.time(),
+                              "room": g.get("room") if room else None}
         store.save()
 
 
@@ -962,6 +969,18 @@ def create_game(body: GameCreate, request: Request):
     prune_games()
     if len(store.session.games) >= 30:
         raise HTTPException(429, "Trop de parties en cours, réessaie plus tard")
+    g = build_game(body)
+    _game_creations[ip] = recent + [time.time()]
+    game_presence(request, body.guest_id, body.name)
+    notify_admin({"title": f"🎮 {games.GAMES[g['type']]}", "body": f"{g['host_name']} lance une partie · code {g['code']}",
+                  "url": "/admin#games", "tag": f"game-{g['code']}"}, kind="games")
+    store.session.games[g["code"]] = g
+    store.save()
+    return full_view(g, body.guest_id)
+
+
+def build_game(body: GameCreate) -> dict:
+    """Nouvelle partie avec ses options (création directe, ou lancement depuis une salle de jeux)."""
     try:
         g = games.new_game(body.type, body.guest_id, clean_name(body.name), body.white,
                            code=games.new_code(set(store.session.games) | {store.session.guest_pin}), plays=body.plays,
@@ -976,13 +995,58 @@ def create_game(body: GameCreate, request: Request):
             games.divan_set_cats(g, body.cats)
         except games.GameError as e:
             raise HTTPException(400, str(e))
-    _game_creations[ip] = recent + [time.time()]
-    game_presence(request, body.guest_id, body.name)
-    notify_admin({"title": f"🎮 {games.GAMES[g['type']]}", "body": f"{g['host_name']} lance une partie · code {g['code']}",
-                  "url": "/admin#games", "tag": f"game-{g['code']}"}, kind="games")
-    store.session.games[g["code"]] = g
-    store.save()
-    return games.view(g, body.guest_id)
+    return g
+
+
+# ── Salle de jeux : un code pour toute la soirée, l'animateur y lance les jeux ──
+def room_child(room: dict) -> dict | None:
+    child = store.session.games.get(room.get("current") or "")
+    if room.get("current") and not child:
+        room["current"] = None  # jeu fermé ou expiré
+    return child
+
+
+def room_of(g: dict) -> dict | None:
+    return store.session.games.get(g.get("room") or "")
+
+
+def room_launch(room: dict, me: str, settings: dict):
+    """L'animateur lance un jeu : tous les joueurs de la salle y sont inscrits d'office."""
+    if room_child(room):
+        raise HTTPException(409, "Un jeu est déjà en cours : termine-le d'abord")
+    kind = settings.get("type")
+    if kind not in games.GAMES or kind == "room":
+        raise HTTPException(400, "Jeu inconnu")
+    host = room["host"] or me
+    hp = games.player(room, host)
+    fields = {k: v for k, v in settings.items() if k in GameCreate.model_fields and k not in ("guest_id", "name", "type")}
+    fields["plays"] = bool(hp) and fields.get("plays", True)
+    body = GameCreate(guest_id=host, name=room.get("host_name") or "Animateur", type=kind, **fields)
+    if len(store.session.games) >= 30:
+        prune_games()
+    child = build_game(body)
+    for p in room["players"]:
+        if p["id"] == host:
+            continue
+        try:
+            if p.get("manual"):
+                if kind in games.MANUAL_GAMES:
+                    games.add_guest(child, p["name"])
+            else:
+                games.join(child, p["id"], p["name"])
+        except games.GameError:
+            pass
+    child["leads"] = list(room.get("leads", []))
+    child["room"] = room["code"]
+    room["current"] = child["code"]
+    store.session.games[child["code"]] = child
+
+
+def full_view(g: dict, gid: str) -> dict:
+    v = games.view(g, gid)
+    if g["type"] == "room":
+        v["room_info"] = games.room_view(g, gid, room_child(g))
+    return v
 
 
 def game_presence(request: Request, guest_id: str, name: str):
@@ -1036,7 +1100,7 @@ def game_state(code: str, request: Request, guest_id: str = "", name: str = ""):
     if quiz.tick(g):  # Quiz : le temps a avancé (fin d'une question, question suivante…)
         g["updated_at"] = time.time()
         store.save()
-    return games.view(g, guest_id)
+    return full_view(g, guest_id)
 
 
 class GameAction(BaseModel):
@@ -1077,6 +1141,13 @@ def game_action(code: str, body: GameAction, request: Request):
     if a == "end":
         end_game(g["code"], "host")
         return None
+    if g["type"] == "room" and a == "launch":
+        if not games.is_lead(g, me):
+            raise HTTPException(403, "Seul l'animateur lance les jeux")
+        room_launch(g, me, body.settings)
+        g["updated_at"] = time.time()
+        store.save()
+        return full_view(g, me)
     actions = {
         "join": (games.join, me, clean_name(body.name) if a == "join" else ""),
         "leave": (games.leave, me), "vote": (games.vote, me, target), "guess": (games.white_guess, me, body.guess),
@@ -1120,10 +1191,32 @@ def game_action(code: str, body: GameAction, request: Request):
     except (games.GameError, quiz.QuizError) as e:
         raise HTTPException(409, str(e))
     g["updated_at"] = time.time()
+    # Salle de jeux : rejoindre, quitter, exclure ou passer la main vaut aussi pour le jeu en cours (et inversement).
+    other = room_child(g) if g["type"] == "room" else room_of(g)
+    if other:
+        other["updated_at"] = time.time()
+        try:
+            if a == "join" and me not in other.get("kicked", []):
+                games.join(other, me, clean_name(body.name))
+            elif a == "leave" and games.player(other, me):
+                games.leave(other, me)
+            elif a == "remove" and target and games.player(other, target):
+                games.kick(other, target)
+            elif a == "handover" and target:
+                # Le nouvel animateur l'est aussi de l'autre (salle ou jeu) ; l'ancien quitte les deux.
+                other["host"], other["host_name"] = target, g["host_name"]
+                if me in other.get("leads", []):
+                    other["leads"].remove(me)
+                if games.player(other, me):
+                    games.leave(other, me)
+            elif a == "addguest" and g["type"] == "room" and other["type"] in games.MANUAL_GAMES:
+                games.add_guest(other, body.guess)
+        except games.GameError:
+            pass
     if not g["players"] and not g["host"]:
         del store.session.games[g["code"]]
     store.save()
-    return games.view(g, me)
+    return full_view(g, me)
 
 
 @app.get("/qr/game/{code}.svg")
