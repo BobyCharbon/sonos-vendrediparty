@@ -1445,7 +1445,8 @@ async def no_cache_static(request: Request, call_next):
 APP_ENV = os.environ.get("APP_ENV", "prod")  # « test » : site de test (branche develop), avec un bandeau bien visible
 TEST_BANNER = ('<div style="position:fixed;top:0;left:0;right:0;z-index:9999;padding:3px 8px;text-align:center;'
                'font:800 11px/1.4 system-ui,sans-serif;letter-spacing:.12em;color:#1a1200;background:repeating-linear-gradient('
-               '45deg,#ffd84d 0 12px,#ffb703 12px 24px);pointer-events:none">🧪 VERSION DE TEST</div>')
+               '45deg,#ffd84d 0 12px,#ffb703 12px 24px);pointer-events:none">🧪 VERSION DE TEST</div>'
+               '<style>body{padding-top:calc(max(16px, env(safe-area-inset-top)) + 18px) !important}</style>')
 
 
 def page(name: str):

@@ -1,4 +1,6 @@
 // 🎮 Jeux, partagés par la page invités et l'admin.
+// iOS Safari n'applique :active (enfoncement des boutons au toucher) que si la page écoute touchstart.
+document.addEventListener("touchstart", () => {}, { passive: true });
 // Utilise les globales de la page : $, esc, store, toast, guestId, guestName (chargé après le script de la page).
 // Icônes des jeux (traits, couleur héritée) : chapeau et lunettes d'espion, deux personnes et un « ? ».
 const GAME_ICONS = {

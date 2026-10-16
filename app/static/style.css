@@ -1027,3 +1027,130 @@ body.pyr-full #game.g-qz { background: transparent; border: 0; padding: 0; box-s
 .qz-root.anim.fast .qz-ans, .qz-root.anim.fast .qz-qcard { animation: none; }
 .g-exit { width: 100%; margin-top: 8px; }
 .g-handover { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding: 10px; border-radius: 14px; background: rgba(255,255,255,.05); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Couche de design « Apple » (version de test) : réponse immédiate, ressorts,
+   matières translucides, contrôles natifs, typographie par taille, accessibilité.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* Ressorts : amorti critique (UI par défaut) et léger rebond (gestes avec élan : interrupteur, tiroir). */
+  --spring: cubic-bezier(.22, 1, .36, 1);
+  --spring-bounce: linear(0, .006, .025 2.8%, .101 6.1%, .539 18.9%, .721 25.3%, .849 31.5%, .937 38.1%, .968 41.8%, .991 45.7%,
+                          1.006 50.1%, 1.015 55%, 1.017 63.9%, 1.001 85.8%, 1);
+  --press: scale(.97);
+  --hairline: rgba(255, 255, 255, .08);
+  --edge-light: inset 0 1px 0 rgba(255, 255, 255, .14);
+  --lift-s: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 12px rgba(0, 0, 0, .22);
+  --lift-m: 0 2px 6px rgba(0, 0, 0, .3), 0 12px 32px rgba(0, 0, 0, .35);
+  --focus: 0 0 0 3px rgba(255, 79, 154, .45);
+}
+html { -webkit-text-size-adjust: 100%; }
+body { -webkit-font-smoothing: antialiased; font-optical-sizing: auto; }
+
+/* Typographie : l'interlettrage dépend de la taille (gros titres resserrés, petits libellés aérés). */
+h1 { letter-spacing: -0.028em; line-height: 1.1; }
+.game .question, .qz-qtext, .py-hero-t { letter-spacing: -0.015em; }
+h2 { letter-spacing: 0.06em; font-weight: 700; }
+.pill, .badge, .tabs button span { letter-spacing: 0.01em; }
+
+/* ── Boutons : enfoncement au contact du doigt, relâchement « ressort », relief discret ── */
+button {
+  min-height: 44px; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  transition: transform .32s var(--spring), box-shadow .2s ease, background-color .2s ease, opacity .2s ease, filter .2s ease;
+  box-shadow: var(--edge-light), var(--lift-s);
+}
+button:not(:disabled):active { transform: var(--press); transition-duration: .08s; filter: brightness(.94); }
+button.secondary { background: var(--card-2); box-shadow: var(--edge-light), inset 0 0 0 1px var(--hairline); }
+button.danger { box-shadow: var(--edge-light), inset 0 0 0 1px rgba(255, 107, 107, .18); }
+button:disabled { opacity: .42; box-shadow: none; filter: saturate(.5); }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; box-shadow: var(--focus); }
+.icon-btns button, .track button { min-height: 40px; }
+/* Boutons « icône » et petites puces : pas d'ombre lourde */
+.tabs button, .seg button, .chips button, .g-help, .py-icon { box-shadow: none; }
+
+/* ── Champs : halo de focus plutôt qu'un simple changement de bordure ── */
+input[type=text], input[type=search], input[type=password], select, textarea {
+  border-radius: 14px; border-color: var(--hairline); background-color: rgba(255, 255, 255, .05);
+  transition: box-shadow .2s ease, border-color .2s ease, background-color .2s ease;
+}
+input[type=text]:focus, input[type=search]:focus, input[type=password]:focus, select:focus, textarea:focus {
+  border-color: rgba(255, 79, 154, .7); background-color: rgba(255, 255, 255, .08); box-shadow: var(--focus);
+}
+input::placeholder, textarea::placeholder { color: #8a82a0; }
+
+/* ── Cartes : matière avec un liseré de lumière en haut ── */
+.card { box-shadow: var(--edge-light), inset 0 0 0 1px var(--hairline), var(--lift-s); }
+.track { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04); transition: transform .3s var(--spring), background-color .2s ease; }
+
+/* ── Contrôle segmenté façon iOS : pastille claire en relief sur une piste sombre ── */
+.seg { background: rgba(255, 255, 255, .06); border-radius: 13px; padding: 3px; gap: 2px; box-shadow: inset 0 0 0 1px var(--hairline); }
+.seg button { min-height: 38px; border-radius: 10px; font-weight: 600; transition: background-color .25s var(--spring), color .2s ease, transform .3s var(--spring); }
+.seg button.on { background: linear-gradient(180deg, #ff62a6, var(--accent)); box-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 3px 10px rgba(255, 79, 154, .35), var(--edge-light); }
+
+/* ── Puces ── */
+.chips button { min-height: 38px; border-radius: 999px; padding: 8px 14px; }
+
+/* ── Interrupteur : curseur qui s'étire à l'appui puis glisse avec un léger rebond ── */
+input.switch { width: 51px; height: 31px; background: rgba(120, 120, 128, .32); transition: background-color .25s ease; box-shadow: inset 0 0 0 1px var(--hairline); }
+input.switch::before {
+  top: 2px; left: 2px; width: 27px; height: 27px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, .3), 0 1px 1px rgba(0, 0, 0, .16);
+  transition: transform .45s var(--spring-bounce), width .2s var(--spring);
+}
+input.switch:active::before { width: 33px; }
+input.switch:checked { background: var(--ok); }
+input.switch:checked::before { transform: translateX(20px); }
+input.switch:checked:active::before { transform: translateX(14px); }
+
+/* ── Barre d'onglets : matière translucide, onglet actif en pastille ── */
+.tabs {
+  background: rgba(18, 13, 30, .72); backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-top: 0; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 -8px 24px rgba(0, 0, 0, .25);
+}
+.tabs button { min-height: 52px; transition: color .2s ease, background-color .25s var(--spring), transform .3s var(--spring); }
+.tabs button.on { background: rgba(255, 255, 255, .1); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); }
+.tabs button.on span { font-weight: 700; }
+
+/* ── Messages flottants : matière, apparition depuis le bas et disparition par le même chemin ── */
+.toast {
+  background: rgba(34, 28, 48, .82); backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: var(--edge-light), var(--lift-m); border-radius: 16px; font-weight: 600;
+  animation: toast-in .45s var(--spring) both;
+}
+.toast.ok { background: rgba(20, 90, 60, .86); }
+.toast.err { background: rgba(107, 31, 42, .88); }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 16px) scale(.96); } }
+
+/* ── Feuilles de règles : montent du bas et y retournent ; fond assombri pour la mise au point ── */
+.g-modal { backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); animation: scrim-in .25s ease both; }
+.g-sheet { animation: sheet-in .5s var(--spring) both; box-shadow: var(--edge-light), 0 -12px 40px rgba(0, 0, 0, .45); }
+@keyframes scrim-in { from { opacity: 0; } }
+@keyframes sheet-in { from { transform: translateY(40px); opacity: 0; } }
+
+/* ── Menu latéral des jeux : glisse depuis le bouton ☰ (gauche) et repart à gauche, avec un léger élan ── */
+.g-drawer-panel {
+  background: rgba(24, 18, 40, .86); backdrop-filter: blur(28px) saturate(170%); -webkit-backdrop-filter: blur(28px) saturate(170%);
+  transition: transform .5s var(--spring-bounce);
+}
+.g-drawer { transition: background-color .3s ease; }
+
+/* ── Boutons de jeu : même vocabulaire (enfoncement + relief) ── */
+.g-go, .py-main, .py-sub, .qz-joker, .qz-mode, .qz-theme, .qz-chips button { -webkit-tap-highlight-color: transparent; }
+.g-go:not(:disabled):active, .py-main:not(:disabled):active, .py-sub:not(:disabled):active { transform: var(--press); }
+.qz-mode:not(:disabled):active, .qz-theme:not(:disabled):active, .qz-chips button:not(:disabled):active { transform: scale(.95); transition-duration: .08s; }
+
+/* ── Accessibilité : mouvements, transparence, contraste ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .12s !important; }
+  button:not(:disabled):active { transform: none; }
+  .toast, .g-sheet { animation: fade-in .2s ease both !important; }
+  @keyframes fade-in { from { opacity: 0; } }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .tabs, .toast, .g-drawer-panel, .g-modal { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+  .tabs { background: #140f20; } .toast { background: #221c30; } .g-drawer-panel { background: #181228; }
+}
+@media (prefers-contrast: more) {
+  button.secondary, .card, .seg, input[type=text], input[type=search], select { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .45); }
+  .muted, .artist, .sub { color: #d6d0e6; }
+}
