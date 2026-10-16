@@ -708,6 +708,14 @@ function fmtDuration(sec) {
 let gameT0 = 0;  // début de la partie, sur l'horloge de ce téléphone
 setInterval(() => { if (game && $("gTimer")) $("gTimer").textContent = fmtDuration(Date.now() / 1000 - gameT0); }, 1000);
 
+// Pas de nouveau rendu si l'écran est identique : plus de clignotement ni d'animation rejouée à chaque mise à jour.
+function setGameHtml(html) {
+  const el = $("game");
+  if (el.dataset.html === html && el.firstChild) return false;
+  el.innerHTML = html;
+  el.dataset.html = html;
+  return true;
+}
 function renderGame(g) {
   if (dvDrag && g) { dvPending = g; return; }  // pas de rafraîchissement pendant qu'on tient la carte
   if (g && g !== game) gameT0 = Date.now() / 1000 - (g.elapsed || 0);  // recalé à chaque réponse du serveur
@@ -808,23 +816,24 @@ function renderGame(g) {
   $("gTop").innerHTML = gameTopBar(g);
   if (!pyrFull) {
     // Jeu réduit : un bandeau pour revenir dedans.
-    $("game").innerHTML = `<button class="py-main" data-pyr="enter">⛶ Reprendre ${esc(g.name)} en plein écran</button>`;
+    setGameHtml(`<button class="py-main" data-pyr="enter">⛶ Reprendre ${esc(g.name)} en plein écran</button>`);
   } else if (g.type === "quiz") {
     // Pas de nouveau rendu (ni d'animation) si rien n'a changé : sinon l'écran « flashe » à chaque rafraîchissement.
     const sig = quizSig(g), el = $("game");
     const fresh = el.dataset.qzSig !== sig || !el.querySelector(".qz-root");
     if (fresh) {
       const key = quizAnimKey(g);
+      el.dataset.html = "";
       el.innerHTML = lobbyInvite(g) + `<div class="qz-root ${key !== qzAnimKey ? "anim" : ""} ${g.quiz.settings.mode === "chrono" ? "fast" : ""}">${quizHtml(g)}</div>`;
       el.dataset.qzSig = sig;
       qzAnimKey = key;
     }
     quizAfter(g, fresh);
   } else if (g.type === "pyramid" || g.type === "biskit") {
-    $("game").innerHTML = lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g));
+    setGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g)));
     if (g.type === "pyramid") pyrWheel(g);
   } else {
-    $("game").innerHTML = lobbyInvite(g) + body;
+    setGameHtml(lobbyInvite(g) + body);
   }
   renderDrawer(g);
   gameFlashes(g);

@@ -520,7 +520,10 @@ function checkBuild(data) {
 function listen() {
   if (source) source.close();
   source = new EventSource("/api/events");
-  source.onmessage = (ev) => { checkBuild(ev.data); clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 100); };
+  source.onmessage = (ev) => {
+    checkBuild(ev.data); clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => { refresh(); if (typeof myGame !== "undefined" && myGame) refreshGame(); }, 100);
+  };
   source.onerror = () => { source.close(); setTimeout(listen, 3000); };
 }
 

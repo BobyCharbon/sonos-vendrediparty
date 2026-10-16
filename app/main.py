@@ -17,6 +17,7 @@ import segno
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 
 from . import games, links, quiz
@@ -79,6 +80,8 @@ async def lifespan(app):
 
 app = FastAPI(title="Vendredi Party", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+# Compression : les pages et scripts pèsent environ 4 fois moins sur le réseau (le flux temps réel n'est pas compressé).
+app.add_middleware(GZipMiddleware, minimum_size=800, compresslevel=6)
 
 # Un seul ajout/suppression à la fois : la position d'insertion dépend de l'état de la file.
 queue_lock = threading.Lock()
@@ -152,8 +155,25 @@ def watch_sonos():
         time.sleep(1.5)
 
 
+# Version de chaque partie (en mémoire) : un téléphone ne recharge sa partie que si elle a changé.
+game_versions: dict[str, int] = {}
+
+
+def save_games(*codes: str):
+    """Enregistre un changement de partie sans faire recharger la musique de tous les invités."""
+    for c in codes:
+        if c:
+            game_versions[c] = game_versions.get(c, 0) + 1
+    store.save(notify=False)
+
+
+def games_stamp() -> str:
+    return ",".join(f"{c}:{game_versions.get(c, 0)}" for c in sorted(store.session.games))
+
+
 def events_version() -> str:
-    return f"{store.version}.{_snap['version']}"
+    # « musique|parties » : chaque page ne recharge que ce qui la concerne.
+    return f"{store.version}.{_snap['version']}|{games_stamp()}"
 
 
 def require_active():
@@ -909,7 +929,7 @@ def end_game(code: str, by: str):
             store.session.games.pop(g["current"], None)
         _ended_games[code] = {"by": by, "host": g.get("host_name", ""), "game": games.GAMES.get(g["type"], ""), "at": time.time(),
                               "room": g.get("room") if room else None}
-        store.save()
+        save_games(code, (room or {}).get("code", ""), g.get("current") or "")
 
 
 def prune_games():
@@ -926,7 +946,7 @@ def prune_games():
     for code in old:
         del store.session.games[code]
     if old or changed:
-        store.save()
+        save_games(*old)
 
 
 def get_game(code: str) -> dict:
@@ -975,7 +995,7 @@ def create_game(body: GameCreate, request: Request):
     notify_admin({"title": f"🎮 {games.GAMES[g['type']]}", "body": f"{g['host_name']} lance une partie · code {g['code']}",
                   "url": "/admin#games", "tag": f"game-{g['code']}"}, kind="games")
     store.session.games[g["code"]] = g
-    store.save()
+    save_games(g["code"])
     return full_view(g, body.guest_id)
 
 
@@ -1088,7 +1108,7 @@ def sync_player_name(g: dict, guest_id: str, name: str):
         p["name"] = clean
         if g.get("host") == guest_id:
             g["host_name"] = clean
-        store.save()
+        save_games(g["code"], g.get("room") or "")
 
 
 @app.get("/api/games/{code}")
@@ -1099,7 +1119,7 @@ def game_state(code: str, request: Request, guest_id: str = "", name: str = ""):
     admin_lead(g, request, guest_id)
     if quiz.tick(g):  # Quiz : le temps a avancé (fin d'une question, question suivante…)
         g["updated_at"] = time.time()
-        store.save()
+        save_games(g["code"], g.get("room") or "")
     return full_view(g, guest_id)
 
 
@@ -1146,7 +1166,7 @@ def game_action(code: str, body: GameAction, request: Request):
             raise HTTPException(403, "Seul l'animateur lance les jeux")
         room_launch(g, me, body.settings)
         g["updated_at"] = time.time()
-        store.save()
+        save_games(g["code"], g.get("current") or "")
         return full_view(g, me)
     actions = {
         "join": (games.join, me, clean_name(body.name) if a == "join" else ""),
@@ -1215,7 +1235,7 @@ def game_action(code: str, body: GameAction, request: Request):
             pass
     if not g["players"] and not g["host"]:
         del store.session.games[g["code"]]
-    store.save()
+    save_games(g["code"], g.get("room") or "", g.get("current") or "")
     return full_view(g, me)
 
 
@@ -1531,18 +1551,31 @@ NO_CACHE = {"Cache-Control": "no-cache"}
 async def no_cache_static(request: Request, call_next):
     response = await call_next(request)
     if request.url.path.startswith("/static/"):
-        response.headers["Cache-Control"] = "no-cache"
+        # Adresse versionnée (?v=…, change à chaque déploiement) : le téléphone la garde, pas d'aller-retour.
+        versioned = request.query_params.get("v") == BUILD_ID
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable" if versioned else "no-cache"
     return response
+
+
+_pages: dict[str, str] = {}
+
+
+def page(name: str) -> Response:
+    """Page HTML avec des adresses de scripts et de styles versionnées (mises en cache jusqu'au prochain déploiement)."""
+    if name not in _pages:
+        html = (STATIC / name).read_text(encoding="utf-8")
+        _pages[name] = re.sub(r'(/static/[\w./-]+\.(?:js|css))(?=")', rf"\1?v={BUILD_ID}", html)
+    return Response(_pages[name], media_type="text/html; charset=utf-8", headers=NO_CACHE)
 
 
 @app.get("/")
 def index():
-    return FileResponse(STATIC / "index.html", headers=NO_CACHE)
+    return page("index.html")
 
 
 @app.get("/admin")
 def admin_page():
-    return FileResponse(STATIC / "admin.html", headers=NO_CACHE)
+    return page("admin.html")
 
 
 @app.get("/sw.js")

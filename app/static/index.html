@@ -600,10 +600,18 @@ function checkBuild(data) {
 function listen() {
   if (source) source.close();
   source = new EventSource("/api/events");
+  // Message : « site|musique|parties ». On ne recharge que ce qui a changé pour cet invité.
+  let lastMusic = "", lastGameKey = "";
   source.onmessage = (ev) => {
     checkBuild(ev.data);
+    const [, music = "", stamp = ""] = String(ev.data).split("|");
+    const mine = (code) => code ? (stamp.split(",").find((x) => x.startsWith(code + ":")) || "fin") : "";
+    const gameKey = mine(myGame) + "/" + mine(typeof myRoom === "string" ? myRoom : "");
+    const musicChanged = music !== lastMusic, gameChanged = gameKey !== lastGameKey;
+    lastMusic = music; lastGameKey = gameKey;
+    if (!musicChanged && !gameChanged) return;
     clearTimeout(refreshTimer);
-    refreshTimer = setTimeout(() => { refresh(); if (myGame) refreshGame(); }, 100);
+    refreshTimer = setTimeout(() => { if (musicChanged) refresh(); if (gameChanged && myGame) refreshGame(); }, 60);
   };
   source.onerror = () => { source.close(); setTimeout(listen, 3000); };
 }
