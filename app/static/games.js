@@ -709,6 +709,35 @@ let gameT0 = 0;  // début de la partie, sur l'horloge de ce téléphone
 setInterval(() => { if (game && $("gTimer")) $("gTimer").textContent = fmtDuration(Date.now() / 1000 - gameT0); }, 1000);
 
 // Pas de nouveau rendu si l'écran est identique : plus de clignotement ni d'animation rejouée à chaque mise à jour.
+// Met à jour un élément vers un nouveau HTML en ne modifiant que ce qui diffère : les nœuds identiques restent
+// en place (pas de flash, pas d'appui perdu, champ en cours de saisie conservé). data-key différent = nœud remplacé.
+function morph(el, html) {
+  const tpl = document.createElement("template");
+  tpl.innerHTML = html;
+  morphKids(el, tpl.content);
+}
+function morphKids(a, b) {
+  const an = [...a.childNodes], bn = [...b.childNodes];
+  bn.forEach((y, i) => {
+    const x = an[i];
+    if (!x) a.appendChild(y);
+    else if (x.nodeType !== y.nodeType || x.nodeName !== y.nodeName
+      || (x.nodeType === 1 && x.getAttribute("data-key") !== y.getAttribute("data-key"))) a.replaceChild(y, x);
+    else morphNode(x, y);
+  });
+  for (let i = bn.length; i < an.length; i++) an[i].remove();
+}
+function morphNode(x, y) {
+  if (x.nodeType !== 1) { if (x.nodeValue !== y.nodeValue) x.nodeValue = y.nodeValue; return; }
+  if (x.isEqualNode(y)) return;
+  const field = /^(INPUT|TEXTAREA|SELECT)$/.test(x.nodeName);
+  for (const { name } of [...x.attributes]) if (!y.hasAttribute(name) && !(field && name === "value")) x.removeAttribute(name);
+  for (const { name, value } of [...y.attributes]) if (x.getAttribute(name) !== value && !(field && name === "value")) x.setAttribute(name, value);
+  if (!field) morphKids(x, y);
+}
+const QUESTION_TYPES = ["whoof", "never"];  // jeux à questions (« Qui de nous ? », « Je n'ai jamais »)
+// Raccourci : patch.gameHost = html  ⇔  morph($("gameHost"), html)
+const patch = new Proxy({}, { set(_, id, html) { morph($(id), html); return true; } });
 function setGameHtml(html) {
   const el = $("game");
   if (el.dataset.html === html && el.firstChild) return false;
@@ -799,21 +828,12 @@ function renderGame(g) {
     } else if (g.phase === "reveal") {
       body = `${lastLine}<div class="artist">${g.is_host ? "Lance la manche suivante quand vous êtes prêts." : "L'animateur lance la manche suivante…"}</div>`;
     }
-  } else if (g.phase === "question" && g.type === "never") {
-    body = `<div class="question">${esc(g.question)}</div>
-      <div class="never-btns">
-        <button class="${me.vote === "yes" ? "" : "secondary"}" data-gact="vote" data-target="yes">${me.vote === "yes" ? "✓ " : ""}🍻 Je l'ai déjà fait</button>
-        <button class="${me.vote === "no" ? "" : "secondary"}" data-gact="vote" data-target="no">${me.vote === "no" ? "✓ " : ""}😇 Jamais</button>
-      </div>
-      <div class="artist" style="margin-top:8px">${g.votes_count}/${g.players.length} réponses · révélées à la fin</div>`;
-  } else if (g.phase === "question") {  // Qui de nous ?
-    body = `<div class="question">${esc(g.question)}</div>
-      <div class="chips" style="margin-top:10px">${g.players.map((p) => `<button class="${me.vote === p.pid ? "" : "secondary"}" data-gact="vote" data-target="${esc(p.pid)}">${me.vote === p.pid ? "✓ " : ""}${p.pid === me.pid ? "Moi" : esc(p.name)}</button>`).join("")}</div>
-      <div class="artist" style="margin-top:8px">${g.votes_count}/${g.players.length} votes · anonyme</div>`;
+  } else if (g.phase === "question" && QUESTION_TYPES.includes(g.type)) {
+    body = questionHtml(g, me);
   } else if (g.phase === "results") {
-    body = `<div class="question">${esc(g.question)}</div>${resultsHtml(g)}`;
+    body = `<div class="qs" data-key="r${g.round}"><div class="question qs-q qs-small">${esc(g.question)}</div>${resultsHtml(g)}</div>`;
   }
-  $("gTop").innerHTML = gameTopBar(g);
+  patch.gTop = gameTopBar(g);
   if (!pyrFull) {
     // Jeu réduit : un bandeau pour revenir dedans.
     setGameHtml(`<button class="py-main" data-pyr="enter">⛶ Reprendre ${esc(g.name)} en plein écran</button>`);
@@ -833,13 +853,14 @@ function renderGame(g) {
     setGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g)));
     if (g.type === "pyramid") pyrWheel(g);
   } else {
-    setGameHtml(lobbyInvite(g) + body);
+    const el = $("game"), html = lobbyInvite(g) + body;
+    if (el.dataset.html !== html || !el.firstChild) { morph(el, html); el.dataset.html = html; }
   }
   renderDrawer(g);
   gameFlashes(g);
   turnSignal(g);
   const input = $("guessInput");
-  if (input) { input.value = guessDraft; input.addEventListener("input", () => { guessDraft = input.value; }); }
+  if (input && !input._vp) { input._vp = 1; input.value = guessDraft; input.addEventListener("input", () => { guessDraft = input.value; }); }
   renderRoulette(g);
   renderHud(g);
   bjOutcomeFx(g);
@@ -850,16 +871,56 @@ function renderGame(g) {
   if ($("gameQr").getAttribute("src") !== qr) $("gameQr").src = qr;
 }
 
+// Pastille ronde avec l'initiale, d'une couleur stable par joueur.
+function avatar(p, cls = "") {
+  let h = 0;
+  for (const c of p.pid || p.name || "") h = (h * 31 + c.charCodeAt(0)) % 360;
+  return `<span class="qs-av ${cls}" style="--h:${h}" aria-hidden="true">${esc((p.name || "?").trim().charAt(0).toUpperCase())}</span>`;
+}
+// « Qui de nous ? » et « Je n'ai jamais » : la question, une consigne, les choix, et qui a déjà répondu.
+function questionHtml(g, me) {
+  const n = g.votes_count, total = g.players.length, mine = me?.vote;
+  const sips = g.options?.sips || 0;
+  const help = !me ? "Tu regardes la partie : les réponses s'affichent à la fin."
+    : g.type === "never"
+      ? (mine ? "Réponse enregistrée. Tu peux encore changer d'avis." : "Réponds en secret : tout est révélé quand tout le monde a répondu.")
+      : (mine ? `Tu as voté pour <b>${mine === me.pid ? "toi" : esc(g.players.find((p) => p.pid === mine)?.name || "?")}</b>. Touche un autre nom pour changer.`
+              : "Vote pour la personne qui correspond le mieux. C'est anonyme.");
+  const choices = !me ? "" : g.type === "never"
+    ? `<div class="qs-yn" role="group" aria-label="Ta réponse">
+        <button type="button" class="qs-opt ${mine === "yes" ? "on" : ""}" data-gact="vote" data-target="yes" aria-pressed="${mine === "yes"}">
+          <span class="qs-emo" aria-hidden="true">🍻</span><b>Je l'ai déjà fait</b>${sips ? `<small>Je bois ${sips} gorgée${sips > 1 ? "s" : ""}</small>` : ""}</button>
+        <button type="button" class="qs-opt ${mine === "no" ? "on" : ""}" data-gact="vote" data-target="no" aria-pressed="${mine === "no"}">
+          <span class="qs-emo" aria-hidden="true">😇</span><b>Jamais</b>${sips ? `<small>Je ne bois pas</small>` : ""}</button>
+      </div>`
+    : `<div class="qs-grid" role="group" aria-label="Ton vote">${g.players.map((p) => `
+        <button type="button" class="qs-pick ${mine === p.pid ? "on" : ""}" data-gact="vote" data-target="${esc(p.pid)}" aria-pressed="${mine === p.pid}">
+          ${avatar(p)}<span class="qs-name">${p.pid === me.pid ? "Moi" : esc(p.name)}</span></button>`).join("")}</div>`;
+  const who = g.players.map((p) => `<span class="qs-who ${p.voted ? "ok" : ""}" title="${esc(p.name)}${p.voted ? " a répondu" : " réfléchit…"}">${avatar(p)}</span>`).join("");
+  return `<div class="qs" data-key="q${g.round}">
+    <div class="question qs-q">${esc(g.question)}</div>
+    <p class="qs-help" role="status">${help}</p>
+    ${choices}
+    <div class="qs-progress"><div class="qs-whos">${who}</div>
+      <span><b>${n}</b> sur ${total} ${n > 1 ? "ont" : "a"} ${g.type === "never" ? "répondu" : "voté"}</span></div>
+  </div>`;
+}
+
 function resultsHtml(g) {
   if (!g.results) return "";
   if (g.type === "never") return neverResultsHtml(g);
   const max = Math.max(1, ...g.results.map((r) => r.count));
   const sips = g.options?.sips || 0;
-  const drinkers = g.results.filter((r) => r.count === max).map((r) => esc(r.name));
-  const drink = sips && drinkers.length
-    ? `<div class="drink">🍻 ${drinkers.join(" et ")} boi${drinkers.length > 1 ? "vent" : "t"} ${sips} gorgée${sips > 1 ? "s" : ""} !</div>` : "";
-  return drink + `<div class="list" style="margin-top:10px">${g.results.map((r) => `<div class="bar ${r.count === max ? "top" : ""}" style="--w:${Math.round(100 * r.count / max)}%">
-    <span>${r.count === max ? "👑 " : ""}${esc(r.name)}</span><b>${r.count}</b></div>`).join("") || `<div class="artist">Personne n'a voté</div>`}</div>`;
+  const top = g.results.filter((r) => r.count === max && r.count > 0);
+  if (!top.length) return `<p class="qs-help">Personne n'a voté.</p>`;
+  const drink = sips ? `<div class="qs-drink">🍻 ${top.length > 1 ? "Ils boivent" : "Boit"} ${sips} gorgée${sips > 1 ? "s" : ""}</div>` : "";
+  const rest = g.results.filter((r) => !top.includes(r));
+  return `<div class="qs-win">
+      <div class="qs-win-names">${top.map((r) => `<span>👑 ${esc(r.name)}</span>`).join("")}</div>
+      <div class="qs-win-n">${max} vote${max > 1 ? "s" : ""} sur ${g.players.length}</div>${drink}
+    </div>
+    ${rest.length ? `<div class="list qs-bars">${rest.map((r) => `<div class="bar" style="--w:${Math.round(100 * r.count / max)}%">
+      <span>${esc(r.name)}</span><b>${r.count}</b></div>`).join("")}</div>` : ""}`;
 }
 
 // 🎆 Animation de fin de main, seulement sur l'écran du joueur concerné.
@@ -931,7 +992,7 @@ function renderHud(g) {
     items.push(`<div class="hud-item"><span>🍻</span><b>${me.drink || 0}</b><small>bue${me.drink > 1 ? "s" : ""}</small></div>`);
     if (isBJ(g)) items.push(`<div class="hud-item"><span>🎁</span><b>${me.give || 0}</b><small>donnée${me.give > 1 ? "s" : ""}</small></div>`);
   }
-  $("gameHud").innerHTML = items.join("");
+  patch.gameHud = items.join("");
   $("gameHud").className = "g-hud " + (GAME_THEME[g.type] || "") + (items.length && g.phase !== "lobby" ? "" : " hidden");
 }
 const sipsBadge = (p) => p.drink || p.give ? ` <span class="artist">· 🍻 ${p.drink || 0}${p.give ? ` · 🎁 ${p.give}` : ""}</span>` : "";
@@ -1007,7 +1068,7 @@ function renderBJHost(g, btn) {
     play: turnName ? btn("skip", `⏭ Passer le tour de ${esc(turnName)}`, "secondary grow") : "",
     results: btn("next", "▶︎ Main suivante", "grow"),
   }[g.phase] || "";
-  $("gameHost").innerHTML = `
+  patch.gameHost = `
     ${controls ? `<div class="row" style="margin-top:10px">${controls}</div>` : ""}
     <h2>À la table (${g.players.length})</h2>
     <div class="list">${t.seats.map((x) => {
@@ -1337,7 +1398,7 @@ document.addEventListener("click", (ev) => {
 });
 
 function renderPyrHost(g) {
-  $("gameHost").innerHTML = `<h2>À la table (${g.players.length})</h2>
+  patch.gameHost = `<h2>À la table (${g.players.length})</h2>
     <div class="list">${g.players.map((p) => `<div class="track"><div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}${sipsBadge(p)}</div></div>
       ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie" aria-label="Exclure de la partie">✕</button>` : ""}</div>`).join("")
       || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
@@ -1515,7 +1576,7 @@ document.addEventListener("submit", (ev) => {
 });
 function renderBkHost(g) {
   const movable = g.is_host && g.phase === "lobby";
-  $("gameHost").innerHTML = `<h2>Autour de la table (${g.players.length})</h2>
+  patch.gameHost = `<h2>Autour de la table (${g.players.length})</h2>
     ${movable ? `<p class="artist" style="margin:-4px 0 8px">Range les joueurs dans l'ordre où ils sont assis (vers la gauche) avec ⬆ ⬇.</p>` : ""}
     <div class="list">${g.players.map((p, i) => `<div class="track"><div class="meta"><div class="title">${i + 1}. ${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}${sipsBadge(p)}</div></div>
       <div class="icon-btns">
@@ -1612,7 +1673,7 @@ function renderDivanHost(g, btn) {
   const controls = g.phase === "lobby"
     ? (g.is_host ? btn("start", "▶︎ Ouvrir la séance", "grow", g.players.length ? "" : "disabled") : "")
     : d.can_lead || d.can_back ? (d.can_back ? btn("dback", "↩︎ Retour", "secondary") : "") + (!d.can_lead ? "" : btn("djoker", d.joker ? "Joker utilisé" : "🃏 Joker : autre carte", "secondary grow", d.joker ? "disabled" : "") + btn("dnext", "Au suivant ▶︎", "grow")) : "";
-  $("gameHost").innerHTML = `
+  patch.gameHost = `
     ${controls ? `<div class="row" style="margin-top:10px">${controls}</div>` : ""}
     <h2>Autour du divan (${g.players.length})</h2>
     <div class="list">${g.players.map((p) => `
@@ -1694,7 +1755,7 @@ function renderTmcHost(g, btn) {
   }[g.phase] || "";
   const finish = g.is_host && !["lobby", "end"].includes(g.phase) ? `<button class="secondary" data-gact="finish" style="width:100%;margin-top:8px">🏁 Terminer et voir le bilan</button>` : "";
   const playing = g.phase !== "lobby";
-  $("gameHost").innerHTML = `
+  patch.gameHost = `
     ${controls ? `<div class="row" style="margin-top:10px">${controls}</div>` : ""}${finish}
     ${playing && g.phase !== "end" ? tmcMine(g) : ""}
     ${playing && g.phase !== "end" ? `<h2>Classement</h2>${tmcPodium(g)}` : ""}
@@ -1848,7 +1909,7 @@ function renderCasinoHost(g, btn) {
   const resultTxt = (t) => !t.result || !revealed ? "" : c.drinks
     ? [t.result.drink ? `🍻 ${t.result.drink}` : "", t.result.give ? `🎁 ${t.result.give}` : ""].filter(Boolean).join(" · ") || "rien"
     : (t.result.net > 0 ? `+${t.result.net}` : `${t.result.net}`) + (t.result.jackpot ? " 🎯" : "");
-  $("gameHost").innerHTML = `
+  patch.gameHost = `
     ${controls ? `<div class="row" style="margin-top:10px">${controls}</div>` : ""}
     ${!me ? (g.phase !== "lobby" ? `<button data-gact="join" style="width:100%;margin-top:10px">S'asseoir à la table</button>` : "") : `
       ${open ? `<div class="cs-chips" role="group" aria-label="Valeur du jeton">${values.map((v) => `<button type="button" class="cs-chip v${values.indexOf(v)} ${v === casinoChip ? "on" : ""}" data-cchip="${v}" ${v > left ? "disabled" : ""}>${c.drinks ? `🍻${v}` : v}</button>`).join("")}
@@ -1988,9 +2049,10 @@ function neverResultsHtml(g) {
   const drink = sips && did.length
     ? `<div class="drink">🍻 ${did.map((r) => esc(r.name)).join(", ")} boi${did.length > 1 ? "vent" : "t"} ${sips} gorgée${sips > 1 ? "s" : ""} !</div>`
     : !did.length ? `<div class="drink">😇 Personne ne l'a fait… tout le monde est sage ?</div>` : "";
-  const col = (label, list) => `<div class="never-col"><div class="artist">${label} (${list.length})</div>
+  const col = (emo, label, list, cls) => `<div class="never-col ${cls}"><div class="never-head"><span aria-hidden="true">${emo}</span><b>${list.length}</b></div>
+    <div class="never-lbl">${label}</div>
     <div class="chips">${list.map((r) => `<span class="pill">${esc(r.name)}</span>`).join("") || `<span class="artist">personne</span>`}</div></div>`;
-  return drink + `<div class="never-res">${col("🍻 Déjà fait", did)}${col("😇 Jamais", never)}</div>`;
+  return drink + `<div class="never-res">${col("🍻", "L'ont déjà fait", did, "did")}${col("😇", "Jamais", never, "nev")}</div>`;
 }
 
 // Commandes de l'animateur (créateur de la partie) et liste des joueurs.
@@ -2004,7 +2066,7 @@ function renderGameHost(g) {
     vote: btn("close_vote", `Clore le vote (${g.votes_count}/${alive.length})`, "grow"),
     white_guess: btn("skip_guess", "Passer la devinette", "secondary grow"),
     reveal: btn("next", "▶︎ Manche suivante", "grow"),
-    question: btn("close_vote", `Voir les résultats (${g.votes_count}/${g.players.length})`, "grow") + btn("next", "⏭", "secondary", `title="Changer de question"`),
+    question: btn("close_vote", g.votes_count >= g.players.length ? "Voir les résultats" : `Voir les résultats (${g.votes_count}/${g.players.length})`, "grow") + btn("next", "Autre question", "secondary", `title="Passer cette question sans résultat"`),
     results: btn("next", "▶︎ Question suivante", "grow"),
     end: btn("restart", "🔁 Rejouer avec les mêmes joueurs", "grow"),
   }[g.phase] || "";
@@ -2012,16 +2074,27 @@ function renderGameHost(g) {
   if (isBJ(g)) return renderBJHost(g, btn);
   if (g.type === "casino") return renderCasinoHost(g, btn);
   if (g.type === "divan") return renderDivanHost(g, btn);
-  if (["pyramid", "biskit", "quiz", "room"].includes(g.type)) { $("gameHost").innerHTML = ""; return; }
+  if (["pyramid", "biskit", "quiz", "room"].includes(g.type)) { patch.gameHost = ""; return; }
   if (g.type === "tmc") return renderTmcHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
   const canRemove = g.is_host;
   const seeRoles = g.phase === "end" || (g.master && showRoles);
   const speaking = g.type === "undercover" && g.phase === "words";
   const canMove = g.is_host && (speaking || g.phase === "lobby");
+  // Pendant les questions, la liste est dans le menu ☰ ; ici, seulement ceux qui jouent sans téléphone (l'animateur répond pour eux).
+  if (QUESTION_TYPES.includes(g.type) && (g.phase === "question" || g.phase === "results")) {
+    const manual = g.type === "never" && g.phase === "question" ? g.players.filter((p) => p.manual) : [];
+    patch.gameHost = `${controls ? `<div class="row qs-host">${controls}</div>` : ""}
+      ${manual.length ? `<h2>Sans téléphone : réponds pour eux</h2><div class="list">${manual.map((p) => `<div class="track"><div class="meta"><div class="title">${esc(p.name)}</div></div>
+        <div class="icon-btns">
+          <button class="${p.answer === "yes" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="yes" aria-pressed="${p.answer === "yes"}">🍻 Déjà fait</button>
+          <button class="${p.answer === "no" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="no" aria-pressed="${p.answer === "no"}">😇 Jamais</button>
+        </div></div>`).join("")}</div>` : ""}`;
+    return;
+  }
   const list = speaking ? g.order_pids.map((pid) => g.players.find((p) => p.pid === pid)).filter(Boolean)
     .concat(g.players.filter((p) => !g.order_pids.includes(p.pid))) : g.players;
-  $("gameHost").innerHTML = `
+  patch.gameHost = `
     ${controls ? `<div class="row" style="margin-top:10px">${controls}</div>` : ""}
     <h2>${speaking ? "Ordre de parole" : "Joueurs"} (${g.players.length})${g.master && g.type === "undercover" ? ` <button class="secondary" data-gact="roles" style="padding:2px 8px">${showRoles ? "🙈 Cacher" : "👁 Rôles"}</button>` : ""}</h2>
     <div class="list">${list.map((p, i) => `
@@ -2140,7 +2213,7 @@ function gameTopBar(g) {
   const alerts = (g.pyr?.pending?.length || 0) + (g.is_host ? (g.pyr?.peeks || []).filter((r) => r.status === "pending").length : 0);
   return `<button type="button" class="py-icon g-burger" data-gdrawer="open" aria-label="Menu : joueurs, code, QR">☰${alerts ? `<i class="badge">${alerts}</i>` : ""}</button>
     <div class="g-top-mid"><div class="g-top-name"><span class="g-top-ico" aria-hidden="true">${GAME_ICONS[g.type] || ""}</span>${esc(g.name)}</div>
-      <div class="g-top-sub">${g.mode ? esc(g.mode) + " · " : ""}${g.type === "room" ? "Soirée" : phase}${round} · ${g.room || g.type === "room" ? "salle" : "code"} <b>${esc(g.room || g.code)}</b> · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
+      <div class="g-top-sub">${g.mode ? esc(g.mode) + " · " : ""}${QUESTION_TYPES.includes(g.type) && g.round && g.phase !== "lobby" && g.phase !== "end" ? `Question ${g.round}` : (g.type === "room" ? "Soirée" : phase) + round} · ${g.room || g.type === "room" ? "salle" : "code"} <b>${esc(g.room || g.code)}</b> · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
     <button type="button" class="py-icon g-min" data-gdrawer="minimize" aria-label="Réduire le jeu (revenir à la musique)">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
     ${helpBtn(g.type, true)}`;
@@ -2148,7 +2221,7 @@ function gameTopBar(g) {
 // Menu latéral : code, QR, participants (et outils de l'animateur ou de l'admin), réduire, quitter.
 function renderDrawer(g) {
   const lead = g.is_host, movable = lead && g.phase === "lobby";
-  $("gDrawerPlayers").innerHTML = `<h2>Participants (${g.players.length})</h2>
+  patch.gDrawerPlayers = `<h2>Participants (${g.players.length})</h2>
     <div class="list">${g.players.map((p, i) => `<div class="track"><div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${p.pid === g.me?.pid ? " (toi)" : ""}${playerTag(g, p)}${p.pending ? " ⏳" : ""}${sipsBadge(p)}</div></div>
       <div class="icon-btns">
         ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter" aria-label="Monter">⬆</button>` : ""}
@@ -2158,7 +2231,7 @@ function renderDrawer(g) {
     ${movable && ["biskit", "pyramid"].includes(g.type) ? `<p class="artist" style="margin-top:6px">Range les joueurs dans l'ordre où ils sont assis (vers la gauche).</p>` : ""}
     ${(g.type !== "pyramid" || g.phase === "lobby") ? manualForm(g) : ""}
     ${lead && !g.me && (g.phase === "lobby" || g.phase === "end") ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">🙋 Je joue aussi</button>` : ""}`;
-  $("gDrawerExit").innerHTML = exitHtml(g);
+  patch.gDrawerExit = exitHtml(g);
 }
 function openDrawer() { $("gDrawer").classList.remove("hidden"); requestAnimationFrame(() => $("gDrawer").classList.add("open")); }
 function closeDrawer() { $("gDrawer").classList.remove("open"); setTimeout(() => $("gDrawer").classList.add("hidden"), 250); }

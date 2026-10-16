@@ -1382,3 +1382,54 @@ input::placeholder, textarea::placeholder { color: #a39bbd; }
 .msg.unread::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--accent-2); vertical-align: middle; }
 /* QR du menu : invisible tant qu'il n'est pas chargé (pas de case d'image cassée) */
 img.qr:not([src]) { visibility: hidden; }
+
+/* ── Jeux à questions (« Qui de nous ? », « Je n'ai jamais ») ── */
+.qs { display: flex; flex-direction: column; gap: 14px; }
+.qs-q { font-size: clamp(1.45rem, 6.4vw, 2.1rem) !important; line-height: 1.15 !important; letter-spacing: -0.02em; animation: qs-in .45s cubic-bezier(.2, .8, .2, 1) both; }
+.qs-q.qs-small { font-size: clamp(1.1rem, 4.6vw, 1.35rem) !important; opacity: .9; animation: none; }
+@keyframes qs-in { from { opacity: 0; transform: translateY(10px); } }
+.qs-help { margin: -4px 0 0; color: var(--g-soft, var(--muted)); font-size: .95rem; line-height: 1.4; }
+.qs-help b { color: #fff; }
+/* Je n'ai jamais : deux grands choix */
+.qs-yn { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+#game .qs-opt { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  min-height: clamp(132px, 24vh, 230px); padding: 14px 10px; border-radius: 20px; background: var(--g-chip); color: #fff;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .08), 0 6px 14px rgba(0, 0, 0, .18);
+  transition: transform .15s ease, background-color .2s ease, box-shadow .2s ease, opacity .2s ease; }
+.qs-opt .qs-emo { font-size: 2.4rem; line-height: 1; }
+.qs-opt b { font-size: 1.05rem; }
+.qs-opt small { font-size: .8rem; opacity: .8; font-weight: 600; }
+#game .qs-opt.on { background: var(--g-accent); color: var(--g-ink); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .5), 0 10px 22px rgba(0, 0, 0, .28); transform: translateY(-2px); }
+.qs-yn:has(.on) .qs-opt:not(.on), .qs-grid:has(.on) .qs-pick:not(.on) { opacity: .62; }
+/* Qui de nous : une tuile par joueur */
+.qs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(132px, 44%), 1fr)); gap: 8px; }
+#game .qs-pick { display: flex; align-items: center; gap: 10px; min-height: clamp(56px, 8vh, 76px); padding: 8px 12px; border-radius: 16px;
+  background: var(--g-chip); color: #fff; text-align: left; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .06);
+  transition: transform .15s ease, background-color .2s ease, opacity .2s ease; }
+#game .qs-pick.on { background: var(--g-accent); color: var(--g-ink); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .5), 0 8px 18px rgba(0, 0, 0, .25); }
+.qs-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: 1rem; }
+.qs-av { flex: none; display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+  background: hsl(var(--h) 70% 62%); color: hsl(var(--h) 60% 16%); font: 800 .95rem system-ui, sans-serif; }
+/* Qui a répondu */
+.qs-progress { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-top: 2px; color: var(--g-soft, var(--muted)); font-size: .9rem; font-variant-numeric: tabular-nums; }
+.qs-progress b { color: #fff; }
+.qs-whos { display: flex; flex-wrap: wrap; gap: 6px; }
+.qs-who { position: relative; }
+.qs-who .qs-av { width: 28px; height: 28px; font-size: .75rem; box-shadow: 0 0 0 2px var(--g-bg, var(--card)); filter: grayscale(1) brightness(.6); opacity: .7; transition: filter .3s ease, opacity .3s ease; }
+.qs-who.ok .qs-av { filter: none; opacity: 1; }
+.qs-who.ok::after { content: "✓"; position: absolute; right: -2px; bottom: -3px; width: 13px; height: 13px; border-radius: 50%; display: grid; place-items: center;
+  background: #2ecc71; color: #06301a; font: 900 .55rem system-ui, sans-serif; box-shadow: 0 0 0 2px var(--g-bg, var(--card)); }
+.qs-host { margin-top: 12px; }
+/* Résultats de « Qui de nous ? » */
+.qs-win { text-align: center; padding: 18px 14px; border-radius: 20px; background: rgba(0, 0, 0, .22); animation: qs-in .5s cubic-bezier(.2, .8, .2, 1) both; }
+.qs-win-names { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; font: 800 clamp(1.6rem, 8vw, 2.4rem)/1.1 "Bricolage Grotesque", system-ui, sans-serif; color: var(--g-accent, #fff); }
+.qs-win-n { margin-top: 6px; color: var(--g-soft, var(--muted)); font-variant-numeric: tabular-nums; }
+.qs-drink { display: inline-block; margin-top: 10px; padding: 6px 12px; border-radius: 99px; background: rgba(255, 255, 255, .14); font-weight: 700; }
+.qs-bars { margin-top: 0; }
+/* Résultats de « Je n'ai jamais » */
+.never-col { padding: 14px 12px; gap: 8px; }
+.never-head { display: flex; align-items: center; gap: 8px; font-size: 1.6rem; }
+.never-head b { font: 800 2.2rem/1 "Bricolage Grotesque", system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.never-lbl { font-weight: 700; color: var(--g-soft, var(--muted)); }
+.never-col.did { box-shadow: inset 0 0 0 2px var(--g-accent, transparent); }
+@media (prefers-reduced-motion: reduce) { .qs-q, .qs-win { animation: none; } .game .qs-opt.on { transform: none; } }

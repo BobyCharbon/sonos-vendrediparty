@@ -1942,6 +1942,8 @@ def start(g: dict, rng: random.Random = random):
         bj_open_bets(g)
     elif g["type"] == "undercover":
         _deal(g, rng)
+    elif g["type"] not in QUESTION_GAMES:
+        raise GameError("Ce jeu ne se lance pas ainsi")
     else:
         if len(g["players"]) < 2:
             raise GameError("Il faut au moins 2 joueurs")
