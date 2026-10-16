@@ -10,7 +10,6 @@ services:
     restart: unless-stopped
     network_mode: host
     environment:
-      APP_ENV: test
       PORT: ${PORT:-8091}
       ADMIN_PIN: ${ADMIN_PIN}
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID}

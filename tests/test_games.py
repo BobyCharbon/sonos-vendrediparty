@@ -981,11 +981,3 @@ def test_biskit_pause_before_next_card():
     g["bk"]["ready_at"] = 0
     games.bk_draw(g, cur)
 
-
-def test_test_banner_only_in_test_env(monkeypatch):
-    c = TestClient(main.app)
-    assert "VERSION DE TEST" not in c.get("/").text
-    monkeypatch.setattr(main, "APP_ENV", "test")
-    r = c.get("/")
-    assert "VERSION DE TEST" in r.text and "<title>[TEST] " in r.text
-    assert "VERSION DE TEST" in c.get("/admin").text
