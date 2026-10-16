@@ -26,7 +26,7 @@
   <div id="pin" class="hidden">
     <p class="sub">Scanne le QR de l'hôte ou entre le code de la soirée pour rejoindre la file d'attente.<br>Pour jouer, va dans 🎮 Jeux : pas besoin de code.</p>
     <form id="pinForm" class="row">
-      <input id="pinInput" class="grow pin-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+      <input id="pinInput" class="grow pin-input" type="text" aria-label="Code de la soirée" spellcheck="false" inputmode="numeric" pattern="[0-9]*" maxlength="4"
              placeholder="••••" autocomplete="one-time-code" required>
       <button>Entrer</button>
     </form>
@@ -39,7 +39,7 @@
   <div id="hello" class="hidden">
     <p class="sub">Ajoute tes sons à la file d'attente. Comment tu t'appelles ?</p>
     <form id="nameForm" class="row">
-      <input id="nameInput" class="grow" type="text" maxlength="30" placeholder="Ton prénom" autocomplete="given-name" required>
+      <input id="nameInput" class="grow" type="text" aria-label="Ton prénom" spellcheck="false" maxlength="30" placeholder="Ton prénom" autocomplete="given-name" required>
       <button>C'est parti</button>
     </form>
   </div>
@@ -58,7 +58,7 @@
     </label>
 
     <h2>Ajouter un titre</h2>
-    <input id="q" type="search" placeholder="Titre, artiste… ou colle un lien (Spotify, Deezer, YouTube)" autocomplete="off" enterkeyhint="search">
+    <input id="q" type="search" aria-label="Rechercher un titre ou coller un lien" placeholder="Titre, artiste… ou colle un lien (Spotify, Deezer, YouTube)" autocomplete="off" enterkeyhint="search">
     <div id="results" class="list" style="margin-top:8px"></div>
 
     <h2>À venir <span id="count"></span></h2>
@@ -92,7 +92,7 @@
   </nav>
 
   <div id="install" class="install hidden">
-    <img src="/static/apple-touch-icon.png?v=2" alt="">
+    <img src="/static/apple-touch-icon.png?v=2" width="44" height="44" alt="">
     <div class="grow">
       <b>Ajoute « Party ! » à ton écran d'accueil</b>
       <div class="artist" id="installHelp"></div>
@@ -104,7 +104,7 @@
   <div id="installSheet" class="i-modal hidden" role="dialog" aria-modal="true" aria-labelledby="iTitle">
     <div class="i-sheet">
       <div class="i-head">
-        <img src="/static/apple-touch-icon.png?v=2" alt="">
+        <img src="/static/apple-touch-icon.png?v=2" width="44" height="44" alt="">
         <div><div class="i-title" id="iTitle">Installe « Party ! »</div>
           <div class="artist">Comme une vraie app : plein écran, toujours à portée de main, avec les notifications.</div></div>
       </div>
@@ -124,7 +124,7 @@
     <div id="iArrows" aria-hidden="true"></div>
   </div>
 
-  <div id="toast" class="toast hidden"></div>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
 <script src="/static/push.js"></script>
 <script>

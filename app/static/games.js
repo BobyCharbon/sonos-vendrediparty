@@ -323,7 +323,7 @@ document.getElementById("gamesRoot").innerHTML = `
     <div id="gName" class="hidden">
       <p class="sub">Comment tu t'appelles ?</p>
       <form id="gNameForm" class="row">
-        <input id="gNameInput" class="grow" type="text" maxlength="30" placeholder="Ton prénom" autocomplete="given-name" required>
+        <input id="gNameInput" class="grow" type="text" aria-label="Ton prénom" spellcheck="false" maxlength="30" placeholder="Ton prénom" autocomplete="given-name" required>
         <button>OK</button>
       </form>
     </div>
@@ -334,7 +334,7 @@ document.getElementById("gamesRoot").innerHTML = `
 
       <form id="gJoinForm" class="g-code">
         <label for="gCode">Code d'une partie</label>
-        <input id="gCode" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="• • • •" autocomplete="off">
+        <input id="gCode" type="text" spellcheck="false" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="• • • •" autocomplete="off">
       </form>
 
       <div class="gcard g-rm g-room-card">
@@ -562,7 +562,7 @@ document.getElementById("gamesRoot").innerHTML = `
         <div class="card" id="gameInvite" style="text-align:center">
           <div class="artist">Pour rejoindre : scanne ce QR ou entre le code</div>
           <div class="big-pin" id="gameCode"></div>
-          <img class="qr" id="gameQr" alt="QR code pour rejoindre la partie">
+          <img class="qr" id="gameQr" width="220" height="220" alt="QR code pour rejoindre la partie">
         </div>
         <div id="gDrawerPlayers"></div>
         <button type="button" class="secondary" data-gdrawer="minimize" style="width:100%;margin-top:12px">↙ Réduire le jeu (revenir aux onglets)</button>
@@ -774,7 +774,7 @@ function renderGame(g) {
     const secret = me?.role ? `<div class="word">🎩 Tu es Mr. White</div><div class="artist">Tu n'as pas de mot : écoute les autres et bluffe !</div>`
       : `<div class="artist">Ton mot</div><div class="word">${esc(me?.word)}</div>`;
     const wordBox = !me?.dealt ? "" : wordShown === key && Date.now() < wordUntil
-      ? `<div data-gact="hide" class="secret">${secret}<div class="artist" style="margin-top:4px">Se cache dans <b id="wordCountdown">${Math.ceil((wordUntil - Date.now()) / 1000)}</b> s · touche pour cacher</div></div>`
+      ? `<button type="button" data-gact="hide" class="secret">${secret}<div class="artist" style="margin-top:4px">Se cache dans <b id="wordCountdown">${Math.ceil((wordUntil - Date.now()) / 1000)}</b> s · touche pour cacher</div></button>`
       : `<button class="secondary" data-gact="show" data-key="${esc(key)}" style="width:100%">👁 Voir mon mot (en cachette)</button>`;
     if (g.phase === "end") {
       body = `<div class="title">${WINNERS[g.winner]}</div>
@@ -794,7 +794,7 @@ function renderGame(g) {
     } else if (g.phase === "white_guess") {
       body = g.last?.me
         ? `<div class="title">Démasqué ! Dernière chance 🎩</div><div class="artist">Devine le mot des civils pour gagner :</div>
-           <form data-gform="guess" class="row" style="margin-top:8px"><input class="grow" type="text" id="guessInput" maxlength="40" placeholder="Le mot des civils" autocomplete="off"><button>Valider</button></form>`
+           <form data-gform="guess" class="row" style="margin-top:8px"><input class="grow" type="text" id="guessInput" maxlength="40" aria-label="Le mot des civils" placeholder="Le mot des civils…" autocomplete="off"><button>Valider</button></form>`
         : `<div class="title">${esc(g.last.name)} était Mr. White !</div><div class="artist">Il tente de deviner le mot des civils…</div>`;
     } else if (g.phase === "reveal") {
       body = `${lastLine}<div class="artist">${g.is_host ? "Lance la manche suivante quand vous êtes prêts." : "L'animateur lance la manche suivante…"}</div>`;
@@ -1019,7 +1019,7 @@ function renderBJHost(g, btn) {
         <div class="meta"><div class="title">${esc(x.name)}${x.pid === t.turn ? " ⏳" : ""}${drinks(g) ? "" : `<span class="artist"> · 💰 ${x.chips}${x.rebuys ? ` (rechargé ${x.rebuys}×)` : ""}</span>`}${sipsBadge(g.players.find((p) => p.pid === x.pid) || {})}</div>
           <div class="artist">${info}${g.phase === "results" && h?.result ? ` · <b>${bjResultText(g, h)}</b>` : ""}</div>
           ${h?.cards.length ? `<div class="bj-cards" style="margin-top:4px">${h.cards.map((c) => cardHtml(c, true)).join("")}</div>` : ""}</div>
-        ${g.is_host && x.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(x.pid)}" title="Exclure de la table">✕</button>` : ""}
+        ${g.is_host && x.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(x.pid)}" title="Exclure de la table" aria-label="Exclure de la table">✕</button>` : ""}
       </div>`;
     }).join("") || `<p class="empty" style="padding:12px">Personne à la table : fais scanner le QR ci-dessous.</p>`}</div>
     ${g.is_host && !g.me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
@@ -1339,7 +1339,7 @@ document.addEventListener("click", (ev) => {
 function renderPyrHost(g) {
   $("gameHost").innerHTML = `<h2>À la table (${g.players.length})</h2>
     <div class="list">${g.players.map((p) => `<div class="track"><div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}${sipsBadge(p)}</div></div>
-      ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie">✕</button>` : ""}</div>`).join("")
+      ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie" aria-label="Exclure de la partie">✕</button>` : ""}</div>`).join("")
       || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
     ${g.phase === "lobby" ? manualForm(g) : ""}
     ${g.is_host && !g.me && g.phase === "lobby" ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
@@ -1471,7 +1471,7 @@ function bkHtml(g) {
     else if (["mate", "queen", "duel"].includes(v.await.kind)) action = `<div class="py-panel"><div class="py-turn-k">${{ mate: "Choisis ton pote de boisson", queen: "Qui boit 2 ?", duel: "Contre qui ce duel ?" }[v.await.kind]}</div>
         <div class="chips bk-pick">${others.map((s) => `<button class="py-mini" data-bk="pick" data-target="${esc(s.pid)}" ${v.await.mine ? "" : `data-who="${esc(v.await.pid)}"`}>${esc(s.name)}</button>`).join("")}</div>${who}</div>`;
     else if (v.await.kind === "rule") action = `<div class="py-panel"><div class="py-turn-k">Écris ta règle</div>
-        <form data-bk-form="rule" class="row"><input class="grow" type="text" id="bkRule" maxlength="120" placeholder="Ex. : interdit de dire « boire »" autocomplete="off"><button class="py-mini ok">OK</button></form>${who}</div>`;
+        <form data-bk-form="rule" class="row"><input class="grow" type="text" id="bkRule" maxlength="120" aria-label="Ta règle" placeholder="Ex. : interdit de dire « boire »" autocomplete="off"><button class="py-mini ok">OK</button></form>${who}</div>`;
     else action = `<div class="py-panel"><div class="py-turn-k">Quelle règle supprimer ?</div>
         <div class="bk-pick">${v.rules.map((r) => `<button class="py-sub" data-bk="pick" data-target="${esc(r.id)}" ${v.await.mine ? "" : `data-who="${esc(v.await.pid)}"`}>❌ ${esc(r.text)}</button>`).join("")}</div>${who}</div>`;
   }
@@ -1519,9 +1519,9 @@ function renderBkHost(g) {
     ${movable ? `<p class="artist" style="margin:-4px 0 8px">Range les joueurs dans l'ordre où ils sont assis (vers la gauche) avec ⬆ ⬇.</p>` : ""}
     <div class="list">${g.players.map((p, i) => `<div class="track"><div class="meta"><div class="title">${i + 1}. ${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}${sipsBadge(p)}</div></div>
       <div class="icon-btns">
-        ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter">⬆</button>` : ""}
-        ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre">⬇</button>` : ""}
-        ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure">✕</button>` : ""}
+        ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter" aria-label="Monter">⬆</button>` : ""}
+        ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre" aria-label="Descendre">⬇</button>` : ""}
+        ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure" aria-label="Exclure">✕</button>` : ""}
       </div></div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
     ${g.phase === "lobby" ? manualForm(g) : ""}
     ${g.is_host && !g.me && g.phase === "lobby" ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
@@ -1604,7 +1604,7 @@ const playerTag = (g, p) => !MANUAL_GAMES.includes(g.type) ? "" : p.manual
   ? ` <span class="pill tag-manual" title="Ajouté·e à la main par l'animateur">✍️ sans téléphone</span>`
   : ` <span class="tag-phone" title="Joue sur son téléphone">📱</span>`;
 const manualForm = (g) => !g.is_host || !MANUAL_GAMES.includes(g.type) || g.phase === "end" ? "" : `
-  <form data-gform="addguest" class="row" style="margin-top:8px"><input class="grow" type="text" id="manualName" maxlength="30" placeholder="Prénom (sans téléphone)" autocomplete="off"><button class="secondary">＋ Ajouter</button></form>
+  <form data-gform="addguest" class="row" style="margin-top:8px"><input class="grow" type="text" id="manualName" maxlength="30" aria-label="Prénom d'un participant sans téléphone" spellcheck="false" placeholder="Prénom (sans téléphone)" autocomplete="off"><button class="secondary">＋ Ajouter</button></form>
   <div class="artist" style="margin-top:4px">Pour quelqu'un qui joue sans téléphone : c'est toi qui agiras pour lui ou elle.</div>`;
 
 function renderDivanHost(g, btn) {
@@ -1618,7 +1618,7 @@ function renderDivanHost(g, btn) {
     <div class="list">${g.players.map((p) => `
       <div class="track ${p.pid === d.current?.pid && g.phase === "card" ? "bj-turn" : ""}">
         <div class="meta"><div class="title">${p.pid === d.current?.pid && g.phase === "card" ? "🛋️ " : ""}${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}</div></div>
-        ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la séance">✕</button>` : ""}
+        ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la séance" aria-label="Exclure de la séance">✕</button>` : ""}
       </div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
     ${manualForm(g)}
     ${g.is_host && !g.me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
@@ -1638,7 +1638,7 @@ function tmcHtml(g) {
   const duo = `<div class="tm-duo"><span class="tm-who ${d.role === "guesser" ? "me" : ""}">🔮 ${d.role === "guesser" ? "Toi" : G}<small>devine</small></span>
     <span class="tm-arrow">→</span><span class="tm-who ${d.role === "subject" ? "me" : ""}">🎯 ${d.role === "subject" ? "Toi" : S}<small>répond</small></span></div>`;
   const q = `<div class="tm-q">${esc(d.question)}</div>`;
-  const form = (ph) => `<form data-gform="tanswer" class="row" style="margin-top:10px"><input class="grow" type="text" id="guessInput" maxlength="80" placeholder="${ph}" autocomplete="off"><button>Valider</button></form>`;
+  const form = (ph) => `<form data-gform="tanswer" class="row" style="margin-top:10px"><input class="grow" type="text" id="guessInput" maxlength="80" aria-label="${ph}" placeholder="${ph}" autocomplete="off"><button>Valider</button></form>`;
   if (g.phase === "answer") {
     let zone;
     if (d.proxy) zone = `<div class="tm-speak" style="font-size:1rem">📵 ${S} n'a pas de téléphone : passe-lui le tien pour qu'il ou elle écrive sa réponse en secret.</div>${form(`Réponse de ${d.subject.name}`)}`;
@@ -1704,7 +1704,7 @@ function renderTmcHost(g, btn) {
     <div class="list">${g.players.map((p) => `
       <div class="track ${t.duo && g.phase !== "end" && [t.duo.guesser.pid, t.duo.subject.pid].includes(p.pid) ? "bj-turn" : ""}">
         <div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}</div></div>
-        ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie">✕</button>` : ""}
+        ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie" aria-label="Exclure de la partie">✕</button>` : ""}
       </div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
     ${manualForm(g)}
     ${g.is_host && !g.me && (g.phase === "lobby" || g.phase === "end") ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
@@ -1865,7 +1865,7 @@ function renderCasinoHost(g, btn) {
       <div class="track">
         <div class="meta"><div class="title">${esc(t.name)}${open && t.ready ? ` <span class="pill live">prêt ✓</span>` : ""}${c.drinks ? "" : `<span class="artist"> · 💰 ${t.chips}${t.rebuys ? ` (rechargé ${t.rebuys}×)` : ""}</span>`}${sipsBadge(g.players.find((p) => p.pid === t.pid) || {})}</div>
           <div class="artist" style="white-space:normal">${t.staked ? summary(t) : g.phase === "bet" ? "réfléchit…" : "n'a pas misé"}${resultTxt(t) ? ` · <b>${resultTxt(t)}</b>` : ""}</div></div>
-        ${g.is_host && t.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(t.pid)}" title="Exclure de la table">✕</button>` : ""}
+        ${g.is_host && t.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(t.pid)}" title="Exclure de la table" aria-label="Exclure de la table">✕</button>` : ""}
       </div>`).join("") || `<p class="empty" style="padding:12px">Personne à la table : fais scanner le QR ci-dessous.</p>`}</div>
     ${g.is_host && !g.me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
 }
@@ -1960,7 +1960,7 @@ function renderRouletteHost(g, btn) {
       <div id="rlControls"></div>
       ${g.is_host ? `<h2 id="rlTitle"></h2>
         <form data-gform="addname" class="row">
-          <input class="grow" type="text" id="rouletteName" maxlength="20" placeholder="Ajouter un nom" autocomplete="off" autocapitalize="words" enterkeyhint="enter">
+          <input class="grow" type="text" id="rouletteName" maxlength="20" aria-label="Ajouter un nom" spellcheck="false" placeholder="Ajouter un nom…" autocomplete="off" autocapitalize="words" enterkeyhint="enter">
           <button type="submit" id="rouletteAdd">Ajouter</button>
         </form>
         <div class="chips" id="rlNames" style="margin-top:8px"></div>
@@ -2030,12 +2030,12 @@ function renderGameHost(g) {
           ${p.role && (seeRoles || !p.alive) ? `<div class="artist">${esc(p.role)}${seeRoles && p.word ? " · " + esc(p.word) : ""}</div>` : ""}</div>
         <div class="icon-btns">
           ${g.is_host && p.manual && g.type === "never" && g.phase === "question" ? `
-            <button class="${p.answer === "yes" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="yes" title="L'a déjà fait">🍻</button>
-            <button class="${p.answer === "no" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="no" title="Jamais">😇</button>` : ""}
-          ${canMove && p.alive && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter">⬆</button>` : ""}
-          ${canMove && p.alive && i < (speaking ? g.order_pids.length : list.length) - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre">⬇</button>` : ""}
-          ${canEliminate && p.alive ? `<button class="danger" data-gact="eliminate" data-target="${esc(p.pid)}" title="Éliminer (vote à main levée)">Éliminer</button>` : ""}
-          ${canRemove && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie">✕</button>` : ""}
+            <button class="${p.answer === "yes" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="yes" title="L'a déjà fait" aria-label="L'a déjà fait">🍻</button>
+            <button class="${p.answer === "no" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="no" title="Jamais" aria-label="Jamais">😇</button>` : ""}
+          ${canMove && p.alive && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter" aria-label="Monter">⬆</button>` : ""}
+          ${canMove && p.alive && i < (speaking ? g.order_pids.length : list.length) - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre" aria-label="Descendre">⬇</button>` : ""}
+          ${canEliminate && p.alive ? `<button class="danger" data-gact="eliminate" data-target="${esc(p.pid)}" title="Éliminer (vote à main levée)" aria-label="Éliminer (vote à main levée)">Éliminer</button>` : ""}
+          ${canRemove && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie" aria-label="Exclure de la partie">✕</button>` : ""}
         </div>
       </div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
     ${manualForm(g)}
@@ -2080,7 +2080,7 @@ function lobbyInvite(g) {
   const n = g.players.length;
   return `<div class="g-lobby">
     <div class="g-lobby-k">Scannez pour rejoindre</div>
-    <img class="g-lobby-qr" src="/qr/game/${esc(g.room || g.code)}.svg" alt="QR code pour rejoindre la partie">
+    <img class="g-lobby-qr" width="240" height="240" src="/qr/game/${esc(g.room || g.code)}.svg" alt="QR code pour rejoindre la partie">
     <div class="g-lobby-code">${esc(g.room || g.code)}</div>
     <div class="artist g-lobby-hint">ou onglet 🎮 Jeux → entre ce code</div>
     <div class="g-lobby-players">${n ? g.players.map((p) => `<span class="pill">${p.host ? "🎲 " : ""}${esc(p.name)}</span>`).join("") : `<span class="artist">En attente des joueurs…</span>`}</div>
@@ -2151,9 +2151,9 @@ function renderDrawer(g) {
   $("gDrawerPlayers").innerHTML = `<h2>Participants (${g.players.length})</h2>
     <div class="list">${g.players.map((p, i) => `<div class="track"><div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${p.pid === g.me?.pid ? " (toi)" : ""}${playerTag(g, p)}${p.pending ? " ⏳" : ""}${sipsBadge(p)}</div></div>
       <div class="icon-btns">
-        ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter">⬆</button>` : ""}
-        ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre">⬇</button>` : ""}
-        ${lead && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie">✕</button>` : ""}
+        ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter" aria-label="Monter">⬆</button>` : ""}
+        ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre" aria-label="Descendre">⬇</button>` : ""}
+        ${lead && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie" aria-label="Exclure de la partie">✕</button>` : ""}
       </div></div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR.</p>`}</div>
     ${movable && ["biskit", "pyramid"].includes(g.type) ? `<p class="artist" style="margin-top:6px">Range les joueurs dans l'ordre où ils sont assis (vers la gauche).</p>` : ""}
     ${(g.type !== "pyramid" || g.phase === "lobby") ? manualForm(g) : ""}

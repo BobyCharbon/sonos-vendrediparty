@@ -367,7 +367,7 @@ button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2
 .i-title { font: 800 1.35rem "Bricolage Grotesque", system-ui, sans-serif; }
 .i-head .artist { white-space: normal; }
 .i-share { display: flex; align-items: center; justify-content: center; gap: 10px; height: 58px; font-size: 1.1rem; border-radius: 16px;
-  background: #0a84ff; color: #fff; }
+  background: #0071e3; color: #fff; }
 .i-share svg { width: 24px; height: 24px; }
 .i-then { text-align: center; white-space: normal; margin-top: -6px; }
 .i-manual summary { color: var(--muted); font-size: .9rem; text-align: center; padding: 4px; }
@@ -375,7 +375,7 @@ button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2
 .i-steps li { counter-increment: s; display: flex; gap: 12px; align-items: center; background: var(--card-2); border-radius: 14px; padding: 10px 12px; line-height: 1.35; }
 .i-steps li::before { content: counter(s); flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff;
   font: 800 .8rem/24px system-ui; text-align: center; }
-.i-ico { flex: none; width: 34px; height: 34px; border-radius: 10px; background: #2c2440; color: #0a84ff; display: grid; place-items: center; }
+.i-ico { flex: none; width: 34px; height: 34px; border-radius: 10px; background: #2c2440; color: #0071e3; display: grid; place-items: center; }
 .i-ico svg { width: 22px; height: 22px; }
 /* iPhone : guide en haut qui laisse toucher Safari, avec une flèche vers le bouton à toucher. */
 .i-coach { background: transparent; pointer-events: none; align-items: flex-start; }
@@ -385,7 +385,7 @@ button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2
 .i-coach .i-manual summary { pointer-events: none; list-style: none; color: var(--text); font-weight: 600; }
 .i-coach .i-manual summary::-webkit-details-marker { display: none; }
 .i-arrow { display: none; }
-.i-coach .i-arrow { display: grid; place-items: center; position: fixed; width: 56px; height: 56px; border-radius: 50%; background: #0a84ff; color: #fff;
+.i-coach .i-arrow { display: grid; place-items: center; position: fixed; width: 56px; height: 56px; border-radius: 50%; background: #0071e3; color: #fff;
   box-shadow: 0 8px 24px rgba(10, 132, 255, .55); animation: i-bob 1s ease-in-out infinite; }
 .i-coach .i-arrow svg { width: 30px; height: 30px; }
 .at-br { right: 14px; bottom: calc(10px + env(safe-area-inset-bottom)); }
@@ -400,7 +400,7 @@ button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2
 /* Barre d'adresse en haut ou en bas (réglage de Safari que la page ne peut pas lire) */
 .i-bar { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; font-size: .9rem; color: var(--muted); }
 .i-bar button { padding: 6px 10px; font-size: .9rem; background: var(--card-2); color: var(--text); }
-.i-bar button.on { background: #0a84ff; color: #fff; }
+.i-bar button.on { background: #0071e3; color: #fff; }
 .i-coach .i-arrow { pointer-events: none; }
 .i-version { text-align: center; font-size: .72rem; color: var(--muted); margin-top: -6px; }
 .i-version:empty { display: none; }
@@ -1339,3 +1339,46 @@ body[data-tab="music"] .tabs button.on .tab-ico { stroke: var(--accent-2); filte
   .qz-top { margin-bottom: 4px; } .qz-timer { margin-bottom: 8px; }
   #gTop { padding-bottom: 4px !important; }
 }
+
+/* ── Audit « Web Interface Guidelines » ── */
+html { color-scheme: dark; }
+.qz-qtext, .game .question, .g-title, .py-hero-t, .bk-now-t, .app-title, h2 { text-wrap: balance; }
+.g-desc, .sub, .artist { text-wrap: pretty; }
+.g-sheet, .g-room-sheet, .g-drawer-panel { overscroll-behavior: contain; }
+button.secret { display: block; width: 100%; color: inherit; font: inherit; text-align: center; box-shadow: none; }
+img { height: auto; }
+/* Survol (souris uniquement) : un léger éclaircissement, plus marqué qu'au repos */
+@media (hover: hover) and (pointer: fine) {
+  button:not(:disabled):hover { filter: brightness(1.08); }
+  .g-room-tile:hover, .qz-theme:hover, .qz-mode:hover { transform: translateY(-2px); }
+}
+
+/* ── Finitions (impeccable) ── */
+:root { --radius: 16px; }
+/* Pas de sur-titres en capitales espacées : le libellé parle en casse normale, à son poids */
+.g-lobby-k, .g-room-h, .bk-now-k, .qz-solo-k, .bk-last-k, .py-turn-k, .py-hero-k, .g-label, .qz-setup .g-label {
+  text-transform: none !important; letter-spacing: -0.005em !important; font-size: .95rem !important; font-weight: 700 !important;
+}
+.g-lobby-k { color: var(--accent-2); }
+/* Pas de texte en dégradé : l'accent passe par la graisse et la couleur pleine */
+h1 span { background: none !important; -webkit-background-clip: initial !important; background-clip: initial !important; color: var(--accent) !important; }
+/* Surfaces du navigateur aux couleurs de l'app */
+::selection { background: rgba(255, 79, 154, .45); color: #fff; }
+input, textarea { caret-color: var(--accent); }
+* { scrollbar-width: thin; scrollbar-color: rgba(166, 156, 198, .35) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(166, 156, 198, .3); border-radius: 99px; }
+::-webkit-scrollbar-track { background: transparent; }
+/* Chiffres des scores et compteurs alignés (ils ne « dansent » pas en changeant) */
+.qz-p, .qz-lb-pts, .qz-mypts, .g-room-pts, .qz-sec, .qz-num, .g-top-sub, .g-lobby-code, .big-pin, .qz-solo-v, .bk-chip, .eta { font-variant-numeric: tabular-nums; }
+/* Contraste (AA) : le bouton principal garde son rose néon, un ton plus profond pour que le texte blanc se lise */
+button { background: linear-gradient(180deg, #d92a73, #cf2568); }
+button.secondary { background: var(--card-2); }
+button.danger { background: #4a1f2a; }
+.tabs button, .seg button:not(.on) { background: transparent; }
+input::placeholder, textarea::placeholder { color: #a39bbd; }
+/* Message non lu : fond teinté et pastille, au lieu d'une épaisse bordure latérale */
+.msg.unread { border-left: 0; background: rgba(255, 181, 71, .1); box-shadow: inset 0 0 0 1px rgba(255, 181, 71, .25); }
+.msg.unread::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--accent-2); vertical-align: middle; }
+/* QR du menu : invisible tant qu'il n'est pas chargé (pas de case d'image cassée) */
+img.qr:not([src]) { visibility: hidden; }
