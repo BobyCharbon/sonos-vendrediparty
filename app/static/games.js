@@ -1,6 +1,49 @@
 // 🎮 Jeux, partagés par la page invités et l'admin.
 // iOS Safari n'applique :active (enfoncement des boutons au toucher) que si la page écoute touchstart.
 document.addEventListener("touchstart", () => {}, { passive: true });
+// Vibration : l'API Vibration (Android) ; sur iPhone, Safari 18+ donne un retour haptique quand on bascule
+// un interrupteur natif (<input type=checkbox switch>) : on en garde un invisible pour s'en servir.
+let hapticSwitch = null;
+function haptic(pattern = 60) {
+  if (navigator.vibrate) { try { navigator.vibrate(pattern); return; } catch {} }
+  try {
+    if (!hapticSwitch) {
+      hapticSwitch = document.createElement("label");
+      hapticSwitch.setAttribute("aria-hidden", "true");
+      hapticSwitch.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0;pointer-events:none";
+      const i = document.createElement("input"); i.type = "checkbox"; i.setAttribute("switch", ""); i.tabIndex = -1;
+      hapticSwitch.append(i); document.body.append(hapticSwitch);
+    }
+    hapticSwitch.click();
+  } catch {}
+}
+// « C'est ton tour » : une clé par tour (vide si ce n'est pas à toi) ; le téléphone vibre quand elle change.
+function myTurnKey(g) {
+  const me = g?.me?.pid;
+  if (!me || g.kicked) return "";
+  switch (g.type) {
+    case "blackjack": return g.bj?.my_turn ? `bj${g.round}-${g.bj.turn}` : "";
+    case "divan": return g.divan?.my_turn ? `dv${g.divan.n}` : "";
+    case "biskit": return g.bk?.my_turn ? `bk${g.bk.drawn}` : "";
+    case "pyramid": return g.phase === "deal" && g.pyr?.turn === me ? `py${g.pyr.step}-${g.pyr.turn}` : "";
+    case "tmc": return g.tmc?.duo?.role && ["answer", "guess"].includes(g.phase) ? `tm${g.round}-${g.phase}-${g.tmc.duo.role}` : "";
+    case "undercover": return g.phase === "vote" && g.me.alive ? `uc${g.round}` : "";
+    case "whoof": case "never": return g.phase === "question" ? `q${g.round}` : "";
+    case "quiz": return g.phase === "q" && !g.quiz?.q?.out ? `qz${g.quiz.n}` : "";
+    case "casino": return g.phase === "bet" ? `cs${g.round}` : "";
+    default: return "";
+  }
+}
+let lastTurnKey = "";
+function turnSignal(g) {
+  const k = g ? `${g.id}:${myTurnKey(g)}` : "";
+  if (k && !k.endsWith(":") && k !== lastTurnKey) {
+    haptic([70, 50, 70]);
+    document.getElementById("gTop")?.classList.remove("g-turn"); void document.getElementById("gTop")?.offsetWidth;
+    document.getElementById("gTop")?.classList.add("g-turn");
+  }
+  lastTurnKey = k;
+}
 // Utilise les globales de la page : $, esc, store, toast, guestId, guestName (chargé après le script de la page).
 // Icônes des jeux (traits, couleur héritée) : chapeau et lunettes d'espion, deux personnes et un « ? ».
 const GAME_ICONS = {
@@ -785,6 +828,7 @@ function renderGame(g) {
   }
   renderDrawer(g);
   gameFlashes(g);
+  turnSignal(g);
   const input = $("guessInput");
   if (input) { input.value = guessDraft; input.addEventListener("input", () => { guessDraft = input.value; }); }
   renderRoulette(g);
@@ -862,7 +906,7 @@ function playFx(kind, sub) {
   const close = () => { fx.classList.add("fx-out"); setTimeout(() => fx.remove(), 350); };
   fx.addEventListener("click", close);
   document.body.append(fx);
-  navigator.vibrate?.({ win: [80, 60, 80], blackjack: [100, 50, 100, 50, 220], jackpot: [100, 50, 100, 50, 100, 50, 300],
+  haptic({ win: [80, 60, 80], blackjack: [100, 50, 100, 50, 220], jackpot: [100, 50, 100, 50, 100, 50, 300],
     push: [60], mixed: [60, 60, 60], lose: [320], bust: [120, 60, 320] }[kind]);
   setTimeout(close, kind === "blackjack" || kind === "jackpot" ? 3800 : 3000);
 }
@@ -903,7 +947,6 @@ let bjTurnSeen = "";
 function bjTableHtml(g) {
   const t = g.bj, me = g.me, mine = t.seats.find((x) => x.pid === me?.pid), h = mine?.hand;
   const turnName = t.seats.find((x) => x.pid === t.turn)?.name;
-  if (t.my_turn && bjTurnSeen !== g.id + g.round) { bjTurnSeen = g.id + g.round; navigator.vibrate?.(120); }
   const dealer = t.dealer.length ? `<div class="bj-dealer"><div class="artist">Croupier ${t.dealer_total != null ? `· <b>${t.dealer_total}</b>` : t.dealer_up != null ? `· ${t.dealer_up} + ?` : ""}</div>
     <div class="bj-cards">${t.dealer.map((c) => cardHtml(c)).join("")}</div></div>` : "";
   let status = "", zone = "";
@@ -999,7 +1042,7 @@ function pyrFlash(kind, title, sub = "", card = "", ms = 2300) {
     <div class="py-flash-title">${title}</div>${sub ? `<div class="py-flash-sub">${sub}</div>` : ""}</div>`;
   el.addEventListener("click", () => el.remove());
   document.body.append(el);
-  navigator.vibrate?.(kind === "bad" || kind === "liar" ? [200] : [60, 40, 60]);
+  haptic(kind === "bad" || kind === "liar" ? [200] : [60, 40, 60]);
   setTimeout(() => el.classList.add("out"), ms);
   setTimeout(() => el.remove(), ms + 400);
 }
@@ -1085,7 +1128,6 @@ function pyrHtml(g) {
     const cur = v.seats.find((s) => s.pid === v.turn), mine = cur && cur.pid === me?.pid;
     const ref = v.step === 2 ? cur.cards.slice(0, 1) : v.step === 3 ? cur.cards.slice(0, 2) : [];
     const canAct = mine || host;
-    if (mine && pyrSeen.turnBuzz !== `${v.step}-${v.turn}`) { pyrSeen.turnBuzz = `${v.step}-${v.turn}`; navigator.vibrate?.(120); }
     body = `<div class="py-steps">${[1, 2, 3, 4].map((i) => `<span class="${i < v.step ? "done" : i === v.step ? "on" : ""}">${i}</span>`).join("<i></i>")}</div>
       <div class="py-turn ${mine ? "me" : ""}"><div class="py-turn-k">${mine ? "C'est ton tour" : "C'est au tour de"}</div>
         <div class="py-turn-name">${mine ? "À TOI !" : esc(cur?.name || "…")}</div></div>
@@ -1131,7 +1173,7 @@ function pyrHtml(g) {
   }
   // Arrivées en cours de partie : l'animateur accepte ou refuse ; le nouveau venu patiente.
   const peekReqs = host ? (v.peeks || []).filter((r) => r.status === "pending") : [];
-  if (peekReqs.length && pyrSeen.peekAlert !== peekReqs[0].id) { pyrSeen.peekAlert = peekReqs[0].id; navigator.vibrate?.([120, 60, 120]); }
+  if (peekReqs.length && pyrSeen.peekAlert !== peekReqs[0].id) { pyrSeen.peekAlert = peekReqs[0].id; haptic([120, 60, 120]); }
   const peekAlert = peekReqs.length ? `<div class="py-panel py-pend py-alert">${peekReqs.map((r) => `
       <div class="py-claim"><span>👀 <b>${esc(r.name)}</b> veut revoir ${r.count} carte${r.count > 1 ? "s" : ""} <small>(+${2 * r.count} gorgées)</small></span><span class="py-claim-act">
         <button class="py-mini ok" data-gact="ppeek_ok" data-target="${r.id}">Accepter</button><button class="py-mini bad" data-gact="ppeek_no" data-target="${r.id}">Refuser</button></span></div>`).join("")}</div>` : "";
@@ -1270,7 +1312,7 @@ document.addEventListener("click", (ev) => {
   const a = b.dataset.pyr, who = b.dataset.who || "";
   if (a === "exit") { pyrFull = false; return renderGame(game); }
   if (a === "enter") return openGameFull();
-  if (a === "pans" || a === "pbans") { navigator.vibrate?.(20); return gameAction(a, { target: b.dataset.val, who }); }
+  if (a === "pans" || a === "pbans") { haptic(20); return gameAction(a, { target: b.dataset.val, who }); }
   if (a === "reveal") return gameAction("preveal", { amount: +b.dataset.slot, who });
   if (a === "claimfor") return gameAction("pclaim", { who });
   if (a === "peeksel") { const k = +b.dataset.slot; pyrPeekSel = pyrPeekSel.includes(k) ? pyrPeekSel.filter((x) => x !== k) : [...pyrPeekSel, k]; return renderGame(game); }
@@ -1355,7 +1397,7 @@ setInterval(() => {
   document.querySelectorAll("[data-ready-at]").forEach((b) => {
     const left = Number(b.dataset.readyAt) - Date.now();
     if (left > 0) { b.disabled = true; b.textContent = `⏳ Lis le gage… ${Math.ceil(left / 1000)} s`; }
-    else if (b.disabled) { b.disabled = false; b.innerHTML = b.dataset.label; b.removeAttribute("data-ready-at"); navigator.vibrate?.(60); }
+    else if (b.disabled) { b.disabled = false; b.innerHTML = b.dataset.label; b.removeAttribute("data-ready-at"); haptic(60); }
   });
 }, 250);
 
@@ -1375,8 +1417,7 @@ function bkHtml(g) {
   }
   // Événements : vibration quand c'est ton tour ou qu'un réflexe démarre.
   const turnKey = `${v.drawn}-${v.turn}`;
-  if (v.my_turn && bkSeen.turnBuzz !== turnKey && !v.await) { bkSeen.turnBuzz = turnKey; navigator.vibrate?.(100); }
-  if (v.reflex && !v.reflex.done && bkSeen.reflex !== v.reflex.id) { bkSeen.reflex = v.reflex.id; navigator.vibrate?.([200, 80, 200]); }
+  if (v.reflex && !v.reflex.done && bkSeen.reflex !== v.reflex.id) { bkSeen.reflex = v.reflex.id; haptic([200, 80, 200]); }
   // Nouvelle carte : le gage en plein écran sur tous les téléphones (pas en différé après un rechargement).
   if (bkSeen.game !== g.id) { bkSeen.game = g.id; bkSeen.drawn = v.drawn; }
   else if (v.drawn > (bkSeen.drawn || 0) && v.card && v.key) {
@@ -1453,7 +1494,7 @@ function bkHtml(g) {
 document.addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-bk]");
   if (!b || !game) return;
-  if (b.dataset.bk === "draw") { navigator.vibrate?.(20); return gameAction("bdraw", { who: b.dataset.who || "" }); }
+  if (b.dataset.bk === "draw") { haptic(20); return gameAction("bdraw", { who: b.dataset.who || "" }); }
   if (b.dataset.bk === "pick") return gameAction("bpick", { target: b.dataset.target, who: b.dataset.who || "" });
 });
 document.addEventListener("submit", (ev) => {
@@ -1488,7 +1529,7 @@ function divanHtml(g) {
   // Nouvelle carte (ou retour en arrière) : on la retourne à l'écran.
   const c = d.card, fresh = c && c.id !== dvSeen;
   if (c) dvSeen = c.id;
-  if (fresh && d.my_turn) navigator.vibrate?.(80);
+  if (fresh && d.my_turn) haptic(80);
   const who = d.current?.name || "…";
   return `<div class="dv-who ${d.my_turn ? "me" : ""} ${fresh ? "dv-new" : ""}">
       <div class="dv-avatar" aria-hidden="true">${esc([...who][0]?.toUpperCase() || "?")}</div>
@@ -1537,7 +1578,7 @@ async function dvRelease(ev) {
     if (dvPending) { const g = dvPending; dvPending = null; renderGame(g); }
     return;
   }
-  navigator.vibrate?.(30);
+  haptic(30);
   card.classList.add("dv-back");
   card.style.transform = `translateX(${Math.sign(dx) * 150}%) rotate(${Math.sign(dx) * 25}deg)`;
   card.style.opacity = "0";
@@ -1824,7 +1865,7 @@ document.addEventListener("click", (ev) => {
   if (chip) { casinoChip = +chip.dataset.cchip; return renderGameHost(game); }
   const cell = ev.target.closest("[data-cbet]");
   if (cell && game?.type === "casino") {
-    navigator.vibrate?.(15);
+    haptic(15);
     gameAction("cbet", { target: cell.dataset.cbet, amount: casinoChip });
   }
 });
@@ -1888,7 +1929,7 @@ function renderRoulette(g) {
       setTimeout(() => {
         wheelShown = sp.id;
         if (game?.spin?.id === sp.id) { showRouletteResult(game); renderGameHost(game); }
-        navigator.vibrate?.(150);
+        haptic(150);
       }, left * 1000 + 100);
     } else {
       setWheel(wheelRot, 0);
@@ -2138,7 +2179,7 @@ function showGameEnded(info) {
   const close = () => { el.classList.add("out"); setTimeout(() => el.remove(), 300); };
   el.addEventListener("click", close);
   document.body.append(el);
-  navigator.vibrate?.([80, 60, 80]);
+  haptic([80, 60, 80]);
   setTimeout(close, 5000);
 }
 

@@ -275,7 +275,7 @@ function quizAfter(g, fresh = true) {
   if (qzSeen.key && qzSeen.key !== key) {
     if (g.phase === "rev" && v.q && g.me) {
       const mine = v.q.res.find((r) => r.me);
-      navigator.vibrate?.(mine?.ok ? [40, 30, 40] : [200]);
+      haptic(mine?.ok ? [40, 30, 40] : [200]);
     }
     if (g.phase === "end" && v.board.length) {
       const w = v.board[0];
@@ -293,7 +293,7 @@ function qzAnswer(a) {
   if (!a || a.disabled || !game?.quiz) return;
   a.classList.add("picked");
   document.querySelectorAll("[data-qz-ans]").forEach((b) => { b.disabled = true; if (b !== a) b.classList.add("dim"); });
-  navigator.vibrate?.(30);
+  haptic(30);
   gameAction("qans", { amount: +a.dataset.qzAns, guess: game.quiz.token }, { quiet: true });
 }
 document.addEventListener("pointerdown", (ev) => {

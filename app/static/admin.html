@@ -372,7 +372,7 @@ function renderMessages(s) {
   const ids = new Set(s.messages.map((m) => m.id));
   if (seenMessages) {
     const fresh = s.messages.filter((m) => !seenMessages.has(m.id));
-    if (fresh.length) { toast(`💬 ${fresh[0].name} : ${fresh[0].text}`, "ok"); navigator.vibrate?.(200); }
+    if (fresh.length) { toast(`💬 ${fresh[0].name} : ${fresh[0].text}`, "ok"); window.haptic?.(200); }
   }
   seenMessages = ids;
   const focused = document.activeElement?.dataset?.reply;
