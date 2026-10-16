@@ -30,6 +30,7 @@ GAMES = {
     "pyramid": "Pyramide",
     "biskit": "Biskit Royal",
     "quiz": "Quiz",
+    "room": "Salle de jeux",
 }
 BLACKJACKS = ("blackjack",)
 
@@ -264,6 +265,9 @@ def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code
     }
     if kind == "quiz":
         quiz.init(g)
+    if kind == "room":
+        # Salle de jeux : un seul code pour la soirée ; l'animateur y lance les jeux les uns après les autres.
+        g.update(current=None, rhistory=[], rtally={}, rpts={}, rnames={})
     if host and plays:
         join(g, host, name)
     return g
@@ -300,9 +304,11 @@ def join(g: dict, gid: str, name: str = ""):
         p["name"] = name or p["name"]
         return
     if gid in g.get("kicked", []):
-        raise GameError("L'animateur t'a retiré de cette partie")
+        raise GameError("Tu as été banni de cette partie : tu ne peux plus la rejoindre")
     if len(g["players"]) >= 30:
         raise GameError("La partie est complète")
+    if gid in g.get("removed", []):  # revenir après une exclusion efface la marque
+        g["removed"].remove(gid)
     taken = {p["pid"] for p in g["players"]}
     while (pid := secrets.token_hex(4)) in taken:
         pass
@@ -314,7 +320,7 @@ def join(g: dict, gid: str, name: str = ""):
                          "waiting": waiting, "pending": pending})
 
 
-MANUAL_GAMES = ("divan", "tmc", "never", "pyramid", "biskit")  # jeux où l'animateur peut ajouter des participants sans téléphone
+MANUAL_GAMES = ("divan", "tmc", "never", "pyramid", "biskit", "room")  # jeux où l'animateur peut ajouter des participants sans téléphone
 
 
 def add_guest(g: dict, name: str):
@@ -409,9 +415,20 @@ def handover(g: dict, actor: str, target: str):
 
 
 def kick(g: dict, gid: str):
-    """L'animateur exclut un joueur : il ne peut plus revenir dans cette partie."""
+    """L'animateur exclut un joueur (absent, parti…) : il pourra revenir quand il veut avec le code."""
     leave(g, gid)
-    g.setdefault("kicked", []).append(gid)
+    if gid not in g.setdefault("removed", []):
+        g["removed"].append(gid)
+
+
+def ban(g: dict, gid: str):
+    """L'animateur bannit un joueur : il ne peut plus revenir dans cette partie avec ce code."""
+    if player(g, gid):
+        leave(g, gid)
+    if gid not in g.setdefault("kicked", []):
+        g["kicked"].append(gid)
+    if gid in g.get("removed", []):
+        g["removed"].remove(gid)
 
 
 def move(g: dict, gid: str, delta: int):
@@ -1908,6 +1925,8 @@ def bk_view(g: dict, gid: str) -> dict:
 
 def start(g: dict, rng: random.Random = random):
     """Distribue les rôles (Undercover) ou pose la première question (Qui de nous ?)."""
+    if g["type"] == "room":
+        raise GameError("Choisis d'abord un jeu à lancer")
     if g["type"] == "quiz":
         try:
             quiz.start(g, rng)
@@ -1936,6 +1955,8 @@ def start(g: dict, rng: random.Random = random):
         bj_open_bets(g)
     elif g["type"] == "undercover":
         _deal(g, rng)
+    elif g["type"] not in QUESTION_GAMES:
+        raise GameError("Ce jeu ne se lance pas ainsi")
     else:
         if len(g["players"]) < 2:
             raise GameError("Il faut au moins 2 joueurs")
@@ -2166,7 +2187,7 @@ def view(g: dict, gid: str) -> dict:
             out["word"] = p["word"]
         players.append(out)
     out = {
-        "id": g["id"], "code": g["code"], "type": g["type"], "name": GAMES[g["type"]], "phase": g["phase"],
+        "id": g["id"], "code": g["code"], "type": g["type"], "name": GAMES[g["type"]], "phase": g["phase"], "room": g.get("room"),
         "mode": mode_label(g),
         "round": g["round"], "players": players, "is_host": is_lead(g, gid), "is_owner": bool(gid) and gid == g["host"], "master": master,
         "host_name": g.get("host_name", ""),
@@ -2174,7 +2195,8 @@ def view(g: dict, gid: str) -> dict:
         "order_pids": [_pid(g, i) for i in g["order"] if player(g, i)] if g["type"] == "undercover" else [],
         "candidates": [_pid(g, i) for i in g["candidates"]] if g["candidates"] else None,
         "winner": g["winner"], "question": g["question"], "votes_count": len(g["votes"]), "options": g["options"],
-        "kicked": bool(gid) and gid in g.get("kicked", []),
+        "kicked": bool(gid) and gid in g.get("kicked", []),  # banni : ne peut plus revenir
+        "excluded": bool(gid) and gid in g.get("removed", []) and not player(g, gid),  # exclu : peut revenir
         # Durée de la partie en secondes (calculée ici : l'horloge des téléphones peut être décalée).
         "elapsed": time.time() - g.get("created_at", g["updated_at"]),
     }
@@ -2282,6 +2304,38 @@ def _summary_extra(g: dict, p: dict) -> str:
         err = (g.get("pyr") or {}).get("errors", {}).get(p["id"])
         return f"🧠 {err} erreur(s)" if err is not None else ""
     return ""
+
+
+def room_merge(room: dict, g: dict):
+    """Fin d'un jeu lancé depuis la salle : ses gorgées et ses points s'ajoutent au tableau de la soirée."""
+    for gid, t in (g.get("tally") or {}).items():
+        r = room["rtally"].setdefault(gid, {"drink": 0, "give": 0})
+        r["drink"] += t.get("drink", 0)
+        r["give"] += t.get("give", 0)
+    for gid, sc in ((g.get("quiz") or {}).get("scores") or {}).items():
+        room["rpts"][gid] = room["rpts"].get(gid, 0) + sc.get("pts", 0)
+    for p in g["players"]:
+        room["rnames"][p["id"]] = p["name"]
+    winner = None
+    if g["type"] == "quiz" and g["players"]:
+        rows = quiz.board(g)
+        winner = rows[0][0]["name"] if rows and rows[0][1]["n"] else None
+    room["rhistory"].append({"type": g["type"], "name": GAMES.get(g["type"], ""), "at": time.time(), "players": len(g["players"]),
+                             "winner": winner})
+    room["current"] = None
+
+
+def room_view(room: dict, gid: str, child: dict | None) -> dict:
+    """Ce qu'affiche la salle : le jeu en cours, l'historique et le tableau de la soirée."""
+    names = {**room.get("rnames", {}), **{p["id"]: p["name"] for p in room["players"]}}
+    ids = set(room["rtally"]) | set(room["rpts"]) | {p["id"] for p in room["players"]}
+    board = [{"name": names.get(i, "?"), "me": i == gid, "drink": room["rtally"].get(i, {}).get("drink", 0),
+              "give": room["rtally"].get(i, {}).get("give", 0), "pts": room["rpts"].get(i, 0)} for i in ids if i in names]
+    board.sort(key=lambda r: (-r["pts"], -r["drink"], r["name"]))
+    return {"current": {"code": child["code"], "type": child["type"], "name": GAMES[child["type"]], "phase": child["phase"],
+                        "players": len(child["players"])} if child else None,
+            "history": list(reversed(room["rhistory"][-12:])), "board": board,
+            "catalog": [{"type": t, "name": n} for t, n in GAMES.items() if t != "room"]}
 
 
 def summary(g: dict) -> dict:

@@ -367,7 +367,7 @@ button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2
 .i-title { font: 800 1.35rem "Bricolage Grotesque", system-ui, sans-serif; }
 .i-head .artist { white-space: normal; }
 .i-share { display: flex; align-items: center; justify-content: center; gap: 10px; height: 58px; font-size: 1.1rem; border-radius: 16px;
-  background: #0a84ff; color: #fff; }
+  background: #0071e3; color: #fff; }
 .i-share svg { width: 24px; height: 24px; }
 .i-then { text-align: center; white-space: normal; margin-top: -6px; }
 .i-manual summary { color: var(--muted); font-size: .9rem; text-align: center; padding: 4px; }
@@ -375,7 +375,7 @@ button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2
 .i-steps li { counter-increment: s; display: flex; gap: 12px; align-items: center; background: var(--card-2); border-radius: 14px; padding: 10px 12px; line-height: 1.35; }
 .i-steps li::before { content: counter(s); flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff;
   font: 800 .8rem/24px system-ui; text-align: center; }
-.i-ico { flex: none; width: 34px; height: 34px; border-radius: 10px; background: #2c2440; color: #0a84ff; display: grid; place-items: center; }
+.i-ico { flex: none; width: 34px; height: 34px; border-radius: 10px; background: #2c2440; color: #0071e3; display: grid; place-items: center; }
 .i-ico svg { width: 22px; height: 22px; }
 /* iPhone : guide en haut qui laisse toucher Safari, avec une flèche vers le bouton à toucher. */
 .i-coach { background: transparent; pointer-events: none; align-items: flex-start; }
@@ -385,7 +385,7 @@ button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2
 .i-coach .i-manual summary { pointer-events: none; list-style: none; color: var(--text); font-weight: 600; }
 .i-coach .i-manual summary::-webkit-details-marker { display: none; }
 .i-arrow { display: none; }
-.i-coach .i-arrow { display: grid; place-items: center; position: fixed; width: 56px; height: 56px; border-radius: 50%; background: #0a84ff; color: #fff;
+.i-coach .i-arrow { display: grid; place-items: center; position: fixed; width: 56px; height: 56px; border-radius: 50%; background: #0071e3; color: #fff;
   box-shadow: 0 8px 24px rgba(10, 132, 255, .55); animation: i-bob 1s ease-in-out infinite; }
 .i-coach .i-arrow svg { width: 30px; height: 30px; }
 .at-br { right: 14px; bottom: calc(10px + env(safe-area-inset-bottom)); }
@@ -400,7 +400,7 @@ button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2
 /* Barre d'adresse en haut ou en bas (réglage de Safari que la page ne peut pas lire) */
 .i-bar { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; font-size: .9rem; color: var(--muted); }
 .i-bar button { padding: 6px 10px; font-size: .9rem; background: var(--card-2); color: var(--text); }
-.i-bar button.on { background: #0a84ff; color: #fff; }
+.i-bar button.on { background: #0071e3; color: #fff; }
 .i-coach .i-arrow { pointer-events: none; }
 .i-version { text-align: center; font-size: .72rem; color: var(--muted); margin-top: -6px; }
 .i-version:empty { display: none; }
@@ -1027,3 +1027,428 @@ body.pyr-full #game.g-qz { background: transparent; border: 0; padding: 0; box-s
 .qz-root.anim.fast .qz-ans, .qz-root.anim.fast .qz-qcard { animation: none; }
 .g-exit { width: 100%; margin-top: 8px; }
 .g-handover { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding: 10px; border-radius: 14px; background: rgba(255,255,255,.05); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Couche de design « Apple » (version de test) : réponse immédiate, ressorts,
+   matières translucides, contrôles natifs, typographie par taille, accessibilité.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* Ressorts : amorti critique (UI par défaut) et léger rebond (gestes avec élan : interrupteur, tiroir). */
+  --spring: cubic-bezier(.22, 1, .36, 1);
+  --spring-bounce: linear(0, .006, .025 2.8%, .101 6.1%, .539 18.9%, .721 25.3%, .849 31.5%, .937 38.1%, .968 41.8%, .991 45.7%,
+                          1.006 50.1%, 1.015 55%, 1.017 63.9%, 1.001 85.8%, 1);
+  --press: scale(.97);
+  --hairline: rgba(255, 255, 255, .08);
+  --edge-light: inset 0 1px 0 rgba(255, 255, 255, .14);
+  --lift-s: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 12px rgba(0, 0, 0, .22);
+  --lift-m: 0 2px 6px rgba(0, 0, 0, .3), 0 12px 32px rgba(0, 0, 0, .35);
+  --focus: 0 0 0 3px rgba(255, 79, 154, .45);
+}
+html { -webkit-text-size-adjust: 100%; }
+body { -webkit-font-smoothing: antialiased; font-optical-sizing: auto; }
+
+/* Typographie : l'interlettrage dépend de la taille (gros titres resserrés, petits libellés aérés). */
+h1 { letter-spacing: -0.028em; line-height: 1.1; }
+.game .question, .qz-qtext, .py-hero-t { letter-spacing: -0.015em; }
+h2 { letter-spacing: 0.06em; font-weight: 700; }
+.pill, .badge, .tabs button span { letter-spacing: 0.01em; }
+
+/* ── Boutons : enfoncement au contact du doigt, relâchement « ressort », relief discret ── */
+button {
+  min-height: 44px; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  transition: transform .32s var(--spring), box-shadow .2s ease, background-color .2s ease, opacity .2s ease, filter .2s ease;
+  box-shadow: var(--edge-light), var(--lift-s);
+}
+button:not(:disabled):active { transform: var(--press); transition-duration: .08s; filter: brightness(.94); }
+button.secondary { background: var(--card-2); box-shadow: var(--edge-light), inset 0 0 0 1px var(--hairline); }
+button.danger { box-shadow: var(--edge-light), inset 0 0 0 1px rgba(255, 107, 107, .18); }
+button:disabled { opacity: .42; box-shadow: none; filter: saturate(.5); }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; box-shadow: var(--focus); }
+.icon-btns button, .track button { min-height: 40px; }
+/* Boutons « icône » et petites puces : pas d'ombre lourde */
+.tabs button, .seg button, .chips button, .g-help, .py-icon { box-shadow: none; }
+
+/* ── Champs : halo de focus plutôt qu'un simple changement de bordure ── */
+input[type=text], input[type=search], input[type=password], select, textarea {
+  border-radius: 14px; border-color: var(--hairline); background-color: rgba(255, 255, 255, .05);
+  transition: box-shadow .2s ease, border-color .2s ease, background-color .2s ease;
+}
+input[type=text]:focus, input[type=search]:focus, input[type=password]:focus, select:focus, textarea:focus {
+  border-color: rgba(255, 79, 154, .7); background-color: rgba(255, 255, 255, .08); box-shadow: var(--focus);
+}
+input::placeholder, textarea::placeholder { color: #8a82a0; }
+
+/* ── Cartes : matière avec un liseré de lumière en haut ── */
+.card { box-shadow: var(--edge-light), inset 0 0 0 1px var(--hairline), var(--lift-s); }
+.track { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04); transition: transform .3s var(--spring), background-color .2s ease; }
+
+/* ── Contrôle segmenté façon iOS : pastille claire en relief sur une piste sombre ── */
+.seg { background: rgba(255, 255, 255, .06); border-radius: 13px; padding: 3px; gap: 2px; box-shadow: inset 0 0 0 1px var(--hairline); }
+.seg button { min-height: 38px; border-radius: 10px; font-weight: 600; transition: background-color .25s var(--spring), color .2s ease, transform .3s var(--spring); }
+.seg button.on { background: linear-gradient(180deg, #ff62a6, var(--accent)); box-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 3px 10px rgba(255, 79, 154, .35), var(--edge-light); }
+
+/* ── Puces ── */
+.chips button { min-height: 38px; border-radius: 999px; padding: 8px 14px; }
+
+/* ── Interrupteur : curseur qui s'étire à l'appui puis glisse avec un léger rebond ── */
+input.switch { width: 51px; height: 31px; background: rgba(120, 120, 128, .32); transition: background-color .25s ease; box-shadow: inset 0 0 0 1px var(--hairline); }
+input.switch::before {
+  top: 2px; left: 2px; width: 27px; height: 27px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, .3), 0 1px 1px rgba(0, 0, 0, .16);
+  transition: transform .45s var(--spring-bounce), width .2s var(--spring);
+}
+input.switch:active::before { width: 33px; }
+input.switch:checked { background: var(--ok); }
+input.switch:checked::before { transform: translateX(20px); }
+input.switch:checked:active::before { transform: translateX(14px); }
+
+/* ── Barre d'onglets : matière translucide, onglet actif en pastille ── */
+.tabs {
+  background: rgba(18, 13, 30, .72); backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-top: 0; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 -8px 24px rgba(0, 0, 0, .25);
+}
+.tabs button { min-height: 52px; transition: color .2s ease, background-color .25s var(--spring), transform .3s var(--spring); }
+.tabs button.on { background: rgba(255, 255, 255, .1); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); }
+.tabs button.on span { font-weight: 700; }
+
+/* ── Messages flottants : matière, apparition depuis le bas et disparition par le même chemin ── */
+.toast {
+  background: rgba(34, 28, 48, .82); backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: var(--edge-light), var(--lift-m); border-radius: 16px; font-weight: 600;
+  animation: toast-in .45s var(--spring) both;
+}
+.toast.ok { background: rgba(20, 90, 60, .86); }
+.toast.err { background: rgba(107, 31, 42, .88); }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 16px) scale(.96); } }
+
+/* ── Feuilles de règles : montent du bas et y retournent ; fond assombri pour la mise au point ── */
+.g-modal { backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); animation: scrim-in .25s ease both; }
+.g-sheet { animation: sheet-in .5s var(--spring) both; box-shadow: var(--edge-light), 0 -12px 40px rgba(0, 0, 0, .45); }
+@keyframes scrim-in { from { opacity: 0; } }
+@keyframes sheet-in { from { transform: translateY(40px); opacity: 0; } }
+
+/* ── Menu latéral des jeux : glisse depuis le bouton ☰ (gauche) et repart à gauche, avec un léger élan ── */
+.g-drawer-panel {
+  background: rgba(24, 18, 40, .86); backdrop-filter: blur(28px) saturate(170%); -webkit-backdrop-filter: blur(28px) saturate(170%);
+  transition: transform .5s var(--spring-bounce);
+}
+.g-drawer { transition: background-color .3s ease; }
+
+/* ── Boutons de jeu : même vocabulaire (enfoncement + relief) ── */
+.g-go, .py-main, .py-sub, .qz-joker, .qz-mode, .qz-theme, .qz-chips button { -webkit-tap-highlight-color: transparent; }
+.g-go:not(:disabled):active, .py-main:not(:disabled):active, .py-sub:not(:disabled):active { transform: var(--press); }
+.qz-mode:not(:disabled):active, .qz-theme:not(:disabled):active, .qz-chips button:not(:disabled):active { transform: scale(.95); transition-duration: .08s; }
+
+/* ── Accessibilité : mouvements, transparence, contraste ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .12s !important; }
+  button:not(:disabled):active { transform: none; }
+  .toast, .g-sheet { animation: fade-in .2s ease both !important; }
+  @keyframes fade-in { from { opacity: 0; } }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .tabs, .toast, .g-drawer-panel, .g-modal { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+  .tabs { background: #140f20; } .toast { background: #221c30; } .g-drawer-panel { background: #181228; }
+}
+@media (prefers-contrast: more) {
+  button.secondary, .card, .seg, input[type=text], input[type=search], select { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .45); }
+  .muted, .artist, .sub { color: #d6d0e6; }
+}
+
+/* ── Mini-barre de partie (jeu réduit) : au-dessus des onglets, sur tous les onglets ── */
+.g-mini {
+  position: fixed; z-index: 9; left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right));
+  bottom: calc(76px + env(safe-area-inset-bottom)); max-width: 620px; margin: 0 auto; min-height: 60px;
+  display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 8px; border-radius: 18px; text-align: left; color: #fff;
+  background: rgba(36, 26, 58, .78); backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 0 0 1px rgba(255, 255, 255, .06), 0 10px 30px rgba(0, 0, 0, .45);
+  animation: mini-in .5s var(--spring-bounce) both;
+}
+.g-mini-ico { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; color: #fff;
+  background: linear-gradient(135deg, var(--accent), #8a3cff); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25); }
+.g-mini-ico svg { width: 26px; height: 26px; }
+.g-mini-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.g-mini-txt b { font-size: .98rem; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-mini-txt small { color: #b9b1cf; font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-mini-go { flex: none; padding: 9px 13px; border-radius: 999px; font-weight: 800; font-size: .85rem; color: #1a0a12;
+  background: linear-gradient(180deg, #fff, #f1e9ff); box-shadow: 0 2px 8px rgba(0, 0, 0, .3); }
+body.has-mini { padding-bottom: 170px; }
+body.has-mini #tabs ~ .install { bottom: calc(146px + env(safe-area-inset-bottom)); }
+body.has-mini .toast { bottom: calc(150px + env(safe-area-inset-bottom)); }
+@keyframes mini-in { from { opacity: 0; transform: translateY(24px) scale(.96); } }
+
+/* ── Bouton ⌄ « Réduire » dans la barre du haut du jeu ── */
+.g-min { flex: none; }
+#gTop .g-help { margin-left: 0; }
+
+/* ── Réduire / reprendre : le jeu se replie vers la mini-barre et en ressort par le même chemin ── */
+body.g-leave #gamePlay { animation: game-leave .26s cubic-bezier(.4, 0, 1, 1) both; }
+body.g-enter.pyr-full #gamePlay { animation: game-enter .45s var(--spring) both; }
+@keyframes game-leave { to { opacity: 0; transform: translateY(38%) scale(.9); border-radius: 28px; } }
+@keyframes game-enter { from { opacity: 0; transform: translateY(38%) scale(.9); } }
+@media (prefers-reduced-motion: reduce) {
+  body.g-leave #gamePlay, body.g-enter.pyr-full #gamePlay, .g-mini { animation: fade-in .15s ease both !important; }
+}
+
+/* ═══ Salle de jeux ═══ */
+.g-rm { --g-bg: #12203a; --g-accent: #ffd84d; --g-ink: #241a00; --g-soft: #dfe7ff; --g-chip: #1d2f52; }
+.gcard.g-rm { background: linear-gradient(150deg, #1d3566, #12203a 60%, #2a1840); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14),
+  inset 0 0 0 1px rgba(255, 216, 77, .25), 0 18px 40px rgba(0, 0, 0, .45); }
+.gcard.g-rm .g-icon { background: linear-gradient(135deg, #ffd84d, #ff9f43); color: #2a1a00; }
+.gcard.g-rm .g-go { background: linear-gradient(180deg, #ffe27a, #ffc93c); color: #2a1a00; }
+.g-sep { display: flex; align-items: center; gap: 12px; margin: 18px 4px 12px; color: var(--muted); font-size: .78rem; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; }
+.g-sep::before, .g-sep::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .14), transparent); }
+body.pyr-full #game.g-rm { background: transparent; border: 0; padding: 0; box-shadow: none; }
+.g-room-block { margin-top: 14px; padding: 14px; border-radius: 22px; background: rgba(255, 255, 255, .05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), inset 0 0 0 1px rgba(255, 255, 255, .05); }
+.g-room-h { font: 800 .78rem system-ui; letter-spacing: .12em; text-transform: uppercase; color: #b9c4e8; margin: 0 2px 10px; }
+.g-room-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.g-room-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 92px; padding: 10px 6px;
+  border-radius: 18px; color: #fff; text-align: center; background: linear-gradient(160deg, var(--g-chip, #2a2142), var(--g-bg, #17112a));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 8px 18px rgba(0, 0, 0, .35); }
+.g-room-tile b { font-size: .8rem; line-height: 1.15; letter-spacing: -0.005em; }
+.g-room-tile-i { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; color: var(--g-ink, #fff);
+  background: var(--g-accent, var(--accent)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 3px 8px rgba(0, 0, 0, .3); }
+.g-room-tile-i svg { width: 24px; height: 24px; }
+.g-room-tile:not(:disabled):active { transform: scale(.94); }
+.g-room-wait { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 14px; padding: 22px 14px; border-radius: 22px;
+  text-align: center; font-weight: 700; color: #dfe7ff; background: rgba(255, 255, 255, .05); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08); }
+.g-room-dots { display: flex; gap: 6px; }
+.g-room-dots i { width: 8px; height: 8px; border-radius: 50%; background: #ffd84d; animation: room-dot 1.2s var(--spring) infinite; }
+.g-room-dots i:nth-child(2) { animation-delay: .15s; } .g-room-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes room-dot { 0%, 60%, 100% { transform: translateY(0); opacity: .4; } 30% { transform: translateY(-6px); opacity: 1; } }
+.g-room-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 14px; margin-top: 6px; background: rgba(255, 255, 255, .04); }
+.g-room-row b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-room-row.me { background: rgba(255, 216, 77, .14); box-shadow: inset 0 0 0 1px rgba(255, 216, 77, .3); }
+.g-room-pts { font-weight: 800; color: #ffd84d; } .g-room-sips { font-weight: 700; color: #ffc2cc; }
+.g-room-hist { display: flex; flex-wrap: wrap; gap: 8px; }
+.g-room-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px 6px 6px; border-radius: 999px; font-size: .8rem; font-weight: 700;
+  background: var(--g-chip, #2a2142); color: var(--g-soft, #fff); }
+.g-room-chip i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--g-accent, var(--accent)); color: var(--g-ink, #fff); }
+.g-room-chip i svg { width: 14px; height: 14px; }
+.g-room-resume { margin-top: 14px; }
+/* Feuille de lancement : monte du bas avec sa poignée, repart par le même chemin */
+.g-room-modal { z-index: 35; align-items: flex-end; }
+.g-room-sheet { max-height: 88vh; overflow-y: auto; padding: 8px 14px max(18px, env(safe-area-inset-bottom)); border-radius: 26px 26px 0 0;
+  background: rgba(22, 16, 36, .92); backdrop-filter: blur(24px) saturate(170%); -webkit-backdrop-filter: blur(24px) saturate(170%); }
+.g-sheet-grab { width: 40px; height: 5px; border-radius: 99px; margin: 4px auto 10px; background: rgba(255, 255, 255, .28); }
+.g-room-sheet .gcard { margin: 0; box-shadow: none; }
+.g-room-modal.out { animation: scrim-out .26s ease both; }
+.g-room-modal.out .g-room-sheet { animation: sheet-out .26s cubic-bezier(.4, 0, 1, 1) both; }
+@keyframes scrim-out { to { opacity: 0; } }
+@keyframes sheet-out { to { transform: translateY(60px); opacity: 0; } }
+#rulesModal { z-index: 40; }
+.g-lobby-hint { white-space: normal !important; text-align: center; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Design v2 « Vendredi soir » : une vraie app (coquille plein écran, grand titre d'écran,
+   barre d'onglets / rail sur grand écran), une seule lumière de scène qui suit l'onglet.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --bg: #15102a;          /* Nuit */
+  --card: #221a3d;        /* Velours */
+  --card-2: #2c2350;
+  --text: #f5f0ff;        /* Craie */
+  --muted: #a69cc6;       /* Brume */
+  --accent: #ff4f9a;      /* Néon : les actions */
+  --accent-2: #ffb547;    /* Ambre : ce qui est en cours */
+  --radius: 18px;
+  --stage: rgba(255, 181, 71, .22);   /* lumière de scène (Musique) */
+}
+body[data-tab="games"] { --stage: rgba(255, 79, 154, .24); }
+html { height: 100%; background: var(--bg); overscroll-behavior-y: none; }
+body {
+  min-height: 100dvh; background-color: var(--bg);
+  background-image: radial-gradient(120% 60% at 18% -12%, var(--stage), transparent 62%);
+  background-attachment: fixed; transition: background-image .6s ease;
+  padding-top: max(14px, env(safe-area-inset-top));
+}
+/* Pas de sélection ni de menu contextuel sur les commandes : ça se comporte comme une app. */
+button, .tabs, .g-mini, .chips, .seg { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+
+/* Grand titre d'écran, aligné à gauche, comme une app iOS */
+.top-head { align-items: flex-end; min-height: 52px; margin: 6px 0 14px; }
+.app-title, .top-head h1 {
+  margin: 0; font: 800 clamp(2rem, 8.5vw, 2.5rem)/1.02 "Bricolage Grotesque", system-ui, sans-serif;
+  letter-spacing: -0.035em; font-optical-sizing: auto; color: var(--text);
+}
+.top-head h1 span { color: inherit; background: none; -webkit-background-clip: initial; background-clip: initial; }
+.name-chip-top { align-self: center; }
+/* Titres de section : casse normale, plus de majuscules espacées */
+h2 { text-transform: none; letter-spacing: -0.005em; font-size: 1rem; font-weight: 700; color: var(--text); opacity: .85; margin: 26px 2px 10px; }
+/* L'accueil des jeux ne répète pas le titre de l'écran */
+.g-hello, .g-h1 { display: none; }
+
+/* Onglets : icônes au trait, onglet actif = icône pleine couleur + libellé, sans fond de carte */
+.tab-ico { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tabs button { gap: 3px; color: #8f86b3; }
+.tabs button.on { background: transparent; box-shadow: none; color: var(--text); }
+.tabs button.on .tab-ico { stroke: var(--accent); filter: drop-shadow(0 0 10px rgba(255, 79, 154, .55)); }
+body[data-tab="music"] .tabs button.on .tab-ico { stroke: var(--accent-2); filter: drop-shadow(0 0 10px rgba(255, 181, 71, .5)); }
+
+/* Signal « c'est ton tour » : la barre du jeu s'illumine un instant (en plus de la vibration) */
+#gTop.g-turn { animation: g-turn 1.2s ease-out; }
+@keyframes g-turn { 0% { box-shadow: 0 0 0 0 rgba(255, 79, 154, 0); } 25% { box-shadow: 0 0 0 3px rgba(255, 79, 154, .7), 0 0 40px rgba(255, 79, 154, .55); } 100% { box-shadow: 0 0 0 0 rgba(255, 79, 154, 0); } }
+
+/* ── Tous les écrans ── */
+/* Tablettes et ordinateurs : rail d'onglets à gauche, contenu centré, plein écran des jeux en colonne */
+@media (min-width: 900px) {
+  body { max-width: none; padding-left: calc(112px + max(24px, env(safe-area-inset-left))); padding-right: 32px; }
+  body > *:not(.tabs):not(.g-mini):not(.toast):not(.g-modal):not(.g-drawer):not(.install):not(.g-ended):not(.py-flash) { max-width: 720px; margin-left: auto; margin-right: auto; }
+  .tabs { top: 0; bottom: 0; right: auto; width: 96px; flex-direction: column; justify-content: flex-start; gap: 8px;
+    padding: max(28px, env(safe-area-inset-top)) 10px; box-shadow: inset -1px 0 0 rgba(255, 255, 255, .06), 8px 0 24px rgba(0, 0, 0, .25); }
+  .tabs button { flex: none; max-width: none; min-height: 72px; border-radius: 18px; }
+  .tabs button.on { background: rgba(255, 255, 255, .07); }
+  .g-mini { left: calc(112px + 24px); right: 32px; bottom: 24px; }
+  body.has-mini .toast { bottom: 110px; }
+  .toast { bottom: 24px; }
+  body.pyr-full #gamePlay { padding-left: 24px; padding-right: 24px;
+    background: radial-gradient(60% 50% at 50% 0%, rgba(255, 79, 154, .18), transparent 70%), var(--bg); }
+  .app-title, .top-head h1 { font-size: 2.75rem; }
+}
+/* Petits écrans (iPhone SE…) : un peu plus compact */
+@media (max-width: 360px) {
+  body { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+  .app-title, .top-head h1 { font-size: 1.85rem; }
+  .qz-answers { gap: 8px; } .qz-ans { min-height: 64px; font-size: .92rem; }
+}
+/* Téléphone à l'horizontale : barre d'onglets plus basse, jeux qui défilent si besoin */
+@media (orientation: landscape) and (max-height: 500px) {
+  .tabs button { min-height: 44px; flex-direction: row; gap: 8px; }
+  .top-head { margin: 0 0 8px; min-height: 0; }
+  .app-title, .top-head h1 { font-size: 1.6rem; }
+  body.pyr-full #gamePlay { padding-top: max(6px, env(safe-area-inset-top)); }
+}
+/* Séparateur en casse normale (plus de majuscules espacées) */
+.g-sep { text-transform: none; letter-spacing: 0; font-size: .9rem; font-weight: 600; }
+/* Grand écran : les cartes de jeux sur deux colonnes */
+@media (min-width: 1100px) {
+  body > section[data-view="games"] { max-width: 1040px; }
+  #gHome { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  #gHome > :not(.gcard), #gHome > .g-room-card { grid-column: 1 / -1; }
+  #gHome > .gcard { margin: 0; }
+}
+/* Paysage : réponses du quiz en 2 × 2, textes plus compacts, tout tient à l'écran */
+@media (orientation: landscape) and (max-height: 500px) {
+  body.pyr-full #gamePlay > *:not(.g-hud) { max-width: 820px; }
+  .qz-answers, .qz-answers.long { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .qz-ans, .qz-answers.long .qz-ans { min-height: 52px; padding: 8px 10px; font-size: .9rem; }
+  .qz-qcard { padding: 10px 14px; margin-bottom: 8px; }
+  .qz-qtext, .qz-qtext.long { font-size: 1.15rem; }
+  .qz-top { margin-bottom: 4px; } .qz-timer { margin-bottom: 8px; }
+  #gTop { padding-bottom: 4px !important; }
+}
+
+/* ── Audit « Web Interface Guidelines » ── */
+html { color-scheme: dark; }
+.qz-qtext, .game .question, .g-title, .py-hero-t, .bk-now-t, .app-title, h2 { text-wrap: balance; }
+.g-desc, .sub, .artist { text-wrap: pretty; }
+.g-sheet, .g-room-sheet, .g-drawer-panel { overscroll-behavior: contain; }
+button.secret { display: block; width: 100%; color: inherit; font: inherit; text-align: center; box-shadow: none; }
+img { height: auto; }
+/* Survol (souris uniquement) : un léger éclaircissement, plus marqué qu'au repos */
+@media (hover: hover) and (pointer: fine) {
+  button:not(:disabled):hover { filter: brightness(1.08); }
+  .g-room-tile:hover, .qz-theme:hover, .qz-mode:hover { transform: translateY(-2px); }
+}
+
+/* ── Finitions (impeccable) ── */
+:root { --radius: 16px; }
+/* Pas de sur-titres en capitales espacées : le libellé parle en casse normale, à son poids */
+.g-lobby-k, .g-room-h, .bk-now-k, .qz-solo-k, .bk-last-k, .py-turn-k, .py-hero-k, .g-label, .qz-setup .g-label {
+  text-transform: none !important; letter-spacing: -0.005em !important; font-size: .95rem !important; font-weight: 700 !important;
+}
+.g-lobby-k { color: var(--accent-2); }
+/* Pas de texte en dégradé : l'accent passe par la graisse et la couleur pleine */
+h1 span { background: none !important; -webkit-background-clip: initial !important; background-clip: initial !important; color: var(--accent) !important; }
+/* Surfaces du navigateur aux couleurs de l'app */
+::selection { background: rgba(255, 79, 154, .45); color: #fff; }
+input, textarea { caret-color: var(--accent); }
+* { scrollbar-width: thin; scrollbar-color: rgba(166, 156, 198, .35) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(166, 156, 198, .3); border-radius: 99px; }
+::-webkit-scrollbar-track { background: transparent; }
+/* Chiffres des scores et compteurs alignés (ils ne « dansent » pas en changeant) */
+.qz-p, .qz-lb-pts, .qz-mypts, .g-room-pts, .qz-sec, .qz-num, .g-top-sub, .g-lobby-code, .big-pin, .qz-solo-v, .bk-chip, .eta { font-variant-numeric: tabular-nums; }
+/* Contraste (AA) : le bouton principal garde son rose néon, un ton plus profond pour que le texte blanc se lise */
+button { background: linear-gradient(180deg, #d92a73, #cf2568); }
+button.secondary { background: var(--card-2); }
+button.danger { background: #4a1f2a; }
+.tabs button, .seg button:not(.on) { background: transparent; }
+input::placeholder, textarea::placeholder { color: #a39bbd; }
+/* Message non lu : fond teinté et pastille, au lieu d'une épaisse bordure latérale */
+.msg.unread { border-left: 0; background: rgba(255, 181, 71, .1); box-shadow: inset 0 0 0 1px rgba(255, 181, 71, .25); }
+.msg.unread::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--accent-2); vertical-align: middle; }
+/* QR du menu : invisible tant qu'il n'est pas chargé (pas de case d'image cassée) */
+img.qr:not([src]) { visibility: hidden; }
+
+/* ── Jeux à questions (« Qui de nous ? », « Je n'ai jamais ») ── */
+.qs { display: flex; flex-direction: column; gap: 14px; }
+.qs-q { font-size: clamp(1.45rem, 6.4vw, 2.1rem) !important; line-height: 1.15 !important; letter-spacing: -0.02em; animation: qs-in .45s cubic-bezier(.2, .8, .2, 1) both; }
+.qs-q.qs-small { font-size: clamp(1.1rem, 4.6vw, 1.35rem) !important; opacity: .9; animation: none; }
+@keyframes qs-in { from { opacity: 0; transform: translateY(10px); } }
+.qs-help { margin: -4px 0 0; color: var(--g-soft, var(--muted)); font-size: .95rem; line-height: 1.4; }
+.qs-help b { color: #fff; }
+/* Je n'ai jamais : deux grands choix */
+.qs-yn { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+#game .qs-opt { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  min-height: clamp(132px, 24vh, 230px); padding: 14px 10px; border-radius: 20px; background: var(--g-chip); color: #fff;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .08), 0 6px 14px rgba(0, 0, 0, .18);
+  transition: transform .15s ease, background-color .2s ease, box-shadow .2s ease, opacity .2s ease; }
+.qs-opt .qs-emo { font-size: 2.4rem; line-height: 1; }
+.qs-opt b { font-size: 1.05rem; }
+.qs-opt small { font-size: .8rem; opacity: .8; font-weight: 600; }
+#game .qs-opt.on { background: var(--g-accent); color: var(--g-ink); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .5), 0 10px 22px rgba(0, 0, 0, .28); transform: translateY(-2px); }
+.qs-yn:has(.on) .qs-opt:not(.on), .qs-grid:has(.on) .qs-pick:not(.on) { opacity: .62; }
+/* Qui de nous : une tuile par joueur */
+.qs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(132px, 44%), 1fr)); gap: 8px; }
+#game .qs-pick { display: flex; align-items: center; gap: 10px; min-height: clamp(56px, 8vh, 76px); padding: 8px 12px; border-radius: 16px;
+  background: var(--g-chip); color: #fff; text-align: left; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .06);
+  transition: transform .15s ease, background-color .2s ease, opacity .2s ease; }
+#game .qs-pick.on { background: var(--g-accent); color: var(--g-ink); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .5), 0 8px 18px rgba(0, 0, 0, .25); }
+.qs-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: 1rem; }
+.qs-av { flex: none; display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+  background: hsl(var(--h) 70% 62%); color: hsl(var(--h) 60% 16%); font: 800 .95rem system-ui, sans-serif; }
+/* Qui a répondu */
+.qs-progress { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-top: 2px; color: var(--g-soft, var(--muted)); font-size: .9rem; font-variant-numeric: tabular-nums; }
+.qs-progress b { color: #fff; }
+.qs-whos { display: flex; flex-wrap: wrap; gap: 6px; }
+.qs-who { position: relative; }
+.qs-who .qs-av { width: 28px; height: 28px; font-size: .75rem; box-shadow: 0 0 0 2px var(--g-bg, var(--card)); filter: grayscale(1) brightness(.6); opacity: .7; transition: filter .3s ease, opacity .3s ease; }
+.qs-who.ok .qs-av { filter: none; opacity: 1; }
+.qs-who.ok::after { content: "✓"; position: absolute; right: -2px; bottom: -3px; width: 13px; height: 13px; border-radius: 50%; display: grid; place-items: center;
+  background: #2ecc71; color: #06301a; font: 900 .55rem system-ui, sans-serif; box-shadow: 0 0 0 2px var(--g-bg, var(--card)); }
+.qs-host { margin-top: 12px; }
+/* Résultats de « Qui de nous ? » */
+.qs-win { text-align: center; padding: 18px 14px; border-radius: 20px; background: rgba(0, 0, 0, .22); animation: qs-in .5s cubic-bezier(.2, .8, .2, 1) both; }
+.qs-win-names { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; font: 800 clamp(1.6rem, 8vw, 2.4rem)/1.1 "Bricolage Grotesque", system-ui, sans-serif; color: var(--g-accent, #fff); }
+.qs-win-n { margin-top: 6px; color: var(--g-soft, var(--muted)); font-variant-numeric: tabular-nums; }
+.qs-drink { display: inline-block; margin-top: 10px; padding: 6px 12px; border-radius: 99px; background: rgba(255, 255, 255, .14); font-weight: 700; }
+.qs-bars { margin-top: 0; }
+/* Résultats de « Je n'ai jamais » */
+.never-col { padding: 14px 12px; gap: 8px; }
+.never-head { display: flex; align-items: center; gap: 8px; font-size: 1.6rem; }
+.never-head b { font: 800 2.2rem/1 "Bricolage Grotesque", system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.never-lbl { font-weight: 700; color: var(--g-soft, var(--muted)); }
+.never-col.did { box-shadow: inset 0 0 0 2px var(--g-accent, transparent); }
+@media (prefers-reduced-motion: reduce) { .qs-q, .qs-win { animation: none; } .game .qs-opt.on { transform: none; } }
+
+/* Retiré de la partie : message, puis retour automatique à l'accueil */
+.kicked { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 36px 16px; animation: qs-in .4s cubic-bezier(.2, .8, .2, 1) both; }
+.kicked-ico { font-size: 3.4rem; line-height: 1; }
+.kicked-t { font: 800 clamp(1.4rem, 6vw, 1.9rem)/1.15 "Bricolage Grotesque", system-ui, sans-serif; text-wrap: balance; }
+.kicked-s { margin: 0; color: var(--g-soft, var(--muted)); font-variant-numeric: tabular-nums; }
+.kicked button { margin-top: 10px; min-width: 220px; }
+/* ✕ sur un joueur : exclure ou bannir */
+.g-kick-modal { z-index: 60; }
+.g-kick { gap: 10px; }
+.g-kick-who { display: flex; align-items: center; gap: 10px; font: 800 1.25rem/1.2 "Bricolage Grotesque", system-ui, sans-serif; margin-bottom: 4px; }
+.g-kick-opt { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px; border-radius: 16px; text-align: left;
+  background: rgba(255, 255, 255, .08); color: #fff; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); }
+.g-kick-opt b { display: block; font-size: 1.05rem; }
+.g-kick-opt small { display: block; margin-top: 2px; font-weight: 500; font-size: .85rem; line-height: 1.35; color: var(--muted); }
+.g-kick-opt.ban { background: rgba(255, 59, 92, .14); box-shadow: inset 0 0 0 1px rgba(255, 59, 92, .35); }
+.g-kick-opt.ban b { color: #ff8da1; }
+.g-kick-ico { flex: none; font-size: 1.6rem; }
+.g-kick { background: #221a3d; color: #fff; }

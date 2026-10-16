@@ -190,7 +190,7 @@
     <button type="button" data-tab="settings">⚙️<span>Réglages</span><i id="settingsBadge" class="badge hidden"></i></button>
   </nav>
 
-  <div id="toast" class="toast hidden"></div>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
 <script src="/static/push.js"></script>
 <script>
@@ -372,7 +372,7 @@ function renderMessages(s) {
   const ids = new Set(s.messages.map((m) => m.id));
   if (seenMessages) {
     const fresh = s.messages.filter((m) => !seenMessages.has(m.id));
-    if (fresh.length) { toast(`💬 ${fresh[0].name} : ${fresh[0].text}`, "ok"); navigator.vibrate?.(200); }
+    if (fresh.length) { toast(`💬 ${fresh[0].name} : ${fresh[0].text}`, "ok"); window.haptic?.(200); }
   }
   seenMessages = ids;
   const focused = document.activeElement?.dataset?.reply;
@@ -520,7 +520,10 @@ function checkBuild(data) {
 function listen() {
   if (source) source.close();
   source = new EventSource("/api/events");
-  source.onmessage = (ev) => { checkBuild(ev.data); clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 100); };
+  source.onmessage = (ev) => {
+    checkBuild(ev.data); clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => { refresh(); if (typeof myGame !== "undefined" && myGame) refreshGame(); }, 100);
+  };
   source.onerror = () => { source.close(); setTimeout(listen, 3000); };
 }
 
@@ -777,7 +780,7 @@ function renderGameAdmin(s) {
 document.addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-join-game]");
   if (!b) return;
-  setGame(b.dataset.joinGame); autoJoin = true;
+  setGame(b.dataset.joinGame); autoJoin = true; goGamesTab();
   if (location.hash !== "#games") showView("games"); else refreshGame();
   $("gamesRoot").scrollIntoView({ behavior: "smooth" });
 });

@@ -1,5 +1,5 @@
 # Stack de TEST (branche develop) à coller dans Dockhand sous le nom « vendrediparty-test ».
-# Site : https://party.test.bobycharbon.ch → HAProxy → 192.168.50.204:8091
+# Site : https://partytest.bobycharbon.ch → HAProxy → 192.168.50.204:8091
 # Données séparées de la production (volume vendrediparty-test-data) : on peut tout casser sans risque.
 # Variables à renseigner dans la stack : ADMIN_PIN (peut être différent de la prod), SPOTIFY_CLIENT_ID / SECRET.
 services:
@@ -10,7 +10,6 @@ services:
     restart: unless-stopped
     network_mode: host
     environment:
-      APP_ENV: test
       PORT: ${PORT:-8091}
       ADMIN_PIN: ${ADMIN_PIN}
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID}

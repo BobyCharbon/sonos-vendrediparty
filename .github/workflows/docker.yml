@@ -32,7 +32,7 @@ jobs:
         with:
           context: .
           push: true
-          # main → :latest (production) ; develop → :develop (site de test party.test.bobycharbon.ch)
+          # main → :latest (production) ; develop → :develop (site de test partytest.bobycharbon.ch)
           tags: |
             ghcr.io/bobycharbon/sonos-vendrediparty:${{ github.ref_name == 'main' && 'latest' || 'develop' }}
             ghcr.io/bobycharbon/sonos-vendrediparty:${{ github.sha }}

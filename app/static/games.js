@@ -1,4 +1,49 @@
 // 🎮 Jeux, partagés par la page invités et l'admin.
+// iOS Safari n'applique :active (enfoncement des boutons au toucher) que si la page écoute touchstart.
+document.addEventListener("touchstart", () => {}, { passive: true });
+// Vibration : l'API Vibration (Android) ; sur iPhone, Safari 18+ donne un retour haptique quand on bascule
+// un interrupteur natif (<input type=checkbox switch>) : on en garde un invisible pour s'en servir.
+let hapticSwitch = null;
+function haptic(pattern = 60) {
+  if (navigator.vibrate) { try { navigator.vibrate(pattern); return; } catch {} }
+  try {
+    if (!hapticSwitch) {
+      hapticSwitch = document.createElement("label");
+      hapticSwitch.setAttribute("aria-hidden", "true");
+      hapticSwitch.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0;pointer-events:none";
+      const i = document.createElement("input"); i.type = "checkbox"; i.setAttribute("switch", ""); i.tabIndex = -1;
+      hapticSwitch.append(i); document.body.append(hapticSwitch);
+    }
+    hapticSwitch.click();
+  } catch {}
+}
+// « C'est ton tour » : une clé par tour (vide si ce n'est pas à toi) ; le téléphone vibre quand elle change.
+function myTurnKey(g) {
+  const me = g?.me?.pid;
+  if (!me || g.kicked) return "";
+  switch (g.type) {
+    case "blackjack": return g.bj?.my_turn ? `bj${g.round}-${g.bj.turn}` : "";
+    case "divan": return g.divan?.my_turn ? `dv${g.divan.n}` : "";
+    case "biskit": return g.bk?.my_turn ? `bk${g.bk.drawn}` : "";
+    case "pyramid": return g.phase === "deal" && g.pyr?.turn === me ? `py${g.pyr.step}-${g.pyr.turn}` : "";
+    case "tmc": return g.tmc?.duo?.role && ["answer", "guess"].includes(g.phase) ? `tm${g.round}-${g.phase}-${g.tmc.duo.role}` : "";
+    case "undercover": return g.phase === "vote" && g.me.alive ? `uc${g.round}` : "";
+    case "whoof": case "never": return g.phase === "question" ? `q${g.round}` : "";
+    case "quiz": return g.phase === "q" && !g.quiz?.q?.out ? `qz${g.quiz.n}` : "";
+    case "casino": return g.phase === "bet" ? `cs${g.round}` : "";
+    default: return "";
+  }
+}
+let lastTurnKey = "";
+function turnSignal(g) {
+  const k = g ? `${g.id}:${myTurnKey(g)}` : "";
+  if (k && !k.endsWith(":") && k !== lastTurnKey) {
+    haptic([70, 50, 70]);
+    document.getElementById("gTop")?.classList.remove("g-turn"); void document.getElementById("gTop")?.offsetWidth;
+    document.getElementById("gTop")?.classList.add("g-turn");
+  }
+  lastTurnKey = k;
+}
 // Utilise les globales de la page : $, esc, store, toast, guestId, guestName (chargé après le script de la page).
 // Icônes des jeux (traits, couleur héritée) : chapeau et lunettes d'espion, deux personnes et un « ? ».
 const GAME_ICONS = {
@@ -14,7 +59,8 @@ GAME_ICONS.tmc = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" str
 GAME_ICONS.pyramid = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="19" y="5" width="10" height="12" rx="2"/><rect x="12" y="19" width="10" height="12" rx="2"/><rect x="26" y="19" width="10" height="12" rx="2"/><rect x="5" y="33" width="10" height="12" rx="2"/><rect x="19" y="33" width="10" height="12" rx="2"/><rect x="33" y="33" width="10" height="12" rx="2"/></svg>`;
 GAME_ICONS.biskit = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 18l6 6 10-12 10 12 6-6-3 16H11z"/><rect x="15" y="34" width="18" height="10" rx="3"/><circle cx="21" cy="39" r="1" fill="currentColor"/><circle cx="27" cy="39" r="1" fill="currentColor"/></svg>`;
 GAME_ICONS.quiz = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M24 4a15 15 0 0 1 9 27c-2 1.6-3 3.4-3 6v1H18v-1c0-2.6-1-4.4-3-6A15 15 0 0 1 24 4z"/><path d="M19 43h10"/><path d="M20 17a4 4 0 1 1 6 3.4c-1.3.8-2 1.7-2 3.1"/><circle cx="24" cy="29" r="0.6" fill="currentColor"/></svg>`;
-const GAME_THEME = { biskit: "g-bk", pyramid: "g-py", undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv", tmc: "g-tm" };
+GAME_ICONS.room = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 22L24 8l17 14"/><path d="M11 19v21h26V19"/><rect x="19" y="27" width="10" height="13" rx="2"/><path d="M30 13V9h5v8"/></svg>`;
+const GAME_THEME = { room: "g-rm", biskit: "g-bk", pyramid: "g-py", undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv", tmc: "g-tm" };
 const isBJ = (g) => g.type === "blackjack";
 const helpBtn = (type, inGame = false) => `<button type="button" class="g-help" data-rules="${type}" ${inGame ? "data-ingame" : ""} aria-label="Règles du jeu">?</button>`;
 
@@ -86,6 +132,16 @@ const CASINO_RULES_DRINKS = `
     <p>Exemple : 2 gorgées sur Rouge et 1 sur le 17. Le 17 (noir) sort : tu bois 2 (Rouge perdu) et tu distribues 10 (jackpot) !</p>
     <p>Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi. Buvez avec modération !</p>`;
 const GAME_RULES = {
+  room: `
+    <h3>Le principe</h3>
+    <p>Une <b>salle de jeux</b> réunit tout le monde pour la soirée, avec <b>un seul code</b> (et un seul QR). On la rejoint une fois.</p>
+    <h3>Pour l'animateur</h3>
+    <p>Choisis un jeu dans la salle, règle ses options, puis <b>« Lancer pour toute la salle »</b> : chaque téléphone bascule tout seul dans le jeu, avec tous les joueurs déjà inscrits (y compris ceux sans téléphone).</p>
+    <p>Quand le jeu est fini, <b>☰ → « Terminer ce jeu et revenir à la salle »</b> : tout le monde revient à la salle, prêt pour le suivant.</p>
+    <h3>Le tableau de la soirée</h3>
+    <p>Les points du Quiz et les gorgées de tous les jeux s'additionnent d'un jeu à l'autre.</p>
+    <h3>Arriver en retard</h3>
+    <p>Scanner le QR de la salle suffit : on rejoint la salle et le jeu en cours.</p>`,
   get biskit() { return bkRulesHtml(); },
   pyramid: `
     <h3>Le principe</h3>
@@ -267,7 +323,7 @@ document.getElementById("gamesRoot").innerHTML = `
     <div id="gName" class="hidden">
       <p class="sub">Comment tu t'appelles ?</p>
       <form id="gNameForm" class="row">
-        <input id="gNameInput" class="grow" type="text" maxlength="30" placeholder="Ton prénom" autocomplete="given-name" required>
+        <input id="gNameInput" class="grow" type="text" aria-label="Ton prénom" spellcheck="false" maxlength="30" placeholder="Ton prénom" autocomplete="given-name" required>
         <button>OK</button>
       </form>
     </div>
@@ -278,8 +334,21 @@ document.getElementById("gamesRoot").innerHTML = `
 
       <form id="gJoinForm" class="g-code">
         <label for="gCode">Code d'une partie</label>
-        <input id="gCode" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="• • • •" autocomplete="off">
+        <input id="gCode" type="text" spellcheck="false" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="• • • •" autocomplete="off">
       </form>
+
+      <div class="gcard g-rm g-room-card">
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.room}</div>
+          <div class="g-meta"><div class="g-title">Salle de jeux</div><div class="g-tag">Un seul code pour toute la soirée.</div></div>
+          ${helpBtn("room")}
+        </div>
+        <p class="g-desc">Tout le monde rejoint une fois. L'animateur lance les jeux les uns après les autres : chaque téléphone bascule tout seul, puis revient à la salle, avec le tableau de la soirée.</p>
+        <div class="g-chips"><span>✨ Recommandé</span><span>Tous les jeux</span><span>Tableau de la soirée</span></div>
+        <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
+        <button class="g-go" data-create="room">Ouvrir une salle</button>
+      </div>
+      <div class="g-sep"><span>ou une partie seule</span></div>
 
       <div class="gcard g-qz">
         <div class="g-head">
@@ -493,7 +562,7 @@ document.getElementById("gamesRoot").innerHTML = `
         <div class="card" id="gameInvite" style="text-align:center">
           <div class="artist">Pour rejoindre : scanne ce QR ou entre le code</div>
           <div class="big-pin" id="gameCode"></div>
-          <img class="qr" id="gameQr" alt="QR code pour rejoindre la partie">
+          <img class="qr" id="gameQr" width="220" height="220" alt="QR code pour rejoindre la partie">
         </div>
         <div id="gDrawerPlayers"></div>
         <button type="button" class="secondary" data-gdrawer="minimize" style="width:100%;margin-top:12px">↙ Réduire le jeu (revenir aux onglets)</button>
@@ -515,6 +584,16 @@ document.getElementById("gamesRoot").innerHTML = `
 `;
 
 // 🎮 Jeux : n'importe qui crée une partie (code + QR) et l'anime ; les autres la rejoignent avec son code.
+let myRoom = store("vp_room") || "";
+// Salle de jeux : si l'animateur a lancé un jeu, on y bascule tout seul ; true si on a changé de partie.
+function routeRoom(g) {
+  if (g?.type === "room") {
+    myRoom = g.code; store("vp_room", g.code);
+    const cur = g.room_info?.current;
+    if (cur && (g.me || g.is_host)) { setGame(cur.code); refreshGame(); return true; }
+  } else if (g?.room) { myRoom = g.room; store("vp_room", g.room); }
+  return false;
+}
 let myGame = store("vp_game") || "", game = null, wordShown = "", wordUntil = 0, guessDraft = "", showRoles = false, autoJoin = false;
 const GAME_PHASES = { lobby: "Inscriptions", words: "Indices", vote: "Vote", white_guess: "Devinette de Mr. White",
   reveal: "Résultat de la manche", end: "Partie terminée", question: "Question", results: "Résultats", spun: "Résultat", bet: "Mises", play: "Partie", card: "En séance",
@@ -533,8 +612,65 @@ async function gapi(path, body) {
   }
   return data;
 }
-function setGame(code) { myGame = code; store("vp_game", code); $("gameDot")?.classList.toggle("hidden", !code); }
+function setGame(code) {
+  // Une nouvelle partie (créée, rejointe par code ou par QR) s'ouvre toujours en plein écran.
+  if (code && code !== myGame) pyrFull = true;
+  myGame = code; store("vp_game", code); $("gameDot")?.classList.toggle("hidden", !code);
+  if (!code) syncGameChrome();
+}
+// ── Plein écran / mini-barre (comme le mini-lecteur d'Apple Music) ──
+// Plein écran : une partie est ouverte, non réduite, et l'onglet Jeux est affiché.
+// Sinon, tant qu'une partie est en cours, une mini-barre flottante permet d'y revenir depuis n'importe quel onglet.
+const gamesTabShown = () => !document.querySelector('[data-view="games"]')?.classList.contains("hidden");
+function goGamesTab() {
+  if (typeof showTab === "function") showTab("games");
+  else if (typeof showView === "function") showView("games");
+}
+function syncGameChrome() {
+  const g = myGame ? game : null;
+  const full = !!g && pyrFull && gamesTabShown();
+  document.body.classList.toggle("pyr-full", full);
+  let mini = $("gMini");
+  if (!mini) {
+    mini = document.createElement("button");
+    mini.type = "button"; mini.id = "gMini"; mini.className = "g-mini hidden";
+    mini.setAttribute("aria-label", "Reprendre la partie en plein écran");
+    mini.addEventListener("click", () => openGameFull());
+    document.body.append(mini);
+  }
+  const show = !!g && !full;
+  mini.classList.toggle("hidden", !show);
+  document.body.classList.toggle("has-mini", show);
+  if (show) {
+    const phase = g.type === "pyramid" && g.pyr ? pyrPhase(g) : phaseLabel(g);
+    mini.className = "g-mini " + (GAME_THEME[g.type] || "");
+    mini.innerHTML = `<span class="g-mini-ico" aria-hidden="true">${GAME_ICONS[g.type] || "🎮"}</span>
+      <span class="g-mini-txt"><b>${esc(g.name)}</b><small>${esc(phase || "")} · code ${esc(g.code)}</small></span>
+      <span class="g-mini-go">Reprendre ⌃</span>`;
+  }
+}
+// Reprendre : le jeu « ressort » de la mini-barre (même chemin que pour s'y réduire).
+function openGameFull() {
+  pyrFull = true;
+  if (!gamesTabShown()) goGamesTab();
+  document.body.classList.add("g-enter");
+  setTimeout(() => document.body.classList.remove("g-enter"), 500);
+  if (game) renderGame(game); else syncGameChrome();
+}
+// Réduire : le jeu se replie vers la mini-barre, puis on retrouve les onglets (musique, etc.).
+function minimizeGame() {
+  closeDrawer?.();
+  document.body.classList.add("g-leave");
+  setTimeout(() => {
+    document.body.classList.remove("g-leave");
+    pyrFull = false;
+    if (game) renderGame(game); else syncGameChrome();
+  }, 260);
+}
+// Changement d'onglet (page invités ou admin) : on remet le plein écran / la mini-barre à jour.
+document.addEventListener("click", (ev) => { if (ev.target.closest("[data-tab]")) setTimeout(syncGameChrome, 0); });
 
+let gSeq = 0;  // numéro du dernier chargement de la partie demandé
 async function refreshGame() {
   $("gName").classList.toggle("hidden", !!guestName);
   if (!guestName) {
@@ -544,13 +680,23 @@ async function refreshGame() {
   }
   $("gHello").textContent = guestName;
   if (!myGame) return renderGame(null);
+  const seq = ++gSeq, code = myGame;
   try {
     const g = await gapi(`/api/games/${myGame}?guest_id=${encodeURIComponent(guestId)}&name=${encodeURIComponent(guestName)}`);
+    // Deux rechargements presque simultanés : une réponse plus ancienne n'écrase jamais une plus récente.
+    if (seq !== gSeq || code !== myGame) return;
+    // Lien ou QR d'une partie : on rejoint une seule fois (déjà inscrit ou retiré par l'animateur : on ne réessaie pas).
+    if (autoJoin && (g.me || g.is_host || g.kicked)) autoJoin = false;
     if (autoJoin && !g.me && !g.is_host) { autoJoin = false; return gameAction("join"); }
+    if (routeRoom(g)) return;
     renderGame(g);
   } catch (e) {
     // Partie introuvable, ou erreur du serveur : on revient à l'accueil des jeux plutôt que de rester sur une page vide.
     if (e.status === 404) {
+      // Jeu terminé dans une salle : tout le monde revient à la salle.
+      const back = e.detail?.ended?.room || (myRoom && myGame !== myRoom ? myRoom : "");
+      if (back) { setGame(back); toast("🏠 Retour à la salle", "ok"); return refreshGame(); }
+      if (myRoom && myRoom === myGame) { myRoom = ""; store("vp_room", ""); }
       setGame("");
       if (e.detail?.ended) showGameEnded(e.detail.ended);
       else toast("Cette partie n'existe plus", "err");
@@ -568,6 +714,71 @@ function fmtDuration(sec) {
 let gameT0 = 0;  // début de la partie, sur l'horloge de ce téléphone
 setInterval(() => { if (game && $("gTimer")) $("gTimer").textContent = fmtDuration(Date.now() / 1000 - gameT0); }, 1000);
 
+// Pas de nouveau rendu si l'écran est identique : plus de clignotement ni d'animation rejouée à chaque mise à jour.
+// Met à jour un élément vers un nouveau HTML en ne modifiant que ce qui diffère : les nœuds identiques restent
+// en place (pas de flash, pas d'appui perdu, champ en cours de saisie conservé). data-key différent = nœud remplacé.
+function morph(el, html) {
+  const tpl = document.createElement("template");
+  tpl.innerHTML = html;
+  morphKids(el, tpl.content);
+}
+function morphKids(a, b) {
+  const an = [...a.childNodes], bn = [...b.childNodes];
+  bn.forEach((y, i) => {
+    const x = an[i];
+    if (!x) a.appendChild(y);
+    else if (x.nodeType !== y.nodeType || x.nodeName !== y.nodeName
+      || (x.nodeType === 1 && x.getAttribute("data-key") !== y.getAttribute("data-key"))) a.replaceChild(y, x);
+    else morphNode(x, y);
+  });
+  for (let i = bn.length; i < an.length; i++) an[i].remove();
+}
+function morphNode(x, y) {
+  if (x.nodeType !== 1) { if (x.nodeValue !== y.nodeValue) x.nodeValue = y.nodeValue; return; }
+  if (x.isEqualNode(y)) return;
+  const field = /^(INPUT|TEXTAREA|SELECT)$/.test(x.nodeName);
+  for (const { name } of [...x.attributes]) if (!y.hasAttribute(name) && !(field && name === "value")) x.removeAttribute(name);
+  for (const { name, value } of [...y.attributes]) if (x.getAttribute(name) !== value && !(field && name === "value")) x.setAttribute(name, value);
+  if (!field) morphKids(x, y);
+}
+const QUESTION_TYPES = ["whoof", "never"];  // jeux à questions (« Qui de nous ? », « Je n'ai jamais »)
+// Raccourci : patch.gameHost = html  ⇔  morph($("gameHost"), html)
+const patch = new Proxy({}, { set(_, id, html) { morph($(id), html); return true; } });
+// Retiré de la partie par l'animateur ou l'admin : message 5 secondes, puis retour à l'accueil des jeux.
+let kickTimer = 0, kickCode = "";
+function renderKicked(g) {
+  $("gTop").innerHTML = gameTopBar(g);
+  patch.gameHost = ""; patch.gameHud = "";
+  const code = myGame;
+  if (kickCode !== code) {
+    kickCode = code;
+    clearInterval(kickTimer);
+    const until = Date.now() + 5000;
+    kickTimer = setInterval(() => {
+      const left = Math.ceil((until - Date.now()) / 1000);
+      if (left > 0 && myGame === code) { if ($("kickLeft")) $("kickLeft").textContent = left; return; }
+      clearInterval(kickTimer); kickCode = "";
+      if (myGame !== code) return;  // déjà parti ailleurs entre-temps
+      myRoom = ""; store("vp_room", "");
+      closeDrawer(); setGame(""); renderGame(null);
+    }, 250);
+    haptic([80, 60, 80]);
+  }
+  setGameHtml(`<div class="kicked" role="alert">
+    <div class="kicked-ico" aria-hidden="true">${g.kicked ? "🚫" : "👋"}</div>
+    <div class="kicked-t">${g.kicked ? "Tu as été banni·e de" : "L'animateur t'a retiré·e de"} ${g.type === "room" ? "la salle" : "la partie"}</div>
+    <p class="kicked-s">${g.kicked ? "Tu ne peux plus la rejoindre avec ce code." : `Tu pourras la rejoindre à nouveau avec le code <b>${esc(g.room || g.code)}</b>.`}</p>
+    <p class="kicked-s">Retour à l'accueil dans <b id="kickLeft">5</b> s</p>
+    <button type="button" class="secondary" data-exit="away">Revenir maintenant</button>
+  </div>`);
+}
+function setGameHtml(html) {
+  const el = $("game");
+  if (el.dataset.html === html && el.firstChild) return false;
+  el.innerHTML = html;
+  el.dataset.html = html;
+  return true;
+}
 function renderGame(g) {
   if (dvDrag && g) { dvPending = g; return; }  // pas de rafraîchissement pendant qu'on tient la carte
   if (g && g !== game) gameT0 = Date.now() / 1000 - (g.elapsed || 0);  // recalé à chaque réponse du serveur
@@ -575,11 +786,13 @@ function renderGame(g) {
   $("gHome").classList.toggle("hidden", !!g);
   $("gamePlay").classList.toggle("hidden", !g);
   // Un jeu se joue toujours en plein écran ; « Réduire » (menu) revient aux onglets sans quitter la partie.
-  document.body.classList.toggle("pyr-full", !!g && pyrFull);
+  syncGameChrome();
   if (!g) { closeDrawer(); return; }
   const me = g.me;
   const nameOf = (pid) => esc(g.players.find((p) => p.pid === pid)?.name || "?");
   $("game").className = "card game " + (GAME_THEME[g.type] || "");
+  if (g.me || g.is_host || g.kicked) autoJoin = false;  // déjà dans la partie (ou banni) : plus de « rejoindre » automatique
+  if (g.kicked || (g.excluded && !autoJoin)) return renderKicked(g);
   renderCasino(g);  // avant le texte : il dépend de l'état de la bille (en train de rouler ou arrêtée)
   const title = `<div class="g-head g-play-head"><div class="g-icon">${GAME_ICONS[g.type] || ""}</div>
     <div class="g-meta"><div class="g-title">${esc(g.name)}</div>
@@ -588,7 +801,9 @@ function renderGame(g) {
   const lastLine = g.last?.name ? `<p class="sub" style="margin:8px 0">${esc(g.last.name)} était <b>${esc(g.last.role)}</b>.${g.last.guess ? ` Mr. White a proposé « ${esc(g.last.guess)} »… raté !` : ""}</p>` : "";
   let body = "";
 
-  if (g.type === "divan") {
+  if (g.type === "room") {
+    body = roomHtml(g);
+  } else if (g.type === "divan") {
     body = divanHtml(g);
   } else if (g.type === "tmc" && g.phase !== "lobby" && (me || g.master) && !g.kicked) {
     body = tmcHtml(g);
@@ -601,8 +816,6 @@ function renderGame(g) {
       ? `<div class="artist">${g.names.length < 2 ? "Note au moins 2 noms ci-dessous, puis lance la roue." : "Prêt ? Lance la roue !"}</div>`
       : `<div class="artist">${g.phase === "spun" ? "La roue a parlé…" : `${esc(g.host_name)} prépare la roue…`}</div>
          ${!me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:10px">Je participe (l'animateur pourra m'ajouter à la roue)</button>` : ""}`;
-  } else if (g.kicked) {
-    body = `<div class="title">L'animateur t'a retiré de cette partie</div><div class="artist">Tu peux en créer ou en rejoindre une autre.</div>`;
   } else if (!me && !g.master) {
     // Visiteur : pas encore dans la partie (Undercover en cours : il attendra la prochaine).
     const running = g.type === "undercover" && g.phase !== "lobby" && g.phase !== "end";
@@ -624,7 +837,7 @@ function renderGame(g) {
     const secret = me?.role ? `<div class="word">🎩 Tu es Mr. White</div><div class="artist">Tu n'as pas de mot : écoute les autres et bluffe !</div>`
       : `<div class="artist">Ton mot</div><div class="word">${esc(me?.word)}</div>`;
     const wordBox = !me?.dealt ? "" : wordShown === key && Date.now() < wordUntil
-      ? `<div data-gact="hide" class="secret">${secret}<div class="artist" style="margin-top:4px">Se cache dans <b id="wordCountdown">${Math.ceil((wordUntil - Date.now()) / 1000)}</b> s · touche pour cacher</div></div>`
+      ? `<button type="button" data-gact="hide" class="secret">${secret}<div class="artist" style="margin-top:4px">Se cache dans <b id="wordCountdown">${Math.ceil((wordUntil - Date.now()) / 1000)}</b> s · touche pour cacher</div></button>`
       : `<button class="secondary" data-gact="show" data-key="${esc(key)}" style="width:100%">👁 Voir mon mot (en cachette)</button>`;
     if (g.phase === "end") {
       body = `<div class="title">${WINNERS[g.winner]}</div>
@@ -644,57 +857,87 @@ function renderGame(g) {
     } else if (g.phase === "white_guess") {
       body = g.last?.me
         ? `<div class="title">Démasqué ! Dernière chance 🎩</div><div class="artist">Devine le mot des civils pour gagner :</div>
-           <form data-gform="guess" class="row" style="margin-top:8px"><input class="grow" type="text" id="guessInput" maxlength="40" placeholder="Le mot des civils" autocomplete="off"><button>Valider</button></form>`
+           <form data-gform="guess" class="row" style="margin-top:8px"><input class="grow" type="text" id="guessInput" maxlength="40" aria-label="Le mot des civils" placeholder="Le mot des civils…" autocomplete="off"><button>Valider</button></form>`
         : `<div class="title">${esc(g.last.name)} était Mr. White !</div><div class="artist">Il tente de deviner le mot des civils…</div>`;
     } else if (g.phase === "reveal") {
       body = `${lastLine}<div class="artist">${g.is_host ? "Lance la manche suivante quand vous êtes prêts." : "L'animateur lance la manche suivante…"}</div>`;
     }
-  } else if (g.phase === "question" && g.type === "never") {
-    body = `<div class="question">${esc(g.question)}</div>
-      <div class="never-btns">
-        <button class="${me.vote === "yes" ? "" : "secondary"}" data-gact="vote" data-target="yes">${me.vote === "yes" ? "✓ " : ""}🍻 Je l'ai déjà fait</button>
-        <button class="${me.vote === "no" ? "" : "secondary"}" data-gact="vote" data-target="no">${me.vote === "no" ? "✓ " : ""}😇 Jamais</button>
-      </div>
-      <div class="artist" style="margin-top:8px">${g.votes_count}/${g.players.length} réponses · révélées à la fin</div>`;
-  } else if (g.phase === "question") {  // Qui de nous ?
-    body = `<div class="question">${esc(g.question)}</div>
-      <div class="chips" style="margin-top:10px">${g.players.map((p) => `<button class="${me.vote === p.pid ? "" : "secondary"}" data-gact="vote" data-target="${esc(p.pid)}">${me.vote === p.pid ? "✓ " : ""}${p.pid === me.pid ? "Moi" : esc(p.name)}</button>`).join("")}</div>
-      <div class="artist" style="margin-top:8px">${g.votes_count}/${g.players.length} votes · anonyme</div>`;
+  } else if (g.phase === "question" && QUESTION_TYPES.includes(g.type)) {
+    body = questionHtml(g, me);
   } else if (g.phase === "results") {
-    body = `<div class="question">${esc(g.question)}</div>${resultsHtml(g)}`;
+    body = `<div class="qs" data-key="r${g.round}"><div class="question qs-q qs-small">${esc(g.question)}</div>${resultsHtml(g)}</div>`;
   }
-  $("gTop").innerHTML = gameTopBar(g);
+  patch.gTop = gameTopBar(g);
   if (!pyrFull) {
     // Jeu réduit : un bandeau pour revenir dedans.
-    $("game").innerHTML = `<button class="py-main" data-pyr="enter">⛶ Reprendre ${esc(g.name)} en plein écran</button>`;
+    setGameHtml(`<button class="py-main" data-pyr="enter">⛶ Reprendre ${esc(g.name)} en plein écran</button>`);
   } else if (g.type === "quiz") {
     // Pas de nouveau rendu (ni d'animation) si rien n'a changé : sinon l'écran « flashe » à chaque rafraîchissement.
     const sig = quizSig(g), el = $("game");
     const fresh = el.dataset.qzSig !== sig || !el.querySelector(".qz-root");
     if (fresh) {
       const key = quizAnimKey(g);
+      el.dataset.html = "";
       el.innerHTML = lobbyInvite(g) + `<div class="qz-root ${key !== qzAnimKey ? "anim" : ""} ${g.quiz.settings.mode === "chrono" ? "fast" : ""}">${quizHtml(g)}</div>`;
       el.dataset.qzSig = sig;
       qzAnimKey = key;
     }
     quizAfter(g, fresh);
   } else if (g.type === "pyramid" || g.type === "biskit") {
-    $("game").innerHTML = lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g));
+    setGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g)));
     if (g.type === "pyramid") pyrWheel(g);
   } else {
-    $("game").innerHTML = lobbyInvite(g) + body;
+    const el = $("game"), html = lobbyInvite(g) + body;
+    if (el.dataset.html !== html || !el.firstChild) { morph(el, html); el.dataset.html = html; }
   }
   renderDrawer(g);
   gameFlashes(g);
+  turnSignal(g);
   const input = $("guessInput");
-  if (input) { input.value = guessDraft; input.addEventListener("input", () => { guessDraft = input.value; }); }
+  if (input && !input._vp) { input._vp = 1; input.value = guessDraft; input.addEventListener("input", () => { guessDraft = input.value; }); }
   renderRoulette(g);
   renderHud(g);
   bjOutcomeFx(g);
   renderGameHost(g);
-  $("gameCode").textContent = g.code;
-  const qr = `/qr/game/${g.code}.svg`;
+  const joinCode = g.room || g.code;  // dans une salle : on invite à rejoindre la salle (puis le jeu suit)
+  $("gameCode").textContent = joinCode;
+  const qr = `/qr/game/${joinCode}.svg`;
   if ($("gameQr").getAttribute("src") !== qr) $("gameQr").src = qr;
+}
+
+// Pastille ronde avec l'initiale, d'une couleur stable par joueur.
+function avatar(p, cls = "") {
+  let h = 0;
+  for (const c of p.pid || p.name || "") h = (h * 31 + c.charCodeAt(0)) % 360;
+  return `<span class="qs-av ${cls}" style="--h:${h}" aria-hidden="true">${esc((p.name || "?").trim().charAt(0).toUpperCase())}</span>`;
+}
+// « Qui de nous ? » et « Je n'ai jamais » : la question, une consigne, les choix, et qui a déjà répondu.
+function questionHtml(g, me) {
+  const n = g.votes_count, total = g.players.length, mine = me?.vote;
+  const sips = g.options?.sips || 0;
+  const help = !me ? "Tu regardes la partie : les réponses s'affichent à la fin."
+    : g.type === "never"
+      ? (mine ? "Réponse enregistrée. Tu peux encore changer d'avis." : "Réponds en secret : tout est révélé quand tout le monde a répondu.")
+      : (mine ? `Tu as voté pour <b>${mine === me.pid ? "toi" : esc(g.players.find((p) => p.pid === mine)?.name || "?")}</b>. Touche un autre nom pour changer.`
+              : "Vote pour la personne qui correspond le mieux. C'est anonyme.");
+  const choices = !me ? "" : g.type === "never"
+    ? `<div class="qs-yn" role="group" aria-label="Ta réponse">
+        <button type="button" class="qs-opt ${mine === "yes" ? "on" : ""}" data-gact="vote" data-target="yes" aria-pressed="${mine === "yes"}">
+          <span class="qs-emo" aria-hidden="true">🍻</span><b>Je l'ai déjà fait</b>${sips ? `<small>Je bois ${sips} gorgée${sips > 1 ? "s" : ""}</small>` : ""}</button>
+        <button type="button" class="qs-opt ${mine === "no" ? "on" : ""}" data-gact="vote" data-target="no" aria-pressed="${mine === "no"}">
+          <span class="qs-emo" aria-hidden="true">😇</span><b>Jamais</b>${sips ? `<small>Je ne bois pas</small>` : ""}</button>
+      </div>`
+    : `<div class="qs-grid" role="group" aria-label="Ton vote">${g.players.map((p) => `
+        <button type="button" class="qs-pick ${mine === p.pid ? "on" : ""}" data-gact="vote" data-target="${esc(p.pid)}" aria-pressed="${mine === p.pid}">
+          ${avatar(p)}<span class="qs-name">${p.pid === me.pid ? "Moi" : esc(p.name)}</span></button>`).join("")}</div>`;
+  const who = g.players.map((p) => `<span class="qs-who ${p.voted ? "ok" : ""}" title="${esc(p.name)}${p.voted ? " a répondu" : " réfléchit…"}">${avatar(p)}</span>`).join("");
+  return `<div class="qs" data-key="q${g.round}">
+    <div class="question qs-q">${esc(g.question)}</div>
+    <p class="qs-help" role="status">${help}</p>
+    ${choices}
+    <div class="qs-progress"><div class="qs-whos">${who}</div>
+      <span><b>${n}</b> sur ${total} ${n > 1 ? "ont" : "a"} ${g.type === "never" ? "répondu" : "voté"}</span></div>
+  </div>`;
 }
 
 function resultsHtml(g) {
@@ -702,11 +945,16 @@ function resultsHtml(g) {
   if (g.type === "never") return neverResultsHtml(g);
   const max = Math.max(1, ...g.results.map((r) => r.count));
   const sips = g.options?.sips || 0;
-  const drinkers = g.results.filter((r) => r.count === max).map((r) => esc(r.name));
-  const drink = sips && drinkers.length
-    ? `<div class="drink">🍻 ${drinkers.join(" et ")} boi${drinkers.length > 1 ? "vent" : "t"} ${sips} gorgée${sips > 1 ? "s" : ""} !</div>` : "";
-  return drink + `<div class="list" style="margin-top:10px">${g.results.map((r) => `<div class="bar ${r.count === max ? "top" : ""}" style="--w:${Math.round(100 * r.count / max)}%">
-    <span>${r.count === max ? "👑 " : ""}${esc(r.name)}</span><b>${r.count}</b></div>`).join("") || `<div class="artist">Personne n'a voté</div>`}</div>`;
+  const top = g.results.filter((r) => r.count === max && r.count > 0);
+  if (!top.length) return `<p class="qs-help">Personne n'a voté.</p>`;
+  const drink = sips ? `<div class="qs-drink">🍻 ${top.length > 1 ? "Ils boivent" : "Boit"} ${sips} gorgée${sips > 1 ? "s" : ""}</div>` : "";
+  const rest = g.results.filter((r) => !top.includes(r));
+  return `<div class="qs-win">
+      <div class="qs-win-names">${top.map((r) => `<span>👑 ${esc(r.name)}</span>`).join("")}</div>
+      <div class="qs-win-n">${max} vote${max > 1 ? "s" : ""} sur ${g.players.length}</div>${drink}
+    </div>
+    ${rest.length ? `<div class="list qs-bars">${rest.map((r) => `<div class="bar" style="--w:${Math.round(100 * r.count / max)}%">
+      <span>${esc(r.name)}</span><b>${r.count}</b></div>`).join("")}</div>` : ""}`;
 }
 
 // 🎆 Animation de fin de main, seulement sur l'écran du joueur concerné.
@@ -762,7 +1010,7 @@ function playFx(kind, sub) {
   const close = () => { fx.classList.add("fx-out"); setTimeout(() => fx.remove(), 350); };
   fx.addEventListener("click", close);
   document.body.append(fx);
-  navigator.vibrate?.({ win: [80, 60, 80], blackjack: [100, 50, 100, 50, 220], jackpot: [100, 50, 100, 50, 100, 50, 300],
+  haptic({ win: [80, 60, 80], blackjack: [100, 50, 100, 50, 220], jackpot: [100, 50, 100, 50, 100, 50, 300],
     push: [60], mixed: [60, 60, 60], lose: [320], bust: [120, 60, 320] }[kind]);
   setTimeout(close, kind === "blackjack" || kind === "jackpot" ? 3800 : 3000);
 }
@@ -778,7 +1026,7 @@ function renderHud(g) {
     items.push(`<div class="hud-item"><span>🍻</span><b>${me.drink || 0}</b><small>bue${me.drink > 1 ? "s" : ""}</small></div>`);
     if (isBJ(g)) items.push(`<div class="hud-item"><span>🎁</span><b>${me.give || 0}</b><small>donnée${me.give > 1 ? "s" : ""}</small></div>`);
   }
-  $("gameHud").innerHTML = items.join("");
+  patch.gameHud = items.join("");
   $("gameHud").className = "g-hud " + (GAME_THEME[g.type] || "") + (items.length && g.phase !== "lobby" ? "" : " hidden");
 }
 const sipsBadge = (p) => p.drink || p.give ? ` <span class="artist">· 🍻 ${p.drink || 0}${p.give ? ` · 🎁 ${p.give}` : ""}</span>` : "";
@@ -803,7 +1051,6 @@ let bjTurnSeen = "";
 function bjTableHtml(g) {
   const t = g.bj, me = g.me, mine = t.seats.find((x) => x.pid === me?.pid), h = mine?.hand;
   const turnName = t.seats.find((x) => x.pid === t.turn)?.name;
-  if (t.my_turn && bjTurnSeen !== g.id + g.round) { bjTurnSeen = g.id + g.round; navigator.vibrate?.(120); }
   const dealer = t.dealer.length ? `<div class="bj-dealer"><div class="artist">Croupier ${t.dealer_total != null ? `· <b>${t.dealer_total}</b>` : t.dealer_up != null ? `· ${t.dealer_up} + ?` : ""}</div>
     <div class="bj-cards">${t.dealer.map((c) => cardHtml(c)).join("")}</div></div>` : "";
   let status = "", zone = "";
@@ -855,7 +1102,7 @@ function renderBJHost(g, btn) {
     play: turnName ? btn("skip", `⏭ Passer le tour de ${esc(turnName)}`, "secondary grow") : "",
     results: btn("next", "▶︎ Main suivante", "grow"),
   }[g.phase] || "";
-  $("gameHost").innerHTML = `
+  patch.gameHost = `
     ${controls ? `<div class="row" style="margin-top:10px">${controls}</div>` : ""}
     <h2>À la table (${g.players.length})</h2>
     <div class="list">${t.seats.map((x) => {
@@ -867,7 +1114,7 @@ function renderBJHost(g, btn) {
         <div class="meta"><div class="title">${esc(x.name)}${x.pid === t.turn ? " ⏳" : ""}${drinks(g) ? "" : `<span class="artist"> · 💰 ${x.chips}${x.rebuys ? ` (rechargé ${x.rebuys}×)` : ""}</span>`}${sipsBadge(g.players.find((p) => p.pid === x.pid) || {})}</div>
           <div class="artist">${info}${g.phase === "results" && h?.result ? ` · <b>${bjResultText(g, h)}</b>` : ""}</div>
           ${h?.cards.length ? `<div class="bj-cards" style="margin-top:4px">${h.cards.map((c) => cardHtml(c, true)).join("")}</div>` : ""}</div>
-        ${g.is_host && x.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(x.pid)}" title="Exclure de la table">✕</button>` : ""}
+        ${g.is_host && x.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(x.pid)}" title="Exclure de la table" aria-label="Exclure de la table">✕</button>` : ""}
       </div>`;
     }).join("") || `<p class="empty" style="padding:12px">Personne à la table : fais scanner le QR ci-dessous.</p>`}</div>
     ${g.is_host && !g.me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
@@ -899,7 +1146,7 @@ function pyrFlash(kind, title, sub = "", card = "", ms = 2300) {
     <div class="py-flash-title">${title}</div>${sub ? `<div class="py-flash-sub">${sub}</div>` : ""}</div>`;
   el.addEventListener("click", () => el.remove());
   document.body.append(el);
-  navigator.vibrate?.(kind === "bad" || kind === "liar" ? [200] : [60, 40, 60]);
+  haptic(kind === "bad" || kind === "liar" ? [200] : [60, 40, 60]);
   setTimeout(() => el.classList.add("out"), ms);
   setTimeout(() => el.remove(), ms + 400);
 }
@@ -985,7 +1232,6 @@ function pyrHtml(g) {
     const cur = v.seats.find((s) => s.pid === v.turn), mine = cur && cur.pid === me?.pid;
     const ref = v.step === 2 ? cur.cards.slice(0, 1) : v.step === 3 ? cur.cards.slice(0, 2) : [];
     const canAct = mine || host;
-    if (mine && pyrSeen.turnBuzz !== `${v.step}-${v.turn}`) { pyrSeen.turnBuzz = `${v.step}-${v.turn}`; navigator.vibrate?.(120); }
     body = `<div class="py-steps">${[1, 2, 3, 4].map((i) => `<span class="${i < v.step ? "done" : i === v.step ? "on" : ""}">${i}</span>`).join("<i></i>")}</div>
       <div class="py-turn ${mine ? "me" : ""}"><div class="py-turn-k">${mine ? "C'est ton tour" : "C'est au tour de"}</div>
         <div class="py-turn-name">${mine ? "À TOI !" : esc(cur?.name || "…")}</div></div>
@@ -1031,7 +1277,7 @@ function pyrHtml(g) {
   }
   // Arrivées en cours de partie : l'animateur accepte ou refuse ; le nouveau venu patiente.
   const peekReqs = host ? (v.peeks || []).filter((r) => r.status === "pending") : [];
-  if (peekReqs.length && pyrSeen.peekAlert !== peekReqs[0].id) { pyrSeen.peekAlert = peekReqs[0].id; navigator.vibrate?.([120, 60, 120]); }
+  if (peekReqs.length && pyrSeen.peekAlert !== peekReqs[0].id) { pyrSeen.peekAlert = peekReqs[0].id; haptic([120, 60, 120]); }
   const peekAlert = peekReqs.length ? `<div class="py-panel py-pend py-alert">${peekReqs.map((r) => `
       <div class="py-claim"><span>👀 <b>${esc(r.name)}</b> veut revoir ${r.count} carte${r.count > 1 ? "s" : ""} <small>(+${2 * r.count} gorgées)</small></span><span class="py-claim-act">
         <button class="py-mini ok" data-gact="ppeek_ok" data-target="${r.id}">Accepter</button><button class="py-mini bad" data-gact="ppeek_no" data-target="${r.id}">Refuser</button></span></div>`).join("")}</div>` : "";
@@ -1169,8 +1415,8 @@ document.addEventListener("click", (ev) => {
   if (!b || !game) return;
   const a = b.dataset.pyr, who = b.dataset.who || "";
   if (a === "exit") { pyrFull = false; return renderGame(game); }
-  if (a === "enter") { pyrFull = true; return renderGame(game); }
-  if (a === "pans" || a === "pbans") { navigator.vibrate?.(20); return gameAction(a, { target: b.dataset.val, who }); }
+  if (a === "enter") return openGameFull();
+  if (a === "pans" || a === "pbans") { haptic(20); return gameAction(a, { target: b.dataset.val, who }); }
   if (a === "reveal") return gameAction("preveal", { amount: +b.dataset.slot, who });
   if (a === "claimfor") return gameAction("pclaim", { who });
   if (a === "peeksel") { const k = +b.dataset.slot; pyrPeekSel = pyrPeekSel.includes(k) ? pyrPeekSel.filter((x) => x !== k) : [...pyrPeekSel, k]; return renderGame(game); }
@@ -1186,9 +1432,9 @@ document.addEventListener("click", (ev) => {
 });
 
 function renderPyrHost(g) {
-  $("gameHost").innerHTML = `<h2>À la table (${g.players.length})</h2>
+  patch.gameHost = `<h2>À la table (${g.players.length})</h2>
     <div class="list">${g.players.map((p) => `<div class="track"><div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}${sipsBadge(p)}</div></div>
-      ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie">✕</button>` : ""}</div>`).join("")
+      ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie" aria-label="Exclure de la partie">✕</button>` : ""}</div>`).join("")
       || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
     ${g.phase === "lobby" ? manualForm(g) : ""}
     ${g.is_host && !g.me && g.phase === "lobby" ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
@@ -1255,7 +1501,7 @@ setInterval(() => {
   document.querySelectorAll("[data-ready-at]").forEach((b) => {
     const left = Number(b.dataset.readyAt) - Date.now();
     if (left > 0) { b.disabled = true; b.textContent = `⏳ Lis le gage… ${Math.ceil(left / 1000)} s`; }
-    else if (b.disabled) { b.disabled = false; b.innerHTML = b.dataset.label; b.removeAttribute("data-ready-at"); navigator.vibrate?.(60); }
+    else if (b.disabled) { b.disabled = false; b.innerHTML = b.dataset.label; b.removeAttribute("data-ready-at"); haptic(60); }
   });
 }, 250);
 
@@ -1275,8 +1521,7 @@ function bkHtml(g) {
   }
   // Événements : vibration quand c'est ton tour ou qu'un réflexe démarre.
   const turnKey = `${v.drawn}-${v.turn}`;
-  if (v.my_turn && bkSeen.turnBuzz !== turnKey && !v.await) { bkSeen.turnBuzz = turnKey; navigator.vibrate?.(100); }
-  if (v.reflex && !v.reflex.done && bkSeen.reflex !== v.reflex.id) { bkSeen.reflex = v.reflex.id; navigator.vibrate?.([200, 80, 200]); }
+  if (v.reflex && !v.reflex.done && bkSeen.reflex !== v.reflex.id) { bkSeen.reflex = v.reflex.id; haptic([200, 80, 200]); }
   // Nouvelle carte : le gage en plein écran sur tous les téléphones (pas en différé après un rechargement).
   if (bkSeen.game !== g.id) { bkSeen.game = g.id; bkSeen.drawn = v.drawn; }
   else if (v.drawn > (bkSeen.drawn || 0) && v.card && v.key) {
@@ -1321,7 +1566,7 @@ function bkHtml(g) {
     else if (["mate", "queen", "duel"].includes(v.await.kind)) action = `<div class="py-panel"><div class="py-turn-k">${{ mate: "Choisis ton pote de boisson", queen: "Qui boit 2 ?", duel: "Contre qui ce duel ?" }[v.await.kind]}</div>
         <div class="chips bk-pick">${others.map((s) => `<button class="py-mini" data-bk="pick" data-target="${esc(s.pid)}" ${v.await.mine ? "" : `data-who="${esc(v.await.pid)}"`}>${esc(s.name)}</button>`).join("")}</div>${who}</div>`;
     else if (v.await.kind === "rule") action = `<div class="py-panel"><div class="py-turn-k">Écris ta règle</div>
-        <form data-bk-form="rule" class="row"><input class="grow" type="text" id="bkRule" maxlength="120" placeholder="Ex. : interdit de dire « boire »" autocomplete="off"><button class="py-mini ok">OK</button></form>${who}</div>`;
+        <form data-bk-form="rule" class="row"><input class="grow" type="text" id="bkRule" maxlength="120" aria-label="Ta règle" placeholder="Ex. : interdit de dire « boire »" autocomplete="off"><button class="py-mini ok">OK</button></form>${who}</div>`;
     else action = `<div class="py-panel"><div class="py-turn-k">Quelle règle supprimer ?</div>
         <div class="bk-pick">${v.rules.map((r) => `<button class="py-sub" data-bk="pick" data-target="${esc(r.id)}" ${v.await.mine ? "" : `data-who="${esc(v.await.pid)}"`}>❌ ${esc(r.text)}</button>`).join("")}</div>${who}</div>`;
   }
@@ -1353,7 +1598,7 @@ function bkHtml(g) {
 document.addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-bk]");
   if (!b || !game) return;
-  if (b.dataset.bk === "draw") { navigator.vibrate?.(20); return gameAction("bdraw", { who: b.dataset.who || "" }); }
+  if (b.dataset.bk === "draw") { haptic(20); return gameAction("bdraw", { who: b.dataset.who || "" }); }
   if (b.dataset.bk === "pick") return gameAction("bpick", { target: b.dataset.target, who: b.dataset.who || "" });
 });
 document.addEventListener("submit", (ev) => {
@@ -1365,13 +1610,13 @@ document.addEventListener("submit", (ev) => {
 });
 function renderBkHost(g) {
   const movable = g.is_host && g.phase === "lobby";
-  $("gameHost").innerHTML = `<h2>Autour de la table (${g.players.length})</h2>
+  patch.gameHost = `<h2>Autour de la table (${g.players.length})</h2>
     ${movable ? `<p class="artist" style="margin:-4px 0 8px">Range les joueurs dans l'ordre où ils sont assis (vers la gauche) avec ⬆ ⬇.</p>` : ""}
     <div class="list">${g.players.map((p, i) => `<div class="track"><div class="meta"><div class="title">${i + 1}. ${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}${sipsBadge(p)}</div></div>
       <div class="icon-btns">
-        ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter">⬆</button>` : ""}
-        ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre">⬇</button>` : ""}
-        ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure">✕</button>` : ""}
+        ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter" aria-label="Monter">⬆</button>` : ""}
+        ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre" aria-label="Descendre">⬇</button>` : ""}
+        ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure" aria-label="Exclure">✕</button>` : ""}
       </div></div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
     ${g.phase === "lobby" ? manualForm(g) : ""}
     ${g.is_host && !g.me && g.phase === "lobby" ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
@@ -1388,7 +1633,7 @@ function divanHtml(g) {
   // Nouvelle carte (ou retour en arrière) : on la retourne à l'écran.
   const c = d.card, fresh = c && c.id !== dvSeen;
   if (c) dvSeen = c.id;
-  if (fresh && d.my_turn) navigator.vibrate?.(80);
+  if (fresh && d.my_turn) haptic(80);
   const who = d.current?.name || "…";
   return `<div class="dv-who ${d.my_turn ? "me" : ""} ${fresh ? "dv-new" : ""}">
       <div class="dv-avatar" aria-hidden="true">${esc([...who][0]?.toUpperCase() || "?")}</div>
@@ -1437,7 +1682,7 @@ async function dvRelease(ev) {
     if (dvPending) { const g = dvPending; dvPending = null; renderGame(g); }
     return;
   }
-  navigator.vibrate?.(30);
+  haptic(30);
   card.classList.add("dv-back");
   card.style.transform = `translateX(${Math.sign(dx) * 150}%) rotate(${Math.sign(dx) * 25}deg)`;
   card.style.opacity = "0";
@@ -1449,12 +1694,12 @@ document.addEventListener("pointerup", dvRelease);
 document.addEventListener("pointercancel", dvRelease);
 
 // 📵 Participants sans téléphone : l'animateur les ajoute à la main et agit pour eux.
-const MANUAL_GAMES = ["divan", "tmc", "never", "pyramid", "biskit"];
+const MANUAL_GAMES = ["divan", "tmc", "never", "pyramid", "biskit", "room"];
 const playerTag = (g, p) => !MANUAL_GAMES.includes(g.type) ? "" : p.manual
   ? ` <span class="pill tag-manual" title="Ajouté·e à la main par l'animateur">✍️ sans téléphone</span>`
   : ` <span class="tag-phone" title="Joue sur son téléphone">📱</span>`;
 const manualForm = (g) => !g.is_host || !MANUAL_GAMES.includes(g.type) || g.phase === "end" ? "" : `
-  <form data-gform="addguest" class="row" style="margin-top:8px"><input class="grow" type="text" id="manualName" maxlength="30" placeholder="Prénom (sans téléphone)" autocomplete="off"><button class="secondary">＋ Ajouter</button></form>
+  <form data-gform="addguest" class="row" style="margin-top:8px"><input class="grow" type="text" id="manualName" maxlength="30" aria-label="Prénom d'un participant sans téléphone" spellcheck="false" placeholder="Prénom (sans téléphone)" autocomplete="off"><button class="secondary">＋ Ajouter</button></form>
   <div class="artist" style="margin-top:4px">Pour quelqu'un qui joue sans téléphone : c'est toi qui agiras pour lui ou elle.</div>`;
 
 function renderDivanHost(g, btn) {
@@ -1462,13 +1707,13 @@ function renderDivanHost(g, btn) {
   const controls = g.phase === "lobby"
     ? (g.is_host ? btn("start", "▶︎ Ouvrir la séance", "grow", g.players.length ? "" : "disabled") : "")
     : d.can_lead || d.can_back ? (d.can_back ? btn("dback", "↩︎ Retour", "secondary") : "") + (!d.can_lead ? "" : btn("djoker", d.joker ? "Joker utilisé" : "🃏 Joker : autre carte", "secondary grow", d.joker ? "disabled" : "") + btn("dnext", "Au suivant ▶︎", "grow")) : "";
-  $("gameHost").innerHTML = `
+  patch.gameHost = `
     ${controls ? `<div class="row" style="margin-top:10px">${controls}</div>` : ""}
     <h2>Autour du divan (${g.players.length})</h2>
     <div class="list">${g.players.map((p) => `
       <div class="track ${p.pid === d.current?.pid && g.phase === "card" ? "bj-turn" : ""}">
         <div class="meta"><div class="title">${p.pid === d.current?.pid && g.phase === "card" ? "🛋️ " : ""}${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}</div></div>
-        ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la séance">✕</button>` : ""}
+        ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la séance" aria-label="Exclure de la séance">✕</button>` : ""}
       </div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
     ${manualForm(g)}
     ${g.is_host && !g.me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
@@ -1488,7 +1733,7 @@ function tmcHtml(g) {
   const duo = `<div class="tm-duo"><span class="tm-who ${d.role === "guesser" ? "me" : ""}">🔮 ${d.role === "guesser" ? "Toi" : G}<small>devine</small></span>
     <span class="tm-arrow">→</span><span class="tm-who ${d.role === "subject" ? "me" : ""}">🎯 ${d.role === "subject" ? "Toi" : S}<small>répond</small></span></div>`;
   const q = `<div class="tm-q">${esc(d.question)}</div>`;
-  const form = (ph) => `<form data-gform="tanswer" class="row" style="margin-top:10px"><input class="grow" type="text" id="guessInput" maxlength="80" placeholder="${ph}" autocomplete="off"><button>Valider</button></form>`;
+  const form = (ph) => `<form data-gform="tanswer" class="row" style="margin-top:10px"><input class="grow" type="text" id="guessInput" maxlength="80" aria-label="${ph}" placeholder="${ph}" autocomplete="off"><button>Valider</button></form>`;
   if (g.phase === "answer") {
     let zone;
     if (d.proxy) zone = `<div class="tm-speak" style="font-size:1rem">📵 ${S} n'a pas de téléphone : passe-lui le tien pour qu'il ou elle écrive sa réponse en secret.</div>${form(`Réponse de ${d.subject.name}`)}`;
@@ -1544,7 +1789,7 @@ function renderTmcHost(g, btn) {
   }[g.phase] || "";
   const finish = g.is_host && !["lobby", "end"].includes(g.phase) ? `<button class="secondary" data-gact="finish" style="width:100%;margin-top:8px">🏁 Terminer et voir le bilan</button>` : "";
   const playing = g.phase !== "lobby";
-  $("gameHost").innerHTML = `
+  patch.gameHost = `
     ${controls ? `<div class="row" style="margin-top:10px">${controls}</div>` : ""}${finish}
     ${playing && g.phase !== "end" ? tmcMine(g) : ""}
     ${playing && g.phase !== "end" ? `<h2>Classement</h2>${tmcPodium(g)}` : ""}
@@ -1554,7 +1799,7 @@ function renderTmcHost(g, btn) {
     <div class="list">${g.players.map((p) => `
       <div class="track ${t.duo && g.phase !== "end" && [t.duo.guesser.pid, t.duo.subject.pid].includes(p.pid) ? "bj-turn" : ""}">
         <div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}</div></div>
-        ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie">✕</button>` : ""}
+        ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie" aria-label="Exclure de la partie">✕</button>` : ""}
       </div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
     ${manualForm(g)}
     ${g.is_host && !g.me && (g.phase === "lobby" || g.phase === "end") ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
@@ -1698,7 +1943,7 @@ function renderCasinoHost(g, btn) {
   const resultTxt = (t) => !t.result || !revealed ? "" : c.drinks
     ? [t.result.drink ? `🍻 ${t.result.drink}` : "", t.result.give ? `🎁 ${t.result.give}` : ""].filter(Boolean).join(" · ") || "rien"
     : (t.result.net > 0 ? `+${t.result.net}` : `${t.result.net}`) + (t.result.jackpot ? " 🎯" : "");
-  $("gameHost").innerHTML = `
+  patch.gameHost = `
     ${controls ? `<div class="row" style="margin-top:10px">${controls}</div>` : ""}
     ${!me ? (g.phase !== "lobby" ? `<button data-gact="join" style="width:100%;margin-top:10px">S'asseoir à la table</button>` : "") : `
       ${open ? `<div class="cs-chips" role="group" aria-label="Valeur du jeton">${values.map((v) => `<button type="button" class="cs-chip v${values.indexOf(v)} ${v === casinoChip ? "on" : ""}" data-cchip="${v}" ${v > left ? "disabled" : ""}>${c.drinks ? `🍻${v}` : v}</button>`).join("")}
@@ -1715,7 +1960,7 @@ function renderCasinoHost(g, btn) {
       <div class="track">
         <div class="meta"><div class="title">${esc(t.name)}${open && t.ready ? ` <span class="pill live">prêt ✓</span>` : ""}${c.drinks ? "" : `<span class="artist"> · 💰 ${t.chips}${t.rebuys ? ` (rechargé ${t.rebuys}×)` : ""}</span>`}${sipsBadge(g.players.find((p) => p.pid === t.pid) || {})}</div>
           <div class="artist" style="white-space:normal">${t.staked ? summary(t) : g.phase === "bet" ? "réfléchit…" : "n'a pas misé"}${resultTxt(t) ? ` · <b>${resultTxt(t)}</b>` : ""}</div></div>
-        ${g.is_host && t.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(t.pid)}" title="Exclure de la table">✕</button>` : ""}
+        ${g.is_host && t.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(t.pid)}" title="Exclure de la table" aria-label="Exclure de la table">✕</button>` : ""}
       </div>`).join("") || `<p class="empty" style="padding:12px">Personne à la table : fais scanner le QR ci-dessous.</p>`}</div>
     ${g.is_host && !g.me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
 }
@@ -1724,7 +1969,7 @@ document.addEventListener("click", (ev) => {
   if (chip) { casinoChip = +chip.dataset.cchip; return renderGameHost(game); }
   const cell = ev.target.closest("[data-cbet]");
   if (cell && game?.type === "casino") {
-    navigator.vibrate?.(15);
+    haptic(15);
     gameAction("cbet", { target: cell.dataset.cbet, amount: casinoChip });
   }
 });
@@ -1788,7 +2033,7 @@ function renderRoulette(g) {
       setTimeout(() => {
         wheelShown = sp.id;
         if (game?.spin?.id === sp.id) { showRouletteResult(game); renderGameHost(game); }
-        navigator.vibrate?.(150);
+        haptic(150);
       }, left * 1000 + 100);
     } else {
       setWheel(wheelRot, 0);
@@ -1810,7 +2055,7 @@ function renderRouletteHost(g, btn) {
       <div id="rlControls"></div>
       ${g.is_host ? `<h2 id="rlTitle"></h2>
         <form data-gform="addname" class="row">
-          <input class="grow" type="text" id="rouletteName" maxlength="20" placeholder="Ajouter un nom" autocomplete="off" autocapitalize="words" enterkeyhint="enter">
+          <input class="grow" type="text" id="rouletteName" maxlength="20" aria-label="Ajouter un nom" spellcheck="false" placeholder="Ajouter un nom…" autocomplete="off" autocapitalize="words" enterkeyhint="enter">
           <button type="submit" id="rouletteAdd">Ajouter</button>
         </form>
         <div class="chips" id="rlNames" style="margin-top:8px"></div>
@@ -1838,9 +2083,10 @@ function neverResultsHtml(g) {
   const drink = sips && did.length
     ? `<div class="drink">🍻 ${did.map((r) => esc(r.name)).join(", ")} boi${did.length > 1 ? "vent" : "t"} ${sips} gorgée${sips > 1 ? "s" : ""} !</div>`
     : !did.length ? `<div class="drink">😇 Personne ne l'a fait… tout le monde est sage ?</div>` : "";
-  const col = (label, list) => `<div class="never-col"><div class="artist">${label} (${list.length})</div>
+  const col = (emo, label, list, cls) => `<div class="never-col ${cls}"><div class="never-head"><span aria-hidden="true">${emo}</span><b>${list.length}</b></div>
+    <div class="never-lbl">${label}</div>
     <div class="chips">${list.map((r) => `<span class="pill">${esc(r.name)}</span>`).join("") || `<span class="artist">personne</span>`}</div></div>`;
-  return drink + `<div class="never-res">${col("🍻 Déjà fait", did)}${col("😇 Jamais", never)}</div>`;
+  return drink + `<div class="never-res">${col("🍻", "L'ont déjà fait", did, "did")}${col("😇", "Jamais", never, "nev")}</div>`;
 }
 
 // Commandes de l'animateur (créateur de la partie) et liste des joueurs.
@@ -1854,7 +2100,7 @@ function renderGameHost(g) {
     vote: btn("close_vote", `Clore le vote (${g.votes_count}/${alive.length})`, "grow"),
     white_guess: btn("skip_guess", "Passer la devinette", "secondary grow"),
     reveal: btn("next", "▶︎ Manche suivante", "grow"),
-    question: btn("close_vote", `Voir les résultats (${g.votes_count}/${g.players.length})`, "grow") + btn("next", "⏭", "secondary", `title="Changer de question"`),
+    question: btn("close_vote", g.votes_count >= g.players.length ? "Voir les résultats" : `Voir les résultats (${g.votes_count}/${g.players.length})`, "grow") + btn("next", "Autre question", "secondary", `title="Passer cette question sans résultat"`),
     results: btn("next", "▶︎ Question suivante", "grow"),
     end: btn("restart", "🔁 Rejouer avec les mêmes joueurs", "grow"),
   }[g.phase] || "";
@@ -1862,16 +2108,27 @@ function renderGameHost(g) {
   if (isBJ(g)) return renderBJHost(g, btn);
   if (g.type === "casino") return renderCasinoHost(g, btn);
   if (g.type === "divan") return renderDivanHost(g, btn);
-  if (g.type === "pyramid" || g.type === "biskit" || g.type === "quiz") { $("gameHost").innerHTML = ""; return; }
+  if (["pyramid", "biskit", "quiz", "room"].includes(g.type)) { patch.gameHost = ""; return; }
   if (g.type === "tmc") return renderTmcHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
   const canRemove = g.is_host;
   const seeRoles = g.phase === "end" || (g.master && showRoles);
   const speaking = g.type === "undercover" && g.phase === "words";
   const canMove = g.is_host && (speaking || g.phase === "lobby");
+  // Pendant les questions, la liste est dans le menu ☰ ; ici, seulement ceux qui jouent sans téléphone (l'animateur répond pour eux).
+  if (QUESTION_TYPES.includes(g.type) && (g.phase === "question" || g.phase === "results")) {
+    const manual = g.type === "never" && g.phase === "question" ? g.players.filter((p) => p.manual) : [];
+    patch.gameHost = `${controls ? `<div class="row qs-host">${controls}</div>` : ""}
+      ${manual.length ? `<h2>Sans téléphone : réponds pour eux</h2><div class="list">${manual.map((p) => `<div class="track"><div class="meta"><div class="title">${esc(p.name)}</div></div>
+        <div class="icon-btns">
+          <button class="${p.answer === "yes" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="yes" aria-pressed="${p.answer === "yes"}">🍻 Déjà fait</button>
+          <button class="${p.answer === "no" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="no" aria-pressed="${p.answer === "no"}">😇 Jamais</button>
+        </div></div>`).join("")}</div>` : ""}`;
+    return;
+  }
   const list = speaking ? g.order_pids.map((pid) => g.players.find((p) => p.pid === pid)).filter(Boolean)
     .concat(g.players.filter((p) => !g.order_pids.includes(p.pid))) : g.players;
-  $("gameHost").innerHTML = `
+  patch.gameHost = `
     ${controls ? `<div class="row" style="margin-top:10px">${controls}</div>` : ""}
     <h2>${speaking ? "Ordre de parole" : "Joueurs"} (${g.players.length})${g.master && g.type === "undercover" ? ` <button class="secondary" data-gact="roles" style="padding:2px 8px">${showRoles ? "🙈 Cacher" : "👁 Rôles"}</button>` : ""}</h2>
     <div class="list">${list.map((p, i) => `
@@ -1880,12 +2137,12 @@ function renderGameHost(g) {
           ${p.role && (seeRoles || !p.alive) ? `<div class="artist">${esc(p.role)}${seeRoles && p.word ? " · " + esc(p.word) : ""}</div>` : ""}</div>
         <div class="icon-btns">
           ${g.is_host && p.manual && g.type === "never" && g.phase === "question" ? `
-            <button class="${p.answer === "yes" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="yes" title="L'a déjà fait">🍻</button>
-            <button class="${p.answer === "no" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="no" title="Jamais">😇</button>` : ""}
-          ${canMove && p.alive && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter">⬆</button>` : ""}
-          ${canMove && p.alive && i < (speaking ? g.order_pids.length : list.length) - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre">⬇</button>` : ""}
-          ${canEliminate && p.alive ? `<button class="danger" data-gact="eliminate" data-target="${esc(p.pid)}" title="Éliminer (vote à main levée)">Éliminer</button>` : ""}
-          ${canRemove && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie">✕</button>` : ""}
+            <button class="${p.answer === "yes" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="yes" title="L'a déjà fait" aria-label="L'a déjà fait">🍻</button>
+            <button class="${p.answer === "no" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="no" title="Jamais" aria-label="Jamais">😇</button>` : ""}
+          ${canMove && p.alive && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter" aria-label="Monter">⬆</button>` : ""}
+          ${canMove && p.alive && i < (speaking ? g.order_pids.length : list.length) - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre" aria-label="Descendre">⬇</button>` : ""}
+          ${canEliminate && p.alive ? `<button class="danger" data-gact="eliminate" data-target="${esc(p.pid)}" title="Éliminer (vote à main levée)" aria-label="Éliminer (vote à main levée)">Éliminer</button>` : ""}
+          ${canRemove && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie" aria-label="Exclure de la partie">✕</button>` : ""}
         </div>
       </div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
     ${manualForm(g)}
@@ -1930,12 +2187,84 @@ function lobbyInvite(g) {
   const n = g.players.length;
   return `<div class="g-lobby">
     <div class="g-lobby-k">Scannez pour rejoindre</div>
-    <img class="g-lobby-qr" src="/qr/game/${esc(g.code)}.svg" alt="QR code pour rejoindre la partie">
-    <div class="g-lobby-code">${esc(g.code)}</div>
-    <div class="artist">ou onglet 🎮 Jeux → « Rejoindre une partie » avec ce code</div>
+    <img class="g-lobby-qr" width="240" height="240" src="/qr/game/${esc(g.room || g.code)}.svg" alt="QR code pour rejoindre la partie">
+    <div class="g-lobby-code">${esc(g.room || g.code)}</div>
+    <div class="artist g-lobby-hint">ou onglet 🎮 Jeux → entre ce code</div>
     <div class="g-lobby-players">${n ? g.players.map((p) => `<span class="pill">${p.host ? "🎲 " : ""}${esc(p.name)}</span>`).join("") : `<span class="artist">En attente des joueurs…</span>`}</div>
   </div>`;
 }
+
+// ── Salle de jeux ──
+function roomHtml(g) {
+  const R = g.room_info || {}, lead = g.is_host;
+  const cur = R.current;
+  const resume = cur ? `<button class="py-main g-room-resume" data-room-goto="${esc(cur.code)}">🎮 ${esc(cur.name)} en cours · rejoindre</button>` : "";
+  const pick = lead && !cur ? `<div class="g-room-block"><div class="g-room-h">Lancer un jeu pour la salle</div>
+      <div class="g-room-grid">${(R.catalog || []).map((c) => `<button type="button" class="g-room-tile ${GAME_THEME[c.type] || ""}" data-room-pick="${c.type}">
+        <span class="g-room-tile-i">${GAME_ICONS[c.type] || ""}</span><b>${esc(c.name)}</b></button>`).join("")}</div></div>`
+    : !cur ? `<div class="g-room-wait"><span class="g-room-dots"><i></i><i></i><i></i></span>${esc(g.host_name || "L'animateur")} choisit le prochain jeu…</div>` : "";
+  const board = (R.board || []).filter((r) => r.pts || r.drink || r.give);
+  const tally = board.length ? `<div class="g-room-block"><div class="g-room-h">🏆 Tableau de la soirée</div>
+      ${board.map((r, i) => `<div class="g-room-row ${r.me ? "me" : ""}"><span class="qz-rank r${i + 1}">${i + 1}</span><b>${esc(r.name)}</b>
+        ${r.pts ? `<span class="g-room-pts">${r.pts.toLocaleString("fr-CH")} pts</span>` : ""}${r.drink ? `<span class="g-room-sips">🍻 ${r.drink}</span>` : ""}</div>`).join("")}</div>` : "";
+  const hist = (R.history || []).length ? `<div class="g-room-block"><div class="g-room-h">Déjà joué ce soir</div><div class="g-room-hist">
+      ${R.history.map((h) => `<span class="g-room-chip ${GAME_THEME[h.type] || ""}"><i>${GAME_ICONS[h.type] || ""}</i>${esc(h.name)}${h.winner ? ` · 🏆 ${esc(h.winner)}` : ""}</span>`).join("")}</div></div>` : "";
+  return resume + pick + tally + hist;
+}
+function openRoomSheet(type) {
+  const src = [...document.querySelectorAll("#gHome .gcard")].find((c) => c.querySelector(`[data-create="${type}"]`));
+  if (!src) return;
+  closeRoomSheet(true);
+  const card = src.cloneNode(true);
+  const go = card.querySelector("[data-create]");
+  go.textContent = "▶ Lancer pour toute la salle";
+  const wrap = document.createElement("div");
+  wrap.className = "g-modal g-room-modal";
+  wrap.innerHTML = `<div class="g-sheet g-room-sheet" role="dialog" aria-modal="true" aria-label="Lancer un jeu"><div class="g-sheet-grab" aria-hidden="true"></div></div>`;
+  wrap.firstElementChild.append(card);
+  wrap.addEventListener("click", (ev) => { if (ev.target === wrap) closeRoomSheet(); });
+  document.body.append(wrap);
+}
+// ✕ sur un joueur : l'exclure (il peut revenir quand il veut) ou le bannir (ce code lui est refusé).
+function openKickSheet(pid) {
+  const p = game?.players.find((x) => x.pid === pid);
+  if (!p) return;
+  if (p.manual) return gameAction("remove", { target: pid });  // sans téléphone : on le retire simplement
+  closeRoomSheet(true);
+  const name = esc(p.name);
+  const wrap = document.createElement("div");
+  wrap.className = "g-modal g-room-modal g-kick-modal";
+  wrap.innerHTML = `<div class="g-sheet g-room-sheet g-kick" role="dialog" aria-modal="true" aria-labelledby="kickTitle">
+    <div class="g-sheet-grab" aria-hidden="true"></div>
+    <div class="g-kick-who">${avatar(p)}<b id="kickTitle">Retirer ${name} ?</b></div>
+    <button type="button" class="g-kick-opt" data-kick="remove"><span class="g-kick-ico" aria-hidden="true">👋</span>
+      <span><b>Exclure</b><small>${name} quitte la partie et pourra revenir avec le code. Pratique en cas d'absence.</small></span></button>
+    <button type="button" class="g-kick-opt ban" data-kick="ban"><span class="g-kick-ico" aria-hidden="true">🚫</span>
+      <span><b>Bannir</b><small>${name} ne pourra plus rejoindre cette partie avec ce code.</small></span></button>
+    <button type="button" class="secondary" data-kick="cancel">Annuler</button>
+  </div>`;
+  wrap.addEventListener("click", (ev) => {
+    const k = ev.target.closest("[data-kick]")?.dataset.kick;
+    if (ev.target !== wrap && !k) return;
+    closeRoomSheet();
+    if (k === "remove" || k === "ban") gameAction(k, { target: pid }).then(() => toast(k === "ban" ? `🚫 ${p.name} : banni·e de la partie` : `👋 ${p.name} : retiré·e (retour possible avec le code)`, "ok"));
+  });
+  document.body.append(wrap);
+  wrap.querySelector("[data-kick=remove]").focus();
+}
+function closeRoomSheet(now = false) {
+  const w = document.querySelector(".g-room-modal");
+  if (!w) return;
+  if (now) return w.remove();
+  w.classList.add("out");
+  setTimeout(() => w.remove(), 260);
+}
+document.addEventListener("click", (ev) => {
+  const t = ev.target.closest("[data-room-pick]");
+  if (t) return openRoomSheet(t.dataset.roomPick);
+  const go = ev.target.closest("[data-room-goto]");
+  if (go) { setGame(go.dataset.roomGoto); autoJoin = true; refreshGame(); }
+});
 
 // Barre du haut commune à tous les jeux : ☰ menu, nom + phase + chrono, ? règles.
 function gameTopBar(g) {
@@ -1945,23 +2274,25 @@ function gameTopBar(g) {
   const alerts = (g.pyr?.pending?.length || 0) + (g.is_host ? (g.pyr?.peeks || []).filter((r) => r.status === "pending").length : 0);
   return `<button type="button" class="py-icon g-burger" data-gdrawer="open" aria-label="Menu : joueurs, code, QR">☰${alerts ? `<i class="badge">${alerts}</i>` : ""}</button>
     <div class="g-top-mid"><div class="g-top-name"><span class="g-top-ico" aria-hidden="true">${GAME_ICONS[g.type] || ""}</span>${esc(g.name)}</div>
-      <div class="g-top-sub">${g.mode ? esc(g.mode) + " · " : ""}${phase}${round} · code <b>${esc(g.code)}</b> · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
+      <div class="g-top-sub">${g.mode ? esc(g.mode) + " · " : ""}${QUESTION_TYPES.includes(g.type) && g.round && g.phase !== "lobby" && g.phase !== "end" ? `Question ${g.round}` : (g.type === "room" ? "Soirée" : phase) + round} · ${g.room || g.type === "room" ? "salle" : "code"} <b>${esc(g.room || g.code)}</b> · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
+    <button type="button" class="py-icon g-min" data-gdrawer="minimize" aria-label="Réduire le jeu (revenir à la musique)">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
     ${helpBtn(g.type, true)}`;
 }
 // Menu latéral : code, QR, participants (et outils de l'animateur ou de l'admin), réduire, quitter.
 function renderDrawer(g) {
   const lead = g.is_host, movable = lead && g.phase === "lobby";
-  $("gDrawerPlayers").innerHTML = `<h2>Participants (${g.players.length})</h2>
+  patch.gDrawerPlayers = `<h2>Participants (${g.players.length})</h2>
     <div class="list">${g.players.map((p, i) => `<div class="track"><div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${p.pid === g.me?.pid ? " (toi)" : ""}${playerTag(g, p)}${p.pending ? " ⏳" : ""}${sipsBadge(p)}</div></div>
       <div class="icon-btns">
-        ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter">⬆</button>` : ""}
-        ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre">⬇</button>` : ""}
-        ${lead && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie">✕</button>` : ""}
+        ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter" aria-label="Monter">⬆</button>` : ""}
+        ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre" aria-label="Descendre">⬇</button>` : ""}
+        ${lead && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie" aria-label="Exclure de la partie">✕</button>` : ""}
       </div></div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR.</p>`}</div>
     ${movable && ["biskit", "pyramid"].includes(g.type) ? `<p class="artist" style="margin-top:6px">Range les joueurs dans l'ordre où ils sont assis (vers la gauche).</p>` : ""}
     ${(g.type !== "pyramid" || g.phase === "lobby") ? manualForm(g) : ""}
     ${lead && !g.me && (g.phase === "lobby" || g.phase === "end") ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">🙋 Je joue aussi</button>` : ""}`;
-  $("gDrawerExit").innerHTML = exitHtml(g);
+  patch.gDrawerExit = exitHtml(g);
 }
 function openDrawer() { $("gDrawer").classList.remove("hidden"); requestAnimationFrame(() => $("gDrawer").classList.add("open")); }
 function closeDrawer() { $("gDrawer").classList.remove("open"); setTimeout(() => $("gDrawer").classList.add("hidden"), 250); }
@@ -1971,7 +2302,7 @@ document.addEventListener("click", (ev) => {
     const a = b.dataset.gdrawer;
     if (a === "open") openDrawer();
     else if (a === "close") closeDrawer();
-    else if (a === "minimize") { pyrFull = false; closeDrawer(); if (game) renderGame(game); }
+    else if (a === "minimize") minimizeGame();
     return;
   }
   if (ev.target.id === "gDrawer") closeDrawer();  // toucher à côté du menu le ferme
@@ -1991,7 +2322,7 @@ function showGameEnded(info) {
   const close = () => { el.classList.add("out"); setTimeout(() => el.remove(), 300); };
   el.addEventListener("click", close);
   document.body.append(el);
-  navigator.vibrate?.([80, 60, 80]);
+  haptic([80, 60, 80]);
   setTimeout(close, 5000);
 }
 
@@ -2003,9 +2334,17 @@ async function gameAction(action, extra = {}, opts = {}) {
   if (gInflight.has(key)) return;
   gInflight.add(key);
   try {
+    const room = game?.room;
+    const seq = ++gSeq;
     const g = await gapi(`/api/games/${myGame}`, { guest_id: guestId, name: guestName, action, ...extra });
-    if (action === "end" || (action === "leave" && !g?.is_host)) { setGame(""); renderGame(null); return; }
-    renderGame(g);
+    if (action === "end" && room) { setGame(room); refreshGame(); return; }  // fin d'un jeu de la salle : retour à la salle
+    if (action === "end" || (action === "leave" && !g?.is_host)) {
+      if (action === "leave" || game?.type === "room") { myRoom = ""; store("vp_room", ""); }
+      setGame(""); renderGame(null); return;
+    }
+    if (routeRoom(g)) return;
+    if (seq === gSeq) renderGame(g);
+    else refreshGame();  // un rechargement est parti entre-temps : on se recale sur l'état le plus récent
   } catch (e) {
     if (e.status === 404 && e.detail?.ended) showGameEnded(e.detail.ended);
     else if (opts.quiet && e.status === 409) refreshGame();  // arrivé trop tard : on se recale sans message
@@ -2032,7 +2371,7 @@ document.addEventListener("click", (ev) => {
   if (a === "dropname") return gameAction("names", { names: game.names.filter((n) => n !== b.dataset.name) });
   if (a === "addplayers") return gameAction("names", { names: game.names.concat(game.players.map((p) => p.name)) });
   if (a === "eliminate" && !confirm("Éliminer ce joueur ?")) return;
-  if (a === "remove" && !confirm("Exclure ce joueur de la partie ? Il ne pourra pas revenir.")) return;
+  if (a === "remove") return openKickSheet(b.dataset.target);
   pressed(b, gameAction(a, { target: b.dataset.target || "", amount: +(b.dataset.amount || 0), guess: b.dataset.guess || "" }));
 });
 document.addEventListener("submit", (ev) => {
@@ -2075,7 +2414,8 @@ function exitHtml(g) {
   } else {
     out.push(`<button type="button" class="secondary g-exit" data-exit="away">🚪 Quitter</button>`);
   }
-  if (g.is_host) out.push(`<button type="button" class="danger g-exit" data-exit="end">Fermer la partie pour tout le monde</button>`);
+  if (g.is_host) out.push(g.room ? `<button type="button" class="secondary g-exit" data-exit="end">🏠 Terminer ce jeu et revenir à la salle</button>`
+    : `<button type="button" class="danger g-exit" data-exit="end">${g.type === "room" ? "Fermer la salle pour tout le monde" : "Fermer la partie pour tout le monde"}</button>`);
   return out.join("");
 }
 document.addEventListener("click", async (ev) => {
@@ -2092,32 +2432,49 @@ document.addEventListener("click", async (ev) => {
     setGame(""); renderGame(null);
     return toast(`${p.name} anime maintenant la partie`, "ok");
   }
-  if (a === "end") { if (confirm("Fermer la partie pour tout le monde ?")) { closeDrawer(); gameAction("end"); } return; }
+  if (a === "end") {
+    const msg = game.room ? "Terminer ce jeu ? Tout le monde revient à la salle." : game.type === "room" ? "Fermer la salle pour tout le monde ?" : "Fermer la partie pour tout le monde ?";
+    if (confirm(msg)) { closeDrawer(); gameAction("end"); }
+    return;
+  }
   if (a === "leave") { if (confirm("Quitter la partie ?")) { closeDrawer(); gameAction("leave"); } return; }
-  if (a === "away") { closeDrawer(); setGame(""); renderGame(null); }
+  if (a === "away") {
+    if (game?.kicked || game?.excluded) { clearInterval(kickTimer); kickCode = ""; myRoom = ""; store("vp_room", ""); }
+    closeDrawer(); setGame(""); renderGame(null);
+  }
 });
+// Options choisies sur la carte d'un jeu (création directe, ou lancement depuis la salle de jeux).
+function gamePayload(card, type) {
+  const q = (sel) => card.querySelector(sel);
+  let sips = q("[data-opt=alcohol]") && !q("[data-opt=alcohol]").checked ? 0 : +(q("[data-opt-group=sips] [data-val-out]")?.textContent || 0);
+  if (type === "quiz") sips = q("[data-opt=qzsips]")?.checked ? 1 : 0;
+  if (type === "biskit") sips = q("[data-opt=bkalcohol]")?.checked ? +(q("[data-opt-group=bkmult] .on")?.dataset.val || 1) : 0;
+  return {
+    type, sips, white: q("[data-opt=white]")?.checked ?? true, plays: q("[data-opt=plays]")?.checked ?? true,
+    mode: q("[data-opt-group=mode] .on")?.dataset.val || "soft",
+    cats: [...card.querySelectorAll("[data-opt-group=cats] .on")].map((x) => x.dataset.val),
+    floors: +(q("[data-opt-group=floors] [data-val-out]")?.textContent || 5),
+    pmode: q("[data-opt-group=pmode] .on")?.dataset.val || "soft",
+    poteau: q("[data-opt-group=poteau] .on")?.dataset.val || "soft",
+    double: q("[data-opt-group=floorsips] .on")?.dataset.val === "2",
+    boat: q("[data-opt=boat]")?.checked ?? true,
+  };
+}
 document.addEventListener("click", async (ev) => {
   const b = ev.target.closest("[data-create]");
   if (!b) return;
   const card = b.closest(".gcard");
+  const payload = gamePayload(card, b.dataset.create);
+  // Dans la salle de jeux : le jeu est lancé pour tout le monde (personne ne retape de code).
+  if (b.closest(".g-room-sheet")) {
+    closeRoomSheet();
+    return pressed(b, gameAction("launch", { settings: payload }));
+  }
   b.disabled = true;
   try {
-    const g = await gapi("/api/games", { guest_id: guestId, name: guestName, type: b.dataset.create,
-      white: card.querySelector("[data-opt=white]")?.checked ?? true, plays: card.querySelector("[data-opt=plays]")?.checked ?? false,
-      mode: card.querySelector("[data-opt-group=mode] .on")?.dataset.val || "soft",
-      // Blackjack : gorgées seulement si « Alcool » est coché.
-      cats: [...card.querySelectorAll("[data-opt-group=cats] .on")].map((x) => x.dataset.val),
-      ...(b.dataset.create === "quiz" ? { sips: card.querySelector("[data-opt=qzsips]").checked ? 1 : 0 } : {}),
-      ...(b.dataset.create === "biskit" ? { sips: card.querySelector("[data-opt=bkalcohol]").checked ? +card.querySelector("[data-opt-group=bkmult] .on").dataset.val : 0 } : {}),
-      floors: +(card.querySelector("[data-opt-group=floors] [data-val-out]")?.textContent || 5),
-      pmode: card.querySelector("[data-opt-group=pmode] .on")?.dataset.val || "soft",
-      poteau: card.querySelector("[data-opt-group=poteau] .on")?.dataset.val || "soft",
-      double: card.querySelector("[data-opt-group=floorsips] .on")?.dataset.val === "2",
-      boat: card.querySelector("[data-opt=boat]")?.checked ?? true,
-      sips: card.querySelector("[data-opt=alcohol]") && !card.querySelector("[data-opt=alcohol]").checked ? 0
-        : +(card.querySelector("[data-opt-group=sips] [data-val-out]")?.textContent || 0) });
+    const g = await gapi("/api/games", { guest_id: guestId, name: guestName, ...payload });
     setGame(g.code); renderGame(g);
-    toast(`Partie créée : code ${g.code}`, "ok");
+    toast(g.type === "room" ? `Salle ouverte : code ${g.code}` : `Partie créée : code ${g.code}`, "ok");
   } catch (e) { toast(e.message, "err"); }
   b.disabled = false;
 });
@@ -2154,7 +2511,7 @@ function rulesFor(type, g) {
 
 // « ? » : règles détaillées du jeu.
 const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", never: "Je n'ai jamais", roulette: "Roulette",
-  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal", quiz: "Quiz" };
+  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal", quiz: "Quiz", room: "Salle de jeux" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");
   if (open) {
