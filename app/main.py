@@ -20,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 
-from . import games, links, quiz
+from . import games, links, president, quiz
 from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
 from .push import Push, valid_subscription
 from .security import Limiter
@@ -1037,6 +1037,8 @@ def room_launch(room: dict, me: str, settings: dict):
     kind = settings.get("type")
     if kind not in games.GAMES or kind == "room":
         raise HTTPException(400, "Jeu inconnu")
+    if kind == "president" and (len(room["players"]) > 6 or any(p.get("manual") for p in room["players"])):
+        raise HTTPException(409, "Président accueille au maximum 6 joueurs, chacun avec son téléphone. Ajuste les participants de la salle avant de le lancer.")
     host = room["host"] or me
     hp = games.player(room, host)
     fields = {k: v for k, v in settings.items() if k in GameCreate.model_fields and k not in ("guest_id", "name", "type")}
@@ -1144,12 +1146,23 @@ HOST_ACTIONS = {"ban", "start", "vote_start", "close_vote", "eliminate", "skip_g
 
 @app.post("/api/games/{code}")
 def game_action(code: str, body: GameAction, request: Request):
+    g = get_game(code)
+    child = room_child(g) if g["type"] == "room" else None
+    # Les actions de cartes et les retraits de la salle sont atomiques entre téléphones.
+    lock = president.LOCK if g["type"] == "president" or (child and child["type"] == "president") else contextlib.nullcontext()
+    with lock:
+        return perform_game_action(code, body, request)
+
+
+def perform_game_action(code: str, body: GameAction, request: Request):
     check_guest_id(body.guest_id)
     g = get_game(code)
     game_presence(request, body.guest_id, body.name)
     sync_player_name(g, body.guest_id, body.name)
     admin_lead(g, request, body.guest_id)
     a, me = body.action, body.guest_id
+    if g["type"] == "president" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "up", "down", "handover", "end", "prplay", "prpass", "prexchange"}:
+        raise HTTPException(400, "Action indisponible au Président")
     # Cible d'un vote : un joueur (pid) ; pour « Je n'ai jamais », une réponse (yes / no).
     target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino", "pyramid", "biskit") else "")
     # Pyramide : l'animateur peut agir pour un joueur (participant sans téléphone, ou qui traîne).
@@ -1198,6 +1211,9 @@ def game_action(code: str, body: GameAction, request: Request):
         "btap": (games.bk_tap, actor), "bclose": (games.bk_close_reflex,),
         "qset": (quiz.configure, body.settings), "qans": (quiz.answer, actor, body.amount, random, body.guess),
         "handover": (games.handover, me, target),
+        "prplay": (president.play, me, body.values, body.guess),
+        "prpass": (president.pass_turn, me, body.guess),
+        "prexchange": (president.exchange_cards, me, body.values, body.guess),
         "qjoker": (quiz.joker, actor, body.guess, random), "qstop": (quiz.stop, actor),
         "qpause": (quiz.pause, actor, games.is_lead(g, me) or len(g["players"]) <= 1, random),
     }
@@ -1208,7 +1224,7 @@ def game_action(code: str, body: GameAction, request: Request):
     fn, *args = actions[a]
     try:
         fn(g, *args)
-    except (games.GameError, quiz.QuizError) as e:
+    except (games.GameError, quiz.QuizError, president.PresidentError) as e:
         raise HTTPException(409, str(e))
     g["updated_at"] = time.time()
     # Salle de jeux : rejoindre, quitter, exclure ou passer la main vaut aussi pour le jeu en cours (et inversement).

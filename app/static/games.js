@@ -30,6 +30,7 @@ function myTurnKey(g) {
     case "undercover": return g.phase === "vote" && g.me.alive ? `uc${g.round}` : "";
     case "whoof": case "never": return g.phase === "question" ? `q${g.round}` : "";
     case "quiz": return g.phase === "q" && !g.quiz?.q?.out ? `qz${g.quiz.n}` : "";
+    case "president": return g.president?.my_turn && (!navigator.userActivation || navigator.userActivation.hasBeenActive) ? `pr${g.round}-${g.president.token}` : "";
     case "casino": return g.phase === "bet" ? `cs${g.round}` : "";
     default: return "";
   }
@@ -62,6 +63,8 @@ GAME_ICONS.quiz = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" st
 GAME_ICONS.room = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 22L24 8l17 14"/><path d="M11 19v21h26V19"/><rect x="19" y="27" width="10" height="13" rx="2"/><path d="M30 13V9h5v8"/></svg>`;
 const GAME_THEME = { room: "g-rm", biskit: "g-bk", pyramid: "g-py", undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv", tmc: "g-tm" };
 const isBJ = (g) => g.type === "blackjack";
+GAME_ICONS.president = President.crown;
+GAME_THEME.president = "g-pr";
 const helpBtn = (type, inGame = false) => `<button type="button" class="g-help" data-rules="${type}" ${inGame ? "data-ingame" : ""} aria-label="Règles du jeu">?</button>`;
 
 // Règles détaillées, ouvertes par le « ? » de chaque jeu.
@@ -132,6 +135,7 @@ const CASINO_RULES_DRINKS = `
     <p>Exemple : 2 gorgées sur Rouge et 1 sur le 17. Le 17 (noir) sort : tu bois 2 (Rouge perdu) et tu distribues 10 (jackpot) !</p>
     <p>Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi. Buvez avec modération !</p>`;
 const GAME_RULES = {
+  president: President.rules,
   room: `
     <h3>Le principe</h3>
     <p>Une <b>salle de jeux</b> réunit tout le monde pour la soirée, avec <b>un seul code</b> (et un seul QR). On la rejoint une fois.</p>
@@ -349,6 +353,19 @@ document.getElementById("gamesRoot").innerHTML = `
         <button class="g-go" data-create="room">Ouvrir une salle</button>
       </div>
       <div class="g-sep"><span>ou une partie seule</span></div>
+
+      <div class="gcard g-pr">
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.president}</div>
+          <div class="g-meta"><div class="g-title">Président</div><div class="g-tag">… ou Trou du cul. À toi de jouer.</div></div>
+          ${helpBtn("president")}
+        </div>
+        <p class="g-desc">Vide ta main avant les autres. Gagne ta place, échange tes cartes et défends la présidence à la manche suivante.</p>
+        <div class="g-chips"><span>3 à 6 joueurs</span><span>54 cartes</span><span>Mains privées</span></div>
+        <p class="g-desc">Un joker seul vaut un 3. Avec une autre carte, il la duplique.</p>
+        <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
+        <button class="g-go" data-create="president">Créer une table</button>
+      </div>
 
       <div class="gcard g-qz">
         <div class="g-head">
@@ -599,6 +616,8 @@ const GAME_PHASES = { lobby: "Inscriptions", words: "Indices", vote: "Vote", whi
   reveal: "Résultat de la manche", end: "Partie terminée", question: "Question", results: "Résultats", spun: "Résultat", bet: "Mises", play: "Partie", card: "En séance",
   answer: "Réponse en secret", guess: "À voix haute", judge: "Points", scored: "Résultat du duo", q: "Question", rev: "Réponse", run: "En jeu" };
 const phaseLabel = (g) => (g.type === "roulette" || isBJ(g) || g.type === "casino") && g.phase === "lobby" ? "Préparation"
+  : g.type === "president" && g.phase === "exchange" ? "Échange des cartes"
+  : g.type === "president" && g.phase === "end" ? "Classement"
   : g.type === "casino" && g.phase === "bet" ? "Faites vos jeux" : GAME_PHASES[g.phase];
 const WINNERS = { civils: "Les civils ont gagné 🎉", impostors: "Les undercovers ont gagné 🕵️", white: "Mr. White a trouvé le mot et gagne 🎩" };
 
@@ -803,6 +822,8 @@ function renderGame(g) {
 
   if (g.type === "room") {
     body = roomHtml(g);
+  } else if (g.type === "president") {
+    body = President.html(g);
   } else if (g.type === "divan") {
     body = divanHtml(g);
   } else if (g.type === "tmc" && g.phase !== "lobby" && (me || g.master) && !g.kicked) {
@@ -2108,7 +2129,7 @@ function renderGameHost(g) {
   if (isBJ(g)) return renderBJHost(g, btn);
   if (g.type === "casino") return renderCasinoHost(g, btn);
   if (g.type === "divan") return renderDivanHost(g, btn);
-  if (["pyramid", "biskit", "quiz", "room"].includes(g.type)) { patch.gameHost = ""; return; }
+  if (["pyramid", "biskit", "quiz", "room", "president"].includes(g.type)) { patch.gameHost = ""; return; }
   if (g.type === "tmc") return renderTmcHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
   const canRemove = g.is_host;
@@ -2270,7 +2291,7 @@ document.addEventListener("click", (ev) => {
 function gameTopBar(g) {
   const phase = g.type === "pyramid" && g.pyr ? pyrPhase(g) : phaseLabel(g);
   const round = g.round && g.phase !== "lobby" && !["pyramid", "quiz"].includes(g.type)
-    ? ` · ${{ undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte", tmc: "duo", biskit: "carte", quiz: "question" }[g.type] || "question"} ${g.round}` : "";
+    ? ` · ${{ president: "manche", undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte", tmc: "duo", biskit: "carte", quiz: "question" }[g.type] || "question"} ${g.round}` : "";
   const alerts = (g.pyr?.pending?.length || 0) + (g.is_host ? (g.pyr?.peeks || []).filter((r) => r.status === "pending").length : 0);
   return `<button type="button" class="py-icon g-burger" data-gdrawer="open" aria-label="Menu : joueurs, code, QR">☰${alerts ? `<i class="badge">${alerts}</i>` : ""}</button>
     <div class="g-top-mid"><div class="g-top-name"><span class="g-top-ico" aria-hidden="true">${GAME_ICONS[g.type] || ""}</span>${esc(g.name)}</div>
@@ -2511,7 +2532,7 @@ function rulesFor(type, g) {
 
 // « ? » : règles détaillées du jeu.
 const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", never: "Je n'ai jamais", roulette: "Roulette",
-  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal", quiz: "Quiz", room: "Salle de jeux" };
+  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal", quiz: "Quiz", room: "Salle de jeux", president: "Président" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");
   if (open) {

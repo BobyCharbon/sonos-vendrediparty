@@ -14,7 +14,7 @@ import secrets
 import time
 import unicodedata
 
-from . import quiz
+from . import president, quiz
 from .divan_cards import DIVAN_CARDS
 from .tmc_questions import TMC_QUESTIONS
 
@@ -30,6 +30,7 @@ GAMES = {
     "pyramid": "Pyramide",
     "biskit": "Biskit Royal",
     "quiz": "Quiz",
+    "president": "Président",
     "room": "Salle de jeux",
 }
 BLACKJACKS = ("blackjack",)
@@ -305,7 +306,7 @@ def join(g: dict, gid: str, name: str = ""):
         return
     if gid in g.get("kicked", []):
         raise GameError("Tu as été banni de cette partie : tu ne peux plus la rejoindre")
-    if len(g["players"]) >= 30:
+    if len(g["players"]) >= (6 if g["type"] == "president" else 30):
         raise GameError("La partie est complète")
     if gid in g.get("removed", []):  # revenir après une exclusion efface la marque
         g["removed"].remove(gid)
@@ -313,7 +314,7 @@ def join(g: dict, gid: str, name: str = ""):
     while (pid := secrets.token_hex(4)) in taken:
         pass
     # Undercover déjà lancé : le retardataire attend la prochaine partie (il reçoit un mot à « Rejouer »).
-    waiting = g["type"] == "undercover" and g["phase"] not in ("lobby", "end")
+    waiting = g["type"] in ("undercover", "president") and g["phase"] not in ("lobby", "end")
     # Pyramide déjà lancée : l'animateur doit accepter l'arrivée (puis le nouveau fait sa distribution).
     pending = g["type"] == "pyramid" and g["phase"] not in ("lobby",) and bool(g.get("pyr"))
     g["players"].append({"id": gid, "pid": pid, "name": name or "?", "alive": True, "role": None, "word": None,
@@ -360,6 +361,8 @@ def leave(g: dict, gid: str):
         raise GameError("Joueur introuvable")
     in_play = p in alive(g)
     g["players"].remove(p)
+    if g["type"] == "president":
+        president.leave(g, gid)
     if g["type"] == "pyramid":
         pyr_leave(g, gid)
     if g["type"] == "biskit":
@@ -1925,6 +1928,9 @@ def bk_view(g: dict, gid: str) -> dict:
 
 def start(g: dict, rng: random.Random = random):
     """Distribue les rôles (Undercover) ou pose la première question (Qui de nous ?)."""
+    if g["type"] == "president":
+        president.start(g, rng)
+        return
     if g["type"] == "room":
         raise GameError("Choisis d'abord un jeu à lancer")
     if g["type"] == "quiz":
@@ -2104,6 +2110,9 @@ def _check_end(g: dict) -> bool:
 
 
 def next_step(g: dict, rng: random.Random = random):
+    if g["type"] == "president":
+        president.start(g, rng)
+        return
     if g["type"] == "tmc":
         tmc_next(g, rng)
         return
@@ -2140,7 +2149,9 @@ def _next_question(g: dict, rng):
 
 def restart(g: dict, rng: random.Random = random) -> dict:
     """Nouvelle manche avec les mêmes joueurs."""
-    if g["type"] == "quiz":
+    if g["type"] == "president":
+        president.start(g, rng)
+    elif g["type"] == "quiz":
         start(g, rng)
     elif g["type"] == "biskit":
         start(g, rng)
@@ -2212,6 +2223,8 @@ def view(g: dict, gid: str) -> dict:
         out["bk"] = bk_view(g, gid)
     if g["type"] == "quiz":
         out["quiz"] = quiz.view(g, gid)
+    if g["type"] == "president":
+        out["president"] = president.view(g, gid)
     if g["type"] == "tmc":
         out["tmc"] = tmc_view(g, gid)
     if g["type"] == "roulette":
@@ -2279,6 +2292,10 @@ def _summary_facts(g: dict) -> list[str]:
         facts.append(f"{g['round']} question(s) posée(s)")
     if t == "quiz":
         facts += quiz.summary_facts(g)
+    if t == "president":
+        facts.append("54 cartes · 2 jokers · 3 à 6 joueurs")
+        if g["round"]:
+            facts.append(f"Manche {g['round']}")
     if t == "biskit":
         B = g.get("bk") or {}
         facts.append(f"Gorgées ×{_bk_mult(g)}" if o.get("sips", 1) else "Sans alcool")
@@ -2293,6 +2310,9 @@ def _summary_extra(g: dict, p: dict) -> str:
     """Score ou jetons d'un joueur, selon le jeu."""
     if g["type"] == "quiz":
         return quiz.summary_extra(g, p["id"])
+    if g["type"] == "president":
+        s = g.get("president", {})
+        return f"{s.get('scores', {}).get(p['id'], 0)} pts · {len(s.get('hands', {}).get(p['id'], []))} cartes"
     if g["type"] == "blackjack":
         return f"💰 {g['bj']['chips'].get(p['id'], BJ_START_CHIPS)}" if not bj_drinks(g) else ""
     if g["type"] == "casino" and not casino_sips(g):
@@ -2314,12 +2334,18 @@ def room_merge(room: dict, g: dict):
         r["give"] += t.get("give", 0)
     for gid, sc in ((g.get("quiz") or {}).get("scores") or {}).items():
         room["rpts"][gid] = room["rpts"].get(gid, 0) + sc.get("pts", 0)
+    for gid, pts in (g.get("president") or {}).get("scores", {}).items():
+        room["rpts"][gid] = room["rpts"].get(gid, 0) + pts
+    room["rnames"].update((g.get("president") or {}).get("names", {}))
     for p in g["players"]:
         room["rnames"][p["id"]] = p["name"]
     winner = None
     if g["type"] == "quiz" and g["players"]:
         rows = quiz.board(g)
         winner = rows[0][0]["name"] if rows and rows[0][1]["n"] else None
+    if g["type"] == "president" and g.get("president", {}).get("finished"):
+        s = g["president"]
+        winner = room["rnames"].get(s["finished"][0])
     room["rhistory"].append({"type": g["type"], "name": GAMES.get(g["type"], ""), "at": time.time(), "players": len(g["players"]),
                              "winner": winner})
     room["current"] = None
