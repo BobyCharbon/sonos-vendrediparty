@@ -777,7 +777,7 @@ function renderGameAdmin(s) {
 document.addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-join-game]");
   if (!b) return;
-  setGame(b.dataset.joinGame); autoJoin = true;
+  setGame(b.dataset.joinGame); autoJoin = true; goGamesTab();
   if (location.hash !== "#games") showView("games"); else refreshGame();
   $("gamesRoot").scrollIntoView({ behavior: "smooth" });
 });

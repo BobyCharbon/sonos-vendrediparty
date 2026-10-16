@@ -535,7 +535,63 @@ async function gapi(path, body) {
   }
   return data;
 }
-function setGame(code) { myGame = code; store("vp_game", code); $("gameDot")?.classList.toggle("hidden", !code); }
+function setGame(code) {
+  // Une nouvelle partie (créée, rejointe par code ou par QR) s'ouvre toujours en plein écran.
+  if (code && code !== myGame) pyrFull = true;
+  myGame = code; store("vp_game", code); $("gameDot")?.classList.toggle("hidden", !code);
+  if (!code) syncGameChrome();
+}
+// ── Plein écran / mini-barre (comme le mini-lecteur d'Apple Music) ──
+// Plein écran : une partie est ouverte, non réduite, et l'onglet Jeux est affiché.
+// Sinon, tant qu'une partie est en cours, une mini-barre flottante permet d'y revenir depuis n'importe quel onglet.
+const gamesTabShown = () => !document.querySelector('[data-view="games"]')?.classList.contains("hidden");
+function goGamesTab() {
+  if (typeof showTab === "function") showTab("games");
+  else if (typeof showView === "function") showView("games");
+}
+function syncGameChrome() {
+  const g = myGame ? game : null;
+  const full = !!g && pyrFull && gamesTabShown();
+  document.body.classList.toggle("pyr-full", full);
+  let mini = $("gMini");
+  if (!mini) {
+    mini = document.createElement("button");
+    mini.type = "button"; mini.id = "gMini"; mini.className = "g-mini hidden";
+    mini.setAttribute("aria-label", "Reprendre la partie en plein écran");
+    mini.addEventListener("click", () => openGameFull());
+    document.body.append(mini);
+  }
+  const show = !!g && !full;
+  mini.classList.toggle("hidden", !show);
+  document.body.classList.toggle("has-mini", show);
+  if (show) {
+    const phase = g.type === "pyramid" && g.pyr ? pyrPhase(g) : phaseLabel(g);
+    mini.className = "g-mini " + (GAME_THEME[g.type] || "");
+    mini.innerHTML = `<span class="g-mini-ico" aria-hidden="true">${GAME_ICONS[g.type] || "🎮"}</span>
+      <span class="g-mini-txt"><b>${esc(g.name)}</b><small>${esc(phase || "")} · code ${esc(g.code)}</small></span>
+      <span class="g-mini-go">Reprendre ⌃</span>`;
+  }
+}
+// Reprendre : le jeu « ressort » de la mini-barre (même chemin que pour s'y réduire).
+function openGameFull() {
+  pyrFull = true;
+  if (!gamesTabShown()) goGamesTab();
+  document.body.classList.add("g-enter");
+  setTimeout(() => document.body.classList.remove("g-enter"), 500);
+  if (game) renderGame(game); else syncGameChrome();
+}
+// Réduire : le jeu se replie vers la mini-barre, puis on retrouve les onglets (musique, etc.).
+function minimizeGame() {
+  closeDrawer?.();
+  document.body.classList.add("g-leave");
+  setTimeout(() => {
+    document.body.classList.remove("g-leave");
+    pyrFull = false;
+    if (game) renderGame(game); else syncGameChrome();
+  }, 260);
+}
+// Changement d'onglet (page invités ou admin) : on remet le plein écran / la mini-barre à jour.
+document.addEventListener("click", (ev) => { if (ev.target.closest("[data-tab]")) setTimeout(syncGameChrome, 0); });
 
 async function refreshGame() {
   $("gName").classList.toggle("hidden", !!guestName);
@@ -577,7 +633,7 @@ function renderGame(g) {
   $("gHome").classList.toggle("hidden", !!g);
   $("gamePlay").classList.toggle("hidden", !g);
   // Un jeu se joue toujours en plein écran ; « Réduire » (menu) revient aux onglets sans quitter la partie.
-  document.body.classList.toggle("pyr-full", !!g && pyrFull);
+  syncGameChrome();
   if (!g) { closeDrawer(); return; }
   const me = g.me;
   const nameOf = (pid) => esc(g.players.find((p) => p.pid === pid)?.name || "?");
@@ -1171,7 +1227,7 @@ document.addEventListener("click", (ev) => {
   if (!b || !game) return;
   const a = b.dataset.pyr, who = b.dataset.who || "";
   if (a === "exit") { pyrFull = false; return renderGame(game); }
-  if (a === "enter") { pyrFull = true; return renderGame(game); }
+  if (a === "enter") return openGameFull();
   if (a === "pans" || a === "pbans") { navigator.vibrate?.(20); return gameAction(a, { target: b.dataset.val, who }); }
   if (a === "reveal") return gameAction("preveal", { amount: +b.dataset.slot, who });
   if (a === "claimfor") return gameAction("pclaim", { who });
@@ -1948,6 +2004,8 @@ function gameTopBar(g) {
   return `<button type="button" class="py-icon g-burger" data-gdrawer="open" aria-label="Menu : joueurs, code, QR">☰${alerts ? `<i class="badge">${alerts}</i>` : ""}</button>
     <div class="g-top-mid"><div class="g-top-name"><span class="g-top-ico" aria-hidden="true">${GAME_ICONS[g.type] || ""}</span>${esc(g.name)}</div>
       <div class="g-top-sub">${g.mode ? esc(g.mode) + " · " : ""}${phase}${round} · code <b>${esc(g.code)}</b> · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
+    <button type="button" class="py-icon g-min" data-gdrawer="minimize" aria-label="Réduire le jeu (revenir à la musique)">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
     ${helpBtn(g.type, true)}`;
 }
 // Menu latéral : code, QR, participants (et outils de l'animateur ou de l'admin), réduire, quitter.
@@ -1973,7 +2031,7 @@ document.addEventListener("click", (ev) => {
     const a = b.dataset.gdrawer;
     if (a === "open") openDrawer();
     else if (a === "close") closeDrawer();
-    else if (a === "minimize") { pyrFull = false; closeDrawer(); if (game) renderGame(game); }
+    else if (a === "minimize") minimizeGame();
     return;
   }
   if (ev.target.id === "gDrawer") closeDrawer();  // toucher à côté du menu le ferme
