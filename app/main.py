@@ -30,8 +30,13 @@ from .spotify_player import QUEUE_MANAGED_IN_SPOTIFY, SpotifyPlayer
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
 ADMIN_PIN = os.environ.get("ADMIN_PIN", "")
-# Adresse de la page invités encodée dans le QR code (avec ?pin=<code>).
-PUBLIC_URL = "https://party.bobycharbon.ch"
+def configured_public_url() -> str:
+    # Une adresse propre à chaque déploiement pour les QR et le retour OAuth Spotify.
+    # Ne pas reprendre l'ancienne variable PUBLIC_URL, encore locale sur certaines stacks.
+    return (os.environ.get("PARTY_PUBLIC_URL") or "https://party.bobycharbon.ch").rstrip("/")
+
+
+PUBLIC_URL = configured_public_url()
 STATIC = Path(__file__).parent / "static"
 
 

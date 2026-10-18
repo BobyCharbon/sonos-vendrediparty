@@ -72,7 +72,12 @@ cp .env.example .env   # puis remplis les valeurs
 **SONOS_IP** : l'IP de n'importe quelle enceinte. Requis si le serveur n'est pas sur le même
 sous-réseau que les Sonos (la découverte multicast ne traverse pas les VLAN).
 
-**PUBLIC_URL** : l'adresse que les invités doivent ouvrir (encodée dans le QR code).
+**PARTY_PUBLIC_URL** : l'origine HTTPS de ce déploiement, utilisée pour les QR codes
+et le retour de connexion Spotify. Par défaut : `https://party.bobycharbon.ch`.
+La stack de test définit `https://partytest.bobycharbon.ch` ; enregistrer également
+`https://partytest.bobycharbon.ch/api/spotify/callback` dans les Redirect URIs Spotify
+et connecter le compte depuis l'admin du site de test. Les deux sites conservent leurs
+sessions séparément. L'ancienne variable `PUBLIC_URL` n'est pas utilisée.
 
 ## Lancer
 
