@@ -20,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 
-from . import games, links, president, quiz
+from . import games, links, neon, president, quiz
 from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
 from .push import Push, valid_subscription
 from .security import Limiter
@@ -1073,6 +1073,8 @@ def room_launch(room: dict, me: str, settings: dict):
     kind = settings.get("type")
     if kind not in games.GAMES or kind == "room":
         raise HTTPException(400, "Jeu inconnu")
+    if kind == "neon" and (len(room["players"]) > 8 or any(p.get("manual") for p in room["players"])):
+        raise HTTPException(409, "Néon Knockout accueille au maximum 8 joueurs, chacun avec son téléphone.")
     if kind == "president" and (len(room["players"]) > 6 or any(p.get("manual") for p in room["players"])):
         raise HTTPException(409, "Président accueille au maximum 6 joueurs, chacun avec son téléphone. Ajuste les participants de la salle avant de le lancer.")
     host = room["host"] or me
@@ -1158,7 +1160,10 @@ def game_state(code: str, request: Request, guest_id: str = "", name: str = ""):
     if quiz.tick(g):  # Quiz : le temps a avancé (fin d'une question, question suivante…)
         g["updated_at"] = time.time()
         save_games(g["code"], g.get("room") or "")
-    return full_view(g, guest_id)
+    with neon.LOCK:
+        if neon.tick(g):
+            save_games(g["code"])
+        return full_view(g, guest_id)
 
 
 class GameAction(BaseModel):
@@ -1177,7 +1182,7 @@ class GameAction(BaseModel):
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
 HOST_ACTIONS = {"ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
-                "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover"}
+                "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover", "nset"}
 
 
 @app.post("/api/games/{code}")
@@ -1186,7 +1191,8 @@ def game_action(code: str, body: GameAction, request: Request):
     child = room_child(g) if g["type"] == "room" else None
     # Les actions de cartes et les retraits de la salle sont atomiques entre téléphones.
     lock = president.LOCK if g["type"] == "president" or (child and child["type"] == "president") else contextlib.nullcontext()
-    with lock:
+    neon_lock = neon.LOCK if g["type"] == "neon" or (child and child["type"] == "neon") else contextlib.nullcontext()
+    with lock, neon_lock:
         return perform_game_action(code, body, request)
 
 
@@ -1199,6 +1205,8 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     a, me = body.action, body.guest_id
     if g["type"] == "president" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "up", "down", "handover", "end", "prplay", "prpass", "prexchange"}:
         raise HTTPException(400, "Action indisponible au Président")
+    if g["type"] == "neon" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "nset", "nteam"}:
+        raise HTTPException(400, "Action indisponible dans Néon Knockout")
     # Cible d'un vote : un joueur (pid) ; pour « Je n'ai jamais », une réponse (yes / no).
     target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino", "pyramid", "biskit") else "")
     # Pyramide : l'animateur peut agir pour un joueur (participant sans téléphone, ou qui traîne).
@@ -1247,6 +1255,8 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "btap": (games.bk_tap, actor), "bclose": (games.bk_close_reflex,),
         "qset": (quiz.configure, body.settings), "qans": (quiz.answer, actor, body.amount, random, body.guess),
         "handover": (games.handover, me, target),
+        "nset": (neon.configure, body.settings),
+        "nteam": (neon.team, me, body.amount),
         "prplay": (president.play, me, body.values, body.guess),
         "prpass": (president.pass_turn, me, body.guess),
         "prexchange": (president.exchange_cards, me, body.values, body.guess),
@@ -1260,7 +1270,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     fn, *args = actions[a]
     try:
         fn(g, *args)
-    except (games.GameError, quiz.QuizError, president.PresidentError) as e:
+    except (games.GameError, quiz.QuizError, president.PresidentError, neon.NeonError) as e:
         raise HTTPException(409, str(e))
     g["updated_at"] = time.time()
     # Salle de jeux : rejoindre, quitter, exclure ou passer la main vaut aussi pour le jeu en cours (et inversement).
@@ -1660,3 +1670,32 @@ def admin_page():
 def service_worker():
     # À la racine du site : le service worker couvre la page invités et l'admin.
     return FileResponse(STATIC / "sw.js", media_type="text/javascript", headers=NO_CACHE)
+
+
+class NeonInput(BaseModel):
+    guest_id: str
+    x: float = 0
+    y: float = 0
+    charging: bool = False
+    cancel: bool = False
+
+
+@app.post("/api/games/{code}/neon")
+def neon_frame(code: str, body: NeonInput):
+    """Small snapshots, no presence/disk write/event broadcast on each input frame."""
+    check_guest_id(body.guest_id)
+    with neon.LOCK:
+        g = get_game(code)
+        if g["type"] != "neon":
+            raise HTTPException(400, "Ce jeu n'est pas Néon Knockout")
+        if body.guest_id in g.get("kicked", []):
+            raise HTTPException(403, "Tu as été banni de cette partie")
+        changed = neon.tick(g)
+        try:
+            neon.input_state(g, body.guest_id, body.x, body.y, body.charging, cancel=body.cancel)
+        except neon.NeonError as e:
+            raise HTTPException(400, str(e))
+        if changed:
+            g["updated_at"] = time.time()
+            save_games(g["code"])
+        return neon.view(g, body.guest_id)
