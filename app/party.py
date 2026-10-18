@@ -35,10 +35,11 @@ class Session:
     room_name: str = ""
     # Source de la musique : « sonos » (Party maison) ou « spotify » (Party extérieur, téléphone de l'hôte).
     source: str = "sonos"
-    # Party extérieur : file des demandes gardée ici (ids Spotify), et la demande déjà glissée chez Spotify.
+    # Ancienne file extérieure : migration vers l'envoi immédiat lors de la prochaine lecture de l'état.
     vqueue: list[str] = field(default_factory=list)
     vpushed: str = ""
     vpushed_during: str = ""  # titre qui jouait quand la demande a été envoyée (une seule par titre)
+    spotify_transfer_issues: list[str] = field(default_factory=list)
     mode: str = "next"
     started_at: float = 0
     requests: list[Request] = field(default_factory=list)

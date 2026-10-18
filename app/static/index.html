@@ -63,6 +63,7 @@
     <div id="results" class="list" style="margin-top:8px"></div>
 
     <h2>À venir <span id="count"></span></h2>
+    <p id="spotifyQueueNote" class="sub hidden">Aperçu Spotify · Ton titre est envoyé dès l’ajout. L’hôte gère l’ordre et les retraits dans Spotify.</p>
     <div id="upcoming" class="list"></div>
 
     <details id="playedBox" class="hidden">
@@ -231,10 +232,11 @@ async function refresh() {
     <div class="meta"><div class="title">${esc(t.title)}</div><div class="artist">${esc(t.artist)}</div>
     ${t.by ? `<span class="by">ajouté par ${esc(t.by)}</span>` : ""}</div>${t.track_id ? spotifyLink(t.track_id).replace("Ouvrir dans Spotify ↗", "Spotify ↗") : ""}</div>`).join("");
   const up = s.upcoming || [];
+  $("spotifyQueueNote").classList.toggle("hidden", s.source !== "spotify");
   $("count").textContent = s.upcoming_total ? `(${s.upcoming_total})` : "";
   $("upcoming").innerHTML = up.length
-    ? up.map((t) => trackHtml(t, t.rid ? `<button class="danger" data-rid="${esc(t.rid)}" title="Retirer mon titre">✕</button>` : "")).join("")
-    : `<p class="empty">La file est vide, à toi de jouer !</p>`;
+    ? up.map((t) => trackHtml(t, t.rid && s.queue_editable !== false ? `<button class="danger" data-rid="${esc(t.rid)}" title="Retirer mon titre">✕</button>` : "")).join("")
+    : `<p class="empty">${s.source === "spotify" ? "Aucun titre à venir renvoyé par Spotify" : "La file est vide, à toi de jouer !"}</p>`;
 }
 
 let searchTimer, lastResults = [], blocked = "", myTracks = new Set();
@@ -334,8 +336,8 @@ $("results").addEventListener("click", async (ev) => {
   const t = lastResults[+btn.dataset.i];
   btn.disabled = true; btn.textContent = "…";
   try {
-    await api("/api/queue", { method: "POST", body: JSON.stringify({ track_id: t.id, guest_id: guestId, guest_name: guestName }) });
-    toast(`« ${t.title} » ajouté à la file 🎶`, "ok");
+    const added = await api("/api/queue", { method: "POST", body: JSON.stringify({ track_id: t.id, guest_id: guestId, guest_name: guestName }) });
+    toast(`« ${t.title} » ${added.source === "spotify" ? "envoyé à Spotify" : "ajouté à la file"} 🎶`, "ok");
     // Titre ajouté : on vide la recherche et on ferme le clavier pour voir la file d'attente.
     clearTimeout(searchTimer);
     $("q").value = ""; $("results").innerHTML = ""; lastResults = [];

@@ -156,14 +156,12 @@ class SpotifyUser:
 
     def api(self, method: str, path: str, **kw):
         r = self._http.request(method, "https://api.spotify.com/v1" + path, headers={"Authorization": f"Bearer {self._access()}"}, **kw)
-        if r.status_code == 204 or not r.content:
-            return None
         if r.status_code >= 400:
             try:
                 err = r.json().get("error", {})
             except ValueError:
                 err = {}
-            reason, msg = err.get("reason", ""), err.get("message", r.text[:120])
+            reason, msg = err.get("reason", ""), err.get("message") or r.text[:120] or f"erreur HTTP {r.status_code}"
             if reason == "NO_ACTIVE_DEVICE" or r.status_code == 404:
                 raise SpotifyError("Aucun appareil Spotify actif : lance une musique sur ton téléphone")
             if reason == "PREMIUM_REQUIRED":
@@ -171,6 +169,8 @@ class SpotifyUser:
             if reason == "VOLUME_CONTROL_DISALLOW":
                 raise SpotifyError("Ce téléphone ne laisse pas régler le volume à distance : utilise ses boutons")
             raise SpotifyError(f"Spotify : {msg}")
+        if r.status_code == 204 or not r.content:
+            return None
         # Certaines réponses réussies (ajout à la file…) ne sont pas du JSON : ce n'est pas une erreur.
         try:
             return r.json()
@@ -183,6 +183,12 @@ class SpotifyUser:
 
     def queue(self, track_id: str):
         self.api("POST", "/me/player/queue", params={"uri": f"spotify:track:{track_id}"})
+
+    def get_queue(self) -> dict:
+        result = self.api("GET", "/me/player/queue")
+        if not isinstance(result, dict) or not isinstance(result.get("queue"), list):
+            raise SpotifyError("Impossible de lire la file Spotify pour le moment")
+        return result
 
     def play(self, context_uri: str | None = None):
         self.api("PUT", "/me/player/play", json={"context_uri": context_uri} if context_uri else None)

@@ -17,7 +17,25 @@ régénèrent avec `python tools/make_icons.py` (nécessite Pillow).
 2. Ouvre `/admin`, choisis la pièce, le mode, puis **Démarrer la soirée**.
 3. Affiche le QR code : les invités ajoutent leurs titres.
 
-### Modes d'insertion (modifiable en cours de soirée)
+### Party extérieur (Spotify → enceinte Bluetooth)
+
+Connecte le compte Spotify Premium de l'hôte depuis les réglages, lance la musique sur
+son téléphone, puis démarre **Party extérieur**. Chaque ajout d'un invité ou de l'hôte
+est immédiatement envoyé à la file Spotify ; aucun envoi n'attend la fin du morceau.
+Tu peux ajouter des titres, les déplacer et les retirer directement dans l'app Spotify.
+
+Party affiche l'aperçu renvoyé par Spotify, qui peut être partiel ou légèrement retardé.
+Les commandes de réorganisation, suppression et le mode équitable sont réservés au mode
+maison. Les notifications de début de titre restent liées aux demandes faites dans Party.
+Un titre absent de l'aperçu n'est pas considéré comme joué : l'historique des demandes
+extérieures indique « envoyé à Spotify » tant que son démarrage n'a pas été observé.
+
+Lors de la mise à jour d'une soirée extérieure, les anciennes demandes locales sont
+transférées dès qu'un appareil Spotify est actif, en conservant leur ordre et sans
+renvoyer celle déjà expédiée. Un transfert incertain est signalé à l'admin pour contrôle
+dans Spotify ; il n'est pas automatiquement retenté.
+
+### Modes d'insertion maison (modifiable en cours de soirée)
 
 - **Juste après** : chaque ajout passe juste après le titre en cours.
 - **Équitable** : les demandes passent avant ta playlist, un titre par invité à tour de rôle
