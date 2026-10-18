@@ -1,4 +1,4 @@
-"""Party extérieur : Spotify possède la file, Party lui transmet chaque ajout immédiatement.
+"""Spotify possède la file, à la maison sur Sonos comme à l'extérieur sur le téléphone.
 
 L'aperçu vient de Spotify ; les suppressions et déplacements se font dans son application.
 Les anciens champs vqueue/vpushed ne servent plus qu'à migrer une soirée déjà ouverte.
@@ -9,7 +9,7 @@ import threading
 from .spotify import Spotify, SpotifyError, SpotifyUser
 
 
-QUEUE_MANAGED_IN_SPOTIFY = "En mode extérieur, modifie la file directement dans l'app Spotify"
+QUEUE_MANAGED_IN_SPOTIFY = "Modifie la file directement dans l'app Spotify"
 
 
 def hms(ms: int | None) -> str:
@@ -20,9 +20,19 @@ def hms(ms: int | None) -> str:
 
 
 class SpotifyPlayer:
-    def __init__(self, user: SpotifyUser, catalog: Spotify, store):
+    def __init__(self, user: SpotifyUser, catalog: Spotify, store, sonos=None):
         self.user, self.catalog, self.store = user, catalog, store
+        self.sonos = sonos
         self._lock = threading.RLock()
+
+    def _target(self) -> dict:
+        s = self.store.session
+        return {"device_id": s.spotify_device_id} if s.source == "spotify_sonos" else {}
+
+    def _check_device(self, playback: dict):
+        s = self.store.session
+        if s.source == "spotify_sonos" and (playback.get("device") or {}).get("id") != s.spotify_device_id:
+            raise SpotifyError(f"Spotify a changé d'appareil. Sélectionne « {s.spotify_device_name} » dans Spotify, ou redémarre la soirée pour choisir une autre pièce")
 
     @staticmethod
     def _item(pos: int, item: dict) -> dict:
@@ -59,6 +69,7 @@ class SpotifyPlayer:
     def snapshot(self, uid: str = "", max_upcoming: int = 300) -> dict:
         with self._lock:
             pb = self.user.playback() or {}
+            self._check_device(pb)
             queue = self.user.get_queue()
             # Ne migre pas vers un appareil absent ; les demandes restent conservées.
             if pb.get("device"):
@@ -66,8 +77,14 @@ class SpotifyPlayer:
             item = pb.get("item") or queue.get("currently_playing") or {}
             current = self._item(1, item) if item else None
             device = pb.get("device") or {}
+            volume = device.get("volume_percent")
+            if self.store.session.source == "spotify_sonos" and self.sonos:
+                try:
+                    volume = self.sonos.coordinator(uid).group.volume
+                except Exception:
+                    volume = None  # La file Spotify reste accessible si le volume Sonos ne répond pas.
             return {
-                "coordinator_ip": None, "volume": device.get("volume_percent"),
+                "coordinator_ip": None, "volume": volume,
                 "room": device.get("name", "Spotify"),
                 "state": "PLAYING" if pb.get("is_playing") else ("PAUSED_PLAYBACK" if pb else "STOPPED"),
                 "from_queue": True, "current_pos": 1, "current": current,
@@ -79,7 +96,7 @@ class SpotifyPlayer:
 
     def add_spotify_track(self, uid: str, track_id: str, title: str, position: int) -> int:
         with self._lock:
-            self.user.queue(track_id)
+            self.user.queue(track_id, **self._target())
             # L'API ne renvoie pas la position ; on ne prétend pas en connaître une.
             return 0
 
@@ -93,25 +110,30 @@ class SpotifyPlayer:
         raise SpotifyError(QUEUE_MANAGED_IN_SPOTIFY)
 
     def skip(self, uid: str = ""):
-        self.user.next()
+        self.user.next(**self._target())
 
     def play(self, uid: str = ""):
-        self.user.play()
+        self.user.play(**self._target())
 
     def pause(self, uid: str = ""):
-        self.user.pause()
+        self.user.pause(**self._target())
 
     def set_volume(self, uid: str, volume: int):
-        self.user.volume(volume)
+        if self.store.session.source == "spotify_sonos" and self.sonos:
+            self.sonos.set_volume(uid, volume)
+        else:
+            self.user.volume(volume)
 
     def launch_playlist(self, uid: str, playlist_id: str, keep):
         if not playlist_id.startswith("spotify:playlist:"):
-            raise LookupError("En mode extérieur, seules les playlists Spotify peuvent être lancées")
-        self.user.play(playlist_id)
+            raise LookupError("Seules les playlists Spotify peuvent être lancées dans ce mode")
+        self.user.play(playlist_id, **self._target())
         try:
-            self.user.shuffle(True)
+            self.user.shuffle(True, **self._target())
         except SpotifyError:
             pass
 
     def speakers(self, uid: str = "") -> list:
+        if self.store.session.source == "spotify_sonos" and self.sonos:
+            return self.sonos.speakers(uid)
         return []

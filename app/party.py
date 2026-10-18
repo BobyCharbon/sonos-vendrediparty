@@ -33,8 +33,10 @@ class Session:
     active: bool = False
     room_uid: str = ""
     room_name: str = ""
-    # Source de la musique : « sonos » (Party maison) ou « spotify » (Party extérieur, téléphone de l'hôte).
+    # Source : spotify_sonos (maison), spotify (extérieur), sonos (ancienne file native).
     source: str = "sonos"
+    spotify_device_id: str = ""  # Sonos sélectionné via Spotify Connect (mode maison).
+    spotify_device_name: str = ""
     # Ancienne file extérieure : migration vers l'envoi immédiat lors de la prochaine lecture de l'état.
     vqueue: list[str] = field(default_factory=list)
     vpushed: str = ""
@@ -105,10 +107,12 @@ class PartyStore:
         tmp.write_text(json.dumps(asdict(self.session), ensure_ascii=False, indent=2))
         tmp.replace(self.path)
 
-    def start(self, room_uid: str, room_name: str, mode: str, source: str = "sonos"):
+    def start(self, room_uid: str, room_name: str, mode: str, source: str = "sonos",
+              spotify_device_id: str = "", spotify_device_name: str = ""):
         # Les bannissements et le code d'accès survivent d'une soirée à l'autre.
         self.session = Session(
             active=True, room_uid=room_uid, room_name=room_name, mode=mode, started_at=time.time(), source=source,
+            spotify_device_id=spotify_device_id, spotify_device_name=spotify_device_name,
             bans=self.session.bans, guest_pin=self.session.guest_pin, revoked=self.session.revoked,
             push=self.session.push, admin_push=self.session.admin_push, admin_notify=self.session.admin_notify, top_playlists=self.session.top_playlists,
             games=self.session.games,

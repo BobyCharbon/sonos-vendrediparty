@@ -63,15 +63,19 @@ spotify = (
     else None
 )
 push = Push(DATA_DIR, PUBLIC_URL)
-# Party extérieur : compte Spotify de l'hôte (connecté une fois depuis l'admin) qui pilote son téléphone.
+# Compte Spotify de l’hôte : Sonos via Spotify Connect ou téléphone à l’extérieur.
 spotify_user = (SpotifyUser(os.environ["SPOTIFY_CLIENT_ID"], os.environ["SPOTIFY_CLIENT_SECRET"], DATA_DIR / "spotify_user.json",
                             PUBLIC_URL + "/api/spotify/callback") if spotify else None)
-spotify_player = SpotifyPlayer(spotify_user, spotify, store) if spotify else None
+spotify_player = SpotifyPlayer(spotify_user, spotify, store, sonos) if spotify else None
+
+
+def spotify_queue() -> bool:
+    return store.session.source in ("spotify", "spotify_sonos")
 
 
 def player():
-    """Le lecteur de la soirée : les Sonos (Party maison) ou le téléphone de l'hôte via Spotify (Party extérieur)."""
-    if store.session.source == "spotify":
+    """File Spotify des nouvelles soirées, ou file Sonos native des anciennes sessions."""
+    if spotify_queue():
         if spotify_player is None:
             raise HTTPException(503, "Spotify n'est pas configuré sur le serveur")
         return spotify_player
@@ -124,7 +128,7 @@ def track_changed(data: dict, done: list):
     _snap["current"] = key
     if cur is None:
         return
-    if store.session.source == "spotify":
+    if spotify_queue():
         # La file renvoyée par Spotify peut être partielle ou momentanément en retard.
         # Seul un démarrage observé prouve qu'une demande a été jouée (une occurrence).
         req = next((r for r in store.pending() if r.track_id == cur["track_id"]), None)
@@ -150,7 +154,7 @@ def snapshot(force: bool = False) -> dict:
         if not force and _snap["data"] and time.time() - _snap["at"] < 3:
             return _snap["data"]
         data = player().snapshot(s.room_uid)
-        done = [] if s.source == "spotify" else store.reconcile({t["track_id"] for t in data["upcoming"] if t["track_id"]})
+        done = [] if spotify_queue() else store.reconcile({t["track_id"] for t in data["upcoming"] if t["track_id"]})
         track_changed(data, done)
         # Le Sonos a changé (titre, file, lecture, volume) : on prévient les pages ouvertes.
         fingerprint = (data["state"], data["current_pos"], data["from_queue"], data.get("volume"),
@@ -170,7 +174,7 @@ def watch_sonos():
                 snapshot(force=True)
             except Exception:
                 pass  # Sonos momentanément injoignable : on réessaie au tour suivant
-        time.sleep(5 if store.session.source == "spotify" else 1.5)
+        time.sleep(5 if spotify_queue() else 1.5)
 
 
 # Version de chaque partie (en mémoire) : un téléphone ne recharge sa partie que si elle a changé.
@@ -336,7 +340,7 @@ def admin_rooms():
 class Start(BaseModel):
     room_uid: str = ""
     mode: str = "next"
-    source: str = "sonos"  # sonos (Party maison) | spotify (Party extérieur)
+    source: str = "spotify_sonos"  # spotify_sonos (maison) | spotify (extérieur)
     playlist: str | None = None  # lancer aussi une playlist (sinon : ce qui joue déjà)
 
 
@@ -350,13 +354,22 @@ def admin_start(body: Start):
         store.start("spotify", "Spotify · ton téléphone", body.mode, source="spotify")
         _snap["data"] = None
         return admin_state()
+    if body.source not in ("sonos", "spotify_sonos"):
+        raise HTTPException(400, "Source inconnue")
+    if not (spotify_user and spotify_user.connected):
+        raise HTTPException(409, "Connecte d'abord ton compte Spotify (Réglages)")
     room = next((r for r in sonos.rooms() if r["uid"] == body.room_uid), None)
     if room is None:
         raise HTTPException(404, "Pièce introuvable")
-    store.start(room["uid"], room["name"], body.mode)
-    _snap["data"] = None
-    if body.playlist:
-        launch_playlist(body.playlist)
+    device = ((spotify_user.playback() or {}).get("device") or {})
+    expected = room.get("spotify_name", room["name"])
+    if not device.get("id") or device.get("name", "").strip().casefold() != expected.strip().casefold():
+        raise HTTPException(409, f"Dans Spotify, sélectionne « {expected} » comme appareil et lance un titre, puis démarre la soirée")
+    if device.get("is_restricted"):
+        raise HTTPException(409, "Spotify indique que cette enceinte ne peut pas être pilotée par son API. L'ajout direct n'est pas disponible sur cet appareil.")
+    store.start(room["uid"], room["name"], "next", source="spotify_sonos",
+                spotify_device_id=device["id"], spotify_device_name=device["name"])
+    _snap.update(data=None, current=None)
     return admin_state()
 
 
@@ -387,7 +400,7 @@ def launch_playlist(playlist_id: str):
         # Les demandes qui n'étaient plus dans la file (ou sans titre Spotify) ne reviendront pas.
         kept = {tid for tid, _ in keep}
         for r in store.pending():
-            if store.session.source != "spotify" and r.track_id not in kept:
+            if not spotify_queue() and r.track_id not in kept:
                 r.status = "removed"
         store.save()
 
@@ -664,6 +677,8 @@ class SpeakerGroup(BaseModel):
 def admin_speaker_group(body: SpeakerGroup):
     """Ajoute une enceinte au groupe de la soirée (elle joue la même musique) ou l'en retire."""
     require_active()
+    if store.session.source == "spotify":
+        raise HTTPException(409, "Les groupes Sonos se règlent en mode maison")
     try:
         sonos.group_speaker(store.session.room_uid, body.uid, body.join)
     except KeyError:
@@ -680,6 +695,8 @@ class SpeakerVolume(BaseModel):
 @app.post("/api/admin/speakers/volume", dependencies=[Depends(require_admin)])
 def admin_speaker_volume(body: SpeakerVolume):
     require_active()
+    if store.session.source == "spotify":
+        raise HTTPException(409, "Les enceintes Sonos se règlent en mode maison")
     try:
         sonos.set_speaker_volume(body.uid, max(0, min(100, body.volume)))
     except KeyError:
@@ -1305,7 +1322,7 @@ def public_sonos(snap: dict, guest_id: str = "") -> dict:
     now = snap["now"]
     current_id = (snap["current"] or {}).get("track_id")
     return {
-        "queue_editable": store.session.source != "spotify",
+        "queue_editable": not spotify_queue(),
         "device": snap.get("device", ""),
         "state": snap["state"],
         "from_queue": snap["from_queue"],
@@ -1446,13 +1463,13 @@ class Enqueue(BaseModel):
 
 
 def require_editable_queue():
-    if store.session.source == "spotify":
+    if spotify_queue():
         raise HTTPException(409, QUEUE_MANAGED_IN_SPOTIFY)
 
 
 def recently_sent(track_id: str) -> bool:
     # L'API de lecture peut mettre quelques secondes à refléter un ajout accepté.
-    return store.session.source == "spotify" and any(
+    return spotify_queue() and any(
         r.track_id == track_id and time.time() - r.added_at < 10 for r in store.pending()
     )
 
@@ -1465,7 +1482,7 @@ def submit_track(track: dict, position: int, guest_id: str, name: str, ip: str =
         except SpotifyError as e:
             raise HTTPException(502, str(e))
         except Exception as e:
-            if store.session.source == "spotify":
+            if spotify_queue():
                 raise HTTPException(502, "Envoi non confirmé : vérifie la file Spotify avant de réessayer") from e
             raise HTTPException(502, f"Sonos a refusé l'ajout : {e}")
         store.add(track, guest_id, name, ip)

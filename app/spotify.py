@@ -181,8 +181,8 @@ class SpotifyUser:
     def playback(self) -> dict | None:
         return self.api("GET", "/me/player", params={"additional_types": "track"})
 
-    def queue(self, track_id: str):
-        self.api("POST", "/me/player/queue", params={"uri": f"spotify:track:{track_id}"})
+    def queue(self, track_id: str, device_id: str = ""):
+        self.api("POST", "/me/player/queue", params={"uri": f"spotify:track:{track_id}", **({"device_id": device_id} if device_id else {})})
 
     def get_queue(self) -> dict:
         result = self.api("GET", "/me/player/queue")
@@ -190,17 +190,18 @@ class SpotifyUser:
             raise SpotifyError("Impossible de lire la file Spotify pour le moment")
         return result
 
-    def play(self, context_uri: str | None = None):
-        self.api("PUT", "/me/player/play", json={"context_uri": context_uri} if context_uri else None)
+    def play(self, context_uri: str | None = None, device_id: str = ""):
+        self.api("PUT", "/me/player/play", json={"context_uri": context_uri} if context_uri else None,
+                 params={"device_id": device_id} if device_id else {})
 
-    def pause(self):
-        self.api("PUT", "/me/player/pause")
+    def pause(self, device_id: str = ""):
+        self.api("PUT", "/me/player/pause", params={"device_id": device_id} if device_id else {})
 
-    def next(self):
-        self.api("POST", "/me/player/next")
+    def next(self, device_id: str = ""):
+        self.api("POST", "/me/player/next", params={"device_id": device_id} if device_id else {})
 
-    def shuffle(self, on: bool):
-        self.api("PUT", "/me/player/shuffle", params={"state": "true" if on else "false"})
+    def shuffle(self, on: bool, device_id: str = ""):
+        self.api("PUT", "/me/player/shuffle", params={"state": "true" if on else "false", **({"device_id": device_id} if device_id else {})})
 
     def volume(self, percent: int):
         self.api("PUT", "/me/player/volume", params={"volume_percent": percent})

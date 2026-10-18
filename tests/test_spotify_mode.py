@@ -21,7 +21,7 @@ class FakeUser:
     def __init__(self):
         self.pb = {"is_playing": True, "progress_ms": 10_000,
                    "device": {"name": "iPhone", "volume_percent": 50}, "item": item("p")}
-        self.calls, self.items = [], []
+        self.calls, self.items, self.targets = [], [], []
 
     def playback(self):
         return self.pb
@@ -29,20 +29,25 @@ class FakeUser:
     def get_queue(self):
         return {"currently_playing": (self.pb or {}).get("item"), "queue": list(self.items)}
 
-    def queue(self, tid):
+    def queue(self, tid, device_id=""):
+        self.targets.append(device_id)
         self.calls.append(("queue", tid))
         self.items.append(item(tid[0]))
 
-    def next(self):
+    def next(self, device_id=""):
+        self.targets.append(device_id)
         self.calls.append(("next",))
 
-    def play(self, uri=None):
+    def play(self, uri=None, device_id=""):
+        self.targets.append(device_id)
         self.calls.append(("play", uri))
 
-    def pause(self):
+    def pause(self, device_id=""):
+        self.targets.append(device_id)
         self.calls.append(("pause",))
 
-    def shuffle(self, on):
+    def shuffle(self, on, device_id=""):
+        self.targets.append(device_id)
         self.calls.append(("shuffle", on))
 
     def volume(self, v):
@@ -240,3 +245,99 @@ def test_queue_read_failure_returns_actionable_error(ext, monkeypatch):
     r = add(ext, "a")
     assert r.status_code == 502 and "appareil Spotify actif" in r.json()["detail"]
     assert ext.user.calls == []
+
+
+@pytest.fixture
+def home(ext, monkeypatch):
+    from types import SimpleNamespace
+    class LocalSonos:
+        calls = []
+        def rooms(self):
+            return [{"uid": "room-1", "name": "Cuisine + Salon", "spotify_name": "Salon"}]
+        def coordinator(self, uid):
+            assert uid == "room-1"
+            return SimpleNamespace(group=SimpleNamespace(volume=33))
+        def set_volume(self, uid, volume):
+            self.calls.append(("volume", uid, volume))
+        def speakers(self, uid):
+            return [{"uid": "room-1", "name": "Salon", "volume": 33, "in_group": True}]
+    speakers = LocalSonos()
+    monkeypatch.setattr(main, "sonos", speakers)
+    ext.sp.sonos = speakers
+    ext.user.pb["device"] = {"id": "sonos-device", "name": "Salon", "is_restricted": False, "volume_percent": 50}
+    return ext
+
+
+def start_home(home):
+    return home.post("/api/admin/start", json={"source": "spotify_sonos", "room_uid": "room-1"})
+
+
+def test_home_uses_spotify_queue_immediately_and_keeps_sonos_volume(home):
+    r = start_home(home)
+    assert r.status_code == 200
+    s = r.json()
+    assert s["source"] == "spotify_sonos" and s["sonos"]["queue_editable"] is False
+    assert s["sonos"]["volume"] == 33
+    assert main.store.session.spotify_device_id == "sonos-device"
+    for letter in "abc":
+        assert add(home, letter).status_code == 200
+    assert home.user.calls == [("queue", c * 22) for c in "abc"]
+    assert home.user.targets == ["sonos-device"] * 3
+    main.snapshot(force=True)
+    assert len(home.user.calls) == 3
+    assert home.post("/api/admin/volume", json={"volume": 42}).status_code == 200
+    assert main.sonos.calls == [("volume", "room-1", 42)]
+    assert home.get("/api/admin/speakers").json()[0]["name"] == "Salon"
+    assert home.post("/api/admin/mode", json={"mode": "fair"}).status_code == 409
+
+
+def test_home_guest_adds_to_selected_spotify_device(home):
+    assert start_home(home).status_code == 200
+    assert home.post("/api/join", json={"pin": main.store.session.guest_pin}).status_code == 200
+    r = home.post("/api/queue", json={"track_id": "a" * 22, "guest_id": "home-guest-1", "guest_name": "Léa"})
+    assert r.status_code == 200 and r.json()["source"] == "spotify_sonos"
+    assert home.user.calls == [("queue", "a" * 22)] and home.user.targets == ["sonos-device"]
+    s=home.get("/api/state?guest_id=home-guest-1").json()
+    assert not s["queue_editable"] and s["upcoming"][0]["by"] == "Léa"
+
+
+@pytest.mark.parametrize("device", [None, {"id": "phone", "name": "iPhone"}, {"id": "sonos-device", "name": "Salon", "is_restricted": True}])
+def test_home_rejects_wrong_or_restricted_device_without_starting(home, device):
+    home.user.pb["device"] = device
+    old = main.store.session
+    assert start_home(home).status_code == 409
+    assert main.store.session is old and not home.user.calls
+
+
+def test_home_requires_connected_account(home, monkeypatch):
+    monkeypatch.setattr(home.user.__class__, "connected", False)
+    assert start_home(home).status_code == 409
+
+
+def test_home_refuses_add_when_playback_moves_to_phone(home):
+    assert start_home(home).status_code == 200
+    home.user.pb["device"] = {"id": "phone", "name": "iPhone"}
+    r = add(home, "a")
+    assert r.status_code == 502 and "changé d'appareil" in r.json()["detail"]
+    assert not home.user.calls
+
+
+def test_home_playback_actions_target_sonos(home):
+    assert start_home(home).status_code == 200
+    for action in ["pause", "play"]:
+        assert home.post("/api/admin/playback", json={"action": action}).status_code == 200
+    assert home.post("/api/admin/skip", json={}).status_code == 200
+    assert home.user.targets == ["sonos-device"] * 3
+
+
+def test_spotify_queue_passes_explicit_device_to_api(tmp_path, monkeypatch):
+    user = SpotifyUser("id", "secret", tmp_path / "tokens.json", "https://example.com/callback")
+    calls = []
+    monkeypatch.setattr(user, "_access", lambda: "fake")
+    def handle(req):
+        calls.append(req)
+        return httpx.Response(204)
+    monkeypatch.setattr(user, "_http", httpx.Client(transport=httpx.MockTransport(handle)))
+    user.queue("a" * 22, device_id="sonos-device")
+    assert calls[0].url.params["device_id"] == "sonos-device"
+    assert calls[0].url.params["uri"] == "spotify:track:" + "a" * 22

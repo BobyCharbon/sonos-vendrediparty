@@ -36,12 +36,12 @@
       <!-- Pas de session -->
       <div id="setup" class="hidden">
         <div class="src-pick" role="group" aria-label="Où se passe la soirée ?">
-          <button type="button" class="src on" data-src="sonos"><b>🏠 Party maison</b><small>Sur tes Sonos</small></button>
+          <button type="button" class="src on" data-src="spotify_sonos"><b>🏠 Party maison</b><small>Spotify sur tes Sonos</small></button>
           <button type="button" class="src" data-src="spotify"><b>🏕️ Party extérieur</b><small>Spotify sur ton téléphone → enceinte Bluetooth</small></button>
         </div>
         <div class="card">
           <div id="srcSonos">
-            <p class="sub" style="margin-top:0">1. Lance ta playlist depuis l'app Sonos.<br>2. Choisis la pièce et démarre la soirée.</p>
+            <p class="sub" style="margin-top:0">1. Dans Spotify, choisis ta pièce Sonos dans les appareils disponibles et lance un titre.<br>2. Sélectionne la même pièce ici, puis démarre la soirée. Les ajouts partent immédiatement dans Spotify.</p>
             <h2 style="margin-top:0">Pièce Sonos</h2>
             <div class="row">
               <select id="room" class="grow"></select>
@@ -51,8 +51,8 @@
           <div id="srcSpotify" class="hidden">
             <p class="sub" style="margin-top:0">1. Connecte ton téléphone à l'enceinte Bluetooth.<br>2. Lance une playlist dans l'app Spotify (aléatoire et fondu se règlent dans Spotify).<br>3. Démarre la soirée : les invités ajoutent directement à ta file Spotify.</p>
             <p class="sub">Les titres ajoutés dans Party sont envoyés immédiatement à Spotify. Tu peux aussi ajouter et gérer tes titres dans Spotify.</p>
-            <div id="spotifyStart"></div>
           </div>
+          <div id="spotifyStart"></div>
           <h2 data-mode-title>Mode d'insertion</h2>
           <div class="seg" data-mode-picker></div>
           <button id="start" style="width:100%;margin-top:16px">🎉 Démarrer la soirée</button>
@@ -139,7 +139,7 @@
         </div>
       </div>
 
-      <h2>Compte Spotify <span class="artist" style="text-transform:none;letter-spacing:0">(Party extérieur)</span></h2>
+      <h2>Compte Spotify <span class="artist" style="text-transform:none;letter-spacing:0">(maison et extérieur)</span></h2>
       <div class="card" id="spotifyAccount"></div>
 
       <h2>Accès invités</h2>
@@ -205,6 +205,7 @@ let guestId = store("vp_guest");
 if (!guestId) { guestId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now()); store("vp_guest", guestId); }
 let guestName = store("vp_name") || "";
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const usesSpotify = (source) => ["spotify", "spotify_sonos"].includes(source);
 const MODES = { next: "Juste après", fair: "Équitable" };
 const HELP = {
   next: "Chaque titre ajouté passe juste après celui en cours (le dernier ajouté passe en premier).",
@@ -272,7 +273,7 @@ addEventListener("hashchange", () => showView(location.hash.slice(1)));
 showView(location.hash.slice(1));
 
 function renderModes(current) {
-  const ext = (state?.active ? state.source : chosenSource) === "spotify";
+  const ext = usesSpotify(state?.active ? state.source : chosenSource);
   document.querySelectorAll("[data-mode-picker], [data-mode-title]").forEach(el => el.classList.toggle("hidden", ext));
   document.querySelectorAll("[data-mode-picker]").forEach((el) => {
     el.innerHTML = Object.entries(MODES).map(([k, v]) => `<button type="button" data-mode="${k}" class="${k === current ? "on" : ""}">${v}</button>`).join("");
@@ -323,10 +324,10 @@ function render(s) {
   if (!s.active) { renderModes(chosenMode); return; }
 
   renderModes(s.mode);
-  const ext = s.source === "spotify";
-  $("liveRoom").textContent = ext ? `🏕️ Party extérieur · Spotify${s.sonos?.device ? ` · ${s.sonos.device}` : ""}` : s.room_name;
-  $("speakersBox").classList.toggle("hidden", ext);
-  $("volumeLabelText").textContent = ext ? "Volume (téléphone)" : "Volume global (toutes les enceintes du groupe)";
+  const ext = usesSpotify(s.source);
+  $("liveRoom").textContent = s.source === "spotify_sonos" ? `🏠 Party maison · ${s.room_name} · Spotify` : ext ? `🏕️ Party extérieur · Spotify${s.sonos?.device ? ` · ${s.sonos.device}` : ""}` : s.room_name;
+  $("speakersBox").classList.toggle("hidden", s.source === "spotify");
+  $("volumeLabelText").textContent = s.source === "spotify" ? "Volume (téléphone)" : "Volume global (toutes les enceintes du groupe)";
   const so = s.sonos;
   const warn = s.sonos_error ? (ext ? "Spotify : " : "Sonos injoignable : ") + s.sonos_error
     : ext && so && so.state === "STOPPED" ? "⚠️ Rien ne joue sur Spotify : lance une playlist sur ton téléphone. Un appareil Spotify actif est nécessaire pour ajouter des titres."
@@ -406,7 +407,7 @@ function renderMessages(s) {
 }
 
 function renderQueue(s) {
-  const ext = s.source === "spotify";
+  const ext = usesSpotify(s.source);
   $("queueHelp").textContent = ext
     ? "Aperçu de la file Spotify. Chaque ajout est envoyé immédiatement ; change l’ordre ou retire des titres directement dans Spotify."
     : "⏫ jouer ensuite · ⬆⬇ déplacer · ▶︎ jouer maintenant · ✕ retirer";
@@ -459,7 +460,7 @@ function renderGuests(s) {
   $("guests").innerHTML = s.guests.length ? s.guests.map((g) => `
     <div class="track" style="flex-wrap:wrap">
       <div class="meta"><div class="title">${Date.now() / 1000 - g.last_seen < 30 ? `<span class="dot" title="En ligne"></span>` : ""}${esc(g.name)} <span title="${g.via.includes("music") ? "Musique" : ""}${g.via.length > 1 ? " et " : ""}${g.via.includes("games") ? "Jeux" : ""}">${g.via.includes("music") ? "🎵" : ""}${g.via.includes("games") ? "🎮" : ""}</span> ${g.ban ? `<span class="pill">${banLabel(g.ban)}</span>` : ""}</div>
-      <div class="artist">arrivé à ${hhmm(g.joined_at)} · ${Date.now() / 1000 - g.last_seen < 30 ? "en ligne" : `vu ${seenAgo(g.active_at)}`}${g.via.includes("music") ? ` · ${g.total} titre${g.total > 1 ? "s" : ""} · ${g.queued} ${s.source === "spotify" ? "envoi(s) Spotify sans lecture observée" : "en attente"}` : ""}</div></div>
+      <div class="artist">arrivé à ${hhmm(g.joined_at)} · ${Date.now() / 1000 - g.last_seen < 30 ? "en ligne" : `vu ${seenAgo(g.active_at)}`}${g.via.includes("music") ? ` · ${g.total} titre${g.total > 1 ? "s" : ""} · ${g.queued} ${usesSpotify(s.source) ? "envoi(s) Spotify sans lecture observée" : "en attente"}` : ""}</div></div>
       <div class="row" style="gap:6px">
         ${g.ban
           ? `<button class="secondary" data-act="unban" data-g="${esc(g.guest_id)}">Débloquer</button>`
@@ -467,7 +468,7 @@ function renderGuests(s) {
              <button class="secondary" data-act="kick" data-g="${esc(g.guest_id)}" title="Déconnecter (redemande le code)">⏏︎</button>
              <button class="secondary" data-act="ban10" data-g="${esc(g.guest_id)}" title="Bloquer 10 minutes">⏸ 10 min</button>
              <button class="danger" data-act="ban" data-g="${esc(g.guest_id)}" title="Bannir">⛔</button>`}
-        ${g.queued && s.source !== "spotify" ? `<button class="danger" data-act="purge" data-g="${esc(g.guest_id)}" title="Retirer ses titres en attente">🗑</button>` : ""}
+        ${g.queued && !usesSpotify(s.source) ? `<button class="danger" data-act="purge" data-g="${esc(g.guest_id)}" title="Retirer ses titres en attente">🗑</button>` : ""}
       </div>
     </div>`).join("") : `<p class="empty">Aucun invité pour l'instant</p>`;
 }
@@ -544,13 +545,13 @@ $("login").addEventListener("submit", async (ev) => {
   catch (e) { toast(e.message, "err"); }
 });
 $("reloadRooms").onclick = loadRooms;
-let chosenSource = "sonos";
+let chosenSource = "spotify_sonos";
 document.addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-src]");
   if (!b) return;
   chosenSource = b.dataset.src;
   document.querySelectorAll("[data-src]").forEach((x) => x.classList.toggle("on", x === b));
-  $("srcSonos").classList.toggle("hidden", chosenSource !== "sonos");
+  $("srcSonos").classList.toggle("hidden", chosenSource !== "spotify_sonos");
   $("srcSpotify").classList.toggle("hidden", chosenSource !== "spotify");
   renderModes(chosenMode);
 });
@@ -569,8 +570,8 @@ document.addEventListener("click", async (ev) => {
   try { render(await api("/api/admin/spotify/logout", {})); toast("Compte Spotify déconnecté"); } catch (e) { toast(e.message, "err"); }
 });
 $("start").onclick = async () => {
-  if (chosenSource === "sonos" && !$("room").value) return toast("Choisis une pièce", "err");
-  if (chosenSource === "spotify" && !state?.spotify_account?.connected) return toast("Connecte d'abord ton compte Spotify", "err");
+  if (chosenSource === "spotify_sonos" && !$("room").value) return toast("Choisis une pièce", "err");
+  if (usesSpotify(chosenSource) && !state?.spotify_account?.connected) return toast("Connecte d'abord ton compte Spotify", "err");
   $("start").disabled = true;
   try {
     render(await api("/api/admin/start", { room_uid: $("room").value, mode: chosenMode, source: chosenSource }));
@@ -621,8 +622,8 @@ $("addQ").addEventListener("input", () => {
           ${t.image ? `<img src="${esc(t.image)}" alt="" loading="lazy">` : `<img alt="">`}
           <div class="meta"><div class="title">${esc(t.title)}</div><div class="artist">${esc(t.artist)}${t.explicit ? " · 🅴" : ""}${t.via ? ` · 🔗 ${esc(t.via)}` : ""}</div></div>
           <div class="icon-btns">
-            ${state?.source === "spotify" ? "" : `<button data-add="next" data-i="${i}" title="Jouer ensuite">⏫</button>`}
-            <button class="secondary" data-add="end" data-i="${i}" title="${state?.source === "spotify" ? "Ajouter à Spotify" : "À la suite des demandes"}">＋</button>
+            ${usesSpotify(state?.source) ? "" : `<button data-add="next" data-i="${i}" title="Jouer ensuite">⏫</button>`}
+            <button class="secondary" data-add="end" data-i="${i}" title="${usesSpotify(state?.source) ? "Ajouter à Spotify" : "À la suite des demandes"}">＋</button>
           </div>
         </div>`).join("") : `<p class="empty">Aucun résultat</p>`;
     } catch (e) { toast(e.message, "err"); }
@@ -643,7 +644,7 @@ $("addResults").addEventListener("click", async (ev) => {
       res = await add(true);
     }
     render(res);
-    toast(`« ${t.title} » ${res.source === "spotify" ? "envoyé à Spotify" : b.dataset.add === "next" ? "passera juste après" : "ajouté à la suite des demandes"} 🎶`, "ok");
+    toast(`« ${t.title} » ${usesSpotify(res.source) ? "envoyé à Spotify" : b.dataset.add === "next" ? "passera juste après" : "ajouté à la suite des demandes"} 🎶`, "ok");
     // Titre ajouté : on ferme la recherche (champ vidé, clavier fermé) et on montre la file.
     clearTimeout(addTimer);
     $("addQ").value = ""; $("addResults").innerHTML = ""; addResults = [];
@@ -812,7 +813,7 @@ function renderTopPlaylists(s) {
       <div class="meta"><div class="title">${p.id.startsWith("spotify:") ? "🟢" : "🔀"} ${esc(p.title)}</div>
         <div class="artist">${p.id.startsWith("spotify:") ? "Spotify" : "Sonos"}</div></div>
       <div class="icon-btns">
-        <button data-top="launch" data-id="${esc(p.id)}" title="Lancer en aléatoire" ${s.active ? "" : "disabled"}>▶︎</button>
+        <button data-top="launch" data-id="${esc(p.id)}" title="Lancer en aléatoire" ${s.active && (!usesSpotify(s.source) || p.id.startsWith("spotify:playlist:")) ? "" : "disabled"}>▶︎</button>
         ${i > 0 ? `<button class="secondary" data-top="up" data-id="${esc(p.id)}" title="Monter">⬆</button>` : ""}
         <button class="danger" data-top="remove" data-id="${esc(p.id)}" title="Retirer de la liste">✕</button>
       </div>

@@ -71,6 +71,7 @@ class Sonos:
             groups[coord.uid] = {
                 "uid": coord.uid,
                 "name": " + ".join(sorted(visible)) or coord.player_name,
+                "spotify_name": coord.player_name,
             }
         return sorted(groups.values(), key=lambda g: g["name"])
 
