@@ -99,13 +99,15 @@ class PartyStore:
             return Session()
 
     def save(self, notify: bool = True):
-        # notify=False : on enregistre sans faire rafraîchir toutes les pages ouvertes.
-        if notify:
-            self.version += 1
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(asdict(self.session), ensure_ascii=False, indent=2))
-        tmp.replace(self.path)
+        # Le suivi des invités et les actions de jeu peuvent enregistrer en parallèle.
+        # Garder l'écriture et le remplacement sous le même verrou réentrant.
+        with self.lock:
+            if notify:
+                self.version += 1
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(asdict(self.session), ensure_ascii=False, indent=2))
+            tmp.replace(self.path)
 
     def start(self, room_uid: str, room_name: str, mode: str, source: str = "sonos",
               spotify_device_id: str = "", spotify_device_name: str = ""):

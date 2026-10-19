@@ -7,6 +7,8 @@ ou sur le téléphone relié à une enceinte Bluetooth à l'extérieur.
 - **/** : page invités (code, prénom, recherche, ajout immédiat, aperçu de la file, messages)
 - **/admin** : démarrer/arrêter la soirée, lecture, volume, code + QR code,
   messages des invités, invités présents et modération
+- **Événements** : sorties du groupe, catégories/tags et abonnements, propositions,
+  votes sur les dates, sondages, réponses et discussions ; connexion SMS obligatoire.
 
 La page peut être ajoutée à l'écran d'accueil iOS/Android (icône incluse). Les icônes se
 régénèrent avec `python tools/make_icons.py` (nécessite Pillow).
@@ -71,6 +73,29 @@ l'app voie la vraie IP des invités (limitation des essais et bannissements).
 
 ## Configuration
 
+### Comptes et événements
+
+Le module `web/events` reprend le client Vendredi Party et utilise le **même projet
+Supabase**, ses comptes, ses événements et son fournisseur SMS Twilio. Aucune migration
+de données ni nouvelle inscription n'est nécessaire. Le changement de site demande
+une première connexion SMS sur Party ; la session y est ensuite conservée.
+
+Le code/QR de musique et la connexion d'un téléphone aux jeux restent indépendants
+du compte des événements. Les droits de membre et d'admin des événements sont contrôlés
+par Supabase Auth et les politiques de la base, jamais par le code musique.
+
+Les paramètres publics Supabase se trouvent dans `web/events/app.config.js` et peuvent
+être remplacés à la construction avec `EXPO_PUBLIC_SUPABASE_URL` et
+`EXPO_PUBLIC_SUPABASE_ANON_KEY`. Seules l'URL et la clé **publique** doivent être
+présentes dans le client. Les secrets Twilio restent dans Supabase.
+
+Les notifications d'événements sont consultables dans **Activité**. Leurs préférences
+sont conservées ; l'envoi de notifications push d'événements au navigateur n'est pas
+encore implémenté. Les notifications musicales existantes gardent leur fonctionnement.
+
+La webapp est le seul livrable actuel. Expo sert à construire les pages web réutilisées ;
+aucun build iOS/Android ni compte EAS n'est requis.
+
 ```bash
 cp .env.example .env   # puis remplis les valeurs
 ```
@@ -94,11 +119,29 @@ sessions séparément. L'ancienne variable `PUBLIC_URL` n'est pas utilisée.
 
 ### En local (dev)
 
+Construire d'abord les pages d'événements avec Node 22.23.3 :
+
+```bash
+cd web/events
+npm ci
+npm run typecheck
+npm run lint
+npm run build
+cd ../..
+```
+
+Puis lancer le serveur :
+
 ```bash
 uv venv && uv pip install -r requirements.txt
 set -a; source .env; set +a
 .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
+
+En local, définir `EVENTS_WEB_DIR` avec le chemin absolu de `web/events/dist` pour
+servir le module. Dans l'image Docker, il est automatiquement copié dans
+`app/events-web`. Les routes du module sont sous `/events/` et restent sur la même
+origine que Party. Un build absent renvoie une erreur 503 explicite.
 
 ### Docker en local
 
@@ -117,6 +160,11 @@ Le conteneur utilise `network_mode: host`. L'état de la soirée est conservé d
    et `SPOTIFY_CLIENT_SECRET` dans les variables de la stack.
 3. Dockhand détecte la nouvelle image : mise à jour en un clic ou automatique.
 
+Les pushes sur `develop` publient le tag `:develop` utilisé par
+`https://partytest.bobycharbon.ch`. Le build Docker vérifie les types et le lint du
+client, puis inclut son export web dans la même image que le serveur. Une mise à jour
+de cette image actualise donc ensemble les onglets Musique, Jeux et Événements.
+
 L'image est privée : le serveur doit être connecté à `ghcr.io` avec un token GitHub `read:packages`.
 
 ## Tests
@@ -124,3 +172,15 @@ L'image est privée : le serveur doit être connecté à `ghcr.io` avec un token
 ```bash
 uv pip install pytest && .venv/bin/python -m pytest -q
 ```
+
+Les parcours navigateur des événements nécessitent le build web et Playwright :
+
+```bash
+uv pip install playwright httpx
+.venv/bin/python -m playwright install chromium
+.venv/bin/python -m pytest -q tests/test_events_web.py tests/test_events_browser.py
+```
+
+Ces parcours simulent Supabase et Twilio, sans SMS ni modification de données réelles.
+Ils couvrent les indicatifs suisse/français, la connexion obligatoire, l'attente
+d'approbation, la liste, la fiche et la réponse à un événement à plusieurs largeurs.

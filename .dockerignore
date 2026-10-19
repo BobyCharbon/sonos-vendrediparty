@@ -1,0 +1,13 @@
+.git
+.venv
+**/node_modules
+**/.expo
+**/dist
+**/__pycache__
+**/.env
+.coverage
+.pytest_cache
+.impeccable/review
+app/events-web
+data
+test-results

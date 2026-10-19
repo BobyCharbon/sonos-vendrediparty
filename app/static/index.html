@@ -91,9 +91,16 @@
     <div id="gamesRoot"></div>
   </section>
 
+  <section data-view="events" class="events-panel hidden" aria-label="Événements du groupe">
+    <p class="sub" id="eventsLoading" role="status">Ouverture des événements…</p>
+    <iframe id="eventsFrame" title="Événements du groupe : connexion, sorties et sondages" class="events-frame" referrerpolicy="same-origin"></iframe>
+    <noscript>Active JavaScript pour ouvrir les événements du groupe.</noscript>
+  </section>
+
   <nav id="tabs" class="tabs">
     <button type="button" data-tab="music"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg><span>Musique</span></button>
     <button type="button" data-tab="games"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11h4M8 9v4"/><path d="M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-3.96 3.43L2 14.5A3 3 0 0 0 7.2 17l1.3-1.5h7l1.3 1.5a3 3 0 0 0 5.2-2.5l-.74-6.07A4 4 0 0 0 17.3 5z"/></svg><span>Jeux</span><i id="gameDot" class="badge hidden">●</i></button>
+    <button type="button" data-tab="events"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h2M14 15h2"/></svg><span>Événements</span></button>
   </nav>
 
   <div id="install" class="install hidden">
@@ -263,15 +270,24 @@ async function changeName() {
 }
 $("nameChip").addEventListener("click", changeName);
 
-// Deux onglets : 🎵 Musique (code de l'hôte) et 🎮 Jeux (ouverts à tous).
+// Les événements utilisent leur compte SMS ; les accès musique/jeux restent indépendants.
 function showTab(tab) {
-  if (!["music", "games"].includes(tab)) tab = "music";
+  if (!["music", "games", "events"].includes(tab)) tab = "music";
   document.querySelectorAll("[data-view]").forEach((el) => el.classList.toggle("hidden", el.dataset.view !== tab));
-  document.querySelectorAll("#tabs [data-tab]").forEach((el) => el.classList.toggle("on", el.dataset.tab === tab));
+  document.querySelectorAll("#tabs [data-tab]").forEach((el) => {
+    const current = el.dataset.tab === tab;
+    el.classList.toggle("on", current);
+    if (current) el.setAttribute("aria-current", "page");
+    else el.removeAttribute("aria-current");
+  });
   document.body.dataset.tab = tab;  // la lumière de scène et le titre suivent l'onglet
-  $("appTitle").textContent = tab === "games" ? "Jeux" : "Musique";
+  $("appTitle").textContent = ({ music: "Musique", games: "Jeux", events: "Événements" })[tab];
   store("vp_tab", tab);
   if (tab === "games") refreshGame();
+  if (tab === "events" && !$("eventsFrame").hasAttribute("src")) {
+    $("eventsFrame").addEventListener("load", () => $("eventsLoading").classList.add("hidden"), { once: true });
+    $("eventsFrame").src = "/events/";
+  }
   scrollTo(0, 0);
 }
 document.addEventListener("click", (ev) => { const t = ev.target.closest("[data-tab]"); if (t) showTab(t.dataset.tab); });

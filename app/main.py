@@ -38,6 +38,7 @@ def configured_public_url() -> str:
 
 PUBLIC_URL = configured_public_url()
 STATIC = Path(__file__).parent / "static"
+EVENTS_WEB = Path(os.environ.get("EVENTS_WEB_DIR") or str(Path(__file__).parent / "events-web"))
 
 
 def build_id() -> str:
@@ -1095,7 +1096,7 @@ def room_launch(room: dict, me: str, settings: dict):
         try:
             if p.get("manual"):
                 if kind in games.MANUAL_GAMES:
-                    games.add_guest(child, p["name"])
+                    games.add_guest(child, p["name"], p["id"])
             else:
                 games.join(child, p["id"], p["name"])
         except games.GameError:
@@ -1284,7 +1285,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         raise HTTPException(400, "Action inconnue")
     fn, *args = actions[a]
     try:
-        fn(g, *args)
+        action_result = fn(g, *args)
     except (games.GameError, quiz.QuizError, president.PresidentError, neon.NeonError, island.IslandError, heist.HeistError) as e:
         raise HTTPException(409, str(e))
     g["updated_at"] = time.time()
@@ -1309,7 +1310,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
                 if games.player(other, me):
                     games.leave(other, me)
             elif a == "addguest" and g["type"] == "room" and other["type"] in games.MANUAL_GAMES:
-                games.add_guest(other, body.guess)
+                games.add_guest(other, body.guess, action_result["id"])
         except games.GameError:
             pass
     if not g["players"] and not g["host"]:
@@ -1679,6 +1680,34 @@ def index():
 @app.get("/admin")
 def admin_page():
     return page("admin.html")
+
+
+@app.get("/events")
+def events_redirect():
+    return RedirectResponse("/events/", status_code=307)
+
+
+@app.get("/events/{resource:path}")
+def events_web(resource: str):
+    """Module web local ; l'accès aux données reste protégé par Supabase Auth/RLS."""
+    root = EVENTS_WEB.resolve()
+    if any(part.startswith(".") for part in Path(resource).parts):
+        raise HTTPException(404, "Page introuvable")
+    requested = (root / resource).resolve()
+    if not requested.is_relative_to(root):
+        raise HTTPException(404, "Page introuvable")
+    if requested.is_file():
+        headers = {"Cache-Control": "public, max-age=31536000, immutable"} if resource.startswith(("_expo/", "assets/")) else NO_CACHE
+        response = FileResponse(requested, headers=headers)
+    elif resource.startswith(("_expo/", "assets/")) or Path(resource).suffix:
+        raise HTTPException(404, "Ressource introuvable")
+    elif (root / "index.html").is_file():
+        response = FileResponse(root / "index.html", headers={"Cache-Control": "no-store"})
+    else:
+        return Response("Les événements sont momentanément indisponibles. Réessaie dans un instant.", status_code=503, headers=NO_CACHE)
+    response.headers["Content-Security-Policy"] = "frame-ancestors 'self'"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 @app.get("/sw.js")
