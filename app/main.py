@@ -15,23 +15,28 @@ from urllib.parse import quote
 import httpx
 import segno
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 
-from . import games, links, quiz
+from . import games, links, neon, president, quiz
 from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
 from .push import Push, valid_subscription
 from .security import Limiter
 from .sonos import Sonos, seconds
 from .spotify import Spotify, SpotifyError, SpotifyUser
-from .spotify_player import SpotifyPlayer
+from .spotify_player import QUEUE_MANAGED_IN_SPOTIFY, SpotifyPlayer
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
 ADMIN_PIN = os.environ.get("ADMIN_PIN", "")
-# Adresse de la page invités encodée dans le QR code (avec ?pin=<code>).
-PUBLIC_URL = "https://party.bobycharbon.ch"
+def configured_public_url() -> str:
+    # Une adresse propre à chaque déploiement pour les QR et le retour OAuth Spotify.
+    # Ne pas reprendre l'ancienne variable PUBLIC_URL, encore locale sur certaines stacks.
+    return (os.environ.get("PARTY_PUBLIC_URL") or "https://party.bobycharbon.ch").rstrip("/")
+
+
+PUBLIC_URL = configured_public_url()
 STATIC = Path(__file__).parent / "static"
 
 
@@ -58,15 +63,19 @@ spotify = (
     else None
 )
 push = Push(DATA_DIR, PUBLIC_URL)
-# Party extérieur : compte Spotify de l'hôte (connecté une fois depuis l'admin) qui pilote son téléphone.
+# Compte Spotify de l’hôte : Sonos via Spotify Connect ou téléphone à l’extérieur.
 spotify_user = (SpotifyUser(os.environ["SPOTIFY_CLIENT_ID"], os.environ["SPOTIFY_CLIENT_SECRET"], DATA_DIR / "spotify_user.json",
                             PUBLIC_URL + "/api/spotify/callback") if spotify else None)
-spotify_player = SpotifyPlayer(spotify_user, spotify, store) if spotify else None
+spotify_player = SpotifyPlayer(spotify_user, spotify, store, sonos) if spotify else None
+
+
+def spotify_queue() -> bool:
+    return store.session.source in ("spotify", "spotify_sonos")
 
 
 def player():
-    """Le lecteur de la soirée : les Sonos (Party maison) ou le téléphone de l'hôte via Spotify (Party extérieur)."""
-    if store.session.source == "spotify":
+    """File Spotify des nouvelles soirées, ou file Sonos native des anciennes sessions."""
+    if spotify_queue():
         if spotify_player is None:
             raise HTTPException(503, "Spotify n'est pas configuré sur le serveur")
         return spotify_player
@@ -82,6 +91,11 @@ app = FastAPI(title="Vendredi Party", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 # Compression : les pages et scripts pèsent environ 4 fois moins sur le réseau (le flux temps réel n'est pas compressé).
 app.add_middleware(GZipMiddleware, minimum_size=800, compresslevel=6)
+
+
+@app.exception_handler(SpotifyError)
+async def spotify_error_response(request: Request, error: SpotifyError):
+    return JSONResponse(status_code=502, content={"detail": str(error)})
 
 # Un seul ajout/suppression à la fois : la position d'insertion dépend de l'état de la file.
 queue_lock = threading.Lock()
@@ -114,6 +128,14 @@ def track_changed(data: dict, done: list):
     _snap["current"] = key
     if cur is None:
         return
+    if spotify_queue():
+        # La file renvoyée par Spotify peut être partielle ou momentanément en retard.
+        # Seul un démarrage observé prouve qu'une demande a été jouée (une occurrence).
+        req = next((r for r in store.pending() if r.track_id == cur["track_id"]), None)
+        if req:
+            req.status = "played"
+            store.save()
+            done = [req]
     names = {r.track_id: r.guest_name for r in store.session.requests if r.status != "removed"}
     last = store.session.played[-1] if store.session.played else {}
     # Après un redémarrage du serveur, le titre en cours est peut-être déjà dans l'historique.
@@ -132,7 +154,7 @@ def snapshot(force: bool = False) -> dict:
         if not force and _snap["data"] and time.time() - _snap["at"] < 3:
             return _snap["data"]
         data = player().snapshot(s.room_uid)
-        done = store.reconcile({t["track_id"] for t in data["upcoming"] if t["track_id"]})
+        done = [] if spotify_queue() else store.reconcile({t["track_id"] for t in data["upcoming"] if t["track_id"]})
         track_changed(data, done)
         # Le Sonos a changé (titre, file, lecture, volume) : on prévient les pages ouvertes.
         fingerprint = (data["state"], data["current_pos"], data["from_queue"], data.get("volume"),
@@ -152,7 +174,7 @@ def watch_sonos():
                 snapshot(force=True)
             except Exception:
                 pass  # Sonos momentanément injoignable : on réessaie au tour suivant
-        time.sleep(1.5)
+        time.sleep(5 if spotify_queue() else 1.5)
 
 
 # Version de chaque partie (en mémoire) : un téléphone ne recharge sa partie que si elle a changé.
@@ -318,7 +340,7 @@ def admin_rooms():
 class Start(BaseModel):
     room_uid: str = ""
     mode: str = "next"
-    source: str = "sonos"  # sonos (Party maison) | spotify (Party extérieur)
+    source: str = "spotify_sonos"  # spotify_sonos (maison) | spotify (extérieur)
     playlist: str | None = None  # lancer aussi une playlist (sinon : ce qui joue déjà)
 
 
@@ -332,13 +354,22 @@ def admin_start(body: Start):
         store.start("spotify", "Spotify · ton téléphone", body.mode, source="spotify")
         _snap["data"] = None
         return admin_state()
+    if body.source not in ("sonos", "spotify_sonos"):
+        raise HTTPException(400, "Source inconnue")
+    if not (spotify_user and spotify_user.connected):
+        raise HTTPException(409, "Connecte d'abord ton compte Spotify (Réglages)")
     room = next((r for r in sonos.rooms() if r["uid"] == body.room_uid), None)
     if room is None:
         raise HTTPException(404, "Pièce introuvable")
-    store.start(room["uid"], room["name"], body.mode)
-    _snap["data"] = None
-    if body.playlist:
-        launch_playlist(body.playlist)
+    device = ((spotify_user.playback() or {}).get("device") or {})
+    expected = room.get("spotify_name", room["name"])
+    if not device.get("id") or device.get("name", "").strip().casefold() != expected.strip().casefold():
+        raise HTTPException(409, f"Dans Spotify, sélectionne « {expected} » comme appareil et lance un titre, puis démarre la soirée")
+    if device.get("is_restricted"):
+        raise HTTPException(409, "Spotify indique que cette enceinte ne peut pas être pilotée par son API. L'ajout direct n'est pas disponible sur cet appareil.")
+    store.start(room["uid"], room["name"], "next", source="spotify_sonos",
+                spotify_device_id=device["id"], spotify_device_name=device["name"])
+    _snap.update(data=None, current=None)
     return admin_state()
 
 
@@ -369,7 +400,7 @@ def launch_playlist(playlist_id: str):
         # Les demandes qui n'étaient plus dans la file (ou sans titre Spotify) ne reviendront pas.
         kept = {tid for tid, _ in keep}
         for r in store.pending():
-            if r.track_id not in kept:
+            if not spotify_queue() and r.track_id not in kept:
                 r.status = "removed"
         store.save()
 
@@ -483,6 +514,7 @@ class Mode(BaseModel):
 
 @app.post("/api/admin/mode", dependencies=[Depends(require_admin)])
 def admin_mode(body: Mode):
+    require_editable_queue()
     if body.mode not in MODES:
         raise HTTPException(400, "Mode inconnu")
     store.session.mode = body.mode
@@ -522,6 +554,7 @@ def undo_token(items: list[dict], request_ids: list[str]) -> str | None:
 def remove_requests(reqs) -> str | None:
     """Retire des demandes de la file Sonos (de la fin vers le début pour garder les positions valides).
     Renvoie un jeton pour annuler."""
+    require_editable_queue()
     removed = []
     with queue_lock:
         snap = snapshot(force=True)
@@ -644,6 +677,8 @@ class SpeakerGroup(BaseModel):
 def admin_speaker_group(body: SpeakerGroup):
     """Ajoute une enceinte au groupe de la soirée (elle joue la même musique) ou l'en retire."""
     require_active()
+    if store.session.source == "spotify":
+        raise HTTPException(409, "Les groupes Sonos se règlent en mode maison")
     try:
         sonos.group_speaker(store.session.room_uid, body.uid, body.join)
     except KeyError:
@@ -660,6 +695,8 @@ class SpeakerVolume(BaseModel):
 @app.post("/api/admin/speakers/volume", dependencies=[Depends(require_admin)])
 def admin_speaker_volume(body: SpeakerVolume):
     require_active()
+    if store.session.source == "spotify":
+        raise HTTPException(409, "Les enceintes Sonos se règlent en mode maison")
     try:
         sonos.set_speaker_volume(body.uid, max(0, min(100, body.volume)))
     except KeyError:
@@ -729,20 +766,15 @@ def admin_add(body: AdminAdd):
         if not snap["from_queue"]:
             raise HTTPException(409, "La musique ne joue pas depuis la file Sonos : lance une playlist depuis l'app Sonos.")
         dup = next((i for i, t in enumerate([snap["current"]] + snap["upcoming"]) if t and t["track_id"] == track["id"]), None)
-        if dup is not None and not body.force:
-            where = "en cours de lecture" if dup == 0 else f"en {dup}ᵉ position"
+        if (dup is not None or recently_sent(track["id"])) and not body.force:
+            where = "envoyé à Spotify à l'instant" if dup is None else "en cours de lecture" if dup == 0 else f"en {dup}ᵉ position"
             raise HTTPException(409, {"duplicate": True, "message": f"« {track['title']} » est déjà dans la file ({where}). L'ajouter quand même ?"})
         if body.where == "next":
             pos = snap["current_pos"] + 1 if snap["current_pos"] else 0
         else:
             upcoming = [(t["pos"], t["track_id"]) for t in snap["upcoming"]]
             pos = end_of_requests(snap["current_pos"], upcoming, store.pending())
-        try:
-            player().add_spotify_track(store.session.room_uid, track["id"], track["title"], pos)
-        except Exception as e:
-            raise HTTPException(502, f"Sonos a refusé l'ajout : {e}")
-        store.add(track, HOST_ID, "Hôte")
-        _snap["data"] = None
+        submit_track(track, pos, HOST_ID, "Hôte")
     return {**admin_state(), "added": track}
 
 
@@ -764,6 +796,8 @@ def admin_state():
         "messages": list(reversed(s.messages)),
         "top_playlists": s.top_playlists,
         "source": s.source,
+        "spotify_transfer_issues": s.spotify_transfer_issues,
+        "spotify_legacy_pending": len(s.vqueue),
         "spotify_account": {"connected": spotify_user.connected, "name": spotify_user.name,
                             "premium": spotify_user.data.get("premium", True)} if spotify_user else None,
         "admin_notify": s.admin_notify,
@@ -823,6 +857,7 @@ class QueueAction(BaseModel):
 def admin_queue_action(body: QueueAction):
     """Modifie n'importe quel titre à venir (invités ou playlist de l'hôte)."""
     require_active()
+    require_editable_queue()
     uid = store.session.room_uid
     with queue_lock:
         snap = snapshot(force=True)
@@ -857,6 +892,7 @@ class UndoRef(BaseModel):
 def admin_undo(body: UndoRef):
     """Remet dans la file les titres que l'hôte vient de retirer, à leur place."""
     require_active()
+    require_editable_queue()
     entry = _undo.pop(body.token, None)
     if entry is None or time.time() - entry["at"] > 60:
         raise HTTPException(404, "Trop tard pour annuler")
@@ -1037,6 +1073,10 @@ def room_launch(room: dict, me: str, settings: dict):
     kind = settings.get("type")
     if kind not in games.GAMES or kind == "room":
         raise HTTPException(400, "Jeu inconnu")
+    if kind == "neon" and (len(room["players"]) > 8 or any(p.get("manual") for p in room["players"])):
+        raise HTTPException(409, "Néon Knockout accueille au maximum 8 joueurs, chacun avec son téléphone.")
+    if kind == "president" and (len(room["players"]) > 6 or any(p.get("manual") for p in room["players"])):
+        raise HTTPException(409, "Président accueille au maximum 6 joueurs, chacun avec son téléphone. Ajuste les participants de la salle avant de le lancer.")
     host = room["host"] or me
     hp = games.player(room, host)
     fields = {k: v for k, v in settings.items() if k in GameCreate.model_fields and k not in ("guest_id", "name", "type")}
@@ -1120,7 +1160,10 @@ def game_state(code: str, request: Request, guest_id: str = "", name: str = ""):
     if quiz.tick(g):  # Quiz : le temps a avancé (fin d'une question, question suivante…)
         g["updated_at"] = time.time()
         save_games(g["code"], g.get("room") or "")
-    return full_view(g, guest_id)
+    with neon.LOCK:
+        if neon.tick(g):
+            save_games(g["code"])
+        return full_view(g, guest_id)
 
 
 class GameAction(BaseModel):
@@ -1139,17 +1182,31 @@ class GameAction(BaseModel):
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
 HOST_ACTIONS = {"ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
-                "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover"}
+                "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover", "nset"}
 
 
 @app.post("/api/games/{code}")
 def game_action(code: str, body: GameAction, request: Request):
+    g = get_game(code)
+    child = room_child(g) if g["type"] == "room" else None
+    # Les actions de cartes et les retraits de la salle sont atomiques entre téléphones.
+    lock = president.LOCK if g["type"] == "president" or (child and child["type"] == "president") else contextlib.nullcontext()
+    neon_lock = neon.LOCK if g["type"] == "neon" or (child and child["type"] == "neon") else contextlib.nullcontext()
+    with lock, neon_lock:
+        return perform_game_action(code, body, request)
+
+
+def perform_game_action(code: str, body: GameAction, request: Request):
     check_guest_id(body.guest_id)
     g = get_game(code)
     game_presence(request, body.guest_id, body.name)
     sync_player_name(g, body.guest_id, body.name)
     admin_lead(g, request, body.guest_id)
     a, me = body.action, body.guest_id
+    if g["type"] == "president" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "up", "down", "handover", "end", "prplay", "prpass", "prexchange"}:
+        raise HTTPException(400, "Action indisponible au Président")
+    if g["type"] == "neon" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "nset", "nteam"}:
+        raise HTTPException(400, "Action indisponible dans Néon Knockout")
     # Cible d'un vote : un joueur (pid) ; pour « Je n'ai jamais », une réponse (yes / no).
     target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino", "pyramid", "biskit") else "")
     # Pyramide : l'animateur peut agir pour un joueur (participant sans téléphone, ou qui traîne).
@@ -1198,6 +1255,11 @@ def game_action(code: str, body: GameAction, request: Request):
         "btap": (games.bk_tap, actor), "bclose": (games.bk_close_reflex,),
         "qset": (quiz.configure, body.settings), "qans": (quiz.answer, actor, body.amount, random, body.guess),
         "handover": (games.handover, me, target),
+        "nset": (neon.configure, body.settings),
+        "nteam": (neon.team, me, body.amount),
+        "prplay": (president.play, me, body.values, body.guess),
+        "prpass": (president.pass_turn, me, body.guess),
+        "prexchange": (president.exchange_cards, me, body.values, body.guess),
         "qjoker": (quiz.joker, actor, body.guess, random), "qstop": (quiz.stop, actor),
         "qpause": (quiz.pause, actor, games.is_lead(g, me) or len(g["players"]) <= 1, random),
     }
@@ -1208,7 +1270,7 @@ def game_action(code: str, body: GameAction, request: Request):
     fn, *args = actions[a]
     try:
         fn(g, *args)
-    except (games.GameError, quiz.QuizError) as e:
+    except (games.GameError, quiz.QuizError, president.PresidentError, neon.NeonError) as e:
         raise HTTPException(409, str(e))
     g["updated_at"] = time.time()
     # Salle de jeux : rejoindre, quitter, exclure ou passer la main vaut aussi pour le jeu en cours (et inversement).
@@ -1270,6 +1332,8 @@ def public_sonos(snap: dict, guest_id: str = "") -> dict:
     now = snap["now"]
     current_id = (snap["current"] or {}).get("track_id")
     return {
+        "queue_editable": not spotify_queue(),
+        "device": snap.get("device", ""),
         "state": snap["state"],
         "from_queue": snap["from_queue"],
         "now": {**now, "art": art_url(now["art"]), "by": names.get(current_id), "track_id": current_id},
@@ -1320,7 +1384,7 @@ def state(request: Request, guest_id: str = ""):
     store.seen(guest_id)
     store.link_token(guest_id, guest_token(request))
     base = {
-        "active": True, "room": s.room_name, "blocked": ban_message(guest_id, client_ip(request)),
+        "active": True, "room": s.room_name, "source": s.source, "blocked": ban_message(guest_id, client_ip(request)),
         # Prénom connu du serveur (l'hôte a pu le modifier) : la page invité le reprend.
         "name": s.guests.get(guest_id, {}).get("name"),
         # Ses propres messages et les réponses de l'hôte.
@@ -1408,6 +1472,33 @@ class Enqueue(BaseModel):
     guest_name: str
 
 
+def require_editable_queue():
+    if spotify_queue():
+        raise HTTPException(409, QUEUE_MANAGED_IN_SPOTIFY)
+
+
+def recently_sent(track_id: str) -> bool:
+    # L'API de lecture peut mettre quelques secondes à refléter un ajout accepté.
+    return spotify_queue() and any(
+        r.track_id == track_id and time.time() - r.added_at < 10 for r in store.pending()
+    )
+
+
+def submit_track(track: dict, position: int, guest_id: str, name: str, ip: str = ""):
+    # Empêche le watcher d'observer la lecture entre l'envoi et l'enregistrement de l'auteur.
+    with _snap_lock:
+        try:
+            player().add_spotify_track(store.session.room_uid, track["id"], track["title"], position)
+        except SpotifyError as e:
+            raise HTTPException(502, str(e))
+        except Exception as e:
+            if spotify_queue():
+                raise HTTPException(502, "Envoi non confirmé : vérifie la file Spotify avant de réessayer") from e
+            raise HTTPException(502, f"Sonos a refusé l'ajout : {e}")
+        store.add(track, guest_id, name, ip)
+        _snap["data"] = None
+
+
 @app.post("/api/queue", dependencies=[Depends(require_guest)])
 def enqueue(body: Enqueue, request: Request):
     require_active()
@@ -1429,18 +1520,13 @@ def enqueue(body: Enqueue, request: Request):
         if not snap["from_queue"]:
             raise HTTPException(409, "La musique ne joue pas depuis la file Sonos. Demande à l'hôte de la lancer depuis l'app Sonos.")
         in_queue = [snap["current"]] + snap["upcoming"]
-        if any(t and t["track_id"] == track["id"] for t in in_queue):
+        if any(t and t["track_id"] == track["id"] for t in in_queue) or recently_sent(track["id"]):
             raise HTTPException(409, "Ce titre est déjà dans la file 🙂")
 
         upcoming = [(t["pos"], t["track_id"]) for t in snap["upcoming"]]
         pos = insert_position(s.mode, snap["current_pos"], upcoming, store.pending(), body.guest_id)
-        try:
-            player().add_spotify_track(s.room_uid, track["id"], track["title"], pos)
-        except Exception as e:
-            raise HTTPException(502, f"Sonos a refusé l'ajout : {e}")
-        store.add(track, body.guest_id, name, ip)
-        _snap["data"] = None
-    return {"ok": True, "track": track}
+        submit_track(track, pos, body.guest_id, name, ip)
+    return {"ok": True, "track": track, "source": s.source}
 
 
 class GuestRemove(BaseModel):
@@ -1584,3 +1670,32 @@ def admin_page():
 def service_worker():
     # À la racine du site : le service worker couvre la page invités et l'admin.
     return FileResponse(STATIC / "sw.js", media_type="text/javascript", headers=NO_CACHE)
+
+
+class NeonInput(BaseModel):
+    guest_id: str
+    x: float = 0
+    y: float = 0
+    charging: bool = False
+    cancel: bool = False
+
+
+@app.post("/api/games/{code}/neon")
+def neon_frame(code: str, body: NeonInput):
+    """Small snapshots, no presence/disk write/event broadcast on each input frame."""
+    check_guest_id(body.guest_id)
+    with neon.LOCK:
+        g = get_game(code)
+        if g["type"] != "neon":
+            raise HTTPException(400, "Ce jeu n'est pas Néon Knockout")
+        if body.guest_id in g.get("kicked", []):
+            raise HTTPException(403, "Tu as été banni de cette partie")
+        changed = neon.tick(g)
+        try:
+            neon.input_state(g, body.guest_id, body.x, body.y, body.charging, cancel=body.cancel)
+        except neon.NeonError as e:
+            raise HTTPException(400, str(e))
+        if changed:
+            g["updated_at"] = time.time()
+            save_games(g["code"])
+        return neon.view(g, body.guest_id)

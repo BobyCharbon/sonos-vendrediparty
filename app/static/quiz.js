@@ -265,6 +265,9 @@ function quizAfter(g, fresh = true) {
     if (bs && between !== null) bs.textContent = Math.max(0, Math.ceil(between - dt));
     const ns = $("qzNextS");
     if (ns && v.q) ns.textContent = Math.max(0, Math.ceil(v.q.next_in - dt));
+    if (game?.id === g.id && !v.paused && !v.me?.paused) {
+      bars.forEach(([id, left]) => GameAudio.tick(`${g.id}:${v.n}:${v.me?.q?.text || ""}:${id}`, left - dt));
+    }
     const urgent = bars.some(([, left]) => left - dt < 5 && left - dt > 0);
     document.querySelector(".qz-timer")?.classList.toggle("urgent", urgent);
     // Temps écoulé : on demande au serveur la suite (une fois).
@@ -275,6 +278,7 @@ function quizAfter(g, fresh = true) {
   if (qzSeen.key && qzSeen.key !== key) {
     if (g.phase === "rev" && v.q && g.me) {
       const mine = v.q.res.find((r) => r.me);
+      if (mine) GameAudio.play(mine.ok ? "win" : "lose");
       haptic(mine?.ok ? [40, 30, 40] : [200]);
     }
     if (g.phase === "end" && v.board.length) {

@@ -10,7 +10,9 @@ services:
     restart: unless-stopped
     network_mode: host
     environment:
-      PORT: ${PORT:-8091}
+      # Fixe : évite d'hériter du PORT du gestionnaire de stacks (ex. Dockhand).
+      PORT: 8091
+      PARTY_PUBLIC_URL: https://partytest.bobycharbon.ch
       ADMIN_PIN: ${ADMIN_PIN}
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID}
       SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET}

@@ -99,3 +99,34 @@ def test_games_players_show_up_and_idle_guests_are_disconnected(monkeypatch):
     assert "gamer-presence-1" in main.store.prune_inactive()
     assert "gamer-presence-1" not in main.store.session.guests
     assert INACTIVE_AFTER == 3 * 3600
+
+
+def test_test_site_links_and_spotify_callback_stay_on_test_site(client, monkeypatch, tmp_path):
+    from urllib.parse import parse_qs, urlparse
+    from app.spotify import SpotifyUser
+
+    monkeypatch.setenv("PARTY_PUBLIC_URL", "https://partytest.bobycharbon.ch/")
+    monkeypatch.setenv("PUBLIC_URL", "http://192.168.50.204:8090")  # ancienne configuration ignorée
+    origin = main.configured_public_url()
+    monkeypatch.setattr(main, "PUBLIC_URL", origin)
+    user = SpotifyUser("test-id", "test-secret", tmp_path / "tokens.json", origin + "/api/spotify/callback")
+    monkeypatch.setattr(main, "spotify_user", user)
+    assert client.post("/api/admin/login", json={"pin": "9999"}).status_code == 200
+    assert client.get("/api/admin/state").json()["guest_url"] == "https://partytest.bobycharbon.ch/"
+    redirect = client.get("/api/admin/spotify/login", follow_redirects=False)
+    params = parse_qs(urlparse(redirect.headers["location"]).query)
+    assert params["redirect_uri"] == ["https://partytest.bobycharbon.ch/api/spotify/callback"]
+    captured = []
+    make = main.segno.make
+    def capture(url, **kwargs):
+        captured.append(url)
+        return make(url, **kwargs)
+    monkeypatch.setattr(main.segno, "make", capture)
+    assert client.get("/qr.svg").status_code == 200
+    assert captured == [f"https://partytest.bobycharbon.ch/?pin={main.store.session.guest_pin}"]
+
+
+def test_main_keeps_production_default_despite_legacy_env(monkeypatch):
+    monkeypatch.delenv("PARTY_PUBLIC_URL", raising=False)
+    monkeypatch.setenv("PUBLIC_URL", "http://192.168.50.204:8090")
+    assert main.configured_public_url() == "https://party.bobycharbon.ch"
