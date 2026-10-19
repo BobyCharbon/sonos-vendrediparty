@@ -1091,7 +1091,7 @@ def room_launch(room: dict, me: str, settings: dict):
         try:
             if p.get("manual"):
                 if kind in games.MANUAL_GAMES:
-                    games.add_guest(child, p["name"])
+                    games.add_guest(child, p["name"], p["id"])
             else:
                 games.join(child, p["id"], p["name"])
         except games.GameError:
@@ -1269,7 +1269,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         raise HTTPException(400, "Action inconnue")
     fn, *args = actions[a]
     try:
-        fn(g, *args)
+        action_result = fn(g, *args)
     except (games.GameError, quiz.QuizError, president.PresidentError, neon.NeonError) as e:
         raise HTTPException(409, str(e))
     g["updated_at"] = time.time()
@@ -1294,7 +1294,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
                 if games.player(other, me):
                     games.leave(other, me)
             elif a == "addguest" and g["type"] == "room" and other["type"] in games.MANUAL_GAMES:
-                games.add_guest(other, body.guess)
+                games.add_guest(other, body.guess, action_result["id"])
         except games.GameError:
             pass
     if not g["players"] and not g["host"]:
