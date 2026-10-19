@@ -1,5 +1,6 @@
 """Browser checks using real controls and shared server state."""
 import re
+import time
 import pytest
 pytest.importorskip('playwright.sync_api')
 from playwright.sync_api import expect
@@ -26,10 +27,24 @@ def mine(p):
 
 def walk_x(p,target):
     page=p.page;page.locator('.hs-canvas').click(position={'x':500,'y':250})
-    before=mine(p)['x'];key='ArrowRight' if target>before else 'ArrowLeft';page.keyboard.down(key)
+    before=mine(p)['x'];direction=1 if target>before else -1
+    key='ArrowRight' if direction>0 else 'ArrowLeft';page.keyboard.down(key)
     try:
-        wait_state(p,lambda g:(next(b for b in g['heist']['fighters'] if b['pid']==g['heist']['me'])['x']>=target if target>before else next(b for b in g['heist']['fighters'] if b['pid']==g['heist']['me'])['x']<=target),timeout=7)
+        wait_state(p,lambda g:direction*(target-next(b for b in g['heist']['fighters'] if b['pid']==g['heist']['me'])['x'])<2,timeout=8)
     finally:page.keyboard.up(key)
+    page.wait_for_timeout(600)
+    # Analogue precision: software WebGL can render more slowly than the server.
+    # Use the actual on-screen joystick for the final approach instead of a
+    # one-pixel arrival boundary and a key-up racing an interaction request.
+    stick=page.locator('.hs-stick').bounding_box();cx=stick['x']+stick['width']/2;cy=stick['y']+stick['height']/2
+    deadline=time.monotonic()+25
+    while abs(target-mine(p)['x'])>.3:
+        delta=target-mine(p)['x'];assert time.monotonic()<deadline, mine(p)
+        page.mouse.move(cx+(6 if delta>0 else -6),cy);page.mouse.down()
+        try:page.wait_for_timeout(250)
+        finally:page.mouse.up()
+        page.wait_for_timeout(450)
+    page.locator('.hs-canvas').click(position={'x':500,'y':250})
 
 
 def test_heist_solo_three_maps_and_real_treasure_delivery(phones):
@@ -39,11 +54,11 @@ def test_heist_solo_three_maps_and_real_treasure_delivery(phones):
         wait_state(host,lambda g:g['heist']['map']['id']==i)
         expect(host.page.locator(f'[data-hs-map="{i}"]')).to_have_attribute('aria-pressed','true')
     host.page.locator('.hs-primary[data-gact="start"]').click();wait_state(host,lambda g:g['phase']=='play')
-    walk_x(host,7.5)
+    walk_x(host,7.8)
     expect(host.page.locator('.hs-action')).to_be_enabled()
     host.page.keyboard.press('Space')
     wait_state(host,lambda g:any(b['bag'] is not None for b in g['heist']['fighters']))
-    walk_x(host,.8);expect(host.page.locator('.hs-action')).to_have_text('Déposer')
+    walk_x(host,.5);expect(host.page.locator('.hs-action')).to_have_text('Déposer')
     host.page.keyboard.press('e')
     wait_state(host,lambda g:g['heist']['banked']==1)
     assert mine(host)['bag'] is None
