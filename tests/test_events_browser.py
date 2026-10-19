@@ -157,7 +157,9 @@ def test_sms_login_events_details_and_rsvp(browser,events_origin,country,width):
         frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
         pw.expect(frame.get_by_text('Tu viens ?',exact=True)).to_be_visible(timeout=15000)
         frame.get_by_role('button',name='Présent',exact=True).click()
-        pw.expect(frame.get_by_text('Présents : Compte de démonstration',exact=True)).to_be_visible(timeout=10000)
+        pw.expect(frame.get_by_text('C’est noté, tu viens !',exact=True)).to_be_visible(timeout=10000)
+        pw.expect(frame.get_by_text('PRÉSENTS · 1',exact=True)).to_be_visible()
+        pw.expect(frame.get_by_text('Toi',exact=True)).to_be_visible()
         assert any(method=='POST' and path.endswith('/rsvps') for method,path,_ in calls)
         assert not errors
     finally: context.close()
@@ -172,4 +174,40 @@ def test_pending_member_waits_for_approval(browser,events_origin):
         frame=page.frame_locator('#eventsFrame');login(frame)
         pw.expect(frame.get_by_text('Demande envoyée',exact=True)).to_be_visible(timeout=15000)
         assert not any(path.endswith('/events') for _,path,_ in calls)
+    finally: context.close()
+
+
+IPHONE='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
+ANDROID='Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36'
+
+
+@pytest.mark.parametrize('agent',['iphone','android'])
+def test_add_to_calendar_opens_native_calendar_flow(browser,events_origin,agent):
+    context=browser.new_context(viewport={'width':390,'height':844},user_agent=IPHONE if agent=='iphone' else ANDROID,accept_downloads=True)
+    page=context.new_page();mock_services(page)
+    google=[]
+    context.route('https://calendar.google.com/**',lambda route:(google.append(route.request.url),route.fulfill(status=200,body='ok')))
+    try:
+        page.goto(events_origin,wait_until='domcontentloaded')
+        page.get_by_role('button',name='Événements',exact=True).click()
+        frame=page.frame_locator('#eventsFrame');login(frame)
+        frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
+        button=frame.get_by_role('button',name='Ajouter à mon agenda',exact=True)
+        pw.expect(button).to_be_visible(timeout=15000)
+        if agent=='iphone':
+            # Safari iOS reçoit un vrai text/calendar au niveau de la page et affiche « Ajouter ».
+            with page.expect_download() as info: button.click()
+            download=info.value
+            assert download.suggested_filename=='sortie-de-demonstration-test-local.ics'
+            body=open(download.path(),encoding='utf-8').read()
+            assert 'DTSTART:20301114T180000Z' in body and 'SUMMARY:Sortie de démonstration (test local)' in body
+            assert 'LOCATION:Lieu de démonstration' in body
+            pw.expect(frame.get_by_text('Autre choix :',exact=False)).to_be_visible()
+        else:
+            with context.expect_page() as info: button.click()
+            info.value.wait_for_load_state()
+            query=parse_qs(urlparse(google[0]).query)
+            assert query['action']==['TEMPLATE'] and query['text']==['Sortie de démonstration (test local)']
+            assert query['dates']==['20301114T180000Z/20301114T210000Z']
+        assert page.frame(url=events_origin+'/events/event/'+EVENT) or page.locator('#eventsFrame').is_visible()
     finally: context.close()

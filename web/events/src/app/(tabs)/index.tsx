@@ -1,10 +1,11 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EventCard } from '@/components/EventCard';
 import { Button, Chip, Empty, ErrorText, Input, s, Segmented, T, Title } from '@/components/ui';
+import { rsvpClosed } from '@/lib/rsvp';
 import { useAuth, useMe } from '@/lib/auth';
 import { fetchEventList, fetchTaxonomy, useQuery } from '@/lib/data';
 import { must, supabase } from '@/lib/supabase';
@@ -81,21 +82,32 @@ export default function Home() {
   }, [data, tab, filter, search, tagsById, me.id]);
 
   const pendingCount = data?.events.filter((e) => e.status === 'pending').length ?? 0;
+
+  // Les sorties où l’on attend encore ta réponse passent en tête de « À venir ».
+  const needsAnswer = (e: (typeof visible)[number]) => {
+    if (e.status !== 'published' || rsvpClosed(e, data?.loadedAt)) return false;
+    if (e.date_mode === 'poll') return !e.date_options.some((o) => o.date_votes.some((v) => v.user_id === me.id)) && e.date_options.length > 0;
+    return !e.rsvps.some((r) => r.user_id === me.id);
+  };
+  const toAnswer = tab === 'upcoming' ? visible.filter(needsAnswer) : [];
+  const rest = tab === 'upcoming' ? visible.filter((e) => !needsAnswer(e)) : visible;
+  const unvotedPolls = data?.events.filter((e) => e.date_mode === 'poll' && needsAnswer(e)).length ?? 0;
+  const pollsToAnswer = tab === 'upcoming' && filter.kind === 'all' && !search.trim() ? unvotedPolls : 0;
   const isSel = (f: Filter) => JSON.stringify(f) === JSON.stringify(filter);
 
   return (
     <SafeAreaView style={s.screen} edges={['top']}>
       <ScrollView
         style={{ flex: 1, minHeight: 0 }}
-        contentContainerStyle={[s.content, { paddingBottom: 24 }]}
+        contentContainerStyle={[s.content, { paddingBottom: 96 }]}
         refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={reload} tintColor={colors.accent} />}
       >
         <View style={s.rowBetween}>
           <View style={{ flex: 1, minWidth: 0 }}>
+            <T muted size={14}>Salut {me.display_name} 👋</T>
             <Title size={28}>
               Les sorties du groupe
             </Title>
-            <T muted size={13}>Salut {me.display_name} !</T>
           </View>
         </View>
 
@@ -112,13 +124,13 @@ export default function Home() {
           onChange={setTab}
           options={[
             { key: 'upcoming', label: 'À venir' },
-            { key: 'polls', label: 'Sondages' },
+            { key: 'polls', label: 'Sondages', dot: unvotedPolls > 0 },
             { key: 'mine', label: 'Propositions' },
             { key: 'past', label: 'Passés' },
           ]}
         />
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 16 }}>
           <Chip label="Tout" selected={isSel({ kind: 'all' })} onPress={() => setFilter({ kind: 'all' })} />
           <Chip label="Mes abonnements" selected={isSel({ kind: 'subscribed' })} onPress={() => setFilter({ kind: 'subscribed' })} />
           {data?.categories.map((c) => (
@@ -127,11 +139,9 @@ export default function Home() {
               label={c.name}
               color={c.color}
               selected={isSel({ kind: 'category', id: c.id })}
-              onPress={() => setFilter({ kind: 'category', id: c.id })}
+              onPress={() => setFilter(isSel({ kind: 'category', id: c.id }) ? { kind: 'all' } : { kind: 'category', id: c.id })}
             />
           ))}
-        </ScrollView>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
           {data?.tags.map((t) => (
             <Chip
               key={t.id}
@@ -177,23 +187,52 @@ export default function Home() {
             ) : null}
           </View>
         ) : null}
-        {visible.map((e) => (
-          <EventCard key={e.id} event={e} me={me.id} tagsById={tagsById} />
+        {toAnswer.length ? (
+          <View style={{ gap: 10 }}>
+            <View style={s.rowBetween}>
+              <Title size={18}>À toi de répondre</Title>
+              <View style={st.count}><T size={12} weight="bold" color={colors.onAccent}>{toAnswer.length}</T></View>
+            </View>
+            {toAnswer.map((e) => (
+              <EventCard key={e.id} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp now={data!.loadedAt} />
+            ))}
+          </View>
+        ) : null}
+        {pollsToAnswer > 0 ? (
+          <Pressable accessibilityRole="button" onPress={() => setTab('polls')} style={st.banner}>
+            <T size={14}><T size={14} weight="bold">{pollsToAnswer} sondage{pollsToAnswer > 1 ? 's' : ''} de date</T> attend{pollsToAnswer > 1 ? 'ent' : ''} ton vote ›</T>
+          </Pressable>
+        ) : null}
+        {toAnswer.length && rest.length ? <Title size={18} style={{ marginTop: 6 }}>Au programme</Title> : null}
+        {rest.map((e) => (
+          <EventCard key={e.id} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp={tab === 'polls'} now={data!.loadedAt} />
         ))}
       </ScrollView>
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Proposer un événement"
-        onPress={() => router.push('/event/new')}
-        style={{
-          alignSelf: 'flex-end', marginHorizontal: 16, marginTop: 8, marginBottom: 12,
-          height: 52, paddingHorizontal: 22, borderRadius: radius.md,
-          backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
-        }}
-      >
-        <T color={colors.onAccent} style={{ fontFamily: fonts.bold, fontSize: 15 }}>+ Proposer</T>
-      </Pressable>
+      <View pointerEvents="box-none" style={st.fabWrap}>
+        <View pointerEvents="box-none" style={st.fabColumn}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Proposer un événement"
+          onPress={() => router.push('/event/new')}
+          style={({ pressed }) => [st.fab, pressed && { opacity: 0.85 }]}
+        >
+          <T color={colors.onAccent} style={{ fontFamily: fonts.bold, fontSize: 15 }}>+ Proposer</T>
+        </Pressable>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
+
+const st = StyleSheet.create({
+  count: { minWidth: 24, height: 24, paddingHorizontal: 7, borderRadius: 12, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  banner: { backgroundColor: colors.coralDim, padding: 14, borderRadius: radius.md, borderWidth: 1, borderColor: '#5A4024' },
+  fabWrap: { position: 'absolute', left: 0, right: 0, bottom: 16, alignItems: 'center' },
+  fabColumn: { width: '100%', maxWidth: 640, alignItems: 'flex-end', paddingRight: 16 },
+  fab: {
+    height: 52, paddingHorizontal: 22, borderRadius: radius.pill,
+    backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 16, shadowOffset: { width: 0, height: 6 },
+  },
+});

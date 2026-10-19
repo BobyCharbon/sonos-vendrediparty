@@ -53,3 +53,40 @@ def test_events_cannot_read_files_outside_build_directory(events_client, tmp_pat
 def test_missing_events_build_is_explicitly_unavailable(events_client, monkeypatch, tmp_path):
     monkeypatch.setattr(main, "EVENTS_WEB", tmp_path / "missing")
     assert events_client.get("/events/").status_code == 503
+
+
+def test_calendar_file_opens_in_ios_and_android_calendars(events_client):
+    result = events_client.get("/api/calendar.ics", params={
+        "uid": "64d0880c-5379-42f8-8166-e259d25c7e7b", "title": "Karaoké, chez Marc ; 20 h",
+        "start": "2026-10-23T18:30:00.000Z", "end": "2026-10-23T21:30:00.000Z",
+        "location": "Chez Marc, Rue du Lac 12", "description": "Ligne 1\nLigne 2 " + "é" * 120,
+        "url": "https://party.example/events/event/64d0880c-5379-42f8-8166-e259d25c7e7b",
+    })
+    assert result.status_code == 200
+    assert result.headers["content-type"].startswith("text/calendar")
+    assert result.headers["content-disposition"] == 'attachment; filename="karaoke-chez-marc-20-h.ics"'
+    body = result.text
+    assert body.startswith("BEGIN:VCALENDAR\r\n") and body.endswith("END:VCALENDAR\r\n")
+    assert "DTSTART:20261023T183000Z\r\n" in body and "DTEND:20261023T213000Z\r\n" in body
+    assert "SUMMARY:Karaoké\\, chez Marc \\; 20 h\r\n" in body
+    assert "UID:64d0880c-5379-42f8-8166-e259d25c7e7b@vendredi-party" in body
+    assert "TRIGGER:-PT2H" in body
+    assert all(len(line.encode()) <= 75 for line in body.split("\r\n"))
+
+
+@pytest.mark.parametrize("params", [
+    {"uid": "pas-un-uuid", "title": "Sortie", "start": "2026-10-23T18:30:00Z"},
+    {"uid": "64d0880c-5379-42f8-8166-e259d25c7e7b", "title": " ", "start": "2026-10-23T18:30:00Z"},
+    {"uid": "64d0880c-5379-42f8-8166-e259d25c7e7b", "title": "Sortie", "start": "demain"},
+    {"uid": "64d0880c-5379-42f8-8166-e259d25c7e7b", "title": "Sortie", "start": "2026-10-23T18:30:00"},
+])
+def test_calendar_file_rejects_invalid_fields(events_client, params):
+    assert events_client.get("/api/calendar.ics", params=params).status_code == 400
+
+
+def test_calendar_file_defaults_to_three_hours_and_drops_unsafe_links(events_client):
+    body = events_client.get("/api/calendar.ics", params={
+        "uid": "64d0880c-5379-42f8-8166-e259d25c7e7b", "title": "Sortie", "start": "2026-10-23T20:30:00+02:00",
+        "end": "2026-10-23T10:00:00+02:00", "url": "javascript:alert(1)"}).text
+    assert "DTSTART:20261023T183000Z" in body and "DTEND:20261023T213000Z" in body
+    assert "javascript" not in body

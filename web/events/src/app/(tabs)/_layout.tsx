@@ -1,5 +1,5 @@
 import { Link, Slot, usePathname } from 'expo-router';
-import { View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 import { useAuth } from '@/lib/auth';
 import { colors, fonts } from '@/lib/theme';
@@ -15,16 +15,23 @@ export default function EventsLayout() {
   ];
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <View role="navigation" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, padding: 8, borderBottomWidth: 1, borderBottomColor: colors.line }}>
+      <View role="navigation" style={{ borderBottomWidth: 1, borderBottomColor: colors.line }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ width: '100%', maxWidth: 640, alignSelf: 'center' }}
+          contentContainerStyle={{ gap: 4, paddingHorizontal: 8, paddingVertical: 8 }}
+        >
         {links.map((item) => (
           <Link key={item.href} href={item.href} aria-current={path === item.href ? 'page' : undefined}
-            style={{ paddingHorizontal: 10, paddingVertical: 12, minHeight: 44, borderRadius: 10,
+            style={{ paddingHorizontal: 12, paddingVertical: 12, minHeight: 44, borderRadius: 999,
               color: path === item.href ? colors.onAccent : colors.textSoft,
               backgroundColor: path === item.href ? colors.accent : 'transparent',
               fontFamily: fonts.semibold, fontSize: 13 }}>
             {item.label}
           </Link>
         ))}
+        </ScrollView>
       </View>
       <Slot />
     </View>

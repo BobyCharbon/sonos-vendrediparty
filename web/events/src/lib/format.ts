@@ -74,3 +74,29 @@ export function avatarColor(id: string): string {
   for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return avatarPalette[h % avatarPalette.length]!;
 }
+
+const tileFmt = new Intl.DateTimeFormat('fr-CH', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' });
+const ymdFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+
+/** Éléments d’une tuile calendrier : « VEN. », « 23 », « OCT. ». */
+export function dateTile(iso: string): { weekday: string; day: string; month: string } {
+  const parts = tileFmt.formatToParts(new Date(iso));
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  return { weekday: get('weekday').toUpperCase(), day: get('day'), month: get('month').toUpperCase() };
+}
+
+/** « Aujourd’hui », « Demain », « Dans 5 jours », « Il y a 2 jours » (jours calendaires de Zurich). */
+export function relativeDay(iso: string, now = new Date()): string {
+  const day = (d: Date) => Date.parse(`${ymdFmt.format(d)}T00:00:00Z`);
+  const diff = Math.round((day(new Date(iso)) - day(now)) / 86_400_000);
+  if (diff === 0) return 'Aujourd’hui';
+  if (diff === 1) return 'Demain';
+  if (diff === -1) return 'Hier';
+  if (diff > 1) return diff < 14 ? `Dans ${diff} jours` : `Dans ${Math.round(diff / 7)} semaines`;
+  return `Il y a ${-diff} jours`;
+}
+
+/** « 2 présents », « 1 présent », « 0 présent ». */
+export function plural(n: number, singular: string, pluralForm = `${singular}s`): string {
+  return `${n} ${n > 1 ? pluralForm : singular}`;
+}

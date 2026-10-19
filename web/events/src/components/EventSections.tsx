@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { formatShort, parseLocalDateTime } from '@/lib/format';
+import { rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
 import { supabase } from '@/lib/supabase';
-import { colors, fonts, radius, rsvpColors } from '@/lib/theme';
+import { colors, fonts, radius } from '@/lib/theme';
 import type { BringItem, DateOption, DateVote, DateVoteRow, EventRow, Poll, PollOption, Rsvp, RsvpStatus } from '@/lib/types';
 
 import { DateTimeField } from './DateTimeField';
-import { Button, Chip, ErrorText, Input, s, Section, T } from './ui';
+import { Avatar, Button, Chip, ErrorText, Input, s, Section, T } from './ui';
 
 type Names = Map<string, string>;
 
@@ -30,120 +31,188 @@ async function act(p: PromiseLike<{ error: { message: string } | null }>, onDone
 // --------------------------------------------------------------------------
 // Présent / Peut-être / Absent
 // --------------------------------------------------------------------------
-export function RsvpSection({
+const confirmations: Record<RsvpStatus, string> = {
+  yes: 'C’est noté, tu viens !',
+  maybe: 'Noté en peut-être. Pense à confirmer.',
+  no: 'Dommage ! Tu es noté absent.',
+};
+
+export function RsvpCard({
   event,
   me,
   rsvps,
-  names,
   onChange,
 }: {
   event: EventRow;
   me: string;
   rsvps: Rsvp[];
-  names: Names;
   onChange: () => void;
 }) {
   const mine = rsvps.find((r) => r.user_id === me);
   const [note, setNote] = useState(mine?.note ?? '');
   const [error, setError] = useState<string | null>(null);
-  const closed = !!event.rsvp_deadline && new Date(event.rsvp_deadline) < new Date();
-
-  const upsert = (patch: Partial<Rsvp>) =>
-    act(
-      supabase.from('rsvps').upsert({
-        event_id: event.id,
-        user_id: me,
-        status: mine?.status ?? 'yes',
-        plus_ones: mine?.plus_ones ?? 0,
-        note: mine?.note ?? null,
-        ...patch,
-      }),
-      onChange,
-      setError,
-    );
-
-  const options: { key: RsvpStatus; label: string }[] = [
-    { key: 'yes', label: 'Présent' },
-    ...(event.allow_maybe ? [{ key: 'maybe' as const, label: 'Peut-être' }] : []),
-    { key: 'no', label: 'Absent' },
-  ];
-
-  const by = (st: RsvpStatus, waitlisted = false) =>
-    rsvps.filter((r) => r.status === st && r.waitlisted === waitlisted).map((r) => (names.get(r.user_id) ?? '?') + (r.plus_ones ? ` +${r.plus_ones}` : ''));
-  const yes = by('yes');
+  const [busy, setBusy] = useState<string | null>(null);
+  const closed = rsvpClosed(event);
   const heads = rsvps.filter((r) => r.status === 'yes' && !r.waitlisted).reduce((n, r) => n + 1 + r.plus_ones, 0);
+  const full = !!event.max_participants && heads >= event.max_participants && !(mine?.status === 'yes' && !mine.waitlisted);
+
+  async function upsert(key: string, patch: Partial<Rsvp>) {
+    setBusy(key);
+    try {
+      await saveRsvp(event.id, me, mine, patch);
+      setError(null);
+      onChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'La connexion a échoué. Réessaie.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const subtitle = closed
+    ? mine ? 'Les réponses sont closes.' : 'Les réponses sont closes : tu n’as pas répondu.'
+    : mine
+      ? mine.waitlisted ? 'Complet : tu es sur liste d’attente, on te prévient si une place se libère.' : confirmations[mine.status]
+      : event.rsvp_deadline
+        ? `Réponds avant le ${formatShort(event.rsvp_deadline)} pour que l’organisateur puisse s’organiser.`
+        : 'Un clic suffit pour prévenir le groupe.';
 
   return (
-    <>
-      <Section title="Tu viens ?" right={closed ? <T muted size={12}>Réponses closes</T> : null}>
-        <View style={s.row}>
-          {options.map((o) => {
-            const on = mine?.status === o.key;
-            return (
-              <Pressable
-                key={o.key}
-                accessibilityRole="button"
-                accessibilityState={{ selected: on }}
-                disabled={closed}
-                onPress={() => upsert({ status: o.key })}
-                style={{
-                  flex: 1, height: 52, borderRadius: radius.md, borderWidth: 2, alignItems: 'center', justifyContent: 'center',
-                  borderColor: on ? rsvpColors[o.key] : colors.lineStrong, backgroundColor: on ? rsvpColors[o.key] : 'transparent',
-                }}
-              >
-                <T style={{ fontFamily: fonts.bold }} color={on ? colors.onAccent : colors.text}>{o.label}</T>
-              </Pressable>
-            );
-          })}
-        </View>
-        {mine?.waitlisted ? <T color={colors.lavender} size={13}>Complet : tu es sur liste d’attente, on te prévient si une place se libère.</T> : null}
-        {event.allow_plus_ones && mine?.status === 'yes' ? (
-          <View style={s.rowBetween}>
-            <T>Accompagnants</T>
-            <View style={s.row}>
-              <Button small variant="secondary" label="−" onPress={() => upsert({ plus_ones: Math.max(0, (mine.plus_ones ?? 0) - 1) })} />
-              <T weight="bold">+{mine.plus_ones}</T>
-              <Button small variant="secondary" label="+" onPress={() => upsert({ plus_ones: Math.min(event.max_plus_ones, (mine.plus_ones ?? 0) + 1) })} />
-            </View>
-          </View>
-        ) : null}
-        {mine ? (
-          <View style={s.row}>
-            <Input placeholder="Petit mot (optionnel)" value={note} onChangeText={setNote} style={{ flex: 1 }} maxLength={140} />
-            {note !== (mine.note ?? '') ? <Button small label="OK" onPress={() => upsert({ note: note.trim() || null })} /> : null}
-          </View>
-        ) : null}
-        <ErrorText error={error} />
-      </Section>
-
-      {event.show_participants || rsvps.length > 1 ? (
-        <Section
-          title="Participants"
-          right={event.max_participants ? <T muted size={13}>{heads}/{event.max_participants} places</T> : null}
-        >
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {[
-              { n: yes.length, label: 'Présents', fg: colors.accent, bg: colors.accentDim },
-              { n: by('maybe').length, label: 'Peut-être', fg: colors.lavender, bg: colors.lavenderDim },
-              { n: by('no').length, label: 'Absents', fg: colors.coralSoft, bg: colors.coralDim },
-            ].map((c) => (
-              <View key={c.label} style={{ flex: 1, padding: 10, borderRadius: radius.md, backgroundColor: c.bg }}>
-                <T size={22} weight="bold" color={c.fg}>{c.n}</T>
-                <T size={12} color={c.fg}>{c.label}</T>
-              </View>
-            ))}
-          </View>
-          {yes.length ? <T muted size={13}>Présents : {yes.join(', ')}</T> : null}
-          {by('maybe').length ? <T muted size={13}>Peut-être : {by('maybe').join(', ')}</T> : null}
-          {by('yes', true).length ? <T muted size={13}>Liste d’attente : {by('yes', true).join(', ')}</T> : null}
-          {rsvps.filter((r) => r.note).map((r) => (
-            <T key={r.user_id} size={13} color={colors.textSoft}>
-              <T size={13} weight="semibold">{names.get(r.user_id)} : </T>{r.note}
-            </T>
-          ))}
-        </Section>
+    <Section
+      title={mine ? 'Ta réponse' : 'Tu viens ?'}
+      style={!mine && !closed ? { borderColor: colors.accent, borderWidth: 2, backgroundColor: '#22152A' } : undefined}
+      right={!mine && !closed ? <View style={st.pill}><T size={11} weight="bold" color={colors.onAccent}>À FAIRE</T></View> : null}
+    >
+      <T size={14} color={mine && !mine.waitlisted ? rsvpChoices[mine.status].bg : colors.textSoft}>{subtitle}</T>
+      {full && !closed && event.waitlist_enabled && mine?.status !== 'yes' ? (
+        <T size={13} color={colors.lavender}>L’événement est complet : en répondant Présent, tu passes en liste d’attente.</T>
       ) : null}
-    </>
+      <View style={s.row}>
+        {rsvpOptions(event.allow_maybe).map((k) => {
+          const c = rsvpChoices[k];
+          const on = mine?.status === k;
+          return (
+            <Pressable
+              key={k}
+              accessibilityRole="button"
+              accessibilityLabel={c.label}
+              accessibilityState={{ selected: on, disabled: closed }}
+              disabled={closed || !!busy}
+              onPress={() => upsert(k, { status: k })}
+              style={({ pressed }) => [
+                st.choice,
+                { borderColor: on ? c.bg : colors.lineStrong, backgroundColor: on ? c.bg : colors.bg },
+                !on && mine && { opacity: 0.75 },
+                closed && !on && { opacity: 0.4 },
+                (pressed || busy === k) && { opacity: 0.7 },
+              ]}
+            >
+              <T size={18} style={{ fontFamily: fonts.bold }} color={on ? c.fg : c.bg}>{c.icon}</T>
+              <T style={{ fontFamily: fonts.bold }} size={14} color={on ? c.fg : colors.text}>{c.label}</T>
+            </Pressable>
+          );
+        })}
+      </View>
+      {event.allow_plus_ones && mine?.status === 'yes' && event.max_plus_ones > 0 ? (
+        <View style={[s.rowBetween, st.subRow]}>
+          <View style={{ flex: 1 }}>
+            <T>Accompagnants</T>
+            <T muted size={12}>Jusqu’à {event.max_plus_ones} personne{event.max_plus_ones > 1 ? 's' : ''}</T>
+          </View>
+          <View style={s.row}>
+            <Button small variant="secondary" label="−" disabled={!mine.plus_ones || closed} onPress={() => upsert('minus', { plus_ones: Math.max(0, mine.plus_ones - 1) })} />
+            <T weight="bold" style={{ minWidth: 28, textAlign: 'center' }}>+{mine.plus_ones}</T>
+            <Button small variant="secondary" label="+" disabled={mine.plus_ones >= event.max_plus_ones || closed} onPress={() => upsert('plus', { plus_ones: Math.min(event.max_plus_ones, mine.plus_ones + 1) })} />
+          </View>
+        </View>
+      ) : null}
+      {mine && !closed ? (
+        <View style={s.row}>
+          <Input
+            accessibilityLabel="Petit mot pour le groupe"
+            placeholder="Un petit mot pour le groupe (optionnel)"
+            value={note}
+            onChangeText={setNote}
+            onSubmitEditing={() => note !== (mine.note ?? '') && upsert('note', { note: note.trim() || null })}
+            style={{ flex: 1 }}
+            maxLength={140}
+          />
+          {note !== (mine.note ?? '') ? <Button small label="Envoyer" loading={busy === 'note'} onPress={() => upsert('note', { note: note.trim() || null })} /> : null}
+        </View>
+      ) : null}
+      <ErrorText error={error} />
+    </Section>
+  );
+}
+
+function PersonChip({ id, name, extra }: { id: string; name: string; extra?: string }) {
+  return (
+    <View style={st.person}>
+      <Avatar id={id} name={name} size={24} />
+      <T size={13} weight="semibold">{name}{extra ? <T size={13} muted> {extra}</T> : null}</T>
+    </View>
+  );
+}
+
+export function ParticipantsSection({
+  event,
+  me,
+  rsvps,
+  names,
+}: {
+  event: EventRow;
+  me: string;
+  rsvps: Rsvp[];
+  names: Names;
+}) {
+  if (!event.show_participants && rsvps.length <= 1) return null;
+  const nameOf = (id: string) => (id === me ? 'Toi' : names.get(id) ?? '?');
+  const group = (st: RsvpStatus, waitlisted = false) => rsvps.filter((r) => r.status === st && r.waitlisted === waitlisted);
+  const yes = group('yes');
+  const maybe = group('maybe');
+  const no = group('no');
+  const waiting = group('yes', true);
+  const heads = yes.reduce((n, r) => n + 1 + r.plus_ones, 0);
+  const left = event.max_participants ? event.max_participants - heads : null;
+  const notes = rsvps.filter((r) => r.note);
+
+  const block = (label: string, list: Rsvp[], color: string) =>
+    list.length ? (
+      <View style={{ gap: 8 }} accessibilityLabel={`${label} : ${list.map((r) => nameOf(r.user_id)).join(', ')}`}>
+        <T size={12} weight="bold" color={color}>{label.toUpperCase()} · {list.length}</T>
+        <View style={s.wrap}>
+          {list.map((r) => <PersonChip key={r.user_id} id={r.user_id} name={nameOf(r.user_id)} extra={r.plus_ones ? `+${r.plus_ones}` : undefined} />)}
+        </View>
+      </View>
+    ) : null;
+
+  return (
+    <Section
+      title="Qui vient ?"
+      right={event.max_participants ? (
+        <T muted size={13}>{left! > 0 ? `${left} place${left! > 1 ? 's' : ''} libre${left! > 1 ? 's' : ''}` : 'Complet'}</T>
+      ) : <T muted size={13}>{heads} personne{heads > 1 ? 's' : ''}</T>}
+    >
+      {event.max_participants ? (
+        <View style={st.bar} accessibilityLabel={`${heads} sur ${event.max_participants} places prises`}>
+          <View style={{ width: `${Math.min(100, (heads / event.max_participants) * 100)}%`, backgroundColor: colors.accent }} />
+        </View>
+      ) : null}
+      {rsvps.length === 0 ? <T muted size={14}>Personne n’a encore répondu. Sois le premier !</T> : null}
+      {block('Présents', yes, colors.accent)}
+      {block('Peut-être', maybe, colors.lavender)}
+      {block('Liste d’attente', waiting, colors.lavender)}
+      {no.length ? <T muted size={13}>Absents : {no.map((r) => nameOf(r.user_id)).join(', ')}</T> : null}
+      {notes.length ? (
+        <View style={{ gap: 6 }}>
+          {notes.map((r) => (
+            <View key={r.user_id} style={st.note}>
+              <T size={13} color={colors.textSoft}><T size={13} weight="bold">{nameOf(r.user_id)} · </T>{r.note}</T>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </Section>
   );
 }
 
@@ -199,7 +268,12 @@ export function DatePollSection({
   }
 
   return (
-    <Section title="Quelle date ?" right={<T muted size={12}>{voters.size} votant(s)</T>}>
+    <Section
+      title="Quelle date ?"
+      style={!closed && !voters.has(me) && options.length ? { borderColor: colors.accent, borderWidth: 2, backgroundColor: '#22152A' } : undefined}
+      right={!closed && !voters.has(me) && options.length ? <View style={st.pill}><T size={11} weight="bold" color={colors.onAccent}>À FAIRE</T></View> : <T muted size={12}>{voters.size} votant{voters.size > 1 ? 's' : ''}</T>}
+    >
+      {!closed && !voters.has(me) && options.length ? <T size={14} color={colors.textSoft}>Indique pour chaque date si tu es dispo : l’organisateur fixera celle qui arrange le plus de monde.</T> : null}
       <T muted size={13}>
         {event.status !== 'published' ? 'Les votes seront disponibles lorsque l’événement sera publié.' : closed ? 'Le vote est terminé.' : event.poll_deadline ? `Vote jusqu’au ${formatShort(event.poll_deadline)}` : 'Pour chaque date : Oui, Si besoin ou Non.'}
       </T>
@@ -217,7 +291,7 @@ export function DatePollSection({
                 <T weight="bold">{formatShort(o.starts_at)}</T>
                 <T muted size={12}>{yes} oui · {ifNeeded} si besoin · {no} non</T>
               </View>
-              {lead ? <T size={11} weight="bold" color={colors.accent}>EN TÊTE</T> : null}
+              {lead ? <View style={st.pill}><T size={11} weight="bold" color={colors.onAccent}>EN TÊTE</T></View> : null}
             </View>
             <View style={{ height: 6, borderRadius: 99, backgroundColor: colors.line, flexDirection: 'row', overflow: 'hidden' }}>
               <View style={{ width: `${(yes / total) * 100}%`, backgroundColor: colors.accent }} />
@@ -245,7 +319,7 @@ export function DatePollSection({
               <T muted size={12}>{vs.map((v) => `${names.get(v.user_id) ?? '?'} (${voteLabel[v.vote]})`).join(', ')}</T>
             ) : null}
             {canManage ? (
-              <Button small variant="secondary" label="Fixer cette date" onPress={() => act(supabase.rpc('fix_event_date', { e: event.id, opt: o.id }), onChange, setError)} />
+              <Button small variant={lead ? 'primary' : 'secondary'} label="Fixer cette date" onPress={() => act(supabase.rpc('fix_event_date', { e: event.id, opt: o.id }), onChange, setError)} />
             ) : null}
           </View>
         );
@@ -325,7 +399,12 @@ export function PollSection({
               <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${(n / total) * 100}%`, backgroundColor: on ? colors.accentDim : colors.surface2 }} />
             ) : null}
             <View style={[s.rowBetween, { paddingHorizontal: 14 }]}>
-              <T weight="semibold" size={14}>{on ? '● ' : '○ '}{o.label}</T>
+              <View style={[s.row, { flex: 1 }]}>
+                <View style={[st.radio, { borderColor: on ? colors.accent : colors.muted }, !poll.multiple_choice ? null : { borderRadius: 4 }]}>
+                  {on ? <View style={[st.radioDot, poll.multiple_choice && { borderRadius: 1 }]} /> : null}
+                </View>
+                <T weight="semibold" size={14} style={{ flex: 1 }} numberOfLines={1}>{o.label}</T>
+              </View>
               {results ? <T muted size={13}>{n}</T> : null}
             </View>
           </Pressable>
@@ -402,3 +481,14 @@ export function BringSection({
     </Section>
   );
 }
+
+const st = StyleSheet.create({
+  pill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.accent },
+  choice: { flex: 1, minHeight: 60, borderRadius: radius.md, borderWidth: 2, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 4 },
+  subRow: { paddingTop: 4 },
+  person: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 3, paddingRight: 10, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.surface2 },
+  bar: { height: 6, borderRadius: 99, backgroundColor: colors.line, flexDirection: 'row', overflow: 'hidden' },
+  note: { padding: 10, borderRadius: radius.sm, backgroundColor: colors.bg, borderLeftWidth: 3, borderLeftColor: colors.lineStrong },
+  radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
+});

@@ -1,12 +1,13 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Linking, Pressable, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
 
-import { BringSection, DatePollSection, PollSection, RsvpSection } from '@/components/EventSections';
-import { Badge, Button, Card, ErrorText, Loading, Screen, s, Section, T, Title } from '@/components/ui';
+import { CalendarButton } from '@/components/CalendarButton';
+import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
+import { Badge, Button, Card, ConfirmButton, ErrorText, Loading, Screen, s, Section, T, Title } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { useQuery, useRealtime } from '@/lib/data';
-import { formatLongDay, formatMessageTime, formatShort, formatTime } from '@/lib/format';
+import { formatLongDay, formatMessageTime, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
 import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
 import type { BringItem, Category, DateOption, DateVoteRow, EventRow, Message, Poll, PollOption, Rsvp, Tag } from '@/lib/types';
@@ -100,67 +101,89 @@ export default function EventScreen() {
         : supabase.from('event_mutes').insert({ event_id: ev.id, user_id: me.id }),
     );
 
+  const heads = ev.rsvps.filter((r) => r.status === 'yes' && !r.waitlisted).reduce((n, r) => n + 1 + r.plus_ones, 0);
+  const mapsUrl = ev.location_url ?? (ev.location_address || ev.location_name ? `https://maps.apple.com/?q=${encodeURIComponent(ev.location_address ?? ev.location_name!)}` : null);
+  const mine = ev.rsvps.find((r) => r.user_id === me.id);
+  const showCalendar = published && ev.date_mode === 'fixed' && !!ev.starts_at && mine?.status !== 'no';
+
   const infoRows = [
-    ev.date_mode === 'fixed' && ev.starts_at
-      ? { k: 'Quand', v: `${formatLongDay(ev.starts_at)}`, sub: `${formatTime(ev.starts_at)}${ev.ends_at ? ` – ${formatShort(ev.ends_at)}` : ''}` }
+    ev.price_chf != null ? { k: 'Prix', v: ev.price_chf === 0 ? 'Gratuit' : `${ev.price_chf} CHF / personne`, sub: ev.payment_info } : null,
+    ev.max_participants
+      ? { k: 'Places', v: `${heads} / ${ev.max_participants}`, sub: heads >= ev.max_participants ? (ev.waitlist_enabled ? 'Complet · liste d’attente ouverte' : 'Complet') : plural(ev.max_participants - heads, 'place libre', 'places libres') }
       : null,
-    ev.location_name || ev.location_address
-      ? { k: 'Où', v: ev.location_name ?? ev.location_address!, sub: ev.location_name ? ev.location_address : null, url: ev.location_url ?? (ev.location_address ? `https://maps.apple.com/?q=${encodeURIComponent(ev.location_address)}` : null) }
-      : null,
-    ev.price_chf != null ? { k: 'Prix', v: `${ev.price_chf} CHF / personne`, sub: ev.payment_info } : null,
-    ev.max_participants ? { k: 'Places', v: `${ev.max_participants} max`, sub: ev.waitlist_enabled ? 'Liste d’attente activée' : null } : null,
+    ev.date_mode === 'fixed' && ev.allow_plus_ones && ev.max_plus_ones > 0 ? { k: 'Accompagnants', v: `Jusqu’à ${ev.max_plus_ones} par personne` } : null,
     ev.rsvp_deadline ? { k: 'Réponse avant', v: formatShort(ev.rsvp_deadline) } : null,
-  ].filter(Boolean) as { k: string; v: string; sub?: string | null; url?: string | null }[];
+  ].filter(Boolean) as { k: string; v: string; sub?: string | null }[];
 
   return (
     <Screen edges={[]}>
       <Stack.Screen
         options={{
           title: '',
+          headerLeft: router.canGoBack()
+            ? undefined
+            : () => <Button small variant="ghost" label="‹ Sorties" onPress={() => router.replace('/')} />,
           headerRight: () => (
             <View style={s.row}>
-              {published ? <Button small variant="ghost" label={data.muted ? 'Réactiver' : 'Sourdine'} onPress={toggleMute} /> : null}
-              {canEdit ? <Button small variant="ghost" label="Modifier" onPress={() => router.push(`/event/${ev.id}/edit`)} /> : null}
+              {published ? <Button small variant="ghost" label={data.muted ? '🔕 Réactiver' : '🔔 Sourdine'} onPress={toggleMute} /> : null}
+              {canEdit ? <Button small variant="secondary" label="Modifier" onPress={() => router.push(`/event/${ev.id}/edit`)} /> : null}
             </View>
           ),
         }}
       />
 
-      <View style={{ gap: 8 }}>
+      {/* En-tête : l’essentiel en un coup d’œil */}
+      <View style={{ gap: 10 }}>
         <View style={s.wrap}>
           {ev.status === 'pending' ? <Badge label="En attente de validation" fg={colors.lavender} bg={colors.lavenderDim} /> : null}
           {ev.status === 'draft' ? <Badge label="Brouillon" fg={colors.textSoft} bg={colors.surface2} /> : null}
           {ev.status === 'rejected' ? <Badge label="Refusé" fg={colors.coralSoft} bg={colors.coralDim} /> : null}
           {ev.status === 'cancelled' ? <Badge label="Annulé" fg={colors.coralSoft} bg={colors.coralDim} /> : null}
-          {ev.date_mode === 'poll' ? <Badge label="Date à définir" fg={colors.coralSoft} bg={colors.coralDim} /> : <Badge label="Date fixée" fg={colors.accent} bg={colors.accentDim} />}
+          {ev.date_mode === 'poll' ? <Badge label="Date à définir" fg={colors.coralSoft} bg={colors.coralDim} /> : null}
           {ev.category ? <Badge label={ev.category.name} fg={colors.onAccent} bg={ev.category.color} /> : null}
         </View>
-        <Title size={32}>{ev.title}</Title>
-        <T muted size={13}>Proposé par {ev.author?.display_name ?? '?'}{data.muted ? ' · notifications coupées' : ''}</T>
-        {ev.event_tags.length ? (
-          <View style={s.wrap}>
-            {ev.event_tags.map(({ tags: t }) => <T key={t.id} size={13} weight="semibold" color={t.color}>#{t.name}</T>)}
+        <Title size={32} style={{ lineHeight: 36 }}>{ev.title}</Title>
+
+        {ev.date_mode === 'fixed' && ev.starts_at ? (
+          <View style={st.keyRow}>
+            <View style={st.keyIcon}><T size={16}>📅</T></View>
+            <View style={{ flex: 1 }}>
+              <T weight="bold" size={16}>{formatLongDay(ev.starts_at)} · {formatTime(ev.starts_at)}</T>
+              <T muted size={13}>
+                {relativeDay(ev.starts_at)}{ev.ends_at ? ` · jusqu’à ${formatShort(ev.ends_at)}` : ''}
+              </T>
+            </View>
           </View>
         ) : null}
-        {ev.status === 'rejected' && ev.rejection_reason ? <T color={colors.coralSoft}>Motif : {ev.rejection_reason}</T> : null}
-        {ev.description ? <T color={colors.textSoft} style={{ lineHeight: 22 }}>{ev.description}</T> : null}
+        {ev.location_name || ev.location_address ? (
+          <Pressable
+            accessibilityRole={mapsUrl ? 'link' : undefined}
+            disabled={!mapsUrl}
+            onPress={() => mapsUrl && Linking.openURL(mapsUrl)}
+            style={({ pressed }) => [st.keyRow, pressed && { opacity: 0.75 }]}
+          >
+            <View style={st.keyIcon}><T size={16}>📍</T></View>
+            <View style={{ flex: 1 }}>
+              <T weight="bold" size={16}>{ev.location_name ?? ev.location_address}</T>
+              {ev.location_name && ev.location_address ? <T muted size={13}>{ev.location_address}</T> : null}
+            </View>
+            {mapsUrl ? <T size={13} weight="bold" color={colors.accent}>Itinéraire ›</T> : null}
+          </Pressable>
+        ) : null}
+
+        {showCalendar ? <CalendarButton event={ev} prominent={mine?.status === 'yes' || mine?.status === 'maybe'} /> : null}
+
+        {ev.status === 'cancelled' ? (
+          <View style={[st.notice, { backgroundColor: colors.coralDim }]}>
+            <T color={colors.coralSoft} weight="semibold">Cet événement a été annulé.</T>
+          </View>
+        ) : null}
+        {ev.status === 'rejected' && ev.rejection_reason ? <T color={colors.coralSoft}>Motif du refus : {ev.rejection_reason}</T> : null}
       </View>
 
-      {infoRows.length ? (
-        <Card>
-          {infoRows.map((r) => (
-            <Pressable key={r.k} disabled={!r.url} onPress={() => r.url && Linking.openURL(r.url)} style={{ gap: 2 }}>
-              <T muted size={12}>{r.k}</T>
-              <T weight="semibold" color={r.url ? colors.accent : colors.text}>{r.v}</T>
-              {r.sub ? <T muted size={13}>{r.sub}</T> : null}
-            </Pressable>
-          ))}
-        </Card>
-      ) : null}
-
       {canManage && ev.status === 'pending' && isAdmin ? (
-        <Card style={{ backgroundColor: colors.lavenderDim }}>
-          <T>Cette proposition attend ta validation.</T>
+        <Card style={{ backgroundColor: colors.lavenderDim, borderColor: '#4A3F78' }}>
+          <T weight="semibold">Cette proposition attend ta validation.</T>
           <View style={s.row}>
             <Button small label="Approuver" style={{ flex: 1 }} onPress={() => run(supabase.rpc('approve_event', { e: ev.id }))} />
             <Button small variant="danger" label="Refuser" style={{ flex: 1 }} onPress={() => run(supabase.rpc('reject_event', { e: ev.id, reason: null }))} />
@@ -168,6 +191,7 @@ export default function EventScreen() {
         </Card>
       ) : null}
 
+      {/* L’action principale passe avant les détails */}
       {ev.date_mode === 'poll' ? (
         <DatePollSection
           event={ev}
@@ -179,8 +203,30 @@ export default function EventScreen() {
           onChange={reload}
         />
       ) : published ? (
-        <RsvpSection event={ev} me={me.id} rsvps={ev.rsvps} names={data.names} onChange={reload} />
+        <RsvpCard event={ev} me={me.id} rsvps={ev.rsvps} onChange={reload} />
       ) : null}
+
+      {ev.description ? (
+        <Section title="À propos">
+          <T color={colors.textSoft} style={{ lineHeight: 22 }}>{ev.description}</T>
+        </Section>
+      ) : null}
+
+      {infoRows.length ? (
+        <Card>
+          {infoRows.map((r, i) => (
+            <View key={r.k} style={[s.rowBetween, { alignItems: 'flex-start' }, i > 0 && st.divided]}>
+              <T muted size={14}>{r.k}</T>
+              <View style={{ flexShrink: 1, alignItems: 'flex-end' }}>
+                <T weight="semibold" style={{ textAlign: 'right' }}>{r.v}</T>
+                {r.sub ? <T muted size={13} style={{ textAlign: 'right' }}>{r.sub}</T> : null}
+              </View>
+            </View>
+          ))}
+        </Card>
+      ) : null}
+
+      {ev.date_mode === 'fixed' && published ? <ParticipantsSection event={ev} me={me.id} rsvps={ev.rsvps} names={data.names} /> : null}
 
       {ev.polls
         .sort((a, b) => a.sort - b.sort)
@@ -202,7 +248,7 @@ export default function EventScreen() {
       <BringSection items={ev.bring_items} me={me.id} names={data.names} canParticipate={published} onChange={reload} />
 
       {ev.forum_enabled && published ? (
-        <Pressable onPress={() => router.push(`/event/${ev.id}/chat`)} accessibilityRole="link">
+        <Pressable onPress={() => router.push(`/event/${ev.id}/chat`)} accessibilityRole="link" style={({ pressed }) => pressed && { opacity: 0.85 }}>
           <Section title="Discussion" right={<T size={13} weight="semibold" color={colors.accent}>Ouvrir ›</T>}>
             {data.messages.length === 0 ? <T muted size={14}>Aucun message. Lance la discussion !</T> : null}
             {[...data.messages].reverse().map((m) => (
@@ -216,23 +262,44 @@ export default function EventScreen() {
         </Pressable>
       ) : null}
 
+      <T muted size={13}>Proposé par {ev.author?.display_name ?? '?'}{data.muted ? ' · notifications coupées pour cette sortie' : ''}</T>
+      {ev.event_tags.length ? (
+        <View style={s.wrap}>
+          {ev.event_tags.map(({ tags: t }) => <T key={t.id} size={13} weight="semibold" color={t.color}>#{t.name}</T>)}
+        </View>
+      ) : null}
+
       <ErrorText error={error} />
       {canManage && published ? (
-        <View style={{ padding: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, gap: 8 }}>
-          <T muted size={12}>Zone organisateur</T>
-          <Button small variant="danger" label="Annuler l’événement" onPress={() => run(supabase.from('events').update({ status: 'cancelled' }).eq('id', ev.id))} />
+        <View style={st.orgZone}>
+          <T muted size={12} weight="bold">ZONE ORGANISATEUR</T>
+          <ConfirmButton
+            small
+            label="Annuler l’événement"
+            confirmLabel="Oui, annuler"
+            onConfirm={() => run(supabase.from('events').update({ status: 'cancelled' }).eq('id', ev.id))}
+          />
         </View>
       ) : null}
       {ev.created_by === me.id && ['draft', 'pending', 'rejected'].includes(ev.status) ? (
-        <Button
-          variant="danger"
+        <ConfirmButton
           label="Supprimer la proposition"
-          onPress={async () => {
+          confirmLabel="Oui, supprimer"
+          onConfirm={async () => {
             await run(supabase.from('events').delete().eq('id', ev.id));
-            router.back();
+            if (router.canGoBack()) router.back();
+            else router.replace('/');
           }}
         />
       ) : null}
     </Screen>
   );
 }
+
+const st = StyleSheet.create({
+  keyRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  keyIcon: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
+  notice: { padding: 12, borderRadius: radius.md },
+  divided: { borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 12 },
+  orgZone: { padding: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, borderStyle: 'dashed', gap: 8 },
+});

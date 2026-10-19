@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -7,6 +7,7 @@ import {
   Switch,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
   type StyleProp,
   type TextInputProps,
@@ -77,9 +78,9 @@ export function Card({ children, style }: { children: ReactNode; style?: StylePr
   return <View style={[s.card, style]}>{children}</View>;
 }
 
-export function Section({ title, right, children }: { title: string; right?: ReactNode; children: ReactNode }) {
+export function Section({ title, right, children, style }: { title: string; right?: ReactNode; children: ReactNode; style?: StyleProp<ViewStyle> }) {
   return (
-    <Card>
+    <Card style={style}>
       <View style={s.rowBetween}>
         <Title size={18} style={{ flexShrink: 1 }}>{title}</Title>
         {right}
@@ -89,7 +90,7 @@ export function Section({ title, right, children }: { title: string; right?: Rea
   );
 }
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'dangerSolid';
 
 export function Button({
   label,
@@ -137,6 +138,7 @@ const buttonVariants: Record<ButtonVariant, { bg: string; fg: string; border: st
   secondary: { bg: 'transparent', fg: colors.text, border: colors.lineStrong },
   ghost: { bg: 'transparent', fg: colors.accent, border: 'transparent' },
   danger: { bg: 'transparent', fg: colors.coralSoft, border: '#5A3328' },
+  dangerSolid: { bg: colors.coral, fg: colors.onAccent, border: colors.coral },
 };
 
 export function Chip({
@@ -182,28 +184,95 @@ export function Segmented<K extends string>({
   onChange,
   disabled = false,
 }: {
-  options: { key: K; label: string }[];
+  options: { key: K; label: string; dot?: boolean }[];
   value: K;
   onChange: (k: K) => void;
   disabled?: boolean;
 }) {
+  const { width } = useWindowDimensions();
+  // Sous 360 px, quatre onglets ne tiennent pas sur une ligne : grille régulière 2 × 2.
+  const grid = options.length > 3 && width < 360;
   return (
-    <View style={s.segmented} accessibilityRole="tablist">
+    <View style={[s.segmented, grid && { flexWrap: 'wrap' }]} accessibilityRole="tablist">
       {options.map((o) => {
         const on = o.key === value;
         return (
           <Pressable
             key={o.key}
             accessibilityRole="tab"
+            accessibilityLabel={o.label}
             accessibilityState={{ selected: on, disabled }}
             disabled={disabled}
             onPress={() => onChange(o.key)}
-            style={[s.segment, on && { backgroundColor: colors.accent }]}
+            style={({ pressed }) => [
+              s.segment,
+              grid && { flexBasis: '45%' },
+              on && { backgroundColor: colors.accent },
+              pressed && !on && { backgroundColor: colors.surface2 },
+            ]}
           >
-            <Text style={{ color: on ? colors.onAccent : colors.muted, fontFamily: fonts.bold, fontSize: 13 }}>{o.label}</Text>
+            <Text numberOfLines={1} style={{ color: on ? colors.onAccent : colors.textSoft, fontFamily: fonts.bold, fontSize: 13 }}>{o.label}</Text>
+            {o.dot ? <View style={[s.dot, on && { backgroundColor: colors.onAccent }]} /> : null}
           </Pressable>
         );
       })}
+    </View>
+  );
+}
+
+/** Bouton en deux temps pour les actions irréversibles (pas de boîte de dialogue navigateur). */
+export function ConfirmButton({
+  label,
+  confirmLabel,
+  onConfirm,
+  small,
+  style,
+}: {
+  label: string;
+  confirmLabel: string;
+  onConfirm: () => void | Promise<unknown>;
+  small?: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const [armed, setArmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (!armed) return <Button small={small} variant="danger" label={label} style={style} onPress={() => setArmed(true)} />;
+  return (
+    <View style={[s.row, style]}>
+      <Button small={small} variant="secondary" label="Garder" style={{ flex: 1 }} onPress={() => setArmed(false)} />
+      <Button
+        small={small}
+        variant="dangerSolid"
+        label={confirmLabel}
+        loading={busy}
+        style={{ flex: 1 }}
+        onPress={async () => {
+          setBusy(true);
+          try {
+            await onConfirm();
+          } finally {
+            setBusy(false);
+            setArmed(false);
+          }
+        }}
+      />
+    </View>
+  );
+}
+
+/** Pastilles d’avatars qui se chevauchent, avec « +N » au-delà de la limite. */
+export function AvatarStack({ people, max = 5, size = 26 }: { people: { id: string; name: string }[]; max?: number; size?: number }) {
+  if (!people.length) return null;
+  const shown = people.slice(0, max);
+  const rest = people.length - shown.length;
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center' }} accessibilityLabel={people.map((p) => p.name).join(', ')}>
+      {shown.map((p, i) => (
+        <View key={p.id} style={{ marginLeft: i ? -size * 0.3 : 0, borderRadius: 999, borderWidth: 2, borderColor: colors.surface }}>
+          <Avatar id={p.id} name={p.name} size={size} />
+        </View>
+      ))}
+      {rest > 0 ? <T muted size={12} style={{ marginLeft: 6 }}>+{rest}</T> : null}
     </View>
   );
 }
@@ -312,8 +381,9 @@ export const s = StyleSheet.create({
   button: { minHeight: 52, paddingVertical: 12, borderRadius: radius.md, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
   chip: { minHeight: 44, paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   badge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill },
-  segmented: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: colors.surface },
-  segment: { flexGrow: 1, flexBasis: 110, minHeight: 44, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  segmented: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  segment: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, minHeight: 44, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 11, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52 },
   input: {
     height: 46,

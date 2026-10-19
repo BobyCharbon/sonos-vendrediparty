@@ -14,13 +14,13 @@ from urllib.parse import quote
 
 import httpx
 import segno
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 
-from . import games, heist, island, links, neon, president, quiz
+from . import calendar_ics, games, heist, island, links, neon, president, quiz
 from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
 from .push import Push, valid_subscription
 from .security import Limiter
@@ -1680,6 +1680,29 @@ def index():
 @app.get("/admin")
 def admin_page():
     return page("admin.html")
+
+
+@app.get("/api/calendar.ics")
+def calendar_file(
+    uid: str = Query(max_length=36),
+    title: str = Query(max_length=200),
+    start: str = Query(max_length=40),
+    end: str | None = Query(default=None, max_length=40),
+    location: str = Query(default="", max_length=300),
+    description: str = Query(default="", max_length=2000),
+    url: str = Query(default="", max_length=500),
+):
+    """Sortie au format iCalendar. Le client transmet ce qu'il affiche déjà : iOS ouvre
+    alors directement « Ajouter au calendrier » et Android l'importe dans l'agenda choisi."""
+    try:
+        body = calendar_ics.build(uid=uid, title=title, start=start, end=end, location=location, description=description, url=url)
+    except calendar_ics.CalendarError as exc:
+        raise HTTPException(400, str(exc)) from None
+    return Response(body, media_type="text/calendar; charset=utf-8", headers={
+        **NO_CACHE,
+        "Content-Disposition": f'attachment; filename="{calendar_ics.filename(title)}"',
+        "X-Content-Type-Options": "nosniff",
+    })
 
 
 @app.get("/events")
