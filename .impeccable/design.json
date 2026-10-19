@@ -1,0 +1,358 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-19T08:46:00.450332+00:00",
+  "title": "Design System: L’île qui s’effondre",
+  "extensions": {
+    "colorMeta": {
+      "action-green": {
+        "displayName": "Action Green",
+        "role": "primary",
+        "tonalRamp": [
+          "oklch(15.00% 0.0678 169.69)",
+          "oklch(26.43% 0.0678 169.69)",
+          "oklch(37.86% 0.0678 169.69)",
+          "oklch(49.29% 0.0678 169.69)",
+          "oklch(60.71% 0.0678 169.69)",
+          "oklch(72.14% 0.0678 169.69)",
+          "oklch(83.57% 0.0678 169.69)",
+          "oklch(95.00% 0.0678 169.69)"
+        ]
+      },
+      "action-hover": {
+        "displayName": "Action Hover",
+        "role": "primary",
+        "tonalRamp": [
+          "oklch(15.00% 0.0593 165.94)",
+          "oklch(26.43% 0.0593 165.94)",
+          "oklch(37.86% 0.0593 165.94)",
+          "oklch(49.29% 0.0593 165.94)",
+          "oklch(60.71% 0.0593 165.94)",
+          "oklch(72.14% 0.0593 165.94)",
+          "oklch(83.57% 0.0593 165.94)",
+          "oklch(95.00% 0.0593 165.94)"
+        ]
+      },
+      "deep-teal": {
+        "displayName": "Deep Teal",
+        "role": "neutral",
+        "tonalRamp": [
+          "oklch(15.00% 0.0508 211.02)",
+          "oklch(26.43% 0.0508 211.02)",
+          "oklch(37.86% 0.0508 211.02)",
+          "oklch(49.29% 0.0508 211.02)",
+          "oklch(60.71% 0.0508 211.02)",
+          "oklch(72.14% 0.0508 211.02)",
+          "oklch(83.57% 0.0508 211.02)",
+          "oklch(95.00% 0.0508 211.02)"
+        ]
+      },
+      "ink": {
+        "displayName": "Ink",
+        "role": "neutral",
+        "tonalRamp": [
+          "oklch(15.00% 0.0442 188.40)",
+          "oklch(26.43% 0.0442 188.40)",
+          "oklch(37.86% 0.0442 188.40)",
+          "oklch(49.29% 0.0442 188.40)",
+          "oklch(60.71% 0.0442 188.40)",
+          "oklch(72.14% 0.0442 188.40)",
+          "oklch(83.57% 0.0442 188.40)",
+          "oklch(95.00% 0.0442 188.40)"
+        ]
+      },
+      "body-ink": {
+        "displayName": "Body Ink",
+        "role": "neutral",
+        "tonalRamp": [
+          "oklch(15.00% 0.0462 177.27)",
+          "oklch(26.43% 0.0462 177.27)",
+          "oklch(37.86% 0.0462 177.27)",
+          "oklch(49.29% 0.0462 177.27)",
+          "oklch(60.71% 0.0462 177.27)",
+          "oklch(72.14% 0.0462 177.27)",
+          "oklch(83.57% 0.0462 177.27)",
+          "oklch(95.00% 0.0462 177.27)"
+        ]
+      },
+      "muted-ink": {
+        "displayName": "Muted Ink",
+        "role": "neutral",
+        "tonalRamp": [
+          "oklch(15.00% 0.0453 167.02)",
+          "oklch(26.43% 0.0453 167.02)",
+          "oklch(37.86% 0.0453 167.02)",
+          "oklch(49.29% 0.0453 167.02)",
+          "oklch(60.71% 0.0453 167.02)",
+          "oklch(72.14% 0.0453 167.02)",
+          "oklch(83.57% 0.0453 167.02)",
+          "oklch(95.00% 0.0453 167.02)"
+        ]
+      },
+      "cream-panel": {
+        "displayName": "Cream Panel",
+        "role": "neutral",
+        "tonalRamp": [
+          "oklch(15.00% 0.0251 86.87)",
+          "oklch(26.43% 0.0251 86.87)",
+          "oklch(37.86% 0.0251 86.87)",
+          "oklch(49.29% 0.0251 86.87)",
+          "oklch(60.71% 0.0251 86.87)",
+          "oklch(72.14% 0.0251 86.87)",
+          "oklch(83.57% 0.0251 86.87)",
+          "oklch(95.00% 0.0251 86.87)"
+        ]
+      },
+      "cream-text": {
+        "displayName": "Cream Text",
+        "role": "neutral",
+        "tonalRamp": [
+          "oklch(15.00% 0.0245 91.61)",
+          "oklch(26.43% 0.0245 91.61)",
+          "oklch(37.86% 0.0245 91.61)",
+          "oklch(49.29% 0.0245 91.61)",
+          "oklch(60.71% 0.0245 91.61)",
+          "oklch(72.14% 0.0245 91.61)",
+          "oklch(83.57% 0.0245 91.61)",
+          "oklch(95.00% 0.0245 91.61)"
+        ]
+      },
+      "title-cream": {
+        "displayName": "Title Cream",
+        "role": "neutral",
+        "tonalRamp": [
+          "oklch(15.00% 0.0385 95.84)",
+          "oklch(26.43% 0.0385 95.84)",
+          "oklch(37.86% 0.0385 95.84)",
+          "oklch(49.29% 0.0385 95.84)",
+          "oklch(60.71% 0.0385 95.84)",
+          "oklch(72.14% 0.0385 95.84)",
+          "oklch(83.57% 0.0385 95.84)",
+          "oklch(95.00% 0.0385 95.84)"
+        ]
+      },
+      "title-gold": {
+        "displayName": "Title Gold",
+        "role": "secondary",
+        "tonalRamp": [
+          "oklch(15.00% 0.0996 87.94)",
+          "oklch(26.43% 0.0996 87.94)",
+          "oklch(37.86% 0.0996 87.94)",
+          "oklch(49.29% 0.0996 87.94)",
+          "oklch(60.71% 0.0996 87.94)",
+          "oklch(72.14% 0.0996 87.94)",
+          "oklch(83.57% 0.0996 87.94)",
+          "oklch(95.00% 0.0996 87.94)"
+        ]
+      },
+      "sky": {
+        "displayName": "Sky",
+        "role": "secondary",
+        "tonalRamp": [
+          "oklch(15.00% 0.0472 206.35)",
+          "oklch(26.43% 0.0472 206.35)",
+          "oklch(37.86% 0.0472 206.35)",
+          "oklch(49.29% 0.0472 206.35)",
+          "oklch(60.71% 0.0472 206.35)",
+          "oklch(72.14% 0.0472 206.35)",
+          "oklch(83.57% 0.0472 206.35)",
+          "oklch(95.00% 0.0472 206.35)"
+        ]
+      },
+      "grass": {
+        "displayName": "Grass",
+        "role": "secondary",
+        "tonalRamp": [
+          "oklch(15.00% 0.1348 128.13)",
+          "oklch(26.43% 0.1348 128.13)",
+          "oklch(37.86% 0.1348 128.13)",
+          "oklch(49.29% 0.1348 128.13)",
+          "oklch(60.71% 0.1348 128.13)",
+          "oklch(72.14% 0.1348 128.13)",
+          "oklch(83.57% 0.1348 128.13)",
+          "oklch(95.00% 0.1348 128.13)"
+        ]
+      },
+      "stone": {
+        "displayName": "Stone",
+        "role": "secondary",
+        "tonalRamp": [
+          "oklch(15.00% 0.0615 74.14)",
+          "oklch(26.43% 0.0615 74.14)",
+          "oklch(37.86% 0.0615 74.14)",
+          "oklch(49.29% 0.0615 74.14)",
+          "oklch(60.71% 0.0615 74.14)",
+          "oklch(72.14% 0.0615 74.14)",
+          "oklch(83.57% 0.0615 74.14)",
+          "oklch(95.00% 0.0615 74.14)"
+        ]
+      },
+      "sand": {
+        "displayName": "Sand",
+        "role": "secondary",
+        "tonalRamp": [
+          "oklch(15.00% 0.0810 83.09)",
+          "oklch(26.43% 0.0810 83.09)",
+          "oklch(37.86% 0.0810 83.09)",
+          "oklch(49.29% 0.0810 83.09)",
+          "oklch(60.71% 0.0810 83.09)",
+          "oklch(72.14% 0.0810 83.09)",
+          "oklch(83.57% 0.0810 83.09)",
+          "oklch(95.00% 0.0810 83.09)"
+        ]
+      },
+      "danger-orange": {
+        "displayName": "Danger Orange",
+        "role": "secondary",
+        "tonalRamp": [
+          "oklch(15.00% 0.1882 45.55)",
+          "oklch(26.43% 0.1882 45.55)",
+          "oklch(37.86% 0.1882 45.55)",
+          "oklch(49.29% 0.1882 45.55)",
+          "oklch(60.71% 0.1882 45.55)",
+          "oklch(72.14% 0.1882 45.55)",
+          "oklch(83.57% 0.1882 45.55)",
+          "oklch(95.00% 0.1882 45.55)"
+        ]
+      },
+      "fracture": {
+        "displayName": "Fracture",
+        "role": "secondary",
+        "tonalRamp": [
+          "oklch(15.00% 0.1188 36.88)",
+          "oklch(26.43% 0.1188 36.88)",
+          "oklch(37.86% 0.1188 36.88)",
+          "oklch(49.29% 0.1188 36.88)",
+          "oklch(60.71% 0.1188 36.88)",
+          "oklch(72.14% 0.1188 36.88)",
+          "oklch(83.57% 0.1188 36.88)",
+          "oklch(95.00% 0.1188 36.88)"
+        ]
+      },
+      "local-marker": {
+        "displayName": "Local Marker",
+        "role": "neutral",
+        "tonalRamp": [
+          "oklch(15.00% 0.0000 89.88)",
+          "oklch(26.43% 0.0000 89.88)",
+          "oklch(37.86% 0.0000 89.88)",
+          "oklch(49.29% 0.0000 89.88)",
+          "oklch(60.71% 0.0000 89.88)",
+          "oklch(72.14% 0.0000 89.88)",
+          "oklch(83.57% 0.0000 89.88)",
+          "oklch(95.00% 0.0000 89.88)"
+        ]
+      }
+    },
+    "shadows": [
+      {
+        "name": "panel",
+        "value": "0 14px 35px #17434730",
+        "purpose": "Lift near-opaque cream over the arena."
+      },
+      {
+        "name": "joystick-knob",
+        "value": "0 5px 12px #143e4940",
+        "purpose": "Separate the draggable knob."
+      }
+    ],
+    "motion": [
+      {
+        "name": "action-background",
+        "value": "background .18s",
+        "purpose": "Green hover feedback; disabled under reduced motion."
+      },
+      {
+        "name": "jump-press",
+        "value": "scale(.95)",
+        "purpose": "Immediate pressed jump feedback."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "phone-portrait",
+        "value": "(max-width:600px) and (orientation:portrait)"
+      },
+      {
+        "name": "short-landscape",
+        "value": "(orientation:landscape) and (max-height:600px)"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary action",
+      "kind": "button",
+      "description": "Start, join, or replay.",
+      "html": "<button class=\"ds-primary\">Jouer en solo</button>",
+      "css": ".ds-primary{display:block;width:100%;min-height:48px;padding:14px 16px;background:#235d4b;color:#fff9e7;border:0;border-radius:10px;font:750 16px sans-serif;cursor:pointer;transition:background .18s}.ds-primary:hover:not(:disabled){background:#164534}.ds-primary:focus-visible{outline:3px solid #163d3a;outline-offset:4px}.ds-primary:disabled{opacity:.55;cursor:default}@media(prefers-reduced-motion:reduce){.ds-primary{transition:none}}",
+      "refersTo": "button-primary"
+    },
+    {
+      "name": "Invitation action",
+      "kind": "button",
+      "description": "Copy the invitation link.",
+      "html": "<button class=\"ds-invite\">Copier le lien</button>",
+      "css": ".ds-invite{padding:8px 0;background:none;color:#205c4c;border:0;text-decoration:underline;text-underline-offset:3px;min-height:44px;font:12px sans-serif;cursor:pointer}.ds-invite:focus-visible{outline:3px solid #163d3a;outline-offset:4px}"
+    },
+    {
+      "name": "Cream panel",
+      "kind": "card",
+      "description": "Lobby and results information above the arena.",
+      "html": "<section class=\"ds-panel\"><h3>Le paradis ne tient qu’à un saut.</h3><p>Seul, tiens 90 secondes. Entre amis, sois le dernier sur l’île.</p></section>",
+      "css": ".ds-panel{padding:24px;border-radius:16px;background:rgba(255,247,229,.98);color:#163d3a;box-shadow:0 14px 35px #17434730;max-width:350px}.ds-panel h3{font:29px/1.08 \"Bricolage Grotesque\",sans-serif;letter-spacing:-.025em;margin:0 0 12px}.ds-panel p{font:14px/1.5 sans-serif;color:#365c53;margin:0 0 16px}",
+      "refersTo": "panel"
+    },
+    {
+      "name": "Timer status",
+      "kind": "chip",
+      "description": "Remaining time and player count.",
+      "html": "<div class=\"ds-stats\"><strong>01:30</strong><span>Survie solo</span></div>",
+      "css": ".ds-stats{display:inline-flex;flex-direction:column;align-items:center;gap:7px;background:#16444ce8;color:#fff9e7;border-radius:30px;padding:12px 22px;font-family:sans-serif;font-variant-numeric:tabular-nums}.ds-stats strong{font-size:30px;line-height:1}.ds-stats span{font-size:12px}",
+      "refersTo": "stats"
+    },
+    {
+      "name": "Jump control",
+      "kind": "button",
+      "description": "Right-hand touch action.",
+      "html": "<button class=\"ds-jump\"><svg viewBox=\"0 0 32 32\" aria-hidden=\"true\"><path d=\"M16 5 5 17h7v10h8V17h7Z\" fill=\"currentColor\"/></svg><span>SAUT</span></button>",
+      "css": ".ds-jump{display:flex;flex-direction:column;align-items:center;justify-content:center;width:108px;height:108px;border-radius:50%;background:#16444cb3;color:#fffbed;border:3px solid #fffbed;touch-action:none;box-shadow:0 6px 18px #16444c30;cursor:pointer}.ds-jump svg{width:38px;height:38px}.ds-jump span{font:800 16px sans-serif}.ds-jump:active:not(:disabled){background:#276b61;transform:scale(.95)}.ds-jump:focus-visible{outline:3px solid #163d3a;outline-offset:4px}.ds-jump:disabled{opacity:.55;cursor:default}",
+      "refersTo": "jump"
+    },
+    {
+      "name": "Directional joystick",
+      "kind": "custom",
+      "description": "Visual touch controller; this documentation preview does not send game input.",
+      "html": "<div class=\"ds-stick\" role=\"img\" aria-label=\"Joystick tactile\"><span></span><svg viewBox=\"0 0 100 100\" aria-hidden=\"true\"><path d=\"m46 14 4-5 4 5M46 86l4 5 4-5M14 46l-5 4 5 4m72-8 5 4-5 4\"/></svg></div>",
+      "css": ".ds-stick{position:relative;width:116px;height:116px;border-radius:50%;background:#16444c70;border:2px solid #e5ffedb3}.ds-stick span{position:absolute;inset:32px;border-radius:50%;background:#e8f6dfd9;box-shadow:0 5px 12px #143e4940}.ds-stick svg{position:absolute;inset:0;width:100%;fill:none;stroke:#edffeb;stroke-width:3}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The approved tropical island",
+    "overview": "This document applies only to L’île qui s’effondre, implemented in `app/static/island.css`, `island-scene.js`, and `island.js`. It does not establish a redesign of other Vendredi Party games or the shared shell. The approved tropical concept supplies the world: turquoise sea, grassy rocky islands, friendly colorful characters, cream panels, and green actions.\n\nThe arena is real, readable, playable 3D. Its current geometry is deliberately simpler than the approved concept illustration; the illustration is visual direction, not a claim of rendering parity. Large controls and clear identity cues support each player on an individual phone, with keyboard controls on desktop.",
+    "keyCharacteristics": [
+      "A turquoise ocean around grassy hexagonal rock platforms.",
+      "Warm cream information surfaces above the scene.",
+      "Colorful rounded characters with a separate white local-player arrow.",
+      "Readable danger through orange terrain and thick geometric fractures."
+    ],
+    "rules": [
+      {
+        "name": "The Warning Rule",
+        "body": "Keep orange terrain and geometric fractures together so the warning survives without motion or color discrimination.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Do keep the arena and local character readable in portrait and landscape.",
+      "Do preserve the cream panels, green actions, and tropical materials on this surface.",
+      "Do pair orange danger with visible fractures and keep the white identity arrow separate from the name.",
+      "Do keep touch controls, keyboard focus, and reduced-motion behavior available."
+    ],
+    "donts": [
+      "Don't apply this island-specific palette to unrelated games by default.",
+      "Don't use a static concept image as a substitute for playable geometry.",
+      "Don't make terrain warnings depend on color or shaking alone.",
+      "Don't claim real-phone performance or concept-level fidelity from browser screenshots."
+    ]
+  }
+}
