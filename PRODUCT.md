@@ -25,3 +25,7 @@ Le nom Vendredi Party et la maquette tropicale approuvée dans cette conversatio
 ## Evidence on Hand
 
 Maquette générée approuvée le 19 octobre 2026. Elle définit une intention graphique, pas une preuve de rendu ou de performance du jeu réel.
+
+## Braquage en miniature
+
+Demandé et cadré le 19 octobre 2026 : solo ou coopération à 2–8, butin commun, trois musées cartoon de nuit soignés, vue de dessus en 3D. Manches accessibles de 3–5 minutes ; capture en prison avec sauvetage par un ami, pénalité de temps en solo. Commandes tactiles et clavier, intégration aux salles et au catalogue existants. L'utilisateur autorise développement, tests et push sur develop sans nouvelle validation intermédiaire. La référence tropicale ci-dessus reste propre à L’île.

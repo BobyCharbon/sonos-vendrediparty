@@ -14,7 +14,7 @@ import secrets
 import time
 import unicodedata
 
-from . import island, neon, president, quiz
+from . import heist, island, neon, president, quiz
 from .divan_cards import DIVAN_CARDS
 from .tmc_questions import TMC_QUESTIONS
 
@@ -33,6 +33,7 @@ GAMES = {
     "president": "Président",
     "neon": "Néon Knockout",
     "island": "L’île qui s’effondre",
+    "heist": "Braquage en miniature",
     "room": "Salle de jeux",
 }
 BLACKJACKS = ("blackjack",)
@@ -310,7 +311,7 @@ def join(g: dict, gid: str, name: str = ""):
         raise GameError("Ce match en duo a commencé. Tu peux regarder et rejoindre au prochain match.")
     if gid in g.get("kicked", []):
         raise GameError("Tu as été banni de cette partie : tu ne peux plus la rejoindre")
-    if len(g["players"]) >= ({"president": 6, "neon": 8, "island": 8}.get(g["type"], 30)):
+    if len(g["players"]) >= ({"president": 6, "neon": 8, "island": 8, "heist": 8}.get(g["type"], 30)):
         raise GameError("La partie est complète")
     if gid in g.get("removed", []):  # revenir après une exclusion efface la marque
         g["removed"].remove(gid)
@@ -318,7 +319,7 @@ def join(g: dict, gid: str, name: str = ""):
     while (pid := secrets.token_hex(4)) in taken:
         pass
     # Undercover déjà lancé : le retardataire attend la prochaine partie (il reçoit un mot à « Rejouer »).
-    waiting = g["type"] in ("undercover", "president", "neon", "island") and g["phase"] not in ("lobby", "end")
+    waiting = g["type"] in ("undercover", "president", "neon", "island", "heist") and g["phase"] not in ("lobby", "end")
     # Pyramide déjà lancée : l'animateur doit accepter l'arrivée (puis le nouveau fait sa distribution).
     pending = g["type"] == "pyramid" and g["phase"] not in ("lobby",) and bool(g.get("pyr"))
     g["players"].append({"id": gid, "pid": pid, "name": name or "?", "alive": True, "role": None, "word": None,
@@ -365,6 +366,8 @@ def leave(g: dict, gid: str):
         raise GameError("Joueur introuvable")
     in_play = p in alive(g)
     g["players"].remove(p)
+    if g["type"] == "heist":
+        heist.leave(g, gid, p["pid"])
     if g["type"] == "island":
         island.leave(g, gid, p["pid"])
     if g["type"] == "neon":
@@ -1936,6 +1939,9 @@ def bk_view(g: dict, gid: str) -> dict:
 
 def start(g: dict, rng: random.Random = random):
     """Distribue les rôles (Undercover) ou pose la première question (Qui de nous ?)."""
+    if g["type"] == "heist":
+        heist.start(g, rng)
+        return
     if g["type"] == "island":
         island.start(g, rng)
         return
@@ -2124,6 +2130,9 @@ def _check_end(g: dict) -> bool:
 
 
 def next_step(g: dict, rng: random.Random = random):
+    if g["type"] == "heist":
+        heist.start(g, rng)
+        return
     if g["type"] == "island":
         island.start(g, rng)
         return
@@ -2169,7 +2178,9 @@ def _next_question(g: dict, rng):
 
 def restart(g: dict, rng: random.Random = random) -> dict:
     """Nouvelle manche avec les mêmes joueurs."""
-    if g["type"] == "island":
+    if g["type"] == "heist":
+        heist.start(g, rng)
+    elif g["type"] == "island":
         island.start(g, rng)
     elif g["type"] == "neon":
         neon.start(g, rng)
@@ -2247,6 +2258,8 @@ def view(g: dict, gid: str) -> dict:
         out["bk"] = bk_view(g, gid)
     if g["type"] == "quiz":
         out["quiz"] = quiz.view(g, gid)
+    if g["type"] == "heist":
+        out["heist"] = heist.view(g, gid)
     if g["type"] == "island":
         out["island"] = island.view(g, gid)
     if g["type"] == "neon":
@@ -2320,6 +2333,8 @@ def _summary_facts(g: dict) -> list[str]:
         facts.append(f"{g['round']} question(s) posée(s)")
     if t == "quiz":
         facts += quiz.summary_facts(g)
+    if t == "heist":
+        facts.append("3D · solo ou coopération · trois musées · 1 à 8 joueurs")
     if t == "island":
         facts.append("3D · survie solo ou dernier survivant · 1 à 8 joueurs")
     if t == "neon":
@@ -2343,6 +2358,8 @@ def _summary_extra(g: dict, p: dict) -> str:
     """Score ou jetons d'un joueur, selon le jeu."""
     if g["type"] == "quiz":
         return quiz.summary_extra(g, p["id"])
+    if g["type"] == "heist":
+        return f"{heist.state(g)['scores'].get(p['pid'], 0)} braquage(s) réussi(s)"
     if g["type"] == "island":
         s = island.state(g)
         return f"{s['scores'].get(p['pid'], 0)} victoire(s) · record {s['best'].get(p['pid'], 0):.1f} s"
@@ -2393,6 +2410,11 @@ def room_merge(room: dict, g: dict):
             room["rpts"][p["id"]] = room["rpts"].get(p["id"], 0) + s["scores"].get(key, 0)
         if s["winner"] is not None and g["phase"] == "end":
             winner = neon.TEAM_NAMES[int(s["winner"])] if s["mode"] == "duo" else next((p["name"] for p in g["players"] if p["pid"] == s["winner"]), None)
+    if g["type"] == "heist":
+        s = heist.state(g)
+        for p in g["players"]:
+            room["rpts"][p["id"]] = room["rpts"].get(p["id"], 0) + s["scores"].get(p["pid"], 0)
+        winner = "Toute l’équipe" if s["success"] else None
     if g["type"] == "island":
         s = island.state(g)
         for p in g["players"]:
