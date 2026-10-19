@@ -328,23 +328,29 @@ def join(g: dict, gid: str, name: str = ""):
 MANUAL_GAMES = ("divan", "tmc", "never", "pyramid", "biskit", "room")  # jeux où l'animateur peut ajouter des participants sans téléphone
 
 
-def add_guest(g: dict, name: str):
+def add_guest(g: dict, name: str, guest_id: str | None = None):
     """L'animateur ajoute un participant sans téléphone (tapé à la main) : c'est lui qui agit pour lui."""
     if g["type"] not in MANUAL_GAMES:
         raise GameError("Pas possible dans ce jeu")
     name = " ".join((name or "").split())[:30]
     if not name:
         raise GameError("Écris un prénom")
+    if guest_id:
+        if not guest_id.startswith("manual-"):
+            raise GameError("Identité manuelle non valide")
+        if existing := player(g, guest_id):
+            return existing
     if len(g["players"]) >= 30:
         raise GameError("La partie est complète")
     taken = {p["pid"] for p in g["players"]}
     while (pid := secrets.token_hex(4)) in taken:
         pass
-    new = {"id": "manual-" + secrets.token_hex(6), "pid": pid, "name": name, "alive": True, "role": None,
+    new = {"id": guest_id or "manual-" + secrets.token_hex(6), "pid": pid, "name": name, "alive": True, "role": None,
            "word": None, "waiting": False, "manual": True}
     g["players"].append(new)
     if g["type"] == "pyramid" and g.get("pyr"):
         pyr_accept(g, new["id"])  # ajouté par l'animateur : déjà accepté
+    return new
 
 
 def is_manual(g: dict, gid: str) -> bool:
