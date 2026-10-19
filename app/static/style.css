@@ -1318,7 +1318,7 @@ body[data-tab="music"] .tabs button.on .tab-ico { stroke: var(--accent-2); filte
 /* Tablettes et ordinateurs : rail d'onglets à gauche, contenu centré, plein écran des jeux en colonne */
 @media (min-width: 900px) {
   body { max-width: none; padding-left: calc(112px + max(24px, env(safe-area-inset-left))); padding-right: 32px; }
-  body > *:not(.tabs):not(.g-mini):not(.toast):not(.g-modal):not(.g-drawer):not(.install):not(.g-ended):not(.py-flash) { max-width: 720px; margin-left: auto; margin-right: auto; }
+  body > *:not(.tabs):not(.app-main):not(.g-mini):not(.toast):not(.g-modal):not(.g-drawer):not(.install):not(.g-ended):not(.py-flash) { max-width: 720px; margin-left: auto; margin-right: auto; }
   .tabs { top: 0; bottom: 0; right: auto; width: 96px; flex-direction: column; justify-content: flex-start; gap: 8px;
     padding: max(28px, env(safe-area-inset-top)) 10px; box-shadow: inset -1px 0 0 rgba(255, 255, 255, .06), 8px 0 24px rgba(0, 0, 0, .25); }
   .tabs button { flex: none; max-width: none; min-height: 72px; border-radius: 18px; }
@@ -1482,3 +1482,40 @@ img.qr:not([src]) { visibility: hidden; }
 #gTop .g-quit { min-height:44px; padding:8px 10px; flex-shrink:0; font-size:.85rem; }
 #gDrawerExit { display:grid; gap:8px; margin-bottom:16px; }
 @media(max-width:420px) { #gTop { gap:5px !important; } #gTop .g-top-ico { display:none; } #gTop .g-top-name { font-size:.85rem; } }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Coque d’app (page invités) : la page ne défile plus comme un document web.
+   L’écran est figé à 100 % ; seul #appMain défile, sous la barre d’état et
+   sous la barre d’onglets translucides, comme une app iOS. Pas de saut de la
+   barre Safari, pas de rebond de toute la page, mêmes règles sur iPhone,
+   Android, tablette et ordinateur.
+   ═══════════════════════════════════════════════════════════════════════════ */
+html:has(body.shell) { height: 100%; overflow: hidden; overscroll-behavior: none; }
+body.shell {
+  position: fixed; inset: 0; overflow: hidden; overscroll-behavior: none;
+  max-width: none; min-height: 0; margin: 0; padding: 0;
+  -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: manipulation;
+}
+body.shell .app-main {
+  position: absolute; inset: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain;
+  padding: max(14px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+           calc(84px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  scroll-padding-top: max(14px, env(safe-area-inset-top));
+}
+body.shell .app-main > * { max-width: 640px; margin-left: auto; margin-right: auto; }
+/* Le contenu glisse sous la barre d’état sans s’y mélanger. */
+body.shell::before {
+  content: ""; position: fixed; z-index: 9; top: 0; left: 0; right: 0; height: env(safe-area-inset-top);
+  background: rgba(21, 16, 42, .82); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); pointer-events: none;
+}
+body.shell.has-mini .app-main { padding-bottom: calc(160px + env(safe-area-inset-bottom)); }
+body.shell[data-tab="events"] .app-main { overflow: hidden; }
+body.shell.pyr-full .app-main { overflow: hidden; }
+@media (max-width: 360px) {
+  body.shell .app-main { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+}
+@media (min-width: 900px) {
+  body.shell .app-main { left: 96px; padding-left: max(24px, env(safe-area-inset-left)); padding-right: 32px; padding-bottom: 32px; }
+  body.shell .app-main > * { max-width: 720px; }
+  body.shell.has-mini .app-main { padding-bottom: 120px; }
+}

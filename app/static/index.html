@@ -20,7 +20,9 @@
   <meta name="apple-mobile-web-app-title" content="Party !">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
-<body>
+<body class="shell">
+  <!-- Coque d’app : seul ce conteneur défile, la barre d’onglets et la page restent fixes. -->
+  <main id="appMain" class="app-main">
   <header class="top-head">
     <h1 id="appTitle" class="app-title">Musique</h1>
     <button type="button" id="nameChip" class="name-chip-top hidden" aria-label="Changer de prénom"></button>
@@ -96,6 +98,7 @@
     <iframe id="eventsFrame" title="Événements du groupe : connexion, sorties et sondages" class="events-frame" referrerpolicy="same-origin"></iframe>
     <noscript>Active JavaScript pour ouvrir les événements du groupe.</noscript>
   </section>
+  </main>
 
   <nav id="tabs" class="tabs">
     <button type="button" data-tab="music"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg><span>Musique</span></button>
@@ -293,7 +296,7 @@ function showTab(tab, eventTarget) {
       $("eventsFrame").src = "/events/";
     }
   }
-  scrollTo(0, 0);
+  $("appMain").scrollTo(0, 0);
 }
 document.addEventListener("click", (ev) => { const t = ev.target.closest("[data-tab]"); if (t) showTab(t.dataset.tab); });
 
