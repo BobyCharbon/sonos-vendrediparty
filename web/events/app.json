@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Party \u00b7 \u00c9v\u00e9nements",
+    "slug": "party-events-web",
+    "version": "1.0.0",
+    "platforms": [
+      "web"
+    ],
+    "userInterfaceStyle": "dark",
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "output": "single",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ],
+    "experiments": {
+      "baseUrl": "/events",
+      "typedRoutes": false
+    }
+  }
+}
