@@ -813,6 +813,7 @@ function renderGame(g) {
   if (g && g !== game) gameT0 = Date.now() / 1000 - (g.elapsed || 0);  // recalé à chaque réponse du serveur
   if (g?.type !== "neon" || !pyrFull || g.kicked || g.excluded) Neon.stop();
   game = g;
+  GameAudio.observe(g, g ? myTurnKey(g) : "");
   $("gHome").classList.toggle("hidden", !!g);
   $("gamePlay").classList.toggle("hidden", !g);
   // Un jeu se joue toujours en plein écran ; « Réduire » (menu) revient aux onglets sans quitter la partie.
@@ -1015,6 +1016,7 @@ function bjOutcomeFx(g) {
   playFx(kind, sub);
 }
 function playFx(kind, sub) {
+  GameAudio.play(["win", "blackjack", "jackpot"].includes(kind) ? "win" : ["lose", "bust"].includes(kind) ? "lose" : "reveal");
   document.querySelector(".fx")?.remove();
   const title = { win: "GAGNÉ !", blackjack: "BLACKJACK !", jackpot: "JACKPOT !", push: "ÉGALITÉ", mixed: "MITIGÉ", lose: "PERDU", bust: "SAUTÉ !" }[kind];
   const good = ["win", "blackjack", "jackpot"].includes(kind), bad = kind === "lose" || kind === "bust";
@@ -1172,6 +1174,7 @@ function pyCard(c, size = "", extra = "") {
 }
 // Grande annonce animée, la même sur tous les téléphones (réponse, menteur, cul sec…).
 function pyrFlash(kind, title, sub = "", card = "", ms = 2300) {
+  GameAudio.play(["bad", "liar"].includes(kind) ? "lose" : kind === "summit" ? "win" : "reveal");
   document.querySelector(".py-flash")?.remove();
   const el = document.createElement("div");
   el.className = `py-flash py-${kind}`;
@@ -1919,6 +1922,7 @@ function renderCasino(g) {
     ball.style.animation = fresh ? `cw-drop ${left}s linear forwards` : "none";
     ball.classList.toggle("landed", !fresh);
     if (fresh) {
+      GameAudio.play("spin");
       cwSpinningUntil = Date.now() + left * 1000;
       setTimeout(() => {
         cwShown = sp.id;
@@ -2062,11 +2066,12 @@ function renderRoulette(g) {
     wheelRot = base - (((base + target) % 360) + 360) % 360;
     if (left > 0.3) {
       // Tirage tout frais : la roue tourne, le perdant s'affiche à l'arrêt.
+      GameAudio.play("spin");
       spinningUntil = Date.now() + left * 1000;
       setWheel(wheelRot, left);
       setTimeout(() => {
         wheelShown = sp.id;
-        if (game?.spin?.id === sp.id) { showRouletteResult(game); renderGameHost(game); }
+        if (game?.spin?.id === sp.id) { GameAudio.play("reveal"); showRouletteResult(game); renderGameHost(game); }
         haptic(150);
       }, left * 1000 + 100);
     } else {
@@ -2309,6 +2314,7 @@ function gameTopBar(g) {
   return `<button type="button" class="py-icon g-burger" data-gdrawer="open" aria-label="Menu : joueurs, code, QR">☰${alerts ? `<i class="badge">${alerts}</i>` : ""}</button>
     <div class="g-top-mid"><div class="g-top-name"><span class="g-top-ico" aria-hidden="true">${GAME_ICONS[g.type] || ""}</span>${esc(g.name)}</div>
       <div class="g-top-sub">${g.mode ? esc(g.mode) + " · " : ""}${QUESTION_TYPES.includes(g.type) && g.round && g.phase !== "lobby" && g.phase !== "end" ? `Question ${g.round}` : (g.type === "room" ? "Soirée" : phase) + round} · ${g.room || g.type === "room" ? "salle" : "code"} <b>${esc(g.room || g.code)}</b> · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
+    ${GameAudio.button()}
     <button type="button" class="py-icon g-min" data-gdrawer="minimize" aria-label="Réduire le jeu (revenir à la musique)">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
     ${helpBtn(g.type, true)}`;
