@@ -20,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 
-from . import games, links, neon, president, quiz
+from . import games, island, links, neon, president, quiz
 from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
 from .push import Push, valid_subscription
 from .security import Limiter
@@ -1074,6 +1074,8 @@ def room_launch(room: dict, me: str, settings: dict):
     kind = settings.get("type")
     if kind not in games.GAMES or kind == "room":
         raise HTTPException(400, "Jeu inconnu")
+    if kind == "island" and (len(room["players"]) > 8 or any(p.get("manual") for p in room["players"])):
+        raise HTTPException(409, "L’île accueille au maximum 8 joueurs, chacun avec son téléphone.")
     if kind == "neon" and (len(room["players"]) > 8 or any(p.get("manual") for p in room["players"])):
         raise HTTPException(409, "Néon Knockout accueille au maximum 8 joueurs, chacun avec son téléphone.")
     if kind == "president" and (len(room["players"]) > 6 or any(p.get("manual") for p in room["players"])):
@@ -1161,7 +1163,9 @@ def game_state(code: str, request: Request, guest_id: str = "", name: str = ""):
     if quiz.tick(g):  # Quiz : le temps a avancé (fin d'une question, question suivante…)
         g["updated_at"] = time.time()
         save_games(g["code"], g.get("room") or "")
-    with neon.LOCK:
+    with neon.LOCK, island.LOCK:
+        if island.tick(g):
+            save_games(g["code"])
         if neon.tick(g):
             save_games(g["code"])
         return full_view(g, guest_id)
@@ -1193,7 +1197,8 @@ def game_action(code: str, body: GameAction, request: Request):
     # Les actions de cartes et les retraits de la salle sont atomiques entre téléphones.
     lock = president.LOCK if g["type"] == "president" or (child and child["type"] == "president") else contextlib.nullcontext()
     neon_lock = neon.LOCK if g["type"] == "neon" or (child and child["type"] == "neon") else contextlib.nullcontext()
-    with lock, neon_lock:
+    island_lock = island.LOCK if g["type"] == "island" or (child and child["type"] == "island") else contextlib.nullcontext()
+    with lock, neon_lock, island_lock:
         return perform_game_action(code, body, request)
 
 
@@ -1206,6 +1211,8 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     a, me = body.action, body.guest_id
     if g["type"] == "president" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "up", "down", "handover", "end", "prplay", "prpass", "prexchange"}:
         raise HTTPException(400, "Action indisponible au Président")
+    if g["type"] == "island" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end"}:
+        raise HTTPException(400, "Action indisponible sur l’île")
     if g["type"] == "neon" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "nset", "nteam"}:
         raise HTTPException(400, "Action indisponible dans Néon Knockout")
     # Cible d'un vote : un joueur (pid) ; pour « Je n'ai jamais », une réponse (yes / no).
@@ -1271,7 +1278,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     fn, *args = actions[a]
     try:
         action_result = fn(g, *args)
-    except (games.GameError, quiz.QuizError, president.PresidentError, neon.NeonError) as e:
+    except (games.GameError, quiz.QuizError, president.PresidentError, neon.NeonError, island.IslandError) as e:
         raise HTTPException(409, str(e))
     g["updated_at"] = time.time()
     # Salle de jeux : rejoindre, quitter, exclure ou passer la main vaut aussi pour le jeu en cours (et inversement).
@@ -1728,3 +1735,32 @@ def neon_frame(code: str, body: NeonInput):
             g["updated_at"] = time.time()
             save_games(g["code"])
         return neon.view(g, body.guest_id)
+
+
+class IslandInput(BaseModel):
+    guest_id: str
+    x: float = 0
+    y: float = 0
+    jump: bool = False
+    cancel: bool = False
+
+
+@app.post("/api/games/{code}/island")
+def island_frame(code: str, body: IslandInput):
+    """Authoritative small snapshots; disk writes only on phase transitions."""
+    check_guest_id(body.guest_id)
+    with island.LOCK:
+        g = get_game(code)
+        if g["type"] != "island":
+            raise HTTPException(400, "Ce jeu n’est pas L’île qui s’effondre")
+        if body.guest_id in g.get("kicked", []) or (body.guest_id in g.get("removed", []) and not games.player(g, body.guest_id)):
+            raise HTTPException(403, "Tu ne participes plus à cette partie")
+        changed = island.tick(g)
+        try:
+            island.input_state(g, body.guest_id, body.x, body.y, body.jump, cancel=body.cancel)
+        except island.IslandError as e:
+            raise HTTPException(400, str(e))
+        if changed:
+            g["updated_at"] = time.time()
+            save_games(g["code"])
+        return island.view(g, body.guest_id)
