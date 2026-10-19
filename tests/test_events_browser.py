@@ -156,7 +156,8 @@ def test_sms_login_events_details_and_rsvp(browser,events_origin,country,width):
         box=page.locator('#eventsFrame').bounding_box()
         assert box['y']<=1 and not page.locator('.top-head').is_visible()
         # Verrou façon app : la page Party ne défile plus derrière le module.
-        assert page.evaluate("document.scrollingElement.scrollHeight <= innerHeight && getComputedStyle(document.body).display === 'flex'")
+        # Même modèle que le reste de Party : barre d’onglets fixée en bas, page jamais figée.
+        assert page.evaluate("getComputedStyle(document.body).position") == 'static'
         # Le module descend jusqu’à la barre d’onglets, sans bande vide entre les deux.
         tabs=page.locator('#tabs').bounding_box()
         if width<900: assert abs(box['y']+box['height']-tabs['y'])<=1 and abs(tabs['y']+tabs['height']-page.viewport_size['height'])<=1
