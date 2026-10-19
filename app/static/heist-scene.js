@@ -71,7 +71,7 @@ export function createScene(canvas){
       const g=new THREE.Group();g.position.set(t.x,0,t.y);world.add(g);box(g,navy,0,.25,0,.65,.5,.65);box(g,gold,0,.52,0,.72,.06,.72);
       box(g,glass,0,.88,0,.73,.68,.73);const gem=mesh(gemGeo,gold,g,0,.88,0);treasures[t.id]={g,gem};
     }
-    for(let i=0;i<2;i++){
+    for(let i=0;i<v.map.patrols.length;i++){
       const c=person('#526d9c',true);world.add(c.g);guardModels.push(c);
       const shape=new THREE.Shape();shape.moveTo(0,0);for(let a=-.55;a<=.551;a+=.055)shape.lineTo(Math.sin(a)*4.6,Math.cos(a)*4.6);shape.lineTo(0,0);
       const cg=new THREE.ShapeGeometry(shape);geo.add(cg);const cone=mesh(cg,basic('#ffd96a',{transparent:true,opacity:.22,depthWrite:false,side:THREE.DoubleSide}),c.g,0,.16,0);cone.rotation.x=Math.PI/2;

@@ -47,7 +47,8 @@ def test_solo_collect_deliver_complete_without_duplicate_score():
         assert b['bag']==t['id']
         heist.act(g,pid);assert b['bag']==t['id']
         b.update(x=0,y=8);heist.act(g,pid)
-    assert g['phase']=='results' and s['success'] and s['banked']==4
+        if s['banked']<6:assert g['phase']=='play' and not s['success']
+    assert g['phase']=='results' and s['success'] and s['banked']==6
     assert s['scores'][pid]==1
     heist.finish(g,True);assert s['scores'][pid]==1
     games.next_step(g,random.Random(2));assert g['phase']=='countdown' and g['round']==2
@@ -87,7 +88,7 @@ def test_wall_collision_stale_controls_normalization_and_invalid_input():
 def test_laser_switch_and_guard_detection_wall_occlusion():
     g=game();s=g['heist'];b=body(g);pid=g['players'][0]['pid'];b.update(x=0,y=7)
     heist.act(g,pid);assert s['disabled_until']>s['time']
-    assert not any(heist.laser_active(s,i) for i in range(2))
+    assert not any(heist.laser_active(s,i) for i in range(len(heist.MAPS[0]["lasers"])))
     assert not heist.clear_line(-6,-3,-4,-3,heist.MAPS[0])
     guard=s['guards'][0];b.update(x=guard['x']+math.sin(guard['angle'])*2,y=guard['y']+math.cos(guard['angle'])*2);advance(g,1.1)
     assert s['captures']==1
@@ -161,3 +162,12 @@ def test_room_rejects_manual_players_for_heist():
     games.add_guest(room,'Manual')
     with pytest.raises(main.HTTPException) as error:main.room_launch(room,'host-room',{'type':'heist'})
     assert error.value.status_code==409
+
+
+@pytest.mark.parametrize('n,target',[(1,6),(2,6),(3,6),(4,7),(5,8),(8,8)])
+def test_minimum_loot_and_security_on_all_maps(n,target):
+    for map_id in range(3):
+        g=game(n,map_id);s=g['heist'];layout=heist.MAPS[map_id]
+        assert s['target']==target
+        assert len(s['guards'])==len(layout['patrols'])==3
+        assert len(layout['lasers'])==(5 if map_id==2 else 4)

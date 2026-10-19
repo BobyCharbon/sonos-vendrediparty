@@ -62,7 +62,7 @@ def test_heist_solo_three_maps_and_real_treasure_delivery(phones):
     host.page.keyboard.press('e')
     wait_state(host,lambda g:g['heist']['banked']==1)
     assert mine(host)['bag'] is None
-    expect(host.page.locator('.hs-count')).to_have_text('Butin 1 / 4')
+    expect(host.page.locator('.hs-count')).to_have_text('Butin 1 / 6')
 
 
 def test_heist_coop_touch_late_join_and_network_recovery(phones):

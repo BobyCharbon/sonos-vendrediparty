@@ -14,18 +14,18 @@ MAPS = [
     dict(id=0, name='Galerie royale', subtitle='Marbre bleu · grands salons · joyaux de la couronne', color='#426998',
          walls=[[-5,-3,1,8],[5,-3,1,8],[-5,5,6,1],[5,5,6,1]],
          treasures=[[-8,-7],[0,-7],[8,-7],[-8,0],[0,0],[8,0],[-8,7],[8,7],[0,4],[-2,-4]],
-         patrols=[[[-8,-8],[-8,3],[-2,3],[-2,-8]],[[2,-8],[8,-8],[8,2],[2,2]]],
-         lasers=[[-3,-2,3,-2],[6,4,10,4]], switch=[0,7]),
+         patrols=[[[-8,-8],[-8,3],[-2,3],[-2,-8]],[[2,-8],[8,-8],[8,2],[2,2]],[[-1,-6],[1,-6],[1,2],[-1,2]]],
+         lasers=[[-3,-2,3,-2],[6,4,10,4],[-10,1,-6,1],[-1.5,3,1.5,3]], switch=[0,7]),
     dict(id=1, name='Cabinet des curiosités', subtitle='Jade et cuivre · vitrines en îlots · chemins croisés', color='#3d807c',
          walls=[[-5,-5,5,1],[5,-5,5,1],[-5,1,1,5],[5,1,1,5],[0,3,4,1]],
          treasures=[[-8,-7],[0,-7],[8,-7],[-8,-1],[0,-1],[8,-1],[-8,6],[8,6],[-2,6],[2,-4]],
-         patrols=[[[-8,-3],[-3,-3],[-3,4],[-8,4]],[[3,-3],[8,-3],[8,4],[3,4]]],
-         lasers=[[-10,4,-6,4],[-3,-5,3,-5]], switch=[8,7]),
+         patrols=[[[-8,-3],[-3,-3],[-3,4],[-8,4]],[[3,-3],[8,-3],[8,4],[3,4]],[[-8,-8],[8,-8],[8,-6],[-8,-6]]],
+         lasers=[[-10,4,-6,4],[-3,-5,3,-5],[-10,-6,-6,-6],[2,5,10,5]], switch=[8,7]),
     dict(id=2, name='Aile des antiquités', subtitle='Grès et améthyste · sarcophages · galerie centrale', color='#876248',
          walls=[[-6,-3,1,8],[6,-3,1,8],[-2,-1,1,5],[2,-1,1,5],[-6,5,5,1],[6,5,5,1]],
          treasures=[[-9,-7],[-4,-6],[0,-6],[4,-6],[9,-7],[-9,2],[9,2],[-4,3],[4,3],[0,6]],
-         patrols=[[[-9,-5],[-9,3],[-7,3],[-7,-5]],[[3,-5],[5,-5],[5,3],[3,3]]],
-         lasers=[[-1.4,-3,1.4,-3],[-5,4,-2,4],[7,3,10,3]], switch=[-8,7]),
+         patrols=[[[-9,-5],[-9,3],[-7,3],[-7,-5]],[[3,-5],[5,-5],[5,3],[3,3]],[[-.7,-7],[.7,-7],[.7,2],[-.7,2]]],
+         lasers=[[-1.4,-3,1.4,-3],[-5,4,-2,4],[7,3,10,3],[-5,-5,-3,-5],[-1.4,3,1.4,3]], switch=[-8,7]),
 ]
 EXIT = [0, 8]
 JAIL = [-9, 8]
@@ -39,7 +39,7 @@ def state(g):
     if g['type'] != 'heist':
         raise HeistError('Cette action appartient au Braquage')
     return g.setdefault('heist', dict(map_id=0, bodies={}, treasures=[], guards=[], time=0., clock=0.,
-        solo=True, target=4, banked=0, captures=0, wins=0, scores={}, success=False, notice='', disabled_until=0.))
+        solo=True, target=6, banked=0, captures=0, wins=0, scores={}, success=False, notice='', disabled_until=0.))
 
 
 def configure(g, settings):
@@ -75,7 +75,7 @@ def start(g, rng=None):
         dest = path[(node+1)%len(path)]
         guards.append(dict(x=x,y=y,node=(node+1)%len(path),angle=math.atan2(dest[0]-x,dest[1]-y),path=i))
     s.update(bodies=bodies, treasures=treasures, guards=guards, time=-3., clock=time.time(), solo=len(bodies)==1,
-        target=min(8,3+len(bodies)),banked=0,captures=0,success=False,notice='',disabled_until=0.)
+        target=max(6,min(8,3+len(bodies))),banked=0,captures=0,success=False,notice='',disabled_until=0.)
     g.update(phase='countdown',round=g['round']+1)
 
 

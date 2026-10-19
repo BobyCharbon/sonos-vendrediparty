@@ -2,9 +2,9 @@
 
 Dans Jeux, choisir **Préparer le braquage**. L'animateur choisit la Galerie royale, le Cabinet des curiosités ou l'Aile des antiquités, partage le code et lance la manche. Le jeu fonctionne seul ou en coopération à 2–8, avec une limite de quatre minutes.
 
-Joystick ou flèches / ZQSD / WASD pour avancer. Le bouton d'action (espace ou E au clavier) indique ce qui est possible : prendre un trésor, déposer à la sortie verte, couper les lasers quinze secondes ou libérer les amis près de la prison rose. Un seul trésor par personne. Objectif commun : quatre trésors seul, puis un de plus par joueur, jusqu'à huit.
+Joystick ou flèches / ZQSD / WASD pour avancer. Le bouton d'action (espace ou E au clavier) indique ce qui est possible : prendre un trésor, déposer à la sortie verte, couper les lasers quinze secondes ou libérer les amis près de la prison rose. Un seul trésor par personne. Objectif commun : six trésors de un à trois joueurs, sept à quatre joueurs et huit à partir de cinq joueurs.
 
-Les gardiens suivent des parcours visibles et détectent dans un cône, bloqué par les murs. Les lasers alternent quatre secondes actives et trois secondes inactives. L'exposition monte dans les zones dangereuses et redescend à couvert. Une capture laisse le trésor sur place : prison en coopération, retour à la sortie et douze secondes perdues en solo. Une équipe entièrement emprisonnée perd. Les victoires sont attribuées à tous les participants encore présents, également dans le classement d'une salle.
+Trois gardiens et quatre à cinq barrières laser protègent chaque musée. Les gardiens suivent des parcours visibles et détectent dans un cône, bloqué par les murs. Les lasers alternent quatre secondes actives et trois secondes inactives. L'exposition monte dans les zones dangereuses et redescend à couvert. Une capture laisse le trésor sur place : prison en coopération, retour à la sortie et douze secondes perdues en solo. Une équipe entièrement emprisonnée perd. Les victoires sont attribuées à tous les participants encore présents, également dans le classement d'une salle.
 
 ## Architecture
 
