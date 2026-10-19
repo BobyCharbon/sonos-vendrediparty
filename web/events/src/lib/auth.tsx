@@ -4,7 +4,7 @@ import { AppState, Platform } from 'react-native';
 
 import { supabase } from './supabase';
 import { isAdminRole, type Profile } from './types';
-import { unregisterPushToken } from './push';
+import { syncWebPush, unregisterPushToken } from './push';
 
 type AuthState = {
   loading: boolean;
@@ -74,6 +74,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [sessionReady, session?.user.id, loadProfile]);
 
   const loading = !sessionReady || (!!session && profile?.id !== session.user.id && !profileError);
+
+  useEffect(() => {
+    if (session && profile?.id === session.user.id && profile.status === 'active') {
+      void syncWebPush().catch(() => { /* Les réglages proposent de réparer l’activation. */ });
+    }
+  }, [session, profile?.id, profile?.status]);
 
   // Une validation faite par l'admin devient visible sans reconnecter le membre.
   useEffect(() => {

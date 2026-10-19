@@ -20,10 +20,11 @@ export default function Privacy() {
       </Section>
       <Section title="Services techniques">
         <T>Supabase héberge la base du projet en région Zurich et gère la connexion. Twilio reçoit le numéro nécessaire à l’envoi du code SMS. Le module événements est hébergé sur le même site que Party.</T>
-        <T>Les notifications des événements sont consultables dans Activité. Les autorisations du navigateur pour les notifications de musique sont gérées séparément par Party.</T>
+        <T>Les notifications des événements sont consultables dans Activité. Si tu actives leur réception sur un appareil, son adresse de notification et ses clés de chiffrement sont enregistrées avec ton compte et ta session. Les services push du navigateur transmettent les messages chiffrés.</T>
+        <T>Les préférences des événements et de la musique sont distinctes. L’autorisation système de notification peut être commune au site. Les annonces admin restent lisibles et ne peuvent pas être désactivées dans les préférences.</T>
       </Section>
       <Section title="Tes choix et la conservation">
-        <T>Tu peux modifier ton prénom, tes abonnements et tes préférences de notifications depuis ton profil. Les notifications de l’historique sont purgées après 90 jours.</T>
+        <T>Tu peux modifier ton prénom, tes abonnements et tes préférences de notifications depuis ton profil. Les notifications de l’historique sont purgées après 90 jours ; les annonces admin sont conservées dans leur historique. Une déconnexion retire l’abonnement aux événements de cet appareil.</T>
         <T>Tu peux supprimer ton compte depuis Profil → Gérer mon compte. Cette action supprime tes contributions et les événements que tu as créés. Les textes rédigés par d’autres membres peuvent encore contenir des références à ton prénom.</T>
         <T>Pour toute question sur les données du groupe, contacte son administrateur par le canal habituel du groupe.</T>
       </Section>

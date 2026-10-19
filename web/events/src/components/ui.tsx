@@ -81,7 +81,7 @@ export function Section({ title, right, children }: { title: string; right?: Rea
   return (
     <Card>
       <View style={s.rowBetween}>
-        <Title size={18}>{title}</Title>
+        <Title size={18} style={{ flexShrink: 1 }}>{title}</Title>
         {right}
       </View>
       {children}

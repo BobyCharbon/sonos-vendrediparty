@@ -11,7 +11,7 @@ import type { NewEventScope } from '@/lib/types';
 const scopeHint: Record<NewEventScope, string> = {
   all: 'Tu es prévenu de TOUS les nouveaux événements. Tes abonnements servent au filtre « Mes abonnements ».',
   subscribed: 'Tu es prévenu seulement des nouveaux événements qui ont une de tes catégories ou un de tes tags.',
-  none: 'Tu n’es prévenu d’aucun nouvel événement.',
+  none: 'Tu n’es prévenu d’aucun nouvel événement. Les annonces admin restent actives.',
 };
 
 export default function Subscriptions() {
@@ -84,6 +84,7 @@ export default function Subscriptions() {
   return (
     <Screen edges={[]}>
       <T muted>Abonne-toi aux catégories et aux tags qui t’intéressent.</T>
+      <T muted size={13}>En mode « Mes abonnements », une catégorie OU un tag suffit. Les annonces admin concernent toujours tout le groupe.</T>
       <ErrorText error={saveError ?? error} />
       {saving ? <T muted size={13}>Enregistrement…</T> : null}
 

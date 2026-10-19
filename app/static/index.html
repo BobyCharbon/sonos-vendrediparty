@@ -138,6 +138,7 @@
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
 <script src="/static/push.js"></script>
+<script src="/static/events-shell.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -270,7 +271,7 @@ async function changeName() {
 $("nameChip").addEventListener("click", changeName);
 
 // Les événements utilisent leur compte SMS ; les accès musique/jeux restent indépendants.
-function showTab(tab) {
+function showTab(tab, eventTarget) {
   if (!["music", "games", "events"].includes(tab)) tab = "music";
   document.querySelectorAll("[data-view]").forEach((el) => el.classList.toggle("hidden", el.dataset.view !== tab));
   document.querySelectorAll("#tabs [data-tab]").forEach((el) => {
@@ -283,9 +284,12 @@ function showTab(tab) {
   $("appTitle").textContent = ({ music: "Musique", games: "Jeux", events: "Événements" })[tab];
   store("vp_tab", tab);
   if (tab === "games") refreshGame();
-  if (tab === "events" && !$("eventsFrame").hasAttribute("src")) {
-    $("eventsFrame").addEventListener("load", () => $("eventsLoading").classList.add("hidden"), { once: true });
-    $("eventsFrame").src = "/events/";
+  if (tab === "events") {
+    if (eventTarget) PartyEvents.open(eventTarget);
+    else if (!$("eventsFrame").hasAttribute("src")) {
+      $("eventsFrame").addEventListener("load", () => $("eventsLoading").classList.add("hidden"), { once: true });
+      $("eventsFrame").src = "/events/";
+    }
   }
   scrollTo(0, 0);
 }
@@ -440,6 +444,9 @@ addEventListener("DOMContentLoaded", async () => {
     setGame(params.get("game").replace(/\D/g, "").slice(0, 4)); autoJoin = true;
     history.replaceState(null, "", location.pathname);
     showTab("games");
+  } else if (params.get("tab") === "events") {
+    showTab("events", PartyEvents.target(params));
+    history.replaceState(null, "", location.pathname);
   } else showTab(params.has("pin") ? "music" : store("vp_tab") || "music");
   if (params.has("pin")) {
     const pin = params.get("pin");
