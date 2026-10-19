@@ -47,11 +47,22 @@ def events_origin(tmp_path_factory):
 
 
 @pytest.fixture(scope='module')
-def browser():
-    with pw.sync_playwright() as p:
-        b = p.chromium.launch(headless=True)
+def browser(request):
+    # Les jeux peuvent déjà avoir ouvert la boucle Playwright via pytest-playwright.
+    # Réutiliser cette instance permet aussi de lancer la suite complète.
+    owned = False
+    try:
+        p = request.getfixturevalue('playwright')
+    except pytest.FixtureLookupError:
+        p = pw.sync_playwright().start()
+        owned = True
+    b = p.chromium.launch(headless=True)
+    try:
         yield b
+    finally:
         b.close()
+        if owned:
+            p.stop()
 
 
 def mock_services(page, pending=False):
