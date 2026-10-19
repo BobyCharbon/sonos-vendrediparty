@@ -4,7 +4,7 @@ window.Neon = (() => {
   const teams = ['Cyan','Rose','Or','Iris'];
   const icon = '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" aria-hidden="true"><path d="M6 29 24 39 42 29M6 23 24 33 42 23 24 13Z"/><path d="m25 4-9 16h8l-1 10 11-17h-9z" fill="currentColor" stroke="none"/></svg>';
   const rules = `<h3>Reste sur la plateforme</h3><p>De <b>2 à 8 joueurs</b>, chacun sur son téléphone. Déplace-toi avec le joystick à gauche. Maintiens <b>DASH</b> à droite pour charger, vise avec le joystick, puis relâche pour éjecter tes adversaires. Une charge complète prend 1,1 seconde ; le dash se recharge ensuite.</p><h3>La dernière équipe debout gagne</h3><p>Chacun pour soi, ou <b>2 à 4 équipes de deux</b>. Choisissez vos duos avant le match. Les coéquipiers partagent leur couleur et ne se repoussent pas. Une équipe reste en jeu tant qu'un de ses membres tient sur la plateforme.</p><p>La bordure commence à se refermer après 12 secondes. Une manche dure au maximum <b>45 secondes</b>. Le dernier joueur ou duo marque un point ; une chute simultanée donne une égalité. Premier à <b>5 victoires</b> ! L'animateur lance chaque manche.</p><h3>Revenir dans la partie</h3><p>En solo, un nouvel arrivant attend la prochaine manche. En duo, les inscriptions sont fermées pendant le match : les nouveaux peuvent regarder et rejoindre au prochain match. Après un départ, l’animateur peut préparer un nouveau match depuis les résultats, en remettant les scores à zéro. Si tu changes d'application, ton personnage s'arrête et peut être éliminé. Reviens dans le même navigateur pour retrouver ta place. Sur ordinateur : flèches ou ZQSD, espace pour charger.</p>`;
-  let root, canvas, ctx, current, snap, code='', frame=0, timer=0, session=0, latest=0, received=0, signature='',request=null;
+  let root, canvas, ctx, current, snap, code='', frame=0, timer=0, session=0, latest=0, received=0, signature='',request=null,lastFrame=0;
   let input={x:0,y:0,charging:false,cancel:true}, stickId=null, dashId=null, particles=[], ghosts=new Map(), shown=new Map();
   const keys=new Set();
   const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -17,7 +17,7 @@ window.Neon = (() => {
   }
   function stop() {
     session++; request?.abort(); cancelAnimationFrame(frame); clearTimeout(timer); reset(); root=null; snap=null; code='';
-    particles=[]; ghosts.clear(); shown.clear();
+    particles=[]; ghosts.clear(); shown.clear();lastFrame=0;
   }
   function mount(g) {
     const el=document.getElementById('game');
@@ -41,7 +41,7 @@ window.Neon = (() => {
   function accept(v) {
     if (!v) return;
     if (snap && v.round===snap.round && v.clock<snap.clock && v.phase!=='lobby') return;
-    if (snap && (v.round!==snap.round || v.phase!==snap.phase)) reset();
+    if (snap && (v.round!==snap.round || v.phase!==snap.phase)) { reset(); shown.clear(); ghosts.clear(); }
     const old=snap;
     if(v.phase==='play'&&snap?.phase!=='play'&&realtimeControlsActive()){const c=root.querySelector('canvas');c.tabIndex=-1;c.focus({preventScroll:true});}
     snap=v; received=performance.now();
@@ -165,7 +165,9 @@ window.Neon = (() => {
     if(!root?.isConnected)return;
     frame=requestAnimationFrame(draw);
     if(!realtimeControlsActive())return;
-    const w=canvas.clientWidth,h=canvas.clientHeight,dpr=Math.min(devicePixelRatio||1,2);
+    const dt=Math.min(.05,(now-lastFrame)/1000||1/60);lastFrame=now;
+    const smooth=1-Math.exp(-27*dt);
+    const w=canvas.clientWidth,h=canvas.clientHeight,dpr=Math.min(devicePixelRatio||1,1.5);
     if(canvas.width!==Math.round(w*dpr)||canvas.height!==Math.round(h*dpr)){canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);}
     ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
     const sc=w/25.5, cx=w/2, cy=h*.54, sy=.72;
@@ -203,7 +205,7 @@ window.Neon = (() => {
         if(!p.alive)return;
         const target={x:p.x+p.vx*lag,y:p.y+p.vy*lag};
         const last=shown.get(p.pid)||target;
-        const pos={x:last.x+(target.x-last.x)*.36,y:last.y+(target.y-last.y)*.36};shown.set(p.pid,pos);
+        const pos={x:last.x+(target.x-last.x)*smooth,y:last.y+(target.y-last.y)*smooth};shown.set(p.pid,pos);
         fighter({...p,...pos},now);
       });
     }
@@ -224,7 +226,7 @@ window.Neon = (() => {
       if(p.name){ctx.font=`600 ${Math.max(10,Math.min(12,w/32))}px system-ui`;ctx.textAlign='center';ctx.fillStyle='#f3f8ff';ctx.shadowColor='#050c19';ctx.shadowBlur=4;ctx.fillText(p.name.length>13?p.name.slice(0,12)+'…':p.name,x,y-z-r-9);ctx.shadowBlur=0;}
     }
     particles=particles.filter(p=>p.life>0);
-    particles.forEach(p=>{p.x+=p.vx*.016;p.y+=p.vy*.016;p.life-=.025;const [x,y]=point(p.x,p.y,.3+p.life);ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.fillRect(x,y,3,3);});ctx.globalAlpha=1;
+    particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.life=Math.max(0,p.life-dt*1.5);const [x,y]=point(p.x,p.y,.3+p.life);ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.fillRect(x,y,3,3);});ctx.globalAlpha=1;
     if(snap){
       const playing=snap.phase==='play', mine=snap.fighters.find(p=>p.pid===snap.me);
       root.querySelector('.nk-clock').innerHTML=`${Math.ceil(Math.max(0,45-Math.max(0,t)))}<span>s</span>`;
