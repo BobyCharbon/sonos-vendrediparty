@@ -1,5 +1,5 @@
 /* Tropical game surface; all overrides are scoped to the island. */
-.g-is { --gc:#68d2b2; --g-rgb:104,210,178; }
+.g-is { --gc:#68d2b2; --g-rgb:104,210,178; --g-bg:#235d4b; --g-accent:#f3d88c; --g-ink:#163d3a; --g-soft:#d6f0e4; --g-chip:#164534; }
 body.island-full #gamePlay { background:#16444c; padding:0; }
 body.island-full #gamePlay > #game { max-width:none; width:100%; border:0; border-radius:0; padding:0; box-shadow:none; overflow:hidden; background:#b8e5eb; }
 body.island-full #gTop { margin:0; max-width:none; top:0; padding:8px max(16px,env(safe-area-inset-right)) 8px max(16px,env(safe-area-inset-left)); background:#16444c; min-height:58px; }

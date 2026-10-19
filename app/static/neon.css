@@ -1,5 +1,5 @@
 /* A suspended arena, cool metal and emissive edges. Scoped to this game. */
-.g-nk { --gc: #55e8ff; --g-rgb: 85,232,255; }
+.g-nk { --gc: #55e8ff; --g-rgb: 85,232,255; --g-bg: #253d79; --g-accent: #55e8ff; --g-ink: #082b3a; --g-soft: #d5eaff; --g-chip: #172950; }
 #game.g-nk { padding: 0; overflow: hidden; background: #080e20; color: #eef6ff; border: 1px solid #27354d; }
 .nk-root { --nk-muted: #abbdd5; font-family: inherit; color-scheme: dark; }
 .nk-root * { box-sizing: border-box; }
@@ -62,7 +62,6 @@
 .nk-footnote { text-align: center; font-size: 10px; color: #8fa6c3; margin: 0; padding: 8px 12px 14px; }
 .nk-lobby .nk-canvas { height: clamp(190px,65vw,320px); }
 .nk-playing .nk-footnote { display: none; }
-.gcard.g-nk .g-icon { color: #55e8ff; }
 @media (max-width: 360px) { .nk-controls { padding-inline: 16px; } .nk-control-tip { display: none; } .nk-heading { padding-inline: 16px; } }
 @media (max-height: 740px) and (orientation: portrait) { .nk-playing .nk-canvas { height: 230px; } .nk-playing .nk-heading { padding-top: 12px; } .nk-playing .nk-controls { padding-top: 4px; } }
 @media (orientation: landscape) and (max-height: 600px) { .nk-playing { position: relative; } .nk-playing .nk-canvas { height: 250px; } .nk-playing .nk-controls { position: absolute; left: 0; right: 0; bottom: 55px; pointer-events: none; } .nk-playing .nk-stick,.nk-playing .nk-dash { pointer-events: auto; } .nk-playing .nk-control-tip { display: none; } }
