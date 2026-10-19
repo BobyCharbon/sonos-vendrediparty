@@ -82,7 +82,7 @@ export default function NotificationSettings() {
       <ErrorText error={error ?? loadError ?? deviceError} />
       {saving ? <T muted size={13}>Enregistrement…</T> : null}
       <Section title="Sur cet appareil">
-        <T weight="semibold">{device?.subscribed ? 'Notifications activées' : device?.permission === 'denied' ? 'Notifications bloquées par le navigateur' : 'Notifications à activer'}</T>
+        <T weight="semibold">{!device ? 'Vérification de l’appareil…' : device.subscribed ? 'Notifications activées' : device.needsInstall ? 'Ajouter Party à l’écran d’accueil' : !device.supported ? 'Notifications indisponibles ici' : device.permission === 'denied' ? 'Notifications bloquées par le navigateur' : 'Notifications à activer'}</T>
         <T muted size={13}>{device?.needsInstall
           ? 'Sur iPhone ou iPad : dans Safari, Partager → Ajouter à l’écran d’accueil. Ouvre ensuite l’icône Party pour activer les notifications.'
           : device && !device.supported
@@ -103,6 +103,20 @@ export default function NotificationSettings() {
         <T muted size={13}>Elles ne se désactivent pas ici et ne dépendent ni des catégories, ni des tags, ni de la sourdine d’un événement. Leur envoi sur l’appareil nécessite l’autorisation du navigateur.</T>
         <LinkRow label="Lire les annonces admin" onPress={() => router.push('/announcements')} />
       </Section>
+      <Section title="Nouveaux événements">
+        <Segmented<NotificationPrefs['new_event']> value={prefs.new_event} disabled={saving}
+          onChange={(new_event) => update({ new_event })}
+          options={[{ key: 'all', label: 'Tous' }, { key: 'subscribed', label: 'Mes abonnements' }, { key: 'none', label: 'Aucun' }]} />
+        <T muted size={13}>{prefs.new_event === 'subscribed'
+          ? 'Une catégorie OU un tag auquel tu es abonné suffit pour recevoir l’alerte.'
+          : prefs.new_event === 'all' ? 'Tous les nouveaux événements visibles pour toi.' : 'Aucune alerte de nouvel événement. Les annonces admin restent actives.'}</T>
+        <LinkRow
+          label="Choisir mes catégories et mes tags"
+          hint="Soirée, bar, cinéma…"
+          onPress={() => router.push('/settings/subscriptions')}
+        />
+      </Section>
+
       <Section title="Général">
         <ToggleRow disabled={saving} label="Alertes facultatives" hint="Couper les alertes choisies ci-dessous. Les annonces admin restent activées." value={prefs.push_enabled} onChange={(v) => update({ push_enabled: v })} />
         <ToggleRow
@@ -122,20 +136,6 @@ export default function NotificationSettings() {
             </View>
           </View>
         ) : null}
-      </Section>
-
-      <Section title="Nouveaux événements">
-        <Segmented<NotificationPrefs['new_event']> value={prefs.new_event} disabled={saving}
-          onChange={(new_event) => update({ new_event })}
-          options={[{ key: 'all', label: 'Tous' }, { key: 'subscribed', label: 'Mes abonnements' }, { key: 'none', label: 'Aucun' }]} />
-        <T muted size={13}>{prefs.new_event === 'subscribed'
-          ? 'Une catégorie OU un tag auquel tu es abonné suffit pour recevoir l’alerte.'
-          : prefs.new_event === 'all' ? 'Tous les nouveaux événements visibles pour toi.' : 'Aucune alerte de nouvel événement. Les annonces admin restent actives.'}</T>
-        <LinkRow
-          label="Choisir mes catégories et mes tags"
-          hint="Soirée, bar, cinéma…"
-          onPress={() => router.push('/settings/subscriptions')}
-        />
       </Section>
 
       <Section title="Événements auxquels je participe">
