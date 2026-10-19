@@ -30,7 +30,7 @@ export default function AdminAnnouncements() {
   }
 
   return (
-    <Screen>
+    <Screen edges={[]}>
       <Title>Publier une annonce</Title>
       <T muted>Visible pour tous les membres, sans désabonnement possible. Elle restera dans Activité. Les appareils autorisés seront prévenus, en respectant les heures silencieuses.</T>
       <ErrorText error={error} />

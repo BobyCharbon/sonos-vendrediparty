@@ -83,7 +83,7 @@ export default function EventScreen() {
     return out;
   }, [data]);
 
-  if (!data || !ev) return loadError ? <Screen><ErrorText error={loadError} /></Screen> : <Loading />;
+  if (!data || !ev) return loadError ? <Screen edges={[]}><ErrorText error={loadError} /></Screen> : <Loading />;
 
   const published = ev.status === 'published';
   const canEdit = isAdmin || (isOrganizer && (ev.status !== 'published' || data.canEditPublished));

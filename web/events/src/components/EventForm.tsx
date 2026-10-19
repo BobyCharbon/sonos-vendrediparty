@@ -185,7 +185,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
   }, [eventId]);
 
   if (!draft || !ctx) return (
-    <Screen>
+    <Screen edges={[]}>
       {contextError ? (
         <>
           <ErrorText error={contextError} />

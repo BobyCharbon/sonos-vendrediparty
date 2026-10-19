@@ -91,7 +91,7 @@ export default function Home() {
   const isSel = (f: Filter) => JSON.stringify(f) === JSON.stringify(filter);
 
   return (
-    <SafeAreaView style={s.screen} edges={['top']}>
+    <SafeAreaView style={s.screen} edges={['left', 'right']}>
       <ScrollView
         style={{ flex: 1, minHeight: 0 }}
         contentContainerStyle={[s.content, { paddingBottom: 96 }]}

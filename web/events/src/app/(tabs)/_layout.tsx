@@ -1,5 +1,6 @@
 import { Link, Slot, usePathname } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth, useMe } from '@/lib/auth';
 import { usePendingCount } from '@/lib/pending';
@@ -10,6 +11,7 @@ export default function EventsLayout() {
   const me = useMe();
   const pending = usePendingCount(me.id);
   const path = usePathname();
+  const insets = useSafeAreaInsets();
   const links = [
     { href: '/', label: 'Sorties', badge: pending },
     { href: '/activity', label: 'Activité' },
@@ -19,7 +21,7 @@ export default function EventsLayout() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       {/* Barre figée : seul le contenu dessous défile. */}
-      <View role="navigation" style={st.bar}>
+      <View role="navigation" style={[st.bar, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }]}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}

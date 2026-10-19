@@ -31,7 +31,7 @@ export function Screen({
   contentStyle?: StyleProp<ViewStyle>;
 }) {
   return (
-    <SafeAreaView style={s.screen} edges={edges}>
+    <SafeAreaView style={s.screen} edges={[...new Set<Edge>([...edges, 'left', 'right'])]}>
       {scroll ? (
         <ScrollView contentContainerStyle={[s.content, contentStyle]} keyboardShouldPersistTaps="handled">
           {children}

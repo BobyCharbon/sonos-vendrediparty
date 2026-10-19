@@ -33,7 +33,7 @@ export default function Profile() {
   }
 
   return (
-    <Screen>
+    <Screen edges={[]}>
       <Title>Profil</Title>
       <Card>
         <View style={s.row}>

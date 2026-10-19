@@ -42,6 +42,36 @@ window.PartyEvents = {
   },
 };
 
+/**
+ * Marges de sécurité à appliquer DANS le module (encoche, Dynamic Island, bords arrondis).
+ * Sur la page invités (coque d’app), le module va jusqu’en haut de l’écran : il reçoit la
+ * marge du haut et celles des côtés ; la barre d’onglets de Party gère le bas.
+ * Ailleurs (admin), le cadre est déjà décalé : rien à ajouter.
+ */
+window.PartyEvents.frameInsets = function frameInsets() {
+  const none = { top: 0, right: 0, bottom: 0, left: 0 };
+  if (!document.body?.classList.contains('shell')) return none;
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;'
+    + 'padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left)';
+  document.body.append(probe);
+  const cs = getComputedStyle(probe);
+  const rail = matchMedia('(min-width: 900px)').matches;  // rail d’onglets à gauche
+  const insets = {
+    top: parseFloat(cs.paddingTop) || 0,
+    right: parseFloat(cs.paddingRight) || 0,
+    bottom: 0,
+    left: rail ? 0 : parseFloat(cs.paddingLeft) || 0,
+  };
+  probe.remove();
+  return insets;
+};
+// Rotation, changement de taille : le module relit ses marges.
+['resize', 'orientationchange'].forEach((type) => window.addEventListener(type, () => {
+  const frame = document.getElementById('eventsFrame');
+  try { frame?.contentWindow?.postMessage({ type: 'party-shell:insets' }, location.origin); } catch { /* Cadre pas encore chargé. */ }
+}));
+
 window.addEventListener('message', (event) => {
   if (event.origin !== location.origin || event.data?.type !== 'party-events:pending') return;
   window.PartyEvents.badge(event.data.count);

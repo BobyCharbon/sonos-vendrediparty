@@ -46,7 +46,7 @@ export default function Admin() {
   const setSetting = (patch: Partial<GroupSettings>) => run(supabase.from('group_settings').update(patch).eq('id', true));
 
   return (
-    <Screen>
+    <Screen edges={[]}>
       <Title>Administration</Title>
       <ErrorText error={error} />
 

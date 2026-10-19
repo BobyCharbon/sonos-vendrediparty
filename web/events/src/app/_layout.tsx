@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { Button, ErrorText, Loading, Screen, T, Title } from '@/components/ui';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { ShellSafeArea } from '@/lib/shellInsets';
 import { colors, fonts } from '@/lib/theme';
 
 const theme = {
@@ -117,7 +118,9 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ThemeProvider value={theme}>
         <StatusBar style="light" />
-        <AuthProvider>{fontsLoaded ? <Gate /> : <Loading />}</AuthProvider>
+        <ShellSafeArea>
+          <AuthProvider>{fontsLoaded ? <Gate /> : <Loading />}</AuthProvider>
+        </ShellSafeArea>
       </ThemeProvider>
     </SafeAreaProvider>
   );

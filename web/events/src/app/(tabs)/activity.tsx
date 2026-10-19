@@ -38,7 +38,7 @@ export default function Activity() {
   const unread = data?.filter((n) => !n.read_at).length ?? 0;
 
   return (
-    <Screen>
+    <Screen edges={[]}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <Title>Activité</Title>
         {unread ? <Button small variant="ghost" label="Tout marquer lu" onPress={markAll} /> : null}

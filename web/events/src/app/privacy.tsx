@@ -4,7 +4,7 @@ import { Button, Screen, Section, T, Title } from '@/components/ui';
 
 export default function Privacy() {
   return (
-    <Screen>
+    <Screen edges={[]}>
       <Title>Confidentialité</Title>
       <T muted>Vendredi Party · Mise à jour du 19 octobre 2026</T>
       <Section title="Un espace pour le groupe">
