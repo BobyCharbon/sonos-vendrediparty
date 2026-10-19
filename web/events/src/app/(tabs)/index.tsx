@@ -5,9 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EventCard } from '@/components/EventCard';
 import { Button, Chip, Empty, ErrorText, Input, s, Segmented, T, Title } from '@/components/ui';
-import { rsvpClosed } from '@/lib/rsvp';
 import { useAuth, useMe } from '@/lib/auth';
-import { fetchEventList, fetchTaxonomy, useQuery } from '@/lib/data';
+import { fetchEventList, fetchTaxonomy, needsAnswer, useQuery } from '@/lib/data';
 import { must, supabase } from '@/lib/supabase';
 import { colors, fonts, radius } from '@/lib/theme';
 
@@ -84,14 +83,10 @@ export default function Home() {
   const pendingCount = data?.events.filter((e) => e.status === 'pending').length ?? 0;
 
   // Les sorties où l’on attend encore ta réponse passent en tête de « À venir ».
-  const needsAnswer = (e: (typeof visible)[number]) => {
-    if (e.status !== 'published' || rsvpClosed(e, data?.loadedAt)) return false;
-    if (e.date_mode === 'poll') return !e.date_options.some((o) => o.date_votes.some((v) => v.user_id === me.id)) && e.date_options.length > 0;
-    return !e.rsvps.some((r) => r.user_id === me.id);
-  };
-  const toAnswer = tab === 'upcoming' ? visible.filter(needsAnswer) : [];
-  const rest = tab === 'upcoming' ? visible.filter((e) => !needsAnswer(e)) : visible;
-  const unvotedPolls = data?.events.filter((e) => e.date_mode === 'poll' && needsAnswer(e)).length ?? 0;
+  const awaiting = (e: (typeof visible)[number]) => !!data && needsAnswer(e, me.id, data.loadedAt);
+  const toAnswer = tab === 'upcoming' ? visible.filter(awaiting) : [];
+  const rest = tab === 'upcoming' ? visible.filter((e) => !awaiting(e)) : visible;
+  const unvotedPolls = data?.events.filter((e) => e.date_mode === 'poll' && awaiting(e)).length ?? 0;
   const pollsToAnswer = tab === 'upcoming' && filter.kind === 'all' && !search.trim() ? unvotedPolls : 0;
   const isSel = (f: Filter) => JSON.stringify(f) === JSON.stringify(filter);
 

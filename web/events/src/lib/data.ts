@@ -98,3 +98,16 @@ export function rsvpCounts(rsvps: Pick<Rsvp, 'status' | 'waitlisted' | 'plus_one
   }
   return c;
 }
+
+/** Sortie publiée où l’on attend encore ta réponse (présence ou vote de date). */
+export function needsAnswer(e: EventListItem, me: string, now: number): boolean {
+  if (e.status !== 'published') return false;
+  if (e.rsvp_deadline && new Date(e.rsvp_deadline).getTime() < now) return false;
+  if (e.date_mode === 'poll') {
+    if (e.poll_deadline && new Date(e.poll_deadline).getTime() < now) return false;
+    return e.date_options.length > 0 && !e.date_options.some((o) => o.date_votes.some((v) => v.user_id === me));
+  }
+  // Une sortie reste « à venir » 6 h après son début.
+  if (!e.starts_at || new Date(e.starts_at).getTime() < now - 6 * 3600_000) return false;
+  return !e.rsvps.some((r) => r.user_id === me);
+}

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { formatShort, parseLocalDateTime } from '@/lib/format';
+import { refreshPending } from '@/lib/pending';
 import { rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
 import { supabase } from '@/lib/supabase';
 import { colors, fonts, radius } from '@/lib/theme';
@@ -124,6 +125,11 @@ export function RsvpCard({
             <T weight="bold" style={{ minWidth: 28, textAlign: 'center' }}>+{mine.plus_ones}</T>
             <Button small variant="secondary" label="+" disabled={mine.plus_ones >= event.max_plus_ones || closed} onPress={() => upsert('plus', { plus_ones: Math.min(event.max_plus_ones, mine.plus_ones + 1) })} />
           </View>
+        </View>
+      ) : null}
+      {mine?.status === 'yes' && !(event.allow_plus_ones && event.max_plus_ones > 0) ? (
+        <View style={[st.note, { borderLeftColor: colors.lavender }]}>
+          <T size={13} color={colors.textSoft}>Pas d’accompagnant pour cette sortie : l’organisateur a réservé les places aux membres du groupe.</T>
         </View>
       ) : null}
       {mine && !closed ? (
@@ -256,7 +262,7 @@ export function DatePollSection({
       current?.vote === v
         ? supabase.from('date_votes').delete().eq('option_id', optionId).eq('user_id', me)
         : supabase.from('date_votes').upsert({ option_id: optionId, user_id: me, vote: v }),
-      onChange,
+      () => { refreshPending(); onChange(); },
       setError,
     );
   }

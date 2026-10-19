@@ -32,6 +32,17 @@ h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; colo
 .events-panel { min-width: 0; }
 .events-frame { display: block; width: 100%; height: calc(100dvh - 172px); min-height: 240px; border: 0; background: var(--bg); border-radius: 14px; }
 body[data-tab="events"] .name-chip-top { display: none; }
+/* Onglet Événements en plein écran : le module occupe tout l’espace au-dessus de la barre d’onglets. */
+body[data-tab="events"] { overflow: hidden; }
+body[data-tab="events"] .top-head { display: none; }
+body[data-tab="events"] .events-panel {
+  position: fixed; z-index: 5; left: 0; right: 0; top: 0; bottom: calc(58px + max(6px, env(safe-area-inset-bottom)));
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); background: var(--bg);
+  display: flex; flex-direction: column;
+}
+body[data-tab="events"] .events-panel.hidden { display: none; }
+body[data-tab="events"] .events-frame { flex: 1; height: auto; min-height: 0; border-radius: 0; }
+body[data-tab="events"] #eventsLoading { position: absolute; top: calc(16px + env(safe-area-inset-top)); left: 16px; right: 16px; }
 body[data-tab="events"] #noSpotify { display: none; }
 @media (max-width: 380px) { .tabs button { padding-inline: 8px; } }
 
@@ -1313,6 +1324,7 @@ body[data-tab="music"] .tabs button.on .tab-ico { stroke: var(--accent-2); filte
   body.pyr-full #gamePlay { padding-left: 24px; padding-right: 24px;
     background: radial-gradient(60% 50% at 50% 0%, rgba(255, 79, 154, .18), transparent 70%), var(--bg); }
   .app-title, .top-head h1 { font-size: 2.75rem; }
+  body[data-tab="events"] .events-panel { left: 96px; bottom: 0; }
 }
 /* Petits écrans (iPhone SE…) : un peu plus compact */
 @media (max-width: 360px) {
@@ -1326,6 +1338,7 @@ body[data-tab="music"] .tabs button.on .tab-ico { stroke: var(--accent-2); filte
   .top-head { margin: 0 0 8px; min-height: 0; }
   .app-title, .top-head h1 { font-size: 1.6rem; }
   body.pyr-full #gamePlay { padding-top: max(6px, env(safe-area-inset-top)); }
+  body[data-tab="events"] .events-panel { bottom: calc(50px + max(6px, env(safe-area-inset-bottom))); }
 }
 /* Séparateur en casse normale (plus de majuscules espacées) */
 .g-sep { text-transform: none; letter-spacing: 0; font-size: .9rem; font-weight: 600; }

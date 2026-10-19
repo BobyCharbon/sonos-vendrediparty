@@ -152,6 +152,11 @@ def test_sms_login_events_details_and_rsvp(browser,events_origin,country,width):
         assert all(tab and tab['height']>=44 for tab in tabs)
         for left,right in zip(tabs,tabs[1:]):
             assert left['y']!=right['y'] or left['x']+left['width']<=right['x']
+        # Plein écran : le module commence en haut de l’écran, sans le titre de Party.
+        box=page.locator('#eventsFrame').bounding_box()
+        assert box['y']<=1 and not page.locator('.top-head').is_visible()
+        # Une sortie sans réponse : pastille sur l’onglet Événements.
+        pw.expect(page.locator('[data-tab="events"] [data-events-badge]')).to_have_text('1',timeout=10000)
         folder=ROOT/'.impeccable/review';folder.mkdir(parents=True,exist_ok=True)
         page.screenshot(path=str(folder/({1280:'desktop.png',390:'mobile.png',320:'mobile-320.png',1051:'user-1051.png'}[width])),full_page=True)
         frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
@@ -160,6 +165,10 @@ def test_sms_login_events_details_and_rsvp(browser,events_origin,country,width):
         pw.expect(frame.get_by_text('C’est noté, tu viens !',exact=True)).to_be_visible(timeout=10000)
         pw.expect(frame.get_by_text('PRÉSENTS · 1',exact=True)).to_be_visible()
         pw.expect(frame.get_by_text('Toi',exact=True)).to_be_visible()
+        # Les accompagnants ne sont pas autorisés sur cette sortie : un message remplace le compteur.
+        pw.expect(frame.get_by_text('Pas d’accompagnant pour cette sortie',exact=False)).to_be_visible()
+        # Plus de réponse attendue : la pastille de l’onglet Événements disparaît.
+        pw.expect(page.locator('[data-tab="events"] [data-events-badge]')).to_be_hidden(timeout=10000)
         assert any(method=='POST' and path.endswith('/rsvps') for method,path,_ in calls)
         assert not errors
     finally: context.close()

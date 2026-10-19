@@ -1,3 +1,4 @@
+import { refreshPending } from './pending';
 import { supabase } from './supabase';
 import { colors } from './theme';
 import type { EventRow, Rsvp, RsvpStatus } from './types';
@@ -9,18 +10,32 @@ export function rsvpClosed(event: Pick<EventRow, 'rsvp_deadline'>, now = Date.no
   return !!event.rsvp_deadline && new Date(event.rsvp_deadline).getTime() < now;
 }
 
-/** Crée ou met à jour la réponse de l’utilisateur en conservant les champs non modifiés. */
+/**
+ * Crée ou met à jour la réponse de l’utilisateur en conservant les champs non modifiés.
+ * La base n’autorise la mise à jour que de status, plus_ones et note : pas d’upsert
+ * (il réécrirait event_id et user_id), mais une insertion puis, si elle existe déjà, une mise à jour.
+ */
 export async function saveRsvp(eventId: string, me: string, current: MinimalRsvp, patch: Partial<Pick<Rsvp, 'status' | 'plus_ones' | 'note'>>) {
   const status = patch.status ?? current?.status ?? 'yes';
-  const { error } = await supabase.from('rsvps').upsert({
-    event_id: eventId,
-    user_id: me,
+  const fields = {
     status,
     // Un absent ne vient pas accompagné.
     plus_ones: status === 'yes' ? (patch.plus_ones ?? current?.plus_ones ?? 0) : 0,
     note: patch.note !== undefined ? patch.note : (current?.note ?? null),
-  });
-  if (error) throw new Error(error.message);
+  };
+  const update = () => supabase.from('rsvps').update(fields).eq('event_id', eventId).eq('user_id', me);
+  let { error } = current
+    ? await update()
+    : await supabase.from('rsvps').insert({ event_id: eventId, user_id: me, ...fields });
+  // Réponse déjà enregistrée ailleurs (autre onglet, autre appareil) : on la met à jour.
+  if (error?.code === '23505') ({ error } = await update());
+  if (error) throw new Error(friendlyRsvpError(error.message));
+  refreshPending();
+}
+
+function friendlyRsvpError(message: string): string {
+  if (/permission denied/i.test(message)) return 'Ta réponse n’a pas pu être enregistrée. Recharge la page puis réessaie.';
+  return message;
 }
 
 export const rsvpChoices: Record<RsvpStatus, { label: string; icon: string; fg: string; bg: string; dim: string; mine: string }> = {
