@@ -63,6 +63,8 @@ GAME_ICONS.quiz = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" st
 GAME_ICONS.room = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 22L24 8l17 14"/><path d="M11 19v21h26V19"/><rect x="19" y="27" width="10" height="13" rx="2"/><path d="M30 13V9h5v8"/></svg>`;
 const GAME_THEME = { room: "g-rm", biskit: "g-bk", pyramid: "g-py", undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv", tmc: "g-tm" };
 const isBJ = (g) => g.type === "blackjack";
+GAME_ICONS.heist = Heist.icon;
+GAME_THEME.heist = "g-hs";
 GAME_ICONS.island = Island.icon;
 GAME_THEME.island = "g-is";
 GAME_ICONS.neon = Neon.icon;
@@ -141,6 +143,7 @@ const CASINO_RULES_DRINKS = `
 const GAME_RULES = {
   neon: Neon.rules,
   island: Island.rules,
+  heist: Heist.rules,
   president: President.rules,
   room: `
     <h3>Le principe</h3>
@@ -360,6 +363,12 @@ document.getElementById("gamesRoot").innerHTML = `
       </div>
       <div class="g-sep"><span>ou une partie seule</span></div>
 
+      <div class="gcard g-hs">
+        <div class="g-head"><div class="g-icon">${GAME_ICONS.heist}</div><div class="g-meta"><div class="g-title">Braquage en miniature</div><div class="g-tag">Petits voleurs. Grand coup.</div></div>${helpBtn("heist")}</div>
+        <p class="g-desc">Infiltre le musée, évite les gardiens et rapporte les trésors. En équipe, personne ne reste derrière les barreaux.</p>
+        <div class="g-chips"><span>1–8 joueurs</span><span>3 musées en 3D</span><span>Solo ou coopération</span></div>
+        <button class="g-go" data-create="heist">Préparer le braquage</button>
+      </div>
       <div class="gcard g-is">
         <div class="g-head"><div class="g-icon">${GAME_ICONS.island}</div><div class="g-meta"><div class="g-title">L’île qui s’effondre</div><div class="g-tag">Un dernier saut. Un dernier survivant.</div></div>${helpBtn("island")}</div>
         <p class="g-desc">Une île tropicale en 3D qui tombe morceau par morceau. Saute au bon moment et reste au sec !</p>
@@ -821,6 +830,7 @@ function renderGame(g) {
   if (dvDrag && g) { dvPending = g; return; }  // pas de rafraîchissement pendant qu'on tient la carte
   if (g && g !== game) gameT0 = Date.now() / 1000 - (g.elapsed || 0);  // recalé à chaque réponse du serveur
   if (g?.type !== "neon" || !pyrFull || g.kicked || g.excluded) Neon.stop();
+  if (g?.type !== "heist" || !pyrFull || g.kicked || g.excluded) Heist.stop();
   if (g?.type !== "island" || !pyrFull || g.kicked || g.excluded) Island.stop();
   game = g;
   GameAudio.observe(g, g ? myTurnKey(g) : "");
@@ -914,6 +924,8 @@ function renderGame(g) {
   if (!pyrFull) {
     // Jeu réduit : un bandeau pour revenir dedans.
     setGameHtml(`<button class="py-main" data-pyr="enter">⛶ Reprendre ${esc(g.name)} en plein écran</button>`);
+  } else if (g.type === "heist") {
+    Heist.mount(g);
   } else if (g.type === "island") {
     Island.mount(g);
   } else if (g.type === "neon") {
@@ -2159,7 +2171,7 @@ function renderGameHost(g) {
   if (isBJ(g)) return renderBJHost(g, btn);
   if (g.type === "casino") return renderCasinoHost(g, btn);
   if (g.type === "divan") return renderDivanHost(g, btn);
-  if (["pyramid", "biskit", "quiz", "room", "president", "neon", "island"].includes(g.type)) { patch.gameHost = ""; return; }
+  if (["pyramid", "biskit", "quiz", "room", "president", "neon", "island", "heist"].includes(g.type)) { patch.gameHost = ""; return; }
   if (g.type === "tmc") return renderTmcHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
   const canRemove = g.is_host;
@@ -2321,7 +2333,7 @@ document.addEventListener("click", (ev) => {
 function gameTopBar(g) {
   const phase = g.type === "pyramid" && g.pyr ? pyrPhase(g) : phaseLabel(g);
   const round = g.round && g.phase !== "lobby" && !["pyramid", "quiz"].includes(g.type)
-    ? ` · ${{ island: "manche", neon: "manche", president: "manche", undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte", tmc: "duo", biskit: "carte", quiz: "question" }[g.type] || "question"} ${g.round}` : "";
+    ? ` · ${{ heist: "braquage", island: "manche", neon: "manche", president: "manche", undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte", tmc: "duo", biskit: "carte", quiz: "question" }[g.type] || "question"} ${g.round}` : "";
   const alerts = (g.pyr?.pending?.length || 0) + (g.is_host ? (g.pyr?.peeks || []).filter((r) => r.status === "pending").length : 0);
   return `<button type="button" class="py-icon g-burger" data-gdrawer="open" aria-label="Menu : joueurs, code, QR">☰${alerts ? `<i class="badge">${alerts}</i>` : ""}</button>
     <div class="g-top-mid"><div class="g-top-name"><span class="g-top-ico" aria-hidden="true">${GAME_ICONS[g.type] || ""}</span>${esc(g.name)}</div>
@@ -2563,7 +2575,7 @@ function rulesFor(type, g) {
 
 // « ? » : règles détaillées du jeu.
 const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", never: "Je n'ai jamais", roulette: "Roulette",
-  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal", quiz: "Quiz", room: "Salle de jeux", president: "Président", neon: "Néon Knockout", island: "L’île qui s’effondre" };
+  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal", quiz: "Quiz", room: "Salle de jeux", president: "Président", neon: "Néon Knockout", island: "L’île qui s’effondre", heist: "Braquage en miniature" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");
   if (open) {

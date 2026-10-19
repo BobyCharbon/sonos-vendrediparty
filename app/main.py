@@ -20,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 
-from . import games, island, links, neon, president, quiz
+from . import games, heist, island, links, neon, president, quiz
 from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
 from .push import Push, valid_subscription
 from .security import Limiter
@@ -1074,6 +1074,8 @@ def room_launch(room: dict, me: str, settings: dict):
     kind = settings.get("type")
     if kind not in games.GAMES or kind == "room":
         raise HTTPException(400, "Jeu inconnu")
+    if kind == "heist" and (len(room["players"]) > 8 or any(p.get("manual") for p in room["players"])):
+        raise HTTPException(409, "Le braquage accueille 8 joueurs maximum, chacun avec son téléphone.")
     if kind == "island" and (len(room["players"]) > 8 or any(p.get("manual") for p in room["players"])):
         raise HTTPException(409, "L’île accueille au maximum 8 joueurs, chacun avec son téléphone.")
     if kind == "neon" and (len(room["players"]) > 8 or any(p.get("manual") for p in room["players"])):
@@ -1163,7 +1165,9 @@ def game_state(code: str, request: Request, guest_id: str = "", name: str = ""):
     if quiz.tick(g):  # Quiz : le temps a avancé (fin d'une question, question suivante…)
         g["updated_at"] = time.time()
         save_games(g["code"], g.get("room") or "")
-    with neon.LOCK, island.LOCK:
+    with neon.LOCK, island.LOCK, heist.LOCK:
+        if heist.tick(g):
+            save_games(g["code"])
         if island.tick(g):
             save_games(g["code"])
         if neon.tick(g):
@@ -1187,7 +1191,7 @@ class GameAction(BaseModel):
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
 HOST_ACTIONS = {"ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
-                "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover", "nset"}
+                "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover", "nset", "hset"}
 
 
 @app.post("/api/games/{code}")
@@ -1198,7 +1202,8 @@ def game_action(code: str, body: GameAction, request: Request):
     lock = president.LOCK if g["type"] == "president" or (child and child["type"] == "president") else contextlib.nullcontext()
     neon_lock = neon.LOCK if g["type"] == "neon" or (child and child["type"] == "neon") else contextlib.nullcontext()
     island_lock = island.LOCK if g["type"] == "island" or (child and child["type"] == "island") else contextlib.nullcontext()
-    with lock, neon_lock, island_lock:
+    heist_lock = heist.LOCK if g["type"] == "heist" or (child and child["type"] == "heist") else contextlib.nullcontext()
+    with lock, neon_lock, island_lock, heist_lock:
         return perform_game_action(code, body, request)
 
 
@@ -1211,6 +1216,8 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     a, me = body.action, body.guest_id
     if g["type"] == "president" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "up", "down", "handover", "end", "prplay", "prpass", "prexchange"}:
         raise HTTPException(400, "Action indisponible au Président")
+    if g["type"] == "heist" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "hset"}:
+        raise HTTPException(400, "Action indisponible au Braquage")
     if g["type"] == "island" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end"}:
         raise HTTPException(400, "Action indisponible sur l’île")
     if g["type"] == "neon" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "nset", "nteam"}:
@@ -1263,6 +1270,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "btap": (games.bk_tap, actor), "bclose": (games.bk_close_reflex,),
         "qset": (quiz.configure, body.settings), "qans": (quiz.answer, actor, body.amount, random, body.guess),
         "handover": (games.handover, me, target),
+        "hset": (heist.configure, body.settings),
         "nset": (neon.configure, body.settings),
         "nteam": (neon.team, me, body.amount),
         "prplay": (president.play, me, body.values, body.guess),
@@ -1278,7 +1286,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     fn, *args = actions[a]
     try:
         action_result = fn(g, *args)
-    except (games.GameError, quiz.QuizError, president.PresidentError, neon.NeonError, island.IslandError) as e:
+    except (games.GameError, quiz.QuizError, president.PresidentError, neon.NeonError, island.IslandError, heist.HeistError) as e:
         raise HTTPException(409, str(e))
     g["updated_at"] = time.time()
     # Salle de jeux : rejoindre, quitter, exclure ou passer la main vaut aussi pour le jeu en cours (et inversement).
@@ -1764,3 +1772,32 @@ def island_frame(code: str, body: IslandInput):
             g["updated_at"] = time.time()
             save_games(g["code"])
         return island.view(g, body.guest_id)
+
+
+class HeistInput(BaseModel):
+    guest_id: str
+    x: float = 0
+    y: float = 0
+    action: bool = False
+    cancel: bool = False
+
+
+@app.post("/api/games/{code}/heist")
+def heist_frame(code: str, body: HeistInput):
+    check_guest_id(body.guest_id)
+    with heist.LOCK:
+        g = get_game(code)
+        if g["type"] != "heist":
+            raise HTTPException(400, "Ce jeu n’est pas un braquage")
+        if body.guest_id in g.get("kicked", []) or (body.guest_id in g.get("removed", []) and not games.player(g, body.guest_id)):
+            raise HTTPException(403, "Tu ne participes plus à cette partie")
+        phase = g["phase"]
+        changed = heist.tick(g)
+        try:
+            heist.input_state(g, body.guest_id, body.x, body.y, body.action, cancel=body.cancel)
+        except heist.HeistError as e:
+            raise HTTPException(400, str(e))
+        if changed or phase != g["phase"]:
+            g["updated_at"] = time.time()
+            save_games(g["code"])
+        return heist.view(g, body.guest_id)

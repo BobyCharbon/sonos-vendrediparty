@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-19T09:24:42.986931+00:00",
+  "title": "Design System: Braquage en miniature",
+  "extensions": {
+    "shadows": [
+      {
+        "name": "panel-ambient",
+        "value": "0 14px 35px #17434730",
+        "purpose": "Lift paper instructions above the museum."
+      }
+    ],
+    "motion": [
+      {
+        "name": "primary-hover",
+        "value": "background .18s",
+        "purpose": "Launch and replay hover; removed with reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "portrait-width",
+        "value": "600px"
+      },
+      {
+        "name": "short-landscape-height",
+        "value": "600px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Launch action",
+      "kind": "button",
+      "description": "Launch action as implemented in the heist surface.",
+      "html": "<button class=\"ds-primary\">Lancer le braquage</button>",
+      "css": ".ds-primary{font:750 16px system-ui;background:#533477;color:#fff9e7;border:0;border-radius:10px;padding:14px 16px;min-height:48px;width:100%;cursor:pointer;transition:background .18s}.ds-primary:hover:not(:disabled){background:#3d245b}.ds-primary:focus-visible{outline:3px solid #19243a;outline-offset:4px}.ds-primary:disabled{opacity:.55}@media(prefers-reduced-motion:reduce){.ds-primary{transition:none}}",
+      "refersTo": "button-primary"
+    },
+    {
+      "name": "Map choice",
+      "kind": "button",
+      "description": "Map choice as implemented in the heist surface.",
+      "html": "<button class=\"ds-map\" aria-pressed=\"true\"><b>01 · Galerie royale</b><span>Marbre bleu · grands salons</span></button>",
+      "css": ".ds-map{font-family:system-ui;text-align:left;padding:10px 12px;border:2px solid transparent;border-radius:9px;background:#e8e2ef;color:#29344c;cursor:pointer}.ds-map[aria-pressed=true]{border-color:#684388;background:#ded0ec}.ds-map b{display:block;font-size:13px}.ds-map span{display:block;font-size:10px;margin-top:3px;line-height:1.4}.ds-map:focus-visible{outline:3px solid #19243a;outline-offset:4px}"
+    },
+    {
+      "name": "Invite link",
+      "kind": "button",
+      "description": "Invite link as implemented in the heist surface.",
+      "html": "<button class=\"ds-invite\">Copier le code</button>",
+      "css": ".ds-invite{font:12px system-ui;padding:8px 0;background:none;color:#205c4c;border:0;text-decoration:underline;text-underline-offset:3px;min-height:44px;cursor:pointer}.ds-invite:focus-visible{outline:3px solid #19243a;outline-offset:4px}"
+    },
+    {
+      "name": "Timer and shared loot",
+      "kind": "chip",
+      "description": "Timer and shared loot as implemented in the heist surface.",
+      "html": "<div class=\"ds-stats\"><strong>3:42</strong><span>Butin commun · 2 / 10</span></div>",
+      "css": ".ds-stats{font-family:system-ui;display:inline-flex;flex-direction:column;align-items:center;gap:7px;background:#15213be8;color:#fff9e7;border-radius:30px;padding:12px 22px;font-variant-numeric:tabular-nums}.ds-stats strong{font-size:30px;line-height:1}.ds-stats span{font-size:12px}"
+    },
+    {
+      "name": "Lobby panel",
+      "kind": "card",
+      "description": "Lobby panel as implemented in the heist surface.",
+      "html": "<section class=\"ds-panel\"><h3>Le musée vous attend</h3><p>Choisissez votre musée et réunissez votre équipe.</p></section>",
+      "css": ".ds-panel{font-family:system-ui;color:#19243a;padding:24px;border-radius:16px;background:rgba(255,247,229,.98);box-shadow:0 14px 35px #17434730}.ds-panel h3{font-family:\"Bricolage Grotesque\",sans-serif;font-size:27px;line-height:1.08;letter-spacing:-.025em;margin:0 0 12px}.ds-panel p{font-size:14px;line-height:1.5;color:#3d4960;margin:0}",
+      "refersTo": "panel"
+    }
+  ],
+  "narrative": {
+    "northStar": "Le musée miniature de nuit",
+    "overview": "A readable cartoon cutaway museum, with warm treasure against a blue night. This document records the implemented heist surface only. Its museum palette is the user's chosen extension; root DESIGN.md and .impeccable/design.json continue to describe L'île and are not replaced.",
+    "keyCharacteristics": [
+      "Authored 3D museum rooms with low walls and visible paths.",
+      "Shared Bricolage headings, system text and tactile game controls.",
+      "Compact objectives above the stage, with a persistent navigation plan."
+    ],
+    "rules": [],
+    "dos": [
+      "**Do** keep the launch action in the panel footer outside scrolling content.",
+      "**Do** retain readable local-player markers, objectives and navigation while the camera follows.",
+      "**Do** preserve the three museums' distinct materials and layouts."
+    ],
+    "donts": [
+      "**Don't** propagate this museum palette to other games.",
+      "**Don't** treat browser verification as real-phone or deployment validation."
+    ]
+  }
+}
