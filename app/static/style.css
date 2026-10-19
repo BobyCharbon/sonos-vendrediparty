@@ -1458,3 +1458,8 @@ img.qr:not([src]) { visibility: hidden; }
 .g-kick-opt.ban b { color: #ff8da1; }
 .g-kick-ico { flex: none; font-size: 1.6rem; }
 .g-kick { background: #221a3d; color: #fff; }
+
+/* Keep the exit visible without hunting below the invitation and roster. */
+#gTop .g-quit { min-height:44px; padding:8px 10px; flex-shrink:0; font-size:.85rem; }
+#gDrawerExit { display:grid; gap:8px; margin-bottom:16px; }
+@media(max-width:420px) { #gTop { gap:5px !important; } #gTop .g-top-ico { display:none; } #gTop .g-top-name { font-size:.85rem; } }

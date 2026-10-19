@@ -1,8 +1,9 @@
 import * as THREE from './vendor/three/three.module.min.js';
+import {renderBudget} from './render-budget.js';
 
 export function createScene(canvas){
   const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
-  renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.6));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  const sampleBudget=renderBudget(renderer);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
   const scene=new THREE.Scene();scene.background=new THREE.Color('#101a30');
   const camera=new THREE.OrthographicCamera(-15,15,12,-12,.1,100);
@@ -97,15 +98,20 @@ export function createScene(canvas){
     const w=canvas.clientWidth,h=canvas.clientHeight;if(!w||!h)return;
     if(w!==width||h!==height){width=w;height=h;renderer.setSize(w,h,false);}
     const aspect=w/h,playing=['play','countdown'].includes(v.phase),mine=v.fighters.find(p=>p.pid===v.me),dt=Math.min(.05,(now-last)/1000||.016);last=now;
+    const cameraTarget=mine&&characters.get(mine.pid);
+    const follow=cameraTarget&&round===v.round&&Math.hypot(mine.x-cameraTarget.x,mine.y-cameraTarget.y)<3
+      ? {x:cameraTarget.x+(mine.x-cameraTarget.x)*(1-Math.exp(-dt*18)),y:cameraTarget.y+(mine.y-cameraTarget.y)*(1-Math.exp(-dt*18))} : mine;
     let cx=0,cz=0,halfW;
-    if(playing&&(aspect<.85||h<500)&&mine){halfW=aspect<.85?6.3:10;cx=Math.max(-5,Math.min(5,mine.x));cz=Math.max(-6,Math.min(6,mine.y-1));}
+    if(playing&&(aspect<.85||h<500)&&mine){halfW=aspect<.85?6.3:10;cx=Math.max(-5,Math.min(5,follow.x));cz=Math.max(-6,Math.min(6,follow.y-1));}
     else{halfW=Math.max(13,10*aspect);if(!playing&&aspect>1.3)cx=-3;}
     const halfH=halfW/aspect;camera.left=-halfW;camera.right=halfW;camera.top=halfH;camera.bottom=-halfH;camera.position.set(cx,30,cz+18);camera.lookAt(cx,0,cz);camera.updateProjectionMatrix();
     for(let i=0;i<lasers.length;i++)lasers[i].visible=playing?v.lasers[i]:true;
     for(const t of v.treasures){const o=treasures[t.id];o.g.visible=t.status==='floor';o.g.position.set(t.x,0,t.y);o.gem.rotation.y=now*.001;}
     for(let i=0;i<guardModels.length;i++){
       const c=guardModels[i],p=v.guards[i]||{x:v.map.patrols[i][0][0],y:v.map.patrols[i][0][1],angle:0};
-      c.g.position.set(p.x,0,p.y);c.g.rotation.y=p.angle;c.feet.forEach((f,j)=>f.position.y=.12+Math.sin(now*.009+j*Math.PI)*.06);
+      const fresh=round!==v.round||c.x===undefined||Math.hypot(p.x-c.x,p.y-c.y)>3,smooth=1-Math.exp(-dt*18);
+      c.x=fresh?p.x:c.x+(p.x-c.x)*smooth;c.y=fresh?p.y:c.y+(p.y-c.y)*smooth;
+      c.g.position.set(c.x,0,c.y);c.g.rotation.y=p.angle;c.feet.forEach((f,j)=>f.position.y=.12+Math.sin(now*.009+j*Math.PI)*.06);
     }
     const people=playing||v.phase==='results'?v.fighters:roster.map((p,i)=>({...p,x:(i%4-1.5)*1.5,y:7.8+Math.floor(i/4)*.8,color:['#56ded7','#fc846c','#f4cc63','#b69cff','#91d077','#f397cc','#80b6ff','#ffac67'][i],active:true}));
     const ids=new Set(people.map(p=>p.pid));for(const [id,c] of characters)c.g.visible=ids.has(id);
@@ -118,7 +124,7 @@ export function createScene(canvas){
       if(Math.hypot(dx,dy)>.01)c.body.rotation.y=Math.atan2(dx,dy);
       c.feet.forEach((f,i)=>f.position.y=.1+(Math.hypot(dx,dy)>.01?Math.sin(now*.015+i*Math.PI)*.07:0));
     }
-    round=v.round;renderer.render(scene,camera);
+    round=v.round;sampleBudget(now);renderer.render(scene,camera);
   }
   function dispose(){disposed=true;geo.forEach(g=>g.dispose());mats.forEach(m=>m.dispose());textures.forEach(t=>t.dispose());moon.shadow.map?.dispose();renderer.dispose();renderer.forceContextLoss();}
   return{draw,dispose};

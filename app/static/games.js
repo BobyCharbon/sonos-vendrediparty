@@ -604,6 +604,7 @@ document.getElementById("gamesRoot").innerHTML = `
       <div class="g-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="gDrawerTitle">
         <div class="g-drawer-head"><b id="gDrawerTitle">Menu de la partie</b>
           <button type="button" class="py-icon" data-gdrawer="close" aria-label="Fermer le menu">✕</button></div>
+        <div id="gDrawerExit"></div>
         <div class="card" id="gameInvite" style="text-align:center">
           <div class="artist">Pour rejoindre : scanne ce QR ou entre le code</div>
           <div class="big-pin" id="gameCode"></div>
@@ -611,7 +612,6 @@ document.getElementById("gamesRoot").innerHTML = `
         </div>
         <div id="gDrawerPlayers"></div>
         <button type="button" class="secondary" data-gdrawer="minimize" style="width:100%;margin-top:12px">↙ Réduire le jeu (revenir aux onglets)</button>
-        <div id="gDrawerExit"></div>
       </div>
     </aside>
 
@@ -650,18 +650,26 @@ const phaseLabel = (g) => (g.type === "roulette" || isBJ(g) || g.type === "casin
 const WINNERS = { civils: "Les civils ont gagné 🎉", impostors: "Les undercovers ont gagné 🕵️", white: "Mr. White a trouvé le mot et gagne 🎩" };
 
 async function gapi(path, body) {
-  const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
-  const data = await r.json().catch(() => null);
-  if (!r.ok) {
-    const e = new Error(typeof data?.detail === "string" ? data.detail : data?.detail?.message || "Erreur");
-    e.status = r.status; e.detail = data?.detail;
+  const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: controller.signal } : {signal: controller.signal});
+    const data = await r.json().catch(e => { if (e.name === "AbortError") throw e; return null; });
+    if (!r.ok) {
+      const e = new Error(typeof data?.detail === "string" ? data.detail : data?.detail?.message || "Erreur");
+      e.status = r.status; e.detail = data?.detail;
+      throw e;
+    }
+    return data;
+  } catch (e) {
+    if (e.name === "AbortError") throw new Error("Le serveur ne répond pas. Réessaie dans un instant.");
     throw e;
-  }
-  return data;
+  } finally { clearTimeout(timeout); }
 }
+
 function setGame(code) {
   // Une nouvelle partie (créée, rejointe par code ou par QR) s'ouvre toujours en plein écran.
   if (code && code !== myGame) pyrFull = true;
+  if (code !== myGame) gSeq++;
   myGame = code; store("vp_game", code); $("gameDot")?.classList.toggle("hidden", !code);
   if (!code) syncGameChrome();
 }
@@ -738,6 +746,7 @@ async function refreshGame() {
     if (routeRoom(g)) return;
     renderGame(g);
   } catch (e) {
+    if (seq !== gSeq || code !== myGame) return;
     // Partie introuvable, ou erreur du serveur : on revient à l'accueil des jeux plutôt que de rester sur une page vide.
     if (e.status === 404) {
       // Jeu terminé dans une salle : tout le monde revient à la salle.
@@ -2338,6 +2347,7 @@ function gameTopBar(g) {
   return `<button type="button" class="py-icon g-burger" data-gdrawer="open" aria-label="Menu : joueurs, code, QR">☰${alerts ? `<i class="badge">${alerts}</i>` : ""}</button>
     <div class="g-top-mid"><div class="g-top-name"><span class="g-top-ico" aria-hidden="true">${GAME_ICONS[g.type] || ""}</span>${esc(g.name)}</div>
       <div class="g-top-sub">${g.mode ? esc(g.mode) + " · " : ""}${QUESTION_TYPES.includes(g.type) && g.round && g.phase !== "lobby" && g.phase !== "end" ? `Question ${g.round}` : (g.type === "room" ? "Soirée" : phase) + round} · ${g.room || g.type === "room" ? "salle" : "code"} <b>${esc(g.room || g.code)}</b> · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
+    ${["island","neon","heist"].includes(g.type) ? '<button type="button" class="secondary g-quit" data-gdrawer="exit">Quitter</button>' : ""}
     ${GameAudio.button()}
     <button type="button" class="py-icon g-min" data-gdrawer="minimize" aria-label="Réduire le jeu (revenir à la musique)">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
@@ -2358,13 +2368,17 @@ function renderDrawer(g) {
     ${lead && !g.me && (g.phase === "lobby" || g.phase === "end") ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">🙋 Je joue aussi</button>` : ""}`;
   patch.gDrawerExit = exitHtml(g);
 }
+function realtimeControlsActive() {
+  return !document.hidden && pyrFull && gamesTabShown() &&
+    !document.querySelector('.g-drawer:not(.hidden), .g-modal:not(.hidden)');
+}
 function openDrawer() { $("gDrawer").classList.remove("hidden"); requestAnimationFrame(() => $("gDrawer").classList.add("open")); }
 function closeDrawer() { $("gDrawer").classList.remove("open"); setTimeout(() => $("gDrawer").classList.add("hidden"), 250); }
 document.addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-gdrawer]");
   if (b) {
     const a = b.dataset.gdrawer;
-    if (a === "open") openDrawer();
+    if (a === "open" || a === "exit") { openDrawer(); $("gDrawer").querySelector(".g-drawer-panel").scrollTop = 0; }
     else if (a === "close") closeDrawer();
     else if (a === "minimize") minimizeGame();
     return;
@@ -2394,13 +2408,15 @@ function showGameEnded(info) {
 const gInflight = new Set();
 async function gameAction(action, extra = {}, opts = {}) {
   if (!myGame) return;
-  const key = action + JSON.stringify(extra);
+  const key = myGame + ":" + action + JSON.stringify(extra);
   if (gInflight.has(key)) return;
   gInflight.add(key);
+  const actionCode = myGame;
   try {
     const room = game?.room;
     const seq = ++gSeq;
     const g = await gapi(`/api/games/${myGame}`, { guest_id: guestId, name: guestName, action, ...extra });
+    if (actionCode !== myGame) return false;
     if (action === "end" && room) { setGame(room); refreshGame(); return; }  // fin d'un jeu de la salle : retour à la salle
     if (action === "end" || (action === "leave" && !g?.is_host)) {
       if (action === "leave" || game?.type === "room") { myRoom = ""; store("vp_room", ""); }
@@ -2409,11 +2425,14 @@ async function gameAction(action, extra = {}, opts = {}) {
     if (routeRoom(g)) return;
     if (seq === gSeq) renderGame(g);
     else refreshGame();  // un rechargement est parti entre-temps : on se recale sur l'état le plus récent
+    return true;
   } catch (e) {
+    if (actionCode !== myGame) return false;
     if (e.status === 404 && e.detail?.ended) showGameEnded(e.detail.ended);
     else if (opts.quiet && e.status === 409) refreshGame();  // arrivé trop tard : on se recale sans message
     else toast(e.message, "err");
     if (e.status === 404) { setGame(""); renderGame(null); }
+    return false;
   } finally {
     gInflight.delete(key);
   }
@@ -2479,7 +2498,7 @@ function exitHtml(g) {
     out.push(`<button type="button" class="secondary g-exit" data-exit="away">🚪 Quitter</button>`);
   }
   if (g.is_host) out.push(g.room ? `<button type="button" class="secondary g-exit" data-exit="end">🏠 Terminer ce jeu et revenir à la salle</button>`
-    : `<button type="button" class="danger g-exit" data-exit="end">${g.type === "room" ? "Fermer la salle pour tout le monde" : "Fermer la partie pour tout le monde"}</button>`);
+    : `<button type="button" class="danger g-exit" data-exit="end">${g.type === "room" ? "Fermer la salle pour tout le monde" : g.players.length <= 1 ? "Quitter et fermer la partie" : "Fermer la partie pour tout le monde"}</button>`);
   return out.join("");
 }
 document.addEventListener("click", async (ev) => {
@@ -2492,7 +2511,7 @@ document.addEventListener("click", async (ev) => {
     if (!p || !confirm(`${p.name} devient l'animateur${game.me ? " et tu quittes la partie" : ""}. Continuer ?`)) return;
     handoverOpen = false;
     closeDrawer();
-    await gameAction("handover", { target: p.pid });
+    if (!await gameAction("handover", { target: p.pid })) return;
     setGame(""); renderGame(null);
     return toast(`${p.name} anime maintenant la partie`, "ok");
   }

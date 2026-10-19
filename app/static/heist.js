@@ -3,7 +3,7 @@ window.Heist=(()=>{
   const icon='<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 19 24 8l17 11H7Zm3 20h28M14 21v13m10-13v13m10-13v13M7 39v4h34v-4"/><path d="m19 30 5-4 5 4-5 7-5-7Z"/></svg>';
   const rules='<h3>Un seul butin, toute une équipe</h3><p>Solo ou coopération à 2–8. Rapportez au moins 6 trésors (jusqu’à 8 selon la taille de l’équipe) à la sortie verte en moins de 4 minutes. Chacun transporte un objet à la fois et avance un peu moins vite chargé.</p><h3>Une touche, plusieurs actions</h3><p>Approche une vitrine puis touche Prendre. À la sortie, touche Déposer. Au boîtier turquoise, Coupe les lasers pendant 15 secondes. Près de la prison, Libérer remet tous les coéquipiers en jeu. Clavier : flèches, ZQSD ou WASD ; espace ou E pour agir.</p><h3>Reste hors de vue</h3><p>Trois gardiens patrouillent dans chaque musée. Les cônes jaunes montrent la vision des gardiens. Les murs te cachent. Les lasers rouges alternent allumage et extinction. Une seconde dans une zone dangereuse suffit pour être pris : la jauge rouge te prévient. Le trésor tombe sur place. À plusieurs : prison ; en solo : retour à la sortie et 12 secondes perdues. Si toute l’équipe est emprisonnée, la manche est perdue.</p><p>Choisis parmi trois musées avant la manche. Les arrivées tardives attendent la suivante. Changer d’application arrête tes déplacements, mais pas le chronomètre. La carte miniature indique trésors, sortie et prison.</p>';
   let root=null,code='',current=null,snap=null,scene=null,timer=0,frame=0,token=0,request=null,signature='',loaded=false;
-  let input={x:0,y:0,action:false,cancel:true},stickId=null,actionId=null,lastCount='',lastResult='',loadFailed=false,actionPulse=false;
+  let input={x:0,y:0,action:false,cancel:true},stickId=null,actionId=null,lastCount='',lastResult='',loadFailed=false,actionPulse=false,lastMap=0;
   const keys=new Set(),escape=x=>esc(String(x??''));
   function reset(){actionPulse=false;input={x:0,y:0,action:false,cancel:true};stickId=actionId=null;keys.clear();root?.querySelector('.hs-knob')?.style.removeProperty('transform');}
   function stop(){if(!root&&!code)return;token++;clearTimeout(timer);cancelAnimationFrame(frame);request?.abort();reset();scene?.dispose();scene=null;root=null;snap=null;code='';loaded=false;document.body.classList.remove('heist-full');}
@@ -26,7 +26,7 @@ window.Heist=(()=>{
   }
   async function load(id){
     try{
-      const {createScene}=await import('/static/heist-scene.js?v=2');
+      const {createScene}=await import('/static/heist-scene.js?v=3');
       if(id!==token||!root?.isConnected)return;
       scene=createScene(root.querySelector('canvas'));loaded=true;loadFailed=false;panel();frame=requestAnimationFrame(draw);
     }catch(e){if(id!==token)return;reset();loadFailed=true;panel();const box=root.querySelector('.hs-error');box.hidden=false;box.innerHTML='<strong>La 3D n’a pas pu démarrer.</strong><p>Vérifie que l’accélération graphique est activée, puis réessaie avec un navigateur récent.</p><button type="button" data-hs-retry>Réessayer</button>';}
@@ -35,6 +35,7 @@ window.Heist=(()=>{
     if(!v)return;
     if(snap&&(v.round<snap.round||(v.round===snap.round&&v.clock<snap.clock)))return;
     if(snap&&(v.round!==snap.round||v.phase!==snap.phase))reset();
+    if(v.phase==='play'&&snap?.phase!=='play'&&realtimeControlsActive()){const c=root.querySelector('canvas');c.tabIndex=-1;c.focus({preventScroll:true});}
     const mineBefore=snap?.fighters.find(p=>p.pid===snap.me),mineNow=v.fighters.find(p=>p.pid===v.me);
     if(mineNow?.jailed&&!mineBefore?.jailed)GameAudio.play('lose');
     if(snap&&v.banked>snap.banked)GameAudio.play('win');
@@ -43,11 +44,11 @@ window.Heist=(()=>{
   }
   async function poll(id){
     if(id!==token||!root?.isConnected)return;
-    const start=performance.now();request=new AbortController();const deadline=setTimeout(()=>request?.abort(),1800);
+    const start=performance.now(),control=new AbortController();request=control;const deadline=setTimeout(()=>control.abort(),1800);
     try{
-      if(document.hidden||!pyrFull||!gamesTabShown()||!loaded)reset();
+      if(!realtimeControlsActive()||!loaded)reset();
       const outgoing={guest_id:guestId,...input,action:input.action||actionPulse};actionPulse=false;
-      const response=await fetch(`/api/games/${code}/heist`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(outgoing),signal:request.signal});
+      const response=await fetch(`/api/games/${code}/heist`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(outgoing),signal:control.signal});
       if(id!==token)return;
       if([403,404].includes(response.status)){stop();refreshGame();return;}
       if(!response.ok)throw Error('network');
@@ -56,7 +57,7 @@ window.Heist=(()=>{
       root.classList.remove('hs-offline');
     }catch(e){if(id!==token)return;reset();root.classList.add('hs-offline');root.querySelector('.hs-network').textContent='Connexion perdue · reconnexion…';}
     finally{clearTimeout(deadline);}
-    if(id===token)timer=setTimeout(()=>poll(id),document.hidden?500:Math.max(16,65-(performance.now()-start)));
+    if(id===token)timer=setTimeout(()=>poll(id),!realtimeControlsActive()?500:Math.max(16,65-(performance.now()-start)));
   }
   function panel(){
     if(!root||!snap||!current)return;
@@ -132,13 +133,13 @@ window.Heist=(()=>{
     });
   }
   function key(e,down){
-    if(!root?.isConnected||!loaded||!pyrFull||!gamesTabShown()||/INPUT|TEXTAREA|SELECT|BUTTON/.test(e.target.tagName))return;
+    if(!root?.isConnected||!loaded||!realtimeControlsActive()||/INPUT|TEXTAREA|SELECT|BUTTON/.test(e.target.tagName))return;
     const k=e.key.toLowerCase();if(!['arrowleft','arrowright','arrowup','arrowdown','z','q','s','d','w','a',' ','e'].includes(k))return;
     e.preventDefault();if((k===' '||k==='e')&&down&&!e.repeat)actionPulse=true;down?keys.add(k):keys.delete(k);input.cancel=false;
     const has=(...ks)=>ks.some(k=>keys.has(k));input.x=+has('arrowright','d')-+has('arrowleft','q','a');input.y=+has('arrowdown','s')-+has('arrowup','z','w');input.action=has(' ','e');
   }
   document.addEventListener('keydown',e=>key(e,true));document.addEventListener('keyup',e=>key(e,false));
   document.addEventListener('visibilitychange',reset);window.addEventListener('blur',reset);
-  function draw(now){if(!root?.isConnected)return;frame=requestAnimationFrame(draw);if(!document.hidden&&pyrFull&&gamesTabShown()&&snap){scene?.draw(snap,now,current.players);minimap();}}
+  function draw(now){if(!root?.isConnected)return;frame=requestAnimationFrame(draw);if(realtimeControlsActive()&&snap&&loaded){scene?.draw(snap,now,current.players);if(now-lastMap>100){minimap();lastMap=now;}}}
   return{icon,rules,mount,stop};
 })();

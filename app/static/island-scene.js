@@ -1,9 +1,10 @@
 import * as THREE from './vendor/three/three.module.min.js';
+import {renderBudget} from './render-budget.js';
 
 // Authored 3D geometry: no background image stands in for the playable terrain.
 export function createScene(canvas) {
   const renderer = new THREE.WebGLRenderer({canvas, antialias:true, powerPreference:'high-performance'});
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.7));
+  const sampleBudget=renderBudget(renderer);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -183,7 +184,7 @@ export function createScene(canvas) {
       c.feet.forEach((f,i)=>f.position.y=.14+(moving&&!reduced?Math.sin(now*.018+i*Math.PI)*.08:0));
       c.body.rotation.z=p.alive?0:c.fallen;
     }
-    round=v.round;renderer.render(scene,camera);
+    round=v.round;sampleBudget(now);renderer.render(scene,camera);
   }
   function dispose() {
     disposed=true;

@@ -26,7 +26,7 @@ window.Island=(()=>{
   }
   async function load(id){
     try{
-      const {createScene}=await import('/static/island-scene.js?v=1');
+      const {createScene}=await import('/static/island-scene.js?v=3');
       if(id!==token||!root?.isConnected)return;
       scene=createScene(root.querySelector('canvas'));loaded=true;loadFailed=false;panel();frame=requestAnimationFrame(draw);
     }catch(e){if(id!==token)return;reset();loadFailed=true;panel();const box=root.querySelector('.is-error');box.hidden=false;box.innerHTML='<strong>La 3D n’a pas pu démarrer.</strong><p>Vérifie que l’accélération graphique est activée, puis réessaie avec un navigateur récent.</p><button type="button" data-is-retry>Réessayer</button>';}
@@ -35,17 +35,18 @@ window.Island=(()=>{
     if(!v)return;
     if(snap&&(v.round<snap.round||(v.round===snap.round&&v.clock<snap.clock)))return;
     if(snap&&(v.round!==snap.round||v.phase!==snap.phase))reset();
+    if(v.phase==='play'&&snap?.phase!=='play'&&realtimeControlsActive()){const c=root.querySelector('canvas');c.tabIndex=-1;c.focus({preventScroll:true});}
     const mineBefore=snap?.fighters.find(p=>p.pid===snap.me),mineNow=v.fighters.find(p=>p.pid===v.me);
     if(mineBefore?.alive&&mineNow&&!mineNow.alive)GameAudio.play('lose');
     snap=v;panel();
   }
   async function poll(id){
     if(id!==token||!root?.isConnected)return;
-    const start=performance.now();request=new AbortController();const deadline=setTimeout(()=>request?.abort(),1800);
+    const start=performance.now(),control=new AbortController();request=control;const deadline=setTimeout(()=>control.abort(),1800);
     try{
-      if(document.hidden||!pyrFull||!gamesTabShown()||!loaded)reset();
+      if(!realtimeControlsActive()||!loaded)reset();
       const outgoing={guest_id:guestId,...input,jump:input.jump||jumpPulse};jumpPulse=false;
-      const response=await fetch(`/api/games/${code}/island`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(outgoing),signal:request.signal});
+      const response=await fetch(`/api/games/${code}/island`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(outgoing),signal:control.signal});
       if(id!==token)return;
       if([403,404].includes(response.status)){stop();refreshGame();return;}
       if(!response.ok)throw Error('network');
@@ -54,7 +55,7 @@ window.Island=(()=>{
       root.classList.remove('is-offline');
     }catch(e){if(id!==token)return;reset();root.classList.add('is-offline');root.querySelector('.is-network').textContent='Connexion perdue · reconnexion…';}
     finally{clearTimeout(deadline);}
-    if(id===token)timer=setTimeout(()=>poll(id),document.hidden?500:Math.max(16,65-(performance.now()-start)));
+    if(id===token)timer=setTimeout(()=>poll(id),!realtimeControlsActive()?500:Math.max(16,65-(performance.now()-start)));
   }
   function panel(){
     if(!root||!snap||!current)return;
@@ -114,13 +115,13 @@ window.Island=(()=>{
     });
   }
   function key(e,down){
-    if(!root?.isConnected||!loaded||!pyrFull||!gamesTabShown()||/INPUT|TEXTAREA|SELECT|BUTTON/.test(e.target.tagName))return;
+    if(!root?.isConnected||!loaded||!realtimeControlsActive()||/INPUT|TEXTAREA|SELECT|BUTTON/.test(e.target.tagName))return;
     const k=e.key.toLowerCase();if(!['arrowleft','arrowright','arrowup','arrowdown','z','q','s','d','w','a',' '].includes(k))return;
     e.preventDefault();if(k===' '&&down&&!e.repeat)jumpPulse=true;down?keys.add(k):keys.delete(k);input.cancel=false;
     const has=(...ks)=>ks.some(k=>keys.has(k));input.x=+has('arrowright','d')-+has('arrowleft','q','a');input.y=+has('arrowdown','s')-+has('arrowup','z','w');input.jump=has(' ');
   }
   document.addEventListener('keydown',e=>key(e,true));document.addEventListener('keyup',e=>key(e,false));
   document.addEventListener('visibilitychange',reset);window.addEventListener('blur',reset);
-  function draw(now){if(!root?.isConnected)return;frame=requestAnimationFrame(draw);if(!document.hidden&&pyrFull&&gamesTabShown()&&snap)scene?.draw(snap,now,current.players);}
+  function draw(now){if(!root?.isConnected)return;frame=requestAnimationFrame(draw);if(realtimeControlsActive()&&snap&&loaded)scene?.draw(snap,now,current.players);}
   return{icon,rules,mount,stop};
 })();

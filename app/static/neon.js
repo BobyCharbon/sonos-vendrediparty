@@ -4,7 +4,7 @@ window.Neon = (() => {
   const teams = ['Cyan','Rose','Or','Iris'];
   const icon = '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" aria-hidden="true"><path d="M6 29 24 39 42 29M6 23 24 33 42 23 24 13Z"/><path d="m25 4-9 16h8l-1 10 11-17h-9z" fill="currentColor" stroke="none"/></svg>';
   const rules = `<h3>Reste sur la plateforme</h3><p>De <b>2 à 8 joueurs</b>, chacun sur son téléphone. Déplace-toi avec le joystick à gauche. Maintiens <b>DASH</b> à droite pour charger, vise avec le joystick, puis relâche pour éjecter tes adversaires. Une charge complète prend 1,1 seconde ; le dash se recharge ensuite.</p><h3>La dernière équipe debout gagne</h3><p>Chacun pour soi, ou <b>2 à 4 équipes de deux</b>. Choisissez vos duos avant le match. Les coéquipiers partagent leur couleur et ne se repoussent pas. Une équipe reste en jeu tant qu'un de ses membres tient sur la plateforme.</p><p>La bordure commence à se refermer après 12 secondes. Une manche dure au maximum <b>45 secondes</b>. Le dernier joueur ou duo marque un point ; une chute simultanée donne une égalité. Premier à <b>5 victoires</b> ! L'animateur lance chaque manche.</p><h3>Revenir dans la partie</h3><p>En solo, un nouvel arrivant attend la prochaine manche. En duo, les inscriptions sont fermées pendant le match : les nouveaux peuvent regarder et rejoindre au prochain match. Après un départ, l’animateur peut préparer un nouveau match depuis les résultats, en remettant les scores à zéro. Si tu changes d'application, ton personnage s'arrête et peut être éliminé. Reviens dans le même navigateur pour retrouver ta place. Sur ordinateur : flèches ou ZQSD, espace pour charger.</p>`;
-  let root, canvas, ctx, current, snap, code='', frame=0, timer=0, session=0, latest=0, received=0, signature='';
+  let root, canvas, ctx, current, snap, code='', frame=0, timer=0, session=0, latest=0, received=0, signature='',request=null;
   let input={x:0,y:0,charging:false,cancel:true}, stickId=null, dashId=null, particles=[], ghosts=new Map(), shown=new Map();
   const keys=new Set();
   const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -16,7 +16,7 @@ window.Neon = (() => {
     root?.querySelector('.nk-dash')?.classList.remove('holding');
   }
   function stop() {
-    session++; cancelAnimationFrame(frame); clearTimeout(timer); reset(); root=null; snap=null; code='';
+    session++; request?.abort(); cancelAnimationFrame(frame); clearTimeout(timer); reset(); root=null; snap=null; code='';
     particles=[]; ghosts.clear(); shown.clear();
   }
   function mount(g) {
@@ -43,6 +43,7 @@ window.Neon = (() => {
     if (snap && v.round===snap.round && v.clock<snap.clock && v.phase!=='lobby') return;
     if (snap && (v.round!==snap.round || v.phase!==snap.phase)) reset();
     const old=snap;
+    if(v.phase==='play'&&snap?.phase!=='play'&&realtimeControlsActive()){const c=root.querySelector('canvas');c.tabIndex=-1;c.focus({preventScroll:true});}
     snap=v; received=performance.now();
     for (const p of v.fighters) {
       const prev=old?.fighters.find(x=>x.pid===p.pid);
@@ -54,9 +55,9 @@ window.Neon = (() => {
   async function poll(token) {
     if (token!==session || !root?.isConnected) return;
     const start=performance.now();
-    const control=new AbortController(), deadline=setTimeout(()=>control.abort(),1800);
+    const control=new AbortController();request=control;const deadline=setTimeout(()=>control.abort(),1800);
     try {
-      const active=!document.hidden && pyrFull && gamesTabShown();
+      const active=realtimeControlsActive();
       if (!active) reset();
       const response=await fetch(`/api/games/${code}/neon`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({guest_id:guestId,...input}),signal:control.signal});
       if (token!==session) return;
@@ -76,7 +77,7 @@ window.Neon = (() => {
       root.querySelector('.nk-network').textContent='Reconnexion…';
       root.querySelector('.nk-network').classList.add('slow');
     } finally { clearTimeout(deadline); }
-    if (token===session && root?.isConnected) timer=setTimeout(()=>poll(token),document.hidden?500:Math.max(10,66-(performance.now()-start)));
+    if (token===session && root?.isConnected) timer=setTimeout(()=>poll(token),!realtimeControlsActive()?500:Math.max(10,66-(performance.now()-start)));
   }
   function winnerName() {
     if (snap.winner===null) return 'Égalité';
@@ -140,7 +141,7 @@ window.Neon = (() => {
   }
   document.addEventListener('visibilitychange',reset); window.addEventListener('blur',reset);
   function keyboard(e,down) {
-    if(!root?.isConnected || !pyrFull || !gamesTabShown() || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;
+    if(!root?.isConnected || !realtimeControlsActive() || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;
     const key=e.key.toLowerCase();
     if(!['arrowleft','arrowright','arrowup','arrowdown','z','q','s','d','w','a',' '].includes(key))return;
     e.preventDefault(); input.cancel=false; down?keys.add(key):keys.delete(key);
@@ -163,7 +164,7 @@ window.Neon = (() => {
   function draw(now) {
     if(!root?.isConnected)return;
     frame=requestAnimationFrame(draw);
-    if(document.hidden || !pyrFull || !gamesTabShown())return;
+    if(!realtimeControlsActive())return;
     const w=canvas.clientWidth,h=canvas.clientHeight,dpr=Math.min(devicePixelRatio||1,2);
     if(canvas.width!==Math.round(w*dpr)||canvas.height!==Math.round(h*dpr)){canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);}
     ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
