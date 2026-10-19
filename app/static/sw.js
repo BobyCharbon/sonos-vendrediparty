@@ -9,19 +9,27 @@ self.addEventListener("push", (ev) => {
     body: d.body || "",
     icon: "/static/icon-192.png",
     tag: d.tag,
-    renotify: !!d.tag,
+    renotify: !!d.tag && !String(d.tag).startsWith("party-event-"),
     data: { url: d.url || "/" },
   }));
 });
 
 self.addEventListener("notificationclick", (ev) => {
   ev.notification.close();
-  const url = new URL(ev.notification.data?.url || "/", self.location.origin);
+  let url;
+  try { url = new URL(ev.notification.data?.url || "/", self.location.origin); } catch { url = new URL("/", self.location.origin); }
+  if (url.origin !== self.location.origin) url = new URL("/", self.location.origin);
   ev.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     // Une page déjà ouverte (invités ou admin) est remise au premier plan plutôt que d'en ouvrir une autre.
-    const open = wins.find((w) => new URL(w.url).pathname === url.pathname);
-    if (open) return open.focus();
+    const open = wins.find((w) => new URL(w.url).origin === url.origin && new URL(w.url).pathname === url.pathname);
+    if (open) {
+      try {
+        // Un événement ouvre sa fiche dans l’onglet, même si Musique était affiché.
+        if (url.search && open.url !== url.href) await open.navigate(url.href);
+        return await open.focus();
+      } catch { /* L’onglet peut avoir été fermé pendant le clic : en ouvrir un autre. */ }
+    }
     await self.clients.openWindow(url.href);
   })());
 });

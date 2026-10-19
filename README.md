@@ -89,9 +89,26 @@ Les paramètres publics Supabase se trouvent dans `web/events/app.config.js` et 
 `EXPO_PUBLIC_SUPABASE_ANON_KEY`. Seules l'URL et la clé **publique** doivent être
 présentes dans le client. Les secrets Twilio restent dans Supabase.
 
-Les notifications d'événements sont consultables dans **Activité**. Leurs préférences
-sont conservées ; l'envoi de notifications push d'événements au navigateur n'est pas
-encore implémenté. Les notifications musicales existantes gardent leur fonctionnement.
+Les notifications d'événements sont consultables dans **Activité** et peuvent être
+reçues par Web Push après activation sur chaque navigateur. **Mon profil → Notifications**
+permet de choisir les nouveaux événements (tous, abonnements catégorie/tag, aucun),
+les changements, sondages, rappels, discussions et alertes d'organisation. Une catégorie
+OU un tag abonné suffit. Une sourdine par événement reste disponible.
+
+Les **annonces admin sont obligatoires**, indépendantes des abonnements, des sourdines
+et du bouton d'alertes facultatives. Elles restent lisibles après lecture et après la
+purge des notifications à 90 jours. Le navigateur et le téléphone gardent la maîtrise
+de leur permission push. Les heures silencieuses du groupe reportent aussi les annonces.
+Sur iPhone/iPad, ajouter la webapp à l'écran d'accueil depuis Safari avant l'activation.
+
+La page `/admin#events` intègre également les événements. Son code PIN musique ne
+donne aucun droit Supabase : l'administration du groupe nécessite son compte SMS admin.
+Un clic sur une notification ouvre la fiche ou l'activité dans l'onglet Événements.
+
+Les abonnements Web Push d'événements utilisent la portée `/events/`, distincte de
+la musique (`/`) et de l'admin musique (`/admin`). Ils sont liés à la session SMS et
+sont retirés à la déconnexion. Les préférences et droits sont revérifiés avant envoi.
+Voir [supabase/README.md](supabase/README.md) pour le service d'envoi et son déploiement.
 
 La webapp est le seul livrable actuel. Expo sert à construire les pages web réutilisées ;
 aucun build iOS/Android ni compte EAS n'est requis.

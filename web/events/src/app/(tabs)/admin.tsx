@@ -137,6 +137,8 @@ export default function Admin() {
       ) : null}
 
       <Card style={{ gap: 0, paddingVertical: 4 }}>
+        <LinkRow label="Annonces admin" hint="Publier un message obligatoire pour tout le groupe" onPress={() => router.push('/admin/announcements')} />
+        <View style={s.divider} />
         <LinkRow label="Membres et rôles" hint="Co-admins, retirer un accès" onPress={() => router.push('/admin/members')} />
         <View style={s.divider} />
         <LinkRow label="Catégories et tags" hint="Créer, renommer, archiver" onPress={() => router.push('/admin/taxonomy')} />

@@ -1,7 +1,8 @@
 import { BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-grotesque';
 import { Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold, Figtree_700Bold } from '@expo-google-fonts/figtree';
 import { useFonts } from 'expo-font';
-import { DarkTheme, Stack, ThemeProvider, type ErrorBoundaryProps } from 'expo-router';
+import { DarkTheme, router, Stack, ThemeProvider, usePathname, type ErrorBoundaryProps, type Href } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -26,9 +27,32 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
   );
 }
 
+const intentKey = 'party-events-destination';
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit)?|admin(?:\/members|\/taxonomy|\/announcements)?|activity|announcements|settings\/(?:notifications|subscriptions))$/i;
+function initialDestination() {
+  if (typeof window === 'undefined') return null;
+  const path = location.pathname.replace(/^\/events(?=\/|$)/, '');
+  try {
+    if (validDestination.test(path)) { sessionStorage.setItem(intentKey, path); return path; }
+    const previous = sessionStorage.getItem(intentKey);
+    return previous && validDestination.test(previous) ? previous : null;
+  } catch { return validDestination.test(path) ? path : null; }
+}
+
 function Gate() {
   const { loading, session, profile, profileError, refreshProfile, signOut } = useAuth();
   const active = profile?.status === 'active' && profile.display_name.trim() !== '';
+  const path = usePathname();
+  const [initialIntent] = useState(initialDestination);
+  const intent = useRef(initialIntent);
+  useEffect(() => {
+    if (!loading && active && !profileError && intent.current) {
+      const target = intent.current;
+      intent.current = null;
+      try { sessionStorage.removeItem(intentKey); } catch { /* Stockage indisponible. */ }
+      if (path !== target) requestAnimationFrame(() => router.replace(target as Href));
+    }
+  }, [loading, active, profileError, path]);
 
   if (loading) return <Loading />;
   if (profileError && session) {
@@ -63,6 +87,8 @@ function Gate() {
         <Stack.Screen name="settings/subscriptions" options={{ title: 'Mes abonnements' }} />
         <Stack.Screen name="admin/members" options={{ title: 'Membres' }} />
         <Stack.Screen name="admin/taxonomy" options={{ title: 'Catégories et tags' }} />
+        <Stack.Screen name="admin/announcements" options={{ title: 'Annonces admin' }} />
+        <Stack.Screen name="announcements" options={{ title: 'Annonces admin' }} />
       </Stack.Protected>
       <Stack.Protected guard={!!session && !active}>
         <Stack.Screen name="welcome" options={{ headerShown: false }} />
