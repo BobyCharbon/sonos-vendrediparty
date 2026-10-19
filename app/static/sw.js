@@ -24,9 +24,11 @@ self.addEventListener("notificationclick", (ev) => {
     // Une page déjà ouverte (invités ou admin) est remise au premier plan plutôt que d'en ouvrir une autre.
     const open = wins.find((w) => new URL(w.url).origin === url.origin && new URL(w.url).pathname === url.pathname);
     if (open) {
-      // Un événement ouvre sa fiche dans l’onglet, même si Musique était affiché.
-      if (url.search && open.url !== url.href) await open.navigate(url.href);
-      return open.focus();
+      try {
+        // Un événement ouvre sa fiche dans l’onglet, même si Musique était affiché.
+        if (url.search && open.url !== url.href) await open.navigate(url.href);
+        return await open.focus();
+      } catch { /* L’onglet peut avoir été fermé pendant le clic : en ouvrir un autre. */ }
     }
     await self.clients.openWindow(url.href);
   })());
