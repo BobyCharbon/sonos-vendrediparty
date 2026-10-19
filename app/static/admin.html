@@ -276,6 +276,7 @@ function showView(view) {
     if (current) el.setAttribute("aria-current", "page"); else el.removeAttribute("aria-current");
   });
   document.body.dataset.tab = view;
+  document.documentElement.classList.toggle("tab-events", view === "events");
   if (view === "events" && !$("eventsFrame").hasAttribute("src")) PartyEvents.open('/events/admin');
   if (location.hash.slice(1) !== view) history.replaceState(null, "", view === "home" ? location.pathname : "#" + view);
   scrollTo(0, 0);

@@ -155,6 +155,8 @@ def test_sms_login_events_details_and_rsvp(browser,events_origin,country,width):
         # Plein écran : le module commence en haut de l’écran, sans le titre de Party.
         box=page.locator('#eventsFrame').bounding_box()
         assert box['y']<=1 and not page.locator('.top-head').is_visible()
+        # Verrou façon app : la page Party ne défile plus derrière le module.
+        assert page.evaluate("document.documentElement.classList.contains('tab-events') && getComputedStyle(document.body).position === 'fixed'")
         # Une sortie sans réponse : pastille sur l’onglet Événements.
         pw.expect(page.locator('[data-tab="events"] [data-events-badge]')).to_have_text('1',timeout=10000)
         folder=ROOT/'.impeccable/review';folder.mkdir(parents=True,exist_ok=True)

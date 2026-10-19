@@ -33,7 +33,9 @@ h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; colo
 .events-frame { display: block; width: 100%; height: calc(100dvh - 172px); min-height: 240px; border: 0; background: var(--bg); border-radius: 14px; }
 body[data-tab="events"] .name-chip-top { display: none; }
 /* Onglet Événements en plein écran : le module occupe tout l’espace au-dessus de la barre d’onglets. */
-body[data-tab="events"] { overflow: hidden; }
+/* Verrou de défilement façon app : sur iPhone, ni la page ni la barre Safari ne bougent quand on fait défiler une sortie. */
+html.tab-events, html.tab-events body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+body[data-tab="events"] { position: fixed; inset: 0; min-height: 0; max-width: none; margin: 0; padding: 0; overflow: hidden; overscroll-behavior: none; }
 body[data-tab="events"] .top-head { display: none; }
 body[data-tab="events"] .events-panel {
   position: fixed; z-index: 5; left: 0; right: 0; top: 0; bottom: calc(58px + max(6px, env(safe-area-inset-bottom)));
@@ -41,7 +43,10 @@ body[data-tab="events"] .events-panel {
   display: flex; flex-direction: column;
 }
 body[data-tab="events"] .events-panel.hidden { display: none; }
-body[data-tab="events"] .events-frame { flex: 1; height: auto; min-height: 0; border-radius: 0; }
+body[data-tab="events"] .events-frame { flex: 1; width: 100%; height: auto; min-height: 0; border-radius: 0; }
+body[data-tab="events"] .tabs { touch-action: manipulation; }
+/* Rien ne recouvre le module : le bandeau d’installation reste sur Musique et Jeux. */
+body[data-tab="events"] #tabs ~ .install { display: none !important; }
 body[data-tab="events"] #eventsLoading { position: absolute; top: calc(16px + env(safe-area-inset-top)); left: 16px; right: 16px; }
 body[data-tab="events"] #noSpotify { display: none; }
 @media (max-width: 380px) { .tabs button { padding-inline: 8px; } }

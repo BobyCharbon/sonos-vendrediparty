@@ -281,7 +281,8 @@ function showTab(tab, eventTarget) {
     if (current) el.setAttribute("aria-current", "page");
     else el.removeAttribute("aria-current");
   });
-  document.body.dataset.tab = tab;  // la lumière de scène et le titre suivent l'onglet
+  document.body.dataset.tab = tab;
+  document.documentElement.classList.toggle("tab-events", tab === "events");  // la lumière de scène et le titre suivent l'onglet
   $("appTitle").textContent = ({ music: "Musique", games: "Jeux", events: "Événements" })[tab];
   store("vp_tab", tab);
   if (tab === "games") refreshGame();
