@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
 import { Button, Empty, ErrorText, Screen, T, Title } from '@/components/ui';
+import { Announcements } from '@/components/Announcements';
 import { useMe } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { formatMessageTime } from '@/lib/format';
@@ -17,6 +18,7 @@ export default function Activity() {
     const res = await supabase
       .from('notifications')
       .select('id, title, body, event_id, created_at, read_at')
+      .neq('kind', 'admin_announcement')
       .order('created_at', { ascending: false })
       .limit(100);
     return must(res) as Item[];
@@ -42,6 +44,8 @@ export default function Activity() {
         {unread ? <Button small variant="ghost" label="Tout marquer lu" onPress={markAll} /> : null}
       </View>
       <ErrorText error={error} />
+      <Announcements compact />
+      <Title size={20}>Notifications des événements</Title>
       {data?.length === 0 ? <Empty>Aucune notification pour l’instant.</Empty> : null}
       {data?.map((n) => (
         <Pressable

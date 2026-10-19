@@ -11,3 +11,5 @@ web/events/.expo/
 web/events/expo-env.d.ts
 app/events-web/
 .impeccable/review/
+supabase/.temp/
+supabase/.branches/

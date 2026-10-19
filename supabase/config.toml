@@ -1,0 +1,8 @@
+project_id = "party-events"
+
+[functions.send-push]
+verify_jwt = false
+
+[functions.send-web-push]
+# Authentification interne par x-job-secret, vérifié contre Supabase Vault.
+verify_jwt = false
