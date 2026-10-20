@@ -28,14 +28,15 @@ def test_three_maps_have_accessible_treasures_exit_jail_switch_and_distinct_layo
     assert len({str(m['walls']) for m in heist.MAPS})==3
     for m in heist.MAPS:
         # Half-unit navigation grid, player radius included.
-        start=(0,16);seen={start};queue=deque([start])
+        cell=lambda x,y:(round(x*2),round(y*2))
+        start=cell(*heist.EXIT);seen={start};queue=deque([start])
         while queue:
             x,y=queue.popleft()
             for dx,dy in [(1,0),(-1,0),(0,1),(0,-1)]:
                 q=(x+dx,y+dy)
                 if q not in seen and not heist.blocked(q[0]/2,q[1]/2,m):seen.add(q);queue.append(q)
         for x,y in m['treasures']+[m['switch'],heist.JAIL,heist.EXIT]:
-            assert (x*2,y*2) in seen,(m['name'],x,y)
+            assert cell(x,y) in seen,(m['name'],x,y)
         for path in m['patrols']:
             for a,b in zip(path,path[1:]+path[:1]):assert heist.clear_line(*a,*b,m)
 
@@ -46,7 +47,7 @@ def test_solo_collect_deliver_complete_without_duplicate_score():
         b.update(x=t['x'],y=t['y']);heist.act(g,pid)
         assert b['bag']==t['id']
         heist.act(g,pid);assert b['bag']==t['id']
-        b.update(x=0,y=8);heist.act(g,pid)
+        b.update(x=heist.EXIT[0],y=heist.EXIT[1]);heist.act(g,pid)
         if s['banked']<6:assert g['phase']=='play' and not s['success']
     assert g['phase']=='results' and s['success'] and s['banked']==6
     assert s['scores'][pid]==1
@@ -60,7 +61,7 @@ def test_coop_rescue_all_prisoners_drop_and_team_loss():
     b=body(g);t=s['treasures'][0];b.update(x=t['x'],y=t['y']);heist.act(g,pids[0])
     heist.capture(g,pids[0]);heist.capture(g,pids[1]);assert g['phase']=='play'
     assert t['status']=='floor' and b['bag'] is None
-    body(g,2).update(x=-9,y=7);heist.act(g,pids[2])
+    body(g,2).update(x=heist.JAIL[0],y=heist.JAIL[1]-1);heist.act(g,pids[2])
     assert all(not b['jailed'] for b in s['bodies'].values())
     assert body(g,2)['rescued']==2
     for b in s['bodies'].values():b['immune']=0
@@ -76,20 +77,20 @@ def test_solo_capture_costs_time_and_returns_to_exit():
 
 
 def test_wall_collision_stale_controls_normalization_and_invalid_input():
-    g=game();b=body(g);s=g['heist'];b.update(x=-6,y=-3)
+    g=game();b=body(g);s=g['heist'];b.update(x=-9.6,y=-4.8)  # à gauche du mur centré en x=-8
     heist.input_state(g,'heist-owner',100,0,now=s['clock']);advance(g,.3)
-    assert b['x']<=-5.8
-    b.update(x=0,y=8);heist.input_state(g,'heist-owner',1,0,now=s['clock']);advance(g,1)
+    assert b['x']<=-8.7
+    b.update(x=heist.EXIT[0],y=heist.EXIT[1]);heist.input_state(g,'heist-owner',1,0,now=s['clock']);advance(g,1)
     assert b['x']<1.8
     with pytest.raises(heist.HeistError):heist.input_state(g,'heist-owner',math.nan,0)
     heist.input_state(g,'heist-owner',1,0,cancel=True);assert b['ix']==0
 
 
 def test_laser_switch_and_guard_detection_wall_occlusion():
-    g=game();s=g['heist'];b=body(g);pid=g['players'][0]['pid'];b.update(x=0,y=7)
+    g=game();s=g['heist'];b=body(g);pid=g['players'][0]['pid'];b.update(x=heist.MAPS[0]['switch'][0],y=heist.MAPS[0]['switch'][1]-.5)
     heist.act(g,pid);assert s['disabled_until']>s['time']
     assert not any(heist.laser_active(s,i) for i in range(len(heist.MAPS[0]["lasers"])))
-    assert not heist.clear_line(-6,-3,-4,-3,heist.MAPS[0])
+    assert not heist.clear_line(-9.6,-4.8,-6.4,-4.8,heist.MAPS[0])
     guard=s['guards'][0];b.update(x=guard['x']+math.sin(guard['angle'])*2,y=guard['y']+math.cos(guard['angle'])*2);advance(g,1.1)
     assert s['captures']==1
 
@@ -107,7 +108,7 @@ def test_timeout_interrupt_and_settings():
     g=game();s=g['heist']
     with pytest.raises(heist.HeistError):heist.configure(g,{'map':1})
     with pytest.raises(heist.HeistError):games.restart(g)
-    s['time']=239.95;advance(g,.2);assert g['phase']=='results' and not s['success']
+    s['time']=heist.DURATION-.05;advance(g,.2);assert g['phase']=='results' and not s['success']
     with pytest.raises(heist.HeistError):heist.configure(g,{'map':True})
     heist.configure(g,{'map':2});games.next_step(g);assert s['map_id']==2
     heist.tick(g,s['clock']+10);assert g['phase']=='results' and s['wins']==0
@@ -149,11 +150,12 @@ def test_eight_players_capacity_shared_pickup_and_configuration_reset():
 
 def test_laser_capture_and_release_button_required():
     g=game();s=g['heist'];b=body(g);s['guards']=[]
-    b.update(x=0,y=-2);advance(g,1.1)
-    assert s['captures']==1 and b['bag'] is None
+    ax,ay,bx,by=heist.MAPS[0]['lasers'][0];s['time']=0  # laser allumé
+    b.update(x=(ax+bx)/2,y=(ay+by)/2);advance(g,.1)
+    assert s['captures']==1 and b['bag'] is None  # contact = alarme immédiate
     t=s['treasures'][6];b.update(x=t['x'],y=t['y'])
     heist.input_state(g,'heist-owner',0,0,True);assert b['bag']==6
-    b.update(x=0,y=8);heist.input_state(g,'heist-owner',0,0,True);assert s['banked']==0
+    b.update(x=heist.EXIT[0],y=heist.EXIT[1]);heist.input_state(g,'heist-owner',0,0,True);assert s['banked']==0
     heist.input_state(g,'heist-owner',0,0,False);heist.input_state(g,'heist-owner',0,0,True);assert s['banked']==1
 
 
@@ -171,3 +173,29 @@ def test_minimum_loot_and_security_on_all_maps(n,target):
         assert s['target']==target
         assert len(s['guards'])==len(layout['patrols'])==3
         assert len(layout['lasers'])==(5 if map_id==2 else 4)
+
+
+def test_running_through_a_lit_laser_triggers_the_alarm():
+    """Avant, il fallait rester ~1 s dans le faisceau : en courant on le traversait sans rien déclencher."""
+    g=game();s=g['heist'];b=body(g);s['guards']=[]
+    ax,ay,bx,by=heist.MAPS[0]['lasers'][0];mx=(ax+bx)/2
+    s['time']=0;b.update(x=mx,y=ay-1.2)  # juste avant le faisceau horizontal, puis on court à travers
+    for _ in range(20):
+        heist.input_state(g,'heist-owner',0,1,now=s['clock']);advance(g,.05)
+        if s['captures']:break
+    assert s['captures']==1
+
+
+def test_guard_chases_a_seen_thief_then_searches_and_returns_to_patrol():
+    g=game();s=g['heist'];b=body(g);layout=heist.MAPS[0]
+    guard=s['guards'][0];s['guards']=[guard]
+    b.update(x=guard['x']+math.sin(guard['angle'])*5,y=guard['y']+math.cos(guard['angle'])*5)  # dans son champ de vision
+    start=math.hypot(b['x']-guard['x'],b['y']-guard['y'])
+    advance(g,.3)  # avant la capture (0,45 s de repérage)
+    assert guard['mode']=='chase' and math.hypot(b['x']-guard['x'],b['y']-guard['y'])<start-heist.GUARD_WALK*.3  # il fonce
+    b.update(x=heist.EXIT[0],y=heist.EXIT[1],immune=1e9)  # le voleur l'a semé (protégé : plus repérable)
+    for _ in range(300):
+        advance(g,.1)
+        assert not heist.blocked(guard['x'],guard['y'],layout,0)  # jamais dans un mur
+        if guard['mode']=='patrol':break
+    assert guard['mode']=='patrol' and not guard['trail']

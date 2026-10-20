@@ -103,9 +103,10 @@ window.Heist=(()=>{
   }
   function minimap(){
     const c=root.querySelector('.hs-map'),ctx=c.getContext('2d'),v=snap;
-    const x=n=>90+n*7.5,y=n=>80+n*7.5;
+    const [hx,hz]=v.map.half||[10.5,9.5],k=Math.min(166/(2*hx+1),146/(2*hz+1));  // échelle : le musée entier tient dans le cadre
+    const x=n=>90+n*k,y=n=>80+n*k;
     ctx.clearRect(0,0,180,160);ctx.fillStyle='#17233c';ctx.fillRect(7,7,166,146);
-    ctx.fillStyle='#8b9db9';for(const [a,b,w,h] of v.map.walls)ctx.fillRect(x(a-w/2),y(b-h/2),w*7.5,h*7.5);
+    ctx.fillStyle='#8b9db9';for(const [a,b,w,h] of v.map.walls)ctx.fillRect(x(a-w/2),y(b-h/2),w*k,h*k);
     const dot=(a,b,r,color)=>{ctx.fillStyle=color;ctx.beginPath();ctx.arc(x(a),y(b),r,0,Math.PI*2);ctx.fill();};
     for(const t of v.treasures)if(t.status==='floor')dot(t.x,t.y,3,'#ffd263');
     dot(...v.map.exit,5,'#64e4b3');dot(...v.map.jail,5,'#f09abb');

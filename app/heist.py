@@ -7,7 +7,7 @@ import time
 
 LOCK = threading.RLock()
 STEP = 1 / 30
-DURATION = 240
+DURATION = 300
 COLORS = ['#56ded7', '#fc846c', '#f4cc63', '#b69cff', '#91d077', '#f397cc', '#80b6ff', '#ffac67']
 # Rectangles are centre x/y and width/depth. All coordinates also drive rendering.
 MAPS = [
@@ -27,8 +27,24 @@ MAPS = [
          patrols=[[[-9,-5],[-9,3],[-7,3],[-7,-5]],[[3,-5],[5,-5],[5,3],[3,3]],[[-.7,-7],[.7,-7],[.7,2],[-.7,2]]],
          lasers=[[-1.4,-3,1.4,-3],[-5,4,-2,4],[7,3,10,3],[-5,-5,-3,-5],[-1.4,3,1.4,3]], switch=[-8,7]),
 ]
-EXIT = [0, 8]
-JAIL = [-9, 8]
+# Plans dessinés sur une grille de 21 × 19, agrandis à l'échelle (les murs gardent leur épaisseur).
+SCALE = 1.6
+HALF = [10.5 * SCALE, 9.5 * SCALE]  # demi-largeur et demi-profondeur du musée
+
+
+def _scaled(m):
+    k = SCALE
+    wall = lambda x, y, w, h: [x * k, y * k, w * k if w > h else w, h * k if h >= w else h]
+    return dict(m, walls=[wall(*w) for w in m['walls']], treasures=[[x * k, y * k] for x, y in m['treasures']],
+                patrols=[[[x * k, y * k] for x, y in path] for path in m['patrols']],
+                lasers=[[v * k for v in line] for line in m['lasers']], switch=[v * k for v in m['switch']])
+
+
+MAPS = [_scaled(m) for m in MAPS]
+EXIT = [0, 8 * SCALE]
+JAIL = [-9 * SCALE, 8 * SCALE]
+# Gardes : ronde, puis poursuite de qui ils voient (un peu moins vite qu'un voleur sans butin), fouille, retour.
+GUARD_WALK, GUARD_RUN, GUARD_SIGHT, GUARD_CONE, GUARD_SEARCH = 2.2, 3.7, 6.5, .75, 2.5
 
 
 class HeistError(ValueError):
@@ -65,7 +81,7 @@ def start(g, rng=None):
     treasures = [dict(id=i, x=x, y=y, status='floor', carrier=None) for i, (x,y) in enumerate(layout['treasures'])]
     bodies = {}
     for i,p in enumerate(g['players']):
-        bodies[p['pid']] = dict(x=(i%4-1.5)*1.5, y=8+(i//4)*.6, name=p['name'], color=COLORS[i],
+        bodies[p['pid']] = dict(x=(i%4-1.5)*1.5, y=EXIT[1]+(i//4)*.6, name=p['name'], color=COLORS[i],
             ix=0., iy=0., seen=0., action=False, jailed=False, active=True, exposure=0., bag=None, immune=0., delivered=0, rescued=0)
         p.update(alive=True, waiting=False)
     guards = []
@@ -73,7 +89,8 @@ def start(g, rng=None):
         node = rng.randrange(len(path))
         x,y = path[node]
         dest = path[(node+1)%len(path)]
-        guards.append(dict(x=x,y=y,node=(node+1)%len(path),angle=math.atan2(dest[0]-x,dest[1]-y),path=i))
+        guards.append(dict(x=x,y=y,node=(node+1)%len(path),angle=math.atan2(dest[0]-x,dest[1]-y),path=i,
+                           mode='patrol',target=None,until=0.,trail=[]))
     s.update(bodies=bodies, treasures=treasures, guards=guards, time=-3., clock=time.time(), solo=len(bodies)==1,
         target=max(6,min(8,3+len(bodies))),banked=0,captures=0,success=False,notice='',disabled_until=0.)
     g.update(phase='countdown',round=g['round']+1)
@@ -106,7 +123,7 @@ def conclude(g):
 
 
 def blocked(x,y,layout,radius=.30):
-    return abs(x)>10.5-radius or abs(y)>9.5-radius or any(abs(x-wx)<w/2+radius and abs(y-wy)<h/2+radius for wx,wy,w,h in layout['walls'])
+    return abs(x)>HALF[0]-radius or abs(y)>HALF[1]-radius or any(abs(x-wx)<w/2+radius and abs(y-wy)<h/2+radius for wx,wy,w,h in layout['walls'])
 
 
 def clear_line(x,y,tx,ty,layout):
@@ -203,6 +220,40 @@ def input_state(g,gid,x,y,action=False,now=None,cancel=False):
     b['action']=action
 
 
+def sees(guard,b,layout):
+    dx,dy=b['x']-guard['x'],b['y']-guard['y'];d=math.hypot(dx,dy)
+    angle=(math.atan2(dx,dy)-guard['angle']+math.pi)%(2*math.pi)-math.pi
+    return (d<1. or (d<GUARD_SIGHT and abs(angle)<GUARD_CONE)) and clear_line(guard['x'],guard['y'],b['x'],b['y'],layout)
+
+
+def step_towards(guard,tx,ty,speed):
+    """Avance vers (tx, ty) ; vrai une fois arrivé."""
+    dx,dy=tx-guard['x'],ty-guard['y'];d=math.hypot(dx,dy);step=speed*STEP
+    if d<=step:
+        guard.update(x=tx,y=ty);return True
+    guard['x']+=dx/d*step;guard['y']+=dy/d*step;guard['angle']=math.atan2(dx,dy);return False
+
+
+def move_guard(s,guard,layout):
+    """Ronde → poursuite (cible vue) → fouille du dernier endroit vu → retour à la ronde par le chemin pris.
+    La poursuite ne va qu'en ligne de vue et le retour suit les pas du garde : il ne traverse jamais un mur."""
+    mode=guard.setdefault('mode','patrol');trail=guard.setdefault('trail',[])
+    if mode in ('chase','search','return') and (not trail or math.hypot(guard['x']-trail[-1][0],guard['y']-trail[-1][1])>.4):
+        if mode!='return':trail.append([guard['x'],guard['y']])
+    if mode=='chase':
+        if step_towards(guard,*guard['target'],GUARD_RUN):
+            guard.update(mode='search',until=s['time']+GUARD_SEARCH)
+    elif mode=='search':
+        guard['angle']+=STEP*2.4  # il regarde autour de lui
+        if s['time']>=guard['until']:guard['mode']='return'
+    elif mode=='return':
+        if not trail:guard['mode']='patrol'
+        elif step_towards(guard,*trail[-1],GUARD_WALK):trail.pop()
+    else:
+        path=layout['patrols'][guard['path']]
+        if step_towards(guard,*path[guard['node']],GUARD_WALK):guard['node']=(guard['node']+1)%len(path)
+
+
 def laser_active(s,i):
     return s['time']>=s['disabled_until'] and (s['time']+i*1.5)%7<4
 
@@ -218,12 +269,7 @@ def tick(g,now=None):
         if s['time']<0:continue
         g['phase']='play'
         for guard in s['guards']:
-            path=layout['patrols'][guard['path']];tx,ty=path[guard['node']]
-            dx,dy=tx-guard['x'],ty-guard['y'];d=math.hypot(dx,dy);step=1.55*STEP
-            if d<=step:
-                guard.update(x=tx,y=ty,node=(guard['node']+1)%len(path))
-            else:
-                guard['x']+=dx/d*step;guard['y']+=dy/d*step;guard['angle']=math.atan2(dx,dy)
+            move_guard(s,guard,layout)
         for pid,b in s['bodies'].items():
             if not b['active'] or b['jailed']:continue
             if s['clock']-b['seen']>.4:b.update(ix=0.,iy=0.,action=False)
@@ -231,14 +277,14 @@ def tick(g,now=None):
             nx=b['x']+b['ix']*speed*STEP;ny=b['y']+b['iy']*speed*STEP
             if not blocked(nx,b['y'],layout):b['x']=nx
             if not blocked(b['x'],ny,layout):b['y']=ny
-            danger=False
+            danger=tripped=False
             if s['time']>=b['immune']:
                 for guard in s['guards']:
-                    dx,dy=b['x']-guard['x'],b['y']-guard['y'];d=math.hypot(dx,dy)
-                    angle=math.atan2(dx,dy)-guard['angle'];angle=(angle+math.pi)%(2*math.pi)-math.pi
-                    if (d<.8 or (d<4.6 and abs(angle)<.55)) and clear_line(guard['x'],guard['y'],b['x'],b['y'],layout):danger=True
-                if any(laser_active(s,i) and distance_to_segment(b['x'],b['y'],line)<.3 for i,line in enumerate(layout['lasers'])):danger=True
-            b['exposure']=max(0,min(1,b['exposure']+(STEP/.9 if danger else -STEP*1.4)))
+                    if sees(guard,b,layout):
+                        danger=True;guard.update(mode='chase',target=[b['x'],b['y']])
+                # Laser allumé : l'alarme se déclenche au contact, sans délai.
+                tripped=any(laser_active(s,i) and distance_to_segment(b['x'],b['y'],line)<.3 for i,line in enumerate(layout['lasers']))
+            b['exposure']=1. if tripped else max(0,min(1,b['exposure']+(STEP/.45 if danger else -STEP*1.4)))
             if b['exposure']>=1:capture(g,pid)
             if g['phase']=='results':break
         if g['phase']=='results':break
@@ -249,12 +295,12 @@ def tick(g,now=None):
 
 def view(g,gid):
     s=state(g);p=next((p for p in g['players'] if p['id']==gid),None);pid=p['pid'] if p else None
-    layout=copy.deepcopy(MAPS[s['map_id']]);layout.update(exit=EXIT,jail=JAIL)
+    layout=copy.deepcopy(MAPS[s['map_id']]);layout.update(exit=EXIT,jail=JAIL,half=HALF,sight=[GUARD_SIGHT,GUARD_CONE])
     choice=interaction(s,pid) if g['phase']=='play' else None
     return dict(phase=g['phase'],round=g['round'],clock=s['clock'],time=round(s['time'],3),duration=DURATION,
         solo=s['solo'],map=layout,maps=[dict(id=m['id'],name=m['name'],subtitle=m['subtitle']) for m in MAPS],
         target=s['target'],banked=s['banked'],captures=s['captures'],success=s['success'],notice=s['notice'],wins=s['wins'],
         me=pid,action=choice[2] if choice else '',disabled_for=max(0,s['disabled_until']-s['time']),
-        lasers=[laser_active(s,i) for i in range(len(layout['lasers']))],guards=copy.deepcopy(s['guards']),
+        lasers=[laser_active(s,i) for i in range(len(layout['lasers']))],guards=[{k:v for k,v in guard.items() if k!='trail'} for guard in s['guards']],
         treasures=copy.deepcopy(s['treasures']),scores=dict(s['scores']),
         fighters=[dict(pid=key,**{k:b[k] for k in ('x','y','name','color','jailed','active','exposure','bag','delivered','rescued')}) for key,b in s['bodies'].items()])

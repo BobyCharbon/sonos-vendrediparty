@@ -36,24 +36,27 @@ export function createScene(canvas){
     if(world){scene.remove(world);characters.clear();for(const m of mats)if(!sharedMaterials.has(m)){m.dispose();mats.delete(m);}for(const g of geo)if(!sharedGeometry.has(g)){g.dispose();geo.delete(g);}textures.forEach(t=>t.dispose());textures.clear();}world=new THREE.Group();scene.add(world);mapID=v.map.id;lasers=[];treasures=[];guardModels=[];
     const palette=[['#364f74','#405c80','#314667'],['#386567','#487c78','#294c54'],['#81634e','#98765a','#644e43']][mapID];
     const floorM=[material(palette[0]),material(palette[1])],wallM=material(palette[2]),glass=material('#92cfec',{transparent:true,opacity:.16,depthWrite:false,roughness:.1});
-    box(world,dark,0,-.45,0,22,.9,20);box(world,gold,0,-.08,0,21.8,.12,19.8);
+    const [hx,hz]=v.map.half||[10.5,9.5];  // demi-dimensions du musée
+    Object.assign(moon.shadow.camera,{left:-hx-4,right:hx+4,top:hz+4,bottom:-hz-4});moon.shadow.camera.updateProjectionMatrix();
+    box(world,dark,0,-.45,0,2*hx+1,.9,2*hz+1);box(world,gold,0,-.08,0,2*hx+.8,.12,2*hz+.8);
     // Two instanced batches keep the marble floor inexpensive on phones.
     for(let shade=0;shade<2;shade++){
-      const tiles=[];for(let x=-10;x<=10;x+=2)for(let z=-9;z<=9;z+=2)if((x/2+Math.floor(z/2)+20)%2===shade)tiles.push([x,z]);
+      const tiles=[];for(let x=-2*Math.floor(hx/2);x<=hx;x+=2)for(let z=-2*Math.floor(hz/2)-1;z<=hz;z+=2)if((x/2+Math.floor(z/2)+20)%2===shade)tiles.push([x,z]);
       const floor=new THREE.InstancedMesh(boxGeo,floorM[shade],tiles.length),dummy=new THREE.Object3D();
       tiles.forEach(([x,z],i)=>{dummy.position.set(x,.01,z);dummy.scale.set(1.96,.12,1.96);dummy.updateMatrix();floor.setMatrixAt(i,dummy.matrix);});floor.receiveShadow=true;world.add(floor);
     }
     // Low cutaway walls leave every route visible from above.
     for(const [x,z,w,d] of v.map.walls){box(world,wallM,x,.55,z,w,1.1,d);box(world,wallM,x,1.12,z,w+.05,.06,d+.05);for(const edge of [-1,1]){box(world,gold,x+edge*w/2,1.17,z,.055,.05,d);box(world,gold,x,1.17,z+edge*d/2,w,.05,.055);}}
-    box(world,wallM,0,.85,-10,22,1.7,.35);box(world,gold,0,1.72,-10,22,.08,.4);
-    for(const x of [-11,11]){box(world,wallM,x,.35,0,.35,.7,20);box(world,gold,x,.73,0,.4,.06,20);}
+    box(world,wallM,0,.85,-hz-.5,2*hx+1,1.7,.35);box(world,gold,0,1.72,-hz-.5,2*hx+1,.08,.4);
+    for(const x of [-hx-.5,hx+.5]){box(world,wallM,x,.35,0,.35,.7,2*hz+1);box(world,gold,x,.73,0,.4,.06,2*hz+1);}
     // Back-wall gallery: gilded frames with authored abstract canvases.
-    for(let i=0;i<5;i++){
-      const x=(i-2)*4;box(world,gold,x,1.05,-9.77,1.7,1.3,.12);box(world,navy,x,1.05,-9.68,1.45,1.08,.08);
-      const orb=sphere(world,material(['#b484d7','#e8b95e','#79bdc7'][mapID]),x,1.12,-9.58,.34);orb.scale.z=.1;
-      box(world,ivory,x+.25,.75,-9.57,.8,.12,.05);
+    const frames=2*Math.floor(hx/4)+1;
+    for(let i=0;i<frames;i++){
+      const x=(i-(frames-1)/2)*4;box(world,gold,x,1.05,-hz-.27,1.7,1.3,.12);box(world,navy,x,1.05,-hz-.18,1.45,1.08,.08);
+      const orb=sphere(world,material(['#b484d7','#e8b95e','#79bdc7'][mapID]),x,1.12,-hz-.08,.34);orb.scale.z=.1;
+      box(world,ivory,x+.25,.75,-hz-.07,.8,.12,.05);
     }
-    for(const x of [-10.5,10.5])for(const z of [-8,0,8]){const col=mesh(cylinderGeo,ivory,world,x,.9,z);col.scale.set(.22,1.8,.22);box(world,gold,x,1.82,z,.6,.12,.6);}
+    for(const x of [-hx,hx])for(const z of [-hz+1.5,0,hz-1.5]){const col=mesh(cylinderGeo,ivory,world,x,.9,z);col.scale.set(.22,1.8,.22);box(world,gold,x,1.82,z,.6,.12,.6);}
     for(const [i,w] of v.map.walls.entries())statue(world,w[0],w[1],mapID);
     const [ex,ez]=v.map.exit,[jx,jz]=v.map.jail;
     box(world,green,ex,.11,ez,2.8,.08,2.1);text(world,'SORTIE',ex,.7,ez+1,'#9bffcd',2.2);
@@ -74,7 +77,8 @@ export function createScene(canvas){
     }
     for(let i=0;i<v.map.patrols.length;i++){
       const c=person('#526d9c',true);world.add(c.g);guardModels.push(c);
-      const shape=new THREE.Shape();shape.moveTo(0,0);for(let a=-.55;a<=.551;a+=.055)shape.lineTo(Math.sin(a)*4.6,Math.cos(a)*4.6);shape.lineTo(0,0);
+      const shape=new THREE.Shape();const [reach,spread]=v.map.sight||[4.6,.55];  // champ de vision réel des gardes (serveur)
+      shape.moveTo(0,0);for(let a=-spread;a<=spread+.001;a+=spread/10)shape.lineTo(Math.sin(a)*reach,Math.cos(a)*reach);shape.lineTo(0,0);
       const cg=new THREE.ShapeGeometry(shape);geo.add(cg);const cone=mesh(cg,basic('#ffd96a',{transparent:true,opacity:.22,depthWrite:false,side:THREE.DoubleSide}),c.g,0,.16,0);cone.rotation.x=Math.PI/2;
       // Shape y maps to world +z through the negative X rotation.
       cone.rotation.x=-Math.PI/2;cone.scale.y=-1;c.cone=cone;
@@ -101,9 +105,9 @@ export function createScene(canvas){
     const cameraTarget=mine&&characters.get(mine.pid);
     const follow=cameraTarget&&round===v.round&&Math.hypot(mine.x-cameraTarget.x,mine.y-cameraTarget.y)<3
       ? {x:cameraTarget.x+(mine.x-cameraTarget.x)*(1-Math.exp(-dt*18)),y:cameraTarget.y+(mine.y-cameraTarget.y)*(1-Math.exp(-dt*18))} : mine;
-    let cx=0,cz=0,halfW;
-    if(playing&&(aspect<.85||h<500)&&mine){halfW=aspect<.85?6.3:10;cx=Math.max(-5,Math.min(5,follow.x));cz=Math.max(-6,Math.min(6,follow.y-1));}
-    else{halfW=Math.max(13,10*aspect);if(!playing&&aspect>1.3)cx=-3;}
+    let cx=0,cz=0,halfW;const [hx,hz]=v.map.half||[10.5,9.5];
+    if(playing&&(aspect<.85||h<500)&&mine){halfW=aspect<.85?6.3:10;cx=Math.max(-hx+5.5,Math.min(hx-5.5,follow.x));cz=Math.max(-hz+3.5,Math.min(hz-3.5,follow.y-1));}
+    else{halfW=Math.max(hx+2.5,(hz+.5)*aspect);if(!playing&&aspect>1.3)cx=-3;}
     const halfH=halfW/aspect;camera.left=-halfW;camera.right=halfW;camera.top=halfH;camera.bottom=-halfH;camera.position.set(cx,30,cz+18);camera.lookAt(cx,0,cz);camera.updateProjectionMatrix();
     for(let i=0;i<lasers.length;i++)lasers[i].visible=playing?v.lasers[i]:true;
     for(const t of v.treasures){const o=treasures[t.id];o.g.visible=t.status==='floor';o.g.position.set(t.x,0,t.y);o.gem.rotation.y=now*.001;}
