@@ -106,7 +106,12 @@ export function createScene(canvas){
     const follow=cameraTarget&&round===v.round&&Math.hypot(mine.x-cameraTarget.x,mine.y-cameraTarget.y)<3
       ? {x:cameraTarget.x+(mine.x-cameraTarget.x)*(1-Math.exp(-dt*18)),y:cameraTarget.y+(mine.y-cameraTarget.y)*(1-Math.exp(-dt*18))} : mine;
     let cx=0,cz=0,halfW;const [hx,hz]=v.map.half||[10.5,9.5];
-    if(playing&&(aspect<.85||h<500)&&mine){halfW=aspect<.85?6.3:10;cx=Math.max(-hx+5.5,Math.min(hx-5.5,follow.x));cz=Math.max(-hz+3.5,Math.min(hz-3.5,follow.y-1));}
+    // Zoom choisi (bouton 🔍) : 0 proche, 1 large, 2 musée entier ; en paysage, le cadrage suit la hauteur de l'écran.
+    let zoom=0;try{zoom=+(localStorage.getItem('vp_hs_zoom')||0);}catch{}
+    if(playing&&(aspect<.85||h<500)&&mine&&zoom<2){
+      halfW=aspect<.85?[6.3,10][zoom]:[6.5,9.5][zoom]*aspect;
+      const halfV=halfW/aspect;cx=Math.max(-hx+halfW-1,Math.min(hx-halfW+1,follow.x));cz=Math.max(-hz+halfV-2,Math.min(hz-halfV+2,follow.y-1));
+      if(halfW>hx+1)cx=0;if(halfV>hz+1)cz=0;}
     else{halfW=Math.max(hx+2.5,(hz+.5)*aspect);if(!playing&&aspect>1.3)cx=-3;}
     const halfH=halfW/aspect;camera.left=-halfW;camera.right=halfW;camera.top=halfH;camera.bottom=-halfH;camera.position.set(cx,30,cz+18);camera.lookAt(cx,0,cz);camera.updateProjectionMatrix();
     for(let i=0;i<lasers.length;i++)lasers[i].visible=playing?v.lasers[i]:true;

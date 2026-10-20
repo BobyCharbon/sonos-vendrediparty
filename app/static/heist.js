@@ -16,7 +16,7 @@ window.Heist=(()=>{
       el.innerHTML=`<section class="hs-root" aria-label="Braquage en miniature"><canvas class="hs-canvas" role="img" aria-label="Musée en 3D, gardiens et trésors"></canvas>
       <header class="hs-header"><h2>Braquage<br><span>en miniature</span></h2><div class="hs-stats"><strong class="hs-clock">04:00</strong><span class="hs-count">Préparation</span></div></header>
       <div class="hs-network" role="status">Ouverture du musée…</div><div class="hs-callout" aria-live="polite"></div>
-      <canvas class="hs-map" width="180" height="160" aria-label="Plan du musée : butin doré, sortie verte, prison rose"></canvas><div class="hs-label">Ton personnage porte une flèche blanche</div><div class="hs-panel"></div>
+      <canvas class="hs-map" width="180" height="160" aria-label="Plan du musée : butin doré, sortie verte, prison rose"></canvas><button type="button" class="hs-zoom" data-hs-zoom aria-label="Changer le zoom">🔍 Proche</button><div class="hs-label">Ton personnage porte une flèche blanche</div><div class="hs-panel"></div>
       <div class="hs-controls"><div class="hs-stick" role="group" aria-label="Joystick tactile : glisser pour se déplacer"><span class="hs-knob"></span><svg viewBox="0 0 100 100" aria-hidden="true"><path d="m46 14 4-5 4 5M46 86l4 5 4-5M14 46l-5 4 5 4m72-8 5 4-5 4"/></svg></div>
       <span class="hs-hint">Trouve un trésor.<br><b>Rapporte-le à la sortie verte.</b></span><button class="hs-action" type="button" aria-label="Interagir"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 7h18l5 8-14 14L2 15Zm0 0 9 22L25 7M2 15h28" fill="currentColor"/></svg><span>AGIR</span></button></div>
       <div class="hs-error" role="alert" hidden></div></section>`;
@@ -112,12 +112,21 @@ window.Heist=(()=>{
     dot(...v.map.exit,5,'#64e4b3');dot(...v.map.jail,5,'#f09abb');
     for(const p of v.fighters)if(p.active)dot(p.x,p.y,p.pid===v.me?4:2,p.pid===v.me?'#ffffff':p.color);
   }
+  const ZOOMS=['🔍 Proche','🔍 Large','🔍 Musée entier'];
+  function zoomLabel(z){const b=root?.querySelector('[data-hs-zoom]');if(b){b.textContent=ZOOMS[z]||ZOOMS[0];b.setAttribute('aria-label',`Zoom : ${(ZOOMS[z]||ZOOMS[0]).slice(3)} (toucher pour changer)`);}}
   function bind(){
+    let z0=0;try{z0=+(localStorage.getItem('vp_hs_zoom')||0);}catch{}zoomLabel(z0);
     const stick=root.querySelector('.hs-stick'),action=root.querySelector('.hs-action');
     const move=e=>{const r=stick.getBoundingClientRect(),dx=e.clientX-r.left-r.width/2,dy=e.clientY-r.top-r.height/2,d=Math.max(32,Math.hypot(dx,dy));input.x=dx/d;input.y=dy/d;stick.querySelector('.hs-knob').style.transform=`translate(${input.x*28}px,${input.y*28}px)`;};
     stick.addEventListener('pointerdown',e=>{if(stickId!==null||!loaded)return;e.preventDefault();stickId=e.pointerId;input.cancel=false;stick.setPointerCapture(e.pointerId);move(e);});
     stick.addEventListener('pointermove',e=>{if(e.pointerId===stickId)move(e);});
-    const release=e=>{if(e.pointerId===stickId){stickId=null;input.x=input.y=0;stick.querySelector('.hs-knob').style.removeProperty('transform');}};
+    const release=e=>{if(e.pointerId===stickId){stickId=null;input.x=input.y=0;stick.querySelector('.hs-knob').style.removeProperty('transform');stick.style.removeProperty('translate');}};
+    // Joystick flottant : un toucher n'importe où sur l'écran de jeu (hors boutons) l'amène sous le doigt.
+    root.addEventListener('pointerdown',e=>{
+      if(e.pointerType==='mouse'||stickId!==null||!loaded||e.target.closest('button,a,input,.hs-stick')||stick.closest('.hs-inactive')||!stick.offsetParent)return;  // seulement en jeu
+      const r=stick.getBoundingClientRect();stick.style.translate=`${e.clientX-r.left-r.width/2}px ${e.clientY-r.top-r.height/2}px`;
+      e.preventDefault();stickId=e.pointerId;input.cancel=false;stick.setPointerCapture(e.pointerId);move(e);
+    });
     ['pointerup','pointercancel','lostpointercapture'].forEach(n=>stick.addEventListener(n,release));
     action.addEventListener('pointerdown',e=>{if(actionId!==null)return;e.preventDefault();actionId=e.pointerId;input.cancel=false;input.action=true;actionPulse=true;action.setPointerCapture(e.pointerId);});
     const releaseAction=e=>{if(e.pointerId===actionId){actionId=null;input.action=false;}};
@@ -130,6 +139,7 @@ window.Heist=(()=>{
     root.addEventListener('click',async e=>{
       const map=e.target.closest('[data-hs-map]');if(map){gameAction('hset',{settings:{map:Number(map.dataset.hsMap)}});}
       if(e.target.closest('[data-hs-retry]')){const g=current;stop();mount(g);}
+      if(e.target.closest('[data-hs-zoom]')){let z=0;try{z=(+(localStorage.getItem('vp_hs_zoom')||0)+1)%3;localStorage.setItem('vp_hs_zoom',z);}catch{}zoomLabel(z);}
       if(e.target.closest('[data-hs-copy]')){try{await navigator.clipboard.writeText(`${location.origin}/?game=${code}`);toast('Lien copié !');}catch{toast(`Code de la partie : ${code}`);}}
     });
   }

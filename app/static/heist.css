@@ -143,3 +143,11 @@ body.heist-full .hs-root { height:100%; min-height:0; }
 .hs-panel-content { min-height:0; overflow:auto; scrollbar-width:thin; }
 .hs-panel-footer { flex:0 0 auto; padding-top:12px; }
 .hs-panel-footer .hs-primary { min-height:48px; }
+.hs-root.hs-playing { touch-action:none; }  /* joystick flottant : glisser le doigt sur l'écran ne fait pas défiler la page */
+
+/* Zoom de la caméra (sous le plan) : proche, large, musée entier */
+.hs-zoom { position:absolute; right:25px; top:286px; padding:5px 10px; border-radius:99px; border:0; background:#15213be6; color:#e0eafb; font:650 11px/1.2 inherit; box-shadow:none; }
+.hs-zoom { display:none; }
+@media (max-aspect-ratio: 17/20), (max-height: 499px) { .hs-playing .hs-zoom { display:block; } }  /* là où la caméra suit le joueur */
+@media(max-width:600px) and (orientation:portrait) { .hs-zoom { right:18px; top:216px; } }
+@media(orientation:landscape) and (max-height:600px) { .hs-zoom { right:20px; top:173px; } }
