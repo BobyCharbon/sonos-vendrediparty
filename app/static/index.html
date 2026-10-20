@@ -387,7 +387,10 @@ window.addEventListener("message", (event) => {
     const at = event.data.path || "/";
     if (frameAt && frameAt !== at) $("eventsFrame").contentWindow.postMessage({ type: "party-shell:navigate", path: frameAt }, location.origin);
   }
-  if (event.data?.type === "party-events:open-tab" && ["feedback", "music", "games", "events"].includes(event.data.tab)) showTab(event.data.tab);
+  if (event.data?.type === "party-events:open-tab" && ["feedback", "music", "games", "events"].includes(event.data.tab)) {
+    showTab(event.data.tab);
+    if (event.data.tab === "events" && /^\/[a-z/-]*$/.test(event.data.path || "")) frameRoute(event.data.path);
+  }
 });
 linkAccount();
 

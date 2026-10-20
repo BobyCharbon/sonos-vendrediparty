@@ -15,7 +15,8 @@ type Filter = { kind: 'all' } | { kind: 'subscribed' } | { kind: 'category'; id:
 
 export default function Home() {
   const me = useMe();
-  const { isAdmin } = useAuth();
+  const { can } = useAuth();
+  const isAdmin = can('events.approve');
   const [tab, setTab] = useState<Tab>('upcoming');
   const [filter, setFilter] = useState<Filter>({ kind: 'all' });
   const [search, setSearch] = useState('');

@@ -1,25 +1,27 @@
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { View } from 'react-native';
 
 import { useAuth } from '@/lib/auth';
 import { hasCompleteIdentity } from '@/lib/profile';
+import { roleLabel } from '@/lib/types';
 import { IdentityForm } from './IdentityForm';
+import { JoinRequest } from './JoinRequest';
 import { Avatar, Button, Card, LinkRow, s, Screen, Section, T, Title } from './ui';
 
-const roleLabel = { admin: 'Admin', coadmin: 'Co-admin', member: 'Membre' } as const;
-
 /** Demande à la page Party qui entoure le module d'ouvrir un de ses onglets (Ton avis, Événements…). */
-export function openPartyTab(tab: string) {
-  if (typeof window !== 'undefined' && window.parent !== window) window.parent.postMessage({ type: 'party-events:open-tab', tab }, location.origin);
+export function openPartyTab(tab: string, path?: string) {
+  if (typeof window === 'undefined') return;
+  if (window.parent !== window) window.parent.postMessage({ type: 'party-events:open-tab', tab, path }, location.origin);
+  else if (path) router.push(path as Href);
 }
 
 /** Réglages du compte Party : profil (prénom, nom, surnom, photo), accès aux événements, notifications, compte. */
 export function Settings({ topInset = false }: { topInset?: boolean }) {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, can, rank, isAdmin } = useAuth();
   if (!profile) return null;
-  const active = profile.status === 'active';
+  const active = can('events.view');
   const complete = hasCompleteIdentity(profile);
-  const status = profile.status === 'banned' ? 'Accès retiré' : active ? roleLabel[profile.role] : 'En attente de validation';
+  const status = profile.status === 'banned' ? 'Accès retiré' : rank >= 99 ? 'Root' : roleLabel[profile.role];
 
   return (
     <Screen edges={topInset ? ['top'] : []}>
@@ -40,10 +42,9 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
       </Section>
 
       <Section title="Événements du groupe">
-        <T muted size={14}>{active
-          ? 'Tu fais partie du groupe : sorties, sondages et discussions.'
-          : profile.status === 'banned' ? 'Ton accès aux événements a été retiré.' : 'Un admin doit valider ton accès avant que tu voies les sorties.'}</T>
-        {active ? <Button label="Voir les sorties" variant="secondary" onPress={() => openPartyTab('events')} /> : null}
+        {active ? <T muted size={14}>Tu fais partie du groupe : sorties, sondages et discussions.</T> : null}
+        {profile.status === 'banned' ? <T muted size={14}>Ton accès a été retiré par un admin.</T> : null}
+        {active ? <Button label="Voir les sorties" variant="secondary" onPress={() => openPartyTab('events')} /> : <JoinRequest />}
       </Section>
 
       <Card style={{ gap: 0, paddingVertical: 4 }}>
@@ -52,6 +53,12 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
             <LinkRow label="Notifications" hint="Ce que tu reçois, et quand" onPress={() => router.push('/settings/notifications')} />
             <View style={s.divider} />
             <LinkRow label="Mes abonnements" hint="Catégories et tags qui t’intéressent" onPress={() => router.push('/settings/subscriptions')} />
+            <View style={s.divider} />
+          </>
+        ) : null}
+        {isAdmin ? (
+          <>
+            <LinkRow label="Administration" hint="Demandes, membres, rôles et droits" onPress={() => openPartyTab('events', '/admin')} />
             <View style={s.divider} />
           </>
         ) : null}

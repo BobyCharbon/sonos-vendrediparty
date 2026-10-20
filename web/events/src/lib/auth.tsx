@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState, Platform } from 'react-native';
 
 import { supabase } from './supabase';
-import { isAdminRole, type Profile } from './types';
+import { ADMIN_PERMS, type Profile } from './types';
 import { syncWebPush, unregisterPushToken } from './push';
 
 type AuthState = {
@@ -11,7 +11,10 @@ type AuthState = {
   session: Session | null;
   profile: Profile | null;
   profileError: string | null;
-  isAdmin: boolean;
+  isAdmin: boolean; // a au moins un droit d'administration (onglet Administration)
+  perms: string[];
+  rank: number; // invité 0 … admin 4, root 99
+  can: (perm: string) => boolean;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -21,6 +24,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [access, setAccess] = useState<{ perms: string[]; rank: number }>({ perms: [], rank: -1 });
   const [sessionReady, setSessionReady] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const profileRequest = useRef(0);
@@ -33,10 +37,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      const { data, error } = await supabase.rpc('get_member_directory').eq('id', userId).single();
-      if (error) throw error;
+      const [dir, perms, rank] = await Promise.all([
+        supabase.rpc('get_member_directory').eq('id', userId).single(),
+        supabase.rpc('my_permissions'),
+        supabase.rpc('my_rank'),
+      ]);
+      if (dir.error) throw dir.error;
       if (request !== profileRequest.current) return;
-      setProfile(data as Profile);
+      setAccess({ perms: (perms.data as string[] | null) ?? [], rank: (rank.data as number | null) ?? -1 });
+      setProfile(dir.data as Profile);
       setProfileError(null);
     } catch {
       if (request === profileRequest.current) {
@@ -76,10 +85,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loading = !sessionReady || (!!session && profile?.id !== session.user.id && !profileError);
 
   useEffect(() => {
-    if (session && profile?.id === session.user.id && profile.status === 'active') {
+    if (session && profile?.id === session.user.id && access.perms.includes('events.view')) {
       void syncWebPush().catch(() => { /* Les réglages proposent de réparer l’activation. */ });
     }
-  }, [session, profile?.id, profile?.status]);
+  }, [session, profile?.id, access.perms]);
 
   // Une validation faite par l'admin devient visible sans reconnecter le membre.
   useEffect(() => {
@@ -88,14 +97,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const appState = AppState.addEventListener('change', (state) => {
       if (state === 'active') refresh();
     });
-    const timer = profile?.status === 'pending' ? setInterval(refresh, 15_000) : undefined;
+    const timer = profile?.role === 'guest' ? setInterval(refresh, 15_000) : undefined;  // demande d'adhésion en cours
     if (Platform.OS === 'web') window.addEventListener('focus', refresh);
     return () => {
       appState.remove();
       clearInterval(timer);
       if (Platform.OS === 'web') window.removeEventListener('focus', refresh);
     };
-  }, [session?.user.id, profile?.status, loadProfile]);
+  }, [session?.user.id, profile?.role, loadProfile]);
 
   const value = useMemo<AuthState>(
     () => ({
@@ -103,7 +112,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       profile,
       profileError,
-      isAdmin: !!session && profile?.id === session.user.id && isAdminRole(profile),
+      isAdmin: !!session && profile?.id === session.user.id && ADMIN_PERMS.some((p) => access.perms.includes(p)),
+      perms: access.perms,
+      rank: access.rank,
+      can: (perm: string) => !!session && profile?.id === session.user.id && access.perms.includes(perm),
       refreshProfile: () => loadProfile(session?.user.id),
       signOut: async () => {
         await unregisterPushToken().catch((error) => console.warn('Déconnexion push :', error));
@@ -111,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) setProfileError('La déconnexion n’a pas abouti. Vérifie ta connexion et réessaie.');
       },
     }),
-    [loading, session, profile, profileError, loadProfile],
+    [loading, session, profile, profileError, loadProfile, access],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

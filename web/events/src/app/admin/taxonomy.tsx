@@ -102,7 +102,8 @@ function Editor({ kind, items, onChange }: { kind: Kind; items: Item[]; onChange
 }
 
 export default function Taxonomy() {
-  const { isAdmin } = useAuth();
+  const { can } = useAuth();
+  const isAdmin = can('taxonomy.manage');
   const { data, error, reload } = useQuery(() => fetchTaxonomy(true), []);
   if (!isAdmin) return <Redirect href="/" />;
   return (

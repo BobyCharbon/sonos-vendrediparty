@@ -158,7 +158,8 @@ async function loadDraft(eventId: string): Promise<Draft> {
 
 export function EventForm({ eventId }: { eventId?: string }) {
   const me = useMe();
-  const { isAdmin } = useAuth();
+  const { can } = useAuth();
+  const isAdmin = can('events.publish_direct');  // publie sans passer par la validation
   const [draft, setDraft] = useState<Draft | null>(eventId ? null : emptyDraft);
   const savedEventId = useRef(eventId);
   const saving = useRef(false);
@@ -170,7 +171,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
     const [taxonomy, members, settings, current] = await Promise.all([
       fetchTaxonomy(),
       supabase.from('profiles').select('id, display_name').eq('status', 'active').order('display_name'),
-      supabase.from('group_settings').select('members_can_create_tags, require_approval').single(),
+      supabase.from('group_settings').select('require_approval').single(),
       eventId ? supabase.from('events').select('status').eq('id', eventId).single() : Promise.resolve(null),
     ]);
     if (eventId && !draft) {
@@ -180,7 +181,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
     return {
       ...taxonomy,
       members: must(members) as Pick<Profile, 'id' | 'display_name'>[],
-      settings: must(settings) as { members_can_create_tags: boolean; require_approval: boolean },
+      settings: must(settings) as { require_approval: boolean },
       status: current ? (must(current) as { status: EventRow['status'] }).status : null,
     };
   }, [eventId]);
@@ -437,7 +438,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
             <Chip key={t.id} label={`#${t.name}`} color={t.color} selected={d.tag_ids.includes(t.id)} onPress={() => toggleIn('tag_ids', t.id)} />
           ))}
         </View>
-        {isAdmin || ctx.settings.members_can_create_tags ? (
+        {can('taxonomy.manage') ? (
           <View style={s.row}>
             <Input placeholder="Nouveau tag" value={newTag} onChangeText={setNewTag} style={{ flex: 1 }} onSubmitEditing={createTag} />
             <Button small variant="secondary" label="Créer" onPress={createTag} disabled={!newTag.trim()} />

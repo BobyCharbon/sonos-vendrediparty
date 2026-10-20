@@ -30,7 +30,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 }
 
 const intentKey = 'party-events-destination';
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit)?|admin(?:\/members|\/taxonomy|\/announcements)?|activity|announcements|account|settings\/(?:notifications|subscriptions))$/i;
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit)?|admin(?:\/members|\/roles|\/taxonomy|\/announcements)?|activity|announcements|account|settings\/(?:notifications|subscriptions))$/i;
 function initialDestination() {
   if (typeof window === 'undefined') return null;
   const path = location.pathname.replace(/^\/events(?=\/|$)/, '');
@@ -42,8 +42,9 @@ function initialDestination() {
 }
 
 function Gate() {
-  const { loading, session, profile, profileError, refreshProfile, signOut } = useAuth();
-  const active = profile?.status === 'active' && hasCompleteIdentity(profile);
+  const { loading, session, profile, profileError, refreshProfile, signOut, can } = useAuth();
+  // Membre du groupe : droit « Voir les événements » et profil complet ; les autres comptes ont les Réglages.
+  const active = profile?.status === 'active' && hasCompleteIdentity(profile) && can('events.view');
   const path = usePathname();
   const [initialIntent] = useState(initialDestination);
   const intent = useRef(initialIntent);
@@ -107,6 +108,7 @@ function Gate() {
         <Stack.Screen name="settings/notifications" options={{ title: 'Notifications' }} />
         <Stack.Screen name="settings/subscriptions" options={{ title: 'Mes abonnements' }} />
         <Stack.Screen name="admin/members" options={{ title: 'Membres' }} />
+        <Stack.Screen name="admin/roles" options={{ title: 'Rôles et droits' }} />
         <Stack.Screen name="admin/taxonomy" options={{ title: 'Catégories et tags' }} />
         <Stack.Screen name="admin/announcements" options={{ title: 'Annonces admin' }} />
         <Stack.Screen name="announcements" options={{ title: 'Annonces admin' }} />

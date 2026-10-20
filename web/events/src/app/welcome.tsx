@@ -3,11 +3,12 @@ import { router } from 'expo-router';
 import { View } from 'react-native';
 
 import { IdentityForm } from '@/components/IdentityForm';
-import { Button, Card, Screen, T, Title } from '@/components/ui';
+import { JoinRequest } from '@/components/JoinRequest';
+import { Button, Screen, T, Title } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { hasCompleteIdentity } from '@/lib/profile';
 
-/** Inscription : prénom, nom, surnom et photo sur une seule page, puis attente de validation par un admin. */
+/** Compte connecté mais pas (encore) membre : profil complet, puis demande d'adhésion avec un mot facultatif. */
 export default function Welcome() {
   const { profile, refreshProfile, signOut } = useAuth();
   const [editing, setEditing] = useState(false);
@@ -22,14 +23,10 @@ export default function Welcome() {
         </View>
       ) : complete && !editing ? (
         <View style={{ gap: 20 }}>
-          <Title size={32}>Demande envoyée</Title>
-          <T>Merci {profile?.display_name}, ton profil est prêt.</T>
-          <Card>
-            <T weight="semibold">En attente d’autorisation</T>
-            <T muted>Un admin doit valider ton accès avant que tu puisses voir les événements du groupe.</T>
-            <T muted size={13}>Cette page se met à jour automatiquement après validation.</T>
-            <Button label="Vérifier mon accès" variant="secondary" onPress={refreshProfile} />
-          </Card>
+          <Title size={32}>Les sorties du groupe</Title>
+          <T>Salut {profile?.display_name} 👋</T>
+          <JoinRequest />
+          <Button label="Vérifier mon accès" variant="secondary" onPress={refreshProfile} />
           <Button label="Modifier mes informations" variant="ghost" onPress={() => setEditing(true)} />
         </View>
       ) : profile ? (
@@ -38,7 +35,7 @@ export default function Welcome() {
             <Title size={32}>Faisons connaissance</Title>
             <T muted>Quelques infos pour que le groupe te reconnaisse.</T>
           </View>
-          <IdentityForm profile={profile} submitLabel={profile.status === 'active' ? 'Enregistrer et continuer' : 'Demander l’accès'} onSaved={() => setEditing(false)} />
+          <IdentityForm profile={profile} submitLabel="Continuer" onSaved={() => setEditing(false)} />
         </View>
       ) : null}
       <View style={{ gap: 4 }}>

@@ -67,7 +67,7 @@ def browser(request):
 
 def mock_services(page, pending=False):
     calls = []
-    profile = {'id': USER, 'display_name': 'Compte de démonstration', 'phone': '41791234567', 'role': 'admin', 'status': 'pending' if pending else 'active', 'avatar_url': f'{USER}/photo.jpg', 'first_name': 'Camille', 'last_name': 'Demo', 'created_at': '2026-10-19T08:00:00Z'}
+    profile = {'id': USER, 'display_name': 'Compte de démonstration', 'phone': '41791234567', 'role': 'guest' if pending else 'admin', 'status': 'active', 'avatar_url': f'{USER}/photo.jpg', 'first_name': 'Camille', 'last_name': 'Demo', 'created_at': '2026-10-19T08:00:00Z'}
     category = {'id': 'ed69d11e-34dd-43fe-b211-10d0dd158ba9', 'name': 'Soirée', 'color': '#FFB347', 'sort': 0, 'archived': False, 'icon': None}
     event = {'id': EVENT, 'title': 'Sortie de démonstration (test local)', 'description': 'Données fictives réservées aux tests.', 'created_by': USER,
              'status': 'published', 'date_mode': 'fixed', 'starts_at': '2030-11-14T18:00:00Z', 'ends_at': None,
@@ -76,6 +76,12 @@ def mock_services(page, pending=False):
              'event_organizers': [], 'polls': [], 'bring_items': [], 'author': {'display_name': profile['display_name']},
              'show_participants': True, 'allow_maybe': True, 'allow_plus_ones': False, 'max_plus_ones': 0, 'max_participants': None,
              'rsvp_deadline': None, 'forum_enabled': True, 'all_day': False, 'price_chf': None, 'visibility': 'all'}
+    # Droits du compte (catalogue réel : migration 20261020160100) ; un invité ne voit pas les sorties.
+    perms = ['games.create', 'music.add'] if pending else ['events.view', 'events.rsvp', 'events.plus_ones', 'events.create', 'events.publish_direct',
+             'events.edit_own_published', 'events.manage_all', 'events.approve', 'events.see_participants', 'polls.create', 'chat.write', 'chat.moderate',
+             'taxonomy.manage', 'announcements.publish', 'group.settings', 'members.approve', 'members.view_identity', 'members.roles', 'members.ban',
+             'roles.manage', 'games.create', 'music.add']
+    join = {}
     def token():
         encode=lambda v:base64.urlsafe_b64encode(json.dumps(v).encode()).decode().rstrip('=')
         return '.'.join([encode({'alg':'HS256','typ':'JWT'}),encode({'sub':USER,'aud':'authenticated','role':'authenticated','exp':int(time.time())+3600}), 'test-signature'])
@@ -92,6 +98,17 @@ def mock_services(page, pending=False):
         elif path.endswith('/auth/v1/user'): result={'id':USER,'phone':profile['phone'],'app_metadata':{},'user_metadata':{}}
         elif path.endswith('/auth/v1/logout'): result={}
         elif path.endswith('/rpc/get_member_directory'): result=profile
+        elif path.endswith('/rpc/my_permissions'): result=perms
+        elif path.endswith('/rpc/my_rank'): result=0 if pending else 99
+        elif path.endswith('/rpc/request_join'): join.update(message=json.loads(request.post_data)['note'] or None, status='pending', created_at='2026-10-20T08:00:00Z'); result=None
+        elif path.endswith('/permissions'): result=[{'key':'events.view','grp':'Événements','label':'Voir les événements','hint':None,'sort':10},{'key':'events.publish_direct','grp':'Événements','label':'Publier sans validation','hint':None,'sort':14}]
+        elif path.endswith('/role_permissions'): result=[{'role':'member','perm':'events.view'}]
+        elif path.endswith('/rpc/set_role_permission'): result=None
+        elif path.endswith('/join_requests'):
+            if 'vnd.pgrst.object' in (request.headers.get('accept') or ''):
+                if not join: return route.fulfill(status=406,content_type='application/json',body=json.dumps({'code':'PGRST116','message':'0 rows'}),headers=headers)
+                result=join
+            else: result=[join] if join else []
         elif path.endswith('/categories'): result=[category]
         elif path.endswith('/events'):
             result=event if 'id' in parse_qs(urlparse(request.url).query) else [event]
@@ -180,14 +197,20 @@ def test_sms_login_events_details_and_rsvp(browser,events_origin,country,width):
     finally: context.close()
 
 
-def test_pending_member_waits_for_approval(browser,events_origin):
+def test_guest_asks_to_join_with_a_message(browser,events_origin):
+    """Compte invité : pas de sorties, mais une demande d'adhésion avec un petit mot pour les admins."""
     context=browser.new_context(viewport={'width':390,'height':844})
     page=context.new_page();calls=mock_services(page,pending=True)
     try:
         page.goto(events_origin,wait_until='domcontentloaded')
         page.get_by_role('button',name='Événements',exact=True).click()
         frame=page.frame_locator('#eventsFrame');login(frame)
-        pw.expect(frame.get_by_text('Demande envoyée',exact=True)).to_be_visible(timeout=15000)
+        pw.expect(frame.get_by_text('Rejoindre le groupe',exact=True)).to_be_visible(timeout=15000)
+        frame.get_by_label('Message pour les admins (facultatif)').fill('C’est Léa, la copine de Tom')
+        frame.get_by_role('button',name='Demander à rejoindre').click()
+        pw.expect(frame.get_by_text('Demande envoyée ✓',exact=True)).to_be_visible()
+        pw.expect(frame.get_by_text('« C’est Léa, la copine de Tom »',exact=True)).to_be_visible()
+        assert any(path.endswith('/rpc/request_join') and 'copine de Tom' in (body or '') for _,path,body in calls)
         assert not any(path.endswith('/events') for _,path,_ in calls)
     finally: context.close()
 
@@ -256,4 +279,21 @@ def test_account_tab_signs_in_shows_settings_and_crops_a_photo(browser, events_o
         page.get_by_role('button',name='Événements',exact=True).click()
         pw.expect(frame.get_by_text('Sortie de démonstration (test local)',exact=True)).to_be_visible(timeout=15000)
         assert not errors, errors
+    finally: context.close()
+
+
+def test_roles_screen_toggles_a_permission_for_the_chosen_role(browser,events_origin):
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page();calls=mock_services(page)
+    try:
+        page.goto(events_origin+'/events/admin/roles',wait_until='domcontentloaded')
+        login(page)
+        pw.expect(page.get_by_text('Publier sans validation',exact=True)).to_be_visible(timeout=15000)
+        page.get_by_text('Organisateur',exact=True).click()
+        page.get_by_role('switch',name='Publier sans validation').click()
+        for _ in range(50):
+            if any(path.endswith('/rpc/set_role_permission') for _,path,_ in calls): break
+            page.wait_for_timeout(100)
+        sent=[json.loads(b) for _,path,b in calls if path.endswith('/rpc/set_role_permission')]
+        assert sent and sent[-1]=={'target':'organizer','perm':'events.publish_direct','granted':True}, sent
     finally: context.close()

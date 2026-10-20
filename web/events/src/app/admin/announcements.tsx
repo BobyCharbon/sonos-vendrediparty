@@ -9,7 +9,8 @@ import { must, supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 
 export default function AdminAnnouncements() {
-  const { isAdmin } = useAuth();
+  const { can } = useAuth();
+  const isAdmin = can('announcements.publish');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);

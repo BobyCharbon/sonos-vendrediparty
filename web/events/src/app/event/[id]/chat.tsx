@@ -18,7 +18,8 @@ export default function ChatRoute() {
 
 function Chat({ id }: { id: string }) {
   const me = useMe();
-  const { isAdmin } = useAuth();
+  const { can } = useAuth();
+  const isAdmin = can('events.manage_all');
   const [text, setText] = useState('');
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -171,7 +172,7 @@ function Chat({ id }: { id: string }) {
                         <T muted size={11}>{m.pinned ? 'Désépingler' : 'Épingler'}</T>
                       </Pressable>
                     ) : null}
-                    {mine || isAdmin ? (
+                    {mine || can('chat.moderate') ? (
                       <Pressable onPress={() => remove(m)} accessibilityRole="button">
                         <T muted size={11}>Supprimer</T>
                       </Pressable>

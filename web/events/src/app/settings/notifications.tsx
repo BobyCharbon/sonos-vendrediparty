@@ -18,7 +18,8 @@ const chatHints: Record<ChatMode, string> = {
 
 export default function NotificationSettings() {
   const me = useMe();
-  const { isAdmin } = useAuth();
+  const { can } = useAuth();
+  const isAdmin = can('events.approve');  // reçoit les propositions à valider
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const saveLock = useRef(false);

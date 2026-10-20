@@ -1,6 +1,6 @@
 // Types alignés sur supabase/migrations. À remplacer par `supabase gen types` une fois le projet lié.
 
-export type MemberRole = 'member' | 'coadmin' | 'admin';
+export type MemberRole = 'guest' | 'member' | 'organizer' | 'coadmin' | 'admin';
 export type MemberStatus = 'pending' | 'active' | 'banned';
 export type EventStatus = 'draft' | 'pending' | 'published' | 'rejected' | 'cancelled';
 export type DateMode = 'fixed' | 'poll';
@@ -128,8 +128,12 @@ export type NotificationPrefs = {
   reminders: Reminder[];
 };
 
-export const isAdminRole = (p: Pick<Profile, 'role' | 'status'> | null | undefined) =>
-  !!p && p.status === 'active' && (p.role === 'admin' || p.role === 'coadmin');
+/** Droits qui ouvrent l'onglet Administration. */
+export const ADMIN_PERMS = ['events.approve', 'members.approve', 'members.roles', 'members.ban', 'members.view_identity', 'roles.manage', 'taxonomy.manage', 'group.settings', 'announcements.publish'];
+export const ROLE_ORDER: MemberRole[] = ['guest', 'member', 'organizer', 'coadmin', 'admin'];
+export const roleRank = (r: MemberRole) => ROLE_ORDER.indexOf(r);
+export const roleLabel: Record<MemberRole, string> = { guest: 'Invité', member: 'Membre officiel', organizer: 'Organisateur', coadmin: 'Co-admin', admin: 'Admin' };
+export type Permission = { key: string; grp: string; label: string; hint: string | null; sort: number };
 
 // shortcut: la base plafonne max_plus_ones à 10 ; 10 veut dire « illimité ». Une vraie valeur vide demanderait une migration partagée avec l'app iOS.
 export const UNLIMITED_PLUS_ONES = 10;

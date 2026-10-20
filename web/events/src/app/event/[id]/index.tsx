@@ -27,11 +27,12 @@ type Full = EventRow & {
 export default function EventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const me = useMe();
-  const { isAdmin } = useAuth();
+  const { can } = useAuth();
+  const isAdmin = can('events.manage_all');
   const [error, setError] = useState<string | null>(null);
 
   const { data, reload, error: loadError } = useQuery(async () => {
-    const [ev, members, results, myVotes, allVotes, messages, mute, settings] = await Promise.all([
+    const [ev, members, results, myVotes, allVotes, messages, mute] = await Promise.all([
       supabase
         .from('events')
         .select(
@@ -45,7 +46,6 @@ export default function EventScreen() {
       supabase.from('poll_votes').select('option_id, user_id'),
       supabase.from('messages').select('*').eq('event_id', id).is('deleted_at', null).order('created_at', { ascending: false }).limit(2),
       supabase.from('event_mutes').select('event_id').eq('event_id', id).eq('user_id', me.id),
-      supabase.from('group_settings').select('organizers_can_edit_published').single(),
     ]);
     return {
       event: must(ev) as unknown as Full,
@@ -55,7 +55,6 @@ export default function EventScreen() {
       allVotes: must(allVotes) as { option_id: string; user_id: string }[],
       messages: must(messages) as Message[],
       muted: must(mute).length > 0,
-      canEditPublished: (must(settings) as { organizers_can_edit_published: boolean }).organizers_can_edit_published,
     };
   }, [id, me.id]);
 
@@ -87,7 +86,7 @@ export default function EventScreen() {
   if (!data || !ev) return loadError ? <Screen edges={[]}><ErrorText error={loadError} /></Screen> : <Loading />;
 
   const published = ev.status === 'published';
-  const canEdit = isAdmin || (isOrganizer && (ev.status !== 'published' || data.canEditPublished));
+  const canEdit = isAdmin || (isOrganizer && (ev.status !== 'published' || can('events.edit_own_published')));
 
   async function run(p: PromiseLike<{ error: { message: string } | null }>) {
     const { error } = await p;
@@ -182,7 +181,7 @@ export default function EventScreen() {
         {ev.status === 'rejected' && ev.rejection_reason ? <T color={colors.coralSoft}>Motif du refus : {ev.rejection_reason}</T> : null}
       </View>
 
-      {canManage && ev.status === 'pending' && isAdmin ? (
+      {ev.status === 'pending' && can('events.approve') ? (
         <Card style={{ backgroundColor: colors.lavenderDim, borderColor: '#4A3F78' }}>
           <T weight="semibold">Cette proposition attend ta validation.</T>
           <View style={s.row}>

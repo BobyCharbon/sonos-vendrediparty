@@ -14,24 +14,28 @@ import type { EventRow, GroupSettings, Profile } from '@/lib/types';
 type Pending = EventRow & { author: { display_name: string } | null; date_options: { id: string }[]; polls: { id: string }[] };
 
 export default function Admin() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, can, rank } = useAuth();
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const { data, reload } = useQuery(async () => {
-    const [events, members, settings] = await Promise.all([
+    const [events, requests, directory, settings] = await Promise.all([
       supabase
         .from('events')
         .select('*, author:profiles!events_created_by_fkey(display_name), date_options(id), polls(id)')
         .eq('status', 'pending')
         .order('created_at'),
-      supabase.rpc('get_member_directory').eq('status', 'pending').order('created_at'),
+      supabase.from('join_requests').select('user_id, message, created_at').eq('status', 'pending').order('created_at'),
+      supabase.rpc('get_member_directory'),
       supabase.from('group_settings').select('*').single(),
     ]);
     return {
       events: must(events) as unknown as Pending[],
-      members: must(members) as Profile[],
+      // Demandes d'adhésion : le message et le profil de la personne (droit « Accepter les demandes »).
+      requests: (requests.data as { user_id: string; message: string | null; created_at: string }[] | null ?? [])
+        .map((r) => ({ ...r, who: (directory.data as Profile[] | null ?? []).find((p) => p.id === r.user_id) }))
+        .filter((r): r is typeof r & { who: Profile } => !!r.who),
       settings: must(settings) as GroupSettings,
     };
   }, []);
@@ -51,7 +55,7 @@ export default function Admin() {
       <Title>Administration</Title>
       <ErrorText error={error} />
 
-      <Section title="Propositions à valider">
+      {can('events.approve') ? <Section title="Propositions à valider">
         {data?.events.length === 0 ? <Empty>Rien à valider.</Empty> : null}
         {data?.events.map((e) => (
           <Card key={e.id} style={{ backgroundColor: colors.bg }}>
@@ -94,25 +98,33 @@ export default function Admin() {
             )}
           </Card>
         ))}
-      </Section>
+      </Section> : null}
 
-      <Section title="Demandes d’accès">
-        {data?.members.length === 0 ? <Empty>Aucune demande.</Empty> : null}
-        {data?.members.map((m) => (
-          <View key={m.id} style={s.rowBetween}>
-            <Avatar id={m.id} name={m.display_name || '?'} photo={m.avatar_url} />
-            <View style={{ flex: 1 }}>
-              <T weight="semibold">{m.display_name || 'Profil à compléter'}</T>
-              {m.first_name || m.last_name ? <T muted>{[m.first_name, m.last_name].filter(Boolean).join(' ')}</T> : null}
-              <T muted size={12}>{hasCompleteIdentity(m) ? m.phone : 'Nom, prénom, surnom et photo à compléter avant validation.'}</T>
-            </View>
-            <Button small label="Accepter" disabled={!hasCompleteIdentity(m)} onPress={() => run(supabase.from('profiles').update({ status: 'active' }).eq('id', m.id))} />
-            <Button small variant="danger" label="Refuser" onPress={() => run(supabase.from('profiles').update({ status: 'banned' }).eq('id', m.id))} />
-          </View>
-        ))}
-      </Section>
+      {can('members.approve') ? (
+        <Section title="Demandes d’adhésion">
+          {data?.requests.length === 0 ? <Empty>Aucune demande.</Empty> : null}
+          {data?.requests.map(({ who: m, message, created_at }) => (
+            <Card key={m.id} style={{ backgroundColor: colors.bg }}>
+              <View style={s.row}>
+                <Avatar id={m.id} name={m.display_name || '?'} photo={m.avatar_url} size={44} />
+                <View style={{ flex: 1 }}>
+                  <T weight="semibold">{m.display_name || 'Profil à compléter'}</T>
+                  {m.first_name || m.last_name ? <T muted>{[m.first_name, m.last_name].filter(Boolean).join(' ')}</T> : null}
+                  <T muted size={12}>{m.phone ? `+${m.phone.replace(/^\+/, '')} · ` : ''}{formatMessageTime(created_at)}</T>
+                </View>
+              </View>
+              {message ? <T size={14}>« {message} »</T> : null}
+              {!hasCompleteIdentity(m) ? <T muted size={13}>Nom, prénom, surnom et photo à compléter avant de pouvoir accepter.</T> : null}
+              <View style={s.row}>
+                <Button small label="Accepter" style={{ flex: 1 }} disabled={!hasCompleteIdentity(m)} onPress={() => run(supabase.rpc('decide_join_request', { member: m.id, accept: true }))} />
+                <Button small variant="danger" label="Refuser" style={{ flex: 1 }} onPress={() => run(supabase.rpc('decide_join_request', { member: m.id, accept: false }))} />
+              </View>
+            </Card>
+          ))}
+        </Section>
+      ) : null}
 
-      {data ? (
+      {data && can('group.settings') ? (
         <Section title="Règles du groupe">
           <ToggleRow
             label="Validation obligatoire"
@@ -120,31 +132,30 @@ export default function Admin() {
             value={data.settings.require_approval}
             onChange={(v) => setSetting({ require_approval: v })}
           />
-          <ToggleRow
-            label="Les co-admins publient directement"
-            value={data.settings.coadmins_skip_approval}
-            onChange={(v) => setSetting({ coadmins_skip_approval: v })}
-          />
-          <ToggleRow
-            label="Modifier après publication"
-            hint="L’organisateur peut encore changer son événement"
-            value={data.settings.organizers_can_edit_published}
-            onChange={(v) => setSetting({ organizers_can_edit_published: v })}
-          />
-          <ToggleRow
-            label="Les membres créent des tags"
-            value={data.settings.members_can_create_tags}
-            onChange={(v) => setSetting({ members_can_create_tags: v })}
-          />
+          <T muted size={13}>Qui publie sans validation, modifie le publié ou crée des tags : c’est maintenant dans « Rôles et droits ».</T>
         </Section>
       ) : null}
 
       <Card style={{ gap: 0, paddingVertical: 4 }}>
-        <LinkRow label="Annonces admin" hint="Publier un message obligatoire pour tout le groupe" onPress={() => router.push('/admin/announcements')} />
-        <View style={s.divider} />
-        <LinkRow label="Membres et rôles" hint="Co-admins, retirer un accès" onPress={() => router.push('/admin/members')} />
-        <View style={s.divider} />
-        <LinkRow label="Catégories et tags" hint="Créer, renommer, archiver" onPress={() => router.push('/admin/taxonomy')} />
+        {can('roles.manage') || rank >= 99 ? (
+          <>
+            <LinkRow label="Rôles et droits" hint="Ce que chaque rôle peut faire" onPress={() => router.push('/admin/roles')} />
+            <View style={s.divider} />
+          </>
+        ) : null}
+        {can('members.roles') || can('members.ban') || can('members.view_identity') ? (
+          <>
+            <LinkRow label="Membres" hint="Rôles, accès, identité" onPress={() => router.push('/admin/members')} />
+            <View style={s.divider} />
+          </>
+        ) : null}
+        {can('announcements.publish') ? (
+          <>
+            <LinkRow label="Annonces admin" hint="Publier un message obligatoire pour tout le groupe" onPress={() => router.push('/admin/announcements')} />
+            <View style={s.divider} />
+          </>
+        ) : null}
+        {can('taxonomy.manage') ? <LinkRow label="Catégories et tags" hint="Créer, renommer, archiver" onPress={() => router.push('/admin/taxonomy')} /> : null}
       </Card>
     </Screen>
   );
