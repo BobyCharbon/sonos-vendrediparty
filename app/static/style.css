@@ -31,26 +31,26 @@ h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; colo
 /* Même navigation et même origine pour les sorties du groupe. */
 .events-panel { min-width: 0; }
 .events-frame { display: block; width: 100%; height: calc(100dvh - 172px); min-height: 240px; border: 0; background: var(--bg); border-radius: 14px; }
-body[data-tab="events"] .name-chip-top { display: none; }
+body[data-tab="events"] .name-chip-top, body[data-tab="account"] .name-chip-top { display: none; }
 /* Onglet Événements en plein écran, sur le même modèle que le reste de Party :
    la page garde son défilement normal (comme sur main, ce qui évite le bug de
    hauteur d’iOS 26.0 dans les web apps) et le module se cale au pixel près entre
    le haut de l’écran et la barre d’onglets, dont la hauteur réelle est mesurée
    (--tabs-h, mesurée en JS). Le module gère lui-même l’encoche et la
    Dynamic Island grâce aux marges que Party lui transmet. */
-body[data-tab="events"] .top-head { display: none; }
-body[data-tab="events"] .events-panel {
+body[data-tab="events"] .top-head, body[data-tab="account"] .top-head { display: none; }
+body[data-tab="events"] .events-panel, body[data-tab="account"] .events-panel {
   position: fixed; z-index: 5; top: 0; left: 0; right: 0;
   bottom: var(--tabs-h, calc(58px + max(6px, env(safe-area-inset-bottom))));
   display: flex; flex-direction: column; background: var(--bg);
 }
-body[data-tab="events"] .events-panel.hidden { display: none; }
-body[data-tab="events"] .events-frame { flex: 1 1 auto; width: 100%; height: auto; min-height: 0; border-radius: 0; }
-body[data-tab="events"] .tabs { touch-action: manipulation; }
+body[data-tab="events"] .events-panel.hidden, body[data-tab="account"] .events-panel.hidden { display: none; }
+body[data-tab="events"] .events-frame, body[data-tab="account"] .events-frame { flex: 1 1 auto; width: 100%; height: auto; min-height: 0; border-radius: 0; }
+body[data-tab="events"] .tabs, body[data-tab="account"] .tabs { touch-action: manipulation; }
 /* Rien ne recouvre le module : le bandeau d’installation reste sur Musique et Jeux. */
-body[data-tab="events"] #tabs ~ .install { display: none !important; }
-body[data-tab="events"] #eventsLoading { position: absolute; top: calc(16px + env(safe-area-inset-top)); left: 16px; right: 16px; }
-body[data-tab="events"] #noSpotify { display: none; }
+body[data-tab="events"] #tabs ~ .install, body[data-tab="account"] #tabs ~ .install { display: none !important; }
+body[data-tab="events"] #eventsLoading, body[data-tab="account"] #eventsLoading { position: absolute; top: calc(16px + env(safe-area-inset-top)); left: 16px; right: 16px; }
+body[data-tab="events"] #noSpotify, body[data-tab="account"] #noSpotify { display: none; }
 @media (max-width: 380px) { .tabs button { padding-inline: 8px; } }
 
 input, select, button { font: inherit; }
@@ -1331,7 +1331,7 @@ body[data-tab="music"] .tabs button.on .tab-ico { stroke: var(--accent-2); filte
   body.pyr-full #gamePlay { padding-left: 24px; padding-right: 24px;
     background: radial-gradient(60% 50% at 50% 0%, rgba(255, 79, 154, .18), transparent 70%), var(--bg); }
   .app-title, .top-head h1 { font-size: 2.75rem; }
-  body[data-tab="events"] .events-panel { left: 96px; bottom: 0; }
+  body[data-tab="events"] .events-panel, body[data-tab="account"] .events-panel { left: 96px; bottom: 0; }
 }
 /* Petits écrans (iPhone SE…) : un peu plus compact */
 @media (max-width: 360px) {
@@ -1508,3 +1508,12 @@ html[data-events="soon"] .tabs [data-tab="events"]::after {
 .fb-kinds button { min-height:42px; }
 .fb-item .title { white-space:normal; overflow-wrap:anywhere; font-weight:600; }
 .fb-st.done { color:#7be0a6; font-weight:700; }
+
+/* Compte Party : « Se connecter » / « Réglages » remplace « Ton avis » (qui passe dans les Réglages) ; tant que les
+   Événements sont « Bientôt » en production, l'onglet compte reste caché et « Ton avis » garde sa place. */
+html[data-events="soon"] .tabs [data-tab="account"], html:not([data-events="soon"]) .tabs:has(#accountTab) [data-tab="feedback"] { display: none; }
+.tab-avatar { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 2px currentColor; }
+.qs-av { position: relative; overflow: hidden; }
+.qs-av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.qs-av.qs-av-sm { width: 30px; height: 30px; font-size: .8rem; }
+.qs-av.qs-av-xs { width: 20px; height: 20px; font-size: .6rem; margin-right: 6px; vertical-align: -5px; }

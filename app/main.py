@@ -22,6 +22,7 @@ from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 
 from . import calendar_ics, games, heist, island, links, neon, president, quiz
+from .accounts import AccountError, Accounts
 from .feedback import KINDS as FEEDBACK_KINDS, FeedbackBox
 from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
 from .push import Push, valid_subscription
@@ -1133,6 +1134,9 @@ def full_view(g: dict, gid: str) -> dict:
         last = last_seen_of(g, real["id"])
         p["online"] = now - last < ONLINE_WINDOW
         p["seen_ago"] = int(now - last) if last else None
+        ids = [real["id"]] + [a for a, o in (g.get("aliases") or {}).items() if o == real["id"]]
+        if photo := next(filter(None, map(accounts.photo, ids)), None):
+            p["photo"] = photo  # compte Party : la photo de profil remplace l'initiale
         twins = [x for x in g["players"] if not x.get("manual") and same_name(x["name"], real["name"])]
         if len(twins) > 1:
             p["twin"] = twins.index(real) + 1
@@ -1160,6 +1164,40 @@ def presence(body: Presence, request: Request):
     check_guest_id(body.guest_id)
     game_presence(request, body.guest_id, body.name)
     return {"ok": True}
+
+
+accounts = Accounts(_secret())
+account_limiter = Limiter(per_ip=10, ip_lock=300, global_max=200, global_window=600, global_lock=120)
+
+
+class AccountLink(BaseModel):
+    token: str
+    guest_id: str = ""
+
+
+@app.post("/api/account/link")
+def account_link(body: AccountLink, request: Request):
+    """Compte Party connecté → identifiant de joueur du compte (même sur tous ses appareils), surnom et photo.
+    Les places que ce téléphone occupait déjà dans des parties suivent le compte."""
+    ip = client_ip(request)
+    if msg := account_limiter.blocked(ip):
+        raise HTTPException(429, msg)
+    if not 20 < len(body.token) < 4096:
+        raise HTTPException(400, "Jeton invalide")
+    try:
+        account = accounts.link(body.token)
+    except AccountError as e:
+        account_limiter.fail(ip)
+        raise HTTPException(401, str(e))
+    account_limiter.success(ip)
+    new, old = account["guest_id"], body.guest_id
+    if GUEST_ID_RE.match(old or "") and old != new:
+        for g in list(store.session.games.values()):
+            if games.player(g, old) and not games.player(g, new):
+                g.setdefault("aliases", {})[new] = canonical_gid(g, old)
+    if account["name"]:
+        game_presence(request, new, account["name"])
+    return account
 
 
 ONLINE_WINDOW = 45  # s : un téléphone ouvert sur la partie se manifeste au moins toutes les 15 s

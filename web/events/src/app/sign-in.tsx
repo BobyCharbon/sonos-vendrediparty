@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
 
+import { openPartyTab } from '@/components/Settings';
 import { Button, ErrorText, Field, Screen, T, Title } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
@@ -46,9 +47,9 @@ export default function SignIn() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ gap: 24 }}>
         <View style={{ gap: 6 }}>
           <Title size={40}>
-            Les événements
+            Ton compte Party
           </Title>
-          <T muted>Connecte-toi par SMS pour retrouver les sorties du groupe.</T>
+          <T muted>Connecte-toi par SMS : ton surnom et ta photo te suivent dans les jeux, et tu peux demander à rejoindre les sorties du groupe.</T>
         </View>
 
         {!sentTo ? (
@@ -119,6 +120,7 @@ export default function SignIn() {
           </View>
         )}
       </KeyboardAvoidingView>
+      <Button label="Une idée, un bug ? Ton avis" variant="ghost" onPress={() => openPartyTab('feedback')} />
       <Button label="Confidentialité" variant="ghost" onPress={() => router.push('/privacy')} />
     </Screen>
   );

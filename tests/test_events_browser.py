@@ -226,3 +226,34 @@ def test_add_to_calendar_opens_native_calendar_flow(browser,events_origin,agent)
             assert query['dates']==['20301114T180000Z/20301114T210000Z']
         assert page.frame(url=events_origin+'/events/event/'+EVENT) or page.locator('#eventsFrame').is_visible()
     finally: context.close()
+
+
+def test_account_tab_signs_in_shows_settings_and_crops_a_photo(browser, events_origin, tmp_path):
+    """Onglet « Se connecter » : même connexion SMS, puis les Réglages ; une photo choisie s'ouvre dans le recadrage."""
+    from PIL import Image
+    Image.new('RGB', (1600, 900), (200, 80, 120)).save(tmp_path / 'paysage.png')
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page();mock_services(page)
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    try:
+        page.goto(events_origin, wait_until='domcontentloaded')
+        page.locator('#accountTab').click()
+        pw.expect(page.locator('#appTitle')).to_have_text('Se connecter')
+        frame=page.frame_locator('#eventsFrame')
+        login(frame)
+        pw.expect(frame.get_by_text('Mon profil',exact=True)).to_be_visible(timeout=15000)
+        pw.expect(frame.get_by_label('Surnom',exact=True)).to_have_value('Compte de démonstration')
+        frame.locator('input[type=file]:not([capture])').set_input_files(str(tmp_path / 'paysage.png'))
+        dialog=frame.get_by_role('dialog',name='Recadrer ta photo de profil')
+        pw.expect(dialog).to_be_visible()
+        dialog.get_by_role('button',name='Zoomer',exact=True).click()
+        dialog.get_by_role('button',name='Pivoter d’un quart de tour').click()
+        dialog.get_by_role('button',name='Valider la photo').click()
+        pw.expect(dialog).to_have_count(0)
+        pw.expect(frame.get_by_label('Aperçu de ta photo de profil')).to_be_visible()
+        pw.expect(frame.get_by_role('button',name='Enregistrer',exact=True)).to_be_enabled()
+        # Les Événements reprennent la liste des sorties, sans recharger le module.
+        page.get_by_role('button',name='Événements',exact=True).click()
+        pw.expect(frame.get_by_text('Sortie de démonstration (test local)',exact=True)).to_be_visible(timeout=15000)
+        assert not errors, errors
+    finally: context.close()

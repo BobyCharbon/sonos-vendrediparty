@@ -30,7 +30,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 }
 
 const intentKey = 'party-events-destination';
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit)?|admin(?:\/members|\/taxonomy|\/announcements)?|activity|announcements|settings\/(?:notifications|subscriptions))$/i;
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit)?|admin(?:\/members|\/taxonomy|\/announcements)?|activity|announcements|account|settings\/(?:notifications|subscriptions))$/i;
 function initialDestination() {
   if (typeof window === 'undefined') return null;
   const path = location.pathname.replace(/^\/events(?=\/|$)/, '');
@@ -47,14 +47,33 @@ function Gate() {
   const path = usePathname();
   const [initialIntent] = useState(initialDestination);
   const intent = useRef(initialIntent);
+  const [asked, setAsked] = useState(0);
+  // Page Party autour du module : elle demande une page (onglet Événements ou Réglages) et suit la connexion.
   useEffect(() => {
-    if (!loading && active && !profileError && intent.current) {
+    if (typeof window === 'undefined' || window.parent === window) return;
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== location.origin || e.data?.type !== 'party-shell:navigate') return;
+      const target = String(e.data.path || '/');
+      if (target !== '/' && !validDestination.test(target)) return;
+      intent.current = target;
+      setAsked((n) => n + 1);
+    };
+    window.addEventListener('message', onMessage);
+    window.parent.postMessage({ type: 'party-events:ready', path: location.pathname.replace(/^\/events(?=\/|$)/, '') || '/' }, location.origin);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.parent !== window) window.parent.postMessage({ type: 'party-events:account' }, location.origin);
+  }, [session?.user.id, profile?.display_name, profile?.avatar_url, profile?.status]);
+  useEffect(() => {
+    // Réglages : ouverts à tout compte connecté ; le reste attend la validation du membre.
+    if (!loading && session && (active || intent.current === '/account') && !profileError && intent.current) {
       const target = intent.current;
       intent.current = null;
       try { sessionStorage.removeItem(intentKey); } catch { /* Stockage indisponible. */ }
       if (path !== target) requestAnimationFrame(() => router.replace(target as Href));
     }
-  }, [loading, active, profileError, path]);
+  }, [loading, session, active, profileError, path, asked]);
 
   if (loading) return <Loading />;
   if (profileError && session) {
@@ -99,6 +118,7 @@ function Gate() {
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />
       </Stack.Protected>
       <Stack.Protected guard={!!session}>
+        <Stack.Screen name="account" options={{ headerShown: false }} />
         <Stack.Screen name="settings/account" options={{ title: 'Mon compte' }} />
       </Stack.Protected>
       <Stack.Screen name="privacy" options={{ title: 'Confidentialité' }} />

@@ -986,7 +986,9 @@ function renderGame(g) {
 function avatar(p, cls = "") {
   let h = 0;
   for (const c of p.pid || p.name || "") h = (h * 31 + c.charCodeAt(0)) % 360;
-  return `<span class="qs-av ${cls}" style="--h:${h}" aria-hidden="true">${esc((p.name || "?").trim().charAt(0).toUpperCase())}</span>`;
+  const initial = esc((p.name || "?").trim().charAt(0).toUpperCase());
+  // Compte Party : sa photo de profil ; l'initiale reste dessous si l'image ne charge pas.
+  return `<span class="qs-av ${cls}" style="--h:${h}" aria-hidden="true">${initial}${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="lazy" onerror="this.remove()">` : ""}</span>`;
 }
 // « Qui de nous ? » et « Je n'ai jamais » : la question, une consigne, les choix, et qui a déjà répondu.
 function questionHtml(g, me) {
@@ -2271,7 +2273,7 @@ function lobbyInvite(g) {
     <img class="g-lobby-qr" width="240" height="240" src="/qr/game/${esc(g.room || g.code)}.svg" alt="QR code pour rejoindre la partie">
     <div class="g-lobby-code">${esc(g.room || g.code)}</div>
     <div class="artist g-lobby-hint">ou onglet 🎮 Jeux → entre ce code</div>
-    <div class="g-lobby-players">${n ? g.players.map((p) => `<span class="pill">${p.host ? "🎲 " : ""}${esc(p.name)}</span>`).join("") : `<span class="artist">En attente des joueurs…</span>`}</div>
+    <div class="g-lobby-players">${n ? g.players.map((p) => `<span class="pill g-pill-av">${p.photo ? avatar(p, "qs-av-xs") : ""}${p.host ? "🎲 " : ""}${esc(p.name)}</span>`).join("") : `<span class="artist">En attente des joueurs…</span>`}</div>
   </div>`;
 }
 
@@ -2379,7 +2381,7 @@ function gameTopBar(g) {
 function renderDrawer(g) {
   const lead = g.is_host, movable = lead && g.phase === "lobby";
   patch.gDrawerPlayers = `<h2>Participants (${g.players.length})</h2>
-    <div class="list">${g.players.map((p, i) => `<div class="track ${p.online === false ? "g-away" : ""}"><div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${p.pid === g.me?.pid ? " (toi)" : ""}${presenceTag(p)}${playerTag(g, p)}${p.pending ? " ⏳" : ""}${sipsBadge(p)}</div></div>
+    <div class="list">${g.players.map((p, i) => `<div class="track ${p.online === false ? "g-away" : ""}">${avatar(p, "qs-av-sm")}<div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${p.pid === g.me?.pid ? " (toi)" : ""}${presenceTag(p)}${playerTag(g, p)}${p.pending ? " ⏳" : ""}${sipsBadge(p)}</div></div>
       <div class="icon-btns">
         ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter" aria-label="Monter">⬆</button>` : ""}
         ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre" aria-label="Descendre">⬇</button>` : ""}
