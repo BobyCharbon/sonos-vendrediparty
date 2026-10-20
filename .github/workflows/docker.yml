@@ -32,6 +32,9 @@ jobs:
         with:
           context: .
           push: true
+          # Événements : actifs sur le site de test (develop), « Bientôt » en production (main).
+          build-args: |
+            EVENTS_ENABLED=${{ github.ref_name == 'develop' && '1' || '0' }}
           # main → :latest (production) ; develop → :develop (site de test partytest.bobycharbon.ch)
           tags: |
             ghcr.io/bobycharbon/sonos-vendrediparty:${{ github.ref_name == 'main' && 'latest' || 'develop' }}

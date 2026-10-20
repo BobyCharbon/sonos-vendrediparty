@@ -12,6 +12,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 COPY --from=events-web /web/events/dist ./app/events-web
 ENV DATA_DIR=/data PORT=8000
+# Section Événements : 1 sur l'image de test (develop), 0 en production (main).
+ARG EVENTS_ENABLED=0
+ENV EVENTS_ENABLED=${EVENTS_ENABLED}
 ENV FORWARDED_ALLOW_IPS=127.0.0.1,192.168.50.1
 VOLUME /data
 EXPOSE 8000

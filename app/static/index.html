@@ -274,6 +274,11 @@ $("nameChip").addEventListener("click", changeName);
 // Les événements utilisent leur compte SMS ; les accès musique/jeux restent indépendants.
 function showTab(tab, eventTarget) {
   if (!["music", "games", "events"].includes(tab)) tab = "music";
+  if (tab === "events" && PartyEvents.soon) {
+    // Section en préparation : on reste où on est (ou sur la musique au démarrage).
+    if (document.body.dataset.tab) return toast("📅 Les événements arrivent bientôt");
+    tab = "music";
+  }
   document.querySelectorAll("[data-view]").forEach((el) => el.classList.toggle("hidden", el.dataset.view !== tab));
   document.querySelectorAll("#tabs [data-tab]").forEach((el) => {
     const current = el.dataset.tab === tab;

@@ -1483,3 +1483,10 @@ img.qr:not([src]) { visibility: hidden; }
 #gTop .g-quit { min-height:44px; padding:8px 10px; flex-shrink:0; font-size:.85rem; }
 #gDrawerExit { display:grid; gap:8px; margin-bottom:16px; }
 @media(max-width:420px) { #gTop { gap:5px !important; } #gTop .g-top-ico { display:none; } #gTop .g-top-name { font-size:.85rem; } }
+
+/* Section Événements en préparation (production) : onglet visible, atténué, marqué « Bientôt ». */
+html[data-events="soon"] .tabs [data-tab="events"] { position: relative; opacity: .55; }
+html[data-events="soon"] .tabs [data-tab="events"] [data-events-badge] { display: none; }
+html[data-events="soon"] .tabs [data-tab="events"]::after {
+  content: "Bientôt"; position: absolute; top: 2px; left: calc(50% + 4px); padding: 1px 6px; border-radius: 99px;
+  background: var(--accent-2, #ffb547); color: #2b1a00; font: 800 .58rem/1.4 system-ui, sans-serif; letter-spacing: .01em; }

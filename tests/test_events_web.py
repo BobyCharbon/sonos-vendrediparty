@@ -90,3 +90,15 @@ def test_calendar_file_defaults_to_three_hours_and_drops_unsafe_links(events_cli
         "end": "2026-10-23T10:00:00+02:00", "url": "javascript:alert(1)"}).text
     assert "DTSTART:20261023T183000Z" in body and "DTEND:20261023T213000Z" in body
     assert "javascript" not in body
+
+
+def test_events_are_coming_soon_in_production(events_client, monkeypatch):
+    """Production (EVENTS_ENABLED=0) : onglet « Bientôt », module inaccessible, jeux et musique intacts."""
+    monkeypatch.setattr(main, "EVENTS_ENABLED", False)
+    monkeypatch.setattr(main, "_pages", {})
+    for path in ("/", "/admin"):
+        page = events_client.get(path)
+        assert page.status_code == 200 and '<html data-events="soon"' in page.text
+    assert events_client.get("/events/").status_code == 404
+    assert events_client.get("/events/admin").status_code == 404
+    monkeypatch.setattr(main, "_pages", {})  # les pages suivantes retrouvent l'onglet actif

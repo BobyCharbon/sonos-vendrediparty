@@ -1,5 +1,7 @@
 // Pont de navigation commun aux pages invités et admin. Aucune donnée de compte ici.
 window.PartyEvents = {
+  /** Section encore en développement : l'onglet affiche « Bientôt » et le module n'est pas chargé. */
+  soon: document.documentElement.dataset.events === 'soon',
   target(params, admin = false) {
     const id = params.get('event') || '';
     if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id)) return '/events/event/' + id;
@@ -7,6 +9,7 @@ window.PartyEvents = {
     return admin ? '/events/admin' : '/events/';
   },
   open(target) {
+    if (this.soon) return;
     const frame = document.getElementById('eventsFrame');
     const loading = document.getElementById('eventsLoading');
     if (!frame) return;
@@ -18,6 +21,7 @@ window.PartyEvents = {
   },
   /** Membres déjà connectés : charge le module en arrière-plan pour connaître les réponses attendues. */
   preload() {
+    if (this.soon) return;
     let session = false;
     try { session = Object.keys(localStorage).some((k) => /^sb-.+-auth-token$/.test(k)); } catch { /* Stockage bloqué. */ }
     try { this.badge(Number(sessionStorage.getItem('vp_events_pending')) || 0); } catch { /* Stockage bloqué. */ }
@@ -88,3 +92,12 @@ window.addEventListener('message', (event) => {
   if (event.origin !== location.origin || event.data?.type !== 'party-events:pending') return;
   window.PartyEvents.badge(event.data.count);
 });
+
+// « Bientôt » : l'onglet reste visible mais n'ouvre rien (annoncé aux lecteurs d'écran).
+if (window.PartyEvents.soon) {
+  const mark = () => document.querySelectorAll('[data-tab="events"]').forEach((b) => {
+    b.setAttribute('aria-disabled', 'true');
+    b.setAttribute('aria-label', 'Événements : bientôt disponible');
+  });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mark); else mark();
+}

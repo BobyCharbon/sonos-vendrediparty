@@ -269,6 +269,10 @@ function showLogin() { $("login").classList.remove("hidden"); $("panel").classLi
 const VIEWS = ["home", "games", "events", "settings"];
 function showView(view) {
   if (!VIEWS.includes(view)) view = "home";
+  if (view === "events" && PartyEvents.soon) {
+    if (document.body.dataset.tab) return toast("📅 Les événements arrivent bientôt");
+    view = "home";
+  }
   document.querySelectorAll("[data-view]").forEach((el) => el.classList.toggle("hidden", el.dataset.view !== view));
   document.querySelectorAll("#tabs [data-tab]").forEach((el) => {
     const current = el.dataset.tab === view;
