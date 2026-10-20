@@ -287,7 +287,7 @@ function showView(view) {
   if (view === "games" && typeof refreshGame === "function") refreshGame();
 }
 document.addEventListener("click", (ev) => {
-  const t = ev.target.closest("[data-tab]");
+  const t = ev.target.closest("button[data-tab]");  // pas le <body>, qui porte aussi data-tab
   if (t) showView(t.dataset.tab);
 });
 addEventListener("hashchange", () => showView(location.hash.slice(1)));

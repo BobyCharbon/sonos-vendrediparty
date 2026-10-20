@@ -299,7 +299,8 @@ function showTab(tab, eventTarget) {
   }
   scrollTo(0, 0);
 }
-document.addEventListener("click", (ev) => { const t = ev.target.closest("[data-tab]"); if (t) showTab(t.dataset.tab); });
+// Boutons d'onglet seulement : le <body> porte aussi data-tab (sinon chaque toucher ramène en haut de page).
+document.addEventListener("click", (ev) => { const t = ev.target.closest("button[data-tab]"); if (t) showTab(t.dataset.tab); });
 
 // 🔔 Notifications : l'invité choisit d'être prévenu quand son titre passe.
 async function initNotifications() {

@@ -730,7 +730,7 @@ function minimizeGame() {
   }, 260);
 }
 // Changement d'onglet (page invités ou admin) : on remet le plein écran / la mini-barre à jour.
-document.addEventListener("click", (ev) => { if (ev.target.closest("[data-tab]")) setTimeout(syncGameChrome, 0); });
+document.addEventListener("click", (ev) => { if (ev.target.closest("button[data-tab]")) setTimeout(syncGameChrome, 0); });
 
 let gSeq = 0;  // numéro du dernier chargement de la partie demandé
 async function refreshGame() {
