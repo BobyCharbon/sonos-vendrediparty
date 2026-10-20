@@ -102,11 +102,11 @@ def test_heist_coop_touch_late_join_and_network_recovery(phones):
 
 
 def test_heist_floating_joystick_and_quit_by_touch(phones):
-    """Toucher n'importe où sur l'écran de jeu amène le joystick sous le doigt ; « Quitter » ouvre le menu de sortie."""
+    """Toucher la moitié gauche de l'écran de jeu amène le joystick sous le doigt ; « Quitter », en haut à droite, ouvre le menu de sortie."""
     p=phones('HeistThumb');p.create('heist');ready(p)
     p.page.locator('.hs-primary[data-gact="start"]').tap();wait_state(p,lambda g:g['phase']=='play')
     expect(p.page.locator('.hs-root.hs-playing')).to_be_visible();p.page.wait_for_timeout(600)  # commandes actives
-    x0=mine(p)['x'];cdp=p.ctx.new_cdp_session(p.page);vw=p.page.viewport_size;fx,fy=vw['width']*.6,vw['height']*.45
+    x0=mine(p)['x'];cdp=p.ctx.new_cdp_session(p.page);vw=p.page.viewport_size;fx,fy=vw['width']*.3,vw['height']*.45
     cdp.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[{'x':fx,'y':fy,'id':1}]})
     r=p.page.locator('.hs-stick').bounding_box()
     assert abs(r['x']+r['width']/2-fx)<2 and abs(r['y']+r['height']/2-fy)<2  # centré sous le doigt
@@ -114,5 +114,6 @@ def test_heist_floating_joystick_and_quit_by_touch(phones):
     wait_state(p,lambda g:next(b for b in g['heist']['fighters'] if b['pid']==g['heist']['me'])['x']>x0+.5)
     cdp.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]})
     expect(p.page.locator('.hs-stick')).to_have_attribute('style',re.compile(r'^(?!.*translate)'))  # revenu à sa place
+    q=p.page.locator('.g-quit').bounding_box();assert q['x']+q['width']>vw['width']-30  # dans le coin, bien visible
     p.page.locator('.g-quit').tap()
     expect(p.page.locator('#gDrawerExit [data-exit]').first).to_be_visible()

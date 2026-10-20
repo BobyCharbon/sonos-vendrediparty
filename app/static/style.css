@@ -1480,7 +1480,7 @@ img.qr:not([src]) { visibility: hidden; }
 .g-kick { background: #221a3d; color: #fff; }
 
 /* Keep the exit visible without hunting below the invitation and roster. */
-#gTop .g-quit { min-height:44px; padding:8px 10px; flex-shrink:0; font-size:.85rem; }
+#gTop .g-quit { min-height:44px; margin:0; padding:8px 12px; flex-shrink:0; font-size:.85rem; font-weight:800; white-space:nowrap; background:#e5484d; color:#fff; border:0; border-radius:12px; box-shadow:0 6px 16px rgba(0,0,0,.4); }
 #gDrawerExit { display:grid; gap:8px; margin-bottom:16px; }
 @media(max-width:420px) { #gTop { gap:5px !important; } #gTop .g-top-ico { display:none; } #gTop .g-top-name { font-size:.85rem; } }
 

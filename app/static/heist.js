@@ -118,18 +118,16 @@ window.Heist=(()=>{
     let z0=0;try{z0=+(localStorage.getItem('vp_hs_zoom')||0);}catch{}zoomLabel(z0);
     const stick=root.querySelector('.hs-stick'),action=root.querySelector('.hs-action');
     const move=e=>{const r=stick.getBoundingClientRect(),dx=e.clientX-r.left-r.width/2,dy=e.clientY-r.top-r.height/2,d=Math.max(32,Math.hypot(dx,dy));input.x=dx/d;input.y=dy/d;stick.querySelector('.hs-knob').style.transform=`translate(${input.x*28}px,${input.y*28}px)`;};
-    stick.addEventListener('pointerdown',e=>{if(stickId!==null||!loaded)return;e.preventDefault();stickId=e.pointerId;input.cancel=false;stick.setPointerCapture(e.pointerId);move(e);});
+    const startStick=e=>{if(stickId!==null||!loaded)return;e.preventDefault();stickId=e.pointerId;input.cancel=false;stick.setPointerCapture(e.pointerId);move(e);};
+    stick.addEventListener('pointerdown',startStick);
     stick.addEventListener('pointermove',e=>{if(e.pointerId===stickId)move(e);});
     const release=e=>{if(e.pointerId===stickId){stickId=null;input.x=input.y=0;stick.querySelector('.hs-knob').style.removeProperty('transform');stick.style.removeProperty('translate');}};
-    // Joystick flottant : un toucher n'importe où sur l'écran de jeu (hors boutons) l'amène sous le doigt.
-    root.addEventListener('pointerdown',e=>{
-      if(e.pointerType==='mouse'||stickId!==null||!loaded||e.target.closest('button,a,input,.hs-stick')||stick.closest('.hs-inactive')||!stick.offsetParent)return;  // seulement en jeu
-      const r=stick.getBoundingClientRect();stick.style.translate=`${e.clientX-r.left-r.width/2}px ${e.clientY-r.top-r.height/2}px`;
-      e.preventDefault();stickId=e.pointerId;input.cancel=false;stick.setPointerCapture(e.pointerId);move(e);
-    });
+    const startAction=e=>{if(actionId!==null||action.disabled)return;e.preventDefault();actionId=e.pointerId;input.cancel=false;input.action=true;actionPulse=true;action.setPointerCapture(e.pointerId);};
+    // Commandes flottantes : un toucher à gauche amène le joystick sous le doigt, à droite le bouton d'action.
+    root.addEventListener('pointerdown',e=>floatControl(e,root,stick,action,startStick,startAction,e.target.closest('button,a,input,.hs-stick')||stick.closest('.hs-inactive')||!stick.offsetParent));
     ['pointerup','pointercancel','lostpointercapture'].forEach(n=>stick.addEventListener(n,release));
-    action.addEventListener('pointerdown',e=>{if(actionId!==null)return;e.preventDefault();actionId=e.pointerId;input.cancel=false;input.action=true;actionPulse=true;action.setPointerCapture(e.pointerId);});
-    const releaseAction=e=>{if(e.pointerId===actionId){actionId=null;input.action=false;}};
+    action.addEventListener('pointerdown',startAction);
+    const releaseAction=e=>{if(e.pointerId===actionId){actionId=null;input.action=false;action.style.removeProperty('translate');}};
     ['pointerup','pointercancel','lostpointercapture'].forEach(n=>action.addEventListener(n,releaseAction));
     // Keyboard/assistive click has no pointerdown sequence.
     action.addEventListener('click',e=>{if(e.detail===0){input.cancel=false;input.action=true;actionPulse=true;setTimeout(()=>{input.action=false;},120);}});

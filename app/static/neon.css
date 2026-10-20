@@ -71,3 +71,5 @@
 .nk-teams button:disabled { opacity: .85; }
 
 .nk-new-match { display: block; width: 100%; background: transparent; border: 0; color: #bed0e7; text-decoration: underline; text-underline-offset: 3px; min-height: 44px; font-size: 12px; margin-top: 10px; }
+.nk-root.nk-playing { touch-action:none; }  /* commandes flottantes : glisser le doigt ne fait pas défiler la page */
+.nk-stick,.nk-root .nk-dash { z-index:2; }

@@ -128,12 +128,16 @@ window.Neon = (() => {
       input.x=dx/d; input.y=dy/d;
       stick.querySelector('.nk-stick-knob').style.transform=`translate(${input.x*29}px,${input.y*29}px)`;
     }
-    stick.addEventListener('pointerdown',e=>{if(stickId!==null)return;e.preventDefault();input.cancel=false;stickId=e.pointerId;stick.setPointerCapture(e.pointerId);move(e);});
+    const startStick=e=>{if(stickId!==null)return;e.preventDefault();input.cancel=false;stickId=e.pointerId;stick.setPointerCapture(e.pointerId);move(e);};
+    stick.addEventListener('pointerdown',startStick);
     stick.addEventListener('pointermove',e=>{if(e.pointerId===stickId)move(e);});
-    const endStick=e=>{if(e.pointerId===stickId){stickId=null;input.x=input.y=0;stick.querySelector('.nk-stick-knob').style.removeProperty('transform');}};
+    const endStick=e=>{if(e.pointerId===stickId){stickId=null;input.x=input.y=0;stick.querySelector('.nk-stick-knob').style.removeProperty('transform');stick.style.removeProperty('translate');}};
     ['pointerup','pointercancel','lostpointercapture'].forEach(type=>stick.addEventListener(type,endStick));
-    dash.addEventListener('pointerdown',e=>{if(dashId!==null)return;e.preventDefault();input.cancel=false;dashId=e.pointerId;dash.setPointerCapture(e.pointerId);input.charging=true;dash.classList.add('holding');});
-    const endDash=e=>{if(e.pointerId===dashId){dashId=null;input.charging=false;dash.classList.remove('holding');}};
+    const startDash=e=>{if(dashId!==null||dash.disabled)return;e.preventDefault();input.cancel=false;dashId=e.pointerId;dash.setPointerCapture(e.pointerId);input.charging=true;dash.classList.add('holding');};
+    dash.addEventListener('pointerdown',startDash);
+    const endDash=e=>{if(e.pointerId===dashId){dashId=null;input.charging=false;dash.classList.remove('holding');dash.style.removeProperty('translate');}};
+    // Commandes flottantes : un toucher à gauche amène le joystick sous le doigt, à droite le bouton DASH.
+    root.addEventListener('pointerdown',e=>floatControl(e,root,stick,dash,startStick,startDash,!root.classList.contains('nk-playing')||e.target.closest('button,a,input,.nk-stick,.nk-panel')||stick.closest('.nk-disabled')));
     ['pointerup','lostpointercapture'].forEach(type=>dash.addEventListener(type,endDash));
     dash.addEventListener('pointercancel',()=>reset());
     stick.addEventListener('pointercancel',()=>reset());

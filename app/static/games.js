@@ -2369,11 +2369,11 @@ function gameTopBar(g) {
   return `<button type="button" class="py-icon g-burger" data-gdrawer="open" aria-label="Menu : joueurs, code, QR">☰${alerts ? `<i class="badge">${alerts}</i>` : ""}</button>
     <div class="g-top-mid"><div class="g-top-name"><span class="g-top-ico" aria-hidden="true">${GAME_ICONS[g.type] || ""}</span>${esc(g.name)}</div>
       <div class="g-top-sub">${g.mode ? esc(g.mode) + " · " : ""}${QUESTION_TYPES.includes(g.type) && g.round && g.phase !== "lobby" && g.phase !== "end" ? `Question ${g.round}` : (g.type === "room" ? "Soirée" : phase) + round} · ${g.room || g.type === "room" ? "salle" : "code"} <b>${esc(g.room || g.code)}</b> · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
-    ${["island","neon","heist"].includes(g.type) ? '<button type="button" class="secondary g-quit" data-gdrawer="exit">Quitter</button>' : ""}
     ${GameAudio.button()}
     <button type="button" class="py-icon g-min" data-gdrawer="minimize" aria-label="Réduire le jeu (revenir à la musique)">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
-    ${helpBtn(g.type, true)}`;
+    ${helpBtn(g.type, true)}
+    ${["island","neon","heist"].includes(g.type) ? '<button type="button" class="g-quit" data-gdrawer="exit" aria-label="Quitter la partie">✕ Quitter</button>' : ""}`;
 }
 // Menu latéral : code, QR, participants (et outils de l'animateur ou de l'admin), réduire, quitter.
 function renderDrawer(g) {
@@ -2393,6 +2393,16 @@ function renderDrawer(g) {
 function realtimeControlsActive() {
   return !document.hidden && pyrFull && gamesTabShown() &&
     !document.querySelector('.g-drawer:not(.hidden), .g-modal:not(.hidden)');
+}
+// Jeux à joystick (Île, Néon, Braquage) : au toucher, la moitié gauche de l'écran de jeu amène le joystick
+// sous le doigt, la moitié droite le bouton d'action ; chacun reprend sa place au relâchement.
+function floatControl(e, root, stick, button, startStick, startButton, ignore) {
+  if (e.pointerType === "mouse" || ignore) return;
+  const r = root.getBoundingClientRect(), left = e.clientX < r.left + r.width / 2, el = left ? stick : button;
+  if ((!left && button.disabled) || el.style.translate) return;  // bouton désactivé, ou déjà tenu par un autre doigt
+  const b = el.getBoundingClientRect();
+  el.style.translate = `${e.clientX - b.left - b.width / 2}px ${e.clientY - b.top - b.height / 2}px`;
+  (left ? startStick : startButton)(e);
 }
 function openDrawer() { $("gDrawer").classList.remove("hidden"); requestAnimationFrame(() => $("gDrawer").classList.add("open")); }
 // Masqué après l'animation de fermeture… sauf s'il a été rouvert entre-temps.

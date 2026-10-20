@@ -99,3 +99,4 @@ body.island-full #gamePlay { display:flex; flex-direction:column; height:100dvh;
 body.island-full #gTop { flex:0 0 auto; }
 body.island-full #gamePlay > #game { flex:1 1 auto; min-height:0; }
 body.island-full .is-root { height:100%; min-height:0; }
+.is-root.is-playing { touch-action:none; }  /* commandes flottantes : glisser le doigt ne fait pas défiler la page */

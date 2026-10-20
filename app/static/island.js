@@ -97,12 +97,16 @@ window.Island=(()=>{
   function bind(){
     const stick=root.querySelector('.is-stick'),jump=root.querySelector('.is-jump');
     const move=e=>{const r=stick.getBoundingClientRect(),dx=e.clientX-r.left-r.width/2,dy=e.clientY-r.top-r.height/2,d=Math.max(32,Math.hypot(dx,dy));input.x=dx/d;input.y=dy/d;stick.querySelector('.is-knob').style.transform=`translate(${input.x*28}px,${input.y*28}px)`;};
-    stick.addEventListener('pointerdown',e=>{if(stickId!==null||!loaded)return;e.preventDefault();stickId=e.pointerId;input.cancel=false;stick.setPointerCapture(e.pointerId);move(e);});
+    const startStick=e=>{if(stickId!==null||!loaded)return;e.preventDefault();stickId=e.pointerId;input.cancel=false;stick.setPointerCapture(e.pointerId);move(e);};
+    stick.addEventListener('pointerdown',startStick);
     stick.addEventListener('pointermove',e=>{if(e.pointerId===stickId)move(e);});
-    const release=e=>{if(e.pointerId===stickId){stickId=null;input.x=input.y=0;stick.querySelector('.is-knob').style.removeProperty('transform');}};
+    const release=e=>{if(e.pointerId===stickId){stickId=null;input.x=input.y=0;stick.querySelector('.is-knob').style.removeProperty('transform');stick.style.removeProperty('translate');}};
+    const startJump=e=>{if(jumpId!==null||jump.disabled)return;e.preventDefault();jumpId=e.pointerId;input.cancel=false;input.jump=true;jumpPulse=true;jump.setPointerCapture(e.pointerId);};
+    // Commandes flottantes : un toucher à gauche amène le joystick sous le doigt, à droite le bouton de saut.
+    root.addEventListener('pointerdown',e=>floatControl(e,root,stick,jump,startStick,startJump,e.target.closest('button,a,input,.is-stick')||stick.closest('.is-inactive')||!stick.offsetParent));
     ['pointerup','pointercancel','lostpointercapture'].forEach(n=>stick.addEventListener(n,release));
-    jump.addEventListener('pointerdown',e=>{if(jumpId!==null)return;e.preventDefault();jumpId=e.pointerId;input.cancel=false;input.jump=true;jumpPulse=true;jump.setPointerCapture(e.pointerId);});
-    const releaseJump=e=>{if(e.pointerId===jumpId){jumpId=null;input.jump=false;}};
+    jump.addEventListener('pointerdown',startJump);
+    const releaseJump=e=>{if(e.pointerId===jumpId){jumpId=null;input.jump=false;jump.style.removeProperty('translate');}};
     ['pointerup','pointercancel','lostpointercapture'].forEach(n=>jump.addEventListener(n,releaseJump));
     // Keyboard/assistive click has no pointerdown sequence.
     jump.addEventListener('click',e=>{if(e.detail===0){input.cancel=false;input.jump=true;jumpPulse=true;setTimeout(()=>{input.jump=false;},120);}});
