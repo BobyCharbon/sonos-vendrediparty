@@ -11,6 +11,7 @@ import { formatLongDay, formatMessageTime, formatShort, formatTime, plural, rela
 import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
 import type { BringItem, Category, DateOption, DateVoteRow, EventRow, Message, Poll, PollOption, Rsvp, Tag } from '@/lib/types';
+import { plusOnesLabel } from '@/lib/types';
 
 type Full = EventRow & {
   category: Category | null;
@@ -110,8 +111,8 @@ export default function EventScreen() {
     ev.price_chf != null ? { k: 'Prix', v: ev.price_chf === 0 ? 'Gratuit' : `${ev.price_chf} CHF / personne`, sub: ev.payment_info } : null,
     ev.max_participants
       ? { k: 'Places', v: `${heads} / ${ev.max_participants}`, sub: heads >= ev.max_participants ? (ev.waitlist_enabled ? 'Complet · liste d’attente ouverte' : 'Complet') : plural(ev.max_participants - heads, 'place libre', 'places libres') }
-      : null,
-    ev.date_mode === 'fixed' && ev.allow_plus_ones && ev.max_plus_ones > 0 ? { k: 'Accompagnants', v: `Jusqu’à ${ev.max_plus_ones} par personne` } : null,
+      : ev.date_mode === 'fixed' ? { k: 'Places', v: '∞ Illimité', sub: plural(heads, 'personne inscrite', 'personnes inscrites') } : null,
+    ev.date_mode === 'fixed' && ev.allow_plus_ones && ev.max_plus_ones > 0 ? { k: 'Accompagnants', v: plusOnesLabel(ev.max_plus_ones) } : null,
     ev.rsvp_deadline ? { k: 'Réponse avant', v: formatShort(ev.rsvp_deadline) } : null,
   ].filter(Boolean) as { k: string; v: string; sub?: string | null }[];
 

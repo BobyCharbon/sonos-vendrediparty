@@ -123,7 +123,7 @@ export function EventCard({
             <T muted size={13}>
               {isPoll
                 ? `${plural(voters.size, 'votant')}`
-                : `${plural(counts.yes, 'présent')} · ${counts.maybe} peut-être${event.max_participants ? ` · ${full ? 'complet' : `${event.max_participants - counts.heads} place${event.max_participants - counts.heads > 1 ? 's' : ''} libre${event.max_participants - counts.heads > 1 ? 's' : ''}`}` : ''}`}
+                : `${plural(counts.heads, 'présent')} · ${counts.maybe} peut-être${event.max_participants ? ` · ${full ? 'complet' : `${event.max_participants - counts.heads} place${event.max_participants - counts.heads > 1 ? 's' : ''} libre${event.max_participants - counts.heads > 1 ? 's' : ''}`}` : ''}`}
             </T>
           ) : null}
         </View>

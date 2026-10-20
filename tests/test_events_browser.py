@@ -67,7 +67,7 @@ def browser(request):
 
 def mock_services(page, pending=False):
     calls = []
-    profile = {'id': USER, 'display_name': 'Compte de démonstration', 'phone': '41791234567', 'role': 'admin', 'status': 'pending' if pending else 'active', 'avatar_url': None, 'created_at': '2026-10-19T08:00:00Z'}
+    profile = {'id': USER, 'display_name': 'Compte de démonstration', 'phone': '41791234567', 'role': 'admin', 'status': 'pending' if pending else 'active', 'avatar_url': f'{USER}/photo.jpg', 'first_name': 'Camille', 'last_name': 'Demo', 'created_at': '2026-10-19T08:00:00Z'}
     category = {'id': 'ed69d11e-34dd-43fe-b211-10d0dd158ba9', 'name': 'Soirée', 'color': '#FFB347', 'sort': 0, 'archived': False, 'icon': None}
     event = {'id': EVENT, 'title': 'Sortie de démonstration (test local)', 'description': 'Données fictives réservées aux tests.', 'created_by': USER,
              'status': 'published', 'date_mode': 'fixed', 'starts_at': '2030-11-14T18:00:00Z', 'ends_at': None,

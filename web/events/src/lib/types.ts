@@ -14,6 +14,8 @@ export type Reminder = '7d' | '1d' | '2h' | '0h';
 export type Profile = {
   id: string;
   display_name: string;
+  first_name: string | null;
+  last_name: string | null;
   phone: string | null;
   avatar_url: string | null;
   role: MemberRole;
@@ -128,3 +130,7 @@ export type NotificationPrefs = {
 
 export const isAdminRole = (p: Pick<Profile, 'role' | 'status'> | null | undefined) =>
   !!p && p.status === 'active' && (p.role === 'admin' || p.role === 'coadmin');
+
+// shortcut: la base plafonne max_plus_ones à 10 ; 10 veut dire « illimité ». Une vraie valeur vide demanderait une migration partagée avec l'app iOS.
+export const UNLIMITED_PLUS_ONES = 10;
+export const plusOnesLabel = (max: number) => (max >= UNLIMITED_PLUS_ONES ? '∞ Illimité' : `Jusqu’à ${max} par personne`);

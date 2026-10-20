@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { Button, ErrorText, Loading, Screen, T, Title } from '@/components/ui';
+import { hasCompleteIdentity } from '@/lib/profile';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { ShellSafeArea } from '@/lib/shellInsets';
 import { colors, fonts } from '@/lib/theme';
@@ -42,7 +43,7 @@ function initialDestination() {
 
 function Gate() {
   const { loading, session, profile, profileError, refreshProfile, signOut } = useAuth();
-  const active = profile?.status === 'active' && profile.display_name.trim() !== '';
+  const active = profile?.status === 'active' && hasCompleteIdentity(profile);
   const path = usePathname();
   const [initialIntent] = useState(initialDestination);
   const intent = useRef(initialIntent);

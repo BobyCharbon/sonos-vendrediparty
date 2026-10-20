@@ -2,9 +2,10 @@ import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { Button, Card, Empty, ErrorText, Input, LinkRow, Screen, s, Section, T, Title, ToggleRow } from '@/components/ui';
+import { Avatar, Button, Card, Empty, ErrorText, Input, LinkRow, Screen, s, Section, T, Title, ToggleRow } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
+import { hasCompleteIdentity } from '@/lib/profile';
 import { formatMessageTime, formatShort } from '@/lib/format';
 import { must, supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
@@ -25,7 +26,7 @@ export default function Admin() {
         .select('*, author:profiles!events_created_by_fkey(display_name), date_options(id), polls(id)')
         .eq('status', 'pending')
         .order('created_at'),
-      supabase.from('profiles').select('id, display_name, role, status, created_at').eq('status', 'pending').order('created_at'),
+      supabase.rpc('get_member_directory').eq('status', 'pending').order('created_at'),
       supabase.from('group_settings').select('*').single(),
     ]);
     return {
@@ -39,7 +40,7 @@ export default function Admin() {
 
   async function run(p: PromiseLike<{ error: { message: string } | null }>) {
     const { error } = await p;
-    setError(error?.message ?? null);
+    setError(error?.message.includes('profile_incomplete') ? 'Ce membre doit d’abord renseigner son nom, son prénom, son surnom et sa photo.' : error?.message ?? null);
     reload();
   }
 
@@ -99,11 +100,13 @@ export default function Admin() {
         {data?.members.length === 0 ? <Empty>Aucune demande.</Empty> : null}
         {data?.members.map((m) => (
           <View key={m.id} style={s.rowBetween}>
+            <Avatar id={m.id} name={m.display_name || '?'} photo={m.avatar_url} />
             <View style={{ flex: 1 }}>
-              <T weight="semibold">{m.display_name || 'Sans prénom'}</T>
-              <T muted size={12}>{m.phone}</T>
+              <T weight="semibold">{m.display_name || 'Profil à compléter'}</T>
+              {m.first_name || m.last_name ? <T muted>{[m.first_name, m.last_name].filter(Boolean).join(' ')}</T> : null}
+              <T muted size={12}>{hasCompleteIdentity(m) ? m.phone : 'Nom, prénom, surnom et photo à compléter avant validation.'}</T>
             </View>
-            <Button small label="Accepter" onPress={() => run(supabase.from('profiles').update({ status: 'active' }).eq('id', m.id))} />
+            <Button small label="Accepter" disabled={!hasCompleteIdentity(m)} onPress={() => run(supabase.from('profiles').update({ status: 'active' }).eq('id', m.id))} />
             <Button small variant="danger" label="Refuser" onPress={() => run(supabase.from('profiles').update({ status: 'banned' }).eq('id', m.id))} />
           </View>
         ))}

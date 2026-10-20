@@ -5,6 +5,7 @@ import { View } from 'react-native';
 import { Avatar, Button, Chip, ErrorText, Input, Screen, s, Section, T } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
+import { hasCompleteIdentity } from '@/lib/profile';
 import { check, must, supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 import type { MemberRole, Profile } from '@/lib/types';
@@ -35,7 +36,8 @@ export default function Members() {
       await reload();
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      setError(message.includes('last_admin') ? 'Désigne d’abord un autre administrateur actif.' : message);
+      setError(message.includes('last_admin') ? 'Désigne d’abord un autre administrateur actif.'
+        : message.includes('profile_incomplete') ? 'Ce membre doit d’abord renseigner son nom, son prénom, son surnom et sa photo.' : message);
     } finally {
       updating.current = false;
       setBusy(false);
@@ -43,7 +45,7 @@ export default function Members() {
   }
 
   const q = search.trim().toLowerCase();
-  const rows = (data ?? []).filter((p) => !q || p.display_name.toLowerCase().includes(q) || p.phone?.includes(q));
+  const rows = (data ?? []).filter((p) => !q || [p.display_name, p.first_name, p.last_name, p.phone].some((value) => value?.toLowerCase().includes(q)));
   const active = rows.filter((p) => p.status === 'active');
   const others = rows.filter((p) => p.status !== 'active');
 
@@ -65,9 +67,10 @@ function MemberRow({ person: p, me, busy, onUpdate }: {
   return (
     <View key={p.id} style={{ gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.line }}>
       <View style={s.row}>
-        <Avatar id={p.id} name={p.display_name || '?'} />
+        <Avatar id={p.id} name={p.display_name || '?'} photo={p.avatar_url} />
         <View style={{ flex: 1 }}>
-          <T weight="semibold">{p.display_name || 'Sans prénom'}{p.id === me.id ? ' (toi)' : ''}</T>
+          <T weight="semibold">{p.display_name || 'Profil à compléter'}{p.id === me.id ? ' (toi)' : ''}</T>
+          {p.first_name || p.last_name ? <T muted>{[p.first_name, p.last_name].filter(Boolean).join(' ')}</T> : null}
           <T muted size={12}>{roleLabel[p.role]} · {p.phone}</T>
         </View>
       </View>
@@ -83,7 +86,10 @@ function MemberRow({ person: p, me, busy, onUpdate }: {
               <Chip label="Retirer l’accès" color={colors.coral} disabled={busy} onPress={() => onUpdate(p.id, { status: 'banned' })} />
             </>
           ) : (
-            <Chip label={p.status === 'pending' ? 'Accepter' : 'Réintégrer'} disabled={busy} onPress={() => onUpdate(p.id, { status: 'active' })} />
+            <>
+              {!hasCompleteIdentity(p) ? <T muted size={13}>Nom, prénom, surnom et photo à compléter avant validation.</T> : null}
+              <Chip label={p.status === 'pending' ? 'Autoriser l’accès' : 'Réintégrer'} disabled={busy || !hasCompleteIdentity(p)} onPress={() => onUpdate(p.id, { status: 'active' })} />
+            </>
           )}
         </View>
       ) : null}

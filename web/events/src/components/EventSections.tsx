@@ -7,6 +7,7 @@ import { rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
 import { supabase } from '@/lib/supabase';
 import { colors, fonts, radius } from '@/lib/theme';
 import type { BringItem, DateOption, DateVote, DateVoteRow, EventRow, Poll, PollOption, Rsvp, RsvpStatus } from '@/lib/types';
+import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
 import { DateTimeField } from './DateTimeField';
 import { Avatar, Button, Chip, ErrorText, Input, s, Section, T } from './ui';
@@ -118,7 +119,7 @@ export function RsvpCard({
         <View style={[s.rowBetween, st.subRow]}>
           <View style={{ flex: 1 }}>
             <T>Accompagnants</T>
-            <T muted size={12}>Jusqu’à {event.max_plus_ones} personne{event.max_plus_ones > 1 ? 's' : ''}</T>
+            <T muted size={12}>{event.max_plus_ones >= UNLIMITED_PLUS_ONES ? '∞ Illimité' : `Jusqu’à ${event.max_plus_ones} personne${event.max_plus_ones > 1 ? 's' : ''}`}</T>
           </View>
           <View style={s.row}>
             <Button small variant="secondary" label="−" disabled={!mine.plus_ones || closed} onPress={() => upsert('minus', { plus_ones: Math.max(0, mine.plus_ones - 1) })} />
@@ -182,10 +183,10 @@ export function ParticipantsSection({
   const left = event.max_participants ? event.max_participants - heads : null;
   const notes = rsvps.filter((r) => r.note);
 
-  const block = (label: string, list: Rsvp[], color: string) =>
+  const block = (label: string, list: Rsvp[], color: string, count = list.length) =>
     list.length ? (
       <View style={{ gap: 8 }} accessibilityLabel={`${label} : ${list.map((r) => nameOf(r.user_id)).join(', ')}`}>
-        <T size={12} weight="bold" color={color}>{label.toUpperCase()} · {list.length}</T>
+        <T size={12} weight="bold" color={color}>{label.toUpperCase()} · {count}</T>
         <View style={s.wrap}>
           {list.map((r) => <PersonChip key={r.user_id} id={r.user_id} name={nameOf(r.user_id)} extra={r.plus_ones ? `+${r.plus_ones}` : undefined} />)}
         </View>
@@ -197,7 +198,7 @@ export function ParticipantsSection({
       title="Qui vient ?"
       right={event.max_participants ? (
         <T muted size={13}>{left! > 0 ? `${left} place${left! > 1 ? 's' : ''} libre${left! > 1 ? 's' : ''}` : 'Complet'}</T>
-      ) : <T muted size={13}>{heads} personne{heads > 1 ? 's' : ''}</T>}
+      ) : <T muted size={13}>{heads} personne{heads > 1 ? 's' : ''} · ∞</T>}
     >
       {event.max_participants ? (
         <View style={st.bar} accessibilityLabel={`${heads} sur ${event.max_participants} places prises`}>
@@ -205,7 +206,7 @@ export function ParticipantsSection({
         </View>
       ) : null}
       {rsvps.length === 0 ? <T muted size={14}>Personne n’a encore répondu. Sois le premier !</T> : null}
-      {block('Présents', yes, colors.accent)}
+      {block('Présents', yes, colors.accent, heads)}
       {block('Peut-être', maybe, colors.lavender)}
       {block('Liste d’attente', waiting, colors.lavender)}
       {no.length ? <T muted size={13}>Absents : {no.map((r) => nameOf(r.user_id)).join(', ')}</T> : null}

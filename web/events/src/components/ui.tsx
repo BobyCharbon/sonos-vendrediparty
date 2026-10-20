@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,6 +19,8 @@ import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
 import { avatarColor, initials } from '@/lib/format';
 import { colors, fonts, radius } from '@/lib/theme';
+import { PROFILE_PHOTOS } from '@/lib/photos';
+import { supabase } from '@/lib/supabase';
 
 export function Screen({
   children,
@@ -328,10 +331,23 @@ export function Input(props: TextInputProps) {
   return <TextInput placeholderTextColor={colors.muted} {...props} style={[s.input, props.style]} />;
 }
 
-export function Avatar({ id, name, size = 32 }: { id: string; name: string; size?: number }) {
+export function Avatar({ id, name, size = 32, photo }: { id: string; name: string; size?: number; photo?: string | null }) {
+  const [signed, setSigned] = useState<{ path: string; url: string } | null>(null);
+  const url = signed && signed.path === photo ? signed.url : null;
+  useEffect(() => {
+    let mounted = true;
+    if (photo) {
+      void supabase.storage.from(PROFILE_PHOTOS).createSignedUrl(photo, 300).then(({ data }) => {
+        if (mounted && data?.signedUrl) setSigned({ path: photo, url: data.signedUrl });
+      }).catch(() => {});
+    }
+    return () => { mounted = false; };
+  }, [photo]);
   return (
     <View style={[s.avatar, { width: size, height: size, backgroundColor: avatarColor(id) }]}>
-      <Text style={{ color: colors.onAccent, fontFamily: fonts.bold, fontSize: size * 0.36 }}>{initials(name)}</Text>
+      {url
+        ? <Image accessibilityLabel={`Photo de ${name}`} source={{ uri: url }} style={{ width: size, height: size, borderRadius: size / 2 }} onError={() => setSigned(null)} />
+        : <Text style={{ color: colors.onAccent, fontFamily: fonts.bold, fontSize: size * 0.36 }}>{initials(name)}</Text>}
     </View>
   );
 }

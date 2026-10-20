@@ -8,6 +8,7 @@ import { parseLocalDateTime, toLocalInput } from '@/lib/format';
 import { check, must, supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 import type { DateMode, EventRow, Poll, PollOption, Profile, Reminder, Visibility } from '@/lib/types';
+import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
 import { Button, Card, Chip, ErrorText, Field, Input, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
 import { DateTimeField } from './DateTimeField';
@@ -76,7 +77,7 @@ const emptyDraft: Draft = {
   max_participants: '',
   waitlist_enabled: true,
   allow_plus_ones: false,
-  max_plus_ones: '1',
+  max_plus_ones: '',
   allow_maybe: true,
   rsvp_deadline: '',
   visibility: 'all',
@@ -130,7 +131,7 @@ async function loadDraft(eventId: string): Promise<Draft> {
     max_participants: e.max_participants?.toString() ?? '',
     waitlist_enabled: e.waitlist_enabled,
     allow_plus_ones: e.allow_plus_ones,
-    max_plus_ones: e.max_plus_ones.toString(),
+    max_plus_ones: e.max_plus_ones >= UNLIMITED_PLUS_ONES ? '' : e.max_plus_ones.toString(),
     allow_maybe: e.allow_maybe,
     rsvp_deadline: toLocalInput(e.rsvp_deadline),
     visibility: e.visibility,
@@ -279,7 +280,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
         max_participants: max,
         waitlist_enabled: d.waitlist_enabled,
         allow_plus_ones: d.allow_plus_ones,
-        max_plus_ones: Math.max(0, Math.min(10, Number(d.max_plus_ones) || 1)),
+        max_plus_ones: d.max_plus_ones.trim() ? Math.max(1, Math.min(UNLIMITED_PLUS_ONES - 1, Number(d.max_plus_ones) || 1)) : UNLIMITED_PLUS_ONES,
         allow_maybe: d.allow_maybe,
         rsvp_deadline: rsvpDeadline,
         visibility: d.visibility,
@@ -506,7 +507,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
         <ToggleRow label="Réponse « Peut-être » autorisée" value={d.allow_maybe} onChange={(v) => set({ allow_maybe: v })} />
         <ToggleRow label="Accompagnants (+1)" value={d.allow_plus_ones} onChange={(v) => set({ allow_plus_ones: v })} />
         {d.allow_plus_ones ? (
-          <Field label="Accompagnants max par personne" keyboardType="number-pad" value={d.max_plus_ones} onChangeText={(max_plus_ones) => set({ max_plus_ones })} />
+          <Field label="Accompagnants max par personne (vide = illimité)" keyboardType="number-pad" value={d.max_plus_ones} onChangeText={(max_plus_ones) => set({ max_plus_ones })} />
         ) : null}
         <DateTimeField label="Date limite de réponse (optionnel)" value={d.rsvp_deadline} onChangeText={(rsvp_deadline) => set({ rsvp_deadline })} />
         <ToggleRow label="Liste des participants visible" value={d.show_participants} onChange={(v) => set({ show_participants: v })} />
