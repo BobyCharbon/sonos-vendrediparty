@@ -9,6 +9,7 @@ import re
 import secrets
 import threading
 import time
+import unicodedata
 from pathlib import Path
 from urllib.parse import quote
 
@@ -1114,6 +1115,18 @@ def full_view(g: dict, gid: str) -> dict:
     v = games.view(g, gid)
     if g["type"] == "room":
         v["room_info"] = games.room_view(g, gid, room_child(g))
+    # Présence et homonymes : l'animateur repère d'un coup d'œil un joueur parti ou en double.
+    now = time.time()
+    for p in v.get("players", []):
+        real = games.player(g, games.gid_of(g, p["pid"]))
+        if not real or real.get("manual"):
+            continue
+        last = last_seen_of(g, real["id"])
+        p["online"] = now - last < ONLINE_WINDOW
+        p["seen_ago"] = int(now - last) if last else None
+        twins = [x for x in g["players"] if not x.get("manual") and same_name(x["name"], real["name"])]
+        if len(twins) > 1:
+            p["twin"] = twins.index(real) + 1
     return v
 
 
@@ -1124,8 +1137,7 @@ def game_presence(request: Request, guest_id: str, name: str):
     clean = " ".join((name or "").split())[:30]
     if clean:
         store.register_guest(guest_id, clean, client_ip(request), via="games")
-    else:
-        store.seen(guest_id)
+    store.seen(guest_id)  # signe de vie : sert à savoir qui est encore là (présence dans les parties)
 
 
 class Presence(BaseModel):
@@ -1139,6 +1151,53 @@ def presence(body: Presence, request: Request):
     check_guest_id(body.guest_id)
     game_presence(request, body.guest_id, body.name)
     return {"ok": True}
+
+
+ONLINE_WINDOW = 45  # s : un téléphone ouvert sur la partie se manifeste au moins toutes les 15 s
+
+
+def canonical_gid(g: dict, guest_id: str) -> str:
+    """Identifiant du joueur dans cette partie : un téléphone qui a repris sa place parle au nom de l'ancien."""
+    return (g.get("aliases") or {}).get(guest_id, guest_id)
+
+
+def last_seen_of(g: dict, gid: str) -> float:
+    """Dernier signe de vie du joueur, sur n'importe lequel de ses appareils (identifiant d'origine ou alias)."""
+    ids = [gid] + [a for a, o in (g.get("aliases") or {}).items() if o == gid]
+    return max(store.last_seen.get(i, 0) for i in ids)
+
+
+def is_online(g: dict, gid: str) -> bool:
+    return time.time() - last_seen_of(g, gid) < ONLINE_WINDOW
+
+
+def same_name(a: str, b: str) -> bool:
+    key = lambda n: "".join(c for c in unicodedata.normalize("NFKD", " ".join((n or "").split())) if not unicodedata.combining(c)).casefold()
+    return bool(key(a)) and key(a) == key(b)
+
+
+def reclaim_seat(g: dict, guest_id: str, name: str, ip: str) -> str:
+    """Joueur qui revient avec un autre identifiant (app installée ↔ Safari, navigation privée, stockage effacé…) :
+    même prénom, et même appareil (même adresse) ou ancienne place inoccupée → il reprend sa place (points, rôle,
+    cartes) au lieu d'apparaître en double. Un joueur en ligne sur un autre appareil n'est jamais remplacé."""
+    if games.player(g, guest_id) or guest_id in (g.get("aliases") or {}):
+        return canonical_gid(g, guest_id)
+    if guest_id in g.get("kicked", []):
+        return guest_id
+
+    def mine(p):
+        known = (store.session.guests.get(p["id"]) or {}).get("ips", [])
+        return bool(ip) and ip not in PROXY_IPS and ip in known
+
+    seats = [p for p in g["players"] if not p.get("manual") and p["id"] != guest_id and same_name(p["name"], name)]
+    seats = [p for p in seats if mine(p) or not is_online(g, p["id"])]
+    if len(seats) != 1:
+        return guest_id  # personne, ou ambigu (deux places possibles) : nouvelle place
+    old = seats[0]["id"]
+    for game in filter(None, (g, room_child(g) if g["type"] == "room" else room_of(g))):
+        if games.player(game, old):
+            game.setdefault("aliases", {})[guest_id] = old
+    return old
 
 
 def admin_lead(g: dict, request: Request, guest_id: str):
@@ -1163,6 +1222,7 @@ def sync_player_name(g: dict, guest_id: str, name: str):
 def game_state(code: str, request: Request, guest_id: str = "", name: str = ""):
     g = get_game(code)
     game_presence(request, guest_id, name)
+    guest_id = canonical_gid(g, guest_id)
     sync_player_name(g, guest_id, name)
     admin_lead(g, request, guest_id)
     if quiz.tick(g):  # Quiz : le temps a avancé (fin d'une question, question suivante…)
@@ -1214,6 +1274,9 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     check_guest_id(body.guest_id)
     g = get_game(code)
     game_presence(request, body.guest_id, body.name)
+    if body.action == "join":
+        reclaim_seat(g, body.guest_id, clean_name(body.name), client_ip(request))
+    body.guest_id = canonical_gid(g, body.guest_id)
     sync_player_name(g, body.guest_id, body.name)
     admin_lead(g, request, body.guest_id)
     a, me = body.action, body.guest_id
@@ -1760,6 +1823,7 @@ def neon_frame(code: str, body: NeonInput):
     check_guest_id(body.guest_id)
     with neon.LOCK:
         g = get_game(code)
+        body.guest_id = canonical_gid(g, body.guest_id)
         if g["type"] != "neon":
             raise HTTPException(400, "Ce jeu n'est pas Néon Knockout")
         if body.guest_id in g.get("kicked", []):
@@ -1789,6 +1853,7 @@ def island_frame(code: str, body: IslandInput):
     check_guest_id(body.guest_id)
     with island.LOCK:
         g = get_game(code)
+        body.guest_id = canonical_gid(g, body.guest_id)
         if g["type"] != "island":
             raise HTTPException(400, "Ce jeu n’est pas L’île qui s’effondre")
         if body.guest_id in g.get("kicked", []) or (body.guest_id in g.get("removed", []) and not games.player(g, body.guest_id)):
@@ -1817,6 +1882,7 @@ def heist_frame(code: str, body: HeistInput):
     check_guest_id(body.guest_id)
     with heist.LOCK:
         g = get_game(code)
+        body.guest_id = canonical_gid(g, body.guest_id)
         if g["type"] != "heist":
             raise HTTPException(400, "Ce jeu n’est pas un braquage")
         if body.guest_id in g.get("kicked", []) or (body.guest_id in g.get("removed", []) and not games.player(g, body.guest_id)):

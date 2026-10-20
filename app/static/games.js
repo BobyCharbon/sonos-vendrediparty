@@ -1769,7 +1769,7 @@ const playerTag = (g, p) => !MANUAL_GAMES.includes(g.type) ? "" : p.manual
   ? ` <span class="pill tag-manual" title="Ajouté·e à la main par l'animateur">✍️ sans téléphone</span>`
   : ` <span class="tag-phone" title="Joue sur son téléphone">📱</span>`;
 const manualForm = (g) => !g.is_host || !MANUAL_GAMES.includes(g.type) || g.phase === "end" ? "" : `
-  <form data-gform="addguest" class="row" style="margin-top:8px"><input class="grow" type="text" id="manualName" maxlength="30" aria-label="Prénom d'un participant sans téléphone" spellcheck="false" placeholder="Prénom (sans téléphone)" autocomplete="off"><button class="secondary">＋ Ajouter</button></form>
+  <form data-gform="addguest" class="row" style="margin-top:8px"><input class="grow" type="text" name="manualName" maxlength="30" aria-label="Prénom d'un participant sans téléphone" spellcheck="false" placeholder="Prénom (sans téléphone)" autocomplete="off"><button class="secondary">＋ Ajouter</button></form>
   <div class="artist" style="margin-top:4px">Pour quelqu'un qui joue sans téléphone : c'est toi qui agiras pour lui ou elle.</div>`;
 
 function renderDivanHost(g, btn) {
@@ -2298,6 +2298,18 @@ function openRoomSheet(type) {
   document.body.append(wrap);
 }
 // ✕ sur un joueur : l'exclure (il peut revenir quand il veut) ou le bannir (ce code lui est refusé).
+// Présence d'un joueur : « en ligne » / « hors ligne · 3 min », et numéro quand deux joueurs portent le même prénom.
+function since(sec) {
+  if (sec == null) return "";
+  return sec < 90 ? "à l'instant" : sec < 3600 ? `${Math.round(sec / 60)} min` : `${Math.round(sec / 3600)} h`;
+}
+function presenceTag(p) {
+  if (p.manual || p.online === undefined) return "";
+  const twin = p.twin ? ` <span class="g-twin" title="Deux joueurs portent ce prénom">#${p.twin}</span>` : "";
+  const state = p.online ? `<span class="g-pres on" title="En ligne"><i aria-hidden="true"></i>en ligne</span>`
+    : `<span class="g-pres off" title="Plus vu depuis ${since(p.seen_ago)}"><i aria-hidden="true"></i>hors ligne${p.seen_ago != null ? ` · ${since(p.seen_ago)}` : ""}</span>`;
+  return twin + " " + state;
+}
 function openKickSheet(pid) {
   const p = game?.players.find((x) => x.pid === pid);
   if (!p) return;
@@ -2308,7 +2320,8 @@ function openKickSheet(pid) {
   wrap.className = "g-modal g-room-modal g-kick-modal";
   wrap.innerHTML = `<div class="g-sheet g-room-sheet g-kick" role="dialog" aria-modal="true" aria-labelledby="kickTitle">
     <div class="g-sheet-grab" aria-hidden="true"></div>
-    <div class="g-kick-who">${avatar(p)}<b id="kickTitle">Retirer ${name} ?</b></div>
+    <div class="g-kick-who">${avatar(p)}<b id="kickTitle">Retirer ${name}${p.twin ? ` #${p.twin}` : ""} ?</b></div>
+    ${p.online !== undefined ? `<p class="g-kick-pres">${presenceTag(p)}${p.twin && !p.online ? `<br>Hors ligne alors qu'un autre ${name} est là : c'est sans doute un doublon (reconnexion depuis un autre navigateur).` : ""}</p>` : ""}
     <button type="button" class="g-kick-opt" data-kick="remove"><span class="g-kick-ico" aria-hidden="true">👋</span>
       <span><b>Exclure</b><small>${name} quitte la partie et pourra revenir avec le code. Pratique en cas d'absence.</small></span></button>
     <button type="button" class="g-kick-opt ban" data-kick="ban"><span class="g-kick-ico" aria-hidden="true">🚫</span>
@@ -2357,7 +2370,7 @@ function gameTopBar(g) {
 function renderDrawer(g) {
   const lead = g.is_host, movable = lead && g.phase === "lobby";
   patch.gDrawerPlayers = `<h2>Participants (${g.players.length})</h2>
-    <div class="list">${g.players.map((p, i) => `<div class="track"><div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${p.pid === g.me?.pid ? " (toi)" : ""}${playerTag(g, p)}${p.pending ? " ⏳" : ""}${sipsBadge(p)}</div></div>
+    <div class="list">${g.players.map((p, i) => `<div class="track ${p.online === false ? "g-away" : ""}"><div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${p.pid === g.me?.pid ? " (toi)" : ""}${presenceTag(p)}${playerTag(g, p)}${p.pending ? " ⏳" : ""}${sipsBadge(p)}</div></div>
       <div class="icon-btns">
         ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter" aria-label="Monter">⬆</button>` : ""}
         ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre" aria-label="Descendre">⬇</button>` : ""}
@@ -2373,7 +2386,8 @@ function realtimeControlsActive() {
     !document.querySelector('.g-drawer:not(.hidden), .g-modal:not(.hidden)');
 }
 function openDrawer() { $("gDrawer").classList.remove("hidden"); requestAnimationFrame(() => $("gDrawer").classList.add("open")); }
-function closeDrawer() { $("gDrawer").classList.remove("open"); setTimeout(() => $("gDrawer").classList.add("hidden"), 250); }
+// Masqué après l'animation de fermeture… sauf s'il a été rouvert entre-temps.
+function closeDrawer() { $("gDrawer").classList.remove("open"); setTimeout(() => { if (!$("gDrawer").classList.contains("open")) $("gDrawer").classList.add("hidden"); }, 250); }
 document.addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-gdrawer]");
   if (b) {
@@ -2457,11 +2471,26 @@ document.addEventListener("click", (ev) => {
   if (a === "remove") return openKickSheet(b.dataset.target);
   pressed(b, gameAction(a, { target: b.dataset.target || "", amount: +(b.dataset.amount || 0), guess: b.dataset.guess || "" }));
 });
+// Toucher « + Ajouter » ne retire pas le focus du champ : le clavier reste ouvert et l'iPhone ne fait pas défiler la page.
+document.addEventListener("pointerdown", (ev) => { if (ev.target.closest("[data-gform=addguest] button")) ev.preventDefault(); });
 document.addEventListener("submit", (ev) => {
   if (!ev.target.closest("[data-gform=addguest]")) return;
   ev.preventDefault();
-  const name = $("manualName").value.trim();
-  if (name) gameAction("addguest", { guess: name }).then(() => $("manualName")?.focus());
+  // Le formulaire existe à deux endroits (écran et menu ☰) : on lit le champ de celui qui a été envoyé,
+  // on y revient sans faire défiler, et on garde la position de lecture (sinon la page remonte tout en haut).
+  const form = ev.target.closest("[data-gform=addguest]"), input = form.querySelector("input");
+  const name = input.value.trim(), where = form.closest("#gDrawer") ? "#gDrawer" : "#gameHost";
+  const scrollers = [$("gamePlay"), document.querySelector("#gDrawer .g-drawer-panel"), document.scrollingElement].filter(Boolean);
+  const pos = scrollers.map((el) => el.scrollTop);
+  const restore = () => scrollers.forEach((el, i) => { if (el.scrollTop !== pos[i]) el.scrollTop = pos[i]; });
+  if (!name) return;
+  input.value = "";
+  gameAction("addguest", { guess: name }).then(() => {
+    restore();
+    const field = document.querySelector(`${where} [data-gform=addguest] input`);
+    field?.focus({ preventScroll: true });
+    requestAnimationFrame(restore);
+  });
 });
 let nameQueue = Promise.resolve();
 document.addEventListener("submit", (ev) => {

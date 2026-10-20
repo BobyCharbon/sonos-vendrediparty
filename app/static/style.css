@@ -1490,3 +1490,13 @@ html[data-events="soon"] .tabs [data-tab="events"] [data-events-badge] { display
 html[data-events="soon"] .tabs [data-tab="events"]::after {
   content: "Bientôt"; position: absolute; top: 2px; left: calc(50% + 4px); padding: 1px 6px; border-radius: 99px;
   background: var(--accent-2, #ffb547); color: #2b1a00; font: 800 .58rem/1.4 system-ui, sans-serif; letter-spacing: .01em; }
+
+/* Présence des joueurs (menu ☰, retrait) : repérer un joueur parti ou en double */
+.g-pres { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; font-size: .75rem; font-weight: 600; vertical-align: middle; }
+.g-pres i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.g-pres.on { color: #7be0a6; } .g-pres.on i { background: #2ecc71; box-shadow: 0 0 0 2px rgba(46, 204, 113, .25); }
+.g-pres.off { color: var(--muted); } .g-pres.off i { background: #6f6790; }
+.g-twin { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 99px; background: rgba(255, 181, 71, .2); color: #ffcf85; font-size: .75rem; font-weight: 800; vertical-align: middle; }
+.track.g-away .title { opacity: .7; }
+.g-kick-pres { margin: -2px 0 4px; color: var(--muted); font-size: .88rem; line-height: 1.45; }
+.g-kick-pres .g-pres { margin-left: 0; }
