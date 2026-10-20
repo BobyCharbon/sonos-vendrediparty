@@ -91,6 +91,25 @@
     <div id="gamesRoot"></div>
   </section>
 
+  <section data-view="feedback" class="hidden" aria-labelledby="fbTitle">
+    <h2 id="fbTitle">Une idée, un bug ?</h2>
+    <p class="sub">Dis ce que tu aimerais voir changer, ajouter ou corriger. L'organisateur lit chaque message.</p>
+    <form id="fbForm" class="card fb-form">
+      <div class="seg fb-kinds" role="radiogroup" aria-label="Type de retour">
+        <button type="button" role="radio" aria-checked="true" class="on" data-fb-kind="idea">💡 Idée</button>
+        <button type="button" role="radio" aria-checked="false" data-fb-kind="bug">🐞 Bug</button>
+        <button type="button" role="radio" aria-checked="false" data-fb-kind="other">💬 Autre</button>
+      </div>
+      <textarea id="fbText" name="feedback" maxlength="1000" aria-label="Ton message" placeholder="Ex. : un mode d'équipe au Quiz, plus de cartes au Divan…"></textarea>
+      <div class="row" style="margin-top:8px">
+        <span class="grow artist" id="fbCount">0 / 1000</span>
+        <button id="fbSend">Envoyer</button>
+      </div>
+    </form>
+    <h2 class="fb-mine-h hidden" id="fbMineH">Tes envois</h2>
+    <div id="fbMine" class="list"></div>
+  </section>
+
   <section data-view="events" class="events-panel hidden" aria-label="Événements du groupe">
     <p class="sub" id="eventsLoading" role="status">Ouverture des événements…</p>
     <iframe id="eventsFrame" title="Événements du groupe : connexion, sorties et sondages" class="events-frame" referrerpolicy="same-origin"></iframe>
@@ -101,6 +120,7 @@
     <button type="button" data-tab="music"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg><span>Musique</span></button>
     <button type="button" data-tab="games"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11h4M8 9v4"/><path d="M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-3.96 3.43L2 14.5A3 3 0 0 0 7.2 17l1.3-1.5h7l1.3 1.5a3 3 0 0 0 5.2-2.5l-.74-6.07A4 4 0 0 0 17.3 5z"/></svg><span>Jeux</span><i id="gameDot" class="badge hidden">●</i></button>
     <button type="button" data-tab="events"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h2M14 15h2"/></svg><span>Événements</span><i class="badge hidden" data-events-badge aria-hidden="true"></i></button>
+    <button type="button" data-tab="feedback"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 10.5h6M9 13.5h4"/></svg><span>Ton avis</span></button>
   </nav>
 
   <div id="install" class="install hidden">
@@ -273,7 +293,7 @@ $("nameChip").addEventListener("click", changeName);
 
 // Les événements utilisent leur compte SMS ; les accès musique/jeux restent indépendants.
 function showTab(tab, eventTarget) {
-  if (!["music", "games", "events"].includes(tab)) tab = "music";
+  if (!["music", "games", "events", "feedback"].includes(tab)) tab = "music";
   if (tab === "events" && PartyEvents.soon) {
     // Section en préparation : on reste où on est (ou sur la musique au démarrage).
     if (document.body.dataset.tab) return toast("📅 Les événements arrivent bientôt");
@@ -286,10 +306,12 @@ function showTab(tab, eventTarget) {
     if (current) el.setAttribute("aria-current", "page");
     else el.removeAttribute("aria-current");
   });
+  if (tab !== "feedback" && document.body.dataset.tab) fbTab = tab;
   document.body.dataset.tab = tab;  // la lumière de scène et le titre suivent l'onglet
-  $("appTitle").textContent = ({ music: "Musique", games: "Jeux", events: "Événements" })[tab];
+  $("appTitle").textContent = ({ music: "Musique", games: "Jeux", events: "Événements", feedback: "Ton avis" })[tab];
   store("vp_tab", tab);
   if (tab === "games") refreshGame();
+  if (tab === "feedback") loadFeedback();
   if (tab === "events") {
     if (eventTarget) PartyEvents.open(eventTarget);
     else if (!$("eventsFrame").hasAttribute("src")) {
@@ -301,6 +323,41 @@ function showTab(tab, eventTarget) {
 }
 // Boutons d'onglet seulement : le <body> porte aussi data-tab (sinon chaque toucher ramène en haut de page).
 document.addEventListener("click", (ev) => { const t = ev.target.closest("button[data-tab]"); if (t) showTab(t.dataset.tab); });
+
+// 💬 Ton avis : idées et bugs pour l'organisateur (sans code de soirée), avec le jeu en cours comme contexte.
+let fbKind = "idea", fbTab = "music";
+const FB_STATUS = { new: "Envoyé", done: "✓ Pris en compte" };
+function renderFeedback(mine) {
+  $("fbMineH").classList.toggle("hidden", !mine.length);
+  $("fbMine").innerHTML = mine.map((m) => `<div class="track fb-item"><div class="meta">
+    <div class="title">${esc(m.text)}</div>
+    <div class="artist">${{ idea: "💡 Idée", bug: "🐞 Bug", other: "💬 Autre" }[m.kind] || ""} · ${new Date(m.at * 1000).toLocaleDateString("fr-CH", { day: "numeric", month: "short" })}
+      · <span class="fb-st ${m.status}">${FB_STATUS[m.status] || ""}</span></div></div></div>`).join("");
+}
+async function loadFeedback() {
+  try { renderFeedback((await api(`/api/feedback?guest_id=${encodeURIComponent(guestId)}`)).mine); } catch { /* pas grave : le formulaire reste utilisable */ }
+}
+document.addEventListener("click", (ev) => {
+  const k = ev.target.closest("[data-fb-kind]");
+  if (!k) return;
+  fbKind = k.dataset.fbKind;
+  document.querySelectorAll("[data-fb-kind]").forEach((b) => { b.classList.toggle("on", b === k); b.setAttribute("aria-checked", b === k); });
+});
+$("fbText").addEventListener("input", () => { $("fbCount").textContent = `${$("fbText").value.length} / 1000`; });
+$("fbForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const text = $("fbText").value.trim();
+  if (text.length < 3) return toast("Écris quelques mots pour expliquer ton idée", "err");
+  $("fbSend").disabled = true;
+  try {
+    const context = { tab: fbTab, ...(typeof game !== "undefined" && game?.type ? { game: game.type } : {}) };
+    const r = await api("/api/feedback", { method: "POST", body: JSON.stringify({ guest_id: guestId, name: guestName, kind: fbKind, text, context }) });
+    $("fbText").value = ""; $("fbCount").textContent = "0 / 1000";
+    renderFeedback(r.mine);
+    toast("Merci ! Ton message est bien arrivé 🙏", "ok");
+  } catch (e) { toast(e.message, "err"); }
+  $("fbSend").disabled = false;
+});
 
 // 🔔 Notifications : l'invité choisit d'être prévenu quand son titre passe.
 async function initNotifications() {

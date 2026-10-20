@@ -1500,3 +1500,11 @@ html[data-events="soon"] .tabs [data-tab="events"]::after {
 .track.g-away .title { opacity: .7; }
 .g-kick-pres { margin: -2px 0 4px; color: var(--muted); font-size: .88rem; line-height: 1.45; }
 .g-kick-pres .g-pres { margin-left: 0; }
+
+/* Ton avis : idées et bugs pour l'organisateur */
+.fb-form { display:flex; flex-direction:column; gap:10px; }
+.fb-form textarea { min-height:120px; }
+.fb-kinds { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; }
+.fb-kinds button { min-height:42px; }
+.fb-item .title { white-space:normal; overflow-wrap:anywhere; font-weight:600; }
+.fb-st.done { color:#7be0a6; font-weight:700; }

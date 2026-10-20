@@ -22,6 +22,7 @@ from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 
 from . import calendar_ics, games, heist, island, links, neon, president, quiz
+from .feedback import KINDS as FEEDBACK_KINDS, FeedbackBox
 from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
 from .push import Push, valid_subscription
 from .security import Limiter
@@ -60,6 +61,7 @@ BUILD_ID = build_id()
 # Proxies de confiance (même variable qu'uvicorn) : leur IP n'identifie personne.
 PROXY_IPS = {ip.strip() for ip in os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1").split(",") if ip.strip()}
 store = PartyStore(DATA_DIR / "session.json", ignored_ips=PROXY_IPS)
+feedback = FeedbackBox(DATA_DIR / "feedback.json")  # idées et bugs des invités, gardés d'une soirée à l'autre
 quiz.STATS_PATH = DATA_DIR / "quiz_stats.json"  # classement général du Quiz, toutes parties confondues
 sonos = Sonos(os.environ.get("SONOS_IP") or None)
 spotify = (
@@ -787,6 +789,7 @@ def admin_add(body: AdminAdd):
 def admin_state():
     s = store.session
     result = {
+        "feedback_new": feedback.count_new(),
         "guest_pin": s.guest_pin,
         "guest_url": guest_url(),
         "active": s.active,
@@ -1451,6 +1454,58 @@ def art(p: str):
         raise HTTPException(404)
     return Response(r.content, media_type=r.headers.get("content-type", "image/jpeg"),
                     headers={"Cache-Control": "public, max-age=86400"})
+
+
+class FeedbackIn(BaseModel):
+    guest_id: str
+    name: str = ""
+    kind: str = "idea"
+    text: str
+    context: dict = {}
+
+
+@app.post("/api/feedback")
+def send_feedback(body: FeedbackIn, request: Request):
+    """Un invité propose une idée ou signale un bug (pas besoin du code de la soirée)."""
+    check_guest_id(body.guest_id)
+    if msg := ban_message(body.guest_id, client_ip(request)):
+        raise HTTPException(403, msg)
+    text = " ".join(body.text.split())[:1000]
+    if body.kind not in FEEDBACK_KINDS or len(text) < 3:
+        raise HTTPException(400, "Écris quelques mots pour expliquer ton idée")
+    if feedback.sent_since(body.guest_id, 20) or feedback.sent_since(body.guest_id, 86400) >= 10:
+        raise HTTPException(429, "Merci ! Attends un peu avant d'envoyer un autre message")
+    context = {k: str(v)[:40] for k, v in body.context.items() if k in ("tab", "game")}
+    name = clean_name(body.name) or "Anonyme"
+    feedback.add(body.guest_id, name, body.kind, text, context)
+    notify_admin({"title": f"{FEEDBACK_KINDS[body.kind]} de {name}", "body": text[:140], "url": "/admin#feedback", "tag": "feedback"})
+    store.save()  # l'admin ouvert reçoit la mise à jour (pastille « Retours »)
+    return {"mine": feedback.mine(body.guest_id)}
+
+
+@app.get("/api/feedback")
+def my_feedback(guest_id: str = ""):
+    check_guest_id(guest_id)
+    return {"mine": feedback.mine(guest_id)}
+
+
+class FeedbackAction(BaseModel):
+    ids: list[str]
+    action: str
+
+
+@app.get("/api/admin/feedback", dependencies=[Depends(require_admin)])
+def admin_feedback():
+    return {"items": feedback.all(), "kinds": FEEDBACK_KINDS}
+
+
+@app.post("/api/admin/feedback", dependencies=[Depends(require_admin)])
+def admin_feedback_action(body: FeedbackAction):
+    if body.action not in ("done", "new", "delete"):
+        raise HTTPException(400, "Action inconnue")
+    feedback.update(body.ids, body.action)
+    store.save()
+    return {"items": feedback.all(), "kinds": FEEDBACK_KINDS}
 
 
 def ban_message(guest_id: str, ip: str) -> str | None:

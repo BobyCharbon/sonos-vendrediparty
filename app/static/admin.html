@@ -109,6 +109,16 @@
       <iframe id="eventsFrame" title="Événements et administration du groupe" class="events-frame" referrerpolicy="same-origin"></iframe>
     </section>
 
+    <!-- 💬 Retours des invités -->
+    <section data-view="feedback" class="hidden" aria-labelledby="fbAdminTitle">
+      <h2 id="fbAdminTitle">Retours des invités</h2>
+      <p class="sub">Idées et bugs envoyés depuis l'onglet « Ton avis ». Gardés d'une soirée à l'autre.</p>
+      <div class="seg fb-filter" role="group" aria-label="Filtrer">
+        <button type="button" class="on" data-fb-filter="new">À traiter</button><button type="button" data-fb-filter="done">Traités</button><button type="button" data-fb-filter="all">Tout</button>
+      </div>
+      <div id="fbList" class="list" style="margin-top:10px"></div>
+    </section>
+
     <!-- ⚙️ Réglages -->
     <section data-view="settings" class="hidden">
       <div id="liveSettings" class="hidden">
@@ -199,6 +209,7 @@
     <button type="button" data-tab="home">🎵<span>Soirée</span></button>
     <button type="button" data-tab="games">🎮<span>Jeux</span></button>
     <button type="button" data-tab="events"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h2M14 15h2"/></svg><span>Événements</span><i class="badge hidden" data-events-badge aria-hidden="true"></i></button>
+    <button type="button" data-tab="feedback">💬<span>Retours</span><i id="fbBadge" class="badge hidden"></i></button>
     <button type="button" data-tab="settings">⚙️<span>Réglages</span><i id="settingsBadge" class="badge hidden"></i></button>
   </nav>
 
@@ -266,7 +277,7 @@ async function api(path, body) {
 function showLogin() { $("login").classList.remove("hidden"); $("panel").classList.add("hidden"); $("tabs").classList.add("hidden"); }
 
 // Deux écrans : 🎵 Soirée (lecture + file complète) et ⚙️ Réglages (/admin#settings).
-const VIEWS = ["home", "games", "events", "settings"];
+const VIEWS = ["home", "games", "events", "feedback", "settings"];
 function showView(view) {
   if (!VIEWS.includes(view)) view = "home";
   if (view === "events" && PartyEvents.soon) {
@@ -285,6 +296,7 @@ function showView(view) {
   scrollTo(0, 0);
   if (view === "settings" && typeof loadSpeakers === "function") loadSpeakers();
   if (view === "games" && typeof refreshGame === "function") refreshGame();
+  if (view === "feedback") loadFeedback();
 }
 document.addEventListener("click", (ev) => {
   const t = ev.target.closest("button[data-tab]");  // pas le <body>, qui porte aussi data-tab
@@ -322,8 +334,33 @@ async function loadRooms() {
   } catch (e) { $("room").innerHTML = `<option value="">${esc(e.message)}</option>`; }
 }
 
+// 💬 Retours des invités : à traiter / traités, avec le contexte (onglet ou jeu) d'où ils ont été envoyés.
+let fbItems = [], fbKinds = {}, fbFilter = "new";
+function renderFeedback() {
+  const shown = fbItems.filter((i) => fbFilter === "all" || i.status === fbFilter);
+  $("fbList").innerHTML = shown.map((i) => `<div class="track fb-item ${i.status}"><div class="meta">
+      <div class="title">${esc(i.text)}</div>
+      <div class="artist">${esc(fbKinds[i.kind] || i.kind)} · ${esc(i.name)} · ${new Date(i.at * 1000).toLocaleString("fr-CH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}${i.context?.game ? ` · jeu : ${esc((typeof GAME_NAMES !== "undefined" && GAME_NAMES[i.context.game]) || i.context.game)}` : i.context?.tab ? ` · depuis ${esc({ music: "Musique", games: "Jeux", events: "Événements" }[i.context.tab] || i.context.tab)}` : ""}</div></div>
+    <div class="icon-btns">
+      ${i.status === "new" ? `<button class="secondary" data-fb="done" data-id="${esc(i.id)}" aria-label="Marquer comme traité">✓</button>` : `<button class="secondary" data-fb="new" data-id="${esc(i.id)}" aria-label="Remettre à traiter">↺</button>`}
+      <button class="danger" data-fb="delete" data-id="${esc(i.id)}" aria-label="Supprimer">✕</button></div></div>`).join("")
+    || `<p class="empty" style="padding:12px">${fbFilter === "new" ? "Rien à traiter pour l'instant 🎉" : "Aucun retour."}</p>`;
+}
+async function loadFeedback(body) {
+  try { const r = await api("/api/admin/feedback", body); fbItems = r.items; fbKinds = r.kinds; renderFeedback(); } catch (e) { toast(e.message, "err"); }
+}
+document.addEventListener("click", (ev) => {
+  const f = ev.target.closest("[data-fb-filter]");
+  if (f) { fbFilter = f.dataset.fbFilter; document.querySelectorAll("[data-fb-filter]").forEach((b) => b.classList.toggle("on", b === f)); return renderFeedback(); }
+  const a = ev.target.closest("[data-fb]");
+  if (a && (a.dataset.fb !== "delete" || confirm("Supprimer ce retour ?"))) loadFeedback({ ids: [a.dataset.id], action: a.dataset.fb });
+});
+
 function render(s) {
   state = s; stateAt = Date.now();
+  $("fbBadge").textContent = s.feedback_new || "";
+  $("fbBadge").classList.toggle("hidden", !s.feedback_new);
+  if (!document.querySelector('[data-view="feedback"]').classList.contains("hidden") && s.feedback_new !== fbItems.filter((i) => i.status === "new").length) loadFeedback();
   $("login").classList.add("hidden"); $("panel").classList.remove("hidden");
   $("noSpotify").classList.toggle("hidden", s.spotify_configured);
   $("tabs").classList.remove("hidden");
