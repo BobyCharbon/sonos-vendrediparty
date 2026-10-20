@@ -345,8 +345,7 @@ def _personal_answer(g: dict, gid: str, choice: int, rng):
                 P.update(between=now + REVEAL, paused=False)
         else:
             safe = max([i + 1 for i in LADDER_SAFE if i + 1 <= P["level"]], default=0)
-            P.update(done=True, fell=True, level=safe)
-            s["pts"] = safe * 100
+            P.update(done=True, fell=True, level=safe)  # le gain retombe au palier assuré ; les points gagnés restent
     if all(x["done"] for x in Q["personal"].values()) and mode == "ladder":
         _finish(g)
 
@@ -438,8 +437,7 @@ def _personal_tick(g: dict, rng) -> bool:
             _count(g, gid, P["q"]["qid"], False)
             safe = max([i + 1 for i in LADDER_SAFE if i + 1 <= P["level"]], default=0)
             P["last"] = {"qid": P["q"]["qid"], "choices": P["q"]["choices"], "c": None, "ans": P["q"]["ans"], "ok": False, "at": now}
-            P.update(done=True, fell=True, level=safe)
-            _sc(g, gid)["pts"] = safe * 100
+            P.update(done=True, fell=True, level=safe)  # le gain retombe au palier assuré ; les points gagnés restent
             changed = True
     if Q["personal"] and all(x["done"] for x in Q["personal"].values()):
         _finish(g)

@@ -92,6 +92,19 @@ def test_ladder_safe_level_jokers_and_stop():
         quiz.joker(g, "p0", "5050")
     quiz.answer(g, "p0", P["cut"][0])  # raté : retour au palier assuré (5)
     assert g["phase"] == "end" and P["level"] == 5
+    assert g["quiz"]["scores"]["p0"]["pts"] == 600  # les 6 bonnes réponses comptent quand même
+
+
+def test_ladder_fall_before_first_safe_level_keeps_points():
+    g = qgame(1, mode="ladder")
+    games.start(g, random.Random(5))
+    P = g["quiz"]["personal"]["p0"]
+    for _ in range(3):
+        quiz.answer(g, "p0", P["q"]["ans"])
+        P["between"] = 1
+        quiz.tick(g)
+    quiz.answer(g, "p0", (P["q"]["ans"] + 1) % 4)
+    assert P["level"] == 0 and g["quiz"]["scores"]["p0"]["pts"] == 300
 
 
 def test_chrono_runs_until_deadline():

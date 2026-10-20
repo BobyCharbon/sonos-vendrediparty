@@ -252,7 +252,7 @@ def test_game_codes_are_digits_and_never_the_music_pin():
     assert games.new_code(taken) == "0042"
 
 
-@pytest.mark.parametrize("mode, pool", [("soft", games.WHOOF_QUESTIONS), ("awkward", games.WHOOF_AWKWARD), ("hot", games.WHOOF_HOT)])
+@pytest.mark.parametrize("mode, pool", [("soft", games.WHOOF_SOFT), ("awkward", games.WHOOF_AWKWARD), ("hot", games.WHOOF_HOT)])
 def test_whoof_modes_pick_from_their_pool_without_repeats(mode, pool):
     g = games.new_game("whoof", host="h", name="H", mode=mode, sips=3)
     games.join(g, "a", "A")
@@ -1026,3 +1026,61 @@ def test_game_room_flow():
     v = o.post(f"/api/games/{code}", json={"guest_id": "room-other-001", "action": "launch", "settings": {"type": "quiz"}}).json()
     q = o.get(f"/api/games/{v['room_info']['current']['code']}?guest_id=room-other-001").json()
     assert q["is_owner"] and not any(p["name"] == "Ludo" for p in q["players"])
+
+
+@pytest.mark.parametrize("n, wanted, white, expected", [(6, 2, False, 2), (6, 3, False, 2), (5, 3, True, 1), (9, 0, False, 2), (4, 1, False, 1)])
+def test_undercover_impostor_count_option(n, wanted, white, expected):
+    """Nombre d'imposteurs choisi (0 = auto), plafonné pour que les civils restent majoritaires."""
+    g = games.new_game("undercover", white=white)
+    g["options"]["impostors"] = wanted
+    for i in range(n):
+        games.join(g, f"p{i}")
+    games.start(g, random.Random(3))
+    assert len(by_role(g, "undercover")) == expected
+    assert len(by_role(g, "civil")) > len(by_role(g, "undercover")) + len(by_role(g, "white"))
+
+
+def test_undercover_reveal_and_hint_options():
+    g = games.new_game("undercover", white=True)
+    g["options"].update(reveal=True, hint=True)
+    for i in range(6):
+        games.join(g, f"p{i}")
+    games.start(g, random.Random(2))
+    hint = g["words"]["hint"]
+    assert hint
+    under, white, civil = by_role(g, "undercover")[0], by_role(g, "white")[0], by_role(g, "civil")[0]
+    assert games.view(g, under)["me"]["role"] == "Undercover" and games.view(g, under)["me"]["hint"] == hint
+    assert games.view(g, white)["me"]["role"] == "Mr. White" and games.view(g, white)["me"]["hint"] == hint
+    assert games.view(g, civil)["me"]["role"] is None and games.view(g, civil)["me"]["hint"] is None
+    g["options"].update(reveal=False)  # sans révélation : l'imposteur ne sait rien, et n'a donc pas d'indice
+    assert games.view(g, under)["me"]["role"] is None and games.view(g, under)["me"]["hint"] is None
+
+
+def test_undercover_options_from_api():
+    c = TestClient(main.app)
+    r = c.post("/api/games", json={"guest_id": "uc-opts-host-01", "name": "Ludo", "type": "undercover",
+                                   "impostors": 9, "reveal": True, "hint": True}).json()
+    g = main.store.session.games[r["code"]]
+    assert g["options"]["impostors"] == 3 and g["options"]["reveal"] and g["options"]["hint"]
+
+
+def test_word_pairs_all_have_a_hint():
+    assert all(len(t) == 3 and all(x.strip() for x in t) for t in games.WORD_PAIRS)
+
+
+def test_question_banks_are_large_distinct_and_do_not_repeat():
+    """« Qui de nous ? » compare les joueurs, « Je n'ai jamais » parle d'expériences : deux banques distinctes et assez grandes."""
+    for kind, (modes, _) in games.QUESTION_GAMES.items():
+        for mode, (_, pool) in modes.items():
+            assert len(pool) >= 120 and len(set(pool)) == len(pool), (kind, mode)
+    whoof = set(games.WHOOF_MODES["mix"][1])
+    assert not [q for q in whoof if q.startswith(("a déjà", "s'est déjà", "est déjà"))]
+    g = games.new_game("never")
+    for i in range(2):
+        games.join(g, f"p{i}")
+    games.start(g, random.Random(4))
+    seen = [g["question"]]
+    for _ in range(119):
+        games.next_step(g, random.Random(len(seen)))
+        seen.append(g["question"])
+    assert len(set(seen)) == 120  # pas de répétition sur les 120 premières questions d'une partie

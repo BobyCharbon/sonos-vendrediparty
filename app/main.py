@@ -1015,6 +1015,9 @@ class GameCreate(BaseModel):
     boat: bool = True  # Pyramide : phase du bateau à la fin
     poteau: str = "soft"  # Pyramide : soft (tout le monde boit 1) | hard (celui qui tire boit cul sec)
     double: bool = False  # Pyramide : gorgées par étage 2, 4, 6… au lieu de 1, 2, 3…
+    impostors: int = 0  # Undercover : nombre d'imposteurs (0 = selon le nombre de joueurs)
+    reveal: bool = False  # Undercover : les imposteurs savent qu'ils le sont
+    hint: bool = False  # Undercover : indice (catégorie du mot) pour Mr. White et les imposteurs qui se savent imposteurs
 
 
 @app.post("/api/games")
@@ -1048,6 +1051,8 @@ def build_game(body: GameCreate) -> dict:
                            mode=body.mode, sips=body.sips)
     except games.GameError as e:
         raise HTTPException(400, str(e))
+    if body.type == "undercover":
+        g["options"].update(impostors=max(0, min(3, body.impostors)), reveal=body.reveal, hint=body.hint)
     if body.type == "pyramid":
         g["options"].update(floors=max(5, min(8, body.floors)), pmode="soft" if body.pmode == "soft" else "hard", boat=body.boat,
                             poteau="hard" if body.poteau == "hard" else "soft", double=body.double)

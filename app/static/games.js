@@ -417,6 +417,12 @@ document.getElementById("gamesRoot").innerHTML = `
         <p class="g-desc">Chacun reçoit un mot secret. Les undercovers ont un mot proche, Mr. White n'en a pas. Indices à voix haute, puis on vote pour éliminer.</p>
         <div class="g-chips"><span>3+ joueurs</span><span>Mot secret</span><span>Bluff</span></div>
         <label class="g-opt"><span>Avec Mr. White <small>dès 5 joueurs</small></span><input type="checkbox" class="switch" data-opt="white" checked></label>
+        <div class="g-label">Imposteurs</div>
+        <div class="g-modes" data-opt-group="impostors">
+          <button type="button" data-val="0" class="on">Auto</button><button type="button" data-val="1">1</button><button type="button" data-val="2">2</button><button type="button" data-val="3">3</button>
+        </div>
+        <label class="g-opt"><span>Les imposteurs savent qu'ils le sont <small>sinon chacun le devine en écoutant</small></span><input type="checkbox" class="switch" data-opt="reveal"></label>
+        <label class="g-opt"><span>💡 Indice pour les imposteurs <small>la catégorie du mot : « un fruit », « un sport »…</small></span><input type="checkbox" class="switch" data-opt="hint"></label>
         <label class="g-opt"><span>Je joue aussi <small>sinon tu es maître du jeu et tu vois les rôles</small></span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="undercover">Créer une partie</button>
       </div>
@@ -896,7 +902,9 @@ function renderGame(g) {
     body = `<div class="title">Tu es inscrit ✓</div><div class="artist">${g.is_host ? "Lance la partie quand tout le monde est là." : `En attente que ${esc(g.host_name)} lance la partie…`}</div>`;
   } else if (g.type === "undercover") {
     const key = g.id + ":" + g.round;
-    const secret = me?.role ? `<div class="word">🎩 Tu es Mr. White</div><div class="artist">Tu n'as pas de mot : écoute les autres et bluffe !</div>`
+    const hint = me?.hint ? `<div class="artist" style="margin-top:6px">💡 Indice : c'est ${esc(me.hint)}</div>` : "";
+    const secret = me?.role === "Mr. White" ? `<div class="word">🎩 Tu es Mr. White</div><div class="artist">Tu n'as pas de mot : écoute les autres et bluffe !</div>${hint}`
+      : me?.role === "Undercover" ? `<div class="word">🕵️ Tu es imposteur</div><div class="artist">Ton mot : <b>${esc(me?.word)}</b> · celui des civils est proche. Fonds-toi dans la masse !</div>${hint}`
       : `<div class="artist">Ton mot</div><div class="word">${esc(me?.word)}</div>`;
     const wordBox = !me?.dealt ? "" : wordShown === key && Date.now() < wordUntil
       ? `<button type="button" data-gact="hide" class="secret">${secret}<div class="artist" style="margin-top:4px">Se cache dans <b id="wordCountdown">${Math.ceil((wordUntil - Date.now()) / 1000)}</b> s · touche pour cacher</div></button>`
@@ -2570,6 +2578,9 @@ function gamePayload(card, type) {
     poteau: q("[data-opt-group=poteau] .on")?.dataset.val || "soft",
     double: q("[data-opt-group=floorsips] .on")?.dataset.val === "2",
     boat: q("[data-opt=boat]")?.checked ?? true,
+    impostors: +(q("[data-opt-group=impostors] .on")?.dataset.val || 0),
+    reveal: q("[data-opt=reveal]")?.checked ?? false,
+    hint: q("[data-opt=hint]")?.checked ?? false,
   };
 }
 document.addEventListener("click", async (ev) => {
@@ -2665,7 +2676,7 @@ document.addEventListener("click", (ev) => {
     if (cat === couple && cat.classList.contains("on")) on.forEach((b) => b !== cat && b.classList.remove("on"));
     else if (cat !== couple && cat.classList.contains("on")) couple?.classList.remove("on");
   }
-  const pm = ev.target.closest("[data-opt-group=pmode] [data-val], [data-opt-group=poteau] [data-val], [data-opt-group=floorsips] [data-val], [data-opt-group=bkmult] [data-val]");
+  const pm = ev.target.closest("[data-opt-group=pmode] [data-val], [data-opt-group=poteau] [data-val], [data-opt-group=floorsips] [data-val], [data-opt-group=bkmult] [data-val], [data-opt-group=impostors] [data-val]");
   if (pm) pm.parentElement.querySelectorAll("[data-val]").forEach((x) => x.classList.toggle("on", x === pm));
   const opt = ev.target.closest("[data-opt-group=mode] [data-val]");
   if (opt) opt.parentElement.querySelectorAll("[data-val]").forEach((b) => b.classList.toggle("on", b === opt));
