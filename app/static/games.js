@@ -422,7 +422,8 @@ document.getElementById("gamesRoot").innerHTML = `
           <button type="button" data-val="0" class="on">Auto</button><button type="button" data-val="1">1</button><button type="button" data-val="2">2</button><button type="button" data-val="3">3</button>
         </div>
         <label class="g-opt"><span>Les imposteurs savent qu'ils le sont <small>sinon chacun le devine en écoutant</small></span><input type="checkbox" class="switch" data-opt="reveal"></label>
-        <label class="g-opt"><span>💡 Indice pour les imposteurs <small>la catégorie du mot : « un fruit », « un sport »…</small></span><input type="checkbox" class="switch" data-opt="hint"></label>
+        <label class="g-opt"><span>💡 Indice pour Mr. White <small>la catégorie du mot : « un fruit », « un sport »…</small></span><input type="checkbox" class="switch" data-opt="white_hint"></label>
+        <label class="g-opt"><span>💡 Indice pour les imposteurs <small>seulement s'ils savent qu'ils le sont</small></span><input type="checkbox" class="switch" data-opt="hint"></label>
         <label class="g-opt"><span>Je joue aussi <small>sinon tu es maître du jeu et tu vois les rôles</small></span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="undercover">Créer une partie</button>
       </div>
@@ -2581,6 +2582,7 @@ function gamePayload(card, type) {
     impostors: +(q("[data-opt-group=impostors] .on")?.dataset.val || 0),
     reveal: q("[data-opt=reveal]")?.checked ?? false,
     hint: q("[data-opt=hint]")?.checked ?? false,
+    white_hint: q("[data-opt=white_hint]")?.checked ?? false,
   };
 }
 document.addEventListener("click", async (ev) => {

@@ -1042,7 +1042,7 @@ def test_undercover_impostor_count_option(n, wanted, white, expected):
 
 def test_undercover_reveal_and_hint_options():
     g = games.new_game("undercover", white=True)
-    g["options"].update(reveal=True, hint=True)
+    g["options"].update(reveal=True, hint=True, white_hint=True)
     for i in range(6):
         games.join(g, f"p{i}")
     games.start(g, random.Random(2))
@@ -1054,14 +1054,17 @@ def test_undercover_reveal_and_hint_options():
     assert games.view(g, civil)["me"]["role"] is None and games.view(g, civil)["me"]["hint"] is None
     g["options"].update(reveal=False)  # sans révélation : l'imposteur ne sait rien, et n'a donc pas d'indice
     assert games.view(g, under)["me"]["role"] is None and games.view(g, under)["me"]["hint"] is None
+    assert games.view(g, white)["me"]["hint"] == hint  # l'indice de Mr. White est un réglage à part
+    g["options"].update(white_hint=False, reveal=True)
+    assert games.view(g, white)["me"]["hint"] is None and games.view(g, under)["me"]["hint"] == hint
 
 
 def test_undercover_options_from_api():
     c = TestClient(main.app)
     r = c.post("/api/games", json={"guest_id": "uc-opts-host-01", "name": "Ludo", "type": "undercover",
-                                   "impostors": 9, "reveal": True, "hint": True}).json()
+                                   "impostors": 9, "reveal": True, "hint": True, "white_hint": True}).json()
     g = main.store.session.games[r["code"]]
-    assert g["options"]["impostors"] == 3 and g["options"]["reveal"] and g["options"]["hint"]
+    assert g["options"]["impostors"] == 3 and g["options"]["reveal"] and g["options"]["hint"] and g["options"]["white_hint"]
 
 
 def test_word_pairs_all_have_a_hint():

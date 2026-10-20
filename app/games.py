@@ -2206,7 +2206,8 @@ def view(g: dict, gid: str) -> dict:
                      "role": "Mr. White" if me["role"] == "white" else "Undercover" if me["role"] == "undercover" and g["options"].get("reveal") else None,
                      "word": me["word"],
                      # Indice (option) : ce que les mots ont en commun, pour Mr. White et les imposteurs qui se savent imposteurs.
-                     "hint": (g.get("words") or {}).get("hint") if g["options"].get("hint") and (me["role"] == "white" or (me["role"] == "undercover" and g["options"].get("reveal"))) else None,
+                     "hint": (g.get("words") or {}).get("hint") if (me["role"] == "white" and g["options"].get("white_hint"))
+                     or (me["role"] == "undercover" and g["options"].get("reveal") and g["options"].get("hint")) else None,
                      "dealt": me["role"] is not None,
                      "drink": g.get("tally", {}).get(gid, {}).get("drink", 0),
                      "give": g.get("tally", {}).get(gid, {}).get("give", 0)}
