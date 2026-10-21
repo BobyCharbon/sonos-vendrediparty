@@ -60,7 +60,9 @@ class Accounts:
             signed = s.json().get("signedURL") if s.status_code == 200 else None
             if signed:
                 photo = SUPABASE_URL + "/storage/v1" + signed
-        account = {"guest_id": self.gid(uid), "name": " ".join((profile.get("display_name") or "").split())[:30], "photo": photo}
+        b = self._get("POST", "/rest/v1/rpc/is_beta_tester", token, json={})
+        beta = b.status_code == 200 and b.json() is True  # Événements en production : réservés aux bêta-testeurs
+        account = {"guest_id": self.gid(uid), "name": " ".join((profile.get("display_name") or "").split())[:30], "photo": photo, "beta": beta}
         with self.lock:
             self.cache = {k: v for k, v in self.cache.items() if now - v[0] < CACHE_TTL}
             self.cache[key] = (now, account)

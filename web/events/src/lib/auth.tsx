@@ -15,16 +15,21 @@ type AuthState = {
   perms: string[];
   rank: number; // invité 0 … admin 4, root 99
   can: (perm: string) => boolean;
+  /** Membre du groupe, mais les sorties sont encore réservées aux bêta-testeurs (production). */
+  eventsSoon: boolean;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
 
+/** En production, Party sert le module avec data-events="beta" : les sorties ne s'ouvrent qu'aux bêta-testeurs. */
+const betaOnly = typeof document !== 'undefined' && document.documentElement.dataset.events === 'beta';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [access, setAccess] = useState<{ perms: string[]; rank: number }>({ perms: [], rank: -1 });
+  const [access, setAccess] = useState<{ perms: string[]; rank: number; soon: boolean }>({ perms: [], rank: -1, soon: false });
   const [sessionReady, setSessionReady] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const profileRequest = useRef(0);
@@ -37,14 +42,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      const [dir, perms, rank] = await Promise.all([
+      const [dir, perms, rank, beta] = await Promise.all([
         supabase.rpc('get_member_directory').eq('id', userId).single(),
         supabase.rpc('my_permissions'),
         supabase.rpc('my_rank'),
+        betaOnly ? supabase.rpc('is_beta_tester') : Promise.resolve({ data: true }),
       ]);
       if (dir.error) throw dir.error;
       if (request !== profileRequest.current) return;
-      setAccess({ perms: (perms.data as string[] | null) ?? [], rank: (rank.data as number | null) ?? -1 });
+      const all = (perms.data as string[] | null) ?? [];
+      // Hors bêta, un membre garde son compte Party mais pas encore les sorties.
+      const soon = beta.data !== true && all.includes('events.view');
+      setAccess({ perms: soon ? all.filter((p) => p !== 'events.view') : all, rank: (rank.data as number | null) ?? -1, soon });
       setProfile(dir.data as Profile);
       setProfileError(null);
     } catch {
@@ -116,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       perms: access.perms,
       rank: access.rank,
       can: (perm: string) => !!session && profile?.id === session.user.id && access.perms.includes(perm),
+      eventsSoon: !!session && profile?.id === session.user.id && access.soon,
       refreshProfile: () => loadProfile(session?.user.id),
       signOut: async () => {
         await unregisterPushToken().catch((error) => console.warn('Déconnexion push :', error));

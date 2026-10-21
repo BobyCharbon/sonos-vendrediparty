@@ -20,20 +20,26 @@ export default function Members() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const updating = useRef(false);
-  const { data, error: loadError, loading, reload } = useQuery(
-    async () => must(await supabase.rpc('get_member_directory').order('display_name')) as Profile[],
-    [],
-  );
+  const { data, error: loadError, loading, reload } = useQuery(async () => {
+    const [people, beta] = await Promise.all([
+      supabase.rpc('get_member_directory').order('display_name'),
+      supabase.from('beta_testers').select('user_id'),
+    ]);
+    return { people: must(people) as Profile[], beta: new Set((must(beta) as { user_id: string }[]).map((b) => b.user_id)) };
+  }, []);
 
   if (!(can('members.roles') || can('members.ban') || can('members.view_identity'))) return <Redirect href="/" />;
 
-  async function update(id: string, patch: Partial<Profile>) {
+  async function update(id: string, patch: Partial<Profile> & { beta?: boolean }) {
     if (updating.current) return;
     updating.current = true;
     setBusy(true);
     setError(null);
     try {
-      check(await supabase.from('profiles').update(patch).eq('id', id));
+      const { beta, ...fields } = patch;
+      check(await (beta === undefined
+        ? supabase.from('profiles').update(fields).eq('id', id)
+        : supabase.rpc('set_beta_tester', { member: id, enabled: beta })));
       await reload();
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
@@ -47,10 +53,10 @@ export default function Members() {
   }
 
   const q = search.trim().toLowerCase();
-  const rows = (data ?? []).filter((p) => !q || [p.display_name, p.first_name, p.last_name, p.phone].some((value) => value?.toLowerCase().includes(q)));
+  const rows = (data?.people ?? []).filter((p) => !q || [p.display_name, p.first_name, p.last_name, p.phone].some((value) => value?.toLowerCase().includes(q)));
   const byRole = (r: MemberRole) => rows.filter((p) => p.status === 'active' && p.role === r);
   const banned = rows.filter((p) => p.status === 'banned');
-  const row = (person: Profile) => <MemberRow key={person.id} person={person} me={me} myRank={rank} canRoles={can('members.roles')} canBan={can('members.ban')} busy={busy} onUpdate={update} />;
+  const row = (person: Profile) => <MemberRow key={person.id} person={person} beta={!!data?.beta.has(person.id)} me={me} myRank={rank} canRoles={can('members.roles')} canBan={can('members.ban')} busy={busy} onUpdate={update} />;
 
   return (
     <Screen edges={[]}>
@@ -67,9 +73,9 @@ export default function Members() {
   );
 }
 
-function MemberRow({ person: p, me, myRank, canRoles, canBan, busy, onUpdate }: {
-  person: Profile; me: Profile; myRank: number; canRoles: boolean; canBan: boolean; busy: boolean;
-  onUpdate: (id: string, patch: Partial<Profile>) => Promise<void>;
+function MemberRow({ person: p, beta, me, myRank, canRoles, canBan, busy, onUpdate }: {
+  person: Profile; beta: boolean; me: Profile; myRank: number; canRoles: boolean; canBan: boolean; busy: boolean;
+  onUpdate: (id: string, patch: Partial<Profile> & { beta?: boolean }) => Promise<void>;
 }) {
   const root = p.id === ROOT_ID;
   const below = !root && p.id !== me.id && roleRank(p.role) < myRank;
@@ -81,9 +87,15 @@ function MemberRow({ person: p, me, myRank, canRoles, canBan, busy, onUpdate }: 
         <View style={{ flex: 1 }}>
           <T weight="semibold">{p.display_name || 'Profil à compléter'}{p.id === me.id ? ' (toi)' : ''}</T>
           {p.first_name || p.last_name ? <T muted>{[p.first_name, p.last_name].filter(Boolean).join(' ')}</T> : null}
-          <T muted size={12}>{root ? '👑 Root' : roleLabel[p.role]}{p.phone ? ` · +${p.phone.replace(/^\+/, '')}` : ''}</T>
+          <T muted size={12}>{root ? '👑 Root' : roleLabel[p.role]}{beta ? ' · 🧪 Bêta-testeur' : ''}{p.phone ? ` · +${p.phone.replace(/^\+/, '')}` : ''}</T>
         </View>
       </View>
+      {/* Bêta-testeur : voit les Événements en production avant tout le monde (les admins d'office). */}
+      {canRoles && p.status === 'active' ? (
+        <View style={s.wrap}>
+          <Chip label="🧪 Bêta-testeur" selected={beta} disabled={busy} onPress={() => onUpdate(p.id, { beta: !beta })} />
+        </View>
+      ) : null}
       {below && (canRoles || canBan) ? (
         <View style={s.wrap}>
           {p.status === 'active' && canRoles

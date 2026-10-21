@@ -17,7 +17,7 @@ export function openPartyTab(tab: string, path?: string) {
 
 /** Réglages du compte Party : profil (prénom, nom, surnom, photo), accès aux événements, notifications, compte. */
 export function Settings({ topInset = false }: { topInset?: boolean }) {
-  const { profile, signOut, can, rank, isAdmin } = useAuth();
+  const { profile, signOut, can, rank, isAdmin, eventsSoon } = useAuth();
   if (!profile) return null;
   const active = can('events.view');
   const complete = hasCompleteIdentity(profile);
@@ -44,7 +44,8 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
       <Section title="Événements du groupe">
         {active ? <T muted size={14}>Tu fais partie du groupe : sorties, sondages et discussions.</T> : null}
         {profile.status === 'banned' ? <T muted size={14}>Ton accès a été retiré par un admin.</T> : null}
-        {active ? <Button label="Voir les sorties" variant="secondary" onPress={() => openPartyTab('events')} /> : <JoinRequest />}
+        {eventsSoon ? <T muted size={14}>Tu fais partie du groupe. Les sorties arrivent bientôt : elles sont pour l’instant réservées aux bêta-testeurs.</T> : null}
+        {active ? <Button label="Voir les sorties" variant="secondary" onPress={() => openPartyTab('events')} /> : eventsSoon ? null : <JoinRequest />}
       </Section>
 
       <Card style={{ gap: 0, paddingVertical: 4 }}>

@@ -42,7 +42,8 @@ def configured_public_url() -> str:
 PUBLIC_URL = configured_public_url()
 STATIC = Path(__file__).parent / "static"
 EVENTS_WEB = Path(os.environ.get("EVENTS_WEB_DIR") or str(Path(__file__).parent / "events-web"))
-# Section Événements : en développement (active sur le site de test, « Bientôt » en production).
+# Section Événements : ouverte à tous sur le site de test ; en production, réservée aux bêta-testeurs
+# (les autres voient l'onglet « Bientôt », le compte Party reste ouvert à tous).
 # L'image Docker de la branche develop est construite avec EVENTS_ENABLED=1, celle de main avec 0.
 EVENTS_ENABLED = os.environ.get("EVENTS_ENABLED", "0") == "1"
 
@@ -1834,7 +1835,7 @@ def page(name: str) -> Response:
     if name not in _pages:
         html = (STATIC / name).read_text(encoding="utf-8")
         if not EVENTS_ENABLED:
-            html = html.replace("<html", '<html data-events="soon"', 1)  # onglet affiché « Bientôt », module non chargé
+            html = html.replace("<html", '<html data-events="beta"', 1)  # « Bientôt » sauf pour les bêta-testeurs
         _pages[name] = re.sub(r'(/static/[\w./-]+\.(?:js|css))(?=")', rf"\1?v={BUILD_ID}", html)
     return Response(_pages[name], media_type="text/html; charset=utf-8", headers=NO_CACHE)
 
@@ -1880,8 +1881,6 @@ def events_redirect():
 @app.get("/events/{resource:path}")
 def events_web(resource: str):
     """Module web local ; l'accès aux données reste protégé par Supabase Auth/RLS."""
-    if not EVENTS_ENABLED:
-        return Response("Les événements arrivent bientôt.", status_code=404, headers=NO_CACHE)
     root = EVENTS_WEB.resolve()
     if any(part.startswith(".") for part in Path(resource).parts):
         raise HTTPException(404, "Page introuvable")
@@ -1894,7 +1893,10 @@ def events_web(resource: str):
     elif resource.startswith(("_expo/", "assets/")) or Path(resource).suffix:
         raise HTTPException(404, "Ressource introuvable")
     elif (root / "index.html").is_file():
-        response = FileResponse(root / "index.html", headers={"Cache-Control": "no-store"})
+        html = (root / "index.html").read_text(encoding="utf-8")
+        if not EVENTS_ENABLED:
+            html = html.replace("<html", '<html data-events="beta"', 1)  # le module réserve les sorties aux bêta-testeurs
+        response = Response(html, media_type="text/html; charset=utf-8", headers={"Cache-Control": "no-store"})
     else:
         return Response("Les événements sont momentanément indisponibles. Réessaie dans un instant.", status_code=503, headers=NO_CACHE)
     response.headers["Content-Security-Policy"] = "frame-ancestors 'self'"

@@ -295,7 +295,6 @@ $("nameChip").addEventListener("click", changeName);
 // Les événements utilisent leur compte SMS ; les accès musique/jeux restent indépendants.
 function showTab(tab, eventTarget) {
   if (!["music", "games", "events", "feedback", "account"].includes(tab)) tab = "music";
-  if (tab === "account" && PartyEvents.soon) tab = "music";
   if (tab === "events" && PartyEvents.soon) {
     // Section en préparation : on reste où on est (ou sur la musique au démarrage).
     if (document.body.dataset.tab) return toast("📅 Les événements arrivent bientôt");
@@ -360,24 +359,24 @@ function useIdentity(id, name) {
   if (changed) { registered = false; refresh(); if (typeof refreshGame === "function") refreshGame(); }
 }
 async function linkAccount() {
-  if (PartyEvents.soon) return;
   const token = supabaseToken();
   if (!token) {
     // Déconnecté : le téléphone reprend son identité d'invité.
     const anon = store("vp_guest_anon");
     if (account || guestId.startsWith("acct-")) { account = null; store("vp_account", ""); if (anon) useIdentity(anon); }
+    PartyEvents.setBeta(false);
     return showAccount();
   }
   try {
     const a = await api("/api/account/link", { method: "POST", body: JSON.stringify({ token, guest_id: guestId }) });
     if (!guestId.startsWith("acct-")) store("vp_guest_anon", guestId);
-    account = a; store("vp_account", JSON.stringify({ name: a.name, photo: a.photo }));
+    account = a; store("vp_account", JSON.stringify({ name: a.name, photo: a.photo, beta: a.beta }));
+    PartyEvents.setBeta(a.beta);
     useIdentity(a.guest_id, a.name);
   } catch { /* hors ligne ou jeton expiré : on garde l'identité actuelle, le module rafraîchira la session */ }
   showAccount();
 }
 try { account = JSON.parse(store("vp_account") || "null"); } catch { account = null; }
-if (PartyEvents.soon) account = null;
 showAccount();
 window.addEventListener("message", (event) => {
   if (event.origin !== location.origin) return;

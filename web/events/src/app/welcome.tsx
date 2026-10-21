@@ -10,7 +10,7 @@ import { hasCompleteIdentity } from '@/lib/profile';
 
 /** Compte connecté mais pas (encore) membre : profil complet, puis demande d'adhésion avec un mot facultatif. */
 export default function Welcome() {
-  const { profile, refreshProfile, signOut } = useAuth();
+  const { profile, refreshProfile, signOut, eventsSoon } = useAuth();
   const [editing, setEditing] = useState(false);
   const complete = hasCompleteIdentity(profile);
 
@@ -20,6 +20,11 @@ export default function Welcome() {
         <View style={{ gap: 12 }}>
           <Title size={32}>Accès retiré</Title>
           <T muted>Ton accès a été retiré par un admin du groupe.</T>
+        </View>
+      ) : eventsSoon ? (
+        <View style={{ gap: 12 }}>
+          <Title size={32}>Bientôt</Title>
+          <T muted>Tu fais partie du groupe. Les sorties sont pour l’instant réservées aux bêta-testeurs.</T>
         </View>
       ) : complete && !editing ? (
         <View style={{ gap: 20 }}>

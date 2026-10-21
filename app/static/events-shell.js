@@ -1,7 +1,16 @@
 // Pont de navigation commun aux pages invités et admin. Aucune donnée de compte ici.
+// En production (data-events="beta"), les sorties ne s'ouvrent qu'aux bêta-testeurs ; le compte Party reste ouvert à tous.
+const betaOnly = document.documentElement.dataset.events === 'beta';
+let betaTester = false;
+try { betaTester = !!JSON.parse(localStorage.getItem('vp_account') || 'null')?.beta; } catch { /* Stockage bloqué. */ }
 window.PartyEvents = {
-  /** Section encore en développement : l'onglet affiche « Bientôt » et le module n'est pas chargé. */
-  soon: document.documentElement.dataset.events === 'soon',
+  /** Pas (encore) bêta-testeur : l'onglet affiche « Bientôt » et les sorties ne sont pas chargées. */
+  get soon() { return betaOnly && !betaTester; },
+  /** Résultat de la liaison du compte Party (ou false à la déconnexion). */
+  setBeta(on) {
+    betaTester = !!on;
+    markSoon();
+  },
   target(params, admin = false) {
     const id = params.get('event') || '';
     if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id)) return '/events/event/' + id;
@@ -94,10 +103,17 @@ window.addEventListener('message', (event) => {
 });
 
 // « Bientôt » : l'onglet reste visible mais n'ouvre rien (annoncé aux lecteurs d'écran).
-if (window.PartyEvents.soon) {
-  const mark = () => document.querySelectorAll('[data-tab="events"]').forEach((b) => {
-    b.setAttribute('aria-disabled', 'true');
-    b.setAttribute('aria-label', 'Événements : bientôt disponible');
+function markSoon() {
+  const soon = window.PartyEvents.soon;
+  if (soon) window.PartyEvents.badge(0);  // avant l'étiquette : la pastille réécrit aria-label
+  document.querySelectorAll('[data-tab="events"]').forEach((b) => {
+    if (soon) {
+      b.setAttribute('aria-disabled', 'true');
+      b.setAttribute('aria-label', 'Événements : bientôt disponible');
+    } else if (b.getAttribute('aria-disabled')) {
+      b.removeAttribute('aria-disabled');
+      b.setAttribute('aria-label', 'Événements');
+    }
   });
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mark); else mark();
 }
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', markSoon); else markSoon();

@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from app import accounts as accounts_mod, games, main
 
 
-def fake_supabase(user_id='u-1', status='active', valid=True):
+def fake_supabase(user_id='u-1', status='active', valid=True, beta=False):
     calls = []
     def handler(request: httpx.Request):
         calls.append(request.url.path)
@@ -14,6 +14,8 @@ def fake_supabase(user_id='u-1', status='active', valid=True):
             return httpx.Response(200, json={'id': user_id}) if valid else httpx.Response(401, json={})
         if request.url.path == '/rest/v1/rpc/get_member_directory':
             return httpx.Response(200, json=[{'display_name': '  Lulu ', 'avatar_url': f'{user_id}/a.jpg', 'status': status}])
+        if request.url.path == '/rest/v1/rpc/is_beta_tester':
+            return httpx.Response(200, json=beta)
         if request.url.path.startswith('/storage/v1/object/sign/profile-photos/'):
             return httpx.Response(200, json={'signedURL': '/object/sign/profile-photos/x.jpg?token=t'})
         return httpx.Response(404)
@@ -26,6 +28,7 @@ def test_link_is_stable_secret_cached_and_rejects_bad_or_banned_tokens():
     first = a.link('token-' + 'x' * 30)
     assert first['name'] == 'Lulu' and first['guest_id'].startswith('acct-') and 'u-1' not in first['guest_id']
     assert first['photo'].endswith('/storage/v1/object/sign/profile-photos/x.jpg?token=t')
+    assert first['beta'] is False and accounts_mod.Accounts(b'secret', fake_supabase(beta=True)[0]).link('b' * 40)['beta'] is True
     assert a.link('token-' + 'x' * 30) == first and calls.count('/auth/v1/user') == 1  # mis en cache
     assert accounts_mod.Accounts(b'secret', fake_supabase()[0]).link('autre-jeton' + 'y' * 30)['guest_id'] == first['guest_id']
     assert a.photo(first['guest_id']) == first['photo']
