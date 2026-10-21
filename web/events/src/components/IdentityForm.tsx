@@ -9,12 +9,17 @@ import type { Profile } from '@/lib/types';
 import { ProfilePhotoField } from './ProfilePhotoField';
 import { Button, ErrorText, Field, T } from './ui';
 
+/** Surnom déjà choisi dans les jeux de Party (même origine) : il pré-remplit un profil qui n'en a pas encore. */
+function gameNickname(): string {
+  try { return typeof localStorage === 'undefined' ? '' : (localStorage.getItem('vp_name') ?? '').trim().slice(0, 30); } catch { return ''; }
+}
+
 /** Nom, prénom (privés), surnom (public) et photo sur une seule page, pour bien voir la différence. */
 export function IdentityForm({ profile, submitLabel, onSaved }: { profile: Profile; submitLabel: string; onSaved?: () => void }) {
   const { refreshProfile } = useAuth();
   const [firstName, setFirstName] = useState(profile.first_name ?? '');
   const [lastName, setLastName] = useState(profile.last_name ?? '');
-  const [nickname, setNickname] = useState(profile.display_name ?? '');
+  const [nickname, setNickname] = useState(() => profile.display_name || gameNickname());
   const [photo, setPhoto] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -279,6 +279,8 @@ function renderNameChip() {
   $("nameChip").textContent = `👤 ${guestName} ✏️`;
 }
 async function changeName() {
+  // Compte Party : le surnom du profil fait foi, il ne se change que dans les Réglages.
+  if (account) { showTab("account"); return toast("✏️ Ton surnom se change dans ton profil"); }
   const name = (prompt("Ton prénom :", guestName) || "").trim().slice(0, 30);
   if (!name || name === guestName) return;
   guestName = name; store("vp_name", guestName);
@@ -546,6 +548,7 @@ $("nameForm").addEventListener("submit", (ev) => {
 });
 $("rename").addEventListener("click", (ev) => {
   ev.preventDefault();
+  if (account) { showTab("account"); return toast("✏️ Ton surnom se change dans ton profil"); }
   $("nameInput").value = guestName; guestName = ""; show("hello"); $("nameInput").focus();
 });
 

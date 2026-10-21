@@ -25,7 +25,7 @@ class Accounts:
         self.secret = secret
         self.client = client or httpx.Client(timeout=6)
         self.lock = threading.Lock()
-        self.cache: dict[str, tuple[float, dict]] = {}   # empreinte du jeton → (instant, compte)
+        self.cache: dict[str, tuple[float, str]] = {}    # empreinte du jeton → (instant, identifiant Supabase vérifié)
         self.by_gid: dict[str, dict] = {}                # identifiant de joueur → compte (surnom, photo)
 
     def gid(self, user_id: str) -> str:
@@ -38,17 +38,20 @@ class Accounts:
             raise AccountError("Le service des comptes ne répond pas. Réessaie dans un instant.") from e
 
     def link(self, token: str) -> dict:
-        """Jeton de session Supabase → compte vérifié : identifiant de joueur, surnom, lien de photo."""
+        """Jeton de session Supabase → compte vérifié : identifiant de joueur, surnom, lien de photo.
+        Seule la vérification du jeton est gardée 5 min : le surnom et la photo sont relus à chaque liaison,
+        pour qu'un changement fait dans le profil arrive tout de suite dans les jeux."""
         key = hashlib.sha256(token.encode()).hexdigest()
         now = time.time()
         with self.lock:
             hit = self.cache.get(key)
         if hit and now - hit[0] < CACHE_TTL:
-            return hit[1]
-        r = self._get("GET", "/auth/v1/user", token)
-        if r.status_code != 200 or not r.json().get("id"):
-            raise AccountError("Ta connexion a expiré. Reconnecte-toi.")
-        uid = r.json()["id"]
+            uid = hit[1]
+        else:
+            r = self._get("GET", "/auth/v1/user", token)
+            if r.status_code != 200 or not r.json().get("id"):
+                raise AccountError("Ta connexion a expiré. Reconnecte-toi.")
+            uid = r.json()["id"]
         r = self._get("GET", f"/rest/v1/rpc/get_member_directory?id=eq.{uid}&select=display_name,avatar_url,status", token)
         rows = r.json() if r.status_code == 200 else []
         profile = rows[0] if isinstance(rows, list) and rows else {}
@@ -65,7 +68,8 @@ class Accounts:
         account = {"guest_id": self.gid(uid), "name": " ".join((profile.get("display_name") or "").split())[:30], "photo": photo, "beta": beta}
         with self.lock:
             self.cache = {k: v for k, v in self.cache.items() if now - v[0] < CACHE_TTL}
-            self.cache[key] = (now, account)
+            if not (hit and now - hit[0] < CACHE_TTL):
+                self.cache[key] = (now, uid)
             self.by_gid[account["guest_id"]] = account
         return account
 

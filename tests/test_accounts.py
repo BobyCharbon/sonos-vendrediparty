@@ -29,7 +29,8 @@ def test_link_is_stable_secret_cached_and_rejects_bad_or_banned_tokens():
     assert first['name'] == 'Lulu' and first['guest_id'].startswith('acct-') and 'u-1' not in first['guest_id']
     assert first['photo'].endswith('/storage/v1/object/sign/profile-photos/x.jpg?token=t')
     assert first['beta'] is False and accounts_mod.Accounts(b'secret', fake_supabase(beta=True)[0]).link('b' * 40)['beta'] is True
-    assert a.link('token-' + 'x' * 30) == first and calls.count('/auth/v1/user') == 1  # mis en cache
+    assert a.link('token-' + 'x' * 30) == first and calls.count('/auth/v1/user') == 1  # jeton vérifié une fois
+    assert calls.count('/rest/v1/rpc/get_member_directory') == 2  # surnom relu : un changement de profil arrive tout de suite
     assert accounts_mod.Accounts(b'secret', fake_supabase()[0]).link('autre-jeton' + 'y' * 30)['guest_id'] == first['guest_id']
     assert a.photo(first['guest_id']) == first['photo']
     with pytest.raises(accounts_mod.AccountError):
