@@ -1,0 +1,104 @@
+import { useState } from 'react';
+import { View } from 'react-native';
+
+import { Button, Card, Chip, ConfirmButton, ErrorText, Input, Screen, s, Section, T } from '@/components/ui';
+import { useAuth, useMe } from '@/lib/auth';
+import { useQuery } from '@/lib/data';
+import { must, supabase } from '@/lib/supabase';
+import type { MemberGroup, Profile } from '@/lib/types';
+
+/** Groupes de membres pour inviter à un événement privé : partagés entre créateurs, modifiables par leur auteur et les admins. */
+export default function GroupsScreen() {
+  const me = useMe();
+  const { can } = useAuth();
+  const [name, setName] = useState('');
+  const [open, setOpen] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const { data, reload, error: loadError } = useQuery(async () => {
+    const [groups, members] = await Promise.all([
+      supabase.from('member_groups').select('id, name, created_by, member_group_members(user_id)').order('name'),
+      supabase.from('profiles').select('id, display_name').eq('status', 'active').neq('role', 'guest').order('display_name'),
+    ]);
+    return { groups: must(groups) as MemberGroup[], members: must(members) as Pick<Profile, 'id' | 'display_name'>[] };
+  }, []);
+
+  async function run(p: PromiseLike<{ error: { message: string } | null }>) {
+    setBusy(true);
+    const { error } = await p;
+    setError(error ? (error.message.includes('duplicate') ? 'Déjà dans le groupe.' : 'La modification n’a pas été enregistrée. Réessaie.') : null);
+    await reload();
+    setBusy(false);
+    return !error;
+  }
+
+  async function create() {
+    const clean = name.trim();
+    if (!clean) return;
+    setBusy(true);
+    const { data: created, error } = await supabase.from('member_groups').insert({ name: clean, created_by: me.id }).select('id').single();
+    setBusy(false);
+    if (error) return setError('Le groupe n’a pas été créé. Réessaie.');
+    setName('');
+    setOpen(created.id as string);
+    await reload();
+  }
+
+  const names = new Map((data?.members ?? []).map((m) => [m.id, m.display_name]));
+
+  return (
+    <Screen edges={[]}>
+      <T muted>Un groupe sert à inviter plusieurs membres d’un coup à un événement privé. Quelqu’un qui rejoint le groupe plus tard est aussi invité aux événements à venir.</T>
+      <ErrorText error={error ?? loadError} />
+
+      <Section title="Nouveau groupe">
+        <View style={s.row}>
+          <Input accessibilityLabel="Nom du groupe" placeholder="Ex. Les footeux" value={name} onChangeText={setName} maxLength={60} style={{ flex: 1 }} onSubmitEditing={create} />
+          <Button small label="Créer" disabled={!name.trim()} loading={busy && !!name.trim()} onPress={create} />
+        </View>
+      </Section>
+
+      <Section title="Groupes">
+        {data && !data.groups.length ? <T muted>Aucun groupe pour l’instant.</T> : null}
+        {data?.groups.map((g) => {
+          const mine = g.created_by === me.id || can('events.manage_all');
+          const inside = new Set(g.member_group_members.map((m) => m.user_id));
+          const expanded = open === g.id;
+          return (
+            <Card key={g.id}>
+              <View style={[s.row, { justifyContent: 'space-between' }]}>
+                <View style={{ flex: 1 }}>
+                  <T weight="bold">{g.name}</T>
+                  <T muted size={13} numberOfLines={expanded ? undefined : 1}>
+                    {inside.size ? [...inside].map((id) => names.get(id) ?? '?').join(', ') : 'Personne pour l’instant'}
+                  </T>
+                </View>
+                {mine ? <Button small variant="secondary" label={expanded ? 'Fermer' : 'Modifier'} onPress={() => setOpen(expanded ? null : g.id)} /> : null}
+              </View>
+              {expanded && mine ? (
+                <>
+                  <View style={s.wrap}>
+                    {data.members.map((m) => (
+                      <Chip
+                        key={m.id}
+                        label={m.display_name}
+                        selected={inside.has(m.id)}
+                        disabled={busy}
+                        onPress={() => run(inside.has(m.id)
+                          ? supabase.from('member_group_members').delete().eq('group_id', g.id).eq('user_id', m.id)
+                          : supabase.from('member_group_members').insert({ group_id: g.id, user_id: m.id }))}
+                      />
+                    ))}
+                  </View>
+                  <ConfirmButton small label="Supprimer le groupe" confirmLabel="Confirmer la suppression" onConfirm={() => run(supabase.from('member_groups').delete().eq('id', g.id))} />
+                  <T muted size={13}>Les invités qui ont déjà répondu gardent l’accès à leurs événements.</T>
+                </>
+              ) : null}
+            </Card>
+          );
+        })}
+      </Section>
+    </Screen>
+  );
+}

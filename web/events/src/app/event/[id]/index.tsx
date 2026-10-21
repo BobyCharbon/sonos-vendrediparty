@@ -22,7 +22,24 @@ type Full = EventRow & {
   date_options: (DateOption & { date_votes: DateVoteRow[] })[];
   polls: (Poll & { poll_options: PollOption[] })[];
   bring_items: BringItem[];
+  event_groups: { member_groups: { name: string } | null }[];
 };
+
+/** Lien à partager : ouvre Party sur cet événement (page publique pour qui n'est pas membre). */
+async function sharePublicLink(ev: Pick<EventRow, 'id' | 'title'>): Promise<string> {
+  const url = `${location.origin}/?tab=events&event=${ev.id}`;
+  try {
+    if (navigator.share) { await navigator.share({ title: ev.title, url }); return ''; }
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') return '';  // partage annulé
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    return 'Lien copié';
+  } catch {
+    return url;  // copie refusée : on l'affiche pour une copie manuelle
+  }
+}
 
 export default function EventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -30,13 +47,14 @@ export default function EventScreen() {
   const { can } = useAuth();
   const isAdmin = can('events.manage_all');
   const [error, setError] = useState<string | null>(null);
+  const [shareNote, setShareNote] = useState('');
 
   const { data, reload, error: loadError } = useQuery(async () => {
     const [ev, members, results, myVotes, allVotes, messages, mute] = await Promise.all([
       supabase
         .from('events')
         .select(
-          '*, category:categories(*), author:profiles!events_created_by_fkey(display_name), event_tags(tags(*)), event_organizers(user_id), rsvps(*), date_options(*, date_votes(*)), polls(*, poll_options(*)), bring_items(*)',
+          '*, category:categories(*), author:profiles!events_created_by_fkey(display_name), event_tags(tags(*)), event_organizers(user_id), rsvps(*), date_options(*, date_votes(*)), polls(*, poll_options(*)), bring_items(*), event_groups(member_groups(name))',
         )
         .eq('id', id)
         .single(),
@@ -143,6 +161,17 @@ export default function EventScreen() {
           {ev.category ? <Badge label={ev.category.name} fg={colors.onAccent} bg={ev.category.color} /> : null}
         </View>
         <Title size={32} style={{ lineHeight: 36 }}>{ev.title}</Title>
+        {ev.visibility === 'invited' ? (
+          <T muted size={13}>
+            🔒 Événement privé, sur invitation{ev.event_groups.length ? ` · ${ev.event_groups.map((g) => g.member_groups?.name).filter(Boolean).join(', ')}` : ''}
+          </T>
+        ) : null}
+        {ev.public_link && published ? (
+          <View style={s.row}>
+            <T muted size={13} style={{ flex: 1 }}>🔗 Ouvert à toute personne qui a le lien{shareNote ? ` · ${shareNote}` : ''}</T>
+            <Button small variant="secondary" label="Partager le lien" onPress={async () => setShareNote(await sharePublicLink(ev))} />
+          </View>
+        ) : null}
 
         {ev.date_mode === 'fixed' && ev.starts_at ? (
           <View style={st.keyRow}>

@@ -63,6 +63,7 @@ export type EventRow = {
   allow_maybe: boolean;
   rsvp_deadline: string | null;
   visibility: Visibility;
+  public_link: boolean;
   show_participants: boolean;
   forum_enabled: boolean;
   notify_on_publish: boolean;
@@ -70,6 +71,9 @@ export type EventRow = {
   created_at: string;
   updated_at: string;
 };
+
+/** Groupe de membres réutilisable pour inviter à un événement privé. */
+export type MemberGroup = { id: string; name: string; created_by: string | null; member_group_members: { user_id: string }[] };
 
 export type Rsvp = {
   event_id: string;

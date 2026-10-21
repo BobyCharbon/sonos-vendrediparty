@@ -30,7 +30,7 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 }
 
 const intentKey = 'party-events-destination';
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit)?|admin(?:\/members|\/roles|\/taxonomy|\/announcements)?|activity|announcements|account|settings\/(?:notifications|subscriptions))$/i;
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit)?|admin(?:\/members|\/roles|\/taxonomy|\/announcements)?|groups|activity|announcements|account|settings\/(?:notifications|subscriptions))$/i;
 function initialDestination() {
   if (typeof window === 'undefined') return null;
   const path = location.pathname.replace(/^\/events(?=\/|$)/, '');
@@ -49,6 +49,7 @@ function Gate() {
   const [initialIntent] = useState(initialDestination);
   const intent = useRef(initialIntent);
   const [asked, setAsked] = useState(0);
+  const shared = useRef<string | null>(null);
   // Page Party autour du module : elle demande une page (onglet Événements ou Réglages) et suit la connexion.
   useEffect(() => {
     if (typeof window === 'undefined' || window.parent === window) return;
@@ -75,6 +76,16 @@ function Gate() {
       if (path !== target) requestAnimationFrame(() => router.replace(target as Href));
     }
   }, [loading, session, active, profileError, path, asked]);
+
+  useEffect(() => {
+    // Lien d'un événement ouvert par un visiteur ou un invité : la page publique (une fois par connexion,
+    // pour laisser aller à la connexion SMS ; l'intention reste en mémoire jusqu'à l'entrée dans le groupe).
+    const id = intent.current?.match(/^\/event\/([a-f0-9-]{36})$/i)?.[1];
+    const key = `${session?.user.id ?? ''}|${id}`;
+    if (loading || profileError || active || !id || shared.current === key) return;
+    shared.current = key;
+    requestAnimationFrame(() => router.replace(`/share/${id}` as Href));
+  }, [loading, session, active, profileError, asked]);
 
   if (loading) return <Loading />;
   if (profileError && session) {
@@ -107,6 +118,7 @@ function Gate() {
         <Stack.Screen name="event/[id]/chat" options={{ title: 'Discussion' }} />
         <Stack.Screen name="settings/notifications" options={{ title: 'Notifications' }} />
         <Stack.Screen name="settings/subscriptions" options={{ title: 'Mes abonnements' }} />
+        <Stack.Screen name="groups" options={{ title: 'Groupes' }} />
         <Stack.Screen name="admin/index" options={{ title: 'Administration' }} />
         <Stack.Screen name="admin/members" options={{ title: 'Membres' }} />
         <Stack.Screen name="admin/roles" options={{ title: 'Rôles et droits' }} />
@@ -124,6 +136,7 @@ function Gate() {
         <Stack.Screen name="account" options={{ headerShown: false }} />
         <Stack.Screen name="settings/account" options={{ title: 'Mon compte' }} />
       </Stack.Protected>
+      <Stack.Screen name="share/[id]" options={{ title: '' }} />
       <Stack.Screen name="privacy" options={{ title: 'Confidentialité' }} />
     </Stack>
   );

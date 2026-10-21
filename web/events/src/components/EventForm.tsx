@@ -7,7 +7,7 @@ import { fetchTaxonomy, useQuery } from '@/lib/data';
 import { parseLocalDateTime, toLocalInput } from '@/lib/format';
 import { check, must, supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
-import type { DateMode, EventRow, Poll, PollOption, Profile, Reminder, Visibility } from '@/lib/types';
+import type { DateMode, EventRow, MemberGroup, Poll, PollOption, Profile, Reminder } from '@/lib/types';
 import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
 import { Button, Card, Chip, ErrorText, Field, Input, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
@@ -23,6 +23,15 @@ type PollDraft = {
   members_can_add_options: boolean;
   results_after_vote: boolean;
 };
+
+/** Qui voit l’événement : les deux premiers sont visibility 'all', les deux suivants 'invited'. */
+type Audience = 'public' | 'members' | 'groups' | 'custom';
+const audiences: { key: Audience; label: string; hint: string }[] = [
+  { key: 'public', label: 'Membres + lien public', hint: 'Tout le groupe, et toute personne qui a le lien : elle voit l’essentiel et peut répondre après connexion par SMS.' },
+  { key: 'members', label: 'Tous les membres', hint: 'Tout le groupe, comme d’habitude.' },
+  { key: 'groups', label: 'Groupes', hint: 'Seulement les membres des groupes choisis, même ceux qui y entrent plus tard. Ils reçoivent une invitation privée.' },
+  { key: 'custom', label: 'Personnalisé', hint: 'Seulement les membres cochés. Ils reçoivent une invitation privée.' },
+];
 
 type Draft = {
   title: string;
@@ -47,7 +56,8 @@ type Draft = {
   max_plus_ones: string;
   allow_maybe: boolean;
   rsvp_deadline: string;
-  visibility: Visibility;
+  audience: Audience;
+  group_ids: string[];
   invitees: string[];
   organizers: string[];
   show_participants: boolean;
@@ -81,7 +91,8 @@ const emptyDraft: Draft = {
   max_plus_ones: '',
   allow_maybe: true,
   rsvp_deadline: '',
-  visibility: 'all',
+  audience: 'members',
+  group_ids: [],
   invitees: [],
   organizers: [],
   show_participants: true,
@@ -98,14 +109,15 @@ async function loadDraft(eventId: string): Promise<Draft> {
   const res = await supabase
     .from('events')
     .select(
-      '*, event_tags(tag_id), event_organizers(user_id), event_invites(user_id), date_options(id, starts_at), polls(*, poll_options(*)), bring_items(id, label, sort)',
+      '*, event_tags(tag_id), event_organizers(user_id), event_invites(user_id, via_group), event_groups(group_id), date_options(id, starts_at), polls(*, poll_options(*)), bring_items(id, label, sort)',
     )
     .eq('id', eventId)
     .single();
   const e = must(res) as unknown as EventRow & {
     event_tags: { tag_id: string }[];
     event_organizers: { user_id: string }[];
-    event_invites: { user_id: string }[];
+    event_invites: { user_id: string; via_group: boolean }[];
+    event_groups: { group_id: string }[];
     date_options: { id: string; starts_at: string }[];
     polls: (Poll & { poll_options: PollOption[] })[];
     bring_items: { id: string; label: string; sort: number }[];
@@ -135,8 +147,9 @@ async function loadDraft(eventId: string): Promise<Draft> {
     max_plus_ones: e.max_plus_ones >= UNLIMITED_PLUS_ONES ? '' : e.max_plus_ones.toString(),
     allow_maybe: e.allow_maybe,
     rsvp_deadline: toLocalInput(e.rsvp_deadline),
-    visibility: e.visibility,
-    invitees: e.event_invites.map((i) => i.user_id),
+    audience: e.visibility === 'all' ? (e.public_link ? 'public' : 'members') : e.event_groups.length ? 'groups' : 'custom',
+    group_ids: e.event_groups.map((g) => g.group_id),
+    invitees: e.event_invites.filter((i) => !i.via_group).map((i) => i.user_id),
     organizers: e.event_organizers.map((o) => o.user_id),
     show_participants: e.show_participants,
     forum_enabled: e.forum_enabled,
@@ -169,9 +182,10 @@ export function EventForm({ eventId }: { eventId?: string }) {
   const [newTag, setNewTag] = useState('');
 
   const { data: ctx, error: contextError, reload: reloadCtx } = useQuery(async () => {
-    const [taxonomy, members, settings, current] = await Promise.all([
+    const [taxonomy, members, groups, settings, current] = await Promise.all([
       fetchTaxonomy(),
-      supabase.from('profiles').select('id, display_name').eq('status', 'active').order('display_name'),
+      supabase.from('profiles').select('id, display_name').eq('status', 'active').neq('role', 'guest').order('display_name'),
+      supabase.from('member_groups').select('id, name, created_by, member_group_members(user_id)').order('name'),
       supabase.from('group_settings').select('require_approval').single(),
       eventId ? supabase.from('events').select('status').eq('id', eventId).single() : Promise.resolve(null),
     ]);
@@ -182,6 +196,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
     return {
       ...taxonomy,
       members: must(members) as Pick<Profile, 'id' | 'display_name'>[],
+      groups: must(groups) as MemberGroup[],
       settings: must(settings) as { require_approval: boolean },
       status: current ? (must(current) as { status: EventRow['status'] }).status : null,
     };
@@ -200,7 +215,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
 
   const d = draft;
   const set = (patch: Partial<Draft>) => setDraft({ ...d, ...patch });
-  const toggleIn = <K extends 'tag_ids' | 'invitees' | 'organizers' | 'reminders'>(key: K, v: Draft[K][number]) => {
+  const toggleIn = <K extends 'tag_ids' | 'group_ids' | 'invitees' | 'organizers' | 'reminders'>(key: K, v: Draft[K][number]) => {
     const list = d[key] as string[];
     set({ [key]: list.includes(v) ? list.filter((x) => x !== v) : [...list, v] } as Partial<Draft>);
   };
@@ -258,6 +273,8 @@ export function EventForm({ eventId }: { eventId?: string }) {
         return 'Le lien doit être une adresse complète (ex. https://…)';
       }
     }
+    if (d.audience === 'groups' && !d.group_ids.length) return 'Choisis au moins un groupe à inviter';
+    if (d.audience === 'custom' && !d.invitees.length) return 'Choisis au moins un membre à inviter';
     for (const p of d.polls) {
       if (!p.question.trim()) return 'Un sondage n’a pas de question';
       if (p.options.filter((o) => o.label.trim()).length < 2 && !p.members_can_add_options) return `« ${p.question} » : au moins deux options`;
@@ -286,7 +303,8 @@ export function EventForm({ eventId }: { eventId?: string }) {
         max_plus_ones: d.max_plus_ones.trim() ? Math.max(1, Math.min(UNLIMITED_PLUS_ONES - 1, Number(d.max_plus_ones) || 1)) : UNLIMITED_PLUS_ONES,
         allow_maybe: d.allow_maybe,
         rsvp_deadline: rsvpDeadline,
-        visibility: d.visibility,
+        visibility: d.audience === 'groups' || d.audience === 'custom' ? 'invited' : 'all',
+        public_link: d.audience === 'public',
         show_participants: d.show_participants,
         forum_enabled: d.forum_enabled,
         notify_on_publish: d.notify_on_publish,
@@ -304,7 +322,18 @@ export function EventForm({ eventId }: { eventId?: string }) {
     };
     await replace('event_tags', 'tag_id', d.tag_ids);
     await replace('event_organizers', 'user_id', d.organizers.filter((u) => u !== me.id));
-    await replace('event_invites', 'user_id', d.visibility === 'invited' ? d.invitees : []);
+    // Invités : la base recopie les membres des groupes (via_group) ; ici seulement les groupes et les invités cochés un par un.
+    const groupIds = d.audience === 'groups' ? d.group_ids : [];
+    const staleGroups = supabase.from('event_groups').delete().eq('event_id', id);
+    check(await (groupIds.length ? staleGroups.not('group_id', 'in', `(${groupIds.join(',')})`) : staleGroups));
+    if (groupIds.length) {
+      check(await supabase.from('event_groups').upsert(groupIds.map((group_id) => ({ event_id: id, group_id })), { ignoreDuplicates: true }));
+    }
+    check(await supabase.from('event_invites').delete().eq('event_id', id).eq('via_group', false));
+    const invitees = d.audience === 'custom' ? d.invitees : [];
+    if (invitees.length) {
+      check(await supabase.from('event_invites').upsert(invitees.map((user_id) => ({ event_id: id, user_id })), { ignoreDuplicates: true }));
+    }
 
     // Créneaux : on garde les votes des créneaux existants
     if (d.date_mode === 'poll') {
@@ -516,12 +545,22 @@ export function EventForm({ eventId }: { eventId?: string }) {
         <DateTimeField label="Date limite de réponse (optionnel)" optional value={d.rsvp_deadline} onChangeText={(rsvp_deadline) => set({ rsvp_deadline })} />
         <ToggleRow label="Liste des participants visible" value={d.show_participants} onChange={(v) => set({ show_participants: v })} />
         <T muted size={13}>Visibilité</T>
-        <Segmented<Visibility>
-          value={d.visibility}
-          onChange={(visibility) => set({ visibility })}
-          options={[{ key: 'all', label: 'Tout le groupe' }, { key: 'invited', label: 'Sur invitation' }]}
-        />
-        {d.visibility === 'invited' ? memberChips('invitees') : null}
+        <View style={s.wrap} accessibilityRole="radiogroup" accessibilityLabel="Visibilité">
+          {audiences.map((a) => <Chip key={a.key} label={a.label} selected={d.audience === a.key} onPress={() => set({ audience: a.key })} />)}
+        </View>
+        <T muted size={13}>{audiences.find((a) => a.key === d.audience)!.hint}</T>
+        {d.audience === 'groups' ? (
+          <>
+            <View style={s.wrap}>
+              {ctx.groups.map((g) => (
+                <Chip key={g.id} label={`${g.name} · ${g.member_group_members.length}`} selected={d.group_ids.includes(g.id)} onPress={() => toggleIn('group_ids', g.id)} />
+              ))}
+            </View>
+            {ctx.groups.length ? null : <T muted size={13}>Aucun groupe pour l’instant.</T>}
+            <Button small variant="ghost" label="Gérer les groupes ›" onPress={() => router.push('/groups')} />
+          </>
+        ) : null}
+        {d.audience === 'custom' ? memberChips('invitees') : null}
         <T muted size={13}>Co-organisateurs</T>
         {memberChips('organizers')}
       </Section>
