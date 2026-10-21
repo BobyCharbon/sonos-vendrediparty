@@ -15,6 +15,15 @@ export const colors = {
   lavender: '#B9A7FF',
   lavenderDim: '#2A2440',
   onAccent: '#240A18',
+  onCoral: '#2A1A06',
+  // Réponses : vert « c'est bon », rouge « absent » (toujours modifiable).
+  mint: '#5BE3A6',
+  mintDim: '#123527',
+  onMint: '#0B2A1D',
+  red: '#FF6363',
+  redSoft: '#FF8A8A',
+  redDim: '#3A1519',
+  onRed: '#2B0A0C',
 };
 
 export const fonts = {
@@ -27,4 +36,4 @@ export const fonts = {
 
 export const radius = { sm: 10, md: 14, lg: 20, pill: 999 };
 
-export const rsvpColors = { yes: colors.accent, maybe: colors.lavender, no: colors.coral } as const;
+export const rsvpColors = { yes: colors.mint, maybe: colors.coral, no: colors.red } as const;

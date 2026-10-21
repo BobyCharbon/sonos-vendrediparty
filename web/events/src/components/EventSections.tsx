@@ -136,8 +136,8 @@ export function RsvpCard({
       {mine && !closed ? (
         <View style={s.row}>
           <Input
-            accessibilityLabel="Petit mot pour le groupe"
-            placeholder="Un petit mot pour le groupe (optionnel)"
+            accessibilityLabel="Un petit mot perso pour l’organisateur"
+            placeholder="Un petit mot perso pour l’organisateur (facultatif)"
             value={note}
             onChangeText={setNote}
             onSubmitEditing={() => note !== (mine.note ?? '') && upsert('note', { note: note.trim() || null })}
@@ -206,8 +206,8 @@ export function ParticipantsSection({
         </View>
       ) : null}
       {rsvps.length === 0 ? <T muted size={14}>Personne n’a encore répondu. Sois le premier !</T> : null}
-      {block('Présents', yes, colors.accent, heads)}
-      {block('Peut-être', maybe, colors.lavender)}
+      {block('Présents', yes, colors.mint, heads)}
+      {block('Peut-être', maybe, colors.coral)}
       {block('Liste d’attente', waiting, colors.lavender)}
       {no.length ? <T muted size={13}>Absents : {no.map((r) => nameOf(r.user_id)).join(', ')}</T> : null}
       {notes.length ? (

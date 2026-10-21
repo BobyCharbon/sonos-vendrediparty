@@ -122,7 +122,7 @@ export default function EventScreen() {
           title: '',
           headerLeft: router.canGoBack()
             ? undefined
-            : () => <Button small variant="ghost" label="‹ Sorties" onPress={() => router.replace('/')} />,
+            : () => <Button small variant="ghost" label="‹ Événements" onPress={() => router.replace('/')} />,
           headerRight: () => (
             <View style={s.row}>
               {published ? <Button small variant="ghost" label={data.muted ? '🔕 Réactiver' : '🔔 Sourdine'} onPress={toggleMute} /> : null}

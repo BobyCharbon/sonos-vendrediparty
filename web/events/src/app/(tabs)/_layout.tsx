@@ -12,7 +12,7 @@ export default function EventsLayout() {
   const path = usePathname();
   const insets = useSafeAreaInsets();
   const links = [
-    { href: '/', label: 'Sorties', badge: pending },
+    { href: '/', label: 'Événements', badge: pending },
     { href: '/activity', label: 'Activité' },
     { href: '/profile', label: 'Mon profil' },
   ];

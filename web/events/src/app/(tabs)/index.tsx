@@ -83,10 +83,11 @@ export default function Home() {
 
   const pendingCount = data?.events.filter((e) => e.status === 'pending').length ?? 0;
 
-  // Les sorties où l’on attend encore ta réponse passent en tête de « À venir ».
+  // « À venir » : d’abord les sorties où tu es présent, puis les autres par date.
   const awaiting = (e: (typeof visible)[number]) => !!data && needsAnswer(e, me.id, data.loadedAt);
-  const toAnswer = tab === 'upcoming' ? visible.filter(awaiting) : [];
-  const rest = tab === 'upcoming' ? visible.filter((e) => !awaiting(e)) : visible;
+  const going = (e: (typeof visible)[number]) => e.rsvps.some((r) => r.user_id === me.id && r.status === 'yes' && !r.waitlisted);
+  const goingList = tab === 'upcoming' ? visible.filter(going) : [];
+  const rest = tab === 'upcoming' ? visible.filter((e) => !going(e)) : visible;
   const unvotedPolls = data?.events.filter((e) => e.date_mode === 'poll' && awaiting(e)).length ?? 0;
   const pollsToAnswer = tab === 'upcoming' && filter.kind === 'all' && !search.trim() ? unvotedPolls : 0;
   const isSel = (f: Filter) => JSON.stringify(f) === JSON.stringify(filter);
@@ -183,13 +184,10 @@ export default function Home() {
             ) : null}
           </View>
         ) : null}
-        {toAnswer.length ? (
+        {goingList.length ? (
           <View style={{ gap: 10 }}>
-            <View style={s.rowBetween}>
-              <Title size={18}>À toi de répondre</Title>
-              <View style={st.count}><T size={12} weight="bold" color={colors.onAccent}>{toAnswer.length}</T></View>
-            </View>
-            {toAnswer.map((e) => (
+            <T size={13} weight="bold" color={colors.mint} style={st.label}>TU Y VAS</T>
+            {goingList.map((e) => (
               <EventCard key={e.id} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp now={data!.loadedAt} />
             ))}
           </View>
@@ -199,9 +197,9 @@ export default function Home() {
             <T size={14}><T size={14} weight="bold">{pollsToAnswer} sondage{pollsToAnswer > 1 ? 's' : ''} de date</T> attend{pollsToAnswer > 1 ? 'ent' : ''} ton vote ›</T>
           </Pressable>
         ) : null}
-        {toAnswer.length && rest.length ? <Title size={18} style={{ marginTop: 6 }}>Au programme</Title> : null}
+        {goingList.length && rest.length ? <T size={13} weight="bold" color={colors.muted} style={[st.label, { marginTop: 6 }]}>À VENIR</T> : null}
         {rest.map((e) => (
-          <EventCard key={e.id} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp={tab === 'polls'} now={data!.loadedAt} />
+          <EventCard key={e.id} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp={tab === 'polls' || tab === 'upcoming'} now={data!.loadedAt} />
         ))}
       </ScrollView>
 
@@ -222,7 +220,7 @@ export default function Home() {
 }
 
 const st = StyleSheet.create({
-  count: { minWidth: 24, height: 24, paddingHorizontal: 7, borderRadius: 12, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  label: { letterSpacing: 0.6 },
   banner: { backgroundColor: colors.coralDim, padding: 14, borderRadius: radius.md, borderWidth: 1, borderColor: '#5A4024' },
   fabWrap: { position: 'absolute', left: 0, right: 0, bottom: 16, alignItems: 'center' },
   fabColumn: { width: '100%', maxWidth: 640, alignItems: 'flex-end', paddingRight: 16 },
