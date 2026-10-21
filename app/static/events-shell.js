@@ -105,6 +105,7 @@ window.addEventListener('message', (event) => {
 // « Bientôt » : l'onglet reste visible mais n'ouvre rien (annoncé aux lecteurs d'écran).
 function markSoon() {
   const soon = window.PartyEvents.soon;
+  document.documentElement.classList.toggle('events-soon', soon);
   if (soon) window.PartyEvents.badge(0);  // avant l'étiquette : la pastille réécrit aria-label
   document.querySelectorAll('[data-tab="events"]').forEach((b) => {
     if (soon) {
@@ -116,4 +117,5 @@ function markSoon() {
     }
   });
 }
+document.documentElement.classList.toggle('events-soon', window.PartyEvents.soon);  // dès le chargement, sans clignoter
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', markSoon); else markSoon();

@@ -1484,10 +1484,11 @@ img.qr:not([src]) { visibility: hidden; }
 #gDrawerExit { display:grid; gap:8px; margin-bottom:16px; }
 @media(max-width:420px) { #gTop { gap:5px !important; } #gTop .g-top-ico { display:none; } #gTop .g-top-name { font-size:.85rem; } }
 
-/* Section Événements en préparation (production) : onglet visible, atténué, marqué « Bientôt ». */
-html[data-events="soon"] .tabs [data-tab="events"] { position: relative; opacity: .55; }
-html[data-events="soon"] .tabs [data-tab="events"] [data-events-badge] { display: none; }
-html[data-events="soon"] .tabs [data-tab="events"]::after {
+/* Événements pas encore ouverts à ce compte (production, hors bêta-testeurs) : onglet visible, atténué, marqué « Bientôt ».
+   La classe events-soon est posée par events-shell.js. */
+html.events-soon .tabs [data-tab="events"] { position: relative; opacity: .55; }
+html.events-soon .tabs [data-tab="events"] [data-events-badge] { display: none; }
+html.events-soon .tabs [data-tab="events"]::after {
   content: "Bientôt"; position: absolute; top: 2px; left: calc(50% + 4px); padding: 1px 6px; border-radius: 99px;
   background: var(--accent-2, #ffb547); color: #2b1a00; font: 800 .58rem/1.4 system-ui, sans-serif; letter-spacing: .01em; }
 
@@ -1509,9 +1510,8 @@ html[data-events="soon"] .tabs [data-tab="events"]::after {
 .fb-item .title { white-space:normal; overflow-wrap:anywhere; font-weight:600; }
 .fb-st.done { color:#7be0a6; font-weight:700; }
 
-/* Compte Party : « Se connecter » / « Réglages » remplace « Ton avis » (qui passe dans les Réglages) ; tant que les
-   Événements sont « Bientôt » en production, l'onglet compte reste caché et « Ton avis » garde sa place. */
-html[data-events="soon"] .tabs [data-tab="account"], html:not([data-events="soon"]) .tabs:has(#accountTab) [data-tab="feedback"] { display: none; }
+/* Compte Party : « Se connecter » / « Réglages » remplace « Ton avis » (qui passe dans les Réglages), partout. */
+.tabs:has(#accountTab) [data-tab="feedback"] { display: none; }
 .tab-avatar { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 2px currentColor; }
 .qs-av { position: relative; overflow: hidden; }
 .qs-av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
