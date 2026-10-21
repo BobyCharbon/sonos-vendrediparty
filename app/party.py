@@ -98,6 +98,20 @@ class PartyStore:
         except (FileNotFoundError, ValueError, TypeError):
             return Session()
 
+    def _serialize(self) -> str:
+        # Les actions de jeu modifient les dicts de parties sous leur propre verrou
+        # (neon, island, heist, président…), pas celui-ci. La sérialisation peut donc
+        # rarement tomber sur « dictionary changed size during iteration ». On réessaie
+        # brièvement plutôt que de renvoyer une erreur au joueur : la fenêtre est minuscule.
+        for attempt in range(5):
+            try:
+                return json.dumps(asdict(self.session), ensure_ascii=False, indent=2)
+            except RuntimeError:
+                if attempt == 4:
+                    raise
+                time.sleep(0.01)
+        raise RuntimeError("sérialisation impossible")  # inatteignable, pour le typage
+
     def save(self, notify: bool = True):
         # Le suivi des invités et les actions de jeu peuvent enregistrer en parallèle.
         # Garder l'écriture et le remplacement sous le même verrou réentrant.
@@ -105,8 +119,9 @@ class PartyStore:
             if notify:
                 self.version += 1
             self.path.parent.mkdir(parents=True, exist_ok=True)
+            payload = self._serialize()
             tmp = self.path.with_suffix(".tmp")
-            tmp.write_text(json.dumps(asdict(self.session), ensure_ascii=False, indent=2))
+            tmp.write_text(payload)
             tmp.replace(self.path)
 
     def start(self, room_uid: str, room_name: str, mode: str, source: str = "sonos",

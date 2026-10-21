@@ -19,7 +19,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from . import calendar_ics, games, heist, island, links, neon, president, quiz
 from .accounts import AccountError, Accounts
@@ -105,6 +105,13 @@ app.add_middleware(GZipMiddleware, minimum_size=800, compresslevel=6)
 @app.exception_handler(SpotifyError)
 async def spotify_error_response(request: Request, error: SpotifyError):
     return JSONResponse(status_code=502, content={"detail": str(error)})
+
+
+@app.exception_handler(httpx.HTTPError)
+async def upstream_error_response(request: Request, error: httpx.HTTPError):
+    # Un service distant (Spotify, Sonos, Supabase) qui répond mal ou pas du tout
+    # donne un 502 clair plutôt qu'un 500 opaque. Le détail reste côté serveur.
+    return JSONResponse(status_code=502, content={"detail": "Un service distant est momentanément indisponible. Réessaie dans un instant."})
 
 # Un seul ajout/suppression à la fois : la position d'insertion dépend de l'état de la file.
 queue_lock = threading.Lock()
@@ -227,9 +234,15 @@ def _token(kind: str, pin: str) -> str:
     return hmac.new(_secret(), f"{kind}:{pin}".encode(), hashlib.sha256).hexdigest()
 
 
+def _eq(a: str, b: str) -> bool:
+    # Comparaison à temps constant sur les octets : un cookie ou un code non-ASCII
+    # (ex. « é ») ne fait plus planter hmac.compare_digest (TypeError → 500).
+    return hmac.compare_digest(a.encode("utf-8", "replace"), b.encode("utf-8", "replace"))
+
+
 def is_admin(request: Request) -> bool:
     token = request.cookies.get("vp_admin", "")
-    return bool(ADMIN_PIN) and hmac.compare_digest(token, _token("admin", ADMIN_PIN))
+    return bool(ADMIN_PIN) and _eq(token, _token("admin", ADMIN_PIN))
 
 
 def require_admin(request: Request):
@@ -245,7 +258,7 @@ def _guest_cookie(nonce: str) -> str:
 def guest_token(request: Request) -> str | None:
     """Jeton de l'invité s'il est valide pour le code en cours et non révoqué."""
     nonce, _, _sig = request.cookies.get("vp_guest", "").partition(".")
-    if not nonce or not hmac.compare_digest(request.cookies.get("vp_guest", ""), _guest_cookie(nonce)):
+    if not nonce or not _eq(request.cookies.get("vp_guest", ""), _guest_cookie(nonce)):
         return None
     return None if nonce in store.session.revoked else nonce
 
@@ -282,7 +295,7 @@ guest_limiter = Limiter(per_ip=5, ip_lock=900, global_max=30, global_window=600,
 
 
 class Login(BaseModel):
-    pin: str
+    pin: str = Field(max_length=64)
 
 
 @app.post("/api/admin/login")
@@ -292,7 +305,7 @@ def admin_login(body: Login, request: Request, response: Response):
     ip = client_ip(request)
     if msg := admin_limiter.blocked(ip):
         raise HTTPException(429, msg)
-    if not hmac.compare_digest(body.pin, ADMIN_PIN):
+    if not _eq(body.pin, ADMIN_PIN):
         admin_limiter.fail(ip)
         raise HTTPException(401, "Code incorrect")
     admin_limiter.success(ip)
@@ -305,7 +318,7 @@ def guest_join(body: Login, request: Request, response: Response):
     ip = client_ip(request)
     if msg := guest_limiter.blocked(ip):
         raise HTTPException(429, msg)
-    if not hmac.compare_digest(body.pin.strip(), store.session.guest_pin):
+    if not _eq(body.pin.strip(), store.session.guest_pin):
         guest_limiter.fail(ip)
         raise HTTPException(401, "Code incorrect")
     guest_limiter.success(ip)
@@ -981,16 +994,16 @@ def end_game(code: str, by: str):
 def prune_games():
     """Oublie les parties inactives depuis 4 h, et celles d'un jeu qui n'existe plus."""
     changed = False
-    for g in store.session.games.values():
+    for g in list(store.session.games.values()):
         # Ancien « Blackjack à boire » : devenu le Blackjack avec l'option alcool.
         if g["type"] == "blackjack_drinks":
             g["type"] = "blackjack"
             g["options"]["sips"] = g["options"].get("sips") or 2
             changed = True
-    old = [c for c, g in store.session.games.items()
+    old = [c for c, g in list(store.session.games.items())
            if time.time() - g["updated_at"] > 4 * 3600 or g["type"] not in games.GAMES]
     for code in old:
-        del store.session.games[code]
+        store.session.games.pop(code, None)
     if old or changed:
         save_games(*old)
 
@@ -1314,16 +1327,18 @@ def game_state(code: str, request: Request, guest_id: str = "", name: str = ""):
 
 
 class GameAction(BaseModel):
-    guest_id: str
-    name: str = ""
-    action: str
-    target: str = ""  # identifiant public (pid) d'un joueur
-    guess: str = ""
-    names: list[str] = []  # roulette : participants notés par l'animateur
+    # Bornes généreuses : elles ne gênent aucun usage réel mais coupent les corps démesurés
+    # (ex. flood O(n²) de set_names) avant qu'ils n'atteignent la logique de jeu.
+    guest_id: str = Field(max_length=200)
+    name: str = Field(default="", max_length=100)
+    action: str = Field(max_length=40)
+    target: str = Field(default="", max_length=200)  # identifiant public (pid) d'un joueur
+    guess: str = Field(default="", max_length=500)
+    names: list[str] = Field(default=[], max_length=100)  # roulette : participants notés par l'animateur
     amount: int = 0  # blackjack : mise
-    who: str = ""  # Pyramide : l'animateur agit pour ce joueur (pid)
-    slots: list[int] = []  # Pyramide : cartes à revoir
-    values: list[str] = []  # Pyramide : valeurs du test de mémoire
+    who: str = Field(default="", max_length=200)  # Pyramide : l'animateur agit pour ce joueur (pid)
+    slots: list[int] = Field(default=[], max_length=500)  # Pyramide : cartes à revoir
+    values: list[str] = Field(default=[], max_length=500)  # Pyramide : valeurs du test de mémoire
     settings: dict = {}  # Quiz : réglages de la partie (mode, thèmes, difficulté…)
 
 
@@ -1455,7 +1470,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         except games.GameError:
             pass
     if not g["players"] and not g["host"]:
-        del store.session.games[g["code"]]
+        store.session.games.pop(g["code"], None)
     save_games(g["code"], g.get("room") or "", g.get("current") or "")
     return full_view(g, me)
 
@@ -1909,9 +1924,13 @@ def events_redirect():
 def events_web(resource: str):
     """Module web local ; l'accès aux données reste protégé par Supabase Auth/RLS."""
     root = EVENTS_WEB.resolve()
-    if any(part.startswith(".") for part in Path(resource).parts):
-        raise HTTPException(404, "Page introuvable")
-    requested = (root / resource).resolve()
+    try:
+        if any(part.startswith(".") for part in Path(resource).parts):
+            raise HTTPException(404, "Page introuvable")
+        requested = (root / resource).resolve()
+    except ValueError:
+        # Chemin invalide (ex. octet nul « %00 ») : Path.resolve lève ValueError → 404, pas 500.
+        raise HTTPException(404, "Page introuvable") from None
     if not requested.is_relative_to(root):
         raise HTTPException(404, "Page introuvable")
     if requested.is_file():

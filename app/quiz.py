@@ -59,7 +59,9 @@ def configure(g: dict, s: dict):
             raise QuizError("La Rapidité se joue à 2 joueurs au moins")
         cur["mode"] = s["mode"]
     if isinstance(s.get("themes"), list):
-        cur["themes"] = [t for t in s["themes"] if qb.BANK.get(t)]
+        # On n'interroge la banque qu'avec des clés texte : un thème non-str
+        # (liste, nombre…) ne doit pas faire planter la configuration.
+        cur["themes"] = [t for t in s["themes"] if isinstance(t, str) and qb.BANK.get(t)]
     if str(s.get("diff")) in DIFFS:
         cur["diff"] = str(s["diff"])
     for key, lo, hi in (("count", 5, 50), ("time", 8, 60), ("lives", 1, 5), ("chrono", 30, 300)):
