@@ -232,6 +232,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
     const deadline = d.date_mode === 'poll' ? date(d.poll_deadline, 'Fin du vote') : null;
     const rsvpDeadline = date(d.rsvp_deadline, 'Date limite de réponse');
     if (errors.length) return errors[0]!;
+    if (starts && ends && ends <= starts) return 'La fin doit être après le début';
     if (starts && ends && ends < starts) return 'La fin est avant le début';
 
     const slots: { id?: string; iso: string }[] = [];
@@ -455,7 +456,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
         {d.date_mode === 'fixed' ? (
           <>
             <DateTimeField label="Début" value={d.starts_at} onChangeText={(starts_at) => set({ starts_at })} />
-            <DateTimeField label="Fin (optionnel)" value={d.ends_at} onChangeText={(ends_at) => set({ ends_at })} />
+            <DateTimeField label="Fin (optionnel)" optional min={d.starts_at} value={d.ends_at} onChangeText={(ends_at) => set({ ends_at })} />
           </>
         ) : (
           <>
@@ -469,7 +470,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
               </View>
             ))}
             <Button small variant="ghost" label="+ Ajouter un créneau" onPress={() => set({ slots: [...d.slots, { text: '' }] })} />
-            <DateTimeField label="Fin du vote (optionnel)" value={d.poll_deadline} onChangeText={(poll_deadline) => set({ poll_deadline })} />
+            <DateTimeField label="Fin du vote (optionnel)" optional value={d.poll_deadline} onChangeText={(poll_deadline) => set({ poll_deadline })} />
             <ToggleRow label="Les membres peuvent proposer des dates" value={d.members_can_propose_dates} onChange={(v) => set({ members_can_propose_dates: v })} />
             <ToggleRow
               label="Fixer la date automatiquement"
@@ -510,7 +511,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
         {d.allow_plus_ones ? (
           <Field label="Accompagnants max par personne (vide = illimité)" keyboardType="number-pad" value={d.max_plus_ones} onChangeText={(max_plus_ones) => set({ max_plus_ones })} />
         ) : null}
-        <DateTimeField label="Date limite de réponse (optionnel)" value={d.rsvp_deadline} onChangeText={(rsvp_deadline) => set({ rsvp_deadline })} />
+        <DateTimeField label="Date limite de réponse (optionnel)" optional value={d.rsvp_deadline} onChangeText={(rsvp_deadline) => set({ rsvp_deadline })} />
         <ToggleRow label="Liste des participants visible" value={d.show_participants} onChange={(v) => set({ show_participants: v })} />
         <T muted size={13}>Visibilité</T>
         <Segmented<Visibility>

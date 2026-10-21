@@ -297,3 +297,25 @@ def test_roles_screen_toggles_a_permission_for_the_chosen_role(browser,events_or
         sent=[json.loads(b) for _,path,b in calls if path.endswith('/rpc/set_role_permission')]
         assert sent and sent[-1]=={'target':'organizer','perm':'events.publish_direct','granted':True}, sent
     finally: context.close()
+
+
+def test_end_time_starts_from_start_and_can_be_cleared(browser,events_origin):
+    """Fin : s'ouvre sur l'heure de début, rien avant le début, pas de 5 min, et s'efface (iOS n'a pas de bouton pour ça)."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page();mock_services(page)
+    try:
+        page.goto(events_origin+'/events/',wait_until='domcontentloaded')
+        login(page)
+        page.get_by_role('button',name='Proposer un événement').click()
+        start=page.get_by_label('Début',exact=True);end=page.get_by_label('Fin (optionnel)',exact=True)
+        pw.expect(end).to_be_visible(timeout=15000)
+        start.fill('2030-11-14T19:00')
+        pw.expect(end).to_have_attribute('min','2030-11-14T19:00')
+        pw.expect(end).to_have_attribute('step','300')
+        pw.expect(page.get_by_role('button',name='Effacer : Fin (optionnel)')).to_have_count(0)
+        end.focus()
+        pw.expect(end).to_have_value('2030-11-14T19:00')
+        page.get_by_role('button',name='Effacer : Fin (optionnel)').click()
+        pw.expect(end).to_have_value('')
+        pw.expect(page.get_by_role('button',name='Effacer : Fin (optionnel)')).to_have_count(0)
+    finally: context.close()
