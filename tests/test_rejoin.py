@@ -56,6 +56,21 @@ def test_two_real_namesakes_get_two_numbered_seats(api):
     assert [p["twin"] for p in leas] == [1, 2] and all(p["online"] for p in leas)
 
 
+def test_host_seat_is_not_stolen_by_a_namesake(api, monkeypatch):
+    # Sécurité : derrière le NAT d'une soirée, une IP partagée ne doit pas permettre
+    # à un invité de reprendre le siège de l'animateur en se nommant comme lui.
+    code = api.create()  # hôte « Ludo » (HOST), plays=True
+    intruder = api("rejoin-intrus-0001", "join", code=code, name="ludo ")  # même IP, même prénom
+    assert intruder["me"]["pid"] != api(HOST, code=code)["me"]["pid"]  # place distincte, pas celle de l'hôte
+    # L'hôte reste l'hôte (toujours lead/host sur son identifiant stable).
+    host_view = api(HOST, code=code)
+    assert host_view["me"].get("host") or host_view["me"]["pid"] != intruder["me"]["pid"]
+    # Même une place devenue hors-ligne ne cède pas le siège animateur.
+    monkeypatch.setitem(main.store.last_seen, HOST, 0)
+    again = api("rejoin-intrus-0002", "join", code=code, name="Ludo")
+    assert again["me"]["pid"] != api(HOST, code=code)["me"]["pid"]
+
+
 def test_banned_player_cannot_come_back_through_a_new_id(api):
     code = api.create()
     lea = api(OLD, "join", code=code)["me"]["pid"]

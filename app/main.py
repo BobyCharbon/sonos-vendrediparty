@@ -1267,7 +1267,12 @@ def same_name(a: str, b: str) -> bool:
 def reclaim_seat(g: dict, guest_id: str, name: str, ip: str) -> str:
     """Joueur qui revient avec un autre identifiant (app installée ↔ Safari, navigation privée, stockage effacé…) :
     même prénom, et même appareil (même adresse) ou ancienne place inoccupée → il reprend sa place (points, rôle,
-    cartes) au lieu d'apparaître en double. Un joueur en ligne sur un autre appareil n'est jamais remplacé."""
+    cartes) au lieu d'apparaître en double. Un joueur en ligne sur un autre appareil n'est jamais remplacé.
+
+    Sécurité : le siège de l'animateur (host) et des leads n'est jamais repris par simple prénom. Derrière le NAT
+    d'une soirée tout le monde partage une IP, donc « même appareil » ne prouve rien ; un invité pourrait sinon
+    s'emparer du rôle d'animateur (end/ban/launch) en se nommant comme lui. L'animateur qui revient garde sa place
+    via son identifiant stable (compte Party connecté, ou cookie/stockage conservé), pas via le prénom."""
     if games.player(g, guest_id) or guest_id in (g.get("aliases") or {}):
         return canonical_gid(g, guest_id)
     if guest_id in g.get("kicked", []):
@@ -1277,7 +1282,9 @@ def reclaim_seat(g: dict, guest_id: str, name: str, ip: str) -> str:
         known = (store.session.guests.get(p["id"]) or {}).get("ips", [])
         return bool(ip) and ip not in PROXY_IPS and ip in known
 
-    seats = [p for p in g["players"] if not p.get("manual") and p["id"] != guest_id and same_name(p["name"], name)]
+    protected = {g.get("host")} | set(g.get("leads") or [])
+    seats = [p for p in g["players"]
+             if not p.get("manual") and p["id"] != guest_id and p["id"] not in protected and same_name(p["name"], name)]
     seats = [p for p in seats if mine(p) or not is_online(g, p["id"])]
     if len(seats) != 1:
         return guest_id  # personne, ou ambigu (deux places possibles) : nouvelle place
