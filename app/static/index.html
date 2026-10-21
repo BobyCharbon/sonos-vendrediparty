@@ -360,7 +360,9 @@ function useIdentity(id, name) {
   if (name) { guestName = name; store("vp_name", name); }
   if (changed) { registered = false; refresh(); if (typeof refreshGame === "function") refreshGame(); }
 }
+let linkedAt = 0;
 async function linkAccount() {
+  linkedAt = Date.now();
   const token = supabaseToken();
   if (!token) {
     // Déconnecté : le téléphone reprend son identité d'invité.
@@ -394,6 +396,8 @@ window.addEventListener("message", (event) => {
   }
 });
 linkAccount();
+// Web app rouverte sans être relancée : on relit le compte (accès bêta coché par un admin, surnom changé ailleurs).
+document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - linkedAt > 10000) linkAccount(); });
 
 // 💬 Ton avis : idées et bugs pour l'organisateur (sans code de soirée), avec le jeu en cours comme contexte.
 let fbKind = "idea", fbTab = "music";

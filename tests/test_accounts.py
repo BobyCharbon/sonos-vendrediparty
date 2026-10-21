@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from app import accounts as accounts_mod, games, main
 
 
-def fake_supabase(user_id='u-1', status='active', valid=True, beta=False):
+def fake_supabase(user_id='u-1', status='active', valid=True, beta=False, live=None):
     calls = []
     def handler(request: httpx.Request):
         calls.append(request.url.path)
@@ -15,7 +15,7 @@ def fake_supabase(user_id='u-1', status='active', valid=True, beta=False):
         if request.url.path == '/rest/v1/rpc/get_member_directory':
             return httpx.Response(200, json=[{'display_name': '  Lulu ', 'avatar_url': f'{user_id}/a.jpg', 'status': status}])
         if request.url.path == '/rest/v1/rpc/is_beta_tester':
-            return httpx.Response(200, json=beta)
+            return httpx.Response(200, json=live['beta'] if live is not None else beta)
         if request.url.path.startswith('/storage/v1/object/sign/profile-photos/'):
             return httpx.Response(200, json={'signedURL': '/object/sign/profile-photos/x.jpg?token=t'})
         return httpx.Response(404)
@@ -37,6 +37,16 @@ def test_link_is_stable_secret_cached_and_rejects_bad_or_banned_tokens():
         accounts_mod.Accounts(b'secret', fake_supabase(valid=False)[0]).link('t' * 40)
     with pytest.raises(accounts_mod.AccountError):
         accounts_mod.Accounts(b'secret', fake_supabase(status='banned')[0]).link('t' * 40)
+
+
+def test_beta_checked_by_an_admin_is_seen_at_the_next_link_without_cache_delay():
+    live = {'beta': False}
+    client, calls = fake_supabase(live=live)
+    a = accounts_mod.Accounts(b'secret', client)
+    assert a.link('jeton-' + 'z' * 30)['beta'] is False
+    live['beta'] = True  # case « 🧪 Bêta-testeur » cochée
+    assert a.link('jeton-' + 'z' * 30)['beta'] is True
+    assert calls.count('/auth/v1/user') == 1  # le jeton, lui, reste vérifié une seule fois
 
 
 def test_api_link_moves_the_phone_seat_to_the_account_and_shows_the_photo(monkeypatch):

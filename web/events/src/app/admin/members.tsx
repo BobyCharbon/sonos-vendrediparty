@@ -94,6 +94,7 @@ function MemberRow({ person: p, beta, me, myRank, canRoles, canBan, busy, onUpda
       {canRoles && p.status === 'active' ? (
         <View style={s.wrap}>
           <Chip label="🧪 Bêta-testeur" selected={beta} disabled={busy} onPress={() => onUpdate(p.id, { beta: !beta })} />
+          {beta && p.role === 'guest' ? <T muted size={13}>Encore invité : l’onglet s’ouvre, mais il faut aussi l’accepter comme membre pour qu’il voie les sorties.</T> : null}
         </View>
       ) : null}
       {below && (canRoles || canBan) ? (

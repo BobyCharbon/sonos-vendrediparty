@@ -42,7 +42,7 @@ function initialDestination() {
 }
 
 function Gate() {
-  const { loading, session, profile, profileError, refreshProfile, signOut, can } = useAuth();
+  const { loading, session, profile, profileError, refreshProfile, signOut, can, eventsSoon } = useAuth();
   // Membre du groupe : droit « Voir les événements » et profil complet ; les autres comptes ont les Réglages.
   const active = profile?.status === 'active' && hasCompleteIdentity(profile) && can('events.view');
   const path = usePathname();
@@ -64,9 +64,18 @@ function Gate() {
     window.parent.postMessage({ type: 'party-events:ready', path: location.pathname.replace(/^\/events(?=\/|$)/, '') || '/' }, location.origin);
     return () => window.removeEventListener('message', onMessage);
   }, []);
+  // Party a appris un changement d'accès (bêta-testeur coché ou retiré) : on relit les droits tout de suite.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onRefresh = (e: MessageEvent) => {
+      if (e.origin === location.origin && e.data?.type === 'party-shell:refresh') void refreshProfile();
+    };
+    window.addEventListener('message', onRefresh);
+    return () => window.removeEventListener('message', onRefresh);
+  }, [refreshProfile]);
   useEffect(() => {
     if (typeof window !== 'undefined' && window.parent !== window) window.parent.postMessage({ type: 'party-events:account' }, location.origin);
-  }, [session?.user.id, profile?.display_name, profile?.avatar_url, profile?.status]);
+  }, [session?.user.id, profile?.display_name, profile?.avatar_url, profile?.status, eventsSoon]);  // accès bêta compris
   useEffect(() => {
     // Réglages : ouverts à tout compte connecté ; le reste attend la validation du membre.
     if (!loading && session && (active || intent.current === '/account') && !profileError && intent.current) {

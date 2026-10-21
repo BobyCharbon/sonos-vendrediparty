@@ -8,8 +8,13 @@ window.PartyEvents = {
   get soon() { return betaOnly && !betaTester; },
   /** Résultat de la liaison du compte Party (ou false à la déconnexion). */
   setBeta(on) {
+    const changed = betaTester !== !!on;
     betaTester = !!on;
     markSoon();
+    // Le module déjà ouvert relit aussitôt ses droits (sinon il garderait « Bientôt » ou les sorties).
+    if (changed) {
+      try { document.getElementById('eventsFrame')?.contentWindow?.postMessage({ type: 'party-shell:refresh' }, location.origin); } catch { /* Cadre pas encore chargé. */ }
+    }
   },
   target(params, admin = false) {
     const id = params.get('event') || '';
