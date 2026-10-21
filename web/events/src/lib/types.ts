@@ -128,7 +128,7 @@ export type NotificationPrefs = {
   reminders: Reminder[];
 };
 
-/** Droits qui ouvrent l'onglet Administration. */
+/** Droits qui ouvrent l'Administration (dans les Réglages). */
 export const ADMIN_PERMS = ['events.approve', 'members.approve', 'members.roles', 'members.ban', 'members.view_identity', 'roles.manage', 'taxonomy.manage', 'group.settings', 'announcements.publish'];
 export const ROLE_ORDER: MemberRole[] = ['guest', 'member', 'organizer', 'coadmin', 'admin'];
 export const roleRank = (r: MemberRole) => ROLE_ORDER.indexOf(r);

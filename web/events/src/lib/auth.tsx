@@ -11,7 +11,7 @@ type AuthState = {
   session: Session | null;
   profile: Profile | null;
   profileError: string | null;
-  isAdmin: boolean; // a au moins un droit d'administration (onglet Administration)
+  isAdmin: boolean; // a au moins un droit d'administration (Réglages → Administration)
   perms: string[];
   rank: number; // invité 0 … admin 4, root 99
   can: (perm: string) => boolean;

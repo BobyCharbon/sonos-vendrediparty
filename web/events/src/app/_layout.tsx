@@ -107,6 +107,7 @@ function Gate() {
         <Stack.Screen name="event/[id]/chat" options={{ title: 'Discussion' }} />
         <Stack.Screen name="settings/notifications" options={{ title: 'Notifications' }} />
         <Stack.Screen name="settings/subscriptions" options={{ title: 'Mes abonnements' }} />
+        <Stack.Screen name="admin/index" options={{ title: 'Administration' }} />
         <Stack.Screen name="admin/members" options={{ title: 'Membres' }} />
         <Stack.Screen name="admin/roles" options={{ title: 'Rôles et droits' }} />
         <Stack.Screen name="admin/taxonomy" options={{ title: 'Catégories et tags' }} />

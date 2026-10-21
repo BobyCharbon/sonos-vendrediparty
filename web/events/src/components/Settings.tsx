@@ -58,7 +58,7 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
         ) : null}
         {isAdmin ? (
           <>
-            <LinkRow label="Administration" hint="Demandes, membres, rôles et droits" onPress={() => openPartyTab('events', '/admin')} />
+            <LinkRow label="Administration" hint="Demandes, membres, rôles et droits" onPress={() => router.push('/admin')} />
             <View style={s.divider} />
           </>
         ) : null}

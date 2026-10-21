@@ -2,7 +2,7 @@ import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { Avatar, Button, Card, Empty, ErrorText, Input, LinkRow, Screen, s, Section, T, Title, ToggleRow } from '@/components/ui';
+import { Avatar, Button, Card, Empty, ErrorText, Input, LinkRow, Screen, s, Section, T, ToggleRow } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { hasCompleteIdentity } from '@/lib/profile';
@@ -52,7 +52,6 @@ export default function Admin() {
 
   return (
     <Screen edges={[]}>
-      <Title>Administration</Title>
       <ErrorText error={error} />
 
       {can('events.approve') ? <Section title="Propositions à valider">
