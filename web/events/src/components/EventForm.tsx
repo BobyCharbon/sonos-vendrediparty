@@ -12,6 +12,7 @@ import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
 import { Button, Card, Chip, ErrorText, Field, Input, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
 import { DateTimeField } from './DateTimeField';
+import { PlaceSearch } from './PlaceSearch';
 
 type PollDraft = {
   id?: string;
@@ -483,6 +484,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
       </Section>
 
       <Section title="Lieu et prix">
+        <PlaceSearch onPick={(p) => set({ location_name: p.name, location_address: p.address, location_url: p.url })} />
         <Field label="Lieu" placeholder="Chez Marco" value={d.location_name} onChangeText={(location_name) => set({ location_name })} />
         <Field label="Adresse" value={d.location_address} onChangeText={(location_address) => set({ location_address })} />
         <Field label="Lien (site, carte…)" autoCapitalize="none" keyboardType="url" value={d.location_url} onChangeText={(location_url) => set({ location_url })} />

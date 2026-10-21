@@ -319,3 +319,30 @@ def test_end_time_starts_from_start_and_can_be_cleared(browser,events_origin):
         pw.expect(end).to_have_value('')
         pw.expect(page.get_by_role('button',name='Effacer : Fin (optionnel)')).to_have_count(0)
     finally: context.close()
+
+
+def test_place_search_fills_name_address_and_google_maps_link(browser,events_origin):
+    """Lieu : la recherche Google Maps remplit nom, adresse et lien (dist construit avec EXPO_PUBLIC_GOOGLE_MAPS_KEY)."""
+    if b'places.googleapis.com' not in b''.join(p.read_bytes() for p in (ROOT/'web/events/dist/_expo').rglob('*.js')): pytest.skip('dist construit sans clé Google')
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page();mock_services(page)
+    cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET, POST, OPTIONS'}
+    def google(route):
+        if route.request.method=='OPTIONS': return route.fulfill(status=204,headers=cors)
+        if route.request.url.endswith(':autocomplete'):
+            body={'suggestions':[{'placePrediction':{'placeId':'ChIJdemo','structuredFormat':{'mainText':{'text':'Lieu de démonstration'},'secondaryText':{'text':'Rue fictive 1, Lausanne'}}}}]}
+        else: body={'displayName':{'text':'Lieu de démonstration'},'formattedAddress':'Rue fictive 1, 1003 Lausanne, Suisse','googleMapsUri':'https://maps.google.com/?cid=1'}
+        route.fulfill(status=200,content_type='application/json',body=json.dumps(body),headers=cors)
+    page.route('https://places.googleapis.com/**',google)
+    try:
+        page.goto(events_origin+'/events/',wait_until='domcontentloaded')
+        login(page)
+        page.get_by_role('button',name='Proposer un événement').click()
+        search=page.get_by_label('Chercher un lieu sur Google Maps',exact=True)
+        pw.expect(search).to_be_visible(timeout=15000)
+        search.fill('demo')
+        page.get_by_role('button',name='Lieu de démonstration, Rue fictive 1, Lausanne').click()
+        pw.expect(page.get_by_label('Lieu',exact=True)).to_have_value('Lieu de démonstration')
+        pw.expect(page.get_by_label('Adresse',exact=True)).to_have_value('Rue fictive 1, 1003 Lausanne, Suisse')
+        pw.expect(page.get_by_label('Lien (site, carte…)',exact=True)).to_have_value('https://maps.google.com/?cid=1')
+    finally: context.close()
