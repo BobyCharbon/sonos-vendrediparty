@@ -24,7 +24,7 @@
   <h1>🎛️ <span>Admin</span></h1>
 
   <form id="login" class="hidden">
-    <p class="sub">Entre ton code admin.</p>
+    <p class="sub">Entre ton code admin, ou connecte-toi d’abord à ton compte Party (onglet « Se connecter ») avec un compte admin.</p>
     <div class="row">
       <input id="pin" class="grow" type="password" inputmode="numeric" placeholder="Code PIN" autocomplete="current-password">
       <button>Entrer</button>
@@ -274,7 +274,23 @@ async function api(path, body) {
   }
   return data;
 }
-function showLogin() { $("login").classList.remove("hidden"); $("panel").classList.add("hidden"); $("tabs").classList.add("hidden"); }
+function showLogin() {
+  $("login").classList.remove("hidden"); $("panel").classList.add("hidden"); $("tabs").classList.add("hidden");
+  if (!accountTried) { accountTried = true; adminByAccount(); }
+}
+// Compte Party root ou admin (connecté sur ce téléphone) : entrée sans code PIN.
+let accountTried = false;
+async function adminByAccount() {
+  let token = null;
+  try {
+    const key = Object.keys(localStorage).find((k) => /^sb-.+-auth-token$/.test(k));
+    token = key ? JSON.parse(localStorage.getItem(key))?.access_token || null : null;
+  } catch { /* Stockage bloqué. */ }
+  if (!token) return;
+  try { await api("/api/account/admin", { token }); } catch { return; }  // pas admin : le code PIN reste demandé
+  $("login").classList.add("hidden");
+  listen(); await refresh(); if (!state.active) loadRooms(); initNotifications();
+}
 
 // Deux écrans : 🎵 Soirée (lecture + file complète) et ⚙️ Réglages (/admin#settings).
 const VIEWS = ["home", "games", "events", "feedback", "settings"];

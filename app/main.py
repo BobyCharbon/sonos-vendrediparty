@@ -1201,6 +1201,33 @@ def account_link(body: AccountLink, request: Request):
     return account
 
 
+class AccountToken(BaseModel):
+    token: str
+
+
+@app.post("/api/account/admin")
+def account_admin(body: AccountToken, request: Request, response: Response):
+    """Compte Party root ou admin (droits « Ouvrir la page admin » + « Réglages du site ») : session admin sans code PIN."""
+    if not ADMIN_PIN:
+        raise HTTPException(503, "ADMIN_PIN n'est pas configuré sur le serveur")
+    ip = client_ip(request)
+    if msg := account_limiter.blocked(ip):
+        raise HTTPException(429, msg)
+    if not 20 < len(body.token) < 4096:
+        raise HTTPException(400, "Jeton invalide")
+    try:
+        allowed = accounts.is_party_admin(body.token)
+    except AccountError as e:
+        account_limiter.fail(ip)
+        raise HTTPException(401, str(e))
+    if not allowed:
+        account_limiter.fail(ip)
+        raise HTTPException(403, "Ton compte n'a pas l'accès admin de Party")
+    account_limiter.success(ip)
+    set_auth_cookie(request, response, "vp_admin", _token("admin", ADMIN_PIN), "strict")
+    return {"ok": True}
+
+
 ONLINE_WINDOW = 45  # s : un téléphone ouvert sur la partie se manifeste au moins toutes les 15 s
 
 

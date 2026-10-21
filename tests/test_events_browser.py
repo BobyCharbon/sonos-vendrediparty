@@ -370,3 +370,29 @@ def test_pending_badge_stays_on_when_leaving_the_events_screen(browser, events_o
         pw.expect(badge).to_have_text('1')
     finally:
         context.close()
+
+
+def test_root_account_opens_admin_page_from_settings_without_pin(browser, events_origin):
+    """Compte root/admin : Réglages → « Admin de la soirée » → /admin ouvert sans code PIN ; sans compte, le code reste demandé."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page();mock_services(page)
+    root_perms=['events.view','events.manage_all','members.roles','party.admin','party.settings','games.lead_all','music.control']
+    cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info, prefer, accept-profile, content-profile'}
+    page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/rpc/my_permissions', lambda route: route.fulfill(
+        status=204 if route.request.method=='OPTIONS' else 200, headers=cors, content_type='application/json', body=json.dumps(root_perms)))
+    # Le serveur vérifierait le jeton auprès de Supabase : ici, la session admin s'ouvre comme avec le bon code.
+    page.route('**/api/account/admin', lambda route: route.fulfill(response=route.fetch(url=f'{events_origin}/api/admin/login', post_data=json.dumps({'pin':'8462'}))))
+    try:
+        page.goto(events_origin + '/admin', wait_until='domcontentloaded')
+        pw.expect(page.locator('#login')).to_be_visible()  # pas de compte sur ce téléphone : code PIN
+        page.goto(events_origin, wait_until='domcontentloaded')
+        page.locator('#accountTab').click()
+        login(page.frame_locator('#eventsFrame'))
+        link=page.frame_locator('#eventsFrame').get_by_text('🎛️ Admin de la soirée')
+        pw.expect(link).to_be_visible()
+        link.click()
+        page.wait_for_url('**/admin')
+        pw.expect(page.locator('#panel')).to_be_visible(timeout=10000)
+        pw.expect(page.locator('#login')).to_be_hidden()
+    finally:
+        context.close()

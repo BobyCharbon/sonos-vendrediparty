@@ -37,21 +37,35 @@ class Accounts:
         except httpx.HTTPError as e:
             raise AccountError("Le service des comptes ne répond pas. Réessaie dans un instant.") from e
 
-    def link(self, token: str) -> dict:
-        """Jeton de session Supabase → compte vérifié : identifiant de joueur, surnom, lien de photo.
-        Seule la vérification du jeton est gardée 5 min : le surnom et la photo sont relus à chaque liaison,
-        pour qu'un changement fait dans le profil arrive tout de suite dans les jeux."""
+    def _uid(self, token: str) -> str:
+        """Identifiant Supabase du jeton ; seule cette vérification est gardée 5 min."""
         key = hashlib.sha256(token.encode()).hexdigest()
         now = time.time()
         with self.lock:
             hit = self.cache.get(key)
         if hit and now - hit[0] < CACHE_TTL:
-            uid = hit[1]
-        else:
-            r = self._get("GET", "/auth/v1/user", token)
-            if r.status_code != 200 or not r.json().get("id"):
-                raise AccountError("Ta connexion a expiré. Reconnecte-toi.")
-            uid = r.json()["id"]
+            return hit[1]
+        r = self._get("GET", "/auth/v1/user", token)
+        if r.status_code != 200 or not r.json().get("id"):
+            raise AccountError("Ta connexion a expiré. Reconnecte-toi.")
+        uid = r.json()["id"]
+        with self.lock:
+            self.cache = {k: v for k, v in self.cache.items() if now - v[0] < CACHE_TTL}
+            self.cache[key] = (now, uid)
+        return uid
+
+    def is_party_admin(self, token: str) -> bool:
+        """Droits « Ouvrir la page admin » et « Réglages du site » (root et admins) : mêmes pouvoirs que le code PIN."""
+        self._uid(token)
+        r = self._get("POST", "/rest/v1/rpc/my_permissions", token, json={})
+        perms = r.json() if r.status_code == 200 else []
+        return isinstance(perms, list) and {"party.admin", "party.settings"} <= set(perms)
+
+    def link(self, token: str) -> dict:
+        """Jeton de session Supabase → compte vérifié : identifiant de joueur, surnom, lien de photo.
+        Le surnom et la photo sont relus à chaque liaison, pour qu'un changement fait dans le profil
+        arrive tout de suite dans les jeux."""
+        uid = self._uid(token)
         r = self._get("GET", f"/rest/v1/rpc/get_member_directory?id=eq.{uid}&select=display_name,avatar_url,status", token)
         rows = r.json() if r.status_code == 200 else []
         profile = rows[0] if isinstance(rows, list) and rows else {}
@@ -65,11 +79,9 @@ class Accounts:
                 photo = SUPABASE_URL + "/storage/v1" + signed
         b = self._get("POST", "/rest/v1/rpc/is_beta_tester", token, json={})
         beta = b.status_code == 200 and b.json() is True  # Événements en production : réservés aux bêta-testeurs
-        account = {"guest_id": self.gid(uid), "name": " ".join((profile.get("display_name") or "").split())[:30], "photo": photo, "beta": beta}
+        account = {"guest_id": self.gid(uid), "name": " ".join((profile.get("display_name") or "").split())[:30], "photo": photo,
+                   "beta": beta, "admin": self.is_party_admin(token)}
         with self.lock:
-            self.cache = {k: v for k, v in self.cache.items() if now - v[0] < CACHE_TTL}
-            if not (hit and now - hit[0] < CACHE_TTL):
-                self.cache[key] = (now, uid)
             self.by_gid[account["guest_id"]] = account
         return account
 

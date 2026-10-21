@@ -63,6 +63,13 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
             <View style={s.divider} />
           </>
         ) : null}
+        {can('party.admin') && can('party.settings') ? (
+          <>
+            {/* Page admin de Party (hors du module) : entrée avec le compte, sans code PIN. */}
+            <LinkRow label="🎛️ Admin de la soirée" hint="Musique, enceintes, joueurs, jeux et réglages du site" onPress={() => { window.top!.location.href = '/admin'; }} />
+            <View style={s.divider} />
+          </>
+        ) : null}
         <LinkRow label="Ton avis" hint="Une idée, un bug ? Écris à l’organisateur" onPress={() => openPartyTab('feedback')} />
         <View style={s.divider} />
         <LinkRow label="Confidentialité" hint="Tes données et tes choix" onPress={() => router.push('/privacy')} />
