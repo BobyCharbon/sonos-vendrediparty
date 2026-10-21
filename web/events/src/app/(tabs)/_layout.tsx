@@ -2,13 +2,11 @@ import { Link, Slot, usePathname } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useMe } from '@/lib/auth';
 import { usePendingCount } from '@/lib/pending';
 import { colors, fonts } from '@/lib/theme';
 
 export default function EventsLayout() {
-  const me = useMe();
-  const pending = usePendingCount(me.id);
+  const pending = usePendingCount();
   const path = usePathname();
   const insets = useSafeAreaInsets();
   const links = [

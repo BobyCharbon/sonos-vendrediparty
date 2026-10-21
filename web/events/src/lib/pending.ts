@@ -1,9 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
 import { fetchEventList, needsAnswer, useRealtime } from './data';
 
 const listeners = new Set<() => void>();
+// Compteur partagé : calculé une seule fois à la racine du module (usePendingSync), lu par les écrans (usePendingCount).
+let shared = 0;
+const readers = new Set<() => void>();
+function setShared(n: number) {
+  shared = n;
+  for (const fn of readers) fn();
+}
 
 /** À appeler après une réponse ou un vote : le compteur se recalcule aussitôt. */
 export function refreshPending() {
@@ -20,16 +27,22 @@ function publish(count: number) {
   }
 }
 
-/** Nombre de sorties qui attendent ta réponse, tenu à jour en temps réel. */
-export function usePendingCount(me: string): number {
-  const [count, setCount] = useState(0);
+/** Nombre de sorties qui attendent ta réponse (lecture seule). */
+export function usePendingCount(): number {
+  return useSyncExternalStore((fn) => { readers.add(fn); return () => readers.delete(fn); }, () => shared, () => shared);
+}
 
+/**
+ * Tient le compteur à jour en temps réel et l’envoie à Party. Monté à la racine tant que le membre a accès aux sorties :
+ * changer d’écran (Réglages, une sortie…) ne remet plus la pastille à zéro ; seule la perte d’accès le fait.
+ */
+export function usePendingSync(me: string) {
   const load = useCallback(async () => {
     try {
       const events = await fetchEventList();
       const now = Date.now();
       const n = events.filter((e) => needsAnswer(e, me, now)).length;
-      setCount(n);
+      setShared(n);
       publish(n);
     } catch {
       /* Hors ligne : on garde la dernière valeur. */
@@ -46,10 +59,10 @@ export function usePendingCount(me: string): number {
       clearTimeout(first);
       listeners.delete(load);
       if (Platform.OS === 'web' && typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible);
-      publish(0); // Déconnexion : la pastille disparaît.
+      setShared(0);
+      publish(0); // Déconnexion ou accès retiré : la pastille disparaît.
     };
   }, [load]);
 
   useRealtime('pending', [{ table: 'rsvps' }, { table: 'date_votes' }, { table: 'events' }], load);
-  return count;
 }

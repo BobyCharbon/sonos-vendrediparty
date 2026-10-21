@@ -111,7 +111,6 @@ window.addEventListener('message', (event) => {
 function markSoon() {
   const soon = window.PartyEvents.soon;
   document.documentElement.classList.toggle('events-soon', soon);
-  if (soon) window.PartyEvents.badge(0);  // avant l'étiquette : la pastille réécrit aria-label
   document.querySelectorAll('[data-tab="events"]').forEach((b) => {
     if (soon) {
       b.setAttribute('aria-disabled', 'true');

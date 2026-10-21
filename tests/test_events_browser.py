@@ -346,3 +346,27 @@ def test_place_search_fills_name_address_and_google_maps_link(browser,events_ori
         pw.expect(page.get_by_label('Adresse',exact=True)).to_have_value('Rue fictive 1, 1003 Lausanne, Suisse')
         pw.expect(page.get_by_label('Lien (site, carte…)',exact=True)).to_have_value('https://maps.google.com/?cid=1')
     finally: context.close()
+
+
+def test_pending_badge_stays_on_when_leaving_the_events_screen(browser, events_origin):
+    """Bug du 2026-10-21 : la pastille « 1 » disparaissait en ouvrant Réglages (le compteur vivait dans l'écran des sorties)."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page();mock_services(page)
+    badge=page.locator('#tabs [data-events-badge]')
+    try:
+        page.goto(events_origin, wait_until='domcontentloaded')
+        page.get_by_role('button',name='Événements',exact=True).click()
+        login(page.frame_locator('#eventsFrame'))
+        pw.expect(badge).to_have_text('1'); pw.expect(badge).to_be_visible()
+        page.locator('#accountTab').click()
+        pw.expect(page.frame_locator('#eventsFrame').get_by_text('Réglages', exact=True).first).to_be_visible()
+        page.wait_for_timeout(500)
+        pw.expect(badge).to_have_text('1'); pw.expect(badge).to_be_visible()
+        page.locator('#tabs [data-tab="games"]').click()
+        page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+        page.wait_for_timeout(500)
+        pw.expect(badge).to_have_text('1'); pw.expect(badge).to_be_visible()
+        page.locator('#tabs [data-tab="events"]').click()
+        pw.expect(badge).to_have_text('1')
+    finally:
+        context.close()

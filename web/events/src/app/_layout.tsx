@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { Button, ErrorText, Loading, Screen, T, Title } from '@/components/ui';
+import { usePendingSync } from '@/lib/pending';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { ShellSafeArea } from '@/lib/shellInsets';
@@ -27,6 +28,12 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
       </Screen>
     </SafeAreaProvider>
   );
+}
+
+/** Réponses attendues : calculées tant que le membre a accès aux sorties, quel que soit l’écran ouvert. */
+function PendingSync({ me }: { me: string }) {
+  usePendingSync(me);
+  return null;
 }
 
 const intentKey = 'party-events-destination';
@@ -109,6 +116,8 @@ function Gate() {
   }
 
   return (
+    <>
+    {session && active && profile ? <PendingSync me={profile.id} /> : null}
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.bg },
@@ -148,6 +157,7 @@ function Gate() {
       <Stack.Screen name="share/[id]" options={{ title: '' }} />
       <Stack.Screen name="privacy" options={{ title: 'Confidentialité' }} />
     </Stack>
+    </>
   );
 }
 
