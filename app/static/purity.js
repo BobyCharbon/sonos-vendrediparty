@@ -4,9 +4,10 @@ GAME_THEME.purity = "g-pu";
 GAME_PHASES.answering = "Réponses en secret";
 GAME_RULES.purity = `
   <h3>Le principe</h3>
-  <p>Une centaine d'affirmations, de la plus innocente à la plus osée. Chacun, sur son téléphone, coche en secret tout ce qu'il a <b>déjà fait</b>, puis valide.</p>
+  <p>Le « Purity Test » classique : 100 questions en 9 catégories (relations, sexualité, lieux insolites, à plusieurs, fétiches, alcool, drogues, infractions…). Chacun, sur son téléphone, répond « oui » en secret à tout ce qu'il a <b>déjà vécu au moins une fois</b>, puis valide.</p>
+  <p>Les questions sexuelles concernent des expériences consenties entre adultes. Le score est un jeu, sans jugement de valeur.</p>
   <h3>Le score</h3>
-  <p>Ton score de pureté est le pourcentage de choses que tu n'as <b>jamais faites</b> : 100 % = pur comme un ange, 0 % = tu as tout fait.</p>
+  <p>Ton score de pureté = 100 moins le nombre de « oui » : 100 % = pur comme un ange, 0 % = tu as tout fait. À la fin, ton <b>profil par catégorie</b> (radar) montre où tu es pur… et où tu l'es beaucoup moins. Il n'est visible que par toi.</p>
   <h3>La révélation</h3>
   <p>Quand tout le monde a validé, l'animateur révèle les scores et le classement, du plus pur au plus sulfureux. <b>Les réponses ne sont jamais montrées</b>, à personne : seul le score compte.</p>
   <h3>🔒 Comptes connectés</h3>
@@ -51,8 +52,9 @@ function puOutsiderHtml(g) {
 
 function puLobbyHtml(g) {
   const v = g.purity;
-  return `<div class="pu-hero"><div class="pu-hero-i">😇</div><div><div class="pu-hero-t">${v.total} affirmations</div>
-    <div class="pu-hero-s">Coche en secret ce que tu as déjà fait. Personne ne verra tes réponses.</div></div></div>
+  return `<div class="pu-hero"><div class="pu-hero-i">😇</div><div><div class="pu-hero-t">${v.total} questions</div>
+    <div class="pu-hero-s">Réponds « oui » en secret à ce que tu as déjà vécu. Personne ne verra tes réponses.</div></div></div>
+    <p class="artist pu-disclaimer">Les questions sexuelles concernent des expériences consenties entre adultes. Le score est un jeu, sans jugement de valeur.</p>
     ${g.is_host ? puSettingsHtml(g) : v.alcohol ? `<p class="artist">🍻 Le plus sulfureux boit ${v.sips} gorgée${v.sips > 1 ? "s" : ""}.</p>` : ""}
     ${g.is_host ? `<button class="py-main" data-gact="start" ${g.players.length ? "" : "disabled"}>▶︎ Ouvrir le test</button>`
       : `<div class="py-wait">Tu es inscrit ✓ L'animateur va ouvrir le test…</div>`}`;
@@ -64,14 +66,19 @@ function puProgressHtml(v) {
     <div class="pu-bar"><i style="width:${pct}%"></i></div></div>`;
 }
 
+// Questions posées catégorie par catégorie, chacune sous son titre.
 function puQuestionsHtml(v) {
-  const rows = v.questions.map((q) => {
-    const on = !!v.mine?.[q.i];
-    return `<button type="button" class="pu-q ${on ? "on" : ""}" data-pu-i="${q.i}" aria-pressed="${on}">
-      <span class="pu-n">${q.i + 1}</span><span class="pu-t">${esc(q.text)}</span><span class="pu-lv" title="${q.level}">${q.emoji}</span></button>`;
+  const sections = v.categories.map((c) => {
+    const qs = v.questions.filter((q) => q.cat === c.id);
+    const rows = qs.map((q) => {
+      const on = !!v.mine?.[q.i];
+      return `<button type="button" class="pu-q ${on ? "on" : ""}" data-pu-i="${q.i}" aria-pressed="${on}">
+        <span class="pu-n">${q.i + 1}</span><span class="pu-t">${esc(q.text)}</span></button>`;
+    }).join("");
+    return `<section class="pu-sec"><h4 class="pu-cat"><span>${c.emoji}</span>${esc(c.label)}<small>${qs.length} questions</small></h4>${rows}</section>`;
   }).join("");
-  return `<div class="pu-sticky"><span>Est-ce que tu as déjà…</span><span><b id="puCount">${v.answered}</b> coché(s)</span></div>
-    <div class="pu-list">${rows}</div>
+  return `<div class="pu-sticky"><span>Touche ce que tu as déjà vécu</span><span><b id="puCount">${v.answered}</b> oui</span></div>
+    <div class="pu-list">${sections}</div>
     <button class="py-main pu-submit" data-pu-act="pusub">✅ Valider mes réponses</button>
     <p class="artist pu-note">Tu pourras encore les modifier tant que l'animateur n'a pas révélé les scores.</p>`;
 }
@@ -95,6 +102,36 @@ function puLeaderboardHtml(lb) {
       <span class="pu-lb-best">${r.best} %</span><small>${r.plays} test${r.plays > 1 ? "s" : ""} · dernier ${r.last} %</small></li>`).join("")}</ol></div>`;
 }
 
+// Radar : un axe par catégorie, le bord = 100 % pur. Chaque pointe porte l'emoji et le score de la catégorie.
+function puRadarSvg(rows) {
+  const R = 100, n = rows.length;
+  const at = (i, r) => {
+    const a = -Math.PI / 2 + (2 * Math.PI * i) / n;
+    return [r * Math.cos(a), r * Math.sin(a)].map((x) => x.toFixed(1));
+  };
+  const poly = (r) => rows.map((_, i) => at(i, r).join(",")).join(" ");
+  const rings = [25, 50, 75, 100].map((p) => `<polygon class="pu-ring ${p === 100 ? "outer" : ""}" points="${poly(p)}"/>`).join("");
+  const spokes = rows.map((_, i) => `<line class="pu-spoke" x1="0" y1="0" x2="${at(i, R)[0]}" y2="${at(i, R)[1]}"/>`).join("");
+  const shape = rows.map((r, i) => at(i, Math.max(r.pct, 3)).join(",")).join(" ");
+  const dots = rows.map((r, i) => { const [x, y] = at(i, Math.max(r.pct, 3)); return `<circle class="pu-dot" cx="${x}" cy="${y}" r="3.5"/>`; }).join("");
+  const labels = rows.map((r, i) => {
+    const [x, y] = at(i, R + 24);
+    return `<text class="pu-ax-e" x="${x}" y="${y}" text-anchor="middle">${r.emoji}</text>
+      <text class="pu-ax-v" x="${x}" y="${(+y + 15).toFixed(1)}" text-anchor="middle">${r.pct}%</text>`;
+  }).join("");
+  return `<svg class="pu-radar" viewBox="-140 -138 280 284" role="img" aria-label="Pureté par catégorie">
+    ${rings}${spokes}<polygon class="pu-shape" points="${shape}"/>${dots}${labels}</svg>`;
+}
+
+function puProfileHtml(rows) {
+  if (!rows?.length) return "";
+  const sorted = [...rows].sort((a, b) => b.pct - a.pct || a.label.localeCompare(b.label));
+  const list = sorted.map((r) => `<div class="pu-cat-row"><span class="pu-cat-e">${r.emoji}</span><b>${esc(r.label)}</b>
+      <span class="pu-row-bar"><i style="width:${r.pct}%"></i></span><span class="pu-row-s">${r.pure}/${r.total}</span></div>`).join("");
+  return `<div class="pu-profile"><h3>Ton profil de pureté <small>🔒 toi seul le vois</small></h3>
+    ${puRadarSvg(rows)}<div class="pu-cat-list">${list}</div></div>`;
+}
+
 function puResultsHtml(g) {
   const v = g.purity, me = g.me?.pid;
   const mine = v.me_score != null ? `<div class="pu-score"><div class="pu-score-k">Ton score de pureté</div>
@@ -105,7 +142,7 @@ function puResultsHtml(g) {
       <span class="pu-row-bar"><i style="width:${r.score}%"></i></span><span class="pu-row-s">${r.score} %</span></div>`).join("");
   const d = v.gorgees;
   const drinks = d.length ? `<div class="pu-drink">🍻 ${d.map((x) => esc(x.name)).join(", ")} ${d.length > 1 ? "boivent" : "boit"} ${d[0].sips} gorgée${d[0].sips > 1 ? "s" : ""} !</div>` : "";
-  return `${mine}<div class="pu-board"><h3>Du plus pur au plus sulfureux</h3>${rows}</div>${drinks}
+  return `${mine}${puProfileHtml(v.me_categories)}<div class="pu-board"><h3>Du plus pur au plus sulfureux</h3>${rows}</div>${drinks}
     ${g.is_host ? `<button class="py-main" data-gact="restart">🔁 Nouveau test</button>` : ""}
     ${puLeaderboardHtml(v.leaderboard)}`;
 }

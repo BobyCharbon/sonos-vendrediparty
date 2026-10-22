@@ -151,3 +151,30 @@ def test_view_hides_individual_answers_at_results():
     v = purity.view(g, "acct-a")
     assert "ranking" in v and "mine" not in v  # au classement, pas de réponses individuelles
     assert all(set(r.keys()) == {"pid", "name", "score"} for r in v["ranking"])
+
+
+def test_questions_are_grouped_by_category_in_display_order():
+    order = list(purity.CATEGORIES)
+    cats = [c for c, _ in purity.QUESTIONS]
+    assert purity.TOTAL == 100 and set(cats) == set(order)
+    assert cats == sorted(cats, key=order.index)  # posées catégorie par catégorie
+    g = make_game([("acct-a", "p1", "Alice")])
+    purity.start(g)
+    v = purity.view(g, "acct-a")
+    assert [c["id"] for c in v["categories"]] == order
+    assert v["questions"][0] == {"i": 0, "text": purity.QUESTIONS[0][1], "cat": "relations"}
+
+
+def test_category_breakdown_is_shown_only_to_its_owner():
+    g = make_game([("acct-a", "p1", "Alice"), ("acct-b", "p2", "Bob")])
+    purity.start(g)
+    first_drug = next(i for i, (c, _) in enumerate(purity.QUESTIONS) if c == "drugs")
+    answer_all(g, "acct-a", [0, 1, first_drug])
+    answer_all(g, "acct-b", [])
+    purity.reveal(g)
+    mine = {r["id"]: r for r in purity.view(g, "acct-a")["me_categories"]}
+    assert (mine["relations"]["pure"], mine["relations"]["total"]) == (20, 22)
+    assert (mine["drugs"]["pure"], mine["drugs"]["total"], mine["drugs"]["pct"]) == (9, 10, 90)
+    assert mine["rules"]["pct"] == 100 and mine["drugs"]["label"] == "Drogues"
+    assert all(r["pct"] == 100 for r in purity.view(g, "acct-b")["me_categories"])
+    assert "me_categories" not in purity.view(g, "acct-intrus")  # un spectateur n'a pas de profil

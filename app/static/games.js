@@ -416,8 +416,8 @@ document.getElementById("gamesRoot").innerHTML = `
           <div class="g-meta"><div class="g-title">Purify Test</div><div class="g-tag">Qui est le plus pur de la soirée ?</div></div>
           ${helpBtn("purity")}
         </div>
-        <p class="g-desc">Une centaine d'affirmations : chacun coche en secret ce qu'il a déjà fait. À la fin, les scores de pureté et le classement, du plus pur au plus sulfureux. Personne ne voit tes réponses.</p>
-        <div class="g-chips"><span>🔒 Compte connecté</span><span>Réponses secrètes</span><span>Classement général</span></div>
+        <p class="g-desc">Le vrai test de pureté : 100 questions sans filtre (sexe, alcool, drogues, infractions…). Chacun répond en secret ; à la fin, le classement du plus pur au plus sulfureux et ton profil par catégorie. Personne ne voit tes réponses.</p>
+        <div class="g-chips"><span>🔞 Adultes</span><span>🔒 Compte connecté</span><span>Réponses secrètes</span><span>Radar par catégorie</span></div>
         <label class="g-opt"><span>🍻 Le plus sulfureux boit</span><input type="checkbox" class="switch" data-opt="pualcohol"></label>
         <div class="g-modes" data-opt-group="pusips">
           <button type="button" data-val="1">1 gorgée</button><button type="button" data-val="2" class="on">2</button><button type="button" data-val="3">3</button><button type="button" data-val="5">5</button>

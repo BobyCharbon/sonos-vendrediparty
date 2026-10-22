@@ -33,7 +33,7 @@ body.pyr-full #game.g-pu { box-shadow: none; border: 0; padding: 16px; backgroun
   font-weight: 700; box-shadow: 0 8px 20px rgba(0,0,0,.3); }
 .pu-sticky b { color: var(--g-accent); font-size: 1.1rem; }
 .pu-list { display: flex; flex-direction: column; gap: 6px; }
-.pu-q { display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 10px 12px;
+.pu-q { display: grid; grid-template-columns: 30px 1fr; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 10px 12px;
   text-align: left; border-radius: 14px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.05); color: #fff;
   font-size: .95rem; line-height: 1.3; transition: background .15s, border-color .15s, transform .1s; }
 .pu-q:active { transform: scale(.98); }
@@ -41,7 +41,6 @@ body.pyr-full #game.g-pu { box-shadow: none; border: 0; padding: 16px; backgroun
 .pu-n { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,.08); font-size: .8rem; font-weight: 800; color: var(--g-soft); }
 .pu-q.on .pu-n { background: var(--g-accent); color: transparent; position: relative; }
 .pu-q.on .pu-n::before { content: "✓"; position: absolute; inset: 0; display: grid; place-items: center; color: #2a0a1f; font-size: 1rem; }
-.pu-lv { font-size: 1.1rem; }
 .pu-submit { margin-top: 16px; }
 .pu-note { text-align: center; font-size: .82rem; margin-top: 8px; }
 .pu-reveal { margin-top: 14px; }
@@ -68,4 +67,29 @@ body.pyr-full #game.g-pu { box-shadow: none; border: 0; padding: 16px; backgroun
 .pu-lb li small { grid-column: 2 / -1; color: var(--g-soft); font-size: .72rem; }
 .pu-lb-best { font-weight: 800; color: #ffe08a; }
 
-@media (prefers-reduced-motion: reduce) { .pu-q, .pu-bar i { transition: none; } }
+
+.pu-disclaimer { font-size: .8rem; margin: -4px 0 12px; }
+.pu-sec + .pu-sec { margin-top: 14px; }
+.pu-sec { display: flex; flex-direction: column; gap: 6px; }
+.pu-cat { display: flex; align-items: baseline; gap: 8px; margin: 4px 2px 2px; font: 800 1.1rem "Bricolage Grotesque", system-ui, sans-serif; }
+.pu-cat small { margin-left: auto; font: 600 .75rem system-ui, sans-serif; color: var(--g-soft); }
+
+.pu-profile { padding: 14px; border-radius: 20px; background: rgba(255,255,255,.06); margin-bottom: 14px; }
+.pu-profile h3 { margin: 0 0 6px; font: 800 1.05rem "Bricolage Grotesque", system-ui, sans-serif; }
+.pu-profile h3 small { display: block; font: 600 .75rem system-ui, sans-serif; color: var(--g-soft); margin-top: 2px; }
+.pu-radar { display: block; width: 100%; max-width: 360px; margin: 0 auto; overflow: visible; }
+.pu-ring { fill: none; stroke: rgba(255,255,255,.14); stroke-width: 1; }
+.pu-ring.outer { stroke: rgba(255,255,255,.3); }
+.pu-spoke { stroke: rgba(255,255,255,.12); stroke-width: 1; }
+.pu-shape { fill: rgba(255,111,181,.32); stroke: #ff9ad5; stroke-width: 2.5; stroke-linejoin: round;
+  transform-origin: 0 0; animation: pu-grow .9s cubic-bezier(.2,.9,.3,1.2) both; }
+.pu-dot { fill: #ffe08a; stroke: #2a0a1f; stroke-width: 1.5; }
+.pu-ax-e { font-size: 17px; dominant-baseline: middle; }
+.pu-ax-v { font: 800 11px system-ui, sans-serif; fill: #f3d9ff; }
+@keyframes pu-grow { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.pu-cat-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.pu-cat-row { display: grid; grid-template-columns: 1.6em minmax(0, 1fr) 24% 3.4em; align-items: center; gap: 8px; padding: 6px 4px; }
+.pu-cat-row b { font-size: .92rem; line-height: 1.2; }
+.pu-cat-row .pu-row-s { font-size: .9rem; }
+
+@media (prefers-reduced-motion: reduce) { .pu-q, .pu-bar i { transition: none; } .pu-shape { animation: none; } }

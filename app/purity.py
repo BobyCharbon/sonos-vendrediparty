@@ -1,6 +1,6 @@
 """Purify Test — test de pureté de soirée.
 
-Chacun répond en privé à une centaine d'affirmations (« fait » / « pas fait »).
+Chacun répond en privé aux 100 questions du « Purity Test », par catégorie (« oui » = déjà vécu).
 Le score = pourcentage de « pas fait » (100 % = tout pur). À la fin, l'animateur
 révèle les scores et un classement du plus pur au plus sulfureux. Les réponses
 individuelles ne sont jamais montrées, seul le score compte.
@@ -17,114 +17,125 @@ from pathlib import Path
 
 STATS_PATH: Path | None = None  # réglé par main.py (DATA_DIR / purity_stats.json)
 
-# Affirmations adaptées du « test de pureté » classique, en français, ordonnées
-# du plus innocent au plus osé. Niveau indicatif : "soft" | "awkward" | "hot".
-# (texte complété après « Est-ce que tu as déjà… »)
+# Catégories (ordre d'affichage) : identifiant → (libellé, emoji). Les questions sont posées catégorie par catégorie.
+CATEGORIES: dict[str, tuple[str, str]] = {
+    "relations": ("Relations", "💞"),
+    "solo": ("Solo & écrans", "📱"),
+    "sex": ("Au lit", "🛏️"),
+    "places": ("Lieux insolites", "📍"),
+    "group": ("À plusieurs", "👥"),
+    "kink": ("Fétiches & BDSM", "⛓️"),
+    "alcohol": ("Alcool & tabac", "🍺"),
+    "drugs": ("Drogues", "💊"),
+    "rules": ("Règles & infractions", "🚨"),
+}
+
+# Le « Purity Test » classique, en français : 100 questions, « oui » = déjà vécu au moins une fois.
+# Les questions sexuelles concernent des expériences consenties entre adultes.
 QUESTIONS: list[tuple[str, str]] = [
-    ("tenu la main de quelqu'un par amour", "soft"),
-    ("eu un coup de cœur pour quelqu'un", "soft"),
-    ("envoyé un message que tu as regretté", "soft"),
-    ("séché un cours ou une journée de travail", "soft"),
-    ("menti à tes parents sur où tu étais", "soft"),
-    ("fait semblant d'être malade pour éviter quelque chose", "soft"),
-    ("triché à un examen ou un test", "soft"),
-    ("été collé ou convoqué à l'école", "soft"),
-    ("eu une retenue ou une sanction", "soft"),
-    ("raté un rendez-vous important en dormant trop", "soft"),
-    ("pleuré devant un film", "soft"),
-    ("eu le cœur brisé", "soft"),
-    ("brisé le cœur de quelqu'un", "soft"),
-    ("stalké quelqu'un sur les réseaux", "soft"),
-    ("liké une vieille photo par accident en stalkant", "awkward"),
-    ("eu un crush sur un·e prof", "awkward"),
-    ("eu un crush sur l'ami·e de ton ami·e", "awkward"),
-    ("embrassé quelqu'un", "soft"),
-    ("embrassé quelqu'un le premier soir", "awkward"),
-    ("embrassé deux personnes différentes le même jour", "hot"),
-    ("eu un rendez-vous amoureux", "soft"),
-    ("été en couple", "soft"),
-    ("dit « je t'aime » sans le penser", "awkward"),
-    ("menti sur tes sentiments", "awkward"),
-    ("rompu avec quelqu'un par message", "awkward"),
-    ("été largué par message", "awkward"),
-    ("repris une relation que tu savais finie", "awkward"),
-    ("eu une relation secrète", "hot"),
-    ("dragué quelqu'un en couple", "hot"),
-    ("été dragué par quelqu'un en couple", "awkward"),
-    ("flirté pour obtenir quelque chose", "awkward"),
-    ("menti sur ton âge pour impressionner", "awkward"),
-    ("créé un faux profil", "awkward"),
-    ("espionné le téléphone de ton/ta partenaire", "hot"),
-    ("lu des messages qui ne t'étaient pas destinés", "awkward"),
-    ("bu de l'alcool", "soft"),
-    ("été ivre", "awkward"),
-    ("eu une gueule de bois mémorable", "awkward"),
-    ("vomi à cause de l'alcool", "awkward"),
-    ("oublié une partie de ta soirée", "hot"),
-    ("fini une soirée dans un endroit inconnu", "hot"),
-    ("dansé sur une table", "awkward"),
-    ("chanté en karaoké complètement faux", "soft"),
-    ("fait un jeu à boire", "soft"),
-    ("fumé une cigarette", "awkward"),
-    ("fumé du cannabis", "hot"),
-    ("participé à une soirée qui a dégénéré", "hot"),
-    ("été à une fête sans y être invité", "awkward"),
-    ("menti pour entrer quelque part", "awkward"),
-    ("passé une nuit blanche à faire la fête", "awkward"),
-    ("envoyé un message en étant ivre", "awkward"),
-    ("appelé ton ex en étant ivre", "hot"),
-    ("regretté un texto le lendemain d'une soirée", "awkward"),
-    ("posté quelque chose que tu as supprimé de honte", "awkward"),
-    ("menti sur un CV ou en entretien", "awkward"),
-    ("volé quelque chose, même un bonbon", "awkward"),
-    ("conduit sans permis ou trop vite", "hot"),
-    ("fait un pari stupide en public", "awkward"),
-    ("parié de l'argent", "awkward"),
-    ("fait une bêtise filmée qui a circulé", "hot"),
-    ("eu un fou rire au pire moment", "soft"),
-    ("fait semblant de connaître quelqu'un", "soft"),
-    ("oublié le prénom de quelqu'un juste après l'avoir rencontré", "soft"),
-    ("fait un compliment juste par politesse", "soft"),
-    ("jugé quelqu'un sur son physique", "awkward"),
-    ("parlé dans le dos d'un·e ami·e", "awkward"),
-    ("trahi un secret", "awkward"),
-    ("gardé un secret lourd pour un·e ami·e", "soft"),
-    ("menti à ton/ta meilleur·e ami·e", "awkward"),
-    ("été jaloux·se au point de faire une scène", "hot"),
-    ("tenu quelqu'un dans tes bras toute une nuit", "awkward"),
-    ("dormi dans le même lit que ton crush", "hot"),
-    ("eu un flirt qui n'a mené nulle part", "awkward"),
-    ("eu une aventure d'un soir", "hot"),
-    ("embrassé quelqu'un dont tu ne connaissais pas le prénom", "hot"),
-    ("fait un date à l'aveugle", "awkward"),
-    ("rencontré quelqu'un via une appli", "awkward"),
-    ("eu plusieurs conversations de drague en même temps", "hot"),
-    ("envoyé une photo osée", "hot"),
-    ("reçu une photo osée", "hot"),
-    ("eu un fantasme sur quelqu'un dans la pièce ce soir", "hot"),
-    ("eu le béguin pour deux personnes en même temps", "awkward"),
-    ("menti sur le nombre de tes relations", "hot"),
-    ("fait semblant d'aimer un cadeau", "soft"),
-    ("ghosté quelqu'un", "awkward"),
-    ("été ghosté", "awkward"),
-    ("recontacté quelqu'un uniquement par ennui", "awkward"),
-    ("fait le premier pas", "soft"),
-    ("déclaré ta flamme et pris un râteau", "awkward"),
-    ("gardé les affaires d'un·e ex", "soft"),
-    ("pleuré à cause de quelqu'un dans cette pièce", "hot"),
-    ("eu un secret que personne ici ne connaît", "hot"),
-    ("menti en répondant à une question de ce test", "hot"),
-    ("fait quelque chose ce soir que tu ne raconteras à personne", "hot"),
-    ("eu le coup de foudre", "soft"),
-    ("changé d'avis sur quelqu'un après une soirée", "awkward"),
-    ("regretté une relation", "awkward"),
-    ("pardonné une trahison", "awkward"),
-    ("refait ta vie après une rupture difficile", "soft"),
-    ("promis de ne plus jamais refaire une bêtise… puis recommencé", "soft"),
+    ("relations", "As-tu déjà tenu la main de quelqu’un dans un contexte amoureux ?"),
+    ("relations", "As-tu déjà eu un rendez-vous amoureux ?"),
+    ("relations", "As-tu déjà été en couple ?"),
+    ("relations", "As-tu déjà embrassé quelqu’un avec la langue ?"),
+    ("relations", "As-tu déjà embrassé une personne le jour de votre rencontre ?"),
+    ("relations", "As-tu déjà embrassé plusieurs personnes au cours de la même soirée ?"),
+    ("relations", "As-tu déjà embrassé un ami ou une amie sans être en couple avec cette personne ?"),
+    ("relations", "As-tu déjà donné ou reçu un suçon ?"),
+    ("relations", "As-tu déjà dansé contre quelqu’un avec une intention sexuelle ?"),
+    ("relations", "As-tu déjà embrassé un collègue ou une collègue ?"),
+    ("relations", "As-tu déjà rencontré quelqu’un grâce à une application de rencontres ?"),
+    ("relations", "As-tu déjà entretenu une relation amoureuse en la cachant à ton entourage ?"),
+    ("relations", "As-tu déjà couché avec quelqu’un dont tu ne connaissais pas le prénom ?"),
+    ("relations", "As-tu déjà eu une aventure sexuelle d’une seule nuit ?"),
+    ("relations", "As-tu déjà eu un partenaire sexuel régulier sans relation amoureuse ?"),
+    ("relations", "As-tu déjà couché avec une personne ayant au moins dix ans de différence d’âge avec toi ?"),
+    ("relations", "As-tu déjà eu au moins cinq partenaires sexuels différents au total ?"),
+    ("relations", "As-tu déjà eu des rapports séparés avec deux personnes différentes au cours des mêmes 24 heures ?"),
+    ("relations", "As-tu déjà recommencé à coucher avec un ex après votre rupture ?"),
+    ("relations", "As-tu déjà trompé un partenaire avec qui tu avais convenu d’une relation exclusive ?"),
+    ("relations", "As-tu déjà couché avec une personne en sachant qu’elle trompait son partenaire ?"),
+    ("relations", "As-tu déjà entretenu plusieurs relations amoureuses en parallèle avec l’accord de toutes les personnes concernées ?"),
+    ("solo", "As-tu déjà regardé du contenu pornographique ?"),
+    ("solo", "As-tu déjà pratiqué la masturbation ?"),
+    ("solo", "As-tu déjà utilisé un sextoy en solitaire ?"),
+    ("solo", "As-tu déjà pratiqué la masturbation devant un partenaire ?"),
+    ("solo", "As-tu déjà participé à un jeu où les participants retiraient leurs vêtements ?"),
+    ("solo", "As-tu déjà envoyé une photo de toi nu à une personne qui souhaitait la recevoir ?"),
+    ("solo", "As-tu déjà demandé et reçu une photo intime de quelqu’un ?"),
+    ("solo", "As-tu déjà échangé des messages décrivant explicitement ce que tu voulais faire sexuellement avec quelqu’un ?"),
+    ("solo", "As-tu déjà participé à un appel vidéo à caractère sexuel ?"),
+    ("solo", "As-tu déjà payé pour accéder à du contenu pornographique ou à un compte de contenu pour adultes ?"),
+    ("solo", "As-tu déjà filmé ou photographié un rapport sexuel avec l’accord de toutes les personnes présentes ?"),
+    ("solo", "As-tu déjà fait un striptease pour un partenaire ?"),
+    ("solo", "As-tu déjà pris une douche ou un bain nu avec un partenaire ?"),
+    ("sex", "As-tu déjà eu un rapport sexuel ?"),
+    ("sex", "As-tu déjà masturbé un partenaire ?"),
+    ("sex", "As-tu déjà fait une fellation ?"),
+    ("sex", "As-tu déjà reçu une fellation ?"),
+    ("sex", "As-tu déjà fait un cunnilingus ?"),
+    ("sex", "As-tu déjà reçu un cunnilingus ?"),
+    ("sex", "As-tu déjà donné ou reçu un anulingus ?"),
+    ("sex", "As-tu déjà pratiqué la pénétration anale, comme personne pénétrante ou pénétrée ?"),
+    ("sex", "As-tu déjà pratiqué le « 69 » ?"),
+    ("sex", "As-tu déjà utilisé un sextoy avec un partenaire ?"),
+    ("sex", "As-tu déjà utilisé un gode-ceinture avec un partenaire ?"),
+    ("sex", "As-tu déjà eu un rapport sexuel pendant les règles ?"),
+    ("sex", "As-tu déjà simulé un orgasme ?"),
+    ("sex", "As-tu déjà eu un rapport vaginal ou anal sans préservatif ?"),
+    ("sex", "As-tu déjà payé quelqu’un ou reçu de l’argent en échange d’un acte sexuel ?"),
+    ("places", "As-tu déjà eu un rapport sexuel dans une voiture stationnée ?"),
+    ("places", "As-tu déjà eu un rapport sexuel en plein air ?"),
+    ("places", "As-tu déjà eu un rapport sexuel sous une tente ?"),
+    ("places", "As-tu déjà eu un rapport sexuel dans une piscine ou un jacuzzi ?"),
+    ("places", "As-tu déjà eu un rapport sexuel dans les toilettes d’un bar ou d’une boîte de nuit ?"),
+    ("places", "As-tu déjà eu un rapport sexuel sur ton lieu de travail ?"),
+    ("places", "As-tu déjà eu un rapport sexuel dans une cabine d’essayage ?"),
+    ("places", "As-tu déjà eu un rapport sexuel dans un avion ?"),
+    ("places", "As-tu déjà réservé une chambre d’hôtel uniquement pour avoir un rapport sexuel ?"),
+    ("places", "As-tu déjà eu un rapport sexuel sur le site d’un festival ?"),
+    ("group", "As-tu déjà fait un plan à trois ?"),
+    ("group", "As-tu déjà participé à un rapport sexuel réunissant quatre personnes ou plus ?"),
+    ("group", "As-tu déjà pratiqué l’échangisme, avec échange de partenaires entre couples ?"),
+    ("group", "As-tu déjà fréquenté un club libertin ?"),
+    ("group", "As-tu déjà participé à une soirée sexuelle privée réunissant plusieurs couples ?"),
+    ("group", "As-tu déjà regardé un couple avoir un rapport sexuel en ta présence, avec son accord ?"),
+    ("group", "As-tu déjà eu un rapport sexuel devant d’autres adultes qui avaient accepté de regarder ?"),
+    ("kink", "As-tu déjà attaché un partenaire ou été attaché dans un contexte sexuel ?"),
+    ("kink", "As-tu déjà utilisé un bandeau sur les yeux dans un contexte sexuel ?"),
+    ("kink", "As-tu déjà pratiqué un jeu de domination ou de soumission avec un partenaire ?"),
+    ("kink", "As-tu déjà donné ou reçu des fessées dans un contexte sexuel ?"),
+    ("kink", "As-tu déjà porté une tenue en latex ou en cuir dans un but fétichiste ?"),
+    ("kink", "As-tu déjà participé à un jeu de rôle sexuel avec un scénario convenu à l’avance ?"),
+    ("kink", "As-tu déjà pratiqué un jeu d’humiliation verbale explicitement accepté dans un cadre BDSM ?"),
+    ("kink", "As-tu déjà intégré un fétichisme des pieds à une expérience sexuelle ?"),
+    ("alcohol", "As-tu déjà consommé de l’alcool ?"),
+    ("alcohol", "As-tu déjà été ivre ?"),
+    ("alcohol", "As-tu déjà vomi après avoir trop bu ?"),
+    ("alcohol", "As-tu déjà eu un trou de mémoire concernant une partie de ta soirée à cause de l’alcool ?"),
+    ("alcohol", "As-tu déjà participé à un jeu à boire ?"),
+    ("alcohol", "As-tu déjà essayé de faire croire que tu étais sobre alors que tu étais ivre ?"),
+    ("alcohol", "As-tu déjà fumé une cigarette ?"),
+    ("alcohol", "As-tu déjà utilisé une cigarette électronique contenant de la nicotine ?"),
+    ("drugs", "As-tu déjà consommé du cannabis ?"),
+    ("drugs", "As-tu déjà pris de l’ecstasy ou de la MDMA ?"),
+    ("drugs", "As-tu déjà consommé de la cocaïne, en poudre ou sous forme de crack ?"),
+    ("drugs", "As-tu déjà pris de la kétamine à des fins récréatives ?"),
+    ("drugs", "As-tu déjà pris du LSD ?"),
+    ("drugs", "As-tu déjà consommé des champignons hallucinogènes ?"),
+    ("drugs", "As-tu déjà pris des amphétamines, comme le speed, en dehors d’un usage médical prescrit ?"),
+    ("drugs", "As-tu déjà consommé volontairement du GHB ou du GBL à des fins récréatives ?"),
+    ("drugs", "As-tu déjà utilisé du poppers ?"),
+    ("drugs", "As-tu déjà consommé de l’héroïne ?"),
+    ("rules", "As-tu déjà triché à un examen ?"),
+    ("rules", "As-tu déjà volé un article dans un magasin ?"),
+    ("rules", "As-tu déjà utilisé une fausse pièce d’identité ?"),
+    ("rules", "As-tu déjà dégradé volontairement un bien appartenant à quelqu’un d’autre ?"),
+    ("rules", "As-tu déjà conduit en état d’ivresse ou sous l’emprise d’une drogue ?"),
+    ("rules", "As-tu déjà pris la fuite pour échapper à un contrôle de police ?"),
+    ("rules", "As-tu déjà été placé en garde à vue ?"),
 ]
 
 TOTAL = len(QUESTIONS)
-LEVELS = {"soft": "😇", "awkward": "😬", "hot": "🔥"}
 
 
 class PurityError(Exception):
@@ -310,6 +321,17 @@ def leaderboard(limit: int = 20) -> dict:
     return {"rows": rows[:limit], "total": len(data)}
 
 
+def categories(g: dict, gid: str) -> list[dict]:
+    """Profil de pureté par catégorie (pour son seul propriétaire : il en dit plus que le score global)."""
+    done = g["purity"]["answers"].get(gid, {})
+    rows = []
+    for cid, (label, emoji) in CATEGORIES.items():
+        idx = [i for i, (c, _) in enumerate(QUESTIONS) if c == cid]
+        pure = sum(1 for i in idx if str(i) not in done)
+        rows.append({"id": cid, "label": label, "emoji": emoji, "pure": pure, "total": len(idx), "pct": round(100 * pure / len(idx))})
+    return rows
+
+
 def view(g: dict, gid: str) -> dict:
     """Vue envoyée au téléphone : questions + progression perso ; classement à la fin."""
     p = g["purity"]
@@ -326,13 +348,16 @@ def view(g: dict, gid: str) -> dict:
         "count_players": len(g["players"]),
     }
     if g["phase"] in ("lobby", "answering"):
-        out["questions"] = [{"i": i, "text": t, "level": lv, "emoji": LEVELS[lv]} for i, (t, lv) in enumerate(QUESTIONS)]
+        out["categories"] = [{"id": c, "label": label, "emoji": emoji} for c, (label, emoji) in CATEGORIES.items()]
+        out["questions"] = [{"i": i, "text": t, "cat": c} for i, (c, t) in enumerate(QUESTIONS)]
         if me_playing:
             out["mine"] = {int(i): True for i in p["answers"].get(gid, {})}
     if g["phase"] == "results":
         out["ranking"] = ranking(g)
         out["gorgees"] = gorgees(g)
         out["me_score"] = p["scores"].get(gid)
+        if gid in p["scores"]:
+            out["me_categories"] = categories(g, gid)
     return out
 
 

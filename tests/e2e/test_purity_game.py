@@ -93,6 +93,7 @@ def test_purity_private_answers_reveal_and_accounts_only(phones):
 
     alice.tap('[data-gact="start"]')
     expect(bob.page.locator('.pu-q').first).to_be_visible()
+    expect(bob.page.locator('.pu-cat')).to_have_count(9)  # posées par catégorie
     for i in range(5):
         bob.tap(f'[data-pu-i="{i}"]')
     expect(bob.page.locator('#puCount')).to_have_text('5')
@@ -110,6 +111,10 @@ def test_purity_private_answers_reveal_and_accounts_only(phones):
     expect(bob.page.locator('.pu-row').last).to_contain_text('Bob')
     expect(bob.page.locator('.pu-drink')).to_contain_text('Bob boit 2 gorgées')
     expect(bob.page.locator('.pu-lb')).to_contain_text('Classement général')
+    # Profil par catégorie (privé) : radar + liste triée, Relations est la moins pure pour Bob (4 « oui »).
+    expect(bob.page.locator('.pu-radar .pu-dot')).to_have_count(9)
+    expect(bob.page.locator('.pu-cat-row').last).to_contain_text('Relations')
+    expect(bob.page.locator('.pu-cat-row').last).to_contain_text('18/22')
     # Les cases cochées ne sont jamais renvoyées après la révélation.
     assert 'mine' not in bob.state()['purity']
     expect(alice.page.locator('[data-gact="restart"]')).to_be_visible()
