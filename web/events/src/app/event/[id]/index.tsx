@@ -274,7 +274,7 @@ export default function EventScreen() {
           />
         ))}
 
-      <BringSection items={ev.bring_items} me={me.id} names={data.names} canParticipate={published} onChange={reload} />
+      <BringSection items={ev.bring_items} me={me.id} eventId={ev.id} names={data.names} canParticipate={published} onChange={reload} />
 
       {ev.forum_enabled && published ? (
         <Pressable onPress={() => router.push(`/event/${ev.id}/chat`)} accessibilityRole="link" style={({ pressed }) => pressed && { opacity: 0.85 }}>

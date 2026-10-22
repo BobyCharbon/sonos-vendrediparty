@@ -456,34 +456,54 @@ export function PollSection({
 export function BringSection({
   items,
   me,
+  eventId,
   names,
   canParticipate,
   onChange,
 }: {
   items: BringItem[];
   me: string;
+  eventId: string;
   names: Names;
   canParticipate: boolean;
   onChange: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
-  if (!items.length) return null;
+  const [label, setLabel] = useState('');
+  if (!items.length && !canParticipate) return null;
+  const add = async () => {
+    const text = label.trim();
+    if (!text) return;
+    const sort = items.reduce((max, it) => Math.max(max, it.sort), 0) + 1;
+    if (await act(supabase.from('bring_items').insert({ event_id: eventId, label: text, sort, added_by: me, claimed_by: me }), onChange, setError)) setLabel('');
+  };
   return (
     <Section title="Qui amène quoi">
-      {items.sort((a, b) => a.sort - b.sort).map((it) => (
-        <View key={it.id} style={s.rowBetween}>
-          <T style={{ flex: 1 }}>{it.label}</T>
-          {it.claimed_by === me ? (
-            <Button small variant="secondary" label="Je ne prends plus" onPress={() => act(supabase.from('bring_items').update({ claimed_by: null }).eq('id', it.id), onChange, setError)} />
-          ) : it.claimed_by ? (
-            <T muted>{names.get(it.claimed_by) ?? '?'}</T>
-          ) : canParticipate ? (
-            <Button small label="Je prends" onPress={() => act(supabase.from('bring_items').update({ claimed_by: me }).eq('id', it.id), onChange, setError)} />
-          ) : (
-            <T muted>Libre</T>
-          )}
+      {[...items].sort((a, b) => a.sort - b.sort).map((it) => (
+        <View key={it.id}>
+          <View style={s.rowBetween}>
+            <T style={{ flex: 1 }}>{it.label}</T>
+            {it.added_by === me ? (
+              <Button small variant="secondary" label="Retirer" onPress={() => act(supabase.from('bring_items').delete().eq('id', it.id), onChange, setError)} />
+            ) : it.claimed_by === me ? (
+              <Button small variant="secondary" label="Je ne prends plus" onPress={() => act(supabase.from('bring_items').update({ claimed_by: null }).eq('id', it.id), onChange, setError)} />
+            ) : it.claimed_by ? (
+              <T muted>{names.get(it.claimed_by) ?? '?'}</T>
+            ) : canParticipate ? (
+              <Button small label="Je prends" onPress={() => act(supabase.from('bring_items').update({ claimed_by: me }).eq('id', it.id), onChange, setError)} />
+            ) : (
+              <T muted>Libre</T>
+            )}
+          </View>
+          {it.added_by ? null : <T style={{ color: colors.coral, fontSize: 12 }}>Demandé par l’organisateur</T>}
         </View>
       ))}
+      {canParticipate ? (
+        <View style={s.rowBetween}>
+          <Input placeholder="Ce que j’amène" value={label} onChangeText={setLabel} maxLength={100} style={{ flex: 1 }} />
+          <Button small label="Ajouter" onPress={add} />
+        </View>
+      ) : null}
       <ErrorText error={error} />
     </Section>
   );

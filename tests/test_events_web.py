@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -103,3 +105,12 @@ def test_events_are_beta_only_in_production(events_client, monkeypatch):
         module = events_client.get(path)
         assert module.status_code == 200 and '<html data-events="beta"' in module.text
     monkeypatch.setattr(main, "_pages", {})  # les pages suivantes retrouvent l'onglet actif
+
+
+def test_members_can_add_what_they_bring_and_organizer_items_are_labelled():
+    root = Path(__file__).resolve().parent.parent
+    sql = (root / "supabase/migrations/20261022090000_bring_items_by_members.sql").read_text(encoding="utf-8")
+    assert "add column added_by" in sql and "for insert" in sql and "can_participate(event_id)" in sql
+    assert "added_by = auth.uid() and claimed_by = auth.uid()" in sql  # on n'ajoute qu'en son nom
+    ui = (root / "web/events/src/components/EventSections.tsx").read_text(encoding="utf-8")
+    assert "Demandé par l’organisateur" in ui and "it.added_by ? null" in ui and "Ce que j’amène" in ui

@@ -101,7 +101,7 @@ export type Poll = {
 };
 export type PollOption = { id: string; poll_id: string; label: string; sort: number };
 
-export type BringItem = { id: string; event_id: string; label: string; claimed_by: string | null; sort: number };
+export type BringItem = { id: string; event_id: string; label: string; claimed_by: string | null; sort: number; added_by: string | null };
 
 export type Message = {
   id: string;
