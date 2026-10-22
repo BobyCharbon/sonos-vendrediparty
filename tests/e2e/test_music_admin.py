@@ -200,3 +200,36 @@ def test_admin_sees_and_closes_games_from_the_games_tab(browser, server):
         assert not boss.errors, boss.errors
     finally:
         guest.close(); boss.close()
+
+
+def test_long_queue_is_short_by_default_and_folds(browser, server):
+    boss = Phone(browser, server, "Boss")
+    long_queue = [{"pos": i + 2, "key": f"k{i}", "title": f"Titre {i}", "artist": "A", "art": "", "by": None, "eta": 60 * i} for i in range(8)]
+    try:
+        boss.page.goto("/")
+        as_account_admin(boss)
+        boss.page.route("**/api/admin/**", lambda route: route.fulfill(json=live_state(long_queue)))
+        boss.page.locator('#tabs button[data-tab="music"]').tap()
+        admin = boss.page.locator("#musicAdmin")
+        queue = admin.locator('[data-ma="queue"] .track')
+        expect(queue).to_have_count(5)  # les 5 prochains seulement
+        more = admin.locator('[data-ma-act="queueAll"]')
+        expect(more).to_have_text("Voir toute la file (8 titres)")
+        more.tap()
+        expect(queue).to_have_count(8)
+        more.tap()
+        expect(queue).to_have_count(5)
+        # Un toucher sur le titre replie toute la file ; le choix est gardé au rechargement.
+        admin.locator('[data-ma-act="queueFold"]').tap()
+        expect(admin.locator('[data-ma="queue"]')).to_be_hidden()
+        expect(more).to_be_hidden()
+        boss.page.reload()
+        as_account_admin(boss)
+        boss.page.locator('#tabs button[data-tab="music"]').tap()
+        expect(admin.locator('[data-ma="queueCount"]')).to_have_text("(8)")
+        expect(admin.locator('[data-ma="queue"]')).to_be_hidden()
+        admin.locator('[data-ma-act="queueFold"]').tap()
+        expect(queue).to_have_count(5)
+        assert not boss.errors, boss.errors
+    finally:
+        boss.close()

@@ -1542,6 +1542,10 @@ html.events-soon .tabs [data-tab="events"]::after {
 .admin-only { display: none; }
 .ma-access { margin: 8px 0 12px; }
 .ma-access summary { cursor: pointer; font-weight: 700; }
+.ma-fold { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; }
+.ma-fold:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+.ma-chev { transition: transform .2s ease; }
+.ma-fold.closed .ma-chev { transform: rotate(-90deg); }
 body.admin-music .admin-only { display: block; }
 body.admin-music section[data-view="music"] > :not(.admin-only) { display: none !important; }
 body:not(.admin-music) .admin-games { display: none !important; }

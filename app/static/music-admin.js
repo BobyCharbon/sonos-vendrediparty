@@ -17,6 +17,11 @@
   let speakersDragging = null, speakersTimer = null, sonosPlaylists = null, events = null, refreshTimer = null;
   let onState = () => {};  // chaque état reçu est aussi transmis (ex. invités / messages : people-admin.js)
   const q = (name) => root.querySelector(`[data-ma="${name}"]`);
+  // File d'attente : repliable d'un toucher sur son titre ; dépliée, 5 titres puis « Voir toute la file ».
+  const QUEUE_PREVIEW = 5;
+  const remembered = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
+  const remember = (key, value) => { try { localStorage.setItem(key, value); } catch { /* stockage indisponible */ } };
+  let queueOpen = remembered("vp_queue_open", "1") === "1", queueAll = remembered("vp_queue_all", "0") === "1";
 
   async function api(path, body) {
     const r = await fetch(path, body === undefined ? { credentials: "same-origin" }
@@ -98,9 +103,10 @@
       <h2>Ajouter un titre</h2>
       <input data-ma="addQ" type="search" placeholder="Titre, artiste… ou colle un lien (Spotify, Deezer, YouTube)" autocomplete="off" enterkeyhint="search" aria-label="Ajouter un titre">
       <div data-ma="addResults" class="list" style="margin-top:8px"></div>
-      <h2>File d'attente <span data-ma="queueCount"></span></h2>
+      <h2><button type="button" class="ma-fold" data-ma-act="queueFold" aria-expanded="true">File d'attente <span data-ma="queueCount"></span> <span class="ma-chev" aria-hidden="true">▾</span></button></h2>
       <p data-ma="queueHelp" class="sub" style="margin-top:-4px;font-size:.85rem"></p>
       <div data-ma="queue" class="list"></div>
+      <button type="button" class="secondary hidden" data-ma-act="queueAll" style="width:100%;margin-top:8px"></button>
       <h2 data-ma="modeTitle">Mode d'insertion</h2>
       <div class="seg" data-ma="modes"></div>
       <p class="sub" data-ma="modeHelp" style="margin-top:8px"></p>
@@ -175,7 +181,16 @@
     q("queueHelp").textContent = ext ? "Aperçu de la file Spotify : change l'ordre ou retire des titres directement dans Spotify."
       : "⏫ jouer ensuite · ⬆⬇ déplacer · ▶︎ jouer maintenant · ✕ retirer";
     q("queueCount").textContent = list.length ? `(${list.length})` : "";
-    q("queue").innerHTML = list.length ? list.map((t, i) => {
+    const fold = root.querySelector('[data-ma-act="queueFold"]');
+    fold.setAttribute("aria-expanded", queueOpen);
+    fold.classList.toggle("closed", !queueOpen);
+    q("queueHelp").classList.toggle("hidden", !queueOpen);
+    q("queue").classList.toggle("hidden", !queueOpen);
+    const more = root.querySelector('[data-ma-act="queueAll"]');
+    more.classList.toggle("hidden", !queueOpen || list.length <= QUEUE_PREVIEW);
+    more.textContent = queueAll ? "Réduire la file" : `Voir toute la file (${list.length} titres)`;
+    const shown = queueAll ? list : list.slice(0, QUEUE_PREVIEW);
+    q("queue").innerHTML = list.length ? shown.map((t, i) => {
       const at = `data-pos="${t.pos}" data-key="${escape(t.key)}"`;
       return `<div class="track ${t.by ? "guest" : ""}">
         ${t.art ? `<img src="${escape(t.art)}" alt="" loading="lazy" onerror="this.removeAttribute('src')">` : `<img alt="">`}
@@ -332,6 +347,13 @@
   async function act(name, b) {
     try {
       if (name === "rooms") return loadRooms();
+      if (name === "queueFold" || name === "queueAll") {
+        if (name === "queueFold") { queueOpen = !queueOpen; remember("vp_queue_open", queueOpen ? "1" : "0"); }
+        else { queueAll = !queueAll; remember("vp_queue_all", queueAll ? "1" : "0"); }
+        if (state?.active) renderQueue(state, usesSpotify(state.source));
+        if (name === "queueAll" && !queueAll) root.querySelector('[data-ma-act="queueFold"]').scrollIntoView({ block: "start", behavior: "smooth" });
+        return;
+      }
       if (name === "start") {
         if (chosenSource === "sonos" && !q("room").value) return notify("Choisis une pièce", "err");
         if (usesSpotify(chosenSource) && !state?.spotify_account?.connected) return notify("Connecte d'abord ton compte Spotify", "err");
