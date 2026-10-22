@@ -85,5 +85,10 @@ class Accounts:
             self.by_gid[account["guest_id"]] = account
         return account
 
+    def is_linked(self, gid: str) -> bool:
+        """Ce joueur a relié un compte vérifié depuis le démarrage du serveur (jeux réservés aux comptes)."""
+        with self.lock:
+            return gid in self.by_gid
+
     def photo(self, gid: str) -> str | None:
         return (self.by_gid.get(gid) or {}).get("photo")

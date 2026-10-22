@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
 
-from . import calendar_ics, games, heist, island, links, neon, president, quiz
+from . import calendar_ics, games, heist, island, links, neon, president, purity, quiz
 from .accounts import AccountError, Accounts
 from .feedback import KINDS as FEEDBACK_KINDS, FeedbackBox
 from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
@@ -65,6 +65,7 @@ PROXY_IPS = {ip.strip() for ip in os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0
 store = PartyStore(DATA_DIR / "session.json", ignored_ips=PROXY_IPS)
 feedback = FeedbackBox(DATA_DIR / "feedback.json")  # idées et bugs des invités, gardés d'une soirée à l'autre
 quiz.STATS_PATH = DATA_DIR / "quiz_stats.json"  # classement général du Quiz, toutes parties confondues
+purity.STATS_PATH = DATA_DIR / "purity_stats.json"  # classement général du Purify Test (comptes Party)
 sonos = Sonos(os.environ.get("SONOS_IP") or None)
 spotify = (
     Spotify(os.environ["SPOTIFY_CLIENT_ID"], os.environ["SPOTIFY_CLIENT_SECRET"], os.environ.get("SPOTIFY_MARKET", "CH"))
@@ -1037,6 +1038,28 @@ class GameCreate(BaseModel):
     reveal: bool = False  # Undercover : les imposteurs savent qu'ils le sont
     hint: bool = False  # Undercover : indice (catégorie du mot) pour les imposteurs qui se savent imposteurs
     white_hint: bool = False  # Undercover : indice pour Mr. White
+    token: str = Field(default="", max_length=4096)  # Purify Test : jeton du compte Party (création réservée aux comptes)
+
+
+ACCOUNT_GAMES = ("purity",)  # jeux réservés aux comptes Party connectés
+
+
+def require_account(token: str, guest_id: str, ip: str):
+    """Jeu réservé aux comptes : le jeton Supabase présenté doit être celui du compte qui occupe cette place."""
+    if not token:
+        raise HTTPException(401, "Connecte-toi avec ton numéro pour jouer au Purify Test")
+    if msg := account_limiter.blocked(ip):
+        raise HTTPException(429, msg)
+    if not 20 < len(token) < 4096:
+        raise HTTPException(401, "Ta connexion a expiré. Reconnecte-toi.")
+    try:
+        account = accounts.link(token)
+    except AccountError as e:
+        account_limiter.fail(ip)
+        raise HTTPException(401, str(e))
+    account_limiter.success(ip)
+    if account["guest_id"] != guest_id:
+        raise HTTPException(403, "Ce compte ne correspond pas à ta place : recharge la page une fois connecté")
 
 
 @app.post("/api/games")
@@ -1045,6 +1068,8 @@ def create_game(body: GameCreate, request: Request):
     ip = client_ip(request)
     if msg := ban_message(body.guest_id, ip):
         raise HTTPException(403, msg)
+    if body.type in ACCOUNT_GAMES:
+        require_account(body.token, body.guest_id, ip)
     # Page publique : 5 créations par adresse toutes les 10 minutes, 30 parties au plus.
     recent = [t for t in _game_creations.get(ip, []) if time.time() - t < 600]
     if len(recent) >= 5 and ip not in PROXY_IPS:
@@ -1075,6 +1100,10 @@ def build_game(body: GameCreate) -> dict:
     if body.type == "pyramid":
         g["options"].update(floors=max(5, min(8, body.floors)), pmode="soft" if body.pmode == "soft" else "hard", boat=body.boat,
                             poteau="hard" if body.poteau == "hard" else "soft", double=body.double)
+    if body.type == "purity":
+        # Gorgées choisies à la création → option alcool ; sinon 2 gorgées proposées si on l'active plus tard.
+        sips = g["options"]["sips"]
+        g["options"].update(alcohol=sips > 0, sips=sips or 2)
     if body.type == "divan" and body.cats:
         try:
             games.divan_set_cats(g, body.cats)
@@ -1110,17 +1139,20 @@ def room_launch(room: dict, me: str, settings: dict):
         raise HTTPException(409, "Néon Knockout accueille au maximum 8 joueurs, chacun avec son téléphone.")
     if kind == "president" and (len(room["players"]) > 6 or any(p.get("manual") for p in room["players"])):
         raise HTTPException(409, "Président accueille au maximum 6 joueurs, chacun avec son téléphone. Ajuste les participants de la salle avant de le lancer.")
+    accounts_only = kind in ACCOUNT_GAMES
+    if accounts_only and not accounts.is_linked(me):
+        raise HTTPException(403, "Connecte-toi avec ton numéro pour lancer le Purify Test")
     host = room["host"] or me
     hp = games.player(room, host)
-    fields = {k: v for k, v in settings.items() if k in GameCreate.model_fields and k not in ("guest_id", "name", "type")}
-    fields["plays"] = bool(hp) and fields.get("plays", True)
+    fields = {k: v for k, v in settings.items() if k in GameCreate.model_fields and k not in ("guest_id", "name", "type", "token")}
+    fields["plays"] = bool(hp) and fields.get("plays", True) and (not accounts_only or accounts.is_linked(host))
     body = GameCreate(guest_id=host, name=room.get("host_name") or "Animateur", type=kind, **fields)
     if len(store.session.games) >= 30:
         prune_games()
     child = build_game(body)
     for p in room["players"]:
-        if p["id"] == host:
-            continue
+        if p["id"] == host or (accounts_only and not accounts.is_linked(p["id"])):
+            continue  # Purify Test : seuls les comptes connectés sont inscrits d'office
         try:
             if p.get("manual"):
                 if kind in games.MANUAL_GAMES:
@@ -1282,9 +1314,12 @@ def reclaim_seat(g: dict, guest_id: str, name: str, ip: str) -> str:
         known = (store.session.guests.get(p["id"]) or {}).get("ips", [])
         return bool(ip) and ip not in PROXY_IPS and ip in known
 
+    # Idem pour une place liée à un compte Party : son titulaire la retrouve en se connectant, jamais par prénom
+    # (sinon un homonyme lirait ses réponses privées au Purify Test).
     protected = {g.get("host")} | set(g.get("leads") or [])
     seats = [p for p in g["players"]
-             if not p.get("manual") and p["id"] != guest_id and p["id"] not in protected and same_name(p["name"], name)]
+             if not p.get("manual") and p["id"] != guest_id and p["id"] not in protected and not p["id"].startswith("acct-")
+             and same_name(p["name"], name)]
     seats = [p for p in seats if mine(p) or not is_online(g, p["id"])]
     if len(seats) != 1:
         return guest_id  # personne, ou ambigu (deux places possibles) : nouvelle place
@@ -1347,10 +1382,15 @@ class GameAction(BaseModel):
     slots: list[int] = Field(default=[], max_length=500)  # Pyramide : cartes à revoir
     values: list[str] = Field(default=[], max_length=500)  # Pyramide : valeurs du test de mémoire
     settings: dict = {}  # Quiz : réglages de la partie (mode, thèmes, difficulté…)
+    done: bool = False  # Purify Test : affirmation cochée (« déjà fait ») ou décochée
+    token: str = Field(default="", max_length=4096)  # Purify Test : jeton du compte Party pour rejoindre
 
+
+PURITY_ONLY = {"puset", "puans", "pusub", "puunsub", "pureveal"}
+PURITY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end"} | PURITY_ONLY
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
-HOST_ACTIONS = {"ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
+HOST_ACTIONS = {"puset", "pureveal","ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
                 "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover", "nset", "hset"}
 
 
@@ -1372,6 +1412,8 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     g = get_game(code)
     game_presence(request, body.guest_id, body.name)
     if body.action == "join":
+        if g["type"] in ACCOUNT_GAMES:
+            require_account(body.token, body.guest_id, client_ip(request))
         reclaim_seat(g, body.guest_id, clean_name(body.name), client_ip(request))
     body.guest_id = canonical_gid(g, body.guest_id)
     sync_player_name(g, body.guest_id, body.name)
@@ -1385,6 +1427,10 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         raise HTTPException(400, "Action indisponible sur l’île")
     if g["type"] == "neon" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "nset", "nteam"}:
         raise HTTPException(400, "Action indisponible dans Néon Knockout")
+    if g["type"] == "purity" and a not in PURITY_ACTIONS:
+        raise HTTPException(400, "Action indisponible au Purify Test")
+    if g["type"] != "purity" and a in PURITY_ONLY:
+        raise HTTPException(400, "Action inconnue")
     # Cible d'un vote : un joueur (pid) ; pour « Je n'ai jamais », une réponse (yes / no).
     target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino", "pyramid", "biskit") else "")
     # Pyramide : l'animateur peut agir pour un joueur (participant sans téléphone, ou qui traîne).
@@ -1441,6 +1487,8 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "prexchange": (president.exchange_cards, me, body.values, body.guess),
         "qjoker": (quiz.joker, actor, body.guess, random), "qstop": (quiz.stop, actor),
         "qpause": (quiz.pause, actor, games.is_lead(g, me) or len(g["players"]) <= 1, random),
+        "puset": (purity.configure, body.settings), "puans": (purity.answer, me, body.amount, body.done),
+        "pusub": (purity.submit, me), "puunsub": (purity.unsubmit, me), "pureveal": (games.purity_reveal,),
     }
     if g["type"] == "quiz" and a == "next":
         actions["next"] = (quiz.next_step, random, body.guess)
@@ -1449,7 +1497,8 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     fn, *args = actions[a]
     try:
         action_result = fn(g, *args)
-    except (games.GameError, quiz.QuizError, president.PresidentError, neon.NeonError, island.IslandError, heist.HeistError) as e:
+    except (games.GameError, quiz.QuizError, purity.PurityError, president.PresidentError, neon.NeonError, island.IslandError,
+            heist.HeistError) as e:
         raise HTTPException(409, str(e))
     g["updated_at"] = time.time()
     # Salle de jeux : rejoindre, quitter, exclure ou passer la main vaut aussi pour le jeu en cours (et inversement).
@@ -1458,7 +1507,9 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         other["updated_at"] = time.time()
         try:
             if a == "join" and me not in other.get("kicked", []):
-                games.join(other, me, clean_name(body.name))
+                # Purify Test en cours dans la salle : seuls les comptes connectés y entrent.
+                if other["type"] not in ACCOUNT_GAMES or accounts.is_linked(me):
+                    games.join(other, me, clean_name(body.name))
             elif a == "leave" and games.player(other, me):
                 games.leave(other, me)
             elif a == "remove" and target and games.player(other, target):
@@ -1480,6 +1531,12 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         store.session.games.pop(g["code"], None)
     save_games(g["code"], g.get("room") or "", g.get("current") or "")
     return full_view(g, me)
+
+
+@app.get("/api/purity/leaderboard")
+def purity_leaderboard():
+    """Classement général du Purify Test (meilleur score de chaque compte) ; sans identifiant de compte."""
+    return purity.leaderboard()
 
 
 @app.get("/qr/game/{code}.svg")

@@ -14,7 +14,7 @@ import secrets
 import time
 import unicodedata
 
-from . import heist, island, neon, president, quiz
+from . import heist, island, neon, president, purity, quiz
 from .divan_cards import DIVAN_CARDS
 from .tmc_questions import TMC_QUESTIONS
 from .party_questions import NEVER_AWKWARD, NEVER_HOT, NEVER_SOFT, WHOOF_AWKWARD, WHOOF_HOT, WHOOF_SOFT
@@ -35,6 +35,7 @@ GAMES = {
     "neon": "Néon Knockout",
     "island": "L’île qui s’effondre",
     "heist": "Braquage en miniature",
+    "purity": "Purify Test",
     "room": "Salle de jeux",
 }
 BLACKJACKS = ("blackjack",)
@@ -173,6 +174,8 @@ def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code
     }
     if kind == "quiz":
         quiz.init(g)
+    if kind == "purity":
+        purity.init(g)
     if kind == "room":
         # Salle de jeux : un seul code pour la soirée ; l'animateur y lance les jeux les uns après les autres.
         g.update(current=None, rhistory=[], rtally={}, rpts={}, rnames={})
@@ -288,6 +291,8 @@ def leave(g: dict, gid: str):
         pyr_leave(g, gid)
     if g["type"] == "biskit":
         bk_leave(g, gid)
+    if g["type"] == "purity":
+        purity.leave(g, gid)
     if g["type"] == "quiz":
         g["quiz"]["personal"].pop(gid, None)
         if g["phase"] == "run" and g["quiz"]["personal"] and all(x["done"] for x in g["quiz"]["personal"].values()):
@@ -1847,6 +1852,16 @@ def bk_view(g: dict, gid: str) -> dict:
     }
 
 
+def purity_reveal(g: dict):
+    """Purify Test : l'animateur révèle les scores ; avec l'alcool, le plus sulfureux boit (compté au tableau)."""
+    try:
+        purity.reveal(g)
+    except purity.PurityError as e:
+        raise GameError(str(e))
+    for r in purity.gorgees(g):
+        add_sips(g, gid_of(g, r["pid"]), drink=r["sips"])
+
+
 def start(g: dict, rng: random.Random = random):
     """Distribue les rôles (Undercover) ou pose la première question (Qui de nous ?)."""
     if g["type"] == "heist":
@@ -1863,6 +1878,12 @@ def start(g: dict, rng: random.Random = random):
         return
     if g["type"] == "room":
         raise GameError("Choisis d'abord un jeu à lancer")
+    if g["type"] == "purity":
+        try:
+            purity.start(g)
+        except purity.PurityError as e:
+            raise GameError(str(e))
+        return
     if g["type"] == "quiz":
         try:
             quiz.start(g, rng)
@@ -2057,6 +2078,9 @@ def next_step(g: dict, rng: random.Random = random):
     if g["type"] == "tmc":
         tmc_next(g, rng)
         return
+    if g["type"] == "purity":
+        start(g, rng)  # nouveau test, mêmes joueurs
+        return
     if g["type"] == "casino":
         if g["phase"] != "results":
             raise GameError("Pas encore")
@@ -2098,7 +2122,7 @@ def restart(g: dict, rng: random.Random = random) -> dict:
         neon.start(g, rng)
     elif g["type"] == "president":
         president.start(g, rng)
-    elif g["type"] == "quiz":
+    elif g["type"] in ("quiz", "purity"):
         start(g, rng)
     elif g["type"] == "biskit":
         start(g, rng)
@@ -2170,6 +2194,10 @@ def view(g: dict, gid: str) -> dict:
         out["bk"] = bk_view(g, gid)
     if g["type"] == "quiz":
         out["quiz"] = quiz.view(g, gid)
+    if g["type"] == "purity":
+        out["purity"] = purity.view(g, gid)
+        if g["phase"] == "results":
+            out["purity"]["leaderboard"] = purity.leaderboard()
     if g["type"] == "heist":
         out["heist"] = heist.view(g, gid)
     if g["type"] == "island":
@@ -2249,6 +2277,12 @@ def _summary_facts(g: dict) -> list[str]:
         facts.append(f"{g['round']} question(s) posée(s)")
     if t == "quiz":
         facts += quiz.summary_facts(g)
+    if t == "purity":
+        facts.append(f"Alcool : {sips} gorgée{'s' if sips > 1 else ''} pour le plus sulfureux" if o.get("alcohol") and sips else "Sans alcool")
+        if g["phase"] == "answering":
+            done = sum(1 for p in g["players"] if g["purity"]["submitted"].get(p["id"]))
+            facts.append(f"{done}/{len(g['players'])} test(s) validé(s)")
+        facts += purity.summary_facts(g)
     if t == "heist":
         facts.append("3D · solo ou coopération · trois musées · 1 à 8 joueurs")
     if t == "island":
@@ -2274,6 +2308,9 @@ def _summary_extra(g: dict, p: dict) -> str:
     """Score ou jetons d'un joueur, selon le jeu."""
     if g["type"] == "quiz":
         return quiz.summary_extra(g, p["id"])
+    if g["type"] == "purity":
+        score = g["purity"]["scores"].get(p["id"])
+        return f"{score} % pur" if score is not None else ""
     if g["type"] == "heist":
         return f"{heist.state(g)['scores'].get(p['pid'], 0)} braquage(s) réussi(s)"
     if g["type"] == "island":
@@ -2316,6 +2353,8 @@ def room_merge(room: dict, g: dict):
     if g["type"] == "quiz" and g["players"]:
         rows = quiz.board(g)
         winner = rows[0][0]["name"] if rows and rows[0][1]["n"] else None
+    if g["type"] == "purity" and (rows := purity.ranking(g)):
+        winner = rows[0]["name"]  # le plus pur ; les scores (en %) ne s'ajoutent pas aux points de la soirée
     if g["type"] == "president" and g.get("president", {}).get("finished"):
         s = g["president"]
         winner = room["rnames"].get(s["finished"][0])

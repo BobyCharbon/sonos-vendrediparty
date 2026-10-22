@@ -208,6 +208,13 @@ def unsubmit(g: dict, gid: str):
     g["purity"]["submitted"].pop(gid, None)
 
 
+def leave(g: dict, gid: str):
+    """Un joueur part : ses réponses privées disparaissent avec lui."""
+    p = g["purity"]
+    for part in ("answers", "submitted", "scores"):
+        p[part].pop(gid, None)
+
+
 def _score_of(g: dict, gid: str) -> int:
     done = len(g["purity"]["answers"].get(gid, {}))
     return round(100 * (TOTAL - done) / TOTAL)
