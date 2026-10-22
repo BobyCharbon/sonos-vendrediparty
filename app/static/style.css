@@ -39,6 +39,10 @@ body[data-tab="events"] .name-chip-top, body[data-tab="account"] .name-chip-top 
    (--tabs-h, mesurée en JS). Le module gère lui-même l’encoche et la
    Dynamic Island grâce aux marges que Party lui transmet. */
 body[data-tab="events"] .top-head, body[data-tab="account"] .top-head { display: none; }
+/* Le module est fixe : la page derrière n’a rien à faire défiler. Sans ça, sur iPhone, elle reste plus haute
+   que l’écran (min-height + marge du bas) et la barre de Safari reste dépliée jusqu’au premier passage par Jeux. */
+html:has(body[data-tab="events"]), html:has(body[data-tab="account"]) { overflow: hidden; }
+body[data-tab="events"], body[data-tab="account"] { min-height: 0; height: 100dvh; padding-bottom: 0; overflow: hidden; }
 body[data-tab="events"] .events-panel, body[data-tab="account"] .events-panel {
   position: fixed; z-index: 5; top: 0; left: 0; right: 0;
   bottom: var(--tabs-h, calc(58px + max(6px, env(safe-area-inset-bottom))));

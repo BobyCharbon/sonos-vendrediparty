@@ -1,6 +1,7 @@
 """Régressions de la salle et de la persistance avant fusion en production."""
 import json
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -15,6 +16,12 @@ def test_parallel_session_saves_are_serialized_and_valid(tmp_path):
         list(pool.map(lambda _: store.save(), range(80)))
     assert store.version == initial_version + 80
     assert json.loads(store.path.read_text())["guest_pin"] == store.session.guest_pin
+
+
+def test_events_and_account_tabs_do_not_leave_a_scrollable_page_behind():
+    """Retour #8 : sur iPhone, la page derrière le module restait plus haute que l'écran (barre de Safari dépliée)."""
+    css = (Path(main.__file__).parent / "static" / "style.css").read_text(encoding="utf-8")
+    assert 'body[data-tab="events"], body[data-tab="account"] { min-height: 0; height: 100dvh; padding-bottom: 0; overflow: hidden; }' in css
 
 
 def test_manual_identity_scores_and_removal_survive_child_games(monkeypatch, tmp_path):

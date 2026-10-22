@@ -96,7 +96,7 @@ function watchTabs() {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watchTabs, { once: true });
 else watchTabs();
 // Rotation, changement de taille : le module relit ses marges.
-['resize', 'orientationchange'].forEach((type) => window.addEventListener(type, () => {
+['resize', 'orientationchange', 'pageshow', 'load'].forEach((type) => window.addEventListener(type, () => {
   measureTabs();
   const frame = document.getElementById('eventsFrame');
   try { frame?.contentWindow?.postMessage({ type: 'party-shell:insets' }, location.origin); } catch { /* Cadre pas encore chargé. */ }
