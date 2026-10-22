@@ -69,6 +69,24 @@ jobs:
             ---
             ${{ github.event.issue.body }}
 
+      - name: Raison de l'échec de Claude
+        if: failure()
+        # Seulement le message final (le dépôt est public : pas toute la session dans les logs).
+        run: |
+          python3 - <<'PY' || true
+          import json
+          data = json.load(open("/home/runner/work/_temp/claude-execution-output.json"))
+          for m in data if isinstance(data, list) else [data]:
+              if m.get("type") == "result":
+                  print("Résultat :", m.get("subtype"), "| erreur :", m.get("is_error"))
+                  print("Message :", str(m.get("result") or m.get("errors") or "(aucun)")[:1500])
+              if m.get("type") == "assistant":
+                  last = " ".join(c.get("text", "") for c in m.get("message", {}).get("content", []) if c.get("type") == "text")
+                  if m.get("error"):
+                      print("Erreur API :", m.get("error"))
+          print("Dernier message de Claude :", (last if "last" in dir() else "(aucun)")[:800])
+          PY
+
       - name: Tests, puis push sur develop
         id: push
         run: |
