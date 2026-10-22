@@ -224,3 +224,31 @@ def test_issue_says_whether_the_feedback_comes_from_prod_or_test(admin, monkeypa
         issue = issues[len(issues)]
         assert issue["title"].startswith(label + " ")
         assert f"- Site : {label.strip('[]')} ({url})" in issue["body"]
+
+
+def test_fix_that_adds_a_migration_warns_the_admin_before_testing(admin, monkeypatch, tmp_path):  # noqa: F811
+    issues = setup(monkeypatch, tmp_path)
+    send(admin)
+    fid = first(admin)["id"]
+    note(admin, fid)
+    admin.post(f"/api/admin/feedback/{fid}/claude")
+    issues[1]["state"] = "closed"
+    issues[1]["comments"] = ["✅ Corrigé et poussé sur `develop` : https://github.com/owner/repo/commit/abcdef1234567.\n"
+                             "L'image de test…\n\n### Migration Supabase à appliquer\n```\n"
+                             "supabase/migrations/20261022090000_bring_items_by_members.sql\n```\nBase partagée…"]
+    main.github.cache.clear()
+    claude = first(admin)["claude"]
+    assert claude["migrations"] == ["supabase/migrations/20261022090000_bring_items_by_members.sql"]
+    assert claude["sha"] == "abcdef1234567"
+
+
+def test_fix_without_migration_has_no_warning(admin, monkeypatch, tmp_path):  # noqa: F811
+    issues = setup(monkeypatch, tmp_path)
+    send(admin)
+    fid = first(admin)["id"]
+    note(admin, fid)
+    admin.post(f"/api/admin/feedback/{fid}/claude")
+    issues[1]["state"] = "closed"
+    issues[1]["comments"] = ["✅ Corrigé et poussé sur `develop` : https://github.com/owner/repo/commit/abcdef1234567."]
+    main.github.cache.clear()
+    assert "migrations" not in first(admin)["claude"]

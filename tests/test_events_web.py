@@ -110,7 +110,14 @@ def test_events_are_beta_only_in_production(events_client, monkeypatch):
 def test_members_can_add_what_they_bring_and_organizer_items_are_labelled():
     root = Path(__file__).resolve().parent.parent
     sql = (root / "supabase/migrations/20261022090000_bring_items_by_members.sql").read_text(encoding="utf-8")
-    assert "add column added_by" in sql and "for insert" in sql and "can_participate(event_id)" in sql
+    assert "add column if not exists added_by" in sql and "for insert" in sql and "can_participate(event_id)" in sql
+    # Garde : hors organisateur / admin, une mise à jour ne change que claimed_by (sinon on pourrait renommer
+    # l'objet d'un autre, ou s'en déclarer l'auteur pour le supprimer).
+    guard = sql[sql.index("function public.guard_bring_item()"):]
+    assert "before update on public.bring_items" in guard
+    for col in ("event_id", "label", "sort", "added_by"):
+        assert f"new.{col} := old.{col};" in guard
+    assert "new.claimed_by" not in guard
     assert "added_by = auth.uid() and claimed_by = auth.uid()" in sql  # on n'ajoute qu'en son nom
     ui = (root / "web/events/src/components/EventSections.tsx").read_text(encoding="utf-8")
     assert "Demandé par l’organisateur" in ui and "it.added_by ? null" in ui and "Ce que j’amène" in ui

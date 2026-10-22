@@ -28,5 +28,13 @@ Pour tout onglet, page installable ou vue plein écran, nouveau ou existant :
 
 Un navigateur de bureau ne reproduit pas le bug lui-même : seul un vrai iPhone (app fermée puis rouverte) le confirme.
 
+## Base Supabase (Événements, comptes)
+- Une seule base pour le site de test ET la production. Les migrations (`supabase/migrations/`) ne sont jamais
+  appliquées par le déploiement Docker ni par le workflow : l'admin les applique à la main.
+- Une migration doit être purement additive et rejouable (`add column if not exists`, `drop policy if exists`
+  avant `create policy`, `create or replace function`, `drop trigger if exists`), pour ne jamais casser la prod.
+- Vérifier les politiques RLS existantes : une politique `for update` donne accès à toute la ligne ; protéger les
+  colonnes sensibles avec un trigger de garde (modèle : `guard_profile`, `guard_bring_item`).
+
 ## Tests
 `python -m pytest -q --ignore=tests/e2e` avant tout commit.

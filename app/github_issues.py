@@ -11,6 +11,7 @@ LABEL = "claude-fix"
 FAILED_LABEL = "claude-failed"  # posée par le workflow quand la correction échoue
 CACHE_TTL = 60                  # s : l'admin ouvert ne relit pas GitHub à chaque rafraîchissement
 REASON_HEADING = "### Problème à corriger"  # section écrite par le workflow dans son commentaire d'échec
+MIGRATION_HEADING = "### Migration Supabase à appliquer"  # section écrite par le workflow quand Claude en ajoute une
 NO_REASON = "La correction a échoué sans raison détaillée : ouvre le log depuis le lien de l'issue."
 
 
@@ -84,6 +85,14 @@ class Issues:
             if m := re.search(r"/commit/([0-9a-f]{7,40})", body):
                 return m.group(1)
         return ""
+
+    def migrations(self, number: int) -> list[str]:
+        """Migrations Supabase ajoutées par la correction (à appliquer à la main), lues dans le commentaire « ✅ »."""
+        for body in reversed(self._comments(number)):
+            if MIGRATION_HEADING in body:
+                section = body.split(MIGRATION_HEADING, 1)[1].split("```")
+                return [ln.strip() for ln in (section[1] if len(section) > 1 else "").splitlines() if ln.strip()]
+        return []
 
     def failure_reason(self, number: int) -> str:
         """Raison d'un échec, lue dans le dernier commentaire « Problème à corriger » du workflow."""

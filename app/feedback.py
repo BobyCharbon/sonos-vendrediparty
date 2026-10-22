@@ -70,7 +70,7 @@ class FeedbackBox:
         return self._edit(fid, status="sent", attempts=attempts_of(self.get(fid) or {})[-10:],
                           claude={"number": number, "url": url, "state": "pending", "at": time.time()})
 
-    def set_claude_state(self, fid: str, state: str, error: str = "", sha: str = "") -> dict | None:
+    def set_claude_state(self, fid: str, state: str, error: str = "", sha: str = "", migrations: list[str] | None = None) -> dict | None:
         """Issue fermée → à vérifier (l'admin valide lui-même) ; échec → de nouveau à traiter, avec le « problème à corriger »."""
         item = self.get(fid)
         if not item or not item.get("claude"):
@@ -81,6 +81,8 @@ class FeedbackBox:
             claude["error"] = error
         if sha:
             claude["sha"] = sha
+        if migrations:
+            claude["migrations"] = migrations
         status = {"fixed": "verify", "failed": "new"}.get(state, item["status"])
         return self._edit(fid, status=status, claude=claude)
 

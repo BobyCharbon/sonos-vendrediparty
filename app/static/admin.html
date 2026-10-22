@@ -383,6 +383,9 @@ function renderFeedback() {
       ${i.note && fbEditing !== i.id ? `<div class="fb-note">📝 ${esc(i.note)}</div>` : ""}
       ${i.claude ? `<a class="fb-claude ${esc(i.claude.state)}" href="${esc(i.claude.url)}" target="_blank" rel="noopener">${FB_CLAUDE[i.claude.state] || ""} · #${esc(i.claude.number)}</a>` : ""}
       ${i.status === "verify" ? `<div class="fb-verify"><b>🧪 À vérifier</b>
+        ${i.claude?.migrations?.length ? `<div class="fb-migration"><b>⚠️ Migration Supabase à appliquer d'abord</b>
+          <pre>${i.claude.migrations.map(esc).join("\n")}</pre>
+          <small>La base est partagée entre le test et la prod : applique-la à la main (Supabase → SQL Editor) avant de tester.</small></div>` : ""}
         <small>Claude a commité sa correction sur develop. Teste-la sur le site de test (après reconstruction de l'image et redéploiement), puis :</small>
         <div class="fb-edit-btns"><button data-fb="done" data-id="${esc(i.id)}">✅ Validé, c'est corrigé</button>
         <button class="secondary" data-fb="new" data-id="${esc(i.id)}">↩︎ Pas corrigé</button></div></div>` : ""}
