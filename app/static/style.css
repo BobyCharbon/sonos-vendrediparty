@@ -19,7 +19,12 @@ body {
   padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 96px max(16px, env(safe-area-inset-left));
   background-image: radial-gradient(circle at 10% -10%, #3a1747 0, transparent 45%),
                     radial-gradient(circle at 110% 10%, #4a2a10 0, transparent 40%);
-  background-attachment: fixed; min-height: 100vh;
+  background-attachment: fixed;
+  /* iOS 26, app installée : les éléments fixés en bas (barre d'onglets) restent posés trop haut, avec une bande
+     vide dessous, tant que la page n'a jamais défilé. TOUS les onglets doivent donc rester défilables d'au moins
+     un pixel (même une page courte) ; showTab fait un micro-défilement à chaque changement (nudgeViewport).
+     Ne jamais mettre overflow: hidden / height fixe sur html ou body pour un onglet. */
+  min-height: calc(100lvh + 1px);
 }
 h1 { font-size: 1.6rem; margin: 8px 0 4px; letter-spacing: -0.02em; }
 h1 span { background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -39,11 +44,6 @@ body[data-tab="events"] .name-chip-top, body[data-tab="account"] .name-chip-top 
    (--tabs-h, mesurée en JS). Le module gère lui-même l’encoche et la
    Dynamic Island grâce aux marges que Party lui transmet. */
 body[data-tab="events"] .top-head, body[data-tab="account"] .top-head { display: none; }
-/* iOS 26, app installée : au lancement, les éléments fixés en bas (barre d’onglets) restent posés trop haut
-   (bande vide dessous) tant que la page n’a jamais défilé. Derrière le module, la page faisait pile la hauteur
-   de l’écran : elle ne défilait jamais, et seul un passage par Jeux (page longue) recalait la barre.
-   On la garde défilable d’un pixel ; showTab y fait un micro-défilement invisible (nudgeViewport). */
-body[data-tab="events"], body[data-tab="account"] { min-height: calc(100lvh + 1px); }
 body[data-tab="events"] .events-panel, body[data-tab="account"] .events-panel {
   position: fixed; z-index: 5; top: 0; left: 0; right: 0;
   bottom: var(--tabs-h, calc(58px + max(6px, env(safe-area-inset-bottom))));

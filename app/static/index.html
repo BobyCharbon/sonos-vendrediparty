@@ -297,7 +297,8 @@ $("nameChip").addEventListener("click", changeName);
 
 // Les événements utilisent leur compte SMS ; les accès musique/jeux restent indépendants.
 // iOS 26 (app installée) : la barre d'onglets fixée en bas reste trop haute tant que la page n'a jamais défilé.
-// Sur Événements et Réglages, la page derrière le module ne défile pas d'elle-même : un pixel aller-retour la recale.
+// Un onglet dont la page est courte (Musique, Événements, Réglages…) ne défile pas de lui-même : un pixel
+// aller-retour la recale. Appelé à CHAQUE changement d'onglet, sans liste : un nouvel onglet en profite d'office.
 function nudgeViewport() {
   if (!/iPhone|iPad|iPod/.test(navigator.userAgent) && !(navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) return;
   scrollTo(0, 1);
@@ -327,7 +328,7 @@ function showTab(tab, eventTarget) {
   if (tab === "events") frameRoute(eventTarget || (frameAt === "/account" ? "/" : null));
   if (tab === "account") frameRoute("/account");
   scrollTo(0, 0);
-  if (tab === "events" || tab === "account") nudgeViewport();
+  nudgeViewport();
 }
 // Boutons d'onglet seulement : le <body> porte aussi data-tab (sinon chaque toucher ramène en haut de page).
 document.addEventListener("click", (ev) => { const t = ev.target.closest("button[data-tab]"); if (t) showTab(t.dataset.tab); });
