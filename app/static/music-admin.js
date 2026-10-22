@@ -15,6 +15,7 @@
   let root = null, state = null, stateAt = Date.now(), chosenMode = "next", chosenSource = "sonos";
   let volumeDragging = false, volumeSentAt = 0, volumeTimer = null, addTimer = null, addResults = [];
   let speakersDragging = null, speakersTimer = null, sonosPlaylists = null, events = null, refreshTimer = null;
+  let onState = () => {};  // chaque état reçu est aussi transmis (ex. invités / messages : people-admin.js)
   const q = (name) => root.querySelector(`[data-ma="${name}"]`);
 
   async function api(path, body) {
@@ -224,6 +225,7 @@
   function render(s) {
     if (!root || !s) return;
     state = s; stateAt = Date.now();
+    onState(s);
     q("setup").classList.toggle("hidden", !!s.active);
     q("live").classList.toggle("hidden", !s.active);
     q("spotifyStart").innerHTML = spotifyAccountHtml(s);
@@ -473,8 +475,9 @@
   }
 
   window.MusicAdmin = {
-    mount(el, { live = true } = {}) {
+    mount(el, { live = true, onState: share } = {}) {
       root = el;
+      if (share) onState = share;
       root.innerHTML = SKELETON;
       root.addEventListener("click", onClick);
       root.addEventListener("input", onInput);

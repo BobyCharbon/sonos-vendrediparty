@@ -122,3 +122,55 @@ def test_admin_drives_the_live_party_from_the_music_tab(browser, server):
         assert not boss.errors, boss.errors
     finally:
         boss.close()
+
+
+def people_state(read=False, ban=None, name="Léa"):
+    return {**live_state(), "messages": [{"id": "m1", "name": "Léa", "text": "Tu peux mettre du Daft Punk ?", "at": 1761120000, "read": read}],
+            "guests": [{"guest_id": "guest-lea-0001", "name": name, "via": ["music"], "joined_at": 1761120000, "last_seen": 0, "active_at": 1761120000,
+                        "total": 3, "queued": 1, "ban": ban}],
+            "bans": [{"guest_id": "guest-old-0001", "name": "Ancien", "until": 0}]}
+
+
+def test_admin_answers_messages_and_moderates_guests_from_the_music_tab(browser, server):
+    boss = Phone(browser, server, "Boss")
+    sent = []
+    state = {"read": False, "ban": None, "name": "Léa"}
+
+    def admin_api(route):
+        path = route.request.url.split("/api/admin/", 1)[1].split("?")[0]
+        body = json.loads(route.request.post_data or "{}")
+        sent.append((path, body))
+        if path == "messages":
+            state["read"] = body["action"] == "read"
+        if path == "ban":
+            state["ban"] = {"until": 9999999999}
+        if path == "rename":
+            state["name"] = body["name"]
+        return route.fulfill(json=people_state(**state))
+    try:
+        boss.page.goto("/")
+        as_account_admin(boss)
+        boss.page.route("**/api/admin/**", admin_api)
+        boss.page.locator('#tabs button[data-tab="music"]').tap()
+        people = boss.page.locator("#peopleAdmin")
+        expect(people.locator('[data-pa="messages"]')).to_contain_text("Daft Punk")
+        expect(boss.page.locator("#musicTabBadge")).to_have_text("1")  # message non lu : pastille sur Musique
+        expect(people.locator('[data-pa="bans"]')).to_contain_text("Ancien")
+
+        people.locator('[data-pa-reply="m1"]').fill("Ça arrive !")
+        people.locator('[data-pa-reply-form="m1"] button').tap()
+        expect(boss.page.locator("#toast")).to_contain_text("Réponse envoyée")
+        assert ("messages/reply", {"id": "m1", "text": "Ça arrive !"}) in sent
+
+        people.locator('[data-pa-act="readAll"]').tap()
+        expect(boss.page.locator("#musicTabBadge")).to_be_hidden()
+
+        people.locator('[data-pa-guest="ban10"]').tap()
+        expect(people.locator('[data-pa="guests"]')).to_contain_text("bloqué")
+        assert ("ban", {"guest_id": "guest-lea-0001", "minutes": 10}) in sent
+
+        people.locator('[data-pa-guest="unban"][data-g="guest-old-0001"]').tap()
+        assert ("unban", {"guest_id": "guest-old-0001"}) in sent
+        assert not boss.errors, boss.errors
+    finally:
+        boss.close()
