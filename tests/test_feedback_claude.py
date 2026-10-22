@@ -211,3 +211,16 @@ def test_resending_tells_claude_about_previous_attempts(admin, monkeypatch, tmp_
 def test_first_send_has_no_previous_attempts_section():
     p = build_prompt({"id": "x", "kind": "bug", "name": "Léa", "at": 0, "context": {}, "text": "Bug", "note": "Corrige."})
     assert "Tentatives précédentes" not in p
+
+
+def test_issue_says_whether_the_feedback_comes_from_prod_or_test(admin, monkeypatch, tmp_path):  # noqa: F811
+    issues = setup(monkeypatch, tmp_path)
+    for url, label in (("https://partytest.bobycharbon.ch", "[Test]"), ("https://party.bobycharbon.ch", "[Prod]")):
+        monkeypatch.setenv("PARTY_PUBLIC_URL", url)
+        main.feedback.add(GUEST, "Léa", "bug", f"Bug vu sur {label}", {})
+        fid = main.feedback.all()[0]["id"]
+        note(admin, fid)
+        admin.post(f"/api/admin/feedback/{fid}/claude")
+        issue = issues[len(issues)]
+        assert issue["title"].startswith(label + " ")
+        assert f"- Site : {label.strip('[]')} ({url})" in issue["body"]

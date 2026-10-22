@@ -12,7 +12,7 @@ import threading
 import time
 import unicodedata
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import httpx
 import segno
@@ -1670,6 +1670,17 @@ def sync_claude_fixes():
             return  # GitHub injoignable : on réessaiera au prochain affichage
 
 
+def feedback_site() -> tuple[str, str]:
+    """D'où vient le retour : site de test (partytest…) ou production, avec son adresse."""
+    url = configured_public_url()
+    return ("Test" if "test" in (urlparse(url).hostname or "") else "Prod"), url
+
+
+def feedback_prompt(item: dict) -> str:
+    label, url = feedback_site()
+    return build_prompt(item, f"{label} ({url})")
+
+
 def feedback_item(fid: str) -> dict:
     item = feedback.get(fid)
     if item is None:
@@ -1701,7 +1712,7 @@ def admin_feedback_action(body: FeedbackAction):
 @app.get("/api/admin/feedback/{fid}/prompt", dependencies=[Depends(require_admin)])
 def admin_feedback_prompt(fid: str):
     """Le prompt tel qu'il partira à Claude (aperçu, ou à copier quand GitHub n'est pas configuré)."""
-    return {"prompt": build_prompt(feedback_item(fid))}
+    return {"prompt": feedback_prompt(feedback_item(fid))}
 
 
 @app.post("/api/admin/feedback/{fid}/claude", dependencies=[Depends(require_admin)])
@@ -1714,9 +1725,9 @@ def admin_feedback_to_claude(fid: str):
         raise HTTPException(400, "Ajoute d'abord tes instructions pour Claude (✏️)")
     if not github.configured:
         raise HTTPException(503, "GITHUB_TOKEN n'est pas configuré sur le serveur : copie le prompt à la place")
-    title = f"{FEEDBACK_KINDS.get(item['kind'], '')} {item['text'][:70]}".strip()
+    title = f"[{feedback_site()[0]}] {FEEDBACK_KINDS.get(item['kind'], '')} {item['text'][:70]}".strip()
     try:
-        issue = github.create(title, build_prompt(item))
+        issue = github.create(title, feedback_prompt(item))
     except GitHubError as e:
         log.warning("Envoi du retour %s à Claude refusé : %s", fid, e)
         raise HTTPException(502, str(e))
