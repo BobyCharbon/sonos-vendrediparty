@@ -1662,8 +1662,9 @@ def sync_claude_fixes():
         try:
             state = github.state(claude["number"])
             error = github.failure_reason(claude["number"]) if state == "failed" else ""
+            sha = github.fix_commit(claude["number"]) if state == "fixed" else ""
             if state != claude["state"] or error:
-                feedback.set_claude_state(item["id"], state, error)
+                feedback.set_claude_state(item["id"], state, error, sha)
         except GitHubError as e:
             log.warning("Suivi de l'issue #%s impossible : %s", item["claude"]["number"], e)
             return  # GitHub injoignable : on réessaiera au prochain affichage

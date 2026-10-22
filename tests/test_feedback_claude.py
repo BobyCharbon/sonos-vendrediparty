@@ -178,3 +178,36 @@ def test_fixed_by_claude_waits_for_the_admin_to_validate(admin, monkeypatch, tmp
     # Validé : traité, et l'invité voit « pris en compte ».
     assert admin.post("/api/admin/feedback", json={"ids": [fid], "action": "done"}).json()["items"][0]["status"] == "done"
     assert TestClient(main.app).get("/api/feedback", params={"guest_id": GUEST}).json()["mine"][0]["status"] == "done"
+
+
+def test_resending_tells_claude_about_previous_attempts(admin, monkeypatch, tmp_path):  # noqa: F811
+    issues = setup(monkeypatch, tmp_path)
+    send(admin)
+    fid = first(admin)["id"]
+    note(admin, fid, "La barre d'onglets reste trop haute au lancement.")
+    # 1re tentative : échec.
+    admin.post(f"/api/admin/feedback/{fid}/claude")
+    issues[1]["labels"].append({"name": "claude-failed"})
+    issues[1]["comments"] = ["⚠️ Rien poussé.\n\n### Problème à corriger\n```\nLes tests échouent : test_tabs\n```"]
+    main.github.cache.clear()
+    admin.get("/api/admin/feedback")
+    # 2e tentative : commitée, mais refusée par l'admin après test.
+    admin.post(f"/api/admin/feedback/{fid}/claude")
+    second = issues[2]["body"]
+    assert "## Tentatives précédentes" in second and "#1" in second and "Les tests échouent : test_tabs" in second
+    issues[2]["state"] = "closed"
+    issues[2]["comments"] = ["✅ Corrigé et poussé sur `develop` : https://github.com/owner/repo/commit/16fdc853518ba3a880cea8a613a775dcbfb9606d. L'image…"]
+    main.github.cache.clear()
+    assert first(admin)["claude"]["sha"] == "16fdc853518ba3a880cea8a613a775dcbfb9606d"
+    admin.post("/api/admin/feedback", json={"ids": [fid], "action": "new"})  # ↩︎ Pas corrigé
+    admin.post(f"/api/admin/feedback/{fid}/claude")
+    third = issues[3]["body"]
+    assert "#1" in third and "#2" in third and "git show 16fdc853518b" in third
+    assert "refusé" in third.lower() and "ne refais pas" in third.lower()
+    assert third.index("## Tentatives précédentes") < third.index("## Règles")
+    assert [a["number"] for a in main.feedback.get(fid)["attempts"]] == [1, 2]
+
+
+def test_first_send_has_no_previous_attempts_section():
+    p = build_prompt({"id": "x", "kind": "bug", "name": "Léa", "at": 0, "context": {}, "text": "Bug", "note": "Corrige."})
+    assert "Tentatives précédentes" not in p

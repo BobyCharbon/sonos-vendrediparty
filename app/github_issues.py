@@ -1,5 +1,6 @@
 """Retours envoyés à Claude : une issue GitHub étiquetée « claude-fix », que le workflow
 .github/workflows/claude-fix.yml corrige (commit sur develop) puis ferme. L'état de l'issue revient dans l'admin."""
+import re
 import threading
 import time
 
@@ -73,11 +74,20 @@ class Issues:
             return "fixed"
         return "failed" if any(lb.get("name") == FAILED_LABEL for lb in issue.get("labels", [])) else "pending"
 
+    def _comments(self, number: int) -> list[str]:
+        comments = self._call("GET", f"/issues/{number}/comments", params={"per_page": 100})
+        return [c.get("body") or "" for c in comments] if isinstance(comments, list) else []
+
+    def fix_commit(self, number: int) -> str:
+        """Commit poussé sur develop, lu dans le commentaire « ✅ Corrigé » du workflow ("" si introuvable)."""
+        for body in reversed(self._comments(number)):
+            if m := re.search(r"/commit/([0-9a-f]{7,40})", body):
+                return m.group(1)
+        return ""
+
     def failure_reason(self, number: int) -> str:
         """Raison d'un échec, lue dans le dernier commentaire « Problème à corriger » du workflow."""
-        comments = self._call("GET", f"/issues/{number}/comments", params={"per_page": 100})
-        for c in reversed(comments if isinstance(comments, list) else []):
-            body = c.get("body") or ""
+        for body in reversed(self._comments(number)):
             if REASON_HEADING in body:
                 section = body.split(REASON_HEADING, 1)[1]
                 lines = [ln for ln in section.strip().splitlines() if not ln.startswith("```")]
