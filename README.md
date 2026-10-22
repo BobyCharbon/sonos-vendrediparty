@@ -5,8 +5,12 @@ Webapp qui permet aux invités d'ajouter des titres à la musique de la soirée,
 à l'extérieur, dans la file Spotify du téléphone de l'hôte relié à une enceinte Bluetooth.
 
 - **/** : page invités (code, prénom, recherche, ajout immédiat, aperçu de la file, messages)
-- **/admin** : démarrer/arrêter la soirée, lecture, volume, code + QR code,
-  messages des invités, invités présents et modération
+- **Compte admin dans l'app** (connecté avec son numéro, droits admin) : tout se gère depuis les onglets, sans /admin —
+  **Musique** : démarrer / arrêter la soirée, lecture, volume, ajout de titres, file d'attente, mode, playlists,
+  enceintes, Spotify, code + QR des invités (repliable), messages, invités, bannis, notifications de l'hôte ;
+  **Jeux** : parties en cours de toute la soirée (détail, rejoindre, fermer) ; **Retours** : avis des invités
+  (statuts, mot pour l'invité, envoi à Claude)
+- **/admin** : même gestion avec le code PIN, gardée en secours
 - **Événements** : sorties du groupe, catégories/tags et abonnements, propositions,
   votes sur les dates, sondages, réponses et discussions ; connexion SMS obligatoire.
 
