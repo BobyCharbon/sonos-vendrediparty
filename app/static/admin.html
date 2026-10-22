@@ -114,10 +114,7 @@
     <section data-view="feedback" class="hidden" aria-labelledby="fbAdminTitle">
       <h2 id="fbAdminTitle">Retours des invités</h2>
       <p class="sub">Idées et bugs envoyés depuis l'onglet « Ton avis ». Gardés d'une soirée à l'autre. ✏️ pour préciser un retour et donner tes instructions, puis 🤖 pour le confier à Claude : il corrige et commite sur <b>develop</b>.</p>
-      <div class="seg fb-filter" role="group" aria-label="Filtrer">
-        <button type="button" class="on" data-fb-filter="new">À traiter</button><button type="button" data-fb-filter="sent">🤖 Chez Claude</button><button type="button" data-fb-filter="verify">🧪 À vérifier</button><button type="button" data-fb-filter="done">Traités</button><button type="button" data-fb-filter="all">Tout</button>
-      </div>
-      <div id="fbList" class="list" style="margin-top:10px"></div>
+      <div id="fbAdminRoot"></div>
     </section>
 
     <!-- ⚙️ Réglages -->
@@ -351,114 +348,18 @@ async function loadRooms() {
   } catch (e) { $("room").innerHTML = `<option value="">${esc(e.message)}</option>`; }
 }
 
-// 💬 Retours des invités : à traiter / chez Claude / traités, avec le contexte (onglet ou jeu) d'où ils ont été envoyés.
-// ✏️ : précisions et instructions de l'admin ; 🤖 : confié à Claude (issue GitHub → commit sur develop).
-let fbItems = [], fbKinds = {}, fbFilter = "new", fbClaudeReady = false, fbEditing = "", fbDrafts = {};
-const FB_CLAUDE = { pending: "🤖 Claude corrige", fixed: "🧪 Corrigé sur develop", failed: "⚠️ Échec de Claude" };
-function fbMeta(i) {
-  const when = new Date(i.at * 1000).toLocaleString("fr-CH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-  const where = i.context?.game ? ` · jeu : ${esc((typeof GAME_NAMES !== "undefined" && GAME_NAMES[i.context.game]) || i.context.game)}`
-    : i.context?.tab ? ` · depuis ${esc({ music: "Musique", games: "Jeux", events: "Événements" }[i.context.tab] || i.context.tab)}` : "";
-  return `${esc(fbKinds[i.kind] || i.kind)} · ${esc(i.name)} · ${when}${where}`;
+// 💬 Retours des invités : gestion partagée avec l'app (static/feedback-admin.js).
+let fbMounted = false;
+function loadFeedback() {
+  if (!fbMounted) { fbMounted = true; return FeedbackAdmin.mount($("fbAdminRoot")); }
+  return FeedbackAdmin.load();
 }
-function fbEditHtml(i) {
-  const draft = fbDrafts[i.id] ?? i.note ?? "";
-  const pending = i.claude?.state === "pending";
-  return `<div class="fb-edit">
-    <label class="g-label" for="fbNote-${esc(i.id)}">Précisions et instructions pour Claude</label>
-    <textarea id="fbNote-${esc(i.id)}" data-fb-note="${esc(i.id)}" maxlength="2000" rows="4" placeholder="Ex. : Sur iPhone, le bouton Révéler reste grisé avec 2 joueurs. Il doit être actif dès qu'une personne a validé.">${esc(draft)}</textarea>
-    <div class="fb-edit-btns">
-      <button class="secondary" data-fb-save="${esc(i.id)}">💾 Enregistrer</button>
-      <button class="secondary" data-fb-copy="${esc(i.id)}">📋 Copier le prompt</button>
-      <button data-fb-claude="${esc(i.id)}" ${fbClaudeReady && !pending ? "" : "disabled"}>🤖 Envoyer à Claude</button>
-    </div>
-    ${fbClaudeReady ? "" : `<p class="sub">GitHub n'est pas configuré sur le serveur (GITHUB_TOKEN) : copie le prompt pour le donner à Claude toi-même.</p>`}
-  </div>`;
-}
-function renderFeedback() {
-  const shown = fbItems.filter((i) => fbFilter === "all" || i.status === fbFilter);
-  $("fbList").innerHTML = shown.map((i) => `<div class="track fb-item ${i.status}"><div class="meta">
-      <div class="title">${esc(i.text)}</div>
-      <div class="artist">${fbMeta(i)}</div>
-      ${i.note && fbEditing !== i.id ? `<div class="fb-note">📝 ${esc(i.note)}</div>` : ""}
-      ${i.claude ? `<a class="fb-claude ${esc(i.claude.state)}" href="${esc(i.claude.url)}" target="_blank" rel="noopener">${FB_CLAUDE[i.claude.state] || ""} · #${esc(i.claude.number)}</a>` : ""}
-      ${i.status === "verify" ? `<div class="fb-verify"><b>🧪 À vérifier</b>
-        ${i.claude?.migrations?.length ? `<div class="fb-migration"><b>⚠️ Migration Supabase à appliquer d'abord</b>
-          <pre>${i.claude.migrations.map(esc).join("\n")}</pre>
-          <small>La base est partagée entre le test et la prod : applique-la à la main (Supabase → SQL Editor) avant de tester.</small></div>` : ""}
-        <small>Claude a commité sa correction sur develop. Teste-la sur le site de test (après reconstruction de l'image et redéploiement), puis :</small>
-        <div class="fb-edit-btns"><button data-fb="done" data-id="${esc(i.id)}">✅ Validé, c'est corrigé</button>
-        <button class="secondary" data-fb="new" data-id="${esc(i.id)}">↩︎ Pas corrigé</button></div></div>` : ""}
-      ${i.claude?.state === "failed" ? `<div class="fb-problem"><b>⚠️ Problème à corriger</b>
-        <pre>${esc(i.claude.error || "Raison en cours de récupération…")}</pre>
-        <small>Corrige la cause (réglage, instructions plus précises…), puis ✏️ → 🤖 Envoyer à Claude.</small></div>` : ""}
-</div>
-    <div class="icon-btns">
-      <button class="secondary" data-fb-edit="${esc(i.id)}" aria-label="Préciser / instructions pour Claude">✏️</button>
-      ${i.status === "verify" ? "" : i.status === "done" ? `<button class="secondary" data-fb="new" data-id="${esc(i.id)}" aria-label="Remettre à traiter">↺</button>` : `<button class="secondary" data-fb="done" data-id="${esc(i.id)}" aria-label="Marquer comme traité">✓</button>`}
-      <button class="danger" data-fb="delete" data-id="${esc(i.id)}" aria-label="Supprimer">✕</button></div>
-    ${fbEditing === i.id ? fbEditHtml(i) : ""}</div>`).join("")
-    || `<p class="empty" style="padding:12px">${{ new: "Rien à traiter pour l'instant 🎉", verify: "Rien à vérifier." }[fbFilter] || "Aucun retour."}</p>`;
-}
-async function loadFeedback(body) {
-  try {
-    const r = await api("/api/admin/feedback", body);
-    fbItems = r.items; fbKinds = r.kinds; fbClaudeReady = r.claude_ready; renderFeedback();
-    return true;
-  } catch (e) { toast(e.message, "err"); return false; }
-}
-// Enregistre la note en cours d'écriture (si elle a changé) avant de copier ou d'envoyer le prompt.
-async function fbSaveNote(id) {
-  const draft = fbDrafts[id];
-  if (draft === undefined || draft === (fbItems.find((i) => i.id === id)?.note || "")) return true;
-  const ok = await loadFeedback({ ids: [id], action: "note", note: draft });
-  if (ok) delete fbDrafts[id];
-  return ok;
-}
-async function fbCopyPrompt(id) {
-  if (!await fbSaveNote(id)) return;
-  try {
-    const { prompt } = await api(`/api/admin/feedback/${encodeURIComponent(id)}/prompt`);
-    await navigator.clipboard.writeText(prompt);
-    toast("📋 Prompt copié", "ok");
-  } catch (e) { toast(e.message || "Copie impossible", "err"); }
-}
-async function fbSendToClaude(id, btn) {
-  if (!confirm("Confier ce retour à Claude ? Il corrigera selon tes instructions et commitera sur develop.")) return;
-  btn.disabled = true;
-  try {
-    if (!await fbSaveNote(id)) return;
-    const r = await api(`/api/admin/feedback/${encodeURIComponent(id)}/claude`, {});
-    fbItems = r.items; fbEditing = "";
-    renderFeedback();
-    toast("🤖 Envoyé à Claude : suis-le dans « Chez Claude »", "ok");
-  } catch (e) { toast(e.message, "err"); }
-  finally { btn.disabled = false; }
-}
-document.addEventListener("input", (ev) => {
-  const n = ev.target.closest("[data-fb-note]");
-  if (n) fbDrafts[n.dataset.fbNote] = n.value;
-});
-document.addEventListener("click", async (ev) => {
-  const f = ev.target.closest("[data-fb-filter]");
-  if (f) { fbFilter = f.dataset.fbFilter; document.querySelectorAll("[data-fb-filter]").forEach((b) => b.classList.toggle("on", b === f)); return renderFeedback(); }
-  const ed = ev.target.closest("[data-fb-edit]");
-  if (ed) { fbEditing = fbEditing === ed.dataset.fbEdit ? "" : ed.dataset.fbEdit; renderFeedback(); return $(`fbNote-${fbEditing}`)?.focus(); }
-  const sv = ev.target.closest("[data-fb-save]");
-  if (sv) { if (await fbSaveNote(sv.dataset.fbSave)) toast("💾 Enregistré", "ok"); return; }
-  const cp = ev.target.closest("[data-fb-copy]");
-  if (cp) return fbCopyPrompt(cp.dataset.fbCopy);
-  const cl = ev.target.closest("[data-fb-claude]");
-  if (cl && !cl.disabled) return fbSendToClaude(cl.dataset.fbClaude, cl);
-  const a = ev.target.closest("[data-fb]");
-  if (a && (a.dataset.fb !== "delete" || confirm("Supprimer ce retour ?"))) loadFeedback({ ids: [a.dataset.id], action: a.dataset.fb });
-});
 
 function render(s) {
   state = s; stateAt = Date.now();
   $("fbBadge").textContent = s.feedback_new || "";
   $("fbBadge").classList.toggle("hidden", !s.feedback_new);
-  if (!document.querySelector('[data-view="feedback"]').classList.contains("hidden") && s.feedback_new !== fbItems.filter((i) => ["new", "verify"].includes(i.status)).length) loadFeedback();
+  if (!document.querySelector('[data-view="feedback"]').classList.contains("hidden") && s.feedback_new !== FeedbackAdmin.pending) loadFeedback();
   $("login").classList.add("hidden"); $("panel").classList.remove("hidden");
   $("noSpotify").classList.toggle("hidden", s.spotify_configured);
   $("tabs").classList.remove("hidden");
@@ -1074,6 +975,7 @@ $("logout").onclick = async (ev) => { ev.preventDefault(); await api("/api/admin
 <script src="/static/heist.js"></script>
 <script src="/static/game-audio.js"></script>
 <script src="/static/games.js"></script>
+<script src="/static/feedback-admin.js"></script>
 <script src="/static/quiz.js"></script>
 </body>
 </html>

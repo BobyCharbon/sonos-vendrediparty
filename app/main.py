@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field
 
 from . import calendar_ics, games, heist, island, links, neon, president, purity, quiz
 from .accounts import AccountError, Accounts
-from .feedback import KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
+from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
 from .github_issues import GitHubError, Issues
 from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
 from .push import Push, valid_subscription
@@ -1643,6 +1643,7 @@ class FeedbackAction(BaseModel):
     ids: list[str] = Field(max_length=100)
     action: str
     note: str = Field(default="", max_length=10000)  # « note » : précisions / instructions de l'admin pour Claude
+    reply: str = Field(default="", max_length=2000)  # « done » / « declined » : mot de l'admin pour l'invité
 
 
 MIN_CLAUDE_NOTE = 10  # Claude ne part pas sans instructions claires de l'admin
@@ -1703,11 +1704,34 @@ def admin_feedback_action(body: FeedbackAction):
         feedback_item(body.ids[0])
         feedback.set_note(body.ids[0], body.note)
         return feedback_payload()
-    if body.action not in ("done", "new", "delete"):
+    if body.action not in FEEDBACK_STATUSES + ("delete",):
         raise HTTPException(400, "Action inconnue")
-    feedback.update(body.ids, body.action)
+    if body.action == "declined" and not body.reply.strip():
+        raise HTTPException(400, "Écris un mot pour l'invité : il verra pourquoi ce n'est pas retenu")
+    for item in feedback.update(body.ids, body.action, body.reply):
+        notify_feedback_finished(item)
     store.save()
     return feedback_payload()
+
+
+def notify_feedback_finished(item: dict):
+    """Retour terminé ou pas retenu : notification à l'invité (s'il les a autorisées) ; sa pastille s'allume aussi."""
+    done = item["status"] == "done"
+    notify_guest(item["guest_id"], {
+        "title": "✅ Ton retour est terminé" if done else "💬 Réponse à ton retour",
+        "body": item.get("reply") or item["text"][:120], "url": "/?tab=feedback", "tag": f"feedback-{item['id']}"})
+
+
+class FeedbackSeen(BaseModel):
+    guest_id: str
+
+
+@app.post("/api/feedback/seen")
+def feedback_seen(body: FeedbackSeen):
+    """L'invité a ouvert « Ton avis » : ses retours terminés ne sont plus signalés par la pastille."""
+    check_guest_id(body.guest_id)
+    feedback.mark_seen(body.guest_id)
+    return {"mine": feedback.mine(body.guest_id)}
 
 
 @app.get("/api/admin/feedback/{fid}/prompt", dependencies=[Depends(require_admin)])

@@ -94,6 +94,11 @@
   </section>
 
   <section data-view="feedback" class="hidden" aria-labelledby="fbTitle">
+    <div id="fbSwitch" class="seg fb-switch hidden" role="group" aria-label="Retours">
+      <button type="button" class="on" data-fb-view="admin">💬 Tous les retours</button><button type="button" data-fb-view="mine">✍️ Mon avis</button>
+    </div>
+    <div id="fbAdmin" class="hidden"></div>
+    <div id="fbGuest">
     <h2 id="fbTitle">Une idée, un bug ?</h2>
     <p class="sub">Dis ce que tu aimerais voir changer, ajouter ou corriger. L'organisateur lit chaque message.</p>
     <form id="fbForm" class="card fb-form">
@@ -110,6 +115,7 @@
     </form>
     <h2 class="fb-mine-h hidden" id="fbMineH">Tes envois</h2>
     <div id="fbMine" class="list"></div>
+    </div>
   </section>
 
   <section data-view="events account" class="events-panel hidden" aria-label="Événements du groupe">
@@ -122,7 +128,7 @@
     <button type="button" data-tab="music"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg><span>Musique</span></button>
     <button type="button" data-tab="games"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11h4M8 9v4"/><path d="M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-3.96 3.43L2 14.5A3 3 0 0 0 7.2 17l1.3-1.5h7l1.3 1.5a3 3 0 0 0 5.2-2.5l-.74-6.07A4 4 0 0 0 17.3 5z"/></svg><span>Jeux</span><i id="gameDot" class="badge hidden">●</i></button>
     <button type="button" data-tab="events"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h2M14 15h2"/></svg><span>Événements</span><i class="badge hidden" data-events-badge aria-hidden="true"></i></button>
-    <button type="button" data-tab="feedback"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 10.5h6M9 13.5h4"/></svg><span>Ton avis</span></button>
+    <button type="button" data-tab="feedback"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 10.5h6M9 13.5h4"/></svg><span>Ton avis</span><i id="fbTabBadge" class="badge hidden"></i></button>
     <button type="button" data-tab="account" id="accountTab"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><img class="tab-avatar hidden" alt=""><span>Se connecter</span></button>
   </nav>
 
@@ -313,7 +319,7 @@ function showTab(tab, eventTarget) {
   });
   if (!["feedback", "account"].includes(tab) && document.body.dataset.tab) fbTab = tab;
   document.body.dataset.tab = tab;  // la lumière de scène et le titre suivent l'onglet
-  $("appTitle").textContent = ({ music: "Musique", games: "Jeux", events: "Événements", feedback: "Ton avis", account: account ? "Réglages" : "Se connecter" })[tab];
+  $("appTitle").textContent = ({ music: "Musique", games: "Jeux", events: "Événements", feedback: fbIsAdmin() ? "Retours" : "Ton avis", account: account ? "Réglages" : "Se connecter" })[tab];
   store("vp_tab", tab);
   if (tab === "games") refreshGame();
   if (tab === "feedback") loadFeedback();
@@ -371,6 +377,7 @@ async function linkAccount() {
     const anon = store("vp_guest_anon");
     if (account || guestId.startsWith("acct-")) { account = null; store("vp_account", ""); if (anon) useIdentity(anon); }
     PartyEvents.setBeta(false);
+    setTimeout(fbSyncRole);
     return showAccount();
   }
   try {
@@ -381,7 +388,7 @@ async function linkAccount() {
     // Compte root ou admin : session admin de la soirée (animateur de toutes les parties, comme avec le code PIN).
     if (a.admin && !adminSession) {
       adminSession = true;
-      api("/api/account/admin", { method: "POST", body: JSON.stringify({ token }) }).then(() => typeof refreshGame === "function" && refreshGame()).catch(() => { adminSession = false; });
+      api("/api/account/admin", { method: "POST", body: JSON.stringify({ token }) }).then(() => { fbSyncRole(); if (typeof refreshGame === "function") refreshGame(); }).catch(() => { adminSession = false; fbSyncRole(); });
     }
     useIdentity(a.guest_id, a.name);
   } catch { /* hors ligne ou jeton expiré : on garde l'identité actuelle, le module rafraîchira la session */ }
@@ -408,17 +415,63 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden && Da
 
 // 💬 Ton avis : idées et bugs pour l'organisateur (sans code de soirée), avec le jeu en cours comme contexte.
 let fbKind = "idea", fbTab = "music";
-const FB_STATUS = { new: "Envoyé", sent: "🔧 En cours de correction", done: "✓ Pris en compte" };
+const FB_STATUS = { new: "Envoyé", progress: "🔧 En cours de correction", done: "✅ Terminé", declined: "🚫 Pas retenu" };
+// Compte admin (session admin établie) : l'onglet devient « Retours » et gère les retours de tous les invités
+// (statuts, Claude…), sans passer par /admin. Un invité y voit son formulaire et le statut de ses envois.
+let fbView = "admin", fbAdminMounted = false, fbAdminCount = 0, fbUnseen = 0;
+const fbIsAdmin = () => !!(account?.admin && adminSession);
+function fbBadge() {
+  const n = fbIsAdmin() ? fbAdminCount : fbUnseen;
+  $("fbTabBadge").textContent = n || "";
+  $("fbTabBadge").classList.toggle("hidden", !n);
+}
+function fbSyncRole() {
+  const admin = fbIsAdmin();
+  document.querySelector('#tabs [data-tab="feedback"] span').textContent = admin ? "Retours" : "Ton avis";
+  if (document.body.dataset.tab === "feedback") $("appTitle").textContent = admin ? "Retours" : "Ton avis";
+  $("fbSwitch").classList.toggle("hidden", !admin);
+  const showAdmin = admin && fbView === "admin";
+  $("fbAdmin").classList.toggle("hidden", !showAdmin);
+  $("fbGuest").classList.toggle("hidden", showAdmin);
+  if (admin && !fbAdminMounted) {
+    fbAdminMounted = true;
+    FeedbackAdmin.mount($("fbAdmin"), { onCount: (n) => { fbAdminCount = n; fbBadge(); } });
+  }
+  loadFeedback(false);
+  fbBadge();
+}
 function renderFeedback(mine) {
+  fbUnseen = mine.filter((m) => m.unseen).length;
+  fbBadge();
   $("fbMineH").classList.toggle("hidden", !mine.length);
-  $("fbMine").innerHTML = mine.map((m) => `<div class="track fb-item"><div class="meta">
+  $("fbMine").innerHTML = mine.map((m) => `<div class="track fb-item ${m.unseen ? "unseen" : ""}"><div class="meta">
     <div class="title">${esc(m.text)}</div>
     <div class="artist">${{ idea: "💡 Idée", bug: "🐞 Bug", other: "💬 Autre" }[m.kind] || ""} · ${new Date(m.at * 1000).toLocaleDateString("fr-CH", { day: "numeric", month: "short" })}
-      · <span class="fb-st ${m.status}">${FB_STATUS[m.status] || ""}</span></div></div></div>`).join("");
+      · <span class="fb-st ${m.status}">${FB_STATUS[m.status] || ""}</span></div>
+    ${m.reply ? `<div class="fb-reply">💬 ${esc(m.reply)}</div>` : ""}</div></div>`).join("");
 }
-async function loadFeedback() {
-  try { renderFeedback((await api(`/api/feedback?guest_id=${encodeURIComponent(guestId)}`)).mine); } catch { /* pas grave : le formulaire reste utilisable */ }
+// shown : l'onglet est affiché → ses retours terminés sont « vus » (la pastille s'éteint).
+async function loadFeedback(shown = document.body.dataset.tab === "feedback") {
+  if (shown && fbIsAdmin() && fbView === "admin") FeedbackAdmin.load();
+  try {
+    const r = await api(`/api/feedback?guest_id=${encodeURIComponent(guestId)}`);
+    renderFeedback(r.mine);
+    const guestVisible = shown && !(fbIsAdmin() && fbView === "admin");
+    if (guestVisible && r.mine.some((m) => m.unseen)) {
+      await api("/api/feedback/seen", { method: "POST", body: JSON.stringify({ guest_id: guestId }) });
+      fbUnseen = 0; fbBadge();
+    }
+  } catch { /* pas grave : le formulaire reste utilisable */ }
 }
+document.addEventListener("click", (ev) => {
+  const v = ev.target.closest("[data-fb-view]");
+  if (!v) return;
+  fbView = v.dataset.fbView;
+  document.querySelectorAll("[data-fb-view]").forEach((b) => b.classList.toggle("on", b === v));
+  fbSyncRole();
+  loadFeedback();
+});
+fbSyncRole();  // au chargement : rôle (compte admin déjà connu) et pastille des retours terminés
 document.addEventListener("click", (ev) => {
   const k = ev.target.closest("[data-fb-kind]");
   if (!k) return;
@@ -591,6 +644,9 @@ addEventListener("DOMContentLoaded", async () => {
     setGame(params.get("game").replace(/\D/g, "").slice(0, 4)); autoJoin = true;
     history.replaceState(null, "", location.pathname);
     showTab("games");
+  } else if (params.get("tab") === "feedback") {
+    showTab("feedback");
+    history.replaceState(null, "", location.pathname);
   } else if (params.get("tab") === "events") {
     showTab("events", PartyEvents.target(params));
     history.replaceState(null, "", location.pathname);
@@ -798,6 +854,7 @@ function listen() {
 <script src="/static/heist.js"></script>
 <script src="/static/game-audio.js"></script>
 <script src="/static/games.js"></script>
+<script src="/static/feedback-admin.js"></script>
 <script src="/static/quiz.js"></script>
 <script src="/static/purity.js"></script>
 </body>

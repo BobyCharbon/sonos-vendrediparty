@@ -1537,8 +1537,11 @@ html.events-soon .tabs [data-tab="events"]::after {
 .fb-edit-btns { display:flex; flex-wrap:wrap; gap:6px; }
 .fb-edit-btns button { flex:1 1 auto; min-height:40px; }
 
-/* Compte Party : « Se connecter » / « Réglages » remplace « Ton avis » (qui passe dans les Réglages), partout. */
-.tabs:has(#accountTab) [data-tab="feedback"] { display: none; }
+.fb-switch { margin-bottom: 14px; }
+.fb-item.unseen { box-shadow: inset 0 0 0 2px var(--accent); }
+.fb-reply { margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.06); font-size: .9rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fb-st.progress { color:#ffd27a; font-weight:700; }
+.fb-st.declined { color:#c9c3dc; font-weight:700; }
 .tab-avatar { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 2px currentColor; }
 .qs-av { position: relative; overflow: hidden; }
 .qs-av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }

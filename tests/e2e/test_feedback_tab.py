@@ -42,11 +42,67 @@ def test_guest_feedback_reaches_admin(browser, server):
         expect(boss.page.locator("#fbList")).to_contain_text("Le joystick est trop petit")
         expect(boss.page.locator("#fbList")).to_contain_text("Bug")
         boss.shot("feedback_admin")
-        boss.page.locator('#fbList [data-fb="done"]').click()
+        boss.page.locator('#fbList [data-fb="done"]').first.click()
         expect(boss.page.locator("#fbList")).to_contain_text("Rien à traiter")
         guest.page.locator('button[data-tab="music"]').tap()
         open_feedback(guest)
-        expect(guest.page.locator("#fbMine")).to_contain_text("Pris en compte")
+        expect(guest.page.locator("#fbMine")).to_contain_text("✅ Terminé")
+        assert not guest.errors and not boss.errors, guest.errors + boss.errors
+    finally:
+        guest.close(); boss.close()
+
+
+def act_as_account_admin(phone):
+    """Compte Party admin connecté dans l'app : session admin (même cookie que /api/account/admin) + compte admin.
+    La vérification du compte auprès de Supabase est testée dans test_accounts.py."""
+    phone.page.request.post(f"{phone.server.url}/api/admin/login", data={"pin": ADMIN_PIN})
+    phone.page.evaluate("account = { name: 'Boss', admin: true }; adminSession = true; fbSyncRole();")
+
+
+def test_account_admin_manages_feedback_from_the_app_tab_and_guest_is_told(browser, server):
+    guest, boss = Phone(browser, server, "Lea"), Phone(browser, server, "Boss")
+    try:
+        guest.page.goto("/")
+        open_feedback(guest)
+        guest.page.locator("#fbText").fill("Un mode équipe au Quiz")
+        guest.page.locator("#fbSend").tap()
+        expect(guest.page.locator("#fbMine")).to_contain_text("Envoyé")
+
+        boss.page.goto("/")
+        act_as_account_admin(boss)
+        tab = boss.page.locator('#tabs button[data-tab="feedback"]')
+        expect(tab).to_be_visible()  # dans la barre du bas, plus besoin de /admin
+        expect(tab).to_contain_text("Retours")
+        expect(boss.page.locator("#fbTabBadge")).to_have_text("1")
+        tab.tap()
+        expect(boss.page.locator("#fbAdmin #fbList")).to_contain_text("Un mode équipe au Quiz")
+        assert boss.page.locator("#fbGuest").is_hidden()
+
+        # 🔧 En cours : l'invité voit « en cours de correction ».
+        boss.page.locator('#fbAdmin [data-fb="progress"]').tap()
+        expect(boss.page.locator("#fbTabBadge")).to_be_hidden()
+        guest.page.reload()
+        open_feedback(guest)
+        expect(guest.page.locator("#fbMine")).to_contain_text("En cours de correction")
+
+        # ✅ Terminé avec un mot : l'invité a une pastille, voit le statut et le mot, puis la pastille s'éteint.
+        boss.page.locator('#fbAdmin [data-fb-filter="progress"]').tap()
+        boss.page.locator("#fbAdmin [data-fb-edit]").tap()
+        boss.page.locator("#fbAdmin [data-fb-reply]").fill("Ajouté au Quiz, merci !")
+        boss.page.locator('#fbAdmin .fb-edit [data-fb="done"]').tap()
+        expect(boss.page.locator("#fbAdmin")).to_contain_text("Aucun retour")  # filtre « En cours » vide
+        guest.page.locator('#tabs button[data-tab="music"]').tap()
+        guest.page.reload()
+        expect(guest.page.locator("#fbTabBadge")).to_have_text("1")
+        open_feedback(guest)
+        expect(guest.page.locator("#fbMine")).to_contain_text("✅ Terminé")
+        expect(guest.page.locator("#fbMine")).to_contain_text("Ajouté au Quiz, merci !")
+        expect(guest.page.locator("#fbTabBadge")).to_be_hidden()
+
+        # L'admin peut toujours envoyer son propre avis.
+        boss.page.locator('[data-fb-view="mine"]').tap()
+        expect(boss.page.locator("#fbForm")).to_be_visible()
+        assert boss.page.locator("#fbAdmin").is_hidden()
         assert not guest.errors and not boss.errors, guest.errors + boss.errors
     finally:
         guest.close(); boss.close()

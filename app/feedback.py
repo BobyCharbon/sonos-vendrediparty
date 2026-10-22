@@ -8,6 +8,11 @@ from pathlib import Path
 KINDS = {"idea": "💡 Idée", "bug": "🐞 Bug", "other": "💬 Autre"}
 MAX_ITEMS = 500
 MAX_NOTE = 2000  # précisions de l'admin (instructions pour Claude)
+MAX_REPLY = 500  # mot de l'admin pour l'invité (« Terminé » ou « Pas retenu »)
+# Statuts : new (à traiter), progress (en cours, posé par l'admin), sent (chez Claude), verify (corrigé par Claude,
+# à vérifier), done (terminé), declined (pas retenu). L'invité ne voit que new / progress / done / declined.
+ADMIN_STATUSES = ("new", "progress", "done", "declined")
+FINISHED = ("done", "declined")  # l'invité est averti (notification + pastille) en y arrivant
 
 
 class FeedbackBox:
@@ -38,9 +43,21 @@ class FeedbackBox:
 
     def mine(self, guest_id: str) -> list[dict]:
         """Ce que l'invité a envoyé (sans les infos internes), du plus récent au plus ancien.
-        Une correction pas encore validée par l'admin reste « en cours » pour l'invité."""
-        public = lambda i: {**{k: i[k] for k in ("id", "at", "kind", "text")}, "status": "sent" if i["status"] == "verify" else i["status"]}
+        Chez Claude ou pas encore vérifié par l'admin : « en cours » pour l'invité."""
+        def public(i: dict) -> dict:
+            status = "progress" if i["status"] in ("sent", "verify") else i["status"]
+            return {**{k: i[k] for k in ("id", "at", "kind", "text")}, "status": status,
+                    "reply": i.get("reply", "") if status in FINISHED else "", "unseen": bool(i.get("unseen"))}
         return [public(i) for i in reversed(self.items) if i["guest_id"] == guest_id][:20]
+
+    def mark_seen(self, guest_id: str):
+        """L'invité a ouvert son onglet « Ton avis » : la pastille « terminé » s'éteint."""
+        with self.lock:
+            changed = [i for i in self.items if i["guest_id"] == guest_id and i.get("unseen")]
+            for i in changed:
+                i["unseen"] = False
+            if changed:
+                self._save()
 
     def all(self) -> list[dict]:
         return list(reversed(self.items))
@@ -86,15 +103,25 @@ class FeedbackBox:
         status = {"fixed": "verify", "failed": "new"}.get(state, item["status"])
         return self._edit(fid, status=status, claude=claude)
 
-    def update(self, ids: list[str], action: str):
+    def update(self, ids: list[str], action: str, reply: str = "") -> list[dict]:
+        """Change le statut (ou supprime). Renvoie les retours qui viennent d'être terminés / pas retenus,
+        pour avertir leurs invités (une seule fois : un retour déjà terminé ne renotifie pas)."""
+        finished = []
         with self.lock:
             if action == "delete":
                 self.items = [i for i in self.items if i["id"] not in ids]
             else:
                 for i in self.items:
-                    if i["id"] in ids:
-                        i["status"] = action  # « done » (traité) ou « new » (à traiter)
+                    if i["id"] not in ids:
+                        continue
+                    if reply.strip():
+                        i["reply"] = reply.strip()[:MAX_REPLY]
+                    if action in FINISHED and i["status"] != action:
+                        i["unseen"] = True
+                        finished.append(i)
+                    i["status"] = action
             self._save()
+        return finished
 
 
 def build_prompt(item: dict, site: str = "") -> str:

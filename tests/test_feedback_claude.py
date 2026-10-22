@@ -83,7 +83,7 @@ def test_send_to_claude_creates_a_labelled_issue_and_tracks_it(admin, monkeypatc
     assert admin.post(f"/api/admin/feedback/{fid}/claude").status_code == 409  # déjà envoyé
     assert main.feedback.count_new() == 0
     guest = TestClient(main.app).get("/api/feedback", params={"guest_id": GUEST}).json()["mine"][0]
-    assert guest["status"] == "sent" and "note" not in guest and "claude" not in guest  # l'invité voit « en cours »
+    assert guest["status"] == "progress" and "note" not in guest and "claude" not in guest  # l'invité voit « en cours »
 
 
 def test_closed_issue_marks_fixed_and_failed_run_goes_back_to_todo(admin, monkeypatch, tmp_path):  # noqa: F811
@@ -166,7 +166,7 @@ def test_fixed_by_claude_waits_for_the_admin_to_validate(admin, monkeypatch, tmp
     assert first(admin)["status"] == "verify"
     assert admin.get("/api/admin/state").json()["feedback_new"] == 1  # pastille : il y a une vérification à faire
     guest = TestClient(main.app).get("/api/feedback", params={"guest_id": GUEST}).json()["mine"][0]
-    assert guest["status"] == "sent"  # l'invité ne voit « pris en compte » qu'après ta validation
+    assert guest["status"] == "progress"  # l'invité ne voit « terminé » qu'après ta validation
     # Pas corrigé : retour à traiter (on peut préciser et renvoyer à Claude).
     item = admin.post("/api/admin/feedback", json={"ids": [fid], "action": "new"}).json()["items"][0]
     assert item["status"] == "new" and item["claude"]["state"] == "fixed"
