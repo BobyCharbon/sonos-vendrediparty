@@ -29,6 +29,7 @@
   </header>
 
   <section data-view="music">
+  <div id="musicAdmin"></div>
   <div id="pin" class="hidden">
     <p class="sub">Scanne le QR de l'hôte ou entre le code de la soirée pour rejoindre la file d'attente.<br>Pour jouer, va dans 🎮 Jeux : pas besoin de code.</p>
     <form id="pinForm" class="row">
@@ -182,9 +183,16 @@ let guestName = store("vp_name") || "";
 let registered = false;  // l'invité s'est présenté au serveur (il apparaît dans l'admin)
 
 let toastTimer;
-function toast(msg, kind = "") {
+// action : bouton dans le message (ex. « Annuler » après avoir retiré un titre de la file).
+function toast(msg, kind = "", action = null) {
   const t = $("toast"); t.textContent = msg; t.className = "toast " + kind;
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("hidden"), 3000);
+  if (action) {
+    const b = document.createElement("button");
+    b.textContent = action.label;
+    b.onclick = () => { t.classList.add("hidden"); action.run(); };
+    t.append(b);
+  }
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("hidden"), action ? 7000 : 3000);
 }
 
 async function api(path, opts = {}) {
@@ -323,6 +331,7 @@ function showTab(tab, eventTarget) {
   store("vp_tab", tab);
   if (tab === "games") refreshGame();
   if (tab === "feedback") loadFeedback();
+  if (tab === "music" && musicAdminMounted && fbIsAdmin()) MusicAdmin.show();
   // Événements et Réglages partagent le même module (une seule connexion) : on change juste de page dedans.
   if (tab === "events") frameRoute(eventTarget || (frameAt === "/account" ? "/" : null));
   if (tab === "account") frameRoute("/account");
@@ -418,15 +427,21 @@ let fbKind = "idea", fbTab = "music";
 const FB_STATUS = { new: "Envoyé", progress: "🔧 En cours de correction", done: "✅ Terminé", declined: "🚫 Pas retenu" };
 // Compte admin (session admin établie) : l'onglet devient « Retours » et gère les retours de tous les invités
 // (statuts, Claude…), sans passer par /admin. Un invité y voit son formulaire et le statut de ses envois.
-let fbView = "admin", fbAdminMounted = false, fbAdminCount = 0, fbUnseen = 0;
+let fbView = "admin", fbAdminMounted = false, fbAdminCount = 0, fbUnseen = 0, musicAdminMounted = false;
 const fbIsAdmin = () => !!(account?.admin && adminSession);
 function fbBadge() {
   const n = fbIsAdmin() ? fbAdminCount : fbUnseen;
   $("fbTabBadge").textContent = n || "";
   $("fbTabBadge").classList.toggle("hidden", !n);
 }
+// Rôle du compte (admin ou non) : onglet Retours, et pilotage de la musique dans l'onglet Musique.
 function fbSyncRole() {
   const admin = fbIsAdmin();
+  document.body.classList.toggle("admin-music", admin);
+  if (admin && !musicAdminMounted) {
+    musicAdminMounted = true;
+    MusicAdmin.mount($("musicAdmin"));
+  }
   document.querySelector('#tabs [data-tab="feedback"] span').textContent = admin ? "Retours" : "Ton avis";
   if (document.body.dataset.tab === "feedback") $("appTitle").textContent = admin ? "Retours" : "Ton avis";
   $("fbSwitch").classList.toggle("hidden", !admin);
@@ -855,6 +870,7 @@ function listen() {
 <script src="/static/game-audio.js"></script>
 <script src="/static/games.js"></script>
 <script src="/static/feedback-admin.js"></script>
+<script src="/static/music-admin.js"></script>
 <script src="/static/quiz.js"></script>
 <script src="/static/purity.js"></script>
 </body>
