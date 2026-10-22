@@ -446,7 +446,9 @@ function fbSyncRole() {
       onState: (s) => MusicAdmin.render(s),
       onUnread: (n) => { $("musicTabBadge").textContent = n > 9 ? "9+" : n || ""; $("musicTabBadge").classList.toggle("hidden", !n); },
     });
-    MusicAdmin.mount($("musicAdmin"), { onState: (s) => PeopleAdmin.render(s) });
+    // Jeux : parties en cours de toute la soirée (en haut de l'onglet Jeux).
+    GamesAdmin.mount($("gamesAdmin"), { onState: (s) => MusicAdmin.render(s) });
+    MusicAdmin.mount($("musicAdmin"), { onState: (s) => { PeopleAdmin.render(s); GamesAdmin.render(s); } });
   }
   if (!admin) $("musicTabBadge").classList.add("hidden");
   document.querySelector('#tabs [data-tab="feedback"] span').textContent = admin ? "Retours" : "Ton avis";
@@ -879,6 +881,7 @@ function listen() {
 <script src="/static/feedback-admin.js"></script>
 <script src="/static/music-admin.js"></script>
 <script src="/static/people-admin.js"></script>
+<script src="/static/games-admin.js"></script>
 <script src="/static/quiz.js"></script>
 <script src="/static/purity.js"></script>
 </body>

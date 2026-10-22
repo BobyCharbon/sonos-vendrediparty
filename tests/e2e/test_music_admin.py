@@ -174,3 +174,26 @@ def test_admin_answers_messages_and_moderates_guests_from_the_music_tab(browser,
         assert not boss.errors, boss.errors
     finally:
         boss.close()
+
+
+def test_admin_sees_and_closes_games_from_the_games_tab(browser, server):
+    guest, boss = Phone(browser, server, "Lea"), Phone(browser, server, "Boss")
+    try:
+        code = guest.create("whoof")  # une vraie partie, créée par un invité
+        boss.page.goto("/")
+        boss.page.locator('#tabs button[data-tab="games"]').tap()
+        assert boss.page.locator("#gamesAdmin").is_hidden()  # pas encore admin : rien
+        as_account_admin(boss)
+        block = boss.page.locator("#gamesAdmin")
+        expect(block).to_contain_text("Parties en cours")
+        expect(block).to_contain_text(code)
+        expect(block).to_contain_text("Lea")
+        block.locator(f'[data-ga-open="{code}"]').tap()
+        expect(block.locator(f'[data-ga-close="{code}"]')).to_be_visible()
+        boss.page.once("dialog", lambda d: d.accept())
+        block.locator(f'[data-ga-close="{code}"]').tap()
+        expect(boss.page.locator("#toast")).to_contain_text("Partie fermée")
+        expect(block).to_be_hidden()  # plus aucune partie
+        assert not boss.errors, boss.errors
+    finally:
+        guest.close(); boss.close()

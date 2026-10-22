@@ -346,6 +346,7 @@ document.getElementById("gamesRoot").innerHTML = `
     <div id="gHome" class="hidden">
       <div class="g-hello">Salut <span id="gHello"></span></div>
       <h1 class="g-h1">On joue à quoi&nbsp;?</h1>
+      <div id="gamesAdmin" class="admin-games hidden"></div>
 
       <form id="gJoinForm" class="g-code">
         <label for="gCode">Code d'une partie</label>
