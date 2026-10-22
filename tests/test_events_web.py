@@ -126,4 +126,8 @@ def test_members_can_add_what_they_bring_and_organizer_items_are_labelled():
 def test_events_shell_lets_android_scroll_by_dragging_over_cards():
     root = Path(__file__).resolve().parent.parent
     shell = (root / "web/events/scripts/postbuild.mjs").read_text(encoding="utf-8")
-    assert "*{touch-action:pan-x pan-y}" in shell  # glisser le doigt défile partout, cartes comprises
+    # Retour #10 (Android) : aucune règle de défilement sur « * », sinon le doigt posé sur une carte ne fait plus
+    # défiler la liste ; vérifié en vrai navigateur par test_android_finger_on_an_event_card_scrolls_the_list.
+    star_rules = [r for r in shell.split("}") if r.strip().startswith("*{")]
+    assert star_rules and not any("overscroll-behavior" in r or "touch-action" in r for r in star_rules)
+    assert "overscroll-behavior:none" in shell  # le rebond reste bloqué au niveau de la page

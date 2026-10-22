@@ -65,7 +65,7 @@ def browser(request):
             p.stop()
 
 
-def mock_services(page, pending=False):
+def mock_services(page, pending=False, events=1):
     calls = []
     profile = {'id': USER, 'display_name': 'Compte de démonstration', 'phone': '41791234567', 'role': 'guest' if pending else 'admin', 'status': 'active', 'avatar_url': f'{USER}/photo.jpg', 'first_name': 'Camille', 'last_name': 'Demo', 'created_at': '2026-10-19T08:00:00Z'}
     category = {'id': 'ed69d11e-34dd-43fe-b211-10d0dd158ba9', 'name': 'Soirée', 'color': '#FFB347', 'sort': 0, 'archived': False, 'icon': None}
@@ -111,7 +111,8 @@ def mock_services(page, pending=False):
             else: result=[join] if join else []
         elif path.endswith('/categories'): result=[category]
         elif path.endswith('/events'):
-            result=event if 'id' in parse_qs(urlparse(request.url).query) else [event]
+            result=event if 'id' in parse_qs(urlparse(request.url).query) else [event]+[
+                {**event,'id':f'{EVENT[:-2]}{i:02d}','title':f'Sortie de démonstration {i}'} for i in range(1,events)]
         elif path.endswith('/rsvps') and request.method=='POST':
             row=json.loads(request.post_data); event['rsvps']=[{**row,'waitlisted':False}];result=None
         elif path.endswith('/group_settings'): result={'organizers_can_edit_published':True,'name':'Groupe de démonstration','timezone':'Europe/Zurich','require_approval':True,'coadmins_skip_approval':True,'members_can_create_tags':False}
@@ -394,5 +395,41 @@ def test_root_account_opens_admin_page_from_settings_without_pin(browser, events
         page.wait_for_url('**/admin')
         pw.expect(page.locator('#panel')).to_be_visible(timeout=10000)
         pw.expect(page.locator('#login')).to_be_hidden()
+    finally:
+        context.close()
+
+
+ANDROID_PHONE = {'viewport': {'width': 412, 'height': 915}, 'device_scale_factor': 2.6, 'is_mobile': True, 'has_touch': True,
+           'user_agent': 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36'}
+
+
+def test_android_finger_on_an_event_card_scrolls_the_list(browser, events_origin):
+    """Retour #10 : sous Android, le doigt posé SUR une carte ne faisait pas défiler la liste des sorties
+    (seule une fine bande sans carte, au bord droit, défilait). Geste tactile réel de Chrome (scroll chaining,
+    overscroll-behavior, touch-action compris), départ au milieu d'une carte."""
+    context = browser.new_context(**ANDROID_PHONE)
+    page = context.new_page()
+    mock_services(page, events=12)
+    try:
+        page.goto(events_origin, wait_until='domcontentloaded')
+        page.get_by_role('button', name='Événements', exact=True).click()
+        frame = page.frame_locator('#eventsFrame')
+        login(frame)
+        card = frame.get_by_text('Sortie de démonstration 1', exact=True)
+        pw.expect(card).to_be_visible(timeout=15000)
+        event_frame = page.frame(url=events_origin + '/events/')
+        # Conteneur qui défile réellement (ScrollView) : premier ancêtre de la carte plus haut que sa zone visible.
+        scroller = """() => { let el = [...document.querySelectorAll('*')].find(e => e.textContent === 'Sortie de démonstration 1' && !e.children.length);
+                       while (el && !(el.scrollHeight > el.clientHeight + 50 && /(auto|scroll)/.test(getComputedStyle(el).overflowY))) el = el.parentElement;
+                       return el ? el.scrollTop : null; }"""
+        before = event_frame.evaluate(scroller)
+        assert before is not None, "la liste des sorties devrait pouvoir défiler"
+        box = card.bounding_box()
+        cdp = context.new_cdp_session(page)
+        cdp.send('Input.synthesizeScrollGesture', {'x': box['x'] + box['width'] / 2, 'y': box['y'] + box['height'] / 2,
+                                                    'yDistance': -350, 'gestureSourceType': 'touch', 'speed': 1200})
+        page.wait_for_timeout(500)
+        after = event_frame.evaluate(scroller)
+        assert after > before + 100, f"le doigt sur une carte n'a pas fait défiler la liste ({before} → {after})"
     finally:
         context.close()

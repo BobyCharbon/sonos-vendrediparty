@@ -28,6 +28,14 @@ Pour tout onglet, page installable ou vue plein écran, nouveau ou existant :
 
 Un navigateur de bureau ne reproduit pas le bug lui-même : seul un vrai iPhone (app fermée puis rouverte) le confirme.
 
+## Module Événements (web/events) — défilement tactile
+- Jamais de règle `overscroll-behavior` ni `touch-action` sur `*` (web/events/scripts/postbuild.mjs). Sous Android,
+  Chrome traite chaque carte en `overflow: hidden` comme un conteneur de défilement : avec
+  `overscroll-behavior: contain`, le doigt posé sur une carte ne faisait plus défiler la liste (retour #10).
+  `touch-action: pan-x pan-y` sur `*` ne corrige rien et bloque le zoom à deux doigts.
+- Test réel : `test_android_finger_on_an_event_card_scrolls_the_list` (geste tactile Chrome, départ sur une carte).
+  Tout bug de défilement / toucher doit d'abord être reproduit par un test de ce type avant d'être corrigé.
+
 ## Base Supabase (Événements, comptes)
 - Une seule base pour le site de test ET la production. Les migrations (`supabase/migrations/`) ne sont jamais
   appliquées par le déploiement Docker ni par le workflow : l'admin les applique à la main.
