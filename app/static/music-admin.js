@@ -17,11 +17,11 @@
   let speakersDragging = null, speakersTimer = null, sonosPlaylists = null, events = null, refreshTimer = null;
   let onState = () => {};  // chaque état reçu est aussi transmis (ex. invités / messages : people-admin.js)
   const q = (name) => root.querySelector(`[data-ma="${name}"]`);
-  // File d'attente : repliable d'un toucher sur son titre ; dépliée, 5 titres puis « Voir toute la file ».
-  const QUEUE_PREVIEW = 5;
+  // File d'attente : « réduire » masque seulement les titres de la playlist ; les demandes des invités restent
+  // toujours visibles, à leur place. Un toucher sur le titre ou sur le bouton du bas bascule.
   const remembered = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
   const remember = (key, value) => { try { localStorage.setItem(key, value); } catch { /* stockage indisponible */ } };
-  let queueOpen = remembered("vp_queue_open", "1") === "1", queueAll = remembered("vp_queue_all", "0") === "1";
+  let queueAll = remembered("vp_queue_all", "0") === "1";
 
   async function api(path, body) {
     const r = await fetch(path, body === undefined ? { credentials: "same-origin" }
@@ -181,16 +181,16 @@
     q("queueHelp").textContent = ext ? "Aperçu de la file Spotify : change l'ordre ou retire des titres directement dans Spotify."
       : "⏫ jouer ensuite · ⬆⬇ déplacer · ▶︎ jouer maintenant · ✕ retirer";
     q("queueCount").textContent = list.length ? `(${list.length})` : "";
+    const playlist = list.filter((t) => !t.by).length;
     const fold = root.querySelector('[data-ma-act="queueFold"]');
-    fold.setAttribute("aria-expanded", queueOpen);
-    fold.classList.toggle("closed", !queueOpen);
-    q("queueHelp").classList.toggle("hidden", !queueOpen);
-    q("queue").classList.toggle("hidden", !queueOpen);
+    fold.setAttribute("aria-expanded", queueAll);
+    fold.classList.toggle("closed", !queueAll && playlist > 0);
     const more = root.querySelector('[data-ma-act="queueAll"]');
-    more.classList.toggle("hidden", !queueOpen || list.length <= QUEUE_PREVIEW);
-    more.textContent = queueAll ? "Réduire la file" : `Voir toute la file (${list.length} titres)`;
-    const shown = queueAll ? list : list.slice(0, QUEUE_PREVIEW);
-    q("queue").innerHTML = list.length ? shown.map((t, i) => {
+    more.classList.toggle("hidden", !playlist);
+    more.textContent = queueAll ? "Masquer les titres de la playlist" : `🎵 Voir les ${playlist} titre${playlist > 1 ? "s" : ""} de la playlist`;
+    // Index d'origine gardé : les boutons ⬆⬇ se basent sur la place réelle dans la file.
+    const shown = list.map((t, i) => [t, i]).filter(([t]) => queueAll || t.by);
+    q("queue").innerHTML = list.length ? (shown.length ? shown.map(([t, i]) => {
       const at = `data-pos="${t.pos}" data-key="${escape(t.key)}"`;
       return `<div class="track ${t.by ? "guest" : ""}">
         ${t.art ? `<img src="${escape(t.art)}" alt="" loading="lazy" onerror="this.removeAttribute('src')">` : `<img alt="">`}
@@ -203,7 +203,8 @@
           <button class="secondary" data-ma-q="play" ${at} title="Jouer maintenant">▶︎</button>
           <button class="danger" data-ma-q="remove" ${at} title="Retirer">✕</button></div>`}
       </div>`;
-    }).join("") : `<p class="empty">${ext ? "Aucun titre à venir renvoyé par Spotify" : "La file est vide"}</p>`;
+    }).join("") : `<p class="empty">Aucune demande des invités pour l'instant</p>`)
+      : `<p class="empty">${ext ? "Aucun titre à venir renvoyé par Spotify" : "La file est vide"}</p>`;
   }
 
   function renderAccess(s) {
@@ -348,10 +349,10 @@
     try {
       if (name === "rooms") return loadRooms();
       if (name === "queueFold" || name === "queueAll") {
-        if (name === "queueFold") { queueOpen = !queueOpen; remember("vp_queue_open", queueOpen ? "1" : "0"); }
-        else { queueAll = !queueAll; remember("vp_queue_all", queueAll ? "1" : "0"); }
+        queueAll = !queueAll;
+        remember("vp_queue_all", queueAll ? "1" : "0");
         if (state?.active) renderQueue(state, usesSpotify(state.source));
-        if (name === "queueAll" && !queueAll) root.querySelector('[data-ma-act="queueFold"]').scrollIntoView({ block: "start", behavior: "smooth" });
+        if (!queueAll) root.querySelector('[data-ma-act="queueFold"]').scrollIntoView({ block: "start", behavior: "smooth" });
         return;
       }
       if (name === "start") {

@@ -86,6 +86,8 @@ def test_admin_drives_the_live_party_from_the_music_tab(browser, server):
         boss.page.locator('#tabs button[data-tab="music"]').tap()
         admin = boss.page.locator("#musicAdmin")
         expect(admin.locator('[data-ma="now"]')).to_contain_text("Titre en cours")
+        expect(admin.locator('[data-ma="queue"]')).not_to_contain_text("Troisième")  # playlist réduite par défaut
+        admin.locator('[data-ma-act="queueAll"]').tap()
         expect(admin.locator('[data-ma="queue"]')).to_contain_text("Troisième")
         expect(admin.locator('[data-ma="requests"]')).to_contain_text("Léa")
         expect(admin.locator('[data-ma="top"]')).to_contain_text("Apéro")
@@ -202,34 +204,33 @@ def test_admin_sees_and_closes_games_from_the_games_tab(browser, server):
         guest.close(); boss.close()
 
 
-def test_long_queue_is_short_by_default_and_folds(browser, server):
+def test_reducing_the_queue_hides_only_playlist_tracks(browser, server):
+    """Réduire la file masque les titres de la playlist ; les demandes des invités restent visibles, à leur place."""
     boss = Phone(browser, server, "Boss")
-    long_queue = [{"pos": i + 2, "key": f"k{i}", "title": f"Titre {i}", "artist": "A", "art": "", "by": None, "eta": 60 * i} for i in range(8)]
+    mixed = [{"pos": i + 2, "key": f"k{i}", "title": f"Titre {i}", "artist": "A", "art": "", "by": "Léa" if i in (1, 5) else None, "eta": 60 * i}
+             for i in range(8)]
     try:
         boss.page.goto("/")
         as_account_admin(boss)
-        boss.page.route("**/api/admin/**", lambda route: route.fulfill(json=live_state(long_queue)))
+        boss.page.route("**/api/admin/**", lambda route: route.fulfill(json=live_state(mixed)))
         boss.page.locator('#tabs button[data-tab="music"]').tap()
         admin = boss.page.locator("#musicAdmin")
         queue = admin.locator('[data-ma="queue"] .track')
-        expect(queue).to_have_count(5)  # les 5 prochains seulement
+        expect(queue).to_have_count(2)  # réduite par défaut : seulement les demandes des invités
+        expect(queue.first).to_contain_text("Titre 1")
+        expect(queue.last).to_contain_text("Titre 5")
         more = admin.locator('[data-ma-act="queueAll"]')
-        expect(more).to_have_text("Voir toute la file (8 titres)")
+        expect(more).to_have_text("🎵 Voir les 6 titres de la playlist")
         more.tap()
         expect(queue).to_have_count(8)
-        more.tap()
-        expect(queue).to_have_count(5)
-        # Un toucher sur le titre replie toute la file ; le choix est gardé au rechargement.
-        admin.locator('[data-ma-act="queueFold"]').tap()
-        expect(admin.locator('[data-ma="queue"]')).to_be_hidden()
-        expect(more).to_be_hidden()
+        expect(more).to_have_text("Masquer les titres de la playlist")
+        # Le choix est gardé au rechargement ; le titre « File d'attente » bascule aussi.
         boss.page.reload()
         as_account_admin(boss)
         boss.page.locator('#tabs button[data-tab="music"]').tap()
-        expect(admin.locator('[data-ma="queueCount"]')).to_have_text("(8)")
-        expect(admin.locator('[data-ma="queue"]')).to_be_hidden()
+        expect(queue).to_have_count(8)
         admin.locator('[data-ma-act="queueFold"]').tap()
-        expect(queue).to_have_count(5)
+        expect(queue).to_have_count(2)
         assert not boss.errors, boss.errors
     finally:
         boss.close()
