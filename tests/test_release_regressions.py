@@ -18,10 +18,16 @@ def test_parallel_session_saves_are_serialized_and_valid(tmp_path):
     assert json.loads(store.path.read_text())["guest_pin"] == store.session.guest_pin
 
 
-def test_events_and_account_tabs_do_not_leave_a_scrollable_page_behind():
-    """Retour #8 : sur iPhone, la page derrière le module restait plus haute que l'écran (barre de Safari dépliée)."""
-    css = (Path(main.__file__).parent / "static" / "style.css").read_text(encoding="utf-8")
-    assert 'body[data-tab="events"], body[data-tab="account"] { min-height: 0; height: 100dvh; padding-bottom: 0; overflow: hidden; }' in css
+def test_events_and_account_tabs_keep_the_page_scrollable_for_the_ios_tab_bar():
+    """Retour #8 : sur iPhone (app installée, iOS 26), la barre d'onglets restait trop haute au lancement sur
+    Événements / Réglages tant que la page n'avait pas défilé. La page reste défilable (jamais overflow: hidden)
+    et showTab y fait un micro-défilement qui recale la barre."""
+    static = Path(main.__file__).parent / "static"
+    css = (static / "style.css").read_text(encoding="utf-8")
+    html = (static / "index.html").read_text(encoding="utf-8")
+    assert 'body[data-tab="events"], body[data-tab="account"] { min-height: calc(100lvh + 1px); }' in css
+    assert 'html:has(body[data-tab="events"])' not in css
+    assert 'if (tab === "events" || tab === "account") nudgeViewport();' in html
 
 
 def test_manual_identity_scores_and_removal_survive_child_games(monkeypatch, tmp_path):
