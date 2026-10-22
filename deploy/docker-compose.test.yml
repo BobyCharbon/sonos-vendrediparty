@@ -1,7 +1,7 @@
 # Stack de TEST (branche develop) à coller dans Dockhand sous le nom « vendrediparty-test ».
 # Site : https://partytest.bobycharbon.ch → HAProxy → 192.168.50.204:8091
 # Données séparées de la production (volume vendrediparty-test-data) : on peut tout casser sans risque.
-# Variables à renseigner dans la stack : ADMIN_PIN (peut être différent de la prod), SPOTIFY_CLIENT_ID / SECRET.
+# Variables à renseigner dans la stack : ADMIN_PIN (peut être différent de la prod), SPOTIFY_CLIENT_ID / SECRET, GITHUB_TOKEN.
 services:
   vendrediparty-test:
     image: ghcr.io/bobycharbon/sonos-vendrediparty:develop
@@ -20,6 +20,9 @@ services:
       # Mêmes enceintes que la prod : éviter de lancer une soirée musique de test pendant une vraie soirée.
       SONOS_IP: ${SONOS_IP:-192.168.50.186}
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-192.168.50.1}
+      # Retours → Claude (admin, bouton 🤖) : jeton GitHub fine-grained, permission Issues uniquement. Vide = désactivé.
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_REPO: ${GITHUB_REPO:-BobyCharbon/sonos-vendrediparty}
     volumes:
       - vendrediparty-test-data:/data
 

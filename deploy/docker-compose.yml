@@ -17,6 +17,9 @@ services:
       SONOS_IP: ${SONOS_IP:-192.168.50.186}
       # IP de HAProxy (pfSense) : seule source autorisée à transmettre la vraie IP des invités.
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-192.168.50.1}
+      # Retours → Claude (admin, bouton 🤖) : jeton GitHub fine-grained, permission Issues uniquement. Vide = désactivé.
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_REPO: ${GITHUB_REPO:-BobyCharbon/sonos-vendrediparty}
     volumes:
       - vendrediparty-data:/data
 
