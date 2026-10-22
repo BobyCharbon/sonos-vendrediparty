@@ -30,7 +30,6 @@
 
   <section data-view="music">
   <div id="musicAdmin" class="admin-only"></div>
-  <div id="peopleAdmin" class="admin-only"></div>
   <div id="pin" class="hidden">
     <p class="sub">Scanne le QR de l'hôte ou entre le code de la soirée pour rejoindre la file d'attente.<br>Pour jouer, va dans 🎮 Jeux : pas besoin de code.</p>
     <form id="pinForm" class="row">
@@ -95,6 +94,12 @@
     <div id="gamesRoot"></div>
   </section>
 
+  <!-- Réglages → « Invités, messages et notifications » (compte admin) : concerne toute la soirée. -->
+  <section data-view="host" class="hidden" aria-label="Invités, messages et notifications">
+    <button type="button" class="secondary" data-host-back>← Réglages</button>
+    <div id="peopleAdmin" class="admin-only"></div>
+  </section>
+
   <section data-view="feedback" class="hidden" aria-labelledby="fbTitle">
     <div id="fbSwitch" class="seg fb-switch hidden" role="group" aria-label="Retours">
       <button type="button" class="on" data-fb-view="admin">💬 Tous les retours</button><button type="button" data-fb-view="mine">✍️ Mon avis</button>
@@ -127,11 +132,11 @@
   </section>
 
   <nav id="tabs" class="tabs">
-    <button type="button" data-tab="music"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg><span>Musique</span><i id="musicTabBadge" class="badge hidden"></i></button>
+    <button type="button" data-tab="music"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg><span>Musique</span></button>
     <button type="button" data-tab="games"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11h4M8 9v4"/><path d="M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-3.96 3.43L2 14.5A3 3 0 0 0 7.2 17l1.3-1.5h7l1.3 1.5a3 3 0 0 0 5.2-2.5l-.74-6.07A4 4 0 0 0 17.3 5z"/></svg><span>Jeux</span><i id="gameDot" class="badge hidden">●</i></button>
     <button type="button" data-tab="events"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h2M14 15h2"/></svg><span>Événements</span><i class="badge hidden" data-events-badge aria-hidden="true"></i></button>
     <button type="button" data-tab="feedback"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 10.5h6M9 13.5h4"/></svg><span>Ton avis</span><i id="fbTabBadge" class="badge hidden"></i></button>
-    <button type="button" data-tab="account" id="accountTab"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><img class="tab-avatar hidden" alt=""><span>Se connecter</span></button>
+    <button type="button" data-tab="account" id="accountTab"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><img class="tab-avatar hidden" alt=""><span>Se connecter</span><i id="hostBadge" class="badge hidden"></i></button>
   </nav>
 
   <div id="install" class="install hidden">
@@ -313,7 +318,7 @@ $("nameChip").addEventListener("click", changeName);
 
 // Les événements utilisent leur compte SMS ; les accès musique/jeux restent indépendants.
 function showTab(tab, eventTarget) {
-  if (!["music", "games", "events", "feedback", "account"].includes(tab)) tab = "music";
+  if (!["music", "games", "events", "feedback", "account", "host"].includes(tab)) tab = "music";
   if (tab === "events" && PartyEvents.soon) {
     // Section en préparation : on reste où on est (ou sur la musique au démarrage).
     if (document.body.dataset.tab) return toast("📅 Les événements arrivent bientôt");
@@ -321,18 +326,19 @@ function showTab(tab, eventTarget) {
   }
   document.querySelectorAll("[data-view]").forEach((el) => el.classList.toggle("hidden", !el.dataset.view.split(" ").includes(tab)));
   document.querySelectorAll("#tabs [data-tab]").forEach((el) => {
-    const current = el.dataset.tab === tab;
+    const current = el.dataset.tab === (tab === "host" ? "account" : tab);  // « host » : page des Réglages
     el.classList.toggle("on", current);
     if (current) el.setAttribute("aria-current", "page");
     else el.removeAttribute("aria-current");
   });
-  if (!["feedback", "account"].includes(tab) && document.body.dataset.tab) fbTab = tab;
+  if (!["feedback", "account", "host"].includes(tab) && document.body.dataset.tab) fbTab = tab;
   document.body.dataset.tab = tab;  // la lumière de scène et le titre suivent l'onglet
-  $("appTitle").textContent = ({ music: "Musique", games: "Jeux", events: "Événements", feedback: fbIsAdmin() ? "Retours" : "Ton avis", account: account ? "Réglages" : "Se connecter" })[tab];
+  $("appTitle").textContent = ({ music: "Musique", games: "Jeux", events: "Événements", feedback: fbIsAdmin() ? "Retours" : "Ton avis", account: account ? "Réglages" : "Se connecter", host: "Invités et messages" })[tab];
   store("vp_tab", tab);
   if (tab === "games") refreshGame();
   if (tab === "feedback") loadFeedback();
   if (tab === "music" && musicAdminMounted && fbIsAdmin()) MusicAdmin.show();
+  if (tab === "host" && musicAdminMounted) MusicAdmin.refresh();
   // Événements et Réglages partagent le même module (une seule connexion) : on change juste de page dedans.
   if (tab === "events") frameRoute(eventTarget || (frameAt === "/account" ? "/" : null));
   if (tab === "account") frameRoute("/account");
@@ -340,6 +346,7 @@ function showTab(tab, eventTarget) {
 }
 // Boutons d'onglet seulement : le <body> porte aussi data-tab (sinon chaque toucher ramène en haut de page).
 document.addEventListener("click", (ev) => { const t = ev.target.closest("button[data-tab]"); if (t) showTab(t.dataset.tab); });
+document.addEventListener("click", (ev) => { if (ev.target.closest("[data-host-back]")) showTab("account"); });
 
 // 👤 Compte Party : le module Événements gère la connexion SMS et le profil ; ici on relie le compte aux jeux.
 let frameAt = null, frameReady = false, account = null;
@@ -414,7 +421,7 @@ window.addEventListener("message", (event) => {
     const at = event.data.path || "/";
     if (frameAt && frameAt !== at) $("eventsFrame").contentWindow.postMessage({ type: "party-shell:navigate", path: frameAt }, location.origin);
   }
-  if (event.data?.type === "party-events:open-tab" && ["feedback", "music", "games", "events"].includes(event.data.tab)) {
+  if (event.data?.type === "party-events:open-tab" && ["feedback", "music", "games", "events", "host"].includes(event.data.tab)) {
     showTab(event.data.tab);
     if (event.data.tab === "events" && /^\/[a-z/-]*$/.test(event.data.path || "")) frameRoute(event.data.path);
   }
@@ -444,13 +451,14 @@ function fbSyncRole() {
     // Musique + messages / invités / bannis : un seul état partagé (chaque action de l'un met l'autre à jour).
     PeopleAdmin.mount($("peopleAdmin"), {
       onState: (s) => MusicAdmin.render(s),
-      onUnread: (n) => { $("musicTabBadge").textContent = n > 9 ? "9+" : n || ""; $("musicTabBadge").classList.toggle("hidden", !n); },
+      // Messages non lus : pastille sur Réglages (où vivent les messages).
+      onUnread: (n) => { $("hostBadge").textContent = n > 9 ? "9+" : n || ""; $("hostBadge").classList.toggle("hidden", !n); },
     });
     // Jeux : parties en cours de toute la soirée (en haut de l'onglet Jeux).
     GamesAdmin.mount($("gamesAdmin"), { onState: (s) => MusicAdmin.render(s) });
     MusicAdmin.mount($("musicAdmin"), { onState: (s) => { PeopleAdmin.render(s); GamesAdmin.render(s); } });
   }
-  if (!admin) $("musicTabBadge").classList.add("hidden");
+  if (!admin) $("hostBadge").classList.add("hidden");
   document.querySelector('#tabs [data-tab="feedback"] span').textContent = admin ? "Retours" : "Ton avis";
   if (document.body.dataset.tab === "feedback") $("appTitle").textContent = admin ? "Retours" : "Ton avis";
   $("fbSwitch").classList.toggle("hidden", !admin);

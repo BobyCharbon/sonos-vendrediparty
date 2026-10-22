@@ -131,3 +131,13 @@ def test_events_shell_lets_android_scroll_by_dragging_over_cards():
     star_rules = [r for r in shell.split("}") if r.strip().startswith("*{")]
     assert star_rules and not any("overscroll-behavior" in r or "touch-action" in r for r in star_rules)
     assert "overscroll-behavior:none" in shell  # le rebond reste bloqué au niveau de la page
+
+
+def test_settings_open_the_party_page_for_guests_messages_and_notifications():
+    """Réglages (admin) : « Invités, messages et notifications » ouvre la page de Party ; /admin reste en secours."""
+    root = Path(__file__).resolve().parent.parent
+    ui = (root / "web/events/src/components/Settings.tsx").read_text(encoding="utf-8")
+    assert "openPartyTab('host')" in ui and "Invités, messages et notifications" in ui
+    assert "Admin de la soirée" in ui
+    page = (root / "app/static/index.html").read_text(encoding="utf-8")
+    assert '"feedback", "music", "games", "events", "host"].includes(event.data.tab)' in page

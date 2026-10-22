@@ -133,7 +133,7 @@ def people_state(read=False, ban=None, name="Léa"):
             "bans": [{"guest_id": "guest-old-0001", "name": "Ancien", "until": 0}]}
 
 
-def test_admin_answers_messages_and_moderates_guests_from_the_music_tab(browser, server):
+def test_admin_answers_messages_and_moderates_guests_from_settings(browser, server):
     boss = Phone(browser, server, "Boss")
     sent = []
     state = {"read": False, "ban": None, "name": "Léa"}
@@ -153,10 +153,13 @@ def test_admin_answers_messages_and_moderates_guests_from_the_music_tab(browser,
         boss.page.goto("/")
         as_account_admin(boss)
         boss.page.route("**/api/admin/**", admin_api)
-        boss.page.locator('#tabs button[data-tab="music"]').tap()
+        # Réglages → « Invités, messages et notifications » (lien du module, vérifié dans test_events_web).
+        boss.page.evaluate("showTab('host')")
+        expect(boss.page.locator('#tabs button[data-tab="account"]')).to_have_attribute("aria-current", "page")
+        assert boss.page.locator("#musicAdmin").is_hidden()  # plus dans l'onglet Musique
         people = boss.page.locator("#peopleAdmin")
         expect(people.locator('[data-pa="messages"]')).to_contain_text("Daft Punk")
-        expect(boss.page.locator("#musicTabBadge")).to_have_text("1")  # message non lu : pastille sur Musique
+        expect(boss.page.locator("#hostBadge")).to_have_text("1")  # message non lu : pastille sur Réglages
         expect(people.locator('[data-pa="bans"]')).to_contain_text("Ancien")
         # Notifications de l'hôte : les deux réglages de /admin sont là (abonnement réel impossible sans téléphone).
         expect(people.locator('[data-pa-notif="messages"]')).to_be_attached()
@@ -168,7 +171,7 @@ def test_admin_answers_messages_and_moderates_guests_from_the_music_tab(browser,
         assert ("messages/reply", {"id": "m1", "text": "Ça arrive !"}) in sent
 
         people.locator('[data-pa-act="readAll"]').tap()
-        expect(boss.page.locator("#musicTabBadge")).to_be_hidden()
+        expect(boss.page.locator("#hostBadge")).to_be_hidden()
 
         people.locator('[data-pa-guest="ban10"]').tap()
         expect(people.locator('[data-pa="guests"]')).to_contain_text("bloqué")
@@ -176,6 +179,8 @@ def test_admin_answers_messages_and_moderates_guests_from_the_music_tab(browser,
 
         people.locator('[data-pa-guest="unban"][data-g="guest-old-0001"]').tap()
         assert ("unban", {"guest_id": "guest-old-0001"}) in sent
+        boss.page.locator("[data-host-back]").tap()
+        expect(boss.page.locator('section[data-view="host"]')).to_be_hidden()
         assert not boss.errors, boss.errors
     finally:
         boss.close()

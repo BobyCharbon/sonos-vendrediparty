@@ -65,7 +65,10 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
         ) : null}
         {can('party.admin') && can('party.settings') ? (
           <>
-            {/* Page admin de Party (hors du module) : entrée avec le compte, sans code PIN. */}
+            {/* Page de Party (hors du module) : ce qui concerne toute la soirée, pas seulement la musique. */}
+            <LinkRow label="👥 Invités, messages et notifications" hint="Messages des invités, invités, bannis, notifications de l’hôte" onPress={() => openPartyTab('host')} />
+            <View style={s.divider} />
+            {/* Page admin de Party (hors du module) : entrée avec le compte, sans code PIN. Gardée en secours. */}
             <LinkRow label="🎛️ Admin de la soirée" hint="Musique, enceintes, joueurs, jeux et réglages du site" onPress={() => { window.top!.location.href = '/admin'; }} />
             <View style={s.divider} />
           </>
