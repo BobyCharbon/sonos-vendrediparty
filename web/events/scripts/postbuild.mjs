@@ -7,6 +7,7 @@ const appStyle = `<style id="app-shell">
 html,body,#root{height:100%;margin:0;background:#0E0B16;overflow:hidden}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:manipulation;overscroll-behavior:none}
 *{-webkit-tap-highlight-color:transparent;overscroll-behavior:contain}
+*{touch-action:pan-x pan-y}
 </style>`;
 let html = readFileSync(path, 'utf8')
   .replace('<html lang="en">', '<html lang="fr">')

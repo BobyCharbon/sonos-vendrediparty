@@ -121,3 +121,9 @@ def test_members_can_add_what_they_bring_and_organizer_items_are_labelled():
     assert "added_by = auth.uid() and claimed_by = auth.uid()" in sql  # on n'ajoute qu'en son nom
     ui = (root / "web/events/src/components/EventSections.tsx").read_text(encoding="utf-8")
     assert "Demandé par l’organisateur" in ui and "it.added_by ? null" in ui and "Ce que j’amène" in ui
+
+
+def test_events_shell_lets_android_scroll_by_dragging_over_cards():
+    root = Path(__file__).resolve().parent.parent
+    shell = (root / "web/events/scripts/postbuild.mjs").read_text(encoding="utf-8")
+    assert "*{touch-action:pan-x pan-y}" in shell  # glisser le doigt défile partout, cartes comprises
