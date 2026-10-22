@@ -7,6 +7,7 @@
   <title>Vendredi Party</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&display=swap">
+  <script src="/static/ios-app.js"></script>
   <link rel="stylesheet" href="/static/style.css">
   <link rel="stylesheet" href="/static/president.css">
   <link rel="stylesheet" href="/static/neon.css">
@@ -296,14 +297,6 @@ async function changeName() {
 $("nameChip").addEventListener("click", changeName);
 
 // Les événements utilisent leur compte SMS ; les accès musique/jeux restent indépendants.
-// iOS 26 (app installée) : la barre d'onglets fixée en bas reste trop haute tant que la page n'a jamais défilé.
-// Un onglet dont la page est courte (Musique, Événements, Réglages…) ne défile pas de lui-même : un pixel
-// aller-retour la recale. Appelé à CHAQUE changement d'onglet, sans liste : un nouvel onglet en profite d'office.
-function nudgeViewport() {
-  if (!/iPhone|iPad|iPod/.test(navigator.userAgent) && !(navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) return;
-  scrollTo(0, 1);
-  requestAnimationFrame(() => scrollTo(0, 0));
-}
 function showTab(tab, eventTarget) {
   if (!["music", "games", "events", "feedback", "account"].includes(tab)) tab = "music";
   if (tab === "events" && PartyEvents.soon) {
@@ -328,7 +321,6 @@ function showTab(tab, eventTarget) {
   if (tab === "events") frameRoute(eventTarget || (frameAt === "/account" ? "/" : null));
   if (tab === "account") frameRoute("/account");
   scrollTo(0, 0);
-  nudgeViewport();
 }
 // Boutons d'onglet seulement : le <body> porte aussi data-tab (sinon chaque toucher ramène en haut de page).
 document.addEventListener("click", (ev) => { const t = ev.target.closest("button[data-tab]"); if (t) showTab(t.dataset.tab); });

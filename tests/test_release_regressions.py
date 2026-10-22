@@ -18,21 +18,19 @@ def test_parallel_session_saves_are_serialized_and_valid(tmp_path):
     assert json.loads(store.path.read_text())["guest_pin"] == store.session.guest_pin
 
 
-def test_every_tab_keeps_the_page_scrollable_for_the_ios_tab_bar():
-    """Retours #8 et Musique : sur iPhone (app installée, iOS 26), la barre d'onglets restait trop haute au lancement
-    sur tout onglet à page courte, tant que la page n'avait pas défilé. La règle est globale (aucune liste d'onglets) :
-    la page est toujours défilable d'un pixel, showTab fait un micro-défilement à chaque changement d'onglet,
-    et aucun onglet ne bloque le défilement de html / body."""
-    import re
+def test_ios_installed_app_page_height_follows_the_physical_screen():
+    """Barre d'onglets iPhone (app installée, iOS 26) : la page doit dépasser l'écran PHYSIQUE (screen.height),
+    pas 100vh / 100lvh qui suivent la hauteur erronée d'iOS. Vérifié en vrai navigateur par
+    tests/e2e/test_ios_tab_bar.py ; ici, le câblage des deux pages installables."""
     static = Path(main.__file__).parent / "static"
     css = (static / "style.css").read_text(encoding="utf-8")
-    html = (static / "index.html").read_text(encoding="utf-8")
-    body_rule = re.search(r"\nbody \{(.*?)\n\}", css, re.S).group(1)
-    assert "min-height: calc(100lvh + 1px);" in body_rule
-    show_tab = html[html.index("function showTab("):]
-    show_tab = show_tab[:show_tab.index("\n}\n")]
-    assert show_tab.rstrip().endswith("nudgeViewport();")  # sans condition sur l'onglet
-    assert not re.search(r"(html|body)[^{]*data-tab[^{]*\{[^}]*(overflow:\s*hidden|height:\s*100d?vh)", css)
+    assert "html.ios-app body { min-height: calc(var(--ios-screen-h, 100lvh) + 1px); }" in css
+    for page in ("index.html", "admin.html"):
+        html = (static / page).read_text(encoding="utf-8")
+        head = html[:html.index("</head>")]
+        assert head.index("/static/ios-app.js") < head.index("/static/style.css"), page  # avant tout affichage
+    js = (static / "ios-app.js").read_text(encoding="utf-8")
+    assert "screen.height" in js and "navigator.standalone" in js
 
 
 def test_manual_identity_scores_and_removal_survive_child_games(monkeypatch, tmp_path):
