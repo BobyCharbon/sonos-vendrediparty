@@ -29,6 +29,7 @@ function myTurnKey(g) {
     case "tmc": return g.tmc?.duo?.role && ["answer", "guess"].includes(g.phase) ? `tm${g.round}-${g.phase}-${g.tmc.duo.role}` : "";
     case "undercover": return g.phase === "vote" && g.me.alive ? `uc${g.round}` : "";
     case "whoof": case "never": return g.phase === "question" ? `q${g.round}` : "";
+    case "purity": return g.phase === "answering" && g.purity?.playing && !g.purity.submitted ? "pu" : "";
     case "quiz": return g.phase === "q" && !g.quiz?.q?.out ? `qz${g.quiz.n}` : "";
     case "president": return g.president?.my_turn && (!navigator.userActivation || navigator.userActivation.hasBeenActive) ? `pr${g.round}-${g.president.token}` : "";
     case "casino": return g.phase === "bet" ? `cs${g.round}` : "";
@@ -60,6 +61,7 @@ GAME_ICONS.tmc = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" str
 GAME_ICONS.pyramid = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="19" y="5" width="10" height="12" rx="2"/><rect x="12" y="19" width="10" height="12" rx="2"/><rect x="26" y="19" width="10" height="12" rx="2"/><rect x="5" y="33" width="10" height="12" rx="2"/><rect x="19" y="33" width="10" height="12" rx="2"/><rect x="33" y="33" width="10" height="12" rx="2"/></svg>`;
 GAME_ICONS.biskit = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 18l6 6 10-12 10 12 6-6-3 16H11z"/><rect x="15" y="34" width="18" height="10" rx="3"/><circle cx="21" cy="39" r="1" fill="currentColor"/><circle cx="27" cy="39" r="1" fill="currentColor"/></svg>`;
 GAME_ICONS.quiz = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M24 4a15 15 0 0 1 9 27c-2 1.6-3 3.4-3 6v1H18v-1c0-2.6-1-4.4-3-6A15 15 0 0 1 24 4z"/><path d="M19 43h10"/><path d="M20 17a4 4 0 1 1 6 3.4c-1.3.8-2 1.7-2 3.1"/><circle cx="24" cy="29" r="0.6" fill="currentColor"/></svg>`;
+GAME_ICONS.purity = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="24" cy="9" rx="11" ry="4"/><circle cx="24" cy="27" r="11"/><path d="M19 25h.01M29 25h.01"/><path d="M19.5 31c2.5 2.5 6.5 2.5 9 0"/><path d="M15 44c2-3 5-4.5 9-4.5s7 1.5 9 4.5"/></svg>`;
 GAME_ICONS.room = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 22L24 8l17 14"/><path d="M11 19v21h26V19"/><rect x="19" y="27" width="10" height="13" rx="2"/><path d="M30 13V9h5v8"/></svg>`;
 const GAME_THEME = { room: "g-rm", biskit: "g-bk", pyramid: "g-py", undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv", tmc: "g-tm" };
 const isBJ = (g) => g.type === "blackjack";
@@ -406,6 +408,22 @@ document.getElementById("gamesRoot").innerHTML = `
         <label class="g-opt"><span>🍻 Une erreur = une gorgée</span><input type="checkbox" class="switch" data-opt="qzsips"></label>
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="quiz">Créer un quiz</button>
+      </div>
+
+      <div class="gcard g-pu">
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.purity}</div>
+          <div class="g-meta"><div class="g-title">Purify Test</div><div class="g-tag">Qui est le plus pur de la soirée ?</div></div>
+          ${helpBtn("purity")}
+        </div>
+        <p class="g-desc">Une centaine d'affirmations : chacun coche en secret ce qu'il a déjà fait. À la fin, les scores de pureté et le classement, du plus pur au plus sulfureux. Personne ne voit tes réponses.</p>
+        <div class="g-chips"><span>🔒 Compte connecté</span><span>Réponses secrètes</span><span>Classement général</span></div>
+        <label class="g-opt"><span>🍻 Le plus sulfureux boit</span><input type="checkbox" class="switch" data-opt="pualcohol"></label>
+        <div class="g-modes" data-opt-group="pusips">
+          <button type="button" data-val="1">1 gorgée</button><button type="button" data-val="2" class="on">2</button><button type="button" data-val="3">3</button><button type="button" data-val="5">5</button>
+        </div>
+        <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
+        <button class="g-go" data-create="purity">Lancer le test</button>
       </div>
 
       <div class="gcard g-uc">
@@ -872,6 +890,8 @@ function renderGame(g) {
     body = roomHtml(g);
   } else if (g.type === "president") {
     body = President.html(g);
+  } else if (g.type === "purity") {
+    body = purityHtml(g);
   } else if (g.type === "divan") {
     body = divanHtml(g);
   } else if (g.type === "tmc" && g.phase !== "lobby" && (me || g.master) && !g.kicked) {
@@ -969,6 +989,7 @@ function renderGame(g) {
   }
   renderDrawer(g);
   gameFlashes(g);
+  if (g.type === "purity") puAnnounce(g);
   turnSignal(g);
   const input = $("guessInput");
   if (input && !input._vp) { input._vp = 1; input.value = guessDraft; input.addEventListener("input", () => { guessDraft = input.value; }); }
@@ -2191,7 +2212,7 @@ function renderGameHost(g) {
   if (isBJ(g)) return renderBJHost(g, btn);
   if (g.type === "casino") return renderCasinoHost(g, btn);
   if (g.type === "divan") return renderDivanHost(g, btn);
-  if (["pyramid", "biskit", "quiz", "room", "president", "neon", "island", "heist"].includes(g.type)) { patch.gameHost = ""; return; }
+  if (["pyramid", "biskit", "quiz", "purity", "room", "president", "neon", "island", "heist"].includes(g.type)) { patch.gameHost = ""; return; }
   if (g.type === "tmc") return renderTmcHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
   const canRemove = g.is_host;
@@ -2443,6 +2464,7 @@ function showGameEnded(info) {
 const gInflight = new Set();
 async function gameAction(action, extra = {}, opts = {}) {
   if (!myGame) return;
+  if (action === "join") extra = { ...extra, token: supabaseToken() || "" };
   const key = myGame + ":" + action + JSON.stringify(extra);
   if (gInflight.has(key)) return;
   gInflight.add(key);
@@ -2581,6 +2603,7 @@ function gamePayload(card, type) {
   const q = (sel) => card.querySelector(sel);
   let sips = q("[data-opt=alcohol]") && !q("[data-opt=alcohol]").checked ? 0 : +(q("[data-opt-group=sips] [data-val-out]")?.textContent || 0);
   if (type === "quiz") sips = q("[data-opt=qzsips]")?.checked ? 1 : 0;
+  if (type === "purity") sips = q("[data-opt=pualcohol]")?.checked ? +(q("[data-opt-group=pusips] .on")?.dataset.val || 2) : 0;
   if (type === "biskit") sips = q("[data-opt=bkalcohol]")?.checked ? +(q("[data-opt-group=bkmult] .on")?.dataset.val || 1) : 0;
   return {
     type, sips, white: q("[data-opt=white]")?.checked ?? true, plays: q("[data-opt=plays]")?.checked ?? true,
@@ -2606,6 +2629,10 @@ document.addEventListener("click", async (ev) => {
   if (b.closest(".g-room-sheet")) {
     closeRoomSheet();
     return pressed(b, gameAction("launch", { settings: payload }));
+  }
+  if (payload.type === "purity") {
+    payload.token = supabaseToken() || "";
+    if (!payload.token) { toast("🔒 Connecte-toi avec ton numéro pour lancer le Purify Test", "err"); return showTab("account"); }
   }
   b.disabled = true;
   try {
@@ -2648,7 +2675,7 @@ function rulesFor(type, g) {
 
 // « ? » : règles détaillées du jeu.
 const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", never: "Je n'ai jamais", roulette: "Roulette",
-  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal", quiz: "Quiz", room: "Salle de jeux", president: "Président", neon: "Néon Knockout", island: "L’île qui s’effondre", heist: "Braquage en miniature" };
+  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal", quiz: "Quiz", purity: "Purify Test", room: "Salle de jeux", president: "Président", neon: "Néon Knockout", island: "L’île qui s’effondre", heist: "Braquage en miniature" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");
   if (open) {
@@ -2690,7 +2717,7 @@ document.addEventListener("click", (ev) => {
     if (cat === couple && cat.classList.contains("on")) on.forEach((b) => b !== cat && b.classList.remove("on"));
     else if (cat !== couple && cat.classList.contains("on")) couple?.classList.remove("on");
   }
-  const pm = ev.target.closest("[data-opt-group=pmode] [data-val], [data-opt-group=poteau] [data-val], [data-opt-group=floorsips] [data-val], [data-opt-group=bkmult] [data-val], [data-opt-group=impostors] [data-val]");
+  const pm = ev.target.closest("[data-opt-group=pmode] [data-val], [data-opt-group=poteau] [data-val], [data-opt-group=floorsips] [data-val], [data-opt-group=bkmult] [data-val], [data-opt-group=impostors] [data-val], [data-opt-group=pusips] [data-val]");
   if (pm) pm.parentElement.querySelectorAll("[data-val]").forEach((x) => x.classList.toggle("on", x === pm));
   const opt = ev.target.closest("[data-opt-group=mode] [data-val]");
   if (opt) opt.parentElement.querySelectorAll("[data-val]").forEach((b) => b.classList.toggle("on", b === opt));

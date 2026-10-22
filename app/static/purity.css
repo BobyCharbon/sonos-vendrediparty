@@ -1,0 +1,71 @@
+/* 😇 Purify Test */
+.g-pu { --g-bg: #1f1235; --g-accent: #ff9ad5; --g-ink: #fff; --g-soft: #f3d9ff; --g-chip: #33204f; }
+.game.g-pu { background: var(--g-bg); color: #fff; }
+body.pyr-full #game.g-pu { box-shadow: none; border: 0; padding: 16px; background: radial-gradient(120% 60% at 50% 0%, #3b1f5e, #1f1235 70%); }
+.g-pu .py-main { background: linear-gradient(135deg, #ffb3e0, #ff6fb5); color: #2a0a1f; border: 0; box-shadow: 0 8px 0 #b03a7c, 0 16px 30px rgba(255,111,181,.35); }
+.g-pu .py-main:active { transform: translateY(6px); box-shadow: 0 2px 0 #b03a7c; }
+.g-pu .py-main:disabled { opacity: .5; box-shadow: none; }
+.g-pu .py-sub { background: rgba(255,255,255,.08); color: #fff; border: 0; margin-top: 10px; }
+
+.pu-hero { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 22px; margin-bottom: 14px;
+  background: linear-gradient(135deg, #7b3fd1, #ff6fb5); box-shadow: 0 16px 36px rgba(160,60,200,.4), inset 0 1px 0 rgba(255,255,255,.25); }
+.pu-hero-i { font-size: 2.4rem; }
+.pu-hero-t { font: 800 1.4rem/1.1 "Bricolage Grotesque", system-ui, sans-serif; }
+.pu-hero-s { font-size: .9rem; opacity: .9; margin-top: 4px; }
+
+.pu-setup { margin-bottom: 14px; }
+.pu-chips { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.pu-chips button { min-width: 44px; min-height: 40px; border-radius: 12px; background: var(--g-chip); color: #fff; border: 1px solid transparent; font-weight: 800; }
+.pu-chips button.on { border-color: var(--g-accent); background: #4a2a6e; }
+.pu-chips button:disabled { opacity: .4; }
+.pu-chips small { color: var(--g-soft); }
+
+.pu-card { text-align: center; padding: 20px 16px; border-radius: 22px; background: rgba(255,255,255,.06); margin-bottom: 12px; }
+.pu-card .py-main { margin-top: 12px; }
+.pu-big { font-size: 2.6rem; margin-bottom: 6px; }
+
+.pu-progress { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; font-size: .95rem; }
+.pu-bar { height: 8px; border-radius: 999px; background: rgba(255,255,255,.12); overflow: hidden; }
+.pu-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ffb3e0, #ff6fb5); transition: width .4s ease; }
+
+.pu-sticky { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 10px 14px; margin: 0 -4px 10px; border-radius: 14px; background: rgba(31,18,53,.94); backdrop-filter: blur(8px);
+  font-weight: 700; box-shadow: 0 8px 20px rgba(0,0,0,.3); }
+.pu-sticky b { color: var(--g-accent); font-size: 1.1rem; }
+.pu-list { display: flex; flex-direction: column; gap: 6px; }
+.pu-q { display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 10px 12px;
+  text-align: left; border-radius: 14px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.05); color: #fff;
+  font-size: .95rem; line-height: 1.3; transition: background .15s, border-color .15s, transform .1s; }
+.pu-q:active { transform: scale(.98); }
+.pu-q.on { background: linear-gradient(135deg, rgba(255,111,181,.32), rgba(123,63,209,.32)); border-color: var(--g-accent); }
+.pu-n { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,.08); font-size: .8rem; font-weight: 800; color: var(--g-soft); }
+.pu-q.on .pu-n { background: var(--g-accent); color: transparent; position: relative; }
+.pu-q.on .pu-n::before { content: "✓"; position: absolute; inset: 0; display: grid; place-items: center; color: #2a0a1f; font-size: 1rem; }
+.pu-lv { font-size: 1.1rem; }
+.pu-submit { margin-top: 16px; }
+.pu-note { text-align: center; font-size: .82rem; margin-top: 8px; }
+.pu-reveal { margin-top: 14px; }
+
+.pu-score { text-align: center; padding: 20px 16px; border-radius: 24px; margin-bottom: 14px;
+  background: linear-gradient(135deg, #7b3fd1, #ff6fb5); box-shadow: 0 16px 36px rgba(160,60,200,.4); }
+.pu-score-k { font-size: .9rem; opacity: .9; }
+.pu-score-v { font: 800 clamp(3rem, 18vw, 4.5rem)/1 "Bricolage Grotesque", system-ui, sans-serif; margin: 6px 0; }
+.pu-score-l { font-weight: 800; font-size: 1.1rem; }
+
+.pu-board, .pu-lb { padding: 14px; border-radius: 20px; background: rgba(255,255,255,.06); margin-bottom: 14px; }
+.pu-board h3, .pu-lb h3 { margin: 0 0 10px; font: 800 1.05rem "Bricolage Grotesque", system-ui, sans-serif; }
+.pu-lb h3 small { font: 600 .75rem system-ui, sans-serif; color: var(--g-soft); margin-left: 6px; }
+.pu-row { display: grid; grid-template-columns: 2em minmax(0, 1fr) 30% auto; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; }
+.pu-row.me { background: rgba(255,154,213,.16); }
+.pu-row b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pu-row-bar { height: 8px; border-radius: 999px; background: rgba(255,255,255,.12); overflow: hidden; }
+.pu-row-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ff6fb5, #ffe08a); }
+.pu-row-s { font-weight: 800; min-width: 3.2em; text-align: right; }
+.pu-rank { display: grid; place-items: center; font-weight: 800; color: var(--g-soft); }
+.pu-drink { text-align: center; font-weight: 800; padding: 12px; border-radius: 16px; background: rgba(255,224,138,.15); color: #ffe08a; margin-bottom: 14px; }
+.pu-lb ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pu-lb li { display: grid; grid-template-columns: 2em 1fr auto; column-gap: 8px; align-items: center; padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,.04); }
+.pu-lb li small { grid-column: 2 / -1; color: var(--g-soft); font-size: .72rem; }
+.pu-lb-best { font-weight: 800; color: #ffe08a; }
+
+@media (prefers-reduced-motion: reduce) { .pu-q, .pu-bar i { transition: none; } }
