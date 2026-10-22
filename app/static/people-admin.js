@@ -21,7 +21,14 @@
     return data;
   }
 
+  // 🔔 Notifications de l'hôte sur ce téléphone (même réglage que /admin : nouveaux messages, nouvelles parties).
+  const NOTIF = { messages: "des nouveaux messages", games: "des nouvelles parties" };
   const SKELETON = `
+    <div class="card hidden" data-pa="notifBox" style="margin-top:8px">
+      <label class="switch-row"><span class="grow">🔔 Me prévenir des nouveaux messages</span><input type="checkbox" class="switch" data-pa-notif="messages"></label>
+      <label class="switch-row" style="margin-top:8px"><span class="grow">🎮 Me prévenir quand quelqu'un lance un jeu</span><input type="checkbox" class="switch" data-pa-notif="games"></label>
+      <p class="artist" data-pa="notifHelp" style="margin:6px 0 0;white-space:normal"></p>
+    </div>
     <h2>Messages des invités <span class="badge hidden" data-pa="msgBadge"></span></h2>
     <div data-pa="messages" class="list"></div>
     <button type="button" class="secondary hidden" data-pa-act="readAll" style="width:100%;margin-top:8px">✓ Tout marquer comme lu</button>
@@ -105,8 +112,42 @@
       <button class="secondary" data-pa-guest="unban" data-g="${escape(b.guest_id)}">Débloquer</button></div>`).join("");
   }
 
+  // Interrupteurs : cochés seulement si ce téléphone est abonné ET que le réglage est actif.
+  let pushOk = null;
+  async function renderNotif(s) {
+    const box = q("notifBox"), help = q("notifHelp");
+    if (typeof Push === "undefined" || !Push.supported()) {
+      const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) && !navigator.standalone;
+      box.classList.toggle("hidden", !ios);
+      root.querySelectorAll("[data-pa-notif]").forEach((t) => { t.disabled = true; });
+      help.textContent = "Sur iPhone : ouvre Party depuis l'icône de l'écran d'accueil pour recevoir les notifications.";
+      return;
+    }
+    box.classList.remove("hidden");
+    help.textContent = Notification.permission === "denied" ? "Notifications bloquées dans les réglages du téléphone." : "";
+    if (pushOk === null) pushOk = !!(await Push.current("/").catch(() => null)) && Notification.permission === "granted";
+    const prefs = s.admin_notify || {};
+    root.querySelectorAll("[data-pa-notif]").forEach((t) => { if (!t.disabled) t.checked = pushOk && !!prefs[t.dataset.paNotif]; });
+  }
+
+  async function toggleNotif(t) {
+    const kind = t.dataset.paNotif, on = t.checked;
+    t.disabled = true;
+    try {
+      // Abonnement de l'app (portée « / ») enregistré aussi pour l'hôte.
+      if (on) { const sub = await Push.current("/") || await Push.subscribe("/", "/api/admin/push/subscribe"); await Push.send("/api/admin/push/subscribe", { subscription: sub.toJSON() }); pushOk = true; }
+      const r = await fetch("/api/admin/notify", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, on }) });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Erreur, réessaie");
+      root.querySelectorAll("[data-pa-notif]").forEach((x) => { x.checked = pushOk && !!data.admin_notify?.[x.dataset.paNotif]; });
+      notify(on ? `Tu seras prévenu ${NOTIF[kind]} 🔔` : `Plus de notifications ${NOTIF[kind]}`, on ? "ok" : "");
+    } catch (e) { t.checked = !on; notify(e.message, "err"); }
+    t.disabled = false;
+  }
+
   function render(s) {
     if (!root || !s) return;
+    renderNotif(s);
     renderMessages(s);
     renderGuests(s);
     renderBans(s);
@@ -179,6 +220,11 @@
     } catch (e) { drafts[id] = text; notify(e.message, "err"); form.querySelector("button").disabled = false; }
   }
 
+  function onChange(ev) {
+    const t = ev.target.closest("[data-pa-notif]");
+    if (t) toggleNotif(t);
+  }
+
   function onInput(ev) {
     const r = ev.target.closest("[data-pa-reply]");
     if (r) drafts[r.dataset.paReply] = r.value;
@@ -193,6 +239,7 @@
       root.addEventListener("click", onClick);
       root.addEventListener("submit", onSubmit);
       root.addEventListener("input", onInput);
+      root.addEventListener("change", onChange);
     },
     render,
   };

@@ -156,6 +156,9 @@ def test_admin_answers_messages_and_moderates_guests_from_the_music_tab(browser,
         expect(people.locator('[data-pa="messages"]')).to_contain_text("Daft Punk")
         expect(boss.page.locator("#musicTabBadge")).to_have_text("1")  # message non lu : pastille sur Musique
         expect(people.locator('[data-pa="bans"]')).to_contain_text("Ancien")
+        # Notifications de l'hôte : les deux réglages de /admin sont là (abonnement réel impossible sans téléphone).
+        expect(people.locator('[data-pa-notif="messages"]')).to_be_attached()
+        expect(people.locator('[data-pa-notif="games"]')).to_be_attached()
 
         people.locator('[data-pa-reply="m1"]').fill("Ça arrive !")
         people.locator('[data-pa-reply-form="m1"] button').tap()
