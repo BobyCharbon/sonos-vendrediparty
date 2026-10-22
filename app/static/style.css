@@ -1509,6 +1509,16 @@ html.events-soon .tabs [data-tab="events"]::after {
 .fb-kinds button { min-height:42px; }
 .fb-item .title { white-space:normal; overflow-wrap:anywhere; font-weight:600; }
 .fb-st.done { color:#7be0a6; font-weight:700; }
+.fb-st.sent { color:#ffd27a; font-weight:700; }
+.fb-note { margin-top:6px; padding:8px 10px; border-radius:10px; background:rgba(255,255,255,.06); font-size:.88rem; white-space:pre-wrap; overflow-wrap:anywhere; }
+.fb-claude { display:inline-block; margin-top:6px; font-size:.82rem; font-weight:700; text-decoration:none; color:#ffd27a; }
+.fb-claude.fixed { color:#7be0a6; }
+.fb-claude.failed { color:#ff8a8a; }
+.fb-item { flex-wrap:wrap; }
+.fb-edit { display:flex; flex-direction:column; gap:8px; margin-top:10px; flex-basis:100%; }
+.fb-edit textarea { width:100%; min-height:96px; }
+.fb-edit-btns { display:flex; flex-wrap:wrap; gap:6px; }
+.fb-edit-btns button { flex:1 1 auto; min-height:40px; }
 
 /* Compte Party : « Se connecter » / « Réglages » remplace « Ton avis » (qui passe dans les Réglages), partout. */
 .tabs:has(#accountTab) [data-tab="feedback"] { display: none; }

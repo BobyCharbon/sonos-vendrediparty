@@ -407,7 +407,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden && Da
 
 // 💬 Ton avis : idées et bugs pour l'organisateur (sans code de soirée), avec le jeu en cours comme contexte.
 let fbKind = "idea", fbTab = "music";
-const FB_STATUS = { new: "Envoyé", done: "✓ Pris en compte" };
+const FB_STATUS = { new: "Envoyé", sent: "🔧 En cours de correction", done: "✓ Pris en compte" };
 function renderFeedback(mine) {
   $("fbMineH").classList.toggle("hidden", !mine.length);
   $("fbMine").innerHTML = mine.map((m) => `<div class="track fb-item"><div class="meta">

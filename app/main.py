@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import hashlib
 import io
+import logging
 import hmac
 import os
 import random
@@ -23,7 +24,8 @@ from pydantic import BaseModel, Field
 
 from . import calendar_ics, games, heist, island, links, neon, president, purity, quiz
 from .accounts import AccountError, Accounts
-from .feedback import KINDS as FEEDBACK_KINDS, FeedbackBox
+from .feedback import KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
+from .github_issues import GitHubError, Issues
 from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
 from .push import Push, valid_subscription
 from .security import Limiter
@@ -64,6 +66,9 @@ BUILD_ID = build_id()
 PROXY_IPS = {ip.strip() for ip in os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1").split(",") if ip.strip()}
 store = PartyStore(DATA_DIR / "session.json", ignored_ips=PROXY_IPS)
 feedback = FeedbackBox(DATA_DIR / "feedback.json")  # idées et bugs des invités, gardés d'une soirée à l'autre
+# Retours → Claude : issues « claude-fix » corrigées par .github/workflows/claude-fix.yml (commit sur develop).
+log = logging.getLogger("vendrediparty")
+github = Issues(os.environ.get("GITHUB_TOKEN", ""), os.environ.get("GITHUB_REPO", "BobyCharbon/sonos-vendrediparty"))
 quiz.STATS_PATH = DATA_DIR / "quiz_stats.json"  # classement général du Quiz, toutes parties confondues
 purity.STATS_PATH = DATA_DIR / "purity_stats.json"  # classement général du Purify Test (comptes Party)
 sonos = Sonos(os.environ.get("SONOS_IP") or None)
@@ -1635,22 +1640,82 @@ def my_feedback(guest_id: str = ""):
 
 
 class FeedbackAction(BaseModel):
-    ids: list[str]
+    ids: list[str] = Field(max_length=100)
     action: str
+    note: str = Field(default="", max_length=10000)  # « note » : précisions / instructions de l'admin pour Claude
+
+
+MIN_CLAUDE_NOTE = 10  # Claude ne part pas sans instructions claires de l'admin
+
+
+def feedback_payload() -> dict:
+    return {"items": feedback.all(), "kinds": FEEDBACK_KINDS, "claude_ready": github.configured}
+
+
+def sync_claude_fixes():
+    """Retours confiés à Claude : l'état de leur issue (corrigé, échoué) revient dans l'admin."""
+    for item in feedback.all():
+        if item.get("claude", {}).get("state") != "pending":
+            continue
+        try:
+            feedback.set_claude_state(item["id"], github.state(item["claude"]["number"]))
+        except GitHubError as e:
+            log.warning("Suivi de l'issue #%s impossible : %s", item["claude"]["number"], e)
+            return  # GitHub injoignable : on réessaiera au prochain affichage
+
+
+def feedback_item(fid: str) -> dict:
+    item = feedback.get(fid)
+    if item is None:
+        raise HTTPException(404, "Retour introuvable")
+    return item
 
 
 @app.get("/api/admin/feedback", dependencies=[Depends(require_admin)])
 def admin_feedback():
-    return {"items": feedback.all(), "kinds": FEEDBACK_KINDS}
+    sync_claude_fixes()
+    return feedback_payload()
 
 
 @app.post("/api/admin/feedback", dependencies=[Depends(require_admin)])
 def admin_feedback_action(body: FeedbackAction):
+    if body.action == "note":
+        if len(body.ids) != 1:
+            raise HTTPException(400, "Un seul retour à la fois")
+        feedback_item(body.ids[0])
+        feedback.set_note(body.ids[0], body.note)
+        return feedback_payload()
     if body.action not in ("done", "new", "delete"):
         raise HTTPException(400, "Action inconnue")
     feedback.update(body.ids, body.action)
     store.save()
-    return {"items": feedback.all(), "kinds": FEEDBACK_KINDS}
+    return feedback_payload()
+
+
+@app.get("/api/admin/feedback/{fid}/prompt", dependencies=[Depends(require_admin)])
+def admin_feedback_prompt(fid: str):
+    """Le prompt tel qu'il partira à Claude (aperçu, ou à copier quand GitHub n'est pas configuré)."""
+    return {"prompt": build_prompt(feedback_item(fid))}
+
+
+@app.post("/api/admin/feedback/{fid}/claude", dependencies=[Depends(require_admin)])
+def admin_feedback_to_claude(fid: str):
+    """Confie le retour à Claude : issue GitHub « claude-fix » → correction commitée sur develop."""
+    item = feedback_item(fid)
+    if item.get("claude", {}).get("state") == "pending":
+        raise HTTPException(409, "Déjà confié à Claude : la correction est en cours")
+    if len(item.get("note", "")) < MIN_CLAUDE_NOTE:
+        raise HTTPException(400, "Ajoute d'abord tes instructions pour Claude (✏️)")
+    if not github.configured:
+        raise HTTPException(503, "GITHUB_TOKEN n'est pas configuré sur le serveur : copie le prompt à la place")
+    title = f"{FEEDBACK_KINDS.get(item['kind'], '')} {item['text'][:70]}".strip()
+    try:
+        issue = github.create(title, build_prompt(item))
+    except GitHubError as e:
+        raise HTTPException(502, str(e))
+    feedback.mark_sent(fid, issue["number"], issue["url"])
+    store.save()
+    return feedback_payload()
 
 
 def ban_message(guest_id: str, ip: str) -> str | None:
