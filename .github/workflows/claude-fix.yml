@@ -52,7 +52,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: >-
             --max-turns 80
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(python -m pytest:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git add:*),Bash(git commit:*)"
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(python -m pytest:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git add:*),Bash(git commit:*)"
           prompt: |
             Tu travailles sur le dépôt ${{ github.repository }}, branche `develop` (déjà extraite).
             Lis d'abord CLAUDE.md s'il existe, puis traite la demande de l'issue #${{ github.event.issue.number }} ci-dessous.
