@@ -1523,6 +1523,10 @@ html.events-soon .tabs [data-tab="events"]::after {
 .fb-problem b { color:#ff8a8a; }
 .fb-problem pre { margin:6px 0; white-space:pre-wrap; overflow-wrap:anywhere; font:.82rem/1.4 ui-monospace, Menlo, monospace; max-height:220px; overflow:auto; }
 .fb-problem small { color:#c9c3dc; }
+.fb-verify { margin-top:8px; padding:10px 12px; border-radius:12px; background:rgba(255,210,122,.1); border:1px solid rgba(255,210,122,.35); display:flex; flex-direction:column; gap:8px; }
+.fb-verify b { color:#ffd27a; }
+.fb-verify small { color:#c9c3dc; }
+.fb-claude.fixed { color:#ffd27a; }
 .fb-item { flex-wrap:wrap; }
 .fb-edit { display:flex; flex-direction:column; gap:8px; margin-top:10px; flex-basis:100%; }
 .fb-edit textarea { width:100%; min-height:96px; }

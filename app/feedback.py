@@ -37,14 +37,17 @@ class FeedbackBox:
         return sum(1 for i in self.items if i["guest_id"] == guest_id and now - i["at"] < seconds)
 
     def mine(self, guest_id: str) -> list[dict]:
-        """Ce que l'invité a envoyé (sans les infos internes), du plus récent au plus ancien."""
-        return [{k: i[k] for k in ("id", "at", "kind", "text", "status")} for i in reversed(self.items) if i["guest_id"] == guest_id][:20]
+        """Ce que l'invité a envoyé (sans les infos internes), du plus récent au plus ancien.
+        Une correction pas encore validée par l'admin reste « en cours » pour l'invité."""
+        public = lambda i: {**{k: i[k] for k in ("id", "at", "kind", "text")}, "status": "sent" if i["status"] == "verify" else i["status"]}
+        return [public(i) for i in reversed(self.items) if i["guest_id"] == guest_id][:20]
 
     def all(self) -> list[dict]:
         return list(reversed(self.items))
 
     def count_new(self) -> int:
-        return sum(1 for i in self.items if i["status"] == "new")
+        """Pastille de l'admin : retours à traiter et corrections de Claude à vérifier."""
+        return sum(1 for i in self.items if i["status"] in ("new", "verify"))
 
     def get(self, fid: str) -> dict | None:
         return next((i for i in self.items if i["id"] == fid), None)
@@ -66,7 +69,7 @@ class FeedbackBox:
         return self._edit(fid, status="sent", claude={"number": number, "url": url, "state": "pending", "at": time.time()})
 
     def set_claude_state(self, fid: str, state: str, error: str = "") -> dict | None:
-        """Issue fermée → traité ; correction échouée → de nouveau à traiter, avec le « problème à corriger »."""
+        """Issue fermée → à vérifier (l'admin valide lui-même) ; échec → de nouveau à traiter, avec le « problème à corriger »."""
         item = self.get(fid)
         if not item or not item.get("claude"):
             return item
@@ -74,7 +77,7 @@ class FeedbackBox:
         claude["state"] = state
         if state == "failed":
             claude["error"] = error
-        status = {"fixed": "done", "failed": "new"}.get(state, item["status"])
+        status = {"fixed": "verify", "failed": "new"}.get(state, item["status"])
         return self._edit(fid, status=status, claude=claude)
 
     def update(self, ids: list[str], action: str):

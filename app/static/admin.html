@@ -114,7 +114,7 @@
       <h2 id="fbAdminTitle">Retours des invités</h2>
       <p class="sub">Idées et bugs envoyés depuis l'onglet « Ton avis ». Gardés d'une soirée à l'autre. ✏️ pour préciser un retour et donner tes instructions, puis 🤖 pour le confier à Claude : il corrige et commite sur <b>develop</b>.</p>
       <div class="seg fb-filter" role="group" aria-label="Filtrer">
-        <button type="button" class="on" data-fb-filter="new">À traiter</button><button type="button" data-fb-filter="sent">🤖 Chez Claude</button><button type="button" data-fb-filter="done">Traités</button><button type="button" data-fb-filter="all">Tout</button>
+        <button type="button" class="on" data-fb-filter="new">À traiter</button><button type="button" data-fb-filter="sent">🤖 Chez Claude</button><button type="button" data-fb-filter="verify">🧪 À vérifier</button><button type="button" data-fb-filter="done">Traités</button><button type="button" data-fb-filter="all">Tout</button>
       </div>
       <div id="fbList" class="list" style="margin-top:10px"></div>
     </section>
@@ -353,7 +353,7 @@ async function loadRooms() {
 // 💬 Retours des invités : à traiter / chez Claude / traités, avec le contexte (onglet ou jeu) d'où ils ont été envoyés.
 // ✏️ : précisions et instructions de l'admin ; 🤖 : confié à Claude (issue GitHub → commit sur develop).
 let fbItems = [], fbKinds = {}, fbFilter = "new", fbClaudeReady = false, fbEditing = "", fbDrafts = {};
-const FB_CLAUDE = { pending: "🤖 Claude corrige", fixed: "✅ Corrigé par Claude", failed: "⚠️ Échec de Claude" };
+const FB_CLAUDE = { pending: "🤖 Claude corrige", fixed: "🧪 Corrigé sur develop", failed: "⚠️ Échec de Claude" };
 function fbMeta(i) {
   const when = new Date(i.at * 1000).toLocaleString("fr-CH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   const where = i.context?.game ? ` · jeu : ${esc((typeof GAME_NAMES !== "undefined" && GAME_NAMES[i.context.game]) || i.context.game)}`
@@ -381,16 +381,20 @@ function renderFeedback() {
       <div class="artist">${fbMeta(i)}</div>
       ${i.note && fbEditing !== i.id ? `<div class="fb-note">📝 ${esc(i.note)}</div>` : ""}
       ${i.claude ? `<a class="fb-claude ${esc(i.claude.state)}" href="${esc(i.claude.url)}" target="_blank" rel="noopener">${FB_CLAUDE[i.claude.state] || ""} · #${esc(i.claude.number)}</a>` : ""}
+      ${i.status === "verify" ? `<div class="fb-verify"><b>🧪 À vérifier</b>
+        <small>Claude a commité sa correction sur develop. Teste-la sur le site de test (après reconstruction de l'image et redéploiement), puis :</small>
+        <div class="fb-edit-btns"><button data-fb="done" data-id="${esc(i.id)}">✅ Validé, c'est corrigé</button>
+        <button class="secondary" data-fb="new" data-id="${esc(i.id)}">↩︎ Pas corrigé</button></div></div>` : ""}
       ${i.claude?.state === "failed" ? `<div class="fb-problem"><b>⚠️ Problème à corriger</b>
         <pre>${esc(i.claude.error || "Raison en cours de récupération…")}</pre>
         <small>Corrige la cause (réglage, instructions plus précises…), puis ✏️ → 🤖 Envoyer à Claude.</small></div>` : ""}
 </div>
     <div class="icon-btns">
       <button class="secondary" data-fb-edit="${esc(i.id)}" aria-label="Préciser / instructions pour Claude">✏️</button>
-      ${i.status === "done" ? `<button class="secondary" data-fb="new" data-id="${esc(i.id)}" aria-label="Remettre à traiter">↺</button>` : `<button class="secondary" data-fb="done" data-id="${esc(i.id)}" aria-label="Marquer comme traité">✓</button>`}
+      ${i.status === "verify" ? "" : i.status === "done" ? `<button class="secondary" data-fb="new" data-id="${esc(i.id)}" aria-label="Remettre à traiter">↺</button>` : `<button class="secondary" data-fb="done" data-id="${esc(i.id)}" aria-label="Marquer comme traité">✓</button>`}
       <button class="danger" data-fb="delete" data-id="${esc(i.id)}" aria-label="Supprimer">✕</button></div>
     ${fbEditing === i.id ? fbEditHtml(i) : ""}</div>`).join("")
-    || `<p class="empty" style="padding:12px">${fbFilter === "new" ? "Rien à traiter pour l'instant 🎉" : "Aucun retour."}</p>`;
+    || `<p class="empty" style="padding:12px">${{ new: "Rien à traiter pour l'instant 🎉", verify: "Rien à vérifier." }[fbFilter] || "Aucun retour."}</p>`;
 }
 async function loadFeedback(body) {
   try {
@@ -450,7 +454,7 @@ function render(s) {
   state = s; stateAt = Date.now();
   $("fbBadge").textContent = s.feedback_new || "";
   $("fbBadge").classList.toggle("hidden", !s.feedback_new);
-  if (!document.querySelector('[data-view="feedback"]').classList.contains("hidden") && s.feedback_new !== fbItems.filter((i) => i.status === "new").length) loadFeedback();
+  if (!document.querySelector('[data-view="feedback"]').classList.contains("hidden") && s.feedback_new !== fbItems.filter((i) => ["new", "verify"].includes(i.status)).length) loadFeedback();
   $("login").classList.add("hidden"); $("panel").classList.remove("hidden");
   $("noSpotify").classList.toggle("hidden", s.spotify_configured);
   $("tabs").classList.remove("hidden");

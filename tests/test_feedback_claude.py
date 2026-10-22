@@ -101,7 +101,7 @@ def test_closed_issue_marks_fixed_and_failed_run_goes_back_to_todo(admin, monkey
                                         "⚠️ La correction n'a pas abouti.\n\n### Problème à corriger\n```\nLes tests échouent : test_x\n```\n\nLog : https://x"]
     main.github.cache.clear()
     items = {i["id"]: i for i in admin.get("/api/admin/feedback").json()["items"]}
-    assert items[ids[0]]["status"] == "done" and items[ids[0]]["claude"]["state"] == "fixed"
+    assert items[ids[0]]["status"] == "verify" and items[ids[0]]["claude"]["state"] == "fixed"  # à vérifier par l'admin
     assert items[ids[1]]["status"] == "new" and items[ids[1]]["claude"]["state"] == "failed"
     assert items[ids[1]]["claude"]["error"] == "Les tests échouent : test_x"  # « Problème à corriger » dans l'admin
     assert "error" not in items[ids[0]]["claude"]
@@ -153,3 +153,28 @@ def test_failure_without_reason_section_still_tells_the_admin(admin, monkeypatch
     main.github.cache.clear()
     claude = first(admin)["claude"]
     assert claude["state"] == "failed" and "log" in claude["error"].lower()
+
+
+def test_fixed_by_claude_waits_for_the_admin_to_validate(admin, monkeypatch, tmp_path):  # noqa: F811
+    issues = setup(monkeypatch, tmp_path)
+    send(admin)
+    fid = first(admin)["id"]
+    note(admin, fid)
+    admin.post(f"/api/admin/feedback/{fid}/claude")
+    issues[1]["state"] = "closed"
+    main.github.cache.clear()
+    assert first(admin)["status"] == "verify"
+    assert admin.get("/api/admin/state").json()["feedback_new"] == 1  # pastille : il y a une vérification à faire
+    guest = TestClient(main.app).get("/api/feedback", params={"guest_id": GUEST}).json()["mine"][0]
+    assert guest["status"] == "sent"  # l'invité ne voit « pris en compte » qu'après ta validation
+    # Pas corrigé : retour à traiter (on peut préciser et renvoyer à Claude).
+    item = admin.post("/api/admin/feedback", json={"ids": [fid], "action": "new"}).json()["items"][0]
+    assert item["status"] == "new" and item["claude"]["state"] == "fixed"
+    note(admin, fid, "Toujours là sur iPhone : la barre reste trop haute.")
+    assert admin.post(f"/api/admin/feedback/{fid}/claude").status_code == 200  # renvoyable
+    issues[2]["state"] = "closed"
+    main.github.cache.clear()
+    assert first(admin)["status"] == "verify"
+    # Validé : traité, et l'invité voit « pris en compte ».
+    assert admin.post("/api/admin/feedback", json={"ids": [fid], "action": "done"}).json()["items"][0]["status"] == "done"
+    assert TestClient(main.app).get("/api/feedback", params={"guest_id": GUEST}).json()["mine"][0]["status"] == "done"
