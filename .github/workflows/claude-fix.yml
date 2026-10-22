@@ -101,6 +101,10 @@ jobs:
         id: push
         run: |
           fail() { printf '%s\n' "$1" > "$RUNNER_TEMP/claude-reason.txt"; printf '%s\n' "$1"; exit 1; }
+          # L'action Claude remplace l'authentification du remote par son jeton d'app, révoqué à la fin de son étape :
+          # on repasse sur le jeton du workflow (contents: write) pour récupérer develop et pousser.
+          git config --unset-all http.https://github.com/.extraheader || true
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           if [ "$(git rev-parse HEAD)" = "$BASE" ]; then
             fail "Claude n'a rien commité. Son explication : $(cat "$RUNNER_TEMP/claude-last.txt" 2>/dev/null || echo 'aucune')"
           fi
