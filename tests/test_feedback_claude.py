@@ -122,3 +122,15 @@ def test_github_down_while_syncing_keeps_the_admin_list_working(admin, monkeypat
     main.github.cache.clear()
     r = admin.get("/api/admin/feedback")
     assert r.status_code == 200 and r.json()["items"][0]["claude"]["state"] == "pending"
+
+
+def test_github_refusal_says_what_to_fix(admin, monkeypatch, tmp_path):  # noqa: F811
+    monkeypatch.setattr(main, "feedback", FeedbackBox(tmp_path / "feedback.json"))
+    refuse = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(403, json={"message": "Resource not accessible by personal access token"})))
+    monkeypatch.setattr(main, "github", github_issues.Issues("gh-token", "owner/repo", refuse))
+    send(admin)
+    fid = first(admin)["id"]
+    note(admin, fid)
+    r = admin.post(f"/api/admin/feedback/{fid}/claude")
+    assert r.status_code == 502 and "(403)" in r.json()["detail"] and "Issues : Read and write" in r.json()["detail"]
+    assert main.feedback.get(fid)["status"] == "new"  # rien n'est marqué envoyé

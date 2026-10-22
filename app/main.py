@@ -1712,6 +1712,7 @@ def admin_feedback_to_claude(fid: str):
     try:
         issue = github.create(title, build_prompt(item))
     except GitHubError as e:
+        log.warning("Envoi du retour %s à Claude refusé : %s", fid, e)
         raise HTTPException(502, str(e))
     feedback.mark_sent(fid, issue["number"], issue["url"])
     store.save()

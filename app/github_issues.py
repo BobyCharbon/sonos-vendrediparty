@@ -11,6 +11,15 @@ FAILED_LABEL = "claude-failed"  # posée par le workflow quand la correction éc
 CACHE_TTL = 60                  # s : l'admin ouvert ne relit pas GitHub à chaque rafraîchissement
 
 
+# Causes fréquentes d'un refus, dites en clair dans l'admin.
+REFUSALS = {
+    401: "jeton GitHub invalide ou expiré : régénère-le et mets-le dans GITHUB_TOKEN",
+    403: "le jeton n'a pas le droit d'écrire les issues : donne-lui « Issues : Read and write » sur ce dépôt",
+    404: "dépôt introuvable pour ce jeton : vérifie « Repository access » du jeton et GITHUB_REPO",
+    410: "les issues sont désactivées sur ce dépôt : active-les dans Settings → Features",
+}
+
+
 class GitHubError(Exception):
     pass
 
@@ -35,7 +44,12 @@ class Issues:
         except httpx.HTTPError as e:
             raise GitHubError("GitHub ne répond pas, réessaie dans un instant") from e
         if r.status_code >= 300:
-            raise GitHubError(f"GitHub a refusé la demande ({r.status_code})")
+            try:
+                detail = r.json().get("message", "")
+            except ValueError:
+                detail = ""
+            reason = REFUSALS.get(r.status_code) or detail or "raison inconnue"
+            raise GitHubError(f"GitHub a refusé la demande ({r.status_code}) : {reason}")
         return r.json()
 
     def create(self, title: str, body: str) -> dict:
