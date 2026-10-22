@@ -107,6 +107,8 @@ def test_purity_private_answers_reveal_and_accounts_only(phones):
     alice.tap('[data-pu-act="pureveal"]')
 
     expect(alice.page.locator('.pu-score-v')).to_have_text('100 %')
+    expect(alice.page.locator('.pu-score-l')).to_have_text('😇 Sainte-Nitouche certifiée')
+    expect(bob.page.locator('.pu-row').last).to_contain_text('👼 Enfant de chœur')  # 96 %
     expect(bob.page.locator('.pu-row').first).to_contain_text('Alice')
     expect(bob.page.locator('.pu-row').last).to_contain_text('Bob')
     expect(bob.page.locator('.pu-drink')).to_contain_text('Bob boit 2 gorgées')

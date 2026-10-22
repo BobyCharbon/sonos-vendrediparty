@@ -7,7 +7,7 @@ GAME_RULES.purity = `
   <p>Le « Purity Test » classique : 100 questions en 9 catégories (relations, sexualité, lieux insolites, à plusieurs, fétiches, alcool, drogues, infractions…). Chacun, sur son téléphone, répond « oui » en secret à tout ce qu'il a <b>déjà vécu au moins une fois</b>, puis valide.</p>
   <p>Les questions sexuelles concernent des expériences consenties entre adultes. Le score est un jeu, sans jugement de valeur.</p>
   <h3>Le score</h3>
-  <p>Ton score de pureté = 100 moins le nombre de « oui » : 100 % = pur comme un ange, 0 % = tu as tout fait. À la fin, ton <b>profil par catégorie</b> (radar) montre où tu es pur… et où tu l'es beaucoup moins. Il n'est visible que par toi.</p>
+  <p>Ton score de pureté = 100 moins le nombre de « oui » : 100 % = pur comme un ange, 0 % = tu as tout fait. Ton score te vaut un grade, de « 😇 Sainte-Nitouche certifiée » à « 👹 Le Diable en personne ». À la fin, ton <b>profil par catégorie</b> (radar) montre où tu es pur… et où tu l'es beaucoup moins. Il n'est visible que par toi.</p>
   <h3>La révélation</h3>
   <p>Quand tout le monde a validé, l'animateur révèle les scores et le classement, du plus pur au plus sulfureux. <b>Les réponses ne sont jamais montrées</b>, à personne : seul le score compte.</p>
   <h3>🔒 Comptes connectés</h3>
@@ -20,12 +20,23 @@ GAME_RULES.purity = `
 const PU_SIPS = [1, 2, 3, 5];
 let puSeen = "";
 
-function puVerdict(score) {
-  if (score >= 90) return "😇 Pur comme un ange";
-  if (score >= 70) return "🙂 Plutôt sage";
-  if (score >= 50) return "😏 Ni saint ni démon";
-  if (score >= 30) return "😈 Sulfureux";
-  return "🔥 Diabolique";
+// Grades selon le score global (% pur) : premier seuil atteint, du plus pur au plus sulfureux.
+const PU_GRADES = [
+  [100, "😇", "Sainte-Nitouche certifiée"],
+  [95, "👼", "Enfant de chœur"],
+  [88, "🧸", "Bisounours en liberté"],
+  [78, "🍵", "Tisane, plaid & Netflix"],
+  [65, "😏", "Sage… en apparence"],
+  [52, "🍷", "Bon vivant·e"],
+  [40, "🌶️", "Épicé·e"],
+  [28, "😈", "Sulfureux·se"],
+  [16, "🔥", "Diablotin·e de compétition"],
+  [6, "🚔", "Casier bien rempli"],
+  [0, "👹", "Le Diable en personne"],
+];
+function puGrade(score) {
+  const [, emoji, title] = PU_GRADES.find(([min]) => score >= min);
+  return `${emoji} ${title}`;
 }
 
 function puSettingsHtml(g) {
@@ -135,10 +146,10 @@ function puProfileHtml(rows) {
 function puResultsHtml(g) {
   const v = g.purity, me = g.me?.pid;
   const mine = v.me_score != null ? `<div class="pu-score"><div class="pu-score-k">Ton score de pureté</div>
-      <div class="pu-score-v">${v.me_score} %</div><div class="pu-score-l">${puVerdict(v.me_score)}</div></div>` : "";
+      <div class="pu-score-v">${v.me_score} %</div><div class="pu-score-l">${puGrade(v.me_score)}</div></div>` : "";
   const last = v.ranking.length - 1;
   const rows = v.ranking.map((r, i) => `<div class="pu-row ${r.pid === me ? "me" : ""}">
-      <span class="pu-rank">${i === 0 ? "😇" : i === last ? "😈" : i + 1}</span><b>${esc(r.name)}</b>
+      <span class="pu-rank">${i === 0 ? "😇" : i === last ? "😈" : i + 1}</span><span class="pu-who"><b>${esc(r.name)}</b><small>${puGrade(r.score)}</small></span>
       <span class="pu-row-bar"><i style="width:${r.score}%"></i></span><span class="pu-row-s">${r.score} %</span></div>`).join("");
   const d = v.gorgees;
   const drinks = d.length ? `<div class="pu-drink">🍻 ${d.map((x) => esc(x.name)).join(", ")} ${d.length > 1 ? "boivent" : "boit"} ${d[0].sips} gorgée${d[0].sips > 1 ? "s" : ""} !</div>` : "";

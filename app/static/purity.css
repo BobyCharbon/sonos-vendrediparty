@@ -56,7 +56,9 @@ body.pyr-full #game.g-pu { box-shadow: none; border: 0; padding: 16px; backgroun
 .pu-lb h3 small { font: 600 .75rem system-ui, sans-serif; color: var(--g-soft); margin-left: 6px; }
 .pu-row { display: grid; grid-template-columns: 2em minmax(0, 1fr) 30% auto; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; }
 .pu-row.me { background: rgba(255,154,213,.16); }
-.pu-row b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pu-who { display: flex; flex-direction: column; min-width: 0; }
+.pu-who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pu-who small { color: var(--g-soft); font-size: .75rem; line-height: 1.2; }
 .pu-row-bar { height: 8px; border-radius: 999px; background: rgba(255,255,255,.12); overflow: hidden; }
 .pu-row-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ff6fb5, #ffe08a); }
 .pu-row-s { font-weight: 800; min-width: 3.2em; text-align: right; }
