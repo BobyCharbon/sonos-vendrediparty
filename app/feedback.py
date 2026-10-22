@@ -11,7 +11,7 @@ MAX_NOTE = 2000  # précisions de l'admin (instructions pour Claude)
 MAX_REPLY = 500  # mot de l'admin pour l'invité (« Terminé » ou « Pas retenu »)
 # Statuts : new (à traiter), progress (en cours, posé par l'admin), sent (chez Claude), verify (corrigé par Claude,
 # à vérifier), done (terminé), declined (pas retenu). L'invité ne voit que new / progress / done / declined.
-ADMIN_STATUSES = ("new", "progress", "done", "declined")
+ADMIN_STATUSES = ("new", "progress", "verify", "done", "declined")  # verify : posé à la main (vérif. sans Claude) ou par Claude
 FINISHED = ("done", "declined")  # l'invité est averti (notification + pastille) en y arrivant
 
 

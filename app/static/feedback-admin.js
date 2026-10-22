@@ -55,7 +55,7 @@
         ${i.claude?.migrations?.length ? `<div class="fb-migration"><b>⚠️ Migration Supabase à appliquer d'abord</b>
           <pre>${i.claude.migrations.map(escape).join("\n")}</pre>
           <small>La base est partagée entre le test et la prod : applique-la à la main (Supabase → SQL Editor) avant de tester.</small></div>` : ""}
-        <small>Claude a commité sa correction sur develop. Teste-la sur le site de test (après reconstruction de l'image et redéploiement), puis :</small>
+        <small>${i.claude?.state === "fixed" ? "Claude a commité sa correction sur develop. Teste-la sur le site de test (après reconstruction de l'image et redéploiement), puis :" : "Vérifie que c'est bien corrigé, puis :"}</small>
         <div class="fb-edit-btns"><button data-fb="done" data-id="${id}">✅ Validé, c'est corrigé</button>
         <button class="secondary" data-fb="new" data-id="${id}">↩︎ Pas corrigé</button></div></div>` : "";
     const problem = i.claude?.state === "failed" ? `<div class="fb-problem"><b>⚠️ Problème à corriger</b>
@@ -63,6 +63,8 @@
         <small>Corrige la cause (réglage, instructions plus précises…), puis ✏️ → 🤖 Envoyer à Claude.</small></div>` : "";
     const progress = ["new", "done", "declined"].includes(i.status)
       ? `<button class="secondary" data-fb="progress" data-id="${id}" aria-label="Marquer en cours">🔧</button>` : "";
+    const check = ["new", "progress", "sent"].includes(i.status)
+      ? `<button class="secondary" data-fb="verify" data-id="${id}" aria-label="À vérifier (l'invité voit toujours « en cours »)">🧪</button>` : "";
     const finish = ["new", "progress"].includes(i.status)
       ? `<button class="secondary" data-fb="done" data-id="${id}" aria-label="Terminé (l'invité est averti)">✅</button>` : "";
     const reopen = ["done", "declined"].includes(i.status)
@@ -76,7 +78,7 @@
         ${verify}${problem}</div>
       <div class="icon-btns">
         <button class="secondary" data-fb-edit="${id}" aria-label="Instructions, mot pour l'invité, statut">✏️</button>
-        ${progress}${finish}${reopen}
+        ${progress}${check}${finish}${reopen}
         <button class="danger" data-fb="delete" data-id="${id}" aria-label="Supprimer">✕</button></div>
       ${editing === i.id ? editHtml(i) : ""}</div>`;
   }

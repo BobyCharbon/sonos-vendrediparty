@@ -71,3 +71,14 @@ def test_guest_sees_no_internal_fields_and_others_cannot_mark_seen(admin, monkey
     TestClient(main.app).post("/api/feedback/seen", json={"guest_id": "feedback-other-0009"})
     assert mine()["unseen"] is True
     assert TestClient(main.app).post("/api/admin/feedback", json={"ids": [fid], "action": "progress"}).status_code == 401
+
+
+def test_admin_can_put_an_item_in_progress_to_verify_by_hand(admin, monkeypatch, tmp_path):  # noqa: F811
+    sent, fid = setup(monkeypatch, tmp_path)
+    act(admin, fid, "progress")
+    item = act(admin, fid, "verify").json()["items"][0]
+    assert item["status"] == "verify"
+    assert mine()["status"] == "progress" and sent == []  # l'invité voit toujours « en cours de correction »
+    assert admin.get("/api/admin/state").json()["feedback_new"] == 1  # à vérifier : la pastille de l'admin s'allume
+    act(admin, fid, "done")
+    assert mine()["status"] == "done" and len(sent) == 1
