@@ -368,7 +368,7 @@ def admin_rooms():
 class Start(BaseModel):
     room_uid: str = ""
     mode: str = "next"
-    source: str = "spotify_sonos"  # spotify_sonos (maison) | spotify (extérieur)
+    source: str = "sonos"  # sonos (maison : file Sonos native) | spotify (extérieur) | spotify_sonos (Sonos via Spotify Connect)
     playlist: str | None = None  # lancer aussi une playlist (sinon : ce qui joue déjà)
 
 
@@ -384,6 +384,20 @@ def admin_start(body: Start):
         return admin_state()
     if body.source not in ("sonos", "spotify_sonos"):
         raise HTTPException(400, "Source inconnue")
+    if body.source == "sonos":
+        # Party maison : file Sonos native, pilotée par l'API locale Sonos (Spotify lié au système Sonos).
+        # Aucun compte Spotify à connecter dans Party ; réordonner, retirer et le mode équitable restent possibles.
+        try:
+            room = next((r for r in sonos.rooms() if r["uid"] == body.room_uid), None)
+        except Exception as e:
+            raise HTTPException(502, f"Impossible de joindre les Sonos : {e}")
+        if room is None:
+            raise HTTPException(404, "Pièce introuvable")
+        store.start(room["uid"], room["name"], body.mode)
+        _snap.update(data=None, current=None)
+        if body.playlist:
+            launch_playlist(body.playlist)
+        return admin_state()
     if not (spotify_user and spotify_user.connected):
         raise HTTPException(409, "Connecte d'abord ton compte Spotify (Réglages)")
     room = next((r for r in sonos.rooms() if r["uid"] == body.room_uid), None)

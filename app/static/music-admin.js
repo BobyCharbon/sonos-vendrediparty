@@ -12,7 +12,7 @@
     next: "Chaque titre ajouté passe juste après celui en cours (le dernier ajouté passe en premier).",
     fair: "Les demandes passent avant ta playlist, une par invité à tour de rôle : personne ne monopolise la file. L'activer réorganise aussi la file actuelle.",
   };
-  let root = null, state = null, stateAt = Date.now(), chosenMode = "next", chosenSource = "spotify_sonos";
+  let root = null, state = null, stateAt = Date.now(), chosenMode = "next", chosenSource = "sonos";
   let volumeDragging = false, volumeSentAt = 0, volumeTimer = null, addTimer = null, addResults = [];
   let speakersDragging = null, speakersTimer = null, sonosPlaylists = null, events = null, refreshTimer = null;
   const q = (name) => root.querySelector(`[data-ma="${name}"]`);
@@ -48,12 +48,12 @@
   const SKELETON = `
     <div data-ma="setup" class="hidden">
       <div class="src-pick" role="group" aria-label="Où se passe la soirée ?">
-        <button type="button" class="src on" data-ma-src="spotify_sonos"><b>🏠 Party maison</b><small>Spotify sur tes Sonos</small></button>
+        <button type="button" class="src on" data-ma-src="sonos"><b>🏠 Party maison</b><small>File Sonos de tes enceintes</small></button>
         <button type="button" class="src" data-ma-src="spotify"><b>🏕️ Party extérieur</b><small>Spotify sur ton téléphone → enceinte Bluetooth</small></button>
       </div>
       <div class="card">
         <div data-ma="srcSonos">
-          <p class="sub" style="margin-top:0">1. Dans Spotify, choisis ta pièce Sonos dans les appareils disponibles et lance un titre.<br>2. Sélectionne la même pièce ici, puis démarre la soirée.</p>
+          <p class="sub" style="margin-top:0">1. Lance une playlist <b>depuis l'app Sonos</b> (pas via Spotify Connect / Jam) : la musique joue depuis la file Sonos.<br>2. Choisis la même pièce ici et le mode, puis démarre la soirée. Les ajouts des invités entrent dans la file Sonos.</p>
           <h2 style="margin-top:0">Pièce Sonos</h2>
           <div class="row"><select data-ma="room" class="grow" aria-label="Pièce Sonos"></select>
             <button class="secondary" type="button" data-ma-act="rooms" title="Actualiser">↻</button></div>
@@ -61,7 +61,7 @@
         <div data-ma="srcSpotify" class="hidden">
           <p class="sub" style="margin-top:0">1. Connecte ton téléphone à l'enceinte Bluetooth.<br>2. Lance une playlist dans l'app Spotify.<br>3. Démarre la soirée : les invités ajoutent directement à ta file Spotify.</p>
         </div>
-        <div data-ma="spotifyStart"></div>
+        <div data-ma="spotifyStart" class="hidden"></div>
         <h2 data-ma="modeTitle">Mode d'insertion</h2>
         <div class="seg" data-ma="modes"></div>
         <button type="button" data-ma-act="start" style="width:100%;margin-top:16px">🎉 Démarrer la soirée</button>
@@ -69,6 +69,21 @@
     </div>
     <div data-ma="live" class="hidden">
       <p class="sub"><span class="pill live">● Soirée en cours</span> <span data-ma="liveRoom"></span></p>
+      <details data-ma="access" class="card ma-access">
+        <summary>📱 Code et QR pour les invités · <b data-ma="pinSmall"></b></summary>
+        <div style="text-align:center;margin-top:10px">
+          <div class="big-pin" data-ma="pin">····</div>
+          <img class="qr" data-ma="qr" alt="QR code vers la page invités (code inclus)">
+          <p class="sub" style="margin:10px 0;overflow-wrap:anywhere" data-ma="guestUrl"></p>
+          <button class="secondary" type="button" data-ma-act="newPin">🔄 Code au hasard</button>
+          <form data-ma="pinForm" class="row" style="margin-top:10px;justify-content:center">
+            <input data-ma="pinCustom" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="Ton code" autocomplete="off"
+                   style="width:9em;text-align:center;font-size:1.2rem;letter-spacing:.3em" aria-label="Choisir le code (4 chiffres)">
+            <button class="secondary">✓ Utiliser ce code</button>
+          </form>
+          <p class="sub" style="margin:8px 0 0;font-size:.85rem">Un nouveau code déconnecte tous les invités : ils devront saisir le nouveau ou rescanner le QR.</p>
+        </div>
+      </details>
       <div data-ma="warn" class="warn hidden"></div>
       <div class="card now" data-ma="now"></div>
       <div class="row" style="margin-top:8px">
@@ -175,6 +190,14 @@
     }).join("") : `<p class="empty">${ext ? "Aucun titre à venir renvoyé par Spotify" : "La file est vide"}</p>`;
   }
 
+  function renderAccess(s) {
+    q("pin").textContent = s.guest_pin || "····";
+    q("pinSmall").textContent = s.guest_pin || "";
+    q("guestUrl").textContent = s.guest_url ? `${s.guest_url}?pin=${s.guest_pin}` : "";
+    const src = "/qr.svg?v=" + s.guest_pin;
+    if (q("qr").getAttribute("src") !== src) q("qr").src = src;
+  }
+
   function renderTop(s) {
     const top = s.top_playlists || [];
     q("top").innerHTML = top.length ? top.map((p, i) => `<div class="track">
@@ -206,6 +229,7 @@
     q("spotifyStart").innerHTML = spotifyAccountHtml(s);
     q("spotifyAccount").innerHTML = spotifyAccountHtml(s);
     if (!s.active) { renderModes(chosenMode); return; }
+    renderAccess(s);
     const ext = usesSpotify(s.source);
     renderModes(s.mode);
     renderNow(s, ext);
@@ -307,7 +331,7 @@
     try {
       if (name === "rooms") return loadRooms();
       if (name === "start") {
-        if (chosenSource === "spotify_sonos" && !q("room").value) return notify("Choisis une pièce", "err");
+        if (chosenSource === "sonos" && !q("room").value) return notify("Choisis une pièce", "err");
         if (usesSpotify(chosenSource) && !state?.spotify_account?.connected) return notify("Connecte d'abord ton compte Spotify", "err");
         b.disabled = true;
         render(await api("/api/admin/start", { room_uid: q("room").value, mode: chosenMode, source: chosenSource }));
@@ -323,6 +347,10 @@
         if (!confirm("Déconnecter ton compte Spotify ?")) return;
         render(await api("/api/admin/spotify/logout", {})); return notify("Compte Spotify déconnecté");
       }
+      if (name === "newPin") {
+        if (!confirm("Changer le code au hasard ? Tous les invités devront saisir le nouveau ou rescanner le QR.")) return;
+        render(await api("/api/admin/pin", {})); return notify("Nouveau code : " + state.guest_pin, "ok");
+      }
       if (name === "addSonosPlaylist") return q("sonosPlaylists").value && editTop({ action: "add", id: q("sonosPlaylists").value }, "Playlist ajoutée");
     } catch (e) { notify(e.message, "err"); }
     finally { if (b) b.disabled = false; }
@@ -336,8 +364,9 @@
     if (src) {
       chosenSource = src.dataset.maSrc;
       root.querySelectorAll("[data-ma-src]").forEach((x) => x.classList.toggle("on", x === src));
-      q("srcSonos").classList.toggle("hidden", chosenSource !== "spotify_sonos");
+      q("srcSonos").classList.toggle("hidden", chosenSource !== "sonos");
       q("srcSpotify").classList.toggle("hidden", chosenSource !== "spotify");
+      q("spotifyStart").classList.toggle("hidden", chosenSource !== "spotify");
       return renderModes(chosenMode);
     }
     const m = t.closest("[data-ma-mode]");
@@ -392,6 +421,7 @@
   function onInput(ev) {
     const t = ev.target;
     if (t.matches('[data-ma="addQ"]')) return search();
+    if (t.matches('[data-ma="pinCustom"]')) { t.value = t.value.replace(/\D/g, ""); return; }
     if (t.matches('[data-ma="volume"]')) {
       volumeDragging = true;
       q("volumeLabel").textContent = t.value;
@@ -419,7 +449,16 @@
     }
   }
 
+  async function choosePin() {
+    const pin = q("pinCustom").value.trim();
+    if (!/^\d{4}$/.test(pin)) return notify("Le code doit faire 4 chiffres", "err");
+    if (!confirm(`Utiliser le code ${pin} ? Tous les invités devront le saisir (ou rescanner le QR).`)) return;
+    try { render(await api("/api/admin/pin", { pin })); q("pinCustom").value = ""; q("pinCustom").blur(); notify("Nouveau code : " + state.guest_pin, "ok"); }
+    catch (e) { notify(e.message, "err"); }
+  }
+
   async function onSubmit(ev) {
+    if (ev.target.matches('[data-ma="pinForm"]')) { ev.preventDefault(); return choosePin(); }
     if (!ev.target.matches('[data-ma="topLink"]')) return;
     ev.preventDefault();
     if (await editTop({ action: "add", url: q("topUrl").value.trim() }, "Playlist ajoutée")) q("topUrl").value = "";

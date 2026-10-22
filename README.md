@@ -1,8 +1,8 @@
 # 🎉 Vendredi Party
 
-Webapp qui permet aux invités d'ajouter des titres à la **file Spotify de l'hôte**,
-sans compte Spotify. La lecture se fait sur les Sonos à la maison (Spotify Connect),
-ou sur le téléphone relié à une enceinte Bluetooth à l'extérieur.
+Webapp qui permet aux invités d'ajouter des titres à la musique de la soirée, sans compte Spotify.
+À la maison, les titres entrent dans la **file Sonos** (API locale Sonos, Spotify lié au système Sonos) ;
+à l'extérieur, dans la file Spotify du téléphone de l'hôte relié à une enceinte Bluetooth.
 
 - **/** : page invités (code, prénom, recherche, ajout immédiat, aperçu de la file, messages)
 - **/admin** : démarrer/arrêter la soirée, lecture, volume, code + QR code,
@@ -15,19 +15,16 @@ régénèrent avec `python tools/make_icons.py` (nécessite Pillow).
 
 ## Utilisation
 
-1. Connecte le compte Spotify Premium de l'hôte dans les réglages de Party.
-2. Dans **Spotify**, sélectionne ta pièce Sonos comme appareil et lance un titre.
-3. Ouvre `/admin`, choisis **Party maison**, sélectionne la même pièce et démarre.
-4. Affiche le QR code : chaque ajout part immédiatement dans Spotify.
+### Party maison (file Sonos native)
 
-Le démarrage vérifie que Spotify joue sur le coordinateur de la pièce choisie et que
-l'appareil autorise les commandes API. Les envois et commandes de lecture ciblent ensuite
-son identifiant Spotify. Si Spotify passe sur un autre appareil, Party demande de revenir
-sur la pièce choisie ou de redémarrer la soirée. Le volume du groupe, les volumes individuels
-et le regroupement des Sonos restent accessibles dans Party via le réseau local.
+1. Lance une playlist **depuis l'app Sonos** (pas via Spotify Connect / Jam) : la musique joue depuis la file Sonos.
+2. Dans l'onglet **Musique** de l'app (compte admin) ou sur `/admin`, choisis **Party maison**, la même pièce
+   et le mode d'insertion (juste après / équitable), puis démarre.
+3. Affiche le code ou le QR (section « Code et QR pour les invités ») : les ajouts entrent dans la file Sonos.
 
-Une ancienne soirée utilisant la file Sonos native conserve son fonctionnement jusqu'à
-son arrêt. Redémarrer une Party maison active le nouveau fonctionnement Spotify Connect.
+Aucun compte Spotify à connecter dans Party : Sonos lit les titres avec le compte Spotify lié à ton système.
+L'hôte peut réordonner, jouer ensuite, retirer (avec « Annuler ») et passer en mode équitable.
+Le mode Spotify Connect sur Sonos (`spotify_sonos`) reste pris en charge pour une soirée déjà lancée ainsi.
 
 ### Party extérieur (Spotify → enceinte Bluetooth)
 

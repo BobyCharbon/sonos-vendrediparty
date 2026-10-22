@@ -40,12 +40,12 @@
       <!-- Pas de session -->
       <div id="setup" class="hidden">
         <div class="src-pick" role="group" aria-label="Où se passe la soirée ?">
-          <button type="button" class="src on" data-src="spotify_sonos"><b>🏠 Party maison</b><small>Spotify sur tes Sonos</small></button>
+          <button type="button" class="src on" data-src="sonos"><b>🏠 Party maison</b><small>File Sonos de tes enceintes</small></button>
           <button type="button" class="src" data-src="spotify"><b>🏕️ Party extérieur</b><small>Spotify sur ton téléphone → enceinte Bluetooth</small></button>
         </div>
         <div class="card">
           <div id="srcSonos">
-            <p class="sub" style="margin-top:0">1. Dans Spotify, choisis ta pièce Sonos dans les appareils disponibles et lance un titre.<br>2. Sélectionne la même pièce ici, puis démarre la soirée. Les ajouts partent immédiatement dans Spotify.</p>
+            <p class="sub" style="margin-top:0">1. Lance une playlist <b>depuis l'app Sonos</b> (pas via Spotify Connect / Jam) : la musique joue depuis la file Sonos.<br>2. Choisis la même pièce ici et le mode, puis démarre la soirée. Les ajouts des invités entrent dans la file Sonos.</p>
             <h2 style="margin-top:0">Pièce Sonos</h2>
             <div class="row">
               <select id="room" class="grow"></select>
@@ -56,7 +56,7 @@
             <p class="sub" style="margin-top:0">1. Connecte ton téléphone à l'enceinte Bluetooth.<br>2. Lance une playlist dans l'app Spotify (aléatoire et fondu se règlent dans Spotify).<br>3. Démarre la soirée : les invités ajoutent directement à ta file Spotify.</p>
             <p class="sub">Les titres ajoutés dans Party sont envoyés immédiatement à Spotify. Tu peux aussi ajouter et gérer tes titres dans Spotify.</p>
           </div>
-          <div id="spotifyStart"></div>
+          <div id="spotifyStart" class="hidden"></div>
           <h2 data-mode-title>Mode d'insertion</h2>
           <div class="seg" data-mode-picker></div>
           <button id="start" style="width:100%;margin-top:16px">🎉 Démarrer la soirée</button>
@@ -602,14 +602,15 @@ $("login").addEventListener("submit", async (ev) => {
   catch (e) { toast(e.message, "err"); }
 });
 $("reloadRooms").onclick = loadRooms;
-let chosenSource = "spotify_sonos";
+let chosenSource = "sonos";  // Party maison : file Sonos native (pas de compte Spotify à connecter)
 document.addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-src]");
   if (!b) return;
   chosenSource = b.dataset.src;
   document.querySelectorAll("[data-src]").forEach((x) => x.classList.toggle("on", x === b));
-  $("srcSonos").classList.toggle("hidden", chosenSource !== "spotify_sonos");
+  $("srcSonos").classList.toggle("hidden", chosenSource !== "sonos");
   $("srcSpotify").classList.toggle("hidden", chosenSource !== "spotify");
+  $("spotifyStart").classList.toggle("hidden", chosenSource !== "spotify");
   renderModes(chosenMode);
 });
 // Compte Spotify de l'hôte (Party extérieur) : connexion une seule fois.
@@ -627,7 +628,7 @@ document.addEventListener("click", async (ev) => {
   try { render(await api("/api/admin/spotify/logout", {})); toast("Compte Spotify déconnecté"); } catch (e) { toast(e.message, "err"); }
 });
 $("start").onclick = async () => {
-  if (chosenSource === "spotify_sonos" && !$("room").value) return toast("Choisis une pièce", "err");
+  if (chosenSource === "sonos" && !$("room").value) return toast("Choisis une pièce", "err");
   if (usesSpotify(chosenSource) && !state?.spotify_account?.connected) return toast("Connecte d'abord ton compte Spotify", "err");
   $("start").disabled = true;
   try {

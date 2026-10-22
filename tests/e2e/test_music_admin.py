@@ -18,7 +18,8 @@ def live_state(queue=QUEUE):
     return {"active": True, "source": "sonos", "mode": "next", "room_name": "Salon", "sonos_error": None,
             "sonos": {"state": "PLAYING", "now": TRACK, "volume": 30, "from_queue": True}, "queue": queue,
             "requests": [{"id": "r1", "title": "Deuxième", "artist": "A2", "image": "", "guest_name": "Léa", "added_at": 1761120000, "status": "queued"}],
-            "top_playlists": [{"id": "spotify:playlist:abc", "title": "Apéro"}], "spotify_account": {"connected": False}}
+            "top_playlists": [{"id": "spotify:playlist:abc", "title": "Apéro"}], "spotify_account": {"connected": False},
+            "guest_pin": "4821", "guest_url": "https://partytest.bobycharbon.ch/"}
 
 
 @pytest.fixture
@@ -47,10 +48,15 @@ def test_admin_starts_the_party_from_the_music_tab_and_guests_keep_their_page(br
         admin = boss.page.locator("#musicAdmin")
         expect(admin.get_by_role("button", name="🎉 Démarrer la soirée")).to_be_visible()
         expect(admin.get_by_text("Party maison")).to_be_visible()
+        # Party maison = file Sonos native : pas de compte Spotify à connecter, mode d'insertion au choix.
+        expect(admin.get_by_text("depuis l'app Sonos")).to_be_visible()
+        expect(admin.locator('[data-ma="spotifyStart"]')).to_be_hidden()
+        expect(admin.locator('[data-ma="setup"] [data-ma-mode="fair"]')).to_be_visible()
         assert boss.page.locator("#pin").is_hidden() and boss.page.locator("#closed").is_hidden()
         admin.locator('[data-ma-src="spotify"]').tap()  # extérieur : pas de mode d'insertion (Spotify gère)
         expect(admin.locator('[data-ma="srcSpotify"]')).to_be_visible()
         expect(admin.locator('[data-ma="setup"] [data-ma="modes"]')).to_be_hidden()
+        expect(admin.locator('[data-ma="spotifyStart"]')).to_be_visible()
         assert not guest.errors and not boss.errors, guest.errors + boss.errors
     finally:
         guest.close(); boss.close()
@@ -83,6 +89,19 @@ def test_admin_drives_the_live_party_from_the_music_tab(browser, server):
         expect(admin.locator('[data-ma="queue"]')).to_contain_text("Troisième")
         expect(admin.locator('[data-ma="requests"]')).to_contain_text("Léa")
         expect(admin.locator('[data-ma="top"]')).to_contain_text("Apéro")
+
+        # Code et QR des invités : repliés (pas de place perdue), le code reste visible dans le titre.
+        expect(admin.locator('[data-ma="access"] summary')).to_contain_text("4821")
+        expect(admin.locator('[data-ma="qr"]')).to_be_hidden()
+        admin.locator('[data-ma="access"] summary').tap()
+        expect(admin.locator('[data-ma="qr"]')).to_be_visible()
+        expect(admin.locator('[data-ma="guestUrl"]')).to_have_text("https://partytest.bobycharbon.ch/?pin=4821")
+        boss.page.once("dialog", lambda d: d.accept())
+        admin.locator('[data-ma="pinCustom"]').fill("12a4")
+        expect(admin.locator('[data-ma="pinCustom"]')).to_have_value("124")  # chiffres seulement
+        admin.locator('[data-ma="pinCustom"]').fill("1234")
+        admin.locator('[data-ma="pinForm"] button').tap()
+        assert ("pin", {"pin": "1234"}) in sent
 
         # Retirer un titre de la file : il disparaît, avec « Annuler » dans le message.
         admin.locator('[data-ma-q="remove"][data-key="k3"]').tap()
