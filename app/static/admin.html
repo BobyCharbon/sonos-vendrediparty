@@ -381,6 +381,9 @@ function renderFeedback() {
       <div class="artist">${fbMeta(i)}</div>
       ${i.note && fbEditing !== i.id ? `<div class="fb-note">📝 ${esc(i.note)}</div>` : ""}
       ${i.claude ? `<a class="fb-claude ${esc(i.claude.state)}" href="${esc(i.claude.url)}" target="_blank" rel="noopener">${FB_CLAUDE[i.claude.state] || ""} · #${esc(i.claude.number)}</a>` : ""}
+      ${i.claude?.state === "failed" ? `<div class="fb-problem"><b>⚠️ Problème à corriger</b>
+        <pre>${esc(i.claude.error || "Raison en cours de récupération…")}</pre>
+        <small>Corrige la cause (réglage, instructions plus précises…), puis ✏️ → 🤖 Envoyer à Claude.</small></div>` : ""}
 </div>
     <div class="icon-btns">
       <button class="secondary" data-fb-edit="${esc(i.id)}" aria-label="Préciser / instructions pour Claude">✏️</button>

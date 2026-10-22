@@ -65,13 +65,17 @@ class FeedbackBox:
         """Envoyé à Claude : l'invité voit « en cours de correction », l'admin suit l'issue."""
         return self._edit(fid, status="sent", claude={"number": number, "url": url, "state": "pending", "at": time.time()})
 
-    def set_claude_state(self, fid: str, state: str) -> dict | None:
-        """Issue fermée → traité ; correction échouée → de nouveau à traiter (marqué ⚠️ dans l'admin)."""
+    def set_claude_state(self, fid: str, state: str, error: str = "") -> dict | None:
+        """Issue fermée → traité ; correction échouée → de nouveau à traiter, avec le « problème à corriger »."""
         item = self.get(fid)
-        if not item or not item.get("claude") or item["claude"]["state"] == state:
+        if not item or not item.get("claude"):
             return item
+        claude = {k: v for k, v in item["claude"].items() if k != "error"}
+        claude["state"] = state
+        if state == "failed":
+            claude["error"] = error
         status = {"fixed": "done", "failed": "new"}.get(state, item["status"])
-        return self._edit(fid, status=status, claude={**item["claude"], "state": state})
+        return self._edit(fid, status=status, claude=claude)
 
     def update(self, ids: list[str], action: str):
         with self.lock:

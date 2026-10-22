@@ -22,6 +22,9 @@ def fake_github(issues: dict):
             issues[n] = {"number": n, "html_url": f"https://github.com/owner/repo/issues/{n}", "state": "open",
                          "labels": [{"name": x} for x in body["labels"]], "title": body["title"], "body": body["body"]}
             return httpx.Response(201, json=issues[n])
+        if request.method == "GET" and request.url.path.endswith("/comments"):
+            n = int(request.url.path.split("/")[-2])
+            return httpx.Response(200, json=[{"body": b} for b in issues.get(n, {}).get("comments", [])])
         if request.method == "GET" and request.url.path.startswith("/repos/owner/repo/issues/"):
             n = int(request.url.path.rsplit("/", 1)[1])
             return httpx.Response(200, json=issues[n]) if n in issues else httpx.Response(404, json={})
@@ -94,10 +97,14 @@ def test_closed_issue_marks_fixed_and_failed_run_goes_back_to_todo(admin, monkey
     first_issue, second_issue = (main.feedback.get(fid)["claude"]["number"] for fid in ids)
     issues[first_issue]["state"] = "closed"
     issues[second_issue]["labels"].append({"name": "claude-failed"})
+    issues[second_issue]["comments"] = ["🤖 Claude a pris la correction en charge",
+                                        "⚠️ La correction n'a pas abouti.\n\n### Problème à corriger\n```\nLes tests échouent : test_x\n```\n\nLog : https://x"]
     main.github.cache.clear()
     items = {i["id"]: i for i in admin.get("/api/admin/feedback").json()["items"]}
     assert items[ids[0]]["status"] == "done" and items[ids[0]]["claude"]["state"] == "fixed"
     assert items[ids[1]]["status"] == "new" and items[ids[1]]["claude"]["state"] == "failed"
+    assert items[ids[1]]["claude"]["error"] == "Les tests échouent : test_x"  # « Problème à corriger » dans l'admin
+    assert "error" not in items[ids[0]]["claude"]
 
 
 def test_without_github_token_the_prompt_can_still_be_copied(admin, monkeypatch, tmp_path):  # noqa: F811
@@ -134,3 +141,15 @@ def test_github_refusal_says_what_to_fix(admin, monkeypatch, tmp_path):  # noqa:
     r = admin.post(f"/api/admin/feedback/{fid}/claude")
     assert r.status_code == 502 and "(403)" in r.json()["detail"] and "Issues : Read and write" in r.json()["detail"]
     assert main.feedback.get(fid)["status"] == "new"  # rien n'est marqué envoyé
+
+
+def test_failure_without_reason_section_still_tells_the_admin(admin, monkeypatch, tmp_path):  # noqa: F811
+    issues = setup(monkeypatch, tmp_path)
+    send(admin)
+    fid = first(admin)["id"]
+    note(admin, fid)
+    admin.post(f"/api/admin/feedback/{fid}/claude")
+    issues[1]["labels"].append({"name": "claude-failed"})  # ancien workflow : pas de section dans le commentaire
+    main.github.cache.clear()
+    claude = first(admin)["claude"]
+    assert claude["state"] == "failed" and "log" in claude["error"].lower()

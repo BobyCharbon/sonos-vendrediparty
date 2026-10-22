@@ -1655,10 +1655,15 @@ def feedback_payload() -> dict:
 def sync_claude_fixes():
     """Retours confiés à Claude : l'état de leur issue (corrigé, échoué) revient dans l'admin."""
     for item in feedback.all():
-        if item.get("claude", {}).get("state") != "pending":
+        claude = item.get("claude") or {}
+        # En cours, ou échoué sans raison connue (envoyé avant que le workflow ne la publie).
+        if claude.get("state") != "pending" and not (claude.get("state") == "failed" and not claude.get("error")):
             continue
         try:
-            feedback.set_claude_state(item["id"], github.state(item["claude"]["number"]))
+            state = github.state(claude["number"])
+            error = github.failure_reason(claude["number"]) if state == "failed" else ""
+            if state != claude["state"] or error:
+                feedback.set_claude_state(item["id"], state, error)
         except GitHubError as e:
             log.warning("Suivi de l'issue #%s impossible : %s", item["claude"]["number"], e)
             return  # GitHub injoignable : on réessaiera au prochain affichage

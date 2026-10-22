@@ -9,6 +9,8 @@ API = "https://api.github.com"
 LABEL = "claude-fix"
 FAILED_LABEL = "claude-failed"  # posée par le workflow quand la correction échoue
 CACHE_TTL = 60                  # s : l'admin ouvert ne relit pas GitHub à chaque rafraîchissement
+REASON_HEADING = "### Problème à corriger"  # section écrite par le workflow dans son commentaire d'échec
+NO_REASON = "La correction a échoué sans raison détaillée : ouvre le log depuis le lien de l'issue."
 
 
 # Causes fréquentes d'un refus, dites en clair dans l'admin.
@@ -70,3 +72,15 @@ class Issues:
         if issue.get("state") == "closed":
             return "fixed"
         return "failed" if any(lb.get("name") == FAILED_LABEL for lb in issue.get("labels", [])) else "pending"
+
+    def failure_reason(self, number: int) -> str:
+        """Raison d'un échec, lue dans le dernier commentaire « Problème à corriger » du workflow."""
+        comments = self._call("GET", f"/issues/{number}/comments", params={"per_page": 100})
+        for c in reversed(comments if isinstance(comments, list) else []):
+            body = c.get("body") or ""
+            if REASON_HEADING in body:
+                section = body.split(REASON_HEADING, 1)[1]
+                lines = [ln for ln in section.strip().splitlines() if not ln.startswith("```")]
+                text = "\n".join(ln for ln in lines if not ln.startswith("Log : ")).strip()
+                return text[:1500] or NO_REASON
+        return NO_REASON

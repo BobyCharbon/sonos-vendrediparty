@@ -70,36 +70,47 @@ jobs:
             ${{ github.event.issue.body }}
 
       - name: Raison de l'échec de Claude
-        if: failure()
-        # Seulement le message final (le dépôt est public : pas toute la session dans les logs).
+        if: always()
+        # Message final de Claude seulement (le dépôt est public : pas toute la session dans les logs).
+        # Écrit dans $RUNNER_TEMP : repris dans le commentaire d'échec, puis affiché dans l'admin.
         run: |
           python3 - <<'PY' || true
-          import json
-          data = json.load(open("/home/runner/work/_temp/claude-execution-output.json"))
+          import json, os
+          tmp = os.environ["RUNNER_TEMP"]
+          try:
+              data = json.load(open(os.path.join(tmp, "claude-execution-output.json")))
+          except (OSError, ValueError):
+              data = []
+          last, reason = "", ""
           for m in data if isinstance(data, list) else [data]:
-              if m.get("type") == "result":
-                  print("Résultat :", m.get("subtype"), "| erreur :", m.get("is_error"))
-                  print("Message :", str(m.get("result") or m.get("errors") or "(aucun)")[:1500])
               if m.get("type") == "assistant":
-                  last = " ".join(c.get("text", "") for c in m.get("message", {}).get("content", []) if c.get("type") == "text")
+                  text = " ".join(c.get("text", "") for c in m.get("message", {}).get("content", []) if c.get("type") == "text")
+                  last = text or last
                   if m.get("error"):
-                      print("Erreur API :", m.get("error"))
-          print("Dernier message de Claude :", (last if "last" in dir() else "(aucun)")[:800])
+                      reason = f"Erreur de l'API Claude : {m['error']}"
+              if m.get("type") == "result" and m.get("is_error"):
+                  detail = m.get("result") or m.get("errors") or last or "aucun détail"
+                  reason = f"{reason or 'Claude a échoué au démarrage'} — {str(detail)[:1200]}"
+          open(os.path.join(tmp, "claude-last.txt"), "w").write(last[:1500])
+          if reason:
+              open(os.path.join(tmp, "claude-reason.txt"), "w").write(reason)
+              print(reason)
           PY
 
       - name: Tests, puis push sur develop
         id: push
         run: |
+          fail() { printf '%s\n' "$1" > "$RUNNER_TEMP/claude-reason.txt"; printf '%s\n' "$1"; exit 1; }
           if [ "$(git rev-parse HEAD)" = "$BASE" ]; then
-            echo "Aucun commit : Claude n'a rien corrigé." && exit 1
+            fail "Claude n'a rien commité. Son explication : $(cat "$RUNNER_TEMP/claude-last.txt" 2>/dev/null || echo 'aucune')"
           fi
           if git diff --name-only "$BASE" HEAD | grep -q '^\.github/'; then
-            echo "Modification de .github/ refusée." && exit 1
+            fail "Claude a modifié .github/ : refusé par sécurité, rien n'a été poussé."
           fi
-          python -m pytest -q
-          git pull --rebase origin develop
-          python -m pytest -q
-          git push origin HEAD:develop
+          python -m pytest -q > "$RUNNER_TEMP/pytest.txt" 2>&1 || fail "Les tests échouent après la correction de Claude : $(tail -25 "$RUNNER_TEMP/pytest.txt")"
+          git pull --rebase origin develop || fail "Conflit avec develop (modifié pendant la correction) : renvoie le retour à Claude."
+          python -m pytest -q > "$RUNNER_TEMP/pytest.txt" 2>&1 || fail "Les tests échouent une fois la correction combinée au develop actuel : $(tail -25 "$RUNNER_TEMP/pytest.txt")"
+          git push origin HEAD:develop || fail "GitHub a refusé le push sur develop."
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Image de test et fermeture de l'issue
@@ -110,7 +121,19 @@ jobs:
 
       - name: Signaler l'échec
         if: failure()
+        # Le titre « ### Problème à corriger » est relu par l'admin (app/github_issues.py) : ne pas le renommer.
         run: |
           gh label create claude-failed --color B60205 --description "Correction automatique échouée" 2>/dev/null || true
           gh issue edit "$ISSUE" --add-label claude-failed
-          gh issue comment "$ISSUE" --body "⚠️ La correction n'a pas abouti (rien poussé sur develop) : ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Précise tes instructions dans l'admin puis renvoie à Claude."
+          REASON="$(cat "$RUNNER_TEMP/claude-reason.txt" 2>/dev/null || echo "Échec inattendu d'une étape du workflow : ouvre le log pour voir laquelle.")"
+          {
+            echo "⚠️ La correction n'a pas abouti (rien poussé sur develop)."
+            echo
+            echo "### Problème à corriger"
+            echo '```'
+            printf '%s\n' "$REASON"
+            echo '```'
+            echo
+            echo "Log : ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > "$RUNNER_TEMP/comment.md"
+          gh issue comment "$ISSUE" --body-file "$RUNNER_TEMP/comment.md"
