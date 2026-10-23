@@ -83,14 +83,14 @@
     });
   }
 
-  function renderGuests(s) {
-    const now = Date.now() / 1000, ext = usesSpotify(s.source);
-    q("guests").innerHTML = (s.guests || []).length ? s.guests.map((g) => {
-      const gid = escape(g.guest_id), online = now - g.last_seen < ONLINE, via = g.via || [];
-      return `<div class="track" style="flex-wrap:wrap">
+  // Ligne d'un invité avec ses actions : aussi utilisée sous le QR de l'onglet Musique (MusicAdmin).
+  function guestRow(g, source) {
+    const now = Date.now() / 1000, ext = usesSpotify(source);
+    const gid = escape(g.guest_id), online = now - g.last_seen < ONLINE, via = g.via || [];
+    return `<div class="track" style="flex-wrap:wrap">
         <div class="meta"><div class="title">${online ? `<span class="dot" title="En ligne"></span>` : ""}${escape(g.name)}
           ${via.includes("music") ? "🎵" : ""}${via.includes("games") ? "🎮" : ""} ${g.ban ? `<span class="pill">${banLabel(g.ban)}</span>` : ""}</div>
-        <div class="artist">arrivé à ${hhmm(g.joined_at)} · ${online ? "en ligne" : `vu ${seenAgo(g.active_at)}`}${via.includes("music") ? ` · ${g.total} titre${g.total > 1 ? "s" : ""} · ${g.queued} ${ext ? "envoi(s) Spotify sans lecture observée" : "en attente"}` : ""}</div></div>
+        <div class="artist">arrivé à ${hhmm(g.joined_at)} · ${online ? "en ligne" : `vu ${seenAgo(g.active_at)}`}${via.includes("music") ? ` · ${g.total || 0} titre${g.total > 1 ? "s" : ""} · ${g.queued || 0} ${ext ? "envoi(s) Spotify sans lecture observée" : "en attente"}` : ""}</div></div>
         <div class="row" style="gap:6px">
           ${g.ban ? `<button class="secondary" data-pa-guest="unban" data-g="${gid}">Débloquer</button>`
             : `<button class="secondary" data-pa-guest="rename" data-g="${gid}" data-name="${escape(g.name)}" title="Renommer">✏️</button>
@@ -99,7 +99,10 @@
                <button class="danger" data-pa-guest="ban" data-g="${gid}" title="Bannir">⛔</button>`}
           ${g.queued && !ext ? `<button class="danger" data-pa-guest="purge" data-g="${gid}" title="Retirer ses titres en attente">🗑</button>` : ""}
         </div></div>`;
-    }).join("") : `<p class="empty">Aucun invité pour l'instant</p>`;
+  }
+
+  function renderGuests(s) {
+    q("guests").innerHTML = (s.guests || []).length ? s.guests.map((g) => guestRow(g, s.source)).join("") : `<p class="empty">Aucun invité pour l'instant</p>`;
   }
 
   function renderBans(s) {
@@ -242,5 +245,7 @@
       root.addEventListener("change", onChange);
     },
     render,
+    guestRow,
+    act: guestAction,  // bouton data-pa-guest d'une autre zone (ex. invités connectés sous le QR)
   };
 })();

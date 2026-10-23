@@ -1549,6 +1549,9 @@ html.events-soon .tabs [data-tab="events"]::after {
 .ma-online { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 10px 0 4px; }
 .ma-online .artist { width: 100%; }
 .ma-online .dot { margin-right: 4px; }
+.ma-online-list { width: 100%; text-align: left; }
+.ma-online-list .track .meta { flex: 1 1 100%; }
+.ma-online-list .track > .row { width: 100%; justify-content: flex-end; flex-wrap: wrap; }
 body.admin-music .admin-only { display: block; }
 body.admin-music section[data-view="music"] > :not(.admin-only) { display: none !important; }
 body:not(.admin-music) .admin-games { display: none !important; }

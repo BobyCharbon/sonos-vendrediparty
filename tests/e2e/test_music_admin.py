@@ -105,6 +105,11 @@ def test_admin_drives_the_live_party_from_the_music_tab(browser, server):
         expect(admin.locator('[data-ma="online"]')).to_contain_text("Zoé")
         expect(admin.locator('[data-ma="online"]')).not_to_contain_text("Parti")
         expect(admin.locator('[data-ma="access"] summary')).to_contain_text("👥 1")
+        # Mêmes actions que dans Réglages, directement sur un invité connecté.
+        admin.locator('[data-ma="online"] [data-pa-guest="kick"][data-g="g-online-0001"]').tap()
+        expect(boss.page.locator("#toast")).to_contain_text("Invité déconnecté")
+        assert ("kick", {"guest_id": "g-online-0001"}) in sent
+        expect(admin.locator('[data-ma="online"] [data-pa-guest="ban"]')).to_be_visible()
         # Enceintes : repliées par défaut, dépliées d'un toucher.
         expect(admin.locator('[data-ma="speakersBody"]')).to_be_hidden()
         admin.locator('[data-ma-act="speakersFold"]').tap()

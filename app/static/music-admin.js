@@ -220,8 +220,11 @@
     const now = Date.now() / 1000;
     const online = (s.guests || []).filter((g) => now - g.last_seen < ONLINE);
     q("onlineCount").textContent = online.length ? `· 👥 ${online.length}` : "";
-    q("online").innerHTML = `<div class="artist">${online.length ? `${online.length} connecté${online.length > 1 ? "s" : ""}` : "Aucun invité connecté pour l'instant"}</div>`
-      + online.map((g) => `<span class="pill"><span class="dot" aria-hidden="true"></span>${escape(g.name)} ${(g.via || []).includes("music") ? "🎵" : ""}${(g.via || []).includes("games") ? "🎮" : ""}${g.ban ? " ⛔" : ""}</span>`).join("");
+    const head = `<div class="artist">${online.length ? `${online.length} connecté${online.length > 1 ? "s" : ""}` : "Aucun invité connecté pour l'instant"}</div>`;
+    // Mêmes actions que dans Réglages (renommer, déconnecter, bloquer, bannir, retirer ses titres).
+    q("online").innerHTML = head + (window.PeopleAdmin
+      ? `<div class="list ma-online-list">${online.map((g) => PeopleAdmin.guestRow(g, s.source)).join("")}</div>`
+      : online.map((g) => `<span class="pill"><span class="dot" aria-hidden="true"></span>${escape(g.name)}</span>`).join(""));
   }
 
   function renderSpeakersFold() {
@@ -407,6 +410,8 @@
 
   async function onClick(ev) {
     const t = ev.target;
+    const guest = t.closest("[data-pa-guest]");
+    if (guest && window.PeopleAdmin) return PeopleAdmin.act(guest);
     const a = t.closest("[data-ma-act]");
     if (a) return act(a.dataset.maAct, a);
     const src = t.closest("[data-ma-src]");
