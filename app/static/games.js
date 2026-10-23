@@ -1861,7 +1861,7 @@ function tmcHtml(g) {
   const form = (ph) => `<form data-gform="tanswer" class="row" style="margin-top:10px"><input class="grow" type="text" id="guessInput" maxlength="80" aria-label="${ph}" placeholder="${ph}" autocomplete="off"><button>Valider</button></form>`;
   if (g.phase === "answer") {
     let zone;
-    if (d.proxy) zone = `<div class="tm-speak" style="font-size:1rem">📵 ${S} n'a pas de téléphone : passe-lui le tien pour qu'il ou elle écrive sa réponse en secret.</div>${form(`Réponse de ${d.subject.name}`)}`;
+    if (d.proxy) zone = `<div class="tm-speak" style="font-size:1rem">📵 ${S} n'a pas de téléphone : passe-lui le tien pour qu'il ou elle écrive sa réponse en secret.</div>${form(`Réponse de ${S}`)}`;
     else if (d.role === "subject") zone = d.mine ? "" : `<div class="artist" style="margin-top:8px">Écris <b>ta vraie réponse</b>, en secret. Elle sera révélée après que ${G} aura deviné à voix haute.</div>${form("Ta vraie réponse")}`;
     else if (d.role === "guesser") zone = `<div class="artist" style="margin-top:8px">${S} écrit sa réponse en secret… Prépare-toi : tu devras la deviner <b>à voix haute</b>.</div>`;
     else zone = `<div class="artist" style="margin-top:8px">${S} écrit sa réponse en secret…</div>`;

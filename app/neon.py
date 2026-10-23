@@ -4,10 +4,9 @@ Fixed 60 Hz physics, sampled by the lightweight phone transport. The shared lock
 also covers lobby actions, so two phones cannot advance the same time twice.
 """
 import math
-import threading
 import time
 
-LOCK = threading.RLock()
+from .game_lock import LOCK  # verrou commun à toutes les parties (voir game_lock.py)
 STEP = 1 / 60
 RADIUS = 10.0
 BODY = 0.48

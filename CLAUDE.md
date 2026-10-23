@@ -36,6 +36,16 @@ Un navigateur de bureau ne reproduit pas le bug lui-même : seul un vrai iPhone 
 - Test réel : `test_android_finger_on_an_event_card_scrolls_the_list` (geste tactile Chrome, départ sur une carte).
   Tout bug de défilement / toucher doit d'abord être reproduit par un test de ce type avant d'être corrigé.
 
+## Jeux — requêtes simultanées
+- Tous les téléphones interrogent la partie chaque seconde, en parallèle. Toute lecture-modification d'une partie
+  (action, avancée automatique type `quiz.tick`, image des jeux temps réel) passe par le verrou unique
+  `app/game_lock.py` (`GAMES_LOCK` dans main.py) ; `store.save` le prend aussi. Ne jamais créer de verrou par jeu
+  ni modifier une partie hors de ce verrou (bug corrigé : une question de quiz ratée retirait toutes les vies,
+  la main de Blackjack était distribuée plusieurs fois).
+- Test : `tests/test_game_concurrency.py` (requêtes simultanées, une seule étape appliquée).
+- Tout prénom ou texte saisi par un joueur passe par `esc()` avant d'entrer dans du HTML, attributs compris
+  (test : `tests/e2e/test_names_escaped.py`).
+
 ## Base Supabase (Événements, comptes)
 - Une seule base pour le site de test ET la production. Les migrations (`supabase/migrations/`) ne sont jamais
   appliquées par le déploiement Docker ni par le workflow : l'admin les applique à la main.

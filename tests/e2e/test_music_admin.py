@@ -195,7 +195,7 @@ def test_admin_answers_messages_and_moderates_guests_from_settings(browser, serv
 
         people.locator('[data-pa-guest="unban"][data-g="guest-old-0001"]').tap()
         assert ("unban", {"guest_id": "guest-old-0001"}) in sent
-        boss.page.locator("[data-host-back]").tap()
+        boss.page.locator('[data-view="host"] [data-host-back]').tap()  # « Mes stats de jeu » a aussi le sien
         expect(boss.page.locator('section[data-view="host"]')).to_be_hidden()
         assert not boss.errors, boss.errors
     finally:

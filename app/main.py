@@ -23,6 +23,7 @@ from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
 
 from . import calendar_ics, games, heist, island, likely, links, neon, president, purity, quiz
+from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
 from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
 from .github_issues import GitHubError, Issues
@@ -1263,12 +1264,18 @@ def account_link(body: AccountLink, request: Request):
     account_limiter.success(ip)
     new, old = account["guest_id"], body.guest_id
     if GUEST_ID_RE.match(old or "") and old != new:
-        for g in list(store.session.games.values()):
-            if games.player(g, old) and not games.player(g, new):
-                g.setdefault("aliases", {})[new] = canonical_gid(g, old)
+        with GAMES_LOCK:
+            link_seats(old, new)
     if account["name"]:
         game_presence(request, new, account["name"])
     return account
+
+
+def link_seats(old: str, new: str):
+    """Les places que ce téléphone occupait dans des parties suivent désormais le compte."""
+    for g in list(store.session.games.values()):
+        if games.player(g, old) and not games.player(g, new):
+            g.setdefault("aliases", {})[new] = canonical_gid(g, old)
 
 
 class AccountToken(BaseModel):
@@ -1375,6 +1382,12 @@ def sync_player_name(g: dict, guest_id: str, name: str):
 
 @app.get("/api/games/{code}")
 def game_state(code: str, request: Request, guest_id: str = "", name: str = ""):
+    # Tous les téléphones interrogent en même temps : une seule avancée automatique (fin d'une question…) à la fois.
+    with GAMES_LOCK:
+        return read_game(code, request, guest_id, name)
+
+
+def read_game(code: str, request: Request, guest_id: str, name: str):
     g = get_game(code)
     game_presence(request, guest_id, name)
     guest_id = canonical_gid(g, guest_id)
@@ -1383,14 +1396,13 @@ def game_state(code: str, request: Request, guest_id: str = "", name: str = ""):
     if quiz.tick(g):  # Quiz : le temps a avancé (fin d'une question, question suivante…)
         g["updated_at"] = time.time()
         save_games(g["code"], g.get("room") or "")
-    with neon.LOCK, island.LOCK, heist.LOCK:
-        if heist.tick(g):
-            save_games(g["code"])
-        if island.tick(g):
-            save_games(g["code"])
-        if neon.tick(g):
-            save_games(g["code"])
-        return full_view(g, guest_id)
+    if heist.tick(g):
+        save_games(g["code"])
+    if island.tick(g):
+        save_games(g["code"])
+    if neon.tick(g):
+        save_games(g["code"])
+    return full_view(g, guest_id)
 
 
 class GameAction(BaseModel):
@@ -1425,14 +1437,8 @@ HOST_ACTIONS = {"puset", "pureveal","ban", "start", "vote_start", "close_vote", 
 
 @app.post("/api/games/{code}")
 def game_action(code: str, body: GameAction, request: Request):
-    g = get_game(code)
-    child = room_child(g) if g["type"] == "room" else None
-    # Les actions de cartes et les retraits de la salle sont atomiques entre téléphones.
-    lock = president.LOCK if g["type"] == "president" or (child and child["type"] == "president") else contextlib.nullcontext()
-    neon_lock = neon.LOCK if g["type"] == "neon" or (child and child["type"] == "neon") else contextlib.nullcontext()
-    island_lock = island.LOCK if g["type"] == "island" or (child and child["type"] == "island") else contextlib.nullcontext()
-    heist_lock = heist.LOCK if g["type"] == "heist" or (child and child["type"] == "heist") else contextlib.nullcontext()
-    with lock, neon_lock, island_lock, heist_lock:
+    # Chaque action est atomique entre téléphones, dans tous les jeux (dernière mise, dernier vote…).
+    with GAMES_LOCK:
         return perform_game_action(code, body, request)
 
 
@@ -1602,7 +1608,8 @@ def game_qr(code: str):
 @app.post("/api/admin/games/close", dependencies=[Depends(require_admin)])
 def admin_close_game(body: GameAction):
     """L'hôte de la soirée peut fermer n'importe quelle partie (body.target = code)."""
-    end_game(body.target, "admin")
+    with GAMES_LOCK:
+        end_game(body.target, "admin")
     return admin_state()
 
 
