@@ -61,15 +61,15 @@ def test_store_persists_and_reconciles(tmp_path):
     assert [r.status for r in reloaded.session.requests] == ["played", "queued"]
 
 
-def test_bans_by_guest_and_ip(tmp_path, monkeypatch):
+def test_bans_by_guest_only_never_by_shared_ip(tmp_path, monkeypatch):
     store = PartyStore(tmp_path / "s.json")
     store.start("RINCON_X", "Salon", "next")
     store.add({"id": "a" * 22, "title": "T", "artist": "X"}, "guest-aaaa", "Tom", "192.168.50.40")
 
     store.ban("guest-aaaa", 10)
     assert store.ban_status("guest-aaaa")["until"] > 0
-    # Nouvel onglet privé (autre identifiant) depuis le même téléphone : toujours bloqué.
-    assert store.ban_status("guest-new1", "192.168.50.40") is not None
+    # Même adresse IP (même box, même Wi-Fi de la soirée : l'iPhone de l'hôte, les autres invités) : jamais bloqué.
+    assert store.ban_status("guest-new1", "192.168.50.40") is None
     assert store.ban_status("guest-bbbb", "192.168.50.41") is None
 
     # Le blocage de 10 minutes expire tout seul.
@@ -132,7 +132,7 @@ def test_proxy_ip_never_bans_everyone(tmp_path):
     assert store.ban_status("guest-ok11", "192.168.50.1") is None
     assert store.ban_status("guest-new1", "192.168.50.1") is None
     assert store.ban_status("guest-spam", "192.168.50.1") is not None
-    assert store.ban_status("autre-onglet", "86.220.23.199") is not None
+    assert store.ban_status("autre-onglet", "86.220.23.199") is None  # même box : pas touché
 
 
 def test_end_of_requests_is_before_host_playlist():

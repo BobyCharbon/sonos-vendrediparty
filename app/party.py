@@ -295,7 +295,7 @@ class PartyStore:
         self.save()
 
     def ban(self, guest_id: str, minutes: int | None):
-        """Bloque un invité (par identifiant et par IP) ; minutes=None : sans limite."""
+        """Bloque un invité par son identifiant (jamais par IP partagée) ; minutes=None : sans limite."""
         reqs = [r for r in self.session.requests if r.guest_id == guest_id]
         name = self.session.guests.get(guest_id, {}).get("name") or (reqs[-1].guest_name if reqs else "")
         self.session.bans[guest_id] = {
@@ -319,9 +319,11 @@ class PartyStore:
         return self.session.bans
 
     def ban_status(self, guest_id: str, *ips: str) -> dict | None:
-        """{"until": timestamp ou 0} si l'invité ou l'une de ses IP est bloqué."""
-        ips = {ip for ip in ips if ip} - self.ignored_ips
-        found = [b for g, b in self.active_bans().items() if g == guest_id or ips & (set(b["ips"]) - self.ignored_ips)]
+        """{"until": timestamp ou 0} si cet invité (son identifiant) est bloqué.
+        Jamais par adresse IP : en soirée tout le monde partage la même box (Wi-Fi de l'hôte, iPhone et ordinateur
+        de l'hôte…) ; bloquer l'IP d'un invité bloquait les autres. Les IP gardées dans le ban ne servent qu'à l'info.
+        (ips reste accepté pour ne pas changer les appelants.)"""
+        found = [b for g, b in self.active_bans().items() if g == guest_id]
         if not found:
             return None
         # Un bannissement sans limite l'emporte sur un blocage temporaire.
