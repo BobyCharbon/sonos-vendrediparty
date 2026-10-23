@@ -1546,6 +1546,9 @@ html.events-soon .tabs [data-tab="events"]::after {
 .ma-fold:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
 .ma-chev { transition: transform .2s ease; }
 .ma-fold.closed .ma-chev { transform: rotate(-90deg); }
+.ma-online { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 10px 0 4px; }
+.ma-online .artist { width: 100%; }
+.ma-online .dot { margin-right: 4px; }
 body.admin-music .admin-only { display: block; }
 body.admin-music section[data-view="music"] > :not(.admin-only) { display: none !important; }
 body:not(.admin-music) .admin-games { display: none !important; }

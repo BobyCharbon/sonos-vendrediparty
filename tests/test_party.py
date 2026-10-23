@@ -19,8 +19,11 @@ def simulate(mode, adds, playlist=("p1", "p2", "p3")):
     return upcoming
 
 
-def test_next_mode_inserts_right_after_current():
-    assert simulate("next", [("A", "a1"), ("B", "b1")]) == ["b1", "a1", "p1", "p2", "p3"]
+def test_next_mode_is_first_come_first_served_before_the_playlist():
+    """« À la suite » : une demande passe après les demandes déjà en attente (celles de l'hôte comprises),
+    jamais devant ; toujours avant la suite de la playlist."""
+    assert simulate("next", [("A", "a1"), ("B", "b1")]) == ["a1", "b1", "p1", "p2", "p3"]
+    assert simulate("next", [("Hôte", "h1"), ("B", "b1"), ("Hôte", "h2")]) == ["h1", "b1", "h2", "p1", "p2", "p3"]
 
 
 def test_fair_mode_round_robin_before_playlist():

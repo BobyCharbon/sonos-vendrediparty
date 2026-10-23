@@ -373,7 +373,8 @@ def insert_position(
     current_pos : position 1-based du titre en cours (0 si aucun).
     upcoming    : (position 1-based, track_id) des titres après le titre en cours.
 
-    - "next" : juste après le titre en cours.
+    - "next" : à la suite des demandes déjà en attente (premier arrivé, premier servi ; celles de l'hôte comprises),
+      donc jamais devant une demande plus ancienne, et toujours avant la suite de la playlist.
     - "fair" : tour par tour entre invités. La k-ième demande en attente d'un
       invité appartient au tour k ; un nouveau titre se place après le dernier
       titre invité d'un tour <= au sien, donc avant la suite de la playlist.
@@ -381,7 +382,7 @@ def insert_position(
     if current_pos <= 0:
         return 0
     if mode != "fair":
-        return current_pos + 1
+        return end_of_requests(current_pos, upcoming, pending)
 
     pending_by_track = {r.track_id: r for r in pending}
     rounds: dict[str, int] = {}

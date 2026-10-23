@@ -49,7 +49,7 @@ dans Spotify ; il n'est pas automatiquement retenté.
 
 ### Anciennes soirées Sonos natives (jusqu’à leur arrêt)
 
-- **Juste après** : chaque ajout passe juste après le titre en cours.
+- **À la suite** : chaque demande passe après celles déjà en attente (premier arrivé, premier servi, celles de l'hôte comprises), avant la suite de la playlist. L'hôte garde ⏫ pour faire passer un titre juste après celui en cours.
 - **Équitable** : les demandes passent avant ta playlist, un titre par invité à tour de rôle
   (A, A, A, B, C, B → A B C A B A).
 

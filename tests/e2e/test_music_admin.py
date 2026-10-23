@@ -2,6 +2,7 @@
 Pas de vraies enceintes en test : les réponses du serveur pour la soirée en cours sont simulées
 (état, recherche, ajout, file) ; on vérifie les vrais boutons de l'onglet et ce qu'ils envoient."""
 import json
+import time
 
 import pytest
 
@@ -19,7 +20,9 @@ def live_state(queue=QUEUE):
             "sonos": {"state": "PLAYING", "now": TRACK, "volume": 30, "from_queue": True}, "queue": queue,
             "requests": [{"id": "r1", "title": "Deuxième", "artist": "A2", "image": "", "guest_name": "Léa", "added_at": 1761120000, "status": "queued"}],
             "top_playlists": [{"id": "spotify:playlist:abc", "title": "Apéro"}], "spotify_account": {"connected": False},
-            "guest_pin": "4821", "guest_url": "https://partytest.bobycharbon.ch/"}
+            "guest_pin": "4821", "guest_url": "https://partytest.bobycharbon.ch/",
+            "guests": [{"guest_id": "g-online-0001", "name": "Zoé", "via": ["music", "games"], "last_seen": time.time(), "joined_at": 0, "active_at": 0},
+                       {"guest_id": "g-gone-00001", "name": "Parti", "via": ["music"], "last_seen": 0, "joined_at": 0, "active_at": 0}]}
 
 
 @pytest.fixture
@@ -98,6 +101,14 @@ def test_admin_drives_the_live_party_from_the_music_tab(browser, server):
         admin.locator('[data-ma="access"] summary').tap()
         expect(admin.locator('[data-ma="qr"]')).to_be_visible()
         expect(admin.locator('[data-ma="guestUrl"]')).to_have_text("https://partytest.bobycharbon.ch/?pin=4821")
+        # Sous le QR : les invités connectés en ce moment (pas ceux partis), aussi comptés dans le titre.
+        expect(admin.locator('[data-ma="online"]')).to_contain_text("Zoé")
+        expect(admin.locator('[data-ma="online"]')).not_to_contain_text("Parti")
+        expect(admin.locator('[data-ma="access"] summary')).to_contain_text("👥 1")
+        # Enceintes : repliées par défaut, dépliées d'un toucher.
+        expect(admin.locator('[data-ma="speakersBody"]')).to_be_hidden()
+        admin.locator('[data-ma-act="speakersFold"]').tap()
+        expect(admin.locator('[data-ma="speakers"]')).to_contain_text("Salon")
         boss.page.once("dialog", lambda d: d.accept())
         admin.locator('[data-ma="pinCustom"]').fill("12a4")
         expect(admin.locator('[data-ma="pinCustom"]')).to_have_value("124")  # chiffres seulement

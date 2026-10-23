@@ -226,9 +226,9 @@ if (!guestId) { guestId = (crypto.randomUUID ? crypto.randomUUID() : Math.random
 let guestName = store("vp_name") || "";
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const usesSpotify = (source) => ["spotify", "spotify_sonos"].includes(source);
-const MODES = { next: "Juste après", fair: "Équitable" };
+const MODES = { next: "À la suite", fair: "Équitable" };
 const HELP = {
-  next: "Chaque titre ajouté passe juste après celui en cours (le dernier ajouté passe en premier).",
+  next: "Chaque demande passe après celles déjà en attente (premier arrivé, premier servi), avant la suite de ta playlist.",
   fair: "Les demandes passent avant ta playlist, une par invité à tour de rôle : personne ne monopolise la file. L'activer réorganise aussi la file actuelle.",
 };
 let state = null, chosenMode = "next";

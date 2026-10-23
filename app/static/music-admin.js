@@ -7,9 +7,9 @@
   const escape = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const notify = (msg, kind, action) => (typeof toast === "function" ? toast(msg, kind, action) : alert(msg));
   const usesSpotify = (source) => ["spotify", "spotify_sonos"].includes(source);
-  const MODES = { next: "Juste après", fair: "Équitable" };
+  const MODES = { next: "À la suite", fair: "Équitable" };
   const HELP = {
-    next: "Chaque titre ajouté passe juste après celui en cours (le dernier ajouté passe en premier).",
+    next: "Chaque demande passe après celles déjà en attente (premier arrivé, premier servi), avant la suite de ta playlist.",
     fair: "Les demandes passent avant ta playlist, une par invité à tour de rôle : personne ne monopolise la file. L'activer réorganise aussi la file actuelle.",
   };
   let root = null, state = null, stateAt = Date.now(), chosenMode = "next", chosenSource = "sonos";
@@ -21,7 +21,8 @@
   // toujours visibles, à leur place. Un toucher sur le titre ou sur le bouton du bas bascule.
   const remembered = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
   const remember = (key, value) => { try { localStorage.setItem(key, value); } catch { /* stockage indisponible */ } };
-  let queueAll = remembered("vp_queue_all", "0") === "1";
+  let queueAll = remembered("vp_queue_all", "0") === "1", speakersOpen = remembered("vp_speakers_open", "0") === "1";
+  const ONLINE = 30;  // s : un invité « connecté » s'est manifesté il y a moins de 30 s
 
   async function api(path, body) {
     const r = await fetch(path, body === undefined ? { credentials: "same-origin" }
@@ -76,10 +77,11 @@
     <div data-ma="live" class="hidden">
       <p class="sub"><span class="pill live">● Soirée en cours</span> <span data-ma="liveRoom"></span></p>
       <details data-ma="access" class="card ma-access">
-        <summary>📱 Code et QR pour les invités · <b data-ma="pinSmall"></b></summary>
+        <summary>📱 Code et QR pour les invités · <b data-ma="pinSmall"></b> <span data-ma="onlineCount"></span></summary>
         <div style="text-align:center;margin-top:10px">
           <div class="big-pin" data-ma="pin">····</div>
           <img class="qr" data-ma="qr" alt="QR code vers la page invités (code inclus)">
+          <div class="ma-online" data-ma="online" aria-label="Invités connectés"></div>
           <p class="sub" style="margin:10px 0;overflow-wrap:anywhere" data-ma="guestUrl"></p>
           <button class="secondary" type="button" data-ma-act="newPin">🔄 Code au hasard</button>
           <form data-ma="pinForm" class="row" style="margin-top:10px;justify-content:center">
@@ -120,9 +122,10 @@
         <div class="row" style="margin-top:8px"><select class="grow" data-ma="sonosPlaylists" aria-label="Playlist Sonos"><option value="">Depuis Sonos (playlists et favoris)…</option></select>
           <button type="button" class="secondary" data-ma-act="addSonosPlaylist">Ajouter</button></div>
       </details>
-      <div data-ma="speakersBox"><h2>Enceintes</h2>
-        <p class="sub" style="margin-top:-4px;font-size:.85rem">Ajoute des enceintes au groupe de la soirée ; chaque curseur règle une enceinte.</p>
-        <div data-ma="speakers" class="list"><p class="empty">Chargement…</p></div></div>
+      <div data-ma="speakersBox"><h2><button type="button" class="ma-fold" data-ma-act="speakersFold" aria-expanded="false">Enceintes <span class="ma-chev" aria-hidden="true">▾</span></button></h2>
+        <div data-ma="speakersBody">
+          <p class="sub" style="margin-top:-4px;font-size:.85rem">Ajoute des enceintes au groupe de la soirée ; chaque curseur règle une enceinte.</p>
+          <div data-ma="speakers" class="list"><p class="empty">Chargement…</p></div></div></div>
       <h2>Demandes des invités</h2>
       <div data-ma="requests" class="list"></div>
       <h2>Compte Spotify</h2>
@@ -213,6 +216,19 @@
     q("guestUrl").textContent = s.guest_url ? `${s.guest_url}?pin=${s.guest_pin}` : "";
     const src = "/qr.svg?v=" + s.guest_pin;
     if (q("qr").getAttribute("src") !== src) q("qr").src = src;
+    // Invités connectés en ce moment (musique 🎵 et / ou jeux 🎮), sous le QR.
+    const now = Date.now() / 1000;
+    const online = (s.guests || []).filter((g) => now - g.last_seen < ONLINE);
+    q("onlineCount").textContent = online.length ? `· 👥 ${online.length}` : "";
+    q("online").innerHTML = `<div class="artist">${online.length ? `${online.length} connecté${online.length > 1 ? "s" : ""}` : "Aucun invité connecté pour l'instant"}</div>`
+      + online.map((g) => `<span class="pill"><span class="dot" aria-hidden="true"></span>${escape(g.name)} ${(g.via || []).includes("music") ? "🎵" : ""}${(g.via || []).includes("games") ? "🎮" : ""}${g.ban ? " ⛔" : ""}</span>`).join("");
+  }
+
+  function renderSpeakersFold() {
+    const fold = root.querySelector('[data-ma-act="speakersFold"]');
+    fold.setAttribute("aria-expanded", speakersOpen);
+    fold.classList.toggle("closed", !speakersOpen);
+    q("speakersBody").classList.toggle("hidden", !speakersOpen);
   }
 
   function renderTop(s) {
@@ -255,6 +271,7 @@
     renderTop(s);
     renderRequests(s, ext);
     q("speakersBox").classList.toggle("hidden", s.source === "spotify");
+    renderSpeakersFold();
   }
 
   async function refresh() {
@@ -271,7 +288,7 @@
   }
 
   async function loadSpeakers(list) {
-    if (!state?.active || state.source === "spotify" || root.offsetParent === null) return;
+    if (!state?.active || state.source === "spotify" || root.offsetParent === null || !speakersOpen) return;
     try { renderSpeakers(list || await api("/api/admin/speakers")); }
     catch (e) { q("speakers").innerHTML = `<p class="empty">${escape(e.message)}</p>`; }
   }
@@ -348,6 +365,13 @@
   async function act(name, b) {
     try {
       if (name === "rooms") return loadRooms();
+      if (name === "speakersFold") {
+        speakersOpen = !speakersOpen;
+        remember("vp_speakers_open", speakersOpen ? "1" : "0");
+        renderSpeakersFold();
+        if (speakersOpen) loadSpeakers();
+        return;
+      }
       if (name === "queueFold" || name === "queueAll") {
         queueAll = !queueAll;
         remember("vp_queue_all", queueAll ? "1" : "0");
