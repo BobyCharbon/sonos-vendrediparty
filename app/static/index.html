@@ -100,10 +100,13 @@
     <div id="peopleAdmin" class="admin-only"></div>
   </section>
 
-  <!-- Réglages → « Mes stats Purify Test » : dernier test et profil d'impureté, pour le seul titulaire du compte. -->
-  <section data-view="purity" class="hidden" aria-label="Mes stats Purify Test">
+  <!-- Réglages → « Mes stats de jeu » : un onglet par jeu, pour le seul titulaire du compte (Purify Test pour commencer). -->
+  <section data-view="stats" class="hidden" aria-label="Mes stats de jeu">
     <button type="button" class="secondary" data-host-back>← Réglages</button>
-    <div id="purityStats" class="g-pu pu-stats"></div>
+    <div class="seg stats-tabs" role="tablist" aria-label="Jeux">
+      <button type="button" role="tab" class="on" aria-selected="true" aria-controls="purityStats" data-stats-tab="purity">😈 Purify Test</button>
+    </div>
+    <div id="purityStats" class="g-pu pu-stats" role="tabpanel" data-stats-panel="purity"></div>
   </section>
 
   <section data-view="feedback" class="hidden" aria-labelledby="fbTitle">
@@ -324,7 +327,7 @@ $("nameChip").addEventListener("click", changeName);
 
 // Les événements utilisent leur compte SMS ; les accès musique/jeux restent indépendants.
 function showTab(tab, eventTarget) {
-  if (!["music", "games", "events", "feedback", "account", "host", "purity"].includes(tab)) tab = "music";
+  if (!["music", "games", "events", "feedback", "account", "host", "stats"].includes(tab)) tab = "music";
   if (tab === "events" && PartyEvents.soon) {
     // Section en préparation : on reste où on est (ou sur la musique au démarrage).
     if (document.body.dataset.tab) return toast("📅 Les événements arrivent bientôt");
@@ -332,25 +335,39 @@ function showTab(tab, eventTarget) {
   }
   document.querySelectorAll("[data-view]").forEach((el) => el.classList.toggle("hidden", !el.dataset.view.split(" ").includes(tab)));
   document.querySelectorAll("#tabs [data-tab]").forEach((el) => {
-    const current = el.dataset.tab === (["host", "purity"].includes(tab) ? "account" : tab);  // pages des Réglages
+    const current = el.dataset.tab === (["host", "stats"].includes(tab) ? "account" : tab);  // pages des Réglages
     el.classList.toggle("on", current);
     if (current) el.setAttribute("aria-current", "page");
     else el.removeAttribute("aria-current");
   });
-  if (!["feedback", "account", "host", "purity"].includes(tab) && document.body.dataset.tab) fbTab = tab;
+  if (!["feedback", "account", "host", "stats"].includes(tab) && document.body.dataset.tab) fbTab = tab;
   document.body.dataset.tab = tab;  // la lumière de scène et le titre suivent l'onglet
-  $("appTitle").textContent = ({ music: "Musique", games: "Jeux", events: "Événements", feedback: fbIsAdmin() ? "Retours" : "Ton avis", account: account ? "Réglages" : "Se connecter", host: "Invités et messages", purity: "Mes stats Purify Test" })[tab];
+  $("appTitle").textContent = ({ music: "Musique", games: "Jeux", events: "Événements", feedback: fbIsAdmin() ? "Retours" : "Ton avis", account: account ? "Réglages" : "Se connecter", host: "Invités et messages", stats: "Mes stats de jeu" })[tab];
   store("vp_tab", tab);
   if (tab === "games") refreshGame();
   if (tab === "feedback") loadFeedback();
   if (tab === "music" && musicAdminMounted && fbIsAdmin()) MusicAdmin.show();
   if (tab === "host" && musicAdminMounted) MusicAdmin.refresh();
-  if (tab === "purity" && typeof puStatsShow === "function") puStatsShow();  // sinon purity.js l'affiche en se chargeant
+  if (tab === "stats") showStats();
   // Événements et Réglages partagent le même module (une seule connexion) : on change juste de page dedans.
   if (tab === "events") frameRoute(eventTarget || (frameAt === "/account" ? "/" : null));
   if (tab === "account") frameRoute("/account");
   scrollTo(0, 0);
 }
+// 🏆 Mes stats de jeu : un onglet par jeu ; chaque jeu enregistre son affichage dans STATS_TABS (purity.js…).
+const STATS_TABS = {};
+let statsTab = "purity";
+function showStats(name = statsTab) {
+  statsTab = name;
+  document.querySelectorAll("[data-stats-tab]").forEach((b) => {
+    const on = b.dataset.statsTab === name;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-selected", on);
+  });
+  document.querySelectorAll("[data-stats-panel]").forEach((el) => el.classList.toggle("hidden", el.dataset.statsPanel !== name));
+  STATS_TABS[name]?.();  // pas encore chargé au démarrage : le jeu l'affiche en s'enregistrant
+}
+document.addEventListener("click", (ev) => { const t = ev.target.closest("[data-stats-tab]"); if (t) showStats(t.dataset.statsTab); });
 // Boutons d'onglet seulement : le <body> porte aussi data-tab (sinon chaque toucher ramène en haut de page).
 document.addEventListener("click", (ev) => { const t = ev.target.closest("button[data-tab]"); if (t) showTab(t.dataset.tab); });
 document.addEventListener("click", (ev) => { if (ev.target.closest("[data-host-back]")) showTab("account"); });
@@ -428,7 +445,7 @@ window.addEventListener("message", (event) => {
     const at = event.data.path || "/";
     if (frameAt && frameAt !== at) $("eventsFrame").contentWindow.postMessage({ type: "party-shell:navigate", path: frameAt }, location.origin);
   }
-  if (event.data?.type === "party-events:open-tab" && ["feedback", "music", "games", "events", "host", "purity"].includes(event.data.tab)) {
+  if (event.data?.type === "party-events:open-tab" && ["feedback", "music", "games", "events", "host", "stats"].includes(event.data.tab)) {
     showTab(event.data.tab);
     if (event.data.tab === "events" && /^\/[a-z/-]*$/.test(event.data.path || "")) frameRoute(event.data.path);
   }

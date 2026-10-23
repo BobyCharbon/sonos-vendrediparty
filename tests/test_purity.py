@@ -219,6 +219,13 @@ def test_every_question_is_unique():
     assert len(set(texts)) == len(texts) == 100
 
 
+def test_no_question_depends_on_anatomy_so_100_percent_is_reachable():
+    texts = " ".join(t.casefold() for _, t in purity.QUESTIONS)
+    for word in ("fellation", "cunnilingus", "pendant les règles"):
+        assert word not in texts
+    assert "as-tu déjà reçu du sexe oral ?" in texts and "as-tu déjà pratiqué le sexe oral sur quelqu’un ?" in texts
+
+
 def test_nobody_drinks_or_is_called_naughty_when_everyone_is_pure():
     g = make_game([("acct-a", "p1", "Alice"), ("acct-b", "p2", "Bob")])
     purity.configure(g, {"alcohol": True, "sips": 3})

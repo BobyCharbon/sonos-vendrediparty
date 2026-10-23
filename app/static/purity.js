@@ -7,7 +7,7 @@ GAME_RULES.purity = `
   <p>Le « Purity Test » classique : 100 questions en 9 catégories (relations, sexualité, lieux insolites, à plusieurs, fétiches, alcool, drogues, infractions…). Chacun, sur son téléphone, répond « oui » en secret à tout ce qu'il a <b>déjà vécu au moins une fois</b>, puis valide.</p>
   <p>Les questions sexuelles concernent des expériences consenties entre adultes. Le score est un jeu, sans jugement de valeur.</p>
   <h3>Le score</h3>
-  <p>Ton score d'impureté = ton nombre de « oui » sur 100 : 0 % = pur comme un ange, 100 % = tu as tout fait. Ton score te vaut un grade, de « 😇 Sainte-Nitouche certifiée » à « 👹 Le Diable en personne ». À la fin, ton <b>profil par catégorie</b> (radar) montre où tu es sage… et où tu l'es beaucoup moins. Il n'est visible que par toi, et tu le retrouves dans Réglages → « Mes stats Purify Test ».</p>
+  <p>Ton score d'impureté = ton nombre de « oui » sur 100 : 0 % = pur comme un ange, 100 % = tu as tout fait. Ton score te vaut un grade, de « 😇 Sainte-Nitouche certifiée » à « 👹 Le Diable en personne ». À la fin, ton <b>profil par catégorie</b> (radar) montre où tu es sage… et où tu l'es beaucoup moins. Il n'est visible que par toi, et tu le retrouves dans Réglages → « Mes stats de jeu ».</p>
   <h3>La révélation</h3>
   <p>Quand tout le monde a validé, l'animateur révèle les scores et le classement, du plus sulfureux au plus sage. <b>Les réponses ne sont jamais montrées</b>, à personne : seul le score compte.</p>
   <h3>🔒 Comptes connectés</h3>
@@ -201,7 +201,7 @@ function puRevealOk(b) {
     : "1 participant n'a pas encore validé et ne sera pas classé. Révéler quand même ?");
 }
 
-// 📊 Réglages → « Mes stats Purify Test » : dernier test (score, grade, radar) et record, pour le seul titulaire du compte.
+// 📊 Réglages → « Mes stats de jeu », onglet Purify Test : dernier test (score, grade, radar) et record, pour le seul titulaire du compte.
 function puStatsHtml(me) {
   if (!me.plays) {
     return `<div class="pu-card"><div class="pu-big">😇</div><div class="title">Pas encore de test</div>
@@ -255,5 +255,6 @@ document.addEventListener("click", (ev) => {
 document.addEventListener("change", (ev) => {
   if (ev.target.matches("[data-pu-alcohol]") && game?.type === "purity") gameAction("puset", { settings: { alcohol: ev.target.checked } });
 });
-// App rouverte sur la page des stats (dernier onglet gardé) : affichée dès que ce fichier est chargé.
-if (document.body.dataset.tab === "purity") puStatsShow();
+// Onglet « Purify Test » de « Mes stats de jeu » ; app rouverte sur cette page : affiché dès que ce fichier est chargé.
+STATS_TABS.purity = puStatsShow;
+if (document.body.dataset.tab === "stats" && statsTab === "purity") puStatsShow();

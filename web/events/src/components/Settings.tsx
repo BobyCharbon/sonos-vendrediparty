@@ -73,8 +73,8 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
             <View style={s.divider} />
           </>
         ) : null}
-        {/* Page de Party (hors du module) : dernier test et profil d'impureté, à montrer si on veut. */}
-        <LinkRow label="😈 Mes stats Purify Test" hint="Ton dernier score d’impureté, ton radar et ton record" onPress={() => openPartyTab('purity')} />
+        {/* Page de Party (hors du module) : un onglet par jeu (Purify Test pour commencer), à montrer si on veut. */}
+        <LinkRow label="🏆 Mes stats de jeu" hint="Purify Test : ton dernier score, ton radar et ton record" onPress={() => openPartyTab('stats')} />
         <View style={s.divider} />
         <LinkRow label="Ton avis" hint="Une idée, un bug ? Écris à l’organisateur" onPress={() => openPartyTab('feedback')} />
         <View style={s.divider} />

@@ -123,17 +123,20 @@ def test_purity_private_answers_reveal_and_accounts_only(phones):
     assert 'mine' not in bob.state()['purity']
     expect(alice.page.locator('[data-gact="restart"]')).to_be_visible()
 
-    # Réglages → « Mes stats Purify Test » (lien du module Comptes) : dernier test, radar et record, pour soi seul.
-    bob.page.evaluate("postMessage({type: 'party-events:open-tab', tab: 'purity'}, location.origin)")
+    # Réglages → « Mes stats de jeu » (lien du module Comptes), onglet Purify Test : dernier test, radar et record.
+    bob.page.evaluate("postMessage({type: 'party-events:open-tab', tab: 'stats'}, location.origin)")
+    expect(bob.page.locator('#appTitle')).to_have_text('Mes stats de jeu')
+    expect(bob.page.locator('[data-stats-tab="purity"]')).to_have_attribute('aria-selected', 'true')
+    expect(bob.page.locator('[data-stats-tab="purity"]')).to_contain_text('Purify Test')
     stats = bob.page.locator('#purityStats')
     expect(stats.locator('.pu-score-v')).to_have_text('4 %')
     expect(stats.locator('.pu-radar .pu-dot')).to_have_count(9)
     expect(stats.locator('.pu-cat-row').first).to_contain_text('4/22')
     expect(stats).to_contain_text('1 test')
     expect(bob.page.locator('#accountTab')).to_have_class(re.compile(r'\bon\b'))  # page rattachée aux Réglages
-    bob.tap('[data-host-back]')
+    bob.tap('[data-view="stats"] [data-host-back]')
     expect(bob.page.locator('body')).to_have_attribute('data-tab', 'account')
     # Sans compte : invitation à se connecter, aucune stat.
-    carol.page.evaluate("postMessage({type: 'party-events:open-tab', tab: 'purity'}, location.origin)")
+    carol.page.evaluate("postMessage({type: 'party-events:open-tab', tab: 'stats'}, location.origin)")
     expect(carol.page.locator('#purityStats')).to_contain_text('Connecte-toi')
     expect(carol.page.locator('#purityStats .pu-score-v')).to_have_count(0)
