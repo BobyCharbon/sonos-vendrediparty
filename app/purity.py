@@ -1,8 +1,8 @@
 """Purify Test — test de pureté de soirée.
 
 Chacun répond en privé aux 100 questions du « Purity Test », par catégorie (« oui » = déjà vécu).
-Le score = pourcentage de « pas fait » (100 % = tout pur). À la fin, l'animateur
-révèle les scores et un classement du plus pur au plus sulfureux. Les réponses
+Le score d'impureté = pourcentage de « oui » (0 % = tout pur, 100 % = tout fait). À la fin, l'animateur
+révèle les scores et un classement du plus sulfureux au plus sage. Les réponses
 individuelles ne sont jamais montrées, seul le score compte.
 
 Participation réservée aux comptes Party connectés (num. de tél. vérifié) :
@@ -227,8 +227,9 @@ def leave(g: dict, gid: str):
 
 
 def _score_of(g: dict, gid: str) -> int:
+    """Score d'impureté : pourcentage de « oui »."""
     done = len(g["purity"]["answers"].get(gid, {}))
-    return round(100 * (TOTAL - done) / TOTAL)
+    return round(100 * done / TOTAL)
 
 
 def everyone_done(g: dict) -> bool:
@@ -251,7 +252,7 @@ def reveal(g: dict):
 
 
 def ranking(g: dict) -> list[dict]:
-    """Classement du plus pur (score haut) au plus sulfureux (score bas)."""
+    """Classement du plus sulfureux (impureté haute) au plus sage (impureté basse)."""
     scores = g["purity"].get("scores", {})
     rows = []
     for pl in g["players"]:
@@ -262,26 +263,44 @@ def ranking(g: dict) -> list[dict]:
 
 
 def gorgees(g: dict) -> list[dict]:
-    """Option alcool : le·la plus sulfureux·se (score le plus bas) boit `sips` gorgées."""
+    """Option alcool : le·la plus sulfureux·se (impureté la plus haute) boit `sips` gorgées."""
     if not g["options"].get("alcohol") or g["phase"] != "results":
         return []
     sips = int(g["options"].get("sips", 0))
     rows = ranking(g)
     if not sips or not rows:
         return []
-    low = min(r["score"] for r in rows)
-    return [{"pid": r["pid"], "name": r["name"], "sips": sips} for r in rows if r["score"] == low]
+    top = rows[0]["score"]
+    if not top:
+        return []  # tout le monde à 0 % : personne n'est sulfureux
+    return [{"pid": r["pid"], "name": r["name"], "sips": sips} for r in rows if r["score"] == top]
 
 
-# --- Classement général (persisté entre les parties, par compte) ---
+# --- Classement général et profil privé (persistés entre les parties, par compte) ---
+# Une ligne par compte : name, plays, best (record d'impureté), last, last_at et categories (profil du dernier test,
+# lu seulement par son titulaire). « v » = 2 : scores d'impureté (avant : scores de pureté, convertis à la lecture).
+STATS_VERSION = 2
+
+
+def _upgrade(row: dict) -> dict:
+    """Ancienne ligne (scores de pureté, sans profil) → scores d'impureté."""
+    if row.get("v") == STATS_VERSION:
+        return row
+    last = 100 - row.get("last", 100)
+    # On ne connaît que le meilleur score de pureté (= l'impureté la plus basse) et le dernier : le record est le plus haut des deux.
+    best = max(100 - row.get("best", 100), last)
+    return {**row, "v": STATS_VERSION, "best": best, "last": last, "last_at": row.get("last_at", 0),
+            "categories": row.get("categories", [])}
+
 
 def _load_stats() -> dict:
-    if STATS_PATH and STATS_PATH.exists():
-        try:
-            return json.loads(STATS_PATH.read_text())
-        except (ValueError, OSError):
-            return {}
-    return {}
+    if not (STATS_PATH and STATS_PATH.exists()):
+        return {}
+    try:
+        data = json.loads(STATS_PATH.read_text())
+    except (ValueError, OSError):
+        return {}
+    return {gid: _upgrade(row) for gid, row in data.items()}
 
 
 def _save_stats(data: dict):
@@ -294,41 +313,57 @@ def _save_stats(data: dict):
 
 
 def record(g: dict):
-    """Ajoute chaque score révélé au classement général (meilleur = plus pur gardé)."""
+    """Ajoute chaque score révélé au classement général et garde le profil du dernier test de chacun."""
     if not STATS_PATH:
         return
     scores = g["purity"].get("scores", {})
     if not scores:
         return
     data = _load_stats()
+    now = time.time()
     for pl in g["players"]:
         gid = pl["id"]
         # Participation réservée aux comptes : le guest_id « acct-… » est l'identité stable.
         if gid not in scores or not gid.startswith("acct-"):
             continue
-        row = data.get(gid) or {"name": pl["name"], "plays": 0, "best": 0, "last": 0}
-        row["name"] = pl["name"]
-        row["plays"] += 1
-        row["last"] = scores[gid]
-        row["best"] = max(row["best"], scores[gid])
-        data[gid] = row
+        old = data.get(gid) or {"plays": 0, "best": 0}
+        cats = [{k: r[k] for k in ("id", "yes", "total", "pct")} for r in categories(g, gid)]
+        data[gid] = {"v": STATS_VERSION, "name": pl["name"], "plays": old["plays"] + 1, "best": max(old["best"], scores[gid]),
+                     "last": scores[gid], "last_at": now, "categories": cats}
     _save_stats(data)
 
 
 def leaderboard(limit: int = 20) -> dict:
+    """Classement public : record d'impureté de chaque compte (jamais le profil par catégorie)."""
     data = _load_stats()
     rows = sorted(data.values(), key=lambda r: (-r.get("best", 0), r.get("name", "").casefold()))
-    return {"rows": rows[:limit], "total": len(data)}
+    public = [{k: r.get(k, 0) for k in ("name", "plays", "best", "last")} for r in rows[:limit]]
+    return {"rows": public, "total": len(data)}
+
+
+def _with_labels(rows: list[dict]) -> list[dict]:
+    """Profil enregistré + libellé et emoji de chaque catégorie (dans l'ordre d'affichage)."""
+    by_id = {r["id"]: r for r in rows}
+    return [{**by_id[cid], "label": label, "emoji": emoji} for cid, (label, emoji) in CATEGORIES.items() if cid in by_id]
+
+
+def profile(gid: str) -> dict:
+    """Stats Purify Test d'un compte, pour son seul titulaire (Réglages) : dernier test par catégorie et record."""
+    row = _load_stats().get(gid)
+    if not row:
+        return {"plays": 0}
+    return {"name": row.get("name", ""), "plays": row.get("plays", 0), "best": row.get("best", 0), "last": row.get("last", 0),
+            "last_at": row.get("last_at", 0), "categories": _with_labels(row.get("categories", []))}
 
 
 def categories(g: dict, gid: str) -> list[dict]:
-    """Profil de pureté par catégorie (pour son seul propriétaire : il en dit plus que le score global)."""
+    """Profil d'impureté par catégorie (pour son seul propriétaire : il en dit plus que le score global)."""
     done = g["purity"]["answers"].get(gid, {})
     rows = []
     for cid, (label, emoji) in CATEGORIES.items():
         idx = [i for i, (c, _) in enumerate(QUESTIONS) if c == cid]
-        pure = sum(1 for i in idx if str(i) not in done)
-        rows.append({"id": cid, "label": label, "emoji": emoji, "pure": pure, "total": len(idx), "pct": round(100 * pure / len(idx))})
+        yes = sum(1 for i in idx if str(i) in done)
+        rows.append({"id": cid, "label": label, "emoji": emoji, "yes": yes, "total": len(idx), "pct": round(100 * yes / len(idx))})
     return rows
 
 
@@ -366,9 +401,10 @@ def summary_facts(g: dict) -> list[str]:
     rows = ranking(g)
     if not rows:
         return []
-    purest = rows[0]
-    naughtiest = rows[-1]
-    facts = [f"Le plus pur : {purest['name']} ({purest['score']} %)"]
+    naughtiest, wisest = rows[0], rows[-1]
+    if not naughtiest["score"]:
+        return ["Que des anges : 0 % d'impureté pour tout le monde"]
+    facts = [f"Le plus sulfureux : {naughtiest['name']} ({naughtiest['score']} % impur)"]
     if len(rows) > 1:
-        facts.append(f"Le plus sulfureux : {naughtiest['name']} ({naughtiest['score']} %)")
+        facts.append(f"Le plus sage : {wisest['name']} ({wisest['score']} % impur)")
     return facts

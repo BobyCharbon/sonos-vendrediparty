@@ -25,7 +25,7 @@ def supabase_for(users: dict[str, str]):
 
 
 TOK_A, TOK_B = 'a' * 40, 'b' * 40
-ONE_DONE = round(100 * (purity.TOTAL - 1) / purity.TOTAL)
+ONE_DONE = round(100 / purity.TOTAL)  # impureté avec un seul « oui »
 
 
 @pytest.fixture
@@ -118,10 +118,10 @@ def test_full_round_answers_stay_private_and_ranking_is_revealed(setup):
     assert act(c, code, bob, 'pureveal').status_code == 403
     v = act(c, code, alice, 'pureveal').json()['purity']
     assert v['phase'] == 'results'
-    assert [r['name'] for r in v['ranking']] == ['Alice', 'Bob']
-    assert v['ranking'][0]['score'] == 100 and v['me_score'] == 100
+    assert [r['name'] for r in v['ranking']] == ['Bob', 'Alice']  # le plus impur en tête
+    assert v['ranking'][0]['score'] == 9 and v['me_score'] == 0
     assert 'mine' not in v and 'questions' not in v
-    assert [r['name'] for r in v['leaderboard']['rows']] == ['Alice', 'Bob']
+    assert [r['name'] for r in v['leaderboard']['rows']] == ['Bob', 'Alice']
 
 
 def test_unrelated_actions_are_refused(setup):
@@ -143,7 +143,7 @@ def test_settings_and_sips_are_counted(setup):
     act(c, code, alice, 'pusub')
     act(c, code, bob, 'pusub')
     v = act(c, code, alice, 'pureveal').json()
-    assert v['purity']['gorgees'] == [{'pid': v['purity']['ranking'][1]['pid'], 'name': 'Bob', 'sips': 4}]
+    assert v['purity']['gorgees'] == [{'pid': v['purity']['ranking'][0]['pid'], 'name': 'Bob', 'sips': 4}]
     assert g['tally'][bob]['drink'] == 4
     assert act(c, code, alice, 'restart').json()['purity']['phase'] == 'answering'
 
@@ -168,13 +168,25 @@ def test_general_leaderboard_endpoint(setup):
     assert alice not in str(lb)  # l'identifiant secret du compte ne fuit pas
 
 
+def test_my_stats_are_private_to_the_signed_in_account(setup):
+    c, alice, bob = setup
+    assert c.post('/api/purity/me', json={'token': TOK_A}).json() == {'plays': 0}
+    solo_round(c, create(c, alice).json()['code'], alice)
+    me = c.post('/api/purity/me', json={'token': TOK_A}).json()
+    assert me['plays'] == 1 and me['last'] == ONE_DONE and me['best'] == ONE_DONE
+    assert len(me['categories']) == len(purity.CATEGORIES) and me['categories'][0]['yes'] == 1
+    assert c.post('/api/purity/me', json={'token': TOK_B}).json() == {'plays': 0}  # Bob ne voit pas les stats d'Alice
+    assert c.post('/api/purity/me', json={'token': 'x' * 40}).status_code == 401
+    assert c.post('/api/purity/me', json={'token': ''}).status_code == 400
+
+
 def test_admin_summary_shows_scores_not_answers(setup):
     c, alice, _ = setup
     code = create(c, alice).json()['code']
     solo_round(c, code, alice)
     s = games.summary(main.store.session.games[code])
-    assert any('Le plus pur' in f for f in s['facts'])
-    assert s['players_detail'][0]['extra'] == f"{ONE_DONE} % pur"
+    assert any('Le plus sulfureux' in f for f in s['facts'])
+    assert s['players_detail'][0]['extra'] == f"{ONE_DONE} % impur"
 
 
 def room_with(c, alice, bob):
@@ -203,7 +215,7 @@ def test_room_launch_enrolls_only_linked_accounts_and_merges_the_winner(setup):
     act(c, child_code, alice, 'pureveal')
     act(c, child_code, alice, 'end')
     r = main.store.session.games[room]
-    assert r['current'] is None and r['rhistory'][-1]['winner'] == 'Alice'
+    assert r['current'] is None and r['rhistory'][-1]['winner'] == 'Bob'  # le plus impur
 
 
 def test_room_launch_of_purity_requires_a_linked_animator(setup):

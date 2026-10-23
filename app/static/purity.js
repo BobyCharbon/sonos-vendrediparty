@@ -1,4 +1,4 @@
-// 😇 Purify Test : chacun coche en secret ce qu'il a déjà fait ; l'animateur révèle les scores, jamais les réponses.
+// 😈 Purify Test : chacun coche en secret ce qu'il a déjà fait ; l'animateur révèle les scores d'impureté, jamais les réponses.
 // Chargé après games.js (utilise gameAction, pressed, pyrFlash, supabaseToken, showTab…).
 GAME_THEME.purity = "g-pu";
 GAME_PHASES.answering = "Réponses en secret";
@@ -7,35 +7,35 @@ GAME_RULES.purity = `
   <p>Le « Purity Test » classique : 100 questions en 9 catégories (relations, sexualité, lieux insolites, à plusieurs, fétiches, alcool, drogues, infractions…). Chacun, sur son téléphone, répond « oui » en secret à tout ce qu'il a <b>déjà vécu au moins une fois</b>, puis valide.</p>
   <p>Les questions sexuelles concernent des expériences consenties entre adultes. Le score est un jeu, sans jugement de valeur.</p>
   <h3>Le score</h3>
-  <p>Ton score de pureté = 100 moins le nombre de « oui » : 100 % = pur comme un ange, 0 % = tu as tout fait. Ton score te vaut un grade, de « 😇 Sainte-Nitouche certifiée » à « 👹 Le Diable en personne ». À la fin, ton <b>profil par catégorie</b> (radar) montre où tu es pur… et où tu l'es beaucoup moins. Il n'est visible que par toi.</p>
+  <p>Ton score d'impureté = ton nombre de « oui » sur 100 : 0 % = pur comme un ange, 100 % = tu as tout fait. Ton score te vaut un grade, de « 😇 Sainte-Nitouche certifiée » à « 👹 Le Diable en personne ». À la fin, ton <b>profil par catégorie</b> (radar) montre où tu es sage… et où tu l'es beaucoup moins. Il n'est visible que par toi, et tu le retrouves dans Réglages → « Mes stats Purify Test ».</p>
   <h3>La révélation</h3>
-  <p>Quand tout le monde a validé, l'animateur révèle les scores et le classement, du plus pur au plus sulfureux. <b>Les réponses ne sont jamais montrées</b>, à personne : seul le score compte.</p>
+  <p>Quand tout le monde a validé, l'animateur révèle les scores et le classement, du plus sulfureux au plus sage. <b>Les réponses ne sont jamais montrées</b>, à personne : seul le score compte.</p>
   <h3>🔒 Comptes connectés</h3>
   <p>Pour jouer, il faut être connecté avec son numéro (onglet « Se connecter ») : ton score est lié à ton compte.</p>
   <h3>🌍 Classement général</h3>
-  <p>Chaque test révélé compte : ton meilleur score est gardé d'une soirée à l'autre.</p>
+  <p>Chaque test révélé compte : ton record d'impureté est gardé d'une soirée à l'autre.</p>
   <h3>🍻 Option alcool</h3>
   <p>Si l'animateur l'active, le plus sulfureux de la tablée boit les gorgées choisies.</p>`;
 
 const PU_SIPS = [1, 2, 3, 5];
 let puSeen = "";
 
-// Grades selon le score global (% pur) : premier seuil atteint, du plus pur au plus sulfureux.
+// Grades selon le score d'impureté (%) : premier plafond qui n'est pas dépassé, du plus sage au plus sulfureux.
 const PU_GRADES = [
-  [100, "😇", "Sainte-Nitouche certifiée"],
-  [95, "👼", "Enfant de chœur"],
-  [88, "🧸", "Bisounours en liberté"],
-  [78, "🍵", "Tisane, plaid & Netflix"],
-  [65, "😏", "Sage… en apparence"],
-  [52, "🍷", "Bon vivant·e"],
-  [40, "🌶️", "Épicé·e"],
-  [28, "😈", "Sulfureux·se"],
-  [16, "🔥", "Diablotin·e de compétition"],
-  [6, "🚔", "Casier bien rempli"],
-  [0, "👹", "Le Diable en personne"],
+  [0, "😇", "Sainte-Nitouche certifiée"],
+  [5, "👼", "Enfant de chœur"],
+  [12, "🧸", "Bisounours en liberté"],
+  [22, "🍵", "Tisane, plaid & Netflix"],
+  [35, "😏", "Sage… en apparence"],
+  [48, "🍷", "Bon vivant·e"],
+  [60, "🌶️", "Épicé·e"],
+  [72, "😈", "Sulfureux·se"],
+  [84, "🔥", "Diablotin·e de compétition"],
+  [94, "🚔", "Casier bien rempli"],
+  [100, "👹", "Le Diable en personne"],
 ];
 function puGrade(score) {
-  const [, emoji, title] = PU_GRADES.find(([min]) => score >= min);
+  const [, emoji, title] = PU_GRADES.find(([max]) => score <= max) || PU_GRADES[PU_GRADES.length - 1];
   return `${emoji} ${title}`;
 }
 
@@ -110,10 +110,10 @@ function puLeaderboardHtml(lb) {
   if (!lb?.rows?.length) return "";
   return `<div class="pu-lb"><h3>🌍 Classement général <small>${lb.total} compte${lb.total > 1 ? "s" : ""}</small></h3>
     <ol>${lb.rows.slice(0, 10).map((r, i) => `<li><span class="pu-rank">${i + 1}</span><b>${esc(r.name)}</b>
-      <span class="pu-lb-best">${r.best} %</span><small>${r.plays} test${r.plays > 1 ? "s" : ""} · dernier ${r.last} %</small></li>`).join("")}</ol></div>`;
+      <span class="pu-lb-best">${r.best} %</span><small>record · ${r.plays} test${r.plays > 1 ? "s" : ""} · dernier ${r.last} %</small></li>`).join("")}</ol></div>`;
 }
 
-// Radar : un axe par catégorie, le bord = 100 % pur. Chaque pointe porte l'emoji et le score de la catégorie.
+// Radar : un axe par catégorie, le centre = pur, le bord = 100 % impur. Chaque pointe porte l'emoji et l'impureté de la catégorie.
 function puRadarSvg(rows) {
   const R = 100, n = rows.length;
   const at = (i, r) => {
@@ -130,30 +130,35 @@ function puRadarSvg(rows) {
     return `<text class="pu-ax-e" x="${x}" y="${y}" text-anchor="middle">${r.emoji}</text>
       <text class="pu-ax-v" x="${x}" y="${(+y + 15).toFixed(1)}" text-anchor="middle">${r.pct}%</text>`;
   }).join("");
-  return `<svg class="pu-radar" viewBox="-140 -138 280 284" role="img" aria-label="Pureté par catégorie">
+  return `<svg class="pu-radar" viewBox="-140 -138 280 284" role="img" aria-label="Impureté par catégorie">
     ${rings}${spokes}<polygon class="pu-shape" points="${shape}"/>${dots}${labels}</svg>`;
 }
 
+// Profil par catégorie (radar + liste, de la plus impure à la plus sage) : fin de partie et Réglages.
 function puProfileHtml(rows) {
   if (!rows?.length) return "";
   const sorted = [...rows].sort((a, b) => b.pct - a.pct || a.label.localeCompare(b.label));
   const list = sorted.map((r) => `<div class="pu-cat-row"><span class="pu-cat-e">${r.emoji}</span><b>${esc(r.label)}</b>
-      <span class="pu-row-bar"><i style="width:${r.pct}%"></i></span><span class="pu-row-s">${r.pure}/${r.total}</span></div>`).join("");
-  return `<div class="pu-profile"><h3>Ton profil de pureté <small>🔒 toi seul le vois</small></h3>
+      <span class="pu-row-bar"><i style="width:${r.pct}%"></i></span><span class="pu-row-s">${r.yes}/${r.total}</span></div>`).join("");
+  return `<div class="pu-profile"><h3>Ton profil d'impureté <small>🔒 toi seul le vois</small></h3>
     ${puRadarSvg(rows)}<div class="pu-cat-list">${list}</div></div>`;
+}
+
+function puScoreHtml(score, title) {
+  return `<div class="pu-score"><div class="pu-score-k">${title}</div>
+    <div class="pu-score-v">${score} %</div><div class="pu-score-l">${puGrade(score)}</div></div>`;
 }
 
 function puResultsHtml(g) {
   const v = g.purity, me = g.me?.pid;
-  const mine = v.me_score != null ? `<div class="pu-score"><div class="pu-score-k">Ton score de pureté</div>
-      <div class="pu-score-v">${v.me_score} %</div><div class="pu-score-l">${puGrade(v.me_score)}</div></div>` : "";
+  const mine = v.me_score != null ? puScoreHtml(v.me_score, "Ton score d'impureté") : "";
   const last = v.ranking.length - 1;
   const rows = v.ranking.map((r, i) => `<div class="pu-row ${r.pid === me ? "me" : ""}">
-      <span class="pu-rank">${i === 0 ? "😇" : i === last ? "😈" : i + 1}</span><span class="pu-who"><b>${esc(r.name)}</b><small>${puGrade(r.score)}</small></span>
+      <span class="pu-rank">${i === 0 && r.score ? "😈" : i === last ? "😇" : i + 1}</span><span class="pu-who"><b>${esc(r.name)}</b><small>${puGrade(r.score)}</small></span>
       <span class="pu-row-bar"><i style="width:${r.score}%"></i></span><span class="pu-row-s">${r.score} %</span></div>`).join("");
   const d = v.gorgees;
   const drinks = d.length ? `<div class="pu-drink">🍻 ${d.map((x) => esc(x.name)).join(", ")} ${d.length > 1 ? "boivent" : "boit"} ${d[0].sips} gorgée${d[0].sips > 1 ? "s" : ""} !</div>` : "";
-  return `${mine}${puProfileHtml(v.me_categories)}<div class="pu-board"><h3>Du plus pur au plus sulfureux</h3>${rows}</div>${drinks}
+  return `${mine}${puProfileHtml(v.me_categories)}<div class="pu-board"><h3>Du plus sulfureux au plus sage</h3>${rows}</div>${drinks}
     ${g.is_host ? `<button class="py-main" data-gact="restart">🔁 Nouveau test</button>` : ""}
     ${puLeaderboardHtml(v.leaderboard)}`;
 }
@@ -171,7 +176,8 @@ function puAnnounce(g) {
   const key = `${g.id}|${g.phase}`;
   if (puSeen && puSeen !== key && g.phase === "results" && g.purity?.ranking.length) {
     const top = g.purity.ranking[0];
-    pyrFlash("summit", `😇 ${esc(top.name)}`, `le plus pur · ${top.score} %`, "", 3200);
+    if (top.score) pyrFlash("summit", `😈 ${esc(top.name)}`, `le plus sulfureux · ${top.score} % impur`, "", 3200);
+    else pyrFlash("summit", "😇 Que des anges", "0 % d'impureté pour tout le monde", "", 3200);
     GameAudio.play("win");
   }
   puSeen = key;
@@ -195,16 +201,59 @@ function puRevealOk(b) {
     : "1 participant n'a pas encore validé et ne sera pas classé. Révéler quand même ?");
 }
 
+// 📊 Réglages → « Mes stats Purify Test » : dernier test (score, grade, radar) et record, pour le seul titulaire du compte.
+function puStatsHtml(me) {
+  if (!me.plays) {
+    return `<div class="pu-card"><div class="pu-big">😇</div><div class="title">Pas encore de test</div>
+      <p class="artist">Passe le Purify Test dans l'onglet Jeux : ton dernier score et ton profil apparaîtront ici.</p>
+      <button class="py-main" data-tab="games">🎮 Aller aux jeux</button></div>`;
+  }
+  const when = me.last_at ? new Date(me.last_at * 1000).toLocaleDateString("fr-CH", { day: "numeric", month: "long", year: "numeric" }) : "";
+  return `${puScoreHtml(me.last, "Ton dernier score d'impureté")}
+    <p class="artist pu-when">${when ? `Test du ${when} · ` : ""}🏆 Record : ${me.best} % · ${me.plays} test${me.plays > 1 ? "s" : ""} passé${me.plays > 1 ? "s" : ""}</p>
+    ${puProfileHtml(me.categories)}`;
+}
+
+let puStatsLoading = false;
+async function puStatsShow() {
+  if (puStatsLoading) return;  // ouverture et chargement du fichier peuvent le demander en même temps
+  const root = $("purityStats");
+  const token = supabaseToken();
+  if (!token) {
+    root.innerHTML = `<div class="pu-card"><div class="pu-big">🔒</div><div class="title">Réservé aux comptes connectés</div>
+      <p class="artist">Connecte-toi avec ton numéro pour retrouver tes stats Purify Test.</p>
+      <button class="py-main" data-pu-login>Se connecter</button></div>`;
+    return;
+  }
+  root.innerHTML = `<p class="artist" role="status">Chargement de tes stats…</p>`;
+  puStatsLoading = true;
+  try {
+    // fetch direct : api() prendrait un jeton expiré (401) pour une demande de code de soirée.
+    const r = await fetch("/api/purity/me", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(r.status === 401 ? "ta connexion a expiré, reconnecte-toi" : data.detail || "erreur réseau");
+    root.innerHTML = puStatsHtml(data);
+  } catch (e) {
+    root.innerHTML = `<div class="pu-card"><p class="artist">Impossible de charger tes stats : ${esc(e.message)}</p>
+      <button class="py-sub" data-pu-stats-retry>Réessayer</button></div>`;
+  } finally {
+    puStatsLoading = false;
+  }
+}
+
 document.addEventListener("click", (ev) => {
+  if (ev.target.closest("[data-pu-login]")) return showTab("account");
+  if (ev.target.closest("[data-pu-stats-retry]")) return puStatsShow();
   if (game?.type !== "purity") return;
   const q = ev.target.closest("[data-pu-i]");
   if (q) return puToggle(q);
   const act = ev.target.closest("[data-pu-act]");
   if (act && !act.disabled) return puRevealOk(act) && pressed(act, gameAction(act.dataset.puAct));
-  if (ev.target.closest("[data-pu-login]")) return showTab("account");
   const sips = ev.target.closest("[data-pu-sips]");
   if (sips && !sips.disabled) return pressed(sips, gameAction("puset", { settings: { sips: +sips.dataset.puSips } }));
 });
 document.addEventListener("change", (ev) => {
   if (ev.target.matches("[data-pu-alcohol]") && game?.type === "purity") gameAction("puset", { settings: { alcohol: ev.target.checked } });
 });
+// App rouverte sur la page des stats (dernier onglet gardé) : affichée dès que ce fichier est chargé.
+if (document.body.dataset.tab === "purity") puStatsShow();

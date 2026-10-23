@@ -54,6 +54,10 @@ class Accounts:
             self.cache[key] = (now, uid)
         return uid
 
+    def verified_gid(self, token: str) -> str:
+        """Identifiant de joueur du compte, après la seule vérification du jeton (gardée 5 min) : pour lire ses propres données."""
+        return self.gid(self._uid(token))
+
     def is_party_admin(self, token: str) -> bool:
         """Droits « Ouvrir la page admin » et « Réglages du site » (root et admins) : mêmes pouvoirs que le code PIN."""
         self._uid(token)

@@ -1554,8 +1554,25 @@ def perform_game_action(code: str, body: GameAction, request: Request):
 
 @app.get("/api/purity/leaderboard")
 def purity_leaderboard():
-    """Classement général du Purify Test (meilleur score de chaque compte) ; sans identifiant de compte."""
+    """Classement général du Purify Test (record d'impureté de chaque compte) ; sans identifiant de compte."""
     return purity.leaderboard()
+
+
+@app.post("/api/purity/me")
+def purity_me(body: AccountToken, request: Request):
+    """Réglages : stats Purify Test du compte connecté (dernier test par catégorie, record), pour lui seul."""
+    ip = client_ip(request)
+    if msg := account_limiter.blocked(ip):
+        raise HTTPException(429, msg)
+    if not 20 < len(body.token) < 4096:
+        raise HTTPException(400, "Jeton invalide")
+    try:
+        gid = accounts.verified_gid(body.token)
+    except AccountError as e:
+        account_limiter.fail(ip)
+        raise HTTPException(401, str(e))
+    account_limiter.success(ip)
+    return purity.profile(gid)
 
 
 @app.get("/qr/game/{code}.svg")

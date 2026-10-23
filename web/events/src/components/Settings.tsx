@@ -73,6 +73,9 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
             <View style={s.divider} />
           </>
         ) : null}
+        {/* Page de Party (hors du module) : dernier test et profil d'impureté, à montrer si on veut. */}
+        <LinkRow label="😈 Mes stats Purify Test" hint="Ton dernier score d’impureté, ton radar et ton record" onPress={() => openPartyTab('purity')} />
+        <View style={s.divider} />
         <LinkRow label="Ton avis" hint="Une idée, un bug ? Écris à l’organisateur" onPress={() => openPartyTab('feedback')} />
         <View style={s.divider} />
         <LinkRow label="Confidentialité" hint="Tes données et tes choix" onPress={() => router.push('/privacy')} />

@@ -2310,7 +2310,7 @@ def _summary_extra(g: dict, p: dict) -> str:
         return quiz.summary_extra(g, p["id"])
     if g["type"] == "purity":
         score = g["purity"]["scores"].get(p["id"])
-        return f"{score} % pur" if score is not None else ""
+        return f"{score} % impur" if score is not None else ""
     if g["type"] == "heist":
         return f"{heist.state(g)['scores'].get(p['pid'], 0)} braquage(s) réussi(s)"
     if g["type"] == "island":
@@ -2354,7 +2354,7 @@ def room_merge(room: dict, g: dict):
         rows = quiz.board(g)
         winner = rows[0][0]["name"] if rows and rows[0][1]["n"] else None
     if g["type"] == "purity" and (rows := purity.ranking(g)):
-        winner = rows[0]["name"]  # le plus pur ; les scores (en %) ne s'ajoutent pas aux points de la soirée
+        winner = rows[0]["name"]  # le plus impur ; les scores (en %) ne s'ajoutent pas aux points de la soirée
     if g["type"] == "president" and g.get("president", {}).get("finished"):
         s = g["president"]
         winner = room["rnames"].get(s["finished"][0])

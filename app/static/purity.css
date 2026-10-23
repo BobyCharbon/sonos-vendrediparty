@@ -94,4 +94,10 @@ body.pyr-full #game.g-pu { box-shadow: none; border: 0; padding: 16px; backgroun
 .pu-cat-row b { font-size: .92rem; line-height: 1.2; }
 .pu-cat-row .pu-row-s { font-size: .9rem; }
 
+/* Réglages → « Mes stats Purify Test » : mêmes couleurs que le jeu, hors de la carte de partie. */
+.pu-stats { margin-top: 12px; padding: 16px; border-radius: 24px; color: #fff;
+  background: radial-gradient(120% 60% at 50% 0%, #3b1f5e, var(--g-bg) 70%); }
+.pu-stats .py-sub { width: 100%; }
+.pu-when { text-align: center; margin: -4px 0 14px; color: var(--g-soft); }
+
 @media (prefers-reduced-motion: reduce) { .pu-q, .pu-bar i { transition: none; } .pu-shape { animation: none; } }

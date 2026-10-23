@@ -1,5 +1,6 @@
 """Purify Test de bout en bout : vrais boutons, comptes Party simulés (faux Supabase local)."""
 import json
+import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -106,17 +107,33 @@ def test_purity_private_answers_reveal_and_accounts_only(phones):
     expect(alice.page.locator('.pu-progress')).to_contain_text('2/2')
     alice.tap('[data-pu-act="pureveal"]')
 
-    expect(alice.page.locator('.pu-score-v')).to_have_text('100 %')
+    expect(alice.page.locator('.pu-score-k')).to_have_text("Ton score d'impureté")
+    expect(alice.page.locator('.pu-score-v')).to_have_text('0 %')
     expect(alice.page.locator('.pu-score-l')).to_have_text('😇 Sainte-Nitouche certifiée')
-    expect(bob.page.locator('.pu-row').last).to_contain_text('👼 Enfant de chœur')  # 96 %
-    expect(bob.page.locator('.pu-row').first).to_contain_text('Alice')
-    expect(bob.page.locator('.pu-row').last).to_contain_text('Bob')
+    expect(bob.page.locator('.pu-row').first).to_contain_text('👼 Enfant de chœur')  # 4 % d'impureté
+    expect(bob.page.locator('.pu-row').first).to_contain_text('Bob')  # le plus impur en tête
+    expect(bob.page.locator('.pu-row').last).to_contain_text('Alice')
     expect(bob.page.locator('.pu-drink')).to_contain_text('Bob boit 2 gorgées')
     expect(bob.page.locator('.pu-lb')).to_contain_text('Classement général')
-    # Profil par catégorie (privé) : radar + liste triée, Relations est la moins pure pour Bob (4 « oui »).
+    # Profil d'impureté par catégorie (privé) : radar + liste triée, Relations est la plus impure pour Bob (4 « oui »).
     expect(bob.page.locator('.pu-radar .pu-dot')).to_have_count(9)
-    expect(bob.page.locator('.pu-cat-row').last).to_contain_text('Relations')
-    expect(bob.page.locator('.pu-cat-row').last).to_contain_text('18/22')
+    expect(bob.page.locator('.pu-cat-row').first).to_contain_text('Relations')
+    expect(bob.page.locator('.pu-cat-row').first).to_contain_text('4/22')
     # Les cases cochées ne sont jamais renvoyées après la révélation.
     assert 'mine' not in bob.state()['purity']
     expect(alice.page.locator('[data-gact="restart"]')).to_be_visible()
+
+    # Réglages → « Mes stats Purify Test » (lien du module Comptes) : dernier test, radar et record, pour soi seul.
+    bob.page.evaluate("postMessage({type: 'party-events:open-tab', tab: 'purity'}, location.origin)")
+    stats = bob.page.locator('#purityStats')
+    expect(stats.locator('.pu-score-v')).to_have_text('4 %')
+    expect(stats.locator('.pu-radar .pu-dot')).to_have_count(9)
+    expect(stats.locator('.pu-cat-row').first).to_contain_text('4/22')
+    expect(stats).to_contain_text('1 test')
+    expect(bob.page.locator('#accountTab')).to_have_class(re.compile(r'\bon\b'))  # page rattachée aux Réglages
+    bob.tap('[data-host-back]')
+    expect(bob.page.locator('body')).to_have_attribute('data-tab', 'account')
+    # Sans compte : invitation à se connecter, aucune stat.
+    carol.page.evaluate("postMessage({type: 'party-events:open-tab', tab: 'purity'}, location.origin)")
+    expect(carol.page.locator('#purityStats')).to_contain_text('Connecte-toi')
+    expect(carol.page.locator('#purityStats .pu-score-v')).to_have_count(0)
