@@ -22,7 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
 
-from . import calendar_ics, games, heist, island, links, neon, president, purity, quiz
+from . import calendar_ics, games, heist, island, likely, links, neon, president, purity, quiz
 from .accounts import AccountError, Accounts
 from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
 from .github_issues import GitHubError, Issues
@@ -1123,6 +1123,12 @@ def build_game(body: GameCreate) -> dict:
         # Gorgées choisies à la création → option alcool ; sinon 2 gorgées proposées si on l'active plus tard.
         sips = g["options"]["sips"]
         g["options"].update(alcohol=sips > 0, sips=sips or 2)
+    if body.type == "likely":
+        # Paquets de questions choisis sur la carte du jeu (« cats »), gorgées bornées pour ce jeu.
+        try:
+            likely.configure(g, {"packs": body.cats or ["family"], "sips": min(g["options"]["sips"], likely.MAX_SIPS)})
+        except likely.LikelyError as e:
+            raise HTTPException(400, str(e))
     if body.type == "divan" and body.cats:
         try:
             games.divan_set_cats(g, body.cats)
@@ -1406,11 +1412,15 @@ class GameAction(BaseModel):
 
 
 PURITY_ONLY = {"puset", "puans", "pusub", "puunsub", "pureveal"}
+# « Qui est le plus… ? » : le téléphone de l'animateur fait voter chacun à son tour (lkvote, avec who = votant).
+LIKELY_ONLY = {"lkset", "lkvote", "lkskip", "lkswap"}
+LIKELY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "addguest", "up", "down"} | LIKELY_ONLY
 PURITY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end"} | PURITY_ONLY
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
 HOST_ACTIONS = {"puset", "pureveal","ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
-                "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover", "nset", "hset"}
+                "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover", "nset", "hset",
+                "lkset", "lkskip", "lkswap"}
 
 
 @app.post("/api/games/{code}")
@@ -1449,6 +1459,10 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     if g["type"] == "purity" and a not in PURITY_ACTIONS:
         raise HTTPException(400, "Action indisponible au Purify Test")
     if g["type"] != "purity" and a in PURITY_ONLY:
+        raise HTTPException(400, "Action inconnue")
+    if g["type"] == "likely" and a not in LIKELY_ACTIONS:
+        raise HTTPException(400, "Action indisponible dans ce jeu")
+    if g["type"] != "likely" and a in LIKELY_ONLY:
         raise HTTPException(400, "Action inconnue")
     # Cible d'un vote : un joueur (pid) ; pour « Je n'ai jamais », une réponse (yes / no).
     target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino", "pyramid", "biskit") else "")
@@ -1508,6 +1522,8 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "qpause": (quiz.pause, actor, games.is_lead(g, me) or len(g["players"]) <= 1, random),
         "puset": (purity.configure, body.settings), "puans": (purity.answer, me, body.amount, body.done),
         "pusub": (purity.submit, me), "puunsub": (purity.unsubmit, me), "pureveal": (games.purity_reveal,),
+        "lkset": (likely.configure, body.settings), "lkvote": (games.lk_vote, actor, target),
+        "lkskip": (games.lk_skip,), "lkswap": (games.lk_swap, random),
     }
     if g["type"] == "quiz" and a == "next":
         actions["next"] = (quiz.next_step, random, body.guess)
@@ -1517,7 +1533,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     try:
         action_result = fn(g, *args)
     except (games.GameError, quiz.QuizError, purity.PurityError, president.PresidentError, neon.NeonError, island.IslandError,
-            heist.HeistError) as e:
+            heist.HeistError, likely.LikelyError) as e:
         raise HTTPException(409, str(e))
     g["updated_at"] = time.time()
     # Salle de jeux : rejoindre, quitter, exclure ou passer la main vaut aussi pour le jeu en cours (et inversement).

@@ -1,0 +1,82 @@
+/* 🫵 Qui est le plus… ? (un seul téléphone qui tourne) */
+.g-lk { --g-bg: #10343a; --g-accent: #ffc94d; --g-ink: #2b1a00; --g-soft: #cdeef0; --g-chip: #1c4a51; }
+.game.g-lk { background: var(--g-bg); color: #fff; border: 0; }
+.game.g-lk .artist { color: var(--g-soft); }
+body.pyr-full #game.g-lk { box-shadow: none; border: 0; padding: 16px; background: radial-gradient(120% 60% at 50% 0%, #1d5b63, #10343a 70%); }
+
+.lk-main { width: 100%; min-height: 56px; margin-top: 14px; border-radius: 18px; border: 0; font-size: 1.05rem; font-weight: 800;
+  background: linear-gradient(135deg, #ffe08a, #ffb627); color: var(--g-ink); box-shadow: 0 7px 0 #b97a00, 0 14px 28px rgba(255,182,39,.3);
+  transition: transform .1s, box-shadow .1s; }
+.lk-main:active { transform: translateY(5px); box-shadow: 0 2px 0 #b97a00; }
+.lk-main:disabled { opacity: .5; box-shadow: none; }
+.lk-sub { flex: 1; min-height: 46px; border-radius: 14px; border: 0; background: rgba(255,255,255,.1); color: #fff; font-weight: 700; font-size: .92rem; }
+.lk-row { display: flex; gap: 8px; margin-top: 12px; }
+
+.lk-hero { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 22px; margin-bottom: 14px;
+  background: linear-gradient(135deg, #1f8a8f, #f2a541); box-shadow: 0 14px 32px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.25); }
+.lk-hero-i { font-size: 2.4rem; }
+.lk-hero-t { font: 800 1.35rem/1.1 "Bricolage Grotesque", system-ui, sans-serif; }
+.lk-hero-s { font-size: .9rem; opacity: .92; margin-top: 4px; }
+.lk-help { margin: 12px 0 0; text-align: center; }
+
+.lk-setup .g-label { color: var(--g-soft); margin-top: 10px; }
+.lk-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.lk-chips button { min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid transparent; background: var(--g-chip); color: #fff; font-weight: 700; }
+.lk-chips button.on { border-color: var(--g-accent); background: #27616a; }
+.lk-chips small { opacity: .7; font-weight: 600; }
+
+.lk-card { text-align: center; padding: 18px 16px; border-radius: 22px; background: rgba(255,255,255,.07); }
+.lk-q { text-align: center; padding: 22px 18px; border-radius: 24px; background: #fff; color: #10343a; box-shadow: 0 16px 34px rgba(0,0,0,.3); }
+.lk-q-n { font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #1f8a8f; }
+.lk-q-t { font: 800 1.45rem/1.2 "Bricolage Grotesque", system-ui, sans-serif; margin-top: 8px; text-wrap: balance; }
+.lk-q.small { padding: 14px 16px; }
+.lk-q.small .lk-q-t { font-size: 1.05rem; }
+
+.lk-pass { text-align: center; margin-top: 22px; }
+.lk-pass-k { color: var(--g-soft); font-weight: 700; }
+.lk-name { font: 800 2.2rem/1.1 "Bricolage Grotesque", system-ui, sans-serif; color: var(--g-accent); margin-top: 6px; overflow-wrap: anywhere; }
+
+.lk-who { text-align: center; font-weight: 800; font-size: 1.1rem; margin: 18px 0 10px; }
+.lk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+.lk-pick { min-height: 64px; padding: 8px; border-radius: 16px; border: 2px solid rgba(255,255,255,.12); background: rgba(255,255,255,.08);
+  color: #fff; font-size: 1.05rem; font-weight: 800; overflow-wrap: anywhere; transition: transform .1s, background .15s; }
+.lk-pick:active { transform: scale(.96); }
+.lk-pick.on { background: var(--g-accent); color: var(--g-ink); border-color: var(--g-accent); }
+.lk-pick small { font-weight: 600; opacity: .7; }
+
+.lk-dots { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.lk-dots i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.18); }
+.lk-dots i.on { background: var(--g-accent); }
+
+.lk-win { text-align: center; margin: 20px 0 6px; animation: lk-pop .45s cubic-bezier(.2,1.4,.4,1); }
+.lk-win-k { color: var(--g-soft); font-weight: 800; text-transform: uppercase; letter-spacing: .08em; font-size: .8rem; }
+.lk-win-t { font: 800 2rem/1.15 "Bricolage Grotesque", system-ui, sans-serif; color: var(--g-accent); margin-top: 6px; overflow-wrap: anywhere; }
+.lk-win-s { font-weight: 700; margin: 6px 0 0; }
+@keyframes lk-pop { from { transform: scale(.7); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .lk-win { animation: none; } }
+
+.lk-bars { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.lk-bar { display: grid; grid-template-columns: minmax(70px, 30%) 1fr 28px; align-items: center; gap: 10px; font-weight: 700; }
+.lk-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lk-bar i { display: block; height: 14px; width: var(--w); min-width: 6px; border-radius: 999px; background: linear-gradient(90deg, #ffe08a, #ffb627); }
+.lk-bar b { text-align: right; }
+
+.lk-scores { margin-top: 18px; padding: 12px 14px; border-radius: 18px; background: rgba(255,255,255,.06); }
+.lk-scores h3 { margin: 0 0 6px; font-size: .95rem; color: var(--g-soft); }
+.lk-score { display: flex; justify-content: space-between; padding: 6px 0; border-top: 1px solid rgba(255,255,255,.07); }
+.lk-score:first-of-type { border-top: 0; }
+
+.lk-end-k { text-align: center; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; font-size: .8rem; color: var(--g-soft); }
+.lk-podium { display: grid; grid-template-columns: repeat(3, 1fr); align-items: end; gap: 8px; margin-top: 14px; }
+.lk-step { text-align: center; padding: 12px 6px; border-radius: 18px 18px 8px 8px; background: rgba(255,255,255,.08); min-width: 0; }
+.lk-step.first { min-height: 150px; background: linear-gradient(180deg, rgba(255,201,77,.35), rgba(255,201,77,.08)); }
+.lk-step.second { min-height: 120px; }
+.lk-step.third { min-height: 100px; }
+.lk-medal { font-size: 2rem; }
+.lk-step-n { font-weight: 800; overflow-wrap: anywhere; }
+.lk-step-p { color: var(--g-soft); font-size: .9rem; margin-top: 2px; }
+.lk-recap { margin-top: 14px; padding: 10px 14px; border-radius: 16px; background: rgba(255,255,255,.05); }
+.lk-recap summary { font-weight: 700; cursor: pointer; min-height: 32px; display: flex; align-items: center; }
+.lk-recap ol { margin: 8px 0 0; padding-left: 22px; font-size: .9rem; line-height: 1.4; }
+.lk-recap li { margin-bottom: 6px; }
+.lk-recap span { color: var(--g-accent); font-weight: 700; }

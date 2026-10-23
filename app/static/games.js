@@ -29,6 +29,7 @@ function myTurnKey(g) {
     case "tmc": return g.tmc?.duo?.role && ["answer", "guess"].includes(g.phase) ? `tm${g.round}-${g.phase}-${g.tmc.duo.role}` : "";
     case "undercover": return g.phase === "vote" && g.me.alive ? `uc${g.round}` : "";
     case "whoof": case "never": return g.phase === "question" ? `q${g.round}` : "";
+    case "likely": return g.phase === "ask" && g.likely?.voter?.mine ? `lk${g.likely.n}` : "";
     case "purity": return g.phase === "answering" && g.purity?.playing && !g.purity.submitted ? "pu" : "";
     case "quiz": return g.phase === "q" && !g.quiz?.q?.out ? `qz${g.quiz.n}` : "";
     case "president": return g.president?.my_turn && (!navigator.userActivation || navigator.userActivation.hasBeenActive) ? `pr${g.round}-${g.president.token}` : "";
@@ -63,6 +64,7 @@ GAME_ICONS.biskit = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" 
 GAME_ICONS.quiz = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M24 4a15 15 0 0 1 9 27c-2 1.6-3 3.4-3 6v1H18v-1c0-2.6-1-4.4-3-6A15 15 0 0 1 24 4z"/><path d="M19 43h10"/><path d="M20 17a4 4 0 1 1 6 3.4c-1.3.8-2 1.7-2 3.1"/><circle cx="24" cy="29" r="0.6" fill="currentColor"/></svg>`;
 GAME_ICONS.purity = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="24" cy="9" rx="11" ry="4"/><circle cx="24" cy="27" r="11"/><path d="M19 25h.01M29 25h.01"/><path d="M19.5 31c2.5 2.5 6.5 2.5 9 0"/><path d="M15 44c2-3 5-4.5 9-4.5s7 1.5 9 4.5"/></svg>`;
 GAME_ICONS.room = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 22L24 8l17 14"/><path d="M11 19v21h26V19"/><rect x="19" y="27" width="10" height="13" rx="2"/><path d="M30 13V9h5v8"/></svg>`;
+GAME_ICONS.likely = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="16" y="9" width="16" height="27" rx="3.5"/><path d="M22 31h4"/><path d="M24 15.5a3.5 3.5 0 1 1 2.6 3.4c-1 .3-1.6 1-1.6 2v1"/><path d="M25 25.5h.01"/><path d="M8 18a17 17 0 0 0 3 19"/><path d="M8 31l3 6 6-2"/><path d="M40 30a17 17 0 0 0-3-19"/><path d="M40 17l-3-6-6 2"/></svg>`;
 const GAME_THEME = { room: "g-rm", biskit: "g-bk", pyramid: "g-py", undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv", tmc: "g-tm" };
 const isBJ = (g) => g.type === "blackjack";
 GAME_ICONS.heist = Heist.icon;
@@ -465,6 +467,23 @@ document.getElementById("gamesRoot").innerHTML = `
         </div>
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="whoof">Créer une partie</button>
+      </div>
+
+      <div class="gcard g-lk">
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.likely}</div>
+          <div class="g-meta"><div class="g-title">Qui est le plus…&nbsp;?</div><div class="g-tag">Un seul téléphone qui tourne. Tout le monde joue.</div></div>
+          ${helpBtn("likely")}
+        </div>
+        <p class="g-desc">« Qui est le plus mauvais perdant ? » Le téléphone passe de main en main, chacun désigne quelqu'un en secret, puis on découvre le plus désigné : il prend un point… ou une petite gorgée.</p>
+        <div class="g-chips"><span>👨‍👩‍👧 Avec les parents aussi</span><span>2+ joueurs</span><span>1 seul téléphone</span><span>365 questions</span></div>
+        <label class="g-opt"><span>😏 Paquet « Entre amis » <small>en plus : soirées, ex, petits secrets (jamais sexuel)</small></span><input type="checkbox" class="switch" data-opt="lkfriends"></label>
+        <label class="g-opt"><span>🍻 Le plus désigné boit <small>sinon il prend un point</small></span><input type="checkbox" class="switch" data-opt="lkalcohol"></label>
+        <div class="g-modes" data-opt-group="lksips">
+          <button type="button" data-val="1" class="on">1 gorgée</button><button type="button" data-val="2">2</button><button type="button" data-val="3">3</button>
+        </div>
+        <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
+        <button class="g-go" data-create="likely">Créer une partie</button>
       </div>
 
       <div class="gcard g-nv">
@@ -981,6 +1000,8 @@ function renderGame(g) {
       qzAnimKey = key;
     }
     quizAfter(g, fresh);
+  } else if (g.type === "likely") {
+    setGameHtml(likelyHtml(g));
   } else if (g.type === "pyramid" || g.type === "biskit") {
     setGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g)));
     if (g.type === "pyramid") pyrWheel(g);
@@ -991,6 +1012,7 @@ function renderGame(g) {
   renderDrawer(g);
   gameFlashes(g);
   if (g.type === "purity") puAnnounce(g);
+  if (g.type === "likely") lkAnnounce(g);
   turnSignal(g);
   const input = $("guessInput");
   if (input && !input._vp) { input._vp = 1; input.value = guessDraft; input.addEventListener("input", () => { guessDraft = input.value; }); }
@@ -1797,7 +1819,7 @@ document.addEventListener("pointerup", dvRelease);
 document.addEventListener("pointercancel", dvRelease);
 
 // 📵 Participants sans téléphone : l'animateur les ajoute à la main et agit pour eux.
-const MANUAL_GAMES = ["divan", "tmc", "never", "pyramid", "biskit", "room"];
+const MANUAL_GAMES = ["divan", "tmc", "never", "pyramid", "biskit", "likely", "room"];
 const playerTag = (g, p) => !MANUAL_GAMES.includes(g.type) ? "" : p.manual
   ? ` <span class="pill tag-manual" title="Ajouté·e à la main par l'animateur">✍️ sans téléphone</span>`
   : ` <span class="tag-phone" title="Joue sur son téléphone">📱</span>`;
@@ -2213,6 +2235,7 @@ function renderGameHost(g) {
   if (isBJ(g)) return renderBJHost(g, btn);
   if (g.type === "casino") return renderCasinoHost(g, btn);
   if (g.type === "divan") return renderDivanHost(g, btn);
+  if (g.type === "likely") return renderLikelyHost(g);
   if (["pyramid", "biskit", "quiz", "purity", "room", "president", "neon", "island", "heist"].includes(g.type)) { patch.gameHost = ""; return; }
   if (g.type === "tmc") return renderTmcHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
@@ -2606,10 +2629,12 @@ function gamePayload(card, type) {
   if (type === "quiz") sips = q("[data-opt=qzsips]")?.checked ? 1 : 0;
   if (type === "purity") sips = q("[data-opt=pualcohol]")?.checked ? +(q("[data-opt-group=pusips] .on")?.dataset.val || 2) : 0;
   if (type === "biskit") sips = q("[data-opt=bkalcohol]")?.checked ? +(q("[data-opt-group=bkmult] .on")?.dataset.val || 1) : 0;
+  if (type === "likely") sips = q("[data-opt=lkalcohol]")?.checked ? +(q("[data-opt-group=lksips] .on")?.dataset.val || 1) : 0;
   return {
     type, sips, white: q("[data-opt=white]")?.checked ?? true, plays: q("[data-opt=plays]")?.checked ?? true,
     mode: q("[data-opt-group=mode] .on")?.dataset.val || "soft",
-    cats: [...card.querySelectorAll("[data-opt-group=cats] .on")].map((x) => x.dataset.val),
+    cats: type === "likely" ? ["family", ...(q("[data-opt=lkfriends]")?.checked ? ["friends"] : [])]
+      : [...card.querySelectorAll("[data-opt-group=cats] .on")].map((x) => x.dataset.val),
     floors: +(q("[data-opt-group=floors] [data-val-out]")?.textContent || 5),
     pmode: q("[data-opt-group=pmode] .on")?.dataset.val || "soft",
     poteau: q("[data-opt-group=poteau] .on")?.dataset.val || "soft",
@@ -2675,7 +2700,7 @@ function rulesFor(type, g) {
 }
 
 // « ? » : règles détaillées du jeu.
-const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", never: "Je n'ai jamais", roulette: "Roulette",
+const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", likely: "Qui est le plus… ?", never: "Je n'ai jamais", roulette: "Roulette",
   blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal", quiz: "Quiz", purity: "Purify Test", room: "Salle de jeux", president: "Président", neon: "Néon Knockout", island: "L’île qui s’effondre", heist: "Braquage en miniature" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");
@@ -2718,7 +2743,7 @@ document.addEventListener("click", (ev) => {
     if (cat === couple && cat.classList.contains("on")) on.forEach((b) => b !== cat && b.classList.remove("on"));
     else if (cat !== couple && cat.classList.contains("on")) couple?.classList.remove("on");
   }
-  const pm = ev.target.closest("[data-opt-group=pmode] [data-val], [data-opt-group=poteau] [data-val], [data-opt-group=floorsips] [data-val], [data-opt-group=bkmult] [data-val], [data-opt-group=impostors] [data-val], [data-opt-group=pusips] [data-val]");
+  const pm = ev.target.closest("[data-opt-group=pmode] [data-val], [data-opt-group=poteau] [data-val], [data-opt-group=floorsips] [data-val], [data-opt-group=bkmult] [data-val], [data-opt-group=impostors] [data-val], [data-opt-group=pusips] [data-val], [data-opt-group=lksips] [data-val]");
   if (pm) pm.parentElement.querySelectorAll("[data-val]").forEach((x) => x.classList.toggle("on", x === pm));
   const opt = ev.target.closest("[data-opt-group=mode] [data-val]");
   if (opt) opt.parentElement.querySelectorAll("[data-val]").forEach((b) => b.classList.toggle("on", b === opt));

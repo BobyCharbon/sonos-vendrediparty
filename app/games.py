@@ -14,7 +14,7 @@ import secrets
 import time
 import unicodedata
 
-from . import heist, island, neon, president, purity, quiz
+from . import heist, island, likely, neon, president, purity, quiz
 from .divan_cards import DIVAN_CARDS
 from .tmc_questions import TMC_QUESTIONS
 from .party_questions import NEVER_AWKWARD, NEVER_HOT, NEVER_SOFT, WHOOF_AWKWARD, WHOOF_HOT, WHOOF_SOFT
@@ -22,6 +22,7 @@ from .party_questions import NEVER_AWKWARD, NEVER_HOT, NEVER_SOFT, WHOOF_AWKWARD
 GAMES = {
     "undercover": "Undercover",
     "whoof": "Qui de nous ?",
+    "likely": "Qui est le plus… ?",
     "never": "Je n'ai jamais",
     "roulette": "Roulette",
     "blackjack": "Blackjack",
@@ -176,6 +177,8 @@ def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code
         quiz.init(g)
     if kind == "purity":
         purity.init(g)
+    if kind == "likely":
+        likely.init(g)
     if kind == "room":
         # Salle de jeux : un seul code pour la soirée ; l'animateur y lance les jeux les uns après les autres.
         g.update(current=None, rhistory=[], rtally={}, rpts={}, rnames={})
@@ -233,7 +236,7 @@ def join(g: dict, gid: str, name: str = ""):
                          "waiting": waiting, "pending": pending})
 
 
-MANUAL_GAMES = ("divan", "tmc", "never", "pyramid", "biskit", "room")  # jeux où l'animateur peut ajouter des participants sans téléphone
+MANUAL_GAMES = ("divan", "tmc", "never", "pyramid", "biskit", "likely", "room")  # jeux où l'animateur peut ajouter des participants sans téléphone
 
 
 def add_guest(g: dict, name: str, guest_id: str | None = None):
@@ -293,6 +296,8 @@ def leave(g: dict, gid: str):
         bk_leave(g, gid)
     if g["type"] == "purity":
         purity.leave(g, gid)
+    if g["type"] == "likely":
+        _lk_award(g, likely.settle(g))  # il ne manquait que son vote
     if g["type"] == "quiz":
         g["quiz"]["personal"].pop(gid, None)
         if g["phase"] == "run" and g["quiz"]["personal"] and all(x["done"] for x in g["quiz"]["personal"].values()):
@@ -1862,6 +1867,31 @@ def purity_reveal(g: dict):
         add_sips(g, gid_of(g, r["pid"]), drink=r["sips"])
 
 
+def _lk_award(g: dict, winners: list[str]):
+    """« Qui est le plus… ? » : avec l'option alcool, chaque personne désignée boit ses gorgées (compté au tableau)."""
+    for w in winners:
+        add_sips(g, w, drink=g["options"].get("sips", 0))
+
+
+def _lk(fn, g: dict, *args):
+    try:
+        return fn(g, *args)
+    except likely.LikelyError as e:
+        raise GameError(str(e))
+
+
+def lk_vote(g: dict, voter: str, target: str):
+    _lk_award(g, _lk(likely.vote, g, voter, target))
+
+
+def lk_skip(g: dict):
+    _lk_award(g, _lk(likely.skip, g))
+
+
+def lk_swap(g: dict, rng: random.Random = random):
+    _lk(likely.swap, g, rng)
+
+
 def start(g: dict, rng: random.Random = random):
     """Distribue les rôles (Undercover) ou pose la première question (Qui de nous ?)."""
     if g["type"] == "heist":
@@ -1882,6 +1912,12 @@ def start(g: dict, rng: random.Random = random):
         try:
             purity.start(g)
         except purity.PurityError as e:
+            raise GameError(str(e))
+        return
+    if g["type"] == "likely":
+        try:
+            likely.start(g, rng)
+        except likely.LikelyError as e:
             raise GameError(str(e))
         return
     if g["type"] == "quiz":
@@ -2081,6 +2117,12 @@ def next_step(g: dict, rng: random.Random = random):
     if g["type"] == "purity":
         start(g, rng)  # nouveau test, mêmes joueurs
         return
+    if g["type"] == "likely":
+        try:
+            likely.next_step(g, rng)
+        except likely.LikelyError as e:
+            raise GameError(str(e))
+        return
     if g["type"] == "casino":
         if g["phase"] != "results":
             raise GameError("Pas encore")
@@ -2122,7 +2164,7 @@ def restart(g: dict, rng: random.Random = random) -> dict:
         neon.start(g, rng)
     elif g["type"] == "president":
         president.start(g, rng)
-    elif g["type"] in ("quiz", "purity"):
+    elif g["type"] in ("quiz", "purity", "likely"):
         start(g, rng)
     elif g["type"] == "biskit":
         start(g, rng)
@@ -2194,6 +2236,8 @@ def view(g: dict, gid: str) -> dict:
         out["bk"] = bk_view(g, gid)
     if g["type"] == "quiz":
         out["quiz"] = quiz.view(g, gid)
+    if g["type"] == "likely":
+        out["likely"] = likely.view(g, gid)
     if g["type"] == "purity":
         out["purity"] = purity.view(g, gid)
         if g["phase"] == "results":
@@ -2277,6 +2321,9 @@ def _summary_facts(g: dict) -> list[str]:
         facts.append(f"{g['round']} question(s) posée(s)")
     if t == "quiz":
         facts += quiz.summary_facts(g)
+    if t == "likely":
+        facts += likely.summary_facts(g)
+        facts.append(f"Alcool : {sips} gorgée{'s' if sips > 1 else ''} pour la personne désignée" if sips else "Sans alcool : un point")
     if t == "purity":
         facts.append(f"Alcool : {sips} gorgée{'s' if sips > 1 else ''} pour le plus sulfureux" if o.get("alcohol") and sips else "Sans alcool")
         if g["phase"] == "answering":
@@ -2327,6 +2374,8 @@ def _summary_extra(g: dict, p: dict) -> str:
         return f"💰 {g['bj']['chips'].get(p['id'], BJ_START_CHIPS)}" if not bj_drinks(g) else ""
     if g["type"] == "casino" and not casino_sips(g):
         return f"💰 {g['casino']['chips'].get(p['id'], CASINO_START_CHIPS)}"
+    if g["type"] == "likely":
+        return f"⭐ {likely.state(g)['scores'].get(p['id'], 0)}"
     if g["type"] == "tmc":
         sc = g.get("tmc", {}).get("scores", {}).get(p["id"])
         return f"⭐ {sc}" if sc is not None else ""
@@ -2353,6 +2402,10 @@ def room_merge(room: dict, g: dict):
     if g["type"] == "quiz" and g["players"]:
         rows = quiz.board(g)
         winner = rows[0][0]["name"] if rows and rows[0][1]["n"] else None
+    if g["type"] == "likely":
+        for gid, pts in likely.state(g)["scores"].items():
+            room["rpts"][gid] = room["rpts"].get(gid, 0) + pts
+        winner = likely.winner_name(g)  # le plus désigné de la partie
     if g["type"] == "purity" and (rows := purity.ranking(g)):
         winner = rows[0]["name"]  # le plus impur ; les scores (en %) ne s'ajoutent pas aux points de la soirée
     if g["type"] == "president" and g.get("president", {}).get("finished"):

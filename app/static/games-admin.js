@@ -13,7 +13,7 @@
     answer: "Réponse en secret", guess: "À voix haute", judge: "Points", scored: "Résultat du duo",
     bet: "Mises", play: "Partie en cours", spun: "Résultat", card: "En séance", deal: "Distribution", pyramid: "Pyramide",
     memory: "Test de mémoire", memres: "Résultats de mémoire", boatpick: "Qui fait le bateau ?", boat: "Le bateau", answering: "Réponses en secret" };
-  const EMOJI = { undercover: "🕵️", whoof: "🙋", never: "🍻", roulette: "🎡", blackjack: "🃏", casino: "🎰", divan: "🛋️", tmc: "💞",
+  const EMOJI = { undercover: "🕵️", whoof: "🙋", likely: "🫵", never: "🍻", roulette: "🎡", blackjack: "🃏", casino: "🎰", divan: "🛋️", tmc: "💞",
     pyramid: "🔺", quiz: "🧠", purity: "😇", room: "🏠", president: "👑", neon: "🥊", island: "🏝️", heist: "💎", biskit: "🍪" };
   let root = null, onState = () => {}, games = [];
   const open = new Set();
