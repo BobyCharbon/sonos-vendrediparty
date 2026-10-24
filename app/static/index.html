@@ -99,6 +99,7 @@
   <section data-view="host" class="hidden" aria-label="Invités, messages et notifications">
     <button type="button" class="secondary" data-host-back>← Réglages</button>
     <div id="peopleAdmin" class="admin-only"></div>
+    <div id="auditAdmin" class="admin-only"></div>
   </section>
 
   <!-- Réglages → « Mes stats de jeu » : un onglet par jeu, pour le seul titulaire du compte (Purify Test pour commencer). -->
@@ -348,7 +349,7 @@ function showTab(tab, eventTarget) {
   if (tab === "games") refreshGame();
   if (tab === "feedback") loadFeedback();
   if (tab === "music" && musicAdminMounted && fbIsAdmin()) MusicAdmin.show();
-  if (tab === "host" && musicAdminMounted) MusicAdmin.refresh();
+  if (tab === "host" && musicAdminMounted) { MusicAdmin.refresh(); window.AuditAdmin?.refresh(); }
   if (tab === "stats") showStats();
   // Événements et Réglages partagent le même module (une seule connexion) : on change juste de page dedans.
   if (tab === "events") frameRoute(eventTarget || (frameAt === "/account" ? "/" : null));
@@ -481,6 +482,7 @@ function fbSyncRole() {
     });
     // Jeux : parties en cours de toute la soirée (en haut de l'onglet Jeux).
     GamesAdmin.mount($("gamesAdmin"), { onState: (s) => MusicAdmin.render(s) });
+    AuditAdmin.mount($("auditAdmin"));
     MusicAdmin.mount($("musicAdmin"), { onState: (s) => { PeopleAdmin.render(s); GamesAdmin.render(s); } });
   }
   if (!admin) $("hostBadge").classList.add("hidden");
@@ -914,6 +916,7 @@ function listen() {
 <script src="/static/feedback-admin.js"></script>
 <script src="/static/music-admin.js"></script>
 <script src="/static/people-admin.js"></script>
+<script src="/static/audit-admin.js"></script>
 <script src="/static/games-admin.js"></script>
 <script src="/static/quiz.js"></script>
 <script src="/static/purity.js"></script>

@@ -199,6 +199,8 @@
         <button class="danger" id="stop" style="width:100%">Arrêter la soirée</button>
       </div>
 
+      <div id="auditAdmin"></div>
+
       <p style="text-align:center;margin-top:32px"><a href="#" id="logout" style="color:var(--muted)">Se déconnecter</a></p>
     </section>
   </div>
@@ -309,6 +311,7 @@ function showView(view) {
   if (location.hash.slice(1) !== view) history.replaceState(null, "", view === "home" ? location.pathname : "#" + view);
   scrollTo(0, 0);
   if (view === "settings" && typeof loadSpeakers === "function") loadSpeakers();
+  if (view === "settings") window.AuditAdmin?.refresh();
   if (view === "games" && typeof refreshGame === "function") refreshGame();
   if (view === "feedback") loadFeedback();
 }
@@ -977,6 +980,8 @@ $("logout").onclick = async (ev) => { ev.preventDefault(); await api("/api/admin
 <script src="/static/game-audio.js"></script>
 <script src="/static/games.js"></script>
 <script src="/static/feedback-admin.js"></script>
+<script src="/static/audit-admin.js"></script>
+<script>AuditAdmin.mount(document.getElementById("auditAdmin")); if (document.body.dataset.tab === "settings") AuditAdmin.refresh();</script>
 <script src="/static/quiz.js"></script>
 </body>
 </html>

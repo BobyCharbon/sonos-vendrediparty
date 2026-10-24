@@ -12,7 +12,7 @@ import threading
 import time
 import unicodedata
 from pathlib import Path
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 import httpx
 import segno
@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 from . import calendar_ics, games, heist, island, likely, links, neon, president, purity, quiz
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
+from .audit import AuditLog
 from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
 from .github_issues import GitHubError, Issues
 from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
@@ -35,6 +36,7 @@ from .spotify import Spotify, SpotifyError, SpotifyUser
 from .spotify_player import QUEUE_MANAGED_IN_SPOTIFY, SpotifyPlayer
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
+journal = AuditLog(DATA_DIR / "audit.jsonl")  # actions admin et connexions : ajout seul
 ADMIN_PIN = os.environ.get("ADMIN_PIN", "")
 def configured_public_url() -> str:
     # Une adresse propre à chaque déploiement pour les QR et le retour OAuth Spotify.
@@ -257,6 +259,32 @@ def require_admin(request: Request):
         raise HTTPException(401, "Code admin requis")
 
 
+PIN_ACTOR = "Code PIN"
+
+
+def _actor_cookie(name: str) -> str:
+    # Signé avec le code admin : un cookie inventé (ou d'avant un changement de code) retombe sur « Code PIN ».
+    tag = quote(name, safe="")
+    return f"{tag}.{_token('admin-by', ADMIN_PIN + ':' + tag)}"
+
+
+def admin_actor(request: Request) -> str:
+    """Qui agit dans l'admin : le surnom du compte root/admin, ou « Code PIN »."""
+    tag, _, _sig = request.cookies.get("vp_admin_by", "").rpartition(".")
+    if tag and _eq(request.cookies.get("vp_admin_by", ""), _actor_cookie(unquote(tag))):
+        return unquote(tag)
+    return PIN_ACTOR
+
+
+def guest_ref(guest_id: str) -> dict:
+    g = store.session.guests.get(guest_id) or store.session.bans.get(guest_id) or {}
+    return {"id": guest_id, "name": g.get("name") or ""}
+
+
+def log_admin(request: Request, action: str, target: dict | None = None, details: dict | None = None):
+    journal.record(action, admin_actor(request), target, details)
+
+
 def _guest_cookie(nonce: str) -> str:
     # Un jeton par saisie du code : l'hôte peut déconnecter une personne sans changer le code.
     return f"{nonce}.{_token('guest', store.session.guest_pin + ':' + nonce)}"
@@ -314,9 +342,12 @@ def admin_login(body: Login, request: Request, response: Response):
         raise HTTPException(429, msg)
     if not _eq(body.pin, ADMIN_PIN):
         admin_limiter.fail(ip)
+        journal.record("admin.login_failed", "Inconnu", ip=ip)
         raise HTTPException(401, "Code incorrect")
     admin_limiter.success(ip)
     set_auth_cookie(request, response, "vp_admin", _token("admin", ADMIN_PIN), "strict")
+    response.delete_cookie("vp_admin_by")
+    journal.record("admin.login", PIN_ACTOR, details={"method": "code PIN"}, ip=ip)
     return {"ok": True}
 
 
@@ -338,7 +369,7 @@ class PinChoice(BaseModel):
 
 
 @app.post("/api/admin/pin", dependencies=[Depends(require_admin)])
-def admin_new_pin(body: PinChoice | None = None):
+def admin_new_pin(request: Request, body: PinChoice | None = None):
     """Nouveau code de la musique : au hasard, ou celui que l'hôte choisit (déconnecte tous les invités)."""
     pin = (body.pin or "").strip() if body else ""
     if pin:
@@ -349,12 +380,16 @@ def admin_new_pin(body: PinChoice | None = None):
         if pin in store.session.games:
             raise HTTPException(409, "Ce code est utilisé par une partie de jeu en cours : choisis-en un autre")
     store.regenerate_pin(pin or None)
+    log_admin(request, "admin.pin", details={"choice": "choisi" if pin else "au hasard"})
     return admin_state()
 
 
 @app.post("/api/admin/logout")
-def admin_logout(response: Response):
+def admin_logout(request: Request, response: Response):
+    if is_admin(request):
+        log_admin(request, "admin.logout")
     response.delete_cookie("vp_admin")
+    response.delete_cookie("vp_admin_by")
     return {"ok": True}
 
 
@@ -546,8 +581,9 @@ def admin_playlist(body: PlaylistRef):
 
 
 @app.post("/api/admin/stop", dependencies=[Depends(require_admin)])
-def admin_stop():
+def admin_stop(request: Request):
     store.stop()
+    log_admin(request, "admin.stop")
     return admin_state()
 
 
@@ -627,10 +663,11 @@ class Ban(BaseModel):
 
 
 @app.post("/api/admin/ban", dependencies=[Depends(require_admin)])
-def admin_ban(body: Ban):
+def admin_ban(body: Ban, request: Request):
     if body.minutes is not None and not 1 <= body.minutes <= 24 * 60:
         raise HTTPException(400, "Durée invalide")
     store.ban(body.guest_id, body.minutes)
+    log_admin(request, "admin.ban", guest_ref(body.guest_id), {"minutes": body.minutes} if body.minutes else {"minutes": "sans limite"})
     return admin_state()
 
 
@@ -639,8 +676,10 @@ class GuestRef(BaseModel):
 
 
 @app.post("/api/admin/unban", dependencies=[Depends(require_admin)])
-def admin_unban(body: GuestRef):
+def admin_unban(body: GuestRef, request: Request):
+    target = guest_ref(body.guest_id)
     store.unban(body.guest_id)
+    log_admin(request, "admin.unban", target)
     return admin_state()
 
 
@@ -650,23 +689,28 @@ class Rename(BaseModel):
 
 
 @app.post("/api/admin/rename", dependencies=[Depends(require_admin)])
-def admin_rename(body: Rename):
+def admin_rename(body: Rename, request: Request):
     """L'hôte renomme un invité (la page de l'invité reprend ce nom)."""
-    store.rename_guest(body.guest_id, clean_name(body.name))
+    target, name = guest_ref(body.guest_id), clean_name(body.name)
+    store.rename_guest(body.guest_id, name)
+    log_admin(request, "admin.rename", target, {"to": name})
     return admin_state()
 
 
 @app.post("/api/admin/kick", dependencies=[Depends(require_admin)])
-def admin_kick(body: GuestRef):
+def admin_kick(body: GuestRef, request: Request):
     """Déconnecte un invité : il devra ressaisir le code (ce n'est pas un ban)."""
+    target = guest_ref(body.guest_id)
     store.kick(body.guest_id)
+    log_admin(request, "admin.kick", target)
     return admin_state()
 
 
 @app.post("/api/admin/purge", dependencies=[Depends(require_admin)])
-def admin_purge(body: GuestRef):
+def admin_purge(body: GuestRef, request: Request):
     """Retire de la file tous les titres en attente d'un invité."""
     require_active()
+    log_admin(request, "admin.purge", guest_ref(body.guest_id))
     return {**admin_state(), "undo": remove_requests([r for r in store.pending() if r.guest_id == body.guest_id])}
 
 
@@ -1262,6 +1306,7 @@ def account_link(body: AccountLink, request: Request):
         account_limiter.fail(ip)
         raise HTTPException(401, str(e))
     account_limiter.success(ip)
+    log_account_link(account, ip)
     new, old = account["guest_id"], body.guest_id
     if GUEST_ID_RE.match(old or "") and old != new:
         with GAMES_LOCK:
@@ -1269,6 +1314,19 @@ def account_link(body: AccountLink, request: Request):
     if account["name"]:
         game_presence(request, new, account["name"])
     return account
+
+
+LINK_LOG_EVERY = 30 * 60  # s : une connexion de compte par demi-heure au plus dans le journal
+_last_link_log: dict[str, float] = {}
+
+
+def log_account_link(account: dict, ip: str):
+    gid, now = account["guest_id"], time.time()
+    if now - _last_link_log.get(gid, 0) < LINK_LOG_EVERY:
+        return
+    _last_link_log[gid] = now
+    name = account["name"] or "Compte sans surnom"
+    journal.record("account.link", name, {"id": gid, "name": name}, ip=ip)
 
 
 def link_seats(old: str, new: str):
@@ -1294,15 +1352,26 @@ def account_admin(body: AccountToken, request: Request, response: Response):
         raise HTTPException(400, "Jeton invalide")
     try:
         allowed = accounts.is_party_admin(body.token)
+        who = accounts.link(body.token)
     except AccountError as e:
         account_limiter.fail(ip)
         raise HTTPException(401, str(e))
+    name = who["name"] or "Compte sans surnom"
     if not allowed:
         account_limiter.fail(ip)
+        journal.record("admin.denied", name, {"id": who["guest_id"], "name": name}, ip=ip)
         raise HTTPException(403, "Ton compte n'a pas l'accès admin de Party")
     account_limiter.success(ip)
     set_auth_cookie(request, response, "vp_admin", _token("admin", ADMIN_PIN), "strict")
+    set_auth_cookie(request, response, "vp_admin_by", _actor_cookie(name), "strict")
+    journal.record("admin.login", name, {"id": who["guest_id"], "name": name}, {"method": "compte"}, ip=ip)
     return {"ok": True}
+
+
+@app.get("/api/admin/audit", dependencies=[Depends(require_admin)])
+def admin_audit(limit: int = Query(100, ge=1, le=500), before: str | None = Query(None, max_length=64)):
+    """Journal (lecture seule) : actions admin, connexions, refus. Aucune route ne le modifie."""
+    return {"entries": journal.read(limit, before)}
 
 
 ONLINE_WINDOW = 45  # s : un téléphone ouvert sur la partie se manifeste au moins toutes les 15 s
@@ -1606,10 +1675,11 @@ def game_qr(code: str):
 
 
 @app.post("/api/admin/games/close", dependencies=[Depends(require_admin)])
-def admin_close_game(body: GameAction):
+def admin_close_game(body: GameAction, request: Request):
     """L'hôte de la soirée peut fermer n'importe quelle partie (body.target = code)."""
     with GAMES_LOCK:
         end_game(body.target, "admin")
+    log_admin(request, "admin.close_game", {"id": str(body.target), "name": ""})
     return admin_state()
 
 
