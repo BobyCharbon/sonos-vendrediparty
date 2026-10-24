@@ -142,7 +142,7 @@ export default function Admin() {
             <View style={s.divider} />
           </>
         ) : null}
-        {can('members.roles') || can('members.ban') || can('members.view_identity') ? (
+        {rank >= 4 || can('members.roles') || can('members.ban') || can('members.view_identity') ? (
           <>
             <LinkRow label="Membres" hint="Rôles, accès, identité" onPress={() => router.push('/admin/members')} />
             <View style={s.divider} />
