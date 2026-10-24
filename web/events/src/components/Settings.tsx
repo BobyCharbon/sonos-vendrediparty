@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { roleLabel } from '@/lib/types';
 import { IdentityForm } from './IdentityForm';
-import { JoinRequest } from './JoinRequest';
+import { SignedIn } from './SignedIn';
 import { Avatar, Button, Card, LinkRow, s, Screen, Section, T, Title } from './ui';
 
 /** Demande à la page Party qui entoure le module d'ouvrir un de ses onglets (Ton avis, Événements…). */
@@ -17,7 +17,7 @@ export function openPartyTab(tab: string, path?: string) {
 
 /** Réglages du compte Party : profil (prénom, nom, surnom, photo), accès aux événements, notifications, compte. */
 export function Settings({ topInset = false }: { topInset?: boolean }) {
-  const { profile, signOut, can, rank, isAdmin, eventsSoon } = useAuth();
+  const { profile, signOut, can, rank, isAdmin } = useAuth();
   if (!profile) return null;
   const active = can('events.view');
   const complete = hasCompleteIdentity(profile);
@@ -44,8 +44,7 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
       <Section title="Événements du groupe">
         {active ? <T muted size={14}>Tu fais partie du groupe : sorties, sondages et discussions.</T> : null}
         {profile.status === 'banned' ? <T muted size={14}>Ton accès a été retiré par un admin.</T> : null}
-        {eventsSoon ? <T muted size={14}>Tu fais partie du groupe. Les sorties arrivent bientôt : elles sont pour l’instant réservées aux bêta-testeurs.</T> : null}
-        {active ? <Button label="Voir les sorties" variant="secondary" onPress={() => openPartyTab('events')} /> : eventsSoon ? null : <JoinRequest />}
+        {active ? <Button label="Voir les sorties" variant="secondary" onPress={() => openPartyTab('events')} /> : profile.status === 'banned' ? null : <SignedIn />}
       </Section>
 
       <Card style={{ gap: 0, paddingVertical: 4 }}>
