@@ -117,10 +117,14 @@ drop trigger if exists audit_account_deleted on auth.users;
 create trigger audit_account_deleted before delete on auth.users
 for each row execute function private.audit_account_deleted();
 
--- ── Liste complète des inscrits (Root, Admin) ; chaque ouverture est journalisée (une fois par 10 min) ──
-create or replace function public.admin_member_list()
+-- ── Liste complète des inscrits (Root, Admin) : sections « Membres » et « Utilisateurs » ──
+-- Chaque ouverture est journalisée (une fois par 10 min). Première connexion = numéro confirmé par SMS ;
+-- nombre de connexions et dernier appareil : comptés depuis l'installation de ce journal.
+drop function if exists public.admin_member_list();
+create function public.admin_member_list()
 returns table (id uuid, display_name text, first_name text, last_name text, phone text, avatar_url text,
-               role text, status text, created_at timestamptz, last_sign_in_at timestamptz, beta boolean)
+               role text, status text, created_at timestamptz, first_sign_in_at timestamptz, last_sign_in_at timestamptz,
+               beta boolean, sign_in_count int, last_device text, groups text[], rsvp_count int, message_count int)
 language plpgsql security definer set search_path = '' as $$
 begin
   if not private.is_member_admin() then raise exception 'Accès admin requis' using errcode = '42501'; end if;
@@ -130,7 +134,14 @@ begin
   end if;
   return query
     select p.id, p.display_name, p.first_name, p.last_name, p.phone, p.avatar_url, p.role::text, p.status::text,
-           p.created_at, u.last_sign_in_at, exists (select 1 from public.beta_testers b where b.user_id = p.id)
+           p.created_at, coalesce(u.phone_confirmed_at, u.created_at), u.last_sign_in_at,
+           exists (select 1 from public.beta_testers b where b.user_id = p.id),
+           (select count(*)::int from public.member_audit a where a.action = 'account.login' and a.target = p.id),
+           (select a.details ->> 'device' from public.member_audit a where a.action = 'account.login' and a.target = p.id order by a.id desc limit 1),
+           coalesce((select array_agg(g.name order by g.name) from public.member_group_members gm
+                     join public.member_groups g on g.id = gm.group_id where gm.user_id = p.id), '{}'),
+           (select count(*)::int from public.rsvps r where r.user_id = p.id and r.status::text = 'yes'),
+           (select count(*)::int from public.messages m where m.user_id = p.id and m.deleted_at is null)
     from public.profiles p left join auth.users u on u.id = p.id
     order by p.created_at desc;
 end $$;

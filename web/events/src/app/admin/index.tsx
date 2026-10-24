@@ -142,6 +142,12 @@ export default function Admin() {
             <View style={s.divider} />
           </>
         ) : null}
+        {rank >= 4 ? (
+          <>
+            <LinkRow label="Utilisateurs" hint="Tous les inscrits : connexions, activité, tri" onPress={() => router.push('/admin/users')} />
+            <View style={s.divider} />
+          </>
+        ) : null}
         {rank >= 4 || can('members.roles') || can('members.ban') || can('members.view_identity') ? (
           <>
             <LinkRow label="Membres" hint="Rôles, accès, identité" onPress={() => router.push('/admin/members')} />

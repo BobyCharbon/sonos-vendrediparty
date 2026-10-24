@@ -93,9 +93,30 @@ test('la liste complète est réservée à Root et aux admins, et sa consultatio
   assert.deepEqual(mine, ['member.beta', 'account.created']);  // le plus récent d'abord
 });
 
+test('la liste donne première et dernière connexion, nombre de connexions, appareil, groupes, réponses et messages', async () => {
+  const db = await fresh();
+  await db.query("update auth.users set phone_confirmed_at = '2026-10-20T08:00:00Z', last_sign_in_at = '2026-10-24T20:00:00Z' where id = $1", [GUEST]);
+  await db.query("insert into auth.sessions (user_id, user_agent) values ($1, 'Android Chrome'), ($1, 'iPhone Safari')", [GUEST]);
+  const g = (await db.query("insert into public.member_groups (name) values ('Vendredi Party') returning id")).rows[0].id;
+  await db.query('insert into public.member_group_members values ($1, $2)', [g, GUEST]);
+  const e = (await db.query('insert into public.events default values returning id')).rows[0].id;
+  const e2 = (await db.query('insert into public.events default values returning id')).rows[0].id;
+  await db.query("insert into public.rsvps values ($1, $3, 'yes'), ($2, $3, 'no')", [e, e2, GUEST]);
+  await db.query('insert into public.messages (user_id) values ($1), ($1)', [GUEST]);
+  await db.query('insert into public.messages (user_id, deleted_at) values ($1, now())', [GUEST]);
+  const tom = (await as(db, ROOT, 'select * from public.admin_member_list() where id = $1', [GUEST])).rows[0];
+  assert.equal(tom.first_sign_in_at.toISOString(), '2026-10-20T08:00:00.000Z');
+  assert.equal(tom.last_sign_in_at.toISOString(), '2026-10-24T20:00:00.000Z');
+  assert.equal(tom.sign_in_count, 2);
+  assert.equal(tom.last_device, 'iPhone Safari');
+  assert.deepEqual(tom.groups, ['Vendredi Party']);
+  assert.equal(tom.rsvp_count, 1);
+  assert.equal(tom.message_count, 2);  // le message supprimé ne compte pas
+});
+
 test('Root supprime un admin ; un admin ne supprime ni un autre admin, ni Root, ni lui-même', async () => {
   const db = await fresh();
-  await db.query('insert into public.messages (author, mentions) values ($1, $2)', [VIP, [ADMIN2, VIP]]);
+  await db.query('insert into public.messages (user_id, mentions) values ($1, $2)', [VIP, [ADMIN2, VIP]]);
   await assert.rejects(as(db, VIP, 'select public.admin_delete_member($1, $2)', [GUEST, 'Tom']), /Accès admin requis/);
   await assert.rejects(as(db, ADMIN, 'select public.admin_delete_member($1, $2)', [ADMIN2, 'Sam']), /forbidden/);
   await assert.rejects(as(db, ADMIN, 'select public.admin_delete_member($1, $2)', [ROOT, 'Boby']), /forbidden/);

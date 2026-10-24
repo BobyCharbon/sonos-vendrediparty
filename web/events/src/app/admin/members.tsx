@@ -83,6 +83,8 @@ export default function Members() {
     <Screen edges={[]}>
       {fullAccess ? (
         <Card style={{ gap: 0, paddingVertical: 4 }}>
+          <LinkRow label="👤 Utilisateurs" hint="Tous les inscrits : première et dernière connexion, activité, tri" onPress={() => router.push('/admin/users')} />
+          <View style={s.divider} />
           <LinkRow label="📜 Journal des membres" hint="Inscriptions, connexions, rôles, bêta, groupes, suppressions, consultations" onPress={() => router.push('/admin/journal')} />
         </Card>
       ) : null}

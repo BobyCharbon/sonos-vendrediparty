@@ -11,7 +11,7 @@ create function auth.uid() returns uuid language sql stable as $$
 $$;
 grant execute on function auth.uid() to authenticated;
 
-create table auth.users (id uuid primary key, phone text, last_sign_in_at timestamptz);
+create table auth.users (id uuid primary key, phone text, created_at timestamptz not null default now(), phone_confirmed_at timestamptz, last_sign_in_at timestamptz);
 create table auth.sessions (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users on delete cascade, user_agent text);
 
 create table public.profiles (
@@ -23,7 +23,11 @@ create table public.beta_testers (user_id uuid primary key references public.pro
 create table public.member_groups (id uuid primary key default gen_random_uuid(), name text not null);
 create table public.member_group_members (group_id uuid references public.member_groups on delete cascade,
   user_id uuid references public.profiles on delete cascade, primary key (group_id, user_id));
-create table public.messages (id serial primary key, author uuid references public.profiles on delete cascade, mentions uuid[] not null default '{}');
+create table public.events (id uuid primary key default gen_random_uuid());
+create table public.rsvps (event_id uuid references public.events on delete cascade, user_id uuid references public.profiles on delete cascade,
+  status text not null, primary key (event_id, user_id));
+create table public.messages (id serial primary key, user_id uuid references public.profiles on delete cascade,
+  mentions uuid[] not null default '{}', deleted_at timestamptz);
 
 -- Root : identifiant fixe (comme ROOT_ID côté app) ; sinon le rang du rôle.
 create function public.my_rank() returns int language sql stable security definer set search_path = '' as $$
