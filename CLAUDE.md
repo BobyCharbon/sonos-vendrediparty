@@ -47,8 +47,14 @@ Un navigateur de bureau ne reproduit pas le bug lui-même : seul un vrai iPhone 
   (test : `tests/e2e/test_names_escaped.py`).
 
 ## Base Supabase (Événements, comptes)
-- Une seule base pour le site de test ET la production. Les migrations (`supabase/migrations/`) ne sont jamais
-  appliquées par le déploiement Docker ni par le workflow : l'admin les applique à la main.
+- Deux bases (décision du 24 octobre 2026) : une base de TEST pour le site de test (développement, tests, données
+  jetables) et la base de PRODUCTION. Tant que la base de test n'est pas branchée, le site de test lit encore la prod.
+- Les migrations (`supabase/migrations/`) ne sont jamais appliquées par le déploiement Docker ni par le workflow.
+  Claude les écrit, les applique et les teste sur la base de TEST ; il ne les applique en PRODUCTION qu'après
+  l'accord explicite de l'admin, donné à chaque fois, pour cette migration précise. Jamais de SQL d'écriture en prod
+  sans cet accord.
+- Toute la structure doit vivre dans `supabase/migrations/` : rejouer les migrations sur une base vide doit recréer
+  la base de test à l'identique de la prod (c'est ainsi qu'on passe en prod).
 - Une migration doit être purement additive et rejouable (`add column if not exists`, `drop policy if exists`
   avant `create policy`, `create or replace function`, `drop trigger if exists`), pour ne jamais casser la prod.
 - Vérifier les politiques RLS existantes : une politique `for update` donne accès à toute la ligne ; protéger les
