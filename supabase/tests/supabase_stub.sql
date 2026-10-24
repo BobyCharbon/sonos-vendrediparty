@@ -14,10 +14,11 @@ grant execute on function auth.uid() to authenticated;
 create table auth.users (id uuid primary key, phone text, created_at timestamptz not null default now(), phone_confirmed_at timestamptz, last_sign_in_at timestamptz);
 create table auth.sessions (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users on delete cascade, user_agent text);
 
+create type public.member_role as enum ('guest', 'member', 'organizer', 'coadmin', 'admin');
 create table public.profiles (
   id uuid primary key references auth.users on delete cascade,
   display_name text not null default '', first_name text, last_name text, phone text, avatar_url text,
-  role text not null default 'guest', status text not null default 'active', created_at timestamptz not null default now()
+  role public.member_role not null default 'guest', status text not null default 'active', created_at timestamptz not null default now()
 );
 create table public.beta_testers (user_id uuid primary key references public.profiles on delete cascade, added_by uuid);
 create table public.member_groups (id uuid primary key default gen_random_uuid(), name text not null);
@@ -29,10 +30,15 @@ create table public.rsvps (event_id uuid references public.events on delete casc
 create table public.messages (id serial primary key, user_id uuid references public.profiles on delete cascade,
   mentions uuid[] not null default '{}', deleted_at timestamptz);
 
--- Root : identifiant fixe (comme ROOT_ID côté app) ; sinon le rang du rôle.
+-- Comme en prod (migration member_roles_permissions) : un seul root, identifiant fixe ; sinon le rang du rôle.
+create function private.is_root(uid uuid) returns boolean language sql immutable as $$
+  select uid = '00000000-0000-0000-0000-000000000099'::uuid
+$$;
+create function private.role_rank(r public.member_role) returns int language sql immutable as $$
+  select array_position(enum_range(null::public.member_role), r) - 1
+$$;
 create function public.my_rank() returns int language sql stable security definer set search_path = '' as $$
-  select case when auth.uid() = '00000000-0000-0000-0000-000000000099' then 99
-    else (select coalesce(array_position(array['guest','member','organizer','coadmin','admin'], role) - 1, -1)
-          from public.profiles where id = auth.uid()) end
+  select case when private.is_root(auth.uid()) then 99
+    else coalesce((select private.role_rank(role) from public.profiles where id = auth.uid() and status = 'active'), -1) end
 $$;
 grant execute on function public.my_rank() to authenticated;

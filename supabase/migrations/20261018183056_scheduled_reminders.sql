@@ -1,0 +1,1 @@
+create extension if not exists pg_cron; select cron.schedule('scheduled-jobs', '*/5 * * * *', $$ select public.run_scheduled_jobs(); $$); select cron.schedule('purge-notifications', '0 4 * * *', $$ delete from public.notifications where created_at < now() - interval '90 days'; $$);

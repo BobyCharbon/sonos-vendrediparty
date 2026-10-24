@@ -29,10 +29,8 @@ language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function private.is_member_admin() from public, anon;
 
-create or replace function private.role_rank(r text) returns int
-language sql immutable set search_path = '' as $$
-  select coalesce(array_position(array['guest', 'member', 'organizer', 'coadmin', 'admin'], r) - 1, -1);
-$$;
+-- Rang d'un rôle : private.role_rank(public.member_role) existe déjà (migration member_roles_permissions).
+drop function if exists private.role_rank(text);
 
 create or replace function private.member_name(member uuid) returns text
 language sql stable security definer set search_path = '' as $$
@@ -174,7 +172,7 @@ begin
   lock table public.profiles in share row exclusive mode;
   select * into target from public.profiles where id = member;
   if not found then raise exception 'not_found: compte introuvable' using errcode = 'P0002'; end if;
-  if private.role_rank(target.role::text) >= public.my_rank() then
+  if private.is_root(target.id) or private.role_rank(target.role) >= public.my_rank() then
     raise exception 'forbidden: ce compte a un rôle égal ou supérieur au tien' using errcode = '42501';
   end if;
   if lower(btrim(coalesce(confirm_name, ''))) <> lower(btrim(coalesce(target.display_name, ''))) then
