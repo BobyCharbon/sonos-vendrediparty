@@ -78,6 +78,8 @@ def test_root_sees_every_signup_with_connections_and_the_view_is_logged(root, gu
         u = rows[g.uid]
         assert u['role'] == 'guest' and u['phone'] == GUESTS[guests.index(g)]
         assert u['first_sign_in_at'] and u['last_sign_in_at'] and u['sign_in_count'] >= 1
+    me = rows[root.uid]  # Root s'est connecté plusieurs fois : la première connexion reste la première
+    assert me['first_sign_in_at'] < me['last_sign_in_at']
     journal = root.rpc('admin_member_audit', lim=200).json()
     assert any(e['action'] == 'members.viewed' and e['actor'] == root.uid for e in journal)
     assert any(e['action'] == 'account.login' and e['target'] == guests[0].uid for e in journal)

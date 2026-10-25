@@ -116,7 +116,7 @@ create trigger audit_account_deleted before delete on auth.users
 for each row execute function private.audit_account_deleted();
 
 -- ── Liste complète des inscrits (Root, Admin) : sections « Membres » et « Utilisateurs » ──
--- Chaque ouverture est journalisée (une fois par 10 min). Première connexion = numéro confirmé par SMS ;
+-- Chaque ouverture est journalisée (une fois par 10 min). Première connexion : voir ci-dessous ;
 -- nombre de connexions et dernier appareil : comptés depuis l'installation de ce journal.
 drop function if exists public.admin_member_list();
 create function public.admin_member_list()
@@ -132,7 +132,13 @@ begin
   end if;
   return query
     select p.id, p.display_name, p.first_name, p.last_name, p.phone, p.avatar_url, p.role::text, p.status::text,
-           p.created_at, coalesce(u.phone_confirmed_at, u.created_at), u.last_sign_in_at,
+           p.created_at,
+           -- Première connexion : Auth réécrit phone_confirmed_at à chaque connexion, on ne s'en sert donc pas.
+           -- Connexion notée par le journal le jour même de la création du compte, sinon (compte plus ancien
+           -- que le journal) la création du compte = sa toute première demande de code.
+           coalesce((select min(a.at) from public.member_audit a where a.action = 'account.login' and a.target = p.id
+                     and a.at < u.created_at + interval '1 day'), u.created_at),
+           u.last_sign_in_at,
            exists (select 1 from public.beta_testers b where b.user_id = p.id),
            (select count(*)::int from public.member_audit a where a.action = 'account.login' and a.target = p.id),
            (select a.details ->> 'device' from public.member_audit a where a.action = 'account.login' and a.target = p.id order by a.id desc limit 1),

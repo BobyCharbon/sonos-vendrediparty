@@ -95,7 +95,9 @@ test('la liste complète est réservée à Root et aux admins, et sa consultatio
 
 test('la liste donne première et dernière connexion, nombre de connexions, appareil, groupes, réponses et messages', async () => {
   const db = await fresh();
-  await db.query("update auth.users set phone_confirmed_at = '2026-10-20T08:00:00Z', last_sign_in_at = '2026-10-24T20:00:00Z' where id = $1", [GUEST]);
+  // Auth réécrit phone_confirmed_at à chaque connexion : la première connexion vient du journal.
+  await db.query("update auth.users set created_at = now() - interval '1 hour', phone_confirmed_at = now(), last_sign_in_at = '2026-10-24T20:00:00Z' where id = $1", [GUEST]);
+  await db.query("update auth.users set created_at = '2025-01-01T10:00:00Z' where id = $1", [VIP]);  // compte plus ancien que le journal
   await db.query("insert into auth.sessions (user_id, user_agent) values ($1, 'Android Chrome'), ($1, 'iPhone Safari')", [GUEST]);
   const g = (await db.query("insert into public.member_groups (name) values ('Vendredi Party') returning id")).rows[0].id;
   await db.query('insert into public.member_group_members values ($1, $2)', [g, GUEST]);
@@ -105,7 +107,11 @@ test('la liste donne première et dernière connexion, nombre de connexions, app
   await db.query('insert into public.messages (user_id) values ($1), ($1)', [GUEST]);
   await db.query('insert into public.messages (user_id, deleted_at) values ($1, now())', [GUEST]);
   const tom = (await as(db, ROOT, 'select * from public.admin_member_list() where id = $1', [GUEST])).rows[0];
-  assert.equal(tom.first_sign_in_at.toISOString(), '2026-10-20T08:00:00.000Z');
+  const logins = (await db.query("select min(at) as first from public.member_audit where action = 'account.login' and target = $1", [GUEST])).rows[0];
+  assert.equal(tom.first_sign_in_at.toISOString(), logins.first.toISOString());
+  await db.query("insert into auth.sessions (user_id, user_agent) values ($1, 'Mac Safari')", [VIP]);  // connexion d'aujourd'hui
+  const lea = (await as(db, ROOT, 'select * from public.admin_member_list() where id = $1', [VIP])).rows[0];
+  assert.equal(lea.first_sign_in_at.toISOString(), '2025-01-01T10:00:00.000Z');  // pas la connexion d'aujourd'hui
   assert.equal(tom.last_sign_in_at.toISOString(), '2026-10-24T20:00:00.000Z');
   assert.equal(tom.sign_in_count, 2);
   assert.equal(tom.last_device, 'iPhone Safari');
