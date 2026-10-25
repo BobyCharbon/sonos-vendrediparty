@@ -4,7 +4,6 @@ dans supabase/tests/member_admin.test.mjs."""
 import json
 from urllib.parse import urlparse
 
-import pytest
 
 from tests.test_events_browser import USER, browser, events_origin, login, mock_services, pw  # noqa: F401 (fixtures)
 

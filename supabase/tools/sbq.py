@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """sbq.py <prod|test> [rw] < requete.sql : SQL via l'API de gestion Supabase. Prod : toujours en lecture seule."""
-import json, sys, urllib.request, pathlib
+import json
+import sys
+import urllib.request
+import pathlib
 REFS = {"prod": "gsuetixzobooggeaubvb", "test": "ewromqfsmcqsthftyhzm"}
 target = sys.argv[1]
 rw = len(sys.argv) > 2 and sys.argv[2] == "rw"
