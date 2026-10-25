@@ -12,7 +12,7 @@ import type { ChatMode, NewEventScope, NotificationPrefs, Reminder } from '@/lib
 
 const reminderLabels: Record<Reminder, string> = { '7d': '7 jours avant', '1d': 'La veille', '2h': '2 heures avant', '0h': 'Au début' };
 const newEventHints: Record<NewEventScope, string> = {
-  all: 'Chaque nouvelle sortie visible pour toi. Tes abonnements servent alors seulement au filtre « Mes abonnements » de la liste.',
+  all: 'Chaque nouvelle sortie visible pour toi. Choisis « Si abonné » pour n’être prévenu que des catégories et tags que tu suis.',
   subscribed: 'Seulement les sorties qui ont au moins une catégorie OU un tag que tu suis ci-dessous.',
   none: 'Aucune alerte de nouvelle sortie. Tes abonnements servent seulement au filtre de la liste.',
 };
@@ -138,7 +138,7 @@ export default function NotificationSettings() {
           onChange={(new_event) => update({ new_event })}
           options={[{ key: 'all', label: 'Toujours' }, { key: 'subscribed', label: 'Si abonné' }, { key: 'none', label: 'Jamais' }]} />
         <T muted size={13}>{newEventHints[prefs.new_event]}</T>
-        <SubscriptionPicker disabled={saving} />
+        {prefs.new_event === 'all' ? null : <SubscriptionPicker disabled={saving} />}
       </Section>
 
       <Section title="Sorties où je suis inscrit">
