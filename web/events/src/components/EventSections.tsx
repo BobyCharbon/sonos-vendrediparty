@@ -130,7 +130,7 @@ export function RsvpCard({
       ) : null}
       {mine?.status === 'yes' && !(event.allow_plus_ones && event.max_plus_ones > 0) ? (
         <View style={[st.note, { borderLeftColor: colors.lavender }]}>
-          <T size={13} color={colors.textSoft}>Pas d’accompagnant pour cette sortie : l’organisateur a réservé les places aux membres du groupe.</T>
+          <T size={13} color={colors.textSoft}>Pas d’accompagnant pour cet événement : l’organisateur a réservé les places aux membres du groupe.</T>
         </View>
       ) : null}
       {mine && !closed ? (

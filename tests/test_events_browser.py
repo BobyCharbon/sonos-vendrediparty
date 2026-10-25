@@ -190,7 +190,7 @@ def test_sms_login_events_details_and_rsvp(browser,events_origin,country,width):
         pw.expect(frame.get_by_text('PRÉSENTS · 1',exact=True)).to_be_visible()
         pw.expect(frame.get_by_text('Toi',exact=True)).to_be_visible()
         # Les accompagnants ne sont pas autorisés sur cette sortie : un message remplace le compteur.
-        pw.expect(frame.get_by_text('Pas d’accompagnant pour cette sortie',exact=False)).to_be_visible()
+        pw.expect(frame.get_by_text('Pas d’accompagnant pour cet événement',exact=False)).to_be_visible()
         # Plus de réponse attendue : la pastille de l’onglet Événements disparaît.
         pw.expect(page.locator('[data-tab="events"] [data-events-badge]')).to_be_hidden(timeout=10000)
         assert any(method=='POST' and path.endswith('/rsvps') for method,path,_ in calls)
@@ -208,7 +208,7 @@ def test_new_account_is_told_it_is_signed_in_without_join_request(browser,events
         frame=page.frame_locator('#eventsFrame');login(frame)
         # Guest au profil complet : il arrive sur les sorties qu'il voit (publiques, invitations), avec la confirmation.
         pw.expect(frame.get_by_text('Tu es connecté à ton compte ✓',exact=True)).to_be_visible(timeout=15000)
-        pw.expect(frame.get_by_text('sorties publiques et celles où on t’invite',exact=False)).to_be_visible()
+        pw.expect(frame.get_by_text('événements publics et ceux où on t’invite',exact=False)).to_be_visible()
         pw.expect(frame.get_by_text('Rejoindre le groupe',exact=True)).to_have_count(0)
         pw.expect(frame.get_by_role('button',name='Demander à rejoindre')).to_have_count(0)
         assert not any(path.endswith('/rpc/request_join') or path.endswith('/join_requests') for _,path,_ in calls)
@@ -275,6 +275,9 @@ def test_account_tab_signs_in_shows_settings_and_crops_a_photo(browser, events_o
         pw.expect(dialog).to_have_count(0)
         pw.expect(frame.get_by_label('Aperçu de ta photo de profil')).to_be_visible()
         pw.expect(frame.get_by_role('button',name='Enregistrer',exact=True)).to_be_enabled()
+        # Notifications et abonnements sont regroupés dans une seule entrée des Réglages.
+        pw.expect(frame.get_by_text('Notifications et abonnements',exact=True)).to_be_visible()
+        pw.expect(frame.get_by_text('Mes abonnements',exact=True)).to_have_count(0)
         # Les Événements reprennent la liste des sorties, sans recharger le module (la pastille reste affichée sur Réglages).
         page.locator('#tabs [data-tab="events"]').click()
         pw.expect(frame.get_by_text('Sortie de démonstration (test local)',exact=True)).to_be_visible(timeout=15000)

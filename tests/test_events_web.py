@@ -22,7 +22,7 @@ def test_party_navigation_embeds_same_origin_events_without_changing_game_access
     assert page.status_code == 200
     assert 'data-tab="events"' in page.text
     assert 'data-tab="music"' in page.text and 'data-tab="games"' in page.text
-    assert 'title="Événements du groupe : connexion, sorties et sondages"' in page.text
+    assert 'title="Événements du groupe : connexion, événements et sondages"' in page.text
     assert 'frame.src = "/events" +' in page.text and 'data-tab="account"' in page.text
     assert 'bobycharbon.expo.app' not in page.text
     assert events_client.get("/api/state").status_code == 401

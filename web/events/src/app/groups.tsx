@@ -51,7 +51,7 @@ export default function GroupsScreen() {
 
   return (
     <Screen edges={[]}>
-      <T muted>Un groupe sert à inviter plusieurs personnes d’un coup à une sortie (Guests compris). Quelqu’un qui rejoint le groupe plus tard est aussi invité aux événements à venir.</T>
+      <T muted>Un groupe sert à inviter plusieurs personnes d’un coup à un événement (Guests compris). Quelqu’un qui rejoint le groupe plus tard est aussi invité aux événements à venir.</T>
       <ErrorText error={error ?? loadError} />
 
       <Section title="Nouveau groupe">

@@ -8,7 +8,7 @@ import { Button, Screen, T, Title } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { hasCompleteIdentity } from '@/lib/profile';
 
-/** Compte connecté sans accès aux sorties : profil complet, puis confirmation que le compte est connecté. */
+/** Compte connecté sans accès aux événements : profil complet, puis confirmation que le compte est connecté. */
 export default function Welcome() {
   const { profile, signOut } = useAuth();
   const [editing, setEditing] = useState(false);
@@ -23,7 +23,7 @@ export default function Welcome() {
         </View>
       ) : complete && !editing ? (
         <View style={{ gap: 20 }}>
-          <Title size={32}>Les sorties du groupe</Title>
+          <Title size={32}>Les événements du groupe</Title>
           <SignedIn name={profile?.display_name} />
           <Button label="Modifier mes informations" variant="ghost" onPress={() => setEditing(true)} />
         </View>

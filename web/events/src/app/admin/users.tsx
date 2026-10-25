@@ -96,7 +96,7 @@ function UserCard({ user: u }: { user: UserRow }) {
       <T muted size={12}>1re connexion : {u.first_sign_in_at ? formatMessageTime(u.first_sign_in_at) : 'jamais'}</T>
       <T muted size={12}>Dernière connexion : {u.last_sign_in_at ? `${formatMessageTime(u.last_sign_in_at)} (${ago(u.last_sign_in_at)})` : 'jamais'}</T>
       <T muted size={12}>{u.sign_in_count} connexion(s) notée(s){u.last_device ? ` · dernier appareil : ${u.last_device.slice(0, 60)}` : ''}</T>
-      <T muted size={12}>{u.rsvp_count} sortie(s) « je viens » · {u.message_count} message(s)</T>
+      <T muted size={12}>{u.rsvp_count} événement(s) « je viens » · {u.message_count} message(s)</T>
       <View style={s.wrap}>
         <Chip label="📜 Journal" onPress={() => router.push({ pathname: '/admin/journal', params: { member: u.id, name: u.display_name } })} />
         <Chip label="Gérer dans Membres" onPress={() => router.push('/admin/members')} />

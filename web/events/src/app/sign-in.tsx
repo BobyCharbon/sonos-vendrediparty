@@ -49,7 +49,7 @@ export default function SignIn() {
           <Title size={40}>
             Ton compte Party
           </Title>
-          <T muted>Connecte-toi par SMS : ton surnom et ta photo te suivent dans les jeux, et tu peux demander à rejoindre les sorties du groupe.</T>
+          <T muted>Connecte-toi par SMS : ton surnom et ta photo te suivent dans les jeux, et tu peux demander à rejoindre les événements du groupe.</T>
         </View>
 
         {!sentTo ? (

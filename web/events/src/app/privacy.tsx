@@ -8,10 +8,10 @@ export default function Privacy() {
       <Title>Confidentialité</Title>
       <T muted>Vendredi Party · Mise à jour du 19 octobre 2026</T>
       <Section title="Un espace pour le groupe">
-        <T>Vendredi Party organise les sorties d’un groupe privé. Un administrateur valide l’accès des nouveaux membres.</T>
+        <T>Vendredi Party organise les événements d’un groupe privé. Un administrateur valide l’accès des nouveaux membres.</T>
       </Section>
       <Section title="Données utilisées">
-        <T>Ton numéro de téléphone sert à recevoir un code de connexion. Ton prénom, tes événements, tes réponses, tes votes et tes messages permettent au groupe d’organiser les sorties.</T>
+        <T>Ton numéro de téléphone sert à recevoir un code de connexion. Ton prénom, tes événements, tes réponses, tes votes et tes messages permettent au groupe d’organiser les événements.</T>
         <T>Les catégories et tags auxquels tu t’abonnes servent à filtrer les événements et les notifications. L’application enregistre tes préférences pour les notifications des événements.</T>
       </Section>
       <Section title="Qui peut voir quoi ?">
