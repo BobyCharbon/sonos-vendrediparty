@@ -1,8 +1,26 @@
 # Backend événements de Party
 
 Ce dossier reprend les migrations et la fonction `send-push` du projet Vendredi Party,
-puis ajoute le canal Web Push de Party. Le projet hébergé est conservé :
-`gsuetixzobooggeaubvb`. Ne pas créer une nouvelle base ni réinitialiser celle-ci.
+puis ajoute le canal Web Push de Party.
+
+## Deux bases (depuis le 25 octobre 2026)
+
+| Base | Projet | Utilisée par |
+|---|---|---|
+| PRODUCTION | `gsuetixzobooggeaubvb` (VendrediParty, eu-central-2) | party.bobycharbon.ch (image `latest`, branche main) |
+| TEST | `ewromqfsmcqsthftyhzm` (Vendrediparty-test, eu-west-1) | partytest.bobycharbon.ch (image `develop`) |
+
+- `migrations/` = l'historique exact de la prod (`supabase_migrations.schema_migrations`, recopié le
+  25.10.2026) + les migrations écrites ensuite. Le rejouer sur une base vide recrée la prod à l'identique :
+  vérifié avec `tools/fingerprint.sql` (740 éléments : colonnes, fonctions, règles RLS, déclencheurs,
+  droits, tâches planifiées, stockage), aucune différence.
+- Exception connue : `20261022090000_bring_items_by_members` a été appliquée en prod à la main (hors historique).
+- Base de test : après les migrations, `tools/test_db_after_migrations.sql` (adresse des fonctions Edge,
+  compte Root de test). Auth → Phone activé, numéros de test à code fixe `123456` (aucun SMS).
+- Nouvelle migration : base de TEST d'abord (`python3 tools/sbq.py test rw < fichier.sql`), tests
+  (`supabase/tests` hors ligne, puis `SUPABASE_LIVE_TESTS=1 pytest tests/supabase_live`), puis PROD seulement
+  avec l'accord explicite de l'admin. `tools/sbq.py prod` est en lecture seule (refuse `rw`).
+- Jeton d'accès : `~/.config/supabase-claude/token` sur le Mac (hors dépôt, expire le 24.11.2026).
 
 ## Envoi Web Push
 
@@ -53,8 +71,8 @@ select cron.schedule('send-web-push', '* * * * *', 'select private.dispatch_web_
 ```
 
 Le build Docker met à jour les pages web ; les migrations et fonctions Supabase sont
-déployées séparément. Le site de test utilise les mêmes comptes et données que Party.
-Ne jamais publier une annonce de démonstration dans ce projet partagé.
+déployées séparément. L'image `develop` (site de test) pointe sur la base de TEST, l'image
+`latest` sur la PRODUCTION : jamais d'annonce ni de donnée de démonstration en production.
 
 Le bouton **Envoyer une notification d'essai** vise uniquement l'appareil courant,
 limite les essais à un par minute et ignore les heures silencieuses pour cet essai

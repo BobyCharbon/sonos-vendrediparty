@@ -12,14 +12,12 @@ revoke all on public.beta_testers from anon, authenticated;
 grant select on public.beta_testers to authenticated;
 create policy "voir les bêta-testeurs" on public.beta_testers for select to authenticated
   using (user_id = (select auth.uid()) or (select public.manages_members()));
-
 create or replace function public.is_beta_tester() returns boolean
 language sql stable security definer set search_path = '' as $$
   select exists (select 1 from public.beta_testers where user_id = auth.uid()) or public.is_admin();
 $$;
 revoke all on function public.is_beta_tester() from public, anon;
 grant execute on function public.is_beta_tester() to authenticated;
-
 create or replace function public.set_beta_tester(member uuid, enabled boolean) returns void
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -32,6 +30,5 @@ begin
 end $$;
 revoke all on function public.set_beta_tester(uuid, boolean) from public, anon;
 grant execute on function public.set_beta_tester(uuid, boolean) to authenticated;
-
 -- Les tables de la visibilité (20261021120000) n'ont rien à offrir aux visiteurs : RLS les bloquait déjà.
 revoke all on public.member_groups, public.member_group_members, public.event_groups from anon;

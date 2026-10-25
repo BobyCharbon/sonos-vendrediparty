@@ -8,7 +8,6 @@
 
 alter table public.events add column if not exists public_link boolean not null default false;
 alter table public.event_invites add column if not exists via_group boolean not null default false;
-
 -- ── Groupes de membres, créés par tout créateur d'événement et partagés entre eux ──
 create table public.member_groups (
   id uuid primary key default gen_random_uuid(),
@@ -28,12 +27,10 @@ create table public.event_groups (
   primary key (event_id, group_id)
 );
 create index event_groups_group on public.event_groups (group_id);
-
 alter table public.member_groups enable row level security;
 alter table public.member_group_members enable row level security;
 alter table public.event_groups enable row level security;
 grant select, insert, update, delete on public.member_groups, public.member_group_members, public.event_groups to authenticated;
-
 create policy "voir les groupes" on public.member_groups for select to authenticated using ((select public.is_active()));
 create policy "créer un groupe" on public.member_groups for insert to authenticated
   with check (created_by = (select auth.uid()) and (select public.has_perm('events.create')));
@@ -41,17 +38,14 @@ create policy "modifier son groupe" on public.member_groups for update to authen
   using (created_by = (select auth.uid()) or (select public.is_admin()));
 create policy "supprimer son groupe" on public.member_groups for delete to authenticated
   using (created_by = (select auth.uid()) or (select public.is_admin()));
-
 create policy "voir les membres des groupes" on public.member_group_members for select to authenticated using ((select public.is_active()));
 create policy "composer son groupe" on public.member_group_members for all to authenticated
   using (exists (select 1 from public.member_groups g where g.id = group_id and (g.created_by = (select auth.uid()) or (select public.is_admin()))))
   with check (exists (select 1 from public.member_groups g where g.id = group_id and (g.created_by = (select auth.uid()) or (select public.is_admin()))));
-
 create policy "voir les groupes invités" on public.event_groups for select to authenticated
   using (public.can_see_event(event_id) or public.is_organizer(event_id));
 create policy "inviter des groupes" on public.event_groups for all to authenticated
   using (public.is_admin() or public.is_organizer(event_id)) with check (public.is_admin() or public.is_organizer(event_id));
-
 -- ── Recopie des groupes dans event_invites ──
 -- Quelqu'un qui quitte le groupe garde l'accès s'il a déjà répondu.
 create or replace function private.sync_event_group_invites(e uuid) returns void
@@ -66,7 +60,6 @@ language sql security definer set search_path = '' as $$
     where eg.event_id = e and exists (select 1 from public.events where id = e)
   on conflict (event_id, user_id) do nothing;
 $$;
-
 create or replace function private.on_event_groups_change() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -75,7 +68,6 @@ begin
 end $$;
 create trigger event_groups_sync after insert or delete on public.event_groups
   for each row execute function private.on_event_groups_change();
-
 -- Un membre ajouté à un groupe est invité aux événements à venir de ce groupe (et retiré s'il en sort).
 create or replace function private.on_group_members_change() returns trigger
 language plpgsql security definer set search_path = '' as $$
@@ -91,7 +83,6 @@ begin
 end $$;
 create trigger member_group_members_sync after insert or delete on public.member_group_members
   for each row execute function private.on_group_members_change();
-
 -- ── Notification « Invitation à un événement privé » ──
 create or replace function private.queue_private_invite(ev public.events, u uuid) returns void
 language plpgsql security definer set search_path = '' as $$
@@ -107,7 +98,6 @@ begin
     'On t’invite à « ' || ev.title || ' »' || coalesce(' avec le groupe ' || via, '') || '.',
     'private_invite:' || ev.id);
 end $$;
-
 -- Invité ajouté à un événement privé déjà publié (à la publication, notify_event_change s'en charge).
 create or replace function private.on_event_invite() returns trigger
 language plpgsql security definer set search_path = '' as $$
@@ -122,10 +112,8 @@ begin
 end $$;
 create trigger event_invites_notify after insert on public.event_invites
   for each row execute function private.on_event_invite();
-
 revoke all on function private.sync_event_group_invites(uuid), private.on_event_groups_change(), private.on_group_members_change(),
   private.queue_private_invite(public.events, uuid), private.on_event_invite() from public, anon, authenticated;
-
 -- Publication : le groupe reçoit « Nouvel événement », les invités d'un événement privé leur invitation.
 CREATE OR REPLACE FUNCTION public.notify_event_change()
  RETURNS trigger
@@ -198,7 +186,6 @@ begin
   end if;
   return null;
 end $function$;
-
 -- ── Lien public : consultation sans compte, réponse avec un compte Party (même invité) ──
 create or replace function public.can_answer_public(e uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
@@ -207,12 +194,10 @@ language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function public.can_answer_public(uuid) from public, anon;
 grant execute on function public.can_answer_public(uuid) to authenticated;
-
 drop policy "répondre" on public.rsvps;
 create policy "répondre" on public.rsvps for insert with check (user_id = auth.uid() and (public.can_participate(event_id) or public.can_answer_public(event_id)));
 drop policy "changer sa réponse" on public.rsvps;
 create policy "changer sa réponse" on public.rsvps for update using (user_id = auth.uid() and (public.can_participate(event_id) or public.can_answer_public(event_id)));
-
 -- Ce que montre le lien public : pas de noms, pas d'infos de paiement, juste le nombre de participants.
 create or replace function public.public_event(e uuid) returns jsonb
 language sql stable security definer set search_path = '' as $$

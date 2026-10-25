@@ -1,0 +1,8 @@
+{
+  "name": "party-sql-tests",
+  "private": true,
+  "type": "module",
+  "description": "Tests des migrations Supabase sur un vrai Postgres local (PGlite, sans Docker) avec un schéma Supabase minimal simulé.",
+  "scripts": { "test": "node --test" },
+  "devDependencies": { "@electric-sql/pglite": "^0.3.0" }
+}

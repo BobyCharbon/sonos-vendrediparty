@@ -3,6 +3,10 @@ WORKDIR /web/events
 COPY web/events/package.json web/events/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY web/events/ ./
+# Base Supabase : vide = production (valeurs par défaut de app.config.js / accounts.py) ; l'image develop vise la base de test.
+ARG SUPABASE_URL=""
+ARG SUPABASE_ANON_KEY=""
+ENV EXPO_PUBLIC_SUPABASE_URL=${SUPABASE_URL} EXPO_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
 RUN npm run typecheck && npm run lint && npm run build
 
 FROM python:3.13-slim
@@ -15,6 +19,9 @@ ENV DATA_DIR=/data PORT=8000
 # Section Événements : 1 sur l'image de test (develop), 0 en production (main).
 ARG EVENTS_ENABLED=0
 ENV EVENTS_ENABLED=${EVENTS_ENABLED}
+ARG SUPABASE_URL=""
+ARG SUPABASE_ANON_KEY=""
+ENV SUPABASE_URL=${SUPABASE_URL} SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
 ENV FORWARDED_ALLOW_IPS=127.0.0.1,192.168.50.1
 VOLUME /data
 EXPOSE 8000

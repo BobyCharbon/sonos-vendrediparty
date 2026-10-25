@@ -37,7 +37,7 @@ function PendingSync({ me }: { me: string }) {
 }
 
 const intentKey = 'party-events-destination';
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit)?|admin(?:\/members|\/roles|\/taxonomy|\/announcements)?|groups|activity|announcements|account|settings\/(?:notifications|subscriptions))$/i;
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit)?|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|activity|announcements|account|settings\/(?:notifications|subscriptions))$/i;
 function initialDestination() {
   if (typeof window === 'undefined') return null;
   const path = location.pathname.replace(/^\/events(?=\/|$)/, '');
@@ -139,6 +139,8 @@ function Gate() {
         <Stack.Screen name="groups" options={{ title: 'Groupes' }} />
         <Stack.Screen name="admin/index" options={{ title: 'Administration' }} />
         <Stack.Screen name="admin/members" options={{ title: 'Membres' }} />
+        <Stack.Screen name="admin/journal" options={{ title: 'Journal des membres' }} />
+        <Stack.Screen name="admin/users" options={{ title: 'Utilisateurs' }} />
         <Stack.Screen name="admin/roles" options={{ title: 'Rôles et droits' }} />
         <Stack.Screen name="admin/taxonomy" options={{ title: 'Catégories et tags' }} />
         <Stack.Screen name="admin/announcements" options={{ title: 'Annonces admin' }} />
