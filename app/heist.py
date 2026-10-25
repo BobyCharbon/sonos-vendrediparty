@@ -2,10 +2,9 @@
 import copy
 import math
 import random
-import threading
 import time
 
-LOCK = threading.RLock()
+from .game_lock import LOCK  # verrou commun à toutes les parties (voir game_lock.py)
 STEP = 1 / 30
 DURATION = 300
 COLORS = ['#56ded7', '#fc846c', '#f4cc63', '#b69cff', '#91d077', '#f397cc', '#80b6ff', '#ffac67']

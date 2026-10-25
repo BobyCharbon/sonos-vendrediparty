@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { roleLabel } from '@/lib/types';
 import { IdentityForm } from './IdentityForm';
-import { JoinRequest } from './JoinRequest';
+import { SignedIn } from './SignedIn';
 import { Avatar, Button, Card, LinkRow, s, Screen, Section, T, Title } from './ui';
 
 /** Demande à la page Party qui entoure le module d'ouvrir un de ses onglets (Ton avis, Événements…). */
@@ -17,10 +17,10 @@ export function openPartyTab(tab: string, path?: string) {
 
 /** Réglages du compte Party : profil (prénom, nom, surnom, photo), accès aux événements, notifications, compte. */
 export function Settings({ topInset = false }: { topInset?: boolean }) {
-  const { profile, signOut, can, rank, isAdmin, eventsSoon } = useAuth();
+  const { profile, signOut, can, rank, isAdmin, eventsOpen, eventsSoon } = useAuth();
   if (!profile) return null;
-  const active = can('events.view');
   const complete = hasCompleteIdentity(profile);
+  const active = eventsOpen && complete;
   const status = profile.status === 'banned' ? 'Accès retiré' : rank >= 99 ? 'Root' : roleLabel[profile.role];
 
   return (
@@ -42,10 +42,10 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
       </Section>
 
       <Section title="Événements du groupe">
-        {active ? <T muted size={14}>Tu fais partie du groupe : sorties, sondages et discussions.</T> : null}
+        {active ? <T muted size={14}>{can('events.view') ? 'Tu fais partie du groupe Vendredi Party : sorties, sondages et discussions.' : 'Tu vois les sorties publiques et celles où on t’invite.'}</T> : null}
+        {eventsOpen && !complete ? <T muted size={14}>Complète ton profil (prénom, nom, surnom et photo) pour voir les sorties.</T> : null}
         {profile.status === 'banned' ? <T muted size={14}>Ton accès a été retiré par un admin.</T> : null}
-        {eventsSoon ? <T muted size={14}>Tu fais partie du groupe. Les sorties arrivent bientôt : elles sont pour l’instant réservées aux bêta-testeurs.</T> : null}
-        {active ? <Button label="Voir les sorties" variant="secondary" onPress={() => openPartyTab('events')} /> : eventsSoon ? null : <JoinRequest />}
+        {active ? <Button label="Voir les sorties" variant="secondary" onPress={() => openPartyTab('events')} /> : eventsSoon && profile.status !== 'banned' ? <SignedIn /> : null}
       </Section>
 
       <Card style={{ gap: 0, paddingVertical: 4 }}>

@@ -198,21 +198,20 @@ def test_sms_login_events_details_and_rsvp(browser,events_origin,country,width):
     finally: context.close()
 
 
-def test_guest_asks_to_join_with_a_message(browser,events_origin):
-    """Compte invité : pas de sorties, mais une demande d'adhésion avec un petit mot pour les admins."""
+def test_new_account_is_told_it_is_signed_in_without_join_request(browser,events_origin):
+    """Première connexion SMS : plus de demande d'adhésion ; le Guest voit la confirmation et ses sorties."""
     context=browser.new_context(viewport={'width':390,'height':844})
     page=context.new_page();calls=mock_services(page,pending=True)
     try:
         page.goto(events_origin,wait_until='domcontentloaded')
         page.get_by_role('button',name='Événements',exact=True).click()
         frame=page.frame_locator('#eventsFrame');login(frame)
-        pw.expect(frame.get_by_text('Rejoindre le groupe',exact=True)).to_be_visible(timeout=15000)
-        frame.get_by_label('Message pour les admins (facultatif)').fill('C’est Léa, la copine de Tom')
-        frame.get_by_role('button',name='Demander à rejoindre').click()
-        pw.expect(frame.get_by_text('Demande envoyée ✓',exact=True)).to_be_visible()
-        pw.expect(frame.get_by_text('« C’est Léa, la copine de Tom »',exact=True)).to_be_visible()
-        assert any(path.endswith('/rpc/request_join') and 'copine de Tom' in (body or '') for _,path,body in calls)
-        assert not any(path.endswith('/events') for _,path,_ in calls)
+        # Guest au profil complet : il arrive sur les sorties qu'il voit (publiques, invitations), avec la confirmation.
+        pw.expect(frame.get_by_text('Tu es connecté à ton compte ✓',exact=True)).to_be_visible(timeout=15000)
+        pw.expect(frame.get_by_text('sorties publiques et celles où on t’invite',exact=False)).to_be_visible()
+        pw.expect(frame.get_by_text('Rejoindre le groupe',exact=True)).to_have_count(0)
+        pw.expect(frame.get_by_role('button',name='Demander à rejoindre')).to_have_count(0)
+        assert not any(path.endswith('/rpc/request_join') or path.endswith('/join_requests') for _,path,_ in calls)
     finally: context.close()
 
 
@@ -431,5 +430,20 @@ def test_android_finger_on_an_event_card_scrolls_the_list(browser, events_origin
         page.wait_for_timeout(500)
         after = event_frame.evaluate(scroller)
         assert after > before + 100, f"le doigt sur une carte n'a pas fait défiler la liste ({before} → {after})"
+    finally:
+        context.close()
+
+
+def test_country_choice_tells_screen_readers_which_one_is_selected(browser, events_origin):
+    """Accessibilité (axe aria-required-attr) : chaque choix de pays est un radio avec aria-checked."""
+    context = browser.new_context(viewport={'width': 375, 'height': 812})
+    page = context.new_page(); mock_services(page)
+    try:
+        page.goto(events_origin + '/events/', wait_until='domcontentloaded')
+        radios = page.get_by_role('radio')
+        pw.expect(radios).to_have_count(3, timeout=15000)
+        assert [r.get_attribute('aria-checked') for r in radios.all()] == ['true', 'false', 'false']
+        page.get_by_role('radio', name='France +33').click()
+        assert [r.get_attribute('aria-checked') for r in radios.all()] == ['false', 'true', 'false']
     finally:
         context.close()

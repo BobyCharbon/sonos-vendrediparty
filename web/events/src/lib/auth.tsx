@@ -15,8 +15,10 @@ type AuthState = {
   perms: string[];
   rank: number; // invité 0 … admin 4, root 99
   can: (perm: string) => boolean;
-  /** Membre du groupe, mais les sorties sont encore réservées aux bêta-testeurs (production). */
+  /** Les sorties sont encore réservées aux bêta-testeurs (production) et ce compte n'en est pas. */
   eventsSoon: boolean;
+  /** Compte actif qui peut ouvrir les sorties : celles qu'il voit (publiques, son groupe, ses invitations). */
+  eventsOpen: boolean;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -51,8 +53,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (dir.error) throw dir.error;
       if (request !== profileRequest.current) return;
       const all = (perms.data as string[] | null) ?? [];
-      // Hors bêta, un membre garde son compte Party mais pas encore les sorties.
-      const soon = beta.data !== true && all.includes('events.view');
+      // Hors bêta (production), tout compte garde Party mais pas encore les sorties : Guests compris.
+      const soon = beta.data !== true;
       setAccess({ perms: soon ? all.filter((p) => p !== 'events.view') : all, rank: (rank.data as number | null) ?? -1, soon });
       setProfile(dir.data as Profile);
       setProfileError(null);
@@ -106,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const appState = AppState.addEventListener('change', (state) => {
       if (state === 'active') refresh();
     });
-    const timer = profile?.role === 'guest' ? setInterval(refresh, 15_000) : undefined;  // demande d'adhésion en cours
+    const timer = profile?.role === 'guest' ? setInterval(refresh, 15_000) : undefined;  // accès aux sorties donné par un admin
     if (Platform.OS === 'web') window.addEventListener('focus', refresh);
     return () => {
       appState.remove();
@@ -126,6 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       rank: access.rank,
       can: (perm: string) => !!session && profile?.id === session.user.id && access.perms.includes(perm),
       eventsSoon: !!session && profile?.id === session.user.id && access.soon,
+      eventsOpen: !!session && profile?.id === session.user.id && profile.status === 'active' && !access.soon,
       refreshProfile: () => loadProfile(session?.user.id),
       signOut: async () => {
         await unregisterPushToken().catch((error) => console.warn('Déconnexion push :', error));

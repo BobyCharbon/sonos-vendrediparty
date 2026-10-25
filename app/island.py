@@ -5,10 +5,9 @@ start; late arrivals spectate. The transport shares LOCK with all lobby actions.
 """
 import math
 import random
-import threading
 import time
 
-LOCK = threading.RLock()
+from .game_lock import LOCK  # verrou commun à toutes les parties (voir game_lock.py)
 STEP = 1 / 60
 TILE_RADIUS = 1.65
 DURATION = 90.0

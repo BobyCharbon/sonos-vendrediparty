@@ -4,6 +4,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-n
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EventCard } from '@/components/EventCard';
+import { SignedIn } from '@/components/SignedIn';
 import { Button, Chip, Empty, ErrorText, Input, s, Segmented, T, Title } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { fetchEventList, fetchTaxonomy, needsAnswer, useQuery } from '@/lib/data';
@@ -149,6 +150,10 @@ export default function Home() {
             />
           ))}
         </ScrollView>
+
+        {!can('events.view') ? (
+          <SignedIn note="Tu vois ici les sorties publiques et celles où on t’invite. Les jeux et la musique sont ouverts avec ton compte." />
+        ) : null}
 
         {isAdmin && pendingCount > 0 ? (
           <Pressable

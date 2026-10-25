@@ -33,8 +33,11 @@ jobs:
           context: .
           push: true
           # Événements : actifs sur le site de test (develop), « Bientôt » en production (main).
+          # Base Supabase : TEST (Vendrediparty-test) pour develop, PRODUCTION (valeurs par défaut) pour main.
           build-args: |
             EVENTS_ENABLED=${{ github.ref_name == 'develop' && '1' || '0' }}
+            SUPABASE_URL=${{ github.ref_name == 'develop' && 'https://ewromqfsmcqsthftyhzm.supabase.co' || '' }}
+            SUPABASE_ANON_KEY=${{ github.ref_name == 'develop' && 'sb_publishable_1kfxN29-r1VqjanyXvGZSQ_TBvjPU0k' || '' }}
           # main → :latest (production) ; develop → :develop (site de test partytest.bobycharbon.ch)
           tags: |
             ghcr.io/bobycharbon/sonos-vendrediparty:${{ github.ref_name == 'main' && 'latest' || 'develop' }}

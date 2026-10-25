@@ -5,13 +5,12 @@ le navigateur ; ni l'animateur ni un spectateur ne reçoit les mains adverses.
 """
 import random
 import secrets
-import threading
 from functools import wraps
 
 RANKS = ("3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A", "2")
 SUITS = {"C": ("♣", "trèfle"), "D": ("♦", "carreau"), "H": ("♥", "cœur"), "S": ("♠", "pique")}
 FACES = {"J": "Valet", "Q": "Dame", "K": "Roi", "A": "As"}
-LOCK = threading.RLock()
+from .game_lock import LOCK  # verrou commun à toutes les parties (voir game_lock.py)
 
 
 class PresidentError(Exception):

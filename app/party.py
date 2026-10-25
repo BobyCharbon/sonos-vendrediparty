@@ -8,6 +8,8 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from .game_lock import LOCK as GAMES_LOCK
+
 MODES = ("next", "fair")
 HOST_ID = "host"
 INACTIVE_AFTER = 3 * 3600  # un invité sans activité depuis 3 h est déconnecté  # les ajouts de l'hôte sont des demandes comme les autres, signées « Hôte »
@@ -99,10 +101,9 @@ class PartyStore:
             return Session()
 
     def _serialize(self) -> str:
-        # Les actions de jeu modifient les dicts de parties sous leur propre verrou
-        # (neon, island, heist, président…), pas celui-ci. La sérialisation peut donc
-        # rarement tomber sur « dictionary changed size during iteration ». On réessaie
-        # brièvement plutôt que de renvoyer une erreur au joueur : la fenêtre est minuscule.
+        # Les parties sont protégées par GAMES_LOCK (pris par save), mais d'autres données de la
+        # soirée (invités, demandes…) peuvent encore changer pendant la copie : on réessaie
+        # brièvement sur « dictionary changed size during iteration » plutôt que d'échouer.
         for attempt in range(5):
             try:
                 return json.dumps(asdict(self.session), ensure_ascii=False, indent=2)
@@ -114,8 +115,9 @@ class PartyStore:
 
     def save(self, notify: bool = True):
         # Le suivi des invités et les actions de jeu peuvent enregistrer en parallèle.
-        # Garder l'écriture et le remplacement sous le même verrou réentrant.
-        with self.lock:
+        # Toujours le verrou des parties d'abord, puis celui-ci (même ordre partout : pas d'interblocage),
+        # pour ne jamais copier une partie à moitié modifiée.
+        with GAMES_LOCK, self.lock:
             if notify:
                 self.version += 1
             self.path.parent.mkdir(parents=True, exist_ok=True)

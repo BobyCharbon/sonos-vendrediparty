@@ -5,7 +5,7 @@ import { Button, Card, Chip, ConfirmButton, ErrorText, Input, Screen, s, Section
 import { useAuth, useMe } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { must, supabase } from '@/lib/supabase';
-import type { MemberGroup, Profile } from '@/lib/types';
+import { roleLabel, VIP_GROUP_KEY, type MemberGroup, type Profile } from '@/lib/types';
 
 /** Groupes de membres pour inviter à un événement privé : partagés entre créateurs, modifiables par leur auteur et les admins. */
 export default function GroupsScreen() {
@@ -18,10 +18,12 @@ export default function GroupsScreen() {
 
   const { data, reload, error: loadError } = useQuery(async () => {
     const [groups, members] = await Promise.all([
-      supabase.from('member_groups').select('id, name, created_by, member_group_members(user_id)').order('name'),
-      supabase.from('profiles').select('id, display_name').eq('status', 'active').neq('role', 'guest').order('display_name'),
+      supabase.from('member_groups').select('id, name, created_by, system_key, member_group_members(user_id)').order('name'),
+      supabase.from('profiles').select('id, display_name, role').eq('status', 'active').order('display_name'),
     ]);
-    return { groups: must(groups) as MemberGroup[], members: must(members) as Pick<Profile, 'id' | 'display_name'>[] };
+    // Vendredi Party en premier : c'est le groupe de tout le monde (VIP et au-dessus).
+    const list = (must(groups) as MemberGroup[]).sort((a, b) => Number(b.system_key === VIP_GROUP_KEY) - Number(a.system_key === VIP_GROUP_KEY));
+    return { groups: list, members: must(members) as Pick<Profile, 'id' | 'display_name' | 'role'>[] };
   }, []);
 
   async function run(p: PromiseLike<{ error: { message: string } | null }>) {
@@ -49,7 +51,7 @@ export default function GroupsScreen() {
 
   return (
     <Screen edges={[]}>
-      <T muted>Un groupe sert à inviter plusieurs membres d’un coup à un événement privé. Quelqu’un qui rejoint le groupe plus tard est aussi invité aux événements à venir.</T>
+      <T muted>Un groupe sert à inviter plusieurs personnes d’un coup à une sortie (Guests compris). Quelqu’un qui rejoint le groupe plus tard est aussi invité aux événements à venir.</T>
       <ErrorText error={error ?? loadError} />
 
       <Section title="Nouveau groupe">
@@ -62,7 +64,8 @@ export default function GroupsScreen() {
       <Section title="Groupes">
         {data && !data.groups.length ? <T muted>Aucun groupe pour l’instant.</T> : null}
         {data?.groups.map((g) => {
-          const mine = g.created_by === me.id || can('events.manage_all');
+          const system = g.system_key === VIP_GROUP_KEY;
+          const mine = !system && (g.created_by === me.id || can('events.manage_all'));
           const inside = new Set(g.member_group_members.map((m) => m.user_id));
           const expanded = open === g.id;
           return (
@@ -76,13 +79,14 @@ export default function GroupsScreen() {
                 </View>
                 {mine ? <Button small variant="secondary" label={expanded ? 'Fermer' : 'Modifier'} onPress={() => setOpen(expanded ? null : g.id)} /> : null}
               </View>
+              {system ? <T muted size={13}>Tous les Membres VIP et au-dessus, tenu à jour tout seul : passer quelqu’un Membre VIP l’ajoute, le remettre Guest le retire (Administration → Membres).</T> : null}
               {expanded && mine ? (
                 <>
                   <View style={s.wrap}>
                     {data.members.map((m) => (
                       <Chip
                         key={m.id}
-                        label={m.display_name}
+                        label={m.role === 'guest' ? `${m.display_name} · ${roleLabel.guest}` : m.display_name}
                         selected={inside.has(m.id)}
                         disabled={busy}
                         onPress={() => run(inside.has(m.id)
