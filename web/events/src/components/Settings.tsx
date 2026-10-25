@@ -51,9 +51,7 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
       <Card style={{ gap: 0, paddingVertical: 4 }}>
         {active ? (
           <>
-            <LinkRow label="Notifications" hint="Ce que tu reçois, et quand" onPress={() => router.push('/settings/notifications')} />
-            <View style={s.divider} />
-            <LinkRow label="Mes abonnements" hint="Catégories et tags qui t’intéressent" onPress={() => router.push('/settings/subscriptions')} />
+            <LinkRow label="Notifications et abonnements" hint="Ce que tu reçois, quand, et les catégories ou tags que tu suis" onPress={() => router.push('/settings/notifications')} />
             <View style={s.divider} />
           </>
         ) : null}

@@ -182,7 +182,7 @@ export default function Home() {
                 : 'Le groupe attend sa première sortie. Lance une idée !'}
             </Empty>
             {filter.kind === 'subscribed' ? (
-              <Button label="Choisir mes abonnements" variant="secondary" onPress={() => router.push('/settings/subscriptions')} />
+              <Button label="Choisir mes abonnements" variant="secondary" onPress={() => router.push('/settings/notifications')} />
             ) : null}
             {search.trim() || filter.kind !== 'all' ? (
               <Button label="Effacer la recherche et les filtres" variant="ghost" onPress={() => { setSearch(''); setFilter({ kind: 'all' }); }} />
