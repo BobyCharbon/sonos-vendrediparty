@@ -20,6 +20,8 @@ puis ajoute le canal Web Push de Party.
   avec son vrai numéro et un vrai SMS. Numéros de test à code fixe `123456`, sans SMS : 41768163120 (Guest)
   et 41790000001-4 (41790000004 = Admin de test, utilisé par les tests automatiques). Jamais le numéro de
   Root dans les numéros de test : un code fixe sur le compte Root ouvrirait l'admin à quiconque le connaît.
+- Fonctions Edge `send-push` et `send-web-push` déployées aussi sur la base de test (25.10.2026) :
+  `SUPABASE_ACCESS_TOKEN=… npx supabase functions deploy <nom> --project-ref ewromqfsmcqsthftyhzm --use-api --no-verify-jwt`.
 - Nouvelle migration : base de TEST d'abord (`python3 tools/sbq.py test rw < fichier.sql`), tests
   (`supabase/tests` hors ligne, puis `SUPABASE_LIVE_TESTS=1 pytest tests/supabase_live`), puis PROD seulement
   avec l'accord explicite de l'admin. `tools/sbq.py prod` est en lecture seule (refuse `rw`).
