@@ -12,7 +12,7 @@ import pytest
 
 TEST_URL = 'https://ewromqfsmcqsthftyhzm.supabase.co'  # Vendrediparty-test, jamais la prod
 KEY_FILE = Path.home() / '.config/supabase-claude/test-publishable-key'
-ROOT_PHONE = '41765576900'
+ROOT_PHONE = '41768163120'
 GUESTS = ['41790000001', '41790000002', '41790000003']
 OTP = '123456'
 

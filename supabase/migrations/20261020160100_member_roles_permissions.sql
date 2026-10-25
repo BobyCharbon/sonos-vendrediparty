@@ -65,7 +65,7 @@ select r.role::public.member_role, p from (values
 -- ── Qui a quel droit ──
 create or replace function private.is_root(uid uuid) returns boolean
 language sql immutable set search_path = '' as $$
-  select uid = '298ff6e0-07b2-4127-bb69-d254dd63a3d5'::uuid;  -- +41 76 557 69 00, le seul root
+  select uid = '298ff6e0-07b2-4127-bb69-d254dd63a3d5'::uuid;  -- le seul root (numéro retiré du dépôt)
 $$;
 create or replace function private.role_rank(r public.member_role) returns int
 language sql immutable set search_path = '' as $$

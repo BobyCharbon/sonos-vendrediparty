@@ -41,7 +41,7 @@ def origin(tmp_path_factory):
 
 
 def sign_in_as_root(page):
-    page.get_by_label('Ton numéro de téléphone', exact=True).fill('076 557 69 00')
+    page.get_by_label('Ton numéro de téléphone', exact=True).fill('076 816 31 20')
     page.get_by_role('button', name='Recevoir un code par SMS').click()
     page.get_by_placeholder('123456', exact=True).fill('123456')
     page.get_by_role('button', name='Se connecter', exact=True).click()
@@ -55,7 +55,7 @@ def test_root_signs_in_on_the_test_database_and_sees_users_members_and_journal(b
         sign_in_as_root(page)
         pw.expect(page.get_by_text('personne(s) inscrite(s) avec leur numéro', exact=False)).to_be_visible(timeout=30000)
         boby = page.get_by_label('Utilisateur Boby')
-        pw.expect(boby).to_contain_text('+41765576900')
+        pw.expect(boby).to_contain_text('+41768163120')
         pw.expect(boby).to_contain_text('Dernière connexion : ')
         page.get_by_role('button', name='Nom', exact=True).click()
         page.goto(origin + '/events/admin/journal', wait_until='domcontentloaded')
