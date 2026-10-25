@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import { View } from 'react-native';
 
@@ -14,7 +14,7 @@ const reminderLabels: Record<Reminder, string> = { '7d': '7 jours avant', '1d': 
 const newEventHints: Record<NewEventScope, string> = {
   all: 'Chaque nouvelle sortie visible pour toi. Choisis « Si abonné » pour n’être prévenu que des catégories et tags que tu suis.',
   subscribed: 'Seulement les sorties qui ont au moins une catégorie OU un tag que tu suis ci-dessous.',
-  none: 'Aucune alerte de nouvelle sortie. Tes abonnements servent seulement au filtre de la liste.',
+  none: 'Aucune alerte de nouvelle sortie. Les annonces admin restent actives.',
 };
 const chatHints: Record<ChatMode, string> = {
   all: 'Chaque message des discussions des événements auxquels tu participes.',
@@ -24,6 +24,8 @@ const chatHints: Record<ChatMode, string> = {
 
 export default function NotificationSettings() {
   const me = useMe();
+  // Arrivée depuis le filtre « Mes abonnements » de la liste : la liste à cocher reste visible quel que soit le choix.
+  const fromFilter = useLocalSearchParams<{ topics?: string }>().topics === '1';
   const { can } = useAuth();
   const isAdmin = can('events.approve');  // reçoit les propositions à valider
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +140,7 @@ export default function NotificationSettings() {
           onChange={(new_event) => update({ new_event })}
           options={[{ key: 'all', label: 'Toujours' }, { key: 'subscribed', label: 'Si abonné' }, { key: 'none', label: 'Jamais' }]} />
         <T muted size={13}>{newEventHints[prefs.new_event]}</T>
-        {prefs.new_event === 'all' ? null : <SubscriptionPicker disabled={saving} />}
+        {prefs.new_event === 'subscribed' || fromFilter ? <SubscriptionPicker disabled={saving} /> : null}
       </Section>
 
       <Section title="Sorties où je suis inscrit">
