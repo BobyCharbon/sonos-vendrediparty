@@ -1,6 +1,6 @@
 import { Card, T } from './ui';
 
-const BETA_NOTE = 'Les jeux et la musique sont ouverts avec ton compte. Les sorties sont pour l’instant réservées aux bêta-testeurs.';
+const BETA_NOTE = 'Les jeux et la musique sont ouverts avec ton compte. Les événements sont pour l’instant réservés aux bêta-testeurs.';
 
 /** Confirme la connexion d'un compte (sans demande d'adhésion) : hors bêta, ou Guest qui ne voit que les sorties
  * publiques et ses invitations (note adaptée). */

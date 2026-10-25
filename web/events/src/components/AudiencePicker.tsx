@@ -126,7 +126,7 @@ export function AudiencePicker({ value, onChange, groups, people, meId, allGroup
           {value.phones.length ? (
             <View style={s.wrap}>{value.phones.map((p) => <Chip key={p} label={`✕ +${p}`} selected onPress={() => set({ phones: value.phones.filter((x) => x !== p) })} />)}</View>
           ) : null}
-          <T muted size={13}>Un numéro sans compte voit la sortie dès qu’il se connecte à Party avec ce numéro. Les invités reçoivent une invitation privée.</T>
+          <T muted size={13}>Un numéro sans compte voit l’événement dès qu’il se connecte à Party avec ce numéro. Les invités reçoivent une invitation privée.</T>
         </>
       )}
     </View>

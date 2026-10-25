@@ -85,7 +85,7 @@ def test_beta_checked_by_admin_opens_events_when_app_comes_back(browser, prod_or
         login(page.frame_locator('#eventsFrame'))
         frame = page.frame_locator('#eventsFrame')
         # Membre, pas encore bêta : Réglages ouverts, sorties « bientôt », pas de demande d'adhésion.
-        pw.expect(frame.get_by_text('réservées aux bêta-testeurs')).to_be_visible()
+        pw.expect(frame.get_by_text('réservés aux bêta-testeurs')).to_be_visible()
         pw.expect(frame.get_by_text('Demander à rejoindre')).to_have_count(0)
         pw.expect(events_tab(page)).to_have_attribute('aria-disabled', 'true')
 

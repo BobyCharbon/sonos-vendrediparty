@@ -37,15 +37,15 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
       </Card>
 
       <Section title={complete ? 'Mon profil' : 'Complète ton profil'}>
-        {!complete ? <T muted size={14}>Ton surnom et ta photo apparaîtront dans les jeux et les sorties.</T> : null}
+        {!complete ? <T muted size={14}>Ton surnom et ta photo apparaîtront dans les jeux et les événements.</T> : null}
         <IdentityForm profile={profile} submitLabel="Enregistrer" />
       </Section>
 
       <Section title="Événements du groupe">
-        {active ? <T muted size={14}>{can('events.view') ? 'Tu fais partie du groupe Vendredi Party : sorties, sondages et discussions.' : 'Tu vois les sorties publiques et celles où on t’invite.'}</T> : null}
-        {eventsOpen && !complete ? <T muted size={14}>Complète ton profil (prénom, nom, surnom et photo) pour voir les sorties.</T> : null}
+        {active ? <T muted size={14}>{can('events.view') ? 'Tu fais partie du groupe Vendredi Party : événements, sondages et discussions.' : 'Tu vois les événements publics et ceux où on t’invite.'}</T> : null}
+        {eventsOpen && !complete ? <T muted size={14}>Complète ton profil (prénom, nom, surnom et photo) pour voir les événements.</T> : null}
         {profile.status === 'banned' ? <T muted size={14}>Ton accès a été retiré par un admin.</T> : null}
-        {active ? <Button label="Voir les sorties" variant="secondary" onPress={() => openPartyTab('events')} /> : eventsSoon && profile.status !== 'banned' ? <SignedIn /> : null}
+        {active ? <Button label="Voir les événements" variant="secondary" onPress={() => openPartyTab('events')} /> : eventsSoon && profile.status !== 'banned' ? <SignedIn /> : null}
       </Section>
 
       <Card style={{ gap: 0, paddingVertical: 4 }}>

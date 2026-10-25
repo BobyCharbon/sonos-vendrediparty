@@ -293,7 +293,7 @@ export default function EventScreen() {
         </Pressable>
       ) : null}
 
-      <T muted size={13}>Proposé par {ev.author?.display_name ?? '?'}{data.muted ? ' · notifications coupées pour cette sortie' : ''}</T>
+      <T muted size={13}>Proposé par {ev.author?.display_name ?? '?'}{data.muted ? ' · notifications coupées pour cet événement' : ''}</T>
       {ev.event_tags.length ? (
         <View style={s.wrap}>
           {ev.event_tags.map(({ tags: t }) => <T key={t.id} size={13} weight="semibold" color={t.color}>#{t.name}</T>)}

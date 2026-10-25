@@ -12,9 +12,9 @@ import type { ChatMode, NewEventScope, NotificationPrefs, Reminder } from '@/lib
 
 const reminderLabels: Record<Reminder, string> = { '7d': '7 jours avant', '1d': 'La veille', '2h': '2 heures avant', '0h': 'Au début' };
 const newEventHints: Record<NewEventScope, string> = {
-  all: 'Chaque nouvelle sortie visible pour toi. Choisis « Si abonné » pour n’être prévenu que des catégories et tags que tu suis.',
-  subscribed: 'Seulement les sorties qui ont au moins une catégorie OU un tag que tu suis ci-dessous.',
-  none: 'Aucune alerte de nouvelle sortie. Les annonces admin restent actives.',
+  all: 'Chaque nouvel événement visible pour toi. Choisis « Si abonné » pour n’être prévenu que des catégories et tags que tu suis.',
+  subscribed: 'Seulement les événements qui ont au moins une catégorie OU un tag que tu suis ci-dessous.',
+  none: 'Aucune alerte de nouvel événement. Les annonces admin restent actives.',
 };
 const chatHints: Record<ChatMode, string> = {
   all: 'Chaque message des discussions des événements auxquels tu participes.',
@@ -134,8 +134,8 @@ export default function NotificationSettings() {
         ) : null}
       </Section>
 
-      <Section title="Nouvelles sorties et abonnements">
-        <T muted size={13}>Quand une nouvelle sortie est publiée, me prévenir :</T>
+      <Section title="Nouveaux événements et abonnements">
+        <T muted size={13}>Quand un nouvel événement est publié, me prévenir :</T>
         <Segmented<NotificationPrefs['new_event']> value={prefs.new_event} disabled={saving}
           onChange={(new_event) => update({ new_event })}
           options={[{ key: 'all', label: 'Toujours' }, { key: 'subscribed', label: 'Si abonné' }, { key: 'none', label: 'Jamais' }]} />
@@ -143,16 +143,16 @@ export default function NotificationSettings() {
         {prefs.new_event === 'subscribed' || fromFilter ? <SubscriptionPicker disabled={saving} /> : null}
       </Section>
 
-      <Section title="Sorties où je suis inscrit">
-        <ToggleRow disabled={saving} label="Sortie modifiée ou annulée" hint="Changement de date, d’heure ou de lieu, ou annulation" value={prefs.event_changed} onChange={(v) => update({ event_changed: v })} />
-        <ToggleRow disabled={saving} label="Nouveau sondage" hint="L’organisateur ajoute un sondage à la sortie" value={prefs.poll_new} onChange={(v) => update({ poll_new: v })} />
+      <Section title="Événements où je suis inscrit">
+        <ToggleRow disabled={saving} label="Événement modifié ou annulé" hint="Changement de date, d’heure ou de lieu, ou annulation" value={prefs.event_changed} onChange={(v) => update({ event_changed: v })} />
+        <ToggleRow disabled={saving} label="Nouveau sondage" hint="L’organisateur ajoute un sondage à l’événement" value={prefs.poll_new} onChange={(v) => update({ poll_new: v })} />
         <ToggleRow disabled={saving} label="Date choisie" hint="Le sondage de dates est terminé et la date est fixée" value={prefs.date_fixed} onChange={(v) => update({ date_fixed: v })} />
         <ToggleRow disabled={saving} label="Rappel pour voter" hint="24 h avant la fin d’un sondage de dates, seulement si tu n’as pas encore voté" value={prefs.poll_nudge} onChange={(v) => update({ poll_nudge: v })} />
         <ToggleRow disabled={saving} label="Place libérée" hint="Tu es sur liste d’attente et une place se libère" value={prefs.waitlist} onChange={(v) => update({ waitlist: v })} />
       </Section>
 
-      <Section title="Rappels avant la sortie">
-        <T muted size={13}>Pour les sorties où tu as répondu Présent ou Peut-être, si l’organisateur a activé les rappels. Tu peux en choisir plusieurs.</T>
+      <Section title="Rappels avant l’événement">
+        <T muted size={13}>Pour les événements où tu as répondu Présent ou Peut-être, si l’organisateur a activé les rappels. Tu peux en choisir plusieurs.</T>
         <View style={s.wrap}>
           {(Object.keys(reminderLabels) as Reminder[]).map((r) => (
             <Chip
@@ -177,8 +177,8 @@ export default function NotificationSettings() {
       </Section>
 
       <Section title="Quand j’organise">
-        <ToggleRow disabled={saving} label="Réponses à mes sorties" hint="Quelqu’un répond Présent, Peut-être ou Absent à une sortie que j’organise" value={prefs.rsvp_mine} onChange={(v) => update({ rsvp_mine: v })} />
-        {isAdmin ? <ToggleRow disabled={saving} label="Proposition à valider" hint="Un membre propose une sortie qui attend la validation d’un admin" value={prefs.proposals} onChange={(v) => update({ proposals: v })} /> : null}
+        <ToggleRow disabled={saving} label="Réponses à mes événements" hint="Quelqu’un répond Présent, Peut-être ou Absent à un événement que j’organise" value={prefs.rsvp_mine} onChange={(v) => update({ rsvp_mine: v })} />
+        {isAdmin ? <ToggleRow disabled={saving} label="Proposition à valider" hint="Un membre propose un événement qui attend la validation d’un admin" value={prefs.proposals} onChange={(v) => update({ proposals: v })} /> : null}
       </Section>
 
       <Section title="Annonces admin · toujours reçues">
@@ -186,7 +186,7 @@ export default function NotificationSettings() {
         <LinkRow label="Lire les annonces admin" onPress={() => router.push('/announcements')} />
       </Section>
 
-      <T muted size={12}>Pour couper une seule sortie, utilise « Sourdine » sur sa page. La musique et les jeux ont leurs propres réglages.</T>
+      <T muted size={12}>Pour couper un seul événement, utilise « Sourdine » sur sa page. La musique et les jeux ont leurs propres réglages.</T>
     </Screen>
   );
 }

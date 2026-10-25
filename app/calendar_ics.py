@@ -52,7 +52,7 @@ def _fold(line: str) -> str:
 def filename(title: str) -> str:
     ascii_title = unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode()
     slug = re.sub(r"[^A-Za-z0-9]+", "-", ascii_title).strip("-").lower()
-    return f"{slug[:40] or 'sortie'}.ics"
+    return f"{slug[:40] or 'evenement'}.ics"
 
 
 def build(*, uid: str, title: str, start: str, end: str | None = None, location: str = "",

@@ -62,7 +62,7 @@ export function IdentityForm({ profile, submitLabel, onSaved }: { profile: Profi
         </View>
       </View>
       <T muted size={13}>🔒 Ton prénom et ton nom ne sont visibles que par toi et les admins.</T>
-      <Field label="Surnom" hint="👀 Ce que tout le monde voit : jeux, sorties, discussions." value={nickname} onChangeText={(v) => { setNickname(v); setSaved(false); }} maxLength={40} editable={!busy} />
+      <Field label="Surnom" hint="👀 Ce que tout le monde voit : jeux, événements, discussions." value={nickname} onChangeText={(v) => { setNickname(v); setSaved(false); }} maxLength={40} editable={!busy} />
       <ProfilePhotoField userId={profile.id} name={nickname} currentPhoto={profile.avatar_url} photo={photo} onChange={(uri) => { setPhoto(uri); setSaved(false); }} disabled={busy} />
       <ErrorText error={error} />
       {saved && !changed ? <T size={14} weight="semibold">✓ Enregistré</T> : null}

@@ -8,7 +8,7 @@ import { must, supabase } from '@/lib/supabase';
 
 type Kind = 'tag' | 'category';
 
-/** Catégories et tags suivis : servent aux alertes « Selon mes abonnements » et au filtre de la liste des sorties. */
+/** Catégories et tags suivis : servent aux alertes « Selon mes abonnements » et au filtre de la liste des événements. */
 export function SubscriptionPicker({ disabled = false }: { disabled?: boolean }) {
   const me = useMe();
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -77,7 +77,7 @@ export function SubscriptionPicker({ disabled = false }: { disabled?: boolean })
       </View>
       <T muted size={13}>{saving ? 'Enregistrement…' : count === 0
         ? 'Tu ne suis encore rien : touche une catégorie ou un tag pour le suivre.'
-        : `Tu suis ${count} ${count > 1 ? 'sujets' : 'sujet'}. Une sortie qui a au moins une de ces catégories OU un de ces tags compte comme « abonnement ».`}</T>
+        : `Tu suis ${count} ${count > 1 ? 'sujets' : 'sujet'}. Un événement qui a au moins une de ces catégories OU un de ces tags compte comme « abonnement ».`}</T>
     </View>
   );
 }

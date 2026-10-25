@@ -104,14 +104,14 @@ export default function Home() {
           <View style={{ flex: 1, minWidth: 0 }}>
             <T muted size={14}>Salut {me.display_name} 👋</T>
             <Title size={28}>
-              Les sorties du groupe
+              Les événements du groupe
             </Title>
           </View>
         </View>
 
         <Input
           accessibilityLabel="Rechercher un événement"
-          placeholder="Rechercher une sortie, un lieu, un tag…"
+          placeholder="Rechercher un événement, un lieu, un tag…"
           value={search}
           onChangeText={setSearch}
           returnKeyType="search"
@@ -152,7 +152,7 @@ export default function Home() {
         </ScrollView>
 
         {!can('events.view') ? (
-          <SignedIn note="Tu vois ici les sorties publiques et celles où on t’invite. Les jeux et la musique sont ouverts avec ton compte." />
+          <SignedIn note="Tu vois ici les événements publics et ceux où on t’invite. Les jeux et la musique sont ouverts avec ton compte." />
         ) : null}
 
         {isAdmin && pendingCount > 0 ? (
@@ -174,12 +174,12 @@ export default function Home() {
           <View style={{ gap: 8, paddingVertical: 20 }}>
             <Empty>
               {search.trim() ? 'Aucun événement ne correspond à ta recherche.'
-                : filter.kind === 'subscribed' ? 'Aucune sortie pour tes abonnements pour le moment.'
+                : filter.kind === 'subscribed' ? 'Aucun événement pour tes abonnements pour le moment.'
                 : filter.kind !== 'all' ? 'Aucun événement avec ce filtre pour le moment.'
                 : tab === 'mine' ? 'Tes brouillons et propositions en attente apparaîtront ici.'
                 : tab === 'polls' ? 'Aucune date à choisir pour le moment.'
-                : tab === 'past' ? 'Les sorties passées apparaîtront ici.'
-                : 'Le groupe attend sa première sortie. Lance une idée !'}
+                : tab === 'past' ? 'Les événements passés apparaîtront ici.'
+                : 'Le groupe attend son premier événement. Lance une idée !'}
             </Empty>
             {filter.kind === 'subscribed' ? (
               <Button label="Choisir mes abonnements" variant="secondary" onPress={() => router.push('/settings/notifications?topics=1')} />

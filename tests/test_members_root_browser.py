@@ -137,7 +137,7 @@ def test_root_sees_every_user_with_first_and_last_connection_and_sorts_them(brow
         pw.expect(tom).to_contain_text('1re connexion : ')
         pw.expect(tom).to_contain_text('Dernière connexion : ')
         pw.expect(tom).to_contain_text('12 connexion(s) notée(s) · dernier appareil : iPhone Safari')
-        pw.expect(tom).to_contain_text('2 sortie(s) « je viens » · 5 message(s)')
+        pw.expect(tom).to_contain_text('2 événement(s) « je viens » · 5 message(s)')
         pw.expect(tom).to_contain_text('Guest · 🧪 Bêta')
         pw.expect(page.get_by_label('Utilisateur Sam')).to_contain_text('👥 Vendredi Party')
         # Par défaut : dernière connexion, la plus récente d'abord ; un 2e appui inverse.
