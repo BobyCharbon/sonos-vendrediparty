@@ -163,12 +163,14 @@ export default function EventScreen() {
         <Title size={32} style={{ lineHeight: 36 }}>{ev.title}</Title>
         {ev.visibility === 'invited' ? (
           <T muted size={13}>
-            🔒 Événement privé, sur invitation{ev.event_groups.length ? ` · ${ev.event_groups.map((g) => g.member_groups?.name).filter(Boolean).join(', ')}` : ''}
+            🔒 Sur invitation{ev.event_groups.length ? ` · ${ev.event_groups.map((g) => g.member_groups?.name).filter(Boolean).join(', ')}` : ''}
           </T>
+        ) : !ev.public_link ? (
+          <T muted size={13}>👥 Groupe Vendredi Party{ev.event_groups?.length ? ` + ${ev.event_groups.map((g) => g.member_groups?.name).filter(Boolean).join(', ')}` : ''}</T>
         ) : null}
         {ev.public_link && published ? (
           <View style={s.row}>
-            <T muted size={13} style={{ flex: 1 }}>🔗 Ouvert à toute personne qui a le lien{shareNote ? ` · ${shareNote}` : ''}</T>
+            <T muted size={13} style={{ flex: 1 }}>🌍 Publique : tous les comptes Party et toute personne qui a le lien{shareNote ? ` · ${shareNote}` : ''}</T>
             <Button small variant="secondary" label="Partager le lien" onPress={async () => setShareNote(await sharePublicLink(ev))} />
           </View>
         ) : null}

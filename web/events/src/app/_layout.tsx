@@ -49,9 +49,10 @@ function initialDestination() {
 }
 
 function Gate() {
-  const { loading, session, profile, profileError, refreshProfile, signOut, can, eventsSoon } = useAuth();
-  // Membre du groupe : droit « Voir les événements » et profil complet ; les autres comptes ont les Réglages.
-  const active = profile?.status === 'active' && hasCompleteIdentity(profile) && can('events.view');
+  const { loading, session, profile, profileError, refreshProfile, signOut, eventsOpen, eventsSoon } = useAuth();
+  // Tout compte actif au profil complet ouvre les sorties qu'il voit (Guests : publiques et invitations) ;
+  // hors bêta ou profil incomplet : page d'accueil, Réglages ouverts.
+  const active = eventsOpen && hasCompleteIdentity(profile);
   const path = usePathname();
   const [initialIntent] = useState(initialDestination);
   const intent = useRef(initialIntent);

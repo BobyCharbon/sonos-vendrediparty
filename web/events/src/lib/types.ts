@@ -73,7 +73,9 @@ export type EventRow = {
 };
 
 /** Groupe de membres réutilisable pour inviter à un événement privé. */
-export type MemberGroup = { id: string; name: string; created_by: string | null; member_group_members: { user_id: string }[] };
+/** system_key 'vip' : groupe « Vendredi Party » (Membres VIP et au-dessus), tenu à jour par la base selon le statut. */
+export type MemberGroup = { id: string; name: string; created_by: string | null; system_key?: string | null; member_group_members: { user_id: string }[] };
+export const VIP_GROUP_KEY = 'vip';
 
 export type Rsvp = {
   event_id: string;

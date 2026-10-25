@@ -1,12 +1,15 @@
 import { Card, T } from './ui';
 
-/** Compte connecté sans accès aux sorties : confirme la connexion, sans demande d'adhésion (accès donné par un admin). */
-export function SignedIn({ name }: { name?: string | null }) {
+const BETA_NOTE = 'Les jeux et la musique sont ouverts avec ton compte. Les sorties sont pour l’instant réservées aux bêta-testeurs.';
+
+/** Confirme la connexion d'un compte (sans demande d'adhésion) : hors bêta, ou Guest qui ne voit que les sorties
+ * publiques et ses invitations (note adaptée). */
+export function SignedIn({ name, note = BETA_NOTE }: { name?: string | null; note?: string }) {
   return (
     <Card>
       <T weight="semibold">Tu es connecté à ton compte ✓</T>
       {name ? <T>Salut {name} 👋</T> : null}
-      <T muted>Les jeux et la musique sont ouverts avec ton compte. Les sorties sont pour l’instant réservées aux bêta-testeurs.</T>
+      <T muted>{note}</T>
     </Card>
   );
 }
