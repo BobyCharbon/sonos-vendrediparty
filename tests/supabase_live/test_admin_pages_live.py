@@ -1,4 +1,4 @@
-"""Vrai navigateur + VRAIE base de test (jamais la prod) : connexion SMS de Root avec le code fixe, puis
+"""Vrai navigateur + VRAIE base de test (jamais la prod) : connexion de l'Admin de test avec le code fixe, puis
 Utilisateurs, Membres et Journal remplis par la base. Module construit avec la base de test :
 EXPO_PUBLIC_SUPABASE_URL=… EXPO_PUBLIC_SUPABASE_ANON_KEY=… npm run build (dans web/events)."""
 import os
@@ -40,29 +40,30 @@ def origin(tmp_path_factory):
     proc.terminate(); proc.wait(timeout=5)
 
 
-def sign_in_as_root(page):
-    page.get_by_label('Ton numéro de téléphone', exact=True).fill('076 816 31 20')
+def sign_in_as_admin(page):
+    page.get_by_label('Ton numéro de téléphone', exact=True).fill('079 000 00 04')  # Admin de test (code fixe)
     page.get_by_role('button', name='Recevoir un code par SMS').click()
     page.get_by_placeholder('123456', exact=True).fill('123456')
     page.get_by_role('button', name='Se connecter', exact=True).click()
 
 
-def test_root_signs_in_on_the_test_database_and_sees_users_members_and_journal(browser, origin):
+def test_admin_signs_in_on_the_test_database_and_sees_users_members_and_journal(browser, origin):
     page = browser.new_page(viewport={'width': 390, 'height': 844})
     errors = []; page.on('pageerror', lambda e: errors.append(str(e)))
     try:
         page.goto(origin + '/events/admin/users', wait_until='domcontentloaded')
-        sign_in_as_root(page)
+        sign_in_as_admin(page)
         pw.expect(page.get_by_text('personne(s) inscrite(s) avec leur numéro', exact=False)).to_be_visible(timeout=30000)
-        boby = page.get_by_label('Utilisateur Boby')
-        pw.expect(boby).to_contain_text('+41768163120')
-        pw.expect(boby).to_contain_text('Dernière connexion : ')
+        me = page.get_by_label('Utilisateur Admin test')
+        pw.expect(me).to_contain_text('+41790000004')
+        pw.expect(me).to_contain_text('Dernière connexion : ')
+        pw.expect(page.get_by_label('Utilisateur Boby')).to_contain_text('Admin')
         page.get_by_role('button', name='Nom', exact=True).click()
         page.goto(origin + '/events/admin/journal', wait_until='domcontentloaded')
-        pw.expect(page.get_by_text('Boby a ouvert la liste des membres (numéros compris)', exact=True).first).to_be_visible(timeout=30000)
+        pw.expect(page.get_by_text('Admin test a ouvert la liste des membres (numéros compris)', exact=True).first).to_be_visible(timeout=30000)
         page.goto(origin + '/events/admin/members', wait_until='domcontentloaded')
         pw.expect(page.get_by_text('compte(s) inscrit(s)', exact=False)).to_be_visible(timeout=30000)
-        pw.expect(page.get_by_text('Boby (toi)', exact=True)).to_be_visible()
+        pw.expect(page.get_by_text('Admin test (toi)', exact=True)).to_be_visible()
         assert not errors, errors
     finally:
         page.close()

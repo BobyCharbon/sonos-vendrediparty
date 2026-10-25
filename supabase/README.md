@@ -16,7 +16,10 @@ puis ajoute le canal Web Push de Party.
   droits, tâches planifiées, stockage), aucune différence.
 - Exception connue : `20261022090000_bring_items_by_members` a été appliquée en prod à la main (hors historique).
 - Base de test : après les migrations, `tools/test_db_after_migrations.sql` (adresse des fonctions Edge,
-  compte Root de test). Auth → Phone activé, numéros de test à code fixe `123456` (aucun SMS).
+  compte Root de test). Auth → Phone par Twilio Verify (mêmes identifiants que la prod) : Root se connecte
+  avec son vrai numéro et un vrai SMS. Numéros de test à code fixe `123456`, sans SMS : 41768163120 (Guest)
+  et 41790000001-4 (41790000004 = Admin de test, utilisé par les tests automatiques). Jamais le numéro de
+  Root dans les numéros de test : un code fixe sur le compte Root ouvrirait l'admin à quiconque le connaît.
 - Nouvelle migration : base de TEST d'abord (`python3 tools/sbq.py test rw < fichier.sql`), tests
   (`supabase/tests` hors ligne, puis `SUPABASE_LIVE_TESTS=1 pytest tests/supabase_live`), puis PROD seulement
   avec l'accord explicite de l'admin. `tools/sbq.py prod` est en lecture seule (refuse `rw`).

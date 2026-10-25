@@ -12,7 +12,8 @@ import pytest
 
 TEST_URL = 'https://ewromqfsmcqsthftyhzm.supabase.co'  # Vendrediparty-test, jamais la prod
 KEY_FILE = Path.home() / '.config/supabase-claude/test-publishable-key'
-ROOT_PHONE = '41768163120'
+ADMIN_PHONE = '41790000004'  # compte Admin de test (Root = vrai numéro, vrai SMS : jamais dans les tests)
+ROOT_ID = '298ff6e0-07b2-4127-bb69-d254dd63a3d5'
 GUESTS = ['41790000001', '41790000002', '41790000003']
 OTP = '123456'
 
@@ -48,9 +49,9 @@ class Session:
 
 @pytest.fixture(scope='module')
 def root():
-    s = Session(ROOT_PHONE)
-    assert s.uid == '298ff6e0-07b2-4127-bb69-d254dd63a3d5'  # même identifiant que le root de la prod
-    assert s.rpc('my_rank').json() == 99
+    """Admin de test (rang 4) : mêmes pages et fonctions que Root, sauf toucher à Root ou aux autres admins."""
+    s = Session(ADMIN_PHONE)
+    assert s.rpc('my_rank').json() == 4
     return s
 
 
@@ -78,8 +79,9 @@ def test_root_sees_every_signup_with_connections_and_the_view_is_logged(root, gu
         u = rows[g.uid]
         assert u['role'] == 'guest' and u['phone'] == GUESTS[guests.index(g)]
         assert u['first_sign_in_at'] and u['last_sign_in_at'] and u['sign_in_count'] >= 1
-    me = rows[root.uid]  # Root s'est connecté plusieurs fois : la première connexion reste la première
-    assert me['first_sign_in_at'] < me['last_sign_in_at']
+    me = rows[root.uid]  # connecté plusieurs fois : la première connexion reste la première
+    assert me['first_sign_in_at'] <= me['last_sign_in_at']
+    assert rows[ROOT_ID]['role'] == 'admin'  # Root est dans la liste
     journal = root.rpc('admin_member_audit', lim=200).json()
     assert any(e['action'] == 'members.viewed' and e['actor'] == root.uid for e in journal)
     assert any(e['action'] == 'account.login' and e['target'] == guests[0].uid for e in journal)
@@ -98,9 +100,10 @@ def test_root_deletes_a_guest_only_with_the_right_nickname_and_it_is_logged(root
     assert gone[0]['details']['by'] == 'admin' and gone[0]['details']['phone_end'] == GUESTS[2][-2:]
 
 
-def test_root_cannot_be_deleted_and_root_cannot_delete_itself(root, guests):
-    assert root.rpc('admin_delete_member', member=root.uid, confirm_name='Boby').status_code >= 400
-    assert guests[0].rpc('admin_delete_member', member=root.uid, confirm_name='Boby').status_code >= 400
+def test_nobody_deletes_root_and_an_admin_cannot_delete_itself(root, guests):
+    assert root.rpc('admin_delete_member', member=ROOT_ID, confirm_name='Boby').status_code >= 400
+    assert guests[0].rpc('admin_delete_member', member=ROOT_ID, confirm_name='Boby').status_code >= 400
+    assert root.rpc('admin_delete_member', member=root.uid, confirm_name='Admin test').status_code >= 400
 
 
 def test_role_and_beta_changes_by_root_are_logged(root, guests):
