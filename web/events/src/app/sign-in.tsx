@@ -66,6 +66,7 @@ export default function SignIn() {
                     key={option.key}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: country === option.key, disabled: busy }}
+                    aria-checked={country === option.key}  // React Native Web ne le déduit pas pour un radio (axe : aria-required-attr)
                     disabled={busy}
                     onPress={() => { setCountry(option.key); setError(null); }}
                     style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 14,

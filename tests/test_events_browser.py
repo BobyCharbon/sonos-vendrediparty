@@ -432,3 +432,18 @@ def test_android_finger_on_an_event_card_scrolls_the_list(browser, events_origin
         assert after > before + 100, f"le doigt sur une carte n'a pas fait défiler la liste ({before} → {after})"
     finally:
         context.close()
+
+
+def test_country_choice_tells_screen_readers_which_one_is_selected(browser, events_origin):
+    """Accessibilité (axe aria-required-attr) : chaque choix de pays est un radio avec aria-checked."""
+    context = browser.new_context(viewport={'width': 375, 'height': 812})
+    page = context.new_page(); mock_services(page)
+    try:
+        page.goto(events_origin + '/events/', wait_until='domcontentloaded')
+        radios = page.get_by_role('radio')
+        pw.expect(radios).to_have_count(3, timeout=15000)
+        assert [r.get_attribute('aria-checked') for r in radios.all()] == ['true', 'false', 'false']
+        page.get_by_role('radio', name='France +33').click()
+        assert [r.get_attribute('aria-checked') for r in radios.all()] == ['false', 'true', 'false']
+    finally:
+        context.close()
