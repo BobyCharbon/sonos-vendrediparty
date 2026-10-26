@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { Children, useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -209,6 +209,7 @@ export function Segmented<K extends string>({
             accessibilityRole="tab"
             accessibilityLabel={o.label}
             accessibilityState={{ selected: on, disabled }}
+            aria-selected={on}
             disabled={disabled}
             onPress={() => onChange(o.key)}
             style={({ pressed }) => [
@@ -407,6 +408,21 @@ export function LinkRow({ label, hint, onPress, icon, tint = colors.surface2 }: 
       </View>
       <View style={s.disclosure} />
     </Pressable>
+  );
+}
+
+/** Liste compacte façon Réglages : les lignes se suivent, séparées par un trait fin (sans grands espaces). */
+export function Rows({ children }: { children: ReactNode }) {
+  const rows = Children.toArray(children).filter(Boolean);
+  return (
+    <View>
+      {rows.map((row, i) => (
+        <View key={i}>
+          {i ? <View style={s.divider} /> : null}
+          {row}
+        </View>
+      ))}
+    </View>
   );
 }
 

@@ -306,25 +306,61 @@ def test_roles_screen_toggles_a_permission_for_the_chosen_role(browser,events_or
     finally: context.close()
 
 
-def test_end_time_starts_from_start_and_can_be_cleared(browser,events_origin):
-    """Fin : s'ouvre sur l'heure de début, rien avant le début, pas de 5 min, et s'efface (iOS n'a pas de bouton pour ça)."""
+def test_times_go_by_five_minutes_and_end_starts_from_start(browser,events_origin):
+    """Heures : un jour + une heure choisie dans une liste de 5 en 5 min (la roue native d'iPhone et d'Android
+    ignore le « step » d'un champ date-heure). La fin s'ouvre sur le début, rien avant lui, et s'efface."""
     context=browser.new_context(viewport={'width':390,'height':844})
     page=context.new_page();mock_services(page)
     try:
         page.goto(events_origin+'/events/',wait_until='domcontentloaded')
         login(page)
         page.get_by_role('button',name='Proposer un événement').click()
-        start=page.get_by_label('Début',exact=True);end=page.get_by_label('Fin (optionnel)',exact=True)
-        pw.expect(end).to_be_visible(timeout=15000)
-        start.fill('2030-11-14T19:00')
-        pw.expect(end).to_have_attribute('min','2030-11-14T19:00')
-        pw.expect(end).to_have_attribute('step','300')
+        start_day=page.get_by_label('Début : jour',exact=True);start_time=page.get_by_label('Début : heure',exact=True)
+        end_day=page.get_by_label('Fin (optionnel) : jour',exact=True);end_time=page.get_by_label('Fin (optionnel) : heure',exact=True)
+        pw.expect(end_day).to_be_visible(timeout=15000)
+        times=start_time.locator('option:not([disabled])').evaluate_all('els => els.map((o) => o.value)')
+        assert len(times)==288 and times[:3]==['00:00','00:05','00:10'] and times[-1]=='23:55'
+        assert all(int(t[-2:])%5==0 for t in times)
+        # Choisir d'abord le jour : l'heure se met d'office sur 19:00 (une soirée commence le soir).
+        start_day.fill('2030-11-14')
+        pw.expect(start_time).to_have_value('19:00')
+        start_time.select_option('20:35')
+        pw.expect(end_day).to_have_attribute('min','2030-11-14')
         pw.expect(page.get_by_role('button',name='Effacer : Fin (optionnel)')).to_have_count(0)
-        end.focus()
-        pw.expect(end).to_have_value('2030-11-14T19:00')
+        end_day.focus()
+        pw.expect(end_day).to_have_value('2030-11-14')
+        pw.expect(end_time).to_have_value('20:35')
         page.get_by_role('button',name='Effacer : Fin (optionnel)').click()
-        pw.expect(end).to_have_value('')
+        pw.expect(end_day).to_have_value('')
         pw.expect(page.get_by_role('button',name='Effacer : Fin (optionnel)')).to_have_count(0)
+    finally: context.close()
+
+
+def test_event_form_simple_mode_shows_the_essentials_and_tells_about_hidden_settings(browser,events_origin):
+    """Simple : l'essentiel seulement ; « Plus d'options » ouvre le mode avancé, qui reste choisi la fois suivante.
+    Un réglage avancé modifié reste appliqué en simple, et il est signalé (rien n'est caché sans le dire)."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page();mock_services(page)
+    try:
+        page.goto(events_origin+'/events/',wait_until='domcontentloaded')
+        login(page)
+        page.get_by_role('button',name='Proposer un événement').click()
+        pw.expect(page.get_by_label('Titre',exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_role('tab',name='Simple')).to_have_attribute('aria-selected','true')
+        for hidden in ('Adresse','Nombre de places (vide = illimité)','Nouveau tag'):
+            pw.expect(page.get_by_label(hidden,exact=True)).to_have_count(0)
+        pw.expect(page.get_by_text('Mini-sondages',exact=True)).to_have_count(0)
+        page.get_by_role('button',name='Plus d’options : passer en mode avancé').click()
+        places=page.get_by_label('Nombre de places (vide = illimité)',exact=True)
+        places.fill('12')
+        pw.expect(page.get_by_text('Mini-sondages',exact=True)).to_be_visible()
+        page.get_by_role('tab',name='Simple').click()
+        pw.expect(places).to_have_count(0)
+        pw.expect(page.get_by_text('Actifs : places limitées',exact=True)).to_be_visible()
+        # Le mode avancé choisi est retenu pour le prochain événement.
+        page.get_by_role('tab',name='Avancé').click()
+        page.reload()
+        pw.expect(page.get_by_role('tab',name='Avancé')).to_have_attribute('aria-selected','true',timeout=15000)
     finally: context.close()
 
 
@@ -350,6 +386,7 @@ def test_place_search_fills_name_address_and_google_maps_link(browser,events_ori
         search.fill('demo')
         page.get_by_role('button',name='Lieu de démonstration, Rue fictive 1, Lausanne').click()
         pw.expect(page.get_by_label('Lieu',exact=True)).to_have_value('Lieu de démonstration')
+        page.get_by_role('tab',name='Avancé').click()  # adresse et lien : réglages avancés, remplis quand même
         pw.expect(page.get_by_label('Adresse',exact=True)).to_have_value('Rue fictive 1, 1003 Lausanne, Suisse')
         pw.expect(page.get_by_label('Lien (site, carte…)',exact=True)).to_have_value('https://maps.google.com/?cid=1')
     finally: context.close()

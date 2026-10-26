@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { useAuth, useMe } from '@/lib/auth';
 import { fetchTaxonomy, useQuery } from '@/lib/data';
@@ -10,7 +10,7 @@ import { colors } from '@/lib/theme';
 import type { DateMode, EventRow, MemberGroup, Poll, PollOption, Reminder } from '@/lib/types';
 import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
-import { Button, Card, Chip, ErrorText, Field, Input, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
+import { Button, Chip, ErrorText, Field, Input, Rows, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
 import { AudiencePicker, audienceChildren, audienceError, audienceFromEvent, audienceToEvent, DEFAULT_AUDIENCE, type AudienceValue, type Person } from './AudiencePicker';
 import { DateTimeField } from './DateTimeField';
 import { PlaceSearch } from './PlaceSearch';
@@ -94,6 +94,36 @@ const emptyDraft: Draft = {
 
 const reminderLabels: Record<Reminder, string> = { '7d': 'J-7', '1d': 'J-1', '2h': 'H-2', '0h': 'Au début' };
 
+/** Simple : l’essentiel pour lancer l’événement ; avancé : toutes les options. Le dernier choix est retenu. */
+type FormMode = 'simple' | 'advanced';
+const modeKey = 'party-event-form-mode';
+function readMode(): FormMode {
+  try { return localStorage.getItem(modeKey) === 'advanced' ? 'advanced' : 'simple'; } catch { return 'simple'; }
+}
+function saveMode(mode: FormMode) {
+  try { localStorage.setItem(modeKey, mode); } catch { /* Stockage indisponible : le choix vaut pour cette page. */ }
+}
+
+/** Réglages avancés qui diffèrent des valeurs par défaut : rappelés en mode simple, rien n’est caché sans le dire. */
+function activeAdvanced(d: Draft): string[] {
+  return [
+    d.tag_ids.length ? 'tags' : '',
+    d.location_address || d.location_url ? 'adresse' : '',
+    d.price_chf || d.payment_info ? 'prix' : '',
+    d.max_participants ? 'places limitées' : '',
+    d.allow_maybe ? '' : 'sans « Peut-être »',
+    d.allow_plus_ones ? 'accompagnants' : '',
+    d.rsvp_deadline ? 'date limite' : '',
+    d.show_participants ? '' : 'participants masqués',
+    d.organizers.length ? 'co-organisateurs' : '',
+    d.polls.length ? 'mini-sondages' : '',
+    d.bring.length ? 'qui amène quoi' : '',
+    d.forum_enabled ? '' : 'sans discussion',
+    d.notify_on_publish ? '' : 'sans annonce au groupe',
+    d.reminders.join() === emptyDraft.reminders.join() ? '' : 'rappels',
+  ].filter(Boolean);
+}
+
 async function loadDraft(eventId: string): Promise<Draft> {
   const res = await supabase
     .from('events')
@@ -168,6 +198,8 @@ export function EventForm({ eventId }: { eventId?: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newTag, setNewTag] = useState('');
+  const [mode, setModeState] = useState<FormMode>(readMode);
+  const setMode = (next: FormMode) => { setModeState(next); saveMode(next); };
 
   const { data: ctx, error: contextError, reload: reloadCtx } = useQuery(async () => {
     const [taxonomy, members, groups, settings, current] = await Promise.all([
@@ -438,13 +470,31 @@ export function EventForm({ eventId }: { eventId?: string }) {
     ? 'Enregistrer'
     : isAdmin || !ctx.settings.require_approval ? 'Publier' : 'Envoyer pour validation';
 
+  // Un sondage de dates n’existe qu’en avancé : on n’en cache jamais les créneaux.
+  const advanced = mode === 'advanced' || d.date_mode === 'poll';
+  const hiddenActive = advanced ? [] : activeAdvanced(d);
+
   return (
     <Screen edges={[]}>
       <View pointerEvents={busy ? 'none' : 'auto'} style={{ gap: 14 }}>
-      <Card>
+      <View style={{ gap: 6 }}>
+        <Segmented<FormMode>
+          value={advanced ? 'advanced' : 'simple'}
+          onChange={setMode}
+          disabled={d.date_mode === 'poll'}
+          options={[{ key: 'simple', label: 'Simple' }, { key: 'advanced', label: 'Avancé' }]}
+        />
+        <T muted size={12} style={{ paddingHorizontal: 4 }}>
+          {advanced
+            ? 'Toutes les options : places, prix, sondages, rappels…'
+            : 'L’essentiel pour lancer l’événement. Le reste garde ses réglages habituels.'}
+        </T>
+      </View>
+
+      <Section title="L’essentiel">
         <Field label="Titre" value={d.title} onChangeText={(title) => set({ title })} maxLength={120} placeholder="Karting, soirée raclette…" />
         <Field label="Description" value={d.description} onChangeText={(description) => set({ description })} multiline />
-        <T muted size={13}>Catégorie</T>
+        <T muted size={13} weight="medium">Catégorie</T>
         <View style={s.wrap}>
           {ctx.categories.map((c) => (
             <Chip
@@ -456,26 +506,32 @@ export function EventForm({ eventId }: { eventId?: string }) {
             />
           ))}
         </View>
-        <T muted size={13}>Tags</T>
-        <View style={s.wrap}>
-          {ctx.tags.map((t) => (
-            <Chip key={t.id} label={`#${t.name}`} color={t.color} selected={d.tag_ids.includes(t.id)} onPress={() => toggleIn('tag_ids', t.id)} />
-          ))}
-        </View>
-        {can('taxonomy.manage') ? (
-          <View style={s.row}>
-            <Input placeholder="Nouveau tag" value={newTag} onChangeText={setNewTag} style={{ flex: 1 }} onSubmitEditing={createTag} />
-            <Button small variant="secondary" label="Créer" onPress={createTag} disabled={!newTag.trim()} />
-          </View>
+        {advanced ? (
+          <>
+            <T muted size={13} weight="medium">Tags</T>
+            <View style={s.wrap}>
+              {ctx.tags.map((t) => (
+                <Chip key={t.id} label={`#${t.name}`} color={t.color} selected={d.tag_ids.includes(t.id)} onPress={() => toggleIn('tag_ids', t.id)} />
+              ))}
+            </View>
+            {can('taxonomy.manage') ? (
+              <View style={s.row}>
+                <Input placeholder="Nouveau tag" value={newTag} onChangeText={setNewTag} style={{ flex: 1 }} onSubmitEditing={createTag} />
+                <Button small variant="secondary" label="Créer" onPress={createTag} disabled={!newTag.trim()} />
+              </View>
+            ) : null}
+          </>
         ) : null}
-      </Card>
+      </Section>
 
-      <Section title="Date">
-        <Segmented<DateMode>
-          value={d.date_mode}
-          onChange={(date_mode) => set({ date_mode })}
-          options={[{ key: 'fixed', label: 'Date fixée' }, { key: 'poll', label: 'Date à définir' }]}
-        />
+      <Section title="Quand">
+        {advanced ? (
+          <Segmented<DateMode>
+            value={d.date_mode}
+            onChange={(date_mode) => set({ date_mode })}
+            options={[{ key: 'fixed', label: 'Date fixée' }, { key: 'poll', label: 'Date à définir' }]}
+          />
+        ) : null}
         {d.date_mode === 'fixed' ? (
           <>
             <DateTimeField label="Début" value={d.starts_at} onChangeText={(starts_at) => set({ starts_at })} />
@@ -485,7 +541,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
           <>
             <T muted size={12}>Chacun vote Oui / Si besoin / Non sur chaque créneau.</T>
             {d.slots.map((sl, i) => (
-              <View key={sl.id ?? `new-${i}`} style={s.row}>
+              <View key={sl.id ?? `new-${i}`} style={[s.row, { alignItems: 'flex-end' }]}>
                 <View style={{ flex: 1 }}>
                   <DateTimeField label={`Créneau ${i + 1}`} value={sl.text} onChangeText={(text) => set({ slots: d.slots.map((x, j) => (j === i ? { ...x, text } : x)) })} />
                 </View>
@@ -494,120 +550,153 @@ export function EventForm({ eventId }: { eventId?: string }) {
             ))}
             <Button small variant="ghost" label="+ Ajouter un créneau" onPress={() => set({ slots: [...d.slots, { text: '' }] })} />
             <DateTimeField label="Fin du vote (optionnel)" optional value={d.poll_deadline} onChangeText={(poll_deadline) => set({ poll_deadline })} />
-            <ToggleRow label="Les membres peuvent proposer des dates" value={d.members_can_propose_dates} onChange={(v) => set({ members_can_propose_dates: v })} />
-            <ToggleRow
-              label="Fixer la date automatiquement"
-              hint="À la fin du vote, la date avec le plus de Oui est retenue"
-              value={d.auto_fix_date}
-              onChange={(v) => set({ auto_fix_date: v })}
-            />
+            <Rows>
+              <ToggleRow label="Les membres peuvent proposer des dates" value={d.members_can_propose_dates} onChange={(v) => set({ members_can_propose_dates: v })} />
+              <ToggleRow
+                label="Fixer la date automatiquement"
+                hint="À la fin du vote, la date avec le plus de Oui est retenue"
+                value={d.auto_fix_date}
+                onChange={(v) => set({ auto_fix_date: v })}
+              />
+            </Rows>
           </>
         )}
       </Section>
 
-      <Section title="Lieu et prix">
+      <Section title={advanced ? 'Lieu et prix' : 'Où'}>
         <PlaceSearch onPick={(p) => set({ location_name: p.name, location_address: p.address, location_url: p.url })} />
         <Field label="Lieu" placeholder="Chez Marco" value={d.location_name} onChangeText={(location_name) => set({ location_name })} />
-        <Field label="Adresse" value={d.location_address} onChangeText={(location_address) => set({ location_address })} />
-        <Field label="Lien (site, carte…)" autoCapitalize="none" keyboardType="url" value={d.location_url} onChangeText={(location_url) => set({ location_url })} />
-        <View style={s.row}>
-          <View style={{ flex: 1 }}>
-            <Field label="Prix / pers. (CHF)" keyboardType="decimal-pad" value={d.price_chf} onChangeText={(price_chf) => set({ price_chf })} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Field label="Paiement" placeholder="TWINT, sur place" value={d.payment_info} onChangeText={(payment_info) => set({ payment_info })} />
-          </View>
-        </View>
+        {advanced ? (
+          <>
+            <Field label="Adresse" value={d.location_address} onChangeText={(location_address) => set({ location_address })} />
+            <Field label="Lien (site, carte…)" autoCapitalize="none" keyboardType="url" value={d.location_url} onChangeText={(location_url) => set({ location_url })} />
+            <View style={s.row}>
+              <View style={{ flex: 1 }}>
+                <Field label="Prix / pers. (CHF)" keyboardType="decimal-pad" value={d.price_chf} onChangeText={(price_chf) => set({ price_chf })} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Field label="Paiement" placeholder="TWINT, sur place" value={d.payment_info} onChangeText={(payment_info) => set({ payment_info })} />
+              </View>
+            </View>
+          </>
+        ) : null}
       </Section>
 
-      <Section title="Participants">
-        <Field
-          label="Nombre de places (vide = illimité)"
-          keyboardType="number-pad"
-          value={d.max_participants}
-          onChangeText={(max_participants) => set({ max_participants })}
-        />
-        {d.max_participants ? (
-          <ToggleRow label="Liste d’attente" hint="Les suivants passent automatiquement quand une place se libère" value={d.waitlist_enabled} onChange={(v) => set({ waitlist_enabled: v })} />
-        ) : null}
-        <ToggleRow label="Réponse « Peut-être » autorisée" value={d.allow_maybe} onChange={(v) => set({ allow_maybe: v })} />
-        <ToggleRow label="Accompagnants (+1)" value={d.allow_plus_ones} onChange={(v) => set({ allow_plus_ones: v })} />
-        {d.allow_plus_ones ? (
-          <Field label="Accompagnants max par personne (vide = illimité)" keyboardType="number-pad" value={d.max_plus_ones} onChangeText={(max_plus_ones) => set({ max_plus_ones })} />
-        ) : null}
-        <DateTimeField label="Date limite de réponse (optionnel)" optional value={d.rsvp_deadline} onChangeText={(rsvp_deadline) => set({ rsvp_deadline })} />
-        <ToggleRow label="Liste des participants visible" value={d.show_participants} onChange={(v) => set({ show_participants: v })} />
+      <Section title={advanced ? 'Participants' : 'Qui'}>
         <AudiencePicker value={d.who} onChange={(who) => set({ who })} groups={ctx.groups} people={ctx.members} meId={me.id} allGroups={can('events.manage_all')} />
-        <Button small variant="ghost" label="Gérer les groupes ›" onPress={() => router.push('/groups')} />
-        <T muted size={13}>Co-organisateurs</T>
-        {memberChips('organizers')}
+        {advanced ? (
+          <>
+            <Button small variant="ghost" label="Gérer les groupes ›" onPress={() => router.push('/groups')} />
+            <Field
+              label="Nombre de places (vide = illimité)"
+              keyboardType="number-pad"
+              value={d.max_participants}
+              onChangeText={(max_participants) => set({ max_participants })}
+            />
+            <Rows>
+              {d.max_participants ? (
+                <ToggleRow label="Liste d’attente" hint="Les suivants passent automatiquement quand une place se libère" value={d.waitlist_enabled} onChange={(v) => set({ waitlist_enabled: v })} />
+              ) : null}
+              <ToggleRow label="Réponse « Peut-être » autorisée" value={d.allow_maybe} onChange={(v) => set({ allow_maybe: v })} />
+              <ToggleRow label="Accompagnants (+1)" value={d.allow_plus_ones} onChange={(v) => set({ allow_plus_ones: v })} />
+              <ToggleRow label="Liste des participants visible" value={d.show_participants} onChange={(v) => set({ show_participants: v })} />
+            </Rows>
+            {d.allow_plus_ones ? (
+              <Field label="Accompagnants max par personne (vide = illimité)" keyboardType="number-pad" value={d.max_plus_ones} onChangeText={(max_plus_ones) => set({ max_plus_ones })} />
+            ) : null}
+            <DateTimeField label="Date limite de réponse (optionnel)" optional value={d.rsvp_deadline} onChangeText={(rsvp_deadline) => set({ rsvp_deadline })} />
+            <T muted size={13} weight="medium">Co-organisateurs</T>
+            {memberChips('organizers')}
+          </>
+        ) : null}
       </Section>
 
-      <Section title="Mini-sondages">
-        {d.polls.map((p, i) => (
-          <View key={p.id ?? `new-${i}`} style={{ gap: 12, paddingVertical: 12, borderTopWidth: i ? 1 : 0, borderTopColor: colors.line }}>
-            <Field label={`Question du sondage ${i + 1}`} value={p.question} onChangeText={(question) => setPoll(i, { question })} maxLength={200} />
-            {p.options.map((o, j) => (
-              <View key={o.id ?? `new-${j}`} style={s.row}>
-                <Input
-                  accessibilityLabel={`Sondage ${i + 1}, option ${j + 1}`}
-                  placeholder={`Option ${j + 1}`}
-                  value={o.label}
-                  onChangeText={(label) => setPoll(i, { options: p.options.map((x, k) => (k === j ? { ...x, label } : x)) })}
-                  maxLength={120}
-                  style={{ flex: 1 }}
-                />
-                <Button small variant="ghost" label="Retirer" onPress={() => setPoll(i, { options: p.options.filter((_, k) => k !== j) })} />
+      {advanced ? (
+        <>
+          <Section title="Mini-sondages">
+            {d.polls.map((p, i) => (
+              <View key={p.id ?? `new-${i}`} style={{ gap: 12, paddingVertical: 12, borderTopWidth: i ? 1 : 0, borderTopColor: colors.line }}>
+                <Field label={`Question du sondage ${i + 1}`} value={p.question} onChangeText={(question) => setPoll(i, { question })} maxLength={200} />
+                {p.options.map((o, j) => (
+                  <View key={o.id ?? `new-${j}`} style={s.row}>
+                    <Input
+                      accessibilityLabel={`Sondage ${i + 1}, option ${j + 1}`}
+                      placeholder={`Option ${j + 1}`}
+                      value={o.label}
+                      onChangeText={(label) => setPoll(i, { options: p.options.map((x, k) => (k === j ? { ...x, label } : x)) })}
+                      maxLength={120}
+                      style={{ flex: 1 }}
+                    />
+                    <Button small variant="ghost" label="Retirer" onPress={() => setPoll(i, { options: p.options.filter((_, k) => k !== j) })} />
+                  </View>
+                ))}
+                {p.id ? <T muted size={13}>Les votes des options conservées restent enregistrés. Retirer une option supprime ses votes.</T> : null}
+                <Button small variant="ghost" label="+ Ajouter une option" onPress={() => setPoll(i, { options: [...p.options, { label: '' }] })} />
+                <View style={s.wrap}>
+                  <Chip label="Choix multiple" selected={p.multiple_choice} onPress={() => setPoll(i, { multiple_choice: !p.multiple_choice })} />
+                  <Chip label="Anonyme" selected={p.anonymous} onPress={() => setPoll(i, { anonymous: !p.anonymous })} />
+                  <Chip label="Options libres" selected={p.members_can_add_options} onPress={() => setPoll(i, { members_can_add_options: !p.members_can_add_options })} />
+                  <Chip label="Résultats après vote" selected={p.results_after_vote} onPress={() => setPoll(i, { results_after_vote: !p.results_after_vote })} />
+                </View>
+                <Button small variant="danger" label="Retirer ce sondage" onPress={() => set({ polls: d.polls.filter((_, j) => j !== i) })} />
               </View>
             ))}
-            {p.id ? <T muted size={13}>Les votes des options conservées restent enregistrés. Retirer une option supprime ses votes.</T> : null}
-            <Button small variant="ghost" label="+ Ajouter une option" onPress={() => setPoll(i, { options: [...p.options, { label: '' }] })} />
-            <View style={s.wrap}>
-              <Chip label="Choix multiple" selected={p.multiple_choice} onPress={() => setPoll(i, { multiple_choice: !p.multiple_choice })} />
-              <Chip label="Anonyme" selected={p.anonymous} onPress={() => setPoll(i, { anonymous: !p.anonymous })} />
-              <Chip label="Options libres" selected={p.members_can_add_options} onPress={() => setPoll(i, { members_can_add_options: !p.members_can_add_options })} />
-              <Chip label="Résultats après vote" selected={p.results_after_vote} onPress={() => setPoll(i, { results_after_vote: !p.results_after_vote })} />
-            </View>
-            <Button small variant="danger" label="Retirer ce sondage" onPress={() => set({ polls: d.polls.filter((_, j) => j !== i) })} />
-          </View>
-        ))}
-        <Button
-          small
-          variant="ghost"
-          label="+ Ajouter un sondage"
-          onPress={() =>
-            set({
-              polls: [...d.polls, { question: '', options: [{ label: '' }, { label: '' }], multiple_choice: false, anonymous: false, members_can_add_options: false, results_after_vote: false }],
-            })
-          }
-        />
-      </Section>
-
-      <Section title="Qui amène quoi">
-        {d.bring.map((b, i) => (
-          <View key={b.id ?? `new-${i}`} style={s.row}>
-            <Input
-              placeholder="Fromage, pain…"
-              value={b.label}
-              onChangeText={(label) => set({ bring: d.bring.map((x, j) => (j === i ? { ...x, label } : x)) })}
-              style={{ flex: 1 }}
+            <Button
+              small
+              variant="ghost"
+              label="+ Ajouter un sondage"
+              onPress={() =>
+                set({
+                  polls: [...d.polls, { question: '', options: [{ label: '' }, { label: '' }], multiple_choice: false, anonymous: false, members_can_add_options: false, results_after_vote: false }],
+                })
+              }
             />
-            <Button small variant="secondary" label="✕" onPress={() => set({ bring: d.bring.filter((_, j) => j !== i) })} />
-          </View>
-        ))}
-        <Button small variant="ghost" label="+ Ajouter un objet" onPress={() => set({ bring: [...d.bring, { label: '' }] })} />
-      </Section>
+          </Section>
 
-      <Section title="Discussion et notifications">
-        <ToggleRow label="Forum de l’événement" value={d.forum_enabled} onChange={(v) => set({ forum_enabled: v })} />
-        <ToggleRow label="Prévenir le groupe à la publication" value={d.notify_on_publish} onChange={(v) => set({ notify_on_publish: v })} />
-        <T muted size={13}>Rappels automatiques aux participants</T>
-        <View style={s.wrap}>
-          {(Object.keys(reminderLabels) as Reminder[]).map((r) => (
-            <Chip key={r} label={reminderLabels[r]} selected={d.reminders.includes(r)} onPress={() => toggleIn('reminders', r)} />
-          ))}
-        </View>
-      </Section>
+          <Section title="Qui amène quoi">
+            {d.bring.map((b, i) => (
+              <View key={b.id ?? `new-${i}`} style={s.row}>
+                <Input
+                  placeholder="Fromage, pain…"
+                  value={b.label}
+                  onChangeText={(label) => set({ bring: d.bring.map((x, j) => (j === i ? { ...x, label } : x)) })}
+                  style={{ flex: 1 }}
+                />
+                <Button small variant="secondary" label="✕" onPress={() => set({ bring: d.bring.filter((_, j) => j !== i) })} />
+              </View>
+            ))}
+            <Button small variant="ghost" label="+ Ajouter un objet" onPress={() => set({ bring: [...d.bring, { label: '' }] })} />
+          </Section>
+
+          <Section title="Discussion et notifications">
+            <Rows>
+              <ToggleRow label="Forum de l’événement" value={d.forum_enabled} onChange={(v) => set({ forum_enabled: v })} />
+              <ToggleRow label="Prévenir le groupe à la publication" value={d.notify_on_publish} onChange={(v) => set({ notify_on_publish: v })} />
+            </Rows>
+            <T muted size={13} weight="medium">Rappels automatiques aux participants</T>
+            <View style={s.wrap}>
+              {(Object.keys(reminderLabels) as Reminder[]).map((r) => (
+                <Chip key={r} label={reminderLabels[r]} selected={d.reminders.includes(r)} onPress={() => toggleIn('reminders', r)} />
+              ))}
+            </View>
+          </Section>
+        </>
+      ) : (
+        // Mode simple : une porte vers le reste, qui dit aussi quels réglages avancés sont actifs.
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Plus d’options : passer en mode avancé"
+          onPress={() => setMode('advanced')}
+          style={({ pressed }) => [s.card, s.row, { gap: 12 }, pressed && { backgroundColor: colors.surface2 }]}
+        >
+          <View style={{ flex: 1, gap: 2 }}>
+            <T weight="semibold">Plus d’options</T>
+            <T muted size={13}>Places, prix, sondage de dates, qui amène quoi, rappels…</T>
+            {hiddenActive.length ? <T size={13} color={colors.accent}>Actifs : {hiddenActive.join(', ')}</T> : null}
+          </View>
+          <View style={{ width: 8, height: 8, borderRightWidth: 2, borderTopWidth: 2, borderColor: colors.muted, transform: [{ rotate: '45deg' }] }} />
+        </Pressable>
+      )}
 
       {!isAdmin && ctx.settings.require_approval && (!eventId || ctx.status !== 'published') ? (
         <View style={{ backgroundColor: colors.lavenderDim, padding: 14, borderRadius: 16 }}>
