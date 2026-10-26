@@ -91,6 +91,18 @@ class Accounts:
             self.by_gid[account["guest_id"]] = account
         return account
 
+    def refresh(self, refresh_token: str) -> dict:
+        """Nouvelle session Supabase à partir du jeton de rafraîchissement (même format que celui gardé par le module)."""
+        try:
+            r = self.client.post(SUPABASE_URL + "/auth/v1/token", params={"grant_type": "refresh_token"},
+                                 headers={"apikey": SUPABASE_ANON_KEY}, json={"refresh_token": refresh_token})
+        except httpx.HTTPError as e:
+            raise AccountError("Le service des comptes ne répond pas. Réessaie dans un instant.") from e
+        session = r.json() if r.status_code == 200 else {}
+        if not session.get("access_token"):
+            raise AccountError("Ta connexion a expiré. Reconnecte-toi.")
+        return session
+
     def attending(self, token: str, event_id: str) -> tuple[str, bool]:
         """(identifiant du compte, noté « Présent » à cet événement et pas en liste d'attente), lu avec son propre jeton."""
         uid = self._uid(token)

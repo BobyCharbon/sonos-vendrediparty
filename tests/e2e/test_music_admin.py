@@ -258,7 +258,11 @@ def test_reducing_the_queue_hides_only_playlist_tracks(browser, server):
 
 
 EVENT = "32f18a3b-827f-4123-8cf4-33de06c9a51c"
-FAKE_SESSION = "localStorage.setItem('sb-test-auth-token', JSON.stringify({ access_token: 'jeton-' + 'x'.repeat(40) }))"
+FAKE_SESSION = ("localStorage.setItem('sb-test-auth-token', JSON.stringify({ access_token: 'jeton-' + 'x'.repeat(40),"
+                " refresh_token: 'r0', expires_at: Math.floor(Date.now() / 1000) + 3600 }))")
+# Session gardée par le module Événements, expirée depuis 2 h (app rouverte le lendemain, onglet Musique).
+EXPIRED_SESSION = ("localStorage.setItem('sb-test-auth-token', JSON.stringify({ access_token: 'perime-' + 'x'.repeat(40),"
+                   " refresh_token: 'r1', expires_at: Math.floor(Date.now() / 1000) - 7200, user: { id: 'root' } }))")
 
 
 def test_host_links_the_evening_to_an_event_from_the_music_tab(browser, server):
@@ -360,6 +364,55 @@ def test_a_root_or_admin_account_keeps_admin_rights_even_if_the_admin_session_is
             boss.page.wait_for_timeout(100)
         assert len(renewals) == 3  # rouverte : la session admin est redemandée d'office
         assert boss.page.evaluate("fetch('/api/admin/state').then((r) => r.status)") == 200
+        assert not boss.errors
+    finally:
+        boss.ctx.close()
+
+
+@pytest.mark.parametrize("renewable", [True, False])
+def test_root_opening_the_app_with_an_expired_session_becomes_admin_without_any_expired_token_sent(browser, server, renewable):
+    """Bug du 26.10 : le jeton expiré envoyé à chaque ouverture faisait bloquer la maison (« trop d'essais »)
+    et le compte root ne devenait jamais admin. Party renouvelle maintenant la session lui-même."""
+    boss = Phone(browser, server, "Boss")
+    account = {"guest_id": "acct-" + "c" * 40, "name": "Boby", "photo": None, "beta": True, "admin": True}
+    fresh = "frais-" + "z" * 40
+    sent_tokens = []
+
+    def refresh(route):
+        assert json.loads(route.request.post_data) == {"refresh_token": "r1"}
+        if not renewable:
+            return route.fulfill(status=401, json={"detail": "Ta connexion a expiré. Reconnecte-toi."})
+        return route.fulfill(json={"access_token": fresh, "refresh_token": "r2", "expires_in": 3600,
+                                   "expires_at": int(time.time()) + 3600, "token_type": "bearer"})
+
+    def account_call(route):
+        sent_tokens.append(json.loads(route.request.post_data)["token"])
+        if route.request.url.endswith("/api/account/link"):
+            return route.fulfill(json=account)
+        if route.request.url.endswith("/api/account/admin"):
+            return route.fulfill(response=route.fetch(url=f"{server.url}/api/admin/login", post_data=json.dumps({"pin": ADMIN_PIN})))
+        return route.fulfill(status=409, json={"detail": "Aucune soirée liée"})
+    try:
+        boss.page.route("**/api/account/refresh", refresh)
+        boss.page.route("**/api/account/link", account_call)
+        boss.page.route("**/api/account/admin", account_call)
+        boss.page.route("**/api/join/account", account_call)
+        boss.page.goto("/")
+        boss.page.evaluate(EXPIRED_SESSION)
+        boss.page.reload()
+        boss.page.locator('#tabs button[data-tab="music"]').tap()
+        admin = boss.page.locator("#musicAdmin")
+        if renewable:
+            # Renouvellement, liaison du compte, session admin puis chargement de l'onglet : quelques secondes.
+            expect(admin.get_by_role("button", name="🎉 Démarrer la soirée")).to_be_visible(timeout=15000)
+            assert len(sent_tokens) >= 2  # liaison du compte puis session admin, avec le jeton renouvelé
+            stored = boss.page.evaluate("JSON.parse(localStorage.getItem('sb-test-auth-token'))")
+            assert stored["access_token"] == fresh and stored["refresh_token"] == "r2" and stored["user"] == {"id": "root"}
+        else:
+            boss.page.wait_for_timeout(1500)
+            expect(admin).to_be_hidden()
+        assert not any(t.startswith("perime-") for t in sent_tokens)  # jamais de jeton périmé envoyé
+        assert set(sent_tokens) <= {fresh}
         assert not boss.errors
     finally:
         boss.ctx.close()

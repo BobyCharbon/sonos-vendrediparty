@@ -244,7 +244,7 @@
   }
 
   async function loadEvents() {
-    const token = typeof supabaseToken === "function" ? supabaseToken() : null;
+    const token = typeof freshToken === "function" ? await freshToken() : null;
     if (!token) return;
     try {
       const list = await api("/api/admin/event/options", { token });

@@ -2493,7 +2493,7 @@ function showGameEnded(info) {
 const gInflight = new Set();
 async function gameAction(action, extra = {}, opts = {}) {
   if (!myGame) return;
-  if (action === "join") extra = { ...extra, token: supabaseToken() || "" };
+  if (action === "join") extra = { ...extra, token: (typeof freshToken === "function" && await freshToken()) || "" };
   const key = myGame + ":" + action + JSON.stringify(extra);
   if (gInflight.has(key)) return;
   gInflight.add(key);
@@ -2662,7 +2662,7 @@ document.addEventListener("click", async (ev) => {
     return pressed(b, gameAction("launch", { settings: payload }));
   }
   if (payload.type === "purity") {
-    payload.token = supabaseToken() || "";
+    payload.token = (typeof freshToken === "function" && await freshToken()) || "";
     if (!payload.token) { toast("🔒 Connecte-toi avec ton numéro pour lancer le Purify Test", "err"); return showTab("account"); }
   }
   b.disabled = true;

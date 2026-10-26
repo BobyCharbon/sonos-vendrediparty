@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -101,3 +103,54 @@ def test_account_without_admin_rights_or_expired_gets_no_admin_session(monkeypat
     with TestClient(main.app) as c:
         assert c.post('/api/account/admin', json={'token': 'x' * 40}).status_code == 401
         assert c.post('/api/account/admin', json={'token': 'court'}).status_code == 400
+
+
+def test_expired_tokens_never_lock_the_house_out_of_admin(monkeypatch):
+    """Un jeton de compte expiré (app rouverte après 1 h) n'est pas une tentative de piratage : il ne doit pas
+    bloquer l'adresse de la maison, sinon le compte root ne peut plus devenir admin (bug du 26.10)."""
+    live = {'valid': False}
+
+    def handler(request: httpx.Request):
+        if request.url.path == '/auth/v1/user':
+            return httpx.Response(200, json={'id': 'root'}) if live['valid'] else httpx.Response(401, json={})
+        if request.url.path == '/rest/v1/rpc/my_permissions':
+            return httpx.Response(200, json=['party.admin', 'party.settings'])
+        if request.url.path == '/rest/v1/rpc/get_member_directory':
+            return httpx.Response(200, json=[{'display_name': 'Boby', 'avatar_url': None, 'status': 'active'}])
+        if request.url.path == '/rest/v1/rpc/is_beta_tester':
+            return httpx.Response(200, json=True)
+        return httpx.Response(404)
+    monkeypatch.setattr(main, 'accounts', accounts_mod.Accounts(b'secret', httpx.Client(transport=httpx.MockTransport(handler))))
+    monkeypatch.setattr(main, 'account_limiter', main.Limiter(per_ip=10, ip_lock=300, global_max=200, global_window=600, global_lock=120))
+    with TestClient(main.app) as c:
+        for i in range(30):
+            expired = f'expire-{i:02d}' + 'x' * 30
+            assert c.post('/api/account/link', json={'token': expired}).status_code == 401
+            assert c.post('/api/account/admin', json={'token': expired}).status_code == 401
+            assert c.post('/api/join/account', json={'token': expired}).status_code in (401, 409)
+        live['valid'] = True
+        assert c.post('/api/account/admin', json={'token': 'frais-' + 'y' * 40}).status_code == 200
+        assert c.get('/api/admin/state').status_code == 200
+
+
+def test_party_renews_an_expired_session_itself_through_the_server(monkeypatch):
+    """Jeton expiré et module Événements pas chargé (onglet Musique, prod non bêta) : Party renouvelle la session
+    avec le jeton de rafraîchissement, via le serveur qui connaît l'adresse et la clé publique de Supabase."""
+    seen = []
+
+    def handler(request: httpx.Request):
+        seen.append((request.url.path, request.url.params.get('grant_type'), request.content))
+        if request.url.path == '/auth/v1/token':
+            body = json.loads(request.content)
+            if body['refresh_token'] != 'refresh-ok':
+                return httpx.Response(400, json={'error_description': 'Invalid Refresh Token'})
+            return httpx.Response(200, json={'access_token': 'a' * 40, 'refresh_token': 'refresh-2', 'expires_in': 3600,
+                                             'expires_at': 2000000000, 'token_type': 'bearer', 'user': {'id': 'root'}})
+        return httpx.Response(404)
+    monkeypatch.setattr(main, 'accounts', accounts_mod.Accounts(b'secret', httpx.Client(transport=httpx.MockTransport(handler))))
+    with TestClient(main.app) as c:
+        r = c.post('/api/account/refresh', json={'refresh_token': 'refresh-ok'})
+        assert r.status_code == 200 and r.json()['access_token'] == 'a' * 40 and r.json()['refresh_token'] == 'refresh-2'
+        assert seen[-1][:2] == ('/auth/v1/token', 'refresh_token')
+        assert c.post('/api/account/refresh', json={'refresh_token': 'refresh-bad'}).status_code == 401
+        assert c.post('/api/account/refresh', json={'refresh_token': ''}).status_code == 422

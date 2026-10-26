@@ -1120,7 +1120,6 @@ def require_account(token: str, guest_id: str, ip: str):
     try:
         account = accounts.link(token)
     except AccountError as e:
-        account_limiter.fail(ip)
         raise HTTPException(401, str(e))
     account_limiter.success(ip)
     if account["guest_id"] != guest_id:
@@ -1284,6 +1283,9 @@ def presence(body: Presence, request: Request):
 
 
 accounts = Accounts(_secret())
+# Ne compte que les vrais refus (compte sans droit admin). Un jeton expiré ou invalide n'est jamais compté :
+# un jeton Supabase ne se devine pas, et l'app rouverte après 1 h en présente un périmé. Compté, il bloquait
+# l'adresse de toute la maison (box partagée) et le compte root ne devenait plus admin (bug du 26.10).
 account_limiter = Limiter(per_ip=10, ip_lock=300, global_max=200, global_window=600, global_lock=120)
 
 
@@ -1304,7 +1306,6 @@ def account_link(body: AccountLink, request: Request):
     try:
         account = accounts.link(body.token)
     except AccountError as e:
-        account_limiter.fail(ip)
         raise HTTPException(401, str(e))
     account_limiter.success(ip)
     log_account_link(account, ip)
@@ -1339,6 +1340,22 @@ def link_seats(old: str, new: str):
 
 class AccountToken(BaseModel):
     token: str
+
+
+class SessionRefresh(BaseModel):
+    refresh_token: str = Field(min_length=1, max_length=512)
+
+
+@app.post("/api/account/refresh")
+def account_refresh(body: SessionRefresh, request: Request):
+    """Session de compte expirée (app rouverte après 1 h, module Événements pas chargé) : Party la renouvelle
+    lui-même, sinon le compte ne serait plus reconnu (ni admin) avant d'ouvrir l'onglet Événements."""
+    if msg := account_limiter.blocked(client_ip(request)):
+        raise HTTPException(429, msg)
+    try:
+        return accounts.refresh(body.refresh_token)
+    except AccountError as e:
+        raise HTTPException(401, str(e))
 
 
 class EventLink(BaseModel):
@@ -1386,7 +1403,6 @@ def guest_join_account(body: AccountToken, request: Request, response: Response)
     try:
         uid, present = accounts.attending(body.token, s.event_id)
     except AccountError as e:
-        account_limiter.fail(ip)
         raise HTTPException(401, str(e))
     account_limiter.success(ip)
     nonce = store.event_pass(uid, present)
@@ -1410,7 +1426,6 @@ def account_admin(body: AccountToken, request: Request, response: Response):
         allowed = accounts.is_party_admin(body.token)
         who = accounts.link(body.token)
     except AccountError as e:
-        account_limiter.fail(ip)
         raise HTTPException(401, str(e))
     name = who["name"] or "Compte sans surnom"
     if not allowed:
@@ -1716,7 +1731,6 @@ def purity_me(body: AccountToken, request: Request):
     try:
         gid = accounts.verified_gid(body.token)
     except AccountError as e:
-        account_limiter.fail(ip)
         raise HTTPException(401, str(e))
     account_limiter.success(ip)
     return purity.profile(gid)

@@ -427,11 +427,39 @@ function frameRoute(path) {
   frame.addEventListener("load", () => $("eventsLoading").classList.add("hidden"), { once: true });
   frame.src = "/events" + (frameAt === "/" ? "/" : frameAt);
 }
-function supabaseToken() {
+function storedSession() {
   try {
     const key = Object.keys(localStorage).find((k) => /^sb-.+-auth-token$/.test(k));
-    return key ? JSON.parse(localStorage.getItem(key))?.access_token || null : null;
+    return key ? { key, session: JSON.parse(localStorage.getItem(key)) } : null;
   } catch { return null; }
+}
+function supabaseToken() {
+  return storedSession()?.session?.access_token || null;
+}
+// Jeton de compte encore valide. Expiré (app rouverte après 1 h, module Événements pas chargé) : Party renouvelle
+// lui-même la session et la réécrit là où le module la garde (il relit ce stockage à chaque usage).
+// Jamais de jeton périmé envoyé au serveur. null : pas connecté, ou renouvellement impossible (hors ligne).
+const TOKEN_MARGIN = 60000;
+let tokenRenewal = null;
+function freshToken() {
+  const stored = storedSession();
+  const session = stored?.session;
+  if (!session?.access_token) return Promise.resolve(null);
+  // Date d'expiration inconnue : on ne peut pas savoir, le serveur jugera.
+  if (!session.expires_at || session.expires_at * 1000 - Date.now() > TOKEN_MARGIN) return Promise.resolve(session.access_token);
+  tokenRenewal ??= nativeFetch("/api/account/refresh", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refresh_token: session.refresh_token || "" }) })
+    .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+    .then((next) => {
+      tokenRenewal = null;
+      if (next?.access_token) {
+        try { localStorage.setItem(stored.key, JSON.stringify({ ...session, ...next })); } catch { /* stockage plein */ }
+        return next.access_token;
+      }
+      // Le module a pu renouveler la session entre-temps : on reprend la sienne si elle est valide.
+      const now = storedSession()?.session;
+      return now?.access_token && (now.expires_at || 0) * 1000 - Date.now() > TOKEN_MARGIN ? now.access_token : null;
+    });
+  return tokenRenewal;
 }
 function showAccount() {
   const tab = $("accountTab"), pic = tab.querySelector(".tab-avatar");
@@ -447,19 +475,25 @@ function useIdentity(id, name) {
   if (name) { guestName = name; store("vp_name", name); }
   if (changed) { registered = false; refresh(); if (typeof refreshGame === "function") refreshGame(); }
 }
-let linkedAt = 0, adminSession = false, adminRenewal = null;
-// Session admin d'un compte root / admin : demandée avec le compte (sans code PIN). Une seule demande à la fois.
+let linkedAt = 0, adminSession = false, adminRenewal = null, adminFailedAt = 0;
+const ADMIN_RETRY = 30000;  // après un refus : pas de nouvelle demande avant 30 s (jamais de boucle)
+const nativeFetch = window.fetch.bind(window);
+// Session admin d'un compte root / admin : demandée avec le compte (sans code PIN), à chaque ouverture de l'app
+// et dès qu'un appel admin est refusé. Elle ne dépend jamais d'un passage par /admin. Une seule demande à la fois.
 function renewAdmin() {
-  const token = supabaseToken();
-  if (!token || !account?.admin) return Promise.resolve(false);
-  adminRenewal ??= nativeFetch("/api/account/admin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) })
-    .then((r) => r.ok).catch(() => false)
-    .then((ok) => { adminSession = ok; adminRenewal = null; fbSyncRole(); return ok; });
+  if (!account?.admin || Date.now() - adminFailedAt < ADMIN_RETRY) return Promise.resolve(adminSession);
+  adminRenewal ??= freshToken().then((token) => !token ? false
+    : nativeFetch("/api/account/admin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) })
+      .then((r) => r.ok).catch(() => false))
+    .then((ok) => {
+      adminSession = ok; adminRenewal = null; adminFailedAt = ok ? 0 : Date.now();
+      fbSyncRole();
+      return ok;
+    });
   return adminRenewal;
 }
 // Session admin perdue (cookie effacé, déconnexion depuis /admin, code PIN changé…) : tout appel admin refusé
 // la redemande une fois avec le compte, puis réessaie. Le compte admin garde ses accès dans tous les cas.
-const nativeFetch = window.fetch.bind(window);
 window.fetch = async (input, init) => {
   const r = await nativeFetch(input, init);
   const path = typeof input === "string" ? input : "";
@@ -468,8 +502,7 @@ window.fetch = async (input, init) => {
 };
 async function linkAccount() {
   linkedAt = Date.now();
-  const token = supabaseToken();
-  if (!token) {
+  if (!supabaseToken()) {
     // Déconnecté : le téléphone reprend son identité d'invité.
     const anon = store("vp_guest_anon");
     if (account || guestId.startsWith("acct-")) { account = null; store("vp_account", ""); if (anon) useIdentity(anon); }
@@ -477,17 +510,18 @@ async function linkAccount() {
     setTimeout(fbSyncRole);
     return showAccount();
   }
+  const token = await freshToken();
+  if (!token) return showAccount();  // hors ligne : on garde l'identité actuelle, on réessaiera à la prochaine ouverture
   try {
     const a = await api("/api/account/link", { method: "POST", body: JSON.stringify({ token, guest_id: guestId }) });
     if (!guestId.startsWith("acct-")) store("vp_guest_anon", guestId);
-    account = a; store("vp_account", JSON.stringify({ name: a.name, photo: a.photo, beta: a.beta }));
+    account = a; store("vp_account", JSON.stringify({ name: a.name, photo: a.photo, beta: a.beta, admin: a.admin }));
     PartyEvents.setBeta(a.beta);
-    // Compte root ou admin : session admin (animateur de toutes les parties, comme avec le code PIN), redemandée
-    // à chaque ouverture de l'app : elle ne dépend jamais d'un passage par /admin.
-    if (a.admin) renewAdmin().then((ok) => { if (ok && typeof refreshGame === "function") refreshGame(); });
+    if (a.admin) { adminFailedAt = 0; renewAdmin().then((ok) => { if (ok && typeof refreshGame === "function") refreshGame(); }); }
+    else if (adminSession) { adminSession = false; fbSyncRole(); }  // droits admin retirés au compte
     useIdentity(a.guest_id, a.name);
     eventPass(token);
-  } catch { /* hors ligne ou jeton expiré : on garde l'identité actuelle, le module rafraîchira la session */ }
+  } catch { /* hors ligne : on garde l'identité actuelle */ }
   showAccount();
 }
 // Soirée liée à un événement : noté « Présent », on entre sans le code. Revérifié régulièrement :
@@ -507,7 +541,7 @@ async function eventPass(token) {
     } else if (r.status === 403 && $("pin").classList.contains("hidden")) refresh();  // accès retiré : l'écran du code revient
   } catch { /* hors ligne : on garde l'accès actuel */ }
 }
-setInterval(() => { const token = supabaseToken(); if (token) eventPass(token); }, EVENT_PASS_EVERY);
+setInterval(() => { if (supabaseToken()) freshToken().then((token) => token && eventPass(token)); }, EVENT_PASS_EVERY);
 try { account = JSON.parse(store("vp_account") || "null"); } catch { account = null; }
 showAccount();
 window.addEventListener("message", (event) => {
@@ -540,9 +574,14 @@ function fbBadge() {
   $("fbTabBadge").classList.toggle("hidden", !n);
 }
 // Rôle du compte (admin ou non) : onglet Retours, et pilotage de la musique dans l'onglet Musique.
+// Les outils admin sont chargés en bas de page : une session admin obtenue avant (réseau rapide) attend qu'ils
+// soient là, sinon ils ne se montaient jamais et le compte admin restait sans outils (bug du 26.10).
+const adminToolsReady = () => !!(window.MusicAdmin && window.PeopleAdmin && window.GamesAdmin && window.AuditAdmin && window.FeedbackAdmin);
+addEventListener("DOMContentLoaded", () => fbSyncRole());
 function fbSyncRole() {
   const admin = fbIsAdmin();
   document.body.classList.toggle("admin-music", admin);
+  if (!adminToolsReady()) return;
   if (admin && !musicAdminMounted) {
     musicAdminMounted = true;
     // Musique + messages / invités / bannis : un seul état partagé (chaque action de l'un met l'autre à jour).
