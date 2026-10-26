@@ -54,7 +54,6 @@ type Draft = {
   show_participants: boolean;
   forum_enabled: boolean;
   notify_on_publish: boolean;
-  reminders: Reminder[];
   polls: PollDraft[];
   bring: { id?: string; label: string }[];
 };
@@ -87,12 +86,12 @@ const emptyDraft: Draft = {
   show_participants: true,
   forum_enabled: true,
   notify_on_publish: true,
-  reminders: ['2h', '0h'],   // rappels d'office : 2 h avant et au début
   polls: [],
   bring: [],
 };
 
-const reminderLabels: Record<Reminder, string> = { '7d': 'J-7', '1d': 'J-1', '2h': 'H-2', '0h': 'Au début' };
+// Rappels : chacun choisit les siens (Réglages → Notifications) ; l'événement les propose tous.
+const ALL_REMINDERS: Reminder[] = ['7d', '1d', '2h', '0h'];
 
 /** Simple : l’essentiel pour lancer l’événement ; avancé : toutes les options. Le dernier choix est retenu. */
 type FormMode = 'simple' | 'advanced';
@@ -121,7 +120,6 @@ function activeAdvanced(d: Draft): string[] {
     d.bring.length ? 'qui amène quoi' : '',
     d.forum_enabled ? '' : 'sans discussion',
     d.notify_on_publish ? '' : 'sans annonce au groupe',
-    d.reminders.join() === emptyDraft.reminders.join() ? '' : 'rappels',
   ].filter(Boolean);
 }
 
@@ -173,7 +171,6 @@ async function loadDraft(eventId: string): Promise<Draft> {
     show_participants: e.show_participants,
     forum_enabled: e.forum_enabled,
     notify_on_publish: e.notify_on_publish,
-    reminders: e.reminders,
     polls: e.polls
       .sort((a, b) => a.sort - b.sort)
       .map((p) => ({
@@ -236,7 +233,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
 
   const d = draft;
   const set = (patch: Partial<Draft>) => setDraft({ ...d, ...patch });
-  const toggleIn = <K extends 'tag_ids' | 'organizers' | 'reminders'>(key: K, v: Draft[K][number]) => {
+  const toggleIn = <K extends 'tag_ids' | 'organizers'>(key: K, v: Draft[K][number]) => {
     const list = d[key] as string[];
     set({ [key]: list.includes(v) ? list.filter((x) => x !== v) : [...list, v] } as Partial<Draft>);
   };
@@ -328,7 +325,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
         show_participants: d.show_participants,
         forum_enabled: d.forum_enabled,
         notify_on_publish: d.notify_on_publish,
-        reminders: d.reminders,
+        reminders: ALL_REMINDERS,
       },
     };
   }
@@ -487,7 +484,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
         />
         <T muted size={12} style={{ paddingHorizontal: 4 }}>
           {advanced
-            ? 'Toutes les options : places, prix, sondages, rappels…'
+            ? 'Toutes les options : places, prix, sondages, discussion…'
             : 'L’essentiel pour lancer l’événement. Le reste garde ses réglages habituels.'}
         </T>
       </View>
@@ -669,17 +666,12 @@ export function EventForm({ eventId }: { eventId?: string }) {
             <Button small variant="ghost" label="+ Ajouter un objet" onPress={() => set({ bring: [...d.bring, { label: '' }] })} />
           </Section>
 
-          <Section title="Discussion et notifications">
+          <Section title="Discussion et annonce">
             <Rows>
               <ToggleRow label="Forum de l’événement" value={d.forum_enabled} onChange={(v) => set({ forum_enabled: v })} />
               <ToggleRow label="Prévenir le groupe à la publication" value={d.notify_on_publish} onChange={(v) => set({ notify_on_publish: v })} />
             </Rows>
-            <T muted size={13} weight="medium">Rappels automatiques aux participants</T>
-            <View style={s.wrap}>
-              {(Object.keys(reminderLabels) as Reminder[]).map((r) => (
-                <Chip key={r} label={reminderLabels[r]} selected={d.reminders.includes(r)} onPress={() => toggleIn('reminders', r)} />
-              ))}
-            </View>
+            <T muted size={13}>Les rappels avant l’événement, chacun les choisit dans ses Réglages → Notifications.</T>
           </Section>
         </>
       ) : (
@@ -692,7 +684,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
         >
           <View style={{ flex: 1, gap: 2 }}>
             <T weight="semibold">Plus d’options</T>
-            <T muted size={13}>Places, prix, sondage de dates, qui amène quoi, rappels…</T>
+            <T muted size={13}>Places, prix, sondage de dates, qui amène quoi…</T>
             {hiddenActive.length ? <T size={13} color={colors.accent}>Actifs : {hiddenActive.join(', ')}</T> : null}
           </View>
           <View style={{ width: 8, height: 8, borderRightWidth: 2, borderTopWidth: 2, borderColor: colors.muted, transform: [{ rotate: '45deg' }] }} />

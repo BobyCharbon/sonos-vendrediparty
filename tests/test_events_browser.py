@@ -354,10 +354,10 @@ def test_event_form_simple_mode_shows_the_essentials_and_tells_about_hidden_sett
         # Nouvel événement : accompagnants (+1) autorisés d'office, sans limite.
         pw.expect(page.get_by_role('switch',name='Accompagnants (+1)')).to_be_checked()
         pw.expect(page.get_by_label('Accompagnants max par personne (vide = illimité)',exact=True)).to_have_value('')
-        # Rappels d'office : H-2 et au début (pas J-7 ni J-1).
-        pw.expect(page.get_by_role('button',name='✓ H-2',exact=True)).to_be_visible()
-        pw.expect(page.get_by_role('button',name='✓ Au début',exact=True)).to_be_visible()
-        pw.expect(page.get_by_role('button',name='✓ J-1',exact=True)).to_have_count(0)
+        # Rappels : plus choisis par l'organisateur, chacun les règle dans ses Réglages → Notifications.
+        for chip in ('J-7','J-1','H-2','Au début','✓ H-2','✓ Au début'):
+            pw.expect(page.get_by_role('button',name=chip,exact=True)).to_have_count(0)
+        pw.expect(page.get_by_text('Les rappels avant l’événement, chacun les choisit dans ses Réglages → Notifications.',exact=True)).to_be_visible()
         places=page.get_by_label('Nombre de places (vide = illimité)',exact=True)
         places.fill('12')
         pw.expect(page.get_by_text('Mini-sondages',exact=True)).to_be_visible()
