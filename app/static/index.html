@@ -987,7 +987,10 @@ setTimeout(offerInstall, 1500);
 let source, refreshTimer;
 
 // 🔄 Nouvelle version du site déployée : on recharge la page (tout de suite, ou au retour si elle est en arrière-plan).
-let siteBuild = "", reloadPending = false;
+// Version de référence = celle de la page réellement chargée (inscrite dans l'adresse de ses scripts), pas la première
+// reçue : une app installée réveillée après un déploiement gardait sinon l'ancien code (bug du 26.10).
+let siteBuild = (() => { try { return new URL(document.querySelector('script[src*="?v="]').src).searchParams.get("v") || ""; } catch { return ""; } })();
+let reloadPending = false;
 function checkBuild(data) {
   const build = String(data || "").split("|")[0];
   if (!build || !String(data).includes("|")) return;
