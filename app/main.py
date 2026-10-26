@@ -2252,6 +2252,17 @@ def service_worker():
     return FileResponse(STATIC / "sw.js", media_type="text/javascript", headers=NO_CACHE)
 
 
+# App iOS native (ios/) : identifiant d'équipe Apple + identifiant de l'app (pas un secret).
+IOS_APP_ID = "GS2B6GA9JA.ch.bobycharbon.party"
+
+
+@app.get("/.well-known/apple-app-site-association")
+def apple_app_site_association():
+    # Liens universels : un QR code ou un lien Party ouvre l'app iOS si elle est installée, sinon le site.
+    return JSONResponse({"applinks": {"details": [{"appIDs": [IOS_APP_ID], "components": [{"/": "/*"}]}]}},
+                        headers=NO_CACHE)
+
+
 class NeonInput(BaseModel):
     guest_id: str
     x: float = 0

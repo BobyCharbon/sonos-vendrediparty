@@ -44,10 +44,10 @@ Dans Xcode : cible **Party** › *Signing & Capabilities* › choisir son équip
 L'inspecteur web est actif en Debug : Safari › Développement › (iPhone) › Party.
 
 ### 3. Liens universels (QR codes → app)
-Servir depuis FastAPI `https://party.bobycharbon.ch/.well-known/apple-app-site-association` (et sur le site de
-test), en JSON, sans redirection :
+Servi par FastAPI (`app/main.py`, `IOS_APP_ID`) : `https://party.bobycharbon.ch/.well-known/apple-app-site-association` (et sur le site de
+test), en JSON, sans redirection. À vérifier après déploiement avec `curl -i <site>/.well-known/apple-app-site-association` :
 ```json
-{ "applinks": { "details": [ { "appIDs": ["<TEAM_ID>.ch.bobycharbon.party"], "components": [ { "/": "/*" } ] } ] } }
+{ "applinks": { "details": [ { "appIDs": ["GS2B6GA9JA.ch.bobycharbon.party"], "components": [ { "/": "/*" } ] } ] } }
 ```
 
 ### 4. Icône et écran de lancement

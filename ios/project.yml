@@ -13,8 +13,8 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.9"
     TARGETED_DEVICE_FAMILY: "1,2"
-    # Renseigner l'identifiant d'équipe Apple Developer (10 caractères) avant la première signature.
-    DEVELOPMENT_TEAM: ""
+    # Identifiant d'équipe Apple Developer.
+    DEVELOPMENT_TEAM: GS2B6GA9JA
     CODE_SIGN_STYLE: Automatic
 
 targets:
