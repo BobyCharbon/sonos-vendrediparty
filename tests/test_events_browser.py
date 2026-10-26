@@ -264,7 +264,10 @@ def test_account_tab_signs_in_shows_settings_and_crops_a_photo(browser, events_o
         pw.expect(page.locator('#appTitle')).to_have_text('Se connecter')
         frame=page.frame_locator('#eventsFrame')
         login(frame)
-        pw.expect(frame.get_by_text('Mon profil',exact=True)).to_be_visible(timeout=15000)
+        # Comme sur iPhone : la carte du compte en tête des Réglages ouvre « Mon profil ».
+        card=frame.get_by_role('button',name='Mon profil : Compte de démonstration')
+        pw.expect(card).to_be_visible(timeout=15000)
+        card.click()
         pw.expect(frame.get_by_label('Surnom',exact=True)).to_have_value('Compte de démonstration')
         frame.locator('input[type=file]:not([capture])').set_input_files(str(tmp_path / 'paysage.png'))
         dialog=frame.get_by_role('dialog',name='Recadrer ta photo de profil')
@@ -275,6 +278,7 @@ def test_account_tab_signs_in_shows_settings_and_crops_a_photo(browser, events_o
         pw.expect(dialog).to_have_count(0)
         pw.expect(frame.get_by_label('Aperçu de ta photo de profil')).to_be_visible()
         pw.expect(frame.get_by_role('button',name='Enregistrer',exact=True)).to_be_enabled()
+        frame.get_by_role('button',name='Retour : Réglages').click()
         # Notifications et abonnements sont regroupés dans une seule entrée des Réglages.
         pw.expect(frame.get_by_text('Notifications et abonnements',exact=True)).to_be_visible()
         pw.expect(frame.get_by_text('Mes abonnements',exact=True)).to_have_count(0)
@@ -391,7 +395,7 @@ def test_root_account_opens_admin_page_from_settings_without_pin(browser, events
         page.goto(events_origin, wait_until='domcontentloaded')
         page.locator('#accountTab').click()
         login(page.frame_locator('#eventsFrame'))
-        link=page.frame_locator('#eventsFrame').get_by_text('🎛️ Admin de la soirée')
+        link=page.frame_locator('#eventsFrame').get_by_text('Admin de la soirée',exact=True)
         pw.expect(link).to_be_visible()
         link.click()
         page.wait_for_url('**/admin')

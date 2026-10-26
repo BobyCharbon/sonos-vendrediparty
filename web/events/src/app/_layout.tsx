@@ -42,7 +42,7 @@ function backLabel(label?: string) {
 }
 
 const intentKey = 'party-events-destination';
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit)?|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|activity|announcements|account|settings\/(?:notifications|subscriptions))$/i;
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit)?|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|activity|announcements|account|settings\/(?:notifications|subscriptions|profile))$/i;
 function initialDestination() {
   if (typeof window === 'undefined') return null;
   const path = location.pathname.replace(/^\/events(?=\/|$)/, '');
@@ -164,7 +164,8 @@ function Gate() {
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />
       </Stack.Protected>
       <Stack.Protected guard={!!session}>
-        <Stack.Screen name="account" options={{ headerShown: false }} />
+        <Stack.Screen name="account" options={{ headerShown: false, title: 'Réglages' }} />
+        <Stack.Screen name="settings/profile" options={{ title: 'Mon profil' }} />
         <Stack.Screen name="settings/account" options={{ title: 'Mon compte' }} />
       </Stack.Protected>
       <Stack.Screen name="share/[id]" options={{ title: '' }} />
