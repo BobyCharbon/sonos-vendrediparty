@@ -13,3 +13,9 @@ app/events-web/
 .impeccable/review/
 supabase/.temp/
 supabase/.branches/
+
+# App iOS : projet Xcode régénéré par XcodeGen depuis ios/project.yml
+ios/Party.xcodeproj/
+ios/build/
+ios/DerivedData/
+xcuserdata/

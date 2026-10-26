@@ -185,6 +185,11 @@ de cette image actualise donc ensemble les onglets Musique, Jeux et Événements
 
 L'image est privée : le serveur doit être connecté à `ghcr.io` avec un token GitHub `read:packages`.
 
+## App iOS
+
+`ios/` contient l'app native (Swift, WKWebView) qui affiche ce site à l'identique de l'app
+installée depuis Safari. Étapes de construction, notifications et publication : [ios/README.md](ios/README.md).
+
 ## Tests
 
 ```bash

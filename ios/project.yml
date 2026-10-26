@@ -1,0 +1,65 @@
+# Projet Xcode de l'app iOS « Party ! » — généré par XcodeGen (brew install xcodegen ; cd ios ; xcodegen).
+# Le fichier Party.xcodeproj n'est pas versionné : on le régénère depuis ce fichier.
+name: Party
+options:
+  bundleIdPrefix: ch.bobycharbon
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.9"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    # Renseigner l'identifiant d'équipe Apple Developer (10 caractères) avant la première signature.
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  Party:
+    type: application
+    platform: iOS
+    sources:
+      - path: Party
+    info:
+      path: Party/Info.plist
+      properties:
+        CFBundleDisplayName: "Party !"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        PartyBaseURL: "$(PARTY_BASE_URL)"
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UIStatusBarStyle: UIStatusBarStyleLightContent
+        UIViewControllerBasedStatusBarAppearance: false
+        UIUserInterfaceStyle: Dark
+        UIBackgroundModes: [remote-notification]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSCameraUsageDescription: "Pour prendre une photo de profil ou d'événement."
+        NSPhotoLibraryUsageDescription: "Pour choisir une photo de profil ou d'événement."
+        NSMicrophoneUsageDescription: "Pour les jeux qui utilisent le micro."
+        ITSAppUsesNonExemptEncryption: false
+    entitlements:
+      path: Party/Party.entitlements
+      properties:
+        aps-environment: development
+        com.apple.developer.associated-domains:
+          - applinks:party.bobycharbon.ch
+          - applinks:partytest.bobycharbon.ch
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ch.bobycharbon.party
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      configs:
+        # Debug = site de test, Release = site principal (comme develop / main).
+        Debug:
+          PARTY_BASE_URL: "https://partytest.bobycharbon.ch"
+        Release:
+          PARTY_BASE_URL: "https://party.bobycharbon.ch"
