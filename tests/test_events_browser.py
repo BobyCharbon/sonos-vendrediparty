@@ -351,6 +351,9 @@ def test_event_form_simple_mode_shows_the_essentials_and_tells_about_hidden_sett
             pw.expect(page.get_by_label(hidden,exact=True)).to_have_count(0)
         pw.expect(page.get_by_text('Mini-sondages',exact=True)).to_have_count(0)
         page.get_by_role('button',name='Plus d’options : passer en mode avancé').click()
+        # Nouvel événement : accompagnants (+1) autorisés d'office, sans limite.
+        pw.expect(page.get_by_role('switch',name='Accompagnants (+1)')).to_be_checked()
+        pw.expect(page.get_by_label('Accompagnants max par personne (vide = illimité)',exact=True)).to_have_value('')
         places=page.get_by_label('Nombre de places (vide = illimité)',exact=True)
         places.fill('12')
         pw.expect(page.get_by_text('Mini-sondages',exact=True)).to_be_visible()
@@ -361,6 +364,32 @@ def test_event_form_simple_mode_shows_the_essentials_and_tells_about_hidden_sett
         page.get_by_role('tab',name='Avancé').click()
         page.reload()
         pw.expect(page.get_by_role('tab',name='Avancé')).to_have_attribute('aria-selected','true',timeout=15000)
+    finally: context.close()
+
+
+def test_phone_invite_requires_the_country_code(browser,events_origin):
+    """Inviter par numéro : indicatif obligatoire. Sans lui, un portable espagnol (612 345 678) passait pour un
+    fixe de Bâle (+41 61 234 56 78) et l'invitation n'arrivait jamais. La puce montre le pays reconnu."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page();mock_services(page)
+    try:
+        page.goto(events_origin+'/events/',wait_until='domcontentloaded')
+        login(page)
+        page.get_by_role('button',name='Proposer un événement').click()
+        field=page.get_by_label('Inviter par numéro de téléphone',exact=True)
+        pw.expect(field).to_be_visible(timeout=15000)
+        invite=page.get_by_role('button',name='Inviter',exact=True)
+        field.fill('0765576900');invite.click()
+        pw.expect(page.get_by_text('Ajoute l’indicatif du pays. Numéro suisse ? Écris +41 76 557 69 00. Étranger : +33, +34…',exact=True)).to_be_visible()
+        field.fill('612345678');invite.click()
+        pw.expect(page.get_by_text('Numéro suisse ? Écris +41 61 234 56 78',exact=False)).to_be_visible()
+        pw.expect(page.get_by_role('button',name='✕ 🇨🇭 +41 61 234 56 78')).to_have_count(0)
+        field.fill('+34 612 345 678');invite.click()
+        pw.expect(page.get_by_role('button',name='✕ 🇪🇸 +34 612 34 56 78')).to_be_visible()
+        field.fill('0041 76 557 69 00');invite.click()
+        pw.expect(page.get_by_role('button',name='✕ 🇨🇭 +41 76 557 69 00')).to_be_visible()
+        field.fill('+34 12');invite.click()
+        pw.expect(page.get_by_text('Numéro invalide pour cet indicatif',exact=False)).to_be_visible()
     finally: context.close()
 
 

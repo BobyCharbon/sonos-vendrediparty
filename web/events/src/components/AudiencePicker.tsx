@@ -46,10 +46,34 @@ export function audienceError(v: AudienceValue): string | null {
   return null;
 }
 
-/** Numéro saisi (076…, +33…, 0041…) → format d'Auth : indicatif + numéro, sans « + ». */
-export function phoneForInvite(raw: string): { phone: string; formatted: string } | null {
-  const parsed = parseLoginPhone(raw, 'CH');
-  return parsed ? { phone: parsed.number.replace(/^\+/, ''), formatted: parsed.formatted } : null;
+const PHONE_EXAMPLES = 'ex. +41 79 123 45 67 ou +34 612 345 678';
+
+/**
+ * Numéro saisi AVEC son indicatif (+41…, +34…, 0041…) → format d'Auth : indicatif + numéro, sans « + ».
+ * L'indicatif est obligatoire : sans lui, un numéro étranger passe pour un numéro suisse valide
+ * (un portable espagnol 612 345 678 deviendrait un fixe de Bâle) et l'invitation n'arriverait jamais.
+ */
+export function phoneForInvite(raw: string): { phone: string; formatted: string } | { error: string } {
+  const parsed = parseLoginPhone(raw, 'international');
+  if (parsed) return { phone: parsed.number.replace(/^\+/, ''), formatted: parsed.formatted };
+  const typed = raw.trim();
+  if (!typed) return { error: `Écris un numéro avec l’indicatif du pays, ${PHONE_EXAMPLES}.` };
+  if (/^(\+|00)/.test(typed)) return { error: `Numéro invalide pour cet indicatif (${PHONE_EXAMPLES}).` };
+  // Sans indicatif : on ne devine pas, mais on montre la version suisse si c'en est une.
+  const swiss = parseLoginPhone(typed, 'CH');
+  return { error: swiss
+    ? `Ajoute l’indicatif du pays. Numéro suisse ? Écris ${swiss.formatted}. Étranger : +33, +34…`
+    : `Ajoute l’indicatif du pays, ${PHONE_EXAMPLES}.` };
+}
+
+/** Numéro enregistré (41791234567) → « 🇨🇭 +41 79 123 45 67 », pour vérifier d'un coup d'œil le pays. */
+export function displayInvitePhone(phone: string): string {
+  const parsed = parseLoginPhone(`+${phone}`, 'international');
+  if (!parsed) return `+${phone}`;
+  const flag = parsed.country
+    ? String.fromCodePoint(...[...parsed.country].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65))
+    : '';
+  return `${flag ? `${flag} ` : ''}${parsed.formatted}`;
 }
 
 const PEOPLE_SHOWN = 24;
@@ -80,7 +104,7 @@ export function AudiencePicker({ value, onChange, groups, people, meId, allGroup
 
   function addPhone() {
     const parsed = phoneForInvite(phone);
-    if (!parsed) return setPhoneError('Numéro invalide. Ex. 079 123 45 67 ou +33 6 12 34 56 78');
+    if ('error' in parsed) return setPhoneError(parsed.error);
     setPhoneError(null);
     setPhone('');
     if (!value.phones.includes(parsed.phone)) set({ phones: [...value.phones, parsed.phone] });
@@ -118,15 +142,15 @@ export function AudiencePicker({ value, onChange, groups, people, meId, allGroup
           {found.length ? <View style={s.wrap}>{found.map((p) => <Chip key={p.id} label={`+ ${label(p)}`} onPress={() => toggle('invitees', p.id)} />)}</View> : null}
           {q && !found.length ? <T muted size={13}>Personne avec ce surnom : invite par numéro ci-dessous.</T> : null}
           <View style={s.row}>
-            <Input accessibilityLabel="Inviter par numéro de téléphone" placeholder="Numéro : 079 123 45 67" keyboardType="phone-pad" value={phone}
+            <Input accessibilityLabel="Inviter par numéro de téléphone" placeholder="+41 79 123 45 67" keyboardType="phone-pad" value={phone}
               onChangeText={setPhone} onSubmitEditing={addPhone} style={{ flex: 1 }} />
             <Button small label="Inviter" disabled={!phone.trim()} onPress={addPhone} />
           </View>
           <ErrorText error={phoneError} />
           {value.phones.length ? (
-            <View style={s.wrap}>{value.phones.map((p) => <Chip key={p} label={`✕ +${p}`} selected onPress={() => set({ phones: value.phones.filter((x) => x !== p) })} />)}</View>
+            <View style={s.wrap}>{value.phones.map((p) => <Chip key={p} label={`✕ ${displayInvitePhone(p)}`} selected onPress={() => set({ phones: value.phones.filter((x) => x !== p) })} />)}</View>
           ) : null}
-          <T muted size={13}>Un numéro sans compte voit l’événement dès qu’il se connecte à Party avec ce numéro. Les invités reçoivent une invitation privée.</T>
+          <T muted size={13}>Avec l’indicatif du pays (+41, +33, +34…). Un numéro sans compte voit l’événement dès qu’il se connecte à Party avec ce numéro ; les invités reçoivent une invitation privée dans l’app (pas de SMS).</T>
         </>
       )}
     </View>

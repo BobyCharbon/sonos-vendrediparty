@@ -78,7 +78,7 @@ const emptyDraft: Draft = {
   payment_info: '',
   max_participants: '',
   waitlist_enabled: true,
-  allow_plus_ones: false,
+  allow_plus_ones: true,   // nouvel événement : accompagnants autorisés, sans limite (max vide = illimité)
   max_plus_ones: '',
   allow_maybe: true,
   rsvp_deadline: '',
@@ -112,7 +112,8 @@ function activeAdvanced(d: Draft): string[] {
     d.price_chf || d.payment_info ? 'prix' : '',
     d.max_participants ? 'places limitées' : '',
     d.allow_maybe ? '' : 'sans « Peut-être »',
-    d.allow_plus_ones ? 'accompagnants' : '',
+    d.allow_plus_ones ? '' : 'sans accompagnants',
+    d.allow_plus_ones && d.max_plus_ones.trim() ? 'accompagnants limités' : '',
     d.rsvp_deadline ? 'date limite' : '',
     d.show_participants ? '' : 'participants masqués',
     d.organizers.length ? 'co-organisateurs' : '',

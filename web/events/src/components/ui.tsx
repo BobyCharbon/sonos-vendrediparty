@@ -172,7 +172,7 @@ export function Chip({
         disabled && { opacity: 0.45 },
       ]}
     >
-      <Text style={{ color: selected ? colors.onAccent : colors.textSoft, ...(selected ? font.bold : font.semibold), fontSize: 13 }}>{selected ? '✓ ' : ''}{label}</Text>
+      <Text style={{ color: selected ? colors.onAccent : colors.textSoft, ...(selected ? font.bold : font.semibold), fontSize: 13 }}>{selected && !/^[✕✓+]/.test(label) ? '✓ ' : ''}{label}</Text>
     </Pressable>
   );
 }
