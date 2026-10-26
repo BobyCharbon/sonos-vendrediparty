@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="/static/purity.css">
   <link rel="stylesheet" href="/static/likely.css">
   <link rel="stylesheet" href="/static/ui.css">
+  <link rel="stylesheet" href="/static/music.css">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=2">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v=2">
   <link rel="manifest" href="/static/manifest.json">
@@ -63,12 +64,16 @@
     <div class="card now" id="now"></div>
 
     <label class="card switch-row hidden" id="notifBox" style="margin-top:8px">
-      <span class="grow">🔔 Me prévenir quand mon titre passe<span class="artist" id="notifHelp" style="display:block;white-space:normal"></span></span>
+      <span class="row-ico" aria-hidden="true">🔔</span>
+      <span class="grow">Me prévenir quand mon titre passe<span class="artist" id="notifHelp" style="display:block;white-space:normal"></span></span>
       <input type="checkbox" class="switch" id="notifToggle">
     </label>
 
     <h2>Ajouter un titre</h2>
-    <input id="q" type="search" aria-label="Rechercher un titre ou coller un lien" placeholder="Titre, artiste… ou colle un lien (Spotify, Deezer, YouTube)" autocomplete="off" enterkeyhint="search">
+    <div class="search-field">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></svg>
+      <input id="q" type="search" aria-label="Rechercher un titre ou coller un lien (Spotify, Deezer, YouTube)" placeholder="Titre, artiste ou lien" autocomplete="off" enterkeyhint="search">
+    </div>
     <div id="results" class="list" style="margin-top:8px"></div>
 
     <h2>À venir <span id="count"></span></h2>
@@ -291,7 +296,7 @@ async function refresh() {
   if (s.now && s.now.title) {
     const n = s.now;
     $("now").innerHTML = `${img(n.art, false)}
-      <div style="min-width:0"><div class="artist">${s.state === "PLAYING" ? "▶︎ En cours" : "⏸ En pause"}</div>
+      <div style="min-width:0"><div class="now-state ${s.state === "PLAYING" ? "on" : ""}"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>${s.state === "PLAYING" ? "En cours" : "En pause"}</div>
       <div class="title">${esc(n.title)}</div><div class="artist">${esc(n.artist)}</div>
       ${n.by ? `<span class="by">ajouté par ${esc(n.by)}</span><br>` : ""}${spotifyLink(n.track_id)}</div>`;
   } else {
@@ -310,7 +315,7 @@ async function refresh() {
   $("spotifyQueueNote").classList.toggle("hidden", !["spotify", "spotify_sonos"].includes(s.source));
   $("count").textContent = s.upcoming_total ? `(${s.upcoming_total})` : "";
   $("upcoming").innerHTML = up.length
-    ? up.map((t) => trackHtml(t, t.rid && s.queue_editable !== false ? `<button class="danger" data-rid="${esc(t.rid)}" title="Retirer mon titre">✕</button>` : "")).join("")
+    ? up.map((t) => trackHtml(t, t.rid && s.queue_editable !== false ? `<button class="row-btn row-del" data-rid="${esc(t.rid)}" aria-label="Retirer « ${esc(t.title)} » de la file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button>` : "")).join("")
     : `<p class="empty">${["spotify", "spotify_sonos"].includes(s.source) ? "Aucun titre à venir renvoyé par Spotify" : "La file est vide, à toi de jouer !"}</p>`;
 }
 
@@ -632,7 +637,7 @@ $("q").addEventListener("input", () => {
       lastResults = await api("/api/search?q=" + encodeURIComponent(q));
       if ($("q").value.trim() !== q) return;
       $("results").innerHTML = lastResults.length
-        ? lastResults.map((t, i) => trackHtml({ ...t, artist: t.artist + (t.explicit ? " · 🅴" : "") + (t.via ? ` · 🔗 ${t.via}` : "") }, `<button data-i="${i}">+</button>`)).join("")
+        ? lastResults.map((t, i) => trackHtml({ ...t, artist: t.artist + (t.explicit ? " · 🅴" : "") + (t.via ? ` · 🔗 ${t.via}` : "") }, `<button class="row-btn row-add" data-i="${i}" aria-label="Ajouter « ${esc(t.title)} » à la file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button>`)).join("")
         : `<p class="empty">Aucun résultat</p>`;
     } catch (e) { toast(e.message, "err"); }
   }, 350);
@@ -642,7 +647,7 @@ $("results").addEventListener("click", async (ev) => {
   const btn = ev.target.closest("button[data-i]");
   if (!btn) return;
   const t = lastResults[+btn.dataset.i];
-  btn.disabled = true; btn.textContent = "…";
+  btn.disabled = true; btn.classList.add("busy");
   try {
     const added = await api("/api/queue", { method: "POST", body: JSON.stringify({ track_id: t.id, guest_id: guestId, guest_name: guestName }) });
     toast(`« ${t.title} » ${["spotify", "spotify_sonos"].includes(added.source) ? "envoyé à Spotify" : "ajouté à la file"} 🎶`, "ok");
@@ -653,7 +658,7 @@ $("results").addEventListener("click", async (ev) => {
     $("upcoming").scrollIntoView({ behavior: "smooth", block: "start" });
     refresh();
   } catch (e) {
-    btn.disabled = false; btn.textContent = "+";
+    btn.disabled = false; btn.classList.remove("busy");
     toast(e.message, "err");
   }
 });
