@@ -255,3 +255,74 @@ def test_reducing_the_queue_hides_only_playlist_tracks(browser, server):
         assert not boss.errors, boss.errors
     finally:
         boss.close()
+
+
+EVENT = "32f18a3b-827f-4123-8cf4-33de06c9a51c"
+FAKE_SESSION = "localStorage.setItem('sb-test-auth-token', JSON.stringify({ access_token: 'jeton-' + 'x'.repeat(40) }))"
+
+
+def test_host_links_the_evening_to_an_event_from_the_music_tab(browser, server):
+    boss = Phone(browser, server, "Boss")
+    sent, linked = [], {"event": None}
+
+    def admin_api(route):
+        path = route.request.url.split("/api/admin/", 1)[1].split("?")[0]
+        body = json.loads(route.request.post_data or "{}")
+        sent.append((path, body))
+        if path == "event/options":
+            return route.fulfill(json=[{"id": EVENT, "title": "Vendredi chez Boby", "starts_at": "2026-10-30T19:00:00Z"}])
+        if path == "event":
+            linked["event"] = {"id": body["event_id"], "title": body["title"]} if body["event_id"] else None
+        return route.fulfill(json={**live_state(), "event": linked["event"]})
+    try:
+        boss.page.goto("/")
+        boss.page.evaluate(FAKE_SESSION)
+        as_account_admin(boss)
+        boss.page.route("**/api/admin/**", admin_api)
+        boss.page.locator('#tabs button[data-tab="music"]').tap()
+        admin = boss.page.locator("#musicAdmin")
+        admin.locator('[data-ma="access"] summary').tap()
+        expect(admin.locator('[data-ma="eventHint"]')).to_contain_text("entreront sans code")
+        expect(admin.locator('[data-ma="event"] option')).to_have_count(2)
+        admin.locator('[data-ma="event"]').select_option(EVENT)
+        expect(admin.locator('[data-ma="eventHint"]')).to_contain_text("« Vendredi chez Boby » entrent sans code")
+        assert ("event", {"event_id": EVENT, "title": "Vendredi chez Boby"}) in sent
+        assert ("event/options", {"token": "jeton-" + "x" * 40}) in sent
+        admin.locator('[data-ma="event"]').select_option("")
+        expect(admin.locator('[data-ma="eventHint"]')).to_contain_text("entreront sans code")
+        assert sent[-1] == ("event", {"event_id": "", "title": ""})
+        assert not boss.errors
+    finally:
+        boss.ctx.close()
+
+
+@pytest.mark.parametrize("present", [True, False])
+def test_a_guest_marked_present_enters_without_the_code(browser, server, present):
+    lea = Phone(browser, server, "Lea")
+    admin = lea.page.request
+    admin.post(f"{server.url}/api/admin/login", data={"pin": ADMIN_PIN})
+    pin = admin.get(f"{server.url}/api/admin/state").json()["guest_pin"]
+    admin.post(f"{server.url}/api/admin/logout")
+    account = {"guest_id": "acct-" + "a" * 40, "name": "Léa", "photo": None, "beta": False, "admin": False}
+
+    def join_account(route):
+        if not present:
+            return route.fulfill(status=403, json={"detail": "Tu n'es pas noté présent à « Vendredi chez Boby » : entre le code de la soirée."})
+        # Le serveur aurait vérifié la réponse « Présent » auprès de Supabase : on donne le même accès que le code.
+        real = route.fetch(url=f"{server.url}/api/join", post_data=json.dumps({"pin": pin}))
+        return route.fulfill(response=real, json={"ok": True, "event_title": "Vendredi chez Boby"})
+    try:
+        lea.page.route("**/api/account/link", lambda route: route.fulfill(json=account))
+        lea.page.route("**/api/join/account", join_account)
+        lea.page.add_init_script(FAKE_SESSION)
+        lea.page.goto("/")
+        lea.page.locator('#tabs button[data-tab="music"]').tap()
+        if present:
+            expect(lea.page.locator("#toast")).to_contain_text("Bienvenue à « Vendredi chez Boby »")
+            expect(lea.page.locator("#pin")).to_be_hidden()
+        else:
+            expect(lea.page.locator("#pin")).to_be_visible()
+            expect(lea.page.locator("#pinHint")).to_have_text("Tu n'es pas noté présent à « Vendredi chez Boby » : entre le code de la soirée.")
+        assert not lea.errors
+    finally:
+        lea.ctx.close()

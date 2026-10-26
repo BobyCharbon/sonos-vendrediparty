@@ -68,6 +68,11 @@ class Session:
     top_playlists: list[dict] = field(default_factory=list)
     # Parties de jeu en cours (voir games.py), par code ; indépendantes de la soirée musique.
     games: dict[str, dict] = field(default_factory=dict)
+    # Événement lié à la soirée (module Événements) : ses comptes notés « Présent » entrent sans le code.
+    event_id: str = ""
+    event_title: str = ""
+    # Compte (identifiant Supabase) -> jeton d'accès donné sans code, révoqué s'il n'est plus « Présent ».
+    event_passes: dict[str, str] = field(default_factory=dict)
 
 
 class PartyStore:
@@ -134,7 +139,7 @@ class PartyStore:
             spotify_device_id=spotify_device_id, spotify_device_name=spotify_device_name,
             bans=self.session.bans, guest_pin=self.session.guest_pin, revoked=self.session.revoked,
             push=self.session.push, admin_push=self.session.admin_push, admin_notify=self.session.admin_notify, top_playlists=self.session.top_playlists,
-            games=self.session.games,
+            games=self.session.games, event_id=self.session.event_id, event_title=self.session.event_title,
         )
         self.save()
 
@@ -214,6 +219,25 @@ class PartyStore:
             return
         g["tokens"] = g["tokens"][-9:] + [token]
         self.save()
+
+    def event_pass(self, account: str, present: bool) -> str | None:
+        """Jeton d'accès sans code d'un compte de l'événement lié : le même tant qu'il reste « Présent »,
+        révoqué dès qu'il ne l'est plus (il lui faudra alors le code)."""
+        with GAMES_LOCK, self.lock:
+            nonce = self.session.event_passes.get(account)
+            if present and nonce and nonce not in self.session.revoked:
+                return nonce
+            if not present and not nonce:
+                return None
+            passes = {k: v for k, v in self.session.event_passes.items() if k != account}
+            if nonce:
+                self.session.revoked = (self.session.revoked + [nonce])[-500:]
+            if present:
+                nonce = secrets.token_hex(8)
+                passes[account] = nonce
+            self.session.event_passes = passes
+            self.save()
+            return nonce if present else None
 
     def kick(self, guest_id: str):
         """Déconnecte un invité : jetons révoqués, il disparaît de la liste jusqu'à ce qu'il ressaisisse le code."""

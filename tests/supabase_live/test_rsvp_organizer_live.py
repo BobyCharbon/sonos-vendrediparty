@@ -76,3 +76,18 @@ def test_marking_someone_present_on_an_invitation_only_event_invites_them(world)
     assert gb.get(f"events?select=id&id=eq.{ids['invités']}").json() == []
     assert admin.rpc('set_rsvp_for', event=ids['invités'], member=gb.uid, answer='yes').status_code == 204
     assert gb.get(f"events?select=id&id=eq.{ids['invités']}").json() != []
+
+
+def test_party_reads_with_the_guest_own_token_whether_it_is_marked_present(world, monkeypatch):
+    """Ce que fait le serveur Party pour entrer sans code (app/accounts.py), contre la vraie base de test."""
+    from app import accounts as accounts_mod
+    admin, ga, gb, vip, ids = world
+    monkeypatch.setattr(accounts_mod, 'SUPABASE_URL', TEST_URL)
+    monkeypatch.setattr(accounts_mod, 'SUPABASE_ANON_KEY', ga.key)
+    party = accounts_mod.Accounts(b'secret')
+    token = ga.headers['Authorization'].removeprefix('Bearer ')
+    assert vip.rpc('set_rsvp_for', event=ids['publique'], member=ga.uid, answer='yes').status_code == 204
+    assert party.attending(token, ids['publique']) == (ga.uid, True)
+    assert vip.rpc('set_rsvp_for', event=ids['publique'], member=ga.uid, answer='no').status_code == 204
+    assert party.attending(token, ids['publique']) == (ga.uid, False)
+    assert any(e['id'] == ids['publique'] for e in party.upcoming_events(token))

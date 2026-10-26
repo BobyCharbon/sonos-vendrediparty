@@ -42,6 +42,7 @@
              placeholder="••••" autocomplete="one-time-code" required>
       <button>Entrer</button>
     </form>
+    <p id="pinHint" class="sub hidden" role="status"></p>
   </div>
 
   <div id="closed" class="hidden">
@@ -469,9 +470,28 @@ async function linkAccount() {
       api("/api/account/admin", { method: "POST", body: JSON.stringify({ token }) }).then(() => { fbSyncRole(); if (typeof refreshGame === "function") refreshGame(); }).catch(() => { adminSession = false; fbSyncRole(); });
     }
     useIdentity(a.guest_id, a.name);
+    eventPass(token);
   } catch { /* hors ligne ou jeton expiré : on garde l'identité actuelle, le module rafraîchira la session */ }
   showAccount();
 }
+// Soirée liée à un événement : noté « Présent », on entre sans le code. Revérifié régulièrement :
+// noté absent entre-temps, le serveur retire cet accès (le code reste possible).
+const EVENT_PASS_EVERY = 120000;
+async function eventPass(token) {
+  try {
+    const r = await fetch("/api/join/account", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
+    const data = await r.json().catch(() => ({}));
+    $("pinHint").textContent = r.status === 403 ? data.detail || "" : "";
+    $("pinHint").classList.toggle("hidden", r.status !== 403);
+    if (r.ok && !$("pin").classList.contains("hidden")) {
+      registered = false;
+      if (source) listen();
+      await refresh();
+      toast(`🎉 Bienvenue à « ${data.event_title} »`, "ok");
+    } else if (r.status === 403 && $("pin").classList.contains("hidden")) refresh();  // accès retiré : l'écran du code revient
+  } catch { /* hors ligne : on garde l'accès actuel */ }
+}
+setInterval(() => { const token = supabaseToken(); if (token) eventPass(token); }, EVENT_PASS_EVERY);
 try { account = JSON.parse(store("vp_account") || "null"); } catch { account = null; }
 showAccount();
 window.addEventListener("message", (event) => {

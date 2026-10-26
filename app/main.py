@@ -890,6 +890,7 @@ def admin_state():
                             "premium": spotify_user.data.get("premium", True)} if spotify_user else None,
         "admin_notify": s.admin_notify,
         "games": [games.summary(g) for g in (prune_games() or s.games).values()],
+        "event": {"id": s.event_id, "title": s.event_title} if s.event_id else None,
     }
     if s.active:
         try:
@@ -1338,6 +1339,61 @@ def link_seats(old: str, new: str):
 
 class AccountToken(BaseModel):
     token: str
+
+
+class EventLink(BaseModel):
+    event_id: str = Field("", pattern=r"^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$")
+    title: str = Field("", max_length=120)
+
+
+@app.post("/api/admin/event/options", dependencies=[Depends(require_admin)])
+def admin_event_options(body: AccountToken):
+    """Événements du jour et à venir que le compte de l'hôte voit : on peut en lier un à la soirée."""
+    if not 20 < len(body.token) < 4096:
+        raise HTTPException(400, "Jeton invalide")
+    try:
+        return accounts.upcoming_events(body.token)
+    except AccountError as e:
+        raise HTTPException(401, str(e))
+
+
+@app.post("/api/admin/event", dependencies=[Depends(require_admin)])
+def admin_event(body: EventLink, request: Request):
+    """Lie la soirée à un événement (ses comptes notés « Présent » entrent sans le code), ou la délie (vide)."""
+    title = " ".join(body.title.split()) if body.event_id else ""
+    with GAMES_LOCK, store.lock:
+        store.session.event_id, store.session.event_title = body.event_id, title
+        if not body.event_id:  # délier : les accès sans code donnés pour l'ancien événement tombent
+            store.session.revoked = (store.session.revoked + list(store.session.event_passes.values()))[-500:]
+            store.session.event_passes = {}
+        store.save()
+    log_admin(request, "admin.event", details={"title": title or "aucun"})
+    return admin_state()
+
+
+@app.post("/api/join/account")
+def guest_join_account(body: AccountToken, request: Request, response: Response):
+    """Soirée liée à un événement : un compte noté « Présent » (pas en liste d'attente) entre sans le code.
+    L'app revérifie régulièrement : noté absent entre-temps, son accès sans code est révoqué."""
+    ip = client_ip(request)
+    if msg := account_limiter.blocked(ip):
+        raise HTTPException(429, msg)
+    s = store.session
+    if not (s.active and s.event_id):
+        raise HTTPException(409, "Aucune soirée liée à un événement : entre le code de la soirée.")
+    if not 20 < len(body.token) < 4096:
+        raise HTTPException(400, "Jeton invalide")
+    try:
+        uid, present = accounts.attending(body.token, s.event_id)
+    except AccountError as e:
+        account_limiter.fail(ip)
+        raise HTTPException(401, str(e))
+    account_limiter.success(ip)
+    nonce = store.event_pass(uid, present)
+    if nonce is None:
+        raise HTTPException(403, f"Tu n'es pas noté présent à « {s.event_title} » : entre le code de la soirée.")
+    set_auth_cookie(request, response, "vp_guest", _guest_cookie(nonce), "lax")
+    return {"ok": True, "event_title": s.event_title}
 
 
 @app.post("/api/account/admin")

@@ -91,6 +91,11 @@
           </form>
           <p class="sub" style="margin:8px 0 0;font-size:.85rem">Un nouveau code déconnecte tous les invités : ils devront saisir le nouveau ou rescanner le QR.</p>
         </div>
+        <div class="ma-event">
+          <label class="artist" for="maEvent">🎉 Événement de la soirée</label>
+          <select id="maEvent" data-ma="event"><option value="">Aucun : le code seulement</option></select>
+          <p class="sub" data-ma="eventHint"></p>
+        </div>
       </details>
       <div data-ma="warn" class="warn hidden"></div>
       <div class="card now" data-ma="now"></div>
@@ -216,6 +221,7 @@
     q("guestUrl").textContent = s.guest_url ? `${s.guest_url}?pin=${s.guest_pin}` : "";
     const src = "/qr.svg?v=" + s.guest_pin;
     if (q("qr").getAttribute("src") !== src) q("qr").src = src;
+    renderEvent(s);
     // Invités connectés en ce moment (musique 🎵 et / ou jeux 🎮), sous le QR.
     const now = Date.now() / 1000;
     const online = (s.guests || []).filter((g) => now - g.last_seen < ONLINE);
@@ -225,6 +231,40 @@
     q("online").innerHTML = head + (window.PeopleAdmin
       ? `<div class="list ma-online-list">${online.map((g) => PeopleAdmin.guestRow(g, s.source)).join("")}</div>`
       : online.map((g) => `<span class="pill"><span class="dot" aria-hidden="true"></span>${escape(g.name)}</span>`).join(""));
+  }
+
+  // Événement lié : ses comptes notés « Présent » entrent sans le code (choix parmi ceux du jour et à venir).
+  function renderEvent(s) {
+    const sel = q("event"), linked = s.event;
+    if (linked && ![...sel.options].some((o) => o.value === linked.id)) sel.add(new Option(linked.title, linked.id));
+    sel.value = linked ? linked.id : "";
+    q("eventHint").textContent = linked
+      ? `Les personnes notées « Présent » à « ${linked.title} » entrent sans code. Les autres utilisent le code.`
+      : "Lie l'événement de ce soir : ses invités notés « Présent » entreront sans code.";
+  }
+
+  async function loadEvents() {
+    const token = typeof supabaseToken === "function" ? supabaseToken() : null;
+    if (!token) return;
+    try {
+      const list = await api("/api/admin/event/options", { token });
+      const sel = q("event");
+      sel.length = 1;
+      for (const e of list) {
+        const day = new Date(e.starts_at).toLocaleDateString("fr-CH", { weekday: "short", day: "numeric", month: "short" });
+        sel.add(new Option(`${e.title} · ${day}`, e.id));
+      }
+      if (state) renderEvent(state);
+    } catch (e) { notify(e.message, "err"); }
+  }
+
+  async function chooseEvent() {
+    const sel = q("event"), opt = sel.selectedOptions[0];
+    const title = sel.value ? opt.textContent.replace(/ · [^·]+$/, "") : "";
+    try {
+      render(await api("/api/admin/event", { event_id: sel.value, title }));
+      notify(sel.value ? `Soirée liée à « ${title} »` : "Plus d'événement lié : le code seulement", "ok");
+    } catch (e) { notify(e.message, "err"); if (state) renderEvent(state); }
   }
 
   function renderSpeakersFold() {
@@ -494,6 +534,7 @@
 
   function onChange(ev) {
     const t = ev.target;
+    if (t.matches('[data-ma="event"]')) return chooseEvent();
     if (t.matches('[data-ma="volume"]')) { volumeDragging = false; clearTimeout(volumeTimer); volumeTimer = null; return sendVolume(); }
     const r = t.closest("[data-ma-speaker-volume]");
     if (r) {
@@ -536,6 +577,7 @@
       root.addEventListener("change", onChange);
       root.addEventListener("submit", onSubmit);
       q("topAdd").addEventListener("toggle", (ev) => { if (ev.target.open) loadSonosPlaylists(); });
+      q("access").addEventListener("toggle", (ev) => { if (ev.target.open) loadEvents(); });
       renderModes(chosenMode);
       if (!live) return Promise.resolve();
       listen();

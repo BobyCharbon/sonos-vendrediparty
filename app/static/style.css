@@ -1543,6 +1543,9 @@ html.events-soon .tabs [data-tab="events"]::after {
 .admin-only { display: none; }
 .ma-access { margin: 8px 0 12px; }
 .ma-access summary { cursor: pointer; font-weight: 700; }
+.ma-event { display: grid; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.08); text-align: left; }
+.ma-event select { width: 100%; }
+.ma-event .sub { margin: 0; font-size: .85rem; }
 .ma-fold { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; }
 .ma-fold:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
 .ma-chev { transition: transform .2s ease; }

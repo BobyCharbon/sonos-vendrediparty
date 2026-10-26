@@ -14,6 +14,8 @@ SUPABASE_URL = (os.environ.get("SUPABASE_URL") or "https://gsuetixzobooggeaubvb.
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY") or "sb_publishable_DJJSW8NYvEfA7DUDoXSwkw_wTF1fnoK"
 PHOTO_TTL = 7 * 24 * 3600   # lien de photo visible par les autres joueurs
 CACHE_TTL = 300             # un même jeton n'est revérifié qu'au bout de 5 min
+EVENT_LOOKBACK = 12 * 3600  # un événement commencé depuis moins de 12 h peut encore être lié à la soirée
+EVENT_CHOICES = 8
 
 
 class AccountError(Exception):
@@ -88,6 +90,29 @@ class Accounts:
         with self.lock:
             self.by_gid[account["guest_id"]] = account
         return account
+
+    def attending(self, token: str, event_id: str) -> tuple[str, bool]:
+        """(identifiant du compte, noté « Présent » à cet événement et pas en liste d'attente), lu avec son propre jeton."""
+        uid = self._uid(token)
+        r = self._get("GET", f"/rest/v1/rsvps?select=status,waitlisted&event_id=eq.{event_id}&user_id=eq.{uid}", token)
+        rows = r.json() if r.status_code == 200 else []
+        row = rows[0] if isinstance(rows, list) and rows else {}
+        if row.get("status") != "yes" or row.get("waitlisted"):
+            return uid, False
+        p = self._get("GET", f"/rest/v1/rpc/get_member_directory?id=eq.{uid}&select=status", token)
+        profile = p.json() if p.status_code == 200 else []
+        return uid, isinstance(profile, list) and bool(profile) and profile[0].get("status") == "active"
+
+    def upcoming_events(self, token: str) -> list[dict]:
+        """Événements publiés à date fixe, du jour (commencés il y a moins de 12 h) et à venir, vus par ce compte."""
+        self._uid(token)
+        since = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - EVENT_LOOKBACK))
+        r = self._get("GET", "/rest/v1/events?select=id,title,starts_at&status=eq.published&date_mode=eq.fixed"
+                      f"&starts_at=gte.{since}&order=starts_at&limit={EVENT_CHOICES}", token)
+        rows = r.json() if r.status_code == 200 else []
+        if not isinstance(rows, list):
+            return []
+        return [{"id": e["id"], "title": e["title"], "starts_at": e["starts_at"]} for e in rows]
 
     def is_linked(self, gid: str) -> bool:
         """Ce joueur a relié un compte vérifié depuis le démarrage du serveur (jeux réservés aux comptes)."""
