@@ -1,9 +1,13 @@
 name: App iOS → captures App Store
 
 # Captures 6,9" (1320 × 2868) de l'app branchée sur le site principal, sur un simulateur iPhone 17 Pro Max.
-# Lancement manuel (onglet Actions) ; les images sont dans l'artefact « captures-app-store ».
+# Lancement manuel (onglet Actions, une fois ce fichier sur main) ou à chaque modification du script sur develop ;
+# les images sont dans l'artefact « captures-app-store ».
 # Sur Mac Apple silicon : le simulateur d'un Mac Intel affiche les emojis en « ? ».
 on:
+  push:
+    branches: [develop]
+    paths: ["ios/scripts/screenshots.sh", ".github/workflows/ios-screenshots.yml"]
   workflow_dispatch:
     inputs:
       site:
