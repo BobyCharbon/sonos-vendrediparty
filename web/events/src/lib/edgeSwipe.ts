@@ -9,6 +9,12 @@ const RELEASE = 'transform .32s cubic-bezier(.2, .9, .3, 1)';
 /** Distance que l’élan ajoute au geste (décélération du défilement iOS), vitesse en px/s. */
 const project = (velocity: number) => (velocity / 1000) * 0.998 / (1 - 0.998);
 
+// Écrans racines (onglets) : rien « derrière » à retrouver par un glisser.
+const ROOTS = new Set(['/', '/activity', '/profile', '/account', '/welcome', '/sign-in']);
+// Le geste ne démarre jamais dans un champ, une fenêtre (recadrage photo, feuille) ou une zone qui glisse déjà.
+const OWN_GESTURE = 'input, textarea, select, [role="dialog"], [aria-modal="true"], [data-no-edge-swipe]';
+const currentPath = () => location.pathname.replace(/^\/events(?=\/|$)/, '') || '/';
+
 type Drag = { x0: number; y0: number; active: boolean; lastX: number; lastT: number; velocity: number };
 
 /**
@@ -20,6 +26,7 @@ export function useEdgeSwipeBack() {
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
     let drag: Drag | null = null;
+    let leaving = false;   // retour en cours : un second geste ou toucher ne dépile pas un écran de plus
     const surface = () => document.getElementById('root');
     const place = (x: number, animated: boolean) => {
       const el = surface();
@@ -29,7 +36,9 @@ export function useEdgeSwipeBack() {
       el.style.boxShadow = x ? '-12px 0 32px rgba(0,0,0,.45)' : '';
     };
     const down = (e: PointerEvent) => {
-      if (!e.isPrimary || e.button > 0 || e.clientX > EDGE || !router.canGoBack()) return;
+      if (leaving || !e.isPrimary || e.button > 0 || e.clientX > EDGE || !router.canGoBack()) return;
+      if (ROOTS.has(currentPath()) || (e.target as Element | null)?.closest?.(OWN_GESTURE)) return;
+      if (document.querySelector('[aria-modal="true"]')) return;
       drag = { x0: e.clientX, y0: e.clientY, active: false, lastX: e.clientX, lastT: e.timeStamp, velocity: 0 };
     };
     const move = (e: PointerEvent) => {
@@ -53,8 +62,13 @@ export function useEdgeSwipeBack() {
       const paused = e.timeStamp - d.lastT > 80;   // une pause avant de lâcher = pas d’élan
       const landing = e.clientX - d.x0 + (paused ? 0 : project(d.velocity));
       if (landing > innerWidth / 2) {
+        leaving = true;
         place(innerWidth, true);
-        setTimeout(() => { router.back(); place(0, false); }, 300);
+        setTimeout(() => {
+          router.back();
+          // L'écran précédent est affiché avant de remettre le cadre en place (pas d'éclair de l'ancien écran).
+          requestAnimationFrame(() => requestAnimationFrame(() => { place(0, false); leaving = false; }));
+        }, 300);
       } else {
         place(0, true);
       }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { colors } from '@/lib/theme';
+import { colors, font } from '@/lib/theme';
 
 const OUT = 1024; // côté de la photo envoyée (px) : nette sur tous les écrans, ~150 à 300 Ko en JPEG
 
@@ -83,7 +83,7 @@ export function PhotoCropper({ src, onCancel, onDone }: { src: string; onCancel:
 
   return (
     <div role="dialog" aria-modal="true" aria-label="Recadrer ta photo de profil"
-      style={{ position: 'fixed', inset: 0, zIndex: 50, background: colors.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24, color: colors.text, fontFamily: 'Figtree_500Medium, system-ui, sans-serif' }}>
+      style={{ position: 'fixed', inset: 0, zIndex: 50, background: colors.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24, color: colors.text, fontFamily: font.medium.fontFamily, fontWeight: 500 }}>
       <div style={{ fontSize: 20, fontWeight: 800 }}>Recadre ta photo</div>
       <div style={{ fontSize: 13, color: colors.muted, textAlign: 'center', maxWidth: size }}>Glisse pour déplacer, pince ou utilise le curseur pour zoomer.</div>
       {error ? <div role="alert" style={{ maxWidth: size, color: colors.coral, textAlign: 'center' }}>{error}</div> : (

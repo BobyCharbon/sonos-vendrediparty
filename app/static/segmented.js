@@ -34,23 +34,36 @@
   function watch(seg) {
     if (watched.has(seg)) return;
     watched.add(seg);
-    // Affiché, redimensionné, ou bouton déplacé par un nouveau rendu : on recale sans animer.
-    if ("ResizeObserver" in window) new ResizeObserver(() => place(seg, false)).observe(seg);
-    new MutationObserver((records) => {
-      if (records.some((r) => [...r.addedNodes].some((n) => n.tagName === "BUTTON"))) place(seg, false);
-    }).observe(seg, { childList: true });
+    const observers = [];
+    const alive = () => {
+      if (seg.isConnected) return true;
+      observers.forEach((o) => o.disconnect());   // segment retiré par un nouveau rendu : on libère ses observateurs
+      return false;
+    };
+    // Affiché ou redimensionné : on recale sans animer.
+    if ("ResizeObserver" in window) {
+      const resized = new ResizeObserver(() => alive() && place(seg, false));
+      resized.observe(seg);
+      observers.push(resized);
+    }
+    // Choix changé (au toucher ou par le code) : la pastille glisse ; boutons redessinés : elle se recale.
+    const changed = new MutationObserver((records) => {
+      if (!alive()) return;
+      const redrawn = records.some((r) => [...r.addedNodes].some((n) => n.tagName === "BUTTON"));
+      const chosen = records.some((r) => r.type === "attributes" && r.target.parentElement === seg);
+      if (redrawn || chosen) place(seg, chosen && !redrawn);
+    });
+    changed.observe(seg, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
+    observers.push(changed);
     place(seg, false);
   }
 
-  // Le gestionnaire du segment change la classe « on » au clic : on fait glisser la pastille juste après.
-  addEventListener("click", (ev) => {
-    const seg = ev.target.closest?.(".seg");
-    if (seg) requestAnimationFrame(() => place(seg, true));
-  });
   const scan = () => document.querySelectorAll(".seg").forEach(watch);
   let queued = false;
-  new MutationObserver(() => {
-    if (queued) return;
+  // Seuls les ajouts qui contiennent un segment comptent (les jeux redessinent leur écran chaque seconde).
+  const bringsSeg = (n) => n.nodeType === 1 && (n.matches(".seg") || n.querySelector(".seg"));
+  new MutationObserver((records) => {
+    if (queued || !records.some((r) => [...r.addedNodes].some(bringsSeg))) return;
     queued = true;
     requestAnimationFrame(() => { queued = false; scan(); });
   }).observe(document.documentElement, { childList: true, subtree: true });

@@ -38,7 +38,7 @@
 #party .list:empty { display: none; }
 #party .list > * { position: relative; border-radius: 0; background: transparent; box-shadow: none; }
 #party .list > * + *::before { content: ""; position: absolute; top: 0; right: 0; left: 74px; height: .5px; background: var(--separator); }
-#party .list > .msg + .msg::before { left: 14px; }
+#party .list > .msg::before { left: 14px; }
 #party .track { min-height: 66px; padding: 9px 12px; gap: 14px; }
 #party .track.guest { background: transparent; }
 #party .track.mine { background: rgba(61, 220, 151, .07); }
@@ -48,13 +48,13 @@
 #party .msg { padding: 12px 14px; }
 
 /* ── Boutons de ligne : ronds, discrets, zone de toucher de 44 px ── */
-.row-btn { position: relative; flex: none; display: grid; place-items: center; width: 32px; height: 32px; min-height: 32px; padding: 0;
+#party .row-btn { position: relative; flex: none; display: grid; place-items: center; width: 32px; height: 32px; min-height: 32px; padding: 0;
   border-radius: 50%; box-shadow: none; }
-.row-btn::after { content: ""; position: absolute; inset: -6px; }
-.row-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; }
-.row-add { background: var(--accent); color: #fff; }
-.row-del { background: rgba(255, 107, 107, .16); color: #ff8a8a; }
-.row-btn:not(:disabled):active { transform: scale(.88); }
+#party .row-btn::after { content: ""; position: absolute; inset: -6px; }
+#party .row-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; }
+#party .row-add { background: var(--accent); color: #fff; }
+#party .row-del { background: rgba(255, 107, 107, .16); color: #ff8a8a; }
+#party .row-btn:not(:disabled):active { transform: scale(.88); }
 
 #playedBox summary h2::after { content: ""; display: inline-block; width: 8px; height: 8px; margin-left: 10px; vertical-align: 3px;
   border-right: 2.2px solid currentColor; border-bottom: 2.2px solid currentColor; transform: rotate(-45deg); transition: transform .3s var(--spring); opacity: .55; }

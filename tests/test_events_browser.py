@@ -479,5 +479,10 @@ def test_event_detail_has_an_ios_back_button_and_an_edge_swipe_goes_back(browser
         pw.expect(back).to_be_hidden()
         pw.expect(card).to_have_count(1)
         pw.expect(card).to_be_visible()
+        # Sur la liste (écran racine), le même geste ne dépile rien : la page reste en place.
+        page.mouse.move(4,420);page.mouse.down();page.mouse.move(320,425,steps=6);page.mouse.up()
+        page.wait_for_timeout(500)
+        pw.expect(card).to_be_visible()
+        assert page.frame_locator('#eventsFrame').locator('#root').evaluate('el => el.style.transform') == ''
     finally:
         context.close()
