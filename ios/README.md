@@ -73,12 +73,34 @@ Web Push (`PushManager`) n'existe pas dans un WKWebView : l'app passe par APNs.
    `{"aps": {"alert": {"title": …, "body": …}, "sound": "default"}, "url": "/…"}`. Un jeton refusé (410) est supprimé,
    comme un abonnement Web Push disparu.
 
-### 6. TestFlight puis App Store
-1. Dans `project.yml`, passer `aps-environment` à `production` pour l'archive App Store.
-2. Xcode › Product › **Archive** (schéma Release) › Distribute App › App Store Connect.
-3. App Store Connect : fiche de l'app (captures 6,9″ et 6,5″, description, URL de confidentialité, classement
-   d'âge), puis **TestFlight** pour faire tester les invités.
-4. Soumission à la revue. Apple refuse les apps « simple site web emballé » (règle 4.2) : mettre en avant ce que
+### 6. TestFlight dans le cloud (GitHub Actions)
+`.github/workflows/ios-testflight.yml` compile l'app sur un Mac de GitHub, la signe (signature gérée par Apple)
+et l'envoie à TestFlight, à chaque push touchant `ios/` sur `develop` (app → site de test) ou `main`
+(app → site principal), ou à la main : onglet **Actions** › « App iOS → TestFlight » › *Run workflow*.
+Le numéro de build est le numéro d'exécution du workflow ; la version vient de `MARKETING_VERSION`.
+
+Une seule fois :
+1. **Identifiant de l'app** : developer.apple.com › Certificates, Identifiers & Profiles › Identifiers › + ›
+   App IDs › App ; Bundle ID explicite `ch.bobycharbon.party` ; cocher *Associated Domains* et *Push Notifications*.
+2. **Fiche App Store Connect** : appstoreconnect.apple.com › Apps › + › Nouvelle app › iOS, langue français,
+   identifiant de lot `ch.bobycharbon.party`, SKU `party-ios`. Le nom doit être unique sur l'App Store.
+3. **Clé API** : App Store Connect › Utilisateurs et accès › Intégrations › App Store Connect API › Clés d'équipe ›
+   + ; rôle **Admin** (nécessaire pour que la signature soit créée dans le cloud). Télécharger le `.p8` (une seule
+   fois possible), noter l'*ID de clé* et l'*ID de l'émetteur*.
+4. **Secrets GitHub** : dépôt › Settings › Secrets and variables › Actions › New repository secret :
+   `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (tout le contenu du `.p8`, lignes BEGIN/END comprises).
+
+Après l'envoi (≈ 15 min de compilation, puis 5 à 30 min de traitement chez Apple) :
+- **Testeurs internes** (membres de l'équipe App Store Connect, jusqu'à 100) : disponibles tout de suite.
+- **Testeurs externes** (invités, lien public, jusqu'à 10 000) : groupe externe + *lien public* ; le premier build
+  passe une courte revue « Beta App Review » (≈ 24 h).
+- Sur l'iPhone : app **TestFlight** de l'App Store, puis le lien d'invitation.
+
+### 7. App Store
+1. App Store Connect : fiche de l'app (captures 6,9″ et 6,5″, description, URL de confidentialité, classement
+   d'âge).
+2. Lancer le workflow avec le site *production* (ou pousser sur `main`), choisir ce build dans la version.
+3. Soumission à la revue. Apple refuse les apps « simple site web emballé » (règle 4.2) : mettre en avant ce que
    l'app apporte (notifications, haptique, liens universels, agenda) et fournir un compte de démonstration.
 
 ## Fichiers
