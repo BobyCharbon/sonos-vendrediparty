@@ -98,7 +98,7 @@ Après l'envoi (≈ 15 min de compilation, puis 5 à 30 min de traitement chez A
 
 En place (26 octobre 2026) : app App Store Connect « VendrediParty » (id 6827221948), clé API `U779ASTY47`,
 groupe interne « Équipe » (distribution automatique) et groupe externe « Invités », lien public
-**https://testflight.apple.com/join/HYf2U6XP** (actif une fois le build approuvé par la revue bêta).
+(désactivé, remplacé par la BETA). VendrediPartyBETA (id 6827336068, ch.bobycharbon.party.beta) : groupes « Équipe » et « Invités », lien public **https://testflight.apple.com/join/eut4j7m9**.
 
 ### 7. App Store
 État au 26 octobre 2026 : version 1.0.0, build 7 (site principal), fiche, 4 captures (workflow
