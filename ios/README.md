@@ -27,9 +27,16 @@ site arrive donc dans l'app sans nouvelle version sur l'App Store.
 ## Étapes
 
 ### 1. Prérequis (une fois)
-- Installer **Xcode** depuis le Mac App Store (le Mac n'a pour l'instant que les outils en ligne de commande), puis
-  `sudo xcode-select -s /Applications/Xcode.app`.
-- `brew install xcodegen`.
+- **Xcode 26.3 Universal** (installé le 26 octobre 2026 dans `/Applications/Xcode-26.3.0.app`) : c'est la dernière
+  version qui tourne sur le Mac mini 2018 (Intel, bloqué sur macOS 15). Xcode 26.4+ exige macOS 26.2. Installé avec
+  `xcodes` (`~/.local/bin/xcodes install 26.3 --select`) ; attention, `xcodes` choisit par défaut la variante
+  « Apple silicon », qui échoue sur Intel avec « Bad CPU type » : il faut la variante **Universal**.
+  Apple impose chaque printemps le dernier SDK pour l'App Store : vers avril 2027, il faudra compiler ailleurs
+  (Xcode Cloud, inclus dans le programme développeur, ou un Mac Apple silicon).
+- **XcodeGen** : binaire officiel installé dans `~/.local` (pas de Homebrew sur ce Mac), avec
+  `bash install.sh ~/.local` depuis l'archive de la version publiée (il lui faut `~/.local/share/xcodegen/SettingPresets`).
+- Compilation vérifiée sur simulateur :
+  `xcodebuild -project Party.xcodeproj -scheme Party -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build`.
 - S'inscrire au **Apple Developer Program** (99 $/an), indispensable pour TestFlight, l'App Store, les notifications
   et les liens universels. Un compte gratuit suffit pour installer l'app sur son propre iPhone (valable 7 jours).
 
