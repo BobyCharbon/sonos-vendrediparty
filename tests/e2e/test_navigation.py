@@ -171,3 +171,23 @@ def test_game_back_closes_the_menu_then_minimizes_and_the_top_bar_pulls_down(pho
     page.wait_for_function("!document.body.classList.contains('pyr-full')")
     expect(page.locator("#gMini")).to_be_visible()
     no_stale_history(page)
+
+
+def test_segmented_thumb_glides_under_the_chosen_option(phone):
+    page = phone.page
+    page.goto("/")
+    page.locator('#tabs [data-tab="feedback"]').click()
+    page.wait_for_function("document.querySelector('#fbForm .fb-kinds').classList.contains('seg-glide')")
+
+    def thumb_under(kind):
+        page.wait_for_function("""(kind) => {
+            const t = document.querySelector('#fbForm .seg-thumb'), b = document.querySelector(`[data-fb-kind="${kind}"]`);
+            const a = t.getBoundingClientRect(), c = b.getBoundingClientRect();
+            return Math.abs(a.left - c.left) < 1 && Math.abs(a.width - c.width) < 1;
+        }""", arg=kind, timeout=3000)
+
+    thumb_under("idea")
+    page.locator('[data-fb-kind="bug"]').click()
+    page.locator('[data-fb-kind="other"]').click()   # redirigée en plein vol
+    thumb_under("other")
+    expect(page.locator('[data-fb-kind="other"]')).to_have_attribute("aria-checked", "true")
