@@ -334,8 +334,8 @@ def leave(g: dict, gid: str):
 
 
 def handover(g: dict, actor: str, target: str):
-    """L'animateur passe la main à un autre joueur (qui a son téléphone), puis quitte la partie s'il y jouait.
-    Valable pour tous les jeux : la partie continue avec le nouvel animateur."""
+    """L'animateur passe la main à un autre joueur (qui a son téléphone) et reste joueur s'il jouait.
+    Valable pour tous les jeux : la partie continue avec le nouvel animateur. Pour partir : « Quitter la partie »."""
     p = player(g, target)
     if not p or target == actor:
         raise GameError("Choisis un autre joueur")
@@ -344,8 +344,6 @@ def handover(g: dict, actor: str, target: str):
     g["host"], g["host_name"] = target, p["name"]
     if actor in g.get("leads", []):
         g["leads"].remove(actor)
-    if player(g, actor):
-        leave(g, actor)
 
 
 def kick(g: dict, gid: str):
@@ -1880,12 +1878,12 @@ def _lk(fn, g: dict, *args):
         raise GameError(str(e))
 
 
-def lk_vote(g: dict, voter: str, target: str):
-    _lk_award(g, _lk(likely.vote, g, voter, target))
+def lk_vote(g: dict, voter: str, target: str, by: str = ""):
+    _lk_award(g, _lk(likely.vote, g, voter, target, by))
 
 
-def lk_skip(g: dict):
-    _lk_award(g, _lk(likely.skip, g))
+def lk_skip(g: dict, target: str = ""):
+    _lk_award(g, _lk(likely.skip, g, target))
 
 
 def lk_swap(g: dict, rng: random.Random = random):
@@ -2013,6 +2011,8 @@ def vote(g: dict, voter: str, target: str, rng: random.Random = random):
             raise GameError("Réponse invalide")
     elif not other:
         raise GameError("Vote invalide")
+    elif voter in g["votes"]:
+        raise GameError("Ton vote est déjà enregistré")  # Qui de nous ? : vote définitif
     g["votes"][voter] = target
     voters = alive(g) if g["type"] == "undercover" else g["players"]
     if all(p["id"] in g["votes"] for p in voters):

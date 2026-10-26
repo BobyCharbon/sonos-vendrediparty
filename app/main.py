@@ -1564,7 +1564,8 @@ class GameAction(BaseModel):
 
 
 PURITY_ONLY = {"puset", "puans", "pusub", "puunsub", "pureveal"}
-# « Qui est le plus… ? » : le téléphone de l'animateur fait voter chacun à son tour (lkvote, avec who = votant).
+# « Qui est le plus… ? » : chacun vote sur son téléphone ; celui de l'animateur fait voter les participants sans
+# téléphone (lkvote, avec who = votant) et passe un absent (lkskip, avec target).
 LIKELY_ONLY = {"lkset", "lkvote", "lkskip", "lkswap"}
 LIKELY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "addguest", "up", "down"} | LIKELY_ONLY
 PURITY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end"} | PURITY_ONLY
@@ -1668,8 +1669,8 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "qpause": (quiz.pause, actor, games.is_lead(g, me) or len(g["players"]) <= 1, random),
         "puset": (purity.configure, body.settings), "puans": (purity.answer, me, body.amount, body.done),
         "pusub": (purity.submit, me), "puunsub": (purity.unsubmit, me), "pureveal": (games.purity_reveal,),
-        "lkset": (likely.configure, body.settings), "lkvote": (games.lk_vote, actor, target),
-        "lkskip": (games.lk_skip,), "lkswap": (games.lk_swap, random),
+        "lkset": (likely.configure, body.settings), "lkvote": (games.lk_vote, actor, target, me),
+        "lkskip": (games.lk_skip, target), "lkswap": (games.lk_swap, random),
     }
     if g["type"] == "quiz" and a == "next":
         actions["next"] = (quiz.next_step, random, body.guess)
@@ -1698,12 +1699,10 @@ def perform_game_action(code: str, body: GameAction, request: Request):
             elif a == "ban" and target:
                 games.ban(other, target)
             elif a == "handover" and target:
-                # Le nouvel animateur l'est aussi de l'autre (salle ou jeu) ; l'ancien quitte les deux.
+                # Le nouvel animateur l'est aussi de l'autre (salle ou jeu) ; l'ancien y reste joueur.
                 other["host"], other["host_name"] = target, g["host_name"]
                 if me in other.get("leads", []):
                     other["leads"].remove(me)
-                if games.player(other, me):
-                    games.leave(other, me)
             elif a == "addguest" and g["type"] == "room" and other["type"] in games.MANUAL_GAMES:
                 games.add_guest(other, body.guess, action_result["id"])
         except games.GameError:

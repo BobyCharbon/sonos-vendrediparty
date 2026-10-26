@@ -216,8 +216,10 @@ def test_handover_in_every_game(kind):
     games.join(g, "a", "Léa")
     games.join(g, "b", "Tom")
     games.handover(g, "h", "a")
-    assert g["host"] == "a" and g["host_name"] == "Léa" and not games.player(g, "h")
+    # Passer la main ne fait pas quitter : l'ancien animateur reste joueur (retour 26.10).
+    assert g["host"] == "a" and g["host_name"] == "Léa" and games.player(g, "h")
     assert games.view(g, "a")["is_owner"] and not games.view(g, "b")["is_owner"]
+    assert games.view(g, "h")["me"] and not games.view(g, "h")["is_host"]
     with pytest.raises(games.GameError):
         games.handover(g, "a", "a")
 
@@ -232,4 +234,6 @@ def test_handover_api_only_for_lead():
     r = h.post(f"/api/games/{g['code']}", json={"guest_id": "hand-host-0001", "action": "handover", "target": lea})
     assert r.status_code == 200
     v = o.get(f"/api/games/{g['code']}?guest_id=hand-other-001").json()
-    assert v["is_owner"] and v["is_host"] and [p["name"] for p in v["players"]] == ["Léa"]
+    assert v["is_owner"] and v["is_host"] and [p["name"] for p in v["players"]] == ["Ludo", "Léa"]
+    ludo = h.get(f"/api/games/{g['code']}?guest_id=hand-host-0001").json()
+    assert ludo["me"] and not ludo["is_host"]  # toujours joueur, plus animateur

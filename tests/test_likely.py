@@ -1,5 +1,5 @@
-"""« Qui est le plus… ? » : un seul téléphone qui tourne, chacun vote en secret, le plus désigné prend un point
-(ou boit ses gorgées)."""
+"""« Qui est le plus… ? » : chacun vote en secret sur son téléphone (en même temps), le téléphone de l'animateur
+fait voter les participants sans téléphone ; le plus désigné prend un point (ou boit ses gorgées)."""
 import random
 import re
 
@@ -62,7 +62,8 @@ def test_question_then_votes_in_turn_then_reveal_gives_a_point():
     g = new()
     games.start(g, random.Random(1))
     v = games.view(g, "host-aaaaaaaa")["likely"]
-    assert g["phase"] == "ask" and v["q"] in FAMILY and v["n"] == 1 and v["voter"]["name"] == "Alice"
+    # Alice a son téléphone : elle vote directement ; le téléphone tourne seulement pour Bob et Chloé (sans téléphone).
+    assert g["phase"] == "ask" and v["q"] in FAMILY and v["n"] == 1 and v["voter"]["name"] == "Bob" and v["can_vote"]
     vote_all(g, {"Alice": "Bob", "Bob": "Bob"})
     v = games.view(g, "host-aaaaaaaa")["likely"]
     assert g["phase"] == "ask" and v["voter"]["name"] == "Chloé" and v["voted"] == 2
@@ -88,13 +89,49 @@ def test_ballots_stay_secret_before_and_after_reveal():
     assert before["result"] is None  # pas de décompte avant la fin du vote
 
 
-def test_only_the_current_voter_can_vote():
+def test_people_without_phone_vote_in_table_order_on_the_host_phone():
     g = new()
     games.start(g, random.Random(1))
     with pytest.raises(games.GameError):
-        games.lk_vote(g, gid(g, "Bob"), gid(g, "Alice"))  # c'est au tour d'Alice
+        games.lk_vote(g, gid(g, "Chloé"), gid(g, "Alice"))  # le téléphone est d'abord à Bob
     with pytest.raises(games.GameError):
         games.lk_vote(g, gid(g, "Alice"), "inconnu")
+
+
+def test_everyone_with_a_phone_votes_at_the_same_time_and_only_once():
+    g = games.new_game("likely", "host-aaaaaaaa", "Alice")
+    for i, n in enumerate(("Bob", "Chloé")):
+        games.join(g, f"guest-{i}", n)
+    games.start(g, random.Random(1))
+    # N'importe quel ordre : Chloé vote avant Alice, sans passer de téléphone.
+    games.lk_vote(g, gid(g, "Chloé"), gid(g, "Bob"))
+    assert games.view(g, "guest-1")["likely"]["can_vote"] is False
+    with pytest.raises(games.GameError):
+        games.lk_vote(g, gid(g, "Chloé"), gid(g, "Alice"))  # vote définitif
+    assert games.view(g, "host-aaaaaaaa")["likely"]["voter"] is None  # personne à qui passer le téléphone
+    games.lk_vote(g, gid(g, "Bob"), gid(g, "Bob"))
+    assert g["phase"] == "ask"
+    games.lk_vote(g, gid(g, "Alice"), gid(g, "Chloé"))
+    assert g["phase"] == "reveal" and g["likely"]["result"]["winners"] == [gid(g, "Bob")]
+
+
+def test_the_host_cannot_vote_for_someone_who_has_a_phone():
+    g = games.new_game("likely", "host-aaaaaaaa", "Alice")
+    games.join(g, "guest-0", "Bob")
+    games.start(g, random.Random(1))
+    with pytest.raises(games.GameError):
+        games.lk_vote(g, gid(g, "Bob"), gid(g, "Alice"), "host-aaaaaaaa")
+
+
+def test_the_host_passes_someone_with_a_phone_who_is_away():
+    g = games.new_game("likely", "host-aaaaaaaa", "Alice")
+    games.join(g, "guest-0", "Bob")
+    games.start(g, random.Random(1))
+    games.lk_vote(g, gid(g, "Alice"), gid(g, "Bob"))
+    v = games.view(g, "host-aaaaaaaa")["likely"]
+    assert v["waiting"] == [{"pid": games.player(g, "guest-0")["pid"], "name": "Bob", "manual": False}]
+    games.lk_skip(g, gid(g, "Bob"))
+    assert g["phase"] == "reveal"
 
 
 def test_tie_gives_everyone_on_top_a_point_and_sips_when_drinking():
@@ -127,8 +164,9 @@ def test_skipping_an_absent_voter_and_reveal_when_everyone_passed():
 def test_nobody_voted_means_no_point():
     g = new()
     games.start(g, random.Random(1))
-    for _ in range(3):
-        games.lk_skip(g)
+    games.lk_skip(g)
+    games.lk_skip(g)
+    games.lk_skip(g, gid(g, "Alice"))
     v = games.view(g, "host-aaaaaaaa")["likely"]
     assert g["phase"] == "reveal" and v["result"]["winners"] == [] and all(s["pts"] == 0 for s in v["scores"])
 
@@ -248,10 +286,13 @@ def test_api_a_guest_phone_can_only_vote_for_itself(client):
     act(client, code, "join", guest_id=BOB, name="Bob")
     g = act(client, code, "start").json()
     pids = {p["name"]: p["pid"] for p in g["players"]}
-    # Bob, sur son propre téléphone, ne peut pas voter à la place d'Alice (c'est son tour à elle).
-    assert act(client, code, "lkvote", guest_id=BOB, name="Bob", who=pids["Alice"], target=pids["Bob"]).status_code == 409
-    act(client, code, "lkvote", who=pids["Alice"], target=pids["Bob"])
-    g = act(client, code, "lkvote", guest_id=BOB, name="Bob", target=pids["Bob"]).json()
+    # L'animatrice ne vote pas à la place de Bob, qui a son téléphone.
+    assert act(client, code, "lkvote", who=pids["Bob"], target=pids["Alice"]).status_code == 409
+    # Bob vote le premier, sur son téléphone ; son « who » ne lui donne pas la voix d'Alice.
+    g = act(client, code, "lkvote", guest_id=BOB, name="Bob", who=pids["Alice"], target=pids["Bob"]).json()
+    assert g["phase"] == "ask" and g["likely"]["can_vote"] is False
+    assert act(client, code, "lkvote", guest_id=BOB, name="Bob", target=pids["Alice"]).status_code == 409
+    g = act(client, code, "lkvote", target=pids["Bob"]).json()
     assert g["phase"] == "reveal"
     # Réglages, passage d'un votant et question suivante : l'animateur seulement.
     assert act(client, code, "next", guest_id=BOB, name="Bob").status_code == 403

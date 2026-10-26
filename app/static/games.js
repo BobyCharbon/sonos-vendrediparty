@@ -472,11 +472,11 @@ document.getElementById("gamesRoot").innerHTML = `
       <div class="gcard g-lk">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.likely}</div>
-          <div class="g-meta"><div class="g-title">Qui est le plus…&nbsp;?</div><div class="g-tag">Un seul téléphone qui tourne. Tout le monde joue.</div></div>
+          <div class="g-meta"><div class="g-title">Qui est le plus…&nbsp;?</div><div class="g-tag">Chacun vote sur son téléphone. Tout le monde joue.</div></div>
           ${helpBtn("likely")}
         </div>
-        <p class="g-desc">« Qui est le plus mauvais perdant ? » Le téléphone passe de main en main, chacun désigne quelqu'un en secret, puis on découvre le plus désigné : il prend un point… ou une petite gorgée.</p>
-        <div class="g-chips"><span>👨‍👩‍👧 Avec les parents aussi</span><span>2+ joueurs</span><span>1 seul téléphone</span><span>365 questions</span></div>
+        <p class="g-desc">« Qui est le plus mauvais perdant ? » Tout le monde désigne quelqu'un en secret, en même temps, puis on découvre le plus désigné : il prend un point… ou une petite gorgée. Sans téléphone ? On vote sur celui de l'animateur.</p>
+        <div class="g-chips"><span>👨‍👩‍👧 Avec les parents aussi</span><span>2+ joueurs</span><span>Sans téléphone : OK</span><span>365 questions</span></div>
         <label class="g-opt"><span>😏 Paquet « Entre amis » <small>en plus : soirées, ex, petits secrets (jamais sexuel)</small></span><input type="checkbox" class="switch" data-opt="lkfriends"></label>
         <label class="g-opt"><span>🍻 Le plus désigné boit <small>sinon il prend un point</small></span><input type="checkbox" class="switch" data-opt="lkalcohol"></label>
         <div class="g-modes" data-opt-group="lksips">
@@ -789,8 +789,9 @@ async function refreshGame() {
     // Deux rechargements presque simultanés : une réponse plus ancienne n'écrase jamais une plus récente.
     if (seq !== gSeq || code !== myGame) return;
     // Lien ou QR d'une partie : on rejoint une seule fois (déjà inscrit ou retiré par l'animateur : on ne réessaie pas).
-    if (autoJoin && (g.me || g.is_host || g.kicked)) autoJoin = false;
-    if (autoJoin && !g.me && !g.is_host) { autoJoin = false; return gameAction("join"); }
+    // L'admin (droits d'animateur) qui rejoint par le code devient joueur ; seul le créateur « maître du jeu » ne l'est pas.
+    if (autoJoin && (g.me || g.is_owner || g.kicked)) autoJoin = false;
+    if (autoJoin && !g.me && !g.is_owner) { autoJoin = false; return gameAction("join"); }
     if (routeRoom(g)) return;
     renderGame(g);
   } catch (e) {
@@ -899,7 +900,7 @@ function renderGame(g) {
   const me = g.me;
   const nameOf = (pid) => esc(g.players.find((p) => p.pid === pid)?.name || "?");
   $("game").className = "card game " + (GAME_THEME[g.type] || "");
-  if (g.me || g.is_host || g.kicked) autoJoin = false;  // déjà dans la partie (ou banni) : plus de « rejoindre » automatique
+  if (g.me || g.is_owner || g.kicked) autoJoin = false;  // déjà dans la partie (ou banni) : plus de « rejoindre » automatique
   if (g.kicked || (g.excluded && !autoJoin)) return renderKicked(g);
   renderCasino(g);  // avant le texte : il dépend de l'état de la bille (en train de rouler ou arrêtée)
   const title = `<div class="g-head g-play-head"><div class="g-icon">${GAME_ICONS[g.type] || ""}</div>
@@ -1044,9 +1045,10 @@ function questionHtml(g, me) {
   const help = !me ? "Tu regardes la partie : les réponses s'affichent à la fin."
     : g.type === "never"
       ? (mine ? "Réponse enregistrée. Tu peux encore changer d'avis." : "Réponds en secret : tout est révélé quand tout le monde a répondu.")
-      : (mine ? `Tu as voté pour <b>${mine === me.pid ? "toi" : esc(g.players.find((p) => p.pid === mine)?.name || "?")}</b>. Touche un autre nom pour changer.`
-              : "Vote pour la personne qui correspond le mieux. C'est anonyme.");
-  const choices = !me ? "" : g.type === "never"
+      : (mine ? "✓ Vote enregistré. Résultat quand tout le monde a voté."
+              : "Vote pour la personne qui correspond le mieux. C'est anonyme et définitif.");
+  // Qui de nous ? : une fois voté, la grille disparaît sans rappeler le choix (personne ne le lit par-dessus l'épaule).
+  const choices = !me || (g.type !== "never" && mine) ? "" : g.type === "never"
     ? `<div class="qs-yn" role="group" aria-label="Ta réponse">
         <button type="button" class="qs-opt ${mine === "yes" ? "on" : ""}" data-gact="vote" data-target="yes" aria-pressed="${mine === "yes"}">
           <span class="qs-emo" aria-hidden="true">🍻</span><b>Je l'ai déjà fait</b>${sips ? `<small>Je bois ${sips} gorgée${sips > 1 ? "s" : ""}</small>` : ""}</button>
@@ -1054,7 +1056,7 @@ function questionHtml(g, me) {
           <span class="qs-emo" aria-hidden="true">😇</span><b>Jamais</b>${sips ? `<small>Je ne bois pas</small>` : ""}</button>
       </div>`
     : `<div class="qs-grid" role="group" aria-label="Ton vote">${g.players.map((p) => `
-        <button type="button" class="qs-pick ${mine === p.pid ? "on" : ""}" data-gact="vote" data-target="${esc(p.pid)}" aria-pressed="${mine === p.pid}">
+        <button type="button" class="qs-pick" data-gact="vote" data-target="${esc(p.pid)}">
           ${avatar(p)}<span class="qs-name">${p.pid === me.pid ? "Moi" : esc(p.name)}</span></button>`).join("")}</div>`;
   const who = g.players.map((p) => `<span class="qs-who ${p.voted ? "ok" : ""}" title="${esc(p.name)}${p.voted ? " a répondu" : " réfléchit…"}">${avatar(p)}</span>`).join("");
   return `<div class="qs" data-key="q${g.round}">
@@ -2582,22 +2584,19 @@ $("game").addEventListener("submit", (ev) => {
   gameAction(ev.target.closest("[data-gform]").dataset.gform === "tanswer" ? "tanswer" : "guess", { guess: guessDraft.trim() });
   guessDraft = "";
 });
-// Sortie de la partie (menu ☰) : l'animateur passe la main à un joueur de son choix avant de partir.
+// Menu ☰ : l'animateur passe la main à un joueur de son choix (il reste joueur) ; quitter est un bouton à part.
 let handoverOpen = false;
 function exitHtml(g) {
   const cands = g.players.filter((p) => p.pid !== g.me?.pid && !p.manual && !p.pending && !p.host);
   const out = [];
-  if (g.is_owner) {
-    if (cands.length) {
-      out.push(`<button type="button" class="secondary g-exit" data-exit="pick">👑 Passer la main et quitter</button>`);
-      if (handoverOpen) out.push(`<div class="g-handover"><div class="artist">Qui devient l'animateur ?</div>
-        ${cands.map((p) => `<button type="button" class="secondary" data-exit="to" data-target="${esc(p.pid)}">👑 ${esc(p.name)}</button>`).join("")}</div>`);
-    }
-  } else if (g.me && !g.kicked) {
-    out.push(`<button type="button" class="secondary g-exit" data-exit="leave">🚪 Quitter la partie</button>`);
-  } else {
-    out.push(`<button type="button" class="secondary g-exit" data-exit="away">🚪 Quitter</button>`);
+  if (g.is_owner && cands.length) {
+    out.push(`<button type="button" class="secondary g-exit" data-exit="pick">👑 Passer la main</button>`);
+    if (handoverOpen) out.push(`<div class="g-handover"><div class="artist">Qui devient l'animateur ? ${g.me ? "Tu restes dans la partie." : ""}</div>
+      ${cands.map((p) => `<button type="button" class="secondary" data-exit="to" data-target="${esc(p.pid)}">👑 ${esc(p.name)}</button>`).join("")}</div>`);
   }
+  // Le maître du jeu (créateur qui ne joue pas) part en passant la main ou en fermant la partie.
+  if (g.me && !g.kicked) out.push(`<button type="button" class="secondary g-exit" data-exit="leave">🚪 Quitter la partie</button>`);
+  else if (!g.is_owner) out.push(`<button type="button" class="secondary g-exit" data-exit="away">🚪 Quitter</button>`);
   if (g.is_host) out.push(g.room ? `<button type="button" class="secondary g-exit" data-exit="end">🏠 Terminer ce jeu et revenir à la salle</button>`
     : `<button type="button" class="danger g-exit" data-exit="end">${g.type === "room" ? "Fermer la salle pour tout le monde" : g.players.length <= 1 ? "Quitter et fermer la partie" : "Fermer la partie pour tout le monde"}</button>`);
   return out.join("");
@@ -2609,11 +2608,12 @@ document.addEventListener("click", async (ev) => {
   if (a === "pick") { handoverOpen = !handoverOpen; return renderDrawer(game); }
   if (a === "to") {
     const p = game.players.find((x) => x.pid === b.dataset.target);
-    if (!p || !confirm(`${p.name} devient l'animateur${game.me ? " et tu quittes la partie" : ""}. Continuer ?`)) return;
+    const stays = !!game.me;
+    if (!p || !confirm(`${p.name} devient l'animateur${stays ? " ; tu restes joueur" : ""}. Continuer ?`)) return;
     handoverOpen = false;
     closeDrawer();
     if (!await gameAction("handover", { target: p.pid })) return;
-    setGame(""); renderGame(null);
+    if (!stays) { setGame(""); renderGame(null); }
     return toast(`${p.name} anime maintenant la partie`, "ok");
   }
   if (a === "end") {

@@ -1,12 +1,12 @@
-// 🫵 Qui est le plus… ? : un seul téléphone qui tourne. Chacun désigne quelqu'un en secret, le plus désigné prend
-// un point (ou boit). Chargé après games.js (utilise gameAction, pressed, pyrFlash, manualForm, playerTag, patch…).
+// 🫵 Qui est le plus… ? : chacun désigne quelqu'un en secret sur son téléphone (en même temps) ; le téléphone de
+// l'animateur fait voter ceux qui n'en ont pas. Le plus désigné prend un point (ou boit). Chargé après games.js (utilise gameAction, pressed, pyrFlash, manualForm, playerTag, patch…).
 GAME_THEME.likely = "g-lk";
 GAME_PHASES.ask = "Vote secret";
 GAME_RULES.likely = `
   <h3>Le principe</h3>
-  <p>Un seul téléphone pour toute la tablée : on le fait tourner. Une question s'affiche (« Qui est le plus mauvais perdant ? »), puis chacun, à son tour et <b>en secret</b>, touche le prénom de la personne qu'il désigne. On peut se désigner soi-même.</p>
-  <h3>Le passage du téléphone</h3>
-  <p>L'écran dit à qui passer le téléphone. La personne touche « C'est moi », vote, et l'écran se cache aussitôt pour le suivant : personne ne voit le vote des autres. Quelqu'un est absent ? L'animateur le passe.</p>
+  <p>Une question s'affiche (« Qui est le plus mauvais perdant ? ») et tout le monde vote <b>en même temps, en secret</b>, sur son téléphone : on touche le prénom de la personne qu'on désigne. On peut se désigner soi-même. Un vote est définitif.</p>
+  <h3>Sans téléphone ?</h3>
+  <p>L'animateur peut ajouter des participants sans téléphone : son écran dit à qui passer son téléphone. La personne touche « C'est moi », vote, et l'écran se cache aussitôt. Quelqu'un est absent ? L'animateur le passe.</p>
   <h3>La révélation</h3>
   <p>Quand tout le monde a voté, le téléphone révèle le plus désigné et le nombre de voix de chacun, <b>jamais qui a voté pour qui</b>. Il prend un point ; avec l'option alcool, il boit ses gorgées. En cas d'égalité, tous les ex æquo sont désignés.</p>
   <h3>Les questions</h3>
@@ -49,40 +49,51 @@ function lkSettingsHtml(g) {
 function lkLobbyHtml(g) {
   const n = g.players.length;
   const hero = `<div class="lk-hero"><div class="lk-hero-i">🫵</div><div><div class="lk-hero-t">Qui est le plus…&nbsp;?</div>
-    <div class="lk-hero-s">Un seul téléphone, que vous faites tourner. Chacun désigne quelqu'un en secret.</div></div></div>`;
+    <div class="lk-hero-s">Chacun désigne quelqu'un en secret, sur son téléphone.</div></div></div>`;
   if (!g.is_host) {
     return `${hero}<div class="lk-card"><div class="title">${g.me ? "Tu es inscrit ✓" : `Partie de ${esc(g.host_name || "quelqu'un")}`}</div>
-      <p class="artist">Le téléphone de ${esc(g.host_name || "l'animateur")} va tourner : attends ton tour.</p>
+      <p class="artist">${esc(g.host_name || "L'animateur")} va lancer la première question : tu voteras sur ton téléphone.</p>
       ${g.me ? "" : `<button class="lk-main" data-gact="join">Je joue aussi</button>`}</div>`;
   }
   return `${hero}${lkSettingsHtml(g)}
-    <p class="artist lk-help">${n < 2 ? "Ajoute les prénoms de tout le monde plus bas (au moins 2 joueurs)." : `${n} joueurs : le téléphone passera dans l'ordre de la liste.`}</p>
+    <p class="artist lk-help">${n < 2 ? "Ajoute les prénoms de tout le monde plus bas (au moins 2 joueurs)." : `${n} joueurs : chacun vote sur son téléphone ; le tien passe à ceux qui n'en ont pas, dans l'ordre de la liste.`}</p>
     <button class="lk-main" data-gact="start" ${n < 2 ? "disabled" : ""}>▶︎ Première question</button>`;
 }
 
-function lkGridHtml(g) {
+function lkGridHtml(g, who, title) {
   const v = g.likely;
-  return `${lkQuestion(v)}<div class="lk-who">🤫 ${esc(v.voter.name)}, qui désignes-tu&nbsp;?</div>
-    <div class="lk-grid">${g.players.map((p) => `<button type="button" class="lk-pick" data-lk-vote="${esc(p.pid)}">${esc(p.name)}${p.pid === v.voter.pid ? " <small>(moi)</small>" : ""}</button>`).join("")}</div>`;
+  return `<div class="lk-who">🤫 ${title}</div>
+    <div class="lk-grid">${g.players.map((p) => `<button type="button" class="lk-pick" data-lk-vote="${esc(p.pid)}" data-lk-who="${esc(who)}">${esc(p.name)}${p.pid === who ? " <small>(moi)</small>" : ""}</button>`).join("")}</div>`;
+}
+
+// Téléphone de l'animateur : il passe aux participants sans téléphone, dans l'ordre de la table.
+function lkPassHtml(g) {
+  const v = g.likely;
+  if (!v.voter) return "";
+  if (lkReadyKey === lkVoterKey(g)) return lkGridHtml(g, v.voter.pid, `${esc(v.voter.name)}, qui désignes-tu&nbsp;?`);
+  return `<div class="lk-pass">
+      <div class="lk-pass-k">📱 Passe le téléphone à</div><div class="lk-name">${esc(v.voter.name)}</div>
+      <button class="lk-main" data-lk-ready="${esc(lkVoterKey(g))}">C'est moi, ${esc(v.voter.name)} 👋</button>
+      <button class="lk-sub" data-gact="lkskip">⏭ Passer ${esc(v.voter.name)} (absent)</button>
+    </div>`;
+}
+
+// Animateur : ceux qui ont leur téléphone et n'ont pas encore voté (on peut passer un absent).
+function lkWaitingHtml(g) {
+  const v = g.likely, phones = v.waiting.filter((x) => !x.manual && x.pid !== g.me?.pid);
+  if (!g.is_host || !phones.length) return "";
+  return `<div class="lk-card lk-waiting"><div class="artist">Réfléchissent encore…</div>
+    <div class="lk-row">${phones.map((x) => `<button class="lk-sub" data-gact="lkskip" data-target="${esc(x.pid)}" title="Passer ${esc(x.name)} (absent)">⏭ ${esc(x.name)}</button>`).join("")}</div></div>`;
 }
 
 function lkAskHtml(g) {
   const v = g.likely;
-  if (!v.voter) return lkQuestion(v);
-  // Le téléphone qui tourne (animateur) demande toujours « C'est moi » : il peut être dans d'autres mains,
-  // même quand c'est le tour de son propriétaire. Un invité, lui, vote directement sur son propre téléphone.
-  if ((v.voter.mine && !g.is_host) || (g.is_host && lkReadyKey === lkVoterKey(g))) return lkGridHtml(g) + lkDots(v);
-  if (!g.is_host) {
-    return `${lkQuestion(v)}<div class="lk-card"><div class="artist">Le téléphone tourne… au tour de</div><div class="lk-name">${esc(v.voter.name)}</div></div>${lkDots(v)}`;
-  }
-  return `${lkQuestion(v)}<div class="lk-pass">
-      <div class="lk-pass-k">📱 Passe le téléphone à</div><div class="lk-name">${esc(v.voter.name)}</div>
-      <button class="lk-main" data-lk-ready="${esc(lkVoterKey(g))}">C'est moi, ${esc(v.voter.name)} 👋</button>
-    </div>${lkDots(v)}
-    <div class="lk-row">
-      <button class="lk-sub" data-gact="lkskip">⏭ Passer ${esc(v.voter.name)} (absent)</button>
-      ${v.voted ? "" : `<button class="lk-sub" data-gact="lkswap">🔀 Autre question</button>`}
-    </div>`;
+  // Chacun vote sur son propre téléphone, en même temps ; une fois voté, la grille disparaît (vote secret et définitif).
+  const mine = v.can_vote ? lkGridHtml(g, g.me.pid, "Qui désignes-tu&nbsp;? C'est secret.")
+    : g.me && v.done.includes(g.me.pid) ? `<div class="lk-card lk-done"><div class="lk-name">✓ Vote enregistré</div><div class="artist">Résultat quand tout le monde a voté.</div></div>` : "";
+  const host = g.is_host && !v.can_vote ? lkPassHtml(g) + lkWaitingHtml(g) : "";
+  return `${lkQuestion(v)}${mine}${host}${lkDots(v)}
+    ${g.is_host && !v.voted ? `<div class="lk-row"><button class="lk-sub" data-gact="lkswap">🔀 Autre question</button></div>` : ""}`;
 }
 
 function lkBarsHtml(v) {
@@ -126,7 +137,7 @@ function likelyHtml(g) {
   return lkLobbyHtml(g);
 }
 
-// Liste des joueurs (ordre de passage du téléphone) et ajout des prénoms, avant la première question.
+// Liste des joueurs (ordre de passage du téléphone pour ceux qui n'en ont pas) et ajout des prénoms, avant la première question.
 function renderLikelyHost(g) {
   if (g.phase !== "lobby" || !g.is_host) { patch.gameHost = ""; return; }
   const n = g.players.length;
@@ -152,12 +163,12 @@ function lkAnnounce(g) {
 }
 
 function lkVote(b) {
-  const v = game.likely;
-  if (!v?.voter) return;
+  if (!game.likely) return;
   lkReadyKey = "";  // l'écran se cache tout de suite pour le prochain votant
+  b.closest(".lk-grid")?.querySelectorAll("button").forEach((x) => { x.disabled = true; });  // un seul vote
   b.classList.add("on");
   haptic(30);
-  pressed(b, gameAction("lkvote", { who: v.voter.pid, target: b.dataset.lkVote }));
+  pressed(b, gameAction("lkvote", { who: b.dataset.lkWho, target: b.dataset.lkVote }));
 }
 
 document.addEventListener("click", (ev) => {

@@ -70,7 +70,12 @@ def test_host_can_transfer_and_leave_without_closing_friends_game(phones,kind):
     host.page.locator('[data-exit="pick"]').click()
     host.page.on("dialog",lambda d:d.accept())
     host.page.locator('[data-exit="to"]').click()
-    expect(host.page.locator("#gHome")).to_be_visible()
+    # Passer la main ne fait plus quitter (retour 26.10) : l'ancien animateur reste joueur…
+    wait_state(friend,lambda g:g["is_host"] and len(g["players"])==2)
+    expect(host.page.locator("#gamePlay")).to_be_visible()
+    # … et part ensuite avec « Quitter la partie », sans fermer la partie de son ami.
+    host.page.locator("#gTop .g-quit").click()
+    host.page.locator('[data-exit="leave"]').click()
     wait_state(friend,lambda g:g["is_host"] and len(g["players"])==1)
     assert friend.current()==code
 

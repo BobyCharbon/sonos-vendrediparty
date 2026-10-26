@@ -192,6 +192,28 @@ def test_whoof_round():
     assert g["phase"] == "question" and g["votes"] == {}
 
 
+def test_whoof_vote_cannot_be_changed():
+    """Qui de nous ? : un vote est définitif (retour 26.10 : « interdit de changer de vote »)."""
+    g = games.new_game("whoof")
+    for gid in ("a", "b", "c"):
+        games.join(g, gid)
+    games.start(g)
+    games.vote(g, "a", "b")
+    with pytest.raises(games.GameError):
+        games.vote(g, "a", "c")
+    assert g["votes"]["a"] == "b"
+
+
+def test_never_answer_can_still_be_changed():
+    g = games.new_game("never")
+    for gid in ("a", "b"):
+        games.join(g, gid)
+    games.start(g)
+    games.vote(g, "a", "yes")
+    games.vote(g, "a", "no")
+    assert g["votes"]["a"] == "no"
+
+
 def test_game_api_flow_without_music_code():
     clients = [TestClient(main.app) for _ in range(4)]  # aucun n'a saisi le code de la musique
     host, *others = clients
@@ -1025,7 +1047,7 @@ def test_game_room_flow():
     h.post(f"/api/games/{code}", json={"guest_id": "room-host-0001", "action": "handover", "target": lea})
     v = o.post(f"/api/games/{code}", json={"guest_id": "room-other-001", "action": "launch", "settings": {"type": "quiz"}}).json()
     q = o.get(f"/api/games/{v['room_info']['current']['code']}?guest_id=room-other-001").json()
-    assert q["is_owner"] and not any(p["name"] == "Ludo" for p in q["players"])
+    assert q["is_owner"] and any(p["name"] == "Ludo" for p in q["players"])  # l'ancien animateur joue encore
 
 
 @pytest.mark.parametrize("n, wanted, white, expected", [(6, 2, False, 2), (6, 3, False, 2), (5, 3, True, 1), (9, 0, False, 2), (4, 1, False, 1)])
