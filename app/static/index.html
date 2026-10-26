@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="/static/heist.css">
   <link rel="stylesheet" href="/static/purity.css">
   <link rel="stylesheet" href="/static/likely.css">
+  <link rel="stylesheet" href="/static/ui.css">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=2">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v=2">
   <link rel="manifest" href="/static/manifest.json">
@@ -28,6 +29,7 @@
     <h1 id="appTitle" class="app-title">Musique</h1>
     <button type="button" id="nameChip" class="name-chip-top hidden" aria-label="Changer de prénom"></button>
   </header>
+  <div id="navBar" class="nav-bar" aria-hidden="true"><span id="navBarTitle">Musique</span></div>
 
   <section data-view="music">
   <div id="musicAdmin" class="admin-only"></div>
@@ -96,15 +98,21 @@
   </section>
 
   <!-- Réglages → « Invités, messages et notifications » (compte admin) : concerne toute la soirée. -->
-  <section data-view="host" class="hidden" aria-label="Invités, messages et notifications">
-    <button type="button" class="secondary" data-host-back>← Réglages</button>
+  <section data-view="host" class="nav-screen hidden" aria-labelledby="hostTitle">
+    <header class="nav-head">
+      <button type="button" class="nav-back" data-host-back aria-label="Retour aux Réglages"><svg viewBox="0 0 12 21" aria-hidden="true"><path d="M10.5 1.5 1.5 10.5l9 9"/></svg><span>Réglages</span></button>
+    </header>
+    <h1 class="screen-title" id="hostTitle">Invités et messages</h1>
     <div id="peopleAdmin" class="admin-only"></div>
     <div id="auditAdmin" class="admin-only"></div>
   </section>
 
   <!-- Réglages → « Mes stats de jeu » : un onglet par jeu, pour le seul titulaire du compte (Purify Test pour commencer). -->
-  <section data-view="stats" class="hidden" aria-label="Mes stats de jeu">
-    <button type="button" class="secondary" data-host-back>← Réglages</button>
+  <section data-view="stats" class="nav-screen hidden" aria-labelledby="statsTitle">
+    <header class="nav-head">
+      <button type="button" class="nav-back" data-host-back aria-label="Retour aux Réglages"><svg viewBox="0 0 12 21" aria-hidden="true"><path d="M10.5 1.5 1.5 10.5l9 9"/></svg><span>Réglages</span></button>
+    </header>
+    <h1 class="screen-title" id="statsTitle">Mes stats de jeu</h1>
     <div class="seg stats-tabs" role="tablist" aria-label="Jeux">
       <button type="button" role="tab" class="on" aria-selected="true" aria-controls="purityStats" data-stats-tab="purity">😈 Purify Test</button>
     </div>
@@ -160,7 +168,7 @@
     <button id="installClose" class="secondary" aria-label="Fermer">✕</button>
   </div>
 
-  <div id="installSheet" class="i-modal hidden" role="dialog" aria-modal="true" aria-labelledby="iTitle">
+  <div id="installSheet" class="i-modal hidden" role="dialog" aria-modal="true" aria-labelledby="iTitle" data-nav="sheet" data-nav-surface=".i-sheet" data-nav-close="#iLater">
     <div class="i-sheet">
       <div class="i-head">
         <img src="/static/apple-touch-icon.png?v=2" width="44" height="44" alt="">
@@ -185,6 +193,8 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
+<script src="/static/motion.js"></script>
+<script src="/static/nav.js"></script>
 <script src="/static/push.js"></script>
 <script src="/static/events-shell.js"></script>
 <script>
@@ -327,6 +337,8 @@ async function changeName() {
 }
 $("nameChip").addEventListener("click", changeName);
 
+// Pages des Réglages : elles s'empilent par-dessus les Réglages (‹ Réglages, glisser depuis le bord, retour).
+const SUB_SCREENS = { host: "account", stats: "account" };
 // Les événements utilisent leur compte SMS ; les accès musique/jeux restent indépendants.
 function showTab(tab, eventTarget) {
   if (!["music", "games", "events", "feedback", "account", "host", "stats"].includes(tab)) tab = "music";
@@ -335,9 +347,13 @@ function showTab(tab, eventTarget) {
     if (document.body.dataset.tab) return toast("📅 Les événements arrivent bientôt");
     tab = "music";
   }
-  document.querySelectorAll("[data-view]").forEach((el) => el.classList.toggle("hidden", !el.dataset.view.split(" ").includes(tab)));
+  const under = SUB_SCREENS[tab], starting = !document.body.dataset.tab;
+  document.querySelectorAll("[data-view]").forEach((el) => {
+    const views = el.dataset.view.split(" ");
+    el.classList.toggle("hidden", !(views.includes(tab) || (under && views.includes(under))));
+  });
   document.querySelectorAll("#tabs [data-tab]").forEach((el) => {
-    const current = el.dataset.tab === (["host", "stats"].includes(tab) ? "account" : tab);  // pages des Réglages
+    const current = el.dataset.tab === (under || tab);  // pages des Réglages
     el.classList.toggle("on", current);
     if (current) el.setAttribute("aria-current", "page");
     else el.removeAttribute("aria-current");
@@ -345,6 +361,7 @@ function showTab(tab, eventTarget) {
   if (!["feedback", "account", "host", "stats"].includes(tab) && document.body.dataset.tab) fbTab = tab;
   document.body.dataset.tab = tab;  // la lumière de scène et le titre suivent l'onglet
   $("appTitle").textContent = ({ music: "Musique", games: "Jeux", events: "Événements", feedback: fbIsAdmin() ? "Retours" : "Ton avis", account: account ? "Réglages" : "Se connecter", host: "Invités et messages", stats: "Mes stats de jeu" })[tab];
+  $("navBarTitle").textContent = $("appTitle").textContent;
   store("vp_tab", tab);
   if (tab === "games") refreshGame();
   if (tab === "feedback") loadFeedback();
@@ -353,7 +370,13 @@ function showTab(tab, eventTarget) {
   if (tab === "stats") showStats();
   // Événements et Réglages partagent le même module (une seule connexion) : on change juste de page dedans.
   if (tab === "events") frameRoute(eventTarget || (frameAt === "/account" ? "/" : null));
-  if (tab === "account") frameRoute("/account");
+  if (tab === "account" || under) frameRoute("/account");
+  if (under) {
+    const screen = document.querySelector(`[data-view="${tab}"]`);
+    screen.scrollTop = 0;
+    Nav.open({ key: tab, kind: "screen", el: screen, surface: screen, animateIn: !starting,
+      under: () => document.querySelector(".events-panel"), close: () => showTab(under) });
+  } else Object.keys(SUB_SCREENS).forEach((key) => Nav.closed(key));
   scrollTo(0, 0);
 }
 // 🏆 Mes stats de jeu : un onglet par jeu ; chaque jeu enregistre son affichage dans STATS_TABS (purity.js…).
@@ -372,7 +395,12 @@ function showStats(name = statsTab) {
 document.addEventListener("click", (ev) => { const t = ev.target.closest("[data-stats-tab]"); if (t) showStats(t.dataset.statsTab); });
 // Boutons d'onglet seulement : le <body> porte aussi data-tab (sinon chaque toucher ramène en haut de page).
 document.addEventListener("click", (ev) => { const t = ev.target.closest("button[data-tab]"); if (t) showTab(t.dataset.tab); });
-document.addEventListener("click", (ev) => { if (ev.target.closest("[data-host-back]")) showTab("account"); });
+document.addEventListener("click", (ev) => {
+  if (!ev.target.closest("[data-host-back]")) return;
+  if (Nav.has(document.body.dataset.tab)) Nav.back();  // l'écran repart par la droite, comme sur iPhone
+  else showTab("account");
+});
+Nav.largeTitle($("appTitle"), $("navBar"));
 
 // 👤 Compte Party : le module Événements gère la connexion SMS et le profil ; ici on relie le compte aux jeux.
 let frameAt = null, frameReady = false, account = null;

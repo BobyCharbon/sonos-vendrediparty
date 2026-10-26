@@ -645,7 +645,7 @@ document.getElementById("gamesRoot").innerHTML = `
       <div id="gameHost"></div>
     </div>
 
-    <aside id="gDrawer" class="g-drawer hidden" aria-label="Menu de la partie">
+    <aside id="gDrawer" class="g-drawer hidden" aria-label="Menu de la partie" data-nav="drawer" data-nav-surface=".g-drawer-panel" data-nav-close="[data-gdrawer=close]">
       <div class="g-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="gDrawerTitle">
         <div class="g-drawer-head"><b id="gDrawerTitle">Menu de la partie</b>
           <button type="button" class="py-icon" data-gdrawer="close" aria-label="Fermer le menu">✕</button></div>
@@ -660,7 +660,7 @@ document.getElementById("gamesRoot").innerHTML = `
       </div>
     </aside>
 
-    <div id="rulesModal" class="g-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rulesTitle">
+    <div id="rulesModal" class="g-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rulesTitle" data-nav="sheet" data-nav-surface=".g-sheet" data-nav-close="[data-rules-close]">
       <div class="g-sheet">
         <div class="g-head">
           <div class="g-icon" id="rulesIcon"></div>
@@ -730,6 +730,9 @@ function syncGameChrome() {
   const g = myGame ? game : null;
   const full = !!g && pyrFull && gamesTabShown();
   document.body.classList.toggle("pyr-full", full);
+  if (full && !document.body.classList.contains("g-leave")) window.Nav?.open({ key: "game", kind: "sheet", el: $("gamePlay"), surface: $("gamePlay"), handle: "#gTop",
+    selfAnimated: true, close: minimizeGame });
+  else window.Nav?.closed("game");
   let mini = $("gMini");
   if (!mini) {
     mini = document.createElement("button");
@@ -2348,6 +2351,7 @@ function openRoomSheet(type) {
   go.textContent = "▶ Lancer pour toute la salle";
   const wrap = document.createElement("div");
   wrap.className = "g-modal g-room-modal";
+  Object.assign(wrap.dataset, { nav: "sheet", navSurface: ".g-room-sheet", navClose: "self" });
   wrap.innerHTML = `<div class="g-sheet g-room-sheet" role="dialog" aria-modal="true" aria-label="Lancer un jeu"><div class="g-sheet-grab" aria-hidden="true"></div></div>`;
   wrap.firstElementChild.append(card);
   wrap.addEventListener("click", (ev) => { if (ev.target === wrap) closeRoomSheet(); });
@@ -2374,6 +2378,7 @@ function openKickSheet(pid) {
   const name = esc(p.name);
   const wrap = document.createElement("div");
   wrap.className = "g-modal g-room-modal g-kick-modal";
+  Object.assign(wrap.dataset, { nav: "sheet", navSurface: ".g-room-sheet", navClose: "self" });
   wrap.innerHTML = `<div class="g-sheet g-room-sheet g-kick" role="dialog" aria-modal="true" aria-labelledby="kickTitle">
     <div class="g-sheet-grab" aria-hidden="true"></div>
     <div class="g-kick-who">${avatar(p)}<b id="kickTitle">Retirer ${name}${p.twin ? ` #${p.twin}` : ""} ?</b></div>

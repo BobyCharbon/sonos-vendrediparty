@@ -1,0 +1,89 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Refonte « Party façon Apple » : navigation commune (nav.js) et chrome iOS.
+   Identité Party conservée (nuit violette, néon rose, ambre, titres Bricolage).
+   Règle iOS 26 (CLAUDE.md) : jamais de hauteur ni d'overflow sur html/body ;
+   tout écran plein écran est un panneau fixe au-dessus de la page.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --material: rgba(21, 16, 42, .72);          /* barres translucides (même nuit que le fond) */
+  --material-blur: blur(20px) saturate(180%);
+  --separator: rgba(255, 255, 255, .1);
+  --tint: var(--accent);                      /* liens et boutons texte, comme la teinte système d'iOS */
+  --tabs-height: var(--tabs-h, calc(58px + max(6px, env(safe-area-inset-bottom))));
+}
+
+/* ── Écrans poussés (pages des Réglages) : glissent depuis la droite par-dessus l'onglet ── */
+.nav-screen {
+  position: fixed; z-index: 6; top: 0; left: 0; right: 0; bottom: var(--tabs-height);
+  overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  background: var(--bg); padding: 0 max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left));
+}
+.nav-screen > * { max-width: 640px; margin-left: auto; margin-right: auto; }
+.nav-screen.nav-dragging { box-shadow: -12px 0 32px rgba(0, 0, 0, .45); }
+body[data-tab="host"] .top-head, body[data-tab="stats"] .top-head, body[data-tab="host"] .name-chip-top, body[data-tab="stats"] .name-chip-top { display: none; }
+body[data-tab="host"] .events-panel, body[data-tab="stats"] .events-panel {
+  position: fixed; z-index: 5; top: 0; left: 0; right: 0; bottom: var(--tabs-height);
+  display: flex; flex-direction: column; background: var(--bg);
+}
+body[data-tab="host"] .events-frame, body[data-tab="stats"] .events-frame { flex: 1 1 auto; width: 100%; height: auto; min-height: 0; border-radius: 0; }
+
+/* Barre de navigation d'un écran poussé : ‹ Réglages, matière translucide, le contenu défile dessous */
+.nav-head {
+  position: sticky; top: 0; z-index: 2; display: flex; align-items: center;
+  height: calc(44px + env(safe-area-inset-top)); padding-top: env(safe-area-inset-top);
+  margin: 0 calc(-1 * max(16px, env(safe-area-inset-left))); padding-left: max(4px, env(safe-area-inset-left));
+  background: var(--material); backdrop-filter: var(--material-blur); -webkit-backdrop-filter: var(--material-blur);
+  box-shadow: inset 0 -0.5px 0 var(--separator);
+}
+.nav-screen > .nav-head { max-width: none; }
+.nav-back {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 10px;
+  background: none; box-shadow: none; color: var(--tint); font-size: 1.0625rem; font-weight: 500; letter-spacing: -0.01em;
+}
+.nav-back svg { width: 12px; height: 21px; flex: none; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+/* Bouton texte iOS : il s'atténue sous le doigt au lieu de rétrécir */
+.nav-back:not(:disabled):active { transform: none; filter: none; opacity: .4; transition-duration: 0s; }
+.screen-title {
+  margin: 6px 0 16px; font: 800 clamp(2rem, 8.5vw, 2.5rem)/1.02 "Bricolage Grotesque", system-ui, sans-serif;
+  letter-spacing: -0.035em; font-optical-sizing: auto; color: var(--text);
+}
+
+/* ── Grand titre replié : barre compacte translucide quand on a défilé (onglets Musique, Jeux, Ton avis) ── */
+.nav-bar {
+  position: fixed; z-index: 7; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: center;
+  height: calc(44px + env(safe-area-inset-top)); padding-top: env(safe-area-inset-top);
+  background: var(--material); backdrop-filter: var(--material-blur); -webkit-backdrop-filter: var(--material-blur);
+  box-shadow: inset 0 -0.5px 0 var(--separator);
+  opacity: 0; pointer-events: none; transition: opacity .18s ease;
+}
+.nav-bar span { font-weight: 650; font-size: 1.0625rem; letter-spacing: -0.012em; transform: translateY(6px); transition: transform .35s var(--spring); }
+body.nav-compact .nav-bar { opacity: 1; pointer-events: auto; cursor: default; }
+body.nav-compact .nav-bar span { transform: none; }
+body[data-tab="events"] .nav-bar, body[data-tab="account"] .nav-bar, body[data-tab="host"] .nav-bar,
+body[data-tab="stats"] .nav-bar, body.pyr-full .nav-bar { display: none; }
+
+/* ── Barre d'onglets : un libellé par onglet, sur une ligne (taille iOS) ── */
+.tabs button span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; font-size: .6875rem; letter-spacing: 0; }
+
+/* ── Gestes en cours ou terminés : rien ne lutte contre le doigt ── */
+.nav-gesture, .nav-gesture * { -webkit-user-select: none !important; user-select: none !important; }
+.nav-dismissed, .nav-dismissed .g-sheet, .nav-dismissed .i-sheet, .nav-dismissed .g-drawer-panel { animation: none !important; }
+body.pyr-full #gamePlay.nav-dragging { border-radius: 26px 26px 0 0; box-shadow: 0 -12px 40px rgba(0, 0, 0, .5); }
+/* Poignée des feuilles : on voit qu'elles se tirent vers le bas */
+.g-sheet > .g-head:first-child::before, .i-sheet::before {
+  content: ""; position: absolute; top: 6px; left: 50%; width: 36px; height: 5px; margin-left: -18px;
+  border-radius: 99px; background: rgba(255, 255, 255, .28);
+}
+.g-sheet, .i-sheet { position: relative; }
+.i-coach .i-sheet::before { display: none; }
+
+@media (min-width: 900px) {
+  .nav-screen, body[data-tab="host"] .events-panel, body[data-tab="stats"] .events-panel { left: 96px; bottom: 0; }
+  .nav-bar { left: 96px; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .nav-head, .nav-bar { background: var(--bg); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+@media (prefers-contrast: more) {
+  .nav-head, .nav-bar { box-shadow: inset 0 -1px 0 rgba(255, 255, 255, .45); }
+}
