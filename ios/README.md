@@ -96,6 +96,10 @@ Après l'envoi (≈ 15 min de compilation, puis 5 à 30 min de traitement chez A
   passe une courte revue « Beta App Review » (≈ 24 h).
 - Sur l'iPhone : app **TestFlight** de l'App Store, puis le lien d'invitation.
 
+En place (26 octobre 2026) : app App Store Connect « VendrediParty » (id 6827221948), clé API `U779ASTY47`,
+groupe interne « Équipe » (distribution automatique) et groupe externe « Invités », lien public
+**https://testflight.apple.com/join/HYf2U6XP** (actif une fois le build approuvé par la revue bêta).
+
 ### 7. App Store
 1. App Store Connect : fiche de l'app (captures 6,9″ et 6,5″, description, URL de confidentialité, classement
    d'âge).
