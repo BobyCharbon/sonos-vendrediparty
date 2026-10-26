@@ -19,3 +19,5 @@ ios/Party.xcodeproj/
 ios/build/
 ios/DerivedData/
 xcuserdata/
+ios/Party/Info.plist
+ios/Party/Party.entitlements
