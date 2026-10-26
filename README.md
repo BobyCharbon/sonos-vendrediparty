@@ -11,6 +11,11 @@ Webapp qui permet aux invités d'ajouter des titres à la musique de la soirée,
   **Jeux** : parties en cours de toute la soirée (détail, rejoindre, fermer) ; **Retours** : avis des invités
   (statuts, mot pour l'invité, envoi à Claude)
 - **/admin** : même gestion avec le code PIN, gardée en secours
+- **/tv** : écran pour la télé (Apple TV) — titre en cours avec sa pochette, prochaines demandes et qui les a faites,
+  code et QR pour entrer, événement lié, parties de jeu en cours. Réservé à l'hôte (code PIN une fois). Sur le Mac :
+  ouvrir `/tv` dans Safari, Recopie de l'écran → Apple TV en **écran séparé**, puis plein écran (⌃⌘F)
+- **Soirée liée à un événement** (Musique → Code et QR → « Événement de la soirée ») : les comptes notés « Présent »
+  entrent dans Musique et Jeux sans code ; noté absent par l'organisateur, l'accès sans code s'arrête (le code reste)
 - **Événements** : sorties du groupe, catégories/tags et abonnements, propositions,
   votes sur les dates, sondages, réponses et discussions ; connexion SMS obligatoire.
 

@@ -2244,6 +2244,32 @@ def admin_page():
     return page("admin.html")
 
 
+@app.get("/tv")
+def tv_page():
+    return page("tv.html")
+
+
+TV_UPCOMING = 6  # prochains titres lisibles de loin sur la télé
+
+
+@app.get("/api/tv", dependencies=[Depends(require_admin)])
+def tv_state():
+    """Écran TV de l'hôte (Apple TV via AirPlay) : titre en cours, prochaines demandes et qui les a faites,
+    code et QR pour entrer, événement lié, parties de jeu en cours. Réservé à l'hôte : il affiche le code."""
+    s = store.session
+    base = {"active": s.active, "pin": s.guest_pin, "url": guest_url(), "event": s.event_title or None,
+            "games": [{"code": g["code"], "name": g["name"], "players": len(g["players"])}
+                      for g in map(games.summary, (prune_games() or s.games).values())]}
+    if not s.active:
+        return base
+    try:
+        music = public_sonos(snapshot())
+    except Exception:
+        return {**base, "error": "La musique est injoignable pour le moment"}
+    return {**base, "room": s.room_name, "state": music["state"], "now": music["now"],
+            "upcoming": [{k: t[k] for k in ("title", "artist", "art", "by")} for t in music["upcoming"][:TV_UPCOMING]]}
+
+
 @app.get("/api/calendar.ics")
 def calendar_file(
     uid: str = Query(max_length=36),

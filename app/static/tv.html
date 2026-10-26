@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Party TV</title>
+  <meta name="theme-color" content="#0e0b16">
+  <link rel="icon" href="/static/favicon-32.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&display=swap">
+  <link rel="stylesheet" href="/static/tv.css">
+</head>
+<body>
+  <!-- Écran TV de l'hôte : ouvert sur le Mac, affiché sur l'Apple TV (AirPlay, écran étendu, plein écran). -->
+  <div class="tv-backdrop" id="backdrop" aria-hidden="true"></div>
+
+  <form id="login" class="tv-login hidden">
+    <h1>Party <span>TV</span></h1>
+    <p>Code admin de la soirée, une seule fois sur cet écran.</p>
+    <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" aria-label="Code admin" required>
+    <button>Afficher</button>
+    <p id="loginError" class="tv-error" role="alert"></p>
+  </form>
+
+  <main id="stage" class="tv-stage hidden">
+    <section class="tv-now" aria-live="polite">
+      <div class="tv-art"><img id="nowArt" alt=""></div>
+      <div class="tv-now-text">
+        <p class="tv-label" id="nowLabel">En ce moment</p>
+        <h1 id="nowTitle"></h1>
+        <p class="tv-artist" id="nowArtist"></p>
+        <p class="tv-by hidden" id="nowBy"></p>
+      </div>
+    </section>
+
+    <aside class="tv-side">
+      <h2>À suivre</h2>
+      <ol id="upcoming" class="tv-list"></ol>
+      <div class="tv-join">
+        <img id="qr" alt="QR code pour rejoindre la soirée">
+        <div>
+          <p class="tv-label">Rejoins la soirée</p>
+          <p class="tv-pin" id="pinCode"></p>
+          <p class="tv-url" id="url"></p>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <footer id="bar" class="tv-bar hidden">
+    <span id="event"></span>
+    <span id="games"></span>
+  </footer>
+
+  <script src="/static/tv.js"></script>
+</body>
+</html>
