@@ -9,7 +9,7 @@ import { Button, Chip, Empty, ErrorText, Input, s, Segmented, T, Title } from '@
 import { useAuth, useMe } from '@/lib/auth';
 import { fetchEventList, fetchTaxonomy, needsAnswer, useQuery } from '@/lib/data';
 import { must, supabase } from '@/lib/supabase';
-import { colors, fonts, radius } from '@/lib/theme';
+import { colors, font, radius } from '@/lib/theme';
 
 type Tab = 'upcoming' | 'polls' | 'mine' | 'past';
 type Filter = { kind: 'all' } | { kind: 'subscribed' } | { kind: 'category'; id: string } | { kind: 'tag'; id: string };
@@ -216,7 +216,7 @@ export default function Home() {
           onPress={() => router.push('/event/new')}
           style={({ pressed }) => [st.fab, pressed && { opacity: 0.85 }]}
         >
-          <T color={colors.onAccent} style={{ fontFamily: fonts.bold, fontSize: 15 }}>+ Proposer</T>
+          <T color={colors.onAccent} style={{ ...font.bold, fontSize: 15 }}>+ Proposer</T>
         </Pressable>
         </View>
       </View>

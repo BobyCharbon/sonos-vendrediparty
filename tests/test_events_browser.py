@@ -450,3 +450,30 @@ def test_country_choice_tells_screen_readers_which_one_is_selected(browser, even
         assert [r.get_attribute('aria-checked') for r in radios.all()] == ['false', 'true', 'false']
     finally:
         context.close()
+
+
+def test_event_detail_has_an_ios_back_button_and_an_edge_swipe_goes_back(browser, events_origin):
+    """Refonte Apple : ‹ Événements dans l’en-tête du détail, et glisser depuis le bord gauche revient à la liste."""
+    context=browser.new_context(viewport={'width':390,'height':844},has_touch=True)
+    page=context.new_page();mock_services(page)
+    try:
+        page.goto(events_origin,wait_until='domcontentloaded')
+        page.get_by_role('button',name='Événements',exact=True).click()
+        frame=page.frame_locator('#eventsFrame')
+        login(frame)
+        card=frame.get_by_text('Sortie de démonstration (test local)',exact=True)
+        pw.expect(card).to_be_visible(timeout=15000)
+        card.click()
+        back=frame.get_by_role('button',name='Retour : Événements')
+        pw.expect(back).to_be_visible()
+        back.click()
+        pw.expect(card).to_be_visible()
+        card.click()
+        pw.expect(back).to_be_visible()
+        # Le module est dans un cadre plein écran : ses coordonnées sont celles de la page.
+        page.mouse.move(4,420);page.mouse.down();page.mouse.move(320,425,steps=6);page.mouse.up()
+        pw.expect(back).to_be_hidden()
+        pw.expect(card).to_have_count(1)
+        pw.expect(card).to_be_visible()
+    finally:
+        context.close()

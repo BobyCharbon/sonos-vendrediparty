@@ -18,7 +18,7 @@ import {
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
 import { avatarColor, initials } from '@/lib/format';
-import { colors, fonts, radius } from '@/lib/theme';
+import { colors, font, radius, type FontWeight } from '@/lib/theme';
 import { PROFILE_PHOTOS } from '@/lib/photos';
 import { supabase } from '@/lib/supabase';
 
@@ -62,7 +62,7 @@ export function T({
   children: ReactNode;
   muted?: boolean;
   size?: number;
-  weight?: keyof typeof fonts;
+  weight?: FontWeight;
   color?: string;
   style?: StyleProp<TextStyle>;
   numberOfLines?: number;
@@ -70,7 +70,7 @@ export function T({
   return (
     <Text
       numberOfLines={numberOfLines}
-      style={[{ color: color ?? (muted ? colors.muted : colors.text), fontSize: size, fontFamily: fonts[weight] }, style]}
+      style={[{ color: color ?? (muted ? colors.muted : colors.text), fontSize: size, ...font[weight] }, style]}
     >
       {children}
     </Text>
@@ -123,14 +123,15 @@ export function Button({
       style={({ pressed }) => [
         s.button,
         small && { minHeight: 44, paddingHorizontal: 14 },
-        { backgroundColor: v.bg, borderColor: v.border, opacity: disabled ? 0.45 : pressed ? 0.8 : 1 },
+        { backgroundColor: v.bg, borderColor: v.border, opacity: disabled ? 0.45 : pressed ? 0.88 : 1 },
+        pressed && !disabled && s.pressed,
         style,
       ]}
     >
       {loading ? (
         <ActivityIndicator color={v.fg} />
       ) : (
-        <Text style={{ color: v.fg, fontFamily: fonts.bold, fontSize: small ? 13 : 15 }}>{label}</Text>
+        <Text style={{ color: v.fg, ...font.bold, fontSize: small ? 13 : 15 }}>{label}</Text>
       )}
     </Pressable>
   );
@@ -163,12 +164,13 @@ export function Chip({
       accessibilityState={{ selected, disabled }}
       onPress={onPress}
       disabled={disabled}
-      style={[
+      style={({ pressed }) => [
         s.chip,
+        pressed && !disabled && s.pressed,
         selected ? { backgroundColor: color, borderColor: color } : { borderColor: colors.lineStrong },
       ]}
     >
-      <Text style={{ color: selected ? colors.onAccent : colors.textSoft, fontFamily: fonts.semibold, fontSize: 13 }}>{label}</Text>
+      <Text style={{ color: selected ? colors.onAccent : colors.textSoft, ...font.semibold, fontSize: 13 }}>{label}</Text>
     </Pressable>
   );
 }
@@ -176,7 +178,7 @@ export function Chip({
 export function Badge({ label, fg, bg }: { label: string; fg: string; bg: string }) {
   return (
     <View style={[s.badge, { backgroundColor: bg }]}>
-      <Text style={{ color: fg, fontFamily: fonts.bold, fontSize: 12 }}>{label}</Text>
+      <Text style={{ color: fg, ...font.bold, fontSize: 12 }}>{label}</Text>
     </View>
   );
 }
@@ -214,7 +216,7 @@ export function Segmented<K extends string>({
               pressed && !on && { backgroundColor: colors.surface2 },
             ]}
           >
-            <Text numberOfLines={1} style={{ color: on ? colors.onAccent : colors.textSoft, fontFamily: fonts.bold, fontSize: 13 }}>{o.label}</Text>
+            <Text numberOfLines={1} style={{ color: on ? colors.onAccent : colors.textSoft, ...font.bold, fontSize: 13 }}>{o.label}</Text>
             {o.dot ? <View style={[s.dot, on && { backgroundColor: colors.onAccent }]} /> : null}
           </Pressable>
         );
@@ -347,7 +349,7 @@ export function Avatar({ id, name, size = 32, photo }: { id: string; name: strin
     <View style={[s.avatar, { width: size, height: size, backgroundColor: avatarColor(id) }]}>
       {url
         ? <Image accessibilityLabel={`Photo de ${name}`} source={{ uri: url }} style={{ width: size, height: size, borderRadius: size / 2 }} onError={() => setSigned(null)} />
-        : <Text style={{ color: colors.onAccent, fontFamily: fonts.bold, fontSize: size * 0.36 }}>{initials(name)}</Text>}
+        : <Text style={{ color: colors.onAccent, ...font.bold, fontSize: size * 0.36 }}>{initials(name)}</Text>}
     </View>
   );
 }
@@ -362,7 +364,7 @@ export function Loading() {
 
 export function ErrorText({ error }: { error: string | null }) {
   if (!error) return null;
-  return <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ color: colors.coralSoft, fontSize: 14, fontFamily: fonts.body }}>{error}</Text>;
+  return <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ color: colors.coralSoft, fontSize: 14, ...font.body }}>{error}</Text>;
 }
 
 export function Empty({ children }: { children: ReactNode }) {
@@ -389,7 +391,7 @@ export const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   // Colonne centrée : sur le web desktop l'app garde une largeur de téléphone
   content: { padding: 16, gap: 14, paddingBottom: 48, width: '100%', maxWidth: 640, alignSelf: 'center' },
-  title: { color: colors.text, fontFamily: fonts.display, letterSpacing: -0.4 },
+  title: { color: colors.text, ...font.display, letterSpacing: -0.4 },
   card: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.lg, padding: 16, gap: 12 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -409,9 +411,33 @@ export const s = StyleSheet.create({
     backgroundColor: colors.bg,
     color: colors.text,
     paddingHorizontal: 12,
-    fontFamily: fonts.body,
+    ...font.body,
     fontSize: 16,
   },
   avatar: { borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  pressed: { transform: [{ scale: 0.97 }] },
+  headerButton: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44, paddingHorizontal: 8 },
+  chevron: { width: 12, height: 12, borderLeftWidth: 2.5, borderBottomWidth: 2.5, borderColor: colors.accent, transform: [{ rotate: '45deg' }], marginLeft: 6, marginRight: 2 },
   divider: { height: 1, backgroundColor: colors.line },
 });
+
+/** ‹ Retour d’en-tête, comme sur iPhone : chevron et nom de l’écran précédent, teintés. */
+export function HeaderBack({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={`Retour : ${label}`} onPress={onPress}
+      style={({ pressed }) => [s.headerButton, { opacity: pressed ? 0.4 : 1 }]}>
+      <View style={s.chevron} />
+      <Text numberOfLines={1} style={{ color: colors.accent, fontSize: 17, maxWidth: 160, ...font.medium }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** Action d’en-tête en texte teinté (« Modifier »…) ; l’action principale est en gras. */
+export function HeaderAction({ label, onPress, prominent }: { label: string; onPress: () => void; prominent?: boolean }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
+      style={({ pressed }) => [s.headerButton, { opacity: pressed ? 0.4 : 1 }]}>
+      <Text style={{ color: colors.accent, fontSize: 17, ...(prominent ? font.semibold : font.body) }}>{label}</Text>
+    </Pressable>
+  );
+}

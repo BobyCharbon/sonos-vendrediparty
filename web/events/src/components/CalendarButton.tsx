@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { calendarPlatform, googleCalendarUrl, icsUrl, openGoogleCalendar, openIcs } from '@/lib/calendar';
-import { colors, fonts, radius } from '@/lib/theme';
+import { colors, font, radius } from '@/lib/theme';
 import type { EventRow } from '@/lib/types';
 
 import { T } from './ui';
@@ -42,7 +42,7 @@ export function CalendarButton({ event, prominent = false }: { event: Ev; promin
         style={({ pressed }) => [st.button, prominent ? st.prominent : st.quiet, pressed && { opacity: 0.8 }]}
       >
         <T size={17}>📆</T>
-        <T size={15} style={{ fontFamily: fonts.bold }} color={prominent ? colors.onAccent : colors.text}>Ajouter à mon agenda</T>
+        <T size={15} style={{ ...font.bold }} color={prominent ? colors.onAccent : colors.text}>Ajouter à mon agenda</T>
       </Pressable>
       {platform === 'desktop' && choices ? (
         <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -62,7 +62,7 @@ export function CalendarButton({ event, prominent = false }: { event: Ev; promin
 function Choice({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [st.choice, pressed && { opacity: 0.8 }]}>
-      <T size={13} style={{ fontFamily: fonts.bold }}>{label}</T>
+      <T size={13} style={{ ...font.bold }}>{label}</T>
     </Pressable>
   );
 }

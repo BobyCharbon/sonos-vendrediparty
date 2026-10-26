@@ -5,7 +5,7 @@ import { formatShort, parseLocalDateTime } from '@/lib/format';
 import { refreshPending } from '@/lib/pending';
 import { rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
 import { supabase } from '@/lib/supabase';
-import { colors, fonts, radius } from '@/lib/theme';
+import { colors, font, radius } from '@/lib/theme';
 import type { BringItem, DateOption, DateVote, DateVoteRow, EventRow, Poll, PollOption, Rsvp, RsvpStatus } from '@/lib/types';
 import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
@@ -109,8 +109,8 @@ export function RsvpCard({
                 (pressed || busy === k) && { opacity: 0.7 },
               ]}
             >
-              <T size={18} style={{ fontFamily: fonts.bold }} color={on ? c.fg : c.bg}>{c.icon}</T>
-              <T style={{ fontFamily: fonts.bold }} size={14} color={on ? c.fg : colors.text}>{c.label}</T>
+              <T size={18} style={{ ...font.bold }} color={on ? c.fg : c.bg}>{c.icon}</T>
+              <T style={{ ...font.bold }} size={14} color={on ? c.fg : colors.text}>{c.label}</T>
             </Pressable>
           );
         })}
@@ -317,7 +317,7 @@ export function DatePollSection({
                       borderColor: mine === k ? voteColor[k] : colors.lineStrong, backgroundColor: mine === k ? voteColor[k] : 'transparent',
                     }}
                   >
-                    <T size={13} style={{ fontFamily: fonts.bold }} color={mine === k ? colors.onAccent : colors.textSoft}>{voteLabel[k]}</T>
+                    <T size={13} style={{ ...font.bold }} color={mine === k ? colors.onAccent : colors.textSoft}>{voteLabel[k]}</T>
                   </Pressable>
                 ))}
               </View>

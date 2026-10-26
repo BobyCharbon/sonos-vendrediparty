@@ -5,7 +5,7 @@ import { AccessibilityInfo, Animated, Pressable, StyleSheet, View } from 'react-
 import { rsvpCounts, type EventListItem } from '@/lib/data';
 import { dateTile, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
 import { rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
-import { colors, fonts, radius } from '@/lib/theme';
+import { colors, font, radius } from '@/lib/theme';
 import type { RsvpStatus, Tag } from '@/lib/types';
 
 import { Badge, ErrorText, T } from './ui';
@@ -25,7 +25,7 @@ function DateTile({ iso, tone }: { iso: string | null; tone: Tone }) {
   if (!iso) {
     return (
       <View style={[st.tile, { backgroundColor: tone === 'todo' ? colors.accent : colors.coralDim }]}>
-        <T size={24} color={tone === 'todo' ? colors.onAccent : colors.coral} style={{ fontFamily: fonts.display }}>?</T>
+        <T size={24} color={tone === 'todo' ? colors.onAccent : colors.coral} style={{ ...font.display }}>?</T>
         <T size={10} weight="bold" color={tone === 'todo' ? colors.onAccent : colors.coralSoft}>DATE</T>
       </View>
     );
@@ -41,11 +41,11 @@ function DateTile({ iso, tone }: { iso: string | null; tone: Tone }) {
   return (
     <View style={[st.tile, { backgroundColor: c.bg }]}>
       <T size={10} weight="bold" color={c.top}>{d.weekday}</T>
-      <T size={24} color={c.day} style={{ fontFamily: fonts.display, lineHeight: 26 }}>{d.day}</T>
+      <T size={24} color={c.day} style={{ ...font.display, lineHeight: 26 }}>{d.day}</T>
       <T size={10} weight="bold" color={c.bottom}>{d.month}</T>
       {tone === 'yes' || tone === 'no' ? (
         <View style={[st.seal, { backgroundColor: rsvpChoices[tone].bg }]}>
-          <T size={11} style={{ fontFamily: fonts.bold, lineHeight: 13 }} color={rsvpChoices[tone].fg}>{rsvpChoices[tone].icon}</T>
+          <T size={11} style={{ ...font.bold, lineHeight: 13 }} color={rsvpChoices[tone].fg}>{rsvpChoices[tone].icon}</T>
         </View>
       ) : null}
     </View>
@@ -161,7 +161,7 @@ export function EventCard({
             {event.category ? <Badge label={event.category.name} fg={colors.onAccent} bg={event.category.color} /> : null}
             {myBadge ? <Badge {...myBadge} /> : null}
           </View>
-          <T style={{ fontFamily: fonts.display, fontSize: 20, lineHeight: 24 }} color={tone === 'past' ? colors.muted : colors.text} numberOfLines={2}>{event.title}</T>
+          <T style={{ ...font.display, fontSize: 20, lineHeight: 24 }} color={tone === 'past' ? colors.muted : colors.text} numberOfLines={2}>{event.title}</T>
           <T color={tone === 'past' ? colors.muted : colors.textSoft} size={14} numberOfLines={2}>
             {isPoll
               ? `${plural(event.date_options.length, 'date proposée', 'dates proposées')}${event.poll_deadline ? ` · vote avant ${formatShort(event.poll_deadline)}` : ''}`
@@ -203,7 +203,7 @@ export function EventCard({
                   onPress={() => answer(k)}
                   style={({ pressed }) => [st.quickBtn, (pressed || busy === k) && { opacity: 0.7 }]}
                 >
-                  <T size={13} style={{ fontFamily: fonts.bold }}>{k === 'yes' && full && event.waitlist_enabled ? 'Liste d’attente' : c.label}</T>
+                  <T size={13} style={{ ...font.bold }}>{k === 'yes' && full && event.waitlist_enabled ? 'Liste d’attente' : c.label}</T>
                 </Pressable>
               );
             })}
@@ -233,7 +233,7 @@ export function EventCard({
               onPress={() => answer(k)}
               style={({ pressed }) => [st.quickBtn, { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minWidth: 88, paddingHorizontal: 14 }, k === 'yes' && { backgroundColor: colors.coral, borderColor: colors.coral }, (pressed || busy === k) && { opacity: 0.7 }]}
             >
-              <T size={13} style={{ fontFamily: fonts.bold }} color={k === 'yes' ? colors.onCoral : colors.text}>{rsvpChoices[k].label}</T>
+              <T size={13} style={{ ...font.bold }} color={k === 'yes' ? colors.onCoral : colors.text}>{rsvpChoices[k].label}</T>
             </Pressable>
           ))}
         </View>

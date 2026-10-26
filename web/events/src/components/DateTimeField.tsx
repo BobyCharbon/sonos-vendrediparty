@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 
-import { colors, fonts } from '@/lib/theme';
+import { colors, font } from '@/lib/theme';
 
 import type { DateTimeFieldProps } from './DateTimeField.types';
 import { T } from './ui';
@@ -42,7 +42,7 @@ export function DateTimeField({ label, value, onChangeText, hint, optional, min 
           boxSizing: 'border-box', width: '100%', minWidth: 0, minHeight: 48,
           padding: '10px 12px', color: colors.text, backgroundColor: colors.bg,
           border: `1px solid ${colors.lineStrong}`, borderRadius: 12,
-          fontFamily: fonts.body, fontSize: 16, colorScheme: 'dark',
+          ...font.body, fontSize: 16, colorScheme: 'dark',
         }}
       />
       <T muted size={12}>{hint ?? 'Heure de Zurich'}</T>
