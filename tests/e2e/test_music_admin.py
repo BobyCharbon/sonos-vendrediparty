@@ -326,3 +326,40 @@ def test_a_guest_marked_present_enters_without_the_code(browser, server, present
         assert not lea.errors
     finally:
         lea.ctx.close()
+
+
+def test_a_root_or_admin_account_keeps_admin_rights_even_if_the_admin_session_is_lost(browser, server):
+    """Plus besoin de passer par « Admin de la soirée » : le compte admin retrouve seul sa session admin
+    (cookie perdu, déconnexion depuis /admin, code PIN changé…), sans recharger l'app."""
+    boss = Phone(browser, server, "Boss")
+    account = {"guest_id": "acct-" + "b" * 40, "name": "Boby", "photo": None, "beta": True, "admin": True}
+    renewals = []
+
+    def account_admin(route):
+        renewals.append(1)
+        # Le serveur aurait vérifié les droits du compte auprès de Supabase : même session que le code PIN.
+        real = route.fetch(url=f"{server.url}/api/admin/login", post_data=json.dumps({"pin": ADMIN_PIN}))
+        return route.fulfill(response=real)
+    try:
+        boss.page.route("**/api/account/link", lambda route: route.fulfill(json=account))
+        boss.page.route("**/api/account/admin", account_admin)
+        boss.page.add_init_script(FAKE_SESSION)
+        boss.page.goto("/")
+        boss.page.locator('#tabs button[data-tab="music"]').tap()
+        admin = boss.page.locator("#musicAdmin")
+        expect(admin.get_by_role("button", name="🎉 Démarrer la soirée")).to_be_visible()
+
+        boss.ctx.clear_cookies()  # session admin perdue
+        assert boss.page.evaluate("fetch('/api/admin/state').then((r) => r.status)") == 200
+        assert len(renewals) == 2
+        boss.ctx.clear_cookies()
+        boss.page.evaluate("Object.defineProperty(document, 'hidden', { value: false, configurable: true }); linkedAt = 0;"
+                           "document.dispatchEvent(new Event('visibilitychange'))")  # app rouverte
+        deadline = time.time() + 10
+        while len(renewals) < 3 and time.time() < deadline:
+            boss.page.wait_for_timeout(100)
+        assert len(renewals) == 3  # rouverte : la session admin est redemandée d'office
+        assert boss.page.evaluate("fetch('/api/admin/state').then((r) => r.status)") == 200
+        assert not boss.errors
+    finally:
+        boss.ctx.close()

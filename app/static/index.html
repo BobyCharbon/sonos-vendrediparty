@@ -447,7 +447,25 @@ function useIdentity(id, name) {
   if (name) { guestName = name; store("vp_name", name); }
   if (changed) { registered = false; refresh(); if (typeof refreshGame === "function") refreshGame(); }
 }
-let linkedAt = 0, adminSession = false;
+let linkedAt = 0, adminSession = false, adminRenewal = null;
+// Session admin d'un compte root / admin : demandée avec le compte (sans code PIN). Une seule demande à la fois.
+function renewAdmin() {
+  const token = supabaseToken();
+  if (!token || !account?.admin) return Promise.resolve(false);
+  adminRenewal ??= nativeFetch("/api/account/admin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) })
+    .then((r) => r.ok).catch(() => false)
+    .then((ok) => { adminSession = ok; adminRenewal = null; fbSyncRole(); return ok; });
+  return adminRenewal;
+}
+// Session admin perdue (cookie effacé, déconnexion depuis /admin, code PIN changé…) : tout appel admin refusé
+// la redemande une fois avec le compte, puis réessaie. Le compte admin garde ses accès dans tous les cas.
+const nativeFetch = window.fetch.bind(window);
+window.fetch = async (input, init) => {
+  const r = await nativeFetch(input, init);
+  const path = typeof input === "string" ? input : "";
+  if (r.status !== 401 || !account?.admin || !/^\/api\/admin\/(?!login|logout)/.test(path)) return r;
+  return (await renewAdmin()) ? nativeFetch(input, init) : r;
+};
 async function linkAccount() {
   linkedAt = Date.now();
   const token = supabaseToken();
@@ -464,11 +482,9 @@ async function linkAccount() {
     if (!guestId.startsWith("acct-")) store("vp_guest_anon", guestId);
     account = a; store("vp_account", JSON.stringify({ name: a.name, photo: a.photo, beta: a.beta }));
     PartyEvents.setBeta(a.beta);
-    // Compte root ou admin : session admin de la soirée (animateur de toutes les parties, comme avec le code PIN).
-    if (a.admin && !adminSession) {
-      adminSession = true;
-      api("/api/account/admin", { method: "POST", body: JSON.stringify({ token }) }).then(() => { fbSyncRole(); if (typeof refreshGame === "function") refreshGame(); }).catch(() => { adminSession = false; fbSyncRole(); });
-    }
+    // Compte root ou admin : session admin (animateur de toutes les parties, comme avec le code PIN), redemandée
+    // à chaque ouverture de l'app : elle ne dépend jamais d'un passage par /admin.
+    if (a.admin) renewAdmin().then((ok) => { if (ok && typeof refreshGame === "function") refreshGame(); });
     useIdentity(a.guest_id, a.name);
     eventPass(token);
   } catch { /* hors ligne ou jeton expiré : on garde l'identité actuelle, le module rafraîchira la session */ }
