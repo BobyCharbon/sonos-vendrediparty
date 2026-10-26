@@ -101,6 +101,13 @@ groupe interne « Équipe » (distribution automatique) et groupe externe « Inv
 **https://testflight.apple.com/join/HYf2U6XP** (actif une fois le build approuvé par la revue bêta).
 
 ### 7. App Store
+État au 26 octobre 2026 : version 1.0.0, build 7 (site principal), fiche, 4 captures (workflow
+« App iOS → captures App Store »), classification 18+, confidentialité publiée, gratuite, Suisse seulement
+(l'UE exige la déclaration de statut de commerçant). Reste au titulaire du compte : droits sur le contenu,
+puis « Ajouter pour vérification » › Soumettre.
+
+Une version production se compile depuis `develop` : Actions › « App iOS → TestFlight » › site *production*
+(le code natif est le même ; seule l'URL change).
 1. App Store Connect : fiche de l'app (captures 6,9″ et 6,5″, description, URL de confidentialité, classement
    d'âge).
 2. Lancer le workflow avec le site *production* (ou pousser sur `main`), choisir ce build dans la version.
