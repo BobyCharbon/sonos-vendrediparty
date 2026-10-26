@@ -87,7 +87,7 @@ const emptyDraft: Draft = {
   show_participants: true,
   forum_enabled: true,
   notify_on_publish: true,
-  reminders: ['1d', '2h'],
+  reminders: ['2h', '0h'],   // rappels d'office : 2 h avant et au début
   polls: [],
   bring: [],
 };
