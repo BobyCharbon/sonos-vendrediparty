@@ -40,8 +40,8 @@ export function DateTimeField({ label, value, onChangeText, hint, optional, min 
         }}
         style={{
           boxSizing: 'border-box', width: '100%', minWidth: 0, minHeight: 48,
-          padding: '10px 12px', color: colors.text, backgroundColor: colors.bg,
-          border: `1px solid ${colors.lineStrong}`, borderRadius: 12,
+          padding: '10px 12px', color: colors.text, backgroundColor: colors.fill,
+          border: '1.5px solid transparent', borderRadius: 12, outlineColor: colors.accent,
           ...font.body, fontSize: 16, colorScheme: 'dark',
         }}
       />

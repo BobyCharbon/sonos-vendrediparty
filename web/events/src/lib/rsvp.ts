@@ -40,7 +40,7 @@ function friendlyRsvpError(message: string): string {
 
 export const rsvpChoices: Record<RsvpStatus, { label: string; icon: string; fg: string; bg: string; dim: string; mine: string }> = {
   yes: { label: 'Présent', icon: '✓', fg: colors.onMint, bg: colors.mint, dim: colors.mintDim, mine: 'Présent' },
-  maybe: { label: 'Peut-être', icon: '!', fg: colors.onCoral, bg: colors.coral, dim: colors.coralDim, mine: 'Peut-être' },
+  maybe: { label: 'Peut-être', icon: '?', fg: colors.onCoral, bg: colors.coral, dim: colors.coralDim, mine: 'Peut-être' },
   no: { label: 'Absent', icon: '✕', fg: colors.onRed, bg: colors.red, dim: colors.redDim, mine: 'Absent' },
 };
 

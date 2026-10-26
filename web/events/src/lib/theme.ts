@@ -11,6 +11,12 @@ export const colors = {
   textSoft: '#D9D2EE',
   muted: '#B1A8CF',
   accent: '#FF4F9A',
+  // Fond des boutons principaux : le néon un ton plus profond, pour un texte blanc lisible (AA), comme dans Party.
+  action: '#D92A73',
+  onAction: '#FFFFFF',
+  // Remplissages translucides (boutons secondaires, puces, champs), façon iOS.
+  fill: 'rgba(255,255,255,0.07)',
+  fillStrong: 'rgba(255,255,255,0.12)',
   accentDim: '#3A1730',
   coral: '#FFB347',
   coralSoft: '#FFD099',

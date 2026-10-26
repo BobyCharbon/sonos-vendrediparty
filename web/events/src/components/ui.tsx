@@ -138,11 +138,12 @@ export function Button({
 }
 
 const buttonVariants: Record<ButtonVariant, { bg: string; fg: string; border: string }> = {
-  primary: { bg: colors.accent, fg: colors.onAccent, border: colors.accent },
-  secondary: { bg: 'transparent', fg: colors.text, border: colors.lineStrong },
+  // Plein et lisible : rose profond + texte blanc ; secondaire = remplissage translucide (pas de simple contour).
+  primary: { bg: colors.action, fg: colors.onAction, border: colors.action },
+  secondary: { bg: colors.fill, fg: colors.text, border: 'transparent' },
   ghost: { bg: 'transparent', fg: colors.accent, border: 'transparent' },
-  danger: { bg: 'transparent', fg: colors.coralSoft, border: '#5A3328' },
-  dangerSolid: { bg: colors.coral, fg: colors.onAccent, border: colors.coral },
+  danger: { bg: 'rgba(255,99,99,0.12)', fg: colors.redSoft, border: 'transparent' },
+  dangerSolid: { bg: colors.red, fg: colors.onRed, border: colors.red },
 };
 
 export function Chip({
@@ -167,10 +168,11 @@ export function Chip({
       style={({ pressed }) => [
         s.chip,
         pressed && !disabled && s.pressed,
-        selected ? { backgroundColor: color, borderColor: color } : { borderColor: colors.lineStrong },
+        selected ? { backgroundColor: color, borderColor: color } : { backgroundColor: colors.fill, borderColor: 'transparent' },
+        disabled && { opacity: 0.45 },
       ]}
     >
-      <Text style={{ color: selected ? colors.onAccent : colors.textSoft, ...font.semibold, fontSize: 13 }}>{label}</Text>
+      <Text style={{ color: selected ? colors.onAccent : colors.textSoft, ...(selected ? font.bold : font.semibold), fontSize: 13 }}>{selected ? '✓ ' : ''}{label}</Text>
     </Pressable>
   );
 }
@@ -212,11 +214,11 @@ export function Segmented<K extends string>({
             style={({ pressed }) => [
               s.segment,
               grid && { flexBasis: '45%' },
-              on && { backgroundColor: colors.accent },
-              pressed && !on && { backgroundColor: colors.surface2 },
+              on && s.segmentOn,
+              pressed && !on && { backgroundColor: colors.fill },
             ]}
           >
-            <Text numberOfLines={1} style={{ color: on ? colors.onAccent : colors.textSoft, ...font.bold, fontSize: 13 }}>{o.label}</Text>
+            <Text numberOfLines={1} style={{ color: on ? colors.onAction : colors.textSoft, ...font.semibold, fontSize: 13 }}>{o.label}</Text>
             {o.dot ? <View style={[s.dot, on && { backgroundColor: colors.onAccent }]} /> : null}
           </Pressable>
         );
@@ -306,23 +308,38 @@ export function ToggleRow({
         value={value}
         disabled={disabled}
         onValueChange={onChange}
-        trackColor={{ false: colors.lineStrong, true: colors.accent }}
-        thumbColor={value ? colors.onAccent : colors.text}
-        ios_backgroundColor={colors.lineStrong}
+        trackColor={{ false: colors.fillStrong, true: colors.mint }}
+        thumbColor="#FFFFFF"
+        {...{ activeThumbColor: '#FFFFFF' }}
+        ios_backgroundColor={colors.fillStrong}
       />
     </View>
   );
 }
 
+/** Champ qui s’entoure d’un halo néon tant qu’il a le focus (on voit où l’on écrit). */
+function useFocusRing(props: TextInputProps) {
+  const [focused, setFocused] = useState(false);
+  return {
+    focused,
+    handlers: {
+      onFocus: (e: Parameters<NonNullable<TextInputProps['onFocus']>>[0]) => { setFocused(true); props.onFocus?.(e); },
+      onBlur: (e: Parameters<NonNullable<TextInputProps['onBlur']>>[0]) => { setFocused(false); props.onBlur?.(e); },
+    },
+  };
+}
+
 export function Field({ label, hint, ...props }: TextInputProps & { label: string; hint?: string }) {
+  const ring = useFocusRing(props);
   return (
     <View style={{ gap: 6 }}>
-      <T muted size={13}>{label}</T>
+      <T muted size={13} weight="medium">{label}</T>
       <TextInput
         placeholderTextColor={colors.muted}
         accessibilityLabel={label}
         {...props}
-        style={[s.input, props.multiline && { height: 96, paddingTop: 10, textAlignVertical: 'top' }, props.style]}
+        {...ring.handlers}
+        style={[s.input, ring.focused && s.inputFocus, props.multiline && { height: 104, paddingTop: 12, textAlignVertical: 'top' }, props.style]}
       />
       {hint ? <T muted size={12}>{hint}</T> : null}
     </View>
@@ -330,7 +347,8 @@ export function Field({ label, hint, ...props }: TextInputProps & { label: strin
 }
 
 export function Input(props: TextInputProps) {
-  return <TextInput placeholderTextColor={colors.muted} {...props} style={[s.input, props.style]} />;
+  const ring = useFocusRing(props);
+  return <TextInput placeholderTextColor={colors.muted} {...props} {...ring.handlers} style={[s.input, ring.focused && s.inputFocus, props.style]} />;
 }
 
 export function Avatar({ id, name, size = 32, photo }: { id: string; name: string; size?: number; photo?: string | null }) {
@@ -409,21 +427,23 @@ export const s = StyleSheet.create({
   button: { minHeight: 52, paddingVertical: 12, borderRadius: radius.md, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
   chip: { minHeight: 44, paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   badge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill },
-  segmented: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
-  segment: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, minHeight: 44, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 11, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
+  segmented: { flexDirection: 'row', gap: 2, padding: 3, borderRadius: 13, backgroundColor: colors.fill },
+  segment: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, minHeight: 44, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
+  segmentOn: { backgroundColor: colors.accent, shadowColor: colors.accent, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52 },
   input: {
-    height: 46,
+    height: 48,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    backgroundColor: colors.bg,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    backgroundColor: colors.fill,
     color: colors.text,
     paddingHorizontal: 12,
     ...font.body,
     fontSize: 16,
   },
+  inputFocus: { borderColor: colors.accent, backgroundColor: colors.fillStrong },
   avatar: { borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   pressed: { transform: [{ scale: 0.97 }] },
   linkRow: { marginHorizontal: -8, paddingHorizontal: 8, paddingVertical: 8, borderRadius: 12 },

@@ -8,6 +8,7 @@ import { rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
 import { colors, font, radius } from '@/lib/theme';
 import type { RsvpStatus, Tag } from '@/lib/types';
 
+import { RsvpButtons } from './RsvpButtons';
 import { Badge, ErrorText, T } from './ui';
 
 const statusBadges = {
@@ -141,11 +142,11 @@ export function EventCard({
     >
       {tone === 'todo' ? (
         <View style={st.banner}>
-          <T size={14} weight="bold" color={colors.onAccent} style={{ flex: 1 }}>{isPoll ? 'On attend ton vote' : 'On attend ta réponse'}</T>
-          {event.rsvp_deadline || (isPoll && event.poll_deadline) ? (
-            <T size={12} weight="semibold" color={colors.onAccent}>avant {formatShort((isPoll ? event.poll_deadline : event.rsvp_deadline)!)}</T>
-          ) : null}
           <Animated.View style={[st.dot, { opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.35] }) }]} />
+          <T size={13} weight="semibold" color={colors.accent} style={{ flex: 1 }}>{isPoll ? 'On attend ton vote' : 'On attend ta réponse'}</T>
+          {event.rsvp_deadline || (isPoll && event.poll_deadline) ? (
+            <T size={12} muted>avant {formatShort((isPoll ? event.poll_deadline : event.rsvp_deadline)!)}</T>
+          ) : null}
         </View>
       ) : null}
       <Pressable
@@ -190,24 +191,14 @@ export function EventCard({
 
       {quickRsvp && needsAnswer && !isPoll ? (
         <View style={[st.quick, st.quickTodo]}>
-          <T size={15} weight="bold">Tu seras là ?</T>
-          <View style={{ flexDirection: 'row', gap: 6 }}>
-            {rsvpOptions(event.allow_maybe).map((k) => {
-              const c = rsvpChoices[k];
-              return (
-                <Pressable
-                  key={k}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${c.label} à ${event.title}`}
-                  disabled={!!busy}
-                  onPress={() => answer(k)}
-                  style={({ pressed }) => [st.quickBtn, (pressed || busy === k) && { opacity: 0.7 }]}
-                >
-                  <T size={13} style={{ ...font.bold }}>{k === 'yes' && full && event.waitlist_enabled ? 'Liste d’attente' : c.label}</T>
-                </Pressable>
-              );
-            })}
-          </View>
+          <T size={13} weight="semibold" muted>Tu seras là ?</T>
+          <RsvpButtons
+            options={rsvpOptions(event.allow_maybe)}
+            busy={busy}
+            onSelect={answer}
+            accessibilityLabel={(k) => `${rsvpChoices[k].label} à ${event.title}`}
+            label={(k) => (k === 'yes' && full && event.waitlist_enabled ? 'Liste d’attente' : rsvpChoices[k].label)}
+          />
           <ErrorText error={error} />
         </View>
       ) : null}
@@ -245,16 +236,16 @@ export function EventCard({
 
 const st = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.lg, overflow: 'hidden' },
-  cardTodo: { borderColor: colors.accent, backgroundColor: '#221A33', shadowColor: colors.accent, shadowRadius: 18, shadowOffset: { width: 0, height: 6 } },
+  cardTodo: { borderColor: 'rgba(255,79,154,0.55)', shadowColor: colors.accent, shadowRadius: 18, shadowOffset: { width: 0, height: 6 } },
   cardPast: { backgroundColor: '#14101D', borderColor: '#241F31' },
-  banner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: colors.accent },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.onAccent },
+  banner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingTop: 12, marginBottom: -6 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
   seal: { position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   main: { flexDirection: 'row', gap: 14, padding: 14, alignItems: 'flex-start' },
   tile: { position: 'relative', width: 56, paddingVertical: 8, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: 64 },
   badges: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  quick: { gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
-  quickTodo: { backgroundColor: 'rgba(255,79,154,.08)', borderTopColor: 'rgba(255,79,154,.35)' },
+  quick: { gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.lineStrong, backgroundColor: 'rgba(0,0,0,0.12)' },
+  quickTodo: {},
   quickMaybe: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,179,71,.08)', borderTopColor: 'rgba(255,179,71,.35)' },
-  quickBtn: { flex: 1, minHeight: 44, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  quickBtn: { flex: 1, minHeight: 44, borderRadius: radius.md, borderWidth: 1, borderColor: 'transparent', backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
 });
