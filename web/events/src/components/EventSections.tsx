@@ -87,6 +87,9 @@ export function RsvpCard({
       right={!mine && !closed ? <View style={st.pill}><T size={12} weight="bold" color={colors.accent}>À répondre</T></View> : null}
     >
       <T size={14} color={mine && !mine.waitlisted ? rsvpChoices[mine.status].bg : colors.textSoft}>{subtitle}</T>
+      {mine?.set_by && mine.set_by !== me ? (
+        <T muted size={13}>C’est l’organisateur qui a noté ta réponse : tu peux la changer ici.</T>
+      ) : null}
       {full && !closed && event.waitlist_enabled && mine?.status !== 'yes' ? (
         <T size={13} color={colors.lavender}>L’événement est complet : en répondant Présent, tu passes en liste d’attente.</T>
       ) : null}

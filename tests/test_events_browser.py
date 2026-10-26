@@ -65,7 +65,7 @@ def browser(request):
             p.stop()
 
 
-def mock_services(page, pending=False, events=1):
+def mock_services(page, pending=False, events=1, people=()):
     calls = []
     profile = {'id': USER, 'display_name': 'Compte de démonstration', 'phone': '41791234567', 'role': 'guest' if pending else 'admin', 'status': 'active', 'avatar_url': f'{USER}/photo.jpg', 'first_name': 'Camille', 'last_name': 'Demo', 'created_at': '2026-10-19T08:00:00Z'}
     category = {'id': 'ed69d11e-34dd-43fe-b211-10d0dd158ba9', 'name': 'Soirée', 'color': '#FFB347', 'sort': 0, 'archived': False, 'icon': None}
@@ -115,8 +115,13 @@ def mock_services(page, pending=False, events=1):
                 {**event,'id':f'{EVENT[:-2]}{i:02d}','title':f'Sortie de démonstration {i}'} for i in range(1,events)]
         elif path.endswith('/rsvps') and request.method=='POST':
             row=json.loads(request.post_data); event['rsvps']=[{**row,'waitlisted':False}];result=None
+        elif path.endswith('/rpc/set_rsvp_for'):
+            args=json.loads(request.post_data)
+            event['rsvps']=[r for r in event['rsvps'] if r['user_id']!=args['member']]+([] if args['answer'] is None else [
+                {'event_id':EVENT,'user_id':args['member'],'status':args['answer'],'plus_ones':0,'note':None,'waitlisted':False,'set_by':USER}])
+            result=None
         elif path.endswith('/group_settings'): result={'organizers_can_edit_published':True,'name':'Groupe de démonstration','timezone':'Europe/Zurich','require_approval':True,'coadmins_skip_approval':True,'members_can_create_tags':False}
-        elif path.endswith('/profiles'): result=[{'id':USER,'display_name':profile['display_name']}]
+        elif path.endswith('/profiles'): result=[{'id':USER,'display_name':profile['display_name']},*people]
         route.fulfill(status=200,content_type='application/json',body=json.dumps(result),headers=headers)
     page.route('https://gsuetixzobooggeaubvb.supabase.co/**', handle)
     page.route_web_socket('wss://gsuetixzobooggeaubvb.supabase.co/**', lambda ws:ws.on_message(lambda _message: None))
@@ -556,3 +561,29 @@ def test_event_detail_has_an_ios_back_button_and_an_edge_swipe_goes_back(browser
         assert page.frame_locator('#eventsFrame').locator('#root').evaluate('el => el.style.transform') == ''
     finally:
         context.close()
+
+
+def test_organizer_marks_a_guest_present_then_absent_then_removes_the_answer(browser, events_origin):
+    lea = '5b0c7e1e-1d3a-4c8e-9a51-6f2f4b9d0a11'
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page();calls=mock_services(page,people=[{'id':lea,'display_name':'Léa'}])
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    sent=lambda:[json.loads(b) for _,path,b in calls if path.endswith('/rpc/set_rsvp_for')]
+    try:
+        page.goto(events_origin,wait_until='domcontentloaded')
+        page.get_by_role('button',name='Événements',exact=True).click()
+        frame=page.frame_locator('#eventsFrame')
+        login(frame)
+        frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
+        frame.get_by_role('button',name='Gérer',exact=True).click()
+        frame.get_by_label('Ajouter quelqu’un',exact=True).fill('lea')  # sans accent ni majuscule
+        frame.get_by_role('button',name='Noter présent',exact=True).click()
+        pw.expect(frame.get_by_text('Noté par Toi',exact=True)).to_be_visible(timeout=10000)
+        pw.expect(frame.get_by_text('PRÉSENTS · 1',exact=True)).to_be_visible()
+        frame.get_by_role('button',name='Léa : Absent',exact=True).click()
+        pw.expect(frame.get_by_text('Absents : Léa',exact=True)).to_be_visible(timeout=10000)
+        frame.get_by_role('button',name='Retirer',exact=True).click()
+        pw.expect(frame.get_by_text('Personne n’a encore répondu : cherche un prénom pour l’ajouter.',exact=True)).to_be_visible(timeout=10000)
+        assert sent()==[{'event':EVENT,'member':lea,'answer':'yes'},{'event':EVENT,'member':lea,'answer':'no'},{'event':EVENT,'member':lea,'answer':None}]
+        assert not errors
+    finally: context.close()

@@ -2,6 +2,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 
+import { AttendanceEditor } from '@/components/AttendanceEditor';
 import { CalendarButton } from '@/components/CalendarButton';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
 import { Badge, Button, Card, ConfirmButton, ErrorText, HeaderAction, HeaderBack, Loading, Screen, s, Section, T, Title } from '@/components/ui';
@@ -257,6 +258,9 @@ export default function EventScreen() {
       ) : null}
 
       {ev.date_mode === 'fixed' && published ? <ParticipantsSection event={ev} me={me.id} rsvps={ev.rsvps} names={data.names} /> : null}
+      {ev.date_mode === 'fixed' && published && canManage ? (
+        <AttendanceEditor event={ev} rsvps={ev.rsvps} names={data.names} me={me.id} onChange={reload} />
+      ) : null}
 
       {ev.polls
         .sort((a, b) => a.sort - b.sort)

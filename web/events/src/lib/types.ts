@@ -84,6 +84,8 @@ export type Rsvp = {
   plus_ones: number;
   note: string | null;
   waitlisted: boolean;
+  /** Réponse posée par l’organisateur (son identifiant) ; vide quand la personne a répondu elle-même. */
+  set_by?: string | null;
 };
 
 export type DateOption = { id: string; event_id: string; starts_at: string; ends_at: string | null; proposed_by: string | null };
