@@ -36,12 +36,20 @@ jobs:
           set -o pipefail
           brew install xcodegen
           xcodegen
+          # Debug = VendrediPartyBETA ; pour la production on reprend les réglages de la configuration Release.
+          if [ "${{ inputs.site }}" = test ]; then
+            VARIANT=()
+          else
+            VARIANT=(PARTY_BUNDLE_SUFFIX= PARTY_HOST=party.bobycharbon.ch
+                     "PARTY_DISPLAY_NAME=Party !" ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon)
+          fi
           xcodebuild build -project Party.xcodeproj -scheme Party -configuration Debug \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO \
-            PARTY_BASE_URL=${{ inputs.site == 'test' && 'https://partytest.bobycharbon.ch' || 'https://party.bobycharbon.ch' }} | tail -5
+            CODE_SIGNING_ALLOWED=NO "${VARIANT[@]}" | tail -5
 
       - name: Captures
+        env:
+          BUNDLE_ID: ${{ inputs.site == 'test' && 'ch.bobycharbon.party.beta' || 'ch.bobycharbon.party' }}
         run: ios/scripts/screenshots.sh ios/build/Build/Products/Debug-iphonesimulator/Party.app "$RUNNER_TEMP/captures"
 
       - uses: actions/upload-artifact@v4

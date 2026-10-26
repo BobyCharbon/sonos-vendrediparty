@@ -2348,14 +2348,19 @@ def service_worker():
     return FileResponse(STATIC / "sw.js", media_type="text/javascript", headers=NO_CACHE)
 
 
-# App iOS native (ios/) : identifiant d'équipe Apple + identifiant de l'app (pas un secret).
+# Apps iOS natives (ios/) : identifiant d'équipe Apple + identifiant de l'app (pas un secret).
+# VendrediParty (App Store) pour le site principal, VendrediPartyBETA (TestFlight) pour le site de test.
 IOS_APP_ID = "GS2B6GA9JA.ch.bobycharbon.party"
+IOS_BETA_APP_ID = "GS2B6GA9JA.ch.bobycharbon.party.beta"
+TEST_SITE_HOST = "partytest.bobycharbon.ch"
 
 
 @app.get("/.well-known/apple-app-site-association")
 def apple_app_site_association():
     # Liens universels : un QR code ou un lien Party ouvre l'app iOS si elle est installée, sinon le site.
-    return JSONResponse({"applinks": {"details": [{"appIDs": [IOS_APP_ID], "components": [{"/": "/*"}]}]}},
+    beta = urlparse(configured_public_url()).hostname == TEST_SITE_HOST
+    app_id = IOS_BETA_APP_ID if beta else IOS_APP_ID
+    return JSONResponse({"applinks": {"details": [{"appIDs": [app_id], "components": [{"/": "/*"}]}]}},
                         headers=NO_CACHE)
 
 

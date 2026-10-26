@@ -1,7 +1,8 @@
 name: App iOS → TestFlight
 
-# Compile l'app iOS (ios/) sur un Mac de GitHub, la signe et l'envoie à TestFlight.
-# develop → app branchée sur le site de test ; main → site principal. Lancement manuel possible (onglet Actions).
+# Compile l'app iOS (ios/) sur un Mac de GitHub, la signe et l'envoie à App Store Connect / TestFlight.
+# develop → VendrediPartyBETA (ch.bobycharbon.party.beta, site de test) ;
+# main → VendrediParty (ch.bobycharbon.party, site principal, App Store). Lancement manuel possible (onglet Actions).
 # Secrets requis (Settings › Secrets and variables › Actions) : clé API App Store Connect, rôle Admin
 #   ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (contenu du fichier AuthKey_XXXX.p8).
 on:
@@ -28,7 +29,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 45
     env:
-      PARTY_BASE_URL: ${{ (github.event_name == 'workflow_dispatch' && inputs.site == 'production' || github.event_name == 'push' && github.ref_name == 'main') && 'https://party.bobycharbon.ch' || 'https://partytest.bobycharbon.ch' }}
+      PRODUCTION: ${{ (github.event_name == 'workflow_dispatch' && inputs.site == 'production' || github.event_name == 'push' && github.ref_name == 'main') && '1' || '0' }}
       ARCHIVE: ${{ github.workspace }}/build/Party.xcarchive
     steps:
       - uses: actions/checkout@v4
@@ -62,11 +63,18 @@ jobs:
         working-directory: ios
         run: |
           set -o pipefail
-          echo "Site chargé par l'app : $PARTY_BASE_URL"
+          # Release = VendrediParty ; la BETA reprend les réglages de la configuration Debug (project.yml).
+          if [ "$PRODUCTION" = 1 ]; then
+            VARIANT=()
+          else
+            VARIANT=(PARTY_BUNDLE_SUFFIX=.beta PARTY_HOST=partytest.bobycharbon.ch
+                     "PARTY_DISPLAY_NAME=Party BETA" ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon-Beta)
+          fi
+          echo "Variante : ${VARIANT[*]:-VendrediParty (production)}"
           xcodebuild archive \
             -project Party.xcodeproj -scheme Party -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" \
-            PARTY_BASE_URL="$PARTY_BASE_URL" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            "${VARIANT[@]}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             $AUTH_FLAGS | tail -60
 
       - name: Envoi à TestFlight

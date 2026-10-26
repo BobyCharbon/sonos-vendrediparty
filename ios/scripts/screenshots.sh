@@ -7,6 +7,7 @@ APP="$1"
 OUT="$2"
 DEVICE_NAME="${DEVICE_NAME:-iPhone 17 Pro Max}"
 LOAD_SECONDS="${LOAD_SECONDS:-15}"
+BUNDLE_ID="${BUNDLE_ID:-ch.bobycharbon.party}"
 mkdir -p "$OUT"
 
 UDID=$(xcrun simctl list devices available -j | /usr/bin/python3 -c "
@@ -22,7 +23,7 @@ xcrun simctl install "$UDID" "$APP"
 
 capture() {  # capture <numéro> <onglet>
   local js="localStorage.setItem('vp_tab','$2');localStorage.setItem('vp_name','Léa');localStorage.setItem('vp_install_dismissed','1')"
-  SIMCTL_CHILD_PARTY_DEBUG_JS="$js" xcrun simctl launch --terminate-running-process "$UDID" ch.bobycharbon.party >/dev/null
+  SIMCTL_CHILD_PARTY_DEBUG_JS="$js" xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE_ID" >/dev/null
   sleep "$LOAD_SECONDS"
   xcrun simctl io "$UDID" screenshot "$OUT/$1-$2.png" >/dev/null
   echo "$OUT/$1-$2.png"

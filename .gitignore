@@ -16,7 +16,7 @@ supabase/.branches/
 
 # App iOS : projet Xcode régénéré par XcodeGen depuis ios/project.yml
 ios/Party.xcodeproj/
-ios/build/
+ios/build*/
 ios/DerivedData/
 xcuserdata/
 ios/Party/Info.plist
