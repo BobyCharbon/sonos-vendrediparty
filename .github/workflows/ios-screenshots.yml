@@ -1,0 +1,46 @@
+name: App iOS → captures App Store
+
+# Captures 6,9" (1320 × 2868) de l'app branchée sur le site principal, sur un simulateur iPhone 17 Pro Max.
+# Lancement manuel (onglet Actions) ; les images sont dans l'artefact « captures-app-store ».
+# Sur Mac Apple silicon : le simulateur d'un Mac Intel affiche les emojis en « ? ».
+on:
+  workflow_dispatch:
+    inputs:
+      site:
+        description: Site affiché
+        type: choice
+        options: [production, test]
+        default: production
+
+permissions:
+  contents: read
+
+jobs:
+  screenshots:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Build Debug pour le simulateur
+        working-directory: ios
+        run: |
+          set -o pipefail
+          brew install xcodegen
+          xcodegen
+          xcodebuild build -project Party.xcodeproj -scheme Party -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            PARTY_BASE_URL=${{ inputs.site == 'test' && 'https://partytest.bobycharbon.ch' || 'https://party.bobycharbon.ch' }} | tail -5
+
+      - name: Captures
+        run: ios/scripts/screenshots.sh ios/build/Build/Products/Debug-iphonesimulator/Party.app "$RUNNER_TEMP/captures"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: captures-app-store
+          path: ${{ runner.temp }}/captures/*.png

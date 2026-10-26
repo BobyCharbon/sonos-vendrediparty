@@ -33,6 +33,12 @@ enum NativeBridge {
     static func install(in controller: WKUserContentController) {
         // Toutes les frames : le module Événements tourne dans une iframe de la page Party.
         controller.addUserScript(WKUserScript(source: script, injectionTime: .atDocumentStart, forMainFrameOnly: false))
+        #if DEBUG
+        // Captures d'écran sur simulateur : SIMCTL_CHILD_PARTY_DEBUG_JS="localStorage.setItem('vp_tab','games')".
+        if let debugJS = ProcessInfo.processInfo.environment["PARTY_DEBUG_JS"] {
+            controller.addUserScript(WKUserScript(source: debugJS, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
+        #endif
         controller.add(HapticHandler(), name: hapticHandler)
         controller.addScriptMessageHandler(PushHandler(), contentWorld: .page, name: pushHandler)
     }
