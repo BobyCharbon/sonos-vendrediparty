@@ -12,8 +12,6 @@ settings:
     MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.9"
-    # iPhone seulement : sur iPad, l'app tourne en mode compatible (pas de captures iPad à fournir).
-    TARGETED_DEVICE_FAMILY: "1"
     # Identifiant d'équipe Apple Developer.
     DEVELOPMENT_TEAM: GS2B6GA9JA
     CODE_SIGN_STYLE: Automatic
@@ -52,6 +50,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ch.bobycharbon.party
+        # iPhone seulement : sur iPad, l'app tourne en mode compatible (pas de captures iPad à fournir).
+        # Au niveau de la cible : le préréglage XcodeGen d'une app iOS impose sinon "1,2".
+        TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
       configs:
         # Debug = site de test, Release = site principal (comme develop / main).
