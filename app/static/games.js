@@ -648,15 +648,15 @@ document.getElementById("gamesRoot").innerHTML = `
     <aside id="gDrawer" class="g-drawer hidden" aria-label="Menu de la partie" data-nav="drawer" data-nav-surface=".g-drawer-panel" data-nav-close="[data-gdrawer=close]">
       <div class="g-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="gDrawerTitle">
         <div class="g-drawer-head"><b id="gDrawerTitle">Menu de la partie</b>
-          <button type="button" class="py-icon" data-gdrawer="close" aria-label="Fermer le menu">✕</button></div>
-        <div id="gDrawerExit"></div>
+          <button type="button" class="py-icon g-close" data-gdrawer="close" aria-label="Fermer le menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg></button></div>
         <div class="card" id="gameInvite" style="text-align:center">
           <div class="artist">Pour rejoindre : scanne ce QR ou entre le code</div>
           <div class="big-pin" id="gameCode"></div>
           <img class="qr" id="gameQr" width="220" height="220" alt="QR code pour rejoindre la partie">
         </div>
         <div id="gDrawerPlayers"></div>
-        <button type="button" class="secondary" data-gdrawer="minimize" style="width:100%;margin-top:12px">↙ Réduire le jeu (revenir aux onglets)</button>
+        <button type="button" class="secondary g-drawer-min" data-gdrawer="minimize" aria-label="Réduire le jeu et revenir aux onglets"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>Réduire le jeu</button>
+        <div id="gDrawerExit"></div>
       </div>
     </aside>
 
@@ -2418,7 +2418,7 @@ function gameTopBar(g) {
   const round = g.round && g.phase !== "lobby" && !["pyramid", "quiz"].includes(g.type)
     ? ` · ${{ heist: "braquage", island: "manche", neon: "manche", president: "manche", undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte", tmc: "duo", biskit: "carte", quiz: "question" }[g.type] || "question"} ${g.round}` : "";
   const alerts = (g.pyr?.pending?.length || 0) + (g.is_host ? (g.pyr?.peeks || []).filter((r) => r.status === "pending").length : 0);
-  return `<button type="button" class="py-icon g-burger" data-gdrawer="open" aria-label="Menu : joueurs, code, QR">☰${alerts ? `<i class="badge">${alerts}</i>` : ""}</button>
+  return `<button type="button" class="py-icon g-burger" data-gdrawer="open" aria-label="Menu : joueurs, code, QR"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>${alerts ? `<i class="badge">${alerts}</i>` : ""}</button>
     <div class="g-top-mid"><div class="g-top-name"><span class="g-top-ico" aria-hidden="true">${GAME_ICONS[g.type] || ""}</span>${esc(g.name)}</div>
       <div class="g-top-sub">${g.mode ? esc(g.mode) + " · " : ""}${QUESTION_TYPES.includes(g.type) && g.round && g.phase !== "lobby" && g.phase !== "end" ? `Question ${g.round}` : (g.type === "room" ? "Soirée" : phase) + round} · ${g.room || g.type === "room" ? "salle" : "code"} <b>${esc(g.room || g.code)}</b> · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
     ${GameAudio.button()}
