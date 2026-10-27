@@ -194,6 +194,7 @@ L'image est privée : le serveur doit être connecté à `ghcr.io` avec un token
 
 `ios/` contient l'app native (Swift, WKWebView) qui affiche ce site à l'identique de l'app
 installée depuis Safari. Étapes de construction, notifications et publication : [ios/README.md](ios/README.md).
+`android/` contient l'app Android (Trusted Web Activity) : [android/README.md](android/README.md).
 
 ## Tests
 
