@@ -28,6 +28,12 @@ Pour tout onglet, page installable ou vue plein écran, nouveau ou existant :
 
 Un navigateur de bureau ne reproduit pas le bug lui-même : seul un vrai iPhone (app fermée puis rouverte) le confirme.
 
+App iOS native (ios/, WKWebView) : la barre d'onglets y est une vraie UITabBar, sous la vue web. La page la décrit
+(`app/static/native-tabs.js` → `window.PartyNative.tabs.update`) et l'app renvoie les touchers (`PartyTabs.select`).
+`ios-app.js` ajoute alors `html.native-tabs` au lieu de `html.ios-app` (pas de bug iOS 26 dans une WKWebView) ;
+la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un bouton `#tabs [data-tab]` de plus
+(icône SF Symbol dans `ios/Party/NativeTabBar.swift`). Tests : `tests/e2e/test_native_tabs.py`.
+
 ## Module Événements (web/events) — défilement tactile
 - Jamais de règle `overscroll-behavior` ni `touch-action` sur `*` (web/events/scripts/postbuild.mjs). Sous Android,
   Chrome traite chaque carte en `overflow: hidden` comme un conteneur de défilement : avec

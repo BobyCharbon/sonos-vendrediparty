@@ -9,8 +9,11 @@
 document.addEventListener("gesturestart", function (e) { e.preventDefault(); }, {passive: false});
 
 (function () {
-  if (navigator.standalone !== true) return;  // seulement l'app installée sur l'écran d'accueil d'un iPhone / iPad
   var root = document.documentElement;
+  // App iOS native (ios/) : la barre d'onglets est native (UITabBar, native-tabs.js) et la vue web s'arrête
+  // au-dessus d'elle. Le bug ci-dessus ne concerne que l'app ajoutée depuis Safari : pas de correctif ici.
+  if (window.PartyNative && window.PartyNative.tabs) { root.classList.add("native-tabs"); return; }
+  if (navigator.standalone !== true) return;  // seulement l'app installée sur l'écran d'accueil d'un iPhone / iPad
   root.classList.add("ios-app");
   function fit() {
     // screen.width / height ne s'échangent pas en paysage sur iOS : on prend le bon côté selon l'orientation.

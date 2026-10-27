@@ -21,6 +21,8 @@ enum AppConfig {
     /// Fond de la page (#0e0b16, background_color du manifeste) : pas de flash blanc au lancement.
     static let background = Color(red: 14 / 255, green: 11 / 255, blue: 22 / 255)
     static let uiBackground = UIColor(red: 14 / 255, green: 11 / 255, blue: 22 / 255, alpha: 1)
+    /// Rose de la webapp (--accent) : onglet actif de la barre native.
+    static let uiAccent = UIColor(red: 1, green: 79 / 255, blue: 154 / 255, alpha: 1)
 
     static func isInternal(_ url: URL) -> Bool {
         guard let host = url.host?.lowercased() else { return false }

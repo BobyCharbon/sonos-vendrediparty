@@ -1587,3 +1587,11 @@ body:not(.admin-music) .admin-games { display: none !important; }
 .qs-av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .qs-av.qs-av-sm { width: 30px; height: 30px; font-size: .8rem; }
 .qs-av.qs-av-xs { width: 20px; height: 20px; font-size: .6rem; margin-right: 6px; vertical-align: -5px; }
+
+/* App iOS native (ios/, native-tabs.js) : la barre d'onglets est une UITabBar sous la vue web. La barre web reste
+   dans la page (elle décrit les onglets à l'app) mais ne prend plus de place ; un jeu plein écran qui la masque
+   (display: none) masque aussi la barre native. Le bas de page n'a plus à lui laisser de place. */
+html.native-tabs #tabs { visibility: hidden; height: 0; min-height: 0; padding: 0; border: 0; overflow: hidden; pointer-events: none; }
+html.native-tabs body { padding-bottom: 24px; }
+html.native-tabs body.has-mini { padding-bottom: 100px; }
+html.native-tabs .g-mini { bottom: 12px; }
