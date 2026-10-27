@@ -17,14 +17,17 @@ struct TabBarState: Decodable, Equatable {
     let tabs: [Tab]
     /// Onglets que l'app peut afficher en natif (la page garde l'onglet Musique pour l'hôte).
     let native: [String]
+    /// L'hôte : l'écran natif lui propose « Gérer la soirée » (onglet Musique de la page, avec ses réglages).
+    let host: Bool
 
-    enum CodingKeys: String, CodingKey { case hidden, tabs, native }
+    enum CodingKeys: String, CodingKey { case hidden, tabs, native, host }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         hidden = try c.decode(Bool.self, forKey: .hidden)
         tabs = try c.decode([Tab].self, forKey: .tabs)
         native = try c.decodeIfPresent([String].self, forKey: .native) ?? []
+        host = try c.decodeIfPresent(Bool.self, forKey: .host) ?? false
     }
 
     /// Onglet affiché en natif plutôt que dans la page, s'il y en a un.

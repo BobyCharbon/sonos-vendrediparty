@@ -17,17 +17,17 @@
     return text === DOT ? "" : text;
   }
 
-  // Onglets que l'app peut afficher en natif. L'hôte garde la page web pour la Musique (réglages de l'admin).
+  // Onglets que l'app peut afficher en natif. L'hôte aussi : l'app lui propose « Gérer la soirée », qui
+  // rouvre l'onglet Musique de la page avec ses réglages (enceintes, modes…).
+  const NATIVE_SCREENS = ["music"];
   // fbIsAdmin est déclarée plus loin dans index.html : tant qu'elle n'existe pas, on est invité.
-  function nativeScreens() {
-    const host = typeof fbIsAdmin === "function" && fbIsAdmin();
-    return host ? [] : ["music"];
-  }
+  const isHost = () => typeof fbIsAdmin === "function" && fbIsAdmin();
 
   function describe() {
     const soon = document.documentElement.classList.contains("events-soon");
     return {
-      native: nativeScreens(),
+      native: NATIVE_SCREENS,
+      host: isHost(),
       // Un jeu en plein écran masque la barre web (display: none) : la barre native suit.
       hidden: getComputedStyle(bar).display === "none",
       tabs: [...bar.querySelectorAll("button[data-tab]")].map((button) => ({

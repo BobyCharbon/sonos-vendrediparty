@@ -82,7 +82,15 @@ struct TabBarStateTests {
         #expect(state(active: "music", native: nil)?.nativeScreen == nil)      // page plus ancienne
     }
 
-    @Test("Un message qui n'est pas une description d'onglets est ignoré")
+    @Test("L'hôte est signalé par la page ; absent, on est invité")
+    func hostFlag() {
+        #expect(state(active: "music", native: ["music"])?.host == false)
+        let host = TabBarState(message: ["hidden": false, "host": true, "native": ["music"],
+                                         "tabs": [["id": "music", "label": "Musique", "active": true, "badge": NSNull(), "soon": false]]])
+        #expect(host?.host == true && host?.nativeScreen == "music")
+    }
+
+        @Test("Un message qui n'est pas une description d'onglets est ignoré")
     func rejectsOtherMessages() {
         #expect(TabBarState(message: "bonjour") == nil)
         #expect(TabBarState(message: ["hidden": false]) == nil)

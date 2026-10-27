@@ -5,6 +5,8 @@ import SwiftUI
 struct MusicView: View {
     @ObservedObject var store: MusicStore
     let topInset: CGFloat
+    /// Hôte seulement : rouvre l'onglet Musique de la page, avec ses réglages.
+    var manage: (() -> Void)?
 
     @State private var name = ""
     @State private var message = ""
@@ -37,10 +39,21 @@ struct MusicView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Musique").font(.largeTitle.weight(.heavy))
-            if case .ready(let state) = store.phase, let room = state.room, !room.isEmpty {
-                Text(room).font(.subheadline).foregroundStyle(.secondary)
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Musique").font(.largeTitle.weight(.heavy))
+                if case .ready(let state) = store.phase, let room = state.room, !room.isEmpty {
+                    Text(room).font(.subheadline).foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            if let manage {
+                Button(action: manage) {
+                    Label("Gérer la soirée", systemImage: "slider.horizontal.3")
+                }
+                .buttonStyle(.bordered)
+                .tint(Palette.accent)
+                .accessibilityHint("Ouvre les réglages de l'hôte ; touche à nouveau l'onglet Musique pour revenir")
             }
         }
     }

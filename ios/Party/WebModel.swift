@@ -7,6 +7,8 @@ final class WebModel: ObservableObject {
     @Published var failed = false
     /// Onglets de la page affichée ; nil sur une page sans barre d'onglets (admin, TV…).
     @Published private(set) var tabs: TabBarState?
+    /// L'hôte a ouvert « Gérer la soirée » : l'onglet natif laisse la place à la page jusqu'au prochain toucher.
+    @Published private(set) var showsWebScreen = false
     let start: URL
     weak var webView: WKWebView?
     /// Adresse demandée avant que la vue web existe (app lancée par un lien ou une notification).
@@ -42,7 +44,18 @@ final class WebModel: ObservableObject {
     func showTabs(_ state: TabBarState) {
         awaitingTabs = false
         guard state != tabs else { return }
+        if state.nativeScreen == nil || !state.host { showsWebScreen = false }  // autre onglet, ou plus hôte
         tabs = state
+    }
+
+    /// Onglet natif affiché (nil : la page).
+    var nativeScreen: String? {
+        showsWebScreen ? nil : tabs?.nativeScreen
+    }
+
+    /// « Gérer la soirée » : l'onglet de la page, avec les réglages de l'hôte.
+    func manageInPage() {
+        showsWebScreen = true
     }
 
     /// Nouvelle page : la barre actuelle reste jusqu'à ce que la page décrive la sienne (pas de clignement
@@ -60,6 +73,8 @@ final class WebModel: ObservableObject {
     /// Toucher d'un onglet natif : la page l'applique comme un toucher dans sa propre barre.
     func selectTab(_ id: String) {
         guard id.allSatisfy({ $0.isLetter }) else { return }  // identifiants de la page : music, games…
+        // Nouveau toucher sur l'onglet affiché dans la page : retour à l'écran natif.
+        if showsWebScreen, tabs?.nativeScreen == id { showsWebScreen = false }
         webView?.evaluateJavaScript("window.PartyTabs && PartyTabs.select('\(id)')")
     }
 

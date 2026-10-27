@@ -21,6 +21,12 @@ struct PartyApp: App {
 struct ContentView: View {
     @ObservedObject var model: WebModel
 
+    /// « Gérer la soirée » : réservé à l'hôte.
+    private var hostTools: (() -> Void)? {
+        guard model.tabs?.host == true else { return nil }
+        return { [model] in model.manageInPage() }
+    }
+
     var body: some View {
         GeometryReader { proxy in
             ZStack {
@@ -30,8 +36,8 @@ struct ContentView: View {
                 VStack(spacing: 0) {
                     ZStack {
                         PartyWebView(model: model)
-                        if model.tabs?.nativeScreen == "music", let music = model.music {
-                            MusicView(store: music, topInset: proxy.safeAreaInsets.top)
+                        if model.nativeScreen == "music", let music = model.music {
+                            MusicView(store: music, topInset: proxy.safeAreaInsets.top, manage: hostTools)
                         }
                     }
                     if let tabs = model.tabs, !tabs.hidden {
