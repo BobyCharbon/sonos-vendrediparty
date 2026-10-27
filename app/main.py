@@ -303,9 +303,16 @@ def is_guest(request: Request) -> bool:
     return guest_token(request) is not None
 
 
+# Appels de l'app iOS native (ios/Party/Music/PartyAPI.swift) : onglet Musique et extension « Partager ».
+NATIVE_APP_HEADER = "x-party-native"
+
+
 def require_guest(request: Request):
-    """Invité ayant saisi le code d'accès en cours. L'admin aussi : un nouveau code déconnecte tout le monde."""
-    if not is_guest(request):
+    """Invité ayant saisi le code d'accès en cours (un nouveau code déconnecte tout le monde). La page web l'exige
+    même dans le navigateur de l'hôte (il voit ce que voient ses invités) ; l'app native, elle, ne redemande pas
+    le code à l'hôte connecté (aucun droit de plus : l'hôte a déjà tous les droits)."""
+    native_host = bool(request.headers.get(NATIVE_APP_HEADER)) and is_admin(request)
+    if not (is_guest(request) or native_host):
         raise HTTPException(401, "Code d'accès requis")
 
 

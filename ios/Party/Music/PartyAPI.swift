@@ -44,6 +44,8 @@ final class PartyAPI {
         config.httpCookieAcceptPolicy = .never
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         config.timeoutIntervalForRequest = 15
+        // L'app se signale : l'hôte connecté n'a pas à saisir le code des invités (app/main.py, require_guest).
+        config.httpAdditionalHeaders = ["X-Party-Native": "ios"]
         session = URLSession(configuration: config)
     }
 
