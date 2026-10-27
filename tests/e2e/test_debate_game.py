@@ -132,3 +132,19 @@ def test_home_card_rules(phones):
     alice.page.locator('#gTop [data-rules="debate"]').click()
     expect(alice.page.locator('#rulesTitle')).to_have_text('Pour ou contre')
     expect(alice.page.locator('#rulesBody')).to_contain_text('faire revoter')
+
+
+def test_wtf_theme_is_unchecked_by_default_and_the_host_can_add_it(phones):
+    alice = phones('Alice')
+    alice.open_games()
+    card = alice.page.locator('#gHome .gcard:has([data-create="debate"])')
+    wtf = card.locator('[data-opt-group="cats"] [data-val="wtf"]')
+    expect(wtf).not_to_have_class('on')
+    wtf.click()
+    expect(wtf).to_have_class('on')
+    card.locator('[data-create="debate"]').click()
+    expect(alice.page.locator('#gamePlay')).to_be_visible()
+    wait_state(alice, lambda g: 'wtf' in g['debate']['themes'])
+    expect(alice.page.locator('[data-db-theme="wtf"]')).to_contain_text('🔞')
+    alice.tap('[data-db-theme="wtf"]')  # l'animateur peut encore le retirer avant de lancer
+    wait_state(alice, lambda g: 'wtf' not in g['debate']['themes'])

@@ -7,10 +7,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import debate, games, main
-from app.debate_questions import LIGHT, MORAL, RELATIONS, SOCIETY
+from app.debate_questions import LIGHT, MORAL, RELATIONS, SOCIETY, WTF
 
 HOST_GID = "host-aaaaaaaa"
-ALL = MORAL + SOCIETY + RELATIONS + LIGHT
+ALL = MORAL + SOCIETY + RELATIONS + LIGHT + WTF
 
 
 def new(names=("Alice", "Bob", "Chloé"), **settings):
@@ -47,7 +47,7 @@ def play(g, ballots, revote=None, rng=None):
 
 # ── Dilemmes ──
 def test_each_theme_has_enough_distinct_dilemmas():
-    for pack in (MORAL, SOCIETY, RELATIONS, LIGHT):
+    for pack in (MORAL, SOCIETY, RELATIONS, LIGHT, WTF):
         assert len(pack) >= 100
     assert len(set(ALL)) == len(ALL)
 
@@ -66,7 +66,7 @@ def test_registered_as_a_one_phone_game_without_drinks():
     assert games.GAMES["debate"] == "Pour ou contre"
     assert "debate" in games.MANUAL_GAMES
     g = new()
-    assert g["debate"]["themes"] == list(debate.THEMES) and g["debate"]["count"] == debate.DEFAULT_COUNT
+    assert g["debate"]["themes"] == list(debate.DEFAULT_THEMES) and g["debate"]["count"] == debate.DEFAULT_COUNT
     assert g["debate"]["public"] is False
 
 
@@ -419,3 +419,33 @@ def test_api_vote_without_amount_is_refused(client):
     act(client, code, "start")
     assert act(client, code, "dbvote").status_code == 409
     assert act(client, code, "dbvote", amount=0).status_code == 200
+
+
+# ── Thème WTF (absurde et osé) : seulement si l'animateur le coche ──
+def test_wtf_theme_is_off_by_default_and_flagged_for_the_host():
+    assert "wtf" in debate.THEMES and "wtf" not in debate.DEFAULT_THEMES
+    themes = {t["id"]: t for t in view(new())["theme_list"]}
+    assert themes["wtf"]["adult"] is True and themes["moral"]["adult"] is False
+
+
+def test_host_can_play_only_wtf():
+    g = new(themes=["wtf"], count=30)
+    games.start(g, random.Random(1))
+    for _ in range(30):
+        assert view(g)["q"]["text"] in WTF
+        play(g, {"Alice": 0, "Bob": 4, "Chloé": 2})
+
+
+def test_wtf_never_comes_without_being_chosen():
+    g = new(count=30)
+    games.start(g, random.Random(3))
+    for _ in range(30):
+        assert view(g)["q"]["text"] not in WTF
+        play(g, {"Alice": 0, "Bob": 4, "Chloé": 2})
+
+
+def test_api_default_themes_exclude_wtf_and_room_launch_keeps_it_off(client):
+    g = client.post("/api/games", json={"type": "debate", "guest_id": HOST, "name": "Alice"}).json()
+    assert "wtf" not in g["debate"]["themes"]
+    g = client.post("/api/games", json={"type": "debate", "guest_id": BOB, "name": "Bob", "cats": ["light", "wtf"]}).json()
+    assert g["debate"]["themes"] == ["light", "wtf"]

@@ -1177,7 +1177,7 @@ def build_game(body: GameCreate) -> dict:
             raise HTTPException(400, str(e))
     if body.type == "debate":
         try:
-            debate.configure(g, {"themes": body.cats or list(debate.THEMES), "public": body.public})
+            debate.configure(g, {"themes": body.cats or list(debate.DEFAULT_THEMES), "public": body.public})
         except debate.DebateError as e:
             raise HTTPException(400, str(e))
     if body.type == "divan" and body.cats:

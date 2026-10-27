@@ -11,6 +11,8 @@ GAME_RULES.debate = `
   <p>Discutez librement : pourquoi êtes-vous pour, contre, partagés ? Personne n'est obligé de se justifier.</p>
   <h3>Le revote</h3>
   <p>Après le débat, l'animateur choisit : <b>faire revoter</b> (une fois) pour voir combien ont changé d'avis, ou passer au dilemme suivant.</p>
+  <h3>Les thèmes</h3>
+  <p>L'animateur coche les thèmes du soir : ⚖️ Morale, 🏛️ Société, 💞 Relations & couple, 🍍 Léger… et <b>🤪 WTF 🔞</b> (absurde, idiot, osé, entre adultes), qui n'est <b>jamais</b> proposé d'office.</p>
   <h3>Vos dilemmes</h3>
   <p>Chacun peut proposer un dilemme (« ✍️ Proposer »). L'animateur le valide : il passe alors avant ceux de l'app, avec le prénom de son auteur.</p>
   <h3>Sans téléphone ?</h3>
@@ -42,7 +44,7 @@ function dbDots(v) {
 
 function dbSettingsHtml(g) {
   const v = g.debate;
-  const themes = v.theme_list.map((t) => `<button type="button" class="${v.themes.includes(t.id) ? "on" : ""}" data-db-theme="${t.id}" aria-pressed="${v.themes.includes(t.id)}">${esc(t.label)} <small>${t.size}</small></button>`).join("");
+  const themes = v.theme_list.map((t) => `<button type="button" class="${v.themes.includes(t.id) ? "on" : ""}" data-db-theme="${t.id}" aria-pressed="${v.themes.includes(t.id)}">${esc(t.label)}${t.adult ? " 🔞" : ""} <small>${t.size}</small></button>`).join("");
   const counts = v.counts.map((n) => `<button type="button" class="${v.count === n ? "on" : ""}" data-db-count="${n}" aria-pressed="${v.count === n}">${n}</button>`).join("");
   const pub = [[false, "🙈 Anonymes"], [true, "👀 Prénoms affichés"]].map(([val, label]) =>
     `<button type="button" class="${v.public === val ? "on" : ""}" data-db-public="${val}" aria-pressed="${v.public === val}">${label}</button>`).join("");

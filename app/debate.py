@@ -14,14 +14,17 @@ d'animateur restent dans main.py.
 import random
 from statistics import pstdev
 
-from .debate_questions import LIGHT, MORAL, RELATIONS, SOCIETY
+from .debate_questions import LIGHT, MORAL, RELATIONS, SOCIETY, WTF
 
 THEMES: dict[str, tuple[str, list[str]]] = {
     "moral": ("⚖️ Morale & dilemmes", MORAL),
     "society": ("🏛️ Société & débats", SOCIETY),
     "relations": ("💞 Relations & couple", RELATIONS),
     "light": ("🍍 Léger & absurde", LIGHT),
+    "wtf": ("🤪 WTF", WTF),
 }
+ADULT_THEMES = ("wtf",)  # osé : jamais proposé d'office, l'animateur le coche lui-même
+DEFAULT_THEMES = tuple(t for t in THEMES if t not in ADULT_THEMES)
 SCALE = ("Totalement contre", "Plutôt contre", "Partagé", "Plutôt pour", "Totalement pour")
 CONTRE, PARTAGE, POUR = (0, 1), (2,), (3, 4)
 COUNTS = (10, 20, 30)
@@ -41,7 +44,7 @@ def state(g: dict) -> dict:
 
 
 def init(g: dict):
-    g["debate"] = {"themes": list(THEMES), "count": DEFAULT_COUNT, "public": False, "used": [], "queue": [],
+    g["debate"] = {"themes": list(DEFAULT_THEMES), "count": DEFAULT_COUNT, "public": False, "used": [], "queue": [],
                    "proposals": [], "next_id": 1, "q": None, "n": 0, "round": 1, "voters": [], "votes": {},
                    "skipped": [], "first": None, "result": None, "history": []}
 
@@ -312,7 +315,8 @@ def view(g: dict, gid: str, lead: bool = False) -> dict:
     q = S["q"]
     end = g["phase"] == "end"
     return {"themes": S["themes"], "count": S["count"], "counts": list(COUNTS), "public": S["public"],
-            "theme_list": [{"id": k, "label": label, "size": len(qs)} for k, (label, qs) in THEMES.items()],
+            "theme_list": [{"id": k, "label": label, "size": len(qs), "adult": k in ADULT_THEMES}
+                           for k, (label, qs) in THEMES.items()],
             "scale": list(SCALE), "n": S["n"], "round": S["round"],
             "q": {"text": q["text"], "theme": THEMES[q["theme"]][0] if q["theme"] else None, "by": q["by"]} if q else None,
             "voter": {"pid": _pid(g, current), "name": _name(g, current)} if current else None,

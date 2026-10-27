@@ -495,11 +495,12 @@ document.getElementById("gamesRoot").innerHTML = `
           ${helpBtn("debate")}
         </div>
         <p class="g-desc">« Faut-il dire à un ami que son ou sa partenaire le trompe ? » Chacun se place en secret de « Totalement contre » à « Totalement pour », on découvre la répartition, puis on en parle. Après le débat, on peut revoter pour voir qui a changé d'avis.</p>
-        <div class="g-chips"><span>2+ joueurs</span><span>Sans alcool</span><span>Sans téléphone : OK</span><span>430 dilemmes + les vôtres</span></div>
+        <div class="g-chips"><span>2+ joueurs</span><span>Sans alcool</span><span>Sans téléphone : OK</span><span>540 dilemmes + les vôtres</span></div>
         <div class="g-label">Thèmes</div>
         <div class="g-modes" data-opt-group="cats">
           <button type="button" data-val="moral" class="on">⚖️ Morale</button><button type="button" data-val="society" class="on">🏛️ Société</button>
           <button type="button" data-val="relations" class="on">💞 Relations</button><button type="button" data-val="light" class="on">🍍 Léger</button>
+          <button type="button" data-val="wtf">🤪 WTF 🔞</button>
         </div>
         <label class="g-opt"><span>👀 Prénoms affichés à la révélation <small>sinon les votes restent anonymes</small></span><input type="checkbox" class="switch" data-opt="dbpublic"></label>
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
