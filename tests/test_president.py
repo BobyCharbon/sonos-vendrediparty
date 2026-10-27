@@ -117,10 +117,8 @@ def test_play_after_everyone_else_passed_closes_the_trick_for_its_author():
 
 def test_finished_leader_hands_new_trick_to_next_active_player():
     g = state_with({"player-0": ["AC"], "player-1": ["4C", "8C"], "player-2": ["5C", "6C"]})
-    play(g, "player-0", ["AC"])  # termine ; personne ne monte : le pli est ramassé, le suivant encore en jeu rouvre
-    pass_turn(g, "player-1")
-    pass_turn(g, "player-2")
-    assert g["president"]["turn"] == "player-1"
+    play(g, "player-0", ["AC"])  # termine : on ne joue pas dessus, le pli est ramassé et le suivant ouvre
+    assert g["president"]["turn"] == "player-1" and g["president"]["pile"] is None
     assert g["president"]["pile"] is None
     play(g, "player-1", ["4C"])
     play(g, "player-2", ["6C"])
@@ -380,7 +378,7 @@ def test_the_last_five_plays_stay_visible_with_the_latest_last():
 
 
 def test_a_new_trick_starts_from_zero():
-    g = state_with({"player-0": ["5C", "9C"], "player-1": ["2C", "4C"], "player-2": ["KC", "KD"]})
+    g = state_with({"player-0": ["5C", "9C"], "player-1": ["2C", "4C", "QC"], "player-2": ["KC", "KD"]})
     play(g, "player-0", ["5C"])
     play(g, "player-1", ["2C"])  # ferme le pli
     assert pr.view(g, "player-2")["trail"] == []
@@ -456,9 +454,7 @@ def test_finishing_on_a_two_makes_you_the_dunce():
     assert "Trou du cul" in g["president"]["notice"]
     play(g, "player-2", ["4C"])
     play(g, "player-3", ["6C"])
-    play(g, "player-0", ["9C"])  # player-0 termine premier
-    pass_turn(g, "player-2")
-    pass_turn(g, "player-3")
+    play(g, "player-0", ["9C"])  # player-0 termine premier : le pli est ramassé, player-2 ouvre
     play(g, "player-2", ["KC"])  # player-2 termine
     assert g["phase"] == "end"
     assert [r["name"] for r in pr.view(g, "player-0")["ranking"]] == ["J0", "J2", "J3", "J1"]
@@ -482,3 +478,13 @@ def test_a_joker_alone_is_not_a_two():
     g = state_with({"player-0": ["JK1"], "player-1": ["5C", "9C"], "player-2": ["KC", "4C"]})
     play(g, "player-0", ["JK1"])
     assert g["president"]["finished"] == ["player-0"] and g["president"].get("dunce", []) == []
+
+
+# ── On ne joue pas sur celui qui termine ──
+def test_nobody_plays_on_the_last_cards_of_a_finisher():
+    g = state_with({"player-0": ["9C", "9D"], "player-1": ["KC", "KD", "4C"], "player-2": ["AC", "AD", "5C"]})
+    play(g, "player-0", ["9C", "9D"])  # ses dernières cartes : il est Président
+    s = g["president"]
+    assert s["finished"] == ["player-0"] and s["pile"] is None and s["turn"] == "player-1"
+    assert "ouvre" in s["notice"]
+    play(g, "player-1", ["4C"])  # le suivant commence par ce qu'il veut
