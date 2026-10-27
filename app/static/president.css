@@ -30,6 +30,7 @@ body.pyr-full #game.g-pr { box-shadow: none; border: 0; padding: 16px; }
 .pr-table { padding: 4px 0 0; text-align: center; }
 .pr-table-caption { color: #cae1d8; font-size: .8rem; margin: 10px 0 8px; }
 .pr-table .pr-note { margin: 8px 0; }
+.pr-family { display: inline-block; margin: 0 0 6px; padding: 4px 12px; border-radius: 999px; background: rgba(255, 196, 77, .18); color: #ffd27a; font-size: .9rem; }
 .pr-pile { display: flex; justify-content: center; gap: 8px; min-height: 100px; align-items: center; }
 .pr-pile > .pr-card { width: 66px; height: 96px; flex: none; }
 .pr-empty-pile { width: 66px; height: 96px; display: grid; place-items: center; font-size: 2.5rem; color: #a8cabc; border: 1px dashed #6c8f80; border-radius: 10px; }

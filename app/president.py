@@ -174,29 +174,52 @@ def _turn(g, gid, token):
     return s
 
 
+FAMILY = 4  # les quatre cartes d'une valeur (jokers joués comme elle compris)
+
+
 @serialized
 def play(g, gid, cards, token):
-    s = _turn(g, gid, token)
+    """Poser une combinaison. Même valeur et même nombre de cartes que le pli : autorisé, puis « … ou rien »
+    pour les suivants. Le coup qui complète la famille (4 cartes de la valeur) ramasse le pli, et son auteur
+    rouvre ; ce coup-là peut être joué par n'importe qui, même hors tour."""
+    s = _state(g)
+    if g["phase"] != "play" or gid not in _active(s):
+        raise PresidentError("Ce n'est pas ton tour")
+    if token != _token(s):
+        raise PresidentError("La table a changé. Vérifie les cartes avant de rejouer")
     hand = s["hands"][gid]
     if any(c not in hand for c in cards):
         raise PresidentError("Tu ne possèdes pas ces cartes")
     value = combination(cards)
     pile = s["pile"]
-    if pile and (len(cards) != len(pile["cards"]) or value <= pile["rank"]):
-        raise PresidentError("Pose le même nombre de cartes, d'une valeur strictement supérieure, ou passe")
+    same = bool(pile) and len(cards) == len(pile["cards"]) and value == pile["rank"]
+    family = pile.get("family", len(pile["cards"])) + len(cards) if same else len(cards)
+    completes = same and family >= FAMILY
+    if gid != s["turn"] and not completes:
+        raise PresidentError("Ce n'est pas ton tour (hors tour, on peut seulement compléter la famille)")
+    if pile and not same:
+        if pile.get("locked"):
+            raise PresidentError(f"{RANKS[pile['rank']]} ou rien : pose la même valeur, ou passe")
+        if len(cards) != len(pile["cards"]) or value <= pile["rank"]:
+            raise PresidentError("Pose le même nombre de cartes, d'une valeur égale ou supérieure, ou passe")
     if pile:
         s["discard"].extend(pile["cards"])
     for c in cards:
         hand.remove(c)
-    s["pile"] = {"cards": list(cards), "rank": value, "by": gid}
+    s["pile"] = {"cards": list(cards), "rank": value, "by": gid, "family": family, "locked": same}
     s["passed"] = []
     label = RANKS[value]
-    s["notice"] = f"{_name(g, gid)} pose {len(cards)} carte(s) de valeur {label}."
+    s["notice"] = f"{_name(g, gid)} pose {len(cards)} carte(s) de valeur {label}" + (f" : {label} ou rien." if same else ".")
     if not hand:
         s["finished"].append(gid)
         s["notice"] = f"{_name(g, gid)} termine à la place {len(s['finished'])}."
     if not _finish_if_needed(g):
-        s["turn"] = _next(s, gid)
+        if completes:
+            _clear(g)
+            opener = _name(g, s["turn"])
+            s["notice"] = f"{_name(g, gid)} complète la famille de {label} ! {opener} ouvre le pli suivant."
+        else:
+            s["turn"] = _next(s, gid)
     _touch(s)
 
 
@@ -280,7 +303,8 @@ def view(g, gid):
     out = {"seats": seats, "hand": [card_view(c) for c in s.get("hands", {}).get(gid, [])] if gid in live else [],
            "turn": pid(s.get("turn")), "my_turn": g["phase"] == "play" and s.get("turn") == gid,
            "pile": {"cards": [card_view(c) for c in pile["cards"]], "rank": RANKS[pile["rank"]], "value": pile["rank"],
-                    "name": _name(g, pile["by"])} if pile else None,
+                    "name": _name(g, pile["by"]), "family": pile.get("family", len(pile["cards"])),
+                    "locked": bool(pile.get("locked"))} if pile else None,
            "token": _token(s) if s.get("deal") else "", "trick": s.get("trick", 0),
            "notice": s.get("notice", ""), "exchange": None,
            "ranking": [{"pid": pid(i), "name": _name(g, i), "me": i == gid, "place": pos + 1,

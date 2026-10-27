@@ -69,7 +69,7 @@ def test_same_count_strictly_higher_and_no_stolen_cards():
     g = state_with({"player-0": ["4C", "4D", "AC"], "player-1": ["4H", "4S", "5H", "5S", "6H"], "player-2": ["2C"]})
     play(g, "player-0", ["4C", "4D"])
     before = copy.deepcopy(g)
-    for bad in (["5H"], ["4H", "4S"], ["AC", "5H"], ["5H", "5H"]):
+    for bad in (["5H"], ["4H"], ["AC", "5H"], ["5H", "5H"], ["3C", "3D"]):
         with pytest.raises(pr.PresidentError):
             play(g, "player-1", bad)
         assert g == before
@@ -256,3 +256,67 @@ def test_player_limits():
         games.join(g, f"player-{i}", f"J{i}")
     with pytest.raises(games.GameError):
         games.join(g, "player-6", "En trop")
+
+
+# ── Compléter la famille ──
+def family_table(turn="player-0"):
+    return state_with({"player-0": ["7C", "JC", "JH", "QC", "QH", "AC"], "player-1": ["7H", "9C", "QD", "JK1", "KC"],
+                       "player-2": ["7D", "7S", "JD", "JS", "9D", "KD"]}, turn=turn)
+
+
+def test_same_value_is_allowed_then_it_is_that_value_or_nothing():
+    g = family_table()
+    play(g, "player-0", ["7C"])
+    play(g, "player-1", ["7H"])  # même valeur : autorisé
+    pile = pr.view(g, "player-2")["pile"]
+    assert pile["locked"] and pile["family"] == 2
+    with pytest.raises(pr.PresidentError, match="ou rien"):
+        play(g, "player-2", ["9D"])  # plus fort, mais « 7 ou rien »
+    play(g, "player-2", ["7D"])
+    assert g["president"]["pile"]["family"] == 3
+
+
+def test_completing_the_family_closes_the_trick_and_the_completer_opens():
+    g = family_table()
+    play(g, "player-0", ["7C"])
+    pass_turn(g, "player-1")
+    play(g, "player-2", ["7D"])
+    pass_turn(g, "player-0")  # « 7 ou rien » : on peut passer
+    play(g, "player-1", ["7H"])
+    play(g, "player-2", ["7S"])  # le 4e sept
+    s = g["president"]
+    assert s["pile"] is None and s["turn"] == "player-2" and "famille" in s["notice"]
+
+
+def test_a_pair_completes_the_family_out_of_turn():
+    """Le cas de la soirée : un double valet posé, l'autre double valet complète la famille, même hors tour."""
+    g = family_table()
+    play(g, "player-0", ["JC", "JH"])
+    assert g["president"]["turn"] == "player-1"
+    play(g, "player-2", ["JD", "JS"])  # pas son tour, mais il complète les 4 valets
+    s = g["president"]
+    assert s["pile"] is None and s["turn"] == "player-2" and s["trick"] == 2
+
+
+def test_out_of_turn_is_only_for_completing_the_family():
+    g = family_table()
+    play(g, "player-0", ["7C"])
+    with pytest.raises(pr.PresidentError, match="pas ton tour"):
+        play(g, "player-2", ["7D"])  # même valeur, mais il manque encore des 7 : il faut attendre son tour
+    with pytest.raises(pr.PresidentError, match="pas ton tour"):
+        play(g, "player-2", ["KD"])
+
+
+def test_a_joker_counts_in_the_family():
+    g = family_table()
+    play(g, "player-0", ["QC", "QH"])
+    play(g, "player-1", ["QD", "JK1"])  # deux dames de plus (dont un joker) : famille complète
+    assert g["president"]["pile"] is None and g["president"]["turn"] == "player-1"
+
+
+def test_completing_with_the_last_cards_finishes_and_the_next_player_opens():
+    g = state_with({"player-0": ["JC", "JH", "3C"], "player-1": ["4C", "5C"], "player-2": ["JD", "JS"]})
+    play(g, "player-0", ["JC", "JH"])
+    play(g, "player-2", ["JD", "JS"])  # hors tour, et c'étaient ses dernières cartes
+    s = g["president"]
+    assert s["finished"] == ["player-2"] and s["pile"] is None and s["turn"] == "player-0"
