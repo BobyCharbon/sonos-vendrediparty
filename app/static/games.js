@@ -80,6 +80,18 @@ GAME_THEME.president = "g-pr";
 // Jeux récents : étiquette « NEW » sur leur carte et leur tuile dans la salle de jeux (retirer le type pour l'enlever).
 const NEW_GAMES = ["debate"];
 const newBadge = (type) => NEW_GAMES.includes(type) ? `<span class="g-new" aria-label="Nouveau jeu">NEW</span>` : "";
+// Catégories de l'écran Jeux et de la salle de jeux : [id, titre, jeux dans l'ordre d'affichage].
+// Tout nouveau jeu doit y figurer (tests/test_game_categories.py le vérifie).
+const GAME_CATEGORIES = [
+  ["drinks", "🍻 Alcool", ["whoof", "never", "roulette", "biskit", "casino", "purity"]],
+  ["three", "🎮 Jeux 3D", ["neon", "island", "heist"]],
+  ["talk", "💞 Parler vrai", ["divan", "debate", "tmc"]],
+  ["cards", "🃏 Jeux de cartes", ["pyramid", "blackjack", "president"]],
+  ["mood", "🎉 Ambiance", ["quiz", "undercover", "likely"]]
+];
+// Jeux rangés hors « Alcool » qui se jouent aussi avec des gorgées : étiquette 🍻 (chaque jeu n'apparaît qu'une fois).
+const DRINK_TAG_GAMES = ["pyramid", "blackjack", "quiz", "likely"];
+const drinkTag = (type) => DRINK_TAG_GAMES.includes(type) ? `<span class="g-drink" title="Se joue aussi avec de l'alcool" aria-label="Se joue aussi avec de l'alcool">🍻</span>` : "";
 const helpBtn = (type, inGame = false) => `<button type="button" class="g-help" data-rules="${type}" ${inGame ? "data-ingame" : ""} aria-label="Règles du jeu">?</button>`;
 
 // Règles détaillées, ouvertes par le « ? » de chaque jeu.
@@ -697,6 +709,26 @@ document.getElementById("gamesRoot").innerHTML = `
       </div>
     </div>
 `;
+// Range les cartes de l'accueil par catégorie (une section titrée par catégorie, sous la carte de la salle de jeux).
+(function groupHomeCards() {
+  const home = document.getElementById("gHome");
+  let after = home.querySelector(".g-room-card");
+  for (const [id, label, types] of GAME_CATEGORIES) {
+    const sec = document.createElement("section");
+    sec.className = "g-cat";
+    sec.dataset.cat = id;
+    sec.setAttribute("aria-labelledby", `gCat-${id}`);
+    sec.innerHTML = `<h2 class="g-cat-h" id="gCat-${id}">${label}</h2>`;
+    for (const type of types) {
+      const card = home.querySelector(`[data-create="${type}"]`)?.closest(".gcard");
+      if (!card) continue;
+      card.querySelector(".g-title")?.insertAdjacentHTML("beforeend", drinkTag(type));
+      sec.append(card);
+    }
+    after.after(sec);
+    after = sec;
+  }
+})();
 
 // 🎮 Jeux : n'importe qui crée une partie (code + QR) et l'anime ; les autres la rejoignent avec son code.
 let myRoom = store("vp_room") || "";
@@ -2356,13 +2388,25 @@ function lobbyInvite(g) {
 }
 
 // ── Salle de jeux ──
+function roomTileHtml(c) {
+  return `<button type="button" class="g-room-tile ${GAME_THEME[c.type] || ""}" data-room-pick="${c.type}">${newBadge(c.type)}
+    <span class="g-room-tile-i">${GAME_ICONS[c.type] || ""}</span><b>${esc(c.name)}${drinkTag(c.type)}</b></button>`;
+}
+// Tuiles groupées par catégorie, dans le même ordre que l'écran Jeux ; un jeu sans catégorie va à la fin.
+function roomCatalogHtml(catalog) {
+  const byType = new Map(catalog.map((c) => [c.type, c]));
+  const known = new Set(GAME_CATEGORIES.flatMap(([, , types]) => types));
+  const groups = [...GAME_CATEGORIES.map(([id, label, types]) => [id, label, types.filter((t) => byType.has(t)).map((t) => byType.get(t))]),
+    ["other", "Autres jeux", catalog.filter((c) => !known.has(c.type))]];
+  return groups.filter(([, , list]) => list.length).map(([id, label, list]) => `<div class="g-room-cat" data-cat="${id}">
+      <div class="g-room-cat-h">${label}</div><div class="g-room-grid">${list.map(roomTileHtml).join("")}</div></div>`).join("");
+}
 function roomHtml(g) {
   const R = g.room_info || {}, lead = g.is_host;
   const cur = R.current;
   const resume = cur ? `<button class="py-main g-room-resume" data-room-goto="${esc(cur.code)}">🎮 ${esc(cur.name)} en cours · rejoindre</button>` : "";
   const pick = lead && !cur ? `<div class="g-room-block"><div class="g-room-h">Lancer un jeu pour la salle</div>
-      <div class="g-room-grid">${(R.catalog || []).map((c) => `<button type="button" class="g-room-tile ${GAME_THEME[c.type] || ""}" data-room-pick="${c.type}">${newBadge(c.type)}
-        <span class="g-room-tile-i">${GAME_ICONS[c.type] || ""}</span><b>${esc(c.name)}</b></button>`).join("")}</div></div>`
+      ${roomCatalogHtml(R.catalog || [])}</div>`
     : !cur ? `<div class="g-room-wait"><span class="g-room-dots"><i></i><i></i><i></i></span>${esc(g.host_name || "L'animateur")} choisit le prochain jeu…</div>` : "";
   const board = (R.board || []).filter((r) => r.pts || r.drink || r.give);
   const tally = board.length ? `<div class="g-room-block"><div class="g-room-h">🏆 Tableau de la soirée</div>

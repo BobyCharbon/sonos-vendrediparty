@@ -217,6 +217,13 @@ details[open] > summary h2::after { content: " ▾"; }
   font: 900 .72rem/1.2 system-ui, sans-serif; letter-spacing: .08em; color: #3a1800;
   background: linear-gradient(135deg, #ffe27a, #ff9f43); box-shadow: 0 4px 12px rgba(255, 159, 67, .45), 0 0 0 2px rgba(0, 0, 0, .18); }
 .g-room-tile .g-new { top: -7px; right: -4px; padding: 2px 7px; font-size: .62rem; }
+/* Catégories de l'écran Jeux et de la salle de jeux. */
+.g-cat { margin-top: 26px; }
+.g-cat-h { margin: 0 4px 12px; font: 800 1.35rem/1.15 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: -0.01em; }
+.g-drink { display: inline-block; margin-left: 8px; font-size: .8em; vertical-align: .1em; }
+.g-room-cat + .g-room-cat { margin-top: 14px; }
+.g-room-cat-h { margin: 0 2px 8px; font-size: .85rem; font-weight: 800; opacity: .85; }
+.g-room-tile .g-drink { margin-left: 4px; font-size: .9em; }
 .g-icon { width: 56px; height: 56px; border-radius: 18px; background: var(--g-accent); color: var(--g-ink); display: flex; align-items: center; justify-content: center; flex: none; }
 .g-icon svg { width: 34px; height: 34px; }
 .g-meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }

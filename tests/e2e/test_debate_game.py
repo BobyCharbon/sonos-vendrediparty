@@ -163,3 +163,25 @@ def test_new_badge_marks_only_this_game_on_the_home_cards(phones):
     help_btn = alice.page.locator('#gHome .gcard:has([data-create="debate"]) .g-help').bounding_box()
     assert b['x'] + b['width'] > card['x'] + card['width'] * 0.7 and b['y'] < card['y'] + 20
     assert b['y'] + b['height'] <= help_btn['y'] + 2
+
+
+def test_home_and_game_room_list_games_by_category(phones):
+    alice = phones('Alice')
+    alice.open_games()
+    page = alice.page
+    heads = page.locator('#gHome .g-cat-h')
+    expect(heads).to_have_text(['🍻 Alcool', '🎮 Jeux 3D', '💞 Parler vrai', '🃏 Jeux de cartes', '🎉 Ambiance'])
+    expect(page.locator('#gHome .g-cat[data-cat="talk"] [data-create]')).to_have_count(3)
+    expect(page.locator('#gHome .g-cat[data-cat="talk"] [data-create="divan"]')).to_have_count(1)
+    expect(page.locator('#gHome .g-cat[data-cat="cards"] [data-create="pyramid"]')).to_have_count(1)
+    # Chaque jeu une seule fois ; ceux qui se jouent aussi avec alcool portent l'étiquette 🍻.
+    expect(page.locator('#gHome .gcard:not(.g-room-card)')).to_have_count(18)
+    expect(page.locator('#gHome .g-cat[data-cat="cards"] .gcard:has([data-create="pyramid"]) .g-drink')).to_be_visible()
+    expect(page.locator('#gHome .g-cat[data-cat="drinks"] .g-drink')).to_have_count(0)
+    # Le bouton d'une carte rangée crée toujours la partie.
+    page.locator('#gHome [data-create="room"]').click()
+    expect(page.locator('#gamePlay')).to_be_visible()
+    expect(page.locator('.g-room-cat-h')).to_have_text(['🍻 Alcool', '🎮 Jeux 3D', '💞 Parler vrai', '🃏 Jeux de cartes', '🎉 Ambiance'])
+    expect(page.locator('.g-room-cat[data-cat="talk"] [data-room-pick]')).to_have_count(3)
+    page.locator('.g-room-cat[data-cat="talk"] [data-room-pick="debate"]').click()
+    expect(page.locator('.g-room-sheet [data-create="debate"]')).to_be_visible()
