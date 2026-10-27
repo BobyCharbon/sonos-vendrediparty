@@ -23,8 +23,13 @@ struct ContentView: View {
 
     /// « Gérer la soirée » : réservé à l'hôte.
     private var hostTools: (() -> Void)? {
-        guard model.tabs?.host == true else { return nil }
-        return { [model] in model.manageInPage() }
+        guard model.isHost else { return nil }
+        return { [model] in withAnimation { model.setHostManages(true) } }
+    }
+
+    /// Hôte en mode « Gérer la soirée » sur l'onglet Musique : bouton pour revenir à la vue invité.
+    private var showsGuestViewButton: Bool {
+        model.isHost && model.hostManages && model.tabs?.nativeScreen == "music"
     }
 
     var body: some View {
@@ -38,6 +43,20 @@ struct ContentView: View {
                         PartyWebView(model: model)
                         if model.nativeScreen == "music", let music = model.music {
                             MusicView(store: music, topInset: proxy.safeAreaInsets.top, manage: hostTools)
+                        }
+                        if showsGuestViewButton {
+                            Button {
+                                withAnimation { model.setHostManages(false) }
+                            } label: {
+                                Label("Vue invité", systemImage: "person.2")
+                                    .font(.subheadline.weight(.semibold))
+                                    .padding(.horizontal, 14).padding(.vertical, 10)
+                                    .background(.ultraThinMaterial, in: Capsule())
+                            }
+                            .tint(.white)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                            .padding(16)
+                            .accessibilityHint("Affiche l'écran Musique des invités ; le choix est retenu")
                         }
                     }
                     if let tabs = model.tabs, !tabs.hidden {

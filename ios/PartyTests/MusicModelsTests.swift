@@ -120,3 +120,16 @@ struct SharedLinkTests {
     }
 }
 
+
+/// Mode de l'hôte pour la Musique : retenu d'une ouverture de l'app à l'autre.
+@MainActor
+struct HostModeTests {
+    @Test("« Gérer la soirée » reste choisi à la prochaine ouverture, « Vue invité » aussi")
+    func hostModeIsRemembered() {
+        let base = URL(string: "https://partytest.bobycharbon.ch")!
+        WebModel(start: base).setHostManages(true)
+        #expect(WebModel(start: base).hostManages)
+        WebModel(start: base).setHostManages(false)
+        #expect(!WebModel(start: base).hostManages)
+    }
+}
