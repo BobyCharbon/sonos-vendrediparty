@@ -65,17 +65,34 @@ jobs:
           set -o pipefail
           # Release = VendrediParty ; la BETA reprend les réglages de la configuration Debug (project.yml).
           if [ "$PRODUCTION" = 1 ]; then
-            VARIANT=()
+            VARIANT=(); BUNDLE_ID=ch.bobycharbon.party; HOST=party.bobycharbon.ch
           else
             VARIANT=(PARTY_BUNDLE_SUFFIX=.beta PARTY_HOST=partytest.bobycharbon.ch
                      "PARTY_DISPLAY_NAME=Party BETA" ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon-Beta)
+            BUNDLE_ID=ch.bobycharbon.party.beta; HOST=partytest.bobycharbon.ch
           fi
           echo "Variante : ${VARIANT[*]:-VendrediParty (production)}"
+          # Archive sans signature : un Mac GitHub neuf créerait sinon un certificat de développement à chaque
+          # exécution (le compte en accepte peu, l'envoi échouait « maximum number of certificates »).
           xcodebuild archive \
             -project Party.xcodeproj -scheme Party -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" \
-            "${VARIANT[@]}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-            $AUTH_FLAGS | tail -60
+            "${VARIANT[@]}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" CODE_SIGNING_ALLOWED=NO | tail -40
+          # Signature provisoire portant les droits de l'app ; l'export la remplace par la signature
+          # Apple Distribution gérée dans le cloud (clé API), qui conserve ces droits.
+          cat > "$RUNNER_TEMP/app.entitlements" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>application-identifier</key><string>GS2B6GA9JA.$BUNDLE_ID</string>
+          <key>com.apple.developer.team-identifier</key><string>GS2B6GA9JA</string>
+          <key>aps-environment</key><string>production</string>
+          <key>com.apple.developer.associated-domains</key><array><string>applinks:$HOST</string></array>
+          <key>get-task-allow</key><false/>
+          </dict></plist>
+          PLIST
+          codesign --force --sign - --timestamp=none --entitlements "$RUNNER_TEMP/app.entitlements" \
+            "$ARCHIVE/Products/Applications/Party.app"
 
       - name: Envoi à TestFlight
         working-directory: ios
