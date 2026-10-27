@@ -26,10 +26,17 @@ final class WebModel: ObservableObject {
 
     /// Onglet Musique natif, avec la même session que la page.
     private(set) var music: MusicStore?
+    private var cookieWatcher: CookieWatcher?
 
     func attach(_ webView: WKWebView) {
         self.webView = webView
-        let api = PartyAPI(base: start, jar: WebCookieJar(webView.configuration.websiteDataStore.httpCookieStore))
+        let cookieStore = webView.configuration.websiteDataStore.httpCookieStore
+        let api = PartyAPI(base: start, jar: WebCookieJar(cookieStore))
+        // Session d'hôte (vp_admin) ou code saisi après le chargement de la page : l'extension « Partager »
+        // reçoit la session à jour à chaque changement de cookie.
+        cookieWatcher = CookieWatcher(store: cookieStore) { [weak self] in
+            Task { await self?.shareSession() }
+        }
         music = MusicStore(api: api, web: self)
         webView.load(URLRequest(url: pending ?? start))
         pending = nil
@@ -148,3 +155,33 @@ final class WebCookieJar: CookieJar {
         for cookie in cookies { await store.setCookie(cookie) }
     }
 }
+
+/// Prévient à chaque changement de cookie de la vue web (WKHTTPCookieStoreObserver), regroupé sur 0,5 s.
+@MainActor
+final class CookieWatcher: NSObject, WKHTTPCookieStoreObserver {
+    private let store: WKHTTPCookieStore
+    private let changed: () -> Void
+    private var pending: Task<Void, Never>?
+    private static let settleDelay: Duration = .milliseconds(500)
+
+    init(store: WKHTTPCookieStore, changed: @escaping () -> Void) {
+        self.store = store
+        self.changed = changed
+        super.init()
+        store.add(self)
+    }
+
+    nonisolated func cookiesDidChange(in cookieStore: WKHTTPCookieStore) {
+        Task { @MainActor in self.schedule() }
+    }
+
+    private func schedule() {
+        pending?.cancel()
+        pending = Task { [weak self] in
+            try? await Task.sleep(for: Self.settleDelay)
+            guard !Task.isCancelled else { return }
+            self?.changed()
+        }
+    }
+}
+

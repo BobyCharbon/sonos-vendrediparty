@@ -81,7 +81,7 @@ struct ShareView: View {
         case .loading:
             ProgressView("Recherche du titre…").frame(maxWidth: .infinity).padding(.top, 40)
         case .needsApp:
-            message("music.note.house", "Ouvre Party ! et rejoins la soirée avec son code, puis partage à nouveau ce titre.")
+            message("music.note.house", "Ouvre Party ! une fois — avec le code de la soirée, ou connecté en hôte — puis partage à nouveau ce titre.")
         case .failed(let reason):
             message("exclamationmark.triangle", reason)
         case .added(let title):
