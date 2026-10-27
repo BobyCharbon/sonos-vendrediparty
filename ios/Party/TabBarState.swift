@@ -15,6 +15,22 @@ struct TabBarState: Decodable, Equatable {
     /// Un jeu en plein écran masque la barre.
     let hidden: Bool
     let tabs: [Tab]
+    /// Onglets que l'app peut afficher en natif (la page garde l'onglet Musique pour l'hôte).
+    let native: [String]
+
+    enum CodingKeys: String, CodingKey { case hidden, tabs, native }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        hidden = try c.decode(Bool.self, forKey: .hidden)
+        tabs = try c.decode([Tab].self, forKey: .tabs)
+        native = try c.decodeIfPresent([String].self, forKey: .native) ?? []
+    }
+
+    /// Onglet affiché en natif plutôt que dans la page, s'il y en a un.
+    var nativeScreen: String? {
+        activeIndex.map { tabs[$0].id }.flatMap { native.contains($0) ? $0 : nil }
+    }
 
     var activeIndex: Int? { tabs.firstIndex(where: \.active) }
 

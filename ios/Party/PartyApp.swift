@@ -28,7 +28,12 @@ struct ContentView: View {
                 // La page gère elle-même l'encoche (viewport-fit=cover + env(safe-area-inset-*)). La barre
                 // d'onglets native est SOUS la vue web : la page s'arrête au-dessus, rien n'est caché derrière.
                 VStack(spacing: 0) {
-                    PartyWebView(model: model)
+                    ZStack {
+                        PartyWebView(model: model)
+                        if model.tabs?.nativeScreen == "music", let music = model.music {
+                            MusicView(store: music, topInset: proxy.safeAreaInsets.top)
+                        }
+                    }
                     if let tabs = model.tabs, !tabs.hidden {
                         NativeTabBar(state: tabs, select: model.selectTab)
                             .frame(height: NativeTabBar.height + proxy.safeAreaInsets.bottom)

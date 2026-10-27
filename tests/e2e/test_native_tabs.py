@@ -108,3 +108,12 @@ def test_without_the_native_bridge_nothing_changes(browser, server):
     assert not page.evaluate("document.documentElement.classList.contains('native-tabs')")
     assert page.evaluate("typeof window.PartyTabs") == "undefined"
     ctx.close()
+
+
+def test_guests_get_the_native_music_screen_but_not_the_host(app):
+    # L'onglet Musique natif est réservé aux invités : l'hôte garde la page web et ses réglages.
+    assert last_state(app)["native"] == ["music"]
+    # L'hôte : compte admin et session admin ouverte (fbIsAdmin) ; le libellé « Retours » relance la description.
+    app.evaluate("() => { account = { ...(account || {}), admin: true }; adminSession = true;"
+                 "        document.querySelector('#tabs [data-tab=feedback] span').textContent = 'Retours'; }")
+    assert last_state(app)["native"] == []

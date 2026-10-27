@@ -18,8 +18,13 @@ final class WebModel: ObservableObject {
         self.start = start
     }
 
+    /// Onglet Musique natif, avec la même session que la page.
+    private(set) var music: MusicStore?
+
     func attach(_ webView: WKWebView) {
         self.webView = webView
+        let api = PartyAPI(base: start, cookieStore: webView.configuration.websiteDataStore.httpCookieStore)
+        music = MusicStore(api: api, web: self)
         webView.load(URLRequest(url: pending ?? start))
         pending = nil
     }
@@ -68,3 +73,29 @@ final class WebModel: ObservableObject {
         }
     }
 }
+
+extension WebModel: WebStorage {
+    func guestIdentity() async -> GuestIdentity? {
+        guard let id = await readLocal("vp_guest"), !id.isEmpty else { return nil }
+        return GuestIdentity(id: id, name: await readLocal("vp_name") ?? "")
+    }
+
+    func readLocal(_ key: String) async -> String? {
+        guard let webView, let script = Self.call("localStorage.getItem", key) else { return nil }
+        return try? await webView.evaluateJavaScript(script) as? String
+    }
+
+    func writeLocal(_ key: String, _ value: String?) {
+        let script = value.flatMap { Self.call("localStorage.setItem", key, $0) } ?? Self.call("localStorage.removeItem", key)
+        guard let script else { return }
+        webView?.evaluateJavaScript(script)
+    }
+
+    /// Appel JavaScript aux arguments encodés en JSON (aucune injection possible).
+    private static func call(_ function: String, _ arguments: String...) -> String? {
+        guard let data = try? JSONSerialization.data(withJSONObject: arguments),
+              let list = String(data: data, encoding: .utf8) else { return nil }
+        return "\(function)(...\(list))"
+    }
+}
+

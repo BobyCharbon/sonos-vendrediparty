@@ -22,6 +22,8 @@ targets:
     platform: iOS
     sources:
       - path: Party
+    scheme:
+      testTargets: [PartyTests]
     info:
       path: Party/Info.plist
       properties:
@@ -67,3 +69,17 @@ targets:
           PARTY_HOST: party.bobycharbon.ch
           PARTY_DISPLAY_NAME: "Party !"
           ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+  # Tests unitaires (Swift Testing) : modèles de l'écran Musique, barre d'onglets.
+  # xcodebuild test -project Party.xcodeproj -scheme Party -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+  PartyTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: PartyTests
+    dependencies:
+      - target: Party
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: ch.bobycharbon.party.tests
