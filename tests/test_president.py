@@ -77,19 +77,42 @@ def test_same_count_strictly_higher_and_no_stolen_cards():
     assert g["president"]["pile"]["rank"] == 2
 
 
-def test_passing_does_not_ban_reentry_and_everyone_passing_clears_pile():
-    g = state_with({"player-0": ["3C", "7C"], "player-1": ["4C", "8C"], "player-2": ["5C", "6C"]})
+def test_passing_is_final_for_the_trick_and_everyone_passing_clears_pile():
+    g = state_with({"player-0": ["3C", "7C", "QC"], "player-1": ["4C", "8C", "AC"], "player-2": ["5C", "6C", "KC"]})
     play(g, "player-0", ["3C"])
     pass_turn(g, "player-1")
     play(g, "player-2", ["5C"])
-    pass_turn(g, "player-0")
-    play(g, "player-1", ["8C"])
-    pass_turn(g, "player-2")
-    pass_turn(g, "player-0")
-    assert g["president"]["pile"] is None
-    assert g["president"]["turn"] == "player-1"
+    assert g["president"]["turn"] == "player-0"  # player-1 a passé : il est sauté jusqu'à la fin du pli
     with pytest.raises(pr.PresidentError):
-        pass_turn(g, "player-1")
+        pr.play(g, "player-1", ["8C"], pr.view(g, "player-1")["token"])
+    pass_turn(g, "player-0")  # tous les autres ont passé : le pli est ramassé
+    s = g["president"]
+    assert s["pile"] is None and s["turn"] == "player-2" and s["passed"] == []
+    with pytest.raises(pr.PresidentError):
+        pass_turn(g, "player-2")
+    play(g, "player-2", ["6C"])  # nouveau pli : tout le monde peut rejouer
+    play(g, "player-0", ["7C"])
+    play(g, "player-1", ["8C"])
+
+
+def test_turn_skips_players_who_passed():
+    g = state_with({"player-0": ["JC", "JH", "3C"], "player-1": ["4C", "KC"], "player-2": ["JD", "JS", "5C"],
+                    "player-3": ["QC", "QD", "9C"]})
+    play(g, "player-0", ["3C"])
+    pass_turn(g, "player-1")
+    pass_turn(g, "player-2")
+    play(g, "player-3", ["9C"])
+    play(g, "player-0", ["JC"])  # player-1 et player-2 ont passé : le tour revient à player-3
+    assert g["president"]["turn"] == "player-3"
+
+
+def test_play_after_everyone_else_passed_closes_the_trick_for_its_author():
+    g = state_with({"player-0": ["3C", "9C"], "player-1": ["4C", "KC"], "player-2": ["5C", "AC"]})
+    play(g, "player-0", ["3C"])
+    pass_turn(g, "player-1")
+    pass_turn(g, "player-2")  # tout le monde a passé sur le 3 : player-0 rouvre
+    s = g["president"]
+    assert s["pile"] is None and s["turn"] == "player-0"
 
 
 def test_finished_leader_hands_new_trick_to_next_active_player():
@@ -275,15 +298,13 @@ def test_same_value_is_allowed_then_it_is_that_value_or_nothing():
 
 
 def test_completing_the_family_closes_the_trick_and_the_completer_opens():
-    g = family_table()
+    g = state_with({"player-0": ["7C", "7S", "QC"], "player-1": ["7H", "9C"], "player-2": ["7D", "KD"]})
     play(g, "player-0", ["7C"])
-    pass_turn(g, "player-1")
-    play(g, "player-2", ["7D"])
-    pass_turn(g, "player-0")  # « 7 ou rien » : on peut passer
     play(g, "player-1", ["7H"])
-    play(g, "player-2", ["7S"])  # le 4e sept
+    play(g, "player-2", ["7D"])
+    play(g, "player-0", ["7S"])  # le 4e sept, à son tour
     s = g["president"]
-    assert s["pile"] is None and s["turn"] == "player-2" and "famille" in s["notice"]
+    assert s["pile"] is None and s["turn"] == "player-0" and "famille" in s["notice"]
 
 
 def test_a_pair_completes_the_family_out_of_turn():
@@ -371,3 +392,14 @@ def test_a_new_deal_clears_the_trail():
     g["phase"] = "end"
     games.start(g, random.Random(3))
     assert pr.view(g, "player-0")["trail"] == []
+
+
+def test_passed_player_is_out_even_for_completing_the_family():
+    g = state_with({"player-0": ["9C", "9D", "4C"], "player-1": ["5C", "KC"], "player-2": ["JD", "JS", "6C"],
+                    "player-3": ["JC", "JH", "8C"]})
+    play(g, "player-0", ["9C", "9D"])
+    pass_turn(g, "player-1")
+    pass_turn(g, "player-2")  # il a pourtant deux valets
+    play(g, "player-3", ["JC", "JH"])
+    with pytest.raises(pr.PresidentError, match="passé"):
+        pr.play(g, "player-2", ["JD", "JS"], pr.view(g, "player-2")["token"])  # compléterait, mais il a passé

@@ -76,6 +76,17 @@ def _next(s, after):
     return next(seats[(pos + n) % len(seats)] for n in range(1, len(seats) + 1) if seats[(pos + n) % len(seats)] in active)
 
 
+def _next_in_trick(s, after):
+    """Joueur suivant pour ce pli : ceux qui ont passé en sont sortis jusqu'au prochain pli."""
+    seats, live = s["seats"], [i for i in _active(s) if i not in s["passed"]]
+    pos = seats.index(after) if after in seats else -1
+    return next((seats[(pos + n) % len(seats)] for n in range(1, len(seats) + 1) if seats[(pos + n) % len(seats)] in live), None)
+
+
+def _everyone_else_passed(s, author):
+    return all(i == author or i in s["passed"] for i in _active(s))
+
+
 def _touch(s):
     s["revision"] += 1
 
@@ -187,6 +198,8 @@ def play(g, gid, cards, token):
     s = _state(g)
     if g["phase"] != "play" or gid not in _active(s):
         raise PresidentError("Ce n'est pas ton tour")
+    if gid in s["passed"]:
+        raise PresidentError("Tu as passé : tu rejoueras au prochain pli")
     if token != _token(s):
         raise PresidentError("La table a changé. Vérifie les cartes avant de rejouer")
     hand = s["hands"][gid]
@@ -210,20 +223,20 @@ def play(g, gid, cards, token):
         hand.remove(c)
     s["pile"] = {"cards": list(cards), "rank": value, "by": gid, "family": family, "locked": same}
     s["trail"] = (s.get("trail", []) + [{"cards": list(cards), "rank": value, "by": gid}])[-TRAIL:]
-    s["passed"] = []
     label = RANKS[value]
     s["notice"] = f"{_name(g, gid)} pose {len(cards)} carte(s) de valeur {label}" + (f" : {label} ou rien." if same else ".")
     if not hand:
         s["finished"].append(gid)
         s["notice"] = f"{_name(g, gid)} termine à la place {len(s['finished'])}."
     if not _finish_if_needed(g):
-        if completes or value == TWO:
+        if completes or value == TWO or _everyone_else_passed(s, gid):
             _clear(g)
             opener = _name(g, s["turn"])
-            done = f"complète la famille de {label}" if completes else f"ferme le pli avec {len(cards)} × 2"
-            s["notice"] = f"{_name(g, gid)} {done} ! {opener} ouvre le pli suivant."
+            if completes or value == TWO:
+                done = f"complète la famille de {label}" if completes else f"ferme le pli avec {len(cards)} × 2"
+                s["notice"] = f"{_name(g, gid)} {done} ! {opener} ouvre le pli suivant."
         else:
-            s["turn"] = _next(s, gid)
+            s["turn"] = _next_in_trick(s, gid)
     _touch(s)
 
 
@@ -233,11 +246,11 @@ def pass_turn(g, gid, token):
     if not s["pile"]:
         raise PresidentError("Tu ouvres le pli : choisis au moins une carte")
     s["passed"].append(gid)
-    s["notice"] = f"{_name(g, gid)} passe."
-    if all(i == s["pile"]["by"] or i in s["passed"] for i in _active(s)):
+    s["notice"] = f"{_name(g, gid)} passe et attend le prochain pli."
+    if _everyone_else_passed(s, s["pile"]["by"]):
         _clear(g)
     else:
-        s["turn"] = _next(s, gid)
+        s["turn"] = _next_in_trick(s, gid)
     _touch(s)
 
 
@@ -283,10 +296,10 @@ def leave(g, gid):
         s["departed"].append(gid)
     s["notice"] = f"{_name(g, gid)} quitte la manche. Ses cartes sont écartées."
     if not _finish_if_needed(g):
-        if s["pile"] and all(i == s["pile"]["by"] or i in s["passed"] for i in _active(s)):
+        if s["pile"] and _everyone_else_passed(s, s["pile"]["by"]):
             _clear(g)
         elif s["turn"] == gid:
-            s["turn"] = _next(s, gid)
+            s["turn"] = _next_in_trick(s, gid) or _next(s, gid)
     _touch(s)
 
 

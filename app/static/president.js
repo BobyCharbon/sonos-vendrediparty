@@ -9,7 +9,7 @@ window.President = (() => {
     <h3>Compléter la famille</h3><p>Tu peux poser <b>la même valeur</b> (un valet sur un valet, deux valets sur deux valets). Dès lors, c'est « <b>valet ou rien</b> » : les suivants posent la même valeur, ou passent. Quand les <b>quatre cartes</b> de la valeur sont sur le pli (jokers joués comme elle compris), la famille est complète : le pli est ramassé et celui qui l'a complétée rouvre. Celui qui a les cartes qui manquent peut compléter la famille <b>même si ce n'est pas son tour</b>.</p>
     <p>Du plus faible au plus fort : <b>3, 4, 5, 6, 7, 8, 9, 10, Valet, Dame, Roi, As, 2</b>. Les couleurs ne départagent pas les cartes.</p>
     <h3>Vos jokers</h3><p>Un joker seul vaut un <b>3</b>. Avec d'autres cartes de même valeur, il les duplique : deux Rois et un joker font un brelan de Rois. Deux jokers seuls font une paire de 3. Pas de combinaison de plus de quatre cartes.</p>
-    <h3>Passer et reprendre la main</h3><p>Tu peux rejouer à ton prochain tour, même après avoir passé. Quand tous les autres passent après un coup, le pli est écarté. La dernière personne à avoir joué ouvre un nouveau pli, ou le joueur suivant si elle a terminé. On ne peut pas passer pour ouvrir un pli.</p>
+    <h3>Passer</h3><p>Si tu passes, tu es <b>hors du pli</b> jusqu'à ce qu'il soit ramassé : ton tour est sauté et tu ne peux plus rien poser, même pour compléter une famille. Quand tous les autres ont passé, le pli est ramassé et tout le monde peut rejouer : la dernière personne à avoir joué ouvre le nouveau pli, ou le joueur suivant si elle a terminé. On ne peut pas passer pour ouvrir un pli.</p>
     <p>La première manche commence chez la personne qui possède le 3 de trèfle. Après les échanges, le Trou du cul commence. Tu peux finir avec un 2 ou un joker. Pas de révolution.</p>
     <h3>Les places et les échanges</h3><p>Le premier devient Président, le dernier Trou du cul. À partir de quatre joueurs, il y a aussi un Vice-président et un Vice-trou du cul.</p>
     <p>À la donne suivante, le Trou du cul donne ses <b>deux meilleures cartes</b> au Président, qui en choisit deux à lui rendre. Les vice échangent une carte. <b>Les jokers comptent comme des 3</b> pour choisir les meilleures cartes. Les choix restent secrets et tous les échanges se font ensemble.</p>
@@ -47,6 +47,7 @@ window.President = (() => {
       if (!x.count || x.sent) return {ok: false, text: "En attente des autres échanges…"};
       return {ok: cards.length === x.count, text: `Choisis ${x.count} carte${x.count > 1 ? "s" : ""} à donner à ${x.to}.`};
     }
+    if (v.seats.some(p => p.me && p.passed)) return {ok: false, text: "Tu as passé : tu rejoueras au prochain pli."};
     if (!cards.length) return {ok: false, text: v.pile ? `À battre : ${v.pile.cards.length} carte${v.pile.cards.length > 1 ? "s" : ""} de valeur ${v.pile.rank}.` : "Choisis une carte ou plusieurs cartes de même valeur."};
     const values = [...new Set(cards.filter(c => !c.joker).map(c => c.value))], value = values[0] ?? 0;
     if (values.length > 1) return {ok: false, text: "Choisis une seule valeur ; les jokers peuvent la compléter."};
@@ -86,7 +87,7 @@ window.President = (() => {
     const waiting = !!g.me?.waiting;
     const status = waiting ? "Tu prendras place à la prochaine donne." : mine?.place ? `Tu as terminé à la place ${mine.place}.` : !g.me ? "Tu regardes la partie. Les mains restent privées." : "";
     const seats = `<div class="pr-seats" aria-label="Autour de la table">${v.seats.map(p => `<div class="pr-seat ${p.turn ? "pr-turn" : ""} ${p.me ? "pr-is-me" : ""}" data-key="seat-${esc(p.pid)}">
-      <span class="pr-seat-name">${esc(p.name)}${p.me ? " · toi" : ""}</span><b>${p.departed ? "Parti" : p.place ? `${p.place}${p.place === 1 ? "er" : "e"}` : `${p.count} cartes`}</b><small>${p.passed ? "Passe" : p.turn ? "Joue" : esc(p.role || "À table")}</small></div>`).join("")}</div>`;
+      <span class="pr-seat-name">${esc(p.name)}${p.me ? " · toi" : ""}</span><b>${p.departed ? "Parti" : p.place ? `${p.place}${p.place === 1 ? "er" : "e"}` : `${p.count} cartes`}</b><small>${p.passed ? "A passé" : p.turn ? "Joue" : esc(p.role || "À table")}</small></div>`).join("")}</div>`;
     const table = x ? `<div class="pr-exchange">
       <p>${x.count ? x.sent ? `${x.automatic ? "Tes meilleures cartes sont réservées" : "Ton choix est enregistré"} pour <b>${esc(x.to)}</b>.` : `Tu donnes <b>${x.count} carte${x.count > 1 ? "s" : ""}</b> à <b>${esc(x.to)}</b>. Choisis avant de recevoir.` : "Ta place ne demande aucun échange."}</p>
       ${x.cards.length ? `<div class="pr-pile">${x.cards.map(c => card(c)).join("")}</div>` : ""}
