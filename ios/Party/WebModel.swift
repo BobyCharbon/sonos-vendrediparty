@@ -25,7 +25,7 @@ final class WebModel: ObservableObject {
 
     func attach(_ webView: WKWebView) {
         self.webView = webView
-        let api = PartyAPI(base: start, cookieStore: webView.configuration.websiteDataStore.httpCookieStore)
+        let api = PartyAPI(base: start, jar: WebCookieJar(webView.configuration.websiteDataStore.httpCookieStore))
         music = MusicStore(api: api, web: self)
         webView.load(URLRequest(url: pending ?? start))
         pending = nil
@@ -65,6 +65,7 @@ final class WebModel: ObservableObject {
     }
 
     func pageLoaded() {
+        Task { await shareSession() }
         guard awaitingTabs else { return }
         awaitingTabs = false
         tabs = nil
@@ -90,6 +91,19 @@ final class WebModel: ObservableObject {
 }
 
 extension WebModel: WebStorage {
+    /// Copie la session (identité + cookies du site) dans le trousseau partagé avec l'extension « Partager ».
+    func shareSession() async {
+        guard let webView, var me = await guestIdentity() else { return }
+        // Prénom saisi dans l'extension « Partager » alors que la page n'en avait pas : la page le reprend.
+        if me.name.isEmpty, let shared = SharedSession.load(), shared.guestID == me.id, !shared.name.isEmpty {
+            me.name = shared.name
+            writeLocal("vp_name", shared.name)
+        }
+        let cookies = await webView.configuration.websiteDataStore.httpCookieStore.allCookies()
+            .filter { PartyAPI.cookie($0, appliesTo: start) }
+        SharedSession.save(SessionSnapshot(base: start, guestID: me.id, name: me.name, cookies: cookies.map(StoredCookie.init)))
+    }
+
     func guestIdentity() async -> GuestIdentity? {
         guard let id = await readLocal("vp_guest"), !id.isEmpty else { return nil }
         return GuestIdentity(id: id, name: await readLocal("vp_name") ?? "")
@@ -114,3 +128,20 @@ extension WebModel: WebStorage {
     }
 }
 
+/// Cookies de la vue web : la Musique native partage la session du site.
+@MainActor
+final class WebCookieJar: CookieJar {
+    private let store: WKHTTPCookieStore
+
+    init(_ store: WKHTTPCookieStore) {
+        self.store = store
+    }
+
+    func allCookies() async -> [HTTPCookie] {
+        await store.allCookies()
+    }
+
+    func keep(_ cookies: [HTTPCookie]) async {
+        for cookie in cookies { await store.setCookie(cookie) }
+    }
+}

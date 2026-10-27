@@ -14,6 +14,8 @@ protocol WebStorage: AnyObject {
     func guestIdentity() async -> GuestIdentity?
     func readLocal(_ key: String) async -> String?
     func writeLocal(_ key: String, _ value: String?)
+    /// Copie la session pour l'extension « Partager ».
+    func shareSession() async
 }
 
 /// Onglet Musique natif : état de la soirée en direct, recherche, ajout, messages à l'hôte.
@@ -114,6 +116,7 @@ final class MusicStore: ObservableObject {
             phase = state.active ? .ready(state) : .closed
             if let serverName = state.name, !serverName.isEmpty, serverName != me.name { remember(name: serverName) }
             notifyWhenPlaying = await hasPushSubscription()
+            await web?.shareSession()
         } catch PartyAPIError.needsCode {
             phase = .needsCode
         } catch {

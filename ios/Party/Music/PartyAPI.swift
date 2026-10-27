@@ -1,6 +1,5 @@
 import Foundation
 import OSLog
-import WebKit
 
 enum PartyAPIError: LocalizedError, Equatable {
     /// Le code de la soirée est demandé (cookie absent ou nouveau code).
@@ -18,19 +17,27 @@ enum PartyAPIError: LocalizedError, Equatable {
     }
 }
 
-/// Appels au serveur Party pour les écrans natifs, avec la MÊME session que la vue web : les cookies du
-/// WKWebView (code d'accès, compte) sont joints à chaque appel, et ceux que le serveur pose y sont rangés.
+/// Cookies de la session (code d'accès, compte) : ceux de la vue web dans l'app (WebCookieJar),
+/// une copie prise dans le trousseau partagé dans l'extension « Partager » (SharedSession).
+@MainActor
+protocol CookieJar: AnyObject {
+    func allCookies() async -> [HTTPCookie]
+    func keep(_ cookies: [HTTPCookie]) async
+}
+
+/// Appels au serveur Party pour les écrans natifs, avec la MÊME session que la vue web : les cookies sont
+/// joints à chaque appel, et ceux que le serveur pose sont rangés.
 /// (Un HTTPCookieStorage à part n'est pas fiable sur iOS : les cookies passent donc explicitement.)
 @MainActor
 final class PartyAPI {
     private let base: URL
-    private let cookieStore: WKHTTPCookieStore
+    private let jar: CookieJar
     private let session: URLSession
     private let log = Logger(subsystem: "ch.bobycharbon.party", category: "api")
 
-    init(base: URL, cookieStore: WKHTTPCookieStore) {
+    init(base: URL, jar: CookieJar) {
         self.base = base
-        self.cookieStore = cookieStore
+        self.jar = jar
         let config = URLSessionConfiguration.default
         config.httpCookieStorage = nil
         config.httpShouldSetCookies = false
@@ -146,7 +153,7 @@ final class PartyAPI {
 
     private func attachCookies(to request: inout URLRequest) async {
         guard let url = request.url else { return }
-        let matching = await cookieStore.allCookies().filter { Self.cookie($0, appliesTo: url) }
+        let matching = await jar.allCookies().filter { Self.cookie($0, appliesTo: url) }
         for (field, value) in HTTPCookie.requestHeaderFields(with: matching) {
             request.setValue(value, forHTTPHeaderField: field)
         }
@@ -155,9 +162,8 @@ final class PartyAPI {
     private func keepCookies(from response: URLResponse) async {
         guard let http = response as? HTTPURLResponse, let url = http.url,
               let fields = http.allHeaderFields as? [String: String] else { return }
-        for cookie in HTTPCookie.cookies(withResponseHeaderFields: fields, for: url) {
-            await cookieStore.setCookie(cookie)
-        }
+        let received = HTTPCookie.cookies(withResponseHeaderFields: fields, for: url)
+        if !received.isEmpty { await jar.keep(received) }
     }
 
     /// Règles d'envoi d'un cookie : domaine (sous-domaines compris s'il commence par « . »), chemin, HTTPS.

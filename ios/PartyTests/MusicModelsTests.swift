@@ -96,3 +96,27 @@ struct TabBarStateTests {
         #expect(TabBarState(message: ["hidden": false]) == nil)
     }
 }
+
+/// Extension « Partager › Party » : ce qui est recherché à partir du partage.
+struct SharedLinkTests {
+    @Test("Le lien est extrait du texte partagé par Spotify, YouTube…", arguments: [
+        ("Écoute Angel Dust de Sara Landry https://open.spotify.com/track/4QNEi4zAOm0Fwf?si=x",
+         "https://open.spotify.com/track/4QNEi4zAOm0Fwf?si=x"),
+        ("  https://youtu.be/dQw4w9WgXcQ  ", "https://youtu.be/dQw4w9WgXcQ"),
+        ("Daft Punk One More Time", "Daft Punk One More Time"),
+    ])
+    func extractsTheLink(shared: String, expected: String) {
+        #expect(SharedLink.query(from: shared) == expected)
+    }
+
+    @Test("Un cookie enregistré dans le trousseau redonne le même cookie")
+    func storedCookieRoundTrip() throws {
+        let cookie = try #require(HTTPCookie(properties: [.name: "vp_guest", .value: "abc", .domain: "partytest.bobycharbon.ch",
+                                                          .path: "/", .secure: "TRUE"]))
+        let back = try #require(StoredCookie(cookie).cookie)
+        #expect(back.name == "vp_guest" && back.value == "abc" && back.isSecure)
+        #expect(PartyAPI.cookie(back, appliesTo: URL(string: "https://partytest.bobycharbon.ch/api/queue")!))
+        #expect(!PartyAPI.cookie(back, appliesTo: URL(string: "https://party.bobycharbon.ch/api/queue")!))
+    }
+}
+

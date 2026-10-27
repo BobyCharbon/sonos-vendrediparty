@@ -15,6 +15,20 @@ settings:
     # Identifiant d'équipe Apple Developer.
     DEVELOPMENT_TEAM: GS2B6GA9JA
     CODE_SIGN_STYLE: Automatic
+    # Trousseau partagé par l'app et son extension « Partager » (session de l'invité), une par variante.
+    PARTY_KEYCHAIN_GROUP: "$(DEVELOPMENT_TEAM).ch.bobycharbon.party$(PARTY_BUNDLE_SUFFIX).session"
+  configs:
+    # Deux apps distinctes (identifiant, nom, site) :
+    # Debug = VendrediPartyBETA (site de test, develop), Release = VendrediParty (site principal, main).
+    # Le workflow TestFlight passe ces mêmes réglages en ligne de commande pour archiver la BETA en Release.
+    Debug:
+      PARTY_BUNDLE_SUFFIX: ".beta"
+      PARTY_HOST: partytest.bobycharbon.ch
+      PARTY_DISPLAY_NAME: "Party BETA"
+    Release:
+      PARTY_BUNDLE_SUFFIX: ""
+      PARTY_HOST: party.bobycharbon.ch
+      PARTY_DISPLAY_NAME: "Party !"
 
 targets:
   Party:
@@ -31,6 +45,7 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         PartyBaseURL: "$(PARTY_BASE_URL)"
+        PartyKeychainGroup: "$(PARTY_KEYCHAIN_GROUP)"
         UILaunchScreen:
           UIColorName: LaunchBackground
         UIStatusBarStyle: UIStatusBarStyleLightContent
@@ -48,6 +63,10 @@ targets:
         aps-environment: development
         com.apple.developer.associated-domains:
           - applinks:$(PARTY_HOST)
+        keychain-access-groups:
+          - $(PARTY_KEYCHAIN_GROUP)
+    dependencies:
+      - target: PartyShare
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ch.bobycharbon.party$(PARTY_BUNDLE_SUFFIX)
@@ -56,19 +75,46 @@ targets:
         # Au niveau de la cible : le préréglage XcodeGen d'une app iOS impose sinon "1,2".
         TARGETED_DEVICE_FAMILY: "1"
       configs:
-        # Deux apps distinctes (identifiant, nom, icône, site) :
-        # Debug = VendrediPartyBETA (site de test, develop), Release = VendrediParty (site principal, main).
-        # Le workflow TestFlight passe ces mêmes réglages en ligne de commande pour archiver la BETA en Release.
+        # Icône marquée BETA pour VendrediPartyBETA (le workflow la passe aussi en ligne de commande).
         Debug:
-          PARTY_BUNDLE_SUFFIX: ".beta"
-          PARTY_HOST: partytest.bobycharbon.ch
-          PARTY_DISPLAY_NAME: "Party BETA"
           ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon-Beta
         Release:
-          PARTY_BUNDLE_SUFFIX: ""
-          PARTY_HOST: party.bobycharbon.ch
-          PARTY_DISPLAY_NAME: "Party !"
           ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+  # Extension « Partager › Party » : un lien Spotify, YouTube, Deezer ou Apple Music partagé depuis une autre app
+  # part dans la file de la soirée. Elle reprend la session de l'app (trousseau partagé, Party/Shared).
+  PartyShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: PartyShare
+      - path: Party/Shared
+      - path: Party/Music/MusicModels.swift
+      - path: Party/Music/PartyAPI.swift
+    info:
+      path: PartyShare/Info.plist
+      properties:
+        CFBundleDisplayName: "$(PARTY_DISPLAY_NAME)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        PartyBaseURL: "https://$(PARTY_HOST)"
+        PartyKeychainGroup: "$(PARTY_KEYCHAIN_GROUP)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).ShareViewController"
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsText: true
+    entitlements:
+      path: PartyShare/PartyShare.entitlements
+      properties:
+        keychain-access-groups:
+          - $(PARTY_KEYCHAIN_GROUP)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ch.bobycharbon.party$(PARTY_BUNDLE_SUFFIX).share
+        TARGETED_DEVICE_FAMILY: "1"
 
   # Tests unitaires (Swift Testing) : modèles de l'écran Musique, barre d'onglets.
   # xcodebuild test -project Party.xcodeproj -scheme Party -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
