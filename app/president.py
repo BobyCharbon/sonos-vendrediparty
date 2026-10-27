@@ -294,6 +294,10 @@ def exchange_cards(g, gid, cards, token):
         raise PresidentError(f"Choisis exactement {job['count']} carte(s) de ta main")
     s["offered"][gid] = list(cards)
     if len(s["offered"]) == len(s["exchange"]):
+        # Gardé pour l'animation des échanges au premier pli : qui donne combien à qui (public), et quelles cartes
+        # (chacun ne voit que les siennes).
+        s["swap"] = {"moves": [[sender, s["exchange"][sender]["to"], len(sel)] for sender, sel in s["offered"].items()],
+                     "cards": {sender: list(sel) for sender, sel in s["offered"].items()}}
         for sender, selected in s["offered"].items():
             for c in selected:
                 s["hands"][sender].remove(c)
@@ -331,6 +335,18 @@ def leave(g, gid):
     _touch(s)
 
 
+def _swap_view(g, s, gid, pid):
+    """Échanges de la donne, montrés (et animés) pendant le premier pli seulement."""
+    swap = s.get("swap")
+    if not swap or g["phase"] != "play" or s.get("trick") != 1:
+        return None
+    cards = swap["cards"]
+    return {"key": s["deal"], "moves": [{"from": pid(a), "to": pid(b), "count": n} for a, b, n in swap["moves"]],
+            "gave": [card_view(c) for c in cards.get(gid, [])],
+            "got": [card_view(c) for a, b, _ in swap["moves"] if b == gid for c in cards.get(a, [])],
+            "from": next((_name(g, a) for a, b, _ in swap["moves"] if b == gid), "")}
+
+
 @serialized
 def view(g, gid):
     s = g.get("president", {})
@@ -352,8 +368,9 @@ def view(g, gid):
                     "name": _name(g, pile["by"]), "family": pile.get("family", len(pile["cards"])),
                     "locked": bool(pile.get("locked"))} if pile else None,
            "token": _token(s) if s.get("deal") else "", "trick": s.get("trick", 0),
-           "trail": [{"name": _name(g, t["by"]), "cards": [card_view(c) for c in t["cards"]], "rank": RANKS[t["rank"]]}
-                     for t in s.get("trail", [])],
+           "trail": [{"name": _name(g, t["by"]), "pid": pid(t["by"]), "cards": [card_view(c) for c in t["cards"]],
+                      "rank": RANKS[t["rank"]]} for t in s.get("trail", [])],
+           "swap": _swap_view(g, s, gid, pid),
            "notice": s.get("notice", ""), "exchange": None,
            "ranking": [{"pid": pid(i), "name": _name(g, i), "me": i == gid, "place": pos + 1,
                         "role": role(pos, len(order)), "points": s.get("scores", {}).get(i, 0),

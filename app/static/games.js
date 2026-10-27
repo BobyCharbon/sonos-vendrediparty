@@ -1076,6 +1076,7 @@ function renderGame(g) {
   gameFlashes(g);
   if (g.type === "purity") puAnnounce(g);
   if (g.type === "likely") lkAnnounce(g);
+  if (g.type === "president") President.after(g);
   turnSignal(g);
   const input = $("guessInput");
   if (input && !input._vp) { input._vp = 1; input.value = guessDraft; input.addEventListener("input", () => { guessDraft = input.value; }); }

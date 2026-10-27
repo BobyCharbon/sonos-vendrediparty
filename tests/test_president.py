@@ -501,3 +501,41 @@ def test_after_the_president_others_can_be_played_on():
     assert s["finished"] == ["player-0", "player-1"] and s["pile"]["rank"] == pr.RANKS.index("K")
     assert s["turn"] == "player-2"
     play(g, "player-2", ["AC"])
+
+
+# ── Animations : qui a joué, et les échanges de la donne ──
+def test_trail_tells_which_seat_played():
+    g = state_with({"player-0": ["3C", "6C"], "player-1": ["4C", "7C"], "player-2": ["5C", "8C"]})
+    play(g, "player-0", ["3C"])
+    v = pr.view(g, "player-1")
+    assert v["trail"][-1]["pid"] == next(p["pid"] for p in g["players"] if p["id"] == "player-0")
+
+
+def test_exchange_summary_is_public_but_cards_stay_private():
+    g = new_table()
+    finish(g)
+    games.restart(g)
+    s = g["president"]
+    for gid, job in list(s["exchange"].items()):
+        if not job["best"]:
+            pr.exchange_cards(g, gid, s["hands"][gid][:job["count"]], pr.view(g, gid)["exchange"]["token"])
+    assert g["phase"] == "play"
+    pids = {p["id"]: p["pid"] for p in g["players"]}
+    for p in g["players"]:
+        swap = pr.view(g, p["id"])["swap"]
+        assert swap["key"] and len(swap["moves"]) == 4 and sum(m["count"] for m in swap["moves"]) == 6
+        mine_out = [m for m in swap["moves"] if m["from"] == pids[p["id"]]]
+        mine_in = [m for m in swap["moves"] if m["to"] == pids[p["id"]]]
+        assert len(swap["gave"]) == sum(m["count"] for m in mine_out)
+        assert len(swap["got"]) == sum(m["count"] for m in mine_in)
+        assert all(c["id"] in s["hands"][p["id"]] for c in swap["got"])  # ce qu'on a reçu est dans sa main
+    watcher = "watcher-x"
+    games.join(g, watcher, "Spectateur")
+    assert pr.view(g, watcher)["swap"]["got"] == [] and pr.view(g, watcher)["swap"]["gave"] == []
+
+
+def test_no_exchange_summary_after_the_first_trick():
+    g = state_with({"player-0": ["3C", "6C"], "player-1": ["4C", "7C"], "player-2": ["5C", "8C"]})
+    g["president"]["swap"] = {"moves": [], "cards": {}}
+    g["president"]["trick"] = 2
+    assert pr.view(g, "player-0")["swap"] is None

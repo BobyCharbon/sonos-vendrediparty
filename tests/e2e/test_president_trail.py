@@ -70,3 +70,26 @@ def test_last_play_is_highlighted_and_previous_plays_of_the_trick_stay_visible(t
     expect(items.nth(0)).to_contain_text(played[1][0])  # du plus récent au plus ancien
     expect(items.nth(1)).to_contain_text(played[0][0])
     alice.shot('president-trail')
+
+
+def test_a_played_card_flies_to_the_table(table):
+    server, (alice, bob, chloe) = table
+    code = alice.create('president')
+    for p in (bob, chloe):
+        p.join(code)
+    wait_state(alice, lambda g: len(g['players']) == 3)
+    alice.tap('[data-gact="start"]')
+    wait_state(alice, lambda g: g['phase'] == 'play')
+    alice.page.evaluate("""() => {
+        window.__flights = 0;
+        const animate = Element.prototype.animate;
+        Element.prototype.animate = function (...args) {
+            if (this.classList?.contains('pr-card')) window.__flights++;
+            return animate.apply(this, args);
+        };
+    }""")
+    phones = {p.pid(): p for p in (alice, bob, chloe)}
+    starter = phones[alice.state()['president']['turn']]
+    move(server, starter, 'prplay', ['3C'])
+    alice.page.wait_for_function("window.__flights > 0", timeout=5000)
+    expect(alice.page.locator('.pr-pile.pr-latest .pr-card')).to_have_count(1)

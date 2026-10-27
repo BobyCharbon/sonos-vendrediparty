@@ -91,3 +91,13 @@ button.pr-card:hover { background: #fff2c9; }
 .pr-mini { display: inline-block; min-width: 28px; padding: 2px 5px; border-radius: 6px; background: #fff; color: #1b1b1b;
   font-weight: 800; font-size: .82rem; text-align: center; }
 .pr-mini.pr-red { color: #c62828; }
+
+/* Animations : dos de carte qui vole lors des échanges, cartes reçues marquées « Nouvelle ». */
+.pr-fly { position: fixed; z-index: 60; width: 40px; height: 58px; border-radius: 7px; pointer-events: none;
+  background: repeating-linear-gradient(45deg, #b8322f 0 6px, #d8483f 6px 12px); border: 2px solid #fff;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, .35); }
+.pr-card.pr-new { box-shadow: 0 0 0 3px #7fd8a6, 0 0 18px rgba(127, 216, 166, .6); animation: pr-new-pop .5s cubic-bezier(.2, 1.4, .4, 1); }
+.pr-card-new { position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%); padding: 1px 6px; border-radius: 999px;
+  background: #3fcf8e; color: #062b18; font-size: .6rem; font-weight: 800; white-space: nowrap; }
+@keyframes pr-new-pop { from { transform: translateY(-14px) scale(.85); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .pr-card.pr-new { animation: none; } }
