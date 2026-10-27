@@ -5,6 +5,7 @@ window.President = (() => {
   const rules = `<h3>Le premier sans cartes devient Président</h3>
     <p>De <b>3 à 6 joueurs</b>, chacun sur son téléphone. Les 54 cartes sont distribuées, avec deux jokers. Tes cartes restent privées, même pour l'animateur.</p>
     <h3>Jouer plus fort</h3><p>Pose une carte, une paire, un brelan ou un carré. Le suivant doit poser <b>le même nombre de cartes, d'une valeur égale ou supérieure</b>, ou passer.</p>
+    <h3>Le 2 ferme le pli</h3><p>Un <b>2</b>, seul, en paire, en brelan ou en carré (jokers compris), ferme le pli aussitôt : celui qui l'a posé rouvre. S'il vient de poser ses dernières cartes, c'est le joueur suivant qui ouvre.</p>
     <h3>Compléter la famille</h3><p>Tu peux poser <b>la même valeur</b> (un valet sur un valet, deux valets sur deux valets). Dès lors, c'est « <b>valet ou rien</b> » : les suivants posent la même valeur, ou passent. Quand les <b>quatre cartes</b> de la valeur sont sur le pli (jokers joués comme elle compris), la famille est complète : le pli est ramassé et celui qui l'a complétée rouvre. Celui qui a les cartes qui manquent peut compléter la famille <b>même si ce n'est pas son tour</b>.</p>
     <p>Du plus faible au plus fort : <b>3, 4, 5, 6, 7, 8, 9, 10, Valet, Dame, Roi, As, 2</b>. Les couleurs ne départagent pas les cartes.</p>
     <h3>Vos jokers</h3><p>Un joker seul vaut un <b>3</b>. Avec d'autres cartes de même valeur, il les duplique : deux Rois et un joker font un brelan de Rois. Deux jokers seuls font une paire de 3. Pas de combinaison de plus de quatre cartes.</p>
@@ -42,6 +43,7 @@ window.President = (() => {
     if (v.pile && !same && value < v.pile.value) return {ok: false, text: `Choisis une valeur égale ou supérieure à ${v.pile.rank}, ou passe.`};
     if (!v.my_turn && !completes) return {ok: false, text: same ? `Hors tour, tu ne peux poser que si ça complète la famille de ${v.pile.rank}.` : "Attends ton tour."};
     if (completes) return {ok: true, out: !v.my_turn, text: `Tu complètes la famille de ${v.pile.rank} : le pli est pour toi !`};
+    if (value === 12) return {ok: true, text: `${cards.length > 1 ? `${cards.length} × 2` : "Un 2"} : tu fermes le pli et tu rouvres.`};
     return {ok: true, text: `${["", "Une carte", "Une paire", "Un brelan", "Un carré"][cards.length]} de ${["3", "4", "5", "6", "7", "8", "9", "10", "Valets", "Dames", "Rois", "As", "2"][value]}.`};
   }
 

@@ -175,13 +175,14 @@ def _turn(g, gid, token):
 
 
 FAMILY = 4  # les quatre cartes d'une valeur (jokers joués comme elle compris)
+TWO = RANKS.index("2")  # un 2 (seul, double, triple, carré) ferme le pli : son auteur rouvre
 
 
 @serialized
 def play(g, gid, cards, token):
     """Poser une combinaison. Même valeur et même nombre de cartes que le pli : autorisé, puis « … ou rien »
     pour les suivants. Le coup qui complète la famille (4 cartes de la valeur) ramasse le pli, et son auteur
-    rouvre ; ce coup-là peut être joué par n'importe qui, même hors tour."""
+    rouvre ; ce coup-là peut être joué par n'importe qui, même hors tour. Un 2 ferme aussi le pli."""
     s = _state(g)
     if g["phase"] != "play" or gid not in _active(s):
         raise PresidentError("Ce n'est pas ton tour")
@@ -214,10 +215,11 @@ def play(g, gid, cards, token):
         s["finished"].append(gid)
         s["notice"] = f"{_name(g, gid)} termine à la place {len(s['finished'])}."
     if not _finish_if_needed(g):
-        if completes:
+        if completes or value == TWO:
             _clear(g)
             opener = _name(g, s["turn"])
-            s["notice"] = f"{_name(g, gid)} complète la famille de {label} ! {opener} ouvre le pli suivant."
+            done = f"complète la famille de {label}" if completes else f"ferme le pli avec {len(cards)} × 2"
+            s["notice"] = f"{_name(g, gid)} {done} ! {opener} ouvre le pli suivant."
         else:
             s["turn"] = _next(s, gid)
     _touch(s)

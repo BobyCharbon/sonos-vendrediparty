@@ -94,9 +94,7 @@ def test_passing_does_not_ban_reentry_and_everyone_passing_clears_pile():
 
 def test_finished_leader_hands_new_trick_to_next_active_player():
     g = state_with({"player-0": ["2C"], "player-1": ["4C", "8C"], "player-2": ["5C", "6C"]})
-    play(g, "player-0", ["2C"])
-    pass_turn(g, "player-1")
-    pass_turn(g, "player-2")
+    play(g, "player-0", ["2C"])  # termine sur un 2 : le pli se ferme, le suivant encore en jeu rouvre
     assert g["president"]["turn"] == "player-1"
     assert g["president"]["pile"] is None
     play(g, "player-1", ["4C"])
@@ -320,3 +318,28 @@ def test_completing_with_the_last_cards_finishes_and_the_next_player_opens():
     play(g, "player-2", ["JD", "JS"])  # hors tour, et c'étaient ses dernières cartes
     s = g["president"]
     assert s["finished"] == ["player-2"] and s["pile"] is None and s["turn"] == "player-0"
+
+
+# ── Le 2 ferme le pli ──
+@pytest.mark.parametrize("twos", [["2C"], ["2C", "2D"], ["2C", "2D", "2H"], ["2C", "JK1"]])
+def test_a_two_closes_the_trick_and_its_player_reopens(twos):
+    g = state_with({"player-0": ["5C", "5D", "5H", "4C"], "player-1": ["2C", "2D", "2H", "JK1", "9C"], "player-2": ["KC", "KD", "KH"]})
+    play(g, "player-0", ["5C", "5D", "5H"][: len(twos)])
+    play(g, "player-1", twos)
+    s = g["president"]
+    assert s["pile"] is None and s["turn"] == "player-1" and s["trick"] == 2 and "2" in s["notice"]
+
+
+def test_opening_with_a_two_also_closes_the_trick():
+    g = state_with({"player-0": ["2C", "4C"], "player-1": ["9C"], "player-2": ["KC"]})
+    play(g, "player-0", ["2C"])
+    assert g["president"]["pile"] is None and g["president"]["turn"] == "player-0"
+
+
+def test_finishing_on_a_two_hands_the_new_trick_to_the_next_player():
+    g = state_with({"player-0": ["5C"], "player-1": ["2C"], "player-2": ["KC", "4C"], "player-3": ["QC", "6C"]})
+    play(g, "player-0", ["5C"])  # player-0 termine
+    play(g, "player-1", ["2C"])  # player-1 termine sur un 2 : le pli est fermé
+    s = g["president"]
+    assert g["phase"] == "play" and s["finished"] == ["player-0", "player-1"]
+    assert s["pile"] is None and s["turn"] == "player-2"
