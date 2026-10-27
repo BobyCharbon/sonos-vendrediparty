@@ -11,7 +11,9 @@ struct MusicView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            // Liste paresseuse : seules les pochettes visibles sont demandées (comme loading="lazy" sur le site) ;
+            // le serveur va chercher chaque pochette Sonos sur l'enceinte, 70 d'un coup la saturent.
+            LazyVStack(alignment: .leading, spacing: 16) {
                 header
                 content
             }

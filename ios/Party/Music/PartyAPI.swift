@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import WebKit
 
 enum PartyAPIError: LocalizedError, Equatable {
@@ -17,21 +18,23 @@ enum PartyAPIError: LocalizedError, Equatable {
     }
 }
 
-/// Appels au serveur Party pour les écrans natifs, avec la MÊME session que la vue web :
-/// les cookies (code d'accès, compte) sont repris du WKWebView avant chaque appel et rendus après.
+/// Appels au serveur Party pour les écrans natifs, avec la MÊME session que la vue web : les cookies du
+/// WKWebView (code d'accès, compte) sont joints à chaque appel, et ceux que le serveur pose y sont rangés.
+/// (Un HTTPCookieStorage à part n'est pas fiable sur iOS : les cookies passent donc explicitement.)
 @MainActor
 final class PartyAPI {
     private let base: URL
     private let cookieStore: WKHTTPCookieStore
     private let session: URLSession
-    private let cookies = HTTPCookieStorage()
+    private let log = Logger(subsystem: "ch.bobycharbon.party", category: "api")
 
     init(base: URL, cookieStore: WKHTTPCookieStore) {
         self.base = base
         self.cookieStore = cookieStore
         let config = URLSessionConfiguration.default
-        config.httpCookieStorage = cookies
-        config.httpShouldSetCookies = true
+        config.httpCookieStorage = nil
+        config.httpShouldSetCookies = false
+        config.httpCookieAcceptPolicy = .never
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         config.timeoutIntervalForRequest = 15
         session = URLSession(configuration: config)
@@ -89,6 +92,7 @@ final class PartyAPI {
         guard let url = url("/api/events") else { throw PartyAPIError.offline }
         var request = URLRequest(url: url, timeoutInterval: .infinity)
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        await attachCookies(to: &request)
         let (bytes, _) = try await session.bytes(for: request)
         return bytes
     }
@@ -115,16 +119,21 @@ final class PartyAPI {
     }
 
     private func send(_ request: URLRequest) async throws -> Data {
-        await importWebCookies()
+        var request = request
+        await attachCookies(to: &request)
         let data: Data
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            log.error("\(request.url?.path ?? "?", privacy: .public) : \(error.localizedDescription, privacy: .public)")
             throw PartyAPIError.offline
         }
-        await exportCookies()
+        await keepCookies(from: response)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if !(200..<300).contains(status) {
+            log.error("\(request.url?.path ?? "?", privacy: .public) : HTTP \(status)")
+        }
         if status == 401 && request.url?.path != "/api/join" { throw PartyAPIError.needsCode }
         guard (200..<300).contains(status) else {
             let detail = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["detail"] as? String
@@ -135,15 +144,29 @@ final class PartyAPI {
 
     // MARK: Cookies partagés avec la vue web
 
-    private func importWebCookies() async {
-        for cookie in await cookieStore.allCookies() {
-            cookies.setCookie(cookie)
+    private func attachCookies(to request: inout URLRequest) async {
+        guard let url = request.url else { return }
+        let matching = await cookieStore.allCookies().filter { Self.cookie($0, appliesTo: url) }
+        for (field, value) in HTTPCookie.requestHeaderFields(with: matching) {
+            request.setValue(value, forHTTPHeaderField: field)
         }
     }
 
-    private func exportCookies() async {
-        for cookie in cookies.cookies ?? [] {
+    private func keepCookies(from response: URLResponse) async {
+        guard let http = response as? HTTPURLResponse, let url = http.url,
+              let fields = http.allHeaderFields as? [String: String] else { return }
+        for cookie in HTTPCookie.cookies(withResponseHeaderFields: fields, for: url) {
             await cookieStore.setCookie(cookie)
         }
+    }
+
+    /// Règles d'envoi d'un cookie : domaine (sous-domaines compris s'il commence par « . »), chemin, HTTPS.
+    nonisolated static func cookie(_ cookie: HTTPCookie, appliesTo url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+        let domain = cookie.domain.lowercased()
+        let bare = domain.hasPrefix(".") ? String(domain.dropFirst()) : domain
+        let domainOK = host == bare || host.hasSuffix("." + bare)
+        let pathOK = url.path.isEmpty ? cookie.path == "/" : url.path.hasPrefix(cookie.path)
+        return domainOK && pathOK && (!cookie.isSecure || url.scheme == "https")
     }
 }

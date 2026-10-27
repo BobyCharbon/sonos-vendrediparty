@@ -55,6 +55,8 @@ final class MusicStore: ObservableObject {
     private static let reconnectDelay: Duration = .seconds(3)
     private static let minimumQuery = 2
     private static let pushKey = "vp_native_push:/"
+    private static let artworkAttempts = 2
+    private static let artworkRetryDelay: Duration = .seconds(2)
 
     init(api: PartyAPI, web: WebStorage) {
         self.api = api
@@ -63,12 +65,19 @@ final class MusicStore: ObservableObject {
 
     private let artCache = NSCache<NSString, UIImage>()
 
+    /// L'enceinte Sonos met parfois trop de temps à fournir une pochette : une seconde tentative un peu plus tard.
     func artwork(_ path: String) async -> UIImage? {
         guard !path.isEmpty else { return nil }
         if let hit = artCache.object(forKey: path as NSString) { return hit }
-        guard let data = await api.imageData(path), let image = UIImage(data: data) else { return nil }
-        artCache.setObject(image, forKey: path as NSString)
-        return image
+        for attempt in 0..<Self.artworkAttempts {
+            if attempt > 0 { try? await Task.sleep(for: Self.artworkRetryDelay) }
+            guard !Task.isCancelled else { return nil }
+            if let data = await api.imageData(path), let image = UIImage(data: data) {
+                artCache.setObject(image, forKey: path as NSString)
+                return image
+            }
+        }
+        return nil
     }
 
     // MARK: Cycle de vie : actif tant que l'onglet est affiché
