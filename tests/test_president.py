@@ -408,31 +408,30 @@ def test_passed_player_is_out_even_for_completing_the_family():
 
 
 # ── « … ou rien » : un tour sans complément lève la contrainte ──
-def test_or_nothing_round_without_completion_lets_the_author_play_higher_and_the_trick_goes_on():
-    g = state_with({"player-0": ["JC", "4C", "AC"], "player-1": ["JH", "QC", "5C"], "player-2": ["KC", "6C", "7C"]})
-    play(g, "player-0", ["JC"])
-    play(g, "player-1", ["JH"])  # « valet ou rien »
-    pass_turn(g, "player-2")  # pas de valet : ce n'est pas un vrai passe
-    pass_turn(g, "player-0")
+def test_or_nothing_binds_only_the_next_player():
+    """6, puis 6 : le joueur 3 doit mettre un 6 ; s'il n'en a pas, le joueur 4 met ce qu'il veut, 6 ou au-dessus."""
+    g = state_with({"player-0": ["6C", "4C", "AC"], "player-1": ["6H", "QC", "5C"], "player-2": ["KC", "8C", "7C"],
+                    "player-3": ["9C", "6D", "3D"]})
+    play(g, "player-0", ["6C"])
+    play(g, "player-1", ["6H"])  # « 6 ou rien » pour player-2
+    with pytest.raises(pr.PresidentError, match="ou rien"):
+        play(g, "player-2", ["KC"])
+    pass_turn(g, "player-2")  # pas de 6 : la contrainte tombe, il reste dans le pli
     s = g["president"]
-    assert s["pile"] and not s["pile"]["locked"] and s["turn"] == "player-1"  # tour complet : player-1 peut monter
-    assert s["passed"] == [] and "monter" in s["notice"]
-    play(g, "player-1", ["QC"])
-    play(g, "player-2", ["KC"])  # il avait « passé » pendant le « ou rien » : il peut monter
+    assert s["pile"] and not s["pile"]["locked"] and s["turn"] == "player-3" and s["passed"] == []
+    play(g, "player-3", ["9C"])  # au-dessus du 6
     play(g, "player-0", ["AC"])
-    assert g["president"]["pile"]["rank"] == pr.RANKS.index("A")
+    pass_turn(g, "player-1")
+    assert g["president"]["turn"] == "player-2"  # il n'avait pas de 6, mais il est encore dans le pli
 
 
-def test_or_nothing_lifted_when_the_author_has_finished():
-    g = state_with({"player-0": ["JC", "4C"], "player-1": ["JH"], "player-2": ["KC", "6C"], "player-3": ["QC", "7C"]})
-    play(g, "player-0", ["JC"])
-    play(g, "player-1", ["JH"])  # dernière carte de player-1 : il termine sur un « valet ou rien »
+def test_after_an_or_nothing_the_next_player_may_also_put_the_same_value():
+    g = state_with({"player-0": ["6C", "4C"], "player-1": ["6H", "QC"], "player-2": ["KC", "8C"], "player-3": ["6D", "3D"]})
+    play(g, "player-0", ["6C"])
+    play(g, "player-1", ["6H"])
     pass_turn(g, "player-2")
-    pass_turn(g, "player-3")
-    pass_turn(g, "player-0")
-    s = g["president"]
-    assert s["pile"] and not s["pile"]["locked"] and s["turn"] == "player-2"
-    play(g, "player-2", ["KC"])
+    play(g, "player-3", ["6D"])  # un 6 : de nouveau « 6 ou rien » pour le suivant
+    assert g["president"]["pile"]["locked"] and g["president"]["pile"]["family"] == 3
 
 
 def test_a_real_pass_outside_or_nothing_is_still_final():

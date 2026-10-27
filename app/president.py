@@ -99,7 +99,7 @@ def _clear(g):
     s = g["president"]
     leader = s["pile"]["by"]
     s["discard"].extend(s["pile"]["cards"])
-    s["pile"], s["passed"], s["trail"], s["lacking"] = None, [], [], []
+    s["pile"], s["passed"], s["trail"] = None, [], []
     s["turn"] = leader if leader in _active(s) else _next(s, leader)
     s["trick"] += 1
     s["notice"] = f"Pli remporté par {_name(g, leader)}. {_name(g, s['turn'])} ouvre le suivant."
@@ -226,7 +226,6 @@ def play(g, gid, cards, token):
         hand.remove(c)
     s["pile"] = {"cards": list(cards), "rank": value, "by": gid, "family": family, "locked": same}
     s["trail"] = (s.get("trail", []) + [{"cards": list(cards), "rank": value, "by": gid}])[-TRAIL:]
-    s["lacking"] = []
     label = RANKS[value]
     s["notice"] = f"{_name(g, gid)} pose {len(cards)} carte(s) de valeur {label}" + (f" : {label} ou rien." if same else ".")
     if not hand and value == TWO:  # interdit de finir sur un 2 : Trou du cul
@@ -269,20 +268,13 @@ def pass_turn(g, gid, token):
 
 
 def _lack(g, s, gid):
-    """« … ou rien » : passer veut dire « je n'en ai pas », pas sortir du pli. Si personne ne complète et que le
-    tour revient à l'auteur du dernier coup, la contrainte est levée : il peut monter, le pli continue pour tous."""
+    """« … ou rien » ne vise que le joueur suivant. S'il n'a pas la valeur, il le dit (ce n'est pas un vrai passe,
+    il reste dans le pli) et la contrainte tombe : le suivant pose ce qu'il veut, la même valeur ou au-dessus."""
     pile = s["pile"]
+    pile["locked"] = False
+    s["turn"] = _next_in_trick(s, gid)
     label = RANKS[pile["rank"]]
-    s["lacking"] = s.get("lacking", []) + [gid]
-    others = [i for i in _active(s) if i != pile["by"] and i not in s["passed"]]
-    if any(i not in s["lacking"] for i in others):
-        s["notice"] = f"{_name(g, gid)} n'a pas de {label}."
-        s["turn"] = _next_in_trick(s, gid)
-        return
-    pile["locked"], s["lacking"] = False, []
-    author = pile["by"]
-    s["turn"] = author if author in _active(s) and author not in s["passed"] else _next_in_trick(s, author)
-    s["notice"] = f"Personne n'a complété les {label} : {_name(g, s['turn'])} peut monter, le pli continue."
+    s["notice"] = f"{_name(g, gid)} n'a pas de {label} : {_name(g, s['turn'])} pose {label} ou plus."
 
 
 @serialized
