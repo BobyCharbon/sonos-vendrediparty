@@ -23,3 +23,9 @@ ios/Party/Info.plist
 ios/Party/Party.entitlements
 .claude/settings.local.json
 supabase/prod/journal.log
+
+# App Android : sorties Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties

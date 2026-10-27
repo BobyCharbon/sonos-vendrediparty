@@ -1,0 +1,99 @@
+name: App Android → Play Store (test)
+
+# Compile l'app Android (android/, Trusted Web Activity) et l'envoie au Play Store, piste de test interne.
+# develop → Party BETA (ch.bobycharbon.party.beta, site de test) ; main → Party ! (ch.bobycharbon.party).
+# Secrets (Settings › Secrets and variables › Actions) :
+#   ANDROID_KEYSTORE_B64, ANDROID_KEYSTORE_PASSWORD : clé d'envoi (sans eux, l'app est compilée mais pas signée) ;
+#   PLAY_SERVICE_ACCOUNT_JSON : compte de service Google Play (sans lui, pas d'envoi au Play Store).
+# Le paquet (.aab) est toujours disponible dans l'artefact de l'exécution.
+on:
+  push:
+    branches: [main, develop]
+    paths: ["android/**", ".github/workflows/android-play.yml"]
+  workflow_dispatch:
+    inputs:
+      site:
+        description: Site chargé par l'app
+        type: choice
+        options: [test, production]
+        default: test
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-play
+  cancel-in-progress: false
+
+jobs:
+  play:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FLAVOR: ${{ (github.event_name == 'workflow_dispatch' && inputs.site == 'production' || github.event_name == 'push' && github.ref_name == 'main') && 'prod' || 'beta' }}
+      BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+
+      - name: Clé d'envoi
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::warning::Pas de clé d'envoi : paquet non signé, pas d'envoi au Play Store."
+            exit 0
+          fi
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.p12"
+          {
+            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/upload.p12"
+            echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "ANDROID_KEY_ALIAS=upload"
+          } >> "$GITHUB_ENV"
+
+      - name: Paquet Play Store (.aab)
+        working-directory: android
+        run: |
+          TASK="bundle${FLAVOR^}Release"
+          echo "Variante : $FLAVOR, version $BUILD_NUMBER"
+          gradle --no-daemon "$TASK"
+          ls -la app/build/outputs/bundle/${FLAVOR}Release/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ env.FLAVOR }}-${{ github.run_number }}
+          path: android/app/build/outputs/bundle/${{ env.FLAVOR }}Release/*.aab
+
+      - name: Envoi au Play Store (test interne)
+        if: env.ANDROID_KEYSTORE_PATH != ''
+        env:
+          PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$PLAY_JSON" ]; then
+            echo "::warning::Pas de compte de service Google Play : paquet signé disponible dans l'artefact."
+            exit 0
+          fi
+          echo "PLAY_READY=1" >> "$GITHUB_ENV"
+
+      - uses: r0adkll/upload-google-play@v1
+        if: env.PLAY_READY == '1'
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ env.FLAVOR == 'prod' && 'ch.bobycharbon.party' || 'ch.bobycharbon.party.beta' }}
+          releaseFiles: android/app/build/outputs/bundle/${{ env.FLAVOR }}Release/*.aab
+          track: internal
+          # « draft » tant que l'app n'a jamais été publiée (exigence de Google), puis « completed ».
+          status: ${{ vars.PLAY_RELEASE_STATUS || 'completed' }}
+
+      - name: Nettoyage de la clé
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload.p12"

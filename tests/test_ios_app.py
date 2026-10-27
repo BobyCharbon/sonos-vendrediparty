@@ -48,3 +48,24 @@ def test_pinch_and_double_tap_zoom_are_blocked_in_the_page():
 def test_native_app_web_view_cannot_zoom():
     swift = (_ROOT / "ios/Party/PartyWebView.swift").read_text(encoding="utf-8")
     assert "maximumZoomScale = 1" in swift and "viewForZooming" in swift
+
+
+# ── Android (android/) : Digital Asset Links, pour que l'app s'ouvre sans barre d'adresse ──
+def asset_links(monkeypatch, public_url):
+    monkeypatch.setenv("PARTY_PUBLIC_URL", public_url)
+    r = TestClient(main.app).get("/.well-known/assetlinks.json", follow_redirects=False)
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/json"
+    [statement] = r.json()
+    assert statement["relation"] == ["delegate_permission/common.handle_all_urls"]
+    assert statement["target"]["namespace"] == "android_app"
+    assert main.ANDROID_UPLOAD_KEY_SHA256 in statement["target"]["sha256_cert_fingerprints"]
+    return statement["target"]["package_name"]
+
+
+def test_main_site_declares_the_play_store_app(monkeypatch):
+    assert asset_links(monkeypatch, "https://party.bobycharbon.ch") == "ch.bobycharbon.party"
+
+
+def test_test_site_declares_the_android_beta_app(monkeypatch):
+    assert asset_links(monkeypatch, "https://partytest.bobycharbon.ch") == "ch.bobycharbon.party.beta"

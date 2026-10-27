@@ -2381,6 +2381,25 @@ def apple_app_site_association():
                         headers=NO_CACHE)
 
 
+# Apps Android (android/, Trusted Web Activity) : empreintes SHA-256 des certificats qui signent l'app.
+# Clé d'envoi (APK installés à la main) + clé de signature Google Play (à ajouter quand Play Console la donne).
+# Sans ce fichier, Chrome affiche une barre d'adresse en haut de l'app.
+ANDROID_UPLOAD_KEY_SHA256 = ("89:0B:78:22:B0:04:63:38:60:AD:9B:0F:D4:6D:08:04:"
+                             "2E:52:FF:3A:06:CC:5F:FD:1B:16:A0:DA:6F:0A:D4:73")
+ANDROID_PLAY_SIGNING_SHA256: tuple[str, ...] = ()
+
+
+@app.get("/.well-known/assetlinks.json")
+def android_asset_links():
+    beta = urlparse(configured_public_url()).hostname == TEST_SITE_HOST
+    package = "ch.bobycharbon.party.beta" if beta else "ch.bobycharbon.party"
+    return JSONResponse([{
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {"namespace": "android_app", "package_name": package,
+                   "sha256_cert_fingerprints": [ANDROID_UPLOAD_KEY_SHA256, *ANDROID_PLAY_SIGNING_SHA256]},
+    }], headers=NO_CACHE)
+
+
 class NeonInput(BaseModel):
     guest_id: str
     x: float = 0
