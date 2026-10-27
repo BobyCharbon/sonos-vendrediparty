@@ -53,6 +53,9 @@ Un navigateur de bureau ne reproduit pas le bug lui-même : seul un vrai iPhone 
   Claude les écrit, les applique et les teste sur la base de TEST ; il ne les applique en PRODUCTION qu'après
   l'accord explicite de l'admin, donné à chaque fois, pour cette migration précise. Jamais de SQL d'écriture en prod
   sans cet accord.
+- Application en PRODUCTION : uniquement par `python3 supabase/tools/apply_prod.py supabase/prod/<fichier>.sql`
+  (fichiers préparés dans `supabase/prod/`, avec leur retour arrière), et seulement après le « Ok prod » de l'admin
+  pour cette migration. Le script refuse tout autre fichier et une migration déjà en prod ; `sbq.py` reste en lecture seule.
 - Toute la structure doit vivre dans `supabase/migrations/` : rejouer les migrations sur une base vide doit recréer
   la base de test à l'identique de la prod (c'est ainsi qu'on passe en prod).
 - Une migration doit être purement additive et rejouable (`add column if not exists`, `drop policy if exists`

@@ -21,3 +21,5 @@ ios/DerivedData/
 xcuserdata/
 ios/Party/Info.plist
 ios/Party/Party.entitlements
+.claude/settings.local.json
+supabase/prod/journal.log
