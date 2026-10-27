@@ -116,8 +116,10 @@ def test_play_after_everyone_else_passed_closes_the_trick_for_its_author():
 
 
 def test_finished_leader_hands_new_trick_to_next_active_player():
-    g = state_with({"player-0": ["2C"], "player-1": ["4C", "8C"], "player-2": ["5C", "6C"]})
-    play(g, "player-0", ["2C"])  # termine sur un 2 : le pli se ferme, le suivant encore en jeu rouvre
+    g = state_with({"player-0": ["AC"], "player-1": ["4C", "8C"], "player-2": ["5C", "6C"]})
+    play(g, "player-0", ["AC"])  # termine ; personne ne monte : le pli est ramassé, le suivant encore en jeu rouvre
+    pass_turn(g, "player-1")
+    pass_turn(g, "player-2")
     assert g["president"]["turn"] == "player-1"
     assert g["president"]["pile"] is None
     play(g, "player-1", ["4C"])
@@ -360,9 +362,9 @@ def test_opening_with_a_two_also_closes_the_trick():
 def test_finishing_on_a_two_hands_the_new_trick_to_the_next_player():
     g = state_with({"player-0": ["5C"], "player-1": ["2C"], "player-2": ["KC", "4C"], "player-3": ["QC", "6C"]})
     play(g, "player-0", ["5C"])  # player-0 termine
-    play(g, "player-1", ["2C"])  # player-1 termine sur un 2 : le pli est fermé
+    play(g, "player-1", ["2C"])  # player-1 finit sur un 2 : le pli est fermé, et il sera Trou du cul
     s = g["president"]
-    assert g["phase"] == "play" and s["finished"] == ["player-0", "player-1"]
+    assert g["phase"] == "play" and s["finished"] == ["player-0"] and s["dunce"] == ["player-1"]
     assert s["pile"] is None and s["turn"] == "player-2"
 
 
@@ -441,3 +443,43 @@ def test_a_real_pass_outside_or_nothing_is_still_final():
     assert g["president"]["turn"] == "player-0"
     play(g, "player-0", ["JC"])
     assert g["president"]["turn"] == "player-2"  # player-1 a vraiment passé
+
+
+# ── Interdit de finir sur un 2 ──
+def roles(g):
+    return {r["name"]: r["role"] for r in pr.view(g, "player-0")["ranking"]}
+
+
+def test_finishing_on_a_two_makes_you_the_dunce():
+    g = state_with({"player-0": ["5C", "9C"], "player-1": ["2C"], "player-2": ["KC", "4C"], "player-3": ["QC", "6C"]})
+    play(g, "player-0", ["5C"])
+    play(g, "player-1", ["2C"])  # sa dernière carte est un 2
+    assert "Trou du cul" in g["president"]["notice"]
+    play(g, "player-2", ["4C"])
+    play(g, "player-3", ["6C"])
+    play(g, "player-0", ["9C"])  # player-0 termine premier
+    pass_turn(g, "player-2")
+    pass_turn(g, "player-3")
+    play(g, "player-2", ["KC"])  # player-2 termine
+    assert g["phase"] == "end"
+    assert [r["name"] for r in pr.view(g, "player-0")["ranking"]] == ["J0", "J2", "J3", "J1"]
+    assert roles(g)["J1"] == "Trou du cul"
+
+
+def test_a_second_two_finisher_pushes_the_first_one_up():
+    g = state_with({"player-0": ["2C"], "player-1": ["5C", "2D"], "player-2": ["KC", "4C"], "player-3": ["QC", "6C", "7C"]})
+    play(g, "player-0", ["2C"])  # premier à finir sur un 2
+    play(g, "player-1", ["5C"])
+    play(g, "player-2", ["KC"])
+    pass_turn(g, "player-3")
+    play(g, "player-1", ["2D"])  # deuxième à finir sur un 2 : c'est lui le Trou du cul, l'ancien remonte
+    play(g, "player-2", ["4C"])  # player-2 termine ; seul player-3 reste
+    assert g["phase"] == "end"
+    assert [r["name"] for r in pr.view(g, "player-0")["ranking"]] == ["J2", "J3", "J0", "J1"]
+    assert roles(g) == {"J2": "Président", "J3": "Vice-président", "J0": "Vice-trou du cul", "J1": "Trou du cul"}
+
+
+def test_a_joker_alone_is_not_a_two():
+    g = state_with({"player-0": ["JK1"], "player-1": ["5C", "9C"], "player-2": ["KC", "4C"]})
+    play(g, "player-0", ["JK1"])
+    assert g["president"]["finished"] == ["player-0"] and g["president"].get("dunce", []) == []

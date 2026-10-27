@@ -110,7 +110,10 @@ def _finish_if_needed(g):
     active = _active(s)
     if len(active) > 1:
         return False
-    s["finished"] += [i for i in active + list(reversed(s["departed"])) if i not in s["finished"]]
+    # Classement : ceux qui ont fini normalement, le dernier en jeu, ceux qui ont fini sur un 2 (le plus récent
+    # tout en bas : il pousse l'ancien Trou du cul d'un rang vers le haut), puis les abandons.
+    bottom = s.get("dunce", []) + list(reversed(s["departed"]))
+    s["finished"] += [i for i in active + bottom if i not in s["finished"]]
     for pos, gid in enumerate(s["finished"]):
         # Un abandon ne rapporte pas de points.
         pts = 0 if gid in s["departed"] else len(s["seats"]) - pos - 1
@@ -141,7 +144,7 @@ def start(g, rng=random):
     hands = {gid: sorted(cards[n::len(seats)], key=lambda c: (rank(c), c)) for n, gid in enumerate(seats)}
     s = {"hands": hands, "seats": seats, "names": {**previous.get("names", {}), **{p["id"]: p["name"] for p in players}},
          "pids": {p["id"]: p["pid"] for p in players}, "turn": None, "pile": None, "passed": [],
-         "finished": [], "departed": [], "discard": [], "scores": dict(previous.get("scores", {})),
+         "finished": [], "dunce": [], "departed": [], "discard": [], "scores": dict(previous.get("scores", {})),
          "roles": {gid: role(pos, len(order)) for pos, gid in enumerate(order)} if exchange else {},
          "exchange": {}, "offered": {}, "deal": secrets.token_hex(8), "revision": 0, "trick": 1, "trail": [],
          "notice": "Le 3 de trèfle donne la première main. Les jokers seuls valent des 3."}
@@ -226,14 +229,20 @@ def play(g, gid, cards, token):
     s["lacking"] = []
     label = RANKS[value]
     s["notice"] = f"{_name(g, gid)} pose {len(cards)} carte(s) de valeur {label}" + (f" : {label} ou rien." if same else ".")
-    if not hand:
+    if not hand and value == TWO:  # interdit de finir sur un 2 : Trou du cul
+        s["dunce"] = s.get("dunce", []) + [gid]
+        s["notice"] = f"{_name(g, gid)} finit sur un 2 : interdit, il sera Trou du cul !"
+    elif not hand:
         s["finished"].append(gid)
         s["notice"] = f"{_name(g, gid)} termine à la place {len(s['finished'])}."
     if not _finish_if_needed(g):
         if completes or value == TWO or _everyone_else_passed(s, gid):
+            notice = s["notice"]
             _clear(g)
             opener = _name(g, s["turn"])
-            if completes or value == TWO:
+            if gid in s.get("dunce", []):
+                s["notice"] = f"{notice} {opener} ouvre le pli suivant."
+            elif completes or value == TWO:
                 done = f"complète la famille de {label}" if completes else f"ferme le pli avec {len(cards)} × 2"
                 s["notice"] = f"{_name(g, gid)} {done} ! {opener} ouvre le pli suivant."
         else:
@@ -314,7 +323,7 @@ def leave(g, gid):
         g["round"] -= 1
         return
     s["discard"].extend(s["hands"].pop(gid, []))
-    if gid not in s["finished"]:
+    if gid not in s["finished"] and gid not in s.get("dunce", []):
         s["departed"].append(gid)
     s["notice"] = f"{_name(g, gid)} quitte la manche. Ses cartes sont écartées."
     if not _finish_if_needed(g):
@@ -335,6 +344,7 @@ def view(g, gid):
     for i in s.get("seats", []):
         place = order.index(i) + 1 if i in order else None
         seats.append({"pid": pid(i), "name": _name(g, i), "count": len(s.get("hands", {}).get(i, [])),
+                      "dunce": i in s.get("dunce", []),
                       "me": i == gid, "turn": s.get("turn") == i, "passed": i in s.get("passed", []),
                       "place": place, "departed": i in s.get("departed", []), "role": s.get("roles", {}).get(i),
                       "points": s.get("scores", {}).get(i, 0)})
