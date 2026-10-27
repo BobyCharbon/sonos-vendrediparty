@@ -403,3 +403,41 @@ def test_passed_player_is_out_even_for_completing_the_family():
     play(g, "player-3", ["JC", "JH"])
     with pytest.raises(pr.PresidentError, match="passé"):
         pr.play(g, "player-2", ["JD", "JS"], pr.view(g, "player-2")["token"])  # compléterait, mais il a passé
+
+
+# ── « … ou rien » : un tour sans complément lève la contrainte ──
+def test_or_nothing_round_without_completion_lets_the_author_play_higher_and_the_trick_goes_on():
+    g = state_with({"player-0": ["JC", "4C", "AC"], "player-1": ["JH", "QC", "5C"], "player-2": ["KC", "6C", "7C"]})
+    play(g, "player-0", ["JC"])
+    play(g, "player-1", ["JH"])  # « valet ou rien »
+    pass_turn(g, "player-2")  # pas de valet : ce n'est pas un vrai passe
+    pass_turn(g, "player-0")
+    s = g["president"]
+    assert s["pile"] and not s["pile"]["locked"] and s["turn"] == "player-1"  # tour complet : player-1 peut monter
+    assert s["passed"] == [] and "monter" in s["notice"]
+    play(g, "player-1", ["QC"])
+    play(g, "player-2", ["KC"])  # il avait « passé » pendant le « ou rien » : il peut monter
+    play(g, "player-0", ["AC"])
+    assert g["president"]["pile"]["rank"] == pr.RANKS.index("A")
+
+
+def test_or_nothing_lifted_when_the_author_has_finished():
+    g = state_with({"player-0": ["JC", "4C"], "player-1": ["JH"], "player-2": ["KC", "6C"], "player-3": ["QC", "7C"]})
+    play(g, "player-0", ["JC"])
+    play(g, "player-1", ["JH"])  # dernière carte de player-1 : il termine sur un « valet ou rien »
+    pass_turn(g, "player-2")
+    pass_turn(g, "player-3")
+    pass_turn(g, "player-0")
+    s = g["president"]
+    assert s["pile"] and not s["pile"]["locked"] and s["turn"] == "player-2"
+    play(g, "player-2", ["KC"])
+
+
+def test_a_real_pass_outside_or_nothing_is_still_final():
+    g = state_with({"player-0": ["JC", "4C", "AC"], "player-1": ["JH", "QC", "5C"], "player-2": ["KC", "6C", "7C"]})
+    play(g, "player-0", ["4C"])
+    pass_turn(g, "player-1")
+    play(g, "player-2", ["6C"])
+    assert g["president"]["turn"] == "player-0"
+    play(g, "player-0", ["JC"])
+    assert g["president"]["turn"] == "player-2"  # player-1 a vraiment passé
