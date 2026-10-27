@@ -77,6 +77,9 @@ GAME_ICONS.neon = Neon.icon;
 GAME_THEME.neon = "g-nk";
 GAME_ICONS.president = President.crown;
 GAME_THEME.president = "g-pr";
+// Jeux récents : étiquette « NEW » sur leur carte et leur tuile dans la salle de jeux (retirer le type pour l'enlever).
+const NEW_GAMES = ["debate"];
+const newBadge = (type) => NEW_GAMES.includes(type) ? `<span class="g-new" aria-label="Nouveau jeu">NEW</span>` : "";
 const helpBtn = (type, inGame = false) => `<button type="button" class="g-help" data-rules="${type}" ${inGame ? "data-ingame" : ""} aria-label="Règles du jeu">?</button>`;
 
 // Règles détaillées, ouvertes par le « ? » de chaque jeu.
@@ -489,6 +492,7 @@ document.getElementById("gamesRoot").innerHTML = `
       </div>
 
       <div class="gcard g-db">
+        ${newBadge("debate")}
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.debate}</div>
           <div class="g-meta"><div class="g-title">Pour ou contre</div><div class="g-tag">Un dilemme, vos avis, un vrai débat.</div></div>
@@ -2357,7 +2361,7 @@ function roomHtml(g) {
   const cur = R.current;
   const resume = cur ? `<button class="py-main g-room-resume" data-room-goto="${esc(cur.code)}">🎮 ${esc(cur.name)} en cours · rejoindre</button>` : "";
   const pick = lead && !cur ? `<div class="g-room-block"><div class="g-room-h">Lancer un jeu pour la salle</div>
-      <div class="g-room-grid">${(R.catalog || []).map((c) => `<button type="button" class="g-room-tile ${GAME_THEME[c.type] || ""}" data-room-pick="${c.type}">
+      <div class="g-room-grid">${(R.catalog || []).map((c) => `<button type="button" class="g-room-tile ${GAME_THEME[c.type] || ""}" data-room-pick="${c.type}">${newBadge(c.type)}
         <span class="g-room-tile-i">${GAME_ICONS[c.type] || ""}</span><b>${esc(c.name)}</b></button>`).join("")}</div></div>`
     : !cur ? `<div class="g-room-wait"><span class="g-room-dots"><i></i><i></i><i></i></span>${esc(g.host_name || "L'animateur")} choisit le prochain jeu…</div>` : "";
   const board = (R.board || []).filter((r) => r.pts || r.drink || r.give);

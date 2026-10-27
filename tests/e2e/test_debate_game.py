@@ -148,3 +148,18 @@ def test_wtf_theme_is_unchecked_by_default_and_the_host_can_add_it(phones):
     expect(alice.page.locator('[data-db-theme="wtf"]')).to_contain_text('🔞')
     alice.tap('[data-db-theme="wtf"]')  # l'animateur peut encore le retirer avant de lancer
     wait_state(alice, lambda g: 'wtf' not in g['debate']['themes'])
+
+
+def test_new_badge_marks_only_this_game_on_the_home_cards(phones):
+    alice = phones('Alice')
+    alice.open_games()
+    badge = alice.page.locator('#gHome .gcard:has([data-create="debate"]) .g-new')
+    expect(badge).to_be_visible()
+    expect(badge).to_have_text('NEW')
+    expect(alice.page.locator('#gHome .g-new')).to_have_count(1)
+    # En haut à droite de la carte, sans masquer le bouton « ? » des règles.
+    card = alice.page.locator('#gHome .gcard:has([data-create="debate"])').bounding_box()
+    b = badge.bounding_box()
+    help_btn = alice.page.locator('#gHome .gcard:has([data-create="debate"]) .g-help').bounding_box()
+    assert b['x'] + b['width'] > card['x'] + card['width'] * 0.7 and b['y'] < card['y'] + 20
+    assert b['y'] + b['height'] <= help_btn['y'] + 2

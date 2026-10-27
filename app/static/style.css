@@ -211,6 +211,12 @@ details[open] > summary h2::after { content: " ▾"; }
 .g-code input:focus { box-shadow: 0 0 0 2px var(--accent); }
 .gcard { background: var(--g-bg); color: #fff; border-radius: 26px; padding: 20px; display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; }
 .g-head { display: flex; gap: 14px; align-items: center; }
+/* Étiquette « NEW » d'un jeu récent : à cheval sur le coin haut droit de la carte (au-dessus du bouton « ? »). */
+.gcard, .g-room-tile { position: relative; }
+.g-new { position: absolute; top: -9px; right: 16px; z-index: 1; padding: 3px 10px; border-radius: 999px; pointer-events: none;
+  font: 900 .72rem/1.2 system-ui, sans-serif; letter-spacing: .08em; color: #3a1800;
+  background: linear-gradient(135deg, #ffe27a, #ff9f43); box-shadow: 0 4px 12px rgba(255, 159, 67, .45), 0 0 0 2px rgba(0, 0, 0, .18); }
+.g-room-tile .g-new { top: -7px; right: -4px; padding: 2px 7px; font-size: .62rem; }
 .g-icon { width: 56px; height: 56px; border-radius: 18px; background: var(--g-accent); color: var(--g-ink); display: flex; align-items: center; justify-content: center; flex: none; }
 .g-icon svg { width: 34px; height: 34px; }
 .g-meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
