@@ -65,7 +65,7 @@ def browser(request):
             p.stop()
 
 
-def mock_services(page, pending=False, events=1):
+def mock_services(page, pending=False, events=1, people=()):
     calls = []
     profile = {'id': USER, 'display_name': 'Compte de démonstration', 'phone': '41791234567', 'role': 'guest' if pending else 'admin', 'status': 'active', 'avatar_url': f'{USER}/photo.jpg', 'first_name': 'Camille', 'last_name': 'Demo', 'created_at': '2026-10-19T08:00:00Z'}
     category = {'id': 'ed69d11e-34dd-43fe-b211-10d0dd158ba9', 'name': 'Soirée', 'color': '#FFB347', 'sort': 0, 'archived': False, 'icon': None}
@@ -115,8 +115,13 @@ def mock_services(page, pending=False, events=1):
                 {**event,'id':f'{EVENT[:-2]}{i:02d}','title':f'Sortie de démonstration {i}'} for i in range(1,events)]
         elif path.endswith('/rsvps') and request.method=='POST':
             row=json.loads(request.post_data); event['rsvps']=[{**row,'waitlisted':False}];result=None
+        elif path.endswith('/rpc/set_rsvp_for'):
+            args=json.loads(request.post_data)
+            event['rsvps']=[r for r in event['rsvps'] if r['user_id']!=args['member']]+([] if args['answer'] is None else [
+                {'event_id':EVENT,'user_id':args['member'],'status':args['answer'],'plus_ones':0,'note':None,'waitlisted':False,'set_by':USER}])
+            result=None
         elif path.endswith('/group_settings'): result={'organizers_can_edit_published':True,'name':'Groupe de démonstration','timezone':'Europe/Zurich','require_approval':True,'coadmins_skip_approval':True,'members_can_create_tags':False}
-        elif path.endswith('/profiles'): result=[{'id':USER,'display_name':profile['display_name']}]
+        elif path.endswith('/profiles'): result=[{'id':USER,'display_name':profile['display_name']},*people]
         route.fulfill(status=200,content_type='application/json',body=json.dumps(result),headers=headers)
     page.route('https://gsuetixzobooggeaubvb.supabase.co/**', handle)
     page.route_web_socket('wss://gsuetixzobooggeaubvb.supabase.co/**', lambda ws:ws.on_message(lambda _message: None))
@@ -264,7 +269,10 @@ def test_account_tab_signs_in_shows_settings_and_crops_a_photo(browser, events_o
         pw.expect(page.locator('#appTitle')).to_have_text('Se connecter')
         frame=page.frame_locator('#eventsFrame')
         login(frame)
-        pw.expect(frame.get_by_text('Mon profil',exact=True)).to_be_visible(timeout=15000)
+        # Comme sur iPhone : la carte du compte en tête des Réglages ouvre « Mon profil ».
+        card=frame.get_by_role('button',name='Mon profil : Compte de démonstration')
+        pw.expect(card).to_be_visible(timeout=15000)
+        card.click()
         pw.expect(frame.get_by_label('Surnom',exact=True)).to_have_value('Compte de démonstration')
         frame.locator('input[type=file]:not([capture])').set_input_files(str(tmp_path / 'paysage.png'))
         dialog=frame.get_by_role('dialog',name='Recadrer ta photo de profil')
@@ -275,6 +283,7 @@ def test_account_tab_signs_in_shows_settings_and_crops_a_photo(browser, events_o
         pw.expect(dialog).to_have_count(0)
         pw.expect(frame.get_by_label('Aperçu de ta photo de profil')).to_be_visible()
         pw.expect(frame.get_by_role('button',name='Enregistrer',exact=True)).to_be_enabled()
+        frame.get_by_role('button',name='Retour : Réglages').click()
         # Notifications et abonnements sont regroupés dans une seule entrée des Réglages.
         pw.expect(frame.get_by_text('Notifications et abonnements',exact=True)).to_be_visible()
         pw.expect(frame.get_by_text('Mes abonnements',exact=True)).to_have_count(0)
@@ -302,25 +311,94 @@ def test_roles_screen_toggles_a_permission_for_the_chosen_role(browser,events_or
     finally: context.close()
 
 
-def test_end_time_starts_from_start_and_can_be_cleared(browser,events_origin):
-    """Fin : s'ouvre sur l'heure de début, rien avant le début, pas de 5 min, et s'efface (iOS n'a pas de bouton pour ça)."""
+def test_times_go_by_five_minutes_and_end_starts_from_start(browser,events_origin):
+    """Heures : un jour + une heure choisie dans une liste de 5 en 5 min (la roue native d'iPhone et d'Android
+    ignore le « step » d'un champ date-heure). La fin s'ouvre sur le début, rien avant lui, et s'efface."""
     context=browser.new_context(viewport={'width':390,'height':844})
     page=context.new_page();mock_services(page)
     try:
         page.goto(events_origin+'/events/',wait_until='domcontentloaded')
         login(page)
         page.get_by_role('button',name='Proposer un événement').click()
-        start=page.get_by_label('Début',exact=True);end=page.get_by_label('Fin (optionnel)',exact=True)
-        pw.expect(end).to_be_visible(timeout=15000)
-        start.fill('2030-11-14T19:00')
-        pw.expect(end).to_have_attribute('min','2030-11-14T19:00')
-        pw.expect(end).to_have_attribute('step','300')
+        start_day=page.get_by_label('Début : jour',exact=True);start_time=page.get_by_label('Début : heure',exact=True)
+        end_day=page.get_by_label('Fin (optionnel) : jour',exact=True);end_time=page.get_by_label('Fin (optionnel) : heure',exact=True)
+        pw.expect(end_day).to_be_visible(timeout=15000)
+        times=start_time.locator('option:not([disabled])').evaluate_all('els => els.map((o) => o.value)')
+        assert len(times)==288 and times[:3]==['00:00','00:05','00:10'] and times[-1]=='23:55'
+        assert all(int(t[-2:])%5==0 for t in times)
+        # Choisir d'abord le jour : l'heure se met d'office sur 19:00 (une soirée commence le soir).
+        start_day.fill('2030-11-14')
+        pw.expect(start_time).to_have_value('19:00')
+        start_time.select_option('20:35')
+        pw.expect(end_day).to_have_attribute('min','2030-11-14')
         pw.expect(page.get_by_role('button',name='Effacer : Fin (optionnel)')).to_have_count(0)
-        end.focus()
-        pw.expect(end).to_have_value('2030-11-14T19:00')
+        end_day.focus()
+        pw.expect(end_day).to_have_value('2030-11-14')
+        pw.expect(end_time).to_have_value('20:35')
         page.get_by_role('button',name='Effacer : Fin (optionnel)').click()
-        pw.expect(end).to_have_value('')
+        pw.expect(end_day).to_have_value('')
         pw.expect(page.get_by_role('button',name='Effacer : Fin (optionnel)')).to_have_count(0)
+    finally: context.close()
+
+
+def test_event_form_simple_mode_shows_the_essentials_and_tells_about_hidden_settings(browser,events_origin):
+    """Simple : l'essentiel seulement ; « Plus d'options » ouvre le mode avancé, qui reste choisi la fois suivante.
+    Un réglage avancé modifié reste appliqué en simple, et il est signalé (rien n'est caché sans le dire)."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page();mock_services(page)
+    try:
+        page.goto(events_origin+'/events/',wait_until='domcontentloaded')
+        login(page)
+        page.get_by_role('button',name='Proposer un événement').click()
+        pw.expect(page.get_by_label('Titre',exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_role('tab',name='Simple')).to_have_attribute('aria-selected','true')
+        for hidden in ('Adresse','Nombre de places (vide = illimité)','Nouveau tag'):
+            pw.expect(page.get_by_label(hidden,exact=True)).to_have_count(0)
+        pw.expect(page.get_by_text('Mini-sondages',exact=True)).to_have_count(0)
+        page.get_by_role('button',name='Plus d’options : passer en mode avancé').click()
+        # Nouvel événement : accompagnants (+1) autorisés d'office, sans limite.
+        pw.expect(page.get_by_role('switch',name='Accompagnants (+1)')).to_be_checked()
+        pw.expect(page.get_by_label('Accompagnants max par personne (vide = illimité)',exact=True)).to_have_value('')
+        # Rappels : plus choisis par l'organisateur, chacun les règle dans ses Réglages → Notifications.
+        for chip in ('J-7','J-1','H-2','Au début','✓ H-2','✓ Au début'):
+            pw.expect(page.get_by_role('button',name=chip,exact=True)).to_have_count(0)
+        pw.expect(page.get_by_text('Les rappels avant l’événement, chacun les choisit dans ses Réglages → Notifications.',exact=True)).to_be_visible()
+        places=page.get_by_label('Nombre de places (vide = illimité)',exact=True)
+        places.fill('12')
+        pw.expect(page.get_by_text('Mini-sondages',exact=True)).to_be_visible()
+        page.get_by_role('tab',name='Simple').click()
+        pw.expect(places).to_have_count(0)
+        pw.expect(page.get_by_text('Actifs : places limitées',exact=True)).to_be_visible()
+        # Le mode avancé choisi est retenu pour le prochain événement.
+        page.get_by_role('tab',name='Avancé').click()
+        page.reload()
+        pw.expect(page.get_by_role('tab',name='Avancé')).to_have_attribute('aria-selected','true',timeout=15000)
+    finally: context.close()
+
+
+def test_phone_invite_requires_the_country_code(browser,events_origin):
+    """Inviter par numéro : indicatif obligatoire. Sans lui, un portable espagnol (612 345 678) passait pour un
+    fixe de Bâle (+41 61 234 56 78) et l'invitation n'arrivait jamais. La puce montre le pays reconnu."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page();mock_services(page)
+    try:
+        page.goto(events_origin+'/events/',wait_until='domcontentloaded')
+        login(page)
+        page.get_by_role('button',name='Proposer un événement').click()
+        field=page.get_by_label('Inviter par numéro de téléphone',exact=True)
+        pw.expect(field).to_be_visible(timeout=15000)
+        invite=page.get_by_role('button',name='Inviter',exact=True)
+        field.fill('0765576900');invite.click()
+        pw.expect(page.get_by_text('Ajoute l’indicatif du pays. Numéro suisse ? Écris +41 76 557 69 00. Étranger : +33, +34…',exact=True)).to_be_visible()
+        field.fill('612345678');invite.click()
+        pw.expect(page.get_by_text('Numéro suisse ? Écris +41 61 234 56 78',exact=False)).to_be_visible()
+        pw.expect(page.get_by_role('button',name='✕ 🇨🇭 +41 61 234 56 78')).to_have_count(0)
+        field.fill('+34 612 345 678');invite.click()
+        pw.expect(page.get_by_role('button',name='✕ 🇪🇸 +34 612 34 56 78')).to_be_visible()
+        field.fill('0041 76 557 69 00');invite.click()
+        pw.expect(page.get_by_role('button',name='✕ 🇨🇭 +41 76 557 69 00')).to_be_visible()
+        field.fill('+34 12');invite.click()
+        pw.expect(page.get_by_text('Numéro invalide pour cet indicatif',exact=False)).to_be_visible()
     finally: context.close()
 
 
@@ -346,6 +424,7 @@ def test_place_search_fills_name_address_and_google_maps_link(browser,events_ori
         search.fill('demo')
         page.get_by_role('button',name='Lieu de démonstration, Rue fictive 1, Lausanne').click()
         pw.expect(page.get_by_label('Lieu',exact=True)).to_have_value('Lieu de démonstration')
+        page.get_by_role('tab',name='Avancé').click()  # adresse et lien : réglages avancés, remplis quand même
         pw.expect(page.get_by_label('Adresse',exact=True)).to_have_value('Rue fictive 1, 1003 Lausanne, Suisse')
         pw.expect(page.get_by_label('Lien (site, carte…)',exact=True)).to_have_value('https://maps.google.com/?cid=1')
     finally: context.close()
@@ -391,7 +470,7 @@ def test_root_account_opens_admin_page_from_settings_without_pin(browser, events
         page.goto(events_origin, wait_until='domcontentloaded')
         page.locator('#accountTab').click()
         login(page.frame_locator('#eventsFrame'))
-        link=page.frame_locator('#eventsFrame').get_by_text('🎛️ Admin de la soirée')
+        link=page.frame_locator('#eventsFrame').get_by_text('Admin de la soirée',exact=True)
         pw.expect(link).to_be_visible()
         link.click()
         page.wait_for_url('**/admin')
@@ -450,3 +529,61 @@ def test_country_choice_tells_screen_readers_which_one_is_selected(browser, even
         assert [r.get_attribute('aria-checked') for r in radios.all()] == ['false', 'true', 'false']
     finally:
         context.close()
+
+
+def test_event_detail_has_an_ios_back_button_and_an_edge_swipe_goes_back(browser, events_origin):
+    """Refonte Apple : ‹ Événements dans l’en-tête du détail, et glisser depuis le bord gauche revient à la liste."""
+    context=browser.new_context(viewport={'width':390,'height':844},has_touch=True)
+    page=context.new_page();mock_services(page)
+    try:
+        page.goto(events_origin,wait_until='domcontentloaded')
+        page.get_by_role('button',name='Événements',exact=True).click()
+        frame=page.frame_locator('#eventsFrame')
+        login(frame)
+        card=frame.get_by_text('Sortie de démonstration (test local)',exact=True)
+        pw.expect(card).to_be_visible(timeout=15000)
+        card.click()
+        back=frame.get_by_role('button',name='Retour : Événements')
+        pw.expect(back).to_be_visible()
+        back.click()
+        pw.expect(card).to_be_visible()
+        card.click()
+        pw.expect(back).to_be_visible()
+        # Le module est dans un cadre plein écran : ses coordonnées sont celles de la page.
+        page.mouse.move(4,420);page.mouse.down();page.mouse.move(320,425,steps=6);page.mouse.up()
+        pw.expect(back).to_be_hidden()
+        pw.expect(card).to_have_count(1)
+        pw.expect(card).to_be_visible()
+        # Sur la liste (écran racine), le même geste ne dépile rien : la page reste en place.
+        page.mouse.move(4,420);page.mouse.down();page.mouse.move(320,425,steps=6);page.mouse.up()
+        page.wait_for_timeout(500)
+        pw.expect(card).to_be_visible()
+        assert page.frame_locator('#eventsFrame').locator('#root').evaluate('el => el.style.transform') == ''
+    finally:
+        context.close()
+
+
+def test_organizer_marks_a_guest_present_then_absent_then_removes_the_answer(browser, events_origin):
+    lea = '5b0c7e1e-1d3a-4c8e-9a51-6f2f4b9d0a11'
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page();calls=mock_services(page,people=[{'id':lea,'display_name':'Léa'}])
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    sent=lambda:[json.loads(b) for _,path,b in calls if path.endswith('/rpc/set_rsvp_for')]
+    try:
+        page.goto(events_origin,wait_until='domcontentloaded')
+        page.get_by_role('button',name='Événements',exact=True).click()
+        frame=page.frame_locator('#eventsFrame')
+        login(frame)
+        frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
+        frame.get_by_role('button',name='Gérer',exact=True).click()
+        frame.get_by_label('Ajouter quelqu’un',exact=True).fill('lea')  # sans accent ni majuscule
+        frame.get_by_role('button',name='Noter présent',exact=True).click()
+        pw.expect(frame.get_by_text('Noté par Toi',exact=True)).to_be_visible(timeout=10000)
+        pw.expect(frame.get_by_text('PRÉSENTS · 1',exact=True)).to_be_visible()
+        frame.get_by_role('button',name='Léa : Absent',exact=True).click()
+        pw.expect(frame.get_by_text('Absents : Léa',exact=True)).to_be_visible(timeout=10000)
+        frame.get_by_role('button',name='Retirer',exact=True).click()
+        pw.expect(frame.get_by_text('Personne n’a encore répondu : cherche un prénom pour l’ajouter.',exact=True)).to_be_visible(timeout=10000)
+        assert sent()==[{'event':EVENT,'member':lea,'answer':'yes'},{'event':EVENT,'member':lea,'answer':'no'},{'event':EVENT,'member':lea,'answer':None}]
+        assert not errors
+    finally: context.close()

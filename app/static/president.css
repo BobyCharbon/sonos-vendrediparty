@@ -18,18 +18,43 @@ body.pyr-full #game.g-pr { box-shadow: none; border: 0; padding: 16px; }
 .pr-rule-note { display: flex; flex-direction: column; gap: 4px; padding: 16px 0; border-block: 1px solid #456057; }
 .pr-rule-note b { color: #f3d88c; }
 .pr-rule-note span, .pr-note, .pr-ready { font-size: .88rem; }
-.pr-seats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 20px; }
-.pr-seat { display: flex; flex-direction: column; gap: 2px; padding: 8px; border-radius: 10px; border: 1px solid #3a5b50; min-width: 0; }
-.pr-seat-name { font-size: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pr-seat b { font-size: .93rem; font-variant-numeric: tabular-nums; }
-.pr-seat small { color: #c0d9cf; font-size: .7rem; overflow-wrap: anywhere; }
-.pr-seat.pr-turn { background: #f3d88c; color: #263023; border-color: #f3d88c; }
-.pr-seat.pr-turn small { color: #495037; }
+/* Table façon poker : tapis ovale, rebord en bois, joueurs répartis autour (president.js › seatSpot). */
+.pr-felt { position: relative; margin: 8px 0 14px; height: clamp(380px, 104vw, 470px); border-radius: 50% / 44%;
+  background: radial-gradient(ellipse at 50% 42%, #2d8a5a 0%, #1b6942 55%, #11482d 100%);
+  border: 12px solid #6b4423; box-shadow: inset 0 0 0 3px rgba(255, 220, 160, .25), inset 0 10px 40px rgba(0, 0, 0, .45), 0 16px 34px rgba(0, 0, 0, .45); }
+.pr-felt-center { position: absolute; left: 50%; top: 50%; width: 58%; transform: translate(-50%, -50%); text-align: center; }
+.pr-felt-center .pr-table { padding: 0; }
+.pr-felt-center .pr-table-caption { margin: 0 0 6px; }
+.pr-felt-center .pr-note { font-size: .78rem; }
+.pr-felt-center .pr-pile { min-height: 84px; }
+.pr-felt-center .pr-exchange { font-size: .85rem; }
+.pr-seat { position: absolute; width: 84px; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 2px;
+  text-align: center; transition: left .4s ease, top .4s ease; }
+.pr-avatar { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: #f6ecd2; color: #173d33;
+  font: 800 1.2rem/1 "Bricolage Grotesque", system-ui, sans-serif; box-shadow: 0 0 0 3px #11482d, 0 6px 14px rgba(0, 0, 0, .4); }
+.pr-seat-name { max-width: 100%; font-size: .78rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  padding: 1px 7px; border-radius: 999px; background: rgba(0, 0, 0, .45); }
+.pr-seat small { color: #d7eadf; font-size: .66rem; line-height: 1.15; }
+.pr-backs { display: inline-flex; align-items: center; height: 22px; }
+.pr-backs i { width: 13px; height: 19px; margin-left: -5px; border-radius: 3px; border: 1.5px solid #fff;
+  background: repeating-linear-gradient(45deg, #b8322f 0 3px, #d8483f 3px 6px); box-shadow: 0 2px 4px rgba(0, 0, 0, .35); }
+.pr-backs i:first-child { margin-left: 0; }
+.pr-backs i:nth-child(1) { transform: rotate(-16deg); } .pr-backs i:nth-child(2) { transform: rotate(-8deg); }
+.pr-backs i:nth-child(4) { transform: rotate(8deg); } .pr-backs i:nth-child(5) { transform: rotate(16deg); }
+.pr-backs b { margin-left: 5px; font-size: .74rem; font-variant-numeric: tabular-nums; }
+.pr-seat.pr-turn .pr-avatar { box-shadow: 0 0 0 3px #ffd27a, 0 0 18px 4px rgba(255, 210, 122, .75); animation: pr-turn-glow 1.4s ease-in-out infinite; }
+.pr-seat.pr-turn small { color: #ffd27a; font-weight: 800; }
+.pr-seat.pr-has-passed .pr-avatar { opacity: .55; }
+.pr-seat.pr-is-out .pr-avatar { background: #ffe08a; }
+.pr-seat.pr-is-me .pr-seat-name { background: #ffd27a; color: #2b1a00; }
+@keyframes pr-turn-glow { 50% { box-shadow: 0 0 0 3px #ffd27a, 0 0 26px 8px rgba(255, 210, 122, .45); } }
+@media (prefers-reduced-motion: reduce) { .pr-seat.pr-turn .pr-avatar { animation: none; } .pr-seat { transition: none; } }
 .pr-turn-title { text-align: center; overflow-wrap: anywhere; }
 .g-pr .pr-your-turn { color: #f3d88c; }
 .pr-table { padding: 4px 0 0; text-align: center; }
 .pr-table-caption { color: #cae1d8; font-size: .8rem; margin: 10px 0 8px; }
 .pr-table .pr-note { margin: 8px 0; }
+.pr-family { display: inline-block; margin: 0 0 6px; padding: 4px 12px; border-radius: 999px; background: rgba(255, 196, 77, .18); color: #ffd27a; font-size: .9rem; }
 .pr-pile { display: flex; justify-content: center; gap: 8px; min-height: 100px; align-items: center; }
 .pr-pile > .pr-card { width: 66px; height: 96px; flex: none; }
 .pr-empty-pile { width: 66px; height: 96px; display: grid; place-items: center; font-size: 2.5rem; color: #a8cabc; border: 1px dashed #6c8f80; border-radius: 10px; }
@@ -75,3 +100,55 @@ button.pr-card:hover { background: #fff2c9; }
 @media (min-width: 600px) { .pr-hand { grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); } .pr-card { height: 88px; } }
 @media (max-width: 360px) { body.pyr-full #game.g-pr { padding: 10px; } .pr-pile { gap: 5px; } .pr-pile > .pr-card { width: 56px; height: 84px; } .pr-action-row { gap: 5px; } .pr-action-row button { padding-inline: 10px; } }
 @media (prefers-reduced-motion: reduce) { .pr-card { transition: none; } }
+
+/* Dernier coup en surbrillance, et les coups précédents du pli en cours en dessous. */
+.pr-last-tag { display: inline-block; margin-right: 4px; padding: 2px 8px; border-radius: 999px; background: #ffd27a; color: #2b1a00;
+  font-size: .7rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.pr-pile.pr-latest .pr-card { box-shadow: 0 0 0 3px #ffd27a, 0 0 24px rgba(255, 210, 122, .65); animation: pr-land .35s cubic-bezier(.2, 1.3, .4, 1); }
+@keyframes pr-land { from { transform: translateY(-10px) scale(.92); opacity: .4; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .pr-pile.pr-latest .pr-card { animation: none; } }
+.pr-trail { list-style: none; margin: 10px 0 2px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pr-trail-item { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; padding: 6px 10px; border-radius: 12px;
+  background: rgba(255, 255, 255, .07); font-size: .88rem; text-align: left; }
+.pr-trail-item b { font-weight: 700; }
+.pr-minis { display: inline-flex; gap: 4px; }
+.pr-mini { display: inline-block; min-width: 28px; padding: 2px 5px; border-radius: 6px; background: #fff; color: #1b1b1b;
+  font-weight: 800; font-size: .82rem; text-align: center; }
+.pr-mini.pr-red { color: #c62828; }
+
+/* Animations : dos de carte qui vole lors des échanges, cartes reçues marquées « Nouvelle ». */
+.pr-fly { position: fixed; z-index: 60; width: 40px; height: 58px; border-radius: 7px; pointer-events: none;
+  background: repeating-linear-gradient(45deg, #b8322f 0 6px, #d8483f 6px 12px); border: 2px solid #fff;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, .35); }
+.pr-card.pr-new { box-shadow: 0 0 0 3px #7fd8a6, 0 0 18px rgba(127, 216, 166, .6); animation: pr-new-pop .5s cubic-bezier(.2, 1.4, .4, 1); }
+.pr-card-new { position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%); padding: 1px 6px; border-radius: 999px;
+  background: #3fcf8e; color: #062b18; font-size: .6rem; font-weight: 800; white-space: nowrap; }
+@keyframes pr-new-pop { from { transform: translateY(-14px) scale(.85); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .pr-card.pr-new { animation: none; } }
+
+/* Animations de la table (president-fx.js) : copies de cartes qui volent par-dessus tout, annonce centrale,
+   emoji qui s'envole d'un siège. */
+.pr-ghost { position: fixed; z-index: 70; pointer-events: none; }
+.pr-ghost > .pr-card { width: 100%; height: 100%; box-sizing: border-box; margin: 0; }
+.pr-burst { position: fixed; left: 50%; top: 42%; z-index: 80; pointer-events: none; padding: 14px 24px; border-radius: 22px;
+  background: linear-gradient(135deg, #ffe08a, #ff9f43); color: #2b1a00; font: 900 1.6rem/1.1 "Bricolage Grotesque", system-ui, sans-serif;
+  white-space: nowrap; box-shadow: 0 18px 40px rgba(0, 0, 0, .45); }
+.pr-pop { position: fixed; z-index: 80; pointer-events: none; font-size: 2.4rem; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .4)); }
+/* La carte qui vole depuis la main passe au-dessus des autres cartes de la main. */
+.pr-table { position: relative; z-index: 3; }
+
+/* Célébration du Président (president-fx.js › celebrate) : plein écran ~3,8 s, un toucher la ferme. */
+.pr-celebrate { position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  overflow: hidden; cursor: pointer; background: radial-gradient(circle at 50% 45%, rgba(120, 84, 10, .92), rgba(20, 12, 2, .94) 70%); color: #fff; text-align: center; }
+.pr-rays { position: absolute; left: 50%; top: 45%; width: 160vmax; height: 160vmax; pointer-events: none; opacity: .35;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 214, 120, .55) 0 8deg, transparent 8deg 20deg); border-radius: 50%;
+  mask-image: radial-gradient(circle, #000 0 30%, transparent 62%); -webkit-mask-image: radial-gradient(circle, #000 0 30%, transparent 62%); }
+.pr-cel-crown { position: relative; width: 132px; height: 132px; color: #ffd27a; filter: drop-shadow(0 0 22px rgba(255, 210, 122, .8)); }
+.pr-cel-crown svg { width: 100%; height: 100%; }
+.pr-cel-name { position: relative; max-width: 90vw; font: 900 clamp(2rem, 11vw, 3.2rem)/1.05 "Bricolage Grotesque", system-ui, sans-serif;
+  color: #ffe08a; text-shadow: 0 4px 24px rgba(255, 180, 60, .7); overflow-wrap: anywhere; }
+.pr-cel-sub { position: relative; font-size: 1.25rem; font-weight: 800; letter-spacing: .04em; }
+.pr-confetti { position: absolute; top: 0; width: 9px; height: 14px; border-radius: 2px; pointer-events: none; }
+/* Ovale : de l'air au-dessus pour le siège du haut ; au centre, l'étiquette « Dernier coup » au-dessus du prénom. */
+.pr-felt { margin-top: 30px; }
+.pr-felt-center .pr-table-caption { display: flex; flex-direction: column; align-items: center; gap: 4px; }

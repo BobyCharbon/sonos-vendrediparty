@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0e0b16">
   <title>Party Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,6 +13,8 @@
   <link rel="stylesheet" href="/static/neon.css">
   <link rel="stylesheet" href="/static/island.css">
   <link rel="stylesheet" href="/static/heist.css">
+  <link rel="stylesheet" href="/static/ui.css">
+  <link rel="stylesheet" href="/static/games.css">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=2">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v=2">
   <link rel="manifest" href="/static/manifest-admin.json">
@@ -215,6 +217,9 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
+<script src="/static/motion.js"></script>
+<script src="/static/nav.js"></script>
+<script src="/static/segmented.js"></script>
 <script src="/static/push.js"></script>
 <script src="/static/events-shell.js"></script>
 <script>
@@ -796,7 +801,7 @@ const PHASES = { lobby: "Inscriptions", words: "Indices", vote: "Vote", white_gu
   bet: "Mises", play: "Partie en cours", spun: "Résultat", card: "En séance", deal: "Distribution", pyramid: "Pyramide",
   memory: "Test de mémoire", memres: "Résultats de mémoire", boatpick: "Qui fait le bateau ?", boat: "Le bateau" };
 // ⚙️ Réglages : toutes les parties en cours, en blocs compacts ; un toucher déplie le détail.
-const GAME_EMOJI = { undercover: "🕵️", whoof: "🙋", likely: "🫵", never: "🍻", roulette: "🎡", blackjack: "🃏", casino: "🎰", divan: "🛋️", tmc: "💞", pyramid: "🔺" };
+const GAME_EMOJI = { undercover: "🕵️", whoof: "🙋", likely: "🫵", debate: "⚖️", never: "🍻", roulette: "🎡", blackjack: "🃏", casino: "🎰", divan: "🛋️", tmc: "💞", pyramid: "🔺" };
 const gsOpen = new Set();
 const fmtDur = (sec) => { const m = Math.max(0, Math.floor(sec / 60)); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`; };
 function renderGamesSettings(s) {

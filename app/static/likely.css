@@ -1,4 +1,4 @@
-/* 🫵 Qui est le plus… ? (un seul téléphone qui tourne) */
+/* 🫵 Qui est le plus… ? (chacun vote sur son téléphone ; celui de l'animateur passe à ceux qui n'en ont pas) */
 .g-lk { --g-bg: #10343a; --g-accent: #ffc94d; --g-ink: #2b1a00; --g-soft: #cdeef0; --g-chip: #1c4a51; }
 .game.g-lk { background: var(--g-bg); color: #fff; border: 0; }
 .game.g-lk .artist { color: var(--g-soft); }
@@ -10,7 +10,9 @@ body.pyr-full #game.g-lk { box-shadow: none; border: 0; padding: 16px; backgroun
 .lk-main:active { transform: translateY(5px); box-shadow: 0 2px 0 #b97a00; }
 .lk-main:disabled { opacity: .5; box-shadow: none; }
 .lk-sub { flex: 1; min-height: 46px; border-radius: 14px; border: 0; background: rgba(255,255,255,.1); color: #fff; font-weight: 700; font-size: .92rem; }
-.lk-row { display: flex; gap: 8px; margin-top: 12px; }
+.lk-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.lk-pass .lk-sub { width: 100%; margin-top: 10px; }
+.lk-done, .lk-waiting { margin-top: 14px; }
 
 .lk-hero { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 22px; margin-bottom: 14px;
   background: linear-gradient(135deg, #1f8a8f, #f2a541); box-shadow: 0 14px 32px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.25); }

@@ -211,6 +211,19 @@ details[open] > summary h2::after { content: " ▾"; }
 .g-code input:focus { box-shadow: 0 0 0 2px var(--accent); }
 .gcard { background: var(--g-bg); color: #fff; border-radius: 26px; padding: 20px; display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; }
 .g-head { display: flex; gap: 14px; align-items: center; }
+/* Étiquette « NEW » d'un jeu récent : à cheval sur le coin haut droit de la carte (au-dessus du bouton « ? »). */
+.gcard, .g-room-tile { position: relative; }
+.g-new { position: absolute; top: -9px; right: 16px; z-index: 1; padding: 3px 10px; border-radius: 999px; pointer-events: none;
+  font: 900 .72rem/1.2 system-ui, sans-serif; letter-spacing: .08em; color: #3a1800;
+  background: linear-gradient(135deg, #ffe27a, #ff9f43); box-shadow: 0 4px 12px rgba(255, 159, 67, .45), 0 0 0 2px rgba(0, 0, 0, .18); }
+.g-room-tile .g-new { top: -7px; right: -4px; padding: 2px 7px; font-size: .62rem; }
+/* Catégories de l'écran Jeux et de la salle de jeux. */
+.g-cat { margin-top: 26px; }
+.g-cat-h { margin: 0 4px 12px; font: 800 1.35rem/1.15 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: -0.01em; }
+.g-drink { display: inline-block; margin-left: 8px; font-size: .8em; vertical-align: .1em; }
+.g-room-cat + .g-room-cat { margin-top: 14px; }
+.g-room-cat-h { margin: 0 2px 8px; font-size: .85rem; font-weight: 800; opacity: .85; }
+.g-room-tile .g-drink { margin-left: 4px; font-size: .9em; }
 .g-icon { width: 56px; height: 56px; border-radius: 18px; background: var(--g-accent); color: var(--g-ink); display: flex; align-items: center; justify-content: center; flex: none; }
 .g-icon svg { width: 34px; height: 34px; }
 .g-meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -315,10 +328,12 @@ button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2
 .bj-result { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(0,0,0,.25); font-weight: 800; }
 .bj-result.win, .bj-result.blackjack { background: var(--g-accent); color: var(--g-ink); }
 .track.bj-turn { outline: 2px solid var(--accent-2); }
-/* Compteur fixe en haut à droite (jetons, gorgées). */
+/* Compteur fixe en haut à droite (jetons, gorgées) : presque transparent et sans flou, le texte du jeu reste lisible
+   dessous ; une ombre garde les chiffres lisibles ; les touchers le traversent (il ne masque jamais un bouton). */
 .g-hud { position: fixed; z-index: 15; top: calc(58px + env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right));
-  display: flex; gap: 6px; padding: 6px; border-radius: 16px; background: var(--g-bg, #241d35); box-shadow: 0 8px 24px rgba(0,0,0,.45); }
-.hud-item { display: flex; flex-direction: column; align-items: center; min-width: 52px; padding: 4px 8px; border-radius: 12px; background: var(--g-chip, #1a1526); line-height: 1.1; }
+  display: flex; gap: 6px; padding: 2px; border-radius: 16px; background: transparent; pointer-events: none;
+  opacity: .7; text-shadow: 0 1px 3px rgba(0, 0, 0, .8); }
+.hud-item { display: flex; flex-direction: column; align-items: center; min-width: 52px; padding: 4px 8px; border-radius: 12px; background: transparent; line-height: 1.1; }
 .hud-item span { font-size: .9rem; }
 .hud-item b { font-size: 1.25rem; font-variant-numeric: tabular-nums; color: var(--g-accent, #fff); }
 .hud-item small { font-size: .65rem; color: var(--g-soft, var(--muted)); text-transform: uppercase; letter-spacing: .04em; }
@@ -1058,6 +1073,7 @@ body.pyr-full #game.g-qz { background: transparent; border: 0; padding: 0; box-s
 .qz-root.anim .qz-ans:nth-child(2) { animation-delay: .03s; } .qz-root.anim .qz-ans:nth-child(3) { animation-delay: .06s; } .qz-root.anim .qz-ans:nth-child(4) { animation-delay: .09s; }
 .qz-root.anim.fast .qz-ans, .qz-root.anim.fast .qz-qcard { animation: none; }
 .g-exit { width: 100%; margin-top: 8px; }
+.g-exit small { display: block; margin-top: 2px; font-size: .75rem; font-weight: 600; opacity: .75; }
 .g-handover { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding: 10px; border-radius: 14px; background: rgba(255,255,255,.05); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1076,7 +1092,8 @@ body.pyr-full #game.g-qz { background: transparent; border: 0; padding: 0; box-s
   --lift-m: 0 2px 6px rgba(0, 0, 0, .3), 0 12px 32px rgba(0, 0, 0, .35);
   --focus: 0 0 0 3px rgba(255, 79, 154, .45);
 }
-html { -webkit-text-size-adjust: 100%; }
+/* Pas de zoom au double-tap (l'app doit se sentir native) ; le pincement est bloqué par le viewport et ios-app.js. */
+html { -webkit-text-size-adjust: 100%; touch-action: manipulation; }
 body { -webkit-font-smoothing: antialiased; font-optical-sizing: auto; }
 
 /* Typographie : l'interlettrage dépend de la taille (gros titres resserrés, petits libellés aérés). */
@@ -1543,6 +1560,9 @@ html.events-soon .tabs [data-tab="events"]::after {
 .admin-only { display: none; }
 .ma-access { margin: 8px 0 12px; }
 .ma-access summary { cursor: pointer; font-weight: 700; }
+.ma-event { display: grid; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.08); text-align: left; }
+.ma-event select { width: 100%; }
+.ma-event .sub { margin: 0; font-size: .85rem; }
 .ma-fold { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; }
 .ma-fold:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
 .ma-chev { transition: transform .2s ease; }

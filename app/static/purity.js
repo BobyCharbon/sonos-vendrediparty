@@ -218,7 +218,7 @@ let puStatsLoading = false;
 async function puStatsShow() {
   if (puStatsLoading) return;  // ouverture et chargement du fichier peuvent le demander en même temps
   const root = $("purityStats");
-  const token = supabaseToken();
+  const token = await freshToken();
   if (!token) {
     root.innerHTML = `<div class="pu-card"><div class="pu-big">🔒</div><div class="title">Réservé aux comptes connectés</div>
       <p class="artist">Connecte-toi avec ton numéro pour retrouver tes stats Purify Test.</p>

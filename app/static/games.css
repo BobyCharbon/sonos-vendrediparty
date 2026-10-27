@@ -1,0 +1,30 @@
+/* ═══ Jeux : refonte « Party façon Apple » (cadre commun ; l'intérieur de chaque jeu garde son style) ═══ */
+
+/* ── Barre du haut d'une partie : boutons ronds en verre, icônes au trait, le titre respire ── */
+body.pyr-full #gTop { gap: 6px; }
+#gTop .py-icon, #gTop .g-help {
+  position: relative; width: 40px; height: 40px; min-height: 40px; padding: 0; border: 0; border-radius: 50%; color: #fff;
+  background: rgba(255, 255, 255, .1); backdrop-filter: blur(16px) saturate(160%); -webkit-backdrop-filter: blur(16px) saturate(160%);
+  box-shadow: inset 0 .5px 0 rgba(255, 255, 255, .22), 0 4px 14px rgba(0, 0, 0, .3); font-size: 1.05rem;
+}
+#gTop .py-icon::after, #gTop .g-help::after { content: ""; position: absolute; inset: -2px; }   /* 44 px au doigt */
+#gTop .py-icon:not(:disabled):active, #gTop .g-help:not(:disabled):active { transform: scale(.9); background: rgba(255, 255, 255, .2); }
+.py-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+[data-game-sound] svg path:first-child { fill: currentColor; stroke-width: 1.6; }
+.g-top-name { font-size: 1rem; letter-spacing: -0.015em; }
+@media (prefers-reduced-transparency: reduce) { #gTop .py-icon, #gTop .g-help { backdrop-filter: none; -webkit-backdrop-filter: none; background: #2c2350; } }
+
+/* ── Menu de la partie : fermer en rond ; réduire puis, séparé tout en bas, quitter (action destructive) ── */
+.g-drawer-head .g-close { width: 32px; height: 32px; min-height: 32px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .12); }
+.g-drawer-head .g-close svg { width: 16px; height: 16px; stroke-width: 2.6; }
+.g-drawer-min { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 16px; }
+.g-drawer-min svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+#gDrawerExit:not(:empty) { margin-top: 28px; padding-top: 12px; box-shadow: inset 0 .5px 0 var(--separator); }
+
+/* ── Listes de joueurs : listes groupées iOS (les couleurs propres à chaque jeu restent) ── */
+/* Seulement les listes de lignes (.track) : les tableaux à barres (scores, votes) gardent leur mise en page. */
+#gamePlay .list:has(> .track):not(:has(> .bar)), .g-drawer .list:has(> .track) { gap: 0; border-radius: 16px; overflow: hidden; box-shadow: inset 0 0 0 .5px var(--hairline); }
+#gamePlay .list:has(> .track):not(:has(> .bar)) > .track, .g-drawer .list:has(> .track) > .track { position: relative; border-radius: 0; box-shadow: none; min-height: 52px; }
+#gamePlay .list:has(> .track):not(:has(> .bar)) > * + *::before, .g-drawer .list:has(> .track) > * + *::before {
+  content: ""; position: absolute; z-index: 1; top: 0; left: 16px; right: 0; height: .5px; background: var(--separator);
+}

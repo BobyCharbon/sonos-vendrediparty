@@ -152,7 +152,7 @@ export default function NotificationSettings() {
       </Section>
 
       <Section title="Rappels avant l’événement">
-        <T muted size={13}>Pour les événements où tu as répondu Présent ou Peut-être, si l’organisateur a activé les rappels. Tu peux en choisir plusieurs.</T>
+        <T muted size={13}>Pour les événements où tu as répondu Présent ou Peut-être. C’est toi qui choisis, pour tous les événements ; tu peux en cocher plusieurs.</T>
         <View style={s.wrap}>
           {(Object.keys(reminderLabels) as Reminder[]).map((r) => (
             <Chip

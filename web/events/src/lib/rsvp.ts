@@ -33,6 +33,15 @@ export async function saveRsvp(eventId: string, me: string, current: MinimalRsvp
   refreshPending();
 }
 
+/**
+ * L’organisateur (ou un admin) note quelqu’un Présent / Peut-être / Absent, ou retire sa réponse (null).
+ * La base vérifie le droit, prévient la personne et l’inscrit au journal ; valable même après la date limite.
+ */
+export async function setRsvpFor(eventId: string, member: string, answer: RsvpStatus | null) {
+  const { error } = await supabase.rpc('set_rsvp_for', { event: eventId, member, answer });
+  if (error) throw new Error(friendlyRsvpError(error.message));
+}
+
 function friendlyRsvpError(message: string): string {
   if (/permission denied/i.test(message)) return 'Ta réponse n’a pas pu être enregistrée. Recharge la page puis réessaie.';
   return message;
@@ -40,7 +49,7 @@ function friendlyRsvpError(message: string): string {
 
 export const rsvpChoices: Record<RsvpStatus, { label: string; icon: string; fg: string; bg: string; dim: string; mine: string }> = {
   yes: { label: 'Présent', icon: '✓', fg: colors.onMint, bg: colors.mint, dim: colors.mintDim, mine: 'Présent' },
-  maybe: { label: 'Peut-être', icon: '!', fg: colors.onCoral, bg: colors.coral, dim: colors.coralDim, mine: 'Peut-être' },
+  maybe: { label: 'Peut-être', icon: '?', fg: colors.onCoral, bg: colors.coral, dim: colors.coralDim, mine: 'Peut-être' },
   no: { label: 'Absent', icon: '✕', fg: colors.onRed, bg: colors.red, dim: colors.redDim, mine: 'Absent' },
 };
 

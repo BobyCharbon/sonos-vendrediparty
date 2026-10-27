@@ -1,13 +1,22 @@
+import { Platform, type TextStyle } from 'react-native';
+
+// Même nuit violette que le reste de Party (app/static/style.css) : une seule app, un seul fond.
 export const colors = {
-  bg: '#0E0B16',
-  surface: '#1A1526',
-  surface2: '#241D35',
-  line: '#2E2A3D',
-  lineStrong: '#3A3550',
-  text: '#F4F1FA',
-  textSoft: '#D6D1E2',
-  muted: '#B5ADC7',
+  bg: '#15102A',
+  surface: '#221A3D',
+  surface2: '#2C2350',
+  line: '#2F2752',
+  lineStrong: '#3E3468',
+  text: '#F5F0FF',
+  textSoft: '#D9D2EE',
+  muted: '#B1A8CF',
   accent: '#FF4F9A',
+  // Fond des boutons principaux : le néon un ton plus profond, pour un texte blanc lisible (AA), comme dans Party.
+  action: '#D92A73',
+  onAction: '#FFFFFF',
+  // Remplissages translucides (boutons secondaires, puces, champs), façon iOS.
+  fill: 'rgba(255,255,255,0.07)',
+  fillStrong: 'rgba(255,255,255,0.12)',
   accentDim: '#3A1730',
   coral: '#FFB347',
   coralSoft: '#FFD099',
@@ -26,13 +35,18 @@ export const colors = {
   onRed: '#2B0A0C',
 };
 
-export const fonts = {
-  display: 'BricolageGrotesque_800ExtraBold',
-  body: 'Figtree_400Regular',
-  medium: 'Figtree_500Medium',
-  semibold: 'Figtree_600SemiBold',
-  bold: 'Figtree_700Bold',
-};
+// Police système (SF Pro sur iPhone, comme le reste de Party) ; Bricolage reste la voix des grands titres.
+const SYSTEM = Platform.OS === 'web'
+  ? '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif'
+  : undefined;
+export const font = {
+  display: { fontFamily: 'BricolageGrotesque_800ExtraBold' },
+  body: { fontFamily: SYSTEM, fontWeight: '400' },
+  medium: { fontFamily: SYSTEM, fontWeight: '500' },
+  semibold: { fontFamily: SYSTEM, fontWeight: '600' },
+  bold: { fontFamily: SYSTEM, fontWeight: '700' },
+} as const satisfies Record<string, TextStyle>;
+export type FontWeight = keyof typeof font;
 
 export const radius = { sm: 10, md: 14, lg: 20, pill: 999 };
 

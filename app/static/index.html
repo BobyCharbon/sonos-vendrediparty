@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#15102a">
   <title>Vendredi Party</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15,6 +15,10 @@
   <link rel="stylesheet" href="/static/heist.css">
   <link rel="stylesheet" href="/static/purity.css">
   <link rel="stylesheet" href="/static/likely.css">
+  <link rel="stylesheet" href="/static/debate.css">
+  <link rel="stylesheet" href="/static/ui.css">
+  <link rel="stylesheet" href="/static/music.css">
+  <link rel="stylesheet" href="/static/games.css">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=2">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v=2">
   <link rel="manifest" href="/static/manifest.json">
@@ -28,6 +32,7 @@
     <h1 id="appTitle" class="app-title">Musique</h1>
     <button type="button" id="nameChip" class="name-chip-top hidden" aria-label="Changer de prénom"></button>
   </header>
+  <div id="navBar" class="nav-bar" aria-hidden="true"><span id="navBarTitle">Musique</span></div>
 
   <section data-view="music">
   <div id="musicAdmin" class="admin-only"></div>
@@ -38,6 +43,7 @@
              placeholder="••••" autocomplete="one-time-code" required>
       <button>Entrer</button>
     </form>
+    <p id="pinHint" class="sub hidden" role="status"></p>
   </div>
 
   <div id="closed" class="hidden">
@@ -61,12 +67,16 @@
     <div class="card now" id="now"></div>
 
     <label class="card switch-row hidden" id="notifBox" style="margin-top:8px">
-      <span class="grow">🔔 Me prévenir quand mon titre passe<span class="artist" id="notifHelp" style="display:block;white-space:normal"></span></span>
+      <span class="row-ico" aria-hidden="true">🔔</span>
+      <span class="grow">Me prévenir quand mon titre passe<span class="artist" id="notifHelp" style="display:block;white-space:normal"></span></span>
       <input type="checkbox" class="switch" id="notifToggle">
     </label>
 
     <h2>Ajouter un titre</h2>
-    <input id="q" type="search" aria-label="Rechercher un titre ou coller un lien" placeholder="Titre, artiste… ou colle un lien (Spotify, Deezer, YouTube)" autocomplete="off" enterkeyhint="search">
+    <div class="search-field">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></svg>
+      <input id="q" type="search" aria-label="Rechercher un titre ou coller un lien (Spotify, Deezer, YouTube)" placeholder="Titre, artiste ou lien" autocomplete="off" enterkeyhint="search">
+    </div>
     <div id="results" class="list" style="margin-top:8px"></div>
 
     <h2>À venir <span id="count"></span></h2>
@@ -96,15 +106,21 @@
   </section>
 
   <!-- Réglages → « Invités, messages et notifications » (compte admin) : concerne toute la soirée. -->
-  <section data-view="host" class="hidden" aria-label="Invités, messages et notifications">
-    <button type="button" class="secondary" data-host-back>← Réglages</button>
+  <section data-view="host" class="nav-screen hidden" aria-labelledby="hostTitle">
+    <header class="nav-head">
+      <button type="button" class="nav-back" data-host-back aria-label="Retour aux Réglages"><svg viewBox="0 0 12 21" aria-hidden="true"><path d="M10.5 1.5 1.5 10.5l9 9"/></svg><span>Réglages</span></button>
+    </header>
+    <h1 class="screen-title" id="hostTitle">Invités et messages</h1>
     <div id="peopleAdmin" class="admin-only"></div>
     <div id="auditAdmin" class="admin-only"></div>
   </section>
 
   <!-- Réglages → « Mes stats de jeu » : un onglet par jeu, pour le seul titulaire du compte (Purify Test pour commencer). -->
-  <section data-view="stats" class="hidden" aria-label="Mes stats de jeu">
-    <button type="button" class="secondary" data-host-back>← Réglages</button>
+  <section data-view="stats" class="nav-screen hidden" aria-labelledby="statsTitle">
+    <header class="nav-head">
+      <button type="button" class="nav-back" data-host-back aria-label="Retour aux Réglages"><svg viewBox="0 0 12 21" aria-hidden="true"><path d="M10.5 1.5 1.5 10.5l9 9"/></svg><span>Réglages</span></button>
+    </header>
+    <h1 class="screen-title" id="statsTitle">Mes stats de jeu</h1>
     <div class="seg stats-tabs" role="tablist" aria-label="Jeux">
       <button type="button" role="tab" class="on" aria-selected="true" aria-controls="purityStats" data-stats-tab="purity">😈 Purify Test</button>
     </div>
@@ -160,7 +176,7 @@
     <button id="installClose" class="secondary" aria-label="Fermer">✕</button>
   </div>
 
-  <div id="installSheet" class="i-modal hidden" role="dialog" aria-modal="true" aria-labelledby="iTitle">
+  <div id="installSheet" class="i-modal hidden" role="dialog" aria-modal="true" aria-labelledby="iTitle" data-nav="sheet" data-nav-surface=".i-sheet" data-nav-close="#iLater">
     <div class="i-sheet">
       <div class="i-head">
         <img src="/static/apple-touch-icon.png?v=2" width="44" height="44" alt="">
@@ -185,6 +201,9 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
+<script src="/static/motion.js"></script>
+<script src="/static/nav.js"></script>
+<script src="/static/segmented.js"></script>
 <script src="/static/push.js"></script>
 <script src="/static/events-shell.js"></script>
 <script>
@@ -281,7 +300,7 @@ async function refresh() {
   if (s.now && s.now.title) {
     const n = s.now;
     $("now").innerHTML = `${img(n.art, false)}
-      <div style="min-width:0"><div class="artist">${s.state === "PLAYING" ? "▶︎ En cours" : "⏸ En pause"}</div>
+      <div style="min-width:0"><div class="now-state ${s.state === "PLAYING" ? "on" : ""}"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>${s.state === "PLAYING" ? "En cours" : "En pause"}</div>
       <div class="title">${esc(n.title)}</div><div class="artist">${esc(n.artist)}</div>
       ${n.by ? `<span class="by">ajouté par ${esc(n.by)}</span><br>` : ""}${spotifyLink(n.track_id)}</div>`;
   } else {
@@ -300,7 +319,7 @@ async function refresh() {
   $("spotifyQueueNote").classList.toggle("hidden", !["spotify", "spotify_sonos"].includes(s.source));
   $("count").textContent = s.upcoming_total ? `(${s.upcoming_total})` : "";
   $("upcoming").innerHTML = up.length
-    ? up.map((t) => trackHtml(t, t.rid && s.queue_editable !== false ? `<button class="danger" data-rid="${esc(t.rid)}" title="Retirer mon titre">✕</button>` : "")).join("")
+    ? up.map((t) => trackHtml(t, t.rid && s.queue_editable !== false ? `<button class="row-btn row-del" data-rid="${esc(t.rid)}" aria-label="Retirer « ${esc(t.title)} » de la file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button>` : "")).join("")
     : `<p class="empty">${["spotify", "spotify_sonos"].includes(s.source) ? "Aucun titre à venir renvoyé par Spotify" : "La file est vide, à toi de jouer !"}</p>`;
 }
 
@@ -327,6 +346,8 @@ async function changeName() {
 }
 $("nameChip").addEventListener("click", changeName);
 
+// Pages des Réglages : elles s'empilent par-dessus les Réglages (‹ Réglages, glisser depuis le bord, retour).
+const SUB_SCREENS = { host: "account", stats: "account" };
 // Les événements utilisent leur compte SMS ; les accès musique/jeux restent indépendants.
 function showTab(tab, eventTarget) {
   if (!["music", "games", "events", "feedback", "account", "host", "stats"].includes(tab)) tab = "music";
@@ -335,9 +356,13 @@ function showTab(tab, eventTarget) {
     if (document.body.dataset.tab) return toast("📅 Les événements arrivent bientôt");
     tab = "music";
   }
-  document.querySelectorAll("[data-view]").forEach((el) => el.classList.toggle("hidden", !el.dataset.view.split(" ").includes(tab)));
+  const under = SUB_SCREENS[tab], starting = !document.body.dataset.tab;
+  document.querySelectorAll("[data-view]").forEach((el) => {
+    const views = el.dataset.view.split(" ");
+    el.classList.toggle("hidden", !(views.includes(tab) || (under && views.includes(under))));
+  });
   document.querySelectorAll("#tabs [data-tab]").forEach((el) => {
-    const current = el.dataset.tab === (["host", "stats"].includes(tab) ? "account" : tab);  // pages des Réglages
+    const current = el.dataset.tab === (under || tab);  // pages des Réglages
     el.classList.toggle("on", current);
     if (current) el.setAttribute("aria-current", "page");
     else el.removeAttribute("aria-current");
@@ -345,6 +370,7 @@ function showTab(tab, eventTarget) {
   if (!["feedback", "account", "host", "stats"].includes(tab) && document.body.dataset.tab) fbTab = tab;
   document.body.dataset.tab = tab;  // la lumière de scène et le titre suivent l'onglet
   $("appTitle").textContent = ({ music: "Musique", games: "Jeux", events: "Événements", feedback: fbIsAdmin() ? "Retours" : "Ton avis", account: account ? "Réglages" : "Se connecter", host: "Invités et messages", stats: "Mes stats de jeu" })[tab];
+  $("navBarTitle").textContent = $("appTitle").textContent;
   store("vp_tab", tab);
   if (tab === "games") refreshGame();
   if (tab === "feedback") loadFeedback();
@@ -353,7 +379,13 @@ function showTab(tab, eventTarget) {
   if (tab === "stats") showStats();
   // Événements et Réglages partagent le même module (une seule connexion) : on change juste de page dedans.
   if (tab === "events") frameRoute(eventTarget || (frameAt === "/account" ? "/" : null));
-  if (tab === "account") frameRoute("/account");
+  if (tab === "account" || under) frameRoute("/account");
+  if (under) {
+    const screen = document.querySelector(`[data-view="${tab}"]`);
+    screen.scrollTop = 0;
+    Nav.open({ key: tab, kind: "screen", el: screen, surface: screen, animateIn: !starting,
+      under: () => document.querySelector(".events-panel"), close: () => showTab(under) });
+  } else Object.keys(SUB_SCREENS).forEach((key) => Nav.closed(key));
   scrollTo(0, 0);
 }
 // 🏆 Mes stats de jeu : un onglet par jeu ; chaque jeu enregistre son affichage dans STATS_TABS (purity.js…).
@@ -372,7 +404,12 @@ function showStats(name = statsTab) {
 document.addEventListener("click", (ev) => { const t = ev.target.closest("[data-stats-tab]"); if (t) showStats(t.dataset.statsTab); });
 // Boutons d'onglet seulement : le <body> porte aussi data-tab (sinon chaque toucher ramène en haut de page).
 document.addEventListener("click", (ev) => { const t = ev.target.closest("button[data-tab]"); if (t) showTab(t.dataset.tab); });
-document.addEventListener("click", (ev) => { if (ev.target.closest("[data-host-back]")) showTab("account"); });
+document.addEventListener("click", (ev) => {
+  if (!ev.target.closest("[data-host-back]")) return;
+  if (Nav.has(document.body.dataset.tab)) Nav.back();  // l'écran repart par la droite, comme sur iPhone
+  else showTab("account");
+});
+Nav.largeTitle($("appTitle"), $("navBar"));
 
 // 👤 Compte Party : le module Événements gère la connexion SMS et le profil ; ici on relie le compte aux jeux.
 let frameAt = null, frameReady = false, account = null;
@@ -391,11 +428,39 @@ function frameRoute(path) {
   frame.addEventListener("load", () => $("eventsLoading").classList.add("hidden"), { once: true });
   frame.src = "/events" + (frameAt === "/" ? "/" : frameAt);
 }
-function supabaseToken() {
+function storedSession() {
   try {
     const key = Object.keys(localStorage).find((k) => /^sb-.+-auth-token$/.test(k));
-    return key ? JSON.parse(localStorage.getItem(key))?.access_token || null : null;
+    return key ? { key, session: JSON.parse(localStorage.getItem(key)) } : null;
   } catch { return null; }
+}
+function supabaseToken() {
+  return storedSession()?.session?.access_token || null;
+}
+// Jeton de compte encore valide. Expiré (app rouverte après 1 h, module Événements pas chargé) : Party renouvelle
+// lui-même la session et la réécrit là où le module la garde (il relit ce stockage à chaque usage).
+// Jamais de jeton périmé envoyé au serveur. null : pas connecté, ou renouvellement impossible (hors ligne).
+const TOKEN_MARGIN = 60000;
+let tokenRenewal = null;
+function freshToken() {
+  const stored = storedSession();
+  const session = stored?.session;
+  if (!session?.access_token) return Promise.resolve(null);
+  // Date d'expiration inconnue : on ne peut pas savoir, le serveur jugera.
+  if (!session.expires_at || session.expires_at * 1000 - Date.now() > TOKEN_MARGIN) return Promise.resolve(session.access_token);
+  tokenRenewal ??= nativeFetch("/api/account/refresh", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refresh_token: session.refresh_token || "" }) })
+    .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+    .then((next) => {
+      tokenRenewal = null;
+      if (next?.access_token) {
+        try { localStorage.setItem(stored.key, JSON.stringify({ ...session, ...next })); } catch { /* stockage plein */ }
+        return next.access_token;
+      }
+      // Le module a pu renouveler la session entre-temps : on reprend la sienne si elle est valide.
+      const now = storedSession()?.session;
+      return now?.access_token && (now.expires_at || 0) * 1000 - Date.now() > TOKEN_MARGIN ? now.access_token : null;
+    });
+  return tokenRenewal;
 }
 function showAccount() {
   const tab = $("accountTab"), pic = tab.querySelector(".tab-avatar");
@@ -411,11 +476,34 @@ function useIdentity(id, name) {
   if (name) { guestName = name; store("vp_name", name); }
   if (changed) { registered = false; refresh(); if (typeof refreshGame === "function") refreshGame(); }
 }
-let linkedAt = 0, adminSession = false;
+let linkedAt = 0, adminSession = false, adminRenewal = null, adminFailedAt = 0;
+const ADMIN_RETRY = 30000;  // après un refus : pas de nouvelle demande avant 30 s (jamais de boucle)
+const nativeFetch = window.fetch.bind(window);
+// Session admin d'un compte root / admin : demandée avec le compte (sans code PIN), à chaque ouverture de l'app
+// et dès qu'un appel admin est refusé. Elle ne dépend jamais d'un passage par /admin. Une seule demande à la fois.
+function renewAdmin() {
+  if (!account?.admin || Date.now() - adminFailedAt < ADMIN_RETRY) return Promise.resolve(adminSession);
+  adminRenewal ??= freshToken().then((token) => !token ? false
+    : nativeFetch("/api/account/admin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) })
+      .then((r) => r.ok).catch(() => false))
+    .then((ok) => {
+      adminSession = ok; adminRenewal = null; adminFailedAt = ok ? 0 : Date.now();
+      fbSyncRole();
+      return ok;
+    });
+  return adminRenewal;
+}
+// Session admin perdue (cookie effacé, déconnexion depuis /admin, code PIN changé…) : tout appel admin refusé
+// la redemande une fois avec le compte, puis réessaie. Le compte admin garde ses accès dans tous les cas.
+window.fetch = async (input, init) => {
+  const r = await nativeFetch(input, init);
+  const path = typeof input === "string" ? input : "";
+  if (r.status !== 401 || !account?.admin || !/^\/api\/admin\/(?!login|logout)/.test(path)) return r;
+  return (await renewAdmin()) ? nativeFetch(input, init) : r;
+};
 async function linkAccount() {
   linkedAt = Date.now();
-  const token = supabaseToken();
-  if (!token) {
+  if (!supabaseToken()) {
     // Déconnecté : le téléphone reprend son identité d'invité.
     const anon = store("vp_guest_anon");
     if (account || guestId.startsWith("acct-")) { account = null; store("vp_account", ""); if (anon) useIdentity(anon); }
@@ -423,20 +511,38 @@ async function linkAccount() {
     setTimeout(fbSyncRole);
     return showAccount();
   }
+  const token = await freshToken();
+  if (!token) return showAccount();  // hors ligne : on garde l'identité actuelle, on réessaiera à la prochaine ouverture
   try {
     const a = await api("/api/account/link", { method: "POST", body: JSON.stringify({ token, guest_id: guestId }) });
     if (!guestId.startsWith("acct-")) store("vp_guest_anon", guestId);
-    account = a; store("vp_account", JSON.stringify({ name: a.name, photo: a.photo, beta: a.beta }));
+    account = a; store("vp_account", JSON.stringify({ name: a.name, photo: a.photo, beta: a.beta, admin: a.admin }));
     PartyEvents.setBeta(a.beta);
-    // Compte root ou admin : session admin de la soirée (animateur de toutes les parties, comme avec le code PIN).
-    if (a.admin && !adminSession) {
-      adminSession = true;
-      api("/api/account/admin", { method: "POST", body: JSON.stringify({ token }) }).then(() => { fbSyncRole(); if (typeof refreshGame === "function") refreshGame(); }).catch(() => { adminSession = false; fbSyncRole(); });
-    }
+    if (a.admin) { adminFailedAt = 0; renewAdmin().then((ok) => { if (ok && typeof refreshGame === "function") refreshGame(); }); }
+    else if (adminSession) { adminSession = false; fbSyncRole(); }  // droits admin retirés au compte
     useIdentity(a.guest_id, a.name);
-  } catch { /* hors ligne ou jeton expiré : on garde l'identité actuelle, le module rafraîchira la session */ }
+    eventPass(token);
+  } catch { /* hors ligne : on garde l'identité actuelle */ }
   showAccount();
 }
+// Soirée liée à un événement : noté « Présent », on entre sans le code. Revérifié régulièrement :
+// noté absent entre-temps, le serveur retire cet accès (le code reste possible).
+const EVENT_PASS_EVERY = 120000;
+async function eventPass(token) {
+  try {
+    const r = await fetch("/api/join/account", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
+    const data = await r.json().catch(() => ({}));
+    $("pinHint").textContent = r.status === 403 ? data.detail || "" : "";
+    $("pinHint").classList.toggle("hidden", r.status !== 403);
+    if (r.ok && !$("pin").classList.contains("hidden")) {
+      registered = false;
+      if (source) listen();
+      await refresh();
+      toast(`🎉 Bienvenue à « ${data.event_title} »`, "ok");
+    } else if (r.status === 403 && $("pin").classList.contains("hidden")) refresh();  // accès retiré : l'écran du code revient
+  } catch { /* hors ligne : on garde l'accès actuel */ }
+}
+setInterval(() => { if (supabaseToken()) freshToken().then((token) => token && eventPass(token)); }, EVENT_PASS_EVERY);
 try { account = JSON.parse(store("vp_account") || "null"); } catch { account = null; }
 showAccount();
 window.addEventListener("message", (event) => {
@@ -469,9 +575,14 @@ function fbBadge() {
   $("fbTabBadge").classList.toggle("hidden", !n);
 }
 // Rôle du compte (admin ou non) : onglet Retours, et pilotage de la musique dans l'onglet Musique.
+// Les outils admin sont chargés en bas de page : une session admin obtenue avant (réseau rapide) attend qu'ils
+// soient là, sinon ils ne se montaient jamais et le compte admin restait sans outils (bug du 26.10).
+const adminToolsReady = () => !!(window.MusicAdmin && window.PeopleAdmin && window.GamesAdmin && window.AuditAdmin && window.FeedbackAdmin);
+addEventListener("DOMContentLoaded", () => fbSyncRole());
 function fbSyncRole() {
   const admin = fbIsAdmin();
   document.body.classList.toggle("admin-music", admin);
+  if (!adminToolsReady()) return;
   if (admin && !musicAdminMounted) {
     musicAdminMounted = true;
     // Musique + messages / invités / bannis : un seul état partagé (chaque action de l'un met l'autre à jour).
@@ -604,7 +715,7 @@ $("q").addEventListener("input", () => {
       lastResults = await api("/api/search?q=" + encodeURIComponent(q));
       if ($("q").value.trim() !== q) return;
       $("results").innerHTML = lastResults.length
-        ? lastResults.map((t, i) => trackHtml({ ...t, artist: t.artist + (t.explicit ? " · 🅴" : "") + (t.via ? ` · 🔗 ${t.via}` : "") }, `<button data-i="${i}">+</button>`)).join("")
+        ? lastResults.map((t, i) => trackHtml({ ...t, artist: t.artist + (t.explicit ? " · 🅴" : "") + (t.via ? ` · 🔗 ${t.via}` : "") }, `<button class="row-btn row-add" data-i="${i}" aria-label="Ajouter « ${esc(t.title)} » à la file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button>`)).join("")
         : `<p class="empty">Aucun résultat</p>`;
     } catch (e) { toast(e.message, "err"); }
   }, 350);
@@ -614,7 +725,7 @@ $("results").addEventListener("click", async (ev) => {
   const btn = ev.target.closest("button[data-i]");
   if (!btn) return;
   const t = lastResults[+btn.dataset.i];
-  btn.disabled = true; btn.textContent = "…";
+  btn.disabled = true; btn.classList.add("busy");
   try {
     const added = await api("/api/queue", { method: "POST", body: JSON.stringify({ track_id: t.id, guest_id: guestId, guest_name: guestName }) });
     toast(`« ${t.title} » ${["spotify", "spotify_sonos"].includes(added.source) ? "envoyé à Spotify" : "ajouté à la file"} 🎶`, "ok");
@@ -625,7 +736,7 @@ $("results").addEventListener("click", async (ev) => {
     $("upcoming").scrollIntoView({ behavior: "smooth", block: "start" });
     refresh();
   } catch (e) {
-    btn.disabled = false; btn.textContent = "+";
+    btn.disabled = false; btn.classList.remove("busy");
     toast(e.message, "err");
   }
 });
@@ -877,7 +988,10 @@ setTimeout(offerInstall, 1500);
 let source, refreshTimer;
 
 // 🔄 Nouvelle version du site déployée : on recharge la page (tout de suite, ou au retour si elle est en arrière-plan).
-let siteBuild = "", reloadPending = false;
+// Version de référence = celle de la page réellement chargée (inscrite dans l'adresse de ses scripts), pas la première
+// reçue : une app installée réveillée après un déploiement gardait sinon l'ancien code (bug du 26.10).
+let siteBuild = (() => { try { return new URL(document.querySelector('script[src*="?v="]').src).searchParams.get("v") || ""; } catch { return ""; } })();
+let reloadPending = false;
 function checkBuild(data) {
   const build = String(data || "").split("|")[0];
   if (!build || !String(data).includes("|")) return;
@@ -908,6 +1022,7 @@ function listen() {
 }
 </script>
 <script src="/static/president.js"></script>
+<script src="/static/president-fx.js"></script>
 <script src="/static/neon.js"></script>
 <script src="/static/island.js"></script>
 <script src="/static/heist.js"></script>
@@ -921,5 +1036,6 @@ function listen() {
 <script src="/static/quiz.js"></script>
 <script src="/static/purity.js"></script>
 <script src="/static/likely.js"></script>
+<script src="/static/debate.js"></script>
 </body>
 </html>

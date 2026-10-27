@@ -76,6 +76,17 @@ def _next(s, after):
     return next(seats[(pos + n) % len(seats)] for n in range(1, len(seats) + 1) if seats[(pos + n) % len(seats)] in active)
 
 
+def _next_in_trick(s, after):
+    """Joueur suivant pour ce pli : ceux qui ont passé en sont sortis jusqu'au prochain pli."""
+    seats, live = s["seats"], [i for i in _active(s) if i not in s["passed"]]
+    pos = seats.index(after) if after in seats else -1
+    return next((seats[(pos + n) % len(seats)] for n in range(1, len(seats) + 1) if seats[(pos + n) % len(seats)] in live), None)
+
+
+def _everyone_else_passed(s, author):
+    return all(i == author or i in s["passed"] for i in _active(s))
+
+
 def _touch(s):
     s["revision"] += 1
 
@@ -84,11 +95,13 @@ def _token(s):
     return f"{s['deal']}:{s['revision']}"
 
 
-def _clear(g):
+def _clear(g, reason="passed", cards=()):
+    """Ramasse le pli. Le coup qui l'a fermé (2, famille, Président) est gardé pour que la table le montre."""
     s = g["president"]
     leader = s["pile"]["by"]
+    s["closed"] = {"key": f"{s['deal']}:{s['trick']}", "reason": reason, "by": leader, "cards": list(cards)}
     s["discard"].extend(s["pile"]["cards"])
-    s["pile"], s["passed"] = None, []
+    s["pile"], s["passed"], s["trail"] = None, [], []
     s["turn"] = leader if leader in _active(s) else _next(s, leader)
     s["trick"] += 1
     s["notice"] = f"Pli remporté par {_name(g, leader)}. {_name(g, s['turn'])} ouvre le suivant."
@@ -99,7 +112,10 @@ def _finish_if_needed(g):
     active = _active(s)
     if len(active) > 1:
         return False
-    s["finished"] += [i for i in active + list(reversed(s["departed"])) if i not in s["finished"]]
+    # Classement : ceux qui ont fini normalement, le dernier en jeu, ceux qui ont fini sur un 2 (le plus récent
+    # tout en bas : il pousse l'ancien Trou du cul d'un rang vers le haut), puis les abandons.
+    bottom = s.get("dunce", []) + list(reversed(s["departed"]))
+    s["finished"] += [i for i in active + bottom if i not in s["finished"]]
     for pos, gid in enumerate(s["finished"]):
         # Un abandon ne rapporte pas de points.
         pts = 0 if gid in s["departed"] else len(s["seats"]) - pos - 1
@@ -130,9 +146,9 @@ def start(g, rng=random):
     hands = {gid: sorted(cards[n::len(seats)], key=lambda c: (rank(c), c)) for n, gid in enumerate(seats)}
     s = {"hands": hands, "seats": seats, "names": {**previous.get("names", {}), **{p["id"]: p["name"] for p in players}},
          "pids": {p["id"]: p["pid"] for p in players}, "turn": None, "pile": None, "passed": [],
-         "finished": [], "departed": [], "discard": [], "scores": dict(previous.get("scores", {})),
+         "finished": [], "dunce": [], "departed": [], "discard": [], "scores": dict(previous.get("scores", {})),
          "roles": {gid: role(pos, len(order)) for pos, gid in enumerate(order)} if exchange else {},
-         "exchange": {}, "offered": {}, "deal": secrets.token_hex(8), "revision": 0, "trick": 1,
+         "exchange": {}, "offered": {}, "deal": secrets.token_hex(8), "revision": 0, "trick": 1, "trail": [],
          "notice": "Le 3 de trèfle donne la première main. Les jokers seuls valent des 3."}
     g["president"] = s
     g["round"] += 1
@@ -174,29 +190,71 @@ def _turn(g, gid, token):
     return s
 
 
+FAMILY = 4  # les quatre cartes d'une valeur (jokers joués comme elle compris)
+TRAIL = 5  # derniers coups du pli en cours montrés à la table (un nouveau pli repart de zéro)
+TWO = RANKS.index("2")  # un 2 (seul, double, triple, carré) ferme le pli : son auteur rouvre
+
+
 @serialized
 def play(g, gid, cards, token):
-    s = _turn(g, gid, token)
+    """Poser une combinaison. Même valeur et même nombre de cartes que le pli : autorisé, puis « … ou rien »
+    pour les suivants. Le coup qui complète la famille (4 cartes de la valeur) ramasse le pli, et son auteur
+    rouvre ; en double (paire sur paire), ce coup-là peut être joué par n'importe qui, même hors tour.
+    Un 2 ferme aussi le pli."""
+    s = _state(g)
+    if g["phase"] != "play" or gid not in _active(s):
+        raise PresidentError("Ce n'est pas ton tour")
+    if gid in s["passed"]:
+        raise PresidentError("Tu as passé : tu rejoueras au prochain pli")
+    if token != _token(s):
+        raise PresidentError("La table a changé. Vérifie les cartes avant de rejouer")
     hand = s["hands"][gid]
     if any(c not in hand for c in cards):
         raise PresidentError("Tu ne possèdes pas ces cartes")
     value = combination(cards)
     pile = s["pile"]
-    if pile and (len(cards) != len(pile["cards"]) or value <= pile["rank"]):
-        raise PresidentError("Pose le même nombre de cartes, d'une valeur strictement supérieure, ou passe")
+    same = bool(pile) and len(cards) == len(pile["cards"]) and value == pile["rank"]
+    family = pile.get("family", len(pile["cards"])) + len(cards) if same else len(cards)
+    completes = same and family >= FAMILY
+    if gid != s["turn"] and not (completes and len(cards) == 2):
+        raise PresidentError("Ce n'est pas ton tour (hors tour, on complète seulement une famille en double)")
+    if pile and not same:
+        if pile.get("locked"):
+            raise PresidentError(f"{RANKS[pile['rank']]} ou rien : pose la même valeur, ou passe")
+        if len(cards) != len(pile["cards"]) or value <= pile["rank"]:
+            raise PresidentError("Pose le même nombre de cartes, d'une valeur égale ou supérieure, ou passe")
     if pile:
         s["discard"].extend(pile["cards"])
     for c in cards:
         hand.remove(c)
-    s["pile"] = {"cards": list(cards), "rank": value, "by": gid}
-    s["passed"] = []
+    s["pile"] = {"cards": list(cards), "rank": value, "by": gid, "family": family, "locked": same}
+    s["trail"] = (s.get("trail", []) + [{"cards": list(cards), "rank": value, "by": gid}])[-TRAIL:]
     label = RANKS[value]
-    s["notice"] = f"{_name(g, gid)} pose {len(cards)} carte(s) de valeur {label}."
-    if not hand:
+    s["notice"] = f"{_name(g, gid)} pose {len(cards)} carte(s) de valeur {label}" + (f" : {label} ou rien." if same else ".")
+    if not hand and value == TWO:  # interdit de finir sur un 2 : Trou du cul
+        s["dunce"] = s.get("dunce", []) + [gid]
+        s["notice"] = f"{_name(g, gid)} finit sur un 2 : interdit, il sera Trou du cul !"
+    elif not hand:
         s["finished"].append(gid)
         s["notice"] = f"{_name(g, gid)} termine à la place {len(s['finished'])}."
     if not _finish_if_needed(g):
-        s["turn"] = _next(s, gid)
+        # On ne joue pas sur le Président : les dernières cartes du premier à terminer ferment le pli, le suivant
+        # ouvre. Sur ceux qui terminent ensuite, on peut encore jouer pareil ou au-dessus.
+        president_out = not hand and s["finished"] == [gid]
+        if completes or value == TWO or president_out or _everyone_else_passed(s, gid):
+            notice = s["notice"]
+            reason = "family" if completes else "two" if value == TWO else "president" if president_out else "passed"
+            _clear(g, reason, cards if reason != "passed" else ())
+            opener = _name(g, s["turn"])
+            if president_out:
+                s["notice"] = f"{notice} On ne joue pas sur le Président : {opener} ouvre le pli suivant."
+            elif gid in s.get("dunce", []):
+                s["notice"] = f"{notice} {opener} ouvre le pli suivant."
+            elif completes or value == TWO:
+                done = f"complète la famille de {label}" if completes else f"ferme le pli avec {len(cards)} × 2"
+                s["notice"] = f"{_name(g, gid)} {done} ! {opener} ouvre le pli suivant."
+        else:
+            s["turn"] = _next_in_trick(s, gid)
     _touch(s)
 
 
@@ -205,13 +263,27 @@ def pass_turn(g, gid, token):
     s = _turn(g, gid, token)
     if not s["pile"]:
         raise PresidentError("Tu ouvres le pli : choisis au moins une carte")
+    if s["pile"].get("locked"):
+        _lack(g, s, gid)
+        _touch(s)
+        return
     s["passed"].append(gid)
-    s["notice"] = f"{_name(g, gid)} passe."
-    if all(i == s["pile"]["by"] or i in s["passed"] for i in _active(s)):
+    s["notice"] = f"{_name(g, gid)} passe et attend le prochain pli."
+    if _everyone_else_passed(s, s["pile"]["by"]):
         _clear(g)
     else:
-        s["turn"] = _next(s, gid)
+        s["turn"] = _next_in_trick(s, gid)
     _touch(s)
+
+
+def _lack(g, s, gid):
+    """« … ou rien » ne vise que le joueur suivant. S'il n'a pas la valeur, il le dit (ce n'est pas un vrai passe,
+    il reste dans le pli) et la contrainte tombe : le suivant pose ce qu'il veut, la même valeur ou au-dessus."""
+    pile = s["pile"]
+    pile["locked"] = False
+    s["turn"] = _next_in_trick(s, gid)
+    label = RANKS[pile["rank"]]
+    s["notice"] = f"{_name(g, gid)} n'a pas de {label} : {_name(g, s['turn'])} pose {label} ou plus."
 
 
 @serialized
@@ -226,6 +298,10 @@ def exchange_cards(g, gid, cards, token):
         raise PresidentError(f"Choisis exactement {job['count']} carte(s) de ta main")
     s["offered"][gid] = list(cards)
     if len(s["offered"]) == len(s["exchange"]):
+        # Gardé pour l'animation des échanges au premier pli : qui donne combien à qui (public), et quelles cartes
+        # (chacun ne voit que les siennes).
+        s["swap"] = {"moves": [[sender, s["exchange"][sender]["to"], len(sel)] for sender, sel in s["offered"].items()],
+                     "cards": {sender: list(sel) for sender, sel in s["offered"].items()}}
         for sender, selected in s["offered"].items():
             for c in selected:
                 s["hands"][sender].remove(c)
@@ -252,15 +328,27 @@ def leave(g, gid):
         g["round"] -= 1
         return
     s["discard"].extend(s["hands"].pop(gid, []))
-    if gid not in s["finished"]:
+    if gid not in s["finished"] and gid not in s.get("dunce", []):
         s["departed"].append(gid)
     s["notice"] = f"{_name(g, gid)} quitte la manche. Ses cartes sont écartées."
     if not _finish_if_needed(g):
-        if s["pile"] and all(i == s["pile"]["by"] or i in s["passed"] for i in _active(s)):
+        if s["pile"] and _everyone_else_passed(s, s["pile"]["by"]):
             _clear(g)
         elif s["turn"] == gid:
-            s["turn"] = _next(s, gid)
+            s["turn"] = _next_in_trick(s, gid) or _next(s, gid)
     _touch(s)
+
+
+def _swap_view(g, s, gid, pid):
+    """Échanges de la donne, montrés (et animés) pendant le premier pli seulement."""
+    swap = s.get("swap")
+    if not swap or g["phase"] != "play" or s.get("trick") != 1:
+        return None
+    cards = swap["cards"]
+    return {"key": s["deal"], "moves": [{"from": pid(a), "to": pid(b), "count": n} for a, b, n in swap["moves"]],
+            "gave": [card_view(c) for c in cards.get(gid, [])],
+            "got": [card_view(c) for a, b, _ in swap["moves"] if b == gid for c in cards.get(a, [])],
+            "from": next((_name(g, a) for a, b, _ in swap["moves"] if b == gid), "")}
 
 
 @serialized
@@ -273,6 +361,7 @@ def view(g, gid):
     for i in s.get("seats", []):
         place = order.index(i) + 1 if i in order else None
         seats.append({"pid": pid(i), "name": _name(g, i), "count": len(s.get("hands", {}).get(i, [])),
+                      "dunce": i in s.get("dunce", []),
                       "me": i == gid, "turn": s.get("turn") == i, "passed": i in s.get("passed", []),
                       "place": place, "departed": i in s.get("departed", []), "role": s.get("roles", {}).get(i),
                       "points": s.get("scores", {}).get(i, 0)})
@@ -280,8 +369,14 @@ def view(g, gid):
     out = {"seats": seats, "hand": [card_view(c) for c in s.get("hands", {}).get(gid, [])] if gid in live else [],
            "turn": pid(s.get("turn")), "my_turn": g["phase"] == "play" and s.get("turn") == gid,
            "pile": {"cards": [card_view(c) for c in pile["cards"]], "rank": RANKS[pile["rank"]], "value": pile["rank"],
-                    "name": _name(g, pile["by"])} if pile else None,
+                    "name": _name(g, pile["by"]), "family": pile.get("family", len(pile["cards"])),
+                    "locked": bool(pile.get("locked"))} if pile else None,
            "token": _token(s) if s.get("deal") else "", "trick": s.get("trick", 0),
+           "trail": [{"name": _name(g, t["by"]), "pid": pid(t["by"]), "cards": [card_view(c) for c in t["cards"]],
+                      "rank": RANKS[t["rank"]]} for t in s.get("trail", [])],
+           "swap": _swap_view(g, s, gid, pid),
+           "closed": {"key": c["key"], "reason": c["reason"], "pid": pid(c["by"]), "name": _name(g, c["by"]),
+                      "cards": [card_view(x) for x in c["cards"]]} if (c := s.get("closed")) else None,
            "notice": s.get("notice", ""), "exchange": None,
            "ranking": [{"pid": pid(i), "name": _name(g, i), "me": i == gid, "place": pos + 1,
                         "role": role(pos, len(order)), "points": s.get("scores", {}).get(i, 0),

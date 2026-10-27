@@ -1,17 +1,17 @@
 import { BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-grotesque';
-import { Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold, Figtree_700Bold } from '@expo-google-fonts/figtree';
 import { useFonts } from 'expo-font';
 import { DarkTheme, router, Stack, ThemeProvider, usePathname, type ErrorBoundaryProps, type Href } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { Button, ErrorText, Loading, Screen, T, Title } from '@/components/ui';
+import { Button, ErrorText, HeaderBack, Loading, Screen, T, Title } from '@/components/ui';
+import { useEdgeSwipeBack } from '@/lib/edgeSwipe';
 import { usePendingSync } from '@/lib/pending';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { ShellSafeArea } from '@/lib/shellInsets';
-import { colors, fonts } from '@/lib/theme';
+import { colors, font } from '@/lib/theme';
 
 const theme = {
   ...DarkTheme,
@@ -36,8 +36,13 @@ function PendingSync({ me }: { me: string }) {
   return null;
 }
 
+/** Titre de l’écran précédent pour le bouton ‹ (les onglets internes s’appellent « Événements »). */
+function backLabel(label?: string) {
+  return label && !label.startsWith('(') ? label : label?.startsWith('(') ? 'Événements' : 'Retour';
+}
+
 const intentKey = 'party-events-destination';
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit)?|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|activity|announcements|account|settings\/(?:notifications|subscriptions))$/i;
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit)?|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|activity|announcements|account|settings\/(?:notifications|subscriptions|profile))$/i;
 function initialDestination() {
   if (typeof window === 'undefined') return null;
   const path = location.pathname.replace(/^\/events(?=\/|$)/, '');
@@ -58,6 +63,7 @@ function Gate() {
   const intent = useRef(initialIntent);
   const [asked, setAsked] = useState(0);
   const shared = useRef<string | null>(null);
+  useEdgeSwipeBack();
   // Page Party autour du module : elle demande une page (onglet Événements ou Réglages) et suit la connexion.
   useEffect(() => {
     if (typeof window === 'undefined' || window.parent === window) return;
@@ -123,10 +129,14 @@ function Gate() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.bg },
         headerTintColor: colors.text,
-        headerTitleStyle: { fontFamily: fonts.bold },
+        headerTitleStyle: { ...font.bold },
         headerShadowVisible: false,
+        headerTitleAlign: 'center',
         contentStyle: { backgroundColor: colors.bg },
-        headerBackTitle: 'Retour',
+        // ‹ et nom de l’écran précédent, comme sur iPhone (la liste s’appelle « Événements »).
+        headerLeft: ({ canGoBack, label }) => (canGoBack
+          ? <HeaderBack label={backLabel(label)} onPress={() => router.back()} />
+          : undefined),
       }}
     >
       <Stack.Protected guard={!!session && active}>
@@ -154,7 +164,8 @@ function Gate() {
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />
       </Stack.Protected>
       <Stack.Protected guard={!!session}>
-        <Stack.Screen name="account" options={{ headerShown: false }} />
+        <Stack.Screen name="account" options={{ headerShown: false, title: 'Réglages' }} />
+        <Stack.Screen name="settings/profile" options={{ title: 'Mon profil' }} />
         <Stack.Screen name="settings/account" options={{ title: 'Mon compte' }} />
       </Stack.Protected>
       <Stack.Screen name="share/[id]" options={{ title: '' }} />
@@ -165,13 +176,7 @@ function Gate() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
-    BricolageGrotesque_800ExtraBold,
-    Figtree_400Regular,
-    Figtree_500Medium,
-    Figtree_600SemiBold,
-    Figtree_700Bold,
-  });
+  const [fontsLoaded] = useFonts({ BricolageGrotesque_800ExtraBold });
 
   return (
     <SafeAreaProvider>

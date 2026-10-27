@@ -22,7 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
 
-from . import calendar_ics, games, heist, island, likely, links, neon, president, purity, quiz
+from . import calendar_ics, debate, games, heist, island, likely, links, neon, president, purity, quiz
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
 from .audit import AuditLog
@@ -890,6 +890,7 @@ def admin_state():
                             "premium": spotify_user.data.get("premium", True)} if spotify_user else None,
         "admin_notify": s.admin_notify,
         "games": [games.summary(g) for g in (prune_games() or s.games).values()],
+        "event": {"id": s.event_id, "title": s.event_title} if s.event_id else None,
     }
     if s.active:
         try:
@@ -1092,7 +1093,8 @@ class GameCreate(BaseModel):
     plays: bool = True  # l'animateur joue aussi (sinon : maître du jeu, il voit les rôles)
     mode: str = "soft"  # Qui de nous ? : soft | awkward | hot | mix
     sips: int = 0  # Qui de nous ? : gorgées pour la personne désignée
-    cats: list[str] = []  # Le Divan : catégories de cartes
+    cats: list[str] = []  # Le Divan : catégories de cartes ; Pour ou contre : thèmes
+    public: bool = False  # Pour ou contre : prénoms affichés sur l'échelle à la révélation
     floors: int = 5  # Pyramide : nombre d'étages (5 à 8)
     pmode: str = "hard"  # Pyramide : soft (1 gorgée par carte) | hard (1, 2, 3, 4)
     boat: bool = True  # Pyramide : phase du bateau à la fin
@@ -1119,7 +1121,6 @@ def require_account(token: str, guest_id: str, ip: str):
     try:
         account = accounts.link(token)
     except AccountError as e:
-        account_limiter.fail(ip)
         raise HTTPException(401, str(e))
     account_limiter.success(ip)
     if account["guest_id"] != guest_id:
@@ -1173,6 +1174,11 @@ def build_game(body: GameCreate) -> dict:
         try:
             likely.configure(g, {"packs": body.cats or ["family"], "sips": min(g["options"]["sips"], likely.MAX_SIPS)})
         except likely.LikelyError as e:
+            raise HTTPException(400, str(e))
+    if body.type == "debate":
+        try:
+            debate.configure(g, {"themes": body.cats or list(debate.DEFAULT_THEMES), "public": body.public})
+        except debate.DebateError as e:
             raise HTTPException(400, str(e))
     if body.type == "divan" and body.cats:
         try:
@@ -1283,6 +1289,9 @@ def presence(body: Presence, request: Request):
 
 
 accounts = Accounts(_secret())
+# Ne compte que les vrais refus (compte sans droit admin). Un jeton expiré ou invalide n'est jamais compté :
+# un jeton Supabase ne se devine pas, et l'app rouverte après 1 h en présente un périmé. Compté, il bloquait
+# l'adresse de toute la maison (box partagée) et le compte root ne devenait plus admin (bug du 26.10).
 account_limiter = Limiter(per_ip=10, ip_lock=300, global_max=200, global_window=600, global_lock=120)
 
 
@@ -1303,7 +1312,6 @@ def account_link(body: AccountLink, request: Request):
     try:
         account = accounts.link(body.token)
     except AccountError as e:
-        account_limiter.fail(ip)
         raise HTTPException(401, str(e))
     account_limiter.success(ip)
     log_account_link(account, ip)
@@ -1340,6 +1348,76 @@ class AccountToken(BaseModel):
     token: str
 
 
+class SessionRefresh(BaseModel):
+    refresh_token: str = Field(min_length=1, max_length=512)
+
+
+@app.post("/api/account/refresh")
+def account_refresh(body: SessionRefresh, request: Request):
+    """Session de compte expirée (app rouverte après 1 h, module Événements pas chargé) : Party la renouvelle
+    lui-même, sinon le compte ne serait plus reconnu (ni admin) avant d'ouvrir l'onglet Événements."""
+    if msg := account_limiter.blocked(client_ip(request)):
+        raise HTTPException(429, msg)
+    try:
+        return accounts.refresh(body.refresh_token)
+    except AccountError as e:
+        raise HTTPException(401, str(e))
+
+
+class EventLink(BaseModel):
+    event_id: str = Field("", pattern=r"^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$")
+    title: str = Field("", max_length=120)
+
+
+@app.post("/api/admin/event/options", dependencies=[Depends(require_admin)])
+def admin_event_options(body: AccountToken):
+    """Événements du jour et à venir que le compte de l'hôte voit : on peut en lier un à la soirée."""
+    if not 20 < len(body.token) < 4096:
+        raise HTTPException(400, "Jeton invalide")
+    try:
+        return accounts.upcoming_events(body.token)
+    except AccountError as e:
+        raise HTTPException(401, str(e))
+
+
+@app.post("/api/admin/event", dependencies=[Depends(require_admin)])
+def admin_event(body: EventLink, request: Request):
+    """Lie la soirée à un événement (ses comptes notés « Présent » entrent sans le code), ou la délie (vide)."""
+    title = " ".join(body.title.split()) if body.event_id else ""
+    with GAMES_LOCK, store.lock:
+        store.session.event_id, store.session.event_title = body.event_id, title
+        if not body.event_id:  # délier : les accès sans code donnés pour l'ancien événement tombent
+            store.session.revoked = (store.session.revoked + list(store.session.event_passes.values()))[-500:]
+            store.session.event_passes = {}
+        store.save()
+    log_admin(request, "admin.event", details={"title": title or "aucun"})
+    return admin_state()
+
+
+@app.post("/api/join/account")
+def guest_join_account(body: AccountToken, request: Request, response: Response):
+    """Soirée liée à un événement : un compte noté « Présent » (pas en liste d'attente) entre sans le code.
+    L'app revérifie régulièrement : noté absent entre-temps, son accès sans code est révoqué."""
+    ip = client_ip(request)
+    if msg := account_limiter.blocked(ip):
+        raise HTTPException(429, msg)
+    s = store.session
+    if not (s.active and s.event_id):
+        raise HTTPException(409, "Aucune soirée liée à un événement : entre le code de la soirée.")
+    if not 20 < len(body.token) < 4096:
+        raise HTTPException(400, "Jeton invalide")
+    try:
+        uid, present = accounts.attending(body.token, s.event_id)
+    except AccountError as e:
+        raise HTTPException(401, str(e))
+    account_limiter.success(ip)
+    nonce = store.event_pass(uid, present)
+    if nonce is None:
+        raise HTTPException(403, f"Tu n'es pas noté présent à « {s.event_title} » : entre le code de la soirée.")
+    set_auth_cookie(request, response, "vp_guest", _guest_cookie(nonce), "lax")
+    return {"ok": True, "event_title": s.event_title}
+
+
 @app.post("/api/account/admin")
 def account_admin(body: AccountToken, request: Request, response: Response):
     """Compte Party root ou admin (droits « Ouvrir la page admin » + « Réglages du site ») : session admin sans code PIN."""
@@ -1354,7 +1432,6 @@ def account_admin(body: AccountToken, request: Request, response: Response):
         allowed = accounts.is_party_admin(body.token)
         who = accounts.link(body.token)
     except AccountError as e:
-        account_limiter.fail(ip)
         raise HTTPException(401, str(e))
     name = who["name"] or "Compte sans surnom"
     if not allowed:
@@ -1493,15 +1570,20 @@ class GameAction(BaseModel):
 
 
 PURITY_ONLY = {"puset", "puans", "pusub", "puunsub", "pureveal"}
-# « Qui est le plus… ? » : le téléphone de l'animateur fait voter chacun à son tour (lkvote, avec who = votant).
+# « Qui est le plus… ? » : chacun vote sur son téléphone ; celui de l'animateur fait voter les participants sans
+# téléphone (lkvote, avec who = votant) et passe un absent (lkskip, avec target).
 LIKELY_ONLY = {"lkset", "lkvote", "lkskip", "lkswap"}
 LIKELY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "addguest", "up", "down"} | LIKELY_ONLY
+# « Pour ou contre » : vote sur 5 crans (dbvote, amount = cran, who = votant sans téléphone), revote décidé par
+# l'animateur, dilemmes proposés par les joueurs (dbpropose, guess = texte) et validés par l'animateur (amount = numéro).
+DEBATE_ONLY = {"dbset", "dbvote", "dbskip", "dbswap", "dbrevote", "dbpropose", "dbaccept", "dbrefuse"}
+DEBATE_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "addguest", "up", "down"} | DEBATE_ONLY
 PURITY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end"} | PURITY_ONLY
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
 HOST_ACTIONS = {"puset", "pureveal","ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
                 "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover", "nset", "hset",
-                "lkset", "lkskip", "lkswap"}
+                "lkset", "lkskip", "lkswap", "dbset", "dbskip", "dbswap", "dbrevote", "dbaccept", "dbrefuse"}
 
 
 @app.post("/api/games/{code}")
@@ -1538,6 +1620,10 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     if g["type"] == "likely" and a not in LIKELY_ACTIONS:
         raise HTTPException(400, "Action indisponible dans ce jeu")
     if g["type"] != "likely" and a in LIKELY_ONLY:
+        raise HTTPException(400, "Action inconnue")
+    if g["type"] == "debate" and a not in DEBATE_ACTIONS:
+        raise HTTPException(400, "Action indisponible dans ce jeu")
+    if g["type"] != "debate" and a in DEBATE_ONLY:
         raise HTTPException(400, "Action inconnue")
     # Cible d'un vote : un joueur (pid) ; pour « Je n'ai jamais », une réponse (yes / no).
     target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino", "pyramid", "biskit") else "")
@@ -1597,8 +1683,12 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "qpause": (quiz.pause, actor, games.is_lead(g, me) or len(g["players"]) <= 1, random),
         "puset": (purity.configure, body.settings), "puans": (purity.answer, me, body.amount, body.done),
         "pusub": (purity.submit, me), "puunsub": (purity.unsubmit, me), "pureveal": (games.purity_reveal,),
-        "lkset": (likely.configure, body.settings), "lkvote": (games.lk_vote, actor, target),
-        "lkskip": (games.lk_skip,), "lkswap": (games.lk_swap, random),
+        "lkset": (likely.configure, body.settings), "lkvote": (games.lk_vote, actor, target, me),
+        "lkskip": (games.lk_skip, target), "lkswap": (games.lk_swap, random),
+        "dbset": (debate.configure, body.settings), "dbvote": (games.db_vote, actor, body.amount if "amount" in body.model_fields_set else None, me),
+        "dbskip": (games.db_skip, target), "dbswap": (games.db_swap, random), "dbrevote": (games.db_revote,),
+        "dbpropose": (games.db_propose, me, body.guess), "dbaccept": (games.db_accept, body.amount),
+        "dbrefuse": (games.db_refuse, body.amount),
     }
     if g["type"] == "quiz" and a == "next":
         actions["next"] = (quiz.next_step, random, body.guess)
@@ -1608,7 +1698,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     try:
         action_result = fn(g, *args)
     except (games.GameError, quiz.QuizError, purity.PurityError, president.PresidentError, neon.NeonError, island.IslandError,
-            heist.HeistError, likely.LikelyError) as e:
+            heist.HeistError, likely.LikelyError, debate.DebateError) as e:
         raise HTTPException(409, str(e))
     g["updated_at"] = time.time()
     # Salle de jeux : rejoindre, quitter, exclure ou passer la main vaut aussi pour le jeu en cours (et inversement).
@@ -1627,12 +1717,10 @@ def perform_game_action(code: str, body: GameAction, request: Request):
             elif a == "ban" and target:
                 games.ban(other, target)
             elif a == "handover" and target:
-                # Le nouvel animateur l'est aussi de l'autre (salle ou jeu) ; l'ancien quitte les deux.
+                # Le nouvel animateur l'est aussi de l'autre (salle ou jeu) ; l'ancien y reste joueur.
                 other["host"], other["host_name"] = target, g["host_name"]
                 if me in other.get("leads", []):
                     other["leads"].remove(me)
-                if games.player(other, me):
-                    games.leave(other, me)
             elif a == "addguest" and g["type"] == "room" and other["type"] in games.MANUAL_GAMES:
                 games.add_guest(other, body.guess, action_result["id"])
         except games.GameError:
@@ -1660,7 +1748,6 @@ def purity_me(body: AccountToken, request: Request):
     try:
         gid = accounts.verified_gid(body.token)
     except AccountError as e:
-        account_limiter.fail(ip)
         raise HTTPException(401, str(e))
     account_limiter.success(ip)
     return purity.profile(gid)
@@ -2188,6 +2275,32 @@ def admin_page():
     return page("admin.html")
 
 
+@app.get("/tv")
+def tv_page():
+    return page("tv.html")
+
+
+TV_UPCOMING = 6  # prochains titres lisibles de loin sur la télé
+
+
+@app.get("/api/tv", dependencies=[Depends(require_admin)])
+def tv_state():
+    """Écran TV de l'hôte (Apple TV via AirPlay) : titre en cours, prochaines demandes et qui les a faites,
+    code et QR pour entrer, événement lié, parties de jeu en cours. Réservé à l'hôte : il affiche le code."""
+    s = store.session
+    base = {"active": s.active, "pin": s.guest_pin, "url": guest_url(), "event": s.event_title or None,
+            "games": [{"code": g["code"], "name": g["name"], "players": len(g["players"])}
+                      for g in map(games.summary, (prune_games() or s.games).values())]}
+    if not s.active:
+        return base
+    try:
+        music = public_sonos(snapshot())
+    except Exception:
+        return {**base, "error": "La musique est injoignable pour le moment"}
+    return {**base, "room": s.room_name, "state": music["state"], "now": music["now"],
+            "upcoming": [{k: t[k] for k in ("title", "artist", "art", "by")} for t in music["upcoming"][:TV_UPCOMING]]}
+
+
 @app.get("/api/calendar.ics")
 def calendar_file(
     uid: str = Query(max_length=36),
@@ -2250,6 +2363,41 @@ def events_web(resource: str):
 def service_worker():
     # À la racine du site : le service worker couvre la page invités et l'admin.
     return FileResponse(STATIC / "sw.js", media_type="text/javascript", headers=NO_CACHE)
+
+
+# Apps iOS natives (ios/) : identifiant d'équipe Apple + identifiant de l'app (pas un secret).
+# VendrediParty (App Store) pour le site principal, VendrediPartyBETA (TestFlight) pour le site de test.
+IOS_APP_ID = "GS2B6GA9JA.ch.bobycharbon.party"
+IOS_BETA_APP_ID = "GS2B6GA9JA.ch.bobycharbon.party.beta"
+TEST_SITE_HOST = "partytest.bobycharbon.ch"
+
+
+@app.get("/.well-known/apple-app-site-association")
+def apple_app_site_association():
+    # Liens universels : un QR code ou un lien Party ouvre l'app iOS si elle est installée, sinon le site.
+    beta = urlparse(configured_public_url()).hostname == TEST_SITE_HOST
+    app_id = IOS_BETA_APP_ID if beta else IOS_APP_ID
+    return JSONResponse({"applinks": {"details": [{"appIDs": [app_id], "components": [{"/": "/*"}]}]}},
+                        headers=NO_CACHE)
+
+
+# Apps Android (android/, Trusted Web Activity) : empreintes SHA-256 des certificats qui signent l'app.
+# Clé d'envoi (APK installés à la main) + clé de signature Google Play (à ajouter quand Play Console la donne).
+# Sans ce fichier, Chrome affiche une barre d'adresse en haut de l'app.
+ANDROID_UPLOAD_KEY_SHA256 = ("89:0B:78:22:B0:04:63:38:60:AD:9B:0F:D4:6D:08:04:"
+                             "2E:52:FF:3A:06:CC:5F:FD:1B:16:A0:DA:6F:0A:D4:73")
+ANDROID_PLAY_SIGNING_SHA256: tuple[str, ...] = ()
+
+
+@app.get("/.well-known/assetlinks.json")
+def android_asset_links():
+    beta = urlparse(configured_public_url()).hostname == TEST_SITE_HOST
+    package = "ch.bobycharbon.party.beta" if beta else "ch.bobycharbon.party"
+    return JSONResponse([{
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {"namespace": "android_app", "package_name": package,
+                   "sha256_cert_fingerprints": [ANDROID_UPLOAD_KEY_SHA256, *ANDROID_PLAY_SIGNING_SHA256]},
+    }], headers=NO_CACHE)
 
 
 class NeonInput(BaseModel):

@@ -2,9 +2,10 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 
+import { AttendanceEditor } from '@/components/AttendanceEditor';
 import { CalendarButton } from '@/components/CalendarButton';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
-import { Badge, Button, Card, ConfirmButton, ErrorText, Loading, Screen, s, Section, T, Title } from '@/components/ui';
+import { Badge, Button, Card, ConfirmButton, ErrorText, HeaderAction, HeaderBack, Loading, Screen, s, Section, T, Title } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { useQuery, useRealtime } from '@/lib/data';
 import { formatLongDay, formatMessageTime, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
@@ -138,13 +139,12 @@ export default function EventScreen() {
       <Stack.Screen
         options={{
           title: '',
-          headerLeft: router.canGoBack()
-            ? undefined
-            : () => <Button small variant="ghost" label="‹ Événements" onPress={() => router.replace('/')} />,
+          // Ouvert par un lien (rien derrière) : ‹ Événements ramène à la liste ; sinon le ‹ commun de la pile.
+          ...(router.canGoBack() ? {} : { headerLeft: () => <HeaderBack label="Événements" onPress={() => router.replace('/')} /> }),
           headerRight: () => (
             <View style={s.row}>
-              {published ? <Button small variant="ghost" label={data.muted ? '🔕 Réactiver' : '🔔 Sourdine'} onPress={toggleMute} /> : null}
-              {canEdit ? <Button small variant="secondary" label="Modifier" onPress={() => router.push(`/event/${ev.id}/edit`)} /> : null}
+              {published ? <HeaderAction label={data.muted ? '🔕 Réactiver' : '🔔 Sourdine'} onPress={toggleMute} /> : null}
+              {canEdit ? <HeaderAction prominent label="Modifier" onPress={() => router.push(`/event/${ev.id}/edit`)} /> : null}
             </View>
           ),
         }}
@@ -258,6 +258,9 @@ export default function EventScreen() {
       ) : null}
 
       {ev.date_mode === 'fixed' && published ? <ParticipantsSection event={ev} me={me.id} rsvps={ev.rsvps} names={data.names} /> : null}
+      {ev.date_mode === 'fixed' && published && canManage ? (
+        <AttendanceEditor event={ev} rsvps={ev.rsvps} names={data.names} me={me.id} onChange={reload} />
+      ) : null}
 
       {ev.polls
         .sort((a, b) => a.sort - b.sort)

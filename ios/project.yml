@@ -1,0 +1,69 @@
+# Projet Xcode de l'app iOS « Party ! » — généré par XcodeGen (brew install xcodegen ; cd ios ; xcodegen).
+# Le fichier Party.xcodeproj n'est pas versionné : on le régénère depuis ce fichier.
+name: Party
+options:
+  bundleIdPrefix: ch.bobycharbon
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.9"
+    # Identifiant d'équipe Apple Developer.
+    DEVELOPMENT_TEAM: GS2B6GA9JA
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  Party:
+    type: application
+    platform: iOS
+    sources:
+      - path: Party
+    info:
+      path: Party/Info.plist
+      properties:
+        CFBundleDisplayName: "$(PARTY_DISPLAY_NAME)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        PartyBaseURL: "$(PARTY_BASE_URL)"
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UIStatusBarStyle: UIStatusBarStyleLightContent
+        UIViewControllerBasedStatusBarAppearance: false
+        UIUserInterfaceStyle: Dark
+        UIBackgroundModes: [remote-notification]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        NSCameraUsageDescription: "Pour prendre une photo de profil ou d'événement."
+        NSPhotoLibraryUsageDescription: "Pour choisir une photo de profil ou d'événement."
+        NSMicrophoneUsageDescription: "Pour les jeux qui utilisent le micro."
+        ITSAppUsesNonExemptEncryption: false
+    entitlements:
+      path: Party/Party.entitlements
+      properties:
+        aps-environment: development
+        com.apple.developer.associated-domains:
+          - applinks:$(PARTY_HOST)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ch.bobycharbon.party$(PARTY_BUNDLE_SUFFIX)
+        PARTY_BASE_URL: "https://$(PARTY_HOST)"
+        # iPhone seulement : sur iPad, l'app tourne en mode compatible (pas de captures iPad à fournir).
+        # Au niveau de la cible : le préréglage XcodeGen d'une app iOS impose sinon "1,2".
+        TARGETED_DEVICE_FAMILY: "1"
+      configs:
+        # Deux apps distinctes (identifiant, nom, icône, site) :
+        # Debug = VendrediPartyBETA (site de test, develop), Release = VendrediParty (site principal, main).
+        # Le workflow TestFlight passe ces mêmes réglages en ligne de commande pour archiver la BETA en Release.
+        Debug:
+          PARTY_BUNDLE_SUFFIX: ".beta"
+          PARTY_HOST: partytest.bobycharbon.ch
+          PARTY_DISPLAY_NAME: "Party BETA"
+          ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon-Beta
+        Release:
+          PARTY_BUNDLE_SUFFIX: ""
+          PARTY_HOST: party.bobycharbon.ch
+          PARTY_DISPLAY_NAME: "Party !"
+          ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

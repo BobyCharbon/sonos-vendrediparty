@@ -1,12 +1,10 @@
-"""« Qui est le plus… ? » — un seul téléphone qui tourne autour de la table.
+"""« Qui est le plus… ? » — chacun désigne quelqu'un en secret (soi-même compris).
 
-Le téléphone affiche une question ; il passe de main en main et chacun désigne quelqu'un en secret (soi-même compris).
-Quand tout le monde a voté (ou a été passé), le téléphone révèle la personne la plus désignée : elle prend un point,
-ou boit ses gorgées si l'option alcool est active. En cas d'égalité, tous les ex æquo sont désignés.
-Après le nombre de questions choisi, podium de la partie.
-
-Le téléphone de l'animateur fait voter tout le monde (participants ajoutés à la main ou non) ; un joueur qui a son
-propre téléphone peut aussi voter dessus quand vient son tour. Qui a voté pour qui n'est jamais montré.
+Une question s'affiche ; tous ceux qui ont leur téléphone votent en même temps, chacun sur le sien, une seule fois.
+Les participants sans téléphone (ajoutés à la main) votent sur le téléphone de l'animateur, qu'on leur passe dans
+l'ordre de la table. Quand tout le monde a voté (ou a été passé), on révèle la personne la plus désignée : elle prend
+un point, ou boit ses gorgées si l'option alcool est active. En cas d'égalité, tous les ex æquo sont désignés.
+Après le nombre de questions choisi, podium de la partie. Qui a voté pour qui n'est jamais montré.
 
 Module autonome et testable (mêmes conventions que quiz.py et purity.py) : il ne connaît que la partie `g` ;
 les gorgées, l'ordre des joueurs et les droits d'animateur restent dans games.py et main.py.
@@ -86,32 +84,49 @@ def _present(g: dict) -> set[str]:
     return {p["id"] for p in g["players"]}
 
 
-def voter(g: dict) -> str | None:
-    """À qui passer le téléphone : le premier joueur, dans l'ordre de la table, qui n'a ni voté ni été passé."""
+def _manual(g: dict) -> set[str]:
+    return {p["id"] for p in g["players"] if p.get("manual")}
+
+
+def waiting(g: dict) -> list[str]:
+    """Ceux qui n'ont encore ni voté ni été passés, dans l'ordre de la table."""
     S = state(g)
     if g["phase"] != "ask":
-        return None
+        return []
     here = _present(g)
-    return next((v for v in S["voters"] if v in here and v not in S["votes"] and v not in S["skipped"]), None)
+    return [v for v in S["voters"] if v in here and v not in S["votes"] and v not in S["skipped"]]
 
 
-def vote(g: dict, voter_id: str, target: str) -> list[str]:
-    """Le votant désigne quelqu'un ; renvoie les personnes désignées si c'était le dernier vote (sinon [])."""
+def voter(g: dict) -> str | None:
+    """À qui passer le téléphone de l'animateur : le premier participant sans téléphone qui n'a pas encore voté."""
+    manual = _manual(g)
+    return next((v for v in waiting(g) if v in manual), None)
+
+
+def vote(g: dict, voter_id: str, target: str, by: str = "") -> list[str]:
+    """Le votant désigne quelqu'un ; renvoie les personnes désignées si c'était le dernier vote (sinon []).
+    by : qui envoie le vote. Un participant sans téléphone vote sur le téléphone de l'animateur, à son tour ;
+    un joueur qui a son téléphone ne vote que sur le sien."""
     if g["phase"] != "ask":
         raise LikelyError("Pas de vote en cours")
-    if voter_id != voter(g):
-        raise LikelyError("Ce n'est pas ton tour : passe le téléphone")
+    if voter_id not in waiting(g):
+        raise LikelyError("Ton vote est déjà enregistré" if voter_id in state(g)["votes"] else "Tu ne votes pas pour cette question")
+    if voter_id in _manual(g):
+        if voter_id != voter(g):
+            raise LikelyError("Ce n'est pas son tour : passe le téléphone dans l'ordre de la table")
+    elif by and by != voter_id:
+        raise LikelyError("Cette personne vote sur son propre téléphone")
     if target not in _present(g):
         raise LikelyError("Choisis quelqu'un autour de la table")
     state(g)["votes"][voter_id] = target
     return settle(g)
 
 
-def skip(g: dict) -> list[str]:
-    """Le votant du moment est absent : on passe au suivant."""
-    current = voter(g)
-    if not current:
-        raise LikelyError("Pas de vote en cours")
+def skip(g: dict, target: str = "") -> list[str]:
+    """Un votant est absent : on le passe (par défaut, celui à qui revient le téléphone de l'animateur)."""
+    current = target or voter(g)
+    if not current or current not in waiting(g):
+        raise LikelyError("Personne à passer")
     state(g)["skipped"].append(current)
     return settle(g)
 
@@ -127,7 +142,7 @@ def swap(g: dict, rng=random):
 
 def settle(g: dict) -> list[str]:
     """Révèle le résultat dès qu'il ne reste plus personne à faire voter (vote, passage ou départ d'un joueur)."""
-    if g["phase"] != "ask" or voter(g):
+    if g["phase"] != "ask" or waiting(g):
         return []
     S = state(g)
     here = _present(g)
@@ -171,9 +186,12 @@ def board(g: dict) -> list[dict]:
 
 
 def view(g: dict, gid: str) -> dict:
-    """Ce qu'affiche le téléphone : la question, à qui le passer, puis le décompte (jamais les bulletins)."""
+    """Ce qu'affiche le téléphone : la question, s'il peut voter, à qui passer celui de l'animateur, puis le décompte
+    (jamais les bulletins)."""
     S = state(g)
     current = voter(g)
+    left = waiting(g)
+    manual = _manual(g)
     res = S["result"]
     result = None
     if res and g["phase"] in ("reveal", "end"):
@@ -185,7 +203,9 @@ def view(g: dict, gid: str) -> dict:
     voters = [v for v in S["voters"] if v in here]
     return {"packs": S["packs"], "pack_list": [{"id": k, "label": label, "size": len(qs)} for k, (label, qs) in PACKS.items()],
             "count": S["count"], "counts": list(COUNTS), "max_sips": MAX_SIPS, "q": S["q"], "n": S["n"],
-            "voter": {"pid": _pid(g, current), "name": _name(g, current), "mine": current == gid} if current else None,
+            "voter": {"pid": _pid(g, current), "name": _name(g, current)} if current else None,
+            "can_vote": gid in left and gid not in manual,
+            "waiting": [{"pid": _pid(g, v), "name": _name(g, v), "manual": v in manual} for v in left],
             "voted": len([v for v in S["votes"] if v in here]), "total": len(voters),
             "done": [_pid(g, v) for v in voters if v in S["votes"] or v in S["skipped"]],
             "result": result, "scores": board(g), "history": S["history"] if g["phase"] == "end" else []}

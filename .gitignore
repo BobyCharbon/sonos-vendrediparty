@@ -13,3 +13,19 @@ app/events-web/
 .impeccable/review/
 supabase/.temp/
 supabase/.branches/
+
+# App iOS : projet Xcode régénéré par XcodeGen depuis ios/project.yml
+ios/Party.xcodeproj/
+ios/build*/
+ios/DerivedData/
+xcuserdata/
+ios/Party/Info.plist
+ios/Party/Party.entitlements
+.claude/settings.local.json
+supabase/prod/journal.log
+
+# App Android : sorties Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties

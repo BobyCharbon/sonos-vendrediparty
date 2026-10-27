@@ -1,4 +1,4 @@
-"""Questions de « Qui est le plus… ? » (un seul téléphone qui tourne, tout le monde vote en secret).
+"""Questions de « Qui est le plus… ? » (tout le monde vote en secret, chacun sur son téléphone).
 
 Deux paquets :
 - FAMILY : tous publics, jouables avec les parents, les grands-parents et les ados (ni alcool, ni drague, ni moqueries

@@ -5,11 +5,12 @@ import { formatShort, parseLocalDateTime } from '@/lib/format';
 import { refreshPending } from '@/lib/pending';
 import { rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
 import { supabase } from '@/lib/supabase';
-import { colors, fonts, radius } from '@/lib/theme';
+import { colors, font, radius } from '@/lib/theme';
 import type { BringItem, DateOption, DateVote, DateVoteRow, EventRow, Poll, PollOption, Rsvp, RsvpStatus } from '@/lib/types';
 import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
 import { DateTimeField } from './DateTimeField';
+import { RsvpButtons } from './RsvpButtons';
 import { Avatar, Button, Chip, ErrorText, Input, s, Section, T } from './ui';
 
 type Names = Map<string, string>;
@@ -82,39 +83,23 @@ export function RsvpCard({
   return (
     <Section
       title={mine ? 'Ta réponse' : 'Tu viens ?'}
-      style={!mine && !closed ? { borderColor: colors.accent, borderWidth: 2, backgroundColor: '#22152A' } : undefined}
-      right={!mine && !closed ? <View style={st.pill}><T size={11} weight="bold" color={colors.onAccent}>À FAIRE</T></View> : null}
+      style={!mine && !closed ? { borderColor: 'rgba(255,79,154,0.55)', borderWidth: 1.5 } : undefined}
+      right={!mine && !closed ? <View style={st.pill}><T size={12} weight="bold" color={colors.accent}>À répondre</T></View> : null}
     >
       <T size={14} color={mine && !mine.waitlisted ? rsvpChoices[mine.status].bg : colors.textSoft}>{subtitle}</T>
+      {mine?.set_by && mine.set_by !== me ? (
+        <T muted size={13}>C’est l’organisateur qui a noté ta réponse : tu peux la changer ici.</T>
+      ) : null}
       {full && !closed && event.waitlist_enabled && mine?.status !== 'yes' ? (
         <T size={13} color={colors.lavender}>L’événement est complet : en répondant Présent, tu passes en liste d’attente.</T>
       ) : null}
-      <View style={s.row}>
-        {rsvpOptions(event.allow_maybe).map((k) => {
-          const c = rsvpChoices[k];
-          const on = mine?.status === k;
-          return (
-            <Pressable
-              key={k}
-              accessibilityRole="button"
-              accessibilityLabel={c.label}
-              accessibilityState={{ selected: on, disabled: closed }}
-              disabled={closed || !!busy}
-              onPress={() => upsert(k, { status: k })}
-              style={({ pressed }) => [
-                st.choice,
-                { borderColor: on ? c.bg : colors.lineStrong, backgroundColor: on ? c.bg : colors.bg },
-                !on && mine && { opacity: 0.75 },
-                closed && !on && { opacity: 0.4 },
-                (pressed || busy === k) && { opacity: 0.7 },
-              ]}
-            >
-              <T size={18} style={{ fontFamily: fonts.bold }} color={on ? c.fg : c.bg}>{c.icon}</T>
-              <T style={{ fontFamily: fonts.bold }} size={14} color={on ? c.fg : colors.text}>{c.label}</T>
-            </Pressable>
-          );
-        })}
-      </View>
+      <RsvpButtons
+        options={rsvpOptions(event.allow_maybe)}
+        selected={mine?.status ?? null}
+        busy={(['yes', 'maybe', 'no'] as const).find((k) => k === busy) ?? null}
+        disabled={closed}
+        onSelect={(k) => upsert(k, { status: k })}
+      />
       {event.allow_plus_ones && mine?.status === 'yes' && event.max_plus_ones > 0 ? (
         <View style={[s.rowBetween, st.subRow]}>
           <View style={{ flex: 1 }}>
@@ -278,7 +263,7 @@ export function DatePollSection({
     <Section
       title="Quelle date ?"
       style={!closed && !voters.has(me) && options.length ? { borderColor: colors.accent, borderWidth: 2, backgroundColor: '#22152A' } : undefined}
-      right={!closed && !voters.has(me) && options.length ? <View style={st.pill}><T size={11} weight="bold" color={colors.onAccent}>À FAIRE</T></View> : <T muted size={12}>{voters.size} votant{voters.size > 1 ? 's' : ''}</T>}
+      right={!closed && !voters.has(me) && options.length ? <View style={st.pill}><T size={12} weight="bold" color={colors.accent}>À répondre</T></View> : <T muted size={12}>{voters.size} votant{voters.size > 1 ? 's' : ''}</T>}
     >
       {!closed && !voters.has(me) && options.length ? <T size={14} color={colors.textSoft}>Indique pour chaque date si tu es dispo : l’organisateur fixera celle qui arrange le plus de monde.</T> : null}
       <T muted size={13}>
@@ -317,7 +302,7 @@ export function DatePollSection({
                       borderColor: mine === k ? voteColor[k] : colors.lineStrong, backgroundColor: mine === k ? voteColor[k] : 'transparent',
                     }}
                   >
-                    <T size={13} style={{ fontFamily: fonts.bold }} color={mine === k ? colors.onAccent : colors.textSoft}>{voteLabel[k]}</T>
+                    <T size={13} style={{ ...font.bold }} color={mine === k ? colors.onAccent : colors.textSoft}>{voteLabel[k]}</T>
                   </Pressable>
                 ))}
               </View>
@@ -510,8 +495,7 @@ export function BringSection({
 }
 
 const st = StyleSheet.create({
-  pill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.accent },
-  choice: { flex: 1, minHeight: 60, borderRadius: radius.md, borderWidth: 2, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 4 },
+  pill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(255,79,154,0.16)' },
   subRow: { paddingTop: 4 },
   person: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 3, paddingRight: 10, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.surface2 },
   bar: { height: 6, borderRadius: 99, backgroundColor: colors.line, flexDirection: 'row', overflow: 'hidden' },

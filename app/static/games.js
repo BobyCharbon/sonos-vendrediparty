@@ -30,6 +30,7 @@ function myTurnKey(g) {
     case "undercover": return g.phase === "vote" && g.me.alive ? `uc${g.round}` : "";
     case "whoof": case "never": return g.phase === "question" ? `q${g.round}` : "";
     case "likely": return g.phase === "ask" && g.likely?.voter?.mine ? `lk${g.likely.n}` : "";
+    case "debate": return g.phase === "ask" && g.debate?.can_vote ? `db${g.debate.n}-${g.debate.round}` : "";
     case "purity": return g.phase === "answering" && g.purity?.playing && !g.purity.submitted ? "pu" : "";
     case "quiz": return g.phase === "q" && !g.quiz?.q?.out ? `qz${g.quiz.n}` : "";
     case "president": return g.president?.my_turn && (!navigator.userActivation || navigator.userActivation.hasBeenActive) ? `pr${g.round}-${g.president.token}` : "";
@@ -65,6 +66,7 @@ GAME_ICONS.quiz = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" st
 GAME_ICONS.purity = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="24" cy="9" rx="11" ry="4"/><circle cx="24" cy="27" r="11"/><path d="M19 25h.01M29 25h.01"/><path d="M19.5 31c2.5 2.5 6.5 2.5 9 0"/><path d="M15 44c2-3 5-4.5 9-4.5s7 1.5 9 4.5"/></svg>`;
 GAME_ICONS.room = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 22L24 8l17 14"/><path d="M11 19v21h26V19"/><rect x="19" y="27" width="10" height="13" rx="2"/><path d="M30 13V9h5v8"/></svg>`;
 GAME_ICONS.likely = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="16" y="9" width="16" height="27" rx="3.5"/><path d="M22 31h4"/><path d="M24 15.5a3.5 3.5 0 1 1 2.6 3.4c-1 .3-1.6 1-1.6 2v1"/><path d="M25 25.5h.01"/><path d="M8 18a17 17 0 0 0 3 19"/><path d="M8 31l3 6 6-2"/><path d="M40 30a17 17 0 0 0-3-19"/><path d="M40 17l-3-6-6 2"/></svg>`;
+GAME_ICONS.debate = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M24 6v34"/><path d="M15 42h18"/><path d="M8 12h32"/><path d="M8 12l-5 13a5 5 0 0 0 10 0z"/><path d="M40 12l-5 13a5 5 0 0 0 10 0z"/></svg>`;
 const GAME_THEME = { room: "g-rm", biskit: "g-bk", pyramid: "g-py", undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv", tmc: "g-tm" };
 const isBJ = (g) => g.type === "blackjack";
 GAME_ICONS.heist = Heist.icon;
@@ -75,6 +77,21 @@ GAME_ICONS.neon = Neon.icon;
 GAME_THEME.neon = "g-nk";
 GAME_ICONS.president = President.crown;
 GAME_THEME.president = "g-pr";
+// Jeux récents : étiquette « NEW » sur leur carte et leur tuile dans la salle de jeux (retirer le type pour l'enlever).
+const NEW_GAMES = ["debate"];
+const newBadge = (type) => NEW_GAMES.includes(type) ? `<span class="g-new" aria-label="Nouveau jeu">NEW</span>` : "";
+// Catégories de l'écran Jeux et de la salle de jeux : [id, titre, jeux dans l'ordre d'affichage].
+// Tout nouveau jeu doit y figurer (tests/test_game_categories.py le vérifie).
+const GAME_CATEGORIES = [
+  ["drinks", "🍻 Alcool", ["whoof", "never", "roulette", "biskit", "casino", "purity"]],
+  ["three", "🎮 Jeux 3D", ["neon", "island", "heist"]],
+  ["talk", "💞 Parler vrai", ["divan", "debate", "tmc"]],
+  ["cards", "🃏 Jeux de cartes", ["pyramid", "blackjack", "president"]],
+  ["mood", "🎉 Ambiance", ["quiz", "undercover", "likely"]]
+];
+// Jeux rangés hors « Alcool » qui se jouent aussi avec des gorgées : étiquette 🍻 (chaque jeu n'apparaît qu'une fois).
+const DRINK_TAG_GAMES = ["pyramid", "blackjack", "quiz", "likely"];
+const drinkTag = (type) => DRINK_TAG_GAMES.includes(type) ? `<span class="g-drink" title="Se joue aussi avec de l'alcool" aria-label="Se joue aussi avec de l'alcool">🍻</span>` : "";
 const helpBtn = (type, inGame = false) => `<button type="button" class="g-help" data-rules="${type}" ${inGame ? "data-ingame" : ""} aria-label="Règles du jeu">?</button>`;
 
 // Règles détaillées, ouvertes par le « ? » de chaque jeu.
@@ -472,11 +489,11 @@ document.getElementById("gamesRoot").innerHTML = `
       <div class="gcard g-lk">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.likely}</div>
-          <div class="g-meta"><div class="g-title">Qui est le plus…&nbsp;?</div><div class="g-tag">Un seul téléphone qui tourne. Tout le monde joue.</div></div>
+          <div class="g-meta"><div class="g-title">Qui est le plus…&nbsp;?</div><div class="g-tag">Chacun vote sur son téléphone. Tout le monde joue.</div></div>
           ${helpBtn("likely")}
         </div>
-        <p class="g-desc">« Qui est le plus mauvais perdant ? » Le téléphone passe de main en main, chacun désigne quelqu'un en secret, puis on découvre le plus désigné : il prend un point… ou une petite gorgée.</p>
-        <div class="g-chips"><span>👨‍👩‍👧 Avec les parents aussi</span><span>2+ joueurs</span><span>1 seul téléphone</span><span>365 questions</span></div>
+        <p class="g-desc">« Qui est le plus mauvais perdant ? » Tout le monde désigne quelqu'un en secret, en même temps, puis on découvre le plus désigné : il prend un point… ou une petite gorgée. Sans téléphone ? On vote sur celui de l'animateur.</p>
+        <div class="g-chips"><span>👨‍👩‍👧 Avec les parents aussi</span><span>2+ joueurs</span><span>Sans téléphone : OK</span><span>365 questions</span></div>
         <label class="g-opt"><span>😏 Paquet « Entre amis » <small>en plus : soirées, ex, petits secrets (jamais sexuel)</small></span><input type="checkbox" class="switch" data-opt="lkfriends"></label>
         <label class="g-opt"><span>🍻 Le plus désigné boit <small>sinon il prend un point</small></span><input type="checkbox" class="switch" data-opt="lkalcohol"></label>
         <div class="g-modes" data-opt-group="lksips">
@@ -484,6 +501,26 @@ document.getElementById("gamesRoot").innerHTML = `
         </div>
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="likely">Créer une partie</button>
+      </div>
+
+      <div class="gcard g-db">
+        ${newBadge("debate")}
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.debate}</div>
+          <div class="g-meta"><div class="g-title">Pour ou contre</div><div class="g-tag">Un dilemme, vos avis, un vrai débat.</div></div>
+          ${helpBtn("debate")}
+        </div>
+        <p class="g-desc">« Faut-il dire à un ami que son ou sa partenaire le trompe ? » Chacun se place en secret de « Totalement contre » à « Totalement pour », on découvre la répartition, puis on en parle. Après le débat, on peut revoter pour voir qui a changé d'avis.</p>
+        <div class="g-chips"><span>2+ joueurs</span><span>Sans alcool</span><span>Sans téléphone : OK</span><span>540 dilemmes + les vôtres</span></div>
+        <div class="g-label">Thèmes</div>
+        <div class="g-modes" data-opt-group="cats">
+          <button type="button" data-val="moral" class="on">⚖️ Morale</button><button type="button" data-val="society" class="on">🏛️ Société</button>
+          <button type="button" data-val="relations" class="on">💞 Relations</button><button type="button" data-val="light" class="on">🍍 Léger</button>
+          <button type="button" data-val="wtf">🤪 WTF 🔞</button>
+        </div>
+        <label class="g-opt"><span>👀 Prénoms affichés à la révélation <small>sinon les votes restent anonymes</small></span><input type="checkbox" class="switch" data-opt="dbpublic"></label>
+        <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
+        <button class="g-go" data-create="debate">Créer une partie</button>
       </div>
 
       <div class="gcard g-nv">
@@ -645,22 +682,22 @@ document.getElementById("gamesRoot").innerHTML = `
       <div id="gameHost"></div>
     </div>
 
-    <aside id="gDrawer" class="g-drawer hidden" aria-label="Menu de la partie">
+    <aside id="gDrawer" class="g-drawer hidden" aria-label="Menu de la partie" data-nav="drawer" data-nav-surface=".g-drawer-panel" data-nav-close="[data-gdrawer=close]">
       <div class="g-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="gDrawerTitle">
         <div class="g-drawer-head"><b id="gDrawerTitle">Menu de la partie</b>
-          <button type="button" class="py-icon" data-gdrawer="close" aria-label="Fermer le menu">✕</button></div>
-        <div id="gDrawerExit"></div>
+          <button type="button" class="py-icon g-close" data-gdrawer="close" aria-label="Fermer le menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg></button></div>
         <div class="card" id="gameInvite" style="text-align:center">
           <div class="artist">Pour rejoindre : scanne ce QR ou entre le code</div>
           <div class="big-pin" id="gameCode"></div>
           <img class="qr" id="gameQr" width="220" height="220" alt="QR code pour rejoindre la partie">
         </div>
         <div id="gDrawerPlayers"></div>
-        <button type="button" class="secondary" data-gdrawer="minimize" style="width:100%;margin-top:12px">↙ Réduire le jeu (revenir aux onglets)</button>
+        <button type="button" class="secondary g-drawer-min" data-gdrawer="minimize" aria-label="Réduire le jeu et revenir aux onglets"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>Réduire le jeu</button>
+        <div id="gDrawerExit"></div>
       </div>
     </aside>
 
-    <div id="rulesModal" class="g-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rulesTitle">
+    <div id="rulesModal" class="g-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rulesTitle" data-nav="sheet" data-nav-surface=".g-sheet" data-nav-close="[data-rules-close]">
       <div class="g-sheet">
         <div class="g-head">
           <div class="g-icon" id="rulesIcon"></div>
@@ -672,6 +709,26 @@ document.getElementById("gamesRoot").innerHTML = `
       </div>
     </div>
 `;
+// Range les cartes de l'accueil par catégorie (une section titrée par catégorie, sous la carte de la salle de jeux).
+(function groupHomeCards() {
+  const home = document.getElementById("gHome");
+  let after = home.querySelector(".g-room-card");
+  for (const [id, label, types] of GAME_CATEGORIES) {
+    const sec = document.createElement("section");
+    sec.className = "g-cat";
+    sec.dataset.cat = id;
+    sec.setAttribute("aria-labelledby", `gCat-${id}`);
+    sec.innerHTML = `<h2 class="g-cat-h" id="gCat-${id}">${label}</h2>`;
+    for (const type of types) {
+      const card = home.querySelector(`[data-create="${type}"]`)?.closest(".gcard");
+      if (!card) continue;
+      card.querySelector(".g-title")?.insertAdjacentHTML("beforeend", drinkTag(type));
+      sec.append(card);
+    }
+    after.after(sec);
+    after = sec;
+  }
+})();
 
 // 🎮 Jeux : n'importe qui crée une partie (code + QR) et l'anime ; les autres la rejoignent avec son code.
 let myRoom = store("vp_room") || "";
@@ -730,6 +787,9 @@ function syncGameChrome() {
   const g = myGame ? game : null;
   const full = !!g && pyrFull && gamesTabShown();
   document.body.classList.toggle("pyr-full", full);
+  if (full && !document.body.classList.contains("g-leave")) window.Nav?.open({ key: "game", kind: "sheet", el: $("gamePlay"), surface: $("gamePlay"), handle: "#gTop",
+    selfAnimated: true, close: minimizeGame });
+  else window.Nav?.closed("game");
   let mini = $("gMini");
   if (!mini) {
     mini = document.createElement("button");
@@ -786,8 +846,9 @@ async function refreshGame() {
     // Deux rechargements presque simultanés : une réponse plus ancienne n'écrase jamais une plus récente.
     if (seq !== gSeq || code !== myGame) return;
     // Lien ou QR d'une partie : on rejoint une seule fois (déjà inscrit ou retiré par l'animateur : on ne réessaie pas).
-    if (autoJoin && (g.me || g.is_host || g.kicked)) autoJoin = false;
-    if (autoJoin && !g.me && !g.is_host) { autoJoin = false; return gameAction("join"); }
+    // L'admin (droits d'animateur) qui rejoint par le code devient joueur ; seul le créateur « maître du jeu » ne l'est pas.
+    if (autoJoin && (g.me || g.is_owner || g.kicked)) autoJoin = false;
+    if (autoJoin && !g.me && !g.is_owner) { autoJoin = false; return gameAction("join"); }
     if (routeRoom(g)) return;
     renderGame(g);
   } catch (e) {
@@ -896,7 +957,7 @@ function renderGame(g) {
   const me = g.me;
   const nameOf = (pid) => esc(g.players.find((p) => p.pid === pid)?.name || "?");
   $("game").className = "card game " + (GAME_THEME[g.type] || "");
-  if (g.me || g.is_host || g.kicked) autoJoin = false;  // déjà dans la partie (ou banni) : plus de « rejoindre » automatique
+  if (g.me || g.is_owner || g.kicked) autoJoin = false;  // déjà dans la partie (ou banni) : plus de « rejoindre » automatique
   if (g.kicked || (g.excluded && !autoJoin)) return renderKicked(g);
   renderCasino(g);  // avant le texte : il dépend de l'état de la bille (en train de rouler ou arrêtée)
   const title = `<div class="g-head g-play-head"><div class="g-icon">${GAME_ICONS[g.type] || ""}</div>
@@ -1002,6 +1063,8 @@ function renderGame(g) {
     quizAfter(g, fresh);
   } else if (g.type === "likely") {
     setGameHtml(likelyHtml(g));
+  } else if (g.type === "debate") {
+    setGameHtml(debateHtml(g));
   } else if (g.type === "pyramid" || g.type === "biskit") {
     setGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g)));
     if (g.type === "pyramid") pyrWheel(g);
@@ -1013,6 +1076,7 @@ function renderGame(g) {
   gameFlashes(g);
   if (g.type === "purity") puAnnounce(g);
   if (g.type === "likely") lkAnnounce(g);
+  if (g.type === "president") President.after(g);
   turnSignal(g);
   const input = $("guessInput");
   if (input && !input._vp) { input._vp = 1; input.value = guessDraft; input.addEventListener("input", () => { guessDraft = input.value; }); }
@@ -1041,9 +1105,10 @@ function questionHtml(g, me) {
   const help = !me ? "Tu regardes la partie : les réponses s'affichent à la fin."
     : g.type === "never"
       ? (mine ? "Réponse enregistrée. Tu peux encore changer d'avis." : "Réponds en secret : tout est révélé quand tout le monde a répondu.")
-      : (mine ? `Tu as voté pour <b>${mine === me.pid ? "toi" : esc(g.players.find((p) => p.pid === mine)?.name || "?")}</b>. Touche un autre nom pour changer.`
-              : "Vote pour la personne qui correspond le mieux. C'est anonyme.");
-  const choices = !me ? "" : g.type === "never"
+      : (mine ? "✓ Vote enregistré. Résultat quand tout le monde a voté."
+              : "Vote pour la personne qui correspond le mieux. C'est anonyme et définitif.");
+  // Qui de nous ? : une fois voté, la grille disparaît sans rappeler le choix (personne ne le lit par-dessus l'épaule).
+  const choices = !me || (g.type !== "never" && mine) ? "" : g.type === "never"
     ? `<div class="qs-yn" role="group" aria-label="Ta réponse">
         <button type="button" class="qs-opt ${mine === "yes" ? "on" : ""}" data-gact="vote" data-target="yes" aria-pressed="${mine === "yes"}">
           <span class="qs-emo" aria-hidden="true">🍻</span><b>Je l'ai déjà fait</b>${sips ? `<small>Je bois ${sips} gorgée${sips > 1 ? "s" : ""}</small>` : ""}</button>
@@ -1051,7 +1116,7 @@ function questionHtml(g, me) {
           <span class="qs-emo" aria-hidden="true">😇</span><b>Jamais</b>${sips ? `<small>Je ne bois pas</small>` : ""}</button>
       </div>`
     : `<div class="qs-grid" role="group" aria-label="Ton vote">${g.players.map((p) => `
-        <button type="button" class="qs-pick ${mine === p.pid ? "on" : ""}" data-gact="vote" data-target="${esc(p.pid)}" aria-pressed="${mine === p.pid}">
+        <button type="button" class="qs-pick" data-gact="vote" data-target="${esc(p.pid)}">
           ${avatar(p)}<span class="qs-name">${p.pid === me.pid ? "Moi" : esc(p.name)}</span></button>`).join("")}</div>`;
   const who = g.players.map((p) => `<span class="qs-who ${p.voted ? "ok" : ""}" title="${esc(p.name)}${p.voted ? " a répondu" : " réfléchit…"}">${avatar(p)}</span>`).join("");
   return `<div class="qs" data-key="q${g.round}">
@@ -1819,7 +1884,7 @@ document.addEventListener("pointerup", dvRelease);
 document.addEventListener("pointercancel", dvRelease);
 
 // 📵 Participants sans téléphone : l'animateur les ajoute à la main et agit pour eux.
-const MANUAL_GAMES = ["divan", "tmc", "never", "pyramid", "biskit", "likely", "room"];
+const MANUAL_GAMES = ["divan", "tmc", "never", "pyramid", "biskit", "likely", "debate", "room"];
 const playerTag = (g, p) => !MANUAL_GAMES.includes(g.type) ? "" : p.manual
   ? ` <span class="pill tag-manual" title="Ajouté·e à la main par l'animateur">✍️ sans téléphone</span>`
   : ` <span class="tag-phone" title="Joue sur son téléphone">📱</span>`;
@@ -2236,6 +2301,7 @@ function renderGameHost(g) {
   if (g.type === "casino") return renderCasinoHost(g, btn);
   if (g.type === "divan") return renderDivanHost(g, btn);
   if (g.type === "likely") return renderLikelyHost(g);
+  if (g.type === "debate") return renderDebateHost(g);
   if (["pyramid", "biskit", "quiz", "purity", "room", "president", "neon", "island", "heist"].includes(g.type)) { patch.gameHost = ""; return; }
   if (g.type === "tmc") return renderTmcHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
@@ -2323,13 +2389,25 @@ function lobbyInvite(g) {
 }
 
 // ── Salle de jeux ──
+function roomTileHtml(c) {
+  return `<button type="button" class="g-room-tile ${GAME_THEME[c.type] || ""}" data-room-pick="${c.type}">${newBadge(c.type)}
+    <span class="g-room-tile-i">${GAME_ICONS[c.type] || ""}</span><b>${esc(c.name)}${drinkTag(c.type)}</b></button>`;
+}
+// Tuiles groupées par catégorie, dans le même ordre que l'écran Jeux ; un jeu sans catégorie va à la fin.
+function roomCatalogHtml(catalog) {
+  const byType = new Map(catalog.map((c) => [c.type, c]));
+  const known = new Set(GAME_CATEGORIES.flatMap(([, , types]) => types));
+  const groups = [...GAME_CATEGORIES.map(([id, label, types]) => [id, label, types.filter((t) => byType.has(t)).map((t) => byType.get(t))]),
+    ["other", "Autres jeux", catalog.filter((c) => !known.has(c.type))]];
+  return groups.filter(([, , list]) => list.length).map(([id, label, list]) => `<div class="g-room-cat" data-cat="${id}">
+      <div class="g-room-cat-h">${label}</div><div class="g-room-grid">${list.map(roomTileHtml).join("")}</div></div>`).join("");
+}
 function roomHtml(g) {
   const R = g.room_info || {}, lead = g.is_host;
   const cur = R.current;
   const resume = cur ? `<button class="py-main g-room-resume" data-room-goto="${esc(cur.code)}">🎮 ${esc(cur.name)} en cours · rejoindre</button>` : "";
   const pick = lead && !cur ? `<div class="g-room-block"><div class="g-room-h">Lancer un jeu pour la salle</div>
-      <div class="g-room-grid">${(R.catalog || []).map((c) => `<button type="button" class="g-room-tile ${GAME_THEME[c.type] || ""}" data-room-pick="${c.type}">
-        <span class="g-room-tile-i">${GAME_ICONS[c.type] || ""}</span><b>${esc(c.name)}</b></button>`).join("")}</div></div>`
+      ${roomCatalogHtml(R.catalog || [])}</div>`
     : !cur ? `<div class="g-room-wait"><span class="g-room-dots"><i></i><i></i><i></i></span>${esc(g.host_name || "L'animateur")} choisit le prochain jeu…</div>` : "";
   const board = (R.board || []).filter((r) => r.pts || r.drink || r.give);
   const tally = board.length ? `<div class="g-room-block"><div class="g-room-h">🏆 Tableau de la soirée</div>
@@ -2348,6 +2426,7 @@ function openRoomSheet(type) {
   go.textContent = "▶ Lancer pour toute la salle";
   const wrap = document.createElement("div");
   wrap.className = "g-modal g-room-modal";
+  Object.assign(wrap.dataset, { nav: "sheet", navSurface: ".g-room-sheet", navClose: "self" });
   wrap.innerHTML = `<div class="g-sheet g-room-sheet" role="dialog" aria-modal="true" aria-label="Lancer un jeu"><div class="g-sheet-grab" aria-hidden="true"></div></div>`;
   wrap.firstElementChild.append(card);
   wrap.addEventListener("click", (ev) => { if (ev.target === wrap) closeRoomSheet(); });
@@ -2374,6 +2453,7 @@ function openKickSheet(pid) {
   const name = esc(p.name);
   const wrap = document.createElement("div");
   wrap.className = "g-modal g-room-modal g-kick-modal";
+  Object.assign(wrap.dataset, { nav: "sheet", navSurface: ".g-room-sheet", navClose: "self" });
   wrap.innerHTML = `<div class="g-sheet g-room-sheet g-kick" role="dialog" aria-modal="true" aria-labelledby="kickTitle">
     <div class="g-sheet-grab" aria-hidden="true"></div>
     <div class="g-kick-who">${avatar(p)}<b id="kickTitle">Retirer ${name}${p.twin ? ` #${p.twin}` : ""} ?</b></div>
@@ -2413,7 +2493,7 @@ function gameTopBar(g) {
   const round = g.round && g.phase !== "lobby" && !["pyramid", "quiz"].includes(g.type)
     ? ` · ${{ heist: "braquage", island: "manche", neon: "manche", president: "manche", undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte", tmc: "duo", biskit: "carte", quiz: "question" }[g.type] || "question"} ${g.round}` : "";
   const alerts = (g.pyr?.pending?.length || 0) + (g.is_host ? (g.pyr?.peeks || []).filter((r) => r.status === "pending").length : 0);
-  return `<button type="button" class="py-icon g-burger" data-gdrawer="open" aria-label="Menu : joueurs, code, QR">☰${alerts ? `<i class="badge">${alerts}</i>` : ""}</button>
+  return `<button type="button" class="py-icon g-burger" data-gdrawer="open" aria-label="Menu : joueurs, code, QR"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>${alerts ? `<i class="badge">${alerts}</i>` : ""}</button>
     <div class="g-top-mid"><div class="g-top-name"><span class="g-top-ico" aria-hidden="true">${GAME_ICONS[g.type] || ""}</span>${esc(g.name)}</div>
       <div class="g-top-sub">${g.mode ? esc(g.mode) + " · " : ""}${QUESTION_TYPES.includes(g.type) && g.round && g.phase !== "lobby" && g.phase !== "end" ? `Question ${g.round}` : (g.type === "room" ? "Soirée" : phase) + round} · ${g.room || g.type === "room" ? "salle" : "code"} <b>${esc(g.room || g.code)}</b> · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
     ${GameAudio.button()}
@@ -2488,7 +2568,7 @@ function showGameEnded(info) {
 const gInflight = new Set();
 async function gameAction(action, extra = {}, opts = {}) {
   if (!myGame) return;
-  if (action === "join") extra = { ...extra, token: supabaseToken() || "" };
+  if (action === "join") extra = { ...extra, token: (typeof freshToken === "function" && await freshToken()) || "" };
   const key = myGame + ":" + action + JSON.stringify(extra);
   if (gInflight.has(key)) return;
   gInflight.add(key);
@@ -2499,8 +2579,8 @@ async function gameAction(action, extra = {}, opts = {}) {
     const g = await gapi(`/api/games/${myGame}`, { guest_id: guestId, name: guestName, action, ...extra });
     if (actionCode !== myGame) return false;
     if (action === "end" && room) { setGame(room); refreshGame(); return; }  // fin d'un jeu de la salle : retour à la salle
-    if (action === "end" || (action === "leave" && !g?.is_host)) {
-      if (action === "leave" || game?.type === "room") { myRoom = ""; store("vp_room", ""); }
+    if (action === "end") {  // « Arrêter de jouer » (leave) garde l'écran : on regarde la suite
+      if (game?.type === "room") { myRoom = ""; store("vp_room", ""); }
       setGame(""); renderGame(null); return;
     }
     if (routeRoom(g)) return;
@@ -2577,22 +2657,20 @@ $("game").addEventListener("submit", (ev) => {
   gameAction(ev.target.closest("[data-gform]").dataset.gform === "tanswer" ? "tanswer" : "guess", { guess: guessDraft.trim() });
   guessDraft = "";
 });
-// Sortie de la partie (menu ☰) : l'animateur passe la main à un joueur de son choix avant de partir.
+// Menu ☰ : l'animateur passe la main à un joueur de son choix (il reste joueur) ; quitter est un bouton à part.
 let handoverOpen = false;
 function exitHtml(g) {
   const cands = g.players.filter((p) => p.pid !== g.me?.pid && !p.manual && !p.pending && !p.host);
   const out = [];
-  if (g.is_owner) {
-    if (cands.length) {
-      out.push(`<button type="button" class="secondary g-exit" data-exit="pick">👑 Passer la main et quitter</button>`);
-      if (handoverOpen) out.push(`<div class="g-handover"><div class="artist">Qui devient l'animateur ?</div>
-        ${cands.map((p) => `<button type="button" class="secondary" data-exit="to" data-target="${esc(p.pid)}">👑 ${esc(p.name)}</button>`).join("")}</div>`);
-    }
-  } else if (g.me && !g.kicked) {
-    out.push(`<button type="button" class="secondary g-exit" data-exit="leave">🚪 Quitter la partie</button>`);
-  } else {
-    out.push(`<button type="button" class="secondary g-exit" data-exit="away">🚪 Quitter</button>`);
+  if (g.is_owner && cands.length) {
+    out.push(`<button type="button" class="secondary g-exit" data-exit="pick">👑 Passer la main</button>`);
+    if (handoverOpen) out.push(`<div class="g-handover"><div class="artist">Qui devient l'animateur ? ${g.me ? "Tu restes dans la partie." : ""}</div>
+      ${cands.map((p) => `<button type="button" class="secondary" data-exit="to" data-target="${esc(p.pid)}">👑 ${esc(p.name)}</button>`).join("")}</div>`);
   }
+  // « Arrêter de jouer » libère sa place mais on reste pour regarder ; « Quitter » fait vraiment partir (et libère
+  // la place si on jouait encore). L'animateur, lui, part en passant la main ou en fermant la partie.
+  if (g.me && !g.kicked) out.push(`<button type="button" class="secondary g-exit" data-exit="leave">🪑 Arrêter de jouer <small>tu restes pour regarder</small></button>`);
+  if (!g.is_owner) out.push(`<button type="button" class="secondary g-exit" data-exit="away">🚪 Quitter la partie <small>retour à l'accueil des jeux</small></button>`);
   if (g.is_host) out.push(g.room ? `<button type="button" class="secondary g-exit" data-exit="end">🏠 Terminer ce jeu et revenir à la salle</button>`
     : `<button type="button" class="danger g-exit" data-exit="end">${g.type === "room" ? "Fermer la salle pour tout le monde" : g.players.length <= 1 ? "Quitter et fermer la partie" : "Fermer la partie pour tout le monde"}</button>`);
   return out.join("");
@@ -2604,11 +2682,12 @@ document.addEventListener("click", async (ev) => {
   if (a === "pick") { handoverOpen = !handoverOpen; return renderDrawer(game); }
   if (a === "to") {
     const p = game.players.find((x) => x.pid === b.dataset.target);
-    if (!p || !confirm(`${p.name} devient l'animateur${game.me ? " et tu quittes la partie" : ""}. Continuer ?`)) return;
+    const stays = !!game.me;
+    if (!p || !confirm(`${p.name} devient l'animateur${stays ? " ; tu restes joueur" : ""}. Continuer ?`)) return;
     handoverOpen = false;
     closeDrawer();
     if (!await gameAction("handover", { target: p.pid })) return;
-    setGame(""); renderGame(null);
+    if (!stays) { setGame(""); renderGame(null); }
     return toast(`${p.name} anime maintenant la partie`, "ok");
   }
   if (a === "end") {
@@ -2616,10 +2695,18 @@ document.addEventListener("click", async (ev) => {
     if (confirm(msg)) { closeDrawer(); gameAction("end"); }
     return;
   }
-  if (a === "leave") { if (confirm("Quitter la partie ?")) { closeDrawer(); gameAction("leave"); } return; }
+  if (a === "leave") {
+    if (confirm("Arrêter de jouer ? Ta place est libérée, mais tu restes dans la partie pour regarder.")) { closeDrawer(); gameAction("leave"); }
+    return;
+  }
   if (a === "away") {
-    if (game?.kicked || game?.excluded) { clearInterval(kickTimer); kickCode = ""; myRoom = ""; store("vp_room", ""); }
-    closeDrawer(); setGame(""); renderGame(null);
+    const seated = !!game.me && !game.kicked && !game.excluded;
+    if (seated && !confirm("Quitter la partie ? Ta place est libérée.")) return;
+    closeDrawer();
+    if (seated && !await gameAction("leave")) return;
+    if (game?.kicked || game?.excluded) { clearInterval(kickTimer); kickCode = ""; }
+    myRoom = ""; store("vp_room", "");
+    setGame(""); renderGame(null);
   }
 });
 // Options choisies sur la carte d'un jeu (création directe, ou lancement depuis la salle de jeux).
@@ -2644,6 +2731,7 @@ function gamePayload(card, type) {
     reveal: q("[data-opt=reveal]")?.checked ?? false,
     hint: q("[data-opt=hint]")?.checked ?? false,
     white_hint: q("[data-opt=white_hint]")?.checked ?? false,
+    public: q("[data-opt=dbpublic]")?.checked ?? false,
   };
 }
 document.addEventListener("click", async (ev) => {
@@ -2657,7 +2745,7 @@ document.addEventListener("click", async (ev) => {
     return pressed(b, gameAction("launch", { settings: payload }));
   }
   if (payload.type === "purity") {
-    payload.token = supabaseToken() || "";
+    payload.token = (typeof freshToken === "function" && await freshToken()) || "";
     if (!payload.token) { toast("🔒 Connecte-toi avec ton numéro pour lancer le Purify Test", "err"); return showTab("account"); }
   }
   b.disabled = true;
@@ -2700,7 +2788,7 @@ function rulesFor(type, g) {
 }
 
 // « ? » : règles détaillées du jeu.
-const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", likely: "Qui est le plus… ?", never: "Je n'ai jamais", roulette: "Roulette",
+const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", likely: "Qui est le plus… ?", debate: "Pour ou contre", never: "Je n'ai jamais", roulette: "Roulette",
   blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal", quiz: "Quiz", purity: "Purify Test", room: "Salle de jeux", president: "Président", neon: "Néon Knockout", island: "L’île qui s’effondre", heist: "Braquage en miniature" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");

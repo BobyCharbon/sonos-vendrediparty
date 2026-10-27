@@ -255,3 +255,164 @@ def test_reducing_the_queue_hides_only_playlist_tracks(browser, server):
         assert not boss.errors, boss.errors
     finally:
         boss.close()
+
+
+EVENT = "32f18a3b-827f-4123-8cf4-33de06c9a51c"
+FAKE_SESSION = ("localStorage.setItem('sb-test-auth-token', JSON.stringify({ access_token: 'jeton-' + 'x'.repeat(40),"
+                " refresh_token: 'r0', expires_at: Math.floor(Date.now() / 1000) + 3600 }))")
+# Session gardée par le module Événements, expirée depuis 2 h (app rouverte le lendemain, onglet Musique).
+EXPIRED_SESSION = ("localStorage.setItem('sb-test-auth-token', JSON.stringify({ access_token: 'perime-' + 'x'.repeat(40),"
+                   " refresh_token: 'r1', expires_at: Math.floor(Date.now() / 1000) - 7200, user: { id: 'root' } }))")
+
+
+def test_host_links_the_evening_to_an_event_from_the_music_tab(browser, server):
+    boss = Phone(browser, server, "Boss")
+    sent, linked = [], {"event": None}
+
+    def admin_api(route):
+        path = route.request.url.split("/api/admin/", 1)[1].split("?")[0]
+        body = json.loads(route.request.post_data or "{}")
+        sent.append((path, body))
+        if path == "event/options":
+            return route.fulfill(json=[{"id": EVENT, "title": "Vendredi chez Boby", "starts_at": "2026-10-30T19:00:00Z"}])
+        if path == "event":
+            linked["event"] = {"id": body["event_id"], "title": body["title"]} if body["event_id"] else None
+        return route.fulfill(json={**live_state(), "event": linked["event"]})
+    try:
+        boss.page.goto("/")
+        boss.page.evaluate(FAKE_SESSION)
+        as_account_admin(boss)
+        boss.page.route("**/api/admin/**", admin_api)
+        boss.page.locator('#tabs button[data-tab="music"]').tap()
+        admin = boss.page.locator("#musicAdmin")
+        admin.locator('[data-ma="access"] summary').tap()
+        expect(admin.locator('[data-ma="eventHint"]')).to_contain_text("entreront sans code")
+        expect(admin.locator('[data-ma="event"] option')).to_have_count(2)
+        admin.locator('[data-ma="event"]').select_option(EVENT)
+        expect(admin.locator('[data-ma="eventHint"]')).to_contain_text("« Vendredi chez Boby » entrent sans code")
+        assert ("event", {"event_id": EVENT, "title": "Vendredi chez Boby"}) in sent
+        assert ("event/options", {"token": "jeton-" + "x" * 40}) in sent
+        admin.locator('[data-ma="event"]').select_option("")
+        expect(admin.locator('[data-ma="eventHint"]')).to_contain_text("entreront sans code")
+        assert sent[-1] == ("event", {"event_id": "", "title": ""})
+        assert not boss.errors
+    finally:
+        boss.ctx.close()
+
+
+@pytest.mark.parametrize("present", [True, False])
+def test_a_guest_marked_present_enters_without_the_code(browser, server, present):
+    lea = Phone(browser, server, "Lea")
+    admin = lea.page.request
+    admin.post(f"{server.url}/api/admin/login", data={"pin": ADMIN_PIN})
+    pin = admin.get(f"{server.url}/api/admin/state").json()["guest_pin"]
+    admin.post(f"{server.url}/api/admin/logout")
+    account = {"guest_id": "acct-" + "a" * 40, "name": "Léa", "photo": None, "beta": False, "admin": False}
+
+    def join_account(route):
+        if not present:
+            return route.fulfill(status=403, json={"detail": "Tu n'es pas noté présent à « Vendredi chez Boby » : entre le code de la soirée."})
+        # Le serveur aurait vérifié la réponse « Présent » auprès de Supabase : on donne le même accès que le code.
+        real = route.fetch(url=f"{server.url}/api/join", post_data=json.dumps({"pin": pin}))
+        return route.fulfill(response=real, json={"ok": True, "event_title": "Vendredi chez Boby"})
+    try:
+        lea.page.route("**/api/account/link", lambda route: route.fulfill(json=account))
+        lea.page.route("**/api/join/account", join_account)
+        lea.page.add_init_script(FAKE_SESSION)
+        lea.page.goto("/")
+        lea.page.locator('#tabs button[data-tab="music"]').tap()
+        if present:
+            expect(lea.page.locator("#toast")).to_contain_text("Bienvenue à « Vendredi chez Boby »")
+            expect(lea.page.locator("#pin")).to_be_hidden()
+        else:
+            expect(lea.page.locator("#pin")).to_be_visible()
+            expect(lea.page.locator("#pinHint")).to_have_text("Tu n'es pas noté présent à « Vendredi chez Boby » : entre le code de la soirée.")
+        assert not lea.errors
+    finally:
+        lea.ctx.close()
+
+
+def test_a_root_or_admin_account_keeps_admin_rights_even_if_the_admin_session_is_lost(browser, server):
+    """Plus besoin de passer par « Admin de la soirée » : le compte admin retrouve seul sa session admin
+    (cookie perdu, déconnexion depuis /admin, code PIN changé…), sans recharger l'app."""
+    boss = Phone(browser, server, "Boss")
+    account = {"guest_id": "acct-" + "b" * 40, "name": "Boby", "photo": None, "beta": True, "admin": True}
+    renewals = []
+
+    def account_admin(route):
+        renewals.append(1)
+        # Le serveur aurait vérifié les droits du compte auprès de Supabase : même session que le code PIN.
+        real = route.fetch(url=f"{server.url}/api/admin/login", post_data=json.dumps({"pin": ADMIN_PIN}))
+        return route.fulfill(response=real)
+    try:
+        boss.page.route("**/api/account/link", lambda route: route.fulfill(json=account))
+        boss.page.route("**/api/account/admin", account_admin)
+        boss.page.add_init_script(FAKE_SESSION)
+        boss.page.goto("/")
+        boss.page.locator('#tabs button[data-tab="music"]').tap()
+        admin = boss.page.locator("#musicAdmin")
+        expect(admin.get_by_role("button", name="🎉 Démarrer la soirée")).to_be_visible()
+
+        boss.ctx.clear_cookies()  # session admin perdue
+        assert boss.page.evaluate("fetch('/api/admin/state').then((r) => r.status)") == 200
+        assert len(renewals) == 2
+        boss.ctx.clear_cookies()
+        boss.page.evaluate("Object.defineProperty(document, 'hidden', { value: false, configurable: true }); linkedAt = 0;"
+                           "document.dispatchEvent(new Event('visibilitychange'))")  # app rouverte
+        deadline = time.time() + 10
+        while len(renewals) < 3 and time.time() < deadline:
+            boss.page.wait_for_timeout(100)
+        assert len(renewals) == 3  # rouverte : la session admin est redemandée d'office
+        assert boss.page.evaluate("fetch('/api/admin/state').then((r) => r.status)") == 200
+        assert not boss.errors
+    finally:
+        boss.ctx.close()
+
+
+@pytest.mark.parametrize("renewable", [True, False])
+def test_root_opening_the_app_with_an_expired_session_becomes_admin_without_any_expired_token_sent(browser, server, renewable):
+    """Bug du 26.10 : le jeton expiré envoyé à chaque ouverture faisait bloquer la maison (« trop d'essais »)
+    et le compte root ne devenait jamais admin. Party renouvelle maintenant la session lui-même."""
+    boss = Phone(browser, server, "Boss")
+    account = {"guest_id": "acct-" + "c" * 40, "name": "Boby", "photo": None, "beta": True, "admin": True}
+    fresh = "frais-" + "z" * 40
+    sent_tokens = []
+
+    def refresh(route):
+        assert json.loads(route.request.post_data) == {"refresh_token": "r1"}
+        if not renewable:
+            return route.fulfill(status=401, json={"detail": "Ta connexion a expiré. Reconnecte-toi."})
+        return route.fulfill(json={"access_token": fresh, "refresh_token": "r2", "expires_in": 3600,
+                                   "expires_at": int(time.time()) + 3600, "token_type": "bearer"})
+
+    def account_call(route):
+        sent_tokens.append(json.loads(route.request.post_data)["token"])
+        if route.request.url.endswith("/api/account/link"):
+            return route.fulfill(json=account)
+        if route.request.url.endswith("/api/account/admin"):
+            return route.fulfill(response=route.fetch(url=f"{server.url}/api/admin/login", post_data=json.dumps({"pin": ADMIN_PIN})))
+        return route.fulfill(status=409, json={"detail": "Aucune soirée liée"})
+    try:
+        boss.page.route("**/api/account/refresh", refresh)
+        boss.page.route("**/api/account/link", account_call)
+        boss.page.route("**/api/account/admin", account_call)
+        boss.page.route("**/api/join/account", account_call)
+        boss.page.goto("/")
+        boss.page.evaluate(EXPIRED_SESSION)
+        boss.page.reload()
+        boss.page.locator('#tabs button[data-tab="music"]').tap()
+        admin = boss.page.locator("#musicAdmin")
+        if renewable:
+            # Renouvellement, liaison du compte, session admin puis chargement de l'onglet : quelques secondes.
+            expect(admin.get_by_role("button", name="🎉 Démarrer la soirée")).to_be_visible(timeout=15000)
+            assert len(sent_tokens) >= 2  # liaison du compte puis session admin, avec le jeton renouvelé
+            stored = boss.page.evaluate("JSON.parse(localStorage.getItem('sb-test-auth-token'))")
+            assert stored["access_token"] == fresh and stored["refresh_token"] == "r2" and stored["user"] == {"id": "root"}
+        else:
+            boss.page.wait_for_timeout(1500)
+            expect(admin).to_be_hidden()
+        assert not any(t.startswith("perime-") for t in sent_tokens)  # jamais de jeton périmé envoyé
+        assert set(sent_tokens) <= {fresh}
+        assert not boss.errors
+    finally:
+        boss.ctx.close()
