@@ -36,6 +36,25 @@ window.President = (() => {
     return `<span class="pr-mini ${c.red ? "pr-red" : ""}">${c.joker ? "Jkr" : esc(c.rank) + c.suit}</span>`;
   }
 
+  // Table façon poker : moi toujours en bas, les autres répartis autour de l'ovale dans l'ordre du jeu (3 à 6 places).
+  function seatSpot(list, p) {
+    const meAt = Math.max(0, list.findIndex(s => s.me)), n = list.length;
+    const k = (list.indexOf(p) - meAt + n) % n, angle = Math.PI / 2 + (k * 2 * Math.PI) / n;
+    return {left: 50 + 41 * Math.cos(angle), top: 50 + 37 * Math.sin(angle)};
+  }
+
+  function seatHtml(p, spot) {
+    const backs = Math.min(p.count, 5);
+    const state = p.departed ? "Parti" : p.dunce ? "Trou du cul · fini sur un 2" : p.place ? `${p.place}${p.place === 1 ? "er" : "e"}${p.place === 1 ? " · Président" : ""}`
+      : p.passed ? "A passé" : p.turn ? "Joue" : (p.role || "");
+    return `<div class="pr-seat ${p.turn ? "pr-turn" : ""} ${p.me ? "pr-is-me" : ""} ${p.passed ? "pr-has-passed" : ""} ${p.place || p.dunce ? "pr-is-out" : ""}"
+        data-key="seat-${esc(p.pid)}" style="left:${spot.left.toFixed(1)}%;top:${spot.top.toFixed(1)}%">
+      <span class="pr-avatar" aria-hidden="true">${p.place === 1 ? "👑" : esc((p.name || "?").replace(/^[^\p{L}\p{N}]+/u, "").slice(0, 1).toUpperCase() || "?")}</span>
+      <span class="pr-seat-name">${esc(p.name)}${p.me ? " · toi" : ""}</span>
+      ${p.count && !p.place && !p.dunce ? `<span class="pr-backs" aria-label="${p.count} cartes">${"<i></i>".repeat(backs)}<b>${p.count}</b></span>` : ""}
+      ${state ? `<small>${esc(state)}</small>` : ""}</div>`;
+  }
+
   function trailHtml(v) {
     const list = v.pile ? v.trail.slice(0, -1).reverse() : [];
     if (!list.length) return "";
@@ -90,8 +109,7 @@ window.President = (() => {
     const mine = v.seats.find(p => p.me), d = decision(g);
     const waiting = !!g.me?.waiting;
     const status = waiting ? "Tu prendras place à la prochaine donne." : mine?.dunce ? "Tu as fini sur un 2 : tu seras Trou du cul." : mine?.place ? `Tu as terminé à la place ${mine.place}.` : !g.me ? "Tu regardes la partie. Les mains restent privées." : "";
-    const seats = `<div class="pr-seats" aria-label="Autour de la table">${v.seats.map(p => `<div class="pr-seat ${p.turn ? "pr-turn" : ""} ${p.me ? "pr-is-me" : ""}" data-key="seat-${esc(p.pid)}">
-      <span class="pr-seat-name">${esc(p.name)}${p.me ? " · toi" : ""}</span><b>${p.departed ? "Parti" : p.dunce ? "Trou du cul" : p.place ? `${p.place}${p.place === 1 ? "er" : "e"}` : `${p.count} cartes`}</b><small>${p.dunce ? "Fini sur un 2" : p.passed ? "A passé" : p.turn ? "Joue" : esc(p.role || "À table")}</small></div>`).join("")}</div>`;
+    const seats = v.seats.map((p, i) => seatHtml(p, seatSpot(v.seats, p))).join("");
     const table = x ? `<div class="pr-exchange">
       <p>${x.count ? x.sent ? `${x.automatic ? "Tes meilleures cartes sont réservées" : "Ton choix est enregistré"} pour <b>${esc(x.to)}</b>.` : `Tu donnes <b>${x.count} carte${x.count > 1 ? "s" : ""}</b> à <b>${esc(x.to)}</b>. Choisis avant de recevoir.` : "Ta place ne demande aucun échange."}</p>
       ${x.cards.length ? `<div class="pr-pile">${x.cards.map(c => card(c)).join("")}</div>` : ""}
@@ -100,8 +118,7 @@ window.President = (() => {
           <p class="pr-table-caption">${v.pile ? `<span class="pr-last-tag">Dernier coup</span> ${esc(v.pile.name)} a posé` : `Pli ${v.trick} · table libre`}</p>
           <div class="pr-pile ${v.pile ? "pr-latest" : ""}">${v.pile ? v.pile.cards.map(c => card(c, false, v.pile.rank)).join("") : `<span class="pr-empty-pile" aria-hidden="true">♣</span>`}</div>
           <p class="pr-note">${v.pile ? `${v.pile.cards.length} carte${v.pile.cards.length > 1 ? "s" : ""} de valeur ${esc(v.pile.rank)}` : "Une nouvelle combinaison peut ouvrir le pli."}</p>
-          ${v.pile?.locked ? `<p class="pr-family" role="status"><b>${esc(v.pile.rank)} ou rien</b> · famille ${v.pile.family}/4</p>` : ""}
-          ${trailHtml(v)}</div>`;
+          ${v.pile?.locked ? `<p class="pr-family" role="status"><b>${esc(v.pile.rank)} ou rien</b> · famille ${v.pile.family}/4</p>` : ""}</div>`;
     const hand = v.hand.length && !waiting && !mine?.place ? `<section class="pr-hand-section">
       <div class="pr-hand-heading"><h3>Ta main <span>${v.hand.length}</span></h3><button type="button" class="pr-privacy" data-pr="privacy" aria-pressed="${hidden}">${hidden ? "Voir mes cartes" : "Masquer"}</button></div>
       ${hidden ? `<div class="pr-hidden-hand"><span aria-hidden="true">${crown}</span><p>Tes cartes sont masquées.</p><button type="button" class="secondary" data-pr="privacy">Voir mes cartes</button></div>` : `<div class="pr-hand" role="group" aria-label="Cartes de ta main">${v.hand.map(c => card(c, !!canChoose)).join("")}</div>`}
@@ -112,7 +129,8 @@ window.President = (() => {
       ${!x ? `<button type="button" class="secondary" data-pr="pass" ${busy || !v.my_turn || !v.pile ? "disabled" : ""}>${v.pile?.locked ? `Pas de ${esc(v.pile.rank)}` : "Passer"}</button>` : ""}
       ${selected.size ? `<button type="button" class="pr-reset" data-pr="clear" aria-label="Annuler la sélection">Effacer</button>` : ""}</div>
     </div>` : "";
-    return `<section class="pr-game">${seats}<h2 class="pr-turn-title ${v.my_turn ? "pr-your-turn" : ""}" aria-live="polite">${esc(title)}</h2>${table}
+    return `<section class="pr-game"><h2 class="pr-turn-title ${v.my_turn ? "pr-your-turn" : ""}" aria-live="polite">${esc(title)}</h2>
+      <div class="pr-felt" aria-label="Autour de la table">${seats}<div class="pr-felt-center">${table}</div></div>${x ? "" : trailHtml(v)}
       ${status ? `<p class="pr-status" role="status">${esc(status)}</p>` : ""}${hand}${controls}
       ${!x && v.notice ? `<p class="pr-notice">${esc(v.notice)}</p>` : ""}${join}</section>`;
   }

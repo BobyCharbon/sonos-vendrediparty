@@ -110,6 +110,53 @@ window.PresidentFx = (() => {
       {transform: "translate(-50%, -190%) scale(1)", opacity: 0}], {duration: 1600, easing: "ease-out", fill: "forwards"}), el);
   }
 
+  // Le premier à finir devient Président : grande célébration (~3,8 s) — voile doré, rayons, couronne qui tombe,
+  // nom qui s'impose et pluie de confettis. Un toucher la ferme plus tôt ; « réduire les animations » : fondu seul.
+  const CELEBRATE = 3800, CONFETTI = 46, CONFETTI_COLORS = ["#ffd27a", "#ff9f43", "#ffffff", "#3fcf8e", "#ff6b6b", "#7aa8ff"];
+  function celebrate(name, mine) {
+    document.querySelector(".pr-celebrate")?.remove();
+    const el = document.createElement("div");
+    el.className = "pr-celebrate";
+    el.setAttribute("role", "status");
+    el.innerHTML = `<div class="pr-rays" aria-hidden="true"></div>
+      <div class="pr-cel-crown" aria-hidden="true">${window.President.crown}</div>
+      <div class="pr-cel-name">${esc(name)}</div>
+      <div class="pr-cel-sub">${mine ? "Tu es Président !" : "est Président !"}</div>`;
+    document.body.append(el);
+    const close = () => gone(el.animate([{opacity: 1}, {opacity: 0}], {duration: 300, fill: "forwards"}), el);
+    el.addEventListener("click", close, {once: true});
+    if (calm()) {
+      el.animate([{opacity: 0}, {opacity: 1, offset: .1}, {opacity: 1, offset: .9}, {opacity: 0}], {duration: CELEBRATE, fill: "forwards"})
+        .finished.then(() => el.remove(), () => el.remove());
+      return;
+    }
+    el.animate([{opacity: 0}, {opacity: 1, offset: .08}, {opacity: 1, offset: .9}, {opacity: 0}], {duration: CELEBRATE, fill: "forwards"})
+      .finished.then(() => el.remove(), () => el.remove());
+    el.querySelector(".pr-rays").animate([{transform: "translate(-50%, -50%) rotate(0) scale(.6)"}, {transform: "translate(-50%, -50%) rotate(140deg) scale(1.15)"}],
+      {duration: CELEBRATE, easing: "ease-out", fill: "forwards"});
+    el.querySelector(".pr-cel-crown").animate([
+      {transform: "translateY(-70vh) rotate(-25deg) scale(.6)", opacity: 0},
+      {transform: "translateY(0) rotate(6deg) scale(1.15)", opacity: 1, offset: .55},
+      {transform: "translateY(-18px) rotate(-3deg) scale(.96)", offset: .72},
+      {transform: "none", opacity: 1}], {duration: 1100, delay: 150, easing: "cubic-bezier(.3, 1.3, .5, 1)", fill: "backwards"});
+    el.querySelector(".pr-cel-name").animate([{transform: "scale(.3)", opacity: 0, letterSpacing: ".4em"}, {transform: "scale(1.12)", opacity: 1, offset: .6},
+      {transform: "none", opacity: 1, letterSpacing: "0"}], {duration: 800, delay: 700, easing: "cubic-bezier(.2, 1.3, .4, 1)", fill: "backwards"});
+    el.querySelector(".pr-cel-sub").animate([{transform: "translateY(16px)", opacity: 0}, {transform: "none", opacity: 1}],
+      {duration: 500, delay: 1200, easing: "ease-out", fill: "backwards"});
+    for (let i = 0; i < CONFETTI; i++) {
+      const bit = document.createElement("i");
+      bit.className = "pr-confetti";
+      bit.style.left = `${Math.random() * 100}%`;
+      bit.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+      el.append(bit);
+      const drift = (Math.random() - .5) * 160, spin = 360 + Math.random() * 720;
+      bit.animate([{transform: "translate(0, -10vh) rotate(0)", opacity: 1},
+        {transform: `translate(${drift}px, 105vh) rotate(${spin}deg)`, opacity: .9}],
+        {duration: 2200 + Math.random() * 1000, delay: 600 + i * 50, easing: "cubic-bezier(.3, .2, .6, 1)", fill: "backwards"});
+    }
+    if (typeof haptic === "function") haptic([60, 40, 60, 40, 120]);
+  }
+
   function shake(pid) {
     seatOf(pid)?.animate([{transform: "none"}, {transform: "translateX(-6px) rotate(-2deg)"}, {transform: "translateX(6px) rotate(2deg)"},
       {transform: "translateX(-3px)"}, {transform: "none"}], {duration: 420, easing: "ease-out"});
@@ -181,7 +228,10 @@ window.PresidentFx = (() => {
           const o = was.seats[s.pid];
           if (!o) return;
           if (s.passed && !o.passed) shake(s.pid);
-          if ((s.place || s.dunce) && !o.out) float(s.pid, s.dunce ? "🫠" : s.place === 1 ? "👑" : "🎉");
+          if ((s.place || s.dunce) && !o.out) {
+            if (s.place === 1) celebrate(s.name, s.me);
+            else float(s.pid, s.dunce ? "🫠" : "🎉");
+          }
         });
       }
       if (now.myTurn && !was.myTurn) turnFx(me?.pid);
@@ -189,5 +239,5 @@ window.PresidentFx = (() => {
     if (g.phase === "play") swapFx(g);
   }
 
-  return {snapshot, launch, after, isFresh};
+  return {snapshot, launch, after, isFresh, celebrate};
 })();
