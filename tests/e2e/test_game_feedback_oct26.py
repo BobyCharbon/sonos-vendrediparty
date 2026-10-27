@@ -93,7 +93,9 @@ def test_sips_counter_is_translucent_and_lets_taps_through(phones):
     bob.page.locator('.qs-pick', has_text='Alice').click()
     hud = alice.page.locator('#gameHud')
     expect(hud).to_be_visible()
-    style = hud.evaluate("e => { const s = getComputedStyle(e); return [s.pointerEvents, s.backgroundColor]; }")
+    style = hud.evaluate("e => { const s = getComputedStyle(e); return [s.pointerEvents, s.backgroundColor, s.backdropFilter, s.opacity]; }")
     assert style[0] == 'none'
     alpha = float(style[1].split(',')[-1].rstrip(')')) if style[1].startswith('rgba') else 1.0
-    assert alpha < 0.5, style
+    assert alpha <= 0.15, style  # le texte derrière reste lisible (retour : « encore plus transparent »)
+    assert style[2] in ('', 'none'), style  # pas de flou : il brouillait l'écriture derrière
+    assert float(style[3]) <= 0.75, style

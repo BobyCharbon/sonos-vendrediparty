@@ -315,12 +315,12 @@ button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2
 .bj-result { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(0,0,0,.25); font-weight: 800; }
 .bj-result.win, .bj-result.blackjack { background: var(--g-accent); color: var(--g-ink); }
 .track.bj-turn { outline: 2px solid var(--accent-2); }
-/* Compteur fixe en haut à droite (jetons, gorgées) : translucide, le jeu reste visible dessous, et les touchers
-   le traversent (il ne masque jamais un bouton). */
+/* Compteur fixe en haut à droite (jetons, gorgées) : presque transparent et sans flou, le texte du jeu reste lisible
+   dessous ; une ombre garde les chiffres lisibles ; les touchers le traversent (il ne masque jamais un bouton). */
 .g-hud { position: fixed; z-index: 15; top: calc(58px + env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right));
-  display: flex; gap: 6px; padding: 4px; border-radius: 16px; background: rgba(20, 16, 32, .28); pointer-events: none;
-  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); opacity: .85; }
-.hud-item { display: flex; flex-direction: column; align-items: center; min-width: 52px; padding: 4px 8px; border-radius: 12px; background: rgba(255, 255, 255, .06); line-height: 1.1; }
+  display: flex; gap: 6px; padding: 2px; border-radius: 16px; background: transparent; pointer-events: none;
+  opacity: .7; text-shadow: 0 1px 3px rgba(0, 0, 0, .8); }
+.hud-item { display: flex; flex-direction: column; align-items: center; min-width: 52px; padding: 4px 8px; border-radius: 12px; background: transparent; line-height: 1.1; }
 .hud-item span { font-size: .9rem; }
 .hud-item b { font-size: 1.25rem; font-variant-numeric: tabular-nums; color: var(--g-accent, #fff); }
 .hud-item small { font-size: .65rem; color: var(--g-soft, var(--muted)); text-transform: uppercase; letter-spacing: .04em; }
