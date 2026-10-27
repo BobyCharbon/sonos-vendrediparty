@@ -88,7 +88,7 @@ def _clear(g):
     s = g["president"]
     leader = s["pile"]["by"]
     s["discard"].extend(s["pile"]["cards"])
-    s["pile"], s["passed"] = None, []
+    s["pile"], s["passed"], s["trail"] = None, [], []
     s["turn"] = leader if leader in _active(s) else _next(s, leader)
     s["trick"] += 1
     s["notice"] = f"Pli remporté par {_name(g, leader)}. {_name(g, s['turn'])} ouvre le suivant."
@@ -132,7 +132,7 @@ def start(g, rng=random):
          "pids": {p["id"]: p["pid"] for p in players}, "turn": None, "pile": None, "passed": [],
          "finished": [], "departed": [], "discard": [], "scores": dict(previous.get("scores", {})),
          "roles": {gid: role(pos, len(order)) for pos, gid in enumerate(order)} if exchange else {},
-         "exchange": {}, "offered": {}, "deal": secrets.token_hex(8), "revision": 0, "trick": 1,
+         "exchange": {}, "offered": {}, "deal": secrets.token_hex(8), "revision": 0, "trick": 1, "trail": [],
          "notice": "Le 3 de trèfle donne la première main. Les jokers seuls valent des 3."}
     g["president"] = s
     g["round"] += 1
@@ -175,6 +175,7 @@ def _turn(g, gid, token):
 
 
 FAMILY = 4  # les quatre cartes d'une valeur (jokers joués comme elle compris)
+TRAIL = 5  # derniers coups du pli en cours montrés à la table (un nouveau pli repart de zéro)
 TWO = RANKS.index("2")  # un 2 (seul, double, triple, carré) ferme le pli : son auteur rouvre
 
 
@@ -208,6 +209,7 @@ def play(g, gid, cards, token):
     for c in cards:
         hand.remove(c)
     s["pile"] = {"cards": list(cards), "rank": value, "by": gid, "family": family, "locked": same}
+    s["trail"] = (s.get("trail", []) + [{"cards": list(cards), "rank": value, "by": gid}])[-TRAIL:]
     s["passed"] = []
     label = RANKS[value]
     s["notice"] = f"{_name(g, gid)} pose {len(cards)} carte(s) de valeur {label}" + (f" : {label} ou rien." if same else ".")
@@ -308,6 +310,8 @@ def view(g, gid):
                     "name": _name(g, pile["by"]), "family": pile.get("family", len(pile["cards"])),
                     "locked": bool(pile.get("locked"))} if pile else None,
            "token": _token(s) if s.get("deal") else "", "trick": s.get("trick", 0),
+           "trail": [{"name": _name(g, t["by"]), "cards": [card_view(c) for c in t["cards"]], "rank": RANKS[t["rank"]]}
+                     for t in s.get("trail", [])],
            "notice": s.get("notice", ""), "exchange": None,
            "ranking": [{"pid": pid(i), "name": _name(g, i), "me": i == gid, "place": pos + 1,
                         "role": role(pos, len(order)), "points": s.get("scores", {}).get(i, 0),

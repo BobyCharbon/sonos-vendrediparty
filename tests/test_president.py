@@ -343,3 +343,31 @@ def test_finishing_on_a_two_hands_the_new_trick_to_the_next_player():
     s = g["president"]
     assert g["phase"] == "play" and s["finished"] == ["player-0", "player-1"]
     assert s["pile"] is None and s["turn"] == "player-2"
+
+
+# ── Derniers coups visibles ──
+def test_the_last_five_plays_stay_visible_with_the_latest_last():
+    g = state_with({"player-0": ["3C", "6C", "9C", "QC"], "player-1": ["4C", "7C", "10C", "KC"], "player-2": ["5C", "8C", "JC", "AC"]})
+    for gid, card in [("player-0", "3C"), ("player-1", "4C"), ("player-2", "5C"), ("player-0", "6C"), ("player-1", "7C"), ("player-2", "8C")]:
+        play(g, gid, [card])
+    trail = pr.view(g, "player-0")["trail"]
+    assert [(t["name"], [c["id"] for c in t["cards"]]) for t in trail] == [
+        ("J1", ["4C"]), ("J2", ["5C"]), ("J0", ["6C"]), ("J1", ["7C"]), ("J2", ["8C"])]
+    assert trail[-1]["rank"] == "8"
+
+
+def test_a_new_trick_starts_from_zero():
+    g = state_with({"player-0": ["5C", "9C"], "player-1": ["2C", "4C"], "player-2": ["KC", "KD"]})
+    play(g, "player-0", ["5C"])
+    play(g, "player-1", ["2C"])  # ferme le pli
+    assert pr.view(g, "player-2")["trail"] == []
+    play(g, "player-1", ["4C"])
+    assert [t["name"] for t in pr.view(g, "player-2")["trail"]] == ["J1"]
+
+
+def test_a_new_deal_clears_the_trail():
+    g = state_with({"player-0": ["5C", "9C"], "player-1": ["6C", "4C"], "player-2": ["KC", "KD"]})
+    play(g, "player-0", ["5C"])
+    g["phase"] = "end"
+    games.start(g, random.Random(3))
+    assert pr.view(g, "player-0")["trail"] == []

@@ -76,3 +76,18 @@ button.pr-card:hover { background: #fff2c9; }
 @media (min-width: 600px) { .pr-hand { grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); } .pr-card { height: 88px; } }
 @media (max-width: 360px) { body.pyr-full #game.g-pr { padding: 10px; } .pr-pile { gap: 5px; } .pr-pile > .pr-card { width: 56px; height: 84px; } .pr-action-row { gap: 5px; } .pr-action-row button { padding-inline: 10px; } }
 @media (prefers-reduced-motion: reduce) { .pr-card { transition: none; } }
+
+/* Dernier coup en surbrillance, et les coups précédents du pli en cours en dessous. */
+.pr-last-tag { display: inline-block; margin-right: 4px; padding: 2px 8px; border-radius: 999px; background: #ffd27a; color: #2b1a00;
+  font-size: .7rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.pr-pile.pr-latest .pr-card { box-shadow: 0 0 0 3px #ffd27a, 0 0 24px rgba(255, 210, 122, .65); animation: pr-land .35s cubic-bezier(.2, 1.3, .4, 1); }
+@keyframes pr-land { from { transform: translateY(-10px) scale(.92); opacity: .4; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .pr-pile.pr-latest .pr-card { animation: none; } }
+.pr-trail { list-style: none; margin: 10px 0 2px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pr-trail-item { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; padding: 6px 10px; border-radius: 12px;
+  background: rgba(255, 255, 255, .07); font-size: .88rem; text-align: left; }
+.pr-trail-item b { font-weight: 700; }
+.pr-minis { display: inline-flex; gap: 4px; }
+.pr-mini { display: inline-block; min-width: 28px; padding: 2px 5px; border-radius: 6px; background: #fff; color: #1b1b1b;
+  font-weight: 800; font-size: .82rem; text-align: center; }
+.pr-mini.pr-red { color: #c62828; }

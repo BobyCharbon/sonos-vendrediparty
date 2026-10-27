@@ -28,6 +28,19 @@ window.President = (() => {
     </${tag}>`;
   }
 
+  // Coups précédents du pli en cours (4 au plus, du plus récent au plus ancien), sous le dernier coup affiché
+  // en grand et en surbrillance. Un nouveau pli repart de zéro.
+  function mini(c) {
+    return `<span class="pr-mini ${c.red ? "pr-red" : ""}">${c.joker ? "Jkr" : esc(c.rank) + c.suit}</span>`;
+  }
+
+  function trailHtml(v) {
+    const list = v.pile ? v.trail.slice(0, -1).reverse() : [];
+    if (!list.length) return "";
+    return `<ol class="pr-trail" aria-label="Coups précédents de ce pli">${list.map((t) => `<li class="pr-trail-item">
+        <b>${esc(t.name)}</b><span class="pr-minis">${t.cards.map(mini).join("")}</span></li>`).join("")}</ol>`;
+  }
+
   function decision(g) {
     const v = g.president, cards = v.hand.filter(c => selected.has(c.id)), x = v.exchange;
     if (g.phase === "exchange") {
@@ -79,10 +92,11 @@ window.President = (() => {
       ${x.cards.length ? `<div class="pr-pile">${x.cards.map(c => card(c)).join("")}</div>` : ""}
       <p class="pr-note" role="status">En attente de ${x.pending.map(esc).join(", ")}.</p></div>`
       : `<div class="pr-table" data-key="pile-${g.round}-${v.trick}">
-          <p class="pr-table-caption">${v.pile ? `${esc(v.pile.name)} a posé` : `Pli ${v.trick} · table libre`}</p>
-          <div class="pr-pile">${v.pile ? v.pile.cards.map(c => card(c, false, v.pile.rank)).join("") : `<span class="pr-empty-pile" aria-hidden="true">♣</span>`}</div>
+          <p class="pr-table-caption">${v.pile ? `<span class="pr-last-tag">Dernier coup</span> ${esc(v.pile.name)} a posé` : `Pli ${v.trick} · table libre`}</p>
+          <div class="pr-pile ${v.pile ? "pr-latest" : ""}">${v.pile ? v.pile.cards.map(c => card(c, false, v.pile.rank)).join("") : `<span class="pr-empty-pile" aria-hidden="true">♣</span>`}</div>
           <p class="pr-note">${v.pile ? `${v.pile.cards.length} carte${v.pile.cards.length > 1 ? "s" : ""} de valeur ${esc(v.pile.rank)}` : "Une nouvelle combinaison peut ouvrir le pli."}</p>
-          ${v.pile?.locked ? `<p class="pr-family" role="status"><b>${esc(v.pile.rank)} ou rien</b> · famille ${v.pile.family}/4</p>` : ""}</div>`;
+          ${v.pile?.locked ? `<p class="pr-family" role="status"><b>${esc(v.pile.rank)} ou rien</b> · famille ${v.pile.family}/4</p>` : ""}
+          ${trailHtml(v)}</div>`;
     const hand = v.hand.length && !waiting && !mine?.place ? `<section class="pr-hand-section">
       <div class="pr-hand-heading"><h3>Ta main <span>${v.hand.length}</span></h3><button type="button" class="pr-privacy" data-pr="privacy" aria-pressed="${hidden}">${hidden ? "Voir mes cartes" : "Masquer"}</button></div>
       ${hidden ? `<div class="pr-hidden-hand"><span aria-hidden="true">${crown}</span><p>Tes cartes sont masquées.</p><button type="button" class="secondary" data-pr="privacy">Voir mes cartes</button></div>` : `<div class="pr-hand" role="group" aria-label="Cartes de ta main">${v.hand.map(c => card(c, !!canChoose)).join("")}</div>`}
