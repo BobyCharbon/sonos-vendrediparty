@@ -127,8 +127,8 @@
       return;
     }
     box.classList.remove("hidden");
-    help.textContent = Notification.permission === "denied" ? "Notifications bloquées dans les réglages du téléphone." : "";
-    if (pushOk === null) pushOk = !!(await Push.current("/").catch(() => null)) && Notification.permission === "granted";
+    help.textContent = Push.permission() === "denied" ? "Notifications bloquées dans les réglages du téléphone." : "";
+    if (pushOk === null) pushOk = !!(await Push.current("/").catch(() => null)) && Push.permission() === "granted";
     const prefs = s.admin_notify || {};
     root.querySelectorAll("[data-pa-notif]").forEach((t) => { if (!t.disabled) t.checked = pushOk && !!prefs[t.dataset.paNotif]; });
   }

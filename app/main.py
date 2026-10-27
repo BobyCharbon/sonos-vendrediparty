@@ -29,6 +29,7 @@ from .audit import AuditLog
 from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
 from .github_issues import GitHubError, Issues
 from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
+from .apns import Apns
 from .push import Push, valid_subscription
 from .security import Limiter
 from .sonos import Sonos, seconds
@@ -80,7 +81,7 @@ spotify = (
     if os.environ.get("SPOTIFY_CLIENT_ID") and os.environ.get("SPOTIFY_CLIENT_SECRET")
     else None
 )
-push = Push(DATA_DIR, PUBLIC_URL)
+push = Push(DATA_DIR, PUBLIC_URL, apns=Apns.from_env(os.environ))
 # Compte Spotify de l’hôte : Sonos via Spotify Connect ou téléphone à l’extérieur.
 spotify_user = (SpotifyUser(os.environ["SPOTIFY_CLIENT_ID"], os.environ["SPOTIFY_CLIENT_SECRET"], DATA_DIR / "spotify_user.json",
                             PUBLIC_URL + "/api/spotify/callback") if spotify else None)

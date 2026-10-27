@@ -17,6 +17,9 @@ services:
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID}
       SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET}
       SPOTIFY_MARKET: ${SPOTIFY_MARKET:-CH}
+      # Notifications de l'app iOS native (app/apns.py) : clé APNs .p8 (contenu) et son identifiant.
+      APNS_KEY_P8: ${APNS_KEY_P8:-}
+      APNS_KEY_ID: ${APNS_KEY_ID:-}
       # Mêmes enceintes que la prod : éviter de lancer une soirée musique de test pendant une vraie soirée.
       SONOS_IP: ${SONOS_IP:-192.168.50.186}
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-192.168.50.1}

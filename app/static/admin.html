@@ -930,11 +930,11 @@ async function initNotifications() {
       continue;
     }
     $(box).classList.remove("hidden");
-    $(help).textContent = Notification.permission === "denied" ? "Notifications bloquées dans les réglages du navigateur." : "";
+    $(help).textContent = Push.permission() === "denied" ? "Notifications bloquées dans les réglages du navigateur." : "";
   }
   if (!Push.supported()) return;
   const sub = await Push.current("/admin").catch(() => null);
-  const ok = !!sub && Notification.permission === "granted";
+  const ok = !!sub && Push.permission() === "granted";
   const prefs = state?.admin_notify || { messages: true, games: false };
   for (const [kind, [, toggle]] of Object.entries(NOTIF)) $(toggle).checked = ok && !!prefs[kind];
   if (ok) Push.send("/api/admin/push/subscribe", { subscription: sub.toJSON() }).catch(() => {});

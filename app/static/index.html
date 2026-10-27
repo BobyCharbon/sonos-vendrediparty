@@ -678,8 +678,8 @@ async function initNotifications() {
   }
   $("notifBox").classList.remove("hidden");
   const sub = await Push.current("/").catch(() => null);
-  $("notifToggle").checked = !!sub && Notification.permission === "granted";
-  $("notifHelp").textContent = Notification.permission === "denied" ? "Notifications bloquées dans les réglages du téléphone." : "";
+  $("notifToggle").checked = !!sub && Push.permission() === "granted";
+  $("notifHelp").textContent = Push.permission() === "denied" ? "Notifications bloquées dans les réglages du téléphone." : "";
   // Réassocie l'abonnement à cet invité (le serveur a pu l'oublier).
   if ($("notifToggle").checked) Push.send("/api/push/subscribe", { guest_id: guestId, subscription: sub.toJSON() }).catch(() => {});
 }
