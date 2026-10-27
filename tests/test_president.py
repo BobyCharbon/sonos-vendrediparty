@@ -549,3 +549,31 @@ def test_out_of_turn_completion_only_with_a_pair():
     play(g, "player-2", ["7D"])  # 3 sept posés ; c'est à player-3
     with pytest.raises(pr.PresidentError, match="pas ton tour"):
         play(g, "player-0", ["7S"])  # compléterait, mais en simple : interdit hors tour
+
+
+# ── Coup qui ferme le pli : montré (et animé) même si le pli est déjà ramassé ──
+@pytest.mark.parametrize("hands,moves,reason", [
+    ({"player-0": ["5C", "9C"], "player-1": ["2C", "4C"], "player-2": ["KC", "KD"]}, [("player-0", ["5C"]), ("player-1", ["2C"])], "two"),
+    ({"player-0": ["JC", "JH", "3C"], "player-1": ["4C", "5C"], "player-2": ["JD", "JS", "6C"]},
+     [("player-0", ["JC", "JH"]), ("player-2", ["JD", "JS"])], "family"),
+    ({"player-0": ["9C"], "player-1": ["KC", "4C"], "player-2": ["AC", "5C"]}, [("player-0", ["9C"])], "president"),
+])
+def test_the_closing_play_is_shown_after_the_trick_is_collected(hands, moves, reason):
+    g = state_with(hands)
+    for gid, cards in moves:
+        play(g, gid, cards)
+    closer, cards = moves[-1]
+    v = pr.view(g, "player-1")
+    assert v["pile"] is None
+    closed = v["closed"]
+    assert closed["reason"] == reason and [c["id"] for c in closed["cards"]] == cards
+    assert closed["pid"] == next(p["pid"] for p in g["players"] if p["id"] == closer) and closed["key"]
+
+
+def test_a_trick_collected_because_everyone_passed_has_no_closing_cards():
+    g = state_with({"player-0": ["3C", "9C"], "player-1": ["4C", "KC"], "player-2": ["5C", "AC"]})
+    play(g, "player-0", ["3C"])
+    pass_turn(g, "player-1")
+    pass_turn(g, "player-2")
+    closed = pr.view(g, "player-0")["closed"]
+    assert closed["reason"] == "passed" and closed["cards"] == []

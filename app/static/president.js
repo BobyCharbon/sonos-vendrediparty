@@ -18,7 +18,7 @@ window.President = (() => {
     <h3>Arrivées et départs</h3><p>Un retardataire attend la prochaine donne. Un joueur qui quitte la manche est classé en dernier et ses cartes sont écartées. Après un changement de joueurs, la prochaine donne commence sans échange. Une simple déconnexion conserve la main : reviens avec le même navigateur.</p>`;
 
   function card(c, interactive = false, effective = "") {
-    const picked = selected.has(c.id), tag = interactive ? "button" : "span", isNew = interactive && fresh.has(c.id);
+    const picked = selected.has(c.id), tag = interactive ? "button" : "span", isNew = interactive && !!window.PresidentFx?.isFresh(c.id);
     const attr = interactive ? ` type="button" data-pr-card="${esc(c.id)}" aria-pressed="${picked}"` : ` role="img"`;
     const name = c.label + (effective && c.joker ? `, joué comme ${effective}` : "");
     return `<${tag}${attr} class="pr-card ${c.red ? "pr-red" : ""} ${c.joker ? "pr-joker" : ""} ${interactive && picked ? "pr-selected" : ""} ${isNew ? "pr-new" : ""}" aria-label="${esc(name)}">
@@ -65,6 +65,7 @@ window.President = (() => {
   }
 
   function html(g) {
+    window.PresidentFx?.snapshot();
     const v = g.president, key = `${g.id}:${g.round}`;
     if (dealKey !== key) { dealKey = key; selected.clear(); hidden = false; }
     selected = new Set([...selected].filter(id => v.hand.some(c => c.id === id)));
@@ -131,6 +132,7 @@ window.President = (() => {
     if (action === "clear") { selected.clear(); renderGame(game); return; }
     const code = myGame, v = game.president;
     if (action === "pass") selected.clear();
+    if (action === "play") window.PresidentFx?.launch([...selected]);
     busy = true; renderGame(game);
     try {
       await gameAction({play: "prplay", pass: "prpass", exchange: "prexchange"}[action],
@@ -140,75 +142,6 @@ window.President = (() => {
       if (myGame === code && game?.type === "president") renderGame(game);
     }
   });
-  // ── Animations (après chaque rendu) : le coup posé vole du siège du joueur jusqu'au pli ; aux échanges, les
-  // cartes volent d'un siège à l'autre (dos visibles) et celles qu'on reçoit sont marquées « Nouvelle ». ──
-  let seenPlay = null, seenTrick = null, seenSwap = "", fresh = new Set(), freshTimer = 0;
-  const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const center = (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
-  const seatOf = (pid) => document.querySelector(`#game .pr-seat[data-key="seat-${CSS.escape(pid || "")}"]`);
-
-  function flyPlay(pid) {
-    const from = seatOf(pid), cards = document.querySelectorAll("#game .pr-pile.pr-latest .pr-card");
-    if (!from) return;
-    const [fx, fy] = center(from);
-    cards.forEach((el, i) => {
-      const [tx, ty] = center(el);
-      el.animate([
-        {transform: `translate(${fx - tx}px, ${fy - ty}px) scale(.45) rotate(${i % 2 ? 14 : -14}deg)`, opacity: .2},
-        {transform: "translateY(-6px) scale(1.06)", opacity: 1, offset: .75},
-        {transform: "none", opacity: 1}], {duration: 420, delay: i * 60, easing: "cubic-bezier(.2, .9, .3, 1)", fill: "backwards"});
-    });
-  }
-
-  function flyBack(fromPid, toPid, delay) {
-    const a = seatOf(fromPid), b = seatOf(toPid);
-    if (!a || !b) return;
-    const [ax, ay] = center(a), [bx, by] = center(b), el = document.createElement("div");
-    el.className = "pr-fly";
-    Object.assign(el.style, {left: `${ax}px`, top: `${ay}px`});
-    document.body.append(el);
-    const to = `translate(calc(-50% + ${bx - ax}px), calc(-50% + ${by - ay}px))`;
-    el.animate([
-      {transform: "translate(-50%, -50%) scale(.6) rotate(-10deg)", opacity: 0},
-      {transform: "translate(-50%, -50%) scale(1) rotate(-6deg)", opacity: 1, offset: .15},
-      {transform: `${to} scale(1) rotate(8deg)`, opacity: 1, offset: .85},
-      {transform: `${to} scale(.7)`, opacity: 0}], {duration: 900, delay, easing: "cubic-bezier(.4, 0, .2, 1)", fill: "both"})
-      .finished.then(() => el.remove(), () => el.remove());
-  }
-
-  function swapFx(g) {
-    const sw = g.president.swap;
-    if (!sw || seenSwap === sw.key) return;
-    seenSwap = sw.key;
-    if (!calm()) {
-      let delay = 0;
-      sw.moves.forEach((m) => { for (let i = 0; i < m.count; i++) { flyBack(m.from, m.to, delay); delay += 160; } });
-    }
-    if (!sw.got.length) return;
-    toast(`Tu reçois ${sw.got.map(c => c.label).join(" et ")} de ${sw.from}`);
-    fresh = new Set(sw.got.map(c => c.id));
-    clearTimeout(freshTimer);
-    freshTimer = setTimeout(() => { fresh.clear(); if (game?.type === "president") renderGame(game); }, 6000);
-    renderGame(game);
-  }
-
-  function after(g) {
-    const v = g.president;
-    if (!v || !v.seats) return;
-    const last = v.trail?.at(-1);
-    const play = v.pile && last ? `${g.id}:${g.round}:${v.trick}:${last.pid}:${last.cards.map(c => c.id).join()}` : "";
-    const trick = `${g.id}:${g.round}:${v.trick}`;
-    if (!calm()) {
-      if (play && seenPlay !== null && play !== seenPlay) flyPlay(last.pid);
-      if (seenTrick !== null && trick !== seenTrick && g.phase === "play") {
-        document.querySelector("#game .pr-table")?.animate([{transform: "scale(1)"}, {transform: "scale(.96)", filter: "brightness(1.25)"}, {transform: "scale(1)"}],
-          {duration: 320, easing: "ease-out"});
-      }
-    }
-    seenPlay = play;
-    seenTrick = trick;
-    if (g.phase === "play") swapFx(g);
-  }
-
-  return {html, rules, crown, after};
+  // Animations : app/static/president-fx.js (chargé après ce fichier).
+  return {html, rules, crown, cardHtml: (c) => card(c), after: (g) => window.PresidentFx?.after(g)};
 })();

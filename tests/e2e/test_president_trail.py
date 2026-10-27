@@ -93,3 +93,32 @@ def test_a_played_card_flies_to_the_table(table):
     move(server, starter, 'prplay', ['3C'])
     alice.page.wait_for_function("window.__flights > 0", timeout=5000)
     expect(alice.page.locator('.pr-pile.pr-latest .pr-card')).to_have_count(1)
+
+
+def test_a_two_closing_the_trick_is_announced_and_swept(table):
+    server, (alice, bob, chloe) = table
+    code = alice.create('president')
+    for p in (bob, chloe):
+        p.join(code)
+    wait_state(alice, lambda g: len(g['players']) == 3)
+    alice.tap('[data-gact="start"]')
+    wait_state(alice, lambda g: g['phase'] == 'play')
+    phones = {p.pid(): p for p in (alice, bob, chloe)}
+    for _ in range(20):  # on joue jusqu'à ce que quelqu'un puisse poser un 2 (pas sa dernière carte)
+        pres = alice.state()['president']
+        who = phones[pres['turn']]
+        hand = who.state()['president']['hand']
+        two = next((c['id'] for c in hand if c['value'] == 12 and not c['joker']), None)
+        pile = pres['pile']
+        if two and len(hand) > 1 and (not pile or len(pile['cards']) == 1):
+            move(server, who, 'prplay', [two])
+            break
+        card = lowest_single(who, pile['value'] if pile else -1)
+        if card and (not pile or len(pile['cards']) == 1):
+            move(server, who, 'prplay', [card])
+        else:
+            move(server, who, 'prpass')
+    else:
+        pytest.skip("personne n'a pu poser de 2 dans ce tirage")
+    expect(alice.page.locator('.pr-burst')).to_have_text('2 ! Pli fermé', timeout=5000)
+    expect(alice.page.locator('.pr-ghost').first).to_be_attached()

@@ -95,9 +95,11 @@ def _token(s):
     return f"{s['deal']}:{s['revision']}"
 
 
-def _clear(g):
+def _clear(g, reason="passed", cards=()):
+    """Ramasse le pli. Le coup qui l'a fermé (2, famille, Président) est gardé pour que la table le montre."""
     s = g["president"]
     leader = s["pile"]["by"]
+    s["closed"] = {"key": f"{s['deal']}:{s['trick']}", "reason": reason, "by": leader, "cards": list(cards)}
     s["discard"].extend(s["pile"]["cards"])
     s["pile"], s["passed"], s["trail"] = None, [], []
     s["turn"] = leader if leader in _active(s) else _next(s, leader)
@@ -241,7 +243,8 @@ def play(g, gid, cards, token):
         president_out = not hand and s["finished"] == [gid]
         if completes or value == TWO or president_out or _everyone_else_passed(s, gid):
             notice = s["notice"]
-            _clear(g)
+            reason = "family" if completes else "two" if value == TWO else "president" if president_out else "passed"
+            _clear(g, reason, cards if reason != "passed" else ())
             opener = _name(g, s["turn"])
             if president_out:
                 s["notice"] = f"{notice} On ne joue pas sur le Président : {opener} ouvre le pli suivant."
@@ -372,6 +375,8 @@ def view(g, gid):
            "trail": [{"name": _name(g, t["by"]), "pid": pid(t["by"]), "cards": [card_view(c) for c in t["cards"]],
                       "rank": RANKS[t["rank"]]} for t in s.get("trail", [])],
            "swap": _swap_view(g, s, gid, pid),
+           "closed": {"key": c["key"], "reason": c["reason"], "pid": pid(c["by"]), "name": _name(g, c["by"]),
+                      "cards": [card_view(x) for x in c["cards"]]} if (c := s.get("closed")) else None,
            "notice": s.get("notice", ""), "exchange": None,
            "ranking": [{"pid": pid(i), "name": _name(g, i), "me": i == gid, "place": pos + 1,
                         "role": role(pos, len(order)), "points": s.get("scores", {}).get(i, 0),

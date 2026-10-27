@@ -101,3 +101,14 @@ button.pr-card:hover { background: #fff2c9; }
   background: #3fcf8e; color: #062b18; font-size: .6rem; font-weight: 800; white-space: nowrap; }
 @keyframes pr-new-pop { from { transform: translateY(-14px) scale(.85); } to { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .pr-card.pr-new { animation: none; } }
+
+/* Animations de la table (president-fx.js) : copies de cartes qui volent par-dessus tout, annonce centrale,
+   emoji qui s'envole d'un siège. */
+.pr-ghost { position: fixed; z-index: 70; pointer-events: none; }
+.pr-ghost > .pr-card { width: 100%; height: 100%; box-sizing: border-box; margin: 0; }
+.pr-burst { position: fixed; left: 50%; top: 42%; z-index: 80; pointer-events: none; padding: 14px 24px; border-radius: 22px;
+  background: linear-gradient(135deg, #ffe08a, #ff9f43); color: #2b1a00; font: 900 1.6rem/1.1 "Bricolage Grotesque", system-ui, sans-serif;
+  white-space: nowrap; box-shadow: 0 18px 40px rgba(0, 0, 0, .45); }
+.pr-pop { position: fixed; z-index: 80; pointer-events: none; font-size: 2.4rem; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .4)); }
+/* La carte qui vole depuis la main passe au-dessus des autres cartes de la main. */
+.pr-table { position: relative; z-index: 3; }
