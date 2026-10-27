@@ -26,3 +26,25 @@ def test_main_site_opens_the_app_store_app(monkeypatch):
 
 def test_test_site_opens_the_beta_app(monkeypatch):
     assert app_ids(monkeypatch, "https://partytest.bobycharbon.ch/") == ["GS2B6GA9JA.ch.bobycharbon.party.beta"]
+
+
+# ── Pas de zoom : l'app doit se sentir native, pas comme un site web ──
+_ROOT = __import__("pathlib").Path(__file__).resolve().parent.parent
+NO_ZOOM = "maximum-scale=1, user-scalable=no"
+
+
+def test_every_page_forbids_zooming():
+    for page in ("app/static/index.html", "app/static/admin.html", "app/static/tv.html", "web/events/scripts/postbuild.mjs"):
+        assert NO_ZOOM in (_ROOT / page).read_text(encoding="utf-8"), page
+
+
+def test_pinch_and_double_tap_zoom_are_blocked_in_the_page():
+    js = (_ROOT / "app/static/ios-app.js").read_text(encoding="utf-8")
+    assert '"gesturestart"' in js and "preventDefault" in js
+    css = (_ROOT / "app/static/style.css").read_text(encoding="utf-8")
+    assert "touch-action: manipulation" in css
+
+
+def test_native_app_web_view_cannot_zoom():
+    swift = (_ROOT / "ios/Party/PartyWebView.swift").read_text(encoding="utf-8")
+    assert "maximumZoomScale = 1" in swift and "viewForZooming" in swift

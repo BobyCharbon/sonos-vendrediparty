@@ -16,6 +16,6 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:manipulati
 let html = readFileSync(path, 'utf8')
   .replace('<html lang="en">', '<html lang="fr">')
   .replace('You need to enable JavaScript to run this app.', 'Active JavaScript pour consulter les événements de Party.')
-  .replace(/<meta name="viewport"[^>]*>/, '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#15102A">');
+  .replace(/<meta name="viewport"[^>]*>/, '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"><meta name="theme-color" content="#15102A">');
 if (!html.includes('id="app-shell"')) html = html.replace('</head>', `${appStyle}</head>`);
 writeFileSync(path, html);

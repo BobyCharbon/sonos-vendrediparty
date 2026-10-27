@@ -30,6 +30,11 @@ struct PartyWebView: UIViewRepresentable {
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         // Comme la PWA : pas de geste « retour » natif (le module Événements a son propre balayage depuis le bord).
         webView.allowsBackForwardNavigationGestures = false
+        // Pas de zoom : l'app doit se sentir native (le viewport des pages l'interdit aussi).
+        webView.scrollView.minimumZoomScale = 1
+        webView.scrollView.maximumZoomScale = 1
+        webView.scrollView.bouncesZoom = false
+        webView.scrollView.delegate = context.coordinator
         #if DEBUG
         if #available(iOS 16.4, *) { webView.isInspectable = true }  // Safari > Développement sur le Mac
         #endif
@@ -162,4 +167,9 @@ struct PartyWebView: UIViewRepresentable {
             top.present(controller, animated: true)
         }
     }
+}
+
+// Pas de zoom au pincement ni au double-tap : aucune vue n'est zoomable.
+extension PartyWebView.Coordinator: UIScrollViewDelegate {
+    func viewForZooming(in scrollView: UIScrollView) -> UIView? { nil }
 }
