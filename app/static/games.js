@@ -2670,7 +2670,7 @@ function exitHtml(g) {
   // « Arrêter de jouer » libère sa place mais on reste pour regarder ; « Quitter » fait vraiment partir (et libère
   // la place si on jouait encore). L'animateur, lui, part en passant la main ou en fermant la partie.
   if (g.me && !g.kicked) out.push(`<button type="button" class="secondary g-exit" data-exit="leave">🪑 Arrêter de jouer <small>tu restes pour regarder</small></button>`);
-  if (!g.is_owner) out.push(`<button type="button" class="secondary g-exit" data-exit="away">🚪 Quitter</button>`);
+  if (!g.is_owner) out.push(`<button type="button" class="secondary g-exit" data-exit="away">🚪 Quitter la partie <small>retour à l'accueil des jeux</small></button>`);
   if (g.is_host) out.push(g.room ? `<button type="button" class="secondary g-exit" data-exit="end">🏠 Terminer ce jeu et revenir à la salle</button>`
     : `<button type="button" class="danger g-exit" data-exit="end">${g.type === "room" ? "Fermer la salle pour tout le monde" : g.players.length <= 1 ? "Quitter et fermer la partie" : "Fermer la partie pour tout le monde"}</button>`);
   return out.join("");

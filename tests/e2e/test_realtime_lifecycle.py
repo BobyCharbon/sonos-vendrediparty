@@ -20,7 +20,7 @@ def test_visible_exit_for_player_and_host_stops_frame_requests(phones,kind,playi
     friend.page.locator('#gTop .g-quit').click()
     leave=friend.page.locator('[data-exit="away"]')  # « Quitter » : libère sa place et part
     expect(leave).to_be_in_viewport()
-    expect(leave).to_contain_text("Quitter")
+    expect(leave).to_contain_text("Quitter la partie")
     friend.page.on("dialog",lambda d:d.accept())
     leave.click()
     expect(friend.page.locator("#gHome")).to_be_visible()
