@@ -18,8 +18,9 @@ def test_visible_exit_for_player_and_host_stops_frame_requests(phones,kind,playi
         wait_state(host,lambda g:g["phase"]=="play")
     # The exit is visible at phone width and does not require finding the drawer footer.
     friend.page.locator('#gTop .g-quit').click()
-    leave=friend.page.locator('[data-exit="leave"]')
+    leave=friend.page.locator('[data-exit="away"]')  # « Quitter » : libère sa place et part
     expect(leave).to_be_in_viewport()
+    expect(leave).to_contain_text("Quitter")
     friend.page.on("dialog",lambda d:d.accept())
     leave.click()
     expect(friend.page.locator("#gHome")).to_be_visible()
@@ -73,9 +74,9 @@ def test_host_can_transfer_and_leave_without_closing_friends_game(phones,kind):
     # Passer la main ne fait plus quitter (retour 26.10) : l'ancien animateur reste joueur…
     wait_state(friend,lambda g:g["is_host"] and len(g["players"])==2)
     expect(host.page.locator("#gamePlay")).to_be_visible()
-    # … et part ensuite avec « Quitter la partie », sans fermer la partie de son ami.
+    # … et part ensuite avec « Quitter », sans fermer la partie de son ami.
     host.page.locator("#gTop .g-quit").click()
-    host.page.locator('[data-exit="leave"]').click()
+    host.page.locator('[data-exit="away"]').click()
     wait_state(friend,lambda g:g["is_host"] and len(g["players"])==1)
     assert friend.current()==code
 
@@ -97,3 +98,24 @@ def test_delayed_old_refresh_cannot_reopen_room_after_exit(phones):
     host.page.wait_for_timeout(500)
     expect(host.page.locator("#gHome")).to_be_visible()
     assert host.page.evaluate("localStorage.getItem('vp_game')")==""
+
+
+
+def test_stop_playing_keeps_you_watching_then_quit_leaves(phones):
+    """« Arrêter de jouer » libère la place mais on reste pour regarder ; « Quitter » fait vraiment partir."""
+    host=phones("Animatrice");friend=phones("Ami")
+    code=host.create("heist");friend.join(code)
+    wait_state(host,lambda g:len(g["players"])==2)
+    friend.page.on("dialog",lambda d:d.accept())
+    friend.page.locator('#gTop .g-quit').click()
+    stop=friend.page.locator('[data-exit="leave"]')
+    expect(stop).to_contain_text("Arrêter de jouer")
+    stop.click()
+    wait_state(host,lambda g:len(g["players"])==1)
+    expect(friend.page.locator("#gamePlay")).to_be_visible()  # il regarde toujours
+    assert friend.page.evaluate("localStorage.getItem('vp_game')")==code
+    friend.page.locator('#gTop .g-quit').click()
+    expect(friend.page.locator('[data-exit="leave"]')).to_have_count(0)
+    friend.page.locator('[data-exit="away"]').click()
+    expect(friend.page.locator("#gHome")).to_be_visible()
+    assert friend.page.evaluate("localStorage.getItem('vp_game')")==""

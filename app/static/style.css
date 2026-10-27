@@ -1073,6 +1073,7 @@ body.pyr-full #game.g-qz { background: transparent; border: 0; padding: 0; box-s
 .qz-root.anim .qz-ans:nth-child(2) { animation-delay: .03s; } .qz-root.anim .qz-ans:nth-child(3) { animation-delay: .06s; } .qz-root.anim .qz-ans:nth-child(4) { animation-delay: .09s; }
 .qz-root.anim.fast .qz-ans, .qz-root.anim.fast .qz-qcard { animation: none; }
 .g-exit { width: 100%; margin-top: 8px; }
+.g-exit small { display: block; margin-top: 2px; font-size: .75rem; font-weight: 600; opacity: .75; }
 .g-handover { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding: 10px; border-radius: 14px; background: rgba(255,255,255,.05); }
 
 /* ═══════════════════════════════════════════════════════════════════════════

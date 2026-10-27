@@ -2579,8 +2579,8 @@ async function gameAction(action, extra = {}, opts = {}) {
     const g = await gapi(`/api/games/${myGame}`, { guest_id: guestId, name: guestName, action, ...extra });
     if (actionCode !== myGame) return false;
     if (action === "end" && room) { setGame(room); refreshGame(); return; }  // fin d'un jeu de la salle : retour à la salle
-    if (action === "end" || (action === "leave" && !g?.is_host)) {
-      if (action === "leave" || game?.type === "room") { myRoom = ""; store("vp_room", ""); }
+    if (action === "end") {  // « Arrêter de jouer » (leave) garde l'écran : on regarde la suite
+      if (game?.type === "room") { myRoom = ""; store("vp_room", ""); }
       setGame(""); renderGame(null); return;
     }
     if (routeRoom(g)) return;
@@ -2667,9 +2667,10 @@ function exitHtml(g) {
     if (handoverOpen) out.push(`<div class="g-handover"><div class="artist">Qui devient l'animateur ? ${g.me ? "Tu restes dans la partie." : ""}</div>
       ${cands.map((p) => `<button type="button" class="secondary" data-exit="to" data-target="${esc(p.pid)}">👑 ${esc(p.name)}</button>`).join("")}</div>`);
   }
-  // Le maître du jeu (créateur qui ne joue pas) part en passant la main ou en fermant la partie.
-  if (g.me && !g.kicked) out.push(`<button type="button" class="secondary g-exit" data-exit="leave">🚪 Quitter la partie</button>`);
-  else if (!g.is_owner) out.push(`<button type="button" class="secondary g-exit" data-exit="away">🚪 Quitter</button>`);
+  // « Arrêter de jouer » libère sa place mais on reste pour regarder ; « Quitter » fait vraiment partir (et libère
+  // la place si on jouait encore). L'animateur, lui, part en passant la main ou en fermant la partie.
+  if (g.me && !g.kicked) out.push(`<button type="button" class="secondary g-exit" data-exit="leave">🪑 Arrêter de jouer <small>tu restes pour regarder</small></button>`);
+  if (!g.is_owner) out.push(`<button type="button" class="secondary g-exit" data-exit="away">🚪 Quitter</button>`);
   if (g.is_host) out.push(g.room ? `<button type="button" class="secondary g-exit" data-exit="end">🏠 Terminer ce jeu et revenir à la salle</button>`
     : `<button type="button" class="danger g-exit" data-exit="end">${g.type === "room" ? "Fermer la salle pour tout le monde" : g.players.length <= 1 ? "Quitter et fermer la partie" : "Fermer la partie pour tout le monde"}</button>`);
   return out.join("");
@@ -2694,10 +2695,18 @@ document.addEventListener("click", async (ev) => {
     if (confirm(msg)) { closeDrawer(); gameAction("end"); }
     return;
   }
-  if (a === "leave") { if (confirm("Quitter la partie ?")) { closeDrawer(); gameAction("leave"); } return; }
+  if (a === "leave") {
+    if (confirm("Arrêter de jouer ? Ta place est libérée, mais tu restes dans la partie pour regarder.")) { closeDrawer(); gameAction("leave"); }
+    return;
+  }
   if (a === "away") {
-    if (game?.kicked || game?.excluded) { clearInterval(kickTimer); kickCode = ""; myRoom = ""; store("vp_room", ""); }
-    closeDrawer(); setGame(""); renderGame(null);
+    const seated = !!game.me && !game.kicked && !game.excluded;
+    if (seated && !confirm("Quitter la partie ? Ta place est libérée.")) return;
+    closeDrawer();
+    if (seated && !await gameAction("leave")) return;
+    if (game?.kicked || game?.excluded) { clearInterval(kickTimer); kickCode = ""; }
+    myRoom = ""; store("vp_room", "");
+    setGame(""); renderGame(null);
   }
 });
 // Options choisies sur la carte d'un jeu (création directe, ou lancement depuis la salle de jeux).
