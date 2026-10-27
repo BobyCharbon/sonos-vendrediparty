@@ -14,7 +14,7 @@ import secrets
 import time
 import unicodedata
 
-from . import heist, island, likely, neon, president, purity, quiz
+from . import debate, heist, island, likely, neon, president, purity, quiz
 from .divan_cards import DIVAN_CARDS
 from .tmc_questions import TMC_QUESTIONS
 from .party_questions import NEVER_AWKWARD, NEVER_HOT, NEVER_SOFT, WHOOF_AWKWARD, WHOOF_HOT, WHOOF_SOFT
@@ -23,6 +23,7 @@ GAMES = {
     "undercover": "Undercover",
     "whoof": "Qui de nous ?",
     "likely": "Qui est le plus… ?",
+    "debate": "Pour ou contre",
     "never": "Je n'ai jamais",
     "roulette": "Roulette",
     "blackjack": "Blackjack",
@@ -179,6 +180,8 @@ def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code
         purity.init(g)
     if kind == "likely":
         likely.init(g)
+    if kind == "debate":
+        debate.init(g)
     if kind == "room":
         # Salle de jeux : un seul code pour la soirée ; l'animateur y lance les jeux les uns après les autres.
         g.update(current=None, rhistory=[], rtally={}, rpts={}, rnames={})
@@ -236,7 +239,7 @@ def join(g: dict, gid: str, name: str = ""):
                          "waiting": waiting, "pending": pending})
 
 
-MANUAL_GAMES = ("divan", "tmc", "never", "pyramid", "biskit", "likely", "room")  # jeux où l'animateur peut ajouter des participants sans téléphone
+MANUAL_GAMES = ("divan", "tmc", "never", "pyramid", "biskit", "likely", "debate", "room")  # jeux où l'animateur peut ajouter des participants sans téléphone
 
 
 def add_guest(g: dict, name: str, guest_id: str | None = None):
@@ -298,6 +301,8 @@ def leave(g: dict, gid: str):
         purity.leave(g, gid)
     if g["type"] == "likely":
         _lk_award(g, likely.settle(g))  # il ne manquait que son vote
+    if g["type"] == "debate":
+        debate.settle(g)  # il ne manquait que son vote
     if g["type"] == "quiz":
         g["quiz"]["personal"].pop(gid, None)
         if g["phase"] == "run" and g["quiz"]["personal"] and all(x["done"] for x in g["quiz"]["personal"].values()):
@@ -1890,6 +1895,42 @@ def lk_swap(g: dict, rng: random.Random = random):
     _lk(likely.swap, g, rng)
 
 
+def _db(fn, g: dict, *args):
+    """« Pour ou contre » : les erreurs du module deviennent des erreurs de jeu (message affiché tel quel)."""
+    try:
+        return fn(g, *args)
+    except debate.DebateError as e:
+        raise GameError(str(e))
+
+
+def db_vote(g: dict, voter: str, value, by: str = ""):
+    _db(debate.vote, g, voter, value, by)
+
+
+def db_skip(g: dict, target: str = ""):
+    _db(debate.skip, g, target)
+
+
+def db_swap(g: dict, rng: random.Random = random):
+    _db(debate.swap, g, rng)
+
+
+def db_revote(g: dict):
+    _db(debate.revote, g)
+
+
+def db_propose(g: dict, gid: str, text):
+    _db(debate.propose, g, gid, text)
+
+
+def db_accept(g: dict, proposal_id):
+    _db(debate.accept, g, proposal_id)
+
+
+def db_refuse(g: dict, proposal_id):
+    _db(debate.refuse, g, proposal_id)
+
+
 def start(g: dict, rng: random.Random = random):
     """Distribue les rôles (Undercover) ou pose la première question (Qui de nous ?)."""
     if g["type"] == "heist":
@@ -1917,6 +1958,9 @@ def start(g: dict, rng: random.Random = random):
             likely.start(g, rng)
         except likely.LikelyError as e:
             raise GameError(str(e))
+        return
+    if g["type"] == "debate":
+        _db(debate.start, g, rng)
         return
     if g["type"] == "quiz":
         try:
@@ -2123,6 +2167,9 @@ def next_step(g: dict, rng: random.Random = random):
         except likely.LikelyError as e:
             raise GameError(str(e))
         return
+    if g["type"] == "debate":
+        _db(debate.next_step, g, rng)
+        return
     if g["type"] == "casino":
         if g["phase"] != "results":
             raise GameError("Pas encore")
@@ -2164,7 +2211,7 @@ def restart(g: dict, rng: random.Random = random) -> dict:
         neon.start(g, rng)
     elif g["type"] == "president":
         president.start(g, rng)
-    elif g["type"] in ("quiz", "purity", "likely"):
+    elif g["type"] in ("quiz", "purity", "likely", "debate"):
         start(g, rng)
     elif g["type"] == "biskit":
         start(g, rng)
@@ -2238,6 +2285,8 @@ def view(g: dict, gid: str) -> dict:
         out["quiz"] = quiz.view(g, gid)
     if g["type"] == "likely":
         out["likely"] = likely.view(g, gid)
+    if g["type"] == "debate":
+        out["debate"] = debate.view(g, gid, is_lead(g, gid))
     if g["type"] == "purity":
         out["purity"] = purity.view(g, gid)
         if g["phase"] == "results":
@@ -2321,6 +2370,8 @@ def _summary_facts(g: dict) -> list[str]:
         facts.append(f"{g['round']} question(s) posée(s)")
     if t == "quiz":
         facts += quiz.summary_facts(g)
+    if t == "debate":
+        facts += debate.summary_facts(g)
     if t == "likely":
         facts += likely.summary_facts(g)
         facts.append(f"Alcool : {sips} gorgée{'s' if sips > 1 else ''} pour la personne désignée" if sips else "Sans alcool : un point")

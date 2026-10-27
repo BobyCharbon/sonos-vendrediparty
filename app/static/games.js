@@ -30,6 +30,7 @@ function myTurnKey(g) {
     case "undercover": return g.phase === "vote" && g.me.alive ? `uc${g.round}` : "";
     case "whoof": case "never": return g.phase === "question" ? `q${g.round}` : "";
     case "likely": return g.phase === "ask" && g.likely?.voter?.mine ? `lk${g.likely.n}` : "";
+    case "debate": return g.phase === "ask" && g.debate?.can_vote ? `db${g.debate.n}-${g.debate.round}` : "";
     case "purity": return g.phase === "answering" && g.purity?.playing && !g.purity.submitted ? "pu" : "";
     case "quiz": return g.phase === "q" && !g.quiz?.q?.out ? `qz${g.quiz.n}` : "";
     case "president": return g.president?.my_turn && (!navigator.userActivation || navigator.userActivation.hasBeenActive) ? `pr${g.round}-${g.president.token}` : "";
@@ -65,6 +66,7 @@ GAME_ICONS.quiz = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" st
 GAME_ICONS.purity = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="24" cy="9" rx="11" ry="4"/><circle cx="24" cy="27" r="11"/><path d="M19 25h.01M29 25h.01"/><path d="M19.5 31c2.5 2.5 6.5 2.5 9 0"/><path d="M15 44c2-3 5-4.5 9-4.5s7 1.5 9 4.5"/></svg>`;
 GAME_ICONS.room = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 22L24 8l17 14"/><path d="M11 19v21h26V19"/><rect x="19" y="27" width="10" height="13" rx="2"/><path d="M30 13V9h5v8"/></svg>`;
 GAME_ICONS.likely = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="16" y="9" width="16" height="27" rx="3.5"/><path d="M22 31h4"/><path d="M24 15.5a3.5 3.5 0 1 1 2.6 3.4c-1 .3-1.6 1-1.6 2v1"/><path d="M25 25.5h.01"/><path d="M8 18a17 17 0 0 0 3 19"/><path d="M8 31l3 6 6-2"/><path d="M40 30a17 17 0 0 0-3-19"/><path d="M40 17l-3-6-6 2"/></svg>`;
+GAME_ICONS.debate = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M24 6v34"/><path d="M15 42h18"/><path d="M8 12h32"/><path d="M8 12l-5 13a5 5 0 0 0 10 0z"/><path d="M40 12l-5 13a5 5 0 0 0 10 0z"/></svg>`;
 const GAME_THEME = { room: "g-rm", biskit: "g-bk", pyramid: "g-py", undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv", tmc: "g-tm" };
 const isBJ = (g) => g.type === "blackjack";
 GAME_ICONS.heist = Heist.icon;
@@ -484,6 +486,24 @@ document.getElementById("gamesRoot").innerHTML = `
         </div>
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="likely">Créer une partie</button>
+      </div>
+
+      <div class="gcard g-db">
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.debate}</div>
+          <div class="g-meta"><div class="g-title">Pour ou contre</div><div class="g-tag">Un dilemme, vos avis, un vrai débat.</div></div>
+          ${helpBtn("debate")}
+        </div>
+        <p class="g-desc">« Faut-il dire à un ami que son ou sa partenaire le trompe ? » Chacun se place en secret de « Totalement contre » à « Totalement pour », on découvre la répartition, puis on en parle. Après le débat, on peut revoter pour voir qui a changé d'avis.</p>
+        <div class="g-chips"><span>2+ joueurs</span><span>Sans alcool</span><span>Sans téléphone : OK</span><span>430 dilemmes + les vôtres</span></div>
+        <div class="g-label">Thèmes</div>
+        <div class="g-modes" data-opt-group="cats">
+          <button type="button" data-val="moral" class="on">⚖️ Morale</button><button type="button" data-val="society" class="on">🏛️ Société</button>
+          <button type="button" data-val="relations" class="on">💞 Relations</button><button type="button" data-val="light" class="on">🍍 Léger</button>
+        </div>
+        <label class="g-opt"><span>👀 Prénoms affichés à la révélation <small>sinon les votes restent anonymes</small></span><input type="checkbox" class="switch" data-opt="dbpublic"></label>
+        <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
+        <button class="g-go" data-create="debate">Créer une partie</button>
       </div>
 
       <div class="gcard g-nv">
@@ -1006,6 +1026,8 @@ function renderGame(g) {
     quizAfter(g, fresh);
   } else if (g.type === "likely") {
     setGameHtml(likelyHtml(g));
+  } else if (g.type === "debate") {
+    setGameHtml(debateHtml(g));
   } else if (g.type === "pyramid" || g.type === "biskit") {
     setGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g)));
     if (g.type === "pyramid") pyrWheel(g);
@@ -1824,7 +1846,7 @@ document.addEventListener("pointerup", dvRelease);
 document.addEventListener("pointercancel", dvRelease);
 
 // 📵 Participants sans téléphone : l'animateur les ajoute à la main et agit pour eux.
-const MANUAL_GAMES = ["divan", "tmc", "never", "pyramid", "biskit", "likely", "room"];
+const MANUAL_GAMES = ["divan", "tmc", "never", "pyramid", "biskit", "likely", "debate", "room"];
 const playerTag = (g, p) => !MANUAL_GAMES.includes(g.type) ? "" : p.manual
   ? ` <span class="pill tag-manual" title="Ajouté·e à la main par l'animateur">✍️ sans téléphone</span>`
   : ` <span class="tag-phone" title="Joue sur son téléphone">📱</span>`;
@@ -2241,6 +2263,7 @@ function renderGameHost(g) {
   if (g.type === "casino") return renderCasinoHost(g, btn);
   if (g.type === "divan") return renderDivanHost(g, btn);
   if (g.type === "likely") return renderLikelyHost(g);
+  if (g.type === "debate") return renderDebateHost(g);
   if (["pyramid", "biskit", "quiz", "purity", "room", "president", "neon", "island", "heist"].includes(g.type)) { patch.gameHost = ""; return; }
   if (g.type === "tmc") return renderTmcHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
@@ -2649,6 +2672,7 @@ function gamePayload(card, type) {
     reveal: q("[data-opt=reveal]")?.checked ?? false,
     hint: q("[data-opt=hint]")?.checked ?? false,
     white_hint: q("[data-opt=white_hint]")?.checked ?? false,
+    public: q("[data-opt=dbpublic]")?.checked ?? false,
   };
 }
 document.addEventListener("click", async (ev) => {
@@ -2705,7 +2729,7 @@ function rulesFor(type, g) {
 }
 
 // « ? » : règles détaillées du jeu.
-const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", likely: "Qui est le plus… ?", never: "Je n'ai jamais", roulette: "Roulette",
+const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", likely: "Qui est le plus… ?", debate: "Pour ou contre", never: "Je n'ai jamais", roulette: "Roulette",
   blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal", quiz: "Quiz", purity: "Purify Test", room: "Salle de jeux", president: "Président", neon: "Néon Knockout", island: "L’île qui s’effondre", heist: "Braquage en miniature" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");

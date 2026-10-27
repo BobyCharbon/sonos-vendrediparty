@@ -1,0 +1,68 @@
+/* ⚖️ Pour ou contre (échelle de 5 crans, révélation, revote, bilan). Réutilise les briques de likely.css (lk-*). */
+.g-db { --g-bg: #1d1b3a; --g-accent: #ffb86b; --g-ink: #2a1500; --g-soft: #d9d4ff; --g-chip: #2d2a55;
+  --db-0: #ff6b6b; --db-1: #ff9f6b; --db-2: #c9c3e6; --db-3: #7fd8a6; --db-4: #3fcf8e; }
+.game.g-db { background: var(--g-bg); color: #fff; border: 0; }
+.game.g-db .artist { color: var(--g-soft); }
+body.pyr-full #game.g-db { box-shadow: none; border: 0; padding: 16px; background: radial-gradient(120% 60% at 50% 0%, #3a3270, #1d1b3a 70%); }
+.g-db .lk-main { background: linear-gradient(135deg, #ffd29a, #ff9f5a); box-shadow: 0 7px 0 #b8611c, 0 14px 28px rgba(255,159,90,.3); }
+.g-db .lk-main:active { box-shadow: 0 2px 0 #b8611c; }
+.g-db .lk-chips button.on { background: #463f86; }
+.db-hero { background: linear-gradient(135deg, #5a4fcf, #ff8a65); }
+
+.db-q { text-align: center; padding: 22px 18px; border-radius: 24px; background: #fff; color: #1d1b3a; box-shadow: 0 16px 34px rgba(0,0,0,.3); }
+.db-q-n { font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #5a4fcf; }
+.db-q-t { font: 800 1.4rem/1.22 "Bricolage Grotesque", system-ui, sans-serif; margin-top: 8px; text-wrap: balance; overflow-wrap: anywhere; }
+.db-q-tag { margin-top: 10px; font-size: .85rem; font-weight: 700; color: #6b6790; }
+.db-q.small { padding: 14px 16px; }
+.db-q.small .db-q-t { font-size: 1.05rem; }
+.db-again { text-align: center; margin-top: 14px; font-weight: 800; color: var(--g-accent); }
+
+.db-scale { display: flex; flex-direction: column; gap: 8px; }
+.db-pick { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 16px; border-radius: 16px; border: 2px solid transparent;
+  background: rgba(255,255,255,.08); color: #fff; font-size: 1.05rem; font-weight: 800; text-align: left; transition: transform .1s, background .15s; }
+.db-pick span { font-size: 1.4rem; }
+.db-pick:active { transform: scale(.97); }
+.db-pick.db-c0 { border-color: var(--db-0); } .db-pick.db-c1 { border-color: var(--db-1); } .db-pick.db-c2 { border-color: var(--db-2); }
+.db-pick.db-c3 { border-color: var(--db-3); } .db-pick.db-c4 { border-color: var(--db-4); }
+.db-pick.on { background: var(--g-accent); color: var(--g-ink); }
+.db-mine { font-size: 1.6rem; }
+
+.db-split { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 14px; margin-top: 8px; font-weight: 700; }
+.db-moved { text-align: center; margin: 4px 0 8px; padding: 10px 14px; border-radius: 14px; background: rgba(255,184,107,.14); font-weight: 800; color: var(--g-accent); }
+.db-bars { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; margin-top: 12px; }
+.db-bar { display: contents; font-weight: 700; }
+.db-bar-l { font-size: .92rem; white-space: nowrap; }
+.db-bar i { display: block; height: 14px; width: var(--w); min-width: 6px; border-radius: 999px; background: var(--db-2); }
+.db-bar.db-c0 i { background: var(--db-0); } .db-bar.db-c1 i { background: var(--db-1); }
+.db-bar.db-c3 i { background: var(--db-3); } .db-bar.db-c4 i { background: var(--db-4); }
+.db-bar b { text-align: right; white-space: nowrap; }
+.db-bar small { font-weight: 600; color: var(--g-soft); }
+.db-names { grid-column: 1 / -1; margin-top: -4px; font-size: .85rem; font-weight: 600; color: var(--g-soft); overflow-wrap: anywhere; }
+.db-talk { text-align: center; margin: 16px 0 0; font-weight: 700; color: var(--g-soft); }
+.db-actions { display: flex; flex-direction: column; }
+.db-actions .db-next { width: 100%; margin-top: 12px; flex: none; }
+
+.db-propose-row { display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin-top: 14px; }
+.db-propose-row .lk-sub { flex: none; }
+.db-pending { text-align: center; font-size: .85rem; color: var(--g-soft); }
+.db-inbox { margin-top: 16px; padding: 12px 14px; border-radius: 18px; background: rgba(255,255,255,.07); }
+.db-inbox-h { font-weight: 800; margin-bottom: 8px; }
+.db-prop { display: grid; grid-template-columns: 1fr 44px 44px; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid rgba(255,255,255,.08); }
+.db-prop:first-of-type { border-top: 0; }
+.db-prop-t { overflow-wrap: anywhere; font-weight: 600; }
+.db-prop-t small { display: block; color: var(--g-soft); font-weight: 600; margin-top: 2px; }
+.db-ok, .db-no { min-height: 44px; border-radius: 12px; border: 0; font-size: 1.1rem; font-weight: 800; color: #fff; }
+.db-ok { background: #2f9e6a; }
+.db-no { background: rgba(255,255,255,.12); }
+
+.db-award { margin-top: 12px; padding: 14px 16px; border-radius: 20px; background: rgba(255,255,255,.08); }
+.db-award-k { font-size: .8rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--g-accent); }
+.db-award-t { font: 800 1.1rem/1.25 "Bricolage Grotesque", system-ui, sans-serif; margin: 6px 0 4px; overflow-wrap: anywhere; }
+
+.db-sheet { background: var(--g-bg); color: #fff; }
+.db-sheet h2 { margin: 6px 0 4px; }
+.db-sheet textarea { width: 100%; box-sizing: border-box; margin-top: 10px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,.2);
+  background: rgba(255,255,255,.08); color: #fff; font: inherit; font-size: 16px; resize: vertical; }
+.db-sheet-row { display: flex; gap: 10px; align-items: center; }
+.db-sheet-row .lk-main { flex: 2; }
+.db-sheet-row .lk-sub { margin-top: 14px; }

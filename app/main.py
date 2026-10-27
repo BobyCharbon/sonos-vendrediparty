@@ -22,7 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
 
-from . import calendar_ics, games, heist, island, likely, links, neon, president, purity, quiz
+from . import calendar_ics, debate, games, heist, island, likely, links, neon, president, purity, quiz
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
 from .audit import AuditLog
@@ -1093,7 +1093,8 @@ class GameCreate(BaseModel):
     plays: bool = True  # l'animateur joue aussi (sinon : maître du jeu, il voit les rôles)
     mode: str = "soft"  # Qui de nous ? : soft | awkward | hot | mix
     sips: int = 0  # Qui de nous ? : gorgées pour la personne désignée
-    cats: list[str] = []  # Le Divan : catégories de cartes
+    cats: list[str] = []  # Le Divan : catégories de cartes ; Pour ou contre : thèmes
+    public: bool = False  # Pour ou contre : prénoms affichés sur l'échelle à la révélation
     floors: int = 5  # Pyramide : nombre d'étages (5 à 8)
     pmode: str = "hard"  # Pyramide : soft (1 gorgée par carte) | hard (1, 2, 3, 4)
     boat: bool = True  # Pyramide : phase du bateau à la fin
@@ -1173,6 +1174,11 @@ def build_game(body: GameCreate) -> dict:
         try:
             likely.configure(g, {"packs": body.cats or ["family"], "sips": min(g["options"]["sips"], likely.MAX_SIPS)})
         except likely.LikelyError as e:
+            raise HTTPException(400, str(e))
+    if body.type == "debate":
+        try:
+            debate.configure(g, {"themes": body.cats or list(debate.THEMES), "public": body.public})
+        except debate.DebateError as e:
             raise HTTPException(400, str(e))
     if body.type == "divan" and body.cats:
         try:
@@ -1568,12 +1574,16 @@ PURITY_ONLY = {"puset", "puans", "pusub", "puunsub", "pureveal"}
 # téléphone (lkvote, avec who = votant) et passe un absent (lkskip, avec target).
 LIKELY_ONLY = {"lkset", "lkvote", "lkskip", "lkswap"}
 LIKELY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "addguest", "up", "down"} | LIKELY_ONLY
+# « Pour ou contre » : vote sur 5 crans (dbvote, amount = cran, who = votant sans téléphone), revote décidé par
+# l'animateur, dilemmes proposés par les joueurs (dbpropose, guess = texte) et validés par l'animateur (amount = numéro).
+DEBATE_ONLY = {"dbset", "dbvote", "dbskip", "dbswap", "dbrevote", "dbpropose", "dbaccept", "dbrefuse"}
+DEBATE_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "addguest", "up", "down"} | DEBATE_ONLY
 PURITY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end"} | PURITY_ONLY
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
 HOST_ACTIONS = {"puset", "pureveal","ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
                 "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover", "nset", "hset",
-                "lkset", "lkskip", "lkswap"}
+                "lkset", "lkskip", "lkswap", "dbset", "dbskip", "dbswap", "dbrevote", "dbaccept", "dbrefuse"}
 
 
 @app.post("/api/games/{code}")
@@ -1610,6 +1620,10 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     if g["type"] == "likely" and a not in LIKELY_ACTIONS:
         raise HTTPException(400, "Action indisponible dans ce jeu")
     if g["type"] != "likely" and a in LIKELY_ONLY:
+        raise HTTPException(400, "Action inconnue")
+    if g["type"] == "debate" and a not in DEBATE_ACTIONS:
+        raise HTTPException(400, "Action indisponible dans ce jeu")
+    if g["type"] != "debate" and a in DEBATE_ONLY:
         raise HTTPException(400, "Action inconnue")
     # Cible d'un vote : un joueur (pid) ; pour « Je n'ai jamais », une réponse (yes / no).
     target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino", "pyramid", "biskit") else "")
@@ -1671,6 +1685,10 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "pusub": (purity.submit, me), "puunsub": (purity.unsubmit, me), "pureveal": (games.purity_reveal,),
         "lkset": (likely.configure, body.settings), "lkvote": (games.lk_vote, actor, target, me),
         "lkskip": (games.lk_skip, target), "lkswap": (games.lk_swap, random),
+        "dbset": (debate.configure, body.settings), "dbvote": (games.db_vote, actor, body.amount if "amount" in body.model_fields_set else None, me),
+        "dbskip": (games.db_skip, target), "dbswap": (games.db_swap, random), "dbrevote": (games.db_revote,),
+        "dbpropose": (games.db_propose, me, body.guess), "dbaccept": (games.db_accept, body.amount),
+        "dbrefuse": (games.db_refuse, body.amount),
     }
     if g["type"] == "quiz" and a == "next":
         actions["next"] = (quiz.next_step, random, body.guess)
@@ -1680,7 +1698,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     try:
         action_result = fn(g, *args)
     except (games.GameError, quiz.QuizError, purity.PurityError, president.PresidentError, neon.NeonError, island.IslandError,
-            heist.HeistError, likely.LikelyError) as e:
+            heist.HeistError, likely.LikelyError, debate.DebateError) as e:
         raise HTTPException(409, str(e))
     g["updated_at"] = time.time()
     # Salle de jeux : rejoindre, quitter, exclure ou passer la main vaut aussi pour le jeu en cours (et inversement).

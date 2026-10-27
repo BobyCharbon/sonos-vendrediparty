@@ -801,7 +801,7 @@ const PHASES = { lobby: "Inscriptions", words: "Indices", vote: "Vote", white_gu
   bet: "Mises", play: "Partie en cours", spun: "Résultat", card: "En séance", deal: "Distribution", pyramid: "Pyramide",
   memory: "Test de mémoire", memres: "Résultats de mémoire", boatpick: "Qui fait le bateau ?", boat: "Le bateau" };
 // ⚙️ Réglages : toutes les parties en cours, en blocs compacts ; un toucher déplie le détail.
-const GAME_EMOJI = { undercover: "🕵️", whoof: "🙋", likely: "🫵", never: "🍻", roulette: "🎡", blackjack: "🃏", casino: "🎰", divan: "🛋️", tmc: "💞", pyramid: "🔺" };
+const GAME_EMOJI = { undercover: "🕵️", whoof: "🙋", likely: "🫵", debate: "⚖️", never: "🍻", roulette: "🎡", blackjack: "🃏", casino: "🎰", divan: "🛋️", tmc: "💞", pyramid: "🔺" };
 const gsOpen = new Set();
 const fmtDur = (sec) => { const m = Math.max(0, Math.floor(sec / 60)); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`; };
 function renderGamesSettings(s) {
