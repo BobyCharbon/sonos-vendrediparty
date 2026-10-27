@@ -197,7 +197,8 @@ TWO = RANKS.index("2")  # un 2 (seul, double, triple, carré) ferme le pli : son
 def play(g, gid, cards, token):
     """Poser une combinaison. Même valeur et même nombre de cartes que le pli : autorisé, puis « … ou rien »
     pour les suivants. Le coup qui complète la famille (4 cartes de la valeur) ramasse le pli, et son auteur
-    rouvre ; ce coup-là peut être joué par n'importe qui, même hors tour. Un 2 ferme aussi le pli."""
+    rouvre ; en double (paire sur paire), ce coup-là peut être joué par n'importe qui, même hors tour.
+    Un 2 ferme aussi le pli."""
     s = _state(g)
     if g["phase"] != "play" or gid not in _active(s):
         raise PresidentError("Ce n'est pas ton tour")
@@ -213,8 +214,8 @@ def play(g, gid, cards, token):
     same = bool(pile) and len(cards) == len(pile["cards"]) and value == pile["rank"]
     family = pile.get("family", len(pile["cards"])) + len(cards) if same else len(cards)
     completes = same and family >= FAMILY
-    if gid != s["turn"] and not completes:
-        raise PresidentError("Ce n'est pas ton tour (hors tour, on peut seulement compléter la famille)")
+    if gid != s["turn"] and not (completes and len(cards) == 2):
+        raise PresidentError("Ce n'est pas ton tour (hors tour, on complète seulement une famille en double)")
     if pile and not same:
         if pile.get("locked"):
             raise PresidentError(f"{RANKS[pile['rank']]} ou rien : pose la même valeur, ou passe")

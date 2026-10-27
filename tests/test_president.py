@@ -539,3 +539,13 @@ def test_no_exchange_summary_after_the_first_trick():
     g["president"]["swap"] = {"moves": [], "cards": {}}
     g["president"]["trick"] = 2
     assert pr.view(g, "player-0")["swap"] is None
+
+
+def test_out_of_turn_completion_only_with_a_pair():
+    """En simple, on ne complète la famille qu'à son tour ; hors tour, seulement en double (paire sur paire)."""
+    g = state_with({"player-0": ["7C", "7S", "QC"], "player-1": ["7H", "9C"], "player-2": ["7D", "KD"], "player-3": ["5C", "AC"]})
+    play(g, "player-0", ["7C"])
+    play(g, "player-1", ["7H"])
+    play(g, "player-2", ["7D"])  # 3 sept posés ; c'est à player-3
+    with pytest.raises(pr.PresidentError, match="pas ton tour"):
+        play(g, "player-0", ["7S"])  # compléterait, mais en simple : interdit hors tour
