@@ -235,13 +235,17 @@ def play(g, gid, cards, token):
         s["finished"].append(gid)
         s["notice"] = f"{_name(g, gid)} termine à la place {len(s['finished'])}."
     if not _finish_if_needed(g):
-        # On ne joue pas sur celui qui termine : ses dernières cartes ferment le pli, le suivant ouvre.
-        if completes or value == TWO or not hand or _everyone_else_passed(s, gid):
+        # On ne joue pas sur le Président : les dernières cartes du premier à terminer ferment le pli, le suivant
+        # ouvre. Sur ceux qui terminent ensuite, on peut encore jouer pareil ou au-dessus.
+        president_out = not hand and s["finished"] == [gid]
+        if completes or value == TWO or president_out or _everyone_else_passed(s, gid):
             notice = s["notice"]
             _clear(g)
             opener = _name(g, s["turn"])
-            if not hand:
-                s["notice"] = f"{notice} On ne joue pas dessus : {opener} ouvre le pli suivant."
+            if president_out:
+                s["notice"] = f"{notice} On ne joue pas sur le Président : {opener} ouvre le pli suivant."
+            elif gid in s.get("dunce", []):
+                s["notice"] = f"{notice} {opener} ouvre le pli suivant."
             elif completes or value == TWO:
                 done = f"complète la famille de {label}" if completes else f"ferme le pli avec {len(cards)} × 2"
                 s["notice"] = f"{_name(g, gid)} {done} ! {opener} ouvre le pli suivant."

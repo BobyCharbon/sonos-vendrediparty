@@ -488,3 +488,16 @@ def test_nobody_plays_on_the_last_cards_of_a_finisher():
     assert s["finished"] == ["player-0"] and s["pile"] is None and s["turn"] == "player-1"
     assert "ouvre" in s["notice"]
     play(g, "player-1", ["4C"])  # le suivant commence par ce qu'il veut
+
+
+def test_after_the_president_others_can_be_played_on():
+    g = state_with({"player-0": ["9C"], "player-1": ["KC", "4C"], "player-2": ["AC", "AD", "5C"], "player-3": ["QC", "QD", "6C"]})
+    play(g, "player-0", ["9C"])  # Président : le pli est ramassé
+    play(g, "player-1", ["4C"])
+    play(g, "player-2", ["5C"])
+    play(g, "player-3", ["6C"])
+    play(g, "player-1", ["KC"])  # player-1 termine (2e) : on peut encore jouer dessus
+    s = g["president"]
+    assert s["finished"] == ["player-0", "player-1"] and s["pile"]["rank"] == pr.RANKS.index("K")
+    assert s["turn"] == "player-2"
+    play(g, "player-2", ["AC"])
