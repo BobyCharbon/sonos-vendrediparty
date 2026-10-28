@@ -171,3 +171,32 @@ def test_a_track_added_app_closed_starts_its_activity_by_push_once(live):
     # Réglage « Décompte dans la Dynamic Island » coupé : plus de démarrage par push.
     guest.post("/api/activity/start", json={"guest_id": "guest-live-1", "token": ""})
     assert main.store.session.activity_start_tokens == {}
+
+
+def test_swapping_my_two_tracks_keeps_a_single_activity():
+    """Deux titres de la même personne échangés : l'activité de l'ancien premier s'en va, le nouveau premier démarre."""
+    tracked = {"r1": {"track_id": "tr1", "owner": "guest-1", "key": ("wait", 0, False, 1)}}
+    swapped = [slot("r2", ahead=0, eta=100.0), slot("r1", ahead=1, eta=300.0)]
+    [step] = plan(swapped, None, tracked, False, NOW)
+    assert step.rid == "r1" and step.event == "end" and step.payload["dismissal-date"] == int(NOW)
+    [start] = starts(swapped, {"guest-1"}, {}, set(), False, NOW)
+    assert start.rid == "r2"
+
+
+def test_my_later_track_never_gets_its_own_activity_while_the_first_is_followed():
+    tracked = {"r1": {"track_id": "tr1", "owner": "guest-1"}, "r2": {"track_id": "tr2", "owner": "guest-1"}}
+    steps = plan([slot("r1", ahead=0), slot("r2", ahead=1)], None, tracked, False, NOW)
+    assert {(s.rid, s.event) for s in steps} == {("r1", "update"), ("r2", "end")}
+
+
+def test_while_my_track_plays_my_next_track_has_no_activity():
+    tracked = {"r1": {"track_id": "tr1", "owner": "guest-1", "key": ("playing",)},
+               "r2": {"track_id": "tr2", "owner": "guest-1", "key": ("wait", 0, False, 1)}}
+    steps = plan([slot("r2", ahead=0)], "tr1", tracked, False, NOW)
+    assert [(s.rid, s.event) for s in steps] == [("r2", "end")]
+
+
+def test_other_peoples_activities_are_untouched():
+    tracked = {"r1": {"track_id": "tr1", "owner": "guest-1", "key": None}, "r9": {"track_id": "tr9", "owner": "guest-9"}}
+    steps = plan([slot("r1", ahead=0), slot("r9", ahead=1, owner="guest-9")], None, tracked, False, NOW)
+    assert {(s.rid, s.event) for s in steps} == {("r1", "update"), ("r9", "update")}

@@ -53,14 +53,25 @@ def _waiting(slot: Slot, paused: bool, now: float, last_remaining: float) -> tup
 
 
 def plan(slots: list[Slot], current_track: str | None, tracked: dict[str, dict], paused: bool, now: float) -> list[Step]:
-    """tracked : activités dont l'app a donné le jeton, {rid: {"track_id", "key", "remaining"}}.
+    """tracked : activités dont l'app a donné le jeton, {rid: {"track_id", "owner", "key", "remaining"}}.
     Renvoie les envois à faire ; l'appelant note step.key dans tracked[rid] après l'envoi (pas de doublon)."""
     by_rid = {s.rid: s for s in slots}
+    # Une seule activité par personne : celle de son titre qui passe, sinon de son titre le plus proche dans la file.
+    first_of: dict[str, str] = {}
+    for slot in slots:
+        first_of.setdefault(slot.owner, slot.rid)
+    playing_owners = {info.get("owner") for rid, info in tracked.items()
+                      if current_track and info.get("track_id") == current_track and rid not in by_rid}
     steps = []
     for rid, info in tracked.items():
         last = info.get("key")
         slot = by_rid.get(rid)
-        if slot is not None:
+        if slot is not None and (slot.owner in playing_owners or first_of.get(slot.owner) != rid):
+            # Pas (ou plus) le prochain titre de la personne (titres échangés, autre titre en train de passer).
+            if last != ("gone",):
+                steps.append(Step(rid, "end", {"content-state": content_state(now, False, False, 0, 0),
+                                               "dismissal-date": int(now)}, ("gone",)))
+        elif slot is not None:
             aps, key = _waiting(slot, paused, now, info.get("remaining", 0.0))
             if key != last:
                 # Place ou pause : important (priorité 10) ; heure recalée seulement : priorité basse.

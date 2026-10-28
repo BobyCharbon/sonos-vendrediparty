@@ -246,6 +246,14 @@ struct TrackActivityPlanTests {
                 == [.update(requestID: "r1", arrival: t0.addingTimeInterval(400), paused: true, ahead: 2)])
     }
 
+    @Test("Mes deux titres échangés : l'ancien premier s'arrête, le nouveau premier démarre (une seule activité)")
+    func swappedTracksKeepOneActivity() throws {
+        let steps = TrackActivityStep.plan(try state(now: "x", upcoming: [("r2", "c", 100), ("r1", "b", 300)]), receivedAt: t0,
+                                           running: [(requestID: "r1", trackID: "b")])
+        #expect(steps == [.end(requestID: "r1"),
+                          .start(requestID: "r2", trackID: "c", title: "T-c", artist: "A", arrival: t0.addingTimeInterval(100), paused: false, ahead: 0)])
+    }
+
     @Test("Titre retiré de la file : l'activité s'arrête")
     func endsWhenRemoved() throws {
         let steps = TrackActivityStep.plan(try state(now: "x", upcoming: []), receivedAt: t0, running: [(requestID: "r1", trackID: "b")])

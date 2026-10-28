@@ -73,7 +73,15 @@ enum TrackActivities {
         for gone in all where gone.activityState == .dismissed || gone.activityState == .ended {
             Task { await gone.end(nil, dismissalPolicy: .immediate) }
         }
-        let activities = all.filter { $0.activityState == .active || $0.activityState == .stale }
+        var activities: [Activity<TrackActivityAttributes>] = []
+        for activity in all where activity.activityState == .active || activity.activityState == .stale {
+            // Une seule Dynamic Island par titre : un doublon (démarré par l'app et par le serveur à la fois) s'en va.
+            if activities.contains(where: { $0.attributes.requestID == activity.attributes.requestID }) {
+                Task { await activity.end(nil, dismissalPolicy: .immediate) }
+            } else {
+                activities.append(activity)
+            }
+        }
         activities.forEach(observe)  // activités démarrées par push, ou avant un redémarrage de l'app
         let running = activities.map { (requestID: $0.attributes.requestID, trackID: $0.attributes.trackID) }
         let byRequest = Dictionary(activities.map { ($0.attributes.requestID, $0) }, uniquingKeysWith: { first, _ in first })
