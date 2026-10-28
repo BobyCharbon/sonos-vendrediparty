@@ -164,7 +164,7 @@ def test_ambiguous_send_does_not_retry_during_polling(ext, monkeypatch):
 
 def test_relinked_current_marks_one_request_played_and_notifies_once(ext, monkeypatch):
     notifications = []
-    monkeypatch.setattr(main, "notify_guest", lambda *args: notifications.append(args))
+    monkeypatch.setattr(main, "notify_guest", lambda *args, **kw: notifications.append(args))
     add(ext, "a")
     add(ext, "a", force=True)
     ext.user.pb.update(progress_ms=1000, item={**item("z"), "linked_from": {"id": "a" * 22}})

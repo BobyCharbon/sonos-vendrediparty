@@ -115,6 +115,10 @@
     <!-- 💬 Retours des invités -->
     <section data-view="feedback" class="hidden" aria-labelledby="fbAdminTitle">
       <h2 id="fbAdminTitle">Retours des invités</h2>
+      <label class="card switch-row hidden" id="notifFeedbackBox" style="margin-top:8px">
+        <span class="grow">🔔 Me prévenir des nouveaux avis<span class="artist" id="notifFeedbackHelp" style="display:block;white-space:normal"></span></span>
+        <input type="checkbox" class="switch" id="notifFeedbackToggle">
+      </label>
       <p class="sub">Idées et bugs envoyés depuis l'onglet « Ton avis ». Gardés d'une soirée à l'autre. ✏️ pour préciser un retour et donner tes instructions, puis 🤖 pour le confier à Claude : il corrige et commite sur <b>develop</b>.</p>
       <div id="fbAdminRoot"></div>
     </section>
@@ -918,7 +922,8 @@ document.addEventListener("click", async (ev) => {
 // 🔔 Notifications de l'hôte (abonnement propre à l'admin : portée « /admin ») :
 // nouveaux messages et nouvelles parties de jeu, réglables séparément.
 const NOTIF = { messages: ["notifBox", "notifToggle", "notifHelp", "des nouveaux messages"],
-  games: ["notifGamesBox", "notifGamesToggle", "notifGamesHelp", "des nouvelles parties"] };
+  games: ["notifGamesBox", "notifGamesToggle", "notifGamesHelp", "des nouvelles parties"],
+  feedback: ["notifFeedbackBox", "notifFeedbackToggle", "notifFeedbackHelp", "des nouveaux avis"] };
 async function initNotifications() {
   const iosSafari = /iPhone|iPad|iPod/.test(navigator.userAgent) && !(matchMedia("(display-mode: standalone)").matches || navigator.standalone);
   for (const [kind, [box, toggle, help]] of Object.entries(NOTIF)) {
@@ -930,12 +935,12 @@ async function initNotifications() {
       continue;
     }
     $(box).classList.remove("hidden");
-    $(help).textContent = Notification.permission === "denied" ? "Notifications bloquées dans les réglages du navigateur." : "";
+    $(help).textContent = Push.permission() === "denied" ? "Notifications bloquées dans les réglages du navigateur." : "";
   }
   if (!Push.supported()) return;
   const sub = await Push.current("/admin").catch(() => null);
-  const ok = !!sub && Notification.permission === "granted";
-  const prefs = state?.admin_notify || { messages: true, games: false };
+  const ok = !!sub && Push.permission() === "granted";
+  const prefs = state?.admin_notify || { messages: true, games: false, feedback: true };
   for (const [kind, [, toggle]] of Object.entries(NOTIF)) $(toggle).checked = ok && !!prefs[kind];
   if (ok) Push.send("/api/admin/push/subscribe", { subscription: sub.toJSON() }).catch(() => {});
 }

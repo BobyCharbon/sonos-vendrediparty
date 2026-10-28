@@ -18,7 +18,7 @@ struct PartyWebView: UIViewRepresentable {
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
         config.applicationNameForUserAgent = AppConfig.userAgentSuffix
-        NativeBridge.install(in: config.userContentController)
+        NativeBridge.install(in: config.userContentController, model: model)
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
@@ -87,7 +87,12 @@ struct PartyWebView: UIViewRepresentable {
             decisionHandler(.allow)
         }
 
+        func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+            model.pageStarted()
+        }
+
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            model.pageLoaded()
             model.failed = false
         }
 

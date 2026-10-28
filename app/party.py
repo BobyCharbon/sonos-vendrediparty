@@ -30,6 +30,11 @@ class Request:
     duration_ms: int = 0
 
 
+# Notifications que chacun choisit (Réglages › Notifications) et leur valeur tant qu'il n'a rien choisi.
+ADMIN_NOTIFY_DEFAULTS = {"messages": True, "games": False, "feedback": True}
+GUEST_NOTIFY_DEFAULTS = {"track": True, "feedback": True, "games": False}
+
+
 @dataclass
 class Session:
     active: bool = False
@@ -62,8 +67,10 @@ class Session:
     # Abonnements aux notifications push : guest_id -> [abonnement Web Push] ; l'hôte à part.
     push: dict[str, list[dict]] = field(default_factory=dict)
     admin_push: list[dict] = field(default_factory=list)
-    # Ce dont l'hôte veut être prévenu : nouveaux messages, nouvelles parties de jeu.
-    admin_notify: dict = field(default_factory=lambda: {"messages": True, "games": False})
+    # Ce dont l'hôte veut être prévenu : nouveaux messages, nouvelles parties de jeu, nouveaux avis.
+    admin_notify: dict = field(default_factory=lambda: dict(ADMIN_NOTIFY_DEFAULTS))
+    # Ce dont chaque invité veut être prévenu (guest_id -> {type: oui/non}) ; types absents : GUEST_NOTIFY_DEFAULTS.
+    guest_notify: dict[str, dict] = field(default_factory=dict)
     # Playlists favorites de l'hôte (Réglages) : {"id": "spotify:playlist:…" ou "fav:…"/"sq:…", "title"}.
     top_playlists: list[dict] = field(default_factory=list)
     # Parties de jeu en cours (voir games.py), par code ; indépendantes de la soirée musique.
@@ -138,7 +145,8 @@ class PartyStore:
             active=True, room_uid=room_uid, room_name=room_name, mode=mode, started_at=time.time(), source=source,
             spotify_device_id=spotify_device_id, spotify_device_name=spotify_device_name,
             bans=self.session.bans, guest_pin=self.session.guest_pin, revoked=self.session.revoked,
-            push=self.session.push, admin_push=self.session.admin_push, admin_notify=self.session.admin_notify, top_playlists=self.session.top_playlists,
+            push=self.session.push, admin_push=self.session.admin_push, admin_notify=self.session.admin_notify,
+            guest_notify=self.session.guest_notify, top_playlists=self.session.top_playlists,
             games=self.session.games, event_id=self.session.event_id, event_title=self.session.event_title,
         )
         self.save()

@@ -22,11 +22,12 @@
   }
 
   // 🔔 Notifications de l'hôte sur ce téléphone (même réglage que /admin : nouveaux messages, nouvelles parties).
-  const NOTIF = { messages: "des nouveaux messages", games: "des nouvelles parties" };
+  const NOTIF = { messages: "des nouveaux messages", games: "des nouvelles parties", feedback: "des nouveaux avis" };
   const SKELETON = `
     <div class="card hidden" data-pa="notifBox" style="margin-top:8px">
       <label class="switch-row"><span class="grow">🔔 Me prévenir des nouveaux messages</span><input type="checkbox" class="switch" data-pa-notif="messages"></label>
       <label class="switch-row" style="margin-top:8px"><span class="grow">🎮 Me prévenir quand quelqu'un lance un jeu</span><input type="checkbox" class="switch" data-pa-notif="games"></label>
+      <label class="switch-row" style="margin-top:8px"><span class="grow">💡 Me prévenir des nouveaux avis (idées, bugs)</span><input type="checkbox" class="switch" data-pa-notif="feedback"></label>
       <p class="artist" data-pa="notifHelp" style="margin:6px 0 0;white-space:normal"></p>
     </div>
     <h2>Messages des invités <span class="badge hidden" data-pa="msgBadge"></span></h2>
@@ -127,8 +128,8 @@
       return;
     }
     box.classList.remove("hidden");
-    help.textContent = Notification.permission === "denied" ? "Notifications bloquées dans les réglages du téléphone." : "";
-    if (pushOk === null) pushOk = !!(await Push.current("/").catch(() => null)) && Notification.permission === "granted";
+    help.textContent = Push.permission() === "denied" ? "Notifications bloquées dans les réglages du téléphone." : "";
+    if (pushOk === null) pushOk = !!(await Push.current("/").catch(() => null)) && Push.permission() === "granted";
     const prefs = s.admin_notify || {};
     root.querySelectorAll("[data-pa-notif]").forEach((t) => { if (!t.disabled) t.checked = pushOk && !!prefs[t.dataset.paNotif]; });
   }

@@ -9,6 +9,7 @@ import WebKit
 enum NativeBridge {
     static let hapticHandler = "partyHaptic"
     static let pushHandler = "partyPush"
+    static let tabsHandler = "partyTabs"
 
     private static let script = """
     (function () {
@@ -24,13 +25,19 @@ enum NativeBridge {
           // Promesse : { token, environment, bundleId } ; rejetée si l'utilisateur refuse les notifications.
           register: function () { return window.webkit.messageHandlers.\(pushHandler).postMessage({ action: "register" }); },
           status: function () { return window.webkit.messageHandlers.\(pushHandler).postMessage({ action: "status" }); }
+        },
+        // Barre d'onglets native : la page la décrit (app/static/native-tabs.js), l'app la dessine.
+        tabs: {
+          update: function (state) {
+            try { window.webkit.messageHandlers.\(tabsHandler).postMessage(state); } catch (e) {}
+          }
         }
       };
     })();
     """
 
     @MainActor
-    static func install(in controller: WKUserContentController) {
+    static func install(in controller: WKUserContentController, model: WebModel) {
         // Toutes les frames : le module Événements tourne dans une iframe de la page Party.
         controller.addUserScript(WKUserScript(source: script, injectionTime: .atDocumentStart, forMainFrameOnly: false))
         #if DEBUG
@@ -41,6 +48,23 @@ enum NativeBridge {
         #endif
         controller.add(HapticHandler(), name: hapticHandler)
         controller.addScriptMessageHandler(PushHandler(), contentWorld: .page, name: pushHandler)
+        controller.add(TabsHandler(model: model), name: tabsHandler)
+    }
+}
+
+/// Onglets décrits par la page principale → barre d'onglets native (les iframes ne comptent pas).
+private final class TabsHandler: NSObject, WKScriptMessageHandler {
+    private weak var model: WebModel?
+
+    init(model: WebModel) {
+        self.model = model
+    }
+
+    @MainActor
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.frameInfo.isMainFrame, AppConfig.isInternal(message.frameInfo.securityOrigin.url),
+              let state = TabBarState(message: message.body) else { return }
+        model?.showTabs(state)
     }
 }
 

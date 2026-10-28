@@ -12,7 +12,7 @@ GUEST = "feedback-guest-0003"
 def setup(monkeypatch, tmp_path):
     sent = []
     monkeypatch.setattr(main, "feedback", FeedbackBox(tmp_path / "feedback.json"))
-    monkeypatch.setattr(main, "notify_guest", lambda gid, payload: sent.append((gid, payload)))
+    monkeypatch.setattr(main, "notify_guest", lambda gid, payload, kind: sent.append((gid, payload)))
     main.feedback.add(GUEST, "Léa", "idea", "Un mode équipe au Quiz", {})
     return sent, main.feedback.all()[0]["id"]
 

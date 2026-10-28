@@ -56,6 +56,22 @@ def test_youtube_title_is_cleaned():
     assert r["via"] == "YouTube" and cat.queries == ["Daft Punk One More Time"]
 
 
+def test_youtube_music_link_is_read_through_youtube():
+    # Partage depuis l'app YouTube Music (extension iOS « Partager › Party ») : music.youtube.com/watch?v=…
+    cat, seen = Cat(), []
+
+    class Recorder(Http):
+        def get(self, url, params=None, follow_redirects=None):
+            seen.append((params or {}).get("url"))
+            return super().get(url, params, follow_redirects)
+
+    http = Recorder({"youtube.com/oembed": Resp({"title": "Angel Dust", "author_name": "Sara Landry - Topic"})})
+    r = links.resolve("https://music.youtube.com/watch?v=Xb3ZbUjZWqs&si=abc", cat, http)
+    assert r["via"] == "YouTube" and r["tracks"]
+    assert seen == ["https://www.youtube.com/watch?v=Xb3ZbUjZWqs&si=abc"]  # oEmbed ne connaît que www.youtube.com
+    assert cat.queries == ["Sara Landry Angel Dust"]  # « Artiste - Topic » : la chaîne auto donne l'artiste
+
+
 def test_unknown_hosts_are_never_fetched():
     with pytest.raises(links.LinkError):
         links.resolve("http://192.168.50.1/admin", Cat(), Http({}))

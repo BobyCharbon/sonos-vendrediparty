@@ -27,6 +27,17 @@ def test_join_with_pin_then_regenerate_logs_out(client):
     assert client.get("/api/state").status_code == 401
 
 
+def test_host_uses_guest_routes_without_the_party_code(client):
+    # App native (onglet Musique, extension « Partager ») : l'hôte connecté n'a pas à saisir le code des invités.
+    assert client.post("/api/admin/login", json={"pin": "9999"}).status_code == 200
+    app = {"X-Party-Native": "ios"}
+    assert client.get("/api/state", params={"guest_id": "acct-host-1234"}, headers=app).status_code == 200
+    assert client.get("/api/search", params={"q": ""}, headers=app).status_code != 401
+    assert client.get("/api/state").status_code == 401  # la page web de l'hôte exige toujours le code
+    client.cookies.delete("vp_admin")
+    assert client.get("/api/state", headers=app).status_code == 401  # l'en-tête seul ne donne rien
+
+
 def test_admin_sees_pin_and_qr_contains_it(client):
     assert client.post("/api/admin/login", json={"pin": "9999"}).status_code == 200
     state = client.get("/api/admin/state").json()

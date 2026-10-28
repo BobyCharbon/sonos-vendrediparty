@@ -33,9 +33,10 @@ class Accounts:
     def gid(self, user_id: str) -> str:
         return "acct-" + hmac.new(self.secret, f"account:{user_id}".encode(), hashlib.sha256).hexdigest()[:40]
 
-    def _get(self, method: str, path: str, token: str, **kw) -> httpx.Response:
+    def _get(self, method: str, path: str, token: str, headers: dict | None = None, **kw) -> httpx.Response:
+        auth = {"apikey": SUPABASE_ANON_KEY, "Authorization": f"Bearer {token}"}
         try:
-            return self.client.request(method, SUPABASE_URL + path, headers={"apikey": SUPABASE_ANON_KEY, "Authorization": f"Bearer {token}"}, **kw)
+            return self.client.request(method, SUPABASE_URL + path, headers={**auth, **(headers or {})}, **kw)
         except httpx.HTTPError as e:
             raise AccountError("Le service des comptes ne répond pas. Réessaie dans un instant.") from e
 
@@ -90,6 +91,26 @@ class Accounts:
         with self.lock:
             self.by_gid[account["guest_id"]] = account
         return account
+
+    def notification_prefs(self, token: str) -> dict:
+        """Préférences de notification du membre (table notification_prefs, protégée par RLS) et s'il valide
+        les propositions d'événements (droit events.approve : réglage « Proposition à valider »)."""
+        uid = self._uid(token)
+        r = self._get("GET", f"/rest/v1/notification_prefs?user_id=eq.{uid}&select=*", token)
+        rows = r.json() if r.status_code == 200 else []
+        if not isinstance(rows, list) or not rows:
+            raise AccountError("Préférences introuvables. Ouvre une fois les Événements, puis réessaie.")
+        p = self._get("POST", "/rest/v1/rpc/my_permissions", token, json={})
+        perms = p.json() if p.status_code == 200 else []
+        return {"prefs": rows[0], "approver": isinstance(perms, list) and "events.approve" in perms}
+
+    def update_notification_prefs(self, token: str, patch: dict) -> dict:
+        uid = self._uid(token)
+        r = self._get("PATCH", f"/rest/v1/notification_prefs?user_id=eq.{uid}", token, json=patch,
+                      headers={"Prefer": "return=minimal"})
+        if r.status_code not in (200, 204):
+            raise AccountError("Tes préférences n'ont pas été enregistrées. Réessaie dans un instant.")
+        return self.notification_prefs(token)
 
     def refresh(self, refresh_token: str) -> dict:
         """Nouvelle session Supabase à partir du jeton de rafraîchissement (même format que celui gardé par le module)."""

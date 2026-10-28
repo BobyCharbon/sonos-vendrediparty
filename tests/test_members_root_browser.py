@@ -19,11 +19,11 @@ def person(id, name, role, phone, first='2026-10-20T08:00:00Z', last='2026-10-24
             'sign_in_count': logins, 'last_device': 'iPhone Safari', 'groups': [], 'rsvp_count': 0, 'message_count': 0, **extra}
 
 
-def member_admin(page, has_migration=True):
+def member_admin(page, has_migration=True, nameless=False):
     """Fonctions de la migration 20261025120000 (simulées) ; sans elle, la base répond « fonction inconnue »."""
     people = [person(USER, 'Compte de démonstration', 'admin', '41791234567', first='2026-10-01T08:00:00Z', last='2026-10-25T09:00:00Z', logins=40),
               person(SAM, 'Sam', 'admin', '41790000044', first='2026-10-10T08:00:00Z', last='2026-10-22T09:00:00Z', logins=3, groups=['Vendredi Party']),
-              person(TOM, 'Tom', 'guest', '41790000000', first='2026-10-21T08:00:00Z', last='2026-10-23T09:00:00Z', logins=12, beta=True, rsvp_count=2, message_count=5)]
+              person(TOM, '' if nameless else 'Tom', 'guest', '41790000000', first='2026-10-21T08:00:00Z', last='2026-10-23T09:00:00Z', logins=12, beta=True, rsvp_count=2, message_count=5)]
     calls = []
 
     def handle(route):
@@ -90,6 +90,28 @@ def test_root_sees_every_signup_and_deletes_one_after_typing_the_nickname(browse
         sent = next(json.loads(body) for path, body in calls if path.endswith('/admin_delete_member'))
         assert sent == {'member': TOM, 'confirm_name': ' tom '}
         assert not errors
+    finally:
+        context.close()
+
+
+def test_root_deletes_a_profile_without_nickname_by_typing_supprimer(browser, events_origin):
+    # Profil incomplet (pas de surnom) : on ne pouvait rien taper pour confirmer (« ? » refusé, bouton bloqué).
+    context = browser.new_context(viewport={'width': 390, 'height': 844})
+    page = context.new_page(); mock_services(page); calls = member_admin(page, nameless=True)
+    try:
+        open_members(page, events_origin)
+        pw.expect(page.get_by_text('3 compte(s) inscrit(s)', exact=True)).to_be_visible(timeout=15000)
+        page.get_by_role('button', name='Supprimer le compte').last.click()
+        confirm = page.get_by_role('button', name='Supprimer définitivement')
+        field = page.get_by_label('Tape supprimer pour confirmer')
+        pw.expect(page.get_by_text('Tape « supprimer » pour confirmer', exact=False)).to_be_visible()
+        field.fill('?')
+        pw.expect(confirm).to_be_disabled()
+        field.fill(' Supprimer ')
+        confirm.click()
+        pw.expect(page.get_by_text('2 compte(s) inscrit(s)', exact=True)).to_be_visible()
+        sent = next(json.loads(body) for path, body in calls if path.endswith('/admin_delete_member'))
+        assert sent == {'member': TOM, 'confirm_name': ''}  # le serveur compare au surnom, vide
     finally:
         context.close()
 

@@ -304,6 +304,8 @@ details[open] > summary h2::after { content: " ▾"; }
 .name-chip { display: inline-flex; align-items: center; gap: 4px; color: var(--text); padding-right: 4px; }
 .chip-x { background: transparent; color: var(--muted); padding: 2px 6px; font-size: .8rem; }
 button.g-spin { height: 54px; font-size: 1.05rem; background: #ffd166; color: #2b1d00; }
+/* App de l'App Store : pas de jeux d'argent simulés (ios-app.js, STORE_HIDDEN_GAMES dans app/main.py). */
+html.party-store .gcard.g-cs, html.party-store .gcard.g-bj { display: none; }
 .g-bj { --g-bg: #0f5136; --g-accent: #f5c542; --g-ink: #2b1d00; --g-soft: #cdeedd; --g-chip: #0b3d29; }
 .g-bd { --g-bg: #6e1530; --g-accent: #ff9fb2; --g-ink: #3a0010; --g-soft: #ffd6df; --g-chip: #4f0f22; }
 .game.g-bj, .game.g-bd { background: var(--g-bg); border: 0; color: #fff; border-radius: 22px; }
@@ -1587,3 +1589,11 @@ body:not(.admin-music) .admin-games { display: none !important; }
 .qs-av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .qs-av.qs-av-sm { width: 30px; height: 30px; font-size: .8rem; }
 .qs-av.qs-av-xs { width: 20px; height: 20px; font-size: .6rem; margin-right: 6px; vertical-align: -5px; }
+
+/* App iOS native (ios/, native-tabs.js) : la barre d'onglets est une UITabBar sous la vue web. La barre web reste
+   dans la page (elle décrit les onglets à l'app) mais ne prend plus de place ; un jeu plein écran qui la masque
+   (display: none) masque aussi la barre native. Le bas de page n'a plus à lui laisser de place. */
+html.native-tabs #tabs { visibility: hidden; height: 0; min-height: 0; padding: 0; border: 0; overflow: hidden; pointer-events: none; }
+html.native-tabs body { padding-bottom: 24px; }
+html.native-tabs body.has-mini { padding-bottom: 100px; }
+html.native-tabs .g-mini { bottom: 12px; }

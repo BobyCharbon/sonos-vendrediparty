@@ -29,3 +29,6 @@ android/.gradle/
 android/build/
 android/app/build/
 android/local.properties
+ios/PartyShare/Info.plist
+ios/PartyShare/PartyShare.entitlements
+ios/PartyWidgets/Info.plist

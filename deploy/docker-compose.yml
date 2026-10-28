@@ -14,6 +14,9 @@ services:
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID}
       SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET}
       SPOTIFY_MARKET: ${SPOTIFY_MARKET:-CH}
+      # Notifications de l'app iOS native (app/apns.py) : clé APNs .p8 (contenu) et son identifiant.
+      APNS_KEY_P8: ${APNS_KEY_P8:-}
+      APNS_KEY_ID: ${APNS_KEY_ID:-}
       SONOS_IP: ${SONOS_IP:-192.168.50.186}
       # IP de HAProxy (pfSense) : seule source autorisée à transmettre la vraie IP des invités.
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-192.168.50.1}

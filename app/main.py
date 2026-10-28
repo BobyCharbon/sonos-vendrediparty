@@ -12,6 +12,7 @@ import threading
 import time
 import unicodedata
 from pathlib import Path
+from typing import Literal
 from urllib.parse import quote, unquote, urlparse
 
 import httpx
@@ -20,7 +21,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from . import calendar_ics, debate, games, heist, island, likely, links, neon, president, purity, quiz
 from .game_lock import LOCK as GAMES_LOCK
@@ -28,7 +29,8 @@ from .accounts import AccountError, Accounts
 from .audit import AuditLog
 from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
 from .github_issues import GitHubError, Issues
-from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
+from .party import ADMIN_NOTIFY_DEFAULTS, GUEST_NOTIFY_DEFAULTS, HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
+from .apns import Apns
 from .push import Push, valid_subscription
 from .security import Limiter
 from .sonos import Sonos, seconds
@@ -80,7 +82,7 @@ spotify = (
     if os.environ.get("SPOTIFY_CLIENT_ID") and os.environ.get("SPOTIFY_CLIENT_SECRET")
     else None
 )
-push = Push(DATA_DIR, PUBLIC_URL)
+push = Push(DATA_DIR, PUBLIC_URL, apns=Apns.from_env(os.environ))
 # Compte Spotify de l’hôte : Sonos via Spotify Connect ou téléphone à l’extérieur.
 spotify_user = (SpotifyUser(os.environ["SPOTIFY_CLIENT_ID"], os.environ["SPOTIFY_CLIENT_SECRET"], DATA_DIR / "spotify_user.json",
                             PUBLIC_URL + "/api/spotify/callback") if spotify else None)
@@ -132,15 +134,20 @@ _snap = {"at": 0.0, "data": None, "fingerprint": None, "version": 0, "current": 
 _snap_lock = threading.Lock()
 
 
-def notify_guest(guest_id: str, payload: dict):
+def guest_prefs(guest_id: str) -> dict:
+    return {**GUEST_NOTIFY_DEFAULTS, **store.session.guest_notify.get(guest_id, {})}
+
+
+def notify_guest(guest_id: str, payload: dict, kind: str):
+    """kind : un type de GUEST_NOTIFY_DEFAULTS ; l'invité ne reçoit que ce qu'il a choisi (Réglages › Notifications)."""
     subs = store.session.push.get(guest_id)
-    if subs:
+    if subs and guest_prefs(guest_id)[kind]:
         push.send(list(subs), payload, on_gone=lambda sub: store.remove_push(sub["endpoint"]))
 
 
 def notify_admin(payload: dict, kind: str = "messages"):
-    """kind : « messages » ou « games », selon ce que l'hôte a choisi de recevoir."""
-    if store.session.admin_notify.get(kind, kind == "messages") and store.session.admin_push:
+    """kind : un type de ADMIN_NOTIFY_DEFAULTS, selon ce que l'hôte a choisi de recevoir."""
+    if {**ADMIN_NOTIFY_DEFAULTS, **store.session.admin_notify}[kind] and store.session.admin_push:
         push.send(list(store.session.admin_push), payload, on_gone=lambda sub: store.remove_push(sub["endpoint"]))
 
 
@@ -170,7 +177,7 @@ def track_changed(data: dict, done: list):
     for r in done:
         if r.track_id == cur["track_id"]:
             notify_guest(r.guest_id, {"title": "🎶 Ton titre passe !", "body": f"{r.title} · {r.artist}",
-                                      "url": "/", "tag": "now-playing"})
+                                      "url": "/", "tag": "now-playing"}, kind="track")
 
 
 def snapshot(force: bool = False) -> dict:
@@ -302,9 +309,26 @@ def is_guest(request: Request) -> bool:
     return guest_token(request) is not None
 
 
+# Appels de l'app iOS native (ios/Party/Music/PartyAPI.swift) : onglet Musique et extension « Partager ».
+NATIVE_APP_HEADER = "x-party-native"
+
+
+def native_host(request: Request) -> bool:
+    """L'hôte connecté, depuis l'app native."""
+    return bool(request.headers.get(NATIVE_APP_HEADER)) and is_admin(request)
+
+
+def owners(request: Request, guest_id: str) -> set[str]:
+    """Demandes « à moi » : celles de l'invité ; dans l'app, l'hôte y ajoute ses titres ajoutés en tant qu'hôte
+    (HOST_ID) : suivi « Ton titre arrive » et retrait depuis l'écran natif."""
+    return ({guest_id} if guest_id else set()) | ({HOST_ID} if native_host(request) else set())
+
+
 def require_guest(request: Request):
-    """Invité ayant saisi le code d'accès en cours. L'admin aussi : un nouveau code déconnecte tout le monde."""
-    if not is_guest(request):
+    """Invité ayant saisi le code d'accès en cours (un nouveau code déconnecte tout le monde). La page web l'exige
+    même dans le navigateur de l'hôte (il voit ce que voient ses invités) ; l'app native, elle, ne redemande pas
+    le code à l'hôte connecté (aucun droit de plus : l'hôte a déjà tous les droits)."""
+    if not (is_guest(request) or native_host(request)):
         raise HTTPException(401, "Code d'accès requis")
 
 
@@ -630,6 +654,25 @@ def undo_token(items: list[dict], request_ids: list[str]) -> str | None:
     return token
 
 
+def requests_by_position(upcoming: list[dict], reqs) -> dict:
+    """Chaque exemplaire d'un titre dans la file ↔ sa demande : le k-ième exemplaire (par position) est la k-ième
+    demande encore en attente de ce titre (ordre d'ajout). Un doublon se retire donc seul, sans emporter l'autre."""
+    pending: dict[str, list] = {}
+    for r in reqs:
+        pending.setdefault(r.track_id, []).append(r)
+    seen: dict[str, int] = {}
+    mapping = {}
+    for t in sorted(upcoming, key=lambda t: t["pos"]):
+        tid = t["track_id"]
+        if not tid:
+            continue
+        k = seen.get(tid, 0)
+        seen[tid] = k + 1
+        if k < len(pending.get(tid, [])):
+            mapping[t["pos"]] = pending[tid][k]
+    return mapping
+
+
 def remove_requests(reqs) -> str | None:
     """Retire des demandes de la file Sonos (de la fin vers le début pour garder les positions valides).
     Renvoie un jeton pour annuler."""
@@ -637,11 +680,12 @@ def remove_requests(reqs) -> str | None:
     removed = []
     with queue_lock:
         snap = snapshot(force=True)
-        positions = {t["track_id"]: t["pos"] for t in reversed(snap["upcoming"]) if t["track_id"]}
-        for req in sorted(reqs, key=lambda r: positions.get(r.track_id, 0), reverse=True):
-            if req.track_id in positions:
-                player().remove_at(store.session.room_uid, positions[req.track_id])
-                removed.append({"pos": positions[req.track_id], "track_id": req.track_id, "title": req.title})
+        # Position de CET exemplaire (un doublon n'emporte pas l'autre).
+        pos_of = {r.id: pos for pos, r in requests_by_position(snap["upcoming"], store.pending()).items()}
+        for req in sorted(reqs, key=lambda r: pos_of.get(r.id, 0), reverse=True):
+            if req.id in pos_of:
+                player().remove_at(store.session.room_uid, pos_of[req.id])
+                removed.append({"pos": pos_of[req.id], "track_id": req.track_id, "title": req.title})
             req.status = "removed"
         store.save()
         _snap["data"] = None
@@ -888,7 +932,7 @@ def admin_state():
         "spotify_legacy_pending": len(s.vqueue),
         "spotify_account": {"connected": spotify_user.connected, "name": spotify_user.name,
                             "premium": spotify_user.data.get("premium", True)} if spotify_user else None,
-        "admin_notify": s.admin_notify,
+        "admin_notify": {**ADMIN_NOTIFY_DEFAULTS, **s.admin_notify},
         "games": [games.summary(g) for g in (prune_games() or s.games).values()],
         "event": {"id": s.event_id, "title": s.event_title} if s.event_id else None,
     }
@@ -962,7 +1006,9 @@ def admin_queue_action(body: QueueAction):
             player().play_at(uid, body.pos)
         elif body.action == "remove":
             player().remove_at(uid, body.pos)
-            reqs = [r for r in store.pending() if item["track_id"] and r.track_id == item["track_id"]]
+            # Seulement la demande de cet exemplaire : l'autre exemplaire d'un doublon reste demandé.
+            req = requests_by_position(upcoming, store.pending()).get(body.pos)
+            reqs = [req] if req else []
             for r in reqs:
                 r.status = "removed"
             store.save()
@@ -1127,9 +1173,22 @@ def require_account(token: str, guest_id: str, ip: str):
         raise HTTPException(403, "Ce compte ne correspond pas à ta place : recharge la page une fois connecté")
 
 
+# App VendrediParty de l'App Store (Release, ios/Party/AppConfig.swift) : Apple refuse les jeux d'argent simulés
+# à un compte développeur individuel. Casino et Blackjack y sont masqués (games.js) et refusés ici ; le site,
+# l'app BETA et Android les gardent.
+STORE_APP_MARK = "PartyStore"
+STORE_HIDDEN_GAMES = ("casino", "blackjack")
+
+
+def check_store_game(request: Request, kind: str):
+    if kind in STORE_HIDDEN_GAMES and STORE_APP_MARK in request.headers.get("user-agent", ""):
+        raise HTTPException(403, "Ce jeu n'est pas proposé dans l'app de l'App Store : ouvre-le sur le site Party.")
+
+
 @app.post("/api/games")
 def create_game(body: GameCreate, request: Request):
     check_guest_id(body.guest_id)
+    check_store_game(request, body.type)
     ip = client_ip(request)
     if msg := ban_message(body.guest_id, ip):
         raise HTTPException(403, msg)
@@ -1145,8 +1204,12 @@ def create_game(body: GameCreate, request: Request):
     g = build_game(body)
     _game_creations[ip] = recent + [time.time()]
     game_presence(request, body.guest_id, body.name)
-    notify_admin({"title": f"🎮 {games.GAMES[g['type']]}", "body": f"{g['host_name']} lance une partie · code {g['code']}",
-                  "url": "/admin#games", "tag": f"game-{g['code']}"}, kind="games")
+    title, text = f"🎮 {games.GAMES[g['type']]}", f"{g['host_name']} lance une partie · code {g['code']}"
+    notify_admin({"title": title, "body": text, "url": "/admin#games", "tag": f"game-{g['code']}"}, kind="games")
+    for guest_id in list(store.session.push):
+        if guest_id != body.guest_id:
+            notify_guest(guest_id, {"title": title, "body": text, "url": f"/?game={g['code']}", "tag": f"game-{g['code']}"},
+                         kind="games")
     store.session.games[g["code"]] = g
     save_games(g["code"])
     return full_view(g, body.guest_id)
@@ -1364,6 +1427,58 @@ def account_refresh(body: SessionRefresh, request: Request):
         raise HTTPException(401, str(e))
 
 
+class MemberToken(BaseModel):
+    token: str = Field(min_length=1, max_length=4096)
+
+
+QUIET_TIME = r"^([01]\d|2[0-3]):[0-5]\d(:00)?$"
+
+
+class NotificationPatch(BaseModel):
+    """Préférences de notification du compte (table Supabase notification_prefs), champs connus seulement."""
+    model_config = ConfigDict(extra="forbid")
+    push_enabled: bool | None = None
+    quiet_start: str | None = Field(None, pattern=QUIET_TIME)
+    quiet_end: str | None = Field(None, pattern=QUIET_TIME)
+    new_event: Literal["all", "subscribed", "none"] | None = None
+    event_changed: bool | None = None
+    poll_new: bool | None = None
+    date_fixed: bool | None = None
+    poll_nudge: bool | None = None
+    waitlist: bool | None = None
+    reminders: list[Literal["7d", "1d", "2h", "0h"]] | None = Field(None, max_length=4)
+    chat: Literal["all", "mentions", "none"] | None = None
+    rsvp_mine: bool | None = None
+    proposals: bool | None = None
+
+
+class NotificationUpdate(MemberToken):
+    patch: NotificationPatch
+
+
+@app.post("/api/account/notifications")
+def account_notifications(body: MemberToken):
+    """Réglages natifs › Notifications › Événements : lues avec la session du membre (ses droits Supabase)."""
+    try:
+        return accounts.notification_prefs(body.token)
+    except AccountError as e:
+        raise HTTPException(401, str(e))
+
+
+@app.post("/api/account/notifications/update")
+def account_notifications_update(body: NotificationUpdate):
+    # Seuls les champs envoyés changent ; les heures de silence se coupent ensemble (toutes deux à null).
+    patch = body.patch.model_dump(exclude_unset=True)
+    if not patch:
+        raise HTTPException(400, "Rien à changer")
+    if any(v is None for k, v in patch.items() if k not in ("quiet_start", "quiet_end")):
+        raise HTTPException(400, "Valeur manquante")
+    try:
+        return accounts.update_notification_prefs(body.token, patch)
+    except AccountError as e:
+        raise HTTPException(401, str(e))
+
+
 class EventLink(BaseModel):
     event_id: str = Field("", pattern=r"^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$")
     title: str = Field("", max_length=120)
@@ -1535,6 +1650,7 @@ def game_state(code: str, request: Request, guest_id: str = "", name: str = ""):
 
 def read_game(code: str, request: Request, guest_id: str, name: str):
     g = get_game(code)
+    check_store_game(request, g["type"])
     game_presence(request, guest_id, name)
     guest_id = canonical_gid(g, guest_id)
     sync_player_name(g, guest_id, name)
@@ -1596,6 +1712,7 @@ def game_action(code: str, body: GameAction, request: Request):
 def perform_game_action(code: str, body: GameAction, request: Request):
     check_guest_id(body.guest_id)
     g = get_game(code)
+    check_store_game(request, g["type"])
     game_presence(request, body.guest_id, body.name)
     if body.action == "join":
         if g["type"] in ACCOUNT_GAMES:
@@ -1639,6 +1756,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     if g["type"] == "room" and a == "launch":
         if not games.is_lead(g, me):
             raise HTTPException(403, "Seul l'animateur lance les jeux")
+        check_store_game(request, body.settings.get("type", ""))
         room_launch(g, me, body.settings)
         g["updated_at"] = time.time()
         save_games(g["code"], g.get("current") or "")
@@ -1772,13 +1890,17 @@ def admin_close_game(body: GameAction, request: Request):
 
 # --- Invités ---
 
-def public_sonos(snap: dict, guest_id: str = "") -> dict:
+def public_sonos(snap: dict, guest_id: str = "", mine_of: set[str] | None = None) -> dict:
+    """mine_of : demandes « à moi » (rid renvoyé) ; par défaut celles de guest_id."""
     names = {r.track_id: r.guest_name for r in store.session.requests if r.status != "removed"}
-    mine = {r.track_id: r.id for r in store.pending() if guest_id and r.guest_id == guest_id}
+    owned = mine_of if mine_of is not None else ({guest_id} if guest_id else set())
+    by_pos = requests_by_position(snap["upcoming"], store.pending())
 
     def view(t, eta):
+        req = by_pos.get(t.get("pos"))  # la demande de CET exemplaire (doublons distincts)
         return {"title": t["title"], "artist": t["artist"], "art": art_url(t["art"]), "track_id": t["track_id"],
-                "by": names.get(t["track_id"]), "rid": mine.get(t["track_id"]), "eta": eta,
+                "by": req.guest_name if req else names.get(t["track_id"]),
+                "rid": req.id if req and req.guest_id in owned else None, "eta": eta,
                 "service": t.get("service") if t.get("service") and t.get("service") != "Spotify" else None}
 
     now = snap["now"]
@@ -1837,9 +1959,11 @@ def send_feedback(body: FeedbackIn, request: Request):
     if feedback.sent_since(body.guest_id, 20) or feedback.sent_since(body.guest_id, 86400) >= 10:
         raise HTTPException(429, "Merci ! Attends un peu avant d'envoyer un autre message")
     context = {k: str(v)[:40] for k, v in body.context.items() if k in ("tab", "game")}
-    name = clean_name(body.name) or "Anonyme"
+    # Pas de prénom (invité qui n'a encore rien ajouté) : « Anonyme ». clean_name refuserait un prénom vide.
+    name = " ".join(body.name.split())[:30] or "Anonyme"
     feedback.add(body.guest_id, name, body.kind, text, context)
-    notify_admin({"title": f"{FEEDBACK_KINDS[body.kind]} de {name}", "body": text[:140], "url": "/admin#feedback", "tag": "feedback"})
+    notify_admin({"title": f"{FEEDBACK_KINDS[body.kind]} de {name}", "body": text[:140], "url": "/admin#feedback", "tag": "feedback"},
+                 kind="feedback")
     store.save()  # l'admin ouvert reçoit la mise à jour (pastille « Retours »)
     return {"mine": feedback.mine(body.guest_id)}
 
@@ -1930,7 +2054,8 @@ def notify_feedback_finished(item: dict):
     done = item["status"] == "done"
     notify_guest(item["guest_id"], {
         "title": "✅ Ton retour est terminé" if done else "💬 Réponse à ton retour",
-        "body": item.get("reply") or item["text"][:120], "url": "/?tab=feedback", "tag": f"feedback-{item['id']}"})
+        "body": item.get("reply") or item["text"][:120], "url": "/?tab=feedback", "tag": f"feedback-{item['id']}"},
+        kind="feedback")
 
 
 class FeedbackSeen(BaseModel):
@@ -2000,7 +2125,7 @@ def state(request: Request, guest_id: str = ""):
         "played": [{**p, "art": art_url(p["art"])} for p in reversed(s.played[-16:-1])],
     }
     try:
-        return {**base, **public_sonos(snapshot(), guest_id)}
+        return {**base, **public_sonos(snapshot(), guest_id, owners(request, guest_id))}
     except Exception:
         return {**base, "error": "La musique est injoignable pour le moment"}
 
@@ -2142,10 +2267,11 @@ class GuestRemove(BaseModel):
 
 
 @app.post("/api/queue/remove", dependencies=[Depends(require_guest)])
-def guest_remove(body: GuestRemove):
-    """Un invité retire un de ses propres titres encore en attente."""
+def guest_remove(body: GuestRemove, request: Request):
+    """Un invité retire un de ses propres titres encore en attente (l'hôte, dans l'app, aussi les siens d'hôte)."""
     require_active()
-    req = next((r for r in store.pending() if r.id == body.request_id and r.guest_id == body.guest_id), None)
+    mine = owners(request, body.guest_id)
+    req = next((r for r in store.pending() if r.id == body.request_id and r.guest_id in mine), None)
     if req is None:
         raise HTTPException(404, "Titre introuvable ou déjà joué")
     remove_requests([req])
@@ -2184,17 +2310,53 @@ def admin_push_subscribe(body: PushSubscribe):
 
 
 class AdminNotify(BaseModel):
-    kind: str  # messages | games
+    kind: str  # un type de ADMIN_NOTIFY_DEFAULTS
     on: bool
+
+
+def admin_notify_payload() -> dict:
+    return {"admin_notify": {**ADMIN_NOTIFY_DEFAULTS, **store.session.admin_notify}}
+
+
+@app.get("/api/admin/notify", dependencies=[Depends(require_admin)])
+def admin_notify_prefs():
+    return admin_notify_payload()
 
 
 @app.post("/api/admin/notify", dependencies=[Depends(require_admin)])
 def admin_notify(body: AdminNotify):
-    if body.kind not in ("messages", "games"):
+    if body.kind not in ADMIN_NOTIFY_DEFAULTS:
         raise HTTPException(400, "Type inconnu")
     store.session.admin_notify[body.kind] = body.on
     store.save(notify=False)
-    return {"admin_notify": store.session.admin_notify}
+    return admin_notify_payload()
+
+
+def guest_notify_payload(guest_id: str) -> dict:
+    return {"prefs": guest_prefs(guest_id), "subscribed": bool(store.session.push.get(guest_id))}
+
+
+@app.get("/api/notify", dependencies=[Depends(require_guest)])
+def guest_notify_prefs(guest_id: str):
+    """Réglages › Notifications de l'invité : ce qu'il reçoit, et si un de ses appareils est abonné."""
+    check_guest_id(guest_id)
+    return guest_notify_payload(guest_id)
+
+
+class GuestNotify(BaseModel):
+    guest_id: str
+    kind: str  # un type de GUEST_NOTIFY_DEFAULTS
+    on: bool
+
+
+@app.post("/api/notify", dependencies=[Depends(require_guest)])
+def guest_notify(body: GuestNotify):
+    check_guest_id(body.guest_id)
+    if body.kind not in GUEST_NOTIFY_DEFAULTS:
+        raise HTTPException(400, "Type inconnu")
+    store.session.guest_notify[body.guest_id] = {**store.session.guest_notify.get(body.guest_id, {}), body.kind: body.on}
+    store.save(notify=False)
+    return guest_notify_payload(body.guest_id)
 
 
 class PushUnsubscribe(BaseModel):

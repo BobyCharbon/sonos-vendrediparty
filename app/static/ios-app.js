@@ -9,8 +9,14 @@
 document.addEventListener("gesturestart", function (e) { e.preventDefault(); }, {passive: false});
 
 (function () {
-  if (navigator.standalone !== true) return;  // seulement l'app installée sur l'écran d'accueil d'un iPhone / iPad
   var root = document.documentElement;
+  // App VendrediParty de l'App Store : sans Casino ni Blackjack (jeux d'argent simulés, refusés par Apple pour un
+  // compte individuel ; le serveur les refuse aussi, voir STORE_APP_MARK dans app/main.py).
+  if (/PartyStore/.test(navigator.userAgent)) root.classList.add("party-store");
+  // App iOS native (ios/) : la barre d'onglets est native (UITabBar, native-tabs.js) et la vue web s'arrête
+  // au-dessus d'elle. Le bug ci-dessus ne concerne que l'app ajoutée depuis Safari : pas de correctif ici.
+  if (window.PartyNative && window.PartyNative.tabs) { root.classList.add("native-tabs"); return; }
+  if (navigator.standalone !== true) return;  // seulement l'app installée sur l'écran d'accueil d'un iPhone / iPad
   root.classList.add("ios-app");
   function fit() {
     // screen.width / height ne s'échangent pas en paysage sur iOS : on prend le bon côté selon l'orientation.
