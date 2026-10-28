@@ -44,6 +44,7 @@ final class WebModel: ObservableObject {
             Task { await self?.shareSession() }
         }
         music = MusicStore(api: api, web: self)
+        music?.start()  // suivi de la file dès le lancement (PartyApp le relance au retour au premier plan)
         feedback = FeedbackStore(api: api, web: self) { [weak self] in self?.lastContentTab }
         webView.load(URLRequest(url: pending ?? start))
         pending = nil

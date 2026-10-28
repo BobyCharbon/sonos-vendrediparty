@@ -38,8 +38,8 @@ struct MusicView: View {
         .sheet(isPresented: $scanning) {
             QRScannerSheet { text in Task { await store.handleScanned(text) } }
         }
-        .onAppear { store.start() }
-        .onDisappear { store.stop() }
+        // Le suivi en direct tourne tant que l'app est ouverte (PartyApp, scenePhase) : on rafraîchit à l'affichage.
+        .task { await store.reload() }
     }
 
     private var header: some View {

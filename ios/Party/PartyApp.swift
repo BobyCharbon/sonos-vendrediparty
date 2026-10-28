@@ -5,12 +5,18 @@ import SwiftUI
 struct PartyApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var model = WebModel(start: AppConfig.baseURL)
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
             ContentView(model: model)
                 // Lien universel (QR code, lien partagé) ou toucher d'une notification : on l'ouvre dans l'app.
                 .onOpenURL { model.open($0) }
+                // Suivi de la file en direct (Live Activity « Ton titre arrive ») tant que l'app est au premier plan,
+                // quel que soit l'onglet, et aussi pour l'hôte en « Gérer la soirée » (écran natif non affiché).
+                .onChange(of: scenePhase) { phase in
+                    if phase == .active { model.music?.start() } else if phase == .background { model.music?.stop() }
+                }
                 #if DEBUG
                 .task { TrackActivities.startDemoIfAsked() }
                 #endif
