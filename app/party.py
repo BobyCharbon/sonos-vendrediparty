@@ -381,7 +381,10 @@ class PartyStore:
     def add_push(self, guest_id: str | None, sub: dict):
         """Abonne un invité (ou l'hôte si guest_id est None) ; un appareil n'est abonné qu'une fois."""
         self.remove_push(sub["endpoint"], save=False)
-        sub = {"endpoint": sub["endpoint"], "keys": {k: sub["keys"][k] for k in ("p256dh", "auth")}}
+        if "apns" in sub:  # app iOS native (validée par push.valid_native_subscription)
+            sub = {"endpoint": sub["endpoint"], "apns": {k: sub["apns"][k] for k in ("token", "environment", "topic")}}
+        else:
+            sub = {"endpoint": sub["endpoint"], "keys": {k: sub["keys"][k] for k in ("p256dh", "auth")}}
         if guest_id is None:
             self.session.admin_push = self.session.admin_push[-4:] + [sub]
         else:

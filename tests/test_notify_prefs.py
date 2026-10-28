@@ -173,3 +173,16 @@ def test_push_register_api_checks_the_device_token(monkeypatch):
     assert c.post("/api/account/push", json={"token": "tok", "device": "ab" * 32, "on": True}).json() == {"ok": True}
     assert c.post("/api/account/push", json={"token": "tok", "device": "zz", "on": True}).status_code == 422
     assert seen == [("ab" * 32, True)]
+
+
+NATIVE = {"endpoint": "apns:" + "ab" * 32,
+          "apns": {"token": "ab" * 32, "environment": "production", "topic": "ch.bobycharbon.party.beta"}}
+
+
+def test_iphone_app_subscribes_as_guest_and_as_host(admin):  # noqa: F811
+    guest = guest_client("guest-native-1")
+    assert guest.post("/api/push/subscribe", json={"guest_id": "guest-native-1", "subscription": NATIVE, "keep_prefs": True}).status_code == 200
+    assert main.store.session.push["guest-native-1"] == [NATIVE]
+    assert admin.post("/api/admin/push/subscribe", json={"subscription": NATIVE}).status_code == 200
+    assert main.store.session.admin_push[-1] == NATIVE
+    main.store.remove_push(NATIVE["endpoint"])
