@@ -53,7 +53,7 @@ targets:
         UIUserInterfaceStyle: Dark
         UIBackgroundModes: [remote-notification]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
-        NSCameraUsageDescription: "Pour prendre une photo de profil ou d'événement."
+        NSCameraUsageDescription: "Pour scanner le QR code de l'hôte et prendre une photo de profil ou d'événement."
         NSPhotoLibraryUsageDescription: "Pour choisir une photo de profil ou d'événement."
         NSMicrophoneUsageDescription: "Pour les jeux qui utilisent le micro."
         ITSAppUsesNonExemptEncryption: false

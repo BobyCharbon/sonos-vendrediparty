@@ -151,6 +151,10 @@ extension WebModel: WebStorage {
         return try? await webView.evaluateJavaScript(script) as? String
     }
 
+    func openInPage(_ url: URL) {
+        open(url)
+    }
+
     func refreshFeedbackBadge() {
         webView?.evaluateJavaScript("typeof loadFeedback === 'function' && loadFeedback(false)")
     }

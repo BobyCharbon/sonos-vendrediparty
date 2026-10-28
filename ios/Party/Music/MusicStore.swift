@@ -18,6 +18,8 @@ protocol WebStorage: AnyObject {
     func shareSession() async
     /// La page recalcule la pastille de « Ton avis » (retours vus ou envoyés depuis l'écran natif).
     func refreshFeedbackBadge()
+    /// Ouvre une adresse du site dans la page (QR code d'une partie de jeu…).
+    func openInPage(_ url: URL)
 }
 
 /// Onglet Musique natif : état de la soirée en direct, recherche, ajout, messages à l'hôte.
@@ -137,6 +139,19 @@ final class MusicStore: ObservableObject {
             await reload()
         } catch {
             show(error)
+        }
+    }
+
+    /// QR code scanné : code de la soirée → rejoindre ; partie de jeu → ouverte dans la page.
+    func handleScanned(_ text: String) async {
+        switch PartyLink.parse(text, isInternal: AppConfig.isInternal) {
+        case .party(let code)?:
+            await join(code: code)
+            if case .ready = phase { notice = Notice(text: "Bienvenue dans la soirée 🎉", isError: false) }
+        case .page(let url)?:
+            web?.openInPage(url)
+        case nil:
+            notice = Notice(text: "Ce QR code n'est pas celui d'une soirée Party", isError: true)
         }
     }
 

@@ -159,3 +159,28 @@ struct FeedbackTests {
         #expect(FeedbackKind.allCases.map(\.rawValue) == ["idea", "bug", "other"])
     }
 }
+
+/// QR code de l'hôte (app/main.py : /qr.svg et QR d'une partie).
+struct PartyLinkTests {
+    private let internalHost: (URL) -> Bool = { $0.host == "partytest.bobycharbon.ch" }
+
+    @Test("QR de la soirée : le code est rejoint directement")
+    func partyCode() {
+        #expect(PartyLink.parse("https://partytest.bobycharbon.ch/?pin=4821", isInternal: internalHost) == .party(code: "4821"))
+        #expect(PartyLink.parse(" 4821 ", isInternal: internalHost) == .party(code: "4821"))  // code seul
+    }
+
+    @Test("QR d'une partie : ouvert dans la page")
+    func gameCode() {
+        let url = URL(string: "https://partytest.bobycharbon.ch/?game=7731")!
+        #expect(PartyLink.parse(url.absoluteString, isInternal: internalHost) == .page(url))
+    }
+
+    @Test("QR d'autre chose : refusé (site inconnu, http, texte)")
+    func foreign() {
+        #expect(PartyLink.parse("https://exemple.com/?pin=4821", isInternal: internalHost) == nil)
+        #expect(PartyLink.parse("http://partytest.bobycharbon.ch/?pin=4821", isInternal: internalHost) == nil)
+        #expect(PartyLink.parse("WIFI:S:maison;T:WPA;P:secret;;", isInternal: internalHost) == nil)
+    }
+}
+

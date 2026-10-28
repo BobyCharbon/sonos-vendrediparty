@@ -10,6 +10,7 @@ struct MusicView: View {
 
     @State private var name = ""
     @State private var message = ""
+    @State private var scanning = false
 
     var body: some View {
         ScrollView {
@@ -34,6 +35,9 @@ struct MusicView: View {
         } message: {
             Text("Il s'affiche à côté de tes titres dans la file.")
         }
+        .sheet(isPresented: $scanning) {
+            QRScannerSheet { text in Task { await store.handleScanned(text) } }
+        }
         .onAppear { store.start() }
         .onDisappear { store.stop() }
     }
@@ -47,6 +51,11 @@ struct MusicView: View {
                 }
             }
             Spacer()
+            Button { scanning = true } label: {
+                Image(systemName: "qrcode.viewfinder").font(.title2)
+            }
+            .tint(Palette.accent)
+            .accessibilityLabel("Scanner le QR de l'hôte (soirée ou partie)")
             if let manage {
                 Button(action: manage) {
                     Label("Gérer la soirée", systemImage: "slider.horizontal.3")
@@ -64,7 +73,7 @@ struct MusicView: View {
         case .loading:
             ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
         case .needsCode:
-            JoinCard { code in await store.join(code: code) }
+            JoinCard(scan: { scanning = true }) { code in await store.join(code: code) }
         case .closed:
             InfoCard(symbol: "moon.zzz", text: "Pas de soirée en cours pour le moment.")
         case .offline(let reason):
@@ -249,6 +258,7 @@ private struct InfoCard: View {
 }
 
 private struct JoinCard: View {
+    let scan: () -> Void
     let join: (String) async -> Void
     @State private var code = ""
     @State private var joining = false
@@ -272,6 +282,11 @@ private struct JoinCard: View {
                 .tint(Palette.accent)
                 .disabled(code.isEmpty || joining)
             }
+            Button(action: scan) {
+                Label("Scanner le QR de l'hôte", systemImage: "qrcode.viewfinder").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .tint(Palette.accent)
         }
         .card()
     }
