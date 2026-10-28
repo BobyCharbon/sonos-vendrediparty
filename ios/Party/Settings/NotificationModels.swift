@@ -191,3 +191,39 @@ enum ProfileRules {
             && clean(nickname).count <= nicknameLength
     }
 }
+
+/// Abonnements (POST /api/account/subscriptions) : catégories et tags actifs, et ceux que le membre suit.
+struct Subscriptions: Decodable, Equatable {
+    struct Topic: Decodable, Equatable, Identifiable {
+        let id: String
+        let name: String
+        let color: String?
+        let icon: String?
+    }
+
+    var categories: [Topic]
+    var tags: [Topic]
+    var categoryIDs: Set<String>
+    var tagIDs: Set<String>
+
+    enum CodingKeys: String, CodingKey {
+        case categories, tags, categoryIDs = "category_ids", tagIDs = "tag_ids"
+    }
+
+    var count: Int { categoryIDs.count + tagIDs.count }
+
+    func follows(_ kind: String, _ id: String) -> Bool {
+        (kind == "category" ? categoryIDs : tagIDs).contains(id)
+    }
+
+    /// Choix appliqué tout de suite à l'écran (remis comme avant si l'enregistrement échoue).
+    func setting(_ kind: String, _ id: String, _ on: Bool) -> Subscriptions {
+        var copy = self
+        if kind == "category" {
+            copy.categoryIDs = on ? categoryIDs.union([id]) : categoryIDs.subtracting([id])
+        } else {
+            copy.tagIDs = on ? tagIDs.union([id]) : tagIDs.subtracting([id])
+        }
+        return copy
+    }
+}

@@ -115,6 +115,37 @@ class Accounts:
             raise AccountError("Tes préférences n'ont pas été enregistrées. Réessaie dans un instant.")
         return self.notification_prefs(token)
 
+    def subscriptions(self, token: str) -> dict:
+        """Catégories et tags actifs, et ceux que le membre suit (alertes « Si abonné », filtre de la liste)."""
+        uid = self._uid(token)
+        reads = {
+            "categories": "/rest/v1/categories?select=id,name,color,icon&archived=eq.false&order=sort",
+            "tags": "/rest/v1/tags?select=id,name,color&archived=eq.false&order=name",
+            "category_ids": f"/rest/v1/category_subscriptions?select=category_id&user_id=eq.{uid}",
+            "tag_ids": f"/rest/v1/tag_subscriptions?select=tag_id&user_id=eq.{uid}",
+        }
+        out = {}
+        for key, path in reads.items():
+            r = self._get("GET", path, token)
+            rows = r.json() if r.status_code == 200 else None
+            if not isinstance(rows, list):
+                raise AccountError("Tes abonnements n'ont pas pu être lus. Réessaie dans un instant.")
+            out[key] = [row[key.removesuffix("s")] for row in rows] if key.endswith("_ids") else rows
+        return out
+
+    def set_subscription(self, token: str, kind: str, topic: str, on: bool) -> dict:
+        """Suivre (on) ou ne plus suivre une catégorie ou un tag ; kind : category | tag (vérifié par l'appelant)."""
+        uid = self._uid(token)
+        table, col = f"/rest/v1/{kind}_subscriptions", f"{kind}_id"
+        if on:
+            r = self._get("POST", table, token, json={"user_id": uid, col: topic},
+                          headers={"Prefer": "return=minimal,resolution=ignore-duplicates"})
+        else:
+            r = self._get("DELETE", f"{table}?user_id=eq.{uid}&{col}=eq.{topic}", token)
+        if r.status_code not in (200, 201, 204, 409):
+            raise AccountError("Ton choix n'a pas été enregistré. Vérifie ta connexion et réessaie.")
+        return self.subscriptions(token)
+
     def _signed_photo(self, path: str | None, token: str) -> str | None:
         if not path:
             return None

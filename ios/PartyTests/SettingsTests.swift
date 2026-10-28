@@ -106,4 +106,12 @@ struct SettingsTests {
         let out = try #require(UIImage(data: data))
         #expect(out.size.width == out.size.height && out.size.width <= ProfilePhoto.side)
     }
+
+    @Test("Abonnements : décodés, choix appliqué sans toucher à l'autre liste")
+    func subscriptionsToggle() throws {
+        let subs: Subscriptions = try decode(##"{"categories": [{"id": "c1", "name": "Soirée", "color": "#ff0000", "icon": "🎉"}], "tags": [{"id": "t1", "name": "techno", "color": null}], "category_ids": ["c1"], "tag_ids": []}"##)
+        #expect(subs.follows("category", "c1") && !subs.follows("tag", "t1") && subs.count == 1)
+        let next = subs.setting("tag", "t1", true).setting("category", "c1", false)
+        #expect(next.tagIDs == ["t1"] && next.categoryIDs.isEmpty && subs.categoryIDs == ["c1"])
+    }
 }

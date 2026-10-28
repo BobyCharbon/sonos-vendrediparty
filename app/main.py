@@ -1480,6 +1480,32 @@ def account_notifications_update(body: NotificationUpdate):
         raise HTTPException(401, str(e))
 
 
+UUID = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+
+
+class SubscriptionSet(MemberToken):
+    kind: Literal["category", "tag"]
+    id: str = Field(pattern=UUID)
+    on: bool
+
+
+@app.post("/api/account/subscriptions")
+def account_subscriptions(body: MemberToken):
+    """Réglages natifs › Abonnements."""
+    try:
+        return accounts.subscriptions(body.token)
+    except AccountError as e:
+        raise HTTPException(401, str(e))
+
+
+@app.post("/api/account/subscriptions/set")
+def account_subscription_set(body: SubscriptionSet):
+    try:
+        return accounts.set_subscription(body.token, body.kind, body.id, body.on)
+    except AccountError as e:
+        raise HTTPException(400, str(e))
+
+
 MAX_PROFILE_PHOTO = 5 * 1024 * 1024  # JPEG recadré par l'app (~200 Ko) ; même plafond que le module Événements
 
 

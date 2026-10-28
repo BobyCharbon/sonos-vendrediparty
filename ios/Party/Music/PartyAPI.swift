@@ -138,6 +138,15 @@ final class PartyAPI {
         return try await postDecoding("/api/account/profile/update", body: body)
     }
 
+    func subscriptions(token: String) async throws -> Subscriptions {
+        try await postDecoding("/api/account/subscriptions", body: ["token": token])
+    }
+
+    /// kind : category | tag.
+    func setSubscription(token: String, kind: String, id: String, on: Bool) async throws -> Subscriptions {
+        try await postDecoding("/api/account/subscriptions/set", body: ["token": token, "kind": kind, "id": id, "on": on])
+    }
+
     // MARK: Ton avis (pas besoin du code de la soirée)
 
     func feedback(guestID: String) async throws -> [FeedbackItem] {

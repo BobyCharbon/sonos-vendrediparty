@@ -20,8 +20,12 @@ struct SettingsView: View {
                                     hint: "Musique, jeux, avis et événements : choisis ce qui t'avertit")
                     }
                     if store.account != nil {
-                        page(.account("/settings/subscriptions"), "tag.fill", .orange, "Abonnements",
-                             "Catégories et tags d'événements que tu suis")
+                        NavigationLink {
+                            SubscriptionsView(store: store)
+                        } label: {
+                            SettingsRow(symbol: "tag.fill", tint: .orange, title: "Abonnements",
+                                        hint: "Catégories et tags d'événements que tu suis")
+                        }
                     }
                 }
                 if isHost || store.account?.admin == true {

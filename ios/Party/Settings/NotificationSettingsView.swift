@@ -139,10 +139,12 @@ struct NotificationSettingsView: View {
             .pickerStyle(.segmented)
             .disabled(store.saving.contains("events.new_event"))
             if p.newEvent == "subscribed" {
-                Button { open(.account("/settings/subscriptions")) } label: {
-                    SettingsRow(symbol: "tag.fill", tint: .orange, title: "Choisir mes catégories et tags")
+                NavigationLink {
+                    SubscriptionsView(store: store)
+                } label: {
+                    SettingsRow(symbol: "tag.fill", tint: .orange, title: "Choisir mes catégories et tags",
+                                hint: store.subscriptions.map { "\($0.count) suivi\($0.count > 1 ? "s" : "")" })
                 }
-                .foregroundStyle(.primary)
             }
         } header: {
             Text("Nouvel événement publié")

@@ -32,6 +32,8 @@ final class SettingsStore: ObservableObject {
     @Published private(set) var profile: MemberProfile?
     @Published private(set) var profileError: String?
     @Published private(set) var savingProfile = false
+    @Published private(set) var subscriptions: Subscriptions?
+    @Published private(set) var subscriptionsError: String?
     /// Type en cours d'enregistrement (interrupteur désactivé pendant ce temps).
     @Published private(set) var saving: Set<String> = []
     @Published var notice: Notice?
@@ -118,6 +120,34 @@ final class SettingsStore: ObservableObject {
         } catch {
             notice = Notice(text: Self.accountMessage(error), isError: true)
             return false
+        }
+    }
+
+    // MARK: Abonnements
+
+    func loadSubscriptions() async {
+        guard let token = await web?.accountToken() else {
+            subscriptionsError = "Connecte-toi pour suivre des catégories et des tags"
+            return
+        }
+        do {
+            subscriptions = try await api.subscriptions(token: token)
+            subscriptionsError = nil
+        } catch {
+            subscriptionsError = Self.accountMessage(error)
+        }
+    }
+
+    func setSubscription(_ kind: String, _ id: String, _ on: Bool) async {
+        guard let before = subscriptions, let token = await web?.accountToken() else { return }
+        subscriptions = before.setting(kind, id, on)
+        await save("sub." + id) {
+            do {
+                subscriptions = try await api.setSubscription(token: token, kind: kind, id: id, on: on)
+            } catch {
+                subscriptions = before
+                throw PartyAPIError.server(Self.accountMessage(error))
+            }
         }
     }
 
