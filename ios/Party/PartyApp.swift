@@ -11,6 +11,9 @@ struct PartyApp: App {
             ContentView(model: model)
                 // Lien universel (QR code, lien partagé) ou toucher d'une notification : on l'ouvre dans l'app.
                 .onOpenURL { model.open($0) }
+                #if DEBUG
+                .task { TrackActivities.startDemoIfAsked() }
+                #endif
                 .onReceive(NotificationCenter.default.publisher(for: .partyOpenURL)) { note in
                     if let url = note.object as? URL { model.open(url) }
                 }

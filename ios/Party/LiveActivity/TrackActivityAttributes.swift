@@ -13,6 +13,8 @@ struct TrackActivityAttributes: ActivityAttributes {
 
     /// Demande suivie (rid du serveur) : une activité par titre demandé.
     let requestID: String
+    /// Moment de l'ajout dans la file : départ de la barre de progression jusqu'au passage.
+    let addedAt: Date
     /// Titre Spotify : reconnu quand il passe (titre en cours de la soirée).
     let trackID: String
     let title: String

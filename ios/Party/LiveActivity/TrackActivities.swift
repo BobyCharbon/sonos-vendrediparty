@@ -42,8 +42,6 @@ enum TrackActivityStep: Equatable {
 enum TrackActivities {
     /// « C'est ton titre ! » reste affiché le temps du morceau (environ), puis s'efface.
     private static let playingStay: TimeInterval = 4 * 60
-    /// Une heure de passage dépassée de plus que ça : l'activité est périmée (iOS l'estompe).
-    private static let staleAfter: TimeInterval = 10 * 60
 
     static func sync(_ state: PartyState, receivedAt: Date) {
         guard #available(iOS 16.2, *), ActivityAuthorizationInfo().areActivitiesEnabled else { return }
@@ -54,7 +52,7 @@ enum TrackActivities {
         for step in TrackActivityStep.plan(state, receivedAt: receivedAt, running: running) {
             switch step {
             case .start(let rid, let trackID, let title, let artist, let arrival):
-                let attributes = TrackActivityAttributes(requestID: rid, trackID: trackID, title: title, artist: artist)
+                let attributes = TrackActivityAttributes(requestID: rid, addedAt: Date(), trackID: trackID, title: title, artist: artist)
                 _ = try? Activity.request(attributes: attributes, content: content(arrival: arrival, playing: false))
             case .update(let rid, let arrival):
                 guard let activity = byRequest[rid] else { continue }
@@ -72,9 +70,21 @@ enum TrackActivities {
         }
     }
 
+    #if DEBUG
+    /// Simulateur : SIMCTL_CHILD_PARTY_DEBUG_ACTIVITY=1 démarre une activité de démonstration (décompte de 5 min).
+    static func startDemoIfAsked() {
+        guard #available(iOS 16.2, *), ProcessInfo.processInfo.environment["PARTY_DEBUG_ACTIVITY"] != nil else { return }
+        let attributes = TrackActivityAttributes(requestID: "demo", addedAt: Date().addingTimeInterval(-120), trackID: "demo",
+                                                 title: "La vie qu'on mène", artist: "Ninho")
+        _ = try? Activity.request(attributes: attributes, content: content(arrival: Date().addingTimeInterval(300), playing: false))
+    }
+    #endif
+
     @available(iOS 16.2, *)
     private static func content(arrival: Date, playing: Bool) -> ActivityContent<TrackActivityAttributes.ContentState> {
+        // Périmée à l'heure estimée : l'activité affiche « D'un instant à l'autre » au lieu d'un décompte à 0:00
+        // (l'app fermée ne voit pas le titre démarrer ; l'heure est recalée à la prochaine ouverture).
         ActivityContent(state: TrackActivityAttributes.ContentState(arrival: arrival, playing: playing),
-                        staleDate: playing ? nil : arrival.addingTimeInterval(staleAfter))
+                        staleDate: playing ? nil : arrival)
     }
 }
