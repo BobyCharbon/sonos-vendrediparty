@@ -307,12 +307,22 @@ def is_guest(request: Request) -> bool:
 NATIVE_APP_HEADER = "x-party-native"
 
 
+def native_host(request: Request) -> bool:
+    """L'hôte connecté, depuis l'app native."""
+    return bool(request.headers.get(NATIVE_APP_HEADER)) and is_admin(request)
+
+
+def owners(request: Request, guest_id: str) -> set[str]:
+    """Demandes « à moi » : celles de l'invité ; dans l'app, l'hôte y ajoute ses titres ajoutés en tant qu'hôte
+    (HOST_ID) : suivi « Ton titre arrive » et retrait depuis l'écran natif."""
+    return ({guest_id} if guest_id else set()) | ({HOST_ID} if native_host(request) else set())
+
+
 def require_guest(request: Request):
     """Invité ayant saisi le code d'accès en cours (un nouveau code déconnecte tout le monde). La page web l'exige
     même dans le navigateur de l'hôte (il voit ce que voient ses invités) ; l'app native, elle, ne redemande pas
     le code à l'hôte connecté (aucun droit de plus : l'hôte a déjà tous les droits)."""
-    native_host = bool(request.headers.get(NATIVE_APP_HEADER)) and is_admin(request)
-    if not (is_guest(request) or native_host):
+    if not (is_guest(request) or native_host(request)):
         raise HTTPException(401, "Code d'accès requis")
 
 
@@ -1780,9 +1790,11 @@ def admin_close_game(body: GameAction, request: Request):
 
 # --- Invités ---
 
-def public_sonos(snap: dict, guest_id: str = "") -> dict:
+def public_sonos(snap: dict, guest_id: str = "", mine_of: set[str] | None = None) -> dict:
+    """mine_of : demandes « à moi » (rid renvoyé) ; par défaut celles de guest_id."""
     names = {r.track_id: r.guest_name for r in store.session.requests if r.status != "removed"}
-    mine = {r.track_id: r.id for r in store.pending() if guest_id and r.guest_id == guest_id}
+    owned = mine_of if mine_of is not None else ({guest_id} if guest_id else set())
+    mine = {r.track_id: r.id for r in store.pending() if r.guest_id in owned}
 
     def view(t, eta):
         return {"title": t["title"], "artist": t["artist"], "art": art_url(t["art"]), "track_id": t["track_id"],
@@ -2009,7 +2021,7 @@ def state(request: Request, guest_id: str = ""):
         "played": [{**p, "art": art_url(p["art"])} for p in reversed(s.played[-16:-1])],
     }
     try:
-        return {**base, **public_sonos(snapshot(), guest_id)}
+        return {**base, **public_sonos(snapshot(), guest_id, owners(request, guest_id))}
     except Exception:
         return {**base, "error": "La musique est injoignable pour le moment"}
 
@@ -2151,10 +2163,11 @@ class GuestRemove(BaseModel):
 
 
 @app.post("/api/queue/remove", dependencies=[Depends(require_guest)])
-def guest_remove(body: GuestRemove):
-    """Un invité retire un de ses propres titres encore en attente."""
+def guest_remove(body: GuestRemove, request: Request):
+    """Un invité retire un de ses propres titres encore en attente (l'hôte, dans l'app, aussi les siens d'hôte)."""
     require_active()
-    req = next((r for r in store.pending() if r.id == body.request_id and r.guest_id == body.guest_id), None)
+    mine = owners(request, body.guest_id)
+    req = next((r for r in store.pending() if r.id == body.request_id and r.guest_id in mine), None)
     if req is None:
         raise HTTPException(404, "Titre introuvable ou déjà joué")
     remove_requests([req])

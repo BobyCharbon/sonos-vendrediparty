@@ -199,3 +199,19 @@ def test_tracks_added_from_sonos_app_are_tagged(admin, monkeypatch):
     monkeypatch.setattr(main, "snapshot", lambda force=False: s)
     q = admin.get("/api/admin/state").json()["queue"]
     assert q[1]["service"] == "YouTube Music" and q[0].get("service") is None
+
+
+def test_host_sees_and_removes_his_host_added_tracks_from_the_native_app(admin):
+    # App iOS (Live Activity « Ton titre arrive », retrait) : un titre ajouté par l'hôte (guest_id HOST_ID) est
+    # « le sien » quand il est connecté depuis l'app ; la page web de l'hôte, elle, ne change pas.
+    main.store.add({"id": "a" * 22, "title": "Un", "artist": "A"}, main.HOST_ID, "Hôte")
+    native = {"X-Party-Native": "ios"}
+    me = "acct-host-0001"
+    rid = next(t["rid"] for t in admin.get("/api/state", params={"guest_id": me}, headers=native).json()["upcoming"]
+               if t["title"] == "Un")
+    assert rid
+    admin.post("/api/join", json={"pin": main.store.session.guest_pin})  # page web de l'hôte (code saisi)
+    web = admin.get("/api/state", params={"guest_id": me}).json()["upcoming"]
+    assert next(t for t in web if t["title"] == "Un")["rid"] is None
+    assert admin.post("/api/queue/remove", json={"request_id": rid, "guest_id": me}).status_code == 404  # sans l'app
+    assert admin.post("/api/queue/remove", json={"request_id": rid, "guest_id": me}, headers=native).status_code == 200
