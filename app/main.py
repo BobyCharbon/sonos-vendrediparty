@@ -2325,6 +2325,9 @@ def push_key():
 class PushSubscribe(BaseModel):
     guest_id: str = ""
     subscription: dict
+    # Réglages natifs : l'iPhone s'abonne sans toucher aux types choisis. Sinon (bouton « Préviens-moi quand mon
+    # titre passe ») l'abonnement allume aussi « Mon titre passe ».
+    keep_prefs: bool = False
 
 
 def checked_subscription(sub: dict) -> dict:
@@ -2337,6 +2340,8 @@ def checked_subscription(sub: dict) -> dict:
 def push_subscribe(body: PushSubscribe):
     """L'invité veut être prévenu quand son titre passe."""
     check_guest_id(body.guest_id)
+    if not body.keep_prefs:
+        store.session.guest_notify[body.guest_id] = {**store.session.guest_notify.get(body.guest_id, {}), "track": True}
     store.add_push(body.guest_id, checked_subscription(body.subscription))
     return {"ok": True}
 

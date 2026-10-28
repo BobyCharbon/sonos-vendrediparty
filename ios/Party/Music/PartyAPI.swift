@@ -78,8 +78,9 @@ final class PartyAPI {
     }
 
     /// Notification « ton titre passe » : appareil inscrit chez Apple (APNs), comme push.js dans l'app.
-    func subscribePush(guestID: String, device: [String: Any]) async throws {
-        try await post("/api/push/subscribe", body: ["guest_id": guestID, "subscription": device])
+    /// keepPrefs : abonnement depuis les Réglages, sans allumer « Mon titre passe » (sinon le serveur l'allume).
+    func subscribePush(guestID: String, device: [String: Any], keepPrefs: Bool = false) async throws {
+        try await post("/api/push/subscribe", body: ["guest_id": guestID, "subscription": device, "keep_prefs": keepPrefs])
     }
 
     func unsubscribePush(endpoint: String) async throws {

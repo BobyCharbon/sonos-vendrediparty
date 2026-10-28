@@ -229,7 +229,7 @@ final class SettingsStore: ObservableObject {
 
     private func subscribeDevice(_ me: GuestIdentity) async throws {
         let device = try await PushRegistrar.shared.device()
-        try await api.subscribePush(guestID: me.id, device: device)
+        try await api.subscribePush(guestID: me.id, device: device, keepPrefs: true)
         web?.writeLocal(PushRegistrar.pageKey, String(data: try JSONSerialization.data(withJSONObject: device), encoding: .utf8))
         if isHost() { try? await api.subscribeAdminPush(device: device) }
         permission = await PushRegistrar.shared.status()

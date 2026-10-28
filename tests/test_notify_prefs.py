@@ -20,13 +20,17 @@ def play(guest_id: str):
 def test_guest_prefs_default_and_are_saved_per_kind(admin):  # noqa: F811
     guest = guest_client("guest-pref-1")
     r = guest.get("/api/notify?guest_id=guest-pref-1").json()
-    assert r == {"prefs": {"track": True, "feedback": True, "games": False}, "subscribed": False}
+    assert r == {"prefs": {"track": False, "feedback": True, "games": False}, "subscribed": False}
 
     assert guest.post("/api/notify", json={"guest_id": "guest-pref-1", "kind": "games", "on": True}).json()["prefs"]["games"]
     assert guest.post("/api/notify", json={"guest_id": "guest-pref-1", "kind": "nope", "on": True}).status_code == 400
-    guest.post("/api/push/subscribe", json={"guest_id": "guest-pref-1", "subscription": SUB})
+    # Réglages natifs : l'abonnement de l'iPhone ne touche pas aux types choisis.
+    guest.post("/api/push/subscribe", json={"guest_id": "guest-pref-1", "subscription": SUB, "keep_prefs": True})
     assert guest.get("/api/notify?guest_id=guest-pref-1").json() == {
-        "prefs": {"track": True, "feedback": True, "games": True}, "subscribed": True}
+        "prefs": {"track": False, "feedback": True, "games": True}, "subscribed": True}
+    # Bouton « Préviens-moi quand mon titre passe » : il allume ce type.
+    guest.post("/api/push/subscribe", json={"guest_id": "guest-pref-1", "subscription": SUB})
+    assert guest.get("/api/notify?guest_id=guest-pref-1").json()["prefs"]["track"] is True
     main.store.remove_push(SUB["endpoint"])
 
 

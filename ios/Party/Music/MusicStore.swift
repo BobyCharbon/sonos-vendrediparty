@@ -128,7 +128,7 @@ final class MusicStore: ObservableObject {
             if let serverName = state.name, !serverName.isEmpty, serverName != me.name { remember(name: serverName) }
             if trackWanted == nil { trackWanted = (try? await api.notifyPrefs(guestID: me.id))?.prefs["track"] }
             let subscribed = await hasPushSubscription()
-            notifyWhenPlaying = subscribed && trackWanted != false
+            notifyWhenPlaying = subscribed && trackWanted == true
             await web?.shareSession()
         } catch PartyAPIError.needsCode {
             phase = .needsCode
