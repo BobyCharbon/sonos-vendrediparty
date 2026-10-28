@@ -215,3 +215,38 @@ def test_host_sees_and_removes_his_host_added_tracks_from_the_native_app(admin):
     assert next(t for t in web if t["title"] == "Un")["rid"] is None
     assert admin.post("/api/queue/remove", json={"request_id": rid, "guest_id": me}).status_code == 404  # sans l'app
     assert admin.post("/api/queue/remove", json={"request_id": rid, "guest_id": me}, headers=native).status_code == 200
+
+
+def dup_snap():
+    """File avec le même titre deux fois (positions 5 et 7), comme après deux ajouts de l'hôte."""
+    track = lambda pos, tid, title: {"pos": pos, "track_id": tid, "title": title, "artist": "A", "art": ""}
+    return {**snap(), "upcoming": [track(5, "d" * 22, "Gradur"), track(6, "b" * 22, "Trois"), track(7, "d" * 22, "Gradur")]}
+
+
+def two_requests():
+    first = main.store.add({"id": "d" * 22, "title": "Gradur", "artist": "A"}, "guest-dup-0001", "Léa")
+    second = main.store.add({"id": "d" * 22, "title": "Gradur", "artist": "A"}, "guest-dup-0002", "Tom")
+    return first, second
+
+
+def test_each_duplicate_has_its_own_request(admin, monkeypatch):
+    monkeypatch.setattr(main, "snapshot", lambda force=False: dup_snap())
+    first, second = two_requests()
+    up = main.public_sonos(dup_snap(), mine_of={"guest-dup-0002"})["upcoming"]
+    assert [(t["by"], t["rid"]) for t in up if t["title"] == "Gradur"] == [("Léa", None), ("Tom", second.id)]
+
+
+def test_host_removes_one_duplicate_only(admin, monkeypatch):
+    monkeypatch.setattr(main, "snapshot", lambda force=False: dup_snap())
+    first, second = two_requests()
+    admin.post("/api/admin/queue", json={"pos": 7, "key": "d" * 22, "action": "remove"})
+    assert admin.fake.calls[-1] == ("remove", 7)
+    assert [r.id for r in main.store.pending() if r.track_id == "d" * 22] == [first.id]  # l'autre reste demandé
+
+
+def test_removing_the_second_request_removes_the_second_copy(admin, monkeypatch):
+    monkeypatch.setattr(main, "snapshot", lambda force=False: dup_snap())
+    first, second = two_requests()
+    admin.post("/api/admin/remove", json={"request_id": second.id})
+    assert ("remove", 7) in admin.fake.calls and ("remove", 5) not in admin.fake.calls
+    assert [r.id for r in main.store.pending() if r.track_id == "d" * 22] == [first.id]

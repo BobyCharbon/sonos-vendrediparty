@@ -648,6 +648,25 @@ def undo_token(items: list[dict], request_ids: list[str]) -> str | None:
     return token
 
 
+def requests_by_position(upcoming: list[dict], reqs) -> dict:
+    """Chaque exemplaire d'un titre dans la file ↔ sa demande : le k-ième exemplaire (par position) est la k-ième
+    demande encore en attente de ce titre (ordre d'ajout). Un doublon se retire donc seul, sans emporter l'autre."""
+    pending: dict[str, list] = {}
+    for r in reqs:
+        pending.setdefault(r.track_id, []).append(r)
+    seen: dict[str, int] = {}
+    mapping = {}
+    for t in sorted(upcoming, key=lambda t: t["pos"]):
+        tid = t["track_id"]
+        if not tid:
+            continue
+        k = seen.get(tid, 0)
+        seen[tid] = k + 1
+        if k < len(pending.get(tid, [])):
+            mapping[t["pos"]] = pending[tid][k]
+    return mapping
+
+
 def remove_requests(reqs) -> str | None:
     """Retire des demandes de la file Sonos (de la fin vers le début pour garder les positions valides).
     Renvoie un jeton pour annuler."""
@@ -655,11 +674,12 @@ def remove_requests(reqs) -> str | None:
     removed = []
     with queue_lock:
         snap = snapshot(force=True)
-        positions = {t["track_id"]: t["pos"] for t in reversed(snap["upcoming"]) if t["track_id"]}
-        for req in sorted(reqs, key=lambda r: positions.get(r.track_id, 0), reverse=True):
-            if req.track_id in positions:
-                player().remove_at(store.session.room_uid, positions[req.track_id])
-                removed.append({"pos": positions[req.track_id], "track_id": req.track_id, "title": req.title})
+        # Position de CET exemplaire (un doublon n'emporte pas l'autre).
+        pos_of = {r.id: pos for pos, r in requests_by_position(snap["upcoming"], store.pending()).items()}
+        for req in sorted(reqs, key=lambda r: pos_of.get(r.id, 0), reverse=True):
+            if req.id in pos_of:
+                player().remove_at(store.session.room_uid, pos_of[req.id])
+                removed.append({"pos": pos_of[req.id], "track_id": req.track_id, "title": req.title})
             req.status = "removed"
         store.save()
         _snap["data"] = None
@@ -980,7 +1000,9 @@ def admin_queue_action(body: QueueAction):
             player().play_at(uid, body.pos)
         elif body.action == "remove":
             player().remove_at(uid, body.pos)
-            reqs = [r for r in store.pending() if item["track_id"] and r.track_id == item["track_id"]]
+            # Seulement la demande de cet exemplaire : l'autre exemplaire d'un doublon reste demandé.
+            req = requests_by_position(upcoming, store.pending()).get(body.pos)
+            reqs = [req] if req else []
             for r in reqs:
                 r.status = "removed"
             store.save()
@@ -1794,11 +1816,13 @@ def public_sonos(snap: dict, guest_id: str = "", mine_of: set[str] | None = None
     """mine_of : demandes « à moi » (rid renvoyé) ; par défaut celles de guest_id."""
     names = {r.track_id: r.guest_name for r in store.session.requests if r.status != "removed"}
     owned = mine_of if mine_of is not None else ({guest_id} if guest_id else set())
-    mine = {r.track_id: r.id for r in store.pending() if r.guest_id in owned}
+    by_pos = requests_by_position(snap["upcoming"], store.pending())
 
     def view(t, eta):
+        req = by_pos.get(t.get("pos"))  # la demande de CET exemplaire (doublons distincts)
         return {"title": t["title"], "artist": t["artist"], "art": art_url(t["art"]), "track_id": t["track_id"],
-                "by": names.get(t["track_id"]), "rid": mine.get(t["track_id"]), "eta": eta,
+                "by": req.guest_name if req else names.get(t["track_id"]),
+                "rid": req.id if req and req.guest_id in owned else None, "eta": eta,
                 "service": t.get("service") if t.get("service") and t.get("service") != "Spotify" else None}
 
     now = snap["now"]
