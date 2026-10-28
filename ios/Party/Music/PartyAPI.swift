@@ -138,6 +138,11 @@ final class PartyAPI {
         return try await postDecoding("/api/account/profile/update", body: body)
     }
 
+    /// Notifications des événements du compte sur cet iPhone (jeton APNs, envoyé par Supabase).
+    func registerEventsPush(token: String, device: String, on: Bool) async throws {
+        try await post("/api/account/push", body: ["token": token, "device": device, "on": on])
+    }
+
     func subscriptions(token: String) async throws -> Subscriptions {
         try await postDecoding("/api/account/subscriptions", body: ["token": token])
     }

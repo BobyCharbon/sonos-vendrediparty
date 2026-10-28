@@ -115,6 +115,16 @@ class Accounts:
             raise AccountError("Tes préférences n'ont pas été enregistrées. Réessaie dans un instant.")
         return self.notification_prefs(token)
 
+    def register_push(self, token: str, device: str, on: bool):
+        """App iOS native : cet iPhone reçoit (on) ou ne reçoit plus les notifications des événements du compte.
+        Lié à la session du membre (une déconnexion le retire) ; envoi par la fonction send-push (APNs)."""
+        self._uid(token)
+        name = "apns:" + device
+        r = (self._get("POST", "/rest/v1/rpc/register_device_push_token", token, json={"device_token": name, "device_platform": "ios"})
+             if on else self._get("POST", "/rest/v1/rpc/unregister_device_push_token", token, json={"device_token": name}))
+        if r.status_code not in (200, 204):
+            raise AccountError("Cet iPhone n'a pas pu être enregistré pour les événements. Réessaie dans un instant.")
+
     def subscriptions(self, token: str) -> dict:
         """Catégories et tags actifs, et ceux que le membre suit (alertes « Si abonné », filtre de la liste)."""
         uid = self._uid(token)

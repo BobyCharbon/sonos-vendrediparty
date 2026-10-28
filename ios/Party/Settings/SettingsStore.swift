@@ -68,6 +68,19 @@ final class SettingsStore: ObservableObject {
         async let party: Void = loadParty()
         async let member: Void = loadEvents()
         _ = await (party, member)
+        if deviceSubscribed { await syncEventsPush(true) }
+    }
+
+    /// Les événements du compte arrivent sur cet iPhone tant que ses notifications sont actives (sans erreur
+    /// affichée : rien à faire pour la personne si le compte n'est pas connecté).
+    private func syncEventsPush(_ on: Bool) async {
+        guard account != nil, let token = await web?.accountToken(),
+              let device = on ? try? await PushRegistrar.shared.register() : await savedDevice() else { return }
+        try? await api.registerEventsPush(token: token, device: device, on: on)
+    }
+
+    private func savedDevice() async -> String? {
+        await savedEndpoint().flatMap { $0.hasPrefix("apns:") ? String($0.dropFirst(5)) : nil }
     }
 
     private func loadParty() async {
@@ -159,7 +172,9 @@ final class SettingsStore: ObservableObject {
         await save("device") {
             if on {
                 try await subscribeDevice(me)
+                await syncEventsPush(true)
             } else if let endpoint = await savedEndpoint() {
+                await syncEventsPush(false)
                 try await api.unsubscribePush(endpoint: endpoint)
                 web?.writeLocal(PushRegistrar.pageKey, nil)
             }

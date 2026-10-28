@@ -1480,6 +1480,21 @@ def account_notifications_update(body: NotificationUpdate):
         raise HTTPException(401, str(e))
 
 
+class MemberPush(MemberToken):
+    device: str = Field(pattern=r"^[0-9a-f]{64,200}$")  # jeton APNs de l'iPhone
+    on: bool
+
+
+@app.post("/api/account/push")
+def account_push(body: MemberPush):
+    """Réglages natifs : cet iPhone reçoit les notifications des événements du compte (envoi APNs par Supabase)."""
+    try:
+        accounts.register_push(body.token, body.device, body.on)
+    except AccountError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
+
+
 UUID = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 
 

@@ -141,3 +141,35 @@ def test_accounts_reads_and_patches_only_the_members_own_row():
     acc.update_notification_prefs("tok", {"chat": "none"})
     patch = next(s for s in seen if s[0] == "PATCH")
     assert patch[2] == "user_id=eq.u-9" and patch[3] == b'{"chat":"none"}'
+
+
+def test_native_iphone_is_registered_for_event_notifications_with_the_member_session():
+    import httpx
+    from app import accounts as accounts_mod
+    calls = []
+
+    def handler(request: httpx.Request):
+        calls.append((request.url.path, request.content))
+        if request.url.path == "/auth/v1/user":
+            return httpx.Response(200, json={"id": "u-9"})
+        return httpx.Response(204)
+
+    acc = accounts_mod.Accounts(b"secret", httpx.Client(transport=httpx.MockTransport(handler)))
+    acc.register_push("tok", "ab" * 32, True)
+    acc.register_push("tok", "ab" * 32, False)
+    assert calls[-2] == ("/rest/v1/rpc/register_device_push_token", b'{"device_token":"apns:' + b"ab" * 32 + b'","device_platform":"ios"}')
+    assert calls[-1] == ("/rest/v1/rpc/unregister_device_push_token", b'{"device_token":"apns:' + b"ab" * 32 + b'"}')
+
+
+def test_push_register_api_checks_the_device_token(monkeypatch):
+    seen = []
+
+    class Fake:
+        def register_push(self, token, device, on):
+            seen.append((device, on))
+
+    monkeypatch.setattr(main, "accounts", Fake())
+    c = TestClient(main.app)
+    assert c.post("/api/account/push", json={"token": "tok", "device": "ab" * 32, "on": True}).json() == {"ok": True}
+    assert c.post("/api/account/push", json={"token": "tok", "device": "zz", "on": True}).status_code == 422
+    assert seen == [("ab" * 32, True)]
