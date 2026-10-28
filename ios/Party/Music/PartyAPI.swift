@@ -6,12 +6,14 @@ enum PartyAPIError: LocalizedError, Equatable {
     case needsCode
     /// Message du serveur (« Ce titre est déjà dans la file 🙂 »…).
     case server(String)
+    /// Titre déjà dans la file : à confirmer (ajout de l'hôte).
+    case duplicate(String)
     case offline
 
     var errorDescription: String? {
         switch self {
         case .needsCode: return "Code de la soirée requis"
-        case .server(let message): return message
+        case .server(let message), .duplicate(let message): return message
         case .offline: return "Party ! est injoignable : vérifie ta connexion"
         }
     }
@@ -200,7 +202,7 @@ final class PartyAPI {
 
     // MARK: Requêtes
 
-    private func get<T: Decodable>(_ path: String, query: [String: String]) async throws -> T {
+    func get<T: Decodable>(_ path: String, query: [String: String]) async throws -> T {
         guard var parts = url(path).flatMap({ URLComponents(url: $0, resolvingAgainstBaseURL: true) }) else {
             throw PartyAPIError.offline
         }
@@ -210,7 +212,7 @@ final class PartyAPI {
         return try JSONDecoder().decode(T.self, from: data)
     }
 
-    private func postDecoding<T: Decodable>(_ path: String, body: [String: Any]) async throws -> T {
+    func postDecoding<T: Decodable>(_ path: String, body: [String: Any]) async throws -> T {
         guard let url = url(path) else { throw PartyAPIError.offline }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -219,7 +221,7 @@ final class PartyAPI {
         return try JSONDecoder().decode(T.self, from: try await send(request))
     }
 
-    private func post(_ path: String, body: [String: Any]) async throws {
+    func post(_ path: String, body: [String: Any]) async throws {
         guard let url = url(path) else { throw PartyAPIError.offline }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -246,8 +248,12 @@ final class PartyAPI {
         }
         if status == 401 && request.url?.path != "/api/join" { throw PartyAPIError.needsCode }
         guard (200..<300).contains(status) else {
-            let detail = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["detail"] as? String
-            throw PartyAPIError.server(detail ?? "Erreur, réessaie")
+            let detail = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["detail"]
+            // Doublon (ajout de l'hôte) : {"duplicate": true, "message": …} ; l'hôte décide d'ajouter quand même.
+            if let info = detail as? [String: Any], info["duplicate"] as? Bool == true {
+                throw PartyAPIError.duplicate(info["message"] as? String ?? "Ce titre est déjà dans la file")
+            }
+            throw PartyAPIError.server(detail as? String ?? (detail as? [String: Any])?["message"] as? String ?? "Erreur, réessaie")
         }
         return data
     }

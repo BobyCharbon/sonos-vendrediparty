@@ -37,7 +37,7 @@ targets:
     sources:
       - path: Party
     scheme:
-      testTargets: [PartyTests]
+      testTargets: [PartyTests, PartyUITests]
     info:
       path: Party/Info.plist
       properties:
@@ -136,6 +136,20 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: ch.bobycharbon.party.tests
+
+  # Tests d'interface (simulateur) : vrais gestes sur les écrans natifs, sans serveur (état de démonstration).
+  PartyUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: PartyUITests
+    dependencies:
+      - target: Party
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: ch.bobycharbon.party.uitests
+        TEST_TARGET_NAME: Party
 
   # Extension WidgetKit : dessine la Live Activity « Ton titre arrive » (démarrée par l'app, TrackActivities).
   PartyWidgets:

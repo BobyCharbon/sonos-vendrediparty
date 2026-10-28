@@ -33,6 +33,12 @@ final class WebModel: ObservableObject {
     private(set) var music: MusicStore?
     private(set) var feedback: FeedbackStore?
     private(set) var settings: SettingsStore?
+    private(set) var hostMusic: HostMusicStore?
+
+    /// L'hôte gère la soirée dans l'écran natif (« Gérer la soirée ») plutôt qu'en vue invité ; retenu.
+    @Published var hostNativeMusic = UserDefaults.standard.bool(forKey: "hostNativeMusic") {
+        didSet { UserDefaults.standard.set(hostNativeMusic, forKey: "hostNativeMusic") }
+    }
     private var cookieWatcher: CookieWatcher?
 
     /// Page du compte ouverte depuis les Réglages natifs (Mon profil, Confidentialité…) : la page s'affiche à la
@@ -61,6 +67,7 @@ final class WebModel: ObservableObject {
         music = MusicStore(api: api, web: self)
         music?.start()  // suivi de la file dès le lancement (PartyApp le relance au retour au premier plan)
         feedback = FeedbackStore(api: api, web: self) { [weak self] in self?.lastContentTab }
+        hostMusic = HostMusicStore(api: api, web: self)
         settings = SettingsStore(api: api, web: self, isHost: { [weak self] in self?.isHost ?? false },
                                  trackChanged: { [weak self] on, subscribed in
                                      self?.music?.trackPreferenceChanged(on, subscribed: subscribed)
@@ -126,6 +133,12 @@ final class WebModel: ObservableObject {
 
     func hostManages(_ screen: String) -> Bool {
         hostManagedScreens.contains(screen)
+    }
+
+    /// « Ancienne version » : la gestion de la soirée dans la page, en secours.
+    func manageMusicInPage() {
+        hostNativeMusic = false
+        setHostManages(true, screen: "music")
     }
 
     /// L'hôte passe de la vue invité (natif) à la gestion dans la page pour cet écran, et inversement.

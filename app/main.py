@@ -1032,7 +1032,8 @@ def admin_queue(snap: dict, limit: int = 150) -> list[dict]:
 class QueueAction(BaseModel):
     pos: int
     key: str
-    action: str  # next | up | down | play | remove
+    action: str  # next | up | down | play | remove | move (vers « to », poignée de l'admin natif)
+    to: int | None = None
 
 
 @app.post("/api/admin/queue", dependencies=[Depends(require_admin)])
@@ -1049,6 +1050,10 @@ def admin_queue_action(body: QueueAction):
             raise HTTPException(409, "La file a changé entre-temps, réessaie")
         first, last = snap["current_pos"] + 1, upcoming[-1]["pos"]
         targets = {"next": first, "up": max(first, body.pos - 1), "down": min(last, body.pos + 1)}
+        if body.action == "move":
+            if body.to is None:
+                raise HTTPException(400, "Position visée manquante")
+            targets["move"] = min(last, max(first, body.to))
         if body.action in targets:
             player().move(uid, body.pos, targets[body.action])
         elif body.action == "play":
