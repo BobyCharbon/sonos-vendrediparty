@@ -30,13 +30,21 @@ def is_device_token(token) -> bool:
     return isinstance(token, str) and 64 <= len(token) <= 200 and set(token) <= TOKEN_HEX
 
 
+def pem(raw: str) -> str:
+    """Clé .p8 telle que collée dans une variable d'environnement : multiligne, sur une seule ligne (Dockhand),
+    avec des « \\n » littéraux ou sans en-têtes → PEM valide."""
+    body = "".join(raw.replace("\\n", "\n").replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").split())
+    lines = [body[i:i + 64] for i in range(0, len(body), 64)]
+    return "-----BEGIN PRIVATE KEY-----\n" + "\n".join(lines) + "\n-----END PRIVATE KEY-----\n"
+
+
 def _b64(data: bytes) -> bytes:
     return base64.urlsafe_b64encode(data).rstrip(b"=")
 
 
 class Apns:
     def __init__(self, key_pem: str, key_id: str, team_id: str = TEAM_ID, client: httpx.Client | None = None):
-        self.key = serialization.load_pem_private_key(key_pem.encode(), None)
+        self.key = serialization.load_pem_private_key(pem(key_pem).encode(), None)
         self.key_id, self.team_id = key_id, team_id
         self.client = client or httpx.Client(http2=True, timeout=10)
         self._token, self._token_at = "", 0.0
