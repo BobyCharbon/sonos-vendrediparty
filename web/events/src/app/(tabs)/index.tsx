@@ -11,7 +11,7 @@ import { fetchEventList, fetchTaxonomy, needsAnswer, useQuery } from '@/lib/data
 import { must, supabase } from '@/lib/supabase';
 import { colors, font, radius } from '@/lib/theme';
 
-type Tab = 'upcoming' | 'polls' | 'mine' | 'past';
+type Tab = 'upcoming' | 'polls' | 'pending' | 'drafts' | 'past';
 type Filter = { kind: 'all' } | { kind: 'subscribed' } | { kind: 'category'; id: string } | { kind: 'tag'; id: string };
 
 export default function Home() {
@@ -51,8 +51,12 @@ export default function Home() {
             return e.status === 'published' && e.date_mode === 'fixed' && started !== null && started >= now;
           case 'polls':
             return e.status === 'published' && e.date_mode === 'poll';
-          case 'mine':
-            return e.created_by === me.id && e.status !== 'published';
+          // Mes propositions envoyées, qui attendent la validation d'un admin.
+          case 'pending':
+            return e.created_by === me.id && e.status === 'pending';
+          // Mes brouillons, et mes propositions refusées à retravailler.
+          case 'drafts':
+            return e.created_by === me.id && (e.status === 'draft' || e.status === 'rejected');
           case 'past':
             return (e.status === 'published' || e.status === 'cancelled') && started !== null && started < now;
         }
@@ -123,7 +127,8 @@ export default function Home() {
           options={[
             { key: 'upcoming', label: 'À venir' },
             { key: 'polls', label: 'Sondages', dot: unvotedPolls > 0 },
-            { key: 'mine', label: 'Propositions' },
+            { key: 'pending', label: 'En attente' },
+            { key: 'drafts', label: 'Brouillons' },
             { key: 'past', label: 'Passés' },
           ]}
         />
@@ -176,7 +181,8 @@ export default function Home() {
               {search.trim() ? 'Aucun événement ne correspond à ta recherche.'
                 : filter.kind === 'subscribed' ? 'Aucun événement pour tes abonnements pour le moment.'
                 : filter.kind !== 'all' ? 'Aucun événement avec ce filtre pour le moment.'
-                : tab === 'mine' ? 'Tes brouillons et propositions en attente apparaîtront ici.'
+                : tab === 'pending' ? 'Tes propositions envoyées, en attente de validation, apparaîtront ici.'
+                : tab === 'drafts' ? 'Tes brouillons (et propositions refusées à retravailler) apparaîtront ici.'
                 : tab === 'polls' ? 'Aucune date à choisir pour le moment.'
                 : tab === 'past' ? 'Les événements passés apparaîtront ici.'
                 : 'Le groupe attend son premier événement. Lance une idée !'}

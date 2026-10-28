@@ -197,8 +197,10 @@ export function Segmented<K extends string>({
   disabled?: boolean;
 }) {
   const { width } = useWindowDimensions();
-  // Sous 360 px, quatre onglets ne tiennent pas sur une ligne : grille régulière 2 × 2.
+  // Sous 360 px, quatre onglets ne tiennent pas sur une ligne : grille régulière (2 ou 3 par ligne).
   const grid = options.length > 3 && width < 360;
+  // Cinq onglets et plus : texte et marges un peu réduits, pour tenir sur une ligne dès 343 px.
+  const compact = options.length > 4;
   return (
     <View style={[s.segmented, grid && { flexWrap: 'wrap' }]} accessibilityRole="tablist">
       {options.map((o) => {
@@ -214,12 +216,13 @@ export function Segmented<K extends string>({
             onPress={() => onChange(o.key)}
             style={({ pressed }) => [
               s.segment,
-              grid && { flexBasis: '45%' },
+              grid && { flexBasis: options.length > 4 ? '30%' : '45%' },
+              compact && { paddingHorizontal: 6 },
               on && s.segmentOn,
               pressed && !on && { backgroundColor: colors.fill },
             ]}
           >
-            <Text numberOfLines={1} style={{ color: on ? colors.onAction : colors.textSoft, ...font.semibold, fontSize: 13 }}>{o.label}</Text>
+            <Text numberOfLines={1} style={{ color: on ? colors.onAction : colors.textSoft, ...font.semibold, fontSize: compact ? 12 : 13 }}>{o.label}</Text>
             {o.dot ? <View style={[s.dot, on && { backgroundColor: colors.onAccent }]} /> : null}
           </Pressable>
         );
