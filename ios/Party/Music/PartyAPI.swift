@@ -90,6 +90,40 @@ final class PartyAPI {
         try await post("/api/queue/remove", body: ["request_id": requestID, "guest_id": guestID])
     }
 
+    // MARK: Réglages › Notifications
+
+    /// Ce que l'invité reçoit du serveur Party (titre qui passe, réponse à ses avis, nouvelles parties).
+    func notifyPrefs(guestID: String) async throws -> GuestNotifyState {
+        try await get("/api/notify", query: ["guest_id": guestID])
+    }
+
+    func setNotify(guestID: String, kind: String, on: Bool) async throws -> GuestNotifyState {
+        try await postDecoding("/api/notify", body: ["guest_id": guestID, "kind": kind, "on": on])
+    }
+
+    /// Hôte seulement (session vp_admin) : messages, nouvelles parties, nouveaux avis.
+    func adminNotifyPrefs() async throws -> AdminNotifyState {
+        try await get("/api/admin/notify", query: [:])
+    }
+
+    func setAdminNotify(kind: String, on: Bool) async throws -> AdminNotifyState {
+        try await postDecoding("/api/admin/notify", body: ["kind": kind, "on": on])
+    }
+
+    func subscribeAdminPush(device: [String: Any]) async throws {
+        try await post("/api/admin/push/subscribe", body: ["subscription": device])
+    }
+
+    /// Préférences des événements du compte (Supabase), avec le jeton de session du membre.
+    func eventNotifyPrefs(token: String) async throws -> EventNotifyState {
+        try await postDecoding("/api/account/notifications", body: ["token": token])
+    }
+
+    /// patch : champs de notification_prefs ; NSNull() coupe les heures de silence.
+    func updateEventNotifyPrefs(token: String, patch: [String: Any]) async throws -> EventNotifyState {
+        try await postDecoding("/api/account/notifications/update", body: ["token": token, "patch": patch])
+    }
+
     // MARK: Ton avis (pas besoin du code de la soirée)
 
     func feedback(guestID: String) async throws -> [FeedbackItem] {

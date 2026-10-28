@@ -51,6 +51,25 @@ struct ContentView: View {
                         if model.nativeScreen == "feedback", let feedback = model.feedback {
                             FeedbackView(store: feedback, topInset: proxy.safeAreaInsets.top, manage: hostTools("feedback"))
                         }
+                        if model.nativeScreen == "account", let settings = model.settings {
+                            SettingsView(store: settings, topInset: proxy.safeAreaInsets.top, isHost: model.isHost) { place in
+                                withAnimation { model.show(place) }
+                            }
+                        }
+                        if model.pageDetail != nil {
+                            Button {
+                                withAnimation { model.closePageDetail() }
+                            } label: {
+                                Label("Réglages", systemImage: "chevron.left")
+                                    .font(.subheadline.weight(.semibold))
+                                    .padding(.horizontal, 14).padding(.vertical, 10)
+                                    .background(.ultraThinMaterial, in: Capsule())
+                            }
+                            .tint(.white)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                            .padding(16)
+                            .accessibilityHint("Revient aux Réglages de l'app")
+                        }
                         if let managed = model.hostManagedScreen {
                             Button {
                                 withAnimation { model.setHostManages(false, screen: managed) }

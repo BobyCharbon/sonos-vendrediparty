@@ -50,6 +50,8 @@ enum TrackActivities {
 
     static func sync(_ state: PartyState, receivedAt: Date) {
         guard #available(iOS 16.2, *), ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        // Coupé dans Réglages › Notifications › Musique : aucune activité.
+        guard LiveActivitySetting.isEnabled else { return endAll() }
         // Seules les activités visibles comptent : une activité balayée par l'utilisateur ou terminée par iOS reste
         // listée (état « dismissed » / « ended ») ; la croire suivie empêchait d'en recréer une.
         let all = Activity<TrackActivityAttributes>.activities
@@ -82,6 +84,14 @@ enum TrackActivities {
                 guard let activity = byRequest[rid] else { continue }
                 Task { await activity.end(nil, dismissalPolicy: .immediate) }
             }
+        }
+    }
+
+    /// Réglage coupé : les activités en cours disparaissent tout de suite.
+    static func endAll() {
+        guard #available(iOS 16.2, *) else { return }
+        for activity in Activity<TrackActivityAttributes>.activities {
+            Task { await activity.end(nil, dismissalPolicy: .immediate) }
         }
     }
 

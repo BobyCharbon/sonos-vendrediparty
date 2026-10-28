@@ -46,6 +46,16 @@ final class PushRegistrar {
         }
     }
 
+    /// Clé de la page (push.js, portée « / ») où l'abonnement natif de cet appareil est gardé.
+    static let pageKey = "vp_native_push:/"
+
+    /// Abonnement de cet appareil, au format attendu par le serveur (app/push.py, valid_native_subscription).
+    func device() async throws -> [String: Any] {
+        let token = try await register()
+        return ["endpoint": "apns:\(token)",
+                "apns": ["token": token, "environment": Self.environment, "topic": Bundle.main.bundleIdentifier ?? ""]]
+    }
+
     func deliver(token: Data) {
         let hex = token.map { String(format: "%02x", $0) }.joined()
         finish { $0.resume(returning: hex) }

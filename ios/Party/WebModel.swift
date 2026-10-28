@@ -32,7 +32,22 @@ final class WebModel: ObservableObject {
     /// Onglets natifs (Musique, Ton avis), avec la même session que la page.
     private(set) var music: MusicStore?
     private(set) var feedback: FeedbackStore?
+    private(set) var settings: SettingsStore?
     private var cookieWatcher: CookieWatcher?
+
+    /// Page du compte ouverte depuis les Réglages natifs (Mon profil, Confidentialité…) : la page s'affiche à la
+    /// place de l'écran natif ; « Réglages » (ou l'onglet) y revient.
+    @Published private(set) var pageDetail: String?
+
+    /// Ce que les Réglages natifs ouvrent dans la page, en attendant leur version native.
+    enum PagePlace: Equatable {
+        /// Écran du module Événements (/settings/profile…), dans l'onglet Réglages.
+        case account(String)
+        /// Onglet de la page (host : Invités et messages, stats : Mes stats de jeu).
+        case tab(String)
+        /// Page /admin de la soirée.
+        case admin
+    }
 
     func attach(_ webView: WKWebView) {
         self.webView = webView
@@ -46,6 +61,10 @@ final class WebModel: ObservableObject {
         music = MusicStore(api: api, web: self)
         music?.start()  // suivi de la file dès le lancement (PartyApp le relance au retour au premier plan)
         feedback = FeedbackStore(api: api, web: self) { [weak self] in self?.lastContentTab }
+        settings = SettingsStore(api: api, web: self, isHost: { [weak self] in self?.isHost ?? false },
+                                 trackChanged: { [weak self] on, subscribed in
+                                     self?.music?.trackPreferenceChanged(on, subscribed: subscribed)
+                                 })
         webView.load(URLRequest(url: pending ?? start))
         pending = nil
     }
@@ -63,9 +82,11 @@ final class WebModel: ObservableObject {
     func showTabs(_ state: TabBarState) {
         awaitingTabs = false
         guard state != tabs else { return }
-        if let active = state.activeIndex.map({ state.tabs[$0].id }), !Self.settingsTabs.contains(active) {
+        let active = state.activeIndex.map { state.tabs[$0].id }
+        if let active, !Self.settingsTabs.contains(active) {
             lastContentTab = active
         }
+        if active != pageDetail { pageDetail = nil }
         tabs = state
     }
 
@@ -73,8 +94,28 @@ final class WebModel: ObservableObject {
 
     /// Onglet natif affiché (nil : la page). L'hôte qui gère cet écran garde la page.
     var nativeScreen: String? {
-        guard let screen = tabs?.nativeScreen else { return nil }
+        guard let screen = tabs?.nativeScreen, screen != pageDetail else { return nil }
         return isHost && hostManagedScreens.contains(screen) ? nil : screen
+    }
+
+    func show(_ place: PagePlace) {
+        switch place {
+        case .account(let path):
+            guard let script = Self.call("frameRoute", path) else { return }
+            pageDetail = "account"
+            webView?.evaluateJavaScript(script)
+        case .tab(let id):
+            selectTab(id)
+        case .admin:
+            open(start.appendingPathComponent("admin"))
+        }
+    }
+
+    /// Retour aux Réglages natifs ; le module revient à sa page d'accueil pour la prochaine fois.
+    func closePageDetail() {
+        pageDetail = nil
+        webView?.evaluateJavaScript("typeof frameRoute === 'function' && frameRoute('/account')")
+        Task { await settings?.refreshAccount() }
     }
 
     /// Écran natif que l'hôte gère en ce moment dans la page (bouton « Vue invité » pour revenir).
@@ -114,6 +155,7 @@ final class WebModel: ObservableObject {
     /// Toucher d'un onglet natif : la page l'applique comme un toucher dans sa propre barre.
     func selectTab(_ id: String) {
         guard id.allSatisfy({ $0.isLetter }) else { return }  // identifiants de la page : music, games…
+        if id == pageDetail { closePageDetail() }
         webView?.evaluateJavaScript("window.PartyTabs && PartyTabs.select('\(id)')")
     }
 
@@ -154,6 +196,14 @@ extension WebModel: WebStorage {
 
     func openInPage(_ url: URL) {
         open(url)
+    }
+
+    /// freshToken (index.html) : jeton du compte, renouvelé au besoin par le serveur et réécrit pour le module.
+    func accountToken() async -> String? {
+        guard let webView else { return nil }
+        let script = "return typeof freshToken === 'function' ? await freshToken() : null"
+        let value = try? await webView.callAsyncJavaScript(script, arguments: [:], contentWorld: .page)
+        return (value as? String).flatMap { $0.isEmpty ? nil : $0 }
     }
 
     func refreshFeedbackBadge() {

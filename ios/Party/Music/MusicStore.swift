@@ -20,6 +20,8 @@ protocol WebStorage: AnyObject {
     func refreshFeedbackBadge()
     /// Ouvre une adresse du site dans la page (QR code d'une partie de jeu…).
     func openInPage(_ url: URL)
+    /// Jeton de session du compte (Supabase), renouvelé par la page s'il expire ; nil : pas connecté.
+    func accountToken() async -> String?
 }
 
 /// Onglet Musique natif : état de la soirée en direct, recherche, ajout, messages à l'hôte.
@@ -49,6 +51,8 @@ final class MusicStore: ObservableObject {
     /// Prénom demandé avant le premier ajout (même règle que la page web).
     @Published var asksName = false
     @Published private(set) var notifyWhenPlaying = false
+    /// Type « titre qui passe » choisi sur le serveur (nil : pas encore lu).
+    private var trackWanted: Bool?
 
     private let api: PartyAPI
     private weak var web: WebStorage?
@@ -60,7 +64,7 @@ final class MusicStore: ObservableObject {
     private static let searchDelay: Duration = .milliseconds(350)
     private static let reconnectDelay: Duration = .seconds(3)
     private static let minimumQuery = 2
-    private static let pushKey = "vp_native_push:/"
+    private static let pushKey = PushRegistrar.pageKey
     private static let artworkAttempts = 2
     private static let artworkRetryDelay: Duration = .seconds(2)
 
@@ -120,7 +124,9 @@ final class MusicStore: ObservableObject {
             phase = state.active ? .ready(state) : .closed
             if state.active { TrackActivities.sync(state, receivedAt: receivedAt) }  // « Ton titre arrive »
             if let serverName = state.name, !serverName.isEmpty, serverName != me.name { remember(name: serverName) }
-            notifyWhenPlaying = await hasPushSubscription()
+            if trackWanted == nil { trackWanted = (try? await api.notifyPrefs(guestID: me.id))?.prefs["track"] }
+            let subscribed = await hasPushSubscription()
+            notifyWhenPlaying = subscribed && trackWanted != false
             await web?.shareSession()
         } catch PartyAPIError.needsCode {
             phase = .needsCode
@@ -210,31 +216,30 @@ final class MusicStore: ObservableObject {
         }
     }
 
+    /// « Me prévenir quand mon titre passe » : abonne cet iPhone au besoin, puis le type « titre qui passe ».
+    /// Éteint, seul ce type est coupé : l'iPhone reste abonné aux autres notifications choisies dans les Réglages.
     func setNotifyWhenPlaying(_ on: Bool) async {
         guard let me = await currentIdentity() else { return }
         do {
-            if on {
-                let token = try await PushRegistrar.shared.register()
-                let device: [String: Any] = [
-                    "endpoint": "apns:\(token)",
-                    "apns": ["token": token, "environment": PushRegistrar.environment,
-                             "topic": Bundle.main.bundleIdentifier ?? ""],
-                ]
+            let subscribed = await hasPushSubscription()
+            if on && !subscribed {
+                let device = try await PushRegistrar.shared.device()
                 try await api.subscribePush(guestID: me.id, device: device)
                 web?.writeLocal(Self.pushKey, String(data: try JSONSerialization.data(withJSONObject: device), encoding: .utf8))
-                notice = Notice(text: "Tu seras prévenu quand ton titre passe 🔔", isError: false)
-            } else {
-                if let saved = await web?.readLocal(Self.pushKey),
-                   let data = saved.data(using: .utf8),
-                   let endpoint = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["endpoint"] as? String {
-                    try? await api.unsubscribePush(endpoint: endpoint)
-                }
-                web?.writeLocal(Self.pushKey, nil)
             }
+            trackWanted = try await api.setNotify(guestID: me.id, kind: "track", on: on).prefs["track"] ?? on
+            if on { notice = Notice(text: "Tu seras prévenu quand ton titre passe 🔔", isError: false) }
         } catch {
             show(error)
         }
-        notifyWhenPlaying = await hasPushSubscription()
+        let subscribed = await hasPushSubscription()
+        notifyWhenPlaying = subscribed && trackWanted == true
+    }
+
+    /// Choix fait dans Réglages › Notifications : l'interrupteur de l'écran Musique suit.
+    func trackPreferenceChanged(_ on: Bool, subscribed: Bool) {
+        trackWanted = on
+        notifyWhenPlaying = subscribed && on
     }
 
     // MARK: Recherche

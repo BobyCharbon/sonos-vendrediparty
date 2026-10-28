@@ -12,6 +12,7 @@ import threading
 import time
 import unicodedata
 from pathlib import Path
+from typing import Literal
 from urllib.parse import quote, unquote, urlparse
 
 import httpx
@@ -20,7 +21,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from . import calendar_ics, debate, games, heist, island, likely, links, neon, president, purity, quiz
 from .game_lock import LOCK as GAMES_LOCK
@@ -28,7 +29,7 @@ from .accounts import AccountError, Accounts
 from .audit import AuditLog
 from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
 from .github_issues import GitHubError, Issues
-from .party import HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
+from .party import ADMIN_NOTIFY_DEFAULTS, GUEST_NOTIFY_DEFAULTS, HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
 from .apns import Apns
 from .push import Push, valid_subscription
 from .security import Limiter
@@ -133,15 +134,20 @@ _snap = {"at": 0.0, "data": None, "fingerprint": None, "version": 0, "current": 
 _snap_lock = threading.Lock()
 
 
-def notify_guest(guest_id: str, payload: dict):
+def guest_prefs(guest_id: str) -> dict:
+    return {**GUEST_NOTIFY_DEFAULTS, **store.session.guest_notify.get(guest_id, {})}
+
+
+def notify_guest(guest_id: str, payload: dict, kind: str):
+    """kind : un type de GUEST_NOTIFY_DEFAULTS ; l'invité ne reçoit que ce qu'il a choisi (Réglages › Notifications)."""
     subs = store.session.push.get(guest_id)
-    if subs:
+    if subs and guest_prefs(guest_id)[kind]:
         push.send(list(subs), payload, on_gone=lambda sub: store.remove_push(sub["endpoint"]))
 
 
 def notify_admin(payload: dict, kind: str = "messages"):
-    """kind : « messages » ou « games », selon ce que l'hôte a choisi de recevoir."""
-    if store.session.admin_notify.get(kind, kind == "messages") and store.session.admin_push:
+    """kind : un type de ADMIN_NOTIFY_DEFAULTS, selon ce que l'hôte a choisi de recevoir."""
+    if {**ADMIN_NOTIFY_DEFAULTS, **store.session.admin_notify}[kind] and store.session.admin_push:
         push.send(list(store.session.admin_push), payload, on_gone=lambda sub: store.remove_push(sub["endpoint"]))
 
 
@@ -171,7 +177,7 @@ def track_changed(data: dict, done: list):
     for r in done:
         if r.track_id == cur["track_id"]:
             notify_guest(r.guest_id, {"title": "🎶 Ton titre passe !", "body": f"{r.title} · {r.artist}",
-                                      "url": "/", "tag": "now-playing"})
+                                      "url": "/", "tag": "now-playing"}, kind="track")
 
 
 def snapshot(force: bool = False) -> dict:
@@ -926,7 +932,7 @@ def admin_state():
         "spotify_legacy_pending": len(s.vqueue),
         "spotify_account": {"connected": spotify_user.connected, "name": spotify_user.name,
                             "premium": spotify_user.data.get("premium", True)} if spotify_user else None,
-        "admin_notify": s.admin_notify,
+        "admin_notify": {**ADMIN_NOTIFY_DEFAULTS, **s.admin_notify},
         "games": [games.summary(g) for g in (prune_games() or s.games).values()],
         "event": {"id": s.event_id, "title": s.event_title} if s.event_id else None,
     }
@@ -1185,8 +1191,12 @@ def create_game(body: GameCreate, request: Request):
     g = build_game(body)
     _game_creations[ip] = recent + [time.time()]
     game_presence(request, body.guest_id, body.name)
-    notify_admin({"title": f"🎮 {games.GAMES[g['type']]}", "body": f"{g['host_name']} lance une partie · code {g['code']}",
-                  "url": "/admin#games", "tag": f"game-{g['code']}"}, kind="games")
+    title, text = f"🎮 {games.GAMES[g['type']]}", f"{g['host_name']} lance une partie · code {g['code']}"
+    notify_admin({"title": title, "body": text, "url": "/admin#games", "tag": f"game-{g['code']}"}, kind="games")
+    for guest_id in list(store.session.push):
+        if guest_id != body.guest_id:
+            notify_guest(guest_id, {"title": title, "body": text, "url": f"/?game={g['code']}", "tag": f"game-{g['code']}"},
+                         kind="games")
     store.session.games[g["code"]] = g
     save_games(g["code"])
     return full_view(g, body.guest_id)
@@ -1400,6 +1410,58 @@ def account_refresh(body: SessionRefresh, request: Request):
         raise HTTPException(429, msg)
     try:
         return accounts.refresh(body.refresh_token)
+    except AccountError as e:
+        raise HTTPException(401, str(e))
+
+
+class MemberToken(BaseModel):
+    token: str = Field(min_length=1, max_length=4096)
+
+
+QUIET_TIME = r"^([01]\d|2[0-3]):[0-5]\d(:00)?$"
+
+
+class NotificationPatch(BaseModel):
+    """Préférences de notification du compte (table Supabase notification_prefs), champs connus seulement."""
+    model_config = ConfigDict(extra="forbid")
+    push_enabled: bool | None = None
+    quiet_start: str | None = Field(None, pattern=QUIET_TIME)
+    quiet_end: str | None = Field(None, pattern=QUIET_TIME)
+    new_event: Literal["all", "subscribed", "none"] | None = None
+    event_changed: bool | None = None
+    poll_new: bool | None = None
+    date_fixed: bool | None = None
+    poll_nudge: bool | None = None
+    waitlist: bool | None = None
+    reminders: list[Literal["7d", "1d", "2h", "0h"]] | None = Field(None, max_length=4)
+    chat: Literal["all", "mentions", "none"] | None = None
+    rsvp_mine: bool | None = None
+    proposals: bool | None = None
+
+
+class NotificationUpdate(MemberToken):
+    patch: NotificationPatch
+
+
+@app.post("/api/account/notifications")
+def account_notifications(body: MemberToken):
+    """Réglages natifs › Notifications › Événements : lues avec la session du membre (ses droits Supabase)."""
+    try:
+        return accounts.notification_prefs(body.token)
+    except AccountError as e:
+        raise HTTPException(401, str(e))
+
+
+@app.post("/api/account/notifications/update")
+def account_notifications_update(body: NotificationUpdate):
+    # Seuls les champs envoyés changent ; les heures de silence se coupent ensemble (toutes deux à null).
+    patch = body.patch.model_dump(exclude_unset=True)
+    if not patch:
+        raise HTTPException(400, "Rien à changer")
+    if any(v is None for k, v in patch.items() if k not in ("quiet_start", "quiet_end")):
+        raise HTTPException(400, "Valeur manquante")
+    try:
+        return accounts.update_notification_prefs(body.token, patch)
     except AccountError as e:
         raise HTTPException(401, str(e))
 
@@ -1884,7 +1946,8 @@ def send_feedback(body: FeedbackIn, request: Request):
     # Pas de prénom (invité qui n'a encore rien ajouté) : « Anonyme ». clean_name refuserait un prénom vide.
     name = " ".join(body.name.split())[:30] or "Anonyme"
     feedback.add(body.guest_id, name, body.kind, text, context)
-    notify_admin({"title": f"{FEEDBACK_KINDS[body.kind]} de {name}", "body": text[:140], "url": "/admin#feedback", "tag": "feedback"})
+    notify_admin({"title": f"{FEEDBACK_KINDS[body.kind]} de {name}", "body": text[:140], "url": "/admin#feedback", "tag": "feedback"},
+                 kind="feedback")
     store.save()  # l'admin ouvert reçoit la mise à jour (pastille « Retours »)
     return {"mine": feedback.mine(body.guest_id)}
 
@@ -1975,7 +2038,8 @@ def notify_feedback_finished(item: dict):
     done = item["status"] == "done"
     notify_guest(item["guest_id"], {
         "title": "✅ Ton retour est terminé" if done else "💬 Réponse à ton retour",
-        "body": item.get("reply") or item["text"][:120], "url": "/?tab=feedback", "tag": f"feedback-{item['id']}"})
+        "body": item.get("reply") or item["text"][:120], "url": "/?tab=feedback", "tag": f"feedback-{item['id']}"},
+        kind="feedback")
 
 
 class FeedbackSeen(BaseModel):
@@ -2230,17 +2294,53 @@ def admin_push_subscribe(body: PushSubscribe):
 
 
 class AdminNotify(BaseModel):
-    kind: str  # messages | games
+    kind: str  # un type de ADMIN_NOTIFY_DEFAULTS
     on: bool
+
+
+def admin_notify_payload() -> dict:
+    return {"admin_notify": {**ADMIN_NOTIFY_DEFAULTS, **store.session.admin_notify}}
+
+
+@app.get("/api/admin/notify", dependencies=[Depends(require_admin)])
+def admin_notify_prefs():
+    return admin_notify_payload()
 
 
 @app.post("/api/admin/notify", dependencies=[Depends(require_admin)])
 def admin_notify(body: AdminNotify):
-    if body.kind not in ("messages", "games"):
+    if body.kind not in ADMIN_NOTIFY_DEFAULTS:
         raise HTTPException(400, "Type inconnu")
     store.session.admin_notify[body.kind] = body.on
     store.save(notify=False)
-    return {"admin_notify": store.session.admin_notify}
+    return admin_notify_payload()
+
+
+def guest_notify_payload(guest_id: str) -> dict:
+    return {"prefs": guest_prefs(guest_id), "subscribed": bool(store.session.push.get(guest_id))}
+
+
+@app.get("/api/notify", dependencies=[Depends(require_guest)])
+def guest_notify_prefs(guest_id: str):
+    """Réglages › Notifications de l'invité : ce qu'il reçoit, et si un de ses appareils est abonné."""
+    check_guest_id(guest_id)
+    return guest_notify_payload(guest_id)
+
+
+class GuestNotify(BaseModel):
+    guest_id: str
+    kind: str  # un type de GUEST_NOTIFY_DEFAULTS
+    on: bool
+
+
+@app.post("/api/notify", dependencies=[Depends(require_guest)])
+def guest_notify(body: GuestNotify):
+    check_guest_id(body.guest_id)
+    if body.kind not in GUEST_NOTIFY_DEFAULTS:
+        raise HTTPException(400, "Type inconnu")
+    store.session.guest_notify[body.guest_id] = {**store.session.guest_notify.get(body.guest_id, {}), body.kind: body.on}
+    store.save(notify=False)
+    return guest_notify_payload(body.guest_id)
 
 
 class PushUnsubscribe(BaseModel):
