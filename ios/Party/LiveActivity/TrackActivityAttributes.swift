@@ -13,6 +13,8 @@ struct TrackActivityAttributes: ActivityAttributes {
         var paused: Bool = false
         /// Secondes restantes au moment de la pause (affichées telles quelles).
         var remaining: Double = 0
+        /// Titres avant le mien dans la file (0 : c'est le prochain) : juste même en pause et après un déplacement.
+        var ahead: Int = 0
     }
 
     /// Demande suivie (rid du serveur) : une activité par titre demandé.

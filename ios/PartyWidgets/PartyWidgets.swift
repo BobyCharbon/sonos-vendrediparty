@@ -43,7 +43,7 @@ struct TrackLiveActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     if context.state.paused {
-                        Text(remainingText(context.state.remaining)).font(.caption).foregroundStyle(.white.opacity(0.7))
+                        Text(queueText(context.state.ahead)).font(.caption).foregroundStyle(.white.opacity(0.7))
                     } else if !context.state.playing && !context.isStale {
                         progress(context).padding(.horizontal, 8)
                     }
@@ -83,9 +83,10 @@ struct TrackLiveActivity: Widget {
                 }
             }
             if context.state.paused {
-                Text(remainingText(context.state.remaining)).font(.subheadline).foregroundStyle(.white.opacity(0.75))
+                Text(queueText(context.state.ahead)).font(.subheadline).foregroundStyle(.white.opacity(0.75))
             } else if !context.state.playing && !context.isStale {
                 progress(context)
+                Text(queueText(context.state.ahead)).font(.caption).foregroundStyle(.white.opacity(0.7))
             }
         }
         .padding(16)
@@ -104,10 +105,13 @@ struct TrackLiveActivity: Widget {
             .background(Self.accent.gradient, in: Circle())
     }
 
-    /// Temps restant figé pendant la pause : « encore ~20 min ».
-    private func remainingText(_ seconds: Double) -> String {
-        let minutes = Int((seconds / 60).rounded())
-        return minutes < 1 ? "Ton titre est le prochain" : "Ton titre passe encore dans ~\(minutes) min de musique"
+    /// Place dans la file, toujours juste (même en pause, même après un déplacement).
+    private func queueText(_ ahead: Int) -> String {
+        switch ahead {
+        case 0: return "Ton titre est le prochain"
+        case 1: return "1 titre avant le tien"
+        default: return "\(ahead) titres avant le tien"
+        }
     }
 
     /// Barre de l'ajout au passage (avance seule, sans l'app).

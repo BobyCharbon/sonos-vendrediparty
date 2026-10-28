@@ -199,14 +199,14 @@ struct TrackActivityPlanTests {
     func startsForMyNextTrack() throws {
         let steps = TrackActivityStep.plan(try state(now: "x", upcoming: [(nil, "a", 60), ("r1", "b", 300), ("r2", "c", 600)]),
                                            receivedAt: t0, running: [])
-        #expect(steps == [.start(requestID: "r1", trackID: "b", title: "T-b", artist: "A", arrival: t0.addingTimeInterval(300), paused: false)])
+        #expect(steps == [.start(requestID: "r1", trackID: "b", title: "T-b", artist: "A", arrival: t0.addingTimeInterval(300), paused: false, ahead: 1)])
     }
 
     @Test("Déjà suivi : l'heure est recalée, pas de doublon")
     func updatesTheFollowedTrack() throws {
         let steps = TrackActivityStep.plan(try state(now: "x", upcoming: [("r1", "b", 120)]), receivedAt: t0,
                                            running: [(requestID: "r1", trackID: "b")])
-        #expect(steps == [.update(requestID: "r1", arrival: t0.addingTimeInterval(120), paused: false)])
+        #expect(steps == [.update(requestID: "r1", arrival: t0.addingTimeInterval(120), paused: false, ahead: 0)])
     }
 
     @Test("Le titre passe : « C'est ton titre ! » ; le suivant prend le relais")
@@ -214,7 +214,7 @@ struct TrackActivityPlanTests {
         let steps = TrackActivityStep.plan(try state(now: "b", upcoming: [("r2", "c", 200)]), receivedAt: t0,
                                            running: [(requestID: "r1", trackID: "b")])
         #expect(steps == [.playing(requestID: "r1"),
-                          .start(requestID: "r2", trackID: "c", title: "T-c", artist: "A", arrival: t0.addingTimeInterval(200), paused: false)])
+                          .start(requestID: "r2", trackID: "c", title: "T-c", artist: "A", arrival: t0.addingTimeInterval(200), paused: false, ahead: 0)])
     }
 
     @Test("Musique en pause : l'activité le sait (pas de décompte qui file)")
@@ -222,7 +222,14 @@ struct TrackActivityPlanTests {
         let paused = try JSONDecoder().decode(PartyState.self, from: Data(#"{"active": true, "state": "PAUSED_PLAYBACK", "upcoming": [{"title": "T", "artist": "A", "art": "", "track_id": "b", "by": null, "rid": "r1", "eta": 1200}]}"#.utf8))
         #expect(paused.isPaused)
         #expect(TrackActivityStep.plan(paused, receivedAt: t0, running: [(requestID: "r1", trackID: "b")])
-                == [.update(requestID: "r1", arrival: t0.addingTimeInterval(1200), paused: true)])
+                == [.update(requestID: "r1", arrival: t0.addingTimeInterval(1200), paused: true, ahead: 0)])
+    }
+
+    @Test("En pause, la file bouge : la place du titre suit (pas « le prochain » à tort)")
+    func aheadFollowsTheQueueWhilePaused() throws {
+        let moved = try JSONDecoder().decode(PartyState.self, from: Data(#"{"active": true, "state": "PAUSED_PLAYBACK", "upcoming": [{"title": "X", "artist": "A", "art": "", "track_id": "x", "by": null, "rid": null, "eta": 30}, {"title": "Y", "artist": "A", "art": "", "track_id": "y", "by": null, "rid": null, "eta": 200}, {"title": "T", "artist": "A", "art": "", "track_id": "b", "by": null, "rid": "r1", "eta": 400}]}"#.utf8))
+        #expect(TrackActivityStep.plan(moved, receivedAt: t0, running: [(requestID: "r1", trackID: "b")])
+                == [.update(requestID: "r1", arrival: t0.addingTimeInterval(400), paused: true, ahead: 2)])
     }
 
     @Test("Titre retiré de la file : l'activité s'arrête")

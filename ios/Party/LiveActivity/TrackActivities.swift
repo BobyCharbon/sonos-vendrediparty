@@ -6,9 +6,9 @@ import OSLog
 /// Décision pure (testée dans PartyTests) ; TrackActivities l'applique avec ActivityKit.
 enum TrackActivityStep: Equatable {
     /// Démarrer pour mon prochain titre.
-    case start(requestID: String, trackID: String, title: String, artist: String, arrival: Date, paused: Bool)
+    case start(requestID: String, trackID: String, title: String, artist: String, arrival: Date, paused: Bool, ahead: Int)
     /// Recaler l'heure de passage.
-    case update(requestID: String, arrival: Date, paused: Bool)
+    case update(requestID: String, arrival: Date, paused: Bool, ahead: Int)
     /// Le titre passe : « C'est ton titre ! », puis effacement.
     case playing(requestID: String)
     /// Titre retiré de la file, ou passé pendant que l'app était fermée.
@@ -16,7 +16,9 @@ enum TrackActivityStep: Equatable {
 
     /// running : activités en cours (demande, titre). Une seule suivie à la fois : mon prochain titre.
     static func plan(_ state: PartyState, receivedAt: Date, running: [(requestID: String, trackID: String)]) -> [TrackActivityStep] {
-        let next = state.upcoming.first { $0.isMine && $0.rid != nil && $0.trackID != nil }
+        let index = state.upcoming.firstIndex { $0.isMine && $0.rid != nil && $0.trackID != nil }
+        let next = index.map { state.upcoming[$0] }
+        let ahead = index ?? 0
         let playingTrack = state.now?.trackID
         var steps: [TrackActivityStep] = []
         var followed = false
@@ -26,14 +28,14 @@ enum TrackActivityStep: Equatable {
             } else if let next, activity.requestID == next.rid {
                 followed = true
                 steps.append(.update(requestID: activity.requestID, arrival: receivedAt.addingTimeInterval(next.eta ?? 0),
-                                     paused: state.isPaused))
+                                     paused: state.isPaused, ahead: ahead))
             } else {
                 steps.append(.end(requestID: activity.requestID))
             }
         }
         if !followed, let next, let rid = next.rid, let trackID = next.trackID, playingTrack != trackID {
             steps.append(.start(requestID: rid, trackID: trackID, title: next.title, artist: next.artist,
-                                arrival: receivedAt.addingTimeInterval(next.eta ?? 0), paused: state.isPaused))
+                                arrival: receivedAt.addingTimeInterval(next.eta ?? 0), paused: state.isPaused, ahead: ahead))
         }
         return steps
     }
@@ -60,16 +62,16 @@ enum TrackActivities {
 
         for step in TrackActivityStep.plan(state, receivedAt: receivedAt, running: running) {
             switch step {
-            case .start(let rid, let trackID, let title, let artist, let arrival, let paused):
+            case .start(let rid, let trackID, let title, let artist, let arrival, let paused, let ahead):
                 let attributes = TrackActivityAttributes(requestID: rid, addedAt: Date(), trackID: trackID, title: title, artist: artist)
                 do {
-                    _ = try Activity.request(attributes: attributes, content: content(arrival: arrival, playing: false, paused: paused))
+                    _ = try Activity.request(attributes: attributes, content: content(arrival: arrival, playing: false, paused: paused, ahead: ahead))
                 } catch {
                     log.error("Live Activity refusée : \(error.localizedDescription, privacy: .public)")
                 }
-            case .update(let rid, let arrival, let paused):
+            case .update(let rid, let arrival, let paused, let ahead):
                 guard let activity = byRequest[rid] else { continue }
-                Task { await activity.update(content(arrival: arrival, playing: false, paused: paused)) }
+                Task { await activity.update(content(arrival: arrival, playing: false, paused: paused, ahead: ahead)) }
             case .playing(let rid):
                 guard let activity = byRequest[rid] else { continue }
                 Task {
@@ -94,12 +96,13 @@ enum TrackActivities {
     #endif
 
     @available(iOS 16.2, *)
-    private static func content(arrival: Date, playing: Bool, paused: Bool = false) -> ActivityContent<TrackActivityAttributes.ContentState> {
+    private static func content(arrival: Date, playing: Bool, paused: Bool = false,
+                                ahead: Int = 0) -> ActivityContent<TrackActivityAttributes.ContentState> {
         // Périmée à l'heure estimée : l'activité affiche « D'un instant à l'autre » au lieu d'un décompte à 0:00
         // (l'app fermée ne voit pas le titre démarrer ; l'heure est recalée à la prochaine ouverture).
         // En pause, rien ne s'écoule : pas de péremption, le temps restant est figé.
         ActivityContent(state: TrackActivityAttributes.ContentState(arrival: arrival, playing: playing, paused: paused,
-                                                                     remaining: max(0, arrival.timeIntervalSinceNow)),
+                                                                     remaining: max(0, arrival.timeIntervalSinceNow), ahead: ahead),
                         staleDate: playing || paused ? nil : arrival)
     }
 }
