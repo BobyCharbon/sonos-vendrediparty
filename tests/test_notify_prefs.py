@@ -186,3 +186,18 @@ def test_iphone_app_subscribes_as_guest_and_as_host(admin):  # noqa: F811
     assert admin.post("/api/admin/push/subscribe", json={"subscription": NATIVE}).status_code == 200
     assert main.store.session.admin_push[-1] == NATIVE
     main.store.remove_push(NATIVE["endpoint"])
+
+
+def test_host_in_the_app_hears_when_a_track_added_as_host_plays(admin, push):  # noqa: F811
+    native = {"X-Party-Native": "ios"}
+    assert admin.post("/api/push/subscribe", headers=native,
+                      json={"guest_id": "guest-host-app", "subscription": NATIVE}).status_code == 200
+    assert main.store.session.push[main.HOST_ID] == [NATIVE]
+    assert main.store.session.guest_notify[main.HOST_ID]["track"] is True
+    play(main.HOST_ID)
+    assert any(p.get("tag") == "now-playing" and subs == [NATIVE] for subs, p in push.sent)
+    # Coupé dans les Réglages de l'app : coupé aussi pour ses titres d'hôte.
+    admin.post("/api/notify", headers=native, json={"guest_id": "guest-host-app", "kind": "track", "on": False})
+    assert main.store.session.guest_notify[main.HOST_ID]["track"] is False
+    main.store.remove_push(NATIVE["endpoint"])
+    assert main.HOST_ID not in main.store.session.push

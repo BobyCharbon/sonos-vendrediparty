@@ -1256,7 +1256,7 @@ def create_game(body: GameCreate, request: Request):
     title, text = f"🎮 {games.GAMES[g['type']]}", f"{g['host_name']} lance une partie · code {g['code']}"
     notify_admin({"title": title, "body": text, "url": "/admin#games", "tag": f"game-{g['code']}"}, kind="games")
     for guest_id in list(store.session.push):
-        if guest_id != body.guest_id:
+        if guest_id not in (body.guest_id, HOST_ID):  # l'hôte est déjà prévenu en tant qu'hôte
             notify_guest(guest_id, {"title": title, "body": text, "url": f"/?game={g['code']}", "tag": f"game-{g['code']}"},
                          kind="games")
     store.session.games[g["code"]] = g
@@ -2426,13 +2426,20 @@ def checked_subscription(sub: dict) -> dict:
 
 
 @app.post("/api/push/subscribe", dependencies=[Depends(require_guest)])
-def push_subscribe(body: PushSubscribe):
-    """L'invité veut être prévenu quand son titre passe."""
+def push_subscribe(body: PushSubscribe, request: Request):
+    """L'invité veut être prévenu quand son titre passe. L'hôte dans l'app est aussi abonné pour ses titres
+    ajoutés en tant qu'hôte (HOST_ID), avec les mêmes choix."""
     check_guest_id(body.guest_id)
+    others = tuple(owners(request, body.guest_id) - {body.guest_id})
     if not body.keep_prefs:
-        store.session.guest_notify[body.guest_id] = {**store.session.guest_notify.get(body.guest_id, {}), "track": True}
-    store.add_push(body.guest_id, checked_subscription(body.subscription))
+        set_guest_pref((body.guest_id, *others), "track", True)
+    store.add_push(body.guest_id, checked_subscription(body.subscription), also=others)
     return {"ok": True}
+
+
+def set_guest_pref(guest_ids, kind: str, on: bool):
+    for gid in guest_ids:
+        store.session.guest_notify[gid] = {**store.session.guest_notify.get(gid, {}), kind: on}
 
 
 @app.post("/api/admin/push/subscribe", dependencies=[Depends(require_admin)])
@@ -2483,11 +2490,11 @@ class GuestNotify(BaseModel):
 
 
 @app.post("/api/notify", dependencies=[Depends(require_guest)])
-def guest_notify(body: GuestNotify):
+def guest_notify(body: GuestNotify, request: Request):
     check_guest_id(body.guest_id)
     if body.kind not in GUEST_NOTIFY_DEFAULTS:
         raise HTTPException(400, "Type inconnu")
-    store.session.guest_notify[body.guest_id] = {**store.session.guest_notify.get(body.guest_id, {}), body.kind: body.on}
+    set_guest_pref(owners(request, body.guest_id), body.kind, body.on)
     store.save(notify=False)
     return guest_notify_payload(body.guest_id)
 

@@ -385,8 +385,9 @@ class PartyStore:
         self.session.played = self.session.played[-199:] + [{**entry, "at": time.time()}]
         self.save()
 
-    def add_push(self, guest_id: str | None, sub: dict):
-        """Abonne un invité (ou l'hôte si guest_id est None) ; un appareil n'est abonné qu'une fois."""
+    def add_push(self, guest_id: str | None, sub: dict, also: tuple[str, ...] = ()):
+        """Abonne un invité (ou l'hôte si guest_id est None) ; un appareil n'est abonné qu'une fois.
+        also : autres identités du même appareil (HOST_ID pour l'hôte dans l'app : ses titres ajoutés en hôte)."""
         self.remove_push(sub["endpoint"], save=False)
         if "apns" in sub:  # app iOS native (validée par push.valid_native_subscription)
             sub = {"endpoint": sub["endpoint"], "apns": {k: sub["apns"][k] for k in ("token", "environment", "topic")}}
@@ -395,7 +396,8 @@ class PartyStore:
         if guest_id is None:
             self.session.admin_push = self.session.admin_push[-4:] + [sub]
         else:
-            self.session.push[guest_id] = self.session.push.get(guest_id, [])[-2:] + [sub]
+            for gid in (guest_id, *also):
+                self.session.push[gid] = self.session.push.get(gid, [])[-2:] + [sub]
         self.save()
 
     def remove_push(self, endpoint: str, save: bool = True):
