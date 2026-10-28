@@ -199,14 +199,14 @@ struct TrackActivityPlanTests {
     func startsForMyNextTrack() throws {
         let steps = TrackActivityStep.plan(try state(now: "x", upcoming: [(nil, "a", 60), ("r1", "b", 300), ("r2", "c", 600)]),
                                            receivedAt: t0, running: [])
-        #expect(steps == [.start(requestID: "r1", trackID: "b", title: "T-b", artist: "A", arrival: t0.addingTimeInterval(300))])
+        #expect(steps == [.start(requestID: "r1", trackID: "b", title: "T-b", artist: "A", arrival: t0.addingTimeInterval(300), paused: false)])
     }
 
     @Test("Déjà suivi : l'heure est recalée, pas de doublon")
     func updatesTheFollowedTrack() throws {
         let steps = TrackActivityStep.plan(try state(now: "x", upcoming: [("r1", "b", 120)]), receivedAt: t0,
                                            running: [(requestID: "r1", trackID: "b")])
-        #expect(steps == [.update(requestID: "r1", arrival: t0.addingTimeInterval(120))])
+        #expect(steps == [.update(requestID: "r1", arrival: t0.addingTimeInterval(120), paused: false)])
     }
 
     @Test("Le titre passe : « C'est ton titre ! » ; le suivant prend le relais")
@@ -214,7 +214,15 @@ struct TrackActivityPlanTests {
         let steps = TrackActivityStep.plan(try state(now: "b", upcoming: [("r2", "c", 200)]), receivedAt: t0,
                                            running: [(requestID: "r1", trackID: "b")])
         #expect(steps == [.playing(requestID: "r1"),
-                          .start(requestID: "r2", trackID: "c", title: "T-c", artist: "A", arrival: t0.addingTimeInterval(200))])
+                          .start(requestID: "r2", trackID: "c", title: "T-c", artist: "A", arrival: t0.addingTimeInterval(200), paused: false)])
+    }
+
+    @Test("Musique en pause : l'activité le sait (pas de décompte qui file)")
+    func pausedIsPassedOn() throws {
+        let paused = try JSONDecoder().decode(PartyState.self, from: Data(#"{"active": true, "state": "PAUSED_PLAYBACK", "upcoming": [{"title": "T", "artist": "A", "art": "", "track_id": "b", "by": null, "rid": "r1", "eta": 1200}]}"#.utf8))
+        #expect(paused.isPaused)
+        #expect(TrackActivityStep.plan(paused, receivedAt: t0, running: [(requestID: "r1", trackID: "b")])
+                == [.update(requestID: "r1", arrival: t0.addingTimeInterval(1200), paused: true)])
     }
 
     @Test("Titre retiré de la file : l'activité s'arrête")

@@ -18,11 +18,17 @@ struct PartyState: Decodable, Equatable {
     let messages: [HostMessage]
     /// false quand Spotify gère la file (mode extérieur) : on ne retire plus ses titres depuis l'app.
     let queueEditable: Bool
+    /// PLAYING, PAUSED_PLAYBACK, STOPPED, TRANSITIONING (Sonos et Spotify, app/sonos.py · spotify_player.py).
+    let playback: String?
+
+    /// Musique en pause ou arrêtée : les heures de passage ne s'écoulent pas.
+    var isPaused: Bool { playback == "PAUSED_PLAYBACK" || playback == "STOPPED" }
 
     enum CodingKeys: String, CodingKey {
         case active, room, blocked, name, error, now, upcoming, played, messages
         case upcomingTotal = "upcoming_total"
         case queueEditable = "queue_editable"
+        case playback = "state"
     }
 
     init(from decoder: Decoder) throws {
@@ -38,6 +44,7 @@ struct PartyState: Decodable, Equatable {
         played = try c.decodeIfPresent([PlayedItem].self, forKey: .played) ?? []
         messages = try c.decodeIfPresent([HostMessage].self, forKey: .messages) ?? []
         queueEditable = try c.decodeIfPresent(Bool.self, forKey: .queueEditable) ?? true
+        playback = try c.decodeIfPresent(String.self, forKey: .playback)
     }
 }
 

@@ -9,6 +9,10 @@ struct TrackActivityAttributes: ActivityAttributes {
         var arrival: Date
         /// Le titre est en train de passer.
         var playing: Bool
+        /// Musique en pause : pas de décompte, « Lecture en pause » et le temps restant figé.
+        var paused: Bool = false
+        /// Secondes restantes au moment de la pause (affichées telles quelles).
+        var remaining: Double = 0
     }
 
     /// Demande suivie (rid du serveur) : une activité par titre demandé.

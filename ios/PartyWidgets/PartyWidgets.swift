@@ -27,7 +27,9 @@ struct TrackLiveActivity: Widget {
                     badge(context.state.playing).padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if !context.state.playing && !context.isStale {
+                    if context.state.paused {
+                        Image(systemName: "pause.fill").font(.title3).foregroundStyle(Self.gold)
+                    } else if !context.state.playing && !context.isStale {
                         countdown(context.state.arrival).font(.title3.monospacedDigit().weight(.bold))
                             .foregroundStyle(Self.gold).frame(maxWidth: 80)
                     }
@@ -40,12 +42,18 @@ struct TrackLiveActivity: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    if !context.state.playing && !context.isStale { progress(context).padding(.horizontal, 8) }
+                    if context.state.paused {
+                        Text(remainingText(context.state.remaining)).font(.caption).foregroundStyle(.white.opacity(0.7))
+                    } else if !context.state.playing && !context.isStale {
+                        progress(context).padding(.horizontal, 8)
+                    }
                 }
             } compactLeading: {
                 Image(systemName: context.state.playing ? "music.note" : "hourglass").foregroundStyle(Self.accent)
             } compactTrailing: {
-                if context.state.playing || context.isStale {
+                if context.state.paused {
+                    Image(systemName: "pause.fill").foregroundStyle(Self.gold)
+                } else if context.state.playing || context.isStale {
                     Text("🎶")
                 } else {
                     countdown(context.state.arrival).monospacedDigit().foregroundStyle(Self.gold).frame(maxWidth: 46)
@@ -67,18 +75,25 @@ struct TrackLiveActivity: Widget {
                     Text(context.attributes.artist).font(.subheadline).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
                 }
                 Spacer(minLength: 0)
-                if !context.state.playing && !context.isStale {
+                if context.state.paused {
+                    Image(systemName: "pause.fill").font(.title).foregroundStyle(Self.gold)
+                } else if !context.state.playing && !context.isStale {
                     countdown(context.state.arrival).font(.title.monospacedDigit().weight(.heavy))
                         .foregroundStyle(Self.gold).multilineTextAlignment(.trailing).frame(maxWidth: 110, alignment: .trailing)
                 }
             }
-            if !context.state.playing && !context.isStale { progress(context) }
+            if context.state.paused {
+                Text(remainingText(context.state.remaining)).font(.subheadline).foregroundStyle(.white.opacity(0.75))
+            } else if !context.state.playing && !context.isStale {
+                progress(context)
+            }
         }
         .padding(16)
     }
 
     private func headline(_ context: ActivityViewContext<TrackActivityAttributes>) -> String {
         if context.state.playing { return "C'EST TON TITRE ! 🎶" }
+        if context.state.paused { return "LECTURE EN PAUSE ⏸" }
         return context.isStale ? "D'UN INSTANT À L'AUTRE…" : "TON TITRE ARRIVE"
     }
 
@@ -87,6 +102,12 @@ struct TrackLiveActivity: Widget {
             .font(.title3.weight(.bold)).foregroundStyle(.white)
             .frame(width: 44, height: 44)
             .background(Self.accent.gradient, in: Circle())
+    }
+
+    /// Temps restant figé pendant la pause : « encore ~20 min ».
+    private func remainingText(_ seconds: Double) -> String {
+        let minutes = Int((seconds / 60).rounded())
+        return minutes < 1 ? "Ton titre est le prochain" : "Ton titre passe encore dans ~\(minutes) min de musique"
     }
 
     /// Barre de l'ajout au passage (avance seule, sans l'app).
