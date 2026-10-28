@@ -7,12 +7,17 @@ final class WebModel: ObservableObject {
     @Published var failed = false
     /// Onglets de la page affichée ; nil sur une page sans barre d'onglets (admin, TV…).
     @Published private(set) var tabs: TabBarState?
-    /// Mode de l'hôte pour la Musique, retenu d'une ouverture à l'autre : « Gérer la soirée » (page web et ses
-    /// réglages) ou « Vue invité » (écran natif). Sans effet pour un invité.
-    @Published private(set) var hostManages = UserDefaults.standard.bool(forKey: WebModel.hostModeKey) {
-        didSet { UserDefaults.standard.set(hostManages, forKey: Self.hostModeKey) }
+    /// Écrans que l'hôte gère dans la page (« Gérer la soirée », « Gérer les retours ») plutôt qu'en vue invité
+    /// native ; retenu écran par écran, d'une ouverture à l'autre. Sans effet pour un invité.
+    @Published private(set) var hostManagedScreens = WebModel.savedManagedScreens() {
+        didSet { UserDefaults.standard.set(hostManagedScreens.sorted(), forKey: Self.hostScreensKey) }
     }
-    private static let hostModeKey = "musicHostManages"
+    private static let hostScreensKey = "hostManagedScreens"
+    /// Réglage de la version précédente (Musique seulement), repris une fois.
+    private static let legacyMusicKey = "musicHostManages"
+    /// Dernier onglet de contenu (Musique, Jeux…) : contexte d'une idée envoyée depuis « Ton avis ».
+    private(set) var lastContentTab: String?
+    private static let settingsTabs: Set<String> = ["feedback", "account", "host", "stats"]
     let start: URL
     weak var webView: WKWebView?
     /// Adresse demandée avant que la vue web existe (app lancée par un lien ou une notification).
@@ -24,8 +29,9 @@ final class WebModel: ObservableObject {
         self.start = start
     }
 
-    /// Onglet Musique natif, avec la même session que la page.
+    /// Onglets natifs (Musique, Ton avis), avec la même session que la page.
     private(set) var music: MusicStore?
+    private(set) var feedback: FeedbackStore?
     private var cookieWatcher: CookieWatcher?
 
     func attach(_ webView: WKWebView) {
@@ -38,6 +44,7 @@ final class WebModel: ObservableObject {
             Task { await self?.shareSession() }
         }
         music = MusicStore(api: api, web: self)
+        feedback = FeedbackStore(api: api, web: self) { [weak self] in self?.lastContentTab }
         webView.load(URLRequest(url: pending ?? start))
         pending = nil
     }
@@ -55,19 +62,39 @@ final class WebModel: ObservableObject {
     func showTabs(_ state: TabBarState) {
         awaitingTabs = false
         guard state != tabs else { return }
+        if let active = state.activeIndex.map({ state.tabs[$0].id }), !Self.settingsTabs.contains(active) {
+            lastContentTab = active
+        }
         tabs = state
     }
 
     var isHost: Bool { tabs?.host == true }
 
-    /// Onglet natif affiché (nil : la page). L'hôte en mode « Gérer la soirée » garde la page.
+    /// Onglet natif affiché (nil : la page). L'hôte qui gère cet écran garde la page.
     var nativeScreen: String? {
-        isHost && hostManages ? nil : tabs?.nativeScreen
+        guard let screen = tabs?.nativeScreen else { return nil }
+        return isHost && hostManagedScreens.contains(screen) ? nil : screen
     }
 
-    /// L'hôte passe de « Vue invité » (natif) à « Gérer la soirée » (page) et inversement ; le choix est retenu.
-    func setHostManages(_ manages: Bool) {
-        hostManages = manages
+    /// Écran natif que l'hôte gère en ce moment dans la page (bouton « Vue invité » pour revenir).
+    var hostManagedScreen: String? {
+        guard isHost, let screen = tabs?.nativeScreen, hostManagedScreens.contains(screen) else { return nil }
+        return screen
+    }
+
+    func hostManages(_ screen: String) -> Bool {
+        hostManagedScreens.contains(screen)
+    }
+
+    /// L'hôte passe de la vue invité (natif) à la gestion dans la page pour cet écran, et inversement.
+    func setHostManages(_ manages: Bool, screen: String) {
+        if manages { hostManagedScreens.insert(screen) } else { hostManagedScreens.remove(screen) }
+    }
+
+    private static func savedManagedScreens() -> Set<String> {
+        let defaults = UserDefaults.standard
+        if let saved = defaults.stringArray(forKey: hostScreensKey) { return Set(saved) }
+        return defaults.bool(forKey: legacyMusicKey) ? ["music"] : []
     }
 
     /// Nouvelle page : la barre actuelle reste jusqu'à ce que la page décrive la sienne (pas de clignement
@@ -122,6 +149,10 @@ extension WebModel: WebStorage {
     func readLocal(_ key: String) async -> String? {
         guard let webView, let script = Self.call("localStorage.getItem", key) else { return nil }
         return try? await webView.evaluateJavaScript(script) as? String
+    }
+
+    func refreshFeedbackBadge() {
+        webView?.evaluateJavaScript("typeof loadFeedback === 'function' && loadFeedback(false)")
     }
 
     func writeLocal(_ key: String, _ value: String?) {

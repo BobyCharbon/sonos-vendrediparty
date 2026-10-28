@@ -90,6 +90,24 @@ final class PartyAPI {
         try await post("/api/queue/remove", body: ["request_id": requestID, "guest_id": guestID])
     }
 
+    // MARK: Ton avis (pas besoin du code de la soirée)
+
+    func feedback(guestID: String) async throws -> [FeedbackItem] {
+        let list: FeedbackList = try await get("/api/feedback", query: ["guest_id": guestID])
+        return list.mine
+    }
+
+    func sendFeedback(guestID: String, name: String, kind: String, text: String, fromTab: String?) async throws -> [FeedbackItem] {
+        var body: [String: Any] = ["guest_id": guestID, "name": name, "kind": kind, "text": text]
+        if let fromTab { body["context"] = ["tab": fromTab] }  // l'onglet d'où vient l'idée, pour l'hôte
+        let list: FeedbackList = try await postDecoding("/api/feedback", body: body)
+        return list.mine
+    }
+
+    func markFeedbackSeen(guestID: String) async throws {
+        try await post("/api/feedback/seen", body: ["guest_id": guestID])
+    }
+
     /// Pochette : les pochettes Sonos passent par /art, réservé aux invités (cookie de la session).
     func imageData(_ path: String) async -> Data? {
         guard let url = url(path) else { return nil }
@@ -116,6 +134,15 @@ final class PartyAPI {
         guard let url = parts.url else { throw PartyAPIError.offline }
         let data = try await send(URLRequest(url: url))
         return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    private func postDecoding<T: Decodable>(_ path: String, body: [String: Any]) async throws -> T {
+        guard let url = url(path) else { throw PartyAPIError.offline }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return try JSONDecoder().decode(T.self, from: try await send(request))
     }
 
     private func post(_ path: String, body: [String: Any]) async throws {

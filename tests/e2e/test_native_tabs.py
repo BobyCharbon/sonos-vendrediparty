@@ -112,9 +112,9 @@ def test_without_the_native_bridge_nothing_changes(browser, server):
 
 def test_music_is_native_for_everyone_and_the_host_keeps_his_tools(app):
     # L'onglet Musique est natif pour tous ; l'app propose à l'hôte « Gérer la soirée » (page web et ses réglages).
-    assert last_state(app)["native"] == ["music"] and last_state(app)["host"] is False
+    assert last_state(app)["native"] == ["music", "feedback"] and last_state(app)["host"] is False
     # L'hôte : compte admin et session admin ouverte (fbIsAdmin) ; le libellé « Retours » relance la description.
     app.evaluate("() => { account = { ...(account || {}), admin: true }; adminSession = true;"
                  "        document.querySelector('#tabs [data-tab=feedback] span').textContent = 'Retours'; }")
     state = last_state(app)
-    assert state["native"] == ["music"] and state["host"] is True
+    assert state["native"] == ["music", "feedback"] and state["host"] is True

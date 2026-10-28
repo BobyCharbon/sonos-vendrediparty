@@ -124,12 +124,38 @@ struct SharedLinkTests {
 /// Mode de l'hôte pour la Musique : retenu d'une ouverture de l'app à l'autre.
 @MainActor
 struct HostModeTests {
-    @Test("« Gérer la soirée » reste choisi à la prochaine ouverture, « Vue invité » aussi")
+    @Test("Le mode de l'hôte est retenu écran par écran, d'une ouverture à l'autre")
     func hostModeIsRemembered() {
         let base = URL(string: "https://partytest.bobycharbon.ch")!
-        WebModel(start: base).setHostManages(true)
-        #expect(WebModel(start: base).hostManages)
-        WebModel(start: base).setHostManages(false)
-        #expect(!WebModel(start: base).hostManages)
+        WebModel(start: base).setHostManages(true, screen: "music")
+        WebModel(start: base).setHostManages(false, screen: "feedback")
+        let reopened = WebModel(start: base)
+        #expect(reopened.hostManages("music") && !reopened.hostManages("feedback"))
+        reopened.setHostManages(false, screen: "music")
+        #expect(!WebModel(start: base).hostManages("music"))
+    }
+}
+
+/// « Ton avis » : réponses du serveur (app/feedback.py `mine`) et mots affichés.
+struct FeedbackTests {
+    @Test("Mes retours : état, réponse de l'hôte, terminé non lu")
+    func decodesMyFeedback() throws {
+        let list = try JSONDecoder().decode(FeedbackList.self, from: Data("""
+        {"mine": [{"id": "f1", "at": 1793142000.5, "kind": "bug", "text": "Le quiz se fige", "status": "done",
+                   "reply": "Corrigé, merci !", "unseen": true},
+                  {"id": "f2", "at": 1793140000, "kind": "idea", "text": "Mode équipe", "status": "progress",
+                   "reply": "", "unseen": false}]}
+        """.utf8))
+        #expect(list.mine.map(\.id) == ["f1", "f2"])
+        #expect(list.mine[0].unseen && list.mine[0].reply == "Corrigé, merci !")
+        #expect(FeedbackStatus.label(for: list.mine[0].status) == "✅ Terminé")
+        #expect(FeedbackStatus.label(for: "progress") == "🔧 En cours de correction")
+        #expect(FeedbackKind.label(for: list.mine[1].kind) == "💡 Idée")
+    }
+
+    @Test("Les mêmes limites que le serveur : 3 à 1000 caractères")
+    func rules() {
+        #expect(FeedbackRules.minimumLength == 3 && FeedbackRules.maximumLength == 1000)
+        #expect(FeedbackKind.allCases.map(\.rawValue) == ["idea", "bug", "other"])
     }
 }

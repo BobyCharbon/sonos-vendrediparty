@@ -17,9 +17,9 @@
     return text === DOT ? "" : text;
   }
 
-  // Onglets que l'app peut afficher en natif. L'hôte aussi : l'app lui propose « Gérer la soirée », qui
-  // rouvre l'onglet Musique de la page avec ses réglages (enceintes, modes…).
-  const NATIVE_SCREENS = ["music"];
+  // Onglets que l'app peut afficher en natif. L'hôte aussi : l'app lui propose « Gérer la soirée » /
+  // « Gérer les retours », qui rouvrent l'onglet de la page avec ses réglages.
+  const NATIVE_SCREENS = ["music", "feedback"];
   // fbIsAdmin est déclarée plus loin dans index.html : tant qu'elle n'existe pas, on est invité.
   const isHost = () => typeof fbIsAdmin === "function" && fbIsAdmin();
 

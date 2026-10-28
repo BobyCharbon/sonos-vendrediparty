@@ -23,6 +23,20 @@ def test_guest_sends_without_party_code_and_sees_own_messages(monkeypatch, tmp_p
     assert c.get("/api/feedback", params={"guest_id": "feedback-other-0001"}).json()["mine"] == []
 
 
+def test_native_app_request_is_accepted(monkeypatch, tmp_path):
+    # App iOS (ios/Party/Feedback, PartyAPI.sendFeedback) : prénom parfois vide, contexte « tab » seul,
+    # en-tête de l'app ; puis « vu » quand l'onglet natif s'affiche.
+    monkeypatch.setattr(main, "feedback", FeedbackBox(tmp_path / "feedback.json"))
+    c = TestClient(main.app, headers={"X-Party-Native": "ios"})
+    r = c.post("/api/feedback", json={"guest_id": GUEST, "name": "", "kind": "bug", "text": "Le quiz se fige",
+                                      "context": {"tab": "games"}})
+    assert r.status_code == 200
+    [mine] = r.json()["mine"]
+    assert set(mine) == {"id", "at", "kind", "text", "status", "reply", "unseen"}  # décodé par FeedbackItem
+    assert main.feedback.all()[0]["name"] == "Anonyme" and main.feedback.all()[0]["context"] == {"tab": "games"}
+    assert c.post("/api/feedback/seen", json={"guest_id": GUEST}).status_code == 200
+
+
 def test_validation_and_rate_limit(monkeypatch, tmp_path):
     monkeypatch.setattr(main, "feedback", FeedbackBox(tmp_path / "feedback.json"))
     c = TestClient(main.app)

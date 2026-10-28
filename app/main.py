@@ -1845,7 +1845,8 @@ def send_feedback(body: FeedbackIn, request: Request):
     if feedback.sent_since(body.guest_id, 20) or feedback.sent_since(body.guest_id, 86400) >= 10:
         raise HTTPException(429, "Merci ! Attends un peu avant d'envoyer un autre message")
     context = {k: str(v)[:40] for k, v in body.context.items() if k in ("tab", "game")}
-    name = clean_name(body.name) or "Anonyme"
+    # Pas de prénom (invité qui n'a encore rien ajouté) : « Anonyme ». clean_name refuserait un prénom vide.
+    name = " ".join(body.name.split())[:30] or "Anonyme"
     feedback.add(body.guest_id, name, body.kind, text, context)
     notify_admin({"title": f"{FEEDBACK_KINDS[body.kind]} de {name}", "body": text[:140], "url": "/admin#feedback", "tag": "feedback"})
     store.save()  # l'admin ouvert reçoit la mise à jour (pastille « Retours »)

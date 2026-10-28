@@ -16,6 +16,8 @@ protocol WebStorage: AnyObject {
     func writeLocal(_ key: String, _ value: String?)
     /// Copie la session pour l'extension « Partager ».
     func shareSession() async
+    /// La page recalcule la pastille de « Ton avis » (retours vus ou envoyés depuis l'écran natif).
+    func refreshFeedbackBadge()
 }
 
 /// Onglet Musique natif : état de la soirée en direct, recherche, ajout, messages à l'hôte.

@@ -21,15 +21,10 @@ struct PartyApp: App {
 struct ContentView: View {
     @ObservedObject var model: WebModel
 
-    /// « Gérer la soirée » : réservé à l'hôte.
-    private var hostTools: (() -> Void)? {
+    /// « Gérer la soirée » / « Gérer les retours » : réservé à l'hôte.
+    private func hostTools(_ screen: String) -> (() -> Void)? {
         guard model.isHost else { return nil }
-        return { [model] in withAnimation { model.setHostManages(true) } }
-    }
-
-    /// Hôte en mode « Gérer la soirée » sur l'onglet Musique : bouton pour revenir à la vue invité.
-    private var showsGuestViewButton: Bool {
-        model.isHost && model.hostManages && model.tabs?.nativeScreen == "music"
+        return { [model] in withAnimation { model.setHostManages(true, screen: screen) } }
     }
 
     var body: some View {
@@ -42,11 +37,14 @@ struct ContentView: View {
                     ZStack {
                         PartyWebView(model: model)
                         if model.nativeScreen == "music", let music = model.music {
-                            MusicView(store: music, topInset: proxy.safeAreaInsets.top, manage: hostTools)
+                            MusicView(store: music, topInset: proxy.safeAreaInsets.top, manage: hostTools("music"))
                         }
-                        if showsGuestViewButton {
+                        if model.nativeScreen == "feedback", let feedback = model.feedback {
+                            FeedbackView(store: feedback, topInset: proxy.safeAreaInsets.top, manage: hostTools("feedback"))
+                        }
+                        if let managed = model.hostManagedScreen {
                             Button {
-                                withAnimation { model.setHostManages(false) }
+                                withAnimation { model.setHostManages(false, screen: managed) }
                             } label: {
                                 Label("Vue invité", systemImage: "person.2")
                                     .font(.subheadline.weight(.semibold))

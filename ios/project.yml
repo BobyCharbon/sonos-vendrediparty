@@ -91,6 +91,7 @@ targets:
       - path: Party/Shared
       - path: Party/Music/MusicModels.swift
       - path: Party/Music/PartyAPI.swift
+      - path: Party/Feedback/FeedbackModels.swift
     info:
       path: PartyShare/Info.plist
       properties:
