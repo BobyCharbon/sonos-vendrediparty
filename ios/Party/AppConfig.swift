@@ -12,11 +12,16 @@ enum AppConfig {
     static let internalHosts = ["party.bobycharbon.ch", "partytest.bobycharbon.ch", "accounts.spotify.com"]
     static let internalHostSuffixes = [".supabase.co"]
 
-    /// Ajouté à l'User-Agent : le site peut reconnaître l'app (`PartyApp-iOS/`).
+    /// Ajouté à l'User-Agent : le site peut reconnaître l'app (`PartyApp-iOS/`). L'app de l'App Store ajoute
+    /// « PartyStore » : le site y masque Casino et Blackjack (jeux d'argent simulés, refusés par Apple pour un
+    /// compte développeur individuel ; STORE_APP_MARK dans app/main.py). La BETA (TestFlight) les garde.
     static let userAgentSuffix: String = {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1"
-        return "PartyApp-iOS/\(version)"
+        return "PartyApp-iOS/\(version)" + (isStoreApp ? " PartyStore" : "")
     }()
+
+    /// VendrediParty (ch.bobycharbon.party) et non Party BETA (….beta).
+    static var isStoreApp: Bool { !(Bundle.main.bundleIdentifier ?? "").hasSuffix(".beta") }
 
     /// Fond de la page (#0e0b16, background_color du manifeste) : pas de flash blanc au lancement.
     static let background = Color(red: 14 / 255, green: 11 / 255, blue: 22 / 255)

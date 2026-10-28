@@ -1173,9 +1173,22 @@ def require_account(token: str, guest_id: str, ip: str):
         raise HTTPException(403, "Ce compte ne correspond pas à ta place : recharge la page une fois connecté")
 
 
+# App VendrediParty de l'App Store (Release, ios/Party/AppConfig.swift) : Apple refuse les jeux d'argent simulés
+# à un compte développeur individuel. Casino et Blackjack y sont masqués (games.js) et refusés ici ; le site,
+# l'app BETA et Android les gardent.
+STORE_APP_MARK = "PartyStore"
+STORE_HIDDEN_GAMES = ("casino", "blackjack")
+
+
+def check_store_game(request: Request, kind: str):
+    if kind in STORE_HIDDEN_GAMES and STORE_APP_MARK in request.headers.get("user-agent", ""):
+        raise HTTPException(403, "Ce jeu n'est pas proposé dans l'app de l'App Store : ouvre-le sur le site Party.")
+
+
 @app.post("/api/games")
 def create_game(body: GameCreate, request: Request):
     check_guest_id(body.guest_id)
+    check_store_game(request, body.type)
     ip = client_ip(request)
     if msg := ban_message(body.guest_id, ip):
         raise HTTPException(403, msg)
@@ -1637,6 +1650,7 @@ def game_state(code: str, request: Request, guest_id: str = "", name: str = ""):
 
 def read_game(code: str, request: Request, guest_id: str, name: str):
     g = get_game(code)
+    check_store_game(request, g["type"])
     game_presence(request, guest_id, name)
     guest_id = canonical_gid(g, guest_id)
     sync_player_name(g, guest_id, name)
@@ -1698,6 +1712,7 @@ def game_action(code: str, body: GameAction, request: Request):
 def perform_game_action(code: str, body: GameAction, request: Request):
     check_guest_id(body.guest_id)
     g = get_game(code)
+    check_store_game(request, g["type"])
     game_presence(request, body.guest_id, body.name)
     if body.action == "join":
         if g["type"] in ACCOUNT_GAMES:
@@ -1741,6 +1756,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     if g["type"] == "room" and a == "launch":
         if not games.is_lead(g, me):
             raise HTTPException(403, "Seul l'animateur lance les jeux")
+        check_store_game(request, body.settings.get("type", ""))
         room_launch(g, me, body.settings)
         g["updated_at"] = time.time()
         save_games(g["code"], g.get("current") or "")

@@ -2394,11 +2394,12 @@ function roomTileHtml(c) {
     <span class="g-room-tile-i">${GAME_ICONS[c.type] || ""}</span><b>${esc(c.name)}${drinkTag(c.type)}</b></button>`;
 }
 // Tuiles groupées par catégorie, dans le même ordre que l'écran Jeux ; un jeu sans catégorie va à la fin.
+const STORE_HIDDEN = document.documentElement.classList.contains("party-store") ? ["casino", "blackjack"] : [];
 function roomCatalogHtml(catalog) {
-  const byType = new Map(catalog.map((c) => [c.type, c]));
+  const byType = new Map(catalog.filter((c) => !STORE_HIDDEN.includes(c.type)).map((c) => [c.type, c]));
   const known = new Set(GAME_CATEGORIES.flatMap(([, , types]) => types));
   const groups = [...GAME_CATEGORIES.map(([id, label, types]) => [id, label, types.filter((t) => byType.has(t)).map((t) => byType.get(t))]),
-    ["other", "Autres jeux", catalog.filter((c) => !known.has(c.type))]];
+    ["other", "Autres jeux", catalog.filter((c) => !known.has(c.type) && !STORE_HIDDEN.includes(c.type))]];
   return groups.filter(([, , list]) => list.length).map(([id, label, list]) => `<div class="g-room-cat" data-cat="${id}">
       <div class="g-room-cat-h">${label}</div><div class="g-room-grid">${list.map(roomTileHtml).join("")}</div></div>`).join("");
 }

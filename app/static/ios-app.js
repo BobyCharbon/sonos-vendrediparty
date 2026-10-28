@@ -10,6 +10,9 @@ document.addEventListener("gesturestart", function (e) { e.preventDefault(); }, 
 
 (function () {
   var root = document.documentElement;
+  // App VendrediParty de l'App Store : sans Casino ni Blackjack (jeux d'argent simulés, refusés par Apple pour un
+  // compte individuel ; le serveur les refuse aussi, voir STORE_APP_MARK dans app/main.py).
+  if (/PartyStore/.test(navigator.userAgent)) root.classList.add("party-store");
   // App iOS native (ios/) : la barre d'onglets est native (UITabBar, native-tabs.js) et la vue web s'arrête
   // au-dessus d'elle. Le bug ci-dessus ne concerne que l'app ajoutée depuis Safari : pas de correctif ici.
   if (window.PartyNative && window.PartyNative.tabs) { root.classList.add("native-tabs"); return; }

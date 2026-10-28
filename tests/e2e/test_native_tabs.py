@@ -118,3 +118,19 @@ def test_music_is_native_for_everyone_and_the_host_keeps_his_tools(app):
                  "        document.querySelector('#tabs [data-tab=feedback] span').textContent = 'Retours'; }")
     state = last_state(app)
     assert state["native"] == ["music", "feedback", "account"] and state["host"] is True
+
+
+@pytest.mark.parametrize("store", [True, False])
+def test_store_app_hides_simulated_gambling_games(browser, server, store):
+    """App de l'App Store (« PartyStore » dans l'User-Agent) : ni Casino ni Blackjack. BETA : tous les jeux."""
+    ua = IPHONE["user_agent"] + (" PartyStore" if store else "")
+    ctx = browser.new_context(base_url=server.url, **{**IPHONE, "user_agent": ua})
+    ctx.add_init_script(NATIVE_BRIDGE)
+    page = ctx.new_page()
+    page.goto("/")
+    page.wait_for_function("window.__tabStates.length > 0")
+    page.evaluate("PartyTabs.select('games')")
+    page.wait_for_selector('[data-create="whoof"]', state="visible")
+    for kind in ("casino", "blackjack"):
+        assert page.locator(f'[data-create="{kind}"]').is_visible() is not store
+    ctx.close()
