@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import UIKit
 @testable import Party
 
 /// Réglages › Notifications : réponses du serveur et règles appliquées avant chaque enregistrement.
@@ -74,5 +75,35 @@ struct SettingsTests {
                      ["id": "account", "label": "Réglages", "active": true, "badge": NSNull(), "soon": false]],
         ] as [String: Any]))
         #expect(state.nativeScreen == "account")
+    }
+
+    @Test("Mon profil : décodé, statut lisible, téléphone facultatif")
+    func decodesProfile() throws {
+        let p: MemberProfile = try decode(#"{"id": "u1", "display_name": "Boby", "first_name": null, "last_name": "T", "phone": null, "avatar_url": null, "role": "member", "status": "active", "photo": null}"#)
+        #expect(p.firstName == "" && p.roleLabel == "Membre VIP" && p.phone == nil)
+        let banned: MemberProfile = try decode(#"{"id": "u2", "role": "admin", "status": "banned"}"#)
+        #expect(banned.roleLabel == "Accès retiré")
+    }
+
+    @Test("Mon profil : tout obligatoire, surnom 40 caractères au plus, espaces nettoyés")
+    func profileRules() {
+        #expect(ProfileRules.isComplete(first: "Ludo", last: "T", nickname: "Boby", hasPhoto: true))
+        #expect(!ProfileRules.isComplete(first: "Ludo", last: "T", nickname: "Boby", hasPhoto: false))
+        #expect(!ProfileRules.isComplete(first: "  ", last: "T", nickname: "Boby", hasPhoto: true))
+        #expect(!ProfileRules.isComplete(first: "Ludo", last: "T", nickname: String(repeating: "x", count: 41), hasPhoto: true))
+        #expect(ProfileRules.clean("  Jean   Paul ") == "Jean Paul")
+    }
+
+    @Test("Photo : carré centré, 1024 px au plus, JPEG")
+    func photoIsASquareJPEG() throws {
+        #expect(ProfilePhoto.square(of: CGSize(width: 3000, height: 2000)) == CGRect(x: 500, y: 0, width: 2000, height: 2000))
+        #expect(ProfilePhoto.square(of: CGSize(width: 1000, height: 2000), offset: CGPoint(x: 0, y: -1)).minY == 0)
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 1600, height: 1200)).image { ctx in
+            UIColor.systemPink.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 1600, height: 1200))
+        }
+        let data = try #require(ProfilePhoto.jpeg(from: image))
+        #expect(data.starts(with: [0xFF, 0xD8, 0xFF]))
+        let out = try #require(UIImage(data: data))
+        #expect(out.size.width == out.size.height && out.size.width <= ProfilePhoto.side)
     }
 }

@@ -124,6 +124,19 @@ final class PartyAPI {
         try await postDecoding("/api/account/notifications/update", body: ["token": token, "patch": patch])
     }
 
+    // MARK: Réglages › Mon profil (session du compte)
+
+    func profile(token: String) async throws -> MemberProfile {
+        try await postDecoding("/api/account/profile", body: ["token": token])
+    }
+
+    /// photo : JPEG carré déjà réduit (ProfilePhoto.jpeg) ; nil garde la photo actuelle.
+    func updateProfile(token: String, firstName: String, lastName: String, nickname: String, photo: Data?) async throws -> MemberProfile {
+        var body: [String: Any] = ["token": token, "first_name": firstName, "last_name": lastName, "display_name": nickname]
+        if let photo { body["photo"] = photo.base64EncodedString() }
+        return try await postDecoding("/api/account/profile/update", body: body)
+    }
+
     // MARK: Ton avis (pas besoin du code de la soirée)
 
     func feedback(guestID: String) async throws -> [FeedbackItem] {

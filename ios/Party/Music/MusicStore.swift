@@ -22,6 +22,8 @@ protocol WebStorage: AnyObject {
     func openInPage(_ url: URL)
     /// Jeton de session du compte (Supabase), renouvelé par la page s'il expire ; nil : pas connecté.
     func accountToken() async -> String?
+    /// Le profil du compte a changé : la page le relit (surnom, photo, droits).
+    func accountChanged() async
 }
 
 /// Onglet Musique natif : état de la soirée en direct, recherche, ajout, messages à l'hôte.

@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import contextlib
 import hashlib
 import io
@@ -1477,6 +1478,44 @@ def account_notifications_update(body: NotificationUpdate):
         return accounts.update_notification_prefs(body.token, patch)
     except AccountError as e:
         raise HTTPException(401, str(e))
+
+
+MAX_PROFILE_PHOTO = 5 * 1024 * 1024  # JPEG recadré par l'app (~200 Ko) ; même plafond que le module Événements
+
+
+class ProfileUpdate(MemberToken):
+    first_name: str = Field(max_length=100)
+    last_name: str = Field(max_length=100)
+    display_name: str = Field(max_length=40)
+    photo: str = Field("", max_length=7 * 1024 * 1024)  # JPEG en base64
+
+
+@app.post("/api/account/profile")
+def account_profile(body: MemberToken):
+    """Réglages natifs › Mon profil."""
+    try:
+        return accounts.profile(body.token)
+    except AccountError as e:
+        raise HTTPException(401, str(e))
+
+
+@app.post("/api/account/profile/update")
+def account_profile_update(body: ProfileUpdate):
+    fields = {k: " ".join(getattr(body, k).split()) for k in ("first_name", "last_name", "display_name")}
+    if not all(fields.values()):
+        raise HTTPException(400, "Prénom, nom et surnom sont obligatoires")
+    photo = None
+    if body.photo:
+        try:
+            photo = base64.b64decode(body.photo, validate=True)
+        except ValueError:
+            raise HTTPException(400, "Photo illisible : choisis-la à nouveau")
+        if not photo.startswith(b"\xff\xd8\xff") or len(photo) > MAX_PROFILE_PHOTO:
+            raise HTTPException(400, "Photo illisible ou trop lourde : choisis-en une autre")
+    try:
+        return accounts.update_profile(body.token, fields, photo)
+    except AccountError as e:
+        raise HTTPException(400, str(e))
 
 
 class EventLink(BaseModel):

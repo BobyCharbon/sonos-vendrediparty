@@ -28,6 +28,10 @@ final class SettingsStore: ObservableObject {
     @Published private(set) var host: AdminNotifyState?
     @Published private(set) var events: EventsPhase = .signedOut
     @Published private(set) var liveActivities = LiveActivitySetting.isEnabled
+    /// Mon profil ; nil tant qu'il n'est pas lu (ou pas connecté).
+    @Published private(set) var profile: MemberProfile?
+    @Published private(set) var profileError: String?
+    @Published private(set) var savingProfile = false
     /// Type en cours d'enregistrement (interrupteur désactivé pendant ce temps).
     @Published private(set) var saving: Set<String> = []
     @Published var notice: Notice?
@@ -81,6 +85,39 @@ final class SettingsStore: ObservableObject {
             events = .ready(try await api.eventNotifyPrefs(token: token))
         } catch {
             events = .failed(Self.accountMessage(error))
+        }
+    }
+
+    // MARK: Mon profil
+
+    func loadProfile() async {
+        guard let token = await web?.accountToken() else {
+            profileError = "Connecte-toi pour modifier ton profil"
+            return
+        }
+        do {
+            profile = try await api.profile(token: token)
+            profileError = nil
+        } catch {
+            profileError = Self.accountMessage(error)
+        }
+    }
+
+    /// true : enregistré. La page relit le compte (surnom et photo partout : jeux, carte des Réglages).
+    func saveProfile(first: String, last: String, nickname: String, photo: Data?) async -> Bool {
+        guard let token = await web?.accountToken() else { return false }
+        savingProfile = true
+        defer { savingProfile = false }
+        do {
+            profile = try await api.updateProfile(token: token, firstName: ProfileRules.clean(first), lastName: ProfileRules.clean(last),
+                                                  nickname: ProfileRules.clean(nickname), photo: photo)
+            await web?.accountChanged()
+            await refreshAccount()
+            notice = Notice(text: "✓ Profil enregistré", isError: false)
+            return true
+        } catch {
+            notice = Notice(text: Self.accountMessage(error), isError: true)
+            return false
         }
     }
 

@@ -198,6 +198,15 @@ extension WebModel: WebStorage {
         open(url)
     }
 
+    /// linkAccount (index.html) : relit le compte (vp_account) et l'identité de joueur ; le module Événements
+    /// rechargé reprend le nouveau profil.
+    func accountChanged() async {
+        guard let webView else { return }
+        let script = "if (typeof linkAccount === 'function') await linkAccount(); "
+            + "const f = document.getElementById('eventsFrame'); if (f && f.contentWindow) f.contentWindow.location.reload();"
+        _ = try? await webView.callAsyncJavaScript(script, arguments: [:], contentWorld: .page)
+    }
+
     /// freshToken (index.html) : jeton du compte, renouvelé au besoin par le serveur et réécrit pour le module.
     func accountToken() async -> String? {
         guard let webView else { return nil }

@@ -21,7 +21,7 @@ struct NotificationSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await store.loadNotifications() }
         .task { await store.loadNotifications() }
-        .overlay(alignment: .bottom) { noticeBanner }
+        .overlay(alignment: .bottom) { SettingsNoticeBanner(store: store) }
     }
 
     // MARK: Général
@@ -233,9 +233,13 @@ struct NotificationSettingsView: View {
                    displayedComponents: .hourAndMinute)
             .disabled(store.saving.contains(start ? "events.quiet_start" : "events.quiet_end"))
     }
+}
 
-    @ViewBuilder
-    private var noticeBanner: some View {
+/// Confirmation ou erreur d'enregistrement des Réglages, en bas de l'écran, 3 secondes.
+struct SettingsNoticeBanner: View {
+    @ObservedObject var store: SettingsStore
+
+    var body: some View {
         if let notice = store.notice {
             Text(notice.text)
                 .font(.subheadline.weight(.semibold))
