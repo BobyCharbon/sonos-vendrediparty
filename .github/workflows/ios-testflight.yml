@@ -27,7 +27,8 @@ concurrency:
 jobs:
   testflight:
     runs-on: macos-15
-    timeout-minutes: 45
+    # Envoi (~20 min) + attente du traitement par Apple pour publier la BETA (30 min au plus).
+    timeout-minutes: 80
     env:
       PRODUCTION: ${{ (github.event_name == 'workflow_dispatch' && inputs.site == 'production' || github.event_name == 'push' && github.ref_name == 'main') && '1' || '0' }}
       ARCHIVE: ${{ github.workspace }}/build/Party.xcarchive
@@ -52,6 +53,7 @@ jobs:
           printf '%s\n' "$ASC_KEY_P8" > "$KEY_PATH"
           chmod 600 "$KEY_PATH"
           echo "AUTH_FLAGS=-allowProvisioningUpdates -authenticationKeyPath $KEY_PATH -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID" >> "$GITHUB_ENV"
+          echo "ASC_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
 
       - name: Projet Xcode (XcodeGen)
         working-directory: ios
@@ -113,6 +115,17 @@ jobs:
           xcodebuild -exportArchive -archivePath "$ARCHIVE" \
             -exportOptionsPlist ExportOptions.plist -exportPath "$RUNNER_TEMP/export" \
             $AUTH_FLAGS
+
+      # Chaque BETA part aussitôt dans le groupe public « Invités » : le lien TestFlight donne toujours la dernière.
+      - name: Publier la BETA sur le lien public (Invités)
+        if: env.PRODUCTION == '0'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/asc"
+          "$RUNNER_TEMP/asc/bin/pip" install --quiet cryptography
+          "$RUNNER_TEMP/asc/bin/python" tools/testflight_publish.py 6827336068 "${{ github.run_number }}" "$ASC_KEY_PATH"
 
       - name: Nettoyage de la clé
         if: always()
