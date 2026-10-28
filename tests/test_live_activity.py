@@ -1,5 +1,5 @@
 """Live Activity poussée par le serveur : ce qui part vers l'iPhone selon la file (app fermée)."""
-from app.live_activity import PLAYING_STAY, START_GRACE, SWIFT_EPOCH, Slot, plan, starts
+from app.live_activity import START_GRACE, SWIFT_EPOCH, Slot, plan, starts
 
 NOW = 1_800_000_000.0
 
@@ -39,13 +39,19 @@ def test_pause_freezes_the_remaining_time_and_has_no_stale_date():
     assert "stale-date" not in step.payload
 
 
-def test_my_track_playing_ends_the_activity_in_green_after_a_while():
+def test_my_track_playing_turns_green_and_stays_while_it_plays():
     tracked = {"r1": {"track_id": "tr1", "key": ("wait", 0, False, 1)}}
     [step] = plan([], "tr1", tracked, False, NOW)
-    assert step.event == "end" and step.payload["content-state"]["playing"] is True
-    assert step.payload["dismissal-date"] == int(NOW + PLAYING_STAY)
+    assert step.event == "update" and step.payload["content-state"]["playing"] is True
+    assert "dismissal-date" not in step.payload
     tracked["r1"]["key"] = step.key
-    assert plan([], "tr1", tracked, False, NOW + 5) == []
+    assert plan([], "tr1", tracked, False, NOW + 60) == []  # toujours en train de jouer : rien de nouveau
+
+
+def test_finished_track_removes_the_activity_at_once():
+    tracked = {"r1": {"track_id": "tr1", "key": ("playing",)}}
+    [step] = plan([], "next-track", tracked, False, NOW + 200)
+    assert step.event == "end" and step.payload["dismissal-date"] == int(NOW + 200)
 
 
 def test_removed_track_dismisses_the_activity_right_away():
@@ -62,6 +68,10 @@ def test_push_start_only_for_the_next_track_of_a_guest_with_a_start_token():
     assert step.rid == "a" and step.event == "start"
     assert step.payload["attributes-type"] == "TrackActivityAttributes"
     assert step.payload["attributes"]["requestID"] == "a" and step.payload["alert"]["title"]
+
+
+def test_no_push_start_for_my_next_track_while_mine_is_playing():
+    assert starts([slot("b", ahead=0)], {"guest-1"}, {}, set(), False, NOW, busy_owners=frozenset({"guest-1"})) == []
 
 
 def test_no_push_start_when_the_app_already_follows_it_or_just_added_it():
@@ -102,6 +112,9 @@ class FakeLivePush:
 def live(admin, monkeypatch):  # noqa: F811
     fake = FakeLivePush()
     monkeypatch.setattr(main, "push", fake)
+    # La boucle de suivi (watch_sonos) lancée par d'autres tests tourne encore : elle ne doit rien envoyer ici.
+    fake.refresh = main.refresh_live_activities
+    monkeypatch.setattr(main, "refresh_live_activities", lambda data, now=None: None)
     main._live.clear()
     main.store.session.activities.clear()
     main.store.session.activity_start_tokens.clear()
@@ -116,10 +129,10 @@ def test_app_registers_its_activity_and_the_server_keeps_it_up_to_date(live):
     body = {"guest_id": "guest-live-1", "request_id": "rq-trois", "token": TOKEN, "topic": BETA}
     assert guest.post("/api/activity", json=body).status_code == 200
     data = snap()
-    main.refresh_live_activities(data, now=NOW)
+    live.refresh(data, now=NOW)
     [(token, event, aps, _)] = live.sent
     assert token == TOKEN and event == "update" and aps["content-state"]["ahead"] == 2
-    main.refresh_live_activities(data, now=NOW + 1)
+    live.refresh(data, now=NOW + 1)
     assert len(live.sent) == 1  # rien de nouveau : rien d'envoyé
 
 
@@ -132,24 +145,28 @@ def test_someone_elses_track_or_an_unknown_app_is_refused(live):
     assert mine.post("/api/activity", json={**body, "guest_id": "guest-live-1", "token": "xyz"}).status_code == 422
 
 
-def test_my_track_starting_turns_the_activity_green_and_stops_following_it(live):
+def test_my_track_plays_in_green_then_the_activity_goes_away_when_it_ends(live):
     guest_client("guest-live-1").post("/api/activity", json={"guest_id": "guest-live-1", "request_id": "rq-trois", "token": TOKEN, "topic": BETA})
     data = snap()
     data["current"] = {"pos": 7, "track_id": "b" * 22, "title": "Trois", "artist": "A", "art": ""}
     data["upcoming"] = data["upcoming"][:2]
-    main.refresh_live_activities(data, now=NOW)
+    live.refresh(data, now=NOW)
     [(_, event, aps, _)] = live.sent
-    assert event == "end" and aps["content-state"]["playing"] is True
+    assert event == "update" and aps["content-state"]["playing"] is True
+    assert "rq-trois" in main.store.session.activities  # suivie jusqu'à la fin du titre
+    data["current"] = {"pos": 8, "track_id": "z" * 22, "title": "Autre", "artist": "A", "art": ""}
+    live.refresh(data, now=NOW + 200)
+    assert live.sent[-1][1] == "end" and live.sent[-1][2]["dismissal-date"] == int(NOW + 200)
     assert "rq-trois" not in main.store.session.activities
 
 
 def test_a_track_added_app_closed_starts_its_activity_by_push_once(live):
     guest = guest_client("guest-live-1")
     assert guest.post("/api/activity/start", json={"guest_id": "guest-live-1", "token": TOKEN, "topic": BETA}).status_code == 200
-    main.refresh_live_activities(snap(), now=NOW)
+    live.refresh(snap(), now=NOW)
     [(token, event, aps, _)] = live.sent
     assert event == "start" and aps["attributes"]["requestID"] == "rq-trois"
-    main.refresh_live_activities(snap(), now=NOW + 5)
+    live.refresh(snap(), now=NOW + 5)
     assert len(live.sent) == 1
     # Réglage « Décompte dans la Dynamic Island » coupé : plus de démarrage par push.
     guest.post("/api/activity/start", json={"guest_id": "guest-live-1", "token": ""})

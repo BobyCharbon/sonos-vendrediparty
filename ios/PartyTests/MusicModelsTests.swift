@@ -209,12 +209,26 @@ struct TrackActivityPlanTests {
         #expect(steps == [.update(requestID: "r1", arrival: t0.addingTimeInterval(120), paused: false, ahead: 0)])
     }
 
-    @Test("Le titre passe : « C'est ton titre ! » ; le suivant prend le relais")
-    func playingThenNext() throws {
+    @Test("Le titre passe : vert « Ton titre joue actuellement », seul (le suivant attend la fin)")
+    func playingStaysAlone() throws {
         let steps = TrackActivityStep.plan(try state(now: "b", upcoming: [("r2", "c", 200)]), receivedAt: t0,
                                            running: [(requestID: "r1", trackID: "b")])
-        #expect(steps == [.playing(requestID: "r1"),
+        #expect(steps == [.playing(requestID: "r1")])
+    }
+
+    @Test("Titre fini : l'activité disparaît, le titre suivant de la personne prend le relais")
+    func finishedThenNext() throws {
+        let steps = TrackActivityStep.plan(try state(now: "x", upcoming: [("r2", "c", 200)]), receivedAt: t0,
+                                           running: [(requestID: "r1", trackID: "b")])
+        #expect(steps == [.end(requestID: "r1"),
                           .start(requestID: "r2", trackID: "c", title: "T-c", artist: "A", arrival: t0.addingTimeInterval(200), paused: false, ahead: 0)])
+    }
+
+    @Test("Titre fini et plus rien en attente : l'activité disparaît, rien ne redémarre")
+    func finishedAndNothingLeft() throws {
+        let steps = TrackActivityStep.plan(try state(now: "x", upcoming: [(nil, "a", 60)]), receivedAt: t0,
+                                           running: [(requestID: "r1", trackID: "b")])
+        #expect(steps == [.end(requestID: "r1")])
     }
 
     @Test("Musique en pause : l'activité le sait (pas de décompte qui file)")

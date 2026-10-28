@@ -11,7 +11,6 @@ dates de « aps » (stale-date, dismissal-date, timestamp) en secondes Unix.
 from dataclasses import dataclass
 
 SWIFT_EPOCH = 978307200      # 2001-01-01T00:00:00Z : origine des Date Swift
-PLAYING_STAY = 240           # « Ton titre joue actuellement » reste affiché le temps du morceau (environ)
 ARRIVAL_STEP = 20            # s : un écart d'heure de passage plus petit ne justifie pas une notification
 START_GRACE = 8              # s : l'app ouverte démarre elle-même l'activité ; le serveur attend avant de le faire
 
@@ -68,21 +67,21 @@ def plan(slots: list[Slot], current_track: str | None, tracked: dict[str, dict],
                 important = last is None or tuple(key[:3]) != tuple(last[:3])
                 steps.append(Step(rid, "update", aps, key, 10 if important else 5))
         elif current_track and current_track == info.get("track_id"):
+            # Le titre passe : vert « Ton titre joue actuellement », l'activité reste suivie jusqu'à la fin du titre.
             if last != ("playing",):
-                steps.append(Step(rid, "end", {
-                    "content-state": content_state(now, True, False, 0, 0),
-                    "dismissal-date": int(now + PLAYING_STAY)}, ("playing",)))
-        elif last not in (("playing",), ("gone",)):
-            # Retiré de la file (ou passé sans qu'on le voie) : l'activité disparaît.
-            steps.append(Step(rid, "end", {"content-state": content_state(now, False, False, 0, 0),
+                steps.append(Step(rid, "update", {"content-state": content_state(now, True, False, 0, 0)}, ("playing",)))
+        elif last != ("gone",):
+            # Titre fini (un autre passe) ou retiré de la file : l'activité disparaît tout de suite.
+            steps.append(Step(rid, "end", {"content-state": content_state(now, last == ("playing",), False, 0, 0),
                                            "dismissal-date": int(now)}, ("gone",)))
     return steps
 
 
 def starts(slots: list[Slot], start_owners: set[str], tracked: dict[str, dict], started: set[str],
-           paused: bool, now: float) -> list[Step]:
-    """Démarrage par push : prochain titre de chaque invité qui a donné un jeton de démarrage, pas encore suivi."""
-    steps, seen_owner = [], set()
+           paused: bool, now: float, busy_owners: frozenset[str] = frozenset()) -> list[Step]:
+    """Démarrage par push : prochain titre de chaque invité qui a donné un jeton de démarrage, pas encore suivi.
+    busy_owners : invités dont un titre passe en ce moment (son activité verte reste seule jusqu'à la fin)."""
+    steps, seen_owner = [], set(busy_owners)
     for slot in slots:  # dans l'ordre de la file : le prochain titre de chaque invité d'abord
         if slot.owner in seen_owner or slot.owner not in start_owners:
             continue

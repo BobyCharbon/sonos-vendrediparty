@@ -9,9 +9,9 @@ enum TrackActivityStep: Equatable {
     case start(requestID: String, trackID: String, title: String, artist: String, arrival: Date, paused: Bool, ahead: Int)
     /// Recaler l'heure de passage.
     case update(requestID: String, arrival: Date, paused: Bool, ahead: Int)
-    /// Le titre passe : « C'est ton titre ! », puis effacement.
+    /// Le titre passe : vert « Ton titre joue actuellement », tant qu'il joue.
     case playing(requestID: String)
-    /// Titre retiré de la file, ou passé pendant que l'app était fermée.
+    /// Titre fini, retiré de la file, ou passé pendant que l'app était fermée : l'activité disparaît.
     case end(requestID: String)
 
     /// running : activités en cours (demande, titre). Une seule suivie à la fois : mon prochain titre.
@@ -33,7 +33,9 @@ enum TrackActivityStep: Equatable {
                 steps.append(.end(requestID: activity.requestID))
             }
         }
-        if !followed, let next, let rid = next.rid, let trackID = next.trackID, playingTrack != trackID {
+        // Pendant que mon titre passe, son activité verte reste seule ; le suivant démarre quand il a fini.
+        let mineIsPlaying = running.contains { $0.trackID == playingTrack }
+        if !followed, !mineIsPlaying, let next, let rid = next.rid, let trackID = next.trackID, playingTrack != trackID {
             steps.append(.start(requestID: rid, trackID: trackID, title: next.title, artist: next.artist,
                                 arrival: receivedAt.addingTimeInterval(next.eta ?? 0), paused: state.isPaused, ahead: ahead))
         }
@@ -55,8 +57,6 @@ enum TrackActivities {
     /// Dernier jeton de démarrage reçu, et s'il a été retiré du serveur (réglage coupé).
     private static var startToken: String?
     private static var startWithdrawn = false
-    /// « C'est ton titre ! » reste affiché le temps du morceau (environ), puis s'efface.
-    private static let playingStay: TimeInterval = 4 * 60
 
     static func sync(_ state: PartyState, receivedAt: Date) {
         guard #available(iOS 16.2, *), ActivityAuthorizationInfo().areActivitiesEnabled else { return }
@@ -94,17 +94,38 @@ enum TrackActivities {
                 guard let activity = byRequest[rid] else { continue }
                 Task { await activity.update(content(arrival: arrival, playing: false, paused: paused, ahead: ahead)) }
             case .playing(let rid):
-                guard let activity = byRequest[rid] else { continue }
-                Task {
-                    await activity.end(content(arrival: Date(), playing: true),
-                                       dismissalPolicy: .after(Date().addingTimeInterval(playingStay)))
-                }
+                guard let activity = byRequest[rid], !activity.content.state.playing else { continue }
+                Task { await activity.update(content(arrival: Date(), playing: true)) }
             case .end(let rid):
                 guard let activity = byRequest[rid] else { continue }
                 report?(rid, "")
                 Task { await activity.end(nil, dismissalPolicy: .immediate) }
             }
         }
+    }
+
+    /// Au lancement de l'app (même réveillée en arrière-plan par iOS) : les activités démarrées par le serveur donnent
+    /// leur jeton de mise à jour, sinon le serveur ne pourrait ni les tenir à jour ni les retirer à la fin du titre.
+    /// Tant que l'écran Musique n'est pas créé, le jeton part avec la session gardée (SharedSession).
+    static func watchAtLaunch() {
+        if report == nil, let snapshot = SharedSession.load() {
+            let api = PartyAPI(base: snapshot.base, jar: SnapshotCookieJar(snapshot))
+            report = { requestID, token in
+                Task {
+                    if let requestID {
+                        try? await api.activityToken(guestID: snapshot.guestID, requestID: requestID, token: token,
+                                                     environment: PushRegistrar.environment)
+                    } else {
+                        try? await api.activityStartToken(guestID: snapshot.guestID, token: token, environment: PushRegistrar.environment)
+                    }
+                }
+            }
+        }
+        guard #available(iOS 16.2, *) else { return }
+        Task {
+            for await activity in Activity<TrackActivityAttributes>.activityUpdates { observe(activity) }
+        }
+        if LiveActivitySetting.isEnabled { observeStartToken() }
     }
 
     /// Réglage coupé : les activités en cours disparaissent tout de suite, le serveur ne les suit plus et ne

@@ -227,8 +227,11 @@ def refresh_live_activities(data: dict, now: float | None = None):
     current = (data.get("current") or {}).get("track_id")
     tracked = {rid: {**info, **_live.get(rid, {})} for rid, info in s.activities.items()}
     owners_of = {slot.rid: slot.owner for slot in slots}
+    busy = frozenset(info.get("owner", "") for info in tracked.values()
+                     if current and info.get("track_id") == current and info.get("key") == ("playing",))
     steps = (live_activity.plan(slots, current, tracked, paused, now)
-             + live_activity.starts(slots, set(s.activity_start_tokens), tracked, set(s.activities_started), paused, now))
+             + live_activity.starts(slots, set(s.activity_start_tokens), tracked, set(s.activities_started), paused, now,
+                                    busy))
     for step in steps:
         if step.event == "start":
             target = s.activity_start_tokens.get(owners_of[step.rid])
@@ -2530,7 +2533,7 @@ def activity_token(body: ActivityToken, request: Request):
     if req is None or req.guest_id not in owners(request, body.guest_id):
         raise HTTPException(404, "Titre introuvable")
     store.session.activities[req.id] = {"token": body.token, "environment": body.environment, "topic": body.topic,
-                                         "track_id": req.track_id}
+                                         "track_id": req.track_id, "owner": req.guest_id}
     _live.pop(req.id, None)  # la prochaine vue part tout de suite
     store.save(notify=False)
     return {"ok": True}
