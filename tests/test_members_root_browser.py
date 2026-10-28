@@ -122,7 +122,7 @@ def test_root_reads_the_members_journal_in_plain_words(browser, events_origin):
     try:
         open_members(page, events_origin)
         page.get_by_text('📜 Journal des membres', exact=True).click()
-        pw.expect(page.get_by_text('Boby a passé Tom de Guest à Membre VIP', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_text('Boby a passé Tom de Guest à Membre', exact=True)).to_be_visible(timeout=15000)
         pw.expect(page.get_by_text('Boby a ouvert la liste des membres (numéros compris)', exact=True)).to_be_visible()
         assert any(path.endswith('/admin_member_audit') for path, _ in calls)
     finally:

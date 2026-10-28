@@ -78,3 +78,14 @@ def test_refusal_is_reported_like_on_the_web(page):
     assert "refusées" in message
     assert page.evaluate("Push.permission()") == "denied"
     assert page.posted == []
+
+
+def test_reopening_the_page_does_not_turn_my_choices_back_on(page):
+    """Retour PartyTEST : les notifications coupées revenaient à chaque ouverture. La page réassocie l'appareil
+    à l'invité à chaque arrivée : ce renvoi ne doit jamais rallumer « Mon titre passe » (keep_prefs)."""
+    page.evaluate("Push.subscribe('/', '/api/push/subscribe', { guest_id: 'g1' })")
+    page.posted.clear()
+    page.evaluate("initNotifications()")
+    page.wait_for_timeout(300)
+    [(path, body)] = page.posted
+    assert path == "push/subscribe" and body["keep_prefs"] is True

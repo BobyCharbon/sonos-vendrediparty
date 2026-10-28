@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
 
-from tests.supabase_live.test_audiences_live import ADMIN, GUEST_A, GUEST_B, VIP, create_event, make_vip
+from tests.supabase_live.test_audiences_live import ADMIN, GUEST_A, GUEST_B, VIP, create_event, make_vip, unmake_vip
 from tests.supabase_live.test_member_admin_live import TEST_URL, Session, pytestmark  # noqa: F401
 
 
@@ -33,7 +33,7 @@ def world():
     yield admin, ga, gb, vip, ids
     for eid in ids.values():
         httpx.delete(f'{TEST_URL}/rest/v1/events?id=eq.{eid}', headers=admin.headers, timeout=30)
-    httpx.patch(f'{TEST_URL}/rest/v1/profiles?id=eq.{vip.uid}', headers=admin.headers, json={'role': 'guest'}, timeout=30)
+    unmake_vip(admin, vip)
 
 
 def test_an_organizer_marks_someone_present_then_absent_and_the_person_is_told(world):

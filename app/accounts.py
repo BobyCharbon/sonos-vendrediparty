@@ -125,6 +125,54 @@ class Accounts:
         if r.status_code not in (200, 204):
             raise AccountError("Cet iPhone n'a pas pu être enregistré pour les événements. Réessaie dans un instant.")
 
+    def groups(self, token: str) -> dict:
+        """Mes groupes (créés ou dont je fais partie), leurs membres, et les personnes que je peux y ajouter
+        (annuaire : ce que mes droits me laissent voir). Lu avec la session du membre (règles de la base)."""
+        uid = self._uid(token)
+        r = self._get("GET", "/rest/v1/member_groups?select=id,name,created_by,system_key,member_group_members(user_id)&order=name", token)
+        rows = r.json() if r.status_code == 200 else None
+        d = self._get("GET", "/rest/v1/rpc/get_member_directory?select=id,display_name,status", token)
+        directory = d.json() if d.status_code == 200 else []
+        if not isinstance(rows, list) or not isinstance(directory, list):
+            raise AccountError("Tes groupes n'ont pas pu être lus. Réessaie dans un instant.")
+        names = {p["id"]: p.get("display_name") or "Sans surnom" for p in directory}
+        groups = []
+        for g in rows:
+            members = [m["user_id"] for m in g.get("member_group_members") or []]
+            if g.get("created_by") != uid and uid not in members:
+                continue
+            groups.append({"id": g["id"], "name": g["name"], "system": g.get("system_key") is not None,
+                           "mine": g.get("created_by") == uid and g.get("system_key") is None,
+                           "members": [{"id": m, "name": names.get(m, "Membre du groupe")} for m in members]})
+        people = [{"id": p["id"], "name": names[p["id"]]} for p in directory if p["id"] != uid and p.get("status") == "active"]
+        return {"groups": groups, "people": sorted(people, key=lambda p: p["name"].lower())}
+
+    def create_group(self, token: str, name: str) -> dict:
+        uid = self._uid(token)
+        r = self._get("POST", "/rest/v1/member_groups", token, json={"name": name, "created_by": uid},
+                      headers={"Prefer": "return=minimal"})
+        if r.status_code not in (200, 201, 204):
+            raise AccountError("Le groupe n'a pas été créé. Réessaie.")
+        return self.groups(token)
+
+    def set_group_member(self, token: str, group_id: str, user_id: str, on: bool) -> dict:
+        self._uid(token)
+        if on:
+            r = self._get("POST", "/rest/v1/member_group_members", token, json={"group_id": group_id, "user_id": user_id},
+                          headers={"Prefer": "return=minimal,resolution=ignore-duplicates"})
+        else:
+            r = self._get("DELETE", f"/rest/v1/member_group_members?group_id=eq.{group_id}&user_id=eq.{user_id}", token)
+        if r.status_code not in (200, 201, 204, 409):
+            raise AccountError("La modification n'a pas été enregistrée. Réessaie.")
+        return self.groups(token)
+
+    def delete_group(self, token: str, group_id: str) -> dict:
+        self._uid(token)
+        r = self._get("DELETE", f"/rest/v1/member_groups?id=eq.{group_id}", token)
+        if r.status_code not in (200, 204):
+            raise AccountError("Le groupe n'a pas été supprimé. Réessaie.")
+        return self.groups(token)
+
     def subscriptions(self, token: str) -> dict:
         """Catégories et tags actifs, et ceux que le membre suit (alertes « Si abonné », filtre de la liste)."""
         uid = self._uid(token)

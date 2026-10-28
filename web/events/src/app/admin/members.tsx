@@ -126,7 +126,7 @@ function MemberRow({ person: p, beta, me, myRank, canRoles, canBan, canDelete, b
       {canRoles && p.status === 'active' ? (
         <View style={s.wrap}>
           <Chip label="🧪 Bêta-testeur" selected={beta} disabled={busy} onPress={() => onUpdate(p.id, { beta: !beta })} />
-          {beta && p.role === 'guest' ? <T muted size={13}>Encore Guest : l’onglet s’ouvre, mais il faut aussi le passer Membre VIP pour qu’il voie les événements.</T> : null}
+          {beta && p.role === 'guest' ? <T muted size={13}>Encore Guest : l’onglet s’ouvre, mais il faut aussi l’ajouter au groupe Vendredi Party (Groupes) pour qu’il voie les événements.</T> : null}
         </View>
       ) : null}
       {below && (canRoles || canBan) ? (

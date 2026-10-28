@@ -16,7 +16,7 @@ const PAGE = 100;
 const role = (r: unknown) => roleLabel[r as MemberRole] ?? String(r ?? '?');
 const status = (s: unknown) => ({ active: 'actif', banned: 'accès retiré', pending: 'en attente' } as Record<string, string>)[String(s)] ?? String(s ?? '?');
 
-/** Phrase lisible pour une ligne du journal : « Boby a passé Tom de Guest à Membre VIP ». */
+/** Phrase lisible pour une ligne du journal : « Boby a passé Tom de Guest à Membre ». */
 function describe(e: Entry): string {
   const who = e.actor_name || (e.actor ? 'Compte supprimé' : 'Système');
   const target = e.target_name || (e.target ? 'compte supprimé' : '');

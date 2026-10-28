@@ -80,7 +80,7 @@ struct SettingsTests {
     @Test("Mon profil : décodé, statut lisible, téléphone facultatif")
     func decodesProfile() throws {
         let p: MemberProfile = try decode(#"{"id": "u1", "display_name": "Boby", "first_name": null, "last_name": "T", "phone": null, "avatar_url": null, "role": "member", "status": "active", "photo": null}"#)
-        #expect(p.firstName == "" && p.roleLabel == "Membre VIP" && p.phone == nil)
+        #expect(p.firstName == "" && p.roleLabel == "Membre" && p.phone == nil)
         let banned: MemberProfile = try decode(#"{"id": "u2", "role": "admin", "status": "banned"}"#)
         #expect(banned.roleLabel == "Accès retiré")
     }
@@ -123,5 +123,13 @@ struct SettingsTests {
         #expect(state.paused && !state.playing && state.remaining == 120.5 && state.ahead == 2)
         let attributes: TrackActivityAttributes = try decode(#"{"requestID": "rq", "addedAt": 821692800.0, "trackID": "t", "title": "T", "artist": "A"}"#)
         #expect(attributes.requestID == "rq" && attributes.addedAt == Date(timeIntervalSince1970: 1_800_000_000))
+    }
+
+    @Test("Groupes : décodés, les miens se composent, Vendredi Party est un groupe du système")
+    func decodesGroups() throws {
+        let list: GroupList = try decode(#"{"groups": [{"id": "g1", "name": "Les footeux", "system": false, "mine": true, "members": [{"id": "u2", "name": "Léa"}]}, {"id": "g2", "name": "Vendredi Party", "system": true, "mine": false, "members": []}], "people": [{"id": "u2", "name": "Léa"}]}"#)
+        #expect(list.groups.map(\.name) == ["Les footeux", "Vendredi Party"])
+        #expect(list.groups[0].mine && !list.groups[0].system && list.groups[1].system && !list.groups[1].mine)
+        #expect(list.people.first?.name == "Léa")
     }
 }

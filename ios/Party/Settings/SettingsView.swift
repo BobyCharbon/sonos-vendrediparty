@@ -17,14 +17,14 @@ struct SettingsView: View {
                         NotificationSettingsView(store: store, open: open)
                     } label: {
                         SettingsRow(symbol: "bell.badge.fill", tint: .red, title: "Notifications",
-                                    hint: "Musique, jeux, avis et événements : choisis ce qui t'avertit")
+                                    hint: "Musique, jeux, avis et événements ; catégories et tags suivis")
                     }
                     if store.account != nil {
                         NavigationLink {
-                            SubscriptionsView(store: store)
+                            GroupsView(store: store.groups)
                         } label: {
-                            SettingsRow(symbol: "tag.fill", tint: .orange, title: "Abonnements",
-                                        hint: "Catégories et tags d'événements que tu suis")
+                            SettingsRow(symbol: "person.3.fill", tint: .blue, title: "Groupes",
+                                        hint: "Les groupes dont tu fais partie ; crée les tiens")
                         }
                     }
                 }

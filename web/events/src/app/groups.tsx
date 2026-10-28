@@ -65,7 +65,8 @@ export default function GroupsScreen() {
         {data && !data.groups.length ? <T muted>Aucun groupe pour l’instant.</T> : null}
         {data?.groups.map((g) => {
           const system = g.system_key === VIP_GROUP_KEY;
-          const mine = !system && (g.created_by === me.id || can('events.manage_all'));
+          // Vendredi Party (les VIP) : composé à la main par les admins ; les autres : par leur auteur et les admins.
+          const mine = system ? can('members.roles') : g.created_by === me.id || can('events.manage_all');
           const inside = new Set(g.member_group_members.map((m) => m.user_id));
           const expanded = open === g.id;
           return (
@@ -79,7 +80,7 @@ export default function GroupsScreen() {
                 </View>
                 {mine ? <Button small variant="secondary" label={expanded ? 'Fermer' : 'Modifier'} onPress={() => setOpen(expanded ? null : g.id)} /> : null}
               </View>
-              {system ? <T muted size={13}>Tous les Membres VIP et au-dessus, tenu à jour tout seul : passer quelqu’un Membre VIP l’ajoute, le remettre Guest le retire (Administration → Membres).</T> : null}
+              {system ? <T muted size={13}>Les VIP : être dans ce groupe donne accès aux événements du groupe, quel que soit le rôle. Une demande d’adhésion acceptée y fait entrer ; les admins ajoutent ou retirent qui ils veulent.</T> : null}
               {expanded && mine ? (
                 <>
                   <View style={s.wrap}>
@@ -95,7 +96,7 @@ export default function GroupsScreen() {
                       />
                     ))}
                   </View>
-                  <ConfirmButton small label="Supprimer le groupe" confirmLabel="Confirmer la suppression" onConfirm={() => run(supabase.from('member_groups').delete().eq('id', g.id))} />
+                  {system ? null : <ConfirmButton small label="Supprimer le groupe" confirmLabel="Confirmer la suppression" onConfirm={() => run(supabase.from('member_groups').delete().eq('id', g.id))} />}
                   <T muted size={13}>Les invités qui ont déjà répondu gardent l’accès à leurs événements.</T>
                 </>
               ) : null}

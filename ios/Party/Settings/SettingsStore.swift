@@ -44,6 +44,9 @@ final class SettingsStore: ObservableObject {
     /// L'interrupteur de l'écran Musique suit le type « titre qui passe ».
     private let trackChanged: (Bool, Bool) -> Void
 
+    /// Réglages › Groupes (même session de compte).
+    private(set) lazy var groups = GroupsStore(api: api, web: web)
+
     init(api: PartyAPI, web: WebStorage, isHost: @escaping () -> Bool, trackChanged: @escaping (Bool, Bool) -> Void) {
         self.api = api
         self.web = web

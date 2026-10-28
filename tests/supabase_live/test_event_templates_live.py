@@ -4,7 +4,7 @@ Lancement : SUPABASE_LIVE_TESTS=1 python -m pytest tests/supabase_live -q"""
 import httpx
 import pytest
 
-from tests.supabase_live.test_audiences_live import ADMIN, GUEST_A, VIP, make_vip
+from tests.supabase_live.test_audiences_live import ADMIN, GUEST_A, VIP, make_vip, unmake_vip
 from tests.supabase_live.test_member_admin_live import TEST_URL, Session, pytestmark  # noqa: F401
 
 
@@ -25,7 +25,7 @@ def world():
     assert r.status_code in (200, 204), r.text
     yield admin, guest, orga
     httpx.delete(f'{TEST_URL}/rest/v1/event_templates?name=like.Test%25', headers=admin.headers, timeout=30)
-    httpx.patch(f'{TEST_URL}/rest/v1/profiles?id=eq.{orga.uid}', headers=admin.headers, json={'role': 'guest'}, timeout=30)
+    unmake_vip(admin, orga)
 
 
 def test_team_templates_are_shared_and_personal_ones_stay_private(world):

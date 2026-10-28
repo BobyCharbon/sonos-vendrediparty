@@ -1439,6 +1439,11 @@ def account_link(body: AccountLink, request: Request):
     if GUEST_ID_RE.match(old or "") and old != new:
         with GAMES_LOCK:
             link_seats(old, new)
+        # Choix de notifications faits avant de se connecter : ils suivent le compte (sans écraser les siens).
+        prefs = store.session.guest_notify
+        if old in prefs and new not in prefs:
+            prefs[new] = dict(prefs[old])
+            store.save(notify=False)
     if account["name"]:
         game_presence(request, new, account["name"])
     return account
@@ -1552,6 +1557,51 @@ def account_push(body: MemberPush):
 
 
 UUID = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+
+
+class GroupName(MemberToken):
+    name: str = Field(max_length=60)
+
+
+class GroupMember(MemberToken):
+    group_id: str = Field(pattern=UUID)
+    user_id: str = Field(pattern=UUID)
+    on: bool
+
+
+class GroupRef(MemberToken):
+    group_id: str = Field(pattern=UUID)
+
+
+def account_call(work, status: int = 400):
+    try:
+        return work()
+    except AccountError as e:
+        raise HTTPException(status, str(e))
+
+
+@app.post("/api/account/groups")
+def account_groups(body: MemberToken):
+    """Réglages natifs › Groupes."""
+    return account_call(lambda: accounts.groups(body.token), 401)
+
+
+@app.post("/api/account/groups/create")
+def account_group_create(body: GroupName):
+    name = " ".join(body.name.split())
+    if not name:
+        raise HTTPException(400, "Donne un nom au groupe")
+    return account_call(lambda: accounts.create_group(body.token, name))
+
+
+@app.post("/api/account/groups/member")
+def account_group_member(body: GroupMember):
+    return account_call(lambda: accounts.set_group_member(body.token, body.group_id, body.user_id, body.on))
+
+
+@app.post("/api/account/groups/delete")
+def account_group_delete(body: GroupRef):
+    return account_call(lambda: accounts.delete_group(body.token, body.group_id))
 
 
 class SubscriptionSet(MemberToken):
