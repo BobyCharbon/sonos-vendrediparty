@@ -184,3 +184,42 @@ struct PartyLinkTests {
     }
 }
 
+
+/// Live Activity « Ton titre arrive » : quand la démarrer, la recaler, la terminer.
+struct TrackActivityPlanTests {
+    private func state(now: String?, upcoming: [(rid: String?, track: String, eta: Double)]) throws -> PartyState {
+        let items = upcoming.map { #"{"title": "T-\#($0.track)", "artist": "A", "art": "", "track_id": "\#($0.track)", "by": "Léa", "rid": \#($0.rid.map { "\"\($0)\"" } ?? "null"), "eta": \#($0.eta)}"# }
+        let json = #"{"active": true, "now": {"title": "N", "artist": "A", "art": "", "by": null, "track_id": \#(now.map { "\"\($0)\"" } ?? "null")}, "upcoming": [\#(items.joined(separator: ","))]}"#
+        return try JSONDecoder().decode(PartyState.self, from: Data(json.utf8))
+    }
+
+    private let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+
+    @Test("Mon titre ajouté : une activité démarre avec son heure de passage")
+    func startsForMyNextTrack() throws {
+        let steps = TrackActivityStep.plan(try state(now: "x", upcoming: [(nil, "a", 60), ("r1", "b", 300), ("r2", "c", 600)]),
+                                           receivedAt: t0, running: [])
+        #expect(steps == [.start(requestID: "r1", trackID: "b", title: "T-b", artist: "A", arrival: t0.addingTimeInterval(300))])
+    }
+
+    @Test("Déjà suivi : l'heure est recalée, pas de doublon")
+    func updatesTheFollowedTrack() throws {
+        let steps = TrackActivityStep.plan(try state(now: "x", upcoming: [("r1", "b", 120)]), receivedAt: t0,
+                                           running: [(requestID: "r1", trackID: "b")])
+        #expect(steps == [.update(requestID: "r1", arrival: t0.addingTimeInterval(120))])
+    }
+
+    @Test("Le titre passe : « C'est ton titre ! » ; le suivant prend le relais")
+    func playingThenNext() throws {
+        let steps = TrackActivityStep.plan(try state(now: "b", upcoming: [("r2", "c", 200)]), receivedAt: t0,
+                                           running: [(requestID: "r1", trackID: "b")])
+        #expect(steps == [.playing(requestID: "r1"),
+                          .start(requestID: "r2", trackID: "c", title: "T-c", artist: "A", arrival: t0.addingTimeInterval(200))])
+    }
+
+    @Test("Titre retiré de la file : l'activité s'arrête")
+    func endsWhenRemoved() throws {
+        let steps = TrackActivityStep.plan(try state(now: "x", upcoming: []), receivedAt: t0, running: [(requestID: "r1", trackID: "b")])
+        #expect(steps == [.end(requestID: "r1")])
+    }
+}

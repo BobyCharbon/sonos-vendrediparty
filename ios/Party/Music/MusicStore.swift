@@ -118,6 +118,7 @@ final class MusicStore: ObservableObject {
             let state = try await api.state(guestID: me.id)
             receivedAt = Date()
             phase = state.active ? .ready(state) : .closed
+            if state.active { TrackActivities.sync(state, receivedAt: receivedAt) }  // « Ton titre arrive »
             if let serverName = state.name, !serverName.isEmpty, serverName != me.name { remember(name: serverName) }
             notifyWhenPlaying = await hasPushSubscription()
             await web?.shareSession()

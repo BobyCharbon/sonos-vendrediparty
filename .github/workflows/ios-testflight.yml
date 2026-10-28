@@ -97,11 +97,14 @@ jobs:
           }
           APP="$ARCHIVE/Products/Applications/Party.app"
           entitlements "$BUNDLE_ID.share" "" > "$RUNNER_TEMP/share.entitlements"
+          entitlements "$BUNDLE_ID.widgets" "" > "$RUNNER_TEMP/widgets.entitlements"
           entitlements "$BUNDLE_ID" "<key>aps-environment</key><string>production</string>
           <key>com.apple.developer.associated-domains</key><array><string>applinks:$HOST</string></array>" \
             > "$RUNNER_TEMP/app.entitlements"
           codesign --force --sign - --timestamp=none --entitlements "$RUNNER_TEMP/share.entitlements" \
             "$APP/PlugIns/PartyShare.appex"
+          codesign --force --sign - --timestamp=none --entitlements "$RUNNER_TEMP/widgets.entitlements" \
+            "$APP/PlugIns/PartyWidgets.appex"
           codesign --force --sign - --timestamp=none --entitlements "$RUNNER_TEMP/app.entitlements" "$APP"
 
       - name: Envoi à TestFlight
