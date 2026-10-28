@@ -16,24 +16,38 @@ struct HostQueueList: View {
     let artwork: (String) async -> UIImage?
 
     static let rowHeight: CGFloat = 68
+    /// Ordre gardé à l'écran entre le lâcher et la réponse du serveur : le titre reste là où on l'a posé.
+    private static let confirmTimeout: Duration = .seconds(4)
     @State private var lifted: Int?
     @State private var offset: CGFloat = 0
     @State private var target: Int?
+    @State private var localOrder: [AdminState.QueueTrack]?
+    /// Titre tout juste posé : il glisse les derniers points jusqu'à sa case (le doigt n'est jamais pile dessus).
+    @State private var settling: (id: String, offset: CGFloat)?
+
+    /// Ce qui est affiché : l'ordre posé à la main tant que le serveur ne l'a pas confirmé.
+    private var shown: [AdminState.QueueTrack] { localOrder ?? tracks }
 
     var body: some View {
+        let list = shown
+        let ids = QueueOrder.stableIDs(list)
         VStack(spacing: 0) {
-            ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
-                row(track, index: index)
+            // Identité stable (clé du titre) : après un déplacement, chaque ligne garde sa vue et sa pochette.
+            ForEach(Array(zip(list.indices, ids)), id: \.1) { index, id in
+                row(list[index], index: index)
                     .frame(height: Self.rowHeight)
-                    .offset(y: shift(for: index))
-                    .zIndex(lifted == index ? 1 : 0)
+                    .offset(y: shift(for: index, id: id))
+                    .zIndex(lifted == index || settling?.id == id ? 1 : 0)
                     .animation(lifted == index ? nil : .spring(response: 0.28, dampingFraction: 0.85), value: target)
             }
         }
+        // Nouvel état du serveur (déplacement confirmé, ou file changée ailleurs) : c'est lui qui fait foi.
+        .onChange(of: tracks.map(\.id)) { _ in localOrder = nil }
     }
 
     /// Décalage d'une ligne pendant le glissement : la ligne prise suit le doigt, celles qu'elle survole s'écartent.
-    private func shift(for index: Int) -> CGFloat {
+    private func shift(for index: Int, id: String) -> CGFloat {
+        if let settling, settling.id == id { return settling.offset }
         guard let lifted, let target else { return 0 }
         if index == lifted { return offset }
         if lifted < target, index > lifted, index <= target { return -Self.rowHeight }
@@ -95,7 +109,7 @@ struct HostQueueList: View {
             Button { action(track, "next") } label: { Label("Jouer ensuite", systemImage: "text.line.first.and.arrowtriangle.forward") }
             Button { action(track, "up") } label: { Label("Monter", systemImage: "arrow.up") }
         }
-        if index < tracks.count - 1 {
+        if index < shown.count - 1 {
             Button { action(track, "down") } label: { Label("Descendre", systemImage: "arrow.down") }
         }
         Button { action(track, "play") } label: { Label("Jouer maintenant", systemImage: "play.fill") }
@@ -118,7 +132,7 @@ struct HostQueueList: View {
                         guard case .second(true, let drag) = value else { return }
                         if lifted == nil { lift(index) }
                         offset = drag?.translation.height ?? 0
-                        let next = QueueOrder.index(from: index, translation: offset, rowHeight: Self.rowHeight, count: tracks.count)
+                        let next = QueueOrder.index(from: index, translation: offset, rowHeight: Self.rowHeight, count: shown.count)
                         if next != target {
                             target = next
                             UISelectionFeedbackGenerator().selectionChanged()
@@ -141,17 +155,36 @@ struct HostQueueList: View {
     }
 
     private func drop() {
-        defer {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                lifted = nil
-                target = nil
-                offset = 0
-            }
-            dragging = false
+        dragging = false
+        let list = shown
+        guard let lifted, let target, let position = QueueOrder.targetPosition(in: list, from: lifted, to: target) else {
+            // Reposé à sa place : il y retourne en douceur.
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { self.lifted = nil; self.target = nil; offset = 0 }
+            return
         }
-        guard let lifted, let target, let position = QueueOrder.targetPosition(in: tracks, from: lifted, to: target) else { return }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        move(tracks[lifted], position)
+        let moved = QueueOrder.moving(list, from: lifted, to: target)
+        let id = QueueOrder.stableIDs(moved)[target]
+        // Le titre prend sa nouvelle place sans repasser par l'ancienne : seul l'écart restant au doigt s'anime.
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) {
+            localOrder = moved
+            settling = (id, offset - CGFloat(target - lifted) * Self.rowHeight)
+            self.lifted = nil
+            self.target = nil
+            offset = 0
+        }
+        DispatchQueue.main.async {  // image suivante : le titre part bien de là où le doigt l'a laissé
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { settling = (id, 0) }
+        }
+        move(list[lifted], position)
+        Task {
+            try? await Task.sleep(for: Self.confirmTimeout)
+            // Pas de réponse qui change la file (déplacement refusé) : retour à l'ordre réel.
+            if localOrder == moved { withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { localOrder = nil } }
+            settling = nil
+        }
     }
 }
 

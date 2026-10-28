@@ -226,6 +226,7 @@ final class HostMusicStore: ObservableObject {
     func move(_ track: AdminState.QueueTrack, to position: Int) async {
         #if DEBUG
         if demo, var state, let from = state.queue.firstIndex(of: track), let to = state.queue.firstIndex(where: { $0.pos == position }) {
+            try? await Task.sleep(for: .seconds(1))  // comme le serveur et Sonos : la réponse arrive après le lâcher
             state.queue = QueueOrder.moving(state.queue, from: from, to: to)
             apply(state)
             return

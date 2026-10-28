@@ -60,4 +60,15 @@ struct HostMusicTests {
     func duplicateMessage() {
         #expect(PartyAPIError.duplicate("Déjà dans la file").errorDescription == "Déjà dans la file")
     }
+
+    @Test("Identité d'affichage stable : la même après renumérotation, distincte pour deux doublons")
+    func stableIDs() throws {
+        let state: AdminState = try decode(Self.adminStateJSON)
+        let ids = QueueOrder.stableIDs(state.queue)
+        #expect(Set(ids).count == ids.count)
+        let moved = QueueOrder.moving(state.queue, from: 2, to: 0)
+        #expect(QueueOrder.stableIDs(moved) == [ids[2], ids[0], ids[1]])
+        let twice = [state.queue[0], state.queue[0]]
+        #expect(QueueOrder.stableIDs(twice) == ["\(state.queue[0].key)#0", "\(state.queue[0].key)#1"])
+    }
 }

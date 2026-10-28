@@ -243,6 +243,17 @@ enum QueueOrder {
         return min(count - 1, max(0, start + Int((translation / rowHeight).rounded())))
     }
 
+    /// Identité d'affichage d'un titre, qui ne change pas quand la file est renumérotée après un déplacement
+    /// (la position Sonos, elle, change) : clé du titre et rang parmi ses doublons.
+    static func stableIDs(_ list: [AdminState.QueueTrack]) -> [String] {
+        var seen: [String: Int] = [:]
+        return list.map { track in
+            let n = seen[track.key, default: 0]
+            seen[track.key] = n + 1
+            return "\(track.key)#\(n)"
+        }
+    }
+
     /// Ordre affiché pendant le glissement (la ligne prise se place à l'index visé).
     static func moving(_ list: [AdminState.QueueTrack], from: Int, to: Int) -> [AdminState.QueueTrack] {
         guard list.indices.contains(from), list.indices.contains(to) else { return list }

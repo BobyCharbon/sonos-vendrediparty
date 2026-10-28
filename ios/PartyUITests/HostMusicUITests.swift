@@ -36,6 +36,18 @@ final class HostMusicUITests: XCTestCase {
         XCTAssertLessThan(y(app, "Alors on danse"), y(app, "Tout oublier"))
     }
 
+    func testDroppedTrackStaysWhereItWasPutWhileTheServerAnswers() {
+        let app = launch()
+        let handles = app.buttons.matching(identifier: "Réorganiser")
+        XCTAssertTrue(handles.element(boundBy: 2).waitForExistence(timeout: 5))
+        handles.element(boundBy: 0).press(forDuration: 0.6, thenDragTo: handles.element(boundBy: 2))
+        // Tout de suite après le lâcher (réponse du serveur 1 s plus tard) : déjà à sa nouvelle place, sans retour arrière.
+        XCTAssertGreaterThan(y(app, "Blinding Lights"), y(app, "Tout oublier"))
+        sleep(2)  // réponse arrivée : toujours au même endroit
+        XCTAssertGreaterThan(y(app, "Blinding Lights"), y(app, "Tout oublier"))
+        XCTAssertLessThan(y(app, "Alors on danse"), y(app, "Tout oublier"))
+    }
+
     func testDraggingUpMovesTheTrackToTheTop() {
         let app = launch()
         let handles = app.buttons.matching(identifier: "Réorganiser")
