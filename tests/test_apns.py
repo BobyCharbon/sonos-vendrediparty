@@ -149,3 +149,30 @@ def test_key_pasted_on_one_line_or_with_escaped_newlines_still_loads():
 def test_a_badly_pasted_key_never_stops_the_site():
     from app.apns import Apns
     assert Apns.from_env({"APNS_KEY_P8": "pas une clé", "APNS_KEY_ID": "KEY1234567"}) is None
+
+
+def test_live_activity_update_goes_to_the_liveactivity_topic():
+    import json as _json
+
+    import httpx
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    from app.apns import Apns
+    seen = []
+
+    def handler(request: httpx.Request):
+        seen.append(request)
+        return httpx.Response(200)
+
+    key = ec.generate_private_key(ec.SECP256R1()).private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
+    a = Apns(key, "KEY1234567", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    target = {"token": "ab" * 32, "environment": "production", "topic": "ch.bobycharbon.party.beta"}
+    assert a.send_live_activity(target, "update", {"content-state": {"ahead": 1}}, 5)
+    r = seen[0]
+    assert r.url.path == "/3/device/" + "ab" * 32
+    assert r.headers["apns-topic"] == "ch.bobycharbon.party.beta.push-type.liveactivity"
+    assert r.headers["apns-push-type"] == "liveactivity" and r.headers["apns-priority"] == "5"
+    body = _json.loads(r.content)["aps"]
+    assert body["event"] == "update" and body["content-state"] == {"ahead": 1} and body["timestamp"] > 0

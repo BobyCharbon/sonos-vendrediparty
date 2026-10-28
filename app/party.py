@@ -72,6 +72,12 @@ class Session:
     admin_notify: dict = field(default_factory=lambda: dict(ADMIN_NOTIFY_DEFAULTS))
     # Ce dont chaque invité veut être prévenu (guest_id -> {type: oui/non}) ; types absents : GUEST_NOTIFY_DEFAULTS.
     guest_notify: dict[str, dict] = field(default_factory=dict)
+    # Live Activities « Ton titre arrive » tenues à jour par le serveur (app/live_activity.py) :
+    # demande -> {"token", "environment", "topic", "track_id"} ; invité (ou HOST_ID) -> jeton de démarrage par push ;
+    # demandes déjà démarrées par push (une seule fois).
+    activities: dict[str, dict] = field(default_factory=dict)
+    activity_start_tokens: dict[str, dict] = field(default_factory=dict)
+    activities_started: list[str] = field(default_factory=list)
     # Playlists favorites de l'hôte (Réglages) : {"id": "spotify:playlist:…" ou "fav:…"/"sq:…", "title"}.
     top_playlists: list[dict] = field(default_factory=list)
     # Parties de jeu en cours (voir games.py), par code ; indépendantes de la soirée musique.
@@ -147,7 +153,8 @@ class PartyStore:
             spotify_device_id=spotify_device_id, spotify_device_name=spotify_device_name,
             bans=self.session.bans, guest_pin=self.session.guest_pin, revoked=self.session.revoked,
             push=self.session.push, admin_push=self.session.admin_push, admin_notify=self.session.admin_notify,
-            guest_notify=self.session.guest_notify, top_playlists=self.session.top_playlists,
+            guest_notify=self.session.guest_notify, activity_start_tokens=self.session.activity_start_tokens,
+            top_playlists=self.session.top_playlists,
             games=self.session.games, event_id=self.session.event_id, event_title=self.session.event_title,
         )
         self.save()

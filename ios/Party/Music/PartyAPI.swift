@@ -87,6 +87,18 @@ final class PartyAPI {
         try await post("/api/push/unsubscribe", body: ["endpoint": endpoint])
     }
 
+    /// Live Activity tenue à jour par le serveur : jeton de l'activité d'une demande (vide : plus suivie).
+    func activityToken(guestID: String, requestID: String, token: String, environment: String) async throws {
+        try await post("/api/activity", body: ["guest_id": guestID, "request_id": requestID, "token": token,
+                                               "environment": environment, "topic": Bundle.main.bundleIdentifier ?? ""])
+    }
+
+    /// Jeton de démarrage par push (iOS 17.2+) ; vide : plus de démarrage (réglage coupé).
+    func activityStartToken(guestID: String, token: String, environment: String) async throws {
+        try await post("/api/activity/start", body: ["guest_id": guestID, "token": token,
+                                                     "environment": environment, "topic": Bundle.main.bundleIdentifier ?? ""])
+    }
+
     func remove(requestID: String, guestID: String) async throws {
         try await post("/api/queue/remove", body: ["request_id": requestID, "guest_id": guestID])
     }

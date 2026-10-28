@@ -79,3 +79,15 @@ class Push:
                 on_gone(sub)
         except Exception:
             pass  # Apple injoignable : tant pis pour cette notification
+
+    def send_live_activity(self, target: dict, event: str, aps: dict, priority: int, on_gone=lambda: None):
+        """Mise à jour d'une Live Activity en arrière-plan ; on_gone() si son jeton n'existe plus."""
+        if self.apns is None:
+            return
+        def run():
+            try:
+                if not self.apns.send_live_activity(target, event, aps, priority):
+                    on_gone()
+            except Exception:
+                pass  # Apple injoignable : la prochaine mise à jour rattrapera
+        threading.Thread(target=run, daemon=True).start()

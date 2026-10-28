@@ -114,4 +114,14 @@ struct SettingsTests {
         let next = subs.setting("tag", "t1", true).setting("category", "c1", false)
         #expect(next.tagIDs == ["t1"] && next.categoryIDs.isEmpty && subs.categoryIDs == ["c1"])
     }
+
+    @Test("Live Activity poussée par le serveur : content-state et attributs décodés comme ActivityKit")
+    func decodesServerLiveActivityPayload() throws {
+        // Produits par app/live_activity.py (dates en secondes depuis 2001, comme une Date Swift).
+        let state: TrackActivityAttributes.ContentState = try decode(#"{"arrival": 821693100.0, "playing": false, "paused": true, "remaining": 120.5, "ahead": 2}"#)
+        #expect(state.arrival == Date(timeIntervalSince1970: 1_800_000_300))
+        #expect(state.paused && !state.playing && state.remaining == 120.5 && state.ahead == 2)
+        let attributes: TrackActivityAttributes = try decode(#"{"requestID": "rq", "addedAt": 821692800.0, "trackID": "t", "title": "T", "artist": "A"}"#)
+        #expect(attributes.requestID == "rq" && attributes.addedAt == Date(timeIntervalSince1970: 1_800_000_000))
+    }
 }

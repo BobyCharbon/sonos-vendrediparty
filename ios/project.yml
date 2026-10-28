@@ -48,6 +48,8 @@ targets:
         PartyKeychainGroup: "$(PARTY_KEYCHAIN_GROUP)"
         # Live Activity « Ton titre arrive » (écran verrouillé, Dynamic Island).
         NSSupportsLiveActivities: true
+        # Mises à jour par push fréquentes (file de la soirée qui bouge souvent).
+        NSSupportsLiveActivitiesFrequentUpdates: true
         UILaunchScreen:
           UIColorName: LaunchBackground
         UIStatusBarStyle: UIStatusBarStyleLightContent

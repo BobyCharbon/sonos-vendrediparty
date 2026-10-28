@@ -30,6 +30,8 @@ from .accounts import AccountError, Accounts
 from .audit import AuditLog
 from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
 from .github_issues import GitHubError, Issues
+from . import live_activity
+from .apns import TOPICS
 from .party import ADMIN_NOTIFY_DEFAULTS, GUEST_NOTIFY_DEFAULTS, HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
 from .apns import Apns
 from .push import Push, valid_subscription
@@ -199,12 +201,58 @@ def snapshot(force: bool = False) -> dict:
         return data
 
 
+# Live Activities (app/live_activity.py) : dernière vue envoyée à chaque activité, en mémoire (un redémarrage
+# du serveur renvoie simplement une mise à jour).
+_live: dict[str, dict] = {}
+
+
+def live_slots(data: dict) -> list[live_activity.Slot]:
+    by_pos = requests_by_position(data["upcoming"], store.pending())
+    slots = []
+    for ahead, (t, eta) in enumerate(zip(data["upcoming"], etas(data))):
+        if req := by_pos.get(t["pos"]):
+            slots.append(live_activity.Slot(req.id, req.guest_id, req.track_id, req.title, req.artist,
+                                            req.added_at, ahead, eta))
+    return slots
+
+
+def refresh_live_activities(data: dict, now: float | None = None):
+    """À chaque tour de suivi de la file : pousse aux Live Activities ce qui a changé (app fermée comprise)."""
+    s = store.session
+    if push.apns is None or not (s.activities or s.activity_start_tokens):
+        return
+    now = now or time.time()
+    slots = live_slots(data)
+    paused = data["state"] not in ("PLAYING", "TRANSITIONING")
+    current = (data.get("current") or {}).get("track_id")
+    tracked = {rid: {**info, **_live.get(rid, {})} for rid, info in s.activities.items()}
+    owners_of = {slot.rid: slot.owner for slot in slots}
+    steps = (live_activity.plan(slots, current, tracked, paused, now)
+             + live_activity.starts(slots, set(s.activity_start_tokens), tracked, set(s.activities_started), paused, now))
+    for step in steps:
+        if step.event == "start":
+            target = s.activity_start_tokens.get(owners_of[step.rid])
+            s.activities_started = s.activities_started[-199:] + [step.rid]
+        else:
+            target = s.activities.get(step.rid)
+        if not target:
+            continue
+        _live[step.rid] = {"key": step.key, "remaining": step.payload["content-state"]["remaining"]}
+        if step.event == "end":
+            s.activities.pop(step.rid, None)  # dernier envoi : l'activité ne sera plus suivie
+            _live.pop(step.rid, None)
+        gone = (lambda rid=step.rid: s.activities.pop(rid, None)) if step.event == "update" else (lambda: None)
+        push.send_live_activity(target, step.event, step.payload, step.priority, on_gone=gone)
+    if any(step.event in ("start", "end") for step in steps):
+        store.save(notify=False)
+
+
 def watch_sonos():
     """Interroge le Sonos en continu pendant la soirée pour détecter les changements faits ailleurs."""
     while True:
         if store.session.active:
             try:
-                snapshot(force=True)
+                refresh_live_activities(snapshot(force=True))
             except Exception:
                 pass  # Sonos momentanément injoignable : on réessaie au tour suivant
         time.sleep(5 if spotify_queue() else 1.5)
@@ -2442,6 +2490,61 @@ def guest_notify(body: GuestNotify):
     store.session.guest_notify[body.guest_id] = {**store.session.guest_notify.get(body.guest_id, {}), body.kind: body.on}
     store.save(notify=False)
     return guest_notify_payload(body.guest_id)
+
+
+APNS_HEX = r"^[0-9a-f]{64,200}$"
+
+
+class ActivityToken(BaseModel):
+    guest_id: str
+    request_id: str = Field(max_length=64)
+    token: str = Field("", pattern=r"^([0-9a-f]{64,200})?$")  # vide : l'activité n'est plus suivie
+    environment: Literal["production", "sandbox"] = "production"
+    topic: str = ""
+
+
+@app.post("/api/activity", dependencies=[Depends(require_guest)])
+def activity_token(body: ActivityToken, request: Request):
+    """L'app a démarré la Live Activity d'un de ses titres : le serveur la tient à jour (app fermée comprise)."""
+    check_guest_id(body.guest_id)
+    if not body.token:
+        store.session.activities.pop(body.request_id, None)
+        _live.pop(body.request_id, None)
+        store.save(notify=False)
+        return {"ok": True}
+    if body.topic not in TOPICS:
+        raise HTTPException(400, "App inconnue")
+    req = next((r for r in store.session.requests if r.id == body.request_id), None)
+    if req is None or req.guest_id not in owners(request, body.guest_id):
+        raise HTTPException(404, "Titre introuvable")
+    store.session.activities[req.id] = {"token": body.token, "environment": body.environment, "topic": body.topic,
+                                         "track_id": req.track_id}
+    _live.pop(req.id, None)  # la prochaine vue part tout de suite
+    store.save(notify=False)
+    return {"ok": True}
+
+
+class ActivityStartToken(BaseModel):
+    guest_id: str
+    token: str = Field("", pattern=r"^([0-9a-f]{64,200})?$")  # vide : plus de démarrage par push (réglage coupé)
+    environment: Literal["production", "sandbox"] = "production"
+    topic: str = ""
+
+
+@app.post("/api/activity/start", dependencies=[Depends(require_guest)])
+def activity_start_token(body: ActivityStartToken, request: Request):
+    """Jeton de démarrage (iOS 17.2+) : un titre ajouté pendant que l'app est fermée démarre sa Live Activity."""
+    check_guest_id(body.guest_id)
+    if body.token and body.topic not in TOPICS:
+        raise HTTPException(400, "App inconnue")
+    for owner in owners(request, body.guest_id):
+        if body.token:
+            store.session.activity_start_tokens[owner] = {"token": body.token, "environment": body.environment,
+                                                          "topic": body.topic}
+        else:
+            store.session.activity_start_tokens.pop(owner, None)
+    store.save(notify=False)
+    return {"ok": True}
 
 
 class PushUnsubscribe(BaseModel):

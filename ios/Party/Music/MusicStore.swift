@@ -73,6 +73,10 @@ final class MusicStore: ObservableObject {
     init(api: PartyAPI, web: WebStorage) {
         self.api = api
         self.web = web
+        // Jetons des Live Activities : le serveur les tient à jour quand l'app est fermée.
+        TrackActivities.report = { [weak self] requestID, token in
+            Task { await self?.reportActivity(requestID: requestID, token: token) }
+        }
     }
 
     private let artCache = NSCache<NSString, UIImage>()
@@ -242,6 +246,15 @@ final class MusicStore: ObservableObject {
     func trackPreferenceChanged(_ on: Bool, subscribed: Bool) {
         trackWanted = on
         notifyWhenPlaying = subscribed && on
+    }
+
+    private func reportActivity(requestID: String?, token: String) async {
+        guard let me = await currentIdentity() else { return }
+        if let requestID {
+            try? await api.activityToken(guestID: me.id, requestID: requestID, token: token, environment: PushRegistrar.environment)
+        } else {
+            try? await api.activityStartToken(guestID: me.id, token: token, environment: PushRegistrar.environment)
+        }
     }
 
     // MARK: Recherche
