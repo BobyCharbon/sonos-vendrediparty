@@ -144,3 +144,8 @@ def test_key_pasted_on_one_line_or_with_escaped_newlines_still_loads():
     body = "".join(pem_text.splitlines()[1:-1])
     for variant in (pem_text, pem_text.replace("\n", " "), pem_text.replace("\n", "\\n"), body):
         assert Apns(variant, "KEY1234567").key_id == "KEY1234567"
+
+
+def test_a_badly_pasted_key_never_stops_the_site():
+    from app.apns import Apns
+    assert Apns.from_env({"APNS_KEY_P8": "pas une clé", "APNS_KEY_ID": "KEY1234567"}) is None

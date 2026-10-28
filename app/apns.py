@@ -5,6 +5,7 @@ Une WKWebView n'a pas Web Push : l'app inscrit l'appareil auprès d'Apple et le 
 Clé APNs (.p8, developer.apple.com › Keys) : variables APNS_KEY_P8 (contenu) et APNS_KEY_ID ; sans elles,
 les abonnements natifs sont gardés mais rien n'est envoyé."""
 import base64
+import logging
 import json
 import threading
 import time
@@ -55,7 +56,12 @@ class Apns:
         key, key_id = env.get("APNS_KEY_P8"), env.get("APNS_KEY_ID")
         if not key or not key_id:
             return None
-        return cls(key, key_id, env.get("APNS_TEAM_ID") or TEAM_ID)
+        try:
+            return cls(key, key_id, env.get("APNS_TEAM_ID") or TEAM_ID)
+        except ValueError:
+            # Clé mal collée : le site doit démarrer quand même (sans notifications natives), jamais planter.
+            logging.getLogger(__name__).error("APNS_KEY_P8 illisible : notifications natives désactivées")
+            return None
 
     def _provider_token(self) -> str:
         with self._lock:
