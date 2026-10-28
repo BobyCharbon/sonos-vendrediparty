@@ -3,6 +3,7 @@ puis donne au compte un identifiant de joueur stable et secret, le même sur tou
 import hashlib
 import hmac
 import os
+import secrets
 import threading
 import time
 from urllib.parse import quote
@@ -16,6 +17,8 @@ PHOTO_TTL = 7 * 24 * 3600   # lien de photo visible par les autres joueurs
 CACHE_TTL = 300             # un même jeton n'est revérifié qu'au bout de 5 min
 EVENT_LOOKBACK = 12 * 3600  # un événement commencé depuis moins de 12 h peut encore être lié à la soirée
 EVENT_CHOICES = 8
+PROFILE_PHOTOS = "profile-photos"
+PROFILE_FIELDS = "id,display_name,first_name,last_name,phone,avatar_url,role,status"
 
 
 class AccountError(Exception):
@@ -111,6 +114,103 @@ class Accounts:
         if r.status_code not in (200, 204):
             raise AccountError("Tes préférences n'ont pas été enregistrées. Réessaie dans un instant.")
         return self.notification_prefs(token)
+
+    def register_push(self, token: str, device: str, on: bool):
+        """App iOS native : cet iPhone reçoit (on) ou ne reçoit plus les notifications des événements du compte.
+        Lié à la session du membre (une déconnexion le retire) ; envoi par la fonction send-push (APNs)."""
+        self._uid(token)
+        name = "apns:" + device
+        r = (self._get("POST", "/rest/v1/rpc/register_device_push_token", token, json={"device_token": name, "device_platform": "ios"})
+             if on else self._get("POST", "/rest/v1/rpc/unregister_device_push_token", token, json={"device_token": name}))
+        if r.status_code not in (200, 204):
+            raise AccountError("Cet iPhone n'a pas pu être enregistré pour les événements. Réessaie dans un instant.")
+
+    def subscriptions(self, token: str) -> dict:
+        """Catégories et tags actifs, et ceux que le membre suit (alertes « Si abonné », filtre de la liste)."""
+        uid = self._uid(token)
+        reads = {
+            "categories": "/rest/v1/categories?select=id,name,color,icon&archived=eq.false&order=sort",
+            "tags": "/rest/v1/tags?select=id,name,color&archived=eq.false&order=name",
+            "category_ids": f"/rest/v1/category_subscriptions?select=category_id&user_id=eq.{uid}",
+            "tag_ids": f"/rest/v1/tag_subscriptions?select=tag_id&user_id=eq.{uid}",
+        }
+        out = {}
+        for key, path in reads.items():
+            r = self._get("GET", path, token)
+            rows = r.json() if r.status_code == 200 else None
+            if not isinstance(rows, list):
+                raise AccountError("Tes abonnements n'ont pas pu être lus. Réessaie dans un instant.")
+            out[key] = [row[key.removesuffix("s")] for row in rows] if key.endswith("_ids") else rows
+        return out
+
+    def set_subscription(self, token: str, kind: str, topic: str, on: bool) -> dict:
+        """Suivre (on) ou ne plus suivre une catégorie ou un tag ; kind : category | tag (vérifié par l'appelant)."""
+        uid = self._uid(token)
+        table, col = f"/rest/v1/{kind}_subscriptions", f"{kind}_id"
+        if on:
+            r = self._get("POST", table, token, json={"user_id": uid, col: topic},
+                          headers={"Prefer": "return=minimal,resolution=ignore-duplicates"})
+        else:
+            r = self._get("DELETE", f"{table}?user_id=eq.{uid}&{col}=eq.{topic}", token)
+        if r.status_code not in (200, 201, 204, 409):
+            raise AccountError("Ton choix n'a pas été enregistré. Vérifie ta connexion et réessaie.")
+        return self.subscriptions(token)
+
+    def _signed_photo(self, path: str | None, token: str) -> str | None:
+        if not path:
+            return None
+        s = self._get("POST", f"/storage/v1/object/sign/{PROFILE_PHOTOS}/{quote(path)}", token, json={"expiresIn": PHOTO_TTL})
+        signed = s.json().get("signedURL") if s.status_code == 200 else None
+        return SUPABASE_URL + "/storage/v1" + signed if signed else None
+
+    def profile(self, token: str) -> dict:
+        """Mon profil (Réglages natifs) : la ligne profiles du membre, lue avec sa session, et un lien vers sa photo."""
+        uid = self._uid(token)
+        r = self._get("GET", f"/rest/v1/profiles?id=eq.{uid}&select={PROFILE_FIELDS}", token)
+        rows = r.json() if r.status_code == 200 else []
+        if not isinstance(rows, list) or not rows:
+            raise AccountError("Profil introuvable. Reconnecte-toi.")
+        return {**rows[0], "photo": self._signed_photo(rows[0].get("avatar_url"), token)}
+
+    def update_profile(self, token: str, fields: dict, photo: bytes | None) -> dict:
+        """Prénom, nom, surnom et, au besoin, nouvelle photo (JPEG déjà recadré par l'app) : la photo va dans le
+        dossier du membre, puis le profil la désigne ; l'ancienne est effacée. Refusé : la photo envoyée est retirée.
+        Les règles (tout obligatoire, surnom ≤ 40) sont aussi vérifiées par la base (trigger guard_profile)."""
+        uid = self._uid(token)
+        before = self.profile(token)
+        uploaded = None
+        if photo:
+            uploaded = f"{uid}/{int(time.time() * 1000)}-{secrets.token_hex(4)}.jpg"
+            up = self._get("POST", f"/storage/v1/object/{PROFILE_PHOTOS}/{uploaded}", token, content=photo,
+                           headers={"Content-Type": "image/jpeg", "x-upsert": "false"})
+            if up.status_code not in (200, 201):
+                raise AccountError("La photo n'a pas pu être envoyée. Vérifie ta connexion puis réessaie.")
+        patch = {**fields, **({"avatar_url": uploaded} if uploaded else {})}
+        r = self._get("PATCH", f"/rest/v1/profiles?id=eq.{uid}", token, json=patch, headers={"Prefer": "return=minimal"})
+        old = before.get("avatar_url")
+        if r.status_code not in (200, 204):
+            if uploaded:
+                self._remove_photos([uploaded], token)
+            raise AccountError(self._db_message(r))
+        if uploaded and old:
+            self._remove_photos([old], token)
+        return self.profile(token)
+
+    def _remove_photos(self, paths: list[str], token: str):
+        try:
+            self._get("DELETE", f"/storage/v1/object/{PROFILE_PHOTOS}", token, json={"prefixes": paths})
+        except AccountError:
+            pass  # photo orpheline : sans conséquence, le profil ne la désigne pas
+
+    @staticmethod
+    def _db_message(r: httpx.Response) -> str:
+        """« profile_incomplete: nom, prénom… » (exception de la base) → la partie lisible ; sinon un message général."""
+        try:
+            message = str(r.json().get("message", ""))
+        except ValueError:
+            message = ""
+        _, _, readable = message.partition(": ")
+        return (readable[:1].upper() + readable[1:]) if readable else "Tes informations n'ont pas pu être enregistrées. Réessaie."
 
     def refresh(self, refresh_token: str) -> dict:
         """Nouvelle session Supabase à partir du jeton de rafraîchissement (même format que celui gardé par le module)."""

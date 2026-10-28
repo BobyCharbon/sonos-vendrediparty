@@ -78,8 +78,9 @@ final class PartyAPI {
     }
 
     /// Notification « ton titre passe » : appareil inscrit chez Apple (APNs), comme push.js dans l'app.
-    func subscribePush(guestID: String, device: [String: Any]) async throws {
-        try await post("/api/push/subscribe", body: ["guest_id": guestID, "subscription": device])
+    /// keepPrefs : abonnement depuis les Réglages, sans allumer « Mon titre passe » (sinon le serveur l'allume).
+    func subscribePush(guestID: String, device: [String: Any], keepPrefs: Bool = false) async throws {
+        try await post("/api/push/subscribe", body: ["guest_id": guestID, "subscription": device, "keep_prefs": keepPrefs])
     }
 
     func unsubscribePush(endpoint: String) async throws {
@@ -122,6 +123,33 @@ final class PartyAPI {
     /// patch : champs de notification_prefs ; NSNull() coupe les heures de silence.
     func updateEventNotifyPrefs(token: String, patch: [String: Any]) async throws -> EventNotifyState {
         try await postDecoding("/api/account/notifications/update", body: ["token": token, "patch": patch])
+    }
+
+    // MARK: Réglages › Mon profil (session du compte)
+
+    func profile(token: String) async throws -> MemberProfile {
+        try await postDecoding("/api/account/profile", body: ["token": token])
+    }
+
+    /// photo : JPEG carré déjà réduit (ProfilePhoto.jpeg) ; nil garde la photo actuelle.
+    func updateProfile(token: String, firstName: String, lastName: String, nickname: String, photo: Data?) async throws -> MemberProfile {
+        var body: [String: Any] = ["token": token, "first_name": firstName, "last_name": lastName, "display_name": nickname]
+        if let photo { body["photo"] = photo.base64EncodedString() }
+        return try await postDecoding("/api/account/profile/update", body: body)
+    }
+
+    /// Notifications des événements du compte sur cet iPhone (jeton APNs, envoyé par Supabase).
+    func registerEventsPush(token: String, device: String, on: Bool) async throws {
+        try await post("/api/account/push", body: ["token": token, "device": device, "on": on])
+    }
+
+    func subscriptions(token: String) async throws -> Subscriptions {
+        try await postDecoding("/api/account/subscriptions", body: ["token": token])
+    }
+
+    /// kind : category | tag.
+    func setSubscription(token: String, kind: String, id: String, on: Bool) async throws -> Subscriptions {
+        try await postDecoding("/api/account/subscriptions/set", body: ["token": token, "kind": kind, "id": id, "on": on])
     }
 
     // MARK: Ton avis (pas besoin du code de la soirée)

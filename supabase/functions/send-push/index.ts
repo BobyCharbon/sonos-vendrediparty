@@ -1,6 +1,7 @@
 // Chaque appel est authentifié par un secret conservé dans Vault.
 // Une livraison par appareil, avec reprise sur erreur et suivi des reçus Expo.
 import { createClient } from 'npm:@supabase/supabase-js@2.117.3';
+import { APNS_TOKEN, apnsConfig, sendApns } from './apns.ts';
 
 const EXPO_URL = 'https://exp.host/--/api/v2/push';
 type Delivery = {
@@ -54,8 +55,24 @@ Deno.serve(async (req: Request) => {
 
     // Limite la durée d'un passage ; les suivants reprendront les autres lignes.
     for (let page = 0; page < 5; page++) {
-      const batch = checked(await db.rpc('claim_push_deliveries', { batch_size: 100 })) as Delivery[];
-      if (!batch.length) break;
+      const claimed = checked(await db.rpc('claim_push_deliveries', { batch_size: 100 })) as Delivery[];
+      if (!claimed.length) break;
+      // App iOS native : directement chez Apple (pas de reçu à attendre). Sans clé APNs configurée, on réessaie plus tard.
+      const apns = apnsConfig((name) => Deno.env.get(name));
+      for (const row of claimed.filter((r) => APNS_TOKEN.test(r.token))) {
+        if (!apns) { await failOrRetry(row, 'ApnsNotConfigured'); continue; }
+        const sent = await sendApns(apns, row.token, row.notification_id, row.title, row.body, row.data ?? {});
+        if (sent.ok) {
+          checked(await db.from('notification_deliveries').update({
+            status: 'delivered', requested_at: new Date().toISOString(), lease_until: null, error: null,
+          }).eq('id', row.delivery_id).eq('status', 'queued'));
+          totals.delivered++;
+        } else {
+          await failOrRetry(row, sent.code, sent.permanent);
+        }
+      }
+      const batch = claimed.filter((r) => !APNS_TOKEN.test(r.token));
+      if (!batch.length) continue;
       let tickets: Ticket[];
       try {
         const response = await expoRequest('send', batch.map((row) => ({

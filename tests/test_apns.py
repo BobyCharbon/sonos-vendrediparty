@@ -132,3 +132,20 @@ def test_native_subscriptions_are_kept_when_apns_is_not_configured(tmp_path):
     push.send([apns_sub()], {"title": "Hello", "body": "!"}, on_gone=gone.append)
     time.sleep(0.1)
     assert gone == []
+
+
+def test_key_pasted_on_one_line_or_with_escaped_newlines_still_loads():
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    from app.apns import Apns
+    pem_text = ec.generate_private_key(ec.SECP256R1()).private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
+    body = "".join(pem_text.splitlines()[1:-1])
+    for variant in (pem_text, pem_text.replace("\n", " "), pem_text.replace("\n", "\\n"), body):
+        assert Apns(variant, "KEY1234567").key_id == "KEY1234567"
+
+
+def test_a_badly_pasted_key_never_stops_the_site():
+    from app.apns import Apns
+    assert Apns.from_env({"APNS_KEY_P8": "pas une clé", "APNS_KEY_ID": "KEY1234567"}) is None

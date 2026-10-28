@@ -22,6 +22,8 @@ protocol WebStorage: AnyObject {
     func openInPage(_ url: URL)
     /// Jeton de session du compte (Supabase), renouvelé par la page s'il expire ; nil : pas connecté.
     func accountToken() async -> String?
+    /// Le profil du compte a changé : la page le relit (surnom, photo, droits).
+    func accountChanged() async
 }
 
 /// Onglet Musique natif : état de la soirée en direct, recherche, ajout, messages à l'hôte.
@@ -126,7 +128,7 @@ final class MusicStore: ObservableObject {
             if let serverName = state.name, !serverName.isEmpty, serverName != me.name { remember(name: serverName) }
             if trackWanted == nil { trackWanted = (try? await api.notifyPrefs(guestID: me.id))?.prefs["track"] }
             let subscribed = await hasPushSubscription()
-            notifyWhenPlaying = subscribed && trackWanted != false
+            notifyWhenPlaying = subscribed && trackWanted == true
             await web?.shareSession()
         } catch PartyAPIError.needsCode {
             phase = .needsCode

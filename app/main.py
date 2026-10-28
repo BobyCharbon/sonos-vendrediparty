@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import contextlib
 import hashlib
 import io
@@ -1479,6 +1480,85 @@ def account_notifications_update(body: NotificationUpdate):
         raise HTTPException(401, str(e))
 
 
+class MemberPush(MemberToken):
+    device: str = Field(pattern=r"^[0-9a-f]{64,200}$")  # jeton APNs de l'iPhone
+    on: bool
+
+
+@app.post("/api/account/push")
+def account_push(body: MemberPush):
+    """Réglages natifs : cet iPhone reçoit les notifications des événements du compte (envoi APNs par Supabase)."""
+    try:
+        accounts.register_push(body.token, body.device, body.on)
+    except AccountError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
+
+
+UUID = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+
+
+class SubscriptionSet(MemberToken):
+    kind: Literal["category", "tag"]
+    id: str = Field(pattern=UUID)
+    on: bool
+
+
+@app.post("/api/account/subscriptions")
+def account_subscriptions(body: MemberToken):
+    """Réglages natifs › Abonnements."""
+    try:
+        return accounts.subscriptions(body.token)
+    except AccountError as e:
+        raise HTTPException(401, str(e))
+
+
+@app.post("/api/account/subscriptions/set")
+def account_subscription_set(body: SubscriptionSet):
+    try:
+        return accounts.set_subscription(body.token, body.kind, body.id, body.on)
+    except AccountError as e:
+        raise HTTPException(400, str(e))
+
+
+MAX_PROFILE_PHOTO = 5 * 1024 * 1024  # JPEG recadré par l'app (~200 Ko) ; même plafond que le module Événements
+
+
+class ProfileUpdate(MemberToken):
+    first_name: str = Field(max_length=100)
+    last_name: str = Field(max_length=100)
+    display_name: str = Field(max_length=40)
+    photo: str = Field("", max_length=7 * 1024 * 1024)  # JPEG en base64
+
+
+@app.post("/api/account/profile")
+def account_profile(body: MemberToken):
+    """Réglages natifs › Mon profil."""
+    try:
+        return accounts.profile(body.token)
+    except AccountError as e:
+        raise HTTPException(401, str(e))
+
+
+@app.post("/api/account/profile/update")
+def account_profile_update(body: ProfileUpdate):
+    fields = {k: " ".join(getattr(body, k).split()) for k in ("first_name", "last_name", "display_name")}
+    if not all(fields.values()):
+        raise HTTPException(400, "Prénom, nom et surnom sont obligatoires")
+    photo = None
+    if body.photo:
+        try:
+            photo = base64.b64decode(body.photo, validate=True)
+        except ValueError:
+            raise HTTPException(400, "Photo illisible : choisis-la à nouveau")
+        if not photo.startswith(b"\xff\xd8\xff") or len(photo) > MAX_PROFILE_PHOTO:
+            raise HTTPException(400, "Photo illisible ou trop lourde : choisis-en une autre")
+    try:
+        return accounts.update_profile(body.token, fields, photo)
+    except AccountError as e:
+        raise HTTPException(400, str(e))
+
+
 class EventLink(BaseModel):
     event_id: str = Field("", pattern=r"^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$")
     title: str = Field("", max_length=120)
@@ -2286,6 +2366,9 @@ def push_key():
 class PushSubscribe(BaseModel):
     guest_id: str = ""
     subscription: dict
+    # Réglages natifs : l'iPhone s'abonne sans toucher aux types choisis. Sinon (bouton « Préviens-moi quand mon
+    # titre passe ») l'abonnement allume aussi « Mon titre passe ».
+    keep_prefs: bool = False
 
 
 def checked_subscription(sub: dict) -> dict:
@@ -2298,6 +2381,8 @@ def checked_subscription(sub: dict) -> dict:
 def push_subscribe(body: PushSubscribe):
     """L'invité veut être prévenu quand son titre passe."""
     check_guest_id(body.guest_id)
+    if not body.keep_prefs:
+        store.session.guest_notify[body.guest_id] = {**store.session.guest_notify.get(body.guest_id, {}), "track": True}
     store.add_push(body.guest_id, checked_subscription(body.subscription))
     return {"ok": True}
 

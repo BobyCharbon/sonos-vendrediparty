@@ -20,8 +20,12 @@ struct SettingsView: View {
                                     hint: "Musique, jeux, avis et événements : choisis ce qui t'avertit")
                     }
                     if store.account != nil {
-                        page(.account("/settings/subscriptions"), "tag.fill", .orange, "Abonnements",
-                             "Catégories et tags d'événements que tu suis")
+                        NavigationLink {
+                            SubscriptionsView(store: store)
+                        } label: {
+                            SettingsRow(symbol: "tag.fill", tint: .orange, title: "Abonnements",
+                                        hint: "Catégories et tags d'événements que tu suis")
+                        }
                     }
                 }
                 if isHost || store.account?.admin == true {
@@ -65,19 +69,16 @@ struct SettingsView: View {
     private var accountSection: some View {
         Section {
             if let account = store.account {
-                Button { open(.account("/settings/profile")) } label: {
+                NavigationLink { ProfileView(store: store) } label: {
                     HStack(spacing: 14) {
                         Avatar(photo: account.photo, name: account.name)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(account.name.isEmpty ? "Profil à compléter" : account.name).font(.title3.weight(.semibold))
                             Text("Mon profil : surnom, photo, prénom et nom").font(.footnote).foregroundStyle(.secondary)
                         }
-                        Spacer(minLength: 0)
-                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
                     }
                     .padding(.vertical, 4)
                 }
-                .foregroundStyle(.primary)
                 .accessibilityLabel("Mon profil : \(account.name)")
             } else {
                 Button { open(.account("/account")) } label: {

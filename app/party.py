@@ -32,7 +32,8 @@ class Request:
 
 # Notifications que chacun choisit (Réglages › Notifications) et leur valeur tant qu'il n'a rien choisi.
 ADMIN_NOTIFY_DEFAULTS = {"messages": True, "games": False, "feedback": True}
-GUEST_NOTIFY_DEFAULTS = {"track": True, "feedback": True, "games": False}
+# Choix de l'admin du 28.10.2026 : « Mon titre passe » coupé tant que l'invité ne le demande pas.
+GUEST_NOTIFY_DEFAULTS = {"track": False, "feedback": True, "games": False}
 
 
 @dataclass

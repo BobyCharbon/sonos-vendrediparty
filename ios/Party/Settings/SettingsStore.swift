@@ -28,6 +28,12 @@ final class SettingsStore: ObservableObject {
     @Published private(set) var host: AdminNotifyState?
     @Published private(set) var events: EventsPhase = .signedOut
     @Published private(set) var liveActivities = LiveActivitySetting.isEnabled
+    /// Mon profil ; nil tant qu'il n'est pas lu (ou pas connecté).
+    @Published private(set) var profile: MemberProfile?
+    @Published private(set) var profileError: String?
+    @Published private(set) var savingProfile = false
+    @Published private(set) var subscriptions: Subscriptions?
+    @Published private(set) var subscriptionsError: String?
     /// Type en cours d'enregistrement (interrupteur désactivé pendant ce temps).
     @Published private(set) var saving: Set<String> = []
     @Published var notice: Notice?
@@ -62,6 +68,19 @@ final class SettingsStore: ObservableObject {
         async let party: Void = loadParty()
         async let member: Void = loadEvents()
         _ = await (party, member)
+        if deviceSubscribed { await syncEventsPush(true) }
+    }
+
+    /// Les événements du compte arrivent sur cet iPhone tant que ses notifications sont actives (sans erreur
+    /// affichée : rien à faire pour la personne si le compte n'est pas connecté).
+    private func syncEventsPush(_ on: Bool) async {
+        guard account != nil, let token = await web?.accountToken(),
+              let device = on ? try? await PushRegistrar.shared.register() : await savedDevice() else { return }
+        try? await api.registerEventsPush(token: token, device: device, on: on)
+    }
+
+    private func savedDevice() async -> String? {
+        await savedEndpoint().flatMap { $0.hasPrefix("apns:") ? String($0.dropFirst(5)) : nil }
     }
 
     private func loadParty() async {
@@ -84,6 +103,67 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    // MARK: Mon profil
+
+    func loadProfile() async {
+        guard let token = await web?.accountToken() else {
+            profileError = "Connecte-toi pour modifier ton profil"
+            return
+        }
+        do {
+            profile = try await api.profile(token: token)
+            profileError = nil
+        } catch {
+            profileError = Self.accountMessage(error)
+        }
+    }
+
+    /// true : enregistré. La page relit le compte (surnom et photo partout : jeux, carte des Réglages).
+    func saveProfile(first: String, last: String, nickname: String, photo: Data?) async -> Bool {
+        guard let token = await web?.accountToken() else { return false }
+        savingProfile = true
+        defer { savingProfile = false }
+        do {
+            profile = try await api.updateProfile(token: token, firstName: ProfileRules.clean(first), lastName: ProfileRules.clean(last),
+                                                  nickname: ProfileRules.clean(nickname), photo: photo)
+            await web?.accountChanged()
+            await refreshAccount()
+            notice = Notice(text: "✓ Profil enregistré", isError: false)
+            return true
+        } catch {
+            notice = Notice(text: Self.accountMessage(error), isError: true)
+            return false
+        }
+    }
+
+    // MARK: Abonnements
+
+    func loadSubscriptions() async {
+        guard let token = await web?.accountToken() else {
+            subscriptionsError = "Connecte-toi pour suivre des catégories et des tags"
+            return
+        }
+        do {
+            subscriptions = try await api.subscriptions(token: token)
+            subscriptionsError = nil
+        } catch {
+            subscriptionsError = Self.accountMessage(error)
+        }
+    }
+
+    func setSubscription(_ kind: String, _ id: String, _ on: Bool) async {
+        guard let before = subscriptions, let token = await web?.accountToken() else { return }
+        subscriptions = before.setting(kind, id, on)
+        await save("sub." + id) {
+            do {
+                subscriptions = try await api.setSubscription(token: token, kind: kind, id: id, on: on)
+            } catch {
+                subscriptions = before
+                throw PartyAPIError.server(Self.accountMessage(error))
+            }
+        }
+    }
+
     // MARK: Cet iPhone
 
     /// Notifications de la soirée sur cet iPhone (musique, jeux, avis) : abonnement de l'appareil.
@@ -92,7 +172,9 @@ final class SettingsStore: ObservableObject {
         await save("device") {
             if on {
                 try await subscribeDevice(me)
+                await syncEventsPush(true)
             } else if let endpoint = await savedEndpoint() {
+                await syncEventsPush(false)
                 try await api.unsubscribePush(endpoint: endpoint)
                 web?.writeLocal(PushRegistrar.pageKey, nil)
             }
@@ -192,7 +274,7 @@ final class SettingsStore: ObservableObject {
 
     private func subscribeDevice(_ me: GuestIdentity) async throws {
         let device = try await PushRegistrar.shared.device()
-        try await api.subscribePush(guestID: me.id, device: device)
+        try await api.subscribePush(guestID: me.id, device: device, keepPrefs: true)
         web?.writeLocal(PushRegistrar.pageKey, String(data: try JSONSerialization.data(withJSONObject: device), encoding: .utf8))
         if isHost() { try? await api.subscribeAdminPush(device: device) }
         permission = await PushRegistrar.shared.status()

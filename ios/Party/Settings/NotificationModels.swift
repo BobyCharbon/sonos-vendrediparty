@@ -141,3 +141,89 @@ struct AccountSummary: Decodable, Equatable {
         return try? JSONDecoder().decode(AccountSummary.self, from: data)
     }
 }
+
+/// Mon profil (POST /api/account/profile) : ligne profiles du membre ; photo = lien signé, valable quelques jours.
+struct MemberProfile: Decodable, Equatable {
+    let id: String
+    var displayName: String
+    var firstName: String
+    var lastName: String
+    let phone: String?
+    let role: String
+    let status: String
+    let photo: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, phone, role, status, photo
+        case displayName = "display_name", firstName = "first_name", lastName = "last_name"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        displayName = try c.decodeIfPresent(String.self, forKey: .displayName) ?? ""
+        firstName = try c.decodeIfPresent(String.self, forKey: .firstName) ?? ""
+        lastName = try c.decodeIfPresent(String.self, forKey: .lastName) ?? ""
+        phone = try c.decodeIfPresent(String.self, forKey: .phone)
+        role = try c.decodeIfPresent(String.self, forKey: .role) ?? "guest"
+        status = try c.decodeIfPresent(String.self, forKey: .status) ?? "active"
+        photo = try c.decodeIfPresent(String.self, forKey: .photo)
+    }
+
+    /// Libellés du module Événements (roleLabel dans web/events/src/lib/types.ts).
+    var roleLabel: String {
+        if status == "banned" { return "Accès retiré" }
+        return ["guest": "Guest", "member": "Membre VIP", "organizer": "Organisateur", "coadmin": "Co-admin", "admin": "Admin"][role] ?? role
+    }
+}
+
+/// Règles de Mon profil, les mêmes que la base (trigger guard_profile) : tout est obligatoire, surnom ≤ 40.
+enum ProfileRules {
+    static let nicknameLength = 40
+    static let nameLength = 100
+
+    static func clean(_ text: String) -> String {
+        text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+
+    static func isComplete(first: String, last: String, nickname: String, hasPhoto: Bool) -> Bool {
+        !clean(first).isEmpty && !clean(last).isEmpty && !clean(nickname).isEmpty && hasPhoto
+            && clean(nickname).count <= nicknameLength
+    }
+}
+
+/// Abonnements (POST /api/account/subscriptions) : catégories et tags actifs, et ceux que le membre suit.
+struct Subscriptions: Decodable, Equatable {
+    struct Topic: Decodable, Equatable, Identifiable {
+        let id: String
+        let name: String
+        let color: String?
+        let icon: String?
+    }
+
+    var categories: [Topic]
+    var tags: [Topic]
+    var categoryIDs: Set<String>
+    var tagIDs: Set<String>
+
+    enum CodingKeys: String, CodingKey {
+        case categories, tags, categoryIDs = "category_ids", tagIDs = "tag_ids"
+    }
+
+    var count: Int { categoryIDs.count + tagIDs.count }
+
+    func follows(_ kind: String, _ id: String) -> Bool {
+        (kind == "category" ? categoryIDs : tagIDs).contains(id)
+    }
+
+    /// Choix appliqué tout de suite à l'écran (remis comme avant si l'enregistrement échoue).
+    func setting(_ kind: String, _ id: String, _ on: Bool) -> Subscriptions {
+        var copy = self
+        if kind == "category" {
+            copy.categoryIDs = on ? categoryIDs.union([id]) : categoryIDs.subtracting([id])
+        } else {
+            copy.tagIDs = on ? tagIDs.union([id]) : tagIDs.subtracting([id])
+        }
+        return copy
+    }
+}

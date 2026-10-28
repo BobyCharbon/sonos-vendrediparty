@@ -14,6 +14,8 @@ import { Button, Chip, ErrorText, Field, Input, Rows, s, Screen, Section, Segmen
 import { AudiencePicker, audienceChildren, audienceError, audienceFromEvent, audienceToEvent, DEFAULT_AUDIENCE, type AudienceValue, type Person } from './AudiencePicker';
 import { DateTimeField } from './DateTimeField';
 import { PlaceSearch } from './PlaceSearch';
+import { SaveAsTemplate, TemplateList } from './TemplatePicker';
+import { applyTemplate, templateData } from '@/lib/templates';
 
 type PollDraft = {
   id?: string;
@@ -489,6 +491,11 @@ export function EventForm({ eventId }: { eventId?: string }) {
         </T>
       </View>
 
+      {!eventId && isAdmin ? (
+        <TemplateList meId={me.id} canDeleteAll={can('events.manage_all')}
+          onApply={(t) => setDraft(applyTemplate(d as unknown as Record<string, unknown>, t.data) as unknown as Draft)} />
+      ) : null}
+
       <Section title="L’essentiel">
         <Field label="Titre" value={d.title} onChangeText={(title) => set({ title })} maxLength={120} placeholder="Karting, soirée raclette…" />
         <Field label="Description" value={d.description} onChangeText={(description) => set({ description })} multiline />
@@ -698,6 +705,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
           </T>
         </View>
       ) : null}
+      {isAdmin ? <SaveAsTemplate data={() => templateData(d as unknown as Record<string, unknown>)} /> : null}
       <ErrorText error={error} />
       <Button label={submitLabel} onPress={() => submit(false)} loading={busy} />
       {!eventId || ctx.status === 'draft' ? (
