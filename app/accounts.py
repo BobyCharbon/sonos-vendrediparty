@@ -222,7 +222,8 @@ class Accounts:
     def profile(self, token: str) -> dict:
         """Mon profil (Réglages natifs) : la ligne profiles du membre, lue avec sa session, et un lien vers sa photo."""
         uid = self._uid(token)
-        r = self._get("GET", f"/rest/v1/profiles?id=eq.{uid}&select={PROFILE_FIELDS}", token)
+        # La table profiles ne laisse lire que les colonnes publiques ; l'annuaire donne au membre toute sa propre ligne.
+        r = self._get("GET", f"/rest/v1/rpc/get_member_directory?id=eq.{uid}&select={PROFILE_FIELDS}", token)
         rows = r.json() if r.status_code == 200 else []
         if not isinstance(rows, list) or not rows:
             raise AccountError("Profil introuvable. Reconnecte-toi.")

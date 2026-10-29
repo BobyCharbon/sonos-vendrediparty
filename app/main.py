@@ -1641,52 +1641,52 @@ class AdminJournal(MemberToken):
 
 # Réglages natifs › Administration du groupe : la base revérifie chaque droit avec la session du membre.
 @app.post("/api/account/group-admin")
-def group_admin(body: MemberToken):
+def account_group_admin(body: MemberToken):
     return account_call(lambda: group_admin.overview(body.token), 401)
 
 
 @app.post("/api/account/group-admin/event")
-def group_admin_event(body: AdminDecision):
+def account_group_admin_event(body: AdminDecision):
     return account_call(lambda: group_admin.decide_event(body.token, body.id, body.yes, (body.reason or "").strip()))
 
 
 @app.post("/api/account/group-admin/request")
-def group_admin_request(body: AdminDecision):
+def account_group_admin_request(body: AdminDecision):
     return account_call(lambda: group_admin.decide_request(body.token, body.id, body.yes))
 
 
 @app.post("/api/account/group-admin/approval")
-def group_admin_approval(body: AdminSwitch):
+def account_group_admin_approval(body: AdminSwitch):
     return account_call(lambda: group_admin.set_require_approval(body.token, body.on))
 
 
 @app.post("/api/account/group-admin/members")
-def group_admin_members(body: MemberToken):
+def account_group_admin_members(body: MemberToken):
     return account_call(lambda: group_admin.members(body.token), 401)
 
 
 @app.post("/api/account/group-admin/member")
-def group_admin_member(body: AdminMemberUpdate):
+def account_group_admin_member(body: AdminMemberUpdate):
     return account_call(lambda: group_admin.update_member(body.token, body.id, body.role, body.status, body.beta))
 
 
 @app.post("/api/account/group-admin/member/delete")
-def group_admin_member_delete(body: AdminMemberDelete):
+def account_group_admin_member_delete(body: AdminMemberDelete):
     return account_call(lambda: group_admin.delete_member(body.token, body.id, body.confirm_name.strip()))
 
 
 @app.post("/api/account/group-admin/roles")
-def group_admin_roles(body: MemberToken):
+def account_group_admin_roles(body: MemberToken):
     return account_call(lambda: group_admin.roles(body.token), 401)
 
 
 @app.post("/api/account/group-admin/permission")
-def group_admin_permission(body: AdminPermission):
+def account_group_admin_permission(body: AdminPermission):
     return account_call(lambda: group_admin.set_permission(body.token, body.role, body.perm, body.on))
 
 
 @app.post("/api/account/group-admin/journal")
-def group_admin_journal(body: AdminJournal):
+def account_group_admin_journal(body: AdminJournal):
     return account_call(lambda: group_admin.journal(body.token, body.member, body.before))
 
 

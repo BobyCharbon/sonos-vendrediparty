@@ -19,8 +19,11 @@ def fake_supabase(patch_status=204):
         seen.append((request.method, request.url.path, request.content))
         if request.url.path == "/auth/v1/user":
             return httpx.Response(200, json={"id": "u-7"})
-        if request.url.path == "/rest/v1/profiles" and request.method == "GET":
+        if request.url.path == "/rest/v1/rpc/get_member_directory":
             return httpx.Response(200, json=[ROW])
+        if request.url.path == "/rest/v1/profiles" and request.method == "GET":
+            # Comme la vraie base : prénom, nom et numéro ne se lisent pas dans la table.
+            return httpx.Response(403, json={"message": "permission denied for table profiles"})
         if request.url.path == "/rest/v1/profiles" and request.method == "PATCH":
             return httpx.Response(patch_status, json={"message": "profile_incomplete"} if patch_status >= 400 else None)
         if request.url.path.startswith("/storage/v1/object/sign/profile-photos/"):

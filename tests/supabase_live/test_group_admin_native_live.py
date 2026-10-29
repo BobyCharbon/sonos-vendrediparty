@@ -50,3 +50,26 @@ def test_guest_gets_refusals_not_data():
             admin.update_member(token, ga.ROOT_ID, None, 'banned', None)
     finally:
         patch.undo()
+
+
+def test_member_settings_routes_through_the_real_app():
+    """Toutes les routes des Réglages natifs, par l'app FastAPI elle-même (rien de remplacé) : un membre
+    lit son profil, ses notifications, ses groupes, ses abonnements ; l'administration lui répond sans planter."""
+    from fastapi.testclient import TestClient
+
+    from app import main
+    patch = pytest.MonkeyPatch()
+    patch.setattr(accounts_mod, 'SUPABASE_URL', TEST_URL)
+    patch.setattr(accounts_mod, 'SUPABASE_ANON_KEY', KEY_FILE.read_text().strip())
+    patch.setattr(ga, 'SUPABASE_URL', TEST_URL)
+    try:
+        token = Session(GUESTS[0]).headers['Authorization'].removeprefix('Bearer ')
+        client = TestClient(main.app)
+        for path in ('/api/account/profile', '/api/account/notifications', '/api/account/groups',
+                     '/api/account/subscriptions', '/api/account/group-admin'):
+            r = client.post(path, json={'token': token})
+            assert r.status_code == 200, (path, r.text)
+        assert client.post('/api/account/profile', json={'token': token}).json()['display_name']
+        assert client.post('/api/account/group-admin/journal', json={'token': token}).status_code == 400
+    finally:
+        patch.undo()
