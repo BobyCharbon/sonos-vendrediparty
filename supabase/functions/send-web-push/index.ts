@@ -4,7 +4,7 @@ import webpush from 'web-push';
 type Keys = { publicKey: string; privateKey: string };
 type Delivery = {
   id: string; attempts: number; subscription: { endpoint: string; keys: { auth: string; p256dh: string } };
-  title: string; body: string; kind: string; origin: string; event_id: string | null; notification_id: string;
+  title: string; body: string; kind: string; origin: string; event_id: string | null; group_id?: string | null; notification_id: string;
 };
 function checked<T>({ data, error }: { data: T; error: unknown }): T {
   if (error) throw new Error('Database operation failed');
@@ -45,9 +45,15 @@ Deno.serve(async (req: Request) => {
             if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password || (endpoint.port && endpoint.port !== '443')
               || !hosts.some((host) => endpoint.hostname === host || (host !== 'fcm.googleapis.com' && endpoint.hostname.endsWith('.' + host)))) throw new Error('Invalid endpoint');
             const target = new URL('/', row.origin);
-            target.searchParams.set('tab', 'events');
-            if (row.event_id) target.searchParams.set('event', row.event_id);
-            else target.searchParams.set('activity', '1');
+            if (row.kind === 'group_message' && row.group_id && /^[0-9a-f-]{36}$/.test(row.group_id)) {
+              // Discussion de groupe (avis n°10) : le toucher ouvre la conversation.
+              target.searchParams.set('tab', 'chats');
+              target.searchParams.set('chat', row.group_id);
+            } else {
+              target.searchParams.set('tab', 'events');
+              if (row.event_id) target.searchParams.set('event', row.event_id);
+              else target.searchParams.set('activity', '1');
+            }
             const payload = JSON.stringify({
               title: row.title.slice(0, 100), body: row.body.slice(0, 180),
               tag: 'party-event-' + row.notification_id, url: target.href,

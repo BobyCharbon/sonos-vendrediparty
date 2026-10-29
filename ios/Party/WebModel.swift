@@ -38,6 +38,8 @@ final class WebModel: ObservableObject {
     private(set) var hostMusic: HostMusicStore?
     /// Retours reçus (hôte), dans l'onglet « Retours » natif.
     private(set) var feedbackAdmin: FeedbackAdminStore?
+    /// Discussions de groupe (avis n°10), onglet natif.
+    private(set) var chats: ChatsStore?
 
     /// L'hôte gère la soirée dans l'écran natif (« Gérer la soirée ») plutôt qu'en vue invité ; retenu.
     @Published var hostNativeMusic = UserDefaults.standard.bool(forKey: "hostNativeMusic") {
@@ -73,6 +75,7 @@ final class WebModel: ObservableObject {
         feedback = FeedbackStore(api: api, web: self) { [weak self] in self?.lastContentTab }
         hostMusic = HostMusicStore(api: api, web: self)
         feedbackAdmin = FeedbackAdminStore(api: api, web: self)
+        chats = ChatsStore(api: api, web: self)
         settings = SettingsStore(api: api, web: self, isHost: { [weak self] in self?.isHost ?? false },
                                  trackChanged: { [weak self] on, subscribed in
                                      self?.music?.trackPreferenceChanged(on, subscribed: subscribed)
@@ -83,6 +86,8 @@ final class WebModel: ObservableObject {
 
     func open(_ url: URL) {
         let target = AppConfig.isInternal(url) ? url : start
+        // Notification de discussion (?tab=chats&chat=<groupe>) : l'écran natif ouvre la conversation.
+        chats?.requested = Self.chatRequested(in: target) ?? chats?.requested
         guard let webView else {
             pending = target
             return
@@ -103,6 +108,14 @@ final class WebModel: ObservableObject {
     }
 
     var isHost: Bool { tabs?.host == true }
+
+    nonisolated static func chatRequested(in url: URL) -> String? {
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        guard items.first(where: { $0.name == "tab" })?.value == "chats",
+              let chat = items.first(where: { $0.name == "chat" })?.value,
+              chat.range(of: "^[0-9a-fA-F-]{36}$", options: .regularExpression) != nil else { return nil }
+        return chat.lowercased()
+    }
 
     /// Onglet natif affiché (nil : la page). L'hôte qui gère cet écran garde la page.
     var nativeScreen: String? {

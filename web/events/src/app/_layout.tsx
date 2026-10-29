@@ -42,7 +42,12 @@ function backLabel(label?: string) {
 }
 
 const intentKey = 'party-events-destination';
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit)?|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|activity|announcements|account|settings\/(?:notifications|subscriptions|profile))$/i;
+// Dans la page Party, l'onglet porte déjà le grand titre (« Discussions ») : pas d'en-tête en double.
+function inPartyShell(): boolean {
+  return typeof window !== 'undefined' && window.parent !== window;
+}
+
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit)?|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|chats(?:\/[a-f0-9-]{36})?|activity|announcements|account|settings\/(?:notifications|subscriptions|profile))$/i;
 function initialDestination() {
   if (typeof window === 'undefined') return null;
   const path = location.pathname.replace(/^\/events(?=\/|$)/, '');
@@ -148,6 +153,8 @@ function Gate() {
         <Stack.Screen name="settings/notifications" options={{ title: 'Notifications et abonnements' }} />
         <Stack.Screen name="settings/subscriptions" options={{ title: 'Notifications et abonnements' }} />
         <Stack.Screen name="groups" options={{ title: 'Groupes' }} />
+        <Stack.Screen name="chats/index" options={{ title: 'Discussions', headerShown: !inPartyShell() }} />
+        <Stack.Screen name="chats/[id]" options={{ title: 'Discussion' }} />
         <Stack.Screen name="member/[id]" options={{ title: 'Profil', presentation: 'modal' }} />
         <Stack.Screen name="admin/index" options={{ title: 'Administration' }} />
         <Stack.Screen name="admin/members" options={{ title: 'Membres' }} />

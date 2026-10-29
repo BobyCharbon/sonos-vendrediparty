@@ -34,8 +34,12 @@ async function jwt(config: Config): Promise<string> {
   return cached.jwt;
 }
 
-/** Toucher de la notification : l'onglet Événements, sur l'événement concerné (comme send-web-push). */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** Toucher de la notification : la discussion du groupe (avis n°10), sinon l'onglet Événements sur l'événement
+ * concerné (comme send-web-push). */
 export function tapPath(data: Record<string, unknown>): string {
+  if (data.kind === 'group_message' && typeof data.group_id === 'string' && UUID.test(data.group_id)) return `/?tab=chats&chat=${data.group_id}`;
   const event = typeof data.event_id === 'string' && /^[0-9a-f-]{36}$/.test(data.event_id) ? data.event_id : null;
   return event ? `/?tab=events&event=${event}` : '/?tab=events&activity=1';
 }

@@ -29,6 +29,7 @@ from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
 from .account_auth import AccountAuth
 from .group_admin import ROLES as ADMIN_ROLES, GroupAdmin
+from .group_chats import LEVELS as CHAT_LEVELS, PHOTO_MAX as CHAT_PHOTO_MAX, GroupChats
 from .audit import AuditLog
 from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
 from .github_issues import GitHubError, Issues
@@ -1414,6 +1415,7 @@ def presence(body: Presence, request: Request):
 
 accounts = Accounts(_secret())
 group_admin = GroupAdmin(accounts)
+group_chats = GroupChats(group_admin)
 account_auth = AccountAuth(accounts)
 # Ne compte que les vrais refus (compte sans droit admin). Un jeton expiré ou invalide n'est jamais compté :
 # un jeton Supabase ne se devine pas, et l'app rouverte après 1 h en présente un périmé. Compté, il bloquait
@@ -1692,6 +1694,97 @@ class AdminPermission(MemberToken):
 class AdminJournal(MemberToken):
     member: str | None = Field(default=None, pattern=UUID)
     before: int | None = Field(default=None, ge=1)
+
+
+# Discussions de groupe (avis n°10) pour l'app native : la base revérifie tout avec la session du membre.
+class ChatRef(MemberToken):
+    group_id: str = Field(pattern=UUID)
+
+
+class ChatSend(ChatRef):
+    body: str = Field(default="", max_length=2000)
+    reply_to: str | None = Field(default=None, pattern=UUID)
+    photo_path: str | None = Field(default=None, max_length=200, pattern=r"^[0-9a-f-]{36}/[0-9]+-[0-9a-f]{10}\.(jpg|png)$")
+
+
+class ChatPhoto(ChatRef):
+    photo: str = Field(min_length=1, max_length=CHAT_PHOTO_MAX * 4 // 3 + 8)  # base64
+
+
+class ChatMessage(MemberToken):
+    id: str = Field(pattern=UUID)
+
+
+class ChatReact(ChatMessage):
+    emoji: str = Field(min_length=1, max_length=16)
+    on: bool
+
+
+class ChatPin(ChatMessage):
+    pin: bool
+
+
+class ChatNotify(ChatRef):
+    level: Literal[CHAT_LEVELS]
+
+
+class ChatAdmin(ChatRef):
+    user_id: str = Field(pattern=UUID)
+    on: bool
+
+
+@app.post("/api/account/chats")
+def account_chats(body: MemberToken):
+    return account_call(lambda: group_chats.chats(body.token), 401)
+
+
+@app.post("/api/account/chats/open")
+def account_chat_open(body: ChatRef):
+    return account_call(lambda: group_chats.conversation(body.token, body.group_id))
+
+
+@app.post("/api/account/chats/send")
+def account_chat_send(body: ChatSend):
+    return account_call(lambda: group_chats.send(body.token, body.group_id, body.body.strip(), body.reply_to, body.photo_path))
+
+
+@app.post("/api/account/chats/photo")
+def account_chat_photo(body: ChatPhoto):
+    try:
+        data = base64.b64decode(body.photo, validate=True)
+    except ValueError:
+        raise HTTPException(400, "Photo illisible") from None
+    return account_call(lambda: group_chats.upload_photo(body.token, body.group_id, data))
+
+
+@app.post("/api/account/chats/react")
+def account_chat_react(body: ChatReact):
+    return account_call(lambda: group_chats.react(body.token, body.id, body.emoji, body.on))
+
+
+@app.post("/api/account/chats/pin")
+def account_chat_pin(body: ChatPin):
+    return account_call(lambda: group_chats.pin(body.token, body.id, body.pin))
+
+
+@app.post("/api/account/chats/delete")
+def account_chat_delete(body: ChatMessage):
+    return account_call(lambda: group_chats.delete(body.token, body.id))
+
+
+@app.post("/api/account/chats/notify")
+def account_chat_notify(body: ChatNotify):
+    return account_call(lambda: group_chats.notify(body.token, body.group_id, body.level))
+
+
+@app.post("/api/account/chats/admin")
+def account_chat_admin(body: ChatAdmin):
+    return account_call(lambda: group_chats.set_admin(body.token, body.group_id, body.user_id, body.on))
+
+
+@app.post("/api/account/chats/read")
+def account_chat_read(body: ChatRef):
+    return account_call(lambda: group_chats.read(body.token, body.group_id))
 
 
 # Réglages natifs › Administration du groupe : la base revérifie chaque droit avec la session du membre.

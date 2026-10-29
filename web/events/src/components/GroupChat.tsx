@@ -1,0 +1,216 @@
+import { router, Stack } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { FlatList, KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { ChatBubble } from './ChatBubble';
+import { GroupChatSettings } from './GroupChatSettings';
+import { Button, ErrorText, HeaderBack, Input, Loading, s, T } from './ui';
+import { useMe } from '@/lib/auth';
+import { mentionsIn, pickPhoto, shrinkPhoto, signedPhotos, uploadChatPhoto, type ChatSummary, type GroupMessage, type Reaction } from '@/lib/chats';
+import { useQuery, useRealtime } from '@/lib/data';
+import { must, supabase } from '@/lib/supabase';
+import { colors, radius } from '@/lib/theme';
+import { roleRank } from '@/lib/types';
+
+const PAGE = 150;
+
+type Profile = { id: string; display_name: string; avatar_url: string | null };
+
+/** Discussion d'un groupe (avis n°10) : texte, photos, réactions, réponses, @citations ; les admins épinglent
+ * et suppriment. Un membre écrit ; un compte qui voit le groupe sans en faire partie ne fait que lire. */
+export function GroupChat({ id }: { id: string }) {
+  const me = useMe();
+  const [text, setText] = useState('');
+  const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showInfo, setShowInfo] = useState(false);
+  const [photos, setPhotos] = useState<Map<string, string>>(new Map());
+  const sendingRef = useRef(false);
+  const list = useRef<FlatList<GroupMessage>>(null);
+
+  const { data, loading, error: loadError, reload } = useQuery(async () => {
+    const [group, msgs, people, admins, chats] = await Promise.all([
+      supabase.from('member_groups').select('id, name, created_by, member_group_members(user_id)').eq('id', id).single(),
+      supabase.from('group_messages').select('*').eq('group_id', id).order('created_at', { ascending: false }).limit(PAGE),
+      supabase.from('profiles').select('id, display_name, avatar_url').eq('status', 'active'),
+      supabase.from('group_admins').select('user_id').eq('group_id', id),
+      supabase.rpc('my_chats'),
+    ]);
+    const messages = (must(msgs) as GroupMessage[]).reverse();
+    const reactions = messages.length
+      ? must(await supabase.from('group_message_reactions').select('message_id, user_id, emoji').in('message_id', messages.map((m) => m.id))) as Reaction[]
+      : [];
+    const chat = ((chats.data as ChatSummary[] | null) ?? []).find((c) => c.id === id) ?? null;
+    return {
+      group: must(group) as { id: string; name: string; created_by: string | null; member_group_members: { user_id: string }[] },
+      messages, reactions, chat,
+      people: must(people) as Profile[],
+      admins: new Set((must(admins) as { user_id: string }[]).map((a) => a.user_id)),
+    };
+  }, [id]);
+
+  useRealtime(`group-chat-${id}`, [
+    { table: 'group_messages', filter: `group_id=eq.${id}` },
+    { table: 'group_message_reactions' },
+  ], reload);
+
+  const member = Boolean(data?.chat?.member);
+  const isAdmin = Boolean(data?.chat?.admin);
+  useEffect(() => { if (member && data?.messages.length) void supabase.rpc('mark_group_read', { grp: id }); }, [member, id, data?.messages]);
+
+  const paths = useMemo(() => (data?.messages ?? []).flatMap((m) => (m.photo_path && !m.deleted_at ? [m.photo_path] : [])), [data?.messages]);
+  useEffect(() => {
+    let alive = true;
+    void signedPhotos(paths.filter((p) => !photos.has(p))).then((more) => {
+      if (alive && more.size) setPhotos((prev) => new Map([...prev, ...more]));
+    }).catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seuls les nouveaux chemins comptent
+  }, [paths]);
+
+  const people = useMemo(() => new Map((data?.people ?? []).map((p) => [p.id, p])), [data?.people]);
+  const inside = useMemo(() => (data?.group.member_group_members ?? []).map((m) => m.user_id), [data?.group]);
+  const byId = useMemo(() => new Map((data?.messages ?? []).map((m) => [m.id, m])), [data?.messages]);
+  const reactionsOf = useMemo(() => {
+    const out = new Map<string, Reaction[]>();
+    for (const r of data?.reactions ?? []) out.set(r.message_id, [...(out.get(r.message_id) ?? []), r]);
+    return out;
+  }, [data?.reactions]);
+  const pinned = (data?.messages ?? []).filter((m) => m.pinned && !m.deleted_at);
+  const nameOf = (uid: string) => people.get(uid)?.display_name ?? '?';
+
+  async function send(photoPath: string | null = null) {
+    const body = text.trim();
+    if ((!body && !photoPath) || sendingRef.current) return;
+    sendingRef.current = true;
+    setSending(true);
+    setError(null);
+    const tagged = mentionsIn(body, inside.filter((u) => u !== me.id).map((u) => ({ id: u, display_name: nameOf(u) })));
+    const { error } = await supabase.from('group_messages').insert({
+      group_id: id, body, photo_path: photoPath, reply_to: replyTo?.id ?? null, mentions: tagged.mentions, mention_all: tagged.all && isAdmin,
+    });
+    sendingRef.current = false;
+    setSending(false);
+    if (error) return setError('Le message n’a pas pu être envoyé. Réessaie.');
+    setText('');
+    setReplyTo(null);
+    await reload();
+  }
+
+  async function sendPhoto() {
+    setError(null);
+    try {
+      const file = await pickPhoto();
+      if (!file) return;
+      setSending(true);
+      const path = await uploadChatPhoto(id, await shrinkPhoto(file));
+      setSending(false);
+      await send(path);
+    } catch (e) {
+      setSending(false);
+      setError(e instanceof Error ? e.message : 'La photo n’a pas pu être envoyée.');
+    }
+  }
+
+  async function react(m: GroupMessage, emoji: string) {
+    const mineAlready = (reactionsOf.get(m.id) ?? []).some((r) => r.user_id === me.id && r.emoji === emoji);
+    const { error } = mineAlready
+      ? await supabase.from('group_message_reactions').delete().eq('message_id', m.id).eq('user_id', me.id).eq('emoji', emoji)
+      : await supabase.from('group_message_reactions').insert({ message_id: m.id, emoji });
+    if (error) setError('La réaction n’a pas pu être enregistrée.');
+    reload();
+  }
+
+  async function rpc(name: 'pin_group_message' | 'delete_group_message', args: Record<string, unknown>) {
+    const { error } = await supabase.rpc(name, args);
+    if (error) setError(error.message.replace(/^\w+: /, ''));
+    reload();
+  }
+
+  if (loading && !data) return <Loading />;
+  const title = data?.group.name ?? 'Discussion';
+  const header = (
+    <Stack.Screen options={{
+      title,
+      // « ‹ » seul, comme WhatsApp : le nom du groupe garde toute la place (ouvert depuis une notification : la liste).
+      headerLeft: () => <HeaderBack label="" onPress={() => (router.canGoBack() ? router.back() : router.replace('/chats'))} />,
+      headerRight: () => (
+        <Pressable accessibilityRole="button" accessibilityLabel="Infos du groupe" hitSlop={8} onPress={() => setShowInfo((v) => !v)} style={{ paddingHorizontal: 12 }}>
+          <T weight="semibold" color={colors.accent}>{showInfo ? 'Fermer' : 'Infos'}</T>
+        </Pressable>
+      ),
+    }} />
+  );
+
+  if (showInfo && data) {
+    return (
+      <View style={s.screen}>
+        {header}
+        <GroupChatSettings groupId={id} notify={data.chat?.notify ?? 'mentions'} member={member}
+          canNameAdmins={data.group.created_by === me.id || roleRank(me.role) >= 3}
+          members={inside.map((u) => ({ id: u, name: nameOf(u), photo: people.get(u)?.avatar_url ?? null,
+            admin: data.admins.has(u), creator: u === data.group.created_by }))}
+          onChanged={reload} />
+      </View>
+    );
+  }
+
+  return (
+    <SafeAreaView style={s.screen} edges={['bottom']}>
+      {header}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+        {pinned.length ? (
+          <Pressable accessibilityRole="button" onPress={() => list.current?.scrollToIndex({ index: data!.messages.indexOf(pinned[pinned.length - 1]), viewPosition: 0.3 })}
+            style={{ margin: 12, marginBottom: 0, padding: 12, borderRadius: radius.md, backgroundColor: colors.surface }}>
+            <T size={13} color={colors.textSoft} numberOfLines={2}>
+              <T size={13} weight="bold" color={colors.accent}>📌 Épinglé · </T>
+              {nameOf(pinned[pinned.length - 1].user_id)} : {pinned[pinned.length - 1].body || '📷 Photo'}
+            </T>
+          </Pressable>
+        ) : null}
+        <FlatList
+          ref={list}
+          data={data?.messages ?? []}
+          keyExtractor={(m) => m.id}
+          contentContainerStyle={{ padding: 16, gap: 14 }}
+          onContentSizeChange={() => list.current?.scrollToEnd({ animated: false })}
+          onScrollToIndexFailed={() => list.current?.scrollToEnd({ animated: true })}
+          renderItem={({ item: m }) => {
+            const quoted = m.reply_to ? byId.get(m.reply_to) : null;
+            return (
+              <ChatBubble message={m} mine={m.user_id === me.id} me={me.id}
+                author={{ name: nameOf(m.user_id), photo: people.get(m.user_id)?.avatar_url ?? null }}
+                quoted={quoted ? { name: nameOf(quoted.user_id), text: quoted.deleted_at ? 'Message supprimé' : quoted.body || '📷 Photo' } : null}
+                photoUrl={m.photo_path ? photos.get(m.photo_path) ?? null : null}
+                reactions={reactionsOf.get(m.id) ?? []} canWrite={member} isAdmin={isAdmin}
+                onReply={() => setReplyTo(m)} onReact={(e) => void react(m, e)}
+                onPin={() => void rpc('pin_group_message', { msg: m.id, pin: !m.pinned })}
+                onDelete={() => void rpc('delete_group_message', { msg: m.id })} />
+            );
+          }}
+          ListEmptyComponent={<T muted style={{ textAlign: 'center', marginTop: 40 }}>{loadError ? 'La discussion n’a pas pu être chargée.' : 'Aucun message pour l’instant. Lance la discussion !'}</T>}
+        />
+        <ErrorText error={error ?? loadError} />
+        {member ? (
+          <>
+            {replyTo ? (
+              <View style={[s.rowBetween, { paddingHorizontal: 12, paddingTop: 8 }]}>
+                <T muted size={12} numberOfLines={1} style={{ flex: 1 }}>↪ Réponse à {nameOf(replyTo.user_id)} : {replyTo.body || '📷 Photo'}</T>
+                <Button small variant="ghost" label="✕" onPress={() => setReplyTo(null)} />
+              </View>
+            ) : null}
+            <View style={[s.row, { padding: 12, borderTopWidth: 1, borderTopColor: colors.line }]}>
+              {Platform.OS === 'web' ? <Button small variant="secondary" label="📷" onPress={() => void sendPhoto()} disabled={sending} /> : null}
+              <Input accessibilityLabel="Message" placeholder={isAdmin ? 'Message… (@surnom, @tout)' : 'Message… (@surnom pour citer)'}
+                value={text} onChangeText={setText} multiline editable={!sending} maxLength={2000}
+                style={{ flex: 1, height: undefined, minHeight: 46, maxHeight: 120, paddingTop: 12 }} />
+              <Button small label="Envoyer" onPress={() => void send()} disabled={!text.trim()} loading={sending} />
+            </View>
+          </>
+        ) : null}
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}

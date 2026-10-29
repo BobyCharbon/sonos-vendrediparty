@@ -394,6 +394,26 @@ AS $function$
     from claimed d join public.notifications n on n.id=d.notification_id;
 $function$;
 
+-- Web Push : le toucher d'une notification de discussion ouvre la conversation (send-web-push lit group_id).
+create or replace function private.claim_web_push_deliveries(batch_size integer default 20) returns jsonb
+language sql security definer set search_path='' as $$
+  with chosen as (
+    select d.id from private.web_push_deliveries d join public.notifications n on n.id=d.notification_id
+    join private.web_push_subscriptions s on s.id=d.subscription_id
+    join auth.sessions a on a.id=s.session_id and (a.not_after is null or a.not_after>now())
+    left join public.notification_prefs p on p.user_id=n.user_id
+    where d.status='queued' and d.next_attempt_at<=now() and (d.lease_until is null or d.lease_until<now())
+      and n.user_id=s.user_id and n.read_at is null and n.created_at>=s.registered_at and private.web_push_allowed(n)
+      and (n.kind='web_push_test' or not private.push_is_quiet(p.quiet_start,p.quiet_end))
+    order by d.next_attempt_at,d.id limit greatest(1,least(coalesce(batch_size,20),50)) for update of d skip locked
+  ), claimed as (
+    update private.web_push_deliveries d set lease_until=now()+interval '2 minutes',attempts=attempts+1
+      from chosen c where c.id=d.id returning d.*
+  ) select coalesce(jsonb_agg(jsonb_build_object('id',d.id,'attempts',d.attempts,'subscription',s.subscription,
+    'origin',s.origin,'title',n.title,'body',n.body,'event_id',n.event_id,'kind',n.kind,'group_id',n.data->>'group_id','notification_id',n.id)), '[]'::jsonb)
+    from claimed d join public.notifications n on n.id=d.notification_id join private.web_push_subscriptions s on s.id=d.subscription_id;
+$$;
+
 insert into supabase_migrations.schema_migrations (version, name) values ('20261029180000', 'group_chats')
   on conflict (version) do nothing;
 commit;
