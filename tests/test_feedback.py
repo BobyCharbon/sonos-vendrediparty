@@ -34,7 +34,7 @@ def test_guest_sends_without_party_code_and_sees_own_messages(monkeypatch, tmp_p
     r = send(c, game="heist", tab="games", secret="x" * 99)
     assert r.status_code == 200 and r.json()["mine"][0]["text"] == "Un mode équipe au Quiz, avec deux camps"
     item = main.feedback.all()[0]
-    assert item["context"] == {"game": "heist", "tab": "games"} and item["status"] == "new"  # contexte filtré
+    assert item["context"] == {"game": "heist", "tab": "games", "site": "Prod"} and item["status"] == "new"  # contexte filtré + site d'origine
     assert c.get("/api/feedback", params={"guest_id": GUEST}).json()["mine"][0]["status"] == "new"
     assert c.get("/api/feedback", params={"guest_id": "feedback-other-0001"}).json()["mine"] == []
 
@@ -49,7 +49,7 @@ def test_native_app_request_is_accepted(monkeypatch, tmp_path):
     assert r.status_code == 200
     [mine] = r.json()["mine"]
     assert set(mine) == {"id", "at", "kind", "text", "status", "reply", "unseen"}  # décodé par FeedbackItem
-    assert main.feedback.all()[0]["name"] == "Anonyme" and main.feedback.all()[0]["context"] == {"tab": "games"}
+    assert main.feedback.all()[0]["name"] == "Anonyme" and main.feedback.all()[0]["context"] == {"tab": "games", "site": "Prod"}
     assert c.post("/api/feedback/seen", json={"guest_id": GUEST}).status_code == 200
 
 

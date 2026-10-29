@@ -14,6 +14,8 @@ services:
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID}
       SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET}
       SPOTIFY_MARKET: ${SPOTIFY_MARKET:-CH}
+      # Avis : une seule liste, gardée par la production ; même secret (32 caractères au moins) sur les deux piles.
+      FEEDBACK_SYNC_SECRET: ${FEEDBACK_SYNC_SECRET:-}
       # Notifications de l'app iOS native (app/apns.py) : clé APNs .p8 (contenu) et son identifiant.
       APNS_KEY_P8: ${APNS_KEY_P8:-}
       APNS_KEY_ID: ${APNS_KEY_ID:-}
