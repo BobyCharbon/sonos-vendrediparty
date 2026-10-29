@@ -35,6 +35,7 @@ class Accounts:
         self.lock = threading.Lock()
         self.cache: dict[str, tuple[float, str]] = {}    # empreinte du jeton → (instant, identifiant Supabase vérifié)
         self.by_gid: dict[str, dict] = {}                # identifiant de joueur → compte (surnom, photo)
+        self.uid_by_gid: dict[str, str] = {}             # identifiant de joueur → compte Supabase (fiche profil des jeux)
 
     def gid(self, user_id: str) -> str:
         return "acct-" + hmac.new(self.secret, f"account:{user_id}".encode(), hashlib.sha256).hexdigest()[:40]
@@ -103,6 +104,7 @@ class Accounts:
                    "feedback": "feedback.write" in perms}
         with self.lock:
             self.by_gid[account["guest_id"]] = account
+            self.uid_by_gid[account["guest_id"]] = uid
         return account
 
     def notification_prefs(self, token: str) -> dict:
@@ -153,6 +155,7 @@ class Accounts:
                 continue
             groups.append({"id": g["id"], "name": g["name"], "system": g.get("system_key") is not None,
                            "mine": g.get("created_by") == uid and g.get("system_key") is None,
+                           "inside": uid in members,  # j'en fais partie : je peux y montrer mon numéro
                            "members": [{"id": m, "name": names.get(m, "Membre du groupe")} for m in members]})
         people = [{"id": p["id"], "name": names[p["id"]]} for p in directory if p["id"] != uid and p.get("status") == "active"]
         return {"groups": groups, "people": sorted(people, key=lambda p: p["name"].lower())}
@@ -305,6 +308,44 @@ class Accounts:
         if not isinstance(rows, list):
             return []
         return [{"id": e["id"], "title": e["title"], "starts_at": e["starts_at"]} for e in rows]
+
+    # MARK: Fiche profil et confidentialité (nom public, numéro montré à ses groupes)
+
+    def member_card(self, token: str, member: str | None = None, guest_id: str | None = None) -> dict:
+        """Fiche d'un compte : par son identifiant Supabase, ou par l'identifiant de joueur d'un compte relié (jeux).
+        Lue avec la session de la personne qui regarde : la base applique les choix de confidentialité."""
+        self._uid(token)
+        if guest_id:
+            with self.lock:
+                member = self.uid_by_gid.get(guest_id)
+        if not member:
+            raise AccountError("Ce joueur n'a pas de compte Party.")
+        r = self._get("POST", "/rest/v1/rpc/member_card", token, json={"target": member})
+        card = r.json() if r.status_code == 200 else None
+        if not isinstance(card, dict):
+            raise AccountError("Ce profil n'est pas disponible.")
+        return {**card, "photo": self._signed_photo(card.get("avatar_url"), token)}
+
+    def privacy(self, token: str) -> dict:
+        self._uid(token)
+        r = self._get("POST", "/rest/v1/rpc/my_privacy", token, json={})
+        if r.status_code != 200 or not isinstance(r.json(), dict):
+            raise AccountError("Tes choix de confidentialité n'ont pas pu être lus.")
+        return r.json()
+
+    def set_name_public(self, token: str, on: bool) -> dict:
+        self._uid(token)
+        r = self._get("POST", "/rest/v1/rpc/set_name_public", token, json={"visible": on})
+        if r.status_code != 200:
+            raise AccountError("Ton choix n'a pas été enregistré. Réessaie.")
+        return r.json()
+
+    def set_group_phone_share(self, token: str, group_id: str, on: bool) -> dict:
+        self._uid(token)
+        r = self._get("POST", "/rest/v1/rpc/set_group_phone_share", token, json={"grp": group_id, "visible": on})
+        if r.status_code != 200:
+            raise AccountError(self._db_message(r) if r.status_code < 500 else "Ton choix n'a pas été enregistré. Réessaie.")
+        return r.json()
 
     def is_linked(self, gid: str) -> bool:
         """Ce joueur a relié un compte vérifié depuis le démarrage du serveur (jeux réservés aux comptes)."""

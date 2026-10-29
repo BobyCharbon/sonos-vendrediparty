@@ -35,7 +35,7 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
         onPress={() => router.push('/settings/profile')}
         style={({ pressed }) => [s.card, s.row, { gap: 14 }, pressed && { backgroundColor: colors.surface2 }]}
       >
-        <Avatar id={profile.id} name={profile.display_name || '?'} photo={profile.avatar_url} size={60} />
+        <Avatar id={profile.id} name={profile.display_name || '?'} photo={profile.avatar_url} size={60} profile={false} />
         <View style={{ flex: 1, gap: 2 }}>
           <T weight="bold" size={19}>{profile.display_name || 'Profil à compléter'}</T>
           <T muted size={13}>{status}{profile.phone ? ` · +${profile.phone.replace(/^\+/, '')}` : ''}</T>

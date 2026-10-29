@@ -148,6 +148,7 @@ function Gate() {
         <Stack.Screen name="settings/notifications" options={{ title: 'Notifications et abonnements' }} />
         <Stack.Screen name="settings/subscriptions" options={{ title: 'Notifications et abonnements' }} />
         <Stack.Screen name="groups" options={{ title: 'Groupes' }} />
+        <Stack.Screen name="member/[id]" options={{ title: 'Profil', presentation: 'modal' }} />
         <Stack.Screen name="admin/index" options={{ title: 'Administration' }} />
         <Stack.Screen name="admin/members" options={{ title: 'Membres' }} />
         <Stack.Screen name="admin/journal" options={{ title: 'Journal des membres' }} />

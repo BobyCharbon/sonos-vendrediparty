@@ -49,6 +49,8 @@ final class SettingsStore: ObservableObject {
     private(set) lazy var groupAdmin = GroupAdminStore(api: api, web: web)
     /// Connexion, déconnexion, suppression, annonces, stats de jeu.
     private(set) lazy var session = AccountStore(api: api, web: web, settings: self)
+    /// Nom public, numéro montré par groupe, fiches profil.
+    private(set) lazy var privacy = PrivacyStore(api: api, web: web)
 
     init(api: PartyAPI, web: WebStorage, isHost: @escaping () -> Bool, trackChanged: @escaping (Bool, Bool) -> Void) {
         self.api = api

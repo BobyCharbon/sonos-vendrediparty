@@ -1,4 +1,4 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -154,7 +154,12 @@ function Chat({ id }: { id: string }) {
               >
                 {!mine ? <Avatar id={m.user_id} name={names.get(m.user_id) ?? '?'} /> : null}
                 <View style={{ maxWidth: '78%', gap: 4, alignItems: mine ? 'flex-end' : 'flex-start' }}>
-                  {!mine ? <T size={12} weight="bold" color={colors.lavender}>{names.get(m.user_id) ?? '?'}</T> : null}
+                  {!mine ? (
+                    <Pressable accessibilityRole="button" accessibilityLabel={`Profil de ${names.get(m.user_id) ?? '?'}`}
+                      onPress={() => router.push(`/member/${m.user_id}`)}>
+                      <T size={12} weight="bold" color={colors.lavender}>{names.get(m.user_id) ?? '?'}</T>
+                    </Pressable>
+                  ) : null}
                   <View style={{ padding: 10, borderRadius: 16, backgroundColor: mine ? colors.accent : colors.surface, gap: 6 }}>
                     {quoted ? (
                       <View style={{ padding: 6, borderRadius: 8, backgroundColor: mine ? '#BFD93F' : colors.surface2 }}>

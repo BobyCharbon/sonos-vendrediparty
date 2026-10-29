@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { formatShort, parseLocalDateTime } from '@/lib/format';
@@ -137,12 +138,14 @@ export function RsvpCard({
   );
 }
 
+/** Participant : photo et prénom ; toucher l'un ou l'autre ouvre sa fiche profil. */
 function PersonChip({ id, name, extra }: { id: string; name: string; extra?: string }) {
   return (
-    <View style={st.person}>
-      <Avatar id={id} name={name} size={24} />
+    <Pressable style={st.person} accessibilityRole="button" accessibilityLabel={`Profil de ${name}`}
+      onPress={() => router.push(`/member/${id}`)}>
+      <Avatar id={id} name={name} size={24} profile={false} />
       <T size={13} weight="semibold">{name}{extra ? <T size={13} muted> {extra}</T> : null}</T>
-    </View>
+    </Pressable>
   );
 }
 

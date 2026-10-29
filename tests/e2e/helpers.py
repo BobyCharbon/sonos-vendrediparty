@@ -54,13 +54,16 @@ class FakeSupabase:
                 self.wfile.write(body)
 
             def _route(self):
-                if self.headers.get("Content-Length"):
-                    self.rfile.read(int(self.headers["Content-Length"]))
+                body = self.rfile.read(int(self.headers["Content-Length"])) if self.headers.get("Content-Length") else b""
                 who = accounts.get(self.headers.get("Authorization", "").removeprefix("Bearer "))
                 if who is None:
                     return self._answer(401, {"message": "invalid JWT"})
                 uid, name, perms = who
                 path = self.path.split("?")[0]
+                cards = {u: {"id": u, "display_name": n, "avatar_url": None, "role": "guestplus", "root": False, "me": u == uid,
+                             "first_name": None, "last_name": None, "phone": None, "groups": []} for u, n, _ in accounts.values()}
+                if path == "/rest/v1/rpc/member_card":
+                    return self._answer(200, cards.get(json.loads(body or b"{}").get("target")))
                 answers = {"/auth/v1/user": {"id": uid}, "/rest/v1/rpc/my_permissions": perms,
                            "/rest/v1/rpc/get_member_directory": [{"id": uid, "display_name": name, "status": "active"}],
                            "/rest/v1/rpc/is_beta_tester": False}

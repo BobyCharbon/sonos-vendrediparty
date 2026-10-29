@@ -15,7 +15,21 @@ struct GroupList: Decodable, Equatable {
         let system: Bool
         /// Créé par moi : je le compose et je peux le supprimer.
         let mine: Bool
+        /// J'en fais partie : je peux y montrer mon numéro.
+        let inside: Bool
         let members: [Person]
+
+        enum CodingKeys: String, CodingKey { case id, name, system, mine, inside, members }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decode(String.self, forKey: .id)
+            name = try c.decode(String.self, forKey: .name)
+            system = try c.decodeIfPresent(Bool.self, forKey: .system) ?? false
+            mine = try c.decodeIfPresent(Bool.self, forKey: .mine) ?? false
+            inside = try c.decodeIfPresent(Bool.self, forKey: .inside) ?? false
+            members = try c.decodeIfPresent([Person].self, forKey: .members) ?? []
+        }
     }
 
     let groups: [Group]
@@ -101,6 +115,7 @@ final class GroupsStore: ObservableObject {
 
 struct GroupsView: View {
     @ObservedObject var store: GroupsStore
+    let privacy: PrivacyStore
     @State private var newName = ""
     @FocusState private var naming: Bool
 
@@ -123,7 +138,7 @@ struct GroupsView: View {
                     if list.groups.isEmpty { Text("Tu ne fais partie d'aucun groupe pour l'instant.").foregroundStyle(.secondary) }
                     ForEach(list.groups) { group in
                         NavigationLink {
-                            GroupDetailView(store: store, groupID: group.id)
+                            GroupDetailView(store: store, privacy: privacy, groupID: group.id)
                         } label: {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(group.name).font(.headline)
@@ -154,7 +169,10 @@ struct GroupsView: View {
         }
         .overlay(alignment: .bottom) { GroupNotice(store: store) }
         .refreshable { await store.load() }
-        .task { await store.load() }
+        .task {
+            await store.load()
+            await privacy.load()
+        }
     }
 
     private func subtitle(_ group: GroupList.Group) -> String {
@@ -173,13 +191,33 @@ struct GroupsView: View {
 /// Un groupe : ses membres ; pour mes groupes, ajouter ou retirer des personnes d'un toucher, et le supprimer.
 struct GroupDetailView: View {
     @ObservedObject var store: GroupsStore
+    @ObservedObject var privacy: PrivacyStore
     let groupID: String
     @State private var confirmDelete = false
+    @State private var profile: ProfileTarget?
     @Environment(\.dismiss) private var dismiss
+
+    /// Fiche à ouvrir (un membre touché dans la liste).
+    struct ProfileTarget: Identifiable { let id: String }
 
     var body: some View {
         List {
             if let group = store.list?.groups.first(where: { $0.id == groupID }) {
+                if group.inside {
+                    Section {
+                        Toggle(isOn: Binding(get: { privacy.sharesPhone(in: group.id) },
+                                             set: { on in Task { await privacy.setPhone(on, group: group.id) } })) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Montrer mon numéro dans ce groupe")
+                                Text("Les membres de ce groupe le voient sur ta fiche profil. Caché par défaut.")
+                                    .font(.footnote).foregroundStyle(.secondary)
+                            }
+                        }
+                        .disabled(privacy.saving || privacy.privacy == nil)
+                    } footer: {
+                        if let error = privacy.error { Text(error).foregroundStyle(.red) }
+                    }
+                }
                 if group.mine {
                     Section {
                         if store.list?.people.isEmpty == true {
@@ -201,6 +239,9 @@ struct GroupDetailView: View {
                             }
                             .foregroundStyle(.primary)
                             .accessibilityAddTraits(inside ? .isSelected : [])
+                            .contextMenu {
+                                Button { profile = ProfileTarget(id: person.id) } label: { Label("Voir le profil", systemImage: "person.crop.circle") }
+                            }
                         }
                     } header: {
                         Text("Membres · \(group.members.count)")
@@ -214,7 +255,17 @@ struct GroupDetailView: View {
                     }
                 } else {
                     Section {
-                        ForEach(group.members) { Text($0.name) }
+                        ForEach(group.members) { person in
+                            Button { profile = ProfileTarget(id: person.id) } label: {
+                                HStack {
+                                    Text(person.name)
+                                    Spacer()
+                                    Image(systemName: "person.crop.circle").foregroundStyle(.secondary)
+                                }
+                            }
+                            .foregroundStyle(.primary)
+                            .accessibilityHint("Ouvre sa fiche profil")
+                        }
                     } header: {
                         Text("Membres · \(group.members.count)")
                     } footer: {
@@ -230,6 +281,7 @@ struct GroupDetailView: View {
         .navigationTitle(store.list?.groups.first(where: { $0.id == groupID })?.name ?? "Groupe")
         .navigationBarTitleDisplayMode(.inline)
         .overlay(alignment: .bottom) { GroupNotice(store: store) }
+        .sheet(item: $profile) { target in MemberCardView(store: privacy, memberID: target.id) }
         .confirmationDialog("Supprimer ce groupe ?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Supprimer", role: .destructive) {
                 guard let group = store.list?.groups.first(where: { $0.id == groupID }) else { return }

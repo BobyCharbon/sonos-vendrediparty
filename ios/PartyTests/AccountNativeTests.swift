@@ -139,4 +139,16 @@ struct AccountNativeTests {
         #expect(UserList.arrange(m.people, search: "", filter: .guestplus, sort: .name, descending: false).map(\.id) == ["a"])
         #expect(m.sections(matching: "").map(\.title) == ["Guest+ (1)", "Guest (1)"])
     }
+
+    @Test("Fiche profil : nom et numéro seulement s'ils sont fournis ; numéro composable ; groupes en commun")
+    func memberCard() throws {
+        let hidden: MemberCard = try decode(#"{"id": "u2", "display_name": "Léa", "photo": null, "role": "guestplus", "root": false, "me": false, "first_name": null, "last_name": null, "phone": null, "groups": ["Les footeux"]}"#)
+        #expect(hidden.fullName.isEmpty && hidden.dialable == nil && hidden.role == .guestplus && hidden.groups == ["Les footeux"])
+        let shown: MemberCard = try decode(#"{"id": "u2", "display_name": "Léa", "role": "member", "first_name": "Léa", "last_name": "Martin", "phone": "41791234567"}"#)
+        #expect(shown.fullName == "Léa Martin" && shown.dialable == "+41791234567" && !shown.me)
+        let privacy: Privacy = try decode(#"{"show_name": true, "phone_groups": ["g1"]}"#)
+        #expect(privacy.showName && privacy.phoneGroups == ["g1"])
+        let list: GroupList = try decode(#"{"groups": [{"id": "g1", "name": "Les footeux", "system": false, "mine": false, "inside": true, "members": []}, {"id": "g2", "name": "Autre", "system": false, "mine": true, "members": []}], "people": []}"#)
+        #expect(list.groups[0].inside && !list.groups[1].inside)
+    }
 }

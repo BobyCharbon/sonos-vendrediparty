@@ -1090,6 +1090,11 @@ function renderGame(g) {
   if ($("gameQr").getAttribute("src") !== qr) $("gameQr").src = qr;
 }
 
+// Joueur avec un compte Party : son nom et sa photo ouvrent sa fiche profil (profile-card.js).
+function profileAttrs(g, p) {
+  return p.account && p.pid ? `data-profile-game="${esc(g.code)}" data-profile-pid="${esc(p.pid)}" role="button" tabindex="0" aria-label="Profil de ${esc(p.name)}"` : "";
+}
+
 // Pastille ronde avec l'initiale, d'une couleur stable par joueur.
 function avatar(p, cls = "") {
   let h = 0;
@@ -2384,7 +2389,7 @@ function lobbyInvite(g) {
     <img class="g-lobby-qr" width="240" height="240" src="/qr/game/${esc(g.room || g.code)}.svg" alt="QR code pour rejoindre la partie">
     <div class="g-lobby-code">${esc(g.room || g.code)}</div>
     <div class="artist g-lobby-hint">ou onglet 🎮 Jeux → entre ce code</div>
-    <div class="g-lobby-players">${n ? g.players.map((p) => `<span class="pill g-pill-av">${p.photo ? avatar(p, "qs-av-xs") : ""}${p.host ? "🎲 " : ""}${esc(p.name)}</span>`).join("") : `<span class="artist">En attente des joueurs…</span>`}</div>
+    <div class="g-lobby-players">${n ? g.players.map((p) => `<span class="pill g-pill-av" ${profileAttrs(g, p)}>${p.photo ? avatar(p, "qs-av-xs") : ""}${p.host ? "🎲 " : ""}${esc(p.name)}</span>`).join("") : `<span class="artist">En attente des joueurs…</span>`}</div>
   </div>`;
 }
 
@@ -2507,7 +2512,7 @@ function gameTopBar(g) {
 function renderDrawer(g) {
   const lead = g.is_host, movable = lead && g.phase === "lobby";
   patch.gDrawerPlayers = `<h2>Participants (${g.players.length})</h2>
-    <div class="list">${g.players.map((p, i) => `<div class="track ${p.online === false ? "g-away" : ""}">${avatar(p, "qs-av-sm")}<div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${p.pid === g.me?.pid ? " (toi)" : ""}${presenceTag(p)}${playerTag(g, p)}${p.pending ? " ⏳" : ""}${sipsBadge(p)}</div></div>
+    <div class="list">${g.players.map((p, i) => `<div class="track ${p.online === false ? "g-away" : ""}">${p.account ? `<span ${profileAttrs(g, p)}>${avatar(p, "qs-av-sm")}</span>` : avatar(p, "qs-av-sm")}<div class="meta"><div class="title">${p.account ? `<span ${profileAttrs(g, p)}>${esc(p.name)}</span>` : esc(p.name)}${p.host ? " 🎲" : ""}${p.pid === g.me?.pid ? " (toi)" : ""}${presenceTag(p)}${playerTag(g, p)}${p.pending ? " ⏳" : ""}${sipsBadge(p)}</div></div>
       <div class="icon-btns">
         ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter" aria-label="Monter">⬆</button>` : ""}
         ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre" aria-label="Descendre">⬇</button>` : ""}

@@ -23,7 +23,7 @@ struct SettingsView: View {
                     }
                     if store.account != nil {
                         NavigationLink {
-                            GroupsView(store: store.groups)
+                            GroupsView(store: store.groups, privacy: store.privacy)
                         } label: {
                             SettingsRow(symbol: "person.3.fill", tint: .blue, title: "Groupes",
                                         hint: "Les groupes dont tu fais partie ; crée les tiens")

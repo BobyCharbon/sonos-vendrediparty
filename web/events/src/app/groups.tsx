@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { Button, Card, Chip, ConfirmButton, ErrorText, Input, Screen, s, Section, T } from '@/components/ui';
+import { Avatar, Button, Card, Chip, ConfirmButton, ErrorText, Input, Screen, s, Section, T, ToggleRow } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { must, supabase } from '@/lib/supabase';
@@ -17,13 +17,15 @@ export default function GroupsScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const { data, reload, error: loadError } = useQuery(async () => {
-    const [groups, members] = await Promise.all([
+    const [groups, members, privacy] = await Promise.all([
       supabase.from('member_groups').select('id, name, created_by, system_key, member_group_members(user_id)').order('name'),
-      supabase.from('profiles').select('id, display_name, role').eq('status', 'active').order('display_name'),
+      supabase.from('profiles').select('id, display_name, role, avatar_url').eq('status', 'active').order('display_name'),
+      supabase.rpc('my_privacy'),
     ]);
     // Vendredi Party en premier : c'est le groupe de tout le monde (VIP et au-dessus).
     const list = (must(groups) as MemberGroup[]).sort((a, b) => Number(b.system_key === VIP_GROUP_KEY) - Number(a.system_key === VIP_GROUP_KEY));
-    return { groups: list, members: must(members) as Pick<Profile, 'id' | 'display_name' | 'role'>[] };
+    return { groups: list, members: must(members) as Pick<Profile, 'id' | 'display_name' | 'role' | 'avatar_url'>[],
+      phoneGroups: new Set(((privacy.data as { phone_groups?: string[] } | null)?.phone_groups) ?? []) };
   }, []);
 
   async function run(p: PromiseLike<{ error: { message: string } | null }>) {
@@ -47,7 +49,11 @@ export default function GroupsScreen() {
     await reload();
   }
 
-  const names = new Map((data?.members ?? []).map((m) => [m.id, m.display_name]));
+  const people = new Map((data?.members ?? []).map((m) => [m.id, m]));
+
+  async function sharePhone(group: string, visible: boolean) {
+    await run(supabase.rpc('set_group_phone_share', { grp: group, visible }));
+  }
 
   return (
     <Screen edges={[]}>
@@ -74,11 +80,28 @@ export default function GroupsScreen() {
                 <View style={{ flex: 1 }}>
                   <T weight="bold">{g.name}</T>
                   <T muted size={13} numberOfLines={expanded ? undefined : 1}>
-                    {inside.size ? [...inside].map((id) => names.get(id) ?? '?').join(', ') : 'Personne pour l’instant'}
+                    {inside.size ? [...inside].map((id) => people.get(id)?.display_name ?? '?').join(', ') : 'Personne pour l’instant'}
                   </T>
                 </View>
                 {mine ? <Button small variant="secondary" label={expanded ? 'Fermer' : 'Modifier'} onPress={() => setOpen(expanded ? null : g.id)} /> : null}
               </View>
+              {inside.size ? (
+                <View style={s.wrap} accessibilityLabel="Membres du groupe : touche une photo pour voir le profil">
+                  {[...inside].map((id) => {
+                    const m = people.get(id);
+                    return m ? <Avatar key={id} id={id} name={m.display_name} photo={m.avatar_url} size={34} /> : null;
+                  })}
+                </View>
+              ) : null}
+              {inside.has(me.id) ? (
+                <ToggleRow
+                  label="Montrer mon numéro dans ce groupe"
+                  hint="Les membres de ce groupe le voient sur ta fiche profil. Caché par défaut."
+                  value={!!data?.phoneGroups.has(g.id)}
+                  disabled={busy}
+                  onChange={(v) => void sharePhone(g.id, v)}
+                />
+              ) : null}
               {system ? <T muted size={13}>Tous les Membres VIP et au-dessus, tenu à jour tout seul : passer quelqu’un Membre VIP l’ajoute, le remettre Guest le retire (Administration → Membres).</T> : null}
               {expanded && mine ? (
                 <>

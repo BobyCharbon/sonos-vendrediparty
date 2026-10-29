@@ -1381,6 +1381,8 @@ def full_view(g: dict, gid: str) -> dict:
         ids = [real["id"]] + [a for a, o in (g.get("aliases") or {}).items() if o == real["id"]]
         if photo := next(filter(None, map(accounts.photo, ids)), None):
             p["photo"] = photo  # compte Party : la photo de profil remplace l'initiale
+        if any(map(accounts.is_linked, ids)):
+            p["account"] = True  # compte Party : son nom ouvre sa fiche profil
         twins = [x for x in g["players"] if not x.get("manual") and same_name(x["name"], real["name"])]
         if len(twins) > 1:
             p["twin"] = twins.index(real) + 1
@@ -1786,6 +1788,53 @@ def account_group_admin_taxonomy_save(body: TopicSave):
     if not fields or (body.id is None and not body.name):
         raise HTTPException(400, "Donne un nom.")
     return account_call(lambda: group_admin.save_topic(body.token, body.kind, body.id, fields))
+
+
+class MemberCardIn(MemberToken):
+    id: str | None = Field(default=None, pattern=UUID)
+    # Jeux : la partie et le numéro du joueur (jamais son identifiant, qui ne quitte pas le serveur).
+    game: str | None = Field(default=None, pattern=r"^[0-9]{4}$")
+    pid: str | None = Field(default=None, max_length=40)
+
+
+class PrivacyName(MemberToken):
+    on: bool
+
+
+class PrivacyPhone(MemberToken):
+    group_id: str = Field(pattern=UUID)
+    on: bool
+
+
+@app.post("/api/account/card")
+def account_card(body: MemberCardIn):
+    """Fiche profil d'un compte (Réglages, groupes, jeux…) : ce que les choix de la personne laissent voir."""
+    guest = None
+    if body.game and body.pid:
+        g = get_game(body.game)
+        real = games.gid_of(g, body.pid)
+        ids = [real] + [a for a, o in (g.get("aliases") or {}).items() if o == real]
+        guest = next((i for i in ids if accounts.is_linked(i)), None)
+        if not guest:
+            raise HTTPException(404, "Ce joueur n'a pas de compte Party.")
+    elif not body.id:
+        raise HTTPException(400, "Profil inconnu")
+    return account_call(lambda: accounts.member_card(body.token, body.id, guest), 404)
+
+
+@app.post("/api/account/privacy")
+def account_privacy(body: MemberToken):
+    return account_call(lambda: accounts.privacy(body.token), 401)
+
+
+@app.post("/api/account/privacy/name")
+def account_privacy_name(body: PrivacyName):
+    return account_call(lambda: accounts.set_name_public(body.token, body.on))
+
+
+@app.post("/api/account/privacy/phone")
+def account_privacy_phone(body: PrivacyPhone):
+    return account_call(lambda: accounts.set_group_phone_share(body.token, body.group_id, body.on))
 
 
 class SubscriptionSet(MemberToken):
