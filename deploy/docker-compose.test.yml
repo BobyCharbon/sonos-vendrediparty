@@ -20,6 +20,9 @@ services:
       # Assistant IA (Claude) : sans clé, l'assistant reste éteint. Plafond mensuel par personne, en dollars.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       AI_MONTHLY_BUDGET_USD: ${AI_MONTHLY_BUDGET_USD:-3}
+      # Avis : une seule liste, gardée par la production ; même secret (32 caractères au moins) sur les deux piles.
+      FEEDBACK_SYNC_SECRET: ${FEEDBACK_SYNC_SECRET:-}
+      FEEDBACK_REMOTE_URL: ${FEEDBACK_REMOTE_URL:-https://party.bobycharbon.ch}
       # Notifications de l'app iOS native (app/apns.py) : clé APNs .p8 (contenu) et son identifiant.
       APNS_KEY_P8: ${APNS_KEY_P8:-}
       APNS_KEY_ID: ${APNS_KEY_ID:-}

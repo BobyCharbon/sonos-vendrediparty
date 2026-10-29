@@ -41,12 +41,14 @@ struct AdminFeedback: Decodable, Equatable {
         let reply: String
         let game: String?
         let tab: String?
+        /// « Test » : envoyé depuis le site de test (une seule liste pour les deux sites).
+        let site: String?
         let claude: Claude?
         /// Priorité posée par l'hôte : high, medium, low, ou "" (sans).
         let priority: String
 
         enum CodingKeys: String, CodingKey { case id, at, kind, name, text, status, note, reply, context, claude, priority }
-        enum ContextKeys: String, CodingKey { case game, tab }
+        enum ContextKeys: String, CodingKey { case game, tab, site }
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -63,6 +65,7 @@ struct AdminFeedback: Decodable, Equatable {
             let context = try? c.nestedContainer(keyedBy: ContextKeys.self, forKey: .context)
             game = try context?.decodeIfPresent(String.self, forKey: .game)
             tab = try context?.decodeIfPresent(String.self, forKey: .tab)
+            site = try context?.decodeIfPresent(String.self, forKey: .site)
         }
 
         var statusLabel: String { AdminFeedback.statusLabels[status] ?? "" }
@@ -154,6 +157,7 @@ struct AdminFeedback: Decodable, Equatable {
                         .locale(Locale(identifier: "fr_CH")))]
         if let game = item.game { parts.append("jeu : \(games[game] ?? game)") }
         else if let tab = item.tab { parts.append("depuis \(Self.tabs[tab] ?? tab)") }
+        if item.site == "Test" { parts.append("🧪 site de test") }
         return parts.joined(separator: " · ")
     }
 }

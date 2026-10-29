@@ -114,6 +114,17 @@ class FeedbackBox:
         status = {"fixed": "verify", "failed": "new"}.get(state, item["status"])
         return self._edit(fid, status=status, claude=claude)
 
+    def absorb(self, items: list[dict]) -> int:
+        """Avis d'un autre site (test) versés dans cette liste, une seule fois : ceux déjà présents sont ignorés,
+        l'ordre d'arrivée est gardé. Renvoie le nombre d'avis ajoutés."""
+        with self.lock:
+            known = {i["id"] for i in self.items}
+            fresh = [i for i in items if isinstance(i, dict) and i.get("id") and i["id"] not in known and i.get("text")]
+            if fresh:
+                self.items = sorted(self.items + fresh, key=lambda i: i.get("at", 0))[-MAX_ITEMS:]
+                self._save()
+        return len(fresh)
+
     def update(self, ids: list[str], action: str, reply: str = "") -> list[dict]:
         """Change le statut (ou supprime). Renvoie les retours qui viennent d'être terminés / pas retenus,
         pour avertir leurs invités (une seule fois : un retour déjà terminé ne renotifie pas)."""
