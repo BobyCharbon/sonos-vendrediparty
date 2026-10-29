@@ -8,6 +8,10 @@ import time
 import uuid
 from pathlib import Path
 
+import json
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
 import httpx
 from playwright.sync_api import Browser, Page, expect
 
@@ -27,10 +31,55 @@ DEVICES = {
 IGNORED_CONSOLE = ("Failed to load resource", "favicon", "fonts.g", "net::ERR")
 
 
+class FakeSupabase:
+    """Supabase local pour les tests navigateur : deux comptes à jeton fixe, un Guest+ (droit « Écrire un avis »)
+    et un Guest (sans). Seules les routes lues par Party pour relier un compte et vérifier ses droits répondent."""
+
+    ACCOUNTS = {"jeton-de-test-guest-plus-0001": ("u-plus", "Léa", ["feedback.write", "music.add"]),
+                "jeton-de-test-guest-0001": ("u-guest", "Tom", ["music.add"])}
+
+    def __init__(self):
+        accounts = self.ACCOUNTS
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def _answer(self, status, data):
+                body = json.dumps(data).encode()
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def _route(self):
+                if self.headers.get("Content-Length"):
+                    self.rfile.read(int(self.headers["Content-Length"]))
+                who = accounts.get(self.headers.get("Authorization", "").removeprefix("Bearer "))
+                if who is None:
+                    return self._answer(401, {"message": "invalid JWT"})
+                uid, name, perms = who
+                path = self.path.split("?")[0]
+                answers = {"/auth/v1/user": {"id": uid}, "/rest/v1/rpc/my_permissions": perms,
+                           "/rest/v1/rpc/get_member_directory": [{"id": uid, "display_name": name, "status": "active"}],
+                           "/rest/v1/rpc/is_beta_tester": False}
+                return self._answer(200, answers[path]) if path in answers else self._answer(404, {})
+
+            do_GET = do_POST = _route
+
+        self.http = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://127.0.0.1:{self.http.server_address[1]}"
+        threading.Thread(target=self.http.serve_forever, daemon=True).start()
+
+    def stop(self):
+        self.http.shutdown()
+
+
 class Server:
     """Serveur Vendredi Party sur un port libre, avec ses propres données."""
 
-    def __init__(self):
+    def __init__(self, supabase: "FakeSupabase | None" = None):
         with socket.socket() as s:
             s.bind(("127.0.0.1", 0))
             self.port = s.getsockname()[1]
@@ -38,6 +87,8 @@ class Server:
         self.data = tempfile.mkdtemp(prefix="vp-e2e-")
         env = {**os.environ, "DATA_DIR": self.data, "ADMIN_PIN": ADMIN_PIN}
         env.pop("SPOTIFY_CLIENT_ID", None)
+        if supabase:
+            env.update(SUPABASE_URL=supabase.url, SUPABASE_ANON_KEY="cle-publique-de-test")
         self.log = open(Path(self.data) / "server.log", "w")
         self.proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app", "--port", str(self.port), "--log-level", "warning"],
                                      cwd=ROOT, env=env, stdout=self.log, stderr=subprocess.STDOUT)
@@ -80,6 +131,7 @@ class Phone:
             }}""")
         self.page: Page = self.ctx.new_page()
         self.errors: list[str] = []
+        self.token = ""
         self.page.on("pageerror", lambda e: self.errors.append(f"[{name}] exception JS : {e}"))
         self.page.on("console", lambda m: m.type == "error" and not any(x in m.text for x in IGNORED_CONSOLE)
                      and self.errors.append(f"[{name}] console : {m.text}"))
@@ -174,3 +226,11 @@ def wait_state(phone: "Phone", check, timeout: float = 8.0) -> dict:
         if time.monotonic() > end:
             raise AssertionError(f"État attendu non atteint (phase={s.get('phase')})")
         time.sleep(0.15)
+
+
+def sign_in(phone: "Phone", token: str):
+    """Compte connecté comme le ferait le module Événements (session dans le localStorage du site), puis relié."""
+    phone.token = token
+    session = json.dumps({"access_token": token, "refresh_token": "r", "expires_at": int(time.time()) + 3600})
+    phone.page.evaluate(f"localStorage.setItem('sb-e2e-auth-token', {json.dumps(session)})")
+    phone.page.evaluate("linkAccount()")

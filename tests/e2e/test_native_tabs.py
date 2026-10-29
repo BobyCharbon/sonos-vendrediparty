@@ -49,7 +49,17 @@ def active(state):
     return [t["id"] for t in state["tabs"] if t["active"]]
 
 
+def as_guest_plus(page):
+    """Compte Guest+ (droit « Écrire un avis ») : l'onglet « Ton avis » s'affiche (le droit lui-même est vérifié
+    par le serveur, voir test_feedback_tab.py)."""
+    page.evaluate("account = { name: 'Léa', feedback: true }; fbSyncAccess();")
+
+
 def test_page_hides_its_own_tab_bar_and_describes_the_tabs(app):
+    state = last_state(app)
+    # Non connecté : pas de « Ton avis » (réservé à Guest+ et au-dessus).
+    assert [t["id"] for t in state["tabs"]] == ["music", "games", "events", "account"]
+    as_guest_plus(app)
     state = last_state(app)
     assert [t["id"] for t in state["tabs"]] == ["music", "games", "events", "feedback", "account"]
     assert [t["label"] for t in state["tabs"]][:2] == ["Musique", "Jeux"]
@@ -64,12 +74,14 @@ def test_native_selection_switches_the_tab_like_a_touch(app):
     app.evaluate("PartyTabs.select('games')")
     app.wait_for_function("document.body.dataset.tab === 'games'")
     assert active(last_state(app)) == ["games"]
+    as_guest_plus(app)
     app.evaluate("PartyTabs.select('feedback')")
     app.wait_for_function("document.body.dataset.tab === 'feedback'")
     assert active(last_state(app)) == ["feedback"]
 
 
 def test_badges_follow_the_page(app):
+    as_guest_plus(app)
     app.evaluate("document.getElementById('gameDot').classList.remove('hidden')")
     games = next(t for t in last_state(app)["tabs"] if t["id"] == "games")
     assert games["badge"] == ""  # un point (« ● ») : badge sans texte

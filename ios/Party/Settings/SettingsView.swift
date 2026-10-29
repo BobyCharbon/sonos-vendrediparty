@@ -1,12 +1,14 @@
 import SwiftUI
 
 /// Onglet Réglages natif, à la manière des Réglages de l'iPhone : le compte en tête, puis Notifications.
-/// Les écrans pas encore natifs (profil, abonnements, confidentialité, compte) s'ouvrent dans la page.
+/// Tout est natif ; seuls les écrans d'un événement (voir, modifier) s'ouvrent dans le module Événements.
 struct SettingsView: View {
     @ObservedObject var store: SettingsStore
     let topInset: CGFloat
     let isHost: Bool
+    var hostMusic: HostMusicStore?
     let open: (WebModel.PagePlace) -> Void
+    @State private var confirmSignOut = false
 
     var body: some View {
         NavigationStack {
@@ -14,39 +16,76 @@ struct SettingsView: View {
                 accountSection
                 Section {
                     NavigationLink {
-                        NotificationSettingsView(store: store, open: open)
+                        NotificationSettingsView(store: store)
                     } label: {
                         SettingsRow(symbol: "bell.badge.fill", tint: .red, title: "Notifications",
-                                    hint: "Musique, jeux, avis et événements : choisis ce qui t'avertit")
+                                    hint: "Musique, jeux, avis et événements ; catégories et tags suivis")
                     }
                     if store.account != nil {
                         NavigationLink {
-                            SubscriptionsView(store: store)
+                            GroupsView(store: store.groups)
                         } label: {
-                            SettingsRow(symbol: "tag.fill", tint: .orange, title: "Abonnements",
-                                        hint: "Catégories et tags d'événements que tu suis")
+                            SettingsRow(symbol: "person.3.fill", tint: .blue, title: "Groupes",
+                                        hint: "Les groupes dont tu fais partie ; crée les tiens")
                         }
                     }
                 }
-                if isHost || store.account?.admin == true {
-                    Section("Soirée") {
-                        page(.tab("host"), "person.2.fill", .blue, "Invités et messages", "Messages des invités, invités, bannis")
-                        page(.admin, "slider.horizontal.3", .gray, "Admin de la soirée", "Musique, enceintes, joueurs, jeux et réglages du site")
-                        if store.account?.admin == true {
-                            page(.account("/admin"), "shield.lefthalf.filled", .indigo, "Administration du groupe",
-                                 "Demandes, membres, rôles et droits")
+                if isHost || store.account?.admin == true || store.account?.groupAdmin == true {
+                    Section("Administration") {
+                        if isHost || store.account?.admin == true {
+                            if let hostMusic {
+                                NavigationLink { HostPeopleView(store: hostMusic) } label: {
+                                    SettingsRow(symbol: "person.2.fill", tint: .blue, title: "Invités et messages",
+                                                hint: "Messages des invités, invités, bannis, journal")
+                                }
+                                NavigationLink {
+                                    PartyAdminView(store: hostMusic, openMusic: { open(.tab("music")) }, openWebAdmin: { open(.admin) })
+                                } label: {
+                                    SettingsRow(symbol: "slider.horizontal.3", tint: .gray, title: "Admin de la soirée",
+                                                hint: "État, code et QR, jeux en cours, arrêt ; la musique dans Musique")
+                                }
+                            }
+                        }
+                        if store.account?.groupAdmin == true {
+                            NavigationLink {
+                                GroupAdminView(store: store.groupAdmin, session: store.session, open: open)
+                            } label: {
+                                SettingsRow(symbol: "shield.lefthalf.filled", tint: .indigo, title: "Administration du groupe",
+                                            hint: "Propositions, demandes, membres, rôles et droits, journal")
+                            }
                         }
                     }
                 }
                 Section {
-                    page(.tab("stats"), "trophy.fill", .orange, "Mes stats de jeu", "Purify Test : dernier score, radar et record")
-                    page(.tab("feedback"), "bubble.left.and.bubble.right.fill", .green, "Ton avis", "Une idée, un bug ? Écris à l'organisateur")
+                    if store.account != nil {
+                        NavigationLink {
+                            GameStatsView(store: store.session) { open(.tab("games")) }
+                        } label: {
+                            SettingsRow(symbol: "trophy.fill", tint: .orange, title: "Mes stats de jeu",
+                                        hint: "Purify Test : dernier score, profil et record")
+                        }
+                    }
+                    // « Ton avis » : l'hôte, et les comptes Guest+ et au-dessus (droit « Écrire un avis »).
+                    if isHost || store.account?.feedback == true {
+                        page(.tab("feedback"), "bubble.left.and.bubble.right.fill", .green, "Ton avis", "Une idée, un bug ? Écris à l'organisateur")
+                    }
                 }
-                if store.account != nil {
-                    Section {
-                        page(.account("/privacy"), "lock.fill", .blue, "Confidentialité", "Tes données et tes choix")
-                        page(.account("/settings/account"), "gearshape.fill", .gray, "Gérer mon compte", "Suppression du compte")
-                        page(.account("/account"), "rectangle.portrait.and.arrow.right", .red, "Se déconnecter", "En bas de la page du compte")
+                Section {
+                    NavigationLink { PrivacyView() } label: {
+                        SettingsRow(symbol: "lock.fill", tint: .blue, title: "Confidentialité", hint: "Tes données et tes choix")
+                    }
+                    if store.account != nil {
+                        NavigationLink {
+                            DeleteAccountView(store: store.session, isAdmin: store.account?.admin == true)
+                        } label: {
+                            SettingsRow(symbol: "gearshape.fill", tint: .gray, title: "Gérer mon compte", hint: "Suppression du compte")
+                        }
+                        Button { confirmSignOut = true } label: {
+                            SettingsRow(symbol: "rectangle.portrait.and.arrow.right", tint: .red, title: "Se déconnecter",
+                                        hint: "Cet iPhone oublie ton compte ; tu restes invité de la soirée")
+                        }
+                        .foregroundStyle(.primary)
+                        .disabled(store.session.busy)
                     }
                 }
                 Section {
@@ -63,6 +102,12 @@ struct SettingsView: View {
         .padding(.top, topInset)
         .background(AppConfig.background.ignoresSafeArea())
         .task { await store.refreshAccount() }
+        .confirmationDialog("Se déconnecter de ce compte ?", isPresented: $confirmSignOut, titleVisibility: .visible) {
+            Button("Se déconnecter", role: .destructive) { Task { await store.session.signOut() } }
+        } message: {
+            Text("Tu pourras te reconnecter avec ton numéro. Les notifications des événements s'arrêtent sur cet iPhone.")
+        }
+        .overlay(alignment: .bottom) { SessionNotice(store: store.session) }
     }
 
     @ViewBuilder
@@ -81,7 +126,7 @@ struct SettingsView: View {
                 }
                 .accessibilityLabel("Mon profil : \(account.name)")
             } else {
-                Button { open(.account("/account")) } label: {
+                NavigationLink { SignInView(store: store.session) } label: {
                     HStack(spacing: 14) {
                         Avatar(photo: nil, name: "")
                         VStack(alignment: .leading, spacing: 2) {
@@ -92,7 +137,6 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 4)
                 }
-                .foregroundStyle(.primary)
             }
         }
     }
@@ -156,4 +200,11 @@ private struct Avatar: View {
         .clipShape(Circle())
         .accessibilityHidden(true)
     }
+}
+
+/// Bandeau « Tu es déconnecté »… (le compte est suivi par son propre store).
+private struct SessionNotice: View {
+    @ObservedObject var store: AccountStore
+
+    var body: some View { AdminNotice(notice: $store.notice) }
 }

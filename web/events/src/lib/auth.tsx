@@ -108,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const appState = AppState.addEventListener('change', (state) => {
       if (state === 'active') refresh();
     });
-    const timer = profile?.role === 'guest' ? setInterval(refresh, 15_000) : undefined;  // accès aux sorties donné par un admin
+    const timer = profile?.role === 'guest' || profile?.role === 'guestplus' ? setInterval(refresh, 15_000) : undefined;  // accès aux sorties donné par un admin
     if (Platform.OS === 'web') window.addEventListener('focus', refresh);
     return () => {
       appState.remove();

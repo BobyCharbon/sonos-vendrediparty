@@ -1,0 +1,261 @@
+import SwiftUI
+
+/// Mes groupes (POST /api/account/groups) : ceux que j'ai créés et ceux dont je fais partie ; people = personnes
+/// que je peux y ajouter (annuaire, selon mes droits).
+struct GroupList: Decodable, Equatable {
+    struct Person: Decodable, Equatable, Identifiable {
+        let id: String
+        let name: String
+    }
+
+    struct Group: Decodable, Equatable, Identifiable {
+        let id: String
+        let name: String
+        /// Groupe du système (« Vendredi Party », les VIP) : composé par les admins.
+        let system: Bool
+        /// Créé par moi : je le compose et je peux le supprimer.
+        let mine: Bool
+        let members: [Person]
+    }
+
+    let groups: [Group]
+    let people: [Person]
+}
+
+extension PartyAPI {
+    func groups(token: String) async throws -> GroupList { try await postDecoding("/api/account/groups", body: ["token": token]) }
+
+    func createGroup(token: String, name: String) async throws -> GroupList {
+        try await postDecoding("/api/account/groups/create", body: ["token": token, "name": name])
+    }
+
+    func setGroupMember(token: String, groupID: String, userID: String, on: Bool) async throws -> GroupList {
+        try await postDecoding("/api/account/groups/member", body: ["token": token, "group_id": groupID, "user_id": userID, "on": on])
+    }
+
+    func deleteGroup(token: String, groupID: String) async throws -> GroupList {
+        try await postDecoding("/api/account/groups/delete", body: ["token": token, "group_id": groupID])
+    }
+}
+
+/// Réglages › Groupes : données et actions, avec la session du compte.
+@MainActor
+final class GroupsStore: ObservableObject {
+    @Published private(set) var list: GroupList?
+    @Published private(set) var error: String?
+    @Published private(set) var busy: Set<String> = []
+    @Published var notice: String?
+
+    private let api: PartyAPI
+    private weak var web: WebStorage?
+
+    init(api: PartyAPI, web: WebStorage?) {
+        self.api = api
+        self.web = web
+    }
+
+    func load() async {
+        await run("load") { token in list = try await api.groups(token: token) }
+    }
+
+    func create(_ name: String) async -> Bool {
+        var created = false
+        await run("create") { token in
+            list = try await api.createGroup(token: token, name: name)
+            created = true
+        }
+        return created
+    }
+
+    func toggle(_ person: GroupList.Person, in group: GroupList.Group) async {
+        let on = !group.members.contains(where: { $0.id == person.id })
+        await run("\(group.id).\(person.id)") { token in
+            list = try await api.setGroupMember(token: token, groupID: group.id, userID: person.id, on: on)
+        }
+    }
+
+    func delete(_ group: GroupList.Group) async {
+        await run(group.id) { token in
+            list = try await api.deleteGroup(token: token, groupID: group.id)
+            notice = "Groupe « \(group.name) » supprimé"
+        }
+    }
+
+    private func run(_ key: String, _ work: (String) async throws -> Void) async {
+        guard let token = await web?.accountToken() else {
+            error = "Connecte-toi pour voir et créer des groupes"
+            return
+        }
+        busy.insert(key)
+        defer { busy.remove(key) }
+        do {
+            try await work(token)
+            error = nil
+        } catch PartyAPIError.needsCode {
+            error = "Ta connexion a expiré : reconnecte-toi dans Événements"
+        } catch {
+            if list == nil { self.error = error.localizedDescription } else { notice = error.localizedDescription }
+        }
+    }
+}
+
+struct GroupsView: View {
+    @ObservedObject var store: GroupsStore
+    @State private var newName = ""
+    @FocusState private var naming: Bool
+
+    var body: some View {
+        List {
+            Section {
+                HStack {
+                    TextField("Nom du nouveau groupe", text: $newName).focused($naming).submitLabel(.done)
+                        .onSubmit(create)
+                    Button("Créer", action: create)
+                        .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty || store.busy.contains("create"))
+                }
+            } header: {
+                Text("Nouveau groupe")
+            } footer: {
+                Text("Un groupe sert à inviter plusieurs personnes d'un coup à un événement. Quelqu'un qui rejoint le groupe plus tard est aussi invité aux événements à venir.")
+            }
+            if let list = store.list {
+                Section("Mes groupes") {
+                    if list.groups.isEmpty { Text("Tu ne fais partie d'aucun groupe pour l'instant.").foregroundStyle(.secondary) }
+                    ForEach(list.groups) { group in
+                        NavigationLink {
+                            GroupDetailView(store: store, groupID: group.id)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(group.name).font(.headline)
+                                Text(subtitle(group)).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(AppConfig.background.ignoresSafeArea())
+        .navigationTitle("Groupes")
+        .navigationBarTitleDisplayMode(.inline)
+        .overlay {
+            if store.list == nil {
+                if let error = store.error {
+                    VStack(spacing: 12) {
+                        Text(error).multilineTextAlignment(.center).foregroundStyle(.secondary)
+                        Button("Réessayer") { Task { await store.load() } }
+                    }
+                    .padding()
+                } else {
+                    ProgressView()
+                }
+            }
+        }
+        .overlay(alignment: .bottom) { GroupNotice(store: store) }
+        .refreshable { await store.load() }
+        .task { await store.load() }
+    }
+
+    private func subtitle(_ group: GroupList.Group) -> String {
+        let role = group.system ? "Les VIP" : group.mine ? "Créé par toi" : "Tu en fais partie"
+        return "\(role) · \(group.members.count) personne\(group.members.count > 1 ? "s" : "")"
+    }
+
+    private func create() {
+        let name = newName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        naming = false
+        Task { if await store.create(name) { newName = "" } }
+    }
+}
+
+/// Un groupe : ses membres ; pour mes groupes, ajouter ou retirer des personnes d'un toucher, et le supprimer.
+struct GroupDetailView: View {
+    @ObservedObject var store: GroupsStore
+    let groupID: String
+    @State private var confirmDelete = false
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        List {
+            if let group = store.list?.groups.first(where: { $0.id == groupID }) {
+                if group.mine {
+                    Section {
+                        if store.list?.people.isEmpty == true {
+                            Text("Personne d'autre à ajouter pour l'instant.").foregroundStyle(.secondary)
+                        }
+                        ForEach(store.list?.people ?? []) { person in
+                            let inside = group.members.contains { $0.id == person.id }
+                            Button { Task { await store.toggle(person, in: group) } } label: {
+                                HStack {
+                                    Text(person.name)
+                                    Spacer()
+                                    if store.busy.contains("\(group.id).\(person.id)") {
+                                        ProgressView()
+                                    } else {
+                                        Image(systemName: inside ? "checkmark.circle.fill" : "circle")
+                                            .foregroundStyle(inside ? Palette.accent : .secondary)
+                                    }
+                                }
+                            }
+                            .foregroundStyle(.primary)
+                            .accessibilityAddTraits(inside ? .isSelected : [])
+                        }
+                    } header: {
+                        Text("Membres · \(group.members.count)")
+                    } footer: {
+                        Text("Touche une personne pour l'ajouter ou la retirer.")
+                    }
+                    Section {
+                        Button("Supprimer le groupe", role: .destructive) { confirmDelete = true }
+                    } footer: {
+                        Text("Les invités qui ont déjà répondu gardent l'accès à leurs événements.")
+                    }
+                } else {
+                    Section {
+                        ForEach(group.members) { Text($0.name) }
+                    } header: {
+                        Text("Membres · \(group.members.count)")
+                    } footer: {
+                        Text(group.system ? "Les VIP : être dans ce groupe donne accès aux événements du groupe. Les admins le composent."
+                                          : "Seule la personne qui l'a créé peut le modifier.")
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(AppConfig.background.ignoresSafeArea())
+        .navigationTitle(store.list?.groups.first(where: { $0.id == groupID })?.name ?? "Groupe")
+        .navigationBarTitleDisplayMode(.inline)
+        .overlay(alignment: .bottom) { GroupNotice(store: store) }
+        .confirmationDialog("Supprimer ce groupe ?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Supprimer", role: .destructive) {
+                guard let group = store.list?.groups.first(where: { $0.id == groupID }) else { return }
+                Task {
+                    await store.delete(group)
+                    dismiss()
+                }
+            }
+        }
+    }
+}
+
+private struct GroupNotice: View {
+    @ObservedObject var store: GroupsStore
+
+    var body: some View {
+        if let notice = store.notice {
+            Text(notice)
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 16).padding(.vertical, 12)
+                .background(Palette.card, in: Capsule())
+                .padding(.bottom, 12)
+                .task(id: notice) {
+                    try? await Task.sleep(for: .seconds(3))
+                    store.notice = nil
+                }
+        }
+    }
+}

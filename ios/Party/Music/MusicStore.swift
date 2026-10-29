@@ -24,6 +24,10 @@ protocol WebStorage: AnyObject {
     func accountToken() async -> String?
     /// Le profil du compte a changé : la page le relit (surnom, photo, droits).
     func accountChanged() async
+    /// Connexion native : la session Supabase est rangée là où la page et le module Événements la lisent.
+    func storeSession(key: String, json: String) async
+    /// Déconnexion native : la page oublie la session (module Événements compris) et reprend l'identité d'invité.
+    func clearSession() async
 }
 
 /// Onglet Musique natif : état de la soirée en direct, recherche, ajout, messages à l'hôte.
@@ -73,6 +77,10 @@ final class MusicStore: ObservableObject {
     init(api: PartyAPI, web: WebStorage) {
         self.api = api
         self.web = web
+        // Jetons des Live Activities : le serveur les tient à jour quand l'app est fermée.
+        TrackActivities.report = { [weak self] requestID, token in
+            Task { await self?.reportActivity(requestID: requestID, token: token) }
+        }
     }
 
     private let artCache = NSCache<NSString, UIImage>()
@@ -242,6 +250,15 @@ final class MusicStore: ObservableObject {
     func trackPreferenceChanged(_ on: Bool, subscribed: Bool) {
         trackWanted = on
         notifyWhenPlaying = subscribed && on
+    }
+
+    private func reportActivity(requestID: String?, token: String) async {
+        guard let me = await currentIdentity() else { return }
+        if let requestID {
+            try? await api.activityToken(guestID: me.id, requestID: requestID, token: token, environment: PushRegistrar.environment)
+        } else {
+            try? await api.activityStartToken(guestID: me.id, token: token, environment: PushRegistrar.environment)
+        }
     }
 
     // MARK: Recherche

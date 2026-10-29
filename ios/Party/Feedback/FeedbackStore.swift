@@ -58,7 +58,7 @@ final class FeedbackStore: ObservableObject {
         defer { sending = false }
         do {
             items = try await api.sendFeedback(guestID: me.id, name: me.name, kind: kind.rawValue,
-                                               text: trimmedText, fromTab: fromTab())
+                                               text: trimmedText, fromTab: fromTab(), token: await web?.accountToken())
             text = ""
             notice = Notice(text: "Merci ! Ton message est bien arrivé 🙏", isError: false)
             web?.refreshFeedbackBadge()

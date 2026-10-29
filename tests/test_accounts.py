@@ -154,3 +154,17 @@ def test_party_renews_an_expired_session_itself_through_the_server(monkeypatch):
         assert seen[-1][:2] == ('/auth/v1/token', 'refresh_token')
         assert c.post('/api/account/refresh', json={'refresh_token': 'refresh-bad'}).status_code == 401
         assert c.post('/api/account/refresh', json={'refresh_token': ''}).status_code == 422
+
+
+def test_signing_in_keeps_the_notification_choices_made_before(monkeypatch):
+    """Retour PartyTEST : connecté au compte, l'identité change (invité → compte) ; ses choix de notifications suivent."""
+    client, _ = fake_supabase('u-3')
+    monkeypatch.setattr(main, 'accounts', accounts_mod.Accounts(b'secret', client))
+    main.store.session.guest_notify['anon-phone-3'] = {'track': False, 'games': True}
+    c = TestClient(main.app)
+    gid = c.post('/api/account/link', json={'token': 'y' * 40, 'guest_id': 'anon-phone-3'}).json()['guest_id']
+    assert main.store.session.guest_notify[gid] == {'track': False, 'games': True}
+    # Le compte a déjà ses propres choix : on ne les écrase pas.
+    main.store.session.guest_notify['anon-phone-4'] = {'track': True}
+    c.post('/api/account/link', json={'token': 'y' * 40, 'guest_id': 'anon-phone-4'})
+    assert main.store.session.guest_notify[gid] == {'track': False, 'games': True}

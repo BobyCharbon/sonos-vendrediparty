@@ -250,3 +250,15 @@ def test_removing_the_second_request_removes_the_second_copy(admin, monkeypatch)
     admin.post("/api/admin/remove", json={"request_id": second.id})
     assert ("remove", 7) in admin.fake.calls and ("remove", 5) not in admin.fake.calls
     assert [r.id for r in main.store.pending() if r.track_id == "d" * 22] == [first.id]
+
+
+def test_admin_drags_a_track_to_any_place_in_the_queue(admin):
+    """Réorganiser (poignée de l'admin natif) : un seul déplacement, de la position d'origine à la position visée."""
+    queue = admin.get("/api/admin/state").json()["queue"]
+    trois = queue[2]
+    assert admin.post("/api/admin/queue", json={"pos": 7, "key": trois["key"], "action": "move", "to": 5}).status_code == 200
+    assert admin.fake.calls == [("move", 7, 5)]
+    # Hors de la file à venir : ramené au premier ou au dernier titre à venir.
+    admin.post("/api/admin/queue", json={"pos": 5, "key": queue[0]["key"], "action": "move", "to": 99})
+    assert admin.fake.calls[-1] == ("move", 5, 7)
+    assert admin.post("/api/admin/queue", json={"pos": 5, "key": queue[0]["key"], "action": "move"}).status_code == 400

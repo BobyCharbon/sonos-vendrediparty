@@ -463,7 +463,22 @@ function freshToken() {
     });
   return tokenRenewal;
 }
+// « Ton avis » : réservé à l'hôte et aux comptes qui ont le droit « Écrire un avis » (Guest+ et au-dessus).
+// Un Guest ou un non connecté ne voit plus l'onglet (la barre native suit : bouton masqué = absent).
+function fbAllowed() {
+  try { return fbIsAdmin() || !!account?.feedback; }
+  catch { return !!account?.feedback; }  // tout début du chargement : fbIsAdmin n'est pas encore définie
+}
+function fbSyncAccess() {
+  const tab = document.querySelector('#tabs [data-tab="feedback"]');
+  if (!tab) return;
+  const allowed = fbAllowed();
+  if (tab.classList.contains("hidden") === !allowed) return;
+  tab.classList.toggle("hidden", !allowed);  // la barre native le remarque d'elle-même (native-tabs.js)
+  if (!allowed && document.body.dataset.tab === "feedback") showTab("music");
+}
 function showAccount() {
+  fbSyncAccess();
   const tab = $("accountTab"), pic = tab.querySelector(".tab-avatar");
   tab.querySelector("span").textContent = account ? "Réglages" : "Se connecter";
   tab.querySelector(".tab-ico").classList.toggle("hidden", !!account?.photo);
@@ -517,7 +532,7 @@ async function linkAccount() {
   try {
     const a = await api("/api/account/link", { method: "POST", body: JSON.stringify({ token, guest_id: guestId }) });
     if (!guestId.startsWith("acct-")) store("vp_guest_anon", guestId);
-    account = a; store("vp_account", JSON.stringify({ name: a.name, photo: a.photo, beta: a.beta, admin: a.admin }));
+    account = a; store("vp_account", JSON.stringify({ name: a.name, photo: a.photo, beta: a.beta, admin: a.admin, group_admin: a.group_admin, feedback: a.feedback }));
     PartyEvents.setBeta(a.beta);
     if (a.admin) { adminFailedAt = 0; renewAdmin().then((ok) => { if (ok && typeof refreshGame === "function") refreshGame(); }); }
     else if (adminSession) { adminSession = false; fbSyncRole(); }  // droits admin retirés au compte
@@ -581,6 +596,7 @@ function fbBadge() {
 const adminToolsReady = () => !!(window.MusicAdmin && window.PeopleAdmin && window.GamesAdmin && window.AuditAdmin && window.FeedbackAdmin);
 addEventListener("DOMContentLoaded", () => fbSyncRole());
 function fbSyncRole() {
+  fbSyncAccess();
   const admin = fbIsAdmin();
   document.body.classList.toggle("admin-music", admin);
   if (!adminToolsReady()) return;
@@ -649,15 +665,20 @@ document.addEventListener("click", (ev) => {
   fbKind = k.dataset.fbKind;
   document.querySelectorAll("[data-fb-kind]").forEach((b) => { b.classList.toggle("on", b === k); b.setAttribute("aria-checked", b === k); });
 });
-$("fbText").addEventListener("input", () => { $("fbCount").textContent = `${$("fbText").value.length} / 1000`; });
+const FB_MIN = 30;  // comme le serveur (FEEDBACK_MIN_LENGTH)
+$("fbText").addEventListener("input", () => {
+  const n = $("fbText").value.trim().length;
+  $("fbCount").textContent = n < FB_MIN ? `${n} / 1000 · encore ${FB_MIN - n} caractère${FB_MIN - n > 1 ? "s" : ""} minimum` : `${n} / 1000`;
+});
 $("fbForm").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const text = $("fbText").value.trim();
-  if (text.length < 3) return toast("Écris quelques mots pour expliquer ton idée", "err");
+  if (text.length < FB_MIN) return toast(`Écris au moins ${FB_MIN} caractères pour bien expliquer ton idée`, "err");
   $("fbSend").disabled = true;
   try {
     const context = { tab: fbTab, ...(typeof game !== "undefined" && game?.type ? { game: game.type } : {}) };
-    const r = await api("/api/feedback", { method: "POST", body: JSON.stringify({ guest_id: guestId, name: guestName, kind: fbKind, text, context }) });
+    const token = (await freshToken()) || "";  // le serveur vérifie le droit « Écrire un avis »
+    const r = await api("/api/feedback", { method: "POST", body: JSON.stringify({ guest_id: guestId, name: guestName, kind: fbKind, text, context, token }) });
     $("fbText").value = ""; $("fbCount").textContent = "0 / 1000";
     renderFeedback(r.mine);
     toast("Merci ! Ton message est bien arrivé 🙏", "ok");
@@ -680,8 +701,9 @@ async function initNotifications() {
   const sub = await Push.current("/").catch(() => null);
   $("notifToggle").checked = !!sub && Push.permission() === "granted";
   $("notifHelp").textContent = Push.permission() === "denied" ? "Notifications bloquées dans les réglages du téléphone." : "";
-  // Réassocie l'abonnement à cet invité (le serveur a pu l'oublier).
-  if ($("notifToggle").checked) Push.send("/api/push/subscribe", { guest_id: guestId, subscription: sub.toJSON() }).catch(() => {});
+  // Réassocie l'abonnement à cet invité (le serveur a pu l'oublier), sans toucher à ses choix de notifications
+  // (sinon « Mon titre passe » coupé dans les Réglages revenait à chaque ouverture : retour PartyTEST).
+  if ($("notifToggle").checked) Push.send("/api/push/subscribe", { guest_id: guestId, subscription: sub.toJSON(), keep_prefs: true }).catch(() => {});
 }
 $("notifToggle").addEventListener("change", async () => {
   const on = $("notifToggle").checked;
@@ -816,7 +838,7 @@ addEventListener("DOMContentLoaded", async () => {
     history.replaceState(null, "", location.pathname);
     showTab("games");
   } else if (params.get("tab") === "feedback") {
-    showTab("feedback");
+    showTab(fbAllowed() ? "feedback" : "music");
     history.replaceState(null, "", location.pathname);
   } else if (params.get("tab") === "events") {
     showTab("events", PartyEvents.target(params));

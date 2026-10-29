@@ -171,8 +171,13 @@ def test_sms_login_events_details_and_rsvp(browser,events_origin,country,width):
         assert otp['phone']==expected
         event_frame=page.frame(url=events_origin+'/events/')
         assert event_frame.evaluate('document.documentElement.scrollWidth <= innerWidth')
-        tabs=[frame.get_by_role('tab',name=label,exact=True).bounding_box() for label in ('À venir','Sondages','Propositions','Passés')]
+        labels=('À venir','Sondages','En attente','Brouillons','Passés')
+        tabs=[frame.get_by_role('tab',name=label,exact=True).bounding_box() for label in labels]
         assert all(tab and tab['height']>=44 for tab in tabs)
+        # Aucun libellé coupé (« … ») : le texte tient dans son onglet.
+        for label in labels:
+            text=frame.get_by_role('tab',name=label,exact=True).locator('div[dir="auto"]').first
+            assert text.evaluate('e => e.scrollWidth <= e.clientWidth + 1'), label
         for left,right in zip(tabs,tabs[1:]):
             assert left['y']!=right['y'] or left['x']+left['width']<=right['x']
         # Plein écran : le module commence en haut de l’écran, sans le titre de Party.

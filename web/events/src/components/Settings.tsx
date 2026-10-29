@@ -62,7 +62,9 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
       <Card style={{ gap: 0, paddingVertical: 4 }}>
         {active ? (
           <>
-            <LinkRow icon="🔔" tint="#FF5A5F" label="Notifications et abonnements" hint="Ce que tu reçois, quand, et les catégories ou tags que tu suis" onPress={() => router.push('/settings/notifications')} />
+            <LinkRow icon="🔔" tint="#FF5A5F" label="Notifications" hint="Ce que tu reçois, quand ; catégories et tags suivis" onPress={() => router.push('/settings/notifications')} />
+            <RowDivider />
+            <LinkRow icon="👥" tint="#0A84FF" label="Groupes" hint="Les groupes dont tu fais partie ; crée les tiens" onPress={() => router.push('/groups')} />
             <RowDivider />
           </>
         ) : null}
@@ -85,8 +87,13 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
         {/* Page de Party (hors du module) : un onglet par jeu (Purify Test pour commencer), à montrer si on veut. */}
         <LinkRow icon="🏆" tint="#FF9F0A" label="Mes stats de jeu" hint="Purify Test : ton dernier score, ton radar et ton record" onPress={() => openPartyTab('stats')} />
         <RowDivider />
-        <LinkRow icon="💬" tint="#30D158" label="Ton avis" hint="Une idée, un bug ? Écris à l’organisateur" onPress={() => openPartyTab('feedback')} />
-        <RowDivider />
+        {/* « Ton avis » : Guest+ et au-dessus (droit « Écrire un avis »). */}
+        {can('feedback.write') ? (
+          <>
+            <LinkRow icon="💬" tint="#30D158" label="Ton avis" hint="Une idée, un bug ? Écris à l’organisateur" onPress={() => openPartyTab('feedback')} />
+            <RowDivider />
+          </>
+        ) : null}
         <LinkRow icon="🔒" tint="#0A84FF" label="Confidentialité" hint="Tes données et tes choix" onPress={() => router.push('/privacy')} />
         <RowDivider />
         <LinkRow icon="⚙️" tint="#636366" label="Gérer mon compte" hint="Suppression du compte" onPress={() => router.push('/settings/account')} />

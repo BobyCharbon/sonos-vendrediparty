@@ -27,9 +27,13 @@ from pydantic import BaseModel, ConfigDict, Field
 from . import calendar_ics, debate, games, heist, island, likely, links, neon, president, purity, quiz
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
+from .account_auth import AccountAuth
+from .group_admin import ROLES as ADMIN_ROLES, GroupAdmin
 from .audit import AuditLog
 from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
 from .github_issues import GitHubError, Issues
+from . import live_activity
+from .apns import TOPICS
 from .party import ADMIN_NOTIFY_DEFAULTS, GUEST_NOTIFY_DEFAULTS, HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
 from .apns import Apns
 from .push import Push, valid_subscription
@@ -199,12 +203,61 @@ def snapshot(force: bool = False) -> dict:
         return data
 
 
+# Live Activities (app/live_activity.py) : dernière vue envoyée à chaque activité, en mémoire (un redémarrage
+# du serveur renvoie simplement une mise à jour).
+_live: dict[str, dict] = {}
+
+
+def live_slots(data: dict) -> list[live_activity.Slot]:
+    by_pos = requests_by_position(data["upcoming"], store.pending())
+    slots = []
+    for ahead, (t, eta) in enumerate(zip(data["upcoming"], etas(data))):
+        if req := by_pos.get(t["pos"]):
+            slots.append(live_activity.Slot(req.id, req.guest_id, req.track_id, req.title, req.artist,
+                                            req.added_at, ahead, eta))
+    return slots
+
+
+def refresh_live_activities(data: dict, now: float | None = None):
+    """À chaque tour de suivi de la file : pousse aux Live Activities ce qui a changé (app fermée comprise)."""
+    s = store.session
+    if push.apns is None or not (s.activities or s.activity_start_tokens):
+        return
+    now = now or time.time()
+    slots = live_slots(data)
+    paused = data["state"] not in ("PLAYING", "TRANSITIONING")
+    current = (data.get("current") or {}).get("track_id")
+    tracked = {rid: {**info, **_live.get(rid, {})} for rid, info in s.activities.items()}
+    owners_of = {slot.rid: slot.owner for slot in slots}
+    busy = frozenset(info.get("owner", "") for info in tracked.values()
+                     if current and info.get("track_id") == current and info.get("key") == ("playing",))
+    steps = (live_activity.plan(slots, current, tracked, paused, now)
+             + live_activity.starts(slots, set(s.activity_start_tokens), tracked, set(s.activities_started), paused, now,
+                                    busy))
+    for step in steps:
+        if step.event == "start":
+            target = s.activity_start_tokens.get(owners_of[step.rid])
+            s.activities_started = s.activities_started[-199:] + [step.rid]
+        else:
+            target = s.activities.get(step.rid)
+        if not target:
+            continue
+        _live[step.rid] = {"key": step.key, "remaining": step.payload["content-state"]["remaining"]}
+        if step.event == "end":
+            s.activities.pop(step.rid, None)  # dernier envoi : l'activité ne sera plus suivie
+            _live.pop(step.rid, None)
+        gone = (lambda rid=step.rid: s.activities.pop(rid, None)) if step.event == "update" else (lambda: None)
+        push.send_live_activity(target, step.event, step.payload, step.priority, on_gone=gone)
+    if any(step.event in ("start", "end") for step in steps):
+        store.save(notify=False)
+
+
 def watch_sonos():
     """Interroge le Sonos en continu pendant la soirée pour détecter les changements faits ailleurs."""
     while True:
         if store.session.active:
             try:
-                snapshot(force=True)
+                refresh_live_activities(snapshot(force=True))
             except Exception:
                 pass  # Sonos momentanément injoignable : on réessaie au tour suivant
         time.sleep(5 if spotify_queue() else 1.5)
@@ -984,7 +1037,8 @@ def admin_queue(snap: dict, limit: int = 150) -> list[dict]:
 class QueueAction(BaseModel):
     pos: int
     key: str
-    action: str  # next | up | down | play | remove
+    action: str  # next | up | down | play | remove | move (vers « to », poignée de l'admin natif)
+    to: int | None = None
 
 
 @app.post("/api/admin/queue", dependencies=[Depends(require_admin)])
@@ -1001,6 +1055,10 @@ def admin_queue_action(body: QueueAction):
             raise HTTPException(409, "La file a changé entre-temps, réessaie")
         first, last = snap["current_pos"] + 1, upcoming[-1]["pos"]
         targets = {"next": first, "up": max(first, body.pos - 1), "down": min(last, body.pos + 1)}
+        if body.action == "move":
+            if body.to is None:
+                raise HTTPException(400, "Position visée manquante")
+            targets["move"] = min(last, max(first, body.to))
         if body.action in targets:
             player().move(uid, body.pos, targets[body.action])
         elif body.action == "play":
@@ -1208,7 +1266,7 @@ def create_game(body: GameCreate, request: Request):
     title, text = f"🎮 {games.GAMES[g['type']]}", f"{g['host_name']} lance une partie · code {g['code']}"
     notify_admin({"title": title, "body": text, "url": "/admin#games", "tag": f"game-{g['code']}"}, kind="games")
     for guest_id in list(store.session.push):
-        if guest_id != body.guest_id:
+        if guest_id not in (body.guest_id, HOST_ID):  # l'hôte est déjà prévenu en tant qu'hôte
             notify_guest(guest_id, {"title": title, "body": text, "url": f"/?game={g['code']}", "tag": f"game-{g['code']}"},
                          kind="games")
     store.session.games[g["code"]] = g
@@ -1353,6 +1411,8 @@ def presence(body: Presence, request: Request):
 
 
 accounts = Accounts(_secret())
+group_admin = GroupAdmin(accounts)
+account_auth = AccountAuth(accounts)
 # Ne compte que les vrais refus (compte sans droit admin). Un jeton expiré ou invalide n'est jamais compté :
 # un jeton Supabase ne se devine pas, et l'app rouverte après 1 h en présente un périmé. Compté, il bloquait
 # l'adresse de toute la maison (box partagée) et le compte root ne devenait plus admin (bug du 26.10).
@@ -1383,6 +1443,11 @@ def account_link(body: AccountLink, request: Request):
     if GUEST_ID_RE.match(old or "") and old != new:
         with GAMES_LOCK:
             link_seats(old, new)
+        # Choix de notifications faits avant de se connecter : ils suivent le compte (sans écraser les siens).
+        prefs = store.session.guest_notify
+        if old in prefs and new not in prefs:
+            prefs[new] = dict(prefs[old])
+            store.save(notify=False)
     if account["name"]:
         game_presence(request, new, account["name"])
     return account
@@ -1430,6 +1495,57 @@ def account_refresh(body: SessionRefresh, request: Request):
 
 class MemberToken(BaseModel):
     token: str = Field(min_length=1, max_length=4096)
+
+
+class PhoneCode(BaseModel):
+    phone: str = Field(min_length=8, max_length=16)
+
+
+class PhoneVerify(PhoneCode):
+    code: str = Field(min_length=6, max_length=6)
+
+
+class AccountDelete(BaseModel):
+    token: str = Field(min_length=1, max_length=4096)
+    confirm: str = Field(max_length=20)
+
+
+# Connexion native (Réglages de l'app iOS) : mêmes comptes et même session que le module Événements.
+otp_limiter = Limiter(per_ip=20, ip_lock=900, global_max=120, global_window=600, global_lock=300)
+
+
+@app.post("/api/account/otp")
+def account_otp(body: PhoneCode, request: Request):
+    ip = client_ip(request)
+    if msg := otp_limiter.blocked(ip):
+        raise HTTPException(429, msg)
+    otp_limiter.fail(ip)  # chaque envoi compte : pas de rafale de SMS depuis une même adresse
+    return account_call(lambda: account_auth.send_code(body.phone.strip()) or {"ok": True})
+
+
+@app.post("/api/account/verify")
+def account_verify(body: PhoneVerify, request: Request):
+    ip = client_ip(request)
+    if msg := otp_limiter.blocked(ip):
+        raise HTTPException(429, msg)
+    try:
+        result = account_auth.verify(body.phone.strip(), body.code.strip())
+    except AccountError as e:
+        otp_limiter.fail(ip)
+        raise HTTPException(400, str(e))
+    otp_limiter.success(ip)
+    return result
+
+
+@app.post("/api/account/logout")
+def account_logout(body: MemberToken):
+    account_auth.sign_out(body.token)
+    return {"ok": True}
+
+
+@app.post("/api/account/delete")
+def account_delete(body: AccountDelete):
+    return account_call(lambda: account_auth.delete_account(body.token, body.confirm) or {"ok": True})
 
 
 QUIET_TIME = r"^([01]\d|2[0-3]):[0-5]\d(:00)?$"
@@ -1496,6 +1612,180 @@ def account_push(body: MemberPush):
 
 
 UUID = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+
+
+class GroupName(MemberToken):
+    name: str = Field(max_length=60)
+
+
+class GroupMember(MemberToken):
+    group_id: str = Field(pattern=UUID)
+    user_id: str = Field(pattern=UUID)
+    on: bool
+
+
+class GroupRef(MemberToken):
+    group_id: str = Field(pattern=UUID)
+
+
+def account_call(work, status: int = 400):
+    try:
+        return work()
+    except AccountError as e:
+        raise HTTPException(status, str(e))
+
+
+@app.post("/api/account/groups")
+def account_groups(body: MemberToken):
+    """Réglages natifs › Groupes."""
+    return account_call(lambda: accounts.groups(body.token), 401)
+
+
+@app.post("/api/account/groups/create")
+def account_group_create(body: GroupName):
+    name = " ".join(body.name.split())
+    if not name:
+        raise HTTPException(400, "Donne un nom au groupe")
+    return account_call(lambda: accounts.create_group(body.token, name))
+
+
+@app.post("/api/account/groups/member")
+def account_group_member(body: GroupMember):
+    return account_call(lambda: accounts.set_group_member(body.token, body.group_id, body.user_id, body.on))
+
+
+@app.post("/api/account/groups/delete")
+def account_group_delete(body: GroupRef):
+    return account_call(lambda: accounts.delete_group(body.token, body.group_id))
+
+
+class AdminDecision(MemberToken):
+    id: str = Field(pattern=UUID)
+    yes: bool
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class AdminSwitch(MemberToken):
+    on: bool
+
+
+class AdminMemberUpdate(MemberToken):
+    id: str = Field(pattern=UUID)
+    role: Literal[ADMIN_ROLES] | None = None
+    status: Literal["active", "banned"] | None = None
+    beta: bool | None = None
+
+
+class AdminMemberDelete(MemberToken):
+    id: str = Field(pattern=UUID)
+    confirm_name: str = Field(max_length=60)
+
+
+class AdminPermission(MemberToken):
+    role: Literal[ADMIN_ROLES]
+    perm: str = Field(min_length=1, max_length=60, pattern=r"^[a-z_.]+$")
+    on: bool
+
+
+class AdminJournal(MemberToken):
+    member: str | None = Field(default=None, pattern=UUID)
+    before: int | None = Field(default=None, ge=1)
+
+
+# Réglages natifs › Administration du groupe : la base revérifie chaque droit avec la session du membre.
+@app.post("/api/account/group-admin")
+def account_group_admin(body: MemberToken):
+    return account_call(lambda: group_admin.overview(body.token), 401)
+
+
+@app.post("/api/account/group-admin/event")
+def account_group_admin_event(body: AdminDecision):
+    return account_call(lambda: group_admin.decide_event(body.token, body.id, body.yes, (body.reason or "").strip()))
+
+
+@app.post("/api/account/group-admin/request")
+def account_group_admin_request(body: AdminDecision):
+    return account_call(lambda: group_admin.decide_request(body.token, body.id, body.yes))
+
+
+@app.post("/api/account/group-admin/approval")
+def account_group_admin_approval(body: AdminSwitch):
+    return account_call(lambda: group_admin.set_require_approval(body.token, body.on))
+
+
+@app.post("/api/account/group-admin/members")
+def account_group_admin_members(body: MemberToken):
+    return account_call(lambda: group_admin.members(body.token), 401)
+
+
+@app.post("/api/account/group-admin/member")
+def account_group_admin_member(body: AdminMemberUpdate):
+    return account_call(lambda: group_admin.update_member(body.token, body.id, body.role, body.status, body.beta))
+
+
+@app.post("/api/account/group-admin/member/delete")
+def account_group_admin_member_delete(body: AdminMemberDelete):
+    return account_call(lambda: group_admin.delete_member(body.token, body.id, body.confirm_name.strip()))
+
+
+@app.post("/api/account/group-admin/roles")
+def account_group_admin_roles(body: MemberToken):
+    return account_call(lambda: group_admin.roles(body.token), 401)
+
+
+@app.post("/api/account/group-admin/permission")
+def account_group_admin_permission(body: AdminPermission):
+    return account_call(lambda: group_admin.set_permission(body.token, body.role, body.perm, body.on))
+
+
+@app.post("/api/account/group-admin/journal")
+def account_group_admin_journal(body: AdminJournal):
+    return account_call(lambda: group_admin.journal(body.token, body.member, body.before))
+
+
+class AnnouncementPage(MemberToken):
+    before_at: str | None = Field(default=None, max_length=40, pattern=r"^[0-9T:.+\-Z ]+$")
+    before_id: str | None = Field(default=None, pattern=UUID)
+
+
+class AnnouncementNew(MemberToken):
+    title: str = Field(min_length=1, max_length=120)
+    body: str = Field(min_length=1, max_length=4000)
+
+
+class TopicSave(MemberToken):
+    kind: Literal["categories", "tags"]
+    id: str | None = Field(default=None, pattern=UUID)
+    name: str | None = Field(default=None, max_length=40)
+    color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    archived: bool | None = None
+
+
+@app.post("/api/account/announcements")
+def account_announcements(body: AnnouncementPage):
+    """Réglages natifs › Annonces admin (lecture pour tous les membres)."""
+    return account_call(lambda: group_admin.announcements(body.token, body.before_at, body.before_id), 401)
+
+
+@app.post("/api/account/group-admin/announce")
+def account_group_admin_announce(body: AnnouncementNew):
+    title, text = body.title.strip(), body.body.strip()
+    if not title or not text:
+        raise HTTPException(400, "Un titre et un message, s'il te plaît.")
+    return account_call(lambda: group_admin.publish(body.token, title, text))
+
+
+@app.post("/api/account/group-admin/taxonomy")
+def account_group_admin_taxonomy(body: MemberToken):
+    return account_call(lambda: group_admin.taxonomy(body.token), 401)
+
+
+@app.post("/api/account/group-admin/taxonomy/save")
+def account_group_admin_taxonomy_save(body: TopicSave):
+    fields = {k: v for k, v in (("name", body.name), ("color", body.color), ("archived", body.archived)) if v is not None}
+    if not fields or (body.id is None and not body.name):
+        raise HTTPException(400, "Donne un nom.")
+    return account_call(lambda: group_admin.save_topic(body.token, body.kind, body.id, fields))
 
 
 class SubscriptionSet(MemberToken):
@@ -2025,6 +2315,26 @@ class FeedbackIn(BaseModel):
     kind: str = "idea"
     text: str
     context: dict = {}
+    # Jeton du compte : seul un compte avec le droit « Écrire un avis » (Guest+ et au-dessus) envoie un avis.
+    token: str = Field(default="", max_length=4096)
+
+
+FEEDBACK_RIGHT = "feedback.write"
+
+
+def may_write_feedback(request: Request, token: str) -> bool:
+    """Hôte (session admin) ou compte avec le droit « Écrire un avis » ; jamais un Guest ni un non connecté."""
+    if is_admin(request):
+        return True
+    if not token:
+        return False
+    try:
+        return FEEDBACK_RIGHT in accounts._perms(token)
+    except AccountError:
+        return False
+
+
+FEEDBACK_MIN_LENGTH = 30  # assez pour qu'une idée ou un bug soit compréhensible
 
 
 @app.post("/api/feedback")
@@ -2033,11 +2343,15 @@ def send_feedback(body: FeedbackIn, request: Request):
     check_guest_id(body.guest_id)
     if msg := ban_message(body.guest_id, client_ip(request)):
         raise HTTPException(403, msg)
+    if not may_write_feedback(request, body.token):
+        raise HTTPException(403, "Ton avis est réservé aux comptes Guest+ et plus : connecte-toi avec ton numéro, "
+                                 "puis demande l'accès à un admin.")
     text = " ".join(body.text.split())[:1000]
-    if body.kind not in FEEDBACK_KINDS or len(text) < 3:
-        raise HTTPException(400, "Écris quelques mots pour expliquer ton idée")
-    if feedback.sent_since(body.guest_id, 20) or feedback.sent_since(body.guest_id, 86400) >= 10:
-        raise HTTPException(429, "Merci ! Attends un peu avant d'envoyer un autre message")
+    if body.kind not in FEEDBACK_KINDS:
+        raise HTTPException(400, "Type de retour inconnu")
+    if len(text) < FEEDBACK_MIN_LENGTH:
+        raise HTTPException(400, f"Écris au moins {FEEDBACK_MIN_LENGTH} caractères pour bien expliquer ton idée")
+    # Pas de limite d'envoi : une personne peut écrire plusieurs avis à la suite (demande de l'admin, 29.10).
     context = {k: str(v)[:40] for k, v in body.context.items() if k in ("tab", "game")}
     # Pas de prénom (invité qui n'a encore rien ajouté) : « Anonyme ». clean_name refuserait un prénom vide.
     name = " ".join(body.name.split())[:30] or "Anonyme"
@@ -2065,7 +2379,7 @@ MIN_CLAUDE_NOTE = 10  # Claude ne part pas sans instructions claires de l'admin
 
 
 def feedback_payload() -> dict:
-    return {"items": feedback.all(), "kinds": FEEDBACK_KINDS, "claude_ready": github.configured}
+    return {"items": feedback.all(), "kinds": FEEDBACK_KINDS, "claude_ready": github.configured, "games": games.GAMES}
 
 
 def sync_claude_fixes():
@@ -2378,13 +2692,20 @@ def checked_subscription(sub: dict) -> dict:
 
 
 @app.post("/api/push/subscribe", dependencies=[Depends(require_guest)])
-def push_subscribe(body: PushSubscribe):
-    """L'invité veut être prévenu quand son titre passe."""
+def push_subscribe(body: PushSubscribe, request: Request):
+    """L'invité veut être prévenu quand son titre passe. L'hôte dans l'app est aussi abonné pour ses titres
+    ajoutés en tant qu'hôte (HOST_ID), avec les mêmes choix."""
     check_guest_id(body.guest_id)
+    others = tuple(owners(request, body.guest_id) - {body.guest_id})
     if not body.keep_prefs:
-        store.session.guest_notify[body.guest_id] = {**store.session.guest_notify.get(body.guest_id, {}), "track": True}
-    store.add_push(body.guest_id, checked_subscription(body.subscription))
+        set_guest_pref((body.guest_id, *others), "track", True)
+    store.add_push(body.guest_id, checked_subscription(body.subscription), also=others)
     return {"ok": True}
+
+
+def set_guest_pref(guest_ids, kind: str, on: bool):
+    for gid in guest_ids:
+        store.session.guest_notify[gid] = {**store.session.guest_notify.get(gid, {}), kind: on}
 
 
 @app.post("/api/admin/push/subscribe", dependencies=[Depends(require_admin)])
@@ -2435,13 +2756,68 @@ class GuestNotify(BaseModel):
 
 
 @app.post("/api/notify", dependencies=[Depends(require_guest)])
-def guest_notify(body: GuestNotify):
+def guest_notify(body: GuestNotify, request: Request):
     check_guest_id(body.guest_id)
     if body.kind not in GUEST_NOTIFY_DEFAULTS:
         raise HTTPException(400, "Type inconnu")
-    store.session.guest_notify[body.guest_id] = {**store.session.guest_notify.get(body.guest_id, {}), body.kind: body.on}
+    set_guest_pref(owners(request, body.guest_id), body.kind, body.on)
     store.save(notify=False)
     return guest_notify_payload(body.guest_id)
+
+
+APNS_HEX = r"^[0-9a-f]{64,200}$"
+
+
+class ActivityToken(BaseModel):
+    guest_id: str
+    request_id: str = Field(max_length=64)
+    token: str = Field("", pattern=r"^([0-9a-f]{64,200})?$")  # vide : l'activité n'est plus suivie
+    environment: Literal["production", "sandbox"] = "production"
+    topic: str = ""
+
+
+@app.post("/api/activity", dependencies=[Depends(require_guest)])
+def activity_token(body: ActivityToken, request: Request):
+    """L'app a démarré la Live Activity d'un de ses titres : le serveur la tient à jour (app fermée comprise)."""
+    check_guest_id(body.guest_id)
+    if not body.token:
+        store.session.activities.pop(body.request_id, None)
+        _live.pop(body.request_id, None)
+        store.save(notify=False)
+        return {"ok": True}
+    if body.topic not in TOPICS:
+        raise HTTPException(400, "App inconnue")
+    req = next((r for r in store.session.requests if r.id == body.request_id), None)
+    if req is None or req.guest_id not in owners(request, body.guest_id):
+        raise HTTPException(404, "Titre introuvable")
+    store.session.activities[req.id] = {"token": body.token, "environment": body.environment, "topic": body.topic,
+                                         "track_id": req.track_id, "owner": req.guest_id}
+    _live.pop(req.id, None)  # la prochaine vue part tout de suite
+    store.save(notify=False)
+    return {"ok": True}
+
+
+class ActivityStartToken(BaseModel):
+    guest_id: str
+    token: str = Field("", pattern=r"^([0-9a-f]{64,200})?$")  # vide : plus de démarrage par push (réglage coupé)
+    environment: Literal["production", "sandbox"] = "production"
+    topic: str = ""
+
+
+@app.post("/api/activity/start", dependencies=[Depends(require_guest)])
+def activity_start_token(body: ActivityStartToken, request: Request):
+    """Jeton de démarrage (iOS 17.2+) : un titre ajouté pendant que l'app est fermée démarre sa Live Activity."""
+    check_guest_id(body.guest_id)
+    if body.token and body.topic not in TOPICS:
+        raise HTTPException(400, "App inconnue")
+    for owner in owners(request, body.guest_id):
+        if body.token:
+            store.session.activity_start_tokens[owner] = {"token": body.token, "environment": body.environment,
+                                                          "topic": body.topic}
+        else:
+            store.session.activity_start_tokens.pop(owner, None)
+    store.save(notify=False)
+    return {"ok": True}
 
 
 class PushUnsubscribe(BaseModel):

@@ -88,6 +88,22 @@ class Apns:
             headers={"authorization": f"bearer {self._provider_token()}", "apns-topic": target["topic"],
                      "apns-push-type": "alert", "apns-priority": "10",
                      "apns-expiration": str(int(time.time()) + TTL_SECONDS)})
+        return self._alive(response)
+
+    def send_live_activity(self, target: dict, event: str, aps: dict, priority: int = 10) -> bool:
+        """Live Activity (app/live_activity.py) : event start | update | end ; target = jeton de l'activité ou de
+        démarrage, environnement et app. False si le jeton n'existe plus (activité terminée, app désinstallée)."""
+        body = {"aps": {"timestamp": int(time.time()), "event": event, **aps}}
+        response = self.client.post(
+            f"{HOSTS[target['environment']]}/3/device/{target['token']}", json=body,
+            headers={"authorization": f"bearer {self._provider_token()}",
+                     "apns-topic": target["topic"] + ".push-type.liveactivity",
+                     "apns-push-type": "liveactivity", "apns-priority": str(priority),
+                     "apns-expiration": str(int(time.time()) + TTL_SECONDS)})
+        return self._alive(response)
+
+    @staticmethod
+    def _alive(response: httpx.Response) -> bool:
         if response.status_code == 410:
             return False
         if response.status_code == 400:

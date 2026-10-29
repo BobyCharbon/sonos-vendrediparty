@@ -18,6 +18,8 @@ final class WebModel: ObservableObject {
     /// Dernier onglet de contenu (Musique, Jeux…) : contexte d'une idée envoyée depuis « Ton avis ».
     private(set) var lastContentTab: String?
     private static let settingsTabs: Set<String> = ["feedback", "account", "host", "stats"]
+    /// Écrans de la page rangés sous Réglages (index.html, SUB_SCREENS) : ouverts depuis les Réglages natifs.
+    private static let settingsSubScreens: Set<String> = ["host", "stats"]
     let start: URL
     weak var webView: WKWebView?
     /// Adresse demandée avant que la vue web existe (app lancée par un lien ou une notification).
@@ -33,6 +35,14 @@ final class WebModel: ObservableObject {
     private(set) var music: MusicStore?
     private(set) var feedback: FeedbackStore?
     private(set) var settings: SettingsStore?
+    private(set) var hostMusic: HostMusicStore?
+    /// Retours reçus (hôte), dans l'onglet « Retours » natif.
+    private(set) var feedbackAdmin: FeedbackAdminStore?
+
+    /// L'hôte gère la soirée dans l'écran natif (« Gérer la soirée ») plutôt qu'en vue invité ; retenu.
+    @Published var hostNativeMusic = UserDefaults.standard.bool(forKey: "hostNativeMusic") {
+        didSet { UserDefaults.standard.set(hostNativeMusic, forKey: "hostNativeMusic") }
+    }
     private var cookieWatcher: CookieWatcher?
 
     /// Page du compte ouverte depuis les Réglages natifs (Mon profil, Confidentialité…) : la page s'affiche à la
@@ -61,6 +71,8 @@ final class WebModel: ObservableObject {
         music = MusicStore(api: api, web: self)
         music?.start()  // suivi de la file dès le lancement (PartyApp le relance au retour au premier plan)
         feedback = FeedbackStore(api: api, web: self) { [weak self] in self?.lastContentTab }
+        hostMusic = HostMusicStore(api: api, web: self)
+        feedbackAdmin = FeedbackAdminStore(api: api, web: self)
         settings = SettingsStore(api: api, web: self, isHost: { [weak self] in self?.isHost ?? false },
                                  trackChanged: { [weak self] on, subscribed in
                                      self?.music?.trackPreferenceChanged(on, subscribed: subscribed)
@@ -104,6 +116,12 @@ final class WebModel: ObservableObject {
             guard let script = Self.call("frameRoute", path) else { return }
             pageDetail = "account"
             webView?.evaluateJavaScript(script)
+        case .tab(let id) where Self.settingsSubScreens.contains(id):
+            // Sous-écran de Réglages dans la page (Invités et messages, Mes stats) : pas de bouton dans la barre
+            // d'onglets, on l'ouvre directement ; la page s'affiche à la place des Réglages natifs (« ‹ Réglages »).
+            guard let script = Self.call("showTab", id) else { return }
+            pageDetail = "account"
+            webView?.evaluateJavaScript(script)
         case .tab(let id):
             selectTab(id)
         case .admin:
@@ -128,6 +146,12 @@ final class WebModel: ObservableObject {
         hostManagedScreens.contains(screen)
     }
 
+    /// « Ancienne version » : la gestion de la soirée dans la page, en secours.
+    func manageMusicInPage() {
+        hostNativeMusic = false
+        setHostManages(true, screen: "music")
+    }
+
     /// L'hôte passe de la vue invité (natif) à la gestion dans la page pour cet écran, et inversement.
     func setHostManages(_ manages: Bool, screen: String) {
         if manages { hostManagedScreens.insert(screen) } else { hostManagedScreens.remove(screen) }
@@ -135,7 +159,8 @@ final class WebModel: ObservableObject {
 
     private static func savedManagedScreens() -> Set<String> {
         let defaults = UserDefaults.standard
-        if let saved = defaults.stringArray(forKey: hostScreensKey) { return Set(saved) }
+        // « Retours » se gère désormais en natif : un ancien choix « dans la page » est oublié.
+        if let saved = defaults.stringArray(forKey: hostScreensKey) { return Set(saved).subtracting(["feedback"]) }
         return defaults.bool(forKey: legacyMusicKey) ? ["music"] : []
     }
 
@@ -204,6 +229,28 @@ extension WebModel: WebStorage {
         guard let webView else { return }
         let script = "if (typeof linkAccount === 'function') await linkAccount(); "
             + "const f = document.getElementById('eventsFrame'); if (f && f.contentWindow) f.contentWindow.location.reload();"
+        _ = try? await webView.callAsyncJavaScript(script, arguments: [:], contentWorld: .page)
+    }
+
+    func storeSession(key: String, json: String) async {
+        guard let webView else { return }
+        _ = try? await webView.callAsyncJavaScript("localStorage.setItem(key, value)", arguments: ["key": key, "value": json],
+                                                   contentWorld: .page)
+        await accountChanged()
+    }
+
+    func clearSession() async {
+        guard let webView else { return }
+        // Le module Événements est rechargé avant de relier le compte : il ne peut plus réécrire l'ancienne session.
+        let script = """
+            const forget = () => Object.keys(localStorage).filter((k) => /^sb-.+-auth-token$/.test(k)).forEach((k) => localStorage.removeItem(k));
+            forget();
+            const f = document.getElementById('eventsFrame');
+            if (f && f.contentWindow) f.contentWindow.location.reload();
+            await new Promise((done) => setTimeout(done, 400));
+            forget();
+            if (typeof linkAccount === 'function') await linkAccount();
+            """
         _ = try? await webView.callAsyncJavaScript(script, arguments: [:], contentWorld: .page)
     }
 

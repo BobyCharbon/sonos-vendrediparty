@@ -120,13 +120,19 @@ struct AccountSummary: Decodable, Equatable {
     let name: String
     let photo: String?
     let admin: Bool
+    /// Au moins un droit d'administration du groupe (valider, membres, rôles…) : Réglages › Administration du groupe.
+    let groupAdmin: Bool
+    /// Droit « Écrire un avis » (Guest+ et au-dessus) : « Ton avis » s'affiche.
+    let feedback: Bool
 
-    enum CodingKeys: String, CodingKey { case name, photo, admin }
+    enum CodingKeys: String, CodingKey { case name, photo, admin, feedback, groupAdmin = "group_admin" }
 
-    init(name: String, photo: String?, admin: Bool) {
+    init(name: String, photo: String?, admin: Bool, groupAdmin: Bool = false, feedback: Bool = false) {
         self.name = name
         self.photo = photo
         self.admin = admin
+        self.groupAdmin = groupAdmin
+        self.feedback = feedback
     }
 
     init(from decoder: Decoder) throws {
@@ -134,6 +140,9 @@ struct AccountSummary: Decodable, Equatable {
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
         photo = try c.decodeIfPresent(String.self, forKey: .photo)
         admin = try c.decodeIfPresent(Bool.self, forKey: .admin) ?? false
+        // Compte relié avant cette version : la page n'a pas encore noté le droit, les admins l'ont d'office.
+        groupAdmin = try c.decodeIfPresent(Bool.self, forKey: .groupAdmin) ?? admin
+        feedback = try c.decodeIfPresent(Bool.self, forKey: .feedback) ?? admin
     }
 
     static func parse(_ json: String?) -> AccountSummary? {
@@ -173,7 +182,7 @@ struct MemberProfile: Decodable, Equatable {
     /// Libellés du module Événements (roleLabel dans web/events/src/lib/types.ts).
     var roleLabel: String {
         if status == "banned" { return "Accès retiré" }
-        return ["guest": "Guest", "member": "Membre VIP", "organizer": "Organisateur", "coadmin": "Co-admin", "admin": "Admin"][role] ?? role
+        return ["guest": "Guest", "basic": "Membre", "member": "Membre VIP", "organizer": "Organisateur", "coadmin": "Co-admin", "admin": "Admin"][role] ?? role
     }
 }
 

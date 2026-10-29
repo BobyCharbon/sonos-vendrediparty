@@ -153,9 +153,9 @@ struct FeedbackTests {
         #expect(FeedbackKind.label(for: list.mine[1].kind) == "💡 Idée")
     }
 
-    @Test("Les mêmes limites que le serveur : 3 à 1000 caractères")
+    @Test("Les mêmes limites que le serveur : 30 à 1000 caractères")
     func rules() {
-        #expect(FeedbackRules.minimumLength == 3 && FeedbackRules.maximumLength == 1000)
+        #expect(FeedbackRules.minimumLength == 30 && FeedbackRules.maximumLength == 1000)
         #expect(FeedbackKind.allCases.map(\.rawValue) == ["idea", "bug", "other"])
     }
 }
@@ -209,12 +209,26 @@ struct TrackActivityPlanTests {
         #expect(steps == [.update(requestID: "r1", arrival: t0.addingTimeInterval(120), paused: false, ahead: 0)])
     }
 
-    @Test("Le titre passe : « C'est ton titre ! » ; le suivant prend le relais")
-    func playingThenNext() throws {
+    @Test("Le titre passe : vert « Ton titre joue actuellement », seul (le suivant attend la fin)")
+    func playingStaysAlone() throws {
         let steps = TrackActivityStep.plan(try state(now: "b", upcoming: [("r2", "c", 200)]), receivedAt: t0,
                                            running: [(requestID: "r1", trackID: "b")])
-        #expect(steps == [.playing(requestID: "r1"),
+        #expect(steps == [.playing(requestID: "r1")])
+    }
+
+    @Test("Titre fini : l'activité disparaît, le titre suivant de la personne prend le relais")
+    func finishedThenNext() throws {
+        let steps = TrackActivityStep.plan(try state(now: "x", upcoming: [("r2", "c", 200)]), receivedAt: t0,
+                                           running: [(requestID: "r1", trackID: "b")])
+        #expect(steps == [.end(requestID: "r1"),
                           .start(requestID: "r2", trackID: "c", title: "T-c", artist: "A", arrival: t0.addingTimeInterval(200), paused: false, ahead: 0)])
+    }
+
+    @Test("Titre fini et plus rien en attente : l'activité disparaît, rien ne redémarre")
+    func finishedAndNothingLeft() throws {
+        let steps = TrackActivityStep.plan(try state(now: "x", upcoming: [(nil, "a", 60)]), receivedAt: t0,
+                                           running: [(requestID: "r1", trackID: "b")])
+        #expect(steps == [.end(requestID: "r1")])
     }
 
     @Test("Musique en pause : l'activité le sait (pas de décompte qui file)")
@@ -230,6 +244,14 @@ struct TrackActivityPlanTests {
         let moved = try JSONDecoder().decode(PartyState.self, from: Data(#"{"active": true, "state": "PAUSED_PLAYBACK", "upcoming": [{"title": "X", "artist": "A", "art": "", "track_id": "x", "by": null, "rid": null, "eta": 30}, {"title": "Y", "artist": "A", "art": "", "track_id": "y", "by": null, "rid": null, "eta": 200}, {"title": "T", "artist": "A", "art": "", "track_id": "b", "by": null, "rid": "r1", "eta": 400}]}"#.utf8))
         #expect(TrackActivityStep.plan(moved, receivedAt: t0, running: [(requestID: "r1", trackID: "b")])
                 == [.update(requestID: "r1", arrival: t0.addingTimeInterval(400), paused: true, ahead: 2)])
+    }
+
+    @Test("Mes deux titres échangés : l'ancien premier s'arrête, le nouveau premier démarre (une seule activité)")
+    func swappedTracksKeepOneActivity() throws {
+        let steps = TrackActivityStep.plan(try state(now: "x", upcoming: [("r2", "c", 100), ("r1", "b", 300)]), receivedAt: t0,
+                                           running: [(requestID: "r1", trackID: "b")])
+        #expect(steps == [.end(requestID: "r1"),
+                          .start(requestID: "r2", trackID: "c", title: "T-c", artist: "A", arrival: t0.addingTimeInterval(100), paused: false, ahead: 0)])
     }
 
     @Test("Titre retiré de la file : l'activité s'arrête")

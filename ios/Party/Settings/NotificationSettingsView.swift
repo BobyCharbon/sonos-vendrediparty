@@ -4,7 +4,6 @@ import SwiftUI
 /// Événements). Chaque choix est enregistré tout de suite ; un échec remet l'interrupteur et l'explique.
 struct NotificationSettingsView: View {
     @ObservedObject var store: SettingsStore
-    let open: (WebModel.PagePlace) -> Void
 
     var body: some View {
         List {
@@ -95,11 +94,10 @@ struct NotificationSettingsView: View {
         switch store.events {
         case .signedOut:
             Section {
-                Button { open(.account("/account")) } label: {
+                NavigationLink { SignInView(store: store.session) } label: {
                     SettingsRow(symbol: "calendar", tint: .red, title: "Se connecter pour les événements",
                                 hint: "Nouveaux événements, sondages, rappels et discussions")
                 }
-                .foregroundStyle(.primary)
             } header: {
                 Text("📅 Événements")
             }
@@ -191,11 +189,10 @@ struct NotificationSettingsView: View {
         }
 
         Section {
-            Button { open(.account("/announcements")) } label: {
+            NavigationLink { AnnouncementsView(store: store.session, canPublish: false) } label: {
                 SettingsRow(symbol: "megaphone.fill", tint: .pink, title: "Annonces des admins · toujours reçues",
                             hint: "Elles ne se coupent pas, même en pause. Touche pour les lire.")
             }
-            .foregroundStyle(.primary)
         } footer: {
             Text("Pour couper un seul événement, utilise « Sourdine » sur sa page.")
         }

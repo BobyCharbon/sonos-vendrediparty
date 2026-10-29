@@ -86,7 +86,7 @@ export default function GroupsScreen() {
                     {data.members.map((m) => (
                       <Chip
                         key={m.id}
-                        label={m.role === 'guest' ? `${m.display_name} · ${roleLabel.guest}` : m.display_name}
+                        label={m.role === 'guest' || m.role === 'guestplus' ? `${m.display_name} · ${roleLabel[m.role]}` : m.display_name}
                         selected={inside.has(m.id)}
                         disabled={busy}
                         onPress={() => run(inside.has(m.id)

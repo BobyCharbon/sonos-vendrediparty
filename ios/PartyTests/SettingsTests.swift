@@ -61,7 +61,7 @@ struct SettingsTests {
     @Test("Compte relié : lu dans vp_account, absent si déconnecté")
     func parsesAccount() {
         #expect(AccountSummary.parse(#"{"name": "Boby", "photo": null, "beta": true, "admin": true}"#)
-                == AccountSummary(name: "Boby", photo: nil, admin: true))
+                == AccountSummary(name: "Boby", photo: nil, admin: true, groupAdmin: true, feedback: true))
         #expect(AccountSummary.parse(nil) == nil)
         #expect(AccountSummary.parse("") == nil)
         #expect(AccountSummary.parse("null") == nil)
@@ -81,6 +81,8 @@ struct SettingsTests {
     func decodesProfile() throws {
         let p: MemberProfile = try decode(#"{"id": "u1", "display_name": "Boby", "first_name": null, "last_name": "T", "phone": null, "avatar_url": null, "role": "member", "status": "active", "photo": null}"#)
         #expect(p.firstName == "" && p.roleLabel == "Membre VIP" && p.phone == nil)
+        let membre: MemberProfile = try decode(#"{"id": "u3", "role": "basic", "status": "active"}"#)
+        #expect(membre.roleLabel == "Membre")
         let banned: MemberProfile = try decode(#"{"id": "u2", "role": "admin", "status": "banned"}"#)
         #expect(banned.roleLabel == "Accès retiré")
     }
@@ -113,5 +115,23 @@ struct SettingsTests {
         #expect(subs.follows("category", "c1") && !subs.follows("tag", "t1") && subs.count == 1)
         let next = subs.setting("tag", "t1", true).setting("category", "c1", false)
         #expect(next.tagIDs == ["t1"] && next.categoryIDs.isEmpty && subs.categoryIDs == ["c1"])
+    }
+
+    @Test("Live Activity poussée par le serveur : content-state et attributs décodés comme ActivityKit")
+    func decodesServerLiveActivityPayload() throws {
+        // Produits par app/live_activity.py (dates en secondes depuis 2001, comme une Date Swift).
+        let state: TrackActivityAttributes.ContentState = try decode(#"{"arrival": 821693100.0, "playing": false, "paused": true, "remaining": 120.5, "ahead": 2}"#)
+        #expect(state.arrival == Date(timeIntervalSince1970: 1_800_000_300))
+        #expect(state.paused && !state.playing && state.remaining == 120.5 && state.ahead == 2)
+        let attributes: TrackActivityAttributes = try decode(#"{"requestID": "rq", "addedAt": 821692800.0, "trackID": "t", "title": "T", "artist": "A"}"#)
+        #expect(attributes.requestID == "rq" && attributes.addedAt == Date(timeIntervalSince1970: 1_800_000_000))
+    }
+
+    @Test("Groupes : décodés, les miens se composent, Vendredi Party est un groupe du système")
+    func decodesGroups() throws {
+        let list: GroupList = try decode(#"{"groups": [{"id": "g1", "name": "Les footeux", "system": false, "mine": true, "members": [{"id": "u2", "name": "Léa"}]}, {"id": "g2", "name": "Vendredi Party", "system": true, "mine": false, "members": []}], "people": [{"id": "u2", "name": "Léa"}]}"#)
+        #expect(list.groups.map(\.name) == ["Les footeux", "Vendredi Party"])
+        #expect(list.groups[0].mine && !list.groups[0].system && list.groups[1].system && !list.groups[1].mine)
+        #expect(list.people.first?.name == "Léa")
     }
 }

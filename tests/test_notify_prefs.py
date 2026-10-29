@@ -72,7 +72,7 @@ def test_host_reads_and_sets_feedback_notifications_separately(admin, push):  # 
     assert admin.get("/api/admin/notify").json() == {"admin_notify": {"messages": True, "games": False, "feedback": True}}
     admin.post("/api/admin/push/subscribe", json={"subscription": SUB})
     admin.post("/api/admin/notify", json={"kind": "feedback", "on": False})
-    guest_client("guest-pref-7", "Zoé").post("/api/feedback", json={"guest_id": "guest-pref-7", "name": "Zoé", "kind": "idea", "text": "Un mode karaoké"})
+    guest_client("guest-pref-7", "Zoé").post("/api/feedback", json={"guest_id": "guest-pref-7", "name": "Zoé", "kind": "idea", "text": "Un mode karaoké avec les paroles à l'écran"})
     assert not any(p.get("tag") == "feedback" for _, p in push.sent)
     admin.post("/api/admin/notify", json={"kind": "feedback", "on": True})
     main.store.remove_push(SUB["endpoint"])
@@ -173,3 +173,31 @@ def test_push_register_api_checks_the_device_token(monkeypatch):
     assert c.post("/api/account/push", json={"token": "tok", "device": "ab" * 32, "on": True}).json() == {"ok": True}
     assert c.post("/api/account/push", json={"token": "tok", "device": "zz", "on": True}).status_code == 422
     assert seen == [("ab" * 32, True)]
+
+
+NATIVE = {"endpoint": "apns:" + "ab" * 32,
+          "apns": {"token": "ab" * 32, "environment": "production", "topic": "ch.bobycharbon.party.beta"}}
+
+
+def test_iphone_app_subscribes_as_guest_and_as_host(admin):  # noqa: F811
+    guest = guest_client("guest-native-1")
+    assert guest.post("/api/push/subscribe", json={"guest_id": "guest-native-1", "subscription": NATIVE, "keep_prefs": True}).status_code == 200
+    assert main.store.session.push["guest-native-1"] == [NATIVE]
+    assert admin.post("/api/admin/push/subscribe", json={"subscription": NATIVE}).status_code == 200
+    assert main.store.session.admin_push[-1] == NATIVE
+    main.store.remove_push(NATIVE["endpoint"])
+
+
+def test_host_in_the_app_hears_when_a_track_added_as_host_plays(admin, push):  # noqa: F811
+    native = {"X-Party-Native": "ios"}
+    assert admin.post("/api/push/subscribe", headers=native,
+                      json={"guest_id": "guest-host-app", "subscription": NATIVE}).status_code == 200
+    assert main.store.session.push[main.HOST_ID] == [NATIVE]
+    assert main.store.session.guest_notify[main.HOST_ID]["track"] is True
+    play(main.HOST_ID)
+    assert any(p.get("tag") == "now-playing" and subs == [NATIVE] for subs, p in push.sent)
+    # Coupé dans les Réglages de l'app : coupé aussi pour ses titres d'hôte.
+    admin.post("/api/notify", headers=native, json={"guest_id": "guest-host-app", "kind": "track", "on": False})
+    assert main.store.session.guest_notify[main.HOST_ID]["track"] is False
+    main.store.remove_push(NATIVE["endpoint"])
+    assert main.HOST_ID not in main.store.session.push

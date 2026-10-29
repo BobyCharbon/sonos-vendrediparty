@@ -4,45 +4,62 @@ import SwiftUI
 struct FeedbackView: View {
     @ObservedObject var store: FeedbackStore
     let topInset: CGFloat
-    /// Hôte seulement : rouvre « Retours » dans la page (états, réponses, envoi à Claude).
-    var manage: (() -> Void)?
+    /// Hôte seulement : les retours reçus (états, réponses, envoi à Claude), à côté de « Mon avis ».
+    var admin: FeedbackAdminStore?
 
     @FocusState private var writing: Bool
+    @State private var part: Part = .received
+
+    private enum Part: String, CaseIterable, Identifiable {
+        case received, mine
+        var id: String { rawValue }
+        var label: String { self == .received ? "Retours reçus" : "Mon avis" }
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
-                form
-                mine
+                if let admin {
+                    Picker("Partie", selection: $part) {
+                        ForEach(Part.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    if part == .received {
+                        FeedbackAdminSection(store: admin)
+                    } else {
+                        form
+                        mine
+                    }
+                } else {
+                    form
+                    mine
+                }
             }
             .padding(.horizontal, 16)
             .padding(.top, topInset + 8)
             .padding(.bottom, 24)
         }
         .scrollDismissesKeyboard(.interactively)
-        .refreshable { await store.appear() }
+        .refreshable {
+            await store.appear()
+            if part == .received { await admin?.load() }
+        }
         .background(AppConfig.background.ignoresSafeArea())
-        .overlay(alignment: .bottom) { noticeBanner }
+        .overlay(alignment: .bottom) {
+            if let admin { AdminNoticeHost(store: admin) }
+            noticeBanner
+        }
         .task { await store.appear() }
     }
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Ton avis").font(.largeTitle.weight(.heavy))
-                Text("Une idée, un bug ? Dis ce que tu aimerais voir changer, ajouter ou corriger. L'organisateur lit chaque message.")
-                    .font(.subheadline).foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 8)
-            if let manage {
-                Button(action: manage) {
-                    Label("Gérer les retours", systemImage: "tray.full")
-                }
-                .buttonStyle(.bordered)
-                .tint(Palette.accent)
-                .accessibilityHint("Ouvre la gestion des retours ; « Vue invité » pour revenir")
-            }
+        VStack(alignment: .leading, spacing: 4) {
+            Text(admin == nil ? "Ton avis" : "Retours").font(.largeTitle.weight(.heavy))
+            Text(admin == nil || part == .mine
+                 ? "Une idée, un bug ? Dis ce que tu aimerais voir changer, ajouter ou corriger. L'organisateur lit chaque message."
+                 : "Les idées et bugs envoyés par les invités : traite-les, confie-les à Claude, réponds-leur.")
+                .font(.subheadline).foregroundStyle(.secondary)
         }
     }
 
@@ -69,7 +86,7 @@ struct FeedbackView: View {
             .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             HStack {
-                Text("\(store.text.count) / \(FeedbackRules.maximumLength)")
+                Text(FeedbackRules.counter(store.trimmedText.count))
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 Spacer()
                 Button {
@@ -125,4 +142,11 @@ struct FeedbackView: View {
                 }
         }
     }
+}
+
+/// Bandeau des retours reçus (le store de l'hôte est observé à part).
+private struct AdminNoticeHost: View {
+    @ObservedObject var store: FeedbackAdminStore
+
+    var body: some View { AdminNotice(notice: $store.notice) }
 }

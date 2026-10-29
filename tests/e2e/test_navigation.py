@@ -176,6 +176,7 @@ def test_game_back_closes_the_menu_then_minimizes_and_the_top_bar_pulls_down(pho
 def test_segmented_thumb_glides_under_the_chosen_option(phone):
     page = phone.page
     page.goto("/")
+    page.evaluate("account = { name: 'Léa', feedback: true }; fbSyncAccess();")  # « Ton avis » : Guest+ et au-dessus
     page.locator('#tabs [data-tab="feedback"]').click()
     page.wait_for_function("document.querySelector('#fbForm .fb-kinds').classList.contains('seg-glide')")
 
