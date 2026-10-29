@@ -72,7 +72,7 @@ def test_host_reads_and_sets_feedback_notifications_separately(admin, push):  # 
     assert admin.get("/api/admin/notify").json() == {"admin_notify": {"messages": True, "games": False, "feedback": True}}
     admin.post("/api/admin/push/subscribe", json={"subscription": SUB})
     admin.post("/api/admin/notify", json={"kind": "feedback", "on": False})
-    guest_client("guest-pref-7", "Zoé").post("/api/feedback", json={"guest_id": "guest-pref-7", "name": "Zoé", "kind": "idea", "text": "Un mode karaoké"})
+    guest_client("guest-pref-7", "Zoé").post("/api/feedback", json={"guest_id": "guest-pref-7", "name": "Zoé", "kind": "idea", "text": "Un mode karaoké avec les paroles à l'écran"})
     assert not any(p.get("tag") == "feedback" for _, p in push.sent)
     admin.post("/api/admin/notify", json={"kind": "feedback", "on": True})
     main.store.remove_push(SUB["endpoint"])

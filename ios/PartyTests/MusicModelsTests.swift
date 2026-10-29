@@ -153,9 +153,9 @@ struct FeedbackTests {
         #expect(FeedbackKind.label(for: list.mine[1].kind) == "💡 Idée")
     }
 
-    @Test("Les mêmes limites que le serveur : 3 à 1000 caractères")
+    @Test("Les mêmes limites que le serveur : 30 à 1000 caractères")
     func rules() {
-        #expect(FeedbackRules.minimumLength == 3 && FeedbackRules.maximumLength == 1000)
+        #expect(FeedbackRules.minimumLength == 30 && FeedbackRules.maximumLength == 1000)
         #expect(FeedbackKind.allCases.map(\.rawValue) == ["idea", "bug", "other"])
     }
 }

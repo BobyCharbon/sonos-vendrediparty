@@ -59,7 +59,7 @@ struct ContentView: View {
                             }
                         }
                         if model.nativeScreen == "feedback", let feedback = model.feedback {
-                            FeedbackView(store: feedback, topInset: proxy.safeAreaInsets.top, manage: hostTools("feedback"))
+                            FeedbackView(store: feedback, topInset: proxy.safeAreaInsets.top, admin: model.isHost ? model.feedbackAdmin : nil)
                         }
                         if model.nativeScreen == "account", let settings = model.settings {
                             SettingsView(store: settings, topInset: proxy.safeAreaInsets.top, isHost: model.isHost, hostMusic: model.hostMusic) { place in

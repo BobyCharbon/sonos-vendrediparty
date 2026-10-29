@@ -30,7 +30,7 @@ def test_guest_feedback_reaches_admin(browser, server):
         open_feedback(guest)
         assert guest.page.evaluate("document.documentElement.scrollWidth <= innerWidth")  # 4 onglets tiennent
         guest.page.locator('[data-fb-kind="bug"]').tap()
-        guest.page.locator("#fbText").fill("Le joystick est trop petit")
+        guest.page.locator("#fbText").fill("Le joystick est trop petit sur mon iPhone")
         guest.page.locator("#fbSend").tap()
         expect(guest.page.locator("#fbMine")).to_contain_text("Le joystick est trop petit")
         guest.shot("feedback_guest")
@@ -64,7 +64,7 @@ def test_account_admin_manages_feedback_from_the_app_tab_and_guest_is_told(brows
     try:
         guest.page.goto("/")
         open_feedback(guest)
-        guest.page.locator("#fbText").fill("Un mode équipe au Quiz")
+        guest.page.locator("#fbText").fill("Un mode équipe au Quiz, avec deux camps")
         guest.page.locator("#fbSend").tap()
         expect(guest.page.locator("#fbMine")).to_contain_text("Envoyé")
 

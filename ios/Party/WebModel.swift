@@ -36,6 +36,8 @@ final class WebModel: ObservableObject {
     private(set) var feedback: FeedbackStore?
     private(set) var settings: SettingsStore?
     private(set) var hostMusic: HostMusicStore?
+    /// Retours reçus (hôte), dans l'onglet « Retours » natif.
+    private(set) var feedbackAdmin: FeedbackAdminStore?
 
     /// L'hôte gère la soirée dans l'écran natif (« Gérer la soirée ») plutôt qu'en vue invité ; retenu.
     @Published var hostNativeMusic = UserDefaults.standard.bool(forKey: "hostNativeMusic") {
@@ -70,6 +72,7 @@ final class WebModel: ObservableObject {
         music?.start()  // suivi de la file dès le lancement (PartyApp le relance au retour au premier plan)
         feedback = FeedbackStore(api: api, web: self) { [weak self] in self?.lastContentTab }
         hostMusic = HostMusicStore(api: api, web: self)
+        feedbackAdmin = FeedbackAdminStore(api: api, web: self)
         settings = SettingsStore(api: api, web: self, isHost: { [weak self] in self?.isHost ?? false },
                                  trackChanged: { [weak self] on, subscribed in
                                      self?.music?.trackPreferenceChanged(on, subscribed: subscribed)
@@ -156,7 +159,8 @@ final class WebModel: ObservableObject {
 
     private static func savedManagedScreens() -> Set<String> {
         let defaults = UserDefaults.standard
-        if let saved = defaults.stringArray(forKey: hostScreensKey) { return Set(saved) }
+        // « Retours » se gère désormais en natif : un ancien choix « dans la page » est oublié.
+        if let saved = defaults.stringArray(forKey: hostScreensKey) { return Set(saved).subtracting(["feedback"]) }
         return defaults.bool(forKey: legacyMusicKey) ? ["music"] : []
     }
 

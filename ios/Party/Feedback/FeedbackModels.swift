@@ -62,6 +62,13 @@ enum FeedbackStatus {
 
 /// Règles du serveur (app/main.py, send_feedback) rappelées avant l'envoi.
 enum FeedbackRules {
-    static let minimumLength = 3
+    static let minimumLength = 30
     static let maximumLength = 1000
+
+    /// « 12 / 1000 · encore 18 caractères minimum », puis « 42 / 1000 ».
+    static func counter(_ count: Int) -> String {
+        let missing = minimumLength - count
+        guard missing > 0 else { return "\(count) / \(maximumLength)" }
+        return "\(count) / \(maximumLength) · encore \(missing) caractère\(missing > 1 ? "s" : "") minimum"
+    }
 }

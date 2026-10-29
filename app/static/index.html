@@ -649,11 +649,15 @@ document.addEventListener("click", (ev) => {
   fbKind = k.dataset.fbKind;
   document.querySelectorAll("[data-fb-kind]").forEach((b) => { b.classList.toggle("on", b === k); b.setAttribute("aria-checked", b === k); });
 });
-$("fbText").addEventListener("input", () => { $("fbCount").textContent = `${$("fbText").value.length} / 1000`; });
+const FB_MIN = 30;  // comme le serveur (FEEDBACK_MIN_LENGTH)
+$("fbText").addEventListener("input", () => {
+  const n = $("fbText").value.trim().length;
+  $("fbCount").textContent = n < FB_MIN ? `${n} / 1000 · encore ${FB_MIN - n} caractère${FB_MIN - n > 1 ? "s" : ""} minimum` : `${n} / 1000`;
+});
 $("fbForm").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const text = $("fbText").value.trim();
-  if (text.length < 3) return toast("Écris quelques mots pour expliquer ton idée", "err");
+  if (text.length < FB_MIN) return toast(`Écris au moins ${FB_MIN} caractères pour bien expliquer ton idée`, "err");
   $("fbSend").disabled = true;
   try {
     const context = { tab: fbTab, ...(typeof game !== "undefined" && game?.type ? { game: game.type } : {}) };

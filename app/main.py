@@ -2317,6 +2317,9 @@ class FeedbackIn(BaseModel):
     context: dict = {}
 
 
+FEEDBACK_MIN_LENGTH = 30  # assez pour qu'une idée ou un bug soit compréhensible
+
+
 @app.post("/api/feedback")
 def send_feedback(body: FeedbackIn, request: Request):
     """Un invité propose une idée ou signale un bug (pas besoin du code de la soirée)."""
@@ -2324,10 +2327,11 @@ def send_feedback(body: FeedbackIn, request: Request):
     if msg := ban_message(body.guest_id, client_ip(request)):
         raise HTTPException(403, msg)
     text = " ".join(body.text.split())[:1000]
-    if body.kind not in FEEDBACK_KINDS or len(text) < 3:
-        raise HTTPException(400, "Écris quelques mots pour expliquer ton idée")
-    if feedback.sent_since(body.guest_id, 20) or feedback.sent_since(body.guest_id, 86400) >= 10:
-        raise HTTPException(429, "Merci ! Attends un peu avant d'envoyer un autre message")
+    if body.kind not in FEEDBACK_KINDS:
+        raise HTTPException(400, "Type de retour inconnu")
+    if len(text) < FEEDBACK_MIN_LENGTH:
+        raise HTTPException(400, f"Écris au moins {FEEDBACK_MIN_LENGTH} caractères pour bien expliquer ton idée")
+    # Pas de limite d'envoi : une personne peut écrire plusieurs avis à la suite (demande de l'admin, 29.10).
     context = {k: str(v)[:40] for k, v in body.context.items() if k in ("tab", "game")}
     # Pas de prénom (invité qui n'a encore rien ajouté) : « Anonyme ». clean_name refuserait un prénom vide.
     name = " ".join(body.name.split())[:30] or "Anonyme"
@@ -2355,7 +2359,7 @@ MIN_CLAUDE_NOTE = 10  # Claude ne part pas sans instructions claires de l'admin
 
 
 def feedback_payload() -> dict:
-    return {"items": feedback.all(), "kinds": FEEDBACK_KINDS, "claude_ready": github.configured}
+    return {"items": feedback.all(), "kinds": FEEDBACK_KINDS, "claude_ready": github.configured, "games": games.GAMES}
 
 
 def sync_claude_fixes():

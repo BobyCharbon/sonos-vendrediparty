@@ -96,4 +96,35 @@ struct AccountNativeTests {
         #expect(t.items(.categories)[0].nextColor == "#FF7A59")
         #expect(GroupTaxonomyView.next("#FF7A59") == "#D4F24A")
     }
+
+    @Test("Retours reçus : filtres, compteurs, d'où vient le retour, boutons selon l'état")
+    func feedbackAdmin() throws {
+        let p: AdminFeedback = try decode("""
+        {"items": [
+          {"id": "a", "at": 1800000000, "kind": "bug", "name": "Léa", "text": "Bouton gris", "status": "new", "context": {"game": "undercover"}},
+          {"id": "b", "at": 1800000000, "kind": "idea", "name": "Tom", "text": "Mode équipe", "status": "sent", "note": "Ajoute un mode", "context": {"tab": "music"},
+           "claude": {"number": 12, "url": "https://github.com/x/y/issues/12", "state": "pending", "at": 1}},
+          {"id": "c", "at": 1800000000, "kind": "other", "name": "Zoé", "text": "Merci", "status": "verify",
+           "claude": {"number": 13, "url": "https://github.com/x/y/issues/13", "state": "fixed", "migrations": ["20261029_x.sql"]}},
+          {"id": "d", "at": 1800000000, "kind": "idea", "name": "Max", "text": "Non", "status": "declined", "reply": "Pas prévu"}],
+         "kinds": {"bug": "🐞 Bug", "idea": "💡 Idée", "other": "💬 Autre"}, "claude_ready": true, "games": {"undercover": "Undercover"}}
+        """)
+        #expect(p.shown(.new).map(\.id) == ["a"] && p.shown(.progress).map(\.id) == ["b"])
+        #expect(p.shown(.verify).map(\.id) == ["c"] && p.shown(.finished).map(\.id) == ["d"] && p.count(.all) == 4)
+        #expect(p.pending == 2)
+        #expect(p.meta(p.items[0]).hasPrefix("🐞 Bug · Léa · ") && p.meta(p.items[0]).hasSuffix("jeu : Undercover"))
+        #expect(p.meta(p.items[1]).hasSuffix("depuis Musique"))
+        #expect(p.items[1].claudePending && p.items[1].claude?.label == "🤖 Claude corrige" && p.items[2].claude?.migrations == ["20261029_x.sql"])
+        #expect(p.items[0].canStart && p.items[0].canVerify && p.items[0].canFinish && !p.items[0].canReopen)
+        #expect(p.items[3].canReopen && p.items[3].canStart && !p.items[3].canFinish && p.items[3].reply == "Pas prévu")
+        #expect(p.items[1].statusLabel == "🤖 Chez Claude")
+    }
+
+    @Test("Ton avis : 30 caractères au moins, le compteur dit combien il en manque")
+    func feedbackMinimum() {
+        #expect(FeedbackRules.minimumLength == 30)
+        #expect(FeedbackRules.counter(12) == "12 / 1000 · encore 18 caractères minimum")
+        #expect(FeedbackRules.counter(29) == "29 / 1000 · encore 1 caractère minimum")
+        #expect(FeedbackRules.counter(30) == "30 / 1000")
+    }
 }

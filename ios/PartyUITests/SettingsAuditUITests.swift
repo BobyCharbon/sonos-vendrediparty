@@ -276,6 +276,37 @@ final class SettingsAuditUITests: XCTestCase {
         if open("Catégories et tags") { auditTaxonomy() }
     }
 
+    /// Onglet « Retours » de l'hôte : retours reçus (liste, fiche d'un retour) et « Mon avis » à côté.
+    private func auditFeedback() {
+        let tab = app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Retours'")).firstMatch  // « Retours, 6 nouveaux »
+        guard tab.waitForExistence(timeout: 10) else { return XCTFail("Onglet Retours absent pour l'admin") }
+        tab.tap()
+        sleep(3)
+        XCTAssertTrue(app.buttons["Retours reçus"].exists && app.buttons["Mon avis"].exists, "deux parties : reçus et mon avis")
+        expectLoaded("retours-recus")
+        let filter = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Filtrer'")).firstMatch
+        if filter.exists {
+            filter.tap()
+            sleep(1)
+            app.buttons.matching(NSPredicate(format: "label == 'Tout'")).firstMatch.tap()
+            sleep(1)
+            record("retours-tout")
+        }
+        let edit = app.buttons["Modifier"].firstMatch
+        if edit.exists {
+            edit.tap()
+            XCTAssertTrue(app.navigationBars["Retour"].waitForExistence(timeout: 5), "fiche d'un retour")
+            XCTAssertTrue(app.buttons["Copier le prompt"].exists, "copier le prompt")
+            record("retour-fiche")
+            app.buttons["Fermer"].tap()
+            sleep(1)
+        }
+        app.buttons["Mon avis"].tap()
+        sleep(1)
+        XCTAssertTrue(app.buttons["Envoyer"].exists, "formulaire « Mon avis » gardé")
+        record("retours-mon-avis")
+    }
+
     private func auditTaxonomy() {
         expectLoaded("taxonomie")
         app.buttons["Tags"].tap()
@@ -283,8 +314,11 @@ final class SettingsAuditUITests: XCTestCase {
         type(tag, into: app.textFields["Nouveau tag"])
         app.buttons["Créer"].tap()
         XCTAssertTrue(app.staticTexts["#\(tag)"].waitForExistence(timeout: 10), "tag créé")
-        if app.staticTexts["#\(tag)"].exists {
-            app.staticTexts["#\(tag)"].swipeLeft()
+        let created = app.staticTexts["#\(tag)"]
+        app.swipeDown()  // ferme le clavier
+        for _ in 0..<8 where created.exists && !created.isHittable { app.swipeUp(velocity: .slow); sleep(1) }
+        if created.exists && created.isHittable {
+            created.swipeLeft()
             app.buttons["Archiver"].firstMatch.tap()
             sleep(2)
             XCTAssertTrue(app.staticTexts["Archivé"].exists, "tag archivé")
@@ -311,6 +345,7 @@ final class SettingsAuditUITests: XCTestCase {
         signIn(Self.adminPhone, name: "Admin test")
         auditMemberScreens()
         auditAdminScreens()
+        auditFeedback()
         signOut()
     }
 }
