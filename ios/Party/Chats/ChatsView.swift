@@ -11,6 +11,8 @@ struct ChatsView: View {
         NavigationStack(path: $path) {
             list
                 .navigationTitle("Discussions")
+                .background(AppConfig.background.ignoresSafeArea())
+                .toolbarBackground(AppConfig.background, for: .navigationBar)
                 .navigationDestination(for: String.self) { group in
                     ConversationView(store: store, group: group)
                 }

@@ -234,7 +234,10 @@ private struct ChatBubble: View {
         HStack(spacing: 4) {
             ForEach(message.reactions, id: \.emoji) { r in
                 Button { onReact(r.emoji) } label: {
-                    Text("\(r.emoji) \(r.count)").font(.caption)
+                    HStack(spacing: 3) {
+                        Text(verbatim: r.emoji).font(.system(size: 14))
+                        Text("\(r.count)").font(.caption).foregroundStyle(.secondary)
+                    }
                         .padding(.horizontal, 7).padding(.vertical, 3)
                         .background(r.mine ? accent.opacity(0.25) : Color.white.opacity(0.08), in: Capsule())
                         .overlay(Capsule().stroke(r.mine ? accent : .clear))

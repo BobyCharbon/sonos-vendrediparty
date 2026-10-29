@@ -346,6 +346,51 @@ final class SettingsAuditUITests: XCTestCase {
         auditMemberScreens()
         auditAdminScreens()
         auditFeedback()
+        auditChats()
         signOut()
+    }
+
+    /// Onglet Discussions natif (avis n°10) : liste, conversation, envoi, réaction, infos du groupe.
+    func testChats() {
+        app = XCUIApplication()
+        app.launch()
+        prefix = "discussions"
+        signIn(Self.adminPhone, name: "Admin test")
+        auditChats()
+        signOut()
+    }
+
+    private func auditChats() {
+        let tab = app.tabBars.buttons["Discussions"].firstMatch
+        XCTAssertTrue(tab.waitForExistence(timeout: 20), "onglet Discussions")
+        tab.tap()
+        XCTAssertTrue(app.navigationBars["Discussions"].waitForExistence(timeout: 15), "liste des discussions")
+        record("liste")
+        let row = app.cells.firstMatch.exists ? app.cells.firstMatch : app.buttons.matching(NSPredicate(format: "label CONTAINS 'Vendredi'")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "au moins une discussion")
+        row.tap()
+        let field = app.textFields["chat-message"].exists ? app.textFields["chat-message"] : app.textViews["chat-message"]
+        XCTAssertTrue(field.waitForExistence(timeout: 15), "champ du message")
+        record("conversation")
+        let text = "Audit natif \(Int(Date().timeIntervalSince1970) % 100000)"
+        type(text, into: field)
+        app.buttons["chat-send"].tap()
+        let sent = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+        XCTAssertTrue(sent.waitForExistence(timeout: 15), "message envoyé affiché")
+        record("envoye")
+        sent.press(forDuration: 1.2)
+        let like = app.buttons["👍"].firstMatch
+        if like.waitForExistence(timeout: 5) {
+            like.tap()
+            XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH '👍 1'")).firstMatch.waitForExistence(timeout: 15), "réaction 👍")
+        } else {
+            XCTFail("menu des réactions")
+        }
+        record("reaction")
+        app.buttons["Infos du groupe"].tap()
+        XCTAssertTrue(app.staticTexts["Notifications"].waitForExistence(timeout: 10), "infos : notifications")
+        record("infos")
+        app.buttons["OK"].tap()
+        back()
     }
 }
