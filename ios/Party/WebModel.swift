@@ -18,6 +18,8 @@ final class WebModel: ObservableObject {
     /// Dernier onglet de contenu (Musique, Jeux…) : contexte d'une idée envoyée depuis « Ton avis ».
     private(set) var lastContentTab: String?
     private static let settingsTabs: Set<String> = ["feedback", "account", "host", "stats"]
+    /// Écrans de la page rangés sous Réglages (index.html, SUB_SCREENS) : ouverts depuis les Réglages natifs.
+    private static let settingsSubScreens: Set<String> = ["host", "stats"]
     let start: URL
     weak var webView: WKWebView?
     /// Adresse demandée avant que la vue web existe (app lancée par un lien ou une notification).
@@ -109,6 +111,12 @@ final class WebModel: ObservableObject {
         switch place {
         case .account(let path):
             guard let script = Self.call("frameRoute", path) else { return }
+            pageDetail = "account"
+            webView?.evaluateJavaScript(script)
+        case .tab(let id) where Self.settingsSubScreens.contains(id):
+            // Sous-écran de Réglages dans la page (Invités et messages, Mes stats) : pas de bouton dans la barre
+            // d'onglets, on l'ouvre directement ; la page s'affiche à la place des Réglages natifs (« ‹ Réglages »).
+            guard let script = Self.call("showTab", id) else { return }
             pageDetail = "account"
             webView?.evaluateJavaScript(script)
         case .tab(let id):

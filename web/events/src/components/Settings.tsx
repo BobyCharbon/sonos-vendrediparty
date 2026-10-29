@@ -62,7 +62,9 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
       <Card style={{ gap: 0, paddingVertical: 4 }}>
         {active ? (
           <>
-            <LinkRow icon="🔔" tint="#FF5A5F" label="Notifications et abonnements" hint="Ce que tu reçois, quand, et les catégories ou tags que tu suis" onPress={() => router.push('/settings/notifications')} />
+            <LinkRow icon="🔔" tint="#FF5A5F" label="Notifications" hint="Ce que tu reçois, quand ; catégories et tags suivis" onPress={() => router.push('/settings/notifications')} />
+            <RowDivider />
+            <LinkRow icon="👥" tint="#0A84FF" label="Groupes" hint="Les groupes dont tu fais partie ; crée les tiens" onPress={() => router.push('/groups')} />
             <RowDivider />
           </>
         ) : null}
