@@ -26,8 +26,7 @@
     const names = typeof GAME_NAMES !== "undefined" ? GAME_NAMES : {};
     const where = i.context?.game ? ` · jeu : ${escape(names[i.context.game] || i.context.game)}`
       : i.context?.tab ? ` · depuis ${escape({ music: "Musique", games: "Jeux", events: "Événements" }[i.context.tab] || i.context.tab)}` : "";
-    const site = i.context?.site === "Test" ? " · 🧪 site de test" : "";  // liste commune aux deux sites
-    return `${escape(kinds[i.kind] || i.kind)} · ${escape(i.name)} · ${when}${where}${site}`;
+    return `${escape(kinds[i.kind] || i.kind)} · ${escape(i.name)} · ${when}${where}`;
   }
 
   function editHtml(i) {
