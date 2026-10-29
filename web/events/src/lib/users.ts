@@ -14,7 +14,7 @@ export type UserRow = Profile & {
 };
 
 export type UserSort = 'last_sign_in' | 'first_sign_in' | 'signed_up' | 'name' | 'sign_ins' | 'role' | 'activity';
-export type UserFilter = 'all' | 'guest' | 'member' | 'team' | 'beta' | 'incomplete' | 'banned' | 'never';
+export type UserFilter = 'all' | 'guest' | 'basic' | 'vip' | 'team' | 'beta' | 'incomplete' | 'banned' | 'never';
 
 export const USER_SORTS: { key: UserSort; label: string }[] = [
   { key: 'last_sign_in', label: 'Dernière connexion' },
@@ -29,7 +29,8 @@ export const USER_SORTS: { key: UserSort; label: string }[] = [
 export const USER_FILTERS: { key: UserFilter; label: string }[] = [
   { key: 'all', label: 'Tous' },
   { key: 'guest', label: 'Guest' },
-  { key: 'member', label: 'Membre' },
+  { key: 'basic', label: 'Membre' },
+  { key: 'vip', label: 'Membre VIP' },
   { key: 'team', label: 'Orga et admins' },
   { key: 'beta', label: '🧪 Bêta' },
   { key: 'incomplete', label: 'Profil incomplet' },
@@ -57,7 +58,8 @@ export const defaultDescending = (sort: UserSort) => sort !== 'name';
 function matches(u: UserRow, filter: UserFilter, now: number): boolean {
   switch (filter) {
     case 'guest': return u.status === 'active' && u.role === 'guest';
-    case 'member': return u.status === 'active' && u.role === 'member';
+    case 'basic': return u.status === 'active' && u.role === 'basic';
+    case 'vip': return u.status === 'active' && u.role === 'member';
     case 'team': return u.status === 'active' && roleRank(u.role) > roleRank('member');
     case 'beta': return u.beta;
     case 'incomplete': return !hasCompleteIdentity(u);

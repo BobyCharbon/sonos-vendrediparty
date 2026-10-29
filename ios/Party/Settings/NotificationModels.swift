@@ -173,7 +173,7 @@ struct MemberProfile: Decodable, Equatable {
     /// Libellés du module Événements (roleLabel dans web/events/src/lib/types.ts).
     var roleLabel: String {
         if status == "banned" { return "Accès retiré" }
-        return ["guest": "Guest", "member": "Membre", "organizer": "Organisateur", "coadmin": "Co-admin", "admin": "Admin"][role] ?? role
+        return ["guest": "Guest", "basic": "Membre", "member": "Membre VIP", "organizer": "Organisateur", "coadmin": "Co-admin", "admin": "Admin"][role] ?? role
     }
 }
 

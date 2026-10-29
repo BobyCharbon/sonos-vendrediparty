@@ -80,7 +80,9 @@ struct SettingsTests {
     @Test("Mon profil : décodé, statut lisible, téléphone facultatif")
     func decodesProfile() throws {
         let p: MemberProfile = try decode(#"{"id": "u1", "display_name": "Boby", "first_name": null, "last_name": "T", "phone": null, "avatar_url": null, "role": "member", "status": "active", "photo": null}"#)
-        #expect(p.firstName == "" && p.roleLabel == "Membre" && p.phone == nil)
+        #expect(p.firstName == "" && p.roleLabel == "Membre VIP" && p.phone == nil)
+        let membre: MemberProfile = try decode(#"{"id": "u3", "role": "basic", "status": "active"}"#)
+        #expect(membre.roleLabel == "Membre")
         let banned: MemberProfile = try decode(#"{"id": "u2", "role": "admin", "status": "banned"}"#)
         #expect(banned.roleLabel == "Accès retiré")
     }

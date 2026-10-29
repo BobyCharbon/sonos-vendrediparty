@@ -25,26 +25,15 @@ def complete_profile(who: Session, nickname: str):
     assert r.status_code in (200, 204), r.text
 
 
-def vip_group(admin: Session) -> str:
-    return admin.get('member_groups?select=id&system_key=eq.vip').json()[0]['id']
-
-
 def make_vip(admin: Session, vip: Session):
-    """Profil complet (photo réelle dans son dossier), puis l'admin le passe Membre et l'ajoute au groupe Vendredi
-    Party : depuis la séparation des rôles et des groupes (20261028200000), c'est le groupe qui donne les droits VIP."""
+    """Profil complet (photo réelle dans son dossier), puis l'admin le passe Membre VIP (il entre dans Vendredi Party)."""
     complete_profile(vip, 'VIP test')
     r = httpx.patch(f'{TEST_URL}/rest/v1/profiles?id=eq.{vip.uid}', headers=admin.headers, json={'role': 'member'}, timeout=30)
     assert r.status_code in (200, 204), r.text
-    r = httpx.post(f'{TEST_URL}/rest/v1/member_group_members', timeout=30,
-                   headers={**admin.headers, 'Prefer': 'resolution=ignore-duplicates'},
-                   json={'group_id': vip_group(admin), 'user_id': vip.uid})
-    assert r.status_code in (200, 201, 204), r.text
 
 
 def unmake_vip(admin: Session, vip: Session):
-    """Retour à Guest, hors du groupe Vendredi Party."""
-    httpx.delete(f'{TEST_URL}/rest/v1/member_group_members?group_id=eq.{vip_group(admin)}&user_id=eq.{vip.uid}',
-                 headers=admin.headers, timeout=30)
+    """Retour à Guest (il sort de Vendredi Party)."""
     httpx.patch(f'{TEST_URL}/rest/v1/profiles?id=eq.{vip.uid}', headers=admin.headers, json={'role': 'guest'}, timeout=30)
 
 
@@ -106,31 +95,33 @@ def test_a_guest_sees_nickname_and_photo_of_people_on_its_events_but_never_their
     assert ga.get(f'profiles?select=id&id=eq.{vip.uid}').json() == []  # le VIP n'a rien fait sur ses sorties
 
 
-def test_vip_is_the_vendredi_party_group_not_a_role(world):
-    """Rôles et groupes séparés (20261028200000) : un seul rôle, des groupes ; c'est le groupe qui rend VIP."""
+def test_the_vendredi_party_group_follows_the_status_and_cannot_be_edited_by_hand(world):
     admin, ga, gb, vip, ids = world
     group = admin.get('member_groups?select=id,name,member_group_members(user_id)&system_key=eq.vip').json()[0]
     assert group['name'] == 'Vendredi Party' and vip.uid in {m['user_id'] for m in group['member_group_members']}
-    # Un Guest ne compose pas le groupe ; il ne peut pas non plus être renommé.
-    r = httpx.post(f'{TEST_URL}/rest/v1/member_group_members', headers=ga.headers, json={'group_id': group['id'], 'user_id': ga.uid}, timeout=30)
-    assert r.status_code >= 400
-    r = httpx.patch(f'{TEST_URL}/rest/v1/member_groups?id=eq.{group["id"]}', headers={**admin.headers, 'Prefer': 'return=representation'},
-                    json={'name': 'Autre nom'}, timeout=30)
-    assert r.json() == []
-    # Rôle « Membre » sans le groupe : droits de Guest, pas d'événement VIP.
-    httpx.delete(f'{TEST_URL}/rest/v1/member_group_members?group_id=eq.{group["id"]}&user_id=eq.{vip.uid}', headers=admin.headers, timeout=30)
-    assert 'vip' not in visible(vip, ids)
-    assert vip.rpc('my_permissions').json() == ['events.rsvp', 'chat.write', 'games.create', 'music.add'] or \
-        'events.view' not in vip.rpc('my_permissions').json()
-    # L'admin l'ajoute au groupe : il redevient VIP, sans changer de rôle.
-    r = httpx.post(f'{TEST_URL}/rest/v1/member_group_members', headers=admin.headers, json={'group_id': group['id'], 'user_id': vip.uid}, timeout=30)
-    assert r.status_code == 201, r.text
-    assert 'vip' in visible(vip, ids) and 'events.view' in vip.rpc('my_permissions').json()
-    # Changer de rôle ne fait plus sortir du groupe.
+    assert ga.uid not in {m['user_id'] for m in group['member_group_members']}
+    r = httpx.post(f'{TEST_URL}/rest/v1/member_group_members', headers=admin.headers, json={'group_id': group['id'], 'user_id': ga.uid}, timeout=30)
+    assert r.status_code >= 400  # on passe par le statut, pas par le groupe
     httpx.patch(f'{TEST_URL}/rest/v1/profiles?id=eq.{vip.uid}', headers=admin.headers, json={'role': 'guest'}, timeout=30)
     members = admin.get(f'member_group_members?select=user_id&group_id=eq.{group["id"]}').json()
-    assert vip.uid in {m['user_id'] for m in members}
+    assert vip.uid not in {m['user_id'] for m in members}
+    assert 'vip' not in visible(vip, ids)
     httpx.patch(f'{TEST_URL}/rest/v1/profiles?id=eq.{vip.uid}', headers=admin.headers, json={'role': 'member'}, timeout=30)
+
+
+def test_the_new_membre_role_has_guest_rights_and_stays_out_of_vendredi_party(world):
+    """Rôle « Membre » (basic) : droits de Guest, pas dans Vendredi Party ; Membre VIP reste le rôle de Vendredi Party."""
+    admin, ga, gb, vip, ids = world
+    r = httpx.patch(f'{TEST_URL}/rest/v1/profiles?id=eq.{vip.uid}', headers=admin.headers, json={'role': 'basic'}, timeout=30)
+    assert r.status_code in (200, 204), r.text
+    try:
+        group = admin.get('member_groups?select=id,member_group_members(user_id)&system_key=eq.vip').json()[0]
+        assert vip.uid not in {m['user_id'] for m in group['member_group_members']}
+        assert 'vip' not in visible(vip, ids) and 'publique' in visible(vip, ids)
+        assert sorted(vip.rpc('my_permissions').json()) == sorted(ga.rpc('my_permissions').json())
+    finally:
+        httpx.patch(f'{TEST_URL}/rest/v1/profiles?id=eq.{vip.uid}', headers=admin.headers, json={'role': 'member'}, timeout=30)
+    assert 'vip' in visible(vip, ids)
 
 
 def test_anyone_creates_a_group_and_sees_their_groups(world):
