@@ -173,8 +173,9 @@ final class PartyAPI {
         return list.mine
     }
 
-    func sendFeedback(guestID: String, name: String, kind: String, text: String, fromTab: String?) async throws -> [FeedbackItem] {
-        var body: [String: Any] = ["guest_id": guestID, "name": name, "kind": kind, "text": text]
+    /// token : jeton du compte ; le serveur vérifie le droit « Écrire un avis » (Guest+ et au-dessus, ou l'hôte).
+    func sendFeedback(guestID: String, name: String, kind: String, text: String, fromTab: String?, token: String?) async throws -> [FeedbackItem] {
+        var body: [String: Any] = ["guest_id": guestID, "name": name, "kind": kind, "text": text, "token": token ?? ""]
         if let fromTab { body["context"] = ["tab": fromTab] }  // l'onglet d'où vient l'idée, pour l'hôte
         let list: FeedbackList = try await postDecoding("/api/feedback", body: body)
         return list.mine

@@ -31,7 +31,8 @@
       host: isHost(),
       // Un jeu en plein écran masque la barre web (display: none) : la barre native suit.
       hidden: getComputedStyle(bar).display === "none",
-      tabs: [...bar.querySelectorAll("button[data-tab]")].map((button) => ({
+      // Onglet masqué par la page (« Ton avis » sans le droit d'écrire un avis) : absent de la barre native aussi.
+      tabs: [...bar.querySelectorAll("button[data-tab]")].filter((button) => !button.classList.contains("hidden")).map((button) => ({
         id: button.dataset.tab,
         label: (button.querySelector("span")?.textContent || "").trim(),
         active: button.classList.contains("on"),

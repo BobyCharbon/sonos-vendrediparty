@@ -127,4 +127,16 @@ struct AccountNativeTests {
         #expect(FeedbackRules.counter(29) == "29 / 1000 · encore 1 caractère minimum")
         #expect(FeedbackRules.counter(30) == "30 / 1000")
     }
+
+    @Test("Guest+ : au niveau de Guest ; « Ton avis » suit le droit « Écrire un avis » du compte")
+    func guestPlus() throws {
+        #expect(MemberRole.guestplus.rank == 0 && MemberRole.guestplus.label == "Guest+")
+        #expect(MemberRole.allCases.map(\.rawValue) == ["guest", "guestplus", "basic", "member", "organizer", "coadmin", "admin"])
+        #expect(AccountSummary.parse(#"{"name": "Léa", "admin": false, "feedback": true}"#)?.feedback == true)
+        #expect(AccountSummary.parse(#"{"name": "Tom", "admin": false, "feedback": false}"#)?.feedback == false)
+        #expect(AccountSummary.parse(#"{"name": "Tom", "admin": false}"#)?.feedback == false)  // ancien compte relié : relu à l'ouverture
+        let m: AdminMembers = try decode(#"{"me": "me", "perms": [], "rank": 4, "people": [{"id": "a", "name": "Léa", "role": "guestplus", "status": "active"}, {"id": "b", "name": "Tom", "role": "guest", "status": "active"}]}"#)
+        #expect(UserList.arrange(m.people, search: "", filter: .guestplus, sort: .name, descending: false).map(\.id) == ["a"])
+        #expect(m.sections(matching: "").map(\.title) == ["Guest+ (1)", "Guest (1)"])
+    }
 }

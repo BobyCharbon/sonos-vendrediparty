@@ -118,7 +118,8 @@ def test_the_new_membre_role_has_guest_rights_and_stays_out_of_vendredi_party(wo
         group = admin.get('member_groups?select=id,member_group_members(user_id)&system_key=eq.vip').json()[0]
         assert vip.uid not in {m['user_id'] for m in group['member_group_members']}
         assert 'vip' not in visible(vip, ids) and 'publique' in visible(vip, ids)
-        assert sorted(vip.rpc('my_permissions').json()) == sorted(ga.rpc('my_permissions').json())
+        # Droits de Guest, plus « Écrire un avis » (Guest+ et au-dessus depuis le 29.10).
+        assert sorted(vip.rpc('my_permissions').json()) == sorted(ga.rpc('my_permissions').json() + ['feedback.write'])
     finally:
         httpx.patch(f'{TEST_URL}/rest/v1/profiles?id=eq.{vip.uid}', headers=admin.headers, json={'role': 'member'}, timeout=30)
     assert 'vip' in visible(vip, ids)

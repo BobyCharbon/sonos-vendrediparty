@@ -120,6 +120,13 @@ def test_members_directory_for_organizers_with_beta_flags():
     assert not any(s[1] == "/rest/v1/rpc/admin_member_list" for s in seen)
 
 
+def test_member_role_change_only_reads_back_the_id():
+    admin, seen = fake()
+    admin.update_member("tok", LEA, "guestplus", None, None)
+    patch = next(s for s in seen if s[0] == "PATCH" and s[1] == "/rest/v1/profiles")
+    assert patch[2] == f"id=eq.{LEA}&select=id" and patch[3] == {"role": "guestplus"}
+
+
 def test_member_update_out_of_reach_is_refused():
     admin, _ = fake(patch_rows=[])
     try:
@@ -133,7 +140,7 @@ def test_member_update_out_of_reach_is_refused():
 def test_roles_only_below_my_rank_and_journal_in_words():
     admin, _ = fake(rank=3)
     roles = admin.roles("tok")
-    assert roles["editable"] == ["organizer", "member", "basic", "guest"]
+    assert roles["editable"] == ["organizer", "member", "basic", "guestplus", "guest"]
     assert roles["grants"]["organizer"] == ["events.approve"] and roles["grants"]["admin"] == []
     journal = admin.journal("tok", None, None)
     assert journal == {"entries": [{"id": 9, "at": "2026-10-29T08:00:00Z", "text": "Boby a passé Léa de Guest à Membre"}], "more": False}

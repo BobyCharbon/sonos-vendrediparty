@@ -459,7 +459,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
   const memberChips = (key: 'organizers') => (
     <View style={s.wrap}>
       {ctx.members
-        .filter((m) => m.id !== me.id && m.role !== 'guest')  // co-organisateurs : membres seulement
+        .filter((m) => m.id !== me.id && m.role !== 'guest' && m.role !== 'guestplus')  // co-organisateurs : membres seulement
         .map((m) => (
           <Chip key={m.id} label={m.display_name} selected={d[key].includes(m.id)} onPress={() => toggleIn(key, m.id)} />
         ))}

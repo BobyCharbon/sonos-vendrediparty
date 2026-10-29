@@ -3,14 +3,16 @@ import pytest
 
 pytest.importorskip("playwright.sync_api")
 from playwright.sync_api import expect  # noqa: E402
-from tests.e2e.helpers import ADMIN_PIN, Phone, Server  # noqa: E402
+from tests.e2e.helpers import ADMIN_PIN, FakeSupabase, Phone, Server, sign_in  # noqa: E402
 
 
 @pytest.fixture
 def server():
-    s = Server()
+    supabase = FakeSupabase()
+    s = Server(supabase)
     yield s
     s.stop()
+    supabase.stop()
 
 
 def open_feedback(guest):
@@ -27,6 +29,7 @@ def test_guest_feedback_reaches_admin(browser, server):
     try:
         guest.page.set_viewport_size({"width": 360, "height": 740})
         guest.page.goto("/")
+        sign_in(guest, "jeton-de-test-guest-plus-0001")  # « Ton avis » : Guest+ et au-dessus
         open_feedback(guest)
         assert guest.page.evaluate("document.documentElement.scrollWidth <= innerWidth")  # 4 onglets tiennent
         guest.page.locator('[data-fb-kind="bug"]').tap()
@@ -63,6 +66,7 @@ def test_account_admin_manages_feedback_from_the_app_tab_and_guest_is_told(brows
     guest, boss = Phone(browser, server, "Lea"), Phone(browser, server, "Boss")
     try:
         guest.page.goto("/")
+        sign_in(guest, "jeton-de-test-guest-plus-0001")
         open_feedback(guest)
         guest.page.locator("#fbText").fill("Un mode équipe au Quiz, avec deux camps")
         guest.page.locator("#fbSend").tap()
@@ -106,3 +110,27 @@ def test_account_admin_manages_feedback_from_the_app_tab_and_guest_is_told(brows
         assert not guest.errors and not boss.errors, guest.errors + boss.errors
     finally:
         guest.close(); boss.close()
+
+
+def test_feedback_tab_is_only_for_guest_plus_and_above(browser, server):
+    """Non connecté ou Guest : pas d'onglet « Ton avis », et le serveur refuse l'envoi ; Guest+ : l'onglet revient."""
+    phone = Phone(browser, server, "Tom")
+    tab = phone.page.locator('#tabs button[data-tab="feedback"]')
+    try:
+        phone.page.goto("/")
+        expect(tab).to_be_hidden()  # non connecté
+        refused = phone.page.request.post(f"{server.url}/api/feedback", data={
+            "guest_id": phone.gid, "name": "Tom", "kind": "idea", "text": "Un mode équipe au Quiz, avec deux camps"})
+        assert refused.status == 403
+        sign_in(phone, "jeton-de-test-guest-0001")
+        phone.page.wait_for_function("account && account.name === 'Tom'")
+        expect(tab).to_be_hidden()  # Guest connecté : toujours pas
+        sign_in(phone, "jeton-de-test-guest-plus-0001")
+        expect(tab).to_be_visible()  # Guest+ : l'onglet apparaît
+        phone.page.evaluate("showTab('feedback')")
+        phone.page.locator("#fbText").fill("Trop court")
+        phone.page.locator("#fbSend").tap()
+        expect(phone.page.locator("#fbMine")).to_be_hidden()  # moins de 30 caractères : rien d'envoyé
+        assert not phone.errors and not server.errors(), phone.errors
+    finally:
+        phone.close()

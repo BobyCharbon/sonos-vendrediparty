@@ -65,7 +65,10 @@ struct SettingsView: View {
                                         hint: "Purify Test : dernier score, profil et record")
                         }
                     }
-                    page(.tab("feedback"), "bubble.left.and.bubble.right.fill", .green, "Ton avis", "Une idée, un bug ? Écris à l'organisateur")
+                    // « Ton avis » : l'hôte, et les comptes Guest+ et au-dessus (droit « Écrire un avis »).
+                    if isHost || store.account?.feedback == true {
+                        page(.tab("feedback"), "bubble.left.and.bubble.right.fill", .green, "Ton avis", "Une idée, un bug ? Écris à l'organisateur")
+                    }
                 }
                 Section {
                     NavigationLink { PrivacyView() } label: {

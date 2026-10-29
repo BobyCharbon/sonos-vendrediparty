@@ -2,13 +2,13 @@ import Foundation
 
 /// Rôles du groupe, dans l'ordre de la base (private.role_rank) : Membre est au niveau de Guest.
 enum MemberRole: String, CaseIterable, Decodable, Identifiable {
-    case guest, basic, member, organizer, coadmin, admin
+    case guest, guestplus, basic, member, organizer, coadmin, admin
 
     var id: String { rawValue }
 
     var rank: Int {
         switch self {
-        case .guest, .basic: return 0
+        case .guest, .guestplus, .basic: return 0
         case .member: return 1
         case .organizer: return 2
         case .coadmin: return 3
@@ -19,6 +19,7 @@ enum MemberRole: String, CaseIterable, Decodable, Identifiable {
     var label: String {
         switch self {
         case .guest: return "Guest"
+        case .guestplus: return "Guest+"
         case .basic: return "Membre"
         case .member: return "Membre VIP"
         case .organizer: return "Organisateur"
@@ -367,12 +368,13 @@ enum UserList {
     }
 
     enum Filter: String, CaseIterable, Identifiable {
-        case all, guest, basic, vip, team, beta, incomplete, never, banned
+        case all, guest, guestplus, basic, vip, team, beta, incomplete, never, banned
         var id: String { rawValue }
         var label: String {
             switch self {
             case .all: return "Tous"
             case .guest: return "Guest"
+            case .guestplus: return "Guest+"
             case .basic: return "Membre"
             case .vip: return "Membre VIP"
             case .team: return "Orga et admins"
@@ -390,6 +392,7 @@ enum UserList {
         switch filter {
         case .all: return true
         case .guest: return p.active && p.role == .guest
+        case .guestplus: return p.active && p.role == .guestplus
         case .basic: return p.active && p.role == .basic
         case .vip: return p.active && p.role == .member
         case .team: return p.active && p.role.rank > MemberRole.member.rank

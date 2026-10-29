@@ -2315,6 +2315,23 @@ class FeedbackIn(BaseModel):
     kind: str = "idea"
     text: str
     context: dict = {}
+    # Jeton du compte : seul un compte avec le droit « Écrire un avis » (Guest+ et au-dessus) envoie un avis.
+    token: str = Field(default="", max_length=4096)
+
+
+FEEDBACK_RIGHT = "feedback.write"
+
+
+def may_write_feedback(request: Request, token: str) -> bool:
+    """Hôte (session admin) ou compte avec le droit « Écrire un avis » ; jamais un Guest ni un non connecté."""
+    if is_admin(request):
+        return True
+    if not token:
+        return False
+    try:
+        return FEEDBACK_RIGHT in accounts._perms(token)
+    except AccountError:
+        return False
 
 
 FEEDBACK_MIN_LENGTH = 30  # assez pour qu'une idée ou un bug soit compréhensible
@@ -2326,6 +2343,9 @@ def send_feedback(body: FeedbackIn, request: Request):
     check_guest_id(body.guest_id)
     if msg := ban_message(body.guest_id, client_ip(request)):
         raise HTTPException(403, msg)
+    if not may_write_feedback(request, body.token):
+        raise HTTPException(403, "Ton avis est réservé aux comptes Guest+ et plus : connecte-toi avec ton numéro, "
+                                 "puis demande l'accès à un admin.")
     text = " ".join(body.text.split())[:1000]
     if body.kind not in FEEDBACK_KINDS:
         raise HTTPException(400, "Type de retour inconnu")

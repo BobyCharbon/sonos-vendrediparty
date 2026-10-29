@@ -87,8 +87,13 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
         {/* Page de Party (hors du module) : un onglet par jeu (Purify Test pour commencer), à montrer si on veut. */}
         <LinkRow icon="🏆" tint="#FF9F0A" label="Mes stats de jeu" hint="Purify Test : ton dernier score, ton radar et ton record" onPress={() => openPartyTab('stats')} />
         <RowDivider />
-        <LinkRow icon="💬" tint="#30D158" label="Ton avis" hint="Une idée, un bug ? Écris à l’organisateur" onPress={() => openPartyTab('feedback')} />
-        <RowDivider />
+        {/* « Ton avis » : Guest+ et au-dessus (droit « Écrire un avis »). */}
+        {can('feedback.write') ? (
+          <>
+            <LinkRow icon="💬" tint="#30D158" label="Ton avis" hint="Une idée, un bug ? Écris à l’organisateur" onPress={() => openPartyTab('feedback')} />
+            <RowDivider />
+          </>
+        ) : null}
         <LinkRow icon="🔒" tint="#0A84FF" label="Confidentialité" hint="Tes données et tes choix" onPress={() => router.push('/privacy')} />
         <RowDivider />
         <LinkRow icon="⚙️" tint="#636366" label="Gérer mon compte" hint="Suppression du compte" onPress={() => router.push('/settings/account')} />

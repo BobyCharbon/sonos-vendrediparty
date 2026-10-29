@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
 
-import { openPartyTab } from '@/components/Settings';
 import { Button, ErrorText, Field, Screen, T, Title } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
@@ -121,7 +120,6 @@ export default function SignIn() {
           </View>
         )}
       </KeyboardAvoidingView>
-      <Button label="Une idée, un bug ? Ton avis" variant="ghost" onPress={() => openPartyTab('feedback')} />
       <Button label="Confidentialité" variant="ghost" onPress={() => router.push('/privacy')} />
     </Screen>
   );

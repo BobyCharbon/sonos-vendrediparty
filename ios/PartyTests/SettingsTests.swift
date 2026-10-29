@@ -61,7 +61,7 @@ struct SettingsTests {
     @Test("Compte relié : lu dans vp_account, absent si déconnecté")
     func parsesAccount() {
         #expect(AccountSummary.parse(#"{"name": "Boby", "photo": null, "beta": true, "admin": true}"#)
-                == AccountSummary(name: "Boby", photo: nil, admin: true, groupAdmin: true))
+                == AccountSummary(name: "Boby", photo: nil, admin: true, groupAdmin: true, feedback: true))
         #expect(AccountSummary.parse(nil) == nil)
         #expect(AccountSummary.parse("") == nil)
         #expect(AccountSummary.parse("null") == nil)

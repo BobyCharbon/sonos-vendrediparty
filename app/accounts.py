@@ -98,7 +98,9 @@ class Accounts:
         perms = self._perms(token)
         account = {"guest_id": self.gid(uid), "name": " ".join((profile.get("display_name") or "").split())[:30], "photo": photo,
                    "beta": beta, "admin": {"party.admin", "party.settings"} <= perms,
-                   "group_admin": bool(perms & GROUP_ADMIN_PERMS)}
+                   "group_admin": bool(perms & GROUP_ADMIN_PERMS),
+                   # « Ton avis » : Guest+ et au-dessus (droit réglable dans Rôles et droits).
+                   "feedback": "feedback.write" in perms}
         with self.lock:
             self.by_gid[account["guest_id"]] = account
         return account

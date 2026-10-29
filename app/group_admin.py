@@ -11,9 +11,9 @@ JOURNAL_PAGE = 100
 ANNOUNCEMENT_PAGE = 20
 TAXONOMY = ("categories", "tags")
 PHOTO_TTL = 3600
-ROLES = ("guest", "basic", "member", "organizer", "coadmin", "admin")
-RANKS = {"guest": 0, "basic": 0, "member": 1, "organizer": 2, "coadmin": 3, "admin": 4}
-ROLE_LABELS = {"guest": "Guest", "basic": "Membre", "member": "Membre VIP", "organizer": "Organisateur",
+ROLES = ("guest", "guestplus", "basic", "member", "organizer", "coadmin", "admin")
+RANKS = {"guest": 0, "guestplus": 0, "basic": 0, "member": 1, "organizer": 2, "coadmin": 3, "admin": 4}
+ROLE_LABELS = {"guest": "Guest", "guestplus": "Guest+", "basic": "Membre", "member": "Membre VIP", "organizer": "Organisateur",
                "coadmin": "Co-admin", "admin": "Admin"}
 STATUS_LABELS = {"active": "actif", "banned": "accès retiré", "pending": "en attente"}
 ERRORS = {  # exception de la base → phrase pour l'écran
@@ -209,7 +209,8 @@ class GroupAdmin:
             self._rpc(token, "set_beta_tester", {"member": member, "enabled": beta})
         patch = {k: v for k, v in (("role", role), ("status", status)) if v is not None}
         if patch:
-            self._write("PATCH", f"/rest/v1/profiles?id=eq.{member}", token, patch,
+            # select=id : la table ne laisse relire que ses colonnes publiques (relire toute la ligne est refusé).
+            self._write("PATCH", f"/rest/v1/profiles?id=eq.{member}&select=id", token, patch,
                         "La modification n'a pas été enregistrée. Réessaie.")
         return self.members(token)
 

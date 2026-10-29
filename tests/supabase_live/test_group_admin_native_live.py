@@ -107,3 +107,29 @@ def test_native_sign_in_reads_and_sign_out_through_the_real_app():
         assert client.post('/api/account/logout', json={'token': token}).json() == {'ok': True}
     finally:
         patch.undo()
+
+
+def test_only_guest_plus_and_above_write_feedback(monkeypatch, tmp_path, request):
+    """« Ton avis » sur la vraie base de test : Guest refusé, Guest+ et Admin acceptés. 41790000002 passe Guest+
+    le temps du test (par l'admin, comme dans Membres), puis redevient Guest."""
+    from fastapi.testclient import TestClient
+
+    from app import main
+    from app.feedback import FeedbackBox
+    monkeypatch.setattr(accounts_mod, 'SUPABASE_URL', TEST_URL)
+    monkeypatch.setattr(accounts_mod, 'SUPABASE_ANON_KEY', KEY_FILE.read_text().strip())
+    monkeypatch.setattr(main, 'feedback', FeedbackBox(tmp_path / 'feedback.json'))
+    client = TestClient(main.app)
+    text = 'Un mode équipe au Quiz, avec deux camps'
+    tokens = {phone: Session(phone).headers['Authorization'].removeprefix('Bearer ') for phone in (GUESTS[0], GUESTS[1], ADMIN_PHONE)}
+    admin = ga.GroupAdmin(accounts_mod.Accounts(b'secret'))
+    plus_id = next(p['id'] for p in admin.members(tokens[ADMIN_PHONE])['people'] if p['phone'] == GUESTS[1])
+    admin.update_member(tokens[ADMIN_PHONE], plus_id, 'guestplus', None, None)
+    request.addfinalizer(lambda: admin.update_member(tokens[ADMIN_PHONE], plus_id, 'guest', None, None))
+    send = lambda phone: client.post('/api/feedback', json={'guest_id': f'live-{phone}-0001', 'name': 'Test', 'kind': 'idea',  # noqa: E731
+                                                           'text': text, 'token': tokens[phone]})
+    assert send(GUESTS[0]).status_code == 403          # Guest
+    assert send(GUESTS[1]).status_code == 200          # Guest+
+    assert send(ADMIN_PHONE).status_code == 200        # Admin
+    assert client.post('/api/account/link', json={'token': tokens[GUESTS[1]], 'guest_id': 'live-plus-0001'}).json()['feedback'] is True
+    assert client.post('/api/account/link', json={'token': tokens[GUESTS[0]], 'guest_id': 'live-guest-0001'}).json()['feedback'] is False

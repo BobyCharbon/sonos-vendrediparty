@@ -1,6 +1,6 @@
 // Types alignés sur supabase/migrations. À remplacer par `supabase gen types` une fois le projet lié.
 
-export type MemberRole = 'guest' | 'basic' | 'member' | 'organizer' | 'coadmin' | 'admin';
+export type MemberRole = 'guest' | 'guestplus' | 'basic' | 'member' | 'organizer' | 'coadmin' | 'admin';
 export type MemberStatus = 'pending' | 'active' | 'banned';
 export type EventStatus = 'draft' | 'pending' | 'published' | 'rejected' | 'cancelled';
 export type DateMode = 'fixed' | 'poll';
@@ -139,11 +139,12 @@ export type NotificationPrefs = {
 /** Droits qui ouvrent l'Administration (dans les Réglages). */
 export const ADMIN_PERMS = ['events.approve', 'members.approve', 'members.roles', 'members.ban', 'members.view_identity', 'roles.manage', 'taxonomy.manage', 'group.settings', 'announcements.publish'];
 // basic = « Membre » (mêmes droits que Guest), hors du groupe Vendredi Party, réservé aux Membres VIP et plus.
-export const ROLE_ORDER: MemberRole[] = ['guest', 'basic', 'member', 'organizer', 'coadmin', 'admin'];
+// guestplus = « Guest+ » : droits de Guest, plus « Écrire un avis » (29.10.2026).
+export const ROLE_ORDER: MemberRole[] = ['guest', 'guestplus', 'basic', 'member', 'organizer', 'coadmin', 'admin'];
 // Mêmes rangs que la base (private.role_rank) : Membre au niveau de Guest. Pas l'ordre de la liste, qui l'a décalé.
-const RANKS: Record<MemberRole, number> = { guest: 0, basic: 0, member: 1, organizer: 2, coadmin: 3, admin: 4 };
+const RANKS: Record<MemberRole, number> = { guest: 0, guestplus: 0, basic: 0, member: 1, organizer: 2, coadmin: 3, admin: 4 };
 export const roleRank = (r: MemberRole) => RANKS[r];
-export const roleLabel: Record<MemberRole, string> = { guest: 'Guest', basic: 'Membre', member: 'Membre VIP', organizer: 'Organisateur', coadmin: 'Co-admin', admin: 'Admin' };
+export const roleLabel: Record<MemberRole, string> = { guest: 'Guest', guestplus: 'Guest+', basic: 'Membre', member: 'Membre VIP', organizer: 'Organisateur', coadmin: 'Co-admin', admin: 'Admin' };
 export type Permission = { key: string; grp: string; label: string; hint: string | null; sort: number };
 
 // shortcut: la base plafonne max_plus_ones à 10 ; 10 veut dire « illimité ». Une vraie valeur vide demanderait une migration partagée avec l'app iOS.

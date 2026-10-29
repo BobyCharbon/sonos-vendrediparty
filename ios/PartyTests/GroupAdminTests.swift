@@ -54,7 +54,7 @@ struct GroupAdminTests {
         let rules = Dictionary(uniqueKeysWithValues: m.people.map { ($0.id, MemberRules(access: m.access, person: $0)) })
         #expect(rules["r"]?.below == false && rules["me"]?.below == false && rules["o"]?.below == false)
         #expect(rules["v"]?.changesRole == true && rules["v"]?.bans == false && rules["v"]?.deletes == false)
-        #expect(m.access.assignable == [.guest, .basic, .member])
+        #expect(m.access.assignable == [.guest, .guestplus, .basic, .member])
         #expect(rules["g"]?.allows(.basic) == true && rules["g"]?.allows(.member) == false)
     }
 
