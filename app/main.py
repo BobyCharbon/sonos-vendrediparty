@@ -27,6 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from . import calendar_ics, debate, games, heist, island, likely, links, neon, president, purity, quiz
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
+from .account_auth import AccountAuth
 from .group_admin import ROLES as ADMIN_ROLES, GroupAdmin
 from .audit import AuditLog
 from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
@@ -1411,6 +1412,7 @@ def presence(body: Presence, request: Request):
 
 accounts = Accounts(_secret())
 group_admin = GroupAdmin(accounts)
+account_auth = AccountAuth(accounts)
 # Ne compte que les vrais refus (compte sans droit admin). Un jeton expiré ou invalide n'est jamais compté :
 # un jeton Supabase ne se devine pas, et l'app rouverte après 1 h en présente un périmé. Compté, il bloquait
 # l'adresse de toute la maison (box partagée) et le compte root ne devenait plus admin (bug du 26.10).
@@ -1493,6 +1495,57 @@ def account_refresh(body: SessionRefresh, request: Request):
 
 class MemberToken(BaseModel):
     token: str = Field(min_length=1, max_length=4096)
+
+
+class PhoneCode(BaseModel):
+    phone: str = Field(min_length=8, max_length=16)
+
+
+class PhoneVerify(PhoneCode):
+    code: str = Field(min_length=6, max_length=6)
+
+
+class AccountDelete(BaseModel):
+    token: str = Field(min_length=1, max_length=4096)
+    confirm: str = Field(max_length=20)
+
+
+# Connexion native (Réglages de l'app iOS) : mêmes comptes et même session que le module Événements.
+otp_limiter = Limiter(per_ip=20, ip_lock=900, global_max=120, global_window=600, global_lock=300)
+
+
+@app.post("/api/account/otp")
+def account_otp(body: PhoneCode, request: Request):
+    ip = client_ip(request)
+    if msg := otp_limiter.blocked(ip):
+        raise HTTPException(429, msg)
+    otp_limiter.fail(ip)  # chaque envoi compte : pas de rafale de SMS depuis une même adresse
+    return account_call(lambda: account_auth.send_code(body.phone.strip()) or {"ok": True})
+
+
+@app.post("/api/account/verify")
+def account_verify(body: PhoneVerify, request: Request):
+    ip = client_ip(request)
+    if msg := otp_limiter.blocked(ip):
+        raise HTTPException(429, msg)
+    try:
+        result = account_auth.verify(body.phone.strip(), body.code.strip())
+    except AccountError as e:
+        otp_limiter.fail(ip)
+        raise HTTPException(400, str(e))
+    otp_limiter.success(ip)
+    return result
+
+
+@app.post("/api/account/logout")
+def account_logout(body: MemberToken):
+    account_auth.sign_out(body.token)
+    return {"ok": True}
+
+
+@app.post("/api/account/delete")
+def account_delete(body: AccountDelete):
+    return account_call(lambda: account_auth.delete_account(body.token, body.confirm) or {"ok": True})
 
 
 QUIET_TIME = r"^([01]\d|2[0-3]):[0-5]\d(:00)?$"
@@ -1688,6 +1741,51 @@ def account_group_admin_permission(body: AdminPermission):
 @app.post("/api/account/group-admin/journal")
 def account_group_admin_journal(body: AdminJournal):
     return account_call(lambda: group_admin.journal(body.token, body.member, body.before))
+
+
+class AnnouncementPage(MemberToken):
+    before_at: str | None = Field(default=None, max_length=40, pattern=r"^[0-9T:.+\-Z ]+$")
+    before_id: str | None = Field(default=None, pattern=UUID)
+
+
+class AnnouncementNew(MemberToken):
+    title: str = Field(min_length=1, max_length=120)
+    body: str = Field(min_length=1, max_length=4000)
+
+
+class TopicSave(MemberToken):
+    kind: Literal["categories", "tags"]
+    id: str | None = Field(default=None, pattern=UUID)
+    name: str | None = Field(default=None, max_length=40)
+    color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    archived: bool | None = None
+
+
+@app.post("/api/account/announcements")
+def account_announcements(body: AnnouncementPage):
+    """Réglages natifs › Annonces admin (lecture pour tous les membres)."""
+    return account_call(lambda: group_admin.announcements(body.token, body.before_at, body.before_id), 401)
+
+
+@app.post("/api/account/group-admin/announce")
+def account_group_admin_announce(body: AnnouncementNew):
+    title, text = body.title.strip(), body.body.strip()
+    if not title or not text:
+        raise HTTPException(400, "Un titre et un message, s'il te plaît.")
+    return account_call(lambda: group_admin.publish(body.token, title, text))
+
+
+@app.post("/api/account/group-admin/taxonomy")
+def account_group_admin_taxonomy(body: MemberToken):
+    return account_call(lambda: group_admin.taxonomy(body.token), 401)
+
+
+@app.post("/api/account/group-admin/taxonomy/save")
+def account_group_admin_taxonomy_save(body: TopicSave):
+    fields = {k: v for k, v in (("name", body.name), ("color", body.color), ("archived", body.archived)) if v is not None}
+    if not fields or (body.id is None and not body.name):
+        raise HTTPException(400, "Donne un nom.")
+    return account_call(lambda: group_admin.save_topic(body.token, body.kind, body.id, fields))
 
 
 class SubscriptionSet(MemberToken):

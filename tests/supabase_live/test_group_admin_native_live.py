@@ -73,3 +73,37 @@ def test_member_settings_routes_through_the_real_app():
         assert client.post('/api/account/group-admin/journal', json={'token': token}).status_code == 400
     finally:
         patch.undo()
+
+
+def test_native_sign_in_reads_and_sign_out_through_the_real_app():
+    """Connexion native par code SMS (numéro de test), lectures des Réglages, puis déconnexion : la session
+    rendue est celle que supabase-js lirait (même forme, clé du projet de test)."""
+    from fastapi.testclient import TestClient
+
+    from app import main
+    patch = pytest.MonkeyPatch()
+    patch.setattr(accounts_mod, 'SUPABASE_URL', TEST_URL)
+    patch.setattr(accounts_mod, 'SUPABASE_ANON_KEY', KEY_FILE.read_text().strip())
+    patch.setattr(ga, 'SUPABASE_URL', TEST_URL)
+    try:
+        client = TestClient(main.app)
+        for _ in range(3):
+            sent = client.post('/api/account/otp', json={'phone': '+' + ADMIN_PHONE})
+            if sent.status_code != 400 or 'Trop' not in sent.text:
+                break
+            import time
+            time.sleep(31)
+        assert sent.status_code == 200, sent.text
+        out = client.post('/api/account/verify', json={'phone': '+' + ADMIN_PHONE, 'code': '123456'}).json()
+        assert out['storage_key'] == 'sb-ewromqfsmcqsthftyhzm-auth-token'
+        token = out['session']['access_token']
+        assert out['session']['refresh_token'] and out['session']['user']['id']
+        assert client.post('/api/account/verify', json={'phone': '+' + ADMIN_PHONE, 'code': '000000'}).status_code == 400
+        assert 'announcements' in client.post('/api/account/announcements', json={'token': token}).json()
+        tax = client.post('/api/account/group-admin/taxonomy', json={'token': token}).json()
+        assert tax['categories'] and 'tags' in tax
+        members = client.post('/api/account/group-admin/members', json={'token': token}).json()
+        assert all('sign_in_count' in p for p in members['people'])
+        assert client.post('/api/account/logout', json={'token': token}).json() == {'ok': True}
+    finally:
+        patch.undo()

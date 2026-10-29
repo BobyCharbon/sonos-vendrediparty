@@ -8,6 +8,8 @@ from .accounts import SUPABASE_URL, AccountError, Accounts
 ROOT_ID = "298ff6e0-07b2-4127-bb69-d254dd63a3d5"
 FULL_ACCESS_RANK = 4   # Root (99) et Admin (4) : liste complète, numéros, suppression, journal
 JOURNAL_PAGE = 100
+ANNOUNCEMENT_PAGE = 20
+TAXONOMY = ("categories", "tags")
 PHOTO_TTL = 3600
 ROLES = ("guest", "basic", "member", "organizer", "coadmin", "admin")
 RANKS = {"guest": 0, "basic": 0, "member": 1, "organizer": 2, "coadmin": 3, "admin": 4}
@@ -194,7 +196,11 @@ class GroupAdmin:
         rows = [{**_names(p), "photo": photos.get(p.get("avatar_url") or ""),
                  "role": p.get("role") or "guest", "status": p.get("status") or "pending",
                  "beta": bool(p.get("beta")), "root": p["id"] == ROOT_ID,
-                 "created_at": p.get("created_at"), "last_sign_in_at": p.get("last_sign_in_at")}
+                 "created_at": p.get("created_at"), "last_sign_in_at": p.get("last_sign_in_at"),
+                 # Liste complète (Root, Admin) : de quoi trier et filtrer l'écran Utilisateurs.
+                 "first_sign_in_at": p.get("first_sign_in_at"), "sign_in_count": p.get("sign_in_count") or 0,
+                 "last_device": p.get("last_device"), "groups": p.get("groups") or [],
+                 "rsvp_count": p.get("rsvp_count") or 0, "message_count": p.get("message_count") or 0}
                 for p in people]
         return {**me, "full": full, "people": sorted(rows, key=lambda p: (p["name"] or "~").lower())}
 
@@ -228,3 +234,50 @@ class GroupAdmin:
                          "Le journal n'a pas pu être lu.") or []
         return {"entries": [{"id": e["id"], "at": e.get("at"), "text": describe(e)} for e in rows],
                 "more": len(rows) == JOURNAL_PAGE}
+
+    # MARK: Annonces admin (lues par tous les membres, publiées avec le droit announcements.publish)
+
+    def announcements(self, token: str, before_at: str | None = None, before_id: str | None = None) -> dict:
+        self.accounts._uid(token)
+        path = ("/rest/v1/admin_announcements?select=id,title,body,created_at"
+                f"&order=created_at.desc,id.desc&limit={ANNOUNCEMENT_PAGE + 1}")
+        if before_at and before_id:
+            path += f"&or=(created_at.lt.{before_at},and(created_at.eq.{before_at},id.lt.{before_id}))"
+        rows = self._rows(path, token)
+        return {"announcements": rows[:ANNOUNCEMENT_PAGE], "more": len(rows) > ANNOUNCEMENT_PAGE}
+
+    def publish(self, token: str, title: str, body: str) -> dict:
+        self._rpc(token, "publish_admin_announcement", {"announcement_title": title, "announcement_body": body},
+                  "L'annonce n'a pas été publiée. Réessaie.")
+        return self.announcements(token)
+
+    # MARK: Catégories et tags (droit taxonomy.manage)
+
+    def taxonomy(self, token: str) -> dict:
+        me = self.access(token)
+        out = {**me}
+        for kind in TAXONOMY:
+            order = "sort,name" if kind == "categories" else "name"
+            out[kind] = self._rows(f"/rest/v1/{kind}?select=id,name,color,archived&order={order}", token)
+        return out
+
+    def save_topic(self, token: str, kind: str, topic_id: str | None, fields: dict) -> dict:
+        if kind not in TAXONOMY:
+            raise AccountError("Liste inconnue.")
+        if "name" in fields:
+            name = " ".join(str(fields["name"]).split())
+            fields = {**fields, "name": name.lstrip("#").lower() if kind == "tags" else name}
+            if not fields["name"]:
+                raise AccountError("Donne un nom.")
+        fallback = "La modification n'a pas été enregistrée. Réessaie."
+        try:
+            if topic_id:
+                self._write("PATCH", f"/rest/v1/{kind}?id=eq.{topic_id}", token, fields, fallback)
+            else:
+                if kind == "categories":
+                    count = len(self._rows("/rest/v1/categories?select=id", token))
+                    fields = {**fields, "sort": count + 1}
+                self._write("POST", f"/rest/v1/{kind}", token, fields, fallback)
+        except AccountError as e:
+            raise AccountError("Ce nom existe déjà." if "duplicate" in str(e) else str(e)) from e
+        return self.taxonomy(token)
