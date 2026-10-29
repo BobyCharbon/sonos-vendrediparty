@@ -27,6 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from . import calendar_ics, debate, games, heist, island, likely, links, neon, president, purity, quiz
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
+from .group_admin import ROLES as ADMIN_ROLES, GroupAdmin
 from .audit import AuditLog
 from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
 from .github_issues import GitHubError, Issues
@@ -1409,6 +1410,7 @@ def presence(body: Presence, request: Request):
 
 
 accounts = Accounts(_secret())
+group_admin = GroupAdmin(accounts)
 # Ne compte que les vrais refus (compte sans droit admin). Un jeton expiré ou invalide n'est jamais compté :
 # un jeton Supabase ne se devine pas, et l'app rouverte après 1 h en présente un périmé. Compté, il bloquait
 # l'adresse de toute la maison (box partagée) et le compte root ne devenait plus admin (bug du 26.10).
@@ -1602,6 +1604,90 @@ def account_group_member(body: GroupMember):
 @app.post("/api/account/groups/delete")
 def account_group_delete(body: GroupRef):
     return account_call(lambda: accounts.delete_group(body.token, body.group_id))
+
+
+class AdminDecision(MemberToken):
+    id: str = Field(pattern=UUID)
+    yes: bool
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class AdminSwitch(MemberToken):
+    on: bool
+
+
+class AdminMemberUpdate(MemberToken):
+    id: str = Field(pattern=UUID)
+    role: Literal[ADMIN_ROLES] | None = None
+    status: Literal["active", "banned"] | None = None
+    beta: bool | None = None
+
+
+class AdminMemberDelete(MemberToken):
+    id: str = Field(pattern=UUID)
+    confirm_name: str = Field(max_length=60)
+
+
+class AdminPermission(MemberToken):
+    role: Literal[ADMIN_ROLES]
+    perm: str = Field(min_length=1, max_length=60, pattern=r"^[a-z_.]+$")
+    on: bool
+
+
+class AdminJournal(MemberToken):
+    member: str | None = Field(default=None, pattern=UUID)
+    before: int | None = Field(default=None, ge=1)
+
+
+# Réglages natifs › Administration du groupe : la base revérifie chaque droit avec la session du membre.
+@app.post("/api/account/group-admin")
+def group_admin(body: MemberToken):
+    return account_call(lambda: group_admin.overview(body.token), 401)
+
+
+@app.post("/api/account/group-admin/event")
+def group_admin_event(body: AdminDecision):
+    return account_call(lambda: group_admin.decide_event(body.token, body.id, body.yes, (body.reason or "").strip()))
+
+
+@app.post("/api/account/group-admin/request")
+def group_admin_request(body: AdminDecision):
+    return account_call(lambda: group_admin.decide_request(body.token, body.id, body.yes))
+
+
+@app.post("/api/account/group-admin/approval")
+def group_admin_approval(body: AdminSwitch):
+    return account_call(lambda: group_admin.set_require_approval(body.token, body.on))
+
+
+@app.post("/api/account/group-admin/members")
+def group_admin_members(body: MemberToken):
+    return account_call(lambda: group_admin.members(body.token), 401)
+
+
+@app.post("/api/account/group-admin/member")
+def group_admin_member(body: AdminMemberUpdate):
+    return account_call(lambda: group_admin.update_member(body.token, body.id, body.role, body.status, body.beta))
+
+
+@app.post("/api/account/group-admin/member/delete")
+def group_admin_member_delete(body: AdminMemberDelete):
+    return account_call(lambda: group_admin.delete_member(body.token, body.id, body.confirm_name.strip()))
+
+
+@app.post("/api/account/group-admin/roles")
+def group_admin_roles(body: MemberToken):
+    return account_call(lambda: group_admin.roles(body.token), 401)
+
+
+@app.post("/api/account/group-admin/permission")
+def group_admin_permission(body: AdminPermission):
+    return account_call(lambda: group_admin.set_permission(body.token, body.role, body.perm, body.on))
+
+
+@app.post("/api/account/group-admin/journal")
+def group_admin_journal(body: AdminJournal):
+    return account_call(lambda: group_admin.journal(body.token, body.member, body.before))
 
 
 class SubscriptionSet(MemberToken):

@@ -28,13 +28,19 @@ struct SettingsView: View {
                         }
                     }
                 }
-                if isHost || store.account?.admin == true {
-                    Section("Soirée") {
-                        page(.tab("host"), "person.2.fill", .blue, "Invités et messages", "Messages des invités, invités, bannis")
-                        page(.admin, "slider.horizontal.3", .gray, "Admin de la soirée", "Musique, enceintes, joueurs, jeux et réglages du site")
-                        if store.account?.admin == true {
-                            page(.account("/admin"), "shield.lefthalf.filled", .indigo, "Administration du groupe",
-                                 "Demandes, membres, rôles et droits")
+                if isHost || store.account?.admin == true || store.account?.groupAdmin == true {
+                    Section("Administration") {
+                        if isHost || store.account?.admin == true {
+                            page(.tab("host"), "person.2.fill", .blue, "Invités et messages", "Messages des invités, invités, bannis")
+                            page(.admin, "slider.horizontal.3", .gray, "Admin de la soirée", "Musique, enceintes, joueurs, jeux et réglages du site")
+                        }
+                        if store.account?.groupAdmin == true {
+                            NavigationLink {
+                                GroupAdminView(store: store.groupAdmin, open: open)
+                            } label: {
+                                SettingsRow(symbol: "shield.lefthalf.filled", tint: .indigo, title: "Administration du groupe",
+                                            hint: "Propositions, demandes, membres, rôles et droits, journal")
+                            }
                         }
                     }
                 }

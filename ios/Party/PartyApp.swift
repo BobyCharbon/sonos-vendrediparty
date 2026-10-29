@@ -20,6 +20,7 @@ struct PartyApp: App {
                 #if DEBUG
                 .task { TrackActivities.startDemoIfAsked() }
                 .overlay { HostDemo(model: model) }
+                .overlay { GroupAdminDemo(model: model) }
                 #endif
                 .onReceive(NotificationCenter.default.publisher(for: .partyOpenURL)) { note in
                     if let url = note.object as? URL { model.open(url) }
@@ -130,6 +131,33 @@ private struct HostDemo: View {
             try? await Task.sleep(for: .seconds(1))
             model.hostMusic?.showDemo(state)
             shown = true
+        }
+    }
+}
+
+/// Simulateur : PARTY_DEBUG_GROUP_ADMIN=<GroupAdminStore.Demo en JSON> affiche Administration du groupe sur un état figé.
+private struct GroupAdminDemo: View {
+    @ObservedObject var model: WebModel
+    @State private var shown = false
+
+    var body: some View {
+        Group {
+            if shown, let store = model.settings?.groupAdmin {
+                NavigationStack { GroupAdminView(store: store, open: { _ in }) }
+                    .tint(Palette.accent)
+                    .background(AppConfig.background.ignoresSafeArea())
+            }
+        }
+        .task {
+            guard let json = ProcessInfo.processInfo.environment["PARTY_DEBUG_GROUP_ADMIN"] else { return }
+            do {
+                let demo = try JSONDecoder().decode(GroupAdminStore.Demo.self, from: Data(json.utf8))
+                try? await Task.sleep(for: .seconds(1))
+                model.settings?.groupAdmin.showDemo(demo)
+                shown = true
+            } catch {
+                assertionFailure("PARTY_DEBUG_GROUP_ADMIN illisible : \(error)")
+            }
         }
     }
 }

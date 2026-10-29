@@ -120,13 +120,16 @@ struct AccountSummary: Decodable, Equatable {
     let name: String
     let photo: String?
     let admin: Bool
+    /// Au moins un droit d'administration du groupe (valider, membres, rôles…) : Réglages › Administration du groupe.
+    let groupAdmin: Bool
 
-    enum CodingKeys: String, CodingKey { case name, photo, admin }
+    enum CodingKeys: String, CodingKey { case name, photo, admin, groupAdmin = "group_admin" }
 
-    init(name: String, photo: String?, admin: Bool) {
+    init(name: String, photo: String?, admin: Bool, groupAdmin: Bool = false) {
         self.name = name
         self.photo = photo
         self.admin = admin
+        self.groupAdmin = groupAdmin
     }
 
     init(from decoder: Decoder) throws {
@@ -134,6 +137,8 @@ struct AccountSummary: Decodable, Equatable {
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
         photo = try c.decodeIfPresent(String.self, forKey: .photo)
         admin = try c.decodeIfPresent(Bool.self, forKey: .admin) ?? false
+        // Compte relié avant cette version : la page n'a pas encore noté le droit, les admins l'ont d'office.
+        groupAdmin = try c.decodeIfPresent(Bool.self, forKey: .groupAdmin) ?? admin
     }
 
     static func parse(_ json: String?) -> AccountSummary? {

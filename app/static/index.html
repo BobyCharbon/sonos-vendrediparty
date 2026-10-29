@@ -517,7 +517,7 @@ async function linkAccount() {
   try {
     const a = await api("/api/account/link", { method: "POST", body: JSON.stringify({ token, guest_id: guestId }) });
     if (!guestId.startsWith("acct-")) store("vp_guest_anon", guestId);
-    account = a; store("vp_account", JSON.stringify({ name: a.name, photo: a.photo, beta: a.beta, admin: a.admin }));
+    account = a; store("vp_account", JSON.stringify({ name: a.name, photo: a.photo, beta: a.beta, admin: a.admin, group_admin: a.group_admin }));
     PartyEvents.setBeta(a.beta);
     if (a.admin) { adminFailedAt = 0; renewAdmin().then((ok) => { if (ok && typeof refreshGame === "function") refreshGame(); }); }
     else if (adminSession) { adminSession = false; fbSyncRole(); }  // droits admin retirés au compte

@@ -18,6 +18,9 @@ CACHE_TTL = 300             # un même jeton n'est revérifié qu'au bout de 5 m
 EVENT_LOOKBACK = 12 * 3600  # un événement commencé depuis moins de 12 h peut encore être lié à la soirée
 EVENT_CHOICES = 8
 PROFILE_PHOTOS = "profile-photos"
+# Un de ces droits ouvre Réglages › Administration du groupe (comme ADMIN_PERMS du module web).
+GROUP_ADMIN_PERMS = {"events.approve", "members.approve", "members.roles", "members.ban", "members.view_identity",
+                     "roles.manage", "taxonomy.manage", "group.settings", "announcements.publish"}
 PROFILE_FIELDS = "id,display_name,first_name,last_name,phone,avatar_url,role,status"
 
 
@@ -64,12 +67,15 @@ class Accounts:
         """Identifiant de joueur du compte, après la seule vérification du jeton (gardée 5 min) : pour lire ses propres données."""
         return self.gid(self._uid(token))
 
-    def is_party_admin(self, token: str) -> bool:
-        """Droits « Ouvrir la page admin » et « Réglages du site » (root et admins) : mêmes pouvoirs que le code PIN."""
+    def _perms(self, token: str) -> set[str]:
         self._uid(token)
         r = self._get("POST", "/rest/v1/rpc/my_permissions", token, json={})
         perms = r.json() if r.status_code == 200 else []
-        return isinstance(perms, list) and {"party.admin", "party.settings"} <= set(perms)
+        return set(perms) if isinstance(perms, list) else set()
+
+    def is_party_admin(self, token: str) -> bool:
+        """Droits « Ouvrir la page admin » et « Réglages du site » (root et admins) : mêmes pouvoirs que le code PIN."""
+        return {"party.admin", "party.settings"} <= self._perms(token)
 
     def link(self, token: str) -> dict:
         """Jeton de session Supabase → compte vérifié : identifiant de joueur, surnom, lien de photo.
@@ -89,8 +95,10 @@ class Accounts:
                 photo = SUPABASE_URL + "/storage/v1" + signed
         b = self._get("POST", "/rest/v1/rpc/is_beta_tester", token, json={})
         beta = b.status_code == 200 and b.json() is True  # Événements en production : réservés aux bêta-testeurs
+        perms = self._perms(token)
         account = {"guest_id": self.gid(uid), "name": " ".join((profile.get("display_name") or "").split())[:30], "photo": photo,
-                   "beta": beta, "admin": self.is_party_admin(token)}
+                   "beta": beta, "admin": {"party.admin", "party.settings"} <= perms,
+                   "group_admin": bool(perms & GROUP_ADMIN_PERMS)}
         with self.lock:
             self.by_gid[account["guest_id"]] = account
         return account

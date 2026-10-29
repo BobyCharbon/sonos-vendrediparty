@@ -46,6 +46,7 @@ final class SettingsStore: ObservableObject {
 
     /// Réglages › Groupes (même session de compte).
     private(set) lazy var groups = GroupsStore(api: api, web: web)
+    private(set) lazy var groupAdmin = GroupAdminStore(api: api, web: web)
 
     init(api: PartyAPI, web: WebStorage, isHost: @escaping () -> Bool, trackChanged: @escaping (Bool, Bool) -> Void) {
         self.api = api
