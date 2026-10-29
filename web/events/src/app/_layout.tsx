@@ -42,7 +42,7 @@ function backLabel(label?: string) {
 }
 
 const intentKey = 'party-events-destination';
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit)?|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|activity|announcements|account|settings\/(?:notifications|subscriptions|profile))$/i;
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit)?|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|activity|announcements|account|settings\/(?:notifications|subscriptions|profile))$/i;
 function initialDestination() {
   if (typeof window === 'undefined') return null;
   const path = location.pathname.replace(/^\/events(?=\/|$)/, '');
@@ -170,6 +170,9 @@ function Gate() {
         <Stack.Screen name="settings/account" options={{ title: 'Mon compte' }} />
       </Stack.Protected>
       <Stack.Screen name="share/[id]" options={{ title: '' }} />
+      {/* Liens d'invitation (événement sur invitation, groupe) : lisibles avant connexion. */}
+      <Stack.Screen name="invite/[token]" options={{ title: 'Invitation' }} />
+      <Stack.Screen name="group-invite/[token]" options={{ title: 'Invitation' }} />
       <Stack.Screen name="privacy" options={{ title: 'Confidentialité' }} />
     </Stack>
     </>

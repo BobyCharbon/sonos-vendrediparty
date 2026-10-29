@@ -138,13 +138,16 @@ export function RsvpCard({
   );
 }
 
-/** Participant : photo et prénom ; toucher l'un ou l'autre ouvre sa fiche profil. */
-function PersonChip({ id, name, extra }: { id: string; name: string; extra?: string }) {
+/** Participant : photo et prénom ; toucher l'un ou l'autre ouvre sa fiche profil. En orange : arrivé par le lien
+ * d'invitation (visible des organisateurs). */
+function PersonChip({ id, name, extra, viaLink = false }: { id: string; name: string; extra?: string; viaLink?: boolean }) {
   return (
-    <Pressable style={st.person} accessibilityRole="button" accessibilityLabel={`Profil de ${name}`}
-      onPress={() => router.push(`/member/${id}`)}>
+    <Pressable style={[st.person, viaLink && st.viaLink]} accessibilityRole="button"
+      accessibilityLabel={`Profil de ${name}${viaLink ? ', invité par lien' : ''}`} onPress={() => router.push(`/member/${id}`)}>
       <Avatar id={id} name={name} size={24} profile={false} />
-      <T size={13} weight="semibold">{name}{extra ? <T size={13} muted> {extra}</T> : null}</T>
+      <T size={13} weight="semibold" color={viaLink ? colors.coral : undefined}>
+        {name}{extra ? <T size={13} muted> {extra}</T> : null}{viaLink ? <T size={11} color={colors.coral}> · lien</T> : null}
+      </T>
     </Pressable>
   );
 }
@@ -154,11 +157,13 @@ export function ParticipantsSection({
   me,
   rsvps,
   names,
+  viaLink = new Set<string>(),
 }: {
   event: EventRow;
   me: string;
   rsvps: Rsvp[];
   names: Names;
+  viaLink?: Set<string>;
 }) {
   if (!event.show_participants && rsvps.length <= 1) return null;
   const nameOf = (id: string) => (id === me ? 'Toi' : names.get(id) ?? '?');
@@ -176,7 +181,7 @@ export function ParticipantsSection({
       <View style={{ gap: 8 }} accessibilityLabel={`${label} : ${list.map((r) => nameOf(r.user_id)).join(', ')}`}>
         <T size={12} weight="bold" color={color}>{label.toUpperCase()} · {count}</T>
         <View style={s.wrap}>
-          {list.map((r) => <PersonChip key={r.user_id} id={r.user_id} name={nameOf(r.user_id)} extra={r.plus_ones ? `+${r.plus_ones}` : undefined} />)}
+          {list.map((r) => <PersonChip key={r.user_id} id={r.user_id} name={nameOf(r.user_id)} extra={r.plus_ones ? `+${r.plus_ones}` : undefined} viaLink={viaLink.has(r.user_id)} />)}
         </View>
       </View>
     ) : null;
@@ -501,6 +506,7 @@ const st = StyleSheet.create({
   pill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(255,79,154,0.16)' },
   subRow: { paddingTop: 4 },
   person: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 3, paddingRight: 10, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.surface2 },
+  viaLink: { borderWidth: 1, borderColor: colors.coral },
   bar: { height: 6, borderRadius: 99, backgroundColor: colors.line, flexDirection: 'row', overflow: 'hidden' },
   note: { padding: 10, borderRadius: radius.sm, backgroundColor: colors.bg, borderLeftWidth: 3, borderLeftColor: colors.lineStrong },
   radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },

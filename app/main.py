@@ -1837,6 +1837,47 @@ def account_privacy_phone(body: PrivacyPhone):
     return account_call(lambda: accounts.set_group_phone_share(body.token, body.group_id, body.on))
 
 
+class GroupInvitationAnswer(MemberToken):
+    id: str = Field(pattern=UUID)
+    accept: bool
+
+
+class GroupLink(MemberToken):
+    group_id: str = Field(pattern=UUID)
+    renew: bool = False
+
+
+class GroupInvite(MemberToken):
+    group_id: str = Field(pattern=UUID)
+    member: str | None = Field(default=None, pattern=UUID)
+    phone: str | None = Field(default=None, min_length=8, max_length=20, pattern=r"^[+0-9 .()-]+$")
+
+
+@app.post("/api/account/groups/invitations")
+def account_group_invitations(body: MemberToken):
+    """Réglages › Groupes : les invitations reçues (par mon compte ou mon numéro)."""
+    return {"invitations": account_call(lambda: accounts.group_invitations(body.token), 401)}
+
+
+@app.post("/api/account/groups/invitations/answer")
+def account_group_invitation_answer(body: GroupInvitationAnswer):
+    return {"invitations": account_call(lambda: accounts.answer_group_invitation(body.token, body.id, body.accept))}
+
+
+@app.post("/api/account/groups/link")
+def account_group_link(body: GroupLink):
+    """Lien d'invitation d'un groupe (créateur) : adresse publique du module Événements."""
+    token = account_call(lambda: accounts.group_invite_link(body.token, body.group_id, body.renew))
+    return {"url": f"{guest_url().rstrip('/')}/events/group-invite/{token}"}
+
+
+@app.post("/api/account/groups/invite")
+def account_group_invite(body: GroupInvite):
+    if not body.member and not body.phone:
+        raise HTTPException(400, "Choisis une personne ou un numéro")
+    return account_call(lambda: accounts.invite_to_group(body.token, body.group_id, body.member, body.phone))
+
+
 class SubscriptionSet(MemberToken):
     kind: Literal["category", "tag"]
     id: str = Field(pattern=UUID)

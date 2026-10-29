@@ -9,6 +9,9 @@ from fastapi.testclient import TestClient
 from app import accounts as accounts_mod, games, main
 
 LEA_UID = "11111111-2222-3333-4444-555555555555"
+GROUP = "22222222-3333-4444-5555-666666666666"
+INV = "33333333-4444-5555-6666-777777777777"
+TOKEN = "44444444-5555-6666-7777-888888888888"
 CARD = {"id": LEA_UID, "display_name": "Léa", "avatar_url": "lea/photo.jpg", "role": "member", "root": False, "me": False,
         "first_name": None, "last_name": None, "phone": None, "groups": ["Vendredi Party"]}
 
@@ -30,6 +33,16 @@ def fake():
             return httpx.Response(200, json={"show_name": body["visible"], "phone_groups": []})
         if path == "/rest/v1/rpc/set_group_phone_share":
             return httpx.Response(200, json={"show_name": False, "phone_groups": [body["grp"]] if body["visible"] else []})
+        if path == "/rest/v1/rpc/my_group_invitations":
+            return httpx.Response(200, json=[{"id": INV, "group_id": GROUP, "group": "Les footeux", "invited_by": "Tom", "at": "2026-10-30"}])
+        if path == "/rest/v1/rpc/answer_group_invitation":
+            return httpx.Response(200, json=[])
+        if path == "/rest/v1/rpc/group_invite_link":
+            return httpx.Response(200, json=TOKEN)
+        if path == "/rest/v1/rpc/invite_to_group":
+            if body.get("member") == LEA_UID:
+                return httpx.Response(400, json={"message": "Déjà dans le groupe"})
+            return httpx.Response(200, json={"invited": "phone" if body.get("phone") else "member"})
         if path.startswith("/storage/v1/object/sign/"):
             return httpx.Response(200, json={"signedURL": "/object/sign/profile-photos/lea/photo.jpg?t=1"})
         return httpx.Response(404)
@@ -92,3 +105,18 @@ def test_privacy_choices_are_relayed(world):
     assert c.post("/api/account/privacy/phone", json={"token": "t" * 30, "group_id": group, "on": True}).json()["phone_groups"] == [group]
     assert ("/rest/v1/rpc/set_group_phone_share", {"grp": group, "visible": True}) in seen
     assert c.post("/api/account/privacy/phone", json={"token": "t" * 30, "group_id": "pas-un-uuid", "on": True}).status_code == 422
+
+
+def test_group_invitations_link_and_invite_are_relayed(world):
+    acc, seen, g, lea = world
+    c = TestClient(main.app)
+    inv = c.post("/api/account/groups/invitations", json={"token": "t" * 30}).json()["invitations"]
+    assert inv[0]["group"] == "Les footeux" and inv[0]["invited_by"] == "Tom"
+    assert c.post("/api/account/groups/invitations/answer", json={"token": "t" * 30, "id": INV, "accept": True}).json() == {"invitations": []}
+    assert ("/rest/v1/rpc/answer_group_invitation", {"inv": INV, "accept": True}) in seen
+    url = c.post("/api/account/groups/link", json={"token": "t" * 30, "group_id": GROUP}).json()["url"]
+    assert url.endswith(f"/events/group-invite/{TOKEN}")
+    assert c.post("/api/account/groups/invite", json={"token": "t" * 30, "group_id": GROUP, "phone": "079 000 00 03"}).json() == {"invited": "phone"}
+    refused = c.post("/api/account/groups/invite", json={"token": "t" * 30, "group_id": GROUP, "member": LEA_UID})
+    assert refused.status_code == 400 and "Déjà dans le groupe" in refused.json()["detail"]
+    assert c.post("/api/account/groups/invite", json={"token": "t" * 30, "group_id": GROUP}).status_code == 400

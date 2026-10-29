@@ -36,8 +36,47 @@ struct GroupList: Decodable, Equatable {
     let people: [Person]
 }
 
+/// Invitation reçue (par mon compte ou mon numéro) : acceptée ou refusée dans Réglages › Groupes.
+struct GroupInvitation: Decodable, Equatable, Identifiable {
+    let id: String
+    let groupID: String
+    let group: String
+    let invitedBy: String?
+
+    enum CodingKeys: String, CodingKey { case id, group, groupID = "group_id", invitedBy = "invited_by" }
+}
+
+private struct GroupInvitations: Decodable { let invitations: [GroupInvitation] }
+private struct GroupLinkResponse: Decodable { let url: String }
+private struct GroupInviteResult: Decodable { let invited: String }
+
 extension PartyAPI {
     func groups(token: String) async throws -> GroupList { try await postDecoding("/api/account/groups", body: ["token": token]) }
+
+    func groupInvitations(token: String) async throws -> [GroupInvitation] {
+        let r: GroupInvitations = try await postDecoding("/api/account/groups/invitations", body: ["token": token])
+        return r.invitations
+    }
+
+    func answerGroupInvitation(token: String, id: String, accept: Bool) async throws -> [GroupInvitation] {
+        let r: GroupInvitations = try await postDecoding("/api/account/groups/invitations/answer",
+                                                         body: ["token": token, "id": id, "accept": accept])
+        return r.invitations
+    }
+
+    func groupLink(token: String, groupID: String, renew: Bool) async throws -> URL? {
+        let r: GroupLinkResponse = try await postDecoding("/api/account/groups/link", body: ["token": token, "group_id": groupID, "renew": renew])
+        return URL(string: r.url)
+    }
+
+    /// true : la personne (compte) a reçu l'invitation ; false : gardée pour un numéro pas encore inscrit.
+    func inviteToGroup(token: String, groupID: String, member: String?, phone: String?) async throws -> Bool {
+        var body: [String: Any] = ["token": token, "group_id": groupID]
+        if let member { body["member"] = member }
+        if let phone { body["phone"] = phone }
+        let r: GroupInviteResult = try await postDecoding("/api/account/groups/invite", body: body)
+        return r.invited == "member"
+    }
 
     func createGroup(token: String, name: String) async throws -> GroupList {
         try await postDecoding("/api/account/groups/create", body: ["token": token, "name": name])
@@ -56,6 +95,8 @@ extension PartyAPI {
 @MainActor
 final class GroupsStore: ObservableObject {
     @Published private(set) var list: GroupList?
+    @Published private(set) var invitations: [GroupInvitation] = []
+    @Published private(set) var links: [String: URL] = [:]
     @Published private(set) var error: String?
     @Published private(set) var busy: Set<String> = []
     @Published var notice: String?
@@ -69,7 +110,46 @@ final class GroupsStore: ObservableObject {
     }
 
     func load() async {
-        await run("load") { token in list = try await api.groups(token: token) }
+        await run("load") { token in
+            list = try await api.groups(token: token)
+            invitations = (try? await api.groupInvitations(token: token)) ?? []
+        }
+    }
+
+    func answer(_ invitation: GroupInvitation, accept: Bool) async {
+        await run(invitation.id) { token in
+            invitations = try await api.answerGroupInvitation(token: token, id: invitation.id, accept: accept)
+            list = try await api.groups(token: token)
+            notice = accept ? "Tu as rejoint « \(invitation.group) »" : "Invitation refusée"
+        }
+    }
+
+    func link(for group: GroupList.Group, renew: Bool = false) async {
+        await run("link.\(group.id)") { token in
+            links[group.id] = try await api.groupLink(token: token, groupID: group.id, renew: renew)
+            if renew { notice = "Nouveau lien : l'ancien ne marche plus" }
+        }
+    }
+
+    /// Surnom d'un compte (liste des personnes) ou numéro de téléphone (inscrit ou pas encore).
+    func invite(_ typed: String, to group: GroupList.Group) async -> Bool {
+        let text = typed.trimmingCharacters(in: .whitespaces)
+        let digits = text.filter(\.isNumber)
+        let byPhone = digits.count >= 8 && text.allSatisfy { $0.isNumber || " +().-".contains($0) }
+        let person = byPhone ? nil : list?.people.first { $0.name.caseInsensitiveCompare(text.trimmingCharacters(in: ["@"])) == .orderedSame }
+        guard byPhone || person != nil else {
+            notice = "Personne avec ce surnom. Essaie son numéro de téléphone."
+            return false
+        }
+        let phone = byPhone ? (LoginPhone.parse(text, country: .ch).map { String($0.dropFirst()) } ?? digits) : nil
+        var done = false
+        await run("invite.\(group.id)") { token in
+            let reached = try await api.inviteToGroup(token: token, groupID: group.id, member: person?.id, phone: phone)
+            notice = reached ? "\(person?.name ?? "La personne") a reçu ton invitation"
+                             : "Invitation gardée pour ce numéro : elle l'attendra dès son inscription"
+            done = true
+        }
+        return done
     }
 
     func create(_ name: String) async -> Bool {
@@ -133,6 +213,23 @@ struct GroupsView: View {
             } footer: {
                 Text("Un groupe sert à inviter plusieurs personnes d'un coup à un événement. Quelqu'un qui rejoint le groupe plus tard est aussi invité aux événements à venir.")
             }
+            if !store.invitations.isEmpty {
+                Section("Invitations reçues") {
+                    ForEach(store.invitations) { invitation in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(invitation.group).font(.headline)
+                            Text("\(invitation.invitedBy ?? "Quelqu'un") t'invite dans ce groupe").font(.footnote).foregroundStyle(.secondary)
+                            HStack {
+                                Button("Accepter") { Task { await store.answer(invitation, accept: true) } }.buttonStyle(.borderedProminent)
+                                Button("Refuser") { Task { await store.answer(invitation, accept: false) } }.buttonStyle(.bordered)
+                            }
+                            .controlSize(.small)
+                            .disabled(store.busy.contains(invitation.id))
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
             if let list = store.list {
                 Section("Mes groupes") {
                     if list.groups.isEmpty { Text("Tu ne fais partie d'aucun groupe pour l'instant.").foregroundStyle(.secondary) }
@@ -195,10 +292,16 @@ struct GroupDetailView: View {
     let groupID: String
     @State private var confirmDelete = false
     @State private var profile: ProfileTarget?
+    @State private var guest = ""
     @Environment(\.dismiss) private var dismiss
 
     /// Fiche à ouvrir (un membre touché dans la liste).
     struct ProfileTarget: Identifiable { let id: String }
+
+    private func invite(_ group: GroupList.Group) {
+        let typed = guest
+        Task { if await store.invite(typed, to: group) { guest = "" } }
+    }
 
     var body: some View {
         List {
@@ -247,6 +350,37 @@ struct GroupDetailView: View {
                         Text("Membres · \(group.members.count)")
                     } footer: {
                         Text("Touche une personne pour l'ajouter ou la retirer.")
+                    }
+                    Section {
+                        HStack {
+                            TextField("Surnom ou numéro", text: $guest)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .onSubmit { invite(group) }
+                            Button("Inviter") { invite(group) }
+                                .disabled(guest.trimmingCharacters(in: .whitespaces).isEmpty || store.busy.contains("invite.\(group.id)"))
+                        }
+                    } header: {
+                        Text("Inviter")
+                    } footer: {
+                        Text("La personne accepte ou refuse dans ses Réglages. Un numéro pas encore inscrit : l'invitation l'attend.")
+                    }
+                    Section {
+                        if let url = store.links[group.id] {
+                            Text(url.absoluteString).font(.footnote).textSelection(.enabled)
+                            ShareLink(item: url, subject: Text("Invitation Party"),
+                                      message: Text("Rejoins le groupe « \(group.name) » sur Party")) {
+                                Label("Partager le lien", systemImage: "square.and.arrow.up")
+                            }
+                            Button("Nouveau lien (l'ancien ne marchera plus)") { Task { await store.link(for: group, renew: true) } }
+                        } else {
+                            Button("Afficher le lien d'invitation") { Task { await store.link(for: group) } }
+                                .disabled(store.busy.contains("link.\(group.id)"))
+                        }
+                    } header: {
+                        Text("Lien d'invitation")
+                    } footer: {
+                        Text("Qui l'ouvre crée son compte (ou se connecte) et rejoint ce groupe. Tu es prévenu à chaque arrivée.")
                     }
                     Section {
                         Button("Supprimer le groupe", role: .destructive) { confirmDelete = true }

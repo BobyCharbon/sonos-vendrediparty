@@ -151,4 +151,11 @@ struct AccountNativeTests {
         let list: GroupList = try decode(#"{"groups": [{"id": "g1", "name": "Les footeux", "system": false, "mine": false, "inside": true, "members": []}, {"id": "g2", "name": "Autre", "system": false, "mine": true, "members": []}], "people": []}"#)
         #expect(list.groups[0].inside && !list.groups[1].inside)
     }
+
+    @Test("Invitations de groupe : décodées avec le groupe et la personne qui invite")
+    func groupInvitations() throws {
+        let list: [GroupInvitation] = try decode(#"[{"id": "i1", "group_id": "g1", "group": "Les footeux", "invited_by": "Tom", "at": "2026-10-30T10:00:00Z"}, {"id": "i2", "group_id": "g2", "group": "Rando", "invited_by": null}]"#)
+        #expect(list.map(\.group) == ["Les footeux", "Rando"] && list[0].invitedBy == "Tom" && list[1].invitedBy == nil)
+        #expect(LoginPhone.parse("079 000 00 03", country: .ch).map { String($0.dropFirst()) } == "41790000003")
+    }
 }

@@ -309,6 +309,34 @@ class Accounts:
             return []
         return [{"id": e["id"], "title": e["title"], "starts_at": e["starts_at"]} for e in rows]
 
+    # MARK: Invitations aux groupes (lien, surnom ou numéro)
+
+    def _rpc_json(self, token: str, name: str, args: dict, fallback: str):
+        self._uid(token)
+        r = self._get("POST", f"/rest/v1/rpc/{name}", token, json=args)
+        if r.status_code != 200:
+            try:
+                message = str(r.json().get("message", "")) if r.status_code < 500 else ""
+            except ValueError:
+                message = ""
+            # « forbidden: … », « profile_incomplete: … » : la partie lisible ; sinon le message tel quel.
+            raise AccountError(message.split(": ", 1)[-1] if message else fallback)
+        return r.json()
+
+    def group_invitations(self, token: str) -> list:
+        return self._rpc_json(token, "my_group_invitations", {}, "Tes invitations n'ont pas pu être lues.")
+
+    def answer_group_invitation(self, token: str, invitation: str, accept: bool) -> list:
+        return self._rpc_json(token, "answer_group_invitation", {"inv": invitation, "accept": accept},
+                              "Ta réponse n'a pas été enregistrée. Réessaie.")
+
+    def group_invite_link(self, token: str, group_id: str, renew: bool) -> str:
+        return self._rpc_json(token, "group_invite_link", {"grp": group_id, "renew": renew}, "Le lien n'a pas pu être créé.")
+
+    def invite_to_group(self, token: str, group_id: str, member: str | None, phone: str | None) -> dict:
+        return self._rpc_json(token, "invite_to_group", {"grp": group_id, "member": member, "phone": phone},
+                              "L'invitation n'a pas été envoyée. Réessaie.")
+
     # MARK: Fiche profil et confidentialité (nom public, numéro montré à ses groupes)
 
     def member_card(self, token: str, member: str | None = None, guest_id: str | None = None) -> dict:
