@@ -109,6 +109,8 @@ struct AdminState: Decodable, Equatable {
     let topPlaylists: [TopPlaylist]
     let spotifyAccount: SpotifyAccount?
     let event: LinkedEvent?
+    /// Messages des invités, bannis, jeux en cours (Réglages › Invités et messages, Admin de la soirée).
+    let people: HostPeople
 
     enum CodingKeys: String, CodingKey {
         case active, source, mode, sonos, queue, requests, guests, event
@@ -132,6 +134,7 @@ struct AdminState: Decodable, Equatable {
         topPlaylists = try c.decodeIfPresent([TopPlaylist].self, forKey: .topPlaylists) ?? []
         spotifyAccount = try c.decodeIfPresent(SpotifyAccount.self, forKey: .spotifyAccount)
         event = try c.decodeIfPresent(LinkedEvent.self, forKey: .event)
+        people = try HostPeople(from: decoder)
     }
 
     /// Soirée extérieure (Spotify) : l'ordre et les retraits se gèrent dans Spotify.

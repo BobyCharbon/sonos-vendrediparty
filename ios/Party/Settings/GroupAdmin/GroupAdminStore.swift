@@ -7,6 +7,7 @@ final class GroupAdminStore: ObservableObject {
     @Published private(set) var overview: AdminOverview?
     @Published private(set) var members: AdminMembers?
     @Published private(set) var roles: AdminRoles?
+    @Published private(set) var taxonomy: Taxonomy?
     @Published private(set) var error: String?
     @Published private(set) var busy: Set<String> = []
     @Published var notice: String?
@@ -97,6 +98,28 @@ final class GroupAdminStore: ObservableObject {
 
     func toggle(_ perm: String, for role: MemberRole, on: Bool) async {
         await run("\(role.rawValue).\(perm)") { token in roles = try await api.setPermission(token: token, role: role, perm: perm, on: on) }
+    }
+
+    // MARK: Catégories et tags
+
+    func loadTaxonomy() async {
+        await run("taxonomy", loading: taxonomy == nil) { token in taxonomy = try await api.taxonomy(token: token) }
+    }
+
+    func createTopic(_ kind: Taxonomy.Kind, name: String, color: String) async -> Bool {
+        var done = false
+        await run("taxonomy") { token in
+            taxonomy = try await api.saveTopic(token: token, kind: kind, id: nil, name: name, color: color)
+            done = true
+        }
+        return done
+    }
+
+    func saveTopic(_ kind: Taxonomy.Kind, _ topic: Taxonomy.Topic, name: String? = nil, color: String? = nil,
+                   archived: Bool? = nil) async {
+        await run("taxonomy") { token in
+            taxonomy = try await api.saveTopic(token: token, kind: kind, id: topic.id, name: name, color: color, archived: archived)
+        }
     }
 
     // MARK: Journal (lu à la demande, page par page)

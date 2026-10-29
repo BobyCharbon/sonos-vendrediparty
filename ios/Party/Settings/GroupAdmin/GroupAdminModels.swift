@@ -124,10 +124,19 @@ struct AdminMembers: Decodable, Equatable {
         let complete: Bool
         let createdAt: String?
         let lastSignInAt: String?
+        // Liste complète (Root, Admin) : écran Utilisateurs.
+        let firstSignInAt: String?
+        let signInCount: Int
+        let lastDevice: String?
+        let groups: [String]
+        let rsvpCount: Int
+        let messageCount: Int
 
         enum CodingKeys: String, CodingKey {
-            case id, name, phone, photo, role, status, beta, root, complete
+            case id, name, phone, photo, role, status, beta, root, complete, groups
             case fullName = "full_name", createdAt = "created_at", lastSignInAt = "last_sign_in_at"
+            case firstSignInAt = "first_sign_in_at", signInCount = "sign_in_count", lastDevice = "last_device"
+            case rsvpCount = "rsvp_count", messageCount = "message_count"
         }
 
         init(from decoder: Decoder) throws {
@@ -145,6 +154,12 @@ struct AdminMembers: Decodable, Equatable {
             complete = try c.decodeIfPresent(Bool.self, forKey: .complete) ?? false
             createdAt = try c.decodeIfPresent(String.self, forKey: .createdAt)
             lastSignInAt = try c.decodeIfPresent(String.self, forKey: .lastSignInAt)
+            firstSignInAt = try c.decodeIfPresent(String.self, forKey: .firstSignInAt)
+            signInCount = try c.decodeIfPresent(Int.self, forKey: .signInCount) ?? 0
+            lastDevice = try c.decodeIfPresent(String.self, forKey: .lastDevice)
+            groups = try c.decodeIfPresent([String].self, forKey: .groups) ?? []
+            rsvpCount = try c.decodeIfPresent(Int.self, forKey: .rsvpCount) ?? 0
+            messageCount = try c.decodeIfPresent(Int.self, forKey: .messageCount) ?? 0
         }
 
         var displayName: String { name.isEmpty ? "Profil à compléter" : name }
@@ -328,5 +343,97 @@ extension PartyAPI {
         if let member { body["member"] = member }
         if let before { body["before"] = before }
         return try await postDecoding("/api/account/group-admin/journal", body: body)
+    }
+}
+
+/// Utilisateurs (Root, Admin) : tris et filtres de l'écran, comme le module web (lib/users.ts).
+enum UserList {
+    enum Sort: String, CaseIterable, Identifiable {
+        case lastSignIn, firstSignIn, signedUp, name, signIns, activity, role
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .lastSignIn: return "Dernière connexion"
+            case .firstSignIn: return "Première connexion"
+            case .signedUp: return "Inscription"
+            case .name: return "Nom"
+            case .signIns: return "Nb de connexions"
+            case .activity: return "Activité"
+            case .role: return "Rôle"
+            }
+        }
+        /// Le plus récent / le plus actif d'abord ; les noms de A à Z.
+        var descendingByDefault: Bool { self != .name }
+    }
+
+    enum Filter: String, CaseIterable, Identifiable {
+        case all, guest, basic, vip, team, beta, incomplete, never, banned
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .all: return "Tous"
+            case .guest: return "Guest"
+            case .basic: return "Membre"
+            case .vip: return "Membre VIP"
+            case .team: return "Orga et admins"
+            case .beta: return "Bêta"
+            case .incomplete: return "Profil incomplet"
+            case .never: return "Pas revenu (30 j)"
+            case .banned: return "Accès retiré"
+            }
+        }
+    }
+
+    private static let month: TimeInterval = 30 * 86_400
+
+    static func matches(_ p: AdminMembers.Person, _ filter: Filter, now: Date = Date()) -> Bool {
+        switch filter {
+        case .all: return true
+        case .guest: return p.active && p.role == .guest
+        case .basic: return p.active && p.role == .basic
+        case .vip: return p.active && p.role == .member
+        case .team: return p.active && p.role.rank > MemberRole.member.rank
+        case .beta: return p.beta
+        case .incomplete: return !p.complete
+        case .never: return now.timeIntervalSince(AdminDate.date(p.lastSignInAt) ?? .distantPast) > month
+        case .banned: return p.banned
+        }
+    }
+
+    static func arrange(_ people: [AdminMembers.Person], search: String, filter: Filter, sort: Sort, descending: Bool,
+                        now: Date = Date()) -> [AdminMembers.Person] {
+        let rows = people.filter { $0.matches(search) && matches($0, filter, now: now) }
+        return rows.sorted { a, b in
+            let order: Bool
+            switch sort {
+            case .name:
+                let x = sortName(a), y = sortName(b)
+                if x == y { return a.id < b.id }
+                order = x < y
+            default:
+                let x = value(a, sort), y = value(b, sort)
+                if x == y { return a.displayName.lowercased() < b.displayName.lowercased() }
+                order = x < y
+            }
+            return descending ? !order : order
+        }
+    }
+
+    /// Surnom, sinon prénom et nom ; un profil sans nom va en fin de liste (comme le module web).
+    private static func sortName(_ p: AdminMembers.Person) -> String {
+        let name = p.name.isEmpty ? p.fullName : p.name
+        return name.isEmpty ? "\u{10FFFF}" : name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "fr"))
+    }
+
+    private static func value(_ p: AdminMembers.Person, _ sort: Sort) -> Double {
+        switch sort {
+        case .lastSignIn: return AdminDate.date(p.lastSignInAt)?.timeIntervalSince1970 ?? 0
+        case .firstSignIn: return AdminDate.date(p.firstSignInAt)?.timeIntervalSince1970 ?? 0
+        case .signedUp: return AdminDate.date(p.createdAt)?.timeIntervalSince1970 ?? 0
+        case .signIns: return Double(p.signInCount)
+        case .activity: return Double(p.rsvpCount + p.messageCount)
+        case .role: return Double(p.role.rank)
+        case .name: return 0
+        }
     }
 }

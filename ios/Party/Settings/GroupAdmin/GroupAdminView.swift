@@ -4,6 +4,7 @@ import SwiftUI
 /// validation, puis Membres, Rôles et droits, Journal. Annonces, Catégories et Utilisateurs s'ouvrent dans la page.
 struct GroupAdminView: View {
     @ObservedObject var store: GroupAdminStore
+    @ObservedObject var session: AccountStore
     let open: (WebModel.PagePlace) -> Void
     @State private var refusing: AdminOverview.Proposal?
     @State private var reason = ""
@@ -140,26 +141,22 @@ struct GroupAdminView: View {
                     SettingsRow(symbol: "list.bullet.rectangle.portrait.fill", tint: .gray, title: "Journal des membres",
                                 hint: "Inscriptions, connexions, rôles, bêta, groupes, suppressions")
                 }
-                pageRow("/admin/users", "person.crop.rectangle.stack.fill", .teal, "Utilisateurs", "Tous les inscrits : connexions, activité, tri")
+                NavigationLink { GroupUsersView(store: store) } label: {
+                    SettingsRow(symbol: "person.crop.rectangle.stack.fill", tint: .teal, title: "Utilisateurs",
+                                hint: "Tous les inscrits : connexions, activité, tri")
+                }
             }
             if access.can("announcements.publish") {
-                pageRow("/admin/announcements", "megaphone.fill", .orange, "Annonces admin", "Un message obligatoire pour tout le groupe")
+                NavigationLink { AnnouncementsView(store: session, canPublish: true) } label: {
+                    SettingsRow(symbol: "megaphone.fill", tint: .orange, title: "Annonces admin", hint: "Un message obligatoire pour tout le groupe")
+                }
             }
             if access.can("taxonomy.manage") {
-                pageRow("/admin/taxonomy", "tag.fill", .pink, "Catégories et tags", "Créer, renommer, archiver")
+                NavigationLink { GroupTaxonomyView(store: store) } label: {
+                    SettingsRow(symbol: "tag.fill", tint: .pink, title: "Catégories et tags", hint: "Créer, renommer, archiver")
+                }
             }
         }
-    }
-
-    private func pageRow(_ path: String, _ symbol: String, _ tint: Color, _ title: String, _ hint: String) -> some View {
-        Button { open(.account(path)) } label: {
-            HStack {
-                SettingsRow(symbol: symbol, tint: tint, title: title, hint: hint)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
-            }
-        }
-        .foregroundStyle(.primary)
     }
 }
 

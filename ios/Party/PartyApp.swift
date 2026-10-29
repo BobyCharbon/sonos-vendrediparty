@@ -62,7 +62,7 @@ struct ContentView: View {
                             FeedbackView(store: feedback, topInset: proxy.safeAreaInsets.top, manage: hostTools("feedback"))
                         }
                         if model.nativeScreen == "account", let settings = model.settings {
-                            SettingsView(store: settings, topInset: proxy.safeAreaInsets.top, isHost: model.isHost) { place in
+                            SettingsView(store: settings, topInset: proxy.safeAreaInsets.top, isHost: model.isHost, hostMusic: model.hostMusic) { place in
                                 withAnimation { model.show(place) }
                             }
                         }
@@ -143,7 +143,7 @@ private struct GroupAdminDemo: View {
     var body: some View {
         Group {
             if shown, let store = model.settings?.groupAdmin {
-                NavigationStack { GroupAdminView(store: store, open: { _ in }) }
+                NavigationStack { GroupAdminView(store: store, session: model.settings!.session, open: { _ in }) }
                     .tint(Palette.accent)
                     .background(AppConfig.background.ignoresSafeArea())
             }

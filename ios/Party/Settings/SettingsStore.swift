@@ -47,6 +47,8 @@ final class SettingsStore: ObservableObject {
     /// Réglages › Groupes (même session de compte).
     private(set) lazy var groups = GroupsStore(api: api, web: web)
     private(set) lazy var groupAdmin = GroupAdminStore(api: api, web: web)
+    /// Connexion, déconnexion, suppression, annonces, stats de jeu.
+    private(set) lazy var session = AccountStore(api: api, web: web, settings: self)
 
     init(api: PartyAPI, web: WebStorage, isHost: @escaping () -> Bool, trackChanged: @escaping (Bool, Bool) -> Void) {
         self.api = api
@@ -63,6 +65,20 @@ final class SettingsStore: ObservableObject {
     /// Écran affiché : le compte seulement (rapide), la carte du haut en dépend.
     func refreshAccount() async {
         account = AccountSummary.parse(await web?.readLocal("vp_account"))
+    }
+
+    /// Avant la déconnexion : cet iPhone ne reçoit plus les notifications des événements de ce compte.
+    func accountWillSignOut() async {
+        await syncEventsPush(false)
+    }
+
+    /// Après connexion ou déconnexion : tout ce qui venait de l'ancien compte est oublié, la carte du haut relue.
+    func accountSwitched() async {
+        profile = nil
+        profileError = nil
+        subscriptions = nil
+        events = .signedOut
+        await refreshAccount()
     }
 
     func loadNotifications() async {

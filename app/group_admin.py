@@ -72,9 +72,9 @@ def describe(e: dict) -> str:
         on = d.get("enabled")
         return f"{who} a {'ajouté' if on else 'retiré'} {target} {'aux' if on else 'des'} bêta-testeurs"
     if action == "group.add":
-        return f"{who} a ajouté {target} au groupe « {d.get('group', '?')} »"
+        return f"{who} a ajouté {target} au groupe « {d.get('group') or '?'} »"
     if action == "group.remove":
-        return f"{who} a retiré {target} du groupe « {d.get('group', '?')} »"
+        return f"{who} a retiré {target} du groupe « {d.get('group') or '?'} »"
     if action == "members.viewed":
         return f"{who} a ouvert la liste des membres (numéros compris)"
     return f"{who} : {action}" + (f" · {target}" if target else "")

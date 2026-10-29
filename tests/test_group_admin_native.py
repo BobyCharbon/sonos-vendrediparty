@@ -169,3 +169,9 @@ def test_routes_validate_and_relay(monkeypatch):
     assert f.calls[-1] == ("decide_event", LEA_ID, False, "Non")
     client.post("/api/account/group-admin/journal", json={"token": "t", "member": LEA_ID})
     assert f.calls[-1] == ("journal", LEA_ID, None)
+
+
+def test_journal_group_without_name_never_shows_none():
+    line = ga.describe({"action": "group.remove", "actor": "a", "actor_name": "Boby", "target": "t", "target_name": "Léa",
+                        "details": {"group": None}})
+    assert line == "Boby a retiré Léa du groupe « ? »"

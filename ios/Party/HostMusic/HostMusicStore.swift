@@ -44,7 +44,7 @@ final class HostMusicStore: ObservableObject {
     /// Action en cours (bouton désactivé pendant ce temps).
     @Published private(set) var busy: Set<String> = []
 
-    private let api: PartyAPI
+    let api: PartyAPI
     private weak var web: WebStorage?
     private var liveTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
@@ -94,14 +94,14 @@ final class HostMusicStore: ObservableObject {
         }
     }
 
-    private func apply(_ new: AdminState) {
+    func apply(_ new: AdminState) {
         state = new
         stateAt = Date()
         phase = .ready
     }
 
     /// Action de l'hôte : bouton occupé, erreur affichée, état rafraîchi.
-    private func run(_ key: String, _ work: () async throws -> Void) async {
+    func run(_ key: String, _ work: () async throws -> Void) async {
         busy.insert(key)
         defer { busy.remove(key) }
         do {

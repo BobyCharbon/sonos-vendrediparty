@@ -228,6 +228,28 @@ extension WebModel: WebStorage {
         _ = try? await webView.callAsyncJavaScript(script, arguments: [:], contentWorld: .page)
     }
 
+    func storeSession(key: String, json: String) async {
+        guard let webView else { return }
+        _ = try? await webView.callAsyncJavaScript("localStorage.setItem(key, value)", arguments: ["key": key, "value": json],
+                                                   contentWorld: .page)
+        await accountChanged()
+    }
+
+    func clearSession() async {
+        guard let webView else { return }
+        // Le module Événements est rechargé avant de relier le compte : il ne peut plus réécrire l'ancienne session.
+        let script = """
+            const forget = () => Object.keys(localStorage).filter((k) => /^sb-.+-auth-token$/.test(k)).forEach((k) => localStorage.removeItem(k));
+            forget();
+            const f = document.getElementById('eventsFrame');
+            if (f && f.contentWindow) f.contentWindow.location.reload();
+            await new Promise((done) => setTimeout(done, 400));
+            forget();
+            if (typeof linkAccount === 'function') await linkAccount();
+            """
+        _ = try? await webView.callAsyncJavaScript(script, arguments: [:], contentWorld: .page)
+    }
+
     /// freshToken (index.html) : jeton du compte, renouvelé au besoin par le serveur et réécrit pour le module.
     func accountToken() async -> String? {
         guard let webView else { return nil }

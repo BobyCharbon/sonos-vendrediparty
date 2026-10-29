@@ -43,7 +43,11 @@ struct PartyWebView: UIViewRepresentable {
         return webView
     }
 
-    func updateUIView(_ webView: WKWebView, context: Context) {}
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        // Écran natif par-dessus (Musique, Ton avis, Réglages) : la page cachée dessous n'est plus lue par VoiceOver.
+        let covered = model.nativeScreen != nil
+        if webView.accessibilityElementsHidden != covered { webView.accessibilityElementsHidden = covered }
+    }
 
     @MainActor
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {

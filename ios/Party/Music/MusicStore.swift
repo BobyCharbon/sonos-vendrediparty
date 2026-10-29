@@ -24,6 +24,10 @@ protocol WebStorage: AnyObject {
     func accountToken() async -> String?
     /// Le profil du compte a changé : la page le relit (surnom, photo, droits).
     func accountChanged() async
+    /// Connexion native : la session Supabase est rangée là où la page et le module Événements la lisent.
+    func storeSession(key: String, json: String) async
+    /// Déconnexion native : la page oublie la session (module Événements compris) et reprend l'identité d'invité.
+    func clearSession() async
 }
 
 /// Onglet Musique natif : état de la soirée en direct, recherche, ajout, messages à l'hôte.
