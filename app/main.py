@@ -31,6 +31,7 @@ from .account_auth import AccountAuth
 from .group_admin import ROLES as ADMIN_ROLES, GroupAdmin
 from .audit import AuditLog
 from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
+from .feedback_remote import OPS as FEEDBACK_SYNC_OPS, SYNC_HEADER as FEEDBACK_SYNC_HEADER, FeedbackRemote, FeedbackUnavailable
 from .github_issues import GitHubError, Issues
 from . import live_activity
 from .apns import TOPICS
@@ -75,7 +76,14 @@ BUILD_ID = build_id()
 # Proxies de confiance (même variable qu'uvicorn) : leur IP n'identifie personne.
 PROXY_IPS = {ip.strip() for ip in os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1").split(",") if ip.strip()}
 store = PartyStore(DATA_DIR / "session.json", ignored_ips=PROXY_IPS)
-feedback = FeedbackBox(DATA_DIR / "feedback.json")  # idées et bugs des invités, gardés d'une soirée à l'autre
+# Idées et bugs des invités, gardés d'une soirée à l'autre. Site de test : la liste de la production (une seule liste
+# pour les deux sites), lue et écrite par /api/feedback-sync ; FEEDBACK_SYNC_SECRET identique des deux côtés.
+FEEDBACK_REMOTE_URL = os.environ.get("FEEDBACK_REMOTE_URL", "").strip()
+FEEDBACK_SYNC_SECRET = os.environ.get("FEEDBACK_SYNC_SECRET", "").strip()
+FEEDBACK_SYNC_MIN_SECRET = 32
+local_feedback = FeedbackBox(DATA_DIR / "feedback.json")
+feedback = (FeedbackRemote(FEEDBACK_REMOTE_URL, FEEDBACK_SYNC_SECRET)
+            if FEEDBACK_REMOTE_URL and len(FEEDBACK_SYNC_SECRET) >= FEEDBACK_SYNC_MIN_SECRET else local_feedback)
 # Retours → Claude : issues « claude-fix » corrigées par .github/workflows/claude-fix.yml (commit sur develop).
 log = logging.getLogger("vendrediparty")
 github = Issues(os.environ.get("GITHUB_TOKEN", ""), os.environ.get("GITHUB_REPO", "BobyCharbon/sonos-vendrediparty"))
@@ -106,13 +114,38 @@ def player():
         return spotify_player
     return sonos
 
+def absorb_local_feedback():
+    """Site de test qui passe à la liste commune : ses avis gardés jusqu'ici partent une fois vers la production,
+    puis le fichier local est mis de côté (rien ne se perd, rien n'est envoyé deux fois)."""
+    path = DATA_DIR / "feedback.json"
+    for _ in range(30):
+        if not local_feedback.items:
+            return
+        try:
+            added = feedback.absorb(local_feedback.items)
+        except FeedbackUnavailable:
+            time.sleep(60)
+            continue
+        path.replace(path.with_suffix(".json.synced"))
+        local_feedback.items = []
+        log.info("Avis du site versés dans la liste commune : %s ajoutés", added)
+        return
+
+
 @contextlib.asynccontextmanager
 async def lifespan(app):
     threading.Thread(target=watch_sonos, daemon=True).start()
+    if feedback is not local_feedback:
+        threading.Thread(target=absorb_local_feedback, daemon=True).start()
     yield
 
 
 app = FastAPI(title="Vendredi Party", lifespan=lifespan)
+
+
+@app.exception_handler(FeedbackUnavailable)
+async def feedback_unavailable(request: Request, exc: FeedbackUnavailable):
+    return JSONResponse({"detail": str(exc)}, status_code=503)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 # Compression : les pages et scripts pèsent environ 4 fois moins sur le réseau (le flux temps réel n'est pas compressé).
 app.add_middleware(GZipMiddleware, minimum_size=800, compresslevel=6)
@@ -2353,6 +2386,7 @@ def send_feedback(body: FeedbackIn, request: Request):
         raise HTTPException(400, f"Écris au moins {FEEDBACK_MIN_LENGTH} caractères pour bien expliquer ton idée")
     # Pas de limite d'envoi : une personne peut écrire plusieurs avis à la suite (demande de l'admin, 29.10).
     context = {k: str(v)[:40] for k, v in body.context.items() if k in ("tab", "game")}
+    context["site"] = feedback_site()[0]  # liste commune aux deux sites : d'où vient l'avis
     # Pas de prénom (invité qui n'a encore rien ajouté) : « Anonyme ». clean_name refuserait un prénom vide.
     name = " ".join(body.name.split())[:30] or "Anonyme"
     feedback.add(body.guest_id, name, body.kind, text, context)
@@ -2409,7 +2443,32 @@ def feedback_site() -> tuple[str, str]:
 
 def feedback_prompt(item: dict) -> str:
     label, url = feedback_site()
-    return build_prompt(item, f"{label} ({url})")
+    origin = (item.get("context") or {}).get("site") or label
+    return build_prompt(item, f"{origin} ({url})" if origin == label else origin)
+
+
+class FeedbackSync(BaseModel):
+    op: str
+    args: dict = {}
+
+
+@app.post("/api/feedback-sync")
+def feedback_sync(body: FeedbackSync, request: Request):
+    """Production : le site de test lit et écrit la liste commune des avis (secret partagé, opérations des avis seules)."""
+    given = request.headers.get(FEEDBACK_SYNC_HEADER, "")
+    if len(FEEDBACK_SYNC_SECRET) < FEEDBACK_SYNC_MIN_SECRET or not hmac.compare_digest(given, FEEDBACK_SYNC_SECRET):
+        raise HTTPException(403, "Synchronisation des avis refusée")
+    if feedback is not local_feedback:
+        raise HTTPException(409, "Ce serveur n'est pas celui qui garde les avis")
+    if body.op not in FEEDBACK_SYNC_OPS:
+        raise HTTPException(400, "Opération inconnue")
+    try:
+        result = getattr(local_feedback, body.op)(**body.args)
+    except TypeError:
+        raise HTTPException(400, "Paramètres invalides")
+    if body.op in ("add", "update", "set_claude_state", "mark_sent", "absorb"):
+        store.save()  # l'admin ouvert ici reçoit la mise à jour (pastille « Retours »)
+    return {"result": result}
 
 
 def feedback_item(fid: str) -> dict:

@@ -101,7 +101,7 @@ struct AccountNativeTests {
     func feedbackAdmin() throws {
         let p: AdminFeedback = try decode("""
         {"items": [
-          {"id": "a", "at": 1800000000, "kind": "bug", "name": "Léa", "text": "Bouton gris", "status": "new", "context": {"game": "undercover"}},
+          {"id": "a", "at": 1800000000, "kind": "bug", "name": "Léa", "text": "Bouton gris", "status": "new", "context": {"game": "undercover", "site": "Test"}},
           {"id": "b", "at": 1800000000, "kind": "idea", "name": "Tom", "text": "Mode équipe", "status": "sent", "note": "Ajoute un mode", "context": {"tab": "music"},
            "claude": {"number": 12, "url": "https://github.com/x/y/issues/12", "state": "pending", "at": 1}},
           {"id": "c", "at": 1800000000, "kind": "other", "name": "Zoé", "text": "Merci", "status": "verify",
@@ -112,7 +112,7 @@ struct AccountNativeTests {
         #expect(p.shown(.new).map(\.id) == ["a"] && p.shown(.progress).map(\.id) == ["b"])
         #expect(p.shown(.verify).map(\.id) == ["c"] && p.shown(.finished).map(\.id) == ["d"] && p.count(.all) == 4)
         #expect(p.pending == 2)
-        #expect(p.meta(p.items[0]).hasPrefix("🐞 Bug · Léa · ") && p.meta(p.items[0]).hasSuffix("jeu : Undercover"))
+        #expect(p.meta(p.items[0]).hasPrefix("🐞 Bug · Léa · ") && p.meta(p.items[0]).hasSuffix("jeu : Undercover · 🧪 site de test"))
         #expect(p.meta(p.items[1]).hasSuffix("depuis Musique"))
         #expect(p.items[1].claudePending && p.items[1].claude?.label == "🤖 Claude corrige" && p.items[2].claude?.migrations == ["20261029_x.sql"])
         #expect(p.items[0].canStart && p.items[0].canVerify && p.items[0].canFinish && !p.items[0].canReopen)
