@@ -73,6 +73,10 @@ struct CasinoTV: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
+            if game["phase"].string == "bet" {
+                let ready = C["table"].array.filter { $0["ready"].bool }.count
+                Text("🎰 Faites vos jeux ! \(ready)/\(C["table"].array.count) prêts").font(.system(size: 64, weight: .black)).foregroundStyle(TV.coral)
+            }
             if rolling {
                 Text("🎲 Rien ne va plus… la bille roule !").font(.system(size: 64, weight: .black)).foregroundStyle(TV.coral)
             } else if let n = (C["spin"].isNull ? C["history"][0] : C["spin"]["number"]).int {
@@ -103,7 +107,7 @@ struct CasinoTV: View {
             }
             if (C["drinks"].int ?? 0) == 0 { Text("🪙 \(seat["chips"].int ?? 0)").font(.system(size: 32, weight: .bold).monospacedDigit()) }
             let bets = seat["bets"].array
-            Text(bets.isEmpty ? (game["phase"].string == "bet" ? "Réfléchit…" : "N'a pas misé") : bets.map { Self.betName($0) }.joined(separator: " · "))
+            Text(bets.isEmpty ? (game["phase"].string != "bet" ? "N'a pas misé" : seat["ready"].bool ? "Passe ce tour" : "Réfléchit…") : bets.map { Self.betName($0) }.joined(separator: " · "))
                 .font(.system(size: 30, weight: .semibold)).foregroundStyle(TV.lavender).lineLimit(2)
             if shown {
                 let drink = r["drink"].int ?? 0, give = r["give"].int ?? 0, net = r["net"].int ?? 0
