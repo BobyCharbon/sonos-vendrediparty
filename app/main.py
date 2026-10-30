@@ -2291,6 +2291,18 @@ DEBATE_ONLY = {"dbset", "dbvote", "dbskip", "dbswap", "dbrevote", "dbpropose", "
 DEBATE_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "addguest", "up", "down"} | DEBATE_ONLY
 PURITY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end"} | PURITY_ONLY
 
+# Actions propres à un jeu : refusées ailleurs (sinon elles lisent l'état d'un autre jeu et le serveur plante).
+GAME_ONLY_ACTIONS = {
+    "pyramid": {"pans", "pflip", "pclaim", "pbu", "pliar", "preveal", "ppeek", "ppeek_ok", "ppeek_no", "ptop", "pmemory",
+                "pmem", "presults", "pboat", "pboatgo", "pbans", "paccept", "prefuse"},
+    "biskit": {"bdraw", "bpick", "btap", "bclose"},
+    "blackjack": {"bet", "hit", "stand", "double", "rebuy", "deal", "skip"},
+    "casino": {"cbet", "cclear", "crebuy", "cspin", "cundo", "cready"},
+    "divan": {"dnext", "djoker", "dback", "dheart"},
+    "tmc": {"tanswer", "tjudge", "tq", "treveal", "finish"},
+    "quiz": {"qset", "qans", "qjoker", "qstop", "qpause"},
+}
+
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
 HOST_ACTIONS = {"puset", "pureveal","ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
                 "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover", "nset", "hset",
@@ -2343,6 +2355,8 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     actor = games.gid_of(g, body.who) if body.who and games.is_lead(g, me) and games.gid_of(g, body.who) else me
     # Blackjack, Casino : l'animateur mise et joue pour un participant sans téléphone (jamais pour un autre joueur).
     seat = actor if actor != me and games.is_manual(g, actor) else me
+    if any(a in only and g["type"] != kind for kind, only in GAME_ONLY_ACTIONS.items()):
+        raise HTTPException(400, "Action indisponible dans ce jeu")
     if a in HOST_ACTIONS and not games.is_lead(g, me):
         raise HTTPException(403, "Seul l'animateur de la partie peut faire ça")
     if a == "join" and (msg := ban_message(me, client_ip(request))):
