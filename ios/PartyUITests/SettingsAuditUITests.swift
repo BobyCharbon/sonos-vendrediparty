@@ -371,6 +371,46 @@ final class SettingsAuditUITests: XCTestCase {
         signOut()
     }
 
+    /// Réglages › Groupes › « Audit natif » (créé par Testeur 1) : lien unique créé puis annulé, lien réutilisable affiché.
+    func testGroupLinks() {
+        app = XCUIApplication()
+        app.launch()
+        prefix = "liens-groupe"
+        signIn(Self.standardPhone, name: "Testeur 1")
+        settingsTab()
+        XCTAssertTrue(open("Groupes"))
+        expectLoaded("groupes")
+        let group = app.staticTexts["Audit natif"].firstMatch
+        XCTAssertTrue(group.waitForExistence(timeout: 15), "groupe « Audit natif »")
+        group.tap()
+        let create = app.buttons["group-single-link"]
+        for _ in 0..<6 where !(create.exists && create.isHittable) { app.swipeUp() }
+        XCTAssertTrue(create.waitForExistence(timeout: 10), "bouton « Créer un lien unique »")
+        record("groupe")
+        create.tap()
+        let share = app.buttons["Partager ce lien unique"]
+        XCTAssertTrue(share.waitForExistence(timeout: 15), "lien unique créé, à partager")
+        let pending = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'En attente'")).firstMatch
+        for _ in 0..<4 where !(pending.exists && pending.isHittable) { app.swipeUp() }
+        XCTAssertTrue(pending.waitForExistence(timeout: 10), "lien « En attente » dans la liste")
+        record("lien-unique")
+        let cancel = app.buttons["Annuler"].firstMatch
+        XCTAssertTrue(cancel.exists, "bouton Annuler")
+        cancel.tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Annulé'")).firstMatch.waitForExistence(timeout: 15), "lien annulé")
+        record("lien-annule")
+        let reusable = app.buttons["Réutilisable"].firstMatch
+        for _ in 0..<4 where !(reusable.exists && reusable.isHittable) { app.swipeDown() }
+        reusable.tap()
+        let show = app.buttons["Afficher le lien réutilisable"]
+        XCTAssertTrue(show.waitForExistence(timeout: 10), "mode réutilisable")
+        show.tap()
+        XCTAssertTrue(app.buttons["Partager le lien"].waitForExistence(timeout: 15), "lien réutilisable affiché")
+        record("lien-reutilisable")
+        back()
+        signOut()
+    }
+
     private func auditChats(group: String = "Vendredi Party", call: String? = nil, canNameAdmins: Bool = false) {
         let tab = app.tabBars.buttons["Discussions"].firstMatch
         XCTAssertTrue(tab.waitForExistence(timeout: 20), "onglet Discussions")
