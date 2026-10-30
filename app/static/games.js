@@ -2536,6 +2536,8 @@ function floatControl(e, root, stick, button, startStick, startButton, ignore) {
   const b = el.getBoundingClientRect();
   el.style.translate = `${e.clientX - b.left - b.width / 2}px ${e.clientY - b.top - b.height / 2}px`;
   (left ? startStick : startButton)(e);
+  // Commande qui refuse de démarrer (décor 3D pas encore chargé…) : elle ne recevra pas le relâchement, retour à sa place.
+  if (!el.hasPointerCapture(e.pointerId)) el.style.removeProperty("translate");
 }
 function openDrawer() { $("gDrawer").classList.remove("hidden"); requestAnimationFrame(() => $("gDrawer").classList.add("open")); }
 // Masqué après l'animation de fermeture… sauf s'il a été rouvert entre-temps.
