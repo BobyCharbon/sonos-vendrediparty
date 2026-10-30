@@ -19,6 +19,7 @@ def test_each_sip_is_logged_with_the_name_and_a_growing_number():
     log = games.view(g, "")["sips_log"]
     assert [(e["name"], e["drink"], e["give"]) for e in log] == [("Léa", 2, 0), ("Tom", 0, 3)]
     assert log[0]["n"] < log[1]["n"] and log[0]["pid"]
+    assert 0 <= log[1]["age"] < 5  # secondes depuis la gorgée : la télé regroupe celles d'un même coup
 
 
 def test_never_results_log_who_drinks():

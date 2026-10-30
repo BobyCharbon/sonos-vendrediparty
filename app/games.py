@@ -205,7 +205,7 @@ def add_sips(g: dict, gid: str, drink: int = 0, give: int = 0):
     log = g.setdefault("sips_log", [])
     n = (log[-1]["n"] + 1) if log else 1
     g["sips_log"] = (log + [{"n": n, "gid": gid, "pid": p.get("pid"), "name": p.get("name", "?"),
-                             "drink": drink, "give": give}])[-SIPS_LOG_SIZE:]
+                             "drink": drink, "give": give, "at": time.time()}])[-SIPS_LOG_SIZE:]
 
 
 def is_lead(g: dict, gid: str | None) -> bool:
@@ -2339,7 +2339,9 @@ def view(g: dict, gid: str) -> dict:
         out["results"] = [{"pid": _pid(g, i), "name": (player(g, i) or {}).get("name", "?"), "count": c}
                           for i, c in g["results"]]
     # Gorgées des derniers coups, sans l'identifiant privé (la télé et les téléphones les annoncent).
-    out["sips_log"] = [{k: e[k] for k in ("n", "pid", "name", "drink", "give")} for e in g.get("sips_log", [])]
+    now = time.time()
+    out["sips_log"] = [{**{k: e[k] for k in ("n", "pid", "name", "drink", "give")}, "age": round(now - e.get("at", now), 1)}
+                       for e in g.get("sips_log", [])]
     if ended or master:
         out["words"] = g["words"]
     if me:
