@@ -21,13 +21,16 @@ final class TVStore: ObservableObject {
     private var loops: [Task<Void, Never>] = []
     /// Démonstration (simulateur, captures) : partie figée, aucun appel au site.
     private let demo: Bool
+    /// Démonstration en deux temps : l'état « avant » d'abord, puis la partie (pour voir l'annonce d'un résultat).
+    private var demoNext: JSON?
 
-    init(client: TVClient = TVClient(), demo: (game: JSON, music: JSON)? = nil) {
+    init(client: TVClient = TVClient(), demo: (game: JSON, music: JSON)? = nil, before: JSON = .null) {
         self.client = client
         self.demo = demo != nil
         if let demo {
             screen = .watching(demo.game["code"].string ?? "0000")
-            game = demo.game
+            game = before.isNull ? demo.game : before
+            demoNext = before.isNull ? nil : demo.game
             music = demo.music
         } else {
             screen = PinVault.read() == nil ? .pin : .code
@@ -91,6 +94,11 @@ final class TVStore: ObservableObject {
     }
 
     func appear() async {
+        if demo, let next = demoNext {
+            demoNext = nil
+            try? await Task.sleep(for: .seconds(1.5))
+            game = next
+        }
         guard !demo else { return }
         if screen == .code { await refreshMusic() }
         if case .watching(let code) = screen, loops.isEmpty { start(code) }
