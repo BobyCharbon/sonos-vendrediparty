@@ -1304,13 +1304,20 @@ function renderBJHost(g, btn) {
       const info = !h ? (g.phase === "bet" ? "mise en cours…" : "attend la prochaine main")
         : g.phase === "bet" ? `a misé ${betLabel(g, h.bet)}`
         : `${h.total}${h.status === "bust" ? " · sauté" : h.status === "blackjack" ? " · blackjack" : ""} · mise ${betLabel(g, h.bet)}`;
+      const manual = g.is_host && g.players.find((p) => p.pid === x.pid)?.manual, who = `data-who="${esc(x.pid)}"`;
+      const forBet = manual && g.phase === "bet" ? `<div class="chips" style="margin-top:6px">${(drinks(g) ? Array.from({ length: t.max_bet }, (_, i) => i + 1)
+          : [5, 10, 25, 50].filter((a) => a <= x.chips)).map((a) => `<button class="${h?.bet === a ? "" : "secondary"}" data-gact="bet" data-amount="${a}" ${who}>${drinks(g) ? `🍻 ${a}` : a}</button>`).join("")}</div>
+        ${!drinks(g) && x.chips < t.min_bet ? `<button class="secondary" data-gact="rebuy" ${who} style="margin-top:6px">Recharger</button>` : ""}` : "";
+      const forPlay = manual && g.phase === "play" && x.pid === t.turn && h ? `<div class="bj-actions"><button data-gact="hit" ${who}>Carte</button><button class="secondary" data-gact="stand" ${who}>Rester</button>
+        ${h.cards.length === 2 && (drinks(g) || x.chips >= h.bet) ? `<button class="secondary" data-gact="double" ${who}>Doubler</button>` : ""}</div>` : "";
       return `<div class="track ${x.pid === t.turn ? "bj-turn" : ""}">
-        <div class="meta"><div class="title">${esc(x.name)}${x.pid === t.turn ? " ⏳" : ""}${drinks(g) ? "" : `<span class="artist"> · 💰 ${x.chips}${x.rebuys ? ` (rechargé ${x.rebuys}×)` : ""}</span>`}${sipsBadge(g.players.find((p) => p.pid === x.pid) || {})}</div>
+        <div class="meta"><div class="title">${esc(x.name)}${manual ? " ✍️" : ""}${x.pid === t.turn ? " ⏳" : ""}${drinks(g) ? "" : `<span class="artist"> · 💰 ${x.chips}${x.rebuys ? ` (rechargé ${x.rebuys}×)` : ""}</span>`}${sipsBadge(g.players.find((p) => p.pid === x.pid) || {})}</div>
           <div class="artist">${info}${g.phase === "results" && h?.result ? ` · <b>${bjResultText(g, h)}</b>` : ""}</div>
-          ${h?.cards.length ? `<div class="bj-cards" style="margin-top:4px">${h.cards.map((c) => cardHtml(c, true)).join("")}</div>` : ""}</div>
+          ${h?.cards.length ? `<div class="bj-cards" style="margin-top:4px">${h.cards.map((c) => cardHtml(c, true)).join("")}</div>` : ""}${forBet}${forPlay}</div>
         ${g.is_host && x.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(x.pid)}" title="Exclure de la table" aria-label="Exclure de la table">✕</button>` : ""}
       </div>`;
     }).join("") || `<p class="empty" style="padding:12px">Personne à la table : fais scanner le QR ci-dessous.</p>`}</div>
+    ${g.phase !== "play" ? manualForm(g) : ""}
     ${g.is_host && !g.me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
 }
 
@@ -1889,7 +1896,7 @@ document.addEventListener("pointerup", dvRelease);
 document.addEventListener("pointercancel", dvRelease);
 
 // 📵 Participants sans téléphone : l'animateur les ajoute à la main et agit pour eux.
-const MANUAL_GAMES = ["divan", "tmc", "never", "pyramid", "biskit", "likely", "debate", "room"];
+const MANUAL_GAMES = ["divan", "tmc", "never", "whoof", "blackjack", "casino", "pyramid", "biskit", "likely", "debate", "room"];
 const playerTag = (g, p) => !MANUAL_GAMES.includes(g.type) ? "" : p.manual
   ? ` <span class="pill tag-manual" title="Ajouté·e à la main par l'animateur">✍️ sans téléphone</span>`
   : ` <span class="tag-phone" title="Joue sur son téléphone">📱</span>`;
@@ -2014,7 +2021,7 @@ function casinoWins(key, n) {
   return { color: () => RED.has(n) === (t === "red"), parity: () => (n % 2 === 0) === (t === "even"),
     half: () => (n <= 18) === (t === "low"), dozen: () => Math.floor((n - 1) / 12) + 1 === +t }[kind]();
 }
-let cwBuilt = false, cwSpin = "", cwRot = 0, cbRot = 0, cwShown = "", casinoChip = 0, cwSpinningUntil = 0;
+let cwBuilt = false, cwSpin = "", cwRot = 0, cbRot = 0, cwShown = "", casinoChip = 0, cwSpinningUntil = 0, casinoFor = "";
 
 function casinoWheelSvg() {
   const a = 360 / 37, rad = (d) => (d - 90) * Math.PI / 180;
@@ -2112,7 +2119,12 @@ function casinoStatusHtml(g) {
 }
 
 function renderCasinoHost(g, btn) {
-  const c = g.casino, me = c.me, sp = c.spin, open = g.phase === "bet";
+  const c = g.casino, sp = c.spin, open = g.phase === "bet";
+  const manualSeats = g.is_host ? c.table.filter((t) => g.players.find((p) => p.pid === t.pid)?.manual) : [];
+  if (!manualSeats.some((t) => t.pid === casinoFor)) casinoFor = "";
+  const me = casinoFor ? manualSeats.find((t) => t.pid === casinoFor) : c.me, who = casinoFor ? `data-who="${esc(casinoFor)}"` : "";
+  const forPicker = open && manualSeats.length ? `<div class="chips cs-for" role="group" aria-label="Miser pour">${c.me ? `<button type="button" class="py-mini ${casinoFor ? "" : "ok"}" data-cfor="">Moi</button>` : ""}
+    ${manualSeats.map((t) => `<button type="button" class="py-mini ${casinoFor === t.pid ? "ok" : ""}" data-cfor="${esc(t.pid)}">✍️ ${esc(t.name)}</button>`).join("")}</div>` : "";
   const revealed = g.phase === "results" && sp && cwShown === sp.id, rolling = g.phase === "results" && !revealed;
   const n = revealed ? sp.number : null;
   const bettors = c.table.filter((t) => t.staked).length;
@@ -2141,14 +2153,15 @@ function renderCasinoHost(g, btn) {
     : (t.result.net > 0 ? `+${t.result.net}` : `${t.result.net}`) + (t.result.jackpot ? " 🎯" : "");
   patch.gameHost = `
     ${controls ? `<div class="row" style="margin-top:10px">${controls}</div>` : ""}
+    ${forPicker}
     ${!me ? (g.phase !== "lobby" ? `<button data-gact="join" style="width:100%;margin-top:10px">S'asseoir à la table</button>` : "") : `
       ${open ? `<div class="cs-chips" role="group" aria-label="Valeur du jeton">${values.map((v) => `<button type="button" class="cs-chip v${values.indexOf(v)} ${v === casinoChip ? "on" : ""}" data-cchip="${v}" ${v > left ? "disabled" : ""}>${c.drinks ? `🍻${v}` : v}</button>`).join("")}
         </div>
-        <div class="row cs-edit"><button type="button" class="secondary grow" data-gact="cundo" ${me.can_undo ? "" : "disabled"}>↶ Annuler</button>
-          <button type="button" class="secondary grow" data-gact="cclear" ${me.staked ? "" : "disabled"}>✕ Tout effacer</button></div>
-        <button type="button" class="cs-ready ${me.ready ? "on" : ""}" data-gact="cready">${me.ready
+        <div class="row cs-edit"><button type="button" class="secondary grow" data-gact="cundo" ${who} ${me.can_undo ? "" : "disabled"}>↶ Annuler</button>
+          <button type="button" class="secondary grow" data-gact="cclear" ${who} ${me.staked ? "" : "disabled"}>✕ Tout effacer</button></div>
+        <button type="button" class="cs-ready ${me.ready ? "on" : ""}" data-gact="cready" ${who}>${me.ready
           ? `✓ Prêt · en attente des autres (${c.table.filter((t) => t.ready).length}/${c.table.length})` : "✓ Je suis prêt"}</button>` : ""}
-      ${!c.drinks && me.chips < 1 && !me.staked && open ? `<button data-gact="crebuy" style="width:100%;margin-top:8px">Recharger ${c.start_chips} jetons</button>` : ""}`}
+      ${!c.drinks && me.chips < 1 && !me.staked && open ? `<button data-gact="crebuy" ${who} style="width:100%;margin-top:8px">Recharger ${c.start_chips} jetons</button>` : ""}`}
     <div class="rt ${open && me ? "" : "rt-closed"}">${grid}</div>
     <div class="rt rt-outside ${open && me ? "" : "rt-closed"}">${outside}</div>
     <h2>À la table (${g.players.length})</h2>
@@ -2158,15 +2171,18 @@ function renderCasinoHost(g, btn) {
           <div class="artist" style="white-space:normal">${t.staked ? summary(t) : g.phase === "bet" ? "réfléchit…" : "n'a pas misé"}${resultTxt(t) ? ` · <b>${resultTxt(t)}</b>` : ""}</div></div>
         ${g.is_host && t.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(t.pid)}" title="Exclure de la table" aria-label="Exclure de la table">✕</button>` : ""}
       </div>`).join("") || `<p class="empty" style="padding:12px">Personne à la table : fais scanner le QR ci-dessous.</p>`}</div>
+    ${g.phase !== "results" ? manualForm(g) : ""}
     ${g.is_host && !g.me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
 }
 document.addEventListener("click", (ev) => {
+  const forBtn = ev.target.closest("[data-cfor]");
+  if (forBtn) { casinoFor = forBtn.dataset.cfor; return renderGameHost(game); }
   const chip = ev.target.closest("[data-cchip]");
   if (chip) { casinoChip = +chip.dataset.cchip; return renderGameHost(game); }
   const cell = ev.target.closest("[data-cbet]");
   if (cell && game?.type === "casino") {
     haptic(15);
-    gameAction("cbet", { target: cell.dataset.cbet, amount: casinoChip });
+    gameAction("cbet", { target: cell.dataset.cbet, amount: casinoChip, who: casinoFor });
   }
 });
 
@@ -2317,12 +2333,15 @@ function renderGameHost(g) {
   // Pendant les questions, la liste est dans le menu ☰ ; ici, seulement ceux qui jouent sans téléphone (l'animateur répond pour eux).
   if (QUESTION_TYPES.includes(g.type) && (g.phase === "question" || g.phase === "results")) {
     const manual = g.type === "never" && g.phase === "question" ? g.players.filter((p) => p.manual) : [];
+    const whoofManual = g.type === "whoof" && g.phase === "question" ? g.players.filter((p) => p.manual) : [];
     patch.gameHost = `${controls ? `<div class="row qs-host">${controls}</div>` : ""}
       ${manual.length ? `<h2>Sans téléphone : réponds pour eux</h2><div class="list">${manual.map((p) => `<div class="track"><div class="meta"><div class="title">${esc(p.name)}</div></div>
         <div class="icon-btns">
           <button class="${p.answer === "yes" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="yes" aria-pressed="${p.answer === "yes"}">🍻 Déjà fait</button>
           <button class="${p.answer === "no" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="no" aria-pressed="${p.answer === "no"}">😇 Jamais</button>
-        </div></div>`).join("")}</div>` : ""}`;
+        </div></div>`).join("")}</div>` : ""}
+      ${whoofManual.length ? `<h2>Sans téléphone : vote pour eux</h2><div class="list">${whoofManual.map((p) => `<div class="track"><div class="meta"><div class="title">${esc(p.name)}${p.voted ? " ✓" : ""}</div>
+        <div class="chips" style="margin-top:6px">${g.players.filter((o) => o.pid !== p.pid).map((o) => `<button class="py-mini" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="${esc(o.pid)}">${esc(o.name)}</button>`).join("")}</div></div></div>`).join("")}</div>` : ""}`;
     return;
   }
   const list = speaking ? g.order_pids.map((pid) => g.players.find((p) => p.pid === pid)).filter(Boolean)
@@ -2624,7 +2643,7 @@ document.addEventListener("click", (ev) => {
   if (a === "addplayers") return gameAction("names", { names: game.names.concat(game.players.map((p) => p.name)) });
   if (a === "eliminate" && !confirm("Éliminer ce joueur ?")) return;
   if (a === "remove") return openKickSheet(b.dataset.target);
-  pressed(b, gameAction(a, { target: b.dataset.target || "", amount: +(b.dataset.amount || 0), guess: b.dataset.guess || "" }));
+  pressed(b, gameAction(a, { target: b.dataset.target || "", amount: +(b.dataset.amount || 0), guess: b.dataset.guess || "", who: b.dataset.who || "" }));
 });
 // Toucher « + Ajouter » ne retire pas le focus du champ : le clavier reste ouvert et l'iPhone ne fait pas défiler la page.
 document.addEventListener("pointerdown", (ev) => { if (ev.target.closest("[data-gform=addguest] button")) ev.preventDefault(); });

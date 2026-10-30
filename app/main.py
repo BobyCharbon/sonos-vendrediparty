@@ -2341,6 +2341,8 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino", "pyramid", "biskit") else "")
     # Pyramide : l'animateur peut agir pour un joueur (participant sans téléphone, ou qui traîne).
     actor = games.gid_of(g, body.who) if body.who and games.is_lead(g, me) and games.gid_of(g, body.who) else me
+    # Blackjack, Casino : l'animateur mise et joue pour un participant sans téléphone (jamais pour un autre joueur).
+    seat = actor if actor != me and games.is_manual(g, actor) else me
     if a in HOST_ACTIONS and not games.is_lead(g, me):
         raise HTTPException(403, "Seul l'animateur de la partie peut faire ça")
     if a == "join" and (msg := ban_message(me, client_ip(request))):
@@ -2364,12 +2366,12 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "next": (games.next_step,), "restart": (games.restart,), "remove": (games.kick, target), "ban": (games.ban, target),
         "up": (games.move, target, -1), "down": (games.move, target, 1),
         "names": (games.set_names, body.names), "spin": (games.spin,),
-        "bet": (games.bj_bet, me, body.amount), "hit": (games.bj_hit, me), "stand": (games.bj_stand, me),
-        "double": (games.bj_double, me), "rebuy": (games.bj_rebuy, me),
+        "bet": (games.bj_bet, seat, body.amount), "hit": (games.bj_hit, seat), "stand": (games.bj_stand, seat),
+        "double": (games.bj_double, seat), "rebuy": (games.bj_rebuy, seat),
         "deal": (games.bj_deal,), "skip": (games.bj_force_stand,),
-        "cbet": (games.casino_bet, me, body.target, body.amount), "cclear": (games.casino_clear, me),
-        "crebuy": (games.casino_rebuy, me), "cspin": (games.casino_spin,),
-        "cundo": (games.casino_undo, me), "cready": (games.casino_ready, me, random),
+        "cbet": (games.casino_bet, seat, body.target, body.amount), "cclear": (games.casino_clear, seat),
+        "crebuy": (games.casino_rebuy, seat), "cspin": (games.casino_spin,),
+        "cundo": (games.casino_undo, seat), "cready": (games.casino_ready, seat, random),
         "dnext": (games.divan_next, me), "djoker": (games.divan_joker, me), "dback": (games.divan_back, me), "dheart": (games.divan_heart, me),
         "tanswer": (games.tmc_answer, me, body.guess), "tjudge": (games.tmc_judge, me, body.amount),
         "addguest": (games.add_guest, body.guess), "mvote": (games.vote_for, target, body.guess),
