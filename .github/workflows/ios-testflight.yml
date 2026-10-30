@@ -131,15 +131,15 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP"/AuthKey_*.p8
 
-  # App Apple TV (« Party BETA » sur l'Apple TV, ios/PartyTV) : même app TestFlight que l'iPhone (achat universel),
-  # BETA seulement pour l'instant (site de test). Archive, envoi, puis publication sur le lien public « Invités ».
+  # App Apple TV (ios/PartyTV) : même app TestFlight que l'iPhone (achat universel), comme lui :
+  # develop → « Party BETA » (site de test, publiée sur le lien public « Invités ») ;
+  # main → « Party » dans VendrediParty (site principal, groupe interne « Équipe », qui reçoit tous les builds).
   tvos:
-    if: github.event_name == 'push' && github.ref_name == 'develop' || github.event_name == 'workflow_dispatch' && inputs.site == 'test'
     runs-on: macos-15
     timeout-minutes: 80
     env:
+      PRODUCTION: ${{ (github.event_name == 'workflow_dispatch' && inputs.site == 'production' || github.event_name == 'push' && github.ref_name == 'main') && '1' || '0' }}
       ARCHIVE: ${{ github.workspace }}/build/PartyTV.xcarchive
-      BUNDLE_ID: ch.bobycharbon.party.beta
     steps:
       - uses: actions/checkout@v4
 
@@ -168,15 +168,22 @@ jobs:
           brew install xcodegen
           xcodegen
 
-      - name: Archive Apple TV (Release, BETA)
+      - name: Archive Apple TV (Release)
         working-directory: ios
         run: |
           set -o pipefail
+          # Release = Party (production) ; la BETA reprend les réglages du site de test, comme l'iPhone.
+          if [ "$PRODUCTION" = 1 ]; then
+            VARIANT=(); BUNDLE_ID=ch.bobycharbon.party
+          else
+            VARIANT=(PARTY_BUNDLE_SUFFIX=.beta PARTY_HOST=partytest.bobycharbon.ch "PARTY_DISPLAY_NAME=Party BETA")
+            BUNDLE_ID=ch.bobycharbon.party.beta
+          fi
+          echo "Variante : ${VARIANT[*]:-Party (production)}"
           xcodebuild archive \
             -project Party.xcodeproj -scheme PartyTV -configuration Release \
             -destination 'generic/platform=tvOS' -archivePath "$ARCHIVE" \
-            PARTY_BUNDLE_SUFFIX=.beta PARTY_HOST=partytest.bobycharbon.ch "PARTY_DISPLAY_NAME=Party BETA" \
-            CURRENT_PROJECT_VERSION="${{ github.run_number }}" CODE_SIGNING_ALLOWED=NO | tail -40
+            "${VARIANT[@]}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" CODE_SIGNING_ALLOWED=NO | tail -40
           # Signature provisoire ; l'export la remplace par la signature Apple Distribution gérée dans le cloud.
           cat > "$RUNNER_TEMP/tv.entitlements" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
@@ -198,6 +205,7 @@ jobs:
             $AUTH_FLAGS
 
       - name: Publier la BETA Apple TV sur le lien public (Invités)
+        if: env.PRODUCTION == '0'
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
