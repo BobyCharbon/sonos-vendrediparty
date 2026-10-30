@@ -16,7 +16,7 @@ import { roleRank } from '@/lib/types';
 
 const PAGE = 150;
 
-type Profile = { id: string; display_name: string; avatar_url: string | null };
+type Profile = { id: string; display_name: string; avatar_url: string | null; member?: boolean };
 
 /** Discussion d'un groupe (avis n°10) : texte, photos, réactions, réponses, @citations ; les admins épinglent
  * et suppriment. Un membre écrit ; un compte qui voit le groupe sans en faire partie ne fait que lire. */
@@ -38,7 +38,7 @@ export function GroupChat({ id }: { id: string }) {
     const [group, msgs, people, admins, chats, phones] = await Promise.all([
       supabase.from('member_groups').select('id, name, created_by, member_group_members(user_id)').eq('id', id).single(),
       supabase.from('group_messages').select('*').eq('group_id', id).order('created_at', { ascending: false }).limit(PAGE),
-      supabase.from('profiles').select('id, display_name, avatar_url').eq('status', 'active'),
+      supabase.rpc('group_chat_people', { grp: id }),  // un Guest ne lit pas le profil d'un admin dans profiles
       supabase.from('group_admins').select('user_id').eq('group_id', id),
       supabase.rpc('my_chats'),
       supabase.rpc('group_chat_phones', { grp: id }),
@@ -87,7 +87,11 @@ export function GroupChat({ id }: { id: string }) {
   }, [paths]);
 
   const people = useMemo(() => new Map((data?.people ?? []).map((p) => [p.id, p])), [data?.people]);
-  const inside = useMemo(() => (data?.group.member_group_members ?? []).map((m) => m.user_id), [data?.group]);
+  // Membres d'après group_chat_people : un Guest ne voit pas les autres appartenances dans member_group_members.
+  const inside = useMemo(() => {
+    const fromPeople = (data?.people ?? []).filter((p) => p.member).map((p) => p.id);
+    return fromPeople.length ? fromPeople : (data?.group.member_group_members ?? []).map((m) => m.user_id);
+  }, [data?.people, data?.group]);
   const byId = useMemo(() => new Map((data?.messages ?? []).map((m) => [m.id, m])), [data?.messages]);
   const reactionsOf = useMemo(() => {
     const out = new Map<string, Reaction[]>();

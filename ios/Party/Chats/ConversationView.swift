@@ -54,6 +54,20 @@ struct ConversationView: View {
         .onChange(of: picked) { item in Task { await sendPhoto(item) } }
     }
 
+    /// Descend au dernier message, après la mise en page de la liste (sinon la liste ne descend pas toujours).
+    private func bottom(_ proxy: ScrollViewProxy, _ id: String?, animated: Bool = true, delay: Double = 0.05) {
+        guard let id else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            if animated { withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .bottom) } } else { proxy.scrollTo(id, anchor: .bottom) }
+        }
+    }
+
+    private func reply(to m: Conversation.Message) {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        replyTo = m
+        writing = true
+    }
+
     private func pinnedBanner(_ m: Conversation.Message) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "pin.fill").foregroundStyle(Color(uiColor: AppConfig.uiAccent))
@@ -68,27 +82,39 @@ struct ConversationView: View {
 
     private func messages(_ chat: Conversation) -> some View {
         ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    if chat.messages.isEmpty {
-                        Text("Aucun message pour l'instant. Lance la discussion !").foregroundStyle(.secondary).padding(.top, 40)
-                    }
-                    ForEach(chat.messages) { m in
-                        ChatBubble(message: m, reactions: chat.reactions, canWrite: chat.member, isAdmin: chat.admin, player: player,
-                                   onReact: { emoji in Task { await store.react(m, emoji) } },
-                                   onReply: { replyTo = m; writing = true },
-                                   onPin: { Task { await store.pin(m) } },
-                                   onDelete: { Task { await store.delete(m) } })
-                            .id(m.id)
-                    }
+            // Liste native : glisser une bulle vers la droite = « Répondre » (glissement complet = réponse directe),
+            // le geste d'iOS lui-même (Mail, Messages), qui ne se bat pas avec le défilement.
+            List {
+                if chat.messages.isEmpty {
+                    Text("Aucun message pour l'instant. Lance la discussion !").foregroundStyle(.secondary).padding(.top, 40)
+                        .frame(maxWidth: .infinity).listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
-                .padding(16)
+                ForEach(chat.messages) { m in
+                    ChatBubble(message: m, reactions: chat.reactions, canWrite: chat.member, isAdmin: chat.admin, player: player,
+                               onReact: { emoji in Task { await store.react(m, emoji) } },
+                               onReply: { reply(to: m) },
+                               onPin: { Task { await store.pin(m) } },
+                               onDelete: { Task { await store.delete(m) } })
+                        .id(m.id)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                            if chat.member && !m.deleted && !m.pending {
+                                Button { reply(to: m) } label: { Label("Répondre", systemImage: "arrowshape.turn.up.left.fill") }
+                                    .tint(Color(uiColor: AppConfig.uiAccent))
+                            }
+                        }
+                }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
             .scrollDismissesKeyboard(.interactively)
-            .onAppear { proxy.scrollTo(chat.messages.last?.id, anchor: .bottom) }
-            .onChange(of: chat.messages.last?.id) { last in
-                withAnimation { proxy.scrollTo(last, anchor: .bottom) }
-            }
+            .onAppear { bottom(proxy, chat.messages.last?.id, animated: false) }
+            // Nouveau message, ou dernier message qui grandit (réaction, envoi confirmé) : on reste en bas.
+            .onChange(of: chat.messages.last) { last in bottom(proxy, last?.id) }
+            // Clavier qui s'ouvre : le dernier message reste visible au-dessus du champ.
+            .onChange(of: writing) { on in if on { bottom(proxy, chat.messages.last?.id, delay: 0.35) } }
         }
     }
 
@@ -239,48 +265,11 @@ private struct ChatBubble: View {
     let onPin: () -> Void
     let onDelete: () -> Void
 
-    /// Distance à glisser vers la droite pour répondre (comme WhatsApp) ; au-delà, l'élan est freiné.
-    static let replySwipe: CGFloat = 64
-
     private var accent: Color { Color(uiColor: AppConfig.uiAccent) }
     private var actions: Bool { canWrite && !message.deleted && !message.pending }
-    @State private var swipe: CGFloat = 0
-    @State private var armed = false
 
     var body: some View {
-        ZStack(alignment: .leading) {
-            // Flèche de réponse qui apparaît sous le doigt pendant le glissement.
-            Image(systemName: "arrowshape.turn.up.left.circle.fill")
-                .font(.title2)
-                .foregroundStyle(armed ? accent : .secondary)
-                .opacity(Double(min(1, swipe / Self.replySwipe)))
-                .scaleEffect(armed ? 1.15 : 0.8)
-                .padding(.leading, 4)
-                .accessibilityHidden(true)
-            row.offset(x: swipe)
-        }
-        .simultaneousGesture(actions ? replyGesture : nil)
-        .accessibilityAction(named: "Répondre") { if actions { onReply() } }
-    }
-
-    /// Glisser de gauche à droite : répondre à ce message (la personne est citée et notifiée).
-    private var replyGesture: some Gesture {
-        DragGesture(minimumDistance: 18)
-            .onChanged { value in
-                let dx = value.translation.width, dy = value.translation.height
-                guard dx > 0, abs(dx) > abs(dy) * 1.5 else { return }
-                swipe = dx < Self.replySwipe ? dx : Self.replySwipe + (dx - Self.replySwipe) * 0.25
-                let reached = dx >= Self.replySwipe
-                if reached != armed {
-                    armed = reached
-                    if reached { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
-                }
-            }
-            .onEnded { _ in
-                if armed { onReply() }
-                armed = false
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { swipe = 0 }
-            }
+        row.accessibilityAction(named: "Répondre") { if actions { onReply() } }
     }
 
     private var row: some View {

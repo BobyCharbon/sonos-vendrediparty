@@ -437,3 +437,18 @@ language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function public.group_chat_phones(uuid) from public, anon;
 grant execute on function public.group_chat_phones(uuid) to authenticated;
+
+-- Personnes d'une discussion (30.10) : surnom, photo et appartenance des membres du groupe et des auteurs de ses
+-- messages, lisibles par qui lit le groupe (un Guest ne lit ni le profil d'un admin ni les autres appartenances).
+create or replace function public.group_chat_people(grp uuid) returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar_url', p.avatar_url,
+           'member', exists (select 1 from public.member_group_members m where m.group_id = grp and m.user_id = p.id))
+         order by p.display_name), '[]'::jsonb)
+  from public.profiles p
+  where private.reads_group(grp)
+    and (p.id in (select user_id from public.member_group_members where group_id = grp)
+         or p.id in (select distinct user_id from public.group_messages where group_id = grp));
+$$;
+revoke all on function public.group_chat_people(uuid) from public, anon;
+grant execute on function public.group_chat_people(uuid) to authenticated;

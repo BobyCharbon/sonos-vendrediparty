@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from app import accounts as accounts_mod, group_admin as ga, group_chats as gc
-from tests.supabase_live.test_audiences_live import GUEST_A, GUEST_B
+from tests.supabase_live.test_audiences_live import ADMIN, GUEST_A, GUEST_B
 from tests.supabase_live.test_member_admin_live import KEY_FILE, TEST_URL, Session, pytestmark  # noqa: F401
 
 JPEG = bytes.fromhex("ffd8ffe000104a46494600010100000100010000ffd9")
@@ -95,3 +95,15 @@ def test_voice_message_and_reply_notify_like_a_mention(relay):
     last = next(c for c in chats.chats(tb)['chats'] if c['id'] == group)['last']
     assert last == 'Testeur 2 : 🎤 Message vocal'
     assert 'realtime' in chats.chats(tb) and chats.chats(tb)['realtime']['url'].startswith('wss://')
+
+
+def test_a_guest_sees_the_name_of_an_admin_in_the_same_group(relay):
+    # Bug du 30.10 : un compte Guest ne lit pas le profil d'un admin dans profiles → « ? » dans la conversation.
+    chats, ta, tb, group, b_uid = relay
+    admin = Session(ADMIN)
+    httpx.post(f'{TEST_URL}/rest/v1/member_group_members', timeout=30, json={'group_id': group, 'user_id': admin.uid},
+               headers={'apikey': KEY_FILE.read_text().strip(), 'Authorization': f'Bearer {ta}', 'Content-Type': 'application/json'})
+    chats.send(admin.headers['Authorization'].removeprefix('Bearer '), group, 'Coucou de l’admin', None, None, mentions=[])
+    seen = chats.conversation(tb, group)
+    assert 'Admin test' in {m['name'] for m in seen['members']}
+    assert any(m['author_name'] == 'Admin test' for m in seen['messages'])

@@ -18,18 +18,21 @@ final class VoiceRecorder: ObservableObject {
     private var timer: Task<Void, Never>?
     private var started = Date()
 
-    /// AAC mono 22 kHz : léger (≈ 0,35 Mo par minute), lu partout (iPhone, Android, navigateurs).
+    /// AAC mono 44,1 kHz, qualité moyenne (débit choisi par l'encodeur : imposer un débit fait échouer la préparation
+    /// sur certains appareils) : léger, lu partout (iPhone, Android, navigateurs).
     nonisolated static let settings: [String: Any] = [
-        AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 22_050, AVNumberOfChannelsKey: 1,
-        AVEncoderBitRateKey: 48_000, AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
+        AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 44_100, AVNumberOfChannelsKey: 1,
+        AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue,
     ]
 
     /// Micro du téléphone seulement : catégorie sans option Bluetooth, entrée « micro intégré » imposée.
     nonisolated static func useBuiltInMicrophone(_ session: AVAudioSession = .sharedInstance()) throws {
+        // Sans .allowBluetooth ni .allowBluetoothA2DP : un casque ou des AirPods ne sont jamais pris comme micro.
         try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
         try session.setActive(true)
+        // Micro intégré imposé quand le téléphone en a un (toujours sur iPhone ; le simulateur n'en a pas).
         if let mic = session.availableInputs?.first(where: { $0.portType == .builtInMic }) {
-            try session.setPreferredInput(mic)
+            try? session.setPreferredInput(mic)
         }
     }
 
@@ -52,10 +55,16 @@ final class VoiceRecorder: ObservableObject {
             return  // première autorisation : l'utilisateur relâche le bouton pendant la question ; il réappuie
         }
         do {
-            try Self.useBuiltInMicrophone(session)
             let file = FileManager.default.temporaryDirectory.appendingPathComponent("vocal-\(UUID().uuidString).m4a")
-            let recorder = try AVAudioRecorder(url: file, settings: Self.settings)
-            guard recorder.record(forDuration: Self.maximumSeconds) else { throw CocoaError(.fileWriteUnknown) }
+            var recorder: AVAudioRecorder?
+            // Deux essais : la session audio peut être encore prise (lecture d'un vocal, autre app) au premier.
+            for attempt in 0..<2 where recorder == nil {
+                if attempt > 0 { try? await Task.sleep(for: .milliseconds(150)) }
+                try? Self.useBuiltInMicrophone(session)
+                if let r = try? AVAudioRecorder(url: file, settings: Self.settings), r.prepareToRecord(),
+                   r.record(forDuration: Self.maximumSeconds) { recorder = r }
+            }
+            guard let recorder else { throw CocoaError(.fileWriteUnknown) }
             self.recorder = recorder
             started = Date()
             elapsed = 0

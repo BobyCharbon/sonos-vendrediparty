@@ -50,11 +50,11 @@ def fake(admin=False, rank=1, creator=LEA, write_status=201):
             return httpx.Response(201 if request.method == "POST" else 204)
         if path == "/rest/v1/group_admins":
             return httpx.Response(200, json=[{"user_id": TOM}])
-        if path == "/rest/v1/profiles":
-            return httpx.Response(200, json=[{"id": ME, "display_name": "Boby", "avatar_url": "me.jpg"},
-                                             {"id": LEA, "display_name": "Léa", "avatar_url": None},
-                                             {"id": TOM, "display_name": "Tom", "avatar_url": None},
-                                             {"id": "u-autre", "display_name": "Autre", "avatar_url": None}])
+        if path in ("/rest/v1/profiles", "/rest/v1/rpc/group_chat_people"):
+            return httpx.Response(200, json=[{"id": ME, "display_name": "Boby", "avatar_url": "me.jpg", "member": True},
+                                             {"id": LEA, "display_name": "Léa", "avatar_url": None, "member": True},
+                                             {"id": TOM, "display_name": "Tom", "avatar_url": None, "member": True},
+                                             {"id": "u-autre", "display_name": "Autre", "avatar_url": None, "member": False}])
         if path.startswith("/storage/v1/object/sign/"):
             bucket = path.rsplit("/", 1)[1]
             return httpx.Response(200, json=[{"path": p, "signedURL": f"/object/sign/{bucket}/{p}?t=1"} for p in body["paths"]])

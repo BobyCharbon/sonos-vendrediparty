@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Testing
 import UIKit
@@ -90,6 +91,14 @@ struct ChatsTests {
         #expect(c.messages[0].audioSeconds == 7.5 && c.messages[0].preview == "Tu viens ?")
         #expect(VoiceRecorder.clock(7.5) == "0:08" && VoiceRecorder.clock(65) == "1:05")
         #expect(c.with(messages: c.messages + [draft]).messages.last?.id == "new")
+    }
+
+    @Test("Vocal : réglages d'enregistrement acceptés par l'encodeur AAC (préparation réussie)")
+    func voiceSettingsPrepare() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("prepare-\(UUID().uuidString).m4a")
+        let recorder = try AVAudioRecorder(url: file, settings: VoiceRecorder.settings)
+        #expect(recorder.prepareToRecord())
+        recorder.deleteRecording()
     }
 
     @Test("Notification : ?tab=chats&chat=<groupe> ouvre la conversation, rien d'autre")

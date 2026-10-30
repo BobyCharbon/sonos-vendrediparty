@@ -105,9 +105,10 @@ class GroupChats:
             raise AccountError("Cette discussion n'est pas accessible.")
         return chat
 
-    def _people(self, token: str, ids: set[str]) -> dict[str, dict]:
-        rows = self._rows("/rest/v1/profiles?select=id,display_name,avatar_url&status=eq.active", token)
-        return {p["id"]: p for p in rows if p["id"] in ids}
+    def _people(self, token: str, group_id: str, ids: set[str] | None) -> dict[str, dict]:
+        """Membres du groupe (ids=None) ou personnes choisies : surnom et photo, via group_chat_people."""
+        rows = self.admin._rpc(token, "group_chat_people", {"grp": group_id}, "Les membres n'ont pas pu être lus.") or []
+        return {p["id"]: p for p in rows if (p.get("member") if ids is None else p["id"] in ids)}
 
     def conversation(self, token: str, group_id: str) -> dict:
         self.admin.accounts._uid(token)  # jeton vérifié une fois (gardé 5 min), avant les lectures parallèles
@@ -121,7 +122,8 @@ class GroupChats:
             "admins": POOL.submit(self._rows, f"/rest/v1/group_admins?select=user_id&group_id=eq.{group_id}", token),
             # Numéros que les membres montrent dans ce groupe : l'app les rend appelables d'un toucher.
             "phones": POOL.submit(self.admin._rpc, token, "group_chat_phones", {"grp": group_id}, "Les membres n'ont pas pu être lus."),
-            "profiles": POOL.submit(self._rows, "/rest/v1/profiles?select=id,display_name,avatar_url&status=eq.active", token),
+            # Surnoms et photos des personnes du groupe (fonction dédiée : un Guest ne lit pas le profil d'un admin).
+            "profiles": POOL.submit(self.admin._rpc, token, "group_chat_people", {"grp": group_id}, "Les membres n'ont pas pu être lus."),
         }
         got = {k: f.result() for k, f in jobs.items()}
         me, chat, group = got["me"], got["chat"], got["group"]
@@ -130,9 +132,11 @@ class GroupChats:
         messages = list(reversed(got["messages"]))
         admins = {a["user_id"] for a in got["admins"]}
         phones = {p["id"]: p["phone"] for p in got["phones"] or []}
-        inside = [m["user_id"] for m in group[0].get("member_group_members") or []]
+        # Membres : d'après group_chat_people (un Guest ne voit pas les autres appartenances dans member_group_members).
+        inside = [p["id"] for p in got["profiles"] or [] if p.get("member")] or \
+            [m["user_id"] for m in group[0].get("member_group_members") or []]
         wanted = {m["user_id"] for m in messages} | set(inside)
-        people = {p["id"]: p for p in got["profiles"] if p["id"] in wanted}
+        people = {p["id"]: p for p in got["profiles"] or [] if p["id"] in wanted}
         ids = ",".join(m["id"] for m in messages)
         second = {
             "reactions": POOL.submit(self._rows, f"/rest/v1/group_message_reactions?select=message_id,user_id,emoji"
@@ -194,9 +198,7 @@ class GroupChats:
             raise AccountError("Message vocal invalide.")
         if mentions is None:
             me = self.admin.accounts._uid(token)
-            group = self._rows(f"/rest/v1/member_groups?select=member_group_members(user_id)&id=eq.{group_id}", token)
-            inside = {m["user_id"] for m in (group[0].get("member_group_members") if group else None) or []}
-            people = {uid: p.get("display_name") or "" for uid, p in self._people(token, inside).items()}
+            people = {uid: p.get("display_name") or "" for uid, p in self._people(token, group_id, None).items()}
             mentions = mentions_in(body, people, me)
         row = {"group_id": group_id, "body": body, "photo_path": photo_path, "reply_to": reply_to,
                "mentions": mentions, "mention_all": bool(EVERYONE.search(body))}

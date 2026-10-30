@@ -438,6 +438,28 @@ final class SettingsAuditUITests: XCTestCase {
             XCTFail("menu des réactions")
         }
         record("reaction")
+        // Glisser la bulle vers la droite : répondre (la personne sera citée et notifiée).
+        let bubble = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+        XCTAssertTrue(bubble.waitForExistence(timeout: 5), "bulle envoyée")
+        bubble.swipeRight()
+        let replyAction = app.buttons["Répondre"].firstMatch  // glissement partiel : le bouton apparaît ; complet : réponse directe
+        if replyAction.waitForExistence(timeout: 2) { replyAction.tap() }
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH '↪ Réponse à'")).firstMatch.waitForExistence(timeout: 5),
+                      "glisser pour répondre")
+        record("glisser-repondre")
+        app.buttons["Annuler la réponse"].tap()
+        // Vocal : appui long sur le micro (2 s) puis relâcher → bulle « Message vocal » qui s'écoute.
+        let mic = app.descendants(matching: .any)["chat-mic"]
+        XCTAssertTrue(mic.waitForExistence(timeout: 5), "bouton micro")
+        mic.press(forDuration: 2.5)
+        let voice = app.buttons["Écouter le message vocal"].firstMatch
+        if app.staticTexts["Le micro n'a pas pu démarrer. Réessaie."].waitForExistence(timeout: 3) {
+            // Simulateur sans micro fourni par le Mac : l'enregistrement est vérifié sur un vrai iPhone.
+            record("vocal-micro-indisponible")
+        } else {
+            XCTAssertTrue(voice.waitForExistence(timeout: 20), "vocal envoyé")
+        }
+        record("vocal")
         app.buttons["Infos du groupe"].tap()
         XCTAssertTrue(app.staticTexts["Notifications"].waitForExistence(timeout: 10), "infos : notifications")
         if let call {
