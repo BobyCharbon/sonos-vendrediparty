@@ -95,6 +95,11 @@ def main(app_id: str, version: str, key_path: str, platform: str = "IOS") -> int
         submitted = api(key_path, "POST", "/v1/betaAppReviewSubmissions",
                         {"data": {"type": "betaAppReviewSubmissions",
                                   "relationships": {"build": {"data": {"type": "builds", "id": bid}}}}})
+        if "ANOTHER_BUILD_IN_REVIEW" in submitted.get("detail", ""):
+            # Un build précédent attend encore la vérification d'Apple : celui-ci reste dans le groupe, et les testeurs
+            # internes l'ont déjà ; on le soumettra avec le prochain envoi, une fois l'autre vérifié.
+            print(f"Build {version} ajouté à « {GROUP_NAME} » ; soumission plus tard (un autre build est en vérification)")
+            return 0
         if "error" in submitted:
             print("Soumission à la vérification bêta refusée :", submitted["detail"])
             return 1
