@@ -176,7 +176,8 @@ jobs:
           if [ "$PRODUCTION" = 1 ]; then
             VARIANT=(); BUNDLE_ID=ch.bobycharbon.party
           else
-            VARIANT=(PARTY_BUNDLE_SUFFIX=.beta PARTY_HOST=partytest.bobycharbon.ch "PARTY_DISPLAY_NAME=Party BETA")
+            VARIANT=(PARTY_BUNDLE_SUFFIX=.beta PARTY_HOST=partytest.bobycharbon.ch "PARTY_DISPLAY_NAME=Party BETA"
+                     "ASSETCATALOG_COMPILER_APPICON_NAME=App Icon & Top Shelf Image Beta")
             BUNDLE_ID=ch.bobycharbon.party.beta
           fi
           echo "Variante : ${VARIANT[*]:-Party (production)}"

@@ -201,7 +201,12 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: ch.bobycharbon.party$(PARTY_BUNDLE_SUFFIX)
         PARTY_BASE_URL: "https://$(PARTY_HOST)"
         TARGETED_DEVICE_FAMILY: "3"
-        ASSETCATALOG_COMPILER_APPICON_NAME: "App Icon & Top Shelf Image"
+      configs:
+        # Icônes marquées BETA pour Party BETA ; Party (production) les a sans bandeau (ios/scripts/tv_icons.py).
+        Debug:
+          ASSETCATALOG_COMPILER_APPICON_NAME: "App Icon & Top Shelf Image Beta"
+        Release:
+          ASSETCATALOG_COMPILER_APPICON_NAME: "App Icon & Top Shelf Image"
 
   # Tests unitaires de l'app Apple TV (lecture des vues de jeu, file de la musique).
   # xcodebuild test -project Party.xcodeproj -scheme PartyTV -destination 'platform=tvOS Simulator,name=Apple TV 4K (3rd generation)'
