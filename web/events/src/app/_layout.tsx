@@ -97,7 +97,9 @@ function Gate() {
   }, [session?.user.id, profile?.display_name, profile?.avatar_url, profile?.status, eventsSoon]);  // accès bêta compris
   useEffect(() => {
     // Réglages : ouverts à tout compte connecté ; le reste attend la validation du membre.
-    if (!loading && session && (active || intent.current === '/account') && !profileError && intent.current) {
+    // Réglages et liens d'invitation : ouverts dès la connexion (l'invitation demande elle-même le profil complet).
+    const open = intent.current === '/account' || /^\/(?:group-)?invite\//.test(intent.current ?? '');
+    if (!loading && session && (active || open) && !profileError && intent.current) {
       const target = intent.current;
       intent.current = null;
       try { sessionStorage.removeItem(intentKey); } catch { /* Stockage indisponible. */ }

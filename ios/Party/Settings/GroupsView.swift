@@ -380,7 +380,7 @@ struct GroupDetailView: View {
                     } header: {
                         Text("Lien d'invitation")
                     } footer: {
-                        Text("Qui l'ouvre crée son compte (ou se connecte) et rejoint ce groupe. Tu es prévenu à chaque arrivée.")
+                        Text("Qui l'ouvre s'inscrit avec son numéro, complète son profil, puis rejoint ce groupe. Rien n'est visible avant. Tu es prévenu à chaque arrivée.")
                     }
                     Section {
                         Button("Supprimer le groupe", role: .destructive) { confirmDelete = true }

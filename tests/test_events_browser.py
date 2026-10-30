@@ -289,8 +289,9 @@ def test_account_tab_signs_in_shows_settings_and_crops_a_photo(browser, events_o
         pw.expect(frame.get_by_label('Aperçu de ta photo de profil')).to_be_visible()
         pw.expect(frame.get_by_role('button',name='Enregistrer',exact=True)).to_be_enabled()
         frame.get_by_role('button',name='Retour : Réglages').click()
-        # Notifications et abonnements sont regroupés dans une seule entrée des Réglages.
-        pw.expect(frame.get_by_text('Notifications et abonnements',exact=True)).to_be_visible()
+        # Notifications et abonnements sont regroupés dans une seule entrée « Notifications » des Réglages.
+        pw.expect(frame.get_by_text('Notifications',exact=True)).to_be_visible()
+        pw.expect(frame.get_by_text('Ce que tu reçois, quand ; catégories et tags suivis',exact=True)).to_be_visible()
         pw.expect(frame.get_by_text('Mes abonnements',exact=True)).to_have_count(0)
         # Les Événements reprennent la liste des sorties, sans recharger le module (la pastille reste affichée sur Réglages).
         page.locator('#tabs [data-tab="events"]').click()

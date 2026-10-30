@@ -33,7 +33,16 @@ begin
   return coalesce(token, (select invite_token from public.events where id = e));
 end $$;
 
--- Ce que montre le lien, même sans compte : l'essentiel de l'événement et qui l'organise.
+-- Profil complet (nom, prénom, surnom, photo) : exigé avant de voir ou de rejoindre une invitation par lien
+-- (avis n°9 : on s'inscrit avec son numéro, on complète son profil, puis on accède à l'événement ou au groupe).
+create or replace function private.identity_complete(uid uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.profiles p where p.id = uid
+    and coalesce(btrim(p.first_name), '') <> '' and coalesce(btrim(p.last_name), '') <> ''
+    and coalesce(btrim(p.display_name), '') <> '' and coalesce(btrim(p.avatar_url), '') <> '');
+$$;
+
+-- Ce que montre le lien : rien sans compte au profil complet (le lien seul ne révèle pas l'événement).
 create or replace function public.invite_event(token uuid) returns jsonb
 language sql stable security definer set search_path = '' as $$
   select jsonb_build_object(
@@ -44,7 +53,8 @@ language sql stable security definer set search_path = '' as $$
     'joined', auth.uid() is not null and (public.can_see_event(ev.id)
               or exists (select 1 from public.event_invites i where i.event_id = ev.id and i.user_id = auth.uid())))
   from public.events ev
-  where token is not null and ev.invite_token = token and ev.status in ('published', 'cancelled');
+  where token is not null and ev.invite_token = token and ev.status in ('published', 'cancelled')
+    and private.identity_complete(auth.uid());
 $$;
 
 -- Rejoindre par le lien : invité de cet événement seulement ; les organisateurs sont prévenus (une fois).
@@ -54,6 +64,9 @@ declare ev public.events; who text; u uuid;
 begin
   if auth.uid() is null or not private.is_account_active(auth.uid()) then
     raise exception 'Connexion requise' using errcode = '42501';
+  end if;
+  if not private.identity_complete(auth.uid()) then
+    raise exception 'profile_incomplete: complète ton profil (nom, prénom, surnom et photo) avant de rejoindre';
   end if;
   select * into ev from public.events where token is not null and invite_token = token and status = 'published';
   if ev.id is null then raise exception 'Ce lien d''invitation n''est plus valable'; end if;
@@ -135,7 +148,8 @@ language sql stable security definer set search_path = '' as $$
     'members', (select count(*) from public.member_group_members m where m.group_id = g.id),
     'joined', auth.uid() is not null and exists (select 1 from public.member_group_members m where m.group_id = g.id and m.user_id = auth.uid()))
   from public.member_groups g
-  where token is not null and g.invite_token = token and g.system_key is null;
+  where token is not null and g.invite_token = token and g.system_key is null
+    and private.identity_complete(auth.uid());
 $$;
 
 create or replace function public.join_group_by_link(token uuid) returns uuid
@@ -144,6 +158,9 @@ declare grp uuid;
 begin
   if auth.uid() is null or not private.is_account_active(auth.uid()) then
     raise exception 'Connexion requise' using errcode = '42501';
+  end if;
+  if not private.identity_complete(auth.uid()) then
+    raise exception 'profile_incomplete: complète ton profil (nom, prénom, surnom et photo) avant de rejoindre';
   end if;
   select id into grp from public.member_groups where token is not null and invite_token = token and system_key is null;
   if grp is null then raise exception 'Ce lien d''invitation n''est plus valable'; end if;
@@ -213,8 +230,11 @@ revoke all on function public.event_invite_link(uuid, boolean), public.join_even
 grant execute on function public.event_invite_link(uuid, boolean), public.join_event_by_link(uuid),
   public.group_invite_link(uuid, boolean), public.join_group_by_link(uuid), public.invite_to_group(uuid, uuid, text),
   public.my_group_invitations(), public.answer_group_invitation(uuid, boolean) to authenticated;
--- Ce que montre un lien avant connexion : lisible sans compte.
-grant execute on function public.invite_event(uuid), public.group_invite_info(uuid) to anon, authenticated;
+-- Aperçu d'un lien : réservé aux comptes connectés au profil complet (plus rien pour les visiteurs).
+revoke all on function public.invite_event(uuid), public.group_invite_info(uuid) from public, anon;
+grant execute on function public.invite_event(uuid), public.group_invite_info(uuid) to authenticated;
+revoke all on function private.identity_complete(uuid) from public, anon;
+grant execute on function private.identity_complete(uuid) to authenticated;
 revoke all on function private.manages_event(uuid), private.manages_group(uuid), private.digits(text),
   private.join_group(uuid, uuid) from public, anon;
 grant execute on function private.manages_event(uuid), private.manages_group(uuid), private.digits(text) to authenticated;

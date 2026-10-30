@@ -14,20 +14,33 @@ def anon_rpc(name: str, **args) -> httpx.Response:
                       headers={'apikey': key, 'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'})
 
 
+NEW = '41768163120'  # Guest au profil vide (code fixe de la base de test)
+
+
 @pytest.fixture(scope='module')
 def people():
     return Session(ADMIN), Session(GUEST_A), Session(GUEST_B)
 
 
-def test_an_invitation_only_event_is_joined_through_its_link(people):
+@pytest.fixture(scope='module')
+def newcomer():
+    return Session(NEW)
+
+
+def test_an_invitation_only_event_is_joined_through_its_link(people, newcomer):
     admin, ga, gb = people
     event = create_event(admin, 'Test lien d’invitation', visibility='invited')
     try:
         assert ga.get(f'events?select=id&id=eq.{event}').json() == []  # pas invité : invisible
         token = admin.rpc('event_invite_link', e=event).json()
         assert ga.rpc('event_invite_link', e=event).status_code >= 400  # seuls les organisateurs ont le lien
-        preview = anon_rpc('invite_event', token=token).json()
-        assert preview['title'] == 'Test lien d’invitation' and preview['organizer'] == 'Admin test'  # visible sans compte
+        # Sans compte, ou avec un profil incomplet : rien n'est visible ni rejoignable (inscription d'abord).
+        assert anon_rpc('invite_event', token=token).status_code >= 400
+        assert newcomer.rpc('invite_event', token=token).json() is None
+        refused = newcomer.rpc('join_event_by_link', token=token)
+        assert refused.status_code >= 400 and 'profile_incomplete' in refused.text
+        preview = ga.rpc('invite_event', token=token).json()
+        assert preview['title'] == 'Test lien d’invitation' and preview['organizer'] == 'Admin test' and not preview['joined']
 
         assert ga.rpc('join_event_by_link', token=token).json() == event
         assert ga.get(f'events?select=id&id=eq.{event}').json() != []  # cet événement seulement
@@ -40,12 +53,12 @@ def test_an_invitation_only_event_is_joined_through_its_link(people):
 
         new = admin.rpc('event_invite_link', e=event, renew=True).json()
         assert new != token and gb.rpc('join_event_by_link', token=token).status_code >= 400  # ancien lien mort
-        assert anon_rpc('invite_event', token=token).json() is None
+        assert gb.rpc('invite_event', token=token).json() is None
     finally:
         httpx.delete(f'{TEST_URL}/rest/v1/events?id=eq.{event}', headers=admin.headers, timeout=30)
 
 
-def test_a_group_is_joined_by_link_and_invitations_are_answered(people):
+def test_a_group_is_joined_by_link_and_invitations_are_answered(people, newcomer):
     admin, ga, gb = people
     r = httpx.post(f'{TEST_URL}/rest/v1/member_groups', timeout=30, headers={**ga.headers, 'Prefer': 'return=representation'},
                    json={'name': 'Test invitations', 'created_by': ga.uid})
@@ -54,7 +67,10 @@ def test_a_group_is_joined_by_link_and_invitations_are_answered(people):
     try:
         token = ga.rpc('group_invite_link', grp=group).json()
         assert gb.rpc('group_invite_link', grp=group).status_code >= 400  # seul le créateur
-        info = anon_rpc('group_invite_info', token=token).json()
+        assert anon_rpc('group_invite_info', token=token).status_code >= 400
+        assert newcomer.rpc('group_invite_info', token=token).json() is None
+        assert 'profile_incomplete' in newcomer.rpc('join_group_by_link', token=token).text
+        info = gb.rpc('group_invite_info', token=token).json()
         assert info['name'] == 'Test invitations' and info['creator'] == 'Testeur 1'
         assert gb.rpc('join_group_by_link', token=token).json() == group
         members = ga.get(f'member_group_members?select=user_id&group_id=eq.{group}').json()

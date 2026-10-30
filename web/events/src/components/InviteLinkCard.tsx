@@ -52,8 +52,8 @@ export function InviteLinkCard({ kind, id }: { kind: 'event' | 'group'; id: stri
   }
 
   const who = kind === 'event'
-    ? 'Qui l’ouvre crée son compte (ou se connecte) et voit cet événement seulement. Tu seras prévenu à chaque arrivée.'
-    : 'Qui l’ouvre crée son compte (ou se connecte) et rejoint ce groupe. Tu seras prévenu à chaque arrivée.';
+    ? 'Qui l’ouvre s’inscrit avec son numéro, complète son profil, puis accède à cet événement seulement. Rien n’est visible avant. Tu es prévenu à chaque arrivée.'
+    : 'Qui l’ouvre s’inscrit avec son numéro, complète son profil, puis rejoint ce groupe. Rien n’est visible avant. Tu es prévenu à chaque arrivée.';
   return (
     <Section title="Lien d’invitation">
       <T muted size={13}>{who}</T>

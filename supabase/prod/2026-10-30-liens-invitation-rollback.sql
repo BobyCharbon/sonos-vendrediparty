@@ -16,5 +16,6 @@ drop function if exists private.manages_group(uuid);
 drop function if exists private.manages_event(uuid);
 drop table if exists private.group_invitations;
 drop function if exists private.digits(text);
+drop function if exists private.identity_complete(uuid);
 delete from supabase_migrations.schema_migrations where version = '20261029170000';
 commit;

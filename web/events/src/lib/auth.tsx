@@ -28,6 +28,17 @@ const AuthContext = createContext<AuthState | null>(null);
 /** En production, Party sert le module avec data-events="beta" : les sorties ne s'ouvrent qu'aux bêta-testeurs. */
 const betaOnly = typeof document !== 'undefined' && document.documentElement.dataset.events === 'beta';
 
+/** Arrivé par un lien d'invitation (événement) ou membre d'un groupe privé : les événements lui sont ouverts,
+ * même avant l'ouverture à tous (la base ne lui montre que ce qui le concerne). */
+async function invitedByLink(userId: string): Promise<boolean> {
+  const [links, groups] = await Promise.all([
+    supabase.from('event_invites').select('event_id').eq('user_id', userId).eq('via_link', true).limit(1),
+    supabase.from('member_group_members').select('group_id, member_groups!inner(system_key)').eq('user_id', userId)
+      .is('member_groups.system_key', null).limit(1),
+  ]);
+  return Boolean(links.data?.length || groups.data?.length);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -44,17 +55,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      const [dir, perms, rank, beta] = await Promise.all([
+      const [dir, perms, rank, beta, invited] = await Promise.all([
         supabase.rpc('get_member_directory').eq('id', userId).single(),
         supabase.rpc('my_permissions'),
         supabase.rpc('my_rank'),
         betaOnly ? supabase.rpc('is_beta_tester') : Promise.resolve({ data: true }),
+        betaOnly ? invitedByLink(userId) : Promise.resolve(false),
       ]);
       if (dir.error) throw dir.error;
       if (request !== profileRequest.current) return;
       const all = (perms.data as string[] | null) ?? [];
       // Hors bêta (production), tout compte garde Party mais pas encore les sorties : Guests compris.
-      const soon = beta.data !== true;
+      // Invité par un lien (événement réservé à un groupe, groupe privé) : il accède à ce qu'on l'a invité à voir.
+      const soon = beta.data !== true && !invited;
       setAccess({ perms: soon ? all.filter((p) => p !== 'events.view') : all, rank: (rank.data as number | null) ?? -1, soon });
       setProfile(dir.data as Profile);
       setProfileError(null);
