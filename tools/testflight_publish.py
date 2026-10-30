@@ -21,6 +21,7 @@ from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 API = "https://api.appstoreconnect.apple.com"
 GROUP_NAME = "Invités"
 WAIT_S, POLL_S = 30 * 60, 30
+ADD_TRIES = 10  # ajout au groupe : 5 minutes au plus
 ALREADY_SUBMITTED = {"WAITING_FOR_BETA_REVIEW", "IN_BETA_REVIEW", "BETA_APPROVED", "IN_BETA_TESTING"}
 
 
@@ -76,8 +77,14 @@ def main(app_id: str, version: str, key_path: str, platform: str = "IOS") -> int
     if group is None:
         print(f"Groupe « {GROUP_NAME} » introuvable")
         return 1
-    added = api(key_path, "POST", f"/v1/betaGroups/{group['id']}/relationships/builds",
-                {"data": [{"type": "builds", "id": bid}]})
+    # Juste après le traitement, Apple répond parfois « build introuvable » (404) quelques minutes : on réessaie.
+    for attempt in range(ADD_TRIES):
+        added = api(key_path, "POST", f"/v1/betaGroups/{group['id']}/relationships/builds",
+                    {"data": [{"type": "builds", "id": bid}]})
+        if added.get("error") != 404:
+            break
+        print(f"Build {version} pas encore visible pour le groupe : nouvel essai dans {POLL_S} s")
+        time.sleep(POLL_S)
     if "error" in added:
         print("Ajout au groupe refusé :", added["detail"])
         return 1
