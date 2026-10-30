@@ -11,7 +11,11 @@ struct EndTV: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 36) {
-            Text("🏁 Partie terminée").font(.system(size: 80, weight: .black))
+            if let champion = game["quiz"]["board"][0]["name"].string, (game["quiz"]["board"][0]["pts"].int ?? 0) > 0 {
+                Text("🏆 \(champion) gagne !").font(.system(size: 96, weight: .black)).foregroundStyle(TV.coral).lineLimit(1).minimumScaleFactor(0.5)
+            } else {
+                Text("🏁 Fin de la partie").font(.system(size: 80, weight: .black))
+            }
             HStack(alignment: .bottom, spacing: 40) {
                 if ranking.count >= 2 && Set(ranking.map(\.value)).count > 1 { podium }
                 VStack(alignment: .leading, spacing: 26) {
@@ -41,8 +45,12 @@ struct EndTV: View {
         }
     }
 
+    /// Celui qui a le plus bu (ou distribué) ; à égalité, tous les ex æquo (« Tout le monde » si personne ne se détache).
     private func most(_ key: String) -> (name: String, n: Int)? {
-        players.map { ($0["name"].string ?? "?", $0[key].int ?? 0) }.filter { $0.1 > 0 }.max { $0.1 < $1.1 }.map { ($0.0, $0.1) }
+        let all = players.map { ($0["name"].string ?? "?", $0[key].int ?? 0) }
+        guard let best = all.map(\.1).max(), best > 0 else { return nil }
+        let top = all.filter { $0.1 == best }.map(\.0)
+        return (top.count == all.count && all.count > 1 ? "Tout le monde" : top.joined(separator: " & "), best)
     }
 
     @ViewBuilder private func award(_ title: String, _ who: (name: String, n: Int)?, _ color: Color) -> some View {

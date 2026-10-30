@@ -120,10 +120,8 @@ struct UndercoverTV: View {
                         word("Undercover", words["undercover"].string)
                     }
                 }
-            } else if !game["order"].array.isEmpty {
-                Text("Ordre de parole").font(.title2.bold())
-                Text(game["order"].array.compactMap(\.string).enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "   "))
-                    .font(.title2).foregroundStyle(TV.lavender)
+            } else if game["phase"].string == "words", let first = game["order"].array.first?.string {
+                Text("🎤 \(first) commence, puis chacun dans l'ordre").font(.system(size: 54, weight: .black)).lineLimit(2).minimumScaleFactor(0.6)
             }
             let last = game["last"]
             if !last.isNull && game["phase"].string != "end" && game["phase"].string != "reveal" {
@@ -132,9 +130,11 @@ struct UndercoverTV: View {
                     .font(.title.bold())
             }
             if game["phase"].string == "vote" {
-                Text("\(game["votes_count"].int ?? 0) vote(s) sur \(game["players"].array.filter { $0["alive"].bool }.count)").font(.title2).foregroundStyle(TV.muted)
+                Text("\(game["votes_count"].int ?? 0)/\(game["players"].array.filter { $0["alive"].bool }.count) ont voté").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender)
             }
-            PlayersRow(players: speakingOrder, highlight: Set(game["candidates"].array.compactMap(\.string)))
+            if game["phase"].string != "end" {
+                PlayersRow(players: speakingOrder, highlight: Set(game["candidates"].array.compactMap(\.string)), size: 110)
+            }
         }
     }
 
@@ -183,9 +183,9 @@ struct QuestionVoteTV: View {
                     Leaderboard(title: "Les votes", rows: rows.map { ($0["name"].string ?? "?", "\($0["count"].int ?? 0) vote\(($0["count"].int ?? 0) > 1 ? "s" : "")") })
                 }
             } else {
-                Text("\(game["votes_count"].int ?? 0)/\(game["players"].array.count) ont voté").font(.title2).foregroundStyle(TV.muted)
+                Text("\(game["votes_count"].int ?? 0)/\(game["players"].array.count) ont voté").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender)
+                PlayersRow(players: game["players"].array, size: 110)
             }
-            PlayersRow(players: game["players"].array)
         }
     }
 }

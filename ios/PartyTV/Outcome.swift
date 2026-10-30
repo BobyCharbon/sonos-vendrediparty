@@ -93,7 +93,7 @@ struct OutcomeBoard: View {
     private func column(_ kind: Outcome.Kind, _ lines: [Outcome.Line]) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             if kind != .info {
-                Text("\(kind.symbol) \(kind.title.uppercased())").font(.system(size: 30, weight: .heavy)).foregroundStyle(kind.color)
+                Text("\(kind.symbol) \(kind.title.uppercased())").font(.system(size: 38, weight: .black)).foregroundStyle(kind.color)
             }
             ForEach(lines) { line in
                 let index = outcome.lines.firstIndex(of: line) ?? 0
@@ -118,10 +118,10 @@ struct OutcomeBoard: View {
         }
         .overlay(alignment: .bottomLeading) {
             if let detail = line.detail {
-                Text(detail).font(.system(size: 26, weight: .semibold)).foregroundStyle(TV.muted).offset(y: 34)
+                Text(detail).font(.system(size: 32, weight: .bold)).foregroundStyle(TV.muted).offset(y: 40)
             }
         }
-        .padding(.bottom, line.detail == nil ? 0 : 30)
+        .padding(.bottom, line.detail == nil ? 0 : 38)
     }
 }
 
@@ -235,7 +235,11 @@ extension Outcome {
         default:
             o = nil
         }
-        guard let o, !(o.headline.isEmpty && o.lines.isEmpty) else { return nil }
+        guard var o, !(o.headline.isEmpty && o.lines.isEmpty) else { return nil }
+        // Gorgées comptées par le serveur mais pas nommées par le jeu (Quiz : les mauvaises réponses boivent…).
+        if o.lines(.drink).isEmpty && o.lines(.give).isEmpty, let sipsNow = fromSipsLog(g), !["biskit", "pyramid"].contains(g["type"].string ?? "") {
+            o.lines = o.lines.filter { $0.kind != .lose || $0.amount != nil } + sipsNow.lines
+        }
         return o
     }
 
@@ -298,18 +302,20 @@ extension Outcome {
 
     private static func undercover(_ g: JSON, _ round: String) -> Outcome? {
         if g["phase"].string == "end" {
-            let winner = UndercoverTV.winner(g["winner"].string)
-            let roles = g["players"].array.filter { ($0["role"].string ?? "Civil") != "Civil" && $0["role"].string != nil }
-            return Outcome(headline: "🏆 \(winner)",
-                           lines: roles.map { Line(name: $0["name"].string ?? "?", kind: .info, detail: "était \($0["role"].string ?? "")") },
-                           key: "uc-end-\(round)")
+            // Chacun dans son camp : les civils d'un côté, les imposteurs (Undercover, Mr. White) de l'autre.
+            let civilsWin = g["winner"].string == "civils"
+            let lines = g["players"].array.map { p -> Line in
+                let role = p["role"].string ?? "Civil"
+                let civil = role == "Civil" || role == "Civils"
+                return Line(name: p["name"].string ?? "?", kind: civil == civilsWin ? .win : .lose, detail: civil ? nil : role)
+            }
+            return Outcome(headline: "🏆 \(UndercoverTV.winner(g["winner"].string))", lines: lines, key: "uc-end-\(round)")
         }
         let last = g["last"]
         if last["tie"].bool { return Outcome(headline: "⚖️ Égalité : on revote", lines: [], key: "uc-tie-\(round)") }
         guard let name = last["name"].string else { return nil }
-        return Outcome(headline: "❌ \(name) est éliminé·e",
-                       lines: [Line(name: name, kind: .lose, detail: last["role"].string.map { "C'était \($0) !" })],
-                       key: "uc-\(name)-\(round)")
+        return Outcome(headline: "❌ \(name) est éliminé·e" + (last["role"].string.map { " : c'était \($0) !" } ?? ""),
+                       lines: [], key: "uc-\(name)-\(round)")
     }
 
     /// Jeux à coups successifs (Pyramide, Biskit) : les gorgées du dernier coup, d'après le journal du serveur.

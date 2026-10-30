@@ -72,7 +72,10 @@ enum Phase {
         case "spun": return "La roue a tourné"
         case "card": return "Carte tirée"
         case "answer": return "Réponse en cours"
-        case "deal", "memory", "memres", "pyramid": return "Pyramide"
+        case "deal": return "Distribution"
+        case "pyramid": return "La pyramide"
+        case "memory", "memres": return "Mémoire"
+        case "boatpick", "boat": return "Le bateau"
         default: return game["round"].int.map { "Manche \($0)" } ?? "En cours"
         }
     }
@@ -90,16 +93,9 @@ extension Phase {
         case "blackjack": return game["round"].int.flatMap { $0 > 0 ? "Main \($0)" : nil }
         case "casino": return game["round"].int.flatMap { $0 > 0 ? "Tour \($0)" : nil }
         case "divan": return game["divan"]["current"]["name"].string.map { "Au tour de \($0)" }
-        case "president": return turnName(game["president"]["seats"].array, game["president"]["turn"].string)
-        case "pyramid": return turnName(game["pyr"]["seats"].array, game["pyr"]["turn"].string)
-        case "biskit": return turnName(game["bk"]["seats"].array, game["bk"]["turn"].string)
+
         default: return nil
         }
-    }
-
-    private static func turnName(_ seats: [JSON], _ pid: String?) -> String? {
-        guard let pid, let name = seats.first(where: { $0["pid"].string == pid })?["name"].string else { return nil }
-        return "Au tour de \(name)"
     }
 }
 
@@ -147,7 +143,11 @@ struct SideBoard: View {
         }
     }
 
-    static func shows(_ game: JSON) -> Bool { !(rows(game)?.1.isEmpty ?? true) }
+    /// Montré seulement quand quelqu'un se détache (tous à 0 ou tous égaux : rien à classer).
+    static func shows(_ game: JSON) -> Bool {
+        guard let rows = rows(game)?.1, !rows.isEmpty else { return false }
+        return Set(rows.map(\.value)).count > 1
+    }
 
     let gameRows: (String, [(name: String, value: String)])?
     init(game: JSON) {
@@ -156,7 +156,7 @@ struct SideBoard: View {
     }
 
     var body: some View {
-        if let gameRows, !gameRows.1.isEmpty { Leaderboard(title: gameRows.0, rows: gameRows.1) }
+        if let gameRows, Self.shows(game) { Leaderboard(title: gameRows.0, rows: gameRows.1) }
     }
 }
 

@@ -104,7 +104,8 @@ struct OutcomeTests {
     func undercoverEnd() throws {
         let o = try #require(Outcome.of(try samples()["undercover_end"]))
         #expect(o.headline.contains("imposteurs"))
-        #expect(Set(o.lines.map(\.name)) == ["Tom", "Nina"])
+        #expect(Set(o.lines(.win).map(\.name)) == ["Tom", "Nina"])
+        #expect(Set(o.lines(.lose).map(\.name)) == ["Léa", "Max", "Boby"])
     }
 
     @Test("Casino : annoncé une fois la bille arrêtée, avec qui boit et qui distribue")

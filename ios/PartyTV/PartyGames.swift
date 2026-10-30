@@ -9,7 +9,6 @@ struct DebateTV: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 30) {
-            GameTop(game: game, info: D["n"].int.map { "Dilemme \($0)/\(D["count"].int ?? 0)" })
             if let theme = D["q"]["theme"].string { Text(theme).font(.title3).foregroundStyle(TV.lavender) }
             Text(D["q"]["text"].string ?? "").font(.system(size: 58, weight: .heavy)).lineLimit(4).minimumScaleFactor(0.6)
             let result = D["result"]
@@ -30,7 +29,7 @@ struct DebateTV: View {
                     }
                 }
             } else {
-                Text("\(D["voted"].int ?? 0)/\(D["total"].int ?? 0) ont voté").font(.title2).foregroundStyle(TV.muted)
+                Text("\(D["voted"].int ?? 0)/\(D["total"].int ?? 0) ont voté").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender)
                 PlayersRow(players: game["players"].array.map { voted($0, D["done"].array.contains($0["pid"])) })
             }
         }
@@ -71,10 +70,12 @@ struct RouletteTV: View {
             } else {
                 Text("La roue va tourner…").font(.system(size: 60, weight: .heavy))
             }
-            Text(game["names"].array.compactMap(\.string).joined(separator: " · ")).font(.title2).foregroundStyle(TV.lavender).lineLimit(3)
+            if picked != nil { Text("a perdu !").font(.system(size: 70, weight: .black)) }
             let history = game["history"].array.compactMap(\.string)
             if history.count > 1 {
-                Text("Précédents : " + history.dropFirst().prefix(8).joined(separator: ", ")).font(.title3).foregroundStyle(TV.muted)
+                Text("Derniers perdants : " + history.dropFirst().prefix(8).joined(separator: ", ")).font(.system(size: 36, weight: .semibold)).foregroundStyle(TV.muted)
+            } else {
+                Text(game["names"].array.compactMap(\.string).joined(separator: " · ")).font(.system(size: 36, weight: .semibold)).foregroundStyle(TV.lavender).lineLimit(3)
             }
         }
     }
@@ -96,13 +97,28 @@ struct DivanTV: View {
                 VStack(alignment: .leading, spacing: 20) {
                     Text(V["labels"][card["cat"].string ?? ""].string ?? "").font(.title2.bold()).foregroundStyle(TV.lavender)
                     Text(card["text"].string ?? "").font(.system(size: 60, weight: .heavy)).lineLimit(5).minimumScaleFactor(0.6)
-                    if let hearts = V["hearts"].int, hearts > 0 { Text(String(repeating: "❤️", count: min(hearts, 12))).font(.title) }
+                    if let hearts = V["hearts"].int, hearts > 0 {
+                        Text("❤️ \(hearts) soutien\(hearts > 1 ? "s" : "")").font(.system(size: 40, weight: .heavy)).foregroundStyle(TV.accent)
+                    }
                 }
                 .padding(50)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .card(TV.surface, radius: 40)
             }
             PlayersRow(players: game["players"].array, highlight: Set([V["current"]["pid"].string].compactMap { $0 }), size: 80)
+        }
+    }
+}
+
+extension TmcTV {
+    /// Ce que la pièce attend à cette étape.
+    static func step(_ phase: String?, _ duo: JSON) -> String {
+        let g = duo["guesser"]["name"].string ?? "?", s = duo["subject"]["name"].string ?? "?"
+        switch phase {
+        case "answer": return "✍️ \(s) écrit sa réponse en secret"
+        case "guess": return "🗣 \(g), devine à voix haute !"
+        case "judge": return "⚖️ L'animateur juge la réponse"
+        default: return ""
         }
     }
 }
@@ -118,10 +134,15 @@ struct TmcTV: View {
             GameTop(game: game)
             if !duo.isNull {
                 Text("\(duo["guesser"]["name"].string ?? "?") devine \(duo["subject"]["name"].string ?? "?")")
-                    .font(.title.bold()).foregroundStyle(TV.lavender)
+                    .font(.system(size: 60, weight: .black)).foregroundStyle(TV.lavender)
+                Text(Self.step(game["phase"].string, duo)).font(.system(size: 36, weight: .semibold)).foregroundStyle(TV.muted)
                 Text(duo["question"].string ?? "").font(.system(size: 60, weight: .heavy)).lineLimit(4).minimumScaleFactor(0.6)
                 if let answer = duo["answer"].string {
-                    Text("💬 \(answer)").font(.system(size: 48, weight: .bold))
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("\(duo["subject"]["name"].string ?? "?") avait écrit").font(.system(size: 34, weight: .semibold)).foregroundStyle(TV.muted)
+                        Text("💬 \(answer)").font(.system(size: 80, weight: .black)).lineLimit(3).minimumScaleFactor(0.5)
+                    }
+                    .padding(36).frame(maxWidth: .infinity, alignment: .leading).card(TV.surface, radius: 36)
                 }
                 if let verdict = duo["verdict"].string ?? (duo["verdict"].isNull ? nil : (duo["verdict"].bool ? "ok" : "ko")) {
                     Text(["ok": "✅ Bonne réponse !", "true": "✅ Bonne réponse !", "half": "🤏 À moitié", "ko": "❌ Raté", "false": "❌ Raté"][verdict] ?? verdict)

@@ -21,9 +21,11 @@ struct WatchScreen: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                     .animation(.spring(response: 0.5, dampingFraction: 0.8), value: shown["phase"].string)
                 // Colonne de droite : la musique (verre), puis le classement de la partie s'il y en a un.
-                VStack(alignment: .leading, spacing: 22) {
-                    MusicCorner(music: store.music, next: SideBoard.shows(store.game) ? 2 : 4)
-                    SideBoard(game: store.game)
+                FitToStage {
+                    VStack(alignment: .leading, spacing: 22) {
+                        MusicCorner(music: store.music, next: SideBoard.shows(store.game) ? 2 : 4)
+                        SideBoard(game: store.game)
+                    }
                 }
                 .frame(width: MusicCorner.width)
                 .frame(maxHeight: .infinity, alignment: .top)
@@ -44,7 +46,8 @@ struct WatchScreen: View {
                 Text(problem).font(.title3).padding(.horizontal, 30).padding(.vertical, 14).glass(cornerRadius: 30).padding(30)
             }
         }
-        .onChange(of: outcome?.key) { _, key in announce(key) }
+        // Aussi à l'ouverture : une télé allumée sur un résultat tout frais l'annonce.
+        .onChange(of: outcome?.key, initial: true) { _, key in announce(key) }
         .onExitCommand { store.leave() }
         .task { await store.appear() }
     }
