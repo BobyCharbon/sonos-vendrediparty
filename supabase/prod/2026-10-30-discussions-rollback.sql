@@ -121,6 +121,7 @@ drop policy if exists "envoyer une photo dans son groupe" on storage.objects;
 drop policy if exists "voir les photos de ses groupes" on storage.objects;
 -- Le compartiment chat-photos reste (Supabase interdit d'effacer les fichiers en SQL) : sans ses règles, plus personne
 -- n'y lit ni n'écrit. Pour le vider : Dashboard › Storage › chat-photos › Empty bucket.
+drop function if exists public.group_chat_phones(uuid);
 drop function if exists public.my_chats();
 drop function if exists public.mark_group_read(uuid);
 drop function if exists public.set_group_chat_notify(uuid, text);

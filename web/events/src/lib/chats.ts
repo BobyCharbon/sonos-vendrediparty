@@ -17,6 +17,12 @@ export type GroupMessage = {
 };
 export type Reaction = { message_id: string; user_id: string; emoji: string };
 
+/** Numéro montré dans le groupe → « +41790000001 » (affiché tel quel, lien tel: pour appeler d'un toucher). */
+export function dialable(phone: string | null | undefined): string | null {
+  const digits = (phone ?? '').replace(/[^\d]/g, '');
+  return digits.length >= 6 ? `+${digits}` : null;
+}
+
 /** Texte d'un message supprimé, comme l'avis de l'admin le demande. */
 export function deletedLabel(m: Pick<GroupMessage, 'deleted_by_admin'>): string {
   return m.deleted_by_admin ? 'Message supprimé par un admin' : 'Message supprimé';

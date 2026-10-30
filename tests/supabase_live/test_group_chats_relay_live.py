@@ -62,3 +62,14 @@ def test_native_relay_end_to_end(relay):
     time.sleep(0.5)
     assert next(c for c in chats.chats(tb)['chats'] if c['id'] == group)['unread'] == 0
     assert chats.notify(tb, group, 'none') == {'notify': 'none'}
+
+
+def test_members_phone_is_shown_only_when_shared_in_this_group(relay):
+    chats, ta, tb, group, b_uid = relay
+    b = {m['id']: m for m in chats.conversation(ta, group)['members']}[b_uid]
+    assert b['phone'] is None  # pas montré : invisible
+    share = httpx.post(f'{TEST_URL}/rest/v1/rpc/set_group_phone_share', timeout=30, json={'grp': group, 'visible': True},
+                       headers={'apikey': KEY_FILE.read_text().strip(), 'Authorization': f'Bearer {tb}', 'Content-Type': 'application/json'})
+    assert share.status_code == 200, share.text
+    b = {m['id']: m for m in chats.conversation(ta, group)['members']}[b_uid]
+    assert b['phone'] == '+41790000002'  # montré dans ce groupe : appelable

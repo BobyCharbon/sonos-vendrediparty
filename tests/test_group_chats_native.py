@@ -60,6 +60,8 @@ def fake(admin=False, rank=1, creator=LEA, write_status=201):
             return httpx.Response(200, json=[{"path": p, "signedURL": f"/object/sign/{bucket}/{p}?t=1"} for p in body["paths"]])
         if path.startswith("/storage/v1/object/chat-photos/"):
             return httpx.Response(200, json={"Key": path})
+        if path == "/rest/v1/rpc/group_chat_phones":
+            return httpx.Response(200, json=[{"id": LEA, "phone": "41790000001"}])
         if path == "/rest/v1/rpc/pin_group_message" and not admin:
             return httpx.Response(403, json={"message": "forbidden: réservé aux admins du groupe"})
         if path.startswith("/rest/v1/rpc/"):
@@ -84,6 +86,8 @@ def test_conversation_is_oldest_first_with_names_photos_replies_and_reactions():
     assert removed["deleted"] and removed["body"] == "Message supprimé par un admin" and not removed["pinned"]
     assert [m["name"] for m in c["members"]] == ["Boby", "Léa", "Tom"]
     assert [m["creator"] for m in c["members"]] == [False, True, False] and c["members"][2]["admin"]
+    assert [m["phone"] for m in c["members"]] == [None, "+41790000001", None]  # seul le numéro montré dans ce groupe
+    assert gc.dialable("+41 79 000 00 01") == "+41790000001" and gc.dialable("12") is None and gc.dialable(None) is None
     assert c["notify"] == "mentions" and c["member"] and not c["admin"] and not c["can_name_admins"]
     assert c["reactions"] == list(gc.REACTIONS)
 

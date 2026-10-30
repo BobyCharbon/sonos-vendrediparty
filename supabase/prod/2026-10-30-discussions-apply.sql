@@ -414,6 +414,18 @@ language sql security definer set search_path='' as $$
     from claimed d join public.notifications n on n.id=d.notification_id join private.web_push_subscriptions s on s.id=d.subscription_id;
 $$;
 
+-- Infos du groupe (avis n°10, 30.10) : numéros que les membres montrent dans CE groupe (Réglages › Groupes),
+-- pour les appeler d'un toucher. Seuls les membres du groupe les lisent.
+create or replace function public.group_chat_phones(grp uuid) returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'phone', p.phone) order by p.display_name), '[]'::jsonb)
+  from private.group_phone_shares s
+  join public.profiles p on p.id = s.user_id and p.status = 'active' and coalesce(p.phone, '') <> ''
+  where s.group_id = grp and private.in_group_now(grp, s.user_id) and private.in_group_now(grp, auth.uid());
+$$;
+revoke all on function public.group_chat_phones(uuid) from public, anon;
+grant execute on function public.group_chat_phones(uuid) to authenticated;
+
 insert into supabase_migrations.schema_migrations (version, name) values ('20261029180000', 'group_chats')
   on conflict (version) do nothing;
 commit;

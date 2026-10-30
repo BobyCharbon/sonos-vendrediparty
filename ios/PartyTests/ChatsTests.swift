@@ -39,6 +39,16 @@ struct ChatsTests {
         #expect(c.messages[0].date != nil && c.members.first?.creator == true)
     }
 
+    @Test("Infos du groupe : le numéro montré dans le groupe devient un lien d'appel, rien sinon")
+    func callLinks() throws {
+        let m: Conversation.Member = try decode(#"{"id":"u1","name":"Léa","photo":null,"admin":false,"creator":false,"phone":"+41790000001"}"#)
+        #expect(m.call?.absoluteString == "tel:+41790000001")
+        let hidden: Conversation.Member = try decode(#"{"id":"u2","name":"Tom","photo":null,"admin":false,"creator":false}"#)
+        #expect(hidden.phone == nil && hidden.call == nil)
+        let odd: Conversation.Member = try decode(#"{"id":"u3","name":"X","photo":null,"admin":false,"creator":false,"phone":"tel:evil"}"#)
+        #expect(odd.call == nil)
+    }
+
     @Test("Notification : ?tab=chats&chat=<groupe> ouvre la conversation, rien d'autre")
     func readsNotificationLink() {
         let id = "11111111-2222-3333-4444-555555555555"

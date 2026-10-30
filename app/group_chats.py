@@ -18,6 +18,12 @@ EVERYONE = re.compile(r"(^|\s)@tout(\s|$|[!?.,])", re.I)
 IMAGE_MAGIC = (b"\xff\xd8\xff", b"\x89PNG")
 
 
+def dialable(phone: str | None) -> str | None:
+    """« 41790000001 » → « +41790000001 » (lien tel: dans l'app) ; rien si le numéro est absent ou invalide."""
+    digits = re.sub(r"\D", "", phone or "")
+    return f"+{digits}" if len(digits) >= 6 else None
+
+
 def deleted_label(m: dict) -> str:
     return "Message supprimé par un admin" if m.get("deleted_by_admin") else "Message supprimé"
 
@@ -83,6 +89,9 @@ class GroupChats:
         people = self._people(token, {m["user_id"] for m in messages} | set(inside))
         photos = self._sign([m.get("photo_path") for m in messages if not m.get("deleted_at")], token)
         faces = self.admin._photos([p.get("avatar_url") for p in people.values()], token)
+        # Numéros que les membres montrent dans ce groupe : l'app les rend appelables d'un toucher.
+        phones = {p["id"]: p["phone"] for p in self.admin._rpc(token, "group_chat_phones", {"grp": group_id},
+                                                                "Les membres n'ont pas pu être lus.") or []}
 
         def name(uid: str) -> str:
             return (people.get(uid) or {}).get("display_name") or "?"
@@ -112,7 +121,8 @@ class GroupChats:
             "member": bool(chat.get("member")), "admin": bool(chat.get("admin")), "notify": chat.get("notify") or "mentions",
             "can_name_admins": creator == me["me"] or me["rank"] >= SITE_ADMIN_RANK,
             "reactions": list(REACTIONS),
-            "members": [{"id": u, "name": name(u), "photo": face(u), "admin": u in admins, "creator": u == creator} for u in inside],
+            "members": [{"id": u, "name": name(u), "photo": face(u), "admin": u in admins, "creator": u == creator,
+                         "phone": dialable(phones.get(u))} for u in inside],
             "messages": out,
         }
 

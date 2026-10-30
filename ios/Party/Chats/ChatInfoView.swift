@@ -43,17 +43,24 @@ struct ChatInfoView: View {
     }
 
     @ViewBuilder private func member(_ m: Conversation.Member, canName: Bool) -> some View {
-        if canName && !m.creator {
-            Toggle(isOn: Binding(get: { m.admin }, set: { on in Task { await store.setAdmin(m, on) } })) {
-                HStack { Initials(name: m.name, photo: m.photo); Text(m.name) }
-            }
-            .accessibilityLabel("\(m.name), admin du groupe")
-        } else {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Initials(name: m.name, photo: m.photo)
-                Text(m.name)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(m.name)
+                    if let call = m.call, let phone = m.phone {
+                        // Numéro montré dans ce groupe : un toucher appelle, comme dans WhatsApp.
+                        Link(destination: call) { Label(phone, systemImage: "phone.fill").font(.subheadline) }
+                            .accessibilityLabel("Appeler \(m.name) au \(phone)")
+                    }
+                }
                 Spacer()
                 if m.creator { Text("Créateur").foregroundStyle(.secondary) } else if m.admin { Text("Admin").foregroundStyle(.secondary) }
+            }
+            if canName && !m.creator {
+                Toggle("Admin du groupe", isOn: Binding(get: { m.admin }, set: { on in Task { await store.setAdmin(m, on) } }))
+                    .font(.subheadline)
+                    .accessibilityLabel("\(m.name), admin du groupe")
             }
         }
     }

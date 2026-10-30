@@ -81,6 +81,14 @@ struct Conversation: Decodable, Equatable {
         let photo: String?
         let admin: Bool
         let creator: Bool
+        /// Numéro montré dans ce groupe (« +41790000001 ») : un toucher appelle.
+        var phone: String? = nil
+
+        /// Lien d'appel, seulement pour un numéro valide (chiffres, avec ou sans +).
+        var call: URL? {
+            guard let phone, phone.range(of: "^\\+?[0-9]{6,15}$", options: .regularExpression) != nil else { return nil }
+            return URL(string: "tel:\(phone)")
+        }
     }
 
     let id: String

@@ -31,12 +31,13 @@ export function GroupChat({ id }: { id: string }) {
   const list = useRef<FlatList<GroupMessage>>(null);
 
   const { data, loading, error: loadError, reload } = useQuery(async () => {
-    const [group, msgs, people, admins, chats] = await Promise.all([
+    const [group, msgs, people, admins, chats, phones] = await Promise.all([
       supabase.from('member_groups').select('id, name, created_by, member_group_members(user_id)').eq('id', id).single(),
       supabase.from('group_messages').select('*').eq('group_id', id).order('created_at', { ascending: false }).limit(PAGE),
       supabase.from('profiles').select('id, display_name, avatar_url').eq('status', 'active'),
       supabase.from('group_admins').select('user_id').eq('group_id', id),
       supabase.rpc('my_chats'),
+      supabase.rpc('group_chat_phones', { grp: id }),
     ]);
     const messages = (must(msgs) as GroupMessage[]).reverse();
     const reactions = messages.length
@@ -48,6 +49,7 @@ export function GroupChat({ id }: { id: string }) {
       messages, reactions, chat,
       people: must(people) as Profile[],
       admins: new Set((must(admins) as { user_id: string }[]).map((a) => a.user_id)),
+      phones: new Map(((phones.data as { id: string; phone: string }[] | null) ?? []).map((p) => [p.id, p.phone])),
     };
   }, [id]);
 
@@ -151,7 +153,7 @@ export function GroupChat({ id }: { id: string }) {
         <GroupChatSettings groupId={id} notify={data.chat?.notify ?? 'mentions'} member={member}
           canNameAdmins={data.group.created_by === me.id || roleRank(me.role) >= 3}
           members={inside.map((u) => ({ id: u, name: nameOf(u), photo: people.get(u)?.avatar_url ?? null,
-            admin: data.admins.has(u), creator: u === data.group.created_by }))}
+            admin: data.admins.has(u), creator: u === data.group.created_by, phone: data.phones.get(u) ?? null }))}
           onChanged={reload} />
       </View>
     );
