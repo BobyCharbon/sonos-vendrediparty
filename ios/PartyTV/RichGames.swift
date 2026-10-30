@@ -11,11 +11,7 @@ struct QuizTV: View {
 
     var body: some View {
             VStack(alignment: .leading, spacing: 26) {
-                HStack(spacing: 18) {
-                    PhaseTag(text: Phase.label(game))
-                    if let n = quiz["n"].int { Text("Question \(n)").font(.title3).foregroundStyle(TV.muted) }
-                    if let theme = q["theme"].string { Text("\(q["icon"].string ?? "") \(theme)").font(.title3).foregroundStyle(TV.lavender) }
-                }
+                if let theme = q["theme"].string { Text("\(q["icon"].string ?? "") \(theme)").font(.system(size: 34, weight: .bold)).foregroundStyle(TV.lavender) }
                 if !q.isNull {
                     Text(q["text"].string ?? "").font(.system(size: 50, weight: .bold)).lineLimit(3).minimumScaleFactor(0.6)
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
@@ -61,15 +57,9 @@ struct LikelyTV: View {
 
     var body: some View {
             VStack(alignment: .leading, spacing: 28) {
-                HStack(spacing: 18) {
-                    PhaseTag(text: Phase.label(game))
-                    if let n = L["n"].int { Text("Question \(n)/\(L["count"].int ?? 0)").font(.title3).foregroundStyle(TV.muted) }
-                }
                 Text(L["q"].string ?? "").font(.system(size: 60, weight: .heavy)).lineLimit(3)
                 let result = L["result"]
                 if !result.isNull {
-                    let winners = result["winners"].array.compactMap { $0["name"].string }
-                    if !winners.isEmpty { Text("👉 \(winners.joined(separator: ", "))").font(.system(size: 52, weight: .heavy)).foregroundStyle(TV.coral) }
                     ForEach(Array(result["rows"].array.enumerated()), id: \.offset) { _, row in
                         bar(row["name"].string ?? "?", row["count"].int ?? 0, of: max(1, result["votes"].int ?? 1))
                     }
@@ -101,15 +91,9 @@ struct PurityTV: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 30) {
-            PhaseTag(text: Phase.label(game))
             if game["phase"].string == "results" {
                 Leaderboard(title: "😈 Du plus sulfureux au plus sage",
                             rows: P["ranking"].array.map { ($0["name"].string ?? "?", "\($0["score"].int ?? 0) %") })
-                let drinkers = P["gorgees"].array
-                if !drinkers.isEmpty {
-                    Text("🍻 " + drinkers.map { "\($0["name"].string ?? "?") boit \($0["sips"].int ?? 0)" }.joined(separator: " · "))
-                        .font(.title2.bold()).foregroundStyle(TV.coral)
-                }
             } else {
                 Text("\(P["count_submitted"].int ?? 0)/\(P["count_players"].int ?? 0) ont terminé le test")
                     .font(.system(size: 60, weight: .heavy))
@@ -128,12 +112,7 @@ struct UndercoverTV: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 30) {
-            HStack(spacing: 18) {
-                PhaseTag(text: Phase.label(game))
-                if let round = game["round"].int, round > 0 { Text("Manche \(round)").font(.title3).foregroundStyle(TV.muted) }
-            }
             if game["phase"].string == "end" {
-                Text("🏆 \(Self.winner(game["winner"].string))").font(.system(size: 60, weight: .heavy)).foregroundStyle(TV.coral)
                 let words = game["words"]
                 if !words.isNull {
                     HStack(spacing: 40) {
@@ -147,7 +126,7 @@ struct UndercoverTV: View {
                     .font(.title2).foregroundStyle(TV.lavender)
             }
             let last = game["last"]
-            if !last.isNull {
+            if !last.isNull && game["phase"].string != "end" && game["phase"].string != "reveal" {
                 Text(last["tie"].bool ? "⚖️ Égalité : personne n'est éliminé"
                      : "❌ \(last["name"].string ?? "?") est éliminé·e" + (last["role"].string.map { " — \($0)" } ?? ""))
                     .font(.title.bold())
@@ -155,8 +134,16 @@ struct UndercoverTV: View {
             if game["phase"].string == "vote" {
                 Text("\(game["votes_count"].int ?? 0) vote(s) sur \(game["players"].array.filter { $0["alive"].bool }.count)").font(.title2).foregroundStyle(TV.muted)
             }
-            PlayersRow(players: game["players"].array, highlight: Set(game["candidates"].array.compactMap(\.string)))
+            PlayersRow(players: speakingOrder, highlight: Set(game["candidates"].array.compactMap(\.string)))
         }
+    }
+
+    /// Les pastilles dans l'ordre de parole (comme la liste au-dessus), les autres ensuite.
+    private var speakingOrder: [JSON] {
+        let order = game["order_pids"].array.compactMap(\.string)
+        let players = game["players"].array
+        let first = order.compactMap { pid in players.first { $0["pid"].string == pid } }
+        return first + players.filter { !order.contains($0["pid"].string ?? "") }
     }
 
     static func winner(_ code: String?) -> String {
@@ -183,19 +170,17 @@ struct QuestionVoteTV: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 32) {
-            HStack(spacing: 18) {
-                PhaseTag(text: Phase.label(game))
-                if let round = game["round"].int, round > 0 { Text("Question \(round)").font(.title3).foregroundStyle(TV.muted) }
-            }
-            Text(game["question"].string ?? "").font(.system(size: 64, weight: .heavy)).lineLimit(4)
+            Text(game["question"].string ?? "").font(.system(size: game["results"].array.isEmpty ? 76 : 48, weight: .heavy))
+                .lineLimit(4).minimumScaleFactor(0.6)
             if !game["results"].array.isEmpty {
                 let rows = game["results"].array
                 if game["type"].string == "never" {
-                    let did = rows.filter { $0["answer"] == .bool(true) || $0["answer"].string == "yes" }.compactMap { $0["name"].string }
-                    Text(did.isEmpty ? "Personne ne l'a jamais fait 😇" : "🍻 L'ont déjà fait : \(did.joined(separator: ", "))")
-                        .font(.system(size: 44, weight: .bold)).foregroundStyle(TV.coral)
+                    let never = rows.filter { $0["answer"].string == "no" }.compactMap { $0["name"].string }
+                    if !never.isEmpty {
+                        Text("😇 Jamais : \(never.joined(separator: ", "))").font(.system(size: 40, weight: .bold)).foregroundStyle(TV.mint)
+                    }
                 } else {
-                    Leaderboard(title: "Résultats", rows: rows.map { ($0["name"].string ?? "?", "\($0["count"].int ?? 0) vote(s)") })
+                    Leaderboard(title: "Les votes", rows: rows.map { ($0["name"].string ?? "?", "\($0["count"].int ?? 0) vote\(($0["count"].int ?? 0) > 1 ? "s" : "")") })
                 }
             } else {
                 Text("\(game["votes_count"].int ?? 0)/\(game["players"].array.count) ont voté").font(.title2).foregroundStyle(TV.muted)

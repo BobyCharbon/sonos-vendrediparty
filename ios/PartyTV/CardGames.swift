@@ -26,7 +26,9 @@ struct BlackjackTV: View {
             HStack {
                 Text(seat["name"].string ?? "?").font(.title3.bold())
                 Spacer()
-                Text("🪙 \(seat["chips"].int ?? 0)").font(.headline.monospacedDigit()).foregroundStyle(TV.coral)
+                if (B["drinks"].int ?? 0) == 0 {
+                    Text("🪙 \(seat["chips"].int ?? 0)").font(.headline.monospacedDigit()).foregroundStyle(TV.coral)
+                }
             }
             if hand.isNull {
                 Text("Mise en attente").foregroundStyle(TV.muted)
@@ -64,7 +66,13 @@ struct CasinoTV: View {
                 HStack(spacing: 24) {
                     Text(number).font(.system(size: 110, weight: .heavy)).foregroundStyle(.white)
                         .frame(width: 200, height: 200).background(color(last), in: Circle())
-                    Text("Dernier numéro").font(.title2).foregroundStyle(TV.muted)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(game["phase"].string == "bet" ? "Dernier numéro" : "Numéro sorti").font(.title2).foregroundStyle(TV.muted)
+                        if let n = Int(number) {
+                            Text(n == 0 ? "Zéro" : "\(n % 2 == 0 ? "Pair" : "Impair") · \(n <= 18 ? "Manque" : "Passe") · \((n - 1) / 12 + 1)ᵉ douzaine")
+                                .font(.system(size: 40, weight: .heavy))
+                        }
+                    }
                 }
             }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 330), spacing: 22)], alignment: .leading, spacing: 22) {
@@ -75,15 +83,29 @@ struct CasinoTV: View {
                             Spacer()
                             if seat["ready"].bool { Image(systemName: "checkmark.circle.fill").foregroundStyle(TV.mint) }
                         }
-                        Text("🪙 \(seat["chips"].int ?? 0) · misé \(seat["staked"].int ?? 0)").font(.headline).foregroundStyle(TV.coral)
-                        if let result = seat["result"]["delta"].int ?? seat["result"].int {
-                            Text(result >= 0 ? "+\(result)" : "\(result)").font(.title2.bold()).foregroundStyle(result >= 0 ? TV.mint : TV.red)
+                        HStack(spacing: 16) {
+                            Text("🪙 \(seat["chips"].int ?? 0)").font(.system(size: 34, weight: .bold).monospacedDigit())
+                            if let staked = seat["staked"].int, staked > 0 {
+                                Text("misé \(staked)").font(.system(size: 30, weight: .semibold)).foregroundStyle(TV.coral)
+                            }
+                        }
+                        if game["phase"].string == "bet" {
+                            Text(seat["bets"].array.map { Self.betName($0) }.joined(separator: " · ")).font(.system(size: 26, weight: .semibold))
+                                .foregroundStyle(TV.lavender).lineLimit(2)
                         }
                     }
                     .padding(22).card(TV.surface, radius: 24)
                 }
             }
         }
+    }
+
+    /// « Rouge ×5 », « 17 ×2 » : la mise d'un joueur, comme sur le tapis.
+    static func betName(_ bet: JSON) -> String {
+        let target = bet["target"].string ?? ""
+        let names = ["red": "Rouge", "black": "Noir", "even": "Pair", "odd": "Impair", "low": "1-18", "high": "19-36"]
+        let label = bet["kind"].string == "dozen" ? "\(target)ᵉ douzaine" : names[target] ?? target
+        return "\(label) ×\(bet["amount"].int ?? 0)"
     }
 
     private func color(_ spin: JSON) -> Color {
@@ -143,10 +165,21 @@ struct BiskitTV: View {
             if let turn = K["seats"].array.first(where: { $0["pid"].string == K["turn"].string })?["name"].string {
                 Text("Au tour de \(turn)").font(.system(size: 54, weight: .heavy))
             }
-            if let card = K["card"].string { PlayingCard(code: card, width: 130) }
-            ForEach(Array(K["outcomes"].array.prefix(4).enumerated()), id: \.offset) { _, o in
-                Text(o.string ?? o["text"].string ?? "").font(.title2.bold()).foregroundStyle(TV.coral)
+            HStack(alignment: .center, spacing: 40) {
+                if let card = K["card"].string {
+                    PlayingCard(code: card, width: 220).id(card).transition(.asymmetric(insertion: .scale(scale: 0.3).combined(with: .opacity), removal: .opacity))
+                }
+                VStack(alignment: .leading, spacing: 14) {
+                    if let drawer = K["drawer_name"].string { Text("\(drawer) a tiré").font(.system(size: 34, weight: .semibold)).foregroundStyle(TV.muted) }
+                    // L'effet de la carte, comme sur les téléphones (« Léa boit 2 », « Cascade : tout le monde boit »).
+                    ForEach(Array(K["outcomes"].array.prefix(3).enumerated()), id: \.offset) { _, o in
+                        Text(o["head"].string ?? o.string ?? "").font(.system(size: 64, weight: .black)).lineLimit(2).minimumScaleFactor(0.5)
+                            .foregroundStyle(o["tone"].string == "give" ? TV.lavender : TV.coral)
+                        if let text = o["text"].string, !text.isEmpty { Text(text).font(.system(size: 32, weight: .semibold)).foregroundStyle(TV.muted).lineLimit(2) }
+                    }
+                }
             }
+            .animation(.spring(response: 0.5, dampingFraction: 0.7), value: K["card"].string)
             HStack(spacing: 40) {
                 if let biskit = K["biskit"].string { Text("🍪 Biskit : \(biskit)").font(.title2) }
                 if let q = K["qmaster"].string { Text("❓ Maître des questions : \(q)").font(.title2) }

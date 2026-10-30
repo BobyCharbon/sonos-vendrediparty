@@ -4,30 +4,64 @@ import SwiftUI
 /// titre en cours, prochains titres et qui les a demandés. Bouton Menu de la télécommande : changer de partie.
 struct WatchScreen: View {
     @ObservedObject var store: TVStore
+    /// Annonce plein écran du dernier résultat (quelques secondes).
+    @State private var flash: Outcome?
+    @State private var flashTask: Task<Void, Never>?
+    static let flashSeconds: UInt64 = 6
+
+    private var shown: JSON { GameView.shown(store.game) }
+    private var outcome: Outcome? { Outcome.of(shown) }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 44) {
-            VStack(alignment: .leading, spacing: 28) {
-                header
-                GameView(game: store.game, join: store.joinURL)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        VStack(alignment: .leading, spacing: 22) {
+            header
+            HStack(alignment: .top, spacing: 36) {
+                // La scène : toute la place restante, le jeu y est centré verticalement.
+                FitToStage { GameView(game: store.game, join: store.joinURL) }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: shown["phase"].string)
+                // Colonne de droite : la musique (verre), puis le classement de la partie s'il y en a un.
+                VStack(alignment: .leading, spacing: 22) {
+                    MusicCorner(music: store.music, next: SideBoard.shows(store.game) ? 2 : 4)
+                    SideBoard(game: store.game)
+                }
+                .frame(width: MusicCorner.width)
+                .frame(maxHeight: .infinity, alignment: .top)
             }
-            // Colonne de droite : la musique (verre), puis le classement de la partie s'il y en a un.
-            VStack(alignment: .leading, spacing: 26) {
-                MusicCorner(music: store.music, next: SideBoard.shows(store.game) ? 3 : 4)
-                SideBoard(game: store.game)
-            }
-            .frame(width: MusicCorner.width)
-            .frame(maxHeight: .infinity, alignment: .top)
         }
-        .padding(60)
+        .padding(.horizontal, 10)
+        .overlay {
+            if let flash {
+                ZStack {
+                    Color.black.opacity(0.55).ignoresSafeArea()
+                    OutcomeFlash(outcome: flash)
+                }
+                .transition(.opacity)
+            }
+        }
         .overlay(alignment: .bottom) {
             if let problem = store.problem {
                 Text(problem).font(.title3).padding(.horizontal, 30).padding(.vertical, 14).glass(cornerRadius: 30).padding(30)
             }
         }
+        .onChange(of: outcome?.key) { _, key in announce(key) }
         .onExitCommand { store.leave() }
         .task { await store.appear() }
+    }
+
+    /// Nouveau résultat : annonce en grand, puis le tableau reste dans la scène.
+    private func announce(_ key: String?) {
+        flashTask?.cancel()
+        guard key != nil, let outcome, !outcome.isEmpty else {
+            withAnimation { flash = nil }
+            return
+        }
+        withAnimation(.easeOut(duration: 0.3)) { flash = outcome }
+        flashTask = Task {
+            try? await Task.sleep(nanoseconds: Self.flashSeconds * 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeIn(duration: 0.4)) { flash = nil }
+        }
     }
 
     private var watchedCode: String {
@@ -42,31 +76,29 @@ struct WatchScreen: View {
         return g["phase"].string == "lobby"
     }
 
+    /// Barre du haut, compacte : le jeu, sa phase et son avancée à gauche ; le code et le QR pour rejoindre à droite.
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 24) {
-            let shown = store.game["type"].string == "room" && !store.game["current"].isNull ? store.game["current"] : store.game
-            VStack(alignment: .leading, spacing: 4) {
-                if shown != store.game { Text("🎲 Salle de jeux").font(.headline).foregroundStyle(TV.muted) }
-                Text(shown["name"].string ?? "Partie").font(.system(size: 60, weight: .heavy)).lineLimit(1)
+        HStack(alignment: .center, spacing: 24) {
+            if shown != store.game { Text("🎲").font(.system(size: 50)) }
+            Text(shown["name"].string ?? "Partie").font(.system(size: 54, weight: .heavy)).lineLimit(1).fixedSize()
+            if let mode = shown["mode"].string { Text(mode).font(.system(size: 34, weight: .semibold)).foregroundStyle(TV.lavender).lineLimit(1) }
+            if !inLobby && !shown.isNull {
+                PhaseTag(text: Phase.label(shown)).transition(.scale.combined(with: .opacity)).id(Phase.label(shown))
+                if let info = Phase.progress(shown) { Text(info).font(.system(size: 32, weight: .semibold)).foregroundStyle(TV.muted).lineLimit(1) }
             }
-            if let mode = shown["mode"].string { Text(mode).font(.title2).foregroundStyle(TV.lavender) }
-            Spacer()
+            Spacer(minLength: 20)
             // Pendant la partie : petit QR code et code pour rejoindre (en salle d'attente, le grand QR est au centre).
-            if !inLobby, let join = store.joinURL {
-                VStack(alignment: .trailing, spacing: 6) {
-                    QRCodeView(url: join, size: 110)
-                    Text("Code \(watchedCode)").font(.headline.monospacedDigit()).foregroundStyle(TV.muted)
-                }
-            } else {
-                Text("Code \(watchedCode)").font(.title2.monospacedDigit()).foregroundStyle(TV.muted)
-            }
+            Text("Code \(watchedCode)").font(.system(size: 36, weight: .bold).monospacedDigit()).foregroundStyle(TV.muted)
+            if !inLobby, let join = store.joinURL { QRCodeView(url: join, size: 96) }
         }
+        .frame(height: 100)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: Phase.label(shown))
     }
 }
 
 /// Coin musique : titre en cours (pochette), puis les 4 prochains titres avec le prénom de qui les a demandés.
 struct MusicCorner: View {
-    static let width: CGFloat = 480
+    static let width: CGFloat = 430
     let music: JSON
     /// Prochains titres montrés (3 quand le classement de la partie est dessous).
     var next = 4
@@ -96,9 +128,9 @@ struct MusicCorner: View {
                         HStack(spacing: 14) {
                             Text("\(i + 1)").font(.callout.monospacedDigit().bold()).foregroundStyle(TV.muted).frame(width: 28)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(t["title"].string ?? "").font(.callout.bold()).lineLimit(1)
+                                Text(t["title"].string ?? "").font(.system(size: 28, weight: .bold)).lineLimit(1)
                                 Text([t["artist"].string, t["by"].string.map { "par \($0)" }].compactMap { $0 }.joined(separator: " · "))
-                                    .font(.caption).foregroundStyle(TV.muted).lineLimit(1)
+                                    .font(.system(size: 24, weight: .medium)).foregroundStyle(TV.muted).lineLimit(1)
                             }
                         }
                     }

@@ -72,3 +72,50 @@ struct PartyTVTests {
 }
 
 private final class Marker {}
+
+/// Résultats annoncés en grand sur la télé (vraies parties jouées par tools/tv_samples.py).
+struct OutcomeTests {
+    private func samples() throws -> JSON {
+        let url = try #require(Bundle(for: Marker.self).url(forResource: "samples-outcomes", withExtension: "json"))
+        return try JSONDecoder().decode(JSON.self, from: Data(contentsOf: url))
+    }
+
+    @Test("Je n'ai jamais : ceux qui l'ont fait boivent les gorgées de la partie")
+    func neverDrinkers() throws {
+        let o = try #require(Outcome.of(try samples()["never_results"]))
+        #expect(Set(o.lines(.drink).map(\.name)) == ["Tom", "Inès", "Nina"])
+        #expect(o.lines(.drink).allSatisfy { $0.amount == 2 })
+    }
+
+    @Test("Blackjack aux gorgées : les perdants boivent, les gagnants distribuent")
+    func blackjackSips() throws {
+        let o = try #require(Outcome.of(try samples()["blackjack_results"]))
+        #expect(Dictionary(uniqueKeysWithValues: o.lines(.drink).map { ($0.name, $0.amount ?? 0) }) == ["Boby": 1, "Tom": 4, "Nina": 2])
+        #expect(Set(o.lines(.give).map(\.name)) == ["Léa", "Max"])
+    }
+
+    @Test("Qui de nous ? : le plus désigné boit")
+    func whoofTop() throws {
+        let o = try #require(Outcome.of(try samples()["whoof_results"]))
+        #expect(o.lines(.drink).map(\.name) == ["Max"] && o.headline.contains("Max"))
+    }
+
+    @Test("Undercover : à la fin, le camp gagnant et les rôles cachés révélés")
+    func undercoverEnd() throws {
+        let o = try #require(Outcome.of(try samples()["undercover_end"]))
+        #expect(o.headline.contains("imposteurs"))
+        #expect(Set(o.lines.map(\.name)) == ["Tom", "Nina"])
+    }
+
+    @Test("Casino : annoncé une fois la bille arrêtée, avec qui boit et qui distribue")
+    func casinoSpin() throws {
+        let o = try #require(Outcome.of(try samples()["casino_results"]))
+        #expect(o.headline == "Le 6 noir est sorti !")
+        #expect(o.lines(.drink).map(\.name) == ["Max"] && o.lines(.give).map(\.name) == ["Nina"])
+    }
+
+    @Test("Phases sans résultat : rien n'est annoncé")
+    func nothingWhileVoting() throws {
+        #expect(Outcome.of(.object(["type": .string("never"), "phase": .string("question")])) == nil)
+    }
+}

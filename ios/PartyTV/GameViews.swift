@@ -20,7 +20,20 @@ struct GameView: View {
             if game["current"].isNull { RoomTV(room: game, join: join) } else { GameView(game: game["current"], join: join) }
         } else if game["phase"].string == "lobby" {
             LobbyView(game: game, join: join)
+        } else if game["phase"].string == "end" && !["undercover", "president"].contains(game["type"].string ?? "") {
+            EndTV(game: game)
         } else {
+            VStack(alignment: .leading, spacing: 30) {
+                // Le résultat de la manche d'abord, en très grand ; le jeu dessous.
+                if let outcome = Outcome.of(game), game["type"].string != "roulette" {
+                    OutcomeBoard(outcome: outcome).transition(.move(edge: .top).combined(with: .opacity))
+                }
+                board
+            }
+        }
+    }
+
+    @ViewBuilder private var board: some View {
             switch game["type"].string {
             case "quiz": QuizTV(game: game)
             case "likely": LikelyTV(game: game)
@@ -39,7 +52,6 @@ struct GameView: View {
             case "island", "neon", "heist": ActionGameTV(game: game)
             default: GenericTV(game: game)
             }
-        }
     }
 }
 
@@ -56,13 +68,38 @@ enum Phase {
         case "q": return "Question en cours"
         case "run": return "Chacun joue à son rythme"
         case "bet": return "Les mises"
-        case "play": return "À vous de jouer"
+        case "play": return "En jeu"
         case "spun": return "La roue a tourné"
         case "card": return "Carte tirée"
         case "answer": return "Réponse en cours"
         case "deal", "memory", "memres", "pyramid": return "Pyramide"
         default: return game["round"].int.map { "Manche \($0)" } ?? "En cours"
         }
+    }
+}
+
+extension Phase {
+    /// Avancée de la partie, dans la barre du haut (« Question 3/10 », « Manche 2 »…).
+    static func progress(_ game: JSON) -> String? {
+        switch game["type"].string {
+        case "quiz": return game["quiz"]["n"].int.map { "Question \($0)" }
+        case "likely": return game["likely"]["n"].int.map { "Question \($0)/\(game["likely"]["count"].int ?? 0)" }
+        case "debate": return game["debate"]["n"].int.map { "Dilemme \($0)/\(game["debate"]["count"].int ?? 0)" }
+        case "whoof", "never": return game["round"].int.flatMap { $0 > 0 ? "Question \($0)" : nil }
+        case "undercover": return game["round"].int.flatMap { $0 > 0 ? "Manche \($0)" : nil }
+        case "blackjack": return game["round"].int.flatMap { $0 > 0 ? "Main \($0)" : nil }
+        case "casino": return game["round"].int.flatMap { $0 > 0 ? "Tour \($0)" : nil }
+        case "divan": return game["divan"]["current"]["name"].string.map { "Au tour de \($0)" }
+        case "president": return turnName(game["president"]["seats"].array, game["president"]["turn"].string)
+        case "pyramid": return turnName(game["pyr"]["seats"].array, game["pyr"]["turn"].string)
+        case "biskit": return turnName(game["bk"]["seats"].array, game["bk"]["turn"].string)
+        default: return nil
+        }
+    }
+
+    private static func turnName(_ seats: [JSON], _ pid: String?) -> String? {
+        guard let pid, let name = seats.first(where: { $0["pid"].string == pid })?["name"].string else { return nil }
+        return "Au tour de \(name)"
     }
 }
 
@@ -80,10 +117,8 @@ struct GameTop: View {
     let game: JSON
     var info: String?
     var body: some View {
-        HStack(spacing: 18) {
-            PhaseTag(text: Phase.label(game))
-            if let info { Text(info).font(.title3).foregroundStyle(TV.muted).lineLimit(1) }
-        }
+        // La phase est dans la barre du haut ; ici seulement une précision du jeu, s'il y en a une.
+        if let info, !info.isEmpty { Text(info).font(.system(size: 34, weight: .bold)).foregroundStyle(TV.lavender).lineLimit(1) }
     }
 }
 
@@ -102,8 +137,8 @@ struct SideBoard: View {
         case "quiz": return ("Classement", list(g["quiz"]["board"].array) { "\($0["pts"].int ?? 0) pts" })
         case "likely": return ("Les plus désignés", list(g["likely"]["scores"].array) { "\($0["pts"].int ?? 0)" })
         case "tmc": return ("Classement", list(g["tmc"]["ranking"].array) { "\($0["pts"].string ?? "0") pts" })
-        case "blackjack": return ("Jetons", list(g["bj"]["seats"].array.sorted { ($0["chips"].int ?? 0) > ($1["chips"].int ?? 0) }) { "\($0["chips"].int ?? 0)" })
-        case "casino": return ("Jetons", list(g["casino"]["table"].array.sorted { ($0["chips"].int ?? 0) > ($1["chips"].int ?? 0) }) { "\($0["chips"].int ?? 0)" })
+        case "blackjack" where (g["bj"]["drinks"].int ?? 0) == 0: return ("Jetons", list(g["bj"]["seats"].array.sorted { ($0["chips"].int ?? 0) > ($1["chips"].int ?? 0) }) { "\($0["chips"].int ?? 0)" })
+        case "casino" where (g["casino"]["drinks"].int ?? 0) == 0: return ("Jetons", list(g["casino"]["table"].array.sorted { ($0["chips"].int ?? 0) > ($1["chips"].int ?? 0) }) { "\($0["chips"].int ?? 0)" })
         case "president": return ("Points", list(g["president"]["seats"].array.sorted { ($0["points"].int ?? 0) > ($1["points"].int ?? 0) }) { "\($0["points"].int ?? 0)" })
         case "room" where game["current"].isNull: return nil
         default:
@@ -178,18 +213,21 @@ struct RoomTV: View {
 struct Leaderboard: View {
     let title: String
     let rows: [(name: String, value: String)]
-    var limit = 5
+    var limit = 8
     var body: some View {
+        // Rang partagé en cas d'égalité ; pas de médaille tant que personne ne se détache (tous à 100, tous à 0).
+        let tied = Set(rows.map(\.value)).count <= 1
         VStack(alignment: .leading, spacing: 10) {
             Text(title).font(.title3.bold())
             ForEach(Array(rows.prefix(limit).enumerated()), id: \.offset) { i, row in
+                let rank = rows.firstIndex { $0.value == row.value } ?? i
                 HStack {
-                    Text(i == 0 ? "🥇" : i == 1 ? "🥈" : i == 2 ? "🥉" : "\(i + 1)").font(.headline).frame(width: 48)
+                    Text(tied ? "·" : rank == 0 ? "🥇" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : "\(rank + 1)").font(.headline).frame(width: 48)
                     Text(row.name).font(.headline).lineLimit(1)
                     Spacer()
                     Text(row.value).font(.headline.monospacedDigit()).foregroundStyle(TV.lavender).lineLimit(1).fixedSize()
                 }
-                .padding(.horizontal, 20).padding(.vertical, 8).card(i == 0 ? TV.accent.opacity(0.35) : TV.surface, radius: 18)
+                .padding(.horizontal, 20).padding(.vertical, 8).card(!tied && rank == 0 ? TV.accent.opacity(0.35) : TV.surface, radius: 18)
             }
         }
     }

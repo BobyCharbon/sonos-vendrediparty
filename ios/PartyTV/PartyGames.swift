@@ -67,7 +67,7 @@ struct RouletteTV: View {
         VStack(alignment: .leading, spacing: 34) {
             GameTop(game: game)
             if let picked {
-                Text("🎯 \(picked)").font(.system(size: 120, weight: .heavy)).foregroundStyle(TV.coral).lineLimit(1).minimumScaleFactor(0.5)
+                Text("🎯 \(picked)").font(.system(size: 200, weight: .black)).foregroundStyle(TV.coral).lineLimit(1).minimumScaleFactor(0.5)
             } else {
                 Text("La roue va tourner…").font(.system(size: 60, weight: .heavy))
             }
@@ -87,7 +87,10 @@ struct DivanTV: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 34) {
-            GameTop(game: game, info: V["current"]["name"].string.map { "Au tour de \($0)" })
+            if let name = V["current"]["name"].string {
+                Text("🛋️ \(name)").font(.system(size: 110, weight: .black)).foregroundStyle(TV.coral).lineLimit(1).minimumScaleFactor(0.5)
+                    .id(name).transition(.push(from: .trailing))
+            }
             let card = V["card"]
             if !card.isNull {
                 VStack(alignment: .leading, spacing: 20) {

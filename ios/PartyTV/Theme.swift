@@ -11,6 +11,11 @@ enum TV {
     static let red = Color(red: 1, green: 0.39, blue: 0.39)
     static let muted = Color.white.opacity(0.62)
 
+    /// Teinte stable d'un prénom (hashValue change à chaque lancement : chacun garderait mal sa couleur).
+    static func hue(_ name: String) -> Double {
+        Double(name.unicodeScalars.reduce(UInt32(7)) { ($0 &* 31) &+ $1.value } % 360) / 360
+    }
+
     static var backdrop: some View {
         LinearGradient(colors: [Color(red: 0.16, green: 0.07, blue: 0.27), bg, Color(red: 0.05, green: 0.04, blue: 0.11)],
                        startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -52,7 +57,7 @@ struct PlayerBadge: View {
                 } placeholder: {
                     Text(initials.isEmpty ? "?" : initials).font(.system(size: size * 0.36, weight: .heavy)).foregroundStyle(.black)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color(hue: Double(abs(name.hashValue) % 360) / 360, saturation: 0.45, brightness: 0.95))
+                        .background(Color(hue: TV.hue(name), saturation: 0.45, brightness: 0.95))
                 }
                 .frame(width: size, height: size)
                 .clipShape(Circle())
@@ -63,9 +68,32 @@ struct PlayerBadge: View {
                         .background(Circle().fill(TV.bg))
                 }
             }
-            Text(name).font(.system(size: 26, weight: .semibold)).lineLimit(1).strikethrough(out)
+            Text(name).font(.system(size: 30, weight: .bold)).lineLimit(1).strikethrough(out)
                 .foregroundStyle(out ? TV.muted : .white)
         }
         .frame(width: size + 60)
+    }
+}
+
+/// Le contenu garde sa taille idéale tant qu'il tient ; sinon il est réduit d'un bloc pour entrer dans la place
+/// disponible (jamais coupé en haut ou en bas, sur n'importe quelle télé).
+struct FitToStage<Content: View>: View {
+    @ViewBuilder let content: Content
+    @State private var natural: CGSize = .zero
+
+    var body: some View {
+        GeometryReader { space in
+            let scale = natural.height > 0 ? min(1, space.size.height / natural.height, space.size.width / max(1, natural.width)) : 1
+            content
+                .frame(width: space.size.width / scale, alignment: .topLeading)
+                .fixedSize(horizontal: false, vertical: true)
+                .background(GeometryReader { measured in
+                    Color.clear
+                        .onAppear { natural = measured.size }
+                        .onChange(of: measured.size) { _, size in natural = size }
+                })
+                .scaleEffect(scale, anchor: .topLeading)
+                .frame(width: space.size.width, height: space.size.height, alignment: .topLeading)
+        }
     }
 }

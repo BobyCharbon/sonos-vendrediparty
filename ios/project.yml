@@ -221,6 +221,8 @@ targets:
         buildPhase: resources
       - path: PartyTVTests/samples-all.json
         buildPhase: resources
+      - path: PartyTVTests/samples-outcomes.json
+        buildPhase: resources
     dependencies:
       - target: PartyTV
     settings:
