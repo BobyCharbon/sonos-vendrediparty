@@ -7,6 +7,7 @@ import XCTest
 final class SettingsAuditUITests: XCTestCase {
     static let memberPhone = "0790000003"   // « VIP test », Membre VIP sur la base de test
     static let adminPhone = "0790000004"    // « Admin test », Admin sur la base de test
+    static let standardPhone = "0790000001" // « Testeur 1 », compte standard (Guest) sur la base de test
     static let code = "123456"
 
     private var dir: URL!
@@ -346,33 +347,43 @@ final class SettingsAuditUITests: XCTestCase {
         auditMemberScreens()
         auditAdminScreens()
         auditFeedback()
-        auditChats()
         signOut()
     }
 
-    /// Onglet Discussions natif (avis n°10) : liste, conversation, envoi, réaction, infos du groupe.
+    /// Onglet Discussions natif (avis n°10), en admin puis en membre standard, dans le groupe « Audit natif »
+    /// (créé avant l'audit par ~/sb-work/qa/chat_audit_setup.py : Testeur 1 créateur, Admin test membre,
+    /// numéro de Testeur 1 montré dans ce groupe).
     func testChats() {
         app = XCUIApplication()
         app.launch()
-        prefix = "discussions"
+        prefix = "discussions-admin"
         signIn(Self.adminPhone, name: "Admin test")
-        auditChats()
+        auditChats(group: "Audit natif", call: "Appeler Testeur 1 au +41790000001", canNameAdmins: true)
         signOut()
     }
 
-    private func auditChats() {
+    func testChatsMember() {
+        app = XCUIApplication()
+        app.launch()
+        prefix = "discussions-membre"
+        signIn(Self.standardPhone, name: "Testeur 1")
+        auditChats(group: "Audit natif", call: "Appeler Testeur 1 au +41790000001", canNameAdmins: true)
+        signOut()
+    }
+
+    private func auditChats(group: String = "Vendredi Party", call: String? = nil, canNameAdmins: Bool = false) {
         let tab = app.tabBars.buttons["Discussions"].firstMatch
         XCTAssertTrue(tab.waitForExistence(timeout: 20), "onglet Discussions")
         tab.tap()
         XCTAssertTrue(app.navigationBars["Discussions"].waitForExistence(timeout: 15), "liste des discussions")
         record("liste")
-        let row = app.cells.firstMatch.exists ? app.cells.firstMatch : app.buttons.matching(NSPredicate(format: "label CONTAINS 'Vendredi'")).firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 15), "au moins une discussion")
+        let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", group)).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "discussion « \(group) »")
         row.tap()
         let field = app.textFields["chat-message"].exists ? app.textFields["chat-message"] : app.textViews["chat-message"]
         XCTAssertTrue(field.waitForExistence(timeout: 15), "champ du message")
         record("conversation")
-        let text = "Audit natif \(Int(Date().timeIntervalSince1970) % 100000)"
+        let text = "Audit natif \(prefix) \(Int(Date().timeIntervalSince1970) % 100000)"
         type(text, into: field)
         app.buttons["chat-send"].tap()
         let sent = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
@@ -389,6 +400,13 @@ final class SettingsAuditUITests: XCTestCase {
         record("reaction")
         app.buttons["Infos du groupe"].tap()
         XCTAssertTrue(app.staticTexts["Notifications"].waitForExistence(timeout: 10), "infos : notifications")
+        if let call {
+            let link = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", call)).firstMatch
+            XCTAssertTrue(link.waitForExistence(timeout: 10), "numéro appelable : \(call)")
+        }
+        if canNameAdmins {
+            XCTAssertTrue(app.switches.matching(NSPredicate(format: "label CONTAINS 'admin du groupe'")).firstMatch.exists, "nommer les admins")
+        }
         record("infos")
         app.buttons["OK"].tap()
         back()
