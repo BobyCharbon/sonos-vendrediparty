@@ -1961,7 +1961,33 @@ def account_group_invitation_answer(body: GroupInvitationAnswer):
 def account_group_link(body: GroupLink):
     """Lien d'invitation d'un groupe (créateur) : adresse publique du module Événements."""
     token = account_call(lambda: accounts.group_invite_link(body.token, body.group_id, body.renew))
-    return {"url": f"{guest_url().rstrip('/')}/events/group-invite/{token}"}
+    return {"url": group_link_url(token)}
+
+
+class GroupLinkRef(MemberToken):
+    id: str = Field(pattern=UUID)
+
+
+def group_link_url(link: str) -> str:
+    return f"{guest_url().rstrip('/')}/events/group-invite/{link}"
+
+
+@app.post("/api/account/groups/link/single")
+def account_group_single_link(body: GroupRef):
+    """Nouveau lien unique (une personne, une fois, 7 jours) : le créateur en crée un par personne invitée."""
+    link = account_call(lambda: accounts.group_single_link(body.token, body.group_id))
+    return {"url": group_link_url(link), "links": account_call(lambda: accounts.group_links(body.token, body.group_id))}
+
+
+@app.post("/api/account/groups/links")
+def account_group_links(body: GroupRef):
+    return {"links": account_call(lambda: accounts.group_links(body.token, body.group_id))}
+
+
+@app.post("/api/account/groups/links/revoke")
+def account_group_link_revoke(body: GroupLinkRef):
+    account_call(lambda: accounts.revoke_link(body.token, body.id))
+    return {"ok": True}
 
 
 @app.post("/api/account/groups/invite")

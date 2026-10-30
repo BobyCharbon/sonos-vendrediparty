@@ -12,6 +12,7 @@ LEA_UID = "11111111-2222-3333-4444-555555555555"
 GROUP = "22222222-3333-4444-5555-666666666666"
 INV = "33333333-4444-5555-6666-777777777777"
 TOKEN = "44444444-5555-6666-7777-888888888888"
+SINGLE = "55555555-6666-7777-8888-999999999999"
 CARD = {"id": LEA_UID, "display_name": "Léa", "avatar_url": "lea/photo.jpg", "role": "member", "root": False, "me": False,
         "first_name": None, "last_name": None, "phone": None, "groups": ["Vendredi Party"]}
 
@@ -39,6 +40,13 @@ def fake():
             return httpx.Response(200, json=[])
         if path == "/rest/v1/rpc/group_invite_link":
             return httpx.Response(200, json=TOKEN)
+        if path == "/rest/v1/rpc/create_invite_link":
+            return httpx.Response(200, json=SINGLE)
+        if path == "/rest/v1/rpc/my_invite_links":
+            return httpx.Response(200, json=[{"token": SINGLE, "status": "pending", "used_by": None,
+                                              "created_at": "2026-10-30T07:00:00Z", "expires_at": "2026-11-06T07:00:00Z", "used_at": None}])
+        if path == "/rest/v1/rpc/revoke_invite_link":
+            return httpx.Response(204)
         if path == "/rest/v1/rpc/invite_to_group":
             if body.get("member") == LEA_UID:
                 return httpx.Response(400, json={"message": "Déjà dans le groupe"})
@@ -120,3 +128,15 @@ def test_group_invitations_link_and_invite_are_relayed(world):
     refused = c.post("/api/account/groups/invite", json={"token": "t" * 30, "group_id": GROUP, "member": LEA_UID})
     assert refused.status_code == 400 and "Déjà dans le groupe" in refused.json()["detail"]
     assert c.post("/api/account/groups/invite", json={"token": "t" * 30, "group_id": GROUP}).status_code == 400
+
+
+def test_group_single_use_links_are_created_listed_and_revoked(world):
+    acc, seen, g, lea = world
+    c = TestClient(main.app)
+    r = c.post("/api/account/groups/link/single", json={"token": "t" * 30, "group_id": GROUP}).json()
+    assert r["url"].endswith(f"/events/group-invite/{SINGLE}") and r["links"][0]["status"] == "pending"
+    assert ("/rest/v1/rpc/create_invite_link", {"k": "group", "target": GROUP}) in seen
+    assert c.post("/api/account/groups/links", json={"token": "t" * 30, "group_id": GROUP}).json()["links"][0]["token"] == SINGLE
+    assert c.post("/api/account/groups/links/revoke", json={"token": "t" * 30, "id": SINGLE}).json() == {"ok": True}
+    assert ("/rest/v1/rpc/revoke_invite_link", {"tok": SINGLE}) in seen
+    assert c.post("/api/account/groups/links/revoke", json={"token": "t" * 30, "id": "pas-un-lien"}).status_code == 422

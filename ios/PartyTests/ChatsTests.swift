@@ -49,6 +49,17 @@ struct ChatsTests {
         #expect(odd.call == nil)
     }
 
+    @Test("Liens uniques d'un groupe : état lisible (en attente, utilisé par…, expiré, annulé)")
+    func inviteLinkStates() throws {
+        let links: [InviteLinkState] = try decode("""
+        [{"token":"a","status":"pending","used_by":null,"created_at":"2026-10-30T07:00:00Z","expires_at":"2026-11-06T07:00:00Z","used_at":null},
+         {"token":"b","status":"used","used_by":"Léa","created_at":"2026-10-30T07:00:00Z","expires_at":"2026-11-06T07:00:00Z","used_at":"2026-10-30T08:00:00Z"},
+         {"token":"c","status":"expired","used_by":null,"created_at":"2026-10-20T07:00:00Z","expires_at":"2026-10-27T07:00:00Z","used_at":null},
+         {"token":"d","status":"revoked","used_by":null,"created_at":"2026-10-30T07:00:00Z","expires_at":"2026-11-06T07:00:00Z","used_at":null}]
+        """)
+        #expect(links.map(\.label) == ["En attente", "Utilisé par Léa", "Expiré", "Annulé"])
+    }
+
     @Test("Notification : ?tab=chats&chat=<groupe> ouvre la conversation, rien d'autre")
     func readsNotificationLink() {
         let id = "11111111-2222-3333-4444-555555555555"

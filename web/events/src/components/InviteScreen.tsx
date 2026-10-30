@@ -64,7 +64,7 @@ function Unavailable({ error }: { error?: string | null }) {
     <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 12 }}>
       <Stack.Screen options={{ title: 'Invitation' }} />
       <Title>Lien indisponible</Title>
-      <T muted>Ce lien d’invitation n’existe plus ou a été remplacé. Demande un nouveau lien à la personne qui t’a invité.</T>
+      <T muted>Ce lien n’est plus valable : un lien unique ne marche qu’une fois, pendant 7 jours, et l’organisateur peut l’annuler ou le remplacer. Demande ton propre lien à la personne qui t’a invité.</T>
       <ErrorText error={error ?? null} />
     </Screen>
   );

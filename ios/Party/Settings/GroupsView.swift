@@ -48,6 +48,31 @@ struct GroupInvitation: Decodable, Equatable, Identifiable {
 
 private struct GroupInvitations: Decodable { let invitations: [GroupInvitation] }
 private struct GroupLinkResponse: Decodable { let url: String }
+
+/// Lien unique d'un groupe (une personne, une fois, 7 jours) et son état, pour son créateur.
+struct InviteLinkState: Decodable, Equatable, Identifiable {
+    enum Status: String, Decodable { case pending, used, expired, revoked }
+    let token: String
+    let status: Status
+    let usedBy: String?
+    let createdAt: String
+    let expiresAt: String
+
+    var id: String { token }
+    enum CodingKeys: String, CodingKey { case token, status, usedBy = "used_by", createdAt = "created_at", expiresAt = "expires_at" }
+
+    var label: String {
+        switch status {
+        case .pending: return "En attente"
+        case .used: return "Utilisé par \(usedBy ?? "?")"
+        case .expired: return "Expiré"
+        case .revoked: return "Annulé"
+        }
+    }
+}
+
+private struct SingleLinkResponse: Decodable { let url: String; let links: [InviteLinkState] }
+private struct LinksResponse: Decodable { let links: [InviteLinkState] }
 private struct GroupInviteResult: Decodable { let invited: String }
 
 extension PartyAPI {
@@ -67,6 +92,20 @@ extension PartyAPI {
     func groupLink(token: String, groupID: String, renew: Bool) async throws -> URL? {
         let r: GroupLinkResponse = try await postDecoding("/api/account/groups/link", body: ["token": token, "group_id": groupID, "renew": renew])
         return URL(string: r.url)
+    }
+
+    func groupSingleLink(token: String, groupID: String) async throws -> (URL?, [InviteLinkState]) {
+        let r: SingleLinkResponse = try await postDecoding("/api/account/groups/link/single", body: ["token": token, "group_id": groupID])
+        return (URL(string: r.url), r.links)
+    }
+
+    func groupLinks(token: String, groupID: String) async throws -> [InviteLinkState] {
+        let r: LinksResponse = try await postDecoding("/api/account/groups/links", body: ["token": token, "group_id": groupID])
+        return r.links
+    }
+
+    func revokeGroupLink(token: String, link: String) async throws {
+        try await post("/api/account/groups/links/revoke", body: ["token": token, "id": link])
     }
 
     /// true : la personne (compte) a reçu l'invitation ; false : gardée pour un numéro pas encore inscrit.
@@ -97,6 +136,9 @@ final class GroupsStore: ObservableObject {
     @Published private(set) var list: GroupList?
     @Published private(set) var invitations: [GroupInvitation] = []
     @Published private(set) var links: [String: URL] = [:]
+    /// Liens uniques : le dernier créé (à partager) et la liste des liens créés, par groupe.
+    @Published private(set) var freshLinks: [String: URL] = [:]
+    @Published private(set) var singleLinks: [String: [InviteLinkState]] = [:]
     @Published private(set) var error: String?
     @Published private(set) var busy: Set<String> = []
     @Published var notice: String?
@@ -128,6 +170,27 @@ final class GroupsStore: ObservableObject {
         await run("link.\(group.id)") { token in
             links[group.id] = try await api.groupLink(token: token, groupID: group.id, renew: renew)
             if renew { notice = "Nouveau lien : l'ancien ne marche plus" }
+        }
+    }
+
+    func createSingleLink(for group: GroupList.Group) async {
+        await run("single.\(group.id)") { token in
+            let (url, list) = try await api.groupSingleLink(token: token, groupID: group.id)
+            freshLinks[group.id] = url
+            singleLinks[group.id] = list
+        }
+    }
+
+    func loadSingleLinks(for group: GroupList.Group) async {
+        await run("links.\(group.id)") { token in singleLinks[group.id] = try await api.groupLinks(token: token, groupID: group.id) }
+    }
+
+    func revoke(_ link: InviteLinkState, of group: GroupList.Group) async {
+        await run(link.token) { token in
+            try await api.revokeGroupLink(token: token, link: link.token)
+            if freshLinks[group.id]?.lastPathComponent == link.token { freshLinks[group.id] = nil }
+            singleLinks[group.id] = try await api.groupLinks(token: token, groupID: group.id)
+            notice = "Lien annulé"
         }
     }
 
@@ -365,23 +428,7 @@ struct GroupDetailView: View {
                     } footer: {
                         Text("La personne accepte ou refuse dans ses Réglages. Un numéro pas encore inscrit : l'invitation l'attend.")
                     }
-                    Section {
-                        if let url = store.links[group.id] {
-                            Text(url.absoluteString).font(.footnote).textSelection(.enabled)
-                            ShareLink(item: url, subject: Text("Invitation Party"),
-                                      message: Text("Rejoins le groupe « \(group.name) » sur Party")) {
-                                Label("Partager le lien", systemImage: "square.and.arrow.up")
-                            }
-                            Button("Nouveau lien (l'ancien ne marchera plus)") { Task { await store.link(for: group, renew: true) } }
-                        } else {
-                            Button("Afficher le lien d'invitation") { Task { await store.link(for: group) } }
-                                .disabled(store.busy.contains("link.\(group.id)"))
-                        }
-                    } header: {
-                        Text("Lien d'invitation")
-                    } footer: {
-                        Text("Qui l'ouvre s'inscrit avec son numéro, complète son profil, puis rejoint ce groupe. Rien n'est visible avant. Tu es prévenu à chaque arrivée.")
-                    }
+                    InviteLinkSection(store: store, group: group)
                     Section {
                         Button("Supprimer le groupe", role: .destructive) { confirmDelete = true }
                     } footer: {
@@ -443,5 +490,79 @@ private struct GroupNotice: View {
                     store.notice = nil
                 }
         }
+    }
+}
+
+
+/// Lien d'invitation d'un groupe : lien unique (par défaut : une personne, une fois, 7 jours) ou lien réutilisable.
+private struct InviteLinkSection: View {
+    @ObservedObject var store: GroupsStore
+    let group: GroupList.Group
+    @State private var reusable = false
+
+    var body: some View {
+        Section {
+            Picker("Type de lien", selection: $reusable) {
+                Text("Lien unique").tag(false)
+                Text("Réutilisable").tag(true)
+            }
+            .pickerStyle(.segmented)
+            if reusable { reusableRows } else { singleRows }
+        } header: {
+            Text("Lien d'invitation")
+        } footer: {
+            Text(reusable
+                 ? "Lien réutilisable : il marche pour tout le monde, jusqu'à ce que tu le renouvelles. Chacun s'inscrit, complète son profil puis rejoint le groupe. Tu es prévenu à chaque arrivée."
+                 : "🔒 Lien unique : il ne marche qu'une fois, pour une seule personne, pendant 7 jours. Crée un lien pour chaque personne que tu invites. Elle s'inscrit avec son numéro, complète son profil, puis rejoint le groupe. Tu es prévenu à son arrivée.")
+        }
+        .task(id: group.id) { await store.loadSingleLinks(for: group) }
+    }
+
+    @ViewBuilder private var singleRows: some View {
+        if let url = store.freshLinks[group.id] {
+            Text(url.absoluteString).font(.footnote).textSelection(.enabled)
+            ShareLink(item: url, subject: Text("Invitation Party"), message: Text("Rejoins le groupe « \(group.name) » sur Party")) {
+                Label("Partager ce lien unique", systemImage: "square.and.arrow.up")
+            }
+        }
+        Button(store.freshLinks[group.id] == nil ? "Créer un lien unique" : "Créer un autre lien unique") {
+            Task { await store.createSingleLink(for: group) }
+        }
+        .disabled(store.busy.contains("single.\(group.id)"))
+        .accessibilityIdentifier("group-single-link")
+        ForEach(store.singleLinks[group.id] ?? []) { link in
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(link.label)
+                    Text(dates(link)).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if link.status == .pending {
+                    Button("Annuler", role: .destructive) { Task { await store.revoke(link, of: group) } }
+                        .buttonStyle(.borderless)
+                        .disabled(store.busy.contains(link.token))
+                }
+            }
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    @ViewBuilder private var reusableRows: some View {
+        if let url = store.links[group.id] {
+            Text(url.absoluteString).font(.footnote).textSelection(.enabled)
+            ShareLink(item: url, subject: Text("Invitation Party"), message: Text("Rejoins le groupe « \(group.name) » sur Party")) {
+                Label("Partager le lien", systemImage: "square.and.arrow.up")
+            }
+            Button("Nouveau lien (l'ancien ne marchera plus)") { Task { await store.link(for: group, renew: true) } }
+        } else {
+            Button("Afficher le lien réutilisable") { Task { await store.link(for: group) } }
+                .disabled(store.busy.contains("link.\(group.id)"))
+        }
+    }
+
+    private func dates(_ link: InviteLinkState) -> String {
+        let created = ChatDates.parse(link.createdAt)?.formatted(date: .abbreviated, time: .shortened) ?? ""
+        guard link.status == .pending, let end = ChatDates.parse(link.expiresAt) else { return "Créé le \(created)" }
+        return "Créé le \(created) · expire le \(end.formatted(date: .abbreviated, time: .omitted))"
     }
 }

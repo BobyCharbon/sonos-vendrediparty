@@ -314,6 +314,8 @@ class Accounts:
     def _rpc_json(self, token: str, name: str, args: dict, fallback: str):
         self._uid(token)
         r = self._get("POST", f"/rest/v1/rpc/{name}", token, json=args)
+        if r.status_code == 204:  # fonction sans résultat (annuler un lien…)
+            return None
         if r.status_code != 200:
             try:
                 message = str(r.json().get("message", "")) if r.status_code < 500 else ""
@@ -332,6 +334,17 @@ class Accounts:
 
     def group_invite_link(self, token: str, group_id: str, renew: bool) -> str:
         return self._rpc_json(token, "group_invite_link", {"grp": group_id, "renew": renew}, "Le lien n'a pas pu être créé.")
+
+    def group_single_link(self, token: str, group_id: str) -> str:
+        """Lien unique (une personne, une fois, 7 jours) : le choix par défaut pour inviter dans un groupe."""
+        return self._rpc_json(token, "create_invite_link", {"k": "group", "target": group_id}, "Le lien n'a pas pu être créé.")
+
+    def group_links(self, token: str, group_id: str) -> list:
+        """Liens uniques créés pour ce groupe et leur état (en attente, utilisé par…, expiré, annulé)."""
+        return self._rpc_json(token, "my_invite_links", {"k": "group", "target": group_id}, "Les liens n'ont pas pu être lus.") or []
+
+    def revoke_link(self, token: str, link: str) -> None:
+        self._rpc_json(token, "revoke_invite_link", {"tok": link}, "Le lien n'a pas pu être annulé.")
 
     def invite_to_group(self, token: str, group_id: str, member: str | None, phone: str | None) -> dict:
         return self._rpc_json(token, "invite_to_group", {"grp": group_id, "member": member, "phone": phone},

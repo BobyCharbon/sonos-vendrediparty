@@ -5,6 +5,9 @@
 -- 2) Groupes : lien d'invitation (on clique, on crée son compte, on rejoint le groupe) et invitation par surnom ou
 --    numéro, acceptée ou refusée dans les Réglages. Le groupe Vendredi Party (système) n'a ni lien ni invitation :
 --    on y entre par le rôle Membre VIP.
+-- 3) Liens uniques (précision du 30.10) : un événement privé ne se partage que par des liens uniques (une personne, une
+--    fois, 7 jours) ; un groupe privé, au choix, par lien unique (par défaut) ou réutilisable (member_groups.invite_token).
+--    Les organisateurs voient les liens créés (en attente / utilisé par… / expiré / annulé) et peuvent les annuler.
 -- Rejouable.
 
 alter table public.events add column if not exists invite_token uuid unique;
@@ -18,18 +21,101 @@ language sql stable security definer set search_path = '' as $$
   select public.is_organizer(e) or public.has_perm('events.manage_all');
 $$;
 
--- Lien d'invitation d'un événement (organisateurs) ; renew : nouveau lien, l'ancien ne marche plus.
-create or replace function public.event_invite_link(e uuid, renew boolean default false) returns uuid
+-- Liens uniques : une personne, une fois, 7 jours. Lus seulement par les fonctions ci-dessous.
+create table if not exists private.invite_links (
+  token uuid primary key default gen_random_uuid(),
+  kind text not null check (kind in ('event', 'group')),
+  target uuid not null,
+  created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null default now() + interval '7 days',
+  used_by uuid references public.profiles(id) on delete set null,
+  used_at timestamptz,
+  revoked_at timestamptz
+);
+create index if not exists invite_links_by_target on private.invite_links (kind, target, created_at desc);
+revoke all on private.invite_links from public, anon, authenticated;
+
+-- Cible d'un lien unique encore valable pour moi (ou déjà utilisé par moi : je retrouve mon invitation).
+create or replace function private.invite_link_target(tok uuid, k text) returns uuid
+language sql stable security definer set search_path = '' as $$
+  select target from private.invite_links where token = tok and kind = k and revoked_at is null
+    and (used_by = auth.uid() or (used_by is null and expires_at > now()));
+$$;
+
+-- Prend un lien unique pour moi (dans la transaction qui me fait rejoindre) ; sinon dit pourquoi il ne marche pas.
+create or replace function private.claim_invite_link(tok uuid, k text) returns uuid
 language plpgsql security definer set search_path = '' as $$
-declare token uuid;
+declare t uuid; l private.invite_links;
 begin
-  if not private.manages_event(e) then
-    raise exception 'forbidden: réservé aux organisateurs de l''événement' using errcode = '42501';
-  end if;
-  update public.events set invite_token = gen_random_uuid() where id = e and (invite_token is null or renew)
-    returning invite_token into token;
-  return coalesce(token, (select invite_token from public.events where id = e));
+  update private.invite_links set used_by = auth.uid(), used_at = now()
+    where token = tok and kind = k and revoked_at is null and used_by is null and expires_at > now()
+    returning target into t;
+  if t is not null then return t; end if;
+  select * into l from private.invite_links where token = tok and kind = k;
+  if l.token is null then return null; end if;
+  if l.used_by = auth.uid() then return l.target; end if;
+  if l.revoked_at is not null then raise exception 'Ce lien a été annulé. Demande un nouveau lien à la personne qui t''a invité.'; end if;
+  if l.used_by is not null then raise exception 'Ce lien a déjà été utilisé : il ne marche qu''une fois. Demande ton propre lien.'; end if;
+  raise exception 'Ce lien a expiré (7 jours). Demande un nouveau lien à la personne qui t''a invité.';
 end $$;
+
+-- Nouveau lien unique (organisateurs de l'événement, créateur du groupe privé).
+create or replace function public.create_invite_link(k text, target uuid) returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare tok uuid;
+begin
+  if k = 'event' and not private.manages_event(target) then
+    raise exception 'forbidden: réservé aux organisateurs de l''événement' using errcode = '42501';
+  elsif k = 'group' and not (private.manages_group(target)
+        and exists (select 1 from public.member_groups where id = target and system_key is null)) then
+    raise exception 'forbidden: réservé au créateur du groupe' using errcode = '42501';
+  elsif k not in ('event', 'group') then
+    raise exception 'Type de lien inconnu';
+  end if;
+  if (select count(*) from private.invite_links il where il.kind = k and il.target = create_invite_link.target
+        and il.used_by is null and il.revoked_at is null and il.expires_at > now()) >= 100 then
+    raise exception 'Trop de liens en attente : annule ceux qui ne serviront plus.';
+  end if;
+  insert into private.invite_links (kind, target, created_by) values (k, target, auth.uid()) returning token into tok;
+  return tok;
+end $$;
+
+-- Liens uniques créés (les 50 derniers) et leur état, pour l'organisateur.
+create or replace function public.my_invite_links(k text, target uuid) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  if not ((k = 'event' and private.manages_event(target)) or (k = 'group' and private.manages_group(target))) then
+    raise exception 'forbidden: réservé aux organisateurs' using errcode = '42501';
+  end if;
+  return coalesce((select jsonb_agg(x order by x->>'created_at' desc) from (
+    select jsonb_build_object('token', l.token, 'created_at', l.created_at, 'expires_at', l.expires_at,
+      'used_at', l.used_at, 'used_by', p.display_name,
+      'status', case when l.used_by is not null then 'used' when l.revoked_at is not null then 'revoked'
+                     when l.expires_at <= now() then 'expired' else 'pending' end) x
+    from private.invite_links l left join public.profiles p on p.id = l.used_by
+    where l.kind = k and l.target = my_invite_links.target
+    order by l.created_at desc limit 50) s), '[]'::jsonb);
+end $$;
+
+-- Annuler un lien unique pas encore utilisé (envoyé à la mauvaise personne…).
+create or replace function public.revoke_invite_link(tok uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare l private.invite_links;
+begin
+  select * into l from private.invite_links where token = tok;
+  if l.token is null or not ((l.kind = 'event' and private.manages_event(l.target))
+                             or (l.kind = 'group' and private.manages_group(l.target))) then
+    raise exception 'forbidden: réservé aux organisateurs' using errcode = '42501';
+  end if;
+  update private.invite_links set revoked_at = now() where token = tok and used_by is null and revoked_at is null;
+end $$;
+
+-- Compatibilité : l'ancien appel crée désormais un lien unique (un événement privé n'a plus de lien réutilisable).
+create or replace function public.event_invite_link(e uuid, renew boolean default false) returns uuid
+language sql security definer set search_path = '' as $$
+  select public.create_invite_link('event', e);
+$$;
 
 -- Profil complet (nom, prénom, surnom, photo) : exigé avant de voir ou de rejoindre une invitation par lien
 -- (avis n°9 : on s'inscrit avec son numéro, on complète son profil, puis on accède à l'événement ou au groupe).
@@ -51,7 +137,7 @@ language sql stable security definer set search_path = '' as $$
     'joined', auth.uid() is not null and (public.can_see_event(ev.id)
               or exists (select 1 from public.event_invites i where i.event_id = ev.id and i.user_id = auth.uid())))
   from public.events ev
-  where token is not null and ev.invite_token = token and ev.status in ('published', 'cancelled')
+  where token is not null and ev.id = private.invite_link_target(token, 'event') and ev.status in ('published', 'cancelled')
     and private.identity_complete(auth.uid());
 $$;
 
@@ -66,7 +152,7 @@ begin
   if not private.identity_complete(auth.uid()) then
     raise exception 'profile_incomplete: complète ton profil (nom, prénom, surnom et photo) avant de rejoindre';
   end if;
-  select * into ev from public.events where token is not null and invite_token = token and status = 'published';
+  select * into ev from public.events where id = private.claim_invite_link(token, 'event') and status = 'published';
   if ev.id is null then raise exception 'Ce lien d''invitation n''est plus valable'; end if;
   insert into public.event_invites (event_id, user_id, via_group, via_link) values (ev.id, auth.uid(), false, true)
   on conflict (event_id, user_id) do nothing;
@@ -146,8 +232,8 @@ language sql stable security definer set search_path = '' as $$
     'members', (select count(*) from public.member_group_members m where m.group_id = g.id),
     'joined', auth.uid() is not null and exists (select 1 from public.member_group_members m where m.group_id = g.id and m.user_id = auth.uid()))
   from public.member_groups g
-  where token is not null and g.invite_token = token and g.system_key is null
-    and private.identity_complete(auth.uid());
+  where token is not null and (g.invite_token = token or g.id = private.invite_link_target(token, 'group'))
+    and g.system_key is null and private.identity_complete(auth.uid());
 $$;
 
 create or replace function public.join_group_by_link(token uuid) returns uuid
@@ -161,6 +247,9 @@ begin
     raise exception 'profile_incomplete: complète ton profil (nom, prénom, surnom et photo) avant de rejoindre';
   end if;
   select id into grp from public.member_groups where token is not null and invite_token = token and system_key is null;
+  if grp is null then
+    select id into grp from public.member_groups where id = private.claim_invite_link(token, 'group') and system_key is null;
+  end if;
   if grp is null then raise exception 'Ce lien d''invitation n''est plus valable'; end if;
   perform private.join_group(grp, auth.uid());
   return grp;
@@ -233,6 +322,10 @@ revoke all on function public.invite_event(uuid), public.group_invite_info(uuid)
 grant execute on function public.invite_event(uuid), public.group_invite_info(uuid) to authenticated;
 revoke all on function private.identity_complete(uuid) from public, anon;
 grant execute on function private.identity_complete(uuid) to authenticated;
+revoke all on function public.create_invite_link(text, uuid), public.my_invite_links(text, uuid), public.revoke_invite_link(uuid),
+  private.invite_link_target(uuid, text), private.claim_invite_link(uuid, text) from public, anon;
+grant execute on function public.create_invite_link(text, uuid), public.my_invite_links(text, uuid), public.revoke_invite_link(uuid),
+  private.invite_link_target(uuid, text), private.claim_invite_link(uuid, text) to authenticated;
 revoke all on function private.manages_event(uuid), private.manages_group(uuid), private.digits(text),
   private.join_group(uuid, uuid) from public, anon;
 grant execute on function private.manages_event(uuid), private.manages_group(uuid), private.digits(text) to authenticated;
