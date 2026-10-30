@@ -107,10 +107,34 @@ final class VoiceRecorder: ObservableObject {
 }
 
 /// Lecture des vocaux : un seul à la fois ; la sortie suit le choix de l'utilisateur (haut-parleur, AirPods…).
+/// Vitesse 1× / 1,5× / 2× / 3×, gardée pour les vocaux suivants (comme WhatsApp).
 @MainActor
 final class VoicePlayer: ObservableObject {
+    static let speeds: [Float] = [1, 1.5, 2, 3]
+    static let speedKey = "chatVoiceSpeed"
+
     @Published private(set) var playing: String?
     @Published private(set) var progress: Double = 0
+    @Published private(set) var speed: Float = {
+        let saved = UserDefaults.standard.float(forKey: VoicePlayer.speedKey)
+        return VoicePlayer.speeds.contains(saved) ? saved : 1
+    }()
+
+    /// Vitesse suivante (1× → 1,5× → 2× → 3× → 1×), appliquée aussitôt au vocal en cours.
+    func nextSpeed() {
+        speed = Self.next(after: speed)
+        UserDefaults.standard.set(speed, forKey: Self.speedKey)
+        if playing != nil { player?.rate = speed }
+    }
+
+    nonisolated static func next(after speed: Float) -> Float {
+        let index = speeds.firstIndex(of: speed) ?? 0
+        return speeds[(index + 1) % speeds.count]
+    }
+
+    nonisolated static func label(_ speed: Float) -> String {
+        speed == 1.5 ? "1,5×" : "\(Int(speed))×"
+    }
 
     private var player: AVPlayer?
     private var observer: Any?
@@ -122,6 +146,8 @@ final class VoicePlayer: ObservableObject {
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
         try? AVAudioSession.sharedInstance().setActive(true)
         let player = AVPlayer(url: url)
+        // Voix accélérée sans effet « chipmunk » : la hauteur est gardée.
+        player.currentItem?.audioTimePitchAlgorithm = .timeDomain
         self.player = player
         playing = id
         progress = 0
@@ -132,7 +158,7 @@ final class VoicePlayer: ObservableObject {
         ended = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: player.currentItem, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.stop() }
         }
-        player.play()
+        player.playImmediately(atRate: speed)
     }
 
     func stop() {
@@ -169,9 +195,18 @@ struct VoiceBubble: View {
             VStack(alignment: .leading, spacing: 4) {
                 ProgressView(value: active ? player.progress : 0)
                     .tint(mine ? .black : .white)
-                    .frame(width: 140)
+                    .frame(width: 120)
                 Text(VoiceRecorder.clock(seconds)).font(.caption.monospacedDigit())
             }
+            Button { player.nextSpeed() } label: {
+                Text(VoicePlayer.label(player.speed)).font(.caption.weight(.bold).monospacedDigit())
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background((mine ? Color.black : Color.white).opacity(0.18), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Vitesse de lecture \(VoicePlayer.label(player.speed))")
+            .accessibilityHint("Touche pour passer à \(VoicePlayer.label(VoicePlayer.next(after: player.speed)))")
+            .accessibilityIdentifier("voice-speed")
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .contain)

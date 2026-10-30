@@ -101,6 +101,13 @@ struct ChatsTests {
         recorder.deleteRecording()
     }
 
+    @Test("Vitesse des vocaux : 1× → 1,5× → 2× → 3× → 1×, libellés à la française")
+    func voiceSpeeds() {
+        #expect(VoicePlayer.next(after: 1) == 1.5 && VoicePlayer.next(after: 1.5) == 2)
+        #expect(VoicePlayer.next(after: 2) == 3 && VoicePlayer.next(after: 3) == 1 && VoicePlayer.next(after: 7) == 1.5)
+        #expect(VoicePlayer.speeds.map(VoicePlayer.label) == ["1×", "1,5×", "2×", "3×"])
+    }
+
     @Test("Notification : ?tab=chats&chat=<groupe> ouvre la conversation, rien d'autre")
     func readsNotificationLink() {
         let id = "11111111-2222-3333-4444-555555555555"

@@ -127,14 +127,42 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
   );
 }
 
-/** Lecture d'un vocal dans le navigateur (un seul à la fois) : lecture / pause, avancement, durée. */
+/** Lecture d'un vocal dans le navigateur (un seul à la fois) : lecture / pause, avancement, durée, vitesse
+ * 1× / 1,5× / 2× / 3× gardée pour les vocaux suivants (la hauteur de la voix est conservée par le navigateur). */
 let playingNow: HTMLAudioElement | null = null;
+const SPEEDS = [1, 1.5, 2, 3];
+const SPEED_KEY = 'party-chat-voice-speed';
+
+function savedSpeed(): number {
+  try {
+    const value = Number(localStorage.getItem(SPEED_KEY));
+    return SPEEDS.includes(value) ? value : 1;
+  } catch {
+    return 1;
+  }
+}
+
+export function nextSpeed(speed: number): number {
+  return SPEEDS[(Math.max(0, SPEEDS.indexOf(speed)) + 1) % SPEEDS.length];
+}
+
+export function speedLabel(speed: number): string {
+  return speed === 1.5 ? '1,5×' : `${speed}×`;
+}
 
 function VoicePlayer({ url, seconds, color }: { url: string | null; seconds: number; color: string }) {
   const audio = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [speed, setSpeed] = useState(savedSpeed);
   useEffect(() => () => { audio.current?.pause(); }, []);
+
+  function changeSpeed() {
+    const next = nextSpeed(speed);
+    setSpeed(next);
+    try { localStorage.setItem(SPEED_KEY, String(next)); } catch { /* stockage indisponible : vitesse pour ce vocal */ }
+    if (audio.current) audio.current.playbackRate = next;
+  }
 
   function toggle() {
     if (!url || typeof Audio === 'undefined') return;
@@ -149,6 +177,7 @@ function VoicePlayer({ url, seconds, color }: { url: string | null; seconds: num
     if (playing) return audio.current.pause();
     if (playingNow && playingNow !== audio.current) playingNow.pause();
     playingNow = audio.current;
+    audio.current.playbackRate = speed;
     void audio.current.play().catch(() => setPlaying(false));
   }
 
@@ -163,6 +192,10 @@ function VoicePlayer({ url, seconds, color }: { url: string | null; seconds: num
         </View>
         <T size={12} color={color}>{voiceClock(seconds)}</T>
       </View>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Vitesse de lecture ${speedLabel(speed)}`} onPress={changeSpeed} hitSlop={8}
+        style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)' }}>
+        <T size={12} weight="bold" color={color}>{speedLabel(speed)}</T>
+      </Pressable>
     </View>
   );
 }
