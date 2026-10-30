@@ -3149,6 +3149,24 @@ def tv_state():
             "upcoming": [{k: t[k] for k in ("title", "artist", "art", "by")} for t in music["upcoming"][:TV_UPCOMING]]}
 
 
+@app.get("/api/tv/game/{code}", dependencies=[Depends(require_admin)])
+def tv_game(code: str):
+    """App Apple TV : la partie vue en SPECTATEUR (aucun mot secret, aucune main cachée, aucun rôle avant la fin),
+    rafraîchie chaque seconde par la télé. Mêmes avancées automatiques que pour les téléphones (fin d'une question…)."""
+    with GAMES_LOCK:
+        g = get_game(code)
+        if quiz.tick(g):
+            g["updated_at"] = time.time()
+            save_games(g["code"], g.get("room") or "")
+        for engine in (heist, island, neon):
+            if engine.tick(g):
+                save_games(g["code"])
+        view = full_view(g, "")
+        if g["type"] == "room" and (child := room_child(g)) is not None:
+            view["current"] = full_view(child, "")  # Salle de jeux : le jeu lancé dans la salle
+        return view
+
+
 @app.get("/api/calendar.ics")
 def calendar_file(
     uid: str = Query(max_length=36),
