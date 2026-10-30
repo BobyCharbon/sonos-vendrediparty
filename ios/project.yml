@@ -28,7 +28,7 @@ settings:
     Release:
       PARTY_BUNDLE_SUFFIX: ""
       PARTY_HOST: party.bobycharbon.ch
-      PARTY_DISPLAY_NAME: "Party !"
+      PARTY_DISPLAY_NAME: "Party"
 
 targets:
   Party:
