@@ -7,6 +7,7 @@ import XCTest
 final class SettingsAuditUITests: XCTestCase {
     static let memberPhone = "0790000003"   // « VIP test », Membre VIP sur la base de test
     static let adminPhone = "0790000004"    // « Admin test », Admin sur la base de test
+    static let standardPhone = "0790000001" // « Testeur 1 », compte standard (Guest) sur la base de test
     static let code = "123456"
 
     private var dir: URL!
@@ -347,5 +348,129 @@ final class SettingsAuditUITests: XCTestCase {
         auditAdminScreens()
         auditFeedback()
         signOut()
+    }
+
+    /// Onglet Discussions natif (avis n°10), en admin puis en membre standard, dans le groupe « Audit natif »
+    /// (créé avant l'audit par ~/sb-work/qa/chat_audit_setup.py : Testeur 1 créateur, Admin test membre,
+    /// numéro de Testeur 1 montré dans ce groupe).
+    func testChats() {
+        app = XCUIApplication()
+        app.launch()
+        prefix = "discussions-admin"
+        signIn(Self.adminPhone, name: "Admin test")
+        auditChats(group: "Audit natif", call: "Appeler Testeur 1 au +41790000001", canNameAdmins: true)
+        signOut()
+    }
+
+    func testChatsMember() {
+        app = XCUIApplication()
+        app.launch()
+        prefix = "discussions-membre"
+        signIn(Self.standardPhone, name: "Testeur 1")
+        auditChats(group: "Audit natif", call: "Appeler Testeur 1 au +41790000001", canNameAdmins: true)
+        signOut()
+    }
+
+    /// Réglages › Groupes › « Audit natif » (créé par Testeur 1) : lien unique créé puis annulé, lien réutilisable affiché.
+    func testGroupLinks() {
+        app = XCUIApplication()
+        app.launch()
+        prefix = "liens-groupe"
+        signIn(Self.standardPhone, name: "Testeur 1")
+        settingsTab()
+        XCTAssertTrue(open("Groupes"))
+        expectLoaded("groupes")
+        let group = app.staticTexts["Audit natif"].firstMatch
+        XCTAssertTrue(group.waitForExistence(timeout: 15), "groupe « Audit natif »")
+        group.tap()
+        let create = app.buttons["group-single-link"]
+        for _ in 0..<6 where !(create.exists && create.isHittable) { app.swipeUp() }
+        XCTAssertTrue(create.waitForExistence(timeout: 10), "bouton « Créer un lien unique »")
+        record("groupe")
+        create.tap()
+        let share = app.buttons["Partager ce lien unique"]
+        XCTAssertTrue(share.waitForExistence(timeout: 15), "lien unique créé, à partager")
+        let pending = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'En attente'")).firstMatch
+        for _ in 0..<4 where !(pending.exists && pending.isHittable) { app.swipeUp() }
+        XCTAssertTrue(pending.waitForExistence(timeout: 10), "lien « En attente » dans la liste")
+        record("lien-unique")
+        let cancel = app.buttons["Annuler"].firstMatch
+        XCTAssertTrue(cancel.exists, "bouton Annuler")
+        cancel.tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Annulé'")).firstMatch.waitForExistence(timeout: 15), "lien annulé")
+        record("lien-annule")
+        let reusable = app.buttons["Réutilisable"].firstMatch
+        for _ in 0..<4 where !(reusable.exists && reusable.isHittable) { app.swipeDown() }
+        reusable.tap()
+        let show = app.buttons["Afficher le lien réutilisable"]
+        XCTAssertTrue(show.waitForExistence(timeout: 10), "mode réutilisable")
+        show.tap()
+        XCTAssertTrue(app.buttons["Partager le lien"].waitForExistence(timeout: 15), "lien réutilisable affiché")
+        record("lien-reutilisable")
+        back()
+        signOut()
+    }
+
+    private func auditChats(group: String = "Vendredi Party", call: String? = nil, canNameAdmins: Bool = false) {
+        let tab = app.tabBars.buttons["Discussions"].firstMatch
+        XCTAssertTrue(tab.waitForExistence(timeout: 20), "onglet Discussions")
+        tab.tap()
+        XCTAssertTrue(app.navigationBars["Discussions"].waitForExistence(timeout: 15), "liste des discussions")
+        record("liste")
+        let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", group)).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "discussion « \(group) »")
+        row.tap()
+        let field = app.textFields["chat-message"].exists ? app.textFields["chat-message"] : app.textViews["chat-message"]
+        XCTAssertTrue(field.waitForExistence(timeout: 15), "champ du message")
+        record("conversation")
+        let text = "Audit natif \(prefix) \(Int(Date().timeIntervalSince1970) % 100000)"
+        type(text, into: field)
+        app.buttons["chat-send"].tap()
+        let sent = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+        XCTAssertTrue(sent.waitForExistence(timeout: 15), "message envoyé affiché")
+        record("envoye")
+        sent.press(forDuration: 1.2)
+        let like = app.buttons["👍"].firstMatch
+        if like.waitForExistence(timeout: 5) {
+            like.tap()
+            XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH '👍 1'")).firstMatch.waitForExistence(timeout: 15), "réaction 👍")
+        } else {
+            XCTFail("menu des réactions")
+        }
+        record("reaction")
+        // Glisser la bulle vers la droite : répondre (la personne sera citée et notifiée).
+        let bubble = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+        XCTAssertTrue(bubble.waitForExistence(timeout: 5), "bulle envoyée")
+        bubble.swipeRight()
+        let replyAction = app.buttons["Répondre"].firstMatch  // glissement partiel : le bouton apparaît ; complet : réponse directe
+        if replyAction.waitForExistence(timeout: 2) { replyAction.tap() }
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH '↪ Réponse à'")).firstMatch.waitForExistence(timeout: 5),
+                      "glisser pour répondre")
+        record("glisser-repondre")
+        app.buttons["Annuler la réponse"].tap()
+        // Vocal : appui long sur le micro (2 s) puis relâcher → bulle « Message vocal » qui s'écoute.
+        let mic = app.descendants(matching: .any)["chat-mic"]
+        XCTAssertTrue(mic.waitForExistence(timeout: 5), "bouton micro")
+        mic.press(forDuration: 2.5)
+        let voice = app.buttons["Écouter le message vocal"].firstMatch
+        if app.staticTexts["Le micro n'a pas pu démarrer. Réessaie."].waitForExistence(timeout: 3) {
+            // Simulateur sans micro fourni par le Mac : l'enregistrement est vérifié sur un vrai iPhone.
+            record("vocal-micro-indisponible")
+        } else {
+            XCTAssertTrue(voice.waitForExistence(timeout: 20), "vocal envoyé")
+        }
+        record("vocal")
+        app.buttons["Infos du groupe"].tap()
+        XCTAssertTrue(app.staticTexts["Notifications"].waitForExistence(timeout: 10), "infos : notifications")
+        if let call {
+            let link = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", call)).firstMatch
+            XCTAssertTrue(link.waitForExistence(timeout: 10), "numéro appelable : \(call)")
+        }
+        if canNameAdmins {
+            XCTAssertTrue(app.switches.matching(NSPredicate(format: "label CONTAINS 'admin du groupe'")).firstMatch.exists, "nommer les admins")
+        }
+        record("infos")
+        app.buttons["OK"].tap()
+        back()
     }
 }

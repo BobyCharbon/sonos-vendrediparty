@@ -52,7 +52,7 @@ def active(state):
 def as_guest_plus(page):
     """Compte Guest+ (droit « Écrire un avis ») : l'onglet « Ton avis » s'affiche (le droit lui-même est vérifié
     par le serveur, voir test_feedback_tab.py)."""
-    page.evaluate("account = { name: 'Léa', feedback: true }; fbSyncAccess();")
+    page.evaluate("account = { name: 'Léa', feedback: true }; fbSyncAccess(); chatsSyncAccess();")
 
 
 def test_page_hides_its_own_tab_bar_and_describes_the_tabs(app):
@@ -61,7 +61,8 @@ def test_page_hides_its_own_tab_bar_and_describes_the_tabs(app):
     assert [t["id"] for t in state["tabs"]] == ["music", "games", "events", "account"]
     as_guest_plus(app)
     state = last_state(app)
-    assert [t["id"] for t in state["tabs"]] == ["music", "games", "events", "feedback", "account"]
+    assert [t["id"] for t in state["tabs"]] == ["music", "games", "events", "chats", "feedback", "account"]
+    assert [t["label"] for t in state["tabs"]][3] == "Discussions"
     assert [t["label"] for t in state["tabs"]][:2] == ["Musique", "Jeux"]
     assert active(state) == ["music"] and state["hidden"] is False
     assert app.evaluate("document.documentElement.classList.contains('native-tabs')")
@@ -124,12 +125,12 @@ def test_without_the_native_bridge_nothing_changes(browser, server):
 
 def test_music_is_native_for_everyone_and_the_host_keeps_his_tools(app):
     # L'onglet Musique est natif pour tous ; l'app propose à l'hôte « Gérer la soirée » (page web et ses réglages).
-    assert last_state(app)["native"] == ["music", "feedback", "account"] and last_state(app)["host"] is False
+    assert last_state(app)["native"] == ["music", "feedback", "chats", "account"] and last_state(app)["host"] is False
     # L'hôte : compte admin et session admin ouverte (fbIsAdmin) ; le libellé « Retours » relance la description.
     app.evaluate("() => { account = { ...(account || {}), admin: true }; adminSession = true;"
                  "        document.querySelector('#tabs [data-tab=feedback] span').textContent = 'Retours'; }")
     state = last_state(app)
-    assert state["native"] == ["music", "feedback", "account"] and state["host"] is True
+    assert state["native"] == ["music", "feedback", "chats", "account"] and state["host"] is True
 
 
 @pytest.mark.parametrize("store", [True, False])
@@ -146,3 +147,32 @@ def test_store_app_hides_simulated_gambling_games(browser, server, store):
     for kind in ("casino", "blackjack"):
         assert page.locator(f'[data-create="{kind}"]').is_visible() is not store
     ctx.close()
+
+
+def test_discussions_tab_opens_the_group_chats_of_the_events_module(app):
+    # Avis n°10 : 6e onglet « Discussions », réservé aux comptes connectés ; il ouvre /chats dans le même module.
+    assert "chats" not in [t["id"] for t in last_state(app)["tabs"]]
+    as_guest_plus(app)
+    app.evaluate("PartyTabs.select('chats')")
+    app.wait_for_function("document.body.dataset.tab === 'chats'")
+    assert active(last_state(app)) == ["chats"]
+    assert app.evaluate("document.getElementById('appTitle').textContent") == "Discussions"
+    assert app.evaluate("document.getElementById('eventsFrame').getAttribute('src')") == "/events/chats"
+    assert app.evaluate("!document.querySelector('.events-panel').classList.contains('hidden')")
+    # Retour aux Événements : la liste des événements, pas la discussion.
+    app.evaluate("PartyTabs.select('events')")
+    app.wait_for_function("document.body.dataset.tab === 'events'")
+    assert app.evaluate("frameAt") == "/"
+    # Déconnexion : l'onglet disparaît.
+    app.evaluate("account = null; chatsSyncAccess();")
+    assert "chats" not in [t["id"] for t in last_state(app)["tabs"]]
+
+
+def test_discussions_badge_counts_unread_messages_of_all_groups(app):
+    # La page lit /api/account/chats (relais de my_chats) et additionne les non-lus ; la barre native la reprend.
+    app.route("**/api/account/chats", lambda route: route.fulfill(json={"chats": [{"id": "a", "unread": 2}, {"id": "b", "unread": 3}]}))
+    app.evaluate("""account = { name: 'Léa' }; supabaseToken = () => 'jeton'; freshToken = async () => 'jeton';
+                    chatsSyncAccess(); refreshChatsBadge();""")
+    app.wait_for_function("!document.getElementById('chatsBadge').classList.contains('hidden')")
+    chats = next(t for t in last_state(app)["tabs"] if t["id"] == "chats")
+    assert chats["badge"] == "5"

@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { Children, useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -280,7 +281,7 @@ export function AvatarStack({ people, max = 5, size = 26 }: { people: { id: stri
     <View style={{ flexDirection: 'row', alignItems: 'center' }} accessibilityLabel={people.map((p) => p.name).join(', ')}>
       {shown.map((p, i) => (
         <View key={p.id} style={{ marginLeft: i ? -size * 0.3 : 0, borderRadius: 999, borderWidth: 2, borderColor: colors.surface }}>
-          <Avatar id={p.id} name={p.name} size={size} />
+          <Avatar id={p.id} name={p.name} size={size} profile={false} />
         </View>
       ))}
       {rest > 0 ? <T muted size={12} style={{ marginLeft: 6 }}>+{rest}</T> : null}
@@ -355,7 +356,21 @@ export function Input(props: TextInputProps) {
   return <TextInput placeholderTextColor={colors.muted} {...props} {...ring.handlers} style={[s.input, ring.focused && s.inputFocus, props.style]} />;
 }
 
-export function Avatar({ id, name, size = 32, photo }: { id: string; name: string; size?: number; photo?: string | null }) {
+const MEMBER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** Photo ronde d'un membre ; toucher ouvre sa fiche profil (partout : participants, discussions, groupes…).
+ * profile={false} : simple image (ma propre carte, liste où toute la ligne ouvre déjà autre chose). */
+export function Avatar({ id, name, size = 32, photo, profile = true }: { id: string; name: string; size?: number; photo?: string | null; profile?: boolean }) {
+  const face = <AvatarFace id={id} name={name} size={size} photo={photo} />;
+  if (!profile || !MEMBER_ID.test(id)) return face;
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={`Profil de ${name}`} hitSlop={6} onPress={() => router.push(`/member/${id}`)}>
+      {face}
+    </Pressable>
+  );
+}
+
+function AvatarFace({ id, name, size, photo }: { id: string; name: string; size: number; photo?: string | null }) {
   const [signed, setSigned] = useState<{ path: string; url: string } | null>(null);
   const url = signed && signed.path === photo ? signed.url : null;
   useEffect(() => {

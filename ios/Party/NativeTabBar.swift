@@ -14,6 +14,7 @@ struct NativeTabBar: UIViewRepresentable {
         "music": "music.note",
         "games": "gamecontroller",
         "events": "calendar",
+        "chats": "bubble.left.and.bubble.right",
         "feedback": "bubble.left",
         "account": "person.crop.circle",
     ]

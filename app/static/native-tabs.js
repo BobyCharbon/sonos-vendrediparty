@@ -20,7 +20,7 @@
   // Onglets que l'app peut afficher en natif. L'hôte aussi : l'app lui propose « Gérer la soirée » /
   // « Gérer les retours », qui rouvrent l'onglet de la page avec ses réglages. Réglages (account) : écran natif,
   // qui ouvre encore dans la page les écrans du compte pas encore natifs (profil, confidentialité…).
-  const NATIVE_SCREENS = ["music", "feedback", "account"];
+  const NATIVE_SCREENS = ["music", "feedback", "chats", "account"];
   // fbIsAdmin est déclarée plus loin dans index.html : tant qu'elle n'existe pas, on est invité.
   const isHost = () => typeof fbIsAdmin === "function" && fbIsAdmin();
 

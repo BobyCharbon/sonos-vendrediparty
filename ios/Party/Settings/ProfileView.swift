@@ -25,8 +25,9 @@ struct ProfileView: View {
             } header: {
                 Text("Identité")
             } footer: {
-                Text("🔒 Ton prénom et ton nom ne sont visibles que par toi et les admins.")
+                Text("🔒 Ton prénom et ton nom ne sont visibles que par toi et les admins, sauf si tu choisis de les montrer ci-dessous.")
             }
+            NamePrivacySection(store: store.privacy)
             Section {
                 TextField("Surnom", text: $nickname)
                     .onChange(of: nickname) { new in
@@ -163,5 +164,27 @@ struct ProfileView: View {
                 fill()
             }
         }
+    }
+}
+
+/// « Afficher mon nom et prénom » sur ma fiche profil (caché par défaut).
+private struct NamePrivacySection: View {
+    @ObservedObject var store: PrivacyStore
+
+    var body: some View {
+        Section {
+            Toggle(isOn: Binding(get: { store.privacy?.showName ?? false }, set: { on in Task { await store.setNamePublic(on) } })) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Afficher mon nom et prénom")
+                    Text("Visibles par tous les comptes sur ta fiche profil.").font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            .disabled(store.saving || store.privacy == nil)
+        } header: {
+            Text("Ma fiche profil")
+        } footer: {
+            Text(store.error ?? "Ton numéro reste caché : tu peux le montrer groupe par groupe (Réglages › Groupes).")
+        }
+        .task { await store.load() }
     }
 }

@@ -35,6 +35,7 @@ class Accounts:
         self.lock = threading.Lock()
         self.cache: dict[str, tuple[float, str]] = {}    # empreinte du jeton → (instant, identifiant Supabase vérifié)
         self.by_gid: dict[str, dict] = {}                # identifiant de joueur → compte (surnom, photo)
+        self.uid_by_gid: dict[str, str] = {}             # identifiant de joueur → compte Supabase (fiche profil des jeux)
 
     def gid(self, user_id: str) -> str:
         return "acct-" + hmac.new(self.secret, f"account:{user_id}".encode(), hashlib.sha256).hexdigest()[:40]
@@ -103,6 +104,7 @@ class Accounts:
                    "feedback": "feedback.write" in perms}
         with self.lock:
             self.by_gid[account["guest_id"]] = account
+            self.uid_by_gid[account["guest_id"]] = uid
         return account
 
     def notification_prefs(self, token: str) -> dict:
@@ -153,6 +155,7 @@ class Accounts:
                 continue
             groups.append({"id": g["id"], "name": g["name"], "system": g.get("system_key") is not None,
                            "mine": g.get("created_by") == uid and g.get("system_key") is None,
+                           "inside": uid in members,  # j'en fais partie : je peux y montrer mon numéro
                            "members": [{"id": m, "name": names.get(m, "Membre du groupe")} for m in members]})
         people = [{"id": p["id"], "name": names[p["id"]]} for p in directory if p["id"] != uid and p.get("status") == "active"]
         return {"groups": groups, "people": sorted(people, key=lambda p: p["name"].lower())}
@@ -305,6 +308,85 @@ class Accounts:
         if not isinstance(rows, list):
             return []
         return [{"id": e["id"], "title": e["title"], "starts_at": e["starts_at"]} for e in rows]
+
+    # MARK: Invitations aux groupes (lien, surnom ou numéro)
+
+    def _rpc_json(self, token: str, name: str, args: dict, fallback: str):
+        self._uid(token)
+        r = self._get("POST", f"/rest/v1/rpc/{name}", token, json=args)
+        if r.status_code == 204:  # fonction sans résultat (annuler un lien…)
+            return None
+        if r.status_code != 200:
+            try:
+                message = str(r.json().get("message", "")) if r.status_code < 500 else ""
+            except ValueError:
+                message = ""
+            # « forbidden: … », « profile_incomplete: … » : la partie lisible ; sinon le message tel quel.
+            raise AccountError(message.split(": ", 1)[-1] if message else fallback)
+        return r.json()
+
+    def group_invitations(self, token: str) -> list:
+        return self._rpc_json(token, "my_group_invitations", {}, "Tes invitations n'ont pas pu être lues.")
+
+    def answer_group_invitation(self, token: str, invitation: str, accept: bool) -> list:
+        return self._rpc_json(token, "answer_group_invitation", {"inv": invitation, "accept": accept},
+                              "Ta réponse n'a pas été enregistrée. Réessaie.")
+
+    def group_invite_link(self, token: str, group_id: str, renew: bool) -> str:
+        return self._rpc_json(token, "group_invite_link", {"grp": group_id, "renew": renew}, "Le lien n'a pas pu être créé.")
+
+    def group_single_link(self, token: str, group_id: str) -> str:
+        """Lien unique (une personne, une fois, 7 jours) : le choix par défaut pour inviter dans un groupe."""
+        return self._rpc_json(token, "create_invite_link", {"k": "group", "target": group_id}, "Le lien n'a pas pu être créé.")
+
+    def group_links(self, token: str, group_id: str) -> list:
+        """Liens uniques créés pour ce groupe et leur état (en attente, utilisé par…, expiré, annulé)."""
+        return self._rpc_json(token, "my_invite_links", {"k": "group", "target": group_id}, "Les liens n'ont pas pu être lus.") or []
+
+    def revoke_link(self, token: str, link: str) -> None:
+        self._rpc_json(token, "revoke_invite_link", {"tok": link}, "Le lien n'a pas pu être annulé.")
+
+    def invite_to_group(self, token: str, group_id: str, member: str | None, phone: str | None) -> dict:
+        return self._rpc_json(token, "invite_to_group", {"grp": group_id, "member": member, "phone": phone},
+                              "L'invitation n'a pas été envoyée. Réessaie.")
+
+    # MARK: Fiche profil et confidentialité (nom public, numéro montré à ses groupes)
+
+    def member_card(self, token: str, member: str | None = None, guest_id: str | None = None) -> dict:
+        """Fiche d'un compte : par son identifiant Supabase, ou par l'identifiant de joueur d'un compte relié (jeux).
+        Lue avec la session de la personne qui regarde : la base applique les choix de confidentialité."""
+        self._uid(token)
+        if guest_id:
+            with self.lock:
+                member = self.uid_by_gid.get(guest_id)
+        if not member:
+            raise AccountError("Ce joueur n'a pas de compte Party.")
+        r = self._get("POST", "/rest/v1/rpc/member_card", token, json={"target": member})
+        card = r.json() if r.status_code == 200 else None
+        if not isinstance(card, dict):
+            raise AccountError("Ce profil n'est pas disponible.")
+        return {**card, "photo": self._signed_photo(card.get("avatar_url"), token)}
+
+    def privacy(self, token: str) -> dict:
+        self._uid(token)
+        r = self._get("POST", "/rest/v1/rpc/my_privacy", token, json={})
+        if r.status_code != 200 or not isinstance(r.json(), dict):
+            raise AccountError("Tes choix de confidentialité n'ont pas pu être lus.")
+        return r.json()
+
+    def set_name_public(self, token: str, on: bool) -> dict:
+        self._uid(token)
+        r = self._get("POST", "/rest/v1/rpc/set_name_public", token, json={"visible": on})
+        if r.status_code != 200:
+            raise AccountError("Ton choix n'a pas été enregistré. Réessaie.")
+        return r.json()
+
+    def set_group_phone_share(self, token: str, group_id: str, on: bool) -> dict:
+        self._uid(token)
+        r = self._get("POST", "/rest/v1/rpc/set_group_phone_share", token, json={"grp": group_id, "visible": on})
+        if r.status_code != 200:
+            raise AccountError(self._db_message(r) if r.status_code < 500 else "Ton choix n'a pas été enregistré. Réessaie.")
+        return r.json()
 
     def is_linked(self, gid: str) -> bool:
         """Ce joueur a relié un compte vérifié depuis le démarrage du serveur (jeux réservés aux comptes)."""

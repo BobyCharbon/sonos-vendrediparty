@@ -2,7 +2,7 @@
 """Publie une BETA envoyée à TestFlight dans le groupe public « Invités » (lien public), dès qu'Apple l'a traitée.
 
 Lancé par .github/workflows/ios-testflight.yml après l'envoi (develop seulement) :
-  python3 tools/testflight_publish.py <identifiant de l'app> <numéro de build> <fichier .p8>
+  python3 tools/testflight_publish.py <identifiant de l'app> <numéro de build> <fichier .p8> [IOS|TV_OS]
 Variables : ASC_KEY_ID, ASC_ISSUER_ID (clé API App Store Connect). Attend le traitement (30 min au plus), déclare
 la conformité export (pas de chiffrement propre), ajoute le build au groupe et le soumet à la vérification bêta.
 """
@@ -21,6 +21,7 @@ from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 API = "https://api.appstoreconnect.apple.com"
 GROUP_NAME = "Invités"
 WAIT_S, POLL_S = 30 * 60, 30
+ADD_TRIES = 10  # ajout au groupe : 5 minutes au plus
 ALREADY_SUBMITTED = {"WAITING_FOR_BETA_REVIEW", "IN_BETA_REVIEW", "BETA_APPROVED", "IN_BETA_TESTING"}
 
 
@@ -49,11 +50,13 @@ def api(key_path: str, method: str, path: str, body: dict | None = None) -> dict
         return {"error": e.code, "detail": e.read().decode()[:500]}
 
 
-def main(app_id: str, version: str, key_path: str) -> int:
+def main(app_id: str, version: str, key_path: str, platform: str = "IOS") -> int:
     deadline = time.time() + WAIT_S
     build = None
     while time.time() < deadline:
-        found = api(key_path, "GET", f"/v1/builds?filter[app]={app_id}&filter[version]={version}&limit=1").get("data") or []
+        # iPhone et Apple TV portent le même numéro de build : la plateforme les distingue.
+        found = api(key_path, "GET", f"/v1/builds?filter[app]={app_id}&filter[version]={version}"
+                                     f"&filter[preReleaseVersion.platform]={platform}&limit=1").get("data") or []
         if found and found[0]["attributes"]["processingState"] == "VALID":
             build = found[0]
             break
@@ -74,8 +77,14 @@ def main(app_id: str, version: str, key_path: str) -> int:
     if group is None:
         print(f"Groupe « {GROUP_NAME} » introuvable")
         return 1
-    added = api(key_path, "POST", f"/v1/betaGroups/{group['id']}/relationships/builds",
-                {"data": [{"type": "builds", "id": bid}]})
+    # Juste après le traitement, Apple répond parfois « build introuvable » (404) quelques minutes : on réessaie.
+    for attempt in range(ADD_TRIES):
+        added = api(key_path, "POST", f"/v1/betaGroups/{group['id']}/relationships/builds",
+                    {"data": [{"type": "builds", "id": bid}]})
+        if added.get("error") != 404:
+            break
+        print(f"Build {version} pas encore visible pour le groupe : nouvel essai dans {POLL_S} s")
+        time.sleep(POLL_S)
     if "error" in added:
         print("Ajout au groupe refusé :", added["detail"])
         return 1
@@ -86,6 +95,11 @@ def main(app_id: str, version: str, key_path: str) -> int:
         submitted = api(key_path, "POST", "/v1/betaAppReviewSubmissions",
                         {"data": {"type": "betaAppReviewSubmissions",
                                   "relationships": {"build": {"data": {"type": "builds", "id": bid}}}}})
+        if "ANOTHER_BUILD_IN_REVIEW" in submitted.get("detail", ""):
+            # Un build précédent attend encore la vérification d'Apple : celui-ci reste dans le groupe, et les testeurs
+            # internes l'ont déjà ; on le soumettra avec le prochain envoi, une fois l'autre vérifié.
+            print(f"Build {version} ajouté à « {GROUP_NAME} » ; soumission plus tard (un autre build est en vérification)")
+            return 0
         if "error" in submitted:
             print("Soumission à la vérification bêta refusée :", submitted["detail"])
             return 1
@@ -94,4 +108,4 @@ def main(app_id: str, version: str, key_path: str) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(*sys.argv[1:4]))
+    sys.exit(main(*sys.argv[1:5]))

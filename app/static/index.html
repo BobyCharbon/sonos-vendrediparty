@@ -152,7 +152,7 @@
     </div>
   </section>
 
-  <section data-view="events account" class="events-panel hidden" aria-label="Événements du groupe">
+  <section data-view="events chats account" class="events-panel hidden" aria-label="Événements du groupe">
     <p class="sub" id="eventsLoading" role="status">Ouverture des événements…</p>
     <iframe id="eventsFrame" title="Événements du groupe : connexion, événements et sondages" class="events-frame" referrerpolicy="same-origin"></iframe>
     <noscript>Active JavaScript pour ouvrir les événements du groupe.</noscript>
@@ -162,6 +162,7 @@
     <button type="button" data-tab="music"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg><span>Musique</span></button>
     <button type="button" data-tab="games"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11h4M8 9v4"/><path d="M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-3.96 3.43L2 14.5A3 3 0 0 0 7.2 17l1.3-1.5h7l1.3 1.5a3 3 0 0 0 5.2-2.5l-.74-6.07A4 4 0 0 0 17.3 5z"/></svg><span>Jeux</span><i id="gameDot" class="badge hidden">●</i></button>
     <button type="button" data-tab="events"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h2M14 15h2"/></svg><span>Événements</span><i class="badge hidden" data-events-badge aria-hidden="true"></i></button>
+    <button type="button" data-tab="chats" class="hidden"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 9a6 6 0 0 1-8.7 5.4L2 15.5l.9-3.1A6 6 0 1 1 14 9z"/><path d="M9.6 17.2A6 6 0 0 0 18.7 19l3.3 1.1-.9-3.1a6 6 0 0 0-4.2-8.6"/></svg><span>Discussions</span><i id="chatsBadge" class="badge hidden"></i></button>
     <button type="button" data-tab="feedback"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 10.5h6M9 13.5h4"/></svg><span>Ton avis</span><i id="fbTabBadge" class="badge hidden"></i></button>
     <button type="button" data-tab="account" id="accountTab"><svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><img class="tab-avatar hidden" alt=""><span>Se connecter</span><i id="hostBadge" class="badge hidden"></i></button>
   </nav>
@@ -351,13 +352,14 @@ $("nameChip").addEventListener("click", changeName);
 const SUB_SCREENS = { host: "account", stats: "account" };
 // Les événements utilisent leur compte SMS ; les accès musique/jeux restent indépendants.
 function showTab(tab, eventTarget) {
-  if (!["music", "games", "events", "feedback", "account", "host", "stats"].includes(tab)) tab = "music";
+  if (!["music", "games", "events", "chats", "feedback", "account", "host", "stats"].includes(tab)) tab = "music";
   if (tab === "events" && PartyEvents.soon) {
     // Section en préparation : on reste où on est (ou sur la musique au démarrage).
     if (document.body.dataset.tab) return toast("📅 Les événements arrivent bientôt");
     tab = "music";
   }
   const under = SUB_SCREENS[tab], starting = !document.body.dataset.tab;
+  if (document.body.dataset.tab === "chats" && tab !== "chats") refreshChatsBadge();  // messages lus entre-temps
   document.querySelectorAll("[data-view]").forEach((el) => {
     const views = el.dataset.view.split(" ");
     el.classList.toggle("hidden", !(views.includes(tab) || (under && views.includes(under))));
@@ -370,7 +372,7 @@ function showTab(tab, eventTarget) {
   });
   if (!["feedback", "account", "host", "stats"].includes(tab) && document.body.dataset.tab) fbTab = tab;
   document.body.dataset.tab = tab;  // la lumière de scène et le titre suivent l'onglet
-  $("appTitle").textContent = ({ music: "Musique", games: "Jeux", events: "Événements", feedback: fbIsAdmin() ? "Retours" : "Ton avis", account: account ? "Réglages" : "Se connecter", host: "Invités et messages", stats: "Mes stats de jeu" })[tab];
+  $("appTitle").textContent = ({ music: "Musique", games: "Jeux", events: "Événements", chats: "Discussions", feedback: fbIsAdmin() ? "Retours" : "Ton avis", account: account ? "Réglages" : "Se connecter", host: "Invités et messages", stats: "Mes stats de jeu" })[tab];
   $("navBarTitle").textContent = $("appTitle").textContent;
   store("vp_tab", tab);
   if (tab === "games") refreshGame();
@@ -379,7 +381,9 @@ function showTab(tab, eventTarget) {
   if (tab === "host" && musicAdminMounted) { MusicAdmin.refresh(); window.AuditAdmin?.refresh(); }
   if (tab === "stats") showStats();
   // Événements et Réglages partagent le même module (une seule connexion) : on change juste de page dedans.
-  if (tab === "events") frameRoute(eventTarget || (frameAt === "/account" ? "/" : null));
+  if (tab === "events") frameRoute(eventTarget || (frameAt === "/account" || frameAt?.startsWith("/chats") ? "/" : null));
+  // Discussions de groupe (avis n°10) : mêmes connexion et module, page /chats.
+  if (tab === "chats") frameRoute(eventTarget || "/chats");
   if (tab === "account" || under) frameRoute("/account");
   if (under) {
     const screen = document.querySelector(`[data-view="${tab}"]`);
@@ -477,8 +481,17 @@ function fbSyncAccess() {
   tab.classList.toggle("hidden", !allowed);  // la barre native le remarque d'elle-même (native-tabs.js)
   if (!allowed && document.body.dataset.tab === "feedback") showTab("music");
 }
+// Discussions de groupe : pour les comptes connectés (les groupes en dépendent) ; non connecté, l'onglet disparaît.
+function chatsSyncAccess() {
+  const tab = document.querySelector('#tabs [data-tab="chats"]');
+  if (!tab || tab.classList.contains("hidden") === !account) return;
+  tab.classList.toggle("hidden", !account);
+  if (!account && document.body.dataset.tab === "chats") showTab("music");
+  if (account) setTimeout(refreshChatsBadge);
+}
 function showAccount() {
   fbSyncAccess();
+  chatsSyncAccess();
   const tab = $("accountTab"), pic = tab.querySelector(".tab-avatar");
   tab.querySelector("span").textContent = account ? "Réglages" : "Se connecter";
   tab.querySelector(".tab-ico").classList.toggle("hidden", !!account?.photo);
@@ -559,6 +572,22 @@ async function eventPass(token) {
   } catch { /* hors ligne : on garde l'accès actuel */ }
 }
 setInterval(() => { if (supabaseToken()) freshToken().then((token) => token && eventPass(token)); }, EVENT_PASS_EVERY);
+// Pastille de l'onglet Discussions : messages non lus de tous mes groupes (la barre native la reprend).
+const CHATS_BADGE_EVERY = 60000;
+async function refreshChatsBadge() {
+  const badge = $("chatsBadge");
+  const token = account && supabaseToken() ? await freshToken() : null;
+  if (!badge || !token) return badge?.classList.add("hidden");
+  try {
+    const r = await fetch("/api/account/chats", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
+    if (!r.ok) return;
+    const unread = ((await r.json()).chats || []).reduce((n, c) => n + (c.unread || 0), 0);
+    badge.textContent = unread > 99 ? "99+" : String(unread);
+    badge.classList.toggle("hidden", !unread);
+  } catch { /* hors ligne : la pastille reste telle quelle */ }
+}
+setInterval(refreshChatsBadge, CHATS_BADGE_EVERY);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshChatsBadge(); });
 try { account = JSON.parse(store("vp_account") || "null"); } catch { account = null; }
 showAccount();
 window.addEventListener("message", (event) => {
@@ -569,9 +598,9 @@ window.addEventListener("message", (event) => {
     const at = event.data.path || "/";
     if (frameAt && frameAt !== at) $("eventsFrame").contentWindow.postMessage({ type: "party-shell:navigate", path: frameAt }, location.origin);
   }
-  if (event.data?.type === "party-events:open-tab" && ["feedback", "music", "games", "events", "host", "stats"].includes(event.data.tab)) {
+  if (event.data?.type === "party-events:open-tab" && ["feedback", "music", "games", "events", "chats", "host", "stats"].includes(event.data.tab)) {
     showTab(event.data.tab);
-    if (event.data.tab === "events" && /^\/[a-z/-]*$/.test(event.data.path || "")) frameRoute(event.data.path);
+    if (["events", "chats"].includes(event.data.tab) && /^\/[a-z0-9/-]*$/.test(event.data.path || "")) frameRoute(event.data.path);
   }
 });
 linkAccount();
@@ -840,6 +869,11 @@ addEventListener("DOMContentLoaded", async () => {
   } else if (params.get("tab") === "feedback") {
     showTab(fbAllowed() ? "feedback" : "music");
     history.replaceState(null, "", location.pathname);
+  } else if (params.get("tab") === "chats") {
+    // Notification de discussion : la conversation du groupe (sinon la liste des discussions).
+    const chat = params.get("chat") || "";
+    showTab("chats", /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(chat) ? "/chats/" + chat : "/chats");
+    history.replaceState(null, "", location.pathname);
   } else if (params.get("tab") === "events") {
     showTab("events", PartyEvents.target(params));
     history.replaceState(null, "", location.pathname);
@@ -1051,6 +1085,7 @@ function listen() {
 <script src="/static/heist.js"></script>
 <script src="/static/game-audio.js"></script>
 <script src="/static/games.js"></script>
+<script src="/static/profile-card.js"></script>
 <script src="/static/feedback-admin.js"></script>
 <script src="/static/music-admin.js"></script>
 <script src="/static/people-admin.js"></script>

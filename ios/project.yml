@@ -28,7 +28,7 @@ settings:
     Release:
       PARTY_BUNDLE_SUFFIX: ""
       PARTY_HOST: party.bobycharbon.ch
-      PARTY_DISPLAY_NAME: "Party !"
+      PARTY_DISPLAY_NAME: "Party"
 
 targets:
   Party:
@@ -59,7 +59,7 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         NSCameraUsageDescription: "Pour scanner le QR code de l'hôte et prendre une photo de profil ou d'événement."
         NSPhotoLibraryUsageDescription: "Pour choisir une photo de profil ou d'événement."
-        NSMicrophoneUsageDescription: "Pour les jeux qui utilisent le micro."
+        NSMicrophoneUsageDescription: "Pour enregistrer tes messages vocaux dans les Discussions et pour les jeux qui utilisent le micro."
         ITSAppUsesNonExemptEncryption: false
     entitlements:
       path: Party/Party.entitlements
@@ -172,3 +172,53 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: ch.bobycharbon.party$(PARTY_BUNDLE_SUFFIX).widgets
         TARGETED_DEVICE_FAMILY: "1"
 
+
+  # App Apple TV (« Party TV ») : la partie en cours en grand, vue en spectateur, et la file de la musique dans un coin.
+  # Même identifiant que l'app iPhone (achat universel) : la BETA TestFlight s'installe aussi sur l'Apple TV.
+  PartyTV:
+    type: application
+    platform: tvOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: PartyTV
+    scheme:
+      testTargets: [PartyTVTests]
+    info:
+      path: PartyTV/Info.plist
+      properties:
+        CFBundleDisplayName: "$(PARTY_DISPLAY_NAME)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        PartyBaseURL: "$(PARTY_BASE_URL)"
+        UIUserInterfaceStyle: Dark
+        UILaunchScreen: {}
+        # Serveur local seulement (essais sur le simulateur) ; le site de la soirée reste en HTTPS.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ch.bobycharbon.party$(PARTY_BUNDLE_SUFFIX)
+        PARTY_BASE_URL: "https://$(PARTY_HOST)"
+        TARGETED_DEVICE_FAMILY: "3"
+        ASSETCATALOG_COMPILER_APPICON_NAME: "App Icon & Top Shelf Image"
+
+  # Tests unitaires de l'app Apple TV (lecture des vues de jeu, file de la musique).
+  # xcodebuild test -project Party.xcodeproj -scheme PartyTV -destination 'platform=tvOS Simulator,name=Apple TV 4K (3rd generation)'
+  PartyTVTests:
+    type: bundle.unit-test
+    platform: tvOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: PartyTVTests
+        excludes: ["*.json"]
+      - path: PartyTVTests/samples.json
+        buildPhase: resources
+      - path: PartyTVTests/samples-all.json
+        buildPhase: resources
+    dependencies:
+      - target: PartyTV
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: ch.bobycharbon.party.tvtests

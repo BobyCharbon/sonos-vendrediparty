@@ -1597,3 +1597,19 @@ html.native-tabs #tabs { visibility: hidden; height: 0; min-height: 0; padding: 
 html.native-tabs body { padding-bottom: 24px; }
 html.native-tabs body.has-mini { padding-bottom: 100px; }
 html.native-tabs .g-mini { bottom: 12px; }
+
+/* 👤 Fiche profil d'un joueur (profile-card.js) */
+.pc-backdrop { position: fixed; inset: 0; z-index: 90; display: grid; place-items: end center; background: rgba(0,0,0,.55);
+  padding: 16px max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-bottom)); }
+.pc-card { width: min(420px, 100%); background: var(--card); border-radius: 22px; padding: 22px 18px 16px; text-align: center;
+  display: grid; gap: 8px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.pc-photo { width: 96px; height: 96px; margin: 0 auto 4px; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
+  background: var(--card-2); font-size: 2.4rem; font-weight: 800; }
+.pc-photo img { width: 100%; height: 100%; object-fit: cover; }
+.pc-name { font-size: 1.35rem; font-weight: 800; }
+.pc-phone { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; margin-top: 4px; }
+.pc-btn { display: inline-block; padding: 8px 14px; border-radius: 999px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 700; }
+.pc-btn.secondary { background: var(--card-2); color: var(--text); }
+.pc-groups { margin-top: 4px; }
+.pc-close { margin-top: 6px; }
+[data-profile-pid] { cursor: pointer; }

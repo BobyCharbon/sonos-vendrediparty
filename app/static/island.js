@@ -5,7 +5,9 @@ window.Island=(()=>{
   let root=null,code='',current=null,snap=null,scene=null,timer=0,frame=0,token=0,request=null,signature='',loaded=false;
   let input={x:0,y:0,jump:false,cancel:true},stickId=null,jumpId=null,lastCount='',lastResult='',loadFailed=false,jumpPulse=false;
   const keys=new Set(),escape=x=>esc(String(x??''));
-  function reset(){jumpPulse=false;input={x:0,y:0,jump:false,cancel:true};stickId=jumpId=null;keys.clear();root?.querySelector('.is-knob')?.style.removeProperty('transform');}
+  function reset(){jumpPulse=false;input={x:0,y:0,jump:false,cancel:true};stickId=jumpId=null;keys.clear();root?.querySelector('.is-knob')?.style.removeProperty('transform');
+    // Doigts oubliés : les commandes flottantes reviennent à leur place (sinon elles restent là où on a touché).
+    root?.querySelectorAll('.is-stick,.is-jump').forEach(el=>el.style.removeProperty('translate'));}
   function stop(){if(!root&&!code)return;token++;clearTimeout(timer);cancelAnimationFrame(frame);request?.abort();reset();scene?.dispose();scene=null;root=null;snap=null;code='';loaded=false;document.body.classList.remove('island-full');}
   function mount(g){
     current=g;
@@ -62,7 +64,10 @@ window.Island=(()=>{
     const playing=['countdown','play'].includes(snap.phase),mine=snap.fighters.find(p=>p.pid===snap.me),alive=snap.fighters.filter(p=>p.alive).length;
     root.classList.toggle('is-playing',playing);root.classList.toggle('is-lobby',snap.phase==='lobby');
     root.querySelector('.is-controls').classList.toggle('is-inactive',!playing||!mine?.alive||!loaded);
-    root.querySelector('.is-jump').disabled=!playing||!mine?.alive||!loaded;
+    const jump=root.querySelector('.is-jump');jump.disabled=!playing||!mine?.alive||!loaded;
+    // Désactivé pendant qu'un doigt le tient : il ne recevra plus le relâchement, on le remet donc à sa place.
+    if(jump.disabled&&jumpId!==null){jumpId=null;input.jump=false;}
+    if(jump.disabled)jump.style.removeProperty('translate');
     const remaining=Math.max(0,Math.ceil(snap.duration-Math.max(0,snap.time)));
     root.querySelector('.is-clock').textContent=`${Math.floor(remaining/60).toString().padStart(2,'0')}:${(remaining%60).toString().padStart(2,'0')}`;
     root.querySelector('.is-count').textContent=snap.phase==='lobby'?`${current.players.length} / 8 joueurs`:snap.solo?'Survie solo':`${alive} / ${snap.fighters.length} en jeu`;

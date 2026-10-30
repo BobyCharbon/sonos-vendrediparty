@@ -35,7 +35,7 @@ export function ProfilePhotoField({ userId, name, currentPhoto, photo, onChange,
       <View style={{ alignItems: 'center' }}>
         {photo
           ? <Image accessibilityLabel="Aperçu de ta photo de profil" source={{ uri: photo }} style={{ width: 96, height: 96, borderRadius: 48 }} />
-          : <Avatar id={userId} name={name || '?'} photo={currentPhoto} size={96} />}
+          : <Avatar id={userId} name={name || '?'} photo={currentPhoto} size={96} profile={false} />}
       </View>
       <T muted size={13}>Pour que le groupe te reconnaisse, dans les jeux comme dans les événements. Tu la recadres juste après l’avoir choisie.</T>
       <input ref={gallery} type="file" accept="image/*,.heic,.heif" hidden onChange={picked} />

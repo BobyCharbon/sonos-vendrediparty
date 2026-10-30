@@ -239,7 +239,9 @@ def join(g: dict, gid: str, name: str = ""):
                          "waiting": waiting, "pending": pending})
 
 
-MANUAL_GAMES = ("divan", "tmc", "never", "pyramid", "biskit", "likely", "debate", "room")  # jeux où l'animateur peut ajouter des participants sans téléphone
+# Jeux où l'animateur peut ajouter des participants sans téléphone (il vote, mise ou joue pour eux). Pas Undercover,
+# Quiz, Purify ni Président : ils reposent sur un secret (mot, main) ou des réponses personnelles.
+MANUAL_GAMES = ("divan", "tmc", "never", "pyramid", "biskit", "likely", "debate", "room", "whoof", "blackjack", "casino")
 
 
 def add_guest(g: dict, name: str, guest_id: str | None = None):
@@ -272,9 +274,14 @@ def is_manual(g: dict, gid: str) -> bool:
 
 
 def vote_for(g: dict, target: str, answer: str, rng: random.Random = random):
-    """Je n'ai jamais : l'animateur enregistre la réponse d'un participant sans téléphone."""
+    """L'animateur enregistre le vote d'un participant sans téléphone : sa réponse (Je n'ai jamais) ou la personne
+    qu'il désigne (Qui de nous ?, identifiant public)."""
     if not is_manual(g, target):
         raise GameError("Ce joueur répond sur son téléphone")
+    if g["type"] == "whoof":
+        answer = gid_of(g, answer)
+        if not answer:
+            raise GameError("Choisis qui il ou elle désigne")
     vote(g, target, answer, rng)
 
 

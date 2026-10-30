@@ -37,6 +37,11 @@ def test_stick_left_and_action_right_follow_the_finger(phones,kind,prefix,button
     start=p.page.locator(f'.{prefix}-primary[data-gact="start"]');expect(start).to_be_enabled(timeout=20000);start.tap()
     wait_state(p,lambda g:g['phase']=='play',timeout=15)
     expect(p.page.locator(button)).to_be_enabled(timeout=10000)
+    # Commandes actives (décor 3D chargé) : avant, elles ne suivent pas le doigt, puisqu'elles ne peuvent pas agir.
+    expect(p.page.locator(f'.{prefix}-controls.{prefix}-inactive')).to_have_count(0,timeout=20000)
+    if kind=='island':
+        # Le téléphone a quitté le compte à rebours (le passage en jeu remet les commandes à leur place).
+        p.page.wait_for_function("!/^\\d+$/.test((document.querySelector('.is-callout')?.textContent||'').trim())",timeout=15000)
     cdp=p.ctx.new_cdp_session(p.page);vw=p.page.viewport_size
     press(p,cdp,vw['width']*.25,vw['height']*.4,f'.{prefix}-stick')
     press(p,cdp,vw['width']*.75,vw['height']*.4,button)

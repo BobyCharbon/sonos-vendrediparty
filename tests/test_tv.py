@@ -62,3 +62,21 @@ def test_the_tv_says_when_the_music_cannot_be_reached(tv, monkeypatch):
     monkeypatch.setattr(main, 'snapshot', broken)
     data = host.get('/api/tv').json()
     assert data['active'] is True and data['error'] and 'now' not in data
+
+
+def test_the_tv_app_watches_a_game_as_a_spectator_without_any_secret(tv, monkeypatch):
+    # App Apple TV : la partie en grand, mais jamais les mots, rôles ou mains cachés (toute la soirée voit la télé).
+    import random
+    from app import games
+    host, guest = tv
+    code = host.post('/api/games', json={'type': 'undercover', 'guest_id': 'tv-host-000001', 'name': 'Lulu'}).json()['code']
+    g = main.store.session.games[code]
+    for i in range(4):
+        games.join(g, f'tv-player-00000{i}', f'Joueur {i}')
+    games.start(g, random.Random(3))
+    assert guest.get(f'/api/tv/game/{code}').status_code == 401  # réservé à l'écran de l'hôte
+    view = host.get(f'/api/tv/game/{code}').json()
+    assert view['code'] == code and view['phase'] != 'lobby' and len(view['players']) == 5
+    assert not any('word' in p or 'role' in p for p in view['players'])  # aucun secret
+    assert view['is_host'] is False and view['master'] is False
+    assert host.get('/api/tv/game/0000').status_code == 404

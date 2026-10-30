@@ -13,7 +13,7 @@ import threading
 import time
 import unicodedata
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import quote, unquote, urlparse
 
 import httpx
@@ -29,6 +29,7 @@ from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
 from .account_auth import AccountAuth
 from .group_admin import ROLES as ADMIN_ROLES, GroupAdmin
+from .group_chats import LEVELS as CHAT_LEVELS, PHOTO_MAX as CHAT_PHOTO_MAX, GroupChats
 from .audit import AuditLog
 from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
 from .github_issues import GitHubError, Issues
@@ -1381,6 +1382,8 @@ def full_view(g: dict, gid: str) -> dict:
         ids = [real["id"]] + [a for a, o in (g.get("aliases") or {}).items() if o == real["id"]]
         if photo := next(filter(None, map(accounts.photo, ids)), None):
             p["photo"] = photo  # compte Party : la photo de profil remplace l'initiale
+        if any(map(accounts.is_linked, ids)):
+            p["account"] = True  # compte Party : son nom ouvre sa fiche profil
         twins = [x for x in g["players"] if not x.get("manual") and same_name(x["name"], real["name"])]
         if len(twins) > 1:
             p["twin"] = twins.index(real) + 1
@@ -1412,6 +1415,7 @@ def presence(body: Presence, request: Request):
 
 accounts = Accounts(_secret())
 group_admin = GroupAdmin(accounts)
+group_chats = GroupChats(group_admin)
 account_auth = AccountAuth(accounts)
 # Ne compte que les vrais refus (compte sans droit admin). Un jeton expiré ou invalide n'est jamais compté :
 # un jeton Supabase ne se devine pas, et l'app rouverte après 1 h en présente un périmé. Compté, il bloquait
@@ -1692,6 +1696,113 @@ class AdminJournal(MemberToken):
     before: int | None = Field(default=None, ge=1)
 
 
+# Discussions de groupe (avis n°10) pour l'app native : la base revérifie tout avec la session du membre.
+class ChatRef(MemberToken):
+    group_id: str = Field(pattern=UUID)
+
+
+class ChatSend(ChatRef):
+    body: str = Field(default="", max_length=2000)
+    reply_to: str | None = Field(default=None, pattern=UUID)
+    photo_path: str | None = Field(default=None, max_length=200, pattern=r"^[0-9a-f-]{36}/[0-9]+-[0-9a-f]{10}\.(jpg|png)$")
+    # Fournis par l'app (envoi en un seul appel) : personnes citées, identifiant du message affiché tout de suite.
+    mentions: list[Annotated[str, Field(pattern=UUID)]] | None = Field(default=None, max_length=100)
+    id: str | None = Field(default=None, pattern=UUID)
+    audio_path: str | None = Field(default=None, max_length=200, pattern=r"^[0-9a-f-]{36}/[0-9]+-[0-9a-f]{10}\.(m4a|webm|ogg)$")
+    audio_seconds: float | None = Field(default=None, ge=0, le=600)
+
+
+class ChatPhoto(ChatRef):
+    photo: str = Field(min_length=1, max_length=CHAT_PHOTO_MAX * 4 // 3 + 8)  # base64
+
+
+class ChatMessage(MemberToken):
+    id: str = Field(pattern=UUID)
+
+
+class ChatReact(ChatMessage):
+    emoji: str = Field(min_length=1, max_length=16)
+    on: bool
+
+
+class ChatPin(ChatMessage):
+    pin: bool
+
+
+class ChatNotify(ChatRef):
+    level: Literal[CHAT_LEVELS]
+
+
+class ChatAdmin(ChatRef):
+    user_id: str = Field(pattern=UUID)
+    on: bool
+
+
+@app.post("/api/account/chats")
+def account_chats(body: MemberToken):
+    return account_call(lambda: group_chats.chats(body.token), 401)
+
+
+@app.post("/api/account/chats/open")
+def account_chat_open(body: ChatRef):
+    return account_call(lambda: group_chats.conversation(body.token, body.group_id))
+
+
+@app.post("/api/account/chats/send")
+def account_chat_send(body: ChatSend):
+    return account_call(lambda: group_chats.send(body.token, body.group_id, body.body.strip(), body.reply_to, body.photo_path,
+                                                 body.mentions, body.id, body.audio_path, body.audio_seconds))
+
+
+@app.post("/api/account/chats/audio")
+def account_chat_audio(body: ChatPhoto):
+    """Message vocal (base64) : déposé dans le dossier du groupe, puis envoyé avec /chats/send (audio_path)."""
+    try:
+        data = base64.b64decode(body.photo, validate=True)
+    except ValueError:
+        raise HTTPException(400, "Enregistrement illisible") from None
+    return account_call(lambda: group_chats.upload_audio(body.token, body.group_id, data))
+
+
+@app.post("/api/account/chats/photo")
+def account_chat_photo(body: ChatPhoto):
+    try:
+        data = base64.b64decode(body.photo, validate=True)
+    except ValueError:
+        raise HTTPException(400, "Photo illisible") from None
+    return account_call(lambda: group_chats.upload_photo(body.token, body.group_id, data))
+
+
+@app.post("/api/account/chats/react")
+def account_chat_react(body: ChatReact):
+    return account_call(lambda: group_chats.react(body.token, body.id, body.emoji, body.on))
+
+
+@app.post("/api/account/chats/pin")
+def account_chat_pin(body: ChatPin):
+    return account_call(lambda: group_chats.pin(body.token, body.id, body.pin))
+
+
+@app.post("/api/account/chats/delete")
+def account_chat_delete(body: ChatMessage):
+    return account_call(lambda: group_chats.delete(body.token, body.id))
+
+
+@app.post("/api/account/chats/notify")
+def account_chat_notify(body: ChatNotify):
+    return account_call(lambda: group_chats.notify(body.token, body.group_id, body.level))
+
+
+@app.post("/api/account/chats/admin")
+def account_chat_admin(body: ChatAdmin):
+    return account_call(lambda: group_chats.set_admin(body.token, body.group_id, body.user_id, body.on))
+
+
+@app.post("/api/account/chats/read")
+def account_chat_read(body: ChatRef):
+    return account_call(lambda: group_chats.read(body.token, body.group_id))
+
+
 # Réglages natifs › Administration du groupe : la base revérifie chaque droit avec la session du membre.
 @app.post("/api/account/group-admin")
 def account_group_admin(body: MemberToken):
@@ -1786,6 +1897,120 @@ def account_group_admin_taxonomy_save(body: TopicSave):
     if not fields or (body.id is None and not body.name):
         raise HTTPException(400, "Donne un nom.")
     return account_call(lambda: group_admin.save_topic(body.token, body.kind, body.id, fields))
+
+
+class MemberCardIn(MemberToken):
+    id: str | None = Field(default=None, pattern=UUID)
+    # Jeux : la partie et le numéro du joueur (jamais son identifiant, qui ne quitte pas le serveur).
+    game: str | None = Field(default=None, pattern=r"^[0-9]{4}$")
+    pid: str | None = Field(default=None, max_length=40)
+
+
+class PrivacyName(MemberToken):
+    on: bool
+
+
+class PrivacyPhone(MemberToken):
+    group_id: str = Field(pattern=UUID)
+    on: bool
+
+
+@app.post("/api/account/card")
+def account_card(body: MemberCardIn):
+    """Fiche profil d'un compte (Réglages, groupes, jeux…) : ce que les choix de la personne laissent voir."""
+    guest = None
+    if body.game and body.pid:
+        g = get_game(body.game)
+        real = games.gid_of(g, body.pid)
+        ids = [real] + [a for a, o in (g.get("aliases") or {}).items() if o == real]
+        guest = next((i for i in ids if accounts.is_linked(i)), None)
+        if not guest:
+            raise HTTPException(404, "Ce joueur n'a pas de compte Party.")
+    elif not body.id:
+        raise HTTPException(400, "Profil inconnu")
+    return account_call(lambda: accounts.member_card(body.token, body.id, guest), 404)
+
+
+@app.post("/api/account/privacy")
+def account_privacy(body: MemberToken):
+    return account_call(lambda: accounts.privacy(body.token), 401)
+
+
+@app.post("/api/account/privacy/name")
+def account_privacy_name(body: PrivacyName):
+    return account_call(lambda: accounts.set_name_public(body.token, body.on))
+
+
+@app.post("/api/account/privacy/phone")
+def account_privacy_phone(body: PrivacyPhone):
+    return account_call(lambda: accounts.set_group_phone_share(body.token, body.group_id, body.on))
+
+
+class GroupInvitationAnswer(MemberToken):
+    id: str = Field(pattern=UUID)
+    accept: bool
+
+
+class GroupLink(MemberToken):
+    group_id: str = Field(pattern=UUID)
+    renew: bool = False
+
+
+class GroupInvite(MemberToken):
+    group_id: str = Field(pattern=UUID)
+    member: str | None = Field(default=None, pattern=UUID)
+    phone: str | None = Field(default=None, min_length=8, max_length=20, pattern=r"^[+0-9 .()-]+$")
+
+
+@app.post("/api/account/groups/invitations")
+def account_group_invitations(body: MemberToken):
+    """Réglages › Groupes : les invitations reçues (par mon compte ou mon numéro)."""
+    return {"invitations": account_call(lambda: accounts.group_invitations(body.token), 401)}
+
+
+@app.post("/api/account/groups/invitations/answer")
+def account_group_invitation_answer(body: GroupInvitationAnswer):
+    return {"invitations": account_call(lambda: accounts.answer_group_invitation(body.token, body.id, body.accept))}
+
+
+@app.post("/api/account/groups/link")
+def account_group_link(body: GroupLink):
+    """Lien d'invitation d'un groupe (créateur) : adresse publique du module Événements."""
+    token = account_call(lambda: accounts.group_invite_link(body.token, body.group_id, body.renew))
+    return {"url": group_link_url(token)}
+
+
+class GroupLinkRef(MemberToken):
+    id: str = Field(pattern=UUID)
+
+
+def group_link_url(link: str) -> str:
+    return f"{guest_url().rstrip('/')}/events/group-invite/{link}"
+
+
+@app.post("/api/account/groups/link/single")
+def account_group_single_link(body: GroupRef):
+    """Nouveau lien unique (une personne, une fois, 7 jours) : le créateur en crée un par personne invitée."""
+    link = account_call(lambda: accounts.group_single_link(body.token, body.group_id))
+    return {"url": group_link_url(link), "links": account_call(lambda: accounts.group_links(body.token, body.group_id))}
+
+
+@app.post("/api/account/groups/links")
+def account_group_links(body: GroupRef):
+    return {"links": account_call(lambda: accounts.group_links(body.token, body.group_id))}
+
+
+@app.post("/api/account/groups/links/revoke")
+def account_group_link_revoke(body: GroupLinkRef):
+    account_call(lambda: accounts.revoke_link(body.token, body.id))
+    return {"ok": True}
+
+
+@app.post("/api/account/groups/invite")
+def account_group_invite(body: GroupInvite):
+    if not body.member and not body.phone:
+        raise HTTPException(400, "Choisis une personne ou un numéro")
+    return account_call(lambda: accounts.invite_to_group(body.token, body.group_id, body.member, body.phone))
 
 
 class SubscriptionSet(MemberToken):
@@ -2116,6 +2341,8 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino", "pyramid", "biskit") else "")
     # Pyramide : l'animateur peut agir pour un joueur (participant sans téléphone, ou qui traîne).
     actor = games.gid_of(g, body.who) if body.who and games.is_lead(g, me) and games.gid_of(g, body.who) else me
+    # Blackjack, Casino : l'animateur mise et joue pour un participant sans téléphone (jamais pour un autre joueur).
+    seat = actor if actor != me and games.is_manual(g, actor) else me
     if a in HOST_ACTIONS and not games.is_lead(g, me):
         raise HTTPException(403, "Seul l'animateur de la partie peut faire ça")
     if a == "join" and (msg := ban_message(me, client_ip(request))):
@@ -2139,12 +2366,12 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "next": (games.next_step,), "restart": (games.restart,), "remove": (games.kick, target), "ban": (games.ban, target),
         "up": (games.move, target, -1), "down": (games.move, target, 1),
         "names": (games.set_names, body.names), "spin": (games.spin,),
-        "bet": (games.bj_bet, me, body.amount), "hit": (games.bj_hit, me), "stand": (games.bj_stand, me),
-        "double": (games.bj_double, me), "rebuy": (games.bj_rebuy, me),
+        "bet": (games.bj_bet, seat, body.amount), "hit": (games.bj_hit, seat), "stand": (games.bj_stand, seat),
+        "double": (games.bj_double, seat), "rebuy": (games.bj_rebuy, seat),
         "deal": (games.bj_deal,), "skip": (games.bj_force_stand,),
-        "cbet": (games.casino_bet, me, body.target, body.amount), "cclear": (games.casino_clear, me),
-        "crebuy": (games.casino_rebuy, me), "cspin": (games.casino_spin,),
-        "cundo": (games.casino_undo, me), "cready": (games.casino_ready, me, random),
+        "cbet": (games.casino_bet, seat, body.target, body.amount), "cclear": (games.casino_clear, seat),
+        "crebuy": (games.casino_rebuy, seat), "cspin": (games.casino_spin,),
+        "cundo": (games.casino_undo, seat), "cready": (games.casino_ready, seat, random),
         "dnext": (games.divan_next, me), "djoker": (games.divan_joker, me), "dback": (games.divan_back, me), "dheart": (games.divan_heart, me),
         "tanswer": (games.tmc_answer, me, body.guess), "tjudge": (games.tmc_judge, me, body.amount),
         "addguest": (games.add_guest, body.guess), "mvote": (games.vote_for, target, body.guess),
@@ -2922,6 +3149,24 @@ def tv_state():
         return {**base, "error": "La musique est injoignable pour le moment"}
     return {**base, "room": s.room_name, "state": music["state"], "now": music["now"],
             "upcoming": [{k: t[k] for k in ("title", "artist", "art", "by")} for t in music["upcoming"][:TV_UPCOMING]]}
+
+
+@app.get("/api/tv/game/{code}", dependencies=[Depends(require_admin)])
+def tv_game(code: str):
+    """App Apple TV : la partie vue en SPECTATEUR (aucun mot secret, aucune main cachée, aucun rôle avant la fin),
+    rafraîchie chaque seconde par la télé. Mêmes avancées automatiques que pour les téléphones (fin d'une question…)."""
+    with GAMES_LOCK:
+        g = get_game(code)
+        if quiz.tick(g):
+            g["updated_at"] = time.time()
+            save_games(g["code"], g.get("room") or "")
+        for engine in (heist, island, neon):
+            if engine.tick(g):
+                save_games(g["code"])
+        view = full_view(g, "")
+        if g["type"] == "room" and (child := room_child(g)) is not None:
+            view["current"] = full_view(child, "")  # Salle de jeux : le jeu lancé dans la salle
+        return view
 
 
 @app.get("/api/calendar.ics")

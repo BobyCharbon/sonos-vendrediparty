@@ -1,0 +1,1047 @@
+{
+ "undercover_lobby": {
+  "id": "b35f104c",
+  "code": "2397",
+  "type": "undercover",
+  "name": "Undercover",
+  "phase": "lobby",
+  "room": null,
+  "mode": null,
+  "round": 0,
+  "players": [
+   {
+    "pid": "625cbdd4",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "4ba55fb1",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "5d561899",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "42f248c2",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "ba88945c",
+    "name": "Max",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5,
+   "impostors": 0,
+   "reveal": false,
+   "hint": false,
+   "white_hint": false
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.006855010986328125
+ },
+ "undercover_words": {
+  "id": "b35f104c",
+  "code": "2397",
+  "type": "undercover",
+  "name": "Undercover",
+  "phase": "words",
+  "room": null,
+  "mode": null,
+  "round": 1,
+  "players": [
+   {
+    "pid": "625cbdd4",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "4ba55fb1",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "5d561899",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "42f248c2",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "ba88945c",
+    "name": "Max",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [
+   "Boby",
+   "Léa",
+   "Tom",
+   "Max",
+   "Nina"
+  ],
+  "order_pids": [
+   "625cbdd4",
+   "4ba55fb1",
+   "5d561899",
+   "ba88945c",
+   "42f248c2"
+  ],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5,
+   "impostors": 0,
+   "reveal": false,
+   "hint": false,
+   "white_hint": false
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.011828899383544922
+ },
+ "whoof_vote": {
+  "id": "b8df5c84",
+  "code": "1503",
+  "type": "whoof",
+  "name": "Qui de nous ?",
+  "phase": "question",
+  "room": null,
+  "mode": "😇 Soft",
+  "round": 1,
+  "players": [
+   {
+    "pid": "4b7cde25",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "2aed7849",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "0d54dbba",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "a2d0757b",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "8110e28b",
+    "name": "Max",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": "Qui de nous arrive toujours en retard ?",
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.005738019943237305
+ },
+ "whoof_votes": {
+  "id": "b8df5c84",
+  "code": "1503",
+  "type": "whoof",
+  "name": "Qui de nous ?",
+  "phase": "question",
+  "room": null,
+  "mode": "😇 Soft",
+  "round": 1,
+  "players": [
+   {
+    "pid": "4b7cde25",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": true,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "2aed7849",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": true,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "0d54dbba",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": true,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "a2d0757b",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "8110e28b",
+    "name": "Max",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": "Qui de nous arrive toujours en retard ?",
+  "votes_count": 3,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.010500192642211914
+ },
+ "quiz_lobby": {
+  "id": "c825a1f7",
+  "code": "1728",
+  "type": "quiz",
+  "name": "Quiz",
+  "phase": "lobby",
+  "room": null,
+  "mode": null,
+  "round": 0,
+  "players": [
+   {
+    "pid": "323d94c4",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "b12efef6",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "ad5ba794",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "0f8ff1b4",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "198214f0",
+    "name": "Max",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.006760120391845703,
+  "quiz": {
+   "settings": {
+    "mode": "classic",
+    "themes": [],
+    "diff": "mix",
+    "count": 15,
+    "time": 20,
+    "lives": 3,
+    "chrono": 60
+   },
+   "mode_label": "Classique",
+   "mode_icon": "🏆",
+   "diff_label": "Toutes",
+   "theme_labels": [
+    "🎲 Tous les thèmes"
+   ],
+   "n": 0,
+   "server_now": 1793376963.5151942,
+   "paused": false,
+   "token": "lobby0",
+   "board": [],
+   "catalog": {
+    "themes": [
+     {
+      "id": "culture",
+      "name": "Culture générale",
+      "icon": "🧠",
+      "count": 1022
+     },
+     {
+      "id": "geo",
+      "name": "Géographie",
+      "icon": "🌍",
+      "count": 2372
+     },
+     {
+      "id": "histoire",
+      "name": "Histoire",
+      "icon": "🏛️",
+      "count": 1115
+     },
+     {
+      "id": "sciences",
+      "name": "Sciences",
+      "icon": "🔬",
+      "count": 1085
+     },
+     {
+      "id": "tech",
+      "name": "Informatique & IA",
+      "icon": "💻",
+      "count": 1052
+     },
+     {
+      "id": "corps",
+      "name": "Corps humain",
+      "icon": "🫀",
+      "count": 1066
+     },
+     {
+      "id": "animaux",
+      "name": "Animaux",
+      "icon": "🦁",
+      "count": 1056
+     },
+     {
+      "id": "espace",
+      "name": "Espace",
+      "icon": "🚀",
+      "count": 1040
+     },
+     {
+      "id": "cinema",
+      "name": "Cinéma & séries",
+      "icon": "🎬",
+      "count": 1635
+     },
+     {
+      "id": "musique",
+      "name": "Musique",
+      "icon": "🎵",
+      "count": 1131
+     },
+     {
+      "id": "jeux",
+      "name": "Jeux vidéo",
+      "icon": "🎮",
+      "count": 1043
+     },
+     {
+      "id": "bd",
+      "name": "BD & mangas",
+      "icon": "📚",
+      "count": 1053
+     },
+     {
+      "id": "sport",
+      "name": "Sport",
+      "icon": "⚽",
+      "count": 1009
+     },
+     {
+      "id": "cuisine",
+      "name": "Cuisine",
+      "icon": "🍽️",
+      "count": 1010
+     },
+     {
+      "id": "suisse",
+      "name": "Suisse",
+      "icon": "🇨🇭",
+      "count": 1037
+     }
+    ],
+    "modes": [
+     {
+      "id": "classic",
+      "name": "Classique",
+      "icon": "🏆"
+     },
+     {
+      "id": "speed",
+      "name": "Rapidité",
+      "icon": "⚡"
+     },
+     {
+      "id": "survival",
+      "name": "Survie",
+      "icon": "❤️"
+     },
+     {
+      "id": "chrono",
+      "name": "Contre-la-montre",
+      "icon": "⏱️"
+     },
+     {
+      "id": "ladder",
+      "name": "Paliers",
+      "icon": "🪜"
+     }
+    ],
+    "diffs": {
+     "mix": "Toutes",
+     "1": "Facile",
+     "2": "Moyen",
+     "3": "Difficile",
+     "prog": "Progressive"
+    }
+   },
+   "leaderboard": {
+    "top": [],
+    "records": {}
+   }
+  }
+ },
+ "quiz_q": {
+  "id": "c825a1f7",
+  "code": "1728",
+  "type": "quiz",
+  "name": "Quiz",
+  "phase": "q",
+  "room": null,
+  "mode": null,
+  "round": 1,
+  "players": [
+   {
+    "pid": "323d94c4",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "b12efef6",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "ad5ba794",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "0f8ff1b4",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "198214f0",
+    "name": "Max",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.022550106048583984,
+  "quiz": {
+   "settings": {
+    "mode": "classic",
+    "themes": [],
+    "diff": "mix",
+    "count": 15,
+    "time": 20,
+    "lives": 3,
+    "chrono": 60
+   },
+   "mode_label": "Classique",
+   "mode_icon": "🏆",
+   "diff_label": "Toutes",
+   "theme_labels": [
+    "🎲 Tous les thèmes"
+   ],
+   "n": 1,
+   "server_now": 1793376963.530983,
+   "paused": false,
+   "token": "q1",
+   "board": [
+    {
+     "pid": "323d94c4",
+     "name": "Boby",
+     "pts": 0,
+     "ok": 0,
+     "n": 0,
+     "streak": 0,
+     "best": 0,
+     "lives": 3,
+     "out": false,
+     "me": false,
+     "level": null,
+     "done": false
+    },
+    {
+     "pid": "b12efef6",
+     "name": "Léa",
+     "pts": 0,
+     "ok": 0,
+     "n": 0,
+     "streak": 0,
+     "best": 0,
+     "lives": 3,
+     "out": false,
+     "me": false,
+     "level": null,
+     "done": false
+    },
+    {
+     "pid": "ad5ba794",
+     "name": "Tom",
+     "pts": 0,
+     "ok": 0,
+     "n": 0,
+     "streak": 0,
+     "best": 0,
+     "lives": 3,
+     "out": false,
+     "me": false,
+     "level": null,
+     "done": false
+    },
+    {
+     "pid": "0f8ff1b4",
+     "name": "Nina",
+     "pts": 0,
+     "ok": 0,
+     "n": 0,
+     "streak": 0,
+     "best": 0,
+     "lives": 3,
+     "out": false,
+     "me": false,
+     "level": null,
+     "done": false
+    },
+    {
+     "pid": "198214f0",
+     "name": "Max",
+     "pts": 0,
+     "ok": 0,
+     "n": 0,
+     "streak": 0,
+     "best": 0,
+     "lives": 3,
+     "out": false,
+     "me": false,
+     "level": null,
+     "done": false
+    }
+   ],
+   "q": {
+    "text": "Qui chante « Sans contrefaçon » ?",
+    "theme": "Musique",
+    "icon": "🎵",
+    "d": 2,
+    "choices": [
+     "Mylène Farmer",
+     "Avicii",
+     "Kendji Girac",
+     "Ed Sheeran"
+    ],
+    "left": 19.991324186325073,
+    "dur": 20,
+    "answered": 0,
+    "players": 5,
+    "mine": null,
+    "locked": false,
+    "out": false
+   }
+  }
+ },
+ "likely_ask": {
+  "id": "e647fa9c",
+  "code": "2985",
+  "type": "likely",
+  "name": "Qui est le plus… ?",
+  "phase": "ask",
+  "room": null,
+  "mode": null,
+  "round": 1,
+  "players": [
+   {
+    "pid": "46ef9c49",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "6515710e",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "9e3b58d3",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "f35ecf6c",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   },
+   {
+    "pid": "dafcbbb5",
+    "name": "Max",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": false,
+    "seen_ago": null
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.015491724014282227,
+  "likely": {
+   "packs": [
+    "family"
+   ],
+   "pack_list": [
+    {
+     "id": "family",
+     "label": "👨‍👩‍👧 Tous publics",
+     "size": 365
+    },
+    {
+     "id": "friends",
+     "label": "😏 Entre amis",
+     "size": 103
+    }
+   ],
+   "count": 20,
+   "counts": [
+    10,
+    20,
+    30
+   ],
+   "max_sips": 3,
+   "q": "Qui est le plus sportif ?",
+   "n": 1,
+   "voter": null,
+   "can_vote": false,
+   "waiting": [
+    {
+     "pid": "46ef9c49",
+     "name": "Boby",
+     "manual": false
+    },
+    {
+     "pid": "6515710e",
+     "name": "Léa",
+     "manual": false
+    },
+    {
+     "pid": "9e3b58d3",
+     "name": "Tom",
+     "manual": false
+    },
+    {
+     "pid": "f35ecf6c",
+     "name": "Nina",
+     "manual": false
+    },
+    {
+     "pid": "dafcbbb5",
+     "name": "Max",
+     "manual": false
+    }
+   ],
+   "voted": 0,
+   "total": 5,
+   "done": [],
+   "result": null,
+   "scores": [
+    {
+     "pid": "46ef9c49",
+     "name": "Boby",
+     "pts": 0
+    },
+    {
+     "pid": "6515710e",
+     "name": "Léa",
+     "pts": 0
+    },
+    {
+     "pid": "9e3b58d3",
+     "name": "Tom",
+     "pts": 0
+    },
+    {
+     "pid": "f35ecf6c",
+     "name": "Nina",
+     "pts": 0
+    },
+    {
+     "pid": "dafcbbb5",
+     "name": "Max",
+     "pts": 0
+    }
+   ],
+   "history": []
+  }
+ }
+}

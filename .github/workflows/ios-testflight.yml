@@ -8,7 +8,7 @@ name: App iOS → TestFlight
 on:
   push:
     branches: [main, develop]
-    paths: ["ios/**", ".github/workflows/ios-testflight.yml"]
+    paths: ["ios/**", ".github/workflows/ios-testflight.yml", "tools/testflight_publish.py"]
   workflow_dispatch:
     inputs:
       site:
@@ -126,6 +126,93 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/asc"
           "$RUNNER_TEMP/asc/bin/pip" install --quiet cryptography
           "$RUNNER_TEMP/asc/bin/python" tools/testflight_publish.py 6827336068 "${{ github.run_number }}" "$ASC_KEY_PATH"
+
+      - name: Nettoyage de la clé
+        if: always()
+        run: rm -f "$RUNNER_TEMP"/AuthKey_*.p8
+
+  # App Apple TV (ios/PartyTV) : même app TestFlight que l'iPhone (achat universel), comme lui :
+  # develop → « Party BETA » (site de test, publiée sur le lien public « Invités ») ;
+  # main → « Party » dans VendrediParty (site principal, groupe interne « Équipe », qui reçoit tous les builds).
+  tvos:
+    runs-on: macos-15
+    timeout-minutes: 80
+    env:
+      PRODUCTION: ${{ (github.event_name == 'workflow_dispatch' && inputs.site == 'production' || github.event_name == 'push' && github.ref_name == 'main') && '1' || '0' }}
+      ARCHIVE: ${{ github.workspace }}/build/PartyTV.xcarchive
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Clé API App Store Connect
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          KEY_PATH="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s\n' "$ASC_KEY_P8" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          echo "AUTH_FLAGS=-allowProvisioningUpdates -authenticationKeyPath $KEY_PATH -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID" >> "$GITHUB_ENV"
+          echo "ASC_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Plateforme tvOS (Xcode)
+        run: xcodebuild -downloadPlatform tvOS | tail -3
+
+      - name: Projet Xcode (XcodeGen)
+        working-directory: ios
+        run: |
+          brew install xcodegen
+          xcodegen
+
+      - name: Archive Apple TV (Release)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          # Release = Party (production) ; la BETA reprend les réglages du site de test, comme l'iPhone.
+          if [ "$PRODUCTION" = 1 ]; then
+            VARIANT=(); BUNDLE_ID=ch.bobycharbon.party
+          else
+            VARIANT=(PARTY_BUNDLE_SUFFIX=.beta PARTY_HOST=partytest.bobycharbon.ch "PARTY_DISPLAY_NAME=Party BETA")
+            BUNDLE_ID=ch.bobycharbon.party.beta
+          fi
+          echo "Variante : ${VARIANT[*]:-Party (production)}"
+          xcodebuild archive \
+            -project Party.xcodeproj -scheme PartyTV -configuration Release \
+            -destination 'generic/platform=tvOS' -archivePath "$ARCHIVE" \
+            "${VARIANT[@]}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" CODE_SIGNING_ALLOWED=NO | tail -40
+          # Signature provisoire ; l'export la remplace par la signature Apple Distribution gérée dans le cloud.
+          cat > "$RUNNER_TEMP/tv.entitlements" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>application-identifier</key><string>GS2B6GA9JA.$BUNDLE_ID</string>
+          <key>com.apple.developer.team-identifier</key><string>GS2B6GA9JA</string>
+          <key>get-task-allow</key><false/>
+          </dict></plist>
+          PLIST
+          codesign --force --sign - --timestamp=none --entitlements "$RUNNER_TEMP/tv.entitlements" \
+            "$ARCHIVE/Products/Applications/PartyTV.app"
+
+      - name: Envoi à TestFlight
+        working-directory: ios
+        run: |
+          xcodebuild -exportArchive -archivePath "$ARCHIVE" \
+            -exportOptionsPlist ExportOptions.plist -exportPath "$RUNNER_TEMP/export" \
+            $AUTH_FLAGS
+
+      - name: Publier la BETA Apple TV sur le lien public (Invités)
+        if: env.PRODUCTION == '0'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/asc"
+          "$RUNNER_TEMP/asc/bin/pip" install --quiet cryptography
+          "$RUNNER_TEMP/asc/bin/python" tools/testflight_publish.py 6827336068 "${{ github.run_number }}" "$ASC_KEY_PATH" TV_OS
 
       - name: Nettoyage de la clé
         if: always()

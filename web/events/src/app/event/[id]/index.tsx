@@ -4,6 +4,7 @@ import { Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { AttendanceEditor } from '@/components/AttendanceEditor';
 import { CalendarButton } from '@/components/CalendarButton';
+import { InviteLinkCard } from '@/components/InviteLinkCard';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
 import { Badge, Button, Card, ConfirmButton, ErrorText, HeaderAction, HeaderBack, Loading, Screen, s, Section, T, Title } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
@@ -51,7 +52,7 @@ export default function EventScreen() {
   const [shareNote, setShareNote] = useState('');
 
   const { data, reload, error: loadError } = useQuery(async () => {
-    const [ev, members, results, myVotes, allVotes, messages, mute] = await Promise.all([
+    const [ev, members, results, myVotes, allVotes, messages, mute, links] = await Promise.all([
       supabase
         .from('events')
         .select(
@@ -65,6 +66,8 @@ export default function EventScreen() {
       supabase.from('poll_votes').select('option_id, user_id'),
       supabase.from('messages').select('*').eq('event_id', id).is('deleted_at', null).order('created_at', { ascending: false }).limit(2),
       supabase.from('event_mutes').select('event_id').eq('event_id', id).eq('user_id', me.id),
+      // Invités arrivés par le lien (lisible par les organisateurs et les admins : orange dans « Qui vient ? »).
+      supabase.from('event_invites').select('user_id').eq('event_id', id).eq('via_link', true),
     ]);
     return {
       event: must(ev) as unknown as Full,
@@ -74,6 +77,7 @@ export default function EventScreen() {
       allVotes: must(allVotes) as { option_id: string; user_id: string }[],
       messages: must(messages) as Message[],
       muted: must(mute).length > 0,
+      viaLink: new Set(((links.data ?? []) as { user_id: string }[]).map((l) => l.user_id)),
     };
   }, [id, me.id]);
 
@@ -257,7 +261,7 @@ export default function EventScreen() {
         </Card>
       ) : null}
 
-      {ev.date_mode === 'fixed' && published ? <ParticipantsSection event={ev} me={me.id} rsvps={ev.rsvps} names={data.names} /> : null}
+      {ev.date_mode === 'fixed' && published ? <ParticipantsSection event={ev} me={me.id} rsvps={ev.rsvps} names={data.names} viaLink={data.viaLink} /> : null}
       {ev.date_mode === 'fixed' && published && canManage ? (
         <AttendanceEditor event={ev} rsvps={ev.rsvps} names={data.names} me={me.id} onChange={reload} />
       ) : null}
@@ -304,6 +308,7 @@ export default function EventScreen() {
       ) : null}
 
       <ErrorText error={error} />
+      {canManage && published && ev.visibility === 'invited' ? <InviteLinkCard kind="event" id={ev.id} /> : null}
       {canManage && published ? (
         <View style={st.orgZone}>
           <T muted size={12} weight="bold">ZONE ORGANISATEUR</T>
