@@ -82,12 +82,6 @@ struct LikelyTV: View {
             }
     }
 
-    private func voted(_ p: JSON, _ done: Bool) -> JSON {
-        guard case .object(var o) = p else { return p }
-        o["voted"] = .bool(done)
-        return .object(o)
-    }
-
     private func bar(_ name: String, _ count: Int, of total: Int) -> some View {
         HStack(spacing: 20) {
             Text(name).font(.title2.bold()).frame(width: 260, alignment: .leading)

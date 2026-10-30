@@ -1,0 +1,2320 @@
+{
+ "debate": {
+  "id": "6023446f",
+  "code": "0364",
+  "type": "debate",
+  "name": "Pour ou contre",
+  "phase": "ask",
+  "room": null,
+  "mode": null,
+  "round": 1,
+  "players": [
+   {
+    "pid": "59c0c5ca",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "36535758",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "91fd0171",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "5282c142",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.06165027618408203,
+  "debate": {
+   "themes": [
+    "moral",
+    "society",
+    "relations",
+    "light"
+   ],
+   "count": 10,
+   "counts": [
+    10,
+    20,
+    30
+   ],
+   "public": false,
+   "theme_list": [
+    {
+     "id": "moral",
+     "label": "⚖️ Morale & dilemmes",
+     "size": 106,
+     "adult": false
+    },
+    {
+     "id": "society",
+     "label": "🏛️ Société & débats",
+     "size": 116,
+     "adult": false
+    },
+    {
+     "id": "relations",
+     "label": "💞 Relations & couple",
+     "size": 105,
+     "adult": false
+    },
+    {
+     "id": "light",
+     "label": "🍍 Léger & absurde",
+     "size": 103,
+     "adult": false
+    },
+    {
+     "id": "wtf",
+     "label": "🤪 WTF",
+     "size": 110,
+     "adult": true
+    }
+   ],
+   "scale": [
+    "Totalement contre",
+    "Plutôt contre",
+    "Partagé",
+    "Plutôt pour",
+    "Totalement pour"
+   ],
+   "n": 1,
+   "round": 1,
+   "q": {
+    "text": "Faut-il interdire les publicités pour les produits très sucrés ?",
+    "theme": "🏛️ Société & débats",
+    "by": null
+   },
+   "voter": null,
+   "can_vote": false,
+   "mine": null,
+   "waiting": [
+    {
+     "pid": "59c0c5ca",
+     "name": "Boby",
+     "manual": false
+    },
+    {
+     "pid": "36535758",
+     "name": "Léa",
+     "manual": false
+    },
+    {
+     "pid": "91fd0171",
+     "name": "Tom",
+     "manual": false
+    },
+    {
+     "pid": "5282c142",
+     "name": "Nina",
+     "manual": false
+    }
+   ],
+   "voted": 0,
+   "total": 4,
+   "done": [],
+   "result": null,
+   "proposals": [],
+   "my_pending": 0,
+   "queued": 0,
+   "max_text": 160,
+   "min_text": 10,
+   "history": [],
+   "summary": null
+  }
+ },
+ "never": {
+  "id": "f1bab6b9",
+  "code": "8460",
+  "type": "never",
+  "name": "Je n'ai jamais",
+  "phase": "question",
+  "room": null,
+  "mode": "😇 Soft",
+  "round": 1,
+  "players": [
+   {
+    "pid": "3a82c0df",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "ac2cb199",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "36a70d6c",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "8616f274",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": "Je n'ai jamais pris une luge de nuit.",
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.036463260650634766
+ },
+ "roulette": {
+  "id": "ccfddbe6",
+  "code": "2720",
+  "type": "roulette",
+  "name": "Roulette",
+  "phase": "spun",
+  "room": null,
+  "mode": null,
+  "round": 1,
+  "players": [
+   {
+    "pid": "0f6e34fe",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "14bb7659",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "bc5bcaba",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "b9fa8df9",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.05191683769226074,
+  "names": [
+   "Léa",
+   "Tom",
+   "Nina",
+   "Boby"
+  ],
+  "history": [
+   "Boby"
+  ],
+  "spin": {
+   "id": "5c1dd567",
+   "index": 3,
+   "names": [
+    "Léa",
+    "Tom",
+    "Nina",
+    "Boby"
+   ],
+   "at": 1793379847.523032,
+   "jitter": 0.335,
+   "age": 0.007788181304931641
+  }
+ },
+ "blackjack": {
+  "id": "92f15be2",
+  "code": "0560",
+  "type": "blackjack",
+  "name": "Blackjack",
+  "phase": "bet",
+  "room": null,
+  "mode": null,
+  "round": 1,
+  "players": [
+   {
+    "pid": "f24b96aa",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "57cc6419",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "af8a6e99",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "82f07892",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.03906679153442383,
+  "bj": {
+   "drinks": 0,
+   "finished_age": null,
+   "dealer": [],
+   "dealer_total": null,
+   "dealer_up": null,
+   "seats": [
+    {
+     "pid": "f24b96aa",
+     "name": "Boby",
+     "chips": 100,
+     "rebuys": 0,
+     "hand": null
+    },
+    {
+     "pid": "57cc6419",
+     "name": "Léa",
+     "chips": 100,
+     "rebuys": 0,
+     "hand": null
+    },
+    {
+     "pid": "af8a6e99",
+     "name": "Tom",
+     "chips": 100,
+     "rebuys": 0,
+     "hand": null
+    },
+    {
+     "pid": "82f07892",
+     "name": "Nina",
+     "chips": 100,
+     "rebuys": 0,
+     "hand": null
+    }
+   ],
+   "turn": null,
+   "my_turn": false,
+   "log": [],
+   "min_bet": 5,
+   "max_bet": 1000,
+   "start_chips": 100
+  }
+ },
+ "casino": {
+  "id": "d74f3404",
+  "code": "9017",
+  "type": "casino",
+  "name": "Casino",
+  "phase": "bet",
+  "room": null,
+  "mode": null,
+  "round": 1,
+  "players": [
+   {
+    "pid": "bb520bad",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "ea1f1538",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "356c8e14",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "3ceb61d9",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.04088997840881348,
+  "casino": {
+   "drinks": 0,
+   "board": {},
+   "table": [
+    {
+     "pid": "bb520bad",
+     "name": "Boby",
+     "chips": 100,
+     "rebuys": 0,
+     "staked": 0,
+     "bets": [],
+     "result": null,
+     "ready": false,
+     "can_undo": false
+    },
+    {
+     "pid": "ea1f1538",
+     "name": "Léa",
+     "chips": 100,
+     "rebuys": 0,
+     "staked": 0,
+     "bets": [],
+     "result": null,
+     "ready": false,
+     "can_undo": false
+    },
+    {
+     "pid": "356c8e14",
+     "name": "Tom",
+     "chips": 100,
+     "rebuys": 0,
+     "staked": 0,
+     "bets": [],
+     "result": null,
+     "ready": false,
+     "can_undo": false
+    },
+    {
+     "pid": "3ceb61d9",
+     "name": "Nina",
+     "chips": 100,
+     "rebuys": 0,
+     "staked": 0,
+     "bets": [],
+     "result": null,
+     "ready": false,
+     "can_undo": false
+    }
+   ],
+   "me": null,
+   "history": [],
+   "spin": null,
+   "start_chips": 100
+  }
+ },
+ "divan": {
+  "id": "923ac5bf",
+  "code": "9828",
+  "type": "divan",
+  "name": "Le Divan",
+  "phase": "card",
+  "room": null,
+  "mode": null,
+  "round": 1,
+  "players": [
+   {
+    "pid": "9e576f43",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "d686a0d1",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "4d46f159",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "9500af10",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.040038108825683594,
+  "divan": {
+   "cats": [
+    "experiences",
+    "emotions",
+    "relations",
+    "childhood",
+    "dreams",
+    "whatif"
+   ],
+   "labels": {
+    "experiences": "Expériences",
+    "emotions": "Émotions",
+    "relations": "Relations",
+    "childhood": "Enfance",
+    "dreams": "Rêves & avenir",
+    "whatif": "Et si…",
+    "couple": "Couple"
+   },
+   "card": {
+    "cat": "relations",
+    "text": "Qu'est-ce qu'une réconciliation réussie a de plus qu'une simple trêve ?",
+    "id": 1
+   },
+   "hearts": 0,
+   "hearted": false,
+   "joker": false,
+   "current": {
+    "pid": "9e576f43",
+    "name": "Boby"
+   },
+   "my_turn": false,
+   "can_lead": false,
+   "can_back": false
+  }
+ },
+ "tmc": {
+  "id": "1e439c8c",
+  "code": "6680",
+  "type": "tmc",
+  "name": "Tu me connais ?",
+  "phase": "answer",
+  "room": null,
+  "mode": null,
+  "round": 1,
+  "players": [
+   {
+    "pid": "d9db0bb7",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "a2fba39a",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "7463bbc6",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "a4e21c77",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.03587484359741211,
+  "tmc": {
+   "duo": {
+    "guesser": {
+     "pid": "a4e21c77",
+     "name": "Nina"
+    },
+    "subject": {
+     "pid": "a2fba39a",
+     "name": "Léa"
+    },
+    "question": "Quelle boisson sans alcool bois-tu le plus ?",
+    "role": null,
+    "mine": null,
+    "proxy": false,
+    "answer": null,
+    "verdict": null,
+    "can_judge": false
+   },
+   "ranking": [
+    {
+     "pid": "d9db0bb7",
+     "name": "Boby",
+     "pts": 0.0,
+     "asked": 0
+    },
+    {
+     "pid": "a2fba39a",
+     "name": "Léa",
+     "pts": 0.0,
+     "asked": 0
+    },
+    {
+     "pid": "a4e21c77",
+     "name": "Nina",
+     "pts": 0.0,
+     "asked": 0
+    },
+    {
+     "pid": "7463bbc6",
+     "name": "Tom",
+     "pts": 0.0,
+     "asked": 0
+    }
+   ],
+   "pairs": [],
+   "duos": []
+  }
+ },
+ "pyramid": {
+  "id": "f72bb0ed",
+  "code": "2119",
+  "type": "pyramid",
+  "name": "Pyramide",
+  "phase": "deal",
+  "room": null,
+  "mode": null,
+  "round": 1,
+  "players": [
+   {
+    "pid": "6923046f",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "8168e535",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "39cfd13c",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "bb6df333",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5,
+   "pmode": "hard",
+   "boat": true,
+   "poteau": "soft",
+   "double": false
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.04114723205566406,
+  "pyr": {
+   "floors": 5,
+   "size": 15,
+   "flipped": 0,
+   "pyramid": [
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??"
+   ],
+   "current": null,
+   "floor": 0,
+   "is_top": false,
+   "deck_left": 37,
+   "seats": [
+    {
+     "pid": "6923046f",
+     "name": "Boby",
+     "cards": [],
+     "manual": false,
+     "memory": null,
+     "answered": false,
+     "errors": null
+    },
+    {
+     "pid": "8168e535",
+     "name": "Léa",
+     "cards": [],
+     "manual": false,
+     "memory": null,
+     "answered": false,
+     "errors": null
+    },
+    {
+     "pid": "39cfd13c",
+     "name": "Tom",
+     "cards": [],
+     "manual": false,
+     "memory": null,
+     "answered": false,
+     "errors": null
+    },
+    {
+     "pid": "bb6df333",
+     "name": "Nina",
+     "cards": [],
+     "manual": false,
+     "memory": null,
+     "answered": false,
+     "errors": null
+    }
+   ],
+   "turn": "6923046f",
+   "step": 1,
+   "event": 0,
+   "step_sips": 1,
+   "floor_sips": 0,
+   "double": false,
+   "poteau_hard": false,
+   "hard": true,
+   "boat_on": true,
+   "last": null,
+   "claims": [],
+   "reveal": null,
+   "peeks": [],
+   "top_me": null,
+   "top_done": [],
+   "liars": [],
+   "memory_done": 0,
+   "candidates": [],
+   "boat": null,
+   "spin": null,
+   "bstate": null,
+   "me": {
+    "seat": null,
+    "boat": false,
+    "pending": false
+   },
+   "pending": [],
+   "late": null,
+   "queue": []
+  }
+ },
+ "biskit": {
+  "id": "769ae3e9",
+  "code": "9799",
+  "type": "biskit",
+  "name": "Biskit Royal",
+  "phase": "play",
+  "room": null,
+  "mode": null,
+  "round": 0,
+  "players": [
+   {
+    "pid": "8fd237b5",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "d969c07e",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "a88333ff",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "17067f37",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.04207611083984375,
+  "bk": {
+   "mult": 1,
+   "alcohol": false,
+   "event": 0,
+   "seats": [
+    {
+     "pid": "8fd237b5",
+     "name": "Boby",
+     "drink": 0,
+     "give": 0,
+     "biskit": false,
+     "qmaster": false,
+     "thumb": false,
+     "mate": false,
+     "manual": false
+    },
+    {
+     "pid": "d969c07e",
+     "name": "Léa",
+     "drink": 0,
+     "give": 0,
+     "biskit": false,
+     "qmaster": false,
+     "thumb": false,
+     "mate": false,
+     "manual": false
+    },
+    {
+     "pid": "a88333ff",
+     "name": "Tom",
+     "drink": 0,
+     "give": 0,
+     "biskit": false,
+     "qmaster": false,
+     "thumb": false,
+     "mate": false,
+     "manual": false
+    },
+    {
+     "pid": "17067f37",
+     "name": "Nina",
+     "drink": 0,
+     "give": 0,
+     "biskit": true,
+     "qmaster": false,
+     "thumb": false,
+     "mate": false,
+     "manual": false
+    }
+   ],
+   "turn": "8fd237b5",
+   "my_turn": false,
+   "card": null,
+   "key": null,
+   "drawer": null,
+   "drawer_name": null,
+   "drawn": 0,
+   "deck_left": 52,
+   "wait": 0.0,
+   "kings": 0,
+   "outcomes": [],
+   "rules": [],
+   "mates": [],
+   "biskit": "Nina",
+   "qmaster": null,
+   "thumb": null,
+   "final": null,
+   "dice": null,
+   "duel": null,
+   "reflex": null,
+   "await": null
+  }
+ },
+ "president": {
+  "id": "f994ed47",
+  "code": "5214",
+  "type": "president",
+  "name": "Président",
+  "phase": "play",
+  "room": null,
+  "mode": null,
+  "round": 1,
+  "players": [
+   {
+    "pid": "44abb2eb",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "a3f7a322",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "ff6b44cd",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "82c86346",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.04270315170288086,
+  "president": {
+   "seats": [
+    {
+     "pid": "44abb2eb",
+     "name": "Boby",
+     "count": 14,
+     "dunce": false,
+     "me": false,
+     "turn": false,
+     "passed": false,
+     "place": null,
+     "departed": false,
+     "role": null,
+     "points": 0
+    },
+    {
+     "pid": "a3f7a322",
+     "name": "Léa",
+     "count": 14,
+     "dunce": false,
+     "me": false,
+     "turn": false,
+     "passed": false,
+     "place": null,
+     "departed": false,
+     "role": null,
+     "points": 0
+    },
+    {
+     "pid": "ff6b44cd",
+     "name": "Tom",
+     "count": 13,
+     "dunce": false,
+     "me": false,
+     "turn": false,
+     "passed": false,
+     "place": null,
+     "departed": false,
+     "role": null,
+     "points": 0
+    },
+    {
+     "pid": "82c86346",
+     "name": "Nina",
+     "count": 13,
+     "dunce": false,
+     "me": false,
+     "turn": true,
+     "passed": false,
+     "place": null,
+     "departed": false,
+     "role": null,
+     "points": 0
+    }
+   ],
+   "hand": [],
+   "turn": "82c86346",
+   "my_turn": false,
+   "pile": null,
+   "token": "807b6fb9e8b017c3:0",
+   "trick": 1,
+   "trail": [],
+   "swap": null,
+   "closed": null,
+   "notice": "Le 3 de trèfle donne la première main. Les jokers seuls valent des 3.",
+   "exchange": null,
+   "ranking": []
+  }
+ },
+ "blackjack_play": {
+  "id": "0d61908b",
+  "code": "1423",
+  "type": "blackjack",
+  "name": "Blackjack",
+  "phase": "play",
+  "room": null,
+  "mode": null,
+  "round": 1,
+  "players": [
+   {
+    "pid": "44ab41c1",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "b07c217c",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "3fb87d6c",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "85ced81f",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.06950879096984863,
+  "bj": {
+   "drinks": 0,
+   "finished_age": null,
+   "dealer": [
+    "QD",
+    "??"
+   ],
+   "dealer_total": null,
+   "dealer_up": 10,
+   "seats": [
+    {
+     "pid": "44ab41c1",
+     "name": "Boby",
+     "chips": 90,
+     "rebuys": 0,
+     "hand": {
+      "cards": [
+       "QD",
+       "5S"
+      ],
+      "bet": 10,
+      "status": "playing",
+      "doubled": false,
+      "result": null,
+      "delta": 0,
+      "sips": null,
+      "total": 15
+     }
+    },
+    {
+     "pid": "b07c217c",
+     "name": "Léa",
+     "chips": 90,
+     "rebuys": 0,
+     "hand": {
+      "cards": [
+       "AD",
+       "9H"
+      ],
+      "bet": 10,
+      "status": "playing",
+      "doubled": false,
+      "result": null,
+      "delta": 0,
+      "sips": null,
+      "total": 20
+     }
+    },
+    {
+     "pid": "3fb87d6c",
+     "name": "Tom",
+     "chips": 90,
+     "rebuys": 0,
+     "hand": {
+      "cards": [
+       "9S",
+       "JH"
+      ],
+      "bet": 10,
+      "status": "playing",
+      "doubled": false,
+      "result": null,
+      "delta": 0,
+      "sips": null,
+      "total": 19
+     }
+    },
+    {
+     "pid": "85ced81f",
+     "name": "Nina",
+     "chips": 90,
+     "rebuys": 0,
+     "hand": {
+      "cards": [
+       "AC",
+       "2S"
+      ],
+      "bet": 10,
+      "status": "playing",
+      "doubled": false,
+      "result": null,
+      "delta": 0,
+      "sips": null,
+      "total": 13
+     }
+    }
+   ],
+   "turn": "44ab41c1",
+   "my_turn": false,
+   "log": [
+    {
+     "n": 1,
+     "pid": null,
+     "name": "Croupier",
+     "text": "distribue et montre Q♦"
+    }
+   ],
+   "min_bet": 5,
+   "max_bet": 1000,
+   "start_chips": 100
+  }
+ },
+ "casino_spun": {
+  "id": "5804ddd3",
+  "code": "3264",
+  "type": "casino",
+  "name": "Casino",
+  "phase": "bet",
+  "room": null,
+  "mode": null,
+  "round": 1,
+  "players": [
+   {
+    "pid": "b2dd422e",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "f27e3b4b",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "eca32b49",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "b51d97e8",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.10354804992675781,
+  "casino": {
+   "drinks": 0,
+   "board": {},
+   "table": [
+    {
+     "pid": "b2dd422e",
+     "name": "Boby",
+     "chips": 100,
+     "rebuys": 0,
+     "staked": 0,
+     "bets": [],
+     "result": null,
+     "ready": true,
+     "can_undo": false
+    },
+    {
+     "pid": "f27e3b4b",
+     "name": "Léa",
+     "chips": 100,
+     "rebuys": 0,
+     "staked": 0,
+     "bets": [],
+     "result": null,
+     "ready": true,
+     "can_undo": false
+    },
+    {
+     "pid": "eca32b49",
+     "name": "Tom",
+     "chips": 100,
+     "rebuys": 0,
+     "staked": 0,
+     "bets": [],
+     "result": null,
+     "ready": true,
+     "can_undo": false
+    },
+    {
+     "pid": "b51d97e8",
+     "name": "Nina",
+     "chips": 100,
+     "rebuys": 0,
+     "staked": 0,
+     "bets": [],
+     "result": null,
+     "ready": true,
+     "can_undo": false
+    }
+   ],
+   "me": null,
+   "history": [],
+   "spin": null,
+   "start_chips": 100
+  }
+ },
+ "pyramid_play": {
+  "id": "b0a9c993",
+  "code": "2048",
+  "type": "pyramid",
+  "name": "Pyramide",
+  "phase": "deal",
+  "room": null,
+  "mode": null,
+  "round": 1,
+  "players": [
+   {
+    "pid": "ad8e2bfe",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "1682f636",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "1255b87f",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "7d8ba27f",
+    "name": "Nina",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5,
+   "pmode": "hard",
+   "boat": true,
+   "poteau": "soft",
+   "double": false
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.04941987991333008,
+  "pyr": {
+   "floors": 5,
+   "size": 15,
+   "flipped": 0,
+   "pyramid": [
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??",
+    "??"
+   ],
+   "current": null,
+   "floor": 0,
+   "is_top": false,
+   "deck_left": 37,
+   "seats": [
+    {
+     "pid": "ad8e2bfe",
+     "name": "Boby",
+     "cards": [],
+     "manual": false,
+     "memory": null,
+     "answered": false,
+     "errors": null
+    },
+    {
+     "pid": "1682f636",
+     "name": "Léa",
+     "cards": [],
+     "manual": false,
+     "memory": null,
+     "answered": false,
+     "errors": null
+    },
+    {
+     "pid": "1255b87f",
+     "name": "Tom",
+     "cards": [],
+     "manual": false,
+     "memory": null,
+     "answered": false,
+     "errors": null
+    },
+    {
+     "pid": "7d8ba27f",
+     "name": "Nina",
+     "cards": [],
+     "manual": false,
+     "memory": null,
+     "answered": false,
+     "errors": null
+    }
+   ],
+   "turn": "ad8e2bfe",
+   "step": 1,
+   "event": 0,
+   "step_sips": 1,
+   "floor_sips": 0,
+   "double": false,
+   "poteau_hard": false,
+   "hard": true,
+   "boat_on": true,
+   "last": null,
+   "claims": [],
+   "reveal": null,
+   "peeks": [],
+   "top_me": null,
+   "top_done": [],
+   "liars": [],
+   "memory_done": 0,
+   "candidates": [],
+   "boat": null,
+   "spin": null,
+   "bstate": null,
+   "me": {
+    "seat": null,
+    "boat": false,
+    "pending": false
+   },
+   "pending": [],
+   "late": null,
+   "queue": []
+  }
+ },
+ "room_lobby": {
+  "id": "22751e8f",
+  "code": "5570",
+  "type": "room",
+  "name": "Salle de jeux",
+  "phase": "lobby",
+  "room": null,
+  "mode": null,
+  "round": 0,
+  "players": [
+   {
+    "pid": "f89cadef",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "046f903b",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": true
+   },
+   {
+    "pid": "20041cbf",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": true
+   },
+   {
+    "pid": "df12709d",
+    "name": "Grand-mère",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": true
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.027834177017211914,
+  "room_info": {
+   "current": null,
+   "history": [],
+   "board": [
+    {
+     "name": "Boby",
+     "me": false,
+     "drink": 0,
+     "give": 0,
+     "pts": 0
+    },
+    {
+     "name": "Grand-mère",
+     "me": false,
+     "drink": 0,
+     "give": 0,
+     "pts": 0
+    },
+    {
+     "name": "Léa",
+     "me": false,
+     "drink": 0,
+     "give": 0,
+     "pts": 0
+    },
+    {
+     "name": "Tom",
+     "me": false,
+     "drink": 0,
+     "give": 0,
+     "pts": 0
+    }
+   ],
+   "catalog": [
+    {
+     "type": "undercover",
+     "name": "Undercover"
+    },
+    {
+     "type": "whoof",
+     "name": "Qui de nous ?"
+    },
+    {
+     "type": "likely",
+     "name": "Qui est le plus… ?"
+    },
+    {
+     "type": "debate",
+     "name": "Pour ou contre"
+    },
+    {
+     "type": "never",
+     "name": "Je n'ai jamais"
+    },
+    {
+     "type": "roulette",
+     "name": "Roulette"
+    },
+    {
+     "type": "blackjack",
+     "name": "Blackjack"
+    },
+    {
+     "type": "casino",
+     "name": "Casino"
+    },
+    {
+     "type": "divan",
+     "name": "Le Divan"
+    },
+    {
+     "type": "tmc",
+     "name": "Tu me connais ?"
+    },
+    {
+     "type": "pyramid",
+     "name": "Pyramide"
+    },
+    {
+     "type": "biskit",
+     "name": "Biskit Royal"
+    },
+    {
+     "type": "quiz",
+     "name": "Quiz"
+    },
+    {
+     "type": "president",
+     "name": "Président"
+    },
+    {
+     "type": "neon",
+     "name": "Néon Knockout"
+    },
+    {
+     "type": "island",
+     "name": "L’île qui s’effondre"
+    },
+    {
+     "type": "heist",
+     "name": "Braquage en miniature"
+    },
+    {
+     "type": "purity",
+     "name": "Purify Test"
+    }
+   ]
+  }
+ },
+ "room_never": {
+  "id": "22751e8f",
+  "code": "5570",
+  "type": "room",
+  "name": "Salle de jeux",
+  "phase": "lobby",
+  "room": null,
+  "mode": null,
+  "round": 0,
+  "players": [
+   {
+    "pid": "f89cadef",
+    "name": "Boby",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": true,
+    "drink": 0,
+    "give": 0,
+    "manual": false,
+    "online": true,
+    "seen_ago": 0
+   },
+   {
+    "pid": "046f903b",
+    "name": "Léa",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": true
+   },
+   {
+    "pid": "20041cbf",
+    "name": "Tom",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": true
+   },
+   {
+    "pid": "df12709d",
+    "name": "Grand-mère",
+    "alive": true,
+    "waiting": false,
+    "voted": false,
+    "host": false,
+    "drink": 0,
+    "give": 0,
+    "manual": true
+   }
+  ],
+  "is_host": false,
+  "is_owner": false,
+  "master": false,
+  "host_name": "Boby",
+  "order": [],
+  "order_pids": [],
+  "candidates": null,
+  "winner": null,
+  "question": null,
+  "votes_count": 0,
+  "options": {
+   "white": true,
+   "mode": "soft",
+   "sips": 0,
+   "floors": 5
+  },
+  "kicked": false,
+  "excluded": false,
+  "elapsed": 0.05051302909851074,
+  "room_info": {
+   "current": {
+    "code": "5965",
+    "type": "never",
+    "name": "Je n'ai jamais",
+    "phase": "question",
+    "players": 4
+   },
+   "history": [],
+   "board": [
+    {
+     "name": "Boby",
+     "me": false,
+     "drink": 0,
+     "give": 0,
+     "pts": 0
+    },
+    {
+     "name": "Grand-mère",
+     "me": false,
+     "drink": 0,
+     "give": 0,
+     "pts": 0
+    },
+    {
+     "name": "Léa",
+     "me": false,
+     "drink": 0,
+     "give": 0,
+     "pts": 0
+    },
+    {
+     "name": "Tom",
+     "me": false,
+     "drink": 0,
+     "give": 0,
+     "pts": 0
+    }
+   ],
+   "catalog": [
+    {
+     "type": "undercover",
+     "name": "Undercover"
+    },
+    {
+     "type": "whoof",
+     "name": "Qui de nous ?"
+    },
+    {
+     "type": "likely",
+     "name": "Qui est le plus… ?"
+    },
+    {
+     "type": "debate",
+     "name": "Pour ou contre"
+    },
+    {
+     "type": "never",
+     "name": "Je n'ai jamais"
+    },
+    {
+     "type": "roulette",
+     "name": "Roulette"
+    },
+    {
+     "type": "blackjack",
+     "name": "Blackjack"
+    },
+    {
+     "type": "casino",
+     "name": "Casino"
+    },
+    {
+     "type": "divan",
+     "name": "Le Divan"
+    },
+    {
+     "type": "tmc",
+     "name": "Tu me connais ?"
+    },
+    {
+     "type": "pyramid",
+     "name": "Pyramide"
+    },
+    {
+     "type": "biskit",
+     "name": "Biskit Royal"
+    },
+    {
+     "type": "quiz",
+     "name": "Quiz"
+    },
+    {
+     "type": "president",
+     "name": "Président"
+    },
+    {
+     "type": "neon",
+     "name": "Néon Knockout"
+    },
+    {
+     "type": "island",
+     "name": "L’île qui s’effondre"
+    },
+    {
+     "type": "heist",
+     "name": "Braquage en miniature"
+    },
+    {
+     "type": "purity",
+     "name": "Purify Test"
+    }
+   ]
+  },
+  "current": {
+   "id": "39b66ac2",
+   "code": "5965",
+   "type": "never",
+   "name": "Je n'ai jamais",
+   "phase": "question",
+   "room": "5570",
+   "mode": "😇 Soft",
+   "round": 1,
+   "players": [
+    {
+     "pid": "880d9110",
+     "name": "Boby",
+     "alive": true,
+     "waiting": false,
+     "voted": false,
+     "host": true,
+     "drink": 0,
+     "give": 0,
+     "manual": false,
+     "online": true,
+     "seen_ago": 0
+    },
+    {
+     "pid": "74f92a4e",
+     "name": "Léa",
+     "alive": true,
+     "waiting": false,
+     "voted": false,
+     "host": false,
+     "drink": 0,
+     "give": 0,
+     "manual": true
+    },
+    {
+     "pid": "29615e8c",
+     "name": "Tom",
+     "alive": true,
+     "waiting": false,
+     "voted": false,
+     "host": false,
+     "drink": 0,
+     "give": 0,
+     "manual": true
+    },
+    {
+     "pid": "590a2159",
+     "name": "Grand-mère",
+     "alive": true,
+     "waiting": false,
+     "voted": false,
+     "host": false,
+     "drink": 0,
+     "give": 0,
+     "manual": true
+    }
+   ],
+   "is_host": false,
+   "is_owner": false,
+   "master": false,
+   "host_name": "Boby",
+   "order": [],
+   "order_pids": [],
+   "candidates": null,
+   "winner": null,
+   "question": "Je n'ai jamais fait la fête jusqu'au petit matin.",
+   "votes_count": 0,
+   "options": {
+    "white": true,
+    "mode": "soft",
+    "sips": 0,
+    "floors": 5
+   },
+   "kicked": false,
+   "excluded": false,
+   "elapsed": 0.01743316650390625
+  }
+ }
+}

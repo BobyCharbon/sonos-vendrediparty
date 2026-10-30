@@ -9,7 +9,7 @@ struct WatchScreen: View {
         HStack(alignment: .top, spacing: 44) {
             VStack(alignment: .leading, spacing: 28) {
                 header
-                GameView(game: store.game)
+                GameView(game: store.game, join: store.joinURL)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
             // Colonne de droite : la musique (verre), puis le classement de la partie s'il y en a un.
@@ -30,12 +30,36 @@ struct WatchScreen: View {
         .task { await store.appear() }
     }
 
+    private var watchedCode: String {
+        if case .watching(let code) = store.screen { return code }
+        return store.game["code"].string ?? ""
+    }
+
+    /// Salle d'attente affichée (la partie, ou le jeu de la salle de jeux, pas encore lancé ; ou la salle vide).
+    private var inLobby: Bool {
+        let g = store.game
+        if g["type"].string == "room" { return g["current"].isNull || g["current"]["phase"].string == "lobby" }
+        return g["phase"].string == "lobby"
+    }
+
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: 24) {
-            Text(store.game["name"].string ?? "Partie").font(.system(size: 60, weight: .heavy)).lineLimit(1)
-            if let mode = store.game["mode"].string { Text(mode).font(.title2).foregroundStyle(TV.lavender) }
+            let shown = store.game["type"].string == "room" && !store.game["current"].isNull ? store.game["current"] : store.game
+            VStack(alignment: .leading, spacing: 4) {
+                if shown != store.game { Text("🎲 Salle de jeux").font(.headline).foregroundStyle(TV.muted) }
+                Text(shown["name"].string ?? "Partie").font(.system(size: 60, weight: .heavy)).lineLimit(1)
+            }
+            if let mode = shown["mode"].string { Text(mode).font(.title2).foregroundStyle(TV.lavender) }
             Spacer()
-            Text("Code \(store.game["code"].string ?? "")").font(.title2.monospacedDigit()).foregroundStyle(TV.muted)
+            // Pendant la partie : petit QR code et code pour rejoindre (en salle d'attente, le grand QR est au centre).
+            if !inLobby, let join = store.joinURL {
+                VStack(alignment: .trailing, spacing: 6) {
+                    QRCodeView(url: join, size: 110)
+                    Text("Code \(watchedCode)").font(.headline.monospacedDigit()).foregroundStyle(TV.muted)
+                }
+            } else {
+                Text("Code \(watchedCode)").font(.title2.monospacedDigit()).foregroundStyle(TV.muted)
+            }
         }
     }
 }

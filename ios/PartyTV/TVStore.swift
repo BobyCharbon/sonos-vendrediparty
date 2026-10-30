@@ -34,6 +34,15 @@ final class TVStore: ObservableObject {
         }
     }
 
+    /// Adresse que les téléphones ouvrent pour rejoindre la partie regardée (QR code de la télé).
+    var joinURL: URL? {
+        guard case .watching(let code) = screen,
+              var parts = URLComponents(url: client.base, resolvingAgainstBaseURL: false) else { return nil }
+        parts.path = "/"
+        parts.queryItems = [URLQueryItem(name: "game", value: code)]
+        return parts.url
+    }
+
     func submitPin(_ pin: String) async {
         let pin = pin.filter(\.isNumber)
         guard !pin.isEmpty else { return }

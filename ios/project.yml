@@ -211,8 +211,10 @@ targets:
     deploymentTarget: "17.0"
     sources:
       - path: PartyTVTests
-        excludes: ["samples.json"]
+        excludes: ["*.json"]
       - path: PartyTVTests/samples.json
+        buildPhase: resources
+      - path: PartyTVTests/samples-all.json
         buildPhase: resources
     dependencies:
       - target: PartyTV
