@@ -12,6 +12,7 @@ export type ChatSummary = {
 };
 export type GroupMessage = {
   id: string; group_id: string; user_id: string; body: string; photo_path: string | null; reply_to: string | null;
+  audio_path?: string | null; audio_seconds?: number | null; pending?: boolean;
   mentions: string[]; mention_all: boolean; pinned: boolean; created_at: string; edited_at: string | null;
   deleted_at: string | null; deleted_by_admin: boolean;
 };
@@ -75,4 +76,66 @@ export async function signedPhotos(paths: string[]): Promise<Map<string, string>
   if (!unique.length) return new Map();
   const { data } = await supabase.storage.from(CHAT_PHOTOS).createSignedUrls(unique, 3600);
   return new Map((data ?? []).flatMap((d) => (d.signedUrl && d.path ? [[d.path, d.signedUrl] as [string, string]] : [])));
+}
+
+/** Identifiant choisi ici : le message s'affiche tout de suite et garde sa place une fois enregistré. */
+export function newMessageId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.floor(Math.random() * 16);
+    return (c === 'x' ? r : (r % 4) + 8).toString(16);
+  });
+}
+
+export function voiceClock(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/** Enregistrement d'un vocal (navigateur) : micro du téléphone de préférence, jamais un casque Bluetooth s'il y a le choix.
+ * AAC (mp4) quand le navigateur sait le faire (lu partout, iPhone compris), sinon Opus (webm). */
+export type VoiceRecording = { stop: (send: boolean) => Promise<{ blob: Blob; seconds: number; ext: 'm4a' | 'webm' } | null> };
+
+const BLUETOOTH = /bluetooth|airpods|headset|hands-?free|buds|bt\b/i;
+
+export async function startVoice(): Promise<VoiceRecording> {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+    throw new Error('Ce navigateur ne sait pas enregistrer de message vocal.');
+  }
+  let stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  // Les noms des micros ne sont lisibles qu'après l'autorisation : on passe au micro intégré si un Bluetooth a été pris.
+  const current = stream.getAudioTracks()[0]?.label ?? '';
+  if (BLUETOOTH.test(current)) {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const builtIn = devices.find((d) => d.kind === 'audioinput' && d.deviceId !== 'default' && !BLUETOOTH.test(d.label));
+    if (builtIn) {
+      stream.getTracks().forEach((t) => t.stop());
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: builtIn.deviceId } } });
+    }
+  }
+  const type = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/webm';
+  const recorder = new MediaRecorder(stream, { mimeType: type, audioBitsPerSecond: 48_000 });
+  const chunks: Blob[] = [];
+  recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  const started = Date.now();
+  recorder.start(250);
+  return {
+    stop: (send) => new Promise((resolve) => {
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const seconds = (Date.now() - started) / 1000;
+        resolve(send && seconds >= 0.6 ? { blob: new Blob(chunks, { type }), seconds, ext: type === 'audio/mp4' ? 'm4a' : 'webm' } : null);
+      };
+      recorder.stop();
+    }),
+  };
+}
+
+export async function uploadChatAudio(groupId: string, audio: { blob: Blob; ext: 'm4a' | 'webm' }): Promise<string> {
+  const rand = Array.from({ length: 10 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  const path = `${groupId}/${Date.now()}-${rand}.${audio.ext}`;
+  const { error } = await supabase.storage.from(CHAT_PHOTOS).upload(path, audio.blob, {
+    contentType: audio.ext === 'm4a' ? 'audio/mp4' : 'audio/webm', upsert: false });
+  if (error) throw new Error('Le message vocal n’a pas pu être envoyé. Réessaie.');
+  return path;
 }

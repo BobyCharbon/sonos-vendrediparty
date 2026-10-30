@@ -13,7 +13,7 @@ import threading
 import time
 import unicodedata
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import quote, unquote, urlparse
 
 import httpx
@@ -1705,6 +1705,11 @@ class ChatSend(ChatRef):
     body: str = Field(default="", max_length=2000)
     reply_to: str | None = Field(default=None, pattern=UUID)
     photo_path: str | None = Field(default=None, max_length=200, pattern=r"^[0-9a-f-]{36}/[0-9]+-[0-9a-f]{10}\.(jpg|png)$")
+    # Fournis par l'app (envoi en un seul appel) : personnes citées, identifiant du message affiché tout de suite.
+    mentions: list[Annotated[str, Field(pattern=UUID)]] | None = Field(default=None, max_length=100)
+    id: str | None = Field(default=None, pattern=UUID)
+    audio_path: str | None = Field(default=None, max_length=200, pattern=r"^[0-9a-f-]{36}/[0-9]+-[0-9a-f]{10}\.(m4a|webm|ogg)$")
+    audio_seconds: float | None = Field(default=None, ge=0, le=600)
 
 
 class ChatPhoto(ChatRef):
@@ -1745,7 +1750,18 @@ def account_chat_open(body: ChatRef):
 
 @app.post("/api/account/chats/send")
 def account_chat_send(body: ChatSend):
-    return account_call(lambda: group_chats.send(body.token, body.group_id, body.body.strip(), body.reply_to, body.photo_path))
+    return account_call(lambda: group_chats.send(body.token, body.group_id, body.body.strip(), body.reply_to, body.photo_path,
+                                                 body.mentions, body.id, body.audio_path, body.audio_seconds))
+
+
+@app.post("/api/account/chats/audio")
+def account_chat_audio(body: ChatPhoto):
+    """Message vocal (base64) : déposé dans le dossier du groupe, puis envoyé avec /chats/send (audio_path)."""
+    try:
+        data = base64.b64decode(body.photo, validate=True)
+    except ValueError:
+        raise HTTPException(400, "Enregistrement illisible") from None
+    return account_call(lambda: group_chats.upload_audio(body.token, body.group_id, data))
 
 
 @app.post("/api/account/chats/photo")

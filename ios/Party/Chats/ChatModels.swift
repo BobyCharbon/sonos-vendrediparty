@@ -67,11 +67,17 @@ struct Conversation: Decodable, Equatable {
         let reactions: [Reaction]
 
         enum CodingKeys: String, CodingKey {
-            case id, author, mine, at, edited, body, deleted, photo, pinned, reply, reactions
-            case authorName = "author_name", authorPhoto = "author_photo"
+            case id, author, mine, at, edited, body, deleted, photo, pinned, reply, reactions, audio
+            case authorName = "author_name", authorPhoto = "author_photo", audioSeconds = "audio_seconds"
         }
 
-        var preview: String { body.isEmpty ? "📷 Photo" : body }
+        /// Message vocal : lien d'écoute (signé) et durée.
+        var audio: String? = nil
+        var audioSeconds: Double? = nil
+        /// Affiché tout de suite à l'envoi, avant la réponse du serveur (horloge à la place de l'heure).
+        var pending = false
+
+        var preview: String { !body.isEmpty ? body : audioSeconds != nil ? "🎤 Message vocal" : "📷 Photo" }
         var date: Date? { ChatDates.parse(at) }
     }
 
@@ -97,17 +103,31 @@ struct Conversation: Decodable, Equatable {
     let admin: Bool
     let notify: ChatNotify
     let canNameAdmins: Bool
+    /// Mon identifiant de compte (messages « à moi » affichés tout de suite).
+    var me: String? = nil
     let reactions: [String]
     let members: [Member]
     let messages: [Message]
 
     enum CodingKeys: String, CodingKey {
-        case id, name, member, admin, notify, reactions, members, messages
+        case id, name, member, admin, notify, reactions, members, messages, me
         case canNameAdmins = "can_name_admins"
     }
 
     /// Dernier message épinglé : affiché en bandeau en haut de la conversation.
     var pinned: Message? { messages.last { $0.pinned } }
+
+    /// Même conversation avec d'autres messages (message affiché tout de suite à l'envoi).
+    func with(messages: [Message]) -> Conversation {
+        Conversation(id: id, name: name, member: member, admin: admin, notify: notify, canNameAdmins: canNameAdmins,
+                     me: me, reactions: reactions, members: members, messages: messages)
+    }
+
+    /// Membres cités par « @surnom » dans le texte (sauf moi) : envoyés avec le message, la base ne garde que les membres.
+    func mentions(in body: String, me: String?) -> [String] {
+        let lower = body.lowercased()
+        return members.filter { $0.id != me && !$0.name.isEmpty && lower.contains("@" + $0.name.lowercased()) }.map(\.id)
+    }
 }
 
 enum ChatDates {
@@ -147,21 +167,27 @@ enum ChatPhoto {
     }
 }
 
-private struct ChatList: Decodable { let chats: [ChatSummary] }
+private struct ChatList: Decodable {
+    let chats: [ChatSummary]
+    let realtime: ChatRealtime.Endpoint?
+}
 private struct PhotoPath: Decodable { let path: String }
 
 extension PartyAPI {
-    func chats(token: String) async throws -> [ChatSummary] {
+    func chats(token: String) async throws -> ([ChatSummary], ChatRealtime.Endpoint?) {
         let list: ChatList = try await postDecoding("/api/account/chats", body: ["token": token])
-        return list.chats
+        return (list.chats, list.realtime)
     }
 
     func openChat(token: String, group: String) async throws -> Conversation {
         try await postDecoding("/api/account/chats/open", body: ["token": token, "group_id": group])
     }
 
-    func sendChat(token: String, group: String, body: String, replyTo: String?, photoPath: String?) async throws {
-        var payload: [String: Any] = ["token": token, "group_id": group, "body": body]
+    func sendChat(token: String, group: String, body: String, replyTo: String?, photoPath: String?,
+                  mentions: [String], id: String, audioPath: String? = nil, audioSeconds: Double? = nil) async throws {
+        var payload: [String: Any] = ["token": token, "group_id": group, "body": body, "mentions": mentions, "id": id]
+        if let audioPath { payload["audio_path"] = audioPath }
+        if let audioSeconds { payload["audio_seconds"] = (audioSeconds * 10).rounded() / 10 }
         if let replyTo { payload["reply_to"] = replyTo }
         if let photoPath { payload["photo_path"] = photoPath }
         try await post("/api/account/chats/send", body: payload)
@@ -170,6 +196,12 @@ extension PartyAPI {
     func uploadChatPhoto(token: String, group: String, jpeg: Data) async throws -> String {
         let r: PhotoPath = try await postDecoding("/api/account/chats/photo",
                                                   body: ["token": token, "group_id": group, "photo": jpeg.base64EncodedString()])
+        return r.path
+    }
+
+    func uploadChatAudio(token: String, group: String, audio: Data) async throws -> String {
+        let r: PhotoPath = try await postDecoding("/api/account/chats/audio",
+                                                  body: ["token": token, "group_id": group, "photo": audio.base64EncodedString()])
         return r.path
     }
 

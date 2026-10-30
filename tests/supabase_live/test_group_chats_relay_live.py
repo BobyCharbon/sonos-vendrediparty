@@ -73,3 +73,25 @@ def test_members_phone_is_shown_only_when_shared_in_this_group(relay):
     assert share.status_code == 200, share.text
     b = {m['id']: m for m in chats.conversation(ta, group)['members']}[b_uid]
     assert b['phone'] == '+41790000002'  # montré dans ce groupe : appelable
+
+
+M4A = b"\x00\x00\x00\x1cftypM4A \x00\x00\x00\x00M4A mp42isom" + b"\x00" * 64
+
+
+def test_voice_message_and_reply_notify_like_a_mention(relay):
+    chats, ta, tb, group, b_uid = relay
+    first = chats.conversation(ta, group)['messages'][0]
+    path = chats.upload_audio(tb, group, M4A)['path']
+    chats.send(tb, group, '', first['id'], None, mentions=[], audio_path=path, audio_seconds=4.2,
+               message_id='aaaaaaaa-bbbb-4ccc-8ddd-000000000001')
+    voice = next(m for m in chats.conversation(ta, group)['messages'] if m['id'] == 'aaaaaaaa-bbbb-4ccc-8ddd-000000000001')
+    assert voice['audio_seconds'] == 4.2 and voice['audio'].startswith(TEST_URL) and voice['reply']['name'] == 'Testeur 1'
+    assert httpx.get(voice['audio'], timeout=30).status_code == 200  # lien d'écoute signé
+    # Répondre (glisser) = citer : l'auteur du message est notifié, avec « 🎤 Message vocal ».
+    key = KEY_FILE.read_text().strip()
+    notes = httpx.get(f"{TEST_URL}/rest/v1/notifications?select=body,data&kind=eq.group_message&order=created_at.desc&limit=5",
+                      headers={'apikey': key, 'Authorization': f'Bearer {ta}'}, timeout=30).json()
+    assert any(n['body'] == 'Testeur 2 : 🎤 Message vocal' and n['data']['group_id'] == group for n in notes)
+    last = next(c for c in chats.chats(tb)['chats'] if c['id'] == group)['last']
+    assert last == 'Testeur 2 : 🎤 Message vocal'
+    assert 'realtime' in chats.chats(tb) and chats.chats(tb)['realtime']['url'].startswith('wss://')

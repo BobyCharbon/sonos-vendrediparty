@@ -60,6 +60,38 @@ struct ChatsTests {
         #expect(links.map(\.label) == ["En attente", "Utilisé par Léa", "Expiré", "Annulé"])
     }
 
+    @Test("Temps réel : abonnement au groupe (messages + réactions) et seuls les changements déclenchent une relecture")
+    func realtimeProtocol() throws {
+        let join = ChatRealtime.joinMessage(topic: "realtime:t", filter: "group_id=eq.g1", token: "jwt", ref: "1")
+        let payload = try #require(join["payload"] as? [String: Any])
+        let config = try #require(payload["config"] as? [String: Any])
+        let changes = try #require(config["postgres_changes"] as? [[String: Any]])
+        #expect(join["event"] as? String == "phx_join" && payload["access_token"] as? String == "jwt")
+        #expect(changes.map { $0["table"] as? String } == ["group_messages", "group_message_reactions"])
+        #expect(changes[0]["filter"] as? String == "group_id=eq.g1")
+        #expect(ChatRealtime.isChange(#"{"event":"postgres_changes","payload":{}}"#))
+        #expect(!ChatRealtime.isChange(#"{"event":"phx_reply","payload":{"status":"ok"}}"#))
+        #expect(!ChatRealtime.isChange("pas du json"))
+    }
+
+    @Test("Envoi immédiat : bulle « à moi » en attente, citations calculées sur le téléphone, durée des vocaux")
+    func instantDraftAndMentions() throws {
+        let c: Conversation = try decode("""
+        {"id":"g1","name":"Les amis","member":true,"admin":false,"notify":"mentions","can_name_admins":false,"me":"u-me",
+         "reactions":[],"members":[{"id":"u-me","name":"Boby","photo":null,"admin":false,"creator":true},
+                                  {"id":"u-lea","name":"Léa","photo":null,"admin":false,"creator":false}],
+         "messages":[{"id":"m1","author":"u-lea","author_name":"Léa","author_photo":null,"mine":false,"at":"2026-10-29T10:00:00Z",
+           "edited":false,"body":"Tu viens ?","deleted":false,"photo":null,"pinned":false,"reply":null,"reactions":[],
+           "audio":"https://x/v.m4a","audio_seconds":7.5}]}
+        """)
+        #expect(c.mentions(in: "Salut @léa et @Boby", me: "u-me") == ["u-lea"])
+        let draft = ChatsStore.draft(id: "new", body: "Oui !", replyTo: "m1", in: c)
+        #expect(draft.pending && draft.mine && draft.author == "u-me" && draft.reply?.name == "Léa")
+        #expect(c.messages[0].audioSeconds == 7.5 && c.messages[0].preview == "Tu viens ?")
+        #expect(VoiceRecorder.clock(7.5) == "0:08" && VoiceRecorder.clock(65) == "1:05")
+        #expect(c.with(messages: c.messages + [draft]).messages.last?.id == "new")
+    }
+
     @Test("Notification : ?tab=chats&chat=<groupe> ouvre la conversation, rien d'autre")
     func readsNotificationLink() {
         let id = "11111111-2222-3333-4444-555555555555"

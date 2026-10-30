@@ -24,6 +24,13 @@ create table if not exists public.group_messages (
   check (btrim(body) <> '' or photo_path is not null or deleted_at is not null)
 );
 create index if not exists group_messages_by_group on public.group_messages (group_id, created_at desc);
+-- Messages vocaux (30.10) : fichier audio dans le même compartiment privé que les photos, durée en secondes.
+alter table public.group_messages add column if not exists audio_path text;
+alter table public.group_messages add column if not exists audio_seconds numeric(6, 1) check (audio_seconds between 0 and 600);
+alter table public.group_messages drop constraint if exists group_messages_check;
+alter table public.group_messages drop constraint if exists group_messages_content;
+alter table public.group_messages add constraint group_messages_content
+  check (btrim(body) <> '' or photo_path is not null or audio_path is not null or deleted_at is not null);
 
 create table if not exists public.group_message_reactions (
   message_id uuid not null references public.group_messages(id) on delete cascade,
@@ -132,6 +139,9 @@ begin
   if new.photo_path is not null and split_part(new.photo_path, '/', 1) <> new.group_id::text then
     raise exception 'Photo invalide';
   end if;
+  if new.audio_path is not null and split_part(new.audio_path, '/', 1) <> new.group_id::text then
+    raise exception 'Message vocal invalide';
+  end if;
   return new;
 end $$;
 drop trigger if exists group_messages_guard on public.group_messages;
@@ -146,7 +156,7 @@ begin
   select * into g from public.member_groups where id = new.group_id;
   select display_name into who from public.profiles where id = new.user_id;
   select user_id into replied from public.group_messages where id = new.reply_to;
-  preview := case when new.body <> '' then left(new.body, 140) else '📷 Photo' end;
+  preview := case when new.body <> '' then left(new.body, 140) when new.audio_path is not null then '🎤 Message vocal' else '📷 Photo' end;
   for u in select user_id from public.member_group_members where group_id = new.group_id and user_id <> new.user_id loop
     select notify into level from public.group_chat_settings where group_id = new.group_id and user_id = u;
     cited := new.mention_all or u = any(new.mentions) or u = replied;
@@ -171,10 +181,10 @@ begin
   select * into m from public.group_messages where id = msg and deleted_at is null;
   if m.id is null then raise exception 'Message introuvable'; end if;
   if m.user_id = auth.uid() then
-    update public.group_messages set body = '', photo_path = null, mentions = '{}', mention_all = false, pinned = false,
+    update public.group_messages set body = '', photo_path = null, audio_path = null, mentions = '{}', mention_all = false, pinned = false,
       deleted_at = now(), deleted_by_admin = false where id = msg;
   elsif private.group_admin(m.group_id, auth.uid()) then
-    update public.group_messages set body = '', photo_path = null, mentions = '{}', mention_all = false, pinned = false,
+    update public.group_messages set body = '', photo_path = null, audio_path = null, mentions = '{}', mention_all = false, pinned = false,
       deleted_at = now(), deleted_by_admin = true where id = msg;
   else
     raise exception 'forbidden: seuls l''auteur et les admins du groupe suppriment un message' using errcode = '42501';
@@ -249,7 +259,8 @@ language sql stable security definer set search_path = '' as $$
       'last', case when last.id is null then null
                    when last.deleted_at is not null then case when last.deleted_by_admin then 'Message supprimé par un admin' else 'Message supprimé' end
                    else coalesce((select display_name from public.profiles where id = last.user_id), '?') || ' : '
-                        || case when last.body <> '' then left(last.body, 80) else '📷 Photo' end end,
+                        || case when last.body <> '' then left(last.body, 80) when last.audio_path is not null then '🎤 Message vocal'
+                                else '📷 Photo' end end,
       'unread', (select count(*) from public.group_messages m where m.group_id = g.id and m.user_id <> auth.uid()
                  and m.deleted_at is null and m.created_at > coalesce(s.read_at, '-infinity'))) as c
     from public.member_groups g
@@ -268,7 +279,8 @@ grant execute on function public.delete_group_message(uuid), public.edit_group_m
 
 -- Photos (bucket privé, dossier = groupe) : envoyées et vues par les membres du groupe ; gardées 90 jours.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('chat-photos', 'chat-photos', false, 8 * 1024 * 1024, array['image/jpeg', 'image/png', 'image/heic', 'image/webp'])
+values ('chat-photos', 'chat-photos', false, 8 * 1024 * 1024, array['image/jpeg', 'image/png', 'image/heic', 'image/webp',
+        'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/webm', 'audio/ogg', 'audio/mpeg'])
 on conflict (id) do update set file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
 
 drop policy if exists "envoyer une photo dans son groupe" on storage.objects;
@@ -284,8 +296,10 @@ create policy "voir les photos de ses groupes" on storage.objects for select to 
 create or replace function private.expire_chat_photos() returns integer
 language sql security definer set search_path = '' as $$
   with gone as (update public.group_messages
-                set photo_path = null, body = case when btrim(body) = '' then '📷 Photo expirée' else body end
-                where photo_path is not null and created_at < now() - interval '90 days' returning 1)
+                set body = case when btrim(body) <> '' then body when audio_path is not null then '🎤 Message vocal expiré'
+                                else '📷 Photo expirée' end,
+                    photo_path = null, audio_path = null
+                where (photo_path is not null or audio_path is not null) and created_at < now() - interval '90 days' returning 1)
   select count(*)::int from gone;
 $$;
 select cron.schedule('chat-photos-expire', '17 4 * * *', $cron$ select private.expire_chat_photos(); $cron$);

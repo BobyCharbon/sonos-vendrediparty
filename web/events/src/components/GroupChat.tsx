@@ -7,7 +7,8 @@ import { ChatBubble } from './ChatBubble';
 import { GroupChatSettings } from './GroupChatSettings';
 import { Button, ErrorText, HeaderBack, Input, Loading, s, T } from './ui';
 import { useMe } from '@/lib/auth';
-import { mentionsIn, pickPhoto, shrinkPhoto, signedPhotos, uploadChatPhoto, type ChatSummary, type GroupMessage, type Reaction } from '@/lib/chats';
+import { mentionsIn, newMessageId, pickPhoto, shrinkPhoto, signedPhotos, startVoice, uploadChatAudio, uploadChatPhoto, voiceClock,
+  type ChatSummary, type GroupMessage, type Reaction, type VoiceRecording } from '@/lib/chats';
 import { useQuery, useRealtime } from '@/lib/data';
 import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
@@ -24,10 +25,13 @@ export function GroupChat({ id }: { id: string }) {
   const [text, setText] = useState('');
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [sending, setSending] = useState(false);
+  // Messages envoyés pas encore revenus de la base : affichés tout de suite (« Envoi… »), comme Snapchat.
+  const [pending, setPending] = useState<GroupMessage[]>([]);
+  const [voice, setVoice] = useState<{ rec: VoiceRecording; started: number } | null>(null);
+  const [voiceNow, setVoiceNow] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [photos, setPhotos] = useState<Map<string, string>>(new Map());
-  const sendingRef = useRef(false);
   const list = useRef<FlatList<GroupMessage>>(null);
 
   const { data, loading, error: loadError, reload } = useQuery(async () => {
@@ -62,7 +66,17 @@ export function GroupChat({ id }: { id: string }) {
   const isAdmin = Boolean(data?.chat?.admin);
   useEffect(() => { if (member && data?.messages.length) void supabase.rpc('mark_group_read', { grp: id }); }, [member, id, data?.messages]);
 
-  const paths = useMemo(() => (data?.messages ?? []).flatMap((m) => (m.photo_path && !m.deleted_at ? [m.photo_path] : [])), [data?.messages]);
+  const paths = useMemo(() => (data?.messages ?? []).flatMap((m) => (m.deleted_at ? []
+    : [m.photo_path, m.audio_path].filter((p): p is string => Boolean(p)))), [data?.messages]);
+  useEffect(() => {
+    if (!voice) return;
+    const timer = setInterval(() => setVoiceNow(Date.now()), 200);
+    return () => clearInterval(timer);
+  }, [voice]);
+  const shown = useMemo(() => {
+    const known = new Set((data?.messages ?? []).map((m) => m.id));
+    return [...(data?.messages ?? []), ...pending.filter((m) => !known.has(m.id))];
+  }, [data?.messages, pending]);
   useEffect(() => {
     let alive = true;
     void signedPhotos(paths.filter((p) => !photos.has(p))).then((more) => {
@@ -83,22 +97,52 @@ export function GroupChat({ id }: { id: string }) {
   const pinned = (data?.messages ?? []).filter((m) => m.pinned && !m.deleted_at);
   const nameOf = (uid: string) => people.get(uid)?.display_name ?? '?';
 
-  async function send(photoPath: string | null = null) {
-    const body = text.trim();
-    if ((!body && !photoPath) || sendingRef.current) return;
-    sendingRef.current = true;
-    setSending(true);
+  /** Texte, photo ou vocal : la bulle apparaît tout de suite, le champ se vide ; en cas d'échec, le texte revient. */
+  async function send(photoPath: string | null = null, audio: { blob: Blob; seconds: number; ext: 'm4a' | 'webm' } | null = null) {
+    const body = audio ? '' : text.trim();
+    if (!body && !photoPath && !audio) return;
+    const quoted = replyTo;
+    const messageId = newMessageId();
+    const draft: GroupMessage = { id: messageId, group_id: id, user_id: me.id, body, photo_path: photoPath, reply_to: quoted?.id ?? null,
+      mentions: [], mention_all: false, pinned: false, created_at: new Date().toISOString(), edited_at: null, deleted_at: null,
+      deleted_by_admin: false, audio_path: null, audio_seconds: audio ? Math.round(audio.seconds * 10) / 10 : null, pending: true };
+    const known = new Set((data?.messages ?? []).map((m) => m.id));
+    setPending((list) => [...list.filter((m) => !known.has(m.id)), draft]);
+    if (!audio) setText('');
+    setReplyTo(null);
     setError(null);
     const tagged = mentionsIn(body, inside.filter((u) => u !== me.id).map((u) => ({ id: u, display_name: nameOf(u) })));
-    const { error } = await supabase.from('group_messages').insert({
-      group_id: id, body, photo_path: photoPath, reply_to: replyTo?.id ?? null, mentions: tagged.mentions, mention_all: tagged.all && isAdmin,
-    });
-    sendingRef.current = false;
-    setSending(false);
-    if (error) return setError('Le message n’a pas pu être envoyé. Réessaie.');
-    setText('');
-    setReplyTo(null);
-    await reload();
+    try {
+      const audioPath = audio ? await uploadChatAudio(id, audio) : null;
+      const { error } = await supabase.from('group_messages').insert({
+        id: messageId, group_id: id, body, photo_path: photoPath, reply_to: quoted?.id ?? null, mentions: tagged.mentions,
+        mention_all: tagged.all && isAdmin, audio_path: audioPath, audio_seconds: draft.audio_seconds,
+      });
+      if (error) throw new Error('Le message n’a pas pu être envoyé. Réessaie.');
+    } catch (e) {
+      setPending((list) => list.filter((m) => m.id !== messageId));
+      if (!audio) setText(body);
+      setReplyTo(quoted);
+      return setError(e instanceof Error ? e.message : 'Le message n’a pas pu être envoyé. Réessaie.');
+    }
+    reload();
+  }
+
+  async function startRecording() {
+    setError(null);
+    try {
+      setVoice({ rec: await startVoice(), started: Date.now() });
+      setVoiceNow(Date.now());
+    } catch (e) {
+      setError(e instanceof Error && e.name !== 'NotAllowedError' ? e.message : 'Autorise le micro pour envoyer un message vocal.');
+    }
+  }
+
+  async function stopRecording(sendIt: boolean) {
+    const current = voice;
+    setVoice(null);
+    const done = await current?.rec.stop(sendIt);
+    if (done) await send(null, done);
   }
 
   async function sendPhoto() {
@@ -174,7 +218,7 @@ export function GroupChat({ id }: { id: string }) {
         ) : null}
         <FlatList
           ref={list}
-          data={data?.messages ?? []}
+          data={shown}
           keyExtractor={(m) => m.id}
           contentContainerStyle={{ padding: 16, gap: 14 }}
           onContentSizeChange={() => list.current?.scrollToEnd({ animated: false })}
@@ -186,6 +230,7 @@ export function GroupChat({ id }: { id: string }) {
                 author={{ name: nameOf(m.user_id), photo: people.get(m.user_id)?.avatar_url ?? null }}
                 quoted={quoted ? { name: nameOf(quoted.user_id), text: quoted.deleted_at ? 'Message supprimé' : quoted.body || '📷 Photo' } : null}
                 photoUrl={m.photo_path ? photos.get(m.photo_path) ?? null : null}
+                audioUrl={m.audio_path ? photos.get(m.audio_path) ?? null : null}
                 reactions={reactionsOf.get(m.id) ?? []} canWrite={member} isAdmin={isAdmin}
                 onReply={() => setReplyTo(m)} onReact={(e) => void react(m, e)}
                 onPin={() => void rpc('pin_group_message', { msg: m.id, pin: !m.pinned })}
@@ -203,13 +248,26 @@ export function GroupChat({ id }: { id: string }) {
                 <Button small variant="ghost" label="✕" onPress={() => setReplyTo(null)} />
               </View>
             ) : null}
-            <View style={[s.row, { padding: 12, borderTopWidth: 1, borderTopColor: colors.line }]}>
-              {Platform.OS === 'web' ? <Button small variant="secondary" label="📷" onPress={() => void sendPhoto()} disabled={sending} /> : null}
-              <Input accessibilityLabel="Message" placeholder={isAdmin ? 'Message… (@surnom, @tout)' : 'Message… (@surnom pour citer)'}
-                value={text} onChangeText={setText} multiline editable={!sending} maxLength={2000}
-                style={{ flex: 1, height: undefined, minHeight: 46, maxHeight: 120, paddingTop: 12 }} />
-              <Button small label="Envoyer" onPress={() => void send()} disabled={!text.trim()} loading={sending} />
-            </View>
+            {voice ? (
+              <View style={[s.row, { padding: 12, borderTopWidth: 1, borderTopColor: colors.line }]}>
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.red }} />
+                <T style={{ flex: 1 }}>🎙 Enregistrement… {voiceClock((voiceNow - voice.started) / 1000)}</T>
+                <Button small variant="ghost" label="Annuler" onPress={() => void stopRecording(false)} />
+                <Button small label="Envoyer" onPress={() => void stopRecording(true)} />
+              </View>
+            ) : (
+              <View style={[s.row, { padding: 12, borderTopWidth: 1, borderTopColor: colors.line }]}>
+                {Platform.OS === 'web' ? <Button small variant="secondary" label="📷" onPress={() => void sendPhoto()} disabled={sending} /> : null}
+                <Input accessibilityLabel="Message" placeholder={isAdmin ? 'Message… (@surnom, @tout)' : 'Message… (@surnom pour citer)'}
+                  value={text} onChangeText={setText} multiline editable={!sending} maxLength={2000}
+                  style={{ flex: 1, height: undefined, minHeight: 46, maxHeight: 120, paddingTop: 12 }} />
+                {text.trim() ? (
+                  <Button small label="Envoyer" onPress={() => void send()} loading={sending} />
+                ) : (
+                  <Button small variant="secondary" label="🎤" onPress={() => void startRecording()} disabled={sending} />
+                )}
+              </View>
+            )}
           </>
         ) : null}
       </KeyboardAvoidingView>

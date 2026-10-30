@@ -59,7 +59,7 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         NSCameraUsageDescription: "Pour scanner le QR code de l'hôte et prendre une photo de profil ou d'événement."
         NSPhotoLibraryUsageDescription: "Pour choisir une photo de profil ou d'événement."
-        NSMicrophoneUsageDescription: "Pour les jeux qui utilisent le micro."
+        NSMicrophoneUsageDescription: "Pour enregistrer tes messages vocaux dans les Discussions et pour les jeux qui utilisent le micro."
         ITSAppUsesNonExemptEncryption: false
     entitlements:
       path: Party/Party.entitlements

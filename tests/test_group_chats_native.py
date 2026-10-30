@@ -101,11 +101,13 @@ def test_send_cites_members_and_keeps_everyone_tag_for_admins():
     chats, seen = fake()
     chats.send("jeton", GRP, "@léa et @tout : ce soir", None, None)
     row = next(b for m, p, _, b in seen if m == "POST" and p == "/rest/v1/group_messages")
-    assert row["mentions"] == [LEA] and row["mention_all"] is False  # pas admin : @tout ignoré
-    chats, seen = fake(admin=True)
-    chats.send("jeton", GRP, "@tout ce soir", M1, None)
-    row = next(b for m, p, _, b in seen if m == "POST" and p == "/rest/v1/group_messages")
-    assert row["mention_all"] is True and row["reply_to"] == M1
+    # @tout transmis tel quel : la base (guard_group_message) l'efface si l'auteur n'est pas admin du groupe.
+    assert row["mentions"] == [LEA] and row["mention_all"] is True
+    chats, seen = fake()
+    chats.send("jeton", GRP, "Salut", M1, None, mentions=[TOM], message_id=M2)
+    posts = [(p, b) for m, p, _, b in seen if m == "POST" or m == "GET"]
+    assert [p for p, _ in posts] == ["/rest/v1/group_messages"]  # citations fournies par l'app : un seul appel
+    assert posts[0][1]["mentions"] == [TOM] and posts[0][1]["id"] == M2 and posts[0][1]["reply_to"] == M1
 
 
 def test_send_refuses_empty_messages_foreign_photos_and_reports_denials():
@@ -178,3 +180,28 @@ def test_routes_validate_input_and_relay(monkeypatch):
     assert client.post("/api/account/chats/photo", json={"token": "jeton", "group_id": GRP, "photo": photo}).json()["path"].startswith(GRP)
     assert client.post("/api/account/chats/photo", json={"token": "jeton", "group_id": GRP, "photo": "@@@"}).status_code == 400
     assert client.post("/api/account/chats/open", json={"token": "jeton", "group_id": GRP}).json()["name"] == "Les amis"
+
+
+M4A = b"\x00\x00\x00\x1cftypM4A " + b"\x00" * 32
+
+
+def test_voice_messages_are_uploaded_and_sent():
+    assert gc.audio_kind(M4A) == ("audio/mp4", "m4a")
+    assert gc.audio_kind(b"\x1a\x45\xdf\xa3" + b"\x00" * 8) == ("audio/webm", "webm")
+    assert gc.audio_kind(b"OggS\x00") == ("audio/ogg", "ogg") and gc.audio_kind(JPEG) is None
+    chats, seen = fake()
+    path = chats.upload_audio("jeton", GRP, M4A)["path"]
+    assert path.startswith(f"{GRP}/") and path.endswith(".m4a")
+    try:
+        chats.upload_audio("jeton", GRP, JPEG)
+        raise AssertionError("refus attendu")
+    except accounts_mod.AccountError:
+        pass
+    chats.send("jeton", GRP, "", None, None, mentions=[], audio_path=path, audio_seconds=7.26)
+    row = next(b for m, p, _, b in seen if m == "POST" and p == "/rest/v1/group_messages")
+    assert row["audio_path"] == path and row["audio_seconds"] == 7.3 and row["body"] == ""
+    try:
+        chats.send("jeton", GRP, "", None, None, mentions=[], audio_path="autre/1-abc.m4a")
+        raise AssertionError("refus attendu")
+    except accounts_mod.AccountError:
+        pass

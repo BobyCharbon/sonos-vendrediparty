@@ -22,13 +22,17 @@ struct ChatsView: View {
         .background(AppConfig.background.ignoresSafeArea())
         .task(id: path.isEmpty) {
             // Liste visible : relue au retour d'une conversation, puis toutes les 15 s.
-            guard path.isEmpty else { return }
+            guard path.isEmpty else { return store.stopListLive() }
+            await store.loadList()
+            openRequested()
+            await store.startListLive()  // nouveaux messages : la liste se met à jour en direct
             while !Task.isCancelled {
-                await store.loadList()
-                openRequested()
                 try? await Task.sleep(for: ChatsStore.listEvery)
+                guard !Task.isCancelled else { break }
+                await store.loadList()
             }
         }
+        .onDisappear { store.stopListLive() }
         .onChange(of: store.requested) { _ in openRequested() }
     }
 
