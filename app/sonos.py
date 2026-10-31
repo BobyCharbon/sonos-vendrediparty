@@ -132,9 +132,12 @@ class Sonos:
 
     def add_spotify_track(self, uid: str, track_id: str, title: str, position: int) -> int:
         coord = self.coordinator(uid)
-        return ShareLinkPlugin(coord).add_share_link_to_queue(
-            f"spotify:track:{track_id}", position=position, dc_title=title
-        )
+        share = ShareLinkPlugin(coord)
+        # En lecture aléatoire, Sonos refuse un titre inséré à une position (erreur UPnP 800) :
+        # on le lui donne « à jouer ensuite », la seule insertion qu'il accepte dans ce mode.
+        if "SHUFFLE" in (coord.play_mode or ""):
+            return share.add_share_link_to_queue(f"spotify:track:{track_id}", position=0, as_next=True, dc_title=title)
+        return share.add_share_link_to_queue(f"spotify:track:{track_id}", position=position, dc_title=title)
 
     def remove_at(self, uid: str, position: int):
         self.coordinator(uid).remove_from_queue(position - 1)
