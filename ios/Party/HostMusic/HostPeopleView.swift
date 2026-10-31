@@ -54,6 +54,9 @@ struct HostPeopleView: View {
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        // Message reçu, lu, supprimé ; invité arrivé, bloqué ou débloqué : les lignes glissent en place.
+        // (Seules les identités et l'état lu comptent : le rafraîchissement périodique ne rejoue rien.)
+        .motion(Motion.snappy, value: store.state.map(Self.layoutKey))
         .background(AppConfig.background.ignoresSafeArea())
         .navigationTitle("Invités et messages")
         .navigationBarTitleDisplayMode(.inline)
@@ -68,6 +71,13 @@ struct HostPeopleView: View {
                 Task { await store.messages("delete", ids: [message.id]) }
             }
         }
+    }
+
+    /// Ce qui change la disposition des listes : identités, lu / non lu, réponse, blocages (pas les heures).
+    private static func layoutKey(_ state: AdminState) -> [String] {
+        state.people.messages.map { "m\($0.id)\($0.read)\($0.reply ?? "")" }
+            + state.guests.map { "g\($0.id)\($0.ban != nil)" }
+            + state.people.bans.map { "b\($0.id)" }
     }
 
     private func messages(_ people: HostPeople) -> some View {
@@ -317,17 +327,13 @@ private struct HostLoading: View {
     @ObservedObject var store: HostMusicStore
 
     var body: some View {
-        if store.state == nil {
-            if case .failed(let message) = store.phase {
-                VStack(spacing: 12) {
-                    Text(message).multilineTextAlignment(.center).foregroundStyle(.secondary)
-                    Button("Réessayer") { Task { await store.reload() } }
-                }
-                .padding()
-            } else {
-                ProgressView()
-            }
-        }
+        // Même chargement que l'administration du groupe : roue, puis fondu vers la liste ou l'erreur.
+        AdminLoading(loaded: store.state != nil, error: failure) { await store.reload() }
+    }
+
+    private var failure: String? {
+        if case .failed(let message) = store.phase { return message }
+        return nil
     }
 }
 
@@ -336,18 +342,10 @@ private struct HostNoticeBanner: View {
     @ObservedObject var store: HostMusicStore
 
     var body: some View {
-        if let notice = store.notice {
-            Text(notice.text)
-                .font(.subheadline.weight(.semibold))
-                .multilineTextAlignment(.center)
-                .foregroundStyle(notice.isError ? .red : .primary)
-                .padding(.horizontal, 16).padding(.vertical, 12)
-                .background(Palette.card, in: Capsule())
-                .padding(.bottom, 12).padding(.horizontal, 16)
-                .task(id: notice.text) {
-                    try? await Task.sleep(for: .seconds(3))
-                    if store.notice == notice { store.notice = nil }
-                }
+        let notice = store.notice
+        NoticeBanner(notice: notice.map { NoticeBanner.Notice(text: $0.text, isError: $0.isError, id: $0.id) }) {
+            if store.notice?.id == notice?.id { store.notice = nil }
         }
     }
+
 }

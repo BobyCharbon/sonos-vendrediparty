@@ -16,6 +16,9 @@ struct HostQueueList: View {
     let artwork: (String) async -> UIImage?
 
     static let rowHeight: CGFloat = 68
+    /// Titre reposé : il glisse jusqu'à sa case (ressort de la poignée, un peu plus vif que Motion.snappy).
+    private static let settle = Animation.spring(response: 0.3, dampingFraction: 0.85)
+
     /// Ordre gardé à l'écran entre le lâcher et la réponse du serveur : le titre reste là où on l'a posé.
     private static let confirmTimeout: Duration = .seconds(4)
     @State private var lifted: Int?
@@ -41,6 +44,9 @@ struct HostQueueList: View {
                     .animation(lifted == index ? nil : .spring(response: 0.28, dampingFraction: 0.85), value: target)
             }
         }
+        // Titre ajouté par un invité, retiré, passé : les lignes s'écartent ou se resserrent au lieu de sauter.
+        // (Un déplacement confirmé par le serveur ne change rien à l'écran : l'ordre posé était déjà affiché.)
+        .motion(Motion.snappy, value: tracks.map(\.id))
         // Nouvel état du serveur (déplacement confirmé, ou file changée ailleurs) : c'est lui qui fait foi.
         .onChange(of: tracks.map(\.id)) { _ in localOrder = nil }
     }
@@ -151,7 +157,7 @@ struct HostQueueList: View {
         lifted = index
         target = index
         dragging = true
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        Haptics.press()
     }
 
     private func drop() {
@@ -159,10 +165,10 @@ struct HostQueueList: View {
         let list = shown
         guard let lifted, let target, let position = QueueOrder.targetPosition(in: list, from: lifted, to: target) else {
             // Reposé à sa place : il y retourne en douceur.
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { self.lifted = nil; self.target = nil; offset = 0 }
+            Motion.animate(Self.settle) { self.lifted = nil; self.target = nil; offset = 0 }
             return
         }
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Haptics.tap()
         let moved = QueueOrder.moving(list, from: lifted, to: target)
         let id = QueueOrder.stableIDs(moved)[target]
         // Le titre prend sa nouvelle place sans repasser par l'ancienne : seul l'écart restant au doigt s'anime.
@@ -176,13 +182,13 @@ struct HostQueueList: View {
             offset = 0
         }
         DispatchQueue.main.async {  // image suivante : le titre part bien de là où le doigt l'a laissé
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { settling = (id, 0) }
+            Motion.animate(Self.settle) { settling = (id, 0) }
         }
         move(list[lifted], position)
         Task {
             try? await Task.sleep(for: Self.confirmTimeout)
             // Pas de réponse qui change la file (déplacement refusé) : retour à l'ordre réel.
-            if localOrder == moved { withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { localOrder = nil } }
+            if localOrder == moved { Motion.animate(Motion.snappy) { localOrder = nil } }
             settling = nil
         }
     }
@@ -198,15 +204,20 @@ struct HostArtwork: View {
     var body: some View {
         Group {
             if let image {
-                Image(uiImage: image).resizable().scaledToFill()
+                Image(uiImage: image).resizable().scaledToFill().transition(.opacity)
             } else {
-                Image(systemName: "music.note").foregroundStyle(.secondary)
+                Image(systemName: "music.note").foregroundStyle(.secondary).transition(.opacity)
             }
         }
         .frame(width: size, height: size)
         .background(Color.white.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .task(id: path) { image = path.isEmpty ? nil : await load(path) }
+        .task(id: path) {
+            let loaded = path.isEmpty ? nil : await load(path)
+            guard !Task.isCancelled else { return }
+            Motion.animate(Motion.fade) { image = loaded }  // pochette : fondu, pas d'apparition sèche
+        }
+
         .accessibilityHidden(true)
     }
 }

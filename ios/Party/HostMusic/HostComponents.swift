@@ -23,13 +23,16 @@ struct HostSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) { open.toggle() }
+                Haptics.tap()
+                Motion.animate(Motion.smooth) { open.toggle() }
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: symbol).font(.body.weight(.semibold)).foregroundStyle(Palette.accent).frame(width: 24)
                     Text(title).font(.title3.weight(.bold)).lineLimit(1).minimumScaleFactor(0.8).layoutPriority(1)
                     if let badge {
                         Text(badge).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary).lineLimit(1)
+                            .contentTransition(.numericText())
+                            .motion(Motion.snappy, value: badge)
                     }
                     Spacer(minLength: 4)
                     Image(systemName: "chevron.down")
@@ -43,8 +46,10 @@ struct HostSection<Content: View>: View {
             .accessibilityAddTraits(.isHeader)
             .accessibilityValue(open ? "développé" : "réduit")
             if open {
-                content().transition(.opacity.combined(with: .move(edge: .top)))
+                // Le contenu se déplie sous le titre (plus de glissement par-dessus l'en-tête).
+                content().motionTransition(.unfold)
             }
+
         }
         .padding(.top, 6)
         .id(key)
@@ -88,10 +93,12 @@ struct HostButton: View {
     var body: some View {
         Button(role: role, action: action) {
             HStack(spacing: 8) {
-                if busy { ProgressView() } else if let symbol { Image(systemName: symbol) }
+                if busy { ProgressView().transition(.opacity) } else if let symbol { Image(systemName: symbol).transition(.opacity) }
                 Text(title).bold()
             }
             .frame(maxWidth: .infinity, minHeight: 30)
+            .motion(Motion.snappy, value: busy)
+
         }
         .buttonStyle(.borderedProminent)
         .tint(role == .destructive ? .red : Palette.accent)
@@ -133,6 +140,7 @@ struct HostSetupView: View {
                 SpotifyAccountCard(store: store)
             }
             HostButton(title: "Démarrer la soirée", symbol: "party.popper.fill", busy: store.busy.contains("start")) {
+                Haptics.press()
                 Task { await store.startParty() }
             }
         }
@@ -147,12 +155,14 @@ struct HostSetupView: View {
             }
             .pickerStyle(.segmented)
             Text(InsertMode(rawValue: store.chosenMode)?.help ?? "").font(.footnote).foregroundStyle(.secondary)
+                .id(store.chosenMode).transition(.opacity)
+                .motion(Motion.smooth, value: store.chosenMode)
         }
     }
 
     private func sourceCard(_ source: String, _ title: String, _ hint: String) -> some View {
         let on = store.chosenSource == source
-        return Button { withAnimation { store.chosenSource = source } } label: {
+        return Button { Haptics.selection(); Motion.animate(Motion.smooth) { store.chosenSource = source } } label: {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(.subheadline.weight(.bold))
                 Text(hint).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading)
