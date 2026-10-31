@@ -22,22 +22,28 @@ struct AIEventView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if let created = store.created {
-                        done(created)
+                        done(created).motionTransition(.scale(scale: 0.9).combined(with: .opacity))
                     } else {
-                        if store.turns.isEmpty { tips }
+                        if store.turns.isEmpty { tips.transition(.opacity) }
                         if !store.turns.isEmpty { said }
-                        if store.thinking { thinkingCard }
+                        if store.thinking { thinkingCard.motionTransition() }
                         if let draft = store.draft, !store.thinking {
-                            if !draft.not_understood.isEmpty { notUnderstood(draft) }
-                            if !draft.ready { questions(draft) }
-                            review(draft)
+                            if !draft.not_understood.isEmpty { notUnderstood(draft).motionTransition() }
+                            if !draft.ready { questions(draft).motionTransition() }
+                            review(draft).motionTransition()
                         }
                         if let error = store.error ?? dictation.problem {
                             Label(error, systemImage: "exclamationmark.triangle.fill")
                                 .font(.footnote).foregroundStyle(.orange)
+                                .motionTransition(.unfold)
                         }
                     }
                 }
+                // Chaque étape (phrase dite, l'IA réfléchit, fiche prête, questions, créé) arrive en douceur ;
+                // le contenu de la fiche qui change (correction dictée) se fond au lieu de sauter.
+                .motion(Motion.smooth, value: stage)
+                .motion(Motion.smooth, value: store.draft)
+                .motion(Motion.smooth, value: store.error ?? dictation.problem)
                 .padding(16)
                 .padding(.bottom, 140)
             }
@@ -54,6 +60,8 @@ struct AIEventView: View {
                 }
             }
             .onChange(of: store.draft) { _ in restartCountdown() }
+            .onChange(of: store.created != nil) { done in if done { Haptics.success() } }
+            .onChange(of: store.error) { error in if error != nil { Haptics.error() } }
             .onChange(of: store.unsent) { text in
                 guard let text else { return }
                 typed = text
@@ -63,6 +71,14 @@ struct AIEventView: View {
             .onDisappear { dictation.finish(); tick?.cancel() }
         }
         .tint(Palette.accent)
+    }
+
+    /// Étape affichée : sert de repère aux animations (pas le contenu, qui change à chaque correction).
+    private var stage: String {
+        if store.created != nil { return "created" }
+        if store.thinking { return "thinking-\(store.turns.count)" }
+        guard let draft = store.draft else { return "turns-\(store.turns.count)" }
+        return "draft-\(draft.ready)-\(draft.questions.count)-\(draft.not_understood.count)-\(store.turns.count)"
     }
 
     // ── Avant de parler : ce qu'on peut dire ──
@@ -107,6 +123,8 @@ struct AIEventView: View {
                 Text(t).font(.subheadline)
                     .padding(.horizontal, 12).padding(.vertical, 8)
                     .background(Palette.accent.opacity(0.22), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .motionTransition(.asymmetric(insertion: .scale(scale: 0.85, anchor: .bottomTrailing).combined(with: .opacity),
+                                                  removal: .opacity))
             }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -114,7 +132,7 @@ struct AIEventView: View {
 
     private var thinkingCard: some View {
         HStack(spacing: 12) {
-            ProgressView()
+            ThinkingSparkles()
             VStack(alignment: .leading, spacing: 2) {
                 Text("L'IA prépare ton événement…").foregroundStyle(.secondary)
                 Text("Elle réfléchit bien : ça prend souvent 20 à 40 secondes.").font(.caption).foregroundStyle(.secondary)
@@ -158,6 +176,7 @@ struct AIEventView: View {
                 Text(d.summary).font(.subheadline).foregroundStyle(.secondary)
             }
             Text(d.title.isEmpty ? "Titre à préciser" : d.title).font(.title2.weight(.bold))
+                .id(d.title).transition(.opacity)
             if !d.description.isEmpty { Text(d.description).font(.subheadline) }
 
             part("Quand") { when(d) }
@@ -258,10 +277,11 @@ struct AIEventView: View {
     private func placeRow(_ d: AIEvent.Draft) -> some View {
         if store.searchingPlace {
             HStack(spacing: 10) { ProgressView(); Text("Recherche du lieu…").foregroundStyle(.secondary) }
+                .transition(.opacity)
         } else if let p = store.place {
-            chosenPlace(p)
+            chosenPlace(p).motionTransition()
         } else if !store.candidates.isEmpty {
-            placeChoices(d)
+            placeChoices(d).motionTransition()
         } else if !d.place_query.isEmpty {
             row("mappin.and.ellipse", (d.place_name.isEmpty ? d.place_query : d.place_name)
                 + "\nLieu introuvable : dis l'adresse complète (rue, numéro, NPA, localité)")
@@ -286,7 +306,8 @@ struct AIEventView: View {
             HStack {
                 if let url = URL(string: p.url) { Link("Voir dans Google Maps", destination: url).font(.footnote) }
                 Spacer()
-                Button("Changer de lieu") { store.choose(nil) }.font(.footnote).foregroundStyle(.secondary)
+                Button("Changer de lieu") { Haptics.tap(); Motion.animate(Motion.smooth) { store.choose(nil) } }
+                    .font(.footnote).foregroundStyle(.secondary)
             }
         }
     }
@@ -300,7 +321,7 @@ struct AIEventView: View {
                 .font(.caption).foregroundStyle(.secondary)
             ForEach(store.candidates) { p in
                 HStack(alignment: .top, spacing: 10) {
-                    Button { store.choose(p) } label: {
+                    Button { Haptics.selection(); Motion.animate(Motion.smooth) { store.choose(p) } } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(p.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
                             if !p.address.isEmpty { Text(p.address).font(.caption).foregroundStyle(.secondary) }
@@ -316,6 +337,7 @@ struct AIEventView: View {
                 }
                 .padding(10)
                 .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .motionTransition()
             }
             Button("Aucun : je dis l'adresse complète") { typing = true }
                 .font(.footnote)
@@ -325,12 +347,15 @@ struct AIEventView: View {
 
     private var createButton: some View {
         Button {
+            Haptics.press()
             Task { await store.create() }
         } label: {
             HStack {
-                if store.creating { ProgressView().tint(.black) }
+                if store.creating { ProgressView().tint(.black).transition(.opacity.combined(with: .scale(scale: 0.6))) }
+                // Compte à rebours : les chiffres défilent vers le bas, puis le libellé se fond en « Créer ».
                 Text(countdown > 0 ? "Relis bien… \(countdown)" : "Créer l'événement")
-                    .font(.headline)
+                    .font(.headline.monospacedDigit())
+                    .contentTransition(.numericText(countsDown: true))
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
@@ -338,14 +363,16 @@ struct AIEventView: View {
             .foregroundStyle(countdown > 0 ? Color.secondary : Color.black)
         }
         .disabled(countdown > 0 || store.creating)
-        .animation(.easeInOut, value: countdown)
+        .motion(Motion.smooth, value: countdown)
+        .motion(Motion.snappy, value: store.creating)
+        .onChange(of: countdown) { left in if left == 0 && store.canCreate { Haptics.tap() } }  // « Créer » devient actif
         .accessibilityIdentifier("ai-create")
     }
 
     // ── C'est fait ──
     private func done(_ c: AIEvent.Created) -> some View {
         VStack(spacing: 14) {
-            Image(systemName: "checkmark.circle.fill").font(.system(size: 56)).foregroundStyle(.green)
+            SuccessCheck()
             Text(c.title).font(.title2.weight(.bold)).multilineTextAlignment(.center)
             Text(c.status == "published" ? "Événement publié : les invités sont prévenus."
                                          : "Événement proposé : il sera visible une fois validé par un admin.")
@@ -370,6 +397,7 @@ struct AIEventView: View {
                     .font(.subheadline).frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
                     .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .motionTransition(.opacity.combined(with: .move(edge: .bottom)))
             }
             HStack(spacing: 10) {
                 TextField(store.draft?.ready == false ? "Ta réponse…" : store.draft == nil ? "Ou écris ici…" : "Une correction ?",
@@ -380,25 +408,31 @@ struct AIEventView: View {
                     .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .accessibilityIdentifier("ai-text")
                 if !typed.trimmingCharacters(in: .whitespaces).isEmpty {
-                    Button { submit(typed) } label: { Image(systemName: "arrow.up.circle.fill").font(.system(size: 34)) }
+                    Button { Haptics.tap(); submit(typed) } label: { Image(systemName: "arrow.up.circle.fill").font(.system(size: 34)) }
                         .accessibilityLabel("Envoyer")
+                        .motionTransition(.scale(scale: 0.5).combined(with: .opacity))
                 } else {
                     Button { toggleMic() } label: {
                         Image(systemName: dictation.listening ? "stop.circle.fill" : "mic.circle.fill")
                             .font(.system(size: 44))
                             .foregroundStyle(dictation.listening ? .red : Palette.accent)
+                            .background { if dictation.listening { ListeningHalo() } }
                     }
                     .accessibilityLabel(dictation.listening ? "Arrêter et envoyer" : "Parler")
                     .accessibilityIdentifier("ai-mic")
+                    .motionTransition(.scale(scale: 0.5).combined(with: .opacity))
                 }
             }
             .disabled(store.thinking)
         }
+        .motion(Motion.snappy, value: dictation.listening)
+        .motion(Motion.snappy, value: typed.trimmingCharacters(in: .whitespaces).isEmpty)
         .padding(.horizontal, 16).padding(.vertical, 10)
         .background(.ultraThinMaterial)
     }
 
     private func toggleMic() {
+        Haptics.press()
         if dictation.listening {
             Task { submit(await dictation.stopAndCollect()) }
         } else {
@@ -433,6 +467,56 @@ struct AIEventView: View {
     }
 }
 
+/// L'IA réfléchit : une étincelle qui respire doucement (immobile avec Réduire les animations).
+private struct ThinkingSparkles: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var lit = false
+
+    var body: some View {
+        Image(systemName: "sparkles").font(.title2).foregroundStyle(Palette.accent)
+            .scaleEffect(lit ? 1.12 : 0.92)
+            .opacity(lit ? 1 : 0.55)
+            .frame(width: 28, height: 28)
+            .onAppear {
+                guard !reduceMotion else { lit = true; return }
+                withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { lit = true }
+            }
+            .accessibilityHidden(true)
+    }
+}
+
+/// Micro ouvert : un halo qui s'élargit et s'efface en boucle, comme Siri (rien avec Réduire les animations).
+private struct ListeningHalo: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var wide = false
+
+    var body: some View {
+        Circle().fill(Color.red.opacity(0.35))
+            .scaleEffect(wide ? 1.5 : 0.9)
+            .opacity(reduceMotion ? 0 : wide ? 0 : 1)
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.easeOut(duration: 1.2).repeatForever(autoreverses: false)) { wide = true }
+            }
+            .allowsHitTesting(false)
+    }
+}
+
+/// Événement créé : la coche arrive avec un petit rebond (simple fondu avec Réduire les animations).
+private struct SuccessCheck: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown = false
+
+    var body: some View {
+        Image(systemName: "checkmark.circle.fill").font(.system(size: 56)).foregroundStyle(.green)
+            .scaleEffect(shown || reduceMotion ? 1 : 0.4)
+            .opacity(shown ? 1 : 0)
+            .onAppear { withAnimation(Motion.pick(Motion.bouncy, reduced: reduceMotion).delay(0.1)) { shown = true } }
+            .accessibilityHidden(true)
+    }
+}
+
 extension AIEvent.Place: Identifiable {
+
     var id: String { "\(name)|\(address)|\(latitude)" }
 }
