@@ -1,3 +1,132 @@
+// ✨ GameFx : animations des jeux à écran (Quiz, Purify, Qui est le plus, Pour ou contre, Beer pong). Défini ici
+// parce que quiz.js est le premier de ces fichiers chargés.
+// games.js remplace tout le HTML de la partie dès qu'un détail change (un vote de plus…) : une animation CSS se
+// rejouerait à chaque rafraîchissement. Ici, chaque animation porte une clé : elle n'est jouée qu'une fois, et un
+// nœud remplacé en plein vol reprend là où l'ancien en était (Web Animations, transform et opacité seulement).
+//   data-fx="rise|pop|flip|drop|land" data-fx-key="…" [data-fx-d="délai ms"]  entrée jouée une fois
+//   data-fx-bar="clé" data-fx-v="%"     barre qui grandit depuis sa valeur précédente (ou depuis 0)
+//   data-fx-n="clé" [data-fx-from="n"]  nombre qui défile jusqu'à sa valeur (depuis la précédente)
+//   data-fx-flip="clé"                  ligne qui glisse de son ancienne place à la nouvelle (classement)
+const GameFx = (() => {
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+  const SPRING = "cubic-bezier(.2,1.25,.4,1)", OUT = "cubic-bezier(.2,.8,.2,1)";
+  // Une seule image clé (le départ) : l'arrivée est l'état normal de l'élément (keyframe implicite).
+  const PRESETS = {
+    rise: { frames: [{ opacity: 0, transform: "translateY(16px) scale(.98)" }], duration: 420, easing: OUT },
+    pop: { frames: [{ opacity: 0, transform: "scale(.6)" }], duration: 480, easing: SPRING },
+    flip: { frames: [{ opacity: 0, transform: "perspective(800px) rotateX(-75deg) translateY(-10px)" }], duration: 620, easing: SPRING },
+    land: { frames: [{ opacity: 0, transform: "translateY(-28px) scale(1.12)" }], duration: 520, easing: SPRING },
+    // Gobelet qui tombe : il bondit, puis s'écrase vers son état « tombé » (défini par le CSS du jeu).
+    drop: { frames: [{ opacity: 1, transform: "none" }, { opacity: 1, transform: "translateY(-8px) scale(1.14)", offset: .25 }], duration: 560, easing: "ease-in" },
+  };
+  const BAR_MS = 700, COUNT_MS = 650, FLIP_MS = 480, MAX_FLIP = 420, KEEP_MS = 20000;
+  // started : clé → instant où l'animation commence (premier affichage + délai) ; bars / counts : valeurs en cours.
+  const started = new Map(), bars = new Map(), counts = new Map(), places = new Map();
+  const now = () => performance.now();
+  let holdUntil = 0;  // annonce plein écran en cours : les nouvelles animations attendent qu'elle se retire
+  const startAt = (el, t) => t + Math.max(0, holdUntil - t) + (+el.dataset.fxD || 0);
+
+  function prune() {
+    if (started.size < 400) return;
+    const t = now();
+    for (const [k, t0] of started) if (t - t0 > KEEP_MS) started.delete(k);
+  }
+  // Joue l'animation à partir de « elapsed » (négatif : pas encore commencée, l'élément reste à son départ).
+  function run(el, frames, duration, easing, elapsed) {
+    const a = el.animate(frames, { duration, easing, delay: Math.max(0, -elapsed), fill: "backwards" });
+    if (elapsed > 0) a.currentTime = elapsed;
+  }
+  function enter(el) {
+    const p = PRESETS[el.dataset.fx], key = el.dataset.fxKey;
+    if (!p || !key) return;
+    const t = now();
+    if (!started.has(key)) started.set(key, startAt(el, t));
+    const elapsed = t - started.get(key);
+    if (reduce.matches || elapsed >= p.duration) return;
+    run(el, p.frames, p.duration, p.easing, elapsed);
+  }
+  // Barre : transform scaleX depuis la gauche (pas de largeur animée, donc pas de mise en page à chaque image).
+  function bar(el) {
+    const key = el.dataset.fxBar, to = Math.max(0, +el.dataset.fxV || 0), t = now(), b = bars.get(key);
+    if (!b) bars.set(key, { from: 0, to, t0: startAt(el, t) });
+    else if (b.to !== to) bars.set(key, { from: b.from + (b.to - b.from) * Math.max(0, Math.min(1, (t - b.t0) / BAR_MS)), to, t0: startAt(el, t) });
+    const cur = bars.get(key), elapsed = t - cur.t0;
+    if (reduce.matches || !to || elapsed >= BAR_MS || cur.from === cur.to) return;
+    el.style.transformOrigin = "left center";
+    run(el, [{ transform: `scaleX(${Math.min(cur.from / to, 4)})` }, { transform: "none" }], BAR_MS, OUT, elapsed);
+  }
+  function counter(el) {
+    const key = el.dataset.fxN, to = +el.dataset.fxV, t = now(), c = counts.get(key);
+    if (!Number.isFinite(to)) return;
+    const fmt = el.dataset.fxFmt === "pts" ? fmtPts : (x) => String(x);
+    const at = (c, t) => Math.round(c.from + (c.to - c.from) * (1 - (1 - Math.max(0, Math.min(1, (t - c.t0) / COUNT_MS))) ** 3));
+    if (!c) counts.set(key, { from: el.dataset.fxFrom != null ? +el.dataset.fxFrom : to, to, t0: startAt(el, t) });
+    else if (c.to !== to) counts.set(key, { from: at(c, t), to, t0: startAt(el, t) });
+    const cur = counts.get(key);
+    if (reduce.matches || cur.from === cur.to) return;
+    const step = () => {
+      if (!el.isConnected) return;
+      const v = at(cur, now());
+      el.textContent = fmt(v);
+      if (v !== cur.to || now() < cur.t0) requestAnimationFrame(step);
+    };
+    step();
+  }
+  // FLIP : on mémorise la place de chaque ligne (offsetTop, qui ignore les transformations en cours).
+  function top(el) {
+    let y = 0;
+    for (let n = el; n; n = n.offsetParent) y += n.offsetTop;
+    return y;
+  }
+  function flips(root) {
+    const rows = [...root.querySelectorAll("[data-fx-flip]")];
+    if (!rows.length) return;
+    const fresh = rows.map((el) => [el, top(el), places.get(el.dataset.fxFlip)]);  // toutes les lectures d'abord
+    fresh.forEach(([el, y, before]) => {
+      places.set(el.dataset.fxFlip, y);
+      if (reduce.matches || before == null || !el._fxNew) return;
+      const dy = before - y;
+      if (Math.abs(dy) > 2 && Math.abs(dy) < MAX_FLIP) {
+        el.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: FLIP_MS, easing: OUT, delay: Math.max(0, holdUntil - now()), fill: "backwards" });
+      }
+    });
+    rows.forEach((el) => { el._fxNew = false; });
+  }
+  function scan(nodes) {
+    let flip = false;
+    for (const n of nodes) {
+      if (n.nodeType !== 1) continue;
+      const all = n.matches("[data-fx],[data-fx-bar],[data-fx-n],[data-fx-flip]") ? [n] : [];
+      all.push(...n.querySelectorAll("[data-fx],[data-fx-bar],[data-fx-n],[data-fx-flip]"));
+      for (const el of all) {
+        if (el.dataset.fx) enter(el);
+        if (el.dataset.fxBar) bar(el);
+        if (el.dataset.fxN) counter(el);
+        if (el.dataset.fxFlip) { el._fxNew = true; flip = true; }
+      }
+    }
+    return flip;
+  }
+  const host = document.getElementById("gamePlay") || document.body;
+  // Appelé avant l'affichage (microtâche) : l'élément n'apparaît jamais une image à sa place finale avant d'animer.
+  new MutationObserver((list) => {
+    const added = list.flatMap((m) => [...m.addedNodes]);
+    if (scan(added)) flips(host);
+    prune();
+  }).observe(host, { childList: true, subtree: true });
+
+  // Attributs à poser dans le HTML des jeux.
+  const fx = (name, key, delay = 0) => ` data-fx="${name}" data-fx-key="${esc(key)}"${delay ? ` data-fx-d="${Math.round(delay)}"` : ""}`;
+  const barAttr = (key, pct) => ` data-fx-bar="${esc(key)}" data-fx-v="${pct}"`;
+  const num = (key, value, from = null, fmt = "") => ` data-fx-n="${esc(key)}" data-fx-v="${value}"${from !== null ? ` data-fx-from="${from}"` : ""}${fmt ? ` data-fx-fmt="${fmt}"` : ""}`;
+  const flip = (key) => ` data-fx-flip="${esc(key)}"`;
+  // Petite animation immédiate sur un élément touché (case cochée…), hors rendu.
+  const tap = (el, name = "pop") => { if (!reduce.matches && PRESETS[name]) el.animate(PRESETS[name].frames, { duration: PRESETS[name].duration, easing: PRESETS[name].easing }); };
+  // Annonce plein écran (pyrFlash) qui va couvrir l'écran : ce qui apparaît dessous attend sa sortie.
+  const hold = (ms) => { holdUntil = Math.max(holdUntil, now() + ms); };
+  return { fx, bar: barAttr, num, flip, tap, hold, reduced: () => reduce.matches };
+})();
+
 // 🧠 Quiz : 14 thèmes, 5 modes, seul ou à plusieurs. Chargé après games.js (utilise renderGame, gameAction, pyrFlash…).
 GAME_THEME.quiz = "g-qz";
 GAME_NAMES.quiz = "Quiz";

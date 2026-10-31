@@ -48,25 +48,24 @@ body.pyr-full #game.g-lk { box-shadow: none; border: 0; padding: 16px; backgroun
 
 .lk-dots { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
 .lk-dots i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.18); }
-.lk-dots i.on { background: var(--g-accent); }
+.lk-dots i.on { background: var(--g-accent); box-shadow: 0 0 10px color-mix(in srgb, var(--g-accent) 60%, transparent); }
 
-.lk-win { text-align: center; margin: 20px 0 6px; animation: lk-pop .45s cubic-bezier(.2,1.4,.4,1); }
+.lk-win { text-align: center; margin: 20px 0 6px; }  /* animée une seule fois par GameFx (quiz.js) */
 .lk-win-k { color: var(--g-soft); font-weight: 800; text-transform: uppercase; letter-spacing: .08em; font-size: .8rem; }
 .lk-win-t { font: 800 2rem/1.15 "Bricolage Grotesque", system-ui, sans-serif; color: var(--g-accent); margin-top: 6px; overflow-wrap: anywhere; }
 .lk-win-s { font-weight: 700; margin: 6px 0 0; }
-@keyframes lk-pop { from { transform: scale(.7); opacity: 0; } to { transform: none; opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .lk-win { animation: none; } }
 
 .lk-bars { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 .lk-bar { display: grid; grid-template-columns: minmax(70px, 30%) 1fr 28px; align-items: center; gap: 10px; font-weight: 700; }
 .lk-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lk-bar i { display: block; height: 14px; width: var(--w); min-width: 6px; border-radius: 999px; background: linear-gradient(90deg, #ffe08a, #ffb627); }
-.lk-bar b { text-align: right; }
+.lk-bar i { display: block; height: 14px; width: var(--w); min-width: 6px; border-radius: 999px; transform-origin: left center; background: linear-gradient(90deg, #ffe08a, #ffb627); }
+.lk-bar b { text-align: right; font-variant-numeric: tabular-nums; }
 
 .lk-scores { margin-top: 18px; padding: 12px 14px; border-radius: 18px; background: rgba(255,255,255,.06); }
 .lk-scores h3 { margin: 0 0 6px; font-size: .95rem; color: var(--g-soft); }
 .lk-score { display: flex; justify-content: space-between; padding: 6px 0; border-top: 1px solid rgba(255,255,255,.07); }
 .lk-score:first-of-type { border-top: 0; }
+.lk-score b { font-variant-numeric: tabular-nums; }
 
 .lk-end-k { text-align: center; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; font-size: .8rem; color: var(--g-soft); }
 .lk-podium { display: grid; grid-template-columns: repeat(3, 1fr); align-items: end; gap: 8px; margin-top: 14px; }
