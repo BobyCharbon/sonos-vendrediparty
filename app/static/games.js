@@ -878,28 +878,43 @@ setInterval(() => { if (game && $("gTimer")) $("gTimer").textContent = fmtDurati
 
 // Pas de nouveau rendu si l'écran est identique : plus de clignotement ni d'animation rejouée à chaque mise à jour.
 // Met à jour un élément vers un nouveau HTML en ne modifiant que ce qui diffère : les nœuds identiques restent
-// en place (pas de flash, pas d'appui perdu, champ en cours de saisie conservé). data-key différent = nœud remplacé.
+// en place (pas de flash, pas d'appui perdu, champ en cours de saisie conservé). data-key différent = nœud remplacé ;
+// un nœud à data-key retrouvé plus loin (un bloc retiré avant lui) ou plus tôt (un bloc ajouté) reste en place, ni
+// recréé ni déplacé : ses cartes déjà retournées ne se retournent pas une seconde fois.
 function morph(el, html) {
   const tpl = document.createElement("template");
   tpl.innerHTML = html;
   morphKids(el, tpl.content);
 }
+function keyedTwin(a, from, key) {
+  for (let n = a.childNodes[from]; n; n = n.nextSibling) if (n.nodeType === 1 && n.getAttribute("data-key") === key) return n;
+  return null;
+}
 function morphKids(a, b) {
-  const an = [...a.childNodes], bn = [...b.childNodes];
+  const bn = [...b.childNodes];
   bn.forEach((y, i) => {
-    const x = an[i];
+    let x = a.childNodes[i];
+    const key = y.nodeType === 1 ? y.getAttribute("data-key") : null;
+    if (key !== null && x && (x.nodeType !== 1 || x.getAttribute("data-key") !== key)) {
+      // Les nœuds avant lui sont retirés : le déplacer lui-même relancerait ses animations CSS.
+      const twin = keyedTwin(a, i + 1, key);
+      if (twin) { while (twin.previousSibling !== (i ? a.childNodes[i - 1] : null)) twin.previousSibling.remove(); x = twin; }
+    }
     if (!x) a.appendChild(y);
+    else if (x.nodeType === 1 && x.hasAttribute("data-key") && x.getAttribute("data-key") !== key) a.insertBefore(y, x);  // x resservira peut-être plus loin
     else if (x.nodeType !== y.nodeType || x.nodeName !== y.nodeName
       || (x.nodeType === 1 && x.getAttribute("data-key") !== y.getAttribute("data-key"))) a.replaceChild(y, x);
     else morphNode(x, y);
   });
-  for (let i = bn.length; i < an.length; i++) an[i].remove();
+  while (a.childNodes.length > bn.length) a.lastChild.remove();
 }
 function morphNode(x, y) {
   if (x.nodeType !== 1) { if (x.nodeValue !== y.nodeValue) x.nodeValue = y.nodeValue; return; }
   if (x.isEqualNode(y)) return;
   const field = /^(INPUT|TEXTAREA|SELECT)$/.test(x.nodeName);
-  for (const { name } of [...x.attributes]) if (!y.hasAttribute(name) && !(field && name === "value")) x.removeAttribute(name);
+  // data-keep="style" : attribut piloté par le script (roue en train de tourner…), jamais effacé par un rendu.
+  const keep = (x.getAttribute("data-keep") || "").split(" ");
+  for (const { name } of [...x.attributes]) if (!y.hasAttribute(name) && !(field && name === "value") && !keep.includes(name)) x.removeAttribute(name);
   for (const { name, value } of [...y.attributes]) if (x.getAttribute(name) !== value && !(field && name === "value")) x.setAttribute(name, value);
   if (!field) morphKids(x, y);
 }
@@ -938,6 +953,14 @@ function setGameHtml(html) {
   const el = $("game");
   if (el.dataset.html === html && el.firstChild) return false;
   el.innerHTML = html;
+  el.dataset.html = html;
+  return true;
+}
+// Comme setGameHtml, mais seuls les nœuds qui changent sont touchés : les animations d'entrée ne se rejouent pas.
+function morphGameHtml(html) {
+  const el = $("game");
+  if (el.dataset.html === html && el.firstChild) return false;
+  morph(el, html);
   el.dataset.html = html;
   return true;
 }
@@ -1066,7 +1089,8 @@ function renderGame(g) {
   } else if (g.type === "debate") {
     setGameHtml(debateHtml(g));
   } else if (g.type === "pyramid" || g.type === "biskit") {
-    setGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g)));
+    // Mise à jour fine (morph) : une carte déjà retournée ne se retourne plus quand un autre joueur agit.
+    morphGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g)));
     if (g.type === "pyramid") pyrWheel(g);
   } else {
     const el = $("game"), html = lobbyInvite(g) + body;
@@ -1404,7 +1428,7 @@ function pyrPhase(g) {
 }
 function pyrSeats(g, opts = {}) {
   const v = g.pyr;
-  return `<div class="py-seats">${v.seats.map((s) => `
+  return `<div class="py-seats" data-key="seats">${v.seats.map((s) => `
     <div class="py-seat ${s.pid === v.turn ? "on" : ""} ${s.pid === g.me?.pid ? "me" : ""}">
       <div class="py-seat-name">${esc(s.name)}${s.manual ? " ✍️" : ""}${sipsBadge(g.players.find((p) => p.pid === s.pid) || {})}</div>
       <div class="py-seat-cards">${s.cards.map((c, i) => pyCard(c, "sm", opts.memory && s.memory ? `data-ok="${s.memory[i] === c[0]}"` : "")).join("") || `<span class="artist">—</span>`}</div>
@@ -1466,7 +1490,7 @@ function pyrHtml(g) {
   } else if (g.phase === "boatpick") {
     const sp = v.spin, shown = !sp || pyrWheelShown === sp.id;
     body = `<div class="py-hero"><div class="py-hero-k">🚢 Le bateau</div><div class="py-hero-t">${sp ? "La roulette décide…" : "Désigné d'office"}</div></div>
-      ${sp ? `<div class="wheel-wrap py-wheel"><div class="wheel-pointer" aria-hidden="true"></div><svg id="pyrWheel" viewBox="-100 -100 200 200" role="img" aria-label="Roue">${wheelSvg(sp.names)}</svg></div>` : ""}
+      ${sp ? `<div class="wheel-wrap py-wheel"><div class="wheel-pointer" aria-hidden="true"></div><svg id="pyrWheel" data-keep="style" viewBox="-100 -100 200 200" role="img" aria-label="Roue">${wheelSvg(sp.names)}</svg></div>` : ""}
       <div class="py-boat-name ${shown ? "show" : ""}">${shown ? `${esc(v.boat.name)} fait le bateau !` : ""}</div>
       ${host && shown ? `<button class="py-main" data-gact="pboatgo">⛵ Lancer le bateau</button>` : ""}`;
   } else if (g.phase === "end" && !v.boat) {
@@ -1501,7 +1525,7 @@ function pyrBoard(g) {
     rows.push({ f, cards });
   }
   const size = v.floors >= 7 ? "xs" : v.floors === 6 ? "sm" : "";
-  return `<div class="py-board">${rows.reverse().map((r) => `
+  return `<div class="py-board" data-key="board">${rows.reverse().map((r) => `
     <div class="py-row ${r.f === v.floor ? "now" : ""}"><span class="py-mult f${Math.min(r.f, 5)}">${r.f === v.floors ? "🥃" : `×${v.double ? r.f * 2 : r.f}`}</span>
       <div class="py-row-cards">${r.cards.map((x) => pyCard(x.c, size, `data-i="${x.i}"${x.cur ? ` data-cur="1"` : ""}`)).join("")}</div></div>`).join("")}</div>`;
 }
@@ -1530,7 +1554,7 @@ function pyrCurrent(g) {
   }
   const manualGive = host && !v.is_top ? v.seats.filter((s) => s.manual && !v.claims.some((c) => c.pid === s.pid))
     .map((s) => `<button class="py-mini" data-pyr="claimfor" data-who="${esc(s.pid)}">${esc(s.name)} donne</button>`).join("") : "";
-  return `<div class="py-panel ${v.is_top ? "top" : ""}">
+  return `<div class="py-panel ${v.is_top ? "top" : ""}" data-key="now">
     <div class="py-now">${pyCard(v.current, "lg", 'data-flip="1"')}
       <div><div class="py-turn-k">${v.is_top ? "Le sommet" : `Étage ${v.floor}`}</div>
         <div class="py-panel-t">${v.is_top ? "CUL SEC" : `Un ${esc(label)} !`}</div>
@@ -1549,7 +1573,7 @@ function pyrHand(g) {
   if (!seat) return hostReqs ? `<div class="py-panel">${hostReqs}</div>` : "";
   const myPending = pending.some((r) => r.mine);
   const seeing = v.peeks.some((r) => r.mine && r.status === "ok" && r.age < 5);
-  return `<div class="py-panel py-hand">
+  return `<div class="py-panel py-hand" data-key="hand">
     <div class="py-turn-k">Ta main ${seeing ? "· regarde vite !" : "· face cachée"}</div>
     <div class="py-hand-cards">${seat.cards.map((c, k) => `<button type="button" class="py-pick-btn ${pyrPeekSel.includes(k) ? "sel" : ""}" data-pyr="peeksel" data-slot="${k}" ${myPending || c !== "??" ? "disabled" : ""}>${pyCard(c, "md")}<small>${k + 1}</small></button>`).join("")}</div>
     ${myPending ? `<div class="artist">Demande envoyée à l'animateur…</div>`
