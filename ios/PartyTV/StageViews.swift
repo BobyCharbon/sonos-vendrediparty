@@ -27,6 +27,22 @@ struct PauseVeil: View {
 }
 
 extension View {
+    /// Halo lumineux qui pulse lentement derrière le grand QR code (salle d'attente) : on le repère de loin.
+    /// Le QR lui-même ne bouge jamais (un téléphone doit pouvoir le lire à tout moment).
+    @ViewBuilder func qrHalo() -> some View {
+        if Motion.reduced {
+            self.shadow(color: TV.accent.opacity(0.5), radius: 30)
+        } else {
+            self.background {
+                RoundedRectangle(cornerRadius: 40, style: .continuous).fill(TV.accent)
+                    .blur(radius: 40)
+                    .phaseAnimator([false, true]) { halo, on in
+                        halo.opacity(on ? 0.75 : 0.25).scaleEffect(on ? 1.08 : 0.96)
+                    } animation: { _ in .easeInOut(duration: 1.6) }
+            }
+        }
+    }
+
     /// Respiration lente et continue (attire l'œil sans gêner la lecture) ; immobile si les animations sont réduites.
     @ViewBuilder func breathing(period: Double = 1.8, scale: CGFloat = 1.07) -> some View {
         if Motion.reduced {

@@ -97,67 +97,23 @@ struct WatchScreen: View {
         HStack(alignment: .center, spacing: 24) {
             if shown != store.game { Text("🎲").font(.system(size: 50)) }
             Text(shown["name"].string ?? "Partie").font(.system(size: 54, weight: .heavy)).lineLimit(1).fixedSize()
+                .id(shown["name"].string ?? "").transition(.motion(.push(from: .bottom)))
             if let mode = shown["mode"].string { Text(mode).font(.system(size: 34, weight: .semibold)).foregroundStyle(TV.lavender).lineLimit(1) }
             if !inLobby && !shown.isNull {
                 PhaseTag(text: Phase.label(shown)).transition(.popIn).id(Phase.label(shown))
-                if let info = Phase.progress(shown) { Text(info).font(.system(size: 32, weight: .semibold)).foregroundStyle(TV.muted).lineLimit(1) }
+                if let info = Phase.progress(shown) {
+                    Text(info).font(.system(size: 32, weight: .semibold)).foregroundStyle(TV.muted).lineLimit(1)
+                        .contentTransition(.numericText())
+                }
             }
             Spacer(minLength: 20)
             // Pendant la partie : petit QR code et code pour rejoindre (en salle d'attente, le grand QR est au centre).
             Text("Code \(watchedCode)").font(.system(size: 36, weight: .bold).monospacedDigit()).foregroundStyle(TV.muted)
-            if !inLobby, let join = store.joinURL { QRCodeView(url: join, size: 96) }
+            // Le grand QR de la salle d'attente laisse la place à ce petit QR dès que la partie commence.
+            if !inLobby, let join = store.joinURL { QRCodeView(url: join, size: 96).transition(.popIn) }
         }
         .frame(height: 100)
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: Phase.label(shown))
-    }
-}
-
-/// Coin musique : titre en cours (pochette), puis les 4 prochains titres avec le prénom de qui les a demandés.
-struct MusicCorner: View {
-    static let width: CGFloat = 430
-    let music: JSON
-    /// Prochains titres montrés (3 quand le classement de la partie est dessous).
-    var next = 4
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            if music["active"] == .bool(false) {
-                Label("La soirée n'a pas commencé", systemImage: "music.note").font(.headline)
-                Text("Code de la soirée : \(music["pin"].string ?? "")").foregroundStyle(TV.muted)
-            } else if let now = Optional(music["now"]), !now.isNull {
-                Text(music["state"].string == "PLAYING" ? "EN CE MOMENT" : "EN PAUSE").font(.caption.bold()).foregroundStyle(TV.accent)
-                HStack(spacing: 18) {
-                    AsyncImage(url: now["art"].string.flatMap(URL.init(string:))) { $0.resizable().scaledToFill() } placeholder: {
-                        Image(systemName: "music.note").font(.largeTitle).frame(maxWidth: .infinity, maxHeight: .infinity).background(TV.surface)
-                    }
-                    .frame(width: 110, height: 110).clipShape(RoundedRectangle(cornerRadius: 16))
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(now["title"].string ?? "").font(.title3.bold()).lineLimit(2).minimumScaleFactor(0.8)
-                        Text(now["artist"].string ?? "").foregroundStyle(TV.muted).lineLimit(1)
-                        if let by = now["by"].string { Text("🙋 \(by)").font(.callout).foregroundStyle(TV.lavender) }
-                    }
-                }
-                let next = Array(music["upcoming"].array.prefix(self.next))
-                if !next.isEmpty {
-                    Text("ENSUITE").font(.caption.bold()).foregroundStyle(TV.muted).padding(.top, 6)
-                    ForEach(Array(next.enumerated()), id: \.offset) { i, t in
-                        HStack(spacing: 14) {
-                            Text("\(i + 1)").font(.callout.monospacedDigit().bold()).foregroundStyle(TV.muted).frame(width: 28)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(t["title"].string ?? "").font(.system(size: 28, weight: .bold)).lineLimit(1)
-                                Text([t["artist"].string, t["by"].string.map { "par \($0)" }].compactMap { $0 }.joined(separator: " · "))
-                                    .font(.system(size: 24, weight: .medium)).foregroundStyle(TV.muted).lineLimit(1)
-                            }
-                        }
-                    }
-                }
-            } else {
-                Label(music["error"].string ?? "Rien ne joue pour l'instant", systemImage: "music.note").font(.headline)
-            }
-        }
-        .padding(30)
-        .frame(width: Self.width, alignment: .leading)
-        .glass()
-        .accessibilityElement(children: .combine)
+        .animation(Motion.animation(.spring(response: 0.4, dampingFraction: 0.8)), value: Phase.label(shown))
+        .animation(Motion.update, value: inLobby)
     }
 }

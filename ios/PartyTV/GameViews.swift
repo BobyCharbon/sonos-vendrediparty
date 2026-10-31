@@ -207,12 +207,13 @@ struct LobbyView: View {
     let join: URL?
     var body: some View {
         HStack(alignment: .top, spacing: 50) {
-            if let join { QRCodeView(url: join, size: 300) }
+            if let join { QRCodeView(url: join, size: 300).qrHalo() }
             VStack(alignment: .leading, spacing: 26) {
                 PhaseTag(text: "En attente des joueurs", color: TV.lavender)
                 Text("Scanne le QR code pour jouer").font(.system(size: 50, weight: .heavy)).lineLimit(2).minimumScaleFactor(0.7)
                 Text("\(game["players"].array.count) joueur\(game["players"].array.count > 1 ? "s" : "") dans la partie")
                     .font(.title2).foregroundStyle(TV.muted)
+                    .contentTransition(.numericText())
                 PlayersRow(players: game["players"].array, size: 100)
             }
         }
@@ -232,7 +233,7 @@ struct RoomTV: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 26) {
             HStack(alignment: .top, spacing: 40) {
-                if let join { QRCodeView(url: join, size: 220) }
+                if let join { QRCodeView(url: join, size: 220).qrHalo() }
                 VStack(alignment: .leading, spacing: 14) {
                     Text("🗳 Votez pour le prochain jeu").font(.system(size: 60, weight: .black)).lineLimit(1).minimumScaleFactor(0.6)
                     let total = votes.values.reduce(0, +)
