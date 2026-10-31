@@ -1,6 +1,9 @@
 import { useRef } from 'react';
 import { StyleSheet, type ViewStyle } from 'react-native';
 
+// Remplissage « backwards » : l’état de départ s’applique pendant le délai, puis l’élément retrouve ses propres
+// styles (un transform de toucher, par exemple) une fois l’entrée finie.
+
 /**
  * Animations du module (web seulement) : CSS pur, uniquement transform et opacity, joué par le compositeur.
  * Une animation d’entrée se joue quand l’élément apparaît (ouverture d’un écran, nouvelle carte, nouveau message),
@@ -43,6 +46,10 @@ const keyframes = StyleSheet.create({
   pop: web({
     animationKeyframes: [{ '0%': { transform: 'scale(.6)' }, '60%': { transform: 'scale(1.15)' }, '100%': { transform: 'scale(1)' } }],
     animationDuration: '360ms', animationTimingFunction: ease.out, animationFillMode: 'backwards',
+  }),
+  grow: web({
+    animationKeyframes: [{ from: { transform: 'scaleX(0)' }, to: { transform: 'none' } }],
+    animationDuration: '700ms', animationTimingFunction: ease.out, animationFillMode: 'backwards', transformOrigin: 'left',
   }),
   press: web({
     animationKeyframes: [{ '0%': { transform: 'scale(1)' }, '40%': { transform: 'scale(.94)' }, '100%': { transform: 'scale(1)' } }],

@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Children, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Children, isValidElement, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -417,9 +417,46 @@ export function Loading() {
   );
 }
 
-/** Contenu qui apparaît en douceur quand il est affiché (nouvelle section, nouvelle ligne…). */
-export function Reveal({ children, kind = 'rise', index = 0, style }: { children: ReactNode; kind?: Enter; index?: number; style?: StyleProp<ViewStyle> }) {
-  return <View style={[enter(kind, index), style]}>{children}</View>;
+/** Contenu qui apparaît en douceur quand il est affiché (nouvelle section, nouvelle ligne…). L’animation est
+ * fixée à l’apparition : changer `kind` ensuite ne la rejoue pas (une nouvelle animation CSS repartirait). */
+export function Reveal({ children, kind = 'rise', index = 0, style }: { children: ReactNode; kind?: Enter | null; index?: number; style?: StyleProp<ViewStyle> }) {
+  const [motion] = useState(() => (kind ? enter(kind, index) : undefined));
+  return <View style={[motion, style]}>{children}</View>;
+}
+
+/** Chaque bloc d’un écran entre en cascade à l’ouverture ; un bloc qui apparaît plus tard entre seul. */
+export function Cascade({ children }: { children: ReactNode }) {
+  return (
+    <>
+      {Children.toArray(children).map((child, i) => (
+        <Reveal key={isValidElement(child) ? child.key ?? i : i} index={i}>{child}</Reveal>
+      ))}
+    </>
+  );
+}
+
+/**
+ * Jauge : chaque part est une couche qui s’étire (transform scaleX), jamais une largeur qui change.
+ * Elle se remplit depuis la gauche à son apparition, puis glisse d’une valeur à l’autre.
+ */
+export function Meter({ parts, height = 6, track = colors.line, style }: {
+  parts: { fraction: number; color: string }[]; height?: number; track?: string; style?: StyleProp<ViewStyle>;
+}) {
+  // Couches cumulées, la plus longue dessous : « 3 oui + 2 si besoin » = rose sur lavande.
+  const layers = parts.map((p, i) => ({
+    color: p.color,
+    end: Math.max(0, Math.min(1, parts.slice(0, i + 1).reduce((total, q) => total + q.fraction, 0))),
+  })).reverse();
+  return (
+    <View style={[{ height, borderRadius: 99, backgroundColor: track, overflow: 'hidden' }, style]}>
+      <View style={[StyleSheet.absoluteFill, enter('grow')]}>
+        {layers.map((l, i) => (
+          <View key={i} style={[StyleSheet.absoluteFill, s.meterFill, { backgroundColor: l.color, transform: [{ scaleX: l.end }] },
+            transition('transform', duration.slow)]} />
+        ))}
+      </View>
+    </View>
+  );
 }
 
 /** Bloc gris qui respire pendant un chargement, à la place du contenu attendu. */
@@ -538,6 +575,7 @@ export const s = StyleSheet.create({
   chevron: { width: 12, height: 12, borderLeftWidth: 2.5, borderBottomWidth: 2.5, borderColor: colors.accent, transform: [{ rotate: '45deg' }], marginLeft: 6, marginRight: 2 },
   divider: { height: 1, backgroundColor: colors.line },
   // Position fixe (web) : le toast reste en bas de l’écran même quand la page défile.
+  meterFill: { transformOrigin: 'left' },
   toastWrap: { position: 'fixed' as 'absolute', left: 16, right: 16, bottom: 88, alignItems: 'center', zIndex: 50 },
   toast: { maxWidth: 420, paddingHorizontal: 18, paddingVertical: 12, borderRadius: radius.pill, backgroundColor: colors.surface2,
     borderWidth: 1, borderColor: colors.lineStrong, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 6 } },

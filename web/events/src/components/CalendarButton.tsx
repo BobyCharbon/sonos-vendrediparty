@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { calendarPlatform, googleCalendarUrl, icsUrl, openGoogleCalendar, openIcs } from '@/lib/calendar';
+import { duration, enter, pressTransition, transition } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
 import type { EventRow } from '@/lib/types';
 
@@ -39,13 +40,13 @@ export function CalendarButton({ event, prominent = false }: { event: Ev; promin
         accessibilityLabel="Ajouter à mon agenda"
         accessibilityState={{ expanded: platform === 'desktop' ? choices : undefined }}
         onPress={primary}
-        style={({ pressed }) => [st.button, prominent ? st.prominent : st.quiet, pressed && { opacity: 0.8 }]}
+        style={({ pressed }) => [st.button, transition('background-color, border-color, transform, opacity', duration.slow), prominent ? st.prominent : st.quiet, pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] }]}
       >
         <T size={17}>📆</T>
         <T size={15} style={{ ...font.bold }} color={prominent ? colors.onAccent : colors.text}>Ajouter à mon agenda</T>
       </Pressable>
       {platform === 'desktop' && choices ? (
-        <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={[{ flexDirection: 'row', gap: 8 }, enter('drop')]}>
           <Choice label="Apple · Outlook (.ics)" onPress={() => openIcs(ics)} />
           <Choice label="Google Agenda" onPress={() => openGoogleCalendar(google)} />
         </View>
@@ -61,7 +62,7 @@ export function CalendarButton({ event, prominent = false }: { event: Ev; promin
 
 function Choice({ label, onPress }: { label: string; onPress: () => void }) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [st.choice, pressed && { opacity: 0.8 }]}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [st.choice, pressTransition, pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] }]}>
       <T size={13} style={{ ...font.bold }}>{label}</T>
     </Pressable>
   );
