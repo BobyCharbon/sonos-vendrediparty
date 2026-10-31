@@ -21,6 +21,7 @@ struct PartyApp: App {
                 .task { TrackActivities.startDemoIfAsked() }
                 .overlay { HostDemo(model: model) }
                 .overlay { GroupAdminDemo(model: model) }
+                .overlay { AIEventDemo(model: model) }
                 #endif
                 .onReceive(NotificationCenter.default.publisher(for: .partyOpenURL)) { note in
                     if let url = note.object as? URL { model.open(url) }
@@ -112,6 +113,12 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $model.aiEventOpen) {
+            if let settings = model.settings {
+                AIEventView(store: settings.aiEvent) { id in model.openEvent(id) }
+                    .presentationDragIndicator(.visible)
+            }
+        }
     }
 }
 
@@ -135,6 +142,23 @@ private struct HostDemo: View {
             model.hostMusic?.showDemo(state)
             shown = true
         }
+    }
+}
+
+/// Simulateur : PARTY_DEBUG_AI_EVENT=tips|<AIEvent.Draft en JSON> ouvre « Créer avec l'IA » (conseils, ou fiche figée).
+private struct AIEventDemo: View {
+    @ObservedObject var model: WebModel
+
+    var body: some View {
+        Color.clear.task {
+            guard let value = ProcessInfo.processInfo.environment["PARTY_DEBUG_AI_EVENT"] else { return }
+            try? await Task.sleep(for: .seconds(1))
+            if let draft = try? JSONDecoder().decode(AIEvent.Draft.self, from: Data(value.utf8)) {
+                await model.settings?.aiEvent.showDemo(draft, said: ProcessInfo.processInfo.environment["PARTY_DEBUG_AI_SAID"] ?? "")
+            }
+            model.aiEventOpen = true
+        }
+        .allowsHitTesting(false)
     }
 }
 

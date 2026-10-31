@@ -160,10 +160,20 @@ class Assistant:
         return {"allowed": "ai.use" in self.accounts._perms(token), "configured": self.client_factory is not None,
                 "spent_usd": round(self.usage.spent_this_month(uid, time.time()), 4), "budget_usd": self.budget}
 
-    def _check(self, token: str) -> str:
+    def allowed(self, token: str) -> str:
+        """Le compte a le droit « Utiliser l'assistant IA » ; renvoie son identifiant."""
         uid = self.accounts._uid(token)
         if "ai.use" not in self.accounts._perms(token):
             raise AccountError("L'assistant IA n'est pas activé pour ton compte. Demande à l'admin.")
+        return uid
+
+    @staticmethod
+    def warn(what: str, error: Exception):
+        logging.getLogger(__name__).warning("%s : %s: %s", what, type(error).__name__, error)
+
+    def _check(self, token: str) -> str:
+        """Avant un appel à l'IA : droit, plafond du mois et débit."""
+        uid = self.allowed(token)
         now = time.time()
         if self.usage.spent_this_month(uid, now) >= self.budget:
             raise AccountError("Tu as atteint ta limite d'assistant IA pour ce mois-ci. Elle repart le 1er.")
@@ -199,7 +209,7 @@ class Assistant:
                                                  "data": base64.standard_b64encode(photo).decode("ascii")}},
                     {"type": "text", "text": "Lis ce ticket."}]}])
         except Exception as e:  # réseau ou API : message clair pour la personne, détail dans le journal du serveur
-            logging.getLogger(__name__).warning("Lecture du ticket impossible : %s: %s", type(e).__name__, e)
+            self.warn("Lecture du ticket impossible", e)
             raise AccountError("La lecture du ticket n'a pas marché. Réessaie dans un instant, ou saisis à la main.") from None
         cost = self._log(uid, token, "receipt", getattr(response, "usage", None))
         if response.stop_reason in ("refusal", "max_tokens"):

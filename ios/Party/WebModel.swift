@@ -5,6 +5,8 @@ import WebKit
 @MainActor
 final class WebModel: ObservableObject {
     @Published var failed = false
+    /// Écran « Créer un événement avec l'IA », demandé par le module Événements.
+    @Published var aiEventOpen = false
     /// Onglets de la page affichée ; nil sur une page sans barre d'onglets (admin, TV…).
     @Published private(set) var tabs: TabBarState?
     /// Écrans que l'hôte gère dans la page (« Gérer la soirée », « Gérer les retours ») plutôt qu'en vue invité
@@ -201,6 +203,13 @@ final class WebModel: ObservableObject {
         guard awaitingTabs else { return }
         awaitingTabs = false
         tabs = nil
+    }
+
+    /// Événement créé par l'assistant IA : l'onglet Événements l'ouvre.
+    func openEvent(_ id: String) {
+        guard id.range(of: "^[0-9a-fA-F-]{36}$", options: .regularExpression) != nil else { return }
+        selectTab("events")
+        webView?.evaluateJavaScript("window.PartyEvents && PartyEvents.open('/events/event/\(id)')")
     }
 
     /// Toucher d'un onglet natif : la page l'applique comme un toucher dans sa propre barre.

@@ -18,6 +18,9 @@ export default function Home() {
   const me = useMe();
   const { can } = useAuth();
   const isAdmin = can('events.approve');
+  // App iPhone et droit « Utiliser l'assistant IA » : l'événement se décrit à voix haute dans un écran natif.
+  const native = (globalThis as { PartyNative?: { ai?: { createEvent?: () => void } } }).PartyNative;
+  const aiEvent = can('ai.use') && can('events.create') && native?.ai?.createEvent ? () => native.ai!.createEvent!() : null;
   const [tab, setTab] = useState<Tab>('upcoming');
   const [filter, setFilter] = useState<Filter>({ kind: 'all' });
   const [search, setSearch] = useState('');
@@ -216,6 +219,16 @@ export default function Home() {
 
       <View pointerEvents="box-none" style={st.fabWrap}>
         <View pointerEvents="box-none" style={st.fabColumn}>
+        {aiEvent ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Créer un événement avec l'IA, en le décrivant à voix haute"
+            onPress={aiEvent}
+            style={({ pressed }) => [st.fab, st.fabAI, pressed && { opacity: 0.85 }]}
+          >
+            <T color={colors.text} style={{ ...font.bold, fontSize: 15 }}>✨ Avec l’IA</T>
+          </Pressable>
+        ) : null}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Proposer un événement"
@@ -234,7 +247,8 @@ const st = StyleSheet.create({
   label: { letterSpacing: 0.6 },
   banner: { backgroundColor: colors.coralDim, padding: 14, borderRadius: radius.md, borderWidth: 1, borderColor: '#5A4024' },
   fabWrap: { position: 'absolute', left: 0, right: 0, bottom: 16, alignItems: 'center' },
-  fabColumn: { width: '100%', maxWidth: 640, alignItems: 'flex-end', paddingRight: 16 },
+  fabColumn: { width: '100%', maxWidth: 640, alignItems: 'flex-end', paddingRight: 16, gap: 10 },
+  fabAI: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.accent },
   fab: {
     height: 52, paddingHorizontal: 22, borderRadius: radius.pill,
     backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
