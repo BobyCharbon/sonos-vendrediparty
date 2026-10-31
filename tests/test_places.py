@@ -39,3 +39,19 @@ def test_without_key_nothing_is_asked_to_google():
 def test_google_errors_are_explained():
     with pytest.raises(AccountError, match="Google Maps"):
         Places("k", client(lambda r: httpx.Response(403, json={}))).search("Fun Planet")
+
+
+def test_a_badly_dictated_name_still_finds_the_place_through_the_broader_search():
+    def handler(request):
+        body = request.read().decode()
+        if "Zoubir" in body:
+            return httpx.Response(200, json={})
+        return httpx.Response(200, json=ANSWER)
+
+    found = Places("k", client(handler)).search_all(["Zoubir, Ferney-Voltaire", "bar techno, Ferney-Voltaire", ""])
+    assert [p["name"] for p in found] == ["Les Sbires", "Bar Voltaire"]
+
+
+def test_both_searches_are_merged_without_duplicates():
+    found = Places("k", client(lambda r: httpx.Response(200, json=ANSWER))).search_all(["a", "b"])
+    assert len(found) == 2

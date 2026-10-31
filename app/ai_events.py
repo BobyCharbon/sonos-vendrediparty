@@ -39,6 +39,9 @@ Ce que tu remplis :
   « 20h30 ». Soirée sans heure de fin : end vide. Une date passée n'est jamais voulue.
 - place_query : ce qu'il faut chercher sur une carte (« Fun Planet, Villeneuve VD », « Chemin des Vignes 4, Lutry »),
   en corrigeant les fautes de dictée des noms de lieux suisses ; vide si aucun lieu. place_name : nom court du lieu.
+- place_broad : une recherche plus large du même lieu, au cas où le nom a été mal dicté : le type de lieu et la ville
+  (« bar techno, Ferney-Voltaire », « bowling, Villeneuve VD », « restaurant italien, Lausanne ») ; vide si aucun lieu
+  ou si c'est une adresse précise.
 - price_chf : prix par personne en francs (0 si gratuit ou non dit). max_participants : 0 si pas de limite dite.
 - category : la plus juste parmi la liste, ou vide si aucune ne va.
 - audience : le groupe invité, parmi la liste ; « {vip} » si rien n'est dit ; « {only} » si la personne n'invite
@@ -70,7 +73,7 @@ def schema(categories: list[str], audiences: list[str], people: list[str]) -> di
             "status": {"type": "string", "enum": ["ready", "needs_info"]},
             "questions": {"type": "array", "items": text},
             "title": text, "description": text, "start": text, "end": text,
-            "place_query": text, "place_name": text,
+            "place_query": text, "place_name": text, "place_broad": text,
             "price_chf": {"type": "number"}, "max_participants": {"type": "integer"},
             "category": {"type": "string", "enum": categories + [""]},
             "audience": {"type": "string", "enum": audiences},
@@ -80,7 +83,7 @@ def schema(categories: list[str], audiences: list[str], people: list[str]) -> di
             "bring": {"type": "array", "items": text},
             "summary": text,
         },
-        "required": ["status", "questions", "title", "description", "start", "end", "place_query", "place_name",
+        "required": ["status", "questions", "title", "description", "start", "end", "place_query", "place_name", "place_broad",
                      "price_chf", "max_participants", "category", "audience", "invitees", "not_understood", "pot",
                      "bring", "summary"],
         "additionalProperties": False,
@@ -122,6 +125,7 @@ def clean_draft(raw: dict, now: datetime, categories: list[str], audiences: list
         "end": end.strftime("%Y-%m-%dT%H:%M") if end else "",
         "place_query": str(raw.get("place_query") or "").strip()[:200],
         "place_name": str(raw.get("place_name") or "").strip()[:120],
+        "place_broad": str(raw.get("place_broad") or "").strip()[:200],
         "price_chf": round(price, 2),
         "max_participants": places,
         "category": raw.get("category") if raw.get("category") in categories else "",

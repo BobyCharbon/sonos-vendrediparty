@@ -15,6 +15,7 @@ enum AIEvent {
         var end: String
         var place_query: String
         var place_name: String
+        var place_broad: String
         var price_chf: Double
         var max_participants: Int
         var category: String
@@ -40,6 +41,7 @@ enum AIEvent {
             end = text(.end)
             place_query = text(.place_query)
             place_name = text(.place_name)
+            place_broad = text(.place_broad)
             price_chf = (try? c.decodeIfPresent(Double.self, forKey: .price_chf)) ?? nil ?? 0
             max_participants = (try? c.decodeIfPresent(Int.self, forKey: .max_participants)) ?? nil ?? 0
             category = text(.category)
@@ -143,7 +145,7 @@ final class AIEventStore: ObservableObject {
         do {
             let next = try await api.aiEventDraft(token: token, turns: turns, previous: draft)
             draft = next
-            if next.place_query != lastQuery { await findPlace(next.place_query) }
+            if next.place_query != lastQuery { await findPlace(next.place_query, broad: next.place_broad) }
         } catch {
             turns.removeLast()
             unsent = said
@@ -153,7 +155,7 @@ final class AIEventStore: ObservableObject {
     }
 
     /// Lieu dit par la personne → lieux possibles (Google Maps, sinon Plans d'Apple) ; la personne choisit le bon.
-    func findPlace(_ query: String) async {
+    func findPlace(_ query: String, broad: String = "") async {
         lastQuery = query
         place = nil
         noAddress = false
@@ -161,7 +163,7 @@ final class AIEventStore: ObservableObject {
         guard !query.isEmpty else { return }
         searchingPlace = true
         defer { searchingPlace = false }
-        if let token = await web?.accountToken(), let google = try? await api.aiPlaces(token: token, query: query),
+        if let token = await web?.accountToken(), let google = try? await api.aiPlaces(token: token, query: query, broad: broad),
            !google.places.isEmpty {
             placeSource = "Google Maps"
             candidates = google.places.map { p in
@@ -222,7 +224,7 @@ final class AIEventStore: ObservableObject {
     func showDemo(_ demo: AIEvent.Draft, said: String) async {
         turns = said.isEmpty ? [] : [said]
         draft = demo
-        await findPlace(demo.place_query)
+        await findPlace(demo.place_query, broad: demo.place_broad)
     }
     #endif
 
@@ -253,8 +255,8 @@ extension PartyAPI {
         let places: [Found]
     }
 
-    func aiPlaces(token: String, query: String) async throws -> FoundPlaces {
-        try await postDecoding("/api/account/ai/places", body: ["token": token, "query": query])
+    func aiPlaces(token: String, query: String, broad: String) async throws -> FoundPlaces {
+        try await postDecoding("/api/account/ai/places", body: ["token": token, "query": query, "broad": broad])
     }
 
     func aiEventDraft(token: String, turns: [String], previous: AIEvent.Draft?) async throws -> AIEvent.Draft {

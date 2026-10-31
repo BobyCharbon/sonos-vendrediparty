@@ -9,6 +9,7 @@ SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
 FIELDS = "places.id,places.displayName,places.formattedAddress,places.location,places.googleMapsUri"
 MAX_RESULTS = 5
 MAX_QUERY = 200
+MAX_CHOICES = 8
 
 
 class Places:
@@ -42,3 +43,15 @@ class Places:
                           "latitude": float(where.get("latitude") or 0), "longitude": float(where.get("longitude") or 0),
                           "url": url if url.startswith("https://") else ""})
         return [p for p in found if p["name"] or p["address"]]
+
+    def search_all(self, queries: list[str]) -> list[dict]:
+        """Le lieu tel que dit, puis une recherche plus large (type de lieu et ville) : un nom mal dicté (« Zoubir »)
+        ne trouve rien, mais « bar techno, Ferney-Voltaire » fait sortir le bon (S'Beer). Sans doublon, 8 au plus."""
+        seen, merged = set(), []
+        for q in [q for q in queries if str(q or "").strip()][:3]:
+            for p in self.search(q):
+                key = (p["name"].lower(), p["address"].lower())
+                if key not in seen:
+                    seen.add(key)
+                    merged.append(p)
+        return merged[:MAX_CHOICES]

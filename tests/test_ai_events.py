@@ -12,7 +12,7 @@ from app.accounts import AccountError
 
 NEXT_WEEK = (datetime.now(ev.ZURICH) + timedelta(days=7)).strftime("%Y-%m-%dT20:00")
 READY = {"status": "ready", "questions": [], "title": "Raclette chez Léa", "description": "Raclette, amène une salade.",
-         "start": NEXT_WEEK, "end": "", "place_query": "Rue du Lac 12, Vevey", "place_name": "Chez Léa", "price_chf": 0,
+         "start": NEXT_WEEK, "end": "", "place_query": "Rue du Lac 12, Vevey", "place_name": "Chez Léa", "place_broad": "", "price_chf": 0,
          "max_participants": 12, "category": "Soirée", "audience": "Ski", "invitees": ["Tom"], "not_understood": [],
          "pot": True, "bring": ["Salade", "Vin"],
          "summary": "Raclette chez Léa samedi prochain à 20 h"}
