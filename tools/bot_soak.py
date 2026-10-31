@@ -131,6 +131,9 @@ class Soak:
             elif a in ("bpsent", "bpreroll", "bpundo", "pause", "resume", "next", "close_vote", "deal", "cspin", "start") and rng.random() < .8:
                 body["guest_id"] = gids[0]
             r = self.call(c, "post", f"/api/games/{target_code}", json=body)
+            paused_allowed = {"pause", "resume", "end", "remove", "ban", "handover", "addguest", "leave", "join", "up", "down"}
+            if v.get("paused") and target_code == code and a not in paused_allowed and r is not None and r.status_code == 200:
+                self.problems[f"{kind}: coup « {a} » accepté pendant la pause"] += 1
             if r is not None and r.status_code >= 500:
                 self.crashes.setdefault(f"{kind}/{a} → HTTP {r.status_code}", {"n": 0, "trace": r.text[:500]})["n"] += 1
             if rng.random() < .03:
