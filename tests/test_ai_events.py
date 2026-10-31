@@ -48,6 +48,10 @@ class FakeAccounts:
         self.calls.append((method, path, json))
         if path.startswith("/rest/v1/categories"):
             return Resp(200, [{"id": "c-soiree", "name": "Soirée"}, {"id": "c-sport", "name": "Sport"}])
+        if path.startswith("/rest/v1/tags"):
+            return Resp(200, [{"id": "t-fondue", "name": "fondue"}])
+        if method == "POST" and path.startswith("/rest/v1/polls"):
+            return Resp(201, [{"id": "poll1"}])
         if method == "POST" and path.startswith("/rest/v1/events"):
             return Resp(201, [{"id": "e1"}])
         return Resp(201 if method == "POST" else 204, None)
@@ -119,7 +123,7 @@ def test_confirmed_draft_creates_the_event_as_the_user_then_publishes_it(tmp_pat
     a, accounts, _ = make(tmp_path)
     out = a.create("ok", READY, {"name": "Chez Léa", "address": "Rue du Lac 12, 1800 Vevey",
                                  "url": "https://www.google.com/maps/search/?api=1&query=Rue+du+Lac+12"})
-    assert out == {"id": "e1", "status": "published", "title": "Raclette chez Léa"}
+    assert out == {"id": "e1", "status": "published", "title": "Raclette chez Léa", "problems": []}
     row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
     assert row["status"] == "draft" and row["visibility"] == "invited" and row["category_id"] == "c-soiree"
     assert row["location_address"].startswith("Rue du Lac") and row["pot_enabled"] and row["max_participants"] == 12
@@ -152,3 +156,60 @@ def test_an_incomplete_draft_cannot_be_created(tmp_path):
     a, _, _ = make(tmp_path)
     with pytest.raises(AccountError, match="titre ou la date"):
         a.create("ok", {**READY, "start": ""}, None)
+
+
+FONDUE = {**READY, "title": "Fondue au Café de Collex", "audience": "Vendredi Party", "invitees": [], "bring": ["Dessert"],
+          "polls": [{"question": "Tu prends quoi ?", "options": ["Fondue", "Autre plat"], "multiple": False,
+                     "anonymous": False, "add_options": False}],
+          "organizers": ["Léa"], "tags": ["fondue", "inconnu"], "payment_info": "TWINT", "plus_ones": False,
+          "allow_maybe": False, "waitlist": False, "forum": False, "notify": False, "show_participants": False}
+
+
+def test_every_form_field_is_written_polls_bring_and_options_included(tmp_path):
+    a, accounts, _ = make(tmp_path)
+    out = a.create("ok", FONDUE, None)
+    assert out["problems"] == []
+    row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
+    assert (row["payment_info"], row["allow_plus_ones"], row["allow_maybe"], row["waitlist_enabled"]) == ("TWINT", False, False, False)
+    assert (row["forum_enabled"], row["notify_on_publish"], row["show_participants"]) == (False, False, False)
+    poll = next(j for m, p, j in accounts.calls if p.startswith("/rest/v1/polls"))
+    assert poll["question"] == "Tu prends quoi ?" and poll["event_id"] == "e1"
+    options = next(j for m, p, j in accounts.calls if p == "/rest/v1/poll_options")
+    assert [o["label"] for o in options] == ["Fondue", "Autre plat"] and options[0]["poll_id"] == "poll1"
+    assert next(j for m, p, j in accounts.calls if p == "/rest/v1/event_organizers") == [{"event_id": "e1", "user_id": "p-lea"}]
+    assert next(j for m, p, j in accounts.calls if p == "/rest/v1/event_tags") == [{"event_id": "e1", "tag_id": "t-fondue"}]
+    assert next(j for m, p, j in accounts.calls if p == "/rest/v1/bring_items")[0]["label"] == "Dessert"
+
+
+def test_a_date_poll_needs_two_dates_and_writes_them(tmp_path):
+    a, accounts, _ = make(tmp_path)
+    later = (datetime.now(ev.ZURICH) + timedelta(days=8)).strftime("%Y-%m-%dT19:00")
+    poll = {**READY, "date_mode": "poll", "start": "", "date_options": [NEXT_WEEK]}
+    with pytest.raises(AccountError, match="titre ou la date"):
+        a.create("ok", poll, None)
+    a.create("ok", {**poll, "date_options": [NEXT_WEEK, later]}, None)
+    row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
+    assert row["date_mode"] == "poll" and row["starts_at"] is None
+    assert len(next(j for m, p, j in accounts.calls if p == "/rest/v1/date_options")) == 2
+
+
+def test_defaults_match_the_web_form_when_nothing_is_said(tmp_path):
+    d = ev.clean_draft({"title": "Ciné", "start": NEXT_WEEK}, datetime.now(ev.ZURICH),
+                       {"categories": [], "tags": [], "audiences": ["Vendredi Party"], "people": []})
+    assert d["status"] == "ready" and d["plus_ones"] and d["allow_maybe"] and d["waitlist"] and d["forum"] and d["notify"]
+    assert d["polls"] == [] and d["date_mode"] == "fixed"
+
+
+def test_a_failed_poll_is_reported_without_losing_the_event(tmp_path):
+    a, accounts, _ = make(tmp_path)
+    original = accounts._get
+
+    def broken(method, path, token, json=None, headers=None):
+        if path.startswith("/rest/v1/polls"):
+            accounts.calls.append((method, path, json))
+            return Resp(403, {"message": "refusé"})
+        return original(method, path, token, json=json, headers=headers)
+
+    accounts._get = broken
+    out = a.create("ok", FONDUE, None)
+    assert out["status"] == "published" and out["problems"] == ["le sondage « Tu prends quoi ? »"]

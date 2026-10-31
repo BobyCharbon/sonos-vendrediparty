@@ -151,22 +151,70 @@ struct AIEventView: View {
 
     // ── La fiche à relire ──
     private func review(_ d: AIEvent.Draft) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             if !d.summary.isEmpty {
                 Text(d.summary).font(.subheadline).foregroundStyle(.secondary)
             }
             Text(d.title.isEmpty ? "Titre à préciser" : d.title).font(.title2.weight(.bold))
-            row("calendar", d.start.isEmpty ? "Date à préciser" : AIEvent.span(d.start, d.end))
-            placeRow(d)
-            row("person.3", d.invitees.isEmpty ? d.audience
-                : d.audience == "Seulement les personnes invitées" ? d.invitees.joined(separator: ", ")
-                : d.audience + " + " + d.invitees.joined(separator: ", "))
-            if d.price_chf > 0 { row("banknote", String(format: "%.2f CHF par personne", d.price_chf)) }
-            if d.max_participants > 0 { row("person.crop.circle.badge.checkmark", "\(d.max_participants) places") }
-            if !d.category.isEmpty { row("tag", d.category) }
-            if d.pot { row("banknote.fill", "Pot commun pour les présents") }
-            if !d.bring.isEmpty { row("bag", "À amener : " + d.bring.joined(separator: ", ")) }
             if !d.description.isEmpty { Text(d.description).font(.subheadline) }
+
+            part("Quand") { when(d) }
+            part("Où") { placeRow(d) }
+            part("Invités") {
+                row("person.3", d.invitees.isEmpty ? d.audience
+                    : d.audience == "Seulement les personnes invitées" ? d.invitees.joined(separator: ", ")
+                    : d.audience + " + " + d.invitees.joined(separator: ", "))
+                if !d.organizers.isEmpty { row("person.2.badge.gearshape", "Co-organisé avec " + d.organizers.joined(separator: ", ")) }
+            }
+            part("Réponses") {
+                row("person.crop.circle.badge.checkmark", d.max_participants > 0
+                    ? "\(d.max_participants) places" + (d.waitlist ? ", puis liste d'attente" : ", sans liste d'attente")
+                    : "Places illimitées")
+                row("person.badge.plus", d.plus_ones ? (d.max_plus_ones > 0 ? "Accompagnants : \(d.max_plus_ones) max par personne"
+                                                                            : "Accompagnants permis") : "Sans accompagnants")
+                row("questionmark.circle", d.allow_maybe ? "Réponse « Peut-être » permise" : "Pas de « Peut-être »")
+                if !d.rsvp_deadline.isEmpty { row("clock.badge.exclamationmark", "Répondre avant " + AIEvent.when(d.rsvp_deadline)) }
+                row("eye", d.show_participants ? "Liste des participants visible" : "Liste des participants cachée")
+            }
+            if d.price_chf > 0 || !d.payment_info.isEmpty {
+                part("Prix") {
+                    row("banknote", (d.price_chf > 0 ? String(format: "%.2f CHF par personne", d.price_chf) : "Prix non précisé")
+                        + (d.payment_info.isEmpty ? "" : " · " + d.payment_info))
+                }
+            }
+            if !d.polls.isEmpty {
+                part("Sondages") {
+                    ForEach(Array(d.polls.enumerated()), id: \.offset) { _, poll in
+                        VStack(alignment: .leading, spacing: 4) {
+                            row("chart.bar.doc.horizontal", poll.question)
+                            ForEach(poll.options, id: \.self) { o in
+                                Text("○ " + o).font(.subheadline).foregroundStyle(.secondary).padding(.leading, 32)
+                            }
+                            let flags = [poll.multiple ? "plusieurs choix" : nil, poll.anonymous ? "votes anonymes" : nil,
+                                         poll.add_options ? "les invités peuvent ajouter des choix" : nil].compactMap { $0 }
+                            if !flags.isEmpty {
+                                Text(flags.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary).padding(.leading, 32)
+                            }
+                        }
+                    }
+                }
+            }
+            if !d.bring.isEmpty {
+                part("Qui amène quoi") {
+                    ForEach(d.bring, id: \.self) { item in row("bag", item) }
+                    Text("Chaque invité choisira ce qu'il amène.").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            part("En plus") {
+                if !d.category.isEmpty || !d.tags.isEmpty {
+                    row("tag", ([d.category] + d.tags.map { "#" + $0 }).filter { !$0.isEmpty }.joined(separator: " · "))
+                }
+                if d.pot { row("banknote.fill", "Pot commun pour les présents") }
+                row("bubble.left.and.bubble.right", d.forum ? "Discussion ouverte" : "Sans discussion")
+                row("bell", d.notify ? "Les invités sont prévenus à la publication" : "Pas de notification à la publication")
+            }
+            Text("Pour changer quoi que ce soit, dis-le simplement : « mets 15 places », « enlève le sondage »…")
+                .font(.caption).foregroundStyle(.secondary)
             if store.canCreate { createButton }
             else if d.ready && !store.searchingPlace {
                 Text("Confirme le lieu pour pouvoir créer l'événement.").font(.footnote).foregroundStyle(.secondary)
@@ -176,6 +224,25 @@ struct AIEventView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .accessibilityIdentifier("ai-review")
+    }
+
+    @ViewBuilder
+    private func when(_ d: AIEvent.Draft) -> some View {
+        if d.date_mode == "poll" {
+            row("calendar.badge.clock", d.date_options.isEmpty ? "Dates à voter à préciser"
+                : "Sondage de dates :\n" + d.date_options.map { "• " + AIEvent.when($0) }.joined(separator: "\n"))
+            if !d.poll_deadline.isEmpty { row("hourglass", "Vote jusqu'au " + AIEvent.when(d.poll_deadline)) }
+        } else {
+            row("calendar", d.start.isEmpty ? "Date à préciser" : AIEvent.span(d.start, d.end))
+        }
+    }
+
+    /// Une partie du récapitulatif, avec son petit titre.
+    private func part<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title.uppercased()).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            content()
+        }
     }
 
     private func row(_ symbol: String, _ text: String) -> some View {
@@ -199,6 +266,8 @@ struct AIEventView: View {
             row("mappin.and.ellipse", (d.place_name.isEmpty ? d.place_query : d.place_name)
                 + "\nLieu introuvable : dis l'adresse exacte, ou garde-le sans adresse")
             Button("Garder sans adresse") { store.withoutAddress() }.font(.footnote)
+        } else {
+            row("mappin.and.ellipse", d.place_name.isEmpty ? "Lieu non précisé" : d.place_name)
         }
     }
 
@@ -286,6 +355,11 @@ struct AIEventView: View {
             Text(c.status == "published" ? "Événement publié : les invités sont prévenus."
                                          : "Événement proposé : il sera visible une fois validé par un admin.")
                 .foregroundStyle(.secondary).multilineTextAlignment(.center)
+            if !c.problems.isEmpty {
+                Label("Pas ajouté : " + c.problems.joined(separator: ", ") + ". Ouvre l'événement pour le compléter.",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .font(.footnote).foregroundStyle(.orange).multilineTextAlignment(.leading)
+            }
             Button("Voir l'événement") { open(c.id); close() }
                 .buttonStyle(.borderedProminent)
         }

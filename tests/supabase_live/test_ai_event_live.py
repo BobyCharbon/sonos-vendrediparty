@@ -24,14 +24,20 @@ def live(monkeypatch, tmp_path):
 def test_the_confirmed_draft_becomes_a_real_published_event(live):
     a, token, who = live
     options = a._options(token)
-    draft = {**READY, "title": "Raclette IA (test)", "category": next(iter(options.categories), ""), "audience": "Vendredi Party"}
+    draft = {**READY, "title": "Raclette IA (test)", "category": next(iter(options.categories), ""), "audience": "Vendredi Party",
+             "invitees": [], "payment_info": "TWINT", "plus_ones": False,
+             "polls": [{"question": "Tu prends quoi ?", "options": ["Raclette", "Autre plat"], "multiple": False,
+                        "anonymous": False, "add_options": False}]}
     out = a.create(token, draft, {"name": "Chez Léa", "address": "Rue du Lac 12, 1800 Vevey",
                                   "url": "https://www.google.com/maps/search/?api=1&query=Rue%20du%20Lac%2012%20Vevey"})
     try:
-        row = httpx.get(f"{TEST_URL}/rest/v1/events?id=eq.{out['id']}&select=status,title,location_address,pot_enabled,bring_items(label)",
+        row = httpx.get(f"{TEST_URL}/rest/v1/events?id=eq.{out['id']}&select=status,title,location_address,pot_enabled,payment_info,allow_plus_ones,bring_items(label),polls(question,poll_options(label))",
                         headers=who.headers, timeout=30).json()[0]
         assert row["status"] == out["status"] == "published" and row["title"] == "Raclette IA (test)"
         assert row["location_address"].startswith("Rue du Lac") and row["pot_enabled"]
         assert sorted(b["label"] for b in row["bring_items"]) == ["Salade", "Vin"]
+        assert row["payment_info"] == "TWINT" and row["allow_plus_ones"] is False and out["problems"] == []
+        assert row["polls"][0]["question"] == "Tu prends quoi ?"
+        assert sorted(o["label"] for o in row["polls"][0]["poll_options"]) == ["Autre plat", "Raclette"]
     finally:
         httpx.delete(f"{TEST_URL}/rest/v1/events?id=eq.{out['id']}", headers=who.headers, timeout=30)

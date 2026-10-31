@@ -6,25 +6,49 @@ import Speech
 /// Créer un événement avec l'IA : ce que la personne dit (ou écrit) part au serveur, qui renvoie le brouillon rempli par
 /// Claude et ses questions ; l'adresse est cherchée sur le téléphone (Plans d'Apple) et le lien ouvre Google Maps.
 enum AIEvent {
+    struct Poll: Codable, Equatable {
+        var question: String
+        var options: [String]
+        var multiple: Bool
+        var anonymous: Bool
+        var add_options: Bool
+    }
+
+    /// Tout le formulaire d'événement, rempli et modifié par l'IA (mêmes champs que le formulaire web).
     struct Draft: Codable, Equatable {
         var status: String
         var questions: [String]
         var title: String
         var description: String
+        var date_mode: String
         var start: String
         var end: String
+        var date_options: [String]
+        var poll_deadline: String
         var place_query: String
         var place_name: String
         var place_broad: String
         var price_chf: Double
+        var payment_info: String
         var max_participants: Int
+        var waitlist: Bool
+        var plus_ones: Bool
+        var max_plus_ones: Int
+        var allow_maybe: Bool
+        var rsvp_deadline: String
+        var show_participants: Bool
+        var forum: Bool
+        var notify: Bool
         var category: String
+        var tags: [String]
         var audience: String
         var invitees: [String]
-        var not_understood: [String]
-        var pot: Bool
+        var organizers: [String]
+        var polls: [Poll]
         var bring: [String]
+        var pot: Bool
         var summary: String
+        var not_understood: [String]
 
         var ready: Bool { status == "ready" && questions.isEmpty }
 
@@ -33,24 +57,41 @@ enum AIEvent {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             func text(_ key: CodingKeys) -> String { (try? c.decodeIfPresent(String.self, forKey: key)) ?? nil ?? "" }
             func list(_ key: CodingKeys) -> [String] { (try? c.decodeIfPresent([String].self, forKey: key)) ?? nil ?? [] }
+            func flag(_ key: CodingKeys, _ fallback: Bool) -> Bool { (try? c.decodeIfPresent(Bool.self, forKey: key)) ?? nil ?? fallback }
+            func number(_ key: CodingKeys) -> Int { (try? c.decodeIfPresent(Int.self, forKey: key)) ?? nil ?? 0 }
             status = text(.status)
             questions = list(.questions)
             title = text(.title)
             description = text(.description)
+            date_mode = text(.date_mode).isEmpty ? "fixed" : text(.date_mode)
             start = text(.start)
             end = text(.end)
+            date_options = list(.date_options)
+            poll_deadline = text(.poll_deadline)
             place_query = text(.place_query)
             place_name = text(.place_name)
             place_broad = text(.place_broad)
             price_chf = (try? c.decodeIfPresent(Double.self, forKey: .price_chf)) ?? nil ?? 0
-            max_participants = (try? c.decodeIfPresent(Int.self, forKey: .max_participants)) ?? nil ?? 0
+            payment_info = text(.payment_info)
+            max_participants = number(.max_participants)
+            waitlist = flag(.waitlist, true)
+            plus_ones = flag(.plus_ones, true)
+            max_plus_ones = number(.max_plus_ones)
+            allow_maybe = flag(.allow_maybe, true)
+            rsvp_deadline = text(.rsvp_deadline)
+            show_participants = flag(.show_participants, true)
+            forum = flag(.forum, true)
+            notify = flag(.notify, true)
             category = text(.category)
+            tags = list(.tags)
             audience = text(.audience)
             invitees = list(.invitees)
-            not_understood = list(.not_understood)
-            pot = (try? c.decodeIfPresent(Bool.self, forKey: .pot)) ?? nil ?? false
+            organizers = list(.organizers)
+            polls = (try? c.decodeIfPresent([Poll].self, forKey: .polls)) ?? nil ?? []
             bring = list(.bring)
+            pot = flag(.pot, false)
             summary = text(.summary)
+            not_understood = list(.not_understood)
         }
     }
 
@@ -62,7 +103,23 @@ enum AIEvent {
         var longitude: Double
     }
 
-    struct Created: Decodable, Equatable { let id: String; let status: String; let title: String }
+    struct Created: Decodable, Equatable {
+        let id: String
+        let status: String
+        let title: String
+        /// Ce qui n'a pas pu être ajouté (un sondage, les tags…) : l'événement existe, à compléter à la main.
+        var problems: [String] = []
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decode(String.self, forKey: .id)
+            status = try c.decode(String.self, forKey: .status)
+            title = try c.decode(String.self, forKey: .title)
+            problems = (try? c.decodeIfPresent([String].self, forKey: .problems)) ?? nil ?? []
+        }
+
+        private enum CodingKeys: String, CodingKey { case id, status, title, problems }
+    }
 
     /// Début et fin : « samedi 14 novembre à 20:00, jusqu'à 23:30 » (la date n'est répétée que si elle change).
     static func span(_ start: String, _ end: String) -> String {
