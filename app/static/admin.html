@@ -224,6 +224,8 @@
 <script src="/static/motion.js"></script>
 <script src="/static/nav.js"></script>
 <script src="/static/segmented.js"></script>
+<script src="/static/list-motion.js"></script>
+<script src="/static/toast.js"></script>
 <script src="/static/push.js"></script>
 <script src="/static/events-shell.js"></script>
 <script>
@@ -245,17 +247,7 @@ const HELP = {
 let state = null, chosenMode = "next";
 let volumeDragging = false, volumeSentAt = 0, volumeTimer;
 
-let toastTimer;
-function toast(msg, kind = "", action = null) {
-  const t = $("toast"); t.textContent = msg; t.className = "toast " + kind;
-  if (action) {
-    const b = document.createElement("button");
-    b.textContent = action.label;
-    b.onclick = () => { t.classList.add("hidden"); action.run(); };
-    t.append(b);
-  }
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("hidden"), action ? 7000 : 3000);
-}
+// toast(msg, kind, action) : message flottant (toast.js).
 // Après une suppression : « Annuler » remet les titres à leur place.
 function removedToast(res, msg) {
   toast(msg, "ok", res.undo ? { label: "Annuler", run: async () => {

@@ -60,4 +60,44 @@
   border-right: 2.2px solid currentColor; border-bottom: 2.2px solid currentColor; transform: rotate(-45deg); transition: transform .3s var(--spring); opacity: .55; }
 #playedBox[open] summary h2::after { transform: rotate(45deg); vertical-align: 5px; }
 
-@media (prefers-reduced-motion: reduce) { .now-state.on .eq i { animation: none; height: 8px; } }
+/* ── Animations de la musique (list-motion.js, now-progress.js) ── */
+#now .now-meta { flex: 1; min-width: 0; }
+/* Égaliseur : la hauteur ne s'anime plus (mise en page à chaque image) ; chaque barre s'étire depuis le bas. */
+.eq i { height: 12px; transform-origin: 50% 100%; transform: scaleY(.34); }
+.now-state.on .eq i { animation-name: eq-bar; }
+@keyframes eq-bar { from { transform: scaleY(.25); } to { transform: scaleY(1); } }
+/* Nouveau titre : la pochette arrive avec un léger rebond, le texte monte en fondu juste après. */
+#now.now-in img { animation: now-art-in .55s var(--spring) both; }
+#now.now-in .now-meta > * { animation: now-text-in .45s var(--spring) both; }
+#now.now-in .now-meta > :nth-child(2) { animation-delay: .04s; } #now.now-in .now-meta > :nth-child(3) { animation-delay: .08s; }
+#now.now-in .now-meta > :nth-child(n+4) { animation-delay: .12s; }
+@keyframes now-art-in { from { opacity: 0; transform: scale(.82) rotate(-3deg); } }
+@keyframes now-text-in { from { opacity: 0; transform: translate3d(0, 8px, 0); } }
+/* Barre de progression fine, façon Apple Music : la jauge est mise à l'échelle (transform), jamais redimensionnée. */
+.now-progress { position: relative; height: 4px; margin-top: 10px; border-radius: 99px; overflow: hidden; background: rgba(255, 255, 255, .12); }
+.now-progress i { position: absolute; inset: 0; border-radius: inherit; transform-origin: 0 50%; transform: scaleX(0);
+  background: linear-gradient(90deg, var(--accent-2), #ffd18a); }
+.now-state:not(.on) ~ .now-progress i { background: rgba(255, 255, 255, .35); }
+/* Squelette de chargement (recherche) : gabarit d'un titre, un reflet le traverse (transform seulement). */
+.skel { pointer-events: none; }
+.skel .skel-art, .skel .skel-line { position: relative; display: block; overflow: hidden; background: rgba(255, 255, 255, .07); }
+.skel .skel-art { flex: none; width: 48px; height: 48px; border-radius: 8px; }
+.skel .skel-line { height: 12px; width: 62%; margin: 6px 0; border-radius: 6px; }
+.skel .skel-line.short { width: 38%; }
+.skel .skel-art::after, .skel .skel-line::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .09), transparent); animation: skel-shine 1.3s ease-in-out infinite; }
+@keyframes skel-shine { to { transform: translateX(100%); } }
+.skel:nth-child(2) { opacity: .75; } .skel:nth-child(3) { opacity: .5; }
+
+/* Ligne qui change de place (list-motion.js) : fond plein pendant le trajet, celle qui monte passe devant. */
+#party .list > .lm-moving { background-color: var(--card); transition: none; }
+#party .list > .lm-rising { box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
+#party .list > .lm-moving.mine { background-image: linear-gradient(rgba(61, 220, 151, .07), rgba(61, 220, 151, .07)); }
+/* Bouton « retirer » touché : la ligne s'atténue tout de suite (la réponse du serveur suit). */
+#party .track:has(.row-del:disabled) { opacity: .55; transition: opacity .2s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .now-state.on .eq i { animation: none; transform: scaleY(.6); }
+  .skel .skel-art::after, .skel .skel-line::after { animation: none; }
+  #now.now-in img, #now.now-in .now-meta > * { animation: fade-in .2s ease both !important; }
+}
