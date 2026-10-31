@@ -23,6 +23,13 @@ struct SettingsView: View {
                     }
                     if store.account != nil {
                         NavigationLink {
+                            TricountListView(store: store.tricount, myName: store.account?.name ?? "")
+                        } label: {
+                            SettingsRow(symbol: "banknote.fill", tint: .green, title: "Tricount",
+                                        hint: "Dépenses partagées : qui a payé, qui doit quoi, remboursements")
+                        }
+                        .accessibilityIdentifier("settings-tricount")
+                        NavigationLink {
                             GroupsView(store: store.groups, privacy: store.privacy)
                         } label: {
                             SettingsRow(symbol: "person.3.fill", tint: .blue, title: "Groupes",
@@ -108,6 +115,10 @@ struct SettingsView: View {
             Text("Tu pourras te reconnecter avec ton numéro. Les notifications des événements s'arrêtent sur cet iPhone.")
         }
         .overlay(alignment: .bottom) { SessionNotice(store: store.session) }
+        // Lien d'un tricount ouvert (lien universel) : « Rejoindre » s'affiche par-dessus les Réglages.
+        .sheet(item: Binding(get: { store.tricount.pendingJoin.map(TricountLink.init) }, set: { store.tricount.pendingJoin = $0?.id })) { link in
+            JoinTricountView(store: store.tricount, link: link.id, myName: store.account?.name ?? "") { _ in }
+        }
     }
 
     @ViewBuilder
@@ -208,3 +219,5 @@ private struct SessionNotice: View {
 
     var body: some View { AdminNotice(notice: $store.notice) }
 }
+
+private struct TricountLink: Identifiable { let id: String }

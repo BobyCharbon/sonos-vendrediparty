@@ -473,4 +473,82 @@ final class SettingsAuditUITests: XCTestCase {
         app.buttons["OK"].tap()
         back()
     }
+
+    /// Réglages › Tricount (compte standard) : créer, ajouter un prénom, trois dépenses, soldes, mode avancé, stats,
+    /// profil de paiement ; captures de chaque écran pour la relecture. Le tricount est quitté à la fin.
+    func testTricount() {
+        app = XCUIApplication()
+        app.launch()
+        prefix = "tricount"
+        signIn(Self.standardPhone, name: "Testeur 1")
+        settingsTab()
+        XCTAssertTrue(open("Tricount"))
+        let simple = app.segmentedControls["tc-mode"].buttons["Simplifié"]
+        if simple.waitForExistence(timeout: 10) { simple.tap() }
+        expectLoaded("liste")
+        app.buttons["tc-new"].tap()
+        let name = app.textFields["tc-create-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 10), "nom du tricount")
+        type("Week-end Verbier", into: name)
+        record("creation")
+        app.buttons["tc-create-go"].tap()
+        XCTAssertTrue(app.buttons["tc-add"].waitForExistence(timeout: 15), "tricount créé et ouvert")
+        expectLoaded("vide")
+        // Un prénom ajouté à la main
+        app.buttons["tc-menu"].tap()
+        app.buttons["Membres"].tap()
+        let member = app.textFields["Prénom"].firstMatch
+        XCTAssertTrue(member.waitForExistence(timeout: 10))
+        type("Léa", into: member)
+        app.buttons["Ajouter"].tap()
+        sleep(3)
+        record("membres")
+        app.buttons["OK"].tap()
+        sleep(1)
+        for (amount, title) in [("120.50", "Courses Migros"), ("64", "Essence"), ("38.40", "Pizza du soir")] {
+            app.buttons["tc-add"].tap()
+            let field = app.textFields["tc-amount"]
+            XCTAssertTrue(field.waitForExistence(timeout: 10), "montant")
+            type(amount, into: field)
+            type(title, into: app.textFields["tc-title"])
+            if title == "Essence" {
+                app.buttons["Léa"].firstMatch.tap()  // Léa a payé l'essence
+                record("saisie-simple")
+            }
+            app.buttons["tc-save"].tap()
+            sleep(3)
+        }
+        expectLoaded("depenses")
+        app.segmentedControls.buttons["Soldes"].tap()
+        sleep(1)
+        expectLoaded("soldes")
+        // Mode avancé : stats et éditeur complet
+        back()
+        app.segmentedControls["tc-mode"].buttons["Avancé"].tap()
+        XCTAssertTrue(open("Week-end Verbier"))
+        app.segmentedControls.buttons["Stats"].tap()
+        sleep(1)
+        expectLoaded("stats")
+        app.segmentedControls.buttons["Dépenses"].tap()
+        app.buttons["tc-add"].tap()
+        sleep(2)
+        record("saisie-avancee")
+        app.swipeUp()
+        record("saisie-avancee-bas")
+        app.buttons["Annuler"].tap()
+        sleep(1)
+        // Quitter le tricount (ménage), puis le profil de paiement
+        app.buttons["tc-menu"].tap()
+        app.buttons["Quitter ce tricount"].tap()
+        let leave = app.buttons.matching(identifier: "Quitter").firstMatch
+        if leave.waitForExistence(timeout: 5) { leave.tap() }
+        sleep(3)
+        app.segmentedControls["tc-mode"].buttons["Simplifié"].tap()
+        XCTAssertTrue(open("Mon profil de paiement"))
+        let iban = app.textFields["tc-iban"]
+        XCTAssertTrue(iban.waitForExistence(timeout: 10))
+        record("paiement")
+        back()
+        signOut()
+    }
 }

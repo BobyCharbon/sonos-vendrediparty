@@ -46,6 +46,7 @@ final class SettingsStore: ObservableObject {
 
     /// Réglages › Groupes (même session de compte).
     private(set) lazy var groups = GroupsStore(api: api, web: web)
+    private(set) lazy var tricount = TricountStore(api: api, web: web)
     private(set) lazy var groupAdmin = GroupAdminStore(api: api, web: web)
     /// Connexion, déconnexion, suppression, annonces, stats de jeu.
     private(set) lazy var session = AccountStore(api: api, web: web, settings: self)
