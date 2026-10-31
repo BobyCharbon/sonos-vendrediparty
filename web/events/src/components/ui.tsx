@@ -266,7 +266,7 @@ export function ConfirmButton({
   const [busy, setBusy] = useState(false);
   if (!armed) return <Button small={small} variant="danger" label={label} style={style} onPress={() => setArmed(true)} />;
   return (
-    <View style={[s.row, style]}>
+    <View style={[s.row, enter('fade'), style]}>
       <Button small={small} variant="secondary" label="Garder" style={{ flex: 1 }} onPress={() => setArmed(false)} />
       <Button
         small={small}
