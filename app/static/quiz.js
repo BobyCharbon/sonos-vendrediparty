@@ -225,7 +225,7 @@ function qzLeaderboardHtml(lb, title = "🌍 Classement général") {
 
 // --- Question (commune à tous les modes) ---
 function qzQuestionHtml(q, opts = {}) {
-  const { mine = null, correct = null, locked = false, cut = [], dist = null, act = "qans", disabled = false } = opts;
+  const { mine = null, correct = null, locked = false, cut = [], dist = null, act = "qans", disabled = false, key = "" } = opts;
   const answered = mine !== null && mine !== undefined;
   const btns = q.choices.map((c, i) => {
     let cls = QZ_COLORS[i];
@@ -234,7 +234,7 @@ function qzQuestionHtml(q, opts = {}) {
     if (cut.includes(i)) cls += " cut";
     const off = disabled || answered || locked || correct !== null || cut.includes(i);
     return `<button type="button" class="qz-ans ${cls}" data-qz-ans="${i}" ${off ? "disabled" : ""}>
-      <span class="qz-shape">${QZ_SHAPES[i]}</span><span class="qz-txt">${qzText(c)}</span>${dist ? `<span class="qz-count">${dist[i]}</span>` : ""}</button>`;
+      <span class="qz-shape">${QZ_SHAPES[i]}</span><span class="qz-txt">${qzText(c)}</span>${dist ? `<span class="qz-count"${key ? GameFx.num(`${key}:dist${i}`, dist[i], 0) : ""} data-fx-d="250">${dist[i]}</span>` : ""}</button>`;
   }).join("");
   const stars = "★".repeat(q.d) + "☆".repeat(3 - q.d);
   return `<div class="qz-qcard">
@@ -252,6 +252,7 @@ function qzTimerHtml(left, dur, id = "qzBar") {
 // --- Rendu principal ---
 function quizHtml(g) {
   const v = g.quiz, s = v.settings, me = g.me;
+  qzFxId = g.id;
   const lead = g.is_host;
   if (g.phase === "lobby") {
     const n = g.players.length;
@@ -271,7 +272,7 @@ function quizHtml(g) {
   const total = s.mode === "survival" ? "" : `/${s.count}`;
   const top = `<div class="qz-top"><span class="qz-num">Question <b>${v.n}${total}</b></span>
     ${s.mode === "survival" && myRow ? `<span class="qz-lives">${"❤️".repeat(Math.max(0, myRow.lives))}${"🖤".repeat(Math.max(0, s.lives - myRow.lives))}</span>` : ""}
-    ${myRow ? `<span class="qz-mypts">${fmtPts(myRow.pts)} pts${myRow.streak > 1 ? ` · 🔥${myRow.streak}` : ""}</span>` : ""}</div>`;
+    ${myRow ? `<span class="qz-mypts"><span${GameFx.num(`qz:${g.id}:mine`, myRow.pts, null, "pts")}>${fmtPts(myRow.pts)}</span> pts${myRow.streak > 1 ? ` · 🔥${myRow.streak}` : ""}</span>` : ""}</div>`;
   if (g.phase === "q") {
     const status = q.out ? `<div class="qz-status out">💀 Éliminé·e : regarde les autres jouer</div>`
       : q.locked ? `<div class="qz-status bad">❌ Raté ! Bloqué·e jusqu'à la prochaine question</div>`
@@ -285,23 +286,26 @@ function quizHtml(g) {
   }
   // Révélation
   const mine = q.res.find((r) => r.me);
-  const verdict = !me ? "" : mine ? (mine.ok ? `<div class="qz-verdict ok">✓ Bonne réponse${mine.pts ? ` · <b>+${fmtPts(mine.pts)}</b>` : ""}</div>`
+  const verdict = !me ? "" : mine ? (mine.ok ? `<div class="qz-verdict ok">✓ Bonne réponse${mine.pts ? ` · <b>+<span${GameFx.num(`qz:${g.id}:${v.n}:gain`, mine.pts, 0, "pts")} data-fx-d="200">${fmtPts(mine.pts)}</span></b>` : ""}</div>`
       : s.mode === "speed" && q.winner ? `<div class="qz-verdict bad">⚡ Trop lent : ${esc(q.winner)} a été plus rapide</div>` : `<div class="qz-verdict bad">✗ Raté !</div>`)
     : `<div class="qz-verdict bad">⏰ Pas de réponse</div>`;
   const winner = s.mode === "speed" ? `<div class="qz-speedwin">${q.winner ? `⚡ <b>${esc(q.winner)}</b> a trouvé en premier !` : "Personne n'a trouvé…"}</div>` : "";
-  return top + verdict + winner + qzQuestionHtml(q, { mine: q.mine, correct: q.correct, dist: q.dist })
+  return top + verdict + winner + qzQuestionHtml(q, { mine: q.mine, correct: q.correct, dist: q.dist, key: `qz:${g.id}:${v.n}` })
     + qzMiniBoard(v.board, s.mode)
     + `<div class="qz-next">${v.paused ? `<span class="qz-paused">⏸ En pause${lead || g.players.length <= 1 ? "" : " (l'animateur reprendra)"}</span>`
         : `<span>Question suivante dans <b id="qzNextS">${Math.ceil(q.next_in)}</b> s</span>`}
       <span class="qz-next-btns">${lead || g.players.length <= 1 ? qzPauseBtn(v.paused) : ""}${lead && !v.paused ? `<button class="py-sub" data-gact="next" data-guess="${esc(v.token)}">Suivante ▶</button>` : ""}</span></div>`;
 }
 
+// Mini-classement : chaque joueur glisse vers sa nouvelle place et ses points défilent depuis la question précédente.
+let qzFxId = "";  // partie en cours (clés d'animation)
 function qzMiniBoard(board, mode, n = 5) {
   if (board.length < 2) return "";
-  return `<div class="qz-mini">${board.slice(0, n).map((r, i) => `<div class="qz-mini-row ${r.me ? "me" : ""} ${r.out ? "out" : ""}">
+  const k = (r) => `qz:${qzFxId}:${r.name}`;
+  return `<div class="qz-mini">${board.slice(0, n).map((r, i) => `<div class="qz-mini-row ${r.me ? "me" : ""} ${r.out ? "out" : ""}"${GameFx.flip(k(r))}>
       <span class="qz-rank r${i + 1}">${i + 1}</span><b>${esc(r.name)}</b>
       ${mode === "survival" ? `<span class="qz-l">${r.out ? "💀" : "❤️".repeat(Math.max(0, r.lives))}</span>` : ""}
-      <span class="qz-p">${mode === "ladder" ? `palier ${r.level || 0}` : fmtPts(r.pts)}</span></div>`).join("")}</div>`;
+      <span class="qz-p"${mode === "ladder" ? "" : GameFx.num(k(r), r.pts, null, "pts")}>${mode === "ladder" ? `palier ${r.level || 0}` : fmtPts(r.pts)}</span></div>`).join("")}</div>`;
 }
 
 function qzChronoHtml(g) {
@@ -352,11 +356,14 @@ function qzLadderHtml(g) {
 function qzEndHtml(g) {
   const v = g.quiz, s = v.settings, b = v.board;
   const val = (r) => s.mode === "ladder" ? fmtPts(v.ladder?.[(r.level || 0) - 1] || 0) : `${fmtPts(r.pts)} pts`;
+  // Fin : les points du podium et le score solo défilent depuis zéro (une fois, après l'annonce du gagnant).
+  const valFx = (r, part, delay) => s.mode === "ladder" ? val(r)
+    : `<span${GameFx.num(`qz:${g.id}:end:${part}`, r.pts, 0, "pts")} data-fx-d="${delay}">${fmtPts(r.pts)}</span> pts`;
   const podium = b.length > 1 ? `<div class="qz-podium">${[1, 0, 2].filter((i) => b[i]).map((i) => `<div class="qz-pod p${i + 1}">
-      <div class="qz-pod-name">${esc(b[i].name)}</div><div class="qz-pod-pts">${val(b[i])}</div>
+      <div class="qz-pod-name">${esc(b[i].name)}</div><div class="qz-pod-pts">${valFx(b[i], `pod${i}`, [500, 250, 0][i] + 400)}</div>
       <div class="qz-pod-step"><span>${["🥇", "🥈", "🥉"][i]}</span></div></div>`).join("")}</div>` : "";
   const mine = b.find((r) => r.me);
-  const solo = b.length === 1 && mine ? `<div class="qz-solo"><div class="qz-solo-k">Ton score</div><div class="qz-solo-v">${val(mine)}</div>
+  const solo = b.length === 1 && mine ? `<div class="qz-solo"><div class="qz-solo-k">Ton score</div><div class="qz-solo-v">${valFx(mine, "solo", 300)}</div>
       <div class="artist">${mine.ok}/${mine.n} bonnes réponses${mine.best > 1 ? ` · meilleure série 🔥${mine.best}` : ""}</div></div>` : "";
   const rows = b.map((r, i) => `<div class="qz-mini-row ${r.me ? "me" : ""}"><span class="qz-rank r${i + 1}">${i + 1}</span><b>${esc(r.name)}</b>
       <small>${r.ok}/${r.n} ✓${r.best > 1 ? ` · 🔥${r.best}` : ""}</small><span class="qz-p">${val(r)}</span></div>`).join("");
@@ -417,6 +424,7 @@ function quizAfter(g, fresh = true) {
       const w = v.board[0];
       if (v.board.length > 1) pyrFlash("summit", `🏆 ${esc(w.name)} gagne !`, `${fmtPts(w.pts)} points`, "", 3500);
       else pyrFlash("good", "🏁 Terminé !", `${w.ok}/${w.n} bonnes réponses · ${fmtPts(w.pts)} points`, "", 3000);
+      GameFx.hold(v.board.length > 1 ? 3500 : 3000);  // les points défilent quand l'annonce se retire
     }
     if (g.phase === "rev" && v.settings.mode === "speed" && v.q?.winner) pyrFlash("good", `⚡ ${esc(v.q.winner)}`, "a trouvé en premier !", "", 1600);
   }
