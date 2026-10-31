@@ -94,6 +94,9 @@ struct TricountCard: View {
                 Text(item.name).font(.headline).lineLimit(1)
                 Text("\(item.members) personne\(item.members > 1 ? "s" : "") · \(Money.text(item.total_cents, item.currency))")
                     .font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                if item.event != nil {
+                    Label("Événement", systemImage: "calendar").font(.caption.weight(.semibold)).foregroundStyle(Palette.accent)
+                }
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {

@@ -65,6 +65,7 @@ export type EventRow = {
   visibility: Visibility;
   public_link: boolean;
   show_participants: boolean;
+  pot_enabled?: boolean;
   forum_enabled: boolean;
   notify_on_publish: boolean;
   reminders: Reminder[];

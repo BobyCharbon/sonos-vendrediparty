@@ -57,7 +57,7 @@ class Tricount:
                                                                         for k, v in parts.items()],
                              "my_part_cents": parts.get(g.get("me"), 0), "receipt_url": signed.get(e.get("receipt_path") or "")})
         return {"id": g["id"], "name": g["name"], "emoji": g.get("emoji") or "💸", "currency": g.get("currency") or "CHF",
-                "archived": g.get("archived", False), "me": g.get("me"), "link": self.link(g["join_token"]) if g.get("join_token") else None,
+                "archived": g.get("archived", False), "me": g.get("me"), "event": g.get("event"), "link": self.link(g["join_token"]) if g.get("join_token") else None,
                 "members": members, "expenses": expenses, "total_cents": s["total_cents"], "my_balance_cents": s["my_balance_cents"],
                 "my_spent_cents": s["my_spent_cents"],
                 "by_category": [{**c, "label": tc.CATEGORIES.get(c["category"], tc.CATEGORIES["other"])[0],
@@ -70,7 +70,7 @@ class Tricount:
         for g in rows:
             s = tc.summarize(g)
             out.append({"id": g["id"], "name": g["name"], "emoji": g.get("emoji") or "💸", "currency": g.get("currency") or "CHF",
-                        "archived": g.get("archived", False), "members": len([m for m in g.get("members", []) if not m.get("left")]),
+                        "archived": g.get("archived", False), "event": g.get("event"), "members": len([m for m in g.get("members", []) if not m.get("left")]),
                         "total_cents": s["total_cents"], "my_balance_cents": s["my_balance_cents"]})
         return {"tricounts": out, "categories": [{"id": k, "label": v[0], "emoji": v[1]} for k, v in tc.CATEGORIES.items()],
                 "currencies": list(CURRENCIES)}

@@ -13,6 +13,16 @@ final class TricountTests: XCTestCase {
         return try! JSONDecoder().decode(TC.Group.self, from: Data(json.utf8))
     }
 
+    func testEventPotSaysWhichEvent() throws {
+        XCTAssertNil(group().event)
+        let json = """
+        {"tricounts":[{"id":"g","name":"Raclette","emoji":"🎉","currency":"CHF","archived":false,"members":3,"total_cents":0,
+          "my_balance_cents":0,"event":{"id":"e","title":"Raclette","starts_at":null}}],"categories":[],"currencies":["CHF"]}
+        """
+        let overview = try JSONDecoder().decode(TC.Overview.self, from: Data(json.utf8))
+        XCTAssertEqual(overview.tricounts.first?.event?.title, "Raclette")
+    }
+
     func testMoneyIsReadAndShownTheSwissWay() {
         XCTAssertEqual(Money.cents("12,5"), 1250)
         XCTAssertEqual(Money.cents("1'250.40"), 125040)

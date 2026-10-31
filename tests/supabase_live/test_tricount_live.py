@@ -101,3 +101,37 @@ def test_payment_profile_is_checked_and_shared_with_co_members_only(tc):
     r = httpx.get(f'{TEST_URL}/rest/v1/tc_payment', timeout=30,
                   headers={'apikey': KEY_FILE.read_text().strip(), 'Authorization': f'Bearer {tcx}'})
     assert all(row.get("iban") != "CH9300762011623852957" for row in r.json())  # un inconnu ne le voit pas
+
+
+def test_event_pot_follows_the_organizer_switch_and_the_present_people(tc):
+    """L'organisateur active « Pot commun » : les présents (oui, hors attente) y entrent seuls ; « peut-être » et « non »
+    n'y sont pas ; désactiver archive le pot, réactiver le rouvre avec les mêmes dépenses."""
+    from tests.supabase_live.test_audiences_live import ADMIN, create_event
+    relay, (ta, tb, tvip), _ = tc
+    admin, ga, gb = Session(ADMIN), Session(GUEST_A), Session(GUEST_B)
+    eid = create_event(admin, 'Raclette pot commun', public_link=True)
+    try:
+        for who, answer in ((ga, 'yes'), (gb, 'maybe')):
+            r = httpx.post(f'{TEST_URL}/rest/v1/rsvps', headers=who.headers, json={'event_id': eid, 'user_id': who.uid, 'status': answer}, timeout=30)
+            assert r.status_code == 201, r.text
+        assert not any((g.get("event") or {}).get("id") == eid for g in relay.overview(ta)["tricounts"])  # option pas encore activée
+        r = httpx.patch(f'{TEST_URL}/rest/v1/events?id=eq.{eid}', headers=admin.headers, json={'pot_enabled': True}, timeout=30)
+        assert r.status_code in (200, 204), r.text
+        pot = next(g for g in relay.overview(ta)["tricounts"] if (g.get("event") or {}).get("id") == eid)
+        assert pot["event"]["title"] == 'Raclette pot commun' and not pot["archived"]
+        assert not any((g.get("event") or {}).get("id") == eid for g in relay.overview(tb)["tricounts"])  # « peut-être » : pas dedans
+        r = httpx.patch(f'{TEST_URL}/rest/v1/rsvps?event_id=eq.{eid}&user_id=eq.{gb.uid}', headers=gb.headers, json={'status': 'yes'}, timeout=30)
+        assert r.status_code in (200, 204), r.text
+        pot_b = next(g for g in relay.overview(tb)["tricounts"] if (g.get("event") or {}).get("id") == eid)
+        assert pot_b["id"] == pot["id"]
+        g = relay.state(ta, pot["id"])
+        me_a = next(m for m in g["members"] if m["me"])
+        relay.save_expense(ta, pot["id"], {"title": "Fromage", "amount_cents": 4000, "paid_by": me_a["id"],
+                                           "shares": [{"member_id": m["id"]} for m in g["members"]]})
+        httpx.patch(f'{TEST_URL}/rest/v1/events?id=eq.{eid}', headers=admin.headers, json={'pot_enabled': False}, timeout=30)
+        assert relay.state(ta, pot["id"])["archived"]
+        httpx.patch(f'{TEST_URL}/rest/v1/events?id=eq.{eid}', headers=admin.headers, json={'pot_enabled': True}, timeout=30)
+        g = relay.state(ta, pot["id"])
+        assert not g["archived"] and len(g["expenses"]) == 1
+    finally:
+        httpx.delete(f'{TEST_URL}/rest/v1/events?id=eq.{eid}', headers=admin.headers, timeout=30)

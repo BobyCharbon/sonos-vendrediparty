@@ -3,6 +3,9 @@ import Foundation
 /// Tricount (Réglages › Pot commun) : ce que renvoie le serveur (/api/account/tricount/*), déjà calculé
 /// (soldes, remboursements, parts de chacun). Montants en centimes.
 enum TC {
+    /// Pot commun d'un événement (ouvert par l'organisateur) : les présents y entrent seuls.
+    struct EventRef: Decodable, Equatable { let id: String; let title: String }
+
     struct Overview: Decodable, Equatable {
         struct Item: Decodable, Equatable, Identifiable {
             let id: String
@@ -13,6 +16,7 @@ enum TC {
             let members: Int
             let total_cents: Int
             let my_balance_cents: Int
+            var event: EventRef? = nil
         }
         struct Category: Decodable, Equatable, Identifiable { let id: String; let label: String; let emoji: String }
         let tricounts: [Item]
@@ -80,6 +84,7 @@ enum TC {
         let emoji: String
         let currency: String
         let archived: Bool
+        var event: EventRef? = nil
         let me: String?
         let link: String?
         let members: [Member]

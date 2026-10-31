@@ -99,6 +99,10 @@ struct TricountGroupView: View {
     private func header(_ g: TC.Group) -> some View {
         VStack(spacing: 10) {
             Text(g.emoji).font(.system(size: 44))
+            if let event = g.event {
+                Label("Pot de l'événement « \(event.title) »", systemImage: "calendar")
+                    .font(.footnote.weight(.semibold)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            }
             Text(TCColor.phrase(g.my_balance_cents, g.currency))
                 .font(.system(size: 30, weight: .heavy, design: .rounded)).foregroundStyle(TCColor.of(g.my_balance_cents))
                 .contentTransition(.numericText()).multilineTextAlignment(.center)

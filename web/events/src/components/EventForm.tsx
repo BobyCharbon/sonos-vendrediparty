@@ -54,6 +54,7 @@ type Draft = {
   who: AudienceValue;  // qui voit la sortie (AudiencePicker)
   organizers: string[];
   show_participants: boolean;
+  pot_enabled: boolean;
   forum_enabled: boolean;
   notify_on_publish: boolean;
   polls: PollDraft[];
@@ -86,6 +87,7 @@ const emptyDraft: Draft = {
   who: DEFAULT_AUDIENCE,
   organizers: [],
   show_participants: true,
+  pot_enabled: false,
   forum_enabled: true,
   notify_on_publish: true,
   polls: [],
@@ -171,6 +173,7 @@ async function loadDraft(eventId: string): Promise<Draft> {
     who: audienceFromEvent(e),
     organizers: e.event_organizers.map((o) => o.user_id),
     show_participants: e.show_participants,
+    pot_enabled: e.pot_enabled ?? false,
     forum_enabled: e.forum_enabled,
     notify_on_publish: e.notify_on_publish,
     polls: e.polls
@@ -325,6 +328,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
         rsvp_deadline: rsvpDeadline,
         ...audienceToEvent(d.who),
         show_participants: d.show_participants,
+        pot_enabled: d.pot_enabled,
         forum_enabled: d.forum_enabled,
         notify_on_publish: d.notify_on_publish,
         reminders: ALL_REMINDERS,
@@ -614,6 +618,9 @@ export function EventForm({ eventId }: { eventId?: string }) {
             {memberChips('organizers')}
           </>
         ) : null}
+        <Rows>
+          <ToggleRow label="Pot commun" hint="Les présents le trouvent dans Réglages › Pot commun pour partager les dépenses" value={d.pot_enabled} onChange={(v) => set({ pot_enabled: v })} />
+        </Rows>
       </Section>
 
       {advanced ? (
