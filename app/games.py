@@ -251,8 +251,8 @@ def join(g: dict, gid: str, name: str = ""):
     pending = g["type"] == "pyramid" and g["phase"] not in ("lobby",) and bool(g.get("pyr"))
     g["players"].append({"id": gid, "pid": pid, "name": name or "?", "alive": True, "role": None, "word": None,
                          "waiting": waiting, "pending": pending})
-    if g["type"] == "beerpong" and g["phase"] != "lobby":
-        beerpong.join_late(g)  # le retardataire rejoint la plus petite équipe
+    if g["type"] == "beerpong":
+        beerpong.join_late(g)  # chacun reçoit son équipe dès son arrivée (la plus petite), déplaçable avant le lancement
 
 
 # Jeux où l'animateur peut ajouter des participants sans téléphone (il vote, mise ou joue pour eux). Pas Undercover,

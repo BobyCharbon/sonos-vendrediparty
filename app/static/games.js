@@ -512,7 +512,7 @@ document.getElementById("gamesRoot").innerHTML = `
           ${helpBtn("beerpong")}
         </div>
         <p class="g-desc">Rouges contre Bleus sur une vraie table. À chaque gobelet qui tombe, l'animateur le touche sur l'écran et choisit la sentence : gorgées, shot, gage, question WTF, quiz, sport, bonus ou malus. Pas de tours imposés : vos règles, notre ambiance.</p>
-        <div class="g-chips"><span>2+ joueurs</span><span>🍻 Alcool</span><span>Sans téléphone : OK</span><span>6, 10 ou 15 gobelets</span></div>
+        <div class="g-chips"><span>2+ joueurs</span><span>🍻 Alcool</span><span>Un seul téléphone suffit</span><span>6, 10 ou 15 gobelets</span></div>
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="beerpong">Créer une partie</button>
       </div>
@@ -2472,6 +2472,15 @@ function gameFlashes(g) {
 // Dès le lancement, l'écran n'affiche plus que le jeu (le QR reste dans le menu ☰).
 function lobbyInvite(g) {
   if (g.phase !== "lobby") return "";
+  // Salle de jeux : un participant déjà inscrit vote d'abord ; l'invitation tient sur une ligne (QR dans le menu ☰).
+  if (g.type === "room" && g.me && !g.is_host) {
+    return `<div class="g-lobby-mini"><b>Salle ${esc(g.room || g.code)}</b> · ${g.players.map((p) => esc(p.name)).join(", ")}
+      <button type="button" class="py-mini" data-gdrawer="open">📱 Inviter</button></div>`;
+  }
+  if (g.type === "room" && g.is_host && (g.room_info?.top || []).length && !g.room_info.current) return roomBestHtml(g) + lobbyInviteFull(g);
+  return lobbyInviteFull(g);
+}
+function lobbyInviteFull(g) {
   const n = g.players.length;
   return `<div class="g-lobby">
     <div class="g-lobby-k">Scannez pour rejoindre</div>
@@ -2509,22 +2518,33 @@ function roomHtml(g) {
   // Même écran pour l'animateur et les participants : les catégories et les jeux, avec les votes.
   const votes = Object.values(R.votes || {}).reduce((a, b) => a + b, 0);
   const named = (type) => (R.catalog || []).find((c) => c.type === type)?.name || type;
-  const best = lead && (R.top || []).length ? `<div class="g-room-best">
+  return roomPickHtml(g, R, lead, cur, votes, named) + roomTallyHtml(R, resume);
+}
+// Case « Le plus voté » de l'animateur (ou les ex æquo), chacun avec son bouton pour lancer directement.
+function roomBestHtml(g) {
+  const R = g.room_info || {};
+  const named = (type) => (R.catalog || []).find((c) => c.type === type)?.name || type;
+  return `<div class="g-room-best">
       <div class="g-room-best-h">⭐ ${R.top.length > 1 ? "Les plus votés (égalité)" : "Le plus voté"} · ${R.votes[R.top[0]]} vote${R.votes[R.top[0]] > 1 ? "s" : ""}</div>
-      <div class="g-room-best-row">${R.top.map((t) => `<button type="button" class="py-main g-room-best-go ${GAME_THEME[t] || ""}" data-room-pick="${t}">
-        <span class="g-room-tile-i">${GAME_ICONS[t] || ""}</span>▶ ${esc(named(t))}</button>`).join("")}</div></div>` : "";
-  const pick = !cur ? `<div class="g-room-block"><div class="g-room-h">${lead ? "Lancer un jeu pour la salle" : "Vote pour le prochain jeu"}</div>
-      ${best}
+      <div class="g-room-best-row">${R.top.map((t) => `<button type="button" class="g-room-best-go" data-room-pick="${t}">
+        <span class="g-room-tile-i">${GAME_ICONS[t] || ""}</span>▶ ${esc(named(t))}</button>`).join("")}</div></div>`;
+}
+// Les jeux par catégorie, avec les votes : l'animateur lance, un participant vote.
+function roomPickHtml(g, R, lead, cur, votes, named) {
+  return !cur ? `<div class="g-room-block"><div class="g-room-h">${lead ? "Lancer un jeu pour la salle" : "Vote pour le prochain jeu"}</div>
       ${lead ? `<div class="g-room-sub">${votes ? `${votes} vote${votes > 1 ? "s" : ""} des participants` : "Les participants votent pour leur jeu préféré : tu vois les votes ici."}</div>`
         : `<div class="g-room-sub">${R.my_vote ? `Ton vote : <b>${esc(named(R.my_vote))}</b> · touche un autre jeu pour changer` : "Touche le jeu que tu veux jouer (un seul choix)"} · ${esc(g.host_name || "L'animateur")} lance le jeu</div>`}
       ${roomCatalogHtml(R.catalog || [], R, lead)}</div>` : "";
+}
+// Jeu en cours à rejoindre, tableau de la soirée et jeux déjà joués.
+function roomTallyHtml(R, resume) {
   const board = (R.board || []).filter((r) => r.pts || r.drink || r.give);
   const tally = board.length ? `<div class="g-room-block"><div class="g-room-h">🏆 Tableau de la soirée</div>
       ${board.map((r, i) => `<div class="g-room-row ${r.me ? "me" : ""}"><span class="qz-rank r${i + 1}">${i + 1}</span><b>${esc(r.name)}</b>
         ${r.pts ? `<span class="g-room-pts">${r.pts.toLocaleString("fr-CH")} pts</span>` : ""}${r.drink ? `<span class="g-room-sips">🍻 ${r.drink}</span>` : ""}</div>`).join("")}</div>` : "";
   const hist = (R.history || []).length ? `<div class="g-room-block"><div class="g-room-h">Déjà joué ce soir</div><div class="g-room-hist">
       ${R.history.map((h) => `<span class="g-room-chip ${GAME_THEME[h.type] || ""}"><i>${GAME_ICONS[h.type] || ""}</i>${esc(h.name)}${h.winner ? ` · 🏆 ${esc(h.winner)}` : ""}</span>`).join("")}</div></div>` : "";
-  return resume + pick + tally + hist;
+  return resume + tally + hist;
 }
 function openRoomSheet(type) {
   const src = [...document.querySelectorAll("#gHome .gcard")].find((c) => c.querySelector(`[data-create="${type}"]`));
@@ -2613,7 +2633,7 @@ function renderPause(g) {
   }
   const html = `<div class="g-pause-card"><div class="g-pause-i" aria-hidden="true">⏸</div><div class="g-pause-t">Pause</div>
     <div class="g-pause-s">${esc(g.paused.by)} a mis la partie en pause</div>
-    ${g.is_host ? `<button type="button" class="py-main g-pause-go" data-gact="resume">▶ Reprendre la partie</button>` : `<div class="g-pause-s">Elle reprend dès que l'animateur la relance.</div>`}</div>`;
+    ${g.is_host ? `<button type="button" class="py-main g-pause-go" data-gact="resume">▶ Reprendre la partie</button>` : `<div class="g-pause-s">Elle reprend dès que ${esc(g.paused.by)} la relance.</div>`}</div>`;
   if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
 }
 

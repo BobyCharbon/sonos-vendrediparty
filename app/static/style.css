@@ -656,7 +656,7 @@ body.pyr-full .py-card:not(.back):not(.ghost) { box-shadow: 0 8px 18px rgba(0,0,
 .py-hero { text-align: center; padding: 10px 0 4px; }
 .py-hero-k { font: 800 .8rem system-ui; letter-spacing: .16em; text-transform: uppercase; color: var(--py-cyan); }
 .py-hero-t { font: 800 1.9rem/1.1 "Bricolage Grotesque", system-ui, sans-serif; margin: 4px 0; text-shadow: 0 0 18px rgba(255,60,172,.6); }
-.py-main { width: 100%; min-height: 56px; border-radius: 18px; font-size: 1.05rem; font-weight: 800; background: var(--py-pink); color: #1a0010;
+.py-main { width: 100%; min-height: 56px; border-radius: 18px; font-size: 1.05rem; font-weight: 800; background: var(--py-pink, #ff4fa3); color: #1a0010;
   box-shadow: 0 0 22px rgba(255,60,172,.55); }
 .py-main:disabled { box-shadow: none; }
 .py-sub { width: 100%; min-height: 48px; border-radius: 16px; background: #1d1433; color: #fff; border: 1px solid #3a2a5c; font-weight: 700; }
@@ -1274,8 +1274,11 @@ body.pyr-full #game.g-rm { background: transparent; border: 0; padding: 0; box-s
 .g-room-sub b { color: #ffd84d; }
 .g-room-best { margin: 0 0 14px; padding: 12px; border-radius: 18px; background: rgba(255, 216, 77, .1); box-shadow: inset 0 0 0 1px rgba(255, 216, 77, .35); }
 .g-room-best-h { font: 800 .8rem system-ui; letter-spacing: .06em; text-transform: uppercase; color: #ffd84d; margin: 0 2px 10px; }
-.g-room-best-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
-.g-room-best-go { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
+.g-room-best-row { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.g-room-best-go { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 56px; border: 0;
+  border-radius: 18px; font-weight: 800; font-size: 1.05rem; color: #2b1a00; background: linear-gradient(135deg, #ffe08a, #ffb627);
+  box-shadow: 0 6px 0 #b97a00, 0 12px 24px rgba(255, 182, 39, .3); }
+.g-room-best-go:active { transform: translateY(4px); box-shadow: 0 2px 0 #b97a00; }
 .g-room-best-go .g-room-tile-i { width: 30px; height: 30px; border-radius: 10px; }
 .g-room-best-go .g-room-tile-i svg { width: 19px; height: 19px; }
 .g-room-wait { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 14px; padding: 22px 14px; border-radius: 22px;
@@ -1637,7 +1640,7 @@ html.native-tabs .g-mini { bottom: 12px; }
 .g-pause-i { font-size: 3.4rem; animation: g-pause-beat 1.6s ease-in-out infinite; }
 .g-pause-t { font: 800 2rem "Bricolage Grotesque", system-ui, sans-serif; margin-top: 6px; }
 .g-pause-s { color: #d8d0f2; margin-top: 8px; }
-.g-pause-go { width: 100%; margin-top: 18px; }
+.g-pause-go { width: 100%; margin-top: 18px; background: linear-gradient(135deg, #ffe08a, #ffb627); color: #2b1a00; box-shadow: 0 6px 0 #b97a00; }
 @keyframes g-pause-in { from { opacity: 0; } }
 @keyframes g-pause-beat { 50% { transform: scale(.9); opacity: .7; } }
 @media (prefers-reduced-motion: reduce) { .g-pause, .g-pause-i { animation: none; } }
@@ -1671,3 +1674,8 @@ html.native-tabs .g-mini { bottom: 12px; }
 .fb-prio.high { background: rgba(255, 77, 94, .2); color: #ff8a95; }
 .fb-prio.medium { background: rgba(255, 170, 51, .2); color: #ffc46b; }
 .fb-prio.low { background: rgba(61, 220, 151, .18); color: #7fe8b8; }
+
+.g-lobby-mini { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; border-radius: 18px;
+  background: rgba(255, 255, 255, .05); color: #dfe7ff; font-size: .9rem; }
+.g-lobby-mini .py-mini { margin-left: auto; }
+.g-lobby + .g-room-best, .g-room-best + .g-lobby { margin-top: 12px; }

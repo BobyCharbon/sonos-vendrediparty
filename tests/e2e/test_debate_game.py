@@ -175,7 +175,7 @@ def test_home_and_game_room_list_games_by_category(phones):
     expect(page.locator('#gHome .g-cat[data-cat="talk"] [data-create="divan"]')).to_have_count(1)
     expect(page.locator('#gHome .g-cat[data-cat="cards"] [data-create="pyramid"]')).to_have_count(1)
     # Chaque jeu une seule fois ; ceux qui se jouent aussi avec alcool portent l'étiquette 🍻.
-    expect(page.locator('#gHome .gcard:not(.g-room-card)')).to_have_count(18)
+    expect(page.locator('#gHome .gcard:not(.g-room-card)')).to_have_count(19)  # beer pong compris
     expect(page.locator('#gHome .g-cat[data-cat="cards"] .gcard:has([data-create="pyramid"]) .g-drink')).to_be_visible()
     expect(page.locator('#gHome .g-cat[data-cat="drinks"] .g-drink')).to_have_count(0)
     # Le bouton d'une carte rangée crée toujours la partie.

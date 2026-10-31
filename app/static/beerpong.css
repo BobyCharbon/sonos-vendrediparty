@@ -37,11 +37,17 @@ body.pyr-full #game.g-bp { box-shadow: none; border: 0; padding: 16px; backgroun
 .bp-rack.red .bp-cup { --cup: var(--bp-red); }
 .bp-rack.blue .bp-cup { --cup: var(--bp-blue); }
 .bp-cup:not(:disabled):active { transform: scale(.88); }
+.bp-cup:disabled:not(.down) { opacity: 1; cursor: default; }  /* un gobelet debout reste vif, même quand on ne peut pas le toucher */
 .bp-cup.down { opacity: .16; transform: scale(.82); box-shadow: none; }
 .bp-cup.picked { outline: 3px solid var(--g-accent); outline-offset: 3px; animation: bp-pulse .9s ease-in-out infinite; }
 @keyframes bp-pulse { 50% { transform: scale(.9); } }
 .bp-players { text-align: center; color: var(--g-soft); font-size: .88rem; font-weight: 600; }
-.bp-tip { text-align: center; margin-top: 8px; }
+.bp-tip { position: sticky; top: 0; z-index: 2; text-align: center; margin: 4px 0 2px; padding: 8px 12px; border-radius: 14px;
+  font-weight: 800; color: #2b1a00; background: var(--g-accent); box-shadow: 0 6px 16px rgba(0,0,0,.3); }
+.bp-opt-kind { display: block; font: 800 .68rem system-ui; font-style: normal; letter-spacing: .08em; text-transform: uppercase; opacity: .7; }
+.bp-opt-t { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.bp-cups-pick { display: grid; grid-template-columns: repeat(3, 1fr); }
+.bp-cups-pick button { min-height: 48px; font-size: 1.05rem; }
 
 .bp-pending, .bp-who { margin-top: 4px; padding: 14px; border-radius: 22px; background: rgba(255, 204, 51, .1); box-shadow: inset 0 0 0 2px rgba(255, 204, 51, .45); }
 .bp-pending-h { font-weight: 800; margin-bottom: 10px; }

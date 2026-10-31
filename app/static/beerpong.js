@@ -17,6 +17,7 @@ GAME_RULES.beerpong = `
 const BP_ROWS = { 6: [3, 2, 1], 10: [4, 3, 2, 1], 15: [5, 4, 3, 2, 1] };
 let bpPick = null;  // gobelet touché par le marqueur, en attente du joueur qui l'a perdu : { team, cup }
 const BP_KIND_ICON = { sips: "🍺", shot: "🥃", dare: "🎭", wtf: "🤪", quiz: "🧠", sport: "💪", bonus: "🎁", malus: "💣" };
+const BP_KIND_NAME = { sips: "Gorgées", shot: "Shot", dare: "Gage", wtf: "Question WTF", quiz: "Quiz", sport: "Sport", bonus: "Bonus", malus: "Malus" };
 
 function bpRack(v, team, canMark) {
   const cups = v.racks[team] || [];
@@ -44,7 +45,7 @@ function bpLobbyHtml(g) {
     <div class="bp-teams">${team("red")}${team("blue")}</div>
     ${free.length ? `<div class="artist bp-free">À répartir au lancement : ${free.map((p) => esc(p.name)).join(", ")}</div>` : ""}
     ${lead ? `<div class="lk-row"><button type="button" class="lk-sub" data-bp-shuffle="1">🔀 Mélanger les équipes</button></div>
-      <div class="g-label">Gobelets par équipe</div><div class="lk-chips">${v.cup_choices.map((n) => `<button type="button" class="${v.cups === n ? "on" : ""}" data-bp-cups="${n}" aria-pressed="${v.cups === n}">${n}</button>`).join("")}</div>
+      <div class="g-label">Gobelets par équipe</div><div class="lk-chips bp-cups-pick">${v.cup_choices.map((n) => `<button type="button" class="${v.cups === n ? "on" : ""}" data-bp-cups="${n}" aria-pressed="${v.cups === n}">${n}</button>`).join("")}</div>
       ${bpKindsHtml(v)}${bpMarkerHtml(g)}
       <button type="button" class="lk-main" data-gact="start" ${v.players.length >= 2 ? "" : "disabled"}>▶ Lancer la partie</button>`
       : `<div class="lk-card bp-wait">${esc(g.host_name || "L'animateur")} prépare la table…</div>`}`;
@@ -74,10 +75,10 @@ function bpPendingHtml(g) {
   const v = g.bp, P = v.pending;
   if (!P) return "";
   const opts = P.options.map((o, i) => `<button type="button" class="bp-opt ${o.kind}" ${v.can_mark ? `data-bp-sent="${i}"` : "disabled"}>
-      <span class="bp-opt-k">${BP_KIND_ICON[o.kind] || "🎯"}</span><span>${esc(o.text)}${o.hint ? `<small>${esc(o.hint)}</small>` : ""}</span></button>`).join("");
+      <span class="bp-opt-k">${BP_KIND_ICON[o.kind] || "🎯"}</span><span><i class="bp-opt-kind">${BP_KIND_NAME[o.kind] || ""}</i><span class="bp-opt-t">${esc(o.text)}</span>${o.hint ? `<small>${esc(o.hint)}</small>` : ""}</span></button>`).join("");
   return `<div class="bp-pending ${P.team}"><div class="bp-pending-h">🎯 ${esc(P.name)} a perdu un gobelet : ${v.can_mark ? "choisis la sentence" : "l'animateur choisit la sentence…"}</div>
     <div class="bp-opts">${opts}</div>
-    ${v.can_mark ? `<div class="lk-row"><button type="button" class="lk-sub" data-bp-reroll="1">🎲 Trois autres</button><button type="button" class="lk-sub" data-bp-undo="1">↶ Annuler le gobelet</button></div>` : ""}</div>`;
+    ${v.can_mark ? `<div class="lk-row"><button type="button" class="lk-sub" data-bp-reroll="1">🎲 Trois autres</button><button type="button" class="lk-sub" data-bp-undo="1" aria-label="Annuler ce gobelet (il remonte)">↶ Annuler</button></div>` : ""}</div>`;
 }
 
 function bpWhoHtml(g) {
@@ -97,8 +98,8 @@ function beerpongHtml(g) {
   const end = g.phase === "end";
   return `${end ? `<div class="bp-win ${v.winner}">🏆 Les ${v.team_names[v.winner] || "?"} gagnent !</div>` : ""}
     ${bpPendingHtml(g)}${bpWhoHtml(g)}
+    ${!end && v.can_mark && !v.pending && !bpPick ? `<div class="bp-tip">👇 Touche le gobelet qui vient de tomber</div>` : ""}
     <div class="bp-table">${bpRack(v, "red", v.can_mark && !end)}<div class="bp-net" aria-hidden="true"></div>${bpRack(v, "blue", v.can_mark && !end)}</div>
-    ${!end && v.can_mark && !v.pending && !bpPick ? `<div class="artist bp-tip">Touche le gobelet qui vient de tomber.</div>` : ""}
     ${bpLastHtml(v)}
     ${end && g.is_host ? `<button type="button" class="lk-main" data-gact="restart">🔁 Revanche</button>` : ""}`;
 }
