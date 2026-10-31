@@ -156,7 +156,7 @@ def test_new_badge_marks_only_this_game_on_the_home_cards(phones):
     badge = alice.page.locator('#gHome .gcard:has([data-create="debate"]) .g-new')
     expect(badge).to_be_visible()
     expect(badge).to_have_text('NEW')
-    expect(alice.page.locator('#gHome .g-new')).to_have_count(1)
+    expect(alice.page.locator('#gHome .g-new')).to_have_count(2)  # Pour ou contre et Beer pong
     # En haut à droite de la carte, sans masquer le bouton « ? » des règles.
     card = alice.page.locator('#gHome .gcard:has([data-create="debate"])').bounding_box()
     b = badge.bounding_box()
