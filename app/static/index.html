@@ -424,26 +424,13 @@ function showTab(tab, eventTarget) {
   scrollTo(0, 0);
   if (!starting && !under && previous !== tab && SUB_SCREENS[previous] !== tab) tabTransition(tab);
 }
-// Changement d'onglet : le contenu apparaît en fondu en montant à peine (pas de glissement latéral : sur iPhone, les
-// onglets ne glissent pas), le grand titre suit, l'icône touchée rebondit. Rien ne se rejoue aux rafraîchissements.
-const TAB_IN = { duration: 280, easing: "cubic-bezier(.22, 1, .36, 1)" };
+// Changement d'onglet (Nav.tabIn) : contenu et grand titre en fondu, l'icône touchée rebondit.
+// Une partie en plein écran (panneau fixe dans l'onglet Jeux) n'est pas touchée : un transform sur la section
+// déplacerait le panneau fixe le temps de l'animation.
 function tabTransition(tab) {
-  if (typeof document.body.animate !== "function") return;
-  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  // Une partie en plein écran (panneau fixe dans l'onglet Jeux) n'est pas touchée : un transform sur la section
-  // déplacerait le panneau fixe le temps de l'animation.
   const content = [$("appTitle"), ...document.querySelectorAll("[data-view]:not(.hidden)")]
     .filter((el) => !(document.body.classList.contains("pyr-full") && el.dataset.view === "games"));
-  content.forEach((el) => {
-    el.getAnimations().forEach((a) => a.id === "tab-in" && a.cancel());
-    const anim = el.animate(still ? [{ opacity: 0 }, { opacity: 1 }]
-      : [{ opacity: 0, transform: "translate3d(0, 10px, 0)" }, { opacity: 1, transform: "none" }],
-    { ...TAB_IN, duration: still ? 160 : TAB_IN.duration });
-    anim.id = "tab-in";
-  });
-  const icon = document.querySelector(`#tabs [data-tab="${tab}"] .tab-ico`);
-  if (icon && !still) icon.animate([{ transform: "scale(1)" }, { transform: "scale(.82)", offset: .3 }, { transform: "scale(1.08)", offset: .65 }, { transform: "scale(1)" }],
-    { duration: 420, easing: "ease-out" });
+  Nav.tabIn(content, document.querySelector(`#tabs [data-tab="${tab}"] .tab-ico`));
 }
 // 🏆 Mes stats de jeu : un onglet par jeu ; chaque jeu enregistre son affichage dans STATS_TABS (purity.js…).
 const STATS_TABS = {};
@@ -666,6 +653,20 @@ const FB_STATUS = { new: "Envoyé", progress: "🔧 En cours de correction", don
 // (statuts, Claude…), sans passer par /admin. Un invité y voit son formulaire et le statut de ses envois.
 let fbView = "admin", fbAdminMounted = false, fbAdminCount = 0, fbUnseen = 0, musicAdminMounted = false;
 const fbIsAdmin = () => !!(account?.admin && adminSession);
+// Pastilles d'onglet : un nombre qui change fait sursauter la pastille (ui.css, .badge-bump). Seul un vrai
+// changement de texte compte : réécrire le même nombre à chaque rafraîchissement ne déclenche rien.
+new MutationObserver((records) => {
+  const changed = new Set(records.map((r) => (r.target.nodeType === 1 ? r.target : r.target.parentElement)?.closest(".badge")).filter(Boolean));
+  changed.forEach((b) => {
+    if (b.textContent === b.dataset.shown) return;
+    const first = b.dataset.shown === undefined;
+    b.dataset.shown = b.textContent;
+    if (first || b.classList.contains("hidden")) return;
+    b.classList.remove("badge-bump");
+    void b.offsetWidth;
+    b.classList.add("badge-bump");
+  });
+}).observe($("tabs"), { subtree: true, childList: true, characterData: true });
 function fbBadge() {
   const n = fbIsAdmin() ? fbAdminCount : fbUnseen;
   $("fbTabBadge").textContent = n || "";
@@ -1085,7 +1086,17 @@ $("iShare").onclick = async () => {
 };
 // L'app vient d'être installée (Android) : plus besoin de la proposer.
 addEventListener("appinstalled", () => { store("vp_install_dismissed", "1"); $("install").classList.add("hidden"); $("installSheet").classList.add("hidden"); });
-$("iLater").onclick = () => $("installSheet").classList.add("hidden");
+// « Plus tard » ou toucher le fond : la fenêtre repart par où elle est venue, puis se cache (ui.css, .i-out).
+const SHEET_OUT_SAFETY_MS = 400;
+function closeInstallSheet() {
+  const sheet = $("installSheet");
+  if (sheet.classList.contains("hidden") || sheet.classList.contains("i-out")) return;
+  sheet.classList.add("i-out");
+  const done = () => { if (!sheet.classList.contains("i-out")) return; sheet.classList.remove("i-out"); sheet.classList.add("hidden"); };
+  sheet.querySelector(".i-sheet").addEventListener("animationend", done, { once: true });
+  setTimeout(done, SHEET_OUT_SAFETY_MS);
+}
+$("iLater").onclick = closeInstallSheet;
 // Barre d'adresse en haut ou en bas : on retient le choix et on replace la flèche.
 $("iBar").addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-bar]");
@@ -1093,7 +1104,7 @@ $("iBar").addEventListener("click", (ev) => {
   store("vp_bar", b.dataset.bar);
   openInstallSheet();
 });
-$("installSheet").addEventListener("click", (ev) => { if (ev.target.id === "installSheet") $("installSheet").classList.add("hidden"); });
+$("installSheet").addEventListener("click", (ev) => { if (ev.target.id === "installSheet") closeInstallSheet(); });
 setTimeout(offerInstall, 1500);
 
 // Mises à jour en direct : le serveur signale chaque changement, on rafraîchit aussitôt.
