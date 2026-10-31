@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import beerpong, calendar_ics, debate, games, heist, island, likely, links, neon, president, purity, quiz
+from . import beerpong, calendar_ics, debate, games, heist, island, likely, links, neon, president, psy, purity, quiz
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
 from .account_auth import AccountAuth
@@ -2562,6 +2562,8 @@ LIKELY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", 
 # l'animateur, dilemmes proposés par les joueurs (dbpropose, guess = texte) et validés par l'animateur (amount = numéro).
 DEBATE_ONLY = {"dbset", "dbvote", "dbskip", "dbswap", "dbrevote", "dbpropose", "dbaccept", "dbrefuse"}
 DEBATE_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "addguest", "up", "down", "pause", "resume"} | DEBATE_ONLY
+PSY_ONLY = {"psyans", "psysub", "psyreveal"}
+PSY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "pause", "resume"} | PSY_ONLY
 PURITY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "pause", "resume"} | PURITY_ONLY
 
 # Actions propres à un jeu : refusées ailleurs (sinon elles lisent l'état d'un autre jeu et le serveur plante).
@@ -2581,7 +2583,7 @@ GAME_ONLY_ACTIONS = {
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
 # Seuls coups possibles pendant une pause : reprendre, terminer, gérer les joueurs.
 PAUSE_ALLOWED = {"pause", "resume", "end", "remove", "ban", "handover", "addguest", "leave", "join", "up", "down"}
-HOST_ACTIONS = {"pause", "resume", "bpset", "puset", "pureveal","ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "tjudge", "addguest", "mvote",
+HOST_ACTIONS = {"psyreveal", "pause", "resume", "bpset", "puset", "pureveal","ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "tjudge", "addguest", "mvote",
                 "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover", "nset", "hset",
                 "lkset", "lkskip", "lkswap", "dbset", "dbskip", "dbswap", "dbrevote", "dbaccept", "dbrefuse"}
 
@@ -2625,6 +2627,10 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     if g["type"] == "debate" and a not in DEBATE_ACTIONS:
         raise HTTPException(400, "Action indisponible dans ce jeu")
     if g["type"] != "debate" and a in DEBATE_ONLY:
+        raise HTTPException(400, "Action inconnue")
+    if g["type"] == "psy" and a not in PSY_ACTIONS:
+        raise HTTPException(400, "Action indisponible dans ce jeu")
+    if g["type"] != "psy" and a in PSY_ONLY:
         raise HTTPException(400, "Action inconnue")
     # Cible d'un vote : un joueur (pid) ; pour « Je n'ai jamais », une réponse (yes / no).
     target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino", "pyramid", "biskit") else "")
@@ -2703,6 +2709,8 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "pusub": (purity.submit, me), "puunsub": (purity.unsubmit, me), "pureveal": (games.purity_reveal,),
         "lkset": (likely.configure, body.settings), "lkvote": (games.lk_vote, actor, target, me),
         "lkskip": (games.lk_skip, target), "lkswap": (games.lk_swap, random),
+        "psyans": (games.psy_answer, me, body.settings.get("q"), body.settings.get("a")),
+        "psysub": (games.psy_submit, me), "psyreveal": (games.psy_reveal,),
         "dbset": (debate.configure, body.settings), "dbvote": (games.db_vote, actor, body.amount if "amount" in body.model_fields_set else None, me),
         "dbskip": (games.db_skip, target), "dbswap": (games.db_swap, random), "dbrevote": (games.db_revote,),
         "dbpropose": (games.db_propose, me, body.guess), "dbaccept": (games.db_accept, body.amount),

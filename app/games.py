@@ -14,7 +14,7 @@ import secrets
 import time
 import unicodedata
 
-from . import beerpong, debate, heist, island, likely, neon, president, purity, quiz
+from . import beerpong, debate, heist, island, likely, neon, president, psy, purity, quiz
 from .divan_cards import DIVAN_CARDS
 from .tmc_questions import TMC_QUESTIONS
 from .party_questions import NEVER_AWKWARD, NEVER_HOT, NEVER_SOFT, WHOOF_AWKWARD, WHOOF_HOT, WHOOF_SOFT
@@ -39,6 +39,7 @@ GAMES = {
     "island": "L’île qui s’effondre",
     "heist": "Braquage en miniature",
     "purity": "Purify Test",
+    "psy": "Qui es-tu vraiment ?",
     "room": "Salle de jeux",
 }
 BLACKJACKS = ("blackjack",)
@@ -183,6 +184,8 @@ def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code
         likely.init(g)
     if kind == "debate":
         debate.init(g)
+    if kind == "psy":
+        psy.init(g)
     if kind == "beerpong":
         beerpong.init(g)
     if kind == "room":
@@ -322,6 +325,8 @@ def leave(g: dict, gid: str):
         bk_leave(g, gid)
     if g["type"] == "purity":
         purity.leave(g, gid)
+    if g["type"] == "psy":
+        psy.leave(g, gid)
     if g["type"] == "likely":
         _lk_award(g, likely.settle(g))  # il ne manquait que son vote
     if g["type"] == "debate":
@@ -1940,6 +1945,26 @@ def lk_swap(g: dict, rng: random.Random = random):
     _lk(likely.swap, g, rng)
 
 
+def _psy(fn, g: dict, *args):
+    """« Qui es-tu vraiment ? » : les erreurs du module deviennent des erreurs de jeu (message affiché tel quel)."""
+    try:
+        return fn(g, *args)
+    except psy.PsyError as e:
+        raise GameError(str(e))
+
+
+def psy_answer(g: dict, gid: str, index, choice):
+    _psy(psy.answer, g, gid, index, choice)
+
+
+def psy_submit(g: dict, gid: str):
+    _psy(psy.submit, g, gid)
+
+
+def psy_reveal(g: dict):
+    _psy(psy.reveal, g)
+
+
 def _db(fn, g: dict, *args):
     """« Pour ou contre » : les erreurs du module deviennent des erreurs de jeu (message affiché tel quel)."""
     try:
@@ -2058,6 +2083,9 @@ def start(g: dict, rng: random.Random = random):
         return
     if g["type"] == "debate":
         _db(debate.start, g, rng)
+        return
+    if g["type"] == "psy":
+        _psy(psy.start, g, rng)
         return
     if g["type"] == "beerpong":
         bp_call(g, beerpong.start, rng)
@@ -2270,6 +2298,9 @@ def next_step(g: dict, rng: random.Random = random):
     if g["type"] == "debate":
         _db(debate.next_step, g, rng)
         return
+    if g["type"] == "psy":
+        _psy(psy.start, g, rng)  # nouveau test, nouvelles questions
+        return
     if g["type"] == "casino":
         if g["phase"] != "results":
             raise GameError("Pas encore")
@@ -2311,7 +2342,7 @@ def restart(g: dict, rng: random.Random = random) -> dict:
         neon.start(g, rng)
     elif g["type"] == "president":
         president.start(g, rng)
-    elif g["type"] in ("quiz", "purity", "likely", "debate"):
+    elif g["type"] in ("quiz", "purity", "likely", "debate", "psy"):
         start(g, rng)
     elif g["type"] == "beerpong":
         start(g, rng)  # remet les gobelets ; refusé sans rien toucher s'il manque une équipe
@@ -2392,6 +2423,8 @@ def view(g: dict, gid: str) -> dict:
         out["likely"] = likely.view(g, gid)
     if g["type"] == "debate":
         out["debate"] = debate.view(g, gid, is_lead(g, gid))
+    if g["type"] == "psy":
+        out["psy"] = psy.view(g, gid)
     if g["type"] == "beerpong":
         out["bp"] = beerpong.view(g, gid, is_lead(g, gid))
     if g["type"] == "purity":
@@ -2484,6 +2517,8 @@ def _summary_facts(g: dict) -> list[str]:
         facts += quiz.summary_facts(g)
     if t == "debate":
         facts += debate.summary_facts(g)
+    if t == "psy":
+        facts += psy.summary_facts(g)
     if t == "likely":
         facts += likely.summary_facts(g)
         facts.append(f"Alcool : {sips} gorgée{'s' if sips > 1 else ''} pour la personne désignée" if sips else "Sans alcool : un point")
