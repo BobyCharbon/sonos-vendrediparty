@@ -19,26 +19,37 @@ let bpPick = null;  // gobelet touché par le marqueur, en attente du joueur qui
 const BP_KIND_ICON = { sips: "🍺", shot: "🥃", dare: "🎭", wtf: "🤪", quiz: "🧠", sport: "💪", bonus: "🎁", malus: "💣" };
 const BP_KIND_NAME = { sips: "Gorgées", shot: "Shot", dare: "Gage", wtf: "Question WTF", quiz: "Quiz", sport: "Sport", bonus: "Bonus", malus: "Malus" };
 
-function bpRack(v, team, canMark) {
-  const cups = v.racks[team] || [];
+// Gobelets vus debout / tombés sur ce téléphone : un gobelet ne « tombe » à l'écran que si on l'a vu debout
+// (pas de chute rejouée à l'ouverture de la page), et chaque chute a sa propre clé (annuler puis retomber rejoue).
+const bpCupSeen = new Map();  // « partie:équipe:gobelet » → { up, gen }
+function bpCupFx(id, team, k, up) {
+  const key = `${id}:${team}:${k}`, was = bpCupSeen.get(key);
+  const gen = was && was.up !== up ? was.gen + 1 : was?.gen || 0;
+  bpCupSeen.set(key, { up, gen });
+  if (!was || !gen) return "";
+  return GameFx.fx(up ? "pop" : "drop", `bp:${key}:${gen}`);
+}
+
+function bpRack(g, team, canMark) {
+  const v = g.bp, cups = v.racks[team] || [];
   const rows = BP_ROWS[cups.length] || [cups.length];
   let i = 0;
   const html = rows.map((n) => `<div class="bp-row">${Array.from({ length: n }, () => {
     const k = i++, up = cups[k], picked = bpPick && bpPick.team === team && bpPick.cup === k;
     const pend = v.pending && v.pending.team === team && v.pending.cup === k;
     return `<button type="button" class="bp-cup ${up ? "" : "down"} ${picked || pend ? "picked" : ""}" ${canMark && up && !v.pending ? `data-bp-cup="${team}:${k}"` : "disabled"}
-      aria-label="Gobelet ${k + 1}${up ? "" : " (tombé)"}"></button>`;
+      aria-label="Gobelet ${k + 1}${up ? "" : " (tombé)"}"${bpCupFx(g.id, team, k, !!up)}></button>`;
   }).join("")}</div>`).join("");
   const players = v.players.filter((p) => p.team === team).map((p) => esc(p.name)).join(" · ");
   return `<div class="bp-team ${team}"><div class="bp-team-h"><b>${team === "red" ? "🔴" : "🔵"} ${v.team_names[team]}</b>
-      <span class="bp-alive">${v.alive[team]} / ${cups.length}</span></div>
+      <span class="bp-alive"><span${GameFx.num(`bp:${g.id}:alive:${team}`, v.alive[team])}>${v.alive[team]}</span> / ${cups.length}</span></div>
     <div class="bp-rack ${team}">${html}</div><div class="bp-players">${players || "—"}</div></div>`;
 }
 
 function bpLobbyHtml(g) {
   const v = g.bp, lead = g.is_host;
   const team = (t) => `<div class="bp-col ${t}"><div class="bp-col-h">${t === "red" ? "🔴" : "🔵"} ${v.team_names[t]}</div>${v.players.filter((p) => p.team === t).map((p) =>
-      `<div class="bp-mate"><span>${esc(p.name)}${p.me ? " (toi)" : ""}</span>${lead ? `<button type="button" class="bp-mini" data-bp-move="${esc(p.pid)}" data-bp-to="${t === "red" ? "blue" : "red"}" aria-label="Passer ${esc(p.name)} chez les ${t === "red" ? "Bleus" : "Rouges"}">${t === "red" ? "→ 🔵" : "← 🔴"}</button>` : ""}</div>`).join("") || `<div class="artist">Personne</div>`}</div>`;
+      `<div class="bp-mate"${GameFx.fx("rise", `bp:${g.id}:mate:${p.pid}:${t}`)}><span>${esc(p.name)}${p.me ? " (toi)" : ""}</span>${lead ? `<button type="button" class="bp-mini" data-bp-move="${esc(p.pid)}" data-bp-to="${t === "red" ? "blue" : "red"}" aria-label="Passer ${esc(p.name)} chez les ${t === "red" ? "Bleus" : "Rouges"}">${t === "red" ? "→ 🔵" : "← 🔴"}</button>` : ""}</div>`).join("") || `<div class="artist">Personne</div>`}</div>`;
   const free = v.players.filter((p) => !p.team);
   return `<div class="bp-hero"><div class="bp-hero-i">🍺</div><div><div class="bp-hero-t">Beer pong</div>
       <div class="bp-hero-s">Vraie table, vraies balles : l'app suit les gobelets et donne les sentences.</div></div></div>
@@ -63,10 +74,12 @@ function bpMarkerHtml(g) {
     ${v.players.filter((p) => !p.me).map((p) => `<button type="button" class="${v.marker === p.pid ? "on" : ""}" data-bp-marker="${esc(p.pid)}">${esc(p.name)}</button>`).join("")}</div>`;
 }
 
-function bpLastHtml(v) {
-  const l = v.last;
+// Dernière sentence : la carte se retourne à chaque nouvelle sentence (une seule fois).
+function bpLastHtml(g) {
+  const v = g.bp, l = v.last;
   if (!l) return `<div class="lk-card bp-last empty">Premier gobelet : la sentence s'affichera ici.</div>`;
-  return `<div class="bp-last ${l.team}" aria-live="polite"><div class="bp-last-k">${BP_KIND_ICON[l.kind] || "🎯"} ${esc(l.name)}</div>
+  const down = (v.racks.red || []).filter((c) => !c).length + (v.racks.blue || []).filter((c) => !c).length;
+  return `<div class="bp-last ${l.team}" aria-live="polite"${GameFx.fx("flip", `bp:${g.id}:last:${down}:${l.name}:${l.text}`, 120)}><div class="bp-last-k">${BP_KIND_ICON[l.kind] || "🎯"} ${esc(l.name)}</div>
     <div class="bp-last-t">${esc(l.text)}</div>${l.hint ? `<div class="bp-last-h">${esc(l.hint)}</div>` : ""}
     ${l.answer && v.can_mark ? `<details class="bp-answer"><summary>Voir la réponse</summary>${esc(l.answer)}</details>` : ""}</div>`;
 }
@@ -74,9 +87,10 @@ function bpLastHtml(v) {
 function bpPendingHtml(g) {
   const v = g.bp, P = v.pending;
   if (!P) return "";
-  const opts = P.options.map((o, i) => `<button type="button" class="bp-opt ${o.kind}" ${v.can_mark ? `data-bp-sent="${i}"` : "disabled"}>
+  const k = `bp:${g.id}:pend:${P.team}:${P.cup}`;
+  const opts = P.options.map((o, i) => `<button type="button" class="bp-opt ${o.kind}" ${v.can_mark ? `data-bp-sent="${i}"` : "disabled"}${GameFx.fx("rise", `${k}:${o.text}`, 120 + i * 70)}>
       <span class="bp-opt-k">${BP_KIND_ICON[o.kind] || "🎯"}</span><span><i class="bp-opt-kind">${BP_KIND_NAME[o.kind] || ""}</i><span class="bp-opt-t">${esc(o.text)}</span>${o.hint ? `<small>${esc(o.hint)}</small>` : ""}</span></button>`).join("");
-  return `<div class="bp-pending ${P.team}"><div class="bp-pending-h">🎯 ${esc(P.name)} a perdu un gobelet : ${v.can_mark ? "choisis la sentence" : "l'animateur choisit la sentence…"}</div>
+  return `<div class="bp-pending ${P.team}"${GameFx.fx("rise", k)}><div class="bp-pending-h">🎯 ${esc(P.name)} a perdu un gobelet : ${v.can_mark ? "choisis la sentence" : "l'animateur choisit la sentence…"}</div>
     <div class="bp-opts">${opts}</div>
     ${v.can_mark ? `<div class="lk-row"><button type="button" class="lk-sub" data-bp-reroll="1">🎲 Trois autres</button><button type="button" class="lk-sub" data-bp-undo="1" aria-label="Annuler ce gobelet (il remonte)">↶ Annuler</button></div>` : ""}</div>`;
 }
@@ -85,8 +99,9 @@ function bpWhoHtml(g) {
   const v = g.bp;
   if (!bpPick || v.pending) return "";
   const mates = v.players.filter((p) => p.team === bpPick.team);
-  return `<div class="bp-who ${bpPick.team}"><div class="bp-pending-h">Qui a perdu ce gobelet ?</div><div class="bp-opts">${mates.map((p) =>
-    `<button type="button" class="bp-opt" data-bp-who="${esc(p.pid)}">${esc(p.name)}</button>`).join("")}</div>
+  const k = `bp:${g.id}:who:${bpPick.team}:${bpPick.cup}`;
+  return `<div class="bp-who ${bpPick.team}"${GameFx.fx("rise", k)}><div class="bp-pending-h">Qui a perdu ce gobelet ?</div><div class="bp-opts">${mates.map((p, i) =>
+    `<button type="button" class="bp-opt" data-bp-who="${esc(p.pid)}"${GameFx.fx("rise", `${k}:${p.pid}`, 80 + i * 50)}>${esc(p.name)}</button>`).join("")}</div>
     <div class="lk-row"><button type="button" class="lk-sub" data-bp-cancel="1">Annuler</button></div></div>`;
 }
 
@@ -96,11 +111,11 @@ function beerpongHtml(g) {
   if (g.phase === "lobby") return bpLobbyHtml(g);
   if (bpPick && (v.pending || !v.racks[bpPick.team]?.[bpPick.cup])) bpPick = null;
   const end = g.phase === "end";
-  return `${end ? `<div class="bp-win ${v.winner}">🏆 Les ${v.team_names[v.winner] || "?"} gagnent !</div>` : ""}
+  return `${end ? `<div class="bp-win ${v.winner}"${GameFx.fx("land", `bp:${g.id}:win:${v.winner}`, 450)}>🏆 Les ${v.team_names[v.winner] || "?"} gagnent !</div>` : ""}
     ${bpPendingHtml(g)}${bpWhoHtml(g)}
     ${!end && v.can_mark && !v.pending && !bpPick ? `<div class="bp-tip">👇 Touche le gobelet qui vient de tomber</div>` : ""}
-    <div class="bp-table">${bpRack(v, "red", v.can_mark && !end)}<div class="bp-net" aria-hidden="true"></div>${bpRack(v, "blue", v.can_mark && !end)}</div>
-    ${bpLastHtml(v)}
+    <div class="bp-table">${bpRack(g, "red", v.can_mark && !end)}<div class="bp-net" aria-hidden="true"></div>${bpRack(g, "blue", v.can_mark && !end)}</div>
+    ${bpLastHtml(g)}
     ${end && g.is_host ? `<button type="button" class="lk-main" data-gact="restart">🔁 Revanche</button>` : ""}`;
 }
 

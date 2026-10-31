@@ -28,6 +28,7 @@ body.pyr-full #game.g-bp { box-shadow: none; border: 0; padding: 16px; backgroun
 .bp-team.blue { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--bp-blue) 45%, transparent); }
 .bp-team-h { display: flex; justify-content: space-between; align-items: baseline; font-size: 1.05rem; }
 .bp-alive { font-weight: 800; color: var(--g-accent); font-variant-numeric: tabular-nums; }
+.bp-last { transform-origin: 50% 0; }
 .bp-rack { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 10px 0 6px; }
 .bp-rack.blue { flex-direction: column-reverse; }  /* les deux pointes se font face, de part et d'autre du filet */
 .bp-row { display: flex; gap: 6px; }
@@ -37,10 +38,12 @@ body.pyr-full #game.g-bp { box-shadow: none; border: 0; padding: 16px; backgroun
 .bp-rack.red .bp-cup { --cup: var(--bp-red); }
 .bp-rack.blue .bp-cup { --cup: var(--bp-blue); }
 .bp-cup:not(:disabled):active { transform: scale(.88); }
-.bp-cup:disabled:not(.down) { opacity: 1; cursor: default; }  /* un gobelet debout reste vif, même quand on ne peut pas le toucher */
+.bp-cup:disabled:not(.down) { opacity: 1; filter: none; cursor: default;  /* un gobelet debout reste vif, même quand on ne peut pas le toucher */
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--cup) 45%, #000), 0 8px 14px rgba(0,0,0,.35); }
 .bp-cup.down { opacity: .16; transform: scale(.82); box-shadow: none; }
 .bp-cup.picked { outline: 3px solid var(--g-accent); outline-offset: 3px; animation: bp-pulse .9s ease-in-out infinite; }
 @keyframes bp-pulse { 50% { transform: scale(.9); } }
+@media (prefers-reduced-motion: reduce) { .bp-cup { transition: none; } .bp-cup.picked { animation: none; } }
 .bp-players { text-align: center; color: var(--g-soft); font-size: .88rem; font-weight: 600; }
 .bp-tip { position: sticky; top: 0; z-index: 2; text-align: center; margin: 4px 0 2px; padding: 8px 12px; border-radius: 14px;
   font-weight: 800; color: #2b1a00; background: var(--g-accent); box-shadow: 0 6px 16px rgba(0,0,0,.3); }
@@ -60,16 +63,15 @@ body.pyr-full #game.g-bp { box-shadow: none; border: 0; padding: 16px; backgroun
 .bp-opt.bonus { background: #1f4d3a; } .bp-opt.malus { background: #5a1f2a; }
 
 .bp-last { margin-top: 14px; padding: 18px 16px; border-radius: 24px; text-align: center; background: #fff; color: #1b1030;
-  box-shadow: 0 16px 34px rgba(0,0,0,.35); animation: bp-in .45s var(--spring); }
+  box-shadow: 0 16px 34px rgba(0,0,0,.35); }  /* animée une seule fois par GameFx (quiz.js) */
 .bp-last.red { box-shadow: 0 0 0 4px var(--bp-red), 0 16px 34px rgba(0,0,0,.35); }
 .bp-last.blue { box-shadow: 0 0 0 4px var(--bp-blue), 0 16px 34px rgba(0,0,0,.35); }
-.bp-last.empty { background: rgba(255,255,255,.07); color: var(--g-soft); box-shadow: none; animation: none; }
+.bp-last.empty { background: rgba(255,255,255,.07); color: var(--g-soft); box-shadow: none; }
 .bp-last-k { font-size: .82rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #7b3cff; }
 .bp-last-t { font: 800 1.35rem/1.2 "Bricolage Grotesque", system-ui, sans-serif; margin-top: 6px; text-wrap: balance; }
 .bp-last-h { margin-top: 6px; font-weight: 700; color: #b0366a; }
 .bp-answer { margin-top: 8px; font-weight: 700; }
-@keyframes bp-in { from { transform: scale(.85); opacity: 0; } }
 .bp-win { padding: 16px; border-radius: 22px; text-align: center; font: 800 1.6rem "Bricolage Grotesque", system-ui, sans-serif;
-  background: linear-gradient(135deg, #ffe08a, #ffb627); color: #2b1a00; margin-bottom: 10px; animation: bp-in .5s var(--spring); }
+  background: linear-gradient(135deg, #ffe08a, #ffb627); color: #2b1a00; margin-bottom: 10px; }
 .bp-settings { margin-top: 10px; }
 .bp-settings summary { font-weight: 800; cursor: pointer; padding: 6px 0; }
