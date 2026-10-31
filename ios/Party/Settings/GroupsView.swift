@@ -283,8 +283,8 @@ struct GroupsView: View {
                             Text(invitation.group).font(.headline)
                             Text("\(invitation.invitedBy ?? "Quelqu'un") t'invite dans ce groupe").font(.footnote).foregroundStyle(.secondary)
                             HStack {
-                                Button("Accepter") { Task { await store.answer(invitation, accept: true) } }.buttonStyle(.borderedProminent)
-                                Button("Refuser") { Task { await store.answer(invitation, accept: false) } }.buttonStyle(.bordered)
+                                Button("Accepter") { Haptics.tap(); Task { await store.answer(invitation, accept: true) } }.buttonStyle(.borderedProminent)
+                                Button("Refuser") { Haptics.tap(); Task { await store.answer(invitation, accept: false) } }.buttonStyle(.bordered)
                             }
                             .controlSize(.small)
                             .disabled(store.busy.contains(invitation.id))
@@ -311,6 +311,9 @@ struct GroupsView: View {
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        // Groupe créé ou quitté, invitation acceptée ou refusée, liste arrivée : les lignes glissent en place.
+        .motion(Motion.snappy, value: store.list?.groups.map(\.id))
+        .motion(Motion.snappy, value: store.invitations.map(\.id))
         .background(AppConfig.background.ignoresSafeArea())
         .navigationTitle("Groupes")
         .navigationBarTitleDisplayMode(.inline)
@@ -319,14 +322,16 @@ struct GroupsView: View {
                 if let error = store.error {
                     VStack(spacing: 12) {
                         Text(error).multilineTextAlignment(.center).foregroundStyle(.secondary)
-                        Button("Réessayer") { Task { await store.load() } }
+                        Button("Réessayer") { Haptics.tap(); Task { await store.load() } }
                     }
                     .padding()
+                    .transition(.opacity)
                 } else {
-                    ProgressView()
+                    ProgressView().transition(.opacity)
                 }
             }
         }
+        .motion(Motion.smooth, value: store.list == nil)
         .overlay(alignment: .bottom) { GroupNotice(store: store) }
         .refreshable { await store.load() }
         .task {
@@ -479,18 +484,9 @@ private struct GroupNotice: View {
     @ObservedObject var store: GroupsStore
 
     var body: some View {
-        if let notice = store.notice {
-            Text(notice)
-                .font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 16).padding(.vertical, 12)
-                .background(Palette.card, in: Capsule())
-                .padding(.bottom, 12)
-                .task(id: notice) {
-                    try? await Task.sleep(for: .seconds(3))
-                    store.notice = nil
-                }
-        }
+        NoticeBanner(notice: store.notice.map { NoticeBanner.Notice(text: $0) }) { store.notice = nil }
     }
+
 }
 
 

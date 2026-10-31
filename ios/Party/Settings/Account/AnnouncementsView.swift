@@ -39,6 +39,8 @@ struct AnnouncementsView: View {
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        // Annonce publiée, annonces précédentes chargées : les lignes arrivent en glissant.
+        .motion(Motion.snappy, value: store.announcements?.announcements.map(\.id))
         .background(AppConfig.background.ignoresSafeArea())
         .navigationTitle("Annonces admin")
         .navigationBarTitleDisplayMode(.inline)
@@ -114,7 +116,8 @@ struct GameStatsView: View {
         .background(AppConfig.background.ignoresSafeArea())
         .navigationTitle("Mes stats de jeu")
         .navigationBarTitleDisplayMode(.inline)
-        .overlay { if store.stats == nil && store.statsError == nil { ProgressView() } }
+        .overlay { if store.stats == nil && store.statsError == nil { ProgressView().transition(.opacity) } }
+        .motion(Motion.smooth, value: store.stats == nil)
         .refreshable { await store.loadStats() }
         .task { await store.loadStats() }
     }
@@ -124,6 +127,9 @@ struct GameStatsView: View {
             VStack(spacing: 6) {
                 Text("Ton dernier score d'impureté").font(.subheadline).foregroundStyle(.secondary)
                 Text("\(stats.last) %").font(.system(size: 52, weight: .heavy, design: .rounded)).foregroundStyle(Palette.accent)
+                    .contentTransition(.numericText())
+                    .motion(Motion.smooth, value: stats.last)
+
                 Text(PurityStats.grade(stats.last)).font(.headline)
             }
             .frame(maxWidth: .infinity)

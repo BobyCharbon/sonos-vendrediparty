@@ -108,6 +108,12 @@ struct SettingsView: View {
             }
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
+            // Connexion, déconnexion, droits relus : les sections apparaissent ou s'en vont en glissant,
+            // au lieu de surgir d'un coup quand le compte arrive après l'affichage.
+            .motion(Motion.smooth, value: store.account != nil)
+            .motion(Motion.smooth, value: store.account?.admin)
+            .motion(Motion.smooth, value: store.account?.groupAdmin)
+            .motion(Motion.smooth, value: store.account?.feedback)
             .background(AppConfig.background)
             .navigationTitle("Réglages")
         }
@@ -204,14 +210,18 @@ private struct Avatar: View {
     let name: String
 
     var body: some View {
-        AsyncImage(url: photo.flatMap(URL.init(string:))) { image in
-            image.resizable().scaledToFill()
-        } placeholder: {
-            Text(name.first.map(String.init) ?? "")
-                .font(.title2.weight(.bold))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .overlay { if name.isEmpty { Image(systemName: "person.fill").font(.title2) } }
+        // Photo du compte téléchargée : fondu depuis l'initiale.
+        AsyncImage(url: photo.flatMap(URL.init(string:)), transaction: Transaction(animation: Motion.pick(Motion.fade))) { phase in
+            if let image = phase.image {
+                image.resizable().scaledToFill().transition(.opacity)
+            } else {
+                Text(name.first.map(String.init) ?? "")
+                    .font(.title2.weight(.bold))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay { if name.isEmpty { Image(systemName: "person.fill").font(.title2) } }
+            }
         }
+
         .frame(width: 58, height: 58)
         .background(Palette.accent.opacity(0.35))
         .clipShape(Circle())

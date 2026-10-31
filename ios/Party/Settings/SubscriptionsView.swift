@@ -21,18 +21,11 @@ struct SubscriptionsView: View {
         .navigationTitle("Abonnements")
         .navigationBarTitleDisplayMode(.inline)
         .overlay {
-            if store.subscriptions == nil {
-                if let error = store.subscriptionsError {
-                    VStack(spacing: 12) {
-                        Text(error).multilineTextAlignment(.center).foregroundStyle(.secondary)
-                        Button("Réessayer") { Task { await store.loadSubscriptions() } }
-                    }
-                    .padding()
-                } else {
-                    ProgressView()
-                }
-            }
+            AdminLoading(loaded: store.subscriptions != nil, error: store.subscriptionsError) { await store.loadSubscriptions() }
         }
+        // Suivi ou plus suivi : la coche se remplit en douceur, le résumé en tête suit.
+        .motion(Motion.snappy, value: store.subscriptions)
+        .motion(Motion.smooth, value: store.subscriptions == nil)
         .overlay(alignment: .bottom) { SettingsNoticeBanner(store: store) }
         .refreshable { await store.loadSubscriptions() }
         .task { await store.loadSubscriptions() }
@@ -45,6 +38,7 @@ struct SubscriptionsView: View {
                 ForEach(list) { topic in
                     let on = subs.follows(kind, topic.id)
                     Button {
+                        Haptics.selection()
                         Task { await store.setSubscription(kind, topic.id, !on) }
                     } label: {
                         HStack(spacing: 12) {
@@ -54,6 +48,8 @@ struct SubscriptionsView: View {
                             Image(systemName: on ? "checkmark.circle.fill" : "circle")
                                 .font(.title3)
                                 .foregroundStyle(on ? Palette.accent : .secondary)
+                                .scaleEffect(on ? 1 : 0.9)
+
                         }
                     }
                     .foregroundStyle(.primary)

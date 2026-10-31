@@ -15,6 +15,11 @@ struct NotificationSettingsView: View {
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        // Réglages relus après l'affichage (autorisation iOS, invité reconnu, mode hôte) : les lignes qui
+        // apparaissent ou s'en vont glissent en place au lieu de faire sauter la liste.
+        .motion(Motion.smooth, value: store.permission)
+        .motion(Motion.smooth, value: store.hostMode)
+        .motion(Motion.smooth, value: store.guest == nil)
         .background(AppConfig.background.ignoresSafeArea())
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
@@ -239,18 +244,7 @@ struct SettingsNoticeBanner: View {
     @ObservedObject var store: SettingsStore
 
     var body: some View {
-        if let notice = store.notice {
-            Text(notice.text)
-                .font(.subheadline.weight(.semibold))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 16).padding(.vertical, 12)
-                .background(notice.isError ? Color.red.opacity(0.9) : Palette.card, in: Capsule())
-                .padding(.horizontal, 16).padding(.bottom, 12)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .task(id: notice) {
-                    try? await Task.sleep(for: .seconds(3))
-                    withAnimation { store.notice = nil }
-                }
-        }
+        NoticeBanner(notice: store.notice.map { NoticeBanner.Notice(text: $0.text, isError: $0.isError) }) { store.notice = nil }
     }
+
 }
