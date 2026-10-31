@@ -3,6 +3,7 @@
 import random
 import re
 import threading
+from xml.sax.saxutils import escape as xml_escape
 import time
 
 import soco
@@ -133,6 +134,9 @@ class Sonos:
     def add_spotify_track(self, uid: str, track_id: str, title: str, position: int) -> int:
         coord = self.coordinator(uid)
         share = ShareLinkPlugin(coord)
+        # Le titre entre tel quel dans les métadonnées XML envoyées au Sonos : un « & » (« HAINE&SEX ») les rendait
+        # invalides et Sonos refusait l'ajout (erreur UPnP 800).
+        title = xml_escape(title)
         # En lecture aléatoire, Sonos refuse un titre inséré à une position (erreur UPnP 800) :
         # on le lui donne « à jouer ensuite », la seule insertion qu'il accepte dans ce mode.
         if "SHUFFLE" in (coord.play_mode or ""):
