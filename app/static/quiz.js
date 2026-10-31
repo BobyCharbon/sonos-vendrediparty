@@ -10,12 +10,15 @@
 const GameFx = (() => {
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");
   const SPRING = "cubic-bezier(.2,1.25,.4,1)", OUT = "cubic-bezier(.2,.8,.2,1)";
-  // Une seule image clé (le départ) : l'arrivée est l'état normal de l'élément (keyframe implicite).
+  // Une seule image clé, le départ (offset 0 obligatoire : seule, elle serait prise pour l'arrivée) ; l'arrivée est l'état normal de l'élément.
   const PRESETS = {
-    rise: { frames: [{ opacity: 0, transform: "translateY(16px) scale(.98)" }], duration: 420, easing: OUT },
-    pop: { frames: [{ opacity: 0, transform: "scale(.6)" }], duration: 480, easing: SPRING },
-    flip: { frames: [{ opacity: 0, transform: "perspective(800px) rotateX(-75deg) translateY(-10px)" }], duration: 620, easing: SPRING },
-    land: { frames: [{ opacity: 0, transform: "translateY(-28px) scale(1.12)" }], duration: 520, easing: SPRING },
+    rise: { frames: [{ opacity: 0, transform: "translateY(16px) scale(.98)", offset: 0 }], duration: 420, easing: OUT },
+    pop: { frames: [{ opacity: 0, transform: "scale(.6)", offset: 0 }], duration: 480, easing: SPRING },
+    flip: { frames: [{ opacity: 0, transform: "perspective(800px) rotateX(-75deg) translateY(-10px)", offset: 0 }], duration: 620, easing: SPRING },
+    land: { frames: [{ opacity: 0, transform: "translateY(-28px) scale(1.12)", offset: 0 }], duration: 520, easing: SPRING },
+    grow: { frames: [{ opacity: 0, transform: "scale(0)", offset: 0 }], duration: 900, easing: SPRING },
+    // Petit rebond sur place (case cochée, compteur qui change) : l'élément ne disparaît jamais.
+    bump: { frames: [{ transform: "none" }, { transform: "scale(1.22)", offset: .35 }, { transform: "none" }], duration: 320, easing: "ease-out" },
     // Gobelet qui tombe : il bondit, puis s'écrase vers son état « tombé » (défini par le CSS du jeu).
     drop: { frames: [{ opacity: 1, transform: "none" }, { opacity: 1, transform: "translateY(-8px) scale(1.14)", offset: .25 }], duration: 560, easing: "ease-in" },
   };
