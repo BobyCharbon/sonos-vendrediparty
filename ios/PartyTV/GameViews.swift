@@ -20,7 +20,7 @@ struct GameView: View {
             if game["current"].isNull { RoomTV(room: game, join: join) } else { GameView(game: game["current"], join: join) }
         } else if game["phase"].string == "lobby" {
             LobbyView(game: game, join: join)
-        } else if game["phase"].string == "end" && !["undercover", "president"].contains(game["type"].string ?? "") {
+        } else if game["phase"].string == "end" && !["undercover", "president", "beerpong"].contains(game["type"].string ?? "") {
             EndTV(game: game)
         } else {
             VStack(alignment: .leading, spacing: 30) {

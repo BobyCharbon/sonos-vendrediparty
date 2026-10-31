@@ -120,3 +120,18 @@ struct OutcomeTests {
         #expect(Outcome.of(.object(["type": .string("never"), "phase": .string("question")])) == nil)
     }
 }
+
+/// Beer pong : l'annonce ne montre que la sentence du gobelet, jamais les gorgées des précédents.
+struct BeerPongOutcomeTests {
+    private func game(_ last: [String: JSON], log: [JSON]) -> JSON {
+        .object(["type": .string("beerpong"), "phase": .string("play"), "sips_log": .array(log),
+                 "bp": .object(["last": .object(last), "players": .array([]), "team_names": .object([:])])])
+    }
+
+    @Test("Une sentence de sport n'annonce pas les gorgées d'avant")
+    func sportOnly() throws {
+        let old: JSON = .object(["n": .number(1), "name": .string("Boby"), "drink": .number(2), "give": .number(0), "age": .number(1)])
+        let o = try #require(Outcome.of(game(["n": .number(4), "name": .string("Tom"), "kind": .string("sport"), "text": .string("15 abdos"), "team": .string("red")], log: [old])))
+        #expect(o.lines.map(\.name) == ["Tom"] && o.lines(.drink).isEmpty)
+    }
+}

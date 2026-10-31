@@ -8,9 +8,6 @@ struct BeerPongTV: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 30) {
-            if let winner = B["winner"].string {
-                Text("🏆 Les \(B["team_names"][winner].string ?? winner) gagnent !").font(.system(size: 90, weight: .black)).foregroundStyle(TV.coral)
-            }
             HStack(alignment: .center, spacing: 40) {
                 rack("red", color: Color(red: 1, green: 0.3, blue: 0.37))
                 Rectangle().fill(.white.opacity(0.4)).frame(width: 6).padding(.vertical, 20)

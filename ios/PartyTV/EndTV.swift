@@ -6,7 +6,11 @@ struct EndTV: View {
     let game: JSON
     @State private var risen = false
 
-    private var ranking: [(name: String, value: String)] { SideBoard.rows(game)?.1 ?? [] }
+    /// Podium des points ou des jetons seulement : un classement des gorgées n'a pas de gagnant (il a son prix à part).
+    private var ranking: [(name: String, value: String)] {
+        guard let rows = SideBoard.rows(game), !rows.0.contains("Gorgées") else { return [] }
+        return rows.1
+    }
     private var players: [JSON] { game["players"].array }
 
     var body: some View {

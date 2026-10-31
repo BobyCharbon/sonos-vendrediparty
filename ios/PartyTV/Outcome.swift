@@ -239,7 +239,7 @@ extension Outcome {
         }
         guard var o, !(o.headline.isEmpty && o.lines.isEmpty) else { return nil }
         // Gorgées comptées par le serveur mais pas nommées par le jeu (Quiz : les mauvaises réponses boivent…).
-        if o.lines(.drink).isEmpty && o.lines(.give).isEmpty, let sipsNow = fromSipsLog(g), !["biskit", "pyramid"].contains(g["type"].string ?? "") {
+        if o.lines(.drink).isEmpty && o.lines(.give).isEmpty, let sipsNow = fromSipsLog(g), !["biskit", "pyramid", "beerpong"].contains(g["type"].string ?? "") {
             o.lines = o.lines.filter { $0.kind != .lose || $0.amount != nil } + sipsNow.lines
         }
         return o
@@ -259,7 +259,11 @@ extension Outcome {
         var line = Line(name: name, kind: .info, detail: last["text"].string)
         if kind == "sips" { line = Line(name: name, kind: .drink, amount: last["sips"].int) }
         if kind == "shot" { line = Line(name: name, kind: .drink, detail: "Cul sec : un shot !") }
-        return Outcome(headline: "\(BeerPongTV.icon(kind)) \(last["text"].string ?? "")", lines: [line], key: "bp-\(n)")
+        var lines = [line]
+        if last["effect"].string == "team_sip", let team = last["team"].string {  // malus : toute l'équipe boit 1
+            lines = B["players"].array.filter { $0["team"].string == team }.compactMap { $0["name"].string }.map { Line(name: $0, kind: .drink, amount: 1) }
+        }
+        return Outcome(headline: "\(BeerPongTV.icon(kind)) \(last["text"].string ?? "")", lines: lines, key: "bp-\(n)")
     }
 
     private static func blackjack(_ g: JSON, _ round: String) -> Outcome {
