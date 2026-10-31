@@ -29,7 +29,7 @@ struct DebateTV: View {
                     }
                 }
             } else {
-                Text("\(D["voted"].int ?? 0)/\(D["total"].int ?? 0) ont voté").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender)
+                Text("\(D["voted"].int ?? 0)/\(D["total"].int ?? 0) ont voté").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender).contentTransition(.numericText())
                 PlayersRow(players: game["players"].array.map { voted($0, D["done"].array.contains($0["pid"])) })
             }
         }

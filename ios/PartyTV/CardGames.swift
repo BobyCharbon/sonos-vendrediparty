@@ -15,7 +15,7 @@ struct BlackjackTV: View {
             }
             if game["phase"].string == "bet" {
                 let bets = B["seats"].array.filter { !$0["hand"].isNull }.count
-                Text("\(bets)/\(B["seats"].array.count) ont misé").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender)
+                Text("\(bets)/\(B["seats"].array.count) ont misé").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender).contentTransition(.numericText())
             }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 380), spacing: 24)], alignment: .leading, spacing: 24) {
                 ForEach(Array(B["seats"].array.enumerated()), id: \.offset) { _, seat in seatView(seat) }
@@ -80,7 +80,7 @@ struct CasinoTV: View {
         VStack(alignment: .leading, spacing: 28) {
             if game["phase"].string == "bet" {
                 let ready = C["table"].array.filter { $0["ready"].bool }.count
-                Text("🎰 Faites vos jeux ! \(ready)/\(C["table"].array.count) prêts").font(.system(size: 64, weight: .black)).foregroundStyle(TV.coral)
+                Text("🎰 Faites vos jeux ! \(ready)/\(C["table"].array.count) prêts").font(.system(size: 64, weight: .black)).foregroundStyle(TV.coral).contentTransition(.numericText())
             }
             if rolling {
                 HStack(spacing: 30) {

@@ -122,7 +122,8 @@ struct EndTV: View {
 /// Respiration seulement quand `on` (la médaille d'or une fois le gagnant annoncé).
 struct BreathingIf: ViewModifier {
     let on: Bool
+    var scale: CGFloat = 1.12
     func body(content: Content) -> some View {
-        if on { content.breathing(period: 2.2, scale: 1.12) } else { content }
+        if on { content.breathing(period: 2.2, scale: scale) } else { content }
     }
 }

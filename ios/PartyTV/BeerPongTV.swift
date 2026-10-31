@@ -15,12 +15,18 @@ struct BeerPongTV: View {
             }
             .frame(maxWidth: .infinity)
             let pending = B["pending"]
-            if !pending.isNull {
-                Text("🎯 \(pending["name"].string ?? "?") a perdu un gobelet : la sentence arrive…")
-                    .font(.system(size: 52, weight: .black)).foregroundStyle(TV.coral).lineLimit(2).minimumScaleFactor(0.5)
-            } else if !B["last"].isNull {
-                sentence(B["last"])
+            // Superposées pendant la transition (sentence suivante, attente) plutôt qu'empilées.
+            ZStack(alignment: .leading) {
+                if !pending.isNull {
+                    Text("🎯 \(pending["name"].string ?? "?") a perdu un gobelet : la sentence arrive…")
+                        .font(.system(size: 52, weight: .black)).foregroundStyle(TV.coral).lineLimit(2).minimumScaleFactor(0.5)
+                        .breathing(period: 1.4, scale: 1.03)
+                        .transition(.popIn)
+                } else if !B["last"].isNull {
+                    sentence(B["last"])
+                }
             }
+            .clipped()
         }
     }
 
@@ -34,16 +40,13 @@ struct BeerPongTV: View {
                 Spacer()
                 Text("\(B["alive"][team].int ?? 0)/\(cups.count)").font(.system(size: 44, weight: .black).monospacedDigit()).foregroundStyle(color)
                     .contentTransition(.numericText())
+                    .bump(on: B["alive"][team].int ?? 0, scale: 1.3)
             }
             VStack(spacing: 10) {
                 ForEach(Array(rows.enumerated()), id: \.offset) { r, n in
                     HStack(spacing: 10) {
                         ForEach(0..<n, id: \.self) { i in
-                            let up = cups[safe: starts[r] + i]?.bool ?? false
-                            Circle().fill(color.gradient).frame(width: 64, height: 64)
-                                .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 3))
-                                .opacity(up ? 1 : 0.12).scaleEffect(up ? 1 : 0.7)
-                                .animation(.spring(response: 0.45, dampingFraction: 0.55), value: up)
+                            CupView(up: cups[safe: starts[r] + i]?.bool ?? false, color: color)
                         }
                     }
                 }
@@ -67,12 +70,48 @@ struct BeerPongTV: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(TV.surface, radius: 36)
         .id(last["n"].int ?? 0)
-        .transition(.motion(.scale(scale: 0.8).combined(with: .opacity)))
+        // Une sentence chasse l'autre : la nouvelle pousse l'ancienne (elles ne se superposent plus).
+        .transition(.motion(.push(from: .trailing)))
     }
 
     static func icon(_ kind: String?) -> String {
         ["sips": "🍺", "shot": "🥃", "dare": "🎭", "wtf": "🤪", "quiz": "🧠", "sport": "💪", "bonus": "🎁", "malus": "💣"][kind ?? ""] ?? "🎯"
     }
+}
+
+/// Un gobelet. Touché : il s'enfonce et pâlit, une onde d'éclaboussure part de lui (une seule fois, au changement).
+struct CupView: View {
+    let up: Bool
+    let color: Color
+    static let size: CGFloat = 64
+    @State private var splash = false
+
+    var body: some View {
+        Circle().fill(color.gradient).frame(width: Self.size, height: Self.size)
+            .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 3))
+            .opacity(up ? 1 : 0.12).scaleEffect(up ? 1 : 0.7)
+            .animation(Motion.animation(.spring(response: 0.45, dampingFraction: 0.55)), value: up)
+            .overlay {
+                // L'onde : un anneau qui s'élargit et s'efface.
+                Circle().stroke(color, lineWidth: splash ? 1 : 8)
+                    .scaleEffect(splash ? 2.6 : 0.8)
+                    .opacity(splash ? 0 : 0.95)
+                    .allowsHitTesting(false)
+                    .opacity(splashing ? 1 : 0)
+            }
+            .onChange(of: up) { was, now in
+                guard was, !now, !Motion.reduced else { return }
+                splashing = true
+                withAnimation(.easeOut(duration: 0.9)) { splash = true }
+                Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    splashing = false
+                    splash = false
+                }
+            }
+    }
+
+    @State private var splashing = false
 }
 
 extension Array {

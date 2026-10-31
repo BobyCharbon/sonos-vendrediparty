@@ -208,7 +208,9 @@ struct OutcomeFlash: View {
             Text(group.kind.symbol).font(.system(size: 64))
                 .frame(width: 104, height: 104)
                 .background(group.kind.color.opacity(0.25), in: Circle())
-            (Text(group.who + " ").foregroundStyle(.white) + Text(group.verb).foregroundStyle(group.kind.color))
+            // Une précision déjà dite par le titre (sentence du Beer pong) n'est pas répétée : seulement qui.
+            let verb = !group.verb.isEmpty && outcome.headline.contains(group.verb) ? "" : group.verb
+            (Text(group.who + " ").foregroundStyle(.white) + Text(verb).foregroundStyle(group.kind.color))
                 .font(.system(size: 72, weight: .heavy))
                 .lineLimit(2).minimumScaleFactor(0.45)
         }
@@ -243,7 +245,7 @@ struct ConfettiBurst: View {
             Canvas { context, size in
                 guard t < Self.duration else { return }
                 let colors: [Color] = [kind.color, TV.accent, TV.lavender, TV.coral]
-                let symbol = context.resolve(Text(kind.symbol).font(.system(size: 54)))
+                let symbol = context.resolve(Text(kind == .info ? "🎉" : kind.symbol).font(.system(size: 54)))
                 let center = CGPoint(x: size.width / 2, y: size.height * 0.45)
                 let fade = max(0, 1 - max(0, t - Self.duration + 1))
                 context.opacity = fade

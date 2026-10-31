@@ -21,7 +21,7 @@ struct QuizTV: View {
                         if game["phase"].string == "q", let left = q["left"].double {
                             Label("\(Int(left.rounded(.up))) s", systemImage: "timer").font(.title2.monospacedDigit().bold())
                         }
-                        Text("\(q["answered"].int ?? 0)/\(q["players"].int ?? 0) ont répondu").font(.title3).foregroundStyle(TV.muted)
+                        Text("\(q["answered"].int ?? 0)/\(q["players"].int ?? 0) ont répondu").font(.title3).foregroundStyle(TV.muted).contentTransition(.numericText())
                         if let winner = q["winner"].string { Text("⚡ \(winner) le plus rapide").font(.title3.bold()).foregroundStyle(TV.coral) }
                     }
                 } else if game["phase"].string == "run" {
@@ -64,7 +64,7 @@ struct LikelyTV: View {
                         bar(row["name"].string ?? "?", row["count"].int ?? 0, of: max(1, result["votes"].int ?? 1))
                     }
                 } else {
-                    Text("\(L["voted"].int ?? 0)/\(L["total"].int ?? 0) ont voté").font(.title2).foregroundStyle(TV.muted)
+                    Text("\(L["voted"].int ?? 0)/\(L["total"].int ?? 0) ont voté").font(.title2).foregroundStyle(TV.muted).contentTransition(.numericText())
                     PlayersRow(players: game["players"].array.map { p in
                         voted(p, L["done"].array.contains(p["pid"]))
                     })
@@ -96,7 +96,7 @@ struct PurityTV: View {
                             rows: P["ranking"].array.map { ($0["name"].string ?? "?", "\($0["score"].int ?? 0) %") })
             } else {
                 Text("\(P["count_submitted"].int ?? 0)/\(P["count_players"].int ?? 0) ont terminé le test")
-                    .font(.system(size: 60, weight: .heavy))
+                    .font(.system(size: 60, weight: .heavy)).contentTransition(.numericText())
                 ProgressView(value: Double(P["count_submitted"].int ?? 0), total: Double(max(1, P["count_players"].int ?? 1)))
                     .tint(TV.accent).frame(width: 900)
                 Text("Chacun répond en secret sur son téléphone : les résultats arrivent ici.").font(.title3).foregroundStyle(TV.muted)
@@ -130,7 +130,7 @@ struct UndercoverTV: View {
                     .font(.title.bold())
             }
             if game["phase"].string == "vote" {
-                Text("\(game["votes_count"].int ?? 0)/\(game["players"].array.filter { $0["alive"].bool }.count) ont voté").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender)
+                Text("\(game["votes_count"].int ?? 0)/\(game["players"].array.filter { $0["alive"].bool }.count) ont voté").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender).contentTransition(.numericText())
             }
             if game["phase"].string != "end" {
                 PlayersRow(players: speakingOrder, highlight: Set(game["candidates"].array.compactMap(\.string)), size: 110)
@@ -183,7 +183,7 @@ struct QuestionVoteTV: View {
                     Leaderboard(title: "Les votes", rows: rows.map { ($0["name"].string ?? "?", "\($0["count"].int ?? 0) vote\(($0["count"].int ?? 0) > 1 ? "s" : "")") })
                 }
             } else {
-                Text("\(game["votes_count"].int ?? 0)/\(game["players"].array.count) ont voté").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender)
+                Text("\(game["votes_count"].int ?? 0)/\(game["players"].array.count) ont voté").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender).contentTransition(.numericText())
                 PlayersRow(players: game["players"].array, size: 110)
             }
         }

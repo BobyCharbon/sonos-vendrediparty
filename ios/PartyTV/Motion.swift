@@ -15,6 +15,20 @@ enum Motion {
     static func animation(_ a: Animation) -> Animation { reduced ? .easeInOut(duration: 0.25) : a }
 }
 
+extension View {
+    /// Petit sursaut quand `value` change (un vote de plus, un gobelet en moins) : l'œil voit ce qui vient de bouger.
+    /// Ne se déclenche qu'au changement, jamais au rafraîchissement d'un état identique.
+    @ViewBuilder func bump<V: Equatable>(on value: V, scale: CGFloat = 1.18) -> some View {
+        if Motion.reduced {
+            self
+        } else {
+            phaseAnimator([1, scale], trigger: value) { view, s in view.scaleEffect(s) } animation: { s in
+                s == scale ? .spring(response: 0.22, dampingFraction: 0.5) : .spring(response: 0.35, dampingFraction: 0.7)
+            }
+        }
+    }
+}
+
 extension AnyTransition {
     /// La transition voulue, ou un fondu si les animations sont réduites.
     static func motion(_ t: AnyTransition) -> AnyTransition { Motion.reduced ? .opacity : t }

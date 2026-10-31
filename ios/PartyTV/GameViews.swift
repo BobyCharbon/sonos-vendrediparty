@@ -25,11 +25,22 @@ struct GameView: View {
         } else {
             VStack(alignment: .leading, spacing: 30) {
                 // Le résultat de la manche d'abord, en très grand ; le jeu dessous.
-                if let outcome = Outcome.of(game), game["type"].string != "roulette" {
+                // Roulette et Beer pong montrent déjà le résultat en grand dans leur vue (prénom tiré, sentence) : pas en double.
+                if let outcome = Outcome.of(game), Self.boardShown(game) {
                     OutcomeBoard(outcome: outcome).transition(.motion(.move(edge: .top).combined(with: .opacity)))
                 }
                 board
             }
+        }
+    }
+
+    /// Tableau des résultats dans la scène : pas pour la Roulette (le prénom tiré y est déjà en très grand) ni pour une
+    /// sentence de Beer pong (sa carte est dessous) ; l'équipe gagnante du Beer pong, elle, y reste.
+    static func boardShown(_ game: JSON) -> Bool {
+        switch game["type"].string {
+        case "roulette": return false
+        case "beerpong": return game["bp"]["winner"].string != nil
+        default: return true
         }
     }
 
@@ -169,9 +180,23 @@ struct PlayersRow: View {
     var size: CGFloat = 92
     var body: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: size + 60), spacing: 20)], alignment: .leading, spacing: 24) {
-            ForEach(Array(players.enumerated()), id: \.offset) { _, p in
+            // Chaque pastille suit son joueur : un nouvel arrivant apparaît en grossissant, les autres glissent.
+            ForEach(Self.keyed(players), id: \.key) { item in
+                let p = item.player
                 PlayerBadge(player: p, size: size, highlight: highlight.contains(p["pid"].string ?? ""))
+                    .transition(.popIn)
             }
+        }
+    }
+
+    /// Identité d'une pastille : l'identifiant du joueur, sinon son prénom (numéroté s'il revient).
+    static func keyed(_ players: [JSON]) -> [(key: String, player: JSON)] {
+        var seen: [String: Int] = [:]
+        return players.map { p in
+            let base = p["pid"].string ?? p["name"].string ?? "?"
+            seen[base, default: 0] += 1
+            let n = seen[base] ?? 1
+            return (n == 1 ? base : "\(base)#\(n)", p)
         }
     }
 }
@@ -250,6 +275,8 @@ struct RoomTV: View {
                 Text("\(n)").font(.system(size: 40, weight: .black).monospacedDigit()).foregroundStyle(.black)
                     .frame(minWidth: 58, minHeight: 58).background(top ? TV.coral : TV.lavender, in: Capsule())
                     .contentTransition(.numericText())
+                    .bump(on: n, scale: 1.3)
+                    .transition(.popIn)
             }
         }
         .padding(.horizontal, 22).padding(.vertical, 12)
@@ -270,16 +297,32 @@ struct Leaderboard: View {
         let tied = Set(rows.map(\.value)).count <= 1
         VStack(alignment: .leading, spacing: 10) {
             Text(title).font(.title3.bold())
-            ForEach(Array(rows.prefix(limit).enumerated()), id: \.offset) { i, row in
-                let rank = rows.firstIndex { $0.value == row.value } ?? i
+            // Une ligne par joueur (pas par place) : quand quelqu'un double un autre, sa ligne glisse à sa nouvelle place.
+            ForEach(Self.keyed(Array(rows.prefix(limit))), id: \.key) { item in
+                let row = item.row
+                let rank = rows.firstIndex { $0.value == row.value } ?? item.index
                 HStack {
                     Text(tied ? "·" : rank == 0 ? "🥇" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : "\(rank + 1)").font(.headline).frame(width: 48)
+                        .contentTransition(.opacity)
                     Text(row.name).font(.headline).lineLimit(1)
                     Spacer()
                     Text(row.value).font(.headline.monospacedDigit()).foregroundStyle(TV.lavender).lineLimit(1).fixedSize()
+                        .contentTransition(.numericText())
+                        .bump(on: row.value)
                 }
                 .padding(.horizontal, 20).padding(.vertical, 8).card(!tied && rank == 0 ? TV.accent.opacity(0.35) : TV.surface, radius: 18)
+                .transition(.popIn)
             }
+        }
+    }
+
+    /// Identité stable de chaque ligne : le prénom (« Léa#2 » pour un second homonyme).
+    static func keyed(_ rows: [(name: String, value: String)]) -> [(key: String, index: Int, row: (name: String, value: String))] {
+        var seen: [String: Int] = [:]
+        return rows.enumerated().map { i, row in
+            seen[row.name, default: 0] += 1
+            let n = seen[row.name] ?? 1
+            return (n == 1 ? row.name : "\(row.name)#\(n)", i, row)
         }
     }
 }

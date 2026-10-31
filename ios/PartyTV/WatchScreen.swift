@@ -48,8 +48,8 @@ struct WatchScreen: View {
                     // Un résultat chasse l'autre : chaque annonce rejoue son entrée.
                     OutcomeFlash(outcome: flash)
                         .id(flash.key)
-                        .transition(.motion(.asymmetric(insertion: .opacity,
-                                                        removal: .scale(scale: 0.85).combined(with: .opacity))))
+                        .transition(.motion(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.3).delay(0.22)),
+                                                        removal: .scale(scale: 0.85).combined(with: .opacity).animation(.easeIn(duration: 0.22)))))
                 }
                 .transition(.opacity)
             }
