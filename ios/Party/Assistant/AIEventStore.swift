@@ -28,6 +28,7 @@ enum AIEvent {
         var place_query: String
         var place_name: String
         var place_broad: String
+        var address_complete: Bool
         var price_chf: Double
         var payment_info: String
         var max_participants: Int
@@ -71,6 +72,7 @@ enum AIEvent {
             place_query = text(.place_query)
             place_name = text(.place_name)
             place_broad = text(.place_broad)
+            address_complete = flag(.address_complete, true)
             price_chf = (try? c.decodeIfPresent(Double.self, forKey: .price_chf)) ?? nil ?? 0
             payment_info = text(.payment_info)
             max_participants = number(.max_participants)
@@ -162,7 +164,6 @@ final class AIEventStore: ObservableObject {
     /// Lieux trouvés pour ce qui a été dit ; la personne choisit le bon (rien n'est choisi pour elle).
     @Published private(set) var candidates: [AIEvent.Place] = []
     @Published private(set) var placeSource = ""
-    @Published private(set) var noAddress = false
     @Published private(set) var thinking = false
     @Published private(set) var creating = false
     @Published private(set) var created: AIEvent.Created?
@@ -184,7 +185,6 @@ final class AIEventStore: ObservableObject {
         draft = nil
         place = nil
         candidates = []
-        noAddress = false
         lastQuery = ""
         created = nil
         error = nil
@@ -218,7 +218,6 @@ final class AIEventStore: ObservableObject {
     func findPlace(_ query: String, broad: String = "") async {
         lastQuery = query
         place = nil
-        noAddress = false
         candidates = []
         guard !query.isEmpty else { return }
         searchingPlace = true
@@ -264,19 +263,13 @@ final class AIEventStore: ObservableObject {
     /// La personne confirme le bon lieu (ou change d'avis).
     func choose(_ chosen: AIEvent.Place?) {
         place = chosen
-        noAddress = false
     }
 
-    /// « Pas d'adresse » : seul le nom dit est gardé.
-    func withoutAddress() {
-        place = nil
-        noAddress = true
-    }
-
-    /// « Créer » n'est possible que si le brouillon est complet et que le lieu dit a été confirmé (ou laissé sans adresse).
+    /// « Créer » n'est possible que si le brouillon est complet et que le lieu a été confirmé sur la carte : les invités
+    /// ont toujours une adresse où se rendre.
     var canCreate: Bool {
         guard let draft, draft.ready else { return false }
-        return draft.place_query.isEmpty || place != nil || noAddress
+        return place != nil
     }
 
     #if DEBUG

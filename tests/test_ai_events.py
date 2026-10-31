@@ -12,7 +12,7 @@ from app.accounts import AccountError
 
 NEXT_WEEK = (datetime.now(ev.ZURICH) + timedelta(days=7)).strftime("%Y-%m-%dT20:00")
 READY = {"status": "ready", "questions": [], "title": "Raclette chez Léa", "description": "Raclette, amène une salade.",
-         "start": NEXT_WEEK, "end": "", "place_query": "Rue du Lac 12, Vevey", "place_name": "Chez Léa", "place_broad": "", "price_chf": 0,
+         "start": NEXT_WEEK, "end": "", "place_query": "Rue du Lac 12, Vevey", "place_name": "Chez Léa", "place_broad": "", "address_complete": True, "price_chf": 0,
          "max_participants": 12, "category": "Soirée", "audience": "Ski", "invitees": ["Tom"], "not_understood": [],
          "pot": True, "bring": ["Salade", "Vin"],
          "summary": "Raclette chez Léa samedi prochain à 20 h"}
@@ -154,7 +154,7 @@ def test_rights_and_unsafe_links_are_checked(tmp_path):
 
 def test_an_incomplete_draft_cannot_be_created(tmp_path):
     a, _, _ = make(tmp_path)
-    with pytest.raises(AccountError, match="titre ou la date"):
+    with pytest.raises(AccountError, match="titre, la date"):
         a.create("ok", {**READY, "start": ""}, None)
 
 
@@ -185,7 +185,7 @@ def test_a_date_poll_needs_two_dates_and_writes_them(tmp_path):
     a, accounts, _ = make(tmp_path)
     later = (datetime.now(ev.ZURICH) + timedelta(days=8)).strftime("%Y-%m-%dT19:00")
     poll = {**READY, "date_mode": "poll", "start": "", "date_options": [NEXT_WEEK]}
-    with pytest.raises(AccountError, match="titre ou la date"):
+    with pytest.raises(AccountError, match="titre, la date"):
         a.create("ok", poll, None)
     a.create("ok", {**poll, "date_options": [NEXT_WEEK, later]}, None)
     row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
@@ -194,7 +194,8 @@ def test_a_date_poll_needs_two_dates_and_writes_them(tmp_path):
 
 
 def test_defaults_match_the_web_form_when_nothing_is_said(tmp_path):
-    d = ev.clean_draft({"title": "Ciné", "start": NEXT_WEEK}, datetime.now(ev.ZURICH),
+    d = ev.clean_draft({"title": "Ciné", "start": NEXT_WEEK, "place_query": "Pathé Flon, Lausanne", "address_complete": True},
+                       datetime.now(ev.ZURICH),
                        {"categories": [], "tags": [], "audiences": ["Vendredi Party"], "people": []})
     assert d["status"] == "ready" and d["plus_ones"] and d["allow_maybe"] and d["waitlist"] and d["forum"] and d["notify"]
     assert d["polls"] == [] and d["date_mode"] == "fixed"
@@ -213,3 +214,12 @@ def test_a_failed_poll_is_reported_without_losing_the_event(tmp_path):
     accounts._get = broken
     out = a.create("ok", FONDUE, None)
     assert out["status"] == "published" and out["problems"] == ["le sondage « Tu prends quoi ? »"]
+
+
+def test_chez_moi_without_a_full_address_always_asks_for_it(tmp_path):
+    a, _, _ = make(tmp_path, {**READY, "place_query": "Lutry", "place_name": "Chez Boby", "address_complete": False,
+                              "status": "ready", "questions": []})
+    d = a.draft("ok", ["Mon anniversaire chez moi samedi à 19h"], None)
+    assert d["status"] == "needs_info" and any("adresse complète" in q for q in d["questions"])
+    with pytest.raises(AccountError):
+        a.create("ok", {**READY, "address_complete": False}, None)

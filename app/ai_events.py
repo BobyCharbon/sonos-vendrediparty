@@ -47,6 +47,10 @@ Tu remplis TOUT le formulaire de l'événement, et tu le modifies quand la perso
   en corrigeant les fautes de dictée ; vide si aucun lieu. place_name : nom court du lieu. place_broad : une recherche
   plus large du même lieu si le nom a pu être mal dicté : type de lieu et ville (« bar techno, Ferney-Voltaire ») ; vide
   pour une adresse précise.
+- address_complete : true seulement si le lieu permet à tous les invités de s'y rendre sans rien demander : une adresse
+  complète (rue, numéro, NPA ou localité) ou un établissement public nommé avec sa ville (« Café de Collex »,
+  « Pathé Flon, Lausanne »). « Chez moi », « chez Léa », « à mon domicile », une ville ou un quartier seuls : false, et
+  tu demandes l'adresse complète (« Quelle est l'adresse complète : rue, numéro, NPA et localité ? »).
 - price_chf : prix par personne (0 si gratuit ou non dit). payment_info : comment payer (« TWINT », « sur place »,
   « billets en ligne »).
 - max_participants : 0 = pas de limite. waitlist : liste d'attente quand c'est plein (true par défaut).
@@ -67,7 +71,7 @@ Tu remplis TOUT le formulaire de l'événement, et tu le modifies quand la perso
 - summary : une phrase qui résume l'événement tel que tu l'as compris, en tutoyant.
 - not_understood : ce que tu n'as pas compris ou pas pu placer, cité avec ce que tu en penses. Vide si tout est clair.
 
-S'il manque la date (ou les dates à voter), ou si un point est vraiment ambigu (deux dates possibles, une heure sans
+S'il manque la date (ou les dates à voter), l'adresse complète (address_complete false), ou si un point est vraiment ambigu (deux dates possibles, une heure sans
 matin/soir évident, un nom qui correspond à plusieurs personnes), status = « needs_info » et questions = les questions
 précises, courtes, en tutoyant (une par point). Ne pose pas de question sur ce que tu peux déduire. Sinon status =
 « ready ». Garde toujours tout ce qui est déjà compris ; quand la personne répond ou corrige, applique exactement ce
@@ -96,7 +100,7 @@ def schema(choices: dict[str, list[str]]) -> dict:
         "title": text, "description": text,
         "date_mode": {"type": "string", "enum": ["fixed", "poll"]}, "start": text, "end": text,
         "date_options": texts, "poll_deadline": text,
-        "place_query": text, "place_name": text, "place_broad": text,
+        "place_query": text, "place_name": text, "place_broad": text, "address_complete": flag,
         "price_chf": {"type": "number"}, "payment_info": text,
         "max_participants": count, "waitlist": flag, "plus_ones": flag, "max_plus_ones": count,
         "allow_maybe": flag, "rsvp_deadline": text, "show_participants": flag, "forum": flag, "notify": flag,
@@ -153,6 +157,10 @@ def clean_draft(raw: dict, now: datetime, choices: dict[str, list[str]]) -> dict
     if end and end < start:
         end = ""
     slots = sorted({s for s in (_when(v, now) for v in raw.get("date_options") or []) if s})[:10] if poll_mode else []
+    # Toujours une adresse où les invités peuvent se rendre : « chez moi » ou une ville seule ne suffisent pas.
+    located = bool(_text(raw, "place_query", 200)) and raw.get("address_complete") is True
+    if not located and not any("adresse" in q.lower() for q in questions):
+        questions.append("Quelle est l'adresse complète : rue, numéro, NPA et localité ?")
     if not title and not any("titre" in q.lower() or "appeler" in q.lower() for q in questions):
         questions.append("Comment veux-tu appeler cet événement ?")
     dated = len(slots) >= 2 if poll_mode else bool(start)
@@ -166,7 +174,7 @@ def clean_draft(raw: dict, now: datetime, choices: dict[str, list[str]]) -> dict
             polls.append({"question": question, "options": options, "multiple": bool(p.get("multiple")),
                           "anonymous": bool(p.get("anonymous")), "add_options": bool(p.get("add_options"))})
     return {
-        "status": "ready" if title and dated and not questions else "needs_info",
+        "status": "ready" if title and dated and located and not questions else "needs_info",
         "questions": questions,
         "title": title,
         "description": _text(raw, "description", 2000),
@@ -176,6 +184,7 @@ def clean_draft(raw: dict, now: datetime, choices: dict[str, list[str]]) -> dict
         "place_query": _text(raw, "place_query", 200),
         "place_name": _text(raw, "place_name", 120),
         "place_broad": _text(raw, "place_broad", 200),
+        "address_complete": located,
         "price_chf": round(_number(raw.get("price_chf"), 10000.0), 2),
         "payment_info": _text(raw, "payment_info", 200),
         "max_participants": _number(raw.get("max_participants"), 10000, int),
@@ -334,7 +343,7 @@ class EventAssistant:
         now = datetime.now(ZURICH)
         d = o.clean({**draft, "questions": []}, now)
         if d["status"] != "ready":
-            raise AccountError("Il manque encore le titre ou la date.")
+            raise AccountError("Il manque encore le titre, la date ou l'adresse complète.")
         audience = o.audiences.get(d["audience"])
         if audience == "people" and not d["invitees"]:
             raise AccountError("Dis qui inviter : personne n'est nommé.")

@@ -60,7 +60,6 @@ struct AIEventView: View {
                 store.unsent = nil
             }
             .onChange(of: store.place) { _ in restartCountdown() }
-            .onChange(of: store.noAddress) { _ in restartCountdown() }
             .onDisappear { dictation.finish(); tick?.cancel() }
         }
         .tint(Palette.accent)
@@ -220,7 +219,7 @@ struct AIEventView: View {
                 .font(.caption).foregroundStyle(.secondary)
             if store.canCreate { createButton }
             else if d.ready && !store.searchingPlace {
-                Text("Confirme le lieu pour pouvoir créer l'événement.").font(.footnote).foregroundStyle(.secondary)
+                Text("Confirme l'adresse sur la carte pour pouvoir créer l'événement.").font(.footnote).foregroundStyle(.secondary)
             }
         }
         .padding(16)
@@ -261,16 +260,13 @@ struct AIEventView: View {
             HStack(spacing: 10) { ProgressView(); Text("Recherche du lieu…").foregroundStyle(.secondary) }
         } else if let p = store.place {
             chosenPlace(p)
-        } else if store.noAddress {
-            row("mappin.and.ellipse", (d.place_name.isEmpty ? d.place_query : d.place_name) + "\nSans adresse")
         } else if !store.candidates.isEmpty {
             placeChoices(d)
         } else if !d.place_query.isEmpty {
             row("mappin.and.ellipse", (d.place_name.isEmpty ? d.place_query : d.place_name)
-                + "\nLieu introuvable : dis l'adresse exacte, ou garde-le sans adresse")
-            Button("Garder sans adresse") { store.withoutAddress() }.font(.footnote)
+                + "\nLieu introuvable : dis l'adresse complète (rue, numéro, NPA, localité)")
         } else {
-            row("mappin.and.ellipse", d.place_name.isEmpty ? "Lieu non précisé" : d.place_name)
+            row("mappin.and.ellipse", (d.place_name.isEmpty ? "Lieu" : d.place_name) + " : adresse complète à préciser")
         }
     }
 
@@ -321,12 +317,8 @@ struct AIEventView: View {
                 .padding(10)
                 .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            HStack {
-                Button("Aucun : je précise") { typing = true }
-                Spacer()
-                Button("Sans adresse") { store.withoutAddress() }
-            }
-            .font(.footnote)
+            Button("Aucun : je dis l'adresse complète") { typing = true }
+                .font(.footnote)
         }
         .accessibilityIdentifier("ai-place-choices")
     }
