@@ -19,6 +19,8 @@ enum AIEvent {
         var max_participants: Int
         var category: String
         var audience: String
+        var invitees: [String]
+        var not_understood: [String]
         var pot: Bool
         var bring: [String]
         var summary: String
@@ -144,9 +146,11 @@ final class AIEventStore: ObservableObject {
         let street = [p.thoroughfare, p.subThoroughfare].compactMap { $0 }.joined(separator: " ")
         let town = [p.postalCode, p.locality].compactMap { $0 }.joined(separator: " ")
         let address = [street, town].filter { !$0.isEmpty }.joined(separator: ", ")
-        // Seule la ville est trouvée : le nom dit par la personne (« Fun Planet ») reste le nom du lieu.
+        // Une adresse ou une ville seulement (pas un lieu nommé) : le nom dit par la personne (« Chez Boby »,
+        // « Fun Planet ») reste le nom du lieu.
         let said = draft?.place_name ?? ""
-        let name = p.thoroughfare == nil && !said.isEmpty ? said : (item.name ?? (said.isEmpty ? query : said))
+        let plain = p.thoroughfare == nil || item.name == nil || address.hasPrefix(item.name ?? "") || item.name == p.locality
+        let name = plain && !said.isEmpty ? said : (item.name ?? (said.isEmpty ? query : said))
         place = AIEvent.Place(name: name, address: address.isEmpty ? (p.title ?? "") : address,
                               url: AIEvent.googleMapsURL([name, address].filter { !$0.isEmpty }.joined(separator: ", ")),
                               latitude: p.coordinate.latitude, longitude: p.coordinate.longitude)
@@ -257,11 +261,27 @@ final class Dictation: ObservableObject {
         }
     }
 
-    /// Arrête l'écoute ; le texte reconnu reste dans `text`.
-    func finish() {
-        guard listening || engine.isRunning else { return }
+    /// « J'ai fini de parler » : laisse la reconnaissance terminer les derniers mots (jusqu'à 1,5 s), puis renvoie
+    /// tout le texte. Envoyer tout de suite coupait la fin de la phrase.
+    func stopAndCollect() async -> String {
+        guard listening else { return text }
         engine.stop()
         engine.inputNode.removeTap(onBus: 0)
+        request?.endAudio()
+        for _ in 0..<15 where listening {
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+        finish()
+        return text
+    }
+
+    /// Arrête l'écoute ; le texte reconnu reste dans `text`.
+    func finish() {
+        guard listening || engine.isRunning || task != nil else { return }
+        if engine.isRunning {
+            engine.stop()
+            engine.inputNode.removeTap(onBus: 0)
+        }
         request?.endAudio()
         task?.finish()
         request = nil

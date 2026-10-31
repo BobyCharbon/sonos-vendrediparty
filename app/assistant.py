@@ -14,10 +14,11 @@ from . import tricount_logic as tc
 from .accounts import AccountError
 
 MODEL = "claude-sonnet-5-5"
-PRICE_IN, PRICE_OUT = 2.0, 10.0  # dollars par million de jetons (entrée, sortie) pour MODEL
+# Dollars par million de jetons (entrée, sortie). La réflexion du modèle compte comme sortie.
+PRICES = {"claude-sonnet-5-5": (2.0, 10.0), "claude-opus-5-5": (4.0, 20.0)}
 MAX_PHOTO = 6 * 1024 * 1024
 MAX_TOKENS = 4000
-BURST = (6, 10 * 60)  # au plus 6 lectures par personne en 10 minutes
+BURST = (15, 10 * 60)  # au plus 15 appels par personne en 10 minutes (une conversation compte plusieurs appels)
 MAX_LOG = 5000
 IMAGE_TYPES = {b"\xff\xd8\xff": "image/jpeg", b"\x89PNG": "image/png", b"RIFF": "image/webp"}
 UNREADABLE = "Ce ticket n'a pas pu être lu. Reprends la photo bien à plat, ou saisis la dépense à la main."
@@ -57,8 +58,9 @@ RECEIPT_SCHEMA = {
 }
 
 
-def cost_usd(tokens_in: int, tokens_out: int) -> float:
-    return (tokens_in * PRICE_IN + tokens_out * PRICE_OUT) / 1_000_000
+def cost_usd(tokens_in: int, tokens_out: int, model: str = MODEL) -> float:
+    price_in, price_out = PRICES[model]
+    return (tokens_in * price_in + tokens_out * price_out) / 1_000_000
 
 
 def image_type(data: bytes) -> str | None:
@@ -181,16 +183,18 @@ class Assistant:
             raise AccountError("Doucement : réessaie dans quelques minutes.")
         return uid
 
-    def _log(self, uid: str, token: str, feature: str, usage) -> float:
+    def _log(self, uid: str, token: str, feature: str, usage, model: str = MODEL, said: str = "") -> float:
+        """Appel noté pour le plafond et l'admin ; `said` : ce que la personne a demandé (pour comprendre les ratés)."""
         tokens_in = getattr(usage, "input_tokens", 0) or 0
         tokens_out = getattr(usage, "output_tokens", 0) or 0
-        cost = cost_usd(tokens_in, tokens_out)
+        cost = cost_usd(tokens_in, tokens_out, model)
         try:
             name = self.accounts.link(token).get("name") or ""
         except AccountError:
             name = ""
-        self.usage.add({"at": time.time(), "uid": uid, "name": name, "feature": feature, "model": MODEL,
-                        "tokens_in": tokens_in, "tokens_out": tokens_out, "cost_usd": cost})
+        entry = {"at": time.time(), "uid": uid, "name": name, "feature": feature, "model": model,
+                 "tokens_in": tokens_in, "tokens_out": tokens_out, "cost_usd": cost}
+        self.usage.add({**entry, "said": said[:1500]} if said else entry)
         return cost
 
     def read_receipt(self, token: str, photo: bytes) -> dict:

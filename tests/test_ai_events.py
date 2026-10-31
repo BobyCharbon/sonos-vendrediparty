@@ -13,7 +13,8 @@ from app.accounts import AccountError
 NEXT_WEEK = (datetime.now(ev.ZURICH) + timedelta(days=7)).strftime("%Y-%m-%dT20:00")
 READY = {"status": "ready", "questions": [], "title": "Raclette chez Léa", "description": "Raclette, amène une salade.",
          "start": NEXT_WEEK, "end": "", "place_query": "Rue du Lac 12, Vevey", "place_name": "Chez Léa", "price_chf": 0,
-         "max_participants": 12, "category": "Soirée", "audience": "Ski", "pot": True, "bring": ["Salade", "Vin"],
+         "max_participants": 12, "category": "Soirée", "audience": "Ski", "invitees": ["Tom"], "not_understood": [],
+         "pot": True, "bring": ["Salade", "Vin"],
          "summary": "Raclette chez Léa samedi prochain à 20 h"}
 
 
@@ -40,7 +41,8 @@ class FakeAccounts:
 
     def groups(self, token):
         return {"groups": [{"id": "g-vip", "name": "Vendredi Party", "system": True},
-                           {"id": "g-ski", "name": "Ski", "system": False}]}
+                           {"id": "g-ski", "name": "Ski", "system": False}],
+                "people": [{"id": "p-tom", "name": "Tom"}, {"id": "p-lea", "name": "Léa"}]}
 
     def _get(self, method, path, token, json=None, headers=None):
         self.calls.append((method, path, json))
@@ -74,9 +76,13 @@ def test_a_description_becomes_a_ready_draft_with_the_user_groups_and_categories
     d = a.draft("ok", ["Raclette chez Léa samedi prochain à 20h, invite le groupe Ski"], None)
     assert d["status"] == "ready" and d["title"] == "Raclette chez Léa" and d["audience"] == "Ski" and d["pot"]
     schema = client.calls[0]["output_config"]["format"]["schema"]
-    assert schema["properties"]["audience"]["enum"] == ["Vendredi Party", "Ski", "Public (lien)"]
-    assert "Soirée" in schema["properties"]["category"]["enum"] and client.calls[0]["model"] == ai.MODEL
-    assert a.ai.usage.items[0]["feature"] == "event"
+    assert schema["properties"]["audience"]["enum"] == ["Vendredi Party", "Ski", ev.ONLY_INVITEES, "Public (lien)"]
+    assert schema["properties"]["invitees"]["items"]["enum"] == ["Tom", "Léa"] and d["invitees"] == ["Tom"]
+    assert "Léa" in client.calls[0]["system"] and client.calls[0]["model"] == ev.MODEL
+    assert "Soirée" in schema["properties"]["category"]["enum"]
+    entry = a.ai.usage.items[0]
+    assert entry["feature"] == "event" and entry["model"] == "claude-opus-5-5" and "invite le groupe Ski" in entry["said"]
+    assert entry["cost_usd"] == pytest.approx((900 * 4 + 300 * 20) / 1e6)
 
 
 def test_missing_date_or_title_always_comes_back_as_a_question(tmp_path):
@@ -90,11 +96,23 @@ def test_a_past_date_is_never_kept(tmp_path):
     assert a.draft("ok", ["Raclette le 1er janvier 2020"], None)["start"] == ""
 
 
-def test_answers_are_sent_with_the_previous_draft(tmp_path):
+def test_answers_follow_the_previous_draft_as_a_conversation(tmp_path):
     a, _, client = make(tmp_path)
-    a.draft("ok", ["Raclette chez Léa", "samedi à 20h"], {"title": "Raclette chez Léa"})
-    said = client.calls[0]["messages"][0]["content"]
-    assert "samedi à 20h" in said and "Brouillon actuel" in said
+    a.draft("ok", ["Raclette chez Léa", "samedi à 20h"], {"title": "Raclette chez Léa", "questions": ["Quand ?"]})
+    roles = [m["role"] for m in client.calls[0]["messages"]]
+    assert roles == ["user", "assistant", "user"] and client.calls[0]["messages"][2]["content"] == "samedi à 20h"
+    assert "Quand ?" in client.calls[0]["messages"][1]["content"]
+
+
+def test_named_people_are_invited_and_only_them_when_asked(tmp_path):
+    a, accounts, _ = make(tmp_path)
+    a.create("ok", {**READY, "audience": ev.ONLY_INVITEES, "invitees": ["Tom", "Léa", "Inconnu"]}, None)
+    row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
+    invites = next(j for m, p, j in accounts.calls if p == "/rest/v1/event_invites")
+    assert row["visibility"] == "invited" and [i["user_id"] for i in invites] == ["p-tom", "p-lea"]
+    assert not any(p == "/rest/v1/event_groups" for _, p, _ in accounts.calls)
+    with pytest.raises(AccountError, match="qui inviter"):
+        a.create("ok", {**READY, "audience": ev.ONLY_INVITEES, "invitees": []}, None)
 
 
 def test_confirmed_draft_creates_the_event_as_the_user_then_publishes_it(tmp_path):

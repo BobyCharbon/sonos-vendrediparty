@@ -23,8 +23,8 @@ def live(monkeypatch, tmp_path):
 
 def test_the_confirmed_draft_becomes_a_real_published_event(live):
     a, token, who = live
-    categories, audiences = a._options(token)
-    draft = {**READY, "title": "Raclette IA (test)", "category": next(iter(categories), ""), "audience": "Vendredi Party"}
+    options = a._options(token)
+    draft = {**READY, "title": "Raclette IA (test)", "category": next(iter(options.categories), ""), "audience": "Vendredi Party"}
     out = a.create(token, draft, {"name": "Chez Léa", "address": "Rue du Lac 12, 1800 Vevey",
                                   "url": "https://www.google.com/maps/search/?api=1&query=Rue%20du%20Lac%2012%20Vevey"})
     try:

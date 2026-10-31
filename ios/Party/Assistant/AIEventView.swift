@@ -28,6 +28,7 @@ struct AIEventView: View {
                         if !store.turns.isEmpty { said }
                         if store.thinking { thinkingCard }
                         if let draft = store.draft, !store.thinking {
+                            if !draft.not_understood.isEmpty { notUnderstood(draft) }
                             if !draft.ready { questions(draft) }
                             review(draft)
                         }
@@ -128,6 +129,20 @@ struct AIEventView: View {
         .accessibilityIdentifier("ai-questions")
     }
 
+    // ── Ce que l'IA n'a pas compris ──
+    private func notUnderstood(_ d: AIEvent.Draft) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Pas bien compris", systemImage: "ear.trianglebadge.exclamationmark")
+                .font(.headline).foregroundStyle(.secondary)
+            ForEach(d.not_understood, id: \.self) { n in Text("• \(n)").font(.subheadline) }
+            Text("Redis-le autrement si c'est important.").font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityIdentifier("ai-not-understood")
+    }
+
     // ── La fiche à relire ──
     private func review(_ d: AIEvent.Draft) -> some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -137,7 +152,9 @@ struct AIEventView: View {
             Text(d.title.isEmpty ? "Titre à préciser" : d.title).font(.title2.weight(.bold))
             row("calendar", d.start.isEmpty ? "Date à préciser" : AIEvent.span(d.start, d.end))
             placeRow(d)
-            row("person.3", d.audience)
+            row("person.3", d.invitees.isEmpty ? d.audience
+                : d.audience == "Seulement les personnes invitées" ? d.invitees.joined(separator: ", ")
+                : d.audience + " + " + d.invitees.joined(separator: ", "))
             if d.price_chf > 0 { row("banknote", String(format: "%.2f CHF par personne", d.price_chf)) }
             if d.max_participants > 0 { row("person.crop.circle.badge.checkmark", "\(d.max_participants) places") }
             if !d.category.isEmpty { row("tag", d.category) }
@@ -258,8 +275,7 @@ struct AIEventView: View {
 
     private func toggleMic() {
         if dictation.listening {
-            dictation.finish()
-            submit(dictation.text)
+            Task { submit(await dictation.stopAndCollect()) }
         } else {
             typing = false
             Task { await dictation.start() }
