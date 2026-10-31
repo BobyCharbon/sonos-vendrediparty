@@ -835,7 +835,7 @@ body.pyr-full .top-head { display: none; }
 .bk-dice { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; }
 .bk-dice span, .bk-duel span { font-size: 4rem; line-height: 1; color: #fff; text-shadow: 0 0 18px rgba(255,204,77,.7); display: inline-block; }
 .bk-dice small { width: 100%; text-align: center; color: #e6dcff; }
-.bk-dice.roll span, .bk-duel.roll span { animation: bk-roll .9s cubic-bezier(.2,.8,.3,1.2); }
+.bk-dice.roll span, .bk-duel.roll span { animation: bk-roll 1.6s cubic-bezier(.2,.8,.3,1.2); }
 .bk-dice.roll span + span, .bk-duel.roll span + span { animation-delay: .12s; }
 @keyframes bk-roll { 0% { transform: translateY(-40px) rotate(-540deg) scale(.4); opacity: 0; } 70% { transform: translateY(6px) rotate(20deg); opacity: 1; } 100% { transform: none; } }
 .bk-duel { text-align: center; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
@@ -1642,3 +1642,26 @@ html.native-tabs .g-mini { bottom: 12px; }
 @keyframes g-pause-beat { 50% { transform: scale(.9); opacity: .7; } }
 @media (prefers-reduced-motion: reduce) { .g-pause, .g-pause-i { animation: none; } }
 .g-pause-btn { flex: none; font-size: 1rem; }
+
+/* 🎲 Biskit : bouton de lancer, puis les dés qui rebondissent sur tout l'écran avant de se poser. */
+.bk-roll-btn { width: 100%; min-height: 96px; border: 0; border-radius: 24px; font: 800 1.5rem "Bricolage Grotesque", system-ui, sans-serif;
+  color: #2b1a00; background: linear-gradient(135deg, #ffe08a, #ffb627); box-shadow: 0 8px 0 #b97a00, 0 16px 32px rgba(255, 182, 39, .35); }
+.bk-roll-i { display: inline-block; animation: bk-wiggle 1.4s ease-in-out infinite; }
+.bk-roll-btn small { display: block; font: 700 .85rem system-ui; margin-top: 4px; opacity: .8; }
+.bk-roll-btn:active { transform: translateY(6px); box-shadow: 0 2px 0 #b97a00; }
+@keyframes bk-wiggle { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-18deg); } 40% { transform: rotate(16deg); } 60% { transform: rotate(-8deg); } }
+.bk-throw { position: fixed; inset: 0; z-index: 8000; pointer-events: none; overflow: hidden; }
+.bk-throw-die { position: absolute; left: 0; top: 0; font-size: 6rem; line-height: 1; color: #fff; text-shadow: 0 0 24px rgba(255, 204, 77, .9);
+  animation: bk-bounce-a 2.6s cubic-bezier(.3, .7, .4, 1) forwards; }
+.bk-throw-die.d1 { animation-name: bk-bounce-b; animation-delay: .12s; }
+@keyframes bk-bounce-a {
+  0% { transform: translate(-10vw, 85vh) rotate(0); } 18% { transform: translate(30vw, 8vh) rotate(260deg); }
+  34% { transform: translate(70vw, 70vh) rotate(520deg); } 50% { transform: translate(82vw, 22vh) rotate(700deg); }
+  66% { transform: translate(45vw, 62vh) rotate(860deg); } 80% { transform: translate(30vw, 38vh) rotate(960deg); }
+  90% { transform: translate(36vw, 48vh) rotate(1000deg); } 100% { transform: translate(34vw, 44vh) rotate(1080deg); opacity: 0; } }
+@keyframes bk-bounce-b {
+  0% { transform: translate(110vw, 80vh) rotate(0); } 18% { transform: translate(60vw, 12vh) rotate(-300deg); }
+  34% { transform: translate(15vw, 60vh) rotate(-560deg); } 50% { transform: translate(8vw, 25vh) rotate(-720deg); }
+  66% { transform: translate(50vw, 70vh) rotate(-880deg); } 80% { transform: translate(58vw, 40vh) rotate(-980deg); }
+  90% { transform: translate(52vw, 50vh) rotate(-1040deg); } 100% { transform: translate(54vw, 46vh) rotate(-1080deg); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .bk-throw { display: none; } .bk-roll-i { animation: none; } }

@@ -21,7 +21,7 @@ GAMES = ["beerpong", "room", "quiz", "likely", "undercover", "whoof", "never", "
 NAMES = ["Boby", "Léa", "Tom", "Nina", "Max", "Inès", "Zoé"]
 ACTIONS = ["vote", "next", "close_vote", "vote_start", "spin", "bet", "hit", "stand", "double", "deal", "cbet", "cready",
            "cspin", "dnext", "dheart", "tanswer", "tjudge", "treveal", "finish", "pans", "pflip", "pclaim", "pbu", "pliar",
-           "preveal", "ptop", "pmemory", "pmem", "presults", "bdraw", "bpick", "btap", "bclose", "qans", "prplay", "prpass",
+           "preveal", "ptop", "pmemory", "pmem", "presults", "bdraw", "bpick", "btap", "bclose", "broll", "qans", "prplay", "prpass",
            "lkvote", "dbvote", "eliminate", "guess", "skip_guess", "rvote", "launch", "bpset", "bphit", "bpsent", "bpreroll",
            "bpundo", "pause", "resume", "leave", "join", "addguest", "restart", "end", "handover", "remove"]
 TYPES = [t for t in GAMES if t != "room"] + ["heist", "island", "neon"]

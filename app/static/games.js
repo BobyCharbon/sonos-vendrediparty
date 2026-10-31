@@ -1763,6 +1763,7 @@ function bkHtml(g) {
       <div class="bk-card-face">${pyCard(v.card, "xl")}</div>
       <div class="bk-effect"><div class="bk-effect-t">${rule[0]} ${rule[1]}</div><div class="bk-effect-d">${rule[2]}</div>
         </div></div>` : "";
+  bkThrow(v);
   const dice = v.dice ? `<div class="bk-dice ${v.dice.age < 2 ? "roll" : ""}"><span>${BK_DICE[v.dice.d[0]]}</span><span>${BK_DICE[v.dice.d[1]]}</span>
       <small>lancés par ${esc(v.dice.roller_name)} · total ${v.dice.d[0] + v.dice.d[1]}</small></div>` : "";
   const duel = v.duel ? `<div class="bk-duel ${v.duel.age < 2 ? "roll" : ""}"><b>${esc(v.duel.a_name)}</b> <span>${BK_DICE[v.duel.da]}</span> contre <span>${BK_DICE[v.duel.db]}</span> <b>${esc(v.duel.b_name)}</b></div>` : "";
@@ -1781,7 +1782,12 @@ function bkHtml(g) {
   if (v.await) {
     const canDo = v.await.mine || host, others = v.seats.filter((s) => s.pid !== v.await.pid);
     const who = canDo && !v.await.mine ? `<div class="py-proxy">Tu choisis pour ${esc(v.await.name)}</div>` : "";
-    if (!canDo) action = `<div class="py-wait">${esc(v.await.name)} choisit…</div>`;
+    if (v.await.kind === "dice") action = canDo ? `<div class="py-panel bk-roll-panel">
+        <button type="button" class="bk-roll-btn" data-bk="roll" ${v.await.mine ? "" : `data-who="${esc(v.await.pid)}"`}><span class="bk-roll-i" aria-hidden="true">🎲</span> ${v.await.mine ? "Lance les dés !" : `Lancer pour ${esc(v.await.name)}`}
+          <small>${v.await.mine && bkShake.on ? "Secoue ton téléphone… ou touche ici" : "Touche pour lancer"}</small></button>
+        ${v.await.mine && bkShake.supported && !bkShake.on ? `<button type="button" class="py-sub" data-bk="shake">📳 Lancer en secouant le téléphone</button>` : ""}${who}</div>`
+      : `<div class="py-wait">🎲 ${esc(v.await.name)} lance les dés…</div>`;
+    else if (!canDo) action = `<div class="py-wait">${esc(v.await.name)} choisit…</div>`;
     else if (["mate", "queen", "duel"].includes(v.await.kind)) action = `<div class="py-panel"><div class="py-turn-k">${{ mate: "Choisis ton pote de boisson", queen: "Qui boit 2 ?", duel: "Contre qui ce duel ?" }[v.await.kind]}</div>
         <div class="chips bk-pick">${others.map((s) => `<button class="py-mini" data-bk="pick" data-target="${esc(s.pid)}" ${v.await.mine ? "" : `data-who="${esc(v.await.pid)}"`}>${esc(s.name)}</button>`).join("")}</div>${who}</div>`;
     else if (v.await.kind === "rule") action = `<div class="py-panel"><div class="py-turn-k">Écris ta règle</div>
@@ -1819,7 +1825,53 @@ document.addEventListener("click", (ev) => {
   if (!b || !game) return;
   if (b.dataset.bk === "draw") { haptic(20); return gameAction("bdraw", { who: b.dataset.who || "" }); }
   if (b.dataset.bk === "pick") return gameAction("bpick", { target: b.dataset.target, who: b.dataset.who || "" });
+  if (b.dataset.bk === "roll") return bkRoll(b.dataset.who || "");
+  if (b.dataset.bk === "shake") return bkShake.enable();
 });
+
+// 🎲 Biskit : le lanceur secoue son téléphone pour jeter les dés (ou touche « Lance les dés ! »). iOS demande l'accord
+// une fois (bouton « Lancer en secouant ») ; ailleurs, la secousse marche d'office si le téléphone a un accéléromètre.
+const BK_SHAKE_G = 22;  // accélération (m/s²) d'une vraie secousse
+let bkRolling = false;
+function bkRoll(who = "") {
+  if (bkRolling) return;
+  bkRolling = true;
+  haptic([30, 40, 30]);
+  gameAction("broll", { who }).finally(() => { bkRolling = false; });
+}
+const bkShake = {
+  supported: typeof DeviceMotionEvent !== "undefined",
+  on: typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission !== "function",
+  async enable() {
+    try {
+      this.on = (await DeviceMotionEvent.requestPermission()) === "granted";
+    } catch { this.on = false; }
+    if (!this.on) toast("Secousse refusée : touche « Lance les dés ! »", "err");
+    renderGame(game);
+  },
+};
+window.addEventListener("devicemotion", (e) => {
+  if (!bkShake.on || game?.type !== "biskit" || !game.bk?.await || game.bk.await.kind !== "dice" || !game.bk.await.mine) return;
+  const a = e.accelerationIncludingGravity || e.acceleration;
+  if (a && Math.hypot(a.x || 0, a.y || 0, a.z || 0) > BK_SHAKE_G) bkRoll();
+});
+
+// Les dés jetés rebondissent sur tout l'écran (≈ 2,6 s) avant de se poser : une fois par lancer, chez tout le monde.
+let bkThrowSeen = "";
+function bkThrow(v) {
+  const d = v?.dice;
+  if (!d || d.age > 3 || bkThrowSeen === d.id) return;
+  const first = !bkThrowSeen;
+  bkThrowSeen = d.id;
+  if (first && d.age > 1) return;  // arrivé après le lancer : pas de rejeu
+  const el = document.createElement("div");
+  el.className = "bk-throw";
+  el.setAttribute("aria-hidden", "true");
+  el.innerHTML = d.d.map((n, i) => `<span class="bk-throw-die d${i}">${BK_DICE[n]}</span>`).join("");
+  document.body.append(el);
+  haptic([20, 60, 20, 60, 40]);
+  setTimeout(() => el.remove(), 2800);
+}
 document.addEventListener("submit", (ev) => {
   const f = ev.target.closest("[data-bk-form]");
   if (!f || !game) return;

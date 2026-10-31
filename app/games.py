@@ -1715,7 +1715,8 @@ def bk_draw(g: dict, actor: str, rng: random.Random = random):
         k = int(rank) * m
         _bk_out(g, f"{_bk_name(g, cur)} {'distribue' if red else 'boit'} {k}", **({"give": {cur: k}} if red else {"drink": {cur: k}}))
     elif rank == "4":
-        _bk_dice(g, cur, red, rng)
+        # Les dés attendent leur lanceur : il secoue son téléphone (ou touche « Lancer »). Rouge : le tireur ; noir : son voisin.
+        B["await"] = {"kind": "dice", "gid": cur if red else _bk_side(B, cur, 1), "for": cur, "red": red}
     elif rank == "7":
         B["reflex"] = {"id": secrets.token_hex(4), "kind": "paradis" if red else "nez", "at": time.time(), "taps": {}, "done": False, "losers": []}
     elif rank == "8":
@@ -1753,6 +1754,18 @@ def bk_draw(g: dict, actor: str, rng: random.Random = random):
     B["n"] += 1
     if not B["deck"] and g["phase"] == "play":
         g["phase"] = "end"
+
+
+def bk_roll(g: dict, actor: str, lead: bool = False, rng: random.Random = random):
+    """Le lanceur jette les dés de la carte 4 (l'animateur peut lancer pour lui : participant sans téléphone)."""
+    B = g["bk"]
+    a = B.get("await")
+    if not a or a["kind"] != "dice":
+        raise GameError("Pas de dés à lancer")
+    if actor != a["gid"] and not lead:
+        raise GameError(f"C'est à {_bk_name(g, a['gid'])} de lancer les dés")
+    B["await"] = None
+    _bk_dice(g, a["for"], a["red"], rng)
 
 
 def bk_complete(g: dict, actor: str, target: str = "", text: str = "", rng: random.Random = random):

@@ -981,7 +981,20 @@ def test_biskit_dice_double_three_makes_new_biskit():
         def randint(self, a, b):
             return 3
     a = draw(g, "4H", R())
-    assert g["bk"]["biskit"] == a and g["bk"]["dice"]["d"] == [3, 3]
+    assert g["bk"]["await"]["kind"] == "dice" and g["bk"]["await"]["gid"] == a and not g["bk"]["dice"]
+    games.bk_roll(g, a, False, R())  # le tireur lance lui-même (secoue son téléphone ou touche)
+    assert g["bk"]["biskit"] == a and g["bk"]["dice"]["d"] == [3, 3] and g["bk"]["await"] is None
+
+
+def test_biskit_black_four_the_neighbour_rolls_and_nobody_else():
+    g = biskit()
+    a = draw(g, "4S")
+    roller = g["bk"]["await"]["gid"]
+    assert roller != a
+    with pytest.raises(games.GameError):
+        games.bk_roll(g, a, False, random.Random(1))  # pas à lui de lancer
+    games.bk_roll(g, roller, False, random.Random(1))
+    assert g["bk"]["dice"]["roller"] == roller and g["bk"]["outcomes"]
 
 
 def test_admin_has_animator_rights_in_every_game(admin):  # noqa: F811
@@ -1004,7 +1017,7 @@ def test_admin_has_animator_rights_in_every_game(admin):  # noqa: F811
 def test_biskit_pause_before_next_card():
     """5 s pour lire le gage : la carte suivante est refusée avant, le serveur l'impose."""
     g = biskit()
-    draw(g, "4S")  # 4 noir : rien de spécial à choisir
+    draw(g, "2S")  # 2 noir : rien de spécial à choisir
     g["bk"]["ready_at"] = games.time.time() + games.BK_PAUSE
     cur = g["bk"]["order"][g["bk"]["turn"]]
     with pytest.raises(games.GameError, match="lire le gage"):

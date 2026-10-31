@@ -218,6 +218,7 @@ extension BiskitTV {
     /// Ce que la carte demande au joueur avant de continuer.
     static func awaitText(_ kind: String?) -> String {
         switch kind {
+        case "dice": return "lance les dés 🎲"
         case "rule": return "invente une règle"
         case "mate": return "choisit son pote de boisson"
         case "pick", "target": return "désigne qui boit"
