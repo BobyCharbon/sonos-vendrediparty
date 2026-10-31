@@ -1,0 +1,69 @@
+/* 🍺 Beer pong : deux tables de gobelets (rouges et bleus) face à face, les sentences au centre. */
+.g-bp { --g-bg: #1b1030; --g-accent: #ffcc33; --g-ink: #2b1a00; --g-soft: #e4dcff; --g-chip: #2d1f4d; --bp-red: #ff4d5e; --bp-blue: #3fa2ff; }
+.game.g-bp { background: var(--g-bg); color: #fff; border: 0; }
+.game.g-bp .artist { color: var(--g-soft); }
+body.pyr-full #game.g-bp { box-shadow: none; border: 0; padding: 16px; background: radial-gradient(120% 60% at 50% 0%, #3a1f5e, #1b1030 70%); }
+
+.bp-hero { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 22px; margin-bottom: 14px;
+  background: linear-gradient(135deg, var(--bp-red), #7b3cff 55%, var(--bp-blue)); box-shadow: 0 14px 32px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.25); }
+.bp-hero-i { font-size: 2.4rem; }
+.bp-hero-t { font: 800 1.35rem/1.1 "Bricolage Grotesque", system-ui, sans-serif; }
+.bp-hero-s { font-size: .9rem; opacity: .92; margin-top: 4px; }
+
+.bp-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.bp-col { padding: 12px; border-radius: 18px; background: rgba(255,255,255,.06); }
+.bp-col.red { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--bp-red) 60%, transparent); }
+.bp-col.blue { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--bp-blue) 60%, transparent); }
+.bp-col-h { font-weight: 800; margin-bottom: 8px; }
+.bp-mate { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 6px 0; font-weight: 700; }
+.bp-mate span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bp-mini { min-height: 34px; padding: 0 10px; border-radius: 10px; border: 0; background: var(--g-chip); color: #fff; font-weight: 800; }
+.bp-free { margin-top: 8px; }
+.bp-wait { margin-top: 14px; }
+
+.bp-table { display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin-top: 12px; }
+.bp-net { height: 4px; border-radius: 2px; background: repeating-linear-gradient(90deg, rgba(255,255,255,.5) 0 10px, transparent 10px 18px); }
+.bp-team { padding: 12px; border-radius: 22px; background: rgba(255,255,255,.05); }
+.bp-team.red { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--bp-red) 45%, transparent); }
+.bp-team.blue { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--bp-blue) 45%, transparent); }
+.bp-team-h { display: flex; justify-content: space-between; align-items: baseline; font-size: 1.05rem; }
+.bp-alive { font-weight: 800; color: var(--g-accent); font-variant-numeric: tabular-nums; }
+.bp-rack { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 10px 0 6px; }
+.bp-rack.blue { flex-direction: column-reverse; }  /* les deux pointes se font face, de part et d'autre du filet */
+.bp-row { display: flex; gap: 6px; }
+.bp-cup { width: 46px; height: 46px; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
+  background: radial-gradient(circle at 50% 42%, #fff7 0 18%, transparent 19%), radial-gradient(circle, var(--cup) 0 62%, color-mix(in srgb, var(--cup) 60%, #000) 63%);
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--cup) 45%, #000), 0 8px 14px rgba(0,0,0,.35); transition: transform .25s var(--spring), opacity .25s; }
+.bp-rack.red .bp-cup { --cup: var(--bp-red); }
+.bp-rack.blue .bp-cup { --cup: var(--bp-blue); }
+.bp-cup:not(:disabled):active { transform: scale(.88); }
+.bp-cup.down { opacity: .16; transform: scale(.82); box-shadow: none; }
+.bp-cup.picked { outline: 3px solid var(--g-accent); outline-offset: 3px; animation: bp-pulse .9s ease-in-out infinite; }
+@keyframes bp-pulse { 50% { transform: scale(.9); } }
+.bp-players { text-align: center; color: var(--g-soft); font-size: .88rem; font-weight: 600; }
+.bp-tip { text-align: center; margin-top: 8px; }
+
+.bp-pending, .bp-who { margin-top: 4px; padding: 14px; border-radius: 22px; background: rgba(255, 204, 51, .1); box-shadow: inset 0 0 0 2px rgba(255, 204, 51, .45); }
+.bp-pending-h { font-weight: 800; margin-bottom: 10px; }
+.bp-opts { display: grid; gap: 8px; }
+.bp-opt { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 10px 14px; border-radius: 16px; border: 0; text-align: left;
+  background: var(--g-chip); color: #fff; font-weight: 700; font-size: .98rem; }
+.bp-opt small { display: block; font-weight: 600; opacity: .75; margin-top: 2px; }
+.bp-opt-k { font-size: 1.6rem; }
+.bp-opt:not(:disabled):active { transform: scale(.97); }
+.bp-opt.bonus { background: #1f4d3a; } .bp-opt.malus { background: #5a1f2a; }
+
+.bp-last { margin-top: 14px; padding: 18px 16px; border-radius: 24px; text-align: center; background: #fff; color: #1b1030;
+  box-shadow: 0 16px 34px rgba(0,0,0,.35); animation: bp-in .45s var(--spring); }
+.bp-last.red { box-shadow: 0 0 0 4px var(--bp-red), 0 16px 34px rgba(0,0,0,.35); }
+.bp-last.blue { box-shadow: 0 0 0 4px var(--bp-blue), 0 16px 34px rgba(0,0,0,.35); }
+.bp-last.empty { background: rgba(255,255,255,.07); color: var(--g-soft); box-shadow: none; animation: none; }
+.bp-last-k { font-size: .82rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #7b3cff; }
+.bp-last-t { font: 800 1.35rem/1.2 "Bricolage Grotesque", system-ui, sans-serif; margin-top: 6px; text-wrap: balance; }
+.bp-last-h { margin-top: 6px; font-weight: 700; color: #b0366a; }
+.bp-answer { margin-top: 8px; font-weight: 700; }
+@keyframes bp-in { from { transform: scale(.85); opacity: 0; } }
+.bp-win { padding: 16px; border-radius: 22px; text-align: center; font: 800 1.6rem "Bricolage Grotesque", system-ui, sans-serif;
+  background: linear-gradient(135deg, #ffe08a, #ffb627); color: #2b1a00; margin-bottom: 10px; animation: bp-in .5s var(--spring); }
+.bp-settings { margin-top: 10px; }
+.bp-settings summary { font-weight: 800; cursor: pointer; padding: 6px 0; }

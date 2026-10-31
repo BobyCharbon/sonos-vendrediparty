@@ -57,6 +57,7 @@ const GAME_ICONS = {
 GAME_ICONS.never = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7h13l-1.6 14a4.9 4.9 0 0 1-9.8 0z"/><path d="M14.5 26v12"/><path d="M9.5 38h10"/><path d="M27 7h13l-1.6 14a4.9 4.9 0 0 1-9.8 0z"/><path d="M33.5 26v12"/><path d="M28.5 38h10"/><path d="M9 14h11M28 14h11"/></svg>`;
 GAME_ICONS.roulette = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="27" r="17"/><circle cx="24" cy="27" r="3"/><path d="M24 10v14M24 30v14M7 27h14M27 27h14M12 15l10 10M26 29l10 10M36 15L26 25M22 29L12 39"/><path d="M20 3h8l-4 6z"/></svg>`;
 GAME_ICONS.blackjack = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="21" height="29" rx="3" transform="rotate(-10 15.5 25.5)"/><rect x="21" y="8" width="21" height="29" rx="3" transform="rotate(8 31.5 22.5)"/><path d="M31.5 15.5c-2.8 2.8-5.5 4.6-5.5 7.2a2.7 2.7 0 0 0 4.6 1.9l-.9 3h3.6l-.9-3a2.7 2.7 0 0 0 4.6-1.9c0-2.6-2.7-4.4-5.5-7.2z"/></svg>`;
+GAME_ICONS.beerpong = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 18h14l-2.5 22h-9z"/><path d="M26 18h14l-2.5 22h-9z"/><circle cx="24" cy="8" r="4.5" fill="currentColor" stroke="none"/></svg>`;
 GAME_ICONS.casino = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="24" r="19"/><circle cx="24" cy="24" r="10"/><path d="M24 5v9M24 34v9M5 24h9M34 24h9M10.6 10.6l6.3 6.3M31.1 31.1l6.3 6.3M37.4 10.6l-6.3 6.3M16.9 31.1l-6.3 6.3"/><circle cx="24" cy="24" r="2.5" fill="currentColor"/><circle cx="36" cy="8" r="3" fill="currentColor" stroke="none"/></svg>`;
 GAME_ICONS.divan = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 24v-7a5 5 0 0 1 5-5h18a5 5 0 0 1 5 5v7"/><path d="M6 24a4 4 0 0 1 8 0v4h20v-4a4 4 0 0 1 8 0v10H6z"/><path d="M10 34v4M38 34v4"/></svg>`;
 GAME_ICONS.tmc = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="15" cy="15" r="6"/><circle cx="33" cy="15" r="6"/><path d="M4 38c1-7 5-11 11-11 3 0 5 1 7 3M44 38c-1-7-5-11-11-11-3 0-5 1-7 3"/><path d="M24 44s-6-3.6-6-7.6a3 3 0 0 1 6-1 3 3 0 0 1 6 1c0 4-6 7.6-6 7.6z"/></svg>`;
@@ -78,12 +79,12 @@ GAME_THEME.neon = "g-nk";
 GAME_ICONS.president = President.crown;
 GAME_THEME.president = "g-pr";
 // Jeux récents : étiquette « NEW » sur leur carte et leur tuile dans la salle de jeux (retirer le type pour l'enlever).
-const NEW_GAMES = ["debate"];
+const NEW_GAMES = ["debate", "beerpong"];
 const newBadge = (type) => NEW_GAMES.includes(type) ? `<span class="g-new" aria-label="Nouveau jeu">NEW</span>` : "";
 // Catégories de l'écran Jeux et de la salle de jeux : [id, titre, jeux dans l'ordre d'affichage].
 // Tout nouveau jeu doit y figurer (tests/test_game_categories.py le vérifie).
 const GAME_CATEGORIES = [
-  ["drinks", "🍻 Alcool", ["whoof", "never", "roulette", "biskit", "casino", "purity"]],
+  ["drinks", "🍻 Alcool", ["beerpong", "whoof", "never", "roulette", "biskit", "casino", "purity"]],
   ["three", "🎮 Jeux 3D", ["neon", "island", "heist"]],
   ["talk", "💞 Parler vrai", ["divan", "debate", "tmc"]],
   ["cards", "🃏 Jeux de cartes", ["pyramid", "blackjack", "president"]],
@@ -501,6 +502,19 @@ document.getElementById("gamesRoot").innerHTML = `
         </div>
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="likely">Créer une partie</button>
+      </div>
+
+      <div class="gcard g-bp">
+        ${newBadge("beerpong")}
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.beerpong}</div>
+          <div class="g-meta"><div class="g-title">Beer pong</div><div class="g-tag">La vraie table, les sentences sur l'app.</div></div>
+          ${helpBtn("beerpong")}
+        </div>
+        <p class="g-desc">Rouges contre Bleus sur une vraie table. À chaque gobelet qui tombe, l'animateur le touche sur l'écran et choisit la sentence : gorgées, shot, gage, question WTF, quiz, sport, bonus ou malus. Pas de tours imposés : vos règles, notre ambiance.</p>
+        <div class="g-chips"><span>2+ joueurs</span><span>🍻 Alcool</span><span>Sans téléphone : OK</span><span>6, 10 ou 15 gobelets</span></div>
+        <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
+        <button class="g-go" data-create="beerpong">Créer une partie</button>
       </div>
 
       <div class="gcard g-db">
@@ -1065,6 +1079,8 @@ function renderGame(g) {
     setGameHtml(likelyHtml(g));
   } else if (g.type === "debate") {
     setGameHtml(debateHtml(g));
+  } else if (g.type === "beerpong") {
+    setGameHtml(lobbyInvite(g) + beerpongHtml(g));
   } else if (g.type === "pyramid" || g.type === "biskit") {
     setGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g)));
     if (g.type === "pyramid") pyrWheel(g);
@@ -1896,7 +1912,7 @@ document.addEventListener("pointerup", dvRelease);
 document.addEventListener("pointercancel", dvRelease);
 
 // 📵 Participants sans téléphone : l'animateur les ajoute à la main et agit pour eux.
-const MANUAL_GAMES = ["divan", "tmc", "never", "whoof", "blackjack", "casino", "pyramid", "biskit", "likely", "debate", "room"];
+const MANUAL_GAMES = ["divan", "tmc", "never", "whoof", "blackjack", "casino", "pyramid", "biskit", "likely", "debate", "room", "beerpong"];
 const playerTag = (g, p) => !MANUAL_GAMES.includes(g.type) ? "" : p.manual
   ? ` <span class="pill tag-manual" title="Ajouté·e à la main par l'animateur">✍️ sans téléphone</span>`
   : ` <span class="tag-phone" title="Joue sur son téléphone">📱</span>`;
@@ -2323,6 +2339,7 @@ function renderGameHost(g) {
   if (g.type === "divan") return renderDivanHost(g, btn);
   if (g.type === "likely") return renderLikelyHost(g);
   if (g.type === "debate") return renderDebateHost(g);
+  if (g.type === "beerpong") return renderBeerpongHost(g);
   if (["pyramid", "biskit", "quiz", "purity", "room", "president", "neon", "island", "heist"].includes(g.type)) { patch.gameHost = ""; return; }
   if (g.type === "tmc") return renderTmcHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
@@ -2831,7 +2848,7 @@ function rulesFor(type, g) {
 }
 
 // « ? » : règles détaillées du jeu.
-const GAME_NAMES = { undercover: "Undercover", whoof: "Qui de nous ?", likely: "Qui est le plus… ?", debate: "Pour ou contre", never: "Je n'ai jamais", roulette: "Roulette",
+const GAME_NAMES = { beerpong: "Beer pong", undercover: "Undercover", whoof: "Qui de nous ?", likely: "Qui est le plus… ?", debate: "Pour ou contre", never: "Je n'ai jamais", roulette: "Roulette",
   blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal", quiz: "Quiz", purity: "Purify Test", room: "Salle de jeux", president: "Président", neon: "Néon Knockout", island: "L’île qui s’effondre", heist: "Braquage en miniature" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");

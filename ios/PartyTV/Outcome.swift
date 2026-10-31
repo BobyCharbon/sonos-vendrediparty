@@ -230,6 +230,8 @@ extension Outcome {
                         lines: g["president"]["ranking"].array.map {
                             Line(name: $0["name"].string ?? "?", kind: ($0["place"].int ?? 0) == 1 ? .win : .info, detail: $0["role"].string)
                         }, key: "president-end-\(round)")
+        case ("beerpong", _):
+            o = beerPong(g)
         case ("biskit", _), ("pyramid", _):
             o = fromSipsLog(g)
         default:
@@ -241,6 +243,23 @@ extension Outcome {
             o.lines = o.lines.filter { $0.kind != .lose || $0.amount != nil } + sipsNow.lines
         }
         return o
+    }
+
+    /// Beer pong : chaque sentence est annoncée (qui, quoi) ; à la fin, l'équipe gagnante.
+    private static func beerPong(_ g: JSON) -> Outcome? {
+        let B = g["bp"]
+        if let winner = B["winner"].string {
+            let names = B["players"].array.filter { $0["team"].string == winner }.compactMap { $0["name"].string }
+            return Outcome(headline: "🏆 Les \(B["team_names"][winner].string ?? winner) gagnent !",
+                           lines: names.map { Line(name: $0, kind: .win) }, key: "bp-end-\(B["log"].array.count)")
+        }
+        let last = B["last"]
+        guard let n = last["n"].int, let name = last["name"].string else { return nil }
+        let kind = last["kind"].string
+        var line = Line(name: name, kind: .info, detail: last["text"].string)
+        if kind == "sips" { line = Line(name: name, kind: .drink, amount: last["sips"].int) }
+        if kind == "shot" { line = Line(name: name, kind: .drink, detail: "Cul sec : un shot !") }
+        return Outcome(headline: "\(BeerPongTV.icon(kind)) \(last["text"].string ?? "")", lines: [line], key: "bp-\(n)")
     }
 
     private static func blackjack(_ g: JSON, _ round: String) -> Outcome {

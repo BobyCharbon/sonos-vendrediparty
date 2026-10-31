@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import calendar_ics, debate, games, heist, island, likely, links, neon, president, purity, quiz
+from . import beerpong, calendar_ics, debate, games, heist, island, likely, links, neon, president, purity, quiz
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
 from .account_auth import AccountAuth
@@ -2303,10 +2303,11 @@ GAME_ONLY_ACTIONS = {
     "tmc": {"tanswer", "tjudge", "tq", "treveal", "finish"},
     "quiz": {"qset", "qans", "qjoker", "qstop", "qpause"},
     "room": {"rvote"},
+    "beerpong": {"bpset", "bphit", "bpsent", "bpreroll", "bpundo"},
 }
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
-HOST_ACTIONS = {"puset", "pureveal","ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
+HOST_ACTIONS = {"bpset", "puset", "pureveal","ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
                 "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover", "nset", "hset",
                 "lkset", "lkskip", "lkswap", "dbset", "dbskip", "dbswap", "dbrevote", "dbaccept", "dbrefuse"}
 
@@ -2392,6 +2393,10 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "tanswer": (games.tmc_answer, me, body.guess), "tjudge": (games.tmc_judge, me, body.amount),
         "addguest": (games.add_guest, body.guess), "mvote": (games.vote_for, target, body.guess),
         "rvote": (games.room_vote, me, body.target),
+        "bpset": (games.bp_call, beerpong.configure if g["phase"] == "lobby" else beerpong.configure_live, body.settings),
+        "bphit": (games.bp_mark, me, beerpong.hit, body.settings.get("team"), body.settings.get("cup"), body.settings.get("pid"), random),
+        "bpsent": (games.bp_mark, me, beerpong.sentence, body.amount, random),
+        "bpreroll": (games.bp_mark, me, beerpong.reroll, random), "bpundo": (games.bp_mark, me, beerpong.undo),
         "tq": (games.tmc_change_question,), "treveal": (games.tmc_reveal,), "finish": (games.tmc_finish,),
         "pans": (games.pyr_answer, actor, body.target), "pflip": (games.pyr_flip,), "pclaim": (games.pyr_claim, actor),
         "pbu": (games.pyr_judge, body.target, False), "pliar": (games.pyr_judge, body.target, True),

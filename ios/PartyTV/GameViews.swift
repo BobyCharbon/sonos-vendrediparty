@@ -49,6 +49,7 @@ struct GameView: View {
             case "pyramid": PyramidTV(game: game)
             case "biskit": BiskitTV(game: game)
             case "president": PresidentTV(game: game)
+            case "beerpong": BeerPongTV(game: game)
             case "island", "neon", "heist": ActionGameTV(game: game)
             default: GenericTV(game: game)
             }

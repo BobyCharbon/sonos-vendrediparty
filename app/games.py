@@ -14,7 +14,7 @@ import secrets
 import time
 import unicodedata
 
-from . import debate, heist, island, likely, neon, president, purity, quiz
+from . import beerpong, debate, heist, island, likely, neon, president, purity, quiz
 from .divan_cards import DIVAN_CARDS
 from .tmc_questions import TMC_QUESTIONS
 from .party_questions import NEVER_AWKWARD, NEVER_HOT, NEVER_SOFT, WHOOF_AWKWARD, WHOOF_HOT, WHOOF_SOFT
@@ -24,6 +24,7 @@ GAMES = {
     "whoof": "Qui de nous ?",
     "likely": "Qui est le plus… ?",
     "debate": "Pour ou contre",
+    "beerpong": "Beer pong",
     "never": "Je n'ai jamais",
     "roulette": "Roulette",
     "blackjack": "Blackjack",
@@ -182,6 +183,8 @@ def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code
         likely.init(g)
     if kind == "debate":
         debate.init(g)
+    if kind == "beerpong":
+        beerpong.init(g)
     if kind == "room":
         # Salle de jeux : un seul code pour la soirée ; l'animateur y lance les jeux les uns après les autres.
         g.update(current=None, rhistory=[], rtally={}, rpts={}, rnames={})
@@ -248,11 +251,13 @@ def join(g: dict, gid: str, name: str = ""):
     pending = g["type"] == "pyramid" and g["phase"] not in ("lobby",) and bool(g.get("pyr"))
     g["players"].append({"id": gid, "pid": pid, "name": name or "?", "alive": True, "role": None, "word": None,
                          "waiting": waiting, "pending": pending})
+    if g["type"] == "beerpong" and g["phase"] != "lobby":
+        beerpong.join_late(g)  # le retardataire rejoint la plus petite équipe
 
 
 # Jeux où l'animateur peut ajouter des participants sans téléphone (il vote, mise ou joue pour eux). Pas Undercover,
 # Quiz, Purify ni Président : ils reposent sur un secret (mot, main) ou des réponses personnelles.
-MANUAL_GAMES = ("divan", "tmc", "never", "pyramid", "biskit", "likely", "debate", "room", "whoof", "blackjack", "casino")
+MANUAL_GAMES = ("divan", "tmc", "never", "pyramid", "biskit", "likely", "debate", "room", "whoof", "blackjack", "casino", "beerpong")
 
 
 def add_guest(g: dict, name: str, guest_id: str | None = None):
@@ -1921,6 +1926,25 @@ def _db(fn, g: dict, *args):
         raise GameError(str(e))
 
 
+def bp_call(g: dict, fn, *args):
+    """Beer pong : ses erreurs deviennent des erreurs de jeu (message pour le téléphone)."""
+    try:
+        return fn(g, *args)
+    except beerpong.BeerPongError as e:
+        raise GameError(str(e))
+
+
+def bp_can_mark(g: dict, gid: str) -> bool:
+    """Marquer un gobelet et choisir la sentence : l'animateur, ou le marqueur qu'il a désigné."""
+    return is_lead(g, gid) or (bool(gid) and g.get("bp", {}).get("marker") == gid)
+
+
+def bp_mark(g: dict, gid: str, fn, *args):
+    if not bp_can_mark(g, gid):
+        raise GameError("Seul l'animateur ou le marqueur note les gobelets")
+    return bp_call(g, fn, *args)
+
+
 def db_vote(g: dict, voter: str, value, by: str = ""):
     _db(debate.vote, g, voter, value, by)
 
@@ -1979,6 +2003,9 @@ def start(g: dict, rng: random.Random = random):
         return
     if g["type"] == "debate":
         _db(debate.start, g, rng)
+        return
+    if g["type"] == "beerpong":
+        bp_call(g, beerpong.start, rng)
         return
     if g["type"] == "quiz":
         try:
@@ -2231,6 +2258,9 @@ def restart(g: dict, rng: random.Random = random) -> dict:
         president.start(g, rng)
     elif g["type"] in ("quiz", "purity", "likely", "debate"):
         start(g, rng)
+    elif g["type"] == "beerpong":
+        beerpong.restart(g)
+        start(g, rng)
     elif g["type"] == "biskit":
         start(g, rng)
     elif g["type"] == "pyramid":
@@ -2305,6 +2335,8 @@ def view(g: dict, gid: str) -> dict:
         out["likely"] = likely.view(g, gid)
     if g["type"] == "debate":
         out["debate"] = debate.view(g, gid, is_lead(g, gid))
+    if g["type"] == "beerpong":
+        out["bp"] = beerpong.view(g, gid, is_lead(g, gid))
     if g["type"] == "purity":
         out["purity"] = purity.view(g, gid)
         if g["phase"] == "results":
