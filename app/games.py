@@ -1220,7 +1220,9 @@ def pyr_answer(g: dict, actor: str, value: str):
     if g["phase"] == "pyramid" and late:
         cur, step = late["gid"], late["step"]
     elif g["phase"] == "deal":
-        cur, step = P["order"][P["turn"]], P["step"]
+        if not P["order"]:  # tout le monde est parti pendant la distribution (trouvé par les bots)
+            raise GameError("Plus personne à la table")
+        cur, step = P["order"][P["turn"] % len(P["order"])], P["step"]
     else:
         raise GameError("La distribution est terminée")
     if actor != cur:

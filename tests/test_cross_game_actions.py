@@ -54,3 +54,16 @@ def test_restart_where_there_is_no_new_round_is_refused_cleanly(kind):
     c = TestClient(main.app, raise_server_exceptions=False)
     code = c.post("/api/games", json={"type": kind, "guest_id": HOST, "name": "Boby"}).json()["code"]
     assert c.post(f"/api/games/{code}", json={"guest_id": HOST, "action": "restart"}).status_code == 409
+
+
+def test_pyramid_answer_after_everyone_left_the_deal_is_refused_cleanly():
+    import random
+
+    from app import games
+    g = games.new_game("pyramid", HOST, "Boby", code="5151")
+    games.join(g, "cross-game-phone-1", "Léa")
+    games.start(g, random.Random(2))
+    for gid in list(g["pyr"]["order"]):
+        games.leave(g, gid)
+    with pytest.raises(games.GameError):
+        games.pyr_answer(g, HOST, "red")
