@@ -2259,8 +2259,7 @@ def restart(g: dict, rng: random.Random = random) -> dict:
     elif g["type"] in ("quiz", "purity", "likely", "debate"):
         start(g, rng)
     elif g["type"] == "beerpong":
-        beerpong.restart(g)
-        start(g, rng)
+        start(g, rng)  # remet les gobelets ; refusé sans rien toucher s'il manque une équipe
     elif g["type"] == "biskit":
         start(g, rng)
     elif g["type"] == "pyramid":
@@ -2272,8 +2271,11 @@ def restart(g: dict, rng: random.Random = random) -> dict:
         start(g, rng)
     elif g["type"] == "undercover":
         _deal(g, rng)
-    else:
+    elif g["type"] in QUESTION_GAMES:
         _next_question(g, rng)
+    else:
+        # Salle de jeux, Divan, Blackjack, Casino, Roulette : pas de « nouvelle manche » (ils continuent d'eux-mêmes).
+        raise GameError("Pas de nouvelle manche pour ce jeu")
     return g
 
 

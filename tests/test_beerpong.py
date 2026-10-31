@@ -140,3 +140,13 @@ def test_api_flow_host_marker_and_tv():
         for k in set(main.store.session.games) - before:
             main.store.session.games.pop(k, None)
         main._game_creations.clear()
+
+
+def test_a_failed_rematch_leaves_the_table_as_it_was():
+    # Trouvé par les bots : « Revanche » sans équipe complète vidait la table d'une partie en cours.
+    g = table(n=2, cups=6)
+    blue = next(gid for gid, t in g["bp"]["teams"].items() if t == "blue")
+    games.leave(g, blue)
+    with pytest.raises(games.GameError):
+        games.restart(g, random.Random(1))
+    assert g["phase"] == "play" and g["bp"]["racks"]["red"] == [True] * 6

@@ -2360,6 +2360,9 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     seat = actor if actor != me and games.is_manual(g, actor) else me
     if any(a in only and g["type"] != kind for kind, only in GAME_ONLY_ACTIONS.items()):
         raise HTTPException(400, "Action indisponible dans ce jeu")
+    # Pyramide, Biskit : leurs coups n'existent qu'une fois la partie lancée.
+    if (a in GAME_ONLY_ACTIONS["pyramid"] and not g.get("pyr")) or (a in GAME_ONLY_ACTIONS["biskit"] and not g.get("bk")):
+        raise HTTPException(409, "La partie n'a pas encore commencé")
     if a in HOST_ACTIONS and not games.is_lead(g, me):
         raise HTTPException(403, "Seul l'animateur de la partie peut faire ça")
     if a == "join" and (msg := ban_message(me, client_ip(request))):

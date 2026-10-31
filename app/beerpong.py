@@ -247,10 +247,6 @@ def sentence(g: dict, choice: int, rng=random):
             g["phase"] = "end"
 
 
-def restart(g: dict):
-    g["bp"].update(racks={t: [] for t in TEAMS}, pending=None, last=None, log=[], winner=None, n=0)
-
-
 def view(g: dict, gid: str, lead: bool = False) -> dict:
     B = g["bp"]
     pending = B["pending"]

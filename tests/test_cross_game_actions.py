@@ -36,3 +36,21 @@ def test_actions_of_another_game_are_refused_cleanly(kind):
         for a in actions:
             r = c.post(f"/api/games/{code}", json={"guest_id": HOST, "action": a, "target": "n:7", "amount": 5, "guess": "x"})
             assert r.status_code == 400, (kind, a, r.status_code, r.text[:200])
+
+
+@pytest.mark.parametrize("kind, action", [("biskit", "bdraw"), ("biskit", "btap"), ("pyramid", "pans"), ("pyramid", "ptop")])
+def test_card_moves_before_the_game_starts_are_refused_cleanly(kind, action):
+    # Trouvé par les bots (tools/bot_soak.py) : le coup lisait l'état d'une partie pas encore lancée (erreur 500).
+    main._game_creations.clear()
+    c = TestClient(main.app, raise_server_exceptions=False)
+    code = c.post("/api/games", json={"type": kind, "guest_id": HOST, "name": "Boby"}).json()["code"]
+    r = c.post(f"/api/games/{code}", json={"guest_id": HOST, "action": action, "target": "red"})
+    assert r.status_code == 409, r.text[:200]
+
+
+@pytest.mark.parametrize("kind", ["room", "divan", "blackjack", "casino", "roulette"])
+def test_restart_where_there_is_no_new_round_is_refused_cleanly(kind):
+    main._game_creations.clear()
+    c = TestClient(main.app, raise_server_exceptions=False)
+    code = c.post("/api/games", json={"type": kind, "guest_id": HOST, "name": "Boby"}).json()["code"]
+    assert c.post(f"/api/games/{code}", json={"guest_id": HOST, "action": "restart"}).status_code == 409
