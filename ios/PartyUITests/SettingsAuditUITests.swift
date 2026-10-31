@@ -535,6 +535,10 @@ final class SettingsAuditUITests: XCTestCase {
         record("saisie-avancee")
         app.swipeUp()
         record("saisie-avancee-bas")
+        app.swipeDown()
+        app.segmentedControls["tc-kind"].buttons["Remboursement"].tap()
+        sleep(1)
+        record("saisie-remboursement")
         app.buttons["Annuler"].tap()
         sleep(1)
         // Quitter le tricount (ménage), puis le profil de paiement

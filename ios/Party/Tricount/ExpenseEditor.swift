@@ -23,6 +23,23 @@ struct ExpenseEditor: View {
         NavigationStack {
             Form {
                 Section {
+                    Picker("Type", selection: $draft.transfer.animation()) {
+                        Text("Dépense").tag(false)
+                        Text("Remboursement").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("tc-kind")
+                    .onChange(of: draft.transfer) { on in
+                        guard on else { return }
+                        // Un remboursement va d'une personne à une autre, à parts égales.
+                        let other = group.active.first { $0.id != draft.payer && draft.forWhom.contains($0.id) }
+                            ?? group.active.first { $0.id != draft.payer }
+                        draft.forWhom = other.map { [$0.id] } ?? []
+                        draft.split = .equal
+                    }
+                }
+                .listRowBackground(Color.clear).listRowInsets(EdgeInsets())
+                Section {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         TextField("0.00", text: $draft.amount)
                             .keyboardType(.decimalPad).font(.system(size: 44, weight: .heavy, design: .rounded))
@@ -146,11 +163,6 @@ struct ExpenseEditor: View {
 
     private var advancedSection: some View {
         Section("Détails") {
-            Toggle("C'est un remboursement", isOn: $draft.transfer.animation())
-                .onChange(of: draft.transfer) { on in
-                    if on, let first = draft.forWhom.first { draft.forWhom = [first] }
-                    if on { draft.split = .equal }
-                }
             if !draft.transfer {
                 Picker("Catégorie", selection: $draft.category) {
                     Text(guessed.map { "Auto · \($0.emoji) \($0.label)" } ?? "Automatique").tag("")
