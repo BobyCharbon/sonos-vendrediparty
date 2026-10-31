@@ -30,7 +30,8 @@ def vote(phone, label, last=False):
     expect(page.locator('.lk-who')).to_contain_text('Où te places-tu')
     page.locator('.db-pick', has_text=label).click()
     if not last:  # le dernier vote révèle aussitôt la répartition
-        expect(page.locator('.db-mine')).to_contain_text(label)
+        expect(page.locator('.db-mine')).to_contain_text('Vote enregistré')
+        expect(page.locator('.lk-done')).not_to_contain_text(label)  # vote secret : le choix n'est pas rappelé
     expect(page.locator('.db-scale')).to_have_count(0)  # vote définitif : l'échelle disparaît
 
 

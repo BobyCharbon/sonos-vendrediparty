@@ -120,7 +120,8 @@ function dbAskHtml(g) {
   // Chacun vote sur son propre téléphone, en même temps ; une fois voté, l'échelle disparaît (vote secret et définitif).
   const late = g.me && !g.is_host && !v.done.includes(g.me.pid) && !v.waiting.some((x) => x.pid === g.me.pid);
   const mine = v.can_vote ? dbScaleHtml(g, g.me.pid, "Où te places-tu&nbsp;? C'est secret.")
-    : v.mine != null ? `<div class="lk-card lk-done"><div class="lk-name db-mine">${DB_EMOJI[v.mine]} ${esc(v.scale[v.mine])}</div><div class="artist">Ton vote est enregistré. Résultat quand tout le monde a voté.</div></div>`
+    // Vote secret : une fois voté, le téléphone ne rappelle pas le choix (un voisin pourrait le lire ; avis d16752d9adb0).
+    : v.mine != null ? `<div class="lk-card lk-done"><div class="lk-name db-mine">🤫 Vote enregistré</div><div class="artist">Ton choix reste secret. Résultat quand tout le monde a voté.</div></div>`
     : late ? `<div class="lk-card lk-done"><div class="artist">Tu es arrivé pendant ce vote : tu voteras au prochain dilemme.</div></div>` : "";
   const host = g.is_host && !v.can_vote ? dbPassHtml(g) + dbWaitingHtml(g) : "";
   return `${dbQuestion(v)}${again}${mine}${host}${dbDots(v)}
