@@ -12,6 +12,7 @@ struct ChatInfoView: View {
                     if chat.member {
                         Section {
                             Picker("Notifications", selection: Binding(get: { chat.notify }, set: { level in
+                                Haptics.selection()
                                 Task { await store.setNotify(level) }
                             })) {
                                 ForEach(ChatNotify.allCases) { Text($0.label).tag($0) }
@@ -34,6 +35,9 @@ struct ChatInfoView: View {
                 }
             }
             .scrollContentBackground(.hidden)
+            // Réglage enregistré (l'explication change), admin nommé ou retiré : fondu plutôt que saut.
+            .motion(Motion.smooth, value: store.conversation?.notify)
+            .motion(Motion.snappy, value: store.conversation?.members)
             .background(AppConfig.background.ignoresSafeArea())
             .navigationTitle(store.conversation?.name ?? "Groupe")
             .navigationBarTitleDisplayMode(.inline)
