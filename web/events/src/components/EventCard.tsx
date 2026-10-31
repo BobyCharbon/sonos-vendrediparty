@@ -1,8 +1,9 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { AccessibilityInfo, Animated, Pressable, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { rsvpCounts, type EventListItem } from '@/lib/data';
+import { enter, pressTransition } from '@/lib/motion';
 import { dateTile, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
 import { rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
 import { colors, font, radius } from '@/lib/theme';
@@ -53,26 +54,6 @@ function DateTile({ iso, tone }: { iso: string | null; tone: Tone }) {
   );
 }
 
-/** Halo et point qui pulsent tant qu’on attend ta réponse (immobiles si « réduire les animations »). */
-function usePulse(active: boolean) {
-  const [v] = useState(() => new Animated.Value(0));
-  useEffect(() => {
-    if (!active) return;
-    let loop: Animated.CompositeAnimation | null = null;
-    let cancelled = false;
-    AccessibilityInfo.isReduceMotionEnabled().then((reduce) => {
-      if (cancelled || reduce) return;
-      loop = Animated.loop(Animated.sequence([
-        Animated.timing(v, { toValue: 1, duration: 1200, useNativeDriver: false }),
-        Animated.timing(v, { toValue: 0, duration: 1200, useNativeDriver: false }),
-      ]));
-      loop.start();
-    }).catch(() => {});
-    return () => { cancelled = true; loop?.stop(); };
-  }, [active, v]);
-  return v;
-}
-
 export function EventCard({
   event,
   me,
@@ -80,6 +61,7 @@ export function EventCard({
   onChanged,
   quickRsvp = false,
   now,
+  index = 0,
 }: {
   event: EventListItem;
   me: string;
@@ -89,6 +71,8 @@ export function EventCard({
   quickRsvp?: boolean;
   /** Horodatage de référence (chargement des données) pour garder le rendu pur. */
   now: number;
+  /** Rang dans la liste : les cartes entrent en cascade à l’ouverture de l’onglet. */
+  index?: number;
 }) {
   const [busy, setBusy] = useState<RsvpStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +89,6 @@ export function EventCard({
   const full = !!event.max_participants && counts.heads >= event.max_participants;
   const answered = mine && !isPoll && !mine.waitlisted ? mine.status : null;
   const tone: Tone = past || event.status === 'cancelled' ? 'past' : needsAnswer ? 'todo' : answered;
-  const pulse = usePulse(tone === 'todo');
 
   async function answer(choice: RsvpStatus) {
     setBusy(choice);
@@ -130,10 +113,14 @@ export function EventCard({
   const others = answered === 'yes' ? counts.heads - 1 - mine!.plus_ones : counts.heads;
 
   return (
-    <Animated.View
+    // Entrée en cascade à l’apparition de la carte (pas au rechargement : la carte garde sa clé).
+    <View style={[st.shell, enter('rise', index)]}>
+    {/* Halo néon qui respire tant qu’on attend ta réponse : calque à part, seule son opacité bouge. */}
+    {tone === 'todo' ? <View pointerEvents="none" style={[st.glow, enter('glow')]} /> : null}
+    <View
       style={[
         st.card,
-        tone === 'todo' && [st.cardTodo, { shadowOpacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.5] }) }],
+        tone === 'todo' && st.cardTodo,
         tone === 'yes' && { borderColor: 'rgba(91,227,166,.45)' },
         tone === 'maybe' && { borderColor: colors.coral, borderStyle: 'dashed', borderWidth: 1.5 },
         tone === 'no' && { borderColor: 'rgba(255,99,99,.5)' },
@@ -142,7 +129,7 @@ export function EventCard({
     >
       {tone === 'todo' ? (
         <View style={st.banner}>
-          <Animated.View style={[st.dot, { opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.35] }) }]} />
+          <View style={[st.dot, enter('pulse')]} />
           <T size={13} weight="semibold" color={colors.accent} style={{ flex: 1 }}>{isPoll ? 'On attend ton vote' : 'On attend ta réponse'}</T>
           {event.rsvp_deadline || (isPoll && event.poll_deadline) ? (
             <T size={12} muted>avant {formatShort((isPoll ? event.poll_deadline : event.rsvp_deadline)!)}</T>
@@ -153,7 +140,7 @@ export function EventCard({
         accessibilityRole="link"
         accessibilityLabel={`${event.title}, ${isPoll ? 'date à définir' : formatShort(event.starts_at)}`}
         onPress={() => router.push(`/event/${event.id}`)}
-        style={({ pressed }) => [st.main, pressed && { opacity: 0.8 }]}
+        style={({ pressed }) => [st.main, pressTransition, pressed && { opacity: 0.7 }]}
       >
         <DateTile iso={isPoll ? null : event.starts_at} tone={tone} />
         <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
@@ -194,6 +181,7 @@ export function EventCard({
           <T size={13} weight="semibold" muted>Tu seras là ?</T>
           <RsvpButtons
             options={rsvpOptions(event.allow_maybe)}
+            selected={busy}
             busy={busy}
             onSelect={answer}
             accessibilityLabel={(k) => `${rsvpChoices[k].label} à ${event.title}`}
@@ -222,21 +210,25 @@ export function EventCard({
               accessibilityLabel={`${rsvpChoices[k].label} à ${event.title}`}
               disabled={!!busy}
               onPress={() => answer(k)}
-              style={({ pressed }) => [st.quickBtn, { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minWidth: 88, paddingHorizontal: 14 }, k === 'yes' && { backgroundColor: colors.coral, borderColor: colors.coral }, (pressed || busy === k) && { opacity: 0.7 }]}
+              style={({ pressed }) => [st.quickBtn, pressTransition, { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minWidth: 88, paddingHorizontal: 14 }, k === 'yes' && { backgroundColor: colors.coral, borderColor: colors.coral }, busy === k && k === 'no' && { backgroundColor: colors.red, borderColor: colors.red }, pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] }]}
             >
-              <T size={13} style={{ ...font.bold }} color={k === 'yes' ? colors.onCoral : colors.text}>{rsvpChoices[k].label}</T>
+              <T size={13} style={{ ...font.bold }} color={k === 'yes' ? colors.onCoral : busy === k ? colors.onRed : colors.text}>{rsvpChoices[k].label}</T>
             </Pressable>
           ))}
         </View>
       ) : null}
       {tone === 'maybe' ? <ErrorText error={error} /> : null}
-    </Animated.View>
+    </View>
+    </View>
   );
 }
 
 const st = StyleSheet.create({
+  shell: { position: 'relative' },
+  glow: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: radius.lg, backgroundColor: colors.surface,
+    shadowColor: colors.accent, shadowOpacity: 0.5, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, opacity: 0.7 },
   card: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.lg, overflow: 'hidden' },
-  cardTodo: { borderColor: 'rgba(255,79,154,0.55)', shadowColor: colors.accent, shadowRadius: 18, shadowOffset: { width: 0, height: 6 } },
+  cardTodo: { borderColor: 'rgba(255,79,154,0.55)' },
   cardPast: { backgroundColor: '#14101D', borderColor: '#241F31' },
   banner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingTop: 12, marginBottom: -6 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },

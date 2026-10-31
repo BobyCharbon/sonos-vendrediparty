@@ -5,10 +5,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EventCard } from '@/components/EventCard';
 import { SignedIn } from '@/components/SignedIn';
-import { Button, Chip, Empty, ErrorText, Input, s, Segmented, T, Title } from '@/components/ui';
+import { Button, Chip, Empty, ErrorText, Input, Reveal, s, Segmented, Skeleton, T, Title } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { fetchEventList, fetchTaxonomy, needsAnswer, useQuery } from '@/lib/data';
 import { must, supabase } from '@/lib/supabase';
+import { enter, pressTransition } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
 
 type Tab = 'upcoming' | 'polls' | 'pending' | 'drafts' | 'past';
@@ -174,9 +175,9 @@ export default function Home() {
 
         <ErrorText error={error} />
         {error ? <Button label="Réessayer" variant="secondary" onPress={reload} /> : null}
-        {loading && !data ? <T muted>Chargement des événements…</T> : null}
+        {loading && !data ? <ListSkeleton /> : null}
         {data && visible.length === 0 ? (
-          <View style={{ gap: 8, paddingVertical: 20 }}>
+          <Reveal kind="fade" style={{ gap: 8, paddingVertical: 20 }}>
             <Empty>
               {search.trim() ? 'Aucun événement ne correspond à ta recherche.'
                 : filter.kind === 'subscribed' ? 'Aucun événement pour tes abonnements pour le moment.'
@@ -193,24 +194,24 @@ export default function Home() {
             {search.trim() || filter.kind !== 'all' ? (
               <Button label="Effacer la recherche et les filtres" variant="ghost" onPress={() => { setSearch(''); setFilter({ kind: 'all' }); }} />
             ) : null}
-          </View>
+          </Reveal>
         ) : null}
         {goingList.length ? (
           <View style={{ gap: 10 }}>
             <T size={13} weight="bold" color={colors.mint} style={st.label}>TU Y VAS</T>
-            {goingList.map((e) => (
-              <EventCard key={e.id} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp now={data!.loadedAt} />
+            {goingList.map((e, i) => (
+              <EventCard key={e.id} index={i} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp now={data!.loadedAt} />
             ))}
           </View>
         ) : null}
         {pollsToAnswer > 0 ? (
-          <Pressable accessibilityRole="button" onPress={() => setTab('polls')} style={st.banner}>
+          <Pressable accessibilityRole="button" onPress={() => setTab('polls')} style={({ pressed }) => [st.banner, enter('drop'), pressTransition, pressed && { opacity: 0.8 }]}>
             <T size={14}><T size={14} weight="bold">{pollsToAnswer} sondage{pollsToAnswer > 1 ? 's' : ''} de date</T> attend{pollsToAnswer > 1 ? 'ent' : ''} ton vote ›</T>
           </Pressable>
         ) : null}
         {goingList.length && rest.length ? <T size={13} weight="bold" color={colors.muted} style={[st.label, { marginTop: 6 }]}>À VENIR</T> : null}
-        {rest.map((e) => (
-          <EventCard key={e.id} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp={tab === 'polls' || tab === 'upcoming'} now={data!.loadedAt} />
+        {rest.map((e, i) => (
+          <EventCard key={e.id} index={goingList.length + i} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp={tab === 'polls' || tab === 'upcoming'} now={data!.loadedAt} />
         ))}
       </ScrollView>
 
@@ -220,7 +221,7 @@ export default function Home() {
           accessibilityRole="button"
           accessibilityLabel="Proposer un événement"
           onPress={() => router.push('/event/new')}
-          style={({ pressed }) => [st.fab, pressed && { opacity: 0.85 }]}
+          style={({ pressed }) => [st.fab, enter('pop'), pressTransition, pressed && { opacity: 0.9, transform: [{ scale: 0.94 }] }]}
         >
           <T color={colors.onAccent} style={{ ...font.bold, fontSize: 15 }}>+ Proposer</T>
         </Pressable>
@@ -230,7 +231,26 @@ export default function Home() {
   );
 }
 
+/** Cartes fantômes pendant le premier chargement : la liste garde sa forme, rien ne saute à l’arrivée. */
+function ListSkeleton() {
+  return (
+    <View accessibilityLabel="Chargement des événements…" accessibilityRole="progressbar" style={{ gap: 14 }}>
+      {[0, 1, 2].map((i) => (
+        <View key={i} style={[st.ghost, { opacity: 1 - i * 0.25 }]}>
+          <Skeleton width={56} height={64} radius={radius.md} />
+          <View style={{ flex: 1, gap: 10, paddingTop: 4 }}>
+            <Skeleton width={90} height={18} radius={radius.pill} />
+            <Skeleton width="80%" height={20} />
+            <Skeleton width="55%" />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const st = StyleSheet.create({
+  ghost: { flexDirection: 'row', gap: 14, padding: 14, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   label: { letterSpacing: 0.6 },
   banner: { backgroundColor: colors.coralDim, padding: 14, borderRadius: radius.md, borderWidth: 1, borderColor: '#5A4024' },
   fabWrap: { position: 'absolute', left: 0, right: 0, bottom: 16, alignItems: 'center' },
