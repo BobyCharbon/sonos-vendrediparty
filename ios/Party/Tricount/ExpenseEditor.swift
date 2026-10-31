@@ -65,7 +65,7 @@ struct ExpenseEditor: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(draft.id == nil ? (draft.transfer ? "Remboursement" : "Nouvelle dépense") : "Modifier")
+            .navigationTitle(draft.id == nil ? (draft.transfer ? "Remboursement" : "Dépense") : "Modifier")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } }
@@ -153,7 +153,7 @@ struct ExpenseEditor: View {
                 }
             if !draft.transfer {
                 Picker("Catégorie", selection: $draft.category) {
-                    Text("Automatique\(guessed.map { " (\($0.emoji) \($0.label))" } ?? "")").tag("")
+                    Text(guessed.map { "Auto · \($0.emoji) \($0.label)" } ?? "Automatique").tag("")
                     ForEach(store.categories) { c in Text("\(c.emoji) \(c.label)").tag(c.id) }
                 }
             }
