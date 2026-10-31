@@ -1628,3 +1628,17 @@ html.native-tabs .g-mini { bottom: 12px; }
 .pc-groups { margin-top: 4px; }
 .pc-close { margin-top: 6px; }
 [data-profile-pid] { cursor: pointer; }
+
+/* ⏸ Pause de l'animateur : voile flou sur tout le jeu, au-dessus de tout. */
+.g-pause { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; padding: 24px;
+  background: rgba(10, 6, 20, .72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); animation: g-pause-in .3s ease-out; }
+.g-pause-card { width: min(420px, 100%); padding: 28px 22px; border-radius: 28px; text-align: center; color: #fff;
+  background: rgba(255, 255, 255, .08); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .15), 0 24px 60px rgba(0, 0, 0, .5); }
+.g-pause-i { font-size: 3.4rem; animation: g-pause-beat 1.6s ease-in-out infinite; }
+.g-pause-t { font: 800 2rem "Bricolage Grotesque", system-ui, sans-serif; margin-top: 6px; }
+.g-pause-s { color: #d8d0f2; margin-top: 8px; }
+.g-pause-go { width: 100%; margin-top: 18px; }
+@keyframes g-pause-in { from { opacity: 0; } }
+@keyframes g-pause-beat { 50% { transform: scale(.9); opacity: .7; } }
+@media (prefers-reduced-motion: reduce) { .g-pause, .g-pause-i { animation: none; } }
+.g-pause-btn { flex: none; font-size: 1rem; }

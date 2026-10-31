@@ -33,6 +33,22 @@ struct WatchScreen: View {
         }
         .padding(.horizontal, 10)
         .overlay {
+            // Pause de l'animateur : un voile sur toute la télé.
+            if let by = shown["paused"]["by"].string {
+                ZStack {
+                    Color.black.opacity(0.6).ignoresSafeArea()
+                    VStack(spacing: 20) {
+                        Text("⏸").font(.system(size: 140))
+                        Text("Pause").font(.system(size: 110, weight: .black))
+                        Text("\(by) a mis la partie en pause").font(.system(size: 40, weight: .semibold)).foregroundStyle(TV.muted)
+                    }
+                    .padding(70).glass(cornerRadius: 60)
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: shown["paused"].isNull)
+        .overlay {
             if let flash {
                 ZStack {
                     Color.black.opacity(0.55).ignoresSafeArea()

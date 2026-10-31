@@ -1926,6 +1926,39 @@ def _db(fn, g: dict, *args):
         raise GameError(str(e))
 
 
+# ── Pause de l'animateur, dans tous les jeux ──
+PAUSE_KEEP = {"created_at", "updated_at"}  # dates qui ne bougent pas à la reprise
+PAUSE_WINDOW = 6 * 3600  # une date de la partie : entre 6 h avant la pause et 1 h après (échéances à venir)
+
+
+def pause_game(g: dict, gid: str):
+    """L'animateur met la partie en pause : plus aucun coup, le temps s'arrête (voir resume_game)."""
+    if g["phase"] in ("lobby", "end") or g["type"] == "room":
+        raise GameError("Rien à mettre en pause : la partie n'est pas en cours")
+    if g.get("paused"):
+        raise GameError("La partie est déjà en pause")
+    g["paused"] = {"at": time.time(), "by": (player(g, gid) or {}).get("name") or g.get("host_name") or "L'animateur"}
+
+
+def _shift_times(node, since: float, delta: float):
+    """Décale chaque date de la partie (échéance d'une question, lancer de la bille…) de la durée de la pause."""
+    items = node.items() if isinstance(node, dict) else enumerate(node) if isinstance(node, list) else ()
+    for k, v in items:
+        if isinstance(v, (dict, list)):
+            _shift_times(v, since, delta)
+        elif isinstance(v, float) and k not in PAUSE_KEEP and since - PAUSE_WINDOW <= v <= since + 3600:
+            node[k] = v + delta
+
+
+def resume_game(g: dict):
+    """Reprise : chaque minuteur repart là où il s'était arrêté."""
+    paused = g.get("paused")
+    if not paused:
+        raise GameError("La partie n'est pas en pause")
+    g["paused"] = None
+    _shift_times(g, paused["at"], time.time() - paused["at"])
+
+
 def bp_call(g: dict, fn, *args):
     """Beer pong : ses erreurs deviennent des erreurs de jeu (message pour le téléphone)."""
     try:
@@ -2372,6 +2405,7 @@ def view(g: dict, gid: str) -> dict:
     elif g["results"]:
         out["results"] = [{"pid": _pid(g, i), "name": (player(g, i) or {}).get("name", "?"), "count": c}
                           for i, c in g["results"]]
+    out["paused"] = {"by": g["paused"]["by"], "for": round(time.time() - g["paused"]["at"])} if g.get("paused") else None
     # Gorgées des derniers coups, sans l'identifiant privé (la télé et les téléphones les annoncent).
     now = time.time()
     out["sips_log"] = [{**{k: e[k] for k in ("n", "pid", "name", "drink", "give")}, "age": round(now - e.get("at", now), 1)}

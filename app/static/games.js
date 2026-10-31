@@ -967,6 +967,7 @@ function renderGame(g) {
   $("gamePlay").classList.toggle("hidden", !g);
   // Un jeu se joue toujours en plein écran ; « Réduire » (menu) revient aux onglets sans quitter la partie.
   syncGameChrome();
+  renderPause(g);
   if (!g) { closeDrawer(); return; }
   const me = g.me;
   const nameOf = (pid) => esc(g.players.find((p) => p.pid === pid)?.name || "?");
@@ -2545,6 +2546,25 @@ document.addEventListener("click", (ev) => {
   if (go) { setGame(go.dataset.roomGoto); autoJoin = true; refreshGame(); }
 });
 
+// ⏸ Pause de l'animateur : un voile sur tout le jeu, pour tout le monde ; l'animateur reprend d'un toucher.
+function renderPause(g) {
+  let el = $("gPause");
+  if (!g?.paused) { el?.remove(); return; }
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "gPause";
+    el.className = "g-pause";
+    el.setAttribute("role", "dialog");
+    el.setAttribute("aria-modal", "true");
+    el.setAttribute("aria-label", "Partie en pause");
+    document.body.append(el);
+  }
+  const html = `<div class="g-pause-card"><div class="g-pause-i" aria-hidden="true">⏸</div><div class="g-pause-t">Pause</div>
+    <div class="g-pause-s">${esc(g.paused.by)} a mis la partie en pause</div>
+    ${g.is_host ? `<button type="button" class="py-main g-pause-go" data-gact="resume">▶ Reprendre la partie</button>` : `<div class="g-pause-s">Elle reprend dès que l'animateur la relance.</div>`}</div>`;
+  if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
+}
+
 // Barre du haut commune à tous les jeux : ☰ menu, nom + phase + chrono, ? règles.
 function gameTopBar(g) {
   const phase = g.type === "pyramid" && g.pyr ? pyrPhase(g) : phaseLabel(g);
@@ -2555,6 +2575,8 @@ function gameTopBar(g) {
     <div class="g-top-mid"><div class="g-top-name"><span class="g-top-ico" aria-hidden="true">${GAME_ICONS[g.type] || ""}</span>${esc(g.name)}</div>
       <div class="g-top-sub">${g.mode ? esc(g.mode) + " · " : ""}${QUESTION_TYPES.includes(g.type) && g.round && g.phase !== "lobby" && g.phase !== "end" ? `Question ${g.round}` : (g.type === "room" ? "Soirée" : phase) + round} · ${g.room || g.type === "room" ? "salle" : "code"} <b>${esc(g.room || g.code)}</b> · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
     ${GameAudio.button()}
+    ${g.is_host && !["lobby", "end"].includes(g.phase) && g.type !== "room" ? `<button type="button" class="py-icon g-pause-btn" data-gact="${g.paused ? "resume" : "pause"}"
+      aria-label="${g.paused ? "Reprendre la partie" : "Mettre la partie en pause"}">${g.paused ? "▶" : "⏸"}</button>` : ""}
     <button type="button" class="py-icon g-min" data-gdrawer="minimize" aria-label="Réduire le jeu (revenir à la musique)">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
     ${helpBtn(g.type, true)}

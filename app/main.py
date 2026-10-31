@@ -2251,14 +2251,16 @@ def read_game(code: str, request: Request, guest_id: str, name: str):
     guest_id = canonical_gid(g, guest_id)
     sync_player_name(g, guest_id, name)
     admin_lead(g, request, guest_id)
-    if quiz.tick(g):  # Quiz : le temps a avancé (fin d'une question, question suivante…)
+    if g.get("paused"):
+        pass  # en pause : le temps ne fait rien avancer
+    elif quiz.tick(g):  # Quiz : le temps a avancé (fin d'une question, question suivante…)
         g["updated_at"] = time.time()
         save_games(g["code"], g.get("room") or "")
-    if heist.tick(g):
+    if not g.get("paused") and heist.tick(g):
         save_games(g["code"])
-    if island.tick(g):
+    if not g.get("paused") and island.tick(g):
         save_games(g["code"])
-    if neon.tick(g):
+    if not g.get("paused") and neon.tick(g):
         save_games(g["code"])
     return full_view(g, guest_id)
 
@@ -2285,12 +2287,12 @@ PURITY_ONLY = {"puset", "puans", "pusub", "puunsub", "pureveal"}
 # « Qui est le plus… ? » : chacun vote sur son téléphone ; celui de l'animateur fait voter les participants sans
 # téléphone (lkvote, avec who = votant) et passe un absent (lkskip, avec target).
 LIKELY_ONLY = {"lkset", "lkvote", "lkskip", "lkswap"}
-LIKELY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "addguest", "up", "down"} | LIKELY_ONLY
+LIKELY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "addguest", "up", "down", "pause", "resume"} | LIKELY_ONLY
 # « Pour ou contre » : vote sur 5 crans (dbvote, amount = cran, who = votant sans téléphone), revote décidé par
 # l'animateur, dilemmes proposés par les joueurs (dbpropose, guess = texte) et validés par l'animateur (amount = numéro).
 DEBATE_ONLY = {"dbset", "dbvote", "dbskip", "dbswap", "dbrevote", "dbpropose", "dbaccept", "dbrefuse"}
-DEBATE_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "addguest", "up", "down"} | DEBATE_ONLY
-PURITY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end"} | PURITY_ONLY
+DEBATE_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "addguest", "up", "down", "pause", "resume"} | DEBATE_ONLY
+PURITY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "pause", "resume"} | PURITY_ONLY
 
 # Actions propres à un jeu : refusées ailleurs (sinon elles lisent l'état d'un autre jeu et le serveur plante).
 GAME_ONLY_ACTIONS = {
@@ -2307,7 +2309,9 @@ GAME_ONLY_ACTIONS = {
 }
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
-HOST_ACTIONS = {"bpset", "puset", "pureveal","ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
+# Seuls coups possibles pendant une pause : reprendre, terminer, gérer les joueurs.
+PAUSE_ALLOWED = {"pause", "resume", "end", "remove", "ban", "handover", "addguest", "leave", "join", "up", "down"}
+HOST_ACTIONS = {"pause", "resume", "bpset", "puset", "pureveal","ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
                 "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover", "nset", "hset",
                 "lkset", "lkskip", "lkswap", "dbset", "dbskip", "dbswap", "dbrevote", "dbaccept", "dbrefuse"}
 
@@ -2332,13 +2336,13 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     sync_player_name(g, body.guest_id, body.name)
     admin_lead(g, request, body.guest_id)
     a, me = body.action, body.guest_id
-    if g["type"] == "president" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "up", "down", "handover", "end", "prplay", "prpass", "prexchange"}:
+    if g["type"] == "president" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "up", "down", "handover", "end", "prplay", "prpass", "prexchange", "pause", "resume"}:
         raise HTTPException(400, "Action indisponible au Président")
-    if g["type"] == "heist" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "hset"}:
+    if g["type"] == "heist" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "hset", "pause", "resume"}:
         raise HTTPException(400, "Action indisponible au Braquage")
-    if g["type"] == "island" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end"}:
+    if g["type"] == "island" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "pause", "resume"}:
         raise HTTPException(400, "Action indisponible sur l’île")
-    if g["type"] == "neon" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "nset", "nteam"}:
+    if g["type"] == "neon" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "nset", "nteam", "pause", "resume"}:
         raise HTTPException(400, "Action indisponible dans Néon Knockout")
     if g["type"] == "purity" and a not in PURITY_ACTIONS:
         raise HTTPException(400, "Action indisponible au Purify Test")
@@ -2365,6 +2369,8 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         raise HTTPException(409, "La partie n'a pas encore commencé")
     if a in HOST_ACTIONS and not games.is_lead(g, me):
         raise HTTPException(403, "Seul l'animateur de la partie peut faire ça")
+    if g.get("paused") and a not in PAUSE_ALLOWED:
+        raise HTTPException(409, "⏸ La partie est en pause : l'animateur la relance")
     if a == "join" and (msg := ban_message(me, client_ip(request))):
         raise HTTPException(403, msg)
     if a == "end":
@@ -2396,6 +2402,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "tanswer": (games.tmc_answer, me, body.guess), "tjudge": (games.tmc_judge, me, body.amount),
         "addguest": (games.add_guest, body.guess), "mvote": (games.vote_for, target, body.guess),
         "rvote": (games.room_vote, me, body.target),
+        "pause": (games.pause_game, me), "resume": (games.resume_game,),
         "bpset": (games.bp_call, beerpong.configure if g["phase"] == "lobby" else beerpong.configure_live, body.settings),
         "bphit": (games.bp_mark, me, beerpong.hit, body.settings.get("team"), body.settings.get("cup"), body.settings.get("pid"), random),
         "bpsent": (games.bp_mark, me, beerpong.sentence, body.amount, random),
@@ -3182,11 +3189,11 @@ def tv_game(code: str):
     rafraîchie chaque seconde par la télé. Mêmes avancées automatiques que pour les téléphones (fin d'une question…)."""
     with GAMES_LOCK:
         g = get_game(code)
-        if quiz.tick(g):
+        if not g.get("paused") and quiz.tick(g):
             g["updated_at"] = time.time()
             save_games(g["code"], g.get("room") or "")
         for engine in (heist, island, neon):
-            if engine.tick(g):
+            if not g.get("paused") and engine.tick(g):
                 save_games(g["code"])
         view = full_view(g, "")
         if g["type"] == "room" and (child := room_child(g)) is not None:
@@ -3312,9 +3319,10 @@ def neon_frame(code: str, body: NeonInput):
             raise HTTPException(400, "Ce jeu n'est pas Néon Knockout")
         if body.guest_id in g.get("kicked", []):
             raise HTTPException(403, "Tu as été banni de cette partie")
-        changed = neon.tick(g)
+        paused = bool(g.get("paused"))  # pause de l'animateur : rien ne bouge
+        changed = False if paused else neon.tick(g)
         try:
-            neon.input_state(g, body.guest_id, body.x, body.y, body.charging, cancel=body.cancel)
+            None if paused else neon.input_state(g, body.guest_id, body.x, body.y, body.charging, cancel=body.cancel)
         except neon.NeonError as e:
             raise HTTPException(400, str(e))
         if changed:
@@ -3342,9 +3350,10 @@ def island_frame(code: str, body: IslandInput):
             raise HTTPException(400, "Ce jeu n’est pas L’île qui s’effondre")
         if body.guest_id in g.get("kicked", []) or (body.guest_id in g.get("removed", []) and not games.player(g, body.guest_id)):
             raise HTTPException(403, "Tu ne participes plus à cette partie")
-        changed = island.tick(g)
+        paused = bool(g.get("paused"))  # pause de l'animateur : rien ne bouge
+        changed = False if paused else island.tick(g)
         try:
-            island.input_state(g, body.guest_id, body.x, body.y, body.jump, cancel=body.cancel)
+            None if paused else island.input_state(g, body.guest_id, body.x, body.y, body.jump, cancel=body.cancel)
         except island.IslandError as e:
             raise HTTPException(400, str(e))
         if changed:
@@ -3372,9 +3381,10 @@ def heist_frame(code: str, body: HeistInput):
         if body.guest_id in g.get("kicked", []) or (body.guest_id in g.get("removed", []) and not games.player(g, body.guest_id)):
             raise HTTPException(403, "Tu ne participes plus à cette partie")
         phase = g["phase"]
-        changed = heist.tick(g)
+        paused = bool(g.get("paused"))  # pause de l'animateur : rien ne bouge
+        changed = False if paused else heist.tick(g)
         try:
-            heist.input_state(g, body.guest_id, body.x, body.y, body.action, cancel=body.cancel)
+            None if paused else heist.input_state(g, body.guest_id, body.x, body.y, body.action, cancel=body.cancel)
         except heist.HeistError as e:
             raise HTTPException(400, str(e))
         if changed or phase != g["phase"]:
