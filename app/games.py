@@ -926,7 +926,7 @@ def divan_back(g: dict, gid: str):
     """Retour en arrière : annule le dernier « Au suivant » ou joker (la carte écartée retourne dans le paquet)."""
     d = g["divan"]
     back = d.get("back") or []
-    if g["phase"] != "card" or not back:
+    if g["phase"] != "card" or not back or not g["players"]:
         raise GameError("Rien à annuler")
     if back[-1]["by"] != gid:
         _divan_can_lead(g, gid)
@@ -940,6 +940,8 @@ def divan_back(g: dict, gid: str):
 def divan_next(g: dict, gid: str, rng: random.Random = random):
     """Au suivant : le divan passe au joueur suivant, nouvelle carte."""
     _divan_can_lead(g, gid)
+    if not g["players"]:  # tout le monde est parti (trouvé par les bots)
+        raise GameError("Plus personne autour du divan")
     _divan_save(g, gid)
     g["divan"]["turn"] = (g["divan"]["turn"] + 1) % len(g["players"])
     g["divan"]["joker"] = False

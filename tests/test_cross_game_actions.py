@@ -67,3 +67,15 @@ def test_pyramid_answer_after_everyone_left_the_deal_is_refused_cleanly():
         games.leave(g, gid)
     with pytest.raises(games.GameError):
         games.pyr_answer(g, HOST, "red")
+
+
+def test_divan_next_after_everyone_left_is_refused_cleanly():
+    import random
+
+    from app import games
+    g = games.new_game("divan", HOST, "Boby", code="5252", plays=False)
+    games.join(g, "cross-game-phone-1", "Léa")
+    games.start(g, random.Random(1))
+    games.leave(g, "cross-game-phone-1")
+    with pytest.raises(games.GameError):
+        games.divan_next(g, HOST, random.Random(1))
