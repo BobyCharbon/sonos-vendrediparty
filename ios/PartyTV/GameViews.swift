@@ -26,7 +26,7 @@ struct GameView: View {
             VStack(alignment: .leading, spacing: 30) {
                 // Le résultat de la manche d'abord, en très grand ; le jeu dessous.
                 if let outcome = Outcome.of(game), game["type"].string != "roulette" {
-                    OutcomeBoard(outcome: outcome).transition(.move(edge: .top).combined(with: .opacity))
+                    OutcomeBoard(outcome: outcome).transition(.motion(.move(edge: .top).combined(with: .opacity)))
                 }
                 board
             }
@@ -129,6 +129,8 @@ struct SideBoard: View {
 
     static func rows(_ game: JSON) -> (String, [(name: String, value: String)])? {
         let g = shown(game)
+        // Casino : le classement attend que la bille s'arrête (il dévoilerait qui a gagné).
+        if CasinoTV.rolling(g) { return nil }
         func list(_ a: [JSON], _ value: (JSON) -> String) -> [(name: String, value: String)] { a.map { ($0["name"].string ?? "?", value($0)) } }
         switch g["type"].string {
         case "quiz": return ("Classement", list(g["quiz"]["board"].array) { "\($0["pts"].int ?? 0) pts" })
@@ -216,7 +218,7 @@ struct RoomTV: View {
                     if !top.isEmpty {
                         Text("⭐ " + top.map(name).joined(separator: " · "))
                             .font(.system(size: 56, weight: .black)).foregroundStyle(TV.coral).lineLimit(1).minimumScaleFactor(0.5)
-                            .id(top).transition(.scale.combined(with: .opacity))
+                            .id(top).transition(.popIn)
                     }
                 }
             }

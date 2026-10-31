@@ -125,6 +125,18 @@ struct OutcomeTests {
         #expect(groups.first?.verb == "boit 1 gorgée")
     }
 
+    @Test("Casino : tant que la bille roule, le classement ne dévoile pas qui a bu ou gagné")
+    func casinoBoardWaitsForTheBall() {
+        func casino(age: Double) -> JSON {
+            .object(["type": .string("casino"), "phase": .string("results"),
+                     "casino": .object(["drinks": .number(1), "spin": .object(["number": .number(8), "age": .number(age)])]),
+                     "players": .array([.object(["name": .string("Léa"), "drink": .number(2)]),
+                                        .object(["name": .string("Tom"), "drink": .number(0)])])])
+        }
+        #expect(SideBoard.rows(casino(age: 2)) == nil && !SideBoard.shows(casino(age: 2)))
+        #expect(SideBoard.rows(casino(age: 8))?.1.first?.name == "Léa")
+    }
+
     @Test("Phases sans résultat : rien n'est annoncé")
     func nothingWhileVoting() throws {
         #expect(Outcome.of(.object(["type": .string("never"), "phase": .string("question")])) == nil)

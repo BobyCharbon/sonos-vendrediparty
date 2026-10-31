@@ -99,7 +99,7 @@ struct WatchScreen: View {
             Text(shown["name"].string ?? "Partie").font(.system(size: 54, weight: .heavy)).lineLimit(1).fixedSize()
             if let mode = shown["mode"].string { Text(mode).font(.system(size: 34, weight: .semibold)).foregroundStyle(TV.lavender).lineLimit(1) }
             if !inLobby && !shown.isNull {
-                PhaseTag(text: Phase.label(shown)).transition(.scale.combined(with: .opacity)).id(Phase.label(shown))
+                PhaseTag(text: Phase.label(shown)).transition(.popIn).id(Phase.label(shown))
                 if let info = Phase.progress(shown) { Text(info).font(.system(size: 32, weight: .semibold)).foregroundStyle(TV.muted).lineLimit(1) }
             }
             Spacer(minLength: 20)

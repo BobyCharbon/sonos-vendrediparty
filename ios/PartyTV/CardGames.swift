@@ -11,7 +11,7 @@ struct BlackjackTV: View {
             HStack(spacing: 30) {
                 Text("🏦 Banque").font(.system(size: 44, weight: .heavy))
                 CardRow(cards: B["dealer"].array, width: 110)
-                if let total = B["dealer_total"].int ?? B["dealer_up"].int { Text("\(total)").font(.system(size: 64, weight: .black)) }
+                if let total = B["dealer_total"].int ?? B["dealer_up"].int { Text("\(total)").font(.system(size: 64, weight: .black).monospacedDigit()).contentTransition(.numericText()) }
             }
             if game["phase"].string == "bet" {
                 let bets = B["seats"].array.filter { !$0["hand"].isNull }.count
@@ -31,7 +31,7 @@ struct BlackjackTV: View {
             HStack {
                 Text(seat["name"].string ?? "?").font(.system(size: 38, weight: .heavy)).lineLimit(1).minimumScaleFactor(0.6)
                 Spacer()
-                if !drinks { Text("🪙 \(seat["chips"].int ?? 0)").font(.system(size: 32, weight: .bold).monospacedDigit()).foregroundStyle(TV.coral) }
+                if !drinks { Text("🪙 \(seat["chips"].int ?? 0)").font(.system(size: 32, weight: .bold).monospacedDigit()).foregroundStyle(TV.coral).contentTransition(.numericText()) }
             }
             if hand.isNull {
                 Text(game["phase"].string == "bet" ? "Réfléchit…" : "Ne joue pas cette main").font(.system(size: 30, weight: .semibold)).foregroundStyle(TV.muted)
@@ -41,15 +41,16 @@ struct BlackjackTV: View {
                 HStack(spacing: 18) {
                     CardRow(cards: hand["cards"].array, width: 74)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("\(hand["total"].int ?? 0)").font(.system(size: 50, weight: .black)).foregroundStyle(bust ? TV.red : .white)
+                        Text("\(hand["total"].int ?? 0)").font(.system(size: 50, weight: .black)).foregroundStyle(bust ? TV.red : .white).contentTransition(.numericText())
                         Text("mise \(hand["bet"].int ?? 0)").font(.system(size: 30, weight: .semibold)).foregroundStyle(TV.muted)
                     }
                 }
                 if let result = hand["result"].string {
                     Text(["win": "🏆 Gagné", "blackjack": "🃏 Blackjack !", "lose": "❌ Perdu", "push": "🤝 Égalité"][result] ?? result)
                         .font(.system(size: 36, weight: .heavy)).foregroundStyle(result == "lose" ? TV.red : result == "push" ? TV.muted : TV.mint)
+                        .transition(.popIn)
                 } else if bust {
-                    Text("💥 Sauté").font(.system(size: 36, weight: .heavy)).foregroundStyle(TV.red)
+                    Text("💥 Sauté").font(.system(size: 36, weight: .heavy)).foregroundStyle(TV.red).transition(.popIn)
                 }
             }
         }
@@ -58,7 +59,7 @@ struct BlackjackTV: View {
         .card(turn ? TV.accent.opacity(0.35) : TV.surface, radius: 24)
         .overlay(RoundedRectangle(cornerRadius: 24).stroke(turn ? TV.accent : .clear, lineWidth: 5))
         .scaleEffect(turn ? 1.03 : 1)
-        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: turn)
+        .animation(Motion.animation(.spring(response: 0.4, dampingFraction: 0.7)), value: turn)
     }
 }
 
@@ -68,7 +69,11 @@ struct CasinoTV: View {
     private var C: JSON { game["casino"] }
     /// La bille roule 7 s sur les téléphones : la télé ne dévoile rien avant eux.
     static let rollSeconds = 7.0
-    private var rolling: Bool { game["phase"].string == "results" && (C["spin"]["age"].double ?? 99) < Self.rollSeconds }
+    private var rolling: Bool { Self.rolling(game) }
+    /// La bille roule encore : ni le numéro, ni les gains, ni les gorgées ne sont montrés (classement compris).
+    static func rolling(_ game: JSON) -> Bool {
+        game["type"].string == "casino" && game["phase"].string == "results" && (game["casino"]["spin"]["age"].double ?? 99) < rollSeconds
+    }
     private static let reds: Set<Int> = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]
 
     var body: some View {
@@ -78,11 +83,17 @@ struct CasinoTV: View {
                 Text("🎰 Faites vos jeux ! \(ready)/\(C["table"].array.count) prêts").font(.system(size: 64, weight: .black)).foregroundStyle(TV.coral)
             }
             if rolling {
-                Text("🎲 Rien ne va plus… la bille roule !").font(.system(size: 64, weight: .black)).foregroundStyle(TV.coral)
+                HStack(spacing: 30) {
+                    SpinningNumber()
+                    Text("🎲 Rien ne va plus… la bille roule !").font(.system(size: 64, weight: .black)).foregroundStyle(TV.coral)
+                        .lineLimit(2).minimumScaleFactor(0.6)
+                }
+                .transition(.opacity)
             } else if let n = (C["spin"].isNull ? C["history"][0] : C["spin"]["number"]).int {
                 HStack(spacing: 30) {
                     Text("\(n)").font(.system(size: 120, weight: .black)).foregroundStyle(.white)
                         .frame(width: 220, height: 220).background(Self.color(n), in: Circle())
+                        .id(n).transition(.popIn)
                     VStack(alignment: .leading, spacing: 8) {
                         Text(game["phase"].string == "bet" ? "Dernier numéro" : "Numéro sorti").font(.system(size: 34, weight: .semibold)).foregroundStyle(TV.muted)
                         Text(n == 0 ? "Zéro" : "\(Self.reds.contains(n) ? "Rouge" : "Noir") · \(n % 2 == 0 ? "Pair" : "Impair") · \(n <= 18 ? "Manque" : "Passe") · \(Self.dozen(n))")
@@ -105,7 +116,11 @@ struct CasinoTV: View {
                 Spacer()
                 if game["phase"].string == "bet" && seat["ready"].bool { Text("Prêt ✓").font(.system(size: 30, weight: .bold)).foregroundStyle(TV.mint) }
             }
-            if (C["drinks"].int ?? 0) == 0 { Text("🪙 \(seat["chips"].int ?? 0)").font(.system(size: 32, weight: .bold).monospacedDigit()) }
+            // Pendant que la bille roule : les jetons d'avant le tirage (le gain arrive avec le numéro, chiffre qui défile).
+            if (C["drinks"].int ?? 0) == 0 {
+                Text("🪙 \((seat["chips"].int ?? 0) - (rolling ? r["net"].int ?? 0 : 0))").font(.system(size: 32, weight: .bold).monospacedDigit())
+                    .contentTransition(.numericText())
+            }
             let bets = seat["bets"].array
             Text(bets.isEmpty ? (game["phase"].string != "bet" ? "N'a pas misé" : seat["ready"].bool ? "Passe ce tour" : "Réfléchit…") : bets.map { Self.betName($0) }.joined(separator: " · "))
                 .font(.system(size: 30, weight: .semibold)).foregroundStyle(TV.lavender).lineLimit(2)
@@ -114,7 +129,7 @@ struct CasinoTV: View {
                 Text(drink > 0 ? "🍻 Boit \(drink)" : give > 0 ? "🎁 Distribue \(give)" : net > 0 ? "🏆 +\(net)" : net < 0 ? "❌ \(net)" : "Rien")
                     .font(.system(size: 42, weight: .black))
                     .foregroundStyle(drink > 0 || net < 0 ? TV.coral : give > 0 || net > 0 ? TV.mint : TV.muted)
-                    .transition(.scale.combined(with: .opacity))
+                    .transition(.popIn)
             }
         }
         .padding(22).card(TV.surface, radius: 24)
@@ -132,6 +147,38 @@ struct CasinoTV: View {
 
     static func color(_ n: Int) -> Color {
         n == 0 ? Color(red: 0.1, green: 0.55, blue: 0.25) : reds.contains(n) ? Color(red: 0.8, green: 0.1, blue: 0.15) : .black
+    }
+}
+
+/// La bille qui roule (Casino) : les numéros défilent dans l'ordre de la roue, avec leur couleur, sans jamais
+/// montrer le vrai numéro avant les téléphones. Animations réduites : un dé immobile.
+struct SpinningNumber: View {
+    static let wheel = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14,
+                        31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26]
+    static let tick = 0.11
+    static let size: CGFloat = 220
+
+    var body: some View {
+        if Motion.reduced {
+            Text("🎲").font(.system(size: 120)).frame(width: Self.size, height: Self.size).background(TV.surface, in: Circle())
+        } else {
+            TimelineView(.animation) { timeline in
+                let t = timeline.date.timeIntervalSinceReferenceDate
+                let n = Self.wheel[Int(t / Self.tick) % Self.wheel.count]
+                Text("\(n)").font(.system(size: 120, weight: .black).monospacedDigit()).foregroundStyle(.white.opacity(0.9))
+                    .frame(width: Self.size, height: Self.size)
+                    .background(CasinoTV.color(n), in: Circle())
+                    .overlay(Circle().stroke(.white.opacity(0.6), lineWidth: 6))
+                    // La bille fait le tour de la roue.
+                    .overlay {
+                        Circle().fill(.white).frame(width: 30, height: 30).shadow(color: .black.opacity(0.4), radius: 4)
+                            .offset(y: -Self.size / 2 - 22)
+                            .rotationEffect(.radians(-t * 2 * .pi * 1.3))
+                    }
+            }
+            .padding(30)
+            .accessibilityLabel("La bille roule")
+        }
     }
 }
 
@@ -198,11 +245,11 @@ struct BiskitTV: View {
                     }
                 }
                 .id(K["dice"]["id"].string ?? "")
-                .transition(.scale(scale: 0.3).combined(with: .opacity))
+                .transition(.motion(.scale(scale: 0.3).combined(with: .opacity)))
             }
             HStack(alignment: .center, spacing: 40) {
                 if let card = K["card"].string {
-                    PlayingCard(code: card, width: 220).id(card).transition(.asymmetric(insertion: .scale(scale: 0.3).combined(with: .opacity), removal: .opacity))
+                    PlayingCard(code: card, width: 220).id(card).transition(.motion(.asymmetric(insertion: .scale(scale: 0.3).combined(with: .opacity), removal: .opacity)))
                 }
                 VStack(alignment: .leading, spacing: 14) {
                     if let drawer = K["drawer_name"].string { Text("\(drawer) a tiré").font(.system(size: 34, weight: .semibold)).foregroundStyle(TV.muted) }
@@ -251,7 +298,7 @@ struct PresidentTV: View {
         VStack(alignment: .leading, spacing: 28) {
             if let turn = R["seats"].array.first(where: { $0["turn"].bool })?["name"].string {
                 Text("👉 Au tour de \(turn)").font(.system(size: 72, weight: .black)).foregroundStyle(TV.coral).lineLimit(1).minimumScaleFactor(0.5)
-                    .id(turn).transition(.push(from: .trailing))
+                    .id(turn).transition(.motion(.push(from: .trailing)))
             }
             GameTop(game: game, info: R["trick"].int.map { "Pli \($0)" })
             let pile = R["pile"]

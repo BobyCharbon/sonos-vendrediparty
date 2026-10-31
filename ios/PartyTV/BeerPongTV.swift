@@ -67,7 +67,7 @@ struct BeerPongTV: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(TV.surface, radius: 36)
         .id(last["n"].int ?? 0)
-        .transition(.scale(scale: 0.8).combined(with: .opacity))
+        .transition(.motion(.scale(scale: 0.8).combined(with: .opacity)))
     }
 
     static func icon(_ kind: String?) -> String {

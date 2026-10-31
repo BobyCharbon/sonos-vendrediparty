@@ -90,7 +90,7 @@ struct DivanTV: View {
         VStack(alignment: .leading, spacing: 34) {
             if let name = V["current"]["name"].string {
                 Text("🛋️ \(name)").font(.system(size: 110, weight: .black)).foregroundStyle(TV.coral).lineLimit(1).minimumScaleFactor(0.5)
-                    .id(name).transition(.push(from: .trailing))
+                    .id(name).transition(.motion(.push(from: .trailing)))
             }
             let card = V["card"]
             if !card.isNull {
