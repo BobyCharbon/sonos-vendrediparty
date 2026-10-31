@@ -23,14 +23,20 @@ final class TVStore: ObservableObject {
     private let demo: Bool
     /// Démonstration en deux temps : l'état « avant » d'abord, puis la partie (pour voir l'annonce d'un résultat).
     private var demoNext: JSON?
+    /// Démonstration en plusieurs étapes (DEBUG) : les états suivants, montrés l'un après l'autre, puis en boucle.
+    private var demoSteps: [JSON] = []
+    private var demoEvery: Duration = .seconds(4)
 
-    init(client: TVClient = TVClient(), demo: (game: JSON, music: JSON)? = nil, before: JSON = .null) {
+    init(client: TVClient = TVClient(), demo: (game: JSON, music: JSON)? = nil, before: JSON = .null,
+         steps: [JSON] = [], every: Double = 4) {
         self.client = client
-        self.demo = demo != nil
-        if let demo {
+        self.demo = demo != nil || !steps.isEmpty
+        if let demo = demo ?? steps.first.map({ ($0["game"], $0["music"]) }) {
             screen = .watching(demo.game["code"].string ?? "0000")
             game = before.isNull ? demo.game : before
             demoNext = before.isNull ? nil : demo.game
+            demoSteps = steps
+            demoEvery = .milliseconds(Int(every * 1000))
             music = demo.music
         } else {
             screen = PinVault.read() == nil ? .pin : .code
@@ -97,11 +103,28 @@ final class TVStore: ObservableObject {
         if demo, let next = demoNext {
             demoNext = nil
             try? await Task.sleep(for: .seconds(1.5))
-            game = next
+            withAnimation(Motion.update) { game = next }
         }
+        if demo, demoSteps.count > 1 { return await playDemoSteps() }
         guard !demo else { return }
         if screen == .code { await refreshMusic() }
         if case .watching(let code) = screen, loops.isEmpty { start(code) }
+    }
+
+    /// Les états de démonstration l'un après l'autre (chaque étape peut avoir sa musique : {"game":…, "music":…}).
+    private func playDemoSteps() async {
+        var i = 0
+        while !Task.isCancelled {
+            try? await Task.sleep(for: demoEvery)
+            i = (i + 1) % demoSteps.count
+            let step = demoSteps[i]
+            withAnimation(Motion.update) {
+                if step["game"].isNull { game = step } else {
+                    game = step["game"]
+                    if !step["music"].isNull { music = step["music"] }
+                }
+            }
+        }
     }
 
     private func start(_ code: String) {
@@ -136,12 +159,13 @@ final class TVStore: ObservableObject {
         }
         guard status == 200 else { return }
         problem = nil
-        if json != game { game = json }
+        // Seul ce qui a changé bouge (ressort doux) : une ligne de classement, un chiffre, une carte retournée.
+        if json != game { withAnimation(Motion.update) { game = json } }
     }
 
     func refreshMusic() async {
         guard let (json, status) = try? await authorized("api/tv"), status == 200 else { return }
-        if json != music { music = json }
+        if json != music { withAnimation(Motion.update) { music = json } }
         games = json["games"].array
     }
 

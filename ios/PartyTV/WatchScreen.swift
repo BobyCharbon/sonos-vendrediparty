@@ -7,7 +7,6 @@ struct WatchScreen: View {
     /// Annonce plein écran du dernier résultat (quelques secondes).
     @State private var flash: Outcome?
     @State private var flashTask: Task<Void, Never>?
-    static let flashSeconds: UInt64 = 6
 
     private var shown: JSON { GameView.shown(store.game) }
     private var outcome: Outcome? { Outcome.of(shown) }
@@ -17,9 +16,14 @@ struct WatchScreen: View {
             header
             HStack(alignment: .top, spacing: 36) {
                 // La scène : toute la place restante, le jeu y est centré verticalement.
+                // D'un jeu à l'autre (Salle de jeux) : l'ancien glisse vers la gauche, le nouveau arrive de la droite.
                 FitToStage { GameView(game: store.game, join: store.joinURL) }
+                    .id(GameScene.key(shown))
+                    .transition(.motion(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
+                                                    removal: .move(edge: .leading).combined(with: .opacity))))
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: shown["phase"].string)
+                    .environment(\.outcomeFlashing, flash != nil)
+                    .animation(Motion.update, value: shown["phase"].string)
                 // Colonne de droite : la musique (verre), puis le classement de la partie s'il y en a un.
                 FitToStage {
                     VStack(alignment: .leading, spacing: 22) {
@@ -34,25 +38,18 @@ struct WatchScreen: View {
         .padding(.horizontal, 10)
         .overlay {
             // Pause de l'animateur : un voile sur toute la télé.
-            if let by = shown["paused"]["by"].string {
-                ZStack {
-                    Color.black.opacity(0.6).ignoresSafeArea()
-                    VStack(spacing: 20) {
-                        Text("⏸").font(.system(size: 140))
-                        Text("Pause").font(.system(size: 110, weight: .black))
-                        Text("\(by) a mis la partie en pause").font(.system(size: 40, weight: .semibold)).foregroundStyle(TV.muted)
-                    }
-                    .padding(70).glass(cornerRadius: 60)
-                }
-                .transition(.opacity)
-            }
+            if let by = shown["paused"]["by"].string { PauseVeil(by: by).transition(.opacity) }
         }
-        .animation(.easeInOut(duration: 0.3), value: shown["paused"].isNull)
+        .animation(.easeInOut(duration: 0.4), value: shown["paused"].isNull)
         .overlay {
             if let flash {
                 ZStack {
                     Color.black.opacity(0.55).ignoresSafeArea()
+                    // Un résultat chasse l'autre : chaque annonce rejoue son entrée.
                     OutcomeFlash(outcome: flash)
+                        .id(flash.key)
+                        .transition(.motion(.asymmetric(insertion: .opacity,
+                                                        removal: .scale(scale: 0.85).combined(with: .opacity))))
                 }
                 .transition(.opacity)
             }
@@ -77,7 +74,7 @@ struct WatchScreen: View {
         }
         withAnimation(.easeOut(duration: 0.3)) { flash = outcome }
         flashTask = Task {
-            try? await Task.sleep(nanoseconds: Self.flashSeconds * 1_000_000_000)
+            try? await Task.sleep(for: .seconds(OutcomeFlash.seconds))
             guard !Task.isCancelled else { return }
             withAnimation(.easeIn(duration: 0.4)) { flash = nil }
         }

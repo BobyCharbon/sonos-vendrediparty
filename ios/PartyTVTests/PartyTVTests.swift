@@ -115,6 +115,16 @@ struct OutcomeTests {
         #expect(o.lines(.drink).map(\.name) == ["Max"] && o.lines(.give).map(\.name) == ["Nina"])
     }
 
+    @Test("Annonce plein écran : même sort regroupé sur une ligne, dans l'ordre du tableau")
+    func flashGroups() throws {
+        let o = try #require(Outcome.of(try samples()["blackjack_results"]))
+        let groups = o.groups
+        #expect(groups.map(\.kind) == [.drink, .drink, .drink, .give])
+        let give = try #require(groups.first { $0.kind == .give })
+        #expect(Set(give.names) == ["Léa", "Max"] && give.verb == "distribuent 4 gorgées")
+        #expect(groups.first?.verb == "boit 1 gorgée")
+    }
+
     @Test("Phases sans résultat : rien n'est annoncé")
     func nothingWhileVoting() throws {
         #expect(Outcome.of(.object(["type": .string("never"), "phase": .string("question")])) == nil)
