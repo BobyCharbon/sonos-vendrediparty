@@ -22,13 +22,15 @@ struct TricountGroupView: View {
     var body: some View {
         Group {
             if let g = store.group, g.id == id {
-                content(g)
+                content(g).transition(.opacity)
             } else if let error = store.error {
-                Text(error).foregroundStyle(.secondary).padding()
+                Text(error).foregroundStyle(.secondary).padding().transition(.opacity)
             } else {
-                ProgressView()
+                ProgressView().transition(.opacity)
             }
         }
+        // Chargement → pot commun : fondu ; les relectures du même pot ne rejouent rien.
+        .motion(Motion.smooth, value: store.group?.id == id)
         .background(AppConfig.background.ignoresSafeArea())
         .navigationTitle(store.group?.name ?? "Pot commun")
         .navigationBarTitleDisplayMode(.inline)
@@ -46,17 +48,22 @@ struct TricountGroupView: View {
                 }
                 .pickerStyle(.segmented)
                 switch tab {
-                case .expenses: expenses(g)
-                case .balances: balances(g)
-                case .stats: stats(g)
+                case .expenses: expenses(g).transition(.opacity)
+                case .balances: balances(g).transition(.opacity)
+                case .stats: stats(g).transition(.opacity)
                 }
             }
+            // Dépenses ↔ Soldes ↔ Stats : fondu enchaîné ; dépense ajoutée, modifiée ou supprimée : la liste s'écarte.
+            .motion(Motion.smooth, value: tab)
+            .motion(Motion.snappy, value: g.expenses.map(\.id))
+            .motion(Motion.smooth, value: g.members.map(\.balance_cents))
+            .onChange(of: tab) { _ in Haptics.selection() }
             .padding(.horizontal, 16)
             .padding(.bottom, 110)
         }
         .overlay(alignment: .bottom) {
             if !g.archived {
-                Button { editing = TricountDraft(group: g) } label: {
+                Button { Haptics.tap(); editing = TricountDraft(group: g) } label: {
                     Label("Ajouter une dépense", systemImage: "plus").font(.headline).frame(maxWidth: .infinity).padding(.vertical, 16)
                 }
                 .buttonStyle(.borderedProminent)
@@ -121,12 +128,13 @@ struct TricountGroupView: View {
         .background(LinearGradient(colors: [TCColor.of(g.my_balance_cents).opacity(0.22), Palette.card],
                                    startPoint: .top, endPoint: .bottom), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         .padding(.top, 8)
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: g.my_balance_cents)
+        .motion(Motion.smooth, value: g.my_balance_cents)
     }
 
     private func stat(_ label: String, _ value: String) -> some View {
         VStack(spacing: 2) {
             Text(value).font(.headline.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
+                .contentTransition(.numericText())
             Text(label).font(.caption).foregroundStyle(.secondary)
         }
     }
@@ -149,12 +157,14 @@ struct TricountGroupView: View {
                     VStack(spacing: 0) {
                         ForEach(days[day] ?? []) { e in
                             Button { if !g.archived { editing = TricountDraft(expense: e, group: g) } } label: { ExpenseRow(store: store, expense: e, group: g) }
-                                .buttonStyle(.plain)
+                                .buttonStyle(PressableStyle(scale: 0.98))
+                                .motionTransition()
                             if e.id != days[day]?.last?.id { Divider().padding(.leading, 62) }
                         }
                     }
                     .background(Palette.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
+                .motionTransition()
             }
         }
     }
@@ -185,6 +195,7 @@ struct TricountGroupView: View {
                     .frame(height: 22)
                     Text(m.balance_cents == 0 ? "0" : Money.text(m.balance_cents, g.currency, sign: true))
                         .font(.subheadline.monospacedDigit().weight(.bold)).foregroundStyle(TCColor.of(m.balance_cents))
+                        .contentTransition(.numericText())
                         .frame(width: 104, alignment: .trailing).lineLimit(1).minimumScaleFactor(0.7)
                 }
             }
@@ -195,6 +206,7 @@ struct TricountGroupView: View {
             Text("Pour tout régler").font(.headline)
             if g.settle.isEmpty {
                 Label("Personne ne doit rien à personne 🎉", systemImage: "checkmark.seal.fill").foregroundStyle(TCColor.owed)
+                    .motionTransition(.scale(scale: 0.9).combined(with: .opacity))
             } else {
                 Text("\(g.settle.count) virement\(g.settle.count > 1 ? "s" : "") suffi\(g.settle.count > 1 ? "sent" : "t")")
                     .font(.caption).foregroundStyle(.secondary)
@@ -209,7 +221,7 @@ struct TricountGroupView: View {
                             if t.from == g.me {
                                 Button { paying = t } label: { Label("Payer", systemImage: "creditcard") }.buttonStyle(.borderedProminent)
                             }
-                            Button { Task { await store.settle(t) } } label: { Label("C'est remboursé", systemImage: "checkmark") }
+                            Button { Haptics.tap(); Task { await store.settle(t) } } label: { Label("C'est remboursé", systemImage: "checkmark") }
                                 .buttonStyle(.bordered)
                                 .disabled(g.archived || store.busy)
                         }
@@ -217,7 +229,9 @@ struct TricountGroupView: View {
                     }
                     .padding(14)
                     .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .motionTransition()
                 }
+
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
