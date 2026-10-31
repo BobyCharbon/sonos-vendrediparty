@@ -45,10 +45,10 @@ window.PresidentFx = (() => {
       if (!from) return;
       const [tx, ty] = mid(el.getBoundingClientRect()), dx = from[0] - tx, dy = from[1] - ty, tilt = i % 2 ? 18 : -18;
       el.animate([
-        {transform: `translate(${dx}px, ${dy}px) scale(.8) rotate(${tilt}deg)`, boxShadow: "0 28px 40px rgba(0,0,0,.45)"},
-        {transform: `translate(${dx * .5}px, ${dy * .5 - 40}px) scale(1.05) rotate(${tilt / 2}deg)`, boxShadow: "0 36px 44px rgba(0,0,0,.4)", offset: .45},
+        {transform: `translate(${dx}px, ${dy}px) scale(.8) rotate(${tilt}deg)`},
+        {transform: `translate(${dx * .5}px, ${dy * .5 - 40}px) scale(1.05) rotate(${tilt / 2}deg)`, offset: .45},
         {transform: `translate(0, -14px) scale(1.12) rotate(${-tilt / 4}deg)`, offset: .82},
-        {transform: "none", boxShadow: "0 6px 12px rgba(0,0,0,.25)"}],
+        {transform: "none"}],
         {duration: 820, delay: i * 110, easing: "cubic-bezier(.45, .05, .35, 1)", fill: "backwards"});
     });
     launched = new Map();
@@ -139,8 +139,8 @@ window.PresidentFx = (() => {
       {transform: "translateY(0) rotate(6deg) scale(1.15)", opacity: 1, offset: .55},
       {transform: "translateY(-18px) rotate(-3deg) scale(.96)", offset: .72},
       {transform: "none", opacity: 1}], {duration: 1100, delay: 150, easing: "cubic-bezier(.3, 1.3, .5, 1)", fill: "backwards"});
-    el.querySelector(".pr-cel-name").animate([{transform: "scale(.3)", opacity: 0, letterSpacing: ".4em"}, {transform: "scale(1.12)", opacity: 1, offset: .6},
-      {transform: "none", opacity: 1, letterSpacing: "0"}], {duration: 800, delay: 700, easing: "cubic-bezier(.2, 1.3, .4, 1)", fill: "backwards"});
+    el.querySelector(".pr-cel-name").animate([{transform: "scale(.3)", opacity: 0}, {transform: "scale(1.12)", opacity: 1, offset: .6},
+      {transform: "none", opacity: 1}], {duration: 800, delay: 700, easing: "cubic-bezier(.2, 1.3, .4, 1)", fill: "backwards"});
     el.querySelector(".pr-cel-sub").animate([{transform: "translateY(16px)", opacity: 0}, {transform: "none", opacity: 1}],
       {duration: 500, delay: 1200, easing: "ease-out", fill: "backwards"});
     for (let i = 0; i < CONFETTI; i++) {
@@ -165,8 +165,16 @@ window.PresidentFx = (() => {
   function turnFx(mePid) {
     document.querySelector("#game .pr-turn-title")?.animate([{transform: "scale(.8)", opacity: .3}, {transform: "scale(1.12)", opacity: 1, offset: .6},
       {transform: "none"}], {duration: 520, easing: "cubic-bezier(.2, 1.4, .4, 1)"});
-    seatOf(mePid)?.animate([{boxShadow: "0 0 0 0 rgba(255, 210, 122, .9)"}, {boxShadow: "0 0 0 12px rgba(255, 210, 122, 0)"}],
-      {duration: 700, iterations: 2, easing: "ease-out"});
+    // Onde dorée autour de mon avatar : un anneau posé par-dessus qui grandit et s'efface (transform + opacité).
+    const av = seatOf(mePid)?.querySelector(".pr-avatar");
+    if (av) {
+      const r = av.getBoundingClientRect(), ring = document.createElement("div");
+      ring.className = "pr-ripple";
+      Object.assign(ring.style, {left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`});
+      document.body.append(ring);
+      gone(ring.animate([{transform: "scale(1)", opacity: .9}, {transform: "scale(1.7)", opacity: 0}],
+        {duration: 700, iterations: 2, easing: "ease-out"}), ring);
+    }
     if (typeof haptic === "function") haptic(40);
   }
 

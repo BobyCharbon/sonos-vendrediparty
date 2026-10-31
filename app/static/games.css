@@ -28,3 +28,47 @@ body.pyr-full #gTop { gap: 6px; }
 #gamePlay .list:has(> .track):not(:has(> .bar)) > * + *::before, .g-drawer .list:has(> .track) > * + *::before {
   content: ""; position: absolute; z-index: 1; top: 0; left: 16px; right: 0; height: .5px; background: var(--separator);
 }
+
+/* ═══ Animations des jeux : fluides (transform/opacity seulement, couches composées), sans rejouer à chaque rafraîchissement ═══ */
+
+/* ── Roues (casino, roulette, bateau de la Pyramide) : la roue tourne sur sa propre couche ── */
+/* L'ombre portée (filter) sur le cadre forçait à recalculer toute la roue à chaque image : ombre posée à part, fixe. */
+.cw-wrap { filter: none; }
+.cw-wrap::before { content: ""; position: absolute; inset: .9%; border-radius: 50%; box-shadow: 0 14px 30px rgba(0, 0, 0, .55); pointer-events: none; }
+.cw-wrap svg { position: relative; }
+#cwSvg, .cw-orbit, .wheel-wrap svg { will-change: transform; backface-visibility: hidden; }
+/* La bille descend vers les cases par transform (et non plus « top », qui recalculait la mise en page). */
+.cw-ball.landed { top: 6.8%; transform: translate(-50%, calc(-50% + 308.7%)); }
+@keyframes cw-drop {
+  0%, 68% { transform: translate(-50%, -50%); }
+  80% { transform: translate(-50%, calc(-50% + 134.8%)); }
+  88% { transform: translate(-50%, calc(-50% + 341.3%)); }
+  94% { transform: translate(-50%, calc(-50% + 287%)); }
+  100% { transform: translate(-50%, calc(-50% + 308.7%)); }
+}
+
+/* ── Halos qui « respirent » (mon tour, case gagnante, demande en attente) : l'ombre la plus forte est posée une fois
+   sur un calque ::after dont seule l'opacité varie. Animer box-shadow repeignait l'élément à chaque image, sans fin. ── */
+.rt-win, .dv-who.me, .py-alert, .bk-tap, .pr-seat.pr-turn .pr-avatar { position: relative; }
+.rt-win::after, .dv-who.me::after, .py-alert::after, .bk-tap::after, .pr-seat.pr-turn .pr-avatar::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0;
+  animation: g-halo var(--halo-time, 1.4s) ease-in-out infinite; will-change: opacity; }
+@keyframes g-halo { 50% { opacity: 1; } }
+.rt-win { animation: none; }
+.rt-win::after { --halo-time: 1s; box-shadow: 0 0 0 3px #fff3c4, 0 0 28px #f2c14e; }
+.dv-who.me { animation: none; }
+.dv-who.me.dv-new { animation: pop .45s ease-out; }
+.dv-who.me::after { --halo-time: 1.6s; box-shadow: 0 0 0 4px rgba(242, 208, 164, .45), 0 0 26px rgba(242, 208, 164, .6); }
+.py-alert { animation: py-in .35s ease-out; }
+.py-alert::after { box-shadow: 0 0 36px rgba(255, 209, 102, .8); }
+@keyframes bk-pulse { 50% { transform: scale(1.03); } }
+.bk-tap::after { --halo-time: .6s; box-shadow: 0 0 60px rgba(255, 77, 109, .9); }
+.pr-seat.pr-turn .pr-avatar { animation: none; }
+.pr-seat.pr-turn .pr-avatar::after { box-shadow: 0 0 26px 8px rgba(255, 210, 122, .45); }
+@media (prefers-reduced-motion: reduce) {
+  .rt-win::after, .dv-who.me::after, .py-alert::after, .bk-tap::after, .pr-seat.pr-turn .pr-avatar::after { animation: none; opacity: .6; }
+}
+
+/* ── Partie fermée : la barre du compte à rebours rétrécit par transform (et non plus par sa largeur) ── */
+.g-ended-bar i { width: 100%; transform-origin: left center; }
+@keyframes g-ended-bar { from { transform: scaleX(1); } to { transform: scaleX(0); } }

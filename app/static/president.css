@@ -152,3 +152,5 @@ button.pr-card:hover { background: #fff2c9; }
 /* Ovale : de l'air au-dessus pour le siège du haut ; au centre, l'étiquette « Dernier coup » au-dessus du prénom. */
 .pr-felt { margin-top: 30px; }
 .pr-felt-center .pr-table-caption { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+/* À mon tour : onde dorée autour de mon avatar (president-fx.js › turnFx). */
+.pr-ripple { position: fixed; z-index: 60; border-radius: 50%; border: 3px solid #ffd27a; box-sizing: border-box; pointer-events: none; }
