@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { useChangedSinceMount } from '@/lib/motion';
 import { rsvpChoices, rsvpOptions, setRsvpFor } from '@/lib/rsvp';
 import type { EventRow, Rsvp, RsvpStatus } from '@/lib/types';
 
 import { RsvpButtons } from './RsvpButtons';
-import { Avatar, Button, ErrorText, Input, Rows, s, Section, T } from './ui';
+import { Avatar, Button, ErrorText, Input, Reveal, Rows, s, Section, T } from './ui';
 
 const MAX_SUGGESTIONS = 6;
 
@@ -46,6 +47,9 @@ export function AttendanceEditor({ event, rsvps, names, me, onChange }: Props) {
     }
   }
 
+  // Une personne ajoutée ici (ou par un autre organisateur) apparaît en douceur ; la liste du départ reste posée.
+  const grew = useChangedSinceMount(rsvps.length);
+
   if (!open) {
     return (
       <Section title="Présences" right={<Button small variant="secondary" label="Gérer" onPress={() => setOpen(true)} />}>
@@ -74,13 +78,13 @@ export function AttendanceEditor({ event, rsvps, names, me, onChange }: Props) {
       {suggestions.length ? (
         <Rows>
           {suggestions.map(([id, name]) => (
-            <View key={id} style={[s.rowBetween, st.line]}>
+            <Reveal key={id} kind="drop" style={[s.rowBetween, st.line]}>
               <View style={[s.row, st.who]}>
                 <Avatar id={id} name={name} size={28} />
                 <T weight="semibold" numberOfLines={1} style={st.shrink}>{name}</T>
               </View>
               <Button small label="Noter présent" loading={busy === `${id}:yes`} onPress={() => apply(id, 'yes')} />
-            </View>
+            </Reveal>
           ))}
         </Rows>
       ) : q ? <T muted size={13}>Personne d’autre ne porte ce nom.</T> : null}
@@ -88,7 +92,7 @@ export function AttendanceEditor({ event, rsvps, names, me, onChange }: Props) {
       {people.length ? (
         <Rows>
           {people.map((r) => (
-            <View key={r.user_id} style={st.person}>
+            <Reveal key={r.user_id} kind={grew ? 'rise' : null} style={st.person}>
               <View style={s.rowBetween}>
                 <View style={[s.row, st.who]}>
                   <Avatar id={r.user_id} name={nameOf(r.user_id)} size={28} />
@@ -107,7 +111,7 @@ export function AttendanceEditor({ event, rsvps, names, me, onChange }: Props) {
                 onSelect={(k) => apply(r.user_id, k)}
                 accessibilityLabel={(k) => `${nameOf(r.user_id)} : ${rsvpChoices[k].label}`}
               />
-            </View>
+            </Reveal>
           ))}
         </Rows>
       ) : <T muted size={13}>Personne n’a encore répondu : cherche un prénom pour l’ajouter.</T>}

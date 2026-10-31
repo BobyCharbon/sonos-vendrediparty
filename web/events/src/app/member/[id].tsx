@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { Linking, View } from 'react-native';
 
-import { Avatar, Button, Card, Empty, ErrorText, Loading, Screen, Section, T, Title } from '@/components/ui';
+import { Avatar, Button, Card, Cascade, Empty, ErrorText, Loading, Reveal, Screen, Section, T, Title } from '@/components/ui';
 import { useQuery } from '@/lib/data';
 import { supabase } from '@/lib/supabase';
 import { roleLabel, type MemberRole } from '@/lib/types';
@@ -48,8 +48,10 @@ export default function MemberScreen() {
   const phone = data.phone ? `+${data.phone.replace(/^\+/, '')}` : null;
   return (
     <Screen>
+      {/* Fiche : la photo se pose, puis le reste monte en cascade. */}
+      <Cascade>
       <View style={{ alignItems: 'center', gap: 8 }}>
-        <Avatar id={data.id} name={data.display_name} photo={data.avatar_url} size={112} profile={false} />
+        <Reveal kind="pop"><Avatar id={data.id} name={data.display_name} photo={data.avatar_url} size={112} profile={false} /></Reveal>
         <Title>{data.display_name || 'Profil à compléter'}</Title>
         {fullName ? <T muted size={17}>{fullName}</T> : null}
         <T muted size={13}>{data.root ? '👑 Root' : roleLabel[data.role] ?? data.role}{data.me ? ' · c’est toi' : ''}</T>
@@ -72,6 +74,7 @@ export default function MemberScreen() {
       {data.me ? (
         <T muted size={13}>Ton nom et ton numéro restent cachés tant que tu ne choisis pas de les montrer (Mon profil, Groupes).</T>
       ) : null}
+      </Cascade>
     </Screen>
   );
 }

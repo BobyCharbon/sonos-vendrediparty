@@ -521,8 +521,9 @@ export function Rows({ children }: { children: ReactNode }) {
   const rows = Children.toArray(children).filter(Boolean);
   return (
     <View>
+      {/* Clé de la ligne elle-même : une ligne insérée ne recrée pas (ni ne ré-anime) celles qui suivent. */}
       {rows.map((row, i) => (
-        <View key={i}>
+        <View key={isValidElement(row) ? row.key ?? i : i}>
           {i ? <View style={s.divider} /> : null}
           {row}
         </View>

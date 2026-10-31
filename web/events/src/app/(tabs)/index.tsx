@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,7 +9,7 @@ import { Button, Chip, Empty, ErrorText, Input, Reveal, s, Segmented, Skeleton, 
 import { useAuth, useMe } from '@/lib/auth';
 import { fetchEventList, fetchTaxonomy, needsAnswer, useQuery } from '@/lib/data';
 import { must, supabase } from '@/lib/supabase';
-import { enter, pressTransition } from '@/lib/motion';
+import { duration, ease, enter, pressTransition, transition } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
 
 type Tab = 'upcoming' | 'polls' | 'pending' | 'drafts' | 'past';
@@ -22,6 +22,9 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>('upcoming');
   const [filter, setFilter] = useState<Filter>({ kind: 'all' });
   const [search, setSearch] = useState('');
+  // « + Proposer » s’efface en descendant dans la liste et revient dès qu’on remonte (comme Mail ou Photos).
+  const [fabAway, setFabAway] = useState(false);
+  const lastY = useRef(0);
 
   const { data, error, loading, reload } = useQuery(async () => {
     const [events, taxonomy, tagSubs, catSubs] = await Promise.all([
@@ -104,6 +107,15 @@ export default function Home() {
         style={{ flex: 1, minHeight: 0 }}
         contentContainerStyle={[s.content, { paddingBottom: 96 }]}
         refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={reload} tintColor={colors.accent} />}
+        scrollEventThrottle={32}
+        onScroll={(e) => {
+          const y = e.nativeEvent.contentOffset.y;
+          const dy = y - lastY.current;
+          if (Math.abs(dy) < FAB_SCROLL_SLOP) return;
+          lastY.current = y;
+          const away = dy > 0 && y > FAB_SCROLL_START;
+          if (away !== fabAway) setFabAway(away);
+        }}
       >
         <View style={s.rowBetween}>
           <View style={{ flex: 1, minWidth: 0 }}>
@@ -216,7 +228,8 @@ export default function Home() {
       </ScrollView>
 
       <View pointerEvents="box-none" style={st.fabWrap}>
-        <View pointerEvents="box-none" style={st.fabColumn}>
+        <View pointerEvents={fabAway ? 'none' : 'box-none'} style={[st.fabColumn, transition('transform, opacity', duration.base, ease.out),
+          fabAway && { opacity: 0, transform: [{ translateY: 24 }, { scale: 0.9 }] }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Proposer un événement"
@@ -230,6 +243,10 @@ export default function Home() {
     </SafeAreaView>
   );
 }
+
+/** Défilement minimal (px) avant de montrer ou cacher « + Proposer », et zone du haut où il reste toujours visible. */
+const FAB_SCROLL_SLOP = 8;
+const FAB_SCROLL_START = 120;
 
 /** Cartes fantômes pendant le premier chargement : la liste garde sa forme, rien ne saute à l’arrivée. */
 function ListSkeleton() {

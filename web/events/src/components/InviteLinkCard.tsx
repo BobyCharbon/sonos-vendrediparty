@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Platform, Pressable, Share, View } from 'react-native';
 
-import { Button, ConfirmButton, ErrorText, Section, Segmented, T } from './ui';
+import { Button, ConfirmButton, ErrorText, Section, Segmented, T, Toast } from './ui';
 import { useQuery } from '@/lib/data';
 import { formatShort } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -164,7 +164,7 @@ function LinkActions({ url }: { url: string }) {
         <Button small label="Copier" style={{ flex: 1 }} onPress={() => void copy()} />
         <Button small variant="secondary" label="Partager" style={{ flex: 1 }} onPress={() => void share()} />
       </View>
-      {note ? <T muted size={13}>{note}</T> : null}
+      {note === 'Lien copié' ? <Toast message={note} onHide={() => setNote(null)} /> : note ? <T muted size={13}>{note}</T> : null}
     </View>
   );
 }

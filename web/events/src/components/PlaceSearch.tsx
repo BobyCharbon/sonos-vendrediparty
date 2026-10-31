@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
+import { duration, enter, transition } from '@/lib/motion';
 import { colors, radius } from '@/lib/theme';
 
 import { Input, T } from './ui';
@@ -67,14 +68,15 @@ export function PlaceSearch({ onPick }: { onPick: (place: Place) => void }) {
       <T muted size={13}>Chercher sur Google Maps</T>
       <Input accessibilityLabel="Chercher un lieu sur Google Maps" placeholder="Bar, resto, adresse…" value={query} onChangeText={setQuery} autoCorrect={false} />
       {shown.length ? (
-        <View role="list" style={{ borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, overflow: 'hidden' }}>
+        // Les propositions descendent sous le champ, au lieu d’apparaître d’un coup.
+        <View role="list" style={[{ borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, overflow: 'hidden' }, enter('drop')]}>
           {shown.map((s, i) => (
             <Pressable
               key={s.id}
               role="button"
               accessibilityLabel={`${s.main}, ${s.secondary}`}
               onPress={() => pick(s)}
-              style={({ pressed }) => ({ minHeight: 48, paddingHorizontal: 12, paddingVertical: 8, justifyContent: 'center', backgroundColor: pressed ? colors.surface2 : colors.bg, borderTopWidth: i ? 1 : 0, borderTopColor: colors.line })}
+              style={({ pressed }) => [{ minHeight: 48, paddingHorizontal: 12, paddingVertical: 8, justifyContent: 'center', backgroundColor: pressed ? colors.surface2 : colors.bg, borderTopWidth: i ? 1 : 0, borderTopColor: colors.line }, transition('background-color', duration.fast)]}
             >
               <T weight="semibold" size={14} numberOfLines={1}>{s.main}</T>
               {s.secondary ? <T muted size={12} numberOfLines={1}>{s.secondary}</T> : null}
