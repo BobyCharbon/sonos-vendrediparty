@@ -1263,6 +1263,21 @@ body.pyr-full #game.g-rm { background: transparent; border: 0; padding: 0; box-s
   background: var(--g-accent, var(--accent)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 3px 8px rgba(0, 0, 0, .3); }
 .g-room-tile-i svg { width: 24px; height: 24px; }
 .g-room-tile:not(:disabled):active { transform: scale(.94); }
+/* Votes de la salle : compteur en haut à droite de chaque jeu, son propre vote entouré, le plus voté en or. */
+.g-room-votes { position: absolute; top: -8px; right: -6px; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 13px;
+  display: grid; place-items: center; font: 900 .85rem system-ui; font-style: normal; color: #1a1020; background: #ffd84d;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .4); animation: room-vote-pop .35s var(--spring); }
+@keyframes room-vote-pop { from { transform: scale(.3); } to { transform: scale(1); } }
+.g-room-tile.voted { box-shadow: inset 0 0 0 3px #ffd84d, 0 8px 18px rgba(0, 0, 0, .35); }
+.g-room-tile.top .g-room-votes { background: linear-gradient(135deg, #ffe680, #ffb347); }
+.g-room-sub { margin: -4px 2px 12px; color: var(--muted); font-size: .86rem; line-height: 1.35; }
+.g-room-sub b { color: #ffd84d; }
+.g-room-best { margin: 0 0 14px; padding: 12px; border-radius: 18px; background: rgba(255, 216, 77, .1); box-shadow: inset 0 0 0 1px rgba(255, 216, 77, .35); }
+.g-room-best-h { font: 800 .8rem system-ui; letter-spacing: .06em; text-transform: uppercase; color: #ffd84d; margin: 0 2px 10px; }
+.g-room-best-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.g-room-best-go { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
+.g-room-best-go .g-room-tile-i { width: 30px; height: 30px; border-radius: 10px; }
+.g-room-best-go .g-room-tile-i svg { width: 19px; height: 19px; }
 .g-room-wait { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 14px; padding: 22px 14px; border-radius: 22px;
   text-align: center; font-weight: 700; color: #dfe7ff; background: rgba(255, 255, 255, .05); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08); }
 .g-room-dots { display: flex; gap: 6px; }

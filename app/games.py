@@ -2506,6 +2506,36 @@ def room_merge(room: dict, g: dict):
     room["current"] = None
 
 
+def room_vote(room: dict, gid: str, kind: str):
+    """Un participant de la salle vote pour le prochain jeu : un seul choix, qu'il déplace quand il veut (retoucher
+    son choix le retire). L'animateur ne vote pas : il voit les votes et décide."""
+    if room["type"] != "room":
+        raise GameError("Action inconnue")
+    if room.get("current"):
+        raise GameError("Un jeu est en cours : on vote pour le suivant à la fin")
+    if is_lead(room, gid):
+        raise GameError("L'animateur choisit le jeu : il ne vote pas")
+    if player(room, gid) is None:
+        raise GameError("Rejoins la salle pour voter")
+    if kind not in GAMES or kind == "room":
+        raise GameError("Jeu inconnu")
+    votes = room.setdefault("rvotes", {})
+    if votes.get(gid) == kind:
+        votes.pop(gid)
+    else:
+        votes[gid] = kind
+
+
+def room_votes(room: dict) -> dict[str, int]:
+    """Votes pour le prochain jeu, des seuls participants encore dans la salle."""
+    present = {p["id"] for p in room["players"]}
+    counts: dict[str, int] = {}
+    for gid, kind in room.get("rvotes", {}).items():
+        if gid in present:
+            counts[kind] = counts.get(kind, 0) + 1
+    return counts
+
+
 def room_view(room: dict, gid: str, child: dict | None) -> dict:
     """Ce qu'affiche la salle : le jeu en cours, l'historique et le tableau de la soirée."""
     names = {**room.get("rnames", {}), **{p["id"]: p["name"] for p in room["players"]}}
@@ -2516,6 +2546,9 @@ def room_view(room: dict, gid: str, child: dict | None) -> dict:
     return {"current": {"code": child["code"], "type": child["type"], "name": GAMES[child["type"]], "phase": child["phase"],
                         "players": len(child["players"])} if child else None,
             "history": list(reversed(room["rhistory"][-12:])), "board": board,
+            "votes": (votes := room_votes(room)), "my_vote": room.get("rvotes", {}).get(gid) if player(room, gid) else None,
+            # Le ou les jeux les plus votés (égalité : tous), proposés à l'animateur.
+            "top": sorted(k for k, n in votes.items() if n == max(votes.values())) if votes else [],
             "catalog": [{"type": t, "name": n} for t, n in GAMES.items() if t != "room"]}
 
 

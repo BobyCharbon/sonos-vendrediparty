@@ -1362,6 +1362,7 @@ def room_launch(room: dict, me: str, settings: dict):
             pass
     child["leads"] = list(room.get("leads", []))
     child["room"] = room["code"]
+    room["rvotes"] = {}  # le vote du jeu suivant repart à zéro
     room["current"] = child["code"]
     store.session.games[child["code"]] = child
 
@@ -2301,6 +2302,7 @@ GAME_ONLY_ACTIONS = {
     "divan": {"dnext", "djoker", "dback", "dheart"},
     "tmc": {"tanswer", "tjudge", "tq", "treveal", "finish"},
     "quiz": {"qset", "qans", "qjoker", "qstop", "qpause"},
+    "room": {"rvote"},
 }
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
@@ -2389,6 +2391,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "dnext": (games.divan_next, me), "djoker": (games.divan_joker, me), "dback": (games.divan_back, me), "dheart": (games.divan_heart, me),
         "tanswer": (games.tmc_answer, me, body.guess), "tjudge": (games.tmc_judge, me, body.amount),
         "addguest": (games.add_guest, body.guess), "mvote": (games.vote_for, target, body.guess),
+        "rvote": (games.room_vote, me, body.target),
         "tq": (games.tmc_change_question,), "treveal": (games.tmc_reveal,), "finish": (games.tmc_finish,),
         "pans": (games.pyr_answer, actor, body.target), "pflip": (games.pyr_flip,), "pclaim": (games.pyr_claim, actor),
         "pbu": (games.pyr_judge, body.target, False), "pliar": (games.pyr_judge, body.target, True),

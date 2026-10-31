@@ -2413,27 +2413,41 @@ function lobbyInvite(g) {
 }
 
 // ── Salle de jeux ──
-function roomTileHtml(c) {
-  return `<button type="button" class="g-room-tile ${GAME_THEME[c.type] || ""}" data-room-pick="${c.type}">${newBadge(c.type)}
+// Tuile d'un jeu de la salle : l'animateur la touche pour lancer le jeu ; un participant, pour voter (un seul choix).
+// Compteur de votes en haut à droite, vu de tous.
+function roomTileHtml(c, R = {}, lead = false) {
+  const n = (R.votes || {})[c.type] || 0, mine = R.my_vote === c.type;
+  const action = lead ? `data-room-pick="${c.type}"` : `data-room-vote="${c.type}" aria-pressed="${mine}"`;
+  return `<button type="button" class="g-room-tile ${GAME_THEME[c.type] || ""} ${mine ? "voted" : ""} ${(R.top || []).includes(c.type) ? "top" : ""}" ${action}
+      aria-label="${esc(c.name)}${n ? `, ${n} vote${n > 1 ? "s" : ""}` : ""}${mine ? ", ton vote" : ""}">${n ? `<i class="g-room-votes" aria-hidden="true">${n}</i>` : newBadge(c.type)}
     <span class="g-room-tile-i">${GAME_ICONS[c.type] || ""}</span><b>${esc(c.name)}${drinkTag(c.type)}</b></button>`;
 }
 // Tuiles groupées par catégorie, dans le même ordre que l'écran Jeux ; un jeu sans catégorie va à la fin.
 const STORE_HIDDEN = document.documentElement.classList.contains("party-store") ? ["casino", "blackjack"] : [];
-function roomCatalogHtml(catalog) {
+function roomCatalogHtml(catalog, R = {}, lead = false) {
   const byType = new Map(catalog.filter((c) => !STORE_HIDDEN.includes(c.type)).map((c) => [c.type, c]));
   const known = new Set(GAME_CATEGORIES.flatMap(([, , types]) => types));
   const groups = [...GAME_CATEGORIES.map(([id, label, types]) => [id, label, types.filter((t) => byType.has(t)).map((t) => byType.get(t))]),
     ["other", "Autres jeux", catalog.filter((c) => !known.has(c.type) && !STORE_HIDDEN.includes(c.type))]];
   return groups.filter(([, , list]) => list.length).map(([id, label, list]) => `<div class="g-room-cat" data-cat="${id}">
-      <div class="g-room-cat-h">${label}</div><div class="g-room-grid">${list.map(roomTileHtml).join("")}</div></div>`).join("");
+      <div class="g-room-cat-h">${label}</div><div class="g-room-grid">${list.map((c) => roomTileHtml(c, R, lead)).join("")}</div></div>`).join("");
 }
 function roomHtml(g) {
   const R = g.room_info || {}, lead = g.is_host;
   const cur = R.current;
   const resume = cur ? `<button class="py-main g-room-resume" data-room-goto="${esc(cur.code)}">🎮 ${esc(cur.name)} en cours · rejoindre</button>` : "";
-  const pick = lead && !cur ? `<div class="g-room-block"><div class="g-room-h">Lancer un jeu pour la salle</div>
-      ${roomCatalogHtml(R.catalog || [])}</div>`
-    : !cur ? `<div class="g-room-wait"><span class="g-room-dots"><i></i><i></i><i></i></span>${esc(g.host_name || "L'animateur")} choisit le prochain jeu…</div>` : "";
+  // Même écran pour l'animateur et les participants : les catégories et les jeux, avec les votes.
+  const votes = Object.values(R.votes || {}).reduce((a, b) => a + b, 0);
+  const named = (type) => (R.catalog || []).find((c) => c.type === type)?.name || type;
+  const best = lead && (R.top || []).length ? `<div class="g-room-best">
+      <div class="g-room-best-h">⭐ ${R.top.length > 1 ? "Les plus votés (égalité)" : "Le plus voté"} · ${R.votes[R.top[0]]} vote${R.votes[R.top[0]] > 1 ? "s" : ""}</div>
+      <div class="g-room-best-row">${R.top.map((t) => `<button type="button" class="py-main g-room-best-go ${GAME_THEME[t] || ""}" data-room-pick="${t}">
+        <span class="g-room-tile-i">${GAME_ICONS[t] || ""}</span>▶ ${esc(named(t))}</button>`).join("")}</div></div>` : "";
+  const pick = !cur ? `<div class="g-room-block"><div class="g-room-h">${lead ? "Lancer un jeu pour la salle" : "Vote pour le prochain jeu"}</div>
+      ${best}
+      ${lead ? `<div class="g-room-sub">${votes ? `${votes} vote${votes > 1 ? "s" : ""} des participants` : "Les participants votent pour leur jeu préféré : tu vois les votes ici."}</div>`
+        : `<div class="g-room-sub">${R.my_vote ? `Ton vote : <b>${esc(named(R.my_vote))}</b> · touche un autre jeu pour changer` : "Touche le jeu que tu veux jouer (un seul choix)"} · ${esc(g.host_name || "L'animateur")} lance le jeu</div>`}
+      ${roomCatalogHtml(R.catalog || [], R, lead)}</div>` : "";
   const board = (R.board || []).filter((r) => r.pts || r.drink || r.give);
   const tally = board.length ? `<div class="g-room-block"><div class="g-room-h">🏆 Tableau de la soirée</div>
       ${board.map((r, i) => `<div class="g-room-row ${r.me ? "me" : ""}"><span class="qz-rank r${i + 1}">${i + 1}</span><b>${esc(r.name)}</b>
@@ -2508,6 +2522,8 @@ function closeRoomSheet(now = false) {
 document.addEventListener("click", (ev) => {
   const t = ev.target.closest("[data-room-pick]");
   if (t) return openRoomSheet(t.dataset.roomPick);
+  const v = ev.target.closest("[data-room-vote]");
+  if (v) { haptic(15); return pressed(v, gameAction("rvote", { target: v.dataset.roomVote })); }
   const go = ev.target.closest("[data-room-goto]");
   if (go) { setGame(go.dataset.roomGoto); autoJoin = true; refreshGame(); }
 });

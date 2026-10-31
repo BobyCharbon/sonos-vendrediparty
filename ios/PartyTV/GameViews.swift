@@ -191,21 +191,69 @@ struct LobbyView: View {
     }
 }
 
-/// Salle de jeux sans jeu lancé : QR code, joueurs, tableau de la soirée et derniers jeux.
+/// Salle de jeux sans jeu lancé : QR code, les jeux avec leurs votes (le ou les plus votés en avant) et le tableau.
 struct RoomTV: View {
     let room: JSON
     let join: URL?
+    private var info: JSON { room["room_info"] }
+    private var votes: [String: Int] {
+        guard case .object(let o) = info["votes"] else { return [:] }
+        return o.compactMapValues(\.int)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 30) {
-            LobbyView(game: room, join: join)
-            let board = room["room_info"]["board"].array.filter { ($0["pts"].int ?? 0) + ($0["drink"].int ?? 0) + ($0["give"].int ?? 0) > 0 }
-            if !board.isEmpty {
-                Leaderboard(title: "🏆 Tableau de la soirée", rows: board.map { r in
-                    (r["name"].string ?? "?", "\(r["pts"].int ?? 0) pts · 🍺 \(r["drink"].int ?? 0)")
-                })
-                .frame(maxWidth: 820)
+        VStack(alignment: .leading, spacing: 26) {
+            HStack(alignment: .top, spacing: 40) {
+                if let join { QRCodeView(url: join, size: 220) }
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("🗳 Votez pour le prochain jeu").font(.system(size: 60, weight: .black)).lineLimit(1).minimumScaleFactor(0.6)
+                    let total = votes.values.reduce(0, +)
+                    Text(total == 0 ? "Touchez un jeu sur votre téléphone : un seul choix, modifiable"
+                         : "\(total) vote\(total > 1 ? "s" : "") · \(room["players"].array.count) dans la salle")
+                        .font(.system(size: 34, weight: .semibold)).foregroundStyle(TV.muted)
+                    let top = info["top"].array.compactMap(\.string)
+                    if !top.isEmpty {
+                        Text("⭐ " + top.map(name).joined(separator: " · "))
+                            .font(.system(size: 56, weight: .black)).foregroundStyle(TV.coral).lineLimit(1).minimumScaleFactor(0.5)
+                            .id(top).transition(.scale.combined(with: .opacity))
+                    }
+                }
+            }
+            .animation(.spring(response: 0.45, dampingFraction: 0.7), value: info["top"])
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 18)], alignment: .leading, spacing: 18) {
+                ForEach(catalog, id: \.self) { type in tile(type) }
+            }
+            .animation(.spring(response: 0.45, dampingFraction: 0.7), value: info["votes"])
+        }
+    }
+
+    /// Les jeux du catalogue, les plus votés d'abord ; les jeux 3D et 2D (téléphones seulement) aussi, pour voter.
+    private var catalog: [String] {
+        let all = info["catalog"].array.compactMap { $0["type"].string }
+        return all.enumerated().sorted { (votes[$0.element] ?? 0, -$0.offset) > (votes[$1.element] ?? 0, -$1.offset) }.map(\.element)
+    }
+
+    private func name(_ type: String) -> String {
+        info["catalog"].array.first { $0["type"].string == type }?["name"].string ?? type
+    }
+
+    private func tile(_ type: String) -> some View {
+        let n = votes[type] ?? 0
+        let top = info["top"].array.contains(.string(type))
+        return HStack(spacing: 14) {
+            Text(name(type)).font(.system(size: 32, weight: .bold)).lineLimit(2).minimumScaleFactor(0.6)
+            Spacer(minLength: 6)
+            if n > 0 {
+                Text("\(n)").font(.system(size: 40, weight: .black).monospacedDigit()).foregroundStyle(.black)
+                    .frame(minWidth: 58, minHeight: 58).background(top ? TV.coral : TV.lavender, in: Capsule())
+                    .contentTransition(.numericText())
             }
         }
+        .padding(.horizontal, 22).padding(.vertical, 12)
+        .frame(minHeight: 96)
+        .card(top ? TV.coral.opacity(0.3) : TV.surface, radius: 24)
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(top ? TV.coral : .clear, lineWidth: 4))
+        .opacity(n == 0 && !votes.isEmpty ? 0.6 : 1)
     }
 }
 
