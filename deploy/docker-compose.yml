@@ -17,6 +17,8 @@ services:
       # Assistant IA (Claude) : sans clé, l'assistant reste éteint. Plafond mensuel par personne, en dollars.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       AI_MONTHLY_BUDGET_USD: ${AI_MONTHLY_BUDGET_USD:-3}
+      # Lieux de l'assistant IA cherchés dans Google Maps (API Places « New ») ; sans clé : Plans d'Apple.
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
       # Avis : une seule liste, gardée par la production ; même secret (32 caractères au moins) sur les deux piles.
       FEEDBACK_SYNC_SECRET: ${FEEDBACK_SYNC_SECRET:-}
       # Notifications de l'app iOS native (app/apns.py) : clé APNs .p8 (contenu) et son identifiant.

@@ -33,6 +33,7 @@ from .group_chats import LEVELS as CHAT_LEVELS, PHOTO_MAX as CHAT_PHOTO_MAX, Gro
 from .tricount import CURRENCIES as TC_CURRENCIES, Tricount
 from .assistant import MAX_PHOTO as AI_PHOTO_MAX, Assistant, UsageLog
 from .ai_events import MAX_TEXT as AI_EVENT_MAX_TEXT, MAX_TURNS as AI_EVENT_MAX_TURNS, EventAssistant
+from .places import MAX_QUERY as PLACE_MAX_QUERY, Places
 from .audit import AuditLog
 from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
 from .feedback_remote import OPS as FEEDBACK_SYNC_OPS, SYNC_HEADER as FEEDBACK_SYNC_HEADER, FeedbackRemote, FeedbackUnavailable
@@ -1461,6 +1462,7 @@ assistant = Assistant(accounts, UsageLog(DATA_DIR / "ai_usage.json"),
                       (lambda: __import__("anthropic").Anthropic(timeout=60.0)) if os.environ.get("ANTHROPIC_API_KEY") else None,
                       float(os.environ.get("AI_MONTHLY_BUDGET_USD", "3")), TC_CURRENCIES)
 event_assistant = EventAssistant(assistant, accounts)
+places = Places(os.environ.get("GOOGLE_MAPS_API_KEY", ""))  # sans clé : l'app cherche dans les Plans d'Apple
 account_auth = AccountAuth(accounts)
 # Ne compte que les vrais refus (compte sans droit admin). Un jeton expiré ou invalide n'est jamais compté :
 # un jeton Supabase ne se devine pas, et l'app rouverte après 1 h en présente un périmé. Compté, il bloquait
@@ -1993,6 +1995,19 @@ class AiEventCreate(MemberToken):
 def account_ai_event_create(body: AiEventCreate):
     """Brouillon confirmé dans l'app (compte à rebours de 5 s) → événement publié ou proposé."""
     return account_call(lambda: event_assistant.create(body.token, body.draft, body.place))
+
+
+class AiPlaces(MemberToken):
+    query: str = Field(min_length=1, max_length=PLACE_MAX_QUERY)
+
+
+@app.post("/api/account/ai/places")
+def account_ai_places(body: AiPlaces):
+    """Lieux possibles dans Google Maps pour le lieu dit (la personne choisit le bon) ; vide sans clé Google."""
+    def run():
+        assistant.allowed(body.token)
+        return {"source": "google" if places.configured else "none", "places": places.search(body.query)}
+    return account_call(run)
 
 
 @app.post("/api/account/ai/usage")

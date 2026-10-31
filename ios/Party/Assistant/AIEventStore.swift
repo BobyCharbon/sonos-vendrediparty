@@ -97,6 +97,10 @@ final class AIEventStore: ObservableObject {
     @Published private(set) var draft: AIEvent.Draft?
     @Published private(set) var place: AIEvent.Place?
     @Published private(set) var searchingPlace = false
+    /// Lieux trouvés pour ce qui a été dit ; la personne choisit le bon (rien n'est choisi pour elle).
+    @Published private(set) var candidates: [AIEvent.Place] = []
+    @Published private(set) var placeSource = ""
+    @Published private(set) var noAddress = false
     @Published private(set) var thinking = false
     @Published private(set) var creating = false
     @Published private(set) var created: AIEvent.Created?
@@ -117,6 +121,8 @@ final class AIEventStore: ObservableObject {
         turns = []
         draft = nil
         place = nil
+        candidates = []
+        noAddress = false
         lastQuery = ""
         created = nil
         error = nil
@@ -146,16 +152,31 @@ final class AIEventStore: ObservableObject {
         }
     }
 
-    /// Lieu dit par la personne → adresse trouvée sur la carte (Plans d'Apple, en Suisse d'abord).
+    /// Lieu dit par la personne → lieux possibles (Google Maps, sinon Plans d'Apple) ; la personne choisit le bon.
     func findPlace(_ query: String) async {
         lastQuery = query
-        guard !query.isEmpty else {
-            place = nil
-            return
-        }
+        place = nil
+        noAddress = false
+        candidates = []
+        guard !query.isEmpty else { return }
         searchingPlace = true
         defer { searchingPlace = false }
-        // En Suisse d'abord (« Villeneuve » = Villeneuve VD, pas la France) ; ailleurs seulement si rien n'y est trouvé.
+        if let token = await web?.accountToken(), let google = try? await api.aiPlaces(token: token, query: query),
+           !google.places.isEmpty {
+            placeSource = "Google Maps"
+            candidates = google.places.map { p in
+                AIEvent.Place(name: p.name, address: p.address,
+                              url: p.url.isEmpty ? AIEvent.googleMapsURL([p.name, p.address].joined(separator: ", ")) : p.url,
+                              latitude: p.latitude, longitude: p.longitude)
+            }
+            return
+        }
+        placeSource = "Plans"
+        candidates = await appleMaps(query)
+    }
+
+    /// Plans d'Apple (sans clé Google) : en Suisse d'abord, ailleurs seulement si rien n'y est trouvé.
+    private func appleMaps(_ query: String) async -> [AIEvent.Place] {
         let foreign = ["france", "italie", "allemagne", "espagne", "portugal", "autriche"].contains { query.lowercased().contains($0) }
         var found: [MKMapItem] = []
         for q in foreign ? [query] : [query + ", Suisse", query] where found.isEmpty {
@@ -166,22 +187,34 @@ final class AIEventStore: ObservableObject {
             found = foreign ? items : items.filter { Self.inSwitzerland($0.placemark.coordinate) }
             if found.isEmpty && q == query { found = items }
         }
-        guard let item = found.first else {
-            place = nil
-            return
+        return found.prefix(5).map { item in
+            let p = item.placemark
+            let street = [p.thoroughfare, p.subThoroughfare].compactMap { $0 }.joined(separator: " ")
+            let town = [p.postalCode, p.locality].compactMap { $0 }.joined(separator: " ")
+            let address = [street, town].filter { !$0.isEmpty }.joined(separator: ", ")
+            let name = item.name ?? address
+            return AIEvent.Place(name: name, address: address == name ? "" : address,
+                                 url: AIEvent.googleMapsURL([name, address].filter { !$0.isEmpty }.joined(separator: ", ")),
+                                 latitude: p.coordinate.latitude, longitude: p.coordinate.longitude)
         }
-        let p = item.placemark
-        let street = [p.thoroughfare, p.subThoroughfare].compactMap { $0 }.joined(separator: " ")
-        let town = [p.postalCode, p.locality].compactMap { $0 }.joined(separator: " ")
-        let address = [street, town].filter { !$0.isEmpty }.joined(separator: ", ")
-        // Une adresse ou une ville seulement (pas un lieu nommé) : le nom dit par la personne (« Chez Boby »,
-        // « Fun Planet ») reste le nom du lieu.
-        let said = draft?.place_name ?? ""
-        let plain = p.thoroughfare == nil || item.name == nil || address.hasPrefix(item.name ?? "") || item.name == p.locality
-        let name = plain && !said.isEmpty ? said : (item.name ?? (said.isEmpty ? query : said))
-        place = AIEvent.Place(name: name, address: address.isEmpty ? (p.title ?? "") : address,
-                              url: AIEvent.googleMapsURL([name, address].filter { !$0.isEmpty }.joined(separator: ", ")),
-                              latitude: p.coordinate.latitude, longitude: p.coordinate.longitude)
+    }
+
+    /// La personne confirme le bon lieu (ou change d'avis).
+    func choose(_ chosen: AIEvent.Place?) {
+        place = chosen
+        noAddress = false
+    }
+
+    /// « Pas d'adresse » : seul le nom dit est gardé.
+    func withoutAddress() {
+        place = nil
+        noAddress = true
+    }
+
+    /// « Créer » n'est possible que si le brouillon est complet et que le lieu dit a été confirmé (ou laissé sans adresse).
+    var canCreate: Bool {
+        guard let draft, draft.ready else { return false }
+        return draft.place_query.isEmpty || place != nil || noAddress
     }
 
     #if DEBUG
@@ -200,11 +233,8 @@ final class AIEventStore: ObservableObject {
         (45.8...47.85).contains(c.latitude) && (5.95...10.5).contains(c.longitude)
     }
 
-    /// « Pas ce lieu » : seul le nom dit est gardé, sans adresse.
-    func dropPlace() { place = nil }
-
     func create() async {
-        guard let draft, draft.ready, !creating else { return }
+        guard let draft, canCreate, !creating else { return }
         guard let token = await web?.accountToken() else { return }
         creating = true
         defer { creating = false }
@@ -217,6 +247,16 @@ final class AIEventStore: ObservableObject {
 }
 
 extension PartyAPI {
+    struct FoundPlaces: Decodable {
+        struct Found: Decodable { let name: String; let address: String; let latitude: Double; let longitude: Double; let url: String }
+        let source: String
+        let places: [Found]
+    }
+
+    func aiPlaces(token: String, query: String) async throws -> FoundPlaces {
+        try await postDecoding("/api/account/ai/places", body: ["token": token, "query": query])
+    }
+
     func aiEventDraft(token: String, turns: [String], previous: AIEvent.Draft?) async throws -> AIEvent.Draft {
         var body: [String: Any] = ["token": token, "turns": turns]
         if let previous, let data = try? JSONEncoder().encode(previous),

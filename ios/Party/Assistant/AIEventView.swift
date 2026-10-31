@@ -60,6 +60,7 @@ struct AIEventView: View {
                 store.unsent = nil
             }
             .onChange(of: store.place) { _ in restartCountdown() }
+            .onChange(of: store.noAddress) { _ in restartCountdown() }
             .onDisappear { dictation.finish(); tick?.cancel() }
         }
         .tint(Palette.accent)
@@ -166,7 +167,10 @@ struct AIEventView: View {
             if d.pot { row("banknote.fill", "Pot commun pour les présents") }
             if !d.bring.isEmpty { row("bag", "À amener : " + d.bring.joined(separator: ", ")) }
             if !d.description.isEmpty { Text(d.description).font(.subheadline) }
-            if d.ready { createButton }
+            if store.canCreate { createButton }
+            else if d.ready && !store.searchingPlace {
+                Text("Confirme le lieu pour pouvoir créer l'événement.").font(.footnote).foregroundStyle(.secondary)
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -184,28 +188,75 @@ struct AIEventView: View {
     @ViewBuilder
     private func placeRow(_ d: AIEvent.Draft) -> some View {
         if store.searchingPlace {
-            HStack(spacing: 10) { ProgressView(); Text("Recherche de l'adresse…").foregroundStyle(.secondary) }
+            HStack(spacing: 10) { ProgressView(); Text("Recherche du lieu…").foregroundStyle(.secondary) }
         } else if let p = store.place {
-            VStack(alignment: .leading, spacing: 8) {
-                row("mappin.and.ellipse", p.name + (p.address.isEmpty || p.address == p.name ? "" : "\n" + p.address))
-                Map(coordinateRegion: .constant(MKCoordinateRegion(
-                    center: CLLocationCoordinate2D(latitude: p.latitude, longitude: p.longitude),
-                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01))),
-                    interactionModes: [],
-                    annotationItems: [p]) { item in
-                    MapMarker(coordinate: CLLocationCoordinate2D(latitude: item.latitude, longitude: item.longitude), tint: .pink)
-                }
-                .frame(height: 130)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                HStack {
-                    if let url = URL(string: p.url) { Link("Voir dans Google Maps", destination: url).font(.footnote) }
-                    Spacer()
-                    Button("Pas ce lieu") { store.dropPlace() }.font(.footnote).foregroundStyle(.secondary)
-                }
-            }
-        } else if !d.place_name.isEmpty || !d.place_query.isEmpty {
-            row("mappin.and.ellipse", (d.place_name.isEmpty ? d.place_query : d.place_name) + "\nAdresse non trouvée : dis-la plus précisément si tu veux")
+            chosenPlace(p)
+        } else if store.noAddress {
+            row("mappin.and.ellipse", (d.place_name.isEmpty ? d.place_query : d.place_name) + "\nSans adresse")
+        } else if !store.candidates.isEmpty {
+            placeChoices(d)
+        } else if !d.place_query.isEmpty {
+            row("mappin.and.ellipse", (d.place_name.isEmpty ? d.place_query : d.place_name)
+                + "\nLieu introuvable : dis l'adresse exacte, ou garde-le sans adresse")
+            Button("Garder sans adresse") { store.withoutAddress() }.font(.footnote)
         }
+    }
+
+    /// Le lieu confirmé, avec sa carte et son lien.
+    private func chosenPlace(_ p: AIEvent.Place) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            row("mappin.and.ellipse", p.name + (p.address.isEmpty || p.address == p.name ? "" : "\n" + p.address))
+            Map(coordinateRegion: .constant(MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: p.latitude, longitude: p.longitude),
+                span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008))),
+                interactionModes: [],
+                annotationItems: [p]) { item in
+                MapMarker(coordinate: CLLocationCoordinate2D(latitude: item.latitude, longitude: item.longitude), tint: .pink)
+            }
+            .frame(height: 130)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            HStack {
+                if let url = URL(string: p.url) { Link("Voir dans Google Maps", destination: url).font(.footnote) }
+                Spacer()
+                Button("Changer de lieu") { store.choose(nil) }.font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// Plusieurs lieux possibles : la personne touche le bon (rien n'est choisi à sa place).
+    private func placeChoices(_ d: AIEvent.Draft) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Quel est le bon lieu ?", systemImage: "mappin.and.ellipse")
+                .font(.headline).foregroundStyle(.orange)
+            Text("Trouvé dans \(store.placeSource) pour « \(d.place_query) ». Touche le bon.")
+                .font(.caption).foregroundStyle(.secondary)
+            ForEach(store.candidates) { p in
+                HStack(alignment: .top, spacing: 10) {
+                    Button { store.choose(p) } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(p.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                            if !p.address.isEmpty { Text(p.address).font(.caption).foregroundStyle(.secondary) }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    if let url = URL(string: p.url) {
+                        Link(destination: url) { Image(systemName: "map").font(.footnote) }
+                            .accessibilityLabel("Voir \(p.name) dans Google Maps")
+                    }
+                }
+                .padding(10)
+                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            HStack {
+                Button("Aucun : je précise") { typing = true }
+                Spacer()
+                Button("Sans adresse") { store.withoutAddress() }
+            }
+            .font(.footnote)
+        }
+        .accessibilityIdentifier("ai-place-choices")
     }
 
     private var createButton: some View {
@@ -296,7 +347,7 @@ struct AIEventView: View {
     private func restartCountdown() {
         tick?.cancel()
         countdown = Self.reviewSeconds
-        guard store.draft?.ready == true else { return }
+        guard store.canCreate else { return }
         tick = Task { @MainActor in
             while countdown > 0 {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
@@ -314,5 +365,5 @@ struct AIEventView: View {
 }
 
 extension AIEvent.Place: Identifiable {
-    var id: String { url }
+    var id: String { "\(name)|\(address)|\(latitude)" }
 }
