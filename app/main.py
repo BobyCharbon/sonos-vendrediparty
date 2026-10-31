@@ -19,7 +19,7 @@ from urllib.parse import quote, unquote, urlparse
 import httpx
 import segno
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, ConfigDict, Field
@@ -30,6 +30,7 @@ from .accounts import AccountError, Accounts
 from .account_auth import AccountAuth
 from .group_admin import ROLES as ADMIN_ROLES, GroupAdmin
 from .group_chats import LEVELS as CHAT_LEVELS, PHOTO_MAX as CHAT_PHOTO_MAX, GroupChats
+from .tricount import Tricount
 from .audit import AuditLog
 from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
 from .github_issues import GitHubError, Issues
@@ -1417,6 +1418,7 @@ def presence(body: Presence, request: Request):
 accounts = Accounts(_secret())
 group_admin = GroupAdmin(accounts)
 group_chats = GroupChats(group_admin)
+tricount = Tricount(group_admin, lambda: guest_url())
 account_auth = AccountAuth(accounts)
 # Ne compte que les vrais refus (compte sans droit admin). Un jeton expiré ou invalide n'est jamais compté :
 # un jeton Supabase ne se devine pas, et l'app rouverte après 1 h en présente un périmé. Compté, il bloquait
@@ -1772,6 +1774,168 @@ def account_chat_photo(body: ChatPhoto):
     except ValueError:
         raise HTTPException(400, "Photo illisible") from None
     return account_call(lambda: group_chats.upload_photo(body.token, body.group_id, data))
+
+
+# ── Tricount (Réglages › Tricount de l'app iOS) : dépenses partagées, lien pour rejoindre, profil de paiement ──
+class TcRef(MemberToken):
+    group_id: str = Field(pattern=UUID)
+
+
+class TcCreate(MemberToken):
+    name: str = Field(min_length=1, max_length=60)
+    emoji: str = Field(default="💸", max_length=8)
+    currency: str = Field(default="CHF", pattern=r"^[A-Z]{3}$")
+    my_name: str = Field(min_length=1, max_length=40)
+
+
+class TcUpdate(TcRef):
+    name: str | None = Field(default=None, max_length=60)
+    emoji: str | None = Field(default=None, max_length=8)
+    currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+    archived: bool | None = None
+
+
+class TcJoin(MemberToken):
+    link: str = Field(pattern=UUID)
+    my_name: str = Field(default="", max_length=40)
+    claim: str | None = Field(default=None, pattern=UUID)
+
+
+class TcMember(TcRef):
+    member_id: str | None = Field(default=None, pattern=UUID)
+    name: str = Field(default="", max_length=40)
+
+
+class TcExpense(TcRef):
+    expense: dict
+
+
+class TcExpenseRef(TcRef):
+    expense_id: str = Field(pattern=UUID)
+
+
+class TcSettle(TcRef):
+    from_id: str = Field(pattern=UUID)
+    to_id: str = Field(pattern=UUID)
+    amount_cents: int = Field(gt=0, le=100_000_000)
+
+
+class TcReceipt(TcRef):
+    photo: str = Field(min_length=1, max_length=CHAT_PHOTO_MAX * 4 // 3 + 8)  # base64
+
+
+class TcPayment(MemberToken):
+    iban: str = Field(default="", max_length=42)
+    holder: str = Field(default="", max_length=80)
+    links: dict[str, str] = Field(default_factory=dict, max_length=8)
+    note: str = Field(default="", max_length=200)
+
+
+@app.post("/api/account/tricount")
+def account_tricount_list(body: MemberToken):
+    return account_call(lambda: tricount.overview(body.token), 401)
+
+
+@app.post("/api/account/tricount/open")
+def account_tricount_open(body: TcRef):
+    return account_call(lambda: tricount.state(body.token, body.group_id))
+
+
+@app.post("/api/account/tricount/create")
+def account_tricount_create(body: TcCreate):
+    return account_call(lambda: tricount.create(body.token, body.name, body.emoji, body.currency, body.my_name))
+
+
+@app.post("/api/account/tricount/update")
+def account_tricount_update(body: TcUpdate):
+    return account_call(lambda: tricount.update(body.token, body.group_id, body.name, body.emoji, body.currency, body.archived))
+
+
+@app.post("/api/account/tricount/link")
+def account_tricount_link(body: TcRef):
+    """Nouveau lien pour rejoindre : l'ancien ne marche plus."""
+    return account_call(lambda: tricount.renew_link(body.token, body.group_id))
+
+
+@app.post("/api/account/tricount/join/info")
+def account_tricount_join_info(body: TcJoin):
+    return account_call(lambda: tricount.join_info(body.token, body.link))
+
+
+@app.post("/api/account/tricount/join")
+def account_tricount_join(body: TcJoin):
+    return account_call(lambda: tricount.join(body.token, body.link, body.my_name, body.claim))
+
+
+@app.post("/api/account/tricount/member")
+def account_tricount_member(body: TcMember):
+    """Ajouter un prénom (sans member_id) ou renommer (avec)."""
+    if body.member_id:
+        return account_call(lambda: tricount.rename_member(body.token, body.group_id, body.member_id, body.name))
+    return account_call(lambda: tricount.add_member(body.token, body.group_id, body.name))
+
+
+@app.post("/api/account/tricount/member/remove")
+def account_tricount_member_remove(body: TcMember):
+    if not body.member_id:
+        raise HTTPException(400, "Personne à retirer ?")
+    return account_call(lambda: tricount.remove_member(body.token, body.group_id, body.member_id))
+
+
+@app.post("/api/account/tricount/leave")
+def account_tricount_leave(body: TcRef):
+    return account_call(lambda: tricount.leave(body.token, body.group_id))
+
+
+@app.post("/api/account/tricount/expense")
+def account_tricount_expense(body: TcExpense):
+    return account_call(lambda: tricount.save_expense(body.token, body.group_id, body.expense))
+
+
+@app.post("/api/account/tricount/expense/delete")
+def account_tricount_expense_delete(body: TcExpenseRef):
+    return account_call(lambda: tricount.delete_expense(body.token, body.group_id, body.expense_id))
+
+
+@app.post("/api/account/tricount/settle")
+def account_tricount_settle(body: TcSettle):
+    return account_call(lambda: tricount.settle_up(body.token, body.group_id, body.from_id, body.to_id, body.amount_cents))
+
+
+@app.post("/api/account/tricount/receipt")
+def account_tricount_receipt(body: TcReceipt):
+    try:
+        data = base64.b64decode(body.photo, validate=True)
+    except ValueError:
+        raise HTTPException(400, "Photo illisible") from None
+    return account_call(lambda: tricount.upload_receipt(body.token, body.group_id, data))
+
+
+@app.post("/api/account/tricount/payment")
+def account_tricount_payment(body: MemberToken):
+    return account_call(lambda: tricount.payment(body.token), 401)
+
+
+@app.post("/api/account/tricount/payment/save")
+def account_tricount_payment_save(body: TcPayment):
+    return account_call(lambda: tricount.set_payment(body.token, body.iban, body.holder, body.links, body.note))
+
+
+@app.get("/tricount/{link}", response_class=HTMLResponse)
+def tricount_link_page(link: str):
+    """Lien partagé : sur un iPhone avec l'app Party, le lien universel ouvre directement « Rejoindre » ; sinon cette page."""
+    if not re.match(UUID, link):
+        raise HTTPException(404, "Lien invalide")
+    return HTMLResponse(TRICOUNT_LINK_PAGE, headers=NO_CACHE)
+
+
+TRICOUNT_LINK_PAGE = """<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Rejoindre un tricount · Party</title>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:system-ui,sans-serif;background:#140f24;color:#fff}
+main{max-width:420px;padding:32px 24px;text-align:center}h1{font-size:1.8rem;margin:.4em 0}p{color:#d8d0f2;line-height:1.5}
+.i{font-size:4rem}</style></head><body><main><div class="i">💸</div><h1>On t'invite dans un tricount</h1>
+<p>Ouvre ce lien sur ton iPhone avec l'app <b>Party</b> : il t'emmène directement sur « Rejoindre », dans Réglages › Tricount.</p>
+<p>Pas encore l'app ? Demande le lien TestFlight à la personne qui t'a invité.</p></main></body></html>"""
 
 
 @app.post("/api/account/chats/react")
