@@ -1,6 +1,6 @@
 import Foundation
 
-/// Tricount (Réglages › Tricount) : ce que renvoie le serveur (/api/account/tricount/*), déjà calculé
+/// Tricount (Réglages › Pot commun) : ce que renvoie le serveur (/api/account/tricount/*), déjà calculé
 /// (soldes, remboursements, parts de chacun). Montants en centimes.
 enum TC {
     struct Overview: Decodable, Equatable {

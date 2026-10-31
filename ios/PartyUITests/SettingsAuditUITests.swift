@@ -482,7 +482,7 @@ final class SettingsAuditUITests: XCTestCase {
         prefix = "tricount"
         signIn(Self.standardPhone, name: "Testeur 1")
         settingsTab()
-        XCTAssertTrue(open("Tricount"))
+        XCTAssertTrue(open("Pot commun"))
         let simple = app.segmentedControls["tc-mode"].buttons["Simplifié"]
         if simple.waitForExistence(timeout: 10) { simple.tap() }
         expectLoaded("liste")
@@ -539,7 +539,7 @@ final class SettingsAuditUITests: XCTestCase {
         sleep(1)
         // Quitter le tricount (ménage), puis le profil de paiement
         app.buttons["tc-menu"].tap()
-        app.buttons["Quitter ce tricount"].tap()
+        app.buttons["Quitter ce pot commun"].tap()
         let leave = app.buttons.matching(identifier: "Quitter").firstMatch
         if leave.waitForExistence(timeout: 5) { leave.tap() }
         sleep(3)

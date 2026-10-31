@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Un tricount : en tête, le total et MON solde en grand ; puis les dépenses (par jour), les soldes de chacun avec
+/// Un pot commun : en tête, le total et MON solde en grand ; puis les dépenses (par jour), les soldes de chacun avec
 /// « pour tout régler » (le moins de virements possible), et en mode avancé les statistiques par catégorie.
 struct TricountGroupView: View {
     @ObservedObject var store: TricountStore
@@ -30,7 +30,7 @@ struct TricountGroupView: View {
             }
         }
         .background(AppConfig.background.ignoresSafeArea())
-        .navigationTitle(store.group?.name ?? "Tricount")
+        .navigationTitle(store.group?.name ?? "Pot commun")
         .navigationBarTitleDisplayMode(.inline)
         .task { await store.open(id) }
         .refreshable { await store.open(id) }
@@ -71,13 +71,13 @@ struct TricountGroupView: View {
                 Menu {
                     if let link = g.link.flatMap(URL.init(string:)) {
                         ShareLink(item: link, subject: Text("Rejoins « \(g.name) »"),
-                                  message: Text("Rejoins mon tricount « \(g.name) » dans l'app Party : ")) {
+                                  message: Text("Rejoins mon pot commun « \(g.name) » dans l'app Party : ")) {
                             Label("Partager le lien", systemImage: "square.and.arrow.up")
                         }
                     }
                     Button { showMembers = true } label: { Label("Membres", systemImage: "person.2") }
-                    Button { showSettings = true } label: { Label("Réglages du tricount", systemImage: "gearshape") }
-                    Button(role: .destructive) { confirmLeave = true } label: { Label("Quitter ce tricount", systemImage: "rectangle.portrait.and.arrow.right") }
+                    Button { showSettings = true } label: { Label("Réglages du pot commun", systemImage: "gearshape") }
+                    Button(role: .destructive) { confirmLeave = true } label: { Label("Quitter ce pot commun", systemImage: "rectangle.portrait.and.arrow.right") }
                 } label: { Image(systemName: "ellipsis.circle") }
                 .accessibilityIdentifier("tc-menu")
             }
@@ -88,10 +88,10 @@ struct TricountGroupView: View {
         .sheet(item: $paying) { t in PaySheet(store: store, group: g, transfer: t) }
         .sheet(isPresented: $showMembers) { MembersSheet(store: store) }
         .sheet(isPresented: $showSettings) { GroupSettingsSheet(store: store, group: g) }
-        .confirmationDialog("Quitter ce tricount ?", isPresented: $confirmLeave, titleVisibility: .visible) {
+        .confirmationDialog("Quitter ce pot commun ?", isPresented: $confirmLeave, titleVisibility: .visible) {
             Button("Quitter", role: .destructive) { Task { if await store.leave() { dismiss() } } }
         } message: {
-            Text("Tes dépenses restent dans le tricount. Tu pourras revenir avec le lien.")
+            Text("Tes dépenses restent dans le pot commun. Tu pourras revenir avec le lien.")
         }
     }
 
@@ -408,7 +408,7 @@ struct MembersSheet: View {
                     }
                     if let link = g.link.flatMap(URL.init(string:)) {
                         Section {
-                            ShareLink(item: link, message: Text("Rejoins mon tricount « \(g.name) » dans l'app Party : ")) {
+                            ShareLink(item: link, message: Text("Rejoins mon pot commun « \(g.name) » dans l'app Party : ")) {
                                 Label("Partager le lien pour rejoindre", systemImage: "square.and.arrow.up")
                             }
                             Button { Task { await store.renewLink() } } label: { Label("Nouveau lien (l'ancien ne marchera plus)", systemImage: "arrow.clockwise") }
@@ -428,7 +428,7 @@ struct MembersSheet: View {
     }
 }
 
-/// Réglages d'un tricount : nom, emoji, monnaie, archiver.
+/// Réglages d'un pot commun : nom, emoji, monnaie, archiver.
 struct GroupSettingsSheet: View {
     @ObservedObject var store: TricountStore
     let group: TC.Group
@@ -453,14 +453,14 @@ struct GroupSettingsSheet: View {
                 }
                 Section {
                     Picker("Monnaie", selection: $currency) { ForEach(store.currencies, id: \.self) { Text($0).tag($0) } }
-                } footer: { Text("Les montants déjà saisis gardent leur monnaie ; les totaux s'affichent dans la monnaie du tricount.") }
+                } footer: { Text("Les montants déjà saisis gardent leur monnaie ; les totaux s'affichent dans la monnaie du pot commun.") }
                 Section {
                     Button(group.archived ? "Désarchiver" : "Archiver (lecture seule)") {
                         Task { await store.update(archived: !group.archived); dismiss() }
                     }
                 }
             }
-            .navigationTitle("Réglages du tricount")
+            .navigationTitle("Réglages du pot commun")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } }

@@ -156,7 +156,7 @@ final class TricountStore: ObservableObject {
 
     private func run(loading: Bool = false, _ work: (String) async throws -> Void) async {
         guard let token = await web?.accountToken() else {
-            error = "Connecte-toi pour utiliser le Tricount"
+            error = "Connecte-toi pour utiliser le pot commun"
             return
         }
         busy = true

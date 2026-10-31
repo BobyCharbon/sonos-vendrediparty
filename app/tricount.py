@@ -1,4 +1,4 @@
-"""Tricount pour l'app iOS (Réglages › Tricount) : relais vers la base avec la session du membre. La base (règles RLS,
+"""Tricount pour l'app iOS (Réglages › Pot commun) : relais vers la base avec la session du membre. La base (règles RLS,
 fonctions tc_*) décide qui lit et écrit ; ce module met en forme et ajoute le calcul (tricount_logic) : soldes,
 remboursements les moins nombreux, parts de chacun, catégorie devinée, lien pour rejoindre, photos des tickets."""
 import re
@@ -33,10 +33,10 @@ class Tricount:
                 for row in rows if isinstance(row, dict) and row.get("signedURL") and row.get("path")}
 
     def link(self, join_token: str) -> str:
-        return f"{self.link_base().rstrip('/')}/tricount/{join_token}"
+        return f"{self.link_base().rstrip('/')}/pot/{join_token}"
 
     def shape(self, g: dict, token: str = "", receipts: bool = False) -> dict:
-        """Le tricount tel que l'écran l'affiche : soldes, remboursements nommés, parts de chacun, catégories."""
+        """Le pot commun tel que l'écran l'affiche : soldes, remboursements nommés, parts de chacun, catégories."""
         s = tc.summarize(g)
         names = {m["id"]: m["name"] for m in g.get("members", [])}
         signed = self._receipts(token, [e.get("receipt_path") for e in g.get("expenses", [])]) if receipts else {}
@@ -65,7 +65,7 @@ class Tricount:
                 "settle": [{**t, "from_name": names.get(t["from"], "?"), "to_name": names.get(t["to"], "?")} for t in s["settle"]]}
 
     def overview(self, token: str) -> dict:
-        rows = self.admin._rpc(token, "tc_list", {}, "Les tricounts n'ont pas pu être chargés.") or []
+        rows = self.admin._rpc(token, "tc_list", {}, "Les pots communs n'ont pas pu être chargés.") or []
         out = []
         for g in rows:
             s = tc.summarize(g)
@@ -76,7 +76,7 @@ class Tricount:
                 "currencies": list(CURRENCIES)}
 
     def state(self, token: str, grp: str) -> dict:
-        g = self.admin._rpc(token, "tc_state", {"grp": grp}, "Ce tricount n'a pas pu être chargé.")
+        g = self.admin._rpc(token, "tc_state", {"grp": grp}, "Ce pot commun n'a pas pu être chargé.")
         return self.shape(g, token, receipts=True)
 
     # ── Écriture ──
@@ -92,7 +92,7 @@ class Tricount:
             raise AccountError("Monnaie inconnue")
         grp = self.admin._rpc(token, "tc_create", {"group_name": self._name(name, 60, "un nom"), "group_emoji": (emoji or "💸")[:8],
                                                   "group_currency": currency, "my_name": self._name(my_name, MAX_NAME, "ton prénom")},
-                              "Le tricount n'a pas pu être créé.")
+                              "Le pot commun n'a pas pu être créé.")
         return self.state(token, grp)
 
     def update(self, token: str, grp: str, name: str | None, emoji: str | None, currency: str | None, archived: bool | None) -> dict:
@@ -114,7 +114,7 @@ class Tricount:
 
     def join(self, token: str, join_token: str, my_name: str, claim: str | None) -> dict:
         grp = self.admin._rpc(token, "tc_join", {"token": join_token, "my_name": self._name(my_name, MAX_NAME, "ton prénom"),
-                                                "claim": claim if claim and UUID_RE.match(claim) else None}, "Impossible de rejoindre ce tricount.")
+                                                "claim": claim if claim and UUID_RE.match(claim) else None}, "Impossible de rejoindre ce pot commun.")
         return self.state(token, grp)
 
     def add_member(self, token: str, grp: str, name: str) -> dict:

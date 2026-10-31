@@ -1,4 +1,4 @@
--- Tricount (avis 8213efc66ee4) : dépenses partagées dans des groupes à part (« un groupe créé sur le tricount »),
+-- Tricount (avis 8213efc66ee4) : dépenses partagées dans des groupes à part (« un groupe créé sur le pot commun »),
 -- rejoints par un lien partageable ; membres avec ou sans compte (un prénom ajouté à la main, que la personne
 -- peut ensuite reprendre en rejoignant) ; dépenses partagées à parts égales, par parts ou par montants ; remboursements ;
 -- photo du ticket ; profil de paiement (IBAN, lien Revolut / Twint / PayPal…) visible des seuls co-membres.
@@ -103,7 +103,7 @@ create or replace function private.tc_need(grp uuid) returns uuid
 language plpgsql stable security definer set search_path = '' as $$
 declare me uuid := private.tc_member_of(grp, auth.uid());
 begin
-  if auth.uid() is null or me is null then raise exception 'forbidden: tu ne fais pas partie de ce tricount'; end if;
+  if auth.uid() is null or me is null then raise exception 'forbidden: tu ne fais pas partie de ce pot commun'; end if;
   return me;
 end $$;
 
@@ -273,7 +273,7 @@ begin
           updated_at = now();
 end $$;
 
--- Tout un tricount en un appel (le serveur calcule soldes et remboursements) ; liste de ses tricounts.
+-- Tout un pot commun en un appel (le serveur calcule soldes et remboursements) ; liste de ses tricounts.
 create or replace function private.tc_group_json(grp uuid) returns jsonb
 language sql stable security definer set search_path = '' as $$
   select jsonb_build_object(

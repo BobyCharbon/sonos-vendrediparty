@@ -34,7 +34,7 @@ def test_tricount_end_to_end_with_link_claim_and_settlement(tc):
     relay, (ta, tb, tcx), created = tc
     g = relay.create(ta, "Week-end Verbier", "⛷️", "CHF", "Léa")
     created.append((g["id"], ta))
-    assert g["link"].startswith("https://partytest.example/tricount/") and g["members"][0]["me"]
+    assert g["link"].startswith("https://partytest.example/pot/") and g["members"][0]["me"]
     g = relay.add_member(ta, g["id"], "Tom")  # Tom n'a pas encore de compte : prénom ajouté à la main
     tom = next(m for m in g["members"] if m["name"] == "Tom")
     lea = next(m for m in g["members"] if m["me"])

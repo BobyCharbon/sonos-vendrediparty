@@ -11,7 +11,7 @@ enum TCColor {
     }
 }
 
-/// Réglages › Tricount : mes tricounts (solde de chacun), créer, rejoindre par un lien, mon profil de paiement, le mode.
+/// Réglages › Pot commun : mes tricounts (solde de chacun), créer, rejoindre par un lien, mon profil de paiement, le mode.
 struct TricountListView: View {
     @ObservedObject var store: TricountStore
     let myName: String
@@ -36,16 +36,16 @@ struct TricountListView: View {
                 let live = overview.tricounts.filter { !$0.archived }
                 Section {
                     Button { creating = true } label: {
-                        Label("Nouveau tricount", systemImage: "plus.circle.fill").font(.headline)
+                        Label("Nouveau pot commun", systemImage: "plus.circle.fill").font(.headline)
                     }
                     .accessibilityIdentifier("tc-new")
                     ForEach(live) { item in
                         NavigationLink { TricountGroupView(store: store, id: item.id) } label: { TricountCard(item: item) }
                     }
                 } header: {
-                    Text("Mes tricounts")
+                    Text("Mes pots communs")
                 } footer: {
-                    if live.isEmpty { Text("Crée un tricount pour un week-end, une coloc ou une soirée, puis partage le lien pour que chacun le rejoigne.") }
+                    if live.isEmpty { Text("Crée un pot commun pour un week-end, une coloc ou une soirée, puis partage le lien pour que chacun le rejoigne.") }
                 }
                 let archived = overview.tricounts.filter(\.archived)
                 if !archived.isEmpty {
@@ -70,7 +70,7 @@ struct TricountListView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(AppConfig.background)
-        .navigationTitle("Tricount")
+        .navigationTitle("Pot commun")
         .refreshable { await store.load() }
         .task { await store.load() }
         .navigationDestination(isPresented: Binding(get: { opened != nil }, set: { if !$0 { opened = nil } })) {
@@ -108,7 +108,7 @@ struct TricountCard: View {
     }
 }
 
-/// Nouveau tricount : un emoji, un nom, la monnaie et ton prénom dans ce groupe.
+/// Nouveau pot commun : un emoji, un nom, la monnaie et ton prénom dans ce groupe.
 struct CreateTricountView: View {
     @ObservedObject var store: TricountStore
     let myName: String
@@ -145,12 +145,12 @@ struct CreateTricountView: View {
                         .pickerStyle(.segmented)
                 }
                 Section {
-                    TextField("Ton prénom dans ce tricount", text: $me)
+                    TextField("Ton prénom dans ce pot commun", text: $me)
                 } footer: {
                     Text("Ensuite, partage le lien : chacun le rejoint depuis son téléphone. Tu peux aussi ajouter des prénoms à la main.")
                 }
             }
-            .navigationTitle("Nouveau tricount")
+            .navigationTitle("Nouveau pot commun")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } }

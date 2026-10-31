@@ -97,3 +97,14 @@ def test_summary_gives_totals_my_balance_and_categories():
     assert s["my_balance_cents"] == 0 and s["my_spent_cents"] == 1500
     assert s["by_category"][0] == {"category": "food", "amount_cents": 2000}
     assert s["settle"] == []
+
+
+def test_shared_link_page_answers_on_new_and_old_paths():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    client = TestClient(app)
+    link = "0f5c2b9e-1111-4a2b-9c3d-123456789abc"
+    for path in (f"/pot/{link}", f"/tricount/{link}"):
+        r = client.get(path)
+        assert r.status_code == 200 and "pot commun" in r.text
+    assert client.get("/pot/pas-un-lien").status_code == 404

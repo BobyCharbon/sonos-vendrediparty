@@ -85,7 +85,7 @@ final class WebModel: ObservableObject {
     }
 
     func open(_ url: URL) {
-        // Lien d'un tricount (/tricount/<lien>) : Réglages › Tricount ouvre « Rejoindre », la page ne change pas.
+        // Lien d'un pot commun (/pot/<lien>, ancien /tricount/<lien>) : Réglages › Pot commun ouvre « Rejoindre », la page ne change pas.
         if AppConfig.isInternal(url), let link = Self.tricountLink(in: url) {
             settings?.tricount.pendingJoin = link
             selectTab("account")
@@ -117,7 +117,7 @@ final class WebModel: ObservableObject {
 
     nonisolated static func tricountLink(in url: URL) -> String? {
         let parts = url.pathComponents
-        guard parts.count == 3, parts[1] == "tricount",
+        guard parts.count == 3, ["pot", "tricount"].contains(parts[1]),
               parts[2].range(of: "^[0-9a-fA-F-]{36}$", options: .regularExpression) != nil else { return nil }
         return parts[2].lowercased()
     }

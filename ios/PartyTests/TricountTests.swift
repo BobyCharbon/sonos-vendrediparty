@@ -51,6 +51,8 @@ final class TricountTests: XCTestCase {
     func testTricountLinkOpensJoin() {
         XCTAssertEqual(WebModel.tricountLink(in: URL(string: "https://partytest.bobycharbon.ch/tricount/0f5c2b9e-1111-4a2b-9c3d-123456789abc")!),
                        "0f5c2b9e-1111-4a2b-9c3d-123456789abc")
+        XCTAssertEqual(WebModel.tricountLink(in: URL(string: "https://partytest.bobycharbon.ch/pot/0f5c2b9e-1111-4a2b-9c3d-123456789abc")!),
+                       "0f5c2b9e-1111-4a2b-9c3d-123456789abc")
         XCTAssertNil(WebModel.tricountLink(in: URL(string: "https://partytest.bobycharbon.ch/tricount/pas-un-lien")!))
     }
 }

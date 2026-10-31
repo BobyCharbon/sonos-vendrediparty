@@ -227,7 +227,7 @@ struct PaymentProfileView: View {
                 .disabled(store.busy)
                 .accessibilityIdentifier("tc-payment-save")
             } footer: {
-                Text("Visible seulement des personnes qui partagent un tricount avec toi, quand elles te remboursent.")
+                Text("Visible seulement des personnes qui partagent un pot commun avec toi, quand elles te remboursent.")
             }
         }
         .scrollContentBackground(.hidden)

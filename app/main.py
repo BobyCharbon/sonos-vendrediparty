@@ -1776,7 +1776,7 @@ def account_chat_photo(body: ChatPhoto):
     return account_call(lambda: group_chats.upload_photo(body.token, body.group_id, data))
 
 
-# ── Tricount (Réglages › Tricount de l'app iOS) : dépenses partagées, lien pour rejoindre, profil de paiement ──
+# ── Tricount (Réglages › Pot commun de l'app iOS) : dépenses partagées, lien pour rejoindre, profil de paiement ──
 class TcRef(MemberToken):
     group_id: str = Field(pattern=UUID)
 
@@ -1921,7 +1921,8 @@ def account_tricount_payment_save(body: TcPayment):
     return account_call(lambda: tricount.set_payment(body.token, body.iban, body.holder, body.links, body.note))
 
 
-@app.get("/tricount/{link}", response_class=HTMLResponse)
+@app.get("/pot/{link}", response_class=HTMLResponse)
+@app.get("/tricount/{link}", response_class=HTMLResponse)  # premiers liens partagés, avant le nom « Pot commun »
 def tricount_link_page(link: str):
     """Lien partagé : sur un iPhone avec l'app Party, le lien universel ouvre directement « Rejoindre » ; sinon cette page."""
     if not re.match(UUID, link):
@@ -1930,11 +1931,11 @@ def tricount_link_page(link: str):
 
 
 TRICOUNT_LINK_PAGE = """<!doctype html><html lang="fr"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Rejoindre un tricount · Party</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Rejoindre un pot commun · Party</title>
 <style>body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:system-ui,sans-serif;background:#140f24;color:#fff}
 main{max-width:420px;padding:32px 24px;text-align:center}h1{font-size:1.8rem;margin:.4em 0}p{color:#d8d0f2;line-height:1.5}
-.i{font-size:4rem}</style></head><body><main><div class="i">💸</div><h1>On t'invite dans un tricount</h1>
-<p>Ouvre ce lien sur ton iPhone avec l'app <b>Party</b> : il t'emmène directement sur « Rejoindre », dans Réglages › Tricount.</p>
+.i{font-size:4rem}</style></head><body><main><div class="i">💸</div><h1>On t'invite dans un pot commun</h1>
+<p>Ouvre ce lien sur ton iPhone avec l'app <b>Party</b> : il t'emmène directement sur « Rejoindre », dans Réglages › Pot commun.</p>
 <p>Pas encore l'app ? Demande le lien TestFlight à la personne qui t'a invité.</p></main></body></html>"""
 
 
