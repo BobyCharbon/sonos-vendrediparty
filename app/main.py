@@ -2916,10 +2916,11 @@ def feedback_sync(body: FeedbackSync, request: Request):
         raise HTTPException(403, "Synchronisation des avis refusée")
     if feedback is not local_feedback:
         raise HTTPException(409, "Ce serveur n'est pas celui qui garde les avis")
-    if body.op not in FEEDBACK_SYNC_OPS:
+    operation = getattr(local_feedback, body.op, None) if body.op in FEEDBACK_SYNC_OPS else None
+    if operation is None:  # inconnue, ou pas encore connue de ce serveur (version plus ancienne que le site de test)
         raise HTTPException(400, "Opération inconnue")
     try:
-        result = getattr(local_feedback, body.op)(**body.args)
+        result = operation(**body.args)
     except (TypeError, ValueError):
         raise HTTPException(400, "Paramètres invalides")
     if body.op in ("add", "update", "set_priority", "set_claude_state", "mark_sent", "absorb"):
