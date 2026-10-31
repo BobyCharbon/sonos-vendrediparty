@@ -157,3 +157,23 @@ def test_random_collapse_always_leaves_connected_escape_route():
                 if t['id'] not in seen and any(u['id'] in seen and math.hypot(t['x']-u['x'],t['y']-u['y'])<2.9 for u in remaining):
                     seen.add(t['id']);changed=True
         assert len(seen)==len(remaining)
+
+
+def test_standing_still_makes_the_tile_fall_but_never_the_last_island():
+    g=arena(2);advance(g,3.1);s=g['island']
+    b=s['bodies'][g['players'][0]['pid']]
+    advance(g,island.GRACE-1)
+    assert b['alive']  # début de manche : on peut rester immobile
+    under=island.tile_under(s,b['x'],b['y'])
+    planned=under['fall']
+    assert planned>s['time']+island.STAY+island.WARNING+1  # pas encore prévue de tomber
+    advance(g,island.STAY+1.5)  # répit fini (12 s), puis 2,5 s immobile sur la même case
+    assert under['fall']<planned and under['fall']<=s['time']+island.WARNING  # elle tremble : chute annoncée
+    advance(g,island.WARNING+.2)
+    assert not b['alive']  # resté dessus : à l'eau
+    final=max(s['tiles'],key=lambda t:t['fall'])
+    other=s['bodies'][g['players'][1]['pid']]
+    if other['alive']:
+        other.update(x=final['x'],y=final['y'])
+        advance(g,island.STAY*2)
+        assert final['fall']>island.DURATION  # la dernière île n'est jamais avancée
