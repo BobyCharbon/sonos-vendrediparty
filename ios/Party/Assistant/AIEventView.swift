@@ -54,6 +54,11 @@ struct AIEventView: View {
                 }
             }
             .onChange(of: store.draft) { _ in restartCountdown() }
+            .onChange(of: store.unsent) { text in
+                guard let text else { return }
+                typed = text
+                store.unsent = nil
+            }
             .onChange(of: store.place) { _ in restartCountdown() }
             .onDisappear { dictation.finish(); tick?.cancel() }
         }

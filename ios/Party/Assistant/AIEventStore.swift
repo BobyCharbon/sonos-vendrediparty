@@ -26,6 +26,30 @@ enum AIEvent {
         var summary: String
 
         var ready: Bool { status == "ready" && questions.isEmpty }
+
+        /// Champs absents (serveur plus ancien ou plus récent que l'app) : valeurs vides, jamais une erreur.
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            func text(_ key: CodingKeys) -> String { (try? c.decodeIfPresent(String.self, forKey: key)) ?? nil ?? "" }
+            func list(_ key: CodingKeys) -> [String] { (try? c.decodeIfPresent([String].self, forKey: key)) ?? nil ?? [] }
+            status = text(.status)
+            questions = list(.questions)
+            title = text(.title)
+            description = text(.description)
+            start = text(.start)
+            end = text(.end)
+            place_query = text(.place_query)
+            place_name = text(.place_name)
+            price_chf = (try? c.decodeIfPresent(Double.self, forKey: .price_chf)) ?? nil ?? 0
+            max_participants = (try? c.decodeIfPresent(Int.self, forKey: .max_participants)) ?? nil ?? 0
+            category = text(.category)
+            audience = text(.audience)
+            invitees = list(.invitees)
+            not_understood = list(.not_understood)
+            pot = (try? c.decodeIfPresent(Bool.self, forKey: .pot)) ?? nil ?? false
+            bring = list(.bring)
+            summary = text(.summary)
+        }
     }
 
     struct Place: Codable, Equatable {
@@ -77,6 +101,8 @@ final class AIEventStore: ObservableObject {
     @Published private(set) var creating = false
     @Published private(set) var created: AIEvent.Created?
     @Published var error: String?
+    /// Ce que la personne a dit quand l'envoi a échoué : remis dans le champ, rien n'est perdu.
+    @Published var unsent: String?
 
     private let api: PartyAPI
     private weak var web: WebStorage?
@@ -114,7 +140,9 @@ final class AIEventStore: ObservableObject {
             if next.place_query != lastQuery { await findPlace(next.place_query) }
         } catch {
             turns.removeLast()
-            self.error = error.localizedDescription
+            unsent = said
+            self.error = error is DecodingError ? "Réponse inattendue du serveur : réessaie dans un instant (ton texte est gardé en bas)."
+                                                : error.localizedDescription + " Ton texte est gardé en bas."
         }
     }
 
