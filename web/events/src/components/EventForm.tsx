@@ -5,12 +5,13 @@ import { Pressable, View } from 'react-native';
 import { useAuth, useMe } from '@/lib/auth';
 import { fetchTaxonomy, useQuery } from '@/lib/data';
 import { parseLocalDateTime, toLocalInput } from '@/lib/format';
+import { enter, pressTransition, useChangedSinceMount } from '@/lib/motion';
 import { check, must, supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 import type { DateMode, EventRow, MemberGroup, Poll, PollOption, Reminder } from '@/lib/types';
 import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
-import { Button, Chip, ErrorText, Field, Input, Rows, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
+import { Button, Cascade, Chip, ErrorText, Field, Input, Reveal, Rows, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
 import { AudiencePicker, audienceChildren, audienceError, audienceFromEvent, audienceToEvent, DEFAULT_AUDIENCE, type AudienceValue, type Person } from './AudiencePicker';
 import { DateTimeField } from './DateTimeField';
 import { PlaceSearch } from './PlaceSearch';
@@ -221,6 +222,11 @@ export function EventForm({ eventId }: { eventId?: string }) {
       status: current ? (must(current) as { status: EventRow['status'] }).status : null,
     };
   }, [eventId]);
+
+  // Une ligne ajoutée (créneau, option, sondage, objet) apparaît en douceur ; celles du départ restent posées.
+  const slotsGrew = useChangedSinceMount(draft?.slots.length ?? 0);
+  const pollsGrew = useChangedSinceMount(draft?.polls.map((p) => p.options.length).join() ?? '');
+  const bringGrew = useChangedSinceMount(draft?.bring.length ?? 0);
 
   if (!draft || !ctx) return (
     <Screen edges={[]}>
@@ -477,6 +483,8 @@ export function EventForm({ eventId }: { eventId?: string }) {
   return (
     <Screen edges={[]}>
       <View pointerEvents={busy ? 'none' : 'auto'} style={{ gap: 14 }}>
+      {/* Ouverture en cascade ; en passant en Avancé, les sections ajoutées montent à leur tour. */}
+      <Cascade>
       <View style={{ gap: 6 }}>
         <Segmented<FormMode>
           value={advanced ? 'advanced' : 'simple'}
@@ -484,7 +492,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
           disabled={d.date_mode === 'poll'}
           options={[{ key: 'simple', label: 'Simple' }, { key: 'advanced', label: 'Avancé' }]}
         />
-        <T muted size={12} style={{ paddingHorizontal: 4 }}>
+        <T key={advanced ? 'advanced' : 'simple'} muted size={12} style={[{ paddingHorizontal: 4 }, enter('fade')]}>
           {advanced
             ? 'Toutes les options : places, prix, sondages, discussion…'
             : 'L’essentiel pour lancer l’événement. Le reste garde ses réglages habituels.'}
@@ -546,12 +554,12 @@ export function EventForm({ eventId }: { eventId?: string }) {
           <>
             <T muted size={12}>Chacun vote Oui / Si besoin / Non sur chaque créneau.</T>
             {d.slots.map((sl, i) => (
-              <View key={sl.id ?? `new-${i}`} style={[s.row, { alignItems: 'flex-end' }]}>
+              <Reveal key={sl.id ?? `new-${i}`} kind={slotsGrew ? 'rise' : null} style={[s.row, { alignItems: 'flex-end' }]}>
                 <View style={{ flex: 1 }}>
                   <DateTimeField label={`Créneau ${i + 1}`} value={sl.text} onChangeText={(text) => set({ slots: d.slots.map((x, j) => (j === i ? { ...x, text } : x)) })} />
                 </View>
                 <Button small variant="secondary" label="✕" onPress={() => set({ slots: d.slots.filter((_, j) => j !== i) })} />
-              </View>
+              </Reveal>
             ))}
             <Button small variant="ghost" label="+ Ajouter un créneau" onPress={() => set({ slots: [...d.slots, { text: '' }] })} />
             <DateTimeField label="Fin du vote (optionnel)" optional value={d.poll_deadline} onChangeText={(poll_deadline) => set({ poll_deadline })} />
@@ -617,13 +625,13 @@ export function EventForm({ eventId }: { eventId?: string }) {
       </Section>
 
       {advanced ? (
-        <>
+        <View style={{ gap: 14 }}>
           <Section title="Mini-sondages">
             {d.polls.map((p, i) => (
-              <View key={p.id ?? `new-${i}`} style={{ gap: 12, paddingVertical: 12, borderTopWidth: i ? 1 : 0, borderTopColor: colors.line }}>
+              <Reveal key={p.id ?? `new-${i}`} kind={pollsGrew ? 'rise' : null} style={{ gap: 12, paddingVertical: 12, borderTopWidth: i ? 1 : 0, borderTopColor: colors.line }}>
                 <Field label={`Question du sondage ${i + 1}`} value={p.question} onChangeText={(question) => setPoll(i, { question })} maxLength={200} />
                 {p.options.map((o, j) => (
-                  <View key={o.id ?? `new-${j}`} style={s.row}>
+                  <Reveal key={o.id ?? `new-${j}`} kind={pollsGrew ? 'rise' : null} style={s.row}>
                     <Input
                       accessibilityLabel={`Sondage ${i + 1}, option ${j + 1}`}
                       placeholder={`Option ${j + 1}`}
@@ -633,7 +641,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
                       style={{ flex: 1 }}
                     />
                     <Button small variant="ghost" label="Retirer" onPress={() => setPoll(i, { options: p.options.filter((_, k) => k !== j) })} />
-                  </View>
+                  </Reveal>
                 ))}
                 {p.id ? <T muted size={13}>Les votes des options conservées restent enregistrés. Retirer une option supprime ses votes.</T> : null}
                 <Button small variant="ghost" label="+ Ajouter une option" onPress={() => setPoll(i, { options: [...p.options, { label: '' }] })} />
@@ -644,7 +652,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
                   <Chip label="Résultats après vote" selected={p.results_after_vote} onPress={() => setPoll(i, { results_after_vote: !p.results_after_vote })} />
                 </View>
                 <Button small variant="danger" label="Retirer ce sondage" onPress={() => set({ polls: d.polls.filter((_, j) => j !== i) })} />
-              </View>
+              </Reveal>
             ))}
             <Button
               small
@@ -660,7 +668,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
 
           <Section title="Qui amène quoi">
             {d.bring.map((b, i) => (
-              <View key={b.id ?? `new-${i}`} style={s.row}>
+              <Reveal key={b.id ?? `new-${i}`} kind={bringGrew ? 'rise' : null} style={s.row}>
                 <Input
                   placeholder="Fromage, pain…"
                   value={b.label}
@@ -668,7 +676,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
                   style={{ flex: 1 }}
                 />
                 <Button small variant="secondary" label="✕" onPress={() => set({ bring: d.bring.filter((_, j) => j !== i) })} />
-              </View>
+              </Reveal>
             ))}
             <Button small variant="ghost" label="+ Ajouter un objet" onPress={() => set({ bring: [...d.bring, { label: '' }] })} />
           </Section>
@@ -680,14 +688,14 @@ export function EventForm({ eventId }: { eventId?: string }) {
             </Rows>
             <T muted size={13}>Les rappels avant l’événement, chacun les choisit dans ses Réglages → Notifications.</T>
           </Section>
-        </>
+        </View>
       ) : (
         // Mode simple : une porte vers le reste, qui dit aussi quels réglages avancés sont actifs.
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Plus d’options : passer en mode avancé"
           onPress={() => setMode('advanced')}
-          style={({ pressed }) => [s.card, s.row, { gap: 12 }, pressed && { backgroundColor: colors.surface2 }]}
+          style={({ pressed }) => [s.card, s.row, { gap: 12 }, pressTransition, pressed && { backgroundColor: colors.surface2, transform: [{ scale: 0.98 }] }]}
         >
           <View style={{ flex: 1, gap: 2 }}>
             <T weight="semibold">Plus d’options</T>
@@ -711,6 +719,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
       {!eventId || ctx.status === 'draft' ? (
         <Button label="Enregistrer en brouillon" variant="secondary" onPress={() => submit(true)} disabled={busy} />
       ) : null}
+      </Cascade>
       </View>
     </Screen>
   );
