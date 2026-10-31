@@ -1,53 +1,61 @@
 // 📺 Écran TV de l'hôte (/tv) : titre en cours, prochaines demandes, code et QR, parties de jeu en cours.
 // Ouvert sur le Mac et affiché sur l'Apple TV par AirPlay. Se met à jour seul (flux /api/events + filet toutes les 10 s).
-// Tous les textes passent par textContent : un prénom ou un titre ne peut jamais injecter du HTML.
+// Tous les textes passent par textContent ou esc() : un prénom ou un titre ne peut jamais injecter du HTML.
 (function () {
   const $ = (id) => document.getElementById(id);
   const SAFETY_REFRESH = 10000;
-  let refreshTimer = null, source = null, shownArt = null;
+  let refreshTimer = null, source = null, shownArt = null, shownNow = null, shownGames = null;
+  let backdrops = [$("backdrop"), $("backdrop2")];
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
-
-  function el(tag, text, cls) {
-    const node = document.createElement(tag);
-    if (text != null) node.textContent = text;
-    if (cls) node.className = cls;
-    return node;
-  }
 
   function setArt(img, src) {
     if (src) img.src = src; else img.removeAttribute("src");
   }
 
+  // Nouveau titre : la pochette et le texte entrent en fondu (classe tv-swap, relancée seulement à ce moment-là).
+  function replay(node, cls) {
+    node.classList.remove(cls);
+    void node.offsetWidth;
+    node.classList.add(cls);
+  }
+
   function renderNow(s) {
     const now = s.active && !s.error ? s.now : null;
+    const title = !s.active ? "La soirée va commencer" : s.error || now?.title || "Rien ne joue pour l'instant";
+    const key = [title, now?.artist, now?.art, now?.by].join("\u0001");
     $("nowLabel").textContent = !s.active ? "Bientôt" : s.error ? "Musique" : s.state === "PLAYING" ? "En ce moment" : "En pause";
-    $("nowTitle").textContent = !s.active ? "La soirée va commencer" : s.error || now?.title || "Rien ne joue pour l'instant";
-    $("nowArtist").textContent = !s.active ? "Scanne le QR pour ajouter tes titres" : now?.artist || "";
-    $("nowBy").textContent = now?.by ? `🙋 Demandé par ${now.by}` : "";
-    $("nowBy").classList.toggle("hidden", !now?.by);
-    setArt($("nowArt"), now?.art);
-    // Fond : seulement quand la pochette change (évite de relancer le fondu à chaque rafraîchissement).
+    if (key !== shownNow) {
+      const changed = shownNow !== null;
+      shownNow = key;
+      $("nowTitle").textContent = title;
+      $("nowArtist").textContent = !s.active ? "Scanne le QR pour ajouter tes titres" : now?.artist || "";
+      $("nowBy").textContent = now?.by ? `🙋 Demandé par ${now.by}` : "";
+      $("nowBy").classList.toggle("hidden", !now?.by);
+      setArt($("nowArt"), now?.art);
+      if (changed) replay(document.querySelector(".tv-now"), "tv-swap");
+    }
+    NowProgress.update($("nowProgress"), now, s.state === "PLAYING");
+    // Fond : seulement quand la pochette change ; la nouvelle apparaît en fondu par-dessus l'ancienne.
     if ((now?.art || "") !== shownArt) {
       shownArt = now?.art || "";
-      $("backdrop").style.backgroundImage = shownArt ? `url("${encodeURI(shownArt)}")` : "";
+      const [back, front] = backdrops;
+      back.style.backgroundImage = shownArt ? `url("${encodeURI(shownArt)}")` : "";
+      back.classList.add("on");
+      front.classList.remove("on");
+      backdrops = [front, back];
     }
   }
 
   function renderUpcoming(list) {
-    const ol = $("upcoming");
-    ol.replaceChildren(...list.map((t) => {
-      const li = el("li");
-      const thumb = t.art ? el("img") : el("span", null, "tv-thumb");
-      if (t.art) { thumb.alt = ""; thumb.src = t.art; }
-      const text = el("div");
-      const sub = el("small", t.artist);
-      if (t.by) sub.append(" · ", el("em", t.by));
-      text.append(el("b", t.title), sub);
-      li.append(thumb, text);
-      return li;
-    }));
-    if (!list.length) ol.append(el("li", "Ajoute un titre depuis ton téléphone !", "tv-empty"));
+    // Liste animée (list-motion.js) : un titre qui passe s'efface, les suivants remontent, un ajout glisse en place.
+    // Prénoms et titres échappés (esc) : jamais interprétés comme du HTML.
+    const keys = ListMotion.occurrenceKeys(list, (t) => `${t.title}\u0001${t.artist}`);
+    ListMotion.patch($("upcoming"), list.map((t, i) => ({ key: keys[i], html: `<li>
+      ${t.art ? `<img alt="" src="${esc(t.art)}">` : `<span class="tv-thumb"></span>`}
+      <div><b>${esc(t.title)}</b><small>${esc(t.artist)}${t.by ? ` · <em>${esc(t.by)}</em>` : ""}</small></div></li>` })),
+    { empty: `<li class="tv-empty">Ajoute un titre depuis ton téléphone !</li>` });
   }
 
   function renderJoin(s) {
@@ -59,7 +67,14 @@
 
   function renderBar(s) {
     $("event").textContent = s.event ? `🎉 ${s.event}` : s.room ? `🔊 ${s.room}` : "";
-    $("games").textContent = (s.games || []).map((g) => `🎮 ${g.name} · ${plural(g.players, "joueur", "joueurs")}`).join("   ");
+    // Parties en cours : un nouveau jeu (ou une partie qui se termine) passe en fondu, pas d'un coup.
+    const games = (s.games || []).map((g) => `🎮 ${g.name} · ${plural(g.players, "joueur", "joueurs")}`).join("   ");
+    if (games !== shownGames) {
+      const changed = shownGames !== null;
+      shownGames = games;
+      $("games").textContent = games;
+      if (changed) replay($("games"), "tv-swap");
+    }
   }
 
   function render(s) {

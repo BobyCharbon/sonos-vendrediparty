@@ -23,12 +23,35 @@ body {
 
 /* Pochette floutée en fond, comme Apple Music : l'écran prend la couleur du titre. */
 .tv-backdrop {
-  position: fixed; inset: -10%; z-index: -1;
+  /* z-index 0 et contenu au-dessus (z 1) : en -1, le fond du <body> recouvrait la pochette, qui ne se voyait jamais. */
+  position: fixed; inset: -10%; z-index: 0; pointer-events: none;
   background: center / cover no-repeat;
   filter: blur(90px) saturate(1.4);
-  opacity: 0.45;
-  transition: background-image 1.2s ease, opacity 1.2s ease;
+  opacity: 0;
+  transition: opacity 1.4s ease;
 }
+.tv-backdrop.on { opacity: 0.35; }   /* assez pour colorer l'écran, pas au point de gêner la lecture à 3 m */
+.tv-stage, .tv-bar, .tv-login { position: relative; z-index: 1; }
+
+/* Changement de titre (tv.js, classe tv-swap) : la pochette s'avance, le texte monte en fondu juste après. */
+.tv-now.tv-swap .tv-art { animation: tv-art-in .9s cubic-bezier(.22, 1, .36, 1) both; }
+.tv-now.tv-swap .tv-now-text > * { animation: tv-text-in .7s cubic-bezier(.22, 1, .36, 1) both; }
+.tv-now.tv-swap .tv-now-text > :nth-child(2) { animation-delay: .08s; }
+.tv-now.tv-swap .tv-now-text > :nth-child(3) { animation-delay: .14s; }
+.tv-now.tv-swap .tv-now-text > :nth-child(n+4) { animation-delay: .2s; }
+@keyframes tv-art-in { from { opacity: 0; transform: scale(.88); } }
+@keyframes tv-text-in { from { opacity: 0; transform: translate3d(0, 2vh, 0); } }
+.tv-bar .tv-swap { animation: tv-fade .8s ease both; }
+@keyframes tv-fade { from { opacity: 0; } }
+
+/* Barre de progression du titre (now-progress.js) : la jauge est mise à l'échelle, jamais redimensionnée. */
+.tv-progress { position: relative; height: 0.4vh; min-height: 4px; margin-top: 3vh; max-width: 36vw; border-radius: 99px;
+  overflow: hidden; background: rgba(255, 255, 255, 0.14); }
+.tv-progress i { position: absolute; inset: 0; border-radius: inherit; transform-origin: 0 50%; transform: scaleX(0);
+  background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+/* Liste « À suivre » animée (list-motion.js) : les lignes gardées glissent, la ligne qui monte passe devant. */
+.tv-list { position: relative; }
+.tv-list > .lm-moving { position: relative; z-index: 1; }
 
 .tv-stage {
   display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
@@ -105,4 +128,7 @@ body.waiting .tv-side h2, body.waiting .tv-list { display: none; }
   .tv-art { width: min(70vw, 360px); }
   .tv-join img { width: 120px; }
 }
-@media (prefers-reduced-motion: reduce) { .tv-backdrop { transition: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .tv-backdrop { transition-duration: .3s; }
+  .tv-now.tv-swap .tv-art, .tv-now.tv-swap .tv-now-text > * { animation: tv-fade .3s ease both; }
+}
