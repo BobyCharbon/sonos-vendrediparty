@@ -1041,10 +1041,14 @@ def tmc_answer(g: dict, gid: str, text: str):
     g["phase"] = "guess"
 
 
-def tmc_reveal(g: dict):
-    """L'animateur révèle la réponse écrite, une fois que le devin a parlé."""
-    if g["phase"] != "guess":
+def tmc_reveal(g: dict, gid: str):
+    """La réponse écrite est révélée une fois que le devin a parlé : par la personne qui l'a écrite (elle choisit le
+    moment, avis 4e5e56ee8168) ou par l'animateur."""
+    d = g["tmc"]["duo"]
+    if g["phase"] != "guess" or not d:
         raise GameError("Pas maintenant")
+    if gid != d["subject"] and not is_lead(g, gid):
+        raise GameError("C'est à la personne qui a répondu, ou à l'animateur, de révéler la réponse")
     g["phase"] = "judge"
 
 
@@ -1100,7 +1104,8 @@ def tmc_view(g: dict, gid: str) -> dict:
                # Sujet sans téléphone : l'animateur lui prête le sien pour écrire en secret.
                "proxy": g["phase"] == "answer" and is_lead(g, gid) and is_manual(g, d["subject"]),
                "answer": d["answers"].get(d["subject"]) if reveal else None,
-               "verdict": d["verdict"], "can_judge": g["phase"] == "judge" and is_lead(g, gid)}
+               "verdict": d["verdict"], "can_judge": g["phase"] == "judge" and is_lead(g, gid),
+               "can_reveal": g["phase"] == "guess" and (gid == d["subject"] or is_lead(g, gid))}
     # Classement : points, et nombre de questions où chacun a deviné.
     asked = {}
     for k, p in t["pairs"].items():

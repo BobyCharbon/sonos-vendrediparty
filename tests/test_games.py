@@ -594,7 +594,11 @@ def test_tmc_duo_answers_and_scores():
     v = games.view(g, "h")["tmc"]["duo"]
     assert v["answer"] is None  # cachée jusqu'à la révélation, même pour l'animateur
     assert games.view(g, subject)["tmc"]["duo"]["mine"] == "Une 2CV"
-    games.tmc_reveal(g)
+    # La personne qui a répondu choisit le moment de la révélation ; le devin, lui, ne peut pas révéler.
+    assert games.view(g, subject)["tmc"]["duo"]["can_reveal"] and not games.view(g, guesser)["tmc"]["duo"]["can_reveal"]
+    with pytest.raises(games.GameError):
+        games.tmc_reveal(g, guesser)
+    games.tmc_reveal(g, subject)
     assert games.view(g, guesser)["tmc"]["duo"]["answer"] == "Une 2CV"
     with pytest.raises(games.GameError):
         games.tmc_judge(g, subject, 2)  # seul l'animateur attribue les points
@@ -608,7 +612,7 @@ def test_tmc_duo_answers_and_scores():
         games.next_step(g, random.Random(len(seen)))
         d = g["tmc"]["duo"]
         games.tmc_answer(g, d["subject"], "x")
-        games.tmc_reveal(g)
+        games.tmc_reveal(g, "h")  # l'animateur peut toujours révéler
         games.tmc_judge(g, "h", 1)  # presque = ½ point
         seen.add((d["guesser"], d["subject"]))
     assert len(seen) == 6

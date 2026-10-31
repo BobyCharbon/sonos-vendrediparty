@@ -2015,8 +2015,11 @@ function tmcHtml(g) {
   }
   if (g.phase === "guess") {
     const mine = d.role === "subject" ? `<div class="tm-sent">✓ Ta réponse : « ${esc(d.mine)} »</div>` : "";
-    return duo + q + mine + `<div class="tm-speak ${anim}">🗣 ${d.role === "guesser" ? "À toi ! Dis à voix haute ce que" : `${G}, à toi ! Dis à voix haute ce que`} ${S} a répondu.</div>
-      <div class="artist" style="margin-top:6px">${g.is_host ? "Quand c'est dit, révèle la réponse." : "L'animateur va révéler la réponse…"}</div>`;
+    // La personne qui a écrit révèle elle-même sa réponse, quand le devin a parlé (l'animateur peut aussi).
+    const reveal = d.role === "subject" && d.can_reveal
+      ? `<button class="tm-reveal" data-gact="treveal" style="width:100%;margin-top:10px">👁 ${G} a répondu : révéler ma réponse</button>`
+      : `<div class="artist" style="margin-top:6px">${g.is_host ? "Quand c'est dit, révèle la réponse (ou laisse " + S + " la révéler)." : `${S} va révéler sa réponse…`}</div>`;
+    return duo + q + mine + `<div class="tm-speak ${anim}">🗣 ${d.role === "guesser" ? "À toi ! Dis à voix haute ce que" : `${G}, à toi ! Dis à voix haute ce que`} ${S} a répondu.</div>${reveal}`;
   }
   const reveal = `<div class="tm-answer ${g.phase === "judge" ? anim : ""}"><small>${S} avait écrit</small><b>${esc(d.answer || "—")}</b></div>`;
   let zone = "";
