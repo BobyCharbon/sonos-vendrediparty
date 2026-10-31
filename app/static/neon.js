@@ -5,7 +5,7 @@ window.Neon = (() => {
   const icon = '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" aria-hidden="true"><path d="M6 29 24 39 42 29M6 23 24 33 42 23 24 13Z"/><path d="m25 4-9 16h8l-1 10 11-17h-9z" fill="currentColor" stroke="none"/></svg>';
   const rules = `<h3>Reste sur la plateforme</h3><p>De <b>2 à 8 joueurs</b>, chacun sur son téléphone. Déplace-toi avec le joystick à gauche. Maintiens <b>DASH</b> à droite pour charger, vise avec le joystick, puis relâche pour éjecter tes adversaires. Une charge complète prend 1,1 seconde ; le dash se recharge ensuite.</p><h3>La dernière équipe debout gagne</h3><p>Chacun pour soi, ou <b>2 à 4 équipes de deux</b>. Choisissez vos duos avant le match. Les coéquipiers partagent leur couleur et ne se repoussent pas. Une équipe reste en jeu tant qu'un de ses membres tient sur la plateforme.</p><p>La bordure commence à se refermer après 12 secondes. Une manche dure au maximum <b>45 secondes</b>. Le dernier joueur ou duo marque un point ; une chute simultanée donne une égalité. Premier à <b>5 victoires</b> ! L'animateur lance chaque manche.</p><h3>Revenir dans la partie</h3><p>En solo, un nouvel arrivant attend la prochaine manche. En duo, les inscriptions sont fermées pendant le match : les nouveaux peuvent regarder et rejoindre au prochain match. Après un départ, l’animateur peut préparer un nouveau match depuis les résultats, en remettant les scores à zéro. Si tu changes d'application, ton personnage s'arrête et peut être éliminé. Reviens dans le même navigateur pour retrouver ta place. Sur ordinateur : flèches ou ZQSD, espace pour charger.</p>`;
   let root, canvas, ctx, current, snap, code='', frame=0, timer=0, session=0, latest=0, received=0, signature='',request=null,lastFrame=0;
-  let input={x:0,y:0,charging:false,cancel:true}, stickId=null, dashId=null, particles=[], ghosts=new Map(), shown=new Map();
+  let input={x:0,y:0,charging:false,cancel:true}, stickId=null, dashId=null, particles=[], ghosts=new Map(), shown=new Map(), fallers=[], ui={};
   const keys=new Set();
   const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
   const svgBolt='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 2-9 12h7l-2 8 9-13h-7z" fill="currentColor"/></svg>';
@@ -14,10 +14,13 @@ window.Neon = (() => {
     input={x:0,y:0,charging:false,cancel:true}; stickId=dashId=null; keys.clear();
     root?.querySelector('.nk-stick-knob')?.style.removeProperty('transform');
     root?.querySelector('.nk-dash')?.classList.remove('holding');
+    // Commandes flottantes remises à leur place : sinon un doigt perdu (appli quittée, manche finie) les laissait
+    // déplacées, et le prochain toucher ne pouvait plus les amener sous le doigt.
+    root?.querySelectorAll('.nk-stick,.nk-dash').forEach(el=>el.style.removeProperty('translate'));
   }
   function stop() {
     session++; request?.abort(); cancelAnimationFrame(frame); clearTimeout(timer); reset(); root=null; snap=null; code='';
-    particles=[]; ghosts.clear(); shown.clear();lastFrame=0;
+    particles=[]; ghosts.clear(); shown.clear(); fallers=[]; ui={}; lastFrame=0;
   }
   function mount(g) {
     const el=document.getElementById('game');
@@ -41,13 +44,13 @@ window.Neon = (() => {
   function accept(v) {
     if (!v) return;
     if (snap && v.round===snap.round && v.clock<snap.clock && v.phase!=='lobby') return;
-    if (snap && (v.round!==snap.round || v.phase!==snap.phase)) { reset(); shown.clear(); ghosts.clear(); }
+    if (snap && (v.round!==snap.round || v.phase!==snap.phase)) { reset(); shown.clear(); ghosts.clear(); fallers=[]; }
     const old=snap;
     if(v.phase==='play'&&snap?.phase!=='play'&&realtimeControlsActive()){const c=root.querySelector('canvas');c.tabIndex=-1;c.focus({preventScroll:true});}
     snap=v; received=performance.now();
     for (const p of v.fighters) {
       const prev=old?.fighters.find(x=>x.pid===p.pid);
-      if (prev?.alive && !p.alive) burst(p.x,p.y,p.color,32);
+      if (prev?.alive && !p.alive) { const at=shown.get(p.pid)||p; burst(at.x,at.y,p.color,32); fall({...p,...at,vx:p.vx,vy:p.vy}); }
       if (prev && prev.pulse!==p.pulse) burst(p.x,p.y,p.color,10);
     }
     panel();
@@ -90,7 +93,9 @@ window.Neon = (() => {
     root.querySelector('.nk-round').textContent=phase==='lobby' ? 'Ton terrain de jeu' : `Manche ${snap.round} · ${snap.mode==='duo'?'Duos':'Solo'}`;
     const canPlay=playing && mine?.alive;
     root.querySelector('.nk-controls').classList.toggle('nk-disabled',!canPlay);
-    root.querySelector('.nk-dash').disabled=!canPlay;
+    const dash=root.querySelector('.nk-dash');dash.disabled=!canPlay;
+    // Éliminé (ou fin de manche) pendant qu'un doigt tient une commande : elle ne recevra plus le relâchement.
+    if(!canPlay&&(dashId!==null||stickId!==null||dash.style.translate))reset();
     const sig=JSON.stringify([phase,current.is_host,current.me?.pid,current.players,snap.mode,snap.teams,snap.scores,snap.winner,snap.notice]);
     if(sig===signature) return;
     signature=sig;
@@ -160,6 +165,8 @@ window.Neon = (() => {
     if(mode) gameAction('nset',{settings:{mode:mode.dataset.nmode}});
     if(team) gameAction('nteam',{amount:Number(team.dataset.nteam)});
   });
+  const FALL_S=.75;
+  function fall(p){ if(!reduced)fallers=[...fallers.filter(f=>f.pid!==p.pid),{...p,t:0}]; }
   function burst(x,y,color,n) {
     if(reduced)return;
     for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,v=1+Math.random()*4;particles.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:1,color});}
@@ -191,19 +198,25 @@ window.Neon = (() => {
       const a=i*Math.PI/48,b=(i+1)*Math.PI/48;
       line([point(Math.cos(a)*radius,Math.sin(a)*radius),point(Math.cos(b)*radius,Math.sin(b)*radius),point(Math.cos(b)*radius,Math.sin(b)*radius,-.7),point(Math.cos(a)*radius,Math.sin(a)*radius,-.7)],null,0,i%4===0?'#213a54':'#0b1b30');
     }
-    glow(rim,12);line(bottom, '#23526a',2);ctx.shadowBlur=0;
+    // Halo du bord : deux traits larges et transparents sous le trait net (un flou d'ombre sur tout le cercle coûtait
+    // cher à chaque image sur téléphone).
+    const halo=(points,color,width)=>{if(!reduced){ctx.globalAlpha=.12;line(points,color,width*5);ctx.globalAlpha=.25;line(points,color,width*2.4);ctx.globalAlpha=1;}line(points,color,width);};
+    halo(bottom,'#23526a',2);
     const floor=ctx.createLinearGradient(0,cy-radius*sc*sy,0,cy+radius*sc*sy);floor.addColorStop(0,'#162f45');floor.addColorStop(1,'#0d2033');line(top,null,0,floor);
     ctx.save();ctx.beginPath();top.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.closePath();ctx.clip();
     for(let i=-10;i<=10;i+=2){line([point(i,-11),point(i,11)],'#284157',.65);line([point(-11,i),point(11,i)],'#284157',.65);}
     line(ring(3.1),'#3a5267',1);line(ring(2.7),'#263f53',1);
     // Arena insignia is actual geometry in the floor, not UI decoration.
     line([point(.4,-1.8),point(-1.2,.3),point(.1,.3),point(-.4,1.8),point(1.3,-.4),point(0,-.4)],null,0,'#36536a');
-    ctx.restore();glow(rim,14);line(top,rim,2.2);ctx.shadowBlur=0;
+    ctx.restore();halo(top,rim,2.2);
     for(let i=0;i<12;i++){const a=i*Math.PI/6, aa=a+.07;line([point(Math.cos(a)*radius,Math.sin(a)*radius,.08),point(Math.cos(aa)*radius,Math.sin(aa)*radius,.08)],'#e4ffff',2.5);}
     if(snap?.phase==='lobby') {
       const previews=current.players.length?current.players:[{pid:'preview1',name:''},{pid:'preview2',name:''}];
       previews.forEach((p,i)=>{const a=-Math.PI/2+i*Math.PI*2/previews.length;fighter({...p,x:Math.cos(a)*5.6,y:Math.sin(a)*5.6,color:colors[snap.mode==='duo'?snap.teams[p.pid]||0:i%8],alive:true,charge:0,ax:0,ay:1},now);});
     } else if(snap) {
+      // Éliminés : ils continuent sur leur élan, puis tombent sous la plateforme en rapetissant.
+      fallers=fallers.filter(f=>(f.t+=dt)<FALL_S);
+      fallers.forEach(f=>{const k=f.t/FALL_S;ctx.globalAlpha=1-k*k;fighter({...f,x:f.x+f.vx*f.t*.6,y:f.y+f.vy*f.t*.6,charge:0,dashing:false,name:'',drop:k},now);ctx.globalAlpha=1;});
       const lag=Math.min(.09,(now-received)/1000);
       [...snap.fighters].sort((a,b)=>a.y-b.y).forEach(p=>{
         if(!p.alive)return;
@@ -214,7 +227,7 @@ window.Neon = (() => {
       });
     }
     function fighter(p,now) {
-      const [x,y]=point(p.x,p.y), r=sc*.53, z=sc*.65;
+      const drop=p.drop||0, [x,y0]=point(p.x,p.y), y=y0+drop*drop*sc*6, r=sc*.53*(1-drop*.55), z=sc*.65*(1-drop*.55);
       const trail=ghosts.get(p.pid)||[];
       if(p.dashing&&!reduced){trail.push([x,y]);if(trail.length>7)trail.shift();}else trail.shift();
       ghosts.set(p.pid,trail);
@@ -230,18 +243,27 @@ window.Neon = (() => {
       if(p.name){ctx.font=`600 ${Math.max(10,Math.min(12,w/32))}px system-ui`;ctx.textAlign='center';ctx.fillStyle='#f3f8ff';ctx.shadowColor='#050c19';ctx.shadowBlur=4;ctx.fillText(p.name.length>13?p.name.slice(0,12)+'…':p.name,x,y-z-r-9);ctx.shadowBlur=0;}
     }
     particles=particles.filter(p=>p.life>0);
-    particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.life=Math.max(0,p.life-dt*1.5);const [x,y]=point(p.x,p.y,.3+p.life);ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.fillRect(x,y,3,3);});ctx.globalAlpha=1;
+    const drag=Math.exp(-2.2*dt);
+    ctx.globalCompositeOperation='lighter';
+    particles.forEach(p=>{p.vx*=drag;p.vy*=drag;p.x+=p.vx*dt;p.y+=p.vy*dt;p.life=Math.max(0,p.life-dt*1.5);const [x,y]=point(p.x,p.y,.3+p.life);ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(x,y,1+p.life*2,0,Math.PI*2);ctx.fill();});
+    ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
     if(snap){
       const playing=snap.phase==='play', mine=snap.fighters.find(p=>p.pid===snap.me);
-      root.querySelector('.nk-clock').innerHTML=`${Math.ceil(Math.max(0,45-Math.max(0,t)))}<span>s</span>`;
+      const clock=String(Math.ceil(Math.max(0,45-Math.max(0,t))));
+      if(ui.clock!==clock){ui.clock=clock;root.querySelector('.nk-clock').firstChild.nodeValue=clock;}
       const callout=root.querySelector('.nk-callout');
       const msg=snap.phase==='countdown'?String(Math.max(1,Math.ceil(-t))):playing&&!mine?.alive?(mine?'Éliminé · regarde la suite':'Spectateur · prochaine manche'):playing&&t<1?'GO !':playing&&t>=12&&t<14?'La bordure se referme':'';
-      if(callout.textContent!==msg)callout.textContent=msg;
-      callout.classList.toggle('nk-count',snap.phase==='countdown'||msg==='GO !');
+      if(ui.msg!==msg){
+        ui.msg=msg;callout.textContent=msg;
+        callout.classList.toggle('nk-count',snap.phase==='countdown'||msg==='GO !');
+        // Chaque nouveau chiffre du décompte (et le GO) rebondit une fois.
+        if(msg&&!reduced)callout.animate([{transform:'scale(1.6)',opacity:0,offset:0},{transform:'scale(.94)',opacity:1,offset:.55},{transform:'none',opacity:1}],{duration:420,easing:'ease-out'});
+      }
       const dash=root.querySelector('.nk-dash'), cool=mine?.cooldown||0;
-      dash.style.setProperty('--charge',`${Math.round((mine?.charge||0)*100)}%`);
-      dash.querySelector('small').textContent=cool>0?`${cool.toFixed(1)} s`:input.charging?'Relâche !':'Maintenir';
-      dash.classList.toggle('cooling',cool>0);
+      const charge=`${Math.round((mine?.charge||0)*100)}%`, label=cool>0?`${cool.toFixed(1)} s`:input.charging?'Relâche !':'Maintenir';
+      if(ui.charge!==charge){ui.charge=charge;dash.style.setProperty('--charge',charge);}
+      if(ui.label!==label){ui.label=label;dash.querySelector('small').textContent=label;}
+      if(ui.cool!==cool>0){ui.cool=cool>0;dash.classList.toggle('cooling',cool>0);}
       if(latest && now-latest>1200) {reset();root.querySelector('.nk-network').textContent='Reconnexion…';}
     }
   }
