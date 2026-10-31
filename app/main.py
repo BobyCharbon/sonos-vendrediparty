@@ -2633,6 +2633,7 @@ class FeedbackAction(BaseModel):
     action: str
     note: str = Field(default="", max_length=10000)  # « note » : précisions / instructions de l'admin pour Claude
     reply: str = Field(default="", max_length=2000)  # « done » / « declined » : mot de l'admin pour l'invité
+    priority: str = Field(default="", max_length=10)  # « priority » : high | medium | low | "" (retirée)
 
 
 MIN_CLAUDE_NOTE = 10  # Claude ne part pas sans instructions claires de l'admin
@@ -2692,6 +2693,12 @@ def admin_feedback_action(body: FeedbackAction):
             raise HTTPException(400, "Un seul retour à la fois")
         feedback_item(body.ids[0])
         feedback.set_note(body.ids[0], body.note)
+        return feedback_payload()
+    if body.action == "priority":
+        try:
+            feedback.set_priority(body.ids, body.priority)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
         return feedback_payload()
     if body.action not in FEEDBACK_STATUSES + ("delete",):
         raise HTTPException(400, "Action inconnue")

@@ -42,8 +42,10 @@ struct AdminFeedback: Decodable, Equatable {
         let game: String?
         let tab: String?
         let claude: Claude?
+        /// Priorité posée par l'hôte : high, medium, low, ou "" (sans).
+        let priority: String
 
-        enum CodingKeys: String, CodingKey { case id, at, kind, name, text, status, note, reply, context, claude }
+        enum CodingKeys: String, CodingKey { case id, at, kind, name, text, status, note, reply, context, claude, priority }
         enum ContextKeys: String, CodingKey { case game, tab }
 
         init(from decoder: Decoder) throws {
@@ -57,12 +59,16 @@ struct AdminFeedback: Decodable, Equatable {
             note = try c.decodeIfPresent(String.self, forKey: .note) ?? ""
             reply = try c.decodeIfPresent(String.self, forKey: .reply) ?? ""
             claude = try c.decodeIfPresent(Claude.self, forKey: .claude)
+            priority = try c.decodeIfPresent(String.self, forKey: .priority) ?? ""
             let context = try? c.nestedContainer(keyedBy: ContextKeys.self, forKey: .context)
             game = try context?.decodeIfPresent(String.self, forKey: .game)
             tab = try context?.decodeIfPresent(String.self, forKey: .tab)
         }
 
         var statusLabel: String { AdminFeedback.statusLabels[status] ?? "" }
+        var priorityLabel: String { AdminFeedback.priorities.first { $0.id == priority }?.label ?? "" }
+        /// Rang du tri « Priorité » : haute, moyenne, basse, puis sans.
+        var priorityRank: Int { AdminFeedback.priorities.firstIndex { $0.id == priority } ?? AdminFeedback.priorities.count }
         var claudePending: Bool { claude?.state == "pending" }
         /// Boutons rapides proposés selon l'état, comme la page.
         var canStart: Bool { ["new", "done", "declined"].contains(status) }
@@ -101,6 +107,15 @@ struct AdminFeedback: Decodable, Equatable {
         }
     }
 
+    /// Priorités, de la plus haute à la plus basse (mêmes mots que feedback-admin.js).
+    static let priorities: [(id: String, label: String)] = [("high", "🔴 Haute"), ("medium", "🟠 Moyenne"), ("low", "🟢 Basse")]
+
+    enum Sort: String, CaseIterable, Identifiable {
+        case recent, priority
+        var id: String { rawValue }
+        var label: String { self == .recent ? "🕒 Récents" : "🔥 Priorité" }
+    }
+
     static let statusLabels = ["new": "À traiter", "progress": "🔧 En cours", "sent": "🤖 Chez Claude",
                                "verify": "🧪 À vérifier", "done": "✅ Terminé", "declined": "🚫 Pas retenu"]
     static let tabs = ["music": "Musique", "games": "Jeux", "events": "Événements"]
@@ -121,8 +136,10 @@ struct AdminFeedback: Decodable, Equatable {
         games = try c.decodeIfPresent([String: String].self, forKey: .games) ?? [:]
     }
 
-    func shown(_ filter: Filter) -> [Item] {
-        filter == .all ? items : items.filter { filter.statuses.contains($0.status) }
+    func shown(_ filter: Filter, sort: Sort = .recent) -> [Item] {
+        let list = filter == .all ? items : items.filter { filter.statuses.contains($0.status) }
+        guard sort == .priority else { return list }
+        return list.enumerated().sorted { ($0.element.priorityRank, $0.offset) < ($1.element.priorityRank, $1.offset) }.map(\.element)
     }
 
     func count(_ filter: Filter) -> Int { filter == .all ? items.count : shown(filter).count }
@@ -148,6 +165,10 @@ extension PartyAPI {
 
     func adminFeedbackAction(_ id: String, _ action: String, note: String = "", reply: String = "") async throws -> AdminFeedback {
         try await postDecoding("/api/admin/feedback", body: ["ids": [id], "action": action, "note": note, "reply": reply])
+    }
+
+    func adminFeedbackPriority(_ id: String, _ priority: String) async throws -> AdminFeedback {
+        try await postDecoding("/api/admin/feedback", body: ["ids": [id], "action": "priority", "priority": priority])
     }
 
     func adminFeedbackPrompt(_ id: String) async throws -> String {

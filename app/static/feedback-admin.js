@@ -10,6 +10,10 @@
   const IN_FILTER = { new: ["new"], progress: ["progress", "sent"], verify: ["verify"], finished: ["done", "declined"] };
   const STATUS = { new: "À traiter", progress: "🔧 En cours", sent: "🤖 Chez Claude", verify: "🧪 À vérifier", done: "✅ Terminé", declined: "🚫 Pas retenu" };
   const CLAUDE = { pending: "🤖 Claude corrige", fixed: "🧪 Corrigé sur develop", failed: "⚠️ Échec de Claude" };
+  // Priorité posée par l'admin (l'invité ne la voit pas) ; tri « Priorité » : haute, moyenne, basse, puis sans.
+  const PRIORITY = { high: "🔴 Haute", medium: "🟠 Moyenne", low: "🟢 Basse" };
+  const RANK = { high: 0, medium: 1, low: 2 };
+  let sortBy = (() => { try { return localStorage.getItem("fbSort") || "recent"; } catch { return "recent"; } })();
   let root = null, onCount = () => {}, items = [], kinds = {}, filter = "new", claudeReady = false, editing = "";
   const notes = {}, replies = {};
 
@@ -42,6 +46,10 @@
       ${claudeReady ? "" : `<p class="sub">GitHub n'est pas configuré sur le serveur (GITHUB_TOKEN) : copie le prompt pour le donner à Claude toi-même.</p>`}
       <label class="g-label" for="fbReply-${id}">Mot pour l'invité <small>(affiché avec « Terminé » ou « Pas retenu »)</small></label>
       <textarea id="fbReply-${id}" data-fb-reply="${id}" maxlength="500" rows="2" placeholder="Ex. : c'est corrigé, merci ! / Pas prévu pour l'instant, mais on garde l'idée.">${escape(replies[i.id] ?? i.reply ?? "")}</textarea>
+      <div class="g-label">Priorité</div>
+      <div class="fb-edit-btns fb-prio-pick" role="group" aria-label="Priorité">${Object.entries(PRIORITY).map(([k, label]) =>
+        `<button class="${i.priority === k ? "" : "secondary"}" data-fb-prio="${k}" data-id="${id}" aria-pressed="${i.priority === k}">${label}</button>`).join("")}
+        <button class="secondary" data-fb-prio="" data-id="${id}" ${i.priority ? "" : "disabled"}>Sans</button></div>
       <div class="fb-edit-btns">
         <button data-fb="done" data-id="${id}">✅ Terminé</button>
         <button class="secondary" data-fb="declined" data-id="${id}">🚫 Pas retenu</button>
@@ -70,7 +78,7 @@
     const reopen = ["done", "declined"].includes(i.status)
       ? `<button class="secondary" data-fb="new" data-id="${id}" aria-label="Remettre à traiter">↺</button>` : "";
     return `<div class="track fb-item ${escape(i.status)}"><div class="meta">
-        <div class="title">${escape(i.text)}</div>
+        <div class="title">${i.priority ? `<span class="fb-prio ${escape(i.priority)}">${PRIORITY[i.priority] || ""}</span> ` : ""}${escape(i.text)}</div>
         <div class="artist">${meta(i)} · <span class="fb-st ${escape(i.status)}">${STATUS[i.status] || ""}</span></div>
         ${i.note && editing !== i.id ? `<div class="fb-note">📝 ${escape(i.note)}</div>` : ""}
         ${i.reply && editing !== i.id ? `<div class="fb-note">💬 ${escape(i.reply)}</div>` : ""}
@@ -86,6 +94,9 @@
   function render() {
     if (!root) return;
     const shown = items.filter((i) => filter === "all" || IN_FILTER[filter].includes(i.status));
+    if (sortBy === "priority") shown.sort((a, b) => (RANK[a.priority] ?? 3) - (RANK[b.priority] ?? 3) || b.at - a.at);
+    root.querySelector(".fb-sort").innerHTML = [["recent", "🕒 Récents"], ["priority", "🔥 Priorité"]].map(([k, label]) =>
+      `<button type="button" class="${k === sortBy ? "on" : ""}" data-fb-sort="${k}" aria-pressed="${k === sortBy}">${label}</button>`).join("");
     root.querySelector(".fb-filter").innerHTML = FILTERS.map(([k, label]) => {
       const n = k === "all" ? 0 : items.filter((i) => IN_FILTER[k].includes(i.status)).length;
       return `<button type="button" class="${k === filter ? "on" : ""}" data-fb-filter="${k}">${label}${n && k !== "finished" ? ` <i class="badge">${n}</i>` : ""}</button>`;
@@ -151,6 +162,10 @@
 
   function onClick(ev) {
     const t = ev.target;
+    const so = t.closest("[data-fb-sort]");
+    if (so) { sortBy = so.dataset.fbSort; try { localStorage.setItem("fbSort", sortBy); } catch {} return render(); }
+    const pr = t.closest("[data-fb-prio]");
+    if (pr) return load({ ids: [pr.dataset.id], action: "priority", priority: pr.dataset.fbPrio });
     const f = t.closest("[data-fb-filter]");
     if (f) { filter = f.dataset.fbFilter; return render(); }
     const ed = t.closest("[data-fb-edit]");
@@ -176,7 +191,8 @@
     mount(el, opts = {}) {
       root = el;
       onCount = opts.onCount || onCount;
-      root.innerHTML = `<div class="seg fb-filter" role="group" aria-label="Filtrer"></div><div id="fbList" class="list" style="margin-top:10px"></div>`;
+      root.innerHTML = `<div class="seg fb-filter" role="group" aria-label="Filtrer"></div>
+        <div class="seg fb-sort" role="group" aria-label="Trier" style="margin-top:8px"></div><div id="fbList" class="list" style="margin-top:10px"></div>`;
       root.addEventListener("click", onClick);
       root.addEventListener("input", onInput);
       return load();

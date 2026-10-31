@@ -1665,3 +1665,9 @@ html.native-tabs .g-mini { bottom: 12px; }
   66% { transform: translate(50vw, 70vh) rotate(-880deg); } 80% { transform: translate(58vw, 40vh) rotate(-980deg); }
   90% { transform: translate(52vw, 50vh) rotate(-1040deg); } 100% { transform: translate(54vw, 46vh) rotate(-1080deg); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .bk-throw { display: none; } .bk-roll-i { animation: none; } }
+
+/* Retours : priorité posée par l'admin. */
+.fb-prio { display: inline-block; padding: 1px 8px; border-radius: 9px; font-size: .78rem; font-weight: 800; vertical-align: 1px; }
+.fb-prio.high { background: rgba(255, 77, 94, .2); color: #ff8a95; }
+.fb-prio.medium { background: rgba(255, 170, 51, .2); color: #ffc46b; }
+.fb-prio.low { background: rgba(61, 220, 151, .18); color: #7fe8b8; }

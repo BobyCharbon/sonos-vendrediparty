@@ -8,6 +8,10 @@ final class FeedbackAdminStore: ObservableObject {
     @Published private(set) var error: String?
     @Published private(set) var busy: Set<String> = []
     @Published var filter: AdminFeedback.Filter = .new
+    /// Tri gardé d'une ouverture à l'autre.
+    @Published var sort: AdminFeedback.Sort = AdminFeedback.Sort(rawValue: UserDefaults.standard.string(forKey: "feedbackSort") ?? "") ?? .recent {
+        didSet { UserDefaults.standard.set(sort.rawValue, forKey: "feedbackSort") }
+    }
     @Published var notice: String?
 
     private let api: PartyAPI
@@ -71,6 +75,10 @@ final class FeedbackAdminStore: ObservableObject {
         return done
     }
 
+    func setPriority(_ item: AdminFeedback.Item, _ priority: String) async {
+        await run(item.id) { payload = try await api.adminFeedbackPriority(item.id, priority) }
+    }
+
     func item(_ id: String) -> AdminFeedback.Item? { payload?.items.first { $0.id == id } }
 
     private func run(_ key: String, _ work: () async throws -> Void) async -> Bool {
@@ -103,8 +111,12 @@ struct FeedbackAdminSection: View {
             }
             .pickerStyle(.menu)
             .tint(Palette.accent)
+            Picker("Trier", selection: $store.sort) {
+                ForEach(AdminFeedback.Sort.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
             if let payload = store.payload {
-                let shown = payload.shown(store.filter)
+                let shown = payload.shown(store.filter, sort: store.sort)
                 if shown.isEmpty {
                     Text(store.filter.empty).foregroundStyle(.secondary).frame(maxWidth: .infinity).card()
                 }
@@ -134,6 +146,11 @@ struct FeedbackAdminSection: View {
 
     private func row(_ item: AdminFeedback.Item, payload: AdminFeedback) -> some View {
         VStack(alignment: .leading, spacing: 8) {
+            if !item.priority.isEmpty {
+                Text(item.priorityLabel).font(.caption.weight(.heavy))
+                    .padding(.horizontal, 8).padding(.vertical, 2)
+                    .background(Color.white.opacity(0.1), in: Capsule())
+            }
             Text(item.text)
             Text("\(payload.meta(item)) · \(item.statusLabel)").font(.caption).foregroundStyle(.secondary)
             if !item.note.isEmpty { Label(item.note, systemImage: "note.text").font(.footnote).foregroundStyle(.secondary) }
@@ -195,6 +212,14 @@ struct FeedbackAdminSection: View {
                     Button { Task { await store.set(item, "done", reply: item.reply) } } label: { Label("Terminé (l'invité est averti)", systemImage: "checkmark.circle") }
                 }
                 if item.canReopen { Button { Task { await store.set(item, "new") } } label: { Label("Remettre à traiter", systemImage: "arrow.uturn.backward") } }
+                Menu {
+                    ForEach(AdminFeedback.priorities, id: \.id) { p in
+                        Button { Task { await store.setPriority(item, p.id) } } label: {
+                            if item.priority == p.id { Label(p.label, systemImage: "checkmark") } else { Text(p.label) }
+                        }
+                    }
+                    if !item.priority.isEmpty { Button("Sans priorité") { Task { await store.setPriority(item, "") } } }
+                } label: { Label("Priorité", systemImage: "flag") }
                 Button(role: .destructive) { deleting = item } label: { Label("Supprimer", systemImage: "trash") }
             } label: {
                 Label("Statut", systemImage: "ellipsis.circle")

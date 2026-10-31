@@ -12,7 +12,8 @@ MAX_REPLY = 500  # mot de l'admin pour l'invité (« Terminé » ou « Pas reten
 # Statuts : new (à traiter), progress (en cours, posé par l'admin), sent (chez Claude), verify (corrigé par Claude,
 # à vérifier), done (terminé), declined (pas retenu). L'invité ne voit que new / progress / done / declined.
 ADMIN_STATUSES = ("new", "progress", "verify", "done", "declined")  # verify : posé à la main (vérif. sans Claude) ou par Claude
-FINISHED = ("done", "declined")  # l'invité est averti (notification + pastille) en y arrivant
+FINISHED = ("done", "declined")
+PRIORITIES = ("high", "medium", "low")  # posée par l'admin ("" : sans priorité) ; l'invité ne la voit pas  # l'invité est averti (notification + pastille) en y arrivant
 
 
 class FeedbackBox:
@@ -77,6 +78,16 @@ class FeedbackBox:
                 item.update(fields)
                 self._save()
             return item
+
+    def set_priority(self, ids: list[str], priority: str):
+        """Priorité choisie par l'admin pour trier ses retours (haute, moyenne, basse ; "" la retire)."""
+        if priority and priority not in PRIORITIES:
+            raise ValueError("Priorité inconnue")
+        with self.lock:
+            for i in self.items:
+                if i["id"] in ids:
+                    i["priority"] = priority
+            self._save()
 
     def set_note(self, fid: str, note: str) -> dict | None:
         return self._edit(fid, note=note.strip()[:MAX_NOTE])
