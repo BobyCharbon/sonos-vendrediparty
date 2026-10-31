@@ -186,6 +186,20 @@ struct BiskitTV: View {
             } else if let turn = K["seats"].array.first(where: { $0["pid"].string == K["turn"].string })?["name"].string {
                 Text("👉 Au tour de \(turn)").font(.system(size: 64, weight: .black)).lineLimit(1).minimumScaleFactor(0.5)
             }
+            // Dés de la carte 4 : les deux faces en très grand et le total.
+            let d = K["dice"]["d"].array.compactMap(\.int)
+            if d.count == 2 {
+                let faces = ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"]
+                HStack(spacing: 30) {
+                    Text(faces[d[0]] + " " + faces[d[1]]).font(.system(size: 150))
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Total \(d[0] + d[1])").font(.system(size: 64, weight: .black))
+                        Text("lancés par \(K["dice"]["roller_name"].string ?? "?")").font(.system(size: 32, weight: .semibold)).foregroundStyle(TV.muted)
+                    }
+                }
+                .id(K["dice"]["id"].string ?? "")
+                .transition(.scale(scale: 0.3).combined(with: .opacity))
+            }
             HStack(alignment: .center, spacing: 40) {
                 if let card = K["card"].string {
                     PlayingCard(code: card, width: 220).id(card).transition(.asymmetric(insertion: .scale(scale: 0.3).combined(with: .opacity), removal: .opacity))
