@@ -12,6 +12,7 @@ struct ExpenseEditor: View {
     @State private var photo: PhotosPickerItem?
     @State private var receipt: Data?
     @State private var scanned: TC.Receipt?
+    @State private var showReceipt = false
     @State private var confirmDelete = false
     @FocusState private var amountFocused: Bool
 
@@ -87,6 +88,7 @@ struct ExpenseEditor: View {
                 }
                 if advanced && !draft.transfer { splitSection }
                 if store.advanced { advancedSection }
+                if receipt != nil || savedReceipt != nil { receiptSection }
                 if draft.id != nil {
                     Section {
                         Button("Supprimer cette dépense", role: .destructive) { confirmDelete = true }
@@ -116,6 +118,39 @@ struct ExpenseEditor: View {
                 }
             }
             .overlay(alignment: .bottom) { TCNotice(text: $store.notice) }
+        }
+    }
+
+    /// Photo du ticket gardée avec la dépense (scannée ou ajoutée) : le lien signé que renvoie le serveur.
+    private var savedReceipt: URL? {
+        group.expenses.first { $0.id == draft.id }?.receipt_url.flatMap(URL.init(string:))
+    }
+
+    /// Le ticket, en vignette ; un toucher l'ouvre en grand (avis 070af8c56ae4).
+    private var receiptSection: some View {
+        Section("Ticket") {
+            Button { showReceipt = true } label: {
+                HStack(spacing: 12) {
+                    ReceiptImage(data: receipt, url: savedReceipt)
+                        .frame(width: 56, height: 72)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    Text("Voir le ticket").foregroundStyle(Palette.accent)
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            .accessibilityIdentifier("tc-receipt")
+        }
+        .sheet(isPresented: $showReceipt) {
+            NavigationStack {
+                ScrollView([.vertical, .horizontal]) {
+                    ReceiptImage(data: receipt, url: savedReceipt).frame(maxWidth: .infinity)
+                }
+                .background(Color.black)
+                .navigationTitle("Ticket")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { showReceipt = false } } }
+            }
         }
     }
 
@@ -271,6 +306,20 @@ struct PaymentProfileView: View {
             TextField(placeholder, text: Binding(get: { p.links[kind] ?? "" }, set: { p.links[kind] = $0.isEmpty ? nil : $0 }))
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
                 .keyboardType(kind == "twint" ? .phonePad : .URL)
+        }
+    }
+}
+
+/// Photo d'un ticket : celle qu'on vient de prendre (données) ou celle gardée sur le serveur (lien signé).
+private struct ReceiptImage: View {
+    let data: Data?
+    let url: URL?
+
+    var body: some View {
+        if let data, let image = UIImage(data: data) {
+            Image(uiImage: image).resizable().scaledToFit()
+        } else if let url {
+            AsyncImage(url: url) { image in image.resizable().scaledToFit() } placeholder: { ProgressView() }
         }
     }
 }
