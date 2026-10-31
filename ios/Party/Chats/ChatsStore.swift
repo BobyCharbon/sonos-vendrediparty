@@ -34,11 +34,26 @@ final class ChatsStore: ObservableObject {
     var unread: Int { chats?.reduce(0) { $0 + $1.unread } ?? 0 }
 
     func loadList() async {
+        if chats == nil, let account = await account() {
+            chats = ChatsCache.load([ChatSummary].self, account: account, name: "list")  // tout de suite, puis à jour
+        }
         await run(loading: chats == nil) { token in
             let (list, endpoint) = try await api.chats(token: token)
-            chats = list
+            if list != chats { chats = list }
             if let endpoint { self.endpoint = endpoint }
+            if let account = ChatsCache.account(of: token) { ChatsCache.save(list, account: account, name: "list") }
         }
+    }
+
+    /// Au lancement de l'app : la liste est prête avant même d'ouvrir l'onglet (sans compte, rien).
+    func preload() async {
+        guard await web?.accountToken() != nil else { return }
+        await loadList()
+    }
+
+    private func account() async -> String? {
+        guard let token = await web?.accountToken() else { return nil }
+        return ChatsCache.account(of: token)
     }
 
     /// Liste à l'écran : temps réel sur tous mes groupes (nouveau message → liste relue).
@@ -56,9 +71,14 @@ final class ChatsStore: ObservableObject {
 
     /// Ouvre (ou relit) une conversation ; la marque comme lue si de nouveaux messages sont arrivés.
     func open(_ group: String) async {
-        if conversation?.id != group { conversation = nil; pending = [] }
+        if conversation?.id != group {
+            pending = []
+            // Dernière version gardée sur le téléphone : la conversation s'affiche sans attendre le serveur.
+            conversation = await account().flatMap { ChatsCache.load(Conversation.self, account: $0, name: "chat-" + group) }
+        }
         await run(loading: conversation == nil) { token in
             let fresh = try await api.openChat(token: token, group: group)
+            if let account = ChatsCache.account(of: token) { ChatsCache.save(fresh, account: account, name: "chat-" + group) }
             let changed = fresh.messages.last?.id != conversation?.messages.filter { !$0.pending }.last?.id || conversation == nil
             pending.removeAll { p in fresh.messages.contains { $0.id == p.id } }
             let shown = pending.isEmpty ? fresh : fresh.with(messages: fresh.messages + pending)
