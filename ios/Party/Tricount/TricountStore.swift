@@ -9,6 +9,7 @@ final class TricountStore: ObservableObject {
     @Published private(set) var payment: TC.Payment?
     @Published private(set) var error: String?
     @Published private(set) var busy = false
+    @Published private(set) var ai: TC.AIStatus?
     @Published var notice: String?
     /// Lien pour rejoindre reçu (lien universel) : l'écran de Réglages ouvre « Rejoindre ».
     @Published var pendingJoin: String?
@@ -29,7 +30,26 @@ final class TricountStore: ObservableObject {
     var currencies: [String] { overview?.currencies ?? ["CHF", "EUR", "USD", "GBP"] }
     func category(_ id: String) -> TC.Overview.Category? { categories.first { $0.id == id } }
 
-    func load() async { await run(loading: overview == nil) { token in overview = try await api.tricounts(token: token) } }
+    func load() async {
+        await run(loading: overview == nil) { token in
+            overview = try await api.tricounts(token: token)
+            ai = try? await api.aiStatus(token: token)
+        }
+    }
+
+    /// « Scanner un ticket » : seulement pour les comptes à qui l'admin a donné l'assistant IA.
+    var canScan: Bool { ai?.allowed == true }
+
+    @Published private(set) var aiUsage: TC.AIUsage?
+
+    func loadAIUsage() async { await run(loading: aiUsage == nil) { token in aiUsage = try await api.aiUsage(token: token) } }
+
+    /// Photo d'un ticket → montant, titre, date, catégorie et articles, lus par l'assistant IA.
+    func readReceipt(_ jpeg: Data) async -> TC.Receipt? {
+        var read: TC.Receipt?
+        await run { token in read = try await api.aiReadReceipt(token: token, jpeg: jpeg) }
+        return read
+    }
 
     func open(_ id: String) async {
         if group?.id != id { group = nil }
@@ -199,6 +219,20 @@ struct TricountDraft: Equatable {
     var rate = "1"
     var note = ""
     var receiptPath: String?
+
+    /// Ticket lu par l'IA : montant, titre, date, catégorie et monnaie ; le résumé va dans la note.
+    /// « Pour qui » ne change pas : c'est la personne qui choisit.
+    mutating func fill(from r: TC.Receipt) {
+        amount = String(format: "%.2f", Double(r.amount_cents) / 100)
+        title = r.title
+        category = r.category
+        currency = r.currency
+        if !r.summary.isEmpty { note = r.summary }
+        let parse = DateFormatter()
+        parse.locale = Locale(identifier: "en_US_POSIX")
+        parse.dateFormat = "yyyy-MM-dd"
+        if let day = parse.date(from: r.date) { date = day }
+    }
 
     /// Nouvelle dépense : payée par moi, pour tous les membres actifs.
     init(group: TC.Group) {

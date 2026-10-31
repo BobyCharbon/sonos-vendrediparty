@@ -23,6 +23,23 @@ final class TricountTests: XCTestCase {
         XCTAssertEqual(overview.tricounts.first?.event?.title, "Raclette")
     }
 
+    func testScannedReceiptFillsTheExpenseButNotForWhom() throws {
+        let json = """
+        {"merchant":"Migros","title":"Courses Migros","date":"2026-10-30","currency":"CHF","amount_cents":8450,"category":"food",
+         "items":[{"label":"Pain","quantity":1,"amount_cents":1180}],"summary":"Raclette, vin et pain pour 84.50 CHF"}
+        """
+        let receipt = try JSONDecoder().decode(TC.Receipt.self, from: Data(json.utf8))
+        var draft = TricountDraft(group: group())
+        draft.forWhom = ["a"]
+        draft.fill(from: receipt)
+        XCTAssertEqual(draft.amount, "84.50")
+        XCTAssertEqual(draft.title, "Courses Migros")
+        XCTAssertEqual(draft.category, "food")
+        XCTAssertEqual(draft.note, "Raclette, vin et pain pour 84.50 CHF")
+        XCTAssertEqual(Calendar(identifier: .gregorian).component(.day, from: draft.date), 30)
+        XCTAssertEqual(draft.forWhom, ["a"])
+    }
+
     func testMoneyIsReadAndShownTheSwissWay() {
         XCTAssertEqual(Money.cents("12,5"), 1250)
         XCTAssertEqual(Money.cents("1'250.40"), 125040)

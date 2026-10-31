@@ -11,6 +11,7 @@ struct ExpenseEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State private var photo: PhotosPickerItem?
     @State private var receipt: Data?
+    @State private var scanned: TC.Receipt?
     @State private var confirmDelete = false
     @FocusState private var amountFocused: Bool
 
@@ -39,6 +40,17 @@ struct ExpenseEditor: View {
                     }
                 }
                 .listRowBackground(Color.clear).listRowInsets(EdgeInsets())
+                if store.canScan && !draft.transfer && draft.id == nil {
+                    ReceiptScanSection(store: store, read: scanned) { read, jpeg in
+                        draft.fill(from: read)
+                        receipt = jpeg
+                        scanned = read
+                        amountFocused = false
+                        if read.currency != group.currency {
+                            store.notice = "Ticket en \(read.currency) : vérifie le taux en mode avancé"
+                        }
+                    }
+                }
                 Section {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         TextField("0.00", text: $draft.amount)

@@ -53,6 +53,12 @@ struct SettingsView: View {
                                 }
                             }
                         }
+                        if store.account?.admin == true {
+                            NavigationLink { AIUsageView(store: store.tricount) } label: {
+                                SettingsRow(symbol: "sparkles", tint: .purple, title: "Assistant IA",
+                                            hint: "Qui l'utilise et ce que ça coûte ce mois-ci")
+                            }
+                        }
                         if store.account?.groupAdmin == true {
                             NavigationLink {
                                 GroupAdminView(store: store.groupAdmin, session: store.session, open: open)

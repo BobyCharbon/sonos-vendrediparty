@@ -30,7 +30,8 @@ from .accounts import AccountError, Accounts
 from .account_auth import AccountAuth
 from .group_admin import ROLES as ADMIN_ROLES, GroupAdmin
 from .group_chats import LEVELS as CHAT_LEVELS, PHOTO_MAX as CHAT_PHOTO_MAX, GroupChats
-from .tricount import Tricount
+from .tricount import CURRENCIES as TC_CURRENCIES, Tricount
+from .assistant import MAX_PHOTO as AI_PHOTO_MAX, Assistant, UsageLog
 from .audit import AuditLog
 from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
 from .github_issues import GitHubError, Issues
@@ -1419,6 +1420,10 @@ accounts = Accounts(_secret())
 group_admin = GroupAdmin(accounts)
 group_chats = GroupChats(group_admin)
 tricount = Tricount(group_admin, lambda: guest_url())
+# Assistant IA (Claude) : sans ANTHROPIC_API_KEY dans l'environnement, il reste éteint et le dit.
+assistant = Assistant(accounts, UsageLog(DATA_DIR / "ai_usage.json"),
+                      (lambda: __import__("anthropic").Anthropic(timeout=60.0)) if os.environ.get("ANTHROPIC_API_KEY") else None,
+                      float(os.environ.get("AI_MONTHLY_BUDGET_USD", "3")), TC_CURRENCIES)
 account_auth = AccountAuth(accounts)
 # Ne compte que les vrais refus (compte sans droit admin). Un jeton expiré ou invalide n'est jamais compté :
 # un jeton Supabase ne se devine pas, et l'app rouverte après 1 h en présente un périmé. Compté, il bloquait
@@ -1909,6 +1914,29 @@ def account_tricount_receipt(body: TcReceipt):
     except ValueError:
         raise HTTPException(400, "Photo illisible") from None
     return account_call(lambda: tricount.upload_receipt(body.token, body.group_id, data))
+
+
+@app.post("/api/account/ai/status")
+def account_ai_status(body: MemberToken):
+    return account_call(lambda: assistant.status(body.token), 401)
+
+
+class AiPhoto(MemberToken):
+    photo: str = Field(min_length=1, max_length=AI_PHOTO_MAX * 4 // 3 + 8)  # base64
+
+
+@app.post("/api/account/ai/receipt")
+def account_ai_receipt(body: AiPhoto):
+    try:
+        data = base64.b64decode(body.photo, validate=True)
+    except ValueError:
+        raise HTTPException(400, "Photo illisible") from None
+    return account_call(lambda: assistant.read_receipt(body.token, data))
+
+
+@app.post("/api/account/ai/usage")
+def account_ai_usage(body: MemberToken):
+    return account_call(lambda: assistant.report(body.token), 403)
 
 
 @app.post("/api/account/tricount/payment")

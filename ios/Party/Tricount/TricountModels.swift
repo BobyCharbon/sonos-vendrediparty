@@ -110,6 +110,34 @@ enum TC {
     }
 
     struct Path: Decodable { let path: String }
+
+    /// Assistant IA : le droit du compte (réglé par l'admin) et ce qu'il a utilisé ce mois-ci.
+    struct AIStatus: Decodable, Equatable { let allowed: Bool; let configured: Bool; let spent_usd: Double; let budget_usd: Double }
+
+    /// Admin : ce que l'assistant IA a coûté ce mois-ci, par personne, et les derniers appels.
+    struct AIUsage: Decodable, Equatable {
+        struct Person: Decodable, Equatable, Identifiable { let uid: String; let name: String; let calls: Int; let cost_usd: Double; var id: String { uid } }
+        struct Call: Decodable, Equatable { let at: Double; let name: String?; let feature: String; let cost_usd: Double }
+        let month_cost_usd: Double
+        let people: [Person]
+        let recent: [Call]
+        let budget_usd: Double
+        let model: String
+        let configured: Bool
+    }
+
+    /// Ticket lu par l'assistant IA : de quoi remplir la dépense, et ce qui a été acheté.
+    struct Receipt: Decodable, Equatable {
+        struct Item: Decodable, Equatable { let label: String; let quantity: Double; let amount_cents: Int }
+        let merchant: String
+        let title: String
+        let date: String
+        let currency: String
+        let amount_cents: Int
+        let category: String
+        let items: [Item]
+        let summary: String
+    }
 }
 
 /// Montants en clair, à la suisse : « 1 250.50 CHF », « −12.00 € ».
@@ -189,6 +217,15 @@ extension PartyAPI {
     }
     func settleTricount(token: String, id: String, from: String, to: String, cents: Int) async throws -> TC.Group {
         try await postDecoding("/api/account/tricount/settle", body: ["token": token, "group_id": id, "from_id": from, "to_id": to, "amount_cents": cents])
+    }
+    func aiStatus(token: String) async throws -> TC.AIStatus {
+        try await postDecoding("/api/account/ai/status", body: ["token": token])
+    }
+    func aiUsage(token: String) async throws -> TC.AIUsage {
+        try await postDecoding("/api/account/ai/usage", body: ["token": token])
+    }
+    func aiReadReceipt(token: String, jpeg: Data) async throws -> TC.Receipt {
+        try await postDecoding("/api/account/ai/receipt", body: ["token": token, "photo": jpeg.base64EncodedString()])
     }
     func uploadTricountReceipt(token: String, id: String, jpeg: Data) async throws -> String {
         let r: TC.Path = try await postDecoding("/api/account/tricount/receipt", body: ["token": token, "group_id": id, "photo": jpeg.base64EncodedString()])
