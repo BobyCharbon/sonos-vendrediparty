@@ -225,7 +225,7 @@ extension PartyAPI {
         try await postDecoding("/api/account/ai/usage", body: ["token": token])
     }
     func aiReadReceipt(token: String, jpeg: Data) async throws -> TC.Receipt {
-        try await postDecoding("/api/account/ai/receipt", body: ["token": token, "photo": jpeg.base64EncodedString()])
+        try await postDecoding("/api/account/ai/receipt", body: ["token": token, "photo": jpeg.base64EncodedString()], timeout: 90)
     }
     func uploadTricountReceipt(token: String, id: String, jpeg: Data) async throws -> String {
         let r: TC.Path = try await postDecoding("/api/account/tricount/receipt", body: ["token": token, "group_id": id, "photo": jpeg.base64EncodedString()])

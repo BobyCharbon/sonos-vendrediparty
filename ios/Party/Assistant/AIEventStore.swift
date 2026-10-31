@@ -142,6 +142,9 @@ enum AIEvent {
         return show.string(from: date)
     }
 
+    /// L'IA réfléchit souvent 20 à 40 secondes : on l'attend jusqu'à 2 minutes et demie.
+    static let thinkingTimeout: TimeInterval = 150
+
     /// Lien Google Maps pour un lieu trouvé : s'ouvre dans l'app Google Maps si elle est installée.
     static func googleMapsURL(_ query: String) -> String {
         var c = URLComponents(string: "https://www.google.com/maps/search/")!
@@ -320,14 +323,14 @@ extension PartyAPI {
         var body: [String: Any] = ["token": token, "turns": turns]
         if let previous, let data = try? JSONEncoder().encode(previous),
            let json = try? JSONSerialization.jsonObject(with: data) { body["draft"] = json }
-        return try await postDecoding("/api/account/ai/event/draft", body: body)
+        return try await postDecoding("/api/account/ai/event/draft", body: body, timeout: AIEvent.thinkingTimeout)
     }
 
     func aiEventCreate(token: String, draft: AIEvent.Draft, place: AIEvent.Place?) async throws -> AIEvent.Created {
         var body: [String: Any] = ["token": token]
         if let data = try? JSONEncoder().encode(draft), let json = try? JSONSerialization.jsonObject(with: data) { body["draft"] = json }
         if let place { body["place"] = ["name": place.name, "address": place.address, "url": place.url] }
-        return try await postDecoding("/api/account/ai/event/create", body: body)
+        return try await postDecoding("/api/account/ai/event/create", body: body, timeout: 60)
     }
 }
 

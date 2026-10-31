@@ -116,7 +116,10 @@ struct AIEventView: View {
     private var thinkingCard: some View {
         HStack(spacing: 12) {
             ProgressView()
-            Text("L'IA prépare ton événement…").foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("L'IA prépare ton événement…").foregroundStyle(.secondary)
+                Text("Elle réfléchit bien : ça prend souvent 20 à 40 secondes.").font(.caption).foregroundStyle(.secondary)
+            }
         }
         .padding(.vertical, 6)
     }

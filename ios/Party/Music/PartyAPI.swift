@@ -213,9 +213,12 @@ final class PartyAPI {
         return try JSONDecoder().decode(T.self, from: data)
     }
 
-    func postDecoding<T: Decodable>(_ path: String, body: [String: Any]) async throws -> T {
+    /// `timeout` : plus long que les 15 s habituelles pour ce qui prend du temps côté serveur (l'assistant IA réfléchit
+    /// 20 à 40 s) ; sinon l'app abandonnait et affichait « injoignable » alors que la réponse arrivait.
+    func postDecoding<T: Decodable>(_ path: String, body: [String: Any], timeout: TimeInterval? = nil) async throws -> T {
         guard let url = url(path) else { throw PartyAPIError.offline }
         var request = URLRequest(url: url)
+        if let timeout { request.timeoutInterval = timeout }
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
