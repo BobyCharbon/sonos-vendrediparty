@@ -21,12 +21,11 @@ struct DebateTV: View {
                 ForEach(0..<5, id: \.self) { i in
                     HStack(spacing: 20) {
                         Text(Self.scale[i]).font(.title3).frame(width: 300, alignment: .leading)
-                        GeometryReader { geo in
-                            Capsule().fill(Self.colors[i]).frame(width: max(14, geo.size.width * share(result["counts"][i].int, result["votes"].int)))
-                        }
-                        .frame(height: 30)
+                        GrowBar(share: share(result["counts"][i].int, result["votes"].int), color: Self.colors[i], order: i)
+                            .frame(height: 30)
                         Text("\(result["counts"][i].int ?? 0)").font(.title3.monospacedDigit().bold()).frame(width: 50)
                     }
+                    .id("\(D["n"].int ?? 0)-\(i)")
                 }
             } else {
                 Text("\(D["voted"].int ?? 0)/\(D["total"].int ?? 0) ont voté").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender).contentTransition(.numericText())
@@ -67,6 +66,9 @@ struct RouletteTV: View {
             GameTop(game: game)
             if let picked {
                 Text("🎯 \(picked)").font(.system(size: 200, weight: .black)).foregroundStyle(TV.coral).lineLimit(1).minimumScaleFactor(0.5)
+                    // Chaque tirage tombe en grand (même prénom tiré deux fois de suite : il retombe).
+                    .id(game["spin"]["at"].string ?? picked)
+                    .transition(.motion(.scale(scale: 1.8).combined(with: .opacity)))
             } else {
                 Text("La roue va tourner…").font(.system(size: 60, weight: .heavy))
             }

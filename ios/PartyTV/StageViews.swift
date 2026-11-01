@@ -26,6 +26,26 @@ struct PauseVeil: View {
     }
 }
 
+/// Barre de résultat (votes, répartition) : elle pousse de zéro jusqu'à sa part quand les résultats arrivent,
+/// les barres l'une après l'autre (`order`), puis suit les changements. Animations réduites : à sa taille d'emblée.
+struct GrowBar: View {
+    let share: CGFloat
+    let color: Color
+    var order = 0
+    var minWidth: CGFloat = 14
+    @State private var grown = Motion.reduced
+
+    var body: some View {
+        GeometryReader { geo in
+            Capsule().fill(color).frame(width: grown ? max(minWidth, geo.size.width * min(1, share)) : minWidth)
+        }
+        .onAppear {
+            guard !grown else { return }
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.8).delay(0.25 + Double(order) * 0.12)) { grown = true }
+        }
+    }
+}
+
 extension View {
     /// Halo lumineux qui pulse lentement derrière le grand QR code (salle d'attente) : on le repère de loin.
     /// Le QR lui-même ne bouge jamais (un téléphone doit pouvoir le lire à tout moment).
