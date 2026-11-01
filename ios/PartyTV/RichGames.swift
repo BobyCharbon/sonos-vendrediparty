@@ -137,6 +137,7 @@ struct UndercoverTV: View {
                 Text(last["tie"].bool ? "⚖️ Égalité : personne n'est éliminé"
                      : "❌ \(last["name"].string ?? "?") est éliminé·e" + (last["role"].string.map { " — \($0)" } ?? ""))
                     .font(.title.bold())
+                    .id(last["name"].string ?? "tie").transition(.popIn)
             }
             if game["phase"].string == "vote" {
                 Text("\(game["votes_count"].int ?? 0)/\(game["players"].array.filter { $0["alive"].bool }.count) ont voté").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender).contentTransition(.numericText())

@@ -98,7 +98,13 @@ struct DivanTV: View {
             if !card.isNull {
                 VStack(alignment: .leading, spacing: 20) {
                     Text(V["labels"][card["cat"].string ?? ""].string ?? "").font(.title2.bold()).foregroundStyle(TV.lavender)
-                    Text(card["text"].string ?? "").font(.system(size: 60, weight: .heavy)).lineLimit(5).minimumScaleFactor(0.6)
+                    // Carte suivante : elle pousse la précédente (superposées le temps du glissement, pas empilées).
+                    ZStack(alignment: .leading) {
+                        Text(card["text"].string ?? "").font(.system(size: 60, weight: .heavy)).lineLimit(5).minimumScaleFactor(0.6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .id(card["text"].string ?? "").transition(.motion(.push(from: .trailing)))
+                    }
+                    .clipped()
                     if let hearts = V["hearts"].int, hearts > 0 {
                         Text("❤️ \(hearts) soutien\(hearts > 1 ? "s" : "")").font(.system(size: 40, weight: .heavy)).foregroundStyle(TV.accent)
                     }
@@ -145,6 +151,8 @@ struct TmcTV: View {
                         Text("💬 \(answer)").font(.system(size: 80, weight: .black)).lineLimit(3).minimumScaleFactor(0.5)
                     }
                     .padding(36).frame(maxWidth: .infinity, alignment: .leading).card(TV.surface, radius: 36)
+                    // La réponse écrite en secret est dévoilée : elle arrive en grossissant.
+                    .transition(.popIn)
                 }
                 if let verdict = duo["verdict"].string ?? (duo["verdict"].isNull ? nil : (duo["verdict"].bool ? "ok" : "ko")) {
                     Text(["ok": "✅ Bonne réponse !", "true": "✅ Bonne réponse !", "half": "🤏 À moitié", "ko": "❌ Raté", "false": "❌ Raté"][verdict] ?? verdict)
