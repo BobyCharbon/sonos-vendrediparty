@@ -257,8 +257,12 @@ function trackHtml(t, extra = "") {
     ${t.by ? `<span class="by">ajouté par ${esc(t.by)}</span>` : ""}${t.service ? `<span class="svc">🎧 via Sonos · ${esc(t.service)}</span>` : ""}${eta ? `<span class="eta">${eta}</span>` : ""}</div>${extra}</div>`;
 }
 
+let shownView = null;
 function show(view) {
   for (const v of ["pin", "closed", "hello", "party"]) $(v).classList.toggle("hidden", v !== view);
+  // Passage d'un état à l'autre (code accepté, soirée qui démarre…) : le nouvel écran arrive en fondu, une seule fois.
+  if (shownView && shownView !== view) Nav.tabIn([$(view)]);
+  shownView = view;
   if (view === "pin") setTimeout(() => $("pinInput").focus(), 50);
   if (view === "hello") maybeInstallSheet();
 }

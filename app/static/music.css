@@ -94,7 +94,7 @@
 #party .list > .lm-moving.mine { background-image: linear-gradient(rgba(61, 220, 151, .07), rgba(61, 220, 151, .07)); }
 /* Bouton « ajouter » touché : le + laisse place à un anneau qui tourne tant que le serveur répond (au lieu d'un
    bouton qui clignote) ; le bouton garde sa couleur. */
-#party .row-add.busy { animation: none; opacity: 1; }
+#party .row-add.busy { animation: none; opacity: 1; filter: none; }
 #party .row-add.busy svg { opacity: 0; }
 #party .row-add.busy::before { content: ""; position: absolute; inset: 7px; border-radius: 50%;
   border: 2.5px solid rgba(255, 255, 255, .35); border-top-color: #fff; animation: row-spin .7s linear infinite; }
