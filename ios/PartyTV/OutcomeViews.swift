@@ -87,11 +87,13 @@ struct OutcomeBoard: View {
         }
         .onAppear { reveal() }
         .onChange(of: outcome.key) { _, _ in reveal() }
-        .onChange(of: flashing) { _, now in now ? hide() : reveal() }
+        // L'annonce arrive (parfois juste après le tableau) : le tableau se vide en silence et se remplira après elle.
+        .onChange(of: flashing) { _, now in
+            if now { revealed = nil; hide() } else { reveal() }
+        }
     }
 
     private func hide() {
-        guard revealed != outcome.key else { return }
         var quiet = Transaction()
         quiet.disablesAnimations = true
         withTransaction(quiet) { shown = 0 }
