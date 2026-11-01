@@ -210,8 +210,10 @@ struct PyramidTV: View {
                 GameTop(game: game, info: "Étage \((P["floor"].int ?? 0) + 1) · \(P["flipped"].int ?? 0)/\(P["size"].int ?? 0) cartes")
                 if let turn = P["seats"].array.first(where: { $0["pid"].string == P["turn"].string })?["name"].string {
                     Text("Au tour de \(turn)").font(.title.bold()).foregroundStyle(TV.lavender)
+                        .id(turn).transition(.motion(.push(from: .trailing)))
                 }
-                if let current = P["current"].string { PlayingCard(code: current, width: 120) }
+                // Chaque carte tirée arrive distribuée ; le joueur suivant glisse à la place du précédent.
+                if let current = P["current"].string { PlayingCard(code: current, width: 120).id(current).transition(.deal) }
                 if let sips = P["step_sips"].int, sips > 0 { Text("🍺 \(sips) gorgée\(sips > 1 ? "s" : "")\(P["double"].bool ? " ×2" : "")").font(.title2.bold()) }
                 PlayersRow(players: game["players"].array, highlight: Set([P["turn"].string].compactMap { $0 }), size: 70)
             }
