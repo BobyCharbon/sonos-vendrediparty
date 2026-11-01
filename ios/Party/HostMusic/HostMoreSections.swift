@@ -16,10 +16,12 @@ struct HostTopSection: View {
                     Text("Aucune playlist : ajoute un lien Spotify ci-dessous").font(.subheadline).foregroundStyle(.secondary).card()
                 }
                 ForEach(Array(state.topPlaylists.enumerated()), id: \.element.id) { index, playlist in
-                    row(playlist, index: index)
+                    row(playlist, index: index).motionTransition()
                 }
                 addForm
             }
+            // Playlist ajoutée, retirée, montée ou descendue : les lignes glissent à leur nouvelle place.
+            .motion(Motion.snappy, value: state.topPlaylists.map(\.id))
         }
         .confirmationDialog("Lancer « \(toLaunch?.title ?? "") » en aléatoire ?", isPresented: Binding(
             get: { toLaunch != nil }, set: { if !$0 { toLaunch = nil } }), titleVisibility: .visible) {
@@ -149,8 +151,11 @@ struct HostRequestsSection: View {
         HostSection("Demandes des invités", symbol: "person.2.wave.2", badge: badge, key: "requests", openByDefault: false) {
             VStack(spacing: 6) {
                 if state.requests.isEmpty { Text("Aucune demande pour l'instant").font(.subheadline).foregroundStyle(.secondary) }
-                ForEach(state.requests) { request in row(request) }
+                ForEach(state.requests) { request in row(request).motionTransition() }
             }
+            // Nouvelle demande, statut qui change (en attente → jouée) : glissement et fondu, pas de saut.
+            .motion(Motion.snappy, value: state.requests.map { "\($0.id)|\($0.status)" })
+
         }
     }
 
