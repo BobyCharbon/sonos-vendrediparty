@@ -1554,6 +1554,8 @@ html.events-soon .tabs [data-tab="events"]::after {
 .fb-item .title { white-space:normal; overflow-wrap:anywhere; font-weight:600; }
 .fb-st.done { color:#7be0a6; font-weight:700; }
 .fb-st.sent { color:#ffd27a; font-weight:700; }
+.fb-id { all:unset; cursor:pointer; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.8rem; padding:1px 6px; border-radius:6px; background:rgba(255,255,255,.08); }
+.fb-id:active { background:rgba(255,255,255,.18); }
 .fb-note { margin-top:6px; padding:8px 10px; border-radius:10px; background:rgba(255,255,255,.06); font-size:.88rem; white-space:pre-wrap; overflow-wrap:anywhere; }
 .fb-claude { display:inline-block; margin-top:6px; font-size:.82rem; font-weight:700; text-decoration:none; color:#ffd27a; }
 .fb-claude.fixed { color:#7be0a6; }

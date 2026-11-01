@@ -7,6 +7,7 @@ final class WebModel: ObservableObject {
     @Published var failed = false
     /// Écran « Créer un événement avec l'IA », demandé par le module Événements.
     @Published var aiEventOpen = false
+    private var chatsPreloaded = false
     /// Onglets de la page affichée ; nil sur une page sans barre d'onglets (admin, TV…).
     @Published private(set) var tabs: TabBarState?
     /// Écrans que l'hôte gère dans la page (« Gérer la soirée », « Gérer les retours ») plutôt qu'en vue invité
@@ -106,6 +107,10 @@ final class WebModel: ObservableObject {
 
     func showTabs(_ state: TabBarState) {
         awaitingTabs = false
+        if !chatsPreloaded {  // page chargée (session lisible) : la liste des discussions est prête avant l'onglet
+            chatsPreloaded = true
+            Task { [weak self] in await self?.chats?.preload() }
+        }
         guard state != tabs else { return }
         let active = state.activeIndex.map { state.tabs[$0].id }
         if let active, !Self.settingsTabs.contains(active) {

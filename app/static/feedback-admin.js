@@ -80,7 +80,8 @@
       ? `<button class="secondary" data-fb="new" data-id="${id}" aria-label="Remettre à traiter">↺</button>` : "";
     return `<div class="track fb-item ${escape(i.status)}"><div class="meta">
         <div class="title">${i.priority ? `<span class="fb-prio ${escape(i.priority)}">${PRIORITY[i.priority] || ""}</span> ` : ""}${escape(i.text)}</div>
-        <div class="artist">${meta(i)} · <span class="fb-st ${escape(i.status)}">${STATUS[i.status] || ""}</span></div>
+        <div class="artist">${meta(i)} · <span class="fb-st ${escape(i.status)}">${STATUS[i.status] || ""}</span>
+          · <button type="button" class="fb-id" data-fb-id="${id}" aria-label="Copier l'identifiant ${id}">#${id}</button></div>
         ${i.note && editing !== i.id ? `<div class="fb-note">📝 ${escape(i.note)}</div>` : ""}
         ${i.reply && editing !== i.id ? `<div class="fb-note">💬 ${escape(i.reply)}</div>` : ""}
         ${i.claude ? `<a class="fb-claude ${escape(i.claude.state)}" href="${escape(i.claude.url)}" target="_blank" rel="noopener">${CLAUDE[i.claude.state] || ""} · #${escape(i.claude.number)}</a>` : ""}
@@ -175,6 +176,11 @@
     if (sv) return saveNote(sv.dataset.fbSave).then((ok) => ok && notify("💾 Enregistré", "ok"));
     const cp = t.closest("[data-fb-copy]");
     if (cp) return copyPrompt(cp.dataset.fbCopy);
+    const fid = t.closest("[data-fb-id]");
+    if (fid) {  // identifiant unique de l'avis : à donner à Claude pour qu'il le retrouve tout de suite
+      return navigator.clipboard.writeText(fid.dataset.fbId).then(() => notify(`📋 #${fid.dataset.fbId} copié`, "ok"),
+        () => notify("Copie impossible", "err"));
+    }
     const cl = t.closest("[data-fb-claude]");
     if (cl && !cl.disabled) return sendToClaude(cl.dataset.fbClaude, cl);
     const a = t.closest("[data-fb]");

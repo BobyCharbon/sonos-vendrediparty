@@ -1,0 +1,53 @@
+/* 🔮 Qui es-tu vraiment ? (questions en secret, profils, âmes sœurs). Réutilise les briques de likely.css (lk-*). */
+.g-ps { --g-bg: #17142e; --g-accent: #c3a6ff; --g-ink: #1c0d3d; --g-soft: #cfc6f5; --g-chip: #2a2550; }
+.game.g-ps { background: var(--g-bg); color: #fff; border: 0; }
+.game.g-ps .artist { color: var(--g-soft); }
+body.pyr-full #game.g-ps { box-shadow: none; border: 0; padding: 16px; background: radial-gradient(120% 60% at 50% 0%, #3b2a7a, #17142e 70%); }
+.g-ps .lk-main { background: linear-gradient(135deg, #d9c6ff, #9b7bff); color: var(--g-ink); box-shadow: 0 7px 0 #5b3fc0, 0 14px 28px rgba(155,123,255,.3); }
+.g-ps .lk-main:active { box-shadow: 0 2px 0 #5b3fc0; }
+.ps-hero { background: linear-gradient(135deg, #6b4fe0, #e06bd0); }
+
+.ps-top { display: flex; justify-content: space-between; font-size: .85rem; font-weight: 800; color: var(--g-soft); }
+.ps-track { height: 8px; margin: 8px 0 14px; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; }
+.ps-track i { display: block; height: 100%; width: var(--w); border-radius: inherit; background: linear-gradient(90deg, #9b7bff, #e06bd0);
+  transition: width .35s cubic-bezier(.2,.8,.2,1); }
+.ps-q { padding: 20px 18px; border-radius: 22px; background: #fff; color: #1c0d3d; text-align: center; box-shadow: 0 14px 30px rgba(0,0,0,.3); }
+.ps-q.logic { background: #fff7d6; }
+.ps-kind { font-size: .75rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #6b4fe0; }
+.ps-q-t { margin-top: 8px; font: 800 1.25rem/1.25 "Bricolage Grotesque", system-ui, sans-serif; text-wrap: balance; overflow-wrap: anywhere; }
+.ps-opts { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.ps-opt { min-height: 54px; padding: 10px 16px; border-radius: 16px; border: 2px solid rgba(255,255,255,.12); background: rgba(255,255,255,.07);
+  color: #fff; font-size: 1rem; font-weight: 700; text-align: left; transition: transform .1s, background .15s, border-color .15s; }
+.ps-opt:active { transform: scale(.98); }
+.ps-opt.on { background: var(--g-accent); border-color: var(--g-accent); color: var(--g-ink); }
+.ps-nav { display: flex; gap: 8px; margin: 12px 0; }
+.ps-nav button { flex: 1; }
+.ps-left { text-align: center; }
+
+.ps-people { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ps-who { padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.08); font-weight: 700; font-size: .9rem; color: var(--g-soft); }
+.ps-who.on { background: rgba(123,216,143,.18); color: #b9f2c6; }
+
+.ps-me { margin-bottom: 12px; padding: 22px 18px; border-radius: 24px; text-align: center;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 35%, #221c46), #1b1638); border: 2px solid var(--c); }
+.ps-me-k { font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--g-soft); }
+.ps-me-e { font-size: 3.6rem; line-height: 1.1; margin-top: 6px; }
+.ps-me-n { font: 900 1.6rem/1.1 "Bricolage Grotesque", system-ui, sans-serif; color: var(--c); }
+.ps-me p { margin: 8px 0 0; color: #fff; }
+.ps-me-s { margin-top: 8px; font-weight: 700; color: var(--g-soft); }
+.ps-bars { display: grid; grid-template-columns: auto 1fr auto; gap: 8px 10px; align-items: center; margin-top: 14px; text-align: left; font-size: .88rem; font-weight: 700; }
+.ps-bar { display: contents; }
+.ps-bar i { display: block; height: 10px; width: var(--w); min-width: 4px; border-radius: 999px; background: var(--c); }
+.ps-bar b { text-align: right; }
+.ps-logic { margin-top: 12px; font-weight: 800; }
+.ps-group > div { margin-top: 8px; }
+.ps-group span { color: var(--g-soft); font-size: .85rem; }
+.ps-dist { display: flex; flex-wrap: wrap; gap: 6px; }
+.ps-chip { padding: 4px 12px; border-radius: 999px; font-weight: 800; background: color-mix(in srgb, var(--c) 25%, transparent); border: 1px solid var(--c); }
+
+.ps-anim { animation: ps-pop .6s cubic-bezier(.2,1.4,.4,1) both; }
+@keyframes ps-pop { from { opacity: 0; transform: scale(.85) translateY(12px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .ps-anim { animation: none; }
+  .ps-track i, .ps-opt { transition: none; }
+}

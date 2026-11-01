@@ -152,7 +152,20 @@ struct FeedbackAdminSection: View {
                     .background(Color.white.opacity(0.1), in: Capsule())
             }
             Text(item.text)
-            Text("\(payload.meta(item)) · \(item.statusLabel)").font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Text("\(payload.meta(item)) · \(item.statusLabel)").font(.caption).foregroundStyle(.secondary)
+                // Identifiant unique de l'avis : un toucher le copie, à donner à Claude (avis 73d690300d60).
+                Button {
+                    UIPasteboard.general.string = item.id
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                } label: {
+                    Label("#\(item.id)", systemImage: "doc.on.doc").font(.caption2.monospaced())
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.white.opacity(0.08), in: Capsule())
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Copier l'identifiant \(item.id)")
+            }
             if !item.note.isEmpty { Label(item.note, systemImage: "note.text").font(.footnote).foregroundStyle(.secondary) }
             if !item.reply.isEmpty {
                 Label(item.reply, systemImage: "arrowshape.turn.up.left.fill").font(.footnote).foregroundStyle(Palette.accent)

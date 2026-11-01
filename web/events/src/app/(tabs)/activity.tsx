@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
-import { Button, Empty, ErrorText, Screen, T, Title } from '@/components/ui';
+import { Button, Empty, ErrorText, Reveal, Screen, T, Title } from '@/components/ui';
 import { Announcements } from '@/components/Announcements';
 import { useMe } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { formatMessageTime } from '@/lib/format';
+import { duration, pressTransition, transition } from '@/lib/motion';
 import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
 
@@ -47,23 +48,25 @@ export default function Activity() {
       <Announcements compact />
       <Title size={20}>Notifications des événements</Title>
       {data?.length === 0 ? <Empty>Aucune notification pour l’instant.</Empty> : null}
-      {data?.map((n) => (
+      {/* Entrée en cascade à l’ouverture ; marquée lue, une notification s’éteint en fondu. */}
+      {data?.map((n, i) => (
+        <Reveal key={n.id} index={i}>
         <Pressable
-          key={n.id}
           accessibilityRole="button"
           onPress={() => open(n)}
-          style={{
+          style={({ pressed }) => [{
             flexDirection: 'row', gap: 12, padding: 14, borderRadius: radius.md,
             backgroundColor: n.read_at ? 'transparent' : colors.surface,
-          }}
+          }, pressTransition, transition('background-color, transform, opacity', duration.base), pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] }]}
         >
-          <View style={{ width: 8, height: 8, borderRadius: 4, marginTop: 7, backgroundColor: n.read_at ? 'transparent' : colors.accent }} />
+          <View style={[{ width: 8, height: 8, borderRadius: 4, marginTop: 7, backgroundColor: n.read_at ? 'transparent' : colors.accent }, transition('background-color', duration.slow)]} />
           <View style={{ flex: 1, gap: 2 }}>
             <T weight="semibold">{n.title}</T>
             <T muted size={14}>{n.body}</T>
             <T muted size={12}>{formatMessageTime(n.created_at)}</T>
           </View>
         </Pressable>
+        </Reveal>
       ))}
     </Screen>
   );

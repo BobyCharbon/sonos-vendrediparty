@@ -13,6 +13,7 @@ import { useQuery, useRealtime } from '@/lib/data';
 import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
 import { roleRank } from '@/lib/types';
+import { enter } from '@/lib/motion';
 
 const PAGE = 150;
 
@@ -73,6 +74,9 @@ export function GroupChat({ id }: { id: string }) {
     const timer = setInterval(() => setVoiceNow(Date.now()), 200);
     return () => clearInterval(timer);
   }, [voice]);
+  // Messages déjà là à l'ouverture : ils s'affichent tels quels ; seuls les suivants (envoyés ou reçus) montent.
+  const [initialIds, setInitialIds] = useState<Set<string> | null>(null);
+  if (data && !initialIds) setInitialIds(new Set(data.messages.map((m) => m.id)));
   const shown = useMemo(() => {
     const known = new Set((data?.messages ?? []).map((m) => m.id));
     return [...(data?.messages ?? []), ...pending.filter((m) => !known.has(m.id))];
@@ -213,7 +217,7 @@ export function GroupChat({ id }: { id: string }) {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
         {pinned.length ? (
           <Pressable accessibilityRole="button" onPress={() => list.current?.scrollToIndex({ index: data!.messages.indexOf(pinned[pinned.length - 1]), viewPosition: 0.3 })}
-            style={{ margin: 12, marginBottom: 0, padding: 12, borderRadius: radius.md, backgroundColor: colors.surface }}>
+            style={[{ margin: 12, marginBottom: 0, padding: 12, borderRadius: radius.md, backgroundColor: colors.surface }, enter('drop')]}>
             <T size={13} color={colors.textSoft} numberOfLines={2}>
               <T size={13} weight="bold" color={colors.accent}>📌 Épinglé · </T>
               {nameOf(pinned[pinned.length - 1].user_id)} : {pinned[pinned.length - 1].body || '📷 Photo'}
@@ -238,7 +242,8 @@ export function GroupChat({ id }: { id: string }) {
                 reactions={reactionsOf.get(m.id) ?? []} canWrite={member} isAdmin={isAdmin}
                 onReply={() => setReplyTo(m)} onReact={(e) => void react(m, e)}
                 onPin={() => void rpc('pin_group_message', { msg: m.id, pin: !m.pinned })}
-                onDelete={() => void rpc('delete_group_message', { msg: m.id })} />
+                onDelete={() => void rpc('delete_group_message', { msg: m.id })}
+                fresh={!!initialIds && !initialIds.has(m.id)} />
             );
           }}
           ListEmptyComponent={<T muted style={{ textAlign: 'center', marginTop: 40 }}>{loadError ? 'La discussion n’a pas pu être chargée.' : 'Aucun message pour l’instant. Lance la discussion !'}</T>}
@@ -247,14 +252,14 @@ export function GroupChat({ id }: { id: string }) {
         {member ? (
           <>
             {replyTo ? (
-              <View style={[s.rowBetween, { paddingHorizontal: 12, paddingTop: 8 }]}>
+              <View style={[s.rowBetween, { paddingHorizontal: 12, paddingTop: 8 }, enter('drop')]}>
                 <T muted size={12} numberOfLines={1} style={{ flex: 1 }}>↪ Réponse à {nameOf(replyTo.user_id)} : {replyTo.body || '📷 Photo'}</T>
                 <Button small variant="ghost" label="✕" onPress={() => setReplyTo(null)} />
               </View>
             ) : null}
             {voice ? (
-              <View style={[s.row, { padding: 12, borderTopWidth: 1, borderTopColor: colors.line }]}>
-                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.red }} />
+              <View style={[s.row, { padding: 12, borderTopWidth: 1, borderTopColor: colors.line }, enter('fade')]}>
+                <View style={[{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.red }, enter('recording')]} />
                 <T style={{ flex: 1 }}>🎙 Enregistrement… {voiceClock((voiceNow - voice.started) / 1000)}</T>
                 <Button small variant="ghost" label="Annuler" onPress={() => void stopRecording(false)} />
                 <Button small label="Envoyer" onPress={() => void stopRecording(true)} />

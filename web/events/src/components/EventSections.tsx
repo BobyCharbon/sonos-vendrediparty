@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { formatShort, parseLocalDateTime } from '@/lib/format';
+import { enter, pressTransition, useChangedSinceMount } from '@/lib/motion';
 import { refreshPending } from '@/lib/pending';
 import { rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
 import { supabase } from '@/lib/supabase';
@@ -12,12 +13,27 @@ import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
 import { DateTimeField } from './DateTimeField';
 import { RsvpButtons } from './RsvpButtons';
-import { Avatar, Button, Chip, ErrorText, Input, s, Section, T } from './ui';
+import { Avatar, Button, Chip, ErrorText, Input, Meter, Reveal, s, Section, T } from './ui';
 
 type Names = Map<string, string>;
 
 const voteLabel: Record<DateVote, string> = { yes: 'Oui', if_needed: 'Si besoin', no: 'Non' };
 const voteColor: Record<DateVote, string> = { yes: colors.accent, if_needed: colors.lavender, no: colors.coral };
+
+/**
+ * Votes affichés tout de suite : le choix touché remplace la valeur de la base jusqu’à ce que la base rechargée
+ * dise la même chose (ou qu’une erreur l’annule). Clé : l’option votée.
+ */
+function useInstantChoices<V>(server: (id: string) => V) {
+  const [local, setLocal] = useState<Record<string, V>>({});
+  const settled = Object.keys(local).filter((id) => Object.is(local[id], server(id)));
+  if (settled.length) setLocal((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => !settled.includes(id))));
+  return {
+    value: (id: string) => (id in local ? local[id] : server(id)),
+    set: (changes: Record<string, V>) => setLocal((prev) => ({ ...prev, ...changes })),
+    forget: (ids: string[]) => setLocal((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => !ids.includes(id)))),
+  };
+}
 
 async function act(p: PromiseLike<{ error: { message: string } | null }>, onDone: () => void, onError: (m: string) => void) {
   try {
@@ -56,14 +72,23 @@ export function RsvpCard({
   const [note, setNote] = useState(mine?.note ?? '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // Choix enregistré, affiché jusqu’à ce que la fiche rechargée le confirme (pas de retour en arrière d’un instant).
+  const [picked, setPicked] = useState<RsvpStatus | null>(null);
+  if (picked && mine?.status === picked) setPicked(null);
   const closed = rsvpClosed(event);
   const heads = rsvps.filter((r) => r.status === 'yes' && !r.waitlisted).reduce((n, r) => n + 1 + r.plus_ones, 0);
   const full = !!event.max_participants && heads >= event.max_participants && !(mine?.status === 'yes' && !mine.waitlisted);
+  // Retour immédiat : le choix touché s’affiche (couleur, phrase) pendant l’enregistrement.
+  const saving = (['yes', 'maybe', 'no'] as const).find((k) => k === busy) ?? null;
+  const choosing = saving ?? picked;
+  const shown = choosing ?? mine?.status ?? null;
+  const plusChanged = useChangedSinceMount(mine?.plus_ones ?? 0);
 
   async function upsert(key: string, patch: Partial<Rsvp>) {
     setBusy(key);
     try {
       await saveRsvp(event.id, me, mine, patch);
+      if (patch.status) setPicked(patch.status);
       setError(null);
       onChange();
     } catch (e) {
@@ -75,6 +100,8 @@ export function RsvpCard({
 
   const subtitle = closed
     ? mine ? 'Les réponses sont closes.' : 'Les réponses sont closes : tu n’as pas répondu.'
+    : choosing
+      ? confirmations[choosing]
     : mine
       ? mine.waitlisted ? 'Complet : tu es sur liste d’attente, on te prévient si une place se libère.' : confirmations[mine.status]
       : event.rsvp_deadline
@@ -87,7 +114,7 @@ export function RsvpCard({
       style={!mine && !closed ? { borderColor: 'rgba(255,79,154,0.55)', borderWidth: 1.5 } : undefined}
       right={!mine && !closed ? <View style={st.pill}><T size={12} weight="bold" color={colors.accent}>À répondre</T></View> : null}
     >
-      <T size={14} color={mine && !mine.waitlisted ? rsvpChoices[mine.status].bg : colors.textSoft}>{subtitle}</T>
+      <T key={subtitle} size={14} style={enter('fade')} color={shown && !(mine?.waitlisted && !choosing) ? rsvpChoices[shown].bg : colors.textSoft}>{subtitle}</T>
       {mine?.set_by && mine.set_by !== me ? (
         <T muted size={13}>C’est l’organisateur qui a noté ta réponse : tu peux la changer ici.</T>
       ) : null}
@@ -96,31 +123,31 @@ export function RsvpCard({
       ) : null}
       <RsvpButtons
         options={rsvpOptions(event.allow_maybe)}
-        selected={mine?.status ?? null}
-        busy={(['yes', 'maybe', 'no'] as const).find((k) => k === busy) ?? null}
+        selected={picked ?? mine?.status ?? null}
+        busy={saving}
         disabled={closed}
         onSelect={(k) => upsert(k, { status: k })}
       />
       {event.allow_plus_ones && mine?.status === 'yes' && event.max_plus_ones > 0 ? (
-        <View style={[s.rowBetween, st.subRow]}>
+        <Reveal kind="drop" style={[s.rowBetween, st.subRow]}>
           <View style={{ flex: 1 }}>
             <T>Accompagnants</T>
             <T muted size={12}>{event.max_plus_ones >= UNLIMITED_PLUS_ONES ? '∞ Illimité' : `Jusqu’à ${event.max_plus_ones} personne${event.max_plus_ones > 1 ? 's' : ''}`}</T>
           </View>
           <View style={s.row}>
             <Button small variant="secondary" label="−" disabled={!mine.plus_ones || closed} onPress={() => upsert('minus', { plus_ones: Math.max(0, mine.plus_ones - 1) })} />
-            <T weight="bold" style={{ minWidth: 28, textAlign: 'center' }}>+{mine.plus_ones}</T>
+            <T key={mine.plus_ones} weight="bold" style={[{ minWidth: 28, textAlign: 'center' }, plusChanged ? enter('pop') : null]}>+{mine.plus_ones}</T>
             <Button small variant="secondary" label="+" disabled={mine.plus_ones >= event.max_plus_ones || closed} onPress={() => upsert('plus', { plus_ones: Math.min(event.max_plus_ones, mine.plus_ones + 1) })} />
           </View>
-        </View>
+        </Reveal>
       ) : null}
       {mine?.status === 'yes' && !(event.allow_plus_ones && event.max_plus_ones > 0) ? (
-        <View style={[st.note, { borderLeftColor: colors.lavender }]}>
+        <Reveal kind="drop" style={[st.note, { borderLeftColor: colors.lavender }]}>
           <T size={13} color={colors.textSoft}>Pas d’accompagnant pour cet événement : l’organisateur a réservé les places aux membres du groupe.</T>
-        </View>
+        </Reveal>
       ) : null}
       {mine && !closed ? (
-        <View style={s.row}>
+        <Reveal kind="drop" style={s.row}>
           <Input
             accessibilityLabel="Un petit mot perso pour l’organisateur"
             placeholder="Un petit mot perso pour l’organisateur (facultatif)"
@@ -130,8 +157,8 @@ export function RsvpCard({
             style={{ flex: 1 }}
             maxLength={140}
           />
-          {note !== (mine.note ?? '') ? <Button small label="Envoyer" loading={busy === 'note'} onPress={() => upsert('note', { note: note.trim() || null })} /> : null}
-        </View>
+          {note !== (mine.note ?? '') ? <Reveal kind="pop"><Button small label="Envoyer" loading={busy === 'note'} onPress={() => upsert('note', { note: note.trim() || null })} /></Reveal> : null}
+        </Reveal>
       ) : null}
       <ErrorText error={error} />
     </Section>
@@ -140,9 +167,11 @@ export function RsvpCard({
 
 /** Participant : photo et prénom ; toucher l'un ou l'autre ouvre sa fiche profil. En orange : arrivé par le lien
  * d'invitation (visible des organisateurs). */
-function PersonChip({ id, name, extra, viaLink = false }: { id: string; name: string; extra?: string; viaLink?: boolean }) {
+function PersonChip({ id, name, extra, viaLink = false, fresh = false }: { id: string; name: string; extra?: string; viaLink?: boolean; fresh?: boolean }) {
+  // Fixé à l’apparition : les pastilles déjà là ne rebondissent pas quand une autre arrive.
+  const [arrive] = useState(() => (fresh ? enter('pop') : undefined));
   return (
-    <Pressable style={[st.person, viaLink && st.viaLink]} accessibilityRole="button"
+    <Pressable style={({ pressed }) => [st.person, arrive, pressTransition, viaLink && st.viaLink, pressed && { opacity: 0.7 }]} accessibilityRole="button"
       accessibilityLabel={`Profil de ${name}${viaLink ? ', invité par lien' : ''}`} onPress={() => router.push(`/member/${id}`)}>
       <Avatar id={id} name={name} size={24} profile={false} />
       <T size={13} weight="semibold" color={viaLink ? colors.coral : undefined}>
@@ -165,7 +194,6 @@ export function ParticipantsSection({
   names: Names;
   viaLink?: Set<string>;
 }) {
-  if (!event.show_participants && rsvps.length <= 1) return null;
   const nameOf = (id: string) => (id === me ? 'Toi' : names.get(id) ?? '?');
   const group = (st: RsvpStatus, waitlisted = false) => rsvps.filter((r) => r.status === st && r.waitlisted === waitlisted);
   const yes = group('yes');
@@ -175,13 +203,16 @@ export function ParticipantsSection({
   const heads = yes.reduce((n, r) => n + 1 + r.plus_ones, 0);
   const left = event.max_participants ? event.max_participants - heads : null;
   const notes = rsvps.filter((r) => r.note);
+  // Une pastille qui arrive ou change de groupe « se pose » ; à l’ouverture, la liste s’affiche telle quelle.
+  const moved = useChangedSinceMount(rsvps.map((r) => `${r.user_id}:${r.status}:${r.waitlisted}`).sort().join(','));
+  if (!event.show_participants && rsvps.length <= 1) return null;
 
   const block = (label: string, list: Rsvp[], color: string, count = list.length) =>
     list.length ? (
       <View style={{ gap: 8 }} accessibilityLabel={`${label} : ${list.map((r) => nameOf(r.user_id)).join(', ')}`}>
         <T size={12} weight="bold" color={color}>{label.toUpperCase()} · {count}</T>
         <View style={s.wrap}>
-          {list.map((r) => <PersonChip key={r.user_id} id={r.user_id} name={nameOf(r.user_id)} extra={r.plus_ones ? `+${r.plus_ones}` : undefined} viaLink={viaLink.has(r.user_id)} />)}
+          {list.map((r) => <PersonChip key={r.user_id} id={r.user_id} name={nameOf(r.user_id)} extra={r.plus_ones ? `+${r.plus_ones}` : undefined} viaLink={viaLink.has(r.user_id)} fresh={moved} />)}
         </View>
       </View>
     ) : null;
@@ -194,8 +225,8 @@ export function ParticipantsSection({
       ) : <T muted size={13}>{heads} personne{heads > 1 ? 's' : ''} · ∞</T>}
     >
       {event.max_participants ? (
-        <View style={st.bar} accessibilityLabel={`${heads} sur ${event.max_participants} places prises`}>
-          <View style={{ width: `${Math.min(100, (heads / event.max_participants) * 100)}%`, backgroundColor: colors.accent }} />
+        <View accessibilityLabel={`${heads} sur ${event.max_participants} places prises`}>
+          <Meter parts={[{ fraction: heads / event.max_participants, color: colors.accent }]} />
         </View>
       ) : null}
       {rsvps.length === 0 ? <T muted size={14}>Personne n’a encore répondu. Sois le premier !</T> : null}
@@ -250,14 +281,17 @@ export function DatePollSection({
     .sort((a, b) => a.o.starts_at.localeCompare(b.o.starts_at));
   const best = [...scored].sort((a, b) => b.yes - a.yes || b.ifNeeded - a.ifNeeded)[0];
 
+  const myVote = useInstantChoices<DateVote | null>((id) => votes.find((x) => x.option_id === id && x.user_id === me)?.vote ?? null);
+
   function vote(optionId: string, v: DateVote) {
-    const current = votes.find((x) => x.option_id === optionId && x.user_id === me);
+    const next = myVote.value(optionId) === v ? null : v;
+    myVote.set({ [optionId]: next });
     act(
-      current?.vote === v
+      next === null
         ? supabase.from('date_votes').delete().eq('option_id', optionId).eq('user_id', me)
-        : supabase.from('date_votes').upsert({ option_id: optionId, user_id: me, vote: v }),
+        : supabase.from('date_votes').upsert({ option_id: optionId, user_id: me, vote: next }),
       () => { refreshPending(); onChange(); },
-      setError,
+      (message) => { setError(message); if (message) myVote.forget([optionId]); },
     );
   }
 
@@ -278,7 +312,7 @@ export function DatePollSection({
         {event.status !== 'published' ? 'Les votes seront disponibles lorsque l’événement sera publié.' : closed ? 'Le vote est terminé.' : event.poll_deadline ? `Vote jusqu’au ${formatShort(event.poll_deadline)}` : 'Pour chaque date : Oui, Si besoin ou Non.'}
       </T>
       {scored.map(({ o, vs, yes, ifNeeded, no }) => {
-        const mine = vs.find((v) => v.user_id === me)?.vote;
+        const mine = myVote.value(o.id);
         const total = Math.max(1, yes + ifNeeded + no);
         const lead = best && best.o.id === o.id && yes > 0;
         return (
@@ -291,12 +325,9 @@ export function DatePollSection({
                 <T weight="bold">{formatShort(o.starts_at)}</T>
                 <T muted size={12}>{yes} oui · {ifNeeded} si besoin · {no} non</T>
               </View>
-              {lead ? <View style={st.pill}><T size={11} weight="bold" color={colors.onAccent}>EN TÊTE</T></View> : null}
+              {lead ? <View style={[st.pill, enter('pop')]}><T size={11} weight="bold" color={colors.onAccent}>EN TÊTE</T></View> : null}
             </View>
-            <View style={{ height: 6, borderRadius: 99, backgroundColor: colors.line, flexDirection: 'row', overflow: 'hidden' }}>
-              <View style={{ width: `${(yes / total) * 100}%`, backgroundColor: colors.accent }} />
-              <View style={{ width: `${(ifNeeded / total) * 100}%`, backgroundColor: colors.lavender }} />
-            </View>
+            <Meter parts={[{ fraction: yes / total, color: colors.accent }, { fraction: ifNeeded / total, color: colors.lavender }]} />
             {!closed ? (
               <View style={s.row}>
                 {(['yes', 'if_needed', 'no'] as DateVote[]).map((k) => (
@@ -305,10 +336,10 @@ export function DatePollSection({
                     accessibilityRole="button"
                     accessibilityState={{ selected: mine === k }}
                     onPress={() => vote(o.id, k)}
-                    style={{
+                    style={({ pressed }) => [{
                       flex: 1, height: 44, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1,
                       borderColor: mine === k ? voteColor[k] : colors.lineStrong, backgroundColor: mine === k ? voteColor[k] : 'transparent',
-                    }}
+                    }, pressTransition, pressed && st.pressed]}
                   >
                     <T size={13} style={{ ...font.bold }} color={mine === k ? colors.onAccent : colors.textSoft}>{voteLabel[k]}</T>
                   </Pressable>
@@ -369,13 +400,19 @@ export function PollSection({
   const closed = !!poll.closes_at && new Date(poll.closes_at) < new Date();
   const total = results ? Math.max(1, [...results.values()].reduce((a, b) => a + b, 0)) : 1;
 
+  const picked = useInstantChoices<boolean>((id) => myVotes.has(id));
+
   function toggle(optionId: string) {
+    const on = !picked.value(optionId);
+    // Choix unique : la base retire l’autre vote (guard_poll_vote) ; l’écran le fait tout de suite aussi.
+    const others = on && !poll.multiple_choice ? options.filter((o) => o.id !== optionId && picked.value(o.id)).map((o) => o.id) : [];
+    picked.set({ [optionId]: on, ...Object.fromEntries(others.map((id) => [id, false])) });
     act(
-      myVotes.has(optionId)
-        ? supabase.from('poll_votes').delete().eq('option_id', optionId).eq('user_id', me)
-        : supabase.from('poll_votes').insert({ poll_id: poll.id, option_id: optionId, user_id: me }),
+      on
+        ? supabase.from('poll_votes').insert({ poll_id: poll.id, option_id: optionId, user_id: me })
+        : supabase.from('poll_votes').delete().eq('option_id', optionId).eq('user_id', me),
       onChange,
-      setError,
+      (message) => { setError(message); if (message) picked.forget([optionId, ...others]); },
     );
   }
 
@@ -385,7 +422,7 @@ export function PollSection({
     <Section title={poll.question} right={<T muted size={12}>{flags}</T>}>
       {options.sort((a, b) => a.sort - b.sort).map((o) => {
         const n = results?.get(o.id) ?? 0;
-        const on = myVotes.has(o.id);
+        const on = picked.value(o.id);
         return (
           <Pressable
             key={o.id}
@@ -393,15 +430,15 @@ export function PollSection({
             accessibilityState={{ selected: on }}
             disabled={closed || !canParticipate}
             onPress={() => toggle(o.id)}
-            style={{ height: 48, borderRadius: 12, borderWidth: 1, borderColor: on ? colors.accent : colors.lineStrong, backgroundColor: colors.bg, overflow: 'hidden', justifyContent: 'center' }}
+            style={({ pressed }) => [{ height: 48, borderRadius: 12, borderWidth: 1, borderColor: on ? colors.accent : colors.lineStrong, backgroundColor: colors.bg, overflow: 'hidden', justifyContent: 'center' }, pressTransition, pressed && st.pressed]}
           >
             {results ? (
-              <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${(n / total) * 100}%`, backgroundColor: on ? colors.accentDim : colors.surface2 }} />
+              <Meter parts={[{ fraction: n / total, color: on ? colors.accentDim : colors.surface2 }]} track="transparent" height={null} style={st.pollFill} />
             ) : null}
             <View style={[s.rowBetween, { paddingHorizontal: 14 }]}>
               <View style={[s.row, { flex: 1 }]}>
                 <View style={[st.radio, { borderColor: on ? colors.accent : colors.muted }, !poll.multiple_choice ? null : { borderRadius: 4 }]}>
-                  {on ? <View style={[st.radioDot, poll.multiple_choice && { borderRadius: 1 }]} /> : null}
+                  {on ? <View style={[st.radioDot, enter('pop'), poll.multiple_choice && { borderRadius: 1 }]} /> : null}
                 </View>
                 <T weight="semibold" size={14} style={{ flex: 1 }} numberOfLines={1}>{o.label}</T>
               </View>
@@ -463,6 +500,8 @@ export function BringSection({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [label, setLabel] = useState('');
+  const grew = useChangedSinceMount(items.length);
+  const claimsChanged = useChangedSinceMount(items.map((it) => it.claimed_by ?? '').join());
   if (!items.length && !canParticipate) return null;
   const add = async () => {
     const text = label.trim();
@@ -473,9 +512,11 @@ export function BringSection({
   return (
     <Section title="Qui amène quoi">
       {[...items].sort((a, b) => a.sort - b.sort).map((it) => (
-        <View key={it.id}>
+        <Reveal key={it.id} kind={grew ? 'rise' : null}>
           <View style={s.rowBetween}>
             <T style={{ flex: 1 }}>{it.label}</T>
+            {/* Qui le prend change (moi, un autre, personne) : la nouvelle action se pose à sa place. */}
+            <Reveal key={`${it.claimed_by ?? 'libre'}`} kind={grew || claimsChanged ? 'pop' : null}>
             {it.added_by === me ? (
               <Button small variant="secondary" label="Retirer" onPress={() => act(supabase.from('bring_items').delete().eq('id', it.id), onChange, setError)} />
             ) : it.claimed_by === me ? (
@@ -487,9 +528,10 @@ export function BringSection({
             ) : (
               <T muted>Libre</T>
             )}
+            </Reveal>
           </View>
           {it.added_by ? null : <T style={{ color: colors.coral, fontSize: 12 }}>Demandé par l’organisateur</T>}
-        </View>
+        </Reveal>
       ))}
       {canParticipate ? (
         <View style={s.rowBetween}>
@@ -507,7 +549,8 @@ const st = StyleSheet.create({
   subRow: { paddingTop: 4 },
   person: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 3, paddingRight: 10, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.surface2 },
   viaLink: { borderWidth: 1, borderColor: colors.coral },
-  bar: { height: 6, borderRadius: 99, backgroundColor: colors.line, flexDirection: 'row', overflow: 'hidden' },
+  pollFill: { position: 'absolute', left: 0, top: 0, bottom: 0, right: 0, borderRadius: 0 },
+  pressed: { transform: [{ scale: 0.98 }] },
   note: { padding: 10, borderRadius: radius.sm, backgroundColor: colors.bg, borderLeftWidth: 3, borderLeftColor: colors.lineStrong },
   radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },

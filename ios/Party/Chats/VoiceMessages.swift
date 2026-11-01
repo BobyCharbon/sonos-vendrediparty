@@ -17,6 +17,9 @@ final class VoiceRecorder: ObservableObject {
     private var recorder: AVAudioRecorder?
     private var timer: Task<Void, Never>?
     private var started = Date()
+    /// Faux dès qu'on demande l'arrêt : un démarrage encore en cours (micro lent à s'ouvrir) s'annule au lieu de
+    /// lancer un enregistrement que plus personne n'attend (avis ea8cc508a706 : un second vocal partait tout seul).
+    private var wanted = false
 
     /// AAC mono 44,1 kHz, qualité moyenne (débit choisi par l'encodeur : imposer un débit fait échouer la préparation
     /// sur certains appareils) : léger, lu partout (iPhone, Android, navigateurs).
@@ -44,6 +47,7 @@ final class VoiceRecorder: ObservableObject {
 
     func start() async {
         guard !recording else { return }
+        wanted = true
         problem = nil
         let session = AVAudioSession.sharedInstance()
         if session.recordPermission != .granted {
@@ -65,6 +69,12 @@ final class VoiceRecorder: ObservableObject {
                    r.record(forDuration: Self.maximumSeconds) { recorder = r }
             }
             guard let recorder else { throw CocoaError(.fileWriteUnknown) }
+            guard wanted else {  // arrêt demandé pendant l'ouverture du micro
+                recorder.stop()
+                try? FileManager.default.removeItem(at: recorder.url)
+                try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+                return
+            }
             self.recorder = recorder
             started = Date()
             elapsed = 0
@@ -84,6 +94,7 @@ final class VoiceRecorder: ObservableObject {
 
     /// send : le fichier et sa durée ; sinon (annulé, trop court) rien et le fichier est effacé.
     func stop(send: Bool) -> (URL, TimeInterval)? {
+        wanted = false
         timer?.cancel()
         timer = nil
         guard recording, let recorder else { return nil }

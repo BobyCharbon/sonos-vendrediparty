@@ -17,6 +17,9 @@ struct ConversationView: View {
     /// Pendant l'appui sur le micro : doigt glissé assez à gauche pour annuler.
     @State private var holdingMic = false
     @State private var cancelVoice = false
+    /// Micro touché (pas maintenu) : l'enregistrement continue jusqu'au prochain toucher, qui l'envoie.
+    @State private var micLocked = false
+    @State private var pressedAt = Date()
 
     private var chat: Conversation? { store.conversation?.id == group ? store.conversation : nil }
 
@@ -50,7 +53,7 @@ struct ConversationView: View {
                 try? await Task.sleep(for: ChatsStore.conversationEvery)
             }
         }
-        .onDisappear { store.close(); player.stop(); _ = recorder.stop(send: false) }
+        .onDisappear { store.close(); player.stop(); micLocked = false; _ = recorder.stop(send: false) }
         .onChange(of: picked) { item in Task { await sendPhoto(item) } }
     }
 
@@ -187,6 +190,7 @@ struct ConversationView: View {
     }
 
     /// Appui long : enregistre ; relâcher : envoie ; glisser vers la gauche : annule (comme WhatsApp).
+    /// Simple toucher : l'enregistrement reste actif ; un second toucher l'envoie, sans jamais en relancer un autre.
     private var micButton: some View {
         Image(systemName: recorder.recording ? "mic.circle.fill" : "mic.circle")
             .font(.system(size: recorder.recording ? 44 : 32))
@@ -197,23 +201,36 @@ struct ConversationView: View {
                 .onChanged { value in
                     if !holdingMic {
                         holdingMic = true
+                        pressedAt = Date()
+                        if micLocked && !recorder.recording { micLocked = false }  // micro refusé ou jamais ouvert
                         cancelVoice = false
-                        Task { await recorder.start() }
+                        if !micLocked { Task { await recorder.start() } }  // verrouillé : ce toucher-ci envoie
                     }
                     cancelVoice = value.translation.width < -90
                 }
                 .onEnded { _ in
                     holdingMic = false
-                    if let (file, seconds) = recorder.stop(send: !cancelVoice) {
-                        let quoted = replyTo
-                        replyTo = nil
-                        Task { await store.sendVoice(file, seconds: seconds, replyTo: quoted?.id) }
+                    defer { cancelVoice = false }
+                    if !micLocked && !cancelVoice && Date().timeIntervalSince(pressedAt) < Self.tapSeconds {
+                        micLocked = true  // simple toucher : on continue d'enregistrer
+                        return
                     }
-                    cancelVoice = false
+                    micLocked = false
+                    sendVoice(recorder.stop(send: !cancelVoice))
                 })
             .accessibilityLabel("Message vocal")
-            .accessibilityHint("Maintiens pour enregistrer, relâche pour envoyer, glisse à gauche pour annuler")
+            .accessibilityHint("Maintiens pour enregistrer et relâche pour envoyer, ou touche une fois pour enregistrer et encore une fois pour envoyer")
             .accessibilityIdentifier("chat-mic")
+    }
+
+    /// Plus court qu'un appui : un toucher, qui verrouille l'enregistrement.
+    static let tapSeconds: TimeInterval = 0.35
+
+    private func sendVoice(_ recorded: (URL, TimeInterval)?) {
+        guard let (file, seconds) = recorded else { return }
+        let quoted = replyTo
+        replyTo = nil
+        Task { await store.sendVoice(file, seconds: seconds, replyTo: quoted?.id) }
     }
 
     private var recordingBar: some View {
@@ -221,8 +238,13 @@ struct ConversationView: View {
             Circle().fill(.red).frame(width: 10, height: 10)
             Text(VoiceRecorder.clock(recorder.elapsed)).font(.body.monospacedDigit())
             Spacer()
-            Text(cancelVoice ? "Relâche pour annuler" : "‹ Glisse pour annuler").font(.subheadline)
-                .foregroundStyle(cancelVoice ? .red : .secondary)
+            if micLocked {
+                Button("Annuler") { micLocked = false; _ = recorder.stop(send: false) }.font(.subheadline)
+                Text("Touche le micro pour envoyer").font(.subheadline).foregroundStyle(.secondary)
+            } else {
+                Text(cancelVoice ? "Relâche pour annuler" : "‹ Glisse pour annuler").font(.subheadline)
+                    .foregroundStyle(cancelVoice ? .red : .secondary)
+            }
         }
         .padding(.horizontal, 12).frame(height: 40)
         .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 18))
