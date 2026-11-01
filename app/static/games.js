@@ -918,6 +918,7 @@ function morphNode(x, y) {
   for (const { name, value } of [...y.attributes]) if (x.getAttribute(name) !== value && !(field && name === "value")) x.setAttribute(name, value);
   if (!field) morphKids(x, y);
 }
+const STEP_FADE = ["undercover", "whoof", "never", "blackjack", "roulette", "divan", "tmc", "casino"];  // étapes en fondu
 const QUESTION_TYPES = ["whoof", "never"];  // jeux à questions (« Qui de nous ? », « Je n'ai jamais »)
 // Raccourci : patch.gameHost = html  ⇔  morph($("gameHost"), html)
 const patch = new Proxy({}, { set(_, id, html) { morph($(id), html); return true; } });
@@ -1093,7 +1094,9 @@ function renderGame(g) {
     morphGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g)));
     if (g.type === "pyramid") pyrWheel(g);
   } else {
-    const el = $("game"), html = lobbyInvite(g) + body;
+    // Jeux simples : chaque étape (phase) arrive en fondu ; même clé = même nœud, rien ne se rejoue entre deux étapes.
+    const step = STEP_FADE.includes(g.type) ? `<div class="g-step" data-key="${esc(`${g.type}:${g.phase}`)}">${body}</div>` : body;
+    const el = $("game"), html = lobbyInvite(g) + step;
     if (el.dataset.html !== html || !el.firstChild) { morph(el, html); el.dataset.html = html; }
   }
   renderDrawer(g);
@@ -1195,8 +1198,11 @@ function bjOutcomeFx(g) {
     ? { win: `🎉 Distribue ${sipWord(h.sips)}`, blackjack: `🃏 Distribue ${sipWord(h.sips)}`, push: "Personne ne boit",
         lose: `🍻 Bois ${sipWord(-h.sips)}`, bust: `🍻 Bois ${sipWord(-h.sips)}` }[kind]
     : { win: `+${h.delta} jetons`, blackjack: `+${h.delta} jetons`, push: "Mise rendue", lose: `${h.delta} jetons`, bust: `${h.delta} jetons` }[kind];
-  playFx(kind, sub);
+  // Main tout juste finie (blackjack du croupier dès la donne…) : on laisse d'abord les cartes se retourner.
+  const wait = Math.max(0, FX_AFTER_DEAL - (g.bj.finished_age ?? 0) * 1000);
+  setTimeout(() => { if (game?.id === g.id && game.round === g.round) playFx(kind, sub); }, wait);
 }
+const FX_AFTER_DEAL = 700;  // ms
 function playFx(kind, sub) {
   GameAudio.play(["win", "blackjack", "jackpot"].includes(kind) ? "win" : ["lose", "bust"].includes(kind) ? "lose" : "reveal");
   document.querySelector(".fx")?.remove();
@@ -1246,6 +1252,21 @@ function renderHud(g) {
   }
   patch.gameHud = items.join("");
   $("gameHud").className = "g-hud " + (GAME_THEME[g.type] || "") + (items.length && g.phase !== "lobby" ? "" : " hidden");
+  bumpHud(g.id);
+}
+// Un compteur qui change (jetons, gorgées) rebondit une fois, pour qu'on le remarque ; pas au premier affichage.
+const calmMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+let hudPrev = {};
+function bumpHud(gameId) {
+  const now = { game: gameId };
+  document.querySelectorAll("#gameHud .hud-item").forEach((it) => {
+    const key = it.querySelector("span")?.textContent || "", b = it.querySelector("b");
+    now[key] = b?.textContent;
+    if (hudPrev.game === gameId && key in hudPrev && hudPrev[key] !== now[key] && !calmMotion())
+      b.animate([{ transform: "scale(1)" }, { transform: "scale(1.45)", offset: .35 }, { transform: "scale(1)" }],
+        { duration: 480, easing: "cubic-bezier(.2, 1.4, .4, 1)" });
+  });
+  hudPrev = now;
 }
 const sipsBadge = (p) => p.drink || p.give ? ` <span class="artist">· 🍻 ${p.drink || 0}${p.give ? ` · 🎁 ${p.give}` : ""}</span>` : "";
 
@@ -2067,11 +2088,11 @@ function casinoWheelSvg() {
 function revealCasino(g) {
   const sp = g.casino.spin;
   const show = g.phase === "results" && sp && cwShown === sp.id;
-  $("cwResult").innerHTML = show
+  patch.cwResult = show
     ? `<div class="cw-num ${numColor(sp.number)}">${sp.number}</div><div class="cw-desc">${sp.number === 0 ? "Zéro ! La maison gagne" : `${RED.has(sp.number) ? "Rouge" : "Noir"} · ${sp.number % 2 ? "Impair" : "Pair"} · ${sp.number <= 18 ? "1-18" : "19-36"}`}</div>` : "";
   // Derniers numéros (le tout dernier n'apparaît qu'une fois la bille arrêtée).
   const hist = (show || g.phase !== "results" ? g.casino.history : g.casino.history.slice(1)).slice(0, 14);
-  $("cwHistory").innerHTML = hist.map((n) => `<span class="cw-h ${numColor(n)}">${n}</span>`).join("");
+  patch.cwHistory = hist.map((n) => `<span class="cw-h ${numColor(n)}">${n}</span>`).join("");
 }
 
 function casinoFx(g) {
@@ -2240,7 +2261,7 @@ function setWheel(rot, seconds) {
 function showRouletteResult(g) {
   const sp = g.spin;
   const show = g.phase === "spun" && sp && wheelShown === sp.id;
-  $("rouletteResult").innerHTML = show
+  patch.rouletteResult = show
     ? `<div class="roulette-loser">🎯 ${esc(sp.names[sp.index])}</div><div class="artist">a perdu !</div>` : "";
 }
 
@@ -2302,15 +2323,15 @@ function renderRouletteHost(g, btn) {
     // Toucher « Ajouter » ne doit pas retirer le focus du champ (sinon le clavier se ferme).
     $("rouletteAdd")?.addEventListener("pointerdown", (ev) => ev.preventDefault());
   }
-  $("rlControls").innerHTML = g.is_host ? `<div class="row" style="margin-top:10px">${btn("spin", spinning ? "La roue tourne…" : "🎡 Lancer la roue", "grow g-spin", g.names.length < 2 || spinning ? "disabled" : "")}</div>
+  patch.rlControls = g.is_host ? `<div class="row" style="margin-top:10px">${btn("spin", spinning ? "La roue tourne…" : "🎡 Lancer la roue", "grow g-spin", g.names.length < 2 || spinning ? "disabled" : "")}</div>
     ${loser && g.names.includes(loser) ? `<button class="secondary" data-gact="dropname" data-name="${esc(loser)}" style="width:100%;margin-top:8px">Retirer ${esc(loser)} de la roue</button>` : ""}` : "";
   if (g.is_host) {
     $("rlTitle").textContent = `Sur la roue (${g.names.length})`;
-    $("rlNames").innerHTML = g.names.map((n) => `<span class="pill name-chip">${esc(n)}<button type="button" class="chip-x" data-gact="dropname" data-name="${esc(n)}" aria-label="Retirer ${esc(n)}">✕</button></span>`).join("") || `<span class="artist">Aucun nom pour l'instant</span>`;
-    $("rlPlayers").innerHTML = joined.length ? `<button class="secondary" data-gact="addplayers" style="width:100%;margin-top:8px">👥 Ajouter les joueurs inscrits (${joined.length})</button>` : "";
+    patch.rlNames = g.names.map((n) => `<span class="pill name-chip">${esc(n)}<button type="button" class="chip-x" data-gact="dropname" data-name="${esc(n)}" aria-label="Retirer ${esc(n)}">✕</button></span>`).join("") || `<span class="artist">Aucun nom pour l'instant</span>`;
+    patch.rlPlayers = joined.length ? `<button class="secondary" data-gact="addplayers" style="width:100%;margin-top:8px">👥 Ajouter les joueurs inscrits (${joined.length})</button>` : "";
   }
-  $("rlHistory").innerHTML = g.history?.length ? `<h2>Derniers perdants</h2><div class="chips">${g.history.slice(0, 10).map((n, i) => `<span class="pill" style="${i === 0 ? "color:var(--text)" : ""}">${esc(n)}</span>`).join("")}</div>` : "";
-  $("rlSpect").innerHTML = g.players.length ? `<h2>Spectateurs (${g.players.length})</h2><div class="chips">${g.players.map((p) => `<span class="pill">${esc(p.name)}</span>`).join("")}</div>` : "";
+  patch.rlHistory = g.history?.length ? `<h2>Derniers perdants</h2><div class="chips">${g.history.slice(0, 10).map((n, i) => `<span class="pill" style="${i === 0 ? "color:var(--text)" : ""}">${esc(n)}</span>`).join("")}</div>` : "";
+  patch.rlSpect = g.players.length ? `<h2>Spectateurs (${g.players.length})</h2><div class="chips">${g.players.map((p) => `<span class="pill">${esc(p.name)}</span>`).join("")}</div>` : "";
 }
 
 // « Je n'ai jamais » : ceux qui l'ont déjà fait boivent.

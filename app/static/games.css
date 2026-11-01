@@ -72,3 +72,23 @@ body.pyr-full #gTop { gap: 6px; }
 /* ── Partie fermée : la barre du compte à rebours rétrécit par transform (et non plus par sa largeur) ── */
 .g-ended-bar i { width: 100%; transform-origin: left center; }
 @keyframes g-ended-bar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* ── Changement d'étape (jeux simples, games.js › STEP_FADE) : la nouvelle étape glisse légèrement en fondu ── */
+.g-step { animation: g-step-in .34s var(--spring, ease-out) backwards; }
+@keyframes g-step-in { from { opacity: 0; transform: translateY(10px); } }
+
+/* ── Barres de score et de votes : elles se remplissent de gauche à droite en apparaissant, l'une après l'autre ── */
+.game .bar::before, #gameHost .bar::before { transform-origin: left center; animation: g-bar-grow .7s var(--spring, ease-out) backwards; }
+.game .bar:nth-child(2)::before, #gameHost .bar:nth-child(2)::before { animation-delay: .06s; }
+.game .bar:nth-child(3)::before, #gameHost .bar:nth-child(3)::before { animation-delay: .12s; }
+.game .bar:nth-child(n+4)::before, #gameHost .bar:nth-child(n+4)::before { animation-delay: .18s; }
+@keyframes g-bar-grow { from { transform: scaleX(0); } }
+
+/* ── Blackjack : une carte face visible arrive en se retournant ; la carte cachée du croupier se retourne quand il la
+   dévoile (le changement de nom d'animation, dos → face, relance l'animation sur le même nœud). ── */
+.bj-cards .pcard:not(.back):not(.sm) { animation: g-card-flip .42s cubic-bezier(.2, .8, .3, 1.15) backwards; backface-visibility: hidden; }
+@keyframes g-card-flip { from { transform: perspective(500px) translateY(-12px) rotateY(90deg); opacity: .3; } }
+
+/* ── Pyramide, Biskit : le nom du joueur dont c'est le tour « respire » par l'opacité (le filtre brightness sur un
+   texte à grosses ombres néon était repeint à chaque image tant que durait le tour). ── */
+@keyframes py-glow { 50% { opacity: .78; } }
