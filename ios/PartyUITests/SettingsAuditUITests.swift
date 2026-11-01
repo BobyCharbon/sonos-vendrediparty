@@ -420,7 +420,9 @@ final class SettingsAuditUITests: XCTestCase {
         let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", group)).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 15), "discussion « \(group) »")
         row.tap()
-        let field = app.textFields["chat-message"].exists ? app.textFields["chat-message"] : app.textViews["chat-message"]
+        // Champ ou zone de texte selon la version d'iOS : on attend l'un ou l'autre (la conversation arrive en
+        // fondu après son chargement ; choisir le type avant qu'elle soit là visait parfois le mauvais).
+        let field = app.descendants(matching: .any).matching(identifier: "chat-message").firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 15), "champ du message")
         record("conversation")
         let text = "Audit natif \(prefix) \(Int(Date().timeIntervalSince1970) % 100000)"
