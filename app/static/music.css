@@ -71,6 +71,9 @@
 #now.now-in .now-meta > * { animation: now-text-in .45s var(--spring) both; }
 #now.now-in .now-meta > :nth-child(2) { animation-delay: .04s; } #now.now-in .now-meta > :nth-child(3) { animation-delay: .08s; }
 #now.now-in .now-meta > :nth-child(n+4) { animation-delay: .12s; }
+/* Carte « En cours » de l'hôte (music-admin.js) : même entrée. */
+[data-ma="now"].now-in img { animation: now-art-in .55s var(--spring) both; }
+[data-ma="now"].now-in > div > * { animation: now-text-in .45s var(--spring) both; }
 @keyframes now-art-in { from { opacity: 0; transform: scale(.82) rotate(-3deg); } }
 @keyframes now-text-in { from { opacity: 0; transform: translate3d(0, 8px, 0); } }
 /* Barre de progression fine, façon Apple Music : la jauge est mise à l'échelle (transform), jamais redimensionnée. */
@@ -106,5 +109,5 @@
   .now-state.on .eq i { animation: none; transform: scaleY(.6); }
   .skel .skel-art::after, .skel .skel-line::after { animation: none; }
   #party .row-add.busy::before { animation-duration: 1.6s !important; animation-iteration-count: infinite !important; }
-  #now.now-in img, #now.now-in .now-meta > * { animation: fade-in .2s ease both !important; }
+  #now.now-in img, #now.now-in .now-meta > *, [data-ma="now"].now-in img, [data-ma="now"].now-in > div > * { animation: fade-in .2s ease both !important; }
 }

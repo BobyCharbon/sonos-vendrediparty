@@ -174,8 +174,16 @@
         ${so.now.by ? `<span class="by">ajouté par ${escape(so.now.by)}</span>` : ""}</div>`
       : `<div class="artist">Rien ne joue</div>`;
     if (q("now").lmHtml !== nowHtml) {
-      q("now").innerHTML = nowHtml;
-      q("now").lmHtml = nowHtml;
+      const box = q("now"), track = so?.now ? `${so.now.title}\u0001${so.now.artist}` : "";
+      box.innerHTML = nowHtml;
+      box.lmHtml = nowHtml;
+      // Nouveau titre (pas une simple pause) : pochette et texte entrent en fondu, comme sur la page invités.
+      if (box.lmTrack !== undefined && box.lmTrack !== track) {
+        box.classList.remove("now-in");
+        void box.offsetWidth;
+        box.classList.add("now-in");
+      }
+      box.lmTrack = track;
     }
     const playing = so && (so.state === "PLAYING" || so.state === "TRANSITIONING");
     const pp = root.querySelector('[data-ma-act="playpause"]');
