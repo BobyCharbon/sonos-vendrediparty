@@ -56,25 +56,16 @@ struct ProfileView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 if store.savingProfile {
-                    ProgressView()
+                    ProgressView().transition(.opacity)
                 } else {
-                    Button("Enregistrer") { save() }.bold().disabled(!canSave)
+                    Button("Enregistrer") { Haptics.tap(); save() }.bold().disabled(!canSave).transition(.opacity)
                 }
             }
         }
         .overlay {
-            if store.profile == nil {
-                if let error = store.profileError {
-                    VStack(spacing: 12) {
-                        Text(error).multilineTextAlignment(.center).foregroundStyle(.secondary)
-                        Button("Réessayer") { Task { await store.loadProfile() } }
-                    }
-                    .padding()
-                } else {
-                    ProgressView()
-                }
-            }
+            AdminLoading(loaded: store.profile != nil, error: store.profileError) { await store.loadProfile() }
         }
+        .motion(Motion.smooth, value: store.profile == nil)
         .overlay(alignment: .bottom) { SettingsNoticeBanner(store: store) }
         .task {
             await store.loadProfile()
@@ -93,8 +84,9 @@ struct ProfileView: View {
                     Label(hasPhoto ? "Changer de photo" : "Choisir une photo", systemImage: "photo.on.rectangle")
                 }
                 .buttonStyle(.bordered)
-                if let photoError { Text(photoError).font(.footnote).foregroundStyle(.red) }
+                if let photoError { Text(photoError).font(.footnote).foregroundStyle(.red).motionTransition(.unfold) }
             }
+            .motion(Motion.snappy, value: photoError)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
         } footer: {
@@ -106,15 +98,22 @@ struct ProfileView: View {
     private var photoPreview: some View {
         Group {
             if let newPhoto {
-                Image(uiImage: newPhoto).resizable().scaledToFill()
+                Image(uiImage: newPhoto).resizable().scaledToFill().transition(.opacity)
             } else {
-                AsyncImage(url: store.profile?.photo.flatMap(URL.init(string:))) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    Image(systemName: "person.crop.circle.fill").resizable().foregroundStyle(.secondary)
+                AsyncImage(url: store.profile?.photo.flatMap(URL.init(string:)),
+                           transaction: Transaction(animation: Motion.pick(Motion.fade))) { phase in
+                    if let image = phase.image {
+                        image.resizable().scaledToFill().transition(.opacity)
+                    } else {
+                        Image(systemName: "person.crop.circle.fill").resizable().foregroundStyle(.secondary)
+                    }
                 }
+                .transition(.opacity)
             }
         }
+        // Nouvelle photo choisie : elle remplace l'ancienne en fondu, sans clignoter.
+        .motion(Motion.smooth, value: newPhoto)
+
         .frame(width: 110, height: 110)
         .clipShape(Circle())
         .accessibilityLabel(newPhoto == nil ? "Ta photo de profil" : "Aperçu de ta nouvelle photo")

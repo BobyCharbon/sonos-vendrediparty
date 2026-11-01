@@ -10,6 +10,7 @@ struct ChatsView: View {
     var body: some View {
         NavigationStack(path: $path) {
             list
+                .motion(Motion.smooth, value: listPhase)
                 .navigationTitle("Discussions")
                 .background(AppConfig.background.ignoresSafeArea())
                 .toolbarBackground(AppConfig.background, for: .navigationBar)
@@ -50,18 +51,25 @@ struct ChatsView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            // Nouveau message dans un groupe : sa discussion remonte en tête en glissant, sans saut.
+            .motion(Motion.snappy, value: chats.map(\.id))
             .overlay {
                 if chats.isEmpty {
                     ContentUnavailable(text: "Rejoins ou crée un groupe (Réglages › Groupes) pour discuter avec ses membres.")
+                        .transition(.opacity)
                 }
             }
             .refreshable { await store.loadList() }
+            .transition(.opacity)
         } else if let error = store.error {
-            ContentUnavailable(text: error)
+            ContentUnavailable(text: error).transition(.opacity)
         } else {
-            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity).transition(.opacity)
         }
     }
+
+    /// Chargement → liste ou erreur : fondu (une relecture de la liste ne rejoue rien).
+    private var listPhase: Int { store.chats != nil ? 2 : store.error != nil ? 1 : 0 }
 }
 
 private struct ContentUnavailable: View {
@@ -96,13 +104,18 @@ private struct ChatRow: View {
                     if chat.unread > 0 {
                         Text(chat.unread > 99 ? "99+" : "\(chat.unread)")
                             .font(.caption2.weight(.bold)).foregroundStyle(.black)
+                            .contentTransition(.numericText())
                             .padding(.horizontal, 6).frame(minWidth: 22, minHeight: 22)
                             .background(Color(uiColor: AppConfig.uiAccent), in: Capsule())
+                            .motionTransition(.scale(scale: 0.4).combined(with: .opacity))
                     }
                 }
             }
         }
         .padding(.vertical, 4)
+        // Pastille de non-lus qui arrive, compte qui change, dernier message : petit rebond, chiffres qui défilent.
+        .motion(Motion.bouncy, value: chat.unread)
+        .motion(Motion.smooth, value: chat.last)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(chat.name)\(chat.unread > 0 ? ", \(chat.unread) non lus" : "")")
     }
@@ -118,14 +131,24 @@ struct Initials: View {
         name.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased()
     }
 
+    /// Teinte stable d'un lancement à l'autre (hashValue change à chaque lancement : la pastille changeait de couleur).
+    private var hue: Double {
+        let sum = name.unicodeScalars.reduce(UInt32(5381)) { ($0 &* 33) &+ $1.value }
+        return Double(sum % 360) / 360
+    }
+
     var body: some View {
-        AsyncImage(url: photo.flatMap(URL.init(string:))) { image in
-            image.resizable().scaledToFill()
-        } placeholder: {
-            Text(letters.isEmpty ? "?" : letters).font(.system(size: size * 0.36, weight: .bold)).foregroundStyle(.black)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(hue: Double(abs(name.hashValue % 360)) / 360, saturation: 0.45, brightness: 0.95))
+        // Photo téléchargée : fondu depuis les initiales, plus d'apparition sèche.
+        AsyncImage(url: photo.flatMap(URL.init(string:)), transaction: Transaction(animation: Motion.pick(Motion.fade))) { phase in
+            if let image = phase.image {
+                image.resizable().scaledToFill().transition(.opacity)
+            } else {
+                Text(letters.isEmpty ? "?" : letters).font(.system(size: size * 0.36, weight: .bold)).foregroundStyle(.black)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(hue: hue, saturation: 0.45, brightness: 0.95))
+            }
         }
+
         .frame(width: size, height: size)
         .clipShape(Circle())
         .accessibilityHidden(true)

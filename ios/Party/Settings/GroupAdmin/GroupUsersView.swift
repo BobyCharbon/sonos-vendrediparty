@@ -34,6 +34,11 @@ struct GroupUsersView: View {
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        // Tri, ordre ou filtre changé : les lignes glissent jusqu'à leur nouvelle place (pas pendant la frappe
+        // de la recherche, qui reste instantanée).
+        .motion(Motion.smooth, value: sort)
+        .motion(Motion.smooth, value: descending)
+        .motion(Motion.smooth, value: filter)
         .background(AppConfig.background.ignoresSafeArea())
         .searchable(text: $search, prompt: "Surnom, prénom, nom, numéro")
         .navigationTitle("Utilisateurs")

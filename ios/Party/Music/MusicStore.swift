@@ -39,7 +39,19 @@ final class MusicStore: ObservableObject {
         case closed
         case ready(PartyState)
         case offline(String)
+
+        /// L'état sans son contenu : l'écran anime le passage d'un état à l'autre, pas chaque rafraîchissement.
+        var kind: String {
+            switch self {
+            case .loading: return "loading"
+            case .needsCode: return "code"
+            case .closed: return "closed"
+            case .ready: return "ready"
+            case .offline: return "offline"
+            }
+        }
     }
+
 
     struct Notice: Equatable {
         let text: String
@@ -83,7 +95,12 @@ final class MusicStore: ObservableObject {
         }
     }
 
-    private let artCache = NSCache<NSString, UIImage>()
+    private nonisolated let artCache = NSCache<NSString, UIImage>()
+
+    /// Pochette déjà en mémoire, sans attendre (NSCache se lit depuis n'importe quel fil).
+    nonisolated func cachedArtwork(_ path: String) -> UIImage? {
+        path.isEmpty ? nil : artCache.object(forKey: path as NSString)
+    }
 
     /// L'enceinte Sonos met parfois trop de temps à fournir une pochette : une seconde tentative un peu plus tard.
     func artwork(_ path: String) async -> UIImage? {
@@ -126,8 +143,24 @@ final class MusicStore: ObservableObject {
         }
     }
 
+    #if DEBUG
+    /// Simulateur : PARTY_DEBUG_MOTION=music rejoue une soirée figée (MotionDemo) pour regarder les animations.
+    private(set) var demo = false
+
+    func showDemo(_ phase: Phase, notice: Notice? = nil) {
+        demo = true
+        receivedAt = Date()
+        self.phase = phase
+        if let notice { self.notice = notice }
+    }
+    #endif
+
     func reload() async {
+        #if DEBUG
+        if demo { return }
+        #endif
         guard let me = await currentIdentity() else { return }
+
         do {
             let state = try await api.state(guestID: me.id)
             receivedAt = Date()

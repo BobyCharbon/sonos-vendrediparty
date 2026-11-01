@@ -79,7 +79,7 @@ final class VoiceRecorder: ObservableObject {
             started = Date()
             elapsed = 0
             recording = true
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            Haptics.press()
             timer = Task { [weak self] in
                 while !Task.isCancelled {
                     try? await Task.sleep(for: .milliseconds(100))
@@ -105,9 +105,11 @@ final class VoiceRecorder: ObservableObject {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         guard send, seconds >= Self.minimumSeconds else {
             try? FileManager.default.removeItem(at: recorder.url)
+            Haptics.warning()  // vocal annulé (glissé à gauche) ou trop court : il n'est pas envoyé
             return nil
         }
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Haptics.tap()
+
         return (recorder.url, seconds)
     }
 

@@ -69,6 +69,10 @@ struct TricountListView: View {
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        // Simplifié ↔ Avancé (le texte d'aide change), pot commun créé ou archivé : la liste glisse en place.
+        .motion(Motion.smooth, value: store.advanced)
+        .motion(Motion.snappy, value: store.overview?.tricounts.map(\.id))
+        .motion(Motion.smooth, value: store.overview == nil)
         .background(AppConfig.background)
         .navigationTitle("Pot commun")
         .refreshable { await store.load() }
@@ -102,14 +106,18 @@ struct TricountCard: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(item.my_balance_cents == 0 ? "Réglé ✓" : Money.text(item.my_balance_cents, item.currency, sign: true))
                     .font(.headline.monospacedDigit()).foregroundStyle(TCColor.of(item.my_balance_cents))
+                    .contentTransition(.numericText())
                 Text(item.my_balance_cents > 0 ? "on te doit" : item.my_balance_cents < 0 ? "tu dois" : "")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
+        // Retour d'un pot commun après une dépense : le solde défile jusqu'à sa nouvelle valeur.
+        .motion(Motion.smooth, value: item.my_balance_cents)
     }
 }
+
 
 /// Nouveau pot commun : un emoji, un nom, la monnaie et ton prénom dans ce groupe.
 struct CreateTricountView: View {
@@ -264,14 +272,8 @@ struct TCNotice: View {
     @Binding var text: String?
 
     var body: some View {
-        if let text {
-            Text(text).font(.callout.weight(.semibold)).padding(.horizontal, 18).padding(.vertical, 12)
-                .background(.ultraThinMaterial, in: Capsule()).padding(.bottom, 24)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .task(id: text) {
-                    try? await Task.sleep(for: .seconds(3))
-                    withAnimation { self.text = nil }
-                }
-        }
+        NoticeBanner(notice: text.map { NoticeBanner.Notice(text: $0) }, material: true) { text = nil }
+            .padding(.bottom, 12)
     }
+
 }

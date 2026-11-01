@@ -25,7 +25,8 @@ struct ExpenseEditor: View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("Type", selection: $draft.transfer.animation()) {
+                    Picker("Type", selection: $draft.transfer.animation(Motion.pick(Motion.smooth))) {
+
                         Text("Dépense").tag(false)
                         Text("Remboursement").tag(true)
                     }
@@ -73,9 +74,9 @@ struct ExpenseEditor: View {
                     chips(single: false)
                     if !draft.transfer {
                         HStack {
-                            Button("Tout le monde") { draft.forWhom = Set(group.active.map(\.id)) }
+                            Button("Tout le monde") { Haptics.tap(); Motion.animate { draft.forWhom = Set(group.active.map(\.id)) } }
                             Spacer()
-                            Button("Personne") { draft.forWhom = [] }
+                            Button("Personne") { Haptics.tap(); Motion.animate { draft.forWhom = [] } }
                         }
                         .font(.footnote).buttonStyle(.borderless)
                     }
@@ -84,6 +85,7 @@ struct ExpenseEditor: View {
                 } footer: {
                     if !draft.transfer, draft.split == .equal, let total = Money.cents(draft.amount), !draft.forWhom.isEmpty {
                         Text("\(Money.text(total / draft.forWhom.count, draft.currency.isEmpty ? group.currency : draft.currency)) chacun environ")
+                            .contentTransition(.numericText())
                     }
                 }
                 if advanced && !draft.transfer { splitSection }
@@ -102,7 +104,9 @@ struct ExpenseEditor: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Enregistrer") {
-                        Task { if await store.save(draft, receipt: receipt) { dismiss() } }
+                        Task {
+                            if await store.save(draft, receipt: receipt) { Haptics.success(); dismiss() } else { Haptics.error() }
+                        }
                     }
                     .bold().disabled(store.busy)
                     .accessibilityIdentifier("tc-save")
@@ -161,16 +165,20 @@ struct ExpenseEditor: View {
             ForEach(group.active) { m in
                 let on = single ? draft.payer == m.id : draft.forWhom.contains(m.id)
                 Button {
-                    if single { draft.payer = m.id }
-                    else if draft.transfer { draft.forWhom = [m.id] }
-                    else if on { draft.forWhom.remove(m.id) } else { draft.forWhom.insert(m.id) }
+                    Haptics.selection()
+                    // La pastille se colore en douceur ; « … chacun environ » suit dans la même animation.
+                    Motion.animate {
+                        if single { draft.payer = m.id }
+                        else if draft.transfer { draft.forWhom = [m.id] }
+                        else if on { draft.forWhom.remove(m.id) } else { draft.forWhom.insert(m.id) }
+                    }
                 } label: {
                     Text(m.name + (m.me ? " (toi)" : "")).font(.subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
                         .frame(maxWidth: .infinity).padding(.vertical, 10).padding(.horizontal, 8)
                         .background(on ? Palette.accent : Color.white.opacity(0.07), in: Capsule())
                         .foregroundStyle(on ? Color.black : Color.primary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableStyle())
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
         }
@@ -179,7 +187,7 @@ struct ExpenseEditor: View {
 
     private var splitSection: some View {
         Section {
-            Picker("Partage", selection: $draft.split) { ForEach(TricountDraft.Split.allCases) { Text($0.label).tag($0) } }
+            Picker("Partage", selection: $draft.split.animation(Motion.pick(Motion.smooth))) { ForEach(TricountDraft.Split.allCases) { Text($0.label).tag($0) } }
                 .pickerStyle(.segmented)
             if draft.split == .shares {
                 ForEach(group.active.filter { draft.forWhom.contains($0.id) }) { m in

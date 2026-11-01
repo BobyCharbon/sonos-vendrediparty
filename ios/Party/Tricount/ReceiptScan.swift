@@ -22,11 +22,13 @@ struct ReceiptScanSection: View {
                     Text("Lecture du ticket…").foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 6)
+                .transition(.opacity)
             } else if let read {
-                summary(read)
+                summary(read).motionTransition()
             } else {
-                buttons
+                buttons.transition(.opacity)
             }
+
         } footer: {
             if read == nil && !scanning {
                 Text("L'IA lit le montant, la date et les articles. Tu choisis ensuite pour qui.")
@@ -93,10 +95,15 @@ struct ReceiptScanSection: View {
 
     private func send(_ data: Data) {
         guard let jpeg = ExpenseEditor.jpeg(data) else { return }
-        scanning = true
+        Motion.animate(Motion.smooth) { scanning = true }
         Task {
-            if let r = await store.readReceipt(jpeg) { onRead(r, jpeg) }
-            scanning = false
+            let r = await store.readReceipt(jpeg)
+            // Ticket lu : le résumé remplace « Lecture du ticket… » en fondu, et la dépense se remplit d'un coup.
+            Motion.animate(Motion.smooth) {
+                if let r { onRead(r, jpeg) }
+                scanning = false
+            }
+            if r != nil { Haptics.success() } else { Haptics.error() }
         }
     }
 }
@@ -177,6 +184,7 @@ struct AIUsageView: View {
                 ProgressView()
             }
         }
+        .motion(Motion.smooth, value: store.aiUsage == nil)  // chargement → chiffres : fondu
         .navigationTitle("Assistant IA")
         .task { await store.loadAIUsage() }
         .refreshable { await store.loadAIUsage() }

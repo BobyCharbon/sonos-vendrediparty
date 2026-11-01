@@ -22,6 +22,9 @@ struct HostMusicView: View {
                     header
                     content
                 }
+                // Chargement → écran, soirée lancée ou arrêtée : fondu posé, pas à chaque rafraîchissement.
+                .motion(Motion.smooth, value: store.phase)
+                .motion(Motion.smooth, value: store.state?.active)
                 .padding(.horizontal, 16)
                 .padding(.top, topInset + 8)
                 .padding(.bottom, 32)
@@ -56,6 +59,7 @@ struct HostMusicView: View {
                         Text("● Soirée en cours").font(.caption.weight(.bold)).foregroundStyle(.green)
                         Text(state.placeLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     }
+                    .transition(.opacity)
                 }
             }
             Spacer(minLength: 8)
@@ -75,17 +79,18 @@ struct HostMusicView: View {
     private var content: some View {
         switch store.phase {
         case .loading:
-            ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
+            ProgressView().frame(maxWidth: .infinity).padding(.top, 40).transition(.opacity)
         case .failed(let message):
             VStack(spacing: 12) {
                 Text(message).multilineTextAlignment(.center).foregroundStyle(.secondary)
-                Button("Réessayer") { Task { await store.reload() } }.buttonStyle(.borderedProminent).tint(Palette.accent)
+                Button("Réessayer") { Haptics.tap(); Task { await store.reload() } }.buttonStyle(.borderedProminent).tint(Palette.accent)
                 Button("Ancienne version (page)", action: pageView)
             }
             .frame(maxWidth: .infinity).padding(.top, 30)
+            .motionTransition()
         case .ready:
             if let state = store.state {
-                if state.active { live(state) } else { HostSetupView(store: store) }
+                if state.active { live(state) } else { HostSetupView(store: store).motionTransition() }
             }
         }
     }
@@ -96,6 +101,7 @@ struct HostMusicView: View {
             Text(warning).font(.subheadline.weight(.semibold))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .card(Color.orange.opacity(0.25))
+                .motionTransition()
         }
         nowPlaying(state)
         HostAddSection(store: store, state: state)
@@ -124,20 +130,26 @@ struct HostMusicView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(playback.map { $0.isPlaying ? "▶︎ En cours" : "⏸ \($0.state)" } ?? "")
                         .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                    Text(playback?.now.title.isEmpty == false ? playback!.now.title : "Rien ne joue")
-                        .font(.headline).lineLimit(2)
-                    if let artist = playback?.now.artist, !artist.isEmpty { Text(artist).font(.subheadline).foregroundStyle(.secondary).lineLimit(1) }
-                    if let by = playback?.now.by { Text("ajouté par \(by)").font(.caption2.weight(.semibold)).foregroundStyle(Palette.accent) }
+                    // Titre suivant : fondu enchaîné entre l'ancien et le nouveau titre.
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(playback?.now.title.isEmpty == false ? playback!.now.title : "Rien ne joue")
+                            .font(.headline).lineLimit(2)
+                        if let artist = playback?.now.artist, !artist.isEmpty { Text(artist).font(.subheadline).foregroundStyle(.secondary).lineLimit(1) }
+                        if let by = playback?.now.by { Text("ajouté par \(by)").font(.caption2.weight(.semibold)).foregroundStyle(Palette.accent) }
+                    }
+                    .id(playback?.now.title ?? "")
+                    .transition(.opacity)
                 }
                 Spacer(minLength: 0)
             }
+            .motion(Motion.smooth, value: playback?.now.title ?? "")
             HStack(spacing: 10) {
-                Button { Task { await store.togglePlayback() } } label: {
+                Button { Haptics.tap(); Task { await store.togglePlayback() } } label: {
                     Label(playback?.isPlaying == true ? "Pause" : "Lecture", systemImage: playback?.isPlaying == true ? "pause.fill" : "play.fill")
                         .frame(maxWidth: .infinity, minHeight: 30)
                 }
                 .buttonStyle(.borderedProminent).tint(Palette.accent).disabled(store.busy.contains("playback"))
-                Button { Task { await store.skip() } } label: {
+                Button { Haptics.tap(); Task { await store.skip() } } label: {
                     Label("Passer", systemImage: "forward.fill").frame(maxWidth: .infinity, minHeight: 30)
                 }
                 .buttonStyle(.bordered).disabled(store.busy.contains("skip"))
@@ -157,6 +169,8 @@ struct HostMusicView: View {
                     .accessibilityLabel("Volume")
                     Image(systemName: "speaker.wave.3.fill").foregroundStyle(.secondary)
                     Text("\(Int(volume ?? Double(playback?.volume ?? 0)))").font(.caption.monospacedDigit()).frame(width: 30)
+                        .contentTransition(.numericText())
+                        .motion(Motion.snappy, value: volume == nil ? playback?.volume ?? 0 : -1)
                 }
             }
         }
@@ -188,7 +202,8 @@ struct HostMusicView: View {
                 }
                 if playlistCount > 0 {
                     Button {
-                        withAnimation { showPlaylist.toggle() }
+                        Haptics.tap()
+                        Motion.animate(Motion.smooth) { showPlaylist.toggle() }
                     } label: {
                         Label(showPlaylist ? "Masquer les titres de la playlist" : "Voir les \(playlistCount) titre\(playlistCount > 1 ? "s" : "") de la playlist",
                               systemImage: showPlaylist ? "eye.slash" : "music.note.list")
@@ -202,27 +217,20 @@ struct HostMusicView: View {
 
     // MARK: Messages
 
-    @ViewBuilder
     private var noticeBanner: some View {
-        if let notice = store.notice {
-            HStack(spacing: 12) {
-                Text(notice.text).font(.subheadline.weight(.semibold)).multilineTextAlignment(.leading)
-                if let token = notice.undo {
-                    Button("Annuler") {
-                        store.notice = nil
-                        Task { await store.undo(token) }
-                    }
-                    .font(.subheadline.weight(.bold)).foregroundStyle(Palette.accent)
+        let notice = store.notice
+        return NoticeBanner(
+            notice: notice.map { NoticeBanner.Notice(text: $0.text, isError: $0.isError, id: $0.id) },
+            action: notice?.undo.map { token in
+                NoticeBanner.Action(title: "Annuler") {
+                    store.notice = nil
+                    Task { await store.undo(token) }
                 }
-            }
-            .padding(.horizontal, 16).padding(.vertical, 12)
-            .background(notice.isError ? Color.red.opacity(0.9) : Palette.card, in: Capsule())
-            .padding(.horizontal, 16).padding(.bottom, 12)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-            .task(id: notice.id) {
-                try? await Task.sleep(for: .seconds(notice.undo == nil ? 3 : 6))
-                withAnimation { if store.notice?.id == notice.id { store.notice = nil } }
-            }
+            },
+            seconds: notice?.undo == nil ? 3 : 6
+        ) {
+            if store.notice?.id == notice?.id { store.notice = nil }
         }
     }
+
 }

@@ -20,6 +20,8 @@ struct GroupAdminView: View {
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        // Proposition approuvée ou refusée, demande traitée : la ligne s'en va et la liste se resserre en douceur.
+        .motion(Motion.snappy, value: store.overview.map { $0.events.map(\.id) + $0.requests.map(\.id) })
         .background(AppConfig.background.ignoresSafeArea())
         .navigationTitle("Administration")
         .navigationBarTitleDisplayMode(.inline)
@@ -186,18 +188,25 @@ struct AdminLoading: View {
     let retry: () async -> Void
 
     var body: some View {
-        if !loaded {
-            if let error {
-                VStack(spacing: 12) {
-                    Text(error).multilineTextAlignment(.center).foregroundStyle(.secondary)
-                    Button("Réessayer") { Task { await retry() } }
+        ZStack {
+            if !loaded {
+                if let error {
+                    VStack(spacing: 12) {
+                        Text(error).multilineTextAlignment(.center).foregroundStyle(.secondary)
+                        Button("Réessayer") { Haptics.tap(); Task { await retry() } }
+                    }
+                    .padding()
+                    .transition(.opacity)
+                } else {
+                    ProgressView().transition(.opacity)
                 }
-                .padding()
-            } else {
-                ProgressView()
             }
         }
+        // Chargement → contenu ou erreur : fondu, plutôt qu'une roue qui disparaît d'un coup.
+        .motion(Motion.smooth, value: loaded)
+        .motion(Motion.smooth, value: error)
     }
+
 }
 
 /// Bandeau de confirmation ou de refus, effacé au bout de 3 s.
@@ -205,17 +214,8 @@ struct AdminNotice: View {
     @Binding var notice: String?
 
     var body: some View {
-        if let notice {
-            Text(notice)
-                .font(.subheadline.weight(.semibold))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 16).padding(.vertical, 12)
-                .background(Palette.card, in: Capsule())
-                .padding(.bottom, 12).padding(.horizontal, 16)
-                .task(id: notice) {
-                    try? await Task.sleep(for: .seconds(3))
-                    self.notice = nil
-                }
-        }
+        // Texte seul (succès ou erreur indistincts) : pas de retour haptique, mais la même entrée glissée.
+        NoticeBanner(notice: notice.map { NoticeBanner.Notice(text: $0) }) { notice = nil }
     }
+
 }

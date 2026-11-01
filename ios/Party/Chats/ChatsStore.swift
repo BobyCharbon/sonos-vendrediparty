@@ -34,6 +34,9 @@ final class ChatsStore: ObservableObject {
     var unread: Int { chats?.reduce(0) { $0 + $1.unread } ?? 0 }
 
     func loadList() async {
+        #if DEBUG
+        if demo { return }
+        #endif
         if chats == nil, let account = await account() {
             chats = ChatsCache.load([ChatSummary].self, account: account, name: "list")  // tout de suite, puis à jour
         }
@@ -69,8 +72,23 @@ final class ChatsStore: ObservableObject {
         listLive = nil
     }
 
+    #if DEBUG
+    /// Simulateur : PARTY_DEBUG_MOTION=chat rejoue une conversation figée (MotionDemo) pour regarder les animations.
+    private(set) var demo = false
+
+    func showDemo(list: [ChatSummary]? = nil, conversation: Conversation? = nil) {
+        demo = true
+        error = nil
+        if let list { chats = list }
+        if let conversation { self.conversation = conversation }
+    }
+    #endif
+
     /// Ouvre (ou relit) une conversation ; la marque comme lue si de nouveaux messages sont arrivés.
     func open(_ group: String) async {
+        #if DEBUG
+        if demo { return }
+        #endif
         if conversation?.id != group {
             pending = []
             // Dernière version gardée sur le téléphone : la conversation s'affiche sans attendre le serveur.

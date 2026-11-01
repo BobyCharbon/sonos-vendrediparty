@@ -21,6 +21,7 @@ struct PartyApp: App {
                 .task { TrackActivities.startDemoIfAsked() }
                 .overlay { HostDemo(model: model) }
                 .overlay { GroupAdminDemo(model: model) }
+                .overlay { MotionDemo(model: model) }
                 .overlay { AIEventDemo(model: model) }
                 #endif
                 .onReceive(NotificationCenter.default.publisher(for: .partyOpenURL)) { note in
@@ -36,8 +37,8 @@ struct ContentView: View {
     /// « Gérer la soirée » (écran natif de l'hôte) / « Gérer les retours » (page) : réservé à l'hôte.
     private func hostTools(_ screen: String) -> (() -> Void)? {
         guard model.isHost else { return nil }
-        if screen == "music" { return { [model] in withAnimation { model.hostNativeMusic = true } } }
-        return { [model] in withAnimation { model.setHostManages(true, screen: screen) } }
+        if screen == "music" { return { [model] in Motion.animate(Motion.smooth) { model.hostNativeMusic = true } } }
+        return { [model] in Motion.animate(Motion.smooth) { model.setHostManages(true, screen: screen) } }
     }
 
     var body: some View {
@@ -52,11 +53,13 @@ struct ContentView: View {
                         if model.nativeScreen == "music", let music = model.music {
                             if model.isHost && model.hostNativeMusic, let host = model.hostMusic {
                                 HostMusicView(store: host, topInset: proxy.safeAreaInsets.top,
-                                              guestView: { withAnimation { model.hostNativeMusic = false } },
-                                              pageView: { withAnimation { model.manageMusicInPage() } })
+                                              guestView: { Motion.animate(Motion.smooth) { model.hostNativeMusic = false } },
+                                              pageView: { Motion.animate(Motion.smooth) { model.manageMusicInPage() } })
                                     .transition(.opacity)
                             } else {
+                                // Vue invité ↔ Gérer la soirée : fondu enchaîné dans les deux sens (avant : seulement à l'aller).
                                 MusicView(store: music, topInset: proxy.safeAreaInsets.top, manage: hostTools("music"))
+                                    .transition(.opacity)
                             }
                         }
                         if model.nativeScreen == "feedback", let feedback = model.feedback {
@@ -67,12 +70,12 @@ struct ContentView: View {
                         }
                         if model.nativeScreen == "account", let settings = model.settings {
                             SettingsView(store: settings, topInset: proxy.safeAreaInsets.top, isHost: model.isHost, hostMusic: model.hostMusic) { place in
-                                withAnimation { model.show(place) }
+                                Motion.animate(Motion.smooth) { model.show(place) }
                             }
                         }
                         if model.pageDetail != nil {
                             Button {
-                                withAnimation { model.closePageDetail() }
+                                Motion.animate(Motion.smooth) { model.closePageDetail() }
                             } label: {
                                 Label("Réglages", systemImage: "chevron.left")
                                     .font(.subheadline.weight(.semibold))
@@ -83,10 +86,11 @@ struct ContentView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                             .padding(16)
                             .accessibilityHint("Revient aux Réglages de l'app")
+                            .motionTransition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottomLeading)))
                         }
                         if let managed = model.hostManagedScreen {
                             Button {
-                                withAnimation { model.setHostManages(false, screen: managed) }
+                                Motion.animate(Motion.smooth) { model.setHostManages(false, screen: managed) }
                             } label: {
                                 Label("Vue invité", systemImage: "person.2")
                                     .font(.subheadline.weight(.semibold))
@@ -97,16 +101,20 @@ struct ContentView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                             .padding(16)
                             .accessibilityHint("Affiche l'écran Musique des invités ; le choix est retenu")
+                            .motionTransition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottomTrailing)))
                         }
                     }
                     if let tabs = model.tabs, !tabs.hidden {
                         NativeTabBar(state: tabs, select: model.selectTab)
                             .frame(height: NativeTabBar.height + proxy.safeAreaInsets.bottom)
-                            .transition(.move(edge: .bottom))
+                            .motionTransition(.move(edge: .bottom))
                     }
                 }
                 .ignoresSafeArea()
-                .animation(.easeInOut(duration: 0.25), value: model.tabs?.hidden ?? true)
+                // Barre d'onglets native qui se cache (plein écran d'un jeu) ou revient : glissement court,
+                // fondu avec Réduire les animations.
+                .motion(Motion.snappy, value: model.tabs?.hidden ?? true)
+
                 if model.failed {
                     OfflineView { model.reload() }
                 }

@@ -26,9 +26,9 @@ struct FeedbackView: View {
                     }
                     .pickerStyle(.segmented)
                     if part == .received {
-                        FeedbackAdminSection(store: admin)
+                        FeedbackAdminSection(store: admin).transition(.opacity)
                     } else {
-                        form
+                        form.transition(.opacity)
                         mine
                     }
                 } else {
@@ -36,6 +36,11 @@ struct FeedbackView: View {
                     mine
                 }
             }
+            // Retours reçus ↔ Mon avis : fondu enchaîné ; avis envoyé ou réponse reçue : la liste s'écarte.
+            .motion(Motion.smooth, value: part)
+            .motion(Motion.snappy, value: store.items.map { "\($0.id)|\($0.status)|\($0.reply)" })
+            .motion(Motion.smooth, value: store.loaded)
+            .onChange(of: part) { _ in Haptics.selection() }
             .padding(.horizontal, 16)
             .padding(.top, topInset + 8)
             .padding(.bottom, 24)
@@ -91,10 +96,12 @@ struct FeedbackView: View {
                 Spacer()
                 Button {
                     writing = false
+                    Haptics.tap()
                     Task { await store.send() }
                 } label: {
-                    if store.sending { ProgressView() } else { Text("Envoyer").bold() }
+                    if store.sending { ProgressView().transition(.opacity) } else { Text("Envoyer").bold().transition(.opacity) }
                 }
+                .motion(Motion.snappy, value: store.sending)
                 .buttonStyle(.borderedProminent)
                 .tint(Palette.accent)
                 .disabled(!store.canSend)
@@ -119,29 +126,20 @@ struct FeedbackView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .card(isNew ? Palette.mine : Palette.card)
+                .motionTransition()
                 .accessibilityElement(children: .combine)
                 .accessibilityHint(isNew ? "Nouvelle réponse" : "")
             }
         } else if !store.loaded {
-            ProgressView().frame(maxWidth: .infinity)
+            ProgressView().frame(maxWidth: .infinity).transition(.opacity)
         }
+
     }
 
-    @ViewBuilder
     private var noticeBanner: some View {
-        if let notice = store.notice {
-            Text(notice.text)
-                .font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 16).padding(.vertical, 12)
-                .background(notice.isError ? Color.red.opacity(0.9) : Palette.card, in: Capsule())
-                .padding(.bottom, 12)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .task(id: notice) {
-                    try? await Task.sleep(for: .seconds(3))
-                    withAnimation { store.notice = nil }
-                }
-        }
+        NoticeBanner(notice: store.notice.map { NoticeBanner.Notice(text: $0.text, isError: $0.isError) }) { store.notice = nil }
     }
+
 }
 
 /// Bandeau des retours reçus (le store de l'hôte est observé à part).
