@@ -906,31 +906,47 @@ setInterval(() => { if (game && $("gTimer")) $("gTimer").textContent = fmtDurati
 
 // Pas de nouveau rendu si l'écran est identique : plus de clignotement ni d'animation rejouée à chaque mise à jour.
 // Met à jour un élément vers un nouveau HTML en ne modifiant que ce qui diffère : les nœuds identiques restent
-// en place (pas de flash, pas d'appui perdu, champ en cours de saisie conservé). data-key différent = nœud remplacé.
+// en place (pas de flash, pas d'appui perdu, champ en cours de saisie conservé). data-key différent = nœud remplacé ;
+// un nœud à data-key retrouvé plus loin (un bloc retiré avant lui) ou plus tôt (un bloc ajouté) reste en place, ni
+// recréé ni déplacé : ses cartes déjà retournées ne se retournent pas une seconde fois.
 function morph(el, html) {
   const tpl = document.createElement("template");
   tpl.innerHTML = html;
   morphKids(el, tpl.content);
 }
+function keyedTwin(a, from, key) {
+  for (let n = a.childNodes[from]; n; n = n.nextSibling) if (n.nodeType === 1 && n.getAttribute("data-key") === key) return n;
+  return null;
+}
 function morphKids(a, b) {
-  const an = [...a.childNodes], bn = [...b.childNodes];
+  const bn = [...b.childNodes];
   bn.forEach((y, i) => {
-    const x = an[i];
+    let x = a.childNodes[i];
+    const key = y.nodeType === 1 ? y.getAttribute("data-key") : null;
+    if (key !== null && x && (x.nodeType !== 1 || x.getAttribute("data-key") !== key)) {
+      // Les nœuds avant lui sont retirés : le déplacer lui-même relancerait ses animations CSS.
+      const twin = keyedTwin(a, i + 1, key);
+      if (twin) { while (twin.previousSibling !== (i ? a.childNodes[i - 1] : null)) twin.previousSibling.remove(); x = twin; }
+    }
     if (!x) a.appendChild(y);
+    else if (x.nodeType === 1 && x.hasAttribute("data-key") && x.getAttribute("data-key") !== key) a.insertBefore(y, x);  // x resservira peut-être plus loin
     else if (x.nodeType !== y.nodeType || x.nodeName !== y.nodeName
       || (x.nodeType === 1 && x.getAttribute("data-key") !== y.getAttribute("data-key"))) a.replaceChild(y, x);
     else morphNode(x, y);
   });
-  for (let i = bn.length; i < an.length; i++) an[i].remove();
+  while (a.childNodes.length > bn.length) a.lastChild.remove();
 }
 function morphNode(x, y) {
   if (x.nodeType !== 1) { if (x.nodeValue !== y.nodeValue) x.nodeValue = y.nodeValue; return; }
   if (x.isEqualNode(y)) return;
   const field = /^(INPUT|TEXTAREA|SELECT)$/.test(x.nodeName);
-  for (const { name } of [...x.attributes]) if (!y.hasAttribute(name) && !(field && name === "value")) x.removeAttribute(name);
+  // data-keep="style" : attribut piloté par le script (roue en train de tourner…), jamais effacé par un rendu.
+  const keep = (x.getAttribute("data-keep") || "").split(" ");
+  for (const { name } of [...x.attributes]) if (!y.hasAttribute(name) && !(field && name === "value") && !keep.includes(name)) x.removeAttribute(name);
   for (const { name, value } of [...y.attributes]) if (x.getAttribute(name) !== value && !(field && name === "value")) x.setAttribute(name, value);
   if (!field) morphKids(x, y);
 }
+const STEP_FADE = ["undercover", "whoof", "never", "blackjack", "roulette", "divan", "tmc", "casino"];  // étapes en fondu
 const QUESTION_TYPES = ["whoof", "never"];  // jeux à questions (« Qui de nous ? », « Je n'ai jamais »)
 // Raccourci : patch.gameHost = html  ⇔  morph($("gameHost"), html)
 const patch = new Proxy({}, { set(_, id, html) { morph($(id), html); return true; } });
@@ -966,6 +982,14 @@ function setGameHtml(html) {
   const el = $("game");
   if (el.dataset.html === html && el.firstChild) return false;
   el.innerHTML = html;
+  el.dataset.html = html;
+  return true;
+}
+// Comme setGameHtml, mais seuls les nœuds qui changent sont touchés : les animations d'entrée ne se rejouent pas.
+function morphGameHtml(html) {
+  const el = $("game");
+  if (el.dataset.html === html && el.firstChild) return false;
+  morph(el, html);
   el.dataset.html = html;
   return true;
 }
@@ -1099,10 +1123,13 @@ function renderGame(g) {
   } else if (g.type === "beerpong") {
     setGameHtml(lobbyInvite(g) + beerpongHtml(g));
   } else if (g.type === "pyramid" || g.type === "biskit") {
-    setGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g)));
+    // Mise à jour fine (morph) : une carte déjà retournée ne se retourne plus quand un autre joueur agit.
+    morphGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g)));
     if (g.type === "pyramid") pyrWheel(g);
   } else {
-    const el = $("game"), html = lobbyInvite(g) + body;
+    // Jeux simples : chaque étape (phase) arrive en fondu ; même clé = même nœud, rien ne se rejoue entre deux étapes.
+    const step = STEP_FADE.includes(g.type) ? `<div class="g-step" data-key="${esc(`${g.type}:${g.phase}`)}">${body}</div>` : body;
+    const el = $("game"), html = lobbyInvite(g) + step;
     if (el.dataset.html !== html || !el.firstChild) { morph(el, html); el.dataset.html = html; }
   }
   renderDrawer(g);
@@ -1117,6 +1144,7 @@ function renderGame(g) {
   renderHud(g);
   bjOutcomeFx(g);
   renderGameHost(g);
+  bumpCounters(g.id);
   const joinCode = g.room || g.code;  // dans une salle : on invite à rejoindre la salle (puis le jeu suit)
   $("gameCode").textContent = joinCode;
   const qr = `/qr/game/${joinCode}.svg`;
@@ -1162,7 +1190,7 @@ function questionHtml(g, me) {
     <p class="qs-help" role="status">${help}</p>
     ${choices}
     <div class="qs-progress"><div class="qs-whos">${who}</div>
-      <span><b>${n}</b> sur ${total} ${n > 1 ? "ont" : "a"} ${g.type === "never" ? "répondu" : "voté"}</span></div>
+      <span><b data-bump="qs-voted">${n}</b> sur ${total} ${n > 1 ? "ont" : "a"} ${g.type === "never" ? "répondu" : "voté"}</span></div>
   </div>`;
 }
 
@@ -1204,8 +1232,11 @@ function bjOutcomeFx(g) {
     ? { win: `🎉 Distribue ${sipWord(h.sips)}`, blackjack: `🃏 Distribue ${sipWord(h.sips)}`, push: "Personne ne boit",
         lose: `🍻 Bois ${sipWord(-h.sips)}`, bust: `🍻 Bois ${sipWord(-h.sips)}` }[kind]
     : { win: `+${h.delta} jetons`, blackjack: `+${h.delta} jetons`, push: "Mise rendue", lose: `${h.delta} jetons`, bust: `${h.delta} jetons` }[kind];
-  playFx(kind, sub);
+  // Main tout juste finie (blackjack du croupier dès la donne…) : on laisse d'abord les cartes se retourner.
+  const wait = Math.max(0, FX_AFTER_DEAL - (g.bj.finished_age ?? 0) * 1000);
+  setTimeout(() => { if (game?.id === g.id && game.round === g.round) playFx(kind, sub); }, wait);
 }
+const FX_AFTER_DEAL = 700;  // ms
 function playFx(kind, sub) {
   GameAudio.play(["win", "blackjack", "jackpot"].includes(kind) ? "win" : ["lose", "bust"].includes(kind) ? "lose" : "reveal");
   document.querySelector(".fx")?.remove();
@@ -1234,7 +1265,8 @@ function playFx(kind, sub) {
       <div class="fx-title" data-text="${title}">${title}</div>
       <div class="fx-sub">${esc(sub)}</div>
     </div>`;
-  const close = () => { fx.classList.add("fx-out"); setTimeout(() => fx.remove(), 350); };
+  // Pendant le fondu de sortie, les touchers passent déjà au jeu dessous.
+  const close = () => { fx.classList.add("fx-out"); fx.style.pointerEvents = "none"; setTimeout(() => fx.remove(), 350); };
   fx.addEventListener("click", close);
   document.body.append(fx);
   haptic({ win: [80, 60, 80], blackjack: [100, 50, 100, 50, 220], jackpot: [100, 50, 100, 50, 100, 50, 300],
@@ -1248,13 +1280,28 @@ function renderHud(g) {
   const chips = !me || sips ? null : isBJ(g) ? g.bj.seats.find((x) => x.pid === me.pid)?.chips
     : g.type === "casino" ? g.casino.me?.chips : null;
   const items = [];
-  if (chips != null) items.push(`<div class="hud-item"><span>💰</span><b>${chips}</b><small>jetons</small></div>`);
+  if (chips != null) items.push(`<div class="hud-item"><span>💰</span><b data-bump="hud-chips">${chips}</b><small>jetons</small></div>`);
   if (sips && me) {
-    items.push(`<div class="hud-item"><span>🍻</span><b>${me.drink || 0}</b><small>bue${me.drink > 1 ? "s" : ""}</small></div>`);
-    if (isBJ(g)) items.push(`<div class="hud-item"><span>🎁</span><b>${me.give || 0}</b><small>donnée${me.give > 1 ? "s" : ""}</small></div>`);
+    items.push(`<div class="hud-item"><span>🍻</span><b data-bump="hud-drink">${me.drink || 0}</b><small>bue${me.drink > 1 ? "s" : ""}</small></div>`);
+    if (isBJ(g)) items.push(`<div class="hud-item"><span>🎁</span><b data-bump="hud-give">${me.give || 0}</b><small>donnée${me.give > 1 ? "s" : ""}</small></div>`);
   }
   patch.gameHud = items.join("");
   $("gameHud").className = "g-hud " + (GAME_THEME[g.type] || "") + (items.length && g.phase !== "lobby" ? "" : " hidden");
+}
+// Un compteur qui change (jetons, gorgées, votes de la salle…) rebondit une fois, pour qu'on le remarque ; pas au
+// premier affichage. Il suffit de lui donner data-bump="clé unique".
+const calmMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+let bumpPrev = {};
+function bumpCounters(gameId) {
+  const now = { game: gameId };
+  document.querySelectorAll("#gamePlay [data-bump]").forEach((el) => {
+    const key = el.dataset.bump;
+    now[key] = el.textContent;
+    if (bumpPrev.game === gameId && key in bumpPrev && bumpPrev[key] !== now[key] && !calmMotion())
+      el.animate([{ transform: "scale(1)" }, { transform: "scale(1.45)", offset: .35 }, { transform: "scale(1)" }],
+        { duration: 480, easing: "cubic-bezier(.2, 1.4, .4, 1)" });
+  });
+  bumpPrev = now;
 }
 const sipsBadge = (p) => p.drink || p.give ? ` <span class="artist">· 🍻 ${p.drink || 0}${p.give ? ` · 🎁 ${p.give}` : ""}</span>` : "";
 
@@ -1379,10 +1426,11 @@ function pyrFlash(kind, title, sub = "", card = "", ms = 2300) {
   el.setAttribute("role", "status");
   el.innerHTML = `<div class="py-flash-box">${card ? `<div class="py-flash-card">${pyCard(card, "xl")}</div>` : ""}
     <div class="py-flash-title">${title}</div>${sub ? `<div class="py-flash-sub">${sub}</div>` : ""}</div>`;
-  el.addEventListener("click", () => el.remove());
+  // Un toucher la ferme en fondu (comme à la fin du délai), sans disparition sèche ; elle ne retient plus les touchers.
+  el.addEventListener("click", () => { el.classList.add("out"); el.style.pointerEvents = "none"; setTimeout(() => el.remove(), 400); }, { once: true });
   document.body.append(el);
   haptic(kind === "bad" || kind === "liar" ? [200] : [60, 40, 60]);
-  setTimeout(() => el.classList.add("out"), ms);
+  setTimeout(() => { el.classList.add("out"); el.style.pointerEvents = "none"; }, ms);
   setTimeout(() => el.remove(), ms + 400);
 }
 function pyrEvents(g) {
@@ -1437,7 +1485,7 @@ function pyrPhase(g) {
 }
 function pyrSeats(g, opts = {}) {
   const v = g.pyr;
-  return `<div class="py-seats">${v.seats.map((s) => `
+  return `<div class="py-seats" data-key="seats">${v.seats.map((s) => `
     <div class="py-seat ${s.pid === v.turn ? "on" : ""} ${s.pid === g.me?.pid ? "me" : ""}">
       <div class="py-seat-name">${esc(s.name)}${s.manual ? " ✍️" : ""}${sipsBadge(g.players.find((p) => p.pid === s.pid) || {})}</div>
       <div class="py-seat-cards">${s.cards.map((c, i) => pyCard(c, "sm", opts.memory && s.memory ? `data-ok="${s.memory[i] === c[0]}"` : "")).join("") || `<span class="artist">—</span>`}</div>
@@ -1499,7 +1547,7 @@ function pyrHtml(g) {
   } else if (g.phase === "boatpick") {
     const sp = v.spin, shown = !sp || pyrWheelShown === sp.id;
     body = `<div class="py-hero"><div class="py-hero-k">🚢 Le bateau</div><div class="py-hero-t">${sp ? "La roulette décide…" : "Désigné d'office"}</div></div>
-      ${sp ? `<div class="wheel-wrap py-wheel"><div class="wheel-pointer" aria-hidden="true"></div><svg id="pyrWheel" viewBox="-100 -100 200 200" role="img" aria-label="Roue">${wheelSvg(sp.names)}</svg></div>` : ""}
+      ${sp ? `<div class="wheel-wrap py-wheel"><div class="wheel-pointer" aria-hidden="true"></div><svg id="pyrWheel" data-keep="style" viewBox="-100 -100 200 200" role="img" aria-label="Roue">${wheelSvg(sp.names)}</svg></div>` : ""}
       <div class="py-boat-name ${shown ? "show" : ""}">${shown ? `${esc(v.boat.name)} fait le bateau !` : ""}</div>
       ${host && shown ? `<button class="py-main" data-gact="pboatgo">⛵ Lancer le bateau</button>` : ""}`;
   } else if (g.phase === "end" && !v.boat) {
@@ -1534,7 +1582,7 @@ function pyrBoard(g) {
     rows.push({ f, cards });
   }
   const size = v.floors >= 7 ? "xs" : v.floors === 6 ? "sm" : "";
-  return `<div class="py-board">${rows.reverse().map((r) => `
+  return `<div class="py-board" data-key="board">${rows.reverse().map((r) => `
     <div class="py-row ${r.f === v.floor ? "now" : ""}"><span class="py-mult f${Math.min(r.f, 5)}">${r.f === v.floors ? "🥃" : `×${v.double ? r.f * 2 : r.f}`}</span>
       <div class="py-row-cards">${r.cards.map((x) => pyCard(x.c, size, `data-i="${x.i}"${x.cur ? ` data-cur="1"` : ""}`)).join("")}</div></div>`).join("")}</div>`;
 }
@@ -1563,7 +1611,7 @@ function pyrCurrent(g) {
   }
   const manualGive = host && !v.is_top ? v.seats.filter((s) => s.manual && !v.claims.some((c) => c.pid === s.pid))
     .map((s) => `<button class="py-mini" data-pyr="claimfor" data-who="${esc(s.pid)}">${esc(s.name)} donne</button>`).join("") : "";
-  return `<div class="py-panel ${v.is_top ? "top" : ""}">
+  return `<div class="py-panel ${v.is_top ? "top" : ""}" data-key="now">
     <div class="py-now">${pyCard(v.current, "lg", 'data-flip="1"')}
       <div><div class="py-turn-k">${v.is_top ? "Le sommet" : `Étage ${v.floor}`}</div>
         <div class="py-panel-t">${v.is_top ? "CUL SEC" : `Un ${esc(label)} !`}</div>
@@ -1582,7 +1630,7 @@ function pyrHand(g) {
   if (!seat) return hostReqs ? `<div class="py-panel">${hostReqs}</div>` : "";
   const myPending = pending.some((r) => r.mine);
   const seeing = v.peeks.some((r) => r.mine && r.status === "ok" && r.age < 5);
-  return `<div class="py-panel py-hand">
+  return `<div class="py-panel py-hand" data-key="hand">
     <div class="py-turn-k">Ta main ${seeing ? "· regarde vite !" : "· face cachée"}</div>
     <div class="py-hand-cards">${seat.cards.map((c, k) => `<button type="button" class="py-pick-btn ${pyrPeekSel.includes(k) ? "sel" : ""}" data-pyr="peeksel" data-slot="${k}" ${myPending || c !== "??" ? "disabled" : ""}>${pyCard(c, "md")}<small>${k + 1}</small></button>`).join("")}</div>
     ${myPending ? `<div class="artist">Demande envoyée à l'animateur…</div>`
@@ -1770,7 +1818,7 @@ function bkHtml(g) {
   bkSeen.n = v.event;
   const cur = seat(v.turn);
   const status = `<div class="bk-status">
-    <span class="bk-chip">👑 Coupe <b>${v.kings}/4</b></span><span class="bk-chip">🍪 Biskit <b>${esc(v.biskit)}</b></span>
+    <span class="bk-chip">👑 Coupe <b data-bump="bk-kings">${v.kings}/4</b></span><span class="bk-chip">🍪 Biskit <b>${esc(v.biskit)}</b></span>
     ${v.qmaster ? `<span class="bk-chip">🤐 <b>${esc(v.qmaster)}</b></span>` : ""}${v.thumb ? `<span class="bk-chip">👍 <b>${esc(v.thumb)}</b></span>` : ""}
     ${v.mates.map(([a, b]) => `<span class="bk-chip">🤝 <b>${esc(a)} + ${esc(b)}</b></span>`).join("")}
     <span class="bk-chip">🃏 ${v.deck_left}</span></div>`;
@@ -1935,7 +1983,7 @@ function divanHtml(g) {
     ${d.can_lead ? `<div class="dv-hint">← Glisse : au suivant · ${d.joker ? "joker déjà utilisé" : "joker : glisse →"}</div>` : ""}` : ""}
     <div class="dv-actions">
       ${!d.my_turn && g.me ? `<button class="${d.hearted ? "" : "secondary"}" data-gact="dheart" ${d.hearted ? "disabled" : ""}>${d.hearted ? "❤️ Soutien envoyé" : "🤍 Envoyer du soutien"}</button>` : ""}
-      ${d.hearts ? `<div class="dv-hearts" aria-label="${d.hearts} soutiens">${"❤️".repeat(Math.min(d.hearts, 12))}</div>` : ""}
+      ${d.hearts ? `<div class="dv-hearts" data-bump="dv-hearts" aria-label="${d.hearts} soutiens">${"❤️".repeat(Math.min(d.hearts, 12))}</div>` : ""}
     </div>
     ${!g.me && !g.master ? `<button data-gact="join" style="width:100%;margin-top:12px">Rejoindre la séance</button>` : ""}`;
 }
@@ -2131,11 +2179,11 @@ function casinoWheelSvg() {
 function revealCasino(g) {
   const sp = g.casino.spin;
   const show = g.phase === "results" && sp && cwShown === sp.id;
-  $("cwResult").innerHTML = show
+  patch.cwResult = show
     ? `<div class="cw-num ${numColor(sp.number)}">${sp.number}</div><div class="cw-desc">${sp.number === 0 ? "Zéro ! La maison gagne" : `${RED.has(sp.number) ? "Rouge" : "Noir"} · ${sp.number % 2 ? "Impair" : "Pair"} · ${sp.number <= 18 ? "1-18" : "19-36"}`}</div>` : "";
   // Derniers numéros (le tout dernier n'apparaît qu'une fois la bille arrêtée).
   const hist = (show || g.phase !== "results" ? g.casino.history : g.casino.history.slice(1)).slice(0, 14);
-  $("cwHistory").innerHTML = hist.map((n) => `<span class="cw-h ${numColor(n)}">${n}</span>`).join("");
+  patch.cwHistory = hist.map((n) => `<span class="cw-h ${numColor(n)}">${n}</span>`).join("");
 }
 
 function casinoFx(g) {
@@ -2304,7 +2352,7 @@ function setWheel(rot, seconds) {
 function showRouletteResult(g) {
   const sp = g.spin;
   const show = g.phase === "spun" && sp && wheelShown === sp.id;
-  $("rouletteResult").innerHTML = show
+  patch.rouletteResult = show
     ? `<div class="roulette-loser">🎯 ${esc(sp.names[sp.index])}</div><div class="artist">a perdu !</div>` : "";
 }
 
@@ -2366,15 +2414,15 @@ function renderRouletteHost(g, btn) {
     // Toucher « Ajouter » ne doit pas retirer le focus du champ (sinon le clavier se ferme).
     $("rouletteAdd")?.addEventListener("pointerdown", (ev) => ev.preventDefault());
   }
-  $("rlControls").innerHTML = g.is_host ? `<div class="row" style="margin-top:10px">${btn("spin", spinning ? "La roue tourne…" : "🎡 Lancer la roue", "grow g-spin", g.names.length < 2 || spinning ? "disabled" : "")}</div>
+  patch.rlControls = g.is_host ? `<div class="row" style="margin-top:10px">${btn("spin", spinning ? "La roue tourne…" : "🎡 Lancer la roue", "grow g-spin", g.names.length < 2 || spinning ? "disabled" : "")}</div>
     ${loser && g.names.includes(loser) ? `<button class="secondary" data-gact="dropname" data-name="${esc(loser)}" style="width:100%;margin-top:8px">Retirer ${esc(loser)} de la roue</button>` : ""}` : "";
   if (g.is_host) {
     $("rlTitle").textContent = `Sur la roue (${g.names.length})`;
-    $("rlNames").innerHTML = g.names.map((n) => `<span class="pill name-chip">${esc(n)}<button type="button" class="chip-x" data-gact="dropname" data-name="${esc(n)}" aria-label="Retirer ${esc(n)}">✕</button></span>`).join("") || `<span class="artist">Aucun nom pour l'instant</span>`;
-    $("rlPlayers").innerHTML = joined.length ? `<button class="secondary" data-gact="addplayers" style="width:100%;margin-top:8px">👥 Ajouter les joueurs inscrits (${joined.length})</button>` : "";
+    patch.rlNames = g.names.map((n) => `<span class="pill name-chip">${esc(n)}<button type="button" class="chip-x" data-gact="dropname" data-name="${esc(n)}" aria-label="Retirer ${esc(n)}">✕</button></span>`).join("") || `<span class="artist">Aucun nom pour l'instant</span>`;
+    patch.rlPlayers = joined.length ? `<button class="secondary" data-gact="addplayers" style="width:100%;margin-top:8px">👥 Ajouter les joueurs inscrits (${joined.length})</button>` : "";
   }
-  $("rlHistory").innerHTML = g.history?.length ? `<h2>Derniers perdants</h2><div class="chips">${g.history.slice(0, 10).map((n, i) => `<span class="pill" style="${i === 0 ? "color:var(--text)" : ""}">${esc(n)}</span>`).join("")}</div>` : "";
-  $("rlSpect").innerHTML = g.players.length ? `<h2>Spectateurs (${g.players.length})</h2><div class="chips">${g.players.map((p) => `<span class="pill">${esc(p.name)}</span>`).join("")}</div>` : "";
+  patch.rlHistory = g.history?.length ? `<h2>Derniers perdants</h2><div class="chips">${g.history.slice(0, 10).map((n, i) => `<span class="pill" style="${i === 0 ? "color:var(--text)" : ""}">${esc(n)}</span>`).join("")}</div>` : "";
+  patch.rlSpect = g.players.length ? `<h2>Spectateurs (${g.players.length})</h2><div class="chips">${g.players.map((p) => `<span class="pill">${esc(p.name)}</span>`).join("")}</div>` : "";
 }
 
 // « Je n'ai jamais » : ceux qui l'ont déjà fait boivent.
@@ -2517,7 +2565,7 @@ function roomTileHtml(c, R = {}, lead = false) {
   const n = (R.votes || {})[c.type] || 0, mine = R.my_vote === c.type;
   const action = lead ? `data-room-pick="${c.type}"` : `data-room-vote="${c.type}" aria-pressed="${mine}"`;
   return `<button type="button" class="g-room-tile ${GAME_THEME[c.type] || ""} ${mine ? "voted" : ""} ${(R.top || []).includes(c.type) ? "top" : ""}" ${action}
-      aria-label="${esc(c.name)}${n ? `, ${n} vote${n > 1 ? "s" : ""}` : ""}${mine ? ", ton vote" : ""}">${n ? `<i class="g-room-votes" aria-hidden="true">${n}</i>` : newBadge(c.type)}
+      aria-label="${esc(c.name)}${n ? `, ${n} vote${n > 1 ? "s" : ""}` : ""}${mine ? ", ton vote" : ""}">${n ? `<i class="g-room-votes" data-bump="room-${esc(c.type)}" aria-hidden="true">${n}</i>` : newBadge(c.type)}
     <span class="g-room-tile-i">${GAME_ICONS[c.type] || ""}</span><b>${esc(c.name)}${drinkTag(c.type)}</b></button>`;
 }
 // Tuiles groupées par catégorie, dans le même ordre que l'écran Jeux ; un jeu sans catégorie va à la fin.
@@ -2730,7 +2778,7 @@ function showGameEnded(info) {
     <div class="g-ended-title">Partie terminée</div>
     <div class="g-ended-sub">${info.game ? `${esc(info.game)} · ` : ""}${who}</div>
     <div class="g-ended-bar"><i></i></div></div>`;
-  const close = () => { el.classList.add("out"); setTimeout(() => el.remove(), 300); };
+  const close = () => { el.classList.add("out"); el.style.pointerEvents = "none"; setTimeout(() => el.remove(), 300); };
   el.addEventListener("click", close);
   document.body.append(el);
   haptic([80, 60, 80]);
