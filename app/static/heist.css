@@ -151,3 +151,5 @@ body.heist-full .hs-root { height:100%; min-height:0; }
 @media (max-aspect-ratio: 17/20), (max-height: 499px) { .hs-playing .hs-zoom { display:block; } }  /* là où la caméra suit le joueur */
 @media(max-width:600px) and (orientation:portrait) { .hs-zoom { right:18px; top:216px; } }
 @media(orientation:landscape) and (max-height:600px) { .hs-zoom { right:20px; top:173px; } }
+/* La scène reçoit le focus au début de la manche (clavier) : pas de cadre autour du jeu pour autant. */
+.hs-canvas:focus { outline: none; }
