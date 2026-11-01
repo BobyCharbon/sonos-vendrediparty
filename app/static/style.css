@@ -1132,6 +1132,9 @@ input::placeholder, textarea::placeholder { color: #8a82a0; }
 /* ── Cartes : matière avec un liseré de lumière en haut ── */
 .card { box-shadow: var(--edge-light), inset 0 0 0 1px var(--hairline), var(--lift-s); }
 .track { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04); transition: transform .3s var(--spring), background-color .2s ease; }
+/* Listes animées (list-motion.js) : la ligne qui change de place passe devant ; celle qui monte, tout devant. */
+.list > .lm-moving { position: relative; z-index: 1; }
+.list > .lm-rising { z-index: 2; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
 
 /* ── Contrôle segmenté façon iOS : pastille claire en relief sur une piste sombre ── */
 .seg { background: rgba(255, 255, 255, .06); border-radius: 13px; padding: 3px; gap: 2px; box-shadow: inset 0 0 0 1px var(--hairline); }
@@ -1171,6 +1174,11 @@ input.switch:checked:active::before { transform: translateX(14px); }
 .toast.ok { background: rgba(20, 90, 60, .86); }
 .toast.err { background: rgba(107, 31, 42, .88); }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 16px) scale(.96); } }
+/* Départ par le même chemin, plus vite (on n'attend pas un message qui s'en va) ; nouveau message sur place : petit rebond. */
+.toast.toast-out { animation: toast-out .22s cubic-bezier(.4, 0, 1, 1) both; pointer-events: none; }
+.toast.toast-bump { animation: toast-bump .35s var(--spring) both; }
+@keyframes toast-out { to { opacity: 0; transform: translate(-50%, 12px) scale(.96); } }
+@keyframes toast-bump { 40% { transform: translate(-50%, 0) scale(1.035); } to { transform: translate(-50%, 0); } }
 
 /* ── Feuilles de règles : montent du bas et y retournent ; fond assombri pour la mise au point ── */
 .g-modal { backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); animation: scrim-in .25s ease both; }
@@ -1195,7 +1203,9 @@ input.switch:checked:active::before { transform: translateX(14px); }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .12s !important; }
   button:not(:disabled):active { transform: none; }
   .toast, .g-sheet { animation: fade-in .2s ease both !important; }
+  .toast.toast-out { animation: fade-out .15s ease both !important; }
   @keyframes fade-in { from { opacity: 0; } }
+  @keyframes fade-out { to { opacity: 0; } }
 }
 @media (prefers-reduced-transparency: reduce) {
   .tabs, .toast, .g-drawer-panel, .g-modal { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
@@ -1326,11 +1336,14 @@ body.pyr-full #game.g-rm { background: transparent; border: 0; padding: 0; box-s
   --stage: rgba(255, 181, 71, .22);   /* lumière de scène (Musique) */
 }
 body[data-tab="games"] { --stage: rgba(255, 79, 154, .24); }
+/* Lumière de scène : couleur déclarée pour que le dégradé passe en fondu d'un onglet à l'autre (un dégradé seul ne
+   s'anime pas ; sans @property, le changement reste instantané comme avant). */
+@property --stage { syntax: "<color>"; inherits: true; initial-value: rgba(255, 181, 71, .22); }
 html { height: 100%; background: var(--bg); overscroll-behavior-y: none; }
 body {
   min-height: 100dvh; background-color: var(--bg);
   background-image: radial-gradient(120% 60% at 18% -12%, var(--stage), transparent 62%);
-  background-attachment: fixed; transition: background-image .6s ease;
+  background-attachment: fixed; transition: --stage .6s ease;
   padding-top: max(14px, env(safe-area-inset-top));
 }
 /* Pas de sélection ni de menu contextuel sur les commandes : ça se comporte comme une app. */
@@ -1632,6 +1645,27 @@ html.native-tabs .g-mini { bottom: 12px; }
 .pc-btn.secondary { background: var(--card-2); color: var(--text); }
 .pc-groups { margin-top: 4px; }
 .pc-close { margin-top: 6px; }
+.pc-body { display: grid; gap: 8px; }
+/* Fiche : fond en fondu, carte qui monte du bas ; elle repart par le même chemin (profile-card.js, .pc-out). */
+.pc-backdrop { animation: scrim-in .25s ease both; }
+.pc-card { animation: pc-in .5s var(--spring) both; }
+.pc-backdrop.pc-out { animation: scrim-out .22s ease both; pointer-events: none; }
+.pc-backdrop.pc-out .pc-card { animation: pc-out .22s cubic-bezier(.4, 0, 1, 1) both; }
+@keyframes pc-in { from { opacity: 0; transform: translate3d(0, 48px, 0) scale(.97); } }
+@keyframes pc-out { to { opacity: 0; transform: translate3d(0, 40px, 0); } }
+.pc-body.pc-swap > * { animation: fx-up .35s var(--spring) both; }
+/* Silhouette de chargement (photo + deux lignes), un reflet la traverse. */
+.pc-skel { position: relative; overflow: hidden; background: rgba(255, 255, 255, .07); }
+.pc-skel-line { display: block; height: 14px; width: 55%; margin: 4px auto; border-radius: 7px; }
+.pc-skel-line.short { width: 35%; }
+.pc-skel::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .09), transparent); animation: skel-shine 1.3s ease-in-out infinite; }
+@keyframes skel-shine { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .pc-card, .pc-body.pc-swap > * { animation: fade-in .2s ease both !important; }
+  .pc-backdrop.pc-out .pc-card { animation: fade-out .15s ease both !important; }
+  .pc-skel::after { animation: none !important; }
+}
 [data-profile-pid] { cursor: pointer; }
 
 /* ⏸ Pause de l'animateur : voile flou sur tout le jeu, au-dessus de tout. */

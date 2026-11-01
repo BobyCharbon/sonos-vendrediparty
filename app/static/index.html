@@ -207,6 +207,9 @@
 <script src="/static/motion.js"></script>
 <script src="/static/nav.js"></script>
 <script src="/static/segmented.js"></script>
+<script src="/static/list-motion.js"></script>
+<script src="/static/toast.js"></script>
+<script src="/static/now-progress.js"></script>
 <script src="/static/push.js"></script>
 <script src="/static/events-shell.js"></script>
 <script src="/static/native-tabs.js"></script>
@@ -222,18 +225,7 @@ if (!guestId) { guestId = (crypto.randomUUID ? crypto.randomUUID() : Math.random
 let guestName = store("vp_name") || "";
 let registered = false;  // l'invité s'est présenté au serveur (il apparaît dans l'admin)
 
-let toastTimer;
-// action : bouton dans le message (ex. « Annuler » après avoir retiré un titre de la file).
-function toast(msg, kind = "", action = null) {
-  const t = $("toast"); t.textContent = msg; t.className = "toast " + kind;
-  if (action) {
-    const b = document.createElement("button");
-    b.textContent = action.label;
-    b.onclick = () => { t.classList.add("hidden"); action.run(); };
-    t.append(b);
-  }
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("hidden"), action ? 7000 : 3000);
-}
+// toast(msg, kind, action) : message flottant (toast.js).
 
 async function api(path, opts = {}) {
   const r = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
@@ -267,8 +259,12 @@ function trackHtml(t, extra = "") {
     ${t.by ? `<span class="by">ajouté par ${esc(t.by)}</span>` : ""}${t.service ? `<span class="svc">🎧 via Sonos · ${esc(t.service)}</span>` : ""}${eta ? `<span class="eta">${eta}</span>` : ""}</div>${extra}</div>`;
 }
 
+let shownView = null;
 function show(view) {
   for (const v of ["pin", "closed", "hello", "party"]) $(v).classList.toggle("hidden", v !== view);
+  // Passage d'un état à l'autre (code accepté, soirée qui démarre…) : le nouvel écran arrive en fondu, une seule fois.
+  if (shownView && shownView !== view) Nav.tabIn([$(view)]);
+  shownView = view;
   if (view === "pin") setTimeout(() => $("pinInput").focus(), 50);
   if (view === "hello") maybeInstallSheet();
 }
@@ -299,35 +295,73 @@ async function refresh() {
   blocked = s.blocked || "";
   $("blocked").textContent = blocked; $("blocked").classList.toggle("hidden", !blocked);
   $("q").disabled = !!blocked;
-  if (blocked) $("results").innerHTML = "";
+  if (blocked) clearResults();
 
-  if (s.now && s.now.title) {
-    const n = s.now;
-    $("now").innerHTML = `${img(n.art, false)}
-      <div style="min-width:0"><div class="now-state ${s.state === "PLAYING" ? "on" : ""}"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>${s.state === "PLAYING" ? "En cours" : "En pause"}</div>
-      <div class="title">${esc(n.title)}</div><div class="artist">${esc(n.artist)}</div>
-      ${n.by ? `<span class="by">ajouté par ${esc(n.by)}</span><br>` : ""}${spotifyLink(n.track_id)}</div>`;
-  } else {
-    $("now").innerHTML = `<div class="artist">Rien ne joue pour l'instant</div>`;
-  }
+  renderNow(s);
   renderMyMessages(s.messages || []);
   // Mon titre vient de démarrer (page ouverte) : on prévient aussi à l'écran.
   if (s.now?.track_id && myTracks.has(s.now.track_id)) { toast("🎶 Ton titre passe !", "ok"); window.haptic?.([200, 100, 200]); }
   myTracks = new Set((s.upcoming || []).filter((t) => t.rid).map((t) => t.track_id));
   const played = s.played || [];
   $("playedBox").classList.toggle("hidden", !played.length);
-  $("played").innerHTML = played.map((t) => `<div class="track">${img(t.art)}
+  const playedKeys = ListMotion.occurrenceKeys(played, (t) => t.track_id || t.title);
+  ListMotion.patch($("played"), played.map((t, i) => ({ key: playedKeys[i], html: `<div class="track">${img(t.art)}
     <div class="meta"><div class="title">${esc(t.title)}</div><div class="artist">${esc(t.artist)}</div>
-    ${t.by ? `<span class="by">ajouté par ${esc(t.by)}</span>` : ""}</div>${t.track_id ? spotifyLink(t.track_id).replace("Ouvrir dans Spotify ↗", "Spotify ↗") : ""}</div>`).join("");
+    ${t.by ? `<span class="by">ajouté par ${esc(t.by)}</span>` : ""}</div>${t.track_id ? spotifyLink(t.track_id).replace("Ouvrir dans Spotify ↗", "Spotify ↗") : ""}</div>` })));
   const up = s.upcoming || [];
   $("spotifyQueueNote").classList.toggle("hidden", !["spotify", "spotify_sonos"].includes(s.source));
   $("count").textContent = s.upcoming_total ? `(${s.upcoming_total})` : "";
-  $("upcoming").innerHTML = up.length
-    ? up.map((t) => trackHtml(t, t.rid && s.queue_editable !== false ? `<button class="row-btn row-del" data-rid="${esc(t.rid)}" aria-label="Retirer « ${esc(t.title)} » de la file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button>` : "")).join("")
-    : `<p class="empty">${["spotify", "spotify_sonos"].includes(s.source) ? "Aucun titre à venir renvoyé par Spotify" : "La file est vide, à toi de jouer !"}</p>`;
+  // File animée : un titre ajouté glisse en place, un titre retiré s'efface, les autres remontent (list-motion.js).
+  const upKeys = ListMotion.occurrenceKeys(up, (t) => t.rid || t.track_id || t.title);
+  ListMotion.patch($("upcoming"), up.map((t, i) => ({ key: upKeys[i],
+    html: trackHtml(t, t.rid && s.queue_editable !== false ? `<button class="row-btn row-del" data-rid="${esc(t.rid)}" aria-label="Retirer « ${esc(t.title)} » de la file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button>` : "") })),
+    { empty: `<p class="empty">${["spotify", "spotify_sonos"].includes(s.source) ? "Aucun titre à venir renvoyé par Spotify" : "La file est vide, à toi de jouer !"}</p>` });
+}
+
+// 🎵 En cours : la carte n'est redessinée que si le titre change (la page se rafraîchit souvent : l'égaliseur et la
+// pochette ne doivent pas « sauter »). Nouveau titre : la pochette et le texte entrent en fondu ; lecture/pause :
+// seule la ligne d'état change. La barre de progression avance seule entre deux rafraîchissements (NowProgress).
+let nowKey = null;
+function renderNow(s) {
+  const n = s.now && s.now.title ? s.now : null;
+  const playing = s.state === "PLAYING";
+  const key = n ? [n.track_id, n.title, n.artist, n.art, n.by].join("\u0001") : "";
+  const stateHtml = `<div class="now-state ${playing ? "on" : ""}"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>${playing ? "En cours" : "En pause"}</div>`;
+  if (key === nowKey && n) {
+    const st = $("now").querySelector(".now-state");
+    if (st && st.outerHTML !== stateHtml) st.outerHTML = stateHtml;
+  } else {
+    const changed = nowKey !== null;
+    nowKey = key;
+    $("now").innerHTML = n
+      ? `${img(n.art, false)}
+      <div class="now-meta">${stateHtml}
+      <div class="title">${esc(n.title)}</div><div class="artist">${esc(n.artist)}</div>
+      ${n.by ? `<span class="by">ajouté par ${esc(n.by)}</span><br>` : ""}${spotifyLink(n.track_id)}
+      <div class="now-progress hidden" aria-hidden="true"><i></i></div></div>`
+      : `<div class="artist">Rien ne joue pour l'instant</div>`;
+    if (changed) {
+      $("now").classList.remove("now-in");
+      void $("now").offsetWidth;   // relance l'animation d'entrée
+      $("now").classList.add("now-in");
+    }
+  }
+  NowProgress.update($("now").querySelector(".now-progress"), n, playing);
 }
 
 let searchTimer, lastResults = [], blocked = "", myTracks = new Set();
+// Lignes squelette (chargement) : même gabarit qu'un titre, un reflet passe dessus.
+function showSkeleton(box, rows) {
+  box.innerHTML = Array.from({ length: rows }, () => `<div class="track skel" aria-hidden="true"><i class="skel-art"></i>
+    <div class="meta"><i class="skel-line"></i><i class="skel-line short"></i></div></div>`).join("");
+  box.setAttribute("aria-busy", "true");
+  box.lmSignature = "\u0004squelette";   // les résultats qui suivent entrent en cascade
+}
+function clearResults() {
+  $("results").innerHTML = "";
+  $("results").removeAttribute("aria-busy");
+  $("results").lmSignature = "";
+}
 
 // 👤 Prénom en haut à droite : le joueur peut le changer à tout moment (musique, jeux, parties en cours).
 function renderNameChip() {
@@ -360,7 +394,7 @@ function showTab(tab, eventTarget) {
     if (document.body.dataset.tab) return toast("📅 Les événements arrivent bientôt");
     tab = "music";
   }
-  const under = SUB_SCREENS[tab], starting = !document.body.dataset.tab;
+  const under = SUB_SCREENS[tab], starting = !document.body.dataset.tab, previous = document.body.dataset.tab;
   if (document.body.dataset.tab === "chats" && tab !== "chats") refreshChatsBadge();  // messages lus entre-temps
   document.querySelectorAll("[data-view]").forEach((el) => {
     const views = el.dataset.view.split(" ");
@@ -394,6 +428,15 @@ function showTab(tab, eventTarget) {
       under: () => document.querySelector(".events-panel"), close: () => showTab(under) });
   } else Object.keys(SUB_SCREENS).forEach((key) => Nav.closed(key));
   scrollTo(0, 0);
+  if (!starting && !under && previous !== tab && SUB_SCREENS[previous] !== tab) tabTransition(tab);
+}
+// Changement d'onglet (Nav.tabIn) : contenu et grand titre en fondu, l'icône touchée rebondit.
+// Une partie en plein écran (panneau fixe dans l'onglet Jeux) n'est pas touchée : un transform sur la section
+// déplacerait le panneau fixe le temps de l'animation.
+function tabTransition(tab) {
+  const content = [$("appTitle"), ...document.querySelectorAll("[data-view]:not(.hidden)")]
+    .filter((el) => !(document.body.classList.contains("pyr-full") && el.dataset.view === "games"));
+  Nav.tabIn(content, document.querySelector(`#tabs [data-tab="${tab}"] .tab-ico`));
 }
 // 🏆 Mes stats de jeu : un onglet par jeu ; chaque jeu enregistre son affichage dans STATS_TABS (purity.js…).
 const STATS_TABS = {};
@@ -616,6 +659,20 @@ const FB_STATUS = { new: "Envoyé", progress: "🔧 En cours de correction", don
 // (statuts, Claude…), sans passer par /admin. Un invité y voit son formulaire et le statut de ses envois.
 let fbView = "admin", fbAdminMounted = false, fbAdminCount = 0, fbUnseen = 0, musicAdminMounted = false;
 const fbIsAdmin = () => !!(account?.admin && adminSession);
+// Pastilles d'onglet : un nombre qui change fait sursauter la pastille (ui.css, .badge-bump). Seul un vrai
+// changement de texte compte : réécrire le même nombre à chaque rafraîchissement ne déclenche rien.
+new MutationObserver((records) => {
+  const changed = new Set(records.map((r) => (r.target.nodeType === 1 ? r.target : r.target.parentElement)?.closest(".badge")).filter(Boolean));
+  changed.forEach((b) => {
+    if (b.textContent === b.dataset.shown) return;
+    const first = b.dataset.shown === undefined;
+    b.dataset.shown = b.textContent;
+    if (first || b.classList.contains("hidden")) return;
+    b.classList.remove("badge-bump");
+    void b.offsetWidth;
+    b.classList.add("badge-bump");
+  });
+}).observe($("tabs"), { subtree: true, childList: true, characterData: true });
 function fbBadge() {
   const n = fbIsAdmin() ? fbAdminCount : fbUnseen;
   $("fbTabBadge").textContent = n || "";
@@ -753,25 +810,29 @@ function renderMyMessages(msgs) {
   if (seenReplies && [...replied].some((k) => !seenReplies.has(k))) { toast("L'hôte t'a répondu 💌", "ok"); window.haptic?.(200); }
   seenReplies = replied;
   const t = (x) => new Date(x * 1000).toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
-  $("myMessages").innerHTML = msgs.slice().reverse().map((m) => `
+  // Liste animée (list-motion.js) : un message envoyé glisse en place, une réponse de l'hôte redessine sa carte.
+  ListMotion.patch($("myMessages"), msgs.slice().reverse().map((m) => ({ key: m.id, html: `
     <div class="msg">
       <div class="artist">Toi · ${t(m.at)}</div><div class="text">${esc(m.text)}</div>
       ${m.reply ? `<div class="reply">💬 <b>L'hôte</b> <span class="artist">· ${t(m.reply_at)}</span><div class="text">${esc(m.reply)}</div></div>`
                 : `<div class="artist" style="font-size:.8rem">En attente de réponse…</div>`}
-    </div>`).join("");
+    </div>` })));
 }
 $("q").addEventListener("input", () => {
   clearTimeout(searchTimer);
   const q = $("q").value.trim();
-  if (q.length < 2) { $("results").innerHTML = ""; return; }
+  if (q.length < 2) { clearResults(); return; }
   searchTimer = setTimeout(async () => {
+    // Recherche en cours : des lignes « squelette » à la place des résultats (rien ne saute quand ils arrivent).
+    if (!$("results").children.length || $("results").querySelector(".empty")) showSkeleton($("results"), 3);
     try {
       lastResults = await api("/api/search?q=" + encodeURIComponent(q));
       if ($("q").value.trim() !== q) return;
-      $("results").innerHTML = lastResults.length
-        ? lastResults.map((t, i) => trackHtml({ ...t, artist: t.artist + (t.explicit ? " · 🅴" : "") + (t.via ? ` · 🔗 ${t.via}` : "") }, `<button class="row-btn row-add" data-i="${i}" aria-label="Ajouter « ${esc(t.title)} » à la file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button>`)).join("")
-        : `<p class="empty">Aucun résultat</p>`;
-    } catch (e) { toast(e.message, "err"); }
+      const keys = ListMotion.occurrenceKeys(lastResults, (t) => t.id || t.title);
+      ListMotion.patch($("results"), lastResults.map((t, i) => ({ key: keys[i],
+        html: trackHtml({ ...t, artist: t.artist + (t.explicit ? " · 🅴" : "") + (t.via ? ` · 🔗 ${t.via}` : "") }, `<button class="row-btn row-add" data-i="${i}" aria-label="Ajouter « ${esc(t.title)} » à la file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button>`) })),
+      { empty: `<p class="empty">Aucun résultat</p>` });
+    } catch (e) { clearResults(); toast(e.message, "err"); }
   }, 350);
 });
 
@@ -785,7 +846,7 @@ $("results").addEventListener("click", async (ev) => {
     toast(`« ${t.title} » ${["spotify", "spotify_sonos"].includes(added.source) ? "envoyé à Spotify" : "ajouté à la file"} 🎶`, "ok");
     // Titre ajouté : on vide la recherche et on ferme le clavier pour voir la file d'attente.
     clearTimeout(searchTimer);
-    $("q").value = ""; $("results").innerHTML = ""; lastResults = [];
+    $("q").value = ""; clearResults(); lastResults = [];
     $("q").blur();
     $("upcoming").scrollIntoView({ behavior: "smooth", block: "start" });
     refresh();
@@ -1032,7 +1093,17 @@ $("iShare").onclick = async () => {
 };
 // L'app vient d'être installée (Android) : plus besoin de la proposer.
 addEventListener("appinstalled", () => { store("vp_install_dismissed", "1"); $("install").classList.add("hidden"); $("installSheet").classList.add("hidden"); });
-$("iLater").onclick = () => $("installSheet").classList.add("hidden");
+// « Plus tard » ou toucher le fond : la fenêtre repart par où elle est venue, puis se cache (ui.css, .i-out).
+const SHEET_OUT_SAFETY_MS = 400;
+function closeInstallSheet() {
+  const sheet = $("installSheet");
+  if (sheet.classList.contains("hidden") || sheet.classList.contains("i-out")) return;
+  sheet.classList.add("i-out");
+  const done = () => { if (!sheet.classList.contains("i-out")) return; sheet.classList.remove("i-out"); sheet.classList.add("hidden"); };
+  sheet.querySelector(".i-sheet").addEventListener("animationend", done, { once: true });
+  setTimeout(done, SHEET_OUT_SAFETY_MS);
+}
+$("iLater").onclick = closeInstallSheet;
 // Barre d'adresse en haut ou en bas : on retient le choix et on replace la flèche.
 $("iBar").addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-bar]");
@@ -1040,7 +1111,7 @@ $("iBar").addEventListener("click", (ev) => {
   store("vp_bar", b.dataset.bar);
   openInstallSheet();
 });
-$("installSheet").addEventListener("click", (ev) => { if (ev.target.id === "installSheet") $("installSheet").classList.add("hidden"); });
+$("installSheet").addEventListener("click", (ev) => { if (ev.target.id === "installSheet") closeInstallSheet(); });
 setTimeout(offerInstall, 1500);
 
 // Mises à jour en direct : le serveur signale chaque changement, on rafraîchit aussitôt.

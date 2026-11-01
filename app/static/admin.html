@@ -224,6 +224,8 @@
 <script src="/static/motion.js"></script>
 <script src="/static/nav.js"></script>
 <script src="/static/segmented.js"></script>
+<script src="/static/list-motion.js"></script>
+<script src="/static/toast.js"></script>
 <script src="/static/push.js"></script>
 <script src="/static/events-shell.js"></script>
 <script>
@@ -245,17 +247,7 @@ const HELP = {
 let state = null, chosenMode = "next";
 let volumeDragging = false, volumeSentAt = 0, volumeTimer;
 
-let toastTimer;
-function toast(msg, kind = "", action = null) {
-  const t = $("toast"); t.textContent = msg; t.className = "toast " + kind;
-  if (action) {
-    const b = document.createElement("button");
-    b.textContent = action.label;
-    b.onclick = () => { t.classList.add("hidden"); action.run(); };
-    t.append(b);
-  }
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("hidden"), action ? 7000 : 3000);
-}
+// toast(msg, kind, action) : message flottant (toast.js).
 // Après une suppression : « Annuler » remet les titres à leur place.
 function removedToast(res, msg) {
   toast(msg, "ok", res.undo ? { label: "Annuler", run: async () => {
@@ -309,6 +301,7 @@ function showView(view) {
     if (document.body.dataset.tab) return toast("📅 Les événements arrivent bientôt");
     view = "home";
   }
+  const switching = !!document.body.dataset.tab && document.body.dataset.tab !== view;
   document.querySelectorAll("[data-view]").forEach((el) => el.classList.toggle("hidden", el.dataset.view !== view));
   document.querySelectorAll("#tabs [data-tab]").forEach((el) => {
     const current = el.dataset.tab === view;
@@ -319,6 +312,10 @@ function showView(view) {
   if (view === "events" && !$("eventsFrame").hasAttribute("src")) PartyEvents.open('/events/admin');
   if (location.hash.slice(1) !== view) history.replaceState(null, "", view === "home" ? location.pathname : "#" + view);
   scrollTo(0, 0);
+  // Contenu en fondu, icône qui rebondit (nav.js) ; pas sur l'onglet Jeux en plein écran (panneau fixe).
+  if (switching && !document.body.classList.contains("pyr-full")) {
+    Nav.tabIn([...document.querySelectorAll("[data-view]:not(.hidden)")], document.querySelector(`#tabs [data-tab="${view}"]`));
+  }
   if (view === "settings" && typeof loadSpeakers === "function") loadSpeakers();
   if (view === "settings") window.AuditAdmin?.refresh();
   if (view === "games" && typeof refreshGame === "function") refreshGame();
@@ -483,7 +480,9 @@ function renderQueue(s) {
   const q = s.queue || [];
   $("queueCount").textContent = q.length ? `(${q.length})` : "";
 
-  $("queue").innerHTML = q.length ? q.map((t, i) => `
+  // File animée (list-motion.js) : un titre déplacé glisse, un titre retiré s'efface, un ajout s'insère.
+  const keys = ListMotion.occurrenceKeys(q, (t) => t.key || t.title);
+  ListMotion.patch($("queue"), q.map((t, i) => ({ key: keys[i], html: `
     <div class="track ${t.by ? "guest" : ""}">
       ${t.art ? `<img src="${esc(t.art)}" alt="" loading="lazy" onerror="this.removeAttribute('src')">` : `<img alt="">`}
       <div class="meta"><div class="title">${esc(t.title)}</div><div class="artist">${esc(t.artist)}</div>
@@ -495,7 +494,7 @@ function renderQueue(s) {
         <button class="secondary" data-q="play" data-pos="${t.pos}" data-key="${esc(t.key)}" title="Jouer maintenant">▶︎</button>
         <button class="danger" data-q="remove" data-pos="${t.pos}" data-key="${esc(t.key)}" title="Retirer">✕</button>
       </div>`}
-    </div>`).join("") : `<p class="empty">${ext ? "Aucun titre à venir renvoyé par Spotify" : "La file est vide"}</p>`;
+    </div>` })), { empty: `<p class="empty">${ext ? "Aucun titre à venir renvoyé par Spotify" : "La file est vide"}</p>` });
 }
 
 document.addEventListener("click", async (ev) => {
@@ -812,14 +811,16 @@ function renderGamesSettings(s) {
   const list = s.games || [];
   $("gamesSettingsBox").classList.toggle("hidden", !list.length);
   $("gamesCount").textContent = list.length;
-  $("gamesSettings").innerHTML = list.map((g) => {
+  // Cartes à clés (list-motion.js) : un état identique ne redessine rien (le détail déplié ne se rejoue plus),
+  // une partie fermée s'efface ; la durée est remplie à part (gsTick), hors du HTML comparé.
+  ListMotion.patch($("gamesSettings"), list.map((g) => {
     const open = gsOpen.has(g.code), mine = typeof myGame !== "undefined" && myGame === g.code;
     const players = g.players_detail || [];
-    return `<div class="gs-card ${open ? "open" : ""}">
+    return { key: g.code, html: `<div class="gs-card ${open ? "open" : ""}">
       <button type="button" class="gs-head" data-gs="${esc(g.code)}" aria-expanded="${open}">
         <span class="gs-ico" aria-hidden="true">${GAME_EMOJI[g.type] || "🎮"}</span>
         <span class="gs-main"><b>${esc(g.name)}</b>
-          <small>créée à ${hhmm(g.created_at)} · ⏱ <span data-gs-timer="${g.created_at}">${fmtDur(Date.now() / 1000 - g.created_at)}</span> · par ${esc(g.host || "?")}</small>
+          <small>créée à ${hhmm(g.created_at)} · ⏱ <span data-gs-timer="${g.created_at}"></span> · par ${esc(g.host || "?")}</small>
           <small>${PHASES[g.phase] || g.phase}${g.round ? ` · ${g.type === "undercover" ? "manche" : g.type === "casino" ? "tour" : g.type === "pyramid" ? "tour" : "n°"} ${g.round}` : ""} · ${players.length} joueur${players.length > 1 ? "s" : ""}</small></span>
         <span class="gs-code">${esc(g.code)}</span><span class="gs-chev" aria-hidden="true">▾</span>
       </button>
@@ -833,8 +834,9 @@ function renderGamesSettings(s) {
           ${mine ? `<span class="pill live">ta partie</span>` : `<button class="secondary grow" data-join-game="${esc(g.code)}">Rejoindre</button>`}
           <button class="danger grow" data-close-game="${esc(g.code)}">Fermer la partie</button>
         </div></div>` : ""}
-    </div>`;
-  }).join("");
+    </div>` };
+  }));
+  gsTick();
 }
 document.addEventListener("click", (ev) => {
   const h = ev.target.closest("[data-gs]");
@@ -844,7 +846,10 @@ document.addEventListener("click", (ev) => {
   renderGamesSettings(state);
 });
 // Durée des parties : à jour chaque seconde.
-setInterval(() => document.querySelectorAll("[data-gs-timer]").forEach((el) => { el.textContent = fmtDur(Date.now() / 1000 - +el.dataset.gsTimer); }), 1000);
+function gsTick() {
+  document.querySelectorAll("[data-gs-timer]").forEach((el) => { el.textContent = fmtDur(Date.now() / 1000 - +el.dataset.gsTimer); });
+}
+setInterval(gsTick, 1000);
 
 function renderGameAdmin(s) {
   const list = s.games || [];

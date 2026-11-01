@@ -12,7 +12,9 @@
 </head>
 <body>
   <!-- Écran TV de l'hôte : ouvert sur le Mac, affiché sur l'Apple TV (AirPlay, écran étendu, plein écran). -->
+  <!-- Deux calques de fond : la nouvelle pochette apparaît en fondu par-dessus l'ancienne (tv.js). -->
   <div class="tv-backdrop" id="backdrop" aria-hidden="true"></div>
+  <div class="tv-backdrop" id="backdrop2" aria-hidden="true"></div>
 
   <form id="login" class="tv-login hidden">
     <h1>Party <span>TV</span></h1>
@@ -30,6 +32,7 @@
         <h1 id="nowTitle"></h1>
         <p class="tv-artist" id="nowArtist"></p>
         <p class="tv-by hidden" id="nowBy"></p>
+        <div class="tv-progress hidden" id="nowProgress" aria-hidden="true"><i></i></div>
       </div>
     </section>
 
@@ -52,6 +55,8 @@
     <span id="games"></span>
   </footer>
 
+  <script src="/static/list-motion.js"></script>
+  <script src="/static/now-progress.js"></script>
   <script src="/static/tv.js"></script>
 </body>
 </html>

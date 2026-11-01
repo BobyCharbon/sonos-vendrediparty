@@ -166,12 +166,25 @@
       : so && so.from_queue === false ? "⚠️ La musique ne joue pas depuis la file Sonos (Spotify Connect / Jam ?). Lance une playlist depuis l'app Sonos." : "";
     q("warn").textContent = warn;
     q("warn").classList.toggle("hidden", !warn);
-    q("now").innerHTML = so?.now?.title
+    // Redessiné seulement si quelque chose change (sinon la pochette clignote à chaque rafraîchissement).
+    const nowHtml = so?.now?.title
       ? `${so.now.art ? `<img src="${escape(so.now.art)}" alt="" onerror="this.removeAttribute('src')">` : `<img alt="">`}
         <div style="min-width:0"><div class="artist">${so.state === "PLAYING" ? "▶︎ En cours" : "⏸ " + escape(so.state)}</div>
         <div class="title">${escape(so.now.title)}</div><div class="artist">${escape(so.now.artist)}</div>
         ${so.now.by ? `<span class="by">ajouté par ${escape(so.now.by)}</span>` : ""}</div>`
       : `<div class="artist">Rien ne joue</div>`;
+    if (q("now").lmHtml !== nowHtml) {
+      const box = q("now"), track = so?.now ? `${so.now.title}\u0001${so.now.artist}` : "";
+      box.innerHTML = nowHtml;
+      box.lmHtml = nowHtml;
+      // Nouveau titre (pas une simple pause) : pochette et texte entrent en fondu, comme sur la page invités.
+      if (box.lmTrack !== undefined && box.lmTrack !== track) {
+        box.classList.remove("now-in");
+        void box.offsetWidth;
+        box.classList.add("now-in");
+      }
+      box.lmTrack = track;
+    }
     const playing = so && (so.state === "PLAYING" || so.state === "TRANSITIONING");
     const pp = root.querySelector('[data-ma-act="playpause"]');
     pp.textContent = playing ? "⏸ Pause" : "▶︎ Lecture";
@@ -198,9 +211,11 @@
     more.textContent = queueAll ? "Masquer les titres de la playlist" : `🎵 Voir les ${playlist} titre${playlist > 1 ? "s" : ""} de la playlist`;
     // Index d'origine gardé : les boutons ⬆⬇ se basent sur la place réelle dans la file.
     const shown = list.map((t, i) => [t, i]).filter(([t]) => queueAll || t.by);
-    q("queue").innerHTML = list.length ? (shown.length ? shown.map(([t, i]) => {
+    // File animée (list-motion.js) : ⬆⬇ ⏫ font glisser le titre à sa nouvelle place, ✕ l'efface, un ajout s'insère.
+    const keys = window.ListMotion ? ListMotion.occurrenceKeys(shown.map(([t]) => t), (t) => t.key || t.title) : [];
+    const rows = shown.map(([t, i], n) => {
       const at = `data-pos="${t.pos}" data-key="${escape(t.key)}"`;
-      return `<div class="track ${t.by ? "guest" : ""}">
+      return { key: keys[n], html: `<div class="track ${t.by ? "guest" : ""}">
         ${t.art ? `<img src="${escape(t.art)}" alt="" loading="lazy" onerror="this.removeAttribute('src')">` : `<img alt="">`}
         <div class="meta"><div class="title">${escape(t.title)}</div><div class="artist">${escape(t.artist)}</div>
           ${t.by ? `<span class="by">ajouté par ${escape(t.by)}</span>` : ""}${etaText(t.eta) ? `<span class="eta">${etaText(t.eta)}</span>` : ""}</div>
@@ -210,9 +225,12 @@
           ${i < list.length - 1 ? `<button class="secondary" data-ma-q="down" ${at} title="Descendre">⬇</button>` : ""}
           <button class="secondary" data-ma-q="play" ${at} title="Jouer maintenant">▶︎</button>
           <button class="danger" data-ma-q="remove" ${at} title="Retirer">✕</button></div>`}
-      </div>`;
-    }).join("") : `<p class="empty">Aucune demande des invités pour l'instant</p>`)
+      </div>` };
+    });
+    const empty = list.length ? `<p class="empty">Aucune demande des invités pour l'instant</p>`
       : `<p class="empty">${ext ? "Aucun titre à venir renvoyé par Spotify" : "La file est vide"}</p>`;
+    if (window.ListMotion) ListMotion.patch(q("queue"), rows, { empty });
+    else q("queue").innerHTML = rows.length ? rows.map((r) => r.html).join("") : empty;
   }
 
   function renderAccess(s) {
@@ -288,13 +306,16 @@
 
   function renderRequests(s, ext) {
     const labels = { queued: ext ? "envoyé à Spotify" : "en attente", played: "joué", removed: "retiré" };
-    q("requests").innerHTML = (s.requests || []).length ? s.requests.map((r) => `
+    const rows = (s.requests || []).map((r) => ({ key: r.id, html: `
       <div class="track ${r.status === "queued" ? "guest" : ""}" style="${r.status !== "queued" ? "opacity:.55" : ""}">
         ${r.image ? `<img src="${escape(r.image)}" alt="">` : `<img alt="">`}
         <div class="meta"><div class="title">${escape(r.title)}</div><div class="artist">${escape(r.artist)}</div>
         <span class="by">${escape(r.guest_name)} · ${new Date(r.added_at * 1000).toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" })} · ${labels[r.status] || ""}</span></div>
         ${r.status === "queued" && !ext ? `<button class="danger" data-ma-remove="${escape(r.id)}" title="Retirer de la file">✕</button>` : ""}
-      </div>`).join("") : `<p class="empty">Aucune demande pour l'instant</p>`;
+      </div>` }));
+    const empty = `<p class="empty">Aucune demande pour l'instant</p>`;
+    if (window.ListMotion) ListMotion.patch(q("requests"), rows, { empty });
+    else q("requests").innerHTML = rows.length ? rows.map((r) => r.html).join("") : empty;
   }
 
   function render(s) {
