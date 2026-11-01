@@ -142,6 +142,37 @@ export function createScene(canvas) {
       for(let j=0;j<2;j++){const pebble=mesh(geos.boulder,j%2?stoneLight:sand,o.g,rand(i+j)*1.8-.9,.14,rand(i+j+20)*1.8-.9);pebble.scale.set(.3,.2,.3);}
     }
   }
+  // Éclaboussures : quelques anneaux réutilisés, posés sur l'eau quand une plateforme ou un joueur y tombe.
+  const ringGeo=new THREE.RingGeometry(.55,.8,32),splashes=[];
+  for(let i=0;i<10;i++){
+    const m=new THREE.Mesh(ringGeo,new THREE.MeshBasicMaterial({color:'#eafcff',transparent:true,opacity:0,depthWrite:false,toneMapped:false}));
+    m.rotation.x=-Math.PI/2;m.visible=false;scene.add(m);splashes.push({m,t:9,size:1});
+  }
+  const WATER_Y=-5.55,SPLASH_S=1.1;
+  function splash(x,z,size=1){
+    const s=splashes.reduce((a,b)=>b.t>a.t?b:a);  // l'anneau le plus ancien
+    Object.assign(s,{t:0,size});s.m.position.set(x,WATER_Y,z);s.m.visible=true;
+  }
+  function drawSplashes(dt){
+    for(const s of splashes){
+      if(s.t>=SPLASH_S){s.m.visible=false;continue;}
+      s.t+=dt;const k=Math.min(1,s.t/SPLASH_S);
+      s.m.scale.setScalar(s.size*(.4+2.4*(1-(1-k)**3)));s.m.material.opacity=.85*(1-k);
+    }
+  }
+  const WARN_COLOR=new THREE.Color('#f36a12'),WARN_GLOW=new THREE.Color('#d94c00'),NO_GLOW=new THREE.Color('#000000'),RIGHT=new THREE.Vector3();
+  const motion=matchMedia('(prefers-reduced-motion: reduce)');
+  // Horloge locale : le serveur envoie l'heure de la manche ~15 fois par seconde ; entre deux réponses, on avance
+  // à la vitesse de l'écran et on se recale en douceur (les plateformes tombaient par à-coups).
+  let clock=0,clockSnap=null,clockAt=0,clockRound=-1;
+  function gameTime(v,now,dt){
+    if(v!==clockSnap){clockSnap=v;clockAt=now;}
+    const live=v.phase==='play'||v.phase==='countdown';
+    const target=v.time+(live?Math.min(.25,(now-clockAt)/1000):0);
+    if(!live||clockRound!==v.round||Math.abs(target-clock)>.5){clock=target;clockRound=v.round;return clock;}
+    clock+=dt;clock+=(target-clock)*Math.min(1,dt*6);
+    return clock;
+  }
   let width=0,height=0,last=0,round=-1,disposed=false;
   function draw(v, now, roster) {
     if(disposed)return;
@@ -152,15 +183,20 @@ export function createScene(canvas) {
       camera.left=-halfW;camera.right=halfW;camera.top=halfH*(aspect<.85?.73:1.03);camera.bottom=-halfH*(aspect<.85?1.27:.97);camera.updateProjectionMatrix();
     }
     const dt=Math.min(.05,(now-last)/1000||.016);last=now;
-    const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const t=v.time||0;waterMat.uniforms.uTime.value=reduced?0:now/1000;
+    const reduced=motion.matches;
+    const t=gameTime(v,now,dt);waterMat.uniforms.uTime.value=reduced?0:now/1000;
     buildTiles(v.tiles);vegetation(v.tiles);
     for(const tile of v.tiles) {
       const o=islands.get(tile.id),fall=Math.max(0,t-tile.fall),warn=t>=tile.fall-v.warning&&t<tile.fall;
-      o.g.visible=fall<2.4;o.g.position.y=-Math.min(20,fall*fall*6);o.g.rotation.z=fall*.22;
-      o.g.position.x=tile.x+(warn&&!reduced?Math.sin(now*.035+o.index)*.035:0);
-      o.grass.color.copy(warn?new THREE.Color('#f36a12'):o.baseColor);
-      o.grass.emissive.set(warn?'#d94c00':'#000000');o.grass.emissiveIntensity=warn?.12:0;
+      // Avant la chute, la fissure s'accélère : la plateforme tremble de plus en plus fort, puis bascule.
+      const urgency=warn?1-(tile.fall-t)/v.warning:0,shake=warn&&!reduced?(.02+urgency*.06)*Math.sin(now*(.03+urgency*.03)+o.index):0;
+      o.g.visible=fall<2.4;o.g.position.y=-Math.min(20,fall*fall*6);o.g.rotation.z=fall*.22+shake*.4;
+      o.g.position.x=tile.x+shake;
+      const sunk=o.g.position.y<WATER_Y+.3;
+      if(sunk&&!o.splashed&&!reduced&&fall<1.3)splash(tile.x,tile.y,1.5);  // chute récente seulement (pas à l'ouverture)
+      o.splashed=sunk;
+      o.grass.color.copy(warn?WARN_COLOR:o.baseColor);
+      o.grass.emissive.copy(warn?WARN_GLOW:NO_GLOW);o.grass.emissiveIntensity=warn?.12+urgency*.25*(.5+.5*Math.sin(now*.02)):0;
       o.crack.visible=warn;
     }
     const fighters=v.phase==='lobby'?roster.map((p,i)=>({...p,x:Math.cos(i*2.4)*4,y:Math.sin(i*2.4)*3,z:0,alive:true,color:['#20c9d0','#f66b60','#f4bd40','#a185e8','#78ba60','#ef91ba','#539cef','#ef984b'][i]})):v.fighters;
@@ -171,19 +207,28 @@ export function createScene(canvas) {
       c.g.visible=true;const dx=p.x-c.x,dy=p.y-c.y,smooth=1-Math.exp(-dt*20);
       c.x=fresh?p.x:c.x+dx*smooth;c.y=fresh?p.y:c.y+dy*smooth;c.z=fresh?p.z:c.z+(p.z-c.z)*smooth;
       c.fallen=p.alive?0:c.fallen+dt;
-      c.g.position.set(c.x,0,c.y);c.body.scale.setScalar(1.18);c.body.position.y=p.alive?c.z:-c.fallen*c.fallen*7;
+      // Saut : étiré en montant, écrasé à l'atterrissage (le ressort revient en ~0,2 s).
+      const vz=(c.z-(c.prevZ??c.z))/Math.max(dt,.001);c.prevZ=c.z;
+      if(c.wasUp&&c.z<.04&&vz<=0)c.squash=1;c.wasUp=c.z>.12;
+      c.squash=Math.max(0,(c.squash||0)-dt*5);
+      const stretch=reduced||!p.alive?0:Math.max(-.12,Math.min(.18,vz*.035))-c.squash*.22;
+      c.g.position.set(c.x,0,c.y);c.body.scale.set(1.18*(1-stretch*.5),1.18*(1+stretch),1.18*(1-stretch*.5));
+      c.body.position.y=p.alive?c.z:-c.fallen*c.fallen*7;
+      if(!p.alive&&!c.splashed&&c.body.position.y<WATER_Y+.4){c.splashed=true;if(!reduced)splash(c.x,c.y,.8);}
+      if(p.alive)c.splashed=false;
       c.g.visible=c.fallen<1.3;c.shadow.visible=p.alive&&c.z<.2;c.marker.visible=p.pid===v.me;
       c.label.visible=p.alive;
       // Screen-sized marker stays clear of the name label on narrow phones.
       const unitPerPixel=(camera.top-camera.bottom)/h;
       c.marker.scale.setScalar(18*unitPerPixel);
       c.marker.position.set(0,c.body.position.y+2.18*1.18,0);
-      c.marker.position.addScaledVector(new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion),1.8*1.18/2+14*unitPerPixel);
+      c.marker.position.addScaledVector(RIGHT.set(1,0,0).applyQuaternion(camera.quaternion),1.8*1.18/2+14*unitPerPixel);
       const moving=Math.hypot(dx,dy)>.015;
       if(moving)c.body.rotation.y=Math.atan2(dx,dy);
       c.feet.forEach((f,i)=>f.position.y=.14+(moving&&!reduced?Math.sin(now*.018+i*Math.PI)*.08:0));
       c.body.rotation.z=p.alive?0:c.fallen;
     }
+    drawSplashes(dt);
     round=v.round;sampleBudget(now);renderer.render(scene,camera);
   }
   function dispose() {
