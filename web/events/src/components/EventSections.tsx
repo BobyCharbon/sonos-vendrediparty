@@ -501,6 +501,7 @@ export function BringSection({
   const [error, setError] = useState<string | null>(null);
   const [label, setLabel] = useState('');
   const grew = useChangedSinceMount(items.length);
+  const claimsChanged = useChangedSinceMount(items.map((it) => it.claimed_by ?? '').join());
   if (!items.length && !canParticipate) return null;
   const add = async () => {
     const text = label.trim();
@@ -514,6 +515,8 @@ export function BringSection({
         <Reveal key={it.id} kind={grew ? 'rise' : null}>
           <View style={s.rowBetween}>
             <T style={{ flex: 1 }}>{it.label}</T>
+            {/* Qui le prend change (moi, un autre, personne) : la nouvelle action se pose à sa place. */}
+            <Reveal key={`${it.claimed_by ?? 'libre'}`} kind={grew || claimsChanged ? 'pop' : null}>
             {it.added_by === me ? (
               <Button small variant="secondary" label="Retirer" onPress={() => act(supabase.from('bring_items').delete().eq('id', it.id), onChange, setError)} />
             ) : it.claimed_by === me ? (
@@ -525,6 +528,7 @@ export function BringSection({
             ) : (
               <T muted>Libre</T>
             )}
+            </Reveal>
           </View>
           {it.added_by ? null : <T style={{ color: colors.coral, fontSize: 12 }}>Demandé par l’organisateur</T>}
         </Reveal>
