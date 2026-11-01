@@ -1232,7 +1232,8 @@ function playFx(kind, sub) {
       <div class="fx-title" data-text="${title}">${title}</div>
       <div class="fx-sub">${esc(sub)}</div>
     </div>`;
-  const close = () => { fx.classList.add("fx-out"); setTimeout(() => fx.remove(), 350); };
+  // Pendant le fondu de sortie, les touchers passent déjà au jeu dessous.
+  const close = () => { fx.classList.add("fx-out"); fx.style.pointerEvents = "none"; setTimeout(() => fx.remove(), 350); };
   fx.addEventListener("click", close);
   document.body.append(fx);
   haptic({ win: [80, 60, 80], blackjack: [100, 50, 100, 50, 220], jackpot: [100, 50, 100, 50, 100, 50, 300],
@@ -1392,10 +1393,11 @@ function pyrFlash(kind, title, sub = "", card = "", ms = 2300) {
   el.setAttribute("role", "status");
   el.innerHTML = `<div class="py-flash-box">${card ? `<div class="py-flash-card">${pyCard(card, "xl")}</div>` : ""}
     <div class="py-flash-title">${title}</div>${sub ? `<div class="py-flash-sub">${sub}</div>` : ""}</div>`;
-  el.addEventListener("click", () => el.remove());
+  // Un toucher la ferme en fondu (comme à la fin du délai), sans disparition sèche ; elle ne retient plus les touchers.
+  el.addEventListener("click", () => { el.classList.add("out"); el.style.pointerEvents = "none"; setTimeout(() => el.remove(), 400); }, { once: true });
   document.body.append(el);
   haptic(kind === "bad" || kind === "liar" ? [200] : [60, 40, 60]);
-  setTimeout(() => el.classList.add("out"), ms);
+  setTimeout(() => { el.classList.add("out"); el.style.pointerEvents = "none"; }, ms);
   setTimeout(() => el.remove(), ms + 400);
 }
 function pyrEvents(g) {
@@ -2646,7 +2648,7 @@ function showGameEnded(info) {
     <div class="g-ended-title">Partie terminée</div>
     <div class="g-ended-sub">${info.game ? `${esc(info.game)} · ` : ""}${who}</div>
     <div class="g-ended-bar"><i></i></div></div>`;
-  const close = () => { el.classList.add("out"); setTimeout(() => el.remove(), 300); };
+  const close = () => { el.classList.add("out"); el.style.pointerEvents = "none"; setTimeout(() => el.remove(), 300); };
   el.addEventListener("click", close);
   document.body.append(el);
   haptic([80, 60, 80]);

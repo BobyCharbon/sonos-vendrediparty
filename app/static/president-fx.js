@@ -123,7 +123,7 @@ window.PresidentFx = (() => {
       <div class="pr-cel-name">${esc(name)}</div>
       <div class="pr-cel-sub">${mine ? "Tu es Président !" : "est Président !"}</div>`;
     document.body.append(el);
-    const close = () => gone(el.animate([{opacity: 1}, {opacity: 0}], {duration: 300, fill: "forwards"}), el);
+    const close = () => { el.style.pointerEvents = "none"; gone(el.animate([{opacity: 1}, {opacity: 0}], {duration: 300, fill: "forwards"}), el); };
     el.addEventListener("click", close, {once: true});
     if (calm()) {
       el.animate([{opacity: 0}, {opacity: 1, offset: .1}, {opacity: 1, offset: .9}, {opacity: 0}], {duration: CELEBRATE, fill: "forwards"})
