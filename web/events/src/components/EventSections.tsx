@@ -20,6 +20,21 @@ type Names = Map<string, string>;
 const voteLabel: Record<DateVote, string> = { yes: 'Oui', if_needed: 'Si besoin', no: 'Non' };
 const voteColor: Record<DateVote, string> = { yes: colors.accent, if_needed: colors.lavender, no: colors.coral };
 
+/**
+ * Votes affichés tout de suite : le choix touché remplace la valeur de la base jusqu’à ce que la base rechargée
+ * dise la même chose (ou qu’une erreur l’annule). Clé : l’option votée.
+ */
+function useInstantChoices<V>(server: (id: string) => V) {
+  const [local, setLocal] = useState<Record<string, V>>({});
+  const settled = Object.keys(local).filter((id) => Object.is(local[id], server(id)));
+  if (settled.length) setLocal((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => !settled.includes(id))));
+  return {
+    value: (id: string) => (id in local ? local[id] : server(id)),
+    set: (changes: Record<string, V>) => setLocal((prev) => ({ ...prev, ...changes })),
+    forget: (ids: string[]) => setLocal((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => !ids.includes(id)))),
+  };
+}
+
 async function act(p: PromiseLike<{ error: { message: string } | null }>, onDone: () => void, onError: (m: string) => void) {
   try {
     const { error } = await p;
@@ -57,11 +72,15 @@ export function RsvpCard({
   const [note, setNote] = useState(mine?.note ?? '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // Choix enregistré, affiché jusqu’à ce que la fiche rechargée le confirme (pas de retour en arrière d’un instant).
+  const [picked, setPicked] = useState<RsvpStatus | null>(null);
+  if (picked && mine?.status === picked) setPicked(null);
   const closed = rsvpClosed(event);
   const heads = rsvps.filter((r) => r.status === 'yes' && !r.waitlisted).reduce((n, r) => n + 1 + r.plus_ones, 0);
   const full = !!event.max_participants && heads >= event.max_participants && !(mine?.status === 'yes' && !mine.waitlisted);
   // Retour immédiat : le choix touché s’affiche (couleur, phrase) pendant l’enregistrement.
-  const choosing = (['yes', 'maybe', 'no'] as const).find((k) => k === busy) ?? null;
+  const saving = (['yes', 'maybe', 'no'] as const).find((k) => k === busy) ?? null;
+  const choosing = saving ?? picked;
   const shown = choosing ?? mine?.status ?? null;
   const plusChanged = useChangedSinceMount(mine?.plus_ones ?? 0);
 
@@ -69,6 +88,7 @@ export function RsvpCard({
     setBusy(key);
     try {
       await saveRsvp(event.id, me, mine, patch);
+      if (patch.status) setPicked(patch.status);
       setError(null);
       onChange();
     } catch (e) {
@@ -103,8 +123,8 @@ export function RsvpCard({
       ) : null}
       <RsvpButtons
         options={rsvpOptions(event.allow_maybe)}
-        selected={mine?.status ?? null}
-        busy={choosing}
+        selected={picked ?? mine?.status ?? null}
+        busy={saving}
         disabled={closed}
         onSelect={(k) => upsert(k, { status: k })}
       />
@@ -261,14 +281,17 @@ export function DatePollSection({
     .sort((a, b) => a.o.starts_at.localeCompare(b.o.starts_at));
   const best = [...scored].sort((a, b) => b.yes - a.yes || b.ifNeeded - a.ifNeeded)[0];
 
+  const myVote = useInstantChoices<DateVote | null>((id) => votes.find((x) => x.option_id === id && x.user_id === me)?.vote ?? null);
+
   function vote(optionId: string, v: DateVote) {
-    const current = votes.find((x) => x.option_id === optionId && x.user_id === me);
+    const next = myVote.value(optionId) === v ? null : v;
+    myVote.set({ [optionId]: next });
     act(
-      current?.vote === v
+      next === null
         ? supabase.from('date_votes').delete().eq('option_id', optionId).eq('user_id', me)
-        : supabase.from('date_votes').upsert({ option_id: optionId, user_id: me, vote: v }),
+        : supabase.from('date_votes').upsert({ option_id: optionId, user_id: me, vote: next }),
       () => { refreshPending(); onChange(); },
-      setError,
+      (message) => { setError(message); if (message) myVote.forget([optionId]); },
     );
   }
 
@@ -289,7 +312,7 @@ export function DatePollSection({
         {event.status !== 'published' ? 'Les votes seront disponibles lorsque l’événement sera publié.' : closed ? 'Le vote est terminé.' : event.poll_deadline ? `Vote jusqu’au ${formatShort(event.poll_deadline)}` : 'Pour chaque date : Oui, Si besoin ou Non.'}
       </T>
       {scored.map(({ o, vs, yes, ifNeeded, no }) => {
-        const mine = vs.find((v) => v.user_id === me)?.vote;
+        const mine = myVote.value(o.id);
         const total = Math.max(1, yes + ifNeeded + no);
         const lead = best && best.o.id === o.id && yes > 0;
         return (
@@ -377,13 +400,19 @@ export function PollSection({
   const closed = !!poll.closes_at && new Date(poll.closes_at) < new Date();
   const total = results ? Math.max(1, [...results.values()].reduce((a, b) => a + b, 0)) : 1;
 
+  const picked = useInstantChoices<boolean>((id) => myVotes.has(id));
+
   function toggle(optionId: string) {
+    const on = !picked.value(optionId);
+    // Choix unique : la base retire l’autre vote (guard_poll_vote) ; l’écran le fait tout de suite aussi.
+    const others = on && !poll.multiple_choice ? options.filter((o) => o.id !== optionId && picked.value(o.id)).map((o) => o.id) : [];
+    picked.set({ [optionId]: on, ...Object.fromEntries(others.map((id) => [id, false])) });
     act(
-      myVotes.has(optionId)
-        ? supabase.from('poll_votes').delete().eq('option_id', optionId).eq('user_id', me)
-        : supabase.from('poll_votes').insert({ poll_id: poll.id, option_id: optionId, user_id: me }),
+      on
+        ? supabase.from('poll_votes').insert({ poll_id: poll.id, option_id: optionId, user_id: me })
+        : supabase.from('poll_votes').delete().eq('option_id', optionId).eq('user_id', me),
       onChange,
-      setError,
+      (message) => { setError(message); if (message) picked.forget([optionId, ...others]); },
     );
   }
 
@@ -393,7 +422,7 @@ export function PollSection({
     <Section title={poll.question} right={<T muted size={12}>{flags}</T>}>
       {options.sort((a, b) => a.sort - b.sort).map((o) => {
         const n = results?.get(o.id) ?? 0;
-        const on = myVotes.has(o.id);
+        const on = picked.value(o.id);
         return (
           <Pressable
             key={o.id}
@@ -404,7 +433,7 @@ export function PollSection({
             style={({ pressed }) => [{ height: 48, borderRadius: 12, borderWidth: 1, borderColor: on ? colors.accent : colors.lineStrong, backgroundColor: colors.bg, overflow: 'hidden', justifyContent: 'center' }, pressTransition, pressed && st.pressed]}
           >
             {results ? (
-              <Meter parts={[{ fraction: n / total, color: on ? colors.accentDim : colors.surface2 }]} track="transparent" style={st.pollFill} />
+              <Meter parts={[{ fraction: n / total, color: on ? colors.accentDim : colors.surface2 }]} track="transparent" height={null} style={st.pollFill} />
             ) : null}
             <View style={[s.rowBetween, { paddingHorizontal: 14 }]}>
               <View style={[s.row, { flex: 1 }]}>
@@ -516,7 +545,7 @@ const st = StyleSheet.create({
   subRow: { paddingTop: 4 },
   person: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 3, paddingRight: 10, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.surface2 },
   viaLink: { borderWidth: 1, borderColor: colors.coral },
-  pollFill: { position: 'absolute', left: 0, top: 0, bottom: 0, right: 0, height: undefined, borderRadius: 0 },
+  pollFill: { position: 'absolute', left: 0, top: 0, bottom: 0, right: 0, borderRadius: 0 },
   pressed: { transform: [{ scale: 0.98 }] },
   note: { padding: 10, borderRadius: radius.sm, backgroundColor: colors.bg, borderLeftWidth: 3, borderLeftColor: colors.lineStrong },
   radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },

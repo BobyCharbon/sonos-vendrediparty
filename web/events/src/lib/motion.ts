@@ -43,6 +43,10 @@ const keyframes = StyleSheet.create({
     animationKeyframes: [{ from: { opacity: 0, transform: 'translateY(-6px)' }, to: { opacity: 1, transform: 'none' } }],
     animationDuration: `${duration.base}ms`, animationTimingFunction: ease.out, animationFillMode: 'backwards',
   }),
+  slideIn: web({
+    animationKeyframes: [{ from: { opacity: 0, transform: 'translateX(24px)' }, to: { opacity: 1, transform: 'none' } }],
+    animationDuration: `${duration.slow}ms`, animationTimingFunction: ease.out, animationFillMode: 'backwards',
+  }),
   pop: web({
     animationKeyframes: [{ '0%': { transform: 'scale(.6)' }, '60%': { transform: 'scale(1.15)' }, '100%': { transform: 'scale(1)' } }],
     animationDuration: '360ms', animationTimingFunction: ease.out, animationFillMode: 'backwards',

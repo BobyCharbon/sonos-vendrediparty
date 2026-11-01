@@ -75,6 +75,8 @@ export function EventCard({
   index?: number;
 }) {
   const [busy, setBusy] = useState<RsvpStatus | null>(null);
+  // Choix enregistré, gardé à l’écran jusqu’au rechargement de la liste (sinon il s’éteindrait un instant).
+  const [picked, setPicked] = useState<RsvpStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const mine = event.rsvps.find((r) => r.user_id === me);
   const counts = rsvpCounts(event.rsvps);
@@ -94,6 +96,7 @@ export function EventCard({
     setBusy(choice);
     try {
       await saveRsvp(event.id, me, mine, { status: choice });
+      setPicked(choice);
       setError(null);
       onChanged?.();
     } catch (e) {
@@ -181,7 +184,7 @@ export function EventCard({
           <T size={13} weight="semibold" muted>Tu seras là ?</T>
           <RsvpButtons
             options={rsvpOptions(event.allow_maybe)}
-            selected={busy}
+            selected={busy ?? picked}
             busy={busy}
             onSelect={answer}
             accessibilityLabel={(k) => `${rsvpChoices[k].label} à ${event.title}`}
@@ -210,9 +213,9 @@ export function EventCard({
               accessibilityLabel={`${rsvpChoices[k].label} à ${event.title}`}
               disabled={!!busy}
               onPress={() => answer(k)}
-              style={({ pressed }) => [st.quickBtn, pressTransition, { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minWidth: 88, paddingHorizontal: 14 }, k === 'yes' && { backgroundColor: colors.coral, borderColor: colors.coral }, busy === k && k === 'no' && { backgroundColor: colors.red, borderColor: colors.red }, pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] }]}
+              style={({ pressed }) => [st.quickBtn, pressTransition, { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minWidth: 88, paddingHorizontal: 14 }, k === 'yes' && { backgroundColor: colors.coral, borderColor: colors.coral }, (busy ?? picked) === k && k === 'no' && { backgroundColor: colors.red, borderColor: colors.red }, pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] }]}
             >
-              <T size={13} style={{ ...font.bold }} color={k === 'yes' ? colors.onCoral : busy === k ? colors.onRed : colors.text}>{rsvpChoices[k].label}</T>
+              <T size={13} style={{ ...font.bold }} color={k === 'yes' ? colors.onCoral : (busy ?? picked) === k ? colors.onRed : colors.text}>{rsvpChoices[k].label}</T>
             </Pressable>
           ))}
         </View>

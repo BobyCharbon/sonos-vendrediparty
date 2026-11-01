@@ -440,7 +440,8 @@ export function Cascade({ children }: { children: ReactNode }) {
  * Elle se remplit depuis la gauche à son apparition, puis glisse d’une valeur à l’autre.
  */
 export function Meter({ parts, height = 6, track = colors.line, style }: {
-  parts: { fraction: number; color: string }[]; height?: number; track?: string; style?: StyleProp<ViewStyle>;
+  /** height={null} : la jauge prend la hauteur que lui donne `style` (fond d’une option de sondage). */
+  parts: { fraction: number; color: string }[]; height?: number | null; track?: string; style?: StyleProp<ViewStyle>;
 }) {
   // Couches cumulées, la plus longue dessous : « 3 oui + 2 si besoin » = rose sur lavande.
   const layers = parts.map((p, i) => ({
@@ -448,7 +449,7 @@ export function Meter({ parts, height = 6, track = colors.line, style }: {
     end: Math.max(0, Math.min(1, parts.slice(0, i + 1).reduce((total, q) => total + q.fraction, 0))),
   })).reverse();
   return (
-    <View style={[{ height, borderRadius: 99, backgroundColor: track, overflow: 'hidden' }, style]}>
+    <View style={[{ borderRadius: 99, backgroundColor: track, overflow: 'hidden' }, height != null && { height }, style]}>
       <View style={[StyleSheet.absoluteFill, enter('grow')]}>
         {layers.map((l, i) => (
           <View key={i} style={[StyleSheet.absoluteFill, s.meterFill, { backgroundColor: l.color, transform: [{ scaleX: l.end }] },
