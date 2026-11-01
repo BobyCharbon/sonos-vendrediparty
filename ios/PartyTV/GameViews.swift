@@ -20,7 +20,7 @@ struct GameView: View {
             if game["current"].isNull { RoomTV(room: game, join: join) } else { GameView(game: game["current"], join: join) }
         } else if game["phase"].string == "lobby" {
             LobbyView(game: game, join: join)
-        } else if game["phase"].string == "end" && !["undercover", "president", "beerpong"].contains(game["type"].string ?? "") {
+        } else if Self.showsEnd(game) {
             EndTV(game: game)
         } else {
             VStack(alignment: .leading, spacing: 30) {
@@ -32,6 +32,11 @@ struct GameView: View {
                 board
             }
         }
+    }
+
+    /// Fin de partie avec podium (EndTV) ; Undercover, Président et Beer pong gardent leur propre écran de fin.
+    static func showsEnd(_ game: JSON) -> Bool {
+        game["phase"].string == "end" && !["undercover", "president", "beerpong"].contains(game["type"].string ?? "")
     }
 
     /// Tableau des résultats dans la scène : pas pour la Roulette (le prénom tiré y est déjà en très grand) ni pour une
@@ -158,8 +163,9 @@ struct SideBoard: View {
     }
 
     /// Montré seulement quand quelqu'un se détache (tous à 0 ou tous égaux : rien à classer).
+    /// Pas pendant le podium de fin : il dévoilerait le gagnant avant que la 1re marche ne monte.
     static func shows(_ game: JSON) -> Bool {
-        guard let rows = rows(game)?.1, !rows.isEmpty else { return false }
+        guard !GameView.showsEnd(shown(game)), let rows = rows(game)?.1, !rows.isEmpty else { return false }
         return Set(rows.map(\.value)).count > 1
     }
 

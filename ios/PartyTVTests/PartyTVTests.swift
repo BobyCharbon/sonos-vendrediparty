@@ -137,6 +137,17 @@ struct OutcomeTests {
         #expect(SideBoard.rows(casino(age: 8))?.1.first?.name == "Léa")
     }
 
+    @Test("Fin de partie : le classement de la colonne s'efface pendant le podium, qui le garde pour lui")
+    func endHidesSideBoard() {
+        let board: JSON = .array([.object(["name": .string("Boby"), "pts": .number(120)]),
+                                  .object(["name": .string("Léa"), "pts": .number(95)])])
+        func quiz(_ phase: String) -> JSON {
+            .object(["type": .string("quiz"), "phase": .string(phase), "quiz": .object(["board": board])])
+        }
+        #expect(SideBoard.shows(quiz("q")))
+        #expect(!SideBoard.shows(quiz("end")) && SideBoard.rows(quiz("end"))?.1.first?.name == "Boby")
+    }
+
     @Test("Phases sans résultat : rien n'est annoncé")
     func nothingWhileVoting() throws {
         #expect(Outcome.of(.object(["type": .string("never"), "phase": .string("question")])) == nil)
