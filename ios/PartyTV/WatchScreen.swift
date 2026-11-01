@@ -7,6 +7,9 @@ struct WatchScreen: View {
     /// Annonce plein écran du dernier résultat (quelques secondes).
     @State private var flash: Outcome?
     @State private var flashTask: Task<Void, Never>?
+    /// Salle de jeux : le jeu qui vient d'être lancé, annoncé en grand quelques instants.
+    @State private var intro: String?
+    @State private var introTask: Task<Void, Never>?
 
     private var shown: JSON { GameView.shown(store.game) }
     private var outcome: Outcome? { Outcome.of(shown) }
@@ -40,6 +43,9 @@ struct WatchScreen: View {
             // Pause de l'animateur : un voile sur toute la télé.
             if let by = shown["paused"]["by"].string { PauseVeil(by: by).transition(.opacity) }
         }
+        .overlay {
+            if let intro, flash == nil { GameIntro(name: intro).transition(.motion(.scale(scale: 1.3).combined(with: .opacity))) }
+        }
         .animation(.easeInOut(duration: 0.4), value: shown["paused"].isNull)
         .overlay {
             if let flash {
@@ -61,6 +67,7 @@ struct WatchScreen: View {
         }
         // Aussi à l'ouverture : une télé allumée sur un résultat tout frais l'annonce.
         .onChange(of: outcome?.key, initial: true) { _, key in announce(key) }
+        .onChange(of: GameScene.key(shown)) { _, _ in introduce() }
         .onExitCommand { store.leave() }
         .task { await store.appear() }
     }
@@ -77,6 +84,20 @@ struct WatchScreen: View {
             try? await Task.sleep(for: .seconds(OutcomeFlash.seconds))
             guard !Task.isCancelled else { return }
             withAnimation(.easeIn(duration: 0.4)) { flash = nil }
+        }
+    }
+
+    /// Un jeu vient d'être lancé dans la Salle de jeux : « C'est parti : Quiz ! » en grand, puis le jeu.
+    private func introduce() {
+        introTask?.cancel()
+        guard store.game["type"].string == "room", !store.game["current"].isNull, let name = shown["name"].string else {
+            return withAnimation(Motion.update) { intro = nil }
+        }
+        withAnimation(Motion.pop) { intro = name }
+        introTask = Task {
+            try? await Task.sleep(for: .seconds(GameIntro.seconds))
+            guard !Task.isCancelled else { return }
+            withAnimation(Motion.update) { intro = nil }
         }
     }
 

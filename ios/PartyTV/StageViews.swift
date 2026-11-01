@@ -6,6 +6,25 @@ enum GameScene {
     static func key(_ shown: JSON) -> String { "\(shown["code"].string ?? "")-\(shown["type"].string ?? "")" }
 }
 
+/// Salle de jeux : le jeu lancé (le plus voté) est annoncé en très grand, deux secondes et demie, sur un voile léger.
+struct GameIntro: View {
+    static let seconds = 2.5
+    let name: String
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.45).ignoresSafeArea()
+            VStack(spacing: 18) {
+                Text("🎲 C'est parti !").font(.system(size: 60, weight: .heavy)).foregroundStyle(TV.lavender)
+                Text(name).font(.system(size: 130, weight: .black)).lineLimit(1).minimumScaleFactor(0.4)
+            }
+            .padding(.horizontal, 90).padding(.vertical, 60)
+            .glass(cornerRadius: 60)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
 /// Pause de l'animateur : un voile sur toute la télé, le symbole respire lentement (rien ne bouge si les animations
 /// sont réduites).
 struct PauseVeil: View {
