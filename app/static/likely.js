@@ -179,6 +179,7 @@ function lkVote(b) {
   lkReadyKey = "";  // l'écran se cache tout de suite pour le prochain votant
   b.closest(".lk-grid")?.querySelectorAll("button").forEach((x) => { x.disabled = true; });  // un seul vote
   b.classList.add("on");
+  GameFx.tap(b, "bump");  // le choix rebondit sous le doigt avant que la grille se cache
   haptic(30);
   pressed(b, gameAction("lkvote", { who: b.dataset.lkWho, target: b.dataset.lkVote }));
 }
