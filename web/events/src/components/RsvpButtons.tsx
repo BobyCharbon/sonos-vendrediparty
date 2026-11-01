@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { enter, pressTransition, useChangedSinceMount } from '@/lib/motion';
 import { rsvpChoices } from '@/lib/rsvp';
 import { colors, font, radius } from '@/lib/theme';
 import type { RsvpStatus } from '@/lib/types';
@@ -23,14 +24,18 @@ type Props = {
 /**
  * Présent / Peut-être / Absent : un seul langage visuel partout (liste et détail).
  * Chaque choix a sa couleur et son pictogramme ; le choix fait est plein, les autres restent lisibles mais en retrait.
+ * Retour immédiat : le choix touché se remplit tout de suite (pendant l’enregistrement) et son pictogramme « se pose ».
  */
 export function RsvpButtons({ options, selected, busy, disabled, onSelect, accessibilityLabel, label }: Props) {
+  const current = busy ?? selected ?? null;
+  // Le pictogramme ne rebondit que pour un choix fait ici, pas à l’ouverture de l’écran ni à un rechargement.
+  const changed = useChangedSinceMount(current);
   return (
     <View style={st.row} accessibilityRole="radiogroup">
       {options.map((k) => {
         const c = rsvpChoices[k];
-        const on = selected === k;
-        const dimmed = !!selected && !on;
+        const on = current === k;
+        const dimmed = !!current && !on;
         return (
           <Pressable
             key={k}
@@ -41,14 +46,15 @@ export function RsvpButtons({ options, selected, busy, disabled, onSelect, acces
             onPress={() => onSelect(k)}
             style={({ pressed }) => [
               st.choice,
+              pressTransition,
               on ? { backgroundColor: c.bg, borderColor: c.bg } : { backgroundColor: `${c.bg}14`, borderColor: `${c.bg}38` },
               dimmed && { opacity: 0.6 },
               disabled && !on && { opacity: 0.4 },
               pressed && st.pressed,
-              busy === k && { opacity: 0.7 },
+              busy === k && { opacity: 0.85 },
             ]}
           >
-            <View style={[st.icon, { backgroundColor: on ? 'rgba(0,0,0,0.16)' : `${c.bg}26` }]}>
+            <View key={on ? 'on' : 'off'} style={[on && changed ? enter('pop') : null, st.icon, { backgroundColor: on ? 'rgba(0,0,0,0.16)' : `${c.bg}26` }]}>
               <T size={14} style={{ ...font.bold, lineHeight: 16 }} color={on ? c.fg : c.bg}>{c.icon}</T>
             </View>
             <T size={14} numberOfLines={1} style={{ ...font.semibold }} color={on ? c.fg : colors.text}>{label?.(k) ?? c.label}</T>

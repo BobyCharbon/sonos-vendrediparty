@@ -1,5 +1,5 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -7,6 +7,7 @@ import { Avatar, Button, ErrorText, Input, s, T } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { useQuery, useRealtime } from '@/lib/data';
 import { formatMessageTime } from '@/lib/format';
+import { enter } from '@/lib/motion';
 import { check, must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
 import type { Message } from '@/lib/types';
@@ -58,6 +59,10 @@ function Chat({ id }: { id: string }) {
     return [...unique.values()].filter((m) => !m.deleted_at).sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
   }, [older, data?.messages]);
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
+  // Messages présents à l'ouverture (et plus anciens chargés ensuite) : affichés tels quels ;
+  // seuls les plus récents (le mien envoyé, ceux reçus) montent.
+  const [openedUpTo, setOpenedUpTo] = useState<string | null>(null);
+  if (data && openedUpTo === null) setOpenedUpTo(data.messages[0]?.created_at ?? '');
   const pinned = data?.pinned ?? [];
 
   async function loadOlder() {
@@ -124,7 +129,7 @@ function Chat({ id }: { id: string }) {
       <Stack.Screen options={{ title: data?.event.title ?? 'Discussion' }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
         {pinned.map((m) => (
-          <View key={m.id} style={{ margin: 12, marginBottom: 0, padding: 12, borderRadius: radius.md, backgroundColor: colors.surface }}>
+          <View key={m.id} style={[{ margin: 12, marginBottom: 0, padding: 12, borderRadius: radius.md, backgroundColor: colors.surface }, enter('drop')]}>
             <T size={13} color={colors.textSoft}>
               <T size={13} weight="bold" color={colors.accent}>Épinglé · </T>
               {names.get(m.user_id)} : {m.body}
@@ -147,6 +152,7 @@ function Chat({ id }: { id: string }) {
             const mine = m.user_id === me.id;
             const quoted = m.reply_to ? byId.get(m.reply_to) : null;
             return (
+              <ArrivingRow fresh={openedUpTo !== null && m.created_at > openedUpTo} mine={mine}>
               <Pressable
                 onLongPress={() => setReplyTo(m)}
                 accessibilityHint="Appui long pour répondre"
@@ -185,6 +191,7 @@ function Chat({ id }: { id: string }) {
                   </View>
                 </View>
               </Pressable>
+              </ArrivingRow>
             );
           }}
           ListEmptyComponent={<T muted style={{ textAlign: 'center', marginTop: 40 }}>{loading ? 'Chargement…' : loadError ? 'La discussion n’a pas pu être chargée.' : 'Aucun message pour l’instant.'}</T>}
@@ -192,7 +199,7 @@ function Chat({ id }: { id: string }) {
         <ErrorText error={error ?? loadError} />
         {loadError ? <Button small label="Réessayer" variant="secondary" onPress={reload} /> : null}
         {replyTo ? (
-          <View style={[s.rowBetween, { paddingHorizontal: 12, paddingTop: 8 }]}>
+          <View style={[s.rowBetween, { paddingHorizontal: 12, paddingTop: 8 }, enter('drop')]}>
             <T muted size={12} numberOfLines={1} style={{ flex: 1 }}>↪ Réponse à {names.get(replyTo.user_id)} : {replyTo.body}</T>
             <Button small variant="ghost" label="✕" onPress={() => setReplyTo(null)} />
           </View>
@@ -213,4 +220,11 @@ function Chat({ id }: { id: string }) {
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
+}
+
+/** Ligne de message : monte depuis le bas (côté de l'auteur) si elle arrive pendant que la discussion est ouverte.
+ * L'animation est fixée à l'apparition (un rechargement ou un défilement ne la rejoue pas). */
+function ArrivingRow({ fresh, mine, children }: { fresh: boolean; mine: boolean; children: ReactNode }) {
+  const [arrive] = useState(() => (fresh ? enter(mine ? 'bubbleMine' : 'bubbleTheirs') : undefined));
+  return <View style={arrive}>{children}</View>;
 }

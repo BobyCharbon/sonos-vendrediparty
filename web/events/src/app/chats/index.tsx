@@ -5,6 +5,7 @@ import { Avatar, Empty, ErrorText, Loading, s, T } from '@/components/ui';
 import type { ChatSummary } from '@/lib/chats';
 import { useQuery, useRealtime } from '@/lib/data';
 import { formatMessageTime } from '@/lib/format';
+import { duration, enter, transition } from '@/lib/motion';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 
@@ -38,7 +39,7 @@ function ChatRow({ chat }: { chat: ChatSummary }) {
     <Pressable accessibilityRole="button" accessibilityLabel={`Discussion ${chat.name}${chat.unread ? `, ${chat.unread} non lus` : ''}`}
       onPress={() => router.push(`/chats/${chat.id}`)}
       style={({ pressed }) => [{ flexDirection: 'row', gap: 12, alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
-        pressed && { backgroundColor: colors.fill }]}>
+        transition('background-color', duration.fast), pressed && { backgroundColor: colors.fill }]}>
       <Avatar id={chat.id} name={chat.name} size={48} profile={false} />
       <View style={{ flex: 1, gap: 3 }}>
         <View style={s.rowBetween}>
@@ -49,7 +50,8 @@ function ChatRow({ chat }: { chat: ChatSummary }) {
           <T muted size={14} numberOfLines={1} style={{ flex: 1 }}>{chat.last ?? 'Aucun message pour l’instant'}</T>
           {chat.notify === 'none' ? <T muted size={12}>🔕</T> : null}
           {chat.unread ? (
-            <View style={{ minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
+            // Nouveau message non lu : la pastille se pose (sa clé suit le compte).
+            <View key={chat.unread} style={[{ minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }, enter('pop')]}>
               <T size={12} weight="bold" color={colors.onAccent}>{chat.unread > 99 ? '99+' : chat.unread}</T>
             </View>
           ) : null}

@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
 
 import { Button, ErrorText, Field, Screen, T, Title } from '@/components/ui';
+import { enter, pressTransition } from '@/lib/motion';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 import { parseLoginPhone, type PhoneCountry } from '@/lib/phone';
@@ -68,9 +69,9 @@ export default function SignIn() {
                     aria-checked={country === option.key}  // React Native Web ne le déduit pas pour un radio (axe : aria-required-attr)
                     disabled={busy}
                     onPress={() => { setCountry(option.key); setError(null); }}
-                    style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 14,
+                    style={({ pressed }) => [{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 14,
                       borderRadius: 12, backgroundColor: country === option.key ? colors.accent : colors.bg,
-                      borderWidth: 1, borderColor: country === option.key ? colors.accent : colors.line }}
+                      borderWidth: 1, borderColor: country === option.key ? colors.accent : colors.line }, pressTransition, pressed && { transform: [{ scale: 0.97 }] }]}
                   >
                     <T size={14} weight="semibold" color={country === option.key ? colors.onAccent : colors.text}>{option.label}</T>
                   </Pressable>
@@ -96,12 +97,13 @@ export default function SignIn() {
               onSubmitEditing={sendCode}
             />
             <T muted size={14}>Un numéro commençant par + ou 00 conserve son propre indicatif.</T>
-            {parsedPhone && <View accessibilityLiveRegion="polite"><T>Le code sera envoyé au {parsedPhone.formatted}</T></View>}
+            {parsedPhone && <View accessibilityLiveRegion="polite" style={enter('fade')}><T>Le code sera envoyé au {parsedPhone.formatted}</T></View>}
             <ErrorText error={error} />
             <Button label="Recevoir un code par SMS" onPress={sendCode} loading={busy} disabled={!phone} />
           </View>
         ) : (
-          <View style={{ gap: 14 }}>
+          // Étape du code : elle arrive par la droite, comme un écran suivant.
+          <View style={[{ gap: 14 }, enter('slideIn')]}>
             <Field
               label={`Code reçu au ${sentTo}`}
               placeholder="123456"
