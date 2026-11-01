@@ -24,13 +24,17 @@ let lkSeen = "";
 const lkVoterKey = (g) => `${g.id}:${g.likely.n}:${g.likely.voter?.pid || ""}`;
 const lkStake = (g) => g.options?.sips ? `boit ${sipWord(g.options.sips)}` : "prend 1 point";
 
-function lkQuestion(v, small = false) {
-  return `<div class="lk-q ${small ? "small" : ""}"><div class="lk-q-n">Question ${v.n}/${v.count}</div><div class="lk-q-t">${esc(v.q || "")}</div></div>`;
+// Clé d'animation propre à la question en cours (les animations ne se rejouent pas à chaque rafraîchissement).
+const lkKey = (g, part) => `lk:${g.id}:${g.likely.n}:${part}`;
+
+function lkQuestion(v, small = false, g = null) {
+  return `<div class="lk-q ${small ? "small" : ""}"${g && !small ? GameFx.fx("flip", lkKey(g, "q")) : ""}><div class="lk-q-n">Question ${v.n}/${v.count}</div><div class="lk-q-t">${esc(v.q || "")}</div></div>`;
 }
 
-function lkDots(v) {
+// Une pastille par votant : elle « s'allume » (une seule fois) quand un vote de plus arrive.
+function lkDots(v, key = "") {
   return `<div class="lk-dots" role="img" aria-label="${v.done.length} sur ${v.total} ont voté">${Array.from({ length: v.total }, (_, i) =>
-    `<i class="${i < v.done.length ? "on" : ""}"></i>`).join("")}</div>`;
+    `<i class="${i < v.done.length ? "on" : ""}"${i < v.done.length && key ? GameFx.fx("pop", `${key}:dot${i}`) : ""}></i>`).join("")}</div>`;
 }
 
 function lkSettingsHtml(g) {
@@ -61,9 +65,9 @@ function lkLobbyHtml(g) {
 }
 
 function lkGridHtml(g, who, title) {
-  const v = g.likely;
-  return `<div class="lk-who">🤫 ${title}</div>
-    <div class="lk-grid">${g.players.map((p) => `<button type="button" class="lk-pick" data-lk-vote="${esc(p.pid)}" data-lk-who="${esc(who)}">${esc(p.name)}${p.pid === who ? " <small>(moi)</small>" : ""}</button>`).join("")}</div>`;
+  const k = lkKey(g, `grid:${who}`);
+  return `<div class="lk-who"${GameFx.fx("rise", k + ":t", 120)}>🤫 ${title}</div>
+    <div class="lk-grid">${g.players.map((p, i) => `<button type="button" class="lk-pick" data-lk-vote="${esc(p.pid)}" data-lk-who="${esc(who)}"${GameFx.fx("rise", `${k}:${p.pid}`, 180 + Math.min(i, 12) * 35)}>${esc(p.name)}${p.pid === who ? " <small>(moi)</small>" : ""}</button>`).join("")}</div>`;
 }
 
 // Téléphone de l'animateur : il passe aux participants sans téléphone, dans l'ordre de la table.
@@ -71,8 +75,8 @@ function lkPassHtml(g) {
   const v = g.likely;
   if (!v.voter) return "";
   if (lkReadyKey === lkVoterKey(g)) return lkGridHtml(g, v.voter.pid, `${esc(v.voter.name)}, qui désignes-tu&nbsp;?`);
-  return `<div class="lk-pass">
-      <div class="lk-pass-k">📱 Passe le téléphone à</div><div class="lk-name">${esc(v.voter.name)}</div>
+  return `<div class="lk-pass"${GameFx.fx("rise", lkKey(g, `pass:${v.voter.pid}`))}>
+      <div class="lk-pass-k">📱 Passe le téléphone à</div><div class="lk-name"${GameFx.fx("pop", lkKey(g, `passname:${v.voter.pid}`), 120)}>${esc(v.voter.name)}</div>
       <button class="lk-main" data-lk-ready="${esc(lkVoterKey(g))}">C'est moi, ${esc(v.voter.name)} 👋</button>
       <button class="lk-sub" data-gact="lkskip">⏭ Passer ${esc(v.voter.name)} (absent)</button>
     </div>`;
@@ -90,21 +94,27 @@ function lkAskHtml(g) {
   const v = g.likely;
   // Chacun vote sur son propre téléphone, en même temps ; une fois voté, la grille disparaît (vote secret et définitif).
   const mine = v.can_vote ? lkGridHtml(g, g.me.pid, "Qui désignes-tu&nbsp;? C'est secret.")
-    : g.me && v.done.includes(g.me.pid) ? `<div class="lk-card lk-done"><div class="lk-name">✓ Vote enregistré</div><div class="artist">Résultat quand tout le monde a voté.</div></div>` : "";
+    : g.me && v.done.includes(g.me.pid) ? `<div class="lk-card lk-done"${GameFx.fx("pop", lkKey(g, "done"))}><div class="lk-name">✓ Vote enregistré</div><div class="artist">Résultat quand tout le monde a voté.</div></div>` : "";
   const host = g.is_host && !v.can_vote ? lkPassHtml(g) + lkWaitingHtml(g) : "";
-  return `${lkQuestion(v)}${mine}${host}${lkDots(v)}
+  return `${lkQuestion(v, false, g)}${mine}${host}${lkDots(v, lkKey(g, "dots"))}
     ${g.is_host && !v.voted ? `<div class="lk-row"><button class="lk-sub" data-gact="lkswap">🔀 Autre question</button></div>` : ""}`;
 }
 
-function lkBarsHtml(v) {
-  const max = Math.max(1, ...v.result.rows.map((r) => r.count));
-  return `<div class="lk-bars">${v.result.rows.map((r) => `<div class="lk-bar"><span>${esc(r.name)}</span>
-    <i style="--w:${Math.round((r.count / max) * 100)}%"></i><b>${r.count}</b></div>`).join("")}</div>`;
+// Révélation : les barres poussent l'une après l'autre, les voix défilent jusqu'à leur nombre.
+function lkBarsHtml(g) {
+  const v = g.likely, max = Math.max(1, ...v.result.rows.map((r) => r.count));
+  return `<div class="lk-bars">${v.result.rows.map((r, i) => {
+    const pct = Math.round((r.count / max) * 100), k = lkKey(g, `bar:${r.name}`);
+    return `<div class="lk-bar"${GameFx.fx("rise", k, 350 + i * 90)}><span>${esc(r.name)}</span>
+    <i style="--w:${pct}%"${GameFx.bar(k, pct)}></i><b${GameFx.num(k, r.count, 0)}>${r.count}</b></div>`;
+  }).join("")}</div>`;
 }
 
-function lkScoresHtml(v, limit) {
+// Classement : chaque ligne glisse vers sa nouvelle place, les points défilent depuis la question précédente.
+function lkScoresHtml(g, limit) {
+  const v = g.likely;
   return `<div class="lk-scores"><h3>Points</h3>${v.scores.slice(0, limit).map((r) =>
-    `<div class="lk-score"><span>${esc(r.name)}</span><b>⭐ ${r.pts}</b></div>`).join("")}</div>`;
+    `<div class="lk-score"${GameFx.flip(`lk:${g.id}:score:${r.name}`)}><span>${esc(r.name)}</span><b>⭐ <span${GameFx.num(`lk:${g.id}:pts:${r.name}`, r.pts)}>${r.pts}</span></b></div>`).join("")}</div>`;
 }
 
 function lkRevealHtml(g) {
@@ -113,18 +123,20 @@ function lkRevealHtml(g) {
   const verdict = !w.length ? `<div class="lk-win-t">Personne n'a voté</div><p class="artist">Pas de point pour cette question.</p>`
     : `<div class="lk-win-k">${w.length > 1 ? "Égalité !" : "Le plus désigné"}</div><div class="lk-win-t">🫵 ${w.map((x) => esc(x.name)).join(" & ")}</div>
        <p class="lk-win-s">${w.length > 1 ? each : lkStake(g)}</p>`;
-  return `${lkQuestion(v, true)}<div class="lk-win">${verdict}</div>${w.length ? lkBarsHtml(v) : ""}
-    ${g.is_host ? `<button class="lk-main" data-gact="next">${v.n >= v.count ? "🏆 Voir le podium" : "▶︎ Question suivante"}</button>` : ""}
-    ${lkScoresHtml(v, 5)}`;
+  return `${lkQuestion(v, true)}<div class="lk-win"${GameFx.fx("pop", lkKey(g, "win"))}>${verdict}</div>${w.length ? lkBarsHtml(g) : ""}
+    ${g.is_host ? `<button class="lk-main" data-gact="next"${GameFx.fx("rise", lkKey(g, "next"), 700)}>${v.n >= v.count ? "🏆 Voir le podium" : "▶︎ Question suivante"}</button>` : ""}
+    ${lkScoresHtml(g, 5)}`;
 }
 
 function lkEndHtml(g) {
   const v = g.likely, [a, b, c] = v.scores;
-  const step = (r, medal, cls) => r ? `<div class="lk-step ${cls}"><div class="lk-medal">${medal}</div><div class="lk-step-n">${esc(r.name)}</div><div class="lk-step-p">⭐ ${r.pts}</div></div>` : "";
+  // Podium : le 3e monte, puis le 2e, puis le 1er (le plus attendu en dernier).
+  const delay = { third: 200, second: 500, first: 850 };
+  const step = (r, medal, cls) => r ? `<div class="lk-step ${cls}"${GameFx.fx("rise", `lk:${g.id}:end:${cls}`, delay[cls])}><div class="lk-medal"${GameFx.fx("pop", `lk:${g.id}:medal:${cls}`, delay[cls] + 300)}>${medal}</div><div class="lk-step-n">${esc(r.name)}</div><div class="lk-step-p">⭐ ${r.pts}</div></div>` : "";
   const recap = v.history.map((h) => `<li>${esc(h.q)} <span>→ ${h.winners.length ? h.winners.map(esc).join(" & ") : "personne"}</span></li>`).join("");
   return `<div class="lk-end-k">Le plus susceptible de la partie</div>
     <div class="lk-podium">${step(b, "🥈", "second")}${step(a, "🥇", "first")}${step(c, "🥉", "third")}</div>
-    ${lkScoresHtml(v, v.scores.length)}
+    ${lkScoresHtml(g, v.scores.length)}
     <details class="lk-recap"><summary>Revoir les ${v.history.length} questions</summary><ol>${recap}</ol></details>
     ${g.is_host ? `${lkSettingsHtml(g)}<button class="lk-main" data-gact="restart">🔁 Rejouer avec les mêmes joueurs</button>` : ""}`;
 }
@@ -157,7 +169,7 @@ function lkAnnounce(g) {
   const key = `${g.id}|${g.phase}|${g.likely?.n}`;
   if (lkSeen && lkSeen !== key && g.phase === "reveal") {
     const w = g.likely.result?.winners || [];
-    if (w.length) pyrFlash("summit", `🫵 ${w.map((x) => esc(x.name)).join(" & ")}`, w.length > 1 ? "Égalité !" : lkStake(g), "", 2600);
+    if (w.length) { pyrFlash("summit", `🫵 ${w.map((x) => esc(x.name)).join(" & ")}`, w.length > 1 ? "Égalité !" : lkStake(g), "", 2600); GameFx.hold(2600); }
   }
   lkSeen = key;
 }
@@ -167,6 +179,7 @@ function lkVote(b) {
   lkReadyKey = "";  // l'écran se cache tout de suite pour le prochain votant
   b.closest(".lk-grid")?.querySelectorAll("button").forEach((x) => { x.disabled = true; });  // un seul vote
   b.classList.add("on");
+  GameFx.tap(b, "bump");  // le choix rebondit sous le doigt avant que la grille se cache
   haptic(30);
   pressed(b, gameAction("lkvote", { who: b.dataset.lkWho, target: b.dataset.lkVote }));
 }

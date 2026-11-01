@@ -71,10 +71,11 @@ function puLobbyHtml(g) {
       : `<div class="py-wait">Tu es inscrit ✓ L'animateur va ouvrir le test…</div>`}`;
 }
 
-function puProgressHtml(v) {
-  const pct = v.count_players ? Math.round(100 * v.count_submitted / v.count_players) : 0;
+// Progression : la barre avance depuis sa longueur précédente quand quelqu'un valide (sans repartir de zéro).
+function puProgressHtml(g) {
+  const v = g.purity, pct = v.count_players ? Math.round(100 * v.count_submitted / v.count_players) : 0;
   return `<div class="pu-progress"><span><b>${v.count_submitted}/${v.count_players}</b> ont validé</span>
-    <div class="pu-bar"><i style="width:${pct}%"></i></div></div>`;
+    <div class="pu-bar"><i style="width:${pct}%"${GameFx.bar(`pu:${g.id}:progress`, pct)}></i></div></div>`;
 }
 
 // Questions posées catégorie par catégorie, chacune sous son titre.
@@ -98,12 +99,12 @@ function puAnsweringHtml(g) {
   const v = g.purity;
   const filling = v.playing && !v.submitted;
   const waiting = v.playing && v.submitted
-    ? `<div class="pu-card"><div class="pu-big">🔒</div><div class="title">Réponses envoyées</div>
+    ? `<div class="pu-card"${GameFx.fx("pop", `pu:${g.id}:sent:${v.count_players}`)}><div class="pu-big">🔒</div><div class="title">Réponses envoyées</div>
       <p class="artist">Personne ne les verra. En attente de la révélation…</p>
       <button class="py-sub" data-pu-act="puunsub">✏️ Modifier mes réponses</button></div>` : "";
   const missing = v.count_players - v.count_submitted;
   const reveal = g.is_host ? `<button class="py-main pu-reveal" data-pu-act="pureveal" data-missing="${missing}" ${v.count_submitted ? "" : "disabled"}>🎉 Révéler les scores</button>` : "";
-  return filling ? puProgressHtml(v) + puQuestionsHtml(v) + reveal : puProgressHtml(v) + waiting + reveal;
+  return filling ? puProgressHtml(g) + puQuestionsHtml(v) + reveal : puProgressHtml(g) + waiting + reveal;
 }
 
 function puLeaderboardHtml(lb) {
@@ -114,7 +115,7 @@ function puLeaderboardHtml(lb) {
 }
 
 // Radar : un axe par catégorie, le centre = pur, le bord = 100 % impur. Chaque pointe porte l'emoji et l'impureté de la catégorie.
-function puRadarSvg(rows) {
+function puRadarSvg(rows, key = "") {
   const R = 100, n = rows.length;
   const at = (i, r) => {
     const a = -Math.PI / 2 + (2 * Math.PI * i) / n;
@@ -124,41 +125,48 @@ function puRadarSvg(rows) {
   const rings = [25, 50, 75, 100].map((p) => `<polygon class="pu-ring ${p === 100 ? "outer" : ""}" points="${poly(p)}"/>`).join("");
   const spokes = rows.map((_, i) => `<line class="pu-spoke" x1="0" y1="0" x2="${at(i, R)[0]}" y2="${at(i, R)[1]}"/>`).join("");
   const shape = rows.map((r, i) => at(i, Math.max(r.pct, 3)).join(",")).join(" ");
-  const dots = rows.map((r, i) => { const [x, y] = at(i, Math.max(r.pct, 3)); return `<circle class="pu-dot" cx="${x}" cy="${y}" r="3.5"/>`; }).join("");
+  // Dans la partie : la forme se déploie depuis le centre, puis les pointes s'allument une à une (une seule fois).
+  const fx = (part, delay) => key ? GameFx.fx(part === "shape" ? "grow" : "pop", `${key}:${part}`, delay) : "";
+  const dots = rows.map((r, i) => { const [x, y] = at(i, Math.max(r.pct, 3)); return `<circle class="pu-dot" cx="${x}" cy="${y}" r="3.5"${fx(`dot${i}`, 650 + i * 60)}/>`; }).join("");
   const labels = rows.map((r, i) => {
     const [x, y] = at(i, R + 24);
     return `<text class="pu-ax-e" x="${x}" y="${y}" text-anchor="middle">${r.emoji}</text>
       <text class="pu-ax-v" x="${x}" y="${(+y + 15).toFixed(1)}" text-anchor="middle">${r.pct}%</text>`;
   }).join("");
   return `<svg class="pu-radar" viewBox="-140 -138 280 284" role="img" aria-label="Impureté par catégorie">
-    ${rings}${spokes}<polygon class="pu-shape" points="${shape}"/>${dots}${labels}</svg>`;
+    ${rings}${spokes}<polygon class="pu-shape" points="${shape}"${fx("shape", 200)}/>${dots}${labels}</svg>`;
 }
 
 // Profil par catégorie (radar + liste, de la plus impure à la plus sage) : fin de partie et Réglages.
-function puProfileHtml(rows) {
+function puProfileHtml(rows, key = "") {
   if (!rows?.length) return "";
   const sorted = [...rows].sort((a, b) => b.pct - a.pct || a.label.localeCompare(b.label));
-  const list = sorted.map((r) => `<div class="pu-cat-row"><span class="pu-cat-e">${r.emoji}</span><b>${esc(r.label)}</b>
-      <span class="pu-row-bar"><i style="width:${r.pct}%"></i></span><span class="pu-row-s">${r.yes}/${r.total}</span></div>`).join("");
+  const list = sorted.map((r, i) => `<div class="pu-cat-row"><span class="pu-cat-e">${r.emoji}</span><b>${esc(r.label)}</b>
+      <span class="pu-row-bar"><i style="width:${r.pct}%"${key ? `${GameFx.bar(`${key}:cat:${r.label}`, r.pct)} data-fx-d="${900 + i * 70}"` : ""}></i></span><span class="pu-row-s">${r.yes}/${r.total}</span></div>`).join("");
   return `<div class="pu-profile"><h3>Ton profil d'impureté <small>🔒 toi seul le vois</small></h3>
-    ${puRadarSvg(rows)}<div class="pu-cat-list">${list}</div></div>`;
+    ${puRadarSvg(rows, key)}<div class="pu-cat-list">${list}</div></div>`;
 }
 
-function puScoreHtml(score, title) {
-  return `<div class="pu-score"><div class="pu-score-k">${title}</div>
-    <div class="pu-score-v">${score} %</div><div class="pu-score-l">${puGrade(score)}</div></div>`;
+// Score : dans la partie, le pourcentage défile de 0 à sa valeur, puis le grade tombe (une seule fois).
+function puScoreHtml(score, title, key = "") {
+  return `<div class="pu-score"${key ? GameFx.fx("pop", `${key}:score`) : ""}><div class="pu-score-k">${title}</div>
+    <div class="pu-score-v"><span${key ? `${GameFx.num(`${key}:score`, score, 0)} data-fx-d="150"` : ""}>${score}</span> %</div>
+    <div class="pu-score-l"${key ? GameFx.fx("land", `${key}:grade`, 800) : ""}>${puGrade(score)}</div></div>`;
 }
 
 function puResultsHtml(g) {
   const v = g.purity, me = g.me?.pid;
-  const mine = v.me_score != null ? puScoreHtml(v.me_score, "Ton score d'impureté") : "";
+  const key = `pu:${g.id}:${v.ranking.length}:${v.ranking.map((r) => r.score).join(",")}`;  // un test révélé = une clé
+  const mine = v.me_score != null ? puScoreHtml(v.me_score, "Ton score d'impureté", key) : "";
   const last = v.ranking.length - 1;
-  const rows = v.ranking.map((r, i) => `<div class="pu-row ${r.pid === me ? "me" : ""}">
+  // Classement dévoilé du plus sage au plus sulfureux : le premier arrive en dernier.
+  const at = (i) => 1500 + (last - i) * 160;
+  const rows = v.ranking.map((r, i) => `<div class="pu-row ${r.pid === me ? "me" : ""}"${GameFx.fx("rise", `${key}:row:${r.pid}`, at(i))}>
       <span class="pu-rank">${i === 0 && r.score ? "😈" : i === last ? "😇" : i + 1}</span><span class="pu-who"><b>${esc(r.name)}</b><small>${puGrade(r.score)}</small></span>
-      <span class="pu-row-bar"><i style="width:${r.score}%"></i></span><span class="pu-row-s">${r.score} %</span></div>`).join("");
+      <span class="pu-row-bar"><i style="width:${r.score}%"${GameFx.bar(`${key}:bar:${r.pid}`, r.score)} data-fx-d="${at(i) + 120}"></i></span><span class="pu-row-s">${r.score} %</span></div>`).join("");
   const d = v.gorgees;
-  const drinks = d.length ? `<div class="pu-drink">🍻 ${d.map((x) => esc(x.name)).join(", ")} ${d.length > 1 ? "boivent" : "boit"} ${d[0].sips} gorgée${d[0].sips > 1 ? "s" : ""} !</div>` : "";
-  return `${mine}${puProfileHtml(v.me_categories)}<div class="pu-board"><h3>Du plus sulfureux au plus sage</h3>${rows}</div>${drinks}
+  const drinks = d.length ? `<div class="pu-drink"${GameFx.fx("land", `${key}:drink`, at(0) + 600)}>🍻 ${d.map((x) => esc(x.name)).join(", ")} ${d.length > 1 ? "boivent" : "boit"} ${d[0].sips} gorgée${d[0].sips > 1 ? "s" : ""} !</div>` : "";
+  return `${mine}${puProfileHtml(v.me_categories, key)}<div class="pu-board"><h3>Du plus sulfureux au plus sage</h3>${rows}</div>${drinks}
     ${g.is_host ? `<button class="py-main" data-gact="restart">🔁 Nouveau test</button>` : ""}
     ${puLeaderboardHtml(v.leaderboard)}`;
 }
@@ -178,6 +186,7 @@ function puAnnounce(g) {
     const top = g.purity.ranking[0];
     if (top.score) pyrFlash("summit", `😈 ${esc(top.name)}`, `le plus sulfureux · ${top.score} % impur`, "", 3200);
     else pyrFlash("summit", "😇 Que des anges", "0 % d'impureté pour tout le monde", "", 3200);
+    GameFx.hold(3200);  // score, radar et classement se dévoilent quand l'annonce se retire
     GameAudio.play("win");
   }
   puSeen = key;
@@ -189,7 +198,8 @@ function puToggle(b) {
   b.classList.toggle("on", on);
   b.setAttribute("aria-pressed", on);
   const c = $("puCount");
-  if (c) c.textContent = document.querySelectorAll(".pu-q.on").length;
+  if (c) { c.textContent = document.querySelectorAll(".pu-q.on").length; GameFx.tap(c, "bump"); }
+  if (on) GameFx.tap(b.querySelector(".pu-n"), "bump");
   haptic(15);
   gameAction("puans", { amount: +b.dataset.puI, done: on }, { quiet: true });
 }

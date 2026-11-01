@@ -32,10 +32,10 @@ body.pyr-full #game.g-db { box-shadow: none; border: 0; padding: 16px; backgroun
 .db-bars { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; margin-top: 12px; }
 .db-bar { display: contents; font-weight: 700; }
 .db-bar-l { font-size: .92rem; white-space: nowrap; }
-.db-bar i { display: block; height: 14px; width: var(--w); min-width: 6px; border-radius: 999px; background: var(--db-2); }
+.db-bar i { display: block; height: 14px; width: var(--w); min-width: 6px; border-radius: 999px; background: var(--db-2); transform-origin: left center; }
 .db-bar.db-c0 i { background: var(--db-0); } .db-bar.db-c1 i { background: var(--db-1); }
 .db-bar.db-c3 i { background: var(--db-3); } .db-bar.db-c4 i { background: var(--db-4); }
-.db-bar b { text-align: right; white-space: nowrap; }
+.db-bar b { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .db-bar small { font-weight: 600; color: var(--g-soft); }
 .db-names { grid-column: 1 / -1; margin-top: -4px; font-size: .85rem; font-weight: 600; color: var(--g-soft); overflow-wrap: anywhere; }
 .db-talk { text-align: center; margin: 16px 0 0; font-weight: 700; color: var(--g-soft); }

@@ -26,12 +26,12 @@ body.pyr-full #game.g-pu { box-shadow: none; border: 0; padding: 16px; backgroun
 
 .pu-progress { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; font-size: .95rem; }
 .pu-bar { height: 8px; border-radius: 999px; background: rgba(255,255,255,.12); overflow: hidden; }
-.pu-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ffb3e0, #ff6fb5); transition: width .4s ease; }
+.pu-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ffb3e0, #ff6fb5); }  /* animée par GameFx (quiz.js) */
 
 .pu-sticky { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 10px;
   padding: 10px 14px; margin: 0 -4px 10px; border-radius: 14px; background: rgba(31,18,53,.94); backdrop-filter: blur(8px);
   font-weight: 700; box-shadow: 0 8px 20px rgba(0,0,0,.3); }
-.pu-sticky b { color: var(--g-accent); font-size: 1.1rem; }
+.pu-sticky b { color: var(--g-accent); font-size: 1.1rem; display: inline-block; font-variant-numeric: tabular-nums; }  /* inline-block : le compteur peut rebondir */
 .pu-list { display: flex; flex-direction: column; gap: 6px; }
 .pu-q { display: grid; grid-template-columns: 30px 1fr; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 10px 12px;
   text-align: left; border-radius: 14px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.05); color: #fff;
@@ -48,7 +48,7 @@ body.pyr-full #game.g-pu { box-shadow: none; border: 0; padding: 16px; backgroun
 .pu-score { text-align: center; padding: 20px 16px; border-radius: 24px; margin-bottom: 14px;
   background: linear-gradient(135deg, #7b3fd1, #ff6fb5); box-shadow: 0 16px 36px rgba(160,60,200,.4); }
 .pu-score-k { font-size: .9rem; opacity: .9; }
-.pu-score-v { font: 800 clamp(3rem, 18vw, 4.5rem)/1 "Bricolage Grotesque", system-ui, sans-serif; margin: 6px 0; }
+.pu-score-v { font: 800 clamp(3rem, 18vw, 4.5rem)/1 "Bricolage Grotesque", system-ui, sans-serif; margin: 6px 0; font-variant-numeric: tabular-nums; }
 .pu-score-l { font-weight: 800; font-size: 1.1rem; }
 
 .pu-board, .pu-lb { padding: 14px; border-radius: 20px; background: rgba(255,255,255,.06); margin-bottom: 14px; }
@@ -60,7 +60,7 @@ body.pyr-full #game.g-pu { box-shadow: none; border: 0; padding: 16px; backgroun
 .pu-who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pu-who small { color: var(--g-soft); font-size: .75rem; line-height: 1.2; }
 .pu-row-bar { height: 8px; border-radius: 999px; background: rgba(255,255,255,.12); overflow: hidden; }
-.pu-row-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ff6fb5, #ffe08a); }
+.pu-row-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ff6fb5, #ffe08a); transform-origin: left center; }
 .pu-row-s { font-weight: 800; min-width: 3.2em; text-align: right; }
 .pu-rank { display: grid; place-items: center; font-weight: 800; color: var(--g-soft); }
 .pu-drink { text-align: center; font-weight: 800; padding: 12px; border-radius: 16px; background: rgba(255,224,138,.15); color: #ffe08a; margin-bottom: 14px; }
@@ -83,9 +83,10 @@ body.pyr-full #game.g-pu { box-shadow: none; border: 0; padding: 16px; backgroun
 .pu-ring { fill: none; stroke: rgba(255,255,255,.14); stroke-width: 1; }
 .pu-ring.outer { stroke: rgba(255,255,255,.3); }
 .pu-spoke { stroke: rgba(255,255,255,.12); stroke-width: 1; }
-.pu-shape { fill: rgba(255,111,181,.32); stroke: #ff9ad5; stroke-width: 2.5; stroke-linejoin: round;
-  transform-origin: 0 0; animation: pu-grow .9s cubic-bezier(.2,.9,.3,1.2) both; }
-.pu-dot { fill: #ffe08a; stroke: #2a0a1f; stroke-width: 1.5; }
+.pu-shape { fill: rgba(255,111,181,.32); stroke: #ff9ad5; stroke-width: 2.5; stroke-linejoin: round; transform-origin: 0 0; }
+/* Dans la partie, GameFx la déploie une seule fois ; dans « Mes stats », l'animation CSS suffit (pas de rafraîchissement). */
+.pu-stats .pu-shape { animation: pu-grow .9s cubic-bezier(.2,.9,.3,1.2) both; }
+.pu-dot { fill: #ffe08a; stroke: #2a0a1f; stroke-width: 1.5; transform-box: fill-box; transform-origin: center; }
 .pu-ax-e { font-size: 17px; dominant-baseline: middle; }
 .pu-ax-v { font: 800 11px system-ui, sans-serif; fill: #f3d9ff; }
 @keyframes pu-grow { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }

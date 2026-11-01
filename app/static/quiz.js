@@ -1,3 +1,135 @@
+// ✨ GameFx : animations des jeux à écran (Quiz, Purify, Qui est le plus, Pour ou contre, Beer pong). Défini ici
+// parce que quiz.js est le premier de ces fichiers chargés.
+// games.js remplace tout le HTML de la partie dès qu'un détail change (un vote de plus…) : une animation CSS se
+// rejouerait à chaque rafraîchissement. Ici, chaque animation porte une clé : elle n'est jouée qu'une fois, et un
+// nœud remplacé en plein vol reprend là où l'ancien en était (Web Animations, transform et opacité seulement).
+//   data-fx="rise|pop|flip|drop|land" data-fx-key="…" [data-fx-d="délai ms"]  entrée jouée une fois
+//   data-fx-bar="clé" data-fx-v="%"     barre qui grandit depuis sa valeur précédente (ou depuis 0)
+//   data-fx-n="clé" [data-fx-from="n"]  nombre qui défile jusqu'à sa valeur (depuis la précédente)
+//   data-fx-flip="clé"                  ligne qui glisse de son ancienne place à la nouvelle (classement)
+const GameFx = (() => {
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+  const SPRING = "cubic-bezier(.2,1.25,.4,1)", OUT = "cubic-bezier(.2,.8,.2,1)";
+  // Une seule image clé, le départ (offset 0 obligatoire : seule, elle serait prise pour l'arrivée) ; l'arrivée est l'état normal de l'élément.
+  const PRESETS = {
+    rise: { frames: [{ opacity: 0, transform: "translateY(16px) scale(.98)", offset: 0 }], duration: 420, easing: OUT },
+    pop: { frames: [{ opacity: 0, transform: "scale(.6)", offset: 0 }], duration: 480, easing: SPRING },
+    flip: { frames: [{ opacity: 0, transform: "perspective(800px) rotateX(-75deg) translateY(-10px)", offset: 0 }], duration: 620, easing: SPRING },
+    land: { frames: [{ opacity: 0, transform: "translateY(-28px) scale(1.12)", offset: 0 }], duration: 520, easing: SPRING },
+    grow: { frames: [{ opacity: 0, transform: "scale(0)", offset: 0 }], duration: 900, easing: SPRING },
+    // Petit rebond sur place (case cochée, compteur qui change) : l'élément ne disparaît jamais.
+    bump: { frames: [{ transform: "none" }, { transform: "scale(1.22)", offset: .35 }, { transform: "none" }], duration: 320, easing: "ease-out" },
+    // Gobelet qui tombe : il bondit, puis s'écrase vers son état « tombé » (défini par le CSS du jeu).
+    drop: { frames: [{ opacity: 1, transform: "none" }, { opacity: 1, transform: "translateY(-8px) scale(1.14)", offset: .25 }], duration: 560, easing: "ease-in" },
+  };
+  const BAR_MS = 700, COUNT_MS = 650, FLIP_MS = 480, MAX_FLIP = 420, KEEP_MS = 20000;
+  // started : clé → instant où l'animation commence (premier affichage + délai) ; bars / counts : valeurs en cours.
+  const started = new Map(), bars = new Map(), counts = new Map(), places = new Map();
+  const now = () => performance.now();
+  let holdUntil = 0;  // annonce plein écran en cours : les nouvelles animations attendent qu'elle se retire
+  const startAt = (el, t) => t + Math.max(0, holdUntil - t) + (+el.dataset.fxD || 0);
+
+  function prune() {
+    if (started.size < 400) return;
+    const t = now();
+    for (const [k, t0] of started) if (t - t0 > KEEP_MS) started.delete(k);
+  }
+  // Joue l'animation à partir de « elapsed » (négatif : pas encore commencée, l'élément reste à son départ).
+  function run(el, frames, duration, easing, elapsed) {
+    const a = el.animate(frames, { duration, easing, delay: Math.max(0, -elapsed), fill: "backwards" });
+    if (elapsed > 0) a.currentTime = elapsed;
+  }
+  function enter(el) {
+    const p = PRESETS[el.dataset.fx], key = el.dataset.fxKey;
+    if (!p || !key) return;
+    const t = now();
+    if (!started.has(key)) started.set(key, startAt(el, t));
+    const elapsed = t - started.get(key);
+    if (reduce.matches || elapsed >= p.duration) return;
+    run(el, p.frames, p.duration, p.easing, elapsed);
+  }
+  // Barre : transform scaleX depuis la gauche (pas de largeur animée, donc pas de mise en page à chaque image).
+  function bar(el) {
+    const key = el.dataset.fxBar, to = Math.max(0, +el.dataset.fxV || 0), t = now(), b = bars.get(key);
+    if (!b) bars.set(key, { from: 0, to, t0: startAt(el, t) });
+    else if (b.to !== to) bars.set(key, { from: b.from + (b.to - b.from) * Math.max(0, Math.min(1, (t - b.t0) / BAR_MS)), to, t0: startAt(el, t) });
+    const cur = bars.get(key), elapsed = t - cur.t0;
+    if (reduce.matches || !to || elapsed >= BAR_MS || cur.from === cur.to) return;
+    el.style.transformOrigin = "left center";
+    run(el, [{ transform: `scaleX(${Math.min(cur.from / to, 4)})` }, { transform: "none" }], BAR_MS, OUT, elapsed);
+  }
+  function counter(el) {
+    const key = el.dataset.fxN, to = +el.dataset.fxV, t = now(), c = counts.get(key);
+    if (!Number.isFinite(to)) return;
+    const fmt = el.dataset.fxFmt === "pts" ? fmtPts : (x) => String(x);
+    const at = (c, t) => Math.round(c.from + (c.to - c.from) * (1 - (1 - Math.max(0, Math.min(1, (t - c.t0) / COUNT_MS))) ** 3));
+    if (!c) counts.set(key, { from: el.dataset.fxFrom != null ? +el.dataset.fxFrom : to, to, t0: startAt(el, t) });
+    else if (c.to !== to) counts.set(key, { from: at(c, t), to, t0: startAt(el, t) });
+    const cur = counts.get(key);
+    if (reduce.matches || cur.from === cur.to) return;
+    const step = () => {
+      if (!el.isConnected) return;
+      const v = at(cur, now());
+      el.textContent = fmt(v);
+      if (v !== cur.to || now() < cur.t0) requestAnimationFrame(step);
+    };
+    step();
+  }
+  // FLIP : on mémorise la place de chaque ligne (offsetTop, qui ignore les transformations en cours).
+  function top(el) {
+    let y = 0;
+    for (let n = el; n; n = n.offsetParent) y += n.offsetTop;
+    return y;
+  }
+  function flips(root) {
+    const rows = [...root.querySelectorAll("[data-fx-flip]")];
+    if (!rows.length) return;
+    const fresh = rows.map((el) => [el, top(el), places.get(el.dataset.fxFlip)]);  // toutes les lectures d'abord
+    fresh.forEach(([el, y, before]) => {
+      places.set(el.dataset.fxFlip, y);
+      if (reduce.matches || before == null || !el._fxNew) return;
+      const dy = before - y;
+      if (Math.abs(dy) > 2 && Math.abs(dy) < MAX_FLIP) {
+        el.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: FLIP_MS, easing: OUT, delay: Math.max(0, holdUntil - now()), fill: "backwards" });
+      }
+    });
+    rows.forEach((el) => { el._fxNew = false; });
+  }
+  function scan(nodes) {
+    let flip = false;
+    for (const n of nodes) {
+      if (n.nodeType !== 1) continue;
+      const all = n.matches("[data-fx],[data-fx-bar],[data-fx-n],[data-fx-flip]") ? [n] : [];
+      all.push(...n.querySelectorAll("[data-fx],[data-fx-bar],[data-fx-n],[data-fx-flip]"));
+      for (const el of all) {
+        if (el.dataset.fx) enter(el);
+        if (el.dataset.fxBar) bar(el);
+        if (el.dataset.fxN) counter(el);
+        if (el.dataset.fxFlip) { el._fxNew = true; flip = true; }
+      }
+    }
+    return flip;
+  }
+  const host = document.getElementById("gamePlay") || document.body;
+  // Appelé avant l'affichage (microtâche) : l'élément n'apparaît jamais une image à sa place finale avant d'animer.
+  new MutationObserver((list) => {
+    const added = list.flatMap((m) => [...m.addedNodes]);
+    if (scan(added)) flips(host);
+    prune();
+  }).observe(host, { childList: true, subtree: true });
+
+  // Attributs à poser dans le HTML des jeux.
+  const fx = (name, key, delay = 0) => ` data-fx="${name}" data-fx-key="${esc(key)}"${delay ? ` data-fx-d="${Math.round(delay)}"` : ""}`;
+  const barAttr = (key, pct) => ` data-fx-bar="${esc(key)}" data-fx-v="${pct}"`;
+  const num = (key, value, from = null, fmt = "") => ` data-fx-n="${esc(key)}" data-fx-v="${value}"${from !== null ? ` data-fx-from="${from}"` : ""}${fmt ? ` data-fx-fmt="${fmt}"` : ""}`;
+  const flip = (key) => ` data-fx-flip="${esc(key)}"`;
+  // Petite animation immédiate sur un élément touché (case cochée…), hors rendu.
+  const tap = (el, name = "pop") => { if (!reduce.matches && PRESETS[name]) el.animate(PRESETS[name].frames, { duration: PRESETS[name].duration, easing: PRESETS[name].easing }); };
+  // Annonce plein écran (pyrFlash) qui va couvrir l'écran : ce qui apparaît dessous attend sa sortie.
+  const hold = (ms) => { holdUntil = Math.max(holdUntil, now() + ms); };
+  return { fx, bar: barAttr, num, flip, tap, hold, reduced: () => reduce.matches };
+})();
+
 // 🧠 Quiz : 14 thèmes, 5 modes, seul ou à plusieurs. Chargé après games.js (utilise renderGame, gameAction, pyrFlash…).
 GAME_THEME.quiz = "g-qz";
 GAME_NAMES.quiz = "Quiz";
@@ -93,7 +225,7 @@ function qzLeaderboardHtml(lb, title = "🌍 Classement général") {
 
 // --- Question (commune à tous les modes) ---
 function qzQuestionHtml(q, opts = {}) {
-  const { mine = null, correct = null, locked = false, cut = [], dist = null, act = "qans", disabled = false } = opts;
+  const { mine = null, correct = null, locked = false, cut = [], dist = null, act = "qans", disabled = false, key = "" } = opts;
   const answered = mine !== null && mine !== undefined;
   const btns = q.choices.map((c, i) => {
     let cls = QZ_COLORS[i];
@@ -102,7 +234,7 @@ function qzQuestionHtml(q, opts = {}) {
     if (cut.includes(i)) cls += " cut";
     const off = disabled || answered || locked || correct !== null || cut.includes(i);
     return `<button type="button" class="qz-ans ${cls}" data-qz-ans="${i}" ${off ? "disabled" : ""}>
-      <span class="qz-shape">${QZ_SHAPES[i]}</span><span class="qz-txt">${qzText(c)}</span>${dist ? `<span class="qz-count">${dist[i]}</span>` : ""}</button>`;
+      <span class="qz-shape">${QZ_SHAPES[i]}</span><span class="qz-txt">${qzText(c)}</span>${dist ? `<span class="qz-count"${key ? GameFx.num(`${key}:dist${i}`, dist[i], 0) : ""} data-fx-d="250">${dist[i]}</span>` : ""}</button>`;
   }).join("");
   const stars = "★".repeat(q.d) + "☆".repeat(3 - q.d);
   return `<div class="qz-qcard">
@@ -120,6 +252,7 @@ function qzTimerHtml(left, dur, id = "qzBar") {
 // --- Rendu principal ---
 function quizHtml(g) {
   const v = g.quiz, s = v.settings, me = g.me;
+  qzFxId = g.id;
   const lead = g.is_host;
   if (g.phase === "lobby") {
     const n = g.players.length;
@@ -139,7 +272,7 @@ function quizHtml(g) {
   const total = s.mode === "survival" ? "" : `/${s.count}`;
   const top = `<div class="qz-top"><span class="qz-num">Question <b>${v.n}${total}</b></span>
     ${s.mode === "survival" && myRow ? `<span class="qz-lives">${"❤️".repeat(Math.max(0, myRow.lives))}${"🖤".repeat(Math.max(0, s.lives - myRow.lives))}</span>` : ""}
-    ${myRow ? `<span class="qz-mypts">${fmtPts(myRow.pts)} pts${myRow.streak > 1 ? ` · 🔥${myRow.streak}` : ""}</span>` : ""}</div>`;
+    ${myRow ? `<span class="qz-mypts"><span${GameFx.num(`qz:${g.id}:mine`, myRow.pts, null, "pts")}>${fmtPts(myRow.pts)}</span> pts${myRow.streak > 1 ? ` · 🔥${myRow.streak}` : ""}</span>` : ""}</div>`;
   if (g.phase === "q") {
     const status = q.out ? `<div class="qz-status out">💀 Éliminé·e : regarde les autres jouer</div>`
       : q.locked ? `<div class="qz-status bad">❌ Raté ! Bloqué·e jusqu'à la prochaine question</div>`
@@ -153,23 +286,26 @@ function quizHtml(g) {
   }
   // Révélation
   const mine = q.res.find((r) => r.me);
-  const verdict = !me ? "" : mine ? (mine.ok ? `<div class="qz-verdict ok">✓ Bonne réponse${mine.pts ? ` · <b>+${fmtPts(mine.pts)}</b>` : ""}</div>`
+  const verdict = !me ? "" : mine ? (mine.ok ? `<div class="qz-verdict ok">✓ Bonne réponse${mine.pts ? ` · <b>+<span${GameFx.num(`qz:${g.id}:${v.n}:gain`, mine.pts, 0, "pts")} data-fx-d="200">${fmtPts(mine.pts)}</span></b>` : ""}</div>`
       : s.mode === "speed" && q.winner ? `<div class="qz-verdict bad">⚡ Trop lent : ${esc(q.winner)} a été plus rapide</div>` : `<div class="qz-verdict bad">✗ Raté !</div>`)
     : `<div class="qz-verdict bad">⏰ Pas de réponse</div>`;
   const winner = s.mode === "speed" ? `<div class="qz-speedwin">${q.winner ? `⚡ <b>${esc(q.winner)}</b> a trouvé en premier !` : "Personne n'a trouvé…"}</div>` : "";
-  return top + verdict + winner + qzQuestionHtml(q, { mine: q.mine, correct: q.correct, dist: q.dist })
+  return top + verdict + winner + qzQuestionHtml(q, { mine: q.mine, correct: q.correct, dist: q.dist, key: `qz:${g.id}:${v.n}` })
     + qzMiniBoard(v.board, s.mode)
     + `<div class="qz-next">${v.paused ? `<span class="qz-paused">⏸ En pause${lead || g.players.length <= 1 ? "" : " (l'animateur reprendra)"}</span>`
         : `<span>Question suivante dans <b id="qzNextS">${Math.ceil(q.next_in)}</b> s</span>`}
       <span class="qz-next-btns">${lead || g.players.length <= 1 ? qzPauseBtn(v.paused) : ""}${lead && !v.paused ? `<button class="py-sub" data-gact="next" data-guess="${esc(v.token)}">Suivante ▶</button>` : ""}</span></div>`;
 }
 
+// Mini-classement : chaque joueur glisse vers sa nouvelle place et ses points défilent depuis la question précédente.
+let qzFxId = "";  // partie en cours (clés d'animation)
 function qzMiniBoard(board, mode, n = 5) {
   if (board.length < 2) return "";
-  return `<div class="qz-mini">${board.slice(0, n).map((r, i) => `<div class="qz-mini-row ${r.me ? "me" : ""} ${r.out ? "out" : ""}">
+  const k = (r) => `qz:${qzFxId}:${r.name}`;
+  return `<div class="qz-mini">${board.slice(0, n).map((r, i) => `<div class="qz-mini-row ${r.me ? "me" : ""} ${r.out ? "out" : ""}"${GameFx.flip(k(r))}>
       <span class="qz-rank r${i + 1}">${i + 1}</span><b>${esc(r.name)}</b>
       ${mode === "survival" ? `<span class="qz-l">${r.out ? "💀" : "❤️".repeat(Math.max(0, r.lives))}</span>` : ""}
-      <span class="qz-p">${mode === "ladder" ? `palier ${r.level || 0}` : fmtPts(r.pts)}</span></div>`).join("")}</div>`;
+      <span class="qz-p"${mode === "ladder" ? "" : GameFx.num(k(r), r.pts, null, "pts")}>${mode === "ladder" ? `palier ${r.level || 0}` : fmtPts(r.pts)}</span></div>`).join("")}</div>`;
 }
 
 function qzChronoHtml(g) {
@@ -220,11 +356,14 @@ function qzLadderHtml(g) {
 function qzEndHtml(g) {
   const v = g.quiz, s = v.settings, b = v.board;
   const val = (r) => s.mode === "ladder" ? fmtPts(v.ladder?.[(r.level || 0) - 1] || 0) : `${fmtPts(r.pts)} pts`;
+  // Fin : les points du podium et le score solo défilent depuis zéro (une fois, après l'annonce du gagnant).
+  const valFx = (r, part, delay) => s.mode === "ladder" ? val(r)
+    : `<span${GameFx.num(`qz:${g.id}:end:${part}`, r.pts, 0, "pts")} data-fx-d="${delay}">${fmtPts(r.pts)}</span> pts`;
   const podium = b.length > 1 ? `<div class="qz-podium">${[1, 0, 2].filter((i) => b[i]).map((i) => `<div class="qz-pod p${i + 1}">
-      <div class="qz-pod-name">${esc(b[i].name)}</div><div class="qz-pod-pts">${val(b[i])}</div>
+      <div class="qz-pod-name">${esc(b[i].name)}</div><div class="qz-pod-pts">${valFx(b[i], `pod${i}`, [500, 250, 0][i] + 400)}</div>
       <div class="qz-pod-step"><span>${["🥇", "🥈", "🥉"][i]}</span></div></div>`).join("")}</div>` : "";
   const mine = b.find((r) => r.me);
-  const solo = b.length === 1 && mine ? `<div class="qz-solo"><div class="qz-solo-k">Ton score</div><div class="qz-solo-v">${val(mine)}</div>
+  const solo = b.length === 1 && mine ? `<div class="qz-solo"><div class="qz-solo-k">Ton score</div><div class="qz-solo-v">${valFx(mine, "solo", 300)}</div>
       <div class="artist">${mine.ok}/${mine.n} bonnes réponses${mine.best > 1 ? ` · meilleure série 🔥${mine.best}` : ""}</div></div>` : "";
   const rows = b.map((r, i) => `<div class="qz-mini-row ${r.me ? "me" : ""}"><span class="qz-rank r${i + 1}">${i + 1}</span><b>${esc(r.name)}</b>
       <small>${r.ok}/${r.n} ✓${r.best > 1 ? ` · 🔥${r.best}` : ""}</small><span class="qz-p">${val(r)}</span></div>`).join("");
@@ -285,6 +424,7 @@ function quizAfter(g, fresh = true) {
       const w = v.board[0];
       if (v.board.length > 1) pyrFlash("summit", `🏆 ${esc(w.name)} gagne !`, `${fmtPts(w.pts)} points`, "", 3500);
       else pyrFlash("good", "🏁 Terminé !", `${w.ok}/${w.n} bonnes réponses · ${fmtPts(w.pts)} points`, "", 3000);
+      GameFx.hold(v.board.length > 1 ? 3500 : 3000);  // les points défilent quand l'annonce se retire
     }
     if (g.phase === "rev" && v.settings.mode === "speed" && v.q?.winner) pyrFlash("good", `⚡ ${esc(v.q.winner)}`, "a trouvé en premier !", "", 1600);
   }

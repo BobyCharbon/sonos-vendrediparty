@@ -28,7 +28,7 @@ window.Island=(()=>{
   }
   async function load(id){
     try{
-      const {createScene}=await import('/static/island-scene.js?v=3');
+      const {createScene}=await import('/static/island-scene.js?v=4');
       if(id!==token||!root?.isConnected)return;
       scene=createScene(root.querySelector('canvas'));loaded=true;loadFailed=false;panel();frame=requestAnimationFrame(draw);
     }catch(e){if(id!==token)return;reset();loadFailed=true;panel();const box=root.querySelector('.is-error');box.hidden=false;box.innerHTML='<strong>La 3D n’a pas pu démarrer.</strong><p>Vérifie que l’accélération graphique est activée, puis réessaie avec un navigateur récent.</p><button type="button" data-is-retry>Réessayer</button>';}
@@ -69,8 +69,10 @@ window.Island=(()=>{
     if(jump.disabled&&jumpId!==null){jumpId=null;input.jump=false;}
     if(jump.disabled)jump.style.removeProperty('translate');
     const remaining=Math.max(0,Math.ceil(snap.duration-Math.max(0,snap.time)));
-    root.querySelector('.is-clock').textContent=`${Math.floor(remaining/60).toString().padStart(2,'0')}:${(remaining%60).toString().padStart(2,'0')}`;
-    root.querySelector('.is-count').textContent=snap.phase==='lobby'?`${current.players.length} / 8 joueurs`:snap.solo?'Survie solo':`${alive} / ${snap.fighters.length} en jeu`;
+    // Textes réécrits seulement s'ils changent (ce panneau est mis à jour ~15 fois par seconde).
+    const put=(sel,text)=>{const el=root.querySelector(sel);if(el.textContent!==text)el.textContent=text;};
+    put('.is-clock',`${Math.floor(remaining/60).toString().padStart(2,'0')}:${(remaining%60).toString().padStart(2,'0')}`);
+    put('.is-count',snap.phase==='lobby'?`${current.players.length} / 8 joueurs`:snap.solo?'Survie solo':`${alive} / ${snap.fighters.length} en jeu`);
     root.querySelector('.is-label').hidden=playing;
     const callout=root.querySelector('.is-callout');let message='';
     if(snap.phase==='countdown'){
@@ -78,10 +80,15 @@ window.Island=(()=>{
       if(count!==lastCount){lastCount=count;GameAudio.play('tick');}
     }else if(snap.phase==='play'&&!mine?.alive)message=mine?'À l’eau ! Regarde la suite.':'Tu joueras à la prochaine manche.';
     else if(snap.phase==='play'&&snap.time<1.2)message='C’est parti !';
-    callout.textContent=message;callout.classList.toggle('is-countdown',snap.phase==='countdown');
+    if(callout.textContent!==message){
+      callout.textContent=message;
+      // Chaque chiffre du décompte (et « C'est parti ! ») arrive en rebondissant, une seule fois.
+      if(message&&!matchMedia('(prefers-reduced-motion: reduce)').matches)callout.animate([{transform:'scale(1.5)',opacity:0,offset:0},{transform:'scale(.95)',opacity:1,offset:.55},{transform:'none',opacity:1}],{duration:420,easing:'ease-out'});
+    }
+    callout.classList.toggle('is-countdown',snap.phase==='countdown');
     const sig=JSON.stringify([snap.phase,snap.round,current.is_host,current.players,snap.winner,snap.best,snap.notice,loaded,loadFailed]);
     if(signature===sig)return;signature=sig;
-    let html='';
+    let html='',fresh=false;
     if(snap.phase==='lobby'){
       html='<h3>Le paradis ne tient qu’à un saut.</h3><p>Seul, tiens 90 secondes. Entre amis, sois le dernier sur l’île.</p>';
       html+=`<div class="is-roster">${current.players.map((p,i)=>`<span><i style="background:${['#20c9d0','#f66b60','#f4bd40','#a185e8','#78ba60','#ef91ba','#539cef','#ef984b'][i]}"></i>${escape(p.name)}${p.pid===snap.me?' · toi':''}</span>`).join('')}</div>`;
@@ -91,13 +98,18 @@ window.Island=(()=>{
       html+='<small class="is-keyboard">Joystick + saut · Au clavier : flèches et espace</small>';
     }else if(snap.phase==='results'){
       const winner=snap.fighters.find(p=>p.pid===snap.winner);
-      const result=`${snap.round}:${snap.winner}`;if(result!==lastResult){lastResult=result;GameAudio.play(snap.winner===snap.me?'win':'reveal');}
+      const result=`${snap.round}:${snap.winner}`;if(result!==lastResult){lastResult=result;fresh=true;GameAudio.play(snap.winner===snap.me?'win':'reveal');}
       html=`<h3>${winner?(snap.solo?'Île maîtrisée !':`${escape(winner.name)} gagne !`):(snap.solo?'Un plongeon… et on repart ?':'Fin de la manche')}</h3><p>${escape(snap.notice)||'Un dernier survivant. Une nouvelle île à conquérir.'}</p>`;
       html+=`<div class="is-results">${snap.fighters.map(p=>`<div><span>${escape(p.name)}</span><strong>${(p.out_at??Math.max(0,snap.time)).toFixed(1)} s</strong><small>Record ${(snap.best[p.pid]||0).toFixed(1)} s · ${snap.scores[p.pid]||0} victoire(s)</small></div>`).join('')}</div>`;
       html+=current.is_host?'<button type="button" class="is-primary" data-gact="next">Rejouer sur l’île</button>':'<p>L’animateur prépare la prochaine manche.</p>';
     }
     if(!current.me&&current.players.length<8)html+='<button type="button" class="is-primary" data-gact="join">Rejoindre la partie</button>';
-    root.querySelector('.is-panel').innerHTML=html;
+    const box=root.querySelector('.is-panel');box.innerHTML=html;
+    // Résultats d'une manche : le panneau monte une fois, puis chaque joueur avec son temps, l'un après l'autre.
+    if(fresh&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+      box.animate([{transform:'translateY(24px)',opacity:0,offset:0}],{duration:420,easing:'cubic-bezier(.2,.8,.2,1)'});
+      box.querySelectorAll('.is-results > div').forEach((row,i)=>row.animate([{transform:'translateY(10px)',opacity:0,offset:0}],{duration:360,delay:200+i*90,easing:'ease-out',fill:'backwards'}));
+    }
   }
   function bind(){
     const stick=root.querySelector('.is-stick'),jump=root.querySelector('.is-jump');

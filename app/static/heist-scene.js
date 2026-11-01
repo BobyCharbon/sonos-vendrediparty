@@ -26,6 +26,18 @@ export function createScene(canvas){
   }
   const sharedMaterials=new Set(mats),sharedGeometry=new Set(geo);
   let world=null,mapID=-1,round=-1,lasers=[],treasures=[],guardModels=[],characters=new Map(),width=0,height=0,last=0,disposed=false;
+  // Effets au sol : anneaux réutilisés (trésor pris : doré ; livré : vert ; capturé : rouge) et gemme qui s'envole.
+  const ringGeo=new THREE.RingGeometry(.5,.72,32);geo.add(ringGeo);
+  const rings=Array.from({length:8},()=>{const m=new THREE.Mesh(ringGeo,basic('#ffffff',{transparent:true,opacity:0,depthWrite:false,toneMapped:false}));
+    m.rotation.x=-Math.PI/2;m.visible=false;scene.add(m);sharedMaterials.add(m.material);return{m,t:9};});
+  sharedGeometry.add(ringGeo);  // gardés au changement de musée (build() libère le reste)
+  const RING_S=.8,FLY_S=.7,motion=matchMedia('(prefers-reduced-motion: reduce)');
+  function ring(x,z,color,size=1){
+    if(motion.matches)return;
+    const r=rings.reduce((a,b)=>b.t>a.t?b:a);Object.assign(r,{t:0,size});r.m.material.color.set(color);r.m.position.set(x,.14,z);r.m.visible=true;
+  }
+  const flyers=[];  // gemmes prises : elles montent en tournant et rapetissent
+  let seen=null,cam=null;  // dernier état vu (pour repérer les événements) ; caméra amortie
   function statue(parent,x,z,kind){
     box(parent,ivory,x,.25,z,.9,.5,.9);box(parent,gold,x,.53,z,1,.08,1);
     if(kind===2){const a=mesh(cylinderGeo,gold,parent,x,1,z);a.scale.set(.38,.9,.38);sphere(parent,ivory,x,1.65,z,.3);}
@@ -96,7 +108,7 @@ export function createScene(canvas){
     const bag=sphere(body,gold,0,.55,-.32,.3);bag.visible=false;
     return{g,body,feet,bag,x:0,y:0};
   }
-  function draw(v,now,roster){
+  function draw(v,now,roster,zoom=0){
     if(disposed)return;
     if(!world||mapID!==v.map.id)build(v);
     const w=canvas.clientWidth,h=canvas.clientHeight;if(!w||!h)return;
@@ -107,15 +119,33 @@ export function createScene(canvas){
       ? {x:cameraTarget.x+(mine.x-cameraTarget.x)*(1-Math.exp(-dt*18)),y:cameraTarget.y+(mine.y-cameraTarget.y)*(1-Math.exp(-dt*18))} : mine;
     let cx=0,cz=0,halfW;const [hx,hz]=v.map.half||[10.5,9.5];
     // Zoom choisi (bouton 🔍) : 0 proche, 1 large, 2 musée entier ; en paysage, le cadrage suit la hauteur de l'écran.
-    let zoom=0;try{zoom=+(localStorage.getItem('vp_hs_zoom')||0);}catch{}
     if(playing&&(aspect<.85||h<500)&&mine&&zoom<2){
       halfW=aspect<.85?[6.3,10][zoom]:[6.5,9.5][zoom]*aspect;
       const halfV=halfW/aspect;cx=Math.max(-hx+halfW-1,Math.min(hx-halfW+1,follow.x));cz=Math.max(-hz+halfV-2,Math.min(hz-halfV+2,follow.y-1));
       if(halfW>hx+1)cx=0;if(halfV>hz+1)cz=0;}
     else{halfW=Math.max(hx+2.5,(hz+.5)*aspect);if(!playing&&aspect>1.3)cx=-3;}
-    const halfH=halfW/aspect;camera.left=-halfW;camera.right=halfW;camera.top=halfH;camera.bottom=-halfH;camera.position.set(cx,30,cz+18);camera.lookAt(cx,0,cz);camera.updateProjectionMatrix();
-    for(let i=0;i<lasers.length;i++)lasers[i].visible=playing?v.lasers[i]:true;
-    for(const t of v.treasures){const o=treasures[t.id];o.g.visible=t.status==='floor';o.g.position.set(t.x,0,t.y);o.gem.rotation.y=now*.001;}
+    // La caméra rejoint son cadrage en douceur (zoom changé, début de manche) ; elle saute seulement à un nouveau musée.
+    const goal={x:cx,z:cz,w:halfW},k=1-Math.exp(-dt*7);
+    if(!cam||cam.map!==v.map.id||cam.aspect!==aspect||motion.matches)cam={...goal,map:v.map.id,aspect};
+    else{cam.x+=(goal.x-cam.x)*k;cam.z+=(goal.z-cam.z)*k;cam.w+=(goal.w-cam.w)*k;}
+    const halfH=cam.w/aspect;camera.left=-cam.w;camera.right=cam.w;camera.top=halfH;camera.bottom=-halfH;camera.position.set(cam.x,30,cam.z+18);camera.lookAt(cam.x,0,cam.z);camera.updateProjectionMatrix();
+    if(seen&&seen.round===v.round&&seen.map===v.map.id){
+      for(const t of v.treasures){
+        const before=seen.status.get(t.id);
+        if(before==='floor'&&t.status!=='floor'){
+          ring(t.x,t.y,'#ffd263',1);
+          const o=treasures[t.id];if(o&&!motion.matches){const g=o.gem.clone();g.position.set(t.x,.88,t.y);world.add(g);flyers.push({g,t:0});}
+        }
+      }
+      if(v.banked>seen.banked)ring(...v.map.exit,'#64e4b3',2.2);
+      for(const p of v.fighters)if(p.jailed&&!seen.jailed.has(p.pid))ring(p.x,p.y,'#ff4568',1.4);
+    }
+    seen={round:v.round,map:v.map.id,banked:v.banked,status:new Map(v.treasures.map(t=>[t.id,t.status])),jailed:new Set(v.fighters.filter(p=>p.jailed).map(p=>p.pid))};
+    for(const r of rings){if(r.t>=RING_S){r.m.visible=false;continue;}r.t+=dt;const k=Math.min(1,r.t/RING_S);r.m.scale.setScalar(r.size*(.5+2*(1-(1-k)**3)));r.m.material.opacity=.9*(1-k);}
+    for(let i=flyers.length-1;i>=0;i--){const f=flyers[i];f.t+=dt;const k=f.t/FLY_S;f.g.position.y=.88+k*2.2;f.g.rotation.y+=dt*12;f.g.scale.setScalar(Math.max(.01,1-k));if(k>=1){world.remove(f.g);flyers.splice(i,1);}}
+    // Lasers : quand ils sont allumés, ils vibrent légèrement (lumière vivante, lisible même à l'arrêt).
+    for(let i=0;i<lasers.length;i++){lasers[i].visible=playing?v.lasers[i]:true;if(!motion.matches)lasers[i].scale.y=1+.12*Math.sin(now*.03+i);}
+    for(const t of v.treasures){const o=treasures[t.id];o.g.visible=t.status==='floor';o.g.position.set(t.x,0,t.y);o.gem.rotation.y=now*.001;o.gem.position.y=.88+(motion.matches?0:Math.sin(now*.003+t.id)*.06);}
     for(let i=0;i<guardModels.length;i++){
       const c=guardModels[i],p=v.guards[i]||{x:v.map.patrols[i][0][0],y:v.map.patrols[i][0][1],angle:0};
       const fresh=round!==v.round||c.x===undefined||Math.hypot(p.x-c.x,p.y-c.y)>3,smooth=1-Math.exp(-dt*18);
@@ -129,7 +159,7 @@ export function createScene(canvas){
       const dx=p.x-c.x,dy=p.y-c.y,fresh=round!==v.round||Math.hypot(dx,dy)>3;
       c.x=fresh?p.x:c.x+dx*(1-Math.exp(-dt*18));c.y=fresh?p.y:c.y+dy*(1-Math.exp(-dt*18));c.g.position.set(c.x,0,c.y);c.g.visible=p.active;
       c.bag.visible=p.bag!=null;c.marker.visible=p.pid===v.me;c.label.material.color.set(p.jailed?'#ff9cbc':'#ffffff');
-      const units=2*halfW/w;c.body.scale.setScalar(1.2);c.label.visible=p.pid===v.me||p.jailed;c.label.scale.set(80*units,20*units,1);c.label.position.y=2.05;c.marker.scale.set(22*units,18*units,1);c.marker.position.set(0,2.7,0);
+      const units=2*cam.w/w;c.body.scale.setScalar(1.2);c.label.visible=p.pid===v.me||p.jailed;c.label.scale.set(80*units,20*units,1);c.label.position.y=2.05;c.marker.scale.set(22*units,18*units,1);c.marker.position.set(0,2.7,0);
       if(Math.hypot(dx,dy)>.01)c.body.rotation.y=Math.atan2(dx,dy);
       c.feet.forEach((f,i)=>f.position.y=.1+(Math.hypot(dx,dy)>.01?Math.sin(now*.015+i*Math.PI)*.07:0));
     }
