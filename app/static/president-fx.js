@@ -125,6 +125,7 @@ window.PresidentFx = (() => {
     document.body.append(el);
     const close = () => { el.style.pointerEvents = "none"; gone(el.animate([{opacity: 1}, {opacity: 0}], {duration: 300, fill: "forwards"}), el); };
     el.addEventListener("click", close, {once: true});
+    setTimeout(() => { el.style.pointerEvents = "none"; }, CELEBRATE * .9);  // fondu final : les touchers passent
     if (calm()) {
       el.animate([{opacity: 0}, {opacity: 1, offset: .1}, {opacity: 1, offset: .9}, {opacity: 0}], {duration: CELEBRATE, fill: "forwards"})
         .finished.then(() => el.remove(), () => el.remove());
