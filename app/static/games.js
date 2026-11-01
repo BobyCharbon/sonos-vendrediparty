@@ -1111,6 +1111,7 @@ function renderGame(g) {
   renderHud(g);
   bjOutcomeFx(g);
   renderGameHost(g);
+  bumpCounters(g.id);
   const joinCode = g.room || g.code;  // dans une salle : on invite à rejoindre la salle (puis le jeu suit)
   $("gameCode").textContent = joinCode;
   const qr = `/qr/game/${joinCode}.svg`;
@@ -1245,28 +1246,28 @@ function renderHud(g) {
   const chips = !me || sips ? null : isBJ(g) ? g.bj.seats.find((x) => x.pid === me.pid)?.chips
     : g.type === "casino" ? g.casino.me?.chips : null;
   const items = [];
-  if (chips != null) items.push(`<div class="hud-item"><span>💰</span><b>${chips}</b><small>jetons</small></div>`);
+  if (chips != null) items.push(`<div class="hud-item"><span>💰</span><b data-bump="hud-chips">${chips}</b><small>jetons</small></div>`);
   if (sips && me) {
-    items.push(`<div class="hud-item"><span>🍻</span><b>${me.drink || 0}</b><small>bue${me.drink > 1 ? "s" : ""}</small></div>`);
-    if (isBJ(g)) items.push(`<div class="hud-item"><span>🎁</span><b>${me.give || 0}</b><small>donnée${me.give > 1 ? "s" : ""}</small></div>`);
+    items.push(`<div class="hud-item"><span>🍻</span><b data-bump="hud-drink">${me.drink || 0}</b><small>bue${me.drink > 1 ? "s" : ""}</small></div>`);
+    if (isBJ(g)) items.push(`<div class="hud-item"><span>🎁</span><b data-bump="hud-give">${me.give || 0}</b><small>donnée${me.give > 1 ? "s" : ""}</small></div>`);
   }
   patch.gameHud = items.join("");
   $("gameHud").className = "g-hud " + (GAME_THEME[g.type] || "") + (items.length && g.phase !== "lobby" ? "" : " hidden");
-  bumpHud(g.id);
 }
-// Un compteur qui change (jetons, gorgées) rebondit une fois, pour qu'on le remarque ; pas au premier affichage.
+// Un compteur qui change (jetons, gorgées, votes de la salle…) rebondit une fois, pour qu'on le remarque ; pas au
+// premier affichage. Il suffit de lui donner data-bump="clé unique".
 const calmMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
-let hudPrev = {};
-function bumpHud(gameId) {
+let bumpPrev = {};
+function bumpCounters(gameId) {
   const now = { game: gameId };
-  document.querySelectorAll("#gameHud .hud-item").forEach((it) => {
-    const key = it.querySelector("span")?.textContent || "", b = it.querySelector("b");
-    now[key] = b?.textContent;
-    if (hudPrev.game === gameId && key in hudPrev && hudPrev[key] !== now[key] && !calmMotion())
-      b.animate([{ transform: "scale(1)" }, { transform: "scale(1.45)", offset: .35 }, { transform: "scale(1)" }],
+  document.querySelectorAll("#gamePlay [data-bump]").forEach((el) => {
+    const key = el.dataset.bump;
+    now[key] = el.textContent;
+    if (bumpPrev.game === gameId && key in bumpPrev && bumpPrev[key] !== now[key] && !calmMotion())
+      el.animate([{ transform: "scale(1)" }, { transform: "scale(1.45)", offset: .35 }, { transform: "scale(1)" }],
         { duration: 480, easing: "cubic-bezier(.2, 1.4, .4, 1)" });
   });
-  hudPrev = now;
+  bumpPrev = now;
 }
 const sipsBadge = (p) => p.drink || p.give ? ` <span class="artist">· 🍻 ${p.drink || 0}${p.give ? ` · 🎁 ${p.give}` : ""}</span>` : "";
 
@@ -2464,7 +2465,7 @@ function roomTileHtml(c, R = {}, lead = false) {
   const n = (R.votes || {})[c.type] || 0, mine = R.my_vote === c.type;
   const action = lead ? `data-room-pick="${c.type}"` : `data-room-vote="${c.type}" aria-pressed="${mine}"`;
   return `<button type="button" class="g-room-tile ${GAME_THEME[c.type] || ""} ${mine ? "voted" : ""} ${(R.top || []).includes(c.type) ? "top" : ""}" ${action}
-      aria-label="${esc(c.name)}${n ? `, ${n} vote${n > 1 ? "s" : ""}` : ""}${mine ? ", ton vote" : ""}">${n ? `<i class="g-room-votes" aria-hidden="true">${n}</i>` : newBadge(c.type)}
+      aria-label="${esc(c.name)}${n ? `, ${n} vote${n > 1 ? "s" : ""}` : ""}${mine ? ", ton vote" : ""}">${n ? `<i class="g-room-votes" data-bump="room-${esc(c.type)}" aria-hidden="true">${n}</i>` : newBadge(c.type)}
     <span class="g-room-tile-i">${GAME_ICONS[c.type] || ""}</span><b>${esc(c.name)}${drinkTag(c.type)}</b></button>`;
 }
 // Tuiles groupées par catégorie, dans le même ordre que l'écran Jeux ; un jeu sans catégorie va à la fin.
