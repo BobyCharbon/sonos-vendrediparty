@@ -86,18 +86,25 @@
 .skel .skel-line.short { width: 38%; }
 .skel .skel-art::after, .skel .skel-line::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%);
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .09), transparent); animation: skel-shine 1.3s ease-in-out infinite; }
-@keyframes skel-shine { to { transform: translateX(100%); } }
 .skel:nth-child(2) { opacity: .75; } .skel:nth-child(3) { opacity: .5; }
 
 /* Ligne qui change de place (list-motion.js) : fond plein pendant le trajet, celle qui monte passe devant. */
 #party .list > .lm-moving { background-color: var(--card); transition: none; }
 #party .list > .lm-rising { box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
 #party .list > .lm-moving.mine { background-image: linear-gradient(rgba(61, 220, 151, .07), rgba(61, 220, 151, .07)); }
+/* Bouton « ajouter » touché : le + laisse place à un anneau qui tourne tant que le serveur répond (au lieu d'un
+   bouton qui clignote) ; le bouton garde sa couleur. */
+#party .row-add.busy { animation: none; opacity: 1; }
+#party .row-add.busy svg { opacity: 0; }
+#party .row-add.busy::before { content: ""; position: absolute; inset: 7px; border-radius: 50%;
+  border: 2.5px solid rgba(255, 255, 255, .35); border-top-color: #fff; animation: row-spin .7s linear infinite; }
+@keyframes row-spin { to { transform: rotate(360deg); } }
 /* Bouton « retirer » touché : la ligne s'atténue tout de suite (la réponse du serveur suit). */
 #party .track:has(.row-del:disabled) { opacity: .55; transition: opacity .2s ease; }
 
 @media (prefers-reduced-motion: reduce) {
   .now-state.on .eq i { animation: none; transform: scaleY(.6); }
   .skel .skel-art::after, .skel .skel-line::after { animation: none; }
+  #party .row-add.busy::before { animation-duration: 1.6s !important; animation-iteration-count: infinite !important; }
   #now.now-in img, #now.now-in .now-meta > * { animation: fade-in .2s ease both !important; }
 }

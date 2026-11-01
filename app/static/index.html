@@ -804,12 +804,13 @@ function renderMyMessages(msgs) {
   if (seenReplies && [...replied].some((k) => !seenReplies.has(k))) { toast("L'hôte t'a répondu 💌", "ok"); window.haptic?.(200); }
   seenReplies = replied;
   const t = (x) => new Date(x * 1000).toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
-  $("myMessages").innerHTML = msgs.slice().reverse().map((m) => `
+  // Liste animée (list-motion.js) : un message envoyé glisse en place, une réponse de l'hôte redessine sa carte.
+  ListMotion.patch($("myMessages"), msgs.slice().reverse().map((m) => ({ key: m.id, html: `
     <div class="msg">
       <div class="artist">Toi · ${t(m.at)}</div><div class="text">${esc(m.text)}</div>
       ${m.reply ? `<div class="reply">💬 <b>L'hôte</b> <span class="artist">· ${t(m.reply_at)}</span><div class="text">${esc(m.reply)}</div></div>`
                 : `<div class="artist" style="font-size:.8rem">En attente de réponse…</div>`}
-    </div>`).join("");
+    </div>` })));
 }
 $("q").addEventListener("input", () => {
   clearTimeout(searchTimer);

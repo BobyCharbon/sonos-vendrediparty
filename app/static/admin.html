@@ -811,14 +811,16 @@ function renderGamesSettings(s) {
   const list = s.games || [];
   $("gamesSettingsBox").classList.toggle("hidden", !list.length);
   $("gamesCount").textContent = list.length;
-  $("gamesSettings").innerHTML = list.map((g) => {
+  // Cartes à clés (list-motion.js) : un état identique ne redessine rien (le détail déplié ne se rejoue plus),
+  // une partie fermée s'efface ; la durée est remplie à part (gsTick), hors du HTML comparé.
+  ListMotion.patch($("gamesSettings"), list.map((g) => {
     const open = gsOpen.has(g.code), mine = typeof myGame !== "undefined" && myGame === g.code;
     const players = g.players_detail || [];
-    return `<div class="gs-card ${open ? "open" : ""}">
+    return { key: g.code, html: `<div class="gs-card ${open ? "open" : ""}">
       <button type="button" class="gs-head" data-gs="${esc(g.code)}" aria-expanded="${open}">
         <span class="gs-ico" aria-hidden="true">${GAME_EMOJI[g.type] || "🎮"}</span>
         <span class="gs-main"><b>${esc(g.name)}</b>
-          <small>créée à ${hhmm(g.created_at)} · ⏱ <span data-gs-timer="${g.created_at}">${fmtDur(Date.now() / 1000 - g.created_at)}</span> · par ${esc(g.host || "?")}</small>
+          <small>créée à ${hhmm(g.created_at)} · ⏱ <span data-gs-timer="${g.created_at}"></span> · par ${esc(g.host || "?")}</small>
           <small>${PHASES[g.phase] || g.phase}${g.round ? ` · ${g.type === "undercover" ? "manche" : g.type === "casino" ? "tour" : g.type === "pyramid" ? "tour" : "n°"} ${g.round}` : ""} · ${players.length} joueur${players.length > 1 ? "s" : ""}</small></span>
         <span class="gs-code">${esc(g.code)}</span><span class="gs-chev" aria-hidden="true">▾</span>
       </button>
@@ -832,8 +834,9 @@ function renderGamesSettings(s) {
           ${mine ? `<span class="pill live">ta partie</span>` : `<button class="secondary grow" data-join-game="${esc(g.code)}">Rejoindre</button>`}
           <button class="danger grow" data-close-game="${esc(g.code)}">Fermer la partie</button>
         </div></div>` : ""}
-    </div>`;
-  }).join("");
+    </div>` };
+  }));
+  gsTick();
 }
 document.addEventListener("click", (ev) => {
   const h = ev.target.closest("[data-gs]");
@@ -843,7 +846,10 @@ document.addEventListener("click", (ev) => {
   renderGamesSettings(state);
 });
 // Durée des parties : à jour chaque seconde.
-setInterval(() => document.querySelectorAll("[data-gs-timer]").forEach((el) => { el.textContent = fmtDur(Date.now() / 1000 - +el.dataset.gsTimer); }), 1000);
+function gsTick() {
+  document.querySelectorAll("[data-gs-timer]").forEach((el) => { el.textContent = fmtDur(Date.now() / 1000 - +el.dataset.gsTimer); });
+}
+setInterval(gsTick, 1000);
 
 function renderGameAdmin(s) {
   const list = s.games || [];

@@ -1640,4 +1640,25 @@ html.native-tabs .g-mini { bottom: 12px; }
 .pc-btn.secondary { background: var(--card-2); color: var(--text); }
 .pc-groups { margin-top: 4px; }
 .pc-close { margin-top: 6px; }
+.pc-body { display: grid; gap: 8px; }
+/* Fiche : fond en fondu, carte qui monte du bas ; elle repart par le même chemin (profile-card.js, .pc-out). */
+.pc-backdrop { animation: scrim-in .25s ease both; }
+.pc-card { animation: pc-in .5s var(--spring) both; }
+.pc-backdrop.pc-out { animation: scrim-out .22s ease both; pointer-events: none; }
+.pc-backdrop.pc-out .pc-card { animation: pc-out .22s cubic-bezier(.4, 0, 1, 1) both; }
+@keyframes pc-in { from { opacity: 0; transform: translate3d(0, 48px, 0) scale(.97); } }
+@keyframes pc-out { to { opacity: 0; transform: translate3d(0, 40px, 0); } }
+.pc-body.pc-swap > * { animation: fx-up .35s var(--spring) both; }
+/* Silhouette de chargement (photo + deux lignes), un reflet la traverse. */
+.pc-skel { position: relative; overflow: hidden; background: rgba(255, 255, 255, .07); }
+.pc-skel-line { display: block; height: 14px; width: 55%; margin: 4px auto; border-radius: 7px; }
+.pc-skel-line.short { width: 35%; }
+.pc-skel::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .09), transparent); animation: skel-shine 1.3s ease-in-out infinite; }
+@keyframes skel-shine { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .pc-card, .pc-body.pc-swap > * { animation: fade-in .2s ease both !important; }
+  .pc-backdrop.pc-out .pc-card { animation: fade-out .15s ease both !important; }
+  .pc-skel::after { animation: none !important; }
+}
 [data-profile-pid] { cursor: pointer; }

@@ -107,7 +107,10 @@ details[open] > summary ~ * { animation: details-in .35s var(--spring) both; }
 .i-modal.i-out .i-sheet { animation: sheet-out .24s cubic-bezier(.4, 0, 1, 1) both; }
 .i-modal.i-coach.i-out .i-sheet { animation-name: i-sheet-up-out; }
 @keyframes i-sheet-up-out { to { opacity: 0; transform: translateY(-40px); } }
+/* Ouverture du module Événements : le message d'attente respire doucement (on voit que ça charge). */
+#eventsLoading:not(.hidden) { animation: py-breathe 1.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
+  #eventsLoading:not(.hidden) { animation: none; }
   .tabs .badge, .tabs .badge.badge-bump, .install:not(.hidden), details[open] > summary ~ * { animation: none; }
   .i-modal.i-out, .i-modal.i-out .i-sheet { animation: fade-out .15s ease both; }
 }
