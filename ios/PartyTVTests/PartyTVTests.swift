@@ -115,6 +115,39 @@ struct OutcomeTests {
         #expect(o.lines(.drink).map(\.name) == ["Max"] && o.lines(.give).map(\.name) == ["Nina"])
     }
 
+    @Test("Annonce plein écran : même sort regroupé sur une ligne, dans l'ordre du tableau")
+    func flashGroups() throws {
+        let o = try #require(Outcome.of(try samples()["blackjack_results"]))
+        let groups = o.groups
+        #expect(groups.map(\.kind) == [.drink, .drink, .drink, .give])
+        let give = try #require(groups.first { $0.kind == .give })
+        #expect(Set(give.names) == ["Léa", "Max"] && give.verb == "distribuent 4 gorgées")
+        #expect(groups.first?.verb == "boit 1 gorgée")
+    }
+
+    @Test("Casino : tant que la bille roule, le classement ne dévoile pas qui a bu ou gagné")
+    func casinoBoardWaitsForTheBall() {
+        func casino(age: Double) -> JSON {
+            .object(["type": .string("casino"), "phase": .string("results"),
+                     "casino": .object(["drinks": .number(1), "spin": .object(["number": .number(8), "age": .number(age)])]),
+                     "players": .array([.object(["name": .string("Léa"), "drink": .number(2)]),
+                                        .object(["name": .string("Tom"), "drink": .number(0)])])])
+        }
+        #expect(SideBoard.rows(casino(age: 2)) == nil && !SideBoard.shows(casino(age: 2)))
+        #expect(SideBoard.rows(casino(age: 8))?.1.first?.name == "Léa")
+    }
+
+    @Test("Fin de partie : le classement de la colonne s'efface pendant le podium, qui le garde pour lui")
+    func endHidesSideBoard() {
+        let board: JSON = .array([.object(["name": .string("Boby"), "pts": .number(120)]),
+                                  .object(["name": .string("Léa"), "pts": .number(95)])])
+        func quiz(_ phase: String) -> JSON {
+            .object(["type": .string("quiz"), "phase": .string(phase), "quiz": .object(["board": board])])
+        }
+        #expect(SideBoard.shows(quiz("q")))
+        #expect(!SideBoard.shows(quiz("end")) && SideBoard.rows(quiz("end"))?.1.first?.name == "Boby")
+    }
+
     @Test("Phases sans résultat : rien n'est annoncé")
     func nothingWhileVoting() throws {
         #expect(Outcome.of(.object(["type": .string("never"), "phase": .string("question")])) == nil)
