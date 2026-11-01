@@ -1157,7 +1157,7 @@ function questionHtml(g, me) {
     <p class="qs-help" role="status">${help}</p>
     ${choices}
     <div class="qs-progress"><div class="qs-whos">${who}</div>
-      <span><b>${n}</b> sur ${total} ${n > 1 ? "ont" : "a"} ${g.type === "never" ? "répondu" : "voté"}</span></div>
+      <span><b data-bump="qs-voted">${n}</b> sur ${total} ${n > 1 ? "ont" : "a"} ${g.type === "never" ? "répondu" : "voté"}</span></div>
   </div>`;
 }
 
@@ -1785,7 +1785,7 @@ function bkHtml(g) {
   bkSeen.n = v.event;
   const cur = seat(v.turn);
   const status = `<div class="bk-status">
-    <span class="bk-chip">👑 Coupe <b>${v.kings}/4</b></span><span class="bk-chip">🍪 Biskit <b>${esc(v.biskit)}</b></span>
+    <span class="bk-chip">👑 Coupe <b data-bump="bk-kings">${v.kings}/4</b></span><span class="bk-chip">🍪 Biskit <b>${esc(v.biskit)}</b></span>
     ${v.qmaster ? `<span class="bk-chip">🤐 <b>${esc(v.qmaster)}</b></span>` : ""}${v.thumb ? `<span class="bk-chip">👍 <b>${esc(v.thumb)}</b></span>` : ""}
     ${v.mates.map(([a, b]) => `<span class="bk-chip">🤝 <b>${esc(a)} + ${esc(b)}</b></span>`).join("")}
     <span class="bk-chip">🃏 ${v.deck_left}</span></div>`;
@@ -1898,7 +1898,7 @@ function divanHtml(g) {
     ${d.can_lead ? `<div class="dv-hint">← Glisse : au suivant · ${d.joker ? "joker déjà utilisé" : "joker : glisse →"}</div>` : ""}` : ""}
     <div class="dv-actions">
       ${!d.my_turn && g.me ? `<button class="${d.hearted ? "" : "secondary"}" data-gact="dheart" ${d.hearted ? "disabled" : ""}>${d.hearted ? "❤️ Soutien envoyé" : "🤍 Envoyer du soutien"}</button>` : ""}
-      ${d.hearts ? `<div class="dv-hearts" aria-label="${d.hearts} soutiens">${"❤️".repeat(Math.min(d.hearts, 12))}</div>` : ""}
+      ${d.hearts ? `<div class="dv-hearts" data-bump="dv-hearts" aria-label="${d.hearts} soutiens">${"❤️".repeat(Math.min(d.hearts, 12))}</div>` : ""}
     </div>
     ${!g.me && !g.master ? `<button data-gact="join" style="width:100%;margin-top:12px">Rejoindre la séance</button>` : ""}`;
 }

@@ -92,3 +92,6 @@ body.pyr-full #gTop { gap: 6px; }
 /* ── Pyramide, Biskit : le nom du joueur dont c'est le tour « respire » par l'opacité (le filtre brightness sur un
    texte à grosses ombres néon était repeint à chaque image tant que durait le tour). ── */
 @keyframes py-glow { 50% { opacity: .78; } }
+
+/* Compteurs qui rebondissent (games.js › bumpCounters) : un texte en ligne doit être un bloc pour pouvoir grandir. */
+b[data-bump] { display: inline-block; }
