@@ -17,7 +17,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 FONT = Path(__file__).parent / "fonts" / "BricolageGrotesque.ttf"
 MAX_SIDE = 1600
-MAX_PIXELS = 40_000_000
+MAX_PIXELS = 25_000_000  # au-delà, le décodage coûte trop de mémoire et de temps (5000 × 5000)
 POSTER = (1600, 900)
 NAME = re.compile(r"^[0-9a-f]{24}p?\.jpg$")  # « p » : affiche générée (refaite si le titre ou la date change)
 # Dégradés nocturnes de Party (fond, milieu, éclat) : choisis selon le titre, la même affiche à chaque fois.
@@ -41,6 +41,11 @@ class Covers:
     def path(self, name: str) -> Path | None:
         return self.dir / name if NAME.match(name) and (self.dir / name).is_file() else None
 
+    def owns(self, url: str) -> bool:
+        """Une couverture servie par nous (jamais une image externe choisie par l'app)."""
+        prefix = f"{self.public_url}/covers/"
+        return bool(url) and url.startswith(prefix) and bool(NAME.match(url[len(prefix):]))
+
     @staticmethod
     def is_poster(url: str) -> bool:
         return bool(re.search(r"/covers/[0-9a-f]{24}p\.jpg$", url or ""))
@@ -63,7 +68,9 @@ class Covers:
                 if raw.width * raw.height > MAX_PIXELS:
                     raise CoverError("image trop grande")
                 image = ImageOps.exif_transpose(raw).convert("RGB")
-        except (OSError, Image.DecompressionBombError, ValueError) as e:
+        except CoverError:
+            raise
+        except Exception as e:  # noqa: BLE001 — Pillow lève aussi SyntaxError, struct.error… : toute image cassée est refusée
             raise CoverError("image illisible") from e
         if min(image.size) < 120:
             raise CoverError("image trop petite (icône)")

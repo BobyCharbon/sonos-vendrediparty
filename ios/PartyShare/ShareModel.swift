@@ -42,6 +42,7 @@ final class ShareModel: ObservableObject {
         }
         do {
             let tracks = try await api.search(query)
+            guard phase != .eventReady else { return }  // « Créer l'événement » touché pendant la recherche : on le garde
             phase = tracks.isEmpty ? .failed("Aucun titre trouvé pour ce lien.") : .choose(tracks)
         } catch PartyAPIError.needsCode {
             phase = .needsApp

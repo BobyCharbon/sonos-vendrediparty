@@ -64,7 +64,7 @@ struct AIEventView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Fermer") { close() } }
                 if !store.turns.isEmpty && store.created == nil {
                     ToolbarItem(placement: .primaryAction) {
-                        Button("Recommencer") { restart() }
+                        Button("Recommencer") { restart() }.disabled(store.thinking)
                     }
                 }
             }
@@ -463,12 +463,14 @@ struct AIEventView: View {
             }
             if !store.images.isEmpty { shots }
             HStack(spacing: 10) {
-                PhotosPicker(selection: $picked, maxSelectionCount: AIEvent.maxShots - store.images.count, matching: .images) {
+if editing == nil {  // captures : pour créer un événement (la modification se dit à voix haute)
+                                PhotosPicker(selection: $picked, maxSelectionCount: AIEvent.maxShots - store.images.count, matching: .images) {
                     Image(systemName: "photo.badge.plus").font(.system(size: 24))
                 }
                 .disabled(store.images.count >= AIEvent.maxShots)
                 .accessibilityLabel("Joindre une capture d'écran de l'événement")
                 .accessibilityIdentifier("ai-photo")
+                }
                 TextField(store.draft?.ready == false ? "Ta réponse…" : store.draft == nil ? "Écris, ou colle un lien…" : "Une correction ?",
                           text: $typed, axis: .vertical)
                     .lineLimit(1...4)

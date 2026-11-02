@@ -159,7 +159,10 @@ def _text(raw: dict, key: str, limit: int) -> str:
 
 
 def _texts(values, limit: int, most: int) -> list[str]:
-    return list(dict.fromkeys(str(v).strip()[:limit] for v in values or [] if str(v).strip()))[:most]
+    """Liste de textes bornée ; tout autre chose (nombre, objet) venant de l'app ou de l'IA donne une liste vide."""
+    if not isinstance(values, list):
+        return []
+    return list(dict.fromkeys(str(v).strip()[:limit] for v in values if isinstance(v, (str, int, float)) and str(v).strip()))[:most]
 
 
 def _number(value, top: float, kind=float):
@@ -186,6 +189,8 @@ def place_kind(raw: dict) -> str:
 
 
 def clean_draft(raw: dict, now: datetime, choices: dict[str, list[str]]) -> dict:
+    if not isinstance(raw, dict):
+        raise AccountError(NOT_UNDERSTOOD)
     """Réponse de Claude → brouillon sûr : champs bornés, dates vérifiées, choix limités aux listes connues, et les
     questions qui manquent ajoutées."""
     questions = _texts(raw.get("questions"), 200, 5)
@@ -206,7 +211,7 @@ def clean_draft(raw: dict, now: datetime, choices: dict[str, list[str]]) -> dict
     if not dated and not any(w in q.lower() for q in questions for w in ("quand", "date", "jour", "heure")):
         questions.append("Quelles dates proposer au vote ?" if poll_mode else "Quel jour et à quelle heure ?")
     polls = []
-    for p in (raw.get("polls") or [])[:5]:
+    for p in [x for x in raw.get("polls") or [] if isinstance(x, dict)][:5] if isinstance(raw.get("polls"), list) else []:
         question = str((p or {}).get("question") or "").strip()[:200]
         options = _texts((p or {}).get("options"), 120, 12)
         if question and (len(options) >= 2 or (p or {}).get("add_options")):
@@ -399,6 +404,8 @@ class EventAssistant:
         kept = safe_url((previous or {}).get("cover_url")) or ""
         if self.covers is None:
             return kept or page_image
+        if kept and not self.covers.owns(kept):
+            kept = ""  # une adresse d'image venue de l'app n'est jamais reprise telle quelle
         if kept and not self.covers.is_poster(kept):
             return kept
         if page_image:

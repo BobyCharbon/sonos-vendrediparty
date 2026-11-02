@@ -97,10 +97,7 @@ final class WebModel: ObservableObject {
         }
         aiEditEventId = nil
         aiEventOpen = true
-        Task {
-            store.reset()
-            await store.send(link)
-        }
+        Task { await store.start(link: link) }
     }
 
     func open(_ url: URL) {

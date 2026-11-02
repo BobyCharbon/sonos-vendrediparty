@@ -259,7 +259,9 @@ struct ExpenseEditor: View {
         let side: CGFloat = 1600
         let scale = min(1, side / max(image.size.width, image.size.height))
         let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        let resized = UIGraphicsImageRenderer(size: size).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1  // la taille voulue en pixels réels, pas multipliée par l'écran Retina
+        let resized = UIGraphicsImageRenderer(size: size, format: format).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
         return resized.jpegData(compressionQuality: 0.75)
     }
 }

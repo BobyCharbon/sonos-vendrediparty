@@ -96,3 +96,9 @@ begin
 end $$;
 
 grant select, insert, update, delete on public.bring_claims to authenticated;
+
+-- Un participant ajoute ce que lui amène (en entier) : la quantité à partager reste à l'organisateur.
+drop policy if exists "ajouter ce que j'amène" on public.bring_items;
+create policy "ajouter ce que j'amène" on public.bring_items for insert with check (
+  public.can_participate(event_id) and added_by = auth.uid() and claimed_by = auth.uid() and quantity is null
+  and length(label) between 1 and 100);

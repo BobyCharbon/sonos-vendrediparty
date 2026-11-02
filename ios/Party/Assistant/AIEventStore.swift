@@ -168,7 +168,9 @@ enum AIEvent {
             let side: CGFloat = 1600
             let scale = min(1, side / max(image.size.width, image.size.height))
             let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-            let small = UIGraphicsImageRenderer(size: size).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
+            let format = UIGraphicsImageRendererFormat.default()
+            format.scale = 1  // 1600 px réels, pas 1600 points × 3 (4800 px refusés par le serveur)
+            let small = UIGraphicsImageRenderer(size: size, format: format).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
             guard let jpeg = small.jpegData(compressionQuality: 0.7) else { return nil }
             thumbnail = small
             dataURL = "data:image/jpeg;base64," + jpeg.base64EncodedString()
@@ -224,7 +226,13 @@ final class AIEventStore: ObservableObject {
         self.web = web
     }
 
+    /// Change à chaque « Recommencer » : la réponse d'une demande d'avant est ignorée (jamais une ancienne fiche qui
+    /// réapparaît, jamais un tour retiré d'une conversation déjà vidée).
+    private var generation = 0
+
     func reset() {
+        generation += 1
+        thinking = false
         turns = []
         draft = nil
         place = nil
@@ -271,13 +279,29 @@ final class AIEventStore: ObservableObject {
         images.append(shot)
     }
 
+    /// « Partager › Party › Créer l'événement » : l'app vient peut-être de s'ouvrir, la page (et la session) se charge
+    /// encore ; on attend la session (15 s au plus) au lieu d'afficher « Connecte-toi », et le lien n'est jamais perdu.
+    func start(link: String) async {
+        reset()
+        for _ in 0..<30 {
+            if await web?.accountToken() != nil { break }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+        guard await web?.accountToken() != nil else {
+            SharedSession.savePendingEvent(link)
+            error = "Connecte-toi dans Réglages, puis rouvre Party : l'événement sera créé à partir du lien."
+            return
+        }
+        await send(link)
+    }
+
     func detach(_ shot: AIEvent.Shot) {
         images.removeAll { $0.id == shot.id }
     }
 
     func send(_ text: String) async {
         var said = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if said.isEmpty && !images.isEmpty && turns.isEmpty { said = "Crée l'événement à partir de ma capture d'écran." }
+        if said.isEmpty && !images.isEmpty && turns.isEmpty && editingId == nil { said = "Crée l'événement à partir de ma capture d'écran." }
         guard !said.isEmpty, !thinking else { return }
         guard let token = await web?.accountToken() else {
             error = "Connecte-toi dans Réglages pour utiliser l'assistant"
@@ -286,7 +310,8 @@ final class AIEventStore: ObservableObject {
         turns.append(said)
         thinking = true
         error = nil
-        defer { thinking = false }
+        let round = generation
+        defer { if round == generation { thinking = false } }
         do {
             let next: AIEvent.Draft
             if let editingId {
@@ -296,12 +321,14 @@ final class AIEventStore: ObservableObject {
             } else {
                 next = try await api.aiEventDraft(token: token, turns: turns, previous: draft, images: images.map(\.dataURL))
             }
+            guard round == generation else { return }  // « Recommencer » touché pendant la réflexion
             draft = next
             if next.place_kind + "|" + next.place_query != lastSearch {
                 await findPlace(next.place_query, broad: next.place_broad, kind: next.place_kind)
             }
         } catch {
-            turns.removeLast()
+            guard round == generation else { return }
+            if !turns.isEmpty { turns.removeLast() }
             unsent = said
             self.error = error is DecodingError ? "Réponse inattendue du serveur : réessaie dans un instant (ton texte est gardé en bas)."
                                                 : error.localizedDescription + " Ton texte est gardé en bas."

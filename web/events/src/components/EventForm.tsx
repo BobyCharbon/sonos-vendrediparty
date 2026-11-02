@@ -135,6 +135,23 @@ export function bringQuantity(text: string | undefined): number | null {
   return n >= 2 ? Math.min(n, 999) : null;
 }
 
+/** « Bouteilles de vin : déjà 13 promises, la quantité ne peut pas descendre à 5 » ; null si tout va bien. */
+async function bringBelowPromised(bring: Draft['bring']): Promise<string | null> {
+  const kept = bring.filter((b) => b.id);
+  if (!kept.length) return null;
+  const { data } = await supabase.from('bring_claims').select('item_id, quantity').in('item_id', kept.map((b) => b.id!));
+  const promised = new Map<string, number>();
+  for (const c of data ?? []) promised.set(c.item_id, (promised.get(c.item_id) ?? 0) + c.quantity);
+  for (const b of kept) {
+    const taken = promised.get(b.id!) ?? 0;
+    const wanted = bringQuantity(b.quantity);
+    if (taken && (wanted === null || wanted < taken)) {
+      return `${b.label} : déjà ${taken} promis par les invités, la quantité ne peut pas descendre en dessous.`;
+    }
+  }
+  return null;
+}
+
 async function loadDraft(eventId: string): Promise<Draft> {
   const res = await supabase
     .from('events')
@@ -450,6 +467,10 @@ export function EventForm({ eventId }: { eventId?: string }) {
     try {
       let id = savedEventId.current;
       const previous = id ? await loadDraft(id) : null;
+      // Avant toute écriture : une quantité ne descend pas sous ce que les invités ont déjà promis (sinon
+      // l'enregistrement s'arrêterait à moitié, l'événement modifié mais pas « qui amène quoi »).
+      const short = await bringBelowPromised(snapshot.bring);
+      if (short) throw new Error(short);
       if (!id) {
         // Créé en brouillon pour attacher tags/sondages AVANT la publication (et donc les notifications).
         id = must(await supabase.from('events').insert({ ...v.row, status: 'draft' }).select('id').single()).id as string;

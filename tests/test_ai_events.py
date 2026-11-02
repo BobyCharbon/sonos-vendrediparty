@@ -258,3 +258,11 @@ def test_a_quantity_said_to_the_ai_is_shared_between_guests(tmp_path):
 def test_every_bring_row_has_the_same_fields_so_the_batch_insert_is_accepted(tmp_path):
     rows = [ev.bring_row(t) for t in ("15 bouteilles de vin", "Salade")]
     assert {frozenset(r) for r in rows} == {frozenset({"label", "quantity"})}
+
+
+def test_a_malformed_draft_from_the_app_is_cleaned_never_a_crash(tmp_path):
+    a, accounts, _ = make(tmp_path)
+    for bad in ({"polls": ["x"]}, {"bring": 5}, {"tags": {"a": 1}}, {"invitees": [None, {"x": 1}]}):
+        d = ev.clean_draft({**READY, **bad}, ev.datetime.now(ev.ZURICH), {"categories": [], "tags": [], "audiences": ["Ski"],
+                                                                          "people": ["Tom"]})
+        assert isinstance(d["polls"], list) and isinstance(d["bring"], list)

@@ -27,6 +27,13 @@ begin
   else
     update public.tc_groups set archived = false where id = grp and archived;
   end if;
+  -- L'organisateur en fait toujours partie (il voit le pot qu'il vient d'activer, même sans avoir répondu « Présent »),
+  -- puis les présents qui n'y sont pas encore.
+  insert into public.tc_members (group_id, user_id, name)
+  select grp, ev.created_by, left(coalesce(nullif(btrim(p.display_name), ''), 'Organisateur'), 40)
+  from public.profiles p
+  where p.id = ev.created_by
+    and not exists (select 1 from public.tc_members m where m.group_id = grp and m.user_id = ev.created_by);
   insert into public.tc_members (group_id, user_id, name)
   select grp, r.user_id, left(coalesce(nullif(btrim(p.display_name), ''), 'Invité'), 40)
   from public.rsvps r join public.profiles p on p.id = r.user_id
