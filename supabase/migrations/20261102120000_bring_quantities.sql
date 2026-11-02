@@ -44,7 +44,7 @@ create policy "ne plus rien amener" on public.bring_claims for delete using (
 
 -- Jamais plus que demandé, même si deux personnes répondent en même temps : l'objet est verrouillé le temps du calcul.
 create or replace function public.guard_bring_claim() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = '' as $$
 declare
   wanted int;
   taken int;
@@ -71,7 +71,8 @@ create trigger bring_claims_guard before insert or update on public.bring_claims
 
 -- La garde des objets protège aussi la quantité : seul l'organisateur (ou un admin) la change.
 create or replace function public.guard_bring_item() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = '' as $$
+declare promised int;
 begin
   if auth.uid() is not null and not (public.is_admin() or public.is_organizer(old.event_id)) then
     new.event_id := old.event_id;
@@ -79,6 +80,17 @@ begin
     new.sort := old.sort;
     new.added_by := old.added_by;
     new.quantity := old.quantity;
+    -- Un objet à partager se prend par quantités (bring_claims), jamais en entier par un seul participant.
+    if new.quantity is not null then
+      new.claimed_by := old.claimed_by;
+    end if;
+  end if;
+  -- Personne (organisateur compris) ne descend sous ce qui est déjà promis, ni n'enlève la quantité d'un objet promis.
+  if new.quantity is distinct from old.quantity then
+    select sum(quantity) into promised from public.bring_claims where item_id = new.id;
+    if promised is not null and (new.quantity is null or new.quantity < promised) then
+      raise exception 'Déjà % promis : la quantité ne peut pas descendre plus bas.', promised;
+    end if;
   end if;
   return new;
 end $$;

@@ -88,6 +88,75 @@ language sql stable security definer set search_path = '' as $$
   from public.tc_groups g where g.id = grp;
 $$;
 
+-- Gardes (audit du 2 novembre 2026) : un simple membre ne peut plus exclure les autres, changer le lien, la monnaie ni
+-- archiver le pot, ni supprimer la dépense d'un autre. Ces gestes reviennent à qui gère le pot : son créateur, les
+-- organisateurs de l'événement relié, ou un admin. Un prénom ajouté à la main (sans compte) peut être retiré par tous.
+create or replace function private.tc_manages(grp uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select auth.uid() is not null and (
+    public.is_admin()
+    or exists (select 1 from public.tc_groups g where g.id = grp and (g.created_by = auth.uid()
+               or (g.event_id is not null and public.is_organizer(g.event_id)))));
+$$;
+
+create or replace function public.tc_update_group(grp uuid, group_name text, group_emoji text, group_currency text, is_archived boolean)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  perform private.tc_need(grp);
+  if not private.tc_manages(grp) then raise exception 'forbidden: seul qui gère ce pot commun peut le modifier'; end if;
+  update public.tc_groups set name = coalesce(nullif(btrim(group_name), ''), name), emoji = coalesce(nullif(btrim(group_emoji), ''), emoji),
+         currency = coalesce(nullif(upper(btrim(group_currency)), ''), currency), archived = coalesce(is_archived, archived)
+  where id = grp;
+end $$;
+
+create or replace function public.tc_renew_link(grp uuid) returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare token uuid := gen_random_uuid();
+begin
+  perform private.tc_need(grp);
+  if not private.tc_manages(grp) then raise exception 'forbidden: seul qui gère ce pot commun peut changer le lien'; end if;
+  update public.tc_groups set join_token = token where id = grp;
+  return token;
+end $$;
+
+create or replace function public.tc_remove_member(member uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare grp uuid; account uuid;
+begin
+  select group_id, user_id into grp, account from public.tc_members where id = member;
+  perform private.tc_need(grp);
+  if account is not null and account <> auth.uid() and not private.tc_manages(grp) then
+    raise exception 'forbidden: seul qui gère ce pot commun peut retirer quelqu''un';
+  end if;
+  if account is not null and account <> auth.uid() and not public.is_admin()
+     and exists (select 1 from public.tc_groups where id = grp and created_by = account) then
+    raise exception 'forbidden: le créateur du pot commun ne peut pas être retiré';
+  end if;
+  if exists (select 1 from public.tc_expenses where paid_by = member) or exists (select 1 from public.tc_shares where member_id = member) then
+    update public.tc_members set left_at = now() where id = member;
+  else
+    delete from public.tc_members where id = member;
+  end if;
+end $$;
+
+create or replace function public.tc_delete_expense(expense uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare grp uuid; author uuid;
+begin
+  select group_id, created_by into grp, author from public.tc_expenses where id = expense;
+  perform private.tc_need(grp);
+  if author is distinct from auth.uid() and not private.tc_manages(grp) then
+    raise exception 'forbidden: seule la personne qui l''a ajoutée (ou qui gère le pot) peut supprimer cette dépense';
+  end if;
+  delete from public.tc_expenses where id = expense;
+end $$;
+
+-- Fonctions internes : appelées par les politiques (authenticated), jamais par les anonymes.
+revoke all on function private.tc_member_of(uuid, uuid), private.tc_reads(uuid), private.tc_need(uuid),
+  private.tc_manages(uuid) from public, anon;
+grant execute on function private.tc_member_of(uuid, uuid), private.tc_reads(uuid), private.tc_need(uuid),
+  private.tc_manages(uuid) to authenticated;
+
 insert into supabase_migrations.schema_migrations (version, name) values ('20261031150000', 'pot_commun_events')
   on conflict (version) do nothing;
 commit;
