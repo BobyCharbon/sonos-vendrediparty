@@ -35,7 +35,7 @@
   ];
 
   var CSS = [
-    '.br-nuee{position:relative;width:100%;height:100%;min-height:420px;display:flex;flex-direction:column;',
+    '.br-nuee{position:relative;flex:1;width:100%;height:100%;min-height:420px;display:flex;flex-direction:column;',
     'user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}',
     '.br-nuee-sky{position:relative;flex:1;min-height:360px;border-radius:22px;touch-action:none;cursor:grab;',
     'background:radial-gradient(120% 80% at 50% 0%,#bfe9f2 0%,#7cc6d6 45%,#3d8ea6 100%);',

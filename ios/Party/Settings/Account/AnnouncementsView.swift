@@ -80,35 +80,32 @@ struct AnnouncementsView: View {
     private func clean(_ text: String) -> String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
 }
 
-/// Mes stats de jeu : Purify Test (dernier score, record, profil par catégorie), pour le seul titulaire du compte.
+/// Mes stats de jeu, pour le seul titulaire du compte : Purify Test (dernier score, record, profil par catégorie)
+/// ou Méninges (Température, domaines, évolution, classement : BrainStatsView.swift).
 struct GameStatsView: View {
+    enum Kind: String, CaseIterable, Identifiable {
+        case purify, brain
+        var id: String { rawValue }
+        var label: String { self == .purify ? "Purify" : "🧠 Méninges" }
+    }
+
     @ObservedObject var store: AccountStore
     let openGames: () -> Void
+    @State private var kind: Kind = .purify
 
     var body: some View {
         List {
-            if let stats = store.stats {
-                if stats.plays == 0 {
-                    Section {
-                        VStack(spacing: 10) {
-                            Text("😇").font(.system(size: 54))
-                            Text("Pas encore de test").font(.headline)
-                            Text("Passe le Purify Test dans l'onglet Jeux : ton dernier score et ton profil apparaîtront ici.")
-                                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                            Button("Aller aux jeux", action: openGames).buttonStyle(.borderedProminent)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                    }
-                } else {
-                    score(stats)
-                    profile(stats)
+            Section {
+                Picker("Jeu", selection: $kind) {
+                    ForEach(Kind.allCases) { Text($0.label).tag($0) }
                 }
-            } else if let error = store.statsError {
-                Section {
-                    Text(error).foregroundStyle(.secondary)
-                    Button("Réessayer") { Task { await store.loadStats() } }
-                }
+                .pickerStyle(.segmented)
+            }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
+            switch kind {
+            case .purify: purify
+            case .brain: BrainStatsSections(store: store, openGames: openGames)
             }
         }
         .listStyle(.insetGrouped)
@@ -116,10 +113,50 @@ struct GameStatsView: View {
         .background(AppConfig.background.ignoresSafeArea())
         .navigationTitle("Mes stats de jeu")
         .navigationBarTitleDisplayMode(.inline)
-        .overlay { if store.stats == nil && store.statsError == nil { ProgressView().transition(.opacity) } }
-        .motion(Motion.smooth, value: store.stats == nil)
-        .refreshable { await store.loadStats() }
-        .task { await store.loadStats() }
+        .overlay { if loading { ProgressView().transition(.opacity) } }
+        .motion(Motion.smooth, value: loading)
+        .refreshable { await reload() }
+        .task(id: kind) { await reload() }
+    }
+
+    private var loading: Bool {
+        switch kind {
+        case .purify: return store.stats == nil && store.statsError == nil
+        case .brain: return store.brain == nil && store.brainError == nil
+        }
+    }
+
+    private func reload() async {
+        switch kind {
+        case .purify: await store.loadStats()
+        case .brain: await store.loadBrain()
+        }
+    }
+
+    @ViewBuilder private var purify: some View {
+        if let stats = store.stats {
+            if stats.plays == 0 {
+                Section {
+                    VStack(spacing: 10) {
+                        Text("😇").font(.system(size: 54))
+                        Text("Pas encore de test").font(.headline)
+                        Text("Passe le Purify Test dans l'onglet Jeux : ton dernier score et ton profil apparaîtront ici.")
+                            .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                        Button("Aller aux jeux", action: openGames).buttonStyle(.borderedProminent)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                }
+            } else {
+                score(stats)
+                profile(stats)
+            }
+        } else if let error = store.statsError {
+            Section {
+                Text(error).foregroundStyle(.secondary)
+                Button("Réessayer") { Task { await store.loadStats() } }
+            }
+        }
     }
 
     private func score(_ stats: PurityStats) -> some View {

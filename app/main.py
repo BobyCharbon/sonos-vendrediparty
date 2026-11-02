@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import beerpong, brain, calendar_ics, debate, games, heist, island, likely, links, masque, neon, president, psy, purity, quiz, reflet
+from . import beerpong, brain, brain_game, calendar_ics, debate, games, heist, island, likely, links, masque, neon, president, psy, purity, quiz, reflet
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
 from .account_auth import AccountAuth
@@ -2914,6 +2914,15 @@ class BrainLocal(BaseModel):
     sessions: list[BrainLocalSession] = Field(default_factory=list, max_length=brain.LOCAL_MAX)
 
 
+class BrainGame(BaseModel):
+    token: str = Field(min_length=21, max_length=4095)
+    game: str = Field(pattern=BRAIN_GAME_ID)
+
+
+class BrainGameLocal(BrainLocal):
+    game: str = Field(pattern=BRAIN_GAME_ID)
+
+
 def brain_account(request: Request, work):
     """Appel Méninges au nom du compte : mêmes garde-fous que le Purify Test (limite par adresse, jeton vérifié)."""
     ip = client_ip(request)
@@ -2961,6 +2970,21 @@ def brain_compare(body: BrainCompare, request: Request):
 def brain_local(body: BrainLocal):
     """Joueur non connecté : même profil, calculé à partir des parties gardées sur son téléphone (rien n'est enregistré)."""
     return brain.profile([s.model_dump() for s in body.sessions])
+
+
+@app.post("/api/brain/game")
+def brain_game_stats(body: BrainGame, request: Request):
+    """Statistiques d'un jeu de Méninges pour le compte connecté (écran de fin enrichi, fiche du jeu)."""
+    return brain_account(request, lambda: brain.BrainStore(accounts).game(body.token, body.game))
+
+
+@app.post("/api/brain/game/local")
+def brain_game_local(body: BrainGameLocal):
+    """Joueur non connecté : statistiques d'un jeu, calculées à partir des parties gardées sur son téléphone."""
+    try:
+        return brain_game.game_detail([s.model_dump() for s in body.sessions], body.game)
+    except brain.BrainError as e:
+        raise HTTPException(400, str(e))
 
 
 @app.get("/qr/game/{code}.svg")

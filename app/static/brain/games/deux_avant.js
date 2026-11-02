@@ -30,7 +30,7 @@
 
   const CSS = `
 .br-deux_avant-wrap{display:flex;flex-direction:column;align-items:center;gap:18px;padding:14px 16px 22px;
-  color:#f3efff;user-select:none;-webkit-user-select:none}
+  color:var(--br-text,#f3efff);user-select:none;-webkit-user-select:none}
 .br-deux_avant-q{font-size:17px;font-weight:600;text-align:center;min-height:24px}
 .br-deux_avant-row{display:flex;align-items:flex-end;justify-content:center;gap:12px;width:100%;max-width:380px;min-height:190px}
 .br-deux_avant-card{position:relative;border-radius:18px;display:flex;align-items:center;justify-content:center;

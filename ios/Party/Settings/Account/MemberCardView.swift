@@ -95,6 +95,12 @@ final class PrivacyStore: ObservableObject {
         return try await api.memberCard(token: token, id: id)
     }
 
+    /// Méninges du membre face aux miens ; nil si on n'est pas connecté ou si la comparaison est indisponible.
+    func brainCompare(_ id: String) async -> BrainCompare? {
+        guard let token = await web?.accountToken() else { return nil }
+        return try? await api.brainCompare(token: token, target: id)
+    }
+
     private func save(_ job: (String) async throws -> Privacy) async {
         guard let token = await web?.accountToken() else { return }
         saving = true
@@ -114,6 +120,7 @@ struct MemberCardView: View {
     let memberID: String
     @State private var card: MemberCard?
     @State private var error: String?
+    @State private var brain: BrainCompare?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
@@ -146,6 +153,9 @@ struct MemberCardView: View {
                             Text(card.groups.joined(separator: " · "))
                         }
                     }
+                    if let brain, !card.me, !brain.isSelf {
+                        BrainCompareSection(compare: brain)
+                    }
                     if card.me {
                         Section {
                         } footer: {
@@ -167,6 +177,7 @@ struct MemberCardView: View {
             .motion(Motion.smooth, value: card == nil)
             .task {
                 do { card = try await store.card(memberID) } catch { self.error = error.localizedDescription }
+                if card?.me == false { brain = await store.brainCompare(memberID) }
             }
         }
         .tint(Palette.accent)

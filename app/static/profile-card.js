@@ -55,6 +55,33 @@
       ${c.groups?.length ? `<div class="pc-groups"><span class="artist">${c.me ? "Mes groupes" : "Groupes en commun"}</span><br>${c.groups.map(escape).join(" · ")}</div>` : ""}`;
   }
 
+  // 🧠 Méninges : Température et domaines du membre face aux miens (agrégats seulement, /api/brain/compare).
+  const BRAIN_MAX = 2000;
+  const pct = (v) => Math.round(100 * Math.min(Math.max(v || 0, 0), BRAIN_MAX) / BRAIN_MAX);
+  const bar = (v, cls) => `<span class="pc-bar ${cls}"><i style="width:${pct(v)}%"></i></span><b>${v == null ? "—" : escape(v)}</b>`;
+
+  function brainHtml(t) {
+    if (!t || t.self) return "";
+    const head = `<div class="pc-brain-head"><span>🧠 Méninges</span></div>`;
+    if (!t.played) return `<div class="pc-brain">${head}<p class="artist">${escape(t.name)} n'a pas encore joué.</p></div>`;
+    const rows = [{ label: "Température", icon: "🌡️", me: t.me_played ? t.me_temperature : null, them: t.temperature }, ...t.rows];
+    return `<div class="pc-brain">${head}
+      <div class="pc-brain-legend"><span class="pc-dot me"></span>Toi <span class="pc-dot them"></span>${escape(t.name)}</div>
+      ${rows.map((r) => `<div class="pc-brain-row"><span class="pc-brain-label">${escape(r.icon)} ${escape(r.label)}</span>
+        <span class="pc-brain-bars">${bar(r.me, "me")}${bar(r.them, "them")}</span></div>`).join("")}
+      <p class="artist">${escape(t.verdict)}</p></div>`;
+  }
+
+  async function addBrain(token, id) {
+    const target = sheet;
+    try {
+      const r = await fetch("/api/brain/compare", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, target: id }) });
+      if (!r.ok) return;
+      const html = brainHtml((await r.json()).target);
+      if (html && sheet === target) sheet.querySelector(".pc-body").insertAdjacentHTML("beforeend", html);
+    } catch { /* Méninges indisponible : la fiche reste sans comparaison. */ }
+  }
+
   async function open(game, pid) {
     const token = typeof freshToken === "function" ? await freshToken() : null;
     if (!token) return show(`<div class="pc-name">Profil</div><p class="artist">Connecte-toi avec ton numéro (Réglages) pour voir les profils.</p>`);
@@ -64,6 +91,7 @@
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Profil indisponible");
       show(cardHtml(data));
+      if (data.id && !data.me) addBrain(token, data.id);
     } catch (e) {
       show(`<div class="pc-name">Profil</div><p class="artist">${escape(e.message)}</p>`);
     }
@@ -81,5 +109,5 @@
     if (el && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); open(el.dataset.profileGame, el.dataset.profilePid); }
   });
 
-  window.ProfileCard = { open, cardHtml };
+  window.ProfileCard = { open, cardHtml, brainHtml };
 })();

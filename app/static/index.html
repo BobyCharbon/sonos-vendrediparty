@@ -119,7 +119,7 @@
     <div id="auditAdmin" class="admin-only"></div>
   </section>
 
-  <!-- Réglages → « Mes stats de jeu » : un onglet par jeu, pour le seul titulaire du compte (Purify Test pour commencer). -->
+  <!-- Réglages → « Mes stats de jeu » : un onglet par jeu (Purify Test, Méninges) ; Méninges marche aussi sans compte. -->
   <section data-view="stats" class="nav-screen hidden" aria-labelledby="statsTitle">
     <header class="nav-head">
       <button type="button" class="nav-back" data-host-back aria-label="Retour aux Réglages"><svg viewBox="0 0 12 21" aria-hidden="true"><path d="M10.5 1.5 1.5 10.5l9 9"/></svg><span>Réglages</span></button>
@@ -127,8 +127,10 @@
     <h1 class="screen-title" id="statsTitle">Mes stats de jeu</h1>
     <div class="seg stats-tabs" role="tablist" aria-label="Jeux">
       <button type="button" role="tab" class="on" aria-selected="true" aria-controls="purityStats" data-stats-tab="purity">😈 Purify Test</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="brainStats" data-stats-tab="brain">🧠 Méninges</button>
     </div>
     <div id="purityStats" class="g-pu pu-stats" role="tabpanel" data-stats-panel="purity"></div>
+    <div id="brainStats" class="brs hidden" role="tabpanel" data-stats-panel="brain" aria-label="Stats Méninges"></div>
   </section>
 
   <section data-view="feedback" class="hidden" aria-labelledby="fbTitle">
@@ -1179,5 +1181,6 @@ function listen() {
 <script src="/static/reflet.js"></script>
 <script src="/static/beerpong.js"></script>
 <script src="/static/brain/core.js"></script>
+<script src="/static/brain/stats.js"></script>
 </body>
 </html>

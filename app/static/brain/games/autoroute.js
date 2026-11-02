@@ -18,9 +18,10 @@
   var KMH = 260;              // affichage : hauteur d'écran/s → km/h
 
   var CSS = [
-    '.br-autoroute{position:relative;width:100%;height:100%;min-height:460px;display:flex;flex-direction:column;',
+    '.br-autoroute{position:relative;flex:1;width:100%;height:100%;min-height:460px;display:flex;flex-direction:column;',
     'user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}',
-    '.br-autoroute-cv{flex:1;width:100%;min-height:420px;display:block;border-radius:22px;touch-action:none;cursor:pointer}',
+    '.br-autoroute-box{position:relative;flex:1;min-height:420px}',
+    '.br-autoroute-cv{position:absolute;inset:0;width:100%;height:100%;display:block;border-radius:22px;touch-action:none;cursor:pointer}',
     '.br-autoroute-hint{text-align:center;font-size:14px;opacity:.75;padding:10px 8px 2px}',
   ].join('');
 
@@ -58,8 +59,8 @@
       var waves = [], untilWave = FIRST_WAVE_S, scroll = 0, slow = 1, shake = 0;
       var car = { lane: 1, x: 1, lastInput: 0 };
 
-      ctx.root.innerHTML = '<div class="br-autoroute"><canvas class="br-autoroute-cv" ' +
-        'aria-label="Route à trois voies : touche à gauche ou à droite pour changer de voie"></canvas>' +
+      ctx.root.innerHTML = '<div class="br-autoroute"><div class="br-autoroute-box"><canvas class="br-autoroute-cv" ' +
+        'aria-label="Route à trois voies : touche à gauche ou à droite pour changer de voie"></canvas></div>' +
         '<div class="br-autoroute-hint">◀ touche à gauche · touche à droite ▶</div></div>';
       var cv = ctx.root.querySelector('canvas');
       var g = cv.getContext('2d');

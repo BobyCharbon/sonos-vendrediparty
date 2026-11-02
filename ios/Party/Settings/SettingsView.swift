@@ -75,7 +75,7 @@ struct SettingsView: View {
                             GameStatsView(store: store.session) { open(.tab("games")) }
                         } label: {
                             SettingsRow(symbol: "trophy.fill", tint: .orange, title: "Mes stats de jeu",
-                                        hint: "Purify Test : dernier score, profil et record")
+                                        hint: "Purify Test et Méninges : scores, profil, records")
                         }
                     }
                     // « Ton avis » : l'hôte, et les comptes Guest+ et au-dessus (droit « Écrire un avis »).

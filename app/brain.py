@@ -2,7 +2,8 @@
 
 Les mini-jeux tournent entièrement dans le navigateur (app/static/brain/) ; seul le résultat d'une partie arrive ici.
 Ce module garde le catalogue (15 jeux, 6 domaines), les bornes plausibles de score, la normalisation score brut →
-indice 0–2000 et tous les calculs du profil : Température (°M), domaines, forces / faiblesses, série 🔥, évolution.
+indice 0–2000 et les calculs du profil : Température (°M), domaines, série 🔥, évolution ; l'analyse (forces /
+faiblesses, tendance, conseils, vitesse vs précision, progrès, Échauffement) est dans app/brain_analysis.py.
 
 La base (migration supabase/migrations/20261102210000_brain.sql) applique la MÊME normalisation et le même calcul de
 Température (pour le percentile entre joueurs) : les valeurs du catalogue y sont recopiées et tests/test_brain.py
@@ -14,6 +15,7 @@ from datetime import date, datetime, timedelta, timezone
 from statistics import mean
 from zoneinfo import ZoneInfo
 
+from . import brain_analysis as A
 from .accounts import AccountError
 
 BRAIN_NAME = "Méninges"
@@ -217,28 +219,6 @@ def _label(domain: str) -> str:
     return DOMAINS[domain][0]
 
 
-def strengths_weaknesses(domains: dict[str, int]) -> tuple[list[str], list[str]]:
-    """Domaines nettement au-dessus / en dessous de ta propre moyenne (au moins 2 domaines joués)."""
-    if len(domains) < 2:
-        return [], []
-    avg = mean(domains.values())
-    strong = sorted((d for d, v in domains.items() if v > avg + BALANCED_MARGIN), key=lambda d: -domains[d])
-    weak = sorted((d for d, v in domains.items() if v < avg - BALANCED_MARGIN), key=lambda d: domains[d])
-    return strong, weak
-
-
-def insight(domains: dict[str, int], strong: list[str], weak: list[str], plays: int) -> str:
-    if not plays:
-        return "Lance ton premier Échauffement pour mesurer ta Température."
-    if len(domains) < 2:
-        return "Essaie des jeux d'autres domaines pour découvrir tes forces."
-    if not strong or not weak:
-        return "Tes domaines sont très équilibrés : continue l'Échauffement chaque jour."
-    s, w = strong[0], weak[0]
-    return (f"Ta force : {_label(s)} ({_fmt(domains[s])} °M). À travailler : {_label(w)} "
-            f"({_fmt(domains[w])} °M) — l'Échauffement en propose chaque jour.")
-
-
 def speed_vs_accuracy(recent: list[dict]) -> dict:
     rts = [int(s.get("avg_rt_ms") or 0) for s in recent if int(s.get("avg_rt_ms") or 0) > 0]
     accs = [float(s["accuracy"]) for s in recent if s.get("accuracy") is not None]
@@ -250,7 +230,9 @@ def speed_vs_accuracy(recent: list[dict]) -> dict:
 
 # ── Profil complet (réponse de /api/brain/me) ──
 
-def profile(sessions: list[dict], percentile: int | None = None, now: datetime | None = None) -> dict:
+def profile(sessions: list[dict], percentile: int | None = None, now: datetime | None = None,
+            party: dict | None = None) -> dict:
+    """`party` (facultatif, base) : {"domains": {domaine: {"avg": indice moyen, "players": n}}} des AUTRES joueurs."""
     now = now or datetime.now(timezone.utc)
     rows = _clean(sessions)
     games_raw = _game_raw(rows, now)
@@ -267,25 +249,36 @@ def profile(sessions: list[dict], percentile: int | None = None, now: datetime |
     domains = {d: {"index": domains_idx.get(d, 0), "played": sum(games[g]["plays"] for g in CATALOG if CATALOG[g].domain == d)}
                for d in DOMAINS}
     today = _day(now)
-    strong, weak = strengths_weaknesses(domains_idx)
-    temp = _temperature(domains_raw)
-    month_ago = now - timedelta(days=30)
-    before = [s for s in rows if s["at"] <= month_ago]
-    recent = [s for s in rows if s["at"] > month_ago]
-    return {
+    game_plays = {g: v["plays"] for g, v in games.items()}
+    analysis = A.domain_analysis(domains_idx, {d: v["played"] for d, v in domains.items()}, party)
+    strong, weak = A.strengths_weaknesses(analysis)
+    trends = A.recent_trend(rows, now)
+    advice = A.advice(analysis, trends, game_plays)
+    recent = [s for s in rows if s["at"] > now - timedelta(days=30)]
+    sva = speed_vs_accuracy(recent)
+    month = A.month_progress(rows, now)
+    salt = today.toordinal() + len(rows)
+    out = {
         "name": BRAIN_NAME,
-        "temperature": temp,
+        "temperature": _temperature(domains_raw),
         "domains": domains,
         "games": games,
         "streak": streak({_day(s["at"]) for s in rows}, today),
         "history": _history(rows, today),
         "strengths": strong,
         "weaknesses": weak,
-        "insight": insight(domains_idx, strong, weak, len(rows)),
+        "insight": A.insight(analysis, strong, weak, len(rows), advice, salt),
         "percentile": percentile,
-        "speed_vs_accuracy": speed_vs_accuracy(recent),
-        "month_progress": temp - temperature_at(before, month_ago) if before else None,
+        "speed_vs_accuracy": sva,
+        "month_progress": month,
+        # Champs d'analyse (ajoutés ; les écrans plus anciens les ignorent).
+        "domain_analysis": analysis,
+        "recent_trend": trends,
+        "advice": advice,
+        "speed_profile": A.speed_profile(recent, sva),
+        "month_progress_text": A.month_text(month),
     }
+    return {**out, "warmup": A.warmup(out, today)}
 
 
 def catalog() -> dict:
@@ -294,6 +287,66 @@ def catalog() -> dict:
             "domains": [{"id": d, "label": lab, "icon": ico, "in_temperature": d in TEMPERATURE_DOMAINS}
                         for d, (lab, ico) in DOMAINS.items()],
             "games": [{"id": g.id, "name": g.name, "domain": g.domain, "seconds": g.seconds} for g in CATALOG.values()]}
+
+
+# ── Comparaison avec un autre membre (fiche profil) : agrégats seulement, jamais le détail de ses parties ──
+
+def _clean_name(name) -> str:
+    return " ".join(str(name or "?").split())[:30]
+
+
+def _int_domains(raw) -> dict[str, int]:
+    """Indices par domaine venant de la base, limités aux domaines connus et bornés 0–2000."""
+    if not isinstance(raw, dict):
+        return {}
+    out = {}
+    for d, v in raw.items():
+        if d in DOMAINS and isinstance(v, (int, float)):
+            out[d] = min(max(int(v), 0), INDEX_MAX)
+    return out
+
+
+def _who_leads(gaps: dict[str, int]) -> tuple[str, int] | None:
+    best = max(gaps.items(), key=lambda kv: kv[1], default=None)
+    return best if best and best[1] > 0 else None
+
+
+def compare_verdict(name: str, mine: dict[str, int], theirs: dict[str, int], is_self: bool) -> str:
+    """Une phrase : où chacun est le plus fort (domaines joués par les deux)."""
+    if is_self:
+        return "C'est toi ! Ouvre la fiche d'un autre membre pour te comparer."
+    if not theirs:
+        return f"{name} n'a pas encore joué à Méninges."
+    if not mine:
+        return f"Joue à Méninges pour te comparer à {name}."
+    common = [d for d in DOMAINS if d in mine and d in theirs]
+    if not common:
+        return f"Vous n'avez pas encore joué aux mêmes domaines que {name}."
+    me_lead = _who_leads({d: mine[d] - theirs[d] for d in common})
+    them_lead = _who_leads({d: theirs[d] - mine[d] for d in common})
+    if not me_lead and not them_lead:
+        return f"Égalité parfaite avec {name} dans vos domaines communs."
+    if not them_lead:
+        return f"Tu devances {name} partout, surtout en {_label(me_lead[0])} (+{_fmt(me_lead[1])} °M)."
+    if not me_lead:
+        return f"{name} te devance partout, surtout en {_label(them_lead[0])} (+{_fmt(them_lead[1])} °M)."
+    return (f"Ton point fort : {_label(me_lead[0])} (+{_fmt(me_lead[1])} °M) ; "
+            f"celui de {name} : {_label(them_lead[0])} (+{_fmt(them_lead[1])} °M).")
+
+
+def compare_target(raw, mine_temperature: int, mine: dict[str, int], my_id: str) -> dict | None:
+    """Champ target de /api/brain/compare : Températures et domaines des deux, côte à côte, et la phrase-bilan."""
+    if not isinstance(raw, dict) or not raw.get("id"):
+        return None
+    name = _clean_name(raw.get("name"))
+    theirs = _int_domains(raw.get("domains"))
+    is_self = str(raw["id"]) == str(my_id)
+    rows = [{"domain": d, "label": lab, "icon": ico, "me": mine.get(d), "them": theirs.get(d)}
+            for d, (lab, ico) in DOMAINS.items() if d in mine or d in theirs]
+    return {"id": raw["id"], "name": name, "self": is_self,
+            "played": bool(theirs), "temperature": int(raw.get("temperature") or 0) if theirs else 0,
+            "me_played": bool(mine), "me_temperature": mine_temperature if mine else 0,
+            "rows": rows, "verdict": compare_verdict(name, mine, theirs, is_self)}
 
 
 # ── Base Supabase (fonctions brain_*), avec la session du membre ──
@@ -323,13 +376,38 @@ class BrainStore:
         r = self._call(token, "brain_my_stats", {}, "Tes statistiques n'ont pas pu être lues.")
         r = r if isinstance(r, dict) else {}
         pct = r.get("percentile")
-        return profile(r.get("sessions") or [], int(pct) if isinstance(pct, (int, float)) else None)
+        party = r.get("party") if isinstance(r.get("party"), dict) else None
+        return profile(r.get("sessions") or [], int(pct) if isinstance(pct, (int, float)) else None, party=party)
+
+    def game(self, token: str, game: str) -> dict:
+        """Statistiques d'un jeu ; percentile du jeu entre joueurs si la base le fournit (brain_game_percentile,
+        migration 20261102240000), sinon null : la fiche reste complète sans lui."""
+        if game not in CATALOG:
+            raise BrainError("Jeu inconnu")
+        r = self._call(token, "brain_my_stats", {}, "Tes statistiques n'ont pas pu être lues.")
+        r = r if isinstance(r, dict) else {}
+        try:
+            pct = self._call(token, "brain_game_percentile", {"p_game": game}, "")
+        except BrainError:
+            pct = None  # fonction pas encore en base : pas de percentile
+        pct = pct.get("percentile") if isinstance(pct, dict) else pct
+        from .brain_game import game_detail  # module à part (importe celui-ci)
+        return game_detail(r.get("sessions") or [], game, int(pct) if isinstance(pct, (int, float)) else None)
+
+    def _my_domains(self, token: str) -> tuple[int, dict[str, int]]:
+        """Ma Température et mes indices par domaine (même calcul que la base), pour la comparaison."""
+        r = self._call(token, "brain_my_stats", {}, "Tes statistiques n'ont pas pu être lues.")
+        rows = _clean((r if isinstance(r, dict) else {}).get("sessions") or [])
+        domains_raw = _domain_raw(_game_raw(rows, datetime.now(timezone.utc)))
+        return _temperature(domains_raw), {d: round_half_up(v) for d, v in domains_raw.items()}
 
     def compare(self, token: str, target: str | None) -> dict:
+        mine = self._my_domains(token) if target else None
         r = self._call(token, "brain_compare", {"p_target": target}, "Le classement n'a pas pu être lu.")
         r = r if isinstance(r, dict) else {}
         board = [{"id": p.get("id"), "name": " ".join(str(p.get("name") or "?").split())[:30],
                   "temperature": int(p.get("temperature") or 0), "me": bool(p.get("me"))}
                  for p in (r.get("board") or []) if isinstance(p, dict)]
         return {"board": board, "rank": r.get("rank"), "players": int(r.get("players") or 0),
-                "percentile": r.get("percentile"), "target": r.get("target")}
+                "percentile": r.get("percentile"),
+                "target": compare_target(r.get("target"), *mine, self.accounts._uid(token)) if mine else None}

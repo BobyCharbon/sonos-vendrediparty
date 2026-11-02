@@ -1646,6 +1646,17 @@ html.native-tabs .g-mini { bottom: 12px; }
 .pc-groups { margin-top: 4px; }
 .pc-close { margin-top: 6px; }
 .pc-body { display: grid; gap: 8px; }
+/* 🧠 Méninges sur la fiche : barres côte à côte (toi / le membre), domaine par domaine. */
+.pc-brain { display: grid; gap: 6px; margin-top: 6px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.08); text-align: left; }
+.pc-brain-head { font-weight: 800; }
+.pc-brain-legend { font-size: .8rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.pc-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.pc-dot.me, .pc-bar.me i { background: var(--accent); }
+.pc-dot.them, .pc-bar.them i { background: var(--accent-2); }
+.pc-brain-row { display: grid; grid-template-columns: 7.5em 1fr; gap: 8px; align-items: center; font-size: .85rem; }
+.pc-brain-bars { display: grid; grid-template-columns: 1fr 3.2em; gap: 2px 6px; align-items: center; font-variant-numeric: tabular-nums; }
+.pc-bar { height: 7px; border-radius: 4px; background: rgba(255,255,255,.07); overflow: hidden; }
+.pc-bar i { display: block; height: 100%; border-radius: inherit; }
 /* Fiche : fond en fondu, carte qui monte du bas ; elle repart par le même chemin (profile-card.js, .pc-out). */
 .pc-backdrop { animation: scrim-in .25s ease both; }
 .pc-card { animation: pc-in .5s var(--spring) both; }

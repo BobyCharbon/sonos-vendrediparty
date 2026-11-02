@@ -131,9 +131,9 @@
     return { dir: u.pathname.replace(/core\.js$/, ""), query: u.search };
   })();
   function loadGames() {
-    loading ||= Promise.all(BRAIN_GAMES.map((id) => new Promise((done) => {
+    loading ||= Promise.all([...BRAIN_GAMES.map((id) => `games/${id}`), "detail"].map((id) => new Promise((done) => {
       const s = document.createElement("script");
-      s.src = `${base.dir}games/${id}.js${base.query}`;
+      s.src = `${base.dir}${id}.js${base.query}`;
       s.async = true;
       s.onload = s.onerror = () => done();
       document.head.append(s);
@@ -192,6 +192,13 @@
     const day = today(), saved = read(K.warmup, null);
     const ids = new Set(available().map((g) => g.id));
     if (saved?.day === day && saved.ids.every((id) => ids.has(id))) return saved;
+    // Choix du serveur (domaines faibles en tête, jeux peu joués) ; le tirage local reste le secours hors ligne.
+    const server = profile?.warmup;
+    if (server?.length && server.every((id) => ids.has(id))) {
+      const fresh = { day, ids: server.slice(0, WARMUP_SIZE), done: [] };
+      write(K.warmup, fresh);
+      return fresh;
+    }
     const rng = mulberry32(hashSeed(day));
     const shuffle = (list) => list.map((x) => [rng(), x]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
     const domains = [...shuffle(DOMAINS.slice(0, TEMP_DOMAINS)), DOMAINS[TEMP_DOMAINS]].map((d) => d[0]);
@@ -276,6 +283,7 @@
     const g = games.get(id);
     if (!g) return home();
     const d = domainOf(g.domain);
+    window.BrainDetail?.prefetch(id);  // stats du jeu avant la partie (écran de fin enrichi, detail.js)
     show(`<div class="br-howto" style="--g:${e(g.color)}">
       <header class="br-top">${inWarmup ? `<span class="br-chip">Échauffement · ${warmup().done.length + 1}/${warmup().ids.length}</span>` : "<span></span>"}${closeBtn("Retour")}</header>
       <div class="br-howto-i" aria-hidden="true">${e(g.icon)}</div>
@@ -414,7 +422,8 @@
     if (res.inWarmup) markWarmup(res.id);
     sound("end");
     endScreen(res);
-    save(res);
+    window.BrainDetail?.enrich(res);
+    save(res).then(() => window.BrainDetail?.saved(res));
   }
   async function save(res) {
     const session = { game: res.id, score: res.score, accuracy: +res.accuracy.toFixed(4), avg_rt_ms: res.avgRt,
@@ -455,7 +464,7 @@
         ${stat("Record", fmt(res.best))}
         ${stat("Niveau atteint", res.level)}
         ${stat("Bonnes / erreurs", `${res.hits} / ${res.misses}`)}
-        <div class="br-stat br-index" hidden><span>Indice du jeu</span><b></b></div>
+        <div class="br-stat br-index" hidden><span>Indice de la partie</span><b></b></div>
       </div>
       ${res.detail ? `<p class="br-detail">${e(res.detail)}</p>` : ""}
       <p class="br-save br-muted" aria-live="polite">Enregistrement…</p>
@@ -509,7 +518,10 @@
     switch (b.dataset.br) {
       case "close": return root.dataset.screen === "howto" ? home() : close();
       case "login": close(); return typeof showTab === "function" && showTab("account");
-      case "play": case "again": return howto(id, false);
+      case "play":  // jeu déjà joué : sa fiche d'abord (detail.js) ; sinon directement l'explication
+        if (window.BrainDetail && bestOf(id) > 0) return window.BrainDetail.sheet(id);
+        return howto(id, false);
+      case "again": return howto(id, false);
       case "warmup": {
         const w = warmup();
         if (w.done.length >= w.ids.length) write(K.warmup, { ...w, done: [] });
@@ -537,5 +549,8 @@
 
   window.BRAIN_NAME = BRAIN_NAME;
   window.Brain = Object.freeze({ name: BRAIN_NAME, games: BRAIN_GAMES, domains: DOMAINS, register, open, close,
-    rng: mulberry32, list: available });
+    rng: mulberry32, list: available,
+    // Pour detail.js (statistiques par jeu) : accès en lecture au moteur.
+    api: Object.freeze({ post, token, show, esc: e, calm, game: (id) => games.get(id), domain: domainOf,
+      localSessions: () => read(K.sessions, []) }) });
 })();

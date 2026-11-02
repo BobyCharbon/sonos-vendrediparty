@@ -19,7 +19,7 @@
 
   const CSS = `
 .br-grille-wrap{display:flex;flex-direction:column;align-items:center;gap:14px;padding:12px 16px 20px;
-  color:#eef1ff;font:inherit;user-select:none;-webkit-user-select:none}
+  color:var(--br-text,#eef1ff);font:inherit;user-select:none;-webkit-user-select:none}
 .br-grille-top{display:flex;justify-content:space-between;width:100%;max-width:360px;font-size:15px;opacity:.9}
 .br-grille-top b{font-variant-numeric:tabular-nums}
 .br-grille-msg{min-height:22px;font-size:16px;font-weight:600;text-align:center}

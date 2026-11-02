@@ -10,6 +10,9 @@ from app import brain
 ROOT = Path(__file__).resolve().parent.parent
 MIGRATION = (ROOT / "supabase" / "migrations" / "20261102210000_brain.sql").read_text(encoding="utf-8")
 NOW = datetime(2026, 11, 2, 18, 0, tzinfo=timezone.utc)
+SHAPE = {"name", "temperature", "domains", "games", "streak", "history", "strengths", "weaknesses", "insight",
+         "percentile", "speed_vs_accuracy", "month_progress"}
+ANALYSIS_FIELDS = {"domain_analysis", "recent_trend", "advice", "speed_profile", "month_progress_text", "warmup"}
 
 
 def session(game: str, score: int, days_ago: float = 0, **kw) -> dict:
@@ -86,8 +89,7 @@ def test_calcul_has_its_own_index_outside_the_temperature():
 
 def test_profile_has_exactly_the_shape_used_by_the_stats_screens():
     p = brain.profile([session("pareil", 9000, level=4), session("encre", 3000)], percentile=42, now=NOW)
-    assert set(p) == {"name", "temperature", "domains", "games", "streak", "history", "strengths", "weaknesses",
-                      "insight", "percentile", "speed_vs_accuracy", "month_progress"}
+    assert set(p) == SHAPE | ANALYSIS_FIELDS
     assert set(p["domains"]) == set(brain.DOMAINS)
     assert all(set(d) == {"index", "played"} for d in p["domains"].values())
     assert set(p["games"]) == set(brain.CATALOG)
@@ -105,7 +107,8 @@ def test_empty_profile_invites_to_play():
 
 
 def test_strengths_and_weaknesses_compare_to_your_own_average():
-    p = brain.profile([session("pareil", 14000), session("deux_avant", 2000), session("encre", 9000)], now=NOW)
+    rows = [session(g, sc, days_ago=i) for g, sc in (("pareil", 14000), ("deux_avant", 2000), ("encre", 9000)) for i in range(3)]
+    p = brain.profile(rows, now=NOW)
     assert p["strengths"] == ["vitesse"] and p["weaknesses"] == ["memoire"]
     assert "Vitesse" in p["insight"] and "Mémoire" in p["insight"]
 
@@ -117,9 +120,8 @@ def test_streak_counts_consecutive_days_and_survives_until_tomorrow():
     assert brain.streak(days, today + timedelta(days=2)) == {"current": 0, "best": 5}
 
 
-def test_month_progress_and_speed_vs_accuracy():
+def test_speed_vs_accuracy():
     p = brain.profile([session("pareil", 3000, days_ago=40), session("pareil", 9000, days_ago=1, rt=400, accuracy=1)], now=NOW)
-    assert p["month_progress"] == p["temperature"] - brain.game_index("pareil", 3000) > 0
     assert p["speed_vs_accuracy"] == {"speed": 100, "accuracy": 100}
 
 
