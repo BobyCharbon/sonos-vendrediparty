@@ -1,6 +1,6 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { AttendanceEditor } from '@/components/AttendanceEditor';
 import { CalendarButton } from '@/components/CalendarButton';
@@ -160,6 +160,10 @@ export default function EventScreen() {
     <Screen edges={[]}>
       {/* Ouverture : l’en-tête puis chaque bloc montent en cascade (une seule fois, pas aux rechargements). */}
       <Cascade>
+      {/* Affiche de l’événement (lue sur la page de l’événement par l’assistant IA) */}
+      {ev.cover_url?.startsWith('https://') ? (
+        <Image source={{ uri: ev.cover_url }} style={st.cover} resizeMode="cover" accessibilityLabel="Affiche de l’événement" />
+      ) : null}
       {/* En-tête : l’essentiel en un coup d’œil */}
       <View style={{ gap: 10 }}>
         <View style={s.wrap}>
@@ -373,6 +377,7 @@ function EventSkeleton() {
 }
 
 const st = StyleSheet.create({
+  cover: { width: '100%', aspectRatio: 16 / 9, borderRadius: radius.md, backgroundColor: colors.surface2, marginBottom: 14 },
   keyRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   keyIcon: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   notice: { padding: 12, borderRadius: radius.md },

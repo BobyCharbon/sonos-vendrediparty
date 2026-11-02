@@ -89,6 +89,20 @@ final class WebModel: ObservableObject {
         pending = nil
     }
 
+    /// Crée un événement avec l'IA à partir d'un lien (partagé depuis Safari, Instagram…).
+    func startAIEvent(link: String) {
+        guard let store = settings?.aiEvent else {
+            SharedSession.savePendingEvent(link)  // l'app n'est pas prête : on réessaiera à la prochaine ouverture
+            return
+        }
+        aiEditEventId = nil
+        aiEventOpen = true
+        Task {
+            store.reset()
+            await store.send(link)
+        }
+    }
+
     func open(_ url: URL) {
         // Lien d'un pot commun (/pot/<lien>, ancien /tricount/<lien>) : Réglages › Pot commun ouvre « Rejoindre », la page ne change pas.
         if AppConfig.isInternal(url), let link = Self.tricountLink(in: url) {

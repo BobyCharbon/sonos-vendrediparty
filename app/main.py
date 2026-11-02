@@ -33,7 +33,7 @@ from .group_chats import LEVELS as CHAT_LEVELS, PHOTO_MAX as CHAT_PHOTO_MAX, Gro
 from .tricount import CURRENCIES as TC_CURRENCIES, Tricount
 from .assistant import MAX_PHOTO as AI_PHOTO_MAX, Assistant, UsageLog
 from .ai_event_edit import EventEditor
-from .ai_events import MAX_TEXT as AI_EVENT_MAX_TEXT, MAX_TURNS as AI_EVENT_MAX_TURNS, EventAssistant
+from .ai_events import MAX_IMAGE_B64 as AI_EVENT_MAX_IMAGE, MAX_TEXT as AI_EVENT_MAX_TEXT, MAX_TURNS as AI_EVENT_MAX_TURNS, EventAssistant
 from .places import MAX_QUERY as PLACE_MAX_QUERY, Places
 from .audit import AuditLog
 from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
@@ -1978,6 +1978,8 @@ def account_ai_receipt(body: AiPhoto):
 class AiEventDraft(MemberToken):
     turns: list[str] = Field(min_length=1, max_length=AI_EVENT_MAX_TURNS * 2)
     draft: dict | None = None
+    # Captures d'écran (affiche, page d'un site) en base64 : l'IA y lit l'événement. 3 au plus, réduites par l'app.
+    images: list[Annotated[str, Field(max_length=AI_EVENT_MAX_IMAGE)]] = Field(default=[], max_length=3)
 
 
 @app.post("/api/account/ai/event/draft")
@@ -1985,7 +1987,7 @@ def account_ai_event_draft(body: AiEventDraft):
     """Ce que la personne a dit (description, puis ses réponses) → brouillon d'événement et questions de l'IA."""
     if sum(len(t) for t in body.turns) > AI_EVENT_MAX_TEXT * AI_EVENT_MAX_TURNS:
         raise HTTPException(400, "Description trop longue")
-    return account_call(lambda: event_assistant.draft(body.token, body.turns, body.draft))
+    return account_call(lambda: event_assistant.draft(body.token, body.turns, body.draft, images=body.images))
 
 
 class AiEventCreate(MemberToken):

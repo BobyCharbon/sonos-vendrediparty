@@ -77,6 +77,13 @@ struct ShareView: View {
 
     @ViewBuilder
     private var content: some View {
+        if model.link != nil && model.phase != .eventReady {
+            Button { model.prepareEvent() } label: {
+                Label("Créer un événement avec ce lien", systemImage: "sparkles")
+                    .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 12)
+            }
+            .buttonStyle(.borderedProminent)
+        }
         switch model.phase {
         case .loading:
             ProgressView("Recherche du titre…").frame(maxWidth: .infinity).padding(.top, 40)
@@ -86,6 +93,8 @@ struct ShareView: View {
             message("exclamationmark.triangle", reason)
         case .added(let title):
             message("checkmark.circle.fill", "« \(title) » est dans la file 🎶")
+        case .eventReady:
+            message("sparkles", "C'est prêt ✨ Ouvre Party : l'assistant crée l'événement à partir de ce lien.")
         case .choose(let tracks):
             TextField("Ton prénom", text: $model.name)
                 .textInputAutocapitalization(.words)

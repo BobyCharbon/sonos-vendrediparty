@@ -16,6 +16,8 @@ struct PartyApp: App {
                 // quel que soit l'onglet, et aussi pour l'hôte en « Gérer la soirée » (écran natif non affiché).
                 .onChange(of: scenePhase) { phase in
                     if phase == .active { model.music?.start() } else if phase == .background { model.music?.stop() }
+                    // « Partager › Party › Créer un événement » : l'assistant IA démarre avec le lien mis de côté.
+                    if phase == .active, let link = SharedSession.takePendingEvent() { model.startAIEvent(link: link) }
                 }
                 #if DEBUG
                 .task { TrackActivities.startDemoIfAsked() }

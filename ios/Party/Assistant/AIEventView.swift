@@ -1,4 +1,5 @@
 import MapKit
+import PhotosUI
 import SwiftUI
 
 /// « ✨ Avec l'IA » (Événements) : on décrit l'événement à voix haute (ou par écrit) ; l'IA le remplit, pose ses
@@ -16,6 +17,7 @@ struct AIEventView: View {
     @State private var countdown = AIEventView.reviewSeconds
     @State private var tick: Task<Void, Never>?
     @FocusState private var typing: Bool
+    @State private var picked: [PhotosPickerItem] = []
 
     static let reviewSeconds = 5
 
@@ -80,6 +82,17 @@ struct AIEventView: View {
             }
             .onChange(of: store.place) { _ in restartCountdown() }
             .onDisappear { dictation.finish(); tick?.cancel() }
+            .onChange(of: picked) { items in
+                guard !items.isEmpty else { return }
+                Task {
+                    for item in items {
+                        if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
+                            store.attach(image)
+                        }
+                    }
+                    picked = []
+                }
+            }
         }
         .tint(Palette.accent)
     }
@@ -104,6 +117,7 @@ struct AIEventView: View {
                 tip("mappin.and.ellipse", "Où", "une adresse ou un lieu : « au Fun Planet de Villeneuve »")
                 tip("person.3", "Qui", "« pour le groupe Ski » ; sinon Vendredi Party")
                 tip("plus.circle", "En plus", "prix, nombre de places, quoi amener, « avec un pot commun »")
+                tip("link", "Déjà en ligne ?", "colle le lien de l'événement ou joins une capture d'écran : l'IA y lit tout")
             }
             .padding(14)
             .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -183,6 +197,16 @@ struct AIEventView: View {
     // ── La fiche à relire ──
     private func review(_ d: AIEvent.Draft) -> some View {
         VStack(alignment: .leading, spacing: 14) {
+            if let cover = URL(string: d.cover_url), d.cover_url.hasPrefix("https://") {
+                AsyncImage(url: cover) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Color.white.opacity(0.05)
+                }
+                .frame(maxWidth: .infinity).frame(height: 170)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .accessibilityLabel("Image de l'événement")
+            }
             if !d.summary.isEmpty {
                 Text(d.summary).font(.subheadline).foregroundStyle(.secondary)
             }
@@ -437,15 +461,22 @@ struct AIEventView: View {
                     .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .motionTransition(.opacity.combined(with: .move(edge: .bottom)))
             }
+            if !store.images.isEmpty { shots }
             HStack(spacing: 10) {
-                TextField(store.draft?.ready == false ? "Ta réponse…" : store.draft == nil ? "Ou écris ici…" : "Une correction ?",
+                PhotosPicker(selection: $picked, maxSelectionCount: AIEvent.maxShots - store.images.count, matching: .images) {
+                    Image(systemName: "photo.badge.plus").font(.system(size: 24))
+                }
+                .disabled(store.images.count >= AIEvent.maxShots)
+                .accessibilityLabel("Joindre une capture d'écran de l'événement")
+                .accessibilityIdentifier("ai-photo")
+                TextField(store.draft?.ready == false ? "Ta réponse…" : store.draft == nil ? "Écris, ou colle un lien…" : "Une correction ?",
                           text: $typed, axis: .vertical)
                     .lineLimit(1...4)
                     .focused($typing)
                     .padding(.horizontal, 14).padding(.vertical, 10)
                     .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .accessibilityIdentifier("ai-text")
-                if !typed.trimmingCharacters(in: .whitespaces).isEmpty {
+                if !typed.trimmingCharacters(in: .whitespaces).isEmpty || (!store.images.isEmpty && store.turns.isEmpty) {
                     Button { Haptics.tap(); submit(typed) } label: { Image(systemName: "arrow.up.circle.fill").font(.system(size: 34)) }
                         .accessibilityLabel("Envoyer")
                         .motionTransition(.scale(scale: 0.5).combined(with: .opacity))
@@ -467,6 +498,29 @@ struct AIEventView: View {
         .motion(Motion.snappy, value: typed.trimmingCharacters(in: .whitespaces).isEmpty)
         .padding(.horizontal, 16).padding(.vertical, 10)
         .background(.ultraThinMaterial)
+    }
+
+    /// Captures jointes : miniatures, chacune avec sa croix pour la retirer.
+    private var shots: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(store.images) { shot in
+                    Image(uiImage: shot.thumbnail).resizable().scaledToFill()
+                        .frame(width: 64, height: 64)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(alignment: .topTrailing) {
+                            Button { Haptics.tap(); store.detach(shot) } label: {
+                                Image(systemName: "xmark.circle.fill").font(.system(size: 20)).symbolRenderingMode(.palette)
+                                    .foregroundStyle(.white, .black.opacity(0.6))
+                            }
+                            .accessibilityLabel("Retirer cette capture")
+                            .offset(x: 6, y: -6)
+                        }
+                }
+            }
+            .padding(.top, 6)
+        }
+        .frame(height: 76)
     }
 
     private func toggleMic() {

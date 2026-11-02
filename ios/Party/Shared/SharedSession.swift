@@ -48,28 +48,43 @@ enum SharedSession {
     }
 
     static func load() -> SessionSnapshot? {
-        guard let data = read() else { return nil }
+        guard let data = read(account: account) else { return nil }
         return try? JSONDecoder().decode(SessionSnapshot.self, from: data)
     }
 
     static func save(_ snapshot: SessionSnapshot) {
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
-        write(data)
+        write(data, account: account)
+    }
+
+    // MARK: Lien d'événement partagé (« Partager › Party › Créer un événement »), repris par l'app à son ouverture
+
+    private static let pendingEvent = "pending-event"
+
+    static func savePendingEvent(_ link: String) {
+        write(Data(link.utf8), account: pendingEvent)
+    }
+
+    /// Le lien mis de côté par l'extension, une seule fois (il est effacé dès qu'il est lu).
+    static func takePendingEvent() -> String? {
+        guard let data = read(account: pendingEvent), let link = String(data: data, encoding: .utf8), !link.isEmpty else { return nil }
+        write(Data(), account: pendingEvent)
+        return link
     }
 
     // MARK: Trousseau
 
-    private static func query(group: String?) -> [String: Any] {
+    private static func query(group: String?, account: String) -> [String: Any] {
         var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
                                     kSecAttrService as String: service, kSecAttrAccount as String: account]
         if let group { query[kSecAttrAccessGroup as String] = group }
         return query
     }
 
-    private static func read() -> Data? {
+    private static func read(account: String) -> Data? {
         for group in [accessGroup, nil] {
             var item: CFTypeRef?
-            var request = query(group: group)
+            var request = query(group: group, account: account)
             request[kSecReturnData as String] = true
             let status = SecItemCopyMatching(request as CFDictionary, &item)
             if status == errSecSuccess { return item as? Data }
@@ -78,9 +93,9 @@ enum SharedSession {
         return nil
     }
 
-    private static func write(_ data: Data) {
+    private static func write(_ data: Data, account: String) {
         for group in [accessGroup, nil] {
-            let base = query(group: group)
+            let base = query(group: group, account: account)
             var status = SecItemUpdate(base as CFDictionary, [kSecValueData as String: data] as CFDictionary)
             if status == errSecItemNotFound {
                 var add = base

@@ -68,7 +68,7 @@ def draft_of(e: dict, o: Options) -> dict:
                    "multiple": False, "anonymous": False, "add_options": False} for p in e.get("polls") or []],
         "bring": [bring_text(b) for b in sorted(e.get("bring_items") or [], key=lambda b: b.get("sort") or 0)
                   if not b.get("added_by")],
-        "pot": bool(e.get("pot_enabled")), "summary": "", "not_understood": [],
+        "pot": bool(e.get("pot_enabled")), "summary": "", "not_understood": [], "cover_url": e.get("cover_url") or "",
     }
 
 

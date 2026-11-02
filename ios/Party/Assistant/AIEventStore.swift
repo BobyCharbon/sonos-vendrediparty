@@ -2,6 +2,7 @@ import AVFoundation
 import Foundation
 import MapKit
 import Speech
+import UIKit
 
 /// Créer un événement avec l'IA : ce que la personne dit (ou écrit) part au serveur, qui renvoie le brouillon rempli par
 /// Claude et ses questions ; l'adresse est cherchée sur le téléphone (Plans d'Apple) et le lien ouvre Google Maps.
@@ -51,6 +52,8 @@ enum AIEvent {
         var bring: [String]
         var pot: Bool
         var summary: String
+        /// Image de la page lue (flyer) : couverture de l'événement ; vide si aucune.
+        var cover_url: String
         var not_understood: [String]
 
         var ready: Bool { status == "ready" && questions.isEmpty }
@@ -96,6 +99,7 @@ enum AIEvent {
             bring = list(.bring)
             pot = flag(.pot, false)
             summary = text(.summary)
+            cover_url = text(.cover_url)
             not_understood = list(.not_understood)
         }
     }
@@ -152,6 +156,27 @@ enum AIEvent {
         return show.string(from: date)
     }
 
+    static let maxShots = 3
+
+    /// Capture d'écran jointe à la demande : réduite pour l'envoi (1600 px, JPEG), avec sa miniature.
+    struct Shot: Identifiable, Equatable {
+        let id = UUID()
+        let thumbnail: UIImage
+        let dataURL: String
+
+        init?(_ image: UIImage) {
+            let side: CGFloat = 1600
+            let scale = min(1, side / max(image.size.width, image.size.height))
+            let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+            let small = UIGraphicsImageRenderer(size: size).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
+            guard let jpeg = small.jpegData(compressionQuality: 0.7) else { return nil }
+            thumbnail = small
+            dataURL = "data:image/jpeg;base64," + jpeg.base64EncodedString()
+        }
+
+        static func == (a: Shot, b: Shot) -> Bool { a.id == b.id }
+    }
+
     /// L'IA réfléchit souvent 20 à 40 secondes : on l'attend jusqu'à 2 minutes et demie.
     static let thinkingTimeout: TimeInterval = 150
 
@@ -182,6 +207,8 @@ final class AIEventStore: ObservableObject {
     /// Un message dans la discussion de l'événement résume les changements aux invités.
     @Published var announce = true
     @Published var error: String?
+    /// Captures d'écran jointes (affiche, page d'un site) : réduites, envoyées avec chaque demande, 3 au plus.
+    @Published private(set) var images: [AIEvent.Shot] = []
     /// Ce que la personne a dit quand l'envoi a échoué : remis dans le champ, rien n'est perdu.
     @Published var unsent: String?
 
@@ -206,6 +233,7 @@ final class AIEventStore: ObservableObject {
         created = nil
         error = nil
         editingId = nil
+        images = []
         changes = []
         loadedPlace = nil
         announce = true
@@ -237,8 +265,19 @@ final class AIEventStore: ObservableObject {
     }
 
     /// Description, réponse à une question ou correction : l'IA reprend le tout et renvoie le brouillon à jour.
+    /// Ajoute une capture d'écran (réduite à 1600 px, JPEG) ; 3 au plus.
+    func attach(_ image: UIImage) {
+        guard images.count < AIEvent.maxShots, let shot = AIEvent.Shot(image) else { return }
+        images.append(shot)
+    }
+
+    func detach(_ shot: AIEvent.Shot) {
+        images.removeAll { $0.id == shot.id }
+    }
+
     func send(_ text: String) async {
-        let said = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var said = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if said.isEmpty && !images.isEmpty && turns.isEmpty { said = "Crée l'événement à partir de ma capture d'écran." }
         guard !said.isEmpty, !thinking else { return }
         guard let token = await web?.accountToken() else {
             error = "Connecte-toi dans Réglages pour utiliser l'assistant"
@@ -255,7 +294,7 @@ final class AIEventStore: ObservableObject {
                 next = edited.draft
                 changes = edited.changes
             } else {
-                next = try await api.aiEventDraft(token: token, turns: turns, previous: draft)
+                next = try await api.aiEventDraft(token: token, turns: turns, previous: draft, images: images.map(\.dataURL))
             }
             draft = next
             if next.place_kind + "|" + next.place_query != lastSearch {
@@ -390,8 +429,9 @@ extension PartyAPI {
                                                                 "kind": kind == "home" ? "home" : "venue"])
     }
 
-    func aiEventDraft(token: String, turns: [String], previous: AIEvent.Draft?) async throws -> AIEvent.Draft {
+    func aiEventDraft(token: String, turns: [String], previous: AIEvent.Draft?, images: [String] = []) async throws -> AIEvent.Draft {
         var body: [String: Any] = ["token": token, "turns": turns]
+        if !images.isEmpty { body["images"] = images }
         if let previous, let data = try? JSONEncoder().encode(previous),
            let json = try? JSONSerialization.jsonObject(with: data) { body["draft"] = json }
         return try await postDecoding("/api/account/ai/event/draft", body: body, timeout: AIEvent.thinkingTimeout)
