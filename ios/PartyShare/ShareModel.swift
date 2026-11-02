@@ -13,14 +13,6 @@ final class ShareModel: ObservableObject {
         case failed(String)
         /// Lien mis de côté : l'app crée l'événement avec l'IA à sa prochaine ouverture.
         case eventReady
-
-        /// Partage terminé (titre ajouté, événement prêt) : l'extension se ferme seule.
-        var isDone: Bool {
-            switch self {
-            case .added, .eventReady: return true
-            default: return false
-            }
-        }
     }
 
     @Published private(set) var phase: Phase = .loading

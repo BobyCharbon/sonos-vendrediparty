@@ -6,8 +6,6 @@ import UniformTypeIdentifiers
 /// et affiche ShareView.
 final class ShareViewController: UIViewController {
     private let model = ShareModel()
-    /// Fermeture automatique après l'ajout (musique) ou la préparation d'un événement, le temps de lire la confirmation.
-    private static let closeDelay: Duration = .seconds(2)
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -21,8 +19,7 @@ final class ShareViewController: UIViewController {
         Task { @MainActor in
             await model.start(shared: await sharedText())
             for await phase in model.$phase.values {
-                if phase.isDone {
-                    try? await Task.sleep(for: Self.closeDelay)
+                if case .added = phase {  // titre ajouté à la file : on referme aussitôt
                     finish()
                     break
                 }
@@ -64,18 +61,23 @@ struct ShareView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) { content }.padding(16)
             }
-            // Fermer en bas, à portée du pouce (et l'extension se ferme seule une fois le partage fait).
+            // Lien d'une page : « Créer l'événement » en bas, à portée du pouce (l'assistant IA s'en charge dans l'app).
             .safeAreaInset(edge: .bottom) {
-                if !model.phase.isDone {
-                    Button("Fermer", action: close)
-                        .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 12)
-                        .background(Self.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .padding(.horizontal, 16).padding(.bottom, 8)
+                if model.link != nil && model.phase != .eventReady {
+                    Button { model.prepareEvent() } label: {
+                        Label("Créer l'événement", systemImage: "sparkles")
+                            .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .padding(.horizontal, 16).padding(.bottom, 8)
                 }
             }
             .background(Self.background.ignoresSafeArea())
-            .navigationTitle("Ajouter à la soirée")
+            .navigationTitle("Partager dans Party")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Fermer", action: close) }
+            }
         }
         .tint(Self.accent)
         .preferredColorScheme(.dark)
@@ -83,13 +85,6 @@ struct ShareView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.link != nil && model.phase != .eventReady {
-            Button { model.prepareEvent() } label: {
-                Label("Créer un événement avec ce lien", systemImage: "sparkles")
-                    .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 12)
-            }
-            .buttonStyle(.borderedProminent)
-        }
         switch model.phase {
         case .loading:
             ProgressView("Recherche du titre…").frame(maxWidth: .infinity).padding(.top, 40)
