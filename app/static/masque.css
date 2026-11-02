@@ -15,7 +15,11 @@ body.pyr-full #game.g-ms { box-shadow: none; border: 0; padding: 16px; backgroun
 .ms-q.small .ms-q-t { font-size: 1rem; margin-top: 4px; }
 
 .ms-mine { margin: 12px 0; }
-.ms-mine-t { margin: 6px 0 10px; font-size: 1.05rem; font-weight: 700; overflow-wrap: anywhere; }
+.ms-mine-t { margin: 6px 0 10px; font-size: .95rem; overflow-wrap: anywhere; }
+.ms-mine-t summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--g-soft); font-weight: 700; }
+.g-ms .lk-chips button.on { border-color: var(--g-accent); background: #5a4312; }
+.g-rf .lk-chips button.on { border-color: var(--g-accent); background: #1f5566; }
+.g-ms .lk-chips button, .g-rf .lk-chips button { min-height: 44px; }
 .ms-help { text-align: center; margin: 4px 0 10px; }
 
 .ms-slots { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
@@ -28,12 +32,12 @@ body.pyr-full #game.g-ms { box-shadow: none; border: 0; padding: 16px; backgroun
 .ms-slot-k { font-size: .75rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--g-accent); }
 .ms-slot-t { font-size: 1.05rem; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; padding-right: 30px; }
 .ms-names { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.ms-name { min-height: 40px; padding: 6px 14px; border-radius: 999px; border: 2px solid rgba(255,255,255,.18); background: transparent;
+.ms-name { min-height: 44px; padding: 6px 14px; border-radius: 999px; border: 2px solid rgba(255,255,255,.18); background: transparent;
   color: #fff; font-weight: 700; transition: transform .1s, background .15s, border-color .15s; }
 .ms-name:active { transform: scale(.96); }
 .ms-name.on { background: var(--g-accent); border-color: var(--g-accent); color: var(--g-ink); }
-.ms-name.used { opacity: .45; }
-.ms-kill { position: absolute; top: 8px; right: 8px; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(255,255,255,.08); }
+.ms-name.used { border-style: dashed; color: var(--g-soft); }  /* déjà choisi ailleurs : encore touchable */
+.ms-kill { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255,255,255,.08); }
 .ms-mask { margin: 12px 0; }
 .ms-who { margin-top: 10px; font-size: 1rem; }
 .ms-who.masked { color: var(--g-soft); font-weight: 700; }

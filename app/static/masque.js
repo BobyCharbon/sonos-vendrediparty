@@ -8,7 +8,7 @@ GAME_RULES.masque = `
   <h3>Qui a écrit quoi ?</h3>
   <p>Quand tout le monde a écrit, les réponses apparaissent <b>mélangées, sans prénom</b>. Touche un prénom sous chaque réponse pour deviner son auteur. Tu peux en laisser sans réponse.</p>
   <h3>Lever le masque</h3>
-  <p>Pour ta propre réponse, tu choisis en secret : <b>🙋 lever le masque</b> (tout le monde saura que c'est toi, et tu peux raconter l'histoire derrière) ou <b>🎭 rester masqué</b> (personne ne le saura jamais, même pas ceux qui avaient deviné).</p>
+  <p>Pour ta propre réponse, tu choisis en secret : <b>🙋 lever le masque</b> (tout le monde saura que c'est toi, et tu peux raconter l'histoire derrière) ou <b>🎭 rester masqué</b> : l'app ne dira jamais que c'est toi, même pas à ceux qui avaient deviné. (Si tous les autres lèvent leur masque, le groupe pourra le deviner par élimination.)</p>
   <h3>Les points</h3>
   <p>1 point par auteur trouvé (sur les masques levés) et 1 point pour avoir levé le tien. Une réponse drôle ne rapporte rien : on joue la sincérité.</p>
   <h3>Bienveillance</h3>
@@ -16,7 +16,6 @@ GAME_RULES.masque = `
   <h3>Les questions</h3>
   <p>Six catégories (souvenirs, toi en vrai, liens, valeurs, rêves et peurs, et si…) et trois niveaux : 🌤 léger, 🌊 profond et 🕯 intime, à cocher par l'animateur.</p>`;
 
-GAME_ICONS.masque = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 14c6-3 12-4 18-4s12 1 18 4c0 14-6 24-18 24S6 28 6 14z"/><path d="M14 21c2-2 5-2 7 0"/><path d="M27 21c2-2 5-2 7 0"/><path d="M19 30c3 2 7 2 10 0"/></svg>`;
 
 let msDraft = "";      // réponse en cours d'écriture (gardée si la feuille se ferme)
 let msPicks = {};      // devinettes en cours : numéro de réponse → pid
@@ -27,7 +26,16 @@ const msKey = (g, part) => `ms:${g.id}:${g.round}:${part}`;
 
 function msSyncRound(g) {
   const key = `${g.id}:${g.round}`;
-  if (key !== msRoundKey) { msRoundKey = key; msPicks = {}; msUnmask = null; msDraft = ""; }
+  if (key === msRoundKey) return;
+  msRoundKey = key; msPicks = {}; msUnmask = null; msDraft = "";
+  try {  // page rechargée en pleine devinette : les prénoms déjà choisis reviennent
+    const saved = JSON.parse(sessionStorage.getItem("vp_masque") || "null");
+    if (saved?.key === key) { msPicks = saved.picks || {}; msUnmask = saved.unmask ?? null; }
+  } catch { /* stockage indisponible : on repart de zéro */ }
+}
+
+function msSave() {
+  try { sessionStorage.setItem("vp_masque", JSON.stringify({ key: msRoundKey, picks: msPicks, unmask: msUnmask })); } catch { /* rien */ }
 }
 
 function msHero(sub) {
@@ -78,7 +86,7 @@ function msWriteHtml(g) {
   const v = g.masque, done = v.wrote.filter((w) => w.done).length;
   const mine = !g.me ? "" : v.mine
     ? `<div class="lk-card ms-mine"${GameFx.fx("pop", msKey(g, "sent"))}><div class="artist">🤫 Ta réponse, envoyée en secret</div>
-        <div class="ms-mine-t">« ${esc(v.mine)} »</div><button type="button" class="lk-sub" data-ms-compose>✏️ Modifier</button></div>`
+        <details class="ms-mine-t"><summary>👁 Revoir ma réponse</summary>« ${esc(v.mine)} »</details><button type="button" class="lk-sub" data-ms-compose>✏️ Modifier</button></div>`
     : `<button type="button" class="lk-main" data-ms-compose>✍️ Écrire ma réponse</button>`;
   const host = g.is_host ? `<div class="lk-row">
       ${!done ? `<button class="lk-sub" data-gact="msswap">🔀 Autre question</button>` : ""}
@@ -99,7 +107,8 @@ function msGuessHtml(g) {
   const v = g.masque;
   if (v.sent || !g.me) {
     const done = v.progress.filter((p) => p.done).length;
-    const host = g.is_host ? `<button class="lk-main" data-gact="msreveal" ${v.can_reveal ? "" : "disabled"}>👁 Révéler${done < v.progress.length ? ` (${done}/${v.progress.length})` : ""}</button>` : "";
+    const host = g.is_host ? `<button class="lk-main" data-gact="msreveal" ${v.can_reveal ? "" : "disabled"}>👁 Révéler${done < v.progress.length ? ` (${done}/${v.progress.length})` : ""}</button>
+      ${v.can_reveal ? "" : `<p class="artist ms-help">Possible dès qu'un joueur a envoyé ses choix.</p>`}` : "";
     return `${msQuestion(g, true)}<div class="lk-card lk-done"${GameFx.fx("pop", msKey(g, "guessed"))}><div class="lk-name">${v.sent ? "🤫 Choix envoyés" : "👀 Ils devinent…"}</div>
       <div class="artist">Révélation quand tout le monde a choisi.</div>${msPeople(v.progress, msKey(g, "g"))}</div>${msSlotsReadonly(g)}${host}`;
   }
@@ -109,7 +118,7 @@ function msGuessHtml(g) {
     if (s.mine) return `<div class="ms-slot mine"><div class="ms-slot-k">✍️ Ta réponse</div><div class="ms-slot-t">« ${esc(s.text)} »</div></div>`;
     const names = v.authors.map((a) => {
       const on = msPicks[s.i] === a.pid;
-      return `<button type="button" class="ms-name ${on ? "on" : used.has(a.pid) ? "used" : ""}" data-ms-slot="${s.i}" data-ms-pid="${esc(a.pid)}" aria-pressed="${on}">${esc(a.name)}</button>`;
+      return `<button type="button" class="ms-name ${on ? "on" : used.has(a.pid) ? "used" : ""}" data-ms-slot="${s.i}" data-ms-pid="${esc(a.pid)}" aria-pressed="${on}" aria-label="${esc(a.name)} a écrit « ${esc(s.text)} »${used.has(a.pid) && !on ? " (déjà choisi pour une autre réponse)" : ""}">${esc(a.name)}</button>`;
     }).join("");
     return `<div class="ms-slot ${msPicks[s.i] ? "picked" : ""}"${GameFx.fx("rise", msKey(g, `slot${s.i}`), 80 * s.i)}>${msKill(g, s)}<div class="ms-slot-t">« ${esc(s.text)} »</div><div class="ms-names">${names}</div></div>`;
   }).join("");
@@ -117,8 +126,9 @@ function msGuessHtml(g) {
       ${msChip(msUnmask === true, `data-ms-unmask="1"`, "🙋 Je lève le masque")}${msChip(msUnmask === false, `data-ms-unmask="0"`, "🎭 Je reste masqué")}</div></div>` : "";
   const ready = !v.has_answer || msUnmask !== null;
   const picked = Object.keys(msPicks).length;
-  return `${msQuestion(g, true)}<p class="artist ms-help">Touche le prénom de l'auteur sous chaque réponse. Un prénom ne va qu'avec une réponse.</p>
-    <div class="ms-slots">${slots}</div>${mask}
+  const late = v.late ? `<p class="artist ms-help">Tu es arrivé pendant cette question : devine si tu veux, la révélation ne t'attend pas.</p>` : "";
+  return `${msQuestion(g, true)}${late}${mask}<p class="artist ms-help">Touche le prénom de l'auteur sous chaque réponse. Un prénom ne va qu'avec une réponse.</p>
+    <div class="ms-slots">${slots}</div>
     <button class="lk-main" data-ms-send ${ready ? "" : "disabled"}>📨 Envoyer mes choix${picked ? ` (${picked} deviné${picked > 1 ? "s" : ""})` : ""}</button>
     ${ready ? "" : `<p class="artist ms-help">Choisis d'abord : lever ou garder ton masque.</p>`}
     ${g.is_host && v.can_reveal ? `<button class="lk-sub" data-gact="msreveal" style="width:100%;margin-top:8px">👁 Révéler sans attendre</button>` : ""}`;
@@ -143,6 +153,14 @@ function msRevealHtml(g) {
     ${g.is_host ? `<button class="lk-main" data-gact="next">${last ? "📊 Voir le bilan" : "▶︎ Question suivante"}</button>` : ""}`;
 }
 
+// Classement de fin (Masque et Reflet) : à score égal, même rang et même médaille.
+function rankingHtml(rows) {
+  return rows.map((r, i) => {
+    const rank = rows.findIndex((x) => x.score === r.score);
+    return `<div class="track"><div class="meta"><div class="title">${["🥇", "🥈", "🥉"][rank] || `${rank + 1}.`} ${esc(r.name)}</div></div><b>${r.score} pt${r.score > 1 ? "s" : ""}</b></div>`;
+  }).join("");
+}
+
 function msAward(icon, title, names, detail, key) {
   if (!names?.length) return "";
   return `<div class="db-award"${GameFx.fx("rise", key)}><div class="db-award-k">${icon} ${title}</div><div class="db-award-t">${names.map(esc).join(", ")}</div><div class="artist">${detail}</div></div>`;
@@ -150,7 +168,7 @@ function msAward(icon, title, names, detail, key) {
 
 function msEndHtml(g) {
   const v = g.masque, s = v.summary || {};
-  const ranking = (s.ranking || []).map((r, i) => `<div class="track"><div class="meta"><div class="title">${["🥇", "🥈", "🥉"][i] || `${i + 1}.`} ${esc(r.name)}</div></div><b>${r.score} pt${r.score > 1 ? "s" : ""}</b></div>`).join("");
+  const ranking = rankingHtml(s.ranking || []);
   const recap = (v.history || []).map((h) => `<li>${esc(h.q)}<ul>${h.rows.filter((r) => !r.hidden).map((r) => `<li>« ${esc(r.text)} » <span>${r.open ? `— ${esc(r.author)}` : "— 🎭"}</span></li>`).join("")}</ul></li>`).join("");
   return `<div class="lk-end-k">Bilan · ${s.questions || 0} question${s.questions > 1 ? "s" : ""}</div>
     ${msAward("🔎", "Le plus perspicace", s.sharp, "A trouvé le plus d'auteurs", `ms:${g.id}:end:sharp`)}
@@ -164,6 +182,12 @@ function msEndHtml(g) {
 function masqueHtml(g) {
   if (!g.masque) return "";
   msSyncRound(g);
+  if (g.phase !== "write") msCloseSheet();  // les réponses sont apparues : la feuille d'écriture n'a plus lieu d'être
+  if (g.phase === "guess" && g.masque.slots) {  // choix devenus impossibles (réponse retirée, prénom disparu) : oubliés
+    const ok = new Set(g.masque.slots.filter((s) => !s.hidden && !s.mine).map((s) => String(s.i)));
+    const names = new Set((g.masque.authors || []).map((a) => a.pid));
+    msPicks = Object.fromEntries(Object.entries(msPicks).filter(([s, p]) => ok.has(s) && names.has(p)));
+  }
   if (g.phase === "write") return msWriteHtml(g);
   if (g.phase === "guess") return msGuessHtml(g);
   if (g.phase === "reveal" && g.masque.result) return msRevealHtml(g);
@@ -220,11 +244,12 @@ document.addEventListener("click", (ev) => {
     const next = Object.fromEntries(Object.entries(msPicks).filter(([s, p]) => p !== pid && s !== slot));
     if (msPicks[slot] !== pid) next[slot] = pid;
     msPicks = next;
+    msSave();
     haptic(12);
     return renderGame(game);
   }
   const mask = ev.target.closest("[data-ms-unmask]");
-  if (mask) { msUnmask = mask.dataset.msUnmask === "1"; haptic(15); return renderGame(game); }
+  if (mask) { msUnmask = mask.dataset.msUnmask === "1"; msSave(); haptic(15); return renderGame(game); }
   const send = ev.target.closest("[data-ms-send]");
   if (send) return pressed(send, gameAction("msguess", { settings: { picks: msPicks, unmask: !!msUnmask } }));
   const hide = ev.target.closest("[data-ms-hide]");

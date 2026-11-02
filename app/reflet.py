@@ -16,7 +16,8 @@ from .masque_cards import REFLET_CARDS
 
 CHOICES = 3  # affirmations proposées à qui est devant le miroir
 TURNS = (1, 2)  # passages devant le miroir par joueur
-MIN_PLAYERS = 3  # au moins deux votants
+MIN_PLAYERS = 4  # au moins trois votants : à deux, chacun déduirait le vote de l'autre
+MIN_VOTES = 2  # en dessous, le décompte dévoilerait le vote du seul votant : il n'est pas publié
 POINT_EXACT, POINT_CLOSE = 3, 1
 
 
@@ -26,7 +27,7 @@ class RefletError(ValueError):
 
 def state(g: dict) -> dict:
     return g.setdefault("reflet", {
-        "turns": TURNS[0], "used": [], "seat": -1, "done_turns": 0, "options": [], "card": None, "bet": None,
+        "turns": TURNS[0], "used": [], "seat": -1, "passes": {}, "options": [], "card": None, "bet": None,
         "votes": {}, "skipped": [], "result": None, "scores": {}, "history": [], "swapped": False,
     })
 
@@ -44,7 +45,7 @@ def configure(g: dict, settings: dict):
     if g["phase"] not in ("lobby", "end"):
         raise RefletError("Les réglages se changent avant la partie")
     turns = settings.get("turns", S["turns"])
-    if turns not in TURNS:
+    if isinstance(turns, bool) or not isinstance(turns, int) or turns not in TURNS:
         raise RefletError("Nombre de passages inconnu")
     S["turns"] = turns
 
@@ -53,11 +54,17 @@ def _total_turns(g: dict) -> int:
     return state(g)["turns"] * len(g["players"])
 
 
+def _done_turns(g: dict) -> int:
+    """Passages faits par les joueurs encore là (un joueur parti ne compte plus, un nouveau venu a les siens à faire)."""
+    S = state(g)
+    return sum(min(S["passes"].get(p["id"], 0), S["turns"]) for p in g["players"])
+
+
 def start(g: dict, rng=random):
     if len(g["players"]) < MIN_PLAYERS:
         raise RefletError(f"Il faut au moins {MIN_PLAYERS} joueurs")
     S = state(g)
-    S.update(seat=-1, done_turns=0, scores={}, history=[], result=None)
+    S.update(seat=-1, passes={}, scores={}, history=[], result=None)
     _next_seat(g, rng)
 
 
@@ -67,14 +74,26 @@ def _draw(S: dict, rng, k: int) -> list[int]:
         S["used"] = []
         fresh = list(range(len(REFLET_CARDS)))
     picks = rng.sample(fresh, k)
+    light = [i for i in fresh if REFLET_CARDS[i][0] == "leger" and i not in picks]
+    if light and not any(REFLET_CARDS[i][0] == "leger" for i in picks):
+        picks[-1] = rng.choice(light)  # toujours une porte de sortie légère parmi les trois
     S["used"].extend(picks)
     return picks
 
 
 def _next_seat(g: dict, rng=random):
+    """Le prochain joueur, dans l'ordre de la table, qui n'a pas fait tous ses passages ; sinon, le bilan. Ainsi
+    personne ne passe deux fois de trop ni jamais, même si des joueurs arrivent ou partent en cours de partie."""
     S = state(g)
-    S["seat"] = (S["seat"] + 1) % len(g["players"])
-    S.update(options=_draw(S, rng, CHOICES), card=None, bet=None, votes={}, skipped=[], result=None, swapped=False)
+    n = len(g["players"])
+    order = [(S["seat"] + k) % n for k in range(1, n + 1)] if n else []
+    seat = next((i for i in order if S["passes"].get(g["players"][i]["id"], 0) < S["turns"]), None)
+    if seat is None:
+        g["phase"] = "end"
+        return
+    S["seat"] = seat
+    S.update(options=_draw(S, rng, CHOICES), card=None, bet=None, votes={}, skipped=[], result=None, swapped=False,
+             electors=None)
     g["phase"] = "pick"
     g["round"] = g.get("round", 0) + 1
 
@@ -85,8 +104,13 @@ def mirror(g: dict) -> dict | None:
 
 
 def _voters(g: dict) -> list[dict]:
+    """Ceux qui votent : tous sauf le joueur devant le miroir ; une fois le pari fait, seulement ceux d'alors."""
+    S = state(g)
     m = mirror(g)
-    return [p for p in g["players"] if not m or p["id"] != m["id"]]
+    out = [p for p in g["players"] if not m or p["id"] != m["id"]]
+    if g["phase"] in ("vote", "result") and S.get("electors") is not None:
+        out = [p for p in out if p["id"] in S["electors"]]
+    return out
 
 
 def pick(g: dict, gid: str, index, bet):
@@ -95,15 +119,14 @@ def pick(g: dict, gid: str, index, bet):
     m = mirror(g)
     if g["phase"] != "pick" or not m or m["id"] != gid:
         raise RefletError("Ce n'est pas ton tour")
-    try:
-        index, bet = int(index), int(bet)
-    except (TypeError, ValueError):
-        raise RefletError("Choix inconnu") from None
+    if any(isinstance(x, bool) or not isinstance(x, int) for x in (index, bet)):
+        raise RefletError("Choix inconnu")
     if not 0 <= index < len(S["options"]):
         raise RefletError("Choix inconnu")
     if not 0 <= bet <= len(_voters(g)):
         raise RefletError(f"Parie entre 0 et {len(_voters(g))}")
-    S.update(card=S["options"][index], bet=bet)
+    # Les votants sont ceux pour qui le pari a été fait : un retardataire votera au tour suivant.
+    S.update(card=S["options"][index], bet=bet, electors=[p["id"] for p in _voters(g)])
     g["phase"] = "vote"
 
 
@@ -123,6 +146,8 @@ def vote(g: dict, gid: str, yes):
     m = mirror(g)
     if g["phase"] != "vote" or not _player(g, gid) or (m and m["id"] == gid):
         raise RefletError("Pas maintenant")
+    if not any(p["id"] == gid for p in _voters(g)):
+        raise RefletError("Tu voteras au prochain tour")
     if gid in S["votes"]:
         raise RefletError("Tu as déjà voté")
     S["votes"][gid] = bool(yes)
@@ -150,17 +175,22 @@ def settle(g: dict):
     if g["phase"] != "vote":
         raise RefletError("Pas maintenant")
     m = mirror(g)
-    yes = sum(1 for v in S["votes"].values() if v)
     voters = len(S["votes"])
+    yes = sum(1 for v in S["votes"].values() if v) if voters >= MIN_VOTES else 0
     # Le pari se compare aux vrais votants : un absent passé compte comme « non » s'il avait été parié.
     gap = abs(S["bet"] - yes)
-    points = POINT_EXACT if gap == 0 else POINT_CLOSE if gap == 1 else 0
+    # Trop peu de votes (votants passés ou partis) : rien n'est publié ni compté, l'anonymat passe avant le jeu.
+    hidden = voters < MIN_VOTES
+    points = 0 if hidden else POINT_EXACT if gap == 0 else POINT_CLOSE if gap == 1 else 0
     if m and points:
         S["scores"][m["id"]] = S["scores"].get(m["id"], 0) + points
-    S["result"] = {"yes": yes, "no": voters - yes, "voters": voters, "bet": S["bet"], "gap": gap, "points": points}
-    S["history"].append({"name": m["name"] if m else "?", "gid": m["id"] if m else "", "text": REFLET_CARDS[S["card"]][1],
-                         **S["result"]})
-    S["done_turns"] += 1
+    # Le nom et le pid du joueur devant le miroir restent dans le résultat : s'il part, rien ne glisse vers un autre.
+    S["result"] = {"yes": yes, "no": 0 if hidden else voters - yes, "voters": 0 if hidden else voters, "bet": S["bet"],
+                   "gap": 0 if hidden else gap, "points": points, "hidden": hidden,
+                   "name": m["name"] if m else "?", "pid": m["pid"] if m else ""}
+    S["history"].append({"gid": m["id"] if m else "", "text": REFLET_CARDS[S["card"]][1], **S["result"]})
+    if m:
+        S["passes"][m["id"]] = S["passes"].get(m["id"], 0) + 1
     g["phase"] = "result"
 
 
@@ -168,9 +198,6 @@ def next_step(g: dict, rng=random):
     S = state(g)
     if g["phase"] != "result":
         raise RefletError("Pas maintenant")
-    if S["done_turns"] >= _total_turns(g):
-        g["phase"] = "end"
-        return
     _next_seat(g, rng)
 
 
@@ -183,8 +210,8 @@ def leave(g: dict, gid: str, index: int, rng=random):
         S["skipped"].remove(gid)
     if g["phase"] in ("lobby", "end"):
         return
-    if len(g["players"]) < 2:
-        g["phase"] = "end"
+    if len(g["players"]) < MIN_PLAYERS:
+        g["phase"] = "end"  # à deux, un seul votant : son vote ne serait plus anonyme
         return
     was_mirror = index == S["seat"]
     if index <= S["seat"]:
@@ -213,9 +240,13 @@ def view(g: dict, gid: str, lead: bool) -> dict:
     S = state(g)
     m = mirror(g)
     mine = bool(m and m["id"] == gid)
-    out = {"turns": S["turns"], "turn_list": list(TURNS), "done_turns": S["done_turns"], "total": _total_turns(g),
+    if g["phase"] == "result" and S["result"]:  # le joueur du résultat, même s'il est parti depuis
+        shown = {"pid": S["result"]["pid"], "name": S["result"]["name"]}
+    else:
+        shown = m and {"pid": m["pid"], "name": m["name"]}
+    out = {"turns": S["turns"], "turn_list": list(TURNS), "done_turns": _done_turns(g), "total": _total_turns(g),
            "playing": bool(_player(g, gid)), "min_players": MIN_PLAYERS,
-           "mirror": m and {"pid": m["pid"], "name": m["name"]}, "is_mirror": mine,
+           "mirror": shown, "is_mirror": mine and g["phase"] in ("pick", "vote"),
            "voters": len(_voters(g)),
            "scores": [{"pid": p["pid"], "name": p["name"], "score": S["scores"].get(p["id"], 0)} for p in g["players"]]}
     if g["phase"] == "pick":
@@ -227,7 +258,8 @@ def view(g: dict, gid: str, lead: bool) -> dict:
         out["card"] = REFLET_CARDS[S["card"]][1]
     if g["phase"] == "vote":
         out["my_vote"] = gid in S["votes"]  # voté ou pas, jamais quoi : le vote est secret
-        out["can_vote"] = bool(_player(g, gid)) and not mine and gid not in S["votes"]
+        out["can_vote"] = any(p["id"] == gid for p in _voters(g)) and gid not in S["votes"]
+        out["late"] = bool(_player(g, gid)) and not mine and not out["can_vote"] and gid not in S["votes"]
         out["waiting"] = [{"pid": p["pid"], "name": p["name"]} for p in _voters(g)
                           if p["id"] not in S["votes"] and p["id"] not in S["skipped"]]
         out["done"] = len(S["votes"])

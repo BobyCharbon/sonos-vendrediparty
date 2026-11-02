@@ -98,7 +98,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 .toast {
   position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
   background: #222; color: #fff; padding: 12px 18px; border-radius: 12px; max-width: calc(100% - 32px);
-  box-shadow: 0 8px 30px rgba(0,0,0,.4); transition: opacity .2s; z-index: 10;
+  box-shadow: 0 8px 30px rgba(0,0,0,.4); transition: opacity .2s; z-index: 30;  /* au-dessus des feuilles (.g-modal : 20) */
 }
 .toast.ok { background: #145a3c; }
 .toast.err { background: #6b1f2a; }

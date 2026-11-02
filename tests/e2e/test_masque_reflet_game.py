@@ -25,13 +25,14 @@ def phones(browser):
     assert not errors, '\n'.join(errors)
 
 
-def table(phones, kind):
+def table(phones, kind, extra=0):
     alice, bob, chloe = phones('Alice'), phones('Bob', 'android'), phones('Chloe')
+    others = [phones(f'Dan{i}') for i in range(extra)]
     code = alice.create(kind)
-    bob.join(code)
-    chloe.join(code)
-    wait_state(alice, lambda g: len(g['players']) == 3)
-    return alice, bob, chloe
+    for p in (bob, chloe, *others):
+        p.join(code)
+    wait_state(alice, lambda g: len(g['players']) == 3 + extra)
+    return (alice, bob, chloe, *others)
 
 
 def write(phone, text):
@@ -79,7 +80,7 @@ def test_masque_secret_answers_guesses_and_a_lifted_mask(phones):
 
 
 def test_reflet_pick_bet_secret_votes_and_the_counter(phones):
-    alice, bob, chloe = table(phones, 'reflet')
+    alice, bob, chloe, dan = table(phones, 'reflet', extra=1)
     alice.tap('[data-gact="start"]')
     expect(alice.page.locator('[data-rf-pick]')).to_have_count(3)
     expect(bob.page.locator('.rf-mirror')).to_contain_text('Alice')
@@ -94,8 +95,9 @@ def test_reflet_pick_bet_secret_votes_and_the_counter(phones):
     bob.tap('[data-rf-vote="1"]')
     expect(bob.page.locator('.lk-done')).to_contain_text('Vote enregistré')
     chloe.tap('[data-rf-vote="0"]')
+    dan.tap('[data-rf-vote="0"]')
     for p in (alice, bob, chloe):
-        expect(p.page.locator('.rf-count-n')).to_contain_text('1/2')
+        expect(p.page.locator('.rf-count-n')).to_contain_text('1/3')
         expect(p.page.locator('.lk-win-t')).to_have_text('🎯 Pile dans le mille !')
     alice.tap('[data-gact="next"]')
     expect(bob.page.locator('[data-rf-pick]')).to_have_count(3)  # au tour de Bob devant le miroir

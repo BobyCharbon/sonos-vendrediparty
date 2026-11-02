@@ -75,6 +75,9 @@ struct RefletTV: View {
             case "result":
                 card
                 let r = V["result"]
+                if r["hidden"].bool == true {
+                    Text("🤫 Trop peu de votes : le résultat reste secret").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.muted)
+                } else {
                 HStack(alignment: .lastTextBaseline, spacing: 30) {
                     Text("\(r["yes"].int ?? 0)/\(r["voters"].int ?? 0)").font(.system(size: 140, weight: .black)).foregroundStyle(TV.mint)
                         .contentTransition(.numericText())
@@ -82,6 +85,7 @@ struct RefletTV: View {
                         Text("disent « oui »").font(.title2.bold())
                         Text("Pari : \(r["bet"].int ?? 0) · \(Self.verdict(r["gap"].int ?? 0))").font(.title2).foregroundStyle(TV.muted)
                     }
+                }
                 }
             default:
                 EmptyView()

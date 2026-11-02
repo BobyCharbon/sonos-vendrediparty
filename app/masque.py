@@ -63,12 +63,12 @@ def configure(g: dict, settings: dict):
         raise MasqueError("Les réglages se changent avant la partie")
     cats = settings.get("cats", S["cats"])
     levels = settings.get("levels", S["levels"])
-    if not isinstance(cats, list) or not cats or any(c not in CATS for c in cats):
+    if not isinstance(cats, list) or not cats or any(not isinstance(c, str) or c not in CATS for c in cats):
         raise MasqueError("Garde au moins une catégorie")
-    if not isinstance(levels, list) or not levels or any(lv not in LEVELS for lv in levels):
+    if not isinstance(levels, list) or not levels or any(not isinstance(lv, str) or lv not in LEVELS for lv in levels):
         raise MasqueError("Garde au moins un niveau")
     count = settings.get("count", S["count"])
-    if count not in COUNTS:
+    if isinstance(count, bool) or not isinstance(count, int) or count not in COUNTS:
         raise MasqueError("Nombre de questions inconnu")
     chosen = {"cats": list(dict.fromkeys(cats)), "levels": list(dict.fromkeys(levels))}
     if not deck(chosen):
@@ -91,9 +91,10 @@ def _deal(g: dict, rng=random):
     if not cards:
         raise MasqueError("Aucune question pour ce choix")
     fresh = [i for i in cards if i not in S["used"]]
-    if not fresh:  # paquet épuisé : on le remélange
+    if not fresh:  # paquet épuisé : on le remélange, sans retomber sur la question qu'on vient de voir
+        last = S["used"][-1] if S["used"] else None
         S["used"] = [i for i in S["used"] if i not in cards]
-        fresh = cards
+        fresh = [i for i in cards if i != last] or cards
     pick = rng.choice(fresh)
     S["used"].append(pick)
     cat, level, text = MASQUE_CARDS[pick]
@@ -103,8 +104,13 @@ def _deal(g: dict, rng=random):
     g["round"] = g.get("round", 0) + 1
 
 
+INVISIBLE = {0x200B, 0x200C, 0x200D, 0x200E, 0x200F, 0x2060, 0xFEFF, *range(0x202A, 0x202F), *range(0x2066, 0x206A)}
+
+
 def _clean(text) -> str:
-    return " ".join(str(text or "").split())[:MAX_ANSWER]
+    """Une phrase lisible : sans caractères de contrôle ni invisibles (une réponse « vide » ne passe pas)."""
+    text = "".join(c for c in str(text or "") if ord(c) >= 32 and ord(c) not in INVISIBLE)
+    return " ".join(text.split())[:MAX_ANSWER]
 
 
 def write(g: dict, gid: str, text, rng=random):
@@ -141,6 +147,9 @@ def show(g: dict, rng=random):
         raise MasqueError(f"Il faut au moins {MIN_PLAYERS} réponses")
     rng.shuffle(authors)
     S["slots"] = [{"gid": a, "text": S["answers"][a]} for a in authors]
+    # Prénoms proposés figés à cet instant : un départ ou un retrait ne doit rien trahir par élimination.
+    S["authors"] = [{"gid": p["id"], "pid": p["pid"], "name": p["name"]} for p in g["players"] if p["id"] in S["answers"]]
+    S["guessers"] = [p["id"] for p in g["players"]]  # un retardataire peut deviner, mais on ne l'attend pas
     g["phase"] = "guess"
 
 
@@ -149,8 +158,11 @@ def _mine(S: dict, gid: str) -> int | None:
 
 
 def _everyone_sent(g: dict) -> bool:
+    """Tous ceux qui étaient là quand les réponses sont apparues (et encore là) ont envoyé leurs choix."""
     S = state(g)
-    return bool(g["players"]) and all(S["sent"].get(p["id"]) for p in g["players"])
+    here = {p["id"] for p in g["players"]}
+    expected = [x for x in S.get("guessers") or here if x in here]
+    return bool(expected) and all(S["sent"].get(x) for x in expected)
 
 
 def guess(g: dict, gid: str, picks, unmask=None):
@@ -162,25 +174,27 @@ def guess(g: dict, gid: str, picks, unmask=None):
         raise MasqueError("Tes choix sont déjà envoyés")
     if not isinstance(picks, dict):
         raise MasqueError("Choix inconnus")
-    mine, authors = _mine(S, gid), {s["gid"] for s in S["slots"]}
-    pids = {p["pid"]: p["id"] for p in g["players"]}
+    mine = _mine(S, gid)
+    pids = {a["pid"]: a["gid"] for a in S.get("authors") or []}
     clean: dict[str, str] = {}
     for slot, pid in picks.items():
         try:
             index = int(slot)
         except (TypeError, ValueError):
             raise MasqueError("Choix inconnus") from None
-        if not 0 <= index < len(S["slots"]) or index == mine or index in S["hidden"]:
+        if not isinstance(pid, str) or not 0 <= index < len(S["slots"]) or index == mine:
             raise MasqueError("Choix inconnus")
         who = pids.get(pid)
-        if who is None or who == gid or who not in authors:
+        if who == gid:
             raise MasqueError("Ce joueur n'a pas répondu")
+        if who is None or index in S["hidden"]:
+            continue  # réponse retirée ou prénom inconnu entre-temps : ce choix ne compte pas, l'envoi passe
         if who in clean.values():
             raise MasqueError("Un prénom ne va qu'avec une réponse")
         clean[str(index)] = who
     S["guesses"][gid] = clean
     if mine is not None:
-        S["unmask"][gid] = bool(unmask)
+        S["unmask"][gid] = unmask is True
     S["sent"][gid] = True
     if _everyone_sent(g):
         reveal(g)
@@ -252,9 +266,8 @@ def leave(g: dict, gid: str, rng=random):
         if len(S["answers"]) >= MIN_PLAYERS and all(p["id"] in S["answers"] for p in g["players"]):
             show(g, rng)
     elif g["phase"] == "guess":
-        mine = _mine(S, gid)
-        if mine is not None:
-            hide(g, mine)  # sa réponse sort du jeu avec lui
+        # Sa réponse reste en jeu, masquée (la retirer à son départ dirait à tous qu'elle était la sienne).
+        S["unmask"].pop(gid, None)
         if _everyone_sent(g):
             reveal(g)
 
@@ -280,6 +293,8 @@ def summary(g: dict) -> dict:
 
     mystery = {a: sum(v) / len(v) for a, v in guessed_about.items() if _player(g, a)}
     least = min(mystery.values(), default=None)
+    if least is not None and len(mystery) > 1 and all(v == least for v in mystery.values()):
+        least = None  # tout le monde à égalité : ce n'est un prix pour personne
     ranking = sorted(({"name": p["name"], "pid": p["pid"], "score": S["scores"].get(p["id"], 0)} for p in g["players"]),
                      key=lambda x: -x["score"])
     return {"ranking": ranking, "sharp": best(found), "open": best(opened),
@@ -309,13 +324,15 @@ def view(g: dict, gid: str, lead: bool) -> dict:
     if g["phase"] == "guess":
         mine = _mine(S, gid)
         # Les réponses sans leur auteur : chacun ne connaît que la sienne (il l'a écrite).
-        out["slots"] = [{"i": i, "text": s["text"], "hidden": i in S["hidden"], "mine": i == mine}
+        out["slots"] = [{"i": i, "text": None if i in S["hidden"] else s["text"], "hidden": i in S["hidden"], "mine": i == mine}
                         for i, s in enumerate(S["slots"])]
-        authors = {s["gid"] for s in S["slots"]}
-        out["authors"] = [{"pid": p["pid"], "name": p["name"]} for p in g["players"] if p["id"] in authors and p["id"] != gid]
+        out["authors"] = [{"pid": a["pid"], "name": a["name"]} for a in S.get("authors") or [] if a["gid"] != gid]
         out["sent"] = bool(S["sent"].get(gid))
-        out["has_answer"] = mine is not None
-        out["progress"] = [{"pid": p["pid"], "name": p["name"], "done": bool(S["sent"].get(p["id"]))} for p in g["players"]]
+        out["has_answer"] = mine is not None and mine not in S["hidden"]  # réponse retirée : plus de masque à choisir
+        expected = set(S.get("guessers") or [])
+        out["progress"] = [{"pid": p["pid"], "name": p["name"], "done": bool(S["sent"].get(p["id"]))} for p in g["players"]
+                           if not expected or p["id"] in expected]
+        out["late"] = bool(me) and bool(expected) and gid not in expected
         out["can_reveal"] = lead and any(S["sent"].values())
     if g["phase"] == "reveal":
         out["result"] = _public(S["result"])

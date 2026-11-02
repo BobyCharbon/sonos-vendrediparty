@@ -61,6 +61,10 @@ GAME_ICONS.never = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" s
 GAME_ICONS.roulette = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="27" r="17"/><circle cx="24" cy="27" r="3"/><path d="M24 10v14M24 30v14M7 27h14M27 27h14M12 15l10 10M26 29l10 10M36 15L26 25M22 29L12 39"/><path d="M20 3h8l-4 6z"/></svg>`;
 GAME_ICONS.blackjack = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="21" height="29" rx="3" transform="rotate(-10 15.5 25.5)"/><rect x="21" y="8" width="21" height="29" rx="3" transform="rotate(8 31.5 22.5)"/><path d="M31.5 15.5c-2.8 2.8-5.5 4.6-5.5 7.2a2.7 2.7 0 0 0 4.6 1.9l-.9 3h3.6l-.9-3a2.7 2.7 0 0 0 4.6-1.9c0-2.6-2.7-4.4-5.5-7.2z"/></svg>`;
 GAME_ICONS.beerpong = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 18h14l-2.5 22h-9z"/><path d="M26 18h14l-2.5 22h-9z"/><circle cx="24" cy="8" r="4.5" fill="currentColor" stroke="none"/></svg>`;
+// Jeux « Parler vrai » : icônes ici (l'accueil se dessine avant le chargement de psy.js, masque.js, reflet.js).
+GAME_ICONS.masque = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 14c6-3 12-4 18-4s12 1 18 4c0 14-6 24-18 24S6 28 6 14z"/><path d="M14 21c2-2 5-2 7 0"/><path d="M27 21c2-2 5-2 7 0"/><path d="M19 30c3 2 7 2 10 0"/></svg>`;
+GAME_ICONS.reflet = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="24" cy="20" rx="13" ry="15"/><path d="M24 35v8"/><path d="M16 43h16"/><path d="M18 14c2-3 5-4 8-3"/></svg>`;
+GAME_ICONS.psy = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="22" r="14"/><path d="M18 18c0-3 2.7-5 6-5s6 2 6 5c0 4-6 4-6 8"/><path d="M24 31h.01"/><path d="M16 40h16"/></svg>`;
 GAME_ICONS.casino = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="24" r="19"/><circle cx="24" cy="24" r="10"/><path d="M24 5v9M24 34v9M5 24h9M34 24h9M10.6 10.6l6.3 6.3M31.1 31.1l6.3 6.3M37.4 10.6l-6.3 6.3M16.9 31.1l-6.3 6.3"/><circle cx="24" cy="24" r="2.5" fill="currentColor"/><circle cx="36" cy="8" r="3" fill="currentColor" stroke="none"/></svg>`;
 GAME_ICONS.divan = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 24v-7a5 5 0 0 1 5-5h18a5 5 0 0 1 5 5v7"/><path d="M6 24a4 4 0 0 1 8 0v4h20v-4a4 4 0 0 1 8 0v10H6z"/><path d="M10 34v4M38 34v4"/></svg>`;
 GAME_ICONS.tmc = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="15" cy="15" r="6"/><circle cx="33" cy="15" r="6"/><path d="M4 38c1-7 5-11 11-11 3 0 5 1 7 3M44 38c-1-7-5-11-11-11-3 0-5 1-7 3"/><path d="M24 44s-6-3.6-6-7.6a3 3 0 0 1 6-1 3 3 0 0 1 6 1c0 4-6 7.6-6 7.6z"/></svg>`;
@@ -541,7 +545,7 @@ document.getElementById("gamesRoot").innerHTML = `
           ${helpBtn("reflet")}
         </div>
         <p class="g-desc">Devant le miroir, choisis une affirmation sur toi (« On me confie facilement ses secrets ») et parie combien d'amis diront oui. Ils votent en secret, le compteur monte… puis on en parle.</p>
-        <div class="g-chips"><span>3+ joueurs</span><span>Sans alcool</span><span>Chacun son téléphone</span><span>Votes anonymes</span></div>
+        <div class="g-chips"><span>4+ joueurs</span><span>Sans alcool</span><span>Chacun son téléphone</span><span>Votes anonymes</span></div>
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="reflet">Créer une partie</button>
       </div>
@@ -804,7 +808,10 @@ const GAME_PHASES = { countdown: "Départ imminent", lobby: "Inscriptions", word
 const phaseLabel = (g) => (g.type === "roulette" || isBJ(g) || g.type === "casino") && g.phase === "lobby" ? "Préparation"
   : g.type === "president" && g.phase === "exchange" ? "Échange des cartes"
   : g.type === "president" && g.phase === "end" ? "Classement"
-  : g.type === "casino" && g.phase === "bet" ? "Faites vos jeux" : GAME_PHASES[g.phase];
+  : g.type === "casino" && g.phase === "bet" ? "Faites vos jeux"
+  : g.type === "masque" ? { write: "Écriture en secret", guess: "Qui a écrit quoi ?", reveal: "Les masques tombent" }[g.phase] || GAME_PHASES[g.phase]
+  : g.type === "reflet" ? { pick: "Devant le miroir", vote: "Vote secret", result: "Le reflet" }[g.phase] || GAME_PHASES[g.phase]
+  : GAME_PHASES[g.phase];
 const WINNERS = { civils: "Les civils ont gagné 🎉", impostors: "Les undercovers ont gagné 🕵️", white: "Mr. White a trouvé le mot et gagne 🎩" };
 
 async function gapi(path, body) {
@@ -1043,7 +1050,7 @@ function renderGame(g) {
   renderCasino(g);  // avant le texte : il dépend de l'état de la bille (en train de rouler ou arrêtée)
   const title = `<div class="g-head g-play-head"><div class="g-icon">${GAME_ICONS[g.type] || ""}</div>
     <div class="g-meta"><div class="g-title">${esc(g.name)}</div>
-    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${phaseLabel(g)}${g.round && g.phase !== "lobby" ? ` · ${{ undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte", tmc: "duo", psy: "test" }[g.type] || "question"} ${g.round}` : ""} · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
+    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${phaseLabel(g)}${g.round && g.phase !== "lobby" ? ` · ${{ undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte", tmc: "duo", psy: "test", reflet: "passage" }[g.type] || "question"} ${g.type === "masque" ? g.masque?.n : g.type === "reflet" ? Math.min((g.reflet?.done_turns || 0) + 1, g.reflet?.total || 1) : g.round}` : ""} · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
     ${helpBtn(g.type, true)}</div>`;
   const lastLine = g.last?.name ? `<p class="sub" style="margin:8px 0">${esc(g.last.name)} était <b>${esc(g.last.role)}</b>.${g.last.guess ? ` Mr. White a proposé « ${esc(g.last.guess)} »… raté !` : ""}</p>` : "";
   let body = "";

@@ -11,7 +11,6 @@ GAME_RULES.psy = `
   <p>Quand tout le monde a validé, l'animateur révèle : le profil de chacun (et son second), son score de logique, la répartition du groupe, la personne la plus logique… et les deux <b>âmes sœurs</b>, celles qui ont répondu le plus pareil.</p>
   <p>Un jeu pour se découvrir et en parler, pas un vrai test psychologique.</p>`;
 
-GAME_ICONS.psy = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="22" r="14"/><path d="M18 18c0-3 2.7-5 6-5s6 2 6 5c0 4-6 4-6 8"/><path d="M24 31h.01"/><path d="M16 40h16"/></svg>`;
 
 let psyAt = 0;        // question affichée sur ce téléphone
 let psyRound = "";    // partie et manche : on repart de la première question à chaque nouveau test

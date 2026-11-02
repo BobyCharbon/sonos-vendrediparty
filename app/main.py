@@ -2495,6 +2495,9 @@ def same_name(a: str, b: str) -> bool:
     return bool(key(a)) and key(a) == key(b)
 
 
+SECRET_SEAT_GAMES = ("masque", "reflet")
+
+
 def reclaim_seat(g: dict, guest_id: str, name: str, ip: str) -> str:
     """Joueur qui revient avec un autre identifiant (app installée ↔ Safari, navigation privée, stockage effacé…) :
     même prénom, et même appareil (même adresse) ou ancienne place inoccupée → il reprend sa place (points, rôle,
@@ -2507,6 +2510,10 @@ def reclaim_seat(g: dict, guest_id: str, name: str, ip: str) -> str:
     if games.player(g, guest_id) or guest_id in (g.get("aliases") or {}):
         return canonical_gid(g, guest_id)
     if guest_id in g.get("kicked", []):
+        return guest_id
+    # Jeux à réponses secrètes en cours : une place ne se reprend jamais par prénom (même réseau de la soirée), sinon un
+    # homonyme lirait la réponse secrète d'un joueur parti fermer son téléphone, ou lèverait le masque à sa place.
+    if g["type"] in SECRET_SEAT_GAMES and g["phase"] not in ("lobby", "end"):
         return guest_id
 
     def mine(p):

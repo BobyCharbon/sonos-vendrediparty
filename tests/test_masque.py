@@ -79,7 +79,6 @@ def test_cheating_guesses_are_refused():
     mine, other = slot_of(g, "p1"), slot_of(g, "p2")
     for picks in ({str(mine): pid(g, "h")},  # sa propre réponse
                   {str(other): pid(g, "p1")},  # soi-même comme auteur
-                  {str(other): "inconnu"},
                   {str(other): pid(g, "h"), str(slot_of(g, "p3")): pid(g, "h")},  # un prénom pour deux réponses
                   {"99": pid(g, "h")}, "pas un dict"):
         with pytest.raises(masque.MasqueError):
@@ -95,11 +94,10 @@ def test_the_host_can_remove_an_answer_and_reveal_without_waiting():
     bad = slot_of(g, "p3")
     masque.hide(g, bad)
     assert games.view(g, "p1")["masque"]["slots"][bad]["hidden"]
-    with pytest.raises(masque.MasqueError):
-        masque.guess(g, "p1", {str(bad): pid(g, "p3")})
     with pytest.raises(masque.MasqueError, match="Personne"):
         masque.reveal(g)
-    masque.guess(g, "p1", {}, unmask=False)
+    masque.guess(g, "p1", {str(bad): pid(g, "p3")}, unmask=False)  # choix sur une réponse retirée : ignoré, pas bloquant
+    assert g["masque"]["guesses"]["p1"] == {}
     masque.reveal(g)
     assert g["masque"]["result"][bad] == {"text": None, "hidden": True}
 
@@ -159,8 +157,9 @@ def test_a_player_leaving_never_blocks_the_game():
     for p in g["players"][:3]:
         masque.guess(g, p["id"], {}, unmask=True)
     gone = slot_of(g, "p3")
-    games.leave(g, "p3")  # le dernier qui devait choisir part : sa réponse sort, la révélation arrive
-    assert g["phase"] == "reveal" and g["masque"]["result"][gone]["hidden"]
+    games.leave(g, "p3")  # le dernier qui devait choisir part : la révélation arrive
+    row = g["masque"]["result"][gone]
+    assert g["phase"] == "reveal" and not row["hidden"] and not row["open"]  # sa réponse reste, masquée : rien ne le trahit
     games.leave(g, "p2")
     assert g["phase"] == "end"  # à deux, ce n'est plus un jeu
 
@@ -198,3 +197,57 @@ def test_actions_are_checked_by_the_server():
         for k in set(main.store.session.games) - before:
             main.store.session.games.pop(k, None)
         main._game_creations.clear()
+
+
+def test_malformed_settings_and_guesses_are_refused_cleanly():
+    g = games.new_game("masque", host="h", name="Léa")
+    for bad in ({"cats": [["toi"]]}, {"levels": [{"x": 1}]}, {"count": 5.0}, {"count": True}):
+        with pytest.raises(masque.MasqueError):
+            masque.configure(g, bad)
+    g = table()
+    everyone_writes(g)
+    other = slot_of(g, "p2")
+    for pick in (["x"], {"a": 1}, None):
+        with pytest.raises(masque.MasqueError):
+            masque.guess(g, "p1", {str(other): pick})
+
+
+def test_invisible_answers_are_refused_and_hidden_texts_never_leave_the_server():
+    g = table()
+    with pytest.raises(masque.MasqueError):
+        masque.write(g, "h", "​‍‮\x07 ")
+    everyone_writes(g)
+    bad = slot_of(g, "p3")
+    masque.hide(g, bad)
+    assert games.view(g, "p1")["masque"]["slots"][bad]["text"] is None
+
+
+def test_a_seat_is_never_taken_back_by_name_during_a_secret_game():
+    g = table()
+    assert main.reclaim_seat(g, "intrus-0000000001", "Ami1", "") == "intrus-0000000001"
+
+
+def test_a_pick_made_impossible_never_blocks_sending_and_names_stay_put():
+    # Retour des tests : le prénom choisi part (ou la réponse est retirée) → l'envoi était refusé, la partie figée.
+    g = table(5)
+    everyone_writes(g)
+    target = slot_of(g, "p3")
+    names_before = [a["name"] for a in games.view(g, "p1")["masque"]["authors"]]
+    games.leave(g, "p3")
+    assert [a["name"] for a in games.view(g, "p1")["masque"]["authors"]] == names_before  # rien ne trahit p3
+    masque.hide(g, slot_of(g, "p4"))
+    masque.guess(g, "p1", {str(target): next(a["pid"] for a in g["masque"]["authors"] if a["gid"] == "p3")}, unmask=True)
+    assert g["masque"]["sent"]["p1"]
+    assert not games.view(g, "p4")["masque"]["has_answer"]  # réponse retirée : plus de masque à choisir
+    masque.guess(g, "p2", {}, unmask="false")
+    assert g["masque"]["unmask"]["p2"] is False  # seul un vrai oui lève le masque
+
+
+def test_reshuffling_never_shows_the_same_question_twice_in_a_row():
+    g = table()
+    S = g["masque"]
+    for seed in range(40):
+        before = S["q"]["text"]
+        S["used"] = list(masque.deck(S))  # paquet épuisé
+        masque.swap(g, random.Random(seed))
+        assert S["q"]["text"] != before
