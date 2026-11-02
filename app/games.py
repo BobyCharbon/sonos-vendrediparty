@@ -2646,7 +2646,7 @@ def room_merge(room: dict, g: dict):
     winner = None
     if g["type"] == "quiz" and g["players"]:
         rows = quiz.board(g)
-        winner = rows[0][0]["name"] if rows and rows[0][1]["n"] else None
+        winner = rows[0][0]["name"] if rows and rows[0][1]["pts"] > 0 else None  # personne n'a marqué : pas de gagnant
     if g["type"] == "likely":
         for gid, pts in likely.state(g)["scores"].items():
             room["rpts"][gid] = room["rpts"].get(gid, 0) + pts

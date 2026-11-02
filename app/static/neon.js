@@ -96,7 +96,7 @@ window.Neon = (() => {
     const dash=root.querySelector('.nk-dash');dash.disabled=!canPlay;
     // Éliminé (ou fin de manche) pendant qu'un doigt tient une commande : elle ne recevra plus le relâchement.
     if(!canPlay&&(dashId!==null||stickId!==null||dash.style.translate))reset();
-    const sig=JSON.stringify([phase,current.is_host,current.me?.pid,current.players,snap.mode,snap.teams,snap.scores,snap.winner,snap.notice]);
+    const sig=JSON.stringify([phase,current.is_host,current.me?.pid,current.players.map((p)=>({...p,online:undefined,seen_ago:undefined})),snap.mode,snap.teams,snap.scores,snap.winner,snap.notice]);
     if(sig===signature) return;
     signature=sig;
     const scorePlayers=phase==='lobby' ? current.players.map((p,i)=>({...p,color:colors[snap.mode==='duo'?snap.teams[p.pid]:i],group:snap.mode==='duo'?String(snap.teams[p.pid]):p.pid,alive:true})) : snap.fighters;

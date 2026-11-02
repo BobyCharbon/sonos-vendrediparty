@@ -2566,7 +2566,8 @@ function gameFlashes(g) {
   }
   if (g.type === "whoof" && g.phase === "results" && pPhase !== "results" && g.results?.length) {
     const max = Math.max(...g.results.map((r) => r.count)), top = g.results.filter((r) => r.count === max).map((r) => esc(r.name));
-    return pyrFlash("summit", `👑 ${top.join(" et ")}`, `${esc(g.question || "")}${g.options?.sips ? ` · ${sipWord(g.options.sips)} !` : ""}`);
+    const names = top.length > 4 ? `${top.slice(0, 3).join(", ")} et ${top.length - 3} autres` : top.length > 1 ? `${top.slice(0, -1).join(", ")} et ${top.at(-1)}` : top[0];
+    return pyrFlash("summit", `👑 ${names}`, `${esc(g.question || "")}${g.options?.sips ? ` · ${sipWord(g.options.sips)} !` : ""}`);
   }
   if (g.type === "never" && g.phase === "results" && pPhase !== "results" && g.results) {
     const did = g.results.filter((r) => r.answer === "yes").map((r) => esc(r.name));

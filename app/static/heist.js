@@ -92,7 +92,7 @@ window.Heist=(()=>{
       if(message&&!matchMedia('(prefers-reduced-motion: reduce)').matches)callout.animate([{transform:'scale(1.5)',opacity:0,offset:0},{transform:'scale(.95)',opacity:1,offset:.55},{transform:'none',opacity:1}],{duration:420,easing:'ease-out'});
     }
     callout.classList.toggle('hs-countdown',snap.phase==='countdown');
-    const sig=JSON.stringify([snap.phase,snap.round,snap.map.id,current.is_host,current.players,snap.success,snap.notice,loaded,loadFailed]);
+    const sig=JSON.stringify([snap.phase,snap.round,snap.map.id,current.is_host,current.players.map((p)=>({...p,online:undefined,seen_ago:undefined})),snap.success,snap.notice,loaded,loadFailed]);
     if(signature===sig)return;signature=sig;
     let html='',footer='';
     if(snap.phase==='lobby'||snap.phase==='results'){

@@ -958,7 +958,7 @@ body.pyr-full #game.g-qz { background: transparent; border: 0; padding: 0; box-s
 .qz-qtext { font: 800 clamp(1.25rem, 6vw, 1.75rem)/1.2 "Bricolage Grotesque", system-ui, sans-serif; }
 .qz-qtext.long { font-size: clamp(1.05rem, 4.8vw, 1.4rem); }
 @keyframes qz-in { from { opacity: 0; transform: translateY(14px) scale(.96) rotateX(12deg); } to { opacity: 1; transform: none; } }
-.qz-answers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; perspective: 800px; }
+.qz-answers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; perspective: 800px; }  /* minmax : une réponse longue ne pousse pas hors de l'écran */
 .qz-answers.long { grid-template-columns: 1fr; }
 .qz-ans { position: relative; display: flex; align-items: center; gap: 10px; min-height: 76px; padding: 12px; border: 0; border-radius: 18px; color: #fff; text-align: left;
   font: 700 1rem/1.2 system-ui, sans-serif; box-shadow: 0 6px 0 rgba(0,0,0,.28), 0 14px 24px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.25);
@@ -970,7 +970,7 @@ body.pyr-full #game.g-qz { background: transparent; border: 0; padding: 0; box-s
 .qz-ans:not(:disabled):active { transform: translateY(5px); box-shadow: 0 1px 0 rgba(0,0,0,.28), 0 6px 12px rgba(0,0,0,.35); }
 .qz-ans:disabled { cursor: default; }
 .qz-shape { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: rgba(0,0,0,.18); font-size: 1.1rem; }
-.qz-txt { flex: 1; }
+.qz-txt { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .qz-count { flex: none; min-width: 28px; padding: 3px 8px; border-radius: 999px; background: rgba(0,0,0,.25); font-weight: 800; text-align: center; }
 .qz-a { background: linear-gradient(160deg, #ff5470, #d4163a); }
 .qz-b { background: linear-gradient(160deg, #3d8bff, #1258c4); }
@@ -1415,7 +1415,7 @@ body[data-tab="music"] .tabs button.on .tab-ico { stroke: var(--accent-2); filte
 /* Paysage : réponses du quiz en 2 × 2, textes plus compacts, tout tient à l'écran */
 @media (orientation: landscape) and (max-height: 500px) {
   body.pyr-full #gamePlay > *:not(.g-hud) { max-width: 820px; }
-  .qz-answers, .qz-answers.long { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .qz-answers, .qz-answers.long { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .qz-ans, .qz-answers.long .qz-ans { min-height: 52px; padding: 8px 10px; font-size: .9rem; }
   .qz-qcard { padding: 10px 14px; margin-bottom: 8px; }
   .qz-qtext, .qz-qtext.long { font-size: 1.15rem; }
