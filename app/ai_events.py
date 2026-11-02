@@ -6,12 +6,13 @@ qui amène quoi, pot commun, discussion, notification.
 
 L'événement est écrit avec la session de la personne (règles de la base) : l'IA ne peut rien faire de plus qu'elle.
 Comme dans le formulaire web : créé en brouillon, puis publié (droit « publier directement ») ou proposé."""
+import base64
 import json
 import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from . import link_reader
+from . import covers as covers_mod, link_reader
 from .accounts import AccountError
 
 # Créer un événement demande de vraiment comprendre ce qui est dit (dates relatives, lieux, personnes) : le modèle le
@@ -286,9 +287,10 @@ class Options:
 
 
 class EventAssistant:
-    def __init__(self, assistant, accounts):
+    def __init__(self, assistant, accounts, covers=None):
         self.ai = assistant
         self.accounts = accounts
+        self.covers = covers  # couvertures gardées chez nous (app.covers) ; sans : lien direct vers l'image de la page
 
     def _rows(self, token: str, path: str) -> list[dict]:
         r = self.accounts._get("GET", path, token)
@@ -388,11 +390,31 @@ class EventAssistant:
         except (StopIteration, ValueError):
             raise AccountError(NOT_UNDERSTOOD) from None
         out = o.clean(raw, now)
-        if cover and not (previous or {}).get("cover_url"):
-            out["cover_url"] = cover
-        elif (previous or {}).get("cover_url"):
-            out["cover_url"] = safe_url(previous["cover_url"]) or ""
+        out["cover_url"] = self._cover(out, previous, cover, images if sources else None, bool(sources))
         return out
+
+    def _cover(self, d: dict, previous: dict | None, page_image: str, images: list[str] | None, shared: bool) -> str:
+        """Événement créé depuis un lien ou une capture : toujours une couverture. L'image de la page (gardée chez nous),
+        sinon la première capture, sinon une affiche générée (refaite quand le titre, la date ou le lieu changent)."""
+        kept = safe_url((previous or {}).get("cover_url")) or ""
+        if self.covers is None:
+            return kept or page_image
+        if kept and not self.covers.is_poster(kept):
+            return kept
+        if page_image:
+            try:
+                return self.covers.keep(link_reader.fetch_image(page_image))
+            except (link_reader.LinkError, covers_mod.CoverError):
+                pass  # image de la page introuvable ou illisible : capture, sinon affiche
+        for data in images or []:
+            try:
+                return self.covers.keep(base64.b64decode(str(data).partition(",")[2] or str(data), validate=False))
+            except (ValueError, covers_mod.CoverError):
+                continue
+        if not (shared or kept):
+            return ""
+        place = d["place_name"] or d["place_query"]
+        return self.covers.poster(d["title"] or "Soirée", covers_mod.when_text(d["start"], d["end"]), place)
 
     def _event_row(self, d: dict, o: Options, place: dict, uid: str, now: datetime) -> dict:
         audience = o.audiences.get(d["audience"])

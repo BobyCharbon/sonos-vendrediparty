@@ -17,6 +17,7 @@ import httpx
 URL = re.compile(r"https?://[^\s<>\"'«»]+", re.I)
 MAX_LINKS = 2
 MAX_BYTES = 1_500_000
+MAX_IMAGE = 8_000_000
 MAX_TEXT = 6000
 TIMEOUT = 8
 MAX_REDIRECTS = 4
@@ -47,7 +48,9 @@ def _public(host: str) -> bool:
     return bool(ips) and all(ip.is_global for ip in ips)
 
 
-def _fetch(url: str, client: httpx.Client) -> tuple[str, str]:
+def _download(url: str, client: httpx.Client, accept, limit: int, cut: bool = False) -> tuple[str, bytes, httpx.Response]:
+    """GET sûr : adresses publiques seulement, redirections revérifiées, taille bornée (cut : on garde le début au lieu
+    de refuser) ; accept(content-type) décide."""
     for _ in range(MAX_REDIRECTS + 1):
         parts = urlparse(url)
         if parts.scheme not in ("http", "https") or not parts.hostname:
@@ -60,16 +63,38 @@ def _fetch(url: str, client: httpx.Client) -> tuple[str, str]:
                 continue
             if r.status_code != 200:
                 raise LinkError(f"la page répond {r.status_code}")
-            kind = r.headers.get("content-type", "")
-            if "html" not in kind and "text/plain" not in kind:
-                raise LinkError("ce n'est pas une page web")
+            if not accept(r.headers.get("content-type", "")):
+                raise LinkError("type de contenu inattendu")
             body = b""
             for chunk in r.iter_bytes():
                 body += chunk
-                if len(body) > MAX_BYTES:
-                    break
-            return url, body[:MAX_BYTES].decode(r.encoding or "utf-8", errors="replace")
+                if len(body) > limit:
+                    if cut:  # page HTML : on garde le début (l'événement y est)
+                        return url, body[:limit], r
+                    raise LinkError("trop lourd")
+            return url, body, r
     raise LinkError("trop de redirections")
+
+
+def _fetch(url: str, client: httpx.Client) -> tuple[str, str]:
+    try:
+        final, body, r = _download(url, client, lambda kind: "html" in kind or "text/plain" in kind, MAX_BYTES, cut=True)
+    except LinkError as e:
+        raise LinkError("ce n'est pas une page web") if str(e) == "type de contenu inattendu" else e
+    return final, body.decode(r.encoding or "utf-8", errors="replace")
+
+
+def fetch_image(url: str, client: httpx.Client | None = None) -> bytes:
+    """L'image d'une page (affiche, flyer), téléchargée pour être gardée chez nous : 8 Mo au plus."""
+    own = client is None
+    client = client or httpx.Client(timeout=TIMEOUT, follow_redirects=False)
+    try:
+        return _download(url, client, lambda kind: kind.startswith("image/"), MAX_IMAGE)[1]
+    except httpx.HTTPError as e:
+        raise LinkError("image injoignable") from e
+    finally:
+        if own:
+            client.close()
 
 
 def _meta(page: str, *names: str) -> str:

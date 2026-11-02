@@ -33,6 +33,7 @@ from .group_chats import LEVELS as CHAT_LEVELS, PHOTO_MAX as CHAT_PHOTO_MAX, Gro
 from .tricount import CURRENCIES as TC_CURRENCIES, Tricount
 from .assistant import MAX_PHOTO as AI_PHOTO_MAX, Assistant, UsageLog
 from .ai_event_edit import EventEditor
+from .covers import Covers
 from .ai_events import MAX_IMAGE_B64 as AI_EVENT_MAX_IMAGE, MAX_TEXT as AI_EVENT_MAX_TEXT, MAX_TURNS as AI_EVENT_MAX_TURNS, EventAssistant
 from .places import MAX_QUERY as PLACE_MAX_QUERY, Places
 from .audit import AuditLog
@@ -1462,7 +1463,8 @@ tricount = Tricount(group_admin, lambda: guest_url())
 assistant = Assistant(accounts, UsageLog(DATA_DIR / "ai_usage.json"),
                       (lambda: __import__("anthropic").Anthropic(timeout=60.0)) if os.environ.get("ANTHROPIC_API_KEY") else None,
                       float(os.environ.get("AI_MONTHLY_BUDGET_USD", "3")), TC_CURRENCIES)
-event_assistant = EventAssistant(assistant, accounts)
+covers = Covers(DATA_DIR, PUBLIC_URL)
+event_assistant = EventAssistant(assistant, accounts, covers)
 event_editor = EventEditor(event_assistant)
 places = Places(os.environ.get("GOOGLE_MAPS_API_KEY", ""))  # sans clé : l'app cherche dans les Plans d'Apple
 account_auth = AccountAuth(accounts)
@@ -1980,6 +1982,15 @@ class AiEventDraft(MemberToken):
     draft: dict | None = None
     # Captures d'écran (affiche, page d'un site) en base64 : l'IA y lit l'événement. 3 au plus, réduites par l'app.
     images: list[Annotated[str, Field(max_length=AI_EVENT_MAX_IMAGE)]] = Field(default=[], max_length=3)
+
+
+@app.get("/covers/{name}")
+def event_cover(name: str):
+    """Couverture d'un événement (image de la page, capture ou affiche générée), réencodée en JPEG par app.covers."""
+    path = covers.path(name)
+    if path is None:
+        raise HTTPException(404, "Image introuvable")
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 @app.post("/api/account/ai/event/draft")

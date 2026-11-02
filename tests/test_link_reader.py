@@ -84,3 +84,54 @@ def test_an_unreadable_link_is_told_to_the_ai(tmp_path, monkeypatch):
     a, _, claude = make(tmp_path, READY)
     a.draft("ok", ["https://instagram.com/p/x"], None)
     assert "illisible (la page répond 403)" in json.dumps(claude.calls[0]["messages"], ensure_ascii=False)
+
+
+def test_a_shared_event_always_gets_a_cover_kept_on_our_server(tmp_path, monkeypatch):
+    """Image de la page téléchargée et gardée ; sans image : la capture ; sans rien : une affiche générée."""
+    import base64
+    import io
+
+    from PIL import Image
+
+    from app.covers import Covers
+
+    def png(color):
+        out = io.BytesIO()
+        Image.new("RGB", (800, 450), color).save(out, "PNG")
+        return out.getvalue()
+
+    store = Covers(tmp_path / "data", "https://party.test")
+    a, _, _ = make(tmp_path, {**READY, "title": "Swiss Tour"})
+    a.covers = store
+    # 1. la page a une image : téléchargée, réencodée, servie par nous
+    monkeypatch.setattr(lr, "read", lambda url: {"url": url, "title": "T", "description": "", "image": "https://cdn.x/f.png",
+                                                 "events": [], "tickets": [], "text": "x"})
+    monkeypatch.setattr(lr, "fetch_image", lambda url: png((200, 0, 80)))
+    d = a.draft("ok", ["https://site.ch/e"], None)
+    assert d["cover_url"].startswith("https://party.test/covers/") and not store.is_poster(d["cover_url"])
+    assert store.path(d["cover_url"].rsplit("/", 1)[1]).read_bytes()[:2] == b"\xff\xd8"  # JPEG propre
+    # 2. page sans image : la capture jointe devient la couverture
+    monkeypatch.setattr(lr, "read", lambda url: {"url": url, "title": "T", "description": "", "image": "", "events": [],
+                                                 "tickets": [], "text": "x"})
+    shot = "data:image/png;base64," + base64.b64encode(png((0, 120, 200))).decode()
+    d = a.draft("ok", ["https://site.ch/e"], None, images=[shot])
+    assert d["cover_url"].startswith("https://party.test/covers/") and not store.is_poster(d["cover_url"])
+    # 3. ni image ni capture : une affiche générée, refaite si le titre change
+    d = a.draft("ok", ["https://site.ch/e"], None)
+    assert store.is_poster(d["cover_url"])
+    a2, _, _ = make(tmp_path, {**READY, "title": "Autre titre"})
+    a2.covers = store
+    d2 = a2.draft("ok", ["https://site.ch/e", "Change le titre"], d)
+    assert store.is_poster(d2["cover_url"]) and d2["cover_url"] != d["cover_url"]
+    # Un événement décrit sans lien ni capture n'en reçoit pas d'office.
+    a3, _, _ = make(tmp_path, READY)
+    a3.covers = store
+    assert a3.draft("ok", ["Raclette samedi"], None)["cover_url"] == ""
+
+
+def test_the_cover_route_serves_only_our_files(tmp_path):
+    from app.covers import Covers
+    store = Covers(tmp_path, "https://party.test")
+    url = store.poster("Raclette", "samedi 7 novembre · 19:00", "Lutry")
+    name = url.rsplit("/", 1)[1]
+    assert store.path(name) and store.path("../../etc/passwd") is None and store.path("x.jpg") is None
