@@ -32,6 +32,7 @@ from .group_admin import ROLES as ADMIN_ROLES, GroupAdmin
 from .group_chats import LEVELS as CHAT_LEVELS, PHOTO_MAX as CHAT_PHOTO_MAX, GroupChats
 from .tricount import CURRENCIES as TC_CURRENCIES, Tricount
 from .assistant import MAX_PHOTO as AI_PHOTO_MAX, Assistant, UsageLog
+from .ai_event_edit import EventEditor
 from .ai_events import MAX_TEXT as AI_EVENT_MAX_TEXT, MAX_TURNS as AI_EVENT_MAX_TURNS, EventAssistant
 from .places import MAX_QUERY as PLACE_MAX_QUERY, Places
 from .audit import AuditLog
@@ -1462,6 +1463,7 @@ assistant = Assistant(accounts, UsageLog(DATA_DIR / "ai_usage.json"),
                       (lambda: __import__("anthropic").Anthropic(timeout=60.0)) if os.environ.get("ANTHROPIC_API_KEY") else None,
                       float(os.environ.get("AI_MONTHLY_BUDGET_USD", "3")), TC_CURRENCIES)
 event_assistant = EventAssistant(assistant, accounts)
+event_editor = EventEditor(event_assistant)
 places = Places(os.environ.get("GOOGLE_MAPS_API_KEY", ""))  # sans clé : l'app cherche dans les Plans d'Apple
 account_auth = AccountAuth(accounts)
 # Ne compte que les vrais refus (compte sans droit admin). Un jeton expiré ou invalide n'est jamais compté :
@@ -1995,6 +1997,42 @@ class AiEventCreate(MemberToken):
 def account_ai_event_create(body: AiEventCreate):
     """Brouillon confirmé dans l'app (compte à rebours de 5 s) → événement publié ou proposé."""
     return account_call(lambda: event_assistant.create(body.token, body.draft, body.place))
+
+
+EVENT_ID = r"^[0-9a-f-]{36}$"
+
+
+class AiEventEditLoad(MemberToken):
+    event_id: str = Field(pattern=EVENT_ID)
+
+
+@app.post("/api/account/ai/event/edit/load")
+def account_ai_event_edit_load(body: AiEventEditLoad):
+    """« ✨ Modifier avec l'IA » : l'événement tel qu'il est, en brouillon (seul qui peut le modifier l'obtient)."""
+    return account_call(lambda: event_editor.load(body.token, body.event_id))
+
+
+class AiEventEditDraft(AiEventEditLoad):
+    turns: list[str] = Field(min_length=1, max_length=AI_EVENT_MAX_TURNS * 2)
+
+
+@app.post("/api/account/ai/event/edit/draft")
+def account_ai_event_edit_draft(body: AiEventEditDraft):
+    """Ce que la personne veut changer → l'événement modifié et la liste des changements (rien n'est encore écrit)."""
+    if sum(len(t) for t in body.turns) > AI_EVENT_MAX_TEXT * AI_EVENT_MAX_TURNS:
+        raise HTTPException(400, "Demande trop longue")
+    return account_call(lambda: event_editor.draft(body.token, body.event_id, body.turns))
+
+
+class AiEventEditSave(AiEventEditLoad):
+    draft: dict
+    place: dict | None = None  # absent : le lieu ne change pas
+    announce: bool = True  # message récapitulatif dans la discussion de l'événement
+
+
+@app.post("/api/account/ai/event/edit/save")
+def account_ai_event_edit_save(body: AiEventEditSave):
+    return account_call(lambda: event_editor.save(body.token, body.event_id, body.draft, body.place, body.announce))
 
 
 class AiPlaces(MemberToken):

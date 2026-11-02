@@ -6,6 +6,8 @@ import SwiftUI
 /// qu'après 5 secondes, le temps de tout relire.
 struct AIEventView: View {
     @ObservedObject var store: AIEventStore
+    /// Événement publié à modifier (« ✨ Modifier avec l'IA ») ; nil : créer un événement.
+    var editing: String? = nil
     /// Événement créé : l'app l'ouvre dans Événements.
     let open: (String) -> Void
     @StateObject private var dictation = Dictation()
@@ -24,10 +26,15 @@ struct AIEventView: View {
                     if let created = store.created {
                         done(created).motionTransition(.scale(scale: 0.9).combined(with: .opacity))
                     } else {
-                        if store.turns.isEmpty { tips.transition(.opacity) }
+                        if store.turns.isEmpty {
+                            if editing != nil { AIEditTips().transition(.opacity) } else { tips.transition(.opacity) }
+                        }
                         if !store.turns.isEmpty { said }
                         if store.thinking { thinkingCard.motionTransition() }
                         if let draft = store.draft, !store.thinking {
+                            if editing != nil && !store.turns.isEmpty {
+                                AIChangesCard(changes: store.changes, announce: $store.announce).motionTransition()
+                            }
                             if !draft.not_understood.isEmpty { notUnderstood(draft).motionTransition() }
                             if !draft.ready { questions(draft).motionTransition() }
                             review(draft).motionTransition()
@@ -49,15 +56,19 @@ struct AIEventView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .bottom) { if store.created == nil { inputBar } }
-            .navigationTitle("Créer avec l'IA")
+            .navigationTitle(editing == nil ? "Créer avec l'IA" : "Modifier avec l'IA")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Fermer") { close() } }
                 if !store.turns.isEmpty && store.created == nil {
                     ToolbarItem(placement: .primaryAction) {
-                        Button("Recommencer") { dictation.finish(); store.reset(); typed = "" }
+                        Button("Recommencer") { restart() }
                     }
                 }
+            }
+            .task(id: editing) {
+                if let editing, store.editingId != editing { await store.startEditing(editing) }
+                else if editing == nil && store.editingId != nil { store.reset() }
             }
             .onChange(of: store.draft) { _ in restartCountdown() }
             .onChange(of: store.created != nil) { done in if done { Haptics.success() } }
@@ -378,7 +389,7 @@ struct AIEventView: View {
             HStack {
                 if store.creating { ProgressView().tint(.black).transition(.opacity.combined(with: .scale(scale: 0.6))) }
                 // Compte à rebours : les chiffres défilent vers le bas, puis le libellé se fond en « Créer ».
-                Text(countdown > 0 ? "Relis bien… \(countdown)" : "Créer l'événement")
+                Text(countdown > 0 ? "Relis bien… \(countdown)" : editing == nil ? "Créer l'événement" : "Enregistrer les changements")
                     .font(.headline.monospacedDigit())
                     .contentTransition(.numericText(countsDown: true))
             }
@@ -399,8 +410,10 @@ struct AIEventView: View {
         VStack(spacing: 14) {
             SuccessCheck()
             Text(c.title).font(.title2.weight(.bold)).multilineTextAlignment(.center)
-            Text(c.status == "published" ? "Événement publié : les invités sont prévenus."
-                                         : "Événement proposé : il sera visible une fois validé par un admin.")
+            Text(c.status == "updated" ? (store.announce ? "Changements enregistrés : un message les résume aux invités."
+                                                         : "Changements enregistrés.")
+                 : c.status == "published" ? "Événement publié : les invités sont prévenus."
+                 : "Événement proposé : il sera visible une fois validé par un admin.")
                 .foregroundStyle(.secondary).multilineTextAlignment(.center)
             if !c.problems.isEmpty {
                 Label("Pas ajouté : " + c.problems.joined(separator: ", ") + ". Ouvre l'événement pour le compléter.",
@@ -483,6 +496,13 @@ struct AIEventView: View {
                 countdown -= 1
             }
         }
+    }
+
+    /// Repartir de zéro : la fiche vide (création) ou l'événement tel qu'il est en base (modification).
+    private func restart() {
+        dictation.finish()
+        typed = ""
+        if let editing { Task { await store.startEditing(editing) } } else { store.reset() }
     }
 
     private func close() {

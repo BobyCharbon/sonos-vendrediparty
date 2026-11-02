@@ -7,6 +7,8 @@ final class WebModel: ObservableObject {
     @Published var failed = false
     /// Écran « Créer un événement avec l'IA », demandé par le module Événements.
     @Published var aiEventOpen = false
+    /// « ✨ Modifier avec l'IA » sur un événement : son id (nil : l'écran IA crée un événement).
+    @Published var aiEditEventId: String?
     private var chatsPreloaded = false
     /// Onglets de la page affichée ; nil sur une page sans barre d'onglets (admin, TV…).
     @Published private(set) var tabs: TabBarState?

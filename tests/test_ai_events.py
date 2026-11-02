@@ -242,3 +242,19 @@ def test_a_party_at_home_is_searched_as_an_address_and_keeps_its_name(tmp_path):
 def test_an_old_draft_without_place_kind_is_a_venue(tmp_path):
     a, _, _ = make(tmp_path, {k: v for k, v in READY.items() if k != "place_kind"})
     assert a.draft("ok", ["Raclette"], None)["place_kind"] == "venue"
+
+
+def test_a_quantity_said_to_the_ai_is_shared_between_guests(tmp_path):
+    assert ev.bring_row("15 bouteilles de vin") == {"label": "Bouteilles de vin", "quantity": 15}
+    assert ev.bring_row("3x paquets de chips") == {"label": "Paquets de chips", "quantity": 3}
+    assert ev.bring_row("Salade") == {"label": "Salade", "quantity": None}
+    assert ev.bring_row("1 gâteau") == {"label": "1 gâteau", "quantity": None}  # un seul : quelqu'un le prend en entier
+    a, accounts, _ = make(tmp_path, {**READY, "bring": ["15 bouteilles de vin", "Salade"]})
+    a.create("ok", a.draft("ok", ["Raclette, 15 bouteilles de vin et une salade"], None), {"name": "x", "address": "y"})
+    rows = next(body for method, path, body in accounts.calls if method == "POST" and path == "/rest/v1/bring_items")
+    assert [(r["label"], r.get("quantity")) for r in rows] == [("Bouteilles de vin", 15), ("Salade", None)]
+
+
+def test_every_bring_row_has_the_same_fields_so_the_batch_insert_is_accepted(tmp_path):
+    rows = [ev.bring_row(t) for t in ("15 bouteilles de vin", "Salade")]
+    assert {frozenset(r) for r in rows} == {frozenset({"label", "quantity"})}

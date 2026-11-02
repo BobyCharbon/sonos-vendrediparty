@@ -37,6 +37,9 @@ enum NativeBridge {
         ai: {
           createEvent: function () {
             try { window.webkit.messageHandlers.\(aiHandler).postMessage("event"); } catch (e) {}
+          },
+          editEvent: function (id) {
+            try { window.webkit.messageHandlers.\(aiHandler).postMessage("edit:" + id); } catch (e) {}
           }
         }
       };
@@ -86,7 +89,14 @@ private final class AIHandler: NSObject, WKScriptMessageHandler {
 
     @MainActor
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard AppConfig.isInternal(message.frameInfo.securityOrigin.url), message.body as? String == "event" else { return }
+        guard AppConfig.isInternal(message.frameInfo.securityOrigin.url), let body = message.body as? String else { return }
+        if body == "event" {
+            model?.aiEditEventId = nil
+        } else if body.hasPrefix("edit:"), let id = UUID(uuidString: String(body.dropFirst(5))) {
+            model?.aiEditEventId = id.uuidString.lowercased()  // le serveur vérifie que la personne peut le modifier
+        } else {
+            return
+        }
         model?.aiEventOpen = true
     }
 }

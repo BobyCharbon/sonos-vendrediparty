@@ -116,16 +116,19 @@ enum AIEvent {
         let title: String
         /// Ce qui n'a pas pu être ajouté (un sondage, les tags…) : l'événement existe, à compléter à la main.
         var problems: [String] = []
+        /// Événement modifié : ce qui a changé.
+        var changes: [String] = []
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             id = try c.decode(String.self, forKey: .id)
-            status = try c.decode(String.self, forKey: .status)
+            status = (try? c.decodeIfPresent(String.self, forKey: .status)) ?? nil ?? "updated"  // modification : pas de statut
             title = try c.decode(String.self, forKey: .title)
             problems = (try? c.decodeIfPresent([String].self, forKey: .problems)) ?? nil ?? []
+            changes = (try? c.decodeIfPresent([String].self, forKey: .changes)) ?? nil ?? []
         }
 
-        private enum CodingKeys: String, CodingKey { case id, status, title, problems }
+        private enum CodingKeys: String, CodingKey { case id, status, title, problems, changes }
     }
 
     /// Début et fin : « samedi 14 novembre à 20:00, jusqu'à 23:30 » (la date n'est répétée que si elle change).
@@ -172,6 +175,12 @@ final class AIEventStore: ObservableObject {
     @Published private(set) var thinking = false
     @Published private(set) var creating = false
     @Published private(set) var created: AIEvent.Created?
+    /// Modifier un événement publié (« ✨ Modifier avec l'IA ») : son id ; nil = créer un événement.
+    @Published private(set) var editingId: String?
+    /// Ce que la demande change, en mots simples (montré avant d'enregistrer).
+    @Published private(set) var changes: [String] = []
+    /// Un message dans la discussion de l'événement résume les changements aux invités.
+    @Published var announce = true
     @Published var error: String?
     /// Ce que la personne a dit quand l'envoi a échoué : remis dans le champ, rien n'est perdu.
     @Published var unsent: String?
@@ -180,6 +189,8 @@ final class AIEventStore: ObservableObject {
     private weak var web: WebStorage?
     /// Dernière recherche faite (lieu et type) : on ne recherche que si l'IA a changé l'un des deux.
     private var lastSearch = ""
+    /// Lieu actuel de l'événement modifié : renvoyé seulement si la personne en choisit un autre.
+    private var loadedPlace: AIEvent.Place?
 
     init(api: PartyAPI, web: WebStorage?) {
         self.api = api
@@ -194,6 +205,35 @@ final class AIEventStore: ObservableObject {
         lastSearch = ""
         created = nil
         error = nil
+        editingId = nil
+        changes = []
+        loadedPlace = nil
+        announce = true
+    }
+
+    /// « ✨ Modifier avec l'IA » : l'événement publié revient en fiche, prêt à être changé en parlant.
+    func startEditing(_ id: String) async {
+        reset()
+        editingId = id
+        guard let token = await web?.accountToken() else {
+            error = "Connecte-toi dans Réglages pour utiliser l'assistant"
+            return
+        }
+        thinking = true
+        defer { thinking = false }
+        do {
+            let loaded = try await api.aiEventEditLoad(token: token, id: id)
+            draft = loaded.draft
+            lastSearch = loaded.draft.place_kind + "|" + loaded.draft.place_query
+            if !loaded.place.name.isEmpty || !loaded.place.address.isEmpty {
+                let current = AIEvent.Place(name: loaded.place.name, address: loaded.place.address, url: loaded.place.url,
+                                            latitude: 0, longitude: 0)
+                place = current
+                loadedPlace = current
+            }
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 
     /// Description, réponse à une question ou correction : l'IA reprend le tout et renvoie le brouillon à jour.
@@ -209,7 +249,14 @@ final class AIEventStore: ObservableObject {
         error = nil
         defer { thinking = false }
         do {
-            let next = try await api.aiEventDraft(token: token, turns: turns, previous: draft)
+            let next: AIEvent.Draft
+            if let editingId {
+                let edited = try await api.aiEventEditDraft(token: token, id: editingId, turns: turns)
+                next = edited.draft
+                changes = edited.changes
+            } else {
+                next = try await api.aiEventDraft(token: token, turns: turns, previous: draft)
+            }
             draft = next
             if next.place_kind + "|" + next.place_query != lastSearch {
                 await findPlace(next.place_query, broad: next.place_broad, kind: next.place_kind)
@@ -290,6 +337,7 @@ final class AIEventStore: ObservableObject {
     /// ont toujours une adresse où se rendre.
     var canCreate: Bool {
         guard let draft, draft.ready else { return false }
+        if editingId != nil { return !changes.isEmpty && (place != nil || draft.place_query.isEmpty) }
         return place != nil
     }
 
@@ -315,7 +363,12 @@ final class AIEventStore: ObservableObject {
         creating = true
         defer { creating = false }
         do {
-            created = try await api.aiEventCreate(token: token, draft: draft, place: place)
+            if let editingId {
+                created = try await api.aiEventEditSave(token: token, id: editingId, draft: draft,
+                                                        place: place == loadedPlace ? nil : place, announce: announce)
+            } else {
+                created = try await api.aiEventCreate(token: token, draft: draft, place: place)
+            }
         } catch {
             self.error = error.localizedDescription
         }
@@ -342,6 +395,34 @@ extension PartyAPI {
         if let previous, let data = try? JSONEncoder().encode(previous),
            let json = try? JSONSerialization.jsonObject(with: data) { body["draft"] = json }
         return try await postDecoding("/api/account/ai/event/draft", body: body, timeout: AIEvent.thinkingTimeout)
+    }
+
+    struct LoadedEvent: Decodable {
+        struct Where: Decodable { let name: String; let address: String; let url: String }
+        let draft: AIEvent.Draft
+        let place: Where
+    }
+
+    struct EditedEvent: Decodable {
+        let draft: AIEvent.Draft
+        let changes: [String]
+    }
+
+    func aiEventEditLoad(token: String, id: String) async throws -> LoadedEvent {
+        try await postDecoding("/api/account/ai/event/edit/load", body: ["token": token, "event_id": id])
+    }
+
+    func aiEventEditDraft(token: String, id: String, turns: [String]) async throws -> EditedEvent {
+        try await postDecoding("/api/account/ai/event/edit/draft", body: ["token": token, "event_id": id, "turns": turns],
+                               timeout: AIEvent.thinkingTimeout)
+    }
+
+    /// place nil : le lieu ne change pas.
+    func aiEventEditSave(token: String, id: String, draft: AIEvent.Draft, place: AIEvent.Place?, announce: Bool) async throws -> AIEvent.Created {
+        var body: [String: Any] = ["token": token, "event_id": id, "announce": announce]
+        if let data = try? JSONEncoder().encode(draft), let json = try? JSONSerialization.jsonObject(with: data) { body["draft"] = json }
+        if let place { body["place"] = ["name": place.name, "address": place.address, "url": place.url] }
+        return try await postDecoding("/api/account/ai/event/edit/save", body: body, timeout: 60)
     }
 
     func aiEventCreate(token: String, draft: AIEvent.Draft, place: AIEvent.Place?) async throws -> AIEvent.Created {

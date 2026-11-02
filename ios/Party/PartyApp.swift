@@ -121,9 +121,9 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $model.aiEventOpen) {
+        .sheet(isPresented: $model.aiEventOpen, onDismiss: { model.aiEditEventId = nil }) {
             if let settings = model.settings {
-                AIEventView(store: settings.aiEvent) { id in model.openEvent(id) }
+                AIEventView(store: settings.aiEvent, editing: model.aiEditEventId) { id in model.openEvent(id) }
                     .presentationDragIndicator(.visible)
             }
         }

@@ -30,6 +30,14 @@ final class AIEventTests: XCTestCase {
         XCTAssertEqual(encoded?["place_kind"] as? String, "home")
     }
 
+    /// Modifier avec l'IA : la réponse n'a pas de statut, mais la liste des changements.
+    func testAnEditedEventAnswerDecodesWithItsChanges() throws {
+        let json = #"{"id":"e1","title":"Raclette","changes":["Début : 2026-11-07 à 21:00"],"problems":[]}"#
+        let saved = try JSONDecoder().decode(AIEvent.Created.self, from: Data(json.utf8))
+        XCTAssertEqual(saved.status, "updated")
+        XCTAssertEqual(saved.changes, ["Début : 2026-11-07 à 21:00"])
+    }
+
     func testSameDayEndShowsOnlyTheHour() {
         XCTAssertTrue(AIEvent.span("2026-11-14T20:00", "2026-11-14T23:30").hasSuffix("jusqu'à 23:30"))
         XCTAssertTrue(AIEvent.span("2026-11-14T20:00", "2026-11-15T02:00").contains("15 novembre"))

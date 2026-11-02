@@ -41,3 +41,31 @@ def test_the_confirmed_draft_becomes_a_real_published_event(live):
         assert sorted(o["label"] for o in row["polls"][0]["poll_options"]) == ["Autre plat", "Raclette"]
     finally:
         httpx.delete(f"{TEST_URL}/rest/v1/events?id=eq.{out['id']}", headers=who.headers, timeout=30)
+
+
+def test_a_published_event_is_changed_by_voice_keeping_what_guests_already_said(live):
+    from app.ai_event_edit import EventEditor
+    a, token, who = live
+    draft = {**READY, "title": "Raclette à modifier (test)", "audience": "Vendredi Party", "invitees": [],
+             "category": "", "bring": ["10 bouteilles de vin", "Salade"],
+             "polls": [{"question": "Fondue ?", "options": ["Oui", "Non"], "multiple": False, "anonymous": False, "add_options": False}]}
+    eid = a.create(token, draft, {"name": "Chez Léa", "address": "Rue du Lac 12, 1800 Vevey", "url": ""})["id"]
+    try:
+        vin = who.get(f"bring_items?event_id=eq.{eid}&label=eq.Bouteilles%20de%20vin&select=id").json()[0]["id"]
+        assert httpx.post(f"{TEST_URL}/rest/v1/bring_claims", headers=who.headers, timeout=30,
+                          json={"item_id": vin, "user_id": who.uid, "quantity": 3}).status_code == 201
+        editor = EventEditor(a)
+        current = editor.load(token, eid)["draft"]
+        assert current["bring"] == ["10 Bouteilles de vin", "Salade"]
+        asked = {**current, "title": "Raclette modifiée (test)", "bring": ["15 Bouteilles de vin", "Dessert"], "polls": []}
+        out = editor.save(token, eid, asked, None, announce=True)
+        assert out["problems"] == [] and "Titre : Raclette modifiée (test)" in out["changes"]
+        row = who.get(f"events?id=eq.{eid}&select=title,location_address,polls(id),messages(body),"
+                      "bring_items(label,quantity,bring_claims(quantity))").json()[0]
+        assert row["title"] == "Raclette modifiée (test)" and row["location_address"].startswith("Rue du Lac")
+        items = {b["label"]: b for b in row["bring_items"]}
+        assert set(items) == {"Bouteilles de vin", "Dessert"} and items["Bouteilles de vin"]["quantity"] == 15
+        assert items["Bouteilles de vin"]["bring_claims"] == [{"quantity": 3}]  # la réponse déjà donnée reste
+        assert row["polls"] == [] and row["messages"][0]["body"].startswith("✏️ Événement mis à jour")
+    finally:
+        httpx.delete(f"{TEST_URL}/rest/v1/events?id=eq.{eid}", headers=who.headers, timeout=30)

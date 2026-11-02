@@ -7,6 +7,7 @@ qui amène quoi, pot commun, discussion, notification.
 L'événement est écrit avec la session de la personne (règles de la base) : l'IA ne peut rien faire de plus qu'elle.
 Comme dans le formulaire web : créé en brouillon, puis publié (droit « publier directement ») ou proposé."""
 import json
+import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -72,8 +73,9 @@ Tu remplis TOUT le formulaire de l'événement, et tu le modifies quand la perso
 - polls : les mini-sondages demandés (« un sondage pour savoir qui mange la fondue ou autre chose ») : question claire
   et options (« Fondue moitié-moitié », « Autre plat ») ; multiple : plusieurs réponses permises ; anonymous : votes
   cachés ; add_options : les invités peuvent ajouter des options (« ouvert », « chacun propose »).
-- bring : « qui amène quoi » : la liste de ce que l'organisateur demande (« salade », « dessert », « boissons »,
-  « 2 bouteilles de vin ») ; chaque invité choisira ce qu'il amène.
+- bring : « qui amène quoi » : la liste de ce que l'organisateur demande (« Salade », « Dessert », « Chips »).
+  Avec une quantité, mets le nombre en tête (« 15 bouteilles de vin », « 3 paquets de chips ») : elle sera partagée,
+  chacun dira combien il en amène (« j'en prends 2 »). Sans nombre, une seule personne prend l'objet en entier.
 - pot : pot commun pour partager les dépenses.
 - summary : une phrase qui résume l'événement tel que tu l'as compris, en tutoyant.
 - not_understood : ce que tu n'as pas compris ou pas pu placer, cité avec ce que tu en penses. Vide si tout est clair.
@@ -88,6 +90,14 @@ Catégories : {categories}
 Tags : {tags}
 Groupes (audience) : {audiences}
 Personnes : {people}"""
+
+
+EDITING = """
+
+L'événement existe déjà et des invités ont peut-être répondu : la personne demande des CHANGEMENTS. Renvoie l'événement
+complet en appliquant exactement ce qu'elle demande, et garde tout le reste à l'identique, au caractère près (titre,
+description, listes : même ordre et même texte). Une date déjà passée reste telle quelle si elle n'est pas modifiée.
+summary : une phrase qui résume les changements, en tutoyant."""
 
 
 def schema(choices: dict[str, list[str]]) -> dict:
@@ -225,6 +235,19 @@ def clean_draft(raw: dict, now: datetime, choices: dict[str, list[str]]) -> dict
     }
 
 
+BRING_COUNT = re.compile(r"^\s*(\d{1,3})\s*[x×]?\s+(.+)$")
+
+
+def bring_row(text: str) -> dict:
+    """« 15 bouteilles de vin » → à partager (15, chacun dit combien il en amène) ; « Salade » → un seul objet."""
+    found = BRING_COUNT.match(text)
+    count = int(found.group(1)) if found else 0
+    if count < 2:  # quantity toujours présente : un ajout groupé exige les mêmes champs sur chaque ligne
+        return {"label": text, "quantity": None}
+    label = found.group(2).strip()
+    return {"label": (label[:1].upper() + label[1:])[:100], "quantity": min(count, 999)}
+
+
 def safe_url(url) -> str | None:
     url = str(url or "").strip()[:500]
     return url if url.startswith("https://") else None
@@ -283,10 +306,12 @@ class EventAssistant:
             raise AccountError("Ton compte ne peut pas créer d'événement.")
         return perms
 
-    def draft(self, token: str, turns: list[str], previous: dict | None) -> dict:
-        """Ce que la personne a dit (description, puis ses réponses et corrections) → brouillon complet et questions."""
+    def draft(self, token: str, turns: list[str], previous: dict | None, editing: bool = False) -> dict:
+        """Ce que la personne a dit (description, puis ses réponses et corrections) → brouillon complet et questions.
+        editing : previous est un événement déjà publié, que la personne veut modifier (ai_event_edit)."""
         uid = self.ai._check(token)
-        self._can_create(token)
+        if not editing:
+            self._can_create(token)
         turns = [str(t).strip()[:MAX_TEXT] for t in turns if str(t).strip()][-MAX_TURNS:]
         if not turns:
             raise AccountError("Décris l'événement, à voix haute ou par écrit.")
@@ -298,7 +323,12 @@ class EventAssistant:
                                audiences=", ".join(o.audiences), people=", ".join(o.people) or "(aucune)")
         # Conversation : la description, le brouillon renvoyé (avec ses questions), puis les réponses de la personne.
         messages = [{"role": "user", "content": turns[0]}]
-        if previous and len(turns) > 1:
+        if editing and previous:
+            system += EDITING
+            messages = [{"role": "user", "content": "Voici mon événement, déjà publié."},
+                        {"role": "assistant", "content": json.dumps(previous, ensure_ascii=False)[:8000]},
+                        {"role": "user", "content": "\n".join(turns)}]
+        elif previous and len(turns) > 1:
             messages += [{"role": "assistant", "content": json.dumps(previous, ensure_ascii=False)[:8000]},
                          {"role": "user", "content": "\n".join(turns[1:])}]
         elif len(turns) > 1:
@@ -398,7 +428,7 @@ class EventAssistant:
                           [{"poll_id": made["id"], "label": label, "created_by": uid, "sort": j} for j, label in enumerate(p["options"])],
                           f"les choix du sondage « {p['question']} »", problems)
         if d["bring"]:
-            self._add(token, "/rest/v1/bring_items", [{"event_id": eid, "label": b, "sort": i} for i, b in enumerate(d["bring"])],
+            self._add(token, "/rest/v1/bring_items", [{"event_id": eid, "sort": i, **bring_row(b)} for i, b in enumerate(d["bring"])],
                       "« qui amène quoi »", problems)
         status = "published" if "events.publish_direct" in perms else "pending"
         p = self.accounts._get("PATCH", f"/rest/v1/events?id=eq.{eid}", token, json={"status": status})

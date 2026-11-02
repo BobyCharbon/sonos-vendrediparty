@@ -56,7 +56,7 @@ export default function EventScreen() {
       supabase
         .from('events')
         .select(
-          '*, category:categories(*), author:profiles!events_created_by_fkey(display_name), event_tags(tags(*)), event_organizers(user_id), rsvps(*), date_options(*, date_votes(*)), polls(*, poll_options(*)), bring_items(*), event_groups(member_groups(name))',
+          '*, category:categories(*), author:profiles!events_created_by_fkey(display_name), event_tags(tags(*)), event_organizers(user_id), rsvps(*), date_options(*, date_votes(*)), polls(*, poll_options(*)), bring_items(*, bring_claims(user_id, quantity)), event_groups(member_groups(name))',
         )
         .eq('id', id)
         .single(),
@@ -110,6 +110,9 @@ export default function EventScreen() {
 
   const published = ev.status === 'published';
   const canEdit = isAdmin || (isOrganizer && (ev.status !== 'published' || can('events.edit_own_published')));
+  // App iPhone et droit IA : « ✨ IA » ouvre l'écran natif où l'on dit ce qui change (« décale à 21h »…).
+  const native = (globalThis as { PartyNative?: { ai?: { editEvent?: (id: string) => void } } }).PartyNative;
+  const aiEdit = can('ai.use') && native?.ai?.editEvent ? (id: string) => native.ai!.editEvent!(id) : null;
 
   async function run(p: PromiseLike<{ error: { message: string } | null }>) {
     const { error } = await p;
@@ -148,6 +151,7 @@ export default function EventScreen() {
           headerRight: () => (
             <View style={s.row}>
               {published ? <HeaderAction label={data.muted ? '🔕 Réactiver' : '🔔 Sourdine'} onPress={toggleMute} /> : null}
+              {canEdit && aiEdit ? <HeaderAction label="✨ IA" onPress={() => aiEdit(ev.id)} /> : null}
               {canEdit ? <HeaderAction prominent label="Modifier" onPress={() => router.push(`/event/${ev.id}/edit`)} /> : null}
             </View>
           ),
