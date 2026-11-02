@@ -1,7 +1,9 @@
 import { router, Stack } from 'expo-router';
 import { FlatList, Pressable, View } from 'react-native';
 
+import { ChatsSoon } from '@/components/ChatsSoon';
 import { Avatar, Empty, ErrorText, Loading, s, T } from '@/components/ui';
+import { useAuth } from '@/lib/auth';
 import type { ChatSummary } from '@/lib/chats';
 import { useQuery, useRealtime } from '@/lib/data';
 import { formatMessageTime } from '@/lib/format';
@@ -9,8 +11,14 @@ import { duration, enter, transition } from '@/lib/motion';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 
-/** Discussions (avis n°10) : une discussion par groupe, la plus récente en haut, comme WhatsApp. */
+/** Discussions (avis n°10) : en production, réservées aux bêta-testeurs (« Bientôt » pour les autres). */
 export default function ChatsRoute() {
+  const { eventsSoon } = useAuth();
+  return eventsSoon ? <ChatsSoon /> : <ChatsList />;
+}
+
+/** Une discussion par groupe, la plus récente en haut, comme WhatsApp. */
+function ChatsList() {
   const { data, loading, error, reload } = useQuery(async () => {
     const { data, error } = await supabase.rpc('my_chats');
     if (error) throw new Error('Les discussions n’ont pas pu être chargées.');

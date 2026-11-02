@@ -1690,6 +1690,25 @@ def account_call(work, status: int = 400):
         raise HTTPException(status, str(e))
 
 
+# Discussions de groupe : en production (EVENTS_ENABLED=0), réservées aux bêta-testeurs, comme les Événements.
+# La réponse de la base est gardée une minute par session (un message envoyé = une vérification de moins).
+BETA_CHECK_TTL = 60
+_beta_checked: dict[str, tuple[float, bool]] = {}
+
+
+def chats_call(token: str, work, status: int = 400):
+    if not EVENTS_ENABLED:
+        seen = _beta_checked.get(token)
+        if not seen or time.time() - seen[0] > BETA_CHECK_TTL:
+            seen = (time.time(), account_call(lambda: accounts.beta(token), 401))
+            if len(_beta_checked) > 2000:
+                _beta_checked.clear()
+            _beta_checked[token] = seen
+        if not seen[1]:
+            raise HTTPException(403, "Les discussions arrivent bientôt.")
+    return account_call(work, status)
+
+
 @app.post("/api/account/groups")
 def account_groups(body: MemberToken):
     """Réglages natifs › Groupes."""
@@ -1791,17 +1810,17 @@ class ChatAdmin(ChatRef):
 
 @app.post("/api/account/chats")
 def account_chats(body: MemberToken):
-    return account_call(lambda: group_chats.chats(body.token), 401)
+    return chats_call(body.token, lambda: group_chats.chats(body.token), 401)
 
 
 @app.post("/api/account/chats/open")
 def account_chat_open(body: ChatRef):
-    return account_call(lambda: group_chats.conversation(body.token, body.group_id))
+    return chats_call(body.token, lambda: group_chats.conversation(body.token, body.group_id))
 
 
 @app.post("/api/account/chats/send")
 def account_chat_send(body: ChatSend):
-    return account_call(lambda: group_chats.send(body.token, body.group_id, body.body.strip(), body.reply_to, body.photo_path,
+    return chats_call(body.token, lambda: group_chats.send(body.token, body.group_id, body.body.strip(), body.reply_to, body.photo_path,
                                                  body.mentions, body.id, body.audio_path, body.audio_seconds))
 
 
@@ -1812,7 +1831,7 @@ def account_chat_audio(body: ChatPhoto):
         data = base64.b64decode(body.photo, validate=True)
     except ValueError:
         raise HTTPException(400, "Enregistrement illisible") from None
-    return account_call(lambda: group_chats.upload_audio(body.token, body.group_id, data))
+    return chats_call(body.token, lambda: group_chats.upload_audio(body.token, body.group_id, data))
 
 
 @app.post("/api/account/chats/photo")
@@ -1821,7 +1840,7 @@ def account_chat_photo(body: ChatPhoto):
         data = base64.b64decode(body.photo, validate=True)
     except ValueError:
         raise HTTPException(400, "Photo illisible") from None
-    return account_call(lambda: group_chats.upload_photo(body.token, body.group_id, data))
+    return chats_call(body.token, lambda: group_chats.upload_photo(body.token, body.group_id, data))
 
 
 # ── Tricount (Réglages › Pot commun de l'app iOS) : dépenses partagées, lien pour rejoindre, profil de paiement ──
@@ -2099,32 +2118,32 @@ main{max-width:420px;padding:32px 24px;text-align:center}h1{font-size:1.8rem;mar
 
 @app.post("/api/account/chats/react")
 def account_chat_react(body: ChatReact):
-    return account_call(lambda: group_chats.react(body.token, body.id, body.emoji, body.on))
+    return chats_call(body.token, lambda: group_chats.react(body.token, body.id, body.emoji, body.on))
 
 
 @app.post("/api/account/chats/pin")
 def account_chat_pin(body: ChatPin):
-    return account_call(lambda: group_chats.pin(body.token, body.id, body.pin))
+    return chats_call(body.token, lambda: group_chats.pin(body.token, body.id, body.pin))
 
 
 @app.post("/api/account/chats/delete")
 def account_chat_delete(body: ChatMessage):
-    return account_call(lambda: group_chats.delete(body.token, body.id))
+    return chats_call(body.token, lambda: group_chats.delete(body.token, body.id))
 
 
 @app.post("/api/account/chats/notify")
 def account_chat_notify(body: ChatNotify):
-    return account_call(lambda: group_chats.notify(body.token, body.group_id, body.level))
+    return chats_call(body.token, lambda: group_chats.notify(body.token, body.group_id, body.level))
 
 
 @app.post("/api/account/chats/admin")
 def account_chat_admin(body: ChatAdmin):
-    return account_call(lambda: group_chats.set_admin(body.token, body.group_id, body.user_id, body.on))
+    return chats_call(body.token, lambda: group_chats.set_admin(body.token, body.group_id, body.user_id, body.on))
 
 
 @app.post("/api/account/chats/read")
 def account_chat_read(body: ChatRef):
-    return account_call(lambda: group_chats.read(body.token, body.group_id))
+    return chats_call(body.token, lambda: group_chats.read(body.token, body.group_id))
 
 
 # Réglages natifs › Administration du groupe : la base revérifie chaque droit avec la session du membre.

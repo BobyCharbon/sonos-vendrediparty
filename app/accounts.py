@@ -94,8 +94,7 @@ class Accounts:
             signed = s.json().get("signedURL") if s.status_code == 200 else None
             if signed:
                 photo = SUPABASE_URL + "/storage/v1" + signed
-        b = self._get("POST", "/rest/v1/rpc/is_beta_tester", token, json={})
-        beta = b.status_code == 200 and b.json() is True  # Événements en production : réservés aux bêta-testeurs
+        beta = self.beta(token)
         perms = self._perms(token)
         account = {"guest_id": self.gid(uid), "name": " ".join((profile.get("display_name") or "").split())[:30], "photo": photo,
                    "beta": beta, "admin": {"party.admin", "party.settings"} <= perms,
@@ -106,6 +105,11 @@ class Accounts:
             self.by_gid[account["guest_id"]] = account
             self.uid_by_gid[account["guest_id"]] = uid
         return account
+
+    def beta(self, token: str) -> bool:
+        """Bêta-testeur : en production, Événements et Discussions lui sont réservés."""
+        b = self._get("POST", "/rest/v1/rpc/is_beta_tester", token, json={})
+        return b.status_code == 200 and b.json() is True
 
     def notification_prefs(self, token: str) -> dict:
         """Préférences de notification du membre (table notification_prefs, protégée par RLS) et s'il valide

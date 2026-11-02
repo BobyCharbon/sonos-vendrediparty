@@ -390,9 +390,9 @@ const SUB_SCREENS = { host: "account", stats: "account" };
 // Les événements utilisent leur compte SMS ; les accès musique/jeux restent indépendants.
 function showTab(tab, eventTarget) {
   if (!["music", "games", "events", "chats", "feedback", "account", "host", "stats"].includes(tab)) tab = "music";
-  if (tab === "events" && PartyEvents.soon) {
-    // Section en préparation : on reste où on est (ou sur la musique au démarrage).
-    if (document.body.dataset.tab) return toast("📅 Les événements arrivent bientôt");
+  if ((tab === "events" || tab === "chats") && PartyEvents.soon) {
+    // Section en préparation (production, hors bêta-testeurs) : on reste où on est (ou sur la musique au démarrage).
+    if (document.body.dataset.tab) return toast(tab === "events" ? "📅 Les événements arrivent bientôt" : "💬 Les discussions arrivent bientôt");
     tab = "music";
   }
   const under = SUB_SCREENS[tab], starting = !document.body.dataset.tab, previous = document.body.dataset.tab;
@@ -528,12 +528,16 @@ function fbSyncAccess() {
   if (!allowed && document.body.dataset.tab === "feedback") showTab("music");
 }
 // Discussions de groupe : pour les comptes connectés (les groupes en dépendent) ; non connecté, l'onglet disparaît.
+// En production, comme Événements : visible de tous, « Bientôt » sauf pour les bêta-testeurs.
 function chatsSyncAccess() {
   const tab = document.querySelector('#tabs [data-tab="chats"]');
-  if (!tab || tab.classList.contains("hidden") === !account) return;
-  tab.classList.toggle("hidden", !account);
-  if (!account && document.body.dataset.tab === "chats") showTab("music");
-  if (account) setTimeout(refreshChatsBadge);
+  if (!tab) return;
+  const open = !!account && !PartyEvents.soon;
+  if (!open && document.body.dataset.tab === "chats") showTab("music");
+  const shown = !!account || PartyEvents.betaOnly;
+  if (tab.classList.contains("hidden") === !shown) return;
+  tab.classList.toggle("hidden", !shown);
+  if (open) setTimeout(refreshChatsBadge);
 }
 function showAccount() {
   fbSyncAccess();
@@ -622,7 +626,7 @@ setInterval(() => { if (supabaseToken()) freshToken().then((token) => token && e
 const CHATS_BADGE_EVERY = 60000;
 async function refreshChatsBadge() {
   const badge = $("chatsBadge");
-  const token = account && supabaseToken() ? await freshToken() : null;
+  const token = account && !PartyEvents.soon && supabaseToken() ? await freshToken() : null;
   if (!badge || !token) return badge?.classList.add("hidden");
   try {
     const r = await fetch("/api/account/chats", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });

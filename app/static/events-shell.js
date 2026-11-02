@@ -6,6 +6,8 @@ try { betaTester = !!JSON.parse(localStorage.getItem('vp_account') || 'null')?.b
 window.PartyEvents = {
   /** Pas (encore) bêta-testeur : l'onglet affiche « Bientôt » et les sorties ne sont pas chargées. */
   get soon() { return betaOnly && !betaTester; },
+  /** Production : Événements et Discussions visibles de tous, ouverts aux seuls bêta-testeurs. */
+  get betaOnly() { return betaOnly; },
   /** Résultat de la liaison du compte Party (ou false à la déconnexion). */
   setBeta(on) {
     const changed = betaTester !== !!on;
@@ -107,19 +109,21 @@ window.addEventListener('message', (event) => {
   window.PartyEvents.badge(event.data.count);
 });
 
-// « Bientôt » : l'onglet reste visible mais n'ouvre rien (annoncé aux lecteurs d'écran).
+// « Bientôt » : les onglets Événements et Discussions restent visibles mais n'ouvrent rien (annoncé aux lecteurs d'écran).
+const SOON_TABS = { events: 'Événements', chats: 'Discussions' };
 function markSoon() {
   const soon = window.PartyEvents.soon;
   document.documentElement.classList.toggle('events-soon', soon);
-  document.querySelectorAll('[data-tab="events"]').forEach((b) => {
+  Object.entries(SOON_TABS).forEach(([tab, label]) => document.querySelectorAll(`[data-tab="${tab}"]`).forEach((b) => {
     if (soon) {
       b.setAttribute('aria-disabled', 'true');
-      b.setAttribute('aria-label', 'Événements : bientôt disponible');
+      b.setAttribute('aria-label', `${label} : bientôt disponible`);
     } else if (b.getAttribute('aria-disabled')) {
       b.removeAttribute('aria-disabled');
-      b.setAttribute('aria-label', 'Événements');
+      b.setAttribute('aria-label', label);
     }
-  });
+  }));
+  if (typeof chatsSyncAccess === 'function') chatsSyncAccess();  // la page affiche ou masque l'onglet Discussions
 }
 document.documentElement.classList.toggle('events-soon', window.PartyEvents.soon);  // dès le chargement, sans clignoter
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', markSoon); else markSoon();

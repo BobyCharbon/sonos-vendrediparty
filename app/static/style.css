@@ -1543,9 +1543,9 @@ img.qr:not([src]) { visibility: hidden; }
 
 /* Événements pas encore ouverts à ce compte (production, hors bêta-testeurs) : onglet visible, atténué, marqué « Bientôt ».
    La classe events-soon est posée par events-shell.js. */
-html.events-soon .tabs [data-tab="events"] { position: relative; opacity: .55; }
-html.events-soon .tabs [data-tab="events"] [data-events-badge] { display: none; }
-html.events-soon .tabs [data-tab="events"]::after {
+html.events-soon .tabs :is([data-tab="events"], [data-tab="chats"]) { position: relative; opacity: .55; }
+html.events-soon .tabs [data-tab="events"] [data-events-badge], html.events-soon #chatsBadge { display: none; }
+html.events-soon .tabs :is([data-tab="events"], [data-tab="chats"])::after {
   content: "Bientôt"; position: absolute; top: 2px; left: calc(50% + 4px); padding: 1px 6px; border-radius: 99px;
   background: var(--accent-2, #ffb547); color: #2b1a00; font: 800 .58rem/1.4 system-ui, sans-serif; letter-spacing: .01em; }
 

@@ -49,6 +49,7 @@ def beta_services(page, state):
 
 
 events_tab = lambda page: page.locator('#tabs [data-tab="events"]')
+chats_tab = lambda page: page.locator('#tabs [data-tab="chats"]')
 
 
 def back_to_app(page):
@@ -66,6 +67,13 @@ def test_visitor_sees_soon_and_can_sign_in(browser, prod_origin):
         events_tab(page).click(force=True)
         pw.expect(page.locator('.toast')).to_contain_text('bientôt')
         assert page.evaluate('document.body.dataset.tab') != 'events'
+        # Discussions : marquées exactement comme Événements (visibles, « Bientôt », fermées).
+        pw.expect(chats_tab(page)).to_be_visible()
+        pw.expect(chats_tab(page)).to_have_attribute('aria-label', 'Discussions : bientôt disponible')
+        assert page.evaluate("getComputedStyle(document.querySelector('#tabs [data-tab=\"chats\"]'), '::after').content") == '"Bientôt"'
+        chats_tab(page).click(force=True)
+        pw.expect(page.locator('.toast')).to_contain_text('discussions arrivent bientôt')
+        assert page.evaluate('document.body.dataset.tab') != 'chats'
         pw.expect(page.locator('#accountTab')).to_be_visible()
         page.locator('#accountTab').click()
         frame = page.frame_locator('#eventsFrame')
@@ -96,10 +104,15 @@ def test_beta_checked_by_admin_opens_events_when_app_comes_back(browser, prod_or
         events_tab(page).click()
         pw.expect(events_tab(page)).to_have_attribute('aria-current', 'page')
         pw.expect(frame.get_by_text('Sortie de démonstration (test local)')).to_be_visible()
+        pw.expect(chats_tab(page)).not_to_have_attribute('aria-disabled', 'true')
+        chats_tab(page).click()
+        pw.expect(chats_tab(page)).to_have_attribute('aria-current', 'page')
 
         state['beta'] = False  # case décochée : retour à « Bientôt »
         back_to_app(page)
         pw.expect(events_tab(page)).to_have_attribute('aria-disabled', 'true')
+        pw.expect(chats_tab(page)).to_have_attribute('aria-disabled', 'true')
+        assert page.evaluate('document.body.dataset.tab') != 'chats'
     finally:
         context.close()
 
