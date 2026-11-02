@@ -223,3 +223,22 @@ def test_chez_moi_without_a_full_address_always_asks_for_it(tmp_path):
     assert d["status"] == "needs_info" and any("adresse complète" in q for q in d["questions"])
     with pytest.raises(AccountError):
         a.create("ok", {**READY, "address_complete": False}, None)
+
+
+def test_a_party_at_home_is_searched_as_an_address_and_keeps_its_name(tmp_path):
+    home = {**READY, "place_kind": "home", "place_query": "420 Route des Rosselets, 01170 Ségny, France",
+            "place_name": "Chez Boby", "place_broad": "bar, Ségny"}
+    a, accounts, client = make(tmp_path, home)
+    d = a.draft("ok", ["Soirée chez moi samedi, 420 route des roselets 01170 Segny France"], None)
+    assert d["place_kind"] == "home" and d["place_broad"] == ""  # jamais de recherche large de commerces
+    assert "place_kind" in client.calls[0]["output_config"]["format"]["schema"]["required"]
+    a.create("ok", d, {"name": "420 Route des Rosselets", "address": "420 Route des Rosselets, 01170 Ségny, France",
+                       "url": "https://www.google.com/maps/search/?api=1&query=420"})
+    row = next(body for method, path, body in accounts.calls if method == "POST" and path.startswith("/rest/v1/events"))
+    assert row["location_name"] == "Chez Boby"
+    assert row["location_address"] == "420 Route des Rosselets, 01170 Ségny, France"
+
+
+def test_an_old_draft_without_place_kind_is_a_venue(tmp_path):
+    a, _, _ = make(tmp_path, {k: v for k, v in READY.items() if k != "place_kind"})
+    assert a.draft("ok", ["Raclette"], None)["place_kind"] == "venue"

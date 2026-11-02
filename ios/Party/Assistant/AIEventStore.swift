@@ -25,6 +25,8 @@ enum AIEvent {
         var end: String
         var date_options: [String]
         var poll_deadline: String
+        /// « home » : chez un particulier (cherché parmi les adresses) ; « venue » : établissement ; « none » : pas de lieu.
+        var place_kind: String
         var place_query: String
         var place_name: String
         var place_broad: String
@@ -70,6 +72,7 @@ enum AIEvent {
             date_options = list(.date_options)
             poll_deadline = text(.poll_deadline)
             place_query = text(.place_query)
+            place_kind = text(.place_kind).isEmpty ? (place_query.isEmpty ? "none" : "venue") : text(.place_kind)
             place_name = text(.place_name)
             place_broad = text(.place_broad)
             address_complete = flag(.address_complete, true)
@@ -173,7 +176,8 @@ final class AIEventStore: ObservableObject {
 
     private let api: PartyAPI
     private weak var web: WebStorage?
-    private var lastQuery = ""
+    /// Dernière recherche faite (lieu et type) : on ne recherche que si l'IA a changé l'un des deux.
+    private var lastSearch = ""
 
     init(api: PartyAPI, web: WebStorage?) {
         self.api = api
@@ -185,7 +189,7 @@ final class AIEventStore: ObservableObject {
         draft = nil
         place = nil
         candidates = []
-        lastQuery = ""
+        lastSearch = ""
         created = nil
         error = nil
     }
@@ -205,7 +209,9 @@ final class AIEventStore: ObservableObject {
         do {
             let next = try await api.aiEventDraft(token: token, turns: turns, previous: draft)
             draft = next
-            if next.place_query != lastQuery { await findPlace(next.place_query, broad: next.place_broad) }
+            if next.place_kind + "|" + next.place_query != lastSearch {
+                await findPlace(next.place_query, broad: next.place_broad, kind: next.place_kind)
+            }
         } catch {
             turns.removeLast()
             unsent = said
@@ -215,14 +221,16 @@ final class AIEventStore: ObservableObject {
     }
 
     /// Lieu dit par la personne → lieux possibles (Google Maps, sinon Plans d'Apple) ; la personne choisit le bon.
-    func findPlace(_ query: String, broad: String = "") async {
-        lastQuery = query
+    /// Chez un particulier (« home »), seules des adresses sont proposées, jamais les commerces voisins.
+    func findPlace(_ query: String, broad: String = "", kind: String = "venue") async {
+        lastSearch = kind + "|" + query
         place = nil
         candidates = []
         guard !query.isEmpty else { return }
         searchingPlace = true
         defer { searchingPlace = false }
-        if let token = await web?.accountToken(), let google = try? await api.aiPlaces(token: token, query: query, broad: broad),
+        if let token = await web?.accountToken(),
+           let google = try? await api.aiPlaces(token: token, query: query, broad: broad, kind: kind),
            !google.places.isEmpty {
             placeSource = "Google Maps"
             candidates = google.places.map { p in
@@ -233,17 +241,18 @@ final class AIEventStore: ObservableObject {
             return
         }
         placeSource = "Plans"
-        candidates = await appleMaps(query)
+        candidates = await appleMaps(query, addressesOnly: kind == "home")
     }
 
     /// Plans d'Apple (sans clé Google) : en Suisse d'abord, ailleurs seulement si rien n'y est trouvé.
-    private func appleMaps(_ query: String) async -> [AIEvent.Place] {
+    private func appleMaps(_ query: String, addressesOnly: Bool) async -> [AIEvent.Place] {
         let foreign = ["france", "italie", "allemagne", "espagne", "portugal", "autriche"].contains { query.lowercased().contains($0) }
         var found: [MKMapItem] = []
         for q in foreign ? [query] : [query + ", Suisse", query] where found.isEmpty {
             let request = MKLocalSearch.Request()
             request.naturalLanguageQuery = q
             request.region = Self.switzerland
+            if addressesOnly { request.resultTypes = .address }
             let items = (try? await MKLocalSearch(request: request).start().mapItems) ?? []
             found = foreign ? items : items.filter { Self.inSwitzerland($0.placemark.coordinate) }
             if found.isEmpty && q == query { found = items }
@@ -265,6 +274,16 @@ final class AIEventStore: ObservableObject {
         place = chosen
     }
 
+    /// Aucune proposition ne convient : l'adresse telle que la personne l'a dite (corrigée par l'IA) devient le lieu,
+    /// avec un lien Google Maps qui la cherche. La carte se centre sur la rue ou la localité trouvée, sinon pas de carte.
+    var asSaid: AIEvent.Place? {
+        guard let draft, !draft.place_query.isEmpty, draft.address_complete else { return nil }
+        let near = candidates.first
+        return AIEvent.Place(name: draft.place_name.isEmpty ? draft.place_query : draft.place_name,
+                             address: draft.place_query, url: AIEvent.googleMapsURL(draft.place_query),
+                             latitude: near?.latitude ?? 0, longitude: near?.longitude ?? 0)
+    }
+
     /// « Créer » n'est possible que si le brouillon est complet et que le lieu a été confirmé sur la carte : les invités
     /// ont toujours une adresse où se rendre.
     var canCreate: Bool {
@@ -277,7 +296,7 @@ final class AIEventStore: ObservableObject {
     func showDemo(_ demo: AIEvent.Draft, said: String) async {
         turns = said.isEmpty ? [] : [said]
         draft = demo
-        await findPlace(demo.place_query, broad: demo.place_broad)
+        await findPlace(demo.place_query, broad: demo.place_broad, kind: demo.place_kind)
     }
     #endif
 
@@ -308,8 +327,9 @@ extension PartyAPI {
         let places: [Found]
     }
 
-    func aiPlaces(token: String, query: String, broad: String) async throws -> FoundPlaces {
-        try await postDecoding("/api/account/ai/places", body: ["token": token, "query": query, "broad": broad])
+    func aiPlaces(token: String, query: String, broad: String, kind: String) async throws -> FoundPlaces {
+        try await postDecoding("/api/account/ai/places", body: ["token": token, "query": query, "broad": broad,
+                                                                "kind": kind == "home" ? "home" : "venue"])
     }
 
     func aiEventDraft(token: String, turns: [String], previous: AIEvent.Draft?) async throws -> AIEvent.Draft {

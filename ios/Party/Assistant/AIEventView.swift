@@ -283,8 +283,11 @@ struct AIEventView: View {
         } else if !store.candidates.isEmpty {
             placeChoices(d).motionTransition()
         } else if !d.place_query.isEmpty {
-            row("mappin.and.ellipse", (d.place_name.isEmpty ? d.place_query : d.place_name)
-                + "\nLieu introuvable : dis l'adresse complète (rue, numéro, NPA, localité)")
+            VStack(alignment: .leading, spacing: 8) {
+                row("mappin.and.ellipse", (d.place_name.isEmpty ? d.place_query : d.place_name)
+                    + "\nIntrouvable sur la carte : garde l'adresse telle quelle, ou corrige-la (rue, numéro, NPA, localité)")
+                keepAsSaidButton
+            }
         } else {
             row("mappin.and.ellipse", (d.place_name.isEmpty ? "Lieu" : d.place_name) + " : adresse complète à préciser")
         }
@@ -294,15 +297,7 @@ struct AIEventView: View {
     private func chosenPlace(_ p: AIEvent.Place) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             row("mappin.and.ellipse", p.name + (p.address.isEmpty || p.address == p.name ? "" : "\n" + p.address))
-            Map(coordinateRegion: .constant(MKCoordinateRegion(
-                center: CLLocationCoordinate2D(latitude: p.latitude, longitude: p.longitude),
-                span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008))),
-                interactionModes: [],
-                annotationItems: [p]) { item in
-                MapMarker(coordinate: CLLocationCoordinate2D(latitude: item.latitude, longitude: item.longitude), tint: .pink)
-            }
-            .frame(height: 130)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            if p.latitude != 0 || p.longitude != 0 { placeMap(p) }
             HStack {
                 if let url = URL(string: p.url) { Link("Voir dans Google Maps", destination: url).font(.footnote) }
                 Spacer()
@@ -312,10 +307,35 @@ struct AIEventView: View {
         }
     }
 
+    private func placeMap(_ p: AIEvent.Place) -> some View {
+        Map(coordinateRegion: .constant(MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: p.latitude, longitude: p.longitude),
+            span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008))),
+            interactionModes: [],
+            annotationItems: [p]) { item in
+            MapMarker(coordinate: CLLocationCoordinate2D(latitude: item.latitude, longitude: item.longitude), tint: .pink)
+        }
+        .frame(height: 130)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    /// Aucune proposition ne convient : garder l'adresse dite (sans repasser par la recherche qui la rate).
+    @ViewBuilder
+    private var keepAsSaidButton: some View {
+        if let mine = store.asSaid {
+            Button { Haptics.selection(); Motion.animate(Motion.smooth) { store.choose(mine) } } label: {
+                Label("Garder « \(mine.address) »", systemImage: "checkmark.circle")
+                    .font(.footnote.weight(.semibold)).multilineTextAlignment(.leading)
+            }
+            .accessibilityIdentifier("ai-place-as-said")
+        }
+    }
+
     /// Plusieurs lieux possibles : la personne touche le bon (rien n'est choisi à sa place).
     private func placeChoices(_ d: AIEvent.Draft) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Quel est le bon lieu ?", systemImage: "mappin.and.ellipse")
+            Label(d.place_kind == "home" ? "Quelle est la bonne adresse ?" : "Quel est le bon lieu ?",
+                  systemImage: "mappin.and.ellipse")
                 .font(.headline).foregroundStyle(.orange)
             Text("Trouvé dans \(store.placeSource) pour « \(d.place_query) ». Touche le bon.")
                 .font(.caption).foregroundStyle(.secondary)
@@ -339,7 +359,8 @@ struct AIEventView: View {
                 .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .motionTransition()
             }
-            Button("Aucun : je dis l'adresse complète") { typing = true }
+            keepAsSaidButton
+            Button("Aucun : je corrige l'adresse") { typing = true }
                 .font(.footnote)
         }
         .accessibilityIdentifier("ai-place-choices")

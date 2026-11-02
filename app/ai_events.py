@@ -27,6 +27,7 @@ VIP_AUDIENCE = "Vendredi Party"
 PUBLIC_AUDIENCE = "Public (lien)"
 ONLY_INVITEES = "Seulement les personnes invitées"
 WEEKDAYS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
+PLACE_KINDS = ("home", "venue", "none")  # domicile (adresses), établissement (lieux nommés), aucun lieu
 NOT_UNDERSTOOD = "Je n'ai pas réussi à comprendre la description. Réessaie, ou crée l'événement à la main."
 
 SYSTEM = """Tu es l'assistant de l'app suisse « Party » (soirées et sorties entre amis, en Suisse romande). {me} te
@@ -43,10 +44,16 @@ Tu remplis TOUT le formulaire de l'événement, et tu le modifies quand la perso
   « vendredi ou samedi ? »). start / end : date et heure locales AAAA-MM-JJTHH:MM (date fixe) ; « samedi » = le
   prochain samedi ; « 19h », « 7 heures du soir » ; sans heure de fin : end vide. date_options : les dates proposées
   au vote (poll, au moins deux) ; poll_deadline : fin du vote si dite. Une date passée n'est jamais voulue.
-- place_query : ce qu'il faut chercher sur une carte (« Café de Collex, Collex-Bossy », « Chemin des Vignes 4, Lutry »),
-  en corrigeant les fautes de dictée ; vide si aucun lieu. place_name : nom court du lieu. place_broad : une recherche
-  plus large du même lieu si le nom a pu être mal dicté : type de lieu et ville (« bar techno, Ferney-Voltaire ») ; vide
-  pour une adresse précise.
+- place_kind : « home » si l'événement a lieu chez un particulier ou à une simple adresse (domicile, chalet, jardin,
+  appartement : « chez moi », « chez Léa », une rue et un numéro sans nom d'établissement) ; « venue » si c'est un
+  établissement ou un lieu nommé (bar, restaurant, salle, club, entreprise, parc, piste) ; « none » si aucun lieu. Le
+  bon type décide de la recherche : une adresse de domicile est cherchée parmi les ADRESSES, jamais parmi les commerces.
+- place_query : ce qu'il faut chercher sur une carte, en corrigeant les fautes de dictée (accents, noms de rues et de
+  communes, Suisse ou France voisine) ; vide si aucun lieu. home : l'adresse SEULE, au format postal (« Chemin des
+  Vignes 4, 1095 Lutry », « 420 Route des Rosselets, 01170 Ségny, France »), sans « chez moi » ni nom de personne.
+  venue : le nom de l'établissement et sa ville (« Café de Collex, Collex-Bossy »). place_name : nom court du lieu
+  (« Chez {first} », « Chez Léa », « Café de Collex »). place_broad : venue seulement, une recherche plus large du même
+  lieu si le nom a pu être mal dicté : type de lieu et ville (« bar techno, Ferney-Voltaire ») ; vide pour home.
 - address_complete : true seulement si le lieu permet à tous les invités de s'y rendre sans rien demander : une adresse
   complète (rue, numéro, NPA ou localité) ou un établissement public nommé avec sa ville (« Café de Collex »,
   « Pathé Flon, Lausanne »). « Chez moi », « chez Léa », « à mon domicile », une ville ou un quartier seuls : false, et
@@ -100,6 +107,7 @@ def schema(choices: dict[str, list[str]]) -> dict:
         "title": text, "description": text,
         "date_mode": {"type": "string", "enum": ["fixed", "poll"]}, "start": text, "end": text,
         "date_options": texts, "poll_deadline": text,
+        "place_kind": {"type": "string", "enum": list(PLACE_KINDS)},
         "place_query": text, "place_name": text, "place_broad": text, "address_complete": flag,
         "price_chf": {"type": "number"}, "payment_info": text,
         "max_participants": count, "waitlist": flag, "plus_ones": flag, "max_plus_ones": count,
@@ -146,6 +154,13 @@ def _when(value, now: datetime) -> str:
     return t.strftime("%Y-%m-%dT%H:%M") if t else ""
 
 
+def place_kind(raw: dict) -> str:
+    """Le type de lieu compris par l'IA ; un ancien brouillon sans type mais avec un lieu = établissement."""
+    if raw.get("place_kind") in PLACE_KINDS:
+        return raw["place_kind"]
+    return "venue" if _text(raw, "place_query", 200) else "none"
+
+
 def clean_draft(raw: dict, now: datetime, choices: dict[str, list[str]]) -> dict:
     """Réponse de Claude → brouillon sûr : champs bornés, dates vérifiées, choix limités aux listes connues, et les
     questions qui manquent ajoutées."""
@@ -181,9 +196,10 @@ def clean_draft(raw: dict, now: datetime, choices: dict[str, list[str]]) -> dict
         "date_mode": "poll" if poll_mode else "fixed",
         "start": start, "end": end, "date_options": slots,
         "poll_deadline": _when(raw.get("poll_deadline"), now) if poll_mode else "",
+        "place_kind": place_kind(raw),
         "place_query": _text(raw, "place_query", 200),
         "place_name": _text(raw, "place_name", 120),
-        "place_broad": _text(raw, "place_broad", 200),
+        "place_broad": _text(raw, "place_broad", 200) if place_kind(raw) == "venue" else "",
         "address_complete": located,
         "price_chf": round(_number(raw.get("price_chf"), 10000.0), 2),
         "payment_info": _text(raw, "payment_info", 200),
@@ -314,7 +330,9 @@ class EventAssistant:
             "starts_at": local_time(d["start"], now).isoformat() if fixed else None,
             "ends_at": local_time(d["end"], now).isoformat() if fixed and d["end"] else None,
             "poll_deadline": local_time(d["poll_deadline"], now).isoformat() if d["poll_deadline"] else None,
-            "location_name": (str(place.get("name") or "").strip() or d["place_name"])[:120] or None,
+            # Chez un particulier, le nom reste « Chez Boby » (le résultat Google n'est que la rue) ; l'adresse suit.
+            "location_name": ((d["place_name"] if d["place_kind"] == "home" else "")
+                              or str(place.get("name") or "").strip() or d["place_name"])[:120] or None,
             "location_address": str(place.get("address") or "").strip()[:300] or None,
             "location_url": safe_url(place.get("url")),
             "price_chf": d["price_chf"] or None, "payment_info": d["payment_info"] or None,

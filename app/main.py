@@ -2000,6 +2000,7 @@ def account_ai_event_create(body: AiEventCreate):
 class AiPlaces(MemberToken):
     query: str = Field(min_length=1, max_length=PLACE_MAX_QUERY)
     broad: str = Field(default="", max_length=PLACE_MAX_QUERY)  # même lieu, cherché plus largement (type et ville)
+    kind: Literal["home", "venue"] = "venue"  # adresse de particulier (Geocoding) ou établissement (Places)
 
 
 @app.post("/api/account/ai/places")
@@ -2007,7 +2008,8 @@ def account_ai_places(body: AiPlaces):
     """Lieux possibles dans Google Maps pour le lieu dit (la personne choisit le bon) ; vide sans clé Google."""
     def run():
         assistant.allowed(body.token)
-        return {"source": "google" if places.configured else "none", "places": places.search_all([body.query, body.broad])}
+        return {"source": "google" if places.configured else "none",
+                "places": places.find(body.query, body.broad, body.kind)}
     return account_call(run)
 
 

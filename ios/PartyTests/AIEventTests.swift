@@ -15,6 +15,19 @@ final class AIEventTests: XCTestCase {
         XCTAssertEqual(draft.invitees, [])
         XCTAssertEqual(draft.not_understood, [])
         XCTAssertEqual(draft.price_chf, 25)
+        XCTAssertEqual(draft.place_kind, "venue")  // ancien serveur : un lieu sans type = établissement
+    }
+
+    /// Retour du 02.11 : soirée chez soi, l'adresse est cherchée parmi les adresses et le type repart avec le brouillon.
+    func testAHomeAddressKeepsItsKindBackAndForth() throws {
+        let json = """
+        {"status":"ready","questions":[],"title":"Soirée chez Boby","start":"2026-11-07T21:00","place_kind":"home",
+         "place_query":"420 Route des Rosselets, 01170 Ségny, France","place_name":"Chez Boby","address_complete":true}
+        """
+        let draft = try JSONDecoder().decode(AIEvent.Draft.self, from: Data(json.utf8))
+        XCTAssertEqual(draft.place_kind, "home")
+        let encoded = try JSONSerialization.jsonObject(with: JSONEncoder().encode(draft)) as? [String: Any]
+        XCTAssertEqual(encoded?["place_kind"] as? String, "home")
     }
 
     func testSameDayEndShowsOnlyTheHour() {
