@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import beerpong, calendar_ics, debate, games, heist, island, likely, links, masque, neon, president, psy, purity, quiz, reflet
+from . import beerpong, brain, calendar_ics, debate, games, heist, island, likely, links, masque, neon, president, psy, purity, quiz, reflet
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
 from .account_auth import AccountAuth
@@ -2879,6 +2879,88 @@ def purity_me(body: AccountToken, request: Request):
         raise HTTPException(401, str(e))
     account_limiter.success(ip)
     return purity.profile(gid)
+
+
+# 🧠 Méninges : entraînement cérébral solo (mini-jeux dans le navigateur, résultats et stats ici).
+BRAIN_GAME_ID = r"^[a-z_]{2,20}$"
+
+
+class BrainResult(BaseModel):
+    token: str = Field(min_length=21, max_length=4095)
+    game: str = Field(pattern=BRAIN_GAME_ID)
+    score: int = Field(ge=0, le=1_000_000)
+    accuracy: float = Field(ge=0, le=1)
+    avg_rt_ms: int = Field(default=0, ge=0, le=60_000)
+    level: int = Field(default=1, ge=1, le=99)
+    duration_ms: int = Field(ge=0, le=3_600_000)
+
+
+class BrainCompare(BaseModel):
+    token: str = Field(min_length=21, max_length=4095)
+    target: str | None = Field(default=None, pattern=UUID)
+
+
+class BrainLocalSession(BaseModel):
+    game: str = Field(pattern=BRAIN_GAME_ID)
+    score: int = Field(ge=0, le=1_000_000)
+    accuracy: float | None = Field(default=None, ge=0, le=1)
+    avg_rt_ms: int = Field(default=0, ge=0, le=60_000)
+    level: int = Field(default=1, ge=1, le=99)
+    duration_ms: int = Field(default=0, ge=0, le=3_600_000)
+    played_at: str = Field(max_length=40)
+
+
+class BrainLocal(BaseModel):
+    sessions: list[BrainLocalSession] = Field(default_factory=list, max_length=brain.LOCAL_MAX)
+
+
+def brain_account(request: Request, work):
+    """Appel Méninges au nom du compte : mêmes garde-fous que le Purify Test (limite par adresse, jeton vérifié)."""
+    ip = client_ip(request)
+    if msg := account_limiter.blocked(ip):
+        raise HTTPException(429, msg)
+    try:
+        result = account_call(work, 401)
+    except brain.BrainError as e:
+        raise HTTPException(400, str(e))
+    account_limiter.success(ip)
+    return result
+
+
+@app.get("/api/brain/catalog")
+def brain_catalog():
+    """Domaines et jeux de Méninges (libellés pour les écrans de stats)."""
+    return brain.catalog()
+
+
+@app.post("/api/brain/result")
+def brain_result(body: BrainResult, request: Request):
+    """Fin d'une partie de Méninges : le résultat (borné) est enregistré pour le compte connecté."""
+    try:
+        result = brain.validate(body.game, body.score, body.accuracy, body.avg_rt_ms, body.level, body.duration_ms)
+    except brain.BrainError as e:
+        raise HTTPException(400, str(e))
+    return brain_account(request, lambda: brain.BrainStore(accounts).record(body.token, result))
+
+
+@app.post("/api/brain/me")
+def brain_me(body: AccountToken, request: Request):
+    """Profil Méninges du compte connecté : Température, domaines, jeux, série, évolution, forces et faiblesses."""
+    if not 20 < len(body.token) < 4096:
+        raise HTTPException(400, "Jeton invalide")
+    return brain_account(request, lambda: brain.BrainStore(accounts).me(body.token))
+
+
+@app.post("/api/brain/compare")
+def brain_compare(body: BrainCompare, request: Request):
+    """Classement Méninges entre amis (Température), percentile, et le profil d'un membre à comparer."""
+    return brain_account(request, lambda: brain.BrainStore(accounts).compare(body.token, body.target))
+
+
+@app.post("/api/brain/local")
+def brain_local(body: BrainLocal):
+    """Joueur non connecté : même profil, calculé à partir des parties gardées sur son téléphone (rien n'est enregistré)."""
+    return brain.profile([s.model_dump() for s in body.sessions])
 
 
 @app.get("/qr/game/{code}.svg")

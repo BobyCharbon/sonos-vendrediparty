@@ -95,7 +95,8 @@ const GAME_CATEGORIES = [
   ["three", "🎮 Jeux 3D", ["neon", "island", "heist"]],
   ["talk", "💞 Parler vrai", ["masque", "reflet", "psy", "divan", "debate", "tmc"]],
   ["cards", "🃏 Jeux de cartes", ["pyramid", "blackjack", "president"]],
-  ["mood", "🎉 Ambiance", ["quiz", "undercover", "likely"]]
+  ["mood", "🎉 Ambiance", ["quiz", "undercover", "likely"]],
+  ["brain", "🧠 Entraînement", ["brain"]]
 ];
 // Jeux rangés hors « Alcool » qui se jouent aussi avec des gorgées : étiquette 🍻 (chaque jeu n'apparaît qu'une fois).
 const DRINK_TAG_GAMES = ["pyramid", "blackjack", "quiz", "likely"];
@@ -454,6 +455,16 @@ document.getElementById("gamesRoot").innerHTML = `
         <button class="g-go" data-create="purity">Lancer le test</button>
       </div>
 
+      <div class="gcard g-br">
+        <div class="g-head">
+          <div class="g-icon" aria-hidden="true"><span class="g-br-ico">🧠</span></div>
+          <div class="g-meta"><div class="g-title" data-brain-name>Méninges</div><div class="g-tag">Fais chauffer tes méninges, une minute par jeu.</div></div>
+        </div>
+        <p class="g-desc">Des mini-jeux de vitesse, mémoire, attention, flexibilité, logique et calcul. L'Échauffement du jour en choisit 5, ta Température (°M) suit tes progrès.</p>
+        <div class="g-chips"><span>Solo</span><span>~1 min par jeu</span><span>🔥 Série quotidienne</span></div>
+        <button type="button" class="g-go" data-brain-open="brain">Faire chauffer</button>
+      </div>
+
       <div class="gcard g-uc">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.undercover}</div>
@@ -780,7 +791,8 @@ document.getElementById("gamesRoot").innerHTML = `
     sec.setAttribute("aria-labelledby", `gCat-${id}`);
     sec.innerHTML = `<h2 class="g-cat-h" id="gCat-${id}">${label}</h2>`;
     for (const type of types) {
-      const card = home.querySelector(`[data-create="${type}"]`)?.closest(".gcard");
+      // Méninges (entraînement solo, sans partie) s'ouvre par data-brain-open au lieu de data-create.
+      const card = home.querySelector(`[data-create="${type}"], [data-brain-open="${type}"]`)?.closest(".gcard");
       if (!card) continue;
       card.querySelector(".g-title")?.insertAdjacentHTML("beforeend", drinkTag(type));
       sec.append(card);

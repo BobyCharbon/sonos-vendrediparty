@@ -14,18 +14,33 @@ def categories() -> list[tuple[str, str, list[str]]]:
     return [tuple(c) for c in json.loads(block)]
 
 
+# Rangés dans une catégorie sans être une partie du serveur : Méninges (entraînement solo, app/static/brain/).
+CLIENT_ONLY = {"brain"}
+
+
 def test_every_game_is_in_exactly_one_category():
-    listed = [t for _, _, types in categories() for t in types]
+    listed = [t for _, _, types in categories() for t in types if t not in CLIENT_ONLY]
     assert sorted(listed) == sorted(t for t in games.GAMES if t != "room")
+    assert not CLIENT_ONLY & set(games.GAMES)
 
 
 def test_categories_in_the_chosen_order():
-    assert [label for _, label, _ in categories()] == ["🍻 Alcool", "🎮 Jeux 3D", "💞 Parler vrai", "🃏 Jeux de cartes", "🎉 Ambiance"]
+    assert [label for _, label, _ in categories()] == ["🍻 Alcool", "🎮 Jeux 3D", "💞 Parler vrai", "🃏 Jeux de cartes", "🎉 Ambiance",
+                                                     "🧠 Entraînement"]
     cats = {cid: types for cid, _, types in categories()}
     assert set(cats["talk"]) == {"masque", "reflet", "psy", "divan", "debate", "tmc"}
     assert set(cats["cards"]) == {"pyramid", "blackjack", "president"}
     assert set(cats["three"]) == {"neon", "island", "heist"}
     assert set(cats["mood"]) == {"quiz", "undercover", "likely"}
+    assert cats["brain"] == ["brain"]
+
+
+def test_brain_card_opens_the_training_panel_not_a_game():
+    """La carte Méninges ouvre le panneau d'entraînement (data-brain-open), sans créer de partie (data-create)."""
+    assert 'data-brain-open="brain"' in JS and 'data-create="brain"' not in JS
+    html = (Path(__file__).resolve().parent.parent / "app" / "static" / "index.html").read_text(encoding="utf-8")
+    assert html.index("/static/games.js") < html.index("/static/brain/core.js")
+    assert "/static/brain/brain.css" in html
 
 
 def test_drink_tag_only_outside_the_alcohol_category():
