@@ -11,6 +11,7 @@ import { colors, font, radius } from '@/lib/theme';
 import type { BringItem, DateOption, DateVote, DateVoteRow, EventRow, Poll, PollOption, Rsvp, RsvpStatus } from '@/lib/types';
 import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
+import { SharedBringRow } from './BringShared';
 import { DateTimeField } from './DateTimeField';
 import { RsvpButtons } from './RsvpButtons';
 import { Avatar, Button, Chip, ErrorText, Input, Meter, Reveal, s, Section, T } from './ui';
@@ -513,6 +514,9 @@ export function BringSection({
     <Section title="Qui amène quoi">
       {[...items].sort((a, b) => a.sort - b.sort).map((it) => (
         <Reveal key={it.id} kind={grew ? 'rise' : null}>
+          {it.quantity ? (
+            <SharedBringRow item={it} me={me} names={names} canParticipate={canParticipate} onChange={onChange} onError={setError} />
+          ) : (
           <View style={s.rowBetween}>
             <T style={{ flex: 1 }}>{it.label}</T>
             {/* Qui le prend change (moi, un autre, personne) : la nouvelle action se pose à sa place. */}
@@ -530,6 +534,7 @@ export function BringSection({
             )}
             </Reveal>
           </View>
+          )}
           {it.added_by ? null : <T style={{ color: colors.coral, fontSize: 12 }}>Demandé par l’organisateur</T>}
         </Reveal>
       ))}

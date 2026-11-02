@@ -59,7 +59,8 @@ type Draft = {
   forum_enabled: boolean;
   notify_on_publish: boolean;
   polls: PollDraft[];
-  bring: { id?: string; label: string }[];
+  /** quantity : texte du champ « Qté » ; vide ou 1 = un seul objet, pris en entier par une personne. */
+  bring: { id?: string; label: string; quantity?: string }[];
 };
 
 const emptyDraft: Draft = {
@@ -128,11 +129,17 @@ function activeAdvanced(d: Draft): string[] {
   ].filter(Boolean);
 }
 
+/** « 15 » → 15 (partagé entre plusieurs personnes) ; vide, 0 ou 1 → null (une personne prend l'objet entier). */
+export function bringQuantity(text: string | undefined): number | null {
+  const n = parseInt(text ?? '', 10);
+  return n >= 2 ? Math.min(n, 999) : null;
+}
+
 async function loadDraft(eventId: string): Promise<Draft> {
   const res = await supabase
     .from('events')
     .select(
-      '*, event_tags(tag_id), event_organizers(user_id), event_invites(user_id, via_group), event_groups(group_id), event_phone_invites(phone), date_options(id, starts_at), polls(*, poll_options(*)), bring_items(id, label, sort)',
+      '*, event_tags(tag_id), event_organizers(user_id), event_invites(user_id, via_group), event_groups(group_id), event_phone_invites(phone), date_options(id, starts_at), polls(*, poll_options(*)), bring_items(id, label, sort, quantity)',
     )
     .eq('id', eventId)
     .single();
@@ -144,7 +151,7 @@ async function loadDraft(eventId: string): Promise<Draft> {
     event_phone_invites: { phone: string }[];
     date_options: { id: string; starts_at: string }[];
     polls: (Poll & { poll_options: PollOption[] })[];
-    bring_items: { id: string; label: string; sort: number }[];
+    bring_items: { id: string; label: string; sort: number; quantity: number | null }[];
   };
   return {
     title: e.title,
@@ -188,7 +195,7 @@ async function loadDraft(eventId: string): Promise<Draft> {
         members_can_add_options: p.members_can_add_options,
         results_after_vote: p.results_after_vote,
       })),
-    bring: e.bring_items.sort((a, b) => a.sort - b.sort).map((b) => ({ id: b.id, label: b.label })),
+    bring: e.bring_items.sort((a, b) => a.sort - b.sort).map((b) => ({ id: b.id, label: b.label, quantity: b.quantity ? String(b.quantity) : '' })),
   };
 }
 
@@ -422,11 +429,11 @@ export function EventForm({ eventId }: { eventId?: string }) {
     const removedItems = (prev?.bring ?? []).filter((b) => b.id && !keptItems.has(b.id)).map((b) => b.id!);
     if (removedItems.length) check(await supabase.from('bring_items').delete().in('id', removedItems));
     for (const [sort, item] of d.bring.entries()) {
-      if (item.id) check(await supabase.from('bring_items').update({ label: item.label.trim(), sort }).eq('id', item.id).eq('event_id', id));
+      if (item.id) check(await supabase.from('bring_items').update({ label: item.label.trim(), sort, quantity: bringQuantity(item.quantity) }).eq('id', item.id).eq('event_id', id));
     }
     for (const [sort, item] of d.bring.entries()) {
       if (item.id || !item.label.trim()) continue;
-      const created = must(await supabase.from('bring_items').insert({ event_id: id, label: item.label.trim(), sort }).select('id').single());
+      const created = must(await supabase.from('bring_items').insert({ event_id: id, label: item.label.trim(), sort, quantity: bringQuantity(item.quantity) }).select('id').single());
       item.id = created.id as string;
     }
   }
@@ -681,6 +688,15 @@ export function EventForm({ eventId }: { eventId?: string }) {
                   value={b.label}
                   onChangeText={(label) => set({ bring: d.bring.map((x, j) => (j === i ? { ...x, label } : x)) })}
                   style={{ flex: 1 }}
+                />
+                <Input
+                  placeholder="Qté"
+                  accessibilityLabel={`Quantité de ${b.label || 'cet objet'} (plusieurs personnes peuvent se partager)`}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                  value={b.quantity ?? ''}
+                  onChangeText={(quantity) => set({ bring: d.bring.map((x, j) => (j === i ? { ...x, quantity: quantity.replace(/\D/g, '') } : x)) })}
+                  style={{ width: 64 }}
                 />
                 <Button small variant="secondary" label="✕" onPress={() => set({ bring: d.bring.filter((_, j) => j !== i) })} />
               </Reveal>
