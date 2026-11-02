@@ -5,7 +5,7 @@ import httpx
 import pytest
 
 from tests.supabase_live.test_audiences_live import ADMIN, GUEST_A, GUEST_B, create_event
-from tests.supabase_live.test_admin_pages_live import origin  # noqa: F401 (fixture)
+from tests.supabase_live.test_admin_pages_live import origin, pytestmark as needs_test_build  # noqa: F401 (fixture)
 from tests.supabase_live.test_member_admin_live import TEST_URL, Session, pytestmark  # noqa: F401
 
 
@@ -60,6 +60,7 @@ def test_a_person_takes_back_only_their_own_share(wine):
     assert taken(admin, item) == {b.uid: 13}
 
 
+@needs_test_build  # module Événements construit pour la base de TEST (sinon le code SMS de test est refusé)
 def test_in_the_browser_a_guest_says_she_brings_two_of_the_fifteen_bottles(browser, origin, tmp_path):
     pw = pytest.importorskip('playwright.sync_api')
     from tests.supabase_live.test_audience_form_live import sign_in

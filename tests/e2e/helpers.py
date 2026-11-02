@@ -95,7 +95,7 @@ class Server:
         self.log = open(Path(self.data) / "server.log", "w")
         self.proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app", "--port", str(self.port), "--log-level", "warning"],
                                      cwd=ROOT, env=env, stdout=self.log, stderr=subprocess.STDOUT)
-        for _ in range(300):  # jusqu'à 30 s : sur une machine chargée, le démarrage peut dépasser 10 s
+        for _ in range(600):  # jusqu’à 60 s : sur une machine chargée (autres serveurs de test), le démarrage est lent
             try:
                 if httpx.get(self.url + "/", timeout=1).status_code == 200:
                     return

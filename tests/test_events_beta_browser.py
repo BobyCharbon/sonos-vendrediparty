@@ -25,7 +25,7 @@ def prod_origin(tmp_path_factory):
                                cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     origin = f'http://127.0.0.1:{port}'
     try:
-        deadline = time.monotonic() + 10
+        deadline = time.monotonic() + 60  # machine chargée : démarrage parfois lent
         while time.monotonic() < deadline:
             try:
                 if httpx.get(origin, timeout=1).status_code == 200: break
