@@ -183,6 +183,6 @@ def test_home_and_game_room_list_games_by_category(phones):
     page.locator('#gHome [data-create="room"]').click()
     expect(page.locator('#gamePlay')).to_be_visible()
     expect(page.locator('.g-room-cat-h')).to_have_text(['🍻 Alcool', '🎮 Jeux 3D', '💞 Parler vrai', '🃏 Jeux de cartes', '🎉 Ambiance'])
-    expect(page.locator('.g-room-cat[data-cat="talk"] [data-room-pick]')).to_have_count(4)
+    expect(page.locator('.g-room-cat[data-cat="talk"] [data-room-pick]')).to_have_count(6)
     page.locator('.g-room-cat[data-cat="talk"] [data-room-pick="debate"]').click()
     expect(page.locator('.g-room-sheet [data-create="debate"]')).to_be_visible()
