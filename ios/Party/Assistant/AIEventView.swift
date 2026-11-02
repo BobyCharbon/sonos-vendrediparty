@@ -345,6 +345,10 @@ struct AIEventView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(p.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
                             if !p.address.isEmpty { Text(p.address).font(.caption).foregroundStyle(.secondary) }
+                            if p.approximate {
+                                Label("Approximatif : Google ne connaît pas le numéro ou la rue", systemImage: "exclamationmark.triangle")
+                                    .font(.caption2).foregroundStyle(.orange)
+                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())

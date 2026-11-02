@@ -106,6 +106,8 @@ enum AIEvent {
         let url: String
         var latitude: Double
         var longitude: Double
+        /// Google n'a trouvé que la rue ou la commune, pas le numéro : à ne pas prendre pour l'adresse exacte.
+        var approximate = false
     }
 
     struct Created: Decodable, Equatable {
@@ -236,7 +238,7 @@ final class AIEventStore: ObservableObject {
             candidates = google.places.map { p in
                 AIEvent.Place(name: p.name, address: p.address,
                               url: p.url.isEmpty ? AIEvent.googleMapsURL([p.name, p.address].joined(separator: ", ")) : p.url,
-                              latitude: p.latitude, longitude: p.longitude)
+                              latitude: p.latitude, longitude: p.longitude, approximate: p.exact == false)
             }
             return
         }
@@ -322,7 +324,10 @@ final class AIEventStore: ObservableObject {
 
 extension PartyAPI {
     struct FoundPlaces: Decodable {
-        struct Found: Decodable { let name: String; let address: String; let latitude: Double; let longitude: Double; let url: String }
+        struct Found: Decodable {
+            let name: String; let address: String; let latitude: Double; let longitude: Double; let url: String
+            let exact: Bool?  // absent d'un ancien serveur
+        }
         let source: String
         let places: [Found]
     }
