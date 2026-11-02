@@ -6,8 +6,8 @@ import UniformTypeIdentifiers
 /// et affiche ShareView.
 final class ShareViewController: UIViewController {
     private let model = ShareModel()
-    /// Fermeture automatique après l'ajout, le temps de lire la confirmation.
-    private static let closeDelay: Duration = .milliseconds(1200)
+    /// Fermeture automatique après l'ajout (musique) ou la préparation d'un événement, le temps de lire la confirmation.
+    private static let closeDelay: Duration = .seconds(2)
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -21,7 +21,7 @@ final class ShareViewController: UIViewController {
         Task { @MainActor in
             await model.start(shared: await sharedText())
             for await phase in model.$phase.values {
-                if case .added = phase {
+                if phase.isDone {
                     try? await Task.sleep(for: Self.closeDelay)
                     finish()
                     break
@@ -64,12 +64,18 @@ struct ShareView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) { content }.padding(16)
             }
+            // Fermer en bas, à portée du pouce (et l'extension se ferme seule une fois le partage fait).
+            .safeAreaInset(edge: .bottom) {
+                if !model.phase.isDone {
+                    Button("Fermer", action: close)
+                        .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 12)
+                        .background(Self.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .padding(.horizontal, 16).padding(.bottom, 8)
+                }
+            }
             .background(Self.background.ignoresSafeArea())
             .navigationTitle("Ajouter à la soirée")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Fermer", action: close) }
-            }
         }
         .tint(Self.accent)
         .preferredColorScheme(.dark)
