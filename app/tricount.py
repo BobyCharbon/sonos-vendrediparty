@@ -134,7 +134,17 @@ class Tricount:
         return self.overview(token)
 
     def save_expense(self, token: str, grp: str, exp: dict) -> dict:
-        """Dépense ou remboursement : titre, montant, payeur, parts ; la catégorie est devinée si elle manque."""
+        """Dépense ou remboursement : titre, montant, payeur, parts ; la catégorie est devinée si elle manque.
+        Une dépense mal formée (montant en texte, part qui n'est pas un objet…) est refusée proprement, jamais une 500."""
+        if not isinstance(exp, dict) or not isinstance(exp.get("shares") or [], list) \
+                or not all(isinstance(s, dict) for s in exp.get("shares") or []):
+            raise AccountError("Dépense invalide")
+        try:
+            return self._save_expense(token, grp, exp)
+        except (TypeError, ValueError, OverflowError):
+            raise AccountError("Dépense invalide") from None
+
+    def _save_expense(self, token: str, grp: str, exp: dict) -> dict:
         title = self._name(exp.get("title", ""), MAX_TITLE, "un titre")
         amount = int(exp.get("amount_cents") or 0)
         if amount <= 0 or amount > 100_000_000:
