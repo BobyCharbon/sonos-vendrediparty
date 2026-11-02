@@ -1,12 +1,12 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { AttendanceEditor } from '@/components/AttendanceEditor';
 import { CalendarButton } from '@/components/CalendarButton';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
-import { Badge, Button, Card, ConfirmButton, ErrorText, HeaderAction, HeaderBack, Loading, Screen, s, Section, T, Title } from '@/components/ui';
+import { Badge, Button, Card, Cascade, ConfirmButton, ErrorText, HeaderAction, HeaderBack, Screen, s, Section, Skeleton, T, Title, Toast } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { useQuery, useRealtime } from '@/lib/data';
 import { formatLongDay, formatMessageTime, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
@@ -56,7 +56,7 @@ export default function EventScreen() {
       supabase
         .from('events')
         .select(
-          '*, category:categories(*), author:profiles!events_created_by_fkey(display_name), event_tags(tags(*)), event_organizers(user_id), rsvps(*), date_options(*, date_votes(*)), polls(*, poll_options(*)), bring_items(*), event_groups(member_groups(name))',
+          '*, category:categories(*), author:profiles!events_created_by_fkey(display_name), event_tags(tags(*)), event_organizers(user_id), rsvps(*), date_options(*, date_votes(*)), polls(*, poll_options(*)), bring_items(*, bring_claims(user_id, quantity)), event_groups(member_groups(name))',
         )
         .eq('id', id)
         .single(),
@@ -106,10 +106,13 @@ export default function EventScreen() {
     return out;
   }, [data]);
 
-  if (!data || !ev) return loadError ? <Screen edges={[]}><ErrorText error={loadError} /></Screen> : <Loading />;
+  if (!data || !ev) return loadError ? <Screen edges={[]}><ErrorText error={loadError} /></Screen> : <EventSkeleton />;
 
   const published = ev.status === 'published';
   const canEdit = isAdmin || (isOrganizer && (ev.status !== 'published' || can('events.edit_own_published')));
+  // App iPhone et droit IA : « ✨ IA » ouvre l'écran natif où l'on dit ce qui change (« décale à 21h »…).
+  const native = (globalThis as { PartyNative?: { ai?: { editEvent?: (id: string) => void } } }).PartyNative;
+  const aiEdit = can('ai.use') && native?.ai?.editEvent ? (id: string) => native.ai!.editEvent!(id) : null;
 
   async function run(p: PromiseLike<{ error: { message: string } | null }>) {
     const { error } = await p;
@@ -139,7 +142,7 @@ export default function EventScreen() {
   ].filter(Boolean) as { k: string; v: string; sub?: string | null }[];
 
   return (
-    <Screen edges={[]}>
+    <>
       <Stack.Screen
         options={{
           title: '',
@@ -148,12 +151,19 @@ export default function EventScreen() {
           headerRight: () => (
             <View style={s.row}>
               {published ? <HeaderAction label={data.muted ? '🔕 Réactiver' : '🔔 Sourdine'} onPress={toggleMute} /> : null}
+              {canEdit && aiEdit ? <HeaderAction label="✨ IA" onPress={() => aiEdit(ev.id)} /> : null}
               {canEdit ? <HeaderAction prominent label="Modifier" onPress={() => router.push(`/event/${ev.id}/edit`)} /> : null}
             </View>
           ),
         }}
       />
-
+    <Screen edges={[]}>
+      {/* Ouverture : l’en-tête puis chaque bloc montent en cascade (une seule fois, pas aux rechargements). */}
+      <Cascade>
+      {/* Affiche de l’événement (lue sur la page de l’événement par l’assistant IA) */}
+      {ev.cover_url?.startsWith('https://') ? (
+        <Image source={{ uri: ev.cover_url }} style={st.cover} resizeMode="cover" accessibilityLabel="Affiche de l’événement" />
+      ) : null}
       {/* En-tête : l’essentiel en un coup d’œil */}
       <View style={{ gap: 10 }}>
         <View style={s.wrap}>
@@ -174,7 +184,7 @@ export default function EventScreen() {
         ) : null}
         {ev.public_link && published ? (
           <View style={s.row}>
-            <T muted size={13} style={{ flex: 1 }}>🌍 Publique : tous les comptes Party et toute personne qui a le lien{shareNote ? ` · ${shareNote}` : ''}</T>
+            <T muted size={13} style={{ flex: 1 }}>🌍 Publique : tous les comptes Party et toute personne qui a le lien{shareNote && shareNote !== 'Lien copié' ? ` · ${shareNote}` : ''}</T>
             <Button small variant="secondary" label="Partager le lien" onPress={async () => setShareNote(await sharePublicLink(ev))} />
           </View>
         ) : null}
@@ -331,11 +341,43 @@ export default function EventScreen() {
           }}
         />
       ) : null}
+      </Cascade>
+    </Screen>
+    {shareNote === 'Lien copié' ? <Toast message="Lien copié" onHide={() => setShareNote('')} /> : null}
+    </>
+  );
+}
+
+/** Fiche fantôme pendant le chargement : titre, date, lieu et carte de réponse prennent déjà leur place. */
+function EventSkeleton() {
+  return (
+    <Screen edges={[]}>
+      <View accessibilityRole="progressbar" accessibilityLabel="Chargement de l’événement…" style={{ gap: 14 }}>
+        <Skeleton width={84} height={22} radius={radius.pill} />
+        <Skeleton width="85%" height={32} />
+        <Skeleton width="50%" height={32} />
+        {[0, 1].map((i) => (
+          <View key={i} style={st.keyRow}>
+            <Skeleton width={40} height={40} radius={radius.sm} />
+            <View style={{ flex: 1, gap: 6 }}>
+              <Skeleton width="65%" height={16} />
+              <Skeleton width="40%" height={12} />
+            </View>
+          </View>
+        ))}
+        <Card>
+          <Skeleton width="40%" height={18} />
+          <View style={s.row}>
+            {[0, 1, 2].map((i) => <Skeleton key={i} height={60} radius={radius.md} style={{ flex: 1 }} />)}
+          </View>
+        </Card>
+      </View>
     </Screen>
   );
 }
 
 const st = StyleSheet.create({
+  cover: { width: '100%', aspectRatio: 16 / 9, borderRadius: radius.md, backgroundColor: colors.surface2, marginBottom: 14 },
   keyRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   keyIcon: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   notice: { padding: 12, borderRadius: radius.md },

@@ -88,6 +88,33 @@ body.pyr-full #gamePlay.nav-dragging { border-radius: 26px 26px 0 0; box-shadow:
   .nav-head, .nav-bar { box-shadow: inset 0 -1px 0 rgba(255, 255, 255, .45); }
 }
 
+/* ── Pastilles et petits mouvements de la coquille ── */
+/* Pastille d'onglet : elle apparaît avec un petit rebond ; un nombre qui change la fait sursauter (badge-bump, index.html). */
+.tabs .badge { animation: badge-in .45s var(--spring-bounce) both; transform-origin: 50% 50%; }
+.tabs .badge.badge-bump { animation: badge-bump .4s var(--spring) both; }
+@keyframes badge-in { from { opacity: 0; transform: scale(.3); } }
+@keyframes badge-bump { 40% { transform: scale(1.3); } }
+/* Icône d'onglet : la couleur de l'onglet actif arrive en fondu. */
+.tab-ico { transition: stroke .2s ease, filter .3s ease; }
+/* Bandeau « Ajoute Party à ton écran d'accueil » : il monte du bas au lieu d'apparaître d'un coup. */
+.install:not(.hidden) { animation: install-in .55s var(--spring) both; }
+@keyframes install-in { from { opacity: 0; transform: translate3d(0, 24px, 0); } }
+/* Liste repliable (« Déjà passés ») : son contenu descend en fondu à l'ouverture. */
+details[open] > summary ~ * { animation: details-in .35s var(--spring) both; }
+@keyframes details-in { from { opacity: 0; transform: translate3d(0, -6px, 0); } }
+/* Fenêtre d'installation fermée par « Plus tard » : elle redescend au lieu de disparaître (index.html). */
+.i-modal.i-out { animation: scrim-out .24s ease both; pointer-events: none; }
+.i-modal.i-out .i-sheet { animation: sheet-out .24s cubic-bezier(.4, 0, 1, 1) both; }
+.i-modal.i-coach.i-out .i-sheet { animation-name: i-sheet-up-out; }
+@keyframes i-sheet-up-out { to { opacity: 0; transform: translateY(-40px); } }
+/* Ouverture du module Événements : le message d'attente respire doucement (on voit que ça charge). */
+#eventsLoading:not(.hidden) { animation: py-breathe 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  #eventsLoading:not(.hidden) { animation: none; }
+  .tabs .badge, .tabs .badge.badge-bump, .install:not(.hidden), details[open] > summary ~ * { animation: none; }
+  .i-modal.i-out, .i-modal.i-out .i-sheet { animation: fade-out .15s ease both; }
+}
+
 /* ── Contrôles segmentés : la pastille glisse vers le choix (segmented.js) ── */
 .seg.seg-glide { position: relative; isolation: isolate; }
 .seg.seg-glide > button { position: relative; z-index: 1; background: transparent; box-shadow: none; }

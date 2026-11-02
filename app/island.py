@@ -12,6 +12,8 @@ STEP = 1 / 60
 TILE_RADIUS = 1.65
 DURATION = 90.0
 WARNING = 2.8
+STAY = 2.5  # rester plus longtemps sur la même case la fait tomber (avis f8fb86e8efd3 : plus dur, pas de camping)
+GRACE = 12.0  # sauf au début de la manche : le temps de prendre ses repères (l'île commence à s'effondrer à 10 s)
 COLORS = ['#20c9d0', '#f66b60', '#f4bd40', '#a185e8', '#78ba60', '#ef91ba', '#539cef', '#ef984b']
 
 
@@ -40,6 +42,23 @@ def on_tile(x, y, tile):
 
 def supported(s, x, y):
     return any(t['fall'] > s['time'] and on_tile(x, y, t) for t in s['tiles'])
+
+
+def tile_under(s, x, y):
+    return next((t for t in s['tiles'] if t['fall'] > s['time'] and on_tile(x, y, t)), None)
+
+
+def wear(s, b):
+    """La case où un joueur reste trop longtemps se met à trembler, puis tombe (avertissement habituel de WARNING s).
+    Seule la dernière île, prévue pour survivre jusqu'au bout, n'est jamais avancée."""
+    t = tile_under(s, b['x'], b['y'])
+    if not t or s['time'] < GRACE:
+        return
+    if b.get('on') != t['id']:
+        b.update(on=t['id'], since=s['time'])
+    elif s['time']-b['since'] >= STAY and s['time']+WARNING < t['fall'] <= DURATION:
+        t['fall'] = round(s['time']+WARNING, 3)
+        b['since'] = s['time']
 
 
 def start(g, rng=None):
@@ -172,6 +191,8 @@ def tick(g, now=None):
             if b['z'] > 0:
                 b['vz'] -= 18.*STEP
                 b['z'] = max(0., b['z']+b['vz']*STEP)
+            if b['z'] == 0:
+                wear(s, b)
             if b['z'] == 0 and not supported(s, b['x'], b['y']):
                 b.update(alive=False, out_at=max(0., s['time']), ix=0., iy=0., jump=False)
                 for p in g['players']:

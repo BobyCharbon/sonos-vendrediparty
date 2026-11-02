@@ -15,7 +15,7 @@ enum ChatNotify: String, Codable, CaseIterable, Identifiable {
 }
 
 /// Une ligne de la liste (POST /api/account/chats) : la plus récente en haut, comme WhatsApp.
-struct ChatSummary: Decodable, Equatable, Identifiable {
+struct ChatSummary: Codable, Equatable, Identifiable {
     let id: String
     let name: String
     let member: Bool
@@ -39,19 +39,19 @@ struct ChatSummary: Decodable, Equatable, Identifiable {
 }
 
 /// Une conversation (POST /api/account/chats/open) : messages du plus ancien au plus récent.
-struct Conversation: Decodable, Equatable {
-    struct Reaction: Decodable, Equatable, Hashable {
+struct Conversation: Codable, Equatable {
+    struct Reaction: Codable, Equatable, Hashable {
         let emoji: String
         let count: Int
         let mine: Bool
     }
 
-    struct Reply: Decodable, Equatable {
+    struct Reply: Codable, Equatable {
         let name: String
         let text: String
     }
 
-    struct Message: Decodable, Equatable, Identifiable {
+    struct Message: Codable, Equatable, Identifiable {
         let id: String
         let author: String
         let authorName: String
@@ -81,7 +81,7 @@ struct Conversation: Decodable, Equatable {
         var date: Date? { ChatDates.parse(at) }
     }
 
-    struct Member: Decodable, Equatable, Identifiable {
+    struct Member: Codable, Equatable, Identifiable {
         let id: String
         let name: String
         let photo: String?

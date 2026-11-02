@@ -162,7 +162,9 @@ struct MemberCardView: View {
             .navigationTitle("Profil")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fermer") { dismiss() } } }
-            .overlay { if card == nil && error == nil { ProgressView() } }
+            .overlay { if card == nil && error == nil { ProgressView().transition(.opacity) } }
+            // Fiche arrivée : fondu de la roue vers le profil, plutôt qu'un remplacement sec.
+            .motion(Motion.smooth, value: card == nil)
             .task {
                 do { card = try await store.card(memberID) } catch { self.error = error.localizedDescription }
             }

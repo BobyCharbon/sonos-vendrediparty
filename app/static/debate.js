@@ -30,16 +30,20 @@ const dbBallotKey = (g, who) => `${g.id}:${g.debate.n}:${g.debate.round}:${who}`
 const dbFor = (h) => h.counts[3] + h.counts[4];
 const dbAgainst = (h) => h.counts[0] + h.counts[1];
 
-function dbQuestion(v, small = false) {
+// Clé d'animation propre au dilemme et au tour de vote (les animations ne se rejouent pas à chaque rafraîchissement).
+const dbKey = (g, part) => `db:${g.id}:${g.debate.n}:${g.debate.round}:${part}`;
+
+function dbQuestion(v, small = false, g = null) {
   const q = v.q || {};
   const tag = q.by ? `✍️ Proposé par ${esc(q.by)}` : esc(q.theme || "");
-  return `<div class="db-q ${small ? "small" : ""}"><div class="db-q-n">Dilemme ${v.n}/${v.count}${v.round === 2 ? " · revote" : ""}</div>
+  // Nouveau dilemme : la carte bascule ; au revote, elle reste (même dilemme) et seul le bandeau « revote » arrive.
+  return `<div class="db-q ${small ? "small" : ""}"${g && !small ? GameFx.fx("flip", `db:${g.id}:${v.n}:q`) : ""}><div class="db-q-n">Dilemme ${v.n}/${v.count}${v.round === 2 ? " · revote" : ""}</div>
     <div class="db-q-t">${esc(q.text || "")}</div>${tag ? `<div class="db-q-tag">${tag}</div>` : ""}</div>`;
 }
 
-function dbDots(v) {
+function dbDots(v, key) {
   return `<div class="lk-dots" role="img" aria-label="${v.done.length} sur ${v.total} ont voté">${Array.from({ length: v.total }, (_, i) =>
-    `<i class="${i < v.done.length ? "on" : ""}"></i>`).join("")}</div>`;
+    `<i class="${i < v.done.length ? "on" : ""}"${i < v.done.length ? GameFx.fx("pop", `${key}:${i}`) : ""}></i>`).join("")}</div>`;
 }
 
 function dbSettingsHtml(g) {
@@ -89,8 +93,8 @@ function dbLobbyHtml(g) {
 
 function dbScaleHtml(g, who, title) {
   const v = g.debate, key = dbBallotKey(g, who), off = dbSending === key ? "disabled" : "";
-  return `<div class="lk-who">🤫 ${title}</div>
-    <div class="db-scale">${v.scale.map((label, i) => `<button type="button" class="db-pick db-c${i}" data-db-vote="${i}" data-db-who="${esc(who)}" data-db-key="${esc(key)}" ${off}>
+  return `<div class="lk-who"${GameFx.fx("rise", dbKey(g, `who:${who}`), 120)}>🤫 ${title}</div>
+    <div class="db-scale">${v.scale.map((label, i) => `<button type="button" class="db-pick db-c${i}" data-db-vote="${i}" data-db-who="${esc(who)}" data-db-key="${esc(key)}" ${off}${GameFx.fx("rise", dbKey(g, `pick:${who}:${i}`), 180 + i * 45)}>
       <span aria-hidden="true">${DB_EMOJI[i]}</span>${esc(label)}</button>`).join("")}</div>`;
 }
 
@@ -99,8 +103,8 @@ function dbPassHtml(g) {
   const v = g.debate;
   if (!v.voter) return "";
   if (dbReadyKey === dbVoterKey(g)) return dbScaleHtml(g, v.voter.pid, `${esc(v.voter.name)}, où te places-tu&nbsp;?`);
-  return `<div class="lk-pass">
-      <div class="lk-pass-k">📱 Passe le téléphone à</div><div class="lk-name">${esc(v.voter.name)}</div>
+  return `<div class="lk-pass"${GameFx.fx("rise", dbKey(g, `pass:${v.voter.pid}`))}>
+      <div class="lk-pass-k">📱 Passe le téléphone à</div><div class="lk-name"${GameFx.fx("pop", dbKey(g, `passname:${v.voter.pid}`), 120)}>${esc(v.voter.name)}</div>
       <button class="lk-main" data-db-ready="${esc(dbVoterKey(g))}">C'est moi, ${esc(v.voter.name)} 👋</button>
       <button class="lk-sub" data-gact="dbskip">⏭ Passer ${esc(v.voter.name)} (absent)</button>
     </div>`;
@@ -116,22 +120,26 @@ function dbWaitingHtml(g) {
 
 function dbAskHtml(g) {
   const v = g.debate;
-  const again = v.round === 2 ? `<div class="db-again">🔁 Après le débat : as-tu changé d'avis&nbsp;?</div>` : "";
+  const again = v.round === 2 ? `<div class="db-again"${GameFx.fx("pop", dbKey(g, "again"))}>🔁 Après le débat : as-tu changé d'avis&nbsp;?</div>` : "";
   // Chacun vote sur son propre téléphone, en même temps ; une fois voté, l'échelle disparaît (vote secret et définitif).
   const late = g.me && !g.is_host && !v.done.includes(g.me.pid) && !v.waiting.some((x) => x.pid === g.me.pid);
   const mine = v.can_vote ? dbScaleHtml(g, g.me.pid, "Où te places-tu&nbsp;? C'est secret.")
-    : v.mine != null ? `<div class="lk-card lk-done"><div class="lk-name db-mine">${DB_EMOJI[v.mine]} ${esc(v.scale[v.mine])}</div><div class="artist">Ton vote est enregistré. Résultat quand tout le monde a voté.</div></div>`
+    // Vote secret : une fois voté, le téléphone ne rappelle pas le choix (un voisin pourrait le lire ; avis d16752d9adb0).
+    : v.mine != null ? `<div class="lk-card lk-done"${GameFx.fx("pop", dbKey(g, "done"))}><div class="lk-name db-mine">🤫 Vote enregistré</div><div class="artist">Ton choix reste secret. Résultat quand tout le monde a voté.</div></div>`
     : late ? `<div class="lk-card lk-done"><div class="artist">Tu es arrivé pendant ce vote : tu voteras au prochain dilemme.</div></div>` : "";
   const host = g.is_host && !v.can_vote ? dbPassHtml(g) + dbWaitingHtml(g) : "";
-  return `${dbQuestion(v)}${again}${mine}${host}${dbDots(v)}
+  return `${dbQuestion(v, false, g)}${again}${mine}${host}${dbDots(v, dbKey(g, "dots"))}
     ${g.is_host && !v.voted && v.round === 1 ? `<div class="lk-row"><button class="lk-sub" data-gact="dbswap">🔀 Autre dilemme</button></div>` : ""}`;
 }
 
-function dbBarsHtml(v) {
-  const r = v.result, max = Math.max(1, ...r.counts);
+// Répartition : les cinq barres poussent de « contre » à « pour », les voix défilent jusqu'à leur nombre.
+// Au revote, chaque barre part de sa longueur du premier vote : on voit les avis bouger.
+function dbBarsHtml(g) {
+  const v = g.debate, r = v.result, max = Math.max(1, ...r.counts);
+  const k = (i) => `db:${g.id}:${v.n}:bar${i}`;  // même clé aux deux tours : la barre glisse de l'ancien au nouveau
   return `<div class="db-bars">${v.scale.map((label, i) => `<div class="db-bar db-c${i}">
-      <span class="db-bar-l">${DB_EMOJI[i]} ${esc(label)}</span><i style="--w:${Math.round((r.counts[i] / max) * 100)}%"></i>
-      <b>${r.counts[i]}${r.before ? `<small> (avant ${r.before[i]})</small>` : ""}</b>
+      <span class="db-bar-l">${DB_EMOJI[i]} ${esc(label)}</span><i style="--w:${Math.round((r.counts[i] / max) * 100)}%"${GameFx.bar(k(i), Math.round((r.counts[i] / max) * 100))} data-fx-d="${200 + i * 80}"></i>
+      <b><span${GameFx.num(k(i), r.counts[i], r.before ? r.before[i] : 0)} data-fx-d="${200 + i * 80}">${r.counts[i]}</span>${r.before ? `<small> (avant ${r.before[i]})</small>` : ""}</b>
       ${r.names && r.names[i].length ? `<div class="db-names">${r.names[i].map(esc).join(", ")}</div>` : ""}</div>`).join("")}</div>`;
 }
 
@@ -144,18 +152,18 @@ function dbVerdict(r) {
 
 function dbRevealHtml(g) {
   const v = g.debate, r = v.result;
-  const moved = r.moved == null ? "" : `<div class="db-moved">${r.moved ? `🔄 ${r.moved} personne${r.moved > 1 ? "s ont" : " a"} changé d'avis` : "🪨 Personne n'a changé d'avis"}</div>`;
+  const moved = r.moved == null ? "" : `<div class="db-moved"${GameFx.fx("land", dbKey(g, "moved"), 650)}>${r.moved ? `🔄 ${r.moved} personne${r.moved > 1 ? "s ont" : " a"} changé d'avis` : "🪨 Personne n'a changé d'avis"}</div>`;
   const canRevote = v.round === 1 && r.votes > 0;
   const host = g.is_host ? `<div class="db-actions">
       ${canRevote ? `<button class="lk-main" data-gact="dbrevote">🔁 Faire revoter</button>` : ""}
       <button class="${canRevote ? "lk-sub db-next" : "lk-main"}" data-gact="next">${v.n >= v.count ? "📊 Voir le bilan" : "▶︎ Dilemme suivant"}</button></div>` : "";
   const talk = v.round === 1 ? `<p class="db-talk">💬 À vous : pourquoi pour, contre, partagé&nbsp;? Débattez librement.</p>` : "";
-  return `${dbQuestion(v, true)}<div class="lk-win">${dbVerdict(r)}</div>${moved}${dbBarsHtml(v)}${talk}${host}${dbInboxHtml(g)}${dbProposeHtml(g)}`;
+  return `${dbQuestion(v, true)}<div class="lk-win"${GameFx.fx("pop", dbKey(g, "win"))}>${dbVerdict(r)}</div>${moved}${dbBarsHtml(g)}${talk}${host}${dbInboxHtml(g)}${dbProposeHtml(g)}`;
 }
 
-function dbAward(icon, title, h, detail) {
+function dbAward(icon, title, h, detail, fx = "") {
   if (!h) return "";
-  return `<div class="db-award"><div class="db-award-k">${icon} ${title}</div><div class="db-award-t">${esc(h.text)}</div><div class="artist">${detail}</div></div>`;
+  return `<div class="db-award"${fx}><div class="db-award-k">${icon} ${title}</div><div class="db-award-t">${esc(h.text)}</div><div class="artist">${detail}</div></div>`;
 }
 
 function dbEndHtml(g) {
@@ -164,9 +172,9 @@ function dbEndHtml(g) {
   const recap = v.history.map((h) => `<li>${esc(h.text)} <span>👍 ${dbFor(h)} · 👎 ${dbAgainst(h)}${h.moved ? ` · 🔄 ${h.moved}` : ""}</span></li>`).join("");
   const moved = s.moved ? `${s.moved.moved} personne${s.moved.moved > 1 ? "s ont" : " a"} changé d'avis` : "";
   return `<div class="lk-end-k">Bilan de la partie</div>
-    ${dbAward("🔥", "Le plus divisant", s.divisive, split(s.divisive))}
-    ${dbAward("🤝", "Le plus unanime", s.unanimous, split(s.unanimous))}
-    ${dbAward("🔄", "A fait changer le plus d'avis", s.moved, moved)}
+    ${dbAward("🔥", "Le plus divisant", s.divisive, split(s.divisive), GameFx.fx("rise", `db:${g.id}:end:div`, 150))}
+    ${dbAward("🤝", "Le plus unanime", s.unanimous, split(s.unanimous), GameFx.fx("rise", `db:${g.id}:end:una`, 400))}
+    ${dbAward("🔄", "A fait changer le plus d'avis", s.moved, moved, GameFx.fx("rise", `db:${g.id}:end:mov`, 650))}
     <details class="lk-recap"><summary>Revoir les ${v.history.length} dilemmes</summary><ol>${recap}</ol></details>
     ${g.is_host ? `${dbSettingsHtml(g)}${dbInboxHtml(g)}<button class="lk-main" data-gact="restart">🔁 Rejouer avec les mêmes joueurs</button>` : ""}${dbProposeHtml(g)}`;
 }
@@ -233,6 +241,7 @@ function dbVote(b) {
   dbReadyKey = "";  // l'écran se cache tout de suite pour le prochain votant
   b.closest(".db-scale")?.querySelectorAll("button").forEach((x) => { x.disabled = true; });  // un seul vote
   b.classList.add("on");
+  GameFx.tap(b, "bump");  // le choix rebondit sous le doigt avant que la grille se cache
   haptic(30);
   dbSending = b.dataset.dbKey;
   pressed(b, gameAction("dbvote", { who: b.dataset.dbWho, amount: +b.dataset.dbVote })).finally(() => { dbSending = ""; });

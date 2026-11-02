@@ -5,6 +5,11 @@ import WebKit
 @MainActor
 final class WebModel: ObservableObject {
     @Published var failed = false
+    /// Écran « Créer un événement avec l'IA », demandé par le module Événements.
+    @Published var aiEventOpen = false
+    /// « ✨ Modifier avec l'IA » sur un événement : son id (nil : l'écran IA crée un événement).
+    @Published var aiEditEventId: String?
+    private var chatsPreloaded = false
     /// Onglets de la page affichée ; nil sur une page sans barre d'onglets (admin, TV…).
     @Published private(set) var tabs: TabBarState?
     /// Écrans que l'hôte gère dans la page (« Gérer la soirée », « Gérer les retours ») plutôt qu'en vue invité
@@ -84,7 +89,24 @@ final class WebModel: ObservableObject {
         pending = nil
     }
 
+    /// Crée un événement avec l'IA à partir d'un lien (partagé depuis Safari, Instagram…).
+    func startAIEvent(link: String) {
+        guard let store = settings?.aiEvent else {
+            SharedSession.savePendingEvent(link)  // l'app n'est pas prête : on réessaiera à la prochaine ouverture
+            return
+        }
+        aiEditEventId = nil
+        aiEventOpen = true
+        Task { await store.start(link: link) }
+    }
+
     func open(_ url: URL) {
+        // Lien d'un pot commun (/pot/<lien>, ancien /tricount/<lien>) : Réglages › Pot commun ouvre « Rejoindre », la page ne change pas.
+        if AppConfig.isInternal(url), let link = Self.tricountLink(in: url) {
+            settings?.tricount.pendingJoin = link
+            selectTab("account")
+            return
+        }
         let target = AppConfig.isInternal(url) ? url : start
         // Notification de discussion (?tab=chats&chat=<groupe>) : l'écran natif ouvre la conversation.
         chats?.requested = Self.chatRequested(in: target) ?? chats?.requested
@@ -98,6 +120,10 @@ final class WebModel: ObservableObject {
 
     func showTabs(_ state: TabBarState) {
         awaitingTabs = false
+        if !chatsPreloaded {  // page chargée (session lisible) : la liste des discussions est prête avant l'onglet
+            chatsPreloaded = true
+            Task { [weak self] in await self?.chats?.preload() }
+        }
         guard state != tabs else { return }
         let active = state.activeIndex.map { state.tabs[$0].id }
         if let active, !Self.settingsTabs.contains(active) {
@@ -108,6 +134,13 @@ final class WebModel: ObservableObject {
     }
 
     var isHost: Bool { tabs?.host == true }
+
+    nonisolated static func tricountLink(in url: URL) -> String? {
+        let parts = url.pathComponents
+        guard parts.count == 3, ["pot", "tricount"].contains(parts[1]),
+              parts[2].range(of: "^[0-9a-fA-F-]{36}$", options: .regularExpression) != nil else { return nil }
+        return parts[2].lowercased()
+    }
 
     nonisolated static func chatRequested(in url: URL) -> String? {
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
@@ -188,6 +221,13 @@ final class WebModel: ObservableObject {
         guard awaitingTabs else { return }
         awaitingTabs = false
         tabs = nil
+    }
+
+    /// Événement créé par l'assistant IA : l'onglet Événements l'ouvre.
+    func openEvent(_ id: String) {
+        guard id.range(of: "^[0-9a-fA-F-]{36}$", options: .regularExpression) != nil else { return }
+        selectTab("events")
+        webView?.evaluateJavaScript("window.PartyEvents && PartyEvents.open('/events/event/\(id)')")
     }
 
     /// Toucher d'un onglet natif : la page l'applique comme un toucher dans sa propre barre.

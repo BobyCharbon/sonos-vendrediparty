@@ -36,3 +36,46 @@ def test_actions_of_another_game_are_refused_cleanly(kind):
         for a in actions:
             r = c.post(f"/api/games/{code}", json={"guest_id": HOST, "action": a, "target": "n:7", "amount": 5, "guess": "x"})
             assert r.status_code == 400, (kind, a, r.status_code, r.text[:200])
+
+
+@pytest.mark.parametrize("kind, action", [("biskit", "bdraw"), ("biskit", "btap"), ("pyramid", "pans"), ("pyramid", "ptop")])
+def test_card_moves_before_the_game_starts_are_refused_cleanly(kind, action):
+    # Trouvé par les bots (tools/bot_soak.py) : le coup lisait l'état d'une partie pas encore lancée (erreur 500).
+    main._game_creations.clear()
+    c = TestClient(main.app, raise_server_exceptions=False)
+    code = c.post("/api/games", json={"type": kind, "guest_id": HOST, "name": "Boby"}).json()["code"]
+    r = c.post(f"/api/games/{code}", json={"guest_id": HOST, "action": action, "target": "red"})
+    assert r.status_code == 409, r.text[:200]
+
+
+@pytest.mark.parametrize("kind", ["room", "divan", "blackjack", "casino", "roulette"])
+def test_restart_where_there_is_no_new_round_is_refused_cleanly(kind):
+    main._game_creations.clear()
+    c = TestClient(main.app, raise_server_exceptions=False)
+    code = c.post("/api/games", json={"type": kind, "guest_id": HOST, "name": "Boby"}).json()["code"]
+    assert c.post(f"/api/games/{code}", json={"guest_id": HOST, "action": "restart"}).status_code == 409
+
+
+def test_pyramid_answer_after_everyone_left_the_deal_is_refused_cleanly():
+    import random
+
+    from app import games
+    g = games.new_game("pyramid", HOST, "Boby", code="5151")
+    games.join(g, "cross-game-phone-1", "Léa")
+    games.start(g, random.Random(2))
+    for gid in list(g["pyr"]["order"]):
+        games.leave(g, gid)
+    with pytest.raises(games.GameError):
+        games.pyr_answer(g, HOST, "red")
+
+
+def test_divan_next_after_everyone_left_is_refused_cleanly():
+    import random
+
+    from app import games
+    g = games.new_game("divan", HOST, "Boby", code="5252", plays=False)
+    games.join(g, "cross-game-phone-1", "Léa")
+    games.start(g, random.Random(1))
+    games.leave(g, "cross-game-phone-1")
+    with pytest.raises(games.GameError):
+        games.divan_next(g, HOST, random.Random(1))

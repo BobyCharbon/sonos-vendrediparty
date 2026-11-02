@@ -19,9 +19,14 @@ struct QuizTV: View {
                     }
                     HStack(spacing: 30) {
                         if game["phase"].string == "q", let left = q["left"].double {
-                            Label("\(Int(left.rounded(.up))) s", systemImage: "timer").font(.title2.monospacedDigit().bold())
+                            // Les 5 dernières secondes : le chrono rougit et sursaute à chaque seconde.
+                            let s = Int(left.rounded(.up))
+                            Label("\(s) s", systemImage: "timer").font(.title2.monospacedDigit().bold())
+                                .foregroundStyle(s <= 5 ? TV.red : .white)
+                                .contentTransition(.numericText(countsDown: true))
+                                .bump(on: s <= 5 ? s : 0, scale: 1.25)
                         }
-                        Text("\(q["answered"].int ?? 0)/\(q["players"].int ?? 0) ont répondu").font(.title3).foregroundStyle(TV.muted)
+                        Text("\(q["answered"].int ?? 0)/\(q["players"].int ?? 0) ont répondu").font(.title3).foregroundStyle(TV.muted).contentTransition(.numericText())
                         if let winner = q["winner"].string { Text("⚡ \(winner) le plus rapide").font(.title3.bold()).foregroundStyle(TV.coral) }
                     }
                 } else if game["phase"].string == "run" {
@@ -42,11 +47,15 @@ struct QuizTV: View {
             Text(text).font(.title3.bold()).lineLimit(2).minimumScaleFactor(0.7)
             Spacer()
             if reveal, let votes { Text("\(votes)").font(.title2.monospacedDigit().bold()).foregroundStyle(TV.muted) }
-            if reveal && correct { Image(systemName: "checkmark.circle.fill").font(.title).foregroundStyle(TV.mint) }
+            if reveal && correct { Image(systemName: "checkmark.circle.fill").font(.title).foregroundStyle(TV.mint).transition(.popIn) }
         }
         .padding(22)
         .card(reveal ? (correct ? TV.mint.opacity(0.35) : TV.surface.opacity(0.5)) : TV.surface, radius: 24)
         .opacity(reveal && !correct ? 0.55 : 1)
+        // La bonne réponse se détache : elle grossit un peu et s'entoure de vert.
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(TV.mint, lineWidth: reveal && correct ? 5 : 0))
+        .scaleEffect(reveal && correct && !Motion.reduced ? 1.04 : 1)
+        .zIndex(reveal && correct ? 1 : 0)
     }
 }
 
@@ -60,11 +69,13 @@ struct LikelyTV: View {
                 Text(L["q"].string ?? "").font(.system(size: 60, weight: .heavy)).lineLimit(3)
                 let result = L["result"]
                 if !result.isNull {
-                    ForEach(Array(result["rows"].array.enumerated()), id: \.offset) { _, row in
-                        bar(row["name"].string ?? "?", row["count"].int ?? 0, of: max(1, result["votes"].int ?? 1))
+                    // Barres qui poussent l'une après l'autre ; une nouvelle question les refait pousser.
+                    ForEach(Array(result["rows"].array.enumerated()), id: \.offset) { i, row in
+                        bar(row["name"].string ?? "?", row["count"].int ?? 0, of: max(1, result["votes"].int ?? 1), order: i)
+                            .id("\(L["n"].int ?? 0)-\(i)")
                     }
                 } else {
-                    Text("\(L["voted"].int ?? 0)/\(L["total"].int ?? 0) ont voté").font(.title2).foregroundStyle(TV.muted)
+                    Text("\(L["voted"].int ?? 0)/\(L["total"].int ?? 0) ont voté").font(.title2).foregroundStyle(TV.muted).contentTransition(.numericText())
                     PlayersRow(players: game["players"].array.map { p in
                         voted(p, L["done"].array.contains(p["pid"]))
                     })
@@ -72,14 +83,12 @@ struct LikelyTV: View {
             }
     }
 
-    private func bar(_ name: String, _ count: Int, of total: Int) -> some View {
+    private func bar(_ name: String, _ count: Int, of total: Int, order: Int) -> some View {
         HStack(spacing: 20) {
             Text(name).font(.title2.bold()).frame(width: 260, alignment: .leading)
-            GeometryReader { geo in
-                Capsule().fill(TV.accent).frame(width: max(18, geo.size.width * CGFloat(count) / CGFloat(total)))
-            }
-            .frame(height: 34)
-            Text("\(count)").font(.title2.monospacedDigit().bold()).frame(width: 60)
+            GrowBar(share: CGFloat(count) / CGFloat(total), color: TV.accent, order: order, minWidth: 18)
+                .frame(height: 34)
+            Text("\(count)").font(.title2.monospacedDigit().bold()).frame(width: 60).contentTransition(.numericText())
         }
     }
 }
@@ -96,7 +105,7 @@ struct PurityTV: View {
                             rows: P["ranking"].array.map { ($0["name"].string ?? "?", "\($0["score"].int ?? 0) %") })
             } else {
                 Text("\(P["count_submitted"].int ?? 0)/\(P["count_players"].int ?? 0) ont terminé le test")
-                    .font(.system(size: 60, weight: .heavy))
+                    .font(.system(size: 60, weight: .heavy)).contentTransition(.numericText())
                 ProgressView(value: Double(P["count_submitted"].int ?? 0), total: Double(max(1, P["count_players"].int ?? 1)))
                     .tint(TV.accent).frame(width: 900)
                 Text("Chacun répond en secret sur son téléphone : les résultats arrivent ici.").font(.title3).foregroundStyle(TV.muted)
@@ -128,9 +137,10 @@ struct UndercoverTV: View {
                 Text(last["tie"].bool ? "⚖️ Égalité : personne n'est éliminé"
                      : "❌ \(last["name"].string ?? "?") est éliminé·e" + (last["role"].string.map { " — \($0)" } ?? ""))
                     .font(.title.bold())
+                    .id(last["name"].string ?? "tie").transition(.popIn)
             }
             if game["phase"].string == "vote" {
-                Text("\(game["votes_count"].int ?? 0)/\(game["players"].array.filter { $0["alive"].bool }.count) ont voté").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender)
+                Text("\(game["votes_count"].int ?? 0)/\(game["players"].array.filter { $0["alive"].bool }.count) ont voté").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender).contentTransition(.numericText())
             }
             if game["phase"].string != "end" {
                 PlayersRow(players: speakingOrder, highlight: Set(game["candidates"].array.compactMap(\.string)), size: 110)
@@ -183,7 +193,7 @@ struct QuestionVoteTV: View {
                     Leaderboard(title: "Les votes", rows: rows.map { ($0["name"].string ?? "?", "\($0["count"].int ?? 0) vote\(($0["count"].int ?? 0) > 1 ? "s" : "")") })
                 }
             } else {
-                Text("\(game["votes_count"].int ?? 0)/\(game["players"].array.count) ont voté").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender)
+                Text("\(game["votes_count"].int ?? 0)/\(game["players"].array.count) ont voté").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender).contentTransition(.numericText())
                 PlayersRow(players: game["players"].array, size: 110)
             }
         }

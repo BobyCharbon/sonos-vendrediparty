@@ -8,6 +8,8 @@ import time
 
 import httpx
 
+from .feedback import PRIORITIES
+
 SYNC_PATH = "/api/feedback-sync"
 SYNC_HEADER = "X-Feedback-Sync"
 READ_TTL = 3  # s : la pastille de l'admin relit souvent ; une liste de 3 s suffit
@@ -80,6 +82,8 @@ class FeedbackRemote:
         return self._write("set_note", fid=fid, note=note)
 
     def set_priority(self, ids: list[str], priority: str):
+        if priority and priority not in PRIORITIES:
+            raise ValueError("Priorité inconnue")
         self._write("set_priority", ids=ids, priority=priority)
 
     def mark_sent(self, fid: str, number: int, url: str) -> dict | None:

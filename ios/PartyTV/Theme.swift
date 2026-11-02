@@ -63,9 +63,11 @@ struct PlayerBadge: View {
                 .clipShape(Circle())
                 .overlay(Circle().stroke(highlight ? TV.accent : .clear, lineWidth: 6))
                 .opacity(out ? 0.35 : 1)
+                .modifier(BreathingIf(on: highlight, scale: 1.06))
                 if player["voted"].bool {
                     Image(systemName: "checkmark.circle.fill").font(.system(size: size * 0.32)).foregroundStyle(TV.mint)
                         .background(Circle().fill(TV.bg))
+                        .transition(.motion(.scale(scale: 0.2).combined(with: .opacity)))
                 }
             }
             Text(name).font(.system(size: 30, weight: .bold)).lineLimit(1).strikethrough(out)

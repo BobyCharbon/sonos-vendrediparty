@@ -82,3 +82,11 @@ def test_prompt_names_the_site_the_feedback_came_from(prod, monkeypatch):
     mine = box.add("g-0002-xxxx", "Tom", "bug", "Le bouton Révéler ne marche pas du tout", {"site": "Prod"})
     assert "Prod (https://party.example)" in main.feedback_prompt(mine)
 
+
+def test_priority_set_on_the_test_site_lands_in_the_production_list(prod):
+    box, remote = prod
+    item = remote.add("guest-test-0002", "Tom", "idea", "Ajouter une priorité aux avis depuis le site de test", {})
+    remote.set_priority([item["id"]], "high")
+    assert box.get(item["id"])["priority"] == "high"
+    with pytest.raises(ValueError):
+        remote.set_priority([item["id"]], "urgentissime")

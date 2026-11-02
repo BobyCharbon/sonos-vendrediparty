@@ -19,17 +19,23 @@ from urllib.parse import quote, unquote, urlparse
 import httpx
 import segno
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import calendar_ics, debate, games, heist, island, likely, links, neon, president, purity, quiz
+from . import beerpong, calendar_ics, debate, games, heist, island, likely, links, masque, neon, president, psy, purity, quiz, reflet
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
 from .account_auth import AccountAuth
 from .group_admin import ROLES as ADMIN_ROLES, GroupAdmin
 from .group_chats import LEVELS as CHAT_LEVELS, PHOTO_MAX as CHAT_PHOTO_MAX, GroupChats
+from .tricount import CURRENCIES as TC_CURRENCIES, Tricount
+from .assistant import MAX_PHOTO as AI_PHOTO_MAX, Assistant, UsageLog
+from .ai_event_edit import EventEditor
+from .covers import Covers
+from .ai_events import MAX_IMAGE_B64 as AI_EVENT_MAX_IMAGE, MAX_TEXT as AI_EVENT_MAX_TEXT, MAX_TURNS as AI_EVENT_MAX_TURNS, EventAssistant
+from .places import MAX_QUERY as PLACE_MAX_QUERY, Places
 from .audit import AuditLog
 from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
 from .feedback_remote import OPS as FEEDBACK_SYNC_OPS, SYNC_HEADER as FEEDBACK_SYNC_HEADER, FeedbackRemote, FeedbackUnavailable
@@ -1452,6 +1458,15 @@ def presence(body: Presence, request: Request):
 accounts = Accounts(_secret())
 group_admin = GroupAdmin(accounts)
 group_chats = GroupChats(group_admin)
+tricount = Tricount(group_admin, lambda: guest_url())
+# Assistant IA (Claude) : sans ANTHROPIC_API_KEY dans l'environnement, il reste éteint et le dit.
+assistant = Assistant(accounts, UsageLog(DATA_DIR / "ai_usage.json"),
+                      (lambda: __import__("anthropic").Anthropic(timeout=60.0)) if os.environ.get("ANTHROPIC_API_KEY") else None,
+                      float(os.environ.get("AI_MONTHLY_BUDGET_USD", "3")), TC_CURRENCIES)
+covers = Covers(DATA_DIR, PUBLIC_URL)
+event_assistant = EventAssistant(assistant, accounts, covers)
+event_editor = EventEditor(event_assistant)
+places = Places(os.environ.get("GOOGLE_MAPS_API_KEY", ""))  # sans clé : l'app cherche dans les Plans d'Apple
 account_auth = AccountAuth(accounts)
 # Ne compte que les vrais refus (compte sans droit admin). Un jeton expiré ou invalide n'est jamais compté :
 # un jeton Supabase ne se devine pas, et l'app rouverte après 1 h en présente un périmé. Compté, il bloquait
@@ -1807,6 +1822,279 @@ def account_chat_photo(body: ChatPhoto):
     except ValueError:
         raise HTTPException(400, "Photo illisible") from None
     return account_call(lambda: group_chats.upload_photo(body.token, body.group_id, data))
+
+
+# ── Tricount (Réglages › Pot commun de l'app iOS) : dépenses partagées, lien pour rejoindre, profil de paiement ──
+class TcRef(MemberToken):
+    group_id: str = Field(pattern=UUID)
+
+
+class TcCreate(MemberToken):
+    name: str = Field(min_length=1, max_length=60)
+    emoji: str = Field(default="💸", max_length=8)
+    currency: str = Field(default="CHF", pattern=r"^[A-Z]{3}$")
+    my_name: str = Field(min_length=1, max_length=40)
+
+
+class TcUpdate(TcRef):
+    name: str | None = Field(default=None, max_length=60)
+    emoji: str | None = Field(default=None, max_length=8)
+    currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+    archived: bool | None = None
+
+
+class TcJoin(MemberToken):
+    link: str = Field(pattern=UUID)
+    my_name: str = Field(default="", max_length=40)
+    claim: str | None = Field(default=None, pattern=UUID)
+
+
+class TcMember(TcRef):
+    member_id: str | None = Field(default=None, pattern=UUID)
+    name: str = Field(default="", max_length=40)
+
+
+class TcExpense(TcRef):
+    expense: dict
+
+
+class TcExpenseRef(TcRef):
+    expense_id: str = Field(pattern=UUID)
+
+
+class TcSettle(TcRef):
+    from_id: str = Field(pattern=UUID)
+    to_id: str = Field(pattern=UUID)
+    amount_cents: int = Field(gt=0, le=100_000_000)
+
+
+class TcReceipt(TcRef):
+    photo: str = Field(min_length=1, max_length=CHAT_PHOTO_MAX * 4 // 3 + 8)  # base64
+
+
+class TcPayment(MemberToken):
+    iban: str = Field(default="", max_length=42)
+    holder: str = Field(default="", max_length=80)
+    links: dict[str, str] = Field(default_factory=dict, max_length=8)
+    note: str = Field(default="", max_length=200)
+
+
+@app.post("/api/account/tricount")
+def account_tricount_list(body: MemberToken):
+    return account_call(lambda: tricount.overview(body.token), 401)
+
+
+@app.post("/api/account/tricount/open")
+def account_tricount_open(body: TcRef):
+    return account_call(lambda: tricount.state(body.token, body.group_id))
+
+
+@app.post("/api/account/tricount/create")
+def account_tricount_create(body: TcCreate):
+    return account_call(lambda: tricount.create(body.token, body.name, body.emoji, body.currency, body.my_name))
+
+
+@app.post("/api/account/tricount/update")
+def account_tricount_update(body: TcUpdate):
+    return account_call(lambda: tricount.update(body.token, body.group_id, body.name, body.emoji, body.currency, body.archived))
+
+
+@app.post("/api/account/tricount/link")
+def account_tricount_link(body: TcRef):
+    """Nouveau lien pour rejoindre : l'ancien ne marche plus."""
+    return account_call(lambda: tricount.renew_link(body.token, body.group_id))
+
+
+@app.post("/api/account/tricount/join/info")
+def account_tricount_join_info(body: TcJoin):
+    return account_call(lambda: tricount.join_info(body.token, body.link))
+
+
+@app.post("/api/account/tricount/join")
+def account_tricount_join(body: TcJoin):
+    return account_call(lambda: tricount.join(body.token, body.link, body.my_name, body.claim))
+
+
+@app.post("/api/account/tricount/member")
+def account_tricount_member(body: TcMember):
+    """Ajouter un prénom (sans member_id) ou renommer (avec)."""
+    if body.member_id:
+        return account_call(lambda: tricount.rename_member(body.token, body.group_id, body.member_id, body.name))
+    return account_call(lambda: tricount.add_member(body.token, body.group_id, body.name))
+
+
+@app.post("/api/account/tricount/member/remove")
+def account_tricount_member_remove(body: TcMember):
+    if not body.member_id:
+        raise HTTPException(400, "Personne à retirer ?")
+    return account_call(lambda: tricount.remove_member(body.token, body.group_id, body.member_id))
+
+
+@app.post("/api/account/tricount/leave")
+def account_tricount_leave(body: TcRef):
+    return account_call(lambda: tricount.leave(body.token, body.group_id))
+
+
+@app.post("/api/account/tricount/expense")
+def account_tricount_expense(body: TcExpense):
+    return account_call(lambda: tricount.save_expense(body.token, body.group_id, body.expense))
+
+
+@app.post("/api/account/tricount/expense/delete")
+def account_tricount_expense_delete(body: TcExpenseRef):
+    return account_call(lambda: tricount.delete_expense(body.token, body.group_id, body.expense_id))
+
+
+@app.post("/api/account/tricount/settle")
+def account_tricount_settle(body: TcSettle):
+    return account_call(lambda: tricount.settle_up(body.token, body.group_id, body.from_id, body.to_id, body.amount_cents))
+
+
+@app.post("/api/account/tricount/receipt")
+def account_tricount_receipt(body: TcReceipt):
+    try:
+        data = base64.b64decode(body.photo, validate=True)
+    except ValueError:
+        raise HTTPException(400, "Photo illisible") from None
+    return account_call(lambda: tricount.upload_receipt(body.token, body.group_id, data))
+
+
+@app.post("/api/account/ai/status")
+def account_ai_status(body: MemberToken):
+    return account_call(lambda: assistant.status(body.token), 401)
+
+
+class AiPhoto(MemberToken):
+    photo: str = Field(min_length=1, max_length=AI_PHOTO_MAX * 4 // 3 + 8)  # base64
+
+
+@app.post("/api/account/ai/receipt")
+def account_ai_receipt(body: AiPhoto):
+    try:
+        data = base64.b64decode(body.photo, validate=True)
+    except ValueError:
+        raise HTTPException(400, "Photo illisible") from None
+    return account_call(lambda: assistant.read_receipt(body.token, data))
+
+
+class AiEventDraft(MemberToken):
+    turns: list[str] = Field(min_length=1, max_length=AI_EVENT_MAX_TURNS * 2)
+    draft: dict | None = None
+    # Captures d'écran (affiche, page d'un site) en base64 : l'IA y lit l'événement. 3 au plus, réduites par l'app.
+    images: list[Annotated[str, Field(max_length=AI_EVENT_MAX_IMAGE)]] = Field(default=[], max_length=3)
+
+
+@app.get("/covers/{name}")
+def event_cover(name: str):
+    """Couverture d'un événement (image de la page, capture ou affiche générée), réencodée en JPEG par app.covers."""
+    path = covers.path(name)
+    if path is None:
+        raise HTTPException(404, "Image introuvable")
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
+@app.post("/api/account/ai/event/draft")
+def account_ai_event_draft(body: AiEventDraft):
+    """Ce que la personne a dit (description, puis ses réponses) → brouillon d'événement et questions de l'IA."""
+    if sum(len(t) for t in body.turns) > AI_EVENT_MAX_TEXT * AI_EVENT_MAX_TURNS:
+        raise HTTPException(400, "Description trop longue")
+    return account_call(lambda: event_assistant.draft(body.token, body.turns, body.draft, images=body.images))
+
+
+class AiEventCreate(MemberToken):
+    draft: dict
+    place: dict | None = None
+
+
+@app.post("/api/account/ai/event/create")
+def account_ai_event_create(body: AiEventCreate):
+    """Brouillon confirmé dans l'app (compte à rebours de 5 s) → événement publié ou proposé."""
+    return account_call(lambda: event_assistant.create(body.token, body.draft, body.place))
+
+
+EVENT_ID = r"^[0-9a-f-]{36}$"
+
+
+class AiEventEditLoad(MemberToken):
+    event_id: str = Field(pattern=EVENT_ID)
+
+
+@app.post("/api/account/ai/event/edit/load")
+def account_ai_event_edit_load(body: AiEventEditLoad):
+    """« ✨ Modifier avec l'IA » : l'événement tel qu'il est, en brouillon (seul qui peut le modifier l'obtient)."""
+    return account_call(lambda: event_editor.load(body.token, body.event_id))
+
+
+class AiEventEditDraft(AiEventEditLoad):
+    turns: list[str] = Field(min_length=1, max_length=AI_EVENT_MAX_TURNS * 2)
+
+
+@app.post("/api/account/ai/event/edit/draft")
+def account_ai_event_edit_draft(body: AiEventEditDraft):
+    """Ce que la personne veut changer → l'événement modifié et la liste des changements (rien n'est encore écrit)."""
+    if sum(len(t) for t in body.turns) > AI_EVENT_MAX_TEXT * AI_EVENT_MAX_TURNS:
+        raise HTTPException(400, "Demande trop longue")
+    return account_call(lambda: event_editor.draft(body.token, body.event_id, body.turns))
+
+
+class AiEventEditSave(AiEventEditLoad):
+    draft: dict
+    place: dict | None = None  # absent : le lieu ne change pas
+    announce: bool = True  # message récapitulatif dans la discussion de l'événement
+
+
+@app.post("/api/account/ai/event/edit/save")
+def account_ai_event_edit_save(body: AiEventEditSave):
+    return account_call(lambda: event_editor.save(body.token, body.event_id, body.draft, body.place, body.announce))
+
+
+class AiPlaces(MemberToken):
+    query: str = Field(min_length=1, max_length=PLACE_MAX_QUERY)
+    broad: str = Field(default="", max_length=PLACE_MAX_QUERY)  # même lieu, cherché plus largement (type et ville)
+    kind: Literal["home", "venue"] = "venue"  # adresse de particulier (Geocoding) ou établissement (Places)
+
+
+@app.post("/api/account/ai/places")
+def account_ai_places(body: AiPlaces):
+    """Lieux possibles dans Google Maps pour le lieu dit (la personne choisit le bon) ; vide sans clé Google."""
+    def run():
+        assistant.allowed(body.token)
+        return {"source": "google" if places.configured else "none",
+                "places": places.find(body.query, body.broad, body.kind)}
+    return account_call(run)
+
+
+@app.post("/api/account/ai/usage")
+def account_ai_usage(body: MemberToken):
+    return account_call(lambda: assistant.report(body.token), 403)
+
+
+@app.post("/api/account/tricount/payment")
+def account_tricount_payment(body: MemberToken):
+    return account_call(lambda: tricount.payment(body.token), 401)
+
+
+@app.post("/api/account/tricount/payment/save")
+def account_tricount_payment_save(body: TcPayment):
+    return account_call(lambda: tricount.set_payment(body.token, body.iban, body.holder, body.links, body.note))
+
+
+@app.get("/pot/{link}", response_class=HTMLResponse)
+@app.get("/tricount/{link}", response_class=HTMLResponse)  # premiers liens partagés, avant le nom « Pot commun »
+def tricount_link_page(link: str):
+    """Lien partagé : sur un iPhone avec l'app Party, le lien universel ouvre directement « Rejoindre » ; sinon cette page."""
+    if not re.match(UUID, link):
+        raise HTTPException(404, "Lien invalide")
+    return HTMLResponse(TRICOUNT_LINK_PAGE, headers=NO_CACHE)
+
+
+TRICOUNT_LINK_PAGE = """<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Rejoindre un pot commun · Party</title>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:system-ui,sans-serif;background:#140f24;color:#fff}
+main{max-width:420px;padding:32px 24px;text-align:center}h1{font-size:1.8rem;margin:.4em 0}p{color:#d8d0f2;line-height:1.5}
+.i{font-size:4rem}</style></head><body><main><div class="i">💸</div><h1>On t'invite dans un pot commun</h1>
+<p>Ouvre ce lien sur ton iPhone avec l'app <b>Party</b> : il t'emmène directement sur « Rejoindre », dans Réglages › Pot commun.</p>
+<p>Pas encore l'app ? Demande le lien TestFlight à la personne qui t'a invité.</p></main></body></html>"""
 
 
 @app.post("/api/account/chats/react")
@@ -2220,6 +2508,9 @@ def same_name(a: str, b: str) -> bool:
     return bool(key(a)) and key(a) == key(b)
 
 
+SECRET_SEAT_GAMES = ("masque", "reflet")
+
+
 def reclaim_seat(g: dict, guest_id: str, name: str, ip: str) -> str:
     """Joueur qui revient avec un autre identifiant (app installée ↔ Safari, navigation privée, stockage effacé…) :
     même prénom, et même appareil (même adresse) ou ancienne place inoccupée → il reprend sa place (points, rôle,
@@ -2232,6 +2523,10 @@ def reclaim_seat(g: dict, guest_id: str, name: str, ip: str) -> str:
     if games.player(g, guest_id) or guest_id in (g.get("aliases") or {}):
         return canonical_gid(g, guest_id)
     if guest_id in g.get("kicked", []):
+        return guest_id
+    # Jeux à réponses secrètes en cours : une place ne se reprend jamais par prénom (même réseau de la soirée), sinon un
+    # homonyme lirait la réponse secrète d'un joueur parti fermer son téléphone, ou lèverait le masque à sa place.
+    if g["type"] in SECRET_SEAT_GAMES and g["phase"] not in ("lobby", "end"):
         return guest_id
 
     def mine(p):
@@ -2286,14 +2581,16 @@ def read_game(code: str, request: Request, guest_id: str, name: str):
     guest_id = canonical_gid(g, guest_id)
     sync_player_name(g, guest_id, name)
     admin_lead(g, request, guest_id)
-    if quiz.tick(g):  # Quiz : le temps a avancé (fin d'une question, question suivante…)
+    if g.get("paused"):
+        pass  # en pause : le temps ne fait rien avancer
+    elif quiz.tick(g):  # Quiz : le temps a avancé (fin d'une question, question suivante…)
         g["updated_at"] = time.time()
         save_games(g["code"], g.get("room") or "")
-    if heist.tick(g):
+    if not g.get("paused") and heist.tick(g):
         save_games(g["code"])
-    if island.tick(g):
+    if not g.get("paused") and island.tick(g):
         save_games(g["code"])
-    if neon.tick(g):
+    if not g.get("paused") and neon.tick(g):
         save_games(g["code"])
     return full_view(g, guest_id)
 
@@ -2320,28 +2617,41 @@ PURITY_ONLY = {"puset", "puans", "pusub", "puunsub", "pureveal"}
 # « Qui est le plus… ? » : chacun vote sur son téléphone ; celui de l'animateur fait voter les participants sans
 # téléphone (lkvote, avec who = votant) et passe un absent (lkskip, avec target).
 LIKELY_ONLY = {"lkset", "lkvote", "lkskip", "lkswap"}
-LIKELY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "addguest", "up", "down"} | LIKELY_ONLY
+LIKELY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "addguest", "up", "down", "pause", "resume"} | LIKELY_ONLY
 # « Pour ou contre » : vote sur 5 crans (dbvote, amount = cran, who = votant sans téléphone), revote décidé par
 # l'animateur, dilemmes proposés par les joueurs (dbpropose, guess = texte) et validés par l'animateur (amount = numéro).
 DEBATE_ONLY = {"dbset", "dbvote", "dbskip", "dbswap", "dbrevote", "dbpropose", "dbaccept", "dbrefuse"}
-DEBATE_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "addguest", "up", "down"} | DEBATE_ONLY
-PURITY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end"} | PURITY_ONLY
+DEBATE_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "addguest", "up", "down", "pause", "resume"} | DEBATE_ONLY
+PSY_ONLY = {"psyans", "psysub", "psyreveal"}
+PSY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "pause", "resume"} | PSY_ONLY
+PURITY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "pause", "resume"} | PURITY_ONLY
+# « Le Masque » : chacun écrit (mswrite, guess = texte), puis relie les réponses aux prénoms et choisit de lever son
+# masque (msguess, settings = {picks: {réponse: pid}, unmask}) ; l'animateur règle, change, montre, retire, révèle.
+MASQUE_ONLY = {"msset", "mswrite", "msswap", "msshow", "msguess", "mshide", "msreveal"}
+MASQUE_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "pause", "resume"} | MASQUE_ONLY
+# « Le Reflet » : qui est devant le miroir choisit et parie (rfpick, settings = {i, bet}) ; les autres votent (rfvote,
+# done = oui) ; l'animateur règle et n'attend plus un absent (rfskip).
+REFLET_ONLY = {"rfset", "rfpick", "rfswap", "rfvote", "rfskip"}
+REFLET_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "pause", "resume"} | REFLET_ONLY
 
 # Actions propres à un jeu : refusées ailleurs (sinon elles lisent l'état d'un autre jeu et le serveur plante).
 GAME_ONLY_ACTIONS = {
     "pyramid": {"pans", "pflip", "pclaim", "pbu", "pliar", "preveal", "ppeek", "ppeek_ok", "ppeek_no", "ptop", "pmemory",
                 "pmem", "presults", "pboat", "pboatgo", "pbans", "paccept", "prefuse"},
-    "biskit": {"bdraw", "bpick", "btap", "bclose"},
+    "biskit": {"bdraw", "bpick", "btap", "bclose", "broll"},
     "blackjack": {"bet", "hit", "stand", "double", "rebuy", "deal", "skip"},
     "casino": {"cbet", "cclear", "crebuy", "cspin", "cundo", "cready"},
     "divan": {"dnext", "djoker", "dback", "dheart"},
     "tmc": {"tanswer", "tjudge", "tq", "treveal", "finish"},
     "quiz": {"qset", "qans", "qjoker", "qstop", "qpause"},
     "room": {"rvote"},
+    "beerpong": {"bpset", "bphit", "bpsent", "bpreroll", "bpundo"},
 }
 
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
-HOST_ACTIONS = {"puset", "pureveal","ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "treveal", "tjudge", "addguest", "mvote",
+# Seuls coups possibles pendant une pause : reprendre, terminer, gérer les joueurs.
+PAUSE_ALLOWED = {"pause", "resume", "end", "remove", "ban", "handover", "addguest", "leave", "join", "up", "down"}
+HOST_ACTIONS = {"msset", "msswap", "msshow", "mshide", "msreveal", "rfset", "rfskip", "psyreveal", "pause", "resume", "bpset", "puset", "pureveal","ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "tjudge", "addguest", "mvote",
                 "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover", "nset", "hset",
                 "lkset", "lkskip", "lkswap", "dbset", "dbskip", "dbswap", "dbrevote", "dbaccept", "dbrefuse"}
 
@@ -2366,13 +2676,13 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     sync_player_name(g, body.guest_id, body.name)
     admin_lead(g, request, body.guest_id)
     a, me = body.action, body.guest_id
-    if g["type"] == "president" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "up", "down", "handover", "end", "prplay", "prpass", "prexchange"}:
+    if g["type"] == "president" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "up", "down", "handover", "end", "prplay", "prpass", "prexchange", "pause", "resume"}:
         raise HTTPException(400, "Action indisponible au Président")
-    if g["type"] == "heist" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "hset"}:
+    if g["type"] == "heist" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "hset", "pause", "resume"}:
         raise HTTPException(400, "Action indisponible au Braquage")
-    if g["type"] == "island" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end"}:
+    if g["type"] == "island" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "pause", "resume"}:
         raise HTTPException(400, "Action indisponible sur l’île")
-    if g["type"] == "neon" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "nset", "nteam"}:
+    if g["type"] == "neon" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "nset", "nteam", "pause", "resume"}:
         raise HTTPException(400, "Action indisponible dans Néon Knockout")
     if g["type"] == "purity" and a not in PURITY_ACTIONS:
         raise HTTPException(400, "Action indisponible au Purify Test")
@@ -2386,6 +2696,18 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         raise HTTPException(400, "Action indisponible dans ce jeu")
     if g["type"] != "debate" and a in DEBATE_ONLY:
         raise HTTPException(400, "Action inconnue")
+    if g["type"] == "psy" and a not in PSY_ACTIONS:
+        raise HTTPException(400, "Action indisponible dans ce jeu")
+    if g["type"] != "psy" and a in PSY_ONLY:
+        raise HTTPException(400, "Action inconnue")
+    if g["type"] == "masque" and a not in MASQUE_ACTIONS:
+        raise HTTPException(400, "Action indisponible dans ce jeu")
+    if g["type"] != "masque" and a in MASQUE_ONLY:
+        raise HTTPException(400, "Action inconnue")
+    if g["type"] == "reflet" and a not in REFLET_ACTIONS:
+        raise HTTPException(400, "Action indisponible dans ce jeu")
+    if g["type"] != "reflet" and a in REFLET_ONLY:
+        raise HTTPException(400, "Action inconnue")
     # Cible d'un vote : un joueur (pid) ; pour « Je n'ai jamais », une réponse (yes / no).
     target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino", "pyramid", "biskit") else "")
     # Pyramide : l'animateur peut agir pour un joueur (participant sans téléphone, ou qui traîne).
@@ -2394,8 +2716,13 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     seat = actor if actor != me and games.is_manual(g, actor) else me
     if any(a in only and g["type"] != kind for kind, only in GAME_ONLY_ACTIONS.items()):
         raise HTTPException(400, "Action indisponible dans ce jeu")
+    # Pyramide, Biskit : leurs coups n'existent qu'une fois la partie lancée.
+    if (a in GAME_ONLY_ACTIONS["pyramid"] and not g.get("pyr")) or (a in GAME_ONLY_ACTIONS["biskit"] and not g.get("bk")):
+        raise HTTPException(409, "La partie n'a pas encore commencé")
     if a in HOST_ACTIONS and not games.is_lead(g, me):
         raise HTTPException(403, "Seul l'animateur de la partie peut faire ça")
+    if g.get("paused") and a not in PAUSE_ALLOWED:
+        raise HTTPException(409, "⏸ La partie est en pause : l'animateur la relance")
     if a == "join" and (msg := ban_message(me, client_ip(request))):
         raise HTTPException(403, msg)
     if a == "end":
@@ -2427,7 +2754,12 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "tanswer": (games.tmc_answer, me, body.guess), "tjudge": (games.tmc_judge, me, body.amount),
         "addguest": (games.add_guest, body.guess), "mvote": (games.vote_for, target, body.guess),
         "rvote": (games.room_vote, me, body.target),
-        "tq": (games.tmc_change_question,), "treveal": (games.tmc_reveal,), "finish": (games.tmc_finish,),
+        "pause": (games.pause_game, me), "resume": (games.resume_game,),
+        "bpset": (games.bp_call, beerpong.configure if g["phase"] == "lobby" else beerpong.configure_live, body.settings),
+        "bphit": (games.bp_mark, me, beerpong.hit, body.settings.get("team"), body.settings.get("cup"), body.settings.get("pid"), random),
+        "bpsent": (games.bp_mark, me, beerpong.sentence, body.amount, random),
+        "bpreroll": (games.bp_mark, me, beerpong.reroll, random), "bpundo": (games.bp_mark, me, beerpong.undo),
+        "tq": (games.tmc_change_question,), "treveal": (games.tmc_reveal, me), "finish": (games.tmc_finish,),
         "pans": (games.pyr_answer, actor, body.target), "pflip": (games.pyr_flip,), "pclaim": (games.pyr_claim, actor),
         "pbu": (games.pyr_judge, body.target, False), "pliar": (games.pyr_judge, body.target, True),
         "preveal": (games.pyr_reveal, actor, body.amount), "ppeek": (games.pyr_peek, actor, body.slots),
@@ -2438,6 +2770,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "paccept": (games.pyr_accept, target), "prefuse": (games.pyr_refuse, target),
         "bdraw": (games.bk_draw, actor, random), "bpick": (games.bk_complete, actor, target, body.guess, random),
         "btap": (games.bk_tap, actor), "bclose": (games.bk_close_reflex,),
+        "broll": (games.bk_roll, actor, games.is_lead(g, me) and actor != me, random),
         "qset": (quiz.configure, body.settings), "qans": (quiz.answer, actor, body.amount, random, body.guess),
         "handover": (games.handover, me, target),
         "hset": (heist.configure, body.settings),
@@ -2452,10 +2785,19 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "pusub": (purity.submit, me), "puunsub": (purity.unsubmit, me), "pureveal": (games.purity_reveal,),
         "lkset": (likely.configure, body.settings), "lkvote": (games.lk_vote, actor, target, me),
         "lkskip": (games.lk_skip, target), "lkswap": (games.lk_swap, random),
+        "psyans": (games.psy_answer, me, body.settings.get("q"), body.settings.get("a")),
+        "psysub": (games.psy_submit, me), "psyreveal": (games.psy_reveal,),
         "dbset": (debate.configure, body.settings), "dbvote": (games.db_vote, actor, body.amount if "amount" in body.model_fields_set else None, me),
         "dbskip": (games.db_skip, target), "dbswap": (games.db_swap, random), "dbrevote": (games.db_revote,),
         "dbpropose": (games.db_propose, me, body.guess), "dbaccept": (games.db_accept, body.amount),
         "dbrefuse": (games.db_refuse, body.amount),
+        "msset": (masque.configure, body.settings), "mswrite": (masque.write, me, body.guess, random),
+        "msswap": (masque.swap, random), "msshow": (masque.show, random),
+        "msguess": (masque.guess, me, body.settings.get("picks"), body.settings.get("unmask")),
+        "mshide": (masque.hide, body.amount), "msreveal": (masque.reveal,),
+        "rfset": (reflet.configure, body.settings), "rfpick": (reflet.pick, me, body.settings.get("i"), body.settings.get("bet")),
+        "rfswap": (reflet.swap, me, games.is_lead(g, me), random), "rfvote": (reflet.vote, me, body.done),
+        "rfskip": (reflet.skip, target),
     }
     if g["type"] == "quiz" and a == "next":
         actions["next"] = (quiz.next_step, random, body.guess)
@@ -2465,7 +2807,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     try:
         action_result = fn(g, *args)
     except (games.GameError, quiz.QuizError, purity.PurityError, president.PresidentError, neon.NeonError, island.IslandError,
-            heist.HeistError, likely.LikelyError, debate.DebateError) as e:
+            heist.HeistError, likely.LikelyError, debate.DebateError, masque.MasqueError, reflet.RefletError) as e:
         raise HTTPException(409, str(e))
     g["updated_at"] = time.time()
     # Salle de jeux : rejoindre, quitter, exclure ou passer la main vaut aussi pour le jeu en cours (et inversement).
@@ -2653,6 +2995,7 @@ class FeedbackAction(BaseModel):
     action: str
     note: str = Field(default="", max_length=10000)  # « note » : précisions / instructions de l'admin pour Claude
     reply: str = Field(default="", max_length=2000)  # « done » / « declined » : mot de l'admin pour l'invité
+    priority: str = Field(default="", max_length=10)  # « priority » : high | medium | low | "" (retirée)
 
 
 MIN_CLAUDE_NOTE = 10  # Claude ne part pas sans instructions claires de l'admin
@@ -2738,6 +3081,12 @@ def admin_feedback_action(body: FeedbackAction):
             raise HTTPException(400, "Un seul retour à la fois")
         feedback_item(body.ids[0])
         feedback.set_note(body.ids[0], body.note)
+        return feedback_payload()
+    if body.action == "priority":
+        try:
+            feedback.set_priority(body.ids, body.priority)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
         return feedback_payload()
     if body.action not in FEEDBACK_STATUSES + ("delete",):
         raise HTTPException(400, "Action inconnue")
@@ -3236,11 +3585,11 @@ def tv_game(code: str):
     rafraîchie chaque seconde par la télé. Mêmes avancées automatiques que pour les téléphones (fin d'une question…)."""
     with GAMES_LOCK:
         g = get_game(code)
-        if quiz.tick(g):
+        if not g.get("paused") and quiz.tick(g):
             g["updated_at"] = time.time()
             save_games(g["code"], g.get("room") or "")
         for engine in (heist, island, neon):
-            if engine.tick(g):
+            if not g.get("paused") and engine.tick(g):
                 save_games(g["code"])
         view = full_view(g, "")
         if g["type"] == "room" and (child := room_child(g)) is not None:
@@ -3366,9 +3715,10 @@ def neon_frame(code: str, body: NeonInput):
             raise HTTPException(400, "Ce jeu n'est pas Néon Knockout")
         if body.guest_id in g.get("kicked", []):
             raise HTTPException(403, "Tu as été banni de cette partie")
-        changed = neon.tick(g)
+        paused = bool(g.get("paused"))  # pause de l'animateur : rien ne bouge
+        changed = False if paused else neon.tick(g)
         try:
-            neon.input_state(g, body.guest_id, body.x, body.y, body.charging, cancel=body.cancel)
+            None if paused else neon.input_state(g, body.guest_id, body.x, body.y, body.charging, cancel=body.cancel)
         except neon.NeonError as e:
             raise HTTPException(400, str(e))
         if changed:
@@ -3396,9 +3746,10 @@ def island_frame(code: str, body: IslandInput):
             raise HTTPException(400, "Ce jeu n’est pas L’île qui s’effondre")
         if body.guest_id in g.get("kicked", []) or (body.guest_id in g.get("removed", []) and not games.player(g, body.guest_id)):
             raise HTTPException(403, "Tu ne participes plus à cette partie")
-        changed = island.tick(g)
+        paused = bool(g.get("paused"))  # pause de l'animateur : rien ne bouge
+        changed = False if paused else island.tick(g)
         try:
-            island.input_state(g, body.guest_id, body.x, body.y, body.jump, cancel=body.cancel)
+            None if paused else island.input_state(g, body.guest_id, body.x, body.y, body.jump, cancel=body.cancel)
         except island.IslandError as e:
             raise HTTPException(400, str(e))
         if changed:
@@ -3426,9 +3777,10 @@ def heist_frame(code: str, body: HeistInput):
         if body.guest_id in g.get("kicked", []) or (body.guest_id in g.get("removed", []) and not games.player(g, body.guest_id)):
             raise HTTPException(403, "Tu ne participes plus à cette partie")
         phase = g["phase"]
-        changed = heist.tick(g)
+        paused = bool(g.get("paused"))  # pause de l'animateur : rien ne bouge
+        changed = False if paused else heist.tick(g)
         try:
-            heist.input_state(g, body.guest_id, body.x, body.y, body.action, cancel=body.cancel)
+            None if paused else heist.input_state(g, body.guest_id, body.x, body.y, body.action, cancel=body.cancel)
         except heist.HeistError as e:
             raise HTTPException(400, str(e))
         if changed or phase != g["phase"]:

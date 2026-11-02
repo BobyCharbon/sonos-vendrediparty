@@ -20,16 +20,32 @@ struct GameView: View {
             if game["current"].isNull { RoomTV(room: game, join: join) } else { GameView(game: game["current"], join: join) }
         } else if game["phase"].string == "lobby" {
             LobbyView(game: game, join: join)
-        } else if game["phase"].string == "end" && !["undercover", "president"].contains(game["type"].string ?? "") {
+        } else if Self.showsEnd(game) {
             EndTV(game: game)
         } else {
             VStack(alignment: .leading, spacing: 30) {
                 // Le résultat de la manche d'abord, en très grand ; le jeu dessous.
-                if let outcome = Outcome.of(game), game["type"].string != "roulette" {
-                    OutcomeBoard(outcome: outcome).transition(.move(edge: .top).combined(with: .opacity))
+                // Roulette et Beer pong montrent déjà le résultat en grand dans leur vue (prénom tiré, sentence) : pas en double.
+                if let outcome = Outcome.of(game), Self.boardShown(game) {
+                    OutcomeBoard(outcome: outcome).transition(.motion(.move(edge: .top).combined(with: .opacity)))
                 }
                 board
             }
+        }
+    }
+
+    /// Fin de partie avec podium (EndTV) ; Undercover, Président et Beer pong gardent leur propre écran de fin.
+    static func showsEnd(_ game: JSON) -> Bool {
+        game["phase"].string == "end" && !["undercover", "president", "beerpong"].contains(game["type"].string ?? "")
+    }
+
+    /// Tableau des résultats dans la scène : pas pour la Roulette (le prénom tiré y est déjà en très grand) ni pour une
+    /// sentence de Beer pong (sa carte est dessous) ; l'équipe gagnante du Beer pong, elle, y reste.
+    static func boardShown(_ game: JSON) -> Bool {
+        switch game["type"].string {
+        case "roulette": return false
+        case "beerpong": return game["bp"]["winner"].string != nil
+        default: return true
         }
     }
 
@@ -41,6 +57,8 @@ struct GameView: View {
             case "undercover": UndercoverTV(game: game)
             case "whoof", "never": QuestionVoteTV(game: game)
             case "debate": DebateTV(game: game)
+            case "masque": MasqueTV(game: game)
+            case "reflet": RefletTV(game: game)
             case "roulette": RouletteTV(game: game)
             case "divan": DivanTV(game: game)
             case "tmc": TmcTV(game: game)
@@ -49,6 +67,7 @@ struct GameView: View {
             case "pyramid": PyramidTV(game: game)
             case "biskit": BiskitTV(game: game)
             case "president": PresidentTV(game: game)
+            case "beerpong": BeerPongTV(game: game)
             case "island", "neon", "heist": ActionGameTV(game: game)
             default: GenericTV(game: game)
             }
@@ -65,6 +84,9 @@ enum Phase {
         case "results", "reveal", "rev", "scored": return "Résultats"
         case "white_guess": return "Mr. White tente sa chance"
         case "answering": return "Chacun répond au test"
+        case "write": return "Chacun écrit en secret"
+        case "guess": return "Qui a écrit quoi ?"
+        case "pick": return "Devant le miroir"
         case "q": return "Question en cours"
         case "run": return "Chacun joue à son rythme"
         case "bet": return "Les mises"
@@ -88,6 +110,7 @@ extension Phase {
         case "quiz": return game["quiz"]["n"].int.map { "Question \($0)" }
         case "likely": return game["likely"]["n"].int.map { "Question \($0)/\(game["likely"]["count"].int ?? 0)" }
         case "debate": return game["debate"]["n"].int.map { "Dilemme \($0)/\(game["debate"]["count"].int ?? 0)" }
+        case "masque": return game["masque"]["n"].int.map { "Question \($0)/\(game["masque"]["count"].int ?? 0)" }
         case "whoof", "never": return game["round"].int.flatMap { $0 > 0 ? "Question \($0)" : nil }
         case "undercover": return game["round"].int.flatMap { $0 > 0 ? "Manche \($0)" : nil }
         case "blackjack": return game["round"].int.flatMap { $0 > 0 ? "Main \($0)" : nil }
@@ -128,6 +151,8 @@ struct SideBoard: View {
 
     static func rows(_ game: JSON) -> (String, [(name: String, value: String)])? {
         let g = shown(game)
+        // Casino : le classement attend que la bille s'arrête (il dévoilerait qui a gagné).
+        if CasinoTV.rolling(g) { return nil }
         func list(_ a: [JSON], _ value: (JSON) -> String) -> [(name: String, value: String)] { a.map { ($0["name"].string ?? "?", value($0)) } }
         switch g["type"].string {
         case "quiz": return ("Classement", list(g["quiz"]["board"].array) { "\($0["pts"].int ?? 0) pts" })
@@ -144,8 +169,9 @@ struct SideBoard: View {
     }
 
     /// Montré seulement quand quelqu'un se détache (tous à 0 ou tous égaux : rien à classer).
+    /// Pas pendant le podium de fin : il dévoilerait le gagnant avant que la 1re marche ne monte.
     static func shows(_ game: JSON) -> Bool {
-        guard let rows = rows(game)?.1, !rows.isEmpty else { return false }
+        guard !GameView.showsEnd(shown(game)), let rows = rows(game)?.1, !rows.isEmpty else { return false }
         return Set(rows.map(\.value)).count > 1
     }
 
@@ -166,9 +192,23 @@ struct PlayersRow: View {
     var size: CGFloat = 92
     var body: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: size + 60), spacing: 20)], alignment: .leading, spacing: 24) {
-            ForEach(Array(players.enumerated()), id: \.offset) { _, p in
+            // Chaque pastille suit son joueur : un nouvel arrivant apparaît en grossissant, les autres glissent.
+            ForEach(Self.keyed(players), id: \.key) { item in
+                let p = item.player
                 PlayerBadge(player: p, size: size, highlight: highlight.contains(p["pid"].string ?? ""))
+                    .transition(.popIn)
             }
+        }
+    }
+
+    /// Identité d'une pastille : l'identifiant du joueur, sinon son prénom (numéroté s'il revient).
+    static func keyed(_ players: [JSON]) -> [(key: String, player: JSON)] {
+        var seen: [String: Int] = [:]
+        return players.map { p in
+            let base = p["pid"].string ?? p["name"].string ?? "?"
+            seen[base, default: 0] += 1
+            let n = seen[base] ?? 1
+            return (n == 1 ? base : "\(base)#\(n)", p)
         }
     }
 }
@@ -179,12 +219,13 @@ struct LobbyView: View {
     let join: URL?
     var body: some View {
         HStack(alignment: .top, spacing: 50) {
-            if let join { QRCodeView(url: join, size: 300) }
+            if let join { QRCodeView(url: join, size: 300).qrHalo() }
             VStack(alignment: .leading, spacing: 26) {
                 PhaseTag(text: "En attente des joueurs", color: TV.lavender)
                 Text("Scanne le QR code pour jouer").font(.system(size: 50, weight: .heavy)).lineLimit(2).minimumScaleFactor(0.7)
                 Text("\(game["players"].array.count) joueur\(game["players"].array.count > 1 ? "s" : "") dans la partie")
                     .font(.title2).foregroundStyle(TV.muted)
+                    .contentTransition(.numericText())
                 PlayersRow(players: game["players"].array, size: 100)
             }
         }
@@ -204,7 +245,7 @@ struct RoomTV: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 26) {
             HStack(alignment: .top, spacing: 40) {
-                if let join { QRCodeView(url: join, size: 220) }
+                if let join { QRCodeView(url: join, size: 220).qrHalo() }
                 VStack(alignment: .leading, spacing: 14) {
                     Text("🗳 Votez pour le prochain jeu").font(.system(size: 60, weight: .black)).lineLimit(1).minimumScaleFactor(0.6)
                     let total = votes.values.reduce(0, +)
@@ -215,7 +256,7 @@ struct RoomTV: View {
                     if !top.isEmpty {
                         Text("⭐ " + top.map(name).joined(separator: " · "))
                             .font(.system(size: 56, weight: .black)).foregroundStyle(TV.coral).lineLimit(1).minimumScaleFactor(0.5)
-                            .id(top).transition(.scale.combined(with: .opacity))
+                            .id(top).transition(.popIn)
                     }
                 }
             }
@@ -247,6 +288,8 @@ struct RoomTV: View {
                 Text("\(n)").font(.system(size: 40, weight: .black).monospacedDigit()).foregroundStyle(.black)
                     .frame(minWidth: 58, minHeight: 58).background(top ? TV.coral : TV.lavender, in: Capsule())
                     .contentTransition(.numericText())
+                    .bump(on: n, scale: 1.3)
+                    .transition(.popIn)
             }
         }
         .padding(.horizontal, 22).padding(.vertical, 12)
@@ -267,16 +310,32 @@ struct Leaderboard: View {
         let tied = Set(rows.map(\.value)).count <= 1
         VStack(alignment: .leading, spacing: 10) {
             Text(title).font(.title3.bold())
-            ForEach(Array(rows.prefix(limit).enumerated()), id: \.offset) { i, row in
-                let rank = rows.firstIndex { $0.value == row.value } ?? i
+            // Une ligne par joueur (pas par place) : quand quelqu'un double un autre, sa ligne glisse à sa nouvelle place.
+            ForEach(Self.keyed(Array(rows.prefix(limit))), id: \.key) { item in
+                let row = item.row
+                let rank = rows.firstIndex { $0.value == row.value } ?? item.index
                 HStack {
                     Text(tied ? "·" : rank == 0 ? "🥇" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : "\(rank + 1)").font(.headline).frame(width: 48)
+                        .contentTransition(.opacity)
                     Text(row.name).font(.headline).lineLimit(1)
                     Spacer()
                     Text(row.value).font(.headline.monospacedDigit()).foregroundStyle(TV.lavender).lineLimit(1).fixedSize()
+                        .contentTransition(.numericText())
+                        .bump(on: row.value)
                 }
                 .padding(.horizontal, 20).padding(.vertical, 8).card(!tied && rank == 0 ? TV.accent.opacity(0.35) : TV.surface, radius: 18)
+                .transition(.popIn)
             }
+        }
+    }
+
+    /// Identité stable de chaque ligne : le prénom (« Léa#2 » pour un second homonyme).
+    static func keyed(_ rows: [(name: String, value: String)]) -> [(key: String, index: Int, row: (name: String, value: String))] {
+        var seen: [String: Int] = [:]
+        return rows.enumerated().map { i, row in
+            seen[row.name, default: 0] += 1
+            let n = seen[row.name] ?? 1
+            return (n == 1 ? row.name : "\(row.name)#\(n)", i, row)
         }
     }
 }

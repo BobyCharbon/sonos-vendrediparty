@@ -21,15 +21,14 @@ struct DebateTV: View {
                 ForEach(0..<5, id: \.self) { i in
                     HStack(spacing: 20) {
                         Text(Self.scale[i]).font(.title3).frame(width: 300, alignment: .leading)
-                        GeometryReader { geo in
-                            Capsule().fill(Self.colors[i]).frame(width: max(14, geo.size.width * share(result["counts"][i].int, result["votes"].int)))
-                        }
-                        .frame(height: 30)
+                        GrowBar(share: share(result["counts"][i].int, result["votes"].int), color: Self.colors[i], order: i)
+                            .frame(height: 30)
                         Text("\(result["counts"][i].int ?? 0)").font(.title3.monospacedDigit().bold()).frame(width: 50)
                     }
+                    .id("\(D["n"].int ?? 0)-\(i)")
                 }
             } else {
-                Text("\(D["voted"].int ?? 0)/\(D["total"].int ?? 0) ont voté").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender)
+                Text("\(D["voted"].int ?? 0)/\(D["total"].int ?? 0) ont voté").font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.lavender).contentTransition(.numericText())
                 PlayersRow(players: game["players"].array.map { voted($0, D["done"].array.contains($0["pid"])) })
             }
         }
@@ -67,6 +66,9 @@ struct RouletteTV: View {
             GameTop(game: game)
             if let picked {
                 Text("🎯 \(picked)").font(.system(size: 200, weight: .black)).foregroundStyle(TV.coral).lineLimit(1).minimumScaleFactor(0.5)
+                    // Chaque tirage tombe en grand (même prénom tiré deux fois de suite : il retombe).
+                    .id(game["spin"]["at"].string ?? picked)
+                    .transition(.motion(.scale(scale: 1.8).combined(with: .opacity)))
             } else {
                 Text("La roue va tourner…").font(.system(size: 60, weight: .heavy))
             }
@@ -90,13 +92,19 @@ struct DivanTV: View {
         VStack(alignment: .leading, spacing: 34) {
             if let name = V["current"]["name"].string {
                 Text("🛋️ \(name)").font(.system(size: 110, weight: .black)).foregroundStyle(TV.coral).lineLimit(1).minimumScaleFactor(0.5)
-                    .id(name).transition(.push(from: .trailing))
+                    .id(name).transition(.motion(.push(from: .trailing)))
             }
             let card = V["card"]
             if !card.isNull {
                 VStack(alignment: .leading, spacing: 20) {
                     Text(V["labels"][card["cat"].string ?? ""].string ?? "").font(.title2.bold()).foregroundStyle(TV.lavender)
-                    Text(card["text"].string ?? "").font(.system(size: 60, weight: .heavy)).lineLimit(5).minimumScaleFactor(0.6)
+                    // Carte suivante : elle pousse la précédente (superposées le temps du glissement, pas empilées).
+                    ZStack(alignment: .leading) {
+                        Text(card["text"].string ?? "").font(.system(size: 60, weight: .heavy)).lineLimit(5).minimumScaleFactor(0.6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .id(card["text"].string ?? "").transition(.motion(.push(from: .trailing)))
+                    }
+                    .clipped()
                     if let hearts = V["hearts"].int, hearts > 0 {
                         Text("❤️ \(hearts) soutien\(hearts > 1 ? "s" : "")").font(.system(size: 40, weight: .heavy)).foregroundStyle(TV.accent)
                     }
@@ -143,6 +151,8 @@ struct TmcTV: View {
                         Text("💬 \(answer)").font(.system(size: 80, weight: .black)).lineLimit(3).minimumScaleFactor(0.5)
                     }
                     .padding(36).frame(maxWidth: .infinity, alignment: .leading).card(TV.surface, radius: 36)
+                    // La réponse écrite en secret est dévoilée : elle arrive en grossissant.
+                    .transition(.popIn)
                 }
                 if let verdict = duo["verdict"].string ?? (duo["verdict"].isNull ? nil : (duo["verdict"].bool ? "ok" : "ko")) {
                     Text(["ok": "✅ Bonne réponse !", "true": "✅ Bonne réponse !", "half": "🤏 À moitié", "ko": "❌ Raté", "false": "❌ Raté"][verdict] ?? verdict)

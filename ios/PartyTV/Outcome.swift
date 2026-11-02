@@ -60,111 +60,6 @@ extension Outcome.Kind {
 /// « 2 gorgées », « 1 gorgée » : le même vocabulaire que les téléphones.
 func sips(_ n: Int) -> String { "\(n) gorgée\(n > 1 ? "s" : "")" }
 
-/// Tableau des résultats, en très grand : une colonne par sorte (gagnent, boivent, distribuent, perdent).
-/// Les lignes arrivent l'une après l'autre (ressort) à chaque nouvelle manche.
-struct OutcomeBoard: View {
-    let outcome: Outcome
-    @State private var shown = 0
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 28) {
-            if !outcome.headline.isEmpty {
-                Text(outcome.headline).font(.system(size: 64, weight: .heavy)).lineLimit(2).minimumScaleFactor(0.6)
-                    .transition(.scale(scale: 0.6).combined(with: .opacity))
-            }
-            HStack(alignment: .top, spacing: 30) {
-                ForEach(Outcome.Kind.allCases, id: \.self) { kind in
-                    let lines = outcome.lines(kind)
-                    if !lines.isEmpty { column(kind, lines) }
-                }
-            }
-        }
-        .onAppear { reveal() }
-        .onChange(of: outcome.key) { _, _ in reveal() }
-    }
-
-    private func reveal() {
-        shown = 0
-        for i in 0..<outcome.lines.count {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.62).delay(0.25 + Double(i) * 0.18)) { shown = i + 1 }
-        }
-    }
-
-    private func column(_ kind: Outcome.Kind, _ lines: [Outcome.Line]) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            if kind != .info {
-                Text("\(kind.symbol) \(kind.title.uppercased())").font(.system(size: 38, weight: .black)).foregroundStyle(kind.color)
-            }
-            ForEach(lines) { line in
-                let index = outcome.lines.firstIndex(of: line) ?? 0
-                row(line).opacity(index < shown ? 1 : 0).scaleEffect(index < shown ? 1 : 0.4, anchor: .leading)
-            }
-        }
-        .padding(30)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(kind.color.opacity(0.16), in: RoundedRectangle(cornerRadius: 34, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 34, style: .continuous).stroke(kind.color.opacity(0.55), lineWidth: 3))
-    }
-
-    private func row(_ line: Outcome.Line) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 18) {
-            Text(line.name).font(.system(size: 54, weight: .heavy)).lineLimit(1).minimumScaleFactor(0.5)
-            Spacer(minLength: 10)
-            if let amount = line.amount {
-                Text(line.kind == .drink || line.kind == .give ? "\(amount)" : (amount > 0 ? "+\(amount)" : "\(amount)"))
-                    .font(.system(size: 60, weight: .black).monospacedDigit()).foregroundStyle(line.kind.color)
-                    .contentTransition(.numericText())
-            }
-        }
-        .overlay(alignment: .bottomLeading) {
-            if let detail = line.detail {
-                Text(detail).font(.system(size: 32, weight: .bold)).foregroundStyle(TV.muted).offset(y: 40)
-            }
-        }
-        .padding(.bottom, line.detail == nil ? 0 : 38)
-    }
-}
-
-/// Annonce plein écran d'un nouveau résultat (quelques secondes), puis le tableau reste dans la scène.
-struct OutcomeFlash: View {
-    let outcome: Outcome
-    @State private var pop = false
-
-    var body: some View {
-        VStack(spacing: 30) {
-            if !outcome.headline.isEmpty {
-                Text(outcome.headline).font(.system(size: 90, weight: .black)).multilineTextAlignment(.center)
-                    .lineLimit(2).minimumScaleFactor(0.5)
-            }
-            let main = outcome.lines.filter { $0.kind != .info }.prefix(6)
-            ForEach(Array(main.enumerated()), id: \.offset) { i, line in
-                Text("\(line.kind.symbol) \(line.name) \(Self.verb(line))")
-                    .font(.system(size: 76, weight: .heavy)).foregroundStyle(line.kind.color)
-                    .lineLimit(1).minimumScaleFactor(0.5)
-                    .opacity(pop ? 1 : 0).offset(y: pop ? 0 : 60)
-                    .animation(.spring(response: 0.55, dampingFraction: 0.6).delay(0.2 + Double(i) * 0.22), value: pop)
-            }
-        }
-        .padding(70)
-        .frame(maxWidth: 1500)
-        .glass(cornerRadius: 60)
-        .scaleEffect(pop ? 1 : 0.7)
-        .animation(.spring(response: 0.45, dampingFraction: 0.7), value: pop)
-        .onAppear { pop = true }
-    }
-
-    static func verb(_ line: Outcome.Line) -> String {
-        let n = line.amount.map { $0 } ?? 0
-        switch line.kind {
-        case .drink: return line.amount == nil ? "boit" : "boit \(sips(n))"
-        case .give: return line.amount == nil ? "distribue" : "distribue \(sips(n))"
-        case .win: return line.detail ?? (line.amount.map { "gagne \($0 > 0 ? "+" : "")\($0)" } ?? "gagne")
-        case .lose: return line.detail ?? (line.amount.map { "perd \(abs($0))" } ?? "perd")
-        case .info: return line.detail ?? ""
-        }
-    }
-}
-
 // MARK: - Résultat de chaque jeu
 
 extension Outcome {
@@ -230,6 +125,8 @@ extension Outcome {
                         lines: g["president"]["ranking"].array.map {
                             Line(name: $0["name"].string ?? "?", kind: ($0["place"].int ?? 0) == 1 ? .win : .info, detail: $0["role"].string)
                         }, key: "president-end-\(round)")
+        case ("beerpong", _):
+            o = beerPong(g)
         case ("biskit", _), ("pyramid", _):
             o = fromSipsLog(g)
         default:
@@ -237,10 +134,31 @@ extension Outcome {
         }
         guard var o, !(o.headline.isEmpty && o.lines.isEmpty) else { return nil }
         // Gorgées comptées par le serveur mais pas nommées par le jeu (Quiz : les mauvaises réponses boivent…).
-        if o.lines(.drink).isEmpty && o.lines(.give).isEmpty, let sipsNow = fromSipsLog(g), !["biskit", "pyramid"].contains(g["type"].string ?? "") {
+        if o.lines(.drink).isEmpty && o.lines(.give).isEmpty, let sipsNow = fromSipsLog(g), !["biskit", "pyramid", "beerpong"].contains(g["type"].string ?? "") {
             o.lines = o.lines.filter { $0.kind != .lose || $0.amount != nil } + sipsNow.lines
         }
         return o
+    }
+
+    /// Beer pong : chaque sentence est annoncée (qui, quoi) ; à la fin, l'équipe gagnante.
+    private static func beerPong(_ g: JSON) -> Outcome? {
+        let B = g["bp"]
+        if let winner = B["winner"].string {
+            let names = B["players"].array.filter { $0["team"].string == winner }.compactMap { $0["name"].string }
+            return Outcome(headline: "🏆 Les \(B["team_names"][winner].string ?? winner) gagnent !",
+                           lines: names.map { Line(name: $0, kind: .win) }, key: "bp-end-\(B["log"].array.count)")
+        }
+        let last = B["last"]
+        guard let n = last["n"].int, let name = last["name"].string else { return nil }
+        let kind = last["kind"].string
+        var line = Line(name: name, kind: .info, detail: last["text"].string)
+        if kind == "sips" { line = Line(name: name, kind: .drink, amount: last["sips"].int) }
+        if kind == "shot" { line = Line(name: name, kind: .drink, detail: "Cul sec : un shot !") }
+        var lines = [line]
+        if last["effect"].string == "team_sip", let team = last["team"].string {  // malus : toute l'équipe boit 1
+            lines = B["players"].array.filter { $0["team"].string == team }.compactMap { $0["name"].string }.map { Line(name: $0, kind: .drink, amount: 1) }
+        }
+        return Outcome(headline: "\(BeerPongTV.icon(kind)) \(last["text"].string ?? "")", lines: lines, key: "bp-\(n)")
     }
 
     private static func blackjack(_ g: JSON, _ round: String) -> Outcome {

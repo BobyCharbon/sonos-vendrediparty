@@ -84,9 +84,12 @@ struct HostAccessSection: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(online.isEmpty ? "Aucun invité connecté pour l'instant" : "\(online.count) connecté\(online.count > 1 ? "s" : "")")
                 .font(.subheadline.weight(.semibold))
-            ForEach(online) { guest in GuestRow(store: store, guest: guest, usesSpotify: state.usesSpotify) }
+                .contentTransition(.numericText())
+            ForEach(online) { guest in GuestRow(store: store, guest: guest, usesSpotify: state.usesSpotify).motionTransition() }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Invité qui arrive ou s'en va : sa ligne glisse, le compte défile.
+        .motion(Motion.snappy, value: online.map(\.id))
     }
 
     static func day(_ iso: String) -> String {
@@ -179,18 +182,23 @@ struct HostAddSection: View {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                     TextField("Titre, artiste… ou colle un lien", text: $store.query)
                         .focused($searching).submitLabel(.search).autocorrectionDisabled()
-                    if store.searching { ProgressView() }
+                    if store.searching { ProgressView().transition(.opacity) }
                     if !store.query.isEmpty {
                         Button { store.query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
                             .accessibilityLabel("Effacer")
+                            .transition(.opacity.combined(with: .scale(scale: 0.6)))
                     }
                 }
+                .motion(Motion.snappy, value: store.searching)
+                .motion(Motion.snappy, value: store.query.isEmpty)
                 .card()
-                ForEach(store.results) { track in result(track) }
+                ForEach(store.results) { track in result(track).motionTransition() }
                 if !store.searching && store.query.count >= 2 && store.results.isEmpty {
-                    Text("Aucun résultat").font(.subheadline).foregroundStyle(.secondary)
+                    Text("Aucun résultat").font(.subheadline).foregroundStyle(.secondary).transition(.opacity)
                 }
             }
+            // Résultats qui arrivent ou se vident (titre ajouté) : les lignes glissent en place.
+            .motion(Motion.snappy, value: store.results.map(\.id))
         }
         .confirmationDialog(store.duplicate?.message ?? "", isPresented: Binding(get: { store.duplicate != nil },
                                                                               set: { if !$0 { store.duplicate = nil } }),
@@ -227,7 +235,9 @@ struct HostAddSection: View {
     }
 
     private func add(_ track: HostSearchTrack, _ place: String) {
+        Haptics.tap()
         searching = false
+
         Task { await store.add(track, place: place) }
     }
 }

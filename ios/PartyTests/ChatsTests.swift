@@ -40,6 +40,25 @@ struct ChatsTests {
         #expect(c.messages[0].date != nil && c.members.first?.creator == true)
     }
 
+    @Test("Cache des discussions : compte lu dans le jeton, conversation gardée telle quelle, noms de fichier sûrs")
+    func cacheKeepsTheLastConversation() throws {
+        let payload = Data(#"{"sub":"0F5C2B9E-1111-4A2B-9C3D-123456789ABC"}"#.utf8).base64EncodedString()
+            .replacingOccurrences(of: "=", with: "")
+        let account = try #require(ChatsCache.account(of: "eyJhbGciOiJIUzI1NiJ9.\(payload).signature"))
+        #expect(account == "0f5c2b9e-1111-4a2b-9c3d-123456789abc")
+        #expect(ChatsCache.account(of: "pas-un-jeton") == nil)
+        let c: Conversation = try decode("""
+        {"id":"g1","name":"Les amis","member":true,"admin":false,"notify":"all","can_name_admins":false,"reactions":["👍"],
+         "members":[],"messages":[{"id":"m1","author":"u1","author_name":"Léa","author_photo":null,"mine":false,
+         "at":"2026-10-29T10:00:00Z","edited":false,"body":"Salut","deleted":false,"photo":null,"pinned":false,"reply":null,
+         "reactions":[],"audio":"https://x/a.m4a","audio_seconds":4.2}]}
+        """)
+        ChatsCache.save(c, account: account, name: "chat-g1")
+        #expect(ChatsCache.load(Conversation.self, account: account, name: "chat-g1") == c)
+        ChatsCache.save(c, account: account, name: "../evil")
+        #expect(ChatsCache.load(Conversation.self, account: account, name: "../evil") == nil)
+    }
+
     @Test("Infos du groupe : le numéro montré dans le groupe devient un lien d'appel, rien sinon")
     func callLinks() throws {
         let m: Conversation.Member = try decode(#"{"id":"u1","name":"Léa","photo":null,"admin":false,"creator":false,"phone":"+41790000001"}"#)

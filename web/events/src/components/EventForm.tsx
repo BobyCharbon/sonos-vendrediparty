@@ -5,12 +5,13 @@ import { Pressable, View } from 'react-native';
 import { useAuth, useMe } from '@/lib/auth';
 import { fetchTaxonomy, useQuery } from '@/lib/data';
 import { parseLocalDateTime, toLocalInput } from '@/lib/format';
+import { enter, pressTransition, useChangedSinceMount } from '@/lib/motion';
 import { check, must, supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 import type { DateMode, EventRow, MemberGroup, Poll, PollOption, Reminder } from '@/lib/types';
 import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
-import { Button, Chip, ErrorText, Field, Input, Rows, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
+import { Button, Cascade, Chip, ErrorText, Field, Input, Reveal, Rows, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
 import { AudiencePicker, audienceChildren, audienceError, audienceFromEvent, audienceToEvent, DEFAULT_AUDIENCE, type AudienceValue, type Person } from './AudiencePicker';
 import { DateTimeField } from './DateTimeField';
 import { PlaceSearch } from './PlaceSearch';
@@ -54,10 +55,12 @@ type Draft = {
   who: AudienceValue;  // qui voit la sortie (AudiencePicker)
   organizers: string[];
   show_participants: boolean;
+  pot_enabled: boolean;
   forum_enabled: boolean;
   notify_on_publish: boolean;
   polls: PollDraft[];
-  bring: { id?: string; label: string }[];
+  /** quantity : texte du champ « Qté » ; vide ou 1 = un seul objet, pris en entier par une personne. */
+  bring: { id?: string; label: string; quantity?: string }[];
 };
 
 const emptyDraft: Draft = {
@@ -86,6 +89,7 @@ const emptyDraft: Draft = {
   who: DEFAULT_AUDIENCE,
   organizers: [],
   show_participants: true,
+  pot_enabled: false,
   forum_enabled: true,
   notify_on_publish: true,
   polls: [],
@@ -125,11 +129,34 @@ function activeAdvanced(d: Draft): string[] {
   ].filter(Boolean);
 }
 
+/** « 15 » → 15 (partagé entre plusieurs personnes) ; vide, 0 ou 1 → null (une personne prend l'objet entier). */
+export function bringQuantity(text: string | undefined): number | null {
+  const n = parseInt(text ?? '', 10);
+  return n >= 2 ? Math.min(n, 999) : null;
+}
+
+/** « Bouteilles de vin : déjà 13 promises, la quantité ne peut pas descendre à 5 » ; null si tout va bien. */
+async function bringBelowPromised(bring: Draft['bring']): Promise<string | null> {
+  const kept = bring.filter((b) => b.id);
+  if (!kept.length) return null;
+  const { data } = await supabase.from('bring_claims').select('item_id, quantity').in('item_id', kept.map((b) => b.id!));
+  const promised = new Map<string, number>();
+  for (const c of data ?? []) promised.set(c.item_id, (promised.get(c.item_id) ?? 0) + c.quantity);
+  for (const b of kept) {
+    const taken = promised.get(b.id!) ?? 0;
+    const wanted = bringQuantity(b.quantity);
+    if (taken && (wanted === null || wanted < taken)) {
+      return `${b.label} : déjà ${taken} promis par les invités, la quantité ne peut pas descendre en dessous.`;
+    }
+  }
+  return null;
+}
+
 async function loadDraft(eventId: string): Promise<Draft> {
   const res = await supabase
     .from('events')
     .select(
-      '*, event_tags(tag_id), event_organizers(user_id), event_invites(user_id, via_group), event_groups(group_id), event_phone_invites(phone), date_options(id, starts_at), polls(*, poll_options(*)), bring_items(id, label, sort)',
+      '*, event_tags(tag_id), event_organizers(user_id), event_invites(user_id, via_group), event_groups(group_id), event_phone_invites(phone), date_options(id, starts_at), polls(*, poll_options(*)), bring_items(id, label, sort, quantity)',
     )
     .eq('id', eventId)
     .single();
@@ -141,7 +168,7 @@ async function loadDraft(eventId: string): Promise<Draft> {
     event_phone_invites: { phone: string }[];
     date_options: { id: string; starts_at: string }[];
     polls: (Poll & { poll_options: PollOption[] })[];
-    bring_items: { id: string; label: string; sort: number }[];
+    bring_items: { id: string; label: string; sort: number; quantity: number | null }[];
   };
   return {
     title: e.title,
@@ -171,6 +198,7 @@ async function loadDraft(eventId: string): Promise<Draft> {
     who: audienceFromEvent(e),
     organizers: e.event_organizers.map((o) => o.user_id),
     show_participants: e.show_participants,
+    pot_enabled: e.pot_enabled ?? false,
     forum_enabled: e.forum_enabled,
     notify_on_publish: e.notify_on_publish,
     polls: e.polls
@@ -184,7 +212,7 @@ async function loadDraft(eventId: string): Promise<Draft> {
         members_can_add_options: p.members_can_add_options,
         results_after_vote: p.results_after_vote,
       })),
-    bring: e.bring_items.sort((a, b) => a.sort - b.sort).map((b) => ({ id: b.id, label: b.label })),
+    bring: e.bring_items.sort((a, b) => a.sort - b.sort).map((b) => ({ id: b.id, label: b.label, quantity: b.quantity ? String(b.quantity) : '' })),
   };
 }
 
@@ -221,6 +249,11 @@ export function EventForm({ eventId }: { eventId?: string }) {
       status: current ? (must(current) as { status: EventRow['status'] }).status : null,
     };
   }, [eventId]);
+
+  // Une ligne ajoutée (créneau, option, sondage, objet) apparaît en douceur ; celles du départ restent posées.
+  const slotsGrew = useChangedSinceMount(draft?.slots.length ?? 0);
+  const pollsGrew = useChangedSinceMount(draft?.polls.map((p) => p.options.length).join() ?? '');
+  const bringGrew = useChangedSinceMount(draft?.bring.length ?? 0);
 
   if (!draft || !ctx) return (
     <Screen edges={[]}>
@@ -325,6 +358,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
         rsvp_deadline: rsvpDeadline,
         ...audienceToEvent(d.who),
         show_participants: d.show_participants,
+        pot_enabled: d.pot_enabled,
         forum_enabled: d.forum_enabled,
         notify_on_publish: d.notify_on_publish,
         reminders: ALL_REMINDERS,
@@ -412,11 +446,11 @@ export function EventForm({ eventId }: { eventId?: string }) {
     const removedItems = (prev?.bring ?? []).filter((b) => b.id && !keptItems.has(b.id)).map((b) => b.id!);
     if (removedItems.length) check(await supabase.from('bring_items').delete().in('id', removedItems));
     for (const [sort, item] of d.bring.entries()) {
-      if (item.id) check(await supabase.from('bring_items').update({ label: item.label.trim(), sort }).eq('id', item.id).eq('event_id', id));
+      if (item.id) check(await supabase.from('bring_items').update({ label: item.label.trim(), sort, quantity: bringQuantity(item.quantity) }).eq('id', item.id).eq('event_id', id));
     }
     for (const [sort, item] of d.bring.entries()) {
       if (item.id || !item.label.trim()) continue;
-      const created = must(await supabase.from('bring_items').insert({ event_id: id, label: item.label.trim(), sort }).select('id').single());
+      const created = must(await supabase.from('bring_items').insert({ event_id: id, label: item.label.trim(), sort, quantity: bringQuantity(item.quantity) }).select('id').single());
       item.id = created.id as string;
     }
   }
@@ -433,6 +467,10 @@ export function EventForm({ eventId }: { eventId?: string }) {
     try {
       let id = savedEventId.current;
       const previous = id ? await loadDraft(id) : null;
+      // Avant toute écriture : une quantité ne descend pas sous ce que les invités ont déjà promis (sinon
+      // l'enregistrement s'arrêterait à moitié, l'événement modifié mais pas « qui amène quoi »).
+      const short = await bringBelowPromised(snapshot.bring);
+      if (short) throw new Error(short);
       if (!id) {
         // Créé en brouillon pour attacher tags/sondages AVANT la publication (et donc les notifications).
         id = must(await supabase.from('events').insert({ ...v.row, status: 'draft' }).select('id').single()).id as string;
@@ -477,6 +515,8 @@ export function EventForm({ eventId }: { eventId?: string }) {
   return (
     <Screen edges={[]}>
       <View pointerEvents={busy ? 'none' : 'auto'} style={{ gap: 14 }}>
+      {/* Ouverture en cascade ; en passant en Avancé, les sections ajoutées montent à leur tour. */}
+      <Cascade>
       <View style={{ gap: 6 }}>
         <Segmented<FormMode>
           value={advanced ? 'advanced' : 'simple'}
@@ -484,7 +524,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
           disabled={d.date_mode === 'poll'}
           options={[{ key: 'simple', label: 'Simple' }, { key: 'advanced', label: 'Avancé' }]}
         />
-        <T muted size={12} style={{ paddingHorizontal: 4 }}>
+        <T key={advanced ? 'advanced' : 'simple'} muted size={12} style={[{ paddingHorizontal: 4 }, enter('fade')]}>
           {advanced
             ? 'Toutes les options : places, prix, sondages, discussion…'
             : 'L’essentiel pour lancer l’événement. Le reste garde ses réglages habituels.'}
@@ -546,12 +586,12 @@ export function EventForm({ eventId }: { eventId?: string }) {
           <>
             <T muted size={12}>Chacun vote Oui / Si besoin / Non sur chaque créneau.</T>
             {d.slots.map((sl, i) => (
-              <View key={sl.id ?? `new-${i}`} style={[s.row, { alignItems: 'flex-end' }]}>
+              <Reveal key={sl.id ?? `new-${i}`} kind={slotsGrew ? 'rise' : null} style={[s.row, { alignItems: 'flex-end' }]}>
                 <View style={{ flex: 1 }}>
                   <DateTimeField label={`Créneau ${i + 1}`} value={sl.text} onChangeText={(text) => set({ slots: d.slots.map((x, j) => (j === i ? { ...x, text } : x)) })} />
                 </View>
                 <Button small variant="secondary" label="✕" onPress={() => set({ slots: d.slots.filter((_, j) => j !== i) })} />
-              </View>
+              </Reveal>
             ))}
             <Button small variant="ghost" label="+ Ajouter un créneau" onPress={() => set({ slots: [...d.slots, { text: '' }] })} />
             <DateTimeField label="Fin du vote (optionnel)" optional value={d.poll_deadline} onChangeText={(poll_deadline) => set({ poll_deadline })} />
@@ -614,16 +654,19 @@ export function EventForm({ eventId }: { eventId?: string }) {
             {memberChips('organizers')}
           </>
         ) : null}
+        <Rows>
+          <ToggleRow label="Pot commun" hint="Les présents le trouvent dans Réglages › Pot commun pour partager les dépenses" value={d.pot_enabled} onChange={(v) => set({ pot_enabled: v })} />
+        </Rows>
       </Section>
 
       {advanced ? (
-        <>
+        <View style={{ gap: 14 }}>
           <Section title="Mini-sondages">
             {d.polls.map((p, i) => (
-              <View key={p.id ?? `new-${i}`} style={{ gap: 12, paddingVertical: 12, borderTopWidth: i ? 1 : 0, borderTopColor: colors.line }}>
+              <Reveal key={p.id ?? `new-${i}`} kind={pollsGrew ? 'rise' : null} style={{ gap: 12, paddingVertical: 12, borderTopWidth: i ? 1 : 0, borderTopColor: colors.line }}>
                 <Field label={`Question du sondage ${i + 1}`} value={p.question} onChangeText={(question) => setPoll(i, { question })} maxLength={200} />
                 {p.options.map((o, j) => (
-                  <View key={o.id ?? `new-${j}`} style={s.row}>
+                  <Reveal key={o.id ?? `new-${j}`} kind={pollsGrew ? 'rise' : null} style={s.row}>
                     <Input
                       accessibilityLabel={`Sondage ${i + 1}, option ${j + 1}`}
                       placeholder={`Option ${j + 1}`}
@@ -633,7 +676,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
                       style={{ flex: 1 }}
                     />
                     <Button small variant="ghost" label="Retirer" onPress={() => setPoll(i, { options: p.options.filter((_, k) => k !== j) })} />
-                  </View>
+                  </Reveal>
                 ))}
                 {p.id ? <T muted size={13}>Les votes des options conservées restent enregistrés. Retirer une option supprime ses votes.</T> : null}
                 <Button small variant="ghost" label="+ Ajouter une option" onPress={() => setPoll(i, { options: [...p.options, { label: '' }] })} />
@@ -644,7 +687,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
                   <Chip label="Résultats après vote" selected={p.results_after_vote} onPress={() => setPoll(i, { results_after_vote: !p.results_after_vote })} />
                 </View>
                 <Button small variant="danger" label="Retirer ce sondage" onPress={() => set({ polls: d.polls.filter((_, j) => j !== i) })} />
-              </View>
+              </Reveal>
             ))}
             <Button
               small
@@ -660,15 +703,24 @@ export function EventForm({ eventId }: { eventId?: string }) {
 
           <Section title="Qui amène quoi">
             {d.bring.map((b, i) => (
-              <View key={b.id ?? `new-${i}`} style={s.row}>
+              <Reveal key={b.id ?? `new-${i}`} kind={bringGrew ? 'rise' : null} style={s.row}>
                 <Input
                   placeholder="Fromage, pain…"
                   value={b.label}
                   onChangeText={(label) => set({ bring: d.bring.map((x, j) => (j === i ? { ...x, label } : x)) })}
                   style={{ flex: 1 }}
                 />
+                <Input
+                  placeholder="Qté"
+                  accessibilityLabel={`Quantité de ${b.label || 'cet objet'} (plusieurs personnes peuvent se partager)`}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                  value={b.quantity ?? ''}
+                  onChangeText={(quantity) => set({ bring: d.bring.map((x, j) => (j === i ? { ...x, quantity: quantity.replace(/\D/g, '') } : x)) })}
+                  style={{ width: 64 }}
+                />
                 <Button small variant="secondary" label="✕" onPress={() => set({ bring: d.bring.filter((_, j) => j !== i) })} />
-              </View>
+              </Reveal>
             ))}
             <Button small variant="ghost" label="+ Ajouter un objet" onPress={() => set({ bring: [...d.bring, { label: '' }] })} />
           </Section>
@@ -680,14 +732,14 @@ export function EventForm({ eventId }: { eventId?: string }) {
             </Rows>
             <T muted size={13}>Les rappels avant l’événement, chacun les choisit dans ses Réglages → Notifications.</T>
           </Section>
-        </>
+        </View>
       ) : (
         // Mode simple : une porte vers le reste, qui dit aussi quels réglages avancés sont actifs.
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Plus d’options : passer en mode avancé"
           onPress={() => setMode('advanced')}
-          style={({ pressed }) => [s.card, s.row, { gap: 12 }, pressed && { backgroundColor: colors.surface2 }]}
+          style={({ pressed }) => [s.card, s.row, { gap: 12 }, pressTransition, pressed && { backgroundColor: colors.surface2, transform: [{ scale: 0.98 }] }]}
         >
           <View style={{ flex: 1, gap: 2 }}>
             <T weight="semibold">Plus d’options</T>
@@ -711,6 +763,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
       {!eventId || ctx.status === 'draft' ? (
         <Button label="Enregistrer en brouillon" variant="secondary" onPress={() => submit(true)} disabled={busy} />
       ) : null}
+      </Cascade>
       </View>
     </Screen>
   );

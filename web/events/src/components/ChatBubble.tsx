@@ -5,6 +5,7 @@ import { Animated, Image, PanResponder, Pressable, View } from 'react-native';
 import { Avatar, T } from './ui';
 import { deletedLabel, REACTIONS, voiceClock, type GroupMessage, type Reaction } from '@/lib/chats';
 import { formatMessageTime } from '@/lib/format';
+import { duration, enter, pressTransition, transition, useChangedSinceMount } from '@/lib/motion';
 import { colors } from '@/lib/theme';
 
 type Person = { name: string; photo: string | null };
@@ -24,6 +25,8 @@ type Props = {
   onReact: (emoji: string) => void;
   onPin: () => void;
   onDelete: () => void;
+  /** Message arrivé pendant que la discussion est ouverte : la bulle monte (pas à l'ouverture ni au défilement). */
+  fresh?: boolean;
 };
 
 /** Distance à glisser vers la droite pour répondre (comme WhatsApp). */
@@ -31,8 +34,10 @@ const REPLY_SWIPE = 64;
 
 /** Une bulle façon WhatsApp : glisser vers la droite pour répondre ; appui long (ou ⋯) pour réagir, répondre,
  * épingler (admins) ou supprimer. Un message en cours d'envoi s'affiche déjà, avec « Envoi… ». */
-export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, audioUrl, reactions, canWrite, isAdmin, onReply, onReact, onPin, onDelete }: Props) {
+export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, audioUrl, reactions, canWrite, isAdmin, onReply, onReact, onPin, onDelete, fresh = false }: Props) {
   const [open, setOpen] = useState(false);
+  // Fixé à l'apparition : la bulle ne remonte pas quand un autre message arrive.
+  const [arrive] = useState(() => (fresh ? enter(mine ? 'bubbleMine' : 'bubbleTheirs') : undefined));
   const deleted = Boolean(m.deleted_at);
   const [swipe] = useState(() => new Animated.Value(0));
   const swipeable = canWrite && !deleted && !m.pending;
@@ -51,12 +56,14 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
     const c = counts.get(r.emoji) ?? { n: 0, mine: false };
     counts.set(r.emoji, { n: c.n + 1, mine: c.mine || r.user_id === me });
   }
+  // Une réaction ajoutée ici (ou par un autre) se pose ; à l'ouverture, les réactions sont déjà là.
+  const reacted = useChangedSinceMount([...counts].map(([e, c]) => `${e}${c.n}${c.mine}`).join());
   const bubbleColor = deleted ? colors.fill : mine ? colors.accent : colors.surface;
   const textColor = deleted ? colors.muted : mine ? colors.onAccent : colors.text;
   const actions = canWrite && !deleted && !m.pending;
 
   return (
-    <View {...pan.panHandlers}>
+    <View {...pan.panHandlers} style={arrive}>
     <Animated.Text accessibilityElementsHidden style={{ position: 'absolute', left: 0, top: '40%', fontSize: 20, color: colors.accent,
       opacity: swipe.interpolate({ inputRange: [0, REPLY_SWIPE], outputRange: [0, 1], extrapolate: 'clamp' }) }}>↩︎</Animated.Text>
     <Animated.View style={{ transform: [{ translateX: swipe }], flexDirection: 'row', gap: 8, alignItems: 'flex-end', justifyContent: mine ? 'flex-end' : 'flex-start' }}>
@@ -68,7 +75,8 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
           </Pressable>
         ) : null}
         <Pressable onLongPress={() => actions && setOpen((v) => !v)} accessibilityHint={actions ? 'Appui long pour réagir ou répondre' : undefined}
-          style={{ padding: photoUrl ? 4 : 10, borderRadius: 16, backgroundColor: bubbleColor, gap: 6 }}>
+          style={({ pressed }) => [{ padding: photoUrl ? 4 : 10, borderRadius: 16, backgroundColor: bubbleColor, gap: 6 },
+            transition('transform, opacity, background-color', duration.base), m.pending && { opacity: 0.72 }, pressed && { transform: [{ scale: 0.98 }] }]}>
           {m.pinned && !deleted ? <T size={11} weight="bold" color={mine ? colors.onAccent : colors.accent}>📌 Épinglé</T> : null}
           {quoted && !deleted ? (
             <View style={{ padding: 6, borderRadius: 8, backgroundColor: mine ? 'rgba(0,0,0,0.12)' : colors.surface2 }}>
@@ -86,10 +94,11 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
         {counts.size ? (
           <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
             {[...counts].map(([emoji, c]) => (
-              <Pressable key={emoji} accessibilityRole="button" accessibilityLabel={`${emoji} ${c.n}${c.mine ? ', retirer ma réaction' : ''}`}
+              <Pressable key={`${emoji}-${c.n}-${c.mine}`} accessibilityRole="button" accessibilityLabel={`${emoji} ${c.n}${c.mine ? ', retirer ma réaction' : ''}`}
                 disabled={!canWrite} onPress={() => onReact(emoji)}
-                style={{ flexDirection: 'row', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 12,
-                  backgroundColor: c.mine ? colors.accentDim : colors.surface2, borderWidth: 1, borderColor: c.mine ? colors.accent : 'transparent' }}>
+                style={({ pressed }) => [{ flexDirection: 'row', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 12,
+                  backgroundColor: c.mine ? colors.accentDim : colors.surface2, borderWidth: 1, borderColor: c.mine ? colors.accent : 'transparent' },
+                  reacted ? enter('pop') : null, pressTransition, pressed && { transform: [{ scale: 0.92 }] }]}>
                 <T size={13}>{emoji}</T>
                 <T size={12} muted>{c.n}</T>
               </Pressable>
@@ -105,11 +114,12 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
           ) : null}
         </View>
         {open ? (
-          <View style={{ gap: 6, padding: 8, borderRadius: 14, backgroundColor: colors.surface2 }}>
+          <View style={[{ gap: 6, padding: 8, borderRadius: 14, backgroundColor: colors.surface2 }, enter('drop')]}>
             <View style={{ flexDirection: 'row', gap: 6 }}>
               {REACTIONS.map((emoji) => (
                 <Pressable key={emoji} accessibilityRole="button" accessibilityLabel={`Réagir ${emoji}`} hitSlop={4}
-                  onPress={() => { setOpen(false); onReact(emoji); }}>
+                  onPress={() => { setOpen(false); onReact(emoji); }}
+                  style={({ pressed }) => [pressTransition, pressed && { transform: [{ scale: 1.25 }] }]}>
                   <T size={22}>{emoji}</T>
                 </Pressable>
               ))}
@@ -187,8 +197,9 @@ function VoicePlayer({ url, seconds, color }: { url: string | null; seconds: num
         <T size={26} color={color}>{playing ? '⏸' : '▶️'}</T>
       </Pressable>
       <View style={{ flex: 1, gap: 4 }}>
-        <View style={{ height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)' }}>
-          <View style={{ height: 4, borderRadius: 2, width: `${Math.round(progress * 100)}%`, backgroundColor: color }} />
+        <View style={{ height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'hidden' }}>
+          {/* Avancement en scaleX (pas de largeur recalculée à chaque timeupdate), lissé entre deux mises à jour. */}
+          <View style={[{ height: 4, backgroundColor: color, transform: [{ scaleX: progress }] }, voiceFill, transition('transform', 250, 'linear')]} />
         </View>
         <T size={12} color={color}>{voiceClock(seconds)}</T>
       </View>
@@ -199,6 +210,8 @@ function VoicePlayer({ url, seconds, color }: { url: string | null; seconds: num
     </View>
   );
 }
+
+const voiceFill = { transformOrigin: 'left' } as const;
 
 function Action({ label, onPress, danger }: { label: string; onPress: () => void; danger?: boolean }) {
   return (

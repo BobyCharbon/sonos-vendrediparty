@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Children, useEffect, useState, type ReactNode } from 'react';
+import { Children, isValidElement, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -19,6 +19,7 @@ import {
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
 import { avatarColor, initials } from '@/lib/format';
+import { duration, ease, enter, pressTransition, transition, type Enter } from '@/lib/motion';
 import { colors, font, radius, type FontWeight } from '@/lib/theme';
 import { PROFILE_PHOTOS } from '@/lib/photos';
 import { supabase } from '@/lib/supabase';
@@ -123,6 +124,7 @@ export function Button({
       disabled={disabled || loading}
       style={({ pressed }) => [
         s.button,
+        pressTransition,
         small && { minHeight: 44, paddingHorizontal: 14 },
         { backgroundColor: v.bg, borderColor: v.border, opacity: disabled ? 0.45 : pressed ? 0.88 : 1 },
         pressed && !disabled && s.pressed,
@@ -168,6 +170,7 @@ export function Chip({
       disabled={disabled}
       style={({ pressed }) => [
         s.chip,
+        pressTransition,
         pressed && !disabled && s.pressed,
         selected ? { backgroundColor: color, borderColor: color } : { backgroundColor: colors.fill, borderColor: 'transparent' },
         disabled && { opacity: 0.45 },
@@ -202,8 +205,16 @@ export function Segmented<K extends string>({
   const grid = options.length > 3 && width < 360;
   // Cinq onglets et plus : texte et marges un peu réduits, pour tenir sur une ligne dès 343 px.
   const compact = options.length > 4;
+  // Pastille du choix qui glisse d'un onglet à l'autre (comme iOS), une fois les onglets mesurés ;
+  // en grille, chaque onglet garde son propre fond.
+  const [frames, setFrames] = useState<Partial<Record<K, { x: number; width: number }>>>({});
+  const frame = grid ? undefined : frames[value];
   return (
     <View style={[s.segmented, grid && { flexWrap: 'wrap' }]} accessibilityRole="tablist">
+      {frame ? (
+        <View pointerEvents="none" style={[s.segmentOn, s.segmentThumb,
+          { width: frame.width, transform: [{ translateX: frame.x }] }, transition('transform, width', 320, ease.out)]} />
+      ) : null}
       {options.map((o) => {
         const on = o.key === value;
         return (
@@ -215,15 +226,20 @@ export function Segmented<K extends string>({
             aria-selected={on}
             disabled={disabled}
             onPress={() => onChange(o.key)}
+            onLayout={(e) => {
+              const { x, width: w } = e.nativeEvent.layout;
+              setFrames((prev) => (prev[o.key]?.x === x && prev[o.key]?.width === w ? prev : { ...prev, [o.key]: { x, width: w } }));
+            }}
             style={({ pressed }) => [
               s.segment,
+              transition('background-color', duration.fast),
               grid && { flexBasis: options.length > 4 ? '30%' : '45%' },
               compact && { paddingHorizontal: 6 },
-              on && s.segmentOn,
+              on && !frame && s.segmentOn,
               pressed && !on && { backgroundColor: colors.fill },
             ]}
           >
-            <Text numberOfLines={1} style={{ color: on ? colors.onAction : colors.textSoft, ...font.semibold, fontSize: compact ? 12 : 13 }}>{o.label}</Text>
+            <Text numberOfLines={1} style={[{ color: on ? colors.onAction : colors.textSoft, ...font.semibold, fontSize: compact ? 12 : 13 }, transition('color', duration.base) as TextStyle]}>{o.label}</Text>
             {o.dot ? <View style={[s.dot, on && { backgroundColor: colors.onAccent }]} /> : null}
           </Pressable>
         );
@@ -250,7 +266,7 @@ export function ConfirmButton({
   const [busy, setBusy] = useState(false);
   if (!armed) return <Button small={small} variant="danger" label={label} style={style} onPress={() => setArmed(true)} />;
   return (
-    <View style={[s.row, style]}>
+    <View style={[s.row, enter('fade'), style]}>
       <Button small={small} variant="secondary" label="Garder" style={{ flex: 1 }} onPress={() => setArmed(false)} />
       <Button
         small={small}
@@ -334,6 +350,8 @@ function useFocusRing(props: TextInputProps) {
   };
 }
 
+const inputTransition = transition('border-color, background-color', duration.base) as TextStyle;
+
 export function Field({ label, hint, ...props }: TextInputProps & { label: string; hint?: string }) {
   const ring = useFocusRing(props);
   return (
@@ -344,7 +362,7 @@ export function Field({ label, hint, ...props }: TextInputProps & { label: strin
         accessibilityLabel={label}
         {...props}
         {...ring.handlers}
-        style={[s.input, ring.focused && s.inputFocus, props.multiline && { height: 104, paddingTop: 12, textAlignVertical: 'top' }, props.style]}
+        style={[s.input, inputTransition, ring.focused && s.inputFocus, props.multiline && { height: 104, paddingTop: 12, textAlignVertical: 'top' }, props.style]}
       />
       {hint ? <T muted size={12}>{hint}</T> : null}
     </View>
@@ -353,7 +371,7 @@ export function Field({ label, hint, ...props }: TextInputProps & { label: strin
 
 export function Input(props: TextInputProps) {
   const ring = useFocusRing(props);
-  return <TextInput placeholderTextColor={colors.muted} {...props} {...ring.handlers} style={[s.input, ring.focused && s.inputFocus, props.style]} />;
+  return <TextInput placeholderTextColor={colors.muted} {...props} {...ring.handlers} style={[s.input, inputTransition, ring.focused && s.inputFocus, props.style]} />;
 }
 
 const MEMBER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -399,6 +417,76 @@ export function Loading() {
   );
 }
 
+/** Contenu qui apparaît en douceur quand il est affiché (nouvelle section, nouvelle ligne…). L’animation est
+ * fixée à l’apparition : changer `kind` ensuite ne la rejoue pas (une nouvelle animation CSS repartirait). */
+export function Reveal({ children, kind = 'rise', index = 0, style }: { children: ReactNode; kind?: Enter | null; index?: number; style?: StyleProp<ViewStyle> }) {
+  const [motion] = useState(() => (kind ? enter(kind, index) : undefined));
+  return <View style={[motion, style]}>{children}</View>;
+}
+
+/** Chaque bloc d’un écran entre en cascade à l’ouverture ; un bloc qui apparaît plus tard entre seul. */
+export function Cascade({ children }: { children: ReactNode }) {
+  return (
+    <>
+      {Children.toArray(children).map((child, i) => (
+        <Reveal key={isValidElement(child) ? child.key ?? i : i} index={i}>{child}</Reveal>
+      ))}
+    </>
+  );
+}
+
+/**
+ * Jauge : chaque part est une couche qui s’étire (transform scaleX), jamais une largeur qui change.
+ * Elle se remplit depuis la gauche à son apparition, puis glisse d’une valeur à l’autre.
+ */
+export function Meter({ parts, height = 6, track = colors.line, style }: {
+  /** height={null} : la jauge prend la hauteur que lui donne `style` (fond d’une option de sondage). */
+  parts: { fraction: number; color: string }[]; height?: number | null; track?: string; style?: StyleProp<ViewStyle>;
+}) {
+  // Couches cumulées, la plus longue dessous : « 3 oui + 2 si besoin » = rose sur lavande.
+  const layers = parts.map((p, i) => ({
+    color: p.color,
+    end: Math.max(0, Math.min(1, parts.slice(0, i + 1).reduce((total, q) => total + q.fraction, 0))),
+  })).reverse();
+  return (
+    <View style={[{ borderRadius: 99, backgroundColor: track, overflow: 'hidden' }, height != null && { height }, style]}>
+      <View style={[StyleSheet.absoluteFill, enter('grow')]}>
+        {layers.map((l, i) => (
+          <View key={i} style={[StyleSheet.absoluteFill, s.meterFill, { backgroundColor: l.color, transform: [{ scaleX: l.end }] },
+            transition('transform', duration.slow)]} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** Bloc gris qui respire pendant un chargement, à la place du contenu attendu. */
+export function Skeleton({ width = '100%', height = 14, radius: r = 8, style }: { width?: ViewStyle['width']; height?: number; radius?: number; style?: StyleProp<ViewStyle> }) {
+  return <View style={[{ width, height, borderRadius: r, backgroundColor: colors.fillStrong }, enter('shimmer'), style]} />;
+}
+
+const TOAST_MS = 2400;
+
+/** Confirmation courte en bas de l’écran (« Lien copié »…) : monte, reste un instant, puis s’efface. */
+export function Toast({ message, onHide }: { message: string; onHide: () => void }) {
+  const [leaving, setLeaving] = useState(false);
+  const hide = useRef(onHide);
+  useEffect(() => { hide.current = onHide; }, [onHide]);
+  useEffect(() => {
+    const out = setTimeout(() => setLeaving(true), TOAST_MS);
+    const done = setTimeout(() => hide.current(), TOAST_MS + duration.base);
+    return () => { clearTimeout(out); clearTimeout(done); };
+  }, []);
+  return (
+    <View pointerEvents="none" style={s.toastWrap}>
+      <View accessibilityRole="alert" accessibilityLiveRegion="polite"
+        style={[s.toast, enter('rise'), transition('opacity, transform', duration.base), leaving && { opacity: 0, transform: [{ translateY: 8 }] }]}>
+        <Text style={{ color: colors.text, ...font.semibold, fontSize: 14, textAlign: 'center' }}>{message}</Text>
+      </View>
+    </View>
+  );
+}
+
 export function ErrorText({ error }: { error: string | null }) {
   if (!error) return null;
   return <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ color: colors.coralSoft, fontSize: 14, ...font.body }}>{error}</Text>;
@@ -418,7 +506,7 @@ export function LinkRow({ label, hint, onPress, icon, tint = colors.surface2 }: 
 }) {
   return (
     <Pressable accessibilityRole="button" onPress={onPress}
-      style={({ pressed }) => [s.toggleRow, s.linkRow, pressed && { backgroundColor: 'rgba(255,255,255,0.06)' }]}>
+      style={({ pressed }) => [s.toggleRow, s.linkRow, transition('background-color', duration.fast), pressed && { backgroundColor: 'rgba(255,255,255,0.06)' }]}>
       {icon ? <View style={[s.iconTile, { backgroundColor: tint }]}><Text style={{ fontSize: 16 }}>{icon}</Text></View> : null}
       <View style={{ flex: 1, gap: 2 }}>
         <T>{label}</T>
@@ -434,8 +522,9 @@ export function Rows({ children }: { children: ReactNode }) {
   const rows = Children.toArray(children).filter(Boolean);
   return (
     <View>
+      {/* Clé de la ligne elle-même : une ligne insérée ne recrée pas (ni ne ré-anime) celles qui suivent. */}
       {rows.map((row, i) => (
-        <View key={i}>
+        <View key={isValidElement(row) ? row.key ?? i : i}>
           {i ? <View style={s.divider} /> : null}
           {row}
         </View>
@@ -463,6 +552,7 @@ export const s = StyleSheet.create({
   badge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill },
   segmented: { flexDirection: 'row', gap: 2, padding: 3, borderRadius: 13, backgroundColor: colors.fill },
   segment: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, minHeight: 44, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
+  segmentThumb: { position: 'absolute', top: 3, bottom: 3, left: 0, borderRadius: 10 },
   segmentOn: { backgroundColor: colors.accent, shadowColor: colors.accent, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52 },
@@ -486,6 +576,11 @@ export const s = StyleSheet.create({
   headerButton: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44, paddingHorizontal: 8 },
   chevron: { width: 12, height: 12, borderLeftWidth: 2.5, borderBottomWidth: 2.5, borderColor: colors.accent, transform: [{ rotate: '45deg' }], marginLeft: 6, marginRight: 2 },
   divider: { height: 1, backgroundColor: colors.line },
+  // Position fixe (web) : le toast reste en bas de l’écran même quand la page défile.
+  meterFill: { transformOrigin: 'left' },
+  toastWrap: { position: 'fixed' as 'absolute', left: 16, right: 16, bottom: 88, alignItems: 'center', zIndex: 50 },
+  toast: { maxWidth: 420, paddingHorizontal: 18, paddingVertical: 12, borderRadius: radius.pill, backgroundColor: colors.surface2,
+    borderWidth: 1, borderColor: colors.lineStrong, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 6 } },
 });
 
 /** ‹ Retour d’en-tête, comme sur iPhone : chevron et nom de l’écran précédent, teintés. */

@@ -11,17 +11,22 @@ final class ShareModel: ObservableObject {
         case choose([SpotifyTrack])
         case added(String)
         case failed(String)
+        /// Lien mis de côté : l'app crée l'événement avec l'IA à sa prochaine ouverture.
+        case eventReady
     }
 
     @Published private(set) var phase: Phase = .loading
     @Published private(set) var adding: String?
     @Published var name = ""
+    /// Le lien partagé (page web), proposé aussi pour créer un événement avec l'IA.
+    @Published private(set) var link: String?
 
     private var api: PartyAPI?
     private var jar: SnapshotCookieJar?
 
     func start(shared: String) async {
         let query = SharedLink.query(from: shared)
+        link = query.hasPrefix("http") ? query : nil
         guard let snapshot = SharedSession.load() else {
             phase = .needsApp
             return
@@ -37,12 +42,20 @@ final class ShareModel: ObservableObject {
         }
         do {
             let tracks = try await api.search(query)
+            guard phase != .eventReady else { return }  // « Créer l'événement » touché pendant la recherche : on le garde
             phase = tracks.isEmpty ? .failed("Aucun titre trouvé pour ce lien.") : .choose(tracks)
         } catch PartyAPIError.needsCode {
             phase = .needsApp
         } catch {
             phase = .failed(error.localizedDescription)
         }
+    }
+
+    /// « Créer un événement avec ce lien » : l'app le reprend à son ouverture et lance l'assistant IA avec.
+    func prepareEvent() {
+        guard let link else { return }
+        SharedSession.savePendingEvent(link)
+        phase = .eventReady
     }
 
     func add(_ track: SpotifyTrack) async {

@@ -6,19 +6,38 @@
   const escape = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const ROLES = { guest: "Guest", guestplus: "Guest+", basic: "Membre", member: "Membre VIP", organizer: "Organisateur", coadmin: "Co-admin", admin: "Admin" };
   let sheet = null;
+  const OUT_SAFETY_MS = 400;
+  // Chargement : la silhouette de la fiche (photo ronde, lignes) plutôt qu'un texte d'attente.
+  const LOADING = `<div class="pc-photo pc-skel" role="status" aria-label="Chargement du profil…"></div>
+    <i class="pc-skel pc-skel-line"></i><i class="pc-skel pc-skel-line short"></i>`;
 
+  // La fiche monte du bas ; « Fermer » ou le fond la font redescendre, puis elle est retirée.
   function close() {
-    sheet?.remove();
+    const leaving = sheet;
     sheet = null;
+    if (!leaving) return;
+    leaving.classList.add("pc-out");
+    const done = () => leaving.remove();
+    leaving.querySelector(".pc-card").addEventListener("animationend", done, { once: true });
+    setTimeout(done, OUT_SAFETY_MS);
   }
 
   function show(html) {
-    close();
+    // Fiche déjà ouverte (chargement → profil) : seul le contenu change, en fondu ; la fiche ne remonte pas.
+    if (sheet) {
+      const body = sheet.querySelector(".pc-body");
+      body.innerHTML = html;
+      body.classList.remove("pc-swap");
+      void body.offsetWidth;
+      body.classList.add("pc-swap");
+      return;
+    }
     sheet = document.createElement("div");
     sheet.className = "pc-backdrop";
-    sheet.innerHTML = `<div class="pc-card" role="dialog" aria-modal="true" aria-label="Profil">${html}
+    sheet.innerHTML = `<div class="pc-card" role="dialog" aria-modal="true" aria-label="Profil"><div class="pc-body">${html}</div>
       <button type="button" class="secondary pc-close">Fermer</button></div>`;
-    sheet.addEventListener("click", (ev) => { if (ev.target === sheet || ev.target.closest(".pc-close")) close(); });
+    const mine = sheet;
+    sheet.addEventListener("click", (ev) => { if (sheet === mine && (ev.target === mine || ev.target.closest(".pc-close"))) close(); });
     document.body.append(sheet);
     sheet.querySelector(".pc-close").focus();
   }
@@ -39,7 +58,7 @@
   async function open(game, pid) {
     const token = typeof freshToken === "function" ? await freshToken() : null;
     if (!token) return show(`<div class="pc-name">Profil</div><p class="artist">Connecte-toi avec ton numéro (Réglages) pour voir les profils.</p>`);
-    show(`<p class="artist" role="status">Chargement du profil…</p>`);
+    show(LOADING);
     try {
       const r = await fetch("/api/account/card", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, game, pid }) });
       const data = await r.json().catch(() => ({}));

@@ -25,6 +25,10 @@ struct SignInView: View {
             }
         }
         .scrollContentBackground(.hidden)
+        // Numéro → code reçu, erreur qui apparaît : les sections glissent en place au lieu de sauter.
+        .motion(Motion.smooth, value: store.step)
+        .motion(Motion.snappy, value: store.error)
+        .onChange(of: store.error) { error in if error != nil { Haptics.error() } }
         .background(AppConfig.background.ignoresSafeArea())
         .navigationTitle("Se connecter")
         .navigationBarTitleDisplayMode(.inline)
@@ -106,7 +110,8 @@ struct SignInView: View {
 
     private func verify() {
         guard !store.busy else { return }
-        Task { if await store.verify(code) { dismiss() } else { code = "" } }
+        Task { if await store.verify(code) { Haptics.success(); dismiss() } else { code = "" } }
+
     }
 }
 

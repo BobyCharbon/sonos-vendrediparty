@@ -65,6 +65,7 @@ export type EventRow = {
   visibility: Visibility;
   public_link: boolean;
   show_participants: boolean;
+  pot_enabled?: boolean;
   forum_enabled: boolean;
   notify_on_publish: boolean;
   reminders: Reminder[];
@@ -105,7 +106,12 @@ export type Poll = {
 };
 export type PollOption = { id: string; poll_id: string; label: string; sort: number };
 
-export type BringItem = { id: string; event_id: string; label: string; claimed_by: string | null; sort: number; added_by: string | null };
+export type BringClaim = { user_id: string; quantity: number };
+/** quantity : à partager (« 15 bouteilles », chacun dit combien il en amène dans bring_claims) ; null = un seul objet (claimed_by). */
+export type BringItem = {
+  id: string; event_id: string; label: string; claimed_by: string | null; sort: number; added_by: string | null;
+  quantity?: number | null; bring_claims?: BringClaim[];
+};
 
 export type Message = {
   id: string;

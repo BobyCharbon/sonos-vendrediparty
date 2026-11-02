@@ -30,7 +30,8 @@ def vote(phone, label, last=False):
     expect(page.locator('.lk-who')).to_contain_text('Où te places-tu')
     page.locator('.db-pick', has_text=label).click()
     if not last:  # le dernier vote révèle aussitôt la répartition
-        expect(page.locator('.db-mine')).to_contain_text(label)
+        expect(page.locator('.db-mine')).to_contain_text('Vote enregistré')
+        expect(page.locator('.lk-done')).not_to_contain_text(label)  # vote secret : le choix n'est pas rappelé
     expect(page.locator('.db-scale')).to_have_count(0)  # vote définitif : l'échelle disparaît
 
 
@@ -156,7 +157,7 @@ def test_new_badge_marks_only_this_game_on_the_home_cards(phones):
     badge = alice.page.locator('#gHome .gcard:has([data-create="debate"]) .g-new')
     expect(badge).to_be_visible()
     expect(badge).to_have_text('NEW')
-    expect(alice.page.locator('#gHome .g-new')).to_have_count(1)
+    expect(alice.page.locator('#gHome .g-new')).to_have_count(5)  # Le Masque, Le Reflet, Qui es-tu vraiment ?, Pour ou contre et Beer pong
     # En haut à droite de la carte, sans masquer le bouton « ? » des règles.
     card = alice.page.locator('#gHome .gcard:has([data-create="debate"])').bounding_box()
     b = badge.bounding_box()
@@ -171,17 +172,17 @@ def test_home_and_game_room_list_games_by_category(phones):
     page = alice.page
     heads = page.locator('#gHome .g-cat-h')
     expect(heads).to_have_text(['🍻 Alcool', '🎮 Jeux 3D', '💞 Parler vrai', '🃏 Jeux de cartes', '🎉 Ambiance'])
-    expect(page.locator('#gHome .g-cat[data-cat="talk"] [data-create]')).to_have_count(3)
+    expect(page.locator('#gHome .g-cat[data-cat="talk"] [data-create]')).to_have_count(6)
     expect(page.locator('#gHome .g-cat[data-cat="talk"] [data-create="divan"]')).to_have_count(1)
     expect(page.locator('#gHome .g-cat[data-cat="cards"] [data-create="pyramid"]')).to_have_count(1)
     # Chaque jeu une seule fois ; ceux qui se jouent aussi avec alcool portent l'étiquette 🍻.
-    expect(page.locator('#gHome .gcard:not(.g-room-card)')).to_have_count(18)
+    expect(page.locator('#gHome .gcard:not(.g-room-card)')).to_have_count(22)  # beer pong, Masque et Reflet compris
     expect(page.locator('#gHome .g-cat[data-cat="cards"] .gcard:has([data-create="pyramid"]) .g-drink')).to_be_visible()
     expect(page.locator('#gHome .g-cat[data-cat="drinks"] .g-drink')).to_have_count(0)
     # Le bouton d'une carte rangée crée toujours la partie.
     page.locator('#gHome [data-create="room"]').click()
     expect(page.locator('#gamePlay')).to_be_visible()
     expect(page.locator('.g-room-cat-h')).to_have_text(['🍻 Alcool', '🎮 Jeux 3D', '💞 Parler vrai', '🃏 Jeux de cartes', '🎉 Ambiance'])
-    expect(page.locator('.g-room-cat[data-cat="talk"] [data-room-pick]')).to_have_count(3)
+    expect(page.locator('.g-room-cat[data-cat="talk"] [data-room-pick]')).to_have_count(6)
     page.locator('.g-room-cat[data-cat="talk"] [data-room-pick="debate"]').click()
     expect(page.locator('.g-room-sheet [data-create="debate"]')).to_be_visible()

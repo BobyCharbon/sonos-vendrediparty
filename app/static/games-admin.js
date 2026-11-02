@@ -26,7 +26,7 @@
       <button type="button" class="gs-head" data-ga-open="${code}" aria-expanded="${isOpen}">
         <span class="gs-ico" aria-hidden="true">${EMOJI[g.type] || "🎮"}</span>
         <span class="gs-main"><b>${escape(g.name)}</b>
-          <small>créée à ${hhmm(g.created_at)} · ⏱ <span data-ga-timer="${g.created_at}">${duration(Date.now() / 1000 - g.created_at)}</span> · par ${escape(g.host || "?")}</small>
+          <small>créée à ${hhmm(g.created_at)} · ⏱ <span data-ga-timer="${g.created_at}"></span> · par ${escape(g.host || "?")}</small>
           <small>${escape(PHASES[g.phase] || g.phase)}${g.round ? ` · n° ${g.round}` : ""} · ${players.length} joueur${players.length > 1 ? "s" : ""}</small></span>
         <span class="gs-code">${code}</span><span class="gs-chev" aria-hidden="true">▾</span>
       </button>
@@ -47,8 +47,21 @@
     if (!root || !s) return;
     games = s.games || [];
     root.classList.toggle("hidden", !games.length);
-    root.innerHTML = games.length ? `<h2 class="ga-title">Parties en cours <span class="badge">${games.length}</span></h2>
-      <div class="ga-list">${games.map(card).join("")}</div>` : "";
+    if (!games.length) { root.innerHTML = ""; return; }
+    // Titre et liste posés une fois ; ensuite seules les cartes qui changent sont redessinées (list-motion.js) :
+    // le détail déplié ne « se rejoue » plus à chaque état reçu, une partie fermée s'efface, une nouvelle glisse en place.
+    if (!root.querySelector(".ga-list")) root.innerHTML = `<h2 class="ga-title">Parties en cours <span class="badge"></span></h2><div class="ga-list"></div>`;
+    root.querySelector(".ga-title .badge").textContent = games.length;
+    const list = root.querySelector(".ga-list");
+    const rows = games.map((g) => ({ key: g.code, html: card(g) }));
+    if (window.ListMotion) ListMotion.patch(list, rows);
+    else list.innerHTML = rows.map((r) => r.html).join("");
+    tick();
+  }
+
+  // Durée des parties (le texte change chaque seconde : il reste hors du HTML comparé d'un rendu à l'autre).
+  function tick() {
+    root?.querySelectorAll("[data-ga-timer]").forEach((x) => { x.textContent = duration(Date.now() / 1000 - +x.dataset.gaTimer); });
   }
 
   async function close(code, b) {
@@ -88,7 +101,7 @@
       onState = opts.onState || onState;
       root.addEventListener("click", onClick);
       // Durée des parties : à jour chaque seconde.
-      setInterval(() => root.querySelectorAll("[data-ga-timer]").forEach((x) => { x.textContent = duration(Date.now() / 1000 - +x.dataset.gaTimer); }), 1000);
+      setInterval(tick, 1000);
     },
     render,
   };

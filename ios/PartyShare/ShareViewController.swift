@@ -6,8 +6,6 @@ import UniformTypeIdentifiers
 /// et affiche ShareView.
 final class ShareViewController: UIViewController {
     private let model = ShareModel()
-    /// Fermeture automatique après l'ajout, le temps de lire la confirmation.
-    private static let closeDelay: Duration = .milliseconds(1200)
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -21,8 +19,7 @@ final class ShareViewController: UIViewController {
         Task { @MainActor in
             await model.start(shared: await sharedText())
             for await phase in model.$phase.values {
-                if case .added = phase {
-                    try? await Task.sleep(for: Self.closeDelay)
+                if case .added = phase {  // titre ajouté à la file : on referme aussitôt
                     finish()
                     break
                 }
@@ -64,8 +61,19 @@ struct ShareView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) { content }.padding(16)
             }
+            // Lien d'une page : « Créer l'événement » en bas, à portée du pouce (l'assistant IA s'en charge dans l'app).
+            .safeAreaInset(edge: .bottom) {
+                if model.link != nil && model.phase != .eventReady {
+                    Button { model.prepareEvent() } label: {
+                        Label("Créer l'événement", systemImage: "sparkles")
+                            .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .padding(.horizontal, 16).padding(.bottom, 8)
+                }
+            }
             .background(Self.background.ignoresSafeArea())
-            .navigationTitle("Ajouter à la soirée")
+            .navigationTitle("Partager dans Party")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Fermer", action: close) }
@@ -86,6 +94,8 @@ struct ShareView: View {
             message("exclamationmark.triangle", reason)
         case .added(let title):
             message("checkmark.circle.fill", "« \(title) » est dans la file 🎶")
+        case .eventReady:
+            message("sparkles", "C'est prêt ✨ Ouvre Party : l'assistant crée l'événement à partir de ce lien.")
         case .choose(let tracks):
             TextField("Ton prénom", text: $model.name)
                 .textInputAutocapitalization(.words)

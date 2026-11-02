@@ -17,21 +17,27 @@ struct ConversationView: View {
     /// Pendant l'appui sur le micro : doigt glissé assez à gauche pour annuler.
     @State private var holdingMic = false
     @State private var cancelVoice = false
+    /// Micro touché (pas maintenu) : l'enregistrement continue jusqu'au prochain toucher, qui l'envoie.
+    @State private var micLocked = false
+    @State private var pressedAt = Date()
 
     private var chat: Conversation? { store.conversation?.id == group ? store.conversation : nil }
 
     var body: some View {
         VStack(spacing: 0) {
             if let chat {
-                if let pinned = chat.pinned { pinnedBanner(pinned) }
-                messages(chat)
+                if let pinned = chat.pinned { pinnedBanner(pinned).motionTransition(.unfold) }
+                messages(chat).transition(.opacity)
                 if chat.member { composer(chat) }
             } else if let error = store.error {
-                Text(error).foregroundStyle(.secondary).padding().frame(maxHeight: .infinity)
+                Text(error).foregroundStyle(.secondary).padding().frame(maxHeight: .infinity).transition(.opacity)
             } else {
-                ProgressView().frame(maxHeight: .infinity)
+                ProgressView().frame(maxHeight: .infinity).transition(.opacity)
             }
         }
+        // Chargement → conversation : fondu ; message épinglé ou désépinglé : le bandeau se déplie.
+        .motion(Motion.smooth, value: chat == nil)
+        .motion(Motion.snappy, value: chat?.pinned?.id)
         .background(AppConfig.background.ignoresSafeArea())
         .navigationTitle(chat?.name ?? "Discussion")
         .navigationBarTitleDisplayMode(.inline)
@@ -50,7 +56,7 @@ struct ConversationView: View {
                 try? await Task.sleep(for: ChatsStore.conversationEvery)
             }
         }
-        .onDisappear { store.close(); player.stop(); _ = recorder.stop(send: false) }
+        .onDisappear { store.close(); player.stop(); micLocked = false; _ = recorder.stop(send: false) }
         .onChange(of: picked) { item in Task { await sendPhoto(item) } }
     }
 
@@ -58,13 +64,13 @@ struct ConversationView: View {
     private func bottom(_ proxy: ScrollViewProxy, _ id: String?, animated: Bool = true, delay: Double = 0.05) {
         guard let id else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            if animated { withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .bottom) } } else { proxy.scrollTo(id, anchor: .bottom) }
+            if animated { Motion.animate(Motion.snappy) { proxy.scrollTo(id, anchor: .bottom) } } else { proxy.scrollTo(id, anchor: .bottom) }
         }
     }
 
     private func reply(to m: Conversation.Message) {
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        replyTo = m
+        Haptics.press()
+        Motion.animate { replyTo = m }
         writing = true
     }
 
@@ -91,7 +97,7 @@ struct ConversationView: View {
                 }
                 ForEach(chat.messages) { m in
                     ChatBubble(message: m, reactions: chat.reactions, canWrite: chat.member, isAdmin: chat.admin, player: player,
-                               onReact: { emoji in Task { await store.react(m, emoji) } },
+                               onReact: { emoji in Haptics.tap(); Task { await store.react(m, emoji) } },
                                onReply: { reply(to: m) },
                                onPin: { Task { await store.pin(m) } },
                                onDelete: { Task { await store.delete(m) } })
@@ -110,6 +116,9 @@ struct ConversationView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .scrollDismissesKeyboard(.interactively)
+            // Bulle qui arrive (envoyée, reçue en direct) ou supprimée : la liste s'écarte en douceur
+            // au lieu de sauter. Les relectures régulières sans nouveauté ne changent pas les identifiants : rien ne bouge.
+            .motion(Motion.snappy, value: chat.messages.map(\.id))
             .onAppear { bottom(proxy, chat.messages.last?.id, animated: false) }
             // Nouveau message, ou dernier message qui grandit (réaction, envoi confirmé) : on reste en bas.
             .onChange(of: chat.messages.last) { last in bottom(proxy, last?.id) }
@@ -124,31 +133,39 @@ struct ConversationView: View {
                 HStack {
                     Text("↪ Réponse à \(replyTo.authorName) : \(replyTo.preview)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     Spacer()
-                    Button { self.replyTo = nil } label: { Image(systemName: "xmark.circle.fill") }
+                    Button { Motion.animate { self.replyTo = nil } } label: { Image(systemName: "xmark.circle.fill") }
                         .accessibilityLabel("Annuler la réponse")
                 }
+                .motionTransition(.opacity.combined(with: .move(edge: .bottom)))
             }
             HStack(alignment: .bottom, spacing: 8) {
                 if recorder.recording {
-                    recordingBar
+                    recordingBar.motionTransition(.opacity.combined(with: .move(edge: .trailing)))
                 } else {
                     PhotosPicker(selection: $picked, matching: .images) {
                         Image(systemName: "photo").font(.title3).frame(width: 36, height: 36)
                     }
                     .accessibilityLabel("Envoyer une photo")
                     .disabled(store.sending)
-                    field(chat)
+                    .transition(.opacity)
+                    field(chat).transition(.opacity)
                 }
+                // Micro ↔ flèche d'envoi : l'un rétrécit pendant que l'autre grandit, comme dans Messages.
                 if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !store.sending {
-                    micButton
+                    micButton.motionTransition(.scale(scale: 0.5).combined(with: .opacity))
                 } else {
-                    sendButton
+                    sendButton.motionTransition(.scale(scale: 0.5).combined(with: .opacity))
                 }
             }
             if let problem = recorder.problem {
-                Text(problem).font(.caption).foregroundStyle(.red)
+                Text(problem).font(.caption).foregroundStyle(.red).motionTransition(.unfold)
             }
         }
+        .motion(Motion.snappy, value: text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .motion(Motion.snappy, value: store.sending)
+        .motion(Motion.snappy, value: recorder.recording)
+        .motion(Motion.snappy, value: replyTo?.id)
+        .motion(Motion.snappy, value: recorder.problem)
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background(.bar)
         .task { recorder.warmUp() }  // micro prêt avant le premier appui
@@ -167,6 +184,7 @@ struct ConversationView: View {
     private var sendButton: some View {
                 Button {
                     // Champ vidé tout de suite, message affiché aussitôt ; en cas d'échec, le texte revient.
+                    Haptics.tap()
                     let typed = text, quoted = replyTo
                     text = ""
                     replyTo = nil
@@ -187,9 +205,12 @@ struct ConversationView: View {
     }
 
     /// Appui long : enregistre ; relâcher : envoie ; glisser vers la gauche : annule (comme WhatsApp).
+    /// Simple toucher : l'enregistrement reste actif ; un second toucher l'envoie, sans jamais en relancer un autre.
     private var micButton: some View {
         Image(systemName: recorder.recording ? "mic.circle.fill" : "mic.circle")
-            .font(.system(size: recorder.recording ? 44 : 32))
+            .font(.system(size: 32))
+            // Enregistrement : le micro grossit sous le doigt (échelle animée, plus un saut de taille de police).
+            .scaleEffect(recorder.recording ? 1.35 : 1)
             .foregroundStyle(recorder.recording ? (cancelVoice ? Color.secondary : Color.red) : Color(uiColor: AppConfig.uiAccent))
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
@@ -197,32 +218,56 @@ struct ConversationView: View {
                 .onChanged { value in
                     if !holdingMic {
                         holdingMic = true
+                        pressedAt = Date()
+                        if micLocked && !recorder.recording { micLocked = false }  // micro refusé ou jamais ouvert
                         cancelVoice = false
-                        Task { await recorder.start() }
+                        if !micLocked { Task { await recorder.start() } }  // verrouillé : ce toucher-ci envoie
                     }
-                    cancelVoice = value.translation.width < -90
+                    let cancelling = value.translation.width < -90
+                    if cancelling != cancelVoice {
+                        Haptics.selection()  // seuil d'annulation franchi, dans un sens ou dans l'autre
+                        Motion.animate { cancelVoice = cancelling }
+                    }
                 }
                 .onEnded { _ in
                     holdingMic = false
-                    if let (file, seconds) = recorder.stop(send: !cancelVoice) {
-                        let quoted = replyTo
-                        replyTo = nil
-                        Task { await store.sendVoice(file, seconds: seconds, replyTo: quoted?.id) }
+                    defer { cancelVoice = false }
+                    if !micLocked && !cancelVoice && Date().timeIntervalSince(pressedAt) < Self.tapSeconds {
+                        micLocked = true  // simple toucher : on continue d'enregistrer
+                        return
                     }
-                    cancelVoice = false
+                    micLocked = false
+                    sendVoice(recorder.stop(send: !cancelVoice))
                 })
             .accessibilityLabel("Message vocal")
-            .accessibilityHint("Maintiens pour enregistrer, relâche pour envoyer, glisse à gauche pour annuler")
+            .accessibilityHint("Maintiens pour enregistrer et relâche pour envoyer, ou touche une fois pour enregistrer et encore une fois pour envoyer")
             .accessibilityIdentifier("chat-mic")
+    }
+
+    /// Plus court qu'un appui : un toucher, qui verrouille l'enregistrement.
+    static let tapSeconds: TimeInterval = 0.35
+
+    private func sendVoice(_ recorded: (URL, TimeInterval)?) {
+        guard let (file, seconds) = recorded else { return }
+        let quoted = replyTo
+        replyTo = nil
+        Task { await store.sendVoice(file, seconds: seconds, replyTo: quoted?.id) }
     }
 
     private var recordingBar: some View {
         HStack(spacing: 10) {
-            Circle().fill(.red).frame(width: 10, height: 10)
+            RecordingDot()
             Text(VoiceRecorder.clock(recorder.elapsed)).font(.body.monospacedDigit())
+                .contentTransition(.numericText())
+                .motion(Motion.snappy, value: Int(recorder.elapsed.rounded()))
             Spacer()
-            Text(cancelVoice ? "Relâche pour annuler" : "‹ Glisse pour annuler").font(.subheadline)
-                .foregroundStyle(cancelVoice ? .red : .secondary)
+            if micLocked {
+                Button("Annuler") { micLocked = false; _ = recorder.stop(send: false) }.font(.subheadline)
+                Text("Touche le micro pour envoyer").font(.subheadline).foregroundStyle(.secondary)
+            } else {
+                Text(cancelVoice ? "Relâche pour annuler" : "‹ Glisse pour annuler").font(.subheadline)
+                    .foregroundStyle(cancelVoice ? .red : .secondary)
+            }
         }
         .padding(.horizontal, 12).frame(height: 40)
         .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 18))
@@ -230,12 +275,11 @@ struct ConversationView: View {
         .accessibilityLabel("Enregistrement \(VoiceRecorder.clock(recorder.elapsed))")
     }
 
-    @ViewBuilder private var notice: some View {
-        if let notice = store.notice {
-            Text(notice).font(.footnote).padding(10).background(.ultraThinMaterial, in: Capsule()).padding(.bottom, 80)
-                .onTapGesture { store.notice = nil }
-                .task { try? await Task.sleep(for: .seconds(4)); store.notice = nil }
+    private var notice: some View {
+        NoticeBanner(notice: store.notice.map { NoticeBanner.Notice(text: $0, tone: .error) }, seconds: 4, material: true) {
+            store.notice = nil
         }
+        .padding(.bottom, 68)
     }
 
     private func sendPhoto(_ item: PhotosPickerItem?) async {
@@ -280,12 +324,17 @@ private struct ChatBubble: View {
                     Text(message.authorName).font(.caption.weight(.bold)).foregroundStyle(Color(red: 0.73, green: 0.65, blue: 1))
                 }
                 bubble
+                    // En cours d'envoi : bulle légèrement estompée, qui s'affirme une fois le message reçu.
+                    .opacity(message.pending ? 0.65 : 1)
                     .contextMenu { if actions { menu } }
-                if !message.reactions.isEmpty { reactionChips }
+                if !message.reactions.isEmpty { reactionChips.motionTransition(.scale(scale: 0.6, anchor: message.mine ? .trailing : .leading).combined(with: .opacity)) }
                 Text(time).font(.caption2).foregroundStyle(.secondary)
+                    .id(time).transition(.opacity)
             }
             if !message.mine { Spacer(minLength: 48) }
         }
+        .motion(Motion.smooth, value: message.pending)
+        .motion(Motion.bouncy, value: message.reactions.map { "\($0.emoji)\($0.count)\($0.mine)" })
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(message.mine ? "Toi" : message.authorName) : \(message.deleted ? message.body : message.preview)")
         .accessibilityHint(actions ? "Glisse vers la droite pour répondre ; appui long pour réagir\(isAdmin ? ", épingler" : "") ou supprimer" : "")
@@ -345,15 +394,33 @@ private struct ChatBubble: View {
                     HStack(spacing: 3) {
                         Text(verbatim: r.emoji).font(.system(size: 14))
                         Text("\(r.count)").font(.caption).foregroundStyle(.secondary)
+                            .contentTransition(.numericText())
                     }
                         .padding(.horizontal, 7).padding(.vertical, 3)
                         .background(r.mine ? accent.opacity(0.25) : Color.white.opacity(0.08), in: Capsule())
                         .overlay(Capsule().stroke(r.mine ? accent : .clear))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableStyle(scale: 0.9))
                 .disabled(!canWrite)
                 .accessibilityLabel("\(r.emoji) \(r.count)\(r.mine ? ", retirer ma réaction" : "")")
+                .motionTransition(.scale(scale: 0.6).combined(with: .opacity))
             }
         }
     }
 }
+
+/// Point rouge de l'enregistrement : il bat doucement (immobile avec Réduire les animations).
+private struct RecordingDot: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var dim = false
+
+    var body: some View {
+        Circle().fill(.red).frame(width: 10, height: 10)
+            .opacity(dim ? 0.3 : 1)
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) { dim = true }
+            }
+    }
+}
+

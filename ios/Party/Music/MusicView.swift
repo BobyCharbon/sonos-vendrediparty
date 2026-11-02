@@ -16,10 +16,21 @@ struct MusicView: View {
         ScrollView {
             // Liste paresseuse : seules les pochettes visibles sont demandées (comme loading="lazy" sur le site) ;
             // le serveur va chercher chaque pochette Sonos sur l'enceinte, 70 d'un coup la saturent.
-            LazyVStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 16) {
                 header
-                content
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    content
+                }
+                // Chargement → soirée, code demandé, soirée fermée, hors ligne : fondu enchaîné de tout le contenu.
+                // Une pile paresseuse crée ses lignes pendant la mise en page, hors animation : elles surgiraient
+                // d'un coup. On fait donc fondre la pile entière, remplacée quand l'état change.
+                .id(store.phase.kind)
+                .transition(.opacity)
+                // Titre ajouté, retiré ou passé, message ou réponse de l'hôte, avertissement : les lignes
+                // s'écartent ou se resserrent au lieu de sauter. Un rafraîchissement sans changement ne bouge rien.
+                .motion(Motion.snappy, value: layoutKey)
             }
+            .motion(Motion.smooth, value: store.phase.kind)
             .padding(.horizontal, 16)
             .padding(.top, topInset + 8)
             .padding(.bottom, 24)
@@ -40,6 +51,13 @@ struct MusicView: View {
         }
         // Le suivi en direct tourne tant que l'app est ouverte (PartyApp, scenePhase) : on rafraîchit à l'affichage.
         .task { await store.reload() }
+    }
+
+    /// Ce qui change la disposition de la soirée (lignes en plus ou en moins) ; pas les heures de passage.
+    private var layoutKey: [String] {
+        guard case .ready(let state) = store.phase else { return [] }
+        return state.upcoming.map(\.id) + state.messages.map { "\($0.id)|\($0.reply ?? "")" }
+            + [state.blocked ?? "", state.error ?? "", state.now == nil ? "" : "now", "\(state.played.count)"]
     }
 
     private var header: some View {
@@ -71,14 +89,15 @@ struct MusicView: View {
     private var content: some View {
         switch store.phase {
         case .loading:
-            ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
+            ProgressView().frame(maxWidth: .infinity).padding(.top, 40).transition(.opacity)
         case .needsCode:
-            JoinCard(scan: { scanning = true }) { code in await store.join(code: code) }
+            JoinCard(scan: { scanning = true }) { code in await store.join(code: code) }.motionTransition()
         case .closed:
-            InfoCard(symbol: "moon.zzz", text: "Pas de soirée en cours pour le moment.")
+            InfoCard(symbol: "moon.zzz", text: "Pas de soirée en cours pour le moment.").motionTransition()
         case .offline(let reason):
-            InfoCard(symbol: "wifi.exclamationmark", text: reason)
-            Button("Réessayer") { Task { await store.reload() } }.buttonStyle(.borderedProminent).tint(Palette.accent)
+            InfoCard(symbol: "wifi.exclamationmark", text: reason).motionTransition()
+            Button("Réessayer") { Haptics.tap(); Task { await store.reload() } }
+                .buttonStyle(.borderedProminent).tint(Palette.accent).motionTransition()
         case .ready(let state):
             party(state)
         }
@@ -86,9 +105,9 @@ struct MusicView: View {
 
     @ViewBuilder
     private func party(_ state: PartyState) -> some View {
-        if let blocked = state.blocked { Warning(text: blocked) }
-        if let error = state.error { Warning(text: error) }
-        if let now = state.now, !now.isEmpty { NowPlayingCard(now: now, store: store) }
+        if let blocked = state.blocked { Warning(text: blocked).motionTransition() }
+        if let error = state.error { Warning(text: error).motionTransition() }
+        if let now = state.now, !now.isEmpty { NowPlayingCard(now: now, store: store).motionTransition() }
         Toggle(isOn: Binding(get: { store.notifyWhenPlaying },
                              set: { on in Task { await store.setNotifyWhenPlaying(on) } })) {
             Label("Me prévenir quand mon titre passe", systemImage: "bell")
@@ -98,7 +117,7 @@ struct MusicView: View {
         if state.blocked == nil { search }
         upcoming(state)
         messages(state)
-        if !state.played.isEmpty { played(state) }
+        if !state.played.isEmpty { played(state).motionTransition() }
     }
 
     // MARK: Recherche
@@ -111,25 +130,31 @@ struct MusicView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .submitLabel(.search)
-                if store.searching { ProgressView() }
+                if store.searching { ProgressView().transition(.opacity) }
                 if !store.query.isEmpty {
                     Button { store.query = "" } label: { Image(systemName: "xmark.circle.fill") }
                         .foregroundStyle(.secondary)
                         .accessibilityLabel("Effacer la recherche")
+                        .transition(.opacity.combined(with: .scale(scale: 0.6)))
                 }
             }
+            .motion(Motion.snappy, value: store.searching)
+            .motion(Motion.snappy, value: store.query.isEmpty)
             .card()
             ForEach(store.results) { track in
                 TrackRow(title: track.title, subtitle: track.artist, art: track.image, store: store) {
-                    Button { Task { await store.add(track) } } label: {
+                    Button { Haptics.tap(); Task { await store.add(track) } } label: {
                         if store.busyTrack == track.id { ProgressView() } else { Image(systemName: "plus.circle.fill").font(.title2) }
                     }
                     .tint(Palette.accent)
                     .disabled(store.busyTrack != nil)
                     .accessibilityLabel("Ajouter « \(track.title) »")
                 }
+                .motionTransition()
             }
         }
+        // Résultats qui arrivent ou se vident (titre ajouté, recherche effacée) : les lignes glissent en place.
+        .motion(Motion.snappy, value: store.results.map(\.id))
     }
 
     // MARK: File d'attente
@@ -137,8 +162,9 @@ struct MusicView: View {
     @ViewBuilder
     private func upcoming(_ state: PartyState) -> some View {
         SectionTitle(text: state.upcomingTotal > 0 ? "À venir · \(state.upcomingTotal)" : "À venir")
+            .contentTransition(.numericText())
         if state.upcoming.isEmpty {
-            Text("La file est vide : ajoute le premier titre !").foregroundStyle(.secondary)
+            Text("La file est vide : ajoute le premier titre !").foregroundStyle(.secondary).transition(.opacity)
         }
         ForEach(state.upcoming) { item in
             let when = PassageTime.text(eta: item.eta, receivedAt: store.receivedAt)
@@ -146,12 +172,13 @@ struct MusicView: View {
             TrackRow(title: item.title, subtitle: [item.artist, who, when].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "),
                      art: item.art, highlighted: item.isMine, store: store) {
                 if item.isMine && state.queueEditable {
-                    Button(role: .destructive) { Task { await store.remove(item) } } label: {
+                    Button(role: .destructive) { Haptics.tap(); Task { await store.remove(item) } } label: {
                         Image(systemName: "minus.circle.fill").font(.title2)
                     }
                     .accessibilityLabel("Retirer « \(item.title) » de la file")
                 }
             }
+            .motionTransition()
         }
     }
 
@@ -169,10 +196,12 @@ struct MusicView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .card()
+            .motionTransition()
         }
         HStack {
             TextField("Ton message", text: $message, axis: .vertical).lineLimit(1...4)
             Button("Envoyer") {
+                Haptics.tap()
                 Task { if await store.send(message: message) { message = "" } }
             }
             .buttonStyle(.borderedProminent)
@@ -192,20 +221,8 @@ struct MusicView: View {
         .card()
     }
 
-    @ViewBuilder
     private var noticeBanner: some View {
-        if let notice = store.notice {
-            Text(notice.text)
-                .font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 16).padding(.vertical, 12)
-                .background(notice.isError ? Color.red.opacity(0.9) : Palette.card, in: Capsule())
-                .padding(.bottom, 12)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .task(id: notice) {
-                    try? await Task.sleep(for: .seconds(3))
-                    withAnimation { store.notice = nil }
-                }
-        }
+        NoticeBanner(notice: store.notice.map { NoticeBanner.Notice(text: $0.text, isError: $0.isError) }) { store.notice = nil }
     }
 }
 
@@ -301,13 +318,19 @@ private struct NowPlayingCard: View {
             Artwork(path: now.art, size: 88, store: store)
             VStack(alignment: .leading, spacing: 4) {
                 Text("EN CE MOMENT").font(.caption.weight(.bold)).foregroundStyle(Palette.accent)
-                Text(now.title).font(.headline).lineLimit(2)
-                Text(now.artist).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                if let by = now.by { Text("demandé par \(by)").font(.caption).foregroundStyle(.secondary) }
+                // Titre suivant : l'ancien texte s'efface pendant que le nouveau arrive (pas de saut d'un coup).
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(now.title).font(.headline).lineLimit(2)
+                    Text(now.artist).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                    if let by = now.by { Text("demandé par \(by)").font(.caption).foregroundStyle(.secondary) }
+                }
+                .id(now.title + now.artist)
+                .transition(.opacity)
             }
             Spacer(minLength: 0)
         }
         .card()
+        .motion(Motion.smooth, value: now.title + now.artist)
     }
 }
 
@@ -340,17 +363,31 @@ private struct Artwork: View {
     let store: MusicStore
     @State private var image: UIImage?
 
+    init(path: String, size: CGFloat, store: MusicStore) {
+        self.path = path
+        self.size = size
+        self.store = store
+        // Pochette déjà chargée (ligne qui revient à l'écran) : affichée d'emblée, sans repasser par la note.
+        _image = State(initialValue: store.cachedArtwork(path))
+    }
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.06))
             if let image {
-                Image(uiImage: image).resizable().scaledToFill()
+                Image(uiImage: image).resizable().scaledToFill().transition(.opacity)
             } else {
-                Image(systemName: "music.note").foregroundStyle(.secondary)
+                Image(systemName: "music.note").foregroundStyle(.secondary).transition(.opacity)
             }
         }
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .task(id: path) { image = await store.artwork(path) }
+        .task(id: path) {
+            if let hit = store.cachedArtwork(path) { image = hit; return }
+            let loaded = await store.artwork(path)
+            guard !Task.isCancelled else { return }
+            Motion.animate(Motion.fade) { image = loaded }  // pochette téléchargée : fondu, pas d'apparition sèche
+        }
     }
+
 }

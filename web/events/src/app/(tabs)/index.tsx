@@ -1,14 +1,15 @@
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EventCard } from '@/components/EventCard';
 import { SignedIn } from '@/components/SignedIn';
-import { Button, Chip, Empty, ErrorText, Input, s, Segmented, T, Title } from '@/components/ui';
+import { Button, Chip, Empty, ErrorText, Input, Reveal, s, Segmented, Skeleton, T, Title } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { fetchEventList, fetchTaxonomy, needsAnswer, useQuery } from '@/lib/data';
 import { must, supabase } from '@/lib/supabase';
+import { duration, ease, enter, pressTransition, transition } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
 
 type Tab = 'upcoming' | 'polls' | 'pending' | 'drafts' | 'past';
@@ -18,9 +19,15 @@ export default function Home() {
   const me = useMe();
   const { can } = useAuth();
   const isAdmin = can('events.approve');
+  // App iPhone et droit « Utiliser l'assistant IA » : l'événement se décrit à voix haute dans un écran natif.
+  const native = (globalThis as { PartyNative?: { ai?: { createEvent?: () => void } } }).PartyNative;
+  const aiEvent = can('ai.use') && can('events.create') && native?.ai?.createEvent ? () => native.ai!.createEvent!() : null;
   const [tab, setTab] = useState<Tab>('upcoming');
   const [filter, setFilter] = useState<Filter>({ kind: 'all' });
   const [search, setSearch] = useState('');
+  // « + Proposer » s’efface en descendant dans la liste et revient dès qu’on remonte (comme Mail ou Photos).
+  const [fabAway, setFabAway] = useState(false);
+  const lastY = useRef(0);
 
   const { data, error, loading, reload } = useQuery(async () => {
     const [events, taxonomy, tagSubs, catSubs] = await Promise.all([
@@ -103,6 +110,15 @@ export default function Home() {
         style={{ flex: 1, minHeight: 0 }}
         contentContainerStyle={[s.content, { paddingBottom: 96 }]}
         refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={reload} tintColor={colors.accent} />}
+        scrollEventThrottle={32}
+        onScroll={(e) => {
+          const y = e.nativeEvent.contentOffset.y;
+          const dy = y - lastY.current;
+          if (Math.abs(dy) < FAB_SCROLL_SLOP) return;
+          lastY.current = y;
+          const away = dy > 0 && y > FAB_SCROLL_START;
+          if (away !== fabAway) setFabAway(away);
+        }}
       >
         <View style={s.rowBetween}>
           <View style={{ flex: 1, minWidth: 0 }}>
@@ -174,9 +190,9 @@ export default function Home() {
 
         <ErrorText error={error} />
         {error ? <Button label="Réessayer" variant="secondary" onPress={reload} /> : null}
-        {loading && !data ? <T muted>Chargement des événements…</T> : null}
+        {loading && !data ? <ListSkeleton /> : null}
         {data && visible.length === 0 ? (
-          <View style={{ gap: 8, paddingVertical: 20 }}>
+          <Reveal kind="fade" style={{ gap: 8, paddingVertical: 20 }}>
             <Empty>
               {search.trim() ? 'Aucun événement ne correspond à ta recherche.'
                 : filter.kind === 'subscribed' ? 'Aucun événement pour tes abonnements pour le moment.'
@@ -193,34 +209,45 @@ export default function Home() {
             {search.trim() || filter.kind !== 'all' ? (
               <Button label="Effacer la recherche et les filtres" variant="ghost" onPress={() => { setSearch(''); setFilter({ kind: 'all' }); }} />
             ) : null}
-          </View>
+          </Reveal>
         ) : null}
         {goingList.length ? (
           <View style={{ gap: 10 }}>
             <T size={13} weight="bold" color={colors.mint} style={st.label}>TU Y VAS</T>
-            {goingList.map((e) => (
-              <EventCard key={e.id} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp now={data!.loadedAt} />
+            {goingList.map((e, i) => (
+              <EventCard key={e.id} index={i} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp now={data!.loadedAt} />
             ))}
           </View>
         ) : null}
         {pollsToAnswer > 0 ? (
-          <Pressable accessibilityRole="button" onPress={() => setTab('polls')} style={st.banner}>
+          <Pressable accessibilityRole="button" onPress={() => setTab('polls')} style={({ pressed }) => [st.banner, enter('drop'), pressTransition, pressed && { opacity: 0.8 }]}>
             <T size={14}><T size={14} weight="bold">{pollsToAnswer} sondage{pollsToAnswer > 1 ? 's' : ''} de date</T> attend{pollsToAnswer > 1 ? 'ent' : ''} ton vote ›</T>
           </Pressable>
         ) : null}
         {goingList.length && rest.length ? <T size={13} weight="bold" color={colors.muted} style={[st.label, { marginTop: 6 }]}>À VENIR</T> : null}
-        {rest.map((e) => (
-          <EventCard key={e.id} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp={tab === 'polls' || tab === 'upcoming'} now={data!.loadedAt} />
+        {rest.map((e, i) => (
+          <EventCard key={e.id} index={goingList.length + i} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp={tab === 'polls' || tab === 'upcoming'} now={data!.loadedAt} />
         ))}
       </ScrollView>
 
       <View pointerEvents="box-none" style={st.fabWrap}>
-        <View pointerEvents="box-none" style={st.fabColumn}>
+        <View pointerEvents={fabAway ? 'none' : 'box-none'} style={[st.fabColumn, transition('transform, opacity', duration.base, ease.out),
+          fabAway && { opacity: 0, transform: [{ translateY: 24 }, { scale: 0.9 }] }]}>
+        {aiEvent ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Créer un événement avec l'IA, en le décrivant à voix haute"
+            onPress={aiEvent}
+            style={({ pressed }) => [st.fab, st.fabAI, pressed && { opacity: 0.85 }]}
+          >
+            <T color={colors.text} style={{ ...font.bold, fontSize: 15 }}>✨ Avec l’IA</T>
+          </Pressable>
+        ) : null}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Proposer un événement"
           onPress={() => router.push('/event/new')}
-          style={({ pressed }) => [st.fab, pressed && { opacity: 0.85 }]}
+          style={({ pressed }) => [st.fab, enter('pop'), pressTransition, pressed && { opacity: 0.9, transform: [{ scale: 0.94 }] }]}
         >
           <T color={colors.onAccent} style={{ ...font.bold, fontSize: 15 }}>+ Proposer</T>
         </Pressable>
@@ -230,11 +257,35 @@ export default function Home() {
   );
 }
 
+/** Défilement minimal (px) avant de montrer ou cacher « + Proposer », et zone du haut où il reste toujours visible. */
+const FAB_SCROLL_SLOP = 8;
+const FAB_SCROLL_START = 120;
+
+/** Cartes fantômes pendant le premier chargement : la liste garde sa forme, rien ne saute à l’arrivée. */
+function ListSkeleton() {
+  return (
+    <View accessibilityLabel="Chargement des événements…" accessibilityRole="progressbar" style={{ gap: 14 }}>
+      {[0, 1, 2].map((i) => (
+        <View key={i} style={[st.ghost, { opacity: 1 - i * 0.25 }]}>
+          <Skeleton width={56} height={64} radius={radius.md} />
+          <View style={{ flex: 1, gap: 10, paddingTop: 4 }}>
+            <Skeleton width={90} height={18} radius={radius.pill} />
+            <Skeleton width="80%" height={20} />
+            <Skeleton width="55%" />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const st = StyleSheet.create({
+  ghost: { flexDirection: 'row', gap: 14, padding: 14, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   label: { letterSpacing: 0.6 },
   banner: { backgroundColor: colors.coralDim, padding: 14, borderRadius: radius.md, borderWidth: 1, borderColor: '#5A4024' },
   fabWrap: { position: 'absolute', left: 0, right: 0, bottom: 16, alignItems: 'center' },
-  fabColumn: { width: '100%', maxWidth: 640, alignItems: 'flex-end', paddingRight: 16 },
+  fabColumn: { width: '100%', maxWidth: 640, alignItems: 'flex-end', paddingRight: 16, gap: 10 },
+  fabAI: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.accent },
   fab: {
     height: 52, paddingHorizontal: 22, borderRadius: radius.pill,
     backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',

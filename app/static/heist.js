@@ -3,7 +3,7 @@ window.Heist=(()=>{
   const icon='<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 19 24 8l17 11H7Zm3 20h28M14 21v13m10-13v13m10-13v13M7 39v4h34v-4"/><path d="m19 30 5-4 5 4-5 7-5-7Z"/></svg>';
   const rules='<h3>Un seul butin, toute une équipe</h3><p>Solo ou coopération à 2–8. Rapportez au moins 6 trésors (jusqu’à 8 selon la taille de l’équipe) à la sortie verte en moins de 4 minutes. Chacun transporte un objet à la fois et avance un peu moins vite chargé.</p><h3>Une touche, plusieurs actions</h3><p>Approche une vitrine puis touche Prendre. À la sortie, touche Déposer. Au boîtier turquoise, Coupe les lasers pendant 15 secondes. Près de la prison, Libérer remet tous les coéquipiers en jeu. Clavier : flèches, ZQSD ou WASD ; espace ou E pour agir.</p><h3>Reste hors de vue</h3><p>Trois gardiens patrouillent dans chaque musée. Les cônes jaunes montrent la vision des gardiens. Les murs te cachent. Les lasers rouges alternent allumage et extinction. Une seconde dans une zone dangereuse suffit pour être pris : la jauge rouge te prévient. Le trésor tombe sur place. À plusieurs : prison ; en solo : retour à la sortie et 12 secondes perdues. Si toute l’équipe est emprisonnée, la manche est perdue.</p><p>Choisis parmi trois musées avant la manche. Les arrivées tardives attendent la suivante. Changer d’application arrête tes déplacements, mais pas le chronomètre. La carte miniature indique trésors, sortie et prison.</p>';
   let root=null,code='',current=null,snap=null,scene=null,timer=0,frame=0,token=0,request=null,signature='',loaded=false;
-  let input={x:0,y:0,action:false,cancel:true},stickId=null,actionId=null,lastCount='',lastResult='',loadFailed=false,actionPulse=false,lastMap=0;
+  let input={x:0,y:0,action:false,cancel:true},stickId=null,actionId=null,lastCount='',lastResult='',loadFailed=false,actionPulse=false,lastMap=0,zoom=0;
   const keys=new Set(),escape=x=>esc(String(x??''));
   function reset(){actionPulse=false;input={x:0,y:0,action:false,cancel:true};stickId=actionId=null;keys.clear();root?.querySelector('.hs-knob')?.style.removeProperty('transform');}
   function stop(){if(!root&&!code)return;token++;clearTimeout(timer);cancelAnimationFrame(frame);request?.abort();reset();scene?.dispose();scene=null;root=null;snap=null;code='';loaded=false;document.body.classList.remove('heist-full');}
@@ -26,7 +26,7 @@ window.Heist=(()=>{
   }
   async function load(id){
     try{
-      const {createScene}=await import('/static/heist-scene.js?v=3');
+      const {createScene}=await import('/static/heist-scene.js?v=4');
       if(id!==token||!root?.isConnected)return;
       scene=createScene(root.querySelector('canvas'));loaded=true;loadFailed=false;panel();frame=requestAnimationFrame(draw);
     }catch(e){if(id!==token)return;reset();loadFailed=true;panel();const box=root.querySelector('.hs-error');box.hidden=false;box.innerHTML='<strong>La 3D n’a pas pu démarrer.</strong><p>Vérifie que l’accélération graphique est activée, puis réessaie avec un navigateur récent.</p><button type="button" data-hs-retry>Réessayer</button>';}
@@ -69,12 +69,15 @@ window.Heist=(()=>{
     action.querySelector('span').textContent=snap.action||'AGIR';
     action.setAttribute('aria-label',snap.action||'Aucune action à proximité');
     const remaining=Math.max(0,Math.ceil(snap.duration-Math.max(0,snap.time)));
-    root.querySelector('.hs-clock').textContent=`${Math.floor(remaining/60).toString().padStart(2,'0')}:${(remaining%60).toString().padStart(2,'0')}`;
-    root.querySelector('.hs-count').textContent=snap.phase==='lobby'?`${current.players.length} / 8 joueurs`:`Butin ${snap.banked} / ${snap.target}`;
+    // Textes réécrits seulement s'ils changent (ce panneau est mis à jour ~15 fois par seconde).
+    const put=(sel,text)=>{const el=root.querySelector(sel);if(el.textContent!==text)el.textContent=text;};
+    put('.hs-clock',`${Math.floor(remaining/60).toString().padStart(2,'0')}:${(remaining%60).toString().padStart(2,'0')}`);
+    put('.hs-count',snap.phase==='lobby'?`${current.players.length} / 8 joueurs`:`Butin ${snap.banked} / ${snap.target}`);
     root.querySelector('.hs-label').hidden=playing;
     root.querySelector('.hs-map').hidden=!playing;
     const hint=root.querySelector('.hs-hint');
-    hint.textContent=mine?.jailed?'En prison · un ami doit venir te libérer':mine?.bag!=null?'Trésor en sac · rejoins la sortie verte':snap.action?`À proximité : ${snap.action}`:'Prends les trésors dorés et rapporte-les à la sortie verte';
+    const hintText=mine?.jailed?'En prison · un ami doit venir te libérer':mine?.bag!=null?'Trésor en sac · rejoins la sortie verte':snap.action?`À proximité : ${snap.action}`:'Prends les trésors dorés et rapporte-les à la sortie verte';
+    if(hint.textContent!==hintText)hint.textContent=hintText;
     root.style.setProperty('--hs-danger',mine?.exposure||0);
     let message='';
     if(snap.phase==='countdown'){
@@ -82,8 +85,14 @@ window.Heist=(()=>{
       if(count!==lastCount){lastCount=count;GameAudio.play('tick');}
     }else if(snap.phase==='play'&&!mine?.active)message='Tu joueras au prochain braquage.';
     else if(snap.phase==='play'&&mine?.exposure>.2)message='Repéré ! Mets-toi à couvert.';
-    root.querySelector('.hs-callout').textContent=message;root.querySelector('.hs-callout').classList.toggle('hs-countdown',snap.phase==='countdown');
-    const sig=JSON.stringify([snap.phase,snap.round,snap.map.id,current.is_host,current.players,snap.success,snap.notice,loaded,loadFailed]);
+    const callout=root.querySelector('.hs-callout');
+    if(callout.textContent!==message){
+      callout.textContent=message;
+      // Chaque chiffre du décompte (et l'alerte « Repéré ! ») arrive en rebondissant, une seule fois.
+      if(message&&!matchMedia('(prefers-reduced-motion: reduce)').matches)callout.animate([{transform:'scale(1.5)',opacity:0,offset:0},{transform:'scale(.95)',opacity:1,offset:.55},{transform:'none',opacity:1}],{duration:420,easing:'ease-out'});
+    }
+    callout.classList.toggle('hs-countdown',snap.phase==='countdown');
+    const sig=JSON.stringify([snap.phase,snap.round,snap.map.id,current.is_host,current.players.map((p)=>({...p,online:undefined,seen_ago:undefined})),snap.success,snap.notice,loaded,loadFailed]);
     if(signature===sig)return;signature=sig;
     let html='',footer='';
     if(snap.phase==='lobby'||snap.phase==='results'){
@@ -115,7 +124,7 @@ window.Heist=(()=>{
   const ZOOMS=['🔍 Proche','🔍 Large','🔍 Musée entier'];
   function zoomLabel(z){const b=root?.querySelector('[data-hs-zoom]');if(b){b.textContent=ZOOMS[z]||ZOOMS[0];b.setAttribute('aria-label',`Zoom : ${(ZOOMS[z]||ZOOMS[0]).slice(3)} (toucher pour changer)`);}}
   function bind(){
-    let z0=0;try{z0=+(localStorage.getItem('vp_hs_zoom')||0);}catch{}zoomLabel(z0);
+    zoom=0;try{zoom=+(localStorage.getItem('vp_hs_zoom')||0)||0;}catch{}zoomLabel(zoom);
     const stick=root.querySelector('.hs-stick'),action=root.querySelector('.hs-action');
     const move=e=>{const r=stick.getBoundingClientRect(),dx=e.clientX-r.left-r.width/2,dy=e.clientY-r.top-r.height/2,d=Math.max(32,Math.hypot(dx,dy));input.x=dx/d;input.y=dy/d;stick.querySelector('.hs-knob').style.transform=`translate(${input.x*28}px,${input.y*28}px)`;};
     const startStick=e=>{if(stickId!==null||!loaded)return;e.preventDefault();stickId=e.pointerId;input.cancel=false;stick.setPointerCapture(e.pointerId);move(e);};
@@ -137,7 +146,8 @@ window.Heist=(()=>{
     root.addEventListener('click',async e=>{
       const map=e.target.closest('[data-hs-map]');if(map){gameAction('hset',{settings:{map:Number(map.dataset.hsMap)}});}
       if(e.target.closest('[data-hs-retry]')){const g=current;stop();mount(g);}
-      if(e.target.closest('[data-hs-zoom]')){let z=0;try{z=(+(localStorage.getItem('vp_hs_zoom')||0)+1)%3;localStorage.setItem('vp_hs_zoom',z);}catch{}zoomLabel(z);}
+      // Zoom gardé en mémoire ici : la scène ne relit plus le stockage à chaque image ; la caméra y glisse en douceur.
+      if(e.target.closest('[data-hs-zoom]')){zoom=(zoom+1)%3;try{localStorage.setItem('vp_hs_zoom',zoom);}catch{}zoomLabel(zoom);}
       if(e.target.closest('[data-hs-copy]')){try{await navigator.clipboard.writeText(`${location.origin}/?game=${code}`);toast('Lien copié !');}catch{toast(`Code de la partie : ${code}`);}}
     });
   }
@@ -149,6 +159,6 @@ window.Heist=(()=>{
   }
   document.addEventListener('keydown',e=>key(e,true));document.addEventListener('keyup',e=>key(e,false));
   document.addEventListener('visibilitychange',reset);window.addEventListener('blur',reset);
-  function draw(now){if(!root?.isConnected)return;frame=requestAnimationFrame(draw);if(realtimeControlsActive()&&snap&&loaded){scene?.draw(snap,now,current.players);if(now-lastMap>100){minimap();lastMap=now;}}}
+  function draw(now){if(!root?.isConnected)return;frame=requestAnimationFrame(draw);if(realtimeControlsActive()&&snap&&loaded){scene?.draw(snap,now,current.players,zoom);if(now-lastMap>100){minimap();lastMap=now;}}}
   return{icon,rules,mount,stop};
 })();

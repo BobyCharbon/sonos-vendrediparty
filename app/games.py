@@ -14,7 +14,7 @@ import secrets
 import time
 import unicodedata
 
-from . import debate, heist, island, likely, neon, president, purity, quiz
+from . import beerpong, debate, heist, island, likely, masque, neon, president, psy, purity, quiz, reflet
 from .divan_cards import DIVAN_CARDS
 from .tmc_questions import TMC_QUESTIONS
 from .party_questions import NEVER_AWKWARD, NEVER_HOT, NEVER_SOFT, WHOOF_AWKWARD, WHOOF_HOT, WHOOF_SOFT
@@ -24,6 +24,7 @@ GAMES = {
     "whoof": "Qui de nous ?",
     "likely": "Qui est le plus… ?",
     "debate": "Pour ou contre",
+    "beerpong": "Beer pong",
     "never": "Je n'ai jamais",
     "roulette": "Roulette",
     "blackjack": "Blackjack",
@@ -38,6 +39,9 @@ GAMES = {
     "island": "L’île qui s’effondre",
     "heist": "Braquage en miniature",
     "purity": "Purify Test",
+    "psy": "Qui es-tu vraiment ?",
+    "masque": "Le Masque",
+    "reflet": "Le Reflet",
     "room": "Salle de jeux",
 }
 BLACKJACKS = ("blackjack",)
@@ -182,6 +186,14 @@ def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code
         likely.init(g)
     if kind == "debate":
         debate.init(g)
+    if kind == "psy":
+        psy.init(g)
+    if kind == "masque":
+        masque.init(g)
+    if kind == "reflet":
+        reflet.init(g)
+    if kind == "beerpong":
+        beerpong.init(g)
     if kind == "room":
         # Salle de jeux : un seul code pour la soirée ; l'animateur y lance les jeux les uns après les autres.
         g.update(current=None, rhistory=[], rtally={}, rpts={}, rnames={})
@@ -248,11 +260,13 @@ def join(g: dict, gid: str, name: str = ""):
     pending = g["type"] == "pyramid" and g["phase"] not in ("lobby",) and bool(g.get("pyr"))
     g["players"].append({"id": gid, "pid": pid, "name": name or "?", "alive": True, "role": None, "word": None,
                          "waiting": waiting, "pending": pending})
+    if g["type"] == "beerpong":
+        beerpong.join_late(g)  # chacun reçoit son équipe dès son arrivée (la plus petite), déplaçable avant le lancement
 
 
 # Jeux où l'animateur peut ajouter des participants sans téléphone (il vote, mise ou joue pour eux). Pas Undercover,
 # Quiz, Purify ni Président : ils reposent sur un secret (mot, main) ou des réponses personnelles.
-MANUAL_GAMES = ("divan", "tmc", "never", "pyramid", "biskit", "likely", "debate", "room", "whoof", "blackjack", "casino")
+MANUAL_GAMES = ("divan", "tmc", "never", "pyramid", "biskit", "likely", "debate", "room", "whoof", "blackjack", "casino", "beerpong")
 
 
 def add_guest(g: dict, name: str, guest_id: str | None = None):
@@ -302,7 +316,12 @@ def leave(g: dict, gid: str):
     if p is None:
         raise GameError("Joueur introuvable")
     in_play = p in alive(g)
+    seat = g["players"].index(p)
     g["players"].remove(p)
+    if g["type"] == "masque":
+        _ms(masque.leave, g, gid)
+    if g["type"] == "reflet":
+        _rf(reflet.leave, g, gid, seat)
     if g["type"] == "heist":
         heist.leave(g, gid, p["pid"])
     if g["type"] == "island":
@@ -317,6 +336,8 @@ def leave(g: dict, gid: str):
         bk_leave(g, gid)
     if g["type"] == "purity":
         purity.leave(g, gid)
+    if g["type"] == "psy":
+        psy.leave(g, gid)
     if g["type"] == "likely":
         _lk_award(g, likely.settle(g))  # il ne manquait que son vote
     if g["type"] == "debate":
@@ -921,7 +942,7 @@ def divan_back(g: dict, gid: str):
     """Retour en arrière : annule le dernier « Au suivant » ou joker (la carte écartée retourne dans le paquet)."""
     d = g["divan"]
     back = d.get("back") or []
-    if g["phase"] != "card" or not back:
+    if g["phase"] != "card" or not back or not g["players"]:
         raise GameError("Rien à annuler")
     if back[-1]["by"] != gid:
         _divan_can_lead(g, gid)
@@ -935,6 +956,8 @@ def divan_back(g: dict, gid: str):
 def divan_next(g: dict, gid: str, rng: random.Random = random):
     """Au suivant : le divan passe au joueur suivant, nouvelle carte."""
     _divan_can_lead(g, gid)
+    if not g["players"]:  # tout le monde est parti (trouvé par les bots)
+        raise GameError("Plus personne autour du divan")
     _divan_save(g, gid)
     g["divan"]["turn"] = (g["divan"]["turn"] + 1) % len(g["players"])
     g["divan"]["joker"] = False
@@ -1034,10 +1057,14 @@ def tmc_answer(g: dict, gid: str, text: str):
     g["phase"] = "guess"
 
 
-def tmc_reveal(g: dict):
-    """L'animateur révèle la réponse écrite, une fois que le devin a parlé."""
-    if g["phase"] != "guess":
+def tmc_reveal(g: dict, gid: str):
+    """La réponse écrite est révélée une fois que le devin a parlé : par la personne qui l'a écrite (elle choisit le
+    moment, avis 4e5e56ee8168) ou par l'animateur."""
+    d = g["tmc"]["duo"]
+    if g["phase"] != "guess" or not d:
         raise GameError("Pas maintenant")
+    if gid != d["subject"] and not is_lead(g, gid):
+        raise GameError("C'est à la personne qui a répondu, ou à l'animateur, de révéler la réponse")
     g["phase"] = "judge"
 
 
@@ -1093,7 +1120,8 @@ def tmc_view(g: dict, gid: str) -> dict:
                # Sujet sans téléphone : l'animateur lui prête le sien pour écrire en secret.
                "proxy": g["phase"] == "answer" and is_lead(g, gid) and is_manual(g, d["subject"]),
                "answer": d["answers"].get(d["subject"]) if reveal else None,
-               "verdict": d["verdict"], "can_judge": g["phase"] == "judge" and is_lead(g, gid)}
+               "verdict": d["verdict"], "can_judge": g["phase"] == "judge" and is_lead(g, gid),
+               "can_reveal": g["phase"] == "guess" and (gid == d["subject"] or is_lead(g, gid))}
     # Classement : points, et nombre de questions où chacun a deviné.
     asked = {}
     for k, p in t["pairs"].items():
@@ -1215,7 +1243,9 @@ def pyr_answer(g: dict, actor: str, value: str):
     if g["phase"] == "pyramid" and late:
         cur, step = late["gid"], late["step"]
     elif g["phase"] == "deal":
-        cur, step = P["order"][P["turn"]], P["step"]
+        if not P["order"]:  # tout le monde est parti pendant la distribution (trouvé par les bots)
+            raise GameError("Plus personne à la table")
+        cur, step = P["order"][P["turn"] % len(P["order"])], P["step"]
     else:
         raise GameError("La distribution est terminée")
     if actor != cur:
@@ -1710,7 +1740,8 @@ def bk_draw(g: dict, actor: str, rng: random.Random = random):
         k = int(rank) * m
         _bk_out(g, f"{_bk_name(g, cur)} {'distribue' if red else 'boit'} {k}", **({"give": {cur: k}} if red else {"drink": {cur: k}}))
     elif rank == "4":
-        _bk_dice(g, cur, red, rng)
+        # Les dés attendent leur lanceur : il secoue son téléphone (ou touche « Lancer »). Rouge : le tireur ; noir : son voisin.
+        B["await"] = {"kind": "dice", "gid": cur if red else _bk_side(B, cur, 1), "for": cur, "red": red}
     elif rank == "7":
         B["reflex"] = {"id": secrets.token_hex(4), "kind": "paradis" if red else "nez", "at": time.time(), "taps": {}, "done": False, "losers": []}
     elif rank == "8":
@@ -1748,6 +1779,18 @@ def bk_draw(g: dict, actor: str, rng: random.Random = random):
     B["n"] += 1
     if not B["deck"] and g["phase"] == "play":
         g["phase"] = "end"
+
+
+def bk_roll(g: dict, actor: str, lead: bool = False, rng: random.Random = random):
+    """Le lanceur jette les dés de la carte 4 (l'animateur peut lancer pour lui : participant sans téléphone)."""
+    B = g["bk"]
+    a = B.get("await")
+    if not a or a["kind"] != "dice":
+        raise GameError("Pas de dés à lancer")
+    if actor != a["gid"] and not lead:
+        raise GameError(f"C'est à {_bk_name(g, a['gid'])} de lancer les dés")
+    B["await"] = None
+    _bk_dice(g, a["for"], a["red"], rng)
 
 
 def bk_complete(g: dict, actor: str, target: str = "", text: str = "", rng: random.Random = random):
@@ -1913,12 +1956,100 @@ def lk_swap(g: dict, rng: random.Random = random):
     _lk(likely.swap, g, rng)
 
 
+def _psy(fn, g: dict, *args):
+    """« Qui es-tu vraiment ? » : les erreurs du module deviennent des erreurs de jeu (message affiché tel quel)."""
+    try:
+        return fn(g, *args)
+    except psy.PsyError as e:
+        raise GameError(str(e))
+
+
+def psy_answer(g: dict, gid: str, index, choice):
+    _psy(psy.answer, g, gid, index, choice)
+
+
+def psy_submit(g: dict, gid: str):
+    _psy(psy.submit, g, gid)
+
+
+def psy_reveal(g: dict):
+    _psy(psy.reveal, g)
+
+
+def _ms(fn, g: dict, *args):
+    """« Le Masque » : les erreurs du module deviennent des erreurs de jeu (message affiché tel quel)."""
+    try:
+        return fn(g, *args)
+    except masque.MasqueError as e:
+        raise GameError(str(e))
+
+
+def _rf(fn, g: dict, *args):
+    """« Le Reflet » : les erreurs du module deviennent des erreurs de jeu (message affiché tel quel)."""
+    try:
+        return fn(g, *args)
+    except reflet.RefletError as e:
+        raise GameError(str(e))
+
+
 def _db(fn, g: dict, *args):
     """« Pour ou contre » : les erreurs du module deviennent des erreurs de jeu (message affiché tel quel)."""
     try:
         return fn(g, *args)
     except debate.DebateError as e:
         raise GameError(str(e))
+
+
+# ── Pause de l'animateur, dans tous les jeux ──
+PAUSE_KEEP = {"created_at", "updated_at"}  # dates qui ne bougent pas à la reprise
+PAUSE_WINDOW = 6 * 3600  # une date de la partie : entre 6 h avant la pause et 1 h après (échéances à venir)
+
+
+def pause_game(g: dict, gid: str):
+    """L'animateur met la partie en pause : plus aucun coup, le temps s'arrête (voir resume_game)."""
+    if g["phase"] in ("lobby", "end") or g["type"] == "room":
+        raise GameError("Rien à mettre en pause : la partie n'est pas en cours")
+    if g.get("paused"):
+        raise GameError("La partie est déjà en pause")
+    g["paused"] = {"at": time.time(), "by": (player(g, gid) or {}).get("name") or g.get("host_name") or "L'animateur"}
+
+
+def _shift_times(node, since: float, delta: float):
+    """Décale chaque date de la partie (échéance d'une question, lancer de la bille…) de la durée de la pause."""
+    items = node.items() if isinstance(node, dict) else enumerate(node) if isinstance(node, list) else ()
+    for k, v in items:
+        if isinstance(v, (dict, list)):
+            _shift_times(v, since, delta)
+        elif isinstance(v, float) and k not in PAUSE_KEEP and since - PAUSE_WINDOW <= v <= since + 3600:
+            node[k] = v + delta
+
+
+def resume_game(g: dict):
+    """Reprise : chaque minuteur repart là où il s'était arrêté."""
+    paused = g.get("paused")
+    if not paused:
+        raise GameError("La partie n'est pas en pause")
+    g["paused"] = None
+    _shift_times(g, paused["at"], time.time() - paused["at"])
+
+
+def bp_call(g: dict, fn, *args):
+    """Beer pong : ses erreurs deviennent des erreurs de jeu (message pour le téléphone)."""
+    try:
+        return fn(g, *args)
+    except beerpong.BeerPongError as e:
+        raise GameError(str(e))
+
+
+def bp_can_mark(g: dict, gid: str) -> bool:
+    """Marquer un gobelet et choisir la sentence : l'animateur, ou le marqueur qu'il a désigné."""
+    return is_lead(g, gid) or (bool(gid) and g.get("bp", {}).get("marker") == gid)
+
+
+def bp_mark(g: dict, gid: str, fn, *args):
+    if not bp_can_mark(g, gid):
+        raise GameError("Seul l'animateur ou le marqueur note les gobelets")
+    return bp_call(g, fn, *args)
 
 
 def db_vote(g: dict, voter: str, value, by: str = ""):
@@ -1979,6 +2110,18 @@ def start(g: dict, rng: random.Random = random):
         return
     if g["type"] == "debate":
         _db(debate.start, g, rng)
+        return
+    if g["type"] == "psy":
+        _psy(psy.start, g, rng)
+        return
+    if g["type"] == "masque":
+        _ms(masque.start, g, rng)
+        return
+    if g["type"] == "reflet":
+        _rf(reflet.start, g, rng)
+        return
+    if g["type"] == "beerpong":
+        bp_call(g, beerpong.start, rng)
         return
     if g["type"] == "quiz":
         try:
@@ -2188,6 +2331,15 @@ def next_step(g: dict, rng: random.Random = random):
     if g["type"] == "debate":
         _db(debate.next_step, g, rng)
         return
+    if g["type"] == "psy":
+        _psy(psy.start, g, rng)  # nouveau test, nouvelles questions
+        return
+    if g["type"] == "masque":
+        _ms(masque.next_step, g, rng)
+        return
+    if g["type"] == "reflet":
+        _rf(reflet.next_step, g, rng)
+        return
     if g["type"] == "casino":
         if g["phase"] != "results":
             raise GameError("Pas encore")
@@ -2229,8 +2381,10 @@ def restart(g: dict, rng: random.Random = random) -> dict:
         neon.start(g, rng)
     elif g["type"] == "president":
         president.start(g, rng)
-    elif g["type"] in ("quiz", "purity", "likely", "debate"):
+    elif g["type"] in ("quiz", "purity", "likely", "debate", "psy", "masque", "reflet"):
         start(g, rng)
+    elif g["type"] == "beerpong":
+        start(g, rng)  # remet les gobelets ; refusé sans rien toucher s'il manque une équipe
     elif g["type"] == "biskit":
         start(g, rng)
     elif g["type"] == "pyramid":
@@ -2242,8 +2396,11 @@ def restart(g: dict, rng: random.Random = random) -> dict:
         start(g, rng)
     elif g["type"] == "undercover":
         _deal(g, rng)
-    else:
+    elif g["type"] in QUESTION_GAMES:
         _next_question(g, rng)
+    else:
+        # Salle de jeux, Divan, Blackjack, Casino, Roulette : pas de « nouvelle manche » (ils continuent d'eux-mêmes).
+        raise GameError("Pas de nouvelle manche pour ce jeu")
     return g
 
 
@@ -2305,6 +2462,14 @@ def view(g: dict, gid: str) -> dict:
         out["likely"] = likely.view(g, gid)
     if g["type"] == "debate":
         out["debate"] = debate.view(g, gid, is_lead(g, gid))
+    if g["type"] == "psy":
+        out["psy"] = psy.view(g, gid)
+    if g["type"] == "masque":
+        out["masque"] = masque.view(g, gid, is_lead(g, gid))
+    if g["type"] == "reflet":
+        out["reflet"] = reflet.view(g, gid, is_lead(g, gid))
+    if g["type"] == "beerpong":
+        out["bp"] = beerpong.view(g, gid, is_lead(g, gid))
     if g["type"] == "purity":
         out["purity"] = purity.view(g, gid)
         if g["phase"] == "results":
@@ -2338,6 +2503,7 @@ def view(g: dict, gid: str) -> dict:
     elif g["results"]:
         out["results"] = [{"pid": _pid(g, i), "name": (player(g, i) or {}).get("name", "?"), "count": c}
                           for i, c in g["results"]]
+    out["paused"] = {"by": g["paused"]["by"], "for": round(time.time() - g["paused"]["at"])} if g.get("paused") else None
     # Gorgées des derniers coups, sans l'identifiant privé (la télé et les téléphones les annoncent).
     now = time.time()
     out["sips_log"] = [{**{k: e[k] for k in ("n", "pid", "name", "drink", "give")}, "age": round(now - e.get("at", now), 1)}
@@ -2394,6 +2560,12 @@ def _summary_facts(g: dict) -> list[str]:
         facts += quiz.summary_facts(g)
     if t == "debate":
         facts += debate.summary_facts(g)
+    if t == "psy":
+        facts += psy.summary_facts(g)
+    if t == "masque":
+        facts += masque.summary_facts(g)
+    if t == "reflet":
+        facts += reflet.summary_facts(g)
     if t == "likely":
         facts += likely.summary_facts(g)
         facts.append(f"Alcool : {sips} gorgée{'s' if sips > 1 else ''} pour la personne désignée" if sips else "Sans alcool : un point")
@@ -2474,7 +2646,7 @@ def room_merge(room: dict, g: dict):
     winner = None
     if g["type"] == "quiz" and g["players"]:
         rows = quiz.board(g)
-        winner = rows[0][0]["name"] if rows and rows[0][1]["n"] else None
+        winner = rows[0][0]["name"] if rows and rows[0][1]["pts"] > 0 else None  # personne n'a marqué : pas de gagnant
     if g["type"] == "likely":
         for gid, pts in likely.state(g)["scores"].items():
             room["rpts"][gid] = room["rpts"].get(gid, 0) + pts

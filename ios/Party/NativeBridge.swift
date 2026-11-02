@@ -10,6 +10,7 @@ enum NativeBridge {
     static let hapticHandler = "partyHaptic"
     static let pushHandler = "partyPush"
     static let tabsHandler = "partyTabs"
+    static let aiHandler = "partyAI"
 
     private static let script = """
     (function () {
@@ -31,6 +32,15 @@ enum NativeBridge {
           update: function (state) {
             try { window.webkit.messageHandlers.\(tabsHandler).postMessage(state); } catch (e) {}
           }
+        },
+        // Assistant IA : « ✨ Avec l'IA » (Événements) ouvre l'écran natif où l'on décrit l'événement à voix haute.
+        ai: {
+          createEvent: function () {
+            try { window.webkit.messageHandlers.\(aiHandler).postMessage("event"); } catch (e) {}
+          },
+          editEvent: function (id) {
+            try { window.webkit.messageHandlers.\(aiHandler).postMessage("edit:" + id); } catch (e) {}
+          }
         }
       };
     })();
@@ -49,6 +59,7 @@ enum NativeBridge {
         controller.add(HapticHandler(), name: hapticHandler)
         controller.addScriptMessageHandler(PushHandler(), contentWorld: .page, name: pushHandler)
         controller.add(TabsHandler(model: model), name: tabsHandler)
+        controller.add(AIHandler(model: model), name: aiHandler)
     }
 }
 
@@ -65,6 +76,28 @@ private final class TabsHandler: NSObject, WKScriptMessageHandler {
         guard message.frameInfo.isMainFrame, AppConfig.isInternal(message.frameInfo.securityOrigin.url),
               let state = TabBarState(message: message.body) else { return }
         model?.showTabs(state)
+    }
+}
+
+/// « ✨ Avec l'IA » dans Événements (cadre du module compris) → écran natif de création d'événement.
+private final class AIHandler: NSObject, WKScriptMessageHandler {
+    private weak var model: WebModel?
+
+    init(model: WebModel) {
+        self.model = model
+    }
+
+    @MainActor
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard AppConfig.isInternal(message.frameInfo.securityOrigin.url), let body = message.body as? String else { return }
+        if body == "event" {
+            model?.aiEditEventId = nil
+        } else if body.hasPrefix("edit:"), let id = UUID(uuidString: String(body.dropFirst(5))) {
+            model?.aiEditEventId = id.uuidString.lowercased()  // le serveur vérifie que la personne peut le modifier
+        } else {
+            return
+        }
+        model?.aiEventOpen = true
     }
 }
 

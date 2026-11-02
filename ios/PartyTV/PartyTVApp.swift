@@ -7,6 +7,10 @@ struct PartyTVApp: App {
         // Simulateur : PARTY_TV_DEMO=<fichier JSON {"game":…,"music":…}> affiche une partie figée, sans serveur.
         if let path = ProcessInfo.processInfo.environment["PARTY_TV_DEMO"], let data = FileManager.default.contents(atPath: path),
            let demo = try? JSONDecoder().decode(JSON.self, from: data) {
+            // {"steps": [{"game":…, "music":…}, …], "every": 4} : plusieurs états à la suite (annonces, cartes, podium…).
+            if !demo["steps"].array.isEmpty {
+                return TVStore(steps: demo["steps"].array, every: demo["every"].double ?? 4)
+            }
             return TVStore(demo: (demo["game"], demo["music"]), before: demo["before"])
         }
         // Simulateur : PARTY_TV_BASE=http://127.0.0.1:<port> branche l'app sur un serveur local (essai de bout en bout).

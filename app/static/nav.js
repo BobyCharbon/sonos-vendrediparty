@@ -239,8 +239,25 @@
     barEl.addEventListener("click", () => scrollTo({ top: 0, behavior: reduceMotion.matches ? "auto" : "smooth" }));
   }
 
+  // ── Changement d'onglet : le contenu apparaît en fondu en montant à peine (sur iPhone, les onglets ne glissent pas),
+  // l'icône touchée rebondit. Appelé seulement quand l'onglet change vraiment : rien ne se rejoue aux rafraîchissements.
+  const TAB_IN_MS = 280, TAB_IN_STILL_MS = 160, ICON_MS = 420;
+  function tabIn(elements, icon) {
+    if (typeof document.body.animate !== "function") return;
+    const still = reduceMotion.matches;
+    elements.filter(Boolean).forEach((el) => {
+      el.getAnimations().forEach((a) => a.id === "tab-in" && a.cancel());
+      const anim = el.animate(still ? [{ opacity: 0 }, { opacity: 1 }]
+        : [{ opacity: 0, transform: "translate3d(0, 10px, 0)" }, { opacity: 1, transform: "none" }],
+      { duration: still ? TAB_IN_STILL_MS : TAB_IN_MS, easing: "cubic-bezier(.22, 1, .36, 1)" });
+      anim.id = "tab-in";
+    });
+    if (icon && !still) icon.animate([{ transform: "scale(1)" }, { transform: "scale(.82)", offset: .3 },
+      { transform: "scale(1.08)", offset: .65 }, { transform: "scale(1)" }], { duration: ICON_MS, easing: "ease-out" });
+  }
+
   // iOS n'applique :active (enfoncement immédiat des boutons) que si la page écoute le toucher.
   addEventListener("touchstart", () => {}, { passive: true });
 
-  window.Nav = { open, closed, back, largeTitle, has: (key) => stack.some((l) => l.key === key), get depth() { return stack.length; } };
+  window.Nav = { open, closed, back, largeTitle, tabIn, has: (key) => stack.some((l) => l.key === key), get depth() { return stack.length; } };
 })();

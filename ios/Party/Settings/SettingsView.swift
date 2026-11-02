@@ -23,6 +23,13 @@ struct SettingsView: View {
                     }
                     if store.account != nil {
                         NavigationLink {
+                            TricountListView(store: store.tricount, myName: store.account?.name ?? "")
+                        } label: {
+                            SettingsRow(symbol: "banknote.fill", tint: .green, title: "Pot commun",
+                                        hint: "Dépenses partagées : qui a payé, qui doit quoi, remboursements")
+                        }
+                        .accessibilityIdentifier("settings-tricount")
+                        NavigationLink {
                             GroupsView(store: store.groups, privacy: store.privacy)
                         } label: {
                             SettingsRow(symbol: "person.3.fill", tint: .blue, title: "Groupes",
@@ -44,6 +51,12 @@ struct SettingsView: View {
                                     SettingsRow(symbol: "slider.horizontal.3", tint: .gray, title: "Admin de la soirée",
                                                 hint: "État, code et QR, jeux en cours, arrêt ; la musique dans Musique")
                                 }
+                            }
+                        }
+                        if store.account?.admin == true {
+                            NavigationLink { AIUsageView(store: store.tricount) } label: {
+                                SettingsRow(symbol: "sparkles", tint: .purple, title: "Assistant IA",
+                                            hint: "Qui l'utilise et ce que ça coûte ce mois-ci")
                             }
                         }
                         if store.account?.groupAdmin == true {
@@ -95,6 +108,12 @@ struct SettingsView: View {
             }
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
+            // Connexion, déconnexion, droits relus : les sections apparaissent ou s'en vont en glissant,
+            // au lieu de surgir d'un coup quand le compte arrive après l'affichage.
+            .motion(Motion.smooth, value: store.account != nil)
+            .motion(Motion.smooth, value: store.account?.admin)
+            .motion(Motion.smooth, value: store.account?.groupAdmin)
+            .motion(Motion.smooth, value: store.account?.feedback)
             .background(AppConfig.background)
             .navigationTitle("Réglages")
         }
@@ -108,6 +127,10 @@ struct SettingsView: View {
             Text("Tu pourras te reconnecter avec ton numéro. Les notifications des événements s'arrêtent sur cet iPhone.")
         }
         .overlay(alignment: .bottom) { SessionNotice(store: store.session) }
+        // Lien d'un pot commun ouvert (lien universel) : « Rejoindre » s'affiche par-dessus les Réglages.
+        .sheet(item: Binding(get: { store.tricount.pendingJoin.map(TricountLink.init) }, set: { store.tricount.pendingJoin = $0?.id })) { link in
+            JoinTricountView(store: store.tricount, link: link.id, myName: store.account?.name ?? "") { _ in }
+        }
     }
 
     @ViewBuilder
@@ -187,14 +210,18 @@ private struct Avatar: View {
     let name: String
 
     var body: some View {
-        AsyncImage(url: photo.flatMap(URL.init(string:))) { image in
-            image.resizable().scaledToFill()
-        } placeholder: {
-            Text(name.first.map(String.init) ?? "")
-                .font(.title2.weight(.bold))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .overlay { if name.isEmpty { Image(systemName: "person.fill").font(.title2) } }
+        // Photo du compte téléchargée : fondu depuis l'initiale.
+        AsyncImage(url: photo.flatMap(URL.init(string:)), transaction: Transaction(animation: Motion.pick(Motion.fade))) { phase in
+            if let image = phase.image {
+                image.resizable().scaledToFill().transition(.opacity)
+            } else {
+                Text(name.first.map(String.init) ?? "")
+                    .font(.title2.weight(.bold))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay { if name.isEmpty { Image(systemName: "person.fill").font(.title2) } }
+            }
         }
+
         .frame(width: 58, height: 58)
         .background(Palette.accent.opacity(0.35))
         .clipShape(Circle())
@@ -208,3 +235,5 @@ private struct SessionNotice: View {
 
     var body: some View { AdminNotice(notice: $store.notice) }
 }
+
+private struct TricountLink: Identifiable { let id: String }

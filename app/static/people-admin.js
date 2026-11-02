@@ -64,9 +64,11 @@
     seen = ids;
     const focused = document.activeElement?.dataset?.paReply;
     const caret = focused ? document.activeElement.selectionStart : 0;
-    q("messages").innerHTML = messages.length ? messages.map((m) => {
+    // Liste animée (list-motion.js) : un nouveau message glisse en place, un message supprimé s'efface ; les autres
+    // lignes ne sont pas recréées (une réponse en cours de saisie garde son champ).
+    patchList(q("messages"), messages.map((m) => {
       const id = escape(m.id);
-      return `<div class="msg ${m.read ? "" : "unread"}">
+      return { key: m.id, html: `<div class="msg ${m.read ? "" : "unread"}">
         <div class="row"><div class="grow"><b>${escape(m.name)}</b> <span class="artist">· ${hhmm(m.at)}</span></div>
           <div class="icon-btns">
             <button class="secondary" data-pa-msg="${m.read ? "unread" : "read"}" data-id="${id}" title="${m.read ? "Marquer non lu" : "Marquer lu"}">${m.read ? "↺" : "✓"}</button>
@@ -76,8 +78,8 @@
         <form class="row" data-pa-reply-form="${id}" style="margin-top:6px">
           <input class="grow" type="text" maxlength="300" data-pa-reply="${id}" placeholder="${m.reply ? "Modifier ta réponse…" : "Répondre…"}" aria-label="Répondre à ${escape(m.name)}">
           <button>↩︎</button></form>
-      </div>`;
-    }).join("") : `<p class="empty" style="padding:12px">Aucun message</p>`;
+      </div>` };
+    }), `<p class="empty" style="padding:12px">Aucun message</p>`);
     root.querySelectorAll("[data-pa-reply]").forEach((el) => {
       el.value = drafts[el.dataset.paReply] || "";
       if (el.dataset.paReply === focused) { el.focus(); el.setSelectionRange(caret, caret); }
@@ -103,7 +105,14 @@
   }
 
   function renderGuests(s) {
-    q("guests").innerHTML = (s.guests || []).length ? s.guests.map((g) => guestRow(g, s.source)).join("") : `<p class="empty">Aucun invité pour l'instant</p>`;
+    patchList(q("guests"), (s.guests || []).map((g) => ({ key: g.guest_id, html: guestRow(g, s.source) })),
+      `<p class="empty">Aucun invité pour l'instant</p>`);
+  }
+
+  // Listes à clés animées si list-motion.js est chargé ; sinon simple remplacement.
+  function patchList(box, rows, empty) {
+    if (window.ListMotion) return ListMotion.patch(box, rows, { empty });
+    box.innerHTML = rows.length ? rows.map((r) => r.html).join("") : empty;
   }
 
   function renderBans(s) {
@@ -111,9 +120,9 @@
     const listed = new Set(s.active ? (s.guests || []).map((g) => g.guest_id) : []);
     const others = (s.bans || []).filter((b) => !listed.has(b.guest_id));
     q("bansBox").classList.toggle("hidden", !others.length);
-    q("bans").innerHTML = others.map((b) => `<div class="track"><div class="meta"><div class="title">${escape(b.name || "Invité")}</div>
+    patchList(q("bans"), others.map((b) => ({ key: b.guest_id, html: `<div class="track"><div class="meta"><div class="title">${escape(b.name || "Invité")}</div>
       <div class="artist">${banLabel(b)}</div></div>
-      <button class="secondary" data-pa-guest="unban" data-g="${escape(b.guest_id)}">Débloquer</button></div>`).join("");
+      <button class="secondary" data-pa-guest="unban" data-g="${escape(b.guest_id)}">Débloquer</button></div>` })), "");
   }
 
   // Interrupteurs : cochés seulement si ce téléphone est abonné ET que le réglage est actif.

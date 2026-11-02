@@ -76,6 +76,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        // Secouer le téléphone (Biskit, jeux) ne doit jamais ouvrir « Annuler la saisie » (avis 51dbdb4c1957).
+        application.applicationSupportsShakeToEdit = false
         Task { @MainActor in TrackActivities.watchAtLaunch() }
         return true
     }

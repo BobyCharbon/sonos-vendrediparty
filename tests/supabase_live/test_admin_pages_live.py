@@ -32,7 +32,7 @@ def origin(tmp_path_factory):
     proc = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app.main:app', '--port', str(port), '--lifespan', 'off'],
                             cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     url = f'http://127.0.0.1:{port}'
-    for _ in range(100):
+    for _ in range(600):  # 60 s : la machine peut être chargée (autres serveurs de test)
         try:
             if httpx.get(url, timeout=1).status_code == 200: break
         except httpx.HTTPError: time.sleep(0.1)
