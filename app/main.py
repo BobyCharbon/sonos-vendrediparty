@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import beerpong, calendar_ics, debate, games, heist, island, likely, links, neon, president, psy, purity, quiz
+from . import beerpong, calendar_ics, debate, games, heist, island, likely, links, masque, neon, president, psy, purity, quiz, reflet
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
 from .account_auth import AccountAuth
@@ -2605,6 +2605,14 @@ DEBATE_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", 
 PSY_ONLY = {"psyans", "psysub", "psyreveal"}
 PSY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "pause", "resume"} | PSY_ONLY
 PURITY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "pause", "resume"} | PURITY_ONLY
+# « Le Masque » : chacun écrit (mswrite, guess = texte), puis relie les réponses aux prénoms et choisit de lever son
+# masque (msguess, settings = {picks: {réponse: pid}, unmask}) ; l'animateur règle, change, montre, retire, révèle.
+MASQUE_ONLY = {"msset", "mswrite", "msswap", "msshow", "msguess", "mshide", "msreveal"}
+MASQUE_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "pause", "resume"} | MASQUE_ONLY
+# « Le Reflet » : qui est devant le miroir choisit et parie (rfpick, settings = {i, bet}) ; les autres votent (rfvote,
+# done = oui) ; l'animateur règle et n'attend plus un absent (rfskip).
+REFLET_ONLY = {"rfset", "rfpick", "rfswap", "rfvote", "rfskip"}
+REFLET_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "pause", "resume"} | REFLET_ONLY
 
 # Actions propres à un jeu : refusées ailleurs (sinon elles lisent l'état d'un autre jeu et le serveur plante).
 GAME_ONLY_ACTIONS = {
@@ -2623,7 +2631,7 @@ GAME_ONLY_ACTIONS = {
 # Actions de l'animateur (créateur de la partie) ; les autres sont ouvertes à tous les joueurs.
 # Seuls coups possibles pendant une pause : reprendre, terminer, gérer les joueurs.
 PAUSE_ALLOWED = {"pause", "resume", "end", "remove", "ban", "handover", "addguest", "leave", "join", "up", "down"}
-HOST_ACTIONS = {"psyreveal", "pause", "resume", "bpset", "puset", "pureveal","ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "tjudge", "addguest", "mvote",
+HOST_ACTIONS = {"msset", "msswap", "msshow", "mshide", "msreveal", "rfset", "rfskip", "psyreveal", "pause", "resume", "bpset", "puset", "pureveal","ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "tjudge", "addguest", "mvote",
                 "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover", "nset", "hset",
                 "lkset", "lkskip", "lkswap", "dbset", "dbskip", "dbswap", "dbrevote", "dbaccept", "dbrefuse"}
 
@@ -2671,6 +2679,14 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     if g["type"] == "psy" and a not in PSY_ACTIONS:
         raise HTTPException(400, "Action indisponible dans ce jeu")
     if g["type"] != "psy" and a in PSY_ONLY:
+        raise HTTPException(400, "Action inconnue")
+    if g["type"] == "masque" and a not in MASQUE_ACTIONS:
+        raise HTTPException(400, "Action indisponible dans ce jeu")
+    if g["type"] != "masque" and a in MASQUE_ONLY:
+        raise HTTPException(400, "Action inconnue")
+    if g["type"] == "reflet" and a not in REFLET_ACTIONS:
+        raise HTTPException(400, "Action indisponible dans ce jeu")
+    if g["type"] != "reflet" and a in REFLET_ONLY:
         raise HTTPException(400, "Action inconnue")
     # Cible d'un vote : un joueur (pid) ; pour « Je n'ai jamais », une réponse (yes / no).
     target = games.gid_of(g, body.target) or (body.target if g["type"] in ("never", "casino", "pyramid", "biskit") else "")
@@ -2755,6 +2771,13 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "dbskip": (games.db_skip, target), "dbswap": (games.db_swap, random), "dbrevote": (games.db_revote,),
         "dbpropose": (games.db_propose, me, body.guess), "dbaccept": (games.db_accept, body.amount),
         "dbrefuse": (games.db_refuse, body.amount),
+        "msset": (masque.configure, body.settings), "mswrite": (masque.write, me, body.guess, random),
+        "msswap": (masque.swap, random), "msshow": (masque.show, random),
+        "msguess": (masque.guess, me, body.settings.get("picks"), body.settings.get("unmask")),
+        "mshide": (masque.hide, body.amount), "msreveal": (masque.reveal,),
+        "rfset": (reflet.configure, body.settings), "rfpick": (reflet.pick, me, body.settings.get("i"), body.settings.get("bet")),
+        "rfswap": (reflet.swap, me, games.is_lead(g, me), random), "rfvote": (reflet.vote, me, body.done),
+        "rfskip": (reflet.skip, target),
     }
     if g["type"] == "quiz" and a == "next":
         actions["next"] = (quiz.next_step, random, body.guess)
@@ -2764,7 +2787,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     try:
         action_result = fn(g, *args)
     except (games.GameError, quiz.QuizError, purity.PurityError, president.PresidentError, neon.NeonError, island.IslandError,
-            heist.HeistError, likely.LikelyError, debate.DebateError) as e:
+            heist.HeistError, likely.LikelyError, debate.DebateError, masque.MasqueError, reflet.RefletError) as e:
         raise HTTPException(409, str(e))
     g["updated_at"] = time.time()
     # Salle de jeux : rejoindre, quitter, exclure ou passer la main vaut aussi pour le jeu en cours (et inversement).

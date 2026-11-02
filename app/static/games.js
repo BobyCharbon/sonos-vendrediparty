@@ -33,6 +33,8 @@ function myTurnKey(g) {
     case "debate": return g.phase === "ask" && g.debate?.can_vote ? `db${g.debate.n}-${g.debate.round}` : "";
     case "purity": return g.phase === "answering" && g.purity?.playing && !g.purity.submitted ? "pu" : "";
     case "psy": return g.phase === "answering" && g.psy?.playing && !g.psy.done ? `ps${g.round}` : "";
+    case "masque": return (g.phase === "write" && g.me && !g.masque?.mine) || (g.phase === "guess" && g.me && !g.masque?.sent) ? `ms${g.round}-${g.phase}` : "";
+    case "reflet": return (g.phase === "pick" && g.reflet?.is_mirror) || (g.phase === "vote" && g.reflet?.can_vote) ? `rf${g.round}-${g.phase}` : "";
     case "quiz": return g.phase === "q" && !g.quiz?.q?.out ? `qz${g.quiz.n}` : "";
     case "president": return g.president?.my_turn && (!navigator.userActivation || navigator.userActivation.hasBeenActive) ? `pr${g.round}-${g.president.token}` : "";
     case "casino": return g.phase === "bet" ? `cs${g.round}` : "";
@@ -80,14 +82,14 @@ GAME_THEME.neon = "g-nk";
 GAME_ICONS.president = President.crown;
 GAME_THEME.president = "g-pr";
 // Jeux récents : étiquette « NEW » sur leur carte et leur tuile dans la salle de jeux (retirer le type pour l'enlever).
-const NEW_GAMES = ["psy", "debate", "beerpong"];
+const NEW_GAMES = ["masque", "reflet", "psy", "debate", "beerpong"];
 const newBadge = (type) => NEW_GAMES.includes(type) ? `<span class="g-new" aria-label="Nouveau jeu">NEW</span>` : "";
 // Catégories de l'écran Jeux et de la salle de jeux : [id, titre, jeux dans l'ordre d'affichage].
 // Tout nouveau jeu doit y figurer (tests/test_game_categories.py le vérifie).
 const GAME_CATEGORIES = [
   ["drinks", "🍻 Alcool", ["beerpong", "whoof", "never", "roulette", "biskit", "casino", "purity"]],
   ["three", "🎮 Jeux 3D", ["neon", "island", "heist"]],
-  ["talk", "💞 Parler vrai", ["psy", "divan", "debate", "tmc"]],
+  ["talk", "💞 Parler vrai", ["masque", "reflet", "psy", "divan", "debate", "tmc"]],
   ["cards", "🃏 Jeux de cartes", ["pyramid", "blackjack", "president"]],
   ["mood", "🎉 Ambiance", ["quiz", "undercover", "likely"]]
 ];
@@ -516,6 +518,32 @@ document.getElementById("gamesRoot").innerHTML = `
         <div class="g-chips"><span>2+ joueurs</span><span>🍻 Alcool</span><span>Un seul téléphone suffit</span><span>6, 10 ou 15 gobelets</span></div>
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="beerpong">Créer une partie</button>
+      </div>
+
+      <div class="gcard g-ms">
+        ${newBadge("masque")}
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.masque}</div>
+          <div class="g-meta"><div class="g-title">Le Masque</div><div class="g-tag">Réponds en secret, devine qui a écrit quoi.</div></div>
+          ${helpBtn("masque")}
+        </div>
+        <p class="g-desc">Une question profonde, chacun écrit sa réponse en secret. Les réponses s'affichent sans prénom : à toi de deviner qui a écrit quoi. Puis chacun choisit de lever son masque et de raconter… ou de le garder.</p>
+        <div class="g-chips"><span>3+ joueurs</span><span>Sans alcool</span><span>Chacun son téléphone</span><span>6 catégories</span></div>
+        <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
+        <button class="g-go" data-create="masque">Créer une partie</button>
+      </div>
+
+      <div class="gcard g-rf">
+        ${newBadge("reflet")}
+        <div class="g-head">
+          <div class="g-icon">${GAME_ICONS.reflet}</div>
+          <div class="g-meta"><div class="g-title">Le Reflet</div><div class="g-tag">Te vois-tu comme les autres te voient ?</div></div>
+          ${helpBtn("reflet")}
+        </div>
+        <p class="g-desc">Devant le miroir, choisis une affirmation sur toi (« On me confie facilement ses secrets ») et parie combien d'amis diront oui. Ils votent en secret, le compteur monte… puis on en parle.</p>
+        <div class="g-chips"><span>3+ joueurs</span><span>Sans alcool</span><span>Chacun son téléphone</span><span>Votes anonymes</span></div>
+        <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
+        <button class="g-go" data-create="reflet">Créer une partie</button>
       </div>
 
       <div class="gcard g-ps">
@@ -1120,6 +1148,10 @@ function renderGame(g) {
     setGameHtml(debateHtml(g));
   } else if (g.type === "psy") {
     setGameHtml(lobbyInvite(g) + psyHtml(g));
+  } else if (g.type === "masque") {
+    setGameHtml(lobbyInvite(g) + masqueHtml(g));
+  } else if (g.type === "reflet") {
+    setGameHtml(lobbyInvite(g) + refletHtml(g));
   } else if (g.type === "beerpong") {
     setGameHtml(lobbyInvite(g) + beerpongHtml(g));
   } else if (g.type === "pyramid" || g.type === "biskit") {
@@ -2460,7 +2492,7 @@ function renderGameHost(g) {
   if (g.type === "likely") return renderLikelyHost(g);
   if (g.type === "debate") return renderDebateHost(g);
   if (g.type === "beerpong") return renderBeerpongHost(g);
-  if (["pyramid", "biskit", "quiz", "purity", "psy", "room", "president", "neon", "island", "heist"].includes(g.type)) { patch.gameHost = ""; return; }
+  if (["pyramid", "biskit", "quiz", "purity", "psy", "masque", "reflet", "room", "president", "neon", "island", "heist"].includes(g.type)) { patch.gameHost = ""; return; }
   if (g.type === "tmc") return renderTmcHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
   const canRemove = g.is_host;
@@ -3009,7 +3041,7 @@ function rulesFor(type, g) {
 }
 
 // « ? » : règles détaillées du jeu.
-const GAME_NAMES = { psy: "Qui es-tu vraiment ?", beerpong: "Beer pong", undercover: "Undercover", whoof: "Qui de nous ?", likely: "Qui est le plus… ?", debate: "Pour ou contre", never: "Je n'ai jamais", roulette: "Roulette",
+const GAME_NAMES = { masque: "Le Masque", reflet: "Le Reflet", psy: "Qui es-tu vraiment ?", beerpong: "Beer pong", undercover: "Undercover", whoof: "Qui de nous ?", likely: "Qui est le plus… ?", debate: "Pour ou contre", never: "Je n'ai jamais", roulette: "Roulette",
   blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal", quiz: "Quiz", purity: "Purify Test", room: "Salle de jeux", president: "Président", neon: "Néon Knockout", island: "L’île qui s’effondre", heist: "Braquage en miniature" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");

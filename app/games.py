@@ -14,7 +14,7 @@ import secrets
 import time
 import unicodedata
 
-from . import beerpong, debate, heist, island, likely, neon, president, psy, purity, quiz
+from . import beerpong, debate, heist, island, likely, masque, neon, president, psy, purity, quiz, reflet
 from .divan_cards import DIVAN_CARDS
 from .tmc_questions import TMC_QUESTIONS
 from .party_questions import NEVER_AWKWARD, NEVER_HOT, NEVER_SOFT, WHOOF_AWKWARD, WHOOF_HOT, WHOOF_SOFT
@@ -40,6 +40,8 @@ GAMES = {
     "heist": "Braquage en miniature",
     "purity": "Purify Test",
     "psy": "Qui es-tu vraiment ?",
+    "masque": "Le Masque",
+    "reflet": "Le Reflet",
     "room": "Salle de jeux",
 }
 BLACKJACKS = ("blackjack",)
@@ -186,6 +188,10 @@ def new_game(kind: str, host: str = "", name: str = "", white: bool = True, code
         debate.init(g)
     if kind == "psy":
         psy.init(g)
+    if kind == "masque":
+        masque.init(g)
+    if kind == "reflet":
+        reflet.init(g)
     if kind == "beerpong":
         beerpong.init(g)
     if kind == "room":
@@ -310,7 +316,12 @@ def leave(g: dict, gid: str):
     if p is None:
         raise GameError("Joueur introuvable")
     in_play = p in alive(g)
+    seat = g["players"].index(p)
     g["players"].remove(p)
+    if g["type"] == "masque":
+        _ms(masque.leave, g, gid)
+    if g["type"] == "reflet":
+        _rf(reflet.leave, g, gid, seat)
     if g["type"] == "heist":
         heist.leave(g, gid, p["pid"])
     if g["type"] == "island":
@@ -1965,6 +1976,22 @@ def psy_reveal(g: dict):
     _psy(psy.reveal, g)
 
 
+def _ms(fn, g: dict, *args):
+    """« Le Masque » : les erreurs du module deviennent des erreurs de jeu (message affiché tel quel)."""
+    try:
+        return fn(g, *args)
+    except masque.MasqueError as e:
+        raise GameError(str(e))
+
+
+def _rf(fn, g: dict, *args):
+    """« Le Reflet » : les erreurs du module deviennent des erreurs de jeu (message affiché tel quel)."""
+    try:
+        return fn(g, *args)
+    except reflet.RefletError as e:
+        raise GameError(str(e))
+
+
 def _db(fn, g: dict, *args):
     """« Pour ou contre » : les erreurs du module deviennent des erreurs de jeu (message affiché tel quel)."""
     try:
@@ -2086,6 +2113,12 @@ def start(g: dict, rng: random.Random = random):
         return
     if g["type"] == "psy":
         _psy(psy.start, g, rng)
+        return
+    if g["type"] == "masque":
+        _ms(masque.start, g, rng)
+        return
+    if g["type"] == "reflet":
+        _rf(reflet.start, g, rng)
         return
     if g["type"] == "beerpong":
         bp_call(g, beerpong.start, rng)
@@ -2301,6 +2334,12 @@ def next_step(g: dict, rng: random.Random = random):
     if g["type"] == "psy":
         _psy(psy.start, g, rng)  # nouveau test, nouvelles questions
         return
+    if g["type"] == "masque":
+        _ms(masque.next_step, g, rng)
+        return
+    if g["type"] == "reflet":
+        _rf(reflet.next_step, g, rng)
+        return
     if g["type"] == "casino":
         if g["phase"] != "results":
             raise GameError("Pas encore")
@@ -2342,7 +2381,7 @@ def restart(g: dict, rng: random.Random = random) -> dict:
         neon.start(g, rng)
     elif g["type"] == "president":
         president.start(g, rng)
-    elif g["type"] in ("quiz", "purity", "likely", "debate", "psy"):
+    elif g["type"] in ("quiz", "purity", "likely", "debate", "psy", "masque", "reflet"):
         start(g, rng)
     elif g["type"] == "beerpong":
         start(g, rng)  # remet les gobelets ; refusé sans rien toucher s'il manque une équipe
@@ -2425,6 +2464,10 @@ def view(g: dict, gid: str) -> dict:
         out["debate"] = debate.view(g, gid, is_lead(g, gid))
     if g["type"] == "psy":
         out["psy"] = psy.view(g, gid)
+    if g["type"] == "masque":
+        out["masque"] = masque.view(g, gid, is_lead(g, gid))
+    if g["type"] == "reflet":
+        out["reflet"] = reflet.view(g, gid, is_lead(g, gid))
     if g["type"] == "beerpong":
         out["bp"] = beerpong.view(g, gid, is_lead(g, gid))
     if g["type"] == "purity":
@@ -2519,6 +2562,10 @@ def _summary_facts(g: dict) -> list[str]:
         facts += debate.summary_facts(g)
     if t == "psy":
         facts += psy.summary_facts(g)
+    if t == "masque":
+        facts += masque.summary_facts(g)
+    if t == "reflet":
+        facts += reflet.summary_facts(g)
     if t == "likely":
         facts += likely.summary_facts(g)
         facts.append(f"Alcool : {sips} gorgée{'s' if sips > 1 else ''} pour la personne désignée" if sips else "Sans alcool : un point")

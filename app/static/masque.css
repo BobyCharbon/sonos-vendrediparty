@@ -1,0 +1,73 @@
+/* 🎭 Le Masque et 🪞 Le Reflet (jeux « Parler vrai »). Réutilisent les briques de likely.css (lk-*), debate.css (db-*)
+   et psy.css (ps-*). */
+.g-ms { --g-bg: #14121f; --g-accent: #f2c14e; --g-ink: #2a1d00; --g-soft: #d8cfe6; --g-chip: #2a2638; }
+.game.g-ms { background: var(--g-bg); color: #fff; border: 0; }
+.game.g-ms .artist { color: var(--g-soft); }
+body.pyr-full #game.g-ms { box-shadow: none; border: 0; padding: 16px; background: radial-gradient(120% 60% at 50% 0%, #3d2a55, #14121f 70%); }
+.g-ms .lk-main { background: linear-gradient(135deg, #ffe08a, #f2a93b); color: var(--g-ink); box-shadow: 0 7px 0 #a8660f, 0 14px 28px rgba(242,169,59,.3); }
+.g-ms .lk-main:active { box-shadow: 0 2px 0 #a8660f; }
+.ms-hero { background: linear-gradient(135deg, #3d2a55, #b0476b); }
+
+.ms-q { padding: 20px 18px; border-radius: 22px; background: #fff8e8; color: #2a1d00; text-align: center; box-shadow: 0 14px 30px rgba(0,0,0,.35); }
+.ms-q.small { padding: 12px 14px; border-radius: 16px; box-shadow: none; margin-bottom: 10px; }
+.ms-q-n { font-size: .72rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #a8660f; }
+.ms-q-t { margin-top: 8px; font: 800 1.3rem/1.25 "Bricolage Grotesque", system-ui, sans-serif; text-wrap: balance; overflow-wrap: anywhere; }
+.ms-q.small .ms-q-t { font-size: 1rem; margin-top: 4px; }
+
+.ms-mine { margin: 12px 0; }
+.ms-mine-t { margin: 6px 0 10px; font-size: 1.05rem; font-weight: 700; overflow-wrap: anywhere; }
+.ms-help { text-align: center; margin: 4px 0 10px; }
+
+.ms-slots { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
+.ms-slot { position: relative; padding: 14px; border-radius: 18px; background: rgba(255,255,255,.07); border: 2px solid rgba(255,255,255,.1); }
+.ms-slot.picked { border-color: rgba(242,193,78,.55); }
+.ms-slot.mine { background: rgba(242,193,78,.12); border-color: rgba(242,193,78,.4); }
+.ms-slot.off { opacity: .55; }
+.ms-slot.open { border-color: rgba(123,216,143,.5); }
+.ms-slot.masked { border-style: dashed; }
+.ms-slot-k { font-size: .75rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--g-accent); }
+.ms-slot-t { font-size: 1.05rem; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; padding-right: 30px; }
+.ms-names { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ms-name { min-height: 40px; padding: 6px 14px; border-radius: 999px; border: 2px solid rgba(255,255,255,.18); background: transparent;
+  color: #fff; font-weight: 700; transition: transform .1s, background .15s, border-color .15s; }
+.ms-name:active { transform: scale(.96); }
+.ms-name.on { background: var(--g-accent); border-color: var(--g-accent); color: var(--g-ink); }
+.ms-name.used { opacity: .45; }
+.ms-kill { position: absolute; top: 8px; right: 8px; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(255,255,255,.08); }
+.ms-mask { margin: 12px 0; }
+.ms-who { margin-top: 10px; font-size: 1rem; }
+.ms-who.masked { color: var(--g-soft); font-weight: 700; }
+.ms-hit { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 999px; background: rgba(123,216,143,.2); color: #b9f2c6; font-size: .8rem; font-weight: 800; }
+
+.ms-sheet-q { margin: 0 0 10px; font-weight: 800; }
+.ms-sheet textarea { width: 100%; font-size: 1.05rem; }
+.ms-count { text-align: right; font-size: .8rem; color: var(--g-soft); margin-top: 4px; }
+
+/* 🪞 Le Reflet */
+.g-rf { --g-bg: #0f1a22; --g-accent: #7fd6e8; --g-ink: #06242c; --g-soft: #c8e4ec; --g-chip: #1f3340; }
+.game.g-rf { background: var(--g-bg); color: #fff; border: 0; }
+.game.g-rf .artist { color: var(--g-soft); }
+body.pyr-full #game.g-rf { box-shadow: none; border: 0; padding: 16px; background: radial-gradient(120% 60% at 50% 0%, #1f4a5c, #0f1a22 70%); }
+.g-rf .lk-main { background: linear-gradient(135deg, #b8f0fb, #5bc3dc); color: var(--g-ink); box-shadow: 0 7px 0 #2a7f94, 0 14px 28px rgba(91,195,220,.3); }
+.g-rf .lk-main:active { box-shadow: 0 2px 0 #2a7f94; }
+.rf-hero { background: linear-gradient(135deg, #1f4a5c, #6b8fd6); }
+.rf-turn { text-align: center; font-size: .8rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--g-soft); margin-bottom: 8px; }
+.rf-mirror { text-align: center; margin-bottom: 10px; }
+.rf-mirror-k { font-size: .8rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--g-accent); }
+.rf-bet-l { margin-top: 14px; }
+.rf-bets button { min-width: 48px; }
+.rf-card { padding: 22px 18px; border-radius: 22px; background: linear-gradient(160deg, #eafbff, #c9eef7); color: #06242c; text-align: center; box-shadow: 0 14px 30px rgba(0,0,0,.35); margin-bottom: 12px; }
+.rf-card-k { font-size: .78rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: #2a7f94; }
+.rf-card-t { margin-top: 8px; font: 800 1.3rem/1.25 "Bricolage Grotesque", system-ui, sans-serif; text-wrap: balance; overflow-wrap: anywhere; }
+.rf-votes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
+.rf-votes button { min-height: 64px; border-radius: 18px; border: 0; font-size: 1.05rem; font-weight: 800; }
+.rf-yes { background: #7bd88f; color: #0b2a14; }
+.rf-no { background: #ff8a7a; color: #2e0b06; }
+.rf-votes button:disabled { opacity: .5; }
+.rf-count { text-align: center; margin: 8px 0 12px; }
+.rf-count-n { font: 900 4rem/1 "Bricolage Grotesque", system-ui, sans-serif; color: var(--g-accent); }
+.rf-count-n small { font-size: 1.6rem; color: var(--g-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ms-name, .ps-opt { transition: none; }
+}

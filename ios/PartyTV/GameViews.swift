@@ -57,6 +57,8 @@ struct GameView: View {
             case "undercover": UndercoverTV(game: game)
             case "whoof", "never": QuestionVoteTV(game: game)
             case "debate": DebateTV(game: game)
+            case "masque": MasqueTV(game: game)
+            case "reflet": RefletTV(game: game)
             case "roulette": RouletteTV(game: game)
             case "divan": DivanTV(game: game)
             case "tmc": TmcTV(game: game)
@@ -82,6 +84,9 @@ enum Phase {
         case "results", "reveal", "rev", "scored": return "Résultats"
         case "white_guess": return "Mr. White tente sa chance"
         case "answering": return "Chacun répond au test"
+        case "write": return "Chacun écrit en secret"
+        case "guess": return "Qui a écrit quoi ?"
+        case "pick": return "Devant le miroir"
         case "q": return "Question en cours"
         case "run": return "Chacun joue à son rythme"
         case "bet": return "Les mises"
@@ -105,6 +110,7 @@ extension Phase {
         case "quiz": return game["quiz"]["n"].int.map { "Question \($0)" }
         case "likely": return game["likely"]["n"].int.map { "Question \($0)/\(game["likely"]["count"].int ?? 0)" }
         case "debate": return game["debate"]["n"].int.map { "Dilemme \($0)/\(game["debate"]["count"].int ?? 0)" }
+        case "masque": return game["masque"]["n"].int.map { "Question \($0)/\(game["masque"]["count"].int ?? 0)" }
         case "whoof", "never": return game["round"].int.flatMap { $0 > 0 ? "Question \($0)" : nil }
         case "undercover": return game["round"].int.flatMap { $0 > 0 ? "Manche \($0)" : nil }
         case "blackjack": return game["round"].int.flatMap { $0 > 0 ? "Main \($0)" : nil }
