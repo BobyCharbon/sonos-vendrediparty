@@ -42,7 +42,11 @@ private struct MemberRow: View {
         HStack(spacing: 12) {
             AdminAvatar(photo: person.photo, name: person.name)
             VStack(alignment: .leading, spacing: 2) {
-                Text(person.displayName + (person.id == me ? " (toi)" : "")).font(.body.weight(.semibold))
+                if person.id == me {
+                    Text(person.displayName + " (toi)").font(.body.weight(.semibold))
+                } else {
+                    PersonName(id: person.id, pseudo: person.displayName).font(.body.weight(.semibold))
+                }
                 Text([person.root ? "Root" : nil, person.fullName.isEmpty ? nil : person.fullName, person.beta ? "Bêta" : nil]
                     .compactMap { $0 }.joined(separator: " · "))
                     .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
@@ -67,7 +71,7 @@ struct MemberDetailView: View {
                 let rules = MemberRules(access: members.access, person: person)
                 identity(person, full: members.full)
                 if rules.changesRole { roles(person, rules: rules, access: members.access) }
-                if rules.setsBeta { beta(person) }
+                if rules.setsBeta { beta(person, vipRank: members.access.vipRank) }
                 if rules.bans { access(person) }
                 if members.full { tools(person, rules: rules) }
                 if !rules.below && members.access.canRoles {
@@ -120,7 +124,7 @@ struct MemberDetailView: View {
             ForEach(access.assignable.reversed()) { role in
                 Button { Task { await store.setRole(role, of: person) } } label: {
                     HStack {
-                        Text(role.label)
+                        Text(role.title)
                         Spacer()
                         if person.role == role { Image(systemName: "checkmark").foregroundStyle(Palette.accent) }
                     }
@@ -138,13 +142,13 @@ struct MemberDetailView: View {
         }
     }
 
-    private func beta(_ person: AdminMembers.Person) -> some View {
+    private func beta(_ person: AdminMembers.Person, vipRank: Int) -> some View {
         Section {
             Toggle(isOn: Binding(get: { person.beta }, set: { on in Task { await store.setBeta(on, person) } })) {
                 Label("Bêta-testeur", systemImage: "testtube.2")
             }
         } footer: {
-            Text(person.beta && person.role.rank == 0
+            Text(person.beta && person.role.rank < vipRank
                  ? "Encore \(person.role.label) : l'onglet s'ouvre, mais il faut aussi le passer Membre VIP pour qu'il voie les événements."
                  : "Voit les Événements en production avant tout le monde.")
         }

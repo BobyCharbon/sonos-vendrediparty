@@ -41,6 +41,52 @@ struct AccountNativeTests {
         #expect(none.plays == 0 && none.categories.isEmpty)
     }
 
+    @Test("Méninges : réponse complète de /api/brain/me, classement et catalogue")
+    func brainStatsFull() throws {
+        let stats: BrainStats = try decode("""
+        {"name": "Méninges", "temperature": 1234,
+         "domains": {"vitesse": {"index": 1300, "played": 4}, "memoire": {"index": 1100, "played": 2}, "calcul": {"index": 0, "played": 0}},
+         "games": {"pareil": {"index": 1320, "best": 9800, "plays": 3, "last_level": 4}, "motif": {"index": 1280, "best": 9100, "plays": 1, "last_level": 2},
+                   "grille": {"index": 1100, "best": 6100, "plays": 2, "last_level": 5}, "gouttes": {"index": 0, "best": 0, "plays": 0, "last_level": 0}},
+         "streak": {"current": 3, "best": 7},
+         "history": [{"day": "2026-11-01", "temperature": 1200}, {"day": "2026-11-02", "temperature": 1234}],
+         "strengths": ["vitesse"], "weaknesses": ["memoire"], "insight": "Ta force : Vitesse.",
+         "percentile": 73, "speed_vs_accuracy": {"speed": 61, "accuracy": 88}, "month_progress": 42}
+        """)
+        #expect(stats.temperature == 1234 && stats.plays == 6)
+        #expect(stats.domains["vitesse"] == BrainStats.Domain(index: 1300, played: 4))
+        #expect(stats.playedGames.map(\.id) == ["pareil", "motif", "grille"])
+        #expect(stats.games["pareil"]?.lastLevel == 4)
+        #expect(stats.streak == BrainStats.Streak(current: 3, best: 7))
+        #expect(stats.curve.count == 2 && stats.history.last?.temperature == 1234)
+        #expect(stats.strengths == ["vitesse"] && stats.weaknesses == ["memoire"])
+        #expect(stats.percentile == 73 && stats.monthProgress == 42)
+        #expect(stats.speedVsAccuracy == BrainStats.Balance(speed: 61, accuracy: 88))
+        #expect(BrainStats.degrees(1234) == "1\u{202F}234 °M" && BrainStats.degrees(980) == "980 °M")
+
+        let board: BrainBoard = try decode(#"{"board": [{"id": "a", "name": "Léa", "temperature": 1300, "me": false}, {"id": "b", "name": "Toi", "temperature": 1234, "me": true}, {"id": "c", "name": "Max", "temperature": 1234, "me": false}], "rank": 2, "players": 3, "percentile": 50.0, "target": null}"#)
+        #expect(board.rank == 2 && board.players == 3 && board.percentile == 50)
+        #expect(board.board.map { board.rank(of: $0) } == [1, 2, 2])
+        #expect(board.board.filter(\.me).map(\.id) == ["b"])
+
+        let catalog: BrainCatalog = try decode(#"{"name": "Méninges", "domains": [{"id": "vitesse", "label": "Vitesse", "icon": "⚡", "in_temperature": true}], "games": [{"id": "pareil", "name": "Pareil ?", "domain": "vitesse", "seconds": 45}]}"#)
+        #expect(catalog.game("pareil")?.name == "Pareil ?")
+        #expect(catalog.domain("calcul").label == "Calcul")  // repli intégré
+    }
+
+    @Test("Méninges : champs null ou absents → valeurs neutres, écran « jamais joué »")
+    func brainStatsNulls() throws {
+        let stats: BrainStats = try decode(#"{"name": "Méninges", "temperature": 0, "domains": {}, "games": {}, "streak": null, "history": [], "strengths": [], "weaknesses": [], "insight": null, "percentile": null, "speed_vs_accuracy": null, "month_progress": null}"#)
+        #expect(stats.plays == 0 && stats.temperature == 0)
+        #expect(stats.percentile == nil && stats.monthProgress == nil)
+        #expect(stats.streak == BrainStats.Streak() && stats.speedVsAccuracy == BrainStats.Balance())
+        #expect(stats.insight.isEmpty && stats.playedGames.isEmpty)
+        let bare: BrainStats = try decode("{}")
+        #expect(bare.name == "Méninges" && bare.plays == 0)
+        let board: BrainBoard = try decode(#"{"board": [], "rank": null, "players": 0, "percentile": null, "target": null}"#)
+        #expect(board.rank == nil && board.board.isEmpty)
+    }
+
     @Test("Utilisateurs : filtres et tris comme le module web")
     func userList() throws {
         let m: AdminMembers = try decode("""

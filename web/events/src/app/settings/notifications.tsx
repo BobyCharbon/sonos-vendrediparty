@@ -2,6 +2,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import { View } from 'react-native';
 
+import { ChatsPause } from '@/components/NotificationPause';
+import { PartyNotifications } from '@/components/PartyNotifications';
 import { SubscriptionPicker } from '@/components/SubscriptionPicker';
 import { Button, Chip, ErrorText, Field, LinkRow, Screen, s, Section, Segmented, T, ToggleRow } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
@@ -111,7 +113,7 @@ export default function NotificationSettings() {
         <ToggleRow
           disabled={saving}
           label="Recevoir mes alertes"
-          hint="Éteins pour mettre en pause toutes les alertes choisies plus bas, sans perdre tes réglages. Les annonces admin continuent d’arriver."
+          hint="Éteins pour couper toutes les alertes choisies plus bas, sans perdre tes réglages. Les annonces des admins ont leur propre réglage."
           value={prefs.push_enabled}
           onChange={(v) => update({ push_enabled: v })}
         />
@@ -147,8 +149,11 @@ export default function NotificationSettings() {
         <ToggleRow disabled={saving} label="Événement modifié ou annulé" hint="Changement de date, d’heure ou de lieu, ou annulation" value={prefs.event_changed} onChange={(v) => update({ event_changed: v })} />
         <ToggleRow disabled={saving} label="Nouveau sondage" hint="L’organisateur ajoute un sondage à l’événement" value={prefs.poll_new} onChange={(v) => update({ poll_new: v })} />
         <ToggleRow disabled={saving} label="Date choisie" hint="Le sondage de dates est terminé et la date est fixée" value={prefs.date_fixed} onChange={(v) => update({ date_fixed: v })} />
+        <ToggleRow disabled={saving} label="Un organisateur répond pour moi" hint="Il te note présent, peut-être ou absent à sa place" value={prefs.rsvp_set !== false} onChange={(v) => update({ rsvp_set: v })} />
+        <ToggleRow disabled={saving} label="Invitation à un événement privé" hint="On t’invite à un événement réservé aux invités" value={prefs.invites !== false} onChange={(v) => update({ invites: v })} />
         <ToggleRow disabled={saving} label="Rappel pour voter" hint="24 h avant la fin d’un sondage de dates, seulement si tu n’as pas encore voté" value={prefs.poll_nudge} onChange={(v) => update({ poll_nudge: v })} />
         <ToggleRow disabled={saving} label="Place libérée" hint="Tu es sur liste d’attente et une place se libère" value={prefs.waitlist} onChange={(v) => update({ waitlist: v })} />
+        <ToggleRow disabled={saving} label="Paiement de ma place confirmé" hint="L’organisateur a reçu ton paiement (ou ne l’a pas reçu) après ton « J’ai payé »" value={prefs.ticket_pay_confirmed !== false} onChange={(v) => update({ ticket_pay_confirmed: v })} />
       </Section>
 
       <Section title="Rappels avant l’événement">
@@ -174,19 +179,37 @@ export default function NotificationSettings() {
           options={[{ key: 'all', label: 'Tous' }, { key: 'mentions', label: 'Si on me cite' }, { key: 'none', label: 'Aucun' }]}
         />
         <T muted size={13}>{chatHints[prefs.chat]}</T>
+        {/* Deux pauses distinctes (avis de l'admin) : discussions des événements ici, groupes plus bas. */}
+        <ChatsPause scope="event_chats" />
+      </Section>
+
+      <Section title="Discussions des groupes">
+        <ToggleRow disabled={saving} label="Messages des groupes" hint="Les messages de tes groupes, selon le choix de chaque groupe (tous, si on me cite ou rien)" value={prefs.group_messages !== false} onChange={(v) => update({ group_messages: v })} />
+        <ChatsPause scope="chats" />
+        {/* Groupes de Discussions : @tout et @annonce préviennent tout le groupe ; chacun peut le couper ici. */}
+        <ToggleRow disabled={saving} label="Annonces et @tout des groupes"
+          hint="Quand quelqu’un écrit @tout ou fait une annonce (@annonce) dans un de tes groupes. Les @surnom et les réponses restent notifiés selon le réglage de chaque groupe."
+          value={prefs.group_broadcasts !== false} onChange={(v) => update({ group_broadcasts: v })} />
+        <ToggleRow disabled={saving} label="Invitation dans un groupe" hint="Quelqu’un t’ajoute à un groupe" value={prefs.group_invites !== false} onChange={(v) => update({ group_invites: v })} />
+        <ToggleRow disabled={saving} label="Quelqu’un rejoint mon groupe" hint="Un membre entre dans un groupe que tu as créé" value={prefs.group_joins !== false} onChange={(v) => update({ group_joins: v })} />
       </Section>
 
       <Section title="Quand j’organise">
         <ToggleRow disabled={saving} label="Réponses à mes événements" hint="Quelqu’un répond Présent, Peut-être ou Absent à un événement que j’organise" value={prefs.rsvp_mine} onChange={(v) => update({ rsvp_mine: v })} />
+        <ToggleRow disabled={saving} label="Quelqu’un rejoint par le lien" hint="Une personne s’inscrit à ton événement avec son lien d’invitation" value={prefs.link_join !== false} onChange={(v) => update({ link_join: v })} />
+        <ToggleRow disabled={saving} label="Quelqu’un dit avoir payé" hint="Sur un événement payant que j’organise, une personne touche « J’ai payé » : à confirmer quand tu as reçu l’argent" value={prefs.ticket_pay_declared !== false} onChange={(v) => update({ ticket_pay_declared: v })} />
+        <ToggleRow disabled={saving} label="Ma proposition validée ou refusée" hint="Un admin publie ou refuse l’événement que tu as proposé" value={prefs.proposal_result !== false} onChange={(v) => update({ proposal_result: v })} />
         {isAdmin ? <ToggleRow disabled={saving} label="Proposition à valider" hint="Un membre propose un événement qui attend la validation d’un admin" value={prefs.proposals} onChange={(v) => update({ proposals: v })} /> : null}
       </Section>
 
-      <Section title="Annonces admin · toujours reçues">
-        <T muted size={13}>Les messages des admins à tout le groupe ne se désactivent pas, même avec la pause, une sourdine ou sans abonnement. Ils restent lisibles dans Activité.</T>
+      <Section title="Annonces des admins">
+        <ToggleRow disabled={saving} label="Annonces des admins" hint="Les messages des admins à tout le groupe. Coupées, elles restent lisibles dans Activité." value={prefs.announcements !== false} onChange={(v) => update({ announcements: v })} />
         <LinkRow label="Lire les annonces admin" onPress={() => router.push('/announcements')} />
       </Section>
 
-      <T muted size={12}>Pour couper un seul événement, utilise « Sourdine » sur sa page. La musique et les jeux ont leurs propres réglages.</T>
+      <PartyNotifications />
+
+      <T muted size={12}>Pour couper un seul événement, utilise « Sourdine » sur sa page.</T>
     </Screen>
   );
 }

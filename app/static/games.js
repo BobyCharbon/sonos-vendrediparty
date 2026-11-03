@@ -86,11 +86,13 @@ GAME_THEME.neon = "g-nk";
 GAME_ICONS.president = President.crown;
 GAME_THEME.president = "g-pr";
 // Jeux récents : étiquette « NEW » sur leur carte et leur tuile dans la salle de jeux (retirer le type pour l'enlever).
-const NEW_GAMES = ["masque", "reflet", "psy", "debate", "beerpong"];
+const NEW_GAMES = ["brain", "masque", "reflet", "psy", "debate", "beerpong"];
 const newBadge = (type) => NEW_GAMES.includes(type) ? `<span class="g-new" aria-label="Nouveau jeu">NEW</span>` : "";
 // Catégories de l'écran Jeux et de la salle de jeux : [id, titre, jeux dans l'ordre d'affichage].
 // Tout nouveau jeu doit y figurer (tests/test_game_categories.py le vérifie).
+// Méninges en tête : la première chose qu'on voit dans la liste (demande de l'admin, 03.11.2026).
 const GAME_CATEGORIES = [
+  ["brain", "🧠 Entraînement", ["brain"]],
   ["drinks", "🍻 Alcool", ["beerpong", "whoof", "never", "roulette", "biskit", "casino", "purity"]],
   ["three", "🎮 Jeux 3D", ["neon", "island", "heist"]],
   ["talk", "💞 Parler vrai", ["masque", "reflet", "psy", "divan", "debate", "tmc"]],
@@ -454,6 +456,17 @@ document.getElementById("gamesRoot").innerHTML = `
         <button class="g-go" data-create="purity">Lancer le test</button>
       </div>
 
+      <div class="gcard g-br">
+        ${newBadge("brain")}
+        <div class="g-head">
+          <div class="g-icon" aria-hidden="true"><span class="g-br-ico">🧠</span></div>
+          <div class="g-meta"><div class="g-title" data-brain-name>Méninges</div><div class="g-tag">Fais chauffer tes méninges, jusqu'à ta dernière vie.</div></div>
+        </div>
+        <p class="g-desc">Des mini-jeux de vitesse, mémoire, attention, flexibilité, logique et calcul. L'Échauffement du jour en choisit 5, ta Température (°M) suit tes progrès.</p>
+        <div class="g-chips"><span>Solo</span><span>❤️ 3 vies</span><span>🔥 Série quotidienne</span></div>
+        <button type="button" class="g-go" data-brain-open="brain">Faire chauffer</button>
+      </div>
+
       <div class="gcard g-uc">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.undercover}</div>
@@ -769,6 +782,22 @@ document.getElementById("gamesRoot").innerHTML = `
       </div>
     </div>
 `;
+// Méninges : la page d'accueil charge son moteur (brain/core.js) ; une page qui ne le charge pas (/admin, gardé en
+// secours) le reçoit au premier toucher de « Faire chauffer », puis l'ouvre.
+document.addEventListener("click", (ev) => {
+  const btn = ev.target.closest("[data-brain-open]");
+  if (!btn || window.Brain || document.getElementById("brainCoreJs")) return;
+  const css = document.createElement("link");
+  css.rel = "stylesheet";
+  css.href = "/static/brain/brain.css";
+  const js = document.createElement("script");
+  js.id = "brainCoreJs";
+  js.src = "/static/brain/core.js";
+  js.onload = () => window.Brain?.open(btn);
+  js.onerror = () => { js.remove(); if (typeof toast === "function") toast("Méninges n'a pas pu se charger, réessaie"); };
+  document.head.append(css, js);
+});
+
 // Range les cartes de l'accueil par catégorie (une section titrée par catégorie, sous la carte de la salle de jeux).
 (function groupHomeCards() {
   const home = document.getElementById("gHome");
@@ -780,7 +809,8 @@ document.getElementById("gamesRoot").innerHTML = `
     sec.setAttribute("aria-labelledby", `gCat-${id}`);
     sec.innerHTML = `<h2 class="g-cat-h" id="gCat-${id}">${label}</h2>`;
     for (const type of types) {
-      const card = home.querySelector(`[data-create="${type}"]`)?.closest(".gcard");
+      // Méninges (entraînement solo, sans partie) s'ouvre par data-brain-open au lieu de data-create.
+      const card = home.querySelector(`[data-create="${type}"], [data-brain-open="${type}"]`)?.closest(".gcard");
       if (!card) continue;
       card.querySelector(".g-title")?.insertAdjacentHTML("beforeend", drinkTag(type));
       sec.append(card);

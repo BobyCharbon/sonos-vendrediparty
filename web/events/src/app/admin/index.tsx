@@ -6,6 +6,7 @@ import { Avatar, Button, Card, Empty, ErrorText, Input, LinkRow, Screen, s, Sect
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { hasCompleteIdentity } from '@/lib/profile';
+import { roleRank } from '@/lib/roles';
 import { formatMessageTime, formatShort } from '@/lib/format';
 import { must, supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
@@ -138,17 +139,17 @@ export default function Admin() {
       <Card style={{ gap: 0, paddingVertical: 4 }}>
         {can('roles.manage') || rank >= 99 ? (
           <>
-            <LinkRow label="Rôles et droits" hint="Ce que chaque rôle peut faire" onPress={() => router.push('/admin/roles')} />
+            <LinkRow label="Rôles et droits" hint="Créer, renommer, réordonner les rôles et choisir leurs droits" onPress={() => router.push('/admin/roles')} />
             <View style={s.divider} />
           </>
         ) : null}
-        {rank >= 4 ? (
+        {rank >= roleRank('admin') ? (
           <>
             <LinkRow label="Utilisateurs" hint="Tous les inscrits : connexions, activité, tri" onPress={() => router.push('/admin/users')} />
             <View style={s.divider} />
           </>
         ) : null}
-        {rank >= 4 || can('members.roles') || can('members.ban') || can('members.view_identity') ? (
+        {rank >= roleRank('admin') || can('members.roles') || can('members.ban') || can('members.view_identity') ? (
           <>
             <LinkRow label="Membres" hint="Rôles, accès, identité" onPress={() => router.push('/admin/members')} />
             <View style={s.divider} />

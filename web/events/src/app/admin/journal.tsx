@@ -8,12 +8,12 @@ import { useQuery } from '@/lib/data';
 import { formatMessageTime } from '@/lib/format';
 import { check, supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
-import { roleLabel, type MemberRole } from '@/lib/types';
+import { roleName, roleRank } from '@/lib/roles';
 
 type Entry = { id: number; at: string; action: string; actor: string | null; actor_name: string | null; target: string | null; target_name: string | null; details: Record<string, unknown> | null };
 
 const PAGE = 100;
-const role = (r: unknown) => roleLabel[r as MemberRole] ?? String(r ?? '?');
+const role = (r: unknown) => roleName(r == null ? null : String(r));
 const status = (s: unknown) => ({ active: 'actif', banned: 'accès retiré', pending: 'en attente' } as Record<string, string>)[String(s)] ?? String(s ?? '?');
 
 /** Phrase lisible pour une ligne du journal : « Boby a passé Tom de Guest à Membre VIP ». */
@@ -30,6 +30,10 @@ function describe(e: Entry): string {
     case 'member.beta': return `${who} a ${d.enabled ? 'ajouté' : 'retiré'} ${target} ${d.enabled ? 'aux' : 'des'} bêta-testeurs`;
     case 'group.add': return `${who} a ajouté ${target} au groupe « ${d.group ?? '?'} »`;
     case 'group.remove': return `${who} a retiré ${target} du groupe « ${d.group ?? '?'} »`;
+    case 'role.created': return `${who} a créé le rôle « ${d.label ?? '?'} »`;
+    case 'role.updated': return `${who} a renommé le rôle « ${d.from ?? '?'} » en « ${d.to ?? '?'} »`;
+    case 'role.deleted': return `${who} a supprimé le rôle « ${d.label ?? '?'} »${d.moved ? ` (${d.moved} compte(s) passé(s) ${role(d.move_to)})` : ''}`;
+    case 'roles.reordered': return `${who} a réordonné les rôles`;
     case 'members.viewed': return `${who} a ouvert la liste des membres (numéros compris)`;
     default: return `${who} : ${e.action}${target ? ` · ${target}` : ''}`;
   }
@@ -51,7 +55,7 @@ export default function Journal() {
     return rows;
   }, [member]);
 
-  if (rank < 4) return <Redirect href="/" />;
+  if (rank < roleRank('admin')) return <Redirect href="/" />;
   const entries = [...(data ?? []), ...older];
   const done = lastPage < PAGE;
 

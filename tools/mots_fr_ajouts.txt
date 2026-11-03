@@ -1,0 +1,97 @@
+# Ajouts manuels au dictionnaire de « Débuts de mots » (tools/build_mots_fr.py).
+# Un mot (ou une forme) par ligne, accents permis (normalisé à la construction). # = commentaire.
+# Seulement des mots français valides absents des sources : pas de nom propre, sigle ni abréviation.
+# Donner toutes les formes utiles (pluriel, féminin, conjugaisons).
+
+# Mots récents (dictionnaires Robert / Larousse depuis 2020)
+covid
+covids
+binge-watching
+
+# Retour du contrôle (manquants.txt, 1re passe)
+billiard
+billiards
+quadrilliard
+quadrilliards
+quintilliard
+quintilliards
+smics
+ecoanxieux
+ecoanxieuse
+ecoanxieuses
+ecoanxiete
+ecoanxietes
+
+# Nombres composés, orthographe rectifiée de 1990 (traits d'union partout)
+deux-cents
+deux-cent
+deux-mille
+trois-cents
+trois-cent
+trois-mille
+quatre-cents
+quatre-cent
+quatre-mille
+cinq-cents
+cinq-cent
+cinq-mille
+six-cents
+six-cent
+six-mille
+sept-cents
+sept-cent
+sept-mille
+huit-cents
+huit-cent
+huit-mille
+neuf-cents
+neuf-cent
+neuf-mille
+dix-cents
+dix-cent
+dix-mille
+onze-cents
+onze-cent
+onze-mille
+douze-cents
+douze-cent
+douze-mille
+treize-cents
+treize-cent
+treize-mille
+quatorze-cents
+quatorze-cent
+quatorze-mille
+quinze-cents
+quinze-cent
+quinze-mille
+seize-cents
+seize-cent
+seize-mille
+dix-sept-cents
+dix-sept-cent
+dix-sept-mille
+dix-huit-cents
+dix-huit-cent
+dix-huit-mille
+dix-neuf-cents
+dix-neuf-cent
+dix-neuf-mille
+vingt-mille
+trente-mille
+quarante-mille
+cinquante-mille
+soixante-mille
+neuf-vingts
+six-vingts
+quinze-vingts
+quatre-vingt-mille
+cent-mille
+
+# Noms communs homonymes de noms propres, écartés par le filtre des noms propres
+robinson
+robinsons
+montrachet
+montrachets
+macao
+macaos

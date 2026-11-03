@@ -12,24 +12,29 @@ import secrets
 import threading
 import time
 import unicodedata
+from datetime import datetime, timedelta, timezone
+from email.utils import format_datetime
 from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import quote, unquote, urlparse
 
 import httpx
 import segno
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from . import beerpong, calendar_ics, debate, games, heist, island, likely, links, masque, neon, president, psy, purity, quiz, reflet
+from . import beerpong, brain, brain_game, calendar_ics, debate, games, heist, island, likely, links, masque, neon, president, psy, purity, quiz, reflet
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
 from .account_auth import AccountAuth
-from .group_admin import ROLES as ADMIN_ROLES, GroupAdmin
+from .group_admin import ROLE_KEY, GroupAdmin
+from .contact_names import MAX_HASHES as CONTACT_MAX_HASHES, ContactNames
 from .group_chats import LEVELS as CHAT_LEVELS, PHOTO_MAX as CHAT_PHOTO_MAX, GroupChats
+from .wallet import MEDIA_TYPE as PKPASS_TYPE, PASS_TYPE_ID, WalletError
+from .wallet_tickets import WalletTickets
 from .tricount import CURRENCIES as TC_CURRENCIES, Tricount
 from .assistant import MAX_PHOTO as AI_PHOTO_MAX, Assistant, UsageLog
 from .ai_event_edit import EventEditor
@@ -186,16 +191,24 @@ def guest_prefs(guest_id: str) -> dict:
 
 
 def notify_guest(guest_id: str, payload: dict, kind: str):
-    """kind : un type de GUEST_NOTIFY_DEFAULTS ; l'invité ne reçoit que ce qu'il a choisi (Réglages › Notifications)."""
+    """kind : un type de GUEST_NOTIFY_DEFAULTS ; l'invité ne reçoit que ce qu'il a choisi (Réglages › Notifications).
+    Pendant la lune de son compte (Réglages), elle arrive sans son ni vibration."""
     subs = store.session.push.get(guest_id)
     if subs and guest_prefs(guest_id)[kind]:
-        push.send(list(subs), payload, on_gone=lambda sub: store.remove_push(sub["endpoint"]))
+        push.send(list(subs), quiet_if(payload, accounts.paused(guest_id)), on_gone=lambda sub: store.remove_push(sub["endpoint"]))
 
 
 def notify_admin(payload: dict, kind: str = "messages"):
-    """kind : un type de ADMIN_NOTIFY_DEFAULTS, selon ce que l'hôte a choisi de recevoir."""
+    """kind : un type de ADMIN_NOTIFY_DEFAULTS, selon ce que l'hôte a choisi de recevoir. Lune d'un compte admin :
+    en silence aussi (« le mode nuit coupe tout », admin compris)."""
     if {**ADMIN_NOTIFY_DEFAULTS, **store.session.admin_notify}[kind] and store.session.admin_push:
-        push.send(list(store.session.admin_push), payload, on_gone=lambda sub: store.remove_push(sub["endpoint"]))
+        push.send(list(store.session.admin_push), quiet_if(payload, accounts.admin_paused()),
+                  on_gone=lambda sub: store.remove_push(sub["endpoint"]))
+
+
+def quiet_if(payload: dict, silent: bool) -> dict:
+    """Pause des notifications : même notification, marquée « silent » (Web Push : silent ; APNs : sans son)."""
+    return {**payload, "silent": True} if silent else payload
 
 
 def track_changed(data: dict, done: list):
@@ -1458,7 +1471,10 @@ def presence(body: Presence, request: Request):
 accounts = Accounts(_secret())
 group_admin = GroupAdmin(accounts)
 group_chats = GroupChats(group_admin)
-tricount = Tricount(group_admin, lambda: guest_url())
+contact_names = ContactNames(accounts)
+# Billets dans Apple Wallet : certificats dans WALLET_DIR (par défaut DATA_DIR/wallet) ; sans eux, bouton masqué.
+wallet = WalletTickets(accounts, Path(os.environ.get("WALLET_DIR") or DATA_DIR / "wallet"))
+tricount =Tricount(group_admin, lambda: guest_url())
 # Assistant IA (Claude) : sans ANTHROPIC_API_KEY dans l'environnement, il reste éteint et le dit.
 assistant = Assistant(accounts, UsageLog(DATA_DIR / "ai_usage.json"),
                       (lambda: __import__("anthropic").Anthropic(timeout=60.0)) if os.environ.get("ANTHROPIC_API_KEY") else None,
@@ -1620,8 +1636,18 @@ class NotificationPatch(BaseModel):
     waitlist: bool | None = None
     reminders: list[Literal["7d", "1d", "2h", "0h"]] | None = Field(None, max_length=4)
     chat: Literal["all", "mentions", "none"] | None = None
+    group_broadcasts: bool | None = None  # annonces et @tout des groupes de Discussions
     rsvp_mine: bool | None = None
     proposals: bool | None = None
+    # Un réglage par type de notification (migration 20261103120000) : tout ce qu'on peut recevoir se coupe.
+    announcements: bool | None = None
+    rsvp_set: bool | None = None
+    invites: bool | None = None
+    proposal_result: bool | None = None
+    link_join: bool | None = None
+    group_messages: bool | None = None
+    group_invites: bool | None = None
+    group_joins: bool | None = None
 
 
 class NotificationUpdate(MemberToken):
@@ -1651,6 +1677,22 @@ def account_notifications_update(body: NotificationUpdate):
         raise HTTPException(401, str(e))
 
 
+class NotificationPause(MemberToken):
+    # all : la lune (tout, en silence) ; chats : Discussions des groupes ; event_chats : discussions des événements
+    what: Literal["all", "chats", "event_chats"]
+    span: Literal["30m", "1h", "2h", "morning", "off"]
+
+
+@app.post("/api/account/notifications/pause")
+def account_notifications_pause(body: NotificationPause):
+    """Réglages natifs : lune en haut de la racine, pauses des Discussions (groupes, événements). Fin calculée par la
+    base (Zurich) ; pendant la pause, les notifications arrivent sans son."""
+    try:
+        return accounts.set_notification_pause(body.token, body.what, body.span)
+    except AccountError as e:
+        raise HTTPException(401, str(e))
+
+
 class MemberPush(MemberToken):
     device: str = Field(pattern=r"^[0-9a-f]{64,200}$")  # jeton APNs de l'iPhone
     on: bool
@@ -1671,6 +1713,7 @@ UUID = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 
 class GroupName(MemberToken):
     name: str = Field(max_length=60)
+    join: bool = False  # créé depuis Discussions : le créateur en fait partie d'office
 
 
 class GroupMember(MemberToken):
@@ -1690,6 +1733,199 @@ def account_call(work, status: int = 400):
         raise HTTPException(status, str(e))
 
 
+# Discussions de groupe : en production (EVENTS_ENABLED=0), réservées aux bêta-testeurs, comme les Événements.
+# La réponse de la base est gardée une minute par session (un message envoyé = une vérification de moins).
+BETA_CHECK_TTL = 60
+_beta_checked: dict[str, tuple[float, bool]] = {}
+
+
+def chats_call(token: str, work, status: int = 400):
+    if not EVENTS_ENABLED:
+        seen = _beta_checked.get(token)
+        if not seen or time.time() - seen[0] > BETA_CHECK_TTL:
+            seen = (time.time(), account_call(lambda: accounts.beta(token), 401))
+            if len(_beta_checked) > 2000:
+                _beta_checked.clear()
+            _beta_checked[token] = seen
+        if not seen[1]:
+            raise HTTPException(403, "Les discussions arrivent bientôt.")
+    return account_call(work, status)
+
+
+class WalletTicket(MemberToken):
+    event_id: str = Field(pattern=r"^[0-9a-fA-F-]{36}$")
+
+
+# Origine du QR : celle de la page qui demande le billet (en-tête Origin posé par le navigateur), pour que le QR
+# du Wallet soit exactement celui de l'app ; sinon l'adresse publique de Party.
+WALLET_ORIGIN = re.compile(r"^https?://[a-z0-9.-]+(:\d{1,5})?$", re.IGNORECASE)
+
+
+@app.get("/api/wallet/status")
+def wallet_status():
+    """Le bouton « Ajouter à Apple Wallet » ne s'affiche que si les certificats sont en place sur le serveur."""
+    return {"enabled": wallet.enabled}
+
+
+@app.post("/api/wallet/ticket")
+def wallet_ticket(body: WalletTicket, request: Request):
+    """Prépare le billet Wallet de la personne connectée ; rend le lien de téléchargement (quelques minutes)."""
+    if not wallet.enabled:
+        raise HTTPException(503, "Wallet pas encore configuré")
+    origin = request.headers.get("origin") or ""
+    origin = origin.rstrip("/") if WALLET_ORIGIN.match(origin) else PUBLIC_URL
+    try:
+        link = wallet.prepare(body.token, body.event_id.lower(), origin)
+    except AccountError as e:
+        raise HTTPException(401, str(e))
+    except WalletError as e:
+        raise HTTPException(404, str(e))
+    return {"url": f"/api/wallet/pass/{link}.pkpass"}
+
+
+@app.get("/api/wallet/pass/{link}.pkpass")
+def wallet_pass(link: str):
+    data = wallet.download(link)
+    if data is None:
+        raise HTTPException(404, "Lien expiré : touche à nouveau « Ajouter à Apple Wallet ».")
+    return Response(data, media_type=PKPASS_TYPE, headers={
+        # « inline » : Safari montre directement la feuille d'ajout à Cartes (pas un téléchargement).
+        "Content-Disposition": 'inline; filename="billet.pkpass"', "Cache-Control": "no-store"})
+
+
+class WalletNotify(MemberToken):
+    event_id: str = Field(pattern=r"^[0-9a-fA-F-]{36}$")
+    member: str | None = Field(default=None, pattern=r"^[0-9a-fA-F-]{36}$")  # absent : tous les billets de l'événement
+
+
+def wallet_push(token: str, event_id: str, member: str | None, background: BackgroundTasks) -> dict:
+    """Prévient les iPhone dont le pass a changé (la base dit lesquels, selon les droits) ; envoi en arrière-plan."""
+    if not wallet.enabled:
+        return {"devices": 0}
+    targets = wallet.push_targets(token, event_id.lower(), member.lower() if member else None)
+    if targets:
+        background.add_task(wallet.notify, targets)
+    return {"devices": len(targets)}
+
+
+@app.post("/api/wallet/notify")
+def wallet_notify(body: WalletNotify, background: BackgroundTasks):
+    """Après un scan, un paiement confirmé, un nouveau QR ou un événement modifié (module Événements)."""
+    try:
+        return wallet_push(body.token, body.event_id, body.member, background)
+    except AccountError as e:
+        raise HTTPException(401, str(e))
+    except WalletError as e:
+        raise HTTPException(403, str(e))
+
+
+# --- PassKit Web Service (webServiceURL du pass) : appelé par l'iPhone, sans session ---------------------------
+PASSKIT = "/api/wallet/passkit/v1"
+PASSKIT_ID = r"^[A-Za-z0-9._-]{1,128}$"
+EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
+def passkit_origin(request: Request) -> str:
+    """Le pass est servi sur l'adresse que l'iPhone a appelée (webServiceURL = https://<hôte>/…)."""
+    host = request.headers.get("host") or ""
+    return f"https://{host}" if WALLET_ORIGIN.match(f"https://{host}") else PUBLIC_URL
+
+
+def passkit_token(request: Request) -> str:
+    scheme, _, value = (request.headers.get("authorization") or "").partition(" ")
+    if scheme != "ApplePass" or not re.fullmatch(r"[0-9a-f]{64}", value.strip()):
+        raise HTTPException(401)
+    return value.strip()
+
+
+def passkit_ids(*values: str) -> None:
+    if not wallet.enabled:
+        raise HTTPException(503, "Wallet pas encore configuré")
+    if not all(re.fullmatch(PASSKIT_ID, v) for v in values):
+        raise HTTPException(404)
+
+
+class PassKitRegistration(BaseModel):
+    pushToken: str = Field(pattern=r"^[0-9A-Fa-f]{16,200}$")
+
+
+@app.post(PASSKIT + "/devices/{device}/registrations/{pass_type}/{serial}")
+def passkit_register(device: str, pass_type: str, serial: str, body: PassKitRegistration, request: Request):
+    passkit_ids(device, pass_type, serial)
+    token = passkit_token(request)
+    if pass_type != PASS_TYPE_ID:
+        raise HTTPException(404)
+    try:
+        result = wallet.register(token, serial, device, body.pushToken)
+    except WalletError:
+        raise HTTPException(400)
+    if result == "unauthorized":
+        raise HTTPException(401)
+    return Response(status_code=201 if result == "created" else 200)
+
+
+@app.delete(PASSKIT + "/devices/{device}/registrations/{pass_type}/{serial}")
+def passkit_unregister(device: str, pass_type: str, serial: str, request: Request):
+    passkit_ids(device, pass_type, serial)
+    token = passkit_token(request)
+    try:
+        ok = pass_type == PASS_TYPE_ID and wallet.unregister(token, serial, device)
+    except WalletError:
+        ok = False
+    if not ok:
+        raise HTTPException(401)
+    return Response(status_code=200)
+
+
+@app.get(PASSKIT + "/devices/{device}/registrations/{pass_type}")
+def passkit_updated(device: str, pass_type: str, passesUpdatedSince: str | None = Query(default=None, max_length=64)):
+    passkit_ids(device, pass_type)
+    if pass_type != PASS_TYPE_ID:
+        raise HTTPException(404)
+    # Repère opaque pour l'iPhone : microsecondes depuis 1970 (aucun « + » ni « : » à encoder dans l'adresse).
+    tag = passesUpdatedSince or ""
+    since = (EPOCH + timedelta(microseconds=int(tag))).isoformat() if tag.isdigit() and len(tag) <= 18 else None
+    try:
+        found = wallet.updated(device, since)
+    except WalletError:
+        raise HTTPException(503)
+    if not found.get("serials"):
+        return Response(status_code=204)
+    last = datetime.fromisoformat(str(found["last_updated"]).replace("Z", "+00:00"))
+    return {"serialNumbers": found["serials"], "lastUpdated": str((last - EPOCH) // timedelta(microseconds=1))}
+
+
+@app.get(PASSKIT + "/passes/{pass_type}/{serial}")
+def passkit_pass(pass_type: str, serial: str, request: Request):
+    passkit_ids(pass_type, serial)
+    token = passkit_token(request)
+    if pass_type != PASS_TYPE_ID:
+        raise HTTPException(401)
+    # Toujours le pass entier (jamais 304) : If-Modified-Since n'a que la seconde, deux changements dans la même
+    # seconde (arrivée puis paiement) feraient manquer le second.
+    try:
+        found = wallet.latest(token, serial, passkit_origin(request))
+    except WalletError:
+        raise HTTPException(503)
+    if found is None:
+        raise HTTPException(401)
+    data, modified = found
+    return Response(data, media_type=PKPASS_TYPE, headers={"Last-Modified": format_datetime(modified, usegmt=True),
+                                                           "Cache-Control": "no-store"})
+
+
+@app.post(PASSKIT + "/log")
+async def passkit_log(request: Request):
+    """Erreurs remontées par Wallet (pass refusé, serveur injoignable…) : dans le journal du serveur."""
+    try:
+        logs = (await request.json()).get("logs") or []
+    except (ValueError, AttributeError):
+        logs = []
+    for line in logs[:20]:
+        logging.getLogger("wallet").warning("Wallet (iPhone) : %s", str(line)[:300])
+    return Response(status_code=200)
+
+
 @app.post("/api/account/groups")
 def account_groups(body: MemberToken):
     """Réglages natifs › Groupes."""
@@ -1701,7 +1937,7 @@ def account_group_create(body: GroupName):
     name = " ".join(body.name.split())
     if not name:
         raise HTTPException(400, "Donne un nom au groupe")
-    return account_call(lambda: accounts.create_group(body.token, name))
+    return account_call(lambda: accounts.create_group(body.token, name, body.join))
 
 
 @app.post("/api/account/groups/member")
@@ -1726,7 +1962,7 @@ class AdminSwitch(MemberToken):
 
 class AdminMemberUpdate(MemberToken):
     id: str = Field(pattern=UUID)
-    role: Literal[ADMIN_ROLES] | None = None
+    role: str | None = Field(default=None, pattern=ROLE_KEY)
     status: Literal["active", "banned"] | None = None
     beta: bool | None = None
 
@@ -1737,9 +1973,42 @@ class AdminMemberDelete(MemberToken):
 
 
 class AdminPermission(MemberToken):
-    role: Literal[ADMIN_ROLES]
+    role: str = Field(pattern=ROLE_KEY)
     perm: str = Field(min_length=1, max_length=60, pattern=r"^[a-z_.]+$")
     on: bool
+
+
+ROLE_COLOR = r"^#[0-9A-Fa-f]{6}$"
+
+
+class AdminRoleFields(MemberToken):
+    label: str = Field(min_length=1, max_length=30)
+    color: str | None = Field(default=None, pattern=ROLE_COLOR)
+    icon: str | None = Field(default=None, max_length=8)
+
+
+class AdminRoleCreate(AdminRoleFields):
+    copy_from: str | None = Field(default=None, pattern=ROLE_KEY)
+
+
+class AdminRoleUpdate(AdminRoleFields):
+    key: str = Field(pattern=ROLE_KEY)
+
+
+class AdminRoleDelete(MemberToken):
+    key: str = Field(pattern=ROLE_KEY)
+    move_to: str | None = Field(default=None, pattern=ROLE_KEY)
+
+
+class AdminRoleOrder(MemberToken):
+    keys: list[str] = Field(min_length=2, max_length=40)
+
+    @field_validator("keys")
+    @classmethod
+    def valid_keys(cls, keys: list[str]) -> list[str]:
+        if any(not re.fullmatch(ROLE_KEY, k) for k in keys):
+            raise ValueError("rôle inconnu")
+        return keys
 
 
 class AdminJournal(MemberToken):
@@ -1789,19 +2058,23 @@ class ChatAdmin(ChatRef):
     on: bool
 
 
+class ChatEveryone(ChatRef):
+    who: Literal["all", "staff"]  # qui peut écrire @tout : tous les membres, ou admins et organisateurs
+
+
 @app.post("/api/account/chats")
 def account_chats(body: MemberToken):
-    return account_call(lambda: group_chats.chats(body.token), 401)
+    return chats_call(body.token, lambda: group_chats.chats(body.token), 401)
 
 
 @app.post("/api/account/chats/open")
 def account_chat_open(body: ChatRef):
-    return account_call(lambda: group_chats.conversation(body.token, body.group_id))
+    return chats_call(body.token, lambda: group_chats.conversation(body.token, body.group_id))
 
 
 @app.post("/api/account/chats/send")
 def account_chat_send(body: ChatSend):
-    return account_call(lambda: group_chats.send(body.token, body.group_id, body.body.strip(), body.reply_to, body.photo_path,
+    return chats_call(body.token, lambda: group_chats.send(body.token, body.group_id, body.body.strip(), body.reply_to, body.photo_path,
                                                  body.mentions, body.id, body.audio_path, body.audio_seconds))
 
 
@@ -1812,7 +2085,7 @@ def account_chat_audio(body: ChatPhoto):
         data = base64.b64decode(body.photo, validate=True)
     except ValueError:
         raise HTTPException(400, "Enregistrement illisible") from None
-    return account_call(lambda: group_chats.upload_audio(body.token, body.group_id, data))
+    return chats_call(body.token, lambda: group_chats.upload_audio(body.token, body.group_id, data))
 
 
 @app.post("/api/account/chats/photo")
@@ -1821,7 +2094,7 @@ def account_chat_photo(body: ChatPhoto):
         data = base64.b64decode(body.photo, validate=True)
     except ValueError:
         raise HTTPException(400, "Photo illisible") from None
-    return account_call(lambda: group_chats.upload_photo(body.token, body.group_id, data))
+    return chats_call(body.token, lambda: group_chats.upload_photo(body.token, body.group_id, data))
 
 
 # ── Tricount (Réglages › Pot commun de l'app iOS) : dépenses partagées, lien pour rejoindre, profil de paiement ──
@@ -2044,8 +2317,11 @@ class AiEventEditSave(AiEventEditLoad):
 
 
 @app.post("/api/account/ai/event/edit/save")
-def account_ai_event_edit_save(body: AiEventEditSave):
-    return account_call(lambda: event_editor.save(body.token, body.event_id, body.draft, body.place, body.announce))
+def account_ai_event_edit_save(body: AiEventEditSave, background: BackgroundTasks):
+    saved = account_call(lambda: event_editor.save(body.token, body.event_id, body.draft, body.place, body.announce))
+    with contextlib.suppress(AccountError, WalletError):  # titre, date, lieu : les billets dans Cartes se mettent à jour
+        wallet_push(body.token, body.event_id, None, background)
+    return saved
 
 
 class AiPlaces(MemberToken):
@@ -2099,32 +2375,44 @@ main{max-width:420px;padding:32px 24px;text-align:center}h1{font-size:1.8rem;mar
 
 @app.post("/api/account/chats/react")
 def account_chat_react(body: ChatReact):
-    return account_call(lambda: group_chats.react(body.token, body.id, body.emoji, body.on))
+    return chats_call(body.token, lambda: group_chats.react(body.token, body.id, body.emoji, body.on))
 
 
 @app.post("/api/account/chats/pin")
 def account_chat_pin(body: ChatPin):
-    return account_call(lambda: group_chats.pin(body.token, body.id, body.pin))
+    return chats_call(body.token, lambda: group_chats.pin(body.token, body.id, body.pin))
 
 
 @app.post("/api/account/chats/delete")
 def account_chat_delete(body: ChatMessage):
-    return account_call(lambda: group_chats.delete(body.token, body.id))
+    return chats_call(body.token, lambda: group_chats.delete(body.token, body.id))
 
 
 @app.post("/api/account/chats/notify")
 def account_chat_notify(body: ChatNotify):
-    return account_call(lambda: group_chats.notify(body.token, body.group_id, body.level))
+    return chats_call(body.token, lambda: group_chats.notify(body.token, body.group_id, body.level))
 
 
 @app.post("/api/account/chats/admin")
 def account_chat_admin(body: ChatAdmin):
-    return account_call(lambda: group_chats.set_admin(body.token, body.group_id, body.user_id, body.on))
+    return chats_call(body.token, lambda: group_chats.set_admin(body.token, body.group_id, body.user_id, body.on))
+
+
+@app.post("/api/account/chats/organizer")
+def account_chat_organizer(body: ChatAdmin):
+    """Rôle de groupe « Organisateur » (annonces) : nommé ou retiré par les admins du groupe."""
+    return chats_call(body.token, lambda: group_chats.set_organizer(body.token, body.group_id, body.user_id, body.on))
+
+
+@app.post("/api/account/chats/everyone")
+def account_chat_everyone(body: ChatEveryone):
+    """Qui peut écrire @tout dans ce groupe (choix des admins du groupe)."""
+    return chats_call(body.token, lambda: group_chats.set_everyone(body.token, body.group_id, body.who))
 
 
 @app.post("/api/account/chats/read")
 def account_chat_read(body: ChatRef):
-    return account_call(lambda: group_chats.read(body.token, body.group_id))
+    return chats_call(body.token, lambda: group_chats.read(body.token, body.group_id))
 
 
 # Réglages natifs › Administration du groupe : la base revérifie chaque droit avec la session du membre.
@@ -2171,6 +2459,28 @@ def account_group_admin_roles(body: MemberToken):
 @app.post("/api/account/group-admin/permission")
 def account_group_admin_permission(body: AdminPermission):
     return account_call(lambda: group_admin.set_permission(body.token, body.role, body.perm, body.on))
+
+
+@app.post("/api/account/group-admin/role/create")
+def account_group_admin_role_create(body: AdminRoleCreate):
+    return account_call(lambda: group_admin.create_role(body.token, body.label.strip(), body.color, (body.icon or "").strip() or None,
+                                                        body.copy_from))
+
+
+@app.post("/api/account/group-admin/role/update")
+def account_group_admin_role_update(body: AdminRoleUpdate):
+    return account_call(lambda: group_admin.update_role(body.token, body.key, body.label.strip(), body.color,
+                                                        (body.icon or "").strip() or None))
+
+
+@app.post("/api/account/group-admin/role/delete")
+def account_group_admin_role_delete(body: AdminRoleDelete):
+    return account_call(lambda: group_admin.delete_role(body.token, body.key, body.move_to))
+
+
+@app.post("/api/account/group-admin/roles/order")
+def account_group_admin_roles_order(body: AdminRoleOrder):
+    return account_call(lambda: group_admin.reorder_roles(body.token, body.keys))
 
 
 @app.post("/api/account/group-admin/journal")
@@ -2268,6 +2578,25 @@ def account_privacy_name(body: PrivacyName):
 @app.post("/api/account/privacy/phone")
 def account_privacy_phone(body: PrivacyPhone):
     return account_call(lambda: accounts.set_group_phone_share(body.token, body.group_id, body.on))
+
+
+class ContactHashes(MemberToken):
+    hashes: list[str] = Field(max_length=CONTACT_MAX_HASHES)
+
+
+@app.post("/api/account/contacts/key")
+def account_contacts_key(body: MemberToken):
+    """App iPhone, noms des contacts : clé des empreintes (HMAC-SHA256 du numéro E.164), comptes actifs seulement."""
+    return {"key": account_call(lambda: contact_names.key(body.token), 401)}
+
+
+@app.post("/api/account/contacts/match")
+def account_contacts_match(body: ContactHashes):
+    """Empreintes du répertoire → comptes Party correspondants ({user_id, hash}). Rien n'est gardé ; limite dans la base."""
+    try:
+        return {"matches": contact_names.match(body.token, body.hashes)}
+    except AccountError as e:
+        raise HTTPException(429 if str(e).startswith("Trop de demandes") else 400, str(e))
 
 
 class GroupInvitationAnswer(MemberToken):
@@ -2860,6 +3189,118 @@ def purity_me(body: AccountToken, request: Request):
         raise HTTPException(401, str(e))
     account_limiter.success(ip)
     return purity.profile(gid)
+
+
+# 🧠 Méninges : entraînement cérébral solo (mini-jeux dans le navigateur, résultats et stats ici).
+BRAIN_GAME_ID = r"^[a-z_]{2,20}$"
+# Méninges sans fin : limites de forme seulement (valeurs absurdes refusées) ; le plausible est borné par brain.validate.
+BRAIN_SCORE_LIMIT = 1_000_000_000
+BRAIN_LEVEL_LIMIT = 9999
+BRAIN_DURATION_LIMIT_MS = 24 * 3600 * 1000
+
+
+class BrainResult(BaseModel):
+    token: str = Field(min_length=21, max_length=4095)
+    game: str = Field(pattern=BRAIN_GAME_ID)
+    score: int = Field(ge=0, le=BRAIN_SCORE_LIMIT)  # bien au-delà du plafond : brain.validate borne, ne refuse pas
+    accuracy: float = Field(ge=0, le=1)
+    avg_rt_ms: int = Field(default=0, ge=0, le=60_000)
+    level: int = Field(default=1, ge=1, le=BRAIN_LEVEL_LIMIT)
+    duration_ms: int = Field(ge=0, le=BRAIN_DURATION_LIMIT_MS)
+
+
+class BrainCompare(BaseModel):
+    token: str = Field(min_length=21, max_length=4095)
+    target: str | None = Field(default=None, pattern=UUID)
+
+
+class BrainLocalSession(BaseModel):
+    game: str = Field(pattern=BRAIN_GAME_ID)
+    score: int = Field(ge=0, le=BRAIN_SCORE_LIMIT)
+    accuracy: float | None = Field(default=None, ge=0, le=1)
+    avg_rt_ms: int = Field(default=0, ge=0, le=60_000)
+    level: int = Field(default=1, ge=1, le=BRAIN_LEVEL_LIMIT)
+    duration_ms: int = Field(default=0, ge=0, le=BRAIN_DURATION_LIMIT_MS)
+    played_at: str = Field(max_length=40)
+
+
+class BrainLocal(BaseModel):
+    sessions: list[BrainLocalSession] = Field(default_factory=list, max_length=brain.LOCAL_MAX)
+
+
+class BrainGame(BaseModel):
+    token: str = Field(min_length=21, max_length=4095)
+    game: str = Field(pattern=BRAIN_GAME_ID)
+
+
+class BrainGameLocal(BrainLocal):
+    game: str = Field(pattern=BRAIN_GAME_ID)
+
+
+def brain_account(request: Request, work):
+    """Appel Méninges au nom du compte : mêmes garde-fous que le Purify Test (limite par adresse, jeton vérifié)."""
+    ip = client_ip(request)
+    if msg := account_limiter.blocked(ip):
+        raise HTTPException(429, msg)
+    try:
+        result = account_call(work, 401)
+    except brain.BrainUnavailable as e:   # panne passagère : 503, le téléphone garde la partie et la renverra
+        raise HTTPException(503, str(e))
+    except brain.BrainError as e:
+        raise HTTPException(400, str(e))
+    account_limiter.success(ip)
+    return result
+
+
+@app.get("/api/brain/catalog")
+def brain_catalog():
+    """Domaines et jeux de Méninges (libellés pour les écrans de stats)."""
+    return brain.catalog()
+
+
+@app.post("/api/brain/result")
+def brain_result(body: BrainResult, request: Request):
+    """Fin d'une partie de Méninges : le résultat (borné) est enregistré pour le compte connecté."""
+    try:
+        result = brain.validate(body.game, body.score, body.accuracy, body.avg_rt_ms, body.level, body.duration_ms)
+    except brain.BrainError as e:
+        raise HTTPException(400, str(e))
+    return brain_account(request, lambda: brain.BrainStore(accounts).record(body.token, result))
+
+
+@app.post("/api/brain/me")
+def brain_me(body: AccountToken, request: Request):
+    """Profil Méninges du compte connecté : Température, domaines, jeux, série, évolution, forces et faiblesses."""
+    if not 20 < len(body.token) < 4096:
+        raise HTTPException(400, "Jeton invalide")
+    return brain_account(request, lambda: brain.BrainStore(accounts).me(body.token))
+
+
+@app.post("/api/brain/compare")
+def brain_compare(body: BrainCompare, request: Request):
+    """Classement Méninges entre amis (Température), percentile, et le profil d'un membre à comparer."""
+    return brain_account(request, lambda: brain.BrainStore(accounts).compare(body.token, body.target))
+
+
+@app.post("/api/brain/local")
+def brain_local(body: BrainLocal):
+    """Joueur non connecté : même profil, calculé à partir des parties gardées sur son téléphone (rien n'est enregistré)."""
+    return brain.profile([s.model_dump() for s in body.sessions])
+
+
+@app.post("/api/brain/game")
+def brain_game_stats(body: BrainGame, request: Request):
+    """Statistiques d'un jeu de Méninges pour le compte connecté (écran de fin enrichi, fiche du jeu)."""
+    return brain_account(request, lambda: brain.BrainStore(accounts).game(body.token, body.game))
+
+
+@app.post("/api/brain/game/local")
+def brain_game_local(body: BrainGameLocal):
+    """Joueur non connecté : statistiques d'un jeu, calculées à partir des parties gardées sur son téléphone."""
+    try:
+        return brain_game.game_detail([s.model_dump() for s in body.sessions], body.game)
+    except brain.BrainError as e:
+        raise HTTPException(400, str(e))
 
 
 @app.get("/qr/game/{code}.svg")

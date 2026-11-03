@@ -1,6 +1,6 @@
 // deno test supabase/functions/send-push/apns_test.ts : envoi APNs de l'app native, sans réseau (fetch simulé).
 import { assert, assertEquals } from 'jsr:@std/assert@1';
-import { apnsConfig, sendApns, tapPath } from './apns.ts';
+import { apnsConfig, apsFor, sendApns, tapPath } from './apns.ts';
 
 const TOKEN = 'apns:' + 'ab'.repeat(32);
 
@@ -48,4 +48,9 @@ Deno.test("jeton refusé par Apple : à oublier, pas de nouvel essai", async () 
   assertEquals(await sendApns(cfg, TOKEN, 'n2', 't', 'b', {}), { ok: false, code: 'DeviceNotRegistered', permanent: true });
   globalThis.fetch = (() => Promise.resolve(new Response(JSON.stringify({ reason: 'TooManyRequests' }), { status: 429 }))) as typeof fetch;
   assertEquals(await sendApns(cfg, TOKEN, 'n3', 't', 'b', {}), { ok: false, code: 'TooManyRequests', permanent: false });
+});
+
+Deno.test('pendant une pause : sans son, interruption « passive »', () => {
+  assertEquals(apsFor('T', 'B', false), { alert: { title: 'T', body: 'B' }, sound: 'default' });
+  assertEquals(apsFor('T', 'B', true), { alert: { title: 'T', body: 'B' }, 'interruption-level': 'passive' });
 });

@@ -14,7 +14,16 @@ final class GroupAdminUITests: XCTestCase {
       {"id": "b", "name": "Léa", "full_name": "Léa Martin", "phone": "41791234567", "role": "member", "status": "active", "beta": true, "complete": true, "created_at": "2026-10-01T10:00:00+00:00"},
       {"id": "c", "name": "Zoé", "full_name": "Zoé R", "role": "basic", "status": "active", "complete": false},
       {"id": "d", "name": "Max", "role": "guest", "status": "banned"}]},
-     "roles": {"me": "me", "perms": ["events.approve"], "rank": 4, "editable": ["coadmin", "organizer", "member", "basic", "guest"],
+     "roles": {"me": "me", "perms": ["events.approve", "roles.manage"], "rank": 7, "full": true, "can_manage": true,
+      "roles": [{"key": "admin", "label": "Admin", "color": "#FF3B30", "rank": 7, "builtin": true, "members": 1},
+                {"key": "coadmin", "label": "Co-admin", "color": "#AF52DE", "rank": 6, "builtin": true, "members": 0},
+                {"key": "organizer", "label": "Organisateur", "color": "#FF9500", "rank": 5, "builtin": true, "members": 1},
+                {"key": "member", "label": "Membre VIP", "color": "#34C759", "rank": 4, "builtin": true, "members": 1},
+                {"key": "basic", "label": "Membre", "color": "#5AC8FA", "rank": 3, "builtin": true, "members": 1},
+                {"key": "r_videurs", "label": "Videurs", "color": "#007AFF", "icon": "🚪", "rank": 2, "builtin": false, "members": 0},
+                {"key": "guestplus", "label": "Guest+", "color": "#A2845E", "rank": 1, "builtin": true, "members": 0},
+                {"key": "guest", "label": "Guest", "color": "#8E8E93", "rank": 0, "builtin": true, "members": 1}],
+      "editable": ["coadmin", "organizer", "member", "basic", "r_videurs", "guestplus", "guest"],
       "catalog": [{"key": "events.approve", "grp": "Événements", "label": "Valider les propositions", "hint": "Publier ou refuser"},
                   {"key": "events.publish", "grp": "Événements", "label": "Publier sans validation", "hint": null},
                   {"key": "members.ban", "grp": "Membres", "label": "Retirer l'accès", "hint": null}],
@@ -93,11 +102,26 @@ final class GroupAdminUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Guest"].isEnabled)
     }
 
-    func testRolesStartOnVipAndOnlyGiveOwnRights() {
+    func testRolesListThenRoleSheetOnlyGivesOwnRights() {
         let app = launch()
         app.swipeUp()
         app.staticTexts["Rôles et droits"].firstMatch.tap()
+        // La liste : du plus haut au plus bas, rôle personnalisé compris ; Admin au-dessus de soi (cadenas, pas de fiche).
+        XCTAssertTrue(app.staticTexts["🚪 Videurs"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Réordonner"].exists && app.buttons["Nouveau rôle"].exists)
+        shot(app, "7-roles-list")
+        app.buttons["Réordonner"].tap()
+        XCTAssertTrue(app.buttons["OK"].waitForExistence(timeout: 3))
+        app.buttons["OK"].tap()
+        app.buttons["Nouveau rôle"].tap()
+        XCTAssertTrue(app.textFields["Nom du rôle"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["Créer"].isEnabled)  // pas encore de nom
+        shot(app, "7-roles-new")
+        app.buttons["Annuler"].tap()
+        app.staticTexts["Membre VIP"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["Valider les propositions"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["Nom du rôle"].exists)
+        app.swipeUp()
         let toggles = app.switches
         // Valider (je l'ai) : activable ; Publier (déjà donné) : retirable ; Retirer l'accès (je ne l'ai pas) : grisé.
         XCTAssertTrue(toggles.element(boundBy: 0).isEnabled && toggles.element(boundBy: 1).isEnabled)

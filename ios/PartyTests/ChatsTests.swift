@@ -155,4 +155,122 @@ struct ChatsTests {
         #expect(back.size.width == 1600 && back.size.height == 800)
         #expect(jpeg.starts(with: [0xFF, 0xD8, 0xFF]))
     }
+
+    // Avis de l'admin du 3.11 : suggestions de l'@, @tout, @annonce, groupe créé depuis Discussions.
+
+    private func members() -> [Conversation.Member] {
+        [.init(id: "me", name: "Boby", photo: nil, admin: false, creator: false),
+         .init(id: "u1", name: "Léa", photo: nil, admin: false, creator: true),
+         .init(id: "u2", name: "Léon", photo: nil, admin: false, creator: false),
+         .init(id: "u3", name: "Tom Lebrun", photo: nil, admin: false, creator: false)]
+    }
+
+    @Test("@ : la saisie en cours, pas une adresse mail ni un mot déjà fini")
+    func mentionQuery() {
+        #expect(Mentions.query(in: "Salut @") == "")
+        #expect(Mentions.query(in: "Salut @lé") == "lé")
+        #expect(Mentions.query(in: "@to") == "to")
+        #expect(Mentions.query(in: "Salut @Léa ") == nil)
+        #expect(Mentions.query(in: "mail@test") == nil)
+        #expect(Mentions.query(in: "Pas de citation") == nil)
+    }
+
+    @Test("@ : membres filtrés sans accents ni casse, moi exclu, puis @tout et @annonce")
+    func mentionSuggestions() {
+        let all = Mentions.suggestions(for: "", members: members(), me: "me").map(\.label)
+        #expect(all == ["Léa", "Léon", "Tom Lebrun", "tout", "annonce"])
+        #expect(Mentions.suggestions(for: "LE", members: members(), me: "me").map(\.label) == ["Léa", "Léon", "Tom Lebrun"])
+        #expect(Mentions.suggestions(for: "leo", members: members(), me: "me").map(\.id) == ["u2"])
+        #expect(Mentions.suggestions(for: "to", members: members(), me: "me").map(\.label) == ["Tom Lebrun", "tout"])
+        #expect(Mentions.suggestions(for: "bo", members: members(), me: "me").isEmpty)
+        #expect(Mentions.suggestions(for: "ann", members: members(), me: "me").map(\.id) == ["@annonce"])
+    }
+
+    @Test("@ : le choix remplace la saisie, et la citation est retrouvée sans accents")
+    func mentionInsertAndMatch() throws {
+        #expect(Mentions.insert("Léon", into: "Salut @le") == "Salut @Léon ")
+        #expect(Mentions.insert("tout", into: "@") == "@tout ")
+        let c: Conversation = try decode("""
+        {"id":"g1","name":"Les amis","member":true,"admin":false,"notify":"all","can_name_admins":false,"reactions":[],
+         "members":[{"id":"u1","name":"Léa","photo":null,"admin":false,"creator":true},{"id":"me","name":"Boby","photo":null,"admin":false,"creator":false}],
+         "messages":[]}
+        """)
+        #expect(c.mentions(in: "Coucou @lea et @boby", me: "me") == ["u1"])
+    }
+
+    @Test("@annonce : mot entier, sans casse")
+    func announcementWord() {
+        #expect(Mentions.isAnnouncement("@annonce Rendez-vous samedi"))
+        #expect(Mentions.isAnnouncement("Hé @ANNONCE !"))
+        #expect(!Mentions.isAnnouncement("Pas une @annonces"))
+        #expect(!Mentions.isAnnouncement("mail@annonce.ch"))
+    }
+
+    @Test("Bandeau : la dernière annonce en surbrillance plutôt qu'un épinglé, avec le nombre d'autres")
+    func bannerPrefersAnnouncements() throws {
+        let c: Conversation = try decode("""
+        {"id":"g1","name":"Les amis","member":true,"admin":true,"notify":"all","can_name_admins":false,"reactions":[],"members":[],
+         "messages":[],
+         "highlights":[{"id":"a1","author_name":"Tom","at":"2026-11-03T09:00:00Z","text":"@annonce Samedi","announcement":true},
+                       {"id":"a2","author_name":"Léa","at":"2026-11-03T10:00:00Z","text":"@annonce Dimanche","announcement":true},
+                       {"id":"p1","author_name":"Léa","at":"2026-11-03T11:00:00Z","text":"Épinglé","announcement":false}]}
+        """)
+        let banner = try #require(c.banner)
+        #expect(banner.item.id == "a2" && banner.item.announcement && banner.others == 1)
+        // Ancien serveur (sans highlights) : le dernier épinglé des messages, comme avant.
+        let old: Conversation = try decode("""
+        {"id":"g1","name":"Les amis","member":true,"admin":false,"notify":"all","can_name_admins":false,"reactions":[],"members":[],
+         "messages":[{"id":"m1","author":"u1","author_name":"Léa","author_photo":null,"mine":false,"at":"2026-10-29T10:00:00Z",
+           "edited":false,"body":"Tu viens ?","deleted":false,"photo":null,"pinned":true,"reply":null,"reactions":[]}]}
+        """)
+        #expect(old.banner?.item.id == "m1" && old.banner?.item.announcement == false && old.messages[0].announcement == nil)
+        #expect(c.with(messages: []).highlights?.count == 3)
+    }
+
+    @Test("@annonce d'un organisateur : en annonce tout de suite ; d'un simple membre : message normal, prévenu avant")
+    func pendingAnnouncement() throws {
+        func chat(organizer: Bool, everyone: String = "all") throws -> Conversation {
+            try decode("""
+            {"id":"g1","name":"Les amis","member":true,"admin":false,"notify":"all","can_name_admins":false,"reactions":[],
+             "members":[{"id":"me","name":"Boby","photo":null,"admin":false,"creator":false}],"messages":[],"me":"me","highlights":[],
+             "organizer":\(organizer),"everyone":"\(everyone)"}
+            """)
+        }
+        let staff = try chat(organizer: true)
+        let draft = ChatsStore.draft(id: "x", body: "@annonce Chips !", replyTo: nil, in: staff)
+        #expect(draft.isAnnouncement && draft.pending && staff.isStaff)
+        #expect(staff.with(messages: [draft]).banner?.item.id == "x")
+        #expect(staff.tagNote(for: "@annonce Chips !") == nil)
+        let plain = try chat(organizer: false)
+        #expect(!ChatsStore.draft(id: "y", body: "@annonce Chips !", replyTo: nil, in: plain).pinned)
+        #expect(plain.tagNote(for: "@annonce Chips !")?.contains("message normal") == true)
+        #expect(plain.canEveryone && plain.tagNote(for: "@tout ce soir") == nil)
+        let reserved = try chat(organizer: false, everyone: "staff")
+        #expect(!reserved.canEveryone && reserved.tagNote(for: "@tout ce soir")?.contains("seuls les admins") == true)
+        #expect(try chat(organizer: true, everyone: "staff").canEveryone)
+    }
+
+    @Test("@ : @tout et @annonce proposés seulement à qui y a droit")
+    func mentionRights() {
+        #expect(Mentions.suggestions(for: "", members: members(), me: "me", everyone: false, announce: false).map(\.label)
+                == ["Léa", "Léon", "Tom Lebrun"])
+        #expect(Mentions.suggestions(for: "", members: members(), me: "me", everyone: true, announce: false).map(\.label).suffix(1) == ["tout"])
+    }
+
+    @Test("Réglages : « Annonces et @tout des groupes » se lit et se coupe")
+    @MainActor func groupBroadcastsPref() {
+        let json = #"{"push_enabled":true,"quiet_start":null,"quiet_end":null,"new_event":"all","event_changed":true,"poll_new":true,"date_fixed":true,"poll_nudge":true,"waitlist":true,"reminders":[],"chat":"mentions","rsvp_mine":true,"proposals":false,"group_broadcasts":true}"#
+        let prefs = try? JSONDecoder().decode(EventNotificationPrefs.self, from: Data(json.utf8))
+        #expect(prefs?.groupBroadcasts == true)
+        let off = prefs.map { SettingsStore.applying("group_broadcasts", false, to: $0) }
+        #expect(off?.groupBroadcasts == false)
+    }
+
+    @Test("Groupe créé : l'identifiant renvoyé par le serveur (pour ouvrir sa discussion)")
+    func createdGroupID() throws {
+        let list: GroupList = try decode(#"{"groups":[],"people":[],"created":"g9"}"#)
+        #expect(list.created == "g9")
+        let before: GroupList = try decode(#"{"groups":[],"people":[]}"#)
+        #expect(before.created == nil)
+    }
 }

@@ -16,6 +16,10 @@ final class AccountStore: ObservableObject {
     @Published private(set) var announcements: AnnouncementPage?
     @Published private(set) var stats: PurityStats?
     @Published private(set) var statsError: String?
+    @Published private(set) var brain: BrainStats?
+    @Published private(set) var brainBoard: BrainBoard?
+    @Published private(set) var brainCatalog = BrainCatalog.fallback
+    @Published private(set) var brainError: String?
 
     private let api: PartyAPI
     private weak var web: WebStorage?
@@ -61,6 +65,8 @@ final class AccountStore: ObservableObject {
         await settings?.accountSwitched()
         announcements = nil
         stats = nil
+        brain = nil
+        brainBoard = nil
         notice = "Tu es déconnecté"
     }
 
@@ -119,6 +125,26 @@ final class AccountStore: ObservableObject {
         } catch {
             statsError = "Impossible de charger tes stats : \(error.localizedDescription)"
         }
+    }
+
+    /// Méninges : profil (indispensable), classement et libellés (facultatifs : l'écran s'affiche sans eux).
+    func loadBrain() async {
+        guard let token = await web?.accountToken() else {
+            brainError = "Connecte-toi avec ton numéro pour retrouver tes stats Méninges."
+            return
+        }
+        async let board = try? api.brainBoard(token: token)
+        async let catalog = try? api.brainCatalog()
+        do {
+            brain = try await api.brainStats(token: token)
+            brainError = nil
+        } catch PartyAPIError.needsCode {
+            brainError = "Ta connexion a expiré : reconnecte-toi."
+        } catch {
+            brainError = "Impossible de charger tes stats Méninges : \(error.localizedDescription)"
+        }
+        if let loaded = await board { brainBoard = loaded }
+        if let loaded = await catalog { brainCatalog = loaded }
     }
 
     private func withToken(_ job: (String) async throws -> Void) async {

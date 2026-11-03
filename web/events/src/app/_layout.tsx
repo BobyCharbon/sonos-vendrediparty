@@ -47,7 +47,7 @@ function inPartyShell(): boolean {
   return typeof window !== 'undefined' && window.parent !== window;
 }
 
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit)?|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|chats(?:\/[a-f0-9-]{36})?|activity|announcements|account|settings\/(?:notifications|subscriptions|profile))$/i;
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/scan(?:\/[a-f0-9]{64})?)?|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|chats(?:\/[a-f0-9-]{36})?|activity|announcements|account|settings\/(?:notifications|subscriptions|profile))$/i;
 function initialDestination() {
   if (typeof window === 'undefined') return null;
   const path = location.pathname.replace(/^\/events(?=\/|$)/, '');
@@ -152,6 +152,8 @@ function Gate() {
         <Stack.Screen name="event/[id]/index" options={{ title: '' }} />
         <Stack.Screen name="event/[id]/edit" options={{ title: 'Modifier', presentation: 'modal' }} />
         <Stack.Screen name="event/[id]/chat" options={{ title: 'Discussion' }} />
+        <Stack.Screen name="event/[id]/scan/index" options={{ title: 'Entrée' }} />
+        <Stack.Screen name="event/[id]/scan/[token]" options={{ title: 'Entrée' }} />
         <Stack.Screen name="settings/notifications" options={{ title: 'Notifications et abonnements' }} />
         <Stack.Screen name="settings/subscriptions" options={{ title: 'Notifications et abonnements' }} />
         <Stack.Screen name="groups" options={{ title: 'Groupes' }} />

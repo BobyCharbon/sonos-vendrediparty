@@ -2,9 +2,12 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Linking, View } from 'react-native';
 
 import { Avatar, Button, Card, Cascade, Empty, ErrorText, Loading, Reveal, Screen, Section, T, Title } from '@/components/ui';
+import { personLabel, useContactNames } from '@/lib/contactNames';
 import { useQuery } from '@/lib/data';
 import { supabase } from '@/lib/supabase';
-import { roleLabel, type MemberRole } from '@/lib/types';
+import { roleName } from '@/lib/roles';
+import { type MemberRole } from '@/lib/types';
+import { addToContacts } from '@/lib/vcard';
 
 const MEMBER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -13,6 +16,8 @@ type MemberCard = {
   display_name: string;
   avatar_url: string | null;
   role: MemberRole;
+  /** Nom du rôle (rôles personnalisés, migration custom_roles) ; absent sur une base plus ancienne. */
+  role_label?: string | null;
   root: boolean;
   me: boolean;
   first_name: string | null;
@@ -32,6 +37,7 @@ export default function MemberScreen() {
     if (error) throw new Error(error.message);
     return (data as MemberCard | null) ?? null;
   }, [id]);
+  const contacts = useContactNames();
 
   if (loading) return <Loading />;
   if (!data) {
@@ -46,15 +52,19 @@ export default function MemberScreen() {
 
   const fullName = [data.first_name, data.last_name].filter(Boolean).join(' ');
   const phone = data.phone ? `+${data.phone.replace(/^\+/, '')}` : null;
+  const known = personLabel(contacts, data.me ? null : data.id, data.display_name);
+  const inContacts = !!known.secondary || (!data.me && !!contacts[data.id]);
   return (
     <Screen>
       {/* Fiche : la photo se pose, puis le reste monte en cascade. */}
       <Cascade>
       <View style={{ alignItems: 'center', gap: 8 }}>
         <Reveal kind="pop"><Avatar id={data.id} name={data.display_name} photo={data.avatar_url} size={112} profile={false} /></Reveal>
-        <Title>{data.display_name || 'Profil à compléter'}</Title>
+        {/* App iPhone : le nom de mon répertoire en titre, le pseudo dessous (avis f780431defe7). */}
+        <Title>{known.primary || 'Profil à compléter'}</Title>
+        {known.secondary ? <T muted size={15}>{known.secondary} · dans tes contacts</T> : null}
         {fullName ? <T muted size={17}>{fullName}</T> : null}
-        <T muted size={13}>{data.root ? '👑 Root' : roleLabel[data.role] ?? data.role}{data.me ? ' · c’est toi' : ''}</T>
+        <T muted size={13}>{data.root ? '👑 Root' : (data.role_label ?? roleName(data.role))}{data.me ? ' · c’est toi' : ''}</T>
       </View>
       {phone ? (
         <Card>
@@ -64,7 +74,14 @@ export default function MemberScreen() {
             <Button small label="Appeler" style={{ flex: 1 }} onPress={() => void Linking.openURL(`tel:${phone}`)} />
             <Button small variant="secondary" label="Message" style={{ flex: 1 }} onPress={() => void Linking.openURL(`sms:${phone}`)} />
           </View>
+          {!data.me && !inContacts ? (
+            // vCard préremplie (numéro, nom public sinon pseudo) ; dans l'app iPhone, la fiche Contacts d'Apple.
+            <Button small variant="ghost" label="Ajouter aux contacts"
+              onPress={() => void addToContacts({ phone, firstName: data.first_name, lastName: data.last_name, nickname: data.display_name })} />
+          ) : null}
         </Card>
+      ) : !data.me ? (
+        <T muted size={13}>{data.display_name || 'Ce membre'} ne montre pas son numéro dans vos groupes : impossible de l’ajouter aux contacts depuis Party.</T>
       ) : null}
       {data.groups.length ? (
         <Section title={data.me ? 'Mes groupes' : 'Groupes en commun'}>

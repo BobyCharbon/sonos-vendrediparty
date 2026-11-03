@@ -38,9 +38,10 @@ def unmake_vip(admin: Session, vip: Session):
 
 
 def create_event(admin: Session, title: str, **fields) -> str:
+    """Événement de test publié, SANS notification (de vrais membres sont sur la base de test) ; voir conftest."""
     start = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
     r = httpx.post(f'{TEST_URL}/rest/v1/events', timeout=30, headers={**admin.headers, 'Prefer': 'return=representation'},
-                   json={'title': title, 'status': 'published', 'starts_at': start, 'notify_on_publish': True, **fields})
+                   json={'title': title, 'status': 'published', 'starts_at': start, 'notify_on_publish': False, **fields})
     assert r.status_code == 201, r.text
     return r.json()[0]['id']
 
@@ -59,7 +60,7 @@ def world():
            'vip+A': create_event(admin, 'Test VIP + Guest A')}
     r = httpx.post(f'{TEST_URL}/rest/v1/event_invites', headers=admin.headers, json={'event_id': ids['vip+A'], 'user_id': ga.uid}, timeout=30)
     assert r.status_code == 201, r.text
-    ids['numéro B'] = create_event(admin, 'Test invitation par numéro', visibility='invited')
+    ids['numéro B'] = create_event(admin, 'Test invitation par numéro', visibility='invited', notify_on_publish=True)  # Guest B seul
     r = httpx.post(f'{TEST_URL}/rest/v1/event_phone_invites', headers=admin.headers, json={'event_id': ids['numéro B'], 'phone': GUEST_B}, timeout=30)
     assert r.status_code == 201, r.text
     yield admin, ga, gb, vip, ids
@@ -145,6 +146,8 @@ def test_invited_guests_get_their_invitation_and_members_get_new_event(world):
     admin, ga, gb, vip, ids = world
     def notes(s):
         return {(n['kind'], n['event_id']) for n in s.get('notifications?select=kind,event_id').json()}
-    assert ('private_invite', ids['vip+A']) in notes(ga)
+    # Seul l'événement « sur invitation » notifie : les autres (Vendredi Party, publics) préviendraient de vrais
+    # membres de la base de test (garde-fou du conftest), ils sont donc créés sans notification.
     assert ('private_invite', ids['numéro B']) in notes(gb)
+    assert ('private_invite', ids['vip+A']) not in notes(ga)
     assert ('new_event', ids['vip']) not in notes(ga)

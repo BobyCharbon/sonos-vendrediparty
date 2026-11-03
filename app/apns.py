@@ -77,7 +77,10 @@ class Apns:
     def send(self, sub: dict, payload: dict) -> bool:
         """Envoie une notification ; False si l'appareil n'existe plus pour cette app (abonnement à oublier)."""
         target = sub["apns"]
-        aps = {"alert": {"title": payload.get("title", ""), "body": payload.get("body", "")}, "sound": "default"}
+        silent = payload.get("silent") is True
+        # Pause des notifications (lune des Réglages) : livrée sans son ni vibration, sans allumer l'écran.
+        aps = {"alert": {"title": payload.get("title", ""), "body": payload.get("body", "")},
+               **({"interruption-level": "passive"} if silent else {"sound": "default"})}
         if payload.get("tag"):
             aps["thread-id"] = payload["tag"]  # les notifications d'un même sujet se regroupent
         body = {"aps": aps}
@@ -86,7 +89,7 @@ class Apns:
         response = self.client.post(
             f"{HOSTS[target['environment']]}/3/device/{target['token']}", json=body,
             headers={"authorization": f"bearer {self._provider_token()}", "apns-topic": target["topic"],
-                     "apns-push-type": "alert", "apns-priority": "10",
+                     "apns-push-type": "alert", "apns-priority": "5" if silent else "10",
                      "apns-expiration": str(int(time.time()) + TTL_SECONDS)})
         return self._alive(response)
 

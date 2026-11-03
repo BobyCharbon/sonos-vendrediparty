@@ -2,6 +2,7 @@ import type { Session } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState, Platform } from 'react-native';
 
+import { belowVip, roleBook, setRoleBook, type Role } from './roles';
 import { supabase } from './supabase';
 import { ADMIN_PERMS, type Profile } from './types';
 import { syncWebPush, unregisterPushToken } from './push';
@@ -13,7 +14,9 @@ type AuthState = {
   profileError: string | null;
   isAdmin: boolean; // a au moins un droit d'administration (Réglages → Administration)
   perms: string[];
-  rank: number; // invité 0 … admin 4, root 99
+  rank: number; // place de mon rôle dans la liste des rôles (Guest 0 … Admin en haut), root 99
+  /** Rôles du plus bas au plus haut (table public.roles ; anciens rôles figés si la base ne l'a pas). */
+  roles: Role[];
   can: (perm: string) => boolean;
   /** Les sorties sont encore réservées aux bêta-testeurs (production) et ce compte n'en est pas. */
   eventsSoon: boolean;
@@ -42,7 +45,7 @@ async function invitedByLink(userId: string): Promise<boolean> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [access, setAccess] = useState<{ perms: string[]; rank: number; soon: boolean }>({ perms: [], rank: -1, soon: false });
+  const [access, setAccess] = useState<{ perms: string[]; rank: number; soon: boolean; roles: Role[] }>({ perms: [], rank: -1, soon: false, roles: roleBook() });
   const [sessionReady, setSessionReady] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const profileRequest = useRef(0);
@@ -55,12 +58,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      const [dir, perms, rank, beta, invited] = await Promise.all([
+      const [dir, perms, rank, beta, invited, roles] = await Promise.all([
         supabase.rpc('get_member_directory').eq('id', userId).single(),
         supabase.rpc('my_permissions'),
         supabase.rpc('my_rank'),
         betaOnly ? supabase.rpc('is_beta_tester') : Promise.resolve({ data: true }),
         betaOnly ? invitedByLink(userId) : Promise.resolve(false),
+        supabase.from('roles').select('key, label, color, icon, rank, builtin').order('rank'),
       ]);
       if (dir.error) throw dir.error;
       if (request !== profileRequest.current) return;
@@ -68,7 +72,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Hors bêta (production), tout compte garde Party mais pas encore les sorties : Guests compris.
       // Invité par un lien (événement réservé à un groupe, groupe privé) : il accède à ce qu'on l'a invité à voir.
       const soon = beta.data !== true && !invited;
-      setAccess({ perms: soon ? all.filter((p) => p !== 'events.view') : all, rank: (rank.data as number | null) ?? -1, soon });
+      if (!roles.error) setRoleBook(roles.data as Role[]);  // base sans la table : on garde les anciens rôles
+      setAccess({ perms: soon ? all.filter((p) => p !== 'events.view') : all, rank: (rank.data as number | null) ?? -1, soon, roles: roleBook() });
       setProfile(dir.data as Profile);
       setProfileError(null);
     } catch {
@@ -121,7 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const appState = AppState.addEventListener('change', (state) => {
       if (state === 'active') refresh();
     });
-    const timer = profile?.role === 'guest' || profile?.role === 'guestplus' ? setInterval(refresh, 15_000) : undefined;  // accès aux sorties donné par un admin
+    const timer = profile?.role && belowVip(profile?.role) && profile?.role !== 'basic' ? setInterval(refresh, 15_000) : undefined;  // accès aux sorties donné par un admin
     if (Platform.OS === 'web') window.addEventListener('focus', refresh);
     return () => {
       appState.remove();
@@ -139,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAdmin: !!session && profile?.id === session.user.id && ADMIN_PERMS.some((p) => access.perms.includes(p)),
       perms: access.perms,
       rank: access.rank,
+      roles: access.roles,
       can: (perm: string) => !!session && profile?.id === session.user.id && access.perms.includes(perm),
       eventsSoon: !!session && profile?.id === session.user.id && access.soon,
       eventsOpen: !!session && profile?.id === session.user.id && profile.status === 'active' && !access.soon,

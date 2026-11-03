@@ -47,11 +47,16 @@ class Session:
         assert r.status_code in (200, 204), r.text
 
 
+def role_rank(s: 'Session', key: str) -> int:
+    """Rang d'un rôle = sa place dans la table des rôles (réordonnable dans l'app)."""
+    return s.get(f'roles?select=rank&key=eq.{key}').json()[0]['rank']
+
+
 @pytest.fixture(scope='module')
 def root():
-    """Admin de test (rang 4) : mêmes pages et fonctions que Root, sauf toucher à Root ou aux autres admins."""
+    """Admin de test (rang du rôle Admin, le plus haut) : mêmes pages et fonctions que Root, sauf toucher à Root ou aux autres admins."""
     s = Session(ADMIN_PHONE)
-    assert s.rpc('my_rank').json() == 4
+    assert s.rpc('my_rank').json() == role_rank(s, 'admin')
     return s
 
 
@@ -65,7 +70,7 @@ def guests():
 
 def test_a_new_sms_account_is_a_guest_and_cannot_read_the_members_or_the_journal(guests):
     g = guests[0]
-    assert g.rpc('my_rank').json() == 0  # Guest
+    assert g.rpc('my_rank').json() == role_rank(g, 'guest') == 0  # Guest, tout en bas
     assert g.rpc('admin_member_list').status_code in (400, 401, 403)
     assert g.rpc('admin_member_audit').status_code in (400, 401, 403)
     assert g.get('member_audit?select=id').status_code in (401, 403, 404)  # table invisible depuis l'app

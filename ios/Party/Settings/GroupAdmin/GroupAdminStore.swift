@@ -97,7 +97,39 @@ final class GroupAdminStore: ObservableObject {
     }
 
     func toggle(_ perm: String, for role: MemberRole, on: Bool) async {
-        await run("\(role.rawValue).\(perm)") { token in roles = try await api.setPermission(token: token, role: role, perm: perm, on: on) }
+        await run("\(role.key).\(perm)") { token in roles = try await api.setPermission(token: token, role: role, perm: perm, on: on) }
+    }
+
+    func createRole(_ draft: RoleDraft, copyFrom: MemberRole?) async -> Bool {
+        var done = false
+        await run("role.create") { token in
+            roles = try await api.createRole(token: token, draft: draft, copyFrom: copyFrom)
+            notice = "Rôle « \(draft.cleanLabel) » créé, juste au-dessus de Guest"
+            done = true
+        }
+        return done
+    }
+
+    func updateRole(_ role: MemberRole, draft: RoleDraft) async {
+        await run("role.\(role.key)") { token in
+            roles = try await api.updateRole(token: token, role: role, draft: draft)
+            notice = "Rôle enregistré"
+        }
+    }
+
+    func deleteRole(_ role: MemberRole, moveTo: MemberRole?) async -> Bool {
+        var done = false
+        await run("role.\(role.key)") { token in
+            roles = try await api.deleteRole(token: token, role: role, moveTo: moveTo)
+            notice = "Rôle « \(role.label) » supprimé"
+            done = true
+        }
+        return done
+    }
+
+    /// keys : du plus bas au plus haut.
+    func reorderRoles(_ keys: [String]) async {
+        await run("roles.order") { token in roles = try await api.reorderRoles(token: token, keys: keys) }
     }
 
     // MARK: Catégories et tags

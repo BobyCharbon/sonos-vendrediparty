@@ -22,6 +22,7 @@
   <link rel="stylesheet" href="/static/ui.css">
   <link rel="stylesheet" href="/static/music.css">
   <link rel="stylesheet" href="/static/games.css">
+  <link rel="stylesheet" href="/static/brain/brain.css">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=2">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v=2">
   <link rel="manifest" href="/static/manifest.json">
@@ -118,7 +119,7 @@
     <div id="auditAdmin" class="admin-only"></div>
   </section>
 
-  <!-- Réglages → « Mes stats de jeu » : un onglet par jeu, pour le seul titulaire du compte (Purify Test pour commencer). -->
+  <!-- Réglages → « Mes stats de jeu » : un onglet par jeu (Purify Test, Méninges) ; Méninges marche aussi sans compte. -->
   <section data-view="stats" class="nav-screen hidden" aria-labelledby="statsTitle">
     <header class="nav-head">
       <button type="button" class="nav-back" data-host-back aria-label="Retour aux Réglages"><svg viewBox="0 0 12 21" aria-hidden="true"><path d="M10.5 1.5 1.5 10.5l9 9"/></svg><span>Réglages</span></button>
@@ -126,8 +127,10 @@
     <h1 class="screen-title" id="statsTitle">Mes stats de jeu</h1>
     <div class="seg stats-tabs" role="tablist" aria-label="Jeux">
       <button type="button" role="tab" class="on" aria-selected="true" aria-controls="purityStats" data-stats-tab="purity">😈 Purify Test</button>
+      <button type="button" role="tab" aria-selected="false" aria-controls="brainStats" data-stats-tab="brain">🧠 Méninges</button>
     </div>
     <div id="purityStats" class="g-pu pu-stats" role="tabpanel" data-stats-panel="purity"></div>
+    <div id="brainStats" class="brs hidden" role="tabpanel" data-stats-panel="brain" aria-label="Stats Méninges"></div>
   </section>
 
   <section data-view="feedback" class="hidden" aria-labelledby="fbTitle">
@@ -390,9 +393,9 @@ const SUB_SCREENS = { host: "account", stats: "account" };
 // Les événements utilisent leur compte SMS ; les accès musique/jeux restent indépendants.
 function showTab(tab, eventTarget) {
   if (!["music", "games", "events", "chats", "feedback", "account", "host", "stats"].includes(tab)) tab = "music";
-  if (tab === "events" && PartyEvents.soon) {
-    // Section en préparation : on reste où on est (ou sur la musique au démarrage).
-    if (document.body.dataset.tab) return toast("📅 Les événements arrivent bientôt");
+  if ((tab === "events" || tab === "chats") && PartyEvents.soon) {
+    // Section en préparation (production, hors bêta-testeurs) : on reste où on est (ou sur la musique au démarrage).
+    if (document.body.dataset.tab) return toast(tab === "events" ? "📅 Les événements arrivent bientôt" : "💬 Les discussions arrivent bientôt");
     tab = "music";
   }
   const under = SUB_SCREENS[tab], starting = !document.body.dataset.tab, previous = document.body.dataset.tab;
@@ -528,12 +531,16 @@ function fbSyncAccess() {
   if (!allowed && document.body.dataset.tab === "feedback") showTab("music");
 }
 // Discussions de groupe : pour les comptes connectés (les groupes en dépendent) ; non connecté, l'onglet disparaît.
+// En production, comme Événements : visible de tous, « Bientôt » sauf pour les bêta-testeurs.
 function chatsSyncAccess() {
   const tab = document.querySelector('#tabs [data-tab="chats"]');
-  if (!tab || tab.classList.contains("hidden") === !account) return;
-  tab.classList.toggle("hidden", !account);
-  if (!account && document.body.dataset.tab === "chats") showTab("music");
-  if (account) setTimeout(refreshChatsBadge);
+  if (!tab) return;
+  const open = !!account && !PartyEvents.soon;
+  if (!open && document.body.dataset.tab === "chats") showTab("music");
+  const shown = !!account || PartyEvents.betaOnly;
+  if (tab.classList.contains("hidden") === !shown) return;
+  tab.classList.toggle("hidden", !shown);
+  if (open) setTimeout(refreshChatsBadge);
 }
 function showAccount() {
   fbSyncAccess();
@@ -622,7 +629,7 @@ setInterval(() => { if (supabaseToken()) freshToken().then((token) => token && e
 const CHATS_BADGE_EVERY = 60000;
 async function refreshChatsBadge() {
   const badge = $("chatsBadge");
-  const token = account && supabaseToken() ? await freshToken() : null;
+  const token = account && !PartyEvents.soon && supabaseToken() ? await freshToken() : null;
   if (!badge || !token) return badge?.classList.add("hidden");
   try {
     const r = await fetch("/api/account/chats", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
@@ -1173,5 +1180,7 @@ function listen() {
 <script src="/static/masque.js"></script>
 <script src="/static/reflet.js"></script>
 <script src="/static/beerpong.js"></script>
+<script src="/static/brain/core.js"></script>
+<script src="/static/brain/stats.js"></script>
 </body>
 </html>

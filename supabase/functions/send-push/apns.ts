@@ -44,18 +44,25 @@ export function tapPath(data: Record<string, unknown>): string {
   return event ? `/?tab=events&event=${event}` : '/?tab=events&activity=1';
 }
 
+/** Pendant une pause (lune, Discussions), data.silent : la notification arrive sans son ni vibration, rangée
+ * dans le centre de notifications sans allumer l'écran (interruption-level « passive »). */
+export function apsFor(title: string, body: string, silent: boolean): Record<string, unknown> {
+  const alert = { title: title.slice(0, 100), body: body.slice(0, 180) };
+  return silent ? { alert, 'interruption-level': 'passive' } : { alert, sound: 'default' };
+}
+
 export async function sendApns(config: Config, token: string, notificationId: string, title: string, body: string,
                                data: Record<string, unknown>): Promise<ApnsResult> {
   const device = APNS_TOKEN.exec(token)?.[1];
   if (!device) return { ok: false, code: 'BadDeviceToken', permanent: true };
-  const payload = { aps: { alert: { title: title.slice(0, 100), body: body.slice(0, 180) }, sound: 'default' }, url: tapPath(data) };
+  const payload = { aps: apsFor(title, body, data.silent === true), url: tapPath(data) };
   let response: Response;
   try {
     response = await fetch(`https://${config.host}/3/device/${device}`, {
       method: 'POST',
       headers: {
         authorization: `bearer ${await jwt(config)}`, 'apns-topic': config.topic, 'apns-push-type': 'alert',
-        'apns-priority': '10', 'apns-collapse-id': `party-event-${notificationId}`.slice(0, 64),
+        'apns-priority': data.silent === true ? '5' : '10', 'apns-collapse-id': `party-event-${notificationId}`.slice(0, 64),
       },
       body: JSON.stringify(payload), signal: AbortSignal.timeout(10_000),
     });

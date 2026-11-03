@@ -9,10 +9,9 @@ import { formatMessageTime } from '@/lib/format';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { check, supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
-import { roleLabel } from '@/lib/types';
+import { roleName, roleRank } from '@/lib/roles';
 import { arrangeUsers, defaultDescending, USER_FILTERS, USER_SORTS, type UserFilter, type UserRow, type UserSort } from '@/lib/users';
 
-const FULL_ACCESS_RANK = 4;  // Root et Admin
 const DAY = 86_400_000;
 
 function ago(iso: string | null): string {
@@ -36,7 +35,7 @@ export default function Users() {
     return (res.data ?? []) as UserRow[];
   }, []);
 
-  if (rank < FULL_ACCESS_RANK) return <Redirect href="/" />;
+  if (rank < roleRank('admin')) return  /* Root et Admin */ <Redirect href="/" />;
   const rows = data ? arrangeUsers(data, { search, filter, sort, descending }) : [];
   const chooseSort = (key: UserSort) => {
     if (key === sort) setDescending((d) => !d);
@@ -76,7 +75,7 @@ export default function Users() {
 
 function UserCard({ user: u }: { user: UserRow }) {
   const tags = [
-    u.status === 'banned' ? '⛔ Accès retiré' : roleLabel[u.role],
+    u.status === 'banned' ? '⛔ Accès retiré' : roleName(u.role),
     u.beta ? '🧪 Bêta' : null,
     !hasCompleteIdentity(u) ? 'Profil incomplet' : null,
     ...u.groups.map((g) => `👥 ${g}`),

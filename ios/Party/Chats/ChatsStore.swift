@@ -31,6 +31,27 @@ final class ChatsStore: ObservableObject {
         self.web = web
     }
 
+    /// Pause des notifications de toutes les Discussions (bouton en haut de la liste) ; même réglage que
+    /// Réglages › Notifications.
+    private(set) lazy var pause = PauseStore(api: api, web: web)
+
+    /// Groupes (mêmes données et actions que Réglages › Groupes) : créer un groupe depuis Discussions, le gérer
+    /// depuis les infos d'une discussion.
+    private(set) lazy var groups = GroupsStore(api: api, web: web)
+    private(set) lazy var privacy = PrivacyStore(api: api, web: web)
+
+    /// Nouveau groupe depuis Discussions : même création que Réglages › Groupes, le créateur dedans d'office ;
+    /// la liste est relue et la discussion du groupe s'ouvre (requested).
+    func createGroup(_ name: String) async -> Bool {
+        guard let id = await groups.create(name, join: true) else {
+            if let problem = groups.notice ?? groups.error { notice = problem; groups.notice = nil }
+            return false
+        }
+        await loadList()
+        requested = id
+        return true
+    }
+
     var unread: Int { chats?.reduce(0) { $0 + $1.unread } ?? 0 }
 
     func loadList() async {
@@ -183,10 +204,12 @@ final class ChatsStore: ObservableObject {
     nonisolated static func draft(id: String, body: String, replyTo: String?, in chat: Conversation) -> Conversation.Message {
         let quoted = replyTo.flatMap { r in chat.messages.first { $0.id == r } }
         let me = chat.members.first { $0.id == chat.me }
+        let announced = chat.isStaff && Mentions.isAnnouncement(body)  // d'un simple membre : message normal
         return Conversation.Message(
             id: id, author: chat.me ?? "", authorName: me?.name ?? "Moi", authorPhoto: me?.photo, mine: true,
             at: ISO8601DateFormatter().string(from: Date()), edited: false, body: body, deleted: false, photo: nil,
-            pinned: false, reply: quoted.map { Conversation.Reply(name: $0.authorName, text: $0.preview) }, reactions: [], pending: true)
+            pinned: announced, reply: quoted.map { Conversation.Reply(name: $0.authorName, text: $0.preview) }, reactions: [],
+            announcement: announced ? true : nil, pending: true)
     }
 
     func react(_ message: Conversation.Message, _ emoji: String) async {
@@ -198,6 +221,11 @@ final class ChatsStore: ObservableObject {
         await act { token in try await api.pinChat(token: token, message: message.id, pin: !message.pinned) }
     }
 
+    /// Retire une annonce (ou un épinglé) du bandeau : admins du groupe, d'un appui long sur le bandeau.
+    func unpin(_ id: String) async {
+        await act { token in try await api.pinChat(token: token, message: id, pin: false) }
+    }
+
     func delete(_ message: Conversation.Message) async {
         await act { token in try await api.deleteChat(token: token, message: message.id) }
     }
@@ -205,6 +233,16 @@ final class ChatsStore: ObservableObject {
     func setNotify(_ level: ChatNotify) async {
         guard let group = conversation?.id else { return }
         await act { token in try await api.notifyChat(token: token, group: group, level: level) }
+    }
+
+    func setOrganizer(_ member: Conversation.Member, _ on: Bool) async {
+        guard let group = conversation?.id else { return }
+        await act { token in try await api.setChatOrganizer(token: token, group: group, member: member.id, on: on) }
+    }
+
+    func setEveryone(_ who: String) async {
+        guard let group = conversation?.id else { return }
+        await act { token in try await api.setChatEveryone(token: token, group: group, who: who) }
     }
 
     func setAdmin(_ member: Conversation.Member, _ on: Bool) async {

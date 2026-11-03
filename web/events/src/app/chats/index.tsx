@@ -1,7 +1,12 @@
 import { router, Stack } from 'expo-router';
+import { useState } from 'react';
 import { FlatList, Pressable, View } from 'react-native';
 
+import { ChatsSoon } from '@/components/ChatsSoon';
+import { ChatsPause } from '@/components/NotificationPause';
+import { NewGroupForm } from '@/components/NewGroupForm';
 import { Avatar, Empty, ErrorText, Loading, s, T } from '@/components/ui';
+import { useAuth } from '@/lib/auth';
 import type { ChatSummary } from '@/lib/chats';
 import { useQuery, useRealtime } from '@/lib/data';
 import { formatMessageTime } from '@/lib/format';
@@ -9,8 +14,16 @@ import { duration, enter, transition } from '@/lib/motion';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 
-/** Discussions (avis n°10) : une discussion par groupe, la plus récente en haut, comme WhatsApp. */
+/** Discussions (avis n°10) : en production, réservées aux bêta-testeurs (« Bientôt » pour les autres). */
 export default function ChatsRoute() {
+  const { eventsSoon } = useAuth();
+  return eventsSoon ? <ChatsSoon /> : <ChatsList />;
+}
+
+/** Une discussion par groupe, la plus récente en haut, comme WhatsApp ; « Nouveau groupe » (même formulaire que
+ * Réglages › Groupes) le crée, son créateur dedans, et ouvre sa discussion. */
+function ChatsList() {
+  const [creating, setCreating] = useState(false);
   const { data, loading, error, reload } = useQuery(async () => {
     const { data, error } = await supabase.rpc('my_chats');
     if (error) throw new Error('Les discussions n’ont pas pu être chargées.');
@@ -22,15 +35,38 @@ export default function ChatsRoute() {
   return (
     <View style={s.screen}>
       <Stack.Screen options={{ title: 'Discussions' }} />
+      {/* En tête de liste, comme « Nouveau groupe » dans WhatsApp (le module n'a pas d'en-tête dans Party). */}
+      <NewGroupRow open={creating} onToggle={() => setCreating((v) => !v)} />
+      {creating ? (
+        <View style={[{ paddingHorizontal: 16, paddingBottom: 12, gap: 6 }, enter('drop')]}>
+          <NewGroupForm autoFocus onCreated={(id) => { setCreating(false); reload(); router.push(`/chats/${id}`); }} />
+          <T muted size={13}>Le même groupe que dans Réglages › Groupes. Tu en fais partie d’office, comme Créateur · Admin ; ajoute ensuite des membres depuis les infos du groupe.</T>
+        </View>
+      ) : null}
       <ErrorText error={error} />
+      {/* En haut de la liste : sourdine des Discussions des groupes (30 min, 1 h, 2 h, 8 h ; messages sans son). */}
+      <ChatsPause scope="chats" compact />
       <FlatList
         data={data ?? []}
         keyExtractor={(c) => c.id}
         ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: colors.line, marginLeft: 76 }} />}
-        ListEmptyComponent={<Empty>Rejoins ou crée un groupe pour discuter avec ses membres.</Empty>}
+        ListEmptyComponent={creating ? null : <Empty>Rejoins ou crée un groupe pour discuter avec ses membres.</Empty>}
         renderItem={({ item: c }) => <ChatRow chat={c} />}
       />
     </View>
+  );
+}
+
+function NewGroupRow({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel="Nouveau groupe" accessibilityState={{ expanded: open }} onPress={onToggle}
+      style={({ pressed }) => [{ flexDirection: 'row', gap: 12, alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+        transition('background-color', duration.fast), pressed && { backgroundColor: colors.fill }]}>
+      <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accentDim, alignItems: 'center', justifyContent: 'center' }}>
+        <T size={22} weight="bold" color={colors.accent}>{open ? '×' : '+'}</T>
+      </View>
+      <T weight="semibold" color={colors.accent}>{open ? 'Fermer' : 'Nouveau groupe'}</T>
+    </Pressable>
   );
 }
 

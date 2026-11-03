@@ -1,8 +1,9 @@
 import PhotosUI
 import SwiftUI
 
-/// Conversation d'un groupe : bulles, réponses, photos, réactions ; les admins épinglent et suppriment.
-/// Appui long sur une bulle : réagir, répondre, épingler, supprimer.
+/// Conversation d'un groupe : bulles, réponses, photos, réactions, @citations (suggestions des membres en tapant @,
+/// @tout), @annonce en surbrillance en haut ; les admins épinglent, retirent les annonces et suppriment.
+/// Appui long sur une bulle : réagir, répondre, épingler, supprimer ; sur le bandeau (admins) : retirer l'annonce.
 struct ConversationView: View {
     @ObservedObject var store: ChatsStore
     let group: String
@@ -26,7 +27,10 @@ struct ConversationView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let chat {
-                if let pinned = chat.pinned { pinnedBanner(pinned).motionTransition(.unfold) }
+                if let banner = chat.banner {
+                    pinnedBanner(banner.item, others: banner.others, canRemove: chat.admin || (chat.isStaff && banner.item.announcement))
+                        .motionTransition(.unfold)
+                }
                 messages(chat).transition(.opacity)
                 if chat.member { composer(chat) }
             } else if let error = store.error {
@@ -37,7 +41,7 @@ struct ConversationView: View {
         }
         // Chargement → conversation : fondu ; message épinglé ou désépinglé : le bandeau se déplie.
         .motion(Motion.smooth, value: chat == nil)
-        .motion(Motion.snappy, value: chat?.pinned?.id)
+        .motion(Motion.snappy, value: chat?.banner?.item.id)
         .background(AppConfig.background.ignoresSafeArea())
         .navigationTitle(chat?.name ?? "Discussion")
         .navigationBarTitleDisplayMode(.inline)
@@ -74,16 +78,34 @@ struct ConversationView: View {
         writing = true
     }
 
-    private func pinnedBanner(_ m: Conversation.Message) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "pin.fill").foregroundStyle(Color(uiColor: AppConfig.uiAccent))
-            Text("\(m.authorName) : \(m.preview)").font(.footnote).lineLimit(2)
+    /// Bandeau du haut : la dernière annonce en surbrillance (sinon le dernier épinglé) ; appui long (admins, et
+    /// organisateurs pour une annonce) : la retirer.
+    private func pinnedBanner(_ h: Conversation.Highlight, others: Int, canRemove admin: Bool) -> some View {
+        let accent = Color(uiColor: AppConfig.uiAccent)
+        return HStack(alignment: .top, spacing: 8) {
+            Image(systemName: h.announcement ? "megaphone.fill" : "pin.fill").foregroundStyle(accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(h.announcement ? "Annonce" : "Épinglé").font(.caption.weight(.bold)).foregroundColor(accent)
+                    + Text(others > 0 ? " · +\(others)" : "").font(.caption).foregroundColor(.secondary)
+                Text("\(h.authorName) : \(h.text)").font(h.announcement ? .subheadline.weight(.semibold) : .footnote).lineLimit(3)
+            }
             Spacer()
         }
         .padding(12)
-        .background(.ultraThinMaterial)
+        .background(h.announcement ? AnyShapeStyle(accent.opacity(0.18)) : AnyShapeStyle(.ultraThinMaterial))
+        .overlay(alignment: .bottom) { if h.announcement { accent.frame(height: 1) } }
+        .contentShape(Rectangle())
+        .contextMenu {
+            if admin {
+                Button(role: .destructive) { Task { await store.unpin(h.id) } } label: {
+                    Label(h.announcement ? "Retirer l'annonce" : "Désépingler", systemImage: "pin.slash")
+                }
+            }
+        }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Épinglé : \(m.authorName), \(m.preview)")
+        .accessibilityLabel("\(h.announcement ? "Annonce" : "Épinglé") : \(h.authorName), \(h.text)")
+        .accessibilityAction(named: h.announcement ? "Retirer l'annonce" : "Désépingler") { if admin { Task { await store.unpin(h.id) } } }
+        .accessibilityIdentifier("chat-banner")
     }
 
     private func messages(_ chat: Conversation) -> some View {
@@ -92,11 +114,18 @@ struct ConversationView: View {
             // le geste d'iOS lui-même (Mail, Messages), qui ne se bat pas avec le défilement.
             List {
                 if chat.messages.isEmpty {
-                    Text("Aucun message pour l'instant. Lance la discussion !").foregroundStyle(.secondary).padding(.top, 40)
-                        .frame(maxWidth: .infinity).listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    VStack(spacing: 12) {
+                        Text("Aucun message pour l'instant. Lance la discussion !").foregroundStyle(.secondary)
+                        // Groupe tout neuf (créé depuis Discussions) : y ajouter du monde.
+                        if chat.member && chat.members.count <= 1 {
+                            Button("Ajouter des membres") { showInfo = true }.buttonStyle(.borderedProminent)
+                        }
+                    }
+                    .padding(.top, 40)
+                    .frame(maxWidth: .infinity).listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
                 ForEach(chat.messages) { m in
-                    ChatBubble(message: m, reactions: chat.reactions, canWrite: chat.member, isAdmin: chat.admin, player: player,
+                    ChatBubble(message: m, reactions: chat.reactions, canWrite: chat.member, isAdmin: chat.admin, isStaff: chat.isStaff, player: player,
                                onReact: { emoji in Haptics.tap(); Task { await store.react(m, emoji) } },
                                onReply: { reply(to: m) },
                                onPin: { Task { await store.pin(m) } },
@@ -129,6 +158,7 @@ struct ConversationView: View {
 
     private func composer(_ chat: Conversation) -> some View {
         VStack(spacing: 6) {
+            mentionBar(chat)
             if let replyTo {
                 HStack {
                     Text("↪ Réponse à \(replyTo.authorName) : \(replyTo.preview)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -165,14 +195,59 @@ struct ConversationView: View {
         .motion(Motion.snappy, value: store.sending)
         .motion(Motion.snappy, value: recorder.recording)
         .motion(Motion.snappy, value: replyTo?.id)
+        .motion(Motion.snappy, value: Mentions.query(in: text) == nil)
         .motion(Motion.snappy, value: recorder.problem)
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background(.bar)
         .task { recorder.warmUp() }  // micro prêt avant le premier appui
     }
 
+    /// Suggestions de l'@ en cours de frappe : membres filtrés en direct, puis @tout et @annonce ; un toucher insère.
+    @ViewBuilder private func mentionBar(_ chat: Conversation) -> some View {
+        let found = Mentions.query(in: text).map {
+            Mentions.suggestions(for: $0, members: chat.members, me: chat.me, everyone: chat.canEveryone, announce: chat.isStaff,
+                                 contacts: ContactNames.shared.names)
+        } ?? []
+        if let note = chat.tagNote(for: text) {
+            Label(note, systemImage: "info.circle").font(.caption).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .motionTransition(.opacity)
+        }
+        if !found.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(found) { s in
+                        Button {
+                            Haptics.selection()
+                            text = Mentions.insert(s.label, into: text)
+                        } label: {
+                            HStack(spacing: 6) {
+                                if let m = s.member {
+                                    Initials(name: m.name, photo: m.photo, size: 24)
+                                } else {
+                                    Image(systemName: s.label == "tout" ? "person.3.fill" : "megaphone.fill").font(.caption)
+                                }
+                                Text("@" + s.label).font(.subheadline.weight(.semibold)).lineLimit(1)
+                                // Nom de mon répertoire à côté du pseudo inséré (le @ reste le pseudo Party).
+                                if s.member != nil && !s.hint.isEmpty {
+                                    Text(s.hint).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                }
+                            }
+                            .padding(.horizontal, 10).padding(.vertical, 6)
+                            .background(Color.white.opacity(0.1), in: Capsule())
+                        }
+                        .buttonStyle(PressableStyle(scale: 0.94))
+                        .accessibilityLabel(s.member != nil ? "Citer \(s.label)" : "@\(s.label) : \(s.hint)")
+                    }
+                }
+            }
+            .accessibilityIdentifier("chat-mentions")
+            .motionTransition(.opacity.combined(with: .move(edge: .bottom)))
+        }
+    }
+
     private func field(_ chat: Conversation) -> some View {
-                TextField(chat.admin ? "Message… (@surnom, @tout)" : "Message… (@surnom pour citer)", text: $text, axis: .vertical)
+                TextField("Message… (@ pour citer, @tout, @annonce)", text: $text, axis: .vertical)
                     .lineLimit(1...5)
                     .focused($writing)
                     .padding(.horizontal, 12).padding(.vertical, 8)
@@ -303,6 +378,8 @@ private struct ChatBubble: View {
     let reactions: [String]
     let canWrite: Bool
     let isAdmin: Bool
+    /// Admin ou organisateur : retire les annonces.
+    let isStaff: Bool
     @ObservedObject var player: VoicePlayer
     let onReact: (String) -> Void
     let onReply: () -> Void
@@ -321,7 +398,8 @@ private struct ChatBubble: View {
             if message.mine { Spacer(minLength: 48) } else { Initials(name: message.authorName, photo: message.authorPhoto) }
             VStack(alignment: message.mine ? .trailing : .leading, spacing: 4) {
                 if !message.mine {
-                    Text(message.authorName).font(.caption.weight(.bold)).foregroundStyle(Color(red: 0.73, green: 0.65, blue: 1))
+                    PersonName(id: message.author, pseudo: message.authorName, pseudoFont: .caption2)
+                        .font(.caption.weight(.bold)).foregroundStyle(Color(red: 0.73, green: 0.65, blue: 1))
                 }
                 bubble
                     // En cours d'envoi : bulle légèrement estompée, qui s'affirme une fois le message reçu.
@@ -336,7 +414,7 @@ private struct ChatBubble: View {
         .motion(Motion.smooth, value: message.pending)
         .motion(Motion.bouncy, value: message.reactions.map { "\($0.emoji)\($0.count)\($0.mine)" })
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(message.mine ? "Toi" : message.authorName) : \(message.deleted ? message.body : message.preview)")
+        .accessibilityLabel("\(message.mine ? "Toi" : ContactNames.shared.label(for: message.author, pseudo: message.authorName).text) : \(message.deleted ? message.body : message.preview)")
         .accessibilityHint(actions ? "Glisse vers la droite pour répondre ; appui long pour réagir\(isAdmin ? ", épingler" : "") ou supprimer" : "")
     }
 
@@ -348,7 +426,10 @@ private struct ChatBubble: View {
 
     private var bubble: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if message.pinned { Label("Épinglé", systemImage: "pin.fill").font(.caption2.weight(.bold)) }
+            if message.pinned {
+                Label(message.isAnnouncement ? "Annonce" : "Épinglé", systemImage: message.isAnnouncement ? "megaphone.fill" : "pin.fill")
+                    .font(.caption2.weight(.bold))
+            }
             if let reply = message.reply {
                 Text("↪ \(reply.name) : \(reply.text)").font(.caption).lineLimit(2).padding(6)
                     .background(Color.black.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
@@ -371,6 +452,11 @@ private struct ChatBubble: View {
         .padding(message.photo == nil ? 10 : 4)
         .background(message.deleted ? Color.white.opacity(0.06) : message.mine ? accent : Color(red: 0.13, green: 0.10, blue: 0.24),
                     in: RoundedRectangle(cornerRadius: 16))
+        .overlay {
+            if message.isAnnouncement {
+                RoundedRectangle(cornerRadius: 16).stroke(message.mine ? Color.white : accent, lineWidth: 2)
+            }
+        }
     }
 
     @ViewBuilder private var menu: some View {
@@ -379,8 +465,12 @@ private struct ChatBubble: View {
         }
         Button { onReply() } label: { Label("Répondre", systemImage: "arrowshape.turn.up.left") }
         Button { UIPasteboard.general.string = message.body } label: { Label("Copier", systemImage: "doc.on.doc") }
-        if isAdmin {
-            Button { onPin() } label: { Label(message.pinned ? "Désépingler" : "Épingler", systemImage: message.pinned ? "pin.slash" : "pin") }
+        if message.isAnnouncement {
+            if isStaff { Button { onPin() } label: { Label("Retirer l'annonce", systemImage: "pin.slash") } }
+        } else if isAdmin {
+            Button { onPin() } label: {
+                Label(message.pinned ? "Désépingler" : "Épingler", systemImage: message.pinned ? "pin.slash" : "pin")
+            }
         }
         if message.mine || isAdmin {
             Button(role: .destructive) { onDelete() } label: { Label("Supprimer", systemImage: "trash") }

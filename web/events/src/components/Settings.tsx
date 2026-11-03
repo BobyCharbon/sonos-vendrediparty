@@ -3,8 +3,9 @@ import { Pressable, View } from 'react-native';
 
 import { useAuth } from '@/lib/auth';
 import { hasCompleteIdentity } from '@/lib/profile';
-import { roleLabel } from '@/lib/types';
+import { roleName } from '@/lib/roles';
 import { IdentityForm } from './IdentityForm';
+import { MoonBanner, MoonButton, usePause } from './NotificationPause';
 import { SignedIn } from './SignedIn';
 import { Avatar, Button, Card, LinkRow, RowDivider, s, Screen, Section, T, Title } from './ui';
 import { colors } from '@/lib/theme';
@@ -19,14 +20,20 @@ export function openPartyTab(tab: string, path?: string) {
 /** Réglages du compte Party : profil (prénom, nom, surnom, photo), accès aux événements, notifications, compte. */
 export function Settings({ topInset = false }: { topInset?: boolean }) {
   const { profile, signOut, can, rank, isAdmin, eventsOpen, eventsSoon } = useAuth();
+  const pause = usePause();
   if (!profile) return null;
   const complete = hasCompleteIdentity(profile);
   const active = eventsOpen && complete;
-  const status = profile.status === 'banned' ? 'Accès retiré' : rank >= 99 ? 'Root' : roleLabel[profile.role];
+  const status = profile.status === 'banned' ? 'Accès retiré' : rank >= 99 ? 'Root' : roleName(profile.role);
 
   return (
     <Screen edges={topInset ? ['top'] : []}>
-      <Title>Réglages</Title>
+      {/* Lune en haut à droite (avis de l'admin) : pause de toutes les notifications, sauf celles d'admin. */}
+      <View style={{ zIndex: 20 }}>
+        <Title>Réglages</Title>
+        <MoonButton pause={pause} />
+      </View>
+      <MoonBanner pause={pause} />
       {/* Carte du compte : comme l'identifiant Apple en tête des Réglages, elle ouvre « Mon profil ». */}
       <Pressable
         accessibilityRole="button"

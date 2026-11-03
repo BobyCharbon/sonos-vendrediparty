@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar, Button, ErrorText, Input, s, T } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
+import { useContactNames, withContactNames } from '@/lib/contactNames';
 import { useQuery, useRealtime } from '@/lib/data';
 import { formatMessageTime } from '@/lib/format';
 import { enter } from '@/lib/motion';
@@ -53,7 +54,9 @@ function Chat({ id }: { id: string }) {
 
   useRealtime(`chat-${id}`, [{ table: 'messages', filter: `event_id=eq.${id}` }], reload);
 
-  const names = useMemo(() => new Map((data?.members ?? []).map((m) => [m.id, m.display_name])), [data?.members]);
+  // Affichage : app iPhone, « Nom du contact · pseudo » (les @ restent sur les pseudos).
+  const contacts = useContactNames();
+  const names = useMemo(() => withContactNames(new Map((data?.members ?? []).map((m) => [m.id, m.display_name])), contacts), [data?.members, contacts]);
   const messages = useMemo(() => {
     const unique = new Map([...older, ...(data?.messages ?? [])].map((m) => [m.id, m]));
     return [...unique.values()].filter((m) => !m.deleted_at).sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));

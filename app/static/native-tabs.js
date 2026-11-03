@@ -37,7 +37,7 @@
         label: (button.querySelector("span")?.textContent || "").trim(),
         active: button.classList.contains("on"),
         badge: badgeOf(button),
-        soon: button.dataset.tab === "events" && soon,
+        soon: ["events", "chats"].includes(button.dataset.tab) && soon,
       })),
     };
   }

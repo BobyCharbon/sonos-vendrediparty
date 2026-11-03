@@ -14,6 +14,9 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 accountSection
+                if store.account != nil {
+                    MoonBanner(store: store.pause)
+                }
                 Section {
                     NavigationLink {
                         NotificationSettingsView(store: store)
@@ -75,7 +78,7 @@ struct SettingsView: View {
                             GameStatsView(store: store.session) { open(.tab("games")) }
                         } label: {
                             SettingsRow(symbol: "trophy.fill", tint: .orange, title: "Mes stats de jeu",
-                                        hint: "Purify Test : dernier score, profil et record")
+                                        hint: "Purify Test et Méninges : scores, profil, records")
                         }
                     }
                     // « Ton avis » : l'hôte, et les comptes Guest+ et au-dessus (droit « Écrire un avis »).
@@ -116,11 +119,20 @@ struct SettingsView: View {
             .motion(Motion.smooth, value: store.account?.feedback)
             .background(AppConfig.background)
             .navigationTitle("Réglages")
+            // Lune en haut à droite (avis de l'admin) : pause de tout, sauf les notifications admin.
+            .toolbar {
+                if store.account != nil {
+                    ToolbarItem(placement: .navigationBarTrailing) { MoonMenu(store: store.pause) }
+                }
+            }
         }
         .tint(Palette.accent)
         .padding(.top, topInset)
         .background(AppConfig.background.ignoresSafeArea())
-        .task { await store.refreshAccount() }
+        .task {
+            await store.refreshAccount()
+            await store.pause.load()
+        }
         .confirmationDialog("Se déconnecter de ce compte ?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button("Se déconnecter", role: .destructive) { Task { await store.session.signOut() } }
         } message: {

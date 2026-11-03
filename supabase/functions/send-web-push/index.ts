@@ -5,6 +5,7 @@ type Keys = { publicKey: string; privateKey: string };
 type Delivery = {
   id: string; attempts: number; subscription: { endpoint: string; keys: { auth: string; p256dh: string } };
   title: string; body: string; kind: string; origin: string; event_id: string | null; group_id?: string | null; notification_id: string;
+  silent?: boolean;  // pendant une pause (lune, Discussions) : ni son ni vibration
 };
 function checked<T>({ data, error }: { data: T; error: unknown }): T {
   if (error) throw new Error('Database operation failed');
@@ -56,7 +57,7 @@ Deno.serve(async (req: Request) => {
             }
             const payload = JSON.stringify({
               title: row.title.slice(0, 100), body: row.body.slice(0, 180),
-              tag: 'party-event-' + row.notification_id, url: target.href,
+              tag: 'party-event-' + row.notification_id, url: target.href, silent: row.silent === true,
             });
             const request = webpush.generateRequestDetails(row.subscription, payload, {
               vapidDetails: { ...keys!, subject: 'https://party.bobycharbon.ch' },

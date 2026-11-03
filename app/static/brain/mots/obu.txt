@@ -1,0 +1,6 @@
+obus
+obus-fleche
+obus-fleches
+obusier
+obusiers
+obusite

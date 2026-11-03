@@ -164,16 +164,29 @@ enum AIEvent {
         let thumbnail: UIImage
         let dataURL: String
 
+        static let side: CGFloat = 1600
+        /// Taille acceptée par le serveur (MAX_IMAGE_B64, app/ai_events.py) ; au-delà, l'image est recompressée.
+        static let maxBase64 = 3_000_000
+        static let qualities: [CGFloat] = [0.7, 0.5, 0.35]
+
         init?(_ image: UIImage) {
-            let side: CGFloat = 1600
-            let scale = min(1, side / max(image.size.width, image.size.height))
-            let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+            guard image.size.width > 0, image.size.height > 0 else { return nil }
+            let scale = min(1, Self.side / max(image.size.width, image.size.height))
+            let size = CGSize(width: (image.size.width * scale).rounded(), height: (image.size.height * scale).rounded())
             let format = UIGraphicsImageRendererFormat.default()
             format.scale = 1  // 1600 px réels, pas 1600 points × 3 (4800 px refusés par le serveur)
-            let small = UIGraphicsImageRenderer(size: size, format: format).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
-            guard let jpeg = small.jpegData(compressionQuality: 0.7) else { return nil }
+            format.opaque = true  // JPEG : une image collée avec transparence (PNG) a un fond blanc, pas noir
+            let small = UIGraphicsImageRenderer(size: size, format: format).image { context in
+                UIColor.white.setFill()
+                context.fill(CGRect(origin: .zero, size: size))
+                image.draw(in: CGRect(origin: .zero, size: size))
+            }
+            let encoded = Self.qualities.lazy
+                .compactMap { small.jpegData(compressionQuality: $0)?.base64EncodedString() }
+                .first { $0.count <= Self.maxBase64 }
+            guard let encoded else { return nil }
             thumbnail = small
-            dataURL = "data:image/jpeg;base64," + jpeg.base64EncodedString()
+            dataURL = "data:image/jpeg;base64," + encoded
         }
 
         static func == (a: Shot, b: Shot) -> Bool { a.id == b.id }
@@ -211,6 +224,8 @@ final class AIEventStore: ObservableObject {
     @Published var error: String?
     /// Captures d'écran jointes (affiche, page d'un site) : réduites, envoyées avec chaque demande, 3 au plus.
     @Published private(set) var images: [AIEvent.Shot] = []
+    /// Petit mot sous les images jointes (limite de 3 atteinte, image illisible) ; effacé à l'action suivante.
+    @Published var notice: String?
     /// Ce que la personne a dit quand l'envoi a échoué : remis dans le champ, rien n'est perdu.
     @Published var unsent: String?
 
@@ -242,6 +257,7 @@ final class AIEventStore: ObservableObject {
         error = nil
         editingId = nil
         images = []
+        notice = nil
         changes = []
         loadedPlace = nil
         announce = true
@@ -275,8 +291,23 @@ final class AIEventStore: ObservableObject {
     /// Description, réponse à une question ou correction : l'IA reprend le tout et renvoie le brouillon à jour.
     /// Ajoute une capture d'écran (réduite à 1600 px, JPEG) ; 3 au plus.
     func attach(_ image: UIImage) {
-        guard images.count < AIEvent.maxShots, let shot = AIEvent.Shot(image) else { return }
-        images.append(shot)
+        attach([image])
+    }
+
+    /// Images choisies, collées ou glissées (plusieurs d'un coup) : réduites comme les photos, 3 au plus ; ce qui
+    /// dépasse ou ne se lit pas est dit en clair. Renvoie le nombre d'images ajoutées.
+    @discardableResult
+    func attach(_ incoming: [UIImage]) -> Int {
+        guard !incoming.isEmpty else { return 0 }
+        guard editingId == nil else { notice = AIEvent.editingNotice; return 0 }
+        let room = AIEvent.maxShots - images.count
+        guard room > 0 else { notice = AIEvent.fullNotice; return 0 }
+        let kept = Array(incoming.prefix(room))
+        let shots = kept.compactMap(AIEvent.Shot.init)
+        images += shots
+        notice = incoming.count > room ? AIEvent.overflowNotice(dropped: incoming.count - room)
+            : shots.count < kept.count ? AIEvent.unreadableNotice : nil
+        return shots.count
     }
 
     /// « Partager › Party › Créer l'événement » : l'app vient peut-être de s'ouvrir, la page (et la session) se charge
@@ -297,6 +328,7 @@ final class AIEventStore: ObservableObject {
 
     func detach(_ shot: AIEvent.Shot) {
         images.removeAll { $0.id == shot.id }
+        notice = nil
     }
 
     func send(_ text: String) async {
@@ -310,6 +342,7 @@ final class AIEventStore: ObservableObject {
         turns.append(said)
         thinking = true
         error = nil
+        notice = nil
         let round = generation
         defer { if round == generation { thinking = false } }
         do {

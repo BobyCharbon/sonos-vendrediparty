@@ -48,8 +48,10 @@ struct QRScanner: UIViewControllerRepresentable {
     }
 }
 
-/// Feuille « Scanner le QR de l'hôte ».
+/// Feuille « Scanner le QR de l'hôte » (ou un billet d'événement, avec un autre titre).
 struct QRScannerSheet: View {
+    var title = "QR de l'hôte"
+    var fallback = "Caméra indisponible : autorise-la pour Party ! dans Réglages, ou entre le code à la main."
     let found: (String) -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -65,13 +67,13 @@ struct QRScannerSheet: View {
                 } else {
                     VStack(spacing: 12) {
                         Image(systemName: "camera.fill").font(.largeTitle).foregroundStyle(.secondary)
-                        Text("Caméra indisponible : autorise-la pour Party ! dans Réglages, ou entre le code à la main.")
+                        Text(fallback)
                             .multilineTextAlignment(.center).foregroundStyle(.secondary)
                     }
                     .padding(32)
                 }
             }
-            .navigationTitle("QR de l'hôte")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fermer") { dismiss() } } }
         }

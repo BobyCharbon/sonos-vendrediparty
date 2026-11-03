@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { parseLoginPhone } from '@/lib/phone';
-import { roleLabel, VIP_GROUP_KEY, type MemberGroup, type MemberRole } from '@/lib/types';
+import { belowVip, roleName } from '@/lib/roles';
+import { VIP_GROUP_KEY, type MemberGroup, type MemberRole } from '@/lib/types';
 import { Button, Chip, ErrorText, Input, s, T } from './ui';
 
 /** Qui voit la sortie (base : can_see_event, migration 20261025160000) :
@@ -100,7 +101,7 @@ export function AudiencePicker({ value, onChange, groups, people, meId, allGroup
   const others = people.filter((p) => p.id !== meId);
   const picked = others.filter((p) => value.invitees.includes(p.id));
   const found = q ? others.filter((p) => !value.invitees.includes(p.id) && p.display_name.toLowerCase().includes(q)).slice(0, PEOPLE_SHOWN) : [];
-  const label = (p: Person) => (p.role === 'guest' || p.role === 'guestplus' ? `${p.display_name} · ${roleLabel[p.role]}` : p.display_name);
+  const label = (p: Person) => (belowVip(p.role) && p.role !== 'basic' ? `${p.display_name} · ${roleName(p.role)}` : p.display_name);
 
   function addPhone() {
     const parsed = phoneForInvite(phone);

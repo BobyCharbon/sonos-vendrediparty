@@ -7,6 +7,7 @@ import { EventCard } from '@/components/EventCard';
 import { SignedIn } from '@/components/SignedIn';
 import { Button, Chip, Empty, ErrorText, Input, Reveal, s, Segmented, Skeleton, T, Title } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
+import { fetchAttendance } from '@/lib/attendance';
 import { fetchEventList, fetchTaxonomy, needsAnswer, useQuery } from '@/lib/data';
 import { must, supabase } from '@/lib/supabase';
 import { duration, ease, enter, pressTransition, transition } from '@/lib/motion';
@@ -36,8 +37,11 @@ export default function Home() {
       supabase.from('tag_subscriptions').select('tag_id').eq('user_id', me.id),
       supabase.from('category_subscriptions').select('category_id').eq('user_id', me.id),
     ]);
+    // Pastille des présents : totaux exacts, même quand la liste des participants est cachée.
+    const attendance = await fetchAttendance(events.map((e) => e.id));
     return {
       events,
+      attendance,
       loadedAt: Date.now(),
       ...taxonomy,
       subscribedTags: new Set(must(tagSubs).map((r) => r.tag_id as string)),
@@ -215,7 +219,7 @@ export default function Home() {
           <View style={{ gap: 10 }}>
             <T size={13} weight="bold" color={colors.mint} style={st.label}>TU Y VAS</T>
             {goingList.map((e, i) => (
-              <EventCard key={e.id} index={i} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp now={data!.loadedAt} />
+              <EventCard key={e.id} index={i} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp now={data!.loadedAt} attendance={data!.attendance.get(e.id)} />
             ))}
           </View>
         ) : null}
@@ -226,7 +230,7 @@ export default function Home() {
         ) : null}
         {goingList.length && rest.length ? <T size={13} weight="bold" color={colors.muted} style={[st.label, { marginTop: 6 }]}>À VENIR</T> : null}
         {rest.map((e, i) => (
-          <EventCard key={e.id} index={goingList.length + i} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp={tab === 'polls' || tab === 'upcoming'} now={data!.loadedAt} />
+          <EventCard key={e.id} index={goingList.length + i} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp={tab === 'polls' || tab === 'upcoming'} now={data!.loadedAt} attendance={data!.attendance.get(e.id)} />
         ))}
       </ScrollView>
 

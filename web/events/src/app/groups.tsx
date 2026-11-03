@@ -1,12 +1,16 @@
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
 import { InviteLinkCard } from '@/components/InviteLinkCard';
+import { NewGroupForm } from '@/components/NewGroupForm';
+import { usePersonText } from '@/components/PersonName';
 import { Avatar, Button, Card, Chip, ConfirmButton, ErrorText, Input, Screen, s, Section, T, ToggleRow } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { must, supabase } from '@/lib/supabase';
-import { roleLabel, VIP_GROUP_KEY, type MemberGroup, type Profile } from '@/lib/types';
+import { belowVip, roleName } from '@/lib/roles';
+import { VIP_GROUP_KEY, type MemberGroup, type Profile } from '@/lib/types';
 
 type Invitation = { id: string; group_id: string; group: string; invited_by: string | null; at: string };
 
@@ -14,12 +18,15 @@ type Invitation = { id: string; group_id: string; group: string; invited_by: str
 export default function GroupsScreen() {
   const me = useMe();
   const { can } = useAuth();
-  const [name, setName] = useState('');
-  const [open, setOpen] = useState<string | null>(null);
+  // « Gérer le groupe » depuis une discussion : ce groupe s'ouvre déjà déplié (?open=<id>).
+  const params = useLocalSearchParams<{ open?: string }>();
+  const [open, setOpen] = useState<string | null>(typeof params.open === 'string' && params.open ? params.open : null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guest, setGuest] = useState('');
   const [invited, setInvited] = useState<string | null>(null);
+  // App iPhone : membres de mon répertoire en « Nom du contact · pseudo ».
+  const personText = usePersonText();
 
   const { data, reload, error: loadError } = useQuery(async () => {
     const [groups, members, privacy, invitations] = await Promise.all([
@@ -42,18 +49,6 @@ export default function GroupsScreen() {
     await reload();
     setBusy(false);
     return !error;
-  }
-
-  async function create() {
-    const clean = name.trim();
-    if (!clean) return;
-    setBusy(true);
-    const { data: created, error } = await supabase.from('member_groups').insert({ name: clean, created_by: me.id }).select('id').single();
-    setBusy(false);
-    if (error) return setError('Le groupe n’a pas été créé. Réessaie.');
-    setName('');
-    setOpen(created.id as string);
-    await reload();
   }
 
   const people = new Map((data?.members ?? []).map((m) => [m.id, m]));
@@ -107,10 +102,7 @@ export default function GroupsScreen() {
       ) : null}
 
       <Section title="Nouveau groupe">
-        <View style={s.row}>
-          <Input accessibilityLabel="Nom du groupe" placeholder="Ex. Les footeux" value={name} onChangeText={setName} maxLength={60} style={{ flex: 1 }} onSubmitEditing={create} />
-          <Button small label="Créer" disabled={!name.trim()} loading={busy && !!name.trim()} onPress={create} />
-        </View>
+        <NewGroupForm onCreated={(id) => { setOpen(id); void reload(); }} />
       </Section>
 
       <Section title="Groupes">
@@ -126,7 +118,7 @@ export default function GroupsScreen() {
                 <View style={{ flex: 1 }}>
                   <T weight="bold">{g.name}</T>
                   <T muted size={13} numberOfLines={expanded ? undefined : 1}>
-                    {inside.size ? [...inside].map((id) => people.get(id)?.display_name ?? '?').join(', ') : 'Personne pour l’instant'}
+                    {inside.size ? [...inside].map((id) => personText(id, people.get(id)?.display_name ?? '?')).join(', ') : 'Personne pour l’instant'}
                   </T>
                 </View>
                 {mine ? <Button small variant="secondary" label={expanded ? 'Fermer' : 'Modifier'} onPress={() => setOpen(expanded ? null : g.id)} /> : null}
@@ -155,7 +147,7 @@ export default function GroupsScreen() {
                     {data.members.map((m) => (
                       <Chip
                         key={m.id}
-                        label={m.role === 'guest' || m.role === 'guestplus' ? `${m.display_name} · ${roleLabel[m.role]}` : m.display_name}
+                        label={belowVip(m.role) && m.role !== 'basic' ? `${personText(m.id, m.display_name)} · ${roleName(m.role)}` : personText(m.id, m.display_name)}
                         selected={inside.has(m.id)}
                         disabled={busy}
                         onPress={() => run(inside.has(m.id)

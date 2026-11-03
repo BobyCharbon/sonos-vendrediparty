@@ -6,6 +6,8 @@ const MAX_SIDE = 1600;
 const MAX_SOURCE = 30 * 1024 * 1024;
 
 export type NotifyLevel = 'all' | 'mentions' | 'none';
+/** Qui peut écrire @tout dans un groupe : tous les membres, ou admins et organisateurs. */
+export type EveryoneBy = 'all' | 'staff';
 export type ChatSummary = {
   id: string; name: string; system: boolean; member: boolean; admin: boolean; creator: boolean;
   members: number; notify: NotifyLevel; last_at: string | null; last: string | null; unread: number;
@@ -15,6 +17,8 @@ export type GroupMessage = {
   audio_path?: string | null; audio_seconds?: number | null; pending?: boolean;
   mentions: string[]; mention_all: boolean; pinned: boolean; created_at: string; edited_at: string | null;
   deleted_at: string | null; deleted_by_admin: boolean;
+  /** « @annonce » : épinglé d'office par la base, affiché en surbrillance en haut de la discussion. */
+  announcement?: boolean;
 };
 export type Reaction = { message_id: string; user_id: string; emoji: string };
 
@@ -29,11 +33,65 @@ export function deletedLabel(m: Pick<GroupMessage, 'deleted_by_admin'>): string 
   return m.deleted_by_admin ? 'Message supprimé par un admin' : 'Message supprimé';
 }
 
-/** « @Léa » dans le texte → citation de Léa ; « @tout » → tout le groupe (réservé aux admins, revérifié par la base). */
+/** Sans accents ni casse : « lea » trouve Léa (suggestions de l'@ et citations). */
+export function fold(text: string): string {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+/** « @Léa » (ou « @lea ») dans le texte → citation de Léa ; « @tout » → tout le groupe (tout membre peut l'écrire). */
 export function mentionsIn(body: string, people: { id: string; display_name: string }[]): { mentions: string[]; all: boolean } {
-  const lower = body.toLowerCase();
-  const mentions = people.filter((p) => p.display_name && lower.includes(`@${p.display_name.toLowerCase()}`)).map((p) => p.id);
+  const folded = fold(body);
+  const mentions = people.filter((p) => p.display_name && folded.includes(`@${fold(p.display_name)}`)).map((p) => p.id);
   return { mentions, all: /(^|\s)@tout(\s|$|[!?.,])/i.test(body) };
+}
+
+/** « @annonce » (mot entier, sans casse) : la base épingle le message en annonce (même règle que guard_group_message). */
+export function isAnnouncement(body: string): boolean {
+  return /(^|[^\p{L}\p{N}_])@annonce($|[^\p{L}\p{N}_])/iu.test(body);
+}
+
+export type MentionSuggestion = { key: string; label: string; hint: string; id: string | null; photo?: string | null };
+
+/** Mots réservés proposés avec les membres : tout le groupe, annonce épinglée. */
+const SPECIAL_TAGS: MentionSuggestion[] = [
+  { key: 'tout', label: 'tout', hint: 'Tout le groupe', id: null },
+  { key: 'annonce', label: 'annonce', hint: 'Annonce épinglée en haut du groupe', id: null },
+];
+const MAX_SUGGESTIONS = 6;
+
+/** Ce qui suit l'@ en cours de frappe (avant le curseur) ; null quand on n'est pas en train de citer. */
+export function mentionQuery(text: string, cursor: number = text.length): string | null {
+  const match = /(^|\s)@([^\s@]*)$/.exec(text.slice(0, cursor));
+  return match ? match[2] : null;
+}
+
+/** Ce que je peux écrire dans ce groupe : @tout (choix du groupe), @annonce (admins et organisateurs). */
+export type MentionRights = { everyone: boolean; announce: boolean };
+
+/** Membres du groupe (moi exclu) dont le surnom (ou un de ses mots) commence par les lettres tapées, puis @tout et
+ * @annonce quand j'y ai droit. */
+export function mentionSuggestions(query: string, people: { id: string; display_name: string; avatar_url?: string | null }[],
+  rights: MentionRights = { everyone: true, announce: true },
+  /** App iPhone : noms de mes contacts (id → nom) ; « @mar » trouve aussi le membre enregistré « Marie ». */
+  contacts: Record<string, string> = {}): MentionSuggestion[] {
+  const q = fold(query);
+  const starts = (name: string) => fold(name).startsWith(q) || fold(name).split(/[\s.\-_]+/).some((w) => w.startsWith(q));
+  const members = people.filter((p) => p.display_name && (starts(p.display_name) || (contacts[p.id] ? starts(contacts[p.id]) : false)))
+    .sort((a, b) => Number(!fold(a.display_name).startsWith(q)) - Number(!fold(b.display_name).startsWith(q))
+      || a.display_name.localeCompare(b.display_name, 'fr'))
+    .map((p) => ({ key: p.id, label: p.display_name, hint: contacts[p.id] ?? '', id: p.id, photo: p.avatar_url ?? null }));
+  const specials = SPECIAL_TAGS.filter((t) => t.label.startsWith(q) && (t.key === 'tout' ? rights.everyone : rights.announce));
+  return [...members.slice(0, MAX_SUGGESTIONS - specials.length), ...specials];
+}
+
+/** Remplace l'@ en cours par « @Surnom » suivi d'une espace ; renvoie le texte et la place du curseur. */
+export function insertMention(text: string, cursor: number, label: string): { text: string; cursor: number } {
+  const before = text.slice(0, cursor);
+  const at = before.lastIndexOf('@');
+  if (at < 0) return { text, cursor };
+  const head = `${before.slice(0, at)}@${label} `;
+  const rest = text.slice(cursor).replace(/^\S*/, '').replace(/^ /, '');
+  return { text: head + rest, cursor: head.length };
 }
 
 /** Choisir une photo (site : sélecteur du navigateur). */

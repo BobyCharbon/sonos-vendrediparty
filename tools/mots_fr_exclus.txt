@@ -1,0 +1,28 @@
+# Exclusions manuelles (tools/build_mots_fr.py) : formes présentes dans une source mais qui ne sont pas des mots
+# français valides (faute, nom propre en minuscules, mot étranger, sigle…). Une forme par ligne. # = commentaire.
+
+# Retour du contrôle (faux_acceptes.txt) : restes après les filtres noms propres / graphies anciennes / élisions
+anet
+authoress
+bachi-bouzouck
+berlong
+calicer
+corees
+draguage
+flandres
+grifton
+idololatre
+idololatrer
+idololatrie
+idololatrique
+kefer
+metoeque
+oukrainisme
+parthenons
+patureau
+pranquer
+qqch
+seoudite
+triecie
+vendette
+yeminite

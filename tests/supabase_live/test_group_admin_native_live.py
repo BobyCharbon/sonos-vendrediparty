@@ -21,7 +21,7 @@ def admin_and_token():
 def test_admin_reads_every_native_screen(admin_and_token):
     admin, token = admin_and_token
     overview = admin.overview(token)
-    assert overview['rank'] == 4 and isinstance(overview['require_approval'], bool)
+    assert overview['rank'] == next(r['rank'] for r in admin.roles(token)['roles'] if r['key'] == 'admin') and isinstance(overview['require_approval'], bool)
     members = admin.members(token)
     assert members['full'] and any(p['root'] for p in members['people'])
     assert all(p['photo'] is None or p['photo'].startswith(TEST_URL) for p in members['people'])
@@ -133,3 +133,33 @@ def test_only_guest_plus_and_above_write_feedback(monkeypatch, tmp_path, request
     assert send(ADMIN_PHONE).status_code == 200        # Admin
     assert client.post('/api/account/link', json={'token': tokens[GUESTS[1]], 'guest_id': 'live-plus-0001'}).json()['feedback'] is True
     assert client.post('/api/account/link', json={'token': tokens[GUESTS[0]], 'guest_id': 'live-guest-0001'}).json()['feedback'] is False
+
+
+def test_admin_manages_custom_roles_through_the_server(admin_and_token):
+    """Créer, renommer, réordonner et supprimer un rôle comme l'app iOS (Réglages › Administration › Rôles et droits)."""
+    admin, token = admin_and_token
+    out = admin.roles(token)
+    assert out['can_manage'] and out['roles'][0]['key'] == 'admin' and out['roles'][-1]['key'] == 'guest'
+    out = admin.create_role(token, 'Test serveur rôle', '#00AA55', '⭐', 'basic')
+    new = next(r for r in out['roles'] if r['label'] == 'Test serveur rôle')
+    try:
+        assert new['members'] == 0 and new['editable'] and new['icon'] == '⭐' and out['roles'][-2]['key'] == new['key']
+        out = admin.update_role(token, new['key'], 'Test serveur renommé', None, None)
+        assert any(r['label'] == 'Test serveur renommé' and r['color'] is None for r in out['roles'])
+        ascending = [r['key'] for r in reversed(out['roles'])]
+        ascending.remove(new['key'])
+        ascending.insert(ascending.index('organizer'), new['key'])
+        out = admin.reorder_roles(token, ascending)
+        assert [r['key'] for r in reversed(out['roles'])] == ascending
+        try:
+            admin.reorder_roles(token, list(reversed(ascending)))
+        except Exception as e:  # noqa: BLE001 - AccountError attendue, phrase lisible
+            assert 'Guest reste en bas' in str(e)
+        else:
+            raise AssertionError('refus attendu')
+        out = admin.set_permission(token, new['key'], 'tickets.scan', True)
+        assert out['grants'][new['key']].count('tickets.scan') == 1
+    finally:
+        out = admin.delete_role(token, new['key'], None)
+    assert new['key'] not in [r['key'] for r in out['roles']]
+    assert any('a créé le rôle « Test serveur rôle »' in e['text'] for e in admin.journal(token, None, None)['entries'])

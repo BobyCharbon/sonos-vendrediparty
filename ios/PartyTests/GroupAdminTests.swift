@@ -80,4 +80,90 @@ struct GroupAdminTests {
         #expect(AccountSummary.parse(#"{"name": "Boby", "admin": true}"#)?.groupAdmin == true)
         #expect(AccountSummary.parse(#"{"name": "Tom", "admin": false}"#)?.groupAdmin == false)
     }
+
+    // MARK: Rôles personnalisés (table public.roles)
+
+    private let book = """
+    [{"key": "guest", "label": "Guest", "rank": 0, "builtin": true},
+     {"key": "r_videurs", "label": "Videurs", "color": "#12ABEF", "icon": "🚪", "rank": 1, "builtin": false},
+     {"key": "member", "label": "Membre VIP", "rank": 2, "builtin": true},
+     {"key": "organizer", "label": "Organisateur", "rank": 3, "builtin": true},
+     {"key": "coadmin", "label": "Co-admin", "rank": 4, "builtin": true},
+     {"key": "admin", "label": "Admin", "rank": 5, "builtin": true}]
+    """
+
+    @Test("Rôles lus dans la table : rangs, seuils, rôle personnalisé dans les sections et les filtres")
+    func customRolesInMembers() throws {
+        let m: AdminMembers = try decode("""
+        {"me": "me", "perms": ["members.roles"], "rank": 3, "roles": \(book), "people": [
+          {"id": "a", "name": "Léa", "role": "r_videurs", "role_label": "Videurs", "role_rank": 1, "status": "active", "complete": false},
+          {"id": "b", "name": "Tom", "role": "member", "role_label": "Membre VIP", "role_rank": 2, "status": "active", "complete": true},
+          {"id": "c", "name": "Zoé", "role": "coadmin", "role_label": "Co-admin", "role_rank": 4, "status": "active"}]}
+        """)
+        #expect(!m.access.full && m.access.vipRank == 2)  // Admin = rang 5 : pas la liste complète
+        #expect(m.sections(matching: "").map(\.title) == ["Co-admin (1)", "Membre VIP (1)", "Videurs (1)"])
+        #expect(m.people[0].role.label == "Videurs" && m.people[0].role.rank == 1)
+        #expect(m.access.assignable.map(\.key) == ["guest", "r_videurs", "member"])
+        let rules = MemberRules(access: m.access, person: m.people[0])
+        #expect(rules.below && rules.allows(MemberRole(rawValue: "guest")) && !rules.allows(m.access.role("member")!))
+        let team = UserList.arrange(m.people, search: "", filter: .team, sort: .name, descending: false, vipRank: m.access.vipRank)
+        #expect(team.map(\.id) == ["c"])
+    }
+
+    @Test("Écran Rôles et droits : rôles du plus haut au plus bas, nombre de comptes, gestion permise")
+    func customRolesScreen() throws {
+        let r: AdminRoles = try decode("""
+        {"me": "me", "perms": ["roles.manage"], "rank": 5, "full": true, "can_manage": true,
+         "roles": [{"key": "admin", "label": "Admin", "rank": 5, "builtin": true, "members": 1},
+                   {"key": "coadmin", "label": "Co-admin", "rank": 4, "builtin": true, "members": 0},
+                   {"key": "organizer", "label": "Organisateur", "rank": 3, "builtin": true, "members": 0},
+                   {"key": "member", "label": "Membre VIP", "rank": 2, "builtin": true, "members": 4},
+                   {"key": "r_videurs", "label": "Videurs", "icon": "🚪", "rank": 1, "builtin": false, "members": 2},
+                   {"key": "guest", "label": "Guest", "rank": 0, "builtin": true, "members": 9}],
+         "editable": ["coadmin", "organizer", "member", "r_videurs", "guest"], "catalog": [], "grants": {"r_videurs": ["tickets.scan"]}}
+        """)
+        #expect(!r.canDelete)  // pas de « can_delete » : le bouton Supprimer reste caché
+        #expect(r.canManage && r.descending.map(\.key) == ["admin", "coadmin", "organizer", "member", "r_videurs", "guest"])
+        let videurs = r.access.role("r_videurs")!
+        #expect(videurs.members == 2 && videurs.title == "🚪 Videurs" && !videurs.builtin && r.isEditable(videurs))
+        #expect(!r.isEditable(r.access.role("admin")!) && r.granted("tickets.scan", to: videurs))
+        #expect(GroupRolesView.initial(r) == .member)
+    }
+
+    @Test("Réordonner : Guest en bas, Admin en haut, seulement sous son propre rang")
+    func roleOrder() throws {
+        let roles: [MemberRole] = try decode(book)
+        let descending = Array(roles.reversed())  // admin, coadmin, organizer, member, r_videurs, guest
+        // Videurs (index 4) monte au-dessus de Membre VIP (index 3) : permis pour un Admin (rang 5).
+        #expect(RoleOrder.moved(descending, from: [4], to: 3, myRank: 5) == ["guest", "member", "r_videurs", "organizer", "coadmin", "admin"])
+        #expect(RoleOrder.moved(descending, from: [0], to: 2, myRank: 99) == nil)  // Admin reste en haut
+        #expect(RoleOrder.moved(descending, from: [5], to: 4, myRank: 99) == nil)  // Guest reste en bas
+        // Organisateur (rang 3) : ne passe pas un rôle au-dessus de lui, ni le sien.
+        #expect(RoleOrder.moved(descending, from: [4], to: 1, myRank: 3) == nil)
+        #expect(RoleOrder.moved(descending, from: [2], to: 4, myRank: 3) == nil)
+        #expect(RoleOrder.moved(descending, from: [4], to: 3, myRank: 3) == ["guest", "member", "r_videurs", "organizer", "coadmin", "admin"])
+        #expect(RoleOrder.moved(descending, from: [4], to: 4, myRank: 5) == nil)  // rien n'a bougé
+    }
+
+    @Test("Brouillon de rôle : nom nettoyé, 30 caractères au plus, icône facultative")
+    func roleDraft() {
+        var d = RoleDraft()
+        #expect(!d.valid)
+        d.label = "  Les   videurs "
+        d.icon = " "
+        #expect(d.valid && d.cleanLabel == "Les videurs")
+        let body = d.body(token: "t")
+        #expect(body["label"] as? String == "Les videurs" && body["icon"] == nil && body["color"] as? String == "#007AFF")
+        d.label = String(repeating: "x", count: 31)
+        #expect(!d.valid)
+        #expect(RoleDraft(MemberRole(key: "r_x", label: "X", color: nil, icon: "⭐", rank: 1)).icon == "⭐")
+    }
+
+    @Test("Fiche profil : nom d'un rôle personnalisé")
+    func memberCardCustomRole() throws {
+        let card: MemberCard = try decode(#"{"id": "a", "display_name": "Léa", "role": "r_videurs", "role_label": "Videurs"}"#)
+        #expect(card.role.label == "Videurs" && card.role.key == "r_videurs")
+        let old: MemberCard = try decode(#"{"id": "a", "display_name": "Léa", "role": "organizer"}"#)
+        #expect(old.role == .organizer && old.role.label == "Organisateur")
+    }
 }

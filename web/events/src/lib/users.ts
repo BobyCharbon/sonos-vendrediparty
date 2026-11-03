@@ -1,5 +1,6 @@
 import { hasCompleteIdentity } from './profile';
-import { roleRank, type Profile } from './types';
+import { aboveVip, roleRank } from './roles';
+import { type Profile } from './types';
 
 /** Un inscrit tel que le renvoie admin_member_list (Root, Admin). */
 export type UserRow = Profile & {
@@ -62,7 +63,7 @@ function matches(u: UserRow, filter: UserFilter, now: number): boolean {
     case 'guestplus': return u.status === 'active' && u.role === 'guestplus';
     case 'basic': return u.status === 'active' && u.role === 'basic';
     case 'vip': return u.status === 'active' && u.role === 'member';
-    case 'team': return u.status === 'active' && roleRank(u.role) > roleRank('member');
+    case 'team': return u.status === 'active' && aboveVip(u.role);
     case 'beta': return u.beta;
     case 'incomplete': return !hasCompleteIdentity(u);
     case 'banned': return u.status === 'banned';
