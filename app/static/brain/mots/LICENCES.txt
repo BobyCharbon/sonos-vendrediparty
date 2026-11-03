@@ -1,0 +1,29 @@
+Dictionnaire de « Débuts de mots » (Méninges) — sources et licences
+Généré par tools/build_mots_fr.py (version 755220-d206de04c6). Formes normalisées : minuscules, sans accents, œ→oe, æ→ae.
+
+1. Grammalecte — Lexique des formes fléchies du français v7.7 (base Dicollecte)
+   Olivier R., https://grammalecte.net/ — Licence MPL 2.0 (https://mozilla.org/MPL/2.0/)
+   https://grammalecte.net/dic/lexique-grammalecte-fr-v7.7.zip  sha256 bdccf2065e252010253171000a38de84581407896b6bc60aca7d4d69dab7e4d2
+
+2. Morphalou 3.1 — Lexique morphologique ouvert du français, ATILF-CNRS (Nancy), ORTOLANG
+   https://www.ortolang.fr/market/lexicons/morphalou — Licence LGPL-LR (Lesser General Public License for
+   Linguistic Resources). https://repository.ortolang.fr/api/content/morphalou/latest/Morphalou3.1_formatCSV_toutEnUn.zip  sha256 4fc815cbf17aecdf1b47f6bbc263489a460fd8d11ae17e6b522336c72bd0e333
+
+3. Lexique 3.83 — B. New, C. Pallier et al., http://www.lexique.org/ — Licence CC BY-SA 4.0
+   (https://creativecommons.org/licenses/by-sa/4.0/). Sert aussi aux fréquences (formes « courantes »).
+   http://www.lexique.org/databases/Lexique383/Lexique383.zip  sha256 e181d132b3b0d3d87efc98d376968441b517353933011cebea5366321a6024e6
+
+4. Liste de mots français « frgut » (dictionnaire ifrench-gut de Christophe Pythoud, publiée par C. Pallier dans
+   openlexicon) — Licence GNU GPL. https://raw.githubusercontent.com/chrplr/openlexicon/master/datasets-info/Liste-de-mots-francais-Gutenberg/liste.de.mots.francais.frgut.txt  sha256 9adce3934347b9405bdc12ab814c0bbb46d96cea2c9ef3e287575ea786ee037e
+
+5. Wiktionnaire — extraction kaikki.org (wiktextract, T. Ylonen) du Wiktionary, entrées « French » —
+   Licence CC BY-SA 4.0 et GFDL (https://en.wiktionary.org/wiki/Wiktionary:Copyrights)
+   https://kaikki.org/dictionary/French/kaikki.org-dictionary-French.jsonl  sha256 9053b1845fb3e045fa1fbe3f749122fa43e21b49bfa741cadd50255ae6ca0126
+
+6. Hunspell fr « toutes variantes » v7.7 (Dicollecte, MPL 2.0) — ses seules entrées à majuscule servent à écarter
+   les noms propres des autres sources (aucun mot n'en est repris). https://grammalecte.net/dic/hunspell-french-dictionaries-v7.7.zip  sha256 44314d992f94b4658c31a86ef2351724a43067531b0af3643f91bf0220eee616
+
+7. Ajouts et exclusions manuels du projet : tools/mots_fr_ajouts.txt, tools/mots_fr_exclus.txt.
+
+La liste dérivée (ces fichiers .txt) est redistribuée sous les mêmes conditions (CC BY-SA 4.0 pour la part
+Lexique/Wiktionnaire, MPL 2.0, LGPL-LR, GPL pour leurs parts respectives) ; seules des formes de mots sont reprises.

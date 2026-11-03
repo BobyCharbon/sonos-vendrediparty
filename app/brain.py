@@ -5,7 +5,7 @@ Ce module garde le catalogue (15 jeux, 6 domaines), les bornes plausibles de sco
 indice 0–2000 et les calculs du profil : Température (°M), domaines, série 🔥, évolution ; l'analyse (forces /
 faiblesses, tendance, conseils, vitesse vs précision, progrès, Échauffement) est dans app/brain_analysis.py.
 
-La base (migration supabase/migrations/20261102210000_brain.sql) applique la MÊME normalisation et le même calcul de
+La base (migrations supabase/migrations/20261102210000_brain.sql et 20261103090000_brain_sans_fin.sql) applique la MÊME normalisation et le même calcul de
 Température (pour le percentile entre joueurs) : les valeurs du catalogue y sont recopiées et tests/test_brain.py
 vérifie qu'elles restent identiques. Toute modification du catalogue se fait donc aux deux endroits.
 """
@@ -45,43 +45,53 @@ class Game:
     id: str
     name: str
     domain: str
-    seconds: int | None   # durée du chrono ; None = le jeu se termine seul (essais, vies)
-    median: int           # score brut « typique » → indice 1000
-    spread: int           # largeur de la courbe (plus grand = indice qui monte plus doucement)
-    max_score: int        # au-delà : score impossible, borné
-    max_seconds: int      # durée maximale plausible d'une partie
+    seconds: int | None   # durée du chrono ; None = partie sans fin (3 vies), le cas de tous les jeux depuis le 03.11
+    median: int           # score brut « typique » (atteint vers le niveau LEVEL_REF) → indice 1000
+    spread: int           # largeur de la courbe, en millièmes de logarithme du score (plus grand = plus doux)
+    max_score: int        # plafond : un score plus haut est BORNÉ, jamais refusé (robot parfait compris)
+    max_seconds: int      # durée maximale comptée d'une partie (au-delà : bornée, jamais refusée)
 
 
-# Calibrage (02.11.2026, moteur réel) : un joueur qui tape au hasard tombe vers 300–550 °M, le score typique vaut
-# 1000, un très bon humain (~1,7 × typique) vers 1650. Le robot parfait des agents jeux (syllabes ≈ 73 000,
-# balance ≈ 39 000) reste sous la borne : un score trop haut est borné, jamais rejeté. À recalibrer sur les vraies parties.
-def _timed(gid: str, name: str, domain: str, seconds: int, median: int) -> Game:
-    # Chrono : au mieux ~3 réponses/s, presque toutes à ×10 (500 pts), + le bonus final (2 500).
-    return Game(gid, name, domain, seconds, median, round(median * 0.45), seconds * 1500 + 2500, seconds + 30)
+# Méninges sans fin (03.11.2026) : plus de chrono, 3 vies, paliers de 5 niveaux. Une partie typique dure 2–4 min
+# (~20 000 points vers le niveau 10) ; un très bon joueur tient 10–15 min et passe les 100 000 ; le moteur coupe à
+# 30 min. L'indice tient compte du score (échelle logarithmique) ET du niveau atteint (voir raw_index).
+MAX_RUN_SECONDS = 1800                       # 30 min : le moteur (core.js) arrête la partie, le serveur borne
+MAX_SCORE = MAX_RUN_SECONDS * 1500 + 2500    # ~3 réponses/s à ×10 pendant 30 min + bonus final : plafond large
+MAX_LEVEL = 99
+LEVEL_TIER = 5                               # un palier tous les 5 niveaux (1-5 = palier 1, 6-10 = palier 2…)
+SCORE_SPREAD = 800                           # millièmes de ln : ×2,2 sur le score ≈ +1 sur la courbe
+SCORE_OFFSET = 500                           # évite ln(0) et adoucit le bas de la courbe
+LEVEL_REF = 10                               # niveau « typique » (fin du palier 2) → 1000 avec le score typique
+LEVEL_SPREAD = 8                             # +8 niveaux ≈ +1 sur la courbe du niveau
+SCORE_WEIGHT, LEVEL_WEIGHT = 0.65, 0.35      # part du score et du niveau dans l'indice
 
 
-def _open(gid: str, name: str, domain: str, median: int) -> Game:
-    # Sans chrono (essais, vies) : la partie peut durer, la borne est large.
-    return Game(gid, name, domain, None, median, round(median * 0.45), 250000, 1800)
+def _game(gid: str, name: str, domain: str, median: int) -> Game:
+    return Game(gid, name, domain, None, median, SCORE_SPREAD, MAX_SCORE, MAX_RUN_SECONDS)
 
 
 CATALOG: dict[str, Game] = {g.id: g for g in (
-    _timed("pareil", "Pareil ?", "vitesse", 45, 9000),
-    _timed("motif", "Même motif", "vitesse", 45, 8500),
-    _timed("autoroute", "Trois voies", "attention", 60, 9000),
-    _open("grille", "Cases lumineuses", "memoire", 6000),
-    _timed("deux_avant", "Deux avant", "memoire", 45, 8000),
-    _open("tresor", "Jamais deux fois", "memoire", 5000),
-    _timed("nuee", "Le vol", "attention", 45, 8500),
-    _timed("aiguillage", "Aiguillages", "attention", 120, 9000),
-    _timed("intrus", "L'intrus", "attention", 45, 8000),
-    _timed("encre", "Mot ou encre", "flexibilite", 45, 9000),
-    _timed("bascule", "Bascule", "flexibilite", 45, 8500),
-    _timed("courant", "Contre-courant", "flexibilite", 45, 8000),
-    _timed("balance", "Plus lourd", "calcul", 45, 8500),
-    _open("gouttes", "Gouttes", "calcul", 6000),
-    _timed("syllabes", "Débuts de mots", "logique", 60, 9000),
+    _game("pareil", "Pareil ?", "vitesse", 22500),
+    _game("motif", "Même motif", "vitesse", 21000),
+    _game("autoroute", "Trois voies", "attention", 22500),
+    _game("grille", "Cases lumineuses", "memoire", 15000),
+    _game("deux_avant", "Deux avant", "memoire", 20000),
+    _game("tresor", "Jamais deux fois", "memoire", 12500),
+    _game("nuee", "Le vol", "attention", 21000),
+    _game("aiguillage", "Aiguillages", "attention", 22500),
+    _game("intrus", "L'intrus", "attention", 20000),
+    _game("encre", "Mot ou encre", "flexibilite", 22500),
+    _game("bascule", "Bascule", "flexibilite", 21000),
+    _game("courant", "Contre-courant", "flexibilite", 20000),
+    _game("balance", "Plus lourd", "calcul", 21000),
+    _game("gouttes", "Gouttes", "calcul", 15000),
+    _game("syllabes", "Débuts de mots", "logique", 22500),
 )}
+
+
+def tier_of(level: int) -> int:
+    """Palier d'un niveau (niveaux 1-5 = palier 1). 0 si jamais joué (niveau 0)."""
+    return (int(level) + LEVEL_TIER - 1) // LEVEL_TIER if int(level) > 0 else 0
 
 
 class BrainError(ValueError):
@@ -95,15 +105,22 @@ def round_half_up(x: float) -> int:
     return math.floor(x + 0.5)
 
 
-def raw_index(game: str, score: int) -> float:
-    """Score brut → indice 0–2000 non arrondi : courbe en S centrée sur le score typique du jeu (1000 = typique)."""
+def raw_index(game: str, score: int, level: int = LEVEL_REF) -> float:
+    """Score brut et niveau atteint → indice 0–2000 non arrondi (même formule que private.brain_index en base).
+
+    Courbe en S d'une note qui mêle le logarithme du score (rapporté au score typique du jeu) et le niveau atteint
+    (rapporté au niveau 10) : score typique au niveau 10 = 1000 ; un joueur qui atteint le palier 8 (niveau 36+) avec
+    un gros score dépasse 1900, même s'il reste un peu sous le score des meilleurs."""
     g = CATALOG[game]
     s = min(max(int(score), 0), g.max_score)
-    return INDEX_MAX / (1 + math.exp(-(s - g.median) / g.spread))
+    lvl = min(max(int(level or 1), 1), MAX_LEVEL)
+    z_score = math.log((s + SCORE_OFFSET) / (g.median + SCORE_OFFSET)) / (g.spread / 1000)
+    z_level = (lvl - LEVEL_REF) / LEVEL_SPREAD
+    return INDEX_MAX / (1 + math.exp(-(SCORE_WEIGHT * z_score + LEVEL_WEIGHT * z_level)))
 
 
-def game_index(game: str, score: int) -> int:
-    return round_half_up(raw_index(game, score))
+def game_index(game: str, score: int, level: int = LEVEL_REF) -> int:
+    return round_half_up(raw_index(game, score, level))
 
 
 def validate(game: str, score: int, accuracy: float, avg_rt_ms: int, level: int, duration_ms: int) -> dict:
@@ -113,11 +130,12 @@ def validate(game: str, score: int, accuracy: float, avg_rt_ms: int, level: int,
         raise BrainError("Jeu inconnu")
     if not 0 <= accuracy <= 1:
         raise BrainError("Précision invalide")
-    if not 1000 <= duration_ms <= g.max_seconds * 1000:
+    if duration_ms < 1000:
         raise BrainError("Durée de partie invalide")
+    # Score, niveau et durée trop grands : bornés (un robot parfait n'est jamais refusé).
     return {"game": game, "domain": g.domain, "score": min(max(int(score), 0), g.max_score),
             "accuracy": round(float(accuracy), 4), "avg_rt_ms": min(max(int(avg_rt_ms), 0), 20000),
-            "level": min(max(int(level), 1), 99), "duration_ms": int(duration_ms)}
+            "level": min(max(int(level), 1), MAX_LEVEL), "duration_ms": min(int(duration_ms), g.max_seconds * 1000)}
 
 
 # ── Lecture des parties ──
@@ -140,8 +158,9 @@ def _clean(sessions: list[dict]) -> list[dict]:
         if not isinstance(s, dict) or s.get("game") not in CATALOG:
             continue
         g = CATALOG[s["game"]]
+        level = min(max(int(s.get("level") or 1), 1), MAX_LEVEL)
         out.append({**s, "domain": g.domain, "score": min(max(int(s.get("score") or 0), 0), g.max_score),
-                    "at": _when(s), "raw": raw_index(s["game"], s.get("score") or 0)})
+                    "level": level, "at": _when(s), "raw": raw_index(s["game"], s.get("score") or 0, level)})
     return sorted(out, key=lambda s: s["at"])
 
 
@@ -230,6 +249,18 @@ def speed_vs_accuracy(recent: list[dict]) -> dict:
 
 # ── Profil complet (réponse de /api/brain/me) ──
 
+def _game_summary(rows: list[dict], raw: float | None) -> dict:
+    """Un jeu dans le profil ; max_level / max_tier (ajoutés le 03.11) : palier le plus haut débloqué, pour le choix
+    du palier de départ sur un autre appareil."""
+    max_level = max((int(s.get("level") or 1) for s in rows), default=0)
+    return {"index": round_half_up(raw) if raw is not None else 0,
+            "best": max((s["score"] for s in rows), default=0),
+            "plays": len(rows),
+            "last_level": int(rows[-1].get("level") or 1) if rows else 0,
+            "max_level": max_level,
+            "max_tier": tier_of(max_level)}
+
+
 def profile(sessions: list[dict], percentile: int | None = None, now: datetime | None = None,
             party: dict | None = None) -> dict:
     """`party` (facultatif, base) : {"domains": {domaine: {"avg": indice moyen, "players": n}}} des AUTRES joueurs."""
@@ -241,11 +272,7 @@ def profile(sessions: list[dict], percentile: int | None = None, now: datetime |
     per_game: dict[str, list[dict]] = {}
     for s in rows:
         per_game.setdefault(s["game"], []).append(s)
-    games = {gid: {"index": round_half_up(games_raw[gid]) if gid in games_raw else 0,
-                   "best": max((s["score"] for s in per_game.get(gid, [])), default=0),
-                   "plays": len(per_game.get(gid, [])),
-                   "last_level": int(per_game[gid][-1].get("level") or 1) if gid in per_game else 0}
-             for gid in CATALOG}
+    games = {gid: _game_summary(per_game.get(gid, []), games_raw.get(gid)) for gid in CATALOG}
     domains = {d: {"index": domains_idx.get(d, 0), "played": sum(games[g]["plays"] for g in CATALOG if CATALOG[g].domain == d)}
                for d in DOMAINS}
     today = _day(now)
@@ -369,7 +396,8 @@ class BrainStore:
             "p_avg_rt_ms": result["avg_rt_ms"], "p_level": result["level"], "p_duration_ms": result["duration_ms"],
         }, "Ta partie n'a pas pu être enregistrée. Réessaie dans un instant.")
         r = r if isinstance(r, dict) else {}
-        return {"saved": True, "index": int(r.get("index") or game_index(result["game"], result["score"])),
+        fallback = game_index(result["game"], result["score"], result["level"])
+        return {"saved": True, "index": int(r.get("index") or fallback),
                 "best": int(r.get("best") or result["score"]), "record": bool(r.get("record")), "plays": int(r.get("plays") or 1)}
 
     def me(self, token: str) -> dict:

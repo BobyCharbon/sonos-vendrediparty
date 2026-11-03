@@ -13,7 +13,7 @@ def _mean_or_none(values: list[float]) -> float | None:
 
 
 def game_detail(sessions: list[dict], game: str, percentile: int | None = None, now: datetime | None = None) -> dict:
-    """Un jeu : record, moyenne, niveau, parties, indice du jeu, précision et temps de réaction moyens, et les 30
+    """Un jeu : record, moyenne, niveau max et palier max, parties, indice du jeu, précision et temps de réaction moyens, et les 30
     dernières parties (score + indice) pour la courbe de progression."""
     if game not in brain.CATALOG:
         raise brain.BrainError("Jeu inconnu")
@@ -25,12 +25,14 @@ def game_detail(sessions: list[dict], game: str, percentile: int | None = None, 
     rts = [int(s.get("avg_rt_ms") or 0) for s in rows if int(s.get("avg_rt_ms") or 0) > 0]
     avg_acc, avg_rt = _mean_or_none(accs), _mean_or_none(rts)
     g = brain.CATALOG[game]
+    max_level = max((int(s.get("level") or 1) for s in rows), default=0)
     return {
         "game": game, "name": g.name, "domain": g.domain,
         "plays": len(rows),
         "best": max((s["score"] for s in rows), default=0),
         "avg": brain.round_half_up(mean(s["score"] for s in rows)) if rows else 0,
-        "level": max((int(s.get("level") or 1) for s in rows), default=0),
+        "level": max_level,
+        "max_tier": brain.tier_of(max_level),   # palier le plus haut débloqué (ajouté le 03.11)
         "last_level": int(rows[-1].get("level") or 1) if rows else 0,
         "index": brain.round_half_up(index) if index is not None else 0,
         "accuracy": round(avg_acc, 4) if avg_acc is not None else None,

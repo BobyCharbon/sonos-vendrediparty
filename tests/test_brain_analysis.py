@@ -12,7 +12,7 @@ FORBIDDEN = re.compile(r"\bQI\b|santé|âge cérébral|cerveau plus jeune|Alzhei
 
 
 def session(game: str, score: int, days_ago: float = 0, accuracy: float = 0.9, rt: int = 700) -> dict:
-    return {"game": game, "score": score, "accuracy": accuracy, "avg_rt_ms": rt, "level": 3, "duration_ms": 45000,
+    return {"game": game, "score": score, "accuracy": accuracy, "avg_rt_ms": rt, "level": brain.LEVEL_REF, "duration_ms": 45000,
             "played_at": (NOW - timedelta(days=days_ago)).isoformat()}
 
 
@@ -22,7 +22,7 @@ def many(game: str, score: int, n: int = 3, start: float = 1, **kw) -> list[dict
 
 def unbalanced() -> list[dict]:
     """Vitesse très haute, Mémoire très basse, Flexibilité au milieu : 3 parties chacune."""
-    return many("pareil", 14000) + many("deux_avant", 2000) + many("encre", 9000)
+    return many("pareil", 105000) + many("deux_avant", 2100) + many("encre", 22500)
 
 
 def texts(p: dict) -> list[str]:

@@ -1,6 +1,13 @@
 /* Méninges — « Même motif » (vitesse) : les spots allumés sont-ils disposés comme sur la carte d'avant ?
-   Une carte glisse de droite à gauche ; Oui / Non en bas (clavier : → = Oui, ← = Non).
-   Difficulté adaptative : grille plus grande, plus de spots allumés, faux motifs très proches, puis temps limité. */
+   Une carte glisse de droite à gauche ; Oui / Non en bas (clavier : → = Oui, ← = Non). Partie SANS FIN : le moteur
+   gère les 3 vies ; chaque carte a un délai de réponse (trop lent = une vie).
+
+   Niveaux (grille : spots allumés) :
+     1 triangle:1 · 2 2×2:1 · 3 2×2:2 · 4-6 3×3:2→4 · 7-14 4×4:3→7 · 15-24 5×5:6→9 · 25-38 6×6:8→11 · 39+ 6×6:12
+   Délai : 2800 ms au niveau 1, × 0,94 par niveau vers 650 ms (≈ 1900 ms niv. 10, 1310 niv. 20, 840 niv. 40).
+   Faux motifs « proches » (un seul spot glisse d'une case) : 0 aux niveaux 1-2, puis 32 % → 95 % (niveau 28+).
+   Au-delà du niveau 40 : 12 spots sur 36, faux motifs presque toujours proches, délai qui continue de raccourcir
+   (≈ 700 ms niv. 60) sans descendre sous 650 ms. */
 (function () {
   'use strict';
 
@@ -16,6 +23,9 @@
   const LEAVE_MS = 420;
   const PRESS_MS = 160;
   const MAX_TRIES = 12;
+  const WIN_START = 2800;        // délai de réponse au niveau 1
+  const WIN_FLOOR = 650;         // limite humaine visée
+  const WIN_DECAY = 0.94;
 
   // ---------- Dispositions des spots (viewBox 0 0 100 100) ----------
   function grid(n, step) {
@@ -29,20 +39,31 @@
     sq4: { spots: grid(2, 42), rad: 14 },
     g9: { spots: grid(3, 31), rad: 10.5 },
     g16: { spots: grid(4, 24), rad: 8.5 },
+    g25: { spots: grid(5, 19.5), rad: 7 },
+    g36: { spots: grid(6, 16), rad: 5.8 },
   };
-  const LEVELS = [
-    { lay: 'tri3', lit: 1, near: 0, win: 0, d: 300 },
-    { lay: 'sq4', lit: 1, near: 0, win: 0, d: 280 },
-    { lay: 'sq4', lit: 2, near: 0.3, win: 0, d: 260 },
-    { lay: 'g9', lit: 2, near: 0.5, win: 0, d: 240 },
-    { lay: 'g9', lit: 3, near: 0.6, win: 2600, d: 220 },
-    { lay: 'g9', lit: 4, near: 0.7, win: 2200, d: 200 },
-    { lay: 'g16', lit: 4, near: 0.75, win: 2000, d: 185 },
-    { lay: 'g16', lit: 5, near: 0.8, win: 1700, d: 170 },
-    { lay: 'g16', lit: 6, near: 0.85, win: 1400, d: 155 },
-    { lay: 'g16', lit: 6, near: 0.9, win: 1150, d: 140 },
+  // [grille, spots allumés, nombre de niveaux] ; le dernier palier dure indéfiniment.
+  const STEPS = [
+    ['tri3', 1, 1], ['sq4', 1, 1], ['sq4', 2, 1], ['g9', 2, 1], ['g9', 3, 1], ['g9', 4, 1],
+    ['g16', 3, 1], ['g16', 4, 1], ['g16', 5, 2], ['g16', 6, 2], ['g16', 7, 2],
+    ['g25', 6, 2], ['g25', 7, 2], ['g25', 8, 3], ['g25', 9, 3],
+    ['g36', 8, 3], ['g36', 9, 3], ['g36', 10, 4], ['g36', 11, 4], ['g36', 12, Infinity],
   ];
-  const MAX_LEVEL = LEVELS.length;
+  function stepOf(lv) {
+    let first = 1;
+    for (const s of STEPS) { if (lv < first + s[2]) return s; first += s[2]; }
+    return STEPS[STEPS.length - 1];
+  }
+  function cfgOf(lv) {
+    const s = stepOf(lv);
+    return {
+      lay: s[0],
+      lit: s[1],
+      near: lv < 3 ? 0 : Math.min(0.95, 0.25 + 0.025 * lv),
+      win: Math.round(WIN_FLOOR + (WIN_START - WIN_FLOOR) * Math.pow(WIN_DECAY, lv - 1)),
+      d: Math.max(110, 300 - 6 * (lv - 1)),
+    };
+  }
   const cfgKey = (cfg) => cfg.lay + ':' + cfg.lit;
   const patKey = (pat) => pat.slice().sort((a, b) => a - b).join('-');
 
@@ -118,7 +139,8 @@
     const rng = ctx.rng;
     const esc = ctx.esc;
     const rm = !!ctx.reducedMotion;
-    let level = Math.min(MAX_LEVEL, Math.max(1, Math.floor(Number(ctx.level) || 1)));
+    const floorLevel = Math.max(1, Math.floor(Number(ctx.level) || 1));
+    let level = floorLevel;
     let streak = 0;
     let missRun = 0;
     let prevPat = null;
@@ -138,7 +160,6 @@
     };
     const cancel = (t) => { if (t) { clearTimeout(t); timers.delete(t); } };
     const pickIndex = (n) => Math.floor(rng() * n) % n;
-    const cfgOf = (lv) => LEVELS[Math.min(lv, MAX_LEVEL) - 1];
 
     ctx.root.innerHTML = `
 <div class="${P}wrap${rm ? ' ' + P + 'rm' : ''}">
@@ -162,7 +183,7 @@
       el.className = P + 'card ' + P + 'enter';
       el.dataset.k = cfgKey(cfg) + '|' + patKey(pat);
       el.style.setProperty('--d', cfg.d + 'ms');
-      const bar = asking && cfg.win ? `<b class="${P}bar" style="animation-duration:${cfg.win}ms"></b>` : '';
+      const bar = asking ? `<b class="${P}bar" style="animation-duration:${cfg.win}ms"></b>` : '';
       el.innerHTML = svgFor(pat, cfg) + `<i class="${P}mark"></i>` + bar;
       stage.appendChild(el);
       void el.offsetWidth; // force le départ de la transition
@@ -230,19 +251,19 @@
       setButtons(true);
       setPrompt('Même motif que la carte d’avant ?');
       shownAt = performance.now();
-      deadline = cfg.win ? later(onSlow, cfg.win) : 0;
+      deadline = later(onSlow, cfg.win);
     }
 
     function adapt(ok) {
       if (ok) {
         missRun = 0;
         streak += 1;
-        if (streak >= UP_AFTER && level < MAX_LEVEL) { level += 1; streak = 0; ctx.setLevel(level); }
+        if (streak >= UP_AFTER) { level += 1; streak = 0; ctx.setLevel(level); }
         return;
       }
       streak = 0;
       missRun += 1;
-      if (missRun >= DOWN_AFTER && level > 1) { level -= 1; missRun = 0; ctx.setLevel(level); }
+      if (missRun >= DOWN_AFTER && level > floorLevel) { level -= 1; missRun = 0; ctx.setLevel(level); }
     }
 
     function answer(yes) {
@@ -287,7 +308,6 @@
     wrap.addEventListener('pointerdown', onPointer);
     wrap.addEventListener('click', onClick);
     window.addEventListener('keydown', onKey);
-    ctx.onTimeUp(() => { phase = 'over'; cancel(deadline); setButtons(false); });
 
     ctx.setLevel(level);
     beginMemo(true);
@@ -311,11 +331,11 @@
     domain: 'vitesse',
     icon: '💡',
     color: COLOR,
-    seconds: 45,
+    seconds: null,
     howto: [
-      'Chaque carte montre des spots, certains allumés.',
-      'Les spots allumés sont-ils placés exactement comme sur la carte d’avant ? Réponds Oui ou Non (au clavier : → Oui, ← Non).',
-      'Plus tu enchaînes les bonnes réponses, plus la grille grandit et plus ça va vite.',
+      'Chaque carte montre des spots, certains allumés. Sont-ils placés exactement comme sur la carte d’avant ? Oui ou Non (au clavier : → Oui, ← Non).',
+      'Réponds avant la fin de la barre : trop lent ou faux, tu perds une vie. Sans fin : la partie s’arrête quand tu n’as plus de vie.',
+      'Plus tu enchaînes, plus la grille grandit (jusqu’à 6×6), plus il y a de spots et plus ça va vite.',
     ],
     start,
   });

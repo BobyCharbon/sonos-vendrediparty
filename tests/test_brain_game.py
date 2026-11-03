@@ -15,22 +15,22 @@ NOW = datetime(2026, 11, 2, 18, 0, tzinfo=timezone.utc)
 MIGRATION = (Path(__file__).resolve().parents[1] / 'supabase' / 'migrations' / '20261102240000_brain_game.sql').read_text(encoding='utf-8')
 
 
-def session(game='pareil', score=9000, days_ago=0, **kw):
-    return {'game': game, 'score': score, 'accuracy': 0.8, 'avg_rt_ms': 600, 'level': 2, 'duration_ms': 45000,
+def session(game='pareil', score=22500, days_ago=0, **kw):
+    return {'game': game, 'score': score, 'accuracy': 0.8, 'avg_rt_ms': 600, 'level': 10, 'duration_ms': 45000,
             'played_at': (NOW - timedelta(days=days_ago)).isoformat(), **kw}
 
 
 def test_game_detail_sums_up_one_game_only():
     rows = [session(score=4000, days_ago=3, level=1, accuracy=0.5, avg_rt_ms=800),
-            session(score=9000, days_ago=2, level=4, accuracy=1.0, avg_rt_ms=400),
+            session(score=22500, days_ago=2, level=12, accuracy=1.0, avg_rt_ms=400),
             session(score=6000, days_ago=1, level=3, accuracy=None, avg_rt_ms=0),
-            session(game='motif', score=50000)]
+            session(game='motif', score=50000, level=40)]
     d = brain_game.game_detail(rows, 'pareil', percentile=40, now=NOW)
-    assert (d['plays'], d['best'], d['avg'], d['level'], d['last_level']) == (3, 9000, 6333, 4, 3)
+    assert (d['plays'], d['best'], d['avg'], d['level'], d['max_tier'], d['last_level']) == (3, 22500, 10833, 12, 3, 3)
     assert d['accuracy'] == 0.75 and d['avg_rt_ms'] == 600 and d['percentile'] == 40
-    assert d['index'] == brain.round_half_up(sum(brain.raw_index('pareil', s) for s in (4000, 9000, 6000)) / 3)
-    assert [h['score'] for h in d['history']] == [4000, 9000, 6000]
-    assert d['history'][1] == {'day': '2026-10-31', 'score': 9000, 'index': 1000, 'level': 4}
+    assert d['index'] == brain.round_half_up(sum(brain.raw_index('pareil', s, lv) for s, lv in ((4000, 1), (22500, 12), (6000, 3))) / 3)
+    assert [h['score'] for h in d['history']] == [4000, 22500, 6000]
+    assert d['history'][1] == {'day': '2026-10-31', 'score': 22500, 'index': brain.game_index('pareil', 22500, 12), 'level': 12}
     assert d['name'] == 'Pareil ?' and d['domain'] == 'vitesse'
 
 
@@ -45,7 +45,7 @@ def test_game_detail_empty_history_and_limits():
 
 
 def test_a_phone_clock_ahead_still_counts_the_last_game():
-    ahead = [session(score=9000, played_at=(NOW + timedelta(minutes=5)).isoformat())]
+    ahead = [session(score=22500, played_at=(NOW + timedelta(minutes=5)).isoformat())]
     assert brain_game.game_detail(ahead, 'pareil', now=NOW)['index'] == 1000
 
 

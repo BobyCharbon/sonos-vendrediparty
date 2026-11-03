@@ -1,6 +1,16 @@
 /* Méninges — « Pareil ? » (vitesse) : le symbole est-il le même que celui de la carte d'avant ?
-   Une carte glisse de droite à gauche ; Oui / Non en bas (clavier : → = Oui, ← = Non).
-   Difficulté adaptative : plus de symboles, symboles de plus en plus proches, puis un temps de réponse limité. */
+   Une carte glisse de droite à gauche ; Oui / Non en bas (clavier : → = Oui, ← = Non). Partie SANS FIN : le moteur
+   gère les 3 vies ; chaque carte a un délai de réponse (trop lent = une vie).
+
+   Niveaux (cfgOf) :
+     1-2   4 symboles en couleurs          3-4   6 symboles en couleurs
+     5-7   8 symboles, tous de la même couleur (plus d'indice de couleur)
+     8-10  10 symboles, faux « pareil » proches (carré/losange, hexagone…)
+     11-15 14 symboles proches             16-25 tous les symboles (24), familles de quasi-jumeaux
+     26+   « Piège couleur » : couleurs au hasard, seule la forme compte ; la couleur trompe de plus en plus.
+   Délai : 2500 ms au niveau 1, × 0,94 par niveau vers 550 ms (≈ 1670 ms niv. 10, 1150 niv. 20, 725 niv. 40).
+   Faux symboles proches : 0 → 95 % (atteint au niveau 29) ; piège couleur 50 % (niv. 26) → 90 % (niv. 40+).
+   Au-delà du niveau 40 : le délai continue de raccourcir (≈ 600 ms niv. 60), sans jamais descendre sous 550 ms. */
 (function () {
   'use strict';
 
@@ -15,6 +25,10 @@
   const MEMO_MS = 900;
   const LEAVE_MS = 420;
   const PRESS_MS = 160;
+  const WIN_START = 2500;        // délai de réponse au niveau 1
+  const WIN_FLOOR = 550;         // limite humaine visée
+  const WIN_DECAY = 0.94;
+  const LURE_LEVEL = 26;         // début du piège couleur
 
   // ---------- Symboles (SVG originaux, viewBox 0 0 100 100) ----------
   function polyPoints(n, r, rotDeg, inner) {
@@ -29,22 +43,30 @@
   }
   const poly = (n, r, rot, inner) => (c) => `<polygon fill="${c}" points="${polyPoints(n, r, rot, inner)}"/>`;
   const path = (d, extra) => (c) => `<path fill="${c}" ${extra || ''} d="${d}"/>`;
+  const ringPath = (r) => `M10 50a40 40 0 1 0 80 0a40 40 0 1 0-80 0zM${50 - r} 50a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0-${2 * r} 0z`;
   const PLUS = 'M38 10h24v28h28v24H62v28H38V62H10V38h28z';
 
   const SHAPES = {
     circle: (c) => `<circle cx="50" cy="50" r="40" fill="${c}"/>`,
-    ring: path('M10 50a40 40 0 1 0 80 0a40 40 0 1 0-80 0zM31 50a19 19 0 1 0 38 0a19 19 0 1 0-38 0z', 'fill-rule="evenodd"'),
+    ring: path(ringPath(19), 'fill-rule="evenodd"'),
+    ringThin: path(ringPath(28), 'fill-rule="evenodd"'),
     tri: poly(3, 46, -90),
     triDown: poly(3, 46, 90),
+    triL: poly(3, 46, 180),
+    triR: poly(3, 46, 0),
     square: poly(4, 50, 45),
     diamond: poly(4, 46, -90),
     pent: poly(5, 44, -90),
+    pentDown: poly(5, 44, 90),
     hex: poly(6, 44, 0),
+    hexV: poly(6, 44, -90),
     hept: poly(7, 44, -90),
     oct: poly(8, 44, 22.5),
     star4: poly(4, 46, -90, 17),
     star5: poly(5, 46, -90, 20),
     star6: poly(6, 46, -90, 24),
+    star7: poly(7, 46, -90, 26),
+    star8: poly(8, 46, -90, 28),
     plus: path(PLUS),
     cross: path(PLUS, 'transform="rotate(45 50 50)"'),
     heart: path('M50 88C20 66 8 50 8 33C8 19 19 10 31 10c9 0 15 5 19 12c4-7 10-12 19-12c12 0 23 9 23 23c0 17-12 33-42 55z'),
@@ -55,10 +77,12 @@
     circle: '#e5484d', tri: '#30a46c', square: '#4f8cff', star5: '#f5a524', heart: '#d6409f',
     plus: '#12a594', moon: '#8e4ec6', bolt: '#e5484d',
   };
-  // Symboles faciles à confondre entre eux (choisis comme « faux pareil » aux niveaux élevés).
+  const LURE_COLORS = ['#e5484d', '#30a46c', '#4f8cff', '#f5a524', '#d6409f', '#8e4ec6'];
+  // Familles de symboles faciles à confondre (choisis comme « faux pareil »).
   const NEAR = [
-    ['tri', 'triDown'], ['square', 'diamond'], ['pent', 'hex', 'hept', 'oct'],
-    ['star4', 'star5', 'star6'], ['circle', 'ring', 'oct'], ['plus', 'cross'], ['heart', 'moon'],
+    ['tri', 'triDown', 'triL', 'triR'], ['square', 'diamond'], ['pent', 'pentDown', 'hex', 'hexV', 'hept', 'oct'],
+    ['star4', 'star5', 'star6', 'star7', 'star8'], ['circle', 'ring', 'ringThin', 'oct'], ['plus', 'cross'],
+    ['heart', 'moon'],
   ];
   function nearOf(key) {
     return NEAR.filter((g) => g.includes(key)).flat().filter((k) => k !== key);
@@ -67,27 +91,29 @@
   const BASE4 = ['circle', 'tri', 'square', 'star5'];
   const BASE6 = BASE4.concat(['heart', 'plus']);
   const BASE8 = BASE6.concat(['moon', 'bolt']);
-  const MID = BASE6.concat(['diamond', 'hex']);
-  const HARD = MID.concat(['triDown', 'star6', 'cross', 'ring']);
+  const MID = BASE6.concat(['diamond', 'hex', 'triDown', 'star6']);
+  const HARD = MID.concat(['cross', 'ring', 'pent', 'star4']);
   const ALL = Object.keys(SHAPES);
-  // mode = « couleurs » (chaque symbole a sa couleur) ou « mono » (tous de la même couleur).
-  const LEVELS = [
-    { pool: BASE4, mode: 'couleurs', near: 0, win: 0, d: 300 },
-    { pool: BASE6, mode: 'couleurs', near: 0, win: 0, d: 280 },
-    { pool: BASE8, mode: 'mono', near: 0.2, win: 0, d: 260 },
-    { pool: MID, mode: 'mono', near: 0.4, win: 0, d: 240 },
-    { pool: HARD, mode: 'mono', near: 0.55, win: 2600, d: 220 },
-    { pool: ALL, mode: 'mono', near: 0.7, win: 2200, d: 200 },
-    { pool: ALL, mode: 'mono', near: 0.8, win: 1800, d: 180 },
-    { pool: ALL, mode: 'mono', near: 0.85, win: 1500, d: 165 },
-    { pool: ALL, mode: 'mono', near: 0.9, win: 1300, d: 150 },
-    { pool: ALL, mode: 'mono', near: 0.9, win: 1100, d: 140 },
+  // [premier niveau, symboles, mode] ; mode : couleurs (chaque symbole sa couleur), mono, leurre (couleur au hasard).
+  const STAGES = [
+    [1, BASE4, 'couleurs'], [3, BASE6, 'couleurs'], [5, BASE8, 'mono'], [8, MID, 'mono'],
+    [11, HARD, 'mono'], [16, ALL, 'mono'], [LURE_LEVEL, ALL, 'leurre'],
   ];
-  const MAX_LEVEL = LEVELS.length;
 
-  function svgFor(key, cfg) {
-    const c = cfg.mode === 'mono' ? COLOR : (PALETTE[key] || COLOR);
-    return `<svg viewBox="0 0 100 100" aria-hidden="true">${SHAPES[key](c)}</svg>`;
+  function cfgOf(lv) {
+    const stage = STAGES.filter((s) => lv >= s[0]).pop();
+    return {
+      pool: stage[1],
+      mode: stage[2],
+      near: lv < 3 ? 0 : Math.min(0.95, 0.1 + 0.03 * lv),
+      trap: stage[2] === 'leurre' ? Math.min(0.9, 0.5 + 0.03 * (lv - LURE_LEVEL)) : 0,
+      win: Math.round(WIN_FLOOR + (WIN_START - WIN_FLOOR) * Math.pow(WIN_DECAY, lv - 1)),
+      d: Math.max(110, 300 - 6 * (lv - 1)),
+    };
+  }
+
+  function svgFor(key, color) {
+    return `<svg viewBox="0 0 100 100" aria-hidden="true">${SHAPES[key](color)}</svg>`;
   }
 
   // ---------- Styles (injectés une fois) ----------
@@ -95,7 +121,7 @@
 .${P}wrap{display:flex;flex-direction:column;align-items:center;gap:14px;box-sizing:border-box;width:100%;height:100%;
   min-height:440px;padding:10px 16px calc(14px + env(safe-area-inset-bottom,0px));user-select:none;-webkit-user-select:none;
   -webkit-touch-callout:none}
-.${P}prompt{margin:0;min-height:24px;font-size:17px;font-weight:650;text-align:center;line-height:1.35}
+.${P}prompt{margin:0;min-height:46px;font-size:17px;font-weight:650;text-align:center;line-height:1.35}
 .${P}stage{position:relative;flex:1;align-self:stretch;margin:0 -16px;min-height:250px;overflow:hidden}
 .${P}card{position:absolute;left:50%;top:50%;width:min(66vw,260px);aspect-ratio:4/5;margin:0;border-radius:24px;
   background:#fff;box-shadow:0 10px 30px rgba(20,30,60,.18),0 1px 0 rgba(0,0,0,.04);display:flex;align-items:center;
@@ -145,12 +171,14 @@
     const rng = ctx.rng;
     const esc = ctx.esc;
     const rm = !!ctx.reducedMotion;
-    const startLevel = Math.min(MAX_LEVEL, Math.max(1, Math.floor(Number(ctx.level) || 1)));
-    let level = startLevel;
+    const floorLevel = Math.max(1, Math.floor(Number(ctx.level) || 1));
+    let level = floorLevel;
     let streak = 0;
     let missRun = 0;
     let prevKey = null;
     let curKey = null;
+    let prevColor = null;
+    let curColor = null;
     let curMode = null;
     let phase = 'memo';           // memo | ask | over
     let shownAt = 0;
@@ -166,7 +194,6 @@
     };
     const cancel = (t) => { if (t) { clearTimeout(t); timers.delete(t); } };
     const pick = (arr) => arr[Math.floor(rng() * arr.length) % arr.length];
-    const cfgOf = (lv) => LEVELS[Math.min(lv, MAX_LEVEL) - 1];
 
     ctx.root.innerHTML = `
 <div class="${P}wrap${rm ? ' ' + P + 'rm' : ''}">
@@ -185,13 +212,13 @@
     const setPrompt = (text) => { prompt.innerHTML = esc(text); };
     const setButtons = (on) => btns.forEach((b) => { b.disabled = !on; });
 
-    function showCard(key, cfg, asking) {
+    function showCard(key, color, cfg, asking) {
       const el = document.createElement('div');
       el.className = P + 'card ' + P + 'enter';
       el.dataset.k = key;
       el.style.setProperty('--d', cfg.d + 'ms');
-      const bar = asking && cfg.win ? `<b class="${P}bar" style="animation-duration:${cfg.win}ms"></b>` : '';
-      el.innerHTML = svgFor(key, cfg) + `<i class="${P}mark"></i>` + bar;
+      const bar = asking ? `<b class="${P}bar" style="animation-duration:${cfg.win}ms"></b>` : '';
+      el.innerHTML = svgFor(key, color) + `<i class="${P}mark"></i>` + bar;
       stage.appendChild(el);
       void el.offsetWidth; // force le départ de la transition
       el.classList.remove(P + 'enter');
@@ -204,11 +231,19 @@
       later(() => el.remove(), LEAVE_MS);
     }
 
-    function randomKey(cfg) { return pick(cfg.pool); }
     function distractor(prev, cfg) {
       const close = nearOf(prev).filter((k) => cfg.pool.includes(k));
       if (close.length && rng() < cfg.near) return pick(close);
       return pick(cfg.pool.filter((k) => k !== prev));
+    }
+    // Piège couleur : la couleur dit souvent le contraire de la bonne réponse.
+    function colorFor(key, match, cfg) {
+      if (cfg.mode === 'couleurs') return PALETTE[key] || COLOR;
+      if (cfg.mode === 'mono') return COLOR;
+      if (!prevColor) return pick(LURE_COLORS);
+      const others = LURE_COLORS.filter((c) => c !== prevColor);
+      if (rng() >= cfg.trap) return pick(LURE_COLORS);
+      return match ? pick(others) : prevColor;
     }
     function decideMatch() {
       let match = rng() < P_MATCH;
@@ -218,40 +253,50 @@
       return match;
     }
 
+    function memoText(first, mode) {
+      if (mode === 'leurre') return 'Piège : seule la forme compte, pas la couleur. Retiens ce symbole…';
+      return first ? 'Retiens ce symbole…' : 'Nouveau niveau : retiens ce symbole…';
+    }
+
     function beginMemo(first) {
       phase = 'memo';
       setButtons(false);
       const cfg = cfgOf(level);
       curMode = cfg.mode;
-      curKey = randomKey(cfg);
-      showCard(curKey, cfg, false);
-      setPrompt(first ? 'Retiens ce symbole…' : 'Nouveau niveau : retiens ce symbole…');
-      later(nextAsk, first ? FIRST_MEMO_MS : MEMO_MS);
+      curKey = pick(cfg.pool);
+      prevColor = null;
+      curColor = colorFor(curKey, false, cfg);
+      showCard(curKey, curColor, cfg, false);
+      setPrompt(memoText(first, cfg.mode));
+      later(nextAsk, (first ? FIRST_MEMO_MS : MEMO_MS) + (cfg.mode === 'leurre' ? MEMO_MS : 0));
     }
 
     function nextAsk() {
       const cfg = cfgOf(level);
       if (cfg.mode !== curMode) { beginMemo(false); return; }
       prevKey = curKey;
-      curKey = decideMatch() ? prevKey : distractor(prevKey, cfg);
-      showCard(curKey, cfg, true);
+      prevColor = curColor;
+      const match = decideMatch();
+      curKey = match ? prevKey : distractor(prevKey, cfg);
+      curColor = colorFor(curKey, match, cfg);
+      showCard(curKey, curColor, cfg, true);
       phase = 'ask';
       setButtons(true);
       setPrompt('Même symbole que la carte d’avant ?');
       shownAt = performance.now();
-      deadline = cfg.win ? later(onSlow, cfg.win) : 0;
+      deadline = later(onSlow, cfg.win);
     }
 
     function adapt(ok) {
       if (ok) {
         missRun = 0;
         streak += 1;
-        if (streak >= UP_AFTER && level < MAX_LEVEL) { level += 1; streak = 0; ctx.setLevel(level); }
+        if (streak >= UP_AFTER) { level += 1; streak = 0; ctx.setLevel(level); }
         return;
       }
       streak = 0;
       missRun += 1;
-      if (missRun >= DOWN_AFTER && level > 1) { level -= 1; missRun = 0; ctx.setLevel(level); }
+      if (missRun >= DOWN_AFTER && level > floorLevel) { level -= 1; missRun = 0; ctx.setLevel(level); }
     }
 
     function answer(yes) {
@@ -296,7 +341,6 @@
     wrap.addEventListener('pointerdown', onPointer);
     wrap.addEventListener('click', onClick);
     window.addEventListener('keydown', onKey);
-    ctx.onTimeUp(() => { phase = 'over'; cancel(deadline); setButtons(false); });
 
     ctx.setLevel(level);
     beginMemo(true);
@@ -320,11 +364,11 @@
     domain: 'vitesse',
     icon: '⚡',
     color: COLOR,
-    seconds: 45,
+    seconds: null,
     howto: [
-      'Une carte apparaît, puis une autre la remplace.',
-      'Le symbole est-il le même que sur la carte d’avant ? Réponds Oui ou Non (au clavier : → Oui, ← Non).',
-      'Va vite sans te tromper : chaque série de bonnes réponses fait grimper le multiplicateur.',
+      'Une carte apparaît, puis une autre la remplace. Le symbole est-il le même que sur la carte d’avant ? Oui ou Non (au clavier : → Oui, ← Non).',
+      'Réponds avant la fin de la barre : trop lent ou faux, tu perds une vie. Sans fin : la partie s’arrête quand tu n’as plus de vie.',
+      'Plus tu montes, plus les symboles se ressemblent et plus ça va vite. Plus loin, la couleur te piège : seule la forme compte.',
     ],
     start,
   });

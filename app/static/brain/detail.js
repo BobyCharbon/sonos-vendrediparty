@@ -1,7 +1,8 @@
 // 🧠 Méninges : statistiques PAR JEU, dans le jeu lui-même (façon Lumosity).
 // - Écran de fin enrichi : comparaison à ta moyenne et à ton record (petite fête si record), mini-courbe des 10 dernières
 //   parties, indice du jeu et sa variation, percentile du jeu si la base le donne.
-// - Fiche d'un jeu (depuis l'accueil, jeu déjà joué) : record, niveau, parties, courbe, précision, réaction, Jouer.
+// - Fiche d'un jeu (depuis l'accueil, jeu déjà joué) : record, niveau max, palier max, parties, courbe, précision,
+//   réaction, Jouer.
 // Chargé par core.js, qui l'appelle par window.BrainDetail (prefetch, enrich, saved, sheet). Tout texte passe par esc().
 (function () {
   "use strict";
@@ -161,7 +162,8 @@
       ${s ? `<div class="br-stats bd-stats">
         ${stat("Record", s.best ? fmt(s.best) : "–")}
         ${stat("Indice du jeu", s.index ? `${fmt(s.index)} °M` : "–")}
-        ${stat("Niveau atteint", s.level || "–")}
+        ${stat("Niveau max", s.level || "–")}
+        ${stat("Palier max", s.level ? fmt(s.max_tier || a.tierOf(s.level)) : "–")}
         ${stat("Parties", fmt(plays))}
         ${stat("Précision moyenne", s.accuracy != null ? pctTxt(s.accuracy) : "–")}
         ${stat("Réaction moyenne", s.avg_rt_ms ? `${fmt(s.avg_rt_ms)} ms` : "–")}

@@ -1,12 +1,12 @@
 """Méninges, statistiques par jeu (vrai navigateur, iPhone, sans compte : parties gardées sur le téléphone).
 Deux parties faibles déjà jouées → la tuile du jeu ouvre sa fiche (record, parties, courbe, Jouer) ; on joue une
-partie courte (horloge simulée) → l'écran de fin compare à la moyenne et au record (nouveau record), montre la
+partie (horloge simulée, le joueur ne répond plus : il perd ses 3 vies) → l'écran de fin compare à la moyenne et au record (nouveau record), montre la
 mini-courbe et l'indice du jeu ; la fiche compte ensuite 3 parties."""
 import pytest
 pytest.importorskip('playwright.sync_api')
 from playwright.sync_api import expect
 from tests.e2e.helpers import Phone, Server
-from tests.e2e.test_brain import TIMED
+from tests.e2e.test_brain import KEYBOARD_GAMES
 
 SEED = """([game, now]) => {
   const at = (h) => new Date(now - h * 3600e3).toISOString();
@@ -41,7 +41,7 @@ def test_game_sheet_and_enriched_end_screen(phone):
     phone.open_games()
     root = open_brain(page)
     ids = page.evaluate('Brain.list().map(g => g.id)')
-    game = next((g for g in TIMED if g in ids), None)
+    game = next((g for g in KEYBOARD_GAMES if g in ids), None)
     assert game, f'aucun jeu chronométré chargé : {ids}'
     page.evaluate(SEED, [game, page.evaluate('Date.now()')])
     root.locator('.br-top [data-br="close"]').click()
@@ -55,7 +55,8 @@ def test_game_sheet_and_enriched_end_screen(phone):
     stats = sheet.locator('.br-stat')
     expect(stats.filter(has_text='Record')).to_contain_text('140')
     expect(stats.filter(has_text='Parties')).to_contain_text('2')
-    expect(stats.filter(has_text='Niveau atteint')).to_contain_text('2')
+    expect(stats.filter(has_text='Niveau max')).to_contain_text('2')
+    expect(stats.filter(has_text='Palier max')).to_contain_text('1')
     expect(stats.filter(has_text='Précision moyenne')).to_contain_text('50 %')
     expect(stats.filter(has_text='Réaction moyenne')).to_contain_text('900 ms')
     expect(stats.filter(has_text='Indice du jeu')).to_contain_text('°M')
@@ -98,7 +99,7 @@ def test_first_game_is_the_reference(phone):
     phone.open_games()
     root = open_brain(page)
     ids = page.evaluate('Brain.list().map(g => g.id)')
-    game = next((g for g in TIMED if g in ids), None)
+    game = next((g for g in KEYBOARD_GAMES if g in ids), None)
     root.locator(f'[data-br="play"][data-id="{game}"]').click()  # jamais joué : directement l'explication
     expect(root.locator('.br-howto')).to_be_visible()
     root.locator('[data-br="go"]').click()

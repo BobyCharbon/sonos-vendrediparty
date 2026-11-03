@@ -173,7 +173,7 @@
     const games = [...cat.games].sort((a, b) => order.indexOf(a.domain) - order.indexOf(b.domain));
     return `<ul class="brs-games">${games.map((g) => {
       const s = me.games?.[g.id] || {}, played = +s.plays > 0;
-      const detail = played ? `Record <b>${fmt(s.best)}</b> · niveau ${fmt(s.last_level || 1)} · ${plural(s.plays, "partie")}` : "Pas encore joué";
+      const detail = played ? `Record <b>${fmt(s.best)}</b> · niveau ${fmt(s.last_level || 1)}${+s.max_tier > 1 ? ` · palier ${fmt(s.max_tier)}` : ""} · ${plural(s.plays, "partie")}` : "Pas encore joué";
       return `<li class="brs-game${played ? "" : " off"}" style="--c:${COLORS[g.domain] || "#8b5cff"}">
         <span class="brs-game-i" aria-hidden="true">${h(iconOf(g.id))}</span>
         <span class="brs-game-t"><b>${h(g.name)}</b><small>${h(domainLabel(cat, g.domain))} · ${detail}</small></span>

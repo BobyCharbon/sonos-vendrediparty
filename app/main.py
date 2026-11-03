@@ -2883,16 +2883,20 @@ def purity_me(body: AccountToken, request: Request):
 
 # 🧠 Méninges : entraînement cérébral solo (mini-jeux dans le navigateur, résultats et stats ici).
 BRAIN_GAME_ID = r"^[a-z_]{2,20}$"
+# Méninges sans fin : limites de forme seulement (valeurs absurdes refusées) ; le plausible est borné par brain.validate.
+BRAIN_SCORE_LIMIT = 1_000_000_000
+BRAIN_LEVEL_LIMIT = 9999
+BRAIN_DURATION_LIMIT_MS = 24 * 3600 * 1000
 
 
 class BrainResult(BaseModel):
     token: str = Field(min_length=21, max_length=4095)
     game: str = Field(pattern=BRAIN_GAME_ID)
-    score: int = Field(ge=0, le=1_000_000)
+    score: int = Field(ge=0, le=BRAIN_SCORE_LIMIT)  # bien au-delà du plafond : brain.validate borne, ne refuse pas
     accuracy: float = Field(ge=0, le=1)
     avg_rt_ms: int = Field(default=0, ge=0, le=60_000)
-    level: int = Field(default=1, ge=1, le=99)
-    duration_ms: int = Field(ge=0, le=3_600_000)
+    level: int = Field(default=1, ge=1, le=BRAIN_LEVEL_LIMIT)
+    duration_ms: int = Field(ge=0, le=BRAIN_DURATION_LIMIT_MS)
 
 
 class BrainCompare(BaseModel):
@@ -2902,11 +2906,11 @@ class BrainCompare(BaseModel):
 
 class BrainLocalSession(BaseModel):
     game: str = Field(pattern=BRAIN_GAME_ID)
-    score: int = Field(ge=0, le=1_000_000)
+    score: int = Field(ge=0, le=BRAIN_SCORE_LIMIT)
     accuracy: float | None = Field(default=None, ge=0, le=1)
     avg_rt_ms: int = Field(default=0, ge=0, le=60_000)
-    level: int = Field(default=1, ge=1, le=99)
-    duration_ms: int = Field(default=0, ge=0, le=3_600_000)
+    level: int = Field(default=1, ge=1, le=BRAIN_LEVEL_LIMIT)
+    duration_ms: int = Field(default=0, ge=0, le=BRAIN_DURATION_LIMIT_MS)
     played_at: str = Field(max_length=40)
 
 

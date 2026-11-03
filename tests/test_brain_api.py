@@ -43,7 +43,7 @@ class FakeBase:
             rows.append({'game': body['p_game'], 'score': body['p_score'], 'accuracy': body['p_accuracy'],
                          'avg_rt_ms': body['p_avg_rt_ms'], 'level': body['p_level'], 'duration_ms': body['p_duration_ms'],
                          'played_at': '2026-11-02T18:00:00+00:00'})
-            return httpx.Response(200, json={'index': brain.game_index(body['p_game'], body['p_score']),
+            return httpx.Response(200, json={'index': brain.game_index(body['p_game'], body['p_score'], body['p_level']),
                                              'best': max(prev or 0, body['p_score']), 'record': prev is None or body['p_score'] > prev,
                                              'plays': sum(r['game'] == body['p_game'] for r in rows)})
         if path == '/rest/v1/rpc/brain_my_stats':
@@ -69,7 +69,7 @@ def setup(monkeypatch):
 
 
 def result(**kw):
-    return {'token': TOK_A, 'game': 'pareil', 'score': 9000, 'accuracy': 0.9, 'avg_rt_ms': 650, 'level': 3,
+    return {'token': TOK_A, 'game': 'pareil', 'score': 22500, 'accuracy': 0.9, 'avg_rt_ms': 650, 'level': 10,
             'duration_ms': 45000, **kw}
 
 
@@ -77,17 +77,34 @@ def test_a_connected_player_saves_a_game(setup):
     c, base = setup
     r = c.post('/api/brain/result', json=result())
     assert r.status_code == 200
-    assert r.json() == {'saved': True, 'index': 1000, 'best': 9000, 'record': True, 'plays': 1}
-    assert base.calls[-1] == ('/rest/v1/rpc/brain_record', {'p_game': 'pareil', 'p_score': 9000, 'p_accuracy': 0.9,
-                                                            'p_avg_rt_ms': 650, 'p_level': 3, 'p_duration_ms': 45000})
+    assert r.json() == {'saved': True, 'index': 1000, 'best': 22500, 'record': True, 'plays': 1}
+    assert base.calls[-1] == ('/rest/v1/rpc/brain_record', {'p_game': 'pareil', 'p_score': 22500, 'p_accuracy': 0.9,
+                                                            'p_avg_rt_ms': 650, 'p_level': 10, 'p_duration_ms': 45000})
     second = c.post('/api/brain/result', json=result(score=5000)).json()
-    assert second['record'] is False and second['best'] == 9000 and second['plays'] == 2
+    assert second['record'] is False and second['best'] == 22500 and second['plays'] == 2
 
 
 def test_the_server_bounds_the_score_before_the_database(setup):
     c, base = setup
-    c.post('/api/brain/result', json=result(score=999_999))
+    c.post('/api/brain/result', json=result(score=99_999_999))
     assert base.calls[-1][1]['p_score'] == brain.CATALOG['pareil'].max_score
+
+
+def test_a_perfect_robot_is_never_refused(setup):
+    """Partie sans fin : énorme score, niveau au-delà de 99, plus de 30 min → borné, enregistré, jamais refusé."""
+    c, base = setup
+    r = c.post('/api/brain/result', json=result(score=40_000_000, level=250, duration_ms=2 * 3600 * 1000, avg_rt_ms=120))
+    assert r.status_code == 200 and r.json()['saved'] is True and r.json()['index'] >= 1990
+    sent = base.calls[-1][1]
+    assert sent['p_score'] == brain.MAX_SCORE and sent['p_level'] == 99 and sent['p_duration_ms'] == 1_800_000
+
+
+def test_me_gives_the_highest_tier_reached_per_game(setup):
+    c, _ = setup
+    c.post('/api/brain/result', json=result(level=37))
+    c.post('/api/brain/result', json=result(level=4))
+    g = c.post('/api/brain/me', json={'token': TOK_A}).json()['games']['pareil']
+    assert g['last_level'] == 4 and g['max_level'] == 37 and g['max_tier'] == 8
 
 
 def test_bad_results_are_refused(setup):
@@ -134,7 +151,7 @@ def test_compare_lists_friends_and_a_target(setup):
 
 def test_compare_with_a_member_domain_by_domain(setup):
     c, _ = setup
-    c.post('/api/brain/result', json=result(score=12000))   # Vitesse (pareil) au-dessus du typique
+    c.post('/api/brain/result', json=result(score=40000))   # Vitesse (pareil) au-dessus du typique
     t = c.post('/api/brain/compare', json={'token': TOK_A, 'target': TARGET}).json()['target']
     assert t['name'] == '<b>Bob</b>' and t['self'] is False and t['played'] and t['me_played']
     assert t['temperature'] == 1100 and t['me_temperature'] > 1000
@@ -180,7 +197,7 @@ def test_compare_verdict_names_where_each_one_is_strongest():
 
 def test_local_profile_for_a_player_without_account(setup):
     c, base = setup
-    sessions = [{'game': 'pareil', 'score': 9000, 'accuracy': 0.8, 'avg_rt_ms': 700, 'level': 2, 'duration_ms': 45000,
+    sessions = [{'game': 'pareil', 'score': 22500, 'accuracy': 0.8, 'avg_rt_ms': 700, 'level': 10, 'duration_ms': 45000,
                  'played_at': '2026-11-02T10:00:00Z'}]
     r = c.post('/api/brain/local', json={'sessions': sessions})
     assert r.status_code == 200 and r.json()['games']['pareil']['index'] == 1000 and r.json()['percentile'] is None
@@ -197,8 +214,8 @@ def test_catalog_route(setup):
 def test_me_compares_each_domain_to_the_other_party_players(setup):
     c, base = setup
     for _ in range(3):
-        c.post('/api/brain/result', json=result(score=14000))
-        c.post('/api/brain/result', json=result(game='encre', score=9000))
+        c.post('/api/brain/result', json=result(score=105000))
+        c.post('/api/brain/result', json=result(game='encre', score=22500))
     base.party = {'domains': {'vitesse': {'avg': 1000, 'players': 4}, 'flexibilite': {'avg': 900, 'players': 2}}}
     me = c.post('/api/brain/me', json={'token': TOK_A}).json()
     vitesse, flex = me['domain_analysis']['vitesse'], me['domain_analysis']['flexibilite']

@@ -1,7 +1,9 @@
 // 🧠 Méninges : moteur des mini-jeux d'entraînement (solo). Panneau plein écran position: fixed (#brainRoot), jamais de
 // règle de hauteur ou de défilement sur html/body (bug iOS 26, voir CLAUDE.md). Chaque mini-jeu (games/<id>.js) appelle
-// Brain.register({...}) ; le moteur gère l'accueil, l'Échauffement, l'explication, le 3-2-1, le chrono, le score
-// (50 × multiplicateur, jauge de 4, ×1…×10, bonus final 250 × multiplicateur), l'écran de fin et l'envoi du résultat.
+// Brain.register({...}) ; le moteur gère l'accueil, l'Échauffement, l'explication, le 3-2-1, le score (50 ×
+// multiplicateur, jauge de 4, ×1…×10, bonus final 250 × multiplicateur), les 3 vies (fin de partie à 0, +1 vie après
+// 15 bonnes d'affilée), les paliers (un tous les 5 niveaux, mémorisés par jeu, palier de départ au choix), l'écran
+// de fin et l'envoi du résultat. Plus de chrono global (contrat v2) ; un jeu qui donne encore `seconds` reste chronométré.
 (function () {
   "use strict";
   const BRAIN_NAME = "Méninges";
@@ -15,7 +17,10 @@
   const POINTS = 50, GAUGE = 4, MULT_MAX = 10, FINAL_BONUS = 250;
   const WARMUP_SIZE = 5, LOCAL_MAX = 300, SYNC_MAX = 30, INDEX_MAX = 2000;
   const COUNT_FROM = 3, COUNT_STEP_MS = 750, FLASH_MS = 260, TICK_MS = 100, WARN_S = 5, MIN_SEND_MS = 1000;
-  const K = { sessions: "brain_local", levels: "brain_levels", best: "brain_best", warmup: "brain_warmup", sound: "vp-game-sounds" };
+  const LIVES = 3, LIFE_STREAK = 15, TIER_SIZE = 5, MAX_LEVEL = 99, MAX_RUN_MS = 30 * 60 * 1000;
+  const DEATH_MS = 900, TIER_MS = 1800, FLY_MS = 700;
+  const K = { sessions: "brain_local", levels: "brain_levels", tiers: "brain_tiers", best: "brain_best",
+    warmup: "brain_warmup", sound: "vp-game-sounds" };
 
   const games = new Map();
   const escHtml = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -24,6 +29,8 @@
   const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
   const today = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Zurich" });
   const domainOf = (id) => DOMAINS.find((d) => d[0] === id) || DOMAINS[0];
+  const tierOf = (level) => Math.max(1, Math.ceil((+level || 1) / TIER_SIZE));   // niveaux 1-5 = palier 1…
+  const tierStart = (tier) => (Math.max(1, tier) - 1) * TIER_SIZE + 1;
 
   // ── Stockage local (navigation privée, stockage plein : l'app marche sans) ──
   function read(key, fallback) {
@@ -182,10 +189,19 @@
     write(K.sessions, keep);
   }
   const bestOf = (id) => Math.max(read(K.best, {})[id] || 0, profile?.games?.[id]?.best || 0);
-  function startLevel(id) {
-    const last = Math.max(read(K.levels, {})[id] || 0, profile?.games?.[id]?.last_level || 0);
-    return Math.max(1, last - 1);
+
+  // ── Paliers : le plus haut atteint, par jeu (ce téléphone ou le compte : niveau max de ses parties) ──
+  function unlockedTier(id) {
+    const g = profile?.games?.[id] || {};
+    return Math.min(tierOf(MAX_LEVEL), Math.max(1, +read(K.tiers, {})[id] || 0, tierOf(read(K.levels, {})[id] || 1),
+      +g.max_tier || 0, tierOf(g.max_level || 1)));
   }
+  function saveTier(id, tier) {
+    const all = read(K.tiers, {});
+    if ((+all[id] || 0) < tier) write(K.tiers, { ...all, [id]: tier });
+  }
+  const picked = new Map();   // jeu → palier de départ choisi sur l'écran d'explication (par défaut le plus haut)
+  const startTier = (id) => Math.min(picked.get(id) || unlockedTier(id), unlockedTier(id));
 
   // ── L'Échauffement : 5 jeux du jour, un par domaine autant que possible ──
   function warmup() {
@@ -240,8 +256,8 @@
     const done = w.done.length, all = done >= w.ids.length;
     const label = all ? "Refaire l'Échauffement" : done ? `Continuer · ${done}/${w.ids.length}` : "Commencer";
     return `<section class="br-warm${all ? " br-warm-done" : ""}" aria-labelledby="brWarmH">
-      <div class="br-warm-top"><h3 id="brWarmH">L'Échauffement</h3><span class="br-chip">${all ? "✓ Fait aujourd'hui" : `${w.ids.length} jeux · ~5 min`}</span></div>
-      <p class="br-muted">Un jeu par domaine, choisi pour aujourd'hui.</p>
+      <div class="br-warm-top"><h3 id="brWarmH">L'Échauffement</h3><span class="br-chip">${all ? "✓ Fait aujourd'hui" : `${w.ids.length} jeux · une partie chacun`}</span></div>
+      <p class="br-muted">Un jeu par domaine, choisi pour aujourd'hui. Une partie chacun, jusqu'à ta dernière vie.</p>
       <ol class="br-warm-row">${w.ids.map((id) => { const g = games.get(id); return `<li class="${w.done.includes(id) ? "on" : ""}" style="--c:${e(g.color)}" title="${e(g.name)}"><span aria-hidden="true">${e(g.icon)}</span><span class="br-sr">${e(g.name)}${w.done.includes(id) ? " (fait)" : ""}</span></li>`; }).join("")}</ol>
       <button type="button" class="br-cta" data-br="warmup">${label}</button></section>`;
   }
@@ -288,12 +304,27 @@
       <header class="br-top">${inWarmup ? `<span class="br-chip">Échauffement · ${warmup().done.length + 1}/${warmup().ids.length}</span>` : "<span></span>"}${closeBtn("Retour")}</header>
       <div class="br-howto-i" aria-hidden="true">${e(g.icon)}</div>
       <h2 class="br-howto-n">${e(g.name)}</h2>
-      <p class="br-chip br-chip-dom" style="--c:${d[3]}">${d[2]} ${d[1]} · ${g.seconds ? `${g.seconds} s` : "jusqu'à la fin"} · niveau ${startLevel(id)}</p>
+      <p class="br-chip br-chip-dom" style="--c:${d[3]}">${d[2]} ${d[1]} · ${g.seconds ? `${g.seconds} s · ` : ""}❤️ ${LIVES} vies</p>
       <ol class="br-rules">${g.howto.map((t) => `<li>${e(t)}</li>`).join("")}</ol>
-      <p class="br-muted br-small">Bonne réponse : 50 points × multiplicateur. 4 bonnes d'affilée font monter le multiplicateur (jusqu'à ×10), une erreur le fait redescendre.</p>
+      ${tierPicker(id)}
+      <p class="br-muted br-small br-common">Tu as ${LIVES} vies : une erreur ou une réponse trop lente en coûte une ; ${LIFE_STREAK} bonnes réponses d'affilée en rendent une (${LIVES} au plus). La partie continue tant qu'il te reste une vie, et le jeu accélère sans fin.</p>
+      <p class="br-muted br-small">Tous les ${TIER_SIZE} niveaux, un palier se débloque : la prochaine fois, tu pourras y repartir directement. Bonne réponse : 50 points × multiplicateur. 4 bonnes d'affilée font monter le multiplicateur (jusqu'à ×10), une erreur le fait redescendre d'un cran.</p>
       <button type="button" class="br-cta" data-br="go" data-id="${e(id)}" ${inWarmup ? "data-warmup" : ""}>C'est parti</button>
     </div>`, "howto");
     root.querySelector(".br-cta")?.focus();
+  }
+  // Choix du palier de départ (1 … le plus haut débloqué) ; ctx.level = premier niveau de ce palier.
+  function tierPicker(id) {
+    const max = unlockedTier(id), t = startTier(id);
+    if (max <= 1) return `<p class="br-tier br-tier-one">Départ : palier 1 · niveau 1</p>`;
+    return `<div class="br-tier" role="group" aria-label="Palier de départ">
+      <button type="button" class="br-round" data-br="tier-down" data-id="${e(id)}" aria-label="Palier plus bas" ${t <= 1 ? "disabled" : ""}>−</button>
+      <span class="br-tier-v" aria-live="polite"><b>Départ : palier ${t}</b><small>niveau ${tierStart(t)} · palier max ${max}</small></span>
+      <button type="button" class="br-round" data-br="tier-up" data-id="${e(id)}" aria-label="Palier plus haut" ${t >= max ? "disabled" : ""}>+</button></div>`;
+  }
+  function moveTier(id, step) {
+    picked.set(id, Math.max(1, Math.min(unlockedTier(id), startTier(id) + step)));
+    root.querySelector(".br-tier")?.replaceWith(document.createRange().createContextualFragment(tierPicker(id)));
   }
   function countdown(id, inWarmup) {
     const g = games.get(id);
@@ -315,51 +346,73 @@
   function hud() {
     if (!run) return;
     const q = (s) => root.querySelector(s);
-    const left = run.def.seconds ? Math.max(0, Math.ceil(run.def.seconds - run.elapsed() / 1000)) : Math.floor(run.elapsed() / 1000);
     const time = q(".br-time");
-    if (time) {
+    if (time && run.def.seconds) {
+      const left = Math.max(0, Math.ceil(run.def.seconds - run.elapsed() / 1000));
       time.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
-      time.classList.toggle("warn", !!run.def.seconds && left <= WARN_S);
+      time.classList.toggle("warn", left <= WARN_S);
     }
     if (q(".br-score")) q(".br-score").textContent = fmt(run.score);
     if (q(".br-mult b")) q(".br-mult b").textContent = `×${run.mult}`;
     q(".br-gauge4")?.querySelectorAll("i").forEach((dot, i) => dot.classList.toggle("on", run.mult >= MULT_MAX || i < run.gauge));
+    const lives = q(".br-lives");
+    if (lives) {
+      lives.setAttribute("aria-label", `${run.lives} vie${run.lives > 1 ? "s" : ""} sur ${LIVES}`);
+      lives.querySelectorAll(".br-heart").forEach((h, i) => h.classList.toggle("lost", i >= run.lives));
+    }
+    if (q(".br-lvl")) q(".br-lvl").textContent = `Niv. ${run.level} · Palier ${tierOf(run.level)}`;
+  }
+  function fly(kind, text) {
+    const el = document.createElement("span");
+    el.className = `br-fly ${kind}`;
+    el.textContent = text;
+    root.querySelector(".br-hud")?.append(el);
+    later(() => el.remove(), FLY_MS);
   }
   function flash(kind, text) {
     const p = root?.querySelector(".br-play");
     if (!p) return;
-    p.classList.remove("br-hit", "br-miss");
+    p.classList.remove("br-hit", "br-miss", "br-slip");
     void p.offsetWidth;
-    p.classList.add(kind === "ok" ? "br-hit" : "br-miss");
-    later(() => p.classList.remove("br-hit", "br-miss"), FLASH_MS);
-    if (!text) return;
-    const fly = document.createElement("span");
-    fly.className = `br-fly ${kind}`;
-    fly.textContent = text;
-    root.querySelector(".br-hud")?.append(fly);
-    later(() => fly.remove(), 700);
+    p.classList.add({ ok: "br-hit", slip: "br-slip" }[kind] || "br-miss");
+    later(() => p.classList.remove("br-hit", "br-miss", "br-slip"), FLASH_MS);
+    if (text) fly(kind, text);
   }
-  function play(id, inWarmup) {
-    const def = games.get(id);
-    const level = startLevel(id), seed = freshSeed(), t0 = performance.now();
-    show(`<div class="br-play" style="--g:${e(def.color)}">
-      <header class="br-hud">
-        ${closeBtn("Quitter la partie").replace('data-br="close"', 'data-br="quit"')}
-        <span class="br-time" aria-label="Temps">0:00</span>
-        <span class="br-score" aria-live="polite">0</span>
-        <span class="br-mult"><b>×1</b><span class="br-gauge4" aria-hidden="true">${"<i></i>".repeat(GAUGE)}</span></span>
-      </header>
-      <div class="br-stage" id="brStage"></div>
-    </div>`, "play");
-    run = { def, inWarmup, seed, level, maxLevel: level, score: 0, mult: 1, gauge: 0, hits: 0, misses: 0, rts: [],
-      ended: false, handle: null, timeUp: [], elapsed: () => performance.now() - t0 };
-    const current = run;
+  // Vie perdue (le cœur se brise) ou regagnée (+❤️) : l'animation vise le cœur concerné.
+  function lifeFx(gain, index) {
+    const heart = root?.querySelectorAll(".br-lives .br-heart")[index];
+    if (heart) { heart.classList.remove("br-break", "br-gain"); void heart.offsetWidth; heart.classList.add(gain ? "br-gain" : "br-break"); }
+    if (gain) fly("life", "+❤️");
+  }
+  function announceTier(tier) {
+    const box = document.createElement("div");
+    box.className = "br-tierup";
+    box.setAttribute("role", "status");
+    box.innerHTML = `<b>🔓 Palier ${tier} débloqué</b><span>Niveau ${tierStart(tier)} et plus</span>`;
+    root.querySelector(".br-play")?.append(box);
+    later(() => box.remove(), TIER_MS);
+  }
+  function stopGame(current) {
+    if (current.stopped) return;
+    current.stopped = true;
+    try { current.handle?.stop?.(); } catch { /* jeu déjà arrêté */ }
+  }
+  // Plus de vie : le jeu s'arrête tout de suite (rien ne tourne après stop), l'écran de fin suit le cœur brisé.
+  function outOfLives(current) {
+    current.dying = true;
+    stopGame(current);
+    hud();
+    later(() => finishRun(current, { reason: "lives" }), calm() ? 0 : DEATH_MS);
+  }
+  function makeCtx(current, seed) {
     const rt = (x) => { const v = +(x?.rt); return Number.isFinite(v) && v > 0 && v < 60000 ? v : null; };
-    const ctx = Object.freeze({
+    const live = () => !current.ended && !current.dying;
+    return Object.freeze({
       root: root.querySelector("#brStage"),
-      level, reducedMotion: calm(), esc: e, rng: mulberry32(seed),
+      level: current.level, reducedMotion: calm(), esc: e, rng: mulberry32(seed),
+      get lives() { return current.lives; },
       hit(info) {
-        if (current.ended) return;
+        if (!live()) return;
         current.hits += 1;
         current.score += POINTS * current.mult;
         const v = rt(info);
@@ -368,57 +421,116 @@
         if (current.mult < MULT_MAX && ++current.gauge >= GAUGE) {
           current.mult += 1; current.gauge = 0; sound("up"); buzz(15);
         } else sound("ok");
+        if (++current.streak >= LIFE_STREAK) {
+          current.streak = 0;
+          if (current.lives < LIVES) { current.lives += 1; lifeFx(true, current.lives - 1); sound("up"); }
+        }
         hud();
       },
+      // Erreur (ou réponse trop lente) : une vie en moins, le multiplicateur redescend d'un cran.
       miss() {
-        if (current.ended) return;
+        if (!live()) return;
         current.misses += 1;
-        if (current.gauge > 0 && current.mult < MULT_MAX) current.gauge = 0;
-        else { current.mult = Math.max(1, current.mult - 1); current.gauge = 0; }
+        current.streak = 0;
+        current.mult = Math.max(1, current.mult - 1);
+        current.gauge = 0;
+        current.lives = Math.max(0, current.lives - 1);
+        lifeFx(false, current.lives);
         flash("miss", "");
         sound("miss"); buzz(40);
         hud();
+        if (current.lives <= 0) outOfLives(current);
       },
-      setLevel(n) { const v = Math.max(1, Math.floor(+n || 1)); current.level = v; current.maxLevel = Math.max(current.maxLevel, v); },
+      // Petite erreur sans perte de vie : casse seulement la jauge du multiplicateur (et la série de bonnes).
+      slip() {
+        if (!live()) return;
+        current.slips += 1;
+        current.streak = 0;
+        current.gauge = 0;
+        flash("slip", "");
+        sound("miss"); buzz(20);
+        hud();
+      },
+      setLevel(n) {
+        if (current.ended) return;
+        const v = Math.max(1, Math.min(MAX_LEVEL, Math.floor(+n || 1)));
+        current.level = v;
+        current.maxLevel = Math.max(current.maxLevel, v);
+        const tier = tierOf(v);
+        if (tier > current.unlocked) {
+          current.unlocked = tier;
+          current.newTier = tier;
+          saveTier(current.def.id, tier);
+          announceTier(tier);
+          sound("up"); buzz([15, 40, 15]);
+        }
+        hud();
+      },
       finish(extra) { finishRun(current, extra); },
       onTimeUp(fn) { if (typeof fn === "function") current.timeUp.push(fn); },
     });
-    try { run.handle = def.start(ctx) || null; } catch { return finishRun(current, { detail: "Le jeu n'a pas pu démarrer." }); }
+  }
+  function play(id, inWarmup) {
+    const def = games.get(id);
+    const level = tierStart(startTier(id)), seed = freshSeed(), t0 = performance.now();
+    show(`<div class="br-play" style="--g:${e(def.color)}">
+      <header class="br-hud">
+        ${closeBtn("Quitter la partie").replace('data-br="close"', 'data-br="quit"')}
+        <div class="br-hud-mid">
+          <span class="br-lives" role="img" aria-label="${LIVES} vies sur ${LIVES}">${'<i class="br-heart" aria-hidden="true">❤️</i>'.repeat(LIVES)}</span>
+          <span class="br-lvl">Niv. ${level} · Palier ${tierOf(level)}</span>
+          ${def.seconds ? `<span class="br-time" aria-label="Temps">0:00</span>` : ""}
+        </div>
+        <span class="br-score" aria-live="polite">0</span>
+        <span class="br-mult"><b>×1</b><span class="br-gauge4" aria-hidden="true">${"<i></i>".repeat(GAUGE)}</span></span>
+      </header>
+      <div class="br-stage" id="brStage"></div>
+    </div>`, "play");
+    run = { def, inWarmup, seed, level, maxLevel: level, unlocked: unlockedTier(id), newTier: 0, score: 0, mult: 1,
+      gauge: 0, streak: 0, lives: LIVES, hits: 0, misses: 0, slips: 0, rts: [], ended: false, dying: false,
+      stopped: false, handle: null, timeUp: [], elapsed: () => performance.now() - t0 };
+    const current = run;
+    try { run.handle = def.start(makeCtx(current, seed)) || null; } catch { return finishRun(current, { detail: "Le jeu n'a pas pu démarrer." }); }
     every(() => {
-      if (current.ended) return;
+      if (current.ended || current.dying) return;
       hud();
       if (current.def.seconds && current.elapsed() >= current.def.seconds * 1000) {
         for (const fn of current.timeUp) { try { fn(); } catch { /* un jeu fautif n'empêche pas la fin */ } }
-        finishRun(current);
-      }
+        finishRun(current, { reason: "time" });
+      } else if (current.elapsed() >= MAX_RUN_MS) finishRun(current, { reason: "max" });
     }, TICK_MS);
     hud();
   }
   function stopRun() {
     if (!run) return;
     run.ended = true;
-    try { run.handle?.stop?.(); } catch { /* jeu déjà arrêté */ }
+    stopGame(run);
     run = null;
   }
 
   // ── Fin de partie ──
+  const END_REASONS = { lives: "💔 Plus de vie", time: "⏱️ Temps écoulé", max: "⏱️ 30 minutes de jeu : partie arrêtée, bravo !" };
   function finishRun(current, extra) {
     if (current.ended || current !== run) return;
     current.ended = true;
-    try { current.handle?.stop?.(); } catch { /* jeu déjà arrêté */ }
+    stopGame(current);
     run = null;
     clearTimers();
-    const answers = current.hits + current.misses;
+    const answers = current.hits + current.misses + current.slips;
     const bonus = FINAL_BONUS * current.mult;
     const res = { id: current.def.id, base: current.score, bonus, mult: current.mult, score: current.score + bonus,
       accuracy: answers ? current.hits / answers : 0, avgRt: current.rts.length ? Math.round(current.rts.reduce((a, b) => a + b, 0) / current.rts.length) : 0,
-      level: current.maxLevel, duration: Math.round(current.elapsed()), hits: current.hits, misses: current.misses,
+      level: current.maxLevel, tier: tierOf(current.maxLevel), newTier: current.newTier, duration: Math.round(current.elapsed()),
+      hits: current.hits, misses: current.misses, slips: current.slips,
+      reason: END_REASONS[extra?.reason] ? extra.reason : "",
       detail: extra && typeof extra.detail === "string" ? extra.detail : "", inWarmup: current.inWarmup };
     const previous = bestOf(res.id);
     res.record = res.score > previous;
     res.best = Math.max(previous, res.score);
     write(K.levels, { ...read(K.levels, {}), [res.id]: res.level });
     write(K.best, { ...read(K.best, {}), [res.id]: res.best });
+    saveTier(res.id, res.tier);
+    res.maxTier = unlockedTier(res.id);
     if (res.inWarmup) markWarmup(res.id);
     sound("end");
     endScreen(res);
@@ -454,7 +566,9 @@
     const stat = (label, value) => `<div class="br-stat"><span>${label}</span><b>${value}</b></div>`;
     show(`<div class="br-end" style="--g:${e(g.color)}">
       <header class="br-top"><span class="br-chip">${e(g.icon)} ${e(g.name)}</span>${closeBtn()}</header>
+      ${res.reason ? `<p class="br-reason">${END_REASONS[res.reason]}</p>` : ""}
       ${res.record ? `<p class="br-record">🏆 Nouveau record</p>` : ""}
+      ${res.newTier ? `<p class="br-tier-new">🔓 Palier ${res.newTier} débloqué</p>` : ""}
       <div class="br-big" data-count="${res.score}">${fmt(calm() ? res.score : 0)}</div>
       <p class="br-muted">points</p>
       <div class="br-bonus"><span>${fmt(res.base)} en jeu</span><span>+ ${fmt(res.bonus)} bonus ×${res.mult}</span></div>
@@ -462,8 +576,9 @@
         ${stat("Précision", `${Math.round(res.accuracy * 100)} %`)}
         ${stat("Réaction moyenne", res.avgRt ? `${fmt(res.avgRt)} ms` : "–")}
         ${stat("Record", fmt(res.best))}
-        ${stat("Niveau atteint", res.level)}
-        ${stat("Bonnes / erreurs", `${res.hits} / ${res.misses}`)}
+        ${stat("Niveau max", `${res.level} · palier ${res.tier}`)}
+        ${stat("Palier max", res.maxTier)}
+        ${stat("Bonnes / erreurs", `${res.hits} / ${res.misses + res.slips}`)}
         <div class="br-stat br-index" hidden><span>Indice de la partie</span><b></b></div>
       </div>
       ${res.detail ? `<p class="br-detail">${e(res.detail)}</p>` : ""}
@@ -530,6 +645,8 @@
       }
       case "next": return howto(id, true);
       case "go": return countdown(id, b.hasAttribute("data-warmup"));
+      case "tier-down": return moveTier(id, -1);
+      case "tier-up": return moveTier(id, 1);
       case "quit": return askQuit();
       case "stay": return root.querySelector(".br-confirm")?.remove();
       case "leave": stopRun(); clearTimers(); return refreshProfile().then(home);
@@ -551,6 +668,6 @@
   window.Brain = Object.freeze({ name: BRAIN_NAME, games: BRAIN_GAMES, domains: DOMAINS, register, open, close,
     rng: mulberry32, list: available,
     // Pour detail.js (statistiques par jeu) : accès en lecture au moteur.
-    api: Object.freeze({ post, token, show, esc: e, calm, game: (id) => games.get(id), domain: domainOf,
+    api: Object.freeze({ post, token, show, esc: e, calm, game: (id) => games.get(id), domain: domainOf, tierOf,
       localSessions: () => read(K.sessions, []) }) });
 })();

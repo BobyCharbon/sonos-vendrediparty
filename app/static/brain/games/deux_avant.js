@@ -1,16 +1,34 @@
-/* Méninges — « Deux avant » (mémoire de travail, 2-back).
-   Une carte arrive ; les deux précédentes sont retournées. Le symbole de la carte actuelle est-il le même que
-   celui d'il y a DEUX cartes ? Oui (→) / Non (←). Erreur → les cartes cachées se révèlent jusqu'à la bonne réponse suivante. */
+/* Méninges — « Deux avant » (mémoire de travail, N-back : 2, puis 3, puis 4 cartes avant).
+   Une carte arrive ; les précédentes sont retournées. Le symbole de la carte actuelle est-il le même que celui
+   d'il y a N cartes ? Oui (→) / Non (←). Erreur → les cartes cachées se révèlent jusqu'à la bonne réponse suivante.
+   Partie SANS FIN : le moteur gère les 3 vies ; chaque carte a un délai de réponse (trop lent = une vie).
+
+   Niveaux (N = cartes en arrière, s = niveau dans la série) :
+     1-15  2 avant : 4 → 10 formes (niv. 1-7), monochrome dès le niv. 6, leurres dès le niv. 9 (10 % → 40 %)
+     16-30 3 avant : 5 → 10 formes (niv. 16-21), monochrome dès le niv. 21, leurres dès le niv. 22 (10 % → 45 %)
+     31+   4 avant : 6 → 10 formes (niv. 31-35), monochrome dès le niv. 34, leurres 15 % → 60 % (niv. 40+)
+   Un leurre = une forme vue N−1 ou N+1 cartes avant (piège classique du N-back).
+   Délai par carte, qui redémarre plus large à chaque nouveau N : 3000 ms → ≈ 1690 (niv. 15) ; 3200 → ≈ 1660
+   (niv. 30) ; 3000 → ≈ 1710 (niv. 40), ≈ 1180 (niv. 50), ≈ 1000 (niv. 60), jamais sous 900 ms.
+   Changer de N (en montant ou en descendant) relance la présentation des N premières cartes. */
 (function () {
   'use strict';
 
   const ID = 'deux_avant';
+  const P = 'br-deux_avant-';
   const MATCH_CHANCE = 0.4;
   const INTRO_STEP_MS = 1000;
   const FEEDBACK_MS = 260;
   const LEVEL_UP_STREAK = 5;
   const LEVEL_DOWN_ERRORS = 2;
-  const MAX_LEVEL = 8;
+  const WIN_DECAY = 0.9;
+  // Séries : premier niveau, N, formes au départ, niveau (dans la série) du passage en monochrome,
+  // début des leurres, leurres max, délai de départ, délai plancher.
+  const TIERS = [
+    { from: 1, n: 2, pool: 4, mono: 5, lureAt: 8, lureMax: 0.4, st: 3000, fl: 1300 },
+    { from: 16, n: 3, pool: 5, mono: 5, lureAt: 6, lureMax: 0.45, st: 3200, fl: 1200 },
+    { from: 31, n: 4, pool: 6, mono: 3, lureAt: 0, lureMax: 0.6, st: 3000, fl: 900 },
+  ];
 
   // Formes originales (SVG 0..100) ; couleurs distinctes aux premiers niveaux, monochrome ensuite.
   const SHAPES = [
@@ -28,83 +46,108 @@
   const COLORS = ['#ff8a5c', '#5cc8ff', '#b88cff', '#7be08a', '#ffd25c', '#ff6fa8', '#5ce0d0', '#f0f0f0', '#ffa94d', '#8fa2ff'];
   const MONO = '#c9b8ff';
 
+  function cfgOf(level) {
+    const tier = TIERS.filter((t) => level >= t.from).pop();
+    const s = level - tier.from;
+    return {
+      n: tier.n,
+      pool: Math.min(SHAPES.length, tier.pool + s),
+      mono: s >= tier.mono,
+      lure: s < tier.lureAt ? 0 : Math.min(tier.lureMax, (tier.n === 4 ? 0.15 : 0.1) + 0.05 * (s - tier.lureAt)),
+      win: Math.round(tier.fl + (tier.st - tier.fl) * Math.pow(WIN_DECAY, s)),
+    };
+  }
+
   const CSS = `
-.br-deux_avant-wrap{display:flex;flex-direction:column;align-items:center;gap:18px;padding:14px 16px 22px;
-  color:var(--br-text,#f3efff);user-select:none;-webkit-user-select:none}
-.br-deux_avant-q{font-size:17px;font-weight:600;text-align:center;min-height:24px}
-.br-deux_avant-row{display:flex;align-items:flex-end;justify-content:center;gap:12px;width:100%;max-width:380px;min-height:190px}
-.br-deux_avant-card{position:relative;border-radius:18px;display:flex;align-items:center;justify-content:center;
+.${P}wrap{display:flex;flex-direction:column;align-items:center;gap:18px;padding:14px 16px 22px;box-sizing:border-box;
+  width:100%;overflow-x:clip;color:var(--br-text,#f3efff);user-select:none;-webkit-user-select:none}
+.${P}q{font-size:17px;font-weight:600;text-align:center;min-height:46px;line-height:1.35}
+.${P}row{--sw:74px;--sh:100px;--bw:132px;--bh:178px;--gap:12px;display:flex;align-items:flex-end;justify-content:center;
+  gap:var(--gap);width:100%;max-width:380px;min-height:190px}
+.${P}n3{--sw:60px;--sh:82px;--bw:120px;--bh:162px;--gap:10px}
+.${P}n4{--sw:50px;--sh:68px;--bw:108px;--bh:146px;--gap:8px}
+.${P}card{position:relative;flex:none;border-radius:16px;display:flex;align-items:center;justify-content:center;
   background:#fbf8ff;box-shadow:0 8px 22px rgba(0,0,0,.3)}
-.br-deux_avant-card svg{width:72%;height:72%}
-.br-deux_avant-small{width:74px;height:100px}
-.br-deux_avant-big{width:132px;height:178px;border:4px solid transparent;transition:border-color .15s}
-.br-deux_avant-back{background:repeating-linear-gradient(45deg,#3b2a6e 0 10px,#4a3685 10px 20px)}
-.br-deux_avant-back svg{display:none}
-.br-deux_avant-back.br-deux_avant-shown{background:#e9e1ff}
-.br-deux_avant-back.br-deux_avant-shown svg{display:block;opacity:.85}
-.br-deux_avant-target{outline:3px dashed #ffd25c;outline-offset:4px}
-.br-deux_avant-tag{position:absolute;bottom:-24px;left:0;right:0;text-align:center;font-size:12px;opacity:.75}
-.br-deux_avant-empty{background:transparent;box-shadow:inset 0 0 0 2px rgba(255,255,255,.15)}
-.br-deux_avant-in{animation:br-deux_avant-slide .22s ease-out}
-@keyframes br-deux_avant-slide{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
-.br-deux_avant-good{border-color:#5be38a}
-.br-deux_avant-wrong{border-color:#ff5c6c}
-.br-deux_avant-btns{display:flex;gap:14px;width:100%;max-width:380px;margin-top:10px}
-.br-deux_avant-btn{flex:1;min-height:64px;border:0;border-radius:18px;font:inherit;font-size:20px;font-weight:700;
+.${P}card svg{width:72%;height:72%}
+.${P}small{width:var(--sw);height:var(--sh)}
+.${P}big{box-sizing:border-box;width:var(--bw);height:var(--bh);border:4px solid transparent;transition:border-color .15s}
+.${P}back{background:repeating-linear-gradient(45deg,#3b2a6e 0 10px,#4a3685 10px 20px)}
+.${P}back svg{display:none}
+.${P}back.${P}shown{background:#e9e1ff}
+.${P}back.${P}shown svg{display:block;opacity:.85}
+.${P}target{outline:3px dashed #ffd25c;outline-offset:4px}
+.${P}tag{position:absolute;bottom:-24px;left:-6px;right:-6px;text-align:center;font-size:12px;opacity:.75;white-space:nowrap}
+.${P}n4 .${P}tag{font-size:11px}
+.${P}empty{background:transparent;box-shadow:inset 0 0 0 2px rgba(255,255,255,.15)}
+.${P}in{animation:${P}slide .22s ease-out}
+@keyframes ${P}slide{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+.${P}good{border-color:#5be38a}
+.${P}wrong{border-color:#ff5c6c}
+.${P}timer{width:100%;max-width:380px;height:6px;margin-top:14px;border-radius:3px;background:rgba(255,255,255,.12)}
+.${P}timer b{display:block;height:100%;border-radius:3px;background:#7c5cff;transform-origin:left center;transform:scaleX(0)}
+.${P}timer b.${P}run{animation:${P}shrink linear forwards}
+@keyframes ${P}shrink{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+.${P}btns{display:flex;gap:14px;width:100%;max-width:380px}
+.${P}btn{flex:1;min-height:64px;border:0;border-radius:18px;font:inherit;font-size:20px;font-weight:700;
   color:#fff;cursor:pointer;touch-action:manipulation;transition:transform .1s,opacity .15s}
-.br-deux_avant-btn:active{transform:scale(.96)}
-.br-deux_avant-btn:disabled{opacity:.4;cursor:default}
-.br-deux_avant-btn:focus-visible{outline:3px solid #ffd25c;outline-offset:2px}
-.br-deux_avant-no{background:#5a4a8a}
-.br-deux_avant-yes{background:#7c5cff}
-.br-deux_avant-btn small{display:block;font-size:12px;font-weight:500;opacity:.75}
+.${P}btn:active{transform:scale(.96)}
+.${P}btn:disabled{opacity:.4;cursor:default}
+.${P}btn:focus-visible{outline:3px solid #ffd25c;outline-offset:2px}
+.${P}no{background:#5a4a8a}
+.${P}yes{background:#7c5cff}
+.${P}btn small{display:block;font-size:12px;font-weight:500;opacity:.75}
 `;
 
   function injectStyle() {
-    if (document.getElementById('br-deux_avant-style')) return;
+    if (document.getElementById(P + 'style')) return;
     const style = document.createElement('style');
-    style.id = 'br-deux_avant-style';
+    style.id = P + 'style';
     style.textContent = CSS;
     document.head.appendChild(style);
   }
-
-  function poolSize(level) { return Math.min(SHAPES.length, 3 + level); }
 
   function start(ctx) {
     injectStyle();
     const esc = ctx.esc;
     const timers = new Set();
+    const floorLevel = Math.max(1, Math.round(Number(ctx.level) || 1));
     let stopped = false;
-    let level = Math.max(1, Math.min(MAX_LEVEL, Math.round(ctx.level) || 1));
-    let seq = [];          // indices de formes déjà distribuées
+    let level = floorLevel;
+    let curN = cfgOf(level).n;
+    let seq = [];          // indices de formes déjà distribuées (les N+2 dernières)
     let open = false;
     let revealed = false;
     let streak = 0;
     let errorsAtLevel = 0;
     let t0 = 0;
+    let deadline = 0;
 
     const wrap = document.createElement('div');
-    wrap.className = 'br-deux_avant-wrap';
+    wrap.className = P + 'wrap';
     wrap.innerHTML =
-      '<div class="br-deux_avant-q" data-q aria-live="polite"></div>' +
-      '<div class="br-deux_avant-row" data-row></div>' +
-      '<div class="br-deux_avant-btns">' +
-      '<button type="button" class="br-deux_avant-btn br-deux_avant-no" data-ans="no" disabled>Non<small>←</small></button>' +
-      '<button type="button" class="br-deux_avant-btn br-deux_avant-yes" data-ans="yes" disabled>Oui<small>→</small></button>' +
+      `<div class="${P}q" data-q aria-live="polite"></div>` +
+      `<div class="${P}row" data-row></div>` +
+      `<div class="${P}timer" aria-hidden="true"><b data-bar></b></div>` +
+      `<div class="${P}btns">` +
+      `<button type="button" class="${P}btn ${P}no" data-ans="no" disabled>Non<small>←</small></button>` +
+      `<button type="button" class="${P}btn ${P}yes" data-ans="yes" disabled>Oui<small>→</small></button>` +
       '</div>';
     ctx.root.appendChild(wrap);
     const row = wrap.querySelector('[data-row]');
     const q = wrap.querySelector('[data-q]');
+    const bar = wrap.querySelector('[data-bar]');
     const buttons = wrap.querySelectorAll('[data-ans]');
 
     function later(fn, ms) {
       const t = setTimeout(() => { timers.delete(t); if (!stopped) fn(); }, ms);
       timers.add(t);
+      return t;
     }
+    function cancel(t) { if (t) { clearTimeout(t); timers.delete(t); } }
 
     function setButtons(on) { buttons.forEach((b) => { b.disabled = !on; }); }
 
-    function colorFor(shapeIdx) { return level >= 4 ? MONO : COLORS[shapeIdx % COLORS.length]; }
+    function colorFor(shapeIdx) { return cfgOf(level).mono ? MONO : COLORS[shapeIdx % COLORS.length]; }
 
     function shapeSvg(shapeIdx) {
       const shape = SHAPES[shapeIdx];
@@ -113,88 +156,117 @@
     }
 
     function drawSymbol() {
-      const size = poolSize(level);
+      const cfg = cfgOf(level);
+      const n = curN;
       const k = seq.length;
-      if (k >= 2 && ctx.rng() < MATCH_CHANCE) return seq[k - 2];
-      let pick = Math.floor(ctx.rng() * size);
-      if (k >= 2 && pick === seq[k - 2]) pick = (pick + 1 + Math.floor(ctx.rng() * (size - 1))) % size;
+      const target = k >= n ? seq[k - n] : -1;
+      if (target >= 0 && ctx.rng() < MATCH_CHANCE) return target;
+      if (target >= 0 && cfg.lure && ctx.rng() < cfg.lure) {
+        const lures = [seq[k - n + 1], seq[k - n - 1]].filter((s) => s !== undefined && s !== target);
+        if (lures.length) return lures[Math.floor(ctx.rng() * lures.length) % lures.length];
+      }
+      const size = Math.max(cfg.pool, target + 1);
+      let pick = Math.floor(ctx.rng() * size) % size;
+      if (pick === target) pick = (pick + 1 + Math.floor(ctx.rng() * (size - 1))) % size;
       return pick;
     }
 
     function cardHtml(shapeIdx, cls, tag) {
-      if (shapeIdx === undefined) return `<div class="br-deux_avant-card br-deux_avant-small br-deux_avant-empty">${tag}</div>`;
-      return `<div class="br-deux_avant-card ${cls}">${shapeSvg(shapeIdx)}${tag}</div>`;
+      if (shapeIdx === undefined) return `<div class="${P}card ${P}small ${P}empty">${tag}</div>`;
+      return `<div class="${P}card ${cls}">${shapeSvg(shapeIdx)}${tag}</div>`;
     }
 
     function render(animate) {
       const k = seq.length;
-      const hiddenCls = `br-deux_avant-small br-deux_avant-back${revealed ? ' br-deux_avant-shown' : ''}`;
-      const twoBack = k >= 3 ? seq[k - 3] : undefined;
-      const oneBack = k >= 2 ? seq[k - 2] : undefined;
-      row.innerHTML =
-        cardHtml(twoBack, `${hiddenCls} br-deux_avant-target`, '<span class="br-deux_avant-tag">il y a 2</span>') +
-        cardHtml(oneBack, hiddenCls, '<span class="br-deux_avant-tag">il y a 1</span>') +
-        cardHtml(seq[k - 1], `br-deux_avant-big${animate && !ctx.reducedMotion ? ' br-deux_avant-in' : ''}`, '');
+      const hiddenCls = `${P}small ${P}back${revealed ? ' ' + P + 'shown' : ''}`;
+      let html = '';
+      for (let i = curN; i >= 1; i--) {
+        const cls = hiddenCls + (i === curN ? ' ' + P + 'target' : '');
+        html += cardHtml(k - 1 - i >= 0 ? seq[k - 1 - i] : undefined, cls, `<span class="${P}tag">il y a ${i}</span>`);
+      }
+      html += cardHtml(seq[k - 1], `${P}big${animate && !ctx.reducedMotion ? ' ' + P + 'in' : ''}`, '');
+      row.className = `${P}row ${P}n${curN}`;
+      row.innerHTML = html;
     }
 
     function deal() {
-      seq = [...seq.slice(-2), drawSymbol()];
+      seq = [...seq.slice(-(curN + 1)), drawSymbol()];
       render(true);
     }
 
-    function intro() {
-      q.textContent = 'Retiens cette forme…';
-      seq = [drawSymbol()];
-      row.innerHTML = cardHtml(undefined, '', '') + cardHtml(undefined, '', '') +
-        cardHtml(seq[0], `br-deux_avant-big${ctx.reducedMotion ? '' : ' br-deux_avant-in'}`, '');
-      later(() => {
-        q.textContent = 'Et celle-ci…';
-        seq = [...seq, drawSymbol()];
-        row.innerHTML = cardHtml(undefined, '', '') +
-          cardHtml(seq[0], 'br-deux_avant-small br-deux_avant-back', '<span class="br-deux_avant-tag">il y a 1</span>') +
-          cardHtml(seq[1], `br-deux_avant-big${ctx.reducedMotion ? '' : ' br-deux_avant-in'}`, '');
-      }, INTRO_STEP_MS);
-      later(() => { deal(); openAnswer(); }, INTRO_STEP_MS * 2);
+    function intro(announce) {
+      curN = cfgOf(level).n;
+      seq = [];
+      revealed = false;
+      for (let s = 0; s < curN; s++) {
+        later(() => {
+          const first = s === 0;
+          q.textContent = first ? (announce ? `Maintenant : ${curN} cartes avant ! Retiens cette forme…` : 'Retiens cette forme…')
+            : 'Et celle-ci…';
+          seq = [...seq, drawSymbol()];
+          render(true);
+        }, s * INTRO_STEP_MS);
+      }
+      later(() => { deal(); openAnswer(); }, curN * INTRO_STEP_MS);
     }
 
     function openAnswer() {
-      q.textContent = 'Même forme qu’il y a 2 cartes ?';
+      const win = cfgOf(level).win;
+      q.textContent = `Même forme qu’il y a ${curN} cartes ?`;
       open = true;
       t0 = performance.now();
       setButtons(true);
+      bar.classList.remove(P + 'run');
+      void bar.offsetWidth; // relance l'animation de la barre
+      bar.style.animationDuration = win + 'ms';
+      bar.classList.add(P + 'run');
+      deadline = later(() => answer(null), win);
     }
 
     function adjustLevel(correct) {
       if (correct) {
         streak += 1;
-        if (streak >= LEVEL_UP_STREAK && level < MAX_LEVEL) { level += 1; streak = 0; errorsAtLevel = 0; ctx.setLevel(level); }
+        if (streak >= LEVEL_UP_STREAK) { level += 1; streak = 0; errorsAtLevel = 0; ctx.setLevel(level); }
         return;
       }
       streak = 0;
       errorsAtLevel += 1;
-      if (errorsAtLevel >= LEVEL_DOWN_ERRORS && level > 1) { level -= 1; errorsAtLevel = 0; ctx.setLevel(level); }
+      if (errorsAtLevel >= LEVEL_DOWN_ERRORS && level > floorLevel) {
+        level -= 1; errorsAtLevel = 0; ctx.setLevel(level);
+      }
     }
 
+    function next() {
+      if (cfgOf(level).n !== curN) { intro(true); return; }
+      deal();
+      openAnswer();
+    }
+
+    // saysYes : true (Oui), false (Non) ou null (délai dépassé).
     function answer(saysYes) {
       if (!open || stopped) return;
       open = false;
+      cancel(deadline);
       setButtons(false);
+      bar.classList.remove(P + 'run');
       const k = seq.length;
-      const isMatch = seq[k - 1] === seq[k - 3];
+      const isMatch = seq[k - 1] === seq[k - 1 - curN];
       const correct = saysYes === isMatch;
-      const rt = Math.round(performance.now() - t0);
-      const big = row.querySelector('.br-deux_avant-big');
-      if (correct) ctx.hit({ rt }); else ctx.miss({ rt });
-      adjustLevel(correct);
-      if (big) big.classList.add(correct ? 'br-deux_avant-good' : 'br-deux_avant-wrong');
+      const slow = saysYes === null;
+      const rt = slow ? cfgOf(level).win : Math.round(performance.now() - t0);
+      const big = row.querySelector('.' + P + 'big');
+      if (big) big.classList.add(correct ? P + 'good' : P + 'wrong');
       if (!correct) {
         revealed = true;
-        row.querySelectorAll('.br-deux_avant-back').forEach((c) => c.classList.add('br-deux_avant-shown'));
-        q.textContent = isMatch ? 'C’était la même forme' : 'Ce n’était pas la même forme';
+        row.querySelectorAll('.' + P + 'back').forEach((c) => c.classList.add(P + 'shown'));
+        q.textContent = (slow ? 'Trop lent ! ' : '') + (isMatch ? 'C’était la même forme' : 'Ce n’était pas la même forme');
       } else {
         revealed = false;
       }
-      later(() => { deal(); openAnswer(); }, correct ? FEEDBACK_MS : FEEDBACK_MS * 3);
+      if (correct) ctx.hit({ rt }); else ctx.miss({ rt });
+      if (stopped) return;
+      adjustLevel(correct);
+      later(next, correct ? FEEDBACK_MS : FEEDBACK_MS * 3);
     }
 
     function onClick(e) {
@@ -203,15 +275,15 @@
     }
 
     function onKey(e) {
+      if (e.repeat || e.altKey || e.ctrlKey || e.metaKey) return;
       if (e.key === 'ArrowRight') { e.preventDefault(); answer(true); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); answer(false); }
     }
 
     wrap.addEventListener('click', onClick);
     document.addEventListener('keydown', onKey);
-    if (typeof ctx.onTimeUp === 'function') ctx.onTimeUp(() => { open = false; setButtons(false); });
     ctx.setLevel(level);
-    intro();
+    intro(false);
 
     return {
       stop() {
@@ -232,11 +304,11 @@
     domain: 'memoire',
     icon: '🃏',
     color: '#7c5cff',
-    seconds: 45,
+    seconds: null,
     howto: [
-      'Une nouvelle carte arrive à chaque réponse ; les précédentes se retournent.',
-      'La forme est-elle la même que celle d’il y a DEUX cartes ? Oui (→) ou Non (←).',
-      'Plus tu enchaînes, plus il y a de formes à distinguer.',
+      'Une nouvelle carte arrive à chaque réponse ; les précédentes se retournent. La forme est-elle la même que celle d’il y a DEUX cartes ? Oui (→) ou Non (←).',
+      'Réponds avant la fin de la barre : trop lent ou faux, tu perds une vie. Sans fin : la partie s’arrête quand tu n’as plus de vie.',
+      'Plus tu montes, plus il y a de formes et de pièges ; aux paliers élevés, il faut se souvenir de 3, puis 4 cartes avant.',
     ],
     start,
   });

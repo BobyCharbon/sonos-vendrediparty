@@ -132,6 +132,31 @@
 .br-gauge4 i.on { background: var(--g, var(--br-cold)); transform: scale(1.15); }
 .br-fly { position: absolute; right: 64px; top: 50%; font-weight: 800; font-size: .95rem; color: var(--br-ok); pointer-events: none; animation: br-fly .7s ease-out forwards; }
 @keyframes br-fly { from { transform: translateY(-50%); opacity: 1; } to { transform: translateY(-190%); opacity: 0; } }
+/* Vies (3 cœurs), niveau et palier dans le HUD ; vie perdue / regagnée ; annonce d'un nouveau palier */
+.br-hud-mid { display: grid; justify-items: start; gap: 2px; min-width: 0; }
+.br-lives { display: flex; gap: 2px; font-size: 1rem; line-height: 1; }
+.br-heart { font-style: normal; display: inline-block; transition: filter .2s, opacity .2s, transform .2s var(--br-spring); }
+.br-heart.lost { filter: grayscale(1); opacity: .28; transform: scale(.82); }
+.br-heart.br-break { animation: br-break .5s ease-out; }
+.br-heart.br-gain { animation: br-gain .6s var(--br-spring); }
+@keyframes br-break { 0% { transform: scale(1.35); opacity: 1; filter: none; } 40% { transform: scale(1.1) rotate(-14deg); } 100% { transform: scale(.82); } }
+@keyframes br-gain { 0% { transform: scale(.2); } 60% { transform: scale(1.45); } 100% { transform: scale(1); } }
+.br-lvl { font-size: .74rem; font-weight: 700; color: var(--br-muted, rgba(255, 255, 255, .7)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.br-hud-mid .br-time { padding: 2px 8px; font-size: .8rem; }
+.br-fly.life { right: auto; left: 52px; color: #ff8fb1; }
+.br-play.br-slip::after { box-shadow: inset 0 0 0 3px color-mix(in srgb, #ffb44f 70%, transparent); transition: none; }
+.br-tierup { position: absolute; left: 50%; top: 26%; z-index: 4; display: grid; justify-items: center; gap: 4px; padding: 14px 22px; border-radius: 22px; text-align: center; pointer-events: none; color: #0a0e1d; background: var(--br-heat); box-shadow: 0 18px 50px rgba(139, 92, 255, .45); transform: translateX(-50%); animation: br-tierup 1.8s var(--br-spring) forwards; }
+.br-tierup b { font: 800 1.25rem/1.1 "Bricolage Grotesque", system-ui, sans-serif; }
+.br-tierup span { font-size: .85rem; font-weight: 700; }
+@keyframes br-tierup { 0% { opacity: 0; transform: translate(-50%, 12px) scale(.7); } 15% { opacity: 1; transform: translate(-50%, 0) scale(1.04); } 80% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; transform: translate(-50%, -16px) scale(.96); } }
+/* Choix du palier de départ (écran d'explication) */
+.br-tier { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border-radius: 18px; background: var(--br-surface); margin: 4px 0 0; }
+.br-tier-one { display: block; text-align: center; font-size: .9rem; font-weight: 700; }
+.br-tier-v { display: grid; justify-items: center; gap: 2px; }
+.br-tier-v small { font-size: .78rem; opacity: .72; }
+.br-tier .br-round:disabled { opacity: .3; }
+.br-reason { margin: 4px 0 0; font-weight: 700; opacity: .85; }
+.br-tier-new { margin: 6px 0 0; padding: 6px 14px; border-radius: 99px; font-weight: 800; color: #0a0e1d; background: linear-gradient(90deg, #ffd166, #ff9f43); animation: br-pop .6s var(--br-spring); }
 .br-stage { position: relative; flex: 1; min-height: 0; margin-top: 10px; display: flex; flex-direction: column; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
 .br-confirm { position: absolute; inset: 0; z-index: 5; display: grid; place-content: center; padding: 24px; text-align: center; background: rgba(6, 9, 20, .82); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 .br-confirm .br-actions { grid-template-columns: 1fr 1fr; }
