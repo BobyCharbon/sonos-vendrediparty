@@ -86,17 +86,18 @@ GAME_THEME.neon = "g-nk";
 GAME_ICONS.president = President.crown;
 GAME_THEME.president = "g-pr";
 // Jeux récents : étiquette « NEW » sur leur carte et leur tuile dans la salle de jeux (retirer le type pour l'enlever).
-const NEW_GAMES = ["masque", "reflet", "psy", "debate", "beerpong"];
+const NEW_GAMES = ["brain", "masque", "reflet", "psy", "debate", "beerpong"];
 const newBadge = (type) => NEW_GAMES.includes(type) ? `<span class="g-new" aria-label="Nouveau jeu">NEW</span>` : "";
 // Catégories de l'écran Jeux et de la salle de jeux : [id, titre, jeux dans l'ordre d'affichage].
 // Tout nouveau jeu doit y figurer (tests/test_game_categories.py le vérifie).
+// Méninges en tête : la première chose qu'on voit dans la liste (demande de l'admin, 03.11.2026).
 const GAME_CATEGORIES = [
+  ["brain", "🧠 Entraînement", ["brain"]],
   ["drinks", "🍻 Alcool", ["beerpong", "whoof", "never", "roulette", "biskit", "casino", "purity"]],
   ["three", "🎮 Jeux 3D", ["neon", "island", "heist"]],
   ["talk", "💞 Parler vrai", ["masque", "reflet", "psy", "divan", "debate", "tmc"]],
   ["cards", "🃏 Jeux de cartes", ["pyramid", "blackjack", "president"]],
-  ["mood", "🎉 Ambiance", ["quiz", "undercover", "likely"]],
-  ["brain", "🧠 Entraînement", ["brain"]]
+  ["mood", "🎉 Ambiance", ["quiz", "undercover", "likely"]]
 ];
 // Jeux rangés hors « Alcool » qui se jouent aussi avec des gorgées : étiquette 🍻 (chaque jeu n'apparaît qu'une fois).
 const DRINK_TAG_GAMES = ["pyramid", "blackjack", "quiz", "likely"];
@@ -456,6 +457,7 @@ document.getElementById("gamesRoot").innerHTML = `
       </div>
 
       <div class="gcard g-br">
+        ${newBadge("brain")}
         <div class="g-head">
           <div class="g-icon" aria-hidden="true"><span class="g-br-ico">🧠</span></div>
           <div class="g-meta"><div class="g-title" data-brain-name>Méninges</div><div class="g-tag">Fais chauffer tes méninges, une minute par jeu.</div></div>

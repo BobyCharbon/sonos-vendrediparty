@@ -25,8 +25,9 @@ def test_every_game_is_in_exactly_one_category():
 
 
 def test_categories_in_the_chosen_order():
-    assert [label for _, label, _ in categories()] == ["🍻 Alcool", "🎮 Jeux 3D", "💞 Parler vrai", "🃏 Jeux de cartes", "🎉 Ambiance",
-                                                     "🧠 Entraînement"]
+    # Méninges en tête (demande de l'admin, 03.11.2026).
+    assert [label for _, label, _ in categories()] == ["🧠 Entraînement", "🍻 Alcool", "🎮 Jeux 3D", "💞 Parler vrai", "🃏 Jeux de cartes",
+                                                     "🎉 Ambiance"]
     cats = {cid: types for cid, _, types in categories()}
     assert set(cats["talk"]) == {"masque", "reflet", "psy", "divan", "debate", "tmc"}
     assert set(cats["cards"]) == {"pyramid", "blackjack", "president"}
