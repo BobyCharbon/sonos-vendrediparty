@@ -10,6 +10,8 @@ from app import brain
 ROOT = Path(__file__).resolve().parent.parent
 MIGRATION = (ROOT / "supabase" / "migrations" / "20261102210000_brain.sql").read_text(encoding="utf-8")
 ENDLESS = (ROOT / "supabase" / "migrations" / "20261103090000_brain_sans_fin.sql").read_text(encoding="utf-8")
+# Dernière définition de private.brain_index (niveaux jusqu'à 999, 03.11).
+INDEX_SQL = (ROOT / "supabase" / "migrations" / "20261103150000_brain_niveaux.sql").read_text(encoding="utf-8")
 PROD_APPLY = (ROOT / "supabase" / "prod" / "2026-11-02-meninges-apply.sql").read_text(encoding="utf-8")
 PROD_ROLLBACK = (ROOT / "supabase" / "prod" / "2026-11-02-meninges-rollback.sql").read_text(encoding="utf-8")
 TYPICAL = brain.CATALOG["pareil"].median   # score typique de Pareil ? (indice 1000 au niveau 10)
@@ -44,7 +46,7 @@ def test_migration_seeds_the_same_catalog_as_the_server():
 
 
 def test_sql_index_uses_the_same_constants_as_the_server():
-    sql = " ".join(ENDLESS.split())
+    sql = " ".join(INDEX_SQL.split())
     assert f"{brain.SCORE_WEIGHT}::double precision * (ln((least(greatest(coalesce(p_score, 0), 0), g.max_score) + {brain.SCORE_OFFSET})" in sql
     assert f"/ (g.median + {brain.SCORE_OFFSET})::double precision) / (g.spread::double precision / 1000))" in sql
     assert (f"{brain.LEVEL_WEIGHT}::double precision * ((least(greatest(coalesce(p_level, 1), 1), {brain.MAX_LEVEL}) - "
@@ -107,7 +109,9 @@ def test_round_half_up_like_the_database():
 
 def test_validate_bounds_the_score_and_rejects_impossible_results():
     r = brain.validate("pareil", 10 ** 8, 1, 400, 120, 45000)
-    assert r["score"] == brain.CATALOG["pareil"].max_score and r["level"] == 99 and r["domain"] == "vitesse"
+    # 45 s de jeu : borné par la durée (anti-triche, QA 03.11), sous le plafond du jeu
+    assert r["score"] == brain.score_cap(45000) < brain.CATALOG["pareil"].max_score
+    assert r["level"] == 120 and r["domain"] == "vitesse"
     with pytest.raises(brain.BrainError):
         brain.validate("inconnu", 100, 1, 400, 1, 45000)
     with pytest.raises(brain.BrainError):
@@ -117,9 +121,9 @@ def test_validate_bounds_the_score_and_rejects_impossible_results():
 
 
 def test_a_perfect_robot_is_never_refused():
-    """Robot parfait : ne perd jamais, joue jusqu'à la coupure de 30 min (ou plus), score énorme, niveau 99+."""
+    """Robot parfait : ne perd jamais, joue jusqu'à la coupure de 30 min (ou plus), score énorme, niveau 999+."""
     for gid in brain.CATALOG:
-        r = brain.validate(gid, 50_000_000, 1, 150, 400, 4 * 3600 * 1000)
+        r = brain.validate(gid, 50_000_000, 1, 150, 5000, 4 * 3600 * 1000)
         assert r["score"] == brain.MAX_SCORE and r["level"] == brain.MAX_LEVEL and r["duration_ms"] == 1_800_000
         assert brain.game_index(gid, r["score"], r["level"]) >= 1990
 

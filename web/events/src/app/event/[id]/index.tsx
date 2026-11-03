@@ -3,21 +3,28 @@ import { useMemo, useState } from 'react';
 import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { AttendanceEditor } from '@/components/AttendanceEditor';
+import { AttendeesBadge } from '@/components/AttendeesBadge';
+import { PendingPayments } from '@/components/PendingPayments';
+import { TicketCard } from '@/components/TicketCard';
 import { CalendarButton } from '@/components/CalendarButton';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
 import { Badge, Button, Card, Cascade, ConfirmButton, ErrorText, HeaderAction, HeaderBack, Screen, s, Section, Skeleton, T, Title, Toast } from '@/components/ui';
+import { fetchAttendance, localAttendance } from '@/lib/attendance';
 import { useAuth, useMe } from '@/lib/auth';
+import { personLabel, useContactNames, withContactNames } from '@/lib/contactNames';
 import { useQuery, useRealtime } from '@/lib/data';
 import { formatLongDay, formatMessageTime, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
 import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
+import { ticketRelevant } from '@/lib/tickets';
 import type { BringItem, Category, DateOption, DateVoteRow, EventRow, Message, Poll, PollOption, Rsvp, Tag } from '@/lib/types';
 import { plusOnesLabel } from '@/lib/types';
+import { notifyWallet } from '@/lib/wallet';
 
 type Full = EventRow & {
   category: Category | null;
-  author: { display_name: string } | null;
+  author: { id?: string; display_name: string } | null;
   event_tags: { tags: Tag }[];
   event_organizers: { user_id: string }[];
   rsvps: Rsvp[];
@@ -51,12 +58,12 @@ export default function EventScreen() {
   const [error, setError] = useState<string | null>(null);
   const [shareNote, setShareNote] = useState('');
 
-  const { data, reload, error: loadError } = useQuery(async () => {
-    const [ev, members, results, myVotes, allVotes, messages, mute, links] = await Promise.all([
+  const { data: loaded, reload, error: loadError } = useQuery(async () => {
+    const [ev, members, results, myVotes, allVotes, messages, mute, links, attendance] = await Promise.all([
       supabase
         .from('events')
         .select(
-          '*, category:categories(*), author:profiles!events_created_by_fkey(display_name), event_tags(tags(*)), event_organizers(user_id), rsvps(*), date_options(*, date_votes(*)), polls(*, poll_options(*)), bring_items(*, bring_claims(user_id, quantity)), event_groups(member_groups(name))',
+          '*, category:categories(*), author:profiles!events_created_by_fkey(id, display_name), event_tags(tags(*)), event_organizers(user_id), rsvps(*), date_options(*, date_votes(*)), polls(*, poll_options(*)), bring_items(*, bring_claims(user_id, quantity)), event_groups(member_groups(name))',
         )
         .eq('id', id)
         .single(),
@@ -68,6 +75,8 @@ export default function EventScreen() {
       supabase.from('event_mutes').select('event_id').eq('event_id', id).eq('user_id', me.id),
       // Invités arrivés par le lien (lisible par les organisateurs et les admins : orange dans « Qui vient ? »).
       supabase.from('event_invites').select('user_id').eq('event_id', id).eq('via_link', true),
+      // Pastille des présents : totaux exacts même si la liste des participants est cachée.
+      fetchAttendance([id]),
     ]);
     return {
       event: must(ev) as unknown as Full,
@@ -78,8 +87,14 @@ export default function EventScreen() {
       messages: must(messages) as Message[],
       muted: must(mute).length > 0,
       viaLink: new Set(((links.data ?? []) as { user_id: string }[]).map((l) => l.user_id)),
+      attendance: attendance.get(id) ?? null,
+      loadedAt: Date.now(),
     };
   }, [id, me.id]);
+
+  // App iPhone : les membres de mon répertoire sous le nom de mes contacts (« Nom · pseudo »), partout sur la page.
+  const contacts = useContactNames();
+  const data = useMemo(() => (loaded ? { ...loaded, names: withContactNames(loaded.names, contacts) } : loaded), [loaded, contacts]);
 
   useRealtime(`event-${id}`, [
     { table: 'rsvps', filter: `event_id=eq.${id}` },
@@ -127,7 +142,9 @@ export default function EventScreen() {
         : supabase.from('event_mutes').insert({ event_id: ev.id, user_id: me.id }),
     );
 
-  const heads = ev.rsvps.filter((r) => r.status === 'yes' && !r.waitlisted).reduce((n, r) => n + 1 + r.plus_ones, 0);
+  const people = data.attendance ?? localAttendance(ev.rsvps, data.names);
+  const heads = people.going;
+  const past = !!ev.starts_at && new Date(ev.ends_at ?? ev.starts_at).getTime() < data.loadedAt - 6 * 3600_000;
   const mapsUrl = ev.location_url ?? (ev.location_address || ev.location_name ? `https://maps.apple.com/?q=${encodeURIComponent(ev.location_address ?? ev.location_name!)}` : null);
   const mine = ev.rsvps.find((r) => r.user_id === me.id);
   const showCalendar = published && ev.date_mode === 'fixed' && !!ev.starts_at && mine?.status !== 'no';
@@ -174,7 +191,11 @@ export default function EventScreen() {
           {ev.date_mode === 'poll' ? <Badge label="Date à définir" fg={colors.coralSoft} bg={colors.coralDim} /> : null}
           {ev.category ? <Badge label={ev.category.name} fg={colors.onAccent} bg={ev.category.color} /> : null}
         </View>
-        <Title size={32} style={{ lineHeight: 36 }}>{ev.title}</Title>
+        {/* En haut à droite : qui vient, et combien (donne envie d’en être). */}
+        <View style={st.titleRow}>
+          <Title size={32} style={{ lineHeight: 36, flex: 1 }}>{ev.title}</Title>
+          {published && ev.date_mode === 'fixed' ? <AttendeesBadge attendance={people} large past={past} /> : null}
+        </View>
         {ev.visibility === 'invited' ? (
           <T muted size={13}>
             🔒 Sur invitation{ev.event_groups.length ? ` · ${ev.event_groups.map((g) => g.member_groups?.name).filter(Boolean).join(', ')}` : ''}
@@ -250,6 +271,9 @@ export default function EventScreen() {
       ) : published ? (
         <RsvpCard event={ev} me={me.id} rsvps={ev.rsvps} onChange={reload} />
       ) : null}
+      {mine?.status === 'yes' && ticketRelevant(ev, data.loadedAt) ? (
+        <TicketCard event={ev} me={me} answerKey={`${mine.status}:${mine.waitlisted}:${mine.plus_ones}`} />
+      ) : null}
 
       {ev.description ? (
         <Section title="À propos">
@@ -274,6 +298,9 @@ export default function EventScreen() {
       {ev.date_mode === 'fixed' && published ? <ParticipantsSection event={ev} me={me.id} rsvps={ev.rsvps} names={data.names} viaLink={data.viaLink} /> : null}
       {ev.date_mode === 'fixed' && published && canManage ? (
         <AttendanceEditor event={ev} rsvps={ev.rsvps} names={data.names} me={me.id} onChange={reload} />
+      ) : null}
+      {ev.date_mode === 'fixed' && published && canManage && (ev.price_chf ?? 0) > 0 ? (
+        <PendingPayments eventId={ev.id} price={ev.price_chf!} refreshKey={ev.rsvps.map((r) => `${r.user_id}:${r.status}`).join(',')} />
       ) : null}
 
       {ev.polls
@@ -310,7 +337,7 @@ export default function EventScreen() {
         </Pressable>
       ) : null}
 
-      <T muted size={13}>Proposé par {ev.author?.display_name ?? '?'}{data.muted ? ' · notifications coupées pour cet événement' : ''}</T>
+      <T muted size={13}>Proposé par {ev.author ? personLabel(contacts, ev.author.id ?? ev.created_by, ev.author.display_name).primary || '?' : '?'}{data.muted ? ' · notifications coupées pour cet événement' : ''}</T>
       {ev.event_tags.length ? (
         <View style={s.wrap}>
           {ev.event_tags.map(({ tags: t }) => <T key={t.id} size={13} weight="semibold" color={t.color}>#{t.name}</T>)}
@@ -322,12 +349,22 @@ export default function EventScreen() {
       {canManage && published ? (
         <View style={st.orgZone}>
           <T muted size={12} weight="bold">ZONE ORGANISATEUR</T>
+          {ev.date_mode === 'fixed' ? (
+            <Button label="📷 Scanner les billets" onPress={() => router.push(`/event/${ev.id}/scan`)} />
+          ) : null}
           <ConfirmButton
             small
             label="Annuler l’événement"
             confirmLabel="Oui, annuler"
-            onConfirm={() => run(supabase.from('events').update({ status: 'cancelled' }).eq('id', ev.id))}
+            onConfirm={() => run(supabase.from('events').update({ status: 'cancelled' }).eq('id', ev.id)).then(() => notifyWallet(ev.id))}
           />
+        </View>
+      ) : null}
+      {/* Droits « Scanner les billets » (tickets.scan) ou « Confirmer les paiements » (tickets.pay) sans organiser l'événement : l'entrée seulement. */}
+      {!canManage && published && ev.date_mode === 'fixed' && (can('tickets.scan') || can('tickets.pay')) ? (
+        <View style={st.orgZone}>
+          <T muted size={12} weight="bold">ENTRÉE</T>
+          <Button label="📷 Scanner les billets" onPress={() => router.push(`/event/${ev.id}/scan`)} />
         </View>
       ) : null}
       {ev.created_by === me.id && ['draft', 'pending', 'rejected'].includes(ev.status) ? (
@@ -379,6 +416,7 @@ function EventSkeleton() {
 const st = StyleSheet.create({
   cover: { width: '100%', aspectRatio: 16 / 9, borderRadius: radius.md, backgroundColor: colors.surface2, marginBottom: 14 },
   keyRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   keyIcon: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   notice: { padding: 12, borderRadius: radius.md },
   divided: { borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 12 },

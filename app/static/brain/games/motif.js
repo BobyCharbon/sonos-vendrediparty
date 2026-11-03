@@ -124,6 +124,10 @@
 .${P}yes{background:#30a46c}
 .${P}btn:disabled{opacity:.4;cursor:default}
 .${P}press{transform:scale(.95);filter:brightness(1.12)}
+/* Écran bas (téléphone en paysage, ~300 px de jeu) : tout tient, la carte suit la hauteur disponible. */
+@media (max-height:520px){.${P}wrap{min-height:0;gap:6px;padding:4px 12px 8px}
+  .${P}prompt{min-height:0;font-size:15px}.${P}stage{min-height:0;container-type:size}
+  .${P}card{width:min(72vw,280px,88cqh)}.${P}btn{min-height:50px;font-size:18px}}
 `;
   function injectStyle() {
     if (document.getElementById(P + 'style')) return;
@@ -305,9 +309,26 @@
       else if (e.key === 'ArrowLeft') { e.preventDefault(); answer(false); }
     }
 
+    // Pause du moteur (application en arrière-plan, question « Quitter la partie ? ») : tout s'arrête (aucune vie perdue loin de l'écran) ; au retour, nouvelle carte à retenir.
+    function onPauseChange(paused) {
+      if (phase === 'over') return;
+      if (paused) {
+        timers.forEach((t) => clearTimeout(t));
+        timers.clear();
+        phase = 'away';
+        setButtons(false);
+      } else if (phase === 'away') {
+        stage.innerHTML = '';
+        card = null;
+        beginMemo('resume');
+      }
+    }
+
     wrap.addEventListener('pointerdown', onPointer);
     wrap.addEventListener('click', onClick);
     window.addEventListener('keydown', onKey);
+    if (ctx.onPause) ctx.onPause(function () { onPauseChange(true); });
+    if (ctx.onResume) ctx.onResume(function () { onPauseChange(false); });
 
     ctx.setLevel(level);
     beginMemo(true);

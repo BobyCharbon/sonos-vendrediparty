@@ -11,6 +11,7 @@ enum NativeBridge {
     static let pushHandler = "partyPush"
     static let tabsHandler = "partyTabs"
     static let aiHandler = "partyAI"
+    static let scanHandler = "partyScan"
 
     private static let script = """
     (function () {
@@ -41,6 +42,24 @@ enum NativeBridge {
           editEvent: function (id) {
             try { window.webkit.messageHandlers.\(aiHandler).postMessage("edit:" + id); } catch (e) {}
           }
+        },
+        // « Scanner les billets » (Événements) : lecteur QR d'Apple ; promesse du texte lu, ou null si l'on ferme.
+        scan: {
+          qr: function () { return window.webkit.messageHandlers.\(scanHandler).postMessage("qr"); }
+        },
+        // Noms des contacts (avis f780431defe7) : promesse de { user_id: "Nom du contact" } pour « Nom · pseudo »
+        // dans le module Événements ; noms lus sur cet iPhone, donnés seulement aux pages de Party.
+        contacts: {
+          names: function () { return window.webkit.messageHandlers.\(ContactNamesBridge.handler).postMessage("names"); },
+          // « Ajouter aux contacts » (fiche d'un membre) : fiche Contacts d'Apple préremplie ; promesse à sa fermeture.
+          add: function (person) {
+            return window.webkit.messageHandlers.\(ContactNamesBridge.handler).postMessage(Object.assign({ action: "add" }, person || {}));
+          }
+        },
+        // « Ajouter à l'app Cartes Apple » (billet) : feuille d'ajout PassKit ; promesse résolue à sa fermeture.
+        wallet: {
+          available: \(NativeWallet.available ? "true" : "false"),
+          add: function (url) { return window.webkit.messageHandlers.\(NativeWallet.handler).postMessage(String(url)); }
         }
       };
     })();
@@ -60,6 +79,9 @@ enum NativeBridge {
         controller.addScriptMessageHandler(PushHandler(), contentWorld: .page, name: pushHandler)
         controller.add(TabsHandler(model: model), name: tabsHandler)
         controller.add(AIHandler(model: model), name: aiHandler)
+        controller.addScriptMessageHandler(ScanHandler(model: model), contentWorld: .page, name: scanHandler)
+        controller.addScriptMessageHandler(WalletHandler(), contentWorld: .page, name: NativeWallet.handler)
+        controller.addScriptMessageHandler(ContactNamesBridge(), contentWorld: .page, name: ContactNamesBridge.handler)
     }
 }
 
@@ -98,6 +120,23 @@ private final class AIHandler: NSObject, WKScriptMessageHandler {
             return
         }
         model?.aiEventOpen = true
+    }
+}
+
+/// « Scanner les billets » dans Événements (cadre du module compris) → lecteur QR natif ; le texte lu revient à la page.
+private final class ScanHandler: NSObject, WKScriptMessageHandlerWithReply {
+    private weak var model: WebModel?
+
+    init(model: WebModel) {
+        self.model = model
+    }
+
+    @MainActor
+    func userContentController(_ controller: WKUserContentController,
+                               didReceive message: WKScriptMessage) async -> (Any?, String?) {
+        guard AppConfig.isInternal(message.frameInfo.securityOrigin.url) else { return (nil, "Origine refusée") }
+        guard message.body as? String == "qr", let model else { return (nil, "Action inconnue") }
+        return (await model.scanTicket() as Any?, nil)
     }
 }
 
@@ -146,6 +185,24 @@ private final class PushHandler: NSObject, WKScriptMessageHandlerWithReply {
         } catch {
             return (nil, error.localizedDescription)
         }
+    }
+}
+
+/// `PartyNative.contacts.names()` → { identifiant de compte : nom du contact } (vide sans accès aux contacts).
+final class ContactNamesBridge: NSObject, WKScriptMessageHandlerWithReply {
+    static let handler = "partyContacts"
+
+    @MainActor
+    func userContentController(_ controller: WKUserContentController,
+                               didReceive message: WKScriptMessage) async -> (Any?, String?) {
+        guard AppConfig.isInternal(message.frameInfo.securityOrigin.url) else { return (nil, "Origine refusée") }
+        if message.body as? String == "names" { return (ContactNames.shared.names, nil) }
+        guard let body = message.body as? [String: Any], body["action"] as? String == "add",
+              let phone = body["phone"] as? String, PhoneNumbers.e164(phone) != nil else { return (nil, "Action inconnue") }
+        let contact = ContactCardSheet.newContact(phone: phone, firstName: body["firstName"] as? String,
+                                                  lastName: body["lastName"] as? String, pseudo: body["nickname"] as? String ?? "")
+        await ContactCardSheet.present(.new(contact))
+        return (true, nil)
     }
 }
 

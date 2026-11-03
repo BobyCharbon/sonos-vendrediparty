@@ -28,7 +28,7 @@
   const scaleOf = (lv, from) => Math.min(3, 1 + Math.max(0, lv - from) * 0.04);
 
   const CSS = `
-.br-gouttes-wrap{display:flex;flex-direction:column;height:100%;min-height:440px;gap:8px;padding:6px 2px;box-sizing:border-box;
+.br-gouttes-wrap{display:flex;flex-direction:column;flex:1 1 auto;min-height:440px;gap:8px;padding:6px 2px;box-sizing:border-box;
   color:var(--text,#f5f0ff);user-select:none;-webkit-user-select:none}
 .br-gouttes-sky{flex:1;position:relative;min-height:240px;border-radius:18px;overflow:hidden;transition:filter .3s;
   background:linear-gradient(#1e3a5f,#12304a 60%,#0c2236)}
@@ -55,7 +55,10 @@
   touch-action:manipulation;cursor:pointer}
 .br-gouttes-key[data-key="ok"]{background:#0ea5e9}.br-gouttes-key[data-key="del"]{background:#164e63}
 .br-gouttes-key:active{transform:scale(.96)}
-.br-gouttes-pad.frozen .br-gouttes-key{opacity:.4}`;
+.br-gouttes-pad.frozen .br-gouttes-key{opacity:.4}
+@media (max-height:520px){.br-gouttes-wrap{display:grid;grid-template-columns:1fr 168px;grid-template-rows:auto 1fr;min-height:0}
+  .br-gouttes-sky{grid-row:1 / 3;min-height:0}.br-gouttes-entry{grid-column:2}.br-gouttes-pad{grid-column:2;align-content:end}
+  .br-gouttes-key{min-height:44px}}`;
 
   function injectStyle() {
     if (document.getElementById('br-gouttes-style')) return;
@@ -144,6 +147,7 @@
     let lastTs = 0;
     let raf = 0;
     let stopped = false;
+    let paused = false;
     const timers = new Set();
 
     ctx.root.innerHTML = `
@@ -275,7 +279,7 @@
     }
 
     function press(key) {
-      if (stopped || performance.now() < frozenUntil) return;
+      if (stopped || paused || performance.now() < frozenUntil) return;
       if (key === 'ok') { submit(); return; }
       if (key === 'del') typed = typed.slice(0, -1);
       else if (/^[0-9]$/.test(key) && typed.length < MAX_DIGITS) typed = typed === '0' ? key : typed + key;
@@ -303,8 +307,24 @@
       window.removeEventListener('keydown', onKey);
     }
 
+    // Pause du moteur (application en arrière-plan, question « Quitter la partie ? ») : la pluie s'arrête net
+    // (aucune goutte ne tombe loin de l'écran) et reprend au retour, là où elle était.
+    function pause() {
+      paused = true;
+      cancelAnimationFrame(raf);
+      raf = 0;
+    }
+    function resume() {
+      paused = false;
+      if (stopped || raf) return;
+      lastTs = 0;
+      raf = requestAnimationFrame(frame);
+    }
+
     pad.addEventListener('click', onClick);
     window.addEventListener('keydown', onKey);
+    if (ctx.onPause) ctx.onPause(pause);
+    if (ctx.onResume) ctx.onResume(resume);
     ctx.setLevel(level);
     raf = requestAnimationFrame(frame);
 

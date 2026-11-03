@@ -1,64 +1,112 @@
 import Foundation
 
-/// Rôles du groupe, dans l'ordre de la base (private.role_rank) : Membre est au niveau de Guest.
-enum MemberRole: String, CaseIterable, Decodable, Identifiable {
-    case guest, guestplus, basic, member, organizer, coadmin, admin
+/// Un rôle du groupe (table public.roles) : rôles de base et rôles personnalisés créés dans l'app.
+/// Le rang = la place dans la liste (0 = le plus bas) ; l'ordre est la hiérarchie et se change dans Rôles et droits.
+/// Deux rôles sont égaux s'ils ont la même clé. Sans la table (ancien serveur), ce sont les anciens rôles figés.
+struct MemberRole: Decodable, Hashable, Identifiable {
+    let key: String
+    let label: String
+    let color: String?
+    let icon: String?
+    let rank: Int
+    let builtin: Bool
+    /// Écran Rôles et droits seulement : nombre de comptes de ce rôle.
+    let members: Int?
 
-    var id: String { rawValue }
+    var id: String { key }
+    var rawValue: String { key }
+    /// Nom avec son icône, pour les listes.
+    var title: String { icon.map { "\($0) \(label)" } ?? label }
 
-    var rank: Int {
-        switch self {
-        case .guest, .guestplus, .basic: return 0
-        case .member: return 1
-        case .organizer: return 2
-        case .coadmin: return 3
-        case .admin: return 4
-        }
+    init(key: String, label: String, color: String? = nil, icon: String? = nil, rank: Int, builtin: Bool = false, members: Int? = nil) {
+        self.key = key
+        self.label = label
+        self.color = color
+        self.icon = icon
+        self.rank = rank
+        self.builtin = builtin
+        self.members = members
     }
 
-    var label: String {
-        switch self {
-        case .guest: return "Guest"
-        case .guestplus: return "Guest+"
-        case .basic: return "Membre"
-        case .member: return "Membre VIP"
-        case .organizer: return "Organisateur"
-        case .coadmin: return "Co-admin"
-        case .admin: return "Admin"
-        }
+    init(rawValue: String) {
+        self = Self.allCases.first { $0.key == rawValue } ?? MemberRole(key: rawValue, label: rawValue, rank: 0)
     }
 
-    /// Du plus haut au plus bas, comme les sections de la liste des membres.
-    static let descending: [MemberRole] = allCases.reversed()
+    private enum Keys: String, CodingKey { case key, label, color, icon, rank, builtin, members }
+
+    /// Un objet de la liste des rôles, ou seulement une clé (ancien format) : rôle de base connu, sinon Guest.
+    init(from decoder: Decoder) throws {
+        if let single = try? decoder.singleValueContainer(), let key = try? single.decode(String.self) {
+            self = Self.allCases.first { $0.key == key } ?? .guest
+            return
+        }
+        let c = try decoder.container(keyedBy: Keys.self)
+        let key = try c.decode(String.self, forKey: .key)
+        self.init(key: key,
+                  label: try c.decodeIfPresent(String.self, forKey: .label) ?? key,
+                  color: try c.decodeIfPresent(String.self, forKey: .color),
+                  icon: try c.decodeIfPresent(String.self, forKey: .icon),
+                  rank: try c.decodeIfPresent(Int.self, forKey: .rank) ?? 0,
+                  builtin: try c.decodeIfPresent(Bool.self, forKey: .builtin) ?? false,
+                  members: try c.decodeIfPresent(Int.self, forKey: .members))
+    }
+
+    static func == (a: MemberRole, b: MemberRole) -> Bool { a.key == b.key }
+    func hash(into hasher: inout Hasher) { hasher.combine(key) }
+
+    // Anciens rôles figés et anciens rangs (avant la table des rôles) : Membre au niveau de Guest.
+    static let guest = MemberRole(key: "guest", label: "Guest", rank: 0, builtin: true)
+    static let guestplus = MemberRole(key: "guestplus", label: "Guest+", rank: 0, builtin: true)
+    static let basic = MemberRole(key: "basic", label: "Membre", rank: 0, builtin: true)
+    static let member = MemberRole(key: "member", label: "Membre VIP", rank: 1, builtin: true)
+    static let organizer = MemberRole(key: "organizer", label: "Organisateur", rank: 2, builtin: true)
+    static let coadmin = MemberRole(key: "coadmin", label: "Co-admin", rank: 3, builtin: true)
+    static let admin = MemberRole(key: "admin", label: "Admin", rank: 4, builtin: true)
+    static let allCases: [MemberRole] = [.guest, .guestplus, .basic, .member, .organizer, .coadmin, .admin]
 }
 
-/// Mes droits (my_permissions) et mon rang (invité 0 … admin 4, root 99), renvoyés avec chaque écran.
+/// Mes droits (my_permissions), mon rang (place de mon rôle, root 99), les rôles et leurs seuils, renvoyés avec chaque écran.
 struct AdminAccess: Equatable {
-    static let fullAccessRank = 4
     static let rootRank = 99
 
     let me: String
     let perms: Set<String>
     let rank: Int
+    /// Du plus bas au plus haut.
+    let roles: [MemberRole]
+    /// Root et Admin : liste complète, numéros, suppression, journal.
+    let full: Bool
+
+    init(me: String, perms: Set<String>, rank: Int, roles: [MemberRole] = MemberRole.allCases, full: Bool? = nil) {
+        self.me = me
+        self.perms = perms
+        self.rank = rank
+        self.roles = roles.sorted { $0.rank < $1.rank }
+        self.full = full ?? (rank >= (roles.first { $0.key == "admin" }?.rank ?? MemberRole.admin.rank))
+    }
 
     func can(_ perm: String) -> Bool { perms.contains(perm) }
-    /// Root et Admin : liste complète, numéros, suppression, journal.
-    var full: Bool { rank >= Self.fullAccessRank }
+    func role(_ key: String) -> MemberRole? { roles.first { $0.key == key } }
+    /// Rang de Membre VIP : en dessous, hors de Vendredi Party et sans identité obligatoire.
+    var vipRank: Int { role("member")?.rank ?? MemberRole.member.rank }
     var seesMembers: Bool { full || can("members.roles") || can("members.ban") || can("members.view_identity") }
     var managesRoles: Bool { can("roles.manage") || rank >= Self.rootRank }
     var canRoles: Bool { full || can("members.roles") }
     var canBan: Bool { full || can("members.ban") }
-    /// Rôles que je peux donner : seulement en dessous du mien.
-    var assignable: [MemberRole] { MemberRole.allCases.filter { $0.rank < rank } }
+    /// Rôles que je peux donner : seulement en dessous du mien (du plus bas au plus haut).
+    var assignable: [MemberRole] { roles.filter { $0.rank < rank } }
 }
 
-private enum AccessKeys: String, CodingKey { case me, perms, rank }
+private enum AccessKeys: String, CodingKey { case me, perms, rank, roles, full }
 
 private func decodeAccess(_ decoder: Decoder) throws -> AdminAccess {
     let c = try decoder.container(keyedBy: AccessKeys.self)
+    let roles = (try? c.decodeIfPresent([MemberRole].self, forKey: .roles)) ?? nil
     return AdminAccess(me: try c.decode(String.self, forKey: .me),
                        perms: Set(try c.decodeIfPresent([String].self, forKey: .perms) ?? []),
-                       rank: try c.decodeIfPresent(Int.self, forKey: .rank) ?? -1)
+                       rank: try c.decodeIfPresent(Int.self, forKey: .rank) ?? -1,
+                       roles: roles?.isEmpty == false ? roles! : MemberRole.allCases,
+                       full: try c.decodeIfPresent(Bool.self, forKey: .full))
 }
 
 /// Accueil (POST /api/account/group-admin) : propositions, demandes d'adhésion, règle de validation.
@@ -135,6 +183,7 @@ struct AdminMembers: Decodable, Equatable {
 
         enum CodingKeys: String, CodingKey {
             case id, name, phone, photo, role, status, beta, root, complete, groups
+            case roleLabel = "role_label", roleRank = "role_rank", roleColor = "role_color"
             case fullName = "full_name", createdAt = "created_at", lastSignInAt = "last_sign_in_at"
             case firstSignInAt = "first_sign_in_at", signInCount = "sign_in_count", lastDevice = "last_device"
             case rsvpCount = "rsvp_count", messageCount = "message_count"
@@ -147,8 +196,14 @@ struct AdminMembers: Decodable, Equatable {
             fullName = try c.decodeIfPresent(String.self, forKey: .fullName) ?? ""
             phone = try c.decodeIfPresent(String.self, forKey: .phone)
             photo = try c.decodeIfPresent(String.self, forKey: .photo)
-            // Rôle inconnu de cette version de l'app : traité comme Guest (aucun droit de plus).
-            role = (try? c.decode(MemberRole.self, forKey: .role)) ?? .guest
+            // Nom et rang du rôle envoyés par le serveur (rôles personnalisés) ; sinon rôle de base connu, ou Guest.
+            let key = try c.decodeIfPresent(String.self, forKey: .role) ?? "guest"
+            if let label = try c.decodeIfPresent(String.self, forKey: .roleLabel),
+               let rank = try c.decodeIfPresent(Int.self, forKey: .roleRank) {
+                role = MemberRole(key: key, label: label, color: try c.decodeIfPresent(String.self, forKey: .roleColor), rank: rank)
+            } else {
+                role = MemberRole.allCases.first { $0.key == key } ?? .guest
+            }
             status = try c.decodeIfPresent(String.self, forKey: .status) ?? "pending"
             beta = try c.decodeIfPresent(Bool.self, forKey: .beta) ?? false
             root = try c.decodeIfPresent(Bool.self, forKey: .root) ?? false
@@ -198,7 +253,7 @@ struct AdminMembers: Decodable, Equatable {
     /// Sections : actifs par rôle (du plus haut au plus bas), puis en attente, puis accès retiré.
     func sections(matching query: String) -> [Section] {
         let rows = people.filter { $0.matches(query) }
-        let byRole = MemberRole.descending.map { role in (role.label, rows.filter { $0.active && $0.role == role }) }
+        let byRole = access.roles.reversed().map { role in (role.label, rows.filter { $0.active && $0.role == role }) }
         let others = [("En attente", rows.filter { !$0.active && !$0.banned }), ("Accès retiré", rows.filter(\.banned))]
         return (byRole + others).filter { !$0.1.isEmpty }.map { Section(title: "\($0.0) (\($0.1.count))", people: $0.1) }
     }
@@ -215,8 +270,8 @@ struct MemberRules {
     var bans: Bool { below && access.canBan }
     var setsBeta: Bool { access.canRoles && person.active }
     var deletes: Bool { below && access.full }
-    /// Au-dessus de Guest, il faut une identité complète (guard_profile).
-    func allows(_ role: MemberRole) -> Bool { role.rank == 0 || person.complete }
+    /// Membre VIP et au-dessus : il faut une identité complète (guard_profile).
+    func allows(_ role: MemberRole) -> Bool { role.rank < access.vipRank || person.complete }
 }
 
 /// Rôles et droits (POST /api/account/group-admin/roles).
@@ -236,19 +291,31 @@ struct AdminRoles: Decodable, Equatable {
     }
 
     let access: AdminAccess
+    /// Rôles modifiables (en dessous du mien), du plus haut au plus bas.
     let editable: [MemberRole]
     let catalog: [Permission]
     let grants: [String: [String]]
+    /// Créer, renommer, réordonner : base à jour et droit roles.manage.
+    let canManage: Bool
+    /// Supprimer un rôle : roles.manage et, en plus, roles.delete.
+    let canDelete: Bool
 
-    enum CodingKeys: String, CodingKey { case editable, catalog, grants }
+    enum CodingKeys: String, CodingKey { case editable, catalog, grants, canManage = "can_manage", canDelete = "can_delete" }
 
     init(from decoder: Decoder) throws {
         access = try decodeAccess(decoder)
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        editable = (try c.decodeIfPresent([String].self, forKey: .editable) ?? []).compactMap(MemberRole.init(rawValue:))
+        let roles = access.roles
+        editable = (try c.decodeIfPresent([String].self, forKey: .editable) ?? []).compactMap { key in roles.first { $0.key == key } }
         catalog = try c.decodeIfPresent([Permission].self, forKey: .catalog) ?? []
         grants = try c.decodeIfPresent([String: [String]].self, forKey: .grants) ?? [:]
+        canManage = try c.decodeIfPresent(Bool.self, forKey: .canManage) ?? false
+        canDelete = try c.decodeIfPresent(Bool.self, forKey: .canDelete) ?? false
     }
+
+    /// Tous les rôles, du plus haut au plus bas (l'ordre de l'écran).
+    var descending: [MemberRole] { access.roles.reversed() }
+    func isEditable(_ role: MemberRole) -> Bool { role.rank < access.rank }
 
     func granted(_ perm: String, to role: MemberRole) -> Bool { grants[role.rawValue]?.contains(perm) == true }
     /// On ne donne que les droits qu'on a soi-même (sauf root) ; on peut toujours retirer.
@@ -321,7 +388,7 @@ extension PartyAPI {
 
     func updateMember(token: String, id: String, role: MemberRole? = nil, status: String? = nil, beta: Bool? = nil) async throws -> AdminMembers {
         var body: [String: Any] = ["token": token, "id": id]
-        if let role { body["role"] = role.rawValue }
+        if let role { body["role"] = role.key }
         if let status { body["status"] = status }
         if let beta { body["beta"] = beta }
         return try await postDecoding("/api/account/group-admin/member", body: body)
@@ -336,7 +403,30 @@ extension PartyAPI {
     }
 
     func setPermission(token: String, role: MemberRole, perm: String, on: Bool) async throws -> AdminRoles {
-        try await postDecoding("/api/account/group-admin/permission", body: ["token": token, "role": role.rawValue, "perm": perm, "on": on])
+        try await postDecoding("/api/account/group-admin/permission", body: ["token": token, "role": role.key, "perm": perm, "on": on])
+    }
+
+    func createRole(token: String, draft: RoleDraft, copyFrom: MemberRole?) async throws -> AdminRoles {
+        var body = draft.body(token: token)
+        if let copyFrom { body["copy_from"] = copyFrom.key }
+        return try await postDecoding("/api/account/group-admin/role/create", body: body)
+    }
+
+    func updateRole(token: String, role: MemberRole, draft: RoleDraft) async throws -> AdminRoles {
+        var body = draft.body(token: token)
+        body["key"] = role.key
+        return try await postDecoding("/api/account/group-admin/role/update", body: body)
+    }
+
+    func deleteRole(token: String, role: MemberRole, moveTo: MemberRole?) async throws -> AdminRoles {
+        var body: [String: Any] = ["token": token, "key": role.key]
+        if let moveTo { body["move_to"] = moveTo.key }
+        return try await postDecoding("/api/account/group-admin/role/delete", body: body)
+    }
+
+    /// keys : du plus bas au plus haut (Guest d'abord, Admin en dernier).
+    func reorderRoles(token: String, keys: [String]) async throws -> AdminRoles {
+        try await postDecoding("/api/account/group-admin/roles/order", body: ["token": token, "keys": keys])
     }
 
     func adminJournal(token: String, member: String?, before: Int?) async throws -> AdminJournal {
@@ -388,14 +478,15 @@ enum UserList {
 
     private static let month: TimeInterval = 30 * 86_400
 
-    static func matches(_ p: AdminMembers.Person, _ filter: Filter, now: Date = Date()) -> Bool {
+    /// vipRank : rang de Membre VIP (AdminAccess.vipRank) ; « Orga et admins » = au-dessus.
+    static func matches(_ p: AdminMembers.Person, _ filter: Filter, now: Date = Date(), vipRank: Int = MemberRole.member.rank) -> Bool {
         switch filter {
         case .all: return true
         case .guest: return p.active && p.role == .guest
         case .guestplus: return p.active && p.role == .guestplus
         case .basic: return p.active && p.role == .basic
         case .vip: return p.active && p.role == .member
-        case .team: return p.active && p.role.rank > MemberRole.member.rank
+        case .team: return p.active && p.role.rank > vipRank
         case .beta: return p.beta
         case .incomplete: return !p.complete
         case .never: return now.timeIntervalSince(AdminDate.date(p.lastSignInAt) ?? .distantPast) > month
@@ -404,8 +495,8 @@ enum UserList {
     }
 
     static func arrange(_ people: [AdminMembers.Person], search: String, filter: Filter, sort: Sort, descending: Bool,
-                        now: Date = Date()) -> [AdminMembers.Person] {
-        let rows = people.filter { $0.matches(search) && matches($0, filter, now: now) }
+                        now: Date = Date(), vipRank: Int = MemberRole.member.rank) -> [AdminMembers.Person] {
+        let rows = people.filter { $0.matches(search) && matches($0, filter, now: now, vipRank: vipRank) }
         return rows.sorted { a, b in
             let order: Bool
             switch sort {
@@ -438,5 +529,53 @@ enum UserList {
         case .role: return Double(p.role.rank)
         case .name: return 0
         }
+    }
+}
+
+/// Nom, couleur et icône d'un rôle, tels que tapés dans l'écran (la base nettoie et vérifie).
+struct RoleDraft: Equatable {
+    static let colors = ["#8E8E93", "#A2845E", "#5AC8FA", "#34C759", "#FF9500", "#AF52DE", "#FF3B30", "#FF2D55", "#007AFF", "#FFCC00"]
+
+    var label = ""
+    var color: String? = RoleDraft.colors[8]
+    var icon = ""
+
+    init() {}
+
+    init(_ role: MemberRole) {
+        label = role.label
+        color = role.color
+        icon = role.icon ?? ""
+    }
+
+    var cleanLabel: String { label.split(whereSeparator: \.isWhitespace).joined(separator: " ") }
+    var valid: Bool { (1...30).contains(cleanLabel.count) && icon.count <= 8 }
+
+    func body(token: String) -> [String: Any] {
+        var body: [String: Any] = ["token": token, "label": cleanLabel]
+        if let color { body["color"] = color }
+        let emoji = icon.trimmingCharacters(in: .whitespaces)
+        if !emoji.isEmpty { body["icon"] = emoji }
+        return body
+    }
+}
+
+/// Réordonner les rôles comme la base (reorder_roles) : Guest reste en bas, Admin en haut, et seuls les rôles en
+/// dessous de son propre rang bougent ; les autres gardent leur place.
+enum RoleOrder {
+    /// descending : l'écran (du plus haut au plus bas) ; from / to : déplacement de List.onMove.
+    /// Renvoie les clés du plus bas au plus haut, ou nil si ce déplacement n'est pas permis.
+    static func moved(_ descending: [MemberRole], from: IndexSet, to: Int, myRank: Int) -> [String]? {
+        var next = descending
+        next.move(fromOffsets: from, toOffset: to)
+        let ascending = Array(next.reversed())
+        let before = Array(descending.reversed())
+        guard ascending.first?.key == "guest", ascending.last?.key == "admin" else { return nil }
+        // Les rôles à ma hauteur ou au-dessus (ranges de rangs ≥ le mien) restent à leur place.
+        for (index, role) in before.enumerated() where index >= myRank || role.key == "guest" || role.key == "admin" {
+            guard ascending[index] == role else { return nil }
+        }
+        let keys = ascending.map(\.key)
+        return keys == before.map(\.key) ? nil : keys
     }
 }

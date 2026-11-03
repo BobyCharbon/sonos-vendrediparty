@@ -149,8 +149,10 @@
     if (!g) return;
     const e = a.esc, d = a.domain(g.domain);
     a.show(`<div class="br-loading" role="status"><span class="br-spin" aria-hidden="true"></span>Tes statistiques…</div>`, "detail");
+    const mine = a.seq?.();
     const s = await prefetch(id);
-    if (document.querySelector("#brainRoot")?.dataset.screen !== "detail") return;  // fermé ou ailleurs entre-temps
+    // Fermé, ou ailleurs entre-temps (une autre fiche ouverte, partie lancée…) : la réponse lente n'affiche rien.
+    if (document.querySelector("#brainRoot")?.dataset.screen !== "detail" || (mine != null && mine !== a.seq())) return;
     const stat = (label, value) => `<div class="br-stat"><span>${label}</span><b>${value}</b></div>`;
     const plays = s?.plays || 0;
     a.show(`<div class="bd-sheet" style="--g:${e(g.color)}">
@@ -163,7 +165,7 @@
         ${stat("Record", s.best ? fmt(s.best) : "–")}
         ${stat("Indice du jeu", s.index ? `${fmt(s.index)} °M` : "–")}
         ${stat("Niveau max", s.level || "–")}
-        ${stat("Palier max", s.level ? fmt(s.max_tier || a.tierOf(s.level)) : "–")}
+        ${stat("Palier max", s.level ? fmt(Math.max(s.max_tier || a.tierOf(s.level), a.unlockedTier?.(id) || 1)) : "–")}
         ${stat("Parties", fmt(plays))}
         ${stat("Précision moyenne", s.accuracy != null ? pctTxt(s.accuracy) : "–")}
         ${stat("Réaction moyenne", s.avg_rt_ms ? `${fmt(s.avg_rt_ms)} ms` : "–")}

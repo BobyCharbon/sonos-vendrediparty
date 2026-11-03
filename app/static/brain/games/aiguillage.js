@@ -20,14 +20,15 @@
   var MAX_HIT_RADIUS = 34;         // zone tactile jusqu'à 68 px (réduite si deux aiguillages sont proches, ≥ 22)
   var MIN_ROW_H = 52;              // écart vertical minimal entre deux rangs d'aiguillages
   var MAX_ROWS = 7;
+  var MIN_H = 220;                  // hauteur minimale du réseau (téléphone en paysage : ~290 px disponibles)
   var TUNNEL_Y = 34, STATION_H = 36, SIDE = 8;
   var FLASH_MS = 700, BANNER_MS = 1700;
   var MIN_SPACING = 48;            // px entre deux wagons à la sortie du tunnel
 
   var STYLE = [
-    '.br-aiguillage{position:relative;width:100%;height:100%;min-height:440px;touch-action:manipulation;',
+    '.br-aiguillage{position:relative;width:100%;flex:1 1 auto;min-height:0;touch-action:manipulation;',
     '-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}',
-    '.br-aiguillage-canvas{display:block;width:100%;height:100%;border-radius:18px;}',
+    '.br-aiguillage-canvas{position:absolute;inset:0;display:block;width:100%;height:100%;border-radius:18px;}',
     '.br-aiguillage-hud{position:absolute;top:8px;right:10px;font:600 14px system-ui,sans-serif;color:#e8f3ef;',
     'background:rgba(10,30,26,.55);padding:4px 10px;border-radius:999px;pointer-events:none;}',
     '.br-aiguillage-hud b{font-variant-numeric:tabular-nums;}',
@@ -93,7 +94,7 @@
     var wagons = [], flashes = [];
     var spawnAcc = 0, nextSpawn = 1, pendingRebuild = false, pauseUntil = 0, bannerUntil = 0, needBanner = true;
     var run = 0, levelMisses = 0, wagonCount = 0, shownBanners = [], builtTier = 1;
-    var stopped = false, raf = 0, last = 0, now = 0;
+    var stopped = false, paused = false, raf = 0, last = 0, now = 0;
 
     function rowsAvailable() {
       var room = H - 14 - STATION_H - TUNNEL_Y - 40;
@@ -151,7 +152,7 @@
 
     function resize() {
       var r = wrap.getBoundingClientRect();
-      W = Math.max(200, r.width); H = Math.max(360, r.height);
+      W = Math.max(200, r.width); H = Math.max(MIN_H, r.height);
       dpr = window.devicePixelRatio || 1;
       canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
       layout();
@@ -312,7 +313,7 @@
     }
 
     function onPointer(e) {
-      if (stopped) return;
+      if (stopped || paused) return;
       var r = canvas.getBoundingClientRect();
       var x = e.clientX - r.left, y = e.clientY - r.top;
       var best = null, bestD = hitRadius;
@@ -348,6 +349,19 @@
     rebuild();
     ctx.setLevel(level);
     raf = requestAnimationFrame(frame);
+    // Pause du moteur (application en arrière-plan, question « Quitter la partie ? ») : les wagons s'arrêtent net
+    // (aucune vie perdue loin de l'écran) et repartent au retour, là où ils étaient.
+    if (ctx.onPause) ctx.onPause(function () {
+      paused = true;
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+    });
+    if (ctx.onResume) ctx.onResume(function () {
+      paused = false;
+      if (stopped || raf) return;
+      last = 0;
+      raf = requestAnimationFrame(frame);
+    });
 
     return {
       stop: function () {

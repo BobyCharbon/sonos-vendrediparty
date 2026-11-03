@@ -1,29 +1,39 @@
 import { router, Stack } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Platform, Pressable, View, type TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChatBubble } from './ChatBubble';
 import { GroupChatSettings } from './GroupChatSettings';
+import { MentionSuggestions } from './MentionSuggestions';
+import { usePersonText } from './PersonName';
 import { Button, ErrorText, HeaderBack, Input, Loading, s, T } from './ui';
 import { useMe } from '@/lib/auth';
-import { mentionsIn, newMessageId, pickPhoto, shrinkPhoto, signedPhotos, startVoice, uploadChatAudio, uploadChatPhoto, voiceClock,
-  type ChatSummary, type GroupMessage, type Reaction, type VoiceRecording } from '@/lib/chats';
+import { useContactNames } from '@/lib/contactNames';
+import { insertMention, isAnnouncement, mentionQuery, mentionsIn, mentionSuggestions, newMessageId, pickPhoto, shrinkPhoto, signedPhotos, startVoice, uploadChatAudio, uploadChatPhoto, voiceClock,
+  type ChatSummary, type EveryoneBy, type GroupMessage, type Reaction, type VoiceRecording } from '@/lib/chats';
 import { useQuery, useRealtime } from '@/lib/data';
 import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
-import { roleRank } from '@/lib/types';
+import { roleRank, siteAdminRank } from '@/lib/roles';
 import { enter } from '@/lib/motion';
 
 const PAGE = 150;
+/** Annonces et messages épinglés lus à part : le bandeau du haut les garde même au-delà des derniers messages. */
+const HIGHLIGHTS = 20;
 
 type Profile = { id: string; display_name: string; avatar_url: string | null; member?: boolean };
 
-/** Discussion d'un groupe (avis n°10) : texte, photos, réactions, réponses, @citations ; les admins épinglent
- * et suppriment. Un membre écrit ; un compte qui voit le groupe sans en faire partie ne fait que lire. */
+/** Discussion d'un groupe (avis n°10) : texte, photos, réactions, réponses, @citations (suggestions des membres en
+ * tapant @, @tout pour tout le groupe), @annonce (épinglée en surbrillance en haut) ; les admins épinglent, retirent
+ * les annonces et suppriment. Un membre écrit ; un compte qui voit le groupe sans en faire partie ne fait que lire. */
 export function GroupChat({ id }: { id: string }) {
   const me = useMe();
   const [text, setText] = useState('');
+  // Place du curseur (suggestions de l'@ en cours de frappe) et champ, pour y revenir après un choix.
+  const [cursor, setCursor] = useState(0);
+  const input = useRef<TextInput>(null);
+  const [bannerMenu, setBannerMenu] = useState(false);
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [sending, setSending] = useState(false);
   // Messages envoyés pas encore revenus de la base : affichés tout de suite (« Envoi… »), comme Snapchat.
@@ -36,13 +46,17 @@ export function GroupChat({ id }: { id: string }) {
   const list = useRef<FlatList<GroupMessage>>(null);
 
   const { data, loading, error: loadError, reload } = useQuery(async () => {
-    const [group, msgs, people, admins, chats, phones] = await Promise.all([
-      supabase.from('member_groups').select('id, name, created_by, member_group_members(user_id)').eq('id', id).single(),
+    const [group, msgs, people, admins, chats, phones, pins, organizers] = await Promise.all([
+      // « * » : everyone_tag (qui peut écrire @tout) quand la base le connaît.
+      supabase.from('member_groups').select('*, member_group_members(user_id)').eq('id', id).single(),
       supabase.from('group_messages').select('*').eq('group_id', id).order('created_at', { ascending: false }).limit(PAGE),
       supabase.rpc('group_chat_people', { grp: id }),  // un Guest ne lit pas le profil d'un admin dans profiles
       supabase.from('group_admins').select('user_id').eq('group_id', id),
       supabase.rpc('my_chats'),
       supabase.rpc('group_chat_phones', { grp: id }),
+      supabase.from('group_messages').select('*').eq('group_id', id).eq('pinned', true).is('deleted_at', null)
+        .order('created_at', { ascending: false }).limit(HIGHLIGHTS),
+      supabase.from('group_organizers').select('user_id').eq('group_id', id),
     ]);
     const messages = (must(msgs) as GroupMessage[]).reverse();
     const reactions = messages.length
@@ -50,10 +64,12 @@ export function GroupChat({ id }: { id: string }) {
       : [];
     const chat = ((chats.data as ChatSummary[] | null) ?? []).find((c) => c.id === id) ?? null;
     return {
-      group: must(group) as { id: string; name: string; created_by: string | null; member_group_members: { user_id: string }[] },
+      group: must(group) as { id: string; name: string; created_by: string | null; everyone_tag?: EveryoneBy; member_group_members: { user_id: string }[] },
       messages, reactions, chat,
+      highlights: ((pins.data as GroupMessage[] | null) ?? []).filter((m) => m.pinned && !m.deleted_at),
       people: must(people) as Profile[],
       admins: new Set((must(admins) as { user_id: string }[]).map((a) => a.user_id)),
+      organizers: new Set(((organizers.data as { user_id: string }[] | null) ?? []).map((o) => o.user_id)),
       phones: new Map(((phones.data as { id: string; phone: string }[] | null) ?? []).map((p) => [p.id, p.phone])),
     };
   }, [id]);
@@ -65,6 +81,10 @@ export function GroupChat({ id }: { id: string }) {
 
   const member = Boolean(data?.chat?.member);
   const isAdmin = Boolean(data?.chat?.admin);
+  // Admins et organisateurs du groupe : annonces (@annonce) et leur retrait ; @tout selon le choix du groupe.
+  const isStaff = isAdmin || (member && Boolean(data?.organizers.has(me.id)));
+  const everyone = data?.group.everyone_tag ?? 'all';
+  const canEveryone = everyone === 'all' || isStaff;
   useEffect(() => { if (member && data?.messages.length) void supabase.rpc('mark_group_read', { grp: id }); }, [member, id, data?.messages]);
 
   const paths = useMemo(() => (data?.messages ?? []).flatMap((m) => (m.deleted_at ? []
@@ -91,6 +111,8 @@ export function GroupChat({ id }: { id: string }) {
   }, [paths]);
 
   const people = useMemo(() => new Map((data?.people ?? []).map((p) => [p.id, p])), [data?.people]);
+  const contacts = useContactNames();
+  const personText = usePersonText();
   // Membres d'après group_chat_people : un Guest ne voit pas les autres appartenances dans member_group_members.
   const inside = useMemo(() => {
     const fromPeople = (data?.people ?? []).filter((p) => p.member).map((p) => p.id);
@@ -102,8 +124,35 @@ export function GroupChat({ id }: { id: string }) {
     for (const r of data?.reactions ?? []) out.set(r.message_id, [...(out.get(r.message_id) ?? []), r]);
     return out;
   }, [data?.reactions]);
-  const pinned = (data?.messages ?? []).filter((m) => m.pinned && !m.deleted_at);
+  // Bandeau du haut : la dernière annonce (surbrillance), sinon le dernier message épinglé.
+  const highlights = data?.highlights ?? [];
+  const announcements = highlights.filter((m) => m.announcement);
+  const banner = announcements[0] ?? highlights[0] ?? null;
+  const bannerMore = (banner?.announcement ? announcements.length : highlights.length) - 1;
+  const canUnpinBanner = Boolean(banner) && (isAdmin || (isStaff && Boolean(banner?.announcement)));
   const nameOf = (uid: string) => people.get(uid)?.display_name ?? '?';
+  // Affichage (pas les @) : app iPhone, « Nom du contact · pseudo » ; ailleurs le pseudo.
+  const shownName = (uid: string) => personText(uid, nameOf(uid));
+  // Suggestions de l'@ : membres du groupe (moi exclu) filtrés par les lettres tapées, puis @tout et @annonce.
+  const typing = mentionQuery(text, cursor);
+  const suggestions = useMemo(() => (typing === null ? [] : mentionSuggestions(typing,
+    inside.filter((u) => u !== me.id).map((u) => ({ id: u, display_name: nameOf(u), avatar_url: people.get(u)?.avatar_url ?? null })),
+    { everyone: canEveryone, announce: isStaff }, contacts)),
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- nameOf lit people
+  [typing, inside, people, me.id, canEveryone, isStaff, contacts]);
+  // Prévenu avant l'envoi : un simple membre n'annonce pas (message normal), @tout peut être réservé par le groupe.
+  const tagNote = isAnnouncement(text) && !isStaff
+    ? 'Seuls les admins et organisateurs du groupe font des annonces : ton message partira comme un message normal.'
+    : mentionsIn(text, []).all && !canEveryone
+      ? 'Dans ce groupe, seuls les admins et organisateurs peuvent écrire @tout : personne ne sera prévenu.'
+      : null;
+
+  function pickMention(label: string) {
+    const next = insertMention(text, cursor, label);
+    setText(next.text);
+    setCursor(next.cursor);
+    input.current?.focus();
+  }
 
   /** Texte, photo ou vocal : la bulle apparaît tout de suite, le champ se vide ; en cas d'échec, le texte revient. */
   async function send(photoPath: string | null = null, audio: { blob: Blob; seconds: number; ext: 'm4a' | 'webm' } | null = null) {
@@ -111,12 +160,13 @@ export function GroupChat({ id }: { id: string }) {
     if (!body && !photoPath && !audio) return;
     const quoted = replyTo;
     const messageId = newMessageId();
+    const announced = isStaff && isAnnouncement(body);
     const draft: GroupMessage = { id: messageId, group_id: id, user_id: me.id, body, photo_path: photoPath, reply_to: quoted?.id ?? null,
-      mentions: [], mention_all: false, pinned: false, created_at: new Date().toISOString(), edited_at: null, deleted_at: null,
+      mentions: [], mention_all: false, pinned: announced, announcement: announced, created_at: new Date().toISOString(), edited_at: null, deleted_at: null,
       deleted_by_admin: false, audio_path: null, audio_seconds: audio ? Math.round(audio.seconds * 10) / 10 : null, pending: true };
     const known = new Set((data?.messages ?? []).map((m) => m.id));
     setPending((list) => [...list.filter((m) => !known.has(m.id)), draft]);
-    if (!audio) setText('');
+    if (!audio) { setText(''); setCursor(0); }
     setReplyTo(null);
     setError(null);
     const tagged = mentionsIn(body, inside.filter((u) => u !== me.id).map((u) => ({ id: u, display_name: nameOf(u) })));
@@ -124,7 +174,7 @@ export function GroupChat({ id }: { id: string }) {
       const audioPath = audio ? await uploadChatAudio(id, audio) : null;
       const { error } = await supabase.from('group_messages').insert({
         id: messageId, group_id: id, body, photo_path: photoPath, reply_to: quoted?.id ?? null, mentions: tagged.mentions,
-        mention_all: tagged.all && isAdmin, audio_path: audioPath, audio_seconds: draft.audio_seconds,
+        mention_all: tagged.all && canEveryone, audio_path: audioPath, audio_seconds: draft.audio_seconds,
       });
       if (error) throw new Error('Le message n’a pas pu être envoyé. Réessaie.');
     } catch (e) {
@@ -203,9 +253,10 @@ export function GroupChat({ id }: { id: string }) {
       <View style={s.screen}>
         {header}
         <GroupChatSettings groupId={id} notify={data.chat?.notify ?? 'mentions'} member={member}
-          canNameAdmins={data.group.created_by === me.id || roleRank(me.role) >= 3}
-          members={inside.map((u) => ({ id: u, name: nameOf(u), photo: people.get(u)?.avatar_url ?? null,
-            admin: data.admins.has(u), creator: u === data.group.created_by, phone: data.phones.get(u) ?? null }))}
+          canNameAdmins={data.group.created_by === me.id || roleRank(me.role) >= siteAdminRank()}
+          isAdmin={isAdmin} everyone={everyone}
+          members={inside.map((u) => ({ id: u, name: shownName(u), photo: people.get(u)?.avatar_url ?? null,
+            admin: data.admins.has(u), organizer: data.organizers.has(u), creator: u === data.group.created_by, phone: data.phones.get(u) ?? null }))}
           onChanged={reload} />
       </View>
     );
@@ -215,14 +266,34 @@ export function GroupChat({ id }: { id: string }) {
     <SafeAreaView style={s.screen} edges={['bottom']}>
       {header}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
-        {pinned.length ? (
-          <Pressable accessibilityRole="button" onPress={() => list.current?.scrollToIndex({ index: data!.messages.indexOf(pinned[pinned.length - 1]), viewPosition: 0.3 })}
-            style={[{ margin: 12, marginBottom: 0, padding: 12, borderRadius: radius.md, backgroundColor: colors.surface }, enter('drop')]}>
-            <T size={13} color={colors.textSoft} numberOfLines={2}>
-              <T size={13} weight="bold" color={colors.accent}>📌 Épinglé · </T>
-              {nameOf(pinned[pinned.length - 1].user_id)} : {pinned[pinned.length - 1].body || '📷 Photo'}
-            </T>
-          </Pressable>
+        {banner ? (
+          <View style={enter('drop')}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`${banner.announcement ? 'Annonce' : 'Épinglé'} : ${shownName(banner.user_id)}, ${banner.body || 'Photo'}`}
+              accessibilityHint={canUnpinBanner ? 'Appui long pour la retirer' : undefined}
+              onPress={() => {
+                const index = data!.messages.findIndex((m) => m.id === banner.id);
+                if (index >= 0) list.current?.scrollToIndex({ index, viewPosition: 0.3 });
+              }}
+              onLongPress={() => canUnpinBanner && setBannerMenu((v) => !v)}
+              style={{ margin: 12, marginBottom: 0, padding: 12, borderRadius: radius.md, gap: 4,
+                backgroundColor: banner.announcement ? colors.accentDim : colors.surface,
+                borderWidth: banner.announcement ? 1 : 0, borderColor: colors.accent }}>
+              <T size={13} weight="bold" color={colors.accent}>
+                {banner.announcement ? '📣 Annonce' : '📌 Épinglé'}{bannerMore > 0 ? ` · +${bannerMore}` : ''}
+              </T>
+              <T size={banner.announcement ? 15 : 13} color={banner.announcement ? colors.text : colors.textSoft} numberOfLines={3}>
+                <T size={banner.announcement ? 15 : 13} weight="semibold" color={banner.announcement ? colors.text : colors.textSoft}>{shownName(banner.user_id)} : </T>
+                {banner.body || '📷 Photo'}
+              </T>
+            </Pressable>
+            {bannerMenu && canUnpinBanner ? (
+              <View style={[s.row, { marginHorizontal: 12, marginTop: 6 }, enter('drop')]}>
+                <Button small variant="secondary" label={banner.announcement ? 'Retirer l’annonce' : 'Désépingler'}
+                  onPress={() => { setBannerMenu(false); void rpc('pin_group_message', { msg: banner.id, pin: false }); }} />
+                <Button small variant="ghost" label="Annuler" onPress={() => setBannerMenu(false)} />
+              </View>
+            ) : null}
+          </View>
         ) : null}
         <FlatList
           ref={list}
@@ -235,28 +306,38 @@ export function GroupChat({ id }: { id: string }) {
             const quoted = m.reply_to ? byId.get(m.reply_to) : null;
             return (
               <ChatBubble message={m} mine={m.user_id === me.id} me={me.id}
-                author={{ name: nameOf(m.user_id), photo: people.get(m.user_id)?.avatar_url ?? null }}
-                quoted={quoted ? { name: nameOf(quoted.user_id), text: quoted.deleted_at ? 'Message supprimé' : quoted.body || '📷 Photo' } : null}
+                author={{ name: shownName(m.user_id), photo: people.get(m.user_id)?.avatar_url ?? null }}
+                quoted={quoted ? { name: shownName(quoted.user_id), text: quoted.deleted_at ? 'Message supprimé' : quoted.body || '📷 Photo' } : null}
                 photoUrl={m.photo_path ? photos.get(m.photo_path) ?? null : null}
                 audioUrl={m.audio_path ? photos.get(m.audio_path) ?? null : null}
-                reactions={reactionsOf.get(m.id) ?? []} canWrite={member} isAdmin={isAdmin}
+                reactions={reactionsOf.get(m.id) ?? []} canWrite={member} isAdmin={isAdmin} isStaff={isStaff}
                 onReply={() => setReplyTo(m)} onReact={(e) => void react(m, e)}
                 onPin={() => void rpc('pin_group_message', { msg: m.id, pin: !m.pinned })}
                 onDelete={() => void rpc('delete_group_message', { msg: m.id })}
                 fresh={!!initialIds && !initialIds.has(m.id)} />
             );
           }}
-          ListEmptyComponent={<T muted style={{ textAlign: 'center', marginTop: 40 }}>{loadError ? 'La discussion n’a pas pu être chargée.' : 'Aucun message pour l’instant. Lance la discussion !'}</T>}
+          ListEmptyComponent={
+            <View style={{ alignItems: 'center', gap: 12, marginTop: 40 }}>
+              <T muted style={{ textAlign: 'center' }}>{loadError ? 'La discussion n’a pas pu être chargée.' : 'Aucun message pour l’instant. Lance la discussion !'}</T>
+              {/* Groupe tout neuf (créé depuis Discussions) : y ajouter du monde, dans Réglages › Groupes. */}
+              {!loadError && member && inside.length <= 1 && data?.group.created_by === me.id ? (
+                <Button small label="Ajouter des membres" onPress={() => router.push(`/groups?open=${id}`)} />
+              ) : null}
+            </View>
+          }
         />
         <ErrorText error={error ?? loadError} />
         {member ? (
           <>
             {replyTo ? (
               <View style={[s.rowBetween, { paddingHorizontal: 12, paddingTop: 8 }, enter('drop')]}>
-                <T muted size={12} numberOfLines={1} style={{ flex: 1 }}>↪ Réponse à {nameOf(replyTo.user_id)} : {replyTo.body || '📷 Photo'}</T>
+                <T muted size={12} numberOfLines={1} style={{ flex: 1 }}>↪ Réponse à {shownName(replyTo.user_id)} : {replyTo.body || '📷 Photo'}</T>
                 <Button small variant="ghost" label="✕" onPress={() => setReplyTo(null)} />
               </View>
             ) : null}
+            <MentionSuggestions suggestions={suggestions} onPick={(sug) => pickMention(sug.label)} />
+            {tagNote ? <T muted size={12} style={{ paddingHorizontal: 12, paddingTop: 6 }}>ℹ️ {tagNote}</T> : null}
             {voice ? (
               <View style={[s.row, { padding: 12, borderTopWidth: 1, borderTopColor: colors.line }, enter('fade')]}>
                 <View style={[{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.red }, enter('recording')]} />
@@ -267,8 +348,9 @@ export function GroupChat({ id }: { id: string }) {
             ) : (
               <View style={[s.row, { padding: 12, borderTopWidth: 1, borderTopColor: colors.line }]}>
                 {Platform.OS === 'web' ? <Button small variant="secondary" label="📷" onPress={() => void sendPhoto()} disabled={sending} /> : null}
-                <Input accessibilityLabel="Message" placeholder={isAdmin ? 'Message… (@surnom, @tout)' : 'Message… (@surnom pour citer)'}
-                  value={text} onChangeText={setText} multiline editable={!sending} maxLength={2000}
+                <Input inputRef={input} accessibilityLabel="Message" placeholder="Message… (@ pour citer, @tout, @annonce)"
+                  value={text} onChangeText={(v) => { setText(v); setCursor(v.length); }}
+                  onSelectionChange={(e) => setCursor(e.nativeEvent.selection.end)} multiline editable={!sending} maxLength={2000}
                   style={{ flex: 1, height: undefined, minHeight: 46, maxHeight: 120, paddingTop: 12 }} />
                 {text.trim() ? (
                   <Button small label="Envoyer" onPress={() => void send()} loading={sending} />

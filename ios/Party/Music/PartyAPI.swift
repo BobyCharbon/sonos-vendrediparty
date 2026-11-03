@@ -139,6 +139,11 @@ final class PartyAPI {
         try await postDecoding("/api/account/notifications/update", body: ["token": token, "patch": patch])
     }
 
+    /// Pause des notifications : what = "all" (lune) ou "chats" (Discussions) ; span = 30m, 1h, 2h, morning ou off.
+    func setNotificationPause(token: String, what: String, span: String) async throws -> EventNotifyState {
+        try await postDecoding("/api/account/notifications/pause", body: ["token": token, "what": what, "span": span])
+    }
+
     // MARK: Réglages › Mon profil (session du compte)
 
     func profile(token: String) async throws -> MemberProfile {

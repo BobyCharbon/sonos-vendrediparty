@@ -17,6 +17,7 @@ import { DateTimeField } from './DateTimeField';
 import { PlaceSearch } from './PlaceSearch';
 import { SaveAsTemplate, TemplateList } from './TemplatePicker';
 import { applyTemplate, templateData } from '@/lib/templates';
+import { notifyWallet } from '@/lib/wallet';
 
 type PollDraft = {
   id?: string;
@@ -484,6 +485,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
       if (needsSubmit && !asDraft) {
         check(await supabase.from('events').update({ status: isAdmin ? 'published' : 'pending' }).eq('id', id));
       }
+      if (eventId) notifyWallet(id);  // titre, date, lieu : les billets déjà dans Cartes se mettent à jour
       router.replace(`/event/${id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

@@ -16,8 +16,10 @@ struct AIEventView: View {
     @State private var typed = ""
     @State private var countdown = AIEventView.reviewSeconds
     @State private var tick: Task<Void, Never>?
-    @FocusState private var typing: Bool
+    @State private var typing = false
     @State private var picked: [PhotosPickerItem] = []
+    /// Des images survolent la barre de saisie (glisser-déposer) : la barre s'éclaire.
+    @State private var dropTargeted = false
 
     static let reviewSeconds = 5
 
@@ -85,11 +87,13 @@ struct AIEventView: View {
             .onChange(of: picked) { items in
                 guard !items.isEmpty else { return }
                 Task {
+                    var chosen: [UIImage] = []
                     for item in items {
                         if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
-                            store.attach(image)
+                            chosen.append(image)
                         }
                     }
+                    if store.attach(chosen) > 0 { Haptics.tap() }
                     picked = []
                 }
             }
@@ -117,7 +121,7 @@ struct AIEventView: View {
                 tip("mappin.and.ellipse", "Où", "une adresse ou un lieu : « au Fun Planet de Villeneuve »")
                 tip("person.3", "Qui", "« pour le groupe Ski » ; sinon Vendredi Party")
                 tip("plus.circle", "En plus", "prix, nombre de places, quoi amener, « avec un pot commun »")
-                tip("link", "Déjà en ligne ?", "colle le lien de l'événement ou joins une capture d'écran : l'IA y lit tout")
+                tip("link", "Déjà en ligne ?", "colle le lien de l'événement, une affiche ou une capture d'écran : l'IA y lit tout")
             }
             .padding(14)
             .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -461,23 +465,23 @@ struct AIEventView: View {
                     .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .motionTransition(.opacity.combined(with: .move(edge: .bottom)))
             }
-            if !store.images.isEmpty { shots }
-            HStack(spacing: 10) {
-if editing == nil {  // captures : pour créer un événement (la modification se dit à voix haute)
-                                PhotosPicker(selection: $picked, maxSelectionCount: AIEvent.maxShots - store.images.count, matching: .images) {
-                    Image(systemName: "photo.badge.plus").font(.system(size: 24))
-                }
-                .disabled(store.images.count >= AIEvent.maxShots)
-                .accessibilityLabel("Joindre une capture d'écran de l'événement")
-                .accessibilityIdentifier("ai-photo")
-                }
-                TextField(store.draft?.ready == false ? "Ta réponse…" : store.draft == nil ? "Écris, ou colle un lien…" : "Une correction ?",
-                          text: $typed, axis: .vertical)
-                    .lineLimit(1...4)
-                    .focused($typing)
+            if !store.images.isEmpty { shots.motionTransition(.opacity.combined(with: .move(edge: .bottom))) }
+            if let notice = store.notice {
+                Label(notice, systemImage: "info.circle")
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("ai-notice")
+                    .motionTransition(.opacity)
+            }
+            HStack(alignment: .bottom, spacing: 8) {
+                if editing == nil { attachButtons }  // images : pour créer un événement (la modification se dit)
+                AIPromptField(text: $typed, focused: $typing,
+                              placeholder: store.draft?.ready == false ? "Ta réponse…"
+                                  : store.draft == nil ? "Écris, ou colle un lien…" : "Une correction ?",
+                              onImages: attachPasted)
                     .padding(.horizontal, 14).padding(.vertical, 10)
                     .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    .accessibilityIdentifier("ai-text")
+                    .frame(minHeight: 44)
                 if !typed.trimmingCharacters(in: .whitespaces).isEmpty || (!store.images.isEmpty && store.turns.isEmpty) {
                     Button { Haptics.tap(); submit(typed) } label: { Image(systemName: "arrow.up.circle.fill").font(.system(size: 34)) }
                         .accessibilityLabel("Envoyer")
@@ -498,8 +502,57 @@ if editing == nil {  // captures : pour créer un événement (la modification s
         }
         .motion(Motion.snappy, value: dictation.listening)
         .motion(Motion.snappy, value: typed.trimmingCharacters(in: .whitespaces).isEmpty)
+        .motion(Motion.smooth, value: store.images)
+        .motion(Motion.smooth, value: store.notice)
         .padding(.horizontal, 16).padding(.vertical, 10)
         .background(.ultraThinMaterial)
+        .overlay {
+            if dropTargeted {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(Palette.accent, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                    .background(Palette.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .padding(4)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
+        }
+        .motion(Motion.snappy, value: dropTargeted)
+        // iPad (et iPhone) : images glissées depuis Photos, Safari ou Fichiers.
+        .dropDestination(for: PastedImage.self) { items, _ in
+            attachPasted(items.map(\.image))
+            return true
+        } isTargeted: { dropTargeted = $0 && editing == nil }
+    }
+
+    /// « Photos » et « Coller » : le bouton Coller du système lit le presse-papiers sans l'alerte d'autorisation
+    /// d'iOS, et ne s'active que s'il contient une image.
+    private var attachButtons: some View {
+        let full = store.images.count >= AIEvent.maxShots
+        return HStack(spacing: 6) {
+            PhotosPicker(selection: $picked, maxSelectionCount: max(1, AIEvent.maxShots - store.images.count), matching: .images) {
+                Image(systemName: "photo.on.rectangle")
+                    .font(.system(size: 17, weight: .semibold))
+                    .frame(width: 40, height: 40)
+                    .background(Color.white.opacity(0.1), in: Circle())
+            }
+            .disabled(full)
+            .accessibilityLabel("Joindre une photo ou une capture d'écran de l'événement")
+            .accessibilityIdentifier("ai-photo")
+            PasteButton(payloadType: PastedImage.self) { items in
+                Task { @MainActor in attachPasted(items.map(\.image)) }
+            }
+            .labelStyle(.iconOnly)
+            .buttonBorderShape(.capsule)
+            .tint(Color(uiColor: .systemGray4))
+            .disabled(full)
+            .accessibilityIdentifier("ai-paste")
+        }
+        .padding(.bottom, 2)
+    }
+
+    /// Images collées (bouton, appui long › Coller, ⌘V) ou glissées : pièces jointes, comme les photos.
+    private func attachPasted(_ pasted: [UIImage]) {
+        if store.attach(pasted) > 0 { Haptics.tap() } else { Haptics.warning() }
     }
 
     /// Captures jointes : miniatures, chacune avec sa croix pour la retirer.

@@ -6,6 +6,7 @@ struct ChatsView: View {
     let topInset: CGFloat
 
     @State private var path: [String] = []
+    @State private var creating = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -17,6 +18,18 @@ struct ChatsView: View {
                 .navigationDestination(for: String.self) { group in
                     ConversationView(store: store, group: group)
                 }
+                .toolbar {
+                    // Couper les notifications de toutes les Discussions : 30 min, 1 h, 2 h ou jusqu'à 8 h.
+                    ToolbarItem(placement: .navigationBarLeading) { ChatsPauseButton(store: store.pause) }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button { creating = true } label: { Image(systemName: "square.and.pencil") }
+                            .accessibilityLabel("Nouveau groupe")
+                            .accessibilityIdentifier("chats-new-group")
+                    }
+                }
+                .sheet(isPresented: $creating) { NewGroupSheet(store: store) }
+                // Première ouverture des Discussions : proposer de reconnaître ses contacts (« Nom · pseudo »).
+                .contactsPrompt()
         }
         .tint(Color(uiColor: AppConfig.uiAccent))
         .padding(.top, topInset)
@@ -55,7 +68,7 @@ struct ChatsView: View {
             .motion(Motion.snappy, value: chats.map(\.id))
             .overlay {
                 if chats.isEmpty {
-                    ContentUnavailable(text: "Rejoins ou crée un groupe (Réglages › Groupes) pour discuter avec ses membres.")
+                    ContentUnavailable(text: "Rejoins ou crée un groupe (bouton ✎ en haut) pour discuter avec ses membres.")
                         .transition(.opacity)
                 }
             }
@@ -70,6 +83,52 @@ struct ChatsView: View {
 
     /// Chargement → liste ou erreur : fondu (une relecture de la liste ne rejoue rien).
     private var listPhase: Int { store.chats != nil ? 2 : store.error != nil ? 1 : 0 }
+}
+
+/// Nouveau groupe depuis Discussions : le même champ que Réglages › Groupes ; le créateur en fait partie d'office,
+/// puis sa discussion s'ouvre.
+private struct NewGroupSheet: View {
+    @ObservedObject var store: ChatsStore
+    @ObservedObject private var groups: GroupsStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @FocusState private var naming: Bool
+
+    init(store: ChatsStore) {
+        self.store = store
+        _groups = ObservedObject(wrappedValue: store.groups)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    NewGroupField(name: $name, focus: $naming, busy: groups.busy.contains("create"), onCreate: create)
+                } footer: {
+                    Text("Le même groupe que dans Réglages › Groupes : tu en fais partie d'office, comme Créateur · Admin. Ajoute ensuite des membres depuis les infos de la discussion (ⓘ › Gérer le groupe).")
+                }
+                if let problem = store.notice {
+                    Text(problem).font(.footnote).foregroundStyle(.red)
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(AppConfig.background.ignoresSafeArea())
+            .navigationTitle("Nouveau groupe")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } } }
+            .onAppear { naming = true; store.notice = nil }
+            .onDisappear { store.notice = nil }
+        }
+        .preferredColorScheme(.dark)
+        .presentationDetents([.medium])
+    }
+
+    private func create() {
+        let clean = name.trimmingCharacters(in: .whitespaces)
+        guard !clean.isEmpty else { return }
+        Haptics.tap()
+        Task { if await store.createGroup(clean) { dismiss() } }
+    }
 }
 
 private struct ContentUnavailable: View {

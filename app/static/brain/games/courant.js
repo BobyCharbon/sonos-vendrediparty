@@ -35,14 +35,14 @@
   var EDGE = 30;                 // marge de rebouclage hors du champ
 
   var STYLE = [
-    '.br-courant{position:relative;display:flex;flex-direction:column;gap:8px;width:100%;height:100%;min-height:440px;',
+    '.br-courant{position:relative;display:flex;flex-direction:column;gap:8px;width:100%;flex:1 1 auto;min-height:0;',
     'touch-action:none;-webkit-user-select:none;user-select:none;font-family:system-ui,sans-serif;color:#eaf6f4;}',
     '.br-courant-legend{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;font-size:13px;font-weight:600;}',
     '.br-courant-chip{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;',
     'background:rgba(255,255,255,.08);transition:background .2s,transform .2s;}',
     '.br-courant-chip i{width:12px;height:12px;border-radius:50%;display:inline-block;}',
     '.br-courant-chip.is-on{background:rgba(255,255,255,.2);transform:scale(1.04);}',
-    '.br-courant-field{position:relative;flex:1;min-height:340px;border-radius:20px;overflow:hidden;',
+    '.br-courant-field{position:relative;flex:1;min-height:180px;border-radius:20px;overflow:hidden;',
     'background:radial-gradient(120% 90% at 30% 20%,#1d5b6b 0%,#0f3846 55%,#0a2833 100%);',
     'box-shadow:inset 0 0 0 3px transparent;transition:box-shadow .15s;}',
     '.br-courant-field::before{content:"";position:absolute;inset:0;opacity:.18;pointer-events:none;',
@@ -55,7 +55,9 @@
     'background:rgba(255,255,255,.18);pointer-events:none;}',
     '.br-courant-time i{display:block;height:100%;border-radius:3px;background:#eaf6f4;transform-origin:left center;}',
     '.br-courant-leaf path.br-courant-body{transition:fill .25s;}',
-    '.br-courant-hint{text-align:center;font-size:13px;opacity:.75;}'
+    '.br-courant-hint{text-align:center;font-size:13px;opacity:.75;}',
+    // Écran bas (téléphone en paysage) : le champ prend toute la place.
+    '@media (max-height:520px){.br-courant-hint{display:none}.br-courant-field{min-height:140px}}'
   ].join('');
 
   // Feuille dessinée pointe vers la droite (0°) ; on la fait tourner selon sa direction.
@@ -280,10 +282,34 @@
       }
     }
 
+    // Pause du moteur (application en arrière-plan, question « Quitter la partie ? ») : tout s'arrête sans compter
+    // (aucune vie perdue loin de l'écran) ; au retour, nouvelle question au même niveau (la règle en cours reste).
+    var paused = false;
+    function pause() {
+      if (stopped || paused) return;
+      paused = true;
+      if (!locked) ruleLeft++;                     // la question retirée ne compte pas dans la série de la règle
+      locked = true;
+      swipe = null;
+      clearTimers();
+      cancelAnimationFrame(raf);
+      raf = 0;
+      bar.style.transition = 'none';
+    }
+    function resume() {
+      if (stopped || !paused) return;
+      paused = false;
+      last = 0;
+      raf = requestAnimationFrame(frame);
+      newTrial();
+    }
+
     wrap.addEventListener('pointerdown', onDown);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onCancel);
     window.addEventListener('keydown', onKey);
+    if (ctx.onPause) ctx.onPause(pause);
+    if (ctx.onResume) ctx.onResume(resume);
     ctx.setLevel(level);
     raf = requestAnimationFrame(frame);
     timer = setTimeout(newTrial, 300);

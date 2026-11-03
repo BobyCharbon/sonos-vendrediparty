@@ -18,6 +18,8 @@ struct PartyApp: App {
                     if phase == .active { model.music?.start() } else if phase == .background { model.music?.stop() }
                     // « Partager › Party › Créer un événement » : l'assistant IA démarre avec le lien mis de côté.
                     if phase == .active, let link = SharedSession.takePendingEvent() { model.startAIEvent(link: link) }
+                    // Noms des contacts : accès changé dans Réglages, ou reconnaissance ancienne (12 h).
+                    if phase == .active { ContactNames.shared.appBecameActive() }
                 }
                 #if DEBUG
                 .task { TrackActivities.startDemoIfAsked() }
@@ -127,6 +129,12 @@ struct ContentView: View {
             if let settings = model.settings {
                 AIEventView(store: settings.aiEvent, editing: model.aiEditEventId) { id in model.openEvent(id) }
                     .presentationDragIndicator(.visible)
+            }
+        }
+        .sheet(isPresented: $model.ticketScanOpen, onDismiss: { model.finishTicketScan(nil) }) {
+            QRScannerSheet(title: "Scanner un billet",
+                           fallback: "Caméra indisponible : autorise-la pour Party ! dans Réglages, ou tape le code du billet.") { text in
+                model.finishTicketScan(text)
             }
         }
     }

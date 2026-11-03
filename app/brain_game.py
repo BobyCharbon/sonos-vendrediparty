@@ -18,9 +18,9 @@ def game_detail(sessions: list[dict], game: str, percentile: int | None = None, 
     if game not in brain.CATALOG:
         raise brain.BrainError("Jeu inconnu")
     now = now or datetime.now(timezone.utc)
-    rows = [s for s in brain._clean(sessions) if s["game"] == game]
-    # Horloge du téléphone parfois en avance (parties locales) : la dernière partie compte toujours.
-    index = brain._game_raw(rows, max([now, *(s["at"] for s in rows)])).get(game)
+    # Horloge du téléphone parfois en avance (parties locales) : _clean date ces parties de maintenant, elles comptent.
+    rows = [s for s in brain._clean(sessions, now) if s["game"] == game]
+    index = brain._game_raw(rows, now).get(game)
     accs = [float(s["accuracy"]) for s in rows if s.get("accuracy") is not None]
     rts = [int(s.get("avg_rt_ms") or 0) for s in rows if int(s.get("avg_rt_ms") or 0) > 0]
     avg_acc, avg_rt = _mean_or_none(accs), _mean_or_none(rts)

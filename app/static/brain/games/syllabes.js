@@ -143,6 +143,7 @@
     let level = floor;
     let round = 0;
     let stopped = false;
+    let paused = false, leftAtPause = null;   // pause du moteur : temps restant de la manche figé
     let playing = false;           // manche en cours (fichier chargé, chrono lancé)
     let index = null;
     let prefix = '', words = null, goal = 0, minLen = 4;
@@ -239,7 +240,9 @@
 
     function endRound(won) {
       playing = false;
-      enable(false);
+      // Le champ reste actif et sélectionné pendant la pause : sur iPhone, le désactiver ferme le clavier, et un
+      // focus() lancé par un minuteur ne le rouvre pas (il faudrait retoucher le champ à chaque manche).
+      send.disabled = true;
       barFill.style.transform = 'scaleX(0)';
       if (won) {
         level += 1;
@@ -256,7 +259,7 @@
     }
 
     function tick() {
-      if (stopped || !playing) return;
+      if (stopped || paused || !playing) return;
       const left = Math.max(0, ROUND_MS - (performance.now() - roundStart));
       barFill.style.transform = `scaleX(${(left / ROUND_MS).toFixed(3)})`;
       bar.classList.toggle('warn', left <= 5000);
@@ -295,7 +298,8 @@
 
     function onSubmit(ev) {
       ev.preventDefault();
-      if (stopped) return;
+      if (stopped || paused) return;
+      if (!playing) { if (input.value.trim()) say('Attends les lettres de la manche suivante…', '', false); return; }
       submitWord(input.value);
       input.value = '';
       if (playing) input.focus({ preventScroll: true });
@@ -306,7 +310,26 @@
         .catch(() => offline(boot));
     }
 
+    // Toucher OK ne retire pas le focus du champ (le clavier de l'iPhone reste ouvert).
+    const keepFocus = (ev) => ev.preventDefault();
     form.addEventListener('submit', onSubmit);
+    send.addEventListener('mousedown', keepFocus);
+    // Pause du moteur (application en arrière-plan, question « Quitter la partie ? ») : le chrono de la manche
+    // s'arrête (aucune vie perdue loin de l'écran) et repart au retour avec le temps qui restait.
+    if (ctx.onPause) ctx.onPause(() => {
+      if (paused) return;
+      paused = true;
+      leftAtPause = playing ? Math.max(0, ROUND_MS - (performance.now() - roundStart)) : null;
+    });
+    if (ctx.onResume) ctx.onResume(() => {
+      if (!paused) return;
+      paused = false;
+      const now = performance.now();
+      // Manche commencée pendant la pause (fin de l'entracte) : son chrono part maintenant.
+      if (playing) roundStart = now - (leftAtPause === null ? 0 : ROUND_MS - leftAtPause);
+      lastAt = now;
+      leftAtPause = null;
+    });
     ctx.setLevel(level);
     ticker = setInterval(tick, TICK_MS);
     boot();
@@ -320,6 +343,7 @@
         for (const id of timeouts) clearTimeout(id);
         timeouts.clear();
         form.removeEventListener('submit', onSubmit);
+        send.removeEventListener('mousedown', keepFocus);
         input.disabled = true;
         send.disabled = true;
         input.blur();

@@ -9,6 +9,9 @@ final class WebModel: ObservableObject {
     @Published var aiEventOpen = false
     /// « ✨ Modifier avec l'IA » sur un événement : son id (nil : l'écran IA crée un événement).
     @Published var aiEditEventId: String?
+    /// « Scanner les billets » (module Événements) : lecteur QR natif ouvert, le texte lu revient à la page.
+    @Published var ticketScanOpen = false
+    private var ticketScanReply: CheckedContinuation<String?, Never>?
     private var chatsPreloaded = false
     /// Onglets de la page affichée ; nil sur une page sans barre d'onglets (admin, TV…).
     @Published private(set) var tabs: TabBarState?
@@ -81,6 +84,8 @@ final class WebModel: ObservableObject {
         hostMusic = HostMusicStore(api: api, web: self)
         feedbackAdmin = FeedbackAdminStore(api: api, web: self)
         chats = ChatsStore(api: api, web: self)
+        // Noms des contacts (« Nom · pseudo ») : reconnaissance au lancement, puis à chaque changement du répertoire.
+        ContactNames.shared.configure(api: api, web: self)
         settings = SettingsStore(api: api, web: self, isHost: { [weak self] in self?.isHost ?? false },
                                  trackChanged: { [weak self] on, subscribed in
                                      self?.music?.trackPreferenceChanged(on, subscribed: subscribed)
@@ -98,6 +103,23 @@ final class WebModel: ObservableObject {
         aiEditEventId = nil
         aiEventOpen = true
         Task { await store.start(link: link) }
+    }
+
+    /// Ouvre le lecteur QR natif pour un billet ; rend le texte lu, ou nil si l'on ferme (une demande à la fois).
+    func scanTicket() async -> String? {
+        finishTicketScan(nil)
+        return await withCheckedContinuation { reply in
+            ticketScanReply = reply
+            ticketScanOpen = true
+        }
+    }
+
+    /// Fin du scan (QR lu, ou feuille fermée) : la page reçoit la réponse une seule fois.
+    func finishTicketScan(_ text: String?) {
+        let reply = ticketScanReply
+        ticketScanReply = nil
+        ticketScanOpen = false
+        reply?.resume(returning: text)
     }
 
     func open(_ url: URL) {

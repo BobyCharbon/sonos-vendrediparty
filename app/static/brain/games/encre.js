@@ -62,6 +62,16 @@
 .br-encre-no { background:#c7364f; }
 .br-encre-yes { background:#1f9e68; }
 .br-encre-btn small { font-size:14px; opacity:.75; font-weight:600; }
+/* Écran bas (téléphone en paysage, ~290 px de jeu) : cartes côte à côte, tout reste à l'écran. */
+@media (max-height:520px) {
+  .br-encre { gap:8px; padding:4px 12px 8px; }
+  .br-encre-q { font-size:13px; margin:0; }
+  .br-encre-cards { flex-direction:row; gap:10px; }
+  .br-encre-cards.br-encre-swap { flex-direction:row-reverse; }
+  .br-encre-card { flex:1; padding:8px 10px 10px; display:flex; flex-direction:column; justify-content:center; }
+  .br-encre-word { font-size:clamp(30px, 8vh, 42px); }
+  .br-encre-btn { min-height:52px; }
+}
 `;
 
   function deadlineMs(level) { return Math.round(850 + 2650 * Math.pow(0.95, level - 1)); }
@@ -230,8 +240,24 @@
       root.dataset.state = 'stopped';
     }
 
+    // Pause du moteur (application en arrière-plan, question « Quitter la partie ? ») : la carte est retirée sans
+    // compter (aucune vie perdue loin de l'écran) ; au retour, nouvelle carte au même niveau.
+    function pause() {
+      if (stopped) return;
+      locked = true;
+      if (timer) clearTimeout(timer);
+      if (limitTimer) clearTimeout(limitTimer);
+      timer = 0;
+      limitTimer = 0;
+      timeBar.style.transition = 'none';
+      root.dataset.state = 'paused';
+    }
+    function resume() { if (!stopped) render(); }
+
     root.addEventListener('pointerdown', onPointer);
     document.addEventListener('keydown', onKey);
+    if (ctx.onPause) ctx.onPause(pause);
+    if (ctx.onResume) ctx.onResume(resume);
     if (typeof ctx.onTimeUp === 'function') ctx.onTimeUp(stop);
     ctx.setLevel(level);
     render();

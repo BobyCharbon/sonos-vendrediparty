@@ -57,13 +57,18 @@ class Game:
 # 30 min. L'indice tient compte du score (échelle logarithmique) ET du niveau atteint (voir raw_index).
 MAX_RUN_SECONDS = 1800                       # 30 min : le moteur (core.js) arrête la partie, le serveur borne
 MAX_SCORE = MAX_RUN_SECONDS * 1500 + 2500    # ~3 réponses/s à ×10 pendant 30 min + bonus final : plafond large
-MAX_LEVEL = 99
+MAX_LEVEL = 999                              # les jeux sans fin montent à 250+ (même plafond : core.js, base)
 LEVEL_TIER = 5                               # un palier tous les 5 niveaux (1-5 = palier 1, 6-10 = palier 2…)
 SCORE_SPREAD = 800                           # millièmes de ln : ×2,2 sur le score ≈ +1 sur la courbe
 SCORE_OFFSET = 500                           # évite ln(0) et adoucit le bas de la courbe
 LEVEL_REF = 10                               # niveau « typique » (fin du palier 2) → 1000 avec le score typique
 LEVEL_SPREAD = 8                             # +8 niveaux ≈ +1 sur la courbe du niveau
 SCORE_WEIGHT, LEVEL_WEIGHT = 0.65, 0.35      # part du score et du niveau dans l'indice
+# Anti-triche (QA 03.11) : un score impossible pour la durée de la partie est BORNÉ (même borne en base, migration
+# 20261103100000_brain_anti_triche.sql) : deux fois le rythme d'un robot parfait (1 500 pts/s) + le bonus final ×10.
+SCORE_PER_SECOND_CAP = 3000
+SCORE_BONUS_CAP = 2500
+DATE_MIN = datetime(2020, 1, 1, tzinfo=timezone.utc)   # parties locales plus anciennes (horloge remise à zéro) : bornées
 
 
 def _game(gid: str, name: str, domain: str, median: int) -> Game:
@@ -98,6 +103,11 @@ class BrainError(ValueError):
     pass
 
 
+class BrainUnavailable(BrainError):
+    """Base injoignable ou en panne (5xx, délai) : passager, à réessayer (HTTP 503). Un refus de la base reste un
+    BrainError (HTTP 400), que le téléphone traite comme définitif."""
+
+
 # ── Normalisation ──
 
 def round_half_up(x: float) -> int:
@@ -123,6 +133,12 @@ def game_index(game: str, score: int, level: int = LEVEL_REF) -> int:
     return round_half_up(raw_index(game, score, level))
 
 
+def score_cap(duration_ms: int) -> int:
+    """Score maximal possible pour une partie de cette durée (bornée à 30 min)."""
+    played_ms = min(max(int(duration_ms), 0), MAX_RUN_SECONDS * 1000)
+    return played_ms * SCORE_PER_SECOND_CAP // 1000 + SCORE_BONUS_CAP
+
+
 def validate(game: str, score: int, accuracy: float, avg_rt_ms: int, level: int, duration_ms: int) -> dict:
     """Résultat d'une partie, vérifié et borné (le score n'est jamais au-delà du plausible)."""
     g = CATALOG.get(game)
@@ -132,27 +148,38 @@ def validate(game: str, score: int, accuracy: float, avg_rt_ms: int, level: int,
         raise BrainError("Précision invalide")
     if duration_ms < 1000:
         raise BrainError("Durée de partie invalide")
-    # Score, niveau et durée trop grands : bornés (un robot parfait n'est jamais refusé).
-    return {"game": game, "domain": g.domain, "score": min(max(int(score), 0), g.max_score),
+    # Score, niveau et durée trop grands : bornés (un robot parfait n'est jamais refusé) ; score borné par la durée.
+    return {"game": game, "domain": g.domain, "score": min(max(int(score), 0), g.max_score, score_cap(duration_ms)),
             "accuracy": round(float(accuracy), 4), "avg_rt_ms": min(max(int(avg_rt_ms), 0), 20000),
             "level": min(max(int(level), 1), MAX_LEVEL), "duration_ms": min(int(duration_ms), g.max_seconds * 1000)}
 
 
 # ── Lecture des parties ──
 
-def _when(s: dict) -> datetime:
+def _when(s: dict, now: datetime) -> datetime:
+    """Date d'une partie, en UTC, bornée entre DATE_MIN et maintenant : une horloge de téléphone en avance (ou la base
+    un peu en avance sur ce serveur) compte la partie comme jouée maintenant ; l'an 1 ou 9999 ne fait plus planter."""
     v = s.get("played_at")
     if isinstance(v, datetime):
-        return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+        d = v
+    else:
+        try:
+            d = datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+        except ValueError:
+            return now
+    d = d if d.tzinfo else d.replace(tzinfo=timezone.utc)
     try:
-        d = datetime.fromisoformat(str(v).replace("Z", "+00:00"))
-    except ValueError:
-        return datetime.now(timezone.utc)
-    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+        d = d.astimezone(timezone.utc)
+    except OverflowError:   # an 1 avec un décalage positif, an 9999 avec un décalage négatif
+        return DATE_MIN if d.year <= 1 else now
+    return min(max(d, DATE_MIN), now)
 
 
-def _clean(sessions: list[dict]) -> list[dict]:
-    """Parties connues du catalogue, avec leur indice et leur date (les autres sont ignorées)."""
+def _clean(sessions: list[dict], now: datetime | None = None) -> list[dict]:
+    """Parties connues du catalogue, avec leur indice et leur date (les autres sont ignorées). L'indice de chaque
+    partie est ARRONDI, comme la colonne idx de la base (private.brain_profile fait ses moyennes sur idx) : la
+    Température du profil est ainsi celle du classement, au degré près."""
+    now = now or datetime.now(timezone.utc)
     out = []
     for s in sessions or []:
         if not isinstance(s, dict) or s.get("game") not in CATALOG:
@@ -160,7 +187,7 @@ def _clean(sessions: list[dict]) -> list[dict]:
         g = CATALOG[s["game"]]
         level = min(max(int(s.get("level") or 1), 1), MAX_LEVEL)
         out.append({**s, "domain": g.domain, "score": min(max(int(s.get("score") or 0), 0), g.max_score),
-                    "level": level, "at": _when(s), "raw": raw_index(s["game"], s.get("score") or 0, level)})
+                    "level": level, "at": _when(s, now), "raw": game_index(s["game"], s.get("score") or 0, level)})
     return sorted(out, key=lambda s: s["at"])
 
 
@@ -265,7 +292,7 @@ def profile(sessions: list[dict], percentile: int | None = None, now: datetime |
             party: dict | None = None) -> dict:
     """`party` (facultatif, base) : {"domains": {domaine: {"avg": indice moyen, "players": n}}} des AUTRES joueurs."""
     now = now or datetime.now(timezone.utc)
-    rows = _clean(sessions)
+    rows = _clean(sessions, now)
     games_raw = _game_raw(rows, now)
     domains_raw = _domain_raw(games_raw)
     domains_idx = {d: round_half_up(v) for d, v in domains_raw.items()}
@@ -361,6 +388,15 @@ def compare_verdict(name: str, mine: dict[str, int], theirs: dict[str, int], is_
             f"celui de {name} : {_label(them_lead[0])} (+{_fmt(them_lead[1])} °M).")
 
 
+def _bounded_index(value) -> int:
+    """Indice venu de la base, ramené entre 0 et INDEX_MAX (valeur absurde ou illisible : 0, jamais d'erreur 500)."""
+    try:
+        number = float(value or 0)
+    except (TypeError, ValueError):
+        return 0
+    return 0 if math.isnan(number) else int(min(max(number, 0), INDEX_MAX))
+
+
 def compare_target(raw, mine_temperature: int, mine: dict[str, int], my_id: str) -> dict | None:
     """Champ target de /api/brain/compare : Températures et domaines des deux, côte à côte, et la phrase-bilan."""
     if not isinstance(raw, dict) or not raw.get("id"):
@@ -371,7 +407,7 @@ def compare_target(raw, mine_temperature: int, mine: dict[str, int], my_id: str)
     rows = [{"domain": d, "label": lab, "icon": ico, "me": mine.get(d), "them": theirs.get(d)}
             for d, (lab, ico) in DOMAINS.items() if d in mine or d in theirs]
     return {"id": raw["id"], "name": name, "self": is_self,
-            "played": bool(theirs), "temperature": int(raw.get("temperature") or 0) if theirs else 0,
+            "played": bool(theirs), "temperature": _bounded_index(raw.get("temperature")) if theirs else 0,
             "me_played": bool(mine), "me_temperature": mine_temperature if mine else 0,
             "rows": rows, "verdict": compare_verdict(name, mine, theirs, is_self)}
 
@@ -383,12 +419,27 @@ class BrainStore:
         self.accounts = accounts  # app.accounts.Accounts
 
     def _call(self, token: str, name: str, args: dict, fallback: str):
-        """Jeton vérifié d'abord (AccountError → 401) ; un refus de la base (compte inactif, limite…) → BrainError (400)."""
+        """Jeton vérifié d'abord (AccountError → 401) ; un refus de la base (compte inactif, limite…) → BrainError (400) ;
+        une panne (5xx, délai dépassé) → BrainUnavailable (503) : le téléphone garde la partie et la renverra."""
         self.accounts._uid(token)
         try:
-            return self.accounts._rpc_json(token, name, args, fallback)
+            r = self.accounts._get("POST", f"/rest/v1/rpc/{name}", token, json=args)
         except AccountError as e:
-            raise BrainError(str(e)) from e
+            raise BrainUnavailable(str(e)) from e
+        if r.status_code >= 500:
+            raise BrainUnavailable(fallback or "Méninges ne répond pas. Réessaie dans un instant.")
+        if r.status_code == 401:   # jeton expiré entre-temps (vérification gardée 5 min) : à reconnecter, pas un refus
+            raise AccountError("Ta connexion a expiré. Reconnecte-toi.")
+        if r.status_code != 200:
+            try:
+                message = str(r.json().get("message", ""))
+            except ValueError:
+                message = ""
+            raise BrainError(message.split(": ", 1)[-1] if message else fallback)
+        try:
+            return r.json()
+        except ValueError as e:
+            raise BrainUnavailable(fallback) from e
 
     def record(self, token: str, result: dict) -> dict:
         r = self._call(token, "brain_record", {
@@ -425,8 +476,9 @@ class BrainStore:
     def _my_domains(self, token: str) -> tuple[int, dict[str, int]]:
         """Ma Température et mes indices par domaine (même calcul que la base), pour la comparaison."""
         r = self._call(token, "brain_my_stats", {}, "Tes statistiques n'ont pas pu être lues.")
-        rows = _clean((r if isinstance(r, dict) else {}).get("sessions") or [])
-        domains_raw = _domain_raw(_game_raw(rows, datetime.now(timezone.utc)))
+        now = datetime.now(timezone.utc)
+        rows = _clean((r if isinstance(r, dict) else {}).get("sessions") or [], now)
+        domains_raw = _domain_raw(_game_raw(rows, now))
         return _temperature(domains_raw), {d: round_half_up(v) for d, v in domains_raw.items()}
 
     def compare(self, token: str, target: str | None) -> dict:

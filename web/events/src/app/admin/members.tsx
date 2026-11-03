@@ -10,10 +10,10 @@ import { formatMessageTime } from '@/lib/format';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { check, must, supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
-import { ROLE_ORDER, roleLabel, roleRank, type MemberRole, type Profile } from '@/lib/types';
+import { belowVip, roleBook, roleName, roleRank } from '@/lib/roles';
+import { type MemberRole, type Profile } from '@/lib/types';
 
 const ROOT_ID = '298ff6e0-07b2-4127-bb69-d254dd63a3d5';
-const FULL_ACCESS_RANK = 4;  // Root (99) et Admin (4) : tous les inscrits, numéros, suppression, journal
 
 type Member = Profile & { beta?: boolean; last_sign_in_at?: string | null };
 
@@ -43,7 +43,7 @@ export default function Members() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const updating = useRef(false);
-  const fullAccess = rank >= FULL_ACCESS_RANK;
+  const fullAccess = rank >= roleRank('admin');
   const { data, error: loadError, loading, reload } = useQuery(() => loadMembers(fullAccess), [fullAccess]);
 
   if (!(fullAccess || can('members.roles') || can('members.ban') || can('members.view_identity'))) return <Redirect href="/" />;
@@ -93,9 +93,9 @@ export default function Members() {
       <ErrorText error={error ?? loadError} />
       {loadError ? <Button label="Réessayer" variant="secondary" onPress={reload} /> : null}
       {loading ? <T muted>Chargement des membres…</T> : null}
-      {[...ROLE_ORDER].reverse().map((r) => {
+      {[...roleBook()].reverse().map(({ key: r }) => {
         const list = byRole(r);
-        return list.length ? <Section key={r} title={`${roleLabel[r]} (${list.length})`}>{list.map(row)}</Section> : null;
+        return list.length ? <Section key={r} title={`${roleName(r)} (${list.length})`}>{list.map(row)}</Section> : null;
       })}
       {waiting.length ? <Section title={`En attente (${waiting.length})`}>{waiting.map(row)}</Section> : null}
       {banned.length ? <Section title={`Accès retiré (${banned.length})`}>{banned.map(row)}</Section> : null}
@@ -110,7 +110,7 @@ function MemberRow({ person: p, beta, me, myRank, canRoles, canBan, canDelete, b
 }) {
   const root = p.id === ROOT_ID;
   const below = !root && p.id !== me.id && roleRank(p.role) < myRank;
-  const roles = ROLE_ORDER.filter((r) => roleRank(r) < myRank);
+  const roles = roleBook().filter((r) => r.rank < myRank).map((r) => r.key);
   return (
     <View style={{ gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.line }}>
       <View style={s.row}>
@@ -118,7 +118,7 @@ function MemberRow({ person: p, beta, me, myRank, canRoles, canBan, canDelete, b
         <View style={{ flex: 1 }}>
           <T weight="semibold">{p.display_name || 'Profil à compléter'}{p.id === me.id ? ' (toi)' : ''}</T>
           {p.first_name || p.last_name ? <T muted>{[p.first_name, p.last_name].filter(Boolean).join(' ')}</T> : null}
-          <T muted size={12}>{root ? '👑 Root' : roleLabel[p.role]}{beta ? ' · 🧪 Bêta-testeur' : ''}{p.phone ? ` · +${p.phone.replace(/^\+/, '')}` : ''}</T>
+          <T muted size={12}>{root ? '👑 Root' : roleName(p.role)}{beta ? ' · 🧪 Bêta-testeur' : ''}{p.phone ? ` · +${p.phone.replace(/^\+/, '')}` : ''}</T>
           {canDelete ? <T muted size={12}>Inscrit le {formatMessageTime(p.created_at)}{p.last_sign_in_at ? ` · connecté le ${formatMessageTime(p.last_sign_in_at)}` : ''}</T> : null}
         </View>
       </View>
@@ -133,7 +133,7 @@ function MemberRow({ person: p, beta, me, myRank, canRoles, canBan, canDelete, b
         <View style={s.wrap}>
           {p.status === 'active' && canRoles
             ? roles.map((r) => (
-                <Chip key={r} label={roleLabel[r]} selected={p.role === r} disabled={busy || (roleRank(r) > 0 && !hasCompleteIdentity(p))} onPress={() => onUpdate(p.id, { role: r })} />
+                <Chip key={r} label={roleName(r)} selected={p.role === r} disabled={busy || (!belowVip(r) && !hasCompleteIdentity(p))} onPress={() => onUpdate(p.id, { role: r })} />
               ))
             : null}
           {canBan ? (

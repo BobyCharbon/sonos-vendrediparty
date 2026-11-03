@@ -11,7 +11,8 @@ struct GroupUsersView: View {
     var body: some View {
         List {
             if let members = store.members {
-                let rows = UserList.arrange(members.people, search: search, filter: filter, sort: sort, descending: descending)
+                let rows = UserList.arrange(members.people, search: search, filter: filter, sort: sort, descending: descending,
+                                           vipRank: members.access.vipRank)
                 Section {
                     Picker("Trier par", selection: Binding(get: { sort }, set: { choose($0) })) {
                         ForEach(UserList.Sort.allCases) { Text($0.label).tag($0) }
@@ -62,7 +63,7 @@ private struct UserRow: View {
         HStack(spacing: 12) {
             AdminAvatar(photo: person.photo, name: person.name)
             VStack(alignment: .leading, spacing: 2) {
-                Text(person.displayName).font(.body.weight(.semibold))
+                PersonName(id: person.id, pseudo: person.displayName).font(.body.weight(.semibold))
                 Text([person.banned ? "Accès retiré" : person.roleText, person.beta ? "Bêta" : nil,
                       person.complete ? nil : "Profil incomplet"].compactMap { $0 }.joined(separator: " · "))
                     .font(.footnote).foregroundStyle(.secondary)

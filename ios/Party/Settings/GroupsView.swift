@@ -34,6 +34,8 @@ struct GroupList: Decodable, Equatable {
 
     let groups: [Group]
     let people: [Person]
+    /// Après une création : l'identifiant du nouveau groupe.
+    var created: String? = nil
 }
 
 /// Invitation reçue (par mon compte ou mon numéro) : acceptée ou refusée dans Réglages › Groupes.
@@ -117,8 +119,9 @@ extension PartyAPI {
         return r.invited == "member"
     }
 
-    func createGroup(token: String, name: String) async throws -> GroupList {
-        try await postDecoding("/api/account/groups/create", body: ["token": token, "name": name])
+    /// join : le créateur en fait partie d'office (aussi fait par la base) ; created = identifiant du nouveau groupe.
+    func createGroup(token: String, name: String, join: Bool = true) async throws -> GroupList {
+        try await postDecoding("/api/account/groups/create", body: ["token": token, "name": name, "join": join])
     }
 
     func setGroupMember(token: String, groupID: String, userID: String, on: Bool) async throws -> GroupList {
@@ -215,11 +218,14 @@ final class GroupsStore: ObservableObject {
         return done
     }
 
-    func create(_ name: String) async -> Bool {
-        var created = false
+    /// Nouveau groupe (Réglages › Groupes ou Discussions) ; son créateur en fait partie d'office (Créateur · Admin) ;
+    /// renvoie son identifiant.
+    func create(_ name: String, join: Bool = true) async -> String? {
+        var created: String?
         await run("create") { token in
-            list = try await api.createGroup(token: token, name: name)
-            created = true
+            let fresh = try await api.createGroup(token: token, name: name, join: join)
+            list = fresh
+            created = fresh.created ?? fresh.groups.first { $0.mine && $0.name == name }?.id
         }
         return created
     }
@@ -265,12 +271,7 @@ struct GroupsView: View {
     var body: some View {
         List {
             Section {
-                HStack {
-                    TextField("Nom du nouveau groupe", text: $newName).focused($naming).submitLabel(.done)
-                        .onSubmit(create)
-                    Button("Créer", action: create)
-                        .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty || store.busy.contains("create"))
-                }
+                NewGroupField(name: $newName, focus: $naming, busy: store.busy.contains("create"), onCreate: create)
             } header: {
                 Text("Nouveau groupe")
             } footer: {
@@ -349,7 +350,30 @@ struct GroupsView: View {
         let name = newName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         naming = false
-        Task { if await store.create(name) { newName = "" } }
+        Task { if await store.create(name) != nil { newName = "" } }
+    }
+}
+
+/// Nom + « Créer » d'un nouveau groupe : le même champ dans Réglages › Groupes et dans Discussions.
+struct NewGroupField: View {
+    @Binding var name: String
+    var focus: FocusState<Bool>.Binding
+    let busy: Bool
+    let onCreate: () -> Void
+
+    var body: some View {
+        HStack {
+            TextField("Nom du nouveau groupe", text: $name).focused(focus).submitLabel(.done)
+                .onSubmit(onCreate)
+                .accessibilityIdentifier("new-group-name")
+            if busy {
+                ProgressView()
+            } else {
+                Button("Créer", action: onCreate)
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .accessibilityIdentifier("new-group-create")
+            }
+        }
     }
 }
 
@@ -398,7 +422,7 @@ struct GroupDetailView: View {
                             let inside = group.members.contains { $0.id == person.id }
                             Button { Task { await store.toggle(person, in: group) } } label: {
                                 HStack {
-                                    Text(person.name)
+                                    PersonName(id: person.id, pseudo: person.name)
                                     Spacer()
                                     if store.busy.contains("\(group.id).\(person.id)") {
                                         ProgressView()
@@ -444,7 +468,7 @@ struct GroupDetailView: View {
                         ForEach(group.members) { person in
                             Button { profile = ProfileTarget(id: person.id) } label: {
                                 HStack {
-                                    Text(person.name)
+                                    PersonName(id: person.id, pseudo: person.name)
                                     Spacer()
                                     Image(systemName: "person.crop.circle").foregroundStyle(.secondary)
                                 }

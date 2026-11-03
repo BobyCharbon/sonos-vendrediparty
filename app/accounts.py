@@ -6,6 +6,7 @@ import os
 import secrets
 import threading
 import time
+from datetime import datetime
 from urllib.parse import quote
 
 import httpx
@@ -28,6 +29,16 @@ class AccountError(Exception):
     pass
 
 
+def pause_end(value) -> float:
+    """Date de fin d'une pause (texte ISO de Supabase) → instant Unix ; 0 sans pause ou si illisible."""
+    if not isinstance(value, str) or not value:
+        return 0.0
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return 0.0
+
+
 class Accounts:
     def __init__(self, secret: bytes, client: httpx.Client | None = None):
         self.secret = secret
@@ -36,6 +47,7 @@ class Accounts:
         self.cache: dict[str, tuple[float, str]] = {}    # empreinte du jeton → (instant, identifiant Supabase vérifié)
         self.by_gid: dict[str, dict] = {}                # identifiant de joueur → compte (surnom, photo)
         self.uid_by_gid: dict[str, str] = {}             # identifiant de joueur → compte Supabase (fiche profil des jeux)
+        self.pauses: dict[str, float] = {}               # identifiant de joueur → fin de la pause des notifications (lune)
 
     def gid(self, user_id: str) -> str:
         return "acct-" + hmac.new(self.secret, f"account:{user_id}".encode(), hashlib.sha256).hexdigest()[:40]
@@ -104,7 +116,42 @@ class Accounts:
         with self.lock:
             self.by_gid[account["guest_id"]] = account
             self.uid_by_gid[account["guest_id"]] = uid
+        # La lune mise depuis le web (module Événements) : Party l'apprend ici (la page se relie après chaque choix).
+        n = self._get("GET", f"/rest/v1/notification_prefs?user_id=eq.{uid}&select=muted_until", token)
+        rows = n.json() if n.status_code == 200 else []
+        if isinstance(rows, list) and rows:
+            self._remember_pause(uid, rows[0])
         return account
+
+    def _remember_pause(self, uid: str, prefs: dict):
+        """Pause de toutes les notifications (Réglages › lune) : les notifications de Party (titre qui passe, jeux,
+        réponse à un avis, et celles de l'hôte pour un admin) arrivent alors sans son. Seule une date future compte."""
+        until = pause_end(prefs.get("muted_until"))
+        with self.lock:
+            if until > time.time():
+                self.pauses[self.gid(uid)] = until
+            else:
+                self.pauses.pop(self.gid(uid), None)
+
+    def paused(self, guest_id: str) -> bool:
+        with self.lock:
+            return self.pauses.get(guest_id, 0) > time.time()
+
+    def admin_paused(self) -> bool:
+        """Lune d'un compte admin de la soirée : les notifications de l'hôte arrivent aussi en silence."""
+        now = time.time()
+        with self.lock:
+            return any(self.pauses.get(g, 0) > now for g, a in self.by_gid.items() if a.get("admin"))
+
+    def set_notification_pause(self, token: str, what: str, span: str) -> dict:
+        """what : 'all' (lune), 'chats' (Discussions des groupes) ou 'event_chats' (discussions des événements) ;
+        span : '30m', '1h', '2h', 'morning' (8 h, Zurich) ou 'off'.
+        L'heure de fin est calculée par la base (fonction set_notification_pause)."""
+        self._uid(token)
+        r = self._get("POST", "/rest/v1/rpc/set_notification_pause", token, json={"what": what, "span": span})
+        if r.status_code != 200:
+            raise AccountError("La pause n'a pas été enregistrée. Réessaie dans un instant.")
+        return self.notification_prefs(token)
 
     def beta(self, token: str) -> bool:
         """Bêta-testeur : en production, Événements et Discussions lui sont réservés."""
@@ -119,6 +166,7 @@ class Accounts:
         rows = r.json() if r.status_code == 200 else []
         if not isinstance(rows, list) or not rows:
             raise AccountError("Préférences introuvables. Ouvre une fois les Événements, puis réessaie.")
+        self._remember_pause(uid, rows[0])
         p = self._get("POST", "/rest/v1/rpc/my_permissions", token, json={})
         perms = p.json() if p.status_code == 200 else []
         return {"prefs": rows[0], "approver": isinstance(perms, list) and "events.approve" in perms}
@@ -164,13 +212,22 @@ class Accounts:
         people = [{"id": p["id"], "name": names[p["id"]]} for p in directory if p["id"] != uid and p.get("status") == "active"]
         return {"groups": groups, "people": sorted(people, key=lambda p: p["name"].lower())}
 
-    def create_group(self, token: str, name: str) -> dict:
+    def create_group(self, token: str, name: str, join: bool = False) -> dict:
+        """Nouveau groupe (Réglages › Groupes, ou Discussions avec join : son créateur en fait partie d'office, pour
+        écrire tout de suite dans sa discussion). « created » = son identifiant, pour l'ouvrir."""
         uid = self._uid(token)
         r = self._get("POST", "/rest/v1/member_groups", token, json={"name": name, "created_by": uid},
-                      headers={"Prefer": "return=minimal"})
+                      headers={"Prefer": "return=representation"})
         if r.status_code not in (200, 201, 204):
             raise AccountError("Le groupe n'a pas été créé. Réessaie.")
-        return self.groups(token)
+        rows = r.json() if r.content else []
+        created = rows[0].get("id") if isinstance(rows, list) and rows and isinstance(rows[0], dict) else None
+        if join and created:
+            m = self._get("POST", "/rest/v1/member_group_members", token, json={"group_id": created, "user_id": uid},
+                          headers={"Prefer": "return=minimal,resolution=ignore-duplicates"})
+            if m.status_code not in (200, 201, 204, 409):
+                raise AccountError("Le groupe est créé, mais tu n'as pas pu y être ajouté. Ajoute-toi dans Réglages › Groupes.")
+        return {**self.groups(token), "created": created}
 
     def set_group_member(self, token: str, group_id: str, user_id: str, on: bool) -> dict:
         self._uid(token)
@@ -236,7 +293,16 @@ class Accounts:
         rows = r.json() if r.status_code == 200 else []
         if not isinstance(rows, list) or not rows:
             raise AccountError("Profil introuvable. Reconnecte-toi.")
-        return {**rows[0], "photo": self._signed_photo(rows[0].get("avatar_url"), token)}
+        return {**rows[0], "photo": self._signed_photo(rows[0].get("avatar_url"), token),
+                "role_label": self._role_label(rows[0].get("role"), token)}
+
+    def _role_label(self, role: str | None, token: str) -> str | None:
+        """Nom du rôle (table public.roles : rôles personnalisés) ; None si la base ne l'a pas encore."""
+        if not role:
+            return None
+        r = self._get("GET", f"/rest/v1/roles?select=label&key=eq.{quote(role)}", token)
+        rows = r.json() if r.status_code == 200 else None
+        return rows[0].get("label") if isinstance(rows, list) and rows and isinstance(rows[0], dict) else None
 
     def update_profile(self, token: str, fields: dict, photo: bytes | None) -> dict:
         """Prénom, nom, surnom et, au besoin, nouvelle photo (JPEG déjà recadré par l'app) : la photo va dans le

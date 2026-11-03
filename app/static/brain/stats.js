@@ -24,7 +24,12 @@
 
   // ── Données ──
   async function post(url, body) {
-    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    let r;
+    try {
+      r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    } catch {
+      throw new Error("pas de réseau");   // jamais le « Failed to fetch » du navigateur à l'écran
+    }
     const data = await r.json().catch(() => ({}));
     if (!r.ok) {
       const msg = r.status === 401 ? "ta connexion a expiré, reconnecte-toi" : typeof data.detail === "string" ? data.detail : "erreur réseau";
@@ -48,6 +53,8 @@
     } catch { return fallbackCatalog(); }  // pas mis en cache : on réessaiera à la prochaine ouverture
   }
   function localSessions() {
+    // Même lecture que le moteur (entrées illisibles écartées : le serveur refuserait toute la liste).
+    if (window.Brain?.api?.localSessions) return window.Brain.api.localSessions().slice(-LOCAL_MAX);
     try {
       const list = JSON.parse(localStorage.getItem(LOCAL_KEY));
       return Array.isArray(list) ? list.slice(-LOCAL_MAX) : [];
@@ -142,7 +149,11 @@
     const line = vals.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
     const base = (CHART.top + ih).toFixed(1);
     const area = `${line} L${x(pts.length - 1).toFixed(1)} ${base} L${x(0).toFixed(1)} ${base} Z`;
-    const day = (s) => new Date(`${s}T12:00:00`).toLocaleDateString("fr-CH", { day: "numeric", month: "short" });
+    // Jour illisible (réponse abîmée) : rien plutôt que « Invalid Date ».
+    const day = (s) => {
+      const d = new Date(`${s}T12:00:00`);
+      return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("fr-CH", { day: "numeric", month: "short" });
+    };
     const last = vals[vals.length - 1];
     return `<svg class="brs-chart" viewBox="0 0 ${CHART.w} ${CHART.h}" role="img"
       aria-label="Évolution de ta Température du ${h(day(pts[0].day))} au ${h(day(pts[pts.length - 1].day))} : de ${fmt(vals[0])} à ${fmt(last)} °M">
@@ -181,6 +192,13 @@
     }).join("")}</ul>`;
   }
 
+  // Ex aequo : même rang (1, 1, 3), comme l'app iOS ; la liste arrive triée par Température.
+  const tiedRank = (board, i) => {
+    let first = i;
+    while (first > 0 && board[first - 1].temperature === board[i].temperature) first--;
+    return first + 1;
+  };
+
   function ranking(data) {
     if (!data.connected) {
       return `<section class="brs-card" aria-labelledby="brsRankH"><h3 id="brsRankH">Classement Party</h3>
@@ -193,7 +211,7 @@
     const head = b.rank ? `<p class="brs-note">Tu es <b>${fmt(b.rank)}${b.rank === 1 ? "er" : "e"}</b> sur ${plural(b.players || board.length, "joueur")}.</p>` : "";
     return `<section class="brs-card" aria-labelledby="brsRankH"><h3 id="brsRankH">Classement Party</h3>${head}
       <ol class="brs-board">${board.map((p, i) => `<li class="${p.me ? "me" : ""}"${p.me ? ' aria-current="true"' : ""}>
-        <span class="brs-rk">${i + 1}</span><span class="brs-nm">${h(p.name)}${p.me ? " <small>(toi)</small>" : ""}</span>
+        <span class="brs-rk">${tiedRank(board, i)}</span><span class="brs-nm">${h(p.name)}${p.me ? " <small>(toi)</small>" : ""}</span>
         <b>${fmt(p.temperature)} <small>°M</small></b></li>`).join("")}</ol></section>`;
   }
 
@@ -204,7 +222,7 @@
     return `${connected ? "" : loginBanner()}<div class="brs-empty">
       <div class="brs-empty-i" aria-hidden="true">🧠</div>
       <h3>Tes méninges sont encore froides</h3>
-      <p>Fais l'Échauffement du jour : 5 mini-jeux d'une minute. Ta Température, tes domaines et ta courbe apparaîtront ici.</p>
+      <p>Fais l'Échauffement du jour : 5 mini-jeux, une partie chacun. Ta Température, tes domaines et ta courbe apparaîtront ici.</p>
       <button type="button" class="brs-cta" data-brs="open">Faire l'Échauffement</button></div>`;
   }
 

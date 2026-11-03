@@ -58,6 +58,11 @@
 .br-grille-dot.br-grille-done{background:#38e0c4}
 .br-grille-dot.br-grille-half{background:#ffd65c}
 .br-grille-dot.br-grille-miss{background:#ff7a59}
+/* Écran bas (téléphone en paysage) : la grille suit la hauteur disponible ; niveau et cases sont déjà dans le HUD
+   et le message. */
+@media (max-height:520px){.br-grille-wrap{flex:1;min-height:0;container-type:size;gap:6px;padding:4px 8px 6px}
+  .br-grille-top,.br-grille-dots{display:none}.br-grille-stage{width:min(100%,400px,calc(100cqh - 48px))}
+  .br-grille-board{gap:5px;padding:7px}}
 `;
 
   function injectStyle() {
@@ -110,6 +115,12 @@
     if (n >= DOUBLE_TURN_FROM) return [quarter(), quarter()];
     if (n >= HALF_TURN_FROM && rng() < 0.35) return [180];
     return [quarter()];
+  }
+
+  /** Rotation totale de l'essai, en mots (pour le mode mouvement réduit). */
+  function turnNote(deg) {
+    const a = ((deg % 360) + 360) % 360;
+    return a === 90 ? 'tournée ↻ ¼ de tour' : a === 270 ? 'tournée ↺ ¼ de tour' : a === 180 ? 'demi-tour' : 'revenue droite';
   }
 
   function start(ctx) {
@@ -200,6 +211,7 @@
       const turns = turnsFor(level, ctx.rng, round.p);
       if (!turns.length) { openInput(); return; }
       const stepMs = ctx.reducedMotion ? 0 : round.p.rotateMs;
+      round.note = turnNote(turns.reduce((a, d) => a + d, 0));
       let angle = 0;
       turns.forEach((deg, k) => {
         later(() => {
@@ -222,7 +234,8 @@
     function openInput() {
       round.open = true;
       round.t0 = performance.now();
-      setMsg(`Retrouve les ${round.p.tiles} cases`);
+      // Mouvement réduit : la grille saute sans animation (identique à l'œil), le message dit de combien elle a tourné.
+      setMsg(`Retrouve les ${round.p.tiles} cases` + (ctx.reducedMotion && round.note ? ` · ${round.note}` : ''));
       setEnabled(true);
       armDeadline(FIRST_TAP_BONUS_MS);
     }
@@ -278,7 +291,27 @@
       if (cell && board.contains(cell)) onTap(cell);
     }
 
+    // Pause du moteur (application en arrière-plan, question « Quitter la partie ? ») : tout s'arrête (aucune vie perdue loin de l'écran) ; au retour, nouvel essai
+    // au même niveau.
+    let away = false;
+    function onPauseChange(paused) {
+      if (stopped) return;
+      if (paused) {
+        timers.forEach((t) => clearTimeout(t));
+        timers.clear();
+        if (round) round.open = false;
+        setEnabled(false);
+        freezeClock();
+        away = true;
+      } else if (away) {
+        away = false;
+        beginTrial();
+      }
+    }
+
     board.addEventListener('click', onClick);
+    if (ctx.onPause) ctx.onPause(function () { onPauseChange(true); });
+    if (ctx.onResume) ctx.onResume(function () { onPauseChange(false); });
     ctx.setLevel(level);
     beginTrial();
 

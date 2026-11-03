@@ -71,8 +71,8 @@ class Fake:
     def groups(self, token):
         return {"groups": [], "people": []}
 
-    def create_group(self, token, name):
-        self.calls.append(("create", name))
+    def create_group(self, token, name, join=False):
+        self.calls.append(("create", name) + (("join",) if join else ()))
         return self.groups(token)
 
     def set_group_member(self, token, group_id, user_id, on):
@@ -94,3 +94,20 @@ def test_api_validates_names_and_identifiers(monkeypatch):
     assert c.post("/api/account/groups/member", json={"token": "tok", "group_id": G1, "user_id": "x; drop", "on": True}).status_code == 422
     assert c.post("/api/account/groups/delete", json={"token": "tok", "group_id": G2}).status_code == 200
     assert fake.calls == [("create", "Les footeux"), ("delete", G2)]
+
+
+def test_group_created_from_discussions_includes_its_creator_and_returns_its_id(monkeypatch):
+    """Discussions › Nouveau groupe (avis du 3.11) : même création qu'en Réglages, le créateur en fait partie d'office."""
+    acc, seen = fake_supabase()
+    result = acc.create_group("tok", "Les footeux", join=True)
+    assert result["created"] == G1 and [g["id"] for g in result["groups"]][:1] == [G1]
+    add = next(s for s in seen if s[0] == "POST" and s[1] == "/rest/v1/member_group_members")
+    assert json.loads(add[3]) == {"group_id": G1, "user_id": ME}
+    acc, seen = fake_supabase()
+    assert acc.create_group("tok", "Rando")["created"] == G1
+    assert not any(s[1] == "/rest/v1/member_group_members" for s in seen)  # Réglages : comme avant
+    fake = Fake()
+    monkeypatch.setattr(main, "accounts", fake)
+    c = TestClient(main.app)
+    assert c.post("/api/account/groups/create", json={"token": "tok", "name": "Apéro", "join": True}).status_code == 200
+    assert fake.calls == [("create", "Apéro", "join")]

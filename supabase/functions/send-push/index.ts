@@ -76,7 +76,9 @@ Deno.serve(async (req: Request) => {
       let tickets: Ticket[];
       try {
         const response = await expoRequest('send', batch.map((row) => ({
-          to: row.token, title: row.title, body: row.body, data: row.data, sound: 'default',
+          // Pendant une pause (lune, Discussions) : sans son, priorité normale (rien ne réveille le téléphone).
+          to: row.token, title: row.title, body: row.body, data: row.data,
+          ...(row.data?.silent === true ? { sound: null, priority: 'normal' } : { sound: 'default' }),
         })));
         if (!response.ok) {
           for (const row of batch) await failOrRetry(row, `ExpoHTTP${response.status}`);

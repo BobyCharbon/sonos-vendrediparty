@@ -9,8 +9,10 @@ self.addEventListener("push", (ev) => {
     body: d.body || "",
     icon: "/static/icon-192.png",
     tag: d.tag,
-    renotify: !!d.tag && !String(d.tag).startsWith("party-event-"),
+    renotify: d.silent !== true && !!d.tag && !String(d.tag).startsWith("party-event-"),
     data: { url: d.url || "/" },
+    // Pause des notifications (lune, Discussions) : livrée sans son ni vibration.
+    silent: d.silent === true,
   }));
 });
 

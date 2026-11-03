@@ -172,6 +172,7 @@ struct PrivacyView: View {
         ("Données utilisées", [
             "Ton numéro de téléphone sert à recevoir un code de connexion. Ton prénom, tes événements, tes réponses, tes votes et tes messages permettent au groupe d'organiser les événements.",
             "Les catégories et tags auxquels tu t'abonnes servent à filtrer les événements et les notifications. L'application enregistre tes préférences pour les notifications des événements.",
+            "Dans l'app iPhone, si tu l'autorises, les numéros de tes contacts sont comparés sous forme d'empreinte chiffrée (jamais un nom, rien n'est gardé par Party) pour afficher les membres sous le nom de ton répertoire. Ces noms restent sur ton iPhone. De la même façon, un membre qui a ton numéro dans ses contacts te voit sous le nom qu'il t'a donné.",
         ]),
         ("Qui peut voir quoi ?", [
             "Les membres autorisés voient les événements et les contributions selon leur visibilité. Ton numéro de téléphone est visible par toi et par les administrateurs qui gèrent les accès au groupe.",
@@ -195,6 +196,15 @@ struct PrivacyView: View {
                 Text("Vendredi Party · Mise à jour du 19 octobre 2026").font(.footnote).foregroundStyle(.secondary)
             }
             .listRowBackground(Color.clear)
+            Section {
+                NavigationLink { ContactNamesSettingsView() } label: {
+                    SettingsRow(symbol: "person.crop.circle.badge.checkmark", tint: .green, title: "Noms de mes contacts",
+                                hint: ContactNames.shared.access.canRead ? "Activé" : "Reconnaître les membres de ton répertoire")
+                }
+                .accessibilityIdentifier("contacts-settings")
+            } header: {
+                Text("Mes choix")
+            }
             ForEach(Self.sections, id: \.0) { title, paragraphs in
                 Section(title) {
                     ForEach(paragraphs, id: \.self) { Text($0).font(.subheadline) }

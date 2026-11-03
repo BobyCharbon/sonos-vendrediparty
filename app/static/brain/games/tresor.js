@@ -34,6 +34,7 @@
   var TURN_PAUSE_MS = 380;     // temps du « replacement » entre deux tours
   var REVIEW_MS = 1500;        // affichage de l'erreur avant la manche suivante
   var WIN_MS = 1000;
+  var MAX_COLS = 14;
   var STYLE_ID = 'br-tresor-style';
 
   var CSS = [
@@ -60,7 +61,10 @@
     '.br-tresor-item.is-picked{box-shadow:0 0 0 3px rgba(255,255,255,.85)}',
     '.br-tresor-field.is-hidden .br-tresor-item{opacity:0;transform:scale(.6)}',
     '.br-tresor-field.is-calm .br-tresor-item{transition:none;animation:none}',
-    '@keyframes br-tresor-pop{0%{transform:scale(.3)}70%{transform:scale(1.12)}100%{transform:scale(1)}}'
+    '@keyframes br-tresor-pop{0%{transform:scale(.3)}70%{transform:scale(1.12)}100%{transform:scale(1)}}',
+    // Écran bas (téléphone en paysage) : le sous-bois prend la hauteur disponible, plus de colonnes (renderField).
+    '@media (max-height:520px){.br-tresor-wrap{min-height:0;padding:6px 12px 8px}.br-tresor-msg{margin:2px 0 4px}',
+    '.br-tresor-field{min-height:0;gap:6px}.br-tresor-cell{min-height:0}.br-tresor-item{font-size:26px}}'
   ].join('');
 
   function injectStyle() {
@@ -130,10 +134,13 @@
     var clock = ctx.root.querySelector('.br-tresor-clock i');
     if (ctx.reducedMotion) field.classList.add('is-calm');
 
+    var pending = null;          // étape prévue entre deux tours (reprise au retour d'arrière-plan)
     function later(fn, ms) {
       if (stopped) return null;
+      if (fn !== onSlow) pending = fn;
       var id = setTimeout(function () {
         timers = timers.filter(function (t) { return t !== id; });
+        if (fn === pending) pending = null;
         if (!stopped) fn();
       }, ms);
       timers.push(id);
@@ -161,8 +168,16 @@
       lvlEl.textContent = 'Niveau ' + state.level;
     }
 
+    // Colonnes : 4 à 6 selon le nombre de trouvailles, davantage si l'écran est bas (tout doit tenir sans défiler).
+    function fitCols(size) {
+      var cols = colsFor(size), fw = field.clientWidth, fh = field.clientHeight, gap = 8;
+      var tall = function (c) { var cell = (fw - (c - 1) * gap) / c, rows = Math.max(3, Math.ceil(size / c)); return rows * cell + (rows - 1) * gap; };
+      while (fw && fh && cols < MAX_COLS && tall(cols) > fh) cols += 1;
+      return cols;
+    }
+
     function renderField(newItem) {
-      var cols = colsFor(state.p.size);
+      var cols = fitCols(state.p.size);
       var total = Math.max(3, Math.ceil(state.p.size / cols)) * cols;
       var cells = shuffled(Array.from({ length: total }, function (_, i) { return i; }), ctx.rng);
       var slots = new Array(total).fill(null);
@@ -278,8 +293,30 @@
       onPointer(ev);
     }
 
+    // Pause du moteur (application en arrière-plan, question « Quitter la partie ? ») : tout s'arrête (aucune vie perdue loin de l'écran) ; au retour, on reprend
+    // avec un nouveau tour.
+    var away = false, resume = null;
+    function onPauseChange(paused) {
+      if (stopped) return;
+      if (paused) {
+        if (state.locked && pending) resume = pending;   // entre deux tours : on reprend là où on en était
+        timers.forEach(clearTimeout);
+        timers = [];
+        state.locked = true;
+        freezeClock();
+        away = true;
+      } else if (away) {
+        away = false;
+        var next = resume;
+        resume = null;
+        if (next) next(); else showTurn(null);
+      }
+    }
+
     field.addEventListener('pointerdown', onPointer);
     field.addEventListener('keydown', onKey);
+    if (ctx.onPause) ctx.onPause(function () { onPauseChange(true); });
+    if (ctx.onResume) ctx.onResume(function () { onPauseChange(false); });
     ctx.setLevel(state.level);
     startRound();
 

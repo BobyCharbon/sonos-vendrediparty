@@ -10,6 +10,26 @@ struct BrainCompare: Decodable, Equatable {
         let me: Int?
         let them: Int?
         var id: String { domain }
+
+        enum CodingKeys: String, CodingKey { case domain, label, icon, me, them }
+
+        init(domain: String, label: String, icon: String, me: Int?, them: Int?) {
+            self.domain = domain
+            self.label = label
+            self.icon = icon
+            self.me = me
+            self.them = them
+        }
+
+        /// Tolérant : libellé ou icône absents → repli ; nombre à virgule ou énorme → borné ; seul le domaine est requis.
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            domain = try c.decode(String.self, forKey: .domain)
+            label = (try? c.decodeIfPresent(String.self, forKey: .label)) ?? domain
+            icon = (try? c.decodeIfPresent(String.self, forKey: .icon)) ?? "🧠"
+            me = c.flexibleInt(.me)
+            them = c.flexibleInt(.them)
+        }
     }
 
     let id: String
@@ -29,15 +49,20 @@ struct BrainCompare: Decodable, Equatable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(String.self, forKey: .id)
-        name = try c.decodeIfPresent(String.self, forKey: .name) ?? "?"
-        isSelf = try c.decodeIfPresent(Bool.self, forKey: .isSelf) ?? false
-        played = try c.decodeIfPresent(Bool.self, forKey: .played) ?? false
-        temperature = try c.decodeIfPresent(Int.self, forKey: .temperature) ?? 0
-        mePlayed = try c.decodeIfPresent(Bool.self, forKey: .mePlayed) ?? false
-        meTemperature = try c.decodeIfPresent(Int.self, forKey: .meTemperature) ?? 0
-        rows = try c.decodeIfPresent([Row].self, forKey: .rows) ?? []
-        verdict = try c.decodeIfPresent(String.self, forKey: .verdict) ?? ""
+        // Seul l'identifiant est requis : un champ abîmé (nombre à virgule ou énorme, null, ligne illisible) prend
+        // une valeur neutre au lieu de faire disparaître toute la comparaison de la fiche.
+        guard let id = c.flexibleID(.id) else {
+            throw DecodingError.dataCorruptedError(forKey: .id, in: c, debugDescription: "id manquant")
+        }
+        self.id = id
+        name = (try? c.decodeIfPresent(String.self, forKey: .name)) ?? "?"
+        isSelf = (try? c.decodeIfPresent(Bool.self, forKey: .isSelf)) ?? false
+        played = (try? c.decodeIfPresent(Bool.self, forKey: .played)) ?? false
+        temperature = c.flexibleInt(.temperature) ?? 0
+        mePlayed = (try? c.decodeIfPresent(Bool.self, forKey: .mePlayed)) ?? false
+        meTemperature = c.flexibleInt(.meTemperature) ?? 0
+        rows = c.lossyArray(Row.self, .rows)
+        verdict = (try? c.decodeIfPresent(String.self, forKey: .verdict)) ?? ""
     }
 
     /// Température en tête, puis chaque domaine joué par l'un ou l'autre.
@@ -66,6 +91,9 @@ struct BrainCompareSection: View {
     static let maxIndex = 2000.0
     static let them = Color.orange
 
+    /// Part de la barre remplie (0…1), valeur hors bornes ramenée.
+    static func ratio(_ value: Int?) -> Double { min(max(Double(value ?? 0), 0), maxIndex) / maxIndex }
+
     var body: some View {
         Section {
             if compare.played {
@@ -78,10 +106,22 @@ struct BrainCompareSection: View {
         }
     }
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    /// Légende : côte à côte ; l'une sous l'autre avec un texte très grand (un nom long écrasait « Toi »).
+    private func key(_ text: String, _ color: Color) -> some View {
+        HStack(spacing: 6) {
+            Circle().fill(color).frame(width: 10, height: 10)
+            Text(text).lineLimit(2)
+        }
+    }
+
     private var legend: some View {
-        HStack(spacing: 14) {
-            Label { Text("Toi") } icon: { Circle().fill(Palette.accent).frame(width: 10, height: 10) }
-            Label { Text(compare.name) } icon: { Circle().fill(Self.them).frame(width: 10, height: 10) }
+        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+            : AnyLayout(HStackLayout(spacing: 14))
+        return layout {
+            key("Toi", Palette.accent).fixedSize()
+            key(compare.name, Self.them)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -92,6 +132,7 @@ struct BrainCompareSection: View {
 private struct BrainCompareRow: View {
     let row: BrainCompare.Row
     let other: String
+    @ScaledMetric(relativeTo: .caption) private var numberWidth: CGFloat = 44
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -110,13 +151,16 @@ private struct BrainCompareRow: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.primary.opacity(0.08))
                     Capsule().fill(color)
-                        .frame(width: geo.size.width * CGFloat(min(max(Double(value ?? 0), 0), BrainCompareSection.maxIndex) / BrainCompareSection.maxIndex))
+                        .frame(width: geo.size.width * CGFloat(BrainCompareSection.ratio(value)))
                 }
             }
             .frame(height: 8)
-            Text(value.map(String.init) ?? "—").font(.caption.monospacedDigit()).frame(width: 40, alignment: .trailing)
+            // Même largeur pour les deux barres (comparables), qui grandit avec le texte (Dynamic Type) : le chiffre
+            // n'est plus tronqué en « 1… » ; un nombre hors normes rétrécit au lieu d'être coupé.
+            Text(value.map(BrainStats.number) ?? "—").font(.caption.monospacedDigit())
+                .lineLimit(1).minimumScaleFactor(0.5).frame(width: numberWidth, alignment: .trailing)
         }
     }
 
-    private func spoken(_ value: Int?) -> String { value.map { "\($0) degrés M" } ?? "pas encore joué" }
+    private func spoken(_ value: Int?) -> String { value.map { "\(BrainStats.number($0)) degrés M" } ?? "pas encore joué" }
 }

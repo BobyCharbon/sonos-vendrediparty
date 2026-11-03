@@ -460,10 +460,10 @@ document.getElementById("gamesRoot").innerHTML = `
         ${newBadge("brain")}
         <div class="g-head">
           <div class="g-icon" aria-hidden="true"><span class="g-br-ico">🧠</span></div>
-          <div class="g-meta"><div class="g-title" data-brain-name>Méninges</div><div class="g-tag">Fais chauffer tes méninges, une minute par jeu.</div></div>
+          <div class="g-meta"><div class="g-title" data-brain-name>Méninges</div><div class="g-tag">Fais chauffer tes méninges, jusqu'à ta dernière vie.</div></div>
         </div>
         <p class="g-desc">Des mini-jeux de vitesse, mémoire, attention, flexibilité, logique et calcul. L'Échauffement du jour en choisit 5, ta Température (°M) suit tes progrès.</p>
-        <div class="g-chips"><span>Solo</span><span>~1 min par jeu</span><span>🔥 Série quotidienne</span></div>
+        <div class="g-chips"><span>Solo</span><span>❤️ 3 vies</span><span>🔥 Série quotidienne</span></div>
         <button type="button" class="g-go" data-brain-open="brain">Faire chauffer</button>
       </div>
 
@@ -782,6 +782,22 @@ document.getElementById("gamesRoot").innerHTML = `
       </div>
     </div>
 `;
+// Méninges : la page d'accueil charge son moteur (brain/core.js) ; une page qui ne le charge pas (/admin, gardé en
+// secours) le reçoit au premier toucher de « Faire chauffer », puis l'ouvre.
+document.addEventListener("click", (ev) => {
+  const btn = ev.target.closest("[data-brain-open]");
+  if (!btn || window.Brain || document.getElementById("brainCoreJs")) return;
+  const css = document.createElement("link");
+  css.rel = "stylesheet";
+  css.href = "/static/brain/brain.css";
+  const js = document.createElement("script");
+  js.id = "brainCoreJs";
+  js.src = "/static/brain/core.js";
+  js.onload = () => window.Brain?.open(btn);
+  js.onerror = () => { js.remove(); if (typeof toast === "function") toast("Méninges n'a pas pu se charger, réessaie"); };
+  document.head.append(css, js);
+});
+
 // Range les cartes de l'accueil par catégorie (une section titrée par catégorie, sous la carte de la salle de jeux).
 (function groupHomeCards() {
   const home = document.getElementById("gHome");

@@ -21,6 +21,8 @@
   var NEXT_MS = 260;
   var STREAK_UP = 3;
   var MAX_COUNT = 36;
+  var MAX_COLS = 12;
+  var MIN_CELL = 44;
   var HUES = [0, 210, 48, 130, 270];
   var FILLS = ['plein', 'creux', 'raye'];
   var SIZES = [1, 0.78];
@@ -59,7 +61,10 @@
     '.br-intrus-item.is-answer{box-shadow:0 0 0 3px #69db7c}',
     '.br-intrus-field.is-in .br-intrus-item{animation:br-intrus-in .22s ease}',
     '.br-intrus-field.is-calm .br-intrus-item{animation:none;transition:none}',
-    '@keyframes br-intrus-in{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}'
+    '@keyframes br-intrus-in{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}',
+    // Écran bas (téléphone en paysage) : le champ prend la hauteur disponible, plus de colonnes (render).
+    '@media (max-height:520px){.br-intrus-wrap{min-height:0;padding:6px 10px 8px}.br-intrus-clock{margin:0 0 6px}',
+    '.br-intrus-field{min-height:0;gap:5px}.br-intrus-item{padding:4px}}'
   ].join('');
 
   function injectStyle() {
@@ -123,6 +128,16 @@
     return null;
   }
 
+  // Presque jumelles pour l'œil (une seule différence, minuscule) : un intrus pareil serait invisible.
+  var TWIN = { hue: 10, turn: 10, size: 0.06 };
+  function gap(a, b) { var d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); }
+  function twins(a, b) {
+    var diff = ['shape', 'hue', 'fill', 'turn', 'size'].filter(function (k) { return a[k] !== b[k]; });
+    if (diff.length !== 1 || !TWIN[diff[0]]) return false;
+    var d = diff[0] === 'size' ? Math.abs(a.size - b.size) : gap(a[diff[0]], b[diff[0]]);
+    return d < TWIN[diff[0]];
+  }
+
   function keyOf(dim) { return dim === 'color' ? 'hue' : dim; }
 
   /** Plateau : `kinds` sortes en double ou plus, et un intrus qui diffère d'une sorte par UNE caractéristique. */
@@ -145,7 +160,7 @@
       var near = rng() < s.subtle ? nearValue(dim, from, n, s, rng) : null;
       var cand = Object.assign({}, from);
       cand[keyOf(dim)] = near !== null ? near : pick(values(dim, s), rng);
-      if (!seen[sig(cand)]) odd = cand;
+      if (!seen[sig(cand)] && !kinds.some(function (k) { return twins(cand, k); })) odd = cand;
     }
     if (!odd) odd = Object.assign({}, kinds[0], { hue: (kinds[0].hue + 180) % 360 });
     var items = [];
@@ -225,8 +240,10 @@
 
     function render() {
       board = buildBoard(level, ctx.rng);
-      field.style.gridTemplateColumns = 'repeat(' + board.cols + ',minmax(44px,' +
-        (board.cols === 6 ? 56 : board.cols === 5 ? 64 : 76) + 'px))';
+      var cols = board.cols, fh = field.clientHeight, n = board.items.length;
+      while (fh && cols < MAX_COLS && Math.ceil(n / cols) * (MIN_CELL + 6) > fh) cols += 1;   // écran bas : tout tient
+      field.style.gridTemplateColumns = 'repeat(' + cols + ',minmax(' + MIN_CELL + 'px,' +
+        (cols >= 6 ? 56 : cols === 5 ? 64 : 76) + 'px))';
       field.innerHTML = board.items.map(function (f) {
         uid += 1;
         return '<button type="button" class="br-intrus-item" data-sig="' + esc(sig(f)) +
@@ -303,8 +320,27 @@
       field.removeEventListener('keydown', onKey);
     }
 
+    // Pause du moteur (application en arrière-plan, question « Quitter la partie ? ») : tout s'arrête (aucune vie perdue loin de l'écran) ; au retour, on reprend
+    // avec un nouveau tour.
+    var away = false;
+    function onPauseChange(paused) {
+      if (stopped) return;
+      if (paused) {
+        timers.forEach(clearTimeout);
+        timers = [];
+        locked = true;
+        freezeClock();
+        away = true;
+      } else if (away) {
+        away = false;
+        render();
+      }
+    }
+
     field.addEventListener('pointerdown', onPointer);
     field.addEventListener('keydown', onKey);
+    if (ctx.onPause) ctx.onPause(function () { onPauseChange(true); });
+    if (ctx.onResume) ctx.onResume(function () { onPauseChange(false); });
     ctx.setLevel(level);
     render();
 

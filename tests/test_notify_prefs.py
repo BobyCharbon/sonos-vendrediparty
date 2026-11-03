@@ -201,3 +201,119 @@ def test_host_in_the_app_hears_when_a_track_added_as_host_plays(admin, push):  #
     assert main.store.session.guest_notify[main.HOST_ID]["track"] is False
     main.store.remove_push(NATIVE["endpoint"])
     assert main.HOST_ID not in main.store.session.push
+
+
+def pause_supabase(state: dict, seen: list):
+    """Supabase de test : la pause est calculée par la base (set_notification_pause), relue ensuite."""
+    import httpx
+
+    def handler(request: httpx.Request):
+        seen.append((request.method, request.url.path, request.content))
+        if request.url.path == "/auth/v1/user":
+            return httpx.Response(200, json={"id": "u-9"})
+        if request.url.path == "/rest/v1/rpc/set_notification_pause":
+            state["muted_until"] = state.pop("next", None)
+            return httpx.Response(200, json={"user_id": "u-9", **state})
+        if request.url.path == "/rest/v1/notification_prefs":
+            return httpx.Response(200, json=[{"user_id": "u-9", **state}])
+        if request.url.path == "/rest/v1/rpc/my_permissions":
+            return httpx.Response(200, json=[])
+        return httpx.Response(404)
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def test_the_moon_is_set_by_the_base_and_remembered_by_party():
+    from datetime import datetime, timedelta, timezone
+    from app import accounts as accounts_mod
+    soon = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    state, seen = {"muted_until": None, "chats_muted_until": None, "next": soon}, []
+    acc = accounts_mod.Accounts(b"secret", pause_supabase(state, seen))
+    gid = acc.gid("u-9")
+    assert not acc.paused(gid)
+    r = acc.set_notification_pause("tok", "all", "1h")
+    assert r["prefs"]["muted_until"] == soon and acc.paused(gid)
+    assert ("POST", "/rest/v1/rpc/set_notification_pause", b'{"what":"all","span":"1h"}') in seen
+    acc.set_notification_pause("tok", "all", "off")  # « Réactiver »
+    assert not acc.paused(gid)
+    # Pause posée depuis le web : Party la lit à la liaison du compte. Une pause passée ne compte plus.
+    state["muted_until"] = soon
+    acc.link("tok")
+    assert acc.paused(gid)
+    state["muted_until"] = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+    acc.link("tok")
+    assert not acc.paused(gid)
+    assert accounts_mod.pause_end("pas une date") == 0 and accounts_mod.pause_end(None) == 0
+
+
+def test_party_notifications_arrive_silently_during_the_moon_admin_included(admin, push, monkeypatch):  # noqa: F811
+    guest = guest_client("guest-moon-1")
+    guest.post("/api/push/subscribe", json={"guest_id": "guest-moon-1", "subscription": SUB})
+    monkeypatch.setattr(main.accounts, "pauses", {"guest-moon-1": 9e12})
+    play("guest-moon-1")
+    track = [p for _, p in push.sent if p.get("tag") == "now-playing"]
+    assert track and track[-1]["silent"] is True  # lune : livrée, mais sans son ni vibration
+    # Hôte : la lune d'un compte admin rend aussi ses notifications silencieuses (« le mode nuit coupe tout »).
+    admin.post("/api/admin/push/subscribe", json={"subscription": NATIVE})
+    monkeypatch.setattr(main.accounts, "by_gid", {"acct-admin": {"admin": True}})
+    main.accounts.pauses["acct-admin"] = 9e12
+    guest_client("guest-moon-2", "Zoé").post("/api/message", json={"guest_id": "guest-moon-2", "guest_name": "Zoé", "text": "Une lune ?"})
+    assert [p for _, p in push.sent if p.get("tag") == "message"][-1]["silent"] is True
+    monkeypatch.setattr(main.accounts, "pauses", {})
+    push.sent.clear()
+    play("guest-moon-1")
+    assert [p for _, p in push.sent if p.get("tag") == "now-playing"][-1].get("silent") is None  # pause finie : avec son
+    main.store.remove_push(SUB["endpoint"])
+    main.store.remove_push(NATIVE["endpoint"])
+
+
+def test_apns_payload_is_silent_during_a_pause():
+    import httpx
+    from app import apns as apns_mod
+    sent = []
+
+    def handler(request: httpx.Request):
+        sent.append(request)
+        return httpx.Response(200)
+
+    a = apns_mod.Apns.__new__(apns_mod.Apns)
+    a.client = httpx.Client(transport=httpx.MockTransport(handler))
+    a._provider_token = lambda: "jwt"
+    a.send(NATIVE, {"title": "T", "body": "B", "silent": True})
+    a.send(NATIVE, {"title": "T", "body": "B"})
+    import json as _json
+    quiet, loud = (_json.loads(r.content)["aps"] for r in sent)
+    assert quiet == {"alert": {"title": "T", "body": "B"}, "interruption-level": "passive"} and sent[0].headers["apns-priority"] == "5"
+    assert loud["sound"] == "default" and sent[1].headers["apns-priority"] == "10"
+
+
+def test_pause_api_accepts_only_known_choices(monkeypatch):
+    seen = []
+
+    class Fake:
+        def set_notification_pause(self, token, what, span):
+            if token != "ok":
+                raise AccountError("Ta connexion a expiré. Reconnecte-toi.")
+            seen.append((what, span))
+            return {"prefs": {"muted_until": None}, "approver": False}
+
+    monkeypatch.setattr(main, "accounts", Fake())
+    c = TestClient(main.app)
+    for what, span in (("all", "1h"), ("all", "morning"), ("chats", "30m"), ("chats", "off")):
+        assert c.post("/api/account/notifications/pause", json={"token": "ok", "what": what, "span": span}).status_code == 200
+    assert c.post("/api/account/notifications/pause", json={"token": "ok", "what": "event_chats", "span": "2h"}).status_code == 200
+    seen.pop()
+    for what, span in (("all", "12h"), ("events", "1h")):
+        assert c.post("/api/account/notifications/pause", json={"token": "ok", "what": what, "span": span}).status_code == 422
+    assert c.post("/api/account/notifications/pause", json={"token": "bad", "what": "all", "span": "1h"}).status_code == 401
+    assert seen == [("all", "1h"), ("all", "morning"), ("chats", "30m"), ("chats", "off")]
+
+
+def test_every_notification_type_has_its_own_switch_through_party(monkeypatch):
+    """Chaque type qu'on peut recevoir se coupe (Réglages natifs › Notifications) : les nouveaux réglages passent."""
+    fake = FakeAccounts()
+    monkeypatch.setattr(main, "accounts", fake)
+    client = TestClient(main.app)
+    for key in ("announcements", "rsvp_set", "invites", "proposal_result", "link_join", "group_messages", "group_invites", "group_joins"):
+        r = client.post("/api/account/notifications/update", json={"token": "ok", "patch": {key: False}})
+        assert r.status_code == 200 and r.json()["prefs"][key] is False, key
+        assert client.post("/api/account/notifications/update", json={"token": "ok", "patch": {key: "non"}}).status_code == 422

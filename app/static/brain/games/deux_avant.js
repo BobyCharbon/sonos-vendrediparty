@@ -96,6 +96,11 @@
 .${P}no{background:#5a4a8a}
 .${P}yes{background:#7c5cff}
 .${P}btn small{display:block;font-size:12px;font-weight:500;opacity:.75}
+/* Écran bas (téléphone en paysage, ~300 px de jeu) : cartes et boutons plus petits, tout reste visible. */
+@media (max-height:520px){.${P}wrap{gap:8px;padding:4px 12px 8px}.${P}q{min-height:0;font-size:15px}
+  .${P}row{--sw:46px;--sh:62px;--bw:84px;--bh:112px;--gap:8px;min-height:116px}
+  .${P}n3{--sw:42px;--sh:56px;--bw:80px;--bh:106px}.${P}n4{--sw:38px;--sh:50px;--bw:76px;--bh:100px;--gap:6px}
+  .${P}tag{font-size:10px;bottom:-17px}.${P}timer{margin-top:12px}.${P}btn{min-height:50px}}
 `;
 
   function injectStyle() {
@@ -280,8 +285,28 @@
       else if (e.key === 'ArrowLeft') { e.preventDefault(); answer(false); }
     }
 
+    // Pause du moteur (application en arrière-plan, question « Quitter la partie ? ») : tout s'arrête (aucune vie perdue loin de l'écran) ; au retour, les N cartes
+    // sont présentées à nouveau.
+    let away = false;
+    function onPauseChange(paused) {
+      if (stopped) return;
+      if (paused) {
+        timers.forEach((t) => clearTimeout(t));
+        timers.clear();
+        open = false;
+        away = true;
+        setButtons(false);
+        bar.classList.remove(P + 'run');
+      } else if (away) {
+        away = false;
+        intro(false);
+      }
+    }
+
     wrap.addEventListener('click', onClick);
     document.addEventListener('keydown', onKey);
+    if (ctx.onPause) ctx.onPause(function () { onPauseChange(true); });
+    if (ctx.onResume) ctx.onResume(function () { onPauseChange(false); });
     ctx.setLevel(level);
     intro(false);
 

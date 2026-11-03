@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { localAttendance, type Attendance } from '@/lib/attendance';
 import { rsvpCounts, type EventListItem } from '@/lib/data';
 import { enter, pressTransition } from '@/lib/motion';
 import { dateTile, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
@@ -9,6 +10,7 @@ import { rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
 import { colors, font, radius } from '@/lib/theme';
 import type { RsvpStatus, Tag } from '@/lib/types';
 
+import { AttendeesBadge } from './AttendeesBadge';
 import { RsvpButtons } from './RsvpButtons';
 import { Badge, ErrorText, T } from './ui';
 
@@ -62,6 +64,7 @@ export function EventCard({
   quickRsvp = false,
   now,
   index = 0,
+  attendance,
 }: {
   event: EventListItem;
   me: string;
@@ -73,6 +76,8 @@ export function EventCard({
   now: number;
   /** Rang dans la liste : les cartes entrent en cascade à l’ouverture de l’onglet. */
   index?: number;
+  /** Totaux exacts de la base (pastille des présents) ; sinon décompte des réponses lisibles. */
+  attendance?: Attendance;
 }) {
   const [busy, setBusy] = useState<RsvpStatus | null>(null);
   // Choix enregistré, gardé à l’écran jusqu’au rechargement de la liste (sinon il s’éteindrait un instant).
@@ -88,7 +93,7 @@ export function EventCard({
   const past = !!event.starts_at && new Date(event.starts_at).getTime() < now - 6 * 3600_000;
   const closed = rsvpClosed(event, now);
   const needsAnswer = published && !past && !closed && (isPoll ? !voters.has(me) : !mine);
-  const full = !!event.max_participants && counts.heads >= event.max_participants;
+  const full = !!event.max_participants && (attendance?.going ?? counts.heads) >= event.max_participants;
   const answered = mine && !isPoll && !mine.waitlisted ? mine.status : null;
   const tone: Tone = past || event.status === 'cancelled' ? 'past' : needsAnswer ? 'todo' : answered;
 
@@ -113,7 +118,12 @@ export function EventCard({
         ? mine.status === 'yes' ? { label: 'Tu y étais', fg: colors.muted, bg: colors.surface2 } : null
         : { label: `${rsvpChoices[mine.status].icon} ${rsvpChoices[mine.status].mine}`, fg: rsvpChoices[mine.status].fg, bg: rsvpChoices[mine.status].bg }
     : null;
-  const others = answered === 'yes' ? counts.heads - 1 - mine!.plus_ones : counts.heads;
+  const people = attendance ?? localAttendance(event.rsvps);
+  const heads = attendance ? attendance.going : counts.heads;
+  const free = event.max_participants ? event.max_participants - heads : 0;
+  const placesLine = event.max_participants
+    ? heads >= event.max_participants ? 'Complet' : plural(free, 'place libre', 'places libres')
+    : null;
 
   return (
     // Entrée en cascade à l’apparition de la carte (pas au rechargement : la carte garde sa clé).
@@ -167,16 +177,18 @@ export function EventCard({
               ))}
             </View>
           ) : null}
-          {published ? (
+          {published && (isPoll || placesLine || tone === 'no') ? (
             <T muted size={13}>
-              {isPoll
-                ? `${plural(voters.size, 'votant')}`
-                : `${answered === 'yes' ? 'Toi + ' : ''}${plural(others, 'présent')} · ${counts.maybe} peut-être${event.max_participants ? ` · ${full ? 'complet' : `${event.max_participants - counts.heads} place${event.max_participants - counts.heads > 1 ? 's' : ''} libre${event.max_participants - counts.heads > 1 ? 's' : ''}`}` : ''}`}
-              {tone === 'no' ? <T size={13} weight="semibold" color={colors.redSoft}>  ·  Changer d’avis ›</T> : null}
+              {isPoll ? plural(voters.size, 'votant') : placesLine}
+              {tone === 'no' ? <T size={13} weight="semibold" color={colors.redSoft}>{placesLine || isPoll ? '  ·  ' : ''}Changer d’avis ›</T> : null}
             </T>
           ) : null}
         </View>
-        <T muted size={20} style={{ alignSelf: 'center' }}>›</T>
+        {/* En haut à droite : qui vient (pastille), le chevron reste en bas. */}
+        <View style={st.side}>
+          {published && !isPoll ? <AttendeesBadge attendance={people} past={tone === 'past'} /> : null}
+          <T muted size={20} style={st.chevron}>›</T>
+        </View>
       </Pressable>
 
       {quickRsvp && needsAnswer && !isPoll ? (
@@ -239,6 +251,8 @@ const st = StyleSheet.create({
   main: { flexDirection: 'row', gap: 14, padding: 14, alignItems: 'flex-start' },
   tile: { position: 'relative', width: 56, paddingVertical: 8, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: 64 },
   badges: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  side: { alignSelf: 'stretch', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8, marginRight: -2 },
+  chevron: { marginTop: 'auto' },
   quick: { gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.lineStrong, backgroundColor: 'rgba(0,0,0,0.12)' },
   quickTodo: {},
   quickMaybe: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,179,71,.08)', borderTopColor: 'rgba(255,179,71,.35)' },

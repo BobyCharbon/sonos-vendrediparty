@@ -6,6 +6,9 @@ import SwiftUI
 struct BrainStatsSections: View {
     @ObservedObject var store: AccountStore
     let openGames: () -> Void
+    @Environment(\.dynamicTypeSize) private var typeSize
+    /// Courbe plus haute avec un texte agrandi (libellés des axes plus grands).
+    @ScaledMetric(relativeTo: .caption) private var curveHeight: CGFloat = 180
 
     private var catalog: BrainCatalog { store.brainCatalog }
 
@@ -54,6 +57,7 @@ struct BrainStatsSections: View {
                 Text("Ta Température").font(.subheadline).foregroundStyle(.secondary)
                 Text(BrainStats.degrees(stats.temperature))
                     .font(.system(size: 52, weight: .heavy, design: .rounded)).foregroundStyle(Palette.accent)
+                    .lineLimit(1).minimumScaleFactor(0.4)
                     .contentTransition(.numericText())
                     .motion(Motion.smooth, value: stats.temperature)
                 if let pct = stats.percentile ?? store.brainBoard?.percentile {
@@ -71,14 +75,14 @@ struct BrainStatsSections: View {
                         .foregroundStyle(progress > 0 ? .green : progress < 0 ? .red : .secondary)
                 }
             }
-            LabeledContent("Parties jouées", value: "\(stats.plays)")
+            LabeledContent("Parties jouées", value: BrainStats.number(stats.plays))
         } header: {
             Text(stats.name)
         }
     }
 
     private func streakText(_ days: Int) -> String {
-        days == 0 ? "Aucune" : "\(days) jour\(days > 1 ? "s" : "")"
+        days <= 0 ? "Aucune" : "\(BrainStats.number(days)) jour\(days > 1 ? "s" : "")"
     }
 
     // MARK: Domaines
@@ -87,7 +91,8 @@ struct BrainStatsSections: View {
         let domain: BrainCatalog.Domain
         let index: Int
         var id: String { domain.id }
-        var title: String { "\(domain.icon) \(domain.label)" }
+        /// Longueur de la barre, dans l'échelle 0–2000 du graphique (une valeur hors bornes ne déborde pas).
+        var plotted: Int { min(max(index, 0), Int(BrainCompareSection.maxIndex)) }
     }
 
     private func bars(_ stats: BrainStats) -> [DomainBar] {
@@ -96,21 +101,14 @@ struct BrainStatsSections: View {
 
     private func domains(_ stats: BrainStats) -> some View {
         Section {
-            Chart(bars(stats)) { bar in
-                BarMark(x: .value("°M", bar.index), y: .value("Domaine", bar.title))
-                    .foregroundStyle(Color(hex: bar.domain.hex) ?? Palette.accent)
-                    .cornerRadius(5)
-                    .annotation(position: .trailing) {
-                        Text(bar.index > 0 ? BrainStats.degrees(bar.index) : "—")
-                            .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
-                    }
+            // Lignes plutôt qu'un graphique Charts : à hauteur fixe, le plus grand texte faisait chevaucher libellés
+            // et barres, et la valeur d'une barre pleine (≈ 2 000 °M) était coupée au bord droit.
+            VStack(spacing: 10) {
+                ForEach(bars(stats)) { bar in BrainDomainRow(icon: bar.domain.icon, label: bar.domain.label, index: bar.index, color: Color(hex: bar.domain.hex) ?? Palette.accent) }
             }
-            .chartXScale(domain: 0...2000)
-            .chartXAxis(.hidden)
-            .frame(height: CGFloat(bars(stats).count) * 34)
             .padding(.vertical, 6)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(bars(stats).map { "\($0.domain.label) \($0.index) degrés M" }.joined(separator: ", "))
+            .accessibilityLabel(bars(stats).map { "\($0.domain.label) \(BrainStats.number($0.index)) degrés M" }.joined(separator: ", "))
         } header: {
             Text("Tes domaines")
         } footer: {
@@ -136,18 +134,19 @@ struct BrainStatsSections: View {
                         .interpolationMethod(.monotone)
                 }
                 .chartXAxis {
-                    AxisMarks(values: .stride(by: .day, count: 7)) { _ in
+                    // 4 dates au plus : avec un an d'historique, une marque par semaine se chevauchait (52 dates).
+                    AxisMarks(values: .automatic(desiredCount: typeSize.isAccessibilitySize ? 2 : 4)) { _ in
                         AxisGridLine()
                         AxisValueLabel(format: .dateTime.day().month(.abbreviated), centered: false)
                     }
                 }
                 .environment(\.locale, Locale(identifier: "fr_CH"))
-                .frame(height: 180)
+                .frame(height: curveHeight)
                 .padding(.vertical, 6)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Évolution de ta Température sur \(days.count) jours, aujourd'hui \(days.last?.temperature ?? 0) degrés M")
+                .accessibilityLabel("Évolution de ta Température sur \(days.count) jours, aujourd'hui \(BrainStats.number(days.last?.temperature ?? 0)) degrés M")
             } header: {
-                Text("Évolution (30 jours)")
+                Text("Évolution (\(days.count) jours)")
             }
         }
     }
@@ -192,9 +191,9 @@ struct BrainStatsSections: View {
             HStack {
                 Text(title).font(.subheadline.weight(.semibold))
                 Spacer()
-                Text("\(value) %").font(.footnote.monospacedDigit()).foregroundStyle(.secondary)
+                Text("\(BrainStats.number(value)) %").font(.footnote.monospacedDigit()).foregroundStyle(.secondary)
             }
-            ProgressView(value: Double(value), total: 100).tint(tint)
+            ProgressView(value: Double(min(max(value, 0), 100)), total: 100).tint(tint)
         }
         .accessibilityElement(children: .combine)
     }
@@ -205,14 +204,14 @@ struct BrainStatsSections: View {
         Section {
             ForEach(stats.playedGames, id: \.id) { row in
                 let domain = catalog.domain(catalog.game(row.id)?.domain ?? "")
-                HStack(spacing: 12) {
-                    Text(domain.icon).font(.title3)
+                rowLayout {
+                    if !typeSize.isAccessibilitySize { Text(domain.icon).font(.title3) }
                     VStack(alignment: .leading, spacing: 2) {
                         Text(catalog.game(row.id)?.name ?? row.id).font(.subheadline.weight(.semibold))
-                        Text("Niveau \(row.game.lastLevel) · record \(row.game.best) · \(row.game.plays) partie\(row.game.plays > 1 ? "s" : "")")
+                        Text(detail(row.game))
                             .font(.caption).foregroundStyle(.secondary)
                     }
-                    Spacer()
+                    if !typeSize.isAccessibilitySize { Spacer() }
                     Text(BrainStats.degrees(row.game.index)).font(.subheadline.monospacedDigit().weight(.semibold))
                 }
                 .accessibilityElement(children: .combine)
@@ -222,6 +221,18 @@ struct BrainStatsSections: View {
         }
     }
 
+    /// Ligne en colonne avec un texte très grand : côte à côte, nom et chiffres étaient coupés syllabe par syllabe.
+    private var rowLayout: AnyLayout {
+        typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4)) : AnyLayout(HStackLayout(spacing: 12))
+    }
+
+    /// « Niveau 12 · palier 3 · record 12 450 · 7 parties » (palier affiché dès le 2e, comme la page).
+    private func detail(_ game: BrainStats.Game) -> String {
+        let tier = game.maxTier > 1 ? " · palier \(BrainStats.number(game.maxTier))" : ""
+        let plays = "\(BrainStats.number(game.plays)) partie\(game.plays > 1 ? "s" : "")"
+        return "Niveau \(BrainStats.number(game.lastLevel))\(tier) · record \(BrainStats.number(game.best)) · \(plays)"
+    }
+
     // MARK: Classement
 
     @ViewBuilder
@@ -229,12 +240,12 @@ struct BrainStatsSections: View {
         if let board = store.brainBoard, !board.board.isEmpty {
             Section {
                 ForEach(board.board) { player in
-                    HStack(spacing: 12) {
+                    rowLayout {
                         Text("\(board.rank(of: player))").font(.subheadline.monospacedDigit().weight(.bold))
                             .foregroundStyle(.secondary).frame(minWidth: 24, alignment: .leading)
                         Text(player.me ? "\(player.name) (toi)" : player.name)
                             .font(.subheadline.weight(player.me ? .bold : .regular))
-                        Spacer()
+                        if !typeSize.isAccessibilitySize { Spacer() }
                         Text(BrainStats.degrees(player.temperature)).font(.subheadline.monospacedDigit())
                             .foregroundStyle(player.me ? Palette.accent : .primary)
                     }
@@ -245,8 +256,44 @@ struct BrainStatsSections: View {
                 Text("Classement des membres")
             } footer: {
                 if let rank = board.rank {
-                    Text("Tu es \(rank == 1 ? "1er" : "\(rank)e") sur \(board.players) joueur\(board.players > 1 ? "s" : "").")
+                    Text("Tu es \(rank == 1 ? "1er" : "\(BrainStats.number(rank))e") sur \(BrainStats.number(board.players)) joueur\(board.players > 1 ? "s" : "").")
                 }
+            }
+        }
+    }
+}
+
+/// Un domaine : libellé, barre (0–2 000 °M, valeur hors bornes ramenée) et valeur, jamais tronqués.
+/// Texte très grand (tailles d'accessibilité) : libellé au-dessus de la barre.
+private struct BrainDomainRow: View {
+    let icon: String
+    let label: String
+    let index: Int
+    let color: Color
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @ScaledMetric(relativeTo: .subheadline) private var labelWidth: CGFloat = 122
+
+    var body: some View {
+        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(spacing: 10))
+        layout {
+            // Largeur commune : toutes les barres partent du même bord.
+            HStack(spacing: 6) {
+                Text(icon)
+                Text(label).lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .font(.subheadline)
+            .frame(width: typeSize.isAccessibilitySize ? nil : labelWidth, alignment: .leading)
+            HStack(spacing: 8) {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.primary.opacity(0.08))
+                        Capsule().fill(color).frame(width: geo.size.width * CGFloat(BrainCompareSection.ratio(index)))
+                    }
+                }
+                .frame(height: 10)
+                Text(index > 0 ? BrainStats.degrees(index) : "—").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    .lineLimit(1).fixedSize()
             }
         }
     }

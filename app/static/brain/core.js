@@ -4,6 +4,7 @@
 // multiplicateur, jauge de 4, ×1…×10, bonus final 250 × multiplicateur), les 3 vies (fin de partie à 0, +1 vie après
 // 15 bonnes d'affilée), les paliers (un tous les 5 niveaux, mémorisés par jeu, palier de départ au choix), l'écran
 // de fin et l'envoi du résultat. Plus de chrono global (contrat v2) ; un jeu qui donne encore `seconds` reste chronométré.
+// Pause commune (page cachée, question « Quitter la partie ? ») : ctx.onPause / ctx.onResume, temps en pause non compté.
 (function () {
   "use strict";
   const BRAIN_NAME = "Méninges";
@@ -17,8 +18,8 @@
   const POINTS = 50, GAUGE = 4, MULT_MAX = 10, FINAL_BONUS = 250;
   const WARMUP_SIZE = 5, LOCAL_MAX = 300, SYNC_MAX = 30, INDEX_MAX = 2000;
   const COUNT_FROM = 3, COUNT_STEP_MS = 750, FLASH_MS = 260, TICK_MS = 100, WARN_S = 5, MIN_SEND_MS = 1000;
-  const LIVES = 3, LIFE_STREAK = 15, TIER_SIZE = 5, MAX_LEVEL = 99, MAX_RUN_MS = 30 * 60 * 1000;
-  const DEATH_MS = 900, TIER_MS = 1800, FLY_MS = 700;
+  const LIVES = 3, LIFE_STREAK = 15, TIER_SIZE = 5, MAX_LEVEL = 999, MAX_RUN_MS = 30 * 60 * 1000;
+  const DEATH_MS = 900, TIER_MS = 1800, FLY_MS = 700, WARMUP_GRACE_MS = 45 * 60 * 1000;
   const K = { sessions: "brain_local", levels: "brain_levels", tiers: "brain_tiers", best: "brain_best",
     warmup: "brain_warmup", sound: "vp-game-sounds" };
 
@@ -32,13 +33,31 @@
   const tierOf = (level) => Math.max(1, Math.ceil((+level || 1) / TIER_SIZE));   // niveaux 1-5 = palier 1…
   const tierStart = (tier) => (Math.max(1, tier) - 1) * TIER_SIZE + 1;
 
-  // ── Stockage local (navigation privée, stockage plein : l'app marche sans) ──
+  // ── Stockage local (navigation privée, stockage plein ou bloqué, valeur corrompue : l'app marche sans) ──
+  // Une écriture refusée est gardée en mémoire le temps de la visite (sinon l'Échauffement repartirait au 1er jeu).
+  const memory = new Map();
   function read(key, fallback) {
+    if (memory.has(key)) return memory.get(key);
     try { const v = JSON.parse(localStorage.getItem(key)); return v ?? fallback; } catch { return fallback; }
   }
   function write(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* stockage indisponible : rien n'est gardé */ }
+    try { localStorage.setItem(key, JSON.stringify(value)); memory.delete(key); } catch { memory.set(key, value); }
   }
+  const isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+  const readMap = (key) => { const v = read(key, {}); return isObj(v) ? v : {}; };
+  // Parties gardées sur le téléphone : une entrée illisible est écartée (le serveur refuserait toute la liste).
+  const int = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(+v || 0)));
+  function cleanSession(s) {
+    if (!isObj(s) || !/^[a-z_]{2,20}$/.test(s.game) || !(+s.score >= 0)) return null;
+    const acc = s.accuracy == null || s.accuracy === "" ? null : Math.max(0, Math.min(1, +s.accuracy || 0));
+    return { game: s.game, score: int(s.score, 0, 1e9), accuracy: acc, avg_rt_ms: int(s.avg_rt_ms, 0, 60000),
+      level: int(s.level, 1, 9999), duration_ms: int(s.duration_ms, 0, 864e5), played_at: String(s.played_at || "").slice(0, 40) };
+  }
+  function readSessions() {
+    const v = read(K.sessions, []);
+    return Array.isArray(v) ? v.map(cleanSession).filter(Boolean) : [];
+  }
+  const sessionKey = (s) => `${s.game}|${s.played_at}|${s.score}`;
 
   // ── Aléatoire à graine (même graine = même partie, pour un futur duel) ──
   function mulberry32(seed) {
@@ -91,7 +110,7 @@
   function clearTimers() { for (const id of timers) { clearTimeout(id); clearInterval(id); } timers.clear(); }
 
   // ── Panneau ──
-  let root = null, opener = null, run = null, profile = null, connected = false, loading = null;
+  let root = null, opener = null, run = null, profile = null, profileError = "", connected = false, loading = null;
   function panel() {
     if (root) return root;
     root = document.createElement("div");
@@ -101,34 +120,65 @@
     root.setAttribute("role", "dialog");
     root.setAttribute("aria-modal", "true");
     root.setAttribute("aria-label", BRAIN_NAME);
+    root.tabIndex = -1;
     root.addEventListener("click", onClick);
     document.body.append(root);
     return root;
   }
+  // Chaque écran a son numéro : une réponse lente du serveur n'affiche l'accueil que si rien n'a changé entre-temps.
+  let screenSeq = 0;
   function show(html, screen) {
     const r = panel();
+    screenSeq += 1;
     r.dataset.screen = screen;
     r.innerHTML = html;
     r.scrollTop = 0;
+    // VoiceOver / clavier : le focus ne reste jamais derrière le panneau ni sur un bouton disparu.
+    if (!r.hidden && !r.contains(document.activeElement)) r.focus({ preventScroll: true });
   }
+  const loadingHtml = (text) => `<div class="br-loading" role="status"><span class="br-spin" aria-hidden="true"></span>${text}</div>`;
   async function open(fromEl) {
     opener = fromEl || document.activeElement;
     const r = panel();
+    const wasHidden = r.hidden;
     r.hidden = false;
     document.documentElement.classList.add("br-open");
-    show(`<div class="br-loading" role="status"><span class="br-spin" aria-hidden="true"></span>Chauffe en cours…</div>`, "loading");
+    if (wasHidden) navEnter();
+    show(loadingHtml("Chauffe en cours…"), "loading");
+    r.focus({ preventScroll: true });
+    const mine = screenSeq;
     await loadGames();
     await refreshProfile();
-    if (!r.hidden && !run) home();
+    if (!r.hidden && !run && mine === screenSeq) home();
   }
-  function close() {
+  // Accueil après mise à jour du profil ; l'écran de chargement s'affiche tout de suite (le toucher a un effet).
+  async function goHome() {
+    show(loadingHtml("Chargement…"), "loading");
+    const mine = screenSeq;
+    await refreshProfile();
+    if (root && !root.hidden && !run && mine === screenSeq) home();
+  }
+  function close(fromBack) {
     stopRun();
     clearTimers();
-    if (!root) return;
+    screenSeq += 1;
+    if (!root || root.hidden) return;
     root.hidden = true;
     root.innerHTML = "";
     document.documentElement.classList.remove("br-open");
+    if (!fromBack) window.Nav?.closed?.("brain");
     try { opener?.focus?.(); } catch { /* bouton disparu */ }
+  }
+  // Retour (bouton Android, navigateur) : en partie, on demande d'abord ; explication ou fiche → accueil ; sinon fermé.
+  function navEnter() {
+    window.Nav?.open?.({ key: "brain", kind: "sheet", el: panel(), surface: panel(), gestures: false, selfAnimated: true, close: onBack });
+  }
+  function onBack() {
+    if (!root || root.hidden) return;
+    const stay = run || ["howto", "detail"].includes(root.dataset.screen);
+    if (!stay) return close(true);
+    if (run) askQuit(); else home();
+    queueMicrotask(navEnter);   // après le traitement du retour par Nav : le prochain retour repasse par ici
   }
 
   // ── Chargement des mini-jeux (un fichier absent est simplement ignoré) ──
@@ -137,14 +187,18 @@
     const u = new URL(src, location.href);
     return { dir: u.pathname.replace(/core\.js$/, ""), query: u.search };
   })();
+  // Un fichier qui n'a pas pu venir (réseau coupé) est redemandé à la prochaine ouverture.
+  const missing = () => [...BRAIN_GAMES.filter((id) => !games.has(id)).map((id) => `games/${id}`),
+    ...(window.BrainDetail ? [] : ["detail"])];
   function loadGames() {
-    loading ||= Promise.all([...BRAIN_GAMES.map((id) => `games/${id}`), "detail"].map((id) => new Promise((done) => {
+    loading ||= Promise.all(missing().map((id) => new Promise((done) => {
       const s = document.createElement("script");
       s.src = `${base.dir}${id}.js${base.query}`;
       s.async = true;
-      s.onload = s.onerror = () => done();
+      s.onload = () => done();
+      s.onerror = () => { s.remove(); done(); };
       document.head.append(s);
-    })));
+    }))).then(() => { if (missing().length) loading = null; });
     return loading;
   }
   function register(def) {
@@ -161,10 +215,17 @@
     try { return typeof freshToken === "function" ? await freshToken() : null; } catch { return null; }
   }
   async function post(url, body) {
-    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    let r;
+    try {
+      r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    } catch {
+      throw Object.assign(new Error("pas de réseau"), { status: 0 });
+    }
     if (!r.ok) {
       const detail = (await r.json().catch(() => ({}))).detail;
-      throw Object.assign(new Error(typeof detail === "string" ? detail : `Erreur ${r.status}`), { status: r.status });
+      const msg = r.status === 401 ? "ta connexion a expiré, reconnecte-toi"
+        : typeof detail === "string" ? detail : r.status >= 500 ? "serveur indisponible" : `erreur ${r.status}`;
+      throw Object.assign(new Error(msg), { status: r.status });
     }
     return r.json();
   }
@@ -173,31 +234,46 @@
     connected = !!t;
     try {
       if (t) await syncLocal(t);
-      profile = t ? await post("/api/brain/me", { token: t }) : await post("/api/brain/local", { sessions: read(K.sessions, []).slice(-LOCAL_MAX) });
-    } catch { profile = null; }  // hors ligne : l'accueil se contente des records gardés sur ce téléphone
+      profile = t ? await post("/api/brain/me", { token: t }) : await post("/api/brain/local", { sessions: readSessions().slice(-LOCAL_MAX) });
+      profileError = "";
+    } catch (err) {  // hors ligne : l'accueil se contente des records gardés sur ce téléphone, et le dit
+      profile = null;
+      profileError = err?.message || "pas de réseau";
+    }
   }
-  // Parties jouées sans connexion (ou hors ligne) : envoyées au compte dès qu'on est connecté.
-  async function syncLocal(t) {
-    const pending = read(K.sessions, []);
+  // Parties jouées sans connexion (ou hors ligne) : envoyées au compte dès qu'on est connecté, SYNC_MAX à la fois
+  // (le reste attend la prochaine fois). Un seul envoi à la fois : deux rafraîchissements simultanés n'envoient
+  // jamais deux fois la même partie, et une partie gardée pendant l'envoi n'est pas effacée.
+  let syncing = null;
+  function syncLocal(t) {
+    syncing ||= sendPending(t).finally(() => { syncing = null; });
+    return syncing;
+  }
+  async function sendPending(t) {
+    const pending = readSessions();
     if (!pending.length) return;
-    const keep = [];
-    for (const s of pending.slice(-SYNC_MAX)) {
-      try { await post("/api/brain/result", { token: t, ...s, played_at: undefined }); } catch (err) {
-        if (!err.status || [401, 429].includes(err.status) || err.status >= 500) keep.push(s);  // refus définitif (400, 422) : abandonnée
+    const batch = pending.slice(0, SYNC_MAX), keep = [];
+    for (let i = 0; i < batch.length; i++) {
+      const { played_at: _, ...s } = batch[i];
+      try { await post("/api/brain/result", { token: t, ...s }); } catch (err) {
+        if ([0, 401, 429].includes(err.status)) { keep.push(...batch.slice(i)); break; }  // plus tard, avec tout le reste
+        if (err.status >= 500) keep.push(batch[i]);                                       // refus définitif (400, 422) : abandonnée
       }
     }
-    write(K.sessions, keep);
+    const known = new Set(pending.map(sessionKey));
+    const added = readSessions().filter((s) => !known.has(sessionKey(s)));
+    write(K.sessions, [...keep, ...pending.slice(SYNC_MAX), ...added].slice(-LOCAL_MAX));
   }
-  const bestOf = (id) => Math.max(read(K.best, {})[id] || 0, profile?.games?.[id]?.best || 0);
+  const bestOf = (id) => Math.max(+readMap(K.best)[id] || 0, profile?.games?.[id]?.best || 0);
 
   // ── Paliers : le plus haut atteint, par jeu (ce téléphone ou le compte : niveau max de ses parties) ──
   function unlockedTier(id) {
     const g = profile?.games?.[id] || {};
-    return Math.min(tierOf(MAX_LEVEL), Math.max(1, +read(K.tiers, {})[id] || 0, tierOf(read(K.levels, {})[id] || 1),
+    return Math.min(tierOf(MAX_LEVEL), Math.max(1, +readMap(K.tiers)[id] || 0, tierOf(readMap(K.levels)[id] || 1),
       +g.max_tier || 0, tierOf(g.max_level || 1)));
   }
   function saveTier(id, tier) {
-    const all = read(K.tiers, {});
+    const all = readMap(K.tiers);
     if ((+all[id] || 0) < tier) write(K.tiers, { ...all, [id]: tier });
   }
   const picked = new Map();   // jeu → palier de départ choisi sur l'écran d'explication (par défaut le plus haut)
@@ -207,7 +283,11 @@
   function warmup() {
     const day = today(), saved = read(K.warmup, null);
     const ids = new Set(available().map((g) => g.id));
-    if (saved?.day === day && saved.ids.every((id) => ids.has(id))) return saved;
+    const valid = isObj(saved) && Array.isArray(saved.ids) && Array.isArray(saved.done) && saved.ids.length
+      && saved.ids.every((id) => BRAIN_GAMES.includes(id));   // jeu pas (encore) chargé : sauté, la progression reste
+    // Un Échauffement commencé avant minuit se termine avec ses jeux (dernier geste il y a moins de WARMUP_GRACE_MS).
+    const going = valid && Date.now() - (+saved.at || 0) < WARMUP_GRACE_MS;
+    if (valid && (saved.day === day || going)) return saved;
     // Choix du serveur (domaines faibles en tête, jeux peu joués) ; le tirage local reste le secours hors ligne.
     const server = profile?.warmup;
     if (server?.length && server.every((id) => ids.has(id))) {
@@ -230,7 +310,7 @@
   }
   function markWarmup(id) {
     const w = warmup();
-    if (w.ids.includes(id) && !w.done.includes(id)) write(K.warmup, { ...w, done: [...w.done, id] });
+    if (w.ids.includes(id) && !w.done.includes(id)) write(K.warmup, { ...w, done: [...w.done, id], at: Date.now() });
   }
 
   // ── Accueil ──
@@ -258,7 +338,7 @@
     return `<section class="br-warm${all ? " br-warm-done" : ""}" aria-labelledby="brWarmH">
       <div class="br-warm-top"><h3 id="brWarmH">L'Échauffement</h3><span class="br-chip">${all ? "✓ Fait aujourd'hui" : `${w.ids.length} jeux · une partie chacun`}</span></div>
       <p class="br-muted">Un jeu par domaine, choisi pour aujourd'hui. Une partie chacun, jusqu'à ta dernière vie.</p>
-      <ol class="br-warm-row">${w.ids.map((id) => { const g = games.get(id); return `<li class="${w.done.includes(id) ? "on" : ""}" style="--c:${e(g.color)}" title="${e(g.name)}"><span aria-hidden="true">${e(g.icon)}</span><span class="br-sr">${e(g.name)}${w.done.includes(id) ? " (fait)" : ""}</span></li>`; }).join("")}</ol>
+      <ol class="br-warm-row">${w.ids.map((id) => { const g = games.get(id) || { name: "Jeu indisponible (réseau)", icon: "⏳", color: "#5a6386" }; return `<li class="${w.done.includes(id) ? "on" : ""}" style="--c:${e(g.color)}" title="${e(g.name)}"><span aria-hidden="true">${e(g.icon)}</span><span class="br-sr">${e(g.name)}${w.done.includes(id) ? " (fait)" : ""}</span></li>`; }).join("")}</ol>
       <button type="button" class="br-cta" data-br="warmup">${label}</button></section>`;
   }
   function gameTiles() {
@@ -281,6 +361,7 @@
     show(`<div class="br-home">
       <header class="br-top"><h2 class="br-title"><span aria-hidden="true">🧠</span> ${e(BRAIN_NAME)}</h2>${closeBtn()}</header>
       ${login}
+      ${profileError ? `<p class="br-offline" role="status">📡 Température indisponible pour l'instant (${e(profileError)}). Tu peux jouer : tes parties sont gardées.</p>` : ""}
       <section class="br-hero" aria-label="Température">
         <div class="br-gauge">${thermo(temp)}<div class="br-temp"><b>${fmt(temp)}</b><span>°M</span></div></div>
         <p class="br-hero-sub">${e(sub)}</p>
@@ -325,6 +406,10 @@
   function moveTier(id, step) {
     picked.set(id, Math.max(1, Math.min(unlockedTier(id), startTier(id) + step)));
     root.querySelector(".br-tier")?.replaceWith(document.createRange().createContextualFragment(tierPicker(id)));
+    // Le focus reste sur le bouton touché (ou passe à l'autre s'il vient de se désactiver).
+    const [same, other] = step < 0 ? ["tier-down", "tier-up"] : ["tier-up", "tier-down"];
+    const btn = [same, other].map((k) => root.querySelector(`[data-br="${k}"]`)).find((b) => b && !b.disabled);
+    btn?.focus();
   }
   function countdown(id, inWarmup) {
     const g = games.get(id);
@@ -406,7 +491,8 @@
   }
   function makeCtx(current, seed) {
     const rt = (x) => { const v = +(x?.rt); return Number.isFinite(v) && v > 0 && v < 60000 ? v : null; };
-    const live = () => !current.ended && !current.dying;
+    // En pause (app en arrière-plan, question « Quitter la partie ? ») : rien ne compte, ni bonne ni erreur.
+    const live = () => !current.ended && !current.dying && !current.paused;
     return Object.freeze({
       root: root.querySelector("#brStage"),
       level: current.level, reducedMotion: calm(), esc: e, rng: mulberry32(seed),
@@ -468,8 +554,36 @@
       },
       finish(extra) { finishRun(current, extra); },
       onTimeUp(fn) { if (typeof fn === "function") current.timeUp.push(fn); },
+      // Pause commune à tous les jeux : à la pause, le jeu arrête ses minuteurs (aucune vie perdue loin de l'écran) ;
+      // à la reprise, il repart (nouvelle carte, nouvelle manche, ou la route là où elle était). Un jeu qui s'inscrit
+      // pendant une pause est mis en pause tout de suite.
+      get paused() { return current.paused; },
+      onPause(fn) {
+        if (typeof fn !== "function") return;
+        current.onPause.push(fn);
+        if (current.paused) callSafe(fn);
+      },
+      onResume(fn) { if (typeof fn === "function") current.onResume.push(fn); },
     });
   }
+  const callSafe = (fn) => { try { fn(); } catch { /* un jeu fautif ne bloque pas la pause */ } };
+  // Pause quand la page est cachée ou pendant la question « Quitter la partie ? » ; le temps en pause ne compte pas
+  // (chrono d'un jeu à durée, arrêt après 30 min, durée envoyée).
+  const shouldPause = () => document.hidden || !!root?.querySelector(".br-confirm");
+  function syncPause() {
+    const current = run;
+    if (!current || current.ended || current.dying || current.stopped) return;
+    const want = shouldPause();
+    if (want === current.paused) return;
+    current.paused = want;
+    if (want) current.pausedAt = performance.now();
+    else current.pausedMs += performance.now() - current.pausedAt;
+    for (const fn of want ? current.onPause : current.onResume) {
+      if (current.stopped) break;
+      callSafe(fn);
+    }
+  }
+  document.addEventListener("visibilitychange", syncPause);
   function play(id, inWarmup) {
     const def = games.get(id);
     const level = tierStart(startTier(id)), seed = freshSeed(), t0 = performance.now();
@@ -488,11 +602,13 @@
     </div>`, "play");
     run = { def, inWarmup, seed, level, maxLevel: level, unlocked: unlockedTier(id), newTier: 0, score: 0, mult: 1,
       gauge: 0, streak: 0, lives: LIVES, hits: 0, misses: 0, slips: 0, rts: [], ended: false, dying: false,
-      stopped: false, handle: null, timeUp: [], elapsed: () => performance.now() - t0 };
+      stopped: false, handle: null, timeUp: [], paused: false, pausedAt: 0, pausedMs: 0, onPause: [], onResume: [],
+      elapsed: () => performance.now() - t0 - current.pausedMs - (current.paused ? performance.now() - current.pausedAt : 0) };
     const current = run;
-    try { run.handle = def.start(makeCtx(current, seed)) || null; } catch { return finishRun(current, { detail: "Le jeu n'a pas pu démarrer." }); }
+    try { run.handle = def.start(makeCtx(current, seed)) || null; } catch { return startFailed(current); }
+    syncPause();   // page déjà cachée pendant le 3-2-1 : la partie démarre en pause
     every(() => {
-      if (current.ended || current.dying) return;
+      if (current.ended || current.dying || current.paused) return;
       hud();
       if (current.def.seconds && current.elapsed() >= current.def.seconds * 1000) {
         for (const fn of current.timeUp) { try { fn(); } catch { /* un jeu fautif n'empêche pas la fin */ } }
@@ -506,6 +622,22 @@
     run.ended = true;
     stopGame(run);
     run = null;
+  }
+
+  // Jeu qui plante au démarrage : rien n'est compté (ni partie, ni record, ni Échauffement).
+  function startFailed(current) {
+    current.ended = true;
+    stopGame(current);
+    run = null;
+    clearTimers();
+    const g = current.def;
+    show(`<div class="br-end" style="--g:${e(g.color)}">
+      <header class="br-top"><span class="br-chip">${e(g.icon)} ${e(g.name)}</span>${closeBtn()}</header>
+      <p class="br-detail" role="alert">Le jeu n'a pas pu démarrer. Réessaie, ou choisis un autre jeu.</p>
+      <div class="br-actions">
+        <button type="button" class="br-cta" data-br="again" data-id="${e(g.id)}">Réessayer</button>
+        <button type="button" class="br-ghost" data-br="home">Accueil ${e(BRAIN_NAME)}</button>
+      </div></div>`, "end");
   }
 
   // ── Fin de partie ──
@@ -527,8 +659,8 @@
     const previous = bestOf(res.id);
     res.record = res.score > previous;
     res.best = Math.max(previous, res.score);
-    write(K.levels, { ...read(K.levels, {}), [res.id]: res.level });
-    write(K.best, { ...read(K.best, {}), [res.id]: res.best });
+    write(K.levels, { ...readMap(K.levels), [res.id]: res.level });
+    write(K.best, { ...readMap(K.best), [res.id]: res.best });
     saveTier(res.id, res.tier);
     res.maxTier = unlockedTier(res.id);
     if (res.inWarmup) markWarmup(res.id);
@@ -540,12 +672,15 @@
   async function save(res) {
     const session = { game: res.id, score: res.score, accuracy: +res.accuracy.toFixed(4), avg_rt_ms: res.avgRt,
       level: res.level, duration_ms: res.duration };
-    const keepLocal = () => write(K.sessions, [...read(K.sessions, []), { ...session, played_at: new Date().toISOString() }].slice(-LOCAL_MAX));
+    const keepLocal = () => write(K.sessions, [...readSessions(), { ...session, played_at: new Date().toISOString() }].slice(-LOCAL_MAX));
     const t = await token();
     const note = root?.querySelector(".br-save");
     if (!t || res.duration < MIN_SEND_MS) {
       keepLocal();
-      if (note) note.innerHTML = `🔒 Partie gardée sur ce téléphone. <button type="button" class="br-link" data-br="login">Connecte-toi pour garder tes stats</button>`;
+      if (!note) return;
+      // Connecté mais jeton impossible à renouveler (hors ligne) : la partie partira au compte plus tard.
+      if (connected && res.duration >= MIN_SEND_MS) note.textContent = "📡 Partie gardée sur ce téléphone, envoyée à ton compte dès que le réseau revient.";
+      else note.innerHTML = `🔒 Partie gardée sur ce téléphone. <button type="button" class="br-link" data-br="login">Connecte-toi pour garder tes stats</button>`;
       return;
     }
     try {
@@ -561,7 +696,7 @@
   }
   function endScreen(res) {
     const g = games.get(res.id), w = warmup();
-    const left = w.ids.filter((id) => !w.done.includes(id));
+    const left = w.ids.filter((id) => !w.done.includes(id) && games.has(id));
     const next = res.inWarmup && left.length ? left[0] : null;
     const stat = (label, value) => `<div class="br-stat"><span>${label}</span><b>${value}</b></div>`;
     show(`<div class="br-end" style="--g:${e(g.color)}">
@@ -604,8 +739,10 @@
     requestAnimationFrame(step);
   }
   async function warmupDone() {
-    show(`<div class="br-loading" role="status"><span class="br-spin" aria-hidden="true"></span>Mise à jour de ta Température…</div>`, "loading");
+    show(loadingHtml("Mise à jour de ta Température…"), "loading");
+    const mine = screenSeq;
     await refreshProfile();
+    if (!root || root.hidden || mine !== screenSeq) return;
     const st = profile?.streak || { current: 0 };
     show(`<div class="br-end br-done">
       <header class="br-top"><span></span>${closeBtn()}</header>
@@ -623,6 +760,13 @@
     root.querySelector(".br-play")?.insertAdjacentHTML("beforeend", `<div class="br-confirm" role="alertdialog" aria-label="Quitter la partie ?">
       <p><b>Quitter la partie ?</b><br>Elle ne comptera pas.</p>
       <div class="br-actions"><button type="button" class="br-ghost" data-br="stay">Continuer</button><button type="button" class="br-cta br-danger" data-br="leave">Quitter</button></div></div>`);
+    root.querySelector('.br-confirm [data-br="stay"]')?.focus();
+    syncPause();
+  }
+  function stayInGame() {
+    root.querySelector(".br-confirm")?.remove();
+    root.focus({ preventScroll: true });
+    syncPause();
   }
 
   // ── Toucher ──
@@ -639,8 +783,8 @@
       case "again": return howto(id, false);
       case "warmup": {
         const w = warmup();
-        if (w.done.length >= w.ids.length) write(K.warmup, { ...w, done: [] });
-        const first = warmup().ids.find((x) => !warmup().done.includes(x));
+        write(K.warmup, { ...w, done: w.done.length >= w.ids.length ? [] : w.done, at: Date.now() });
+        const first = warmup().ids.find((x) => !warmup().done.includes(x) && games.has(x));
         return first && howto(first, true);
       }
       case "next": return howto(id, true);
@@ -648,10 +792,10 @@
       case "tier-down": return moveTier(id, -1);
       case "tier-up": return moveTier(id, 1);
       case "quit": return askQuit();
-      case "stay": return root.querySelector(".br-confirm")?.remove();
-      case "leave": stopRun(); clearTimers(); return refreshProfile().then(home);
+      case "stay": return stayInGame();
+      case "leave": stopRun(); clearTimers(); return goHome();
       case "warmdone": return warmupDone();
-      case "home": return refreshProfile().then(home);
+      case "home": return goHome();
     }
   }
   document.addEventListener("click", (ev) => {
@@ -660,7 +804,8 @@
   });
   document.addEventListener("keydown", (ev) => {
     if (ev.key !== "Escape" || !root || root.hidden) return;
-    if (run) askQuit(); else if (root.dataset.screen === "howto") home(); else close();
+    if (run) return root.querySelector(".br-confirm") ? stayInGame() : askQuit();
+    if (["howto", "detail"].includes(root.dataset.screen)) home(); else close();
   });
   document.querySelectorAll("[data-brain-name]").forEach((el) => { el.textContent = BRAIN_NAME; });
 
@@ -669,5 +814,5 @@
     rng: mulberry32, list: available,
     // Pour detail.js (statistiques par jeu) : accès en lecture au moteur.
     api: Object.freeze({ post, token, show, esc: e, calm, game: (id) => games.get(id), domain: domainOf, tierOf,
-      localSessions: () => read(K.sessions, []) }) });
+      localSessions: readSessions, seq: () => screenSeq, unlockedTier }) });
 })();

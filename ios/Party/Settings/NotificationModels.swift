@@ -29,11 +29,37 @@ struct EventNotificationPrefs: Codable, Equatable {
     var chat: String
     var rsvpMine: Bool
     var proposals: Bool
+    /// Lune des Réglages : tout arrive sans son jusqu'à cette date (texte Postgres) ; absente avant la migration.
+    var mutedUntil: String?
+    /// Sourdine des Discussions des groupes jusqu'à cette date.
+    var chatsMutedUntil: String?
+    /// Sourdine des discussions des événements jusqu'à cette date.
+    var eventChatsMutedUntil: String?
+    /// Un réglage par type de notification (migration 20261103120000) ; absent avant la migration : reçu.
+    var announcements: Bool?
+    var rsvpSet: Bool?
+    var invites: Bool?
+    var proposalResult: Bool?
+    var linkJoin: Bool?
+    var groupMessages: Bool?
+    var groupInvites: Bool?
+    var groupJoins: Bool?
+    /// Annonces et @tout des groupes de Discussions (absent avant la migration : reçues).
+    var groupBroadcasts: Bool?
+    /// Billets payants (migration 20261103130000 ; absents avant : reçues) : quelqu'un dit avoir payé ma place /
+    /// l'organisateur confirme mon paiement.
+    var ticketPayDeclared: Bool?
+    var ticketPayConfirmed: Bool?
 
     enum CodingKeys: String, CodingKey {
         case pushEnabled = "push_enabled", quietStart = "quiet_start", quietEnd = "quiet_end", newEvent = "new_event"
         case eventChanged = "event_changed", pollNew = "poll_new", dateFixed = "date_fixed", pollNudge = "poll_nudge"
         case waitlist, reminders, chat, rsvpMine = "rsvp_mine", proposals
+        case mutedUntil = "muted_until", chatsMutedUntil = "chats_muted_until", groupBroadcasts = "group_broadcasts"
+        case eventChatsMutedUntil = "event_chats_muted_until", announcements, rsvpSet = "rsvp_set", invites
+        case proposalResult = "proposal_result", linkJoin = "link_join", groupMessages = "group_messages"
+        case groupInvites = "group_invites", groupJoins = "group_joins"
+        case ticketPayDeclared = "ticket_pay_declared", ticketPayConfirmed = "ticket_pay_confirmed"
     }
 
     var hasQuietHours: Bool { quietStart != nil && quietEnd != nil }
@@ -159,11 +185,14 @@ struct MemberProfile: Decodable, Equatable {
     var lastName: String
     let phone: String?
     let role: String
+    /// Nom du rôle donné par le serveur (rôles personnalisés) ; nil avec un ancien serveur.
+    let roleName: String?
     let status: String
     let photo: String?
 
     enum CodingKeys: String, CodingKey {
         case id, phone, role, status, photo
+        case roleName = "role_label"
         case displayName = "display_name", firstName = "first_name", lastName = "last_name"
     }
 
@@ -175,6 +204,7 @@ struct MemberProfile: Decodable, Equatable {
         lastName = try c.decodeIfPresent(String.self, forKey: .lastName) ?? ""
         phone = try c.decodeIfPresent(String.self, forKey: .phone)
         role = try c.decodeIfPresent(String.self, forKey: .role) ?? "guest"
+        roleName = try c.decodeIfPresent(String.self, forKey: .roleName)
         status = try c.decodeIfPresent(String.self, forKey: .status) ?? "active"
         photo = try c.decodeIfPresent(String.self, forKey: .photo)
     }
@@ -182,7 +212,8 @@ struct MemberProfile: Decodable, Equatable {
     /// Libellés du module Événements (roleLabel dans web/events/src/lib/types.ts).
     var roleLabel: String {
         if status == "banned" { return "Accès retiré" }
-        return ["guest": "Guest", "basic": "Membre", "member": "Membre VIP", "organizer": "Organisateur", "coadmin": "Co-admin", "admin": "Admin"][role] ?? role
+        if let roleName { return roleName }
+        return ["guest": "Guest", "guestplus": "Guest+", "basic": "Membre", "member": "Membre VIP", "organizer": "Organisateur", "coadmin": "Co-admin", "admin": "Admin"][role] ?? role
     }
 }
 

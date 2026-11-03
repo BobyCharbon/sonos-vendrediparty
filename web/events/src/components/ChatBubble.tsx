@@ -21,6 +21,8 @@ type Props = {
   reactions: Reaction[];
   canWrite: boolean;
   isAdmin: boolean;
+  /** Admin ou organisateur du groupe : retire les annonces. */
+  isStaff?: boolean;
   onReply: () => void;
   onReact: (emoji: string) => void;
   onPin: () => void;
@@ -33,8 +35,8 @@ type Props = {
 const REPLY_SWIPE = 64;
 
 /** Une bulle façon WhatsApp : glisser vers la droite pour répondre ; appui long (ou ⋯) pour réagir, répondre,
- * épingler (admins) ou supprimer. Un message en cours d'envoi s'affiche déjà, avec « Envoi… ». */
-export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, audioUrl, reactions, canWrite, isAdmin, onReply, onReact, onPin, onDelete, fresh = false }: Props) {
+ * épingler ou retirer une annonce (admins), ou supprimer. Un message en cours d'envoi s'affiche déjà, avec « Envoi… ». */
+export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, audioUrl, reactions, canWrite, isAdmin, isStaff = isAdmin, onReply, onReact, onPin, onDelete, fresh = false }: Props) {
   const [open, setOpen] = useState(false);
   // Fixé à l'apparition : la bulle ne remonte pas quand un autre message arrive.
   const [arrive] = useState(() => (fresh ? enter(mine ? 'bubbleMine' : 'bubbleTheirs') : undefined));
@@ -61,6 +63,7 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
   const bubbleColor = deleted ? colors.fill : mine ? colors.accent : colors.surface;
   const textColor = deleted ? colors.muted : mine ? colors.onAccent : colors.text;
   const actions = canWrite && !deleted && !m.pending;
+  const announced = Boolean(m.announcement && m.pinned) && !deleted;
 
   return (
     <View {...pan.panHandlers} style={arrive}>
@@ -76,8 +79,9 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
         ) : null}
         <Pressable onLongPress={() => actions && setOpen((v) => !v)} accessibilityHint={actions ? 'Appui long pour réagir ou répondre' : undefined}
           style={({ pressed }) => [{ padding: photoUrl ? 4 : 10, borderRadius: 16, backgroundColor: bubbleColor, gap: 6 },
+            announced && { borderWidth: 2, borderColor: mine ? colors.onAccent : colors.accent },
             transition('transform, opacity, background-color', duration.base), m.pending && { opacity: 0.72 }, pressed && { transform: [{ scale: 0.98 }] }]}>
-          {m.pinned && !deleted ? <T size={11} weight="bold" color={mine ? colors.onAccent : colors.accent}>📌 Épinglé</T> : null}
+          {m.pinned && !deleted ? <T size={11} weight="bold" color={mine ? colors.onAccent : colors.accent}>{announced ? '📣 Annonce' : '📌 Épinglé'}</T> : null}
           {quoted && !deleted ? (
             <View style={{ padding: 6, borderRadius: 8, backgroundColor: mine ? 'rgba(0,0,0,0.12)' : colors.surface2 }}>
               <T size={12} color={mine ? colors.onAccent : colors.muted} numberOfLines={2}>↪ {quoted.name} : {quoted.text}</T>
@@ -126,7 +130,8 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
             </View>
             <View style={{ flexDirection: 'row', gap: 14, flexWrap: 'wrap' }}>
               <Action label="Répondre" onPress={() => { setOpen(false); onReply(); }} />
-              {isAdmin ? <Action label={m.pinned ? 'Désépingler' : 'Épingler'} onPress={() => { setOpen(false); onPin(); }} /> : null}
+              {announced ? (isStaff ? <Action label="Retirer l’annonce" onPress={() => { setOpen(false); onPin(); }} /> : null)
+                : isAdmin ? <Action label={m.pinned ? 'Désépingler' : 'Épingler'} onPress={() => { setOpen(false); onPin(); }} /> : null}
               {mine || isAdmin ? <Action label="Supprimer" danger onPress={() => { setOpen(false); onDelete(); }} /> : null}
             </View>
           </View>

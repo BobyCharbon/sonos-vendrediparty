@@ -83,6 +83,8 @@
     'background:rgba(255,255,255,.3);pointer-events:none}',
     '.br-nuee-time i{display:block;height:100%;border-radius:3px;background:#fff;transform-origin:left center}',
     '.br-nuee-hint{text-align:center;font-size:14px;opacity:.75;padding:10px 8px 2px;min-height:22px}',
+    // Écran bas (téléphone en paysage) : le ciel prend la hauteur disponible, les oiseaux s'y adaptent (geometry).
+    '@media (max-height:520px){.br-nuee{min-height:0}.br-nuee-sky{min-height:0}.br-nuee-hint{padding:4px 8px 0}}',
   ].join('');
 
   function injectStyle() {
@@ -166,7 +168,7 @@
       function geometry() {
         var w = sky.clientWidth || 360, h = sky.clientHeight || 420;
         var shrink = trial ? trial.cfg.shrink : 1;
-        var size = Math.round(Math.max(30, Math.min(54, Math.floor(w / 7.5)) * shrink));
+        var size = Math.round(Math.max(24, Math.min(54, Math.floor(w / 7.5), Math.floor(h / 7.5)) * shrink));
         var gap = size * 1.25;
         return { w: w, h: h, size: size, gap: gap };
       }
@@ -276,20 +278,22 @@
 
       function onDown(e) {
         if (!alive) return;
-        startPt = { x: e.clientX, y: e.clientY, id: e.pointerId };
+        // Le glissé appartient à la volée sous le doigt au départ : commencé entre deux volées, il ne répond pas
+        // à la suivante (sinon une vie perdue pour un geste fait trop tôt).
+        startPt = { x: e.clientX, y: e.clientY, id: e.pointerId, trial: accepting ? trial : null };
         try { sky.setPointerCapture(e.pointerId); } catch (_) { /* capture facultative */ }
         e.preventDefault();
       }
       function onMove(e) {
         if (!startPt || e.pointerId !== startPt.id) return;
         var d = dirOf(e.clientX - startPt.x, e.clientY - startPt.y);
-        if (d) { startPt = null; answer(d); }
+        if (d) { var own = startPt.trial === trial; startPt = null; if (own) answer(d); }
       }
       function onUp(e) {
         if (!startPt || e.pointerId !== startPt.id) return;
-        var d = dirOf(e.clientX - startPt.x, e.clientY - startPt.y);
+        var d = dirOf(e.clientX - startPt.x, e.clientY - startPt.y), own = startPt.trial === trial;
         startPt = null;
-        if (d) answer(d);
+        if (d && own) answer(d);
       }
       function onCancel() { startPt = null; }
       function onKey(e) {
@@ -299,11 +303,30 @@
         answer(d);
       }
 
+      // Pause du moteur (application en arrière-plan, question « Quitter la partie ? ») : tout s'arrête (aucune vie perdue loin de l'écran) ; au retour, nouvelle volée.
+      var away = false;
+      function onPauseChange(paused) {
+        if (!alive) return;
+        if (paused) {
+          accepting = false; startPt = null; away = true;
+          if (raf) cancelAnimationFrame(raf);
+          if (nextTimer) clearTimeout(nextTimer);
+          if (limitTimer) clearTimeout(limitTimer);
+          raf = 0; nextTimer = 0; limitTimer = 0;
+          bar.style.transition = 'none';
+        } else if (away) {
+          away = false;
+          nextTrial();
+        }
+      }
+
       sky.addEventListener('pointerdown', onDown);
       sky.addEventListener('pointermove', onMove);
       sky.addEventListener('pointerup', onUp);
       sky.addEventListener('pointercancel', onCancel);
       window.addEventListener('keydown', onKey);
+      if (ctx.onPause) ctx.onPause(function () { onPauseChange(true); });
+      if (ctx.onResume) ctx.onResume(function () { onPauseChange(false); });
       if (ctx.onTimeUp) ctx.onTimeUp(function () { accepting = false; });
       ctx.setLevel(level);
       nextTrial();

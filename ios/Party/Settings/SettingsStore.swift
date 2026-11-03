@@ -53,6 +53,8 @@ final class SettingsStore: ObservableObject {
     private(set) lazy var session = AccountStore(api: api, web: web, settings: self)
     /// Nom public, numéro montré par groupe, fiches profil.
     private(set) lazy var privacy = PrivacyStore(api: api, web: web)
+    /// Lune des Réglages et pause des Discussions.
+    private(set) lazy var pause = PauseStore(api: api, web: web)
 
     init(api: PartyAPI, web: WebStorage, isHost: @escaping () -> Bool, trackChanged: @escaping (Bool, Bool) -> Void) {
         self.api = api
@@ -121,7 +123,9 @@ final class SettingsStore: ObservableObject {
         }
         if case .ready = events {} else { events = .loading }
         do {
-            events = .ready(try await api.eventNotifyPrefs(token: token))
+            let state = try await api.eventNotifyPrefs(token: token)
+            events = .ready(state)
+            pause.apply(state.prefs)
         } catch {
             events = .failed(Self.accountMessage(error))
         }
@@ -341,6 +345,17 @@ final class SettingsStore: ObservableObject {
         case ("chat", let v as String): p.chat = v
         case ("rsvp_mine", let v as Bool): p.rsvpMine = v
         case ("proposals", let v as Bool): p.proposals = v
+        case ("group_broadcasts", let v as Bool): p.groupBroadcasts = v
+        case ("announcements", let v as Bool): p.announcements = v
+        case ("rsvp_set", let v as Bool): p.rsvpSet = v
+        case ("invites", let v as Bool): p.invites = v
+        case ("proposal_result", let v as Bool): p.proposalResult = v
+        case ("link_join", let v as Bool): p.linkJoin = v
+        case ("group_messages", let v as Bool): p.groupMessages = v
+        case ("group_invites", let v as Bool): p.groupInvites = v
+        case ("group_joins", let v as Bool): p.groupJoins = v
+        case ("ticket_pay_declared", let v as Bool): p.ticketPayDeclared = v
+        case ("ticket_pay_confirmed", let v as Bool): p.ticketPayConfirmed = v
         case ("quiet_start", let v as String): p.quietStart = v
         case ("quiet_end", let v as String): p.quietEnd = v
         default: break

@@ -1,6 +1,7 @@
 // Types alignés sur supabase/migrations. À remplacer par `supabase gen types` une fois le projet lié.
 
-export type MemberRole = 'guest' | 'guestplus' | 'basic' | 'member' | 'organizer' | 'coadmin' | 'admin';
+/** Clé d'un rôle (table public.roles) : guest, guestplus, basic, member, organizer, coadmin, admin, ou un rôle personnalisé r_… */
+export type MemberRole = string;
 export type MemberStatus = 'pending' | 'active' | 'banned';
 export type EventStatus = 'draft' | 'pending' | 'published' | 'rejected' | 'cancelled';
 export type DateMode = 'fixed' | 'poll';
@@ -140,17 +141,35 @@ export type NotificationPrefs = {
   rsvp_mine: boolean;
   chat: ChatMode;
   reminders: Reminder[];
+  /** Lune des Réglages : tout arrive sans son jusqu'à cette date ; null ou passée = pas de pause. */
+  muted_until: string | null;
+  /** Pause des Discussions des groupes jusqu'à cette date (messages sans son). */
+  chats_muted_until: string | null;
+  /** Pause des discussions des événements jusqu'à cette date. */
+  event_chats_muted_until: string | null;
+  /** Un réglage par type de notification (migration 20261103120000). */
+  announcements: boolean;
+  rsvp_set: boolean;
+  invites: boolean;
+  proposal_result: boolean;
+  link_join: boolean;
+  group_messages: boolean;
+  group_invites: boolean;
+  group_joins: boolean;
+  /** Annonces et @tout des groupes de Discussions (absent avant la migration : reçues). */
+  group_broadcasts?: boolean;
+  /** Billets payants (migration 20261103130000 ; absent avant : reçues) : quelqu'un dit avoir payé ma place / mon paiement confirmé. */
+  ticket_pay_declared?: boolean;
+  ticket_pay_confirmed?: boolean;
 };
+
+/** Pause des notifications : 'all' = la lune, 'chats' = Discussions des groupes, 'event_chats' = discussions des événements. */
+export type PauseScope = 'all' | 'chats' | 'event_chats';
+export type PauseSpan = '30m' | '1h' | '2h' | 'morning' | 'off';
 
 /** Droits qui ouvrent l'Administration (dans les Réglages). */
 export const ADMIN_PERMS = ['events.approve', 'members.approve', 'members.roles', 'members.ban', 'members.view_identity', 'roles.manage', 'taxonomy.manage', 'group.settings', 'announcements.publish'];
-// basic = « Membre » (mêmes droits que Guest), hors du groupe Vendredi Party, réservé aux Membres VIP et plus.
-// guestplus = « Guest+ » : droits de Guest, plus « Écrire un avis » (29.10.2026).
-export const ROLE_ORDER: MemberRole[] = ['guest', 'guestplus', 'basic', 'member', 'organizer', 'coadmin', 'admin'];
-// Mêmes rangs que la base (private.role_rank) : Membre au niveau de Guest. Pas l'ordre de la liste, qui l'a décalé.
-const RANKS: Record<MemberRole, number> = { guest: 0, guestplus: 0, basic: 0, member: 1, organizer: 2, coadmin: 3, admin: 4 };
-export const roleRank = (r: MemberRole) => RANKS[r];
-export const roleLabel: Record<MemberRole, string> = { guest: 'Guest', guestplus: 'Guest+', basic: 'Membre', member: 'Membre VIP', organizer: 'Organisateur', coadmin: 'Co-admin', admin: 'Admin' };
+// Rôles (noms, rangs, ordre) : lib/roles.ts, lus dans la table public.roles (rôles personnalisés, réordonnables).
 export type Permission = { key: string; grp: string; label: string; hint: string | null; sort: number };
 
 // shortcut: la base plafonne max_plus_ones à 10 ; 10 veut dire « illimité ». Une vraie valeur vide demanderait une migration partagée avec l'app iOS.

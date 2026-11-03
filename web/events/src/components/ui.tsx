@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Children, isValidElement, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Children, isValidElement, useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -369,9 +369,10 @@ export function Field({ label, hint, ...props }: TextInputProps & { label: strin
   );
 }
 
-export function Input(props: TextInputProps) {
+/** inputRef : pour redonner le focus au champ (ex. après le choix d'une suggestion d'@ dans une discussion). */
+export function Input({ inputRef, ...props }: TextInputProps & { inputRef?: Ref<TextInput> }) {
   const ring = useFocusRing(props);
-  return <TextInput placeholderTextColor={colors.muted} {...props} {...ring.handlers} style={[s.input, inputTransition, ring.focused && s.inputFocus, props.style]} />;
+  return <TextInput ref={inputRef} placeholderTextColor={colors.muted} {...props} {...ring.handlers} style={[s.input, inputTransition, ring.focused && s.inputFocus, props.style]} />;
 }
 
 const MEMBER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

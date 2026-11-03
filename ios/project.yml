@@ -57,10 +57,11 @@ targets:
         UIUserInterfaceStyle: Dark
         UIBackgroundModes: [remote-notification]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
-        NSCameraUsageDescription: "Pour scanner le QR code de l'hôte et prendre une photo de profil ou d'événement."
+        NSCameraUsageDescription: "Pour scanner le QR code de l'hôte et les billets d'un événement, et prendre une photo de profil ou d'événement."
         NSPhotoLibraryUsageDescription: "Pour choisir une photo de profil ou d'événement."
         NSSpeechRecognitionUsageDescription: "Pour décrire un événement à voix haute : l'assistant IA de Party le remplit pour toi."
         NSMicrophoneUsageDescription: "Pour enregistrer tes messages vocaux dans les Discussions et pour les jeux qui utilisent le micro."
+        NSContactsUsageDescription: "Pour afficher les membres Party qui sont dans tes contacts sous le nom que tu leur as donné. Seule une empreinte chiffrée des numéros est comparée ; tes contacts restent sur ton iPhone."
         ITSAppUsesNonExemptEncryption: false
     entitlements:
       path: Party/Party.entitlements

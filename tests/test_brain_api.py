@@ -87,7 +87,8 @@ def test_a_connected_player_saves_a_game(setup):
 def test_the_server_bounds_the_score_before_the_database(setup):
     c, base = setup
     c.post('/api/brain/result', json=result(score=99_999_999))
-    assert base.calls[-1][1]['p_score'] == brain.CATALOG['pareil'].max_score
+    sent = base.calls[-1][1]   # borné par le plafond du jeu ET par la durée de la partie (anti-triche, QA 03.11)
+    assert sent['p_score'] == min(brain.CATALOG['pareil'].max_score, brain.score_cap(sent['p_duration_ms']))
 
 
 def test_a_perfect_robot_is_never_refused(setup):
@@ -96,7 +97,7 @@ def test_a_perfect_robot_is_never_refused(setup):
     r = c.post('/api/brain/result', json=result(score=40_000_000, level=250, duration_ms=2 * 3600 * 1000, avg_rt_ms=120))
     assert r.status_code == 200 and r.json()['saved'] is True and r.json()['index'] >= 1990
     sent = base.calls[-1][1]
-    assert sent['p_score'] == brain.MAX_SCORE and sent['p_level'] == 99 and sent['p_duration_ms'] == 1_800_000
+    assert sent['p_score'] == brain.MAX_SCORE and sent['p_level'] == 250 and sent['p_duration_ms'] == 1_800_000
 
 
 def test_me_gives_the_highest_tier_reached_per_game(setup):

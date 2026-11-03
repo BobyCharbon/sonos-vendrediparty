@@ -123,7 +123,7 @@ struct NotificationSettingsView: View {
         let p = state.prefs
         Section {
             eventToggle("push_enabled", "bell.fill", .red, "Recevoir mes alertes d'événements",
-                        "Éteins pour tout mettre en pause sans perdre tes choix", p.pushEnabled)
+                        "Éteins pour couper les alertes ci-dessous sans perdre tes choix", p.pushEnabled)
             toggle("events.quiet", "moon.fill", .indigo, "Heures de silence",
                    "Rien ne sonne pendant cette plage, pas même les annonces : tout arrive à la fin",
                    isOn: p.hasQuietHours) { on in await store.setQuietHours(on) }
@@ -161,6 +161,11 @@ struct NotificationSettingsView: View {
             eventToggle("date_fixed", "calendar.badge.checkmark", .green, "Date choisie", "Le sondage de dates est terminé, la date est fixée", p.dateFixed)
             eventToggle("poll_nudge", "hand.raised.fill", .orange, "Rappel pour voter", "24 h avant la fin d'un sondage de dates, si tu n'as pas voté", p.pollNudge)
             eventToggle("waitlist", "person.crop.circle.badge.plus", .teal, "Place libérée", "Tu es sur liste d'attente et une place se libère", p.waitlist)
+            eventToggle("rsvp_set", "person.crop.circle.badge.checkmark", .indigo, "Un organisateur répond pour moi",
+                        "Il te note présent, peut-être ou absent à ta place", p.rsvpSet != false)
+            eventToggle("invites", "envelope.fill", .purple, "Invitation à un événement privé", "On t'invite à un événement réservé aux invités", p.invites != false)
+            eventToggle("ticket_pay_confirmed", "checkmark.seal.fill", .green, "Paiement de ma place confirmé",
+                        "L'organisateur a reçu ton paiement (ou ne l'a pas reçu) après ton « J'ai payé »", p.ticketPayConfirmed != false)
         }
 
         Section {
@@ -180,23 +185,42 @@ struct NotificationSettingsView: View {
             }
             .pickerStyle(.segmented)
             .disabled(store.saving.contains("events.chat"))
+            // Deux sourdines distinctes (avis de l'admin) : discussions des événements ici, groupes plus bas.
+            ChatsPauseRow(store: store.pause, scope: .eventChats)
         } header: {
             Text("Discussions des événements")
         } footer: {
             Text(EventChoices.hint(EventChoices.chat, for: p.chat))
         }
 
+        Section("💬 Discussions des groupes") {
+            eventToggle("group_messages", "bubble.left.and.bubble.right.fill", .green, "Messages des groupes",
+                        "Selon le choix de chaque groupe : tous, si on me cite ou rien", p.groupMessages != false)
+            ChatsPauseRow(store: store.pause, scope: .chats)
+            // Groupes de Discussions : @tout et @annonce préviennent tout le groupe ; chacun peut le couper ici.
+            eventToggle("group_broadcasts", "megaphone.fill", .pink, "Annonces et @tout des groupes",
+                        "Quand quelqu'un écrit @tout ou fait une annonce dans un de tes groupes", p.groupBroadcasts != false)
+            eventToggle("group_invites", "person.badge.plus", .blue, "Invitation dans un groupe", "Quelqu'un t'ajoute à un groupe", p.groupInvites != false)
+            eventToggle("group_joins", "person.2.fill", .teal, "Quelqu'un rejoint mon groupe", "Un membre entre dans un groupe que tu as créé", p.groupJoins != false)
+        }
+
         Section("Quand j'organise") {
             eventToggle("rsvp_mine", "person.3.fill", .blue, "Réponses à mes événements", "Quelqu'un répond Présent, Peut-être ou Absent", p.rsvpMine)
+            eventToggle("link_join", "link", .blue, "Quelqu'un rejoint par le lien", "Une personne s'inscrit avec le lien d'invitation", p.linkJoin != false)
+            eventToggle("ticket_pay_declared", "banknote.fill", .orange, "Quelqu'un dit avoir payé",
+                        "Sur un événement payant que j'organise : à confirmer quand tu as reçu l'argent", p.ticketPayDeclared != false)
+            eventToggle("proposal_result", "checkmark.circle.fill", .green, "Ma proposition validée ou refusée",
+                        "Un admin publie ou refuse l'événement que tu as proposé", p.proposalResult != false)
             if state.approver {
                 eventToggle("proposals", "checkmark.seal.fill", .indigo, "Proposition à valider", "Un membre propose un événement à valider", p.proposals)
             }
         }
 
         Section {
+            eventToggle("announcements", "megaphone.fill", .pink, "Annonces des admins",
+                        "Les messages des admins à tout le groupe ; coupées, elles restent lisibles", p.announcements != false)
             NavigationLink { AnnouncementsView(store: store.session, canPublish: false) } label: {
-                SettingsRow(symbol: "megaphone.fill", tint: .pink, title: "Annonces des admins · toujours reçues",
-                            hint: "Elles ne se coupent pas, même en pause. Touche pour les lire.")
+                SettingsRow(symbol: "text.bubble.fill", tint: .gray, title: "Lire les annonces des admins")
             }
         } footer: {
             Text("Pour couper un seul événement, utilise « Sourdine » sur sa page.")

@@ -13,7 +13,7 @@ M1, M2, M3 = ("aaaaaaaa-0000-0000-0000-00000000000" + str(i) for i in (1, 2, 3))
 JPEG = bytes.fromhex("ffd8ffe000104a46494600010100000100010000ffd9")
 
 
-def fake(admin=False, rank=1, creator=LEA, write_status=201):
+def fake(admin=False, rank=1, creator=LEA, write_status=201, organizer=LEA):
     seen = []
 
     def handler(request: httpx.Request):
@@ -30,7 +30,7 @@ def fake(admin=False, rank=1, creator=LEA, write_status=201):
             return httpx.Response(200, json=[{"id": GRP, "name": "Les amis", "member": True, "admin": admin, "notify": "mentions",
                                               "unread": 2, "last": "Léa : Salut", "last_at": "2026-10-29T10:00:00Z"}])
         if path == "/rest/v1/member_groups":
-            return httpx.Response(200, json=[{"id": GRP, "name": "Les amis", "created_by": creator,
+            return httpx.Response(200, json=[{"id": GRP, "name": "Les amis", "created_by": creator, "everyone_tag": "staff",
                                               "member_group_members": [{"user_id": ME}, {"user_id": LEA}, {"user_id": TOM}]}])
         if path == "/rest/v1/group_messages" and request.method == "GET":
             return httpx.Response(200, json=[  # du plus récent au plus ancien, comme la base
@@ -50,6 +50,8 @@ def fake(admin=False, rank=1, creator=LEA, write_status=201):
             return httpx.Response(201 if request.method == "POST" else 204)
         if path == "/rest/v1/group_admins":
             return httpx.Response(200, json=[{"user_id": TOM}])
+        if path == "/rest/v1/group_organizers":
+            return httpx.Response(200, json=[{"user_id": organizer}] if organizer else [])
         if path in ("/rest/v1/profiles", "/rest/v1/rpc/group_chat_people"):
             return httpx.Response(200, json=[{"id": ME, "display_name": "Boby", "avatar_url": "me.jpg", "member": True},
                                              {"id": LEA, "display_name": "Léa", "avatar_url": None, "member": True},
@@ -222,3 +224,57 @@ def test_voice_messages_are_uploaded_and_sent():
         raise AssertionError("refus attendu")
     except accounts_mod.AccountError:
         pass
+
+
+def test_mentions_ignore_accents_and_case():
+    """Suggestions de l'@ (avis du 3.11) : « @lea » ou « @LÉA » citent Léa, comme l'app qui les insère."""
+    people = {LEA: "Léa", TOM: "Tom", ME: "Boby"}
+    assert gc.mentions_in("Salut @lea et @TOM", people, ME) == [LEA, TOM]
+    assert gc.mentions_in("@Boby moi-même", people, ME) == []
+    assert gc.fold("Élodie Çà") == "elodie ca"
+
+
+def test_conversation_marks_announcements_and_keeps_highlights_on_top():
+    """@annonce (avis du 3.11) : la base l'épingle ; l'app reçoit le drapeau et la liste du bandeau (sans les supprimés)."""
+    chats, seen = fake()
+    c = chats.conversation("jeton", GRP)
+    assert all("announcement" in m for m in c["messages"])
+    assert [h["id"] for h in c["highlights"]] == [M1]  # M3 épinglé mais supprimé : hors du bandeau
+    assert c["highlights"][0] == {"id": M1, "author_name": "Léa", "at": "2026-10-29T10:00:00Z", "text": "Tu viens ?", "announcement": False}
+    assert any("pinned=is.true" in q and "deleted_at=is.null" in q for m, p, q, _ in seen if p == "/rest/v1/group_messages")
+
+
+def test_everyone_tag_is_sent_for_any_member():
+    chats, seen = fake(admin=False)
+    chats.send("jeton", GRP, "@tout on part à 20h", None, None)
+    row = next(b for m, p, _, b in seen if m == "POST" and p == "/rest/v1/group_messages")
+    assert row["mention_all"] is True
+
+
+def test_conversation_tells_organizers_and_who_may_write_everyone():
+    """Rôle « Organisateur » et choix du groupe pour @tout (réponses de l'admin du 3.11)."""
+    c = fake()[0].conversation("jeton", GRP)
+    assert c["everyone"] == "staff" and c["organizer"] is False
+    assert {m["id"]: m["organizer"] for m in c["members"]} == {ME: False, LEA: True, TOM: False}
+    assert fake(organizer=ME)[0].conversation("jeton", GRP)["organizer"] is True
+    assert fake(admin=True, organizer=None)[0].conversation("jeton", GRP)["organizer"] is True  # admin : organisateur d'office
+
+
+def test_admins_name_organizers_and_choose_who_writes_everyone(monkeypatch):
+    chats, seen = fake(admin=True)
+    chats.set_organizer("jeton", GRP, LEA, True)
+    chats.set_everyone("jeton", GRP, "all")
+    rpcs = [(p, b) for m, p, _, b in seen if p.startswith("/rest/v1/rpc/set_group_")]
+    assert rpcs == [("/rest/v1/rpc/set_group_organizer", {"grp": GRP, "member": LEA, "organizer": True}),
+                    ("/rest/v1/rpc/set_group_everyone_tag", {"grp": GRP, "who": "all"})]
+    calls = []
+    monkeypatch.setattr(main, "group_chats", type("G", (), {
+        "set_organizer": lambda self, *a: calls.append(("org",) + a) or {"ok": True},
+        "set_everyone": lambda self, *a: calls.append(("all",) + a) or {"everyone": a[-1]}})())
+    monkeypatch.setattr(main, "EVENTS_ENABLED", True)
+    c = TestClient(main.app)
+    member = "22222222-2222-2222-2222-222222222222"
+    assert c.post("/api/account/chats/organizer", json={"token": "t", "group_id": GRP, "user_id": member, "on": True}).status_code == 200
+    assert c.post("/api/account/chats/everyone", json={"token": "t", "group_id": GRP, "who": "staff"}).status_code == 200
+    assert c.post("/api/account/chats/everyone", json={"token": "t", "group_id": GRP, "who": "moi"}).status_code == 422
+    assert calls == [("org", "t", GRP, member, True), ("all", "t", GRP, "staff")]

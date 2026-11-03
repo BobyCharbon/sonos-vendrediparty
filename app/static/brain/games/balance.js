@@ -19,7 +19,7 @@
   const scaleOf = (lv, from) => Math.min(6, 1 + Math.max(0, lv - from) * 0.04);
 
   const CSS = `
-.br-balance-wrap{display:flex;flex-direction:column;height:100%;min-height:360px;gap:12px;padding:12px 4px;
+.br-balance-wrap{display:flex;flex-direction:column;flex:1 1 auto;min-height:360px;gap:12px;padding:12px 4px;
   box-sizing:border-box;color:var(--text,#f5f0ff);user-select:none;-webkit-user-select:none}
 .br-balance-time{height:6px;border-radius:4px;background:rgba(139,92,246,.18);overflow:hidden}
 .br-balance-time i{display:block;height:100%;width:100%;background:#a78bfa;border-radius:4px}
@@ -46,7 +46,9 @@
 .br-balance-btn.eq{background:#4c1d95;font-size:26px}
 .br-balance-btn:active{transform:scale(.96)}
 .br-balance-btn:disabled{opacity:.55}
-.br-balance-still .br-balance-beam,.br-balance-still .br-balance-plate{transition:none}`;
+.br-balance-still .br-balance-beam,.br-balance-still .br-balance-plate{transition:none}
+@media (max-height:520px){.br-balance-wrap{min-height:0;gap:8px;padding:6px 4px}.br-balance-stage{min-height:0;justify-content:flex-start;padding-top:8px}
+  .br-balance-post{height:56px}.br-balance-btn{min-height:52px}}`;
 
   function injectStyle() {
     if (document.getElementById('br-balance-style')) return;
@@ -313,8 +315,26 @@
       answer(map[ev.key]);
     }
 
+    // Pause du moteur (application en arrière-plan, question « Quitter la partie ? ») : la pesée est retirée sans
+    // compter (aucune vie perdue loin de l'écran) ; au retour, nouvelle pesée au même niveau.
+    function pause() {
+      if (stopped) return;
+      busy = true;
+      clearClocks();
+      buttons.forEach((b) => { b.disabled = true; });
+      barFill.style.transition = 'none';
+    }
+    function resume() {
+      if (stopped) return;
+      plateL.classList.remove('ok', 'ko');
+      plateR.classList.remove('ok', 'ko');
+      next();
+    }
+
     ctx.root.addEventListener('click', onClick);
     window.addEventListener('keydown', onKey);
+    if (ctx.onPause) ctx.onPause(pause);
+    if (ctx.onResume) ctx.onResume(resume);
     ctx.setLevel(level);
     next();
 

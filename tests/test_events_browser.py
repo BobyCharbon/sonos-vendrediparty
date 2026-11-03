@@ -14,7 +14,9 @@ import pytest
 
 pw = pytest.importorskip('playwright.sync_api')
 ROOT = Path(__file__).resolve().parents[1]
-pytestmark = pytest.mark.skipif(not (ROOT / 'web/events/dist/index.html').exists(), reason='Construire web/events avant les tests navigateur')
+# Module construit ailleurs (agents en parallèle, build à part) : EVENTS_TEST_DIST=<dossier> ; sinon web/events/dist.
+DIST = Path(os.environ.get('EVENTS_TEST_DIST') or ROOT / 'web/events/dist')
+pytestmark = pytest.mark.skipif(not (DIST / 'index.html').exists(), reason='Construire web/events avant les tests navigateur')
 USER = 'dd6a80f1-cc84-4fc2-8764-770b45786c04'
 EVENT = '32f18a3b-827f-4123-8cf4-33de06c9a51c'
 
@@ -25,7 +27,7 @@ def events_origin(tmp_path_factory):
         sock.bind(('127.0.0.1', 0))
         port = sock.getsockname()[1]
     env = {**os.environ, 'DATA_DIR': str(tmp_path_factory.mktemp('party-events-data')),
-           'EVENTS_WEB_DIR': str(ROOT / 'web/events/dist'), 'ADMIN_PIN': '8462',
+           'EVENTS_WEB_DIR': str(DIST), 'ADMIN_PIN': '8462',
            'SPOTIFY_CLIENT_ID': '', 'SPOTIFY_CLIENT_SECRET': '', 'PYTHONDONTWRITEBYTECODE': '1'}
     process = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', str(port), '--lifespan', 'off'], cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     origin = f'http://127.0.0.1:{port}'
@@ -65,7 +67,7 @@ def browser(request):
             p.stop()
 
 
-def mock_services(page, pending=False, events=1, people=()):
+def mock_services(page, pending=False, events=1, people=(), roles=None):
     calls = []
     profile = {'id': USER, 'display_name': 'Compte de démonstration', 'phone': '41791234567', 'role': 'guest' if pending else 'admin', 'status': 'active', 'avatar_url': f'{USER}/photo.jpg', 'first_name': 'Camille', 'last_name': 'Demo', 'created_at': '2026-10-19T08:00:00Z'}
     category = {'id': 'ed69d11e-34dd-43fe-b211-10d0dd158ba9', 'name': 'Soirée', 'color': '#FFB347', 'sort': 0, 'archived': False, 'icon': None}
@@ -104,6 +106,9 @@ def mock_services(page, pending=False, events=1, people=()):
         elif path.endswith('/permissions'): result=[{'key':'events.view','grp':'Événements','label':'Voir les événements','hint':None,'sort':10},{'key':'events.publish_direct','grp':'Événements','label':'Publier sans validation','hint':None,'sort':14}]
         elif path.endswith('/role_permissions'): result=[{'role':'member','perm':'events.view'}]
         elif path.endswith('/rpc/set_role_permission'): result=None
+        elif roles is not None and path.endswith('/rest/v1/roles'): result=roles
+        elif roles is not None and path.endswith('/rpc/roles_overview'): result=[{**r,'members':2 if r['key'].startswith('r_') else 0} for r in roles]
+        elif path.endswith('/rpc/create_role'): result='r_nouveau'
         elif path.endswith('/join_requests'):
             if 'vnd.pgrst.object' in (request.headers.get('accept') or ''):
                 if not join: return route.fulfill(status=406,content_type='application/json',body=json.dumps({'code':'PGRST116','message':'0 rows'}),headers=headers)
@@ -410,7 +415,7 @@ def test_phone_invite_requires_the_country_code(browser,events_origin):
 
 def test_place_search_fills_name_address_and_google_maps_link(browser,events_origin):
     """Lieu : la recherche Google Maps remplit nom, adresse et lien (dist construit avec EXPO_PUBLIC_GOOGLE_MAPS_KEY)."""
-    if b'places.googleapis.com' not in b''.join(p.read_bytes() for p in (ROOT/'web/events/dist/_expo').rglob('*.js')): pytest.skip('dist construit sans clé Google')
+    if b'places.googleapis.com' not in b''.join(p.read_bytes() for p in (DIST/'_expo').rglob('*.js')): pytest.skip('dist construit sans clé Google')
     context=browser.new_context(viewport={'width':390,'height':844})
     page=context.new_page();mock_services(page)
     cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET, POST, OPTIONS'}
@@ -592,4 +597,43 @@ def test_organizer_marks_a_guest_present_then_absent_then_removes_the_answer(bro
         pw.expect(frame.get_by_text('Personne n’a encore répondu : cherche un prénom pour l’ajouter.',exact=True)).to_be_visible(timeout=10000)
         assert sent()==[{'event':EVENT,'member':lea,'answer':'yes'},{'event':EVENT,'member':lea,'answer':'no'},{'event':EVENT,'member':lea,'answer':None}]
         assert not errors
+    finally: context.close()
+
+
+CUSTOM_ROLES=[{'key':k,'label':l,'color':'#34C759','icon':i,'rank':n,'builtin':not k.startswith('r_')} for n,(k,l,i) in enumerate([
+    ('guest','Guest',None),('r_videurs','Videurs','🚪'),('member','Membre VIP',None),('organizer','Organisateur',None),('coadmin','Co-admin',None),('admin','Admin',None)])]
+
+
+def test_roles_screen_lists_custom_roles_reorders_and_creates(browser,events_origin):
+    """Rôles personnalisés (table public.roles) : liste du plus haut au plus bas avec le nombre de comptes, monter un
+    rôle envoie l'ordre complet (du plus bas au plus haut), créer un rôle appelle create_role."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page();calls=mock_services(page,roles=CUSTOM_ROLES)
+    def sent(name):
+        for _ in range(50):
+            got=[json.loads(b) for _,path,b in calls if path.endswith(f'/rpc/{name}')]
+            if got: return got
+            page.wait_for_timeout(100)
+        return []
+    try:
+        page.goto(events_origin+'/events/admin/roles',wait_until='domcontentloaded')
+        login(page)
+        pw.expect(page.get_by_role('button',name='Videurs, 2 compte(s)')).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_role('button',name='Monter Admin')).to_be_disabled()
+        pw.expect(page.get_by_role('button',name='Descendre Guest')).to_be_disabled()
+        page.get_by_role('button',name='Monter Videurs').click()
+        assert sent('reorder_roles')[-1]=={'role_keys':['guest','member','r_videurs','organizer','coadmin','admin']}
+        page.get_by_role('button',name='+ Nouveau rôle').click()
+        page.get_by_label('Nom du nouveau rôle',exact=True).fill('Barmans')
+        page.get_by_role('button',name='Créer le rôle').click()
+        assert sent('create_role')[-1]=={'role_label':'Barmans','role_color':'#007AFF','role_icon':None,'copy_from':None}
+        page.get_by_role('button',name='Videurs, 2 compte(s)').click()
+        pw.expect(page.get_by_text('Modifier « Videurs »',exact=True)).to_be_visible()
+        # Root (tous les droits, dont roles.delete) : 2 comptes à réaffecter avant de pouvoir supprimer.
+        pw.expect(page.get_by_text('2 compte(s) ont ce rôle. Ils passeront à :',exact=True)).to_be_visible()
+        pw.expect(page.get_by_role('button',name='Supprimer ce rôle')).to_have_count(0)
+        page.get_by_role('button',name='Guest',exact=True).click()
+        pw.expect(page.get_by_role('button',name='Supprimer ce rôle')).to_be_visible()
+        page.get_by_role('switch',name='Publier sans validation').click()
+        assert sent('set_role_permission')[-1]=={'target':'r_videurs','perm':'events.publish_direct','granted':True}
     finally: context.close()

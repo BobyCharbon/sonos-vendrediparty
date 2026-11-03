@@ -15,6 +15,10 @@
   padding: max(14px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
 }
 .br-root[hidden] { display: none; }
+/* Méninges ouvert = plein écran, comme un jeu : la barre d'onglets se masque (la UITabBar de l'app iOS native suit,
+   native-tabs.js), sinon un toucher d'onglet changeait d'onglet sous le panneau. Rien sur html/body (bug iOS 26). */
+html.br-open #tabs { display: none !important; }
+.br-root:focus { outline: none; } /* focus posé par le moteur (VoiceOver) : pas de cadre autour du panneau */
 .br-root > * { max-width: 560px; margin-inline: auto; }
 .br-root button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .br-root [hidden] { display: none !important; }
@@ -50,6 +54,7 @@
 @keyframes br-spin { to { transform: rotate(360deg); } }
 
 /* ── Accueil ── */
+.br-offline { margin: 0 0 14px; padding: 12px 14px; border-radius: 16px; font-size: .88rem; color: #ffe2b8; background: rgba(255, 179, 71, .12); box-shadow: inset 0 0 0 1px rgba(255, 179, 71, .3); }
 .br-login { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 12px 14px; margin-bottom: 14px; border-radius: 16px; background: rgba(63, 208, 255, .1); box-shadow: inset 0 0 0 1px rgba(63, 208, 255, .25); font-size: .9rem; }
 .br-hero { position: relative; padding: 18px 18px 16px; border-radius: 28px; background: linear-gradient(160deg, #18213f, #121831 65%, #22163a); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), 0 18px 40px rgba(0, 0, 0, .35); }
 .br-gauge { position: relative; width: min(260px, 78%); margin: 0 auto; }

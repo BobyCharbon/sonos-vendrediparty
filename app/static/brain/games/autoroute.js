@@ -30,6 +30,7 @@
   var KMH = 260;              // affichage : hauteur d'écran/s → km/h
   var AIM_CAR = 0.7;          // part des dangers posés sur la voie du joueur (sinon il suffirait de ne rien faire)
   var BANNER_S = 1.6;
+  var MIN_H = 220;            // hauteur minimale de la route (téléphone en paysage)
 
   /** Paramètres d'un niveau, sans borne haute : tout tend vers une limite humaine. */
   function levelConfig(n) {
@@ -55,6 +56,8 @@
     '.br-autoroute-box{position:relative;flex:1;min-height:420px}',
     '.br-autoroute-cv{position:absolute;inset:0;width:100%;height:100%;display:block;border-radius:22px;touch-action:none;cursor:pointer}',
     '.br-autoroute-hint{text-align:center;font-size:14px;opacity:.75;padding:10px 8px 2px}',
+    // Écran bas (téléphone en paysage) : la route prend la hauteur disponible (resize), rien ne sort de l'écran.
+    '@media (max-height:520px){.br-autoroute{min-height:0}.br-autoroute-box{min-height:0}.br-autoroute-hint{padding:4px 8px 0}}',
   ].join('');
 
   function injectStyle() {
@@ -101,7 +104,7 @@
       function resize() {
         var r = cv.getBoundingClientRect();
         W = Math.max(280, Math.round(r.width || 360));
-        H = Math.max(420, Math.round(r.height || 560));
+        H = Math.max(MIN_H, Math.round(r.height || 560));
         dpr = Math.min(3, window.devicePixelRatio || 1);
         cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
         g.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -335,11 +338,11 @@
         if (!frozen) update(dt);
         if (!alive) return;                     // le moteur a pu arrêter la partie pendant update (plus de vie)
         draw();
-        if (!frozen) raf = requestAnimationFrame(loop);
+        if (!frozen && !paused) raf = requestAnimationFrame(loop);
       }
 
       function move(delta) {
-        if (!alive || frozen) return;
+        if (!alive || frozen || paused) return;
         var next = Math.max(0, Math.min(lanes - 1, car.lane + delta));
         if (next === car.lane) return;
         car.lane = next;
@@ -356,10 +359,22 @@
         else if (e.key === 'ArrowRight') { e.preventDefault(); move(1); }
       }
 
+      // Pause du moteur (application en arrière-plan, question « Quitter la partie ? ») : la route s'arrête net
+      // (requestAnimationFrame ne suffit pas partout) et repart au retour, là où elle était.
+      var paused = false;
+      function onPauseChange(p) {
+        paused = p;
+        if (!alive || frozen) return;
+        if (p) { if (raf) cancelAnimationFrame(raf); raf = 0; }
+        else if (!raf) { last = 0; raf = requestAnimationFrame(loop); }
+      }
+
       resize();
       cv.addEventListener('pointerdown', onDown);
       window.addEventListener('keydown', onKey);
       window.addEventListener('resize', resize);
+      if (ctx.onPause) ctx.onPause(function () { onPauseChange(true); });
+      if (ctx.onResume) ctx.onResume(function () { onPauseChange(false); });
       if (ctx.onTimeUp) ctx.onTimeUp(function () { frozen = true; });
       ctx.setLevel(level);
       raf = requestAnimationFrame(loop);

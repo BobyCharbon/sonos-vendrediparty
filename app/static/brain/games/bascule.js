@@ -77,6 +77,19 @@
 .br-bascule-no { background:#c7364f; }
 .br-bascule-yes { background:#1f9e68; }
 .br-bascule-btn small { font-size:14px; opacity:.75; font-weight:600; }
+/* Écran bas (téléphone en paysage, ~290 px de jeu) : zones côte à côte, cartes plus petites. */
+@media (max-height:520px) {
+  .br-bascule { gap:6px; padding:4px 12px 8px; }
+  .br-bascule-note { min-height:16px; font-size:13px; }
+  .br-bascule-board { flex-direction:row; min-height:0; }
+  .br-bascule-zone { min-height:0; padding:30px 6px 8px; }
+  .br-bascule-zone:first-child { border-radius:24px 0 0 24px; }
+  .br-bascule-zone:last-child { border-radius:0 24px 24px 0; }
+  .br-bascule-zone + .br-bascule-zone { border-top:0; border-left:2px dashed rgba(255,255,255,.16); }
+  .br-bascule-rule { font-size:12px; left:8px; right:8px; }
+  .br-bascule-card, .br-bascule-many .br-bascule-card { width:min(110px, 100%); height:62px; font-size:34px; border-radius:16px; }
+  .br-bascule-btn { min-height:52px; }
+}
 `;
 
   function deadlineMs(level) { return Math.round(950 + 2550 * Math.pow(0.95, level - 1)); }
@@ -278,8 +291,24 @@
       root.dataset.state = 'stopped';
     }
 
+    // Pause du moteur (application en arrière-plan, question « Quitter la partie ? ») : la carte est retirée sans
+    // compter (aucune vie perdue loin de l'écran) ; au retour, nouvelle carte au même niveau.
+    function pause() {
+      if (stopped) return;
+      locked = true;
+      if (timer) clearTimeout(timer);
+      if (limitTimer) clearTimeout(limitTimer);
+      timer = 0;
+      limitTimer = 0;
+      timeBar.style.transition = 'none';
+      root.dataset.state = 'paused';
+    }
+    function resume() { if (!stopped) render(); }
+
     root.addEventListener('pointerdown', onPointer);
     document.addEventListener('keydown', onKey);
+    if (ctx.onPause) ctx.onPause(pause);
+    if (ctx.onResume) ctx.onResume(resume);
     if (typeof ctx.onTimeUp === 'function') ctx.onTimeUp(stop);
     ctx.setLevel(level);
     render();

@@ -26,8 +26,15 @@ struct BrainStats: Decodable, Equatable {
         let best: Int
         let plays: Int
         let lastLevel: Int
+        let maxLevel: Int
+        /// Palier le plus haut débloqué (un palier tous les 5 niveaux) ; déduit du niveau si le serveur ne l'envoie pas.
+        let maxTier: Int
 
-        enum CodingKeys: String, CodingKey { case index, best, plays, lastLevel = "last_level" }
+        static let levelsPerTier = 5
+
+        enum CodingKeys: String, CodingKey {
+            case index, best, plays, lastLevel = "last_level", maxLevel = "max_level", maxTier = "max_tier"
+        }
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -35,6 +42,8 @@ struct BrainStats: Decodable, Equatable {
             best = c.flexibleInt(.best) ?? 0
             plays = c.flexibleInt(.plays) ?? 0
             lastLevel = c.flexibleInt(.lastLevel) ?? 0
+            maxLevel = c.flexibleInt(.maxLevel) ?? lastLevel
+            maxTier = c.flexibleInt(.maxTier) ?? (maxLevel > 0 ? (maxLevel - 1) / Self.levelsPerTier + 1 : 0)
         }
     }
 
@@ -122,12 +131,13 @@ struct BrainStats: Decodable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         name = (try? c.decodeIfPresent(String.self, forKey: .name)) ?? "Méninges"
         temperature = c.flexibleInt(.temperature) ?? 0
-        domains = (try? c.decodeIfPresent([String: Domain].self, forKey: .domains)) ?? [:]
-        games = (try? c.decodeIfPresent([String: Game].self, forKey: .games)) ?? [:]
+        // Entrée par entrée : un jeu, un domaine ou un jour illisible est ignoré, les autres restent.
+        domains = c.lossyDictionary(Domain.self, .domains)
+        games = c.lossyDictionary(Game.self, .games)
         streak = (try? c.decodeIfPresent(Streak.self, forKey: .streak)) ?? Streak()
-        history = (try? c.decodeIfPresent([Day].self, forKey: .history)) ?? []
-        strengths = (try? c.decodeIfPresent([String].self, forKey: .strengths)) ?? []
-        weaknesses = (try? c.decodeIfPresent([String].self, forKey: .weaknesses)) ?? []
+        history = c.lossyArray(Day.self, .history)
+        strengths = c.lossyArray(String.self, .strengths)
+        weaknesses = c.lossyArray(String.self, .weaknesses)
         insight = (try? c.decodeIfPresent(String.self, forKey: .insight)) ?? ""
         percentile = c.flexibleInt(.percentile)
         speedVsAccuracy = (try? c.decodeIfPresent(Balance.self, forKey: .speedVsAccuracy)) ?? Balance()
@@ -147,15 +157,21 @@ struct BrainStats: Decodable, Equatable {
             .sorted { $0.game.index != $1.game.index ? $0.game.index > $1.game.index : $0.id < $1.id }
     }
 
+    /// Borne de tout nombre reçu : au-delà (1e300, entier hors d'Int), la valeur est ramenée ici au lieu de planter.
+    static let numberLimit = 999_999_999_999
+
     /// 1234 → « 1 234 °M », comme la page (séparateur de milliers : espace).
-    static func degrees(_ value: Int) -> String {
-        let digits = String(abs(value))
+    static func degrees(_ value: Int) -> String { number(value) + " °M" }
+
+    /// 1234 → « 1 234 » (espace fine insécable), signe moins typographique.
+    static func number(_ value: Int) -> String {
+        let digits = String(value.magnitude)
         var out = ""
         for (i, ch) in digits.enumerated() {
             if i > 0, (digits.count - i) % 3 == 0 { out += "\u{202F}" }
             out.append(ch)
         }
-        return (value < 0 ? "−" : "") + out + " °M"
+        return (value < 0 ? "−" : "") + out
     }
 }
 
@@ -169,10 +185,19 @@ struct BrainBoard: Decodable, Equatable {
 
         enum CodingKeys: String, CodingKey { case id, name, temperature, me }
 
+        private init(id: String, name: String, temperature: Int, me: Bool) {
+            self.id = id
+            self.name = name
+            self.temperature = temperature
+            self.me = me
+        }
+
+        func withID(_ newID: String) -> Player { Player(id: newID, name: name, temperature: temperature, me: me) }
+
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             name = (try? c.decodeIfPresent(String.self, forKey: .name)) ?? "?"
-            id = (try? c.decodeIfPresent(String.self, forKey: .id)) ?? name
+            id = c.flexibleID(.id) ?? name
             temperature = c.flexibleInt(.temperature) ?? 0
             me = (try? c.decodeIfPresent(Bool.self, forKey: .me)) ?? false
         }
@@ -187,10 +212,20 @@ struct BrainBoard: Decodable, Equatable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        board = (try? c.decodeIfPresent([Player].self, forKey: .board)) ?? []
+        board = Self.uniqued(c.lossyArray(Player.self, .board))
         rank = c.flexibleInt(.rank)
         players = c.flexibleInt(.players) ?? board.count
         percentile = c.flexibleInt(.percentile)
+    }
+
+    /// Identifiants uniques pour ForEach (id absent → prénom, prénoms ou id en double) : « x », « x#2 »…
+    private static func uniqued(_ players: [Player]) -> [Player] {
+        var seen: [String: Int] = [:]
+        return players.map { p in
+            let n = (seen[p.id] ?? 0) + 1
+            seen[p.id] = n
+            return n == 1 ? p : p.withID("\(p.id)#\(n)")
+        }
     }
 
     /// Rang affiché à chaque ligne : ex aequo au même rang (même Température), comme le calcul du serveur.
@@ -269,12 +304,36 @@ struct BrainCatalog: Decodable, Equatable {
     func game(_ id: String) -> Game? { games.first { $0.id == id } }
 }
 
-private extension KeyedDecodingContainer {
-    /// Entier lu tel quel ou depuis un nombre à virgule (la base peut rendre 73.0) ; nil si absent, null ou illisible.
+/// Valeur décodée si possible, nil sinon : une entrée abîmée d'une liste ne fait pas échouer toute la liste.
+private struct Lossy<T: Decodable>: Decodable {
+    let value: T?
+    init(from decoder: Decoder) throws { value = try? T(from: decoder) }
+}
+
+extension KeyedDecodingContainer {
+    /// Entier lu tel quel ou depuis un nombre à virgule (la base peut rendre 73.0), borné à ±BrainStats.numberLimit
+    /// (Int(1e300) planterait l'app) ; nil si absent, null ou illisible.
     func flexibleInt(_ key: Key) -> Int? {
-        if let v = try? decodeIfPresent(Int.self, forKey: key) { return v }
-        if let v = try? decodeIfPresent(Double.self, forKey: key), v.isFinite { return Int(v.rounded()) }
+        let limit = BrainStats.numberLimit
+        if let v = try? decodeIfPresent(Int.self, forKey: key) { return min(max(v, -limit), limit) }
+        if let v = try? decodeIfPresent(Double.self, forKey: key), v.isFinite {
+            return Int(min(max(v, -Double(limit)), Double(limit)).rounded())
+        }
         return nil
+    }
+
+    /// Identifiant texte ou numérique (42 → « 42 »).
+    func flexibleID(_ key: Key) -> String? {
+        if let v = try? decodeIfPresent(String.self, forKey: key) { return v }
+        return flexibleInt(key).map(String.init)
+    }
+
+    func lossyArray<T: Decodable>(_ type: T.Type, _ key: Key) -> [T] {
+        ((try? decodeIfPresent([Lossy<T>].self, forKey: key)) ?? []).compactMap(\.value)
+    }
+
+    func lossyDictionary<T: Decodable>(_ type: T.Type, _ key: Key) -> [String: T] {
+        ((try? decodeIfPresent([String: Lossy<T>].self, forKey: key)) ?? [:]).compactMapValues(\.value)
     }
 }
 

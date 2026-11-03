@@ -15,7 +15,7 @@ def world():
                    json={'name': 'Test confidentialité', 'created_by': a.uid})
     assert r.status_code == 201, r.text
     group = r.json()[0]['id']
-    for uid in (a.uid, b.uid):
+    for uid in (b.uid,):  # le créateur (A) en fait partie d'office
         r = httpx.post(f'{TEST_URL}/rest/v1/member_group_members', headers=a.headers, timeout=30, json={'group_id': group, 'user_id': uid})
         assert r.status_code == 201, r.text
     yield a, b, group

@@ -8,7 +8,7 @@ enum ChatNotify: String, Codable, CaseIterable, Identifiable {
     var hint: String {
         switch self {
         case .all: return "Une notification pour chaque message du groupe."
-        case .mentions: return "Seulement quand on te cite (@surnom), qu'on te répond ou qu'un admin écrit @tout."
+        case .mentions: return "Seulement quand on te cite (@surnom), qu'on te répond ou que quelqu'un écrit @tout."
         case .none: return "Aucune notification de ce groupe, même citée."
         }
     }
@@ -67,9 +67,13 @@ struct Conversation: Codable, Equatable {
         let reactions: [Reaction]
 
         enum CodingKeys: String, CodingKey {
-            case id, author, mine, at, edited, body, deleted, photo, pinned, reply, reactions, audio
+            case id, author, mine, at, edited, body, deleted, photo, pinned, reply, reactions, audio, announcement
             case authorName = "author_name", authorPhoto = "author_photo", audioSeconds = "audio_seconds"
         }
+
+        /// « @annonce » : épinglé d'office par la base, en surbrillance (absent d'un ancien serveur ou du cache : non).
+        var announcement: Bool? = nil
+        var isAnnouncement: Bool { announcement == true && pinned && !deleted }
 
         /// Message vocal : lien d'écoute (signé) et durée.
         var audio: String? = nil
@@ -81,12 +85,25 @@ struct Conversation: Codable, Equatable {
         var date: Date? { ChatDates.parse(at) }
     }
 
+    /// Annonce ou message épinglé du bandeau du haut (lu à part : gardé même au-delà des derniers messages).
+    struct Highlight: Codable, Equatable, Identifiable {
+        let id: String
+        let authorName: String
+        let at: String
+        let text: String
+        let announcement: Bool
+
+        enum CodingKeys: String, CodingKey { case id, at, text, announcement, authorName = "author_name" }
+    }
+
     struct Member: Codable, Equatable, Identifiable {
         let id: String
         let name: String
         let photo: String?
         let admin: Bool
         let creator: Bool
+        /// Organisateur du groupe : fait des annonces et les retire (absent d'un ancien serveur : non).
+        var organizer: Bool? = nil
         /// Numéro montré dans ce groupe (« +41790000001 ») : un toucher appelle.
         var phone: String? = nil
 
@@ -108,25 +125,121 @@ struct Conversation: Codable, Equatable {
     let reactions: [String]
     let members: [Member]
     let messages: [Message]
+    /// Annonces et messages épinglés, du plus ancien au plus récent (absent d'un ancien serveur).
+    var highlights: [Highlight]? = nil
+    /// Je suis organisateur (ou admin) du groupe : annonces.
+    var organizer: Bool? = nil
+    /// Qui peut écrire @tout : "all" (tous les membres) ou "staff" (admins et organisateurs).
+    var everyone: String? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, name, member, admin, notify, reactions, members, messages, me
+        case id, name, member, admin, notify, reactions, members, messages, me, highlights, organizer, everyone
         case canNameAdmins = "can_name_admins"
+    }
+
+    /// Admin ou organisateur : fait des annonces (@annonce) et les retire.
+    var isStaff: Bool { admin || (member && organizer == true) }
+    /// Peut écrire @tout dans ce groupe (choix des admins du groupe).
+    var canEveryone: Bool { everyone != "staff" || isStaff }
+    /// Prévenu avant l'envoi : @annonce d'un simple membre (message normal), @tout réservé par le groupe.
+    func tagNote(for text: String) -> String? {
+        if Mentions.isAnnouncement(text) && !isStaff {
+            return "Seuls les admins et organisateurs du groupe font des annonces : ton message partira comme un message normal."
+        }
+        if text.range(of: "(^|\\s)@tout(\\s|$|[!?.,])", options: [.regularExpression, .caseInsensitive]) != nil && !canEveryone {
+            return "Dans ce groupe, seuls les admins et organisateurs peuvent écrire @tout : personne ne sera prévenu."
+        }
+        return nil
     }
 
     /// Dernier message épinglé : affiché en bandeau en haut de la conversation.
     var pinned: Message? { messages.last { $0.pinned } }
 
+    /// Bandeau du haut : la dernière annonce (en surbrillance), sinon le dernier message épinglé ; « autres » = combien
+    /// d'annonces (ou d'épinglés) en plus. Message envoyé en annonce pas encore confirmé : montré aussitôt.
+    var banner: (item: Highlight, others: Int)? {
+        let pendingAnnouncement = messages.last { $0.pending && $0.isAnnouncement }.map {
+            Highlight(id: $0.id, authorName: $0.authorName, at: $0.at, text: $0.preview, announcement: true)
+        }
+        let list = (highlights ?? messages.filter { $0.pinned && !$0.deleted }.map {
+            Highlight(id: $0.id, authorName: $0.authorName, at: $0.at, text: $0.preview, announcement: $0.isAnnouncement)
+        }) + (pendingAnnouncement.map { [$0] } ?? [])
+        let announcements = list.filter(\.announcement)
+        if let last = announcements.last { return (last, announcements.count - 1) }
+        return list.last.map { ($0, list.count - 1) }
+    }
+
     /// Même conversation avec d'autres messages (message affiché tout de suite à l'envoi).
     func with(messages: [Message]) -> Conversation {
         Conversation(id: id, name: name, member: member, admin: admin, notify: notify, canNameAdmins: canNameAdmins,
-                     me: me, reactions: reactions, members: members, messages: messages)
+                     me: me, reactions: reactions, members: members, messages: messages, highlights: highlights,
+                     organizer: organizer, everyone: everyone)
     }
 
-    /// Membres cités par « @surnom » dans le texte (sauf moi) : envoyés avec le message, la base ne garde que les membres.
+    /// Membres cités par « @surnom » (sans accents ni casse) dans le texte (sauf moi) : envoyés avec le message,
+    /// la base ne garde que les membres.
     func mentions(in body: String, me: String?) -> [String] {
-        let lower = body.lowercased()
-        return members.filter { $0.id != me && !$0.name.isEmpty && lower.contains("@" + $0.name.lowercased()) }.map(\.id)
+        let folded = Mentions.fold(body)
+        return members.filter { $0.id != me && !$0.name.isEmpty && folded.contains("@" + Mentions.fold($0.name)) }.map(\.id)
+    }
+}
+
+/// Suggestions de l'@ (avis du 3.11) : en tapant « @lé », les membres du groupe dont le surnom (ou un de ses mots)
+/// commence par ces lettres, sans accents ni casse ; puis @tout (tout le groupe) et @annonce (épinglée en haut).
+enum Mentions {
+    struct Suggestion: Equatable, Identifiable {
+        let id: String
+        let label: String
+        let hint: String
+        /// Membre cité (nil : @tout ou @annonce).
+        let member: Conversation.Member?
+    }
+
+    static let maxShown = 6
+    private static let specials = [Suggestion(id: "@tout", label: "tout", hint: "Tout le groupe", member: nil),
+                                   Suggestion(id: "@annonce", label: "annonce", hint: "Annonce épinglée en haut du groupe", member: nil)]
+
+    static func fold(_ text: String) -> String {
+        text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "fr_CH")).lowercased()
+    }
+
+    /// Lettres tapées après l'@ en fin de texte ; nil quand on n'est pas en train de citer.
+    static func query(in text: String) -> String? {
+        guard let at = text.lastIndex(of: "@") else { return nil }
+        let typed = text[text.index(after: at)...]
+        guard !typed.contains(where: { $0.isWhitespace || $0 == "@" }) else { return nil }
+        if at > text.startIndex, !text[text.index(before: at)].isWhitespace { return nil }  // une adresse mail, pas une citation
+        return String(typed)
+    }
+
+    /// everyone : je peux écrire @tout ; announce : je peux faire une annonce (admins et organisateurs).
+    /// contacts : noms du répertoire (app iPhone) ; « @mar » trouve aussi le membre enregistré « Marie » dans mes contacts.
+    static func suggestions(for query: String, members: [Conversation.Member], me: String?,
+                            everyone: Bool = true, announce: Bool = true, contacts: [String: String] = [:]) -> [Suggestion] {
+        let q = fold(query)
+        func starts(_ name: String) -> Bool {
+            let n = fold(name)
+            return n.hasPrefix(q) || n.split(whereSeparator: { " .-_".contains($0) }).contains { $0.hasPrefix(q) }
+        }
+        let found = members.filter { $0.id != me && !$0.name.isEmpty && (starts($0.name) || contacts[$0.id].map(starts) == true) }
+            .sorted { a, b in
+                let (pa, pb) = (fold(a.name).hasPrefix(q), fold(b.name).hasPrefix(q))
+                return pa != pb ? pa : a.name.localizedCompare(b.name) == .orderedAscending
+            }
+            .map { Suggestion(id: $0.id, label: $0.name, hint: contacts[$0.id] ?? "", member: $0) }
+        let tags = specials.filter { $0.label.hasPrefix(q) && ($0.label == "tout" ? everyone : announce) }
+        return Array(found.prefix(maxShown - tags.count)) + tags
+    }
+
+    /// Remplace l'@ en cours par « @Surnom » suivi d'une espace.
+    static func insert(_ label: String, into text: String) -> String {
+        guard let at = text.lastIndex(of: "@") else { return text }
+        return String(text[..<at]) + "@" + label + " "
+    }
+
+    /// « @annonce » en mot entier, sans casse (même règle que la base, guard_group_message).
+    static func isAnnouncement(_ body: String) -> Bool {
+        body.range(of: "(^|[^\\p{L}\\p{N}_])@annonce($|[^\\p{L}\\p{N}_])", options: [.regularExpression, .caseInsensitive]) != nil
     }
 }
 
@@ -223,6 +336,14 @@ extension PartyAPI {
 
     func setChatAdmin(token: String, group: String, member: String, on: Bool) async throws {
         try await post("/api/account/chats/admin", body: ["token": token, "group_id": group, "user_id": member, "on": on])
+    }
+
+    func setChatOrganizer(token: String, group: String, member: String, on: Bool) async throws {
+        try await post("/api/account/chats/organizer", body: ["token": token, "group_id": group, "user_id": member, "on": on])
+    }
+
+    func setChatEveryone(token: String, group: String, who: String) async throws {
+        try await post("/api/account/chats/everyone", body: ["token": token, "group_id": group, "who": who])
     }
 
     func readChat(token: String, group: String) async throws {
