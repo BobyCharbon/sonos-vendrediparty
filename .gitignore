@@ -1,7 +1,8 @@
 .venv/
 __pycache__/
 .pytest_cache/
-data/
+# Données locales du serveur (à la racine seulement : tests/data/ contient des listes versionnées)
+/data/
 .env
 
 # Module web événements, compilé par Docker
