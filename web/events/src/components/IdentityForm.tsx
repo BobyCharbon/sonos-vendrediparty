@@ -6,7 +6,9 @@ import { PROFILE_PHOTOS, uploadProfilePhoto } from '@/lib/photos';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { check, supabase } from '@/lib/supabase';
 import type { Profile } from '@/lib/types';
+import { dbMessage } from '@/lib/moderation';
 import { ProfilePhotoField } from './ProfilePhotoField';
+import { useTermsGate } from './TermsSheet';
 import { Button, ErrorText, Field, T } from './ui';
 
 /** Surnom déjà choisi dans les jeux de Party (même origine) : il pré-remplit un profil qui n'en a pas encore. */
@@ -25,11 +27,14 @@ export function IdentityForm({ profile, submitLabel, onSaved }: { profile: Profi
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const saving = useRef(false);
+  // Le surnom est vu de tous : conditions d'utilisation acceptées avant le premier nom (modération commune).
+  const terms = useTermsGate();
   const identity = { first_name: firstName.trim(), last_name: lastName.trim(), display_name: nickname.trim(), avatar_url: photo ?? profile.avatar_url };
   const changed = !!photo || identity.first_name !== (profile.first_name ?? '') || identity.last_name !== (profile.last_name ?? '') || identity.display_name !== profile.display_name;
 
   async function save() {
     if (saving.current || !hasCompleteIdentity(identity)) return;
+    if (identity.display_name !== profile.display_name && !terms.accepted && !(await terms.ensure())) return;
     saving.current = true;
     setBusy(true);
     setError(null);
@@ -44,7 +49,9 @@ export function IdentityForm({ profile, submitLabel, onSaved }: { profile: Profi
       onSaved?.();
     } catch (e) {
       if (uploaded) await supabase.storage.from(PROFILE_PHOTOS).remove([uploaded]).catch(() => {});
-      setError(e instanceof Error ? e.message : 'Tes informations n’ont pas pu être enregistrées. Vérifie ta connexion puis réessaie.');
+      const fallback = 'Tes informations n’ont pas pu être enregistrées. Vérifie ta connexion puis réessaie.';
+      // Filtre de la base : « Ce texte n'est pas accepté : il contient une insulte… » (surnom refusé).
+      setError(e instanceof Error ? (/^(content_refused|terms_required): /.test(e.message) ? dbMessage(e.message, fallback) : e.message) : fallback);
     } finally {
       saving.current = false;
       setBusy(false);
@@ -53,6 +60,7 @@ export function IdentityForm({ profile, submitLabel, onSaved }: { profile: Profi
 
   return (
     <View style={{ gap: 14 }}>
+      {terms.sheet}
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <View style={{ flex: 1 }}>
           <Field label="Prénom" value={firstName} onChangeText={(v) => { setFirstName(v); setSaved(false); }} autoComplete="given-name" autoCapitalize="words" maxLength={100} editable={!busy} />

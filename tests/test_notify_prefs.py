@@ -137,7 +137,7 @@ def test_accounts_reads_and_patches_only_the_members_own_row():
         return httpx.Response(404)
 
     acc = accounts_mod.Accounts(b"secret", httpx.Client(transport=httpx.MockTransport(handler)))
-    assert acc.notification_prefs("tok") == {"prefs": {"user_id": "u-9", "chat": "all"}, "approver": True}
+    assert acc.notification_prefs("tok") == {"prefs": {"user_id": "u-9", "chat": "all"}, "approver": True, "moderator": False}
     acc.update_notification_prefs("tok", {"chat": "none"})
     patch = next(s for s in seen if s[0] == "PATCH")
     assert patch[2] == "user_id=eq.u-9" and patch[3] == b'{"chat":"none"}'
@@ -315,7 +315,7 @@ def test_every_notification_type_has_its_own_switch_through_party(monkeypatch):
     client = TestClient(main.app)
     for key in ("announcements", "rsvp_set", "invites", "proposal_result", "link_join", "group_messages", "group_invites", "group_joins",
                 "group_broadcasts", "ticket_pay_declared", "ticket_pay_confirmed", "referral_joins", "contact_joins", "direct_messages",
-                "pet_daily", "pet_alerts"):
+                "pet_daily", "pet_alerts", "pet_gifts", "pet_streaks"):
         r = client.post("/api/account/notifications/update", json={"token": "ok", "patch": {key: False}})
         assert r.status_code == 200 and r.json()["prefs"][key] is False, key
         assert client.post("/api/account/notifications/update", json={"token": "ok", "patch": {key: "non"}}).status_code == 422

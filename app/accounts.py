@@ -21,7 +21,8 @@ EVENT_CHOICES = 8
 PROFILE_PHOTOS = "profile-photos"
 # Un de ces droits ouvre Réglages › Administration du groupe (comme ADMIN_PERMS du module web).
 GROUP_ADMIN_PERMS = {"events.approve", "members.approve", "members.roles", "members.ban", "members.view_identity",
-                     "roles.manage", "taxonomy.manage", "group.settings", "announcements.publish"}
+                     "roles.manage", "taxonomy.manage", "group.settings", "announcements.publish",
+                     "moderation.reports"}  # Administration › Signalements (modération commune)
 PROFILE_FIELDS = "id,display_name,first_name,last_name,phone,avatar_url,role,status"
 
 
@@ -169,7 +170,9 @@ class Accounts:
         self._remember_pause(uid, rows[0])
         p = self._get("POST", "/rest/v1/rpc/my_permissions", token, json={})
         perms = p.json() if p.status_code == 200 else []
-        return {"prefs": rows[0], "approver": isinstance(perms, list) and "events.approve" in perms}
+        perms = perms if isinstance(perms, list) else []
+        # moderator : droit « Modérer les signalements » (réglage « Nouveau signalement »).
+        return {"prefs": rows[0], "approver": "events.approve" in perms, "moderator": "moderation.reports" in perms}
 
     def update_notification_prefs(self, token: str, patch: dict) -> dict:
         uid = self._uid(token)

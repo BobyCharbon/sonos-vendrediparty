@@ -7,6 +7,8 @@ import { ChatBubble } from './ChatBubble';
 import { DirectChatSettings } from './DirectChatSettings';
 import { GroupChatSettings } from './GroupChatSettings';
 import { MentionSuggestions } from './MentionSuggestions';
+import { ReportSheet } from './ReportSheet';
+import { useTermsGate } from './TermsSheet';
 import { usePersonText } from './PersonName';
 import { Button, ErrorText, HeaderBack, Input, Loading, s, T } from './ui';
 import { useMe } from '@/lib/auth';
@@ -18,6 +20,7 @@ import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
 import { roleRank, siteAdminRank } from '@/lib/roles';
 import { enter } from '@/lib/motion';
+import { dbMessage, type ReportTarget } from '@/lib/moderation';
 
 const PAGE = 150;
 /** Annonces et messages épinglés lus à part : le bandeau du haut les garde même au-delà des derniers messages. */
@@ -76,6 +79,9 @@ export function GroupChat({ id, direct = false }: { id: string; direct?: boolean
   const [voiceNow, setVoiceNow] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
+  // Modération commune : « Signaler » un message, CGU acceptées avant le premier message.
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+  const terms = useTermsGate();
   const [photos, setPhotos] = useState<Map<string, string>>(new Map());
   const list = useRef<FlatList<GroupMessage>>(null);
 
@@ -199,6 +205,7 @@ export function GroupChat({ id, direct = false }: { id: string; direct?: boolean
   async function send(photoPath: string | null = null, audio: { blob: Blob; seconds: number; ext: 'm4a' | 'webm' } | null = null) {
     const body = audio ? '' : text.trim();
     if (!body && !photoPath && !audio) return;
+    if (!terms.accepted && !(await terms.ensure())) return;
     const quoted = replyTo;
     const messageId = newMessageId();
     const announced = isStaff && isAnnouncement(body);
@@ -221,7 +228,8 @@ export function GroupChat({ id, direct = false }: { id: string; direct?: boolean
           id: messageId, group_id: id, body, photo_path: photoPath, reply_to: quoted?.id ?? null, mentions: tagged.mentions,
           mention_all: tagged.all && canEveryone, audio_path: audioPath, audio_seconds: draft.audio_seconds,
         });
-      if (error) throw new Error('Le message n’a pas pu être envoyé. Réessaie.');
+      // Filtre de la base : la phrase dit pourquoi (propos haineux, contenu sexuel…) ; sinon un message général.
+      if (error) throw new Error(dbMessage(error.message, 'Le message n’a pas pu être envoyé. Réessaie.'));
     } catch (e) {
       setPending((list) => list.filter((m) => m.id !== messageId));
       if (!audio) setText(body);
@@ -372,6 +380,7 @@ export function GroupChat({ id, direct = false }: { id: string; direct?: boolean
                 onReply={() => setReplyTo(m)} onReact={(e) => void react(m, e)}
                 onPin={() => void rpc('pin_group_message', { msg: m.id, pin: !m.pinned })}
                 onDelete={() => void rpc('delete_group_message', { msg: m.id })}
+                onReport={() => setReportTarget({ kind: direct ? 'direct_message' : 'group_message', id: m.id, label: `le message de ${shownName(m.user_id)}` })}
                 fresh={!!initialIds && !initialIds.has(m.id)} />
             );
           }}
@@ -423,6 +432,8 @@ export function GroupChat({ id, direct = false }: { id: string; direct?: boolean
           </>
         ) : null}
       </KeyboardAvoidingView>
+      <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />
+      {terms.sheet}
     </SafeAreaView>
   );
 }

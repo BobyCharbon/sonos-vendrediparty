@@ -170,6 +170,7 @@ def test_unknown_action_and_locked_outfit_are_refused():
 
 def test_streak_grows_day_after_day_and_unlocks_outfits():
     life, owner = hatched()
+    owner["streak"]["freezes"] = 0   # sans le gel offert au départ (testé dans test_pet_streak.py)
     unlocked = []
     for day in range(7):
         pet.advance(life, h(24 * day + 1), owner)
@@ -182,9 +183,12 @@ def test_streak_grows_day_after_day_and_unlocks_outfits():
     assert owner["streak"]["count"] == 7 and owner["streak"]["best"] == 7
     assert pet.streak_now(owner, h(24 * 6 + 3)) == 7
     assert unlocked == ["lunettes", "casquette"]
-    assert pet.streak_now(owner, h(24 * 8 + 3)) == 0   # deux jours sans passer : série perdue (le record reste)
-    life, owner, _ = pet.act(life, owner, "heal", h(24 * 9))
+    assert owner["streak"]["freezes"] == 1                # 7 jours de série : un gel ❄️ gagné
+    assert pet.streak_now(owner, h(24 * 8 + 3)) == 7      # un jour manqué (mercredi) : protégé par le gel
+    life, owner, effect = pet.act(life, owner, "heal", h(24 * 9))   # deux jours manqués : la série repart (le record reste)
     assert owner["streak"]["count"] == 1 and owner["streak"]["best"] == 7
+    assert owner["streak"]["freezes"] == 1                # le gel n'est pas dépensé pour rien
+    assert owner["streak"]["lost"]["count"] == 7 and [e["kind"] for e in effect["streak"]] == ["broken"]
 
 
 def test_two_care_actions_the_same_day_count_once():
@@ -205,11 +209,18 @@ def test_baby_teen_adult_with_good_care_gives_a_star_and_a_crown():
 
 
 def test_little_care_gives_a_wild_teen():
-    life, owner = hatched()
-    for t in (20, ):   # un seul repas pendant tout le stade bébé
-        life, owner, _ = pet.act(life, owner, "feed", h(t))
+    life, owner = hatched()   # aucun soin pendant tout le stade bébé
     pet.advance(life, h(24.5), owner)
     assert life["stage"] == "teen" and life["variant"] == "wild"
+
+
+def test_one_lonely_meal_a_day_is_not_a_cared_day():
+    life, owner = hatched()
+    life, owner, _ = pet.act(life, owner, "feed", h(20))
+    assert life["cares"] == {pet.day_of(h(20)): 1}
+    alone = pet.quality(life)
+    life, owner, _ = pet.act(life, owner, "cuddle", h(20.1))   # 2e soin le même jour : un vrai passage
+    assert pet.quality(life) >= alone + pet.REGULARITY_BONUS - 0.5
 
 
 def test_evolution_times():

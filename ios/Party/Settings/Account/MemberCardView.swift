@@ -12,9 +12,13 @@ struct MemberCard: Decodable, Equatable, Identifiable {
     let lastName: String?
     let phone: String?
     let groups: [String]
+    /// Ce membre m'a bloqué : fiche réduite au surnom (modération commune).
+    let restricted: Bool
+    /// Je l'ai bloqué.
+    let blocked: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, photo, role, root, me, phone, groups
+        case id, photo, role, root, me, phone, groups, restricted, blocked
         case roleLabel = "role_label"
         case displayName = "display_name", firstName = "first_name", lastName = "last_name"
     }
@@ -37,6 +41,8 @@ struct MemberCard: Decodable, Equatable, Identifiable {
         lastName = try c.decodeIfPresent(String.self, forKey: .lastName)
         phone = try c.decodeIfPresent(String.self, forKey: .phone)
         groups = try c.decodeIfPresent([String].self, forKey: .groups) ?? []
+        restricted = try c.decodeIfPresent(Bool.self, forKey: .restricted) ?? false
+        blocked = try c.decodeIfPresent(Bool.self, forKey: .blocked) ?? false
     }
 
     var fullName: String { [firstName, lastName].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ") }
@@ -81,6 +87,9 @@ final class PrivacyStore: ObservableObject {
         self.api = api
         self.web = web
     }
+
+    /// Fiche › Bloquer, Signaler (modération commune).
+    private(set) lazy var moderation = ModerationStore(api: api, web: web)
 
     func load() async {
         guard let token = await web?.accountToken() else { return }
@@ -166,7 +175,7 @@ struct MemberCardView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                         .accessibilityElement(children: .combine)
-                        if !card.me, let writeDirect {
+                        if !card.me, !card.blocked, !card.restricted, let writeDirect {
                             Button {
                                 Haptics.tap()
                                 writing = true
@@ -194,7 +203,7 @@ struct MemberCardView: View {
                             Button("Message") { if let url = URL(string: "sms:\(phone)") { openURL(url) } }
                             if !card.me { contactButton(card, phone: phone) }
                         }
-                    } else if !card.me {
+                    } else if !card.me && !card.restricted {
                         Section {
                         } footer: {
                             Text("\(card.displayName.isEmpty ? "Ce membre" : card.displayName) ne montre pas son numéro dans vos groupes : impossible de l'ajouter aux contacts depuis Party.")
@@ -210,6 +219,11 @@ struct MemberCardView: View {
                     }
                     if let brain, !card.me, !brain.isSelf {
                         BrainCompareSection(compare: brain)
+                    }
+                    if !card.me {
+                        MemberSafetySection(moderation: store.moderation, card: card) {
+                            Task { self.card = try? await store.card(memberID) }
+                        }
                     }
                     if card.me {
                         Section {
@@ -269,5 +283,42 @@ private extension MemberCardView {
             }
             .accessibilityIdentifier("member-add-contact")
         }
+    }
+}
+
+/// Fiche › Confidentialité : bloquer (blocage commun à toute l'app) et signaler le profil ou la photo.
+private struct MemberSafetySection: View {
+    @ObservedObject var moderation: ModerationStore
+    let card: MemberCard
+    let changed: () -> Void
+    @State private var confirmBlock = false
+    @State private var reporting: ReportTarget?
+
+    var body: some View {
+        let name = card.displayName.isEmpty ? "ce membre" : card.displayName
+        Section {
+            if card.blocked {
+                Button("Débloquer \(name)") { Task { await moderation.setBlocked(card.id, false); changed() } }
+                    .accessibilityIdentifier("member-unblock")
+            } else {
+                Button("Bloquer \(name)", role: .destructive) { confirmBlock = true }
+                    .accessibilityIdentifier("member-block")
+            }
+            Button("Signaler le profil") { reporting = ReportTarget(kind: .profile, id: card.id, label: name) }
+                .accessibilityIdentifier("member-report")
+            if card.photo != nil {
+                Button("Signaler la photo") { reporting = ReportTarget(kind: .profilePhoto, id: card.id, label: "la photo de profil") }
+            }
+        } header: {
+            Text("Confidentialité")
+        } footer: {
+            Text("Une personne bloquée ne peut plus t'écrire, te citer, t'inviter ni voir ta fiche ; elle n'en est pas prévenue.")
+        }
+        .confirmationDialog("Bloquer \(name) ?", isPresented: $confirmBlock, titleVisibility: .visible) {
+            Button("Bloquer", role: .destructive) { Task { await moderation.setBlocked(card.id, true); changed() } }
+        } message: {
+            Text("Tu pourras la débloquer ici ou dans Réglages › Confidentialité › Personnes bloquées.")
+        }
+        .sheet(item: $reporting) { ReportSheet(store: moderation, target: $0) }
     }
 }

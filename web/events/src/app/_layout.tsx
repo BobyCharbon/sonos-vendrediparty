@@ -48,7 +48,7 @@ function inPartyShell(): boolean {
   return typeof window !== 'undefined' && window.parent !== window;
 }
 
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/scan(?:\/[a-f0-9]{64})?)?|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|chats(?:\/[a-f0-9-]{36})?|activity|announcements|account|settings\/(?:notifications|subscriptions|profile))$/i;
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/scan(?:\/[a-f0-9]{64})?)?|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|chats(?:\/[a-f0-9-]{36})?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
 function initialDestination() {
   if (typeof window === 'undefined') return null;
   const path = location.pathname.replace(/^\/events(?=\/|$)/, '');
@@ -169,6 +169,7 @@ function Gate() {
         <Stack.Screen name="admin/roles" options={{ title: 'Rôles et droits' }} />
         <Stack.Screen name="admin/taxonomy" options={{ title: 'Catégories et tags' }} />
         <Stack.Screen name="admin/announcements" options={{ title: 'Annonces admin' }} />
+        <Stack.Screen name="admin/reports" options={{ title: 'Signalements' }} />
         <Stack.Screen name="announcements" options={{ title: 'Annonces admin' }} />
       </Stack.Protected>
       <Stack.Protected guard={!!session && !active}>
@@ -181,6 +182,7 @@ function Gate() {
         <Stack.Screen name="account" options={{ headerShown: false, title: 'Réglages' }} />
         <Stack.Screen name="settings/profile" options={{ title: 'Mon profil' }} />
         <Stack.Screen name="settings/account" options={{ title: 'Mon compte' }} />
+        <Stack.Screen name="settings/privacy" options={{ title: 'Confidentialité' }} />
       </Stack.Protected>
       <Stack.Screen name="share/[id]" options={{ title: '' }} />
       {/* Liens d'invitation (événement sur invitation, groupe) : lisibles avant connexion. */}
@@ -189,6 +191,8 @@ function Gate() {
       {/* Lien personnel d'invitation dans Party (« X t'invite sur Party ») : lisible avant connexion. */}
       <Stack.Screen name="join/[token]" options={{ title: 'Invitation' }} />
       <Stack.Screen name="privacy" options={{ title: 'Confidentialité' }} />
+      {/* Conditions d'utilisation : lisibles par tous, même sans compte (Apple 1.2, Google UGC). */}
+      <Stack.Screen name="terms" options={{ title: 'Conditions d’utilisation' }} />
     </Stack>
     </>
   );

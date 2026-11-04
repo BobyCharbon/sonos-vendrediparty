@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { Linking, View } from 'react-native';
 
 import { InvitedBySection } from '@/components/InvitedBy';
-import { Avatar, Button, Card, Cascade, Empty, ErrorText, Loading, Reveal, Screen, Section, T, Title } from '@/components/ui';
+import { ReportSheet } from '@/components/ReportSheet';
+import { Avatar, Button, Card, Cascade, ConfirmButton, Empty, ErrorText, Loading, Reveal, Screen, Section, T, Title } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { personLabel, useContactNames } from '@/lib/contactNames';
 import { useQuery } from '@/lib/data';
@@ -11,6 +12,7 @@ import { supabase } from '@/lib/supabase';
 import { roleName } from '@/lib/roles';
 import { type MemberRole } from '@/lib/types';
 import { addToContacts } from '@/lib/vcard';
+import { setBlocked, type ReportTarget } from '@/lib/moderation';
 
 const MEMBER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -27,6 +29,10 @@ type MemberCard = {
   last_name: string | null;
   phone: string | null;
   groups: string[];
+  /** Ce membre m'a bloqué : fiche réduite au surnom (modération commune). */
+  restricted?: boolean;
+  /** Je l'ai bloqué. */
+  blocked?: boolean;
 };
 
 /** Fiche profil d'un membre : photo, surnom, rôle, groupes en commun ; nom et numéro selon les choix de la personne
@@ -34,7 +40,7 @@ type MemberCard = {
 export default function MemberScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const valid = typeof id === 'string' && MEMBER_ID.test(id);
-  const { data, error, loading } = useQuery(async () => {
+  const { data, error, loading, reload } = useQuery(async () => {
     if (!valid) return null;
     const { data, error } = await supabase.rpc('member_card', { target: id });
     if (error) throw new Error(error.message);
@@ -44,6 +50,19 @@ export default function MemberScreen() {
   const { eventsSoon } = useAuth();
   const [writeError, setWriteError] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
+  const [report, setReport] = useState<ReportTarget | null>(null);
+  const [blockError, setBlockError] = useState<string | null>(null);
+
+  /** Blocage commun à toute l'app : plus de message direct, de citation, d'invitation ni de fiche détaillée. */
+  async function toggleBlock(next: boolean) {
+    setBlockError(null);
+    try {
+      await setBlocked(id, next);
+      reload();
+    } catch (e) {
+      setBlockError(e instanceof Error ? e.message : 'Le blocage n’a pas pu être enregistré.');
+    }
+  }
 
   /** « Écrire » : la conversation privée à deux avec ce membre (créée au besoin, une seule par paire). */
   async function write() {
@@ -84,7 +103,7 @@ export default function MemberScreen() {
         {fullName ? <T muted size={17}>{fullName}</T> : null}
         <T muted size={13}>{data.root ? '👑 Root' : (data.role_label ?? roleName(data.role))}{data.me ? ' · c’est toi' : ''}</T>
         {/* Message direct : Discussions (réservées aux bêta-testeurs en production, « Bientôt » pour les autres). */}
-        {!data.me && !eventsSoon ? (
+        {!data.me && !eventsSoon && !data.blocked && !data.restricted ? (
           <Button small label="💬 Écrire" loading={opening}
             onPress={() => void write()} />
         ) : null}
@@ -104,7 +123,7 @@ export default function MemberScreen() {
               onPress={() => void addToContacts({ phone, firstName: data.first_name, lastName: data.last_name, nickname: data.display_name })} />
           ) : null}
         </Card>
-      ) : !data.me ? (
+      ) : !data.me && !data.restricted ? (
         <T muted size={13}>{data.display_name || 'Ce membre'} ne montre pas son numéro dans vos groupes : impossible de l’ajouter aux contacts depuis Party.</T>
       ) : null}
       {data.groups.length ? (
@@ -114,6 +133,24 @@ export default function MemberScreen() {
       ) : null}
       {/* Qui l'a invité (lien Party, groupe, événement) : admins seulement (droit « Voir qui a invité qui »). */}
       {!data.me ? <InvitedBySection id={data.id} /> : null}
+      {!data.me ? (
+        <Section title="Confidentialité">
+          {data.blocked ? (
+            <Button small variant="secondary" label={`Débloquer ${data.display_name || 'ce membre'}`} onPress={() => void toggleBlock(false)} />
+          ) : (
+            <ConfirmButton small label={`Bloquer ${data.display_name || 'ce membre'}`} confirmLabel="Confirmer le blocage" onConfirm={() => toggleBlock(true)} />
+          )}
+          <T muted size={12}>Une personne bloquée ne peut plus t’écrire, te citer, t’inviter ni voir ta fiche ; elle n’en est pas prévenue.</T>
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+            <Button small variant="ghost" label="Signaler le profil" onPress={() => setReport({ kind: 'profile', id: data.id, label: data.display_name || 'ce profil' })} />
+            {data.avatar_url ? (
+              <Button small variant="ghost" label="Signaler la photo" onPress={() => setReport({ kind: 'profile_photo', id: data.id, label: 'la photo de profil' })} />
+            ) : null}
+          </View>
+          <ErrorText error={blockError} />
+        </Section>
+      ) : null}
+      <ReportSheet target={report} onClose={() => setReport(null)} />
       {data.me ? (
         <T muted size={13}>Ton nom et ton numéro restent cachés tant que tu ne choisis pas de les montrer (Mon profil, Groupes).</T>
       ) : null}

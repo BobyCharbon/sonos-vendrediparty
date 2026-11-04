@@ -105,7 +105,7 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
             <RowDivider />
           </>
         ) : null}
-        <LinkRow icon="🔒" tint="#0A84FF" label="Confidentialité" hint="Tes données et tes choix" onPress={() => router.push('/privacy')} />
+        <LinkRow icon="🔒" tint="#0A84FF" label="Confidentialité" hint="Personnes bloquées, conditions d’utilisation, tes données" onPress={() => router.push('/settings/privacy')} />
         <RowDivider />
         <LinkRow icon="⚙️" tint="#636366" label="Gérer mon compte" hint="Suppression du compte" onPress={() => router.push('/settings/account')} />
       </Card>

@@ -39,6 +39,8 @@ final class ChatsStore: ObservableObject {
     /// depuis les infos d'une discussion.
     private(set) lazy var groups = GroupsStore(api: api, web: web)
     private(set) lazy var privacy = PrivacyStore(api: api, web: web)
+    /// « Signaler » un message, conditions d'utilisation avant le premier message (modération commune).
+    private(set) lazy var moderation = ModerationStore(api: api, web: web)
 
     /// Nouveau groupe depuis Discussions : même création que Réglages › Groupes, le créateur dedans d'office ;
     /// la liste est relue et la discussion du groupe s'ouvre (requested).

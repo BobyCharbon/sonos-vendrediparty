@@ -215,12 +215,27 @@ struct NotificationSettingsView: View {
                         "Quelqu'un de tes contacts vient de s'inscrire (calculé sur cet iPhone)", p.contactJoins != false)
         }
 
-        // Compagnon (onglet Jeux) : deux types, deux interrupteurs (aussi sur le web).
+        // Compagnon (onglet Jeux) : un interrupteur par type (aussi sur le web). Au plus une notification par jour
+        // (hors alertes vitales), jamais la nuit ni pendant une soirée.
         Section("Compagnon") {
-            eventToggle("pet_daily", "fork.knife", .orange, "Rappel du jour",
-                        "Une fois par jour au plus, en fin d'après-midi, s'il a un petit creux", p.petDaily != false)
-            eventToggle("pet_alerts", "heart.fill", .pink, "Il a besoin de toi",
+            eventToggle("pet_daily", "sun.max.fill", .orange, "Rappel du jour",
+                        "Une fois par jour au plus, vers l'heure où tu passes d'habitude", p.petDaily != false)
+            eventToggle("pet_alerts", "heart.fill", .pink, "Alertes vitales",
                         "Deux alertes au plus avant qu'il ne s'envole", p.petAlerts != false)
+            eventToggle("pet_gifts", "gift.fill", .purple, "Cadeau d'un ami",
+                        "Un ami lui a fait un câlin ou apporté un goûter", p.petGifts != false)
+            eventToggle("pet_streaks", "flame.fill", .red, "Paliers de série",
+                        "Le jour où ta série atteint un palier (3, 7, 14, 30 jours…)", p.petStreaks != false)
+        }
+
+        // Modération commune : chaque type a son interrupteur (règle permanente).
+        Section("Modération") {
+            eventToggle("moderation_notices", "exclamationmark.shield.fill", .orange, "Message de la modération",
+                        "Un modérateur t'avertit qu'un de tes contenus ne respecte pas les conditions d'utilisation", p.moderationNotices != false)
+            if state.moderator == true {
+                eventToggle("moderation_reports", "exclamationmark.bubble.fill", .red, "Nouveau signalement",
+                            "Un message, un profil ou une photo vient d'être signalé", p.moderationReports != false)
+            }
         }
 
         Section("Quand j'organise") {

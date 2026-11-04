@@ -112,6 +112,11 @@ def test_invited_by_is_recorded_for_every_link_and_shown_to_admins_only(pair):
     inviter, invitee = pair
     admin, third = Session(ADMIN_PHONE), Session(GUESTS[2])
     sql(f"delete from private.invite_joins where user_id in ('{invitee.uid}', '{third.uid}', '{admin.uid}')")
+    # Rejoindre par lien exige un profil complet : d'autres tests peuvent avoir vidé celui du 3e compte de test.
+    sql(f"update public.profiles set display_name = coalesce(nullif(display_name, ''), 'Testeur 3'), "
+        f"first_name = coalesce(nullif(first_name, ''), 'Test'), last_name = coalesce(nullif(last_name, ''), 'Trois'), "
+        f"avatar_url = coalesce(avatar_url, (select avatar_url from public.profiles where avatar_url is not null limit 1)) "
+        f"where id = '{third.uid}'")
     assert sql("select role from public.role_permissions where perm = 'members.view_referrals'") == [{"role": "admin"}]
     r = httpx.post(f"{TEST_URL}/rest/v1/member_groups", timeout=30, headers={**inviter.headers, "Prefer": "return=representation"},
                    json={"name": "Test invité par", "created_by": inviter.uid})

@@ -170,6 +170,12 @@ export type NotificationPrefs = {
   /** Compagnon (migration 20261104130000 ; absents avant : reçus) : rappel doux du jour, alertes avant son envol. */
   pet_daily?: boolean;
   pet_alerts?: boolean;
+  /** Compagnon, lot 1 (migration 20261104150000 ; absents avant : reçus) : cadeau d'un ami, paliers de série. */
+  pet_gifts?: boolean;
+  pet_streaks?: boolean;
+  /** Modération (migration 20261104200000 ; absents avant : reçus) : nouveau signalement (modérateurs), message de la modération. */
+  moderation_reports?: boolean;
+  moderation_notices?: boolean;
 };
 
 /** Pause des notifications : 'all' = la lune, 'chats' = Discussions des groupes, 'event_chats' = discussions des événements. */
@@ -177,7 +183,7 @@ export type PauseScope = 'all' | 'chats' | 'event_chats';
 export type PauseSpan = '30m' | '1h' | '2h' | 'morning' | 'off';
 
 /** Droits qui ouvrent l'Administration (dans les Réglages). */
-export const ADMIN_PERMS = ['events.approve', 'members.approve', 'members.roles', 'members.ban', 'members.view_identity', 'roles.manage', 'taxonomy.manage', 'group.settings', 'announcements.publish'];
+export const ADMIN_PERMS = ['events.approve', 'members.approve', 'members.roles', 'members.ban', 'members.view_identity', 'roles.manage', 'taxonomy.manage', 'group.settings', 'announcements.publish', 'moderation.reports'];
 // Rôles (noms, rangs, ordre) : lib/roles.ts, lus dans la table public.roles (rôles personnalisés, réordonnables).
 export type Permission = { key: string; grp: string; label: string; hint: string | null; sort: number };
 

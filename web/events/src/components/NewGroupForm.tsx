@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import { Button, ErrorText, Input, s } from './ui';
 import { useMe } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import { dbMessage } from '@/lib/moderation';
 
 type Props = {
   /** Le créateur fait partie du groupe d'office, comme Créateur · Admin (la base l'ajoute aussi : group_creator_joins). */
@@ -27,7 +28,8 @@ export function NewGroupForm({ join = true, autoFocus = false, onCreated }: Prop
     const { data: created, error } = await supabase.from('member_groups').insert({ name: clean, created_by: me.id }).select('id').single();
     if (error || !created) {
       setBusy(false);
-      return setError('Le groupe n’a pas été créé. Réessaie.');
+      // Nom refusé par le filtre de la base (modération commune) : la phrase dit pourquoi.
+      return setError(dbMessage(error?.message, 'Le groupe n’a pas été créé. Réessaie.'));
     }
     const id = created.id as string;
     if (join) {

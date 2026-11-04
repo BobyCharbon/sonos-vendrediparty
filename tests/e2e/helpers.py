@@ -91,7 +91,9 @@ class Server:
         env = {**os.environ, "DATA_DIR": self.data, "ADMIN_PIN": ADMIN_PIN}
         env.pop("SPOTIFY_CLIENT_ID", None)
         if supabase:
-            env.update(SUPABASE_URL=supabase.url, SUPABASE_ANON_KEY="cle-publique-de-test")
+            # PET_SECRET : clé du serveur Party pour le Compagnon (valeur de test, celle du faux Supabase)
+            env.update(SUPABASE_URL=supabase.url, SUPABASE_ANON_KEY="cle-publique-de-test",
+                       PET_SECRET="cle-du-serveur-party-pour-les-tests-uniquement-0123456789")
         self.log = open(Path(self.data) / "server.log", "w")
         self.proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app", "--port", str(self.port), "--log-level", "warning"],
                                      cwd=ROOT, env=env, stdout=self.log, stderr=subprocess.STDOUT)

@@ -20,6 +20,9 @@ final class GroupAdminStore: ObservableObject {
         self.web = web
     }
 
+    /// Administration › Signalements (droit « Modérer les signalements »).
+    private(set) lazy var moderation = ModerationStore(api: api, web: web)
+
     #if DEBUG
     /// Simulateur : PARTY_DEBUG_GROUP_ADMIN={"overview": …, "members": …, "roles": …} affiche l'écran sans serveur.
     struct Demo: Decodable {

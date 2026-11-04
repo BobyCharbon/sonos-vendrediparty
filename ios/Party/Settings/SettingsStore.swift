@@ -57,6 +57,8 @@ final class SettingsStore: ObservableObject {
     private(set) lazy var friends = FriendsStore(api: api, web: web)
     /// Lune des Réglages et pause des Discussions.
     private(set) lazy var pause = PauseStore(api: api, web: web)
+    /// Modération commune : Personnes bloquées, conditions d'utilisation (Réglages › Confidentialité).
+    private(set) lazy var moderation = ModerationStore(api: api, web: web)
 
     init(api: PartyAPI, web: WebStorage, isHost: @escaping () -> Bool, trackChanged: @escaping (Bool, Bool) -> Void) {
         self.api = api
@@ -363,6 +365,10 @@ final class SettingsStore: ObservableObject {
         case ("direct_messages", let v as Bool): p.directMessages = v
         case ("pet_daily", let v as Bool): p.petDaily = v
         case ("pet_alerts", let v as Bool): p.petAlerts = v
+        case ("pet_gifts", let v as Bool): p.petGifts = v
+        case ("pet_streaks", let v as Bool): p.petStreaks = v
+        case ("moderation_reports", let v as Bool): p.moderationReports = v
+        case ("moderation_notices", let v as Bool): p.moderationNotices = v
         case ("quiet_start", let v as String): p.quietStart = v
         case ("quiet_end", let v as String): p.quietEnd = v
         default: break

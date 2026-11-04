@@ -202,10 +202,13 @@ export default function NotificationSettings() {
         <ToggleRow disabled={saving} label="Un contact arrive sur Party" hint="Dans l’app iPhone : quelqu’un de tes contacts vient de s’inscrire" value={prefs.contact_joins !== false} onChange={(v) => update({ contact_joins: v })} />
       </Section>
 
-      {/* Compagnon (jeu de l'onglet Jeux) : deux types, deux interrupteurs, aussi dans les Réglages de l'app iPhone. */}
+      {/* Compagnon (jeu de l'onglet Jeux) : un interrupteur par type, aussi dans les Réglages de l'app iPhone. Au plus une
+          notification par jour (hors alertes vitales), jamais la nuit ni pendant une soirée. */}
       <Section title="Compagnon">
-        <ToggleRow disabled={saving} label="Rappel du jour" hint="Une fois par jour au plus, en fin d’après-midi, s’il a un petit creux et que tu n’es pas encore passé" value={prefs.pet_daily !== false} onChange={(v) => update({ pet_daily: v })} />
-        <ToggleRow disabled={saving} label="Il a besoin de toi" hint="Deux alertes au plus avant qu’il ne s’envole, quand son ventre est vide depuis longtemps" value={prefs.pet_alerts !== false} onChange={(v) => update({ pet_alerts: v })} />
+        <ToggleRow disabled={saving} label="Rappel du jour" hint="Une fois par jour au plus, vers l’heure où tu passes d’habitude, si tu n’es pas encore venu" value={prefs.pet_daily !== false} onChange={(v) => update({ pet_daily: v })} />
+        <ToggleRow disabled={saving} label="Alertes vitales" hint="Deux alertes au plus avant qu’il ne s’envole, quand son ventre est vide depuis longtemps" value={prefs.pet_alerts !== false} onChange={(v) => update({ pet_alerts: v })} />
+        <ToggleRow disabled={saving} label="Cadeau d’un ami" hint="Un ami lui a fait un câlin ou apporté un goûter" value={prefs.pet_gifts !== false} onChange={(v) => update({ pet_gifts: v })} />
+        <ToggleRow disabled={saving} label="Paliers de série" hint="Le jour où ta série 🔥 atteint un palier (3, 7, 14, 30 jours…)" value={prefs.pet_streaks !== false} onChange={(v) => update({ pet_streaks: v })} />
       </Section>
 
       <Section title="Quand j’organise">
@@ -214,6 +217,12 @@ export default function NotificationSettings() {
         <ToggleRow disabled={saving} label="Quelqu’un dit avoir payé" hint="Sur un événement payant que j’organise, une personne touche « J’ai payé » : à confirmer quand tu as reçu l’argent" value={prefs.ticket_pay_declared !== false} onChange={(v) => update({ ticket_pay_declared: v })} />
         <ToggleRow disabled={saving} label="Ma proposition validée ou refusée" hint="Un admin publie ou refuse l’événement que tu as proposé" value={prefs.proposal_result !== false} onChange={(v) => update({ proposal_result: v })} />
         {isAdmin ? <ToggleRow disabled={saving} label="Proposition à valider" hint="Un membre propose un événement qui attend la validation d’un admin" value={prefs.proposals} onChange={(v) => update({ proposals: v })} /> : null}
+      </Section>
+
+      {/* Modération commune : chaque type a son interrupteur (règle permanente). */}
+      <Section title="Modération">
+        <ToggleRow disabled={saving} label="Message de la modération" hint="Un modérateur t’avertit qu’un de tes contenus ne respecte pas les conditions d’utilisation" value={prefs.moderation_notices !== false} onChange={(v) => update({ moderation_notices: v })} />
+        {can('moderation.reports') ? <ToggleRow disabled={saving} label="Nouveau signalement" hint="Un message, un profil ou une photo vient d’être signalé (le contenu reste dans Administration › Signalements)" value={prefs.moderation_reports !== false} onChange={(v) => update({ moderation_reports: v })} /> : null}
       </Section>
 
       <Section title="Annonces des admins">

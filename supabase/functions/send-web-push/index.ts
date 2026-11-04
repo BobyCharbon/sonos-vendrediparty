@@ -50,10 +50,12 @@ Deno.serve(async (req: Request) => {
               // Discussion de groupe (avis n°10) ou message direct (4.11) : le toucher ouvre la conversation.
               target.searchParams.set('tab', 'chats');
               target.searchParams.set('chat', row.group_id);
-            } else if (row.kind === 'pet_daily' || row.kind === 'pet_alert') {
-              // Compagnon (4.11) : le toucher ouvre le personnage dans l'onglet Jeux.
+            } else if (typeof row.kind === 'string' && row.kind.startsWith('pet_')) {
+              // Compagnon (4.11) : le toucher ouvre le personnage dans l'onglet Jeux (rappel, alertes, cadeau d'un
+              // ami, palier de série) ; src=notif pour la mesure des ouvertures (pet_opens).
               target.searchParams.set('tab', 'games');
               target.searchParams.set('pet', '1');
+              target.searchParams.set('src', 'notif');
             } else {
               target.searchParams.set('tab', 'events');
               if (row.event_id) target.searchParams.set('event', row.event_id);

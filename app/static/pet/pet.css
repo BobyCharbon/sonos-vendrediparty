@@ -77,7 +77,8 @@ html.pt-open #tabs { display: none !important; }
 .pt-act small { color: var(--pt-muted); font-weight: 600; }
 .pt-act[aria-disabled="true"] { opacity: .45; }
 .pt-light { background: linear-gradient(160deg, #2b2160, #1a1340); }
-.pt-more { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.pt-more { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+.pt-more .pt-ghost { padding: 0 4px; font-size: .84rem; }
 .pt-ghost { min-height: 46px; border: 0; border-radius: 14px; font-weight: 700; background: rgba(255, 255, 255, .07); box-shadow: inset 0 0 0 1px var(--pt-line); transition: transform .25s var(--pt-spring); }
 .pt-cta {
   width: 100%; min-height: 54px; margin-top: 14px; border: 0; border-radius: 18px; color: #12082a !important; font-weight: 800; font-size: 1.05rem;
@@ -107,20 +108,76 @@ html.pt-open #tabs { display: none !important; }
 .pt-memo-list { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 4px; }
 .pt-memo h3 { margin: 20px 0 4px; font-size: 1rem; }
 
+/* Boucle du jour : coffre, réveil, série, missions, trésors (lot 1) */
+.pt-chip-btn { border: 0; cursor: pointer; }
+.pt-tiny { font-size: .8rem; margin: 10px 0 0; }
+.pt-morning { margin-top: 12px; text-align: left; background: linear-gradient(160deg, #3a2a12, #22163a 70%); }
+.pt-morning p { margin: 6px 0 0; line-height: 1.45; }
+.pt-x { position: absolute; top: 8px; right: 8px; width: 34px; height: 34px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .1); }
+.pt-repair { margin: 12px 0 0; padding: 10px 12px; border-radius: 16px; font-size: .9rem; background: rgba(255, 79, 154, .12); box-shadow: inset 0 0 0 1px rgba(255, 79, 154, .35); }
+.pt-repair .ok { color: #9bffcb; }
+.pt-chest-row { display: flex; gap: 8px; margin-top: 12px; align-items: stretch; }
+.pt-chest {
+  flex: 1; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 0; border-radius: 20px; text-align: left; cursor: pointer;
+  background: linear-gradient(135deg, rgba(255, 181, 71, .28), rgba(255, 79, 154, .22)); box-shadow: inset 0 0 0 1px rgba(255, 181, 71, .45), 0 10px 26px rgba(255, 140, 80, .2);
+  transition: transform .25s var(--pt-spring);
+}
+.pt-chest > span:last-child { display: flex; flex-direction: column; }
+.pt-chest small { color: #ffe2b8; font-weight: 600; }
+.pt-chest-i { font-size: 2.2rem; animation: pt-glow 1.8s ease-in-out infinite; }
+.pt-info { flex: none; width: 44px; border: 0; border-radius: 16px; font-weight: 800; font-style: italic; font-family: Georgia, serif !important; background: rgba(255, 255, 255, .08); box-shadow: inset 0 0 0 1px var(--pt-line); }
+.pt-chest-done { margin: 12px 0 0; padding: 10px 12px; border-radius: 16px; font-size: .9rem; text-align: center; background: rgba(255, 255, 255, .05); }
+.pt-shake .pt-chest-i, .pt-bonus.pt-shake { animation: pt-shake .3s ease-in-out 3; }
+.pt-tuck { background: linear-gradient(135deg, #3d4bff, #8f6bff 60%, #2b2160); color: #fff !important; }
+.pt-missions { margin-top: 12px; text-align: left; }
+.pt-missions h2 { font-size: 1.1rem; }
+.pt-missions ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.pt-missions li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 9px 12px; border-radius: 14px; background: rgba(255, 255, 255, .05); }
+.pt-missions li.done span:nth-child(2) { color: var(--pt-muted); text-decoration: line-through; }
+.pt-missions small { color: var(--pt-muted); font-weight: 700; }
+.pt-week { display: grid; gap: 2px; margin-top: 12px; padding: 10px 12px; border-radius: 14px; background: rgba(94, 231, 255, .08); box-shadow: inset 0 0 0 1px rgba(94, 231, 255, .25); }
+.pt-week small { color: var(--pt-muted); }
+.pt-week.done { background: rgba(155, 255, 203, .08); }
+.pt-bag { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.pt-bag .pt-ghost { padding: 0 14px; }
+.pt-big { font: 800 3rem/1 "Bricolage Grotesque", system-ui, sans-serif; margin: 8px 0; }
+.pt-freezes { font-size: 1.3rem; }
+.pt-freezes small { display: block; font-size: .8rem; color: var(--pt-muted); }
+.pt-off { opacity: .25; filter: grayscale(1); }
+.pt-tip { margin: 10px 0 0; padding: 10px 12px; border-radius: 14px; background: rgba(255, 181, 71, .12); }
+.pt-next { margin: 12px 0 0; font-size: 1.05rem; }
+.pt-miles, .pt-pieces, .pt-odds ul { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; text-align: left; }
+.pt-miles li, .pt-pieces li, .pt-odds li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 9px 12px; border-radius: 14px; background: rgba(255, 255, 255, .05); }
+.pt-odds li { grid-template-columns: 1fr auto; }
+.pt-miles li.done { background: rgba(155, 255, 203, .08); }
+.pt-pieces small { color: var(--pt-muted); }
+.pt-treasures h3 { margin: 18px 0 0; font-size: 1rem; text-align: left; }
+.pt-album { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; margin-top: 8px; font-size: 1.6rem; }
+.pt-album span { display: grid; place-items: center; aspect-ratio: 1; border-radius: 12px; background: rgba(255, 255, 255, .06); }
+.pt-reveal { padding-top: 30px; }
+.pt-reveal-i { font-size: 5rem; line-height: 1; animation: pt-reveal .7s var(--pt-spring) both; }
+@keyframes pt-glow { 0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); } 50% { transform: scale(1.08); filter: drop-shadow(0 0 10px rgba(255, 181, 71, .8)); } }
+@keyframes pt-shake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-12deg) scale(1.1); } 75% { transform: rotate(12deg) scale(1.1); } }
+@keyframes pt-reveal { 0% { transform: scale(0) rotate(-20deg); opacity: 0; } 100% { transform: none; opacity: 1; } }
+
 /* Mini-jeu */
 .pt-game { text-align: center; }
 .pt-timer { height: 8px; border-radius: 99px; background: rgba(255, 255, 255, .1); overflow: hidden; }
 .pt-timer i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, var(--pt-neon), var(--pt-cyan)); transform-origin: left; }
 .pt-timer i.go { transform: scaleX(0); transition: transform var(--d) linear; }
 .pt-field { position: relative; height: min(52vh, 380px); margin-top: 12px; border-radius: 26px; background: radial-gradient(circle at 50% 40%, #2c1d5c, #120b28); box-shadow: inset 0 0 0 1px var(--pt-line); }
-.pt-note { position: absolute; width: 58px; height: 58px; margin: -29px 0 0 -29px; border: 0; border-radius: 50%; font-size: 1.8rem; background: rgba(255, 255, 255, .12); box-shadow: 0 0 22px rgba(94, 231, 255, .45); animation: pt-pop .35s var(--pt-spring) both, pt-float 1.2s ease-in both .3s; }
+/* Notes bien visibles : pastille claire sous l'emoji (playtest « Léa » : 🎶 noir sur violet foncé, presque invisible). */
+.pt-note { position: absolute; width: 58px; height: 58px; margin: -29px 0 0 -29px; border: 0; border-radius: 50%; font-size: 1.8rem; background: radial-gradient(circle, #fff 0 58%, #c9f6ff 100%); box-shadow: 0 0 0 3px rgba(94, 231, 255, .9), 0 0 24px rgba(94, 231, 255, .7); animation: pt-pop .35s var(--pt-spring) both, pt-float 1.2s ease-in both .3s; }
 .pt-note.pt-caught { animation: pt-catch .22s ease-out forwards; }
 .pt-score { font-size: 1.1rem; }
 
 /* Bulles, toasts */
-.pt-news { position: fixed; left: 0; right: 0; top: max(70px, calc(env(safe-area-inset-top) + 60px)); display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; z-index: 2; }
+/* Messages EN BAS (playtest « Léa » : en haut, ils recouvraient la ligne stade · âge · série · pièces), un à la fois. */
+.pt-news { position: fixed; left: 0; right: 0; bottom: max(20px, calc(env(safe-area-inset-bottom) + 12px)); display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; z-index: 2; }
 .pt-toast { max-width: min(92vw, 480px); padding: 10px 16px; border-radius: 16px; font-weight: 700; font-size: .92rem; background: rgba(36, 26, 72, .96); box-shadow: 0 10px 30px rgba(0, 0, 0, .4), inset 0 0 0 1px var(--pt-line); animation: pt-in .45s var(--pt-spring) both; }
 .pt-err { background: rgba(80, 30, 50, .96); }
+/* Bandeau « Trop bien ! » : au-dessus du compagnon (milieu du héros), jamais sur les pastilles du haut (playtest). */
+.pt-bursts { position: fixed; left: 0; right: 0; top: 36%; display: flex; justify-content: center; pointer-events: none; z-index: 2; }
 .pt-burst { font: 800 1.5rem/1 "Bricolage Grotesque", system-ui, sans-serif; text-shadow: 0 4px 20px rgba(255, 79, 154, .6); animation: pt-burst 1.3s var(--pt-spring) both; }
 
 /* Animations à ressort (coupées si l'utilisateur réduit les animations) */
@@ -150,9 +207,22 @@ html.pt-open #tabs { display: none !important; }
   .pt-root *, .pt-root *::before { animation: none !important; transition: none !important; }
   .pt-toast, .pt-burst { opacity: 1; }
 }
-@media (max-width: 360px) { .pt-acts { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 360px) { .pt-acts { grid-template-columns: repeat(3, 1fr); } .pt-more { grid-template-columns: 1fr 1fr; } }
 
 /* Carte de l'onglet Jeux */
 .gcard.g-pt { background: linear-gradient(150deg, rgba(143, 107, 255, .22), rgba(255, 79, 154, .14)); }
 .g-pt-ico { display: block; width: 100%; height: 100%; }
 .g-pt-ico svg { width: 100%; height: 100%; }
+
+/* Playtest « Léa » (4.11) : valeur des jauges, avertissement avant l'envol, règle de la série, mini-jeu (compagnon et score). */
+.pt-g-v { margin-left: 4px; color: var(--pt-text); font-variant-numeric: tabular-nums; }
+.pt-line.pt-warn { display: inline-block; padding: 6px 12px; border-radius: 14px; background: rgba(255, 181, 71, .16); box-shadow: inset 0 0 0 1px rgba(255, 181, 71, .45); color: #ffe2b8; }
+.pt-card.pt-danger, .pt-hungry { margin: 12px 0 0; padding: 12px 14px; border-radius: 18px; display: grid; gap: 6px; }
+.pt-card.pt-danger { background: rgba(255, 92, 122, .16); box-shadow: inset 0 0 0 1px rgba(255, 92, 122, .55); color: #ffd6de; }
+.pt-hungry { background: rgba(255, 181, 71, .14); box-shadow: inset 0 0 0 1px rgba(255, 181, 71, .35); color: #ffe2b8; }
+.pt-card.pt-danger p, .pt-hungry p { margin: 0; }
+.pt-rule { margin: 10px 0 0; padding: 8px 12px; border-radius: 14px; font-size: .88rem; text-align: center; background: rgba(255, 138, 61, .12); box-shadow: inset 0 0 0 1px rgba(255, 138, 61, .35); }
+.pt-game-pet { display: flex; align-items: center; gap: 10px; }
+.pt-game-pet p { margin: 0; }
+.pt-result { text-align: center; }
+.pt-result .pt-big small { font-size: 1.1rem; opacity: .7; }

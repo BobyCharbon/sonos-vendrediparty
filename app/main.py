@@ -35,6 +35,8 @@ from .group_admin import ROLE_KEY, GroupAdmin
 from .app_invites import JOIN_PAGE as APP_JOIN_PAGE, AppInvites, join_meta
 from .contact_names import MAX_FRIENDS as CONTACT_MAX_FRIENDS, MAX_HASHES as CONTACT_MAX_HASHES, ContactNames
 from .group_chats import LEVELS as CHAT_LEVELS, PHOTO_MAX as CHAT_PHOTO_MAX, GroupChats
+from .moderation import ContentRefused, require_clean
+from .moderation_api import Moderation, router as moderation_router
 from .wallet import MEDIA_TYPE as PKPASS_TYPE, PASS_TYPE_ID, WalletError
 from .wallet_tickets import WalletTickets
 from .tricount import CURRENCIES as TC_CURRENCIES, Tricount
@@ -1488,6 +1490,8 @@ def presence(body: Presence, request: Request):
 accounts = Accounts(_secret())
 group_admin = GroupAdmin(accounts)
 group_chats = GroupChats(group_admin)
+# Modération commune (Signaler, blocage, CGU, écran Signalements) : relais pour l'app iOS native.
+app.include_router(moderation_router(Moderation(group_admin, group_chats)))
 contact_names = ContactNames(accounts)
 app_invites = AppInvites(accounts, configured_public_url)
 # Billets dans Apple Wallet : certificats dans WALLET_DIR (par défaut DATA_DIR/wallet) ; sans eux, bouton masqué.
@@ -1699,6 +1703,12 @@ class NotificationPatch(BaseModel):
     # Compagnon (migration 20261104130000) : rappel doux du jour ; alertes avant qu'il ne s'envole.
     pet_daily: bool | None = None
     pet_alerts: bool | None = None
+    # Compagnon, lot 1 (migration 20261104150000) : cadeau d'un ami ; paliers de série.
+    pet_gifts: bool | None = None
+    pet_streaks: bool | None = None
+    # Modération (migration 20261104200000) : nouveau signalement (modérateurs) ; message de la modération.
+    moderation_reports: bool | None = None
+    moderation_notices: bool | None = None
 
 
 class NotificationUpdate(MemberToken):
@@ -3438,15 +3448,25 @@ def brain_game_local(body: BrainGameLocal):
 
 # 🥚 Compagnon : personnage à entretenir (app/pet.py pour la vie, app/pet_store.py pour la base). Compte requis.
 pet_party_log = pet_store.PartyLog(DATA_DIR / "pet_party.json")
-PET_ACTIONS = Literal["feed", "play", "cuddle", "sleep", "wake", "heal", "rename", "outfit", "new_egg"]
+PET_ACTIONS = Literal["feed", "play", "cuddle", "sleep", "wake", "heal", "rename", "outfit", "new_egg",
+                      "chest", "bonus_chest", "tuck", "treat"]   # les 4 dernières : boucle du jour (app/pet_loop.py)
 
 
 class PetAct(BaseModel):
     token: str = Field(min_length=21, max_length=4095)
     action: PET_ACTIONS
-    score: int = Field(default=0, ge=0, le=pet.PLAY_SCORE_MAX)
+    score: int = Field(default=0, ge=0, le=pet.PLAY_SCORE_MAX)   # ancien score déclaré : ignoré (voir game, hits)
+    game: str = Field(default="", max_length=120, pattern=r"^[0-9a-f.]*$")   # jeton de partie (/api/pet/game)
+    hits: int = Field(default=0, ge=0, le=200)                             # notes attrapées (vérifiées)
     name: str = Field(default="", max_length=60)
     outfit: str = Field(default="", pattern=r"^[a-z]{0,20}$")
+    item: str = Field(default="", pattern=r"^[a-z]{0,20}$")   # goûter rare du sac (action treat)
+
+
+class PetMe(AccountToken):
+    # D'où vient l'ouverture (mesure, table pet_opens) : onglet Jeux, notification, widget, lien direct.
+    # « none » : relecture dans le même panneau (après l'éclosion…), pas une nouvelle ouverture.
+    src: Literal["tab", "notif", "notification", "widget", "link", "none"] = "tab"
 
 
 class PetFriend(BaseModel):
@@ -3458,11 +3478,17 @@ class PetGift(PetFriend):
     kind: Literal["hug", "snack"]
 
 
-def pet_call(request: Request, work):
-    """Appel au nom du compte : mêmes garde-fous que Méninges (limite par adresse, jeton vérifié)."""
+pet_rate = pet_store.AccountRate()
+
+
+def pet_call(request: Request, work, token: str = ""):
+    """Appel au nom du compte : mêmes garde-fous que Méninges (limite par adresse, jeton vérifié), plus un débit
+    maximal par compte (60 appels par minute)."""
     ip = client_ip(request)
     if msg := account_limiter.blocked(ip):
         raise HTTPException(429, msg)
+    if token and not pet_rate.allow(pet_store.rate_key(token)):
+        raise HTTPException(429, "Doucement 🙂 Ton compagnon reprend son souffle, réessaie dans une minute.")
     try:
         result = account_call(work, 401)
     except pet_store.PetUnavailable as e:
@@ -3475,22 +3501,37 @@ def pet_call(request: Request, work):
     return result
 
 
+# Clé du serveur Party pour le Compagnon : PET_SECRET, sinon une clé créée une fois dans DATA_DIR (0600) et enrôlée.
+PET_SECRET, PET_SECRET_FROM_ENV = pet_store.load_secret(DATA_DIR)
+
+
 def pet_service() -> pet_store.PetStore:
-    return pet_store.PetStore(accounts, pet_party_log)
+    return pet_store.PetStore(accounts, pet_party_log, secret=PET_SECRET, enroll=not PET_SECRET_FROM_ENV)
 
 
 @app.post("/api/pet/me")
-def pet_me(body: AccountToken, request: Request):
-    """Mon compagnon, vécu jusqu'à maintenant (un œuf au premier appel), avec les nouvelles (bonus, cadeaux, évolution)."""
+def pet_me(body: PetMe, request: Request):
+    """Mon compagnon, vécu jusqu'à maintenant (un œuf au premier appel), avec les nouvelles (bonus, cadeaux, évolution)
+    et la boucle du jour (coffre, série, missions, rituels). Compte une ouverture (src) pour la mesure."""
     if not 20 < len(body.token) < 4096:
         raise HTTPException(400, "Jeton invalide")
-    return pet_call(request, lambda: pet_service().me(body.token))
+    return pet_call(request, lambda: pet_service().me(body.token, body.src), body.token)
 
 
 @app.post("/api/pet/act")
 def pet_act(body: PetAct, request: Request):
-    """Une action : nourrir, jouer (score du micro-jeu), câliner, lumière, soigner, nom, tenue, nouvel œuf."""
-    return pet_call(request, lambda: pet_service().act(body.token, body.action, body.score, body.name, body.outfit))
+    """Une action : nourrir, jouer (score du micro-jeu), câliner, lumière, soigner, nom, tenue, nouvel œuf ; coffre du
+    jour, coffre bonus, coucher, goûter rare."""
+    return pet_call(request, lambda: pet_service().act(body.token, body.action, body.score, body.name, body.outfit,
+                                                       body.item, body.game, body.hits), body.token)
+
+
+@app.post("/api/pet/game")
+def pet_game(body: AccountToken, request: Request):
+    """Une partie du jeu des notes commence : jeton signé par le serveur (le score sera calculé par lui à la fin)."""
+    if not 20 < len(body.token) < 4096:
+        raise HTTPException(400, "Jeton invalide")
+    return pet_call(request, lambda: pet_service().game(body.token), body.token)
 
 
 @app.post("/api/pet/friends")
@@ -3498,18 +3539,18 @@ def pet_friends(body: AccountToken, request: Request):
     """Compagnons des membres de mes groupes (ce qui est montrable seulement)."""
     if not 20 < len(body.token) < 4096:
         raise HTTPException(400, "Jeton invalide")
-    return pet_call(request, lambda: pet_service().friends(body.token))
+    return pet_call(request, lambda: pet_service().friends(body.token), body.token)
 
 
 @app.post("/api/pet/friend")
 def pet_friend(body: PetFriend, request: Request):
-    return pet_call(request, lambda: pet_service().friend(body.token, body.friend))
+    return pet_call(request, lambda: pet_service().friend(body.token, body.friend), body.token)
 
 
 @app.post("/api/pet/gift")
 def pet_gift(body: PetGift, request: Request):
     """Câlin ou goûter pour le compagnon d'un ami : un par ami et par jour (la base y veille)."""
-    return pet_call(request, lambda: pet_service().gift(body.token, body.friend, body.kind))
+    return pet_call(request, lambda: pet_service().gift(body.token, body.friend, body.kind), body.token)
 
 
 @app.get("/qr/game/{code}.svg")
@@ -3934,7 +3975,10 @@ def clean_name(raw: str) -> str:
     name = " ".join(raw.split())[:30]
     if not name:
         raise HTTPException(400, "Indique ton prénom")
-    return name
+    try:  # affiché aux autres joueurs et sur la TV : même filtre que les surnoms (app/moderation.py)
+        return require_clean(name, "name")
+    except ContentRefused as e:
+        raise HTTPException(400, str(e))
 
 
 def check_guest_id(guest_id: str):

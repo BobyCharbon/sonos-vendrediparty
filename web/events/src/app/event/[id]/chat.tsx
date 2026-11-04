@@ -4,12 +4,15 @@ import { FlatList, KeyboardAvoidingView, Platform, Pressable, View } from 'react
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LinkedText } from '@/components/LinkedText';
+import { ReportSheet } from '@/components/ReportSheet';
+import { useTermsGate } from '@/components/TermsSheet';
 import { Avatar, Button, ErrorText, Input, s, T } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { useContactNames, withContactNames } from '@/lib/contactNames';
 import { useQuery, useRealtime } from '@/lib/data';
 import { formatMessageTime } from '@/lib/format';
 import { enter } from '@/lib/motion';
+import { dbMessage, type ReportTarget } from '@/lib/moderation';
 import { check, must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
 import type { Message } from '@/lib/types';
@@ -28,6 +31,9 @@ function Chat({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
+  // Modération commune : « Signaler » un message, CGU acceptées avant le premier message.
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+  const terms = useTermsGate();
   const [older, setOlder] = useState<Message[]>([]);
   const [olderMore, setOlderMore] = useState<boolean | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -94,6 +100,7 @@ function Chat({ id }: { id: string }) {
   async function send() {
     const body = text.trim();
     if (!body || sendingRef.current) return;
+    if (!terms.accepted && !(await terms.ensure())) return;
     sendingRef.current = true;
     setSending(true);
     setError(null);
@@ -108,7 +115,7 @@ function Chat({ id }: { id: string }) {
       followLatest.current = true;
       await reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(dbMessage(e instanceof Error ? e.message : String(e), 'Le message n’a pas pu être envoyé. Réessaie.'));
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -192,6 +199,12 @@ function Chat({ id }: { id: string }) {
                         <T muted size={11}>Supprimer</T>
                       </Pressable>
                     ) : null}
+                    {!mine ? (
+                      <Pressable onPress={() => setReportTarget({ kind: 'event_message', id: m.id, label: `le message de ${names.get(m.user_id) ?? '?'}` })}
+                        accessibilityRole="button" accessibilityLabel={`Signaler le message de ${names.get(m.user_id) ?? '?'}`}>
+                        <T muted size={11}>Signaler</T>
+                      </Pressable>
+                    ) : null}
                   </View>
                 </View>
               </Pressable>
@@ -222,6 +235,8 @@ function Chat({ id }: { id: string }) {
           <Button label="Envoyer" onPress={send} disabled={!text.trim() || !data} loading={sending} small />
         </View>
       </KeyboardAvoidingView>
+      <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />
+      {terms.sheet}
     </SafeAreaView>
   );
 }

@@ -21,6 +21,9 @@ struct ConversationView: View {
     /// Micro touché (pas maintenu) : l'enregistrement continue jusqu'au prochain toucher, qui l'envoie.
     @State private var micLocked = false
     @State private var pressedAt = Date()
+    /// Modération commune : « Signaler » un message ; conditions d'utilisation avant le premier message.
+    @State private var reporting: ReportTarget?
+    @State private var askTerms = false
 
     private var chat: Conversation? { store.conversation?.id == group ? store.conversation : nil }
 
@@ -68,6 +71,8 @@ struct ConversationView: View {
         .sheet(isPresented: $showInfo) {
             if store.conversation?.isDirect == true { DirectChatInfoView(store: store) } else { ChatInfoView(store: store) }
         }
+        .sheet(item: $reporting) { ReportSheet(store: store.moderation, target: $0) }
+        .sheet(isPresented: $askTerms) { TermsAcceptSheet(store: store.moderation) }
         .overlay(alignment: .bottom) { notice }
         .task(id: group) {
             while !Task.isCancelled {
@@ -145,7 +150,11 @@ struct ConversationView: View {
                                onReact: { emoji in Haptics.tap(); Task { await store.react(m, emoji) } },
                                onReply: { reply(to: m) },
                                onPin: { Task { await store.pin(m) } },
-                               onDelete: { Task { await store.delete(m) } })
+                               onDelete: { Task { await store.delete(m) } },
+                               onReport: {
+                                   reporting = ReportTarget(kind: chat.isDirect ? .directMessage : .groupMessage, id: m.id,
+                                                            label: "le message de \(m.authorName)")
+                               })
                         .id(m.id)
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
@@ -280,6 +289,11 @@ struct ConversationView: View {
                     text = ""
                     replyTo = nil
                     Task {
+                        if !(await termsAccepted()) {
+                            text = typed
+                            replyTo = quoted
+                            return
+                        }
                         if !(await store.send(typed, replyTo: quoted?.id)) {
                             text = typed
                             replyTo = quoted
@@ -342,7 +356,20 @@ struct ConversationView: View {
         guard let (file, seconds) = recorded else { return }
         let quoted = replyTo
         replyTo = nil
-        Task { await store.sendVoice(file, seconds: seconds, replyTo: quoted?.id) }
+        Task {
+            guard await termsAccepted() else {
+                try? FileManager.default.removeItem(at: file)
+                return
+            }
+            await store.sendVoice(file, seconds: seconds, replyTo: quoted?.id)
+        }
+    }
+
+    /// Conditions d'utilisation acceptées avant le premier message (Google UGC) ; sinon la feuille s'ouvre.
+    private func termsAccepted() async -> Bool {
+        if await store.moderation.termsAccepted() { return true }
+        askTerms = true
+        return false
     }
 
     private var recordingBar: some View {
@@ -381,6 +408,7 @@ struct ConversationView: View {
             store.notice = "Cette photo n'a pas pu être lue. Choisis-en une autre."
             return
         }
+        guard await termsAccepted() else { return }
         if await store.send(text, replyTo: replyTo?.id, photo: jpeg) {
             text = ""
             replyTo = nil
@@ -403,9 +431,11 @@ private struct ChatBubble: View {
     let onReply: () -> Void
     let onPin: () -> Void
     let onDelete: () -> Void
+    /// « Signaler » (modération commune) : sur le message d'un autre, même sans pouvoir écrire dans le groupe.
+    var onReport: (() -> Void)?
 
     private var accent: Color { Color(uiColor: AppConfig.uiAccent) }
-    private var actions: Bool { canWrite && !message.deleted && !message.pending }
+    private var actions: Bool { (canWrite || (!message.mine && onReport != nil)) && !message.deleted && !message.pending }
 
     var body: some View {
         row.accessibilityAction(named: "Répondre") { if actions { onReply() } }
@@ -478,10 +508,12 @@ private struct ChatBubble: View {
     }
 
     @ViewBuilder private var menu: some View {
-        ControlGroup {
-            ForEach(reactions, id: \.self) { emoji in Button(emoji) { onReact(emoji) } }
+        if canWrite {
+            ControlGroup {
+                ForEach(reactions, id: \.self) { emoji in Button(emoji) { onReact(emoji) } }
+            }
+            Button { onReply() } label: { Label("Répondre", systemImage: "arrowshape.turn.up.left") }
         }
-        Button { onReply() } label: { Label("Répondre", systemImage: "arrowshape.turn.up.left") }
         Button { UIPasteboard.general.string = message.body } label: { Label("Copier", systemImage: "doc.on.doc") }
         if message.isAnnouncement {
             if isStaff { Button { onPin() } label: { Label("Retirer l'annonce", systemImage: "pin.slash") } }
@@ -492,6 +524,9 @@ private struct ChatBubble: View {
         }
         if message.mine || isAdmin {
             Button(role: .destructive) { onDelete() } label: { Label("Supprimer", systemImage: "trash") }
+        }
+        if !message.mine, let onReport {
+            Button(role: .destructive) { onReport() } label: { Label("Signaler", systemImage: "exclamationmark.bubble") }
         }
     }
 

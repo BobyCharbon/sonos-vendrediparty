@@ -7,7 +7,7 @@ self.addEventListener("push", (ev) => {
   try { d = ev.data ? ev.data.json() : {}; } catch {}
   ev.waitUntil(self.registration.showNotification(d.title || "VendrediParty", {
     body: d.body || "",
-    icon: "/static/icon-192.png",
+    icon: "/static/icon-192.png?v=3",
     tag: d.tag,
     renotify: d.silent !== true && !!d.tag && !String(d.tag).startsWith("party-event-"),
     data: { url: d.url || "/" },

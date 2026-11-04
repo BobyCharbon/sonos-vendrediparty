@@ -8,6 +8,7 @@ struct DirectChatInfoView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showCard = false
     @State private var confirmBlock = false
+    @State private var reporting: ReportTarget?
 
     var body: some View {
         NavigationStack {
@@ -46,10 +47,14 @@ struct DirectChatInfoView: View {
                             Button("Bloquer \(label.primary)", role: .destructive) { confirmBlock = true }
                                 .accessibilityIdentifier("direct-block")
                         }
+                        if let user = chat.userID {
+                            Button("Signaler \(label.primary)") { reporting = ReportTarget(kind: .profile, id: user, label: label.primary) }
+                                .accessibilityIdentifier("direct-report")
+                        }
                     } header: {
                         Text("Confidentialité")
                     } footer: {
-                        Text("Conversation privée : seuls vous deux la lisez. Une personne bloquée ne peut plus t'écrire (et toi non plus) ; elle n'en est pas prévenue. L'historique reste.")
+                        Text("Conversation privée : seuls vous deux la lisez. Une personne bloquée ne peut plus t'écrire (et toi non plus), ni te citer, t'inviter ou voir ta fiche ; elle n'en est pas prévenue. L'historique reste.")
                     }
                 }
             }
@@ -65,6 +70,7 @@ struct DirectChatInfoView: View {
             } message: {
                 Text("Elle ne pourra plus t'écrire. Tu pourras la débloquer ici.")
             }
+            .sheet(item: $reporting) { ReportSheet(store: store.moderation, target: $0) }
             .sheet(isPresented: $showCard) {
                 // Déjà dans la conversation : pas de « Écrire » sur sa fiche.
                 if let user = store.conversation?.userID {

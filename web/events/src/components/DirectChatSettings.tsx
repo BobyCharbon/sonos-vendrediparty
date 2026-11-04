@@ -4,6 +4,8 @@ import { ScrollView, View } from 'react-native';
 
 import { Avatar, Button, ConfirmButton, ErrorText, Section, T, ToggleRow } from './ui';
 import type { NotifyLevel } from '@/lib/chats';
+import { type ReportTarget } from '@/lib/moderation';
+import { ReportSheet } from './ReportSheet';
 import { supabase } from '@/lib/supabase';
 
 type Props = {
@@ -19,6 +21,7 @@ type Props = {
 export function DirectChatSettings({ chatId, other, notify, blocked, onChanged }: Props) {
   const [on, setOn] = useState(notify !== 'none');
   const [error, setError] = useState<string | null>(null);
+  const [report, setReport] = useState<ReportTarget | null>(null);
 
   async function changeNotify(next: boolean) {
     setOn(next);
@@ -33,6 +36,7 @@ export function DirectChatSettings({ chatId, other, notify, blocked, onChanged }
 
   async function setBlocked(next: boolean) {
     setError(null);
+    // Même table que le blocage commun à toute l'app (public.direct_blocks).
     const { error } = await supabase.rpc('set_direct_block', { target: other.id, blocked: next });
     if (error) return setError(next ? 'Le blocage n’a pas pu être enregistré.' : 'Le déblocage n’a pas pu être enregistré.');
     onChanged();
@@ -56,8 +60,10 @@ export function DirectChatSettings({ chatId, other, notify, blocked, onChanged }
         ) : (
           <ConfirmButton small label={`Bloquer ${other.name}`} confirmLabel="Confirmer le blocage" onConfirm={() => setBlocked(true)} />
         )}
-        <T muted size={12}>Une personne bloquée ne peut plus t’écrire (et toi non plus) ; elle n’en est pas prévenue. L’historique reste.</T>
+        <T muted size={12}>Une personne bloquée ne peut plus t’écrire (et toi non plus), ni te citer, t’inviter ou voir ta fiche ; elle n’en est pas prévenue. L’historique reste.</T>
+        <Button small variant="ghost" label={`Signaler ${other.name}`} onPress={() => setReport({ kind: 'profile', id: other.id, label: other.name })} />
       </Section>
+      <ReportSheet target={report} onClose={() => setReport(null)} />
       <ErrorText error={error} />
     </ScrollView>
   );

@@ -17,9 +17,11 @@ import math
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+from . import pet_streak
+
 TZ = ZoneInfo("Europe/Zurich")
 FORMAT = 1
-DEFAULT_NAME = "Paillou"          # nom provisoire (mascotte pas encore choisie) ; le skin du navigateur a le même
+DEFAULT_NAME = "Zicou"            # la mascotte de Party (le skin du navigateur porte le même nom)
 NAME_MAX = 20
 
 GAUGES = ("food", "joy", "energy", "care")   # Ventre, Humeur, Énergie, Forme (0–100)
@@ -27,14 +29,16 @@ FULL = 100.0
 START_GAUGES = {"food": 80.0, "joy": 80.0, "energy": 90.0, "care": 90.0}
 
 # ── Rythme de vie (points par heure) ──
-FOOD_RATE = 3.2            # ventre plein → vide en ~31 h éveillé
+# Rythme réglé le 4.11 (playtest « Marc ») : un passage par jour bien fait (2 repas, un jeu, deux câlins, une toilette)
+# suffit à garder un compagnon en forme ; avant, il finissait « rebelle » et malade.
+FOOD_RATE = 2.4            # ventre plein → vide en ~42 h éveillé
 FOOD_SLEEP_FACTOR = 0.5    # endormi, il digère deux fois moins vite
-JOY_RATE = 2.4
+JOY_RATE = 1.8
 JOY_SICK_FACTOR = 2.0      # malade, l'humeur baisse deux fois plus vite
 JOY_STARVING_FACTOR = 1.5  # ventre vide : l'humeur baisse plus vite
 ENERGY_RATE = 3.0          # ~33 h éveillé avant de tomber de sommeil
 ENERGY_REGEN = 11.0        # endormi : de 0 à 100 en ~9 h
-CARE_RATE = 1.8            # forme (propreté, santé) : ~55 h
+CARE_RATE = 1.5            # forme (propreté, santé) : ~67 h
 STAGE_FACTOR = {"baby": 1.2, "teen": 1.0, "adult": 0.9}   # un bébé a faim plus souvent
 STEP_HOURS = 1.0
 MAX_SIMULATED_DAYS = 40    # au-delà, il est mort depuis longtemps : on n'en calcule pas plus
@@ -43,8 +47,12 @@ MAX_SIMULATED_DAYS = 40    # au-delà, il est mort depuis longtemps : on n'en ca
 EGG_SECONDS = 180          # l'œuf éclot 3 min après avoir été pondu
 BABY_HOURS = 24            # bébé pendant 1 jour…
 TEEN_HOURS = 72            # … ado pendant 3 jours, puis adulte (à 4 jours)
-STAR_CARE, WILD_CARE = 72.0, 55.0   # moyenne des jauges pendant le stade : ≥ 72 « étoile », < 55 « rebelle »
-# (repères mesurés : aucun soin ≈ 49, deux repas par jour ≈ 58, un passage toutes les 4 h ≈ 83)
+STAR_CARE, WILD_CARE = 75.0, 55.0   # qualité des soins pendant le stade : ≥ 75 « étoile », < 55 « rebelle »
+# Qualité = moyenne des jauges + RÉGULARITÉ (jours du stade où on s'est vraiment occupé de lui, jusqu'à +8) + TALENT
+# (meilleur score du jeu des notes pendant le stade, jusqu'à +5, plafonné). Voir quality().
+REGULARITY_BONUS = 8.0
+CARES_PER_DAY = 2          # un jour « soigné » = au moins 2 soins ce jour-là
+TALENT_BONUS = 5.0
 EPS_HOURS = 1e-3                     # arrondis des dates à la microseconde
 VARIANTS = ("star", "classic", "wild")
 
@@ -59,7 +67,9 @@ MEMORIAL_MAX = 12
 # ── Actions du jour (remises à zéro à minuit, heure de Zurich) ──
 DAILY_LIMITS = {"feed": 6, "play": 5, "cuddle": 8, "heal": 3}
 FEED_FOOD, FEED_JOY, FULL_ENOUGH = 30.0, 2.0, 95.0
-PLAY_JOY_MIN, PLAY_JOY_SCORE, PLAY_ENERGY, PLAY_FOOD, PLAY_MIN_ENERGY = 12.0, 0.2, 8.0, 4.0, 10.0
+# Jouer ne fait jamais baisser le résultat (playtest « Marc ») : jouer ne coûte plus ni énergie ni ventre (seule
+# l'humeur, qui n'agit sur aucune autre jauge, monte) ; trop fatigué (énergie < 10), il ne joue pas.
+PLAY_JOY_MIN, PLAY_JOY_SCORE, PLAY_MIN_ENERGY = 12.0, 0.2, 10.0
 PLAY_SCORE_MAX = 100
 CUDDLE_JOY = 8.0
 HEAL_CARE = 40.0
@@ -73,21 +83,23 @@ REWARDS = {   # source → (jauges ajoutées, nombre max par jour)
 }
 REWARD_WINDOW_HOURS = 48   # une partie plus ancienne ne rapporte plus rien
 PARTY_MOOD_HOURS = 3       # après une soirée ou un cadeau : air de fête pendant 3 h
+GIFTS_PER_DAY = 3          # cadeaux reçus par jour au plus (tous amis confondus ; la base le limite aussi)
 GIFTS = {"hug": ({"joy": 10.0}, "un câlin", "🤗"), "snack": ({"food": 15.0}, "un goûter", "🍪")}
 
 # ── Tenues : (id, libellé, emoji, comment la débloquer) ; le skin du navigateur sait dessiner chacune ──
 OUTFITS = (
     ("noeud", "Nœud papillon", "🎀", "Offert dès le premier jour"),
-    ("lunettes", "Lunettes de soleil", "🕶️", "Série de 3 jours 🔥"),
-    ("casquette", "Casquette", "🧢", "Série de 7 jours 🔥"),
-    ("casque", "Casque de DJ", "🎧", "5 parties de Méninges"),
-    ("boa", "Collier lumineux", "✨", "Venir à une soirée"),
-    ("chapeau", "Chapeau de fête", "🥳", "Recevoir 5 cadeaux d'amis"),
+    ("lunettes", "Lunettes de soleil", "🕶️", "Série de 3 jours 🔥, ou les coffres du jour"),
+    ("casquette", "Casquette", "🧢", "Série de 7 jours 🔥, ou les coffres du jour"),
+    ("casque", "Casque de DJ", "🎧", "5 parties de Méninges, ou les coffres du jour"),
+    ("boa", "Collier lumineux", "✨", "Venir à une soirée, ou les coffres du jour"),
+    ("chapeau", "Chapeau de fête", "🥳", "Recevoir 5 cadeaux d'amis, ou les coffres du jour"),
     ("couronne", "Couronne", "👑", "Faire grandir un adulte « étoile »"),
 )
 OUTFIT_IDS = {o[0] for o in OUTFITS}
 
 ACTIONS = ("feed", "play", "cuddle", "sleep", "wake", "heal", "rename", "outfit", "new_egg")
+CARE_ACTIONS = ("feed", "play", "cuddle", "heal")   # les vrais soins : série 🔥, régularité
 
 
 class PetError(ValueError):
@@ -122,7 +134,7 @@ def clamp(x: float, lo: float = 0.0, hi: float = FULL) -> float:
 # ── Création ──
 
 def new_owner() -> dict:
-    return {"v": FORMAT, "day": "", "uses": {}, "streak": {"count": 0, "last": "", "best": 0},
+    return {"v": FORMAT, "day": "", "uses": {}, "streak": pet_streak.new(),
             "unlocked": ["noeud"], "stats": {"feeds": 0, "plays": 0, "cuddles": 0, "heals": 0, "brain": 0, "party": 0,
                                               "soirees": 0, "gifts_received": 0, "stars": 0, "eggs": 0},
             "claimed": {"brain": "", "party": "", "events": []}, "memorial": [], "record_hours": 0.0}
@@ -132,7 +144,7 @@ def new_life(now: datetime, gen: int = 1, name: str = DEFAULT_NAME) -> dict:
     return {"v": FORMAT, "gen": gen, "name": name, "stage": "egg", "variant": "classic", "born_at": iso(now),
             "hatched_at": None, "evolved_at": None, "died_at": None, "at": iso(now), "g": dict(START_GAUGES),
             "asleep": False, "sick": False, "starving_h": 0.0, "care_sum": 0.0, "care_h": 0.0, "outfit": None,
-            "party_until": None}
+            "party_until": None, "cares": {}, "best_score": 0}
 
 
 def new_pet(now: datetime) -> tuple[dict, dict]:
@@ -147,9 +159,28 @@ def _hatch(life: dict, at: datetime) -> None:
     life.update(stage="baby", hatched_at=iso(at), evolved_at=iso(at), at=iso(at), g=dict(START_GAUGES))
 
 
-def _variant(life: dict) -> str:
+def quality(life: dict) -> float:
+    """Qualité des soins pendant le stade : bien-être moyen (jauges) + régularité + talent (plafonnés)."""
     avg = life["care_sum"] / life["care_h"] if life["care_h"] > 0 else 50.0
-    return "star" if avg >= STAR_CARE else "wild" if avg < WILD_CARE else "classic"
+    stage_days = max(1, math.ceil(life["care_h"] / 24 - EPS_HOURS))
+    cared_days = sum(1 for n in (life.get("cares") or {}).values() if n >= CARES_PER_DAY)
+    regular = min(1.0, cared_days / stage_days)
+    talent = clamp(float(life.get("best_score") or 0), 0.0, PLAY_SCORE_MAX) / PLAY_SCORE_MAX
+    return avg + REGULARITY_BONUS * regular + TALENT_BONUS * talent
+
+
+def _variant(life: dict) -> str:
+    q = quality(life)
+    return "star" if q >= STAR_CARE else "wild" if q < WILD_CARE else "classic"
+
+
+def note_care(life: dict, now: datetime) -> None:
+    """Un vrai soin (repas, jeu, câlin, toilette, goûter) : un jour compte pour la régularité du stade à partir de
+    2 soins ce jour-là (un vrai passage, pas un seul toucher)."""
+    today = day_of(now)
+    cares = dict(life.get("cares") or {})
+    cares[today] = cares.get(today, 0) + 1
+    life["cares"] = dict(sorted(cares.items())[-8:])
 
 
 def _evolve(life: dict, at: datetime, owner: dict | None, events: list) -> None:
@@ -160,7 +191,8 @@ def _evolve(life: dict, at: datetime, owner: dict | None, events: list) -> None:
           "adult" if life["stage"] == "teen" and age >= BABY_HOURS + TEEN_HOURS - EPS_HOURS else None
     if not nxt:
         return
-    life.update(stage=nxt, variant=_variant(life), evolved_at=iso(at), care_sum=0.0, care_h=0.0)
+    life.update(stage=nxt, variant=_variant(life), evolved_at=iso(at), care_sum=0.0, care_h=0.0, cares={},
+                best_score=0)
     events.append({"kind": "evolved", "stage": nxt, "variant": life["variant"]})
     if owner is not None and nxt == "adult" and life["variant"] == "star":
         owner["stats"]["stars"] = owner["stats"].get("stars", 0) + 1
@@ -293,28 +325,32 @@ def _roll_day(owner: dict, now: datetime) -> None:
         owner["day"], owner["uses"] = today, {}
 
 
-def _note_care_day(owner: dict, now: datetime) -> None:
-    today = day_of(now)
-    s = owner["streak"]
-    if s.get("last") == today:
-        return
-    yesterday = (now.astimezone(TZ).date() - timedelta(days=1)).isoformat()
-    s["count"] = s.get("count", 0) + 1 if s.get("last") == yesterday else 1
-    s["last"], s["best"] = today, max(s.get("best", 0), s["count"])
+def brain_today(owner: dict, now: datetime) -> bool:
+    loop = owner.get("loop") or {}
+    return loop.get("day") == day_of(now) and (loop.get("c") or {}).get("brain", 0) > 0
+
+
+def note_streak(owner: dict, now: datetime, care: bool = True) -> list[dict]:
+    """Le jour compte pour la série 🔥 (un vrai soin) ; un soin avance aussi le rattrapage."""
+    today = now.astimezone(TZ).date()
+    owner["streak"], events = pet_streak.note_day(owner.get("streak"), today, brain_today(owner, now))
+    if care:
+        owner["streak"], more = pet_streak.repair_progress(owner["streak"], "care", today)
+        events += more
+    return events
 
 
 def streak_now(owner: dict, now: datetime) -> int:
-    """Série en cours : elle tient tant qu'on est passé aujourd'hui ou hier."""
-    s = owner.get("streak") or {}
-    today = now.astimezone(TZ).date()
-    alive = s.get("last") in (today.isoformat(), (today - timedelta(days=1)).isoformat())
-    return int(s.get("count", 0)) if alive else 0
+    """Série en cours : elle tient si on est passé aujourd'hui ou si les jours manqués sont protégés (répit, gels)."""
+    return pet_streak.current(owner.get("streak"), now.astimezone(TZ).date())
 
 
 def _unlock_rules(owner: dict) -> dict[str, bool]:
     st, best = owner["stats"], owner["streak"].get("best", 0)
     return {"noeud": True, "lunettes": best >= 3, "casquette": best >= 7, "casque": st.get("brain", 0) >= 5,
-            "boa": st.get("soirees", 0) >= 1, "chapeau": st.get("gifts_received", 0) >= 5, "couronne": st.get("stars", 0) >= 1}
+            "boa": st.get("soirees", 0) >= 1, "chapeau": st.get("gifts_received", 0) >= 5, "couronne": st.get("stars", 0) >= 1,
+            # Inventaire de la boucle du jour (app/pet_loop.py) : « outfit:<id> » = tenue gagnée (coffre, morceaux).
+            **{oid: True for oid in OUTFIT_IDS if ((owner.get("loop") or {}).get("inv") or {}).get(f"outfit:{oid}", 0) > 0}}
 
 
 def unlock(owner: dict) -> list[str]:
@@ -385,9 +421,10 @@ def act(life: dict, owner: dict, action: str, now: datetime, score: int = 0, nam
     if stage == "egg":
         raise PetError("Patience, l'œuf est en train d'éclore 🥚")
     _care_action(life, owner, action, score)
-    if action in ("feed", "play", "cuddle", "heal"):
-        _note_care_day(owner, now)
-    return life, owner, {"action": action, "events": events, "unlocked": unlock(owner)}
+    if action in CARE_ACTIONS:
+        note_care(life, now)
+    streak_events = note_streak(owner, now) if action in CARE_ACTIONS else []
+    return life, owner, {"action": action, "events": events, "unlocked": unlock(owner), "streak": streak_events}
 
 
 def _care_action(life: dict, owner: dict, action: str, score: int) -> None:
@@ -417,7 +454,8 @@ def _care_action(life: dict, owner: dict, action: str, score: int) -> None:
             raise PetError("Il est trop fatigué pour jouer : éteins-lui la lumière 🌙")
         _use(owner, "play")
         s = max(0, min(PLAY_SCORE_MAX, int(score)))
-        _add(life, {"joy": PLAY_JOY_MIN + s * PLAY_JOY_SCORE, "energy": -PLAY_ENERGY, "food": -PLAY_FOOD})
+        _add(life, {"joy": PLAY_JOY_MIN + s * PLAY_JOY_SCORE})
+        life["best_score"] = max(int(life.get("best_score") or 0), s)
         st["plays"] = st.get("plays", 0) + 1
     elif action == "cuddle":
         _use(owner, "cuddle")
@@ -478,13 +516,15 @@ def _reward(life: dict, owner: dict, source: str, alive: bool, now: datetime) ->
 
 
 def gifts(life: dict, owner: dict, now: datetime, received: list[dict]) -> tuple[dict, dict, list[dict]]:
-    """Cadeaux des amis (un par ami et par jour, limité par la base) : appliqués à l'ouverture."""
+    """Cadeaux des amis (un par ami et par jour, 3 reçus par jour au plus, limités par la base) : appliqués à l'ouverture."""
     life, owner = copy.deepcopy(life), copy.deepcopy(owner)
+    _roll_day(owner, now)
     applied = []
     for gift in received or []:
         kind = gift.get("kind")
-        if kind not in GIFTS:
-            continue
+        if kind not in GIFTS or owner["uses"].get("gifts_in", 0) >= GIFTS_PER_DAY:
+            continue   # au-delà de 3 par jour (la base le limite aussi) : ouvert, sans effet
+        owner["uses"]["gifts_in"] = owner["uses"].get("gifts_in", 0) + 1
         owner["stats"]["gifts_received"] = owner["stats"].get("gifts_received", 0) + 1
         if life["stage"] not in ("egg", "dead"):
             _add(life, GIFTS[kind][0])
@@ -567,15 +607,18 @@ def view(life: dict, owner: dict, now: datetime) -> dict:
     proj = projections(life, now)
     uses = owner.get("uses", {}) if owner.get("day") == day_of(now) else {}
     unlocked = set(owner.get("unlocked", []))
-    danger = None
+    danger = alert = None
     if life["stage"] not in ("egg", "dead") and life["starving_h"] > 0 and proj["dies_at"]:
         danger = {"hours_left": max(0, math.floor(hours(now, parse(proj["dies_at"]))))}
+        alert = {"kind": "starving", **danger}
+    elif life["stage"] not in ("egg", "dead") and life["g"]["food"] < LOW:
+        alert = {"kind": "hungry"}   # avertissement visible AVANT le ventre vide (playtest « Léa »)
     return {
         "name": life["name"], "gen": life["gen"], "stage": life["stage"], "variant": life["variant"],
         "emotion": emotion(life, now), "line": mood_line(life, now), "asleep": life["asleep"], "sick": life["sick"],
         "gauges": {k: round(v) for k, v in life["g"].items()}, "outfit": life.get("outfit"),
         "age_hours": round(age_hours(life, now), 1), "next_stage_in": next_stage_in(life, now),
-        "born_at": life["born_at"], "died_at": life.get("died_at"), "danger": danger,
+        "born_at": life["born_at"], "died_at": life.get("died_at"), "danger": danger, "alert": alert,
         "left": {a: max(0, n - uses.get(a, 0)) for a, n in DAILY_LIMITS.items()}, "limits": dict(DAILY_LIMITS),
         "streak": streak_now(owner, now), "best_streak": owner.get("streak", {}).get("best", 0),
         "record_hours": owner.get("record_hours", 0.0), "memorial": owner.get("memorial", [])[:MEMORIAL_MAX],

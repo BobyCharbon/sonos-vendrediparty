@@ -82,7 +82,7 @@ targets:
         # Au niveau de la cible : le préréglage XcodeGen d'une app iOS impose sinon "1,2".
         TARGETED_DEVICE_FAMILY: "1"
       configs:
-        # Icône marquée BETA pour VendrediPartyBETA (le workflow la passe aussi en ligne de commande).
+        # Icône marquée « β » pour VendrediPartyBETA (le workflow la passe aussi en ligne de commande).
         Debug:
           ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon-Beta
         Release:
@@ -204,7 +204,7 @@ targets:
         PARTY_BASE_URL: "https://$(PARTY_HOST)"
         TARGETED_DEVICE_FAMILY: "3"
       configs:
-        # Icônes marquées BETA pour Party BETA ; Party (production) les a sans bandeau (ios/scripts/tv_icons.py).
+        # Icônes marquées « β » pour Party BETA ; Party (production) les a sans pastille (tools/icon/make_icons.py).
         Debug:
           ASSETCATALOG_COMPILER_APPICON_NAME: "App Icon & Top Shelf Image Beta"
         Release:
