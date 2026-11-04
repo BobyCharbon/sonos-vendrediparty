@@ -114,7 +114,7 @@ def test_purity_private_answers_reveal_and_accounts_only(phones):
     expect(bob.page.locator('.pu-row').first).to_contain_text('Bob')  # le plus impur en tête
     expect(bob.page.locator('.pu-row').last).to_contain_text('Alice')
     expect(bob.page.locator('.pu-drink')).to_contain_text('Bob boit 2 gorgées')
-    expect(bob.page.locator('.pu-lb')).to_contain_text('Classement général')
+    expect(bob.page.locator('.pu-lb')).to_have_count(0)  # classement général : vide tant que personne ne l'a choisi
     # Profil d'impureté par catégorie (privé) : radar + liste triée, Relations est la plus impure pour Bob (4 « oui »).
     expect(bob.page.locator('.pu-radar .pu-dot')).to_have_count(9)
     expect(bob.page.locator('.pu-cat-row').first).to_contain_text('Relations')
@@ -123,16 +123,23 @@ def test_purity_private_answers_reveal_and_accounts_only(phones):
     assert 'mine' not in bob.state()['purity']
     expect(alice.page.locator('[data-gact="restart"]')).to_be_visible()
 
-    # Réglages → « Mes stats de jeu » (lien du module Comptes), onglet Purify Test : dernier test, radar et record.
+    # Réglages → « Mes stats de jeu » (lien du module Comptes), onglet Purify Test : dernier score et record seulement
+    # (A4, 04.11 : le profil par catégorie n'est jamais enregistré) ; le classement général est un choix.
     bob.page.evaluate("postMessage({type: 'party-events:open-tab', tab: 'stats'}, location.origin)")
     expect(bob.page.locator('#appTitle')).to_have_text('Mes stats de jeu')
     expect(bob.page.locator('[data-stats-tab="purity"]')).to_have_attribute('aria-selected', 'true')
     expect(bob.page.locator('[data-stats-tab="purity"]')).to_contain_text('Purify Test')
     stats = bob.page.locator('#purityStats')
     expect(stats.locator('.pu-score-v')).to_have_text('4 %')
-    expect(stats.locator('.pu-radar .pu-dot')).to_have_count(9)
-    expect(stats.locator('.pu-cat-row').first).to_contain_text('4/22')
+    expect(stats.locator('.pu-radar')).to_have_count(0)
+    expect(stats.locator('.pu-cat-row')).to_have_count(0)
     expect(stats).to_contain_text('1 test')
+    expect(stats).to_contain_text('Seul ton score global est enregistré')
+    box = stats.locator('[data-pu-public]')
+    expect(box).not_to_be_checked()
+    box.check()
+    expect(bob.page.locator('.toast')).to_contain_text('Tu apparais dans le classement général')
+    bob.page.wait_for_function("fetch('/api/purity/leaderboard').then((r) => r.json()).then((lb) => window.__lb = lb) && window.__lb?.total === 1")
     expect(bob.page.locator('#accountTab')).to_have_class(re.compile(r'\bon\b'))  # page rattachée aux Réglages
     bob.tap('[data-view="stats"] [data-host-back]')
     expect(bob.page.locator('body')).to_have_attribute('data-tab', 'account')

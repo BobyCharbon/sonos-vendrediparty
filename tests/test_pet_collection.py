@@ -34,13 +34,15 @@ def test_the_14_old_outfits_are_catalog_items_and_mythics_are_numbered_with_neut
     assert all(cat.item(o) for o in SKIN_OUTFITS)
     assert {o[0] for o in pet.OUTFITS} <= set(SKIN_OUTFITS)
     for m in cat.mythics():
-        assert m.startswith("m-") and 1 <= cat.item(m)["edition"] <= 25
+        assert m.startswith("m-") and 5 <= cat.item(m)["edition"] <= 10   # économie du 4.11 : 5 à 10 exemplaires
     assert cat.mythics("event") == ["m-soirees"] and "m-soirees" not in cat.mythics("chest")
 
 
 def test_the_migration_holds_exactly_the_same_catalog():
-    sql = (ROOT / "supabase/migrations/20261104210000_compagnon_collection.sql").read_text()
-    assert cat.sql_values() in sql
+    """La DERNIÈRE migration qui recopie le catalogue le tient à l'identique (économie : 20261105120000)."""
+    copies = sorted(f for f in (ROOT / "supabase/migrations").glob("*.sql") if "insert into public.pet_catalog" in f.read_text())
+    assert copies[-1].name == "20261105120000_zicou_economie.sql"
+    assert cat.sql_values() in copies[-1].read_text()
 
 
 def test_every_catalog_item_has_a_drawing():
@@ -64,15 +66,17 @@ def test_validation_refuses_a_broken_catalog():
 def test_odds_are_shown_for_every_draw_with_the_mystery_object_and_sum_to_100():
     odds = pc.odds(0, ALL_LEFT)
     assert sum(o["pct"] for o in odds) == pytest.approx(100.0)
-    assert {"kind": "mythic", "label": "Objet mystère", "pct": 0.1} in odds
+    # Table sur 100 000 : jamais « 0,0 % », mais « 1 chance sur 100 000 » (économie du 4.11.2026).
+    assert {"kind": "mythic", "label": "Objet mystère", "pct": 0.001, "text": "1 chance sur 100\u202f000"} in odds
+    assert [o["text"] for o in odds] == ["58 %", "30,7 %", "7 %", "3 %", "1,1 %", "0,25 %", "1 chance sur 100\u202f000"]
     gone = pc.odds(0, {})
     assert gone[-1]["kind"] == "mythic" and gone[-1]["pct"] == 0.0 and "partis" in gone[-1]["label"]
-    assert next(o for o in gone if o["kind"] == "legendary")["pct"] == 0.8   # la part du Mythique va au Légendaire
-    guaranteed = pc.odds(pc.PITY - 1, ALL_LEFT)
-    assert [o["kind"] for o in guaranteed] == ["epic", "legendary", "mythic"] and sum(o["pct"] for o in guaranteed) == pytest.approx(100)
+    assert next(o for o in gone if o["kind"] == "legendary")["pct"] == 0.25   # la part du Mythique va au Légendaire
+    guaranteed = pc.odds(pc.PITY - 1, ALL_LEFT)   # la garantie ne tire JAMAIS le Mythique
+    assert [o["kind"] for o in guaranteed] == ["epic", "legendary"] and sum(o["pct"] for o in guaranteed) == pytest.approx(100)
 
 
-def test_at_least_one_epic_every_30_chests_whatever_the_luck():
+def test_at_least_one_epic_every_45_chests_whatever_the_luck():
     for seed in range(40):
         rng, coll, owner, gap, worst = random.Random(seed), col.new_coll(), {"loop": {}}, 0, 0
         for _ in range(300):
@@ -83,7 +87,7 @@ def test_at_least_one_epic_every_30_chests_whatever_the_luck():
             gap = 0 if found.get("rarity") in pc.EPIC_PLUS else gap + 1
             worst = max(worst, gap)
         assert worst < pc.PITY, seed
-    assert pc.pity_left(0) == 30 and pc.pity_left(29) == 1
+    assert pc.pity_left(0) == 45 and pc.pity_left(44) == 1
 
 
 def test_a_duplicate_becomes_dust_and_a_legendary_prefers_the_missing_ones():
@@ -112,26 +116,28 @@ def test_a_mystery_object_is_a_chest_mythic_with_copies_left_never_a_party_souve
 # ── Atelier, boutique, décor ──
 
 def test_the_workshop_uses_hearthstone_rates_and_never_makes_a_mythic_or_a_souvenir():
-    assert [(r["dust"], r["craft"]) for r in cat.data()["rarities"][:4]] == [(5, 40), (20, 100), (100, 400), (400, 1600)]
-    owner = {"loop": {}, "coll": col.new_coll() | {"dust": 2000, "upgraded": True}}
-    assert col.craft(owner, set(), "bonnet") == {"kind": "crafted", "item": "bonnet", "cost": 40, "mint": False}
-    assert owner["coll"]["dust"] == 1960 and owner["coll"]["inv"]["bonnet"] == 1
-    assert col.craft(owner, set(), "piolet-or")["mint"] and owner["coll"]["dust"] == 360
+    assert [(r["dust"], r["craft"]) for r in cat.data()["rarities"][:4]] == [(5, 60), (20, 150), (100, 600), (400, 2400)]
+    owner = {"loop": {}, "coll": col.new_coll() | {"dust": 2500, "upgraded": True}}
+    assert col.craft(owner, set(), "bonnet") == {"kind": "crafted", "item": "bonnet", "cost": 60, "mint": False}
+    assert owner["coll"]["dust"] == 2440 and owner["coll"]["inv"]["bonnet"] == 1
+    assert col.craft(owner, set(), "piolet-or")["mint"] and owner["coll"]["dust"] == 40
     for refused, why in (("m-disco", "ne se fabrique"), ("lumi", "ne se fabrique"), ("decor-chalet", "ne se fabrique"),
-                         ("cor-alpes", "manque 40"), ("bonnet", "déjà")):
+                         ("cor-alpes", "manque 560"), ("bonnet", "déjà")):
         with pytest.raises(col.CollectionError, match=why):
             col.craft(owner, {"bonnet"}, refused)
 
 
-def test_the_daily_shop_is_4_articles_paid_with_earned_coins():
-    shop = col.shop_today(random.Random("2026-11-04"))
-    assert len(shop) == 4 and [cat.item(i)["rarity"] for i in shop] == ["common", "common", "common", "rare"]
-    assert shop == col.shop_today(random.Random("2026-11-04")) and not any(cat.is_event_only(cat.item(i)) for i in shop)
-    owner = {"loop": {"coins": 100}, "coll": col.new_coll() | {"upgraded": True}}
-    col.buy(owner, set(), shop[0], "2026-11-04", shop)
-    assert owner["loop"]["coins"] == 40 and owner["coll"]["inv"][shop[0]] == 1
-    with pytest.raises(col.CollectionError, match="manque 160"):
-        col.buy(owner, set(), shop[3], "2026-11-04", shop)
+def test_the_daily_shop_is_2_commons_and_a_rare_every_other_day_paid_with_earned_coins():
+    rare_day, plain_day = ("2026-11-04", "2026-11-05") if col.rare_day("2026-11-04") else ("2026-11-05", "2026-11-04")
+    shop = col.shop_today(random.Random(rare_day), rare_day)
+    assert len(shop) == 3 and [cat.item(i)["rarity"] for i in shop] == ["common", "common", "rare"]
+    assert [cat.item(i)["rarity"] for i in col.shop_today(random.Random(plain_day), plain_day)] == ["common", "common"]
+    assert shop == col.shop_today(random.Random(rare_day), rare_day) and not any(cat.is_event_only(cat.item(i)) for i in shop)
+    owner = {"loop": {"coins": 500}, "coll": col.new_coll() | {"upgraded": True}}
+    col.buy(owner, set(), shop[0], rare_day, shop)
+    assert owner["loop"]["coins"] == 200 and owner["coll"]["inv"][shop[0]] == 1   # Commun : 300 (avant 60)
+    with pytest.raises(col.CollectionError, match="manque 1000"):                 # Rare : 1 200 (avant 200)
+        col.buy(owner, set(), shop[2], rare_day, shop)
     with pytest.raises(col.CollectionError, match="déjà à toi"):
         col.buy(owner, {shop[0]}, shop[0], "2026-11-04", shop)
     with pytest.raises(col.CollectionError, match="pas en boutique"):
@@ -139,10 +145,10 @@ def test_the_daily_shop_is_4_articles_paid_with_earned_coins():
 
 
 def test_room_decor_is_the_big_coin_sink_and_snacks_are_limited_to_3_a_day():
-    owner = {"loop": {"coins": 2000}, "coll": col.new_coll() | {"upgraded": True}}
-    assert [cat.shop_price(i) for i in cat.decor_items()] and min(cat.shop_price(i) for i in cat.decor_items()) >= 350
+    owner = {"loop": {"coins": 4000}, "coll": col.new_coll() | {"upgraded": True}}
+    assert sorted({cat.shop_price(i) for i in cat.decor_items()}) == [1400, 3200]   # Rare 1 400, Épique 3 200
     col.buy(owner, set(), "decor-chalet", "2026-11-04", [])
-    assert owner["loop"]["coins"] == 1200
+    assert owner["loop"]["coins"] == 800
     for _ in range(3):
         col.buy(owner, set(), "snack:cupcake", "2026-11-04", [])
     assert owner["loop"]["inv"]["snack:cupcake"] == 3
@@ -157,7 +163,7 @@ def test_a_complete_series_pays_its_bonus_once():
     owner = {"loop": {"coins": 0}, "coll": col.new_coll() | {"upgraded": True}}
     have = set(cat.series_items("disco"))
     got = col.series_bonus(owner, have)
-    assert [g["series"] for g in got] == ["disco"] and owner["loop"]["coins"] == 150 and owner["coll"]["dust"] == 100
+    assert [g["series"] for g in got] == ["disco"] and owner["loop"]["coins"] == 150 and owner["coll"]["dust"] == 60
     assert col.series_bonus(owner, have) == []
 
 

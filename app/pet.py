@@ -17,7 +17,7 @@ import math
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from . import pet_streak
+from . import pet_feast, pet_streak
 
 TZ = ZoneInfo("Europe/Zurich")
 FORMAT = 1
@@ -75,16 +75,29 @@ CUDDLE_JOY = 8.0
 HEAL_CARE = 40.0
 SLEEPY_ENOUGH = 90.0       # au-dessus, « pas sommeil »
 
-# ── Récompenses (petits bonus, plafonnés par jour) ──
-REWARDS = {   # source → (jauges ajoutées, nombre max par jour)
-    "brain": ({"joy": 8.0, "energy": 3.0}, 3),    # une partie de Méninges
-    "party": ({"joy": 10.0}, 3),                  # une partie de Party terminée
-    "soiree": ({g: 25.0 for g in GAUGES}, 1),     # une soirée (événement) où on était inscrit présent
+# ── Récompenses (petits bonus, plafonnés par jour) : « Zicou réagit à ce que tu fais » (décision F, 4.11) ──
+# Conformité des stores : JAMAIS pour boire ni pour un jeu à boire (app/pet_reactions.py filtre les parties), jamais pour
+# noter, partager ou inviter. Une même chose n'est comptée qu'une fois (curseur ou identifiant gardés dans owner).
+# Économie du 4.11.2026 (scratchpad economie/rapport.md) : pièces revues à la baisse ET un plafond COMMUN de 20 pièces
+# par jour pour les trois sources réunies (Méninges, parties, titres) ; au-delà, la joie reste, les pièces non.
+REWARDS = {   # source → (jauges ajoutées, nombre max par jour, pièces 🪙)
+    "brain": ({"joy": 8.0, "energy": 3.0}, 3, 4),   # une partie de Méninges (avant : 5)
+    "party": ({"joy": 10.0}, 3, 5),                 # une partie de Party terminée, jamais un jeu d'alcool (avant : 10)
+    "music": ({"joy": 5.0}, 3, 3),                  # un titre ajouté à la file et accepté (avant : 5)
 }
+ACTIVITY_COINS_PER_DAY = 20   # plafond commun Méninges + parties + titres (owner.uses["activity_coins"])
+# Décision de l'admin (04.11.2026) : être présent à une soirée / un événement ne rapporte PLUS rien automatiquement, et
+# répondre à un événement non plus. Les pièces d'un événement sont données par une personne qui a le droit
+# « zicou.event_coins » (migration 20261105090000) : un montant borné, versé UNE fois à chaque présent (event_coins).
+TIMED_SOURCES = ("brain", "party", "music")   # comptées par date (curseur)
+EVENT_COINS_MIN, EVENT_COINS_MAX = 5, 100     # mêmes bornes que la base (pet_event_coins_set)
+CLAIMED_IDS_KEPT = 20
 REWARD_WINDOW_HOURS = 48   # une partie plus ancienne ne rapporte plus rien
 PARTY_MOOD_HOURS = 3       # après une soirée ou un cadeau : air de fête pendant 3 h
 GIFTS_PER_DAY = 3          # cadeaux reçus par jour au plus (tous amis confondus ; la base le limite aussi)
-GIFTS = {"hug": ({"joy": 10.0}, "un câlin", "🤗"), "snack": ({"food": 15.0}, "un goûter", "🍪")}
+GIFTS = {"hug": ({"joy": 10.0}, "un câlin", "🤗"), "snack": ({"food": 15.0}, "un goûter", "🍪"),
+         # Festins offerts (app/pet_feast.py) : payés en pièces par l'ami, on reçoit un EFFET, jamais des pièces.
+         **{k: ({}, f"une {pet_feast.FEASTS[f]['label']}", pet_feast.FEASTS[f]["emoji"]) for k, f in pet_feast.GIFT_KINDS.items()}}
 
 # ── Tenues : (id, libellé, emoji, comment la débloquer) ; le skin du navigateur sait dessiner chacune ──
 OUTFITS = (
@@ -92,7 +105,7 @@ OUTFITS = (
     ("lunettes", "Lunettes de soleil", "🕶️", "Série de 3 jours 🔥, ou les coffres du jour"),
     ("casquette", "Casquette", "🧢", "Série de 7 jours 🔥, ou les coffres du jour"),
     ("casque", "Casque de DJ", "🎧", "5 parties de Méninges, ou les coffres du jour"),
-    ("boa", "Collier lumineux", "✨", "Venir à une soirée, ou les coffres du jour"),
+    ("boa", "Collier lumineux", "✨", "Recevoir les pièces d'un événement, ou les coffres du jour"),
     ("chapeau", "Chapeau de fête", "🥳", "Recevoir 5 cadeaux d'amis, ou les coffres du jour"),
     ("couronne", "Couronne", "👑", "Faire grandir un adulte « étoile »"),
 )
@@ -137,7 +150,8 @@ def new_owner() -> dict:
     return {"v": FORMAT, "day": "", "uses": {}, "streak": pet_streak.new(),
             "unlocked": ["noeud"], "stats": {"feeds": 0, "plays": 0, "cuddles": 0, "heals": 0, "brain": 0, "party": 0,
                                               "soirees": 0, "gifts_received": 0, "stars": 0, "eggs": 0},
-            "claimed": {"brain": "", "party": "", "events": []}, "memorial": [], "record_hours": 0.0}
+            "claimed": {"brain": "", "party": "", "music": "", "event_coins": []}, "memorial": [],
+            "record_hours": 0.0}
 
 
 def new_life(now: datetime, gen: int = 1, name: str = DEFAULT_NAME) -> dict:
@@ -210,21 +224,24 @@ def _die(life: dict, at: datetime, owner: dict | None, events: list) -> None:
                          + owner.get("memorial", []))[:MEMORIAL_MAX]
 
 
-def _step(life: dict, dt: float) -> float:
-    """Fait vivre le personnage dt heures ; renvoie le nombre d'heures passées ventre vide pendant ce pas."""
+def _step(life: dict, dt: float, frozen: tuple = ()) -> float:
+    """Fait vivre le personnage dt heures ; renvoie le nombre d'heures passées ventre vide pendant ce pas. `frozen` :
+    jauges qui ne baissent pas pendant ce pas (festin : Raclette, Fondue)."""
     g, k = life["g"], STAGE_FACTOR.get(life["stage"], 1.0)
-    food_rate = FOOD_RATE * k * (FOOD_SLEEP_FACTOR if life["asleep"] else 1.0)
+    food_rate = 0.0 if "food" in frozen else FOOD_RATE * k * (FOOD_SLEEP_FACTOR if life["asleep"] else 1.0)
     food_before = g["food"]
-    starving = dt if food_before <= 0 else max(0.0, dt - food_before / food_rate)
+    starving = 0.0 if "food" in frozen else dt if food_before <= 0 else max(0.0, dt - food_before / food_rate)
     g["food"] = clamp(food_before - food_rate * dt)
     joy_rate = JOY_RATE * (JOY_SICK_FACTOR if life["sick"] else 1.0) * (JOY_STARVING_FACTOR if starving > 0 else 1.0)
-    g["joy"] = clamp(g["joy"] - joy_rate * dt)
-    g["care"] = clamp(g["care"] - CARE_RATE * dt)
+    if "joy" not in frozen:
+        g["joy"] = clamp(g["joy"] - joy_rate * dt)
+    if "care" not in frozen:
+        g["care"] = clamp(g["care"] - CARE_RATE * dt)
     if life["asleep"]:
         g["energy"] = clamp(g["energy"] + ENERGY_REGEN * dt)
         if g["energy"] >= FULL:
             life["asleep"] = False   # bien reposé : il se réveille tout seul
-    else:
+    elif "energy" not in frozen:
         g["energy"] = clamp(g["energy"] - ENERGY_RATE * k * dt)
         if g["energy"] <= 0:
             life["asleep"] = True    # épuisé : il s'endort tout seul
@@ -250,9 +267,13 @@ def advance(life: dict, now: datetime, owner: dict | None = None) -> list[dict]:
     at = parse(life["at"])
     end = min(now, at + timedelta(days=MAX_SIMULATED_DAYS))
     while at < end:
+        pet_feast.roll(life, at)   # festin offert en attente : il commence quand le précédent finit
         dt = min(STEP_HOURS, hours(at, end))
+        boundary = pet_feast.next_boundary(life, at)
+        if boundary and boundary < end:
+            dt = min(dt, max(EPS_HOURS, hours(at, boundary)))   # un festin s'arrête pile à son heure
         before = life["starving_h"]
-        starving = _step(life, dt)
+        starving = _step(life, dt, pet_feast.frozen(life, at))
         life["starving_h"] = before + starving if starving > 0 else 0.0
         if starving > 0 and life["g"]["food"] > 0:   # n'arrive pas : garde-fou
             life["starving_h"] = 0.0
@@ -404,7 +425,7 @@ def act(life: dict, owner: dict, action: str, now: datetime, score: int = 0, nam
     stage = life["stage"]
     if action == "new_egg":
         if stage != "dead":
-            raise PetError("Ton compagnon est toujours là !")
+            raise PetError("Ton Zicou est toujours là !")
         life = new_life(now, life["gen"] + 1, life["name"])
         owner["stats"]["eggs"] = owner["stats"].get("eggs", 0) + 1
         return life, owner, {"action": action, "events": events + [{"kind": "egg"}], "unlocked": []}
@@ -473,46 +494,80 @@ def _care_action(life: dict, owner: dict, action: str, score: int) -> None:
 # ── Récompenses et cadeaux (appliqués à l'ouverture) ──
 
 def rewards(life: dict, owner: dict, now: datetime, brain_times: list[str], party_times: list[str],
-            events: list[dict]) -> tuple[dict, dict, list[dict]]:
-    """Petits bonus pour ce qu'on a fait ailleurs dans Party : parties de Méninges, parties de Party terminées, soirées
-    (événement commencé, inscrit présent). Chaque source a un curseur (rien n'est compté deux fois) et un plafond par
-    jour ; un personnage en œuf ou envolé ne reçoit rien, mais les curseurs avancent quand même."""
+            music_times: list[str] | None = None) -> tuple[dict, dict, list[dict]]:
+    """Petits bonus pour ce qu'on a fait ailleurs dans Party : parties de Méninges, parties de Party terminées, titres
+    ajoutés à la file. Chaque source a un curseur (rien n'est compté deux fois) et un plafond par jour ; un personnage
+    en œuf ou envolé ne reçoit rien, mais les curseurs avancent quand même. Jamais pour une présence ni une réponse à
+    un événement (décision de l'admin du 04.11.2026 : voir event_coins)."""
     life, owner = copy.deepcopy(life), copy.deepcopy(owner)
     _roll_day(owner, now)
     got: list[dict] = []
     alive = life["stage"] not in ("egg", "dead")
     claimed = owner["claimed"]
     oldest = now - timedelta(hours=REWARD_WINDOW_HOURS)
-    for source, times in (("brain", brain_times), ("party", party_times)):
+    for source, times in (("brain", brain_times), ("party", party_times), ("music", music_times)):
         cursor = parse(claimed.get(source)) or oldest
         fresh = sorted(t for t in (parse(x) for x in times or []) if t and max(cursor, oldest) < t <= now)
         if fresh:
             claimed[source] = iso(fresh[-1])
         for _ in fresh:
             got += _reward(life, owner, source, alive, now)
-    seen = set(claimed.get("events", []))
-    for ev in events or []:
-        eid, start = str(ev.get("id") or ""), parse(ev.get("starts_at"))
-        if not eid or eid in seen or not start or not (now - timedelta(days=7) <= start <= now):
-            continue
-        seen.add(eid)
-        claimed["events"] = ([eid] + claimed.get("events", []))[:20]
-        got += _reward(life, owner, "soiree", alive, now)
     return life, owner, got
 
 
+def event_coins(life: dict, owner: dict, now: datetime, grants: list[dict]) -> tuple[dict, dict, list[dict], list[str]]:
+    """Pièces d'un événement (droit « zicou.event_coins ») : versées par la base UNE fois à chaque présent, rangées
+    ici une fois (identifiant gardé dans owner.claimed.event_coins, puis marqué en base). Montant borné de nouveau.
+    Renvoie aussi les identifiants à marquer en base (déjà rangés compris : marque pas encore posée)."""
+    life, owner = copy.deepcopy(life), copy.deepcopy(owner)
+    got, done = [], []
+    for g in grants or []:
+        gid = str(g.get("id") or "")
+        try:
+            coins = int(g.get("coins") or 0)
+        except (TypeError, ValueError):
+            continue
+        if not gid or not EVENT_COINS_MIN <= coins <= EVENT_COINS_MAX:
+            continue
+        done.append(gid)
+        if not _claim_id(owner["claimed"], "event_coins", gid):
+            continue   # déjà rangé : seulement à marquer en base
+        if not isinstance(owner.get("loop"), dict):
+            owner["loop"] = {}
+        owner["loop"]["coins"] = int(owner["loop"].get("coins") or 0) + coins
+        owner["stats"]["soirees"] = owner["stats"].get("soirees", 0) + 1
+        if life["stage"] not in ("egg", "dead"):
+            life["party_until"] = iso(now + timedelta(hours=PARTY_MOOD_HOURS))
+        got.append({"kind": "event_coins", "coins": coins, "event": str(g.get("event") or "")[:60]})
+    return life, owner, got, done
+
+
+def _claim_id(claimed: dict, key: str, eid: str) -> bool:
+    """Marque `eid` comme compté (les CLAIMED_IDS_KEPT derniers sont gardés) ; False s'il l'était déjà."""
+    if eid in claimed.get(key, []):
+        return False
+    claimed[key] = ([eid] + claimed.get(key, []))[:CLAIMED_IDS_KEPT]
+    return True
+
+
+REWARD_STATS = {"brain": "brain", "party": "party", "music": "music"}
+
+
 def _reward(life: dict, owner: dict, source: str, alive: bool, now: datetime) -> list[dict]:
-    gains, per_day = REWARDS[source]
-    stat = {"brain": "brain", "party": "party", "soiree": "soirees"}[source]
+    gains, per_day, coins = REWARDS[source]
+    stat = REWARD_STATS[source]
     owner["stats"][stat] = owner["stats"].get(stat, 0) + 1
     key = f"reward_{source}"
     if not alive or owner["uses"].get(key, 0) >= per_day:
         return []
     owner["uses"][key] = owner["uses"].get(key, 0) + 1
     _add(life, gains)
-    if source == "soiree":
-        life["party_until"] = iso(now + timedelta(hours=PARTY_MOOD_HOURS))
-    return [{"kind": "reward", "source": source}]
+    if not isinstance(owner.get("loop"), dict):
+        owner["loop"] = {}   # complété par pet_loop.loop_of (compte d'avant la boucle du jour)
+    coins = max(0, min(coins, ACTIVITY_COINS_PER_DAY - owner["uses"].get("activity_coins", 0)))   # plafond commun
+    owner["uses"]["activity_coins"] = owner["uses"].get("activity_coins", 0) + coins
+    owner["loop"]["coins"] = int(owner["loop"].get("coins") or 0) + coins
+    return [{"kind": "reward", "source": source, "coins": coins}]
 
 
 def gifts(life: dict, owner: dict, now: datetime, received: list[dict]) -> tuple[dict, dict, list[dict]]:
@@ -526,10 +581,16 @@ def gifts(life: dict, owner: dict, now: datetime, received: list[dict]) -> tuple
             continue   # au-delà de 3 par jour (la base le limite aussi) : ouvert, sans effet
         owner["uses"]["gifts_in"] = owner["uses"].get("gifts_in", 0) + 1
         owner["stats"]["gifts_received"] = owner["stats"].get("gifts_received", 0) + 1
+        who = str(gift.get("from_name") or "Un ami")[:40]
+        feast = ""
         if life["stage"] not in ("egg", "dead"):
             _add(life, GIFTS[kind][0])
-            life["party_until"] = iso(now + timedelta(hours=PARTY_MOOD_HOURS))
-        applied.append({"id": gift.get("id"), "kind": kind, "from": str(gift.get("from_name") or "Un ami")[:40]})
+            if kind in pet_feast.GIFT_KINDS:
+                feast = pet_feast.receive(life, kind, now, who)   # un festin offert : maintenant ou à son tour
+            party = parse(life.get("party_until"))
+            life["party_until"] = iso(max(now + timedelta(hours=PARTY_MOOD_HOURS), party) if party else
+                                      now + timedelta(hours=PARTY_MOOD_HOURS))
+        applied.append({"id": gift.get("id"), "kind": kind, "from": who, **({"feast": feast} if feast else {})})
     return life, owner, applied
 
 
@@ -589,7 +650,7 @@ def next_stage_in(life: dict, now: datetime) -> int | None:
 def public_life(life: dict) -> dict:
     """Ce que voient les amis : le personnage seulement (jamais les souvenirs, compteurs ou curseurs du compte)."""
     keep = ("v", "gen", "name", "stage", "variant", "born_at", "hatched_at", "evolved_at", "died_at", "at", "g", "asleep",
-            "sick", "starving_h", "care_sum", "care_h", "outfit", "party_until")
+            "sick", "starving_h", "care_sum", "care_h", "outfit", "party_until", "feast", "feast_next")
     return {k: copy.deepcopy(life.get(k)) for k in keep}
 
 

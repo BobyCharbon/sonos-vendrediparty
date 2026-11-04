@@ -10,7 +10,7 @@ import hmac
 RULES = (
     "Qui participe : toutes les personnes présentes à l'événement (billet scanné ou arrivée notée, ou notées "
     "« Présent » par l'organisateur). Jamais selon un paiement : payer ou non sa part ne change rien.",
-    "Quoi : des accessoires du Compagnon Zicou uniquement, sans aucune valeur en argent. Aucun lot réel (boisson, "
+    "Quoi : des accessoires de Zicou uniquement, sans aucune valeur en argent. Aucun lot réel (boisson, "
     "bon, place, objet physique), rien à acheter, rien à miser.",
     "Chances et nombre d'exemplaires : publiés avant le début de l'événement, puis figés (personne ne peut plus les "
     "changer, pas même l'admin).",

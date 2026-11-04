@@ -93,3 +93,5 @@ body.pyr-full #game.g-rf { box-shadow: none; border: 0; padding: 16px; backgroun
 @media (prefers-reduced-motion: reduce) {
   .ms-name, .ps-opt { transition: none; }
 }
+.ms-report { font-size: 1.05rem; }
+.ms-res .ms-report { right: auto; left: 4px; }  /* la marque ✓ / ✗ garde le coin droit */

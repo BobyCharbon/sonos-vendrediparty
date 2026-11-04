@@ -44,11 +44,70 @@ final class TricountStore: ObservableObject {
 
     func loadAIUsage() async { await run(loading: aiUsage == nil) { token in aiUsage = try await api.aiUsage(token: token) } }
 
-    /// Photo d'un ticket → montant, titre, date, catégorie et articles, lus par l'assistant IA.
+    /// Feuille d'accord IA (AIConsentSheet.Copy.receipt) : avant le 1er ticket envoyé, ou après un 403 « accord ».
+    @Published var askingAIConsent = false
+    private var consentAnswer: CheckedContinuation<Bool, Never>?
+    /// Accord déjà vu accepté pendant cette ouverture de l'app.
+    private(set) var aiConsentAccepted = false
+    static let consentDeclined = "Sans ton accord, le ticket n'est pas envoyé à l'IA : saisis la dépense à la main."
+
+    /// Photo d'un ticket → montant, titre, date, catégorie et articles, lus par l'assistant IA (après l'accord).
     func readReceipt(_ jpeg: Data) async -> TC.Receipt? {
+        guard let token = await web?.accountToken() else {
+            error = "Connecte-toi pour utiliser le pot commun"
+            return nil
+        }
+        guard await ensureAIConsent(token: token) else {
+            notice = Self.consentDeclined
+            return nil
+        }
         var read: TC.Receipt?
+        var refused = false
+        await run { token in
+            do {
+                read = try await api.aiReadReceipt(token: token, jpeg: jpeg)
+            } catch let refusal where AIEvent.needsConsent(refusal) {
+                refused = true  // accord absent ou retiré côté serveur : redemandé ci-dessous
+            }
+        }
+        guard refused else { return read }
+        aiConsentAccepted = false
+        guard await askAIConsent(token: token) else {
+            notice = Self.consentDeclined
+            return nil
+        }
         await run { token in read = try await api.aiReadReceipt(token: token, jpeg: jpeg) }
         return read
+    }
+
+    func ensureAIConsent(token: String) async -> Bool {
+        if aiConsentAccepted { return true }
+        if await api.aiConsentAccepted(web: web, token: token) {
+            aiConsentAccepted = true
+            return true
+        }
+        return await askAIConsent(token: token)
+    }
+
+    private func askAIConsent(token: String) async -> Bool {
+        consentAnswer?.resume(returning: false)
+        askingAIConsent = true
+        guard await withCheckedContinuation({ consentAnswer = $0 }) else { return false }
+        do {
+            aiConsentAccepted = try await api.acceptAIConsent(web: web, token: token)
+        } catch {
+            notice = error.localizedDescription
+            return false
+        }
+        return aiConsentAccepted
+    }
+
+    /// « J'accepte » / « Saisir à la main » ; fermer la feuille d'un geste vaut refus, rien n'est enregistré.
+    func answerAIConsent(_ accept: Bool) {
+        let answer = consentAnswer
+        consentAnswer = nil
+        askingAIConsent = false
+        answer?.resume(returning: accept)
     }
 
     func open(_ id: String) async {

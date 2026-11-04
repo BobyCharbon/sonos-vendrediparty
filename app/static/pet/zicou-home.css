@@ -1,0 +1,130 @@
+/* 🪩 Zicou dans l'app (pet/zicou-home.js) : pastille de l'en-tête, feuille d'accueil, rappel doux.
+   Règle iOS 26 (CLAUDE.md) : rien sur html/body ; la feuille est un panneau fixe au-dessus de la page. */
+:root { --zc-ink: #0d0920; --zc-surface: #1a1236; --zc-line: rgba(255, 255, 255, .09); --zc-muted: #a99ccf;
+  --zc-neon: #ff4f9a; --zc-cyan: #5ee7ff; --zc-spring: cubic-bezier(.34, 1.56, .64, 1); }
+
+/* ── Pastille : petite tête, anneau couleur d'humeur, point rouge rare ── */
+.zc-chip {
+  position: relative; flex: none; align-self: center; width: 40px; height: 40px; min-height: 0; padding: 0; border: 0; border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, #2c1d5c, #120b28); box-shadow: 0 0 0 2px var(--zc-mood, var(--zc-cyan)), 0 4px 14px rgba(0, 0, 0, .35);
+  cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: transform .25s var(--zc-spring), box-shadow .4s ease;
+}
+.zc-chip.hidden { display: none; }
+.zc-chip:active { transform: scale(.9); }
+.zc-chip:focus-visible { outline: 3px solid var(--zc-cyan); outline-offset: 3px; }
+.zc-head { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; }
+/* Le dessin fait 200 × 200 : on cadre la tête et les antennes (pas les pieds, ni les signes d'humeur). */
+.zc-head svg { position: absolute; inset: 2px; width: calc(100% - 4px); height: calc(100% - 4px); }
+.zc-head .pt-l-fx, .zc-head .pt-l-decor, .zc-head .pt-l-pet { display: none; }
+.zc-head .pt-body { transform-origin: 50% 70%; animation: zc-breathe 3.4s ease-in-out infinite; }
+.zc-egg .zc-head .pt-body { animation: zc-wobble 2.6s ease-in-out infinite; }
+.zc-sleep { filter: saturate(.7) brightness(.8); }
+.zc-dot { position: absolute; top: -1px; right: -1px; width: 12px; height: 12px; border-radius: 50%; background: #ff3b30;
+  box-shadow: 0 0 0 2px var(--bg, #15102a); animation: zc-dot .5s var(--zc-spring) both; }
+.zc-dot.hidden { display: none; }
+.zc-hello { animation: zc-hello 1.6s var(--zc-spring) .6s both; }
+.zc-bubble {
+  position: absolute; z-index: 8; right: 0; top: calc(100% + 8px); padding: 7px 12px; border-radius: 14px; white-space: nowrap;
+  font-size: .82rem; font-weight: 700; color: var(--zc-ink); background: #fff; box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+  animation: zc-pop .45s var(--zc-spring) both;
+}
+.top-head { position: relative; }
+/* Onglet Événements (module dans un cadre, sans en-tête de la page) : la pastille flotte en haut à droite. */
+.zc-float { display: none; }
+body[data-tab="events"] .zc-float:not(.hidden) {
+  display: block; position: fixed; z-index: 7; top: calc(env(safe-area-inset-top) + 14px); right: max(16px, env(safe-area-inset-right));
+}
+/* Jamais pendant une partie en plein écran, ni sous une feuille du Compagnon. */
+body.pyr-full .zc-chip, html.pt-open .zc-chip, body.pyr-full .zc-bubble { display: none !important; }
+
+/* ── Feuille d'accueil (non bloquante : fond léger, se ferme d'un geste, « Plus tard » visible) ── */
+.zc-modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; background: rgba(6, 3, 14, .45); }
+.zc-modal.hidden { display: none; }
+.zc-sheet {
+  position: relative; width: 100%; max-width: 520px; box-sizing: border-box; max-height: calc(100% - max(24px, env(safe-area-inset-top)));
+  overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
+  padding: 26px 22px max(22px, env(safe-area-inset-bottom)); border-radius: 30px 30px 0 0; color: #f1ecff;
+  background: radial-gradient(70% 40% at 0% 0%, rgba(143, 107, 255, .22), transparent 70%), radial-gradient(60% 40% at 100% 100%, rgba(255, 79, 154, .16), transparent 70%), var(--zc-ink);
+  box-shadow: 0 -18px 50px rgba(0, 0, 0, .5); animation: zc-up .38s cubic-bezier(.2, .9, .3, 1) both;
+}
+.zc-sheet:focus { outline: none; }
+.zc-sheet::before { content: ""; position: absolute; top: 8px; left: 50%; width: 36px; height: 5px; margin-left: -18px; border-radius: 99px; background: rgba(255, 255, 255, .28); }
+.zc-sheet h2 { margin: 2px 0 0; font: 800 1.55rem/1.15 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: -.02em; }
+.zc-muted { margin: 0; color: var(--zc-muted); line-height: 1.45; }
+.zc-small { font-size: .8rem; }
+.zc-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.zc-dots { display: flex; gap: 5px; margin-bottom: 2px; }
+.zc-dots i { width: 6px; height: 6px; border-radius: 99px; background: rgba(255, 255, 255, .25); transition: width .3s var(--zc-spring); }
+.zc-dots i.on { width: 18px; background: var(--zc-neon); }
+.zc-art { position: relative; width: min(190px, 52vw); aspect-ratio: 1; }
+.zc-art::before { content: ""; position: absolute; inset: 18% 14% 10%; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--zc-mood) 45%, transparent), transparent 70%); filter: blur(18px); }
+.zc-art svg { position: relative; width: 100%; height: 100%; display: block; overflow: visible; }
+.zc-art.zc-small { width: min(130px, 36vw); }
+.zc-art.zc-mini { width: 64px; flex: none; }
+.zc-art.zc-mini::before { display: none; }
+.zc-wobble .pt-body { transform-origin: 50% 90%; animation: zc-wobble 1.8s ease-in-out infinite; }
+.zc-pop { animation: zc-pop .6s var(--zc-spring) both; }
+.zc-bounce { animation: zc-bounce .7s var(--zc-spring); }
+.zc-cta {
+  width: 100%; min-height: 52px; margin-top: 6px; border: 0; border-radius: 16px; font-weight: 800; font-size: 1.05rem; color: #fff;
+  background: linear-gradient(135deg, #ff4f9a, #ff7a6b); box-shadow: 0 10px 26px rgba(255, 79, 154, .35), inset 0 1px 0 rgba(255, 255, 255, .35);
+  transition: transform .25s var(--zc-spring);
+}
+.zc-cta:active, .zc-ghost:active, .zc-list button:active { transform: scale(.97); }
+.zc-cta:disabled { opacity: .6; }
+.zc-cta-s { min-height: 40px; margin-top: 8px; font-size: .92rem; width: auto; padding: 0 18px; }
+.zc-ghost { width: 100%; min-height: 48px; border: 0; border-radius: 16px; font-weight: 700; color: #f1ecff; background: rgba(255, 255, 255, .08); box-shadow: inset 0 0 0 1px var(--zc-line); }
+.zc-link { min-height: 44px; padding: 0 16px; border: 0; background: none; box-shadow: none; color: var(--zc-muted); font-weight: 600; }
+.zc-err { margin: 0; color: #ffb3c4; font-size: .9rem; }
+.zc-err.hidden { display: none; }
+/* Nom */
+.zc-name { width: 100%; display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.zc-input { display: flex; align-items: center; gap: 8px; padding: 0 14px; min-height: 52px; border-radius: 16px; background: rgba(255, 255, 255, .08); box-shadow: inset 0 0 0 1px var(--zc-line); }
+.zc-input input { flex: 1; min-width: 0; border: 0; padding: 0; background: none; color: #fff; font: 700 1.1rem system-ui, sans-serif; outline: none; box-shadow: none; }
+.zc-count { color: var(--zc-muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+.zc-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.zc-chips button { min-height: 36px; padding: 0 14px; border: 0; border-radius: 99px; color: #f1ecff; font-weight: 600; background: rgba(255, 255, 255, .08); box-shadow: inset 0 0 0 1px var(--zc-line); }
+.zc-chips button.on { color: #ff8cc0; box-shadow: inset 0 0 0 1.5px var(--zc-neon); background: rgba(255, 79, 154, .12); }
+/* Éclosion */
+.zc-ring { position: relative; display: grid; place-items: center; width: min(190px, 52vw); aspect-ratio: 1; border-radius: 50%;
+  background: conic-gradient(var(--zc-neon) calc(var(--zc-p) * 360deg), rgba(255, 255, 255, .08) 0); }
+.zc-ring::after { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: var(--zc-ink); }
+.zc-ring .zc-art { z-index: 1; }
+.zc-clock { margin: 4px 0 0; font: 800 2.6rem/1 "Bricolage Grotesque", system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.zc-list { width: 100%; display: grid; gap: 1px; border-radius: 18px; overflow: hidden; background: var(--zc-line); text-align: left; }
+.zc-list > button { text-align: left; }
+.zc-list span:nth-child(2) { align-items: flex-start; }
+.zc-list > button, .zc-pref { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 10px 14px; border: 0; border-radius: 0;
+  color: #f1ecff; background: var(--zc-surface); box-shadow: none; font-size: 1.4rem; }
+.zc-list span:nth-child(2) { flex: 1; display: flex; flex-direction: column; font-size: 1rem; }
+.zc-list small { color: var(--zc-muted); font-size: .8rem; font-weight: 500; }
+.zc-pref input { flex: none; }
+/* Cadeau */
+.zc-gift { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 18px; text-align: left; font-size: 2rem;
+  background: linear-gradient(135deg, rgba(255, 181, 71, .22), rgba(255, 79, 154, .18)); box-shadow: inset 0 0 0 1px rgba(255, 181, 71, .45); }
+.zc-gift > span:last-child { display: flex; flex-direction: column; font-size: 1rem; }
+.zc-gift small { color: #ffe2b8; }
+.zc-gift.zc-opened { animation: zc-bounce .6s var(--zc-spring); }
+.zc-confetti { position: absolute; inset: 0 0 auto; height: 120px; pointer-events: none;
+  background: radial-gradient(circle, #ffb547 0 3px, transparent 4px) 10% 30% / 60px 50px, radial-gradient(circle, #5ee7ff 0 3px, transparent 4px) 40% 10% / 70px 60px,
+  radial-gradient(circle, #ff4f9a 0 3px, transparent 4px) 80% 40% / 50px 45px; opacity: .8; animation: zc-fall 2.4s ease-in both; }
+
+/* ── Rappel doux (carte masquable) ── */
+.zc-remind { position: relative; display: flex; align-items: center; gap: 12px; margin: 0 0 14px; padding: 12px 44px 12px 12px; border-radius: 22px;
+  background: linear-gradient(150deg, rgba(143, 107, 255, .26), rgba(255, 79, 154, .16)); box-shadow: inset 0 0 0 1px rgba(143, 107, 255, .35); animation: zc-pop .5s var(--zc-spring) both; }
+.zc-remind-t { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.zc-remind-t small { color: var(--muted, #a99ccf); }
+.zc-x { position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; min-height: 0; padding: 0; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .1); box-shadow: none; }
+
+@keyframes zc-up { from { transform: translateY(100%); } }
+@keyframes zc-pop { from { opacity: 0; transform: scale(.85); } }
+@keyframes zc-dot { from { transform: scale(0); } }
+@keyframes zc-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes zc-wobble { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-6deg); } 40% { transform: rotate(5deg); } 60% { transform: rotate(-3deg); } }
+@keyframes zc-hello { 0% { transform: scale(1); } 25% { transform: scale(1.25) rotate(-8deg); } 50% { transform: scale(1.1) rotate(6deg); } 100% { transform: none; } }
+@keyframes zc-bounce { 0% { transform: scale(1); } 30% { transform: scale(1.12, .9); } 60% { transform: scale(.95, 1.06); } 100% { transform: scale(1); } }
+@keyframes zc-fall { from { transform: translateY(-40px); opacity: 0; } 30% { opacity: .9; } to { transform: translateY(40px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .zc-chip, .zc-chip *, .zc-modal *, .zc-remind, .zc-remind * { animation: none !important; transition: none !important; }
+  .zc-confetti { display: none; }
+}

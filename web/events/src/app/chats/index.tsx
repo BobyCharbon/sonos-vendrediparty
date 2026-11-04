@@ -2,23 +2,22 @@ import { router, Stack } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, Pressable, View } from 'react-native';
 
-import { ChatsSoon } from '@/components/ChatsSoon';
+import { ChatsOff } from '@/components/ChatsOff';
 import { ChatsPause } from '@/components/NotificationPause';
 import { NewGroupForm } from '@/components/NewGroupForm';
 import { usePersonText } from '@/components/PersonName';
 import { Avatar, Empty, ErrorText, Loading, s, T } from '@/components/ui';
-import { useAuth } from '@/lib/auth';
 import type { ChatSummary } from '@/lib/chats';
 import { useQuery, useRealtime } from '@/lib/data';
+import { discussionsOn } from '@/lib/features';
 import { formatMessageTime } from '@/lib/format';
 import { duration, enter, transition } from '@/lib/motion';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 
-/** Discussions (avis n°10) : en production, réservées aux bêta-testeurs (« Bientôt » pour les autres). */
+/** Discussions (avis n°10) : absentes hors site de test (production, décision du 04.11). */
 export default function ChatsRoute() {
-  const { eventsSoon } = useAuth();
-  return eventsSoon ? <ChatsSoon /> : <ChatsList />;
+  return discussionsOn ? <ChatsList /> : <ChatsOff />;
 }
 
 /** Une discussion par groupe, la plus récente en haut, comme WhatsApp ; « Nouveau groupe » (même formulaire que

@@ -4,10 +4,11 @@ import { Linking, View } from 'react-native';
 
 import { InvitedBySection } from '@/components/InvitedBy';
 import { ReportSheet } from '@/components/ReportSheet';
+import { ZicouOnProfile } from '@/components/ZicouOnProfile';
 import { Avatar, Button, Card, Cascade, ConfirmButton, Empty, ErrorText, Loading, Reveal, Screen, Section, T, Title } from '@/components/ui';
-import { useAuth } from '@/lib/auth';
 import { personLabel, useContactNames } from '@/lib/contactNames';
 import { useQuery } from '@/lib/data';
+import { discussionsOn } from '@/lib/features';
 import { supabase } from '@/lib/supabase';
 import { roleName } from '@/lib/roles';
 import { type MemberRole } from '@/lib/types';
@@ -47,7 +48,6 @@ export default function MemberScreen() {
     return (data as MemberCard | null) ?? null;
   }, [id]);
   const contacts = useContactNames();
-  const { eventsSoon } = useAuth();
   const [writeError, setWriteError] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
   const [report, setReport] = useState<ReportTarget | null>(null);
@@ -102,13 +102,15 @@ export default function MemberScreen() {
         {known.secondary ? <T muted size={15}>{known.secondary} · dans tes contacts</T> : null}
         {fullName ? <T muted size={17}>{fullName}</T> : null}
         <T muted size={13}>{data.root ? '👑 Root' : (data.role_label ?? roleName(data.role))}{data.me ? ' · c’est toi' : ''}</T>
-        {/* Message direct : Discussions (réservées aux bêta-testeurs en production, « Bientôt » pour les autres). */}
-        {!data.me && !eventsSoon && !data.blocked && !data.restricted ? (
+        {/* Message direct : seulement quand les Discussions existent (site de test ; absentes en production). */}
+        {!data.me && discussionsOn && !data.blocked && !data.restricted ? (
           <Button small label="💬 Écrire" loading={opening}
             onPress={() => void write()} />
         ) : null}
         <ErrorText error={writeError} />
       </View>
+      {/* Son Zicou (bêta) : vedette s'il en a un, œuf terne sinon ; rien si bloqué ou Zicou éteint. */}
+      {!data.restricted && !data.blocked ? <ZicouOnProfile memberId={data.id} /> : null}
       {phone ? (
         <Card>
           <T muted size={13}>Numéro</T>

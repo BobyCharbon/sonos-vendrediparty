@@ -92,7 +92,7 @@ def test_f4_gifts_need_a_living_companion_an_old_account_and_at_most_3_a_day(tri
     # a : compagnon envolé → ne peut pas offrir
     sql_test(f"update public.pets set stage = 'dead' where user_id = '{a.uid}';")
     r = a.rpc("pet_gift", p_friend=b.uid, p_kind="hug", p_key=key)
-    assert r.status_code == 400 and "compagnon à compagnon" in r.json()["message"], r.text
+    assert r.status_code == 400 and "de Zicou à Zicou" in r.json()["message"], r.text
     sql_test(f"update public.pets set stage = 'baby' where user_id = '{a.uid}';")
     # a : compte tout neuf → pas encore
     old = sql_test(f"select created_at from public.profiles where id = '{a.uid}';")[0]["created_at"]

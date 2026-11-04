@@ -1,37 +1,120 @@
 import { router } from 'expo-router';
+import { Linking } from 'react-native';
 
 import { Button, Screen, Section, T, Title } from '@/components/ui';
+import { RESPONSIBLE, SUPPORT_EMAIL } from '@/lib/contact';
+
+/** Politique de confidentialité (Apple 5.1.1(i), nLPD art. 19) : lisible par tous, sans compte. Chaque donnée, son but,
+ * qui la reçoit (sous-traitants) et combien de temps elle est gardée. À tenir à jour avec App Privacy (App Store
+ * Connect) et Data safety (Play Console) à chaque nouvelle donnée. */
+const UPDATED = '4 novembre 2026';
+
+type Block = { title: string; paragraphs: string[] };
+
+const BLOCKS: Block[] = [
+  {
+    title: 'Qui est responsable ?',
+    paragraphs: [
+      `Party (Vendredi Party : l’app iPhone, l’app Apple TV et le site) est édité par ${RESPONSIBLE}, en Suisse, responsable du traitement de tes données au sens de la loi fédérale sur la protection des données (nLPD).`,
+      `Pour toute question ou demande sur tes données : ${SUPPORT_EMAIL}. Réponse en principe sous 30 jours.`,
+      'Party est réservé aux personnes de 18 ans et plus. Party ne fait aucune publicité, ne revend aucune donnée et n’utilise aucun outil tiers de mesure d’audience ni de suivi (« tracking »).',
+    ],
+  },
+  {
+    title: 'Ton compte',
+    paragraphs: [
+      'Numéro de téléphone : il sert à te connecter avec un code reçu par SMS et à te reconnaître. Il est visible par toi, par les administrateurs qui gèrent les accès et, si tu le choisis dans tes réglages, par les membres de tes groupes.',
+      'Surnom, prénom, nom et photo de profil : ils te présentent aux autres dans les jeux, les événements et les groupes. Tu les modifies à tout moment dans Réglages › Mon profil.',
+      'Rôle, groupes, amis et invitations : ils décident de ce que tu vois et de ce que tu peux faire.',
+    ],
+  },
+  {
+    title: 'Événements, groupes et messages',
+    paragraphs: [
+      'Tes événements, réponses (présent, absent…), votes, sondages, ce que tu amènes et tes messages servent à organiser les événements avec les personnes concernées. Ils sont visibles selon la visibilité de chaque événement ou groupe.',
+      'Messages, photos et messages vocaux : envoyés seulement quand tu le décides. Le micro n’est utilisé que pendant que tu enregistres un vocal ou que tu dictes un texte ; la dictée elle-même est faite par ton téléphone ou ton navigateur. Les photos ne sont lues que celles que tu choisis.',
+      'Organisateurs d’événements payants : les coordonnées de paiement que tu enregistres (IBAN, titulaire, liens de paiement comme Twint, note) sont montrées aux participants de tes événements payants pour qu’ils te paient. Party ne traite jamais l’argent lui-même.',
+      'Billets : un billet QR personnel est créé pour tes événements à billets ; son passage à l’entrée est noté.',
+    ],
+  },
+  {
+    title: 'Contacts de ton iPhone',
+    paragraphs: [
+      'Seulement si tu l’autorises : l’app transforme chaque numéro de tes contacts en une empreinte (un code chiffré dont on ne peut pas retrouver le numéro), sur ton iPhone, et l’envoie pour reconnaître les personnes déjà inscrites. Les noms de tes contacts ne quittent jamais ton iPhone et le serveur ne garde pas ces empreintes.',
+    ],
+  },
+  {
+    title: 'Jeux, musique et stats',
+    paragraphs: [
+      'Pendant une soirée, ton prénom et tes réponses de jeu sont visibles par les joueurs de la partie (et sur l’écran de la soirée). Les titres que tu proposes sont envoyés à Spotify pour être recherchés et joués sur le compte de l’hôte, avec ton prénom visible dans la file.',
+      'Stats de jeux (Quiz, Méninges, Purify Test) : gardées avec ton compte pour te montrer tes progrès et les classements.',
+      'Purify Test : tes réponses aux questions ne sont jamais enregistrées. Seul ton score global l’est ; ton profil par catégorie se voit à la fin du test, puis disparaît. Tu n’apparais dans le classement général que si tu l’actives (Réglages › Mes stats de jeu).',
+      'Invités sans compte : un compteur de parties jouées est gardé avec l’identifiant de ton appareil (jamais ton adresse IP), effacé après 6 mois sans visite.',
+    ],
+  },
+  {
+    title: 'L’IA (Anthropic, Claude)',
+    paragraphs: [
+      'Seulement après ton accord exprès (une feuille te le demande avant la première fois), Party envoie à Anthropic ce que tu confies à l’IA : le texte de ton avis (et la transcription de ta voix) pour le mettre au propre ; avec l’assistant des événements, ta description, tes captures d’écran, tes photos, les liens que tu donnes et les noms utiles à l’événement ; pour un ticket du pot commun, sa photo.',
+      'Ton numéro n’est jamais envoyé. Anthropic traite ces données pour répondre et ne les utilise pas pour entraîner ses modèles. Tu retires ton accord à tout moment dans Réglages › Ton avis ; sans accord, tout marche sans l’IA.',
+      'Chaque appel est noté (date, coût, ce que tu as demandé) pour les plafonds mensuels et le contrôle des coûts ; les plus anciens partent automatiquement et tout part avec ton compte.',
+    ],
+  },
+  {
+    title: 'Notifications, Apple Wallet et appareils',
+    paragraphs: [
+      'Notifications : l’adresse de notification de ton appareil (Apple Push Notification service pour l’iPhone, service push de ton navigateur sur le web) est enregistrée avec ton compte. Chaque type de notification a son interrupteur dans Réglages › Notifications. L’historique des notifications est effacé après 90 jours.',
+      'Apple Wallet : si tu ajoutes un billet, le pass contient ton surnom, l’événement et ton QR ; ton iPhone s’inscrit auprès de Party pour recevoir ses mises à jour.',
+      'Journaux techniques : le serveur garde les connexions et les actions d’administration (date, compte, adresse IP) pour la sécurité, et des journaux d’erreurs sans contenu de message.',
+    ],
+  },
+  {
+    title: 'Qui reçoit tes données (sous-traitants)',
+    paragraphs: [
+      'Supabase : base de données et connexion, hébergées en Suisse (Zurich).',
+      'Twilio : envoi du code de connexion par SMS (ton numéro).',
+      'Anthropic : l’IA, seulement avec ton accord (voir plus haut).',
+      'Spotify : recherche et lecture des titres de la soirée.',
+      'Apple : notifications de l’iPhone (APNs), billets Apple Wallet, app Apple TV.',
+      'Google : seulement la recherche d’un lieu dans l’assistant des événements (le texte du lieu).',
+      'Infomaniak (Suisse) : messagerie de l’adresse de contact, quand tu nous écris.',
+      'Le serveur de Party est hébergé en Suisse. Twilio, Anthropic, Spotify, Apple et Google peuvent traiter des données hors de Suisse, notamment aux États-Unis, avec les garanties prévues par la nLPD (Swiss-U.S. Data Privacy Framework ou clauses contractuelles types).',
+    ],
+  },
+  {
+    title: 'Combien de temps',
+    paragraphs: [
+      'Ton compte et ce qui s’y rattache : jusqu’à ce que tu le supprimes. Notifications : 90 jours. Signalements traités : un an. Compteur des invités : 6 mois sans visite. Activité de la soirée : le temps de la soirée et au plus 3 jours.',
+      'Les textes écrits par d’autres membres peuvent encore citer ton surnom après la suppression de ton compte.',
+    ],
+  },
+  {
+    title: 'Tes droits',
+    paragraphs: [
+      'Tu peux à tout moment : voir et corriger tes données dans l’app ; retirer un accord (IA, contacts, notifications) ; supprimer ton compte dans Réglages › Gérer mon compte. La suppression efface ton compte, tes contenus, les événements que tu as créés, tes stats de jeux, tes accords pour l’IA et le journal de tes appels à l’IA ; tes avis sur l’app restent, sans ton nom.',
+      `Pour obtenir une copie de tes données ou toute autre demande : ${SUPPORT_EMAIL}. Tu peux aussi t’adresser au Préposé fédéral à la protection des données et à la transparence (PFPDT).`,
+    ],
+  },
+  {
+    title: 'Signalements et blocages',
+    paragraphs: [
+      'Quand tu signales un contenu, les modérateurs reçoivent ta raison, ton commentaire et une copie de ce contenu (pour un message direct : ce seul message). La personne signalée ne sait pas qui l’a signalée. Les blocages restent jusqu’à ce que tu débloques.',
+    ],
+  },
+];
 
 export default function Privacy() {
   return (
     <Screen edges={[]}>
       <Title>Confidentialité</Title>
-      <T muted>Vendredi Party · Mise à jour du 19 octobre 2026</T>
-      <Section title="Un espace pour le groupe">
-        <T>Vendredi Party organise les événements d’un groupe privé. Un administrateur valide l’accès des nouveaux membres.</T>
-      </Section>
-      <Section title="Données utilisées">
-        <T>Ton numéro de téléphone sert à recevoir un code de connexion. Ton prénom, tes événements, tes réponses, tes votes et tes messages permettent au groupe d’organiser les événements.</T>
-        <T>Les catégories et tags auxquels tu t’abonnes servent à filtrer les événements et les notifications. L’application enregistre tes préférences pour les notifications des événements.</T>
-      </Section>
-      <Section title="Qui peut voir quoi ?">
-        <T>Les membres autorisés voient les événements et les contributions selon leur visibilité. Ton numéro de téléphone est visible par toi et par les administrateurs qui gèrent les accès au groupe.</T>
-        <T>Un sondage anonyme affiche les totaux. Un sondage nominatif peut afficher les votants. Les messages d’une discussion sont visibles aux membres autorisés à consulter l’événement.</T>
-      </Section>
-      <Section title="Services techniques">
-        <T>Supabase héberge la base du projet en région Zurich et gère la connexion. Twilio reçoit le numéro nécessaire à l’envoi du code SMS. Le module événements est hébergé sur le même site que Party.</T>
-        <T>Les notifications des événements sont consultables dans Activité. Si tu actives leur réception sur un appareil, son adresse de notification et ses clés de chiffrement sont enregistrées avec ton compte et ta session. Les services push du navigateur transmettent les messages chiffrés.</T>
-        <T>Les préférences des événements et de la musique sont distinctes. L’autorisation système de notification peut être commune au site. Les annonces admin restent lisibles et ne peuvent pas être désactivées dans les préférences.</T>
-      </Section>
-      <Section title="Tes choix et la conservation">
-        <T>Tu peux modifier ton prénom, tes abonnements et tes préférences de notifications depuis ton profil. Les notifications de l’historique sont purgées après 90 jours ; les annonces admin sont conservées dans leur historique. Une déconnexion retire l’abonnement aux événements de cet appareil.</T>
-        <T>Tu peux supprimer ton compte depuis Profil → Gérer mon compte. Cette action supprime tes contributions et les événements que tu as créés. Les textes rédigés par d’autres membres peuvent encore contenir des références à ton prénom.</T>
-        <T>Pour toute question sur les données du groupe, contacte son administrateur par le canal habituel du groupe.</T>
-      </Section>
-      <Section title="Signalements et blocages">
-        <T>Quand tu signales un contenu, les modérateurs reçoivent ta raison, ton commentaire et une copie de ce contenu (pour un message direct : ce seul message). La personne signalée ne sait pas qui l’a signalée. Les signalements traités sont effacés après un an ; les blocages restent jusqu’à ce que tu débloques. Tout part avec la suppression du compte.</T>
-        <Button small variant="secondary" label="Conditions d’utilisation" onPress={() => router.push('/terms')} />
-      </Section>
+      <T muted>Party · Mise à jour du {UPDATED}</T>
+      {BLOCKS.map((block) => (
+        <Section key={block.title} title={block.title}>
+          {block.paragraphs.map((p) => <T key={p}>{p}</T>)}
+        </Section>
+      ))}
+      <Button small variant="secondary" label={`Écrire à ${SUPPORT_EMAIL}`} onPress={() => void Linking.openURL(`mailto:${SUPPORT_EMAIL}`)} />
+      <Button small variant="secondary" label="Conditions d’utilisation" onPress={() => router.push('/terms')} />
       <Button label="Revenir à l’application" onPress={() => router.canGoBack() ? router.back() : router.replace('/')} />
     </Screen>
   );

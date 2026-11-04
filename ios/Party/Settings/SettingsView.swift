@@ -7,6 +7,8 @@ struct SettingsView: View {
     let topInset: CGFloat
     let isHost: Bool
     var hostMusic: HostMusicStore?
+    /// « Ton avis » / « Retours » (page, native-tabs.js) : libellé et pastille des avis à traiter ou des réponses.
+    var feedbackEntry: TabBarState.FeedbackEntry?
     let open: (WebModel.PagePlace) -> Void
     @State private var confirmSignOut = false
     @State private var joinLink: JoinLink?
@@ -89,9 +91,13 @@ struct SettingsView: View {
                                         hint: "Purify Test et Méninges : scores, profil, records")
                         }
                     }
-                    // « Ton avis » : l'hôte, et les comptes Guest+ et au-dessus (droit « Écrire un avis »).
-                    if isHost || store.account?.feedback == true {
-                        page(.tab("feedback"), "bubble.left.and.bubble.right.fill", .green, "Ton avis", "Une idée, un bug ? Écris à l'organisateur")
+                    // « Ton avis » : l'hôte (« Retours »), et les comptes Guest+ et au-dessus (droit « Écrire un avis »).
+                    // Sorti de la barre d'onglets le 4.11 (onglet Zicou) : sa pastille est reportée ici.
+                    if Self.showsFeedback(isHost: isHost, account: store.account?.feedback == true, entry: feedbackEntry) {
+                        page(.tab("feedback"), "bubble.left.and.bubble.right.fill", .green, Self.feedbackTitle(isHost: isHost, entry: feedbackEntry),
+                             isHost ? "Les idées et bugs des invités ; ton avis aussi" : "Une idée, un bug ? Écris à l'organisateur",
+                             badge: feedbackEntry?.badge)
+                        .accessibilityIdentifier("settings-feedback")
                     }
                 }
                 Section {
@@ -197,11 +203,27 @@ struct SettingsView: View {
         }
     }
 
-    private func page(_ place: WebModel.PagePlace, _ symbol: String, _ tint: Color, _ title: String, _ hint: String) -> some View {
+    static func showsFeedback(isHost: Bool, account: Bool, entry: TabBarState.FeedbackEntry?) -> Bool {
+        isHost || account || entry?.allowed == true
+    }
+
+    static func feedbackTitle(isHost: Bool, entry: TabBarState.FeedbackEntry?) -> String {
+        entry?.label ?? (isHost ? "Retours" : "Ton avis")
+    }
+
+    private func page(_ place: WebModel.PagePlace, _ symbol: String, _ tint: Color, _ title: String, _ hint: String,
+                      badge: String? = nil) -> some View {
         Button { open(place) } label: {
             HStack {
                 SettingsRow(symbol: symbol, tint: tint, title: title, hint: hint)
                 Spacer(minLength: 0)
+                if let badge {
+                    Text(badge)
+                        .font(.footnote.weight(.semibold)).foregroundStyle(.white)
+                        .padding(.horizontal, 7).frame(minWidth: 22, minHeight: 22)
+                        .background(Color.red, in: Capsule())
+                        .accessibilityLabel("\(badge) à voir")
+                }
                 Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
             }
         }

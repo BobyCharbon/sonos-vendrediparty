@@ -20,12 +20,14 @@
 }
 .nav-screen > * { max-width: 640px; margin-left: auto; margin-right: auto; }
 .nav-screen.nav-dragging { box-shadow: -12px 0 32px rgba(0, 0, 0, .45); }
-body[data-tab="host"] .top-head, body[data-tab="stats"] .top-head, body[data-tab="host"] .name-chip-top, body[data-tab="stats"] .name-chip-top { display: none; }
-body[data-tab="host"] .events-panel, body[data-tab="stats"] .events-panel {
+body[data-tab="host"] .top-head, body[data-tab="stats"] .top-head, body[data-tab="host"] .name-chip-top, body[data-tab="stats"] .name-chip-top,
+body[data-tab="feedback"] .top-head, body[data-tab="feedback"] .name-chip-top { display: none; }
+/* « Ton avis » (page des Réglages depuis le 4.11) : les Réglages restent dessous, comme pour host et stats. */
+body[data-tab="host"] .events-panel, body[data-tab="stats"] .events-panel, body[data-tab="feedback"] .events-panel {
   position: fixed; z-index: 5; top: 0; left: 0; right: 0; bottom: var(--tabs-height);
   display: flex; flex-direction: column; background: var(--bg);
 }
-body[data-tab="host"] .events-frame, body[data-tab="stats"] .events-frame { flex: 1 1 auto; width: 100%; height: auto; min-height: 0; border-radius: 0; }
+body[data-tab="host"] .events-frame, body[data-tab="stats"] .events-frame, body[data-tab="feedback"] .events-frame { flex: 1 1 auto; width: 100%; height: auto; min-height: 0; border-radius: 0; }
 
 /* Barre de navigation d'un écran poussé : ‹ Réglages, matière translucide, le contenu défile dessous */
 .nav-head {
@@ -60,7 +62,7 @@ body[data-tab="host"] .events-frame, body[data-tab="stats"] .events-frame { flex
 body.nav-compact .nav-bar { opacity: 1; pointer-events: auto; cursor: default; }
 body.nav-compact .nav-bar span { transform: none; }
 body[data-tab="events"] .nav-bar, body[data-tab="account"] .nav-bar, body[data-tab="host"] .nav-bar,
-body[data-tab="stats"] .nav-bar, body.pyr-full .nav-bar { display: none; }
+body[data-tab="stats"] .nav-bar, body[data-tab="feedback"] .nav-bar, body.pyr-full .nav-bar { display: none; }
 
 /* ── Barre d'onglets : un libellé par onglet, sur une ligne (taille iOS) ── */
 .tabs button span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; font-size: .6875rem; letter-spacing: 0; }
@@ -78,7 +80,7 @@ body.pyr-full #gamePlay.nav-dragging { border-radius: 26px 26px 0 0; box-shadow:
 .i-coach .i-sheet::before { display: none; }
 
 @media (min-width: 900px) {
-  .nav-screen, body[data-tab="host"] .events-panel, body[data-tab="stats"] .events-panel { left: 96px; bottom: 0; }
+  .nav-screen, body[data-tab="host"] .events-panel, body[data-tab="stats"] .events-panel, body[data-tab="feedback"] .events-panel { left: 96px; bottom: 0; }
   .nav-bar { left: 96px; }
 }
 @media (prefers-reduced-transparency: reduce) {

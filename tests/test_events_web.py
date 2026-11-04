@@ -94,17 +94,18 @@ def test_calendar_file_defaults_to_three_hours_and_drops_unsafe_links(events_cli
     assert "javascript" not in body
 
 
-def test_events_are_beta_only_in_production(events_client, monkeypatch):
-    """Production (EVENTS_ENABLED=0) : « Bientôt » sauf pour les bêta-testeurs ; le module reste servi pour le compte Party."""
-    monkeypatch.setattr(main, "EVENTS_ENABLED", False)
+def test_events_are_open_to_everyone_in_production(events_client, monkeypatch):
+    """Décision du 04.11 : fin du « Bientôt » ; la page et le module ne réservent plus rien aux bêta-testeurs."""
+    monkeypatch.setenv("PARTY_PUBLIC_URL", "https://party.bobycharbon.ch")
+    monkeypatch.delenv("DISCUSSIONS_ENABLED", raising=False)
     monkeypatch.setattr(main, "_pages", {})
-    for path in ("/", "/admin"):
+    for path in ("/", "/admin", "/events/", "/events/admin"):
         page = events_client.get(path)
-        assert page.status_code == 200 and '<html data-events="beta"' in page.text
-    for path in ("/events/", "/events/admin"):
-        module = events_client.get(path)
-        assert module.status_code == 200 and '<html data-events="beta"' in module.text
-    monkeypatch.setattr(main, "_pages", {})  # les pages suivantes retrouvent l'onglet actif
+        assert page.status_code == 200 and "data-events=" not in page.text and 'data-discussions="off"' in page.text
+    root = Path(__file__).resolve().parent.parent
+    assert "SOON_TABS" not in (root / "app/static/events-shell.js").read_text(encoding="utf-8")
+    assert "is_beta_tester" not in (root / "web/events/src/lib/auth.tsx").read_text(encoding="utf-8")
+    monkeypatch.setattr(main, "_pages", {})
 
 
 def test_members_can_add_what_they_bring_and_organizer_items_are_labelled():
@@ -140,6 +141,6 @@ def test_settings_open_the_party_page_for_guests_messages_and_notifications():
     assert "openPartyTab('host')" in ui and "Invités, messages et notifications" in ui
     assert "Admin de la soirée" in ui
     page = (root / "app/static/index.html").read_text(encoding="utf-8")
-    assert '"feedback", "music", "games", "events", "chats", "host", "stats"].includes(event.data.tab)' in page
+    assert '"feedback", "music", "games", "pet", "events", "chats", "host", "stats"].includes(event.data.tab)' in page
     # Tout compte : « Mes stats de jeu » ouvre la page de Party (un onglet par jeu, Purify Test pour commencer).
     assert "openPartyTab('stats')" in ui and "Mes stats de jeu" in ui

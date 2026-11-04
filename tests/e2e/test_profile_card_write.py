@@ -1,5 +1,6 @@
 """Fiche d'un joueur (profile-card.js) › « Écrire » (messages directs, 4.11), dans un vrai navigateur : le bouton ouvre
-la conversation privée dans l'onglet Discussions ; il est caché sur ma propre fiche et quand Discussions est « Bientôt » ;
+la conversation privée dans l'onglet Discussions ; il est caché sur ma propre fiche et quand les Discussions sont absentes
+(production) ;
 un refus (pas de groupe ni d'événement en commun) s'affiche sans fermer la fiche."""
 import json
 
@@ -24,7 +25,6 @@ def open_card(phone, card=CARD, direct=None, status=200):
     page.route("**/api/brain/compare", json_route({"target": None}))
     page.route("**/api/account/chats/direct", start)
     signed_in(phone)
-    page.evaluate("PartyEvents.soon = false")
     page.evaluate("ProfileCard.open('1234', 'p-bob')")
     sheet = page.locator(".pc-card")
     expect(sheet.locator(".pc-name")).to_have_text(card["display_name"])
@@ -49,11 +49,11 @@ def test_refusal_keeps_the_card_and_explains(make_phone):
     expect(sheet).to_be_visible()
 
 
-def test_no_write_button_on_my_own_card_or_when_discussions_are_coming_soon(make_phone):
+def test_no_write_button_on_my_own_card_or_when_discussions_are_off(make_phone):
     phone = make_phone()
     sheet, _ = open_card(phone, card={**CARD, "me": True})
     expect(sheet.get_by_role("button", name="💬 Écrire")).to_have_count(0)
-    phone.page.evaluate("PartyEvents.soon = true")
+    phone.page.evaluate("document.documentElement.dataset.discussions = 'off'")
     phone.page.evaluate("ProfileCard.open('1234', 'p-bob')")
     expect(phone.page.locator(".pc-card .pc-name")).to_have_text(CARD["display_name"])
     expect(phone.page.locator(".pc-write")).to_have_count(0)

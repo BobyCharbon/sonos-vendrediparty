@@ -1,5 +1,4 @@
 import Foundation
-import Security
 
 /// Session de l'invité partagée par l'app et son extension « Partager » (trousseau, groupe PartyKeychainGroup) :
 /// adresse du site, identité (vp_guest, vp_name) et cookies (code d'accès, compte). L'app la met à jour à chaque
@@ -38,23 +37,16 @@ struct StoredCookie: Codable, Equatable {
 }
 
 enum SharedSession {
-    private static let service = "ch.bobycharbon.party.session"
     private static let account = "guest"
-    /// Erreur du trousseau quand l'app n'est pas signée avec le groupe (simulateur, tests).
-    private static let missingEntitlement: OSStatus = -34018
-
-    private static var accessGroup: String? {
-        (Bundle.main.object(forInfoDictionaryKey: "PartyKeychainGroup") as? String).flatMap { $0.isEmpty ? nil : $0 }
-    }
 
     static func load() -> SessionSnapshot? {
-        guard let data = read(account: account) else { return nil }
+        guard let data = SharedKeychain.read(account: account) else { return nil }
         return try? JSONDecoder().decode(SessionSnapshot.self, from: data)
     }
 
     static func save(_ snapshot: SessionSnapshot) {
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
-        write(data, account: account)
+        SharedKeychain.write(data, account: account)
     }
 
     // MARK: Lien d'événement partagé (« Partager › Party › Créer un événement »), repris par l'app à son ouverture
@@ -62,50 +54,15 @@ enum SharedSession {
     private static let pendingEvent = "pending-event"
 
     static func savePendingEvent(_ link: String) {
-        write(Data(link.utf8), account: pendingEvent)
+        SharedKeychain.write(Data(link.utf8), account: pendingEvent)
     }
 
     /// Le lien mis de côté par l'extension, une seule fois (il est effacé dès qu'il est lu).
     static func takePendingEvent() -> String? {
-        guard let data = read(account: pendingEvent), let link = String(data: data, encoding: .utf8), !link.isEmpty else { return nil }
-        write(Data(), account: pendingEvent)
+        guard let data = SharedKeychain.read(account: pendingEvent), let link = String(data: data, encoding: .utf8),
+              !link.isEmpty else { return nil }
+        SharedKeychain.write(Data(), account: pendingEvent)
         return link
-    }
-
-    // MARK: Trousseau
-
-    private static func query(group: String?, account: String) -> [String: Any] {
-        var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
-                                    kSecAttrService as String: service, kSecAttrAccount as String: account]
-        if let group { query[kSecAttrAccessGroup as String] = group }
-        return query
-    }
-
-    private static func read(account: String) -> Data? {
-        for group in [accessGroup, nil] {
-            var item: CFTypeRef?
-            var request = query(group: group, account: account)
-            request[kSecReturnData as String] = true
-            let status = SecItemCopyMatching(request as CFDictionary, &item)
-            if status == errSecSuccess { return item as? Data }
-            if status != missingEntitlement { return nil }
-        }
-        return nil
-    }
-
-    private static func write(_ data: Data, account: String) {
-        for group in [accessGroup, nil] {
-            let base = query(group: group, account: account)
-            var status = SecItemUpdate(base as CFDictionary, [kSecValueData as String: data] as CFDictionary)
-            if status == errSecItemNotFound {
-                var add = base
-                add[kSecValueData as String] = data
-                // Lisible par l'extension même écran verrouillé après le premier déverrouillage.
-                add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-                status = SecItemAdd(add as CFDictionary, nil)
-            }
-            if status != missingEntitlement { return }
-        }
     }
 }
 

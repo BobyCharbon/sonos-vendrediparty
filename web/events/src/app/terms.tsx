@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Linking } from 'react-native';
 
 import { Button, Screen, Section, T, Title } from '@/components/ui';
+import { SUPPORT_EMAIL } from '@/lib/contact';
 import { moderationInfo, type PublicInfo } from '@/lib/moderation';
 import { TERMS_SECTIONS, TERMS_UPDATED } from '@/lib/terms';
 
@@ -11,7 +12,7 @@ import { TERMS_SECTIONS, TERMS_UPDATED } from '@/lib/terms';
 export default function Terms() {
   const [info, setInfo] = useState<PublicInfo | null>(null);
   useEffect(() => { void moderationInfo().then(setInfo); }, []);
-  const contact = info?.contact_email ?? null;
+  const contact = info?.contact_email || SUPPORT_EMAIL;
   return (
     <Screen edges={[]}>
       <Title>Conditions d’utilisation</Title>
@@ -22,14 +23,9 @@ export default function Terms() {
         </Section>
       ))}
       <Section title="Contact">
-        {contact ? (
-          <>
-            <T>Une question, un contenu à signaler en dehors de l’app, une demande sur tes données : écris à {contact}.</T>
-            <Button small variant="secondary" label={`Écrire à ${contact}`} onPress={() => void Linking.openURL(`mailto:${contact}`)} />
-          </>
-        ) : (
-          <T>Une question ou une demande sur tes données : utilise « Signaler » dans l’app ou contacte l’administrateur du groupe.</T>
-        )}
+        <T>Une question, un contenu à signaler en dehors de l’app, une demande sur tes données : écris à {contact}.</T>
+        <Button small variant="secondary" label={`Écrire à ${contact}`} onPress={() => void Linking.openURL(`mailto:${contact}`)} />
+        <Button small variant="ghost" label="Politique de confidentialité" onPress={() => router.push('/privacy')} />
       </Section>
       <Button label="Revenir à l’application" onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
     </Screen>

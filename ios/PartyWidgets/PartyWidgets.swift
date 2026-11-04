@@ -6,6 +6,11 @@ import WidgetKit
 struct PartyWidgets: WidgetBundle {
     var body: some Widget {
         TrackLiveActivity()
+        // Zicou est réservé à la BETA (TestFlight) : l'app de l'App Store n'a ni widget Zicou ni éclosion.
+        #if BETA
+        HatchLiveActivity()
+        ZicouWidget()
+        #endif
     }
 }
 

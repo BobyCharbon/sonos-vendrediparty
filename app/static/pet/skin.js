@@ -7,7 +7,8 @@
 //   opts = { stage: "egg"|"baby"|"teen"|"adult"|"dead", variant: "star"|"classic"|"wild",
 //            emotion: "egg"|"happy"|"party"|"hungry"|"tired"|"sad"|"sick"|"sleep"|"ghost",
 //            outfit: null|id d'une tenue (app/pet.py OUTFITS), label: texte VoiceOver,
-//            accessories?: { [emplacement]: id }  (facultatif, voir plus bas), shiny?: true (Zicou chrome) }
+//            accessories?: { [emplacement]: id }  (facultatif, voir plus bas), shiny?: true (Zicou chrome),
+//            dyes?: { [id d'accessoire]: "rose" | "or" | "menthe" | "nuit" | "corail" } (teintures) }
 // Le SVG fait 200 × 200 (viewBox "0 0 200 200"). Classes d'animation de pet.css : pt-body (le corps qui respire,
 // tourne autour de 50 % 92 %), pt-fx (scintillement), pt-z (Zzz), pt-tear (larme, bave). Le skin ajoute pt-led (LED
 // qui pulsent) et coupe TOUTES ses animations si l'utilisateur réduit les animations (prefers-reduced-motion).
@@ -361,12 +362,26 @@
     return out;
   }
 
+  // Teintures (économie du 4.11.2026) : un accessoire porté prend une couleur de la liste (jamais une couleur libre).
+  const DYES = Object.freeze({ rose: "#ff7ab6", or: "#ffc94a", menthe: "#5fe3b4", nuit: "#5b6cff", corail: "#ff7a59" });
+  function dyeFilter(uid, color) {
+    const hex = DYES[color];
+    if (!hex) return "";
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255 * 1.35);
+    const row = (k) => `${r1(0.3 * k * 100) / 100} ${r1(0.59 * k * 100) / 100} ${r1(0.11 * k * 100) / 100} 0 0`;
+    return `<filter id="${uid}dye-${color}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="${row(r)} ${row(g)} ${row(b)} 0 0 0 1 0"/></filter>`;
+  }
+  function dyed(svg, acc, ctx) {
+    const color = svg && acc && ctx.dyes ? ctx.dyes[acc.id] : "";
+    return color && DYES[color] ? `${dyeFilter(ctx.uid, color)}<g filter="url(#${ctx.uid}dye-${color})">${svg}</g>` : svg;
+  }
+
   function drawAcc(acc, ctx, part) {
     if (!acc || typeof acc.draw !== "function") return "";
     try {
       const res = acc.draw(ctx);
-      if (res && typeof res === "object") return res[part || "front"] || "";
-      return part === "back" ? "" : String(res || "");
+      if (res && typeof res === "object") return dyed(res[part || "front"] || "", acc, ctx);
+      return part === "back" ? "" : dyed(String(res || ""), acc, ctx);
     } catch (err) {
       if (typeof console !== "undefined") console.warn(`Accessoire ${acc.id} non dessiné`, err);
       return "";
@@ -407,7 +422,8 @@
     const gap = r * 0.36, ey = cy + r * 0.02;
     const arms = armsFor(cx, cy, r, emotion, stage);
     const a = anchors(geo, stage, arms.hands, s, gap, ey);
-    const ctx = Object.freeze({ a, mood, emotion, stage, variant: o.variant, ghost, uid, C, esc, n: r1, bodyClip: `url(#${uid}c)` });
+    const ctx = Object.freeze({ a, mood, emotion, stage, variant: o.variant, ghost, uid, C, esc, n: r1, bodyClip: `url(#${uid}c)`,
+      dyes: o.dyes && typeof o.dyes === "object" ? o.dyes : null });
 
     const head = acc.head;
     const look = head?.headset ? { ...head.headset } : { band: C.band, cup: C.band };
@@ -554,5 +570,6 @@
     defineAccessory,
     accessory: (id) => ACCESSORIES.get(id) || null,
     accessories: (slot) => [...ACCESSORIES.values()].filter((acc) => !slot || acc.slot === slot),
+    DYES,
   });
 })();

@@ -166,6 +166,8 @@ struct NotificationSettingsView: View {
             eventToggle("invites", "envelope.fill", .purple, "Invitation à un événement privé", "On t'invite à un événement réservé aux invités", p.invites != false)
             eventToggle("ticket_pay_confirmed", "checkmark.seal.fill", .green, "Paiement de ma place confirmé",
                         "L'organisateur a reçu ton paiement (ou ne l'a pas reçu) après ton « J'ai payé »", p.ticketPayConfirmed != false)
+            eventToggle("ticket_issued", "qrcode", .pink, "Billet prêt",
+                        "L'organisateur t'a remis ton billet QR : il s'affiche sur l'événement", p.ticketIssued != false)
         }
 
         Section {
@@ -193,18 +195,21 @@ struct NotificationSettingsView: View {
             Text(EventChoices.hint(EventChoices.chat, for: p.chat))
         }
 
-        Section("💬 Discussions des groupes") {
-            eventToggle("group_messages", "bubble.left.and.bubble.right.fill", .green, "Messages des groupes",
-                        "Selon le choix de chaque groupe : tous, si on me cite ou rien", p.groupMessages != false)
-            // Messages directs (conversation privée à deux) : leur propre interrupteur ; la pause ci-dessous les couvre aussi.
-            eventToggle("direct_messages", "bubble.left.fill", .mint, "Messages directs",
-                        "« Nouveau message de … » quand quelqu'un t'écrit en privé", p.directMessages != false)
-            ChatsPauseRow(store: store.pause, scope: .chats)
-            // Groupes de Discussions : @tout et @annonce préviennent tout le groupe ; chacun peut le couper ici.
-            eventToggle("group_broadcasts", "megaphone.fill", .pink, "Annonces et @tout des groupes",
-                        "Quand quelqu'un écrit @tout ou fait une annonce dans un de tes groupes", p.groupBroadcasts != false)
-            eventToggle("group_invites", "person.badge.plus", .blue, "Invitation dans un groupe", "Quelqu'un t'ajoute à un groupe", p.groupInvites != false)
-            eventToggle("group_joins", "person.2.fill", .teal, "Quelqu'un rejoint mon groupe", "Un membre entre dans un groupe que tu as créé", p.groupJoins != false)
+        // Discussions des groupes fermées sur ce site (production, hors revue Apple) : pas de réglages pour elles.
+        if store.discussions {
+            Section("💬 Discussions des groupes") {
+                eventToggle("group_messages", "bubble.left.and.bubble.right.fill", .green, "Messages des groupes",
+                            "Selon le choix de chaque groupe : tous, si on me cite ou rien", p.groupMessages != false)
+                // Messages directs (conversation privée à deux) : leur propre interrupteur ; la pause ci-dessous les couvre aussi.
+                eventToggle("direct_messages", "bubble.left.fill", .mint, "Messages directs",
+                            "« Nouveau message de … » quand quelqu'un t'écrit en privé", p.directMessages != false)
+                ChatsPauseRow(store: store.pause, scope: .chats)
+                // Groupes de Discussions : @tout et @annonce préviennent tout le groupe ; chacun peut le couper ici.
+                eventToggle("group_broadcasts", "megaphone.fill", .pink, "Annonces et @tout des groupes",
+                            "Quand quelqu'un écrit @tout ou fait une annonce dans un de tes groupes", p.groupBroadcasts != false)
+                eventToggle("group_invites", "person.badge.plus", .blue, "Invitation dans un groupe", "Quelqu'un t'ajoute à un groupe", p.groupInvites != false)
+                eventToggle("group_joins", "person.2.fill", .teal, "Quelqu'un rejoint mon groupe", "Un membre entre dans un groupe que tu as créé", p.groupJoins != false)
+            }
         }
 
         // Mes amis dans Party : chaque type a son interrupteur (aussi sur le web).
@@ -216,16 +221,23 @@ struct NotificationSettingsView: View {
         }
 
         // Compagnon (onglet Jeux) : un interrupteur par type (aussi sur le web). Au plus une notification par jour
-        // (hors alertes vitales), jamais la nuit ni pendant une soirée.
-        Section("Compagnon") {
-            eventToggle("pet_daily", "sun.max.fill", .orange, "Rappel du jour",
-                        "Une fois par jour au plus, vers l'heure où tu passes d'habitude", p.petDaily != false)
-            eventToggle("pet_alerts", "heart.fill", .pink, "Alertes vitales",
-                        "Deux alertes au plus avant qu'il ne s'envole", p.petAlerts != false)
-            eventToggle("pet_gifts", "gift.fill", .purple, "Cadeau d'un ami",
-                        "Un ami lui a fait un câlin ou apporté un goûter", p.petGifts != false)
-            eventToggle("pet_streaks", "flame.fill", .red, "Paliers de série",
-                        "Le jour où ta série atteint un palier (3, 7, 14, 30 jours…)", p.petStreaks != false)
+        // (hors alertes vitales), jamais la nuit ni pendant une soirée. En bêta : absent si le serveur l'a éteint.
+        if store.compagnon {
+            Section("Zicou") {
+                eventToggle("pet_daily", "sun.max.fill", .orange, "Rappel du jour",
+                            "Une fois par jour au plus, vers l'heure où tu passes d'habitude", p.petDaily != false)
+                eventToggle("pet_alerts", "heart.fill", .pink, "Alertes vitales",
+                            "Deux alertes au plus avant qu'il ne s'envole", p.petAlerts != false)
+                eventToggle("pet_gifts", "gift.fill", .purple, "Cadeau d'un ami",
+                            "Un ami lui a fait un câlin ou apporté un goûter", p.petGifts != false)
+                eventToggle("pet_streaks", "flame.fill", .red, "Paliers de série",
+                            "Le jour où ta série atteint un palier (3, 7, 14, 30 jours…)", p.petStreaks != false)
+                if let reactions = store.zicouReactions {
+                    toggle("pet.reactions", "sparkles", .pink, "Réactions de Zicou",
+                           "Un petit bandeau dans l'app quand il gagne des pièces (titre ajouté, partie terminée). Jamais de notification.",
+                           isOn: reactions) { on in await store.setZicouReactions(on) }
+                }
+            }
         }
 
         // Modération commune : chaque type a son interrupteur (règle permanente).

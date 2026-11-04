@@ -11,7 +11,7 @@ struct PartyTVApp: App {
             if !demo["steps"].array.isEmpty {
                 return TVStore(steps: demo["steps"].array, every: demo["every"].double ?? 4)
             }
-            return TVStore(demo: (demo["game"], demo["music"]), before: demo["before"])
+            return TVStore(demo: (demo["game"], demo["music"]), before: demo["before"], zicou: demo["zicou"])
         }
         // Simulateur : PARTY_TV_BASE=http://127.0.0.1:<port> branche l'app sur un serveur local (essai de bout en bout).
         if let raw = ProcessInfo.processInfo.environment["PARTY_TV_BASE"], let base = URL(string: raw) {

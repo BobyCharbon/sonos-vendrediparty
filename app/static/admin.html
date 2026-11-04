@@ -15,8 +15,8 @@
   <link rel="stylesheet" href="/static/heist.css">
   <link rel="stylesheet" href="/static/ui.css">
   <link rel="stylesheet" href="/static/games.css">
-  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=3">
-  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v=3">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=4">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v=4">
   <link rel="manifest" href="/static/manifest-admin.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -125,6 +125,7 @@
 
     <!-- ⚙️ Réglages -->
     <section data-view="settings" class="hidden">
+      <div id="guestGateAdmin"></div>
       <div id="liveSettings" class="hidden">
         <h2 style="margin-top:8px">Messages <span id="msgBadge" class="badge hidden"></span></h2>
         <label class="card switch-row hidden" id="notifBox" style="margin-bottom:8px">
@@ -297,10 +298,6 @@ async function adminByAccount() {
 const VIEWS = ["home", "games", "events", "feedback", "settings"];
 function showView(view) {
   if (!VIEWS.includes(view)) view = "home";
-  if (view === "events" && PartyEvents.soon) {
-    if (document.body.dataset.tab) return toast("📅 Les événements arrivent bientôt");
-    view = "home";
-  }
   const switching = !!document.body.dataset.tab && document.body.dataset.tab !== view;
   document.querySelectorAll("[data-view]").forEach((el) => el.classList.toggle("hidden", el.dataset.view !== view));
   document.querySelectorAll("#tabs [data-tab]").forEach((el) => {
@@ -366,6 +363,7 @@ function loadFeedback() {
 
 function render(s) {
   state = s; stateAt = Date.now();
+  window.GuestGateAdmin?.render(s.guest_gate);  // parties et titres en invité (guest-gate-admin.js)
   $("fbBadge").textContent = s.feedback_new || "";
   $("fbBadge").classList.toggle("hidden", !s.feedback_new);
   if (!document.querySelector('[data-view="feedback"]').classList.contains("hidden") && s.feedback_new !== FeedbackAdmin.pending) loadFeedback();
@@ -996,6 +994,8 @@ $("logout").onclick = async (ev) => { ev.preventDefault(); await api("/api/admin
 <script src="/static/games.js"></script>
 <script src="/static/feedback-admin.js"></script>
 <script src="/static/audit-admin.js"></script>
+<script src="/static/guest-gate-admin.js"></script>
+<script>GuestGateAdmin.mount(document.getElementById("guestGateAdmin"));</script>
 <script>AuditAdmin.mount(document.getElementById("auditAdmin")); if (document.body.dataset.tab === "settings") AuditAdmin.refresh();</script>
 <script src="/static/quiz.js"></script>
 </body>

@@ -502,17 +502,20 @@ export function Empty({ children }: { children: ReactNode }) {
 }
 
 /** Ligne de réglage iOS : pictogramme sur pastille colorée, libellé, aide, chevron ; surlignée sous le doigt. */
-export function LinkRow({ label, hint, onPress, icon, tint = colors.surface2 }: {
+export function LinkRow({ label, hint, onPress, icon, tint = colors.surface2, badge }: {
   label: string; hint?: string; onPress: () => void; icon?: string; tint?: string;
+  /** Pastille rouge (nombre), comme sur une ligne des Réglages de l'iPhone. */
+  badge?: string | null;
 }) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress}
+    <Pressable accessibilityRole="button" onPress={onPress} accessibilityLabel={badge ? `${label}, ${badge} à voir` : undefined}
       style={({ pressed }) => [s.toggleRow, s.linkRow, transition('background-color', duration.fast), pressed && { backgroundColor: 'rgba(255,255,255,0.06)' }]}>
       {icon ? <View style={[s.iconTile, { backgroundColor: tint }]}><Text style={{ fontSize: 16 }}>{icon}</Text></View> : null}
       <View style={{ flex: 1, gap: 2 }}>
         <T>{label}</T>
         {hint ? <T muted size={12}>{hint}</T> : null}
       </View>
+      {badge ? <View style={s.rowBadge}><Text style={s.rowBadgeText}>{badge}</Text></View> : null}
       <View style={s.disclosure} />
     </Pressable>
   );
@@ -573,6 +576,8 @@ export const s = StyleSheet.create({
   pressed: { transform: [{ scale: 0.97 }] },
   linkRow: { marginHorizontal: -8, paddingHorizontal: 8, paddingVertical: 8, borderRadius: 12 },
   iconTile: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  rowBadge: { minWidth: 22, height: 22, paddingHorizontal: 7, borderRadius: 11, backgroundColor: '#FF3B30', alignItems: 'center', justifyContent: 'center' },
+  rowBadgeText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   disclosure: { width: 8, height: 8, borderRightWidth: 2, borderTopWidth: 2, borderColor: colors.muted, opacity: 0.7, transform: [{ rotate: '45deg' }], marginRight: 4 },
   headerButton: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44, paddingHorizontal: 8 },
   chevron: { width: 12, height: 12, borderLeftWidth: 2.5, borderBottomWidth: 2.5, borderColor: colors.accent, transform: [{ rotate: '45deg' }], marginLeft: 6, marginRight: 2 },

@@ -12,11 +12,11 @@ Jamais d'argent réel ni de lot réel ; aucune récompense liée à l'alcool.
 import copy
 import random
 
-from . import moderation, pet, pet_catalog, pet_cert, pet_chest, pet_collection
+from . import moderation, pet, pet_catalog, pet_cert, pet_chest, pet_collection, pet_feast
 from .accounts import SUPABASE_ANON_KEY, AccountError
 
 AWARDS_KEPT = 100
-COLL_ACTIONS = ("equip", "buy", "craft", "showcase")
+COLL_ACTIONS = ("equip", "buy", "craft", "showcase", "feast", "dye", "dye_wear", "room")
 
 
 def _rng(store, uid: str, purpose: str):
@@ -28,7 +28,7 @@ def owned(s: dict) -> set[str]:
 
 
 def ctx(s: dict) -> dict:
-    return {"owned": owned(s), "mythic_left": s.get("mythic_left") or {}}
+    return {"owned": owned(s), "mythic_left": s.get("mythic_left") or {}, "today": pet.day_of(s["now"])}
 
 
 # ── Chargement ──
@@ -154,8 +154,11 @@ def settle_found(store, token: str, s: dict, action: str, found: dict | None) ->
 
 def friend_extras(life: dict) -> dict:
     """Chez un ami : ce qu'il porte, shiny, sa vitrine (titre déjà filtré, signalable)."""
+    lvl = life.get("lvl") if isinstance(life.get("lvl"), dict) else {}
     return {"acc": pet_collection.worn(life), "shiny": bool(life.get("shiny")),
-            "showcase": pet_collection.showcase_view(life)}
+            "showcase": pet_collection.showcase_view(life), "dye": pet_collection.dyes_worn(life),
+            "room": int(life.get("room") or 0),
+            "lvl": {"level": int(lvl.get("level") or 1), "stars": int(lvl.get("stars") or 0)}}
 
 
 def summary(s: dict) -> dict:
@@ -163,7 +166,8 @@ def summary(s: dict) -> dict:
     coll = s["owner"].get("coll") or {}
     return {"acc": pet_collection.worn(s["life"]), "shiny": bool(s["life"].get("shiny")), "dust": int(coll.get("dust", 0)),
             "pity_left": pet_chest.pity_left(int(coll.get("pity", 0))), "reveals": s.get("reveals", []),
-            "showcase": pet_collection.showcase_view(s["life"]), "dex": _dex_count(s)}
+            "showcase": pet_collection.showcase_view(s["life"]), "dex": _dex_count(s),
+            "dye": pet_collection.dyes_worn(s["life"]), "room": int(coll.get("room") or 0)}
 
 
 def _dex_count(s: dict) -> dict:
@@ -177,25 +181,34 @@ def full(store, s: dict) -> dict:
     """Écran Collection : Zicoudex, boutique du jour, atelier, décor, coffre (chances), vitrine, certificats."""
     have, coll, loop = owned(s), pet_collection.coll_of(s["owner"]), s["owner"].get("loop") or {}
     today = pet.day_of(s["now"])
-    shop = pet_collection.shop_today(_shop_rng(store, today))
+    shop = pet_collection.shop_today(_shop_rng(store, today), today)
     bought = coll["shop"].get("bought", []) if coll["shop"].get("day") == today else []
     snacks = coll["snacks"]["n"] if coll["snacks"].get("day") == today else 0
-    craftable = [i for i in pet_catalog.items() if pet_catalog.craft_cost(i) is not None]
+    craftable = [i for i in pet_catalog.items() if pet_catalog.craft_cost(i, today) is not None]
+    room = int(coll.get("room") or 0)
     return {
         "coins": int(loop.get("coins", 0)), "dust": coll["dust"], "acc": pet_collection.worn(s["life"]),
         "shiny": bool(s["life"].get("shiny")), "shiny_odds": f"1 chance sur {pet_collection.SHINY_ONE_IN} à l'éclosion",
-        "dex": pet_collection.dex(have, s.get("items")),
+        "dex": pet_collection.dex(have, s.get("items"), today),
         "shop": [pet_catalog.public_item(i) | {"price": pet_catalog.shop_price(i), "owned": i in have, "bought": i in bought}
                  for i in shop],
         "decor": [pet_catalog.public_item(i) | {"price": pet_catalog.shop_price(i), "owned": i in have}
-                  for i in pet_catalog.decor_items()],
+                  for i in pet_catalog.decor_items(today)],
+        "shop_rule": {"commons": pet_collection.SHOP_COMMONS, "rare_today": pet_collection.rare_day(today),
+                      "rare_every": pet_collection.SHOP_RARE_EVERY},
+        "room": {"level": room, "price": pet_collection.room_price(room), "max": pet_collection.ROOM_MAX},
+        "dyes": {"colors": [{"id": d, "label": label, "hex": hx} for d, label, hx in pet_collection.DYES],
+                 "prices": pet_collection.DYE_PRICES, "owned": coll.get("dyes") or {},
+                 "worn": pet_collection.dyes_worn(s["life"])},
+        "feast": pet_feast.view(s["life"], s["owner"], s["now"], today),
         "snacks": [{"id": k, "label": pet_chest.SNACKS[k][0], "emoji": pet_chest.SNACKS[k][1], "price": p}
                    for k, p in pet_collection.SNACK_PRICES.items()],
         "snacks_left": max(0, pet_collection.SNACKS_PER_DAY - snacks),
-        "craft": [pet_catalog.public_item(i) | {"cost": pet_catalog.craft_cost(i), "owned": i in have} for i in craftable],
+        "craft": [pet_catalog.public_item(i) | {"cost": pet_catalog.craft_cost(i, today), "owned": i in have} for i in craftable],
         "rates": [{"rarity": r["id"], "label": r["label"], "dust": r["dust"], "craft": r["craft"]}
                   for r in pet_catalog.data()["rarities"] if r["id"] != "mythic"],
         "odds": pet_chest.odds(coll["pity"], s.get("mythic_left")),
+        "bonus_odds": pet_chest.odds(coll["pity"], s.get("mythic_left"), bonus=True),
         "pity_left": pet_chest.pity_left(coll["pity"]), "pity": pet_chest.PITY,
         "showcase": pet_collection.showcase_view(s["life"]),
         "items": [_instance_view(x) for x in s.get("items", [])],
@@ -233,7 +246,7 @@ def act(store, token: str, action: str, item: str = "", slot: str = "", items: l
         today = pet.day_of(s["now"])
         try:
             out = _do(store, token, s, action, have, today, item, slot, items or [], title)
-        except pet_collection.CollectionError as e:
+        except (pet_collection.CollectionError, pet_feast.FeastError) as e:
             raise pet.PetError(str(e)) from None
         finish(s)
         s["journal"] += [{"kind": f"coll_{action}", "detail": {"item": item or slot}}]
@@ -252,18 +265,40 @@ def _do(store, token, s, action, have, today, item, slot, items, title) -> dict:
             raise pet_collection.CollectionError("Pas encore débloquée : cet objet n'est pas encore à toi.")
         pet_collection.equip(s["life"], have, target, item)
         return {"action": action, "slot": target, "item": item}
+    if action == "feast":
+        done = pet_feast.buy(s["life"], s["owner"], item, s["now"], today, lambda price: pet_collection._spend(s["owner"], price))
+        info = pet_feast.FEASTS[item]
+        s["news"].append({"kind": "feast", "text": f"{info['emoji']} {info['label']} servie : {info['effect'].lower()} (−{done['price']} 🪙)"})
+        return {"action": action, **done}
+    if action == "room":
+        done = pet_collection.grow_room(s["owner"], s["life"])
+        s["news"].append({"kind": "room", "text": f"🏠 Chambre agrandie : niveau {done['level']} (−{done['price']} 🪙)"})
+        return {"action": action, **done}
+    if action in ("dye", "dye_wear"):
+        color = slot   # la couleur voyage dans « slot » (même modèle de requête)
+        if action == "dye":
+            done = pet_collection.buy_dye(s["owner"], have, item, color)
+            pet_collection.wear_dye(s["owner"], s["life"], item, color)
+            s["news"].append({"kind": "dye", "text": f"🎨 Teinture « {_dye_label(color)} » : {_label(item)} (−{done['price']} 🪙)"})
+            return {"action": action, **done}
+        pet_collection.wear_dye(s["owner"], s["life"], item, color)
+        return {"action": action, "item": item, "color": color}
     if action == "buy":
-        shop = pet_collection.shop_today(_shop_rng(store, today))
+        shop = pet_collection.shop_today(_shop_rng(store, today), today)
         done = pet_collection.buy(s["owner"], have, item, today, shop)
         s["news"].append({"kind": "bought", "text": f"🛍️ {_label(item)} : à toi ! (−{done['price']} 🪙)"})
         return {"action": action, **done}
     if action == "craft":
-        done = pet_collection.craft(s["owner"], have, item)
+        done = pet_collection.craft(s["owner"], have, item, today)
         inst = mint(store, token, s, item, "atelier", f"atelier:{item}") if done["mint"] else None
         s["news"].append({"kind": "crafted", "text": f"🔨 Fabriqué à l'atelier : {_label(item)} (−{done['cost']} ✨)"})
         return {"action": action, **done, **({"serial": inst["serial"], "code": inst.get("code")} if inst else {})}
     pet_collection.set_showcase(s["life"], have, items, title, s.get("items"))
     return {"action": action}
+
+
+def _dye_label(color: str) -> str:
+    return next((label for d, label, _ in pet_collection.DYES if d == color), color)
 
 
 def _label(iid: str) -> str:

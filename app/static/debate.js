@@ -35,10 +35,13 @@ const dbKey = (g, part) => `db:${g.id}:${g.debate.n}:${g.debate.round}:${part}`;
 
 function dbQuestion(v, small = false, g = null) {
   const q = v.q || {};
-  const tag = q.by ? `✍️ Proposé par ${esc(q.by)}` : esc(q.theme || "");
+  const tag = q.reported ? "🚩 Retiré après un signalement" : q.by ? `✍️ Proposé par ${esc(q.by)}` : esc(q.theme || "");
+  // « Signaler » un dilemme proposé par un joueur (Apple 1.2) : retiré aussitôt pour la table, l'admin est prévenu.
+  const report = g && g.me && q.by && !q.reported
+    ? `<button type="button" class="lk-sub db-report" data-db-report aria-label="Signaler ce dilemme">🚩 Signaler</button>` : "";
   // Nouveau dilemme : la carte bascule ; au revote, elle reste (même dilemme) et seul le bandeau « revote » arrive.
   return `<div class="db-q ${small ? "small" : ""}"${g && !small ? GameFx.fx("flip", `db:${g.id}:${v.n}:q`) : ""}><div class="db-q-n">Dilemme ${v.n}/${v.count}${v.round === 2 ? " · revote" : ""}</div>
-    <div class="db-q-t">${esc(q.text || "")}</div>${tag ? `<div class="db-q-tag">${tag}</div>` : ""}</div>`;
+    <div class="db-q-t">${esc(q.text || "")}</div>${tag ? `<div class="db-q-tag">${tag}</div>` : ""}${report}</div>`;
 }
 
 function dbDots(v, key) {
@@ -158,7 +161,7 @@ function dbRevealHtml(g) {
       ${canRevote ? `<button class="lk-main" data-gact="dbrevote">🔁 Faire revoter</button>` : ""}
       <button class="${canRevote ? "lk-sub db-next" : "lk-main"}" data-gact="next">${v.n >= v.count ? "📊 Voir le bilan" : "▶︎ Dilemme suivant"}</button></div>` : "";
   const talk = v.round === 1 ? `<p class="db-talk">💬 À vous : pourquoi pour, contre, partagé&nbsp;? Débattez librement.</p>` : "";
-  return `${dbQuestion(v, true)}<div class="lk-win"${GameFx.fx("pop", dbKey(g, "win"))}>${dbVerdict(r)}</div>${moved}${dbBarsHtml(g)}${talk}${host}${dbInboxHtml(g)}${dbProposeHtml(g)}`;
+  return `${dbQuestion(v, true, g)}<div class="lk-win"${GameFx.fx("pop", dbKey(g, "win"))}>${dbVerdict(r)}</div>${moved}${dbBarsHtml(g)}${talk}${host}${dbInboxHtml(g)}${dbProposeHtml(g)}`;
 }
 
 function dbAward(icon, title, h, detail, fx = "") {
@@ -249,6 +252,11 @@ function dbVote(b) {
 
 document.addEventListener("click", (ev) => {
   if (game?.type !== "debate") return;
+  const report = ev.target.closest("[data-db-report]");
+  if (report) {
+    if (!confirm("Signaler ce dilemme ? Il disparaît pour toute la table et l'organisateur de Party est prévenu.")) return;
+    return pressed(report, gameAction("dbreport")).then((ok) => ok && toast("🚩 Merci, le dilemme est retiré", "ok"));
+  }
   const pick = ev.target.closest("[data-db-vote]");
   if (pick) return dbVote(pick);
   const ready = ev.target.closest("[data-db-ready]");

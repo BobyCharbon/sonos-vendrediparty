@@ -26,6 +26,12 @@ final class SettingsStore: ObservableObject {
     @Published private(set) var guest: GuestNotifyState?
     /// nil : pas l'hôte.
     @Published private(set) var host: AdminNotifyState?
+    /// Réglages › Compagnon : bandeaux « +5 🪙 pour Zicou » ; nil : pas de compte relié aux jeux (ou hors ligne).
+    @Published private(set) var zicouReactions: Bool?
+    /// Compagnon (Zicou) en bêta : ses réglages n'apparaissent que si le serveur l'a allumé (site de test).
+    @Published private(set) var compagnon = false
+    /// Discussions ouvertes sur ce site (/api/features.discussions) : sinon leurs réglages de notification sont cachés.
+    @Published private(set) var discussions = false
     @Published private(set) var events: EventsPhase = .signedOut
     @Published private(set) var liveActivities = LiveActivitySetting.isEnabled
     /// Mon profil ; nil tant qu'il n'est pas lu (ou pas connecté).
@@ -114,8 +120,13 @@ final class SettingsStore: ObservableObject {
     }
 
     private func loadParty() async {
+        let features = try? await api.features()
+        compagnon = features?.compagnon ?? false
+        discussions = features?.discussions ?? false
         if let me = await web?.guestIdentity() {
             guest = try? await api.notifyPrefs(guestID: me.id)
+            zicouReactions = compagnon && me.id.hasPrefix("acct-")
+                ? (try? await api.zicouReactions(guestID: me.id))?.enabled : nil
         }
         host = isHost() ? try? await api.adminNotifyPrefs() : nil
     }
@@ -240,6 +251,14 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    /// Réactions de Zicou (serveur Party, app/pet_reactions.py) : jamais une notification, seulement un bandeau.
+    func setZicouReactions(_ on: Bool) async {
+        guard let me = await web?.guestIdentity(), me.id.hasPrefix("acct-") else { return }
+        await save("pet.reactions") {
+            zicouReactions = try await api.zicouReactions(guestID: me.id, on: on).enabled
+        }
+    }
+
     func setHost(_ kind: String, _ on: Bool) async {
         await save("host." + kind) {
             if on {
@@ -360,6 +379,7 @@ final class SettingsStore: ObservableObject {
         case ("group_joins", let v as Bool): p.groupJoins = v
         case ("ticket_pay_declared", let v as Bool): p.ticketPayDeclared = v
         case ("ticket_pay_confirmed", let v as Bool): p.ticketPayConfirmed = v
+        case ("ticket_issued", let v as Bool): p.ticketIssued = v
         case ("referral_joins", let v as Bool): p.referralJoins = v
         case ("contact_joins", let v as Bool): p.contactJoins = v
         case ("direct_messages", let v as Bool): p.directMessages = v

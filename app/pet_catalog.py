@@ -56,6 +56,10 @@ def validate(raw: dict) -> None:
             raise CatalogError(f"{iid} : identifiant neutre attendu (m-…) pour un Mythique")
         if it.get("price") and it["slot"] != "decor":
             raise CatalogError(f"{iid} : seul le décor a un prix fixe")
+    for s in raw["series"]:
+        rel = s.get("release")
+        if rel is not None and (not isinstance(rel, str) or len(rel) != 10 or rel[4] != "-" or rel[7] != "-"):
+            raise CatalogError(f"{s['id']} : date de sortie AAAA-MM-JJ attendue")
 
 
 def rarities() -> dict[str, dict]:
@@ -87,16 +91,29 @@ def is_event_only(it: dict) -> bool:
     return series()[it["series"]]["source"] == "event"
 
 
-def chest_pool(rarity: str) -> list[str]:
-    """Objets qu'un coffre peut donner : séries « coffre », hors décor (boutique) et hors Soirées Party (présence)."""
-    return [it["id"] for it in data()["items"] if it["rarity"] == rarity and not is_event_only(it) and not it.get("price")]
+def released(sid: str, today: str | None = None) -> bool:
+    """Saisons (économie du 4.11.2026) : une série n'entre dans les coffres, la boutique et l'atelier qu'à partir de sa
+    date de sortie (« release », jour de Zurich AAAA-MM-JJ). today=None : pas de filtre (calcul hors date)."""
+    rel = (series().get(sid) or {}).get("release")
+    return today is None or not rel or rel <= today
 
 
-def craft_cost(iid: str) -> int | None:
+def upcoming(today: str | None) -> list[str]:
+    """Séries pas encore sorties (Zicoudex : « Bientôt : ??? », sans le nom des objets)."""
+    return [sid for sid in series() if not released(sid, today)]
+
+
+def chest_pool(rarity: str, today: str | None = None) -> list[str]:
+    """Objets qu'un coffre peut donner : séries « coffre » déjà sorties, hors décor (boutique) et hors Soirées Party."""
+    return [it["id"] for it in data()["items"] if it["rarity"] == rarity and not is_event_only(it) and not it.get("price")
+            and released(it["series"], today)]
+
+
+def craft_cost(iid: str, today: str | None = None) -> int | None:
     """Prix à l'atelier en poussière (barème façon Hearthstone) ; None : ne se fabrique pas (Mythique, souvenir de
-    soirée, décor de la boutique)."""
+    soirée, décor de la boutique, série pas encore sortie)."""
     it = item(iid)
-    if not it or it["rarity"] == "mythic" or is_event_only(it) or it.get("price"):
+    if not it or it["rarity"] == "mythic" or is_event_only(it) or it.get("price") or not released(it["series"], today):
         return None
     return rarities()[it["rarity"]]["craft"]
 
@@ -107,9 +124,9 @@ def dust_value(iid: str) -> int:
     return int(rarities()[it["rarity"]]["dust"] or 0) if it else 0
 
 
-def shop_pool() -> list[str]:
-    """Boutique du jour : Communs et Rares des séries « coffre » (jamais un souvenir de soirée)."""
-    return chest_pool("common") + chest_pool("rare")
+def shop_pool(today: str | None = None) -> list[str]:
+    """Boutique du jour : Communs et Rares des séries « coffre » sorties (jamais un souvenir de soirée)."""
+    return chest_pool("common", today) + chest_pool("rare", today)
 
 
 def shop_price(iid: str) -> int | None:
@@ -119,8 +136,8 @@ def shop_price(iid: str) -> int | None:
     return it.get("price") or rarities()[it["rarity"]]["shop"]
 
 
-def decor_items() -> list[str]:
-    return [it["id"] for it in data()["items"] if it.get("price")]
+def decor_items(today: str | None = None) -> list[str]:
+    return [it["id"] for it in data()["items"] if it.get("price") and released(it["series"], today)]
 
 
 def series_items(sid: str, with_mythic: bool = False) -> list[str]:
@@ -147,8 +164,10 @@ def where(iid: str) -> str:
         parts.append("Cadeau d'un événement Party où tu es présent")
         return " · ".join(parts)
     parts.append("Coffres du jour")
-    if it["rarity"] in ("common", "rare"):
+    if it["rarity"] == "common":
         parts.append("Boutique du jour")
+    elif it["rarity"] == "rare":
+        parts.append("Boutique (un jour sur deux)")
     parts.append(f"Atelier ({craft_cost(iid)} ✨)")
     return " · ".join(parts)
 

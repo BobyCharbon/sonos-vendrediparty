@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button, ErrorText, Input, T } from './ui';
+import { SUPPORT_EMAIL } from '@/lib/contact';
 import { REPORT_REASONS, reportContent, type ReportReason, type ReportTarget } from '@/lib/moderation';
 import { colors, radius } from '@/lib/theme';
 
@@ -50,6 +51,7 @@ export function ReportSheet({ target, onClose }: Props) {
             <>
               <T weight="bold" size={18}>Merci, c’est envoyé</T>
               <T muted size={14}>Un modérateur va regarder. La personne n’est pas prévenue que c’est toi.</T>
+              <T muted size={13}>Urgent ou grave (menace, contenu illégal) : écris aussi à {SUPPORT_EMAIL}.</T>
               <Button label="Fermer" onPress={close} />
             </>
           ) : (
@@ -67,6 +69,7 @@ export function ReportSheet({ target, onClose }: Props) {
               <Input accessibilityLabel="Commentaire" placeholder="Commentaire (facultatif)" value={comment}
                 onChangeText={setComment} maxLength={500} multiline style={{ minHeight: 70 }} />
               <ErrorText error={error} />
+              <T muted size={12}>Contact : {SUPPORT_EMAIL}</T>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <Button variant="secondary" label="Annuler" style={{ flex: 1 }} onPress={close} />
                 <Button label="Envoyer" style={{ flex: 1 }} disabled={!reason} loading={busy} onPress={() => void send()} />

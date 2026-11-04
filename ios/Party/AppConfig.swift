@@ -20,6 +20,15 @@ enum AppConfig {
         return "PartyApp-iOS/\(version)" + (isStoreApp ? " PartyStore" : "")
     }()
 
+    /// Zicou (widget, éclosion, actions rapides) : compilé dans la BETA seulement (PARTY_SWIFT_CONDITIONS, project.yml).
+    static let zicouBuild: Bool = {
+        #if BETA
+        return true
+        #else
+        return false
+        #endif
+    }()
+
     /// VendrediParty (ch.bobycharbon.party) et non Party BETA (….beta).
     static var isStoreApp: Bool { !(Bundle.main.bundleIdentifier ?? "").hasSuffix(".beta") }
 

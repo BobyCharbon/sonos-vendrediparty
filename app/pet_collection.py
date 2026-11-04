@@ -9,10 +9,19 @@ Ce que voient les amis vit dans life : acc {emplacement: objet} (ce qu'il porte)
 Économie FERMÉE : les pièces se gagnent en jouant et ne s'achètent jamais ; rien ne se convertit en argent.
 """
 import copy
+from datetime import date
 
 from . import pet_catalog, pet_chest
 
-SHOP_COMMONS, SHOP_RARES = 3, 1           # boutique du jour : 4 articles (3 Communs, 1 Rare), renouvelée à minuit
+# Économie du 4.11.2026 (scratchpad economie/rapport.md) : la boutique vidait la collection en 1 à 2 mois.
+SHOP_COMMONS, SHOP_RARES = 2, 1           # boutique du jour : 2 Communs (avant 3) + 1 Rare…
+SHOP_RARE_EVERY = 2                       # … un jour sur deux seulement (avant : tous les jours) ; renouvelée à minuit
+# Dépenses qui ne finissent jamais, sans hasard (rien ne s'achète avec de l'argent) :
+ROOM_BASE, ROOM_GROWTH, ROOM_MAX = 400, 1.3, 60   # agrandir la chambre : niveau n → n+1 coûte 400 × 1,3ⁿ pièces
+DYES = (("rose", "Rose bonbon", "#ff7ab6"), ("or", "Or", "#ffc94a"), ("menthe", "Menthe", "#5fe3b4"),
+        ("nuit", "Bleu nuit", "#5b6cff"), ("corail", "Corail", "#ff7a59"))
+DYE_IDS = tuple(d[0] for d in DYES)
+DYE_PRICES = {"common": 60, "rare": 120, "epic": 250, "legendary": 500}   # chaque couleur une fois par objet
 SNACK_PRICES = {"cupcake": 40, "glace": 40, "crepe": 50}
 SNACKS_PER_DAY = 3
 SHINY_ONE_IN = 64                          # Zicou shiny : 1 éclosion sur 64 (chance affichée)
@@ -26,7 +35,7 @@ class CollectionError(ValueError):
 
 def new_coll() -> dict:
     return {"v": 1, "inv": {}, "dust": 0, "pity": 0, "series": [], "awards": [], "shop": {"day": "", "bought": []},
-            "snacks": {"day": "", "n": 0}, "upgraded": False}
+            "snacks": {"day": "", "n": 0}, "upgraded": False, "room": 0, "dyes": {}}
 
 
 def coll_of(owner: dict) -> dict:
@@ -92,12 +101,23 @@ def series_bonus(owner: dict, have: set[str]) -> list[dict]:
 
 # ── Boutique (pièces gagnées seulement) ──
 
-def shop_today(rng) -> list[str]:
-    """Les 4 articles du jour (même boutique pour tout le monde ce jour-là : hasard du serveur, graine du jour)."""
-    commons = sorted(pet_catalog.chest_pool("common"))
-    rares = sorted(pet_catalog.chest_pool("rare"))
+def rare_day(today: str | None) -> bool:
+    """Un Rare en boutique un jour sur deux (jours pairs du calendrier)."""
+    if not today:
+        return True
+    try:
+        return date.fromisoformat(today).toordinal() % SHOP_RARE_EVERY == 0
+    except ValueError:
+        return False
+
+
+def shop_today(rng, today: str | None = None) -> list[str]:
+    """Les articles du jour : 2 Communs, + 1 Rare un jour sur deux (même boutique pour tout le monde ce jour-là : hasard
+    du serveur, graine du jour ; séries déjà sorties)."""
+    commons = sorted(pet_catalog.chest_pool("common", today))
+    rares = sorted(pet_catalog.chest_pool("rare", today))
     pick = []
-    for pool, n in ((commons, SHOP_COMMONS), (rares, SHOP_RARES)):
+    for pool, n in ((commons, SHOP_COMMONS), (rares, SHOP_RARES if rare_day(today) else 0)):
         left = list(pool)
         for _ in range(min(n, len(left))):
             pick.append(left.pop(int(rng.random() * len(left)) % len(left)))
@@ -118,7 +138,7 @@ def buy(owner: dict, have: set[str], what: str, today: str, shop: list[str]) -> 
     if what.startswith("snack:"):
         return _buy_snack(owner, coll, what.split(":", 1)[1], today)
     it = pet_catalog.item(what)
-    if not it or (what not in shop and what not in pet_catalog.decor_items()):
+    if not it or (what not in shop and what not in pet_catalog.decor_items(today)):
         raise CollectionError("Cet article n'est pas en boutique aujourd'hui.")
     if what in have:
         raise CollectionError("Il est déjà à toi ✨")
@@ -149,10 +169,11 @@ def _buy_snack(owner: dict, coll: dict, snack: str, today: str) -> dict:
 
 # ── Atelier (poussière d'étoile) ──
 
-def craft(owner: dict, have: set[str], iid: str) -> dict:
-    """Fabriquer un objet précis avec la poussière (40 / 100 / 400 / 1 600 ✨). Jamais un Mythique ni un souvenir de
-    soirée. Un Légendaire fabriqué est frappé en base (mint), avec son numéro et son certificat."""
-    cost = pet_catalog.craft_cost(iid)
+def craft(owner: dict, have: set[str], iid: str, today: str | None = None) -> dict:
+    """Fabriquer un objet précis avec la poussière (60 / 150 / 600 / 2 400 ✨). Jamais un Mythique, un souvenir de
+    soirée ni un objet d'une série pas encore sortie. Un Légendaire fabriqué est frappé en base (mint), avec son
+    numéro et son certificat."""
+    cost = pet_catalog.craft_cost(iid, today)
     if cost is None:
         raise CollectionError("Cet objet ne se fabrique pas à l'atelier.")
     if iid in have:
@@ -165,6 +186,67 @@ def craft(owner: dict, have: set[str], iid: str) -> dict:
     if not mint:
         coll["inv"] = {**coll["inv"], iid: 1}
     return {"kind": "crafted", "item": iid, "cost": cost, "mint": mint}
+
+
+# ── Chambre et teintures (pièces gagnées, prix fixes, aucun hasard) ──
+
+def room_price(level: int) -> int:
+    """Agrandir la chambre du niveau `level` au suivant : 400 × 1,3ⁿ pièces, arrondi à la dizaine."""
+    return int(round(ROOM_BASE * ROOM_GROWTH ** max(0, int(level)) / 10) * 10)
+
+
+def grow_room(owner: dict, life: dict) -> dict:
+    """Un niveau de chambre de plus (sans fin, ROOM_MAX par sécurité) ; visible chez les amis (life["room"])."""
+    coll = coll_of(owner)
+    level = int(coll.get("room") or 0)
+    if level >= ROOM_MAX:
+        raise CollectionError("Sa chambre est déjà immense ✨")
+    price = room_price(level)
+    _spend(owner, price)
+    coll["room"] = level + 1
+    life["room"] = level + 1
+    return {"kind": "room", "level": level + 1, "price": price}
+
+
+def dye_price(iid: str) -> int | None:
+    """Prix d'une teinture pour cet objet ; None : il ne se teint pas (Mythique, décor, objet inconnu)."""
+    it = pet_catalog.item(iid)
+    if not it or it["slot"] in ("decor", "facets"):   # le décor et les facettes (une palette) ne se teignent pas
+        return None
+    return DYE_PRICES.get(it["rarity"])
+
+
+def buy_dye(owner: dict, have: set[str], iid: str, color: str) -> dict:
+    """Acheter une couleur pour un objet À SOI (chaque couleur une fois par objet)."""
+    price = dye_price(iid)
+    if price is None or color not in DYE_IDS:
+        raise CollectionError("Cette teinture n'existe pas pour cet objet.")
+    if iid not in have:
+        raise CollectionError("On ne teint que ses propres objets.")
+    coll = coll_of(owner)
+    mine = list((coll.get("dyes") or {}).get(iid) or [])
+    if color in mine:
+        raise CollectionError("Tu as déjà cette couleur pour cet objet ✨")
+    _spend(owner, price)
+    coll["dyes"] = {**(coll.get("dyes") or {}), iid: mine + [color]}
+    return {"kind": "dye", "item": iid, "color": color, "price": price}
+
+
+def wear_dye(owner: dict, life: dict, iid: str, color: str) -> None:
+    """Porter une couleur achetée (ou la couleur d'origine, color vide)."""
+    dyes = dict(life.get("dye") or {})
+    if not color:
+        dyes.pop(iid, None)
+    elif color not in ((coll_of(owner).get("dyes") or {}).get(iid) or []):
+        raise CollectionError("Achète d'abord cette couleur.")
+    else:
+        dyes[iid] = color
+    life["dye"] = dyes
+
+
+def dyes_worn(life: dict) -> dict:
+    """Couleurs portées {objet: couleur} (montrées aux amis et à la télé : seulement des couleurs de la liste)."""
+    return {str(k): str(v) for k, v in (life.get("dye") or {}).items() if v in DYE_IDS and pet_catalog.item(k)}
 
 
 # ── Ce qu'il porte, vitrine, shiny ──
@@ -235,15 +317,20 @@ def roll_shiny(rng) -> bool:
 
 # ── Zicoudex ──
 
-def dex(have: set[str], instances: list[dict] | None = None) -> list[dict]:
+def dex(have: set[str], instances: list[dict] | None = None, today: str | None = None) -> list[dict]:
     """Tous les objets obtenables, par série et rareté. Pas encore à toi : grisé, avec rareté et « où le trouver ».
-    MYTHIQUE pas à toi : TOUJOURS masqué (ni nom, ni identifiant, ni image) — une silhouette « ??? »."""
+    MYTHIQUE pas à toi : TOUJOURS masqué (ni nom, ni identifiant, ni image) — une silhouette « ??? ».
+    Série pas encore sortie (saisons) : seulement « Bientôt : ??? », sans le nom des objets."""
     serials = {}
     for x in instances or []:
         serials.setdefault(x["item"], x)
     order = {r: i for i, r in enumerate(pet_catalog.RARITY_ORDER)}
     out = []
     for sid, s in pet_catalog.series().items():
+        if not pet_catalog.released(sid, today):
+            out.append({"id": f"soon{len(out)}", "label": "Bientôt", "emoji": "❔", "soon": True, "bonus": s["bonus"], "have": 0,
+                        "total": len(pet_catalog.series_items(sid)), "items": []})
+            continue
         rows = []
         for iid in sorted(pet_catalog.series_items(sid, with_mythic=True), key=lambda i: order[pet_catalog.item(i)["rarity"]]):
             it = pet_catalog.item(iid)

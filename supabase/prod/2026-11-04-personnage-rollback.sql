@@ -5,6 +5,39 @@
 -- sont retirées de la définition en place (les autres types restent intacts). Tout ou rien.
 begin;
 
+-- ══ Nouvelle économie (20261105120000) : caisse commune EFFACÉE ; les cadeaux et le catalogue partent plus bas avec le
+-- Compagnon et la collection ══
+drop function if exists public.pet_pot_give(text, integer, text, text);
+drop function if exists public.pet_pot_get(text);
+drop function if exists private.pet_pot_state(uuid);
+drop function if exists public.pet_pot_public();
+drop table if exists public.pet_pot_gifts;
+drop table if exists public.pet_pot_goals;
+delete from private.one_time_changes where name = 'zicou_economie_2026_11_05';
+delete from supabase_migrations.schema_migrations where version = '20261105120000';
+
+-- ══ Pièces Zicou d'un événement (20261105090000) : réglages et journal EFFACÉS ; pet_load et pet_event_draw_due
+-- sont supprimés plus bas avec la collection et le Compagnon ══
+drop function if exists public.pet_event_coins_claim(uuid[], text);
+drop function if exists public.pet_event_coins_set(uuid, integer);
+drop function if exists public.pet_event_coins_get(uuid);
+drop function if exists private.pet_event_coins_due(uuid);
+drop function if exists private.pet_event_coins_grant(uuid);
+drop function if exists private.pet_event_coins_open_until(uuid);
+drop table if exists public.pet_event_coin_grants;
+drop table if exists public.pet_event_coins;
+delete from public.role_permissions where perm = 'zicou.event_coins';
+delete from public.permissions where key = 'zicou.event_coins';
+delete from private.one_time_changes where name = 'zicou_event_coins_2026_11_05';
+delete from supabase_migrations.schema_migrations where version = '20261105090000';
+
+-- ══ Zicou sur la fiche profil (20261104240000) ══
+drop function if exists public.pet_profile(uuid, text);
+delete from supabase_migrations.schema_migrations where version = '20261104240000';
+
+-- ══ Réactions de Zicou (20261104230000, neutre) : seule sa version était notée ══
+delete from supabase_migrations.schema_migrations where version = '20261104230000';
+
 -- ══ D'abord la collection (20261104210000) ══
 do $$
 begin

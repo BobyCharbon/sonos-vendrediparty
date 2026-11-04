@@ -57,13 +57,15 @@ def as_guest_plus(page):
 
 def test_page_hides_its_own_tab_bar_and_describes_the_tabs(app):
     state = last_state(app)
-    # Non connecté : pas de « Ton avis » (réservé à Guest+ et au-dessus).
-    assert [t["id"] for t in state["tabs"]] == ["music", "games", "events", "account"]
+    # Onglet Zicou (4.11) entre Jeux et Événements ; « Ton avis » n'est plus dans la barre (ligne des Réglages).
+    assert [t["id"] for t in state["tabs"]] == ["music", "games", "pet", "events", "account"]
+    assert state["feedback"]["allowed"] is False
     as_guest_plus(app)
     state = last_state(app)
-    assert [t["id"] for t in state["tabs"]] == ["music", "games", "events", "chats", "feedback", "account"]
-    assert [t["label"] for t in state["tabs"]][3] == "Discussions"
-    assert [t["label"] for t in state["tabs"]][:2] == ["Musique", "Jeux"]
+    assert [t["id"] for t in state["tabs"]] == ["music", "games", "pet", "events", "chats", "account"]
+    assert [t["label"] for t in state["tabs"]][4] == "Discussions"
+    assert [t["label"] for t in state["tabs"]][:3] == ["Musique", "Jeux", "Zicou"]
+    assert state["feedback"] == {"allowed": True, "label": "Ton avis", "badge": None}
     assert active(state) == ["music"] and state["hidden"] is False
     assert app.evaluate("document.documentElement.classList.contains('native-tabs')")
     assert app.evaluate("document.getElementById('tabs').getBoundingClientRect().height") == 0
@@ -76,9 +78,14 @@ def test_native_selection_switches_the_tab_like_a_touch(app):
     app.wait_for_function("document.body.dataset.tab === 'games'")
     assert active(last_state(app)) == ["games"]
     as_guest_plus(app)
+    # Réglages › Ton avis (sans bouton dans la barre) : la page l'ouvre, l'app le dessine en natif sous Réglages.
     app.evaluate("PartyTabs.select('feedback')")
     app.wait_for_function("document.body.dataset.tab === 'feedback'")
-    assert active(last_state(app)) == ["feedback"]
+    state = last_state(app)
+    assert active(state) == ["account"] and state["screen"] == "feedback"
+    app.evaluate("PartyTabs.select('pet')")
+    app.wait_for_function("document.body.dataset.tab === 'pet'")
+    assert active(last_state(app)) == ["pet"]
 
 
 def test_badges_follow_the_page(app):
@@ -86,9 +93,14 @@ def test_badges_follow_the_page(app):
     app.evaluate("document.getElementById('gameDot').classList.remove('hidden')")
     games = next(t for t in last_state(app)["tabs"] if t["id"] == "games")
     assert games["badge"] == ""  # un point (« ● ») : badge sans texte
-    app.evaluate("const b = document.getElementById('fbTabBadge'); b.textContent = '3'; b.classList.remove('hidden')")
-    feedback = next(t for t in last_state(app)["tabs"] if t["id"] == "feedback")
-    assert feedback["badge"] == "3"
+    # Réponses reçues à « Ton avis » : pastille sur Réglages et sur la ligne « Ton avis » des Réglages natifs.
+    app.evaluate("fbUnseen = 3; fbBadge()")
+    state = last_state(app)
+    assert next(t for t in state["tabs"] if t["id"] == "account")["badge"] == "3"
+    assert state["feedback"]["badge"] == "3"
+    # Le Zicou a besoin de toi (coffre, faim, cadeau d'ami) : un point sur son onglet, jamais un chiffre.
+    app.evaluate("ZicouHome.petChanged({ stage: 'baby', emotion: 'happy', name: 'Zicou', gen: 1, daily: { chest: { state: 'ready' } } }, [])")
+    assert next(t for t in last_state(app)["tabs"] if t["id"] == "pet")["badge"] == ""
     app.evaluate("document.getElementById('gameDot').classList.add('hidden')")
     games = next(t for t in last_state(app)["tabs"] if t["id"] == "games")
     assert games["badge"] is None
@@ -127,10 +139,10 @@ def test_music_is_native_for_everyone_and_the_host_keeps_his_tools(app):
     # L'onglet Musique est natif pour tous ; l'app propose à l'hôte « Gérer la soirée » (page web et ses réglages).
     assert last_state(app)["native"] == ["music", "feedback", "chats", "account"] and last_state(app)["host"] is False
     # L'hôte : compte admin et session admin ouverte (fbIsAdmin) ; le libellé « Retours » relance la description.
-    app.evaluate("() => { account = { ...(account || {}), admin: true }; adminSession = true;"
-                 "        document.querySelector('#tabs [data-tab=feedback] span').textContent = 'Retours'; }")
+    app.evaluate("() => { account = { ...(account || {}), admin: true }; adminSession = true; fbShare(); }")
     state = last_state(app)
     assert state["native"] == ["music", "feedback", "chats", "account"] and state["host"] is True
+    assert state["feedback"]["label"] == "Retours" and state["feedback"]["allowed"] is True
 
 
 @pytest.mark.parametrize("store", [True, False])

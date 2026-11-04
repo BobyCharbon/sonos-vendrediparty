@@ -41,6 +41,9 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   `touch-action: pan-x pan-y` sur `*` ne corrige rien et bloque le zoom à deux doigts.
 - Test réel : `test_android_finger_on_an_event_card_scrolls_the_list` (geste tactile Chrome, départ sur une carte).
   Tout bug de défilement / toucher doit d'abord être reproduit par un test de ce type avant d'être corrigé.
+- Billets QR : option par événement (`events.tickets_enabled`, éteinte par défaut) activée par l'organisateur lui-même ;
+  l'IA de création / modification (app/ai_events.py, ai_event_edit.py) ne l'active JAMAIS (hors de son schéma) ; un QR
+  n'existe que si l'option est active ET le billet remis (`issue_event_ticket`, ou place payée confirmée).
 
 ## Jeux — requêtes simultanées
 - Tous les téléphones interrogent la partie chaque seconde, en parallèle. Toute lecture-modification d'une partie
@@ -69,7 +72,7 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Vérifier les politiques RLS existantes : une politique `for update` donne accès à toute la ligne ; protéger les
   colonnes sensibles avec un trigger de garde (modèle : `guard_profile`, `guard_bring_item`).
 
-## Conformité App Store / Play Store (jeux, Compagnon, économie) — contrôle du 04.11.2026
+## Conformité App Store / Play Store (jeux, Zicou, économie) — contrôle du 04.11.2026
 Avant de concevoir une nouvelle mécanique de jeu ou d'économie (tirage, coffre, monnaie, échange, concours, cadeau
 d'événement, classement, notification, mesure de données), faire d'abord une revue de conformité et dire les blocages à
 l'admin. Toujours :
@@ -95,6 +98,22 @@ l'admin. Toujours :
   SDK tiers d'analyse ou de pub ; tout part avec la suppression du compte.
 - Questionnaire d'âge App Store Connect à refaire dès qu'on ajoute concours, tirage, chat, contenu de joueur ou achat.
   Distribution : Suisse seulement ; tout nouveau pays ou une app Android publique → nouvelle revue.
+
+## Zicou : bêta seulement (décision de l'admin, 04.11.2026)
+- Zicou est ÉTEINT hors site de test par `compagnon_enabled()` (`app/features.py` : `COMPAGNON_ENABLED`
+  "1"/"0", sinon allumé seulement si l'adresse publique est `partytest.bobycharbon.ch`). Éteint : `/api/pet/*`,
+  `/api/tv/zicou`, `/zicou/*`, `/static/pet/*` → 404 « Zicou arrive bientôt. », aucune réaction calculée
+  (`zicou_react`), la page reçoit `data-compagnon="off"` et perd ses blocs `<!-- compagnon -->…<!-- /compagnon -->`
+  (index.html) ; module Événements : `compagnonOn` (`web/events/src/lib/features.ts`) ; iOS : `GET /api/features`.
+- Tout nouvel élément de Zicou (route, onglet, carte, réglage, notification, écran natif) passe par ce drapeau.
+- Jamais allumé en production ni migré en production avant que l'admin dise « le projet Compagnon est complet ».
+- Ne jamais changer l'icône de Vendredi Party.
+- Tests : `tests/test_compagnon_flag.py`, `tests/e2e/test_compagnon_off.py` (les autres tests tournent allumé).
+- Nom : toujours « Zicou » dans un texte visible (web, module Événements, iOS, Apple TV, admin, notifications, réglages,
+  CGU, erreurs de la base), JAMAIS « Compagnon » ; les identifiants de code (pet, compagnon_enabled…) restent.
+- Pièces : être présent ou répondre à un événement ne rapporte rien automatiquement. Les pièces d'un événement passent
+  par le droit `zicou.event_coins` (page des cadeaux Zicou de l'événement, 5 à 100 par présent, versées une fois par la
+  base, journal `pet_event_coin_grants`, migration 20261105090000).
 
 ## Tests
 `python -m pytest -q --ignore=tests/e2e` avant tout commit.

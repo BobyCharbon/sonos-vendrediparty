@@ -5,9 +5,11 @@ struct TermsView: View {
     @ObservedObject var store: ModerationStore
 
     static let updated = "4 novembre 2026"
+    /// Responsable et contact de Party (web/events/src/lib/contact.ts) ; l'admin peut en afficher un autre.
+    static let supportEmail = "support@vendrediparty.ch"
     static let sections: [(String, [String])] = [
         ("Party, entre amis", [
-            "Party sert à organiser des soirées et des événements, à jouer et à discuter entre amis. En créant un compte et en publiant quoi que ce soit (message, surnom, nom de groupe, photo, objet ou texte du Compagnon), tu acceptes ces conditions.",
+            "Party sert à organiser des soirées et des événements, à jouer et à discuter entre amis. En créant un compte et en publiant quoi que ce soit (message, surnom, nom de groupe, photo, réponse de jeu), tu acceptes ces conditions.",
         ]),
         ("Le respect avant tout", [
             "Pas de harcèlement : ni insultes répétées, ni menaces, ni moqueries visant une personne, ni messages insistants à quelqu'un qui ne veut pas te répondre.",
@@ -15,11 +17,11 @@ struct TermsView: View {
             "Un filtre retire automatiquement certains mots ; il ne remplace pas le bon sens.",
         ]),
         ("Le jeu n'a aucune valeur en argent", [
-            "Les pièces, objets, cartes et récompenses de Party et du Compagnon n'ont aucune valeur monétaire. Ils ne s'achètent pas, ne se vendent pas et ne s'échangent pas contre de l'argent ou un service, ni dans Party ni ailleurs.",
+            "Les pièces, objets, cartes et récompenses des jeux de Party n'ont aucune valeur monétaire. Ils ne s'achètent pas, ne se vendent pas et ne s'échangent pas contre de l'argent ou un service, ni dans Party ni ailleurs.",
             "Toute vente, achat ou proposition de vente d'un objet ou d'un compte est interdite. Le paiement entre amis et les billets d'événement ne concernent jamais un objet du jeu.",
         ]),
         ("Signaler et bloquer", [
-            "« Signaler » existe sur chaque message, profil et photo. Un modérateur reçoit le signalement avec une copie du contenu concerné (pour un message direct : ce seul message) ; la personne signalée ne sait pas qui l'a signalée.",
+            "« Signaler » existe sur chaque message, profil, photo et réponse de jeu montrée à la table. Un modérateur reçoit le signalement avec une copie du contenu concerné (pour un message direct : ce seul message) ; la personne signalée ne sait pas qui l'a signalée.",
             "Tu peux bloquer quelqu'un depuis sa fiche ou une conversation : il ne peut plus t'écrire, te citer, t'inviter ni voir ta fiche. La liste « Personnes bloquées » est dans Réglages › Confidentialité.",
         ]),
         ("Sanctions", [
@@ -36,14 +38,10 @@ struct TermsView: View {
                 Section(title) { ForEach(paragraphs, id: \.self) { Text($0).font(.subheadline) } }
             }
             Section("Contact") {
-                if let email = store.terms?.contactEmail, let url = URL(string: "mailto:\(email)") {
-                    Text("Une question, un contenu à signaler en dehors de l'app, une demande sur tes données : écris à \(email).")
-                        .font(.subheadline)
-                    Link("Écrire à \(email)", destination: url)
-                } else {
-                    Text("Une question ou une demande sur tes données : utilise « Signaler » dans l'app ou contacte l'administrateur du groupe.")
-                        .font(.subheadline)
-                }
+                let email = store.terms?.contactEmail.flatMap { $0.isEmpty ? nil : $0 } ?? Self.supportEmail
+                Text("Une question, un contenu à signaler en dehors de l'app, une demande sur tes données : écris à \(email).")
+                    .font(.subheadline)
+                if let url = URL(string: "mailto:\(email)") { Link("Écrire à \(email)", destination: url) }
             }
             if let terms = store.terms {
                 Section {

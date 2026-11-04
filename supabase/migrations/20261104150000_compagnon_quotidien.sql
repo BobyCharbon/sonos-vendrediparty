@@ -120,7 +120,7 @@ begin
   select * into cur from public.pets where user_id = me for update;
   if cur.user_id is null then
     if coalesce(p_version, 0) <> 0 then
-      raise exception 'conflict: Ton compagnon a changé sur un autre appareil.';
+      raise exception 'conflict: Ton Zicou a changé sur un autre appareil.';
     end if;
     insert into public.pets (user_id, life, owner, version, gen, name, stage, hungry_at, dies_at, last_care_at, nudge,
                              last_seen_at)
@@ -128,11 +128,11 @@ begin
             v_nudge, now())
     on conflict (user_id) do nothing;
     if not found then
-      raise exception 'conflict: Ton compagnon a changé sur un autre appareil.';
+      raise exception 'conflict: Ton Zicou a changé sur un autre appareil.';
     end if;
   else
     if cur.version is distinct from p_version then
-      raise exception 'conflict: Ton compagnon a changé sur un autre appareil.';
+      raise exception 'conflict: Ton Zicou a changé sur un autre appareil.';
     end if;
     if v_gen < cur.gen then
       raise exception 'invalid: État illisible.';

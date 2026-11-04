@@ -11,6 +11,7 @@ import { useEdgeSwipeBack } from '@/lib/edgeSwipe';
 import { usePendingSync } from '@/lib/pending';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { enableWebPush } from '@/lib/push';
 import { ShellSafeArea } from '@/lib/shellInsets';
 import { colors, font } from '@/lib/theme';
 
@@ -60,7 +61,7 @@ function initialDestination() {
 }
 
 function Gate() {
-  const { loading, session, profile, profileError, refreshProfile, signOut, eventsOpen, eventsSoon } = useAuth();
+  const { loading, session, profile, profileError, refreshProfile, signOut, eventsOpen } = useAuth();
   // Tout compte actif au profil complet ouvre les sorties qu'il voit (Guests : publiques et invitations) ;
   // hors bêta ou profil incomplet : page d'accueil, Réglages ouverts.
   const active = eventsOpen && hasCompleteIdentity(profile);
@@ -89,13 +90,15 @@ function Gate() {
     if (typeof window === 'undefined') return;
     const onRefresh = (e: MessageEvent) => {
       if (e.origin === location.origin && e.data?.type === 'party-shell:refresh') void refreshProfile();
+      // Accueil de Zicou (pet/zicou-home.js) : la page a déjà obtenu l’autorisation, on abonne cet appareil au compte.
+      if (e.origin === location.origin && e.data?.type === 'party-shell:enable-push') void enableWebPush().catch(() => undefined);
     };
     window.addEventListener('message', onRefresh);
     return () => window.removeEventListener('message', onRefresh);
   }, [refreshProfile]);
   useEffect(() => {
     if (typeof window !== 'undefined' && window.parent !== window) window.parent.postMessage({ type: 'party-events:account' }, location.origin);
-  }, [session?.user.id, profile?.display_name, profile?.avatar_url, profile?.status, eventsSoon]);  // accès bêta compris
+  }, [session?.user.id, profile?.display_name, profile?.avatar_url, profile?.status]);
   useEffect(() => {
     // Réglages : ouverts à tout compte connecté ; le reste attend la validation du membre.
     // Réglages et liens d'invitation : ouverts dès la connexion (l'invitation demande elle-même le profil complet).

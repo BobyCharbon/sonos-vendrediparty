@@ -47,7 +47,7 @@ def test_statuses_are_ordered_and_each_belongs_to_a_view():
 def test_meta_is_sent_with_the_admin_list(admin, box):  # noqa: F811
     meta = admin.get("/api/admin/feedback").json()["meta"]
     assert [s["key"] for s in meta["statuses"]] == list(fb.STATUS_KEYS)
-    assert set(meta["areas"]) == {"music", "games", "events", "chats", "account", "admin", "tv", "general"}
+    assert set(meta["areas"]) == {"music", "games", "pet", "events", "calendar", "chats", "account", "admin", "tv", "general"}
     assert set(meta["platforms"]) == {"web", "iphone", "tv", "android"}
     assert list(meta["efforts"]) == ["xs", "s", "m", "l"]
     assert [v["key"] for v in meta["views"]] == ["mine", "claude", "thinking", "finished", "all"]

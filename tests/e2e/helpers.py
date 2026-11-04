@@ -82,13 +82,17 @@ class FakeSupabase:
 class Server:
     """Serveur Vendredi Party sur un port libre, avec ses propres données."""
 
-    def __init__(self, supabase: "FakeSupabase | None" = None):
+    def __init__(self, supabase: "FakeSupabase | None" = None, compagnon: bool = True, discussions: bool | None = None):
         with socket.socket() as s:
             s.bind(("127.0.0.1", 0))
             self.port = s.getsockname()[1]
         self.url = f"http://127.0.0.1:{self.port}"
         self.data = tempfile.mkdtemp(prefix="vp-e2e-")
-        env = {**os.environ, "DATA_DIR": self.data, "ADMIN_PIN": ADMIN_PIN}
+        # Compagnon et Discussions allumés comme sur le site de test ; compagnon=False : comme en production (Zicou éteint
+        # et, sauf choix contraire, Discussions absentes).
+        discussions = compagnon if discussions is None else discussions
+        env = {**os.environ, "DATA_DIR": self.data, "ADMIN_PIN": ADMIN_PIN, "COMPAGNON_ENABLED": "1" if compagnon else "0",
+               "DISCUSSIONS_ENABLED": "1" if discussions else "0"}
         env.pop("SPOTIFY_CLIENT_ID", None)
         if supabase:
             # PET_SECRET : clé du serveur Party pour le Compagnon (valeur de test, celle du faux Supabase)

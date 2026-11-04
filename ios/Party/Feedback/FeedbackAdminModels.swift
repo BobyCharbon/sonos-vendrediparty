@@ -104,12 +104,14 @@ struct AdminFeedback: Decodable, Equatable {
         let blockedBy: String
         let comments: [Comment]
         let history: [Change]
+        /// Version structurée par l'IA (context.ai, app/ai_feedback.py), sous le texte d'origine ; nil sans titre.
+        let ai: FeedbackAI.Draft?
 
         enum CodingKeys: String, CodingKey {
             case id, at, kind, name, text, status, note, reply, context, claude, priority, area, platforms, effort, tags,
                  related, comments, history, duplicateOf = "duplicate_of", blockedBy = "blocked_by"
         }
-        enum ContextKeys: String, CodingKey { case game, tab, site }
+        enum ContextKeys: String, CodingKey { case game, tab, site, ai }
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -127,6 +129,7 @@ struct AdminFeedback: Decodable, Equatable {
             game = try context?.decodeIfPresent(String.self, forKey: .game)
             tab = try context?.decodeIfPresent(String.self, forKey: .tab)
             site = try context?.decodeIfPresent(String.self, forKey: .site)
+            ai = (try? context?.decodeIfPresent(StoredAI.self, forKey: .ai))?.draft
             area = (try? c.decodeIfPresent(String.self, forKey: .area)) ?? nil ?? (game != nil ? "games" : FeedbackMeta.tabArea(tab))
             platforms = (try? c.decodeIfPresent([String].self, forKey: .platforms)) ?? nil ?? []
             effort = (try? c.decodeIfPresent(String.self, forKey: .effort)) ?? nil ?? ""
@@ -210,7 +213,7 @@ struct AdminFeedback: Decodable, Equatable {
             && (f.effort.isEmpty || (i.effort.isEmpty ? "none" : i.effort) == f.effort)
             && (f.priority.isEmpty || (i.priority.isEmpty ? "none" : i.priority) == f.priority)
             && (f.tag.isEmpty || i.tags.contains { $0.lowercased() == f.tag.lowercased() })
-            && (q.isEmpty || ([i.text, i.note, i.name, i.id, i.reply] + i.tags).contains { $0.lowercased().contains(q) })
+            && (q.isEmpty || ([i.text, i.ai?.title ?? "", i.note, i.name, i.id, i.reply] + i.tags).contains { $0.lowercased().contains(q) })
     }
 
     private func sorted(_ list: [Item], by sort: Sort) -> [Item] {
@@ -338,5 +341,37 @@ extension PartyAPI {
     func adminFeedbackToClaude(_ id: String) async throws -> AdminFeedback {
         let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
         return try await postDecoding("/api/admin/feedback/\(encoded)/claude", body: [:])
+    }
+}
+
+/// context.ai tel que gardé par le serveur : champs absents ou d'un autre type → vides (avis anciens, autre version).
+struct StoredAI: Decodable {
+    let draft: FeedbackAI.Draft?
+
+    private enum Keys: String, CodingKey {
+        case kind, area, game, title, description, steps, expected, actual, need, proposal, device
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        let text = { (key: Keys) in ((try? c.decodeIfPresent(String.self, forKey: key)) ?? nil) ?? "" }
+        let title = text(.title)
+        guard !title.isEmpty else {
+            draft = nil
+            return
+        }
+        let device = text(.device)
+        draft = FeedbackAI.Draft(kind: text(.kind), area: text(.area), game: text(.game), title: title,
+                                 description: text(.description),
+                                 steps: ((try? c.decodeIfPresent([String].self, forKey: .steps)) ?? nil) ?? [],
+                                 expected: text(.expected), actual: text(.actual), need: text(.need),
+                                 proposal: text(.proposal), device: device.isEmpty ? nil : device)
+    }
+}
+
+extension FeedbackAI.Draft {
+    /// « 💡 Idée · 🎵 Musique » : type et zone proposés par l'IA (comme la page des retours).
+    var kindAndArea: String {
+        [FeedbackAI.kinds[kind], FeedbackAI.areas[area]].compactMap { $0 }.joined(separator: " · ")
     }
 }

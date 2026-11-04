@@ -689,7 +689,7 @@ begin
                        when 'scam' then 'Arnaque ou vente' else 'Autre raison' end)
       || ' · ' || (case when new.target_kind in ('group_message', 'direct_message', 'event_message') then 'un message'
                         when new.target_kind = 'profile' then 'un profil' when new.target_kind = 'profile_photo' then 'une photo de profil'
-                        else 'le Compagnon' end),
+                        else 'Zicou' end),
       'report:' || new.id, jsonb_build_object('report_id', new.id));
   end loop;
   return null;

@@ -208,6 +208,7 @@ struct FeedbackAdminSection: View {
                     .background(Color.white.opacity(0.1), in: Capsule())
             }
             Text(item.text)
+            if let ai = item.ai { AIVersionView(draft: ai) }
             HStack(spacing: 6) {
                 Text(payload.meta(item)).font(.caption).foregroundStyle(.secondary)
                 // Identifiant unique de l'avis : un toucher le copie, à donner à Claude (avis 73d690300d60).
@@ -402,5 +403,38 @@ private struct FlowChips: Layout {
             widest = max(widest, x)
         }
         return (widest, y + line)
+    }
+}
+
+/// Avis reformulé par l'IA à la demande de la personne : titre ✨, type et zone, puis le détail (replié), comme la page.
+struct AIVersionView: View {
+    let draft: FeedbackAI.Draft
+    @State private var open = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $open) {
+            VStack(alignment: .leading, spacing: 6) {
+                if !draft.description.isEmpty { Text(draft.description).font(.footnote) }
+                ForEach(draft.rows, id: \.label) { row in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(row.label).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        Text(row.text).font(.footnote)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 4)
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("✨ \(draft.title)").font(.subheadline.weight(.semibold))
+                if !draft.kindAndArea.isEmpty {
+                    Text(draft.kindAndArea).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .tint(.white)
+        .padding(8)
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityIdentifier("feedbackAIVersion")
     }
 }

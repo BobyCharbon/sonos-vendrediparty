@@ -3,7 +3,7 @@
 Calcul pur, horloge (`now`) et hasard (`rng`) en paramètres : les tests simulent des semaines en une milliseconde.
   · coffre du jour : à la 1re visite du jour, « Zicou a trouvé un truc » ; tiré par le SERVEUR à l'ouverture, d'après
     une table pondérée par rareté (app/pet_chest.py : pièces, goûter ou sticker, accessoire Commun → Mythique, avec
-    garantie d'un Épique au plus tard au 30e coffre) ; un par jour, non cumulable, jusqu'à minuit ;
+    garantie d'un Épique au plus tard au 45e coffre) ; un par jour, non cumulable, jusqu'à minuit ;
   · missions : 3 par jour (soin, jeu, sociale) → coffre bonus à 3/3 ; une mission de la semaine → récompense ;
   · rituels : carte « réveil » le matin (avant 11 h), coucher le soir (21 h – 23 h 30) → « nuit douce » au réveil ;
   · paliers de série (app/pet_streak.py) : récompenses connues d'avance, une fois par compte ; la série demande un
@@ -36,7 +36,7 @@ MISSIONS = {
     "care": (("feed2", "Nourris {n} 2 fois", "feed", 2), ("cuddle3", "Fais 3 câlins à {n}", "cuddle", 3),
              ("heal1", "Fais un brin de toilette à {n}", "heal", 1), ("play1", "Joue une fois avec {n}", "play", 1)),
     "game": (("score40", "Dépasse 40 au jeu des notes", "score40", 1), ("brain1", "Fais une partie de Méninges", "brain", 1)),
-    "social": (("visit1", "Rends visite aux compagnons de tes amis", "visit", 1),
+    "social": (("visit1", "Rends visite à tes amis", "visit", 1),
                ("gift1", "Offre un câlin ou un goûter à un ami", "gift", 1)),
 }
 WEEKLY = (("care5", "Prends soin de {n} 5 jours cette semaine", "care_day", 5),
@@ -45,14 +45,14 @@ WEEKLY = (("care5", "Prends soin de {n} 5 jours cette semaine", "care_day", 5),
           ("gift3", "Fais 3 cadeaux à tes amis", "gift", 3),
           ("chest5", "Ouvre 5 coffres du jour", "chest", 5))
 TEMPLATES = {m[0]: m[1] for family in MISSIONS.values() for m in family} | {w[0]: w[1] for w in WEEKLY}
-WEEK_COINS = 120
+WEEK_COINS = 60                  # économie du 4.11.2026 (avant : 120)
 SCORE_MISSION = 40               # « mini-jeu > 40 »
 
 # ── Rituels ──
 MORNING_END = 11 * 60            # carte « réveil » avant 11 h
 TUCK_START, TUCK_END = 21 * 60, 23 * 60 + 30
 SOFT_NIGHT = {"energy": 15.0, "joy": 10.0, "care": 5.0}
-SOFT_NIGHT_COINS = 10
+SOFT_NIGHT_COINS = 6             # économie du 4.11.2026 (avant : 10)
 WAKE_ON_VISIT = 50.0             # endormi de fatigue mais assez reposé : il se réveille quand on ouvre l'app
 SOFT_NIGHT_HOURS = 6             # « nuit douce » : bordé la veille, sans être réveillé à la main avant 6 h de sommeil
 
@@ -265,7 +265,8 @@ def draw(rng, owner: dict, bonus: bool = False, ctx: dict | None = None) -> dict
     disponibles)."""
     loop, coll, ctx = loop_of(owner), pet_collection.coll_of(owner), ctx or {}
     owned = ctx.get("owned") if ctx.get("owned") is not None else pet_collection.owned(owner)
-    return pet_chest.draw(rng, loop["inv"], set(owned), pity=coll["pity"], mythic_left=ctx.get("mythic_left"), bonus=bonus)
+    return pet_chest.draw(rng, loop["inv"], set(owned), pity=coll["pity"], mythic_left=ctx.get("mythic_left"), bonus=bonus,
+                          today=ctx.get("today"))
 
 
 def _found(owner: dict, loop: dict, rng, bonus: bool, ctx: dict | None) -> dict:
@@ -406,6 +407,7 @@ def view(life: dict, owner: dict, now: datetime, ctx: dict | None = None) -> dic
         "coins": loop["coins"],
         "chest": {"state": "opened" if chest and chest.get("opened") else "ready", "found": (chest or {}).get("found")},
         "odds": pet_chest.odds(pity, (ctx or {}).get("mythic_left")),
+        "bonus_odds": pet_chest.odds(pity, (ctx or {}).get("mythic_left"), bonus=True),
         "pity_left": pet_chest.pity_left(pity), "pity": pet_chest.PITY,
         "streak": {"count": count, "best": s.get("best", 0), "freezes": s.get("freezes", 0),
                    "today": s.get("last") == today.isoformat(),   # la journée compte déjà (sinon : la règle est affichée)

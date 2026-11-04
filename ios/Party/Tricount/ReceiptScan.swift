@@ -41,6 +41,10 @@ struct ReceiptScanSection: View {
             }
             .ignoresSafeArea()
         }
+        // Accord avant que la photo parte à l'IA (Apple 5.1.2(i)), même accord que « Ton avis ».
+        .sheet(isPresented: $store.askingAIConsent, onDismiss: { store.answerAIConsent(false) }) {
+            AIConsentSheet(copy: .receipt) { accept in store.answerAIConsent(accept) }
+        }
         .onChange(of: photo) { item in
             Task {
                 guard let data = try? await item?.loadTransferable(type: Data.self) else { return }

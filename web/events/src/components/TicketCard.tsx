@@ -19,10 +19,14 @@ type Props = {
 
 /** Pendant que le billet est affiché, l'arrivée scannée par l'organisateur apparaît d'elle-même. */
 const ARRIVAL_POLL_MS = 4000;
+/** En attente de l'organisateur : le billet remis apparaît de lui-même (la notification le dit aussi). */
+const ISSUE_POLL_MS = 15000;
 
 /**
  * « Ton billet » sur la page d'un événement où l'on est noté Présent : QR personnel à montrer à l'entrée.
  * Toucher l'ouvre en grand, plein écran, luminosité de lecture (fond blanc autour du QR).
+ * Seulement si l'organisateur a activé « Billets QR » ET remis le billet ; sinon rien (option éteinte : seulement
+ * le paiement d'un événement payant) ou l'attente (« Ton billet arrivera quand l'organisateur l'aura validé »).
  */
 export function TicketCard({ event, me, answerKey }: Props) {
   const [ticket, setTicket] = useState<MyTicket | null>(null);
@@ -44,6 +48,13 @@ export function TicketCard({ event, me, answerKey }: Props) {
     return () => clearInterval(timer);
   }, [waiting, load]);
 
+  const pending = ticket?.state === 'pending';
+  useEffect(() => {
+    if (!pending) return;
+    const timer = setInterval(() => { void load(); }, ISSUE_POLL_MS);
+    return () => clearInterval(timer);
+  }, [pending, load]);
+
   if (error && !ticket) return <ErrorText error={error} />;
   if (!ticket || ticket.state === 'none') return null;
   if (ticket.state === 'waitlist') {
@@ -51,6 +62,27 @@ export function TicketCard({ event, me, answerKey }: Props) {
       <View style={st.card}>
         <T size={22}>🎟️</T>
         <T muted size={14} style={{ flex: 1 }}>Ton billet arrivera dès qu’une place se libère pour toi.</T>
+      </View>
+    );
+  }
+  // Option « Billets QR » éteinte : pas de billet, seulement payer sa place si l'événement est payant.
+  if (ticket.state === 'off') return <PayOrganizer eventId={event.id} ticket={ticket} onTicket={setTicket} />;
+  if (ticket.state === 'pending') {
+    return (
+      <View style={{ gap: 8 }}>
+        <View testID="ticket-pending" accessibilityRole="summary" style={[st.card, st.cardPending]}>
+          <T size={22}>🎟️</T>
+          <View style={{ flex: 1, gap: 2 }}>
+            <T weight="bold" size={16}>Ton billet</T>
+            <T muted size={14}>Ton billet arrivera quand l’organisateur l’aura validé.</T>
+            {ticket.price_chf ? (
+              <T size={12} color={ticket.paid ? colors.mint : colors.coralSoft}>
+                {ticket.paid ? '✓ Place payée' : ticket.pay_pending ? 'Payé · en attente de confirmation' : 'Paie ta place : le billet arrive dès que l’organisateur a reçu ton paiement.'}
+              </T>
+            ) : null}
+          </View>
+        </View>
+        <PayOrganizer eventId={event.id} ticket={ticket} onTicket={setTicket} />
       </View>
     );
   }
@@ -130,6 +162,7 @@ export function TicketCard({ event, me, answerKey }: Props) {
 
 const st = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  cardPending: { borderStyle: 'dashed', borderColor: colors.lineStrong },
   cardTicket: { borderColor: 'rgba(91,227,166,.45)', backgroundColor: '#1B2A33' },
   thumb: { width: 52, height: 52, borderRadius: radius.sm, backgroundColor: '#fff', padding: 3 },
   thumbQr: { width: 46, height: 46 },

@@ -27,7 +27,11 @@ from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import beerpong, brain, brain_game, calendar_ics, debate, games, heist, island, likely, links, masque, neon, president, psy, purity, quiz, reflet
-from . import pet, pet_coll_store, pet_store
+from . import pet, pet_coll_store, pet_reactions, pet_store
+from . import tv_zicou
+from . import pet_pot, tv_star
+# Adresse du déploiement et fonctions en bêta (Compagnon : allumé sur le site de test seulement).
+from .features import COMPAGNON_SOON, TEST_SITE_HOST, compagnon_enabled, configured_public_url, discussions_enabled
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
 from .account_auth import AccountAuth
@@ -40,8 +44,10 @@ from .moderation_api import Moderation, router as moderation_router
 from .wallet import MEDIA_TYPE as PKPASS_TYPE, PASS_TYPE_ID, WalletError
 from .wallet_tickets import WalletTickets
 from .tricount import CURRENCIES as TC_CURRENCIES, Tricount
-from .assistant import MAX_PHOTO as AI_PHOTO_MAX, Assistant, UsageLog
+from .assistant import MAX_PHOTO as AI_PHOTO_MAX, Assistant, ConsentRequired, UsageLog, assistant_consent_key
+from .account_data import LocalStores, activity_forgetter, forget_local
 from .ai_event_edit import EventEditor
+from . import ai_feedback
 from .covers import Covers
 from .ai_events import MAX_IMAGE_B64 as AI_EVENT_MAX_IMAGE, MAX_TEXT as AI_EVENT_MAX_TEXT, MAX_TURNS as AI_EVENT_MAX_TURNS, EventAssistant
 from .places import MAX_QUERY as PLACE_MAX_QUERY, Places
@@ -51,6 +57,7 @@ from .feedback import (ADMIN_STATUSES as FEEDBACK_STATUSES, AUTHORS as FEEDBACK_
 from .feedback_remote import (OPS as FEEDBACK_SYNC_OPS, SYNC_HEADER as FEEDBACK_SYNC_HEADER, WRITES as FEEDBACK_SYNC_WRITES,
                               FeedbackRemote, FeedbackUnavailable)
 from .github_issues import GitHubError, Issues
+from .guest_gate import GuestGate
 from . import live_activity
 from .apns import TOPICS
 from .party import ADMIN_NOTIFY_DEFAULTS, GUEST_NOTIFY_DEFAULTS, HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
@@ -63,20 +70,16 @@ from .spotify_player import QUEUE_MANAGED_IN_SPOTIFY, SpotifyPlayer
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
 journal = AuditLog(DATA_DIR / "audit.jsonl")  # actions admin et connexions : ajout seul
+# Compte progressivement obligatoire : parties et titres en invité, réglés par l'admin (app/guest_gate.py).
+guest_gate = GuestGate(DATA_DIR / "guest_gate.json")
 ADMIN_PIN = os.environ.get("ADMIN_PIN", "")
-def configured_public_url() -> str:
-    # Une adresse propre à chaque déploiement pour les QR et le retour OAuth Spotify.
-    # Ne pas reprendre l'ancienne variable PUBLIC_URL, encore locale sur certaines stacks.
-    return (os.environ.get("PARTY_PUBLIC_URL") or "https://party.bobycharbon.ch").rstrip("/")
 
 
 PUBLIC_URL = configured_public_url()
 STATIC = Path(__file__).parent / "static"
 EVENTS_WEB = Path(os.environ.get("EVENTS_WEB_DIR") or str(Path(__file__).parent / "events-web"))
-# Section Événements : ouverte à tous sur le site de test ; en production, réservée aux bêta-testeurs
-# (les autres voient l'onglet « Bientôt », le compte Party reste ouvert à tous).
-# L'image Docker de la branche develop est construite avec EVENTS_ENABLED=1, celle de main avec 0.
-EVENTS_ENABLED = os.environ.get("EVENTS_ENABLED", "0") == "1"
+# Section Événements : ouverte à tous les comptes, en production comme sur le site de test (décision du 04.11, fin
+# du « Bientôt »). Les Discussions, elles, restent absentes hors site de test (app/features.py, discussions_enabled).
 
 
 def build_id() -> str:
@@ -107,6 +110,7 @@ log = logging.getLogger("vendrediparty")
 github = Issues(os.environ.get("GITHUB_TOKEN", ""), os.environ.get("GITHUB_REPO", "BobyCharbon/sonos-vendrediparty"))
 quiz.STATS_PATH = DATA_DIR / "quiz_stats.json"  # classement général du Quiz, toutes parties confondues
 purity.STATS_PATH = DATA_DIR / "purity_stats.json"  # classement général du Purify Test (comptes Party)
+purity.scrub()  # anciens profils par catégorie (données sensibles) : jamais gardés, effacés au démarrage
 sonos = Sonos(os.environ.get("SONOS_IP") or None)
 spotify = (
     Spotify(os.environ["SPOTIFY_CLIENT_ID"], os.environ["SPOTIFY_CLIENT_SECRET"], os.environ.get("SPOTIFY_MARKET", "CH"))
@@ -726,6 +730,21 @@ def admin_stop(request: Request):
     return admin_state()
 
 
+class GuestGateSettings(BaseModel):
+    games: int | None = Field(default=None, ge=0, le=50)   # parties en invité avant compte (0 : compte pour jouer)
+    tracks: int | None = Field(default=None, ge=0, le=50)  # titres en invité par soirée (0 : compte pour proposer)
+
+
+@app.post("/api/admin/guest-gate", dependencies=[Depends(require_admin)])
+def admin_guest_gate(body: GuestGateSettings, request: Request):
+    """Réglages « Parties en invité avant compte » et « Titres en invité par soirée » (journalisés)."""
+    before, after = guest_gate.set_settings(body.games, body.tracks)
+    if before != after:
+        log_admin(request, "admin.guest_gate", None, {k: f"{before[k]} → {after[k]}" for k in after if before[k] != after[k]})
+    store.version += 1  # les pages ouvertes relisent l'état (limite de titres affichée aux invités)
+    return {"guest_gate": after}
+
+
 class Mode(BaseModel):
     mode: str
 
@@ -1050,6 +1069,7 @@ def admin_state():
         "admin_notify": {**ADMIN_NOTIFY_DEFAULTS, **s.admin_notify},
         "games": [games.summary(g) for g in (prune_games() or s.games).values()],
         "event": {"id": s.event_id, "title": s.event_title} if s.event_id else None,
+        "guest_gate": guest_gate.settings(),
     }
     if s.active:
         try:
@@ -1264,7 +1284,7 @@ class GameCreate(BaseModel):
     floors: int = 5  # Pyramide : nombre d'étages (5 à 8)
     pmode: str = "hard"  # Pyramide : soft (1 gorgée par carte) | hard (1, 2, 3, 4)
     boat: bool = True  # Pyramide : phase du bateau à la fin
-    poteau: str = "soft"  # Pyramide : soft (tout le monde boit 1) | hard (celui qui tire boit cul sec)
+    poteau: str = "soft"  # Pyramide : soft (tout le monde boit 1) | hard (celui qui tire boit un shot ou un verre d'eau)
     double: bool = False  # Pyramide : gorgées par étage 2, 4, 6… au lieu de 1, 2, 3…
     impostors: int = 0  # Undercover : nombre d'imposteurs (0 = selon le nombre de joueurs)
     reveal: bool = False  # Undercover : les imposteurs savent qu'ils le sont
@@ -1314,6 +1334,8 @@ def create_game(body: GameCreate, request: Request):
         raise HTTPException(403, msg)
     if body.type in ACCOUNT_GAMES:
         require_account(body.token, body.guest_id, ip)
+    if body.type != "room" and not gate_free(body.guest_id, request) and guest_gate.blocked(body.guest_id):
+        raise gate_games_refused(body.guest_id, "")
     # Page publique : 5 créations par adresse toutes les 10 minutes, 30 parties au plus.
     recent = [t for t in _game_creations.get(ip, []) if time.time() - t < 600]
     if len(recent) >= 5 and ip not in PROXY_IPS:
@@ -1331,8 +1353,10 @@ def create_game(body: GameCreate, request: Request):
             notify_guest(guest_id, {"title": title, "body": text, "url": f"/?game={g['code']}", "tag": f"game-{g['code']}"},
                          kind="games")
     store.session.games[g["code"]] = g
+    if g["type"] != "room" and not gate_free(body.guest_id, request):
+        guest_gate.record(body.guest_id, g["code"])  # sa nouvelle partie compte (une salle, non)
     save_games(g["code"])
-    return full_view(g, body.guest_id)
+    return with_gate(full_view(g, body.guest_id), body.guest_id, request, g["code"])
 
 
 def build_game(body: GameCreate) -> dict:
@@ -1404,14 +1428,19 @@ def room_launch(room: dict, me: str, settings: dict):
     host = room["host"] or me
     hp = games.player(room, host)
     fields = {k: v for k, v in settings.items() if k in GameCreate.model_fields and k not in ("guest_id", "name", "type", "token")}
-    fields["plays"] = bool(hp) and fields.get("plays", True) and (not accounts_only or seat_linked(room, host))
+    fields["plays"] = bool(hp) and fields.get("plays", True) and (not accounts_only or seat_linked(room, host)) \
+        and (gate_free(host) or not guest_gate.blocked(host))  # invité au bout de ses parties : il anime sans jouer
     body = GameCreate(guest_id=host, name=room.get("host_name") or "Animateur", type=kind, **fields)
     if len(store.session.games) >= 30:
         prune_games()
     child = build_game(body)
+    if fields["plays"] and not gate_free(host):
+        guest_gate.record(host, child["code"])
     for p in room["players"]:
         if p["id"] == host or (accounts_only and not seat_linked(room, p["id"])):
             continue  # Purify Test : seuls les comptes connectés sont inscrits d'office
+        if not p.get("manual") and not seat_linked(room, p["id"]) and not gate_enter(child, p["id"], None):
+            continue  # invité au bout de ses parties en invité : il voit l'écran « Crée ton compte »
         try:
             if p.get("manual"):
                 if kind in games.MANUAL_GAMES:
@@ -1438,6 +1467,43 @@ def seat_ids(g: dict, gid: str) -> list[str]:
 def seat_linked(g: dict, gid: str) -> bool:
     """La place appartient à un compte Party connecté (sous son identifiant ou l'un de ses alias)."""
     return any(map(accounts.is_linked, seat_ids(g, gid)))
+
+
+# ── Compte progressivement obligatoire (app/guest_gate.py) ──
+GATE_GAMES_MSG = "Crée ton compte pour jouer une nouvelle partie : 30 secondes, juste ton numéro."
+
+
+def gate_free(gid: str, request: Request | None = None) -> bool:
+    """Comptes Party, hôte et admin : jamais limités (seuls les invités sans compte le sont)."""
+    return (not gid or gid.startswith("acct-") or gid == HOST_ID or accounts.is_linked(gid)
+            or (request is not None and is_admin(request)))
+
+
+def gate_games_refused(gid: str, code: str) -> HTTPException:
+    st = guest_gate.status(gid, code)
+    return HTTPException(403, {"message": GATE_GAMES_MSG, "account_required": "games", "played": st["played"],
+                               "limit": st["limit"], "code": code})
+
+
+def gate_enter(g: dict, gid: str, request: Request | None) -> bool:
+    """L'invité entre dans une partie (jamais une salle) : refusé s'il a joué ses parties en invité, sinon compté.
+    Déjà assis dans cette partie : rien ne change (une partie commencée n'est jamais interrompue)."""
+    if g["type"] == "room" or gate_free(gid, request) or games.player(g, gid):
+        return True
+    if guest_gate.blocked(gid, g["code"]):
+        return False
+    guest_gate.record(gid, g["code"])
+    return True
+
+
+def with_gate(v: dict, gid: str, request: Request | None, code: str = "") -> dict:
+    """Vue d'une partie + où en est l'invité (message doux après sa 1re partie, compte requis ensuite)."""
+    if v is None or gate_free(gid, request):
+        return v
+    st = guest_gate.status(gid, code)
+    if v.get("me") or v.get("is_owner") or v.get("type") == "room":
+        st = {**st, "blocked": False}  # déjà dans cette partie (ou dans la salle) : rien ne l'en sort
+    return {**v, "gate": st}
 
 
 def full_view(g: dict, gid: str) -> dict:
@@ -1497,13 +1563,19 @@ app_invites = AppInvites(accounts, configured_public_url)
 # Billets dans Apple Wallet : certificats dans WALLET_DIR (par défaut DATA_DIR/wallet) ; sans eux, bouton masqué.
 wallet = WalletTickets(accounts, Path(os.environ.get("WALLET_DIR") or DATA_DIR / "wallet"))
 tricount =Tricount(group_admin, lambda: guest_url())
-# Assistant IA (Claude) : sans ANTHROPIC_API_KEY dans l'environnement, il reste éteint et le dit.
+# Accords « envoyer à Anthropic » (avis, assistant) : un seul fichier, une clé par usage (app/ai_feedback.ConsentBox).
+ai_consents = ai_feedback.ConsentBox(DATA_DIR / "ai_feedback_consent.json")
+# Assistant IA (Claude) : sans ANTHROPIC_API_KEY dans l'environnement, il reste éteint et le dit. Deux plafonds par mois :
+# par personne (AI_MONTHLY_BUDGET_USD) et pour toute l'app, tous usages compris (AI_GLOBAL_MONTHLY_BUDGET_USD, 30 $).
 assistant = Assistant(accounts, UsageLog(DATA_DIR / "ai_usage.json"),
                       (lambda: __import__("anthropic").Anthropic(timeout=60.0)) if os.environ.get("ANTHROPIC_API_KEY") else None,
-                      float(os.environ.get("AI_MONTHLY_BUDGET_USD", "3")), TC_CURRENCIES)
+                      float(os.environ.get("AI_MONTHLY_BUDGET_USD", "3")), TC_CURRENCIES, consents=ai_consents,
+                      global_budget_usd=float(os.environ.get("AI_GLOBAL_MONTHLY_BUDGET_USD", "30")))
 covers = Covers(DATA_DIR, PUBLIC_URL)
 event_assistant = EventAssistant(assistant, accounts, covers)
 event_editor = EventEditor(event_assistant)
+# « Ton avis » écrit avec l'IA : ouvert à tous ceux qui écrivent un avis (sans droit ai.use), après leur accord.
+feedback_writer = ai_feedback.FeedbackWriter(assistant, ai_consents, games.GAMES)
 places = Places(os.environ.get("GOOGLE_MAPS_API_KEY", ""))  # sans clé : l'app cherche dans les Plans d'Apple
 account_auth = AccountAuth(accounts)
 # Ne compte que les vrais refus (compte sans droit admin). Un jeton expiré ou invalide n'est jamais compté :
@@ -1518,7 +1590,7 @@ class AccountLink(BaseModel):
 
 
 @app.post("/api/account/link")
-def account_link(body: AccountLink, request: Request):
+def account_link(body: AccountLink, request: Request, background: BackgroundTasks):
     """Compte Party connecté → identifiant de joueur du compte (même sur tous ses appareils), surnom et photo.
     Les places que ce téléphone occupait déjà dans des parties suivent le compte."""
     ip = client_ip(request)
@@ -1538,6 +1610,10 @@ def account_link(body: AccountLink, request: Request):
         merge_identity(old, new)
     if account["name"]:
         game_presence(request, new, account["name"])
+    uid = accounts.uid_of(new)
+    if uid and compagnon_enabled() and store.session.active and soiree_zicous.due(uid):
+        # 🪩 son Zicou peut danser sur l'Apple TV s'il joue à la partie regardée, même sans événement lié
+        background.add_task(refresh_soiree_zicou, body.token, uid)
     return account
 
 
@@ -1565,6 +1641,9 @@ def merge_identity(old: str, new: str):
             store.version += 1  # liste des invités de l'hôte et file d'attente rechargées
         if changed or guest_changed:
             save_games(*changed)
+    # Compte créé après des parties en invité : ses stats du Quiz le suivent, son compteur d'invité disparaît.
+    quiz.merge_player(old, new)
+    guest_gate.forget(old)
 
 
 def link_seats(old: str, new: str) -> list[str]:
@@ -1659,7 +1738,19 @@ def account_logout(body: MemberToken):
 
 @app.post("/api/account/delete")
 def account_delete(body: AccountDelete):
-    return account_call(lambda: account_auth.delete_account(body.token, body.confirm) or {"ok": True})
+    uid = ""
+    with contextlib.suppress(AccountError):
+        uid = accounts._uid(body.token)
+    result = account_call(lambda: account_auth.delete_account(body.token, body.confirm) or {"ok": True})
+    if uid:  # « Tout part avec la suppression du compte » : fichiers locaux du serveur compris (app/account_data.py)
+        forget_local(local_stores(), uid, (assistant_consent_key(uid),))
+    return result
+
+
+def local_stores() -> LocalStores:
+    return LocalStores(purity_forget=purity.forget, quiz_forget=quiz.forget_player, usage_forget=assistant.usage.forget,
+                       consent_forget=ai_consents.forget, gate_forget=guest_gate.forget,
+                       feedback_forget=local_feedback.forget, activity_forget=activity_forgetter(pet_party_log))
 
 
 QUIET_TIME = r"^([01]\d|2[0-3]):[0-5]\d(:00)?$"
@@ -1694,6 +1785,8 @@ class NotificationPatch(BaseModel):
     # Billets payants (migration 20261103130000) : quelqu'un dit avoir payé ; mon paiement est confirmé.
     ticket_pay_declared: bool | None = None
     ticket_pay_confirmed: bool | None = None
+    # Billets QR remis par l'organisateur (migration 20261104233000) : « Ton billet est prêt ».
+    ticket_issued: bool | None = None
     # Mes amis dans Party (migration 20261104090000) : quelqu'un rejoint grâce à mon lien (envoyée par la base) ;
     # un contact de l'iPhone arrive sur Party (notification locale de l'app, calculée sur l'iPhone).
     referral_joins: bool | None = None
@@ -1790,26 +1883,15 @@ class GroupRef(MemberToken):
 def account_call(work, status: int = 400):
     try:
         return work()
+    except ConsentRequired as e:  # IA : accord exprès pas encore donné (l'app montre sa feuille d'accord)
+        raise HTTPException(403, str(e))
     except AccountError as e:
         raise HTTPException(status, str(e))
 
 
-# Discussions de groupe : en production (EVENTS_ENABLED=0), réservées aux bêta-testeurs, comme les Événements.
-# La réponse de la base est gardée une minute par session (un message envoyé = une vérification de moins).
-BETA_CHECK_TTL = 60
-_beta_checked: dict[str, tuple[float, bool]] = {}
-
-
+# Discussions de groupe (et messages directs) : absentes hors site de test (app/features.py) ; leurs routes
+# répondent alors 404 (middleware discussions_off), sauf le blocage d'une personne, commun à toute l'app.
 def chats_call(token: str, work, status: int = 400):
-    if not EVENTS_ENABLED:
-        seen = _beta_checked.get(token)
-        if not seen or time.time() - seen[0] > BETA_CHECK_TTL:
-            seen = (time.time(), account_call(lambda: accounts.beta(token), 401))
-            if len(_beta_checked) > 2000:
-                _beta_checked.clear()
-            _beta_checked[token] = seen
-        if not seen[1]:
-            raise HTTPException(403, "Les discussions arrivent bientôt.")
     return account_call(work, status)
 
 
@@ -2321,7 +2403,19 @@ def account_tricount_receipt(body: TcReceipt):
 
 @app.post("/api/account/ai/status")
 def account_ai_status(body: MemberToken):
+    """Droit, configuration, accord (« accepted », « declined », « ») et plafonds de l'assistant IA."""
     return account_call(lambda: assistant.status(body.token), 401)
+
+
+class AiConsent(MemberToken):
+    accept: bool
+
+
+@app.post("/api/account/ai/consent")
+def account_ai_consent(body: AiConsent):
+    """Même accord « IA » que les avis (/api/feedback/ai/consent, clé acct:<uid>) : un seul pour toute l'IA de Party.
+    Refus ou retrait : plus aucun appel de l'assistant ni du scan de ticket (403 « Accord requis »)."""
+    return account_call(lambda: assistant.set_consent(body.token, body.accept), 401)
 
 
 class AiPhoto(MemberToken):
@@ -2898,7 +2992,7 @@ def admin_event(body: EventLink, request: Request):
 
 
 @app.post("/api/join/account")
-def guest_join_account(body: AccountToken, request: Request, response: Response):
+def guest_join_account(body: AccountToken, request: Request, response: Response, background: BackgroundTasks):
     """Soirée liée à un événement : un compte noté « Présent » (pas en liste d'attente) entre sans le code.
     L'app revérifie régulièrement : noté absent entre-temps, son accès sans code est révoqué."""
     ip = client_ip(request)
@@ -2918,6 +3012,8 @@ def guest_join_account(body: AccountToken, request: Request, response: Response)
     if nonce is None:
         raise HTTPException(403, f"Tu n'es pas noté présent à « {s.event_title} » : entre le code de la soirée.")
     set_auth_cookie(request, response, "vp_guest", _guest_cookie(nonce), "lax")
+    if compagnon_enabled() and soiree_zicous.due(uid):   # 🪩 son Zicou danse sur l'Apple TV (relu après la réponse)
+        background.add_task(refresh_soiree_zicou, body.token, uid)
     return {"ok": True, "event_title": s.event_title}
 
 
@@ -3050,9 +3146,10 @@ def read_game(code: str, request: Request, guest_id: str, name: str):
     guest_id = canonical_gid(g, guest_id)
     sync_player_name(g, guest_id, name)
     admin_lead(g, request, guest_id)
-    if g.get("phase") == "end" and g.get("type") != "room" and guest_id.startswith("acct-") \
+    if g.get("phase") == "end" and guest_id.startswith("acct-") and pet_reactions.rewardable_game(g) \
             and any(p.get("id") == guest_id for p in g.get("players", [])):
-        pet_party_log.note(guest_id, str(g.get("id") or g["code"]))   # 🥚 petit bonus pour son compagnon
+        # 🥚 Petit bonus pour son Zicou (une fois par partie, sous GAMES_LOCK) ; jamais pour un jeu à boire.
+        zicou_react(guest_id, "party", str(g.get("id") or g["code"]))
     if g.get("paused"):
         pass  # en pause : le temps ne fait rien avancer
     elif quiz.tick(g):  # Quiz : le temps a avancé (fin d'une question, question suivante…)
@@ -3064,7 +3161,7 @@ def read_game(code: str, request: Request, guest_id: str, name: str):
         save_games(g["code"])
     if not g.get("paused") and neon.tick(g):
         save_games(g["code"])
-    return full_view(g, guest_id)
+    return with_gate(full_view(g, guest_id), guest_id, request, g["code"])
 
 
 class GameAction(BaseModel):
@@ -3092,14 +3189,14 @@ LIKELY_ONLY = {"lkset", "lkvote", "lkskip", "lkswap"}
 LIKELY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "addguest", "up", "down", "pause", "resume"} | LIKELY_ONLY
 # « Pour ou contre » : vote sur 5 crans (dbvote, amount = cran, who = votant sans téléphone), revote décidé par
 # l'animateur, dilemmes proposés par les joueurs (dbpropose, guess = texte) et validés par l'animateur (amount = numéro).
-DEBATE_ONLY = {"dbset", "dbvote", "dbskip", "dbswap", "dbrevote", "dbpropose", "dbaccept", "dbrefuse"}
+DEBATE_ONLY = {"dbset", "dbvote", "dbskip", "dbswap", "dbrevote", "dbpropose", "dbaccept", "dbrefuse", "dbreport"}
 DEBATE_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "addguest", "up", "down", "pause", "resume"} | DEBATE_ONLY
 PSY_ONLY = {"psyans", "psysub", "psyreveal"}
 PSY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "pause", "resume"} | PSY_ONLY
 PURITY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "pause", "resume"} | PURITY_ONLY
 # « Le Masque » : chacun écrit (mswrite, guess = texte), puis relie les réponses aux prénoms et choisit de lever son
 # masque (msguess, settings = {picks: {réponse: pid}, unmask}) ; l'animateur règle, change, montre, retire, révèle.
-MASQUE_ONLY = {"msset", "mswrite", "msswap", "msshow", "msguess", "mshide", "msreveal"}
+MASQUE_ONLY = {"msset", "mswrite", "msswap", "msshow", "msguess", "mshide", "msreveal", "msreport"}
 MASQUE_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "pause", "resume"} | MASQUE_ONLY
 # « Le Reflet » : qui est devant le miroir choisit et parie (rfpick, settings = {i, bet}) ; les autres votent (rfvote,
 # done = oui) ; l'animateur règle et n'attend plus un absent (rfskip).
@@ -3126,6 +3223,20 @@ PAUSE_ALLOWED = {"pause", "resume", "end", "remove", "ban", "handover", "addgues
 HOST_ACTIONS = {"msset", "msswap", "msshow", "mshide", "msreveal", "rfset", "rfskip", "psyreveal", "pause", "resume", "bpset", "puset", "pureveal","ban", "start", "vote_start", "close_vote", "eliminate", "skip_guess", "next", "restart", "remove", "end", "up", "down", "names", "spin", "deal", "skip", "cspin", "tq", "finish", "tjudge", "addguest", "mvote",
                 "pflip", "pbu", "pliar", "ppeek_ok", "ppeek_no", "pmemory", "presults", "pboat", "pboatgo", "paccept", "prefuse", "bclose", "qset", "handover", "nset", "hset",
                 "lkset", "lkskip", "lkswap", "dbset", "dbskip", "dbswap", "dbrevote", "dbaccept", "dbrefuse"}
+
+
+# « Signaler » une réponse du Masque ou un dilemme proposé (Apple 1.2) : retiré aussitôt pour la table, et noté dans le
+# journal de l'admin (Réglages › Journal) avec le texte, son auteur et qui l'a signalé, pour bannir au besoin.
+REPORT_ACTIONS = {"msreport", "dbreport"}
+
+
+def log_game_report(g: dict, reporter: str, reported: dict, request: Request):
+    def name(gid: str) -> str:
+        return (games.player(g, gid) or {}).get("name", "")
+    author = reported.get("author") or ""
+    journal.record("game.report", name(reporter) or "Joueur", {"name": f'{games.GAMES.get(g["type"], g["type"])} ({g["code"]})', "id": g["code"]},
+                   {"text": reported.get("text", ""), "author": name(author) if author else reported.get("by", ""),
+                    "author_id": author}, client_ip(request))
 
 
 @app.post("/api/games/{code}")
@@ -3197,6 +3308,10 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         raise HTTPException(409, "⏸ La partie est en pause : l'animateur la relance")
     if a == "join" and (msg := ban_message(me, client_ip(request))):
         raise HTTPException(403, msg)
+    # Invité au bout de ses parties en invité : une NOUVELLE partie demande un compte (sa place, elle, reste).
+    if a == "join" and g["type"] != "room" and not games.player(g, me) and not gate_free(me, request) \
+            and guest_gate.blocked(me, g["code"]):
+        raise gate_games_refused(me, g["code"])
     if a == "end":
         end_game(g["code"], "host")
         return None
@@ -3262,11 +3377,12 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "dbset": (debate.configure, body.settings), "dbvote": (games.db_vote, actor, body.amount if "amount" in body.model_fields_set else None, me),
         "dbskip": (games.db_skip, target), "dbswap": (games.db_swap, random), "dbrevote": (games.db_revote,),
         "dbpropose": (games.db_propose, me, body.guess), "dbaccept": (games.db_accept, body.amount),
-        "dbrefuse": (games.db_refuse, body.amount),
+        "dbrefuse": (games.db_refuse, body.amount), "dbreport": (games.db_report, me),
         "msset": (masque.configure, body.settings), "mswrite": (masque.write, me, body.guess, random),
         "msswap": (masque.swap, random), "msshow": (masque.show, random),
         "msguess": (masque.guess, me, body.settings.get("picks"), body.settings.get("unmask")),
         "mshide": (masque.hide, body.amount), "msreveal": (masque.reveal,),
+        "msreport": (masque.report, me, body.amount),
         "rfset": (reflet.configure, body.settings), "rfpick": (reflet.pick, me, body.settings.get("i"), body.settings.get("bet")),
         "rfswap": (reflet.swap, me, games.is_lead(g, me), random), "rfvote": (reflet.vote, me, body.done),
         "rfskip": (reflet.skip, target),
@@ -3282,14 +3398,20 @@ def perform_game_action(code: str, body: GameAction, request: Request):
             heist.HeistError, likely.LikelyError, debate.DebateError, masque.MasqueError, reflet.RefletError) as e:
         raise HTTPException(409, str(e))
     g["updated_at"] = time.time()
+    if a in REPORT_ACTIONS and action_result:
+        log_game_report(g, me, action_result, request)
+    if a == "join" and g["type"] != "room" and not gate_free(me, request):
+        guest_gate.record(me, g["code"])
     # Salle de jeux : rejoindre, quitter, exclure ou passer la main vaut aussi pour le jeu en cours (et inversement).
     other = room_child(g) if g["type"] == "room" else room_of(g)
     if other:
         other["updated_at"] = time.time()
         try:
             if a == "join" and me not in other.get("kicked", []):
-                # Purify Test en cours dans la salle : seuls les comptes connectés y entrent.
-                if other["type"] not in ACCOUNT_GAMES or seat_linked(g, me):
+                # Purify Test en cours dans la salle : seuls les comptes connectés y entrent. Jeu en cours de la
+                # salle : un invité au bout de ses parties en invité reste dans la salle, sans y être inscrit.
+                if (other["type"] not in ACCOUNT_GAMES or seat_linked(g, me)) \
+                        and (g["type"] != "room" or seat_linked(g, me) or gate_enter(other, me, request)):
                     games.join(other, me, clean_name(body.name))
             elif a == "leave" and games.player(other, me):
                 games.leave(other, me)
@@ -3309,13 +3431,30 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     if not g["players"] and not g["host"]:
         store.session.games.pop(g["code"], None)
     save_games(g["code"], g.get("room") or "", g.get("current") or "")
-    return full_view(g, me)
+    return with_gate(full_view(g, me), me, request, g["code"])
 
 
 @app.get("/api/purity/leaderboard")
 def purity_leaderboard():
     """Classement général du Purify Test (record d'impureté de chaque compte) ; sans identifiant de compte."""
     return purity.leaderboard()
+
+
+class PurityPublic(AccountToken):
+    on: bool
+
+
+@app.post("/api/purity/me/public")
+def purity_me_public(body: PurityPublic, request: Request):
+    """Son choix « apparaître dans le classement général du Purify Test » (désactivé par défaut)."""
+    ip = client_ip(request)
+    if msg := account_limiter.blocked(ip):
+        raise HTTPException(429, msg)
+    try:
+        gid = accounts.verified_gid(body.token)
+    except AccountError as e:
+        raise HTTPException(401, str(e))
+    return purity.set_public(gid, body.on)
 
 
 @app.post("/api/purity/me")
@@ -3402,13 +3541,19 @@ def brain_catalog():
 
 
 @app.post("/api/brain/result")
-def brain_result(body: BrainResult, request: Request):
+def brain_result(body: BrainResult, request: Request, response: Response):
     """Fin d'une partie de Méninges : le résultat (borné) est enregistré pour le compte connecté."""
     try:
         result = brain.validate(body.game, body.score, body.accuracy, body.avg_rt_ms, body.level, body.duration_ms)
     except brain.BrainError as e:
         raise HTTPException(400, str(e))
-    return brain_account(request, lambda: brain.BrainStore(accounts).record(body.token, result))
+    out = brain_account(request, lambda: brain.BrainStore(accounts).record(body.token, result))
+    with contextlib.suppress(AccountError):   # 🧠 bandeau « Zicou est fier de toi » (le bonus vient de la base)
+        gid = accounts.gid(accounts._uid(body.token))
+        zicou_react(gid, "brain", f"{result['game']}:{time.time_ns()}")
+        if items := zicou_now(response, gid):   # seulement s'il y a un bandeau (réponse de Méninges inchangée sinon)
+            out = {**out, "zicou": items}
+    return out
 
 
 @app.post("/api/brain/me")
@@ -3475,7 +3620,7 @@ class PetFriend(BaseModel):
 
 
 class PetGift(PetFriend):
-    kind: Literal["hug", "snack"]
+    kind: Literal["hug", "snack", "feast_pizza", "feast_fondue"]   # festin : payé en pièces par celui qui offre
 
 
 pet_rate = pet_store.AccountRate()
@@ -3488,7 +3633,7 @@ def pet_call(request: Request, work, token: str = ""):
     if msg := account_limiter.blocked(ip):
         raise HTTPException(429, msg)
     if token and not pet_rate.allow(pet_store.rate_key(token)):
-        raise HTTPException(429, "Doucement 🙂 Ton compagnon reprend son souffle, réessaie dans une minute.")
+        raise HTTPException(429, "Doucement 🙂 Ton Zicou reprend son souffle, réessaie dans une minute.")
     try:
         result = account_call(work, 401)
     except pet_store.PetUnavailable as e:
@@ -3516,6 +3661,113 @@ def pet_me(body: PetMe, request: Request):
     if not 20 < len(body.token) < 4096:
         raise HTTPException(400, "Jeton invalide")
     return pet_call(request, lambda: pet_service().me(body.token, body.src), body.token)
+
+
+@app.post("/api/pet/status")
+def pet_status(body: AccountToken, request: Request):
+    """Pastille Zicou (en-tête de chaque onglet, onglet Zicou) : humeur et besoin, sans pondre d'œuf ni rien enregistrer."""
+    if not 20 < len(body.token) < 4096:
+        raise HTTPException(400, "Jeton invalide")
+    return pet_call(request, lambda: pet_service().status(body.token), body.token)
+
+
+# 🪩 Réactions de Zicou (app/pet_reactions.py) : petits bandeaux « +5 🪙 pour Zicou » après un titre ajouté, une partie
+# terminée, une partie de Méninges. Jamais de notification push ; coupables dans Réglages › Compagnon. Une réponse de
+# l'API porte l'en-tête X-Zicou quand un bandeau attend : la page (app/static/pet/reactions.js) vient alors le chercher.
+ACCOUNT_GID = r"^acct-[0-9a-f]{40}$"
+ZICOU_HEADER = "X-Zicou"
+
+
+class ZicouReactions(BaseModel):
+    guest_id: str = Field(pattern=ACCOUNT_GID)
+    token: str = Field(default="", max_length=4095)   # facultatif : sert une fois, à savoir s'il a déjà un Zicou
+
+
+class ZicouReactionsPrefs(BaseModel):
+    guest_id: str = Field(pattern=ACCOUNT_GID)
+    on: bool | None = None   # None : simple lecture du choix (écran Réglages)
+
+
+def zicou_react(gid: str, kind: str, key: str) -> None:
+    """Bonus de Zicou (bandeau) : rien ne se calcule quand le Compagnon est éteint (production, voir app/features.py)."""
+    if compagnon_enabled():
+        pet_party_log.react(gid, kind, key)
+
+
+def zicou_now(response: Response, gid: str) -> list[dict]:
+    """Bandeaux à montrer tout de suite, dans la réponse même (file, Méninges ; l'écran Musique natif de l'iPhone les
+    lit aussi). Un bandeau qui attend encore (Zicou pas encore connu du serveur) : en-tête X-Zicou, la page ira le
+    chercher avec son jeton."""
+    if not gid.startswith("acct-") or not compagnon_enabled():
+        return []
+    items = pet_party_log.take(gid)
+    if pet_party_log.has_pending(gid):
+        response.headers[ZICOU_HEADER] = "1"
+    return items
+
+
+def zicou_known(gid: str, token: str) -> None:
+    """Premier bandeau d'un compte que le serveur ne connaît pas encore : a-t-il un Zicou ? (lecture seule, une fois)"""
+    if pet_party_log.known(gid) or not 20 < len(token) < 4096 or accounts.gid(accounts._uid(token)) != gid:
+        return
+    pet_service().status(token)   # note l'état du Zicou (ou son absence) dans pet_party_log
+
+
+@app.post("/api/pet/reactions")
+def zicou_reactions(body: ZicouReactions, request: Request):
+    """Bandeaux de Zicou à montrer maintenant (retirés de la file) et choix « réactions activées »."""
+    if not pet_rate.allow("zicou:" + body.guest_id):
+        raise HTTPException(429, "Doucement 🙂")
+    if pet_party_log.has_pending(body.guest_id):
+        with contextlib.suppress(AccountError, pet.PetError):   # base injoignable : les bandeaux attendent
+            zicou_known(body.guest_id, body.token)
+    return {"enabled": pet_party_log.enabled(body.guest_id), "items": pet_party_log.take(body.guest_id)}
+
+
+@app.post("/api/pet/reactions/prefs")
+def zicou_reactions_prefs(body: ZicouReactionsPrefs):
+    """Réglages › Compagnon : « Réactions de Zicou » (bandeaux dans l'app, jamais de notification)."""
+    if body.on is None:
+        return {"enabled": pet_party_log.enabled(body.guest_id)}
+    return {"enabled": pet_party_log.set_enabled(body.guest_id, body.on)}
+
+
+# Chemins du Compagnon : tous répondent 404 quand il est éteint (production tant qu'il est en bêta, app/features.py).
+COMPAGNON_PATHS = ("/api/pet/", "/api/tv/zicou", "/zicou/", "/static/pet/")
+
+
+# Discussions éteintes (production) : leurs routes répondent 404 ; le blocage d'une personne reste (toute l'app).
+DISCUSSIONS_PATHS = ("/api/account/chats",)
+DISCUSSIONS_KEPT = ("/api/account/chats/block",)
+DISCUSSIONS_OFF = "Les discussions ne sont pas disponibles."
+
+
+@app.middleware("http")
+async def discussions_off(request: Request, call_next):
+    path = request.url.path
+    if path.startswith(DISCUSSIONS_PATHS) and not path.startswith(DISCUSSIONS_KEPT) and not discussions_enabled():
+        return JSONResponse({"detail": DISCUSSIONS_OFF}, status_code=404, headers=NO_CACHE)
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def compagnon_off(request: Request, call_next):
+    """Compagnon éteint : aucune de ses routes ne répond (404 « Le Compagnon arrive bientôt. »), rien ne se calcule."""
+    if request.url.path.startswith(COMPAGNON_PATHS) and not compagnon_enabled():
+        return JSONResponse({"detail": COMPAGNON_SOON}, status_code=404, headers=NO_CACHE)
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def zicou_reaction_header(request: Request, call_next):
+    """En-tête X-Zicou sur les réponses de l'API d'un compte dont un bandeau attend (guest_id dans l'adresse ; la file
+    et Méninges les renvoient elles-mêmes, voir zicou_now)."""
+    response = await call_next(request)
+    if request.url.path.startswith("/api/") and not request.url.path.startswith("/api/pet/") and compagnon_enabled():
+        gid = request.query_params.get("guest_id", "")
+        if gid.startswith("acct-") and pet_party_log.has_pending(gid):
+            response.headers[ZICOU_HEADER] = "1"
+    return response
 
 
 @app.post("/api/pet/act")
@@ -3547,16 +3799,92 @@ def pet_friend(body: PetFriend, request: Request):
     return pet_call(request, lambda: pet_service().friend(body.token, body.friend), body.token)
 
 
+class PetProfile(BaseModel):
+    token: str = Field(min_length=21, max_length=4095)
+    member: str = Field(pattern=UUID)
+
+
+@app.post("/api/pet/profile")
+def pet_profile_card(body: PetProfile, request: Request):
+    """Fiche profil d'un membre (jeux, Événements, Discussions, app iPhone) : l'apparence publique de son Zicou, ou
+    « pas encore de Zicou ». Lecture seule. 404 si le membre est introuvable ou bloqué (et quand le Zicou est éteint)."""
+    card = pet_call(request, lambda: pet_service().profile(body.token, body.member), body.token)
+    if card is None:
+        raise HTTPException(404, "Profil indisponible")
+    return JSONResponse(card, headers=NO_CACHE)
+
+
 @app.post("/api/pet/gift")
 def pet_gift(body: PetGift, request: Request):
-    """Câlin ou goûter pour le compagnon d'un ami : un par ami et par jour (la base y veille)."""
+    """Câlin, goûter ou festin (payé en pièces gagnées) pour le Zicou d'un ami : un par ami et par jour (la base y
+    veille). Un festin offre un EFFET, jamais des pièces."""
     return pet_call(request, lambda: pet_service().gift(body.token, body.friend, body.kind), body.token)
+
+
+# 🪙 Caisse commune du groupe (app/pet_pot.py) : sans classement, pièces gagnées seulement.
+class PetPotGive(BaseModel):
+    token: str = Field(min_length=21, max_length=4095)
+    coins: int = Field(ge=10, le=250)
+
+
+@app.post("/api/pet/pot")
+def pet_pot_view(body: AccountToken, request: Request):
+    return pet_call(request, lambda: pet_pot.get(pet_service(), body.token), body.token)
+
+
+@app.post("/api/pet/pot/give")
+def pet_pot_give(body: PetPotGive, request: Request):
+    return pet_call(request, lambda: pet_pot.give(pet_service(), body.token, body.coins), body.token)
+
+
+# 🌟 Zicou en vedette à l'Apple TV (app/tv_star.py) : 150 pièces, une fois par soirée, file d'attente ; la musique et
+# l'accès aux parties ne sont jamais touchés.
+tv_stars = tv_star.TvStars()
+pet_public_pot = pet_pot.PublicPot(accounts)
+STAR_SEEN_SECONDS = 3 * 3600   # « présent » : passé par la soirée dans les 3 dernières heures (ou accès sans code)
+
+
+def soiree_key() -> str:
+    s = store.session
+    return f"{int(s.started_at or 0)}" if s.active else ""
+
+
+def star_present(uid: str) -> bool:
+    """Présent à la soirée en cours : accès sans code (événement lié) ou invité actif avec ce compte."""
+    if uid in tv_present_accounts():
+        return True
+    seen = store.last_seen.get(accounts.gid(uid))
+    return bool(seen and time.time() - seen < STAR_SEEN_SECONDS)
+
+
+def star_call(token: str, book: bool) -> dict:
+    uid = accounts._uid(token)
+    soiree = soiree_key()
+    if not soiree:
+        return {"open": False, "price": tv_star.PRICE, "booked": None}
+    if not star_present(uid):
+        if book:
+            raise pet.PetError("Le passage à l'Apple TV, c'est pour les présents de la soirée 🪩")
+        return {"open": False, "price": tv_star.PRICE, "booked": None, "present": False}
+    tv_stars.keep_only(soiree)
+    booked = tv_star.book(tv_stars, pet_service(), accounts, token, uid, soiree) if book else tv_stars.status(uid, soiree)
+    return {"open": True, "price": tv_star.PRICE, "booked": booked, "seconds": tv_star.SECONDS}
+
+
+@app.post("/api/pet/star")
+def pet_star_status(body: AccountToken, request: Request):
+    return pet_call(request, lambda: star_call(body.token, False), body.token)
+
+
+@app.post("/api/pet/star/book")
+def pet_star_book(body: AccountToken, request: Request):
+    return pet_call(request, lambda: star_call(body.token, True), body.token)
 
 
 # Collection (lot A, app/pet_collection.py, app/pet_coll_store.py) : Zicoudex, boutique, atelier, vitrine, certificats.
 class PetColl(BaseModel):
     token: str = Field(min_length=21, max_length=4095)
-    action: Literal["equip", "buy", "craft", "showcase"]
+    action: Literal["equip", "buy", "craft", "showcase", "feast", "dye", "dye_wear", "room"]
     item: str = Field(default="", max_length=40, pattern=r"^(snack:)?[a-z0-9-]{0,30}$")
     slot: str = Field(default="", pattern=r"^[a-z]{0,10}$")
     items: list[str] = Field(default_factory=list, max_length=3)
@@ -3681,9 +4009,12 @@ class FeedbackIn(BaseModel):
     context: dict = {}
     # Jeton du compte : seul un compte avec le droit « Écrire un avis » (Guest+ et au-dessus) envoie un avis.
     token: str = Field(default="", max_length=4096)
+    # Avis reformulé par l'IA et validé par la personne (« Oui, envoyer ») : revalidé ici, il pré-remplit le classement.
+    ai: dict | None = None
 
 
 FEEDBACK_RIGHT = "feedback.write"
+FEEDBACK_CONTEXT = ("tab", "game", "platform", "os", "app")  # onglet, jeu ouvert, appareil (rempli par l'app)
 
 
 def may_write_feedback(request: Request, token: str) -> bool:
@@ -3699,6 +4030,7 @@ def may_write_feedback(request: Request, token: str) -> bool:
 
 
 FEEDBACK_MIN_LENGTH = 30  # assez pour qu'une idée ou un bug soit compréhensible
+FEEDBACK_AI_MIN_LENGTH = 8  # reformulé par l'IA (titre et description clairs) : une phrase courte dictée suffit
 FEEDBACK_ADMIN_MIN_LENGTH = 5  # l'admin note pour lui-même : un titre court suffit
 
 
@@ -3714,18 +4046,87 @@ def send_feedback(body: FeedbackIn, request: Request):
     text = " ".join(body.text.split())[:1000]
     if body.kind not in FEEDBACK_KINDS:
         raise HTTPException(400, "Type de retour inconnu")
-    if len(text) < FEEDBACK_MIN_LENGTH:
-        raise HTTPException(400, f"Écris au moins {FEEDBACK_MIN_LENGTH} caractères pour bien expliquer ton idée")
     # Pas de limite d'envoi : une personne peut écrire plusieurs avis à la suite (demande de l'admin, 29.10).
-    context = {k: str(v)[:40] for k, v in body.context.items() if k in ("tab", "game")}
+    context = {k: str(v)[:40] for k, v in body.context.items() if k in FEEDBACK_CONTEXT}
+    kind, structured = body.kind, None
+    if body.ai is not None:  # texte d'origine gardé tel quel + version structurée (type, zone, titre…)
+        try:
+            structured = ai_feedback.clean_draft(body.ai, games.GAMES, context)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from None
+        kind = structured["kind"]
+        context["ai"] = structured
+    minimum = FEEDBACK_AI_MIN_LENGTH if structured else FEEDBACK_MIN_LENGTH
+    if len(text) < minimum:
+        raise HTTPException(400, f"Écris au moins {minimum} caractères pour bien expliquer ton idée")
     context["site"] = feedback_site()[0]  # liste commune aux deux sites : d'où vient l'avis
     # Pas de prénom (invité qui n'a encore rien ajouté) : « Anonyme ». clean_name refuserait un prénom vide.
     name = " ".join(body.name.split())[:30] or "Anonyme"
-    feedback.add(body.guest_id, name, body.kind, text, context)
-    notify_admin({"title": f"{FEEDBACK_KINDS[body.kind]} de {name}", "body": text[:140], "url": "/admin#feedback", "tag": "feedback"},
+    feedback.add(body.guest_id, name, kind, text, context)
+    summary = structured["title"] if structured else text[:140]
+    notify_admin({"title": f"{FEEDBACK_KINDS[kind]} de {name}", "body": summary, "url": "/admin#feedback", "tag": "feedback"},
                  kind="feedback")
     store.save()  # l'admin ouvert reçoit la mise à jour (pastille « Retours »)
     return {"mine": feedback.mine(body.guest_id)}
+
+
+class FeedbackAiIn(BaseModel):
+    guest_id: str
+    token: str = Field(default="", max_length=4096)
+
+
+class FeedbackAiConsent(FeedbackAiIn):
+    accept: bool
+
+
+class FeedbackAiRewrite(FeedbackAiIn):
+    name: str = Field(default="", max_length=60)
+    turns: list[Annotated[str, Field(max_length=ai_feedback.MAX_TURN * 2)]] = Field(min_length=1, max_length=ai_feedback.MAX_TURNS)
+    context: dict = {}
+
+
+def feedback_ai_subject(request: Request, body: FeedbackAiIn) -> str:
+    """Qui écrit l'avis (accord, limite du jour, plafond) : son compte, sinon l'invité. Mêmes conditions que l'envoi
+    d'un avis (droit « Écrire un avis » ou hôte) ; aucun droit « ai.use » n'est demandé."""
+    check_guest_id(body.guest_id)
+    if msg := ban_message(body.guest_id, client_ip(request)):
+        raise HTTPException(403, msg)
+    if not may_write_feedback(request, body.token):
+        raise HTTPException(403, "Ton avis est réservé aux comptes Guest+ et plus.")
+    if body.token:
+        with contextlib.suppress(AccountError):
+            return "acct:" + accounts._uid(body.token)
+    return "guest:" + body.guest_id
+
+
+@app.post("/api/feedback/ai/status")
+def feedback_ai_status(body: FeedbackAiIn, request: Request):
+    """L'IA peut-elle aider (configurée, accord donné ou à demander, reformulations restantes aujourd'hui) ?"""
+    return feedback_writer.status(feedback_ai_subject(request, body))
+
+
+@app.post("/api/feedback/ai/consent")
+def feedback_ai_consent(body: FeedbackAiConsent, request: Request):
+    """« J'accepte » / « Écrire sans l'IA » (feuille d'accord), ou retrait de l'accord dans Réglages."""
+    subject = feedback_ai_subject(request, body)
+    feedback_writer.consents.set(subject, body.accept)
+    return feedback_writer.status(subject)
+
+
+@app.post("/api/feedback/ai/rewrite")
+def feedback_ai_rewrite(body: FeedbackAiRewrite, request: Request):
+    """Texte dit ou écrit (puis précisions ou corrections) → avis structuré, ou une question courte.
+    status « unavailable » (IA éteinte, budget, limite du jour, panne) : l'app laisse écrire l'avis sans l'IA."""
+    subject = feedback_ai_subject(request, body)
+    context = {k: str(v)[:40] for k, v in body.context.items() if k in FEEDBACK_CONTEXT}
+    try:
+        return feedback_writer.rewrite(subject, body.name, body.turns, context)
+    except PermissionError as e:
+        raise HTTPException(403, str(e)) from None
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from None
+    except ai_feedback.Unavailable as e:
+        return {"status": "unavailable", "message": str(e)}
 
 
 @app.get("/api/feedback")
@@ -4007,6 +4408,8 @@ def state(request: Request, guest_id: str = ""):
         "messages": [{k: m.get(k) for k in ("id", "text", "at", "reply", "reply_at")} for m in store.messages_of(guest_id)] if guest_id else [],
         # Déjà passés (le plus récent d'abord, sans le titre en cours) : pour les retrouver sur Spotify.
         "played": [{**p, "art": art_url(p["art"])} for p in reversed(s.played[-16:-1])],
+        # Invité sans compte : titres encore possibles ce soir (None : compte, sans cette limite).
+        "guest_tracks": guest_tracks(guest_id, request) if guest_id else None,
     }
     try:
         return {**base, **public_sonos(snapshot(), guest_id, owners(request, guest_id))}
@@ -4119,7 +4522,7 @@ def submit_track(track: dict, position: int, guest_id: str, name: str, ip: str =
 
 
 @app.post("/api/queue", dependencies=[Depends(require_guest)])
-def enqueue(body: Enqueue, request: Request):
+def enqueue(body: Enqueue, request: Request, response: Response):
     require_active()
     ip = client_ip(request)
     if msg := ban_message(body.guest_id, ip):
@@ -4131,6 +4534,8 @@ def enqueue(body: Enqueue, request: Request):
     if not re.match(r"^[A-Za-z0-9]{22}$", body.track_id):
         raise HTTPException(400, "Requête invalide")
     store.register_guest(body.guest_id, name, ip)
+    if (tracks := guest_tracks(body.guest_id, request)) and tracks["left"] <= 0:
+        raise HTTPException(403, {"message": tracks_refused_text(tracks["limit"]), "account_required": "music", **tracks})
 
     track = spotify.track(body.track_id)
     s = store.session
@@ -4145,7 +4550,26 @@ def enqueue(body: Enqueue, request: Request):
         upcoming = [(t["pos"], t["track_id"]) for t in snap["upcoming"]]
         pos = insert_position(s.mode, snap["current_pos"], upcoming, store.pending(), body.guest_id)
         submit_track(track, pos, body.guest_id, name, ip)
-    return {"ok": True, "track": track, "source": s.source}
+    # 🪩 Titre accepté dans la file : petit bonus pour son Zicou (une fois par titre, plafonné par jour).
+    zicou_react(body.guest_id, "music", track["id"])
+    return {"ok": True, "track": track, "source": s.source, "zicou": zicou_now(response, body.guest_id)}
+
+
+def guest_tracks(gid: str, request: Request) -> dict | None:
+    """Titres proposés en invité ce soir (demandes de la soirée, même retirées) ; None : compte, hôte ou admin,
+    sans autre limite que les règles existantes."""
+    if gate_free(gid, request) or native_host(request):
+        return None
+    limit = guest_gate.settings()["tracks"]
+    used = sum(1 for r in store.session.requests if r.guest_id == gid)
+    return {"used": used, "limit": limit, "left": max(0, limit - used)}
+
+
+def tracks_refused_text(limit: int) -> str:
+    if limit == 0:
+        return "Crée ton compte pour proposer des titres : 30 secondes, juste ton numéro."
+    return (f"Tu as proposé tes {limit} titre{'s' if limit > 1 else ''} de la soirée en invité. "
+            "Crée ton compte (juste ton numéro) pour en proposer d'autres.")
 
 
 class GuestRemove(BaseModel):
@@ -4368,17 +4792,37 @@ async def no_cache_static(request: Request, call_next):
     return response
 
 
-_pages: dict[str, str] = {}
+_pages: dict[tuple[str, bool, bool], str] = {}
+# Morceaux de page du Compagnon (onglet, pastilles, scripts) : retirés de la page quand il est éteint.
+COMPAGNON_BLOCK = re.compile(r"[ \t]*<!-- compagnon -->.*?<!-- /compagnon -->\n?", re.S)
+
+
+def compagnon_page(html: str) -> str:
+    """Compagnon éteint : <html data-compagnon="off"> (lu par les scripts et le module Événements), morceaux retirés."""
+    if compagnon_enabled():
+        return html
+    return COMPAGNON_BLOCK.sub("", html.replace("<html", '<html data-compagnon="off"', 1))
+
+
+def discussions_page(html: str) -> str:
+    """Discussions éteintes (production) : <html data-discussions="off">, lu par la page et le module Événements
+    (ni onglet, ni « Écrire » sur les fiches, ni pastille)."""
+    if discussions_enabled():
+        return html
+    return html.replace("<html", '<html data-discussions="off"', 1)
+
+
+def features_page(html: str) -> str:
+    return discussions_page(compagnon_page(html))
 
 
 def page(name: str) -> Response:
     """Page HTML avec des adresses de scripts et de styles versionnées (mises en cache jusqu'au prochain déploiement)."""
-    if name not in _pages:
-        html = (STATIC / name).read_text(encoding="utf-8")
-        if not EVENTS_ENABLED:
-            html = html.replace("<html", '<html data-events="beta"', 1)  # « Bientôt » sauf pour les bêta-testeurs
-        _pages[name] = re.sub(r'(/static/[\w./-]+\.(?:js|css))(?=")', rf"\1?v={BUILD_ID}", html)
-    return Response(_pages[name], media_type="text/html; charset=utf-8", headers=NO_CACHE)
+    key = (name, compagnon_enabled(), discussions_enabled())
+    if key not in _pages:
+        html = features_page((STATIC / name).read_text(encoding="utf-8"))
+        _pages[key] = re.sub(r'(/static/[\w./-]+\.(?:js|css))(?=")', rf"\1?v={BUILD_ID}", html)
+    return Response(_pages[key], media_type="text/html; charset=utf-8", headers=NO_CACHE)
 
 
 @app.get("/")
@@ -4433,6 +4877,76 @@ def tv_game(code: str):
         if g["type"] == "room" and (child := room_child(g)) is not None:
             view["current"] = full_view(child, "")  # Salle de jeux : le jeu lancé dans la salle
         return view
+
+
+# 🪩 Les Zicou de la soirée sur l'Apple TV (app/tv_zicou.py) : aspect relu quand un présent revérifie son accès.
+soiree_zicous = tv_zicou.SoireeZicous()
+
+
+def refresh_soiree_zicou(token: str, uid: str) -> None:
+    try:
+        name, life = tv_zicou.read_member(accounts, pet_service(), token, uid)
+    except (AccountError, pet.PetError):
+        return   # base injoignable ou jeton expiré : l'ancien aspect reste (ou rien), réessayé au prochain passage
+    soiree_zicous.note(uid, name, life)
+
+
+def tv_present_accounts() -> set[str]:
+    """Comptes notés « Présent » qui ont un accès sans code valide à la soirée en cours."""
+    s = store.session
+    if not (s.active and s.event_id):
+        return set()
+    revoked = set(s.revoked)
+    return {uid for uid, nonce in s.event_passes.items() if nonce not in revoked}
+
+
+def tv_watched_games(code: str) -> list[dict]:
+    """La partie regardée par la télé et, pour une salle de jeux, le jeu qui y est lancé."""
+    g = store.session.games.get(code) if code else None
+    if not g:
+        return []
+    return [x for x in (g, room_child(g) if g.get("type") == "room" else None) if x]
+
+
+def tv_player_accounts(code: str) -> set[str]:
+    """Comptes (avec compte Party relié) qui jouent à la partie regardée, avec ou sans événement lié à la soirée."""
+    uids = set()
+    for game in tv_watched_games(code):
+        for p in game.get("players", []):
+            if p.get("manual"):
+                continue
+            uids |= {uid for gid in seat_ids(game, p["id"]) if gid.startswith("acct-") and (uid := accounts.uid_of(gid))}
+    return uids
+
+
+def tv_pid_finder(code: str):
+    """Place (pid) d'un compte dans la partie regardée par la télé (et le jeu lancé dans une salle de jeux)."""
+    seats = tv_watched_games(code)
+    if not seats:
+        return lambda gid: None
+
+    def pid_of(gid: str) -> str | None:
+        for game in reversed(seats):   # le jeu en cours de la salle d'abord : c'est lui qui annonce les gagnants
+            for p in game.get("players", []):
+                if not p.get("manual") and gid in seat_ids(game, p["id"]):
+                    return p.get("pid")
+        return None
+    return pid_of
+
+
+@app.get("/api/tv/zicou", dependencies=[Depends(require_admin)])
+def tv_zicou_state(game: str = Query("", pattern=r"^\d{0,4}$")):
+    """App Apple TV : les Zicou des présents de la soirée ET des joueurs avec compte de la partie regardée, même sans
+    événement lié, sans doublon (aspect seulement : stade, humeur, tenue, shiny ; surnom modéré ou rien). `game` : la
+    partie regardée, pour reconnaître le Zicou d'un gagnant (pid)."""
+    present = tv_present_accounts()
+    with GAMES_LOCK:
+        pid_of = tv_pid_finder(game)
+        shown = present | tv_player_accounts(game)   # un ensemble : un présent qui joue n'apparaît qu'une fois
+        zicous = soiree_zicous.listed(shown, accounts.gid, pid_of) if shown else []
+    star, waiting = tv_stars.on_air(soiree_key()) if store.session.active else (None, 0)
+    return {"zicous": zicous, "count": len(zicous), "star": star, "star_waiting": waiting,
+            "salon": pet_public_pot.reached()}
 
 
 @app.get("/api/calendar.ics")
@@ -4493,9 +5007,7 @@ def events_web(resource: str):
     elif resource.startswith(("_expo/", "assets/")) or Path(resource).suffix:
         raise HTTPException(404, "Ressource introuvable")
     elif (root / "index.html").is_file():
-        html = (root / "index.html").read_text(encoding="utf-8")
-        if not EVENTS_ENABLED:
-            html = html.replace("<html", '<html data-events="beta"', 1)  # le module réserve les sorties aux bêta-testeurs
+        html = features_page((root / "index.html").read_text(encoding="utf-8"))
         if invite := APP_JOIN_PAGE.match(resource):
             html = html.replace("</head>", join_page_meta(invite.group(1)) + "</head>", 1)
         response = Response(html, media_type="text/html; charset=utf-8", headers={"Cache-Control": "no-store"})
@@ -4516,7 +5028,13 @@ def service_worker():
 # VendrediParty (App Store) pour le site principal, VendrediPartyBETA (TestFlight) pour le site de test.
 IOS_APP_ID = "GS2B6GA9JA.ch.bobycharbon.party"
 IOS_BETA_APP_ID = "GS2B6GA9JA.ch.bobycharbon.party.beta"
-TEST_SITE_HOST = "partytest.bobycharbon.ch"
+
+
+@app.get("/api/features")
+def features():
+    """Fonctions en bêta pour les apps natives (la page web les lit sur <html data-compagnon> / data-discussions) :
+    Compagnon (Zicou) et Discussions (groupes, messages directs)."""
+    return JSONResponse({"compagnon": compagnon_enabled(), "discussions": discussions_enabled()}, headers=NO_CACHE)
 
 
 @app.get("/.well-known/apple-app-site-association")

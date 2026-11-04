@@ -39,7 +39,7 @@ const RARITIES: Rarity[] = ['common', 'rare', 'epic', 'legendary', 'mythic'];
 // Même texte que app/pet_events.py RULES (le règlement dans l'app).
 export const RULES = [
   'Qui participe : toutes les personnes présentes à l’événement (billet scanné ou arrivée notée, ou notées « Présent » par l’organisateur). Jamais selon un paiement : payer ou non sa part ne change rien.',
-  'Quoi : des accessoires du Compagnon Zicou uniquement, sans aucune valeur en argent. Aucun lot réel (boisson, bon, place, objet physique), rien à acheter, rien à miser.',
+  'Quoi : des accessoires de Zicou uniquement, sans aucune valeur en argent. Aucun lot réel (boisson, bon, place, objet physique), rien à acheter, rien à miser.',
   'Chances et nombre d’exemplaires : publiés avant le début de l’événement, puis figés (personne ne peut plus les changer, pas même l’admin).',
   'Tirage : fait par le serveur de Party à la fin de l’événement, un jet par personne et par objet. L’empreinte de la graine est publiée avant ; la graine est révélée après, pour que chacun puisse vérifier son jet.',
   'Apple et Google ne sont ni organisateurs ni sponsors de ces cadeaux, et n’y participent d’aucune manière.',
@@ -53,6 +53,22 @@ const readable = (message: string | undefined, fallback: string) => {
   return /^[a-z_]+: /.test(m) ? m.replace(/^[a-z_]+: /, '') : fallback;
 };
 
+/** Pièces Zicou pour les présents (droit « zicou.event_coins », migration 20261105090000) : réglage visible de ceux qui
+ * ont le droit seulement ; chacun voit les pièces qu'il a reçues. */
+type CoinsData = {
+  allowed: boolean;
+  mine: number | null;
+  setting: { coins: number | null; set_at: string | null; min: number; max: number; pay_at: string | null;
+    open_until: string | null; late: boolean; given: number; eligible_now: number } | null;
+};
+const COINS_SUGGESTED = '20';   // montant conseillé (proposé dans le champ), en attendant l'analyse de l'admin
+
+async function loadCoins(eventId: string): Promise<CoinsData> {
+  const { data, error } = await supabase.rpc('pet_event_coins_get', { p_event: eventId });
+  if (error) throw new Error(readable(error.message, 'Les pièces n’ont pas pu être lues.'));
+  return data as CoinsData;
+}
+
 async function load(eventId: string): Promise<DropData> {
   const { data, error } = await supabase.rpc('pet_event_drop_get', { p_event: eventId });
   if (error) throw new Error(readable(error.message, 'Les cadeaux n’ont pas pu être lus.'));
@@ -62,15 +78,18 @@ async function load(eventId: string): Promise<DropData> {
 /** Lien depuis la fiche d'un événement : visible des organisateurs / admins, et de tous dès que les cadeaux sont publiés. */
 export function EventGiftsLink({ eventId, canManage }: { eventId: string; canManage: boolean }) {
   const [state, setState] = useState<DropData | null>(null);
+  const [coins, setCoins] = useState<CoinsData | null>(null);
   useEffect(() => {
     let on = true;
     load(eventId).then((d) => on && setState(d)).catch(() => {});
+    loadCoins(eventId).then((d) => on && setCoins(d)).catch(() => {});
     return () => { on = false; };
   }, [eventId]);
   const published = state?.drop && state.drop.status !== 'draft';
-  if (!(published || (canManage && state?.role))) return null;
+  if (!(published || (canManage && state?.role) || coins?.allowed || coins?.mine)) return null;
   const hint = published ? (state?.drop?.status === 'drawn' ? 'Tirage fait : voir les gagnants et vérifier' : 'Chances publiées, tirage à la fin pour tous les présents')
-    : 'Préparer les objets à gagner (avant le début)';
+    : canManage && state?.role ? 'Préparer les objets à gagner (avant le début)'
+    : coins?.mine ? `+${coins.mine} 🪙 pour ton Zicou` : 'Pièces pour les présents';
   return <LinkRow label="🎁 Cadeaux Zicou de l’événement" hint={hint} onPress={() => router.push(`/event/${eventId}/gifts`)} />;
 }
 
@@ -84,7 +103,8 @@ export function EventGifts({ eventId }: { eventId: string }) {
       <T size={13} muted>{data.event.title}</T>
       {data.drop && data.drop.status !== 'draft' ? <Published data={data} /> : null}
       {editable ? <Editor data={data} onSaved={(d) => setData(d)} /> : null}
-      {!data.drop && !editable ? <Empty>Pas de cadeaux Zicou pour cet événement.</Empty> : null}
+      {!data.drop && !editable ? <Empty>Pas d’objets Zicou à gagner pour cet événement.</Empty> : null}
+      <EventCoins eventId={data.event.id} />
       {data.role && data.drop?.status === 'draft' && data.event.started ? (
         <Empty>L’événement a commencé : un brouillon non publié n’est jamais tiré.</Empty>
       ) : null}
@@ -95,6 +115,64 @@ export function EventGifts({ eventId }: { eventId: string }) {
       </Section>
       {data.role === 'admin' && data.bounds ? <BoundsEditor bounds={data.bounds} onSaved={reload} /> : null}
     </Screen>
+  );
+}
+
+/** « Pièces pour les présents » : invisible sans le droit ; montant borné, versé une fois à chaque présent à la fin. */
+function EventCoins({ eventId }: { eventId: string }) {
+  const { data, setData } = useQuery(() => loadCoins(eventId), [eventId]);
+  if (!data) return null;
+  if (!data.allowed || !data.setting) {
+    return data.mine ? (
+      <Section title="Pièces pour les présents">
+        <Card><T>🪙 Tu as reçu {data.mine} pièces pour ton Zicou. Ouvre Zicou pour les ranger.</T></Card>
+      </Section>
+    ) : null;
+  }
+  return <CoinsEditor eventId={eventId} data={data} setting={data.setting} onSaved={setData} />;
+}
+
+function CoinsEditor({ eventId, data, setting, onSaved }: {
+  eventId: string; data: CoinsData; setting: NonNullable<CoinsData['setting']>; onSaved: (d: CoinsData) => void;
+}) {
+  const [on, setOn] = useState(setting.coins != null);
+  const [amount, setAmount] = useState(setting.coins != null ? String(setting.coins) : COINS_SUGGESTED);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const frozen = setting.given > 0;
+  const late = setting.late;
+  const value = Number(amount);
+  const valid = !on || (Number.isInteger(value) && value >= setting.min && value <= setting.max);
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    const { data: d, error: e } = await supabase.rpc('pet_event_coins_set', { p_event: eventId, p_coins: on ? value : null });
+    setBusy(false);
+    if (e) return setError(readable(e.message, 'Les pièces n’ont pas pu être enregistrées.'));
+    onSaved(d as CoinsData);
+  };
+  return (
+    <Section title="Pièces pour les présents">
+      <Card style={{ gap: 10 }}>
+        {frozen ? (
+          <T>🪙 {setting.coins} pièces versées à {setting.given} présent{setting.given > 1 ? 's' : ''} (une fois chacun). Le montant ne change plus.</T>
+        ) : (
+          <>
+            <ToggleRow label="Pièces pour les présents" value={on} disabled={late} onChange={setOn}
+              hint="Chaque présent (billet scanné, arrivée notée ou noté « Présent ») reçoit ces pièces une fois, à la fin de l’événement. Jamais selon un paiement." />
+            {on ? (
+              <Field label={`Pièces par présent (${setting.min} à ${setting.max})`} value={amount} keyboardType="number-pad" placeholder={COINS_SUGGESTED}
+                onChangeText={(v) => setAmount(v.replace(/\D/g, '').slice(0, 3))}
+                hint={valid ? `≈ ${value * setting.eligible_now} pièces pour ${setting.eligible_now} présent(s) aujourd’hui` : `De ${setting.min} à ${setting.max} pièces.`} />
+            ) : null}
+            <T size={12} muted>Versées le {when(setting.pay_at)} (fin de l’événement) ; les présents notés plus tard les reçoivent jusqu’au {when(setting.open_until)}.</T>
+            <ErrorText error={error} />
+            <Button label="Enregistrer les pièces" variant="secondary" loading={busy} disabled={!valid || late || (!on && setting.coins == null)} onPress={save} />
+          </>
+        )}
+        {data.mine ? <T size={12} muted>Toi aussi : +{data.mine} 🪙 pour ton Zicou.</T> : null}
+      </Card>
+    </Section>
   );
 }
 
@@ -130,7 +208,7 @@ function Published({ data }: { data: DropData }) {
         <Card style={{ gap: 6, marginTop: 10 }}>
           <T weight="bold">🎁 Tes cadeaux</T>
           {data.mine.map((m) => <T key={m.prize}>{m.label} · ton jet : {String(m.roll).replace('.', ',')} (gagnant sous {pct(d.prizes[m.prize]?.pct ?? 0)})</T>)}
-          <T size={12} muted>Ouvre ton Compagnon (onglet Jeux) pour le découvrir.</T>
+          <T size={12} muted>Ouvre Zicou pour le découvrir.</T>
         </Card>
       ) : d.status === 'drawn' ? <T muted size={13}>Pas de cadeau pour toi cette fois.</T> : null}
     </Section>
@@ -169,7 +247,7 @@ function Editor({ data, onSaved }: { data: DropData; onSaved: (d: DropData) => v
       <Card style={{ gap: 12 }}>
         <T size={13} muted>
           {data.role === 'admin' ? 'Admin : tous les objets, Mythiques compris (exemplaires restants).'
-            : `Organisateur : dans les bornes de l’admin (Commun ≤ ${pct(bounds.max_pct.common)}, Rare ≤ ${pct(bounds.max_pct.rare)}, Épique ≤ ${pct(bounds.max_pct.epic)}, Légendaire ≤ ${pct(bounds.max_pct.legendary)}, ${bounds.max_copies} exemplaires au plus).`}
+            : `Organisateur : dans les bornes de l’admin (Commun ≤ ${pct(bounds.max_pct.common)}, Rare ≤ ${pct(bounds.max_pct.rare)}, Épique ≤ ${pct(bounds.max_pct.epic)}, Légendaire ≤ ${pct(bounds.max_pct.legendary)}, ${bounds.max_copies} exemplaires au plus, objets de la série Soirées Party seulement).`}
           {' '}Jusqu’à {limit} objets. Publie avant le début : ensuite, plus rien ne change.
         </T>
         {rows.map((r, i) => {

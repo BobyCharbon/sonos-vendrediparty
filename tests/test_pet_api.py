@@ -1,6 +1,6 @@
-"""Compagnon câblé au serveur (/api/pet/*) avec un faux Supabase et une horloge simulée : premier œuf, actions,
+"""Zicou câblé au serveur (/api/pet/*) avec un faux Supabase et une horloge simulée : premier œuf, actions,
 enregistrement (version, projections, journal), conflit entre deux appareils, récompenses (Méninges, parties de
-Party, soirées), cadeaux d'amis, visites limitées à ce qui est montrable, erreurs."""
+Party), pièces d'un événement (droit zicou.event_coins), cadeaux d'amis, visites limitées à ce qui est montrable, erreurs."""
 import copy
 import json
 import random
@@ -29,7 +29,7 @@ class FakeBase:
         self.journal: list[tuple[str, dict]] = []
         self.saves: list[dict] = []
         self.brain: dict[str, list[str]] = {}
-        self.events: dict[str, list[dict]] = {}
+        self.coins: list[dict] = []     # pièces d'événement versées par la base (public.pet_event_coin_grants)
         self.friends = {ALICE: {BOB}, BOB: {ALICE}}
         self.down = False
         self.race = 0   # nombre d'enregistrements « d'un autre appareil » à simuler juste avant le prochain
@@ -51,7 +51,7 @@ class FakeBase:
         body = json.loads(request.content or b"{}")
         name = path.removeprefix("/rest/v1/rpc/")
         if name in pet_store.KEYED_RPC and body.pop("p_key", None) not in (PET_KEY, self.enrolled or PET_KEY):
-            return self.err("server: Ton compagnon ne répond pas. Réessaie dans un instant.")
+            return self.err("server: Zicou ne répond pas. Réessaie dans un instant.")
         return getattr(self, name)(uid, body)
 
     @staticmethod
@@ -65,7 +65,9 @@ class FakeBase:
             "pet": {k: copy.deepcopy(row[k]) for k in ("life", "owner", "version")} if row else None,
             "gifts": [{"id": g["id"], "kind": g["kind"], "from_name": g["from_name"]} for g in self.gifts
                       if g["to"] == uid and not g["applied"]],
-            "brain": self.brain.get(uid, []), "events": self.events.get(uid, []),
+            "brain": self.brain.get(uid, []),
+            "coins": [{k: g[k] for k in ("id", "event_id", "event", "coins")} for g in self.coins
+                      if g["user"] == uid and not g.get("claimed")],
             "items": [self._item_json(i) for i in self.items if i["owner"] == uid],
             "mythic_left": {m: pet_catalog.item(m)["edition"] - sum(1 for i in self.items if i["item"] == m)
                             for m in pet_catalog.mythics()},
@@ -133,6 +135,13 @@ class FakeBase:
                 a["claimed"], n = True, n + 1
         return httpx.Response(200, json=n)
 
+    def pet_event_coins_claim(self, uid, b):
+        n = 0
+        for g in self.coins:
+            if g["user"] == uid and g["id"] in b["p_ids"] and not g.get("claimed"):
+                g["claimed"], n = True, n + 1
+        return httpx.Response(200, json=n)
+
     def pet_verify(self, uid, b):
         inst = next((i for i in self.items if i["code"] == b["p_code"] and i["sig"]), None)
         if not inst:
@@ -155,7 +164,7 @@ class FakeBase:
             if row:
                 row["version"] += 1
         if (row["version"] if row else 0) != b["p_version"]:
-            return self.err("conflict: Ton compagnon a changé sur un autre appareil.")
+            return self.err("conflict: Ton Zicou a changé sur un autre appareil.")
         self.pets[uid] = {"life": b["p_life"], "owner": b["p_owner"], "version": b["p_version"] + 1,
                           "dies_at": b["p_dies_at"], "hungry_at": b["p_hungry_at"], "nudge": b.get("p_nudge")}
         for g in self.gifts:
@@ -188,15 +197,15 @@ class FakeBase:
         if to not in self.friends.get(uid, set()):
             return self.err("forbidden: Tu ne peux rendre visite qu'aux membres de tes groupes.")
         if not self._alive(to):
-            return self.err("invalid: Son compagnon ne peut pas recevoir de cadeau pour l'instant.")
+            return self.err("invalid: Son Zicou ne peut pas recevoir de cadeau pour l'instant.")
         if not self._alive(uid):
-            return self.err("invalid: Les cadeaux s'offrent de compagnon à compagnon : il faut que le tien soit là 🥚")
+            return self.err("invalid: Les cadeaux s'offrent de Zicou à Zicou : il faut que le tien soit là 🥚")
         if uid in self.young:
             return self.err("invalid: Les cadeaux s'offrent après tes 3 premiers jours sur Party 💜")
         if any(g["from"] == uid and g["to"] == to and g["day"] == day for g in self.gifts):
             return self.err("limit: Tu lui as déjà fait un cadeau aujourd'hui. Reviens demain 💜")
         if sum(1 for g in self.gifts if g["to"] == to and g["day"] == day) >= 3:
-            return self.err("limit: Son compagnon a déjà reçu plein de cadeaux aujourd'hui. Reviens demain 💜")
+            return self.err("limit: Son Zicou a déjà reçu plein de cadeaux aujourd'hui. Reviens demain 💜")
         self.gifts.append({"id": f"g{len(self.gifts)}", "from": uid, "to": to, "kind": b["p_kind"],
                            "from_name": "Alice", "applied": False, "day": day})
         return httpx.Response(200, json={"ok": True})
@@ -246,7 +255,8 @@ def test_the_first_visit_lays_an_egg_that_hatches(setup):
     assert me(c)["pet"]["stage"] == "egg" and len(base.saves) == 1   # rien de nouveau : pas d'écriture
     clock.go(minutes=4)
     hatched = me(c)
-    assert hatched["pet"]["stage"] == "baby" and hatched["news"] == [{"kind": "hatched", "text": "🐣 L'œuf a éclos !"}]
+    assert hatched["pet"]["stage"] == "baby" and hatched["news"][0] == {"kind": "hatched", "text": "🐣 L'œuf a éclos !"}
+    assert [n["kind"] for n in hatched["news"]] == ["hatched", "welcome"]   # premier cadeau garanti (pet_welcome)
     assert base.saves[-1]["p_dies_at"] and base.saves[-1]["p_hungry_at"]
 
 
@@ -304,7 +314,7 @@ def test_a_save_from_another_device_is_retried_once_then_reported(setup):
     assert r.status_code == 409 and "autre appareil" in r.json()["detail"]
 
 
-def test_rewards_from_brain_party_games_and_soirees(setup):
+def test_rewards_from_brain_and_party_games_but_never_from_presence(setup):
     c, base, clock, acc, log = setup
     me(c)
     clock.go(minutes=5)
@@ -312,11 +322,40 @@ def test_rewards_from_brain_party_games_and_soirees(setup):
     clock.go(hours=6)
     base.brain[ALICE] = [pet.iso(clock.now - timedelta(minutes=10))]
     log.note(acc.gid(ALICE), "partie-1", clock.now.timestamp() - 60)
-    base.events[ALICE] = [{"id": "ev1", "starts_at": pet.iso(clock.now - timedelta(hours=3))}]
-    news = [n for n in me(c)["news"] if n["kind"] in ("reward", "unlocked")]   # (+ missions du jour éventuelles)
-    assert [n["kind"] for n in news] == ["reward", "reward", "reward", "unlocked"]
-    assert "Collier lumineux" in news[-1]["text"]
+    news = [n for n in me(c)["news"] if n["kind"] in ("reward", "unlocked", "event_coins")]   # (+ missions éventuelles)
+    assert [n["kind"] for n in news] == ["reward", "reward"]   # plus de bonus « soirée » automatique
     assert me(c)["news"] == []   # rien n'est compté deux fois
+
+
+def test_event_coins_land_once_and_are_marked_in_the_base(setup):
+    c, base, clock, *_ = setup
+    me(c)
+    clock.go(minutes=5)
+    before = me(c)["pet"]["daily"]["coins"]
+    base.coins.append({"id": "c1", "user": ALICE, "event_id": "ev1", "event": "Vendredi chez Ludo", "coins": 20})
+    base.coins.append({"id": "c2", "user": BOB, "event_id": "ev1", "event": "Vendredi chez Ludo", "coins": 20})
+    out = me(c)
+    assert [n["text"] for n in out["news"] if n["kind"] == "event_coins"] == ["🪩 Pièces de « Vendredi chez Ludo » : +20 🪙"]
+    assert out["pet"]["daily"]["coins"] == before + 20
+    assert base.coins[0]["claimed"] and not base.coins[1].get("claimed")   # celles de Bob attendent Bob
+    assert base.pets[ALICE]["owner"]["claimed"]["event_coins"] == ["c1"]
+    clock.go(minutes=1)
+    assert me(c)["pet"]["daily"]["coins"] == before + 20   # jamais deux fois
+
+
+def test_event_coins_already_stored_but_not_marked_are_only_marked(setup):
+    c, base, clock, *_ = setup
+    me(c)
+    clock.go(minutes=5)
+    me(c)
+    base.coins.append({"id": "c1", "user": ALICE, "event_id": "ev1", "event": "E", "coins": 20})
+    real = base.pet_event_coins_claim
+    base.pet_event_coins_claim = lambda uid, b: base.err("server: indisponible")
+    coins = me(c)["pet"]["daily"]["coins"]
+    assert not base.coins[0].get("claimed")   # rangé dans le Zicou, marque pas posée
+    base.pet_event_coins_claim = real
+    clock.go(minutes=1)
+    assert me(c)["pet"]["daily"]["coins"] == coins and base.coins[0]["claimed"]
 
 
 def test_a_finished_party_game_is_noted_for_account_players_only(setup, monkeypatch):
@@ -343,7 +382,8 @@ def test_friends_visit_and_gifts(setup):
     assert len(friends) == 1
     card = friends[0]
     assert card["member"] == "<b>Bob</b>" and card["gifted"] is False
-    assert set(card["pet"]) == {"name", "stage", "variant", "emotion", "outfit", "age_hours", "gen", "line", "acc", "shiny", "showcase"}
+    assert set(card["pet"]) == {"name", "stage", "variant", "emotion", "outfit", "age_hours", "gen", "line", "acc", "shiny", "showcase",
+                                "dye", "room", "lvl"}
     r = c.post("/api/pet/gift", json={"token": TOK_A, "friend": BOB, "kind": "hug"})
     assert r.status_code == 200 and r.json()["gifted"] is True
     again = c.post("/api/pet/gift", json={"token": TOK_A, "friend": BOB, "kind": "snack"})
@@ -395,7 +435,7 @@ def test_the_daily_chest_through_the_api_and_the_nudge_is_saved(setup):
     me(c)
     clock.go(minutes=5)
     first = me(c)["pet"]["daily"]
-    assert first["chest"]["state"] == "ready" and len(first["missions"]) == 3 and first["coins"] == 0
+    assert first["chest"]["state"] == "ready" and len(first["missions"]) == 3 and first["coins"] == 50   # cadeau de bienvenue (app/pet_welcome.py)
     r = act(c, "chest")
     assert r.status_code == 200, r.text
     found = r.json()["effect"]["found"]

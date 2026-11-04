@@ -21,6 +21,15 @@ final class FeedbackStore: ObservableObject {
     @Published var draft = FeedbackDraft()
     /// Retours terminés depuis la dernière visite : mis en avant pendant cette visite, puis marqués « vus ».
     @Published private(set) var highlighted: Set<String> = []
+    /// IA pour écrire l'avis (FeedbackAI.swift) : état, feuille d'accord, étape « C'est bien ça ? ».
+    @Published private(set) var ai: FeedbackAI.Status?
+    @Published private(set) var aiStep: FeedbackAI.Step = .none
+    @Published private(set) var aiDraft: FeedbackAI.Draft?
+    @Published var askingConsent = false
+    @Published var aiExtra = ""
+    /// Ce que la personne a dit : la description, puis ses réponses et corrections (gardé comme texte d'origine).
+    private(set) var aiTurns: [String] = []
+    private var consentAnswer: CheckedContinuation<Bool, Never>?
 
     private let api: PartyAPI
     private weak var web: WebStorage?
@@ -40,6 +49,13 @@ final class FeedbackStore: ObservableObject {
     var canSend: Bool {
         !sending && (minimumLength...FeedbackRules.maximumLength).contains(trimmedText.count)
     }
+
+    /// Minimum de caractères avant « Envoyer » : une phrase courte suffit quand l'IA reformule.
+    private var effectiveMinimum: Int { !asAdmin && ai?.usable == true ? FeedbackAI.minimumLength : minimumLength }
+    var canSubmit: Bool {
+        !sending && aiStep == .none && (effectiveMinimum...FeedbackRules.maximumLength).contains(trimmedText.count)
+    }
+    var counterMinimum: Int { effectiveMinimum }
 
     /// Avis de l'hôte : créé déjà classé (POST /api/admin/feedback/new), puis « Mes retours » relus.
     func sendAsAdmin(_ admin: FeedbackAdminStore) async {
@@ -67,6 +83,123 @@ final class FeedbackStore: ObservableObject {
             web?.refreshFeedbackBadge()
         } catch {
             loaded = true  // le formulaire reste utilisable, comme sur la page
+        }
+    }
+
+    // MARK: IA
+
+    private var context: [String: String] {
+        var out = FeedbackAI.deviceContext()
+        if let tab = fromTab() { out["tab"] = tab }
+        return out
+    }
+
+    func refreshAI() async {
+        guard !asAdmin, let me = await web?.guestIdentity() else { return }
+        ai = try? await api.feedbackAIStatus(guestID: me.id, token: await web?.accountToken())
+    }
+
+    /// « Envoyer » (ou fin de la dictée) : l'IA reformule si elle peut aider (après l'accord), sinon envoi comme avant.
+    func submit() async {
+        guard canSubmit else { return }
+        if asAdmin || ai?.usable != true { return await sendPlain() }
+        if ai?.accepted != true {
+            guard await askConsent() else { return await sendPlain() }
+        }
+        aiTurns = [trimmedText]
+        aiDraft = nil
+        await rewrite()
+    }
+
+    /// Sans l'IA : les règles d'avant (30 caractères), dites si le texte est trop court.
+    private func sendPlain() async {
+        guard canSend else {
+            notice = Notice(text: "Écris au moins \(minimumLength) caractères pour bien expliquer ton idée", isError: true)
+            return
+        }
+        await send()
+    }
+
+    private func askConsent() async -> Bool {
+        askingConsent = true
+        return await withCheckedContinuation { consentAnswer = $0 }
+    }
+
+    /// Feuille d'accord : « J'accepte » ou « Écrire sans l'IA » (enregistré par compte, ou par invité).
+    func answerConsent(_ accept: Bool) async {
+        let answer = consentAnswer
+        consentAnswer = nil  // la fermeture de la feuille (consentDismissed) ne répond plus à sa place
+        askingConsent = false
+        await setConsent(accept)
+        answer?.resume(returning: accept && ai?.accepted == true)
+    }
+
+    /// Feuille fermée d'un geste : comme « Écrire sans l'IA » pour cet avis, sans rien enregistrer.
+    func consentDismissed() {
+        guard let answer = consentAnswer else { return }
+        consentAnswer = nil
+        answer.resume(returning: false)
+    }
+
+    func setConsent(_ accept: Bool) async {
+        guard let me = await web?.guestIdentity() else { return }
+        do {
+            ai = try await api.feedbackAIConsent(guestID: me.id, token: await web?.accountToken(), accept: accept)
+            if !accept, aiStep == .none { notice = Notice(text: "Accord retiré : plus rien n'est envoyé à l'IA.", isError: false) }
+        } catch {
+            notice = Notice(text: error.localizedDescription, isError: true)
+        }
+    }
+
+    private func rewrite() async {
+        guard let me = await web?.guestIdentity() else { return }
+        aiStep = .loading
+        do {
+            let r = try await api.feedbackAIRewrite(guestID: me.id, token: await web?.accountToken(), name: me.name,
+                                                    turns: aiTurns, context: context)
+            guard !r.unavailable, let draft = r.draft else {
+                notice = Notice(text: r.message.isEmpty ? "L'IA n'est pas disponible : écris ton avis comme d'habitude." : r.message, isError: true)
+                aiStep = .none
+                return
+            }
+            aiDraft = draft
+            aiStep = r.needsInfo ? .question(r.question) : .ready
+        } catch {
+            notice = Notice(text: error.localizedDescription, isError: true)
+            aiStep = .none
+            await refreshAI()
+        }
+    }
+
+    /// Réponse à la question, ou correction : l'IA reformule l'avis complet.
+    func sendExtra(_ said: String? = nil) async {
+        let extra = (said ?? aiExtra).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !extra.isEmpty, aiTurns.count < (ai?.maxTurns ?? 4) else { return }
+        aiTurns.append(extra)
+        aiExtra = ""
+        await rewrite()
+    }
+
+    func startCorrection() { aiExtra = ""; aiStep = .correcting }
+
+    func cancelAI() { aiStep = .none; aiDraft = nil; aiTurns = [] }
+
+    /// « Oui, envoyer » (version structurée) ou « Envoyer mon texte tel quel ».
+    func sendAI(useDraft: Bool) async {
+        guard let me = await web?.guestIdentity(), !aiTurns.isEmpty else { return }
+        sending = true
+        defer { sending = false }
+        let draft = useDraft ? aiDraft : nil
+        do {
+            items = try await api.sendFeedback(guestID: me.id, name: me.name, kind: draft?.kind ?? kind.rawValue,
+                                               text: aiTurns.joined(separator: " · "), context: context, draft: draft,
+                                               token: await web?.accountToken())
+            text = ""
+            cancelAI()
+            notice = Notice(text: "Merci ! Ton message est bien arrivé 🙏", isError: false)
+            web?.refreshFeedbackBadge()
+        } catch {
+            notice = Notice(text: error.localizedDescription, isError: true)
         }
     }
 

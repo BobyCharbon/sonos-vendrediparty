@@ -50,6 +50,8 @@ struct EventNotificationPrefs: Codable, Equatable {
     /// l'organisateur confirme mon paiement.
     var ticketPayDeclared: Bool?
     var ticketPayConfirmed: Bool?
+    /// Billets QR (migration 20261104233000 ; absent avant : reçue) : « Ton billet est prêt », remis par l'organisateur.
+    var ticketIssued: Bool?
     /// Mes amis dans Party (migration 20261104090000 ; absents avant : reçues) : quelqu'un rejoint Party grâce à mon
     /// lien (envoyée par Party) ; un contact arrive sur Party (notification locale calculée par l'iPhone).
     var referralJoins: Bool?
@@ -75,6 +77,7 @@ struct EventNotificationPrefs: Codable, Equatable {
         case proposalResult = "proposal_result", linkJoin = "link_join", groupMessages = "group_messages"
         case groupInvites = "group_invites", groupJoins = "group_joins"
         case ticketPayDeclared = "ticket_pay_declared", ticketPayConfirmed = "ticket_pay_confirmed"
+        case ticketIssued = "ticket_issued"
         case referralJoins = "referral_joins", contactJoins = "contact_joins", directMessages = "direct_messages"
         case petDaily = "pet_daily", petAlerts = "pet_alerts", petGifts = "pet_gifts", petStreaks = "pet_streaks"
         case moderationReports = "moderation_reports", moderationNotices = "moderation_notices"

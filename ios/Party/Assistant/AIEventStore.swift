@@ -7,6 +7,16 @@ import UIKit
 /// Créer un événement avec l'IA : ce que la personne dit (ou écrit) part au serveur, qui renvoie le brouillon rempli par
 /// Claude et ses questions ; l'adresse est cherchée sur le téléphone (Plans d'Apple) et le lien ouvre Google Maps.
 enum AIEvent {
+    /// Feuille d'accord (AIConsentSheet) : ce que l'assistant envoie à l'IA (Apple 5.1.2(i)).
+    static let consentText = FeedbackAI.consentText
+    static let consentDeclined = "Sans ton accord, l'assistant ne peut rien envoyer à l'IA. Tu peux créer l'événement à la main."
+
+    /// 403 du serveur « accord requis » (assistant des événements sans accord) : la feuille d'accord s'ouvre.
+    static func needsConsent(_ error: Error) -> Bool {
+        guard case PartyAPIError.server(let message) = error else { return false }
+        return message.lowercased().contains("accord")
+    }
+
     struct Poll: Codable, Equatable {
         var question: String
         var options: [String]
@@ -135,6 +145,34 @@ enum AIEvent {
         private enum CodingKeys: String, CodingKey { case id, status, title, problems, changes }
     }
 
+    /// Publics connus du serveur (app/ai_events.py : PUBLIC_AUDIENCE, VIP_AUDIENCE, ONLY_INVITEES).
+    static let publicAudience = "Public (lien)"
+    static let vipAudience = "Vendredi Party"
+    static let onlyInvitees = "Seulement les personnes invitées"
+
+    /// Bandeau « pour qui » avant publication (demande de l'admin, 4.11) : rien de dit = public + lien public.
+    /// isPublic : tout le monde le voit (mis en avant plus fort).
+    static func audienceBanner(_ audience: String, invitees: [String]) -> (text: String, isPublic: Bool) {
+        let plus = invitees.isEmpty ? "" : " + " + invitees.joined(separator: ", ")
+        switch audience {
+        case publicAudience, "":
+            return ("🌍 Public + lien public : tout le monde peut le voir et le lien peut être partagé", true)
+        case vipAudience:
+            return ("👥 Membres Vendredi Party seulement" + plus, false)
+        case onlyInvitees:
+            return ("✉️ Invités seulement : " + (invitees.isEmpty ? "dis qui inviter" : invitees.joined(separator: ", ")), false)
+        default:
+            return ("👥 Groupe « \(audience) » seulement" + plus, false)
+        }
+    }
+
+    /// Le même brouillon, publié pour un autre public (tout le reste gardé).
+    static func withAudience(_ draft: Draft, _ audience: String) -> Draft {
+        var copy = draft
+        copy.audience = audience
+        return copy
+    }
+
     /// Début et fin : « samedi 14 novembre à 20:00, jusqu'à 23:30 » (la date n'est répétée que si elle change).
     static func span(_ start: String, _ end: String) -> String {
         guard !end.isEmpty else { return when(start) }
@@ -228,6 +266,11 @@ final class AIEventStore: ObservableObject {
     @Published var notice: String?
     /// Ce que la personne a dit quand l'envoi a échoué : remis dans le champ, rien n'est perdu.
     @Published var unsent: String?
+    /// Feuille d'accord (AIConsentSheet.Copy.event) : avant la 1re demande, ou après un 403 « accord requis ».
+    @Published var askingConsent = false
+    private var consentAnswer: CheckedContinuation<Bool, Never>?
+    /// Accord déjà vu accepté pendant cette ouverture de l'app (pas de nouvelle question au serveur).
+    private(set) var consentAccepted = false
 
     private let api: PartyAPI
     private weak var web: WebStorage?
@@ -331,12 +374,28 @@ final class AIEventStore: ObservableObject {
         notice = nil
     }
 
+    /// « Changer » sous le bandeau « pour qui » : public ou membres d'un toucher, sans repasser par l'IA ;
+    /// un groupe ou des invités précis se disent à l'IA (le champ est prérempli).
+    func setAudience(_ audience: String) {
+        guard let d = draft else { return }
+        draft = AIEvent.withAudience(d, audience)
+    }
+
+    func askForAudience() {
+        unsent = "Seulement pour "
+    }
+
     func send(_ text: String) async {
         var said = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if said.isEmpty && !images.isEmpty && turns.isEmpty && editingId == nil { said = "Crée l'événement à partir de ma capture d'écran." }
         guard !said.isEmpty, !thinking else { return }
         guard let token = await web?.accountToken() else {
             error = "Connecte-toi dans Réglages pour utiliser l'assistant"
+            return
+        }
+        guard await ensureConsent(token: token) else {
+            unsent = said
+            error = AIEvent.consentDeclined
             return
         }
         turns.append(said)
@@ -363,9 +422,53 @@ final class AIEventStore: ObservableObject {
             guard round == generation else { return }
             if !turns.isEmpty { turns.removeLast() }
             unsent = said
+            if AIEvent.needsConsent(error) {
+                // Accord absent ou retiré côté serveur : on le redemande ; le texte reste prêt à renvoyer.
+                consentAccepted = false
+                self.error = await askConsent(token: token) ? "Merci ! Renvoie ta demande (ton texte est gardé en bas)."
+                                                            : AIEvent.consentDeclined
+                return
+            }
             self.error = error is DecodingError ? "Réponse inattendue du serveur : réessaie dans un instant (ton texte est gardé en bas)."
                                                 : error.localizedDescription + " Ton texte est gardé en bas."
         }
+    }
+
+    /// Avant la 1re demande : accord déjà donné (serveur, par compte), sinon la feuille d'accord.
+    func ensureConsent(token: String) async -> Bool {
+        if consentAccepted { return true }
+        if await api.aiConsentAccepted(web: web, token: token) {
+            consentAccepted = true
+            return true
+        }
+        return await askConsent(token: token)
+    }
+
+    private func askConsent(token: String) async -> Bool {
+        consentAnswer?.resume(returning: false)
+        askingConsent = true
+        let accepted = await withCheckedContinuation { consentAnswer = $0 }
+        guard accepted else { return false }
+        do {
+            consentAccepted = try await api.acceptAIConsent(web: web, token: token)
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
+        return consentAccepted
+    }
+
+    /// « J'accepte » / « Pas maintenant » de la feuille.
+    func answerConsent(_ accept: Bool) {
+        let answer = consentAnswer
+        consentAnswer = nil
+        askingConsent = false
+        answer?.resume(returning: accept)
+    }
+
+    /// Feuille fermée d'un geste : pas d'accord, rien d'enregistré.
+    func consentDismissed() {
+        answerConsent(false)
     }
 
     /// Lieu dit par la personne → lieux possibles (Google Maps, sinon Plans d'Apple) ; la personne choisit le bon.

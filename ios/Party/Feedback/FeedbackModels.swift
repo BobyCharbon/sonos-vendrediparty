@@ -14,6 +14,8 @@ struct FeedbackItem: Decodable, Equatable, Identifiable {
     let reply: String
     /// Terminé depuis la dernière visite de l'onglet : mis en avant, puis marqué « vu ».
     let unseen: Bool
+    /// Titre de la version reformulée par l'IA (absent pour un avis écrit sans elle).
+    var title: String?
 
     var date: Date { Date(timeIntervalSince1970: at) }
 }

@@ -139,7 +139,7 @@ def _proposal(kind: str, rng) -> dict:
         n = rng.choice([1, 2, 2, 3, 3, 4])
         return {"kind": kind, "text": f"Bois {n} gorgée{'s' if n > 1 else ''}", "sips": n}
     if kind == "shot":
-        return {"kind": kind, "text": "Cul sec : un shot !", "shot": True}
+        return {"kind": kind, "text": "Un shot (ou un verre d'eau)", "shot": True}
     if kind == "dare":
         return {"kind": kind, "text": rng.choice(DARES)}
     if kind == "wtf":

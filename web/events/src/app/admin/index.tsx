@@ -4,6 +4,7 @@ import { View } from 'react-native';
 
 import { Avatar, Button, Card, Empty, ErrorText, Input, LinkRow, Screen, s, Section, T, ToggleRow } from '@/components/ui';
 import { PetStatsTile } from '@/components/PetStatsTile';
+import { compagnonOn } from '@/lib/features';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { hasCompleteIdentity } from '@/lib/profile';
@@ -138,7 +139,7 @@ export default function Admin() {
       ) : null}
 
       {/* Compagnon : mesure de l'envie de revenir chaque jour (réservée aux admins, pet_admin_stats). */}
-      <PetStatsTile />
+      {compagnonOn ? <PetStatsTile /> : null}
 
       <Card style={{ gap: 0, paddingVertical: 4 }}>
         {/* Modération commune (Apple 1.2, Google UGC) : file des signalements, droit « Modérer les signalements ». */}

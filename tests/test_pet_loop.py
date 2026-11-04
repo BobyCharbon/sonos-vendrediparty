@@ -63,7 +63,7 @@ def test_the_draw_follows_the_announced_odds():
     for _ in range(40000):
         count[pc.draw(rng, {}, {"noeud"}, mythic_left=left)["cat"]] += 1
     shown = {o["kind"]: o["pct"] for o in pc.odds(0, left)}
-    assert shown == {"coins": 50.0, "object": 15.0, "common": 22.0, "rare": 9.0, "epic": 3.2, "legendary": 0.7, "mythic": 0.1}
+    assert shown == {"coins": 58.0, "object": 30.65, "common": 7.0, "rare": 3.0, "epic": 1.1, "legendary": 0.249, "mythic": 0.001}
     for kind, pct in shown.items():
         assert abs(count[kind] / 400 - pct) < max(0.6, pct * 0.25), kind
 
@@ -74,7 +74,7 @@ def test_the_draw_is_deterministic_and_keeps_its_roll():
     assert a == b and a["table"] == pc.TABLE_VERSION and 0 <= a["roll"] < 1
 
 
-def test_objects_are_half_snacks_half_stickers_and_coins_stay_between_10_and_30():
+def test_objects_are_half_snacks_half_stickers_and_coins_stay_between_8_and_20():
     rng, fam, coins, bonus = random.Random(5), Counter(), [], []
     for _ in range(20000):
         d = pc.draw(rng, {}, set())
@@ -87,7 +87,7 @@ def test_objects_are_half_snacks_half_stickers_and_coins_stay_between_10_and_30(
         if d["cat"] == "coins":
             bonus.append(d["amount"])
     assert 0.4 < fam["snack"] / (fam["snack"] + fam["sticker"]) < 0.6
-    assert min(coins) == 10 and max(coins) == 30 and min(bonus) == 20 and max(bonus) == 60
+    assert min(coins) == 8 and max(coins) == 20 and min(bonus) == 8 and max(bonus) == 20   # coffre bonus : plus doublé
 
 
 def test_rare_snacks_go_to_the_bag_and_are_eaten_outside_the_meal_limit():
@@ -215,10 +215,10 @@ def test_tucking_in_the_evening_gives_a_soft_night_without_any_penalty_otherwise
     owner["loop"]["week"]["done"] = True   # (pas de récompense de la semaine dans ce compte)
     coins = owner["loop"]["coins"]
     life, owner, events = opened(life, owner, at(5, 9))
-    assert {"kind": "soft_night", "coins": pl.SOFT_NIGHT_COINS} in events and owner["loop"]["coins"] == coins + 10
+    assert {"kind": "soft_night", "coins": pl.SOFT_NIGHT_COINS} in events and owner["loop"]["coins"] == coins + 6
     # Pas couché hier soir : pas de bonus, et rien de retiré.
     life, owner, events = opened(life, owner, at(6, 9))
-    assert not [e for e in events if e["kind"] == "soft_night"] and owner["loop"]["coins"] == coins + 10
+    assert not [e for e in events if e["kind"] == "soft_night"] and owner["loop"]["coins"] == coins + 6
 
 
 # ── Rappel du jour ──

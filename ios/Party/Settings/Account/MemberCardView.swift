@@ -118,6 +118,12 @@ final class PrivacyStore: ObservableObject {
         return (try? await api.invitedBy(token: token, id: id)) ?? nil
     }
 
+    /// Zicou du membre (bêta) ; nil si éteint (404), bloqué ou hors connexion : la fiche reste alors sans Zicou.
+    func zicou(_ id: String) async -> MemberZicou? {
+        guard let token = await web?.accountToken() else { return nil }
+        return try? await api.memberZicou(token: token, id: id)
+    }
+
     func brainCompare(_ id: String) async -> BrainCompare? {
         guard let token = await web?.accountToken() else { return nil }
         return try? await api.brainCompare(token: token, target: id)
@@ -153,6 +159,9 @@ struct MemberCardView: View {
     @Environment(\.writeDirect) private var writeDirect
     @State private var writing = false
     @State private var writeProblem: String?
+    /// Son Zicou (vedette, ou œuf terne) ; nil : Zicou éteint, bloqué, ou pas encore chargé.
+    @State private var zicou: MemberZicou?
+    @Environment(\.openZicou) private var openZicou
 
     var body: some View {
         NavigationStack {
@@ -196,6 +205,16 @@ struct MemberCardView: View {
                         }
                     }
                     .listRowBackground(Color.clear)
+                    if let zicou, !card.blocked, !card.restricted {
+                        Section {
+                            MemberZicouView(data: zicou) { visit in
+                                dismiss()
+                                openZicou?.open(visit)
+                            }
+                            .listRowInsets(EdgeInsets())
+                        }
+                        .listRowBackground(Color.clear)
+                    }
                     if let phone = card.dialable {
                         Section("Numéro") {
                             Text(phone).font(.headline)
@@ -249,6 +268,7 @@ struct MemberCardView: View {
             .motion(Motion.smooth, value: card == nil)
             .task {
                 do { card = try await store.card(memberID) } catch { self.error = error.localizedDescription }
+                if card != nil { zicou = await store.zicou(memberID) }
                 if card?.me == false { brain = await store.brainCompare(memberID) }
                 if card?.me == false { invitedBy = await store.invitedBy(memberID) }
             }

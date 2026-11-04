@@ -681,10 +681,10 @@ begin
   select life into l from public.pets where user_id = uid;
   if l is null then return null; end if;
   if p_kind = 'pet_name' then
-    return jsonb_build_object('owner', uid, 'text', l ->> 'name', 'place', 'Compagnon · nom', 'at', now());
+    return jsonb_build_object('owner', uid, 'text', l ->> 'name', 'place', 'Zicou · nom', 'at', now());
   end if;
   if coalesce(l -> 'showcase' ->> 'title', '') = '' then return null; end if;
-  return jsonb_build_object('owner', uid, 'text', l -> 'showcase' ->> 'title', 'place', 'Compagnon · vitrine', 'at', now());
+  return jsonb_build_object('owner', uid, 'text', l -> 'showcase' ->> 'title', 'place', 'Zicou · vitrine', 'at', now());
 end $$;
 
 -- Masquer (modérateur) : le nom redevient « Zicou », la vitrine perd son titre. Version +1 (le serveur relit).

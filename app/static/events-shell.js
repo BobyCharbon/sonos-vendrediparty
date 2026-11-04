@@ -1,23 +1,6 @@
 // Pont de navigation commun aux pages invités et admin. Aucune donnée de compte ici.
-// En production (data-events="beta"), les sorties ne s'ouvrent qu'aux bêta-testeurs ; le compte Party reste ouvert à tous.
-const betaOnly = document.documentElement.dataset.events === 'beta';
-let betaTester = false;
-try { betaTester = !!JSON.parse(localStorage.getItem('vp_account') || 'null')?.beta; } catch { /* Stockage bloqué. */ }
+// Événements : ouverts à tous les comptes (décision du 04.11, fin du « Bientôt »).
 window.PartyEvents = {
-  /** Pas (encore) bêta-testeur : l'onglet affiche « Bientôt » et les sorties ne sont pas chargées. */
-  get soon() { return betaOnly && !betaTester; },
-  /** Production : Événements et Discussions visibles de tous, ouverts aux seuls bêta-testeurs. */
-  get betaOnly() { return betaOnly; },
-  /** Résultat de la liaison du compte Party (ou false à la déconnexion). */
-  setBeta(on) {
-    const changed = betaTester !== !!on;
-    betaTester = !!on;
-    markSoon();
-    // Le module déjà ouvert relit aussitôt ses droits (sinon il garderait « Bientôt » ou les sorties).
-    if (changed) {
-      try { document.getElementById('eventsFrame')?.contentWindow?.postMessage({ type: 'party-shell:refresh' }, location.origin); } catch { /* Cadre pas encore chargé. */ }
-    }
-  },
   target(params, admin = false) {
     const id = params.get('event') || '';
     // Billet QR scanné avec l'appareil photo du téléphone : l'entrée de l'événement le valide (organisateurs).
@@ -29,7 +12,6 @@ window.PartyEvents = {
     return admin ? '/events/admin' : '/events/';
   },
   open(target) {
-    if (this.soon) return;
     const frame = document.getElementById('eventsFrame');
     const loading = document.getElementById('eventsLoading');
     if (!frame) return;
@@ -41,7 +23,6 @@ window.PartyEvents = {
   },
   /** Membres déjà connectés : charge le module en arrière-plan pour connaître les réponses attendues. */
   preload() {
-    if (this.soon) return;
     let session = false;
     try { session = Object.keys(localStorage).some((k) => /^sb-.+-auth-token$/.test(k)); } catch { /* Stockage bloqué. */ }
     try { this.badge(Number(sessionStorage.getItem('vp_events_pending')) || 0); } catch { /* Stockage bloqué. */ }
@@ -112,22 +93,3 @@ window.addEventListener('message', (event) => {
   if (event.origin !== location.origin || event.data?.type !== 'party-events:pending') return;
   window.PartyEvents.badge(event.data.count);
 });
-
-// « Bientôt » : les onglets Événements et Discussions restent visibles mais n'ouvrent rien (annoncé aux lecteurs d'écran).
-const SOON_TABS = { events: 'Événements', chats: 'Discussions' };
-function markSoon() {
-  const soon = window.PartyEvents.soon;
-  document.documentElement.classList.toggle('events-soon', soon);
-  Object.entries(SOON_TABS).forEach(([tab, label]) => document.querySelectorAll(`[data-tab="${tab}"]`).forEach((b) => {
-    if (soon) {
-      b.setAttribute('aria-disabled', 'true');
-      b.setAttribute('aria-label', `${label} : bientôt disponible`);
-    } else if (b.getAttribute('aria-disabled')) {
-      b.removeAttribute('aria-disabled');
-      b.setAttribute('aria-label', label);
-    }
-  }));
-  if (typeof chatsSyncAccess === 'function') chatsSyncAccess();  // la page affiche ou masque l'onglet Discussions
-}
-document.documentElement.classList.toggle('events-soon', window.PartyEvents.soon);  // dès le chargement, sans clignoter
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', markSoon); else markSoon();

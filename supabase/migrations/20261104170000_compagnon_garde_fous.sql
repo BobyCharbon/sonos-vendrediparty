@@ -72,7 +72,7 @@ create or replace function private.pet_server_guard(p_key text) returns uuid
 language plpgsql stable security definer set search_path = '' as $$
 begin
   if not private.pet_server_ok(p_key) then
-    raise exception 'server: Ton compagnon ne répond pas. Réessaie dans un instant.';
+    raise exception 'server: Zicou ne répond pas. Réessaie dans un instant.';
   end if;
   return private.pet_guard();
 end;
@@ -217,7 +217,7 @@ begin
   end if;
   if cur.user_id is null then
     if coalesce(p_version, 0) <> 0 then
-      raise exception 'conflict: Ton compagnon a changé sur un autre appareil.';
+      raise exception 'conflict: Ton Zicou a changé sur un autre appareil.';
     end if;
     insert into public.pets (user_id, life, owner, version, gen, name, stage, hungry_at, dies_at, last_care_at, nudge,
                              last_seen_at)
@@ -225,11 +225,11 @@ begin
             v_nudge, now())
     on conflict (user_id) do nothing;
     if not found then
-      raise exception 'conflict: Ton compagnon a changé sur un autre appareil.';
+      raise exception 'conflict: Ton Zicou a changé sur un autre appareil.';
     end if;
   else
     if cur.version is distinct from p_version then
-      raise exception 'conflict: Ton compagnon a changé sur un autre appareil.';
+      raise exception 'conflict: Ton Zicou a changé sur un autre appareil.';
     end if;
     if v_gen < cur.gen then
       raise exception 'invalid: État illisible.';
@@ -274,10 +274,10 @@ begin
     raise exception 'forbidden: Tu ne peux rendre visite qu''aux membres de tes groupes.';
   end if;
   if not exists (select 1 from public.pets where user_id = p_friend and stage in ('baby', 'teen', 'adult')) then
-    raise exception 'invalid: Son compagnon ne peut pas recevoir de cadeau pour l''instant.';
+    raise exception 'invalid: Son Zicou ne peut pas recevoir de cadeau pour l''instant.';
   end if;
   if not exists (select 1 from public.pets where user_id = me and stage in ('baby', 'teen', 'adult')) then
-    raise exception 'invalid: Les cadeaux s''offrent de compagnon à compagnon : il faut que le tien soit là 🥚';
+    raise exception 'invalid: Les cadeaux s''offrent de Zicou à Zicou : il faut que le tien soit là 🥚';
   end if;
   if exists (select 1 from public.profiles where id = me and created_at > now() - interval '3 days') then
     raise exception 'invalid: Les cadeaux s''offrent après tes 3 premiers jours sur Party 💜';
@@ -287,7 +287,7 @@ begin
     raise exception 'limit: Tu lui as déjà fait un cadeau aujourd''hui. Reviens demain 💜';
   end if;
   if (select count(*) from public.pet_gifts where to_user = p_friend and day = today) >= 3 then
-    raise exception 'limit: Son compagnon a déjà reçu plein de cadeaux aujourd''hui. Reviens demain 💜';
+    raise exception 'limit: Son Zicou a déjà reçu plein de cadeaux aujourd''hui. Reviens demain 💜';
   end if;
   insert into public.pet_gifts (from_user, to_user, kind, day) values (me, p_friend, p_kind, today)
   on conflict on constraint pet_gifts_one_a_day do nothing;

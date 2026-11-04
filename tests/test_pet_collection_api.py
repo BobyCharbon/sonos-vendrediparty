@@ -65,8 +65,8 @@ def test_a_mythic_is_numbered_out_of_its_edition_and_revealed(setup, monkeypatch
     only(monkeypatch, "mythic")
     body = act(c, "chest").json()
     found = body["effect"]["found"]
-    assert found["rarity"] == "mythic" and found["of"] == 25 and found["serial"] == 1 and found["mint"]
-    assert any(n["kind"] == "mythic" and "n° 1/25" in n["text"] for n in body["news"])
+    assert found["rarity"] == "mythic" and found["of"] == 8 and found["serial"] == 1 and found["mint"]
+    assert any(n["kind"] == "mythic" and "n° 1/8" in n["text"] for n in body["news"])
     after = coll(c)
     mine = [x for s in after["dex"] for x in s["items"] if x.get("id") == found["item"]]
     assert mine and mine[0]["serial"] == 1 and mine[0]["owned"]
@@ -101,15 +101,15 @@ def test_shop_workshop_wearing_and_showcase(setup):
     hatch(c, clock)
     row = base.pets[ALICE]
     row["owner"].setdefault("loop", {})["coins"] = 500
-    row["owner"]["coll"] = pet_collection.new_coll() | {"dust": 450, "upgraded": True}
+    row["owner"]["coll"] = pet_collection.new_coll() | {"dust": 650, "upgraded": True}
     view = coll(c)
-    assert len(view["shop"]) == 4 and view["coins"] == 500 and view["dust"] == 450
+    assert len(view["shop"]) == (3 if view["shop_rule"]["rare_today"] else 2) and view["coins"] == 500 and view["dust"] == 650
     item = view["shop"][0]
     r = do(c, action="buy", item=item["id"])
     assert r.status_code == 200, r.text
     after = r.json()["collection"]
     assert after["coins"] == 500 - item["price"] and next(x for x in after["shop"] if x["id"] == item["id"])["owned"]
-    assert do(c, action="buy", item="decor-chalet").status_code == 400   # 800 pièces : il en manque
+    assert do(c, action="buy", item="decor-chalet").status_code == 400   # 3 200 pièces : il en manque
     assert do(c, action="buy", item="lumi").status_code == 400            # souvenir de soirée : jamais en boutique
     r = do(c, action="craft", item="cor-alpes")
     assert r.status_code == 200 and r.json()["collection"]["dust"] == 50
@@ -183,6 +183,7 @@ def test_collection_requires_a_valid_token_and_known_actions(setup):
 def test_odds_in_the_daily_view_include_the_mystery_object_and_the_pity_counter(setup):
     c, base, clock, *_ = setup
     daily = hatch(c, clock)["pet"]["daily"]
-    assert {"kind": "mythic", "label": "Objet mystère", "pct": 0.1} in daily["odds"]
+    assert {"kind": "mythic", "label": "Objet mystère", "pct": 0.001, "text": "1 chance sur 100\u202f000"} in daily["odds"]
+    assert {o["kind"] for o in daily["bonus_odds"] if o["pct"] > 0} == {"coins", "object", "common", "rare"}
     assert daily["pity_left"] == pet_chest.PITY and daily["pity"] == pet_chest.PITY
-    assert pet_store.KEYED_RPC[-3:] == ("pet_mint", "pet_cert_set", "pet_awards_claim")
+    assert {"pet_mint", "pet_cert_set", "pet_awards_claim", "pet_event_coins_claim"} <= set(pet_store.KEYED_RPC)

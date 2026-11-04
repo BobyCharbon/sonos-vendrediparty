@@ -111,7 +111,7 @@ struct FeedbackMeta: Decodable, Equatable {
 
     /// Onglet de l'app d'où vient l'avis → zone par défaut (TAB_AREAS de app/feedback.py).
     static func tabArea(_ tab: String?) -> String {
-        ["music": "music", "games": "games", "stats": "games", "events": "events", "chats": "chats", "account": "account",
+        ["music": "music", "games": "games", "stats": "games", "pet": "pet", "events": "events", "chats": "chats", "account": "account",
          "host": "admin", "feedback": "admin"][tab ?? ""] ?? "general"
     }
 
@@ -131,7 +131,8 @@ struct FeedbackMeta: Decodable, Equatable {
             Status(key: "later", label: "Plus tard", icon: "💤", symbol: "moon.zzz", color: "#9aa0b4", guest: "new"),
         ],
         priorities: [Choice(key: "high", label: "🔴 Haute"), Choice(key: "medium", label: "🟠 Moyenne"), Choice(key: "low", label: "🟢 Basse")],
-        areas: [Choice(key: "music", label: "🎵 Musique"), Choice(key: "games", label: "🎲 Jeux"), Choice(key: "events", label: "📅 Événements"),
+        areas: [Choice(key: "music", label: "🎵 Musique"), Choice(key: "games", label: "🎲 Jeux"), Choice(key: "pet", label: "🐾 Zicou"),
+                Choice(key: "events", label: "📅 Événements"), Choice(key: "calendar", label: "🗓️ Calendrier"),
                 Choice(key: "chats", label: "💬 Discussions"), Choice(key: "account", label: "⚙️ Compte / Réglages"),
                 Choice(key: "admin", label: "🛠️ Admin / Retours"), Choice(key: "tv", label: "📺 Apple TV / écran soirée"),
                 Choice(key: "general", label: "🌐 Général")],

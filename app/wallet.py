@@ -190,8 +190,8 @@ def _fields(event: dict, ticket: dict, holder: str) -> dict:
 def ticket_pass(*, origin: str, event: dict, ticket: dict, holder: str, user_id: str,
                 auth_token: str | None = None, valid: bool = True) -> dict:
     """pass.json d'un billet (format eventTicket). Avec auth_token et une origine https : le pass se met à jour tout
-    seul (PassKit Web Service sur <origine>/api/wallet/passkit). valid=False : pass annulé (plus Présent, événement
-    annulé)."""
+    seul (PassKit Web Service sur <origine>/api/wallet/passkit). valid=False : pass annulé, sans QR (plus Présent,
+    événement annulé, billet retiré ou option « Billets QR » éteinte)."""
     event_id = event["id"]
     title = (event.get("title") or "Événement").strip()
     start, end = _instant(event.get("starts_at")), _instant(event.get("ends_at"))
@@ -209,7 +209,8 @@ def ticket_pass(*, origin: str, event: dict, ticket: dict, holder: str, user_id:
         "sharingProhibited": True,
         "eventTicket": _fields(event, ticket, holder),
     }
-    if ticket.get("token") and ticket.get("code"):
+    # Pass annulé (billet retiré, option « Billets QR » éteinte, plus Présent) : plus aucun QR utilisable dans Cartes.
+    if valid and ticket.get("token") and ticket.get("code"):
         data["barcodes"] = [{"format": "PKBarcodeFormatQR", "message": ticket_link(origin, event_id, ticket["token"]),
                              "messageEncoding": "iso-8859-1", "altText": code_text(ticket["code"])}]
     if auth_token and origin.startswith("https://"):

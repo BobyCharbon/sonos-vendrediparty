@@ -21,10 +21,15 @@ struct EndTV: View {
     private var hasPodium: Bool { ranking.count >= 2 && Set(ranking.map(\.value)).count > 1 }
 
     /// Le gagnant nommé en titre : seul en tête d'un classement de points ou de jetons (pas « le plus désigné »).
-    private var champion: String? {
+    private var champion: String? { Self.champion(of: game) }
+
+    /// Aussi lu par la piste des Zicou (figure de victoire du gagnant).
+    static func champion(of game: JSON) -> String? {
         if let name = game["quiz"]["board"][0]["name"].string, (game["quiz"]["board"][0]["pts"].int ?? 0) > 0 { return name }
-        guard hasPodium, let rows = SideBoard.rows(game), ["Classement", "Jetons", "Points"].contains(rows.0),
-              ranking.count < 2 || ranking[0].value != ranking[1].value else { return nil }
+        guard let rows = SideBoard.rows(game), !rows.0.contains("Gorgées") else { return nil }
+        let ranking = rows.1
+        guard ranking.count >= 2, Set(ranking.map(\.value)).count > 1, ["Classement", "Jetons", "Points"].contains(rows.0),
+              ranking[0].value != ranking[1].value else { return nil }
         return ranking.first?.name
     }
 

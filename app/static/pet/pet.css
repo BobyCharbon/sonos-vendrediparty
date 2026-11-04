@@ -226,3 +226,16 @@ html.pt-open #tabs { display: none !important; }
 .pt-game-pet p { margin: 0; }
 .pt-result { text-align: center; }
 .pt-result .pt-big small { font-size: 1.1rem; opacity: .7; }
+
+/* Onglet « Zicou » (4.11) : le même panneau, dans la page (section #petTab), sous l'en-tête et au-dessus de la barre
+   d'onglets, qui reste visible. Pas de position fixe ici : la page garde sa hauteur naturelle (règle iOS 26). */
+.pt-root.pt-in-tab {
+  position: relative; inset: auto; z-index: auto; overflow: visible; overscroll-behavior: auto;
+  background: none; padding: 0 0 24px; min-height: 60vh;
+}
+.pt-in-tab .pt-loading { padding-top: 18vh; }
+.pt-in-tab .pt-news { bottom: calc(var(--tabs-height, 72px) + 12px); }
+.pt-in-tab .pt-top { min-height: 40px; }
+.pt-in-tab .pt-title { font-size: 1.25rem; }
+/* Le grand titre « Zicou » de l'onglet suffit : la pastille de l'en-tête s'efface ici (on y est déjà). */
+body[data-tab="pet"] .zc-chip { display: none; }

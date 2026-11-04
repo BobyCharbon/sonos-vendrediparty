@@ -104,6 +104,14 @@ def test_player_proposes_a_dilemma_the_host_validates_it_and_it_comes_next(phone
     for p in (alice, bob):
         expect(p.page.locator('.db-q-t')).to_have_text(text)
         expect(p.page.locator('.db-q-tag')).to_have_text('✍️ Proposé par Bob')
+    # B3 (audit du 04.11, Apple 1.2) : tout joueur signale un dilemme proposé ; il disparaît pour toute la table.
+    alice.page.once('dialog', lambda d: d.accept())
+    alice.tap('[data-db-report]')
+    expect(alice.page.locator('.toast')).to_contain_text('le dilemme est retiré')
+    for p in (alice, bob):
+        expect(p.page.locator('.db-q-t')).to_have_text('Dilemme retiré après un signalement.')
+        expect(p.page.locator('.db-q-tag')).to_have_text('🚩 Retiré après un signalement')
+        expect(p.page.locator('[data-db-report]')).to_have_count(0)
 
 
 def test_host_passes_the_phone_to_a_guest_without_phone_and_reaches_the_summary(phones):

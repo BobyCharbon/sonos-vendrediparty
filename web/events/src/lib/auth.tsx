@@ -18,9 +18,7 @@ type AuthState = {
   /** Rôles du plus bas au plus haut (table public.roles ; anciens rôles figés si la base ne l'a pas). */
   roles: Role[];
   can: (perm: string) => boolean;
-  /** Les sorties sont encore réservées aux bêta-testeurs (production) et ce compte n'en est pas. */
-  eventsSoon: boolean;
-  /** Compte actif qui peut ouvrir les sorties : celles qu'il voit (publiques, son groupe, ses invitations). */
+  /** Compte actif qui peut ouvrir les événements : ceux qu'il voit (publics, son groupe, ses invitations). */
   eventsOpen: boolean;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -28,24 +26,10 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-/** En production, Party sert le module avec data-events="beta" : les sorties ne s'ouvrent qu'aux bêta-testeurs. */
-const betaOnly = typeof document !== 'undefined' && document.documentElement.dataset.events === 'beta';
-
-/** Arrivé par un lien d'invitation (événement) ou membre d'un groupe privé : les événements lui sont ouverts,
- * même avant l'ouverture à tous (la base ne lui montre que ce qui le concerne). */
-async function invitedByLink(userId: string): Promise<boolean> {
-  const [links, groups] = await Promise.all([
-    supabase.from('event_invites').select('event_id').eq('user_id', userId).eq('via_link', true).limit(1),
-    supabase.from('member_group_members').select('group_id, member_groups!inner(system_key)').eq('user_id', userId)
-      .is('member_groups.system_key', null).limit(1),
-  ]);
-  return Boolean(links.data?.length || groups.data?.length);
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [access, setAccess] = useState<{ perms: string[]; rank: number; soon: boolean; roles: Role[] }>({ perms: [], rank: -1, soon: false, roles: roleBook() });
+  const [access, setAccess] = useState<{ perms: string[]; rank: number; roles: Role[] }>({ perms: [], rank: -1, roles: roleBook() });
   const [sessionReady, setSessionReady] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const profileRequest = useRef(0);
@@ -58,22 +42,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      const [dir, perms, rank, beta, invited, roles] = await Promise.all([
+      // Événements ouverts à tous les comptes (décision du 04.11) : plus de « Bientôt » ni d'accès bêta à lire.
+      const [dir, perms, rank, roles] = await Promise.all([
         supabase.rpc('get_member_directory').eq('id', userId).single(),
         supabase.rpc('my_permissions'),
         supabase.rpc('my_rank'),
-        betaOnly ? supabase.rpc('is_beta_tester') : Promise.resolve({ data: true }),
-        betaOnly ? invitedByLink(userId) : Promise.resolve(false),
         supabase.from('roles').select('key, label, color, icon, rank, builtin').order('rank'),
       ]);
       if (dir.error) throw dir.error;
       if (request !== profileRequest.current) return;
       const all = (perms.data as string[] | null) ?? [];
-      // Hors bêta (production), tout compte garde Party mais pas encore les sorties : Guests compris.
-      // Invité par un lien (événement réservé à un groupe, groupe privé) : il accède à ce qu'on l'a invité à voir.
-      const soon = beta.data !== true && !invited;
       if (!roles.error) setRoleBook(roles.data as Role[]);  // base sans la table : on garde les anciens rôles
-      setAccess({ perms: soon ? all.filter((p) => p !== 'events.view') : all, rank: (rank.data as number | null) ?? -1, soon, roles: roleBook() });
+      setAccess({ perms: all, rank: (rank.data as number | null) ?? -1, roles: roleBook() });
       setProfile(dir.data as Profile);
       setProfileError(null);
     } catch {
@@ -146,8 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       rank: access.rank,
       roles: access.roles,
       can: (perm: string) => !!session && profile?.id === session.user.id && access.perms.includes(perm),
-      eventsSoon: !!session && profile?.id === session.user.id && access.soon,
-      eventsOpen: !!session && profile?.id === session.user.id && profile.status === 'active' && !access.soon,
+      eventsOpen: !!session && profile?.id === session.user.id && profile.status === 'active',
       refreshProfile: () => loadProfile(session?.user.id),
       signOut: async () => {
         await unregisterPushToken().catch((error) => console.warn('Déconnexion push :', error));

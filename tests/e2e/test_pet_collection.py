@@ -37,18 +37,19 @@ def test_the_zicoudex_masks_mythics_and_says_where_to_find_each_item(world):
     phone.shot('coll-1-zicoudex')
     root.locator('.pc-tile.pc-off', has_text='Cor des Alpes').click()
     expect(root.locator('.pc-detail')).to_contain_text('Où le trouver')
-    expect(root.locator('.pc-detail')).to_contain_text('Atelier (400 ✨)')
+    expect(root.locator('.pc-detail')).to_contain_text('Atelier (600 ✨)')
     root.locator('.pc-masked').first.click()
     expect(root.locator('.pc-detail')).to_contain_text('Objet mystère')
-    expect(root.locator('.pc-detail')).to_contain_text('0,1 %')
+    expect(root.locator('.pc-detail')).to_contain_text('1 chance sur 100\u202f000')
 
 
 def test_shop_and_workshop_spend_earned_coins_and_dust(world):
     phone, supa = world
-    root = ready(phone, supa, coins=500, dust=450)
+    root = ready(phone, supa, coins=500, dust=650)
     root.locator('[data-pt="coll"][data-s="shop"]').click()
     first = root.locator('.pc-list').first.locator('[data-pt="pc-buy"]').first
-    expect(root.locator('.pc-list').first.locator('li')).to_have_count(4)
+    expect(root.locator('.pc-list').first.locator('li').nth(1)).to_be_visible()
+    assert root.locator('.pc-list').first.locator('li').count() in (2, 3)   # 2 Communs (+ 1 Rare un jour sur 2)
     expect(root).to_contain_text('ne s\'achètent jamais avec de l\'argent')
     phone.shot('coll-2-boutique')
     first.click()

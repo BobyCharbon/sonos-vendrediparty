@@ -75,6 +75,10 @@
     const have = coll.dex.reduce((n, s) => n + s.have, 0), total = coll.dex.reduce((n, s) => n + s.total, 0);
     const myth = coll.dex.flatMap((s) => s.items).filter((x) => x.rarity === "mythic" && !x.masked).length;
     const series = coll.dex.map((s) => {
+      if (s.soon) {
+        return `<section class="pc-series pc-soon"><h3>❔ Bientôt : ???</h3><p class="pt-muted pt-tiny">Une nouvelle série arrive avec la
+          prochaine saison (${s.total} objets à découvrir).</p></section>`;
+      }
       const done = s.have >= s.total;
       const items = s.items.map((x, i) => x.masked
         ? `<button type="button" class="pc-tile pc-masked" data-pt="pc-detail" data-s="${e(s.id)}" data-n="${i}" aria-label="Mythique mystère, pas encore trouvé">
@@ -95,7 +99,7 @@
     if (!x) return "";
     if (x.masked) {
       return `<div class="pt-card pc-detail" role="dialog" aria-label="Objet mystère"><b>??? · Mythique numéroté</b><p>${e(x.where)}</p>
-        <p class="pt-muted pt-tiny">Chance d'un Objet mystère dans chaque coffre : ${fmtPct((coll.odds.find((o) => o.kind === "mythic") || {}).pct || 0)}.
+        <p class="pt-muted pt-tiny">Chance d'un Objet mystère dans chaque coffre du jour : ${e((coll.odds.find((o) => o.kind === "mythic") || {}).text || fmtPct(0))}.
         Exemplaires limités, jamais réédités.</p><button type="button" class="pt-ghost" data-pt="pc-close">Fermer</button></div>`;
     }
     const acts = [];
@@ -113,7 +117,7 @@
       ${x.owned ? '<small class="pc-own">Déjà à toi ✓</small>' : x.bought ? '<small class="pc-own">Acheté ✓</small>'
         : `<button type="button" class="pt-cta pc-price" data-pt="pc-buy" data-i="${e(what || x.id)}" ${coll.coins < x.price ? 'aria-disabled="true"' : ""}
             aria-label="Acheter ${e(x.label)} pour ${x.price} pièces">${x.price} 🪙</button>`}</li>`;
-    return `<section class="pt-card"><h2>🛍️ Boutique du jour</h2><p class="pt-muted pt-tiny">4 articles, renouvelés chaque jour à minuit. Un objet qui part revient un autre jour.</p>
+    return `<section class="pt-card"><h2>🛍️ Boutique du jour</h2><p class="pt-muted pt-tiny">${coll.shop_rule ? `${coll.shop_rule.commons} Communs chaque jour, et un Rare un jour sur ${coll.shop_rule.rare_every}${coll.shop_rule.rare_today ? " (aujourd'hui !)" : " (demain)"}` : "Quelques articles"}, renouvelés à minuit. Un objet qui part revient un autre jour.</p>
         <ul class="pc-list">${coll.shop.map((x) => card(x)).join("")}</ul></section>
       <section class="pt-card"><h2>🏠 Décor de la chambre</h2><p class="pt-muted pt-tiny">Le fond derrière ${e(UI().current()?.name || "Zicou")}. Toujours en vente.</p>
         <ul class="pc-list">${coll.decor.map((x) => card(x)).join("")}</ul></section>
@@ -343,7 +347,7 @@
       await moderation("block", { user_id: visiting.id, on: true });
       visiting = null;
       UI().home();
-      UI().say("Personne bloquée : vous ne vous verrez plus (Compagnon, messages, mentions, invitations). Réglages › Confidentialité pour débloquer.");
+      UI().say("Personne bloquée : vous ne vous verrez plus (Zicou, messages, mentions, invitations). Réglages › Confidentialité pour débloquer.");
     } catch (err) {
       UI().say(err.message, true);
     }

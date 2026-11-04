@@ -6,8 +6,10 @@ import { AttendanceEditor } from '@/components/AttendanceEditor';
 import { AttendeesBadge } from '@/components/AttendeesBadge';
 import { PendingPayments } from '@/components/PendingPayments';
 import { TicketCard } from '@/components/TicketCard';
+import { TicketsManager } from '@/components/TicketsManager';
 import { CalendarButton } from '@/components/CalendarButton';
 import { EventGiftsLink } from '@/components/EventGifts';
+import { compagnonOn } from '@/lib/features';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
 import { LinkedText } from '@/components/LinkedText';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
@@ -60,6 +62,8 @@ export default function EventScreen() {
   const isAdmin = can('events.manage_all');
   const [error, setError] = useState<string | null>(null);
   const [shareNote, setShareNote] = useState('');
+  /** Paiement confirmé (« Reçu ») : il remet aussi le billet, la liste « Billets QR » se relit. */
+  const [paymentsSeen, setPaymentsSeen] = useState(0);
 
   const { data: loaded, reload, error: loadError } = useQuery(async () => {
     const [ev, members, results, myVotes, allVotes, messages, mute, links, attendance, groupNames] = await Promise.all([
@@ -306,8 +310,13 @@ export default function EventScreen() {
       {ev.date_mode === 'fixed' && published && canManage ? (
         <AttendanceEditor event={ev} rsvps={ev.rsvps} names={data.names} me={me.id} onChange={reload} />
       ) : null}
+      {ev.date_mode === 'fixed' && published && canManage ? (
+        <TicketsManager eventId={ev.id} enabled={!!ev.tickets_enabled} canToggle onToggled={reload}
+          refreshKey={`${paymentsSeen}|${ev.rsvps.map((r) => `${r.user_id}:${r.status}:${r.waitlisted}`).join(',')}`} />
+      ) : null}
       {ev.date_mode === 'fixed' && published && canManage && (ev.price_chf ?? 0) > 0 ? (
-        <PendingPayments eventId={ev.id} price={ev.price_chf!} refreshKey={ev.rsvps.map((r) => `${r.user_id}:${r.status}`).join(',')} />
+        <PendingPayments eventId={ev.id} price={ev.price_chf!} refreshKey={ev.rsvps.map((r) => `${r.user_id}:${r.status}`).join(',')}
+          onConfirmed={() => setPaymentsSeen((n) => n + 1)} />
       ) : null}
 
       {ev.polls
@@ -352,7 +361,7 @@ export default function EventScreen() {
       ) : null}
 
       <ErrorText error={error} />
-      {published && ev.date_mode === 'fixed' ? <EventGiftsLink eventId={ev.id} canManage={canManage} /> : null}
+      {compagnonOn && published && ev.date_mode === 'fixed' ? <EventGiftsLink eventId={ev.id} canManage={canManage} /> : null}
       {canManage && published && ev.visibility === 'invited' ? <InviteLinkCard kind="event" id={ev.id} /> : null}
       {canManage && published ? (
         <View style={st.orgZone}>

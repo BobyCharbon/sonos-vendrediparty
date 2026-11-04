@@ -13,10 +13,15 @@ import { Avatar, Button, ErrorText, Section, T } from './ui';
  * Organisateur d'un événement payant : qui dit avoir payé (« en attente »), à confirmer « Reçu ✓ » ou « Pas reçu ».
  * `refreshKey` : relu quand les réponses changent (temps réel de la page).
  */
-export function PendingPayments({ eventId, price, refreshKey }: { eventId: string; price: number; refreshKey: string }) {
+export function PendingPayments({ eventId, price, refreshKey, onConfirmed }: {
+  eventId: string; price: number; refreshKey: string;
+  /** Après « Reçu » / « Pas reçu » : la place payée remet aussi le billet, la liste des billets se relit. */
+  onConfirmed?: () => void;
+}) {
   const [people, setPeople] = useState<TicketPerson[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(() => fetchCheckins(eventId).then(
     (rows) => { setPeople(rows); setError(null); },
@@ -27,8 +32,10 @@ export function PendingPayments({ eventId, price, refreshKey }: { eventId: strin
   async function confirm(p: TicketPerson, received: boolean) {
     setBusy(`${p.user_id}:${received}`);
     try {
-      await confirmPayment(eventId, p.user_id, received);
+      const after = await confirmPayment(eventId, p.user_id, received, p);
+      setNotice(after.notice ?? null);  // « Pas reçu » : billet remis par ce paiement retiré
       await load();
+      onConfirmed?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'La connexion a échoué. Réessaie.');
     } finally {
@@ -60,6 +67,7 @@ export function PendingPayments({ eventId, price, refreshKey }: { eventId: strin
         </View>
       ))}
       <ErrorText error={error} />
+      {notice ? <T size={13} weight="semibold" color={colors.coral}>{notice}</T> : null}
     </Section>
   );
 }

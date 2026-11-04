@@ -101,3 +101,13 @@ def test_only_an_organizer_can_load_or_change_the_event(tmp_path):
     for call in (lambda: e.load("ok", "e1"), lambda: e.save("ok", "e1", current(tmp_path), None, True)):
         with pytest.raises(AccountError, match="ne peux pas modifier"):
             call()
+
+
+def test_editing_with_the_ai_never_touches_the_qr_tickets_option(tmp_path):
+    """Billets QR activés par l'organisateur : une modification par l'IA ne les éteint ni ne les allume (colonne absente)."""
+    asked = {**current(tmp_path), "title": "Raclette géante", "tickets_enabled": False}
+    e, accounts, _ = editor(tmp_path, asked, event={**EVENT, "tickets_enabled": True})
+    e.save("ok", "e1", asked, None, announce=False)
+    patch = next(body for m, p, body in accounts.calls if m == "PATCH" and p.startswith("/rest/v1/events"))
+    assert "tickets_enabled" not in patch and patch["title"] == "Raclette géante"
+    assert current(tmp_path)["audience"] == ev.VIP_AUDIENCE  # un événement existant garde son public

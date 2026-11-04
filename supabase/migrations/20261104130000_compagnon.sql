@@ -85,7 +85,7 @@ language plpgsql stable security definer set search_path = '' as $$
 declare me uuid := auth.uid();
 begin
   if me is null or not private.is_account_active(me) then
-    raise exception 'forbidden: Connecte-toi pour retrouver ton compagnon.';
+    raise exception 'forbidden: Connecte-toi pour retrouver ton Zicou.';
   end if;
   return me;
 end;
@@ -153,17 +153,17 @@ begin
   select * into cur from public.pets where user_id = me for update;
   if cur.user_id is null then
     if coalesce(p_version, 0) <> 0 then
-      raise exception 'conflict: Ton compagnon a changé sur un autre appareil.';
+      raise exception 'conflict: Ton Zicou a changé sur un autre appareil.';
     end if;
     insert into public.pets (user_id, life, owner, version, gen, name, stage, hungry_at, dies_at, last_care_at)
     values (me, p_life, p_owner, 1, v_gen, v_name, v_stage, p_hungry_at, p_dies_at, case when p_cared then now() end)
     on conflict (user_id) do nothing;
     if not found then
-      raise exception 'conflict: Ton compagnon a changé sur un autre appareil.';
+      raise exception 'conflict: Ton Zicou a changé sur un autre appareil.';
     end if;
   else
     if cur.version is distinct from p_version then
-      raise exception 'conflict: Ton compagnon a changé sur un autre appareil.';
+      raise exception 'conflict: Ton Zicou a changé sur un autre appareil.';
     end if;
     if v_gen < cur.gen then
       raise exception 'invalid: État illisible.';
@@ -246,7 +246,7 @@ begin
     raise exception 'forbidden: Tu ne peux rendre visite qu''aux membres de tes groupes.';
   end if;
   if not exists (select 1 from public.pets where user_id = p_friend and stage in ('baby', 'teen', 'adult')) then
-    raise exception 'invalid: Son compagnon ne peut pas recevoir de cadeau pour l''instant.';
+    raise exception 'invalid: Son Zicou ne peut pas recevoir de cadeau pour l''instant.';
   end if;
   insert into public.pet_gifts (from_user, to_user, kind) values (me, p_friend, p_kind)
   on conflict on constraint pet_gifts_one_a_day do nothing;

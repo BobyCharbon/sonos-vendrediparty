@@ -205,6 +205,13 @@ final class MusicStore: ObservableObject {
         }
     }
 
+    /// Bandeau après un ajout : avec la réaction de Zicou (« +5 🪙 pour Zicou ») quand le serveur en renvoie une.
+    nonisolated static func addedText(_ title: String, zicou: [ZicouReaction]) -> String {
+        let added = "« \(title) » ajouté 🎶"
+        guard let reaction = zicou.first?.text, !reaction.isEmpty else { return added }
+        return "\(added)\n\(reaction)"
+    }
+
     func add(_ track: SpotifyTrack) async {
         guard let me = await currentIdentity() else { return }
         guard !me.name.isEmpty else {
@@ -215,9 +222,9 @@ final class MusicStore: ObservableObject {
         busyTrack = track.id
         defer { busyTrack = nil }
         do {
-            try await api.enqueue(trackID: track.id, guestID: me.id, name: me.name)
+            let zicou = try await api.enqueue(trackID: track.id, guestID: me.id, name: me.name)
             query = ""
-            notice = Notice(text: "« \(track.title) » ajouté 🎶", isError: false)
+            notice = Notice(text: MusicStore.addedText(track.title, zicou: zicou), isError: false)
             await reload()
         } catch {
             show(error)

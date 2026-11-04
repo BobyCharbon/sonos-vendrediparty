@@ -15,18 +15,18 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import moderation, pet, pet_coll_store, pet_loop, pet_streak
+from . import (moderation, pet, pet_coll_store, pet_collection, pet_feast, pet_loop, pet_profile, pet_reactions, pet_streak, pet_welcome,
+               pet_xp)
 from .accounts import AccountError
 
-PARTY_KEEP_SECONDS = 3 * 24 * 3600
-PARTY_KEEP_PER_PLAYER = 20
 SAVE_ATTEMPTS = 2   # un conflit (autre appareil) : on relit et on rejoue une fois
 
 # Clé du serveur Party (playtest « Marc », 4.11) : variable d'environnement PET_SECRET = le secret « pet_server_key » du
 # coffre de la base (migration 20261104170000). Elle seule permet d'écrire un personnage (pet_load / pet_save /
 # pet_gift) et elle rend les tirages imprévisibles (HMAC). Jamais envoyée au navigateur, jamais dans le dépôt.
 SECRET_ENV = "PET_SECRET"
-KEYED_RPC = ("pet_load", "pet_save", "pet_gift", "pet_mint", "pet_cert_set", "pet_awards_claim")
+KEYED_RPC = ("pet_load", "pet_save", "pet_gift", "pet_pot_get", "pet_pot_give", "pet_mint", "pet_cert_set", "pet_awards_claim", "pet_event_coins_claim",
+             "pet_profile")
 _PROCESS_KEY = secrets.token_bytes(32)   # dernier repli (disque illisible) : hasard imprévisible, jamais une valeur connue
 SECRET_FILE = "pet_secret"
 _ENROLLED: set[str] = set()               # clés déjà enrôlées dans la base par ce processus
@@ -116,48 +116,8 @@ def rate_key(token: str) -> str:
     return "tok:" + hashlib.sha256(token.encode()).hexdigest()
 
 
-class PartyLog:
-    """Parties de Party terminées par un joueur relié à un compte (identifiant acct-…) : petit bonus pour son compagnon.
-    Gardé dans un fichier (les parties vivent dans la mémoire du serveur, pas dans Supabase), 3 jours au plus."""
-
-    def __init__(self, path: Path | None):
-        self.path = path
-        self.lock = threading.Lock()
-        self.data: dict[str, list[list]] = {}
-        if path and path.exists():
-            try:
-                raw = json.loads(path.read_text())
-                self.data = {k: v for k, v in raw.items() if isinstance(v, list)} if isinstance(raw, dict) else {}
-            except (OSError, ValueError):
-                self.data = {}
-
-    def note(self, gid: str, game_id: str, now: float | None = None) -> bool:
-        """Une partie terminée (une fois par partie et par joueur). True si c'est nouveau."""
-        if not gid.startswith("acct-") or not game_id:
-            return False
-        now = now or time.time()
-        with self.lock:
-            rows = [r for r in self.data.get(gid, []) if now - r[1] < PARTY_KEEP_SECONDS]
-            if any(r[0] == game_id for r in rows):
-                return False
-            self.data[gid] = (rows + [[game_id, now]])[-PARTY_KEEP_PER_PLAYER:]
-            self._write()
-        return True
-
-    def times(self, gid: str) -> list[str]:
-        with self.lock:
-            rows = list(self.data.get(gid, []))
-        return [pet.iso(datetime.fromtimestamp(r[1], timezone.utc)) for r in rows]
-
-    def _write(self) -> None:
-        if not self.path:
-            return
-        try:
-            tmp = self.path.with_suffix(".tmp")
-            tmp.write_text(json.dumps(self.data))
-            tmp.replace(self.path)
-        except OSError:
-            pass  # disque plein : le bonus de la partie est perdu, rien d'autre
+# Parties de Party, titres ajoutés, Méninges : notés par le serveur pour les réactions de Zicou (app/pet_reactions.py).
+PartyLog = pet_reactions.ActivityLog
 
 
 def _now() -> datetime:
@@ -167,7 +127,7 @@ def _now() -> datetime:
 SRC_ALIASES = {"notif": "notification", "notification": "notification", "tab": "tab", "widget": "widget", "link": "link"}
 
 REWARD_TEXT = {"brain": "🧠 Bonus Méninges : il est tout fier de toi", "party": "🎮 Bonus partie de Party : quelle ambiance !",
-               "soiree": "🪩 Bonus soirée : il a dansé toute la nuit"}
+               "music": "🎶 Bonus musique : il a dansé sur ton son"}
 EVENT_TEXT = {"hatched": "🐣 L'œuf a éclos !", "died": "🕊️ Il s'est envolé…", "egg": "🥚 Un nouvel œuf est arrivé"}
 STAGE_TEXT = {"teen": "ado", "adult": "adulte"}
 VARIANT_TEXT = {"star": " étoile ✨", "classic": "", "wild": " rebelle 😜"}
@@ -183,13 +143,32 @@ def news_lines(name: str, events: list[dict], got: list[dict], applied: list[dic
             lines.append({"kind": "evolved", "text": f"🎉 {name} est devenu {STAGE_TEXT[e['stage']]}{VARIANT_TEXT[e['variant']]} !"})
         elif e["kind"] in EVENT_TEXT:
             lines.append({"kind": e["kind"], "text": EVENT_TEXT[e["kind"]]})
-    lines += [{"kind": "reward", "text": REWARD_TEXT[g["source"]]} for g in got]
+    lines += [{"kind": "reward", "text": f"{REWARD_TEXT[g['source']]} (+{g['coins']} 🪙)" if g.get("coins")
+               else REWARD_TEXT[g["source"]]} for g in got if g["kind"] == "reward"]
+    lines += [{"kind": "event_coins", "text": f"🪩 Pièces de « {g['event'] or 'ta soirée'} » : +{g['coins']} 🪙"}
+              for g in got if g["kind"] == "event_coins"]
     for a in applied:
         _, what, emoji = pet.GIFTS[a["kind"]]
-        lines.append({"kind": "gift", "text": f"{emoji} {a['from']} lui a offert {what}"})
+        later = " (il la savourera après le festin en cours)" if a.get("feast") == "later" else ""
+        lines.append({"kind": "gift", "text": f"{emoji} {a['from']} lui a offert {what}{later}"})
     labels = {o[0]: (o[1], o[2]) for o in pet.OUTFITS}
     lines += [{"kind": "unlocked", "text": f"{labels[u][1]} Nouvelle tenue : {labels[u][0]}"} for u in unlocked]
     return lines
+
+
+def xp_gain(life: dict, owner: dict, kind: str, now: datetime) -> list[dict]:
+    """XP d'un geste (app/pet_xp.py), doublée par une Pizza dorée ; le badge de niveau suit dans life (vu des amis).
+    Rien pour un œuf ou un Zicou envolé. Renvoie la nouvelle à montrer (niveau gagné) ou rien."""
+    if life.get("stage") in ("egg", "dead"):
+        return []
+    got = pet_xp.gain(owner, kind, now, pet_feast.xp_factor(life, now))
+    if not got:
+        return []
+    life["lvl"] = pet_xp.badge(owner)
+    if not got["level_up"]:
+        return []
+    star = f" ★{got['stars']}" if got["stars"] else ""
+    return [{"kind": "level", "text": f"⭐ {life['name']} passe au niveau {got['level']}{star} !"}]
 
 
 def loop_lines(name: str, events: list[dict]) -> list[dict]:
@@ -306,7 +285,7 @@ class PetStore:
         except AccountError as e:
             raise PetUnavailable(str(e)) from e
         if r.status_code >= 500:
-            raise PetUnavailable("Ton compagnon ne répond pas. Réessaie dans un instant.")
+            raise PetUnavailable("Zicou ne répond pas. Réessaie dans un instant.")
         if r.status_code == 401:
             raise AccountError("Ta connexion a expiré. Reconnecte-toi.")
         if r.status_code not in (200, 204):
@@ -334,7 +313,7 @@ class PetStore:
         """Charge et fait vivre jusqu'à maintenant (récompenses, cadeaux, boucle du jour), sans encore enregistrer.
         `src` (tab, notification, widget, link) : une ouverture, comptée par la base (pet_opens) ; None = pas une
         ouverture (action, visite d'ami)."""
-        data = self._rpc(token, "pet_load", {"p_src": src}, "Ton compagnon n'a pas pu être chargé.")
+        data = self._rpc(token, "pet_load", {"p_src": src}, "Ton Zicou n'a pas pu être chargé.")
         data = data if isinstance(data, dict) else {}
         now = self.clock()
         saved = data.get("pet") if isinstance(data.get("pet"), dict) else None
@@ -349,19 +328,35 @@ class PetStore:
         gid = self.accounts.gid(uid)
         life, owner, loop_events = pet_loop.visit(life, owner, now, self._rng(str(uid), now, "day"), src=src, seed=str(uid))
         brain_before = owner["stats"].get("brain", 0)
-        life, owner, got = pet.rewards(life, owner, now, data.get("brain") or [], self.party.times(gid), data.get("events") or [])
+        life, owner, got = pet.rewards(life, owner, now, data.get("brain") or [], self.party.times(gid, "party"),
+                                       self.party.times(gid, "music"))
+        # Pièces d'un événement (droit « zicou.event_coins ») : versées par la base aux présents, rangées ici une fois.
+        grants = [g for g in data.get("coins") or [] if isinstance(g, dict)]
+        life, owner, coins_got, coins_done = pet.event_coins(life, owner, now, grants)
+        got += coins_got
+        # Réactions de Zicou (app/pet_reactions.py) : ce compte a-t-il un Zicou (pas encore enregistré = pas adopté) ?
+        self.party.mark_pet(gid, life["name"] if saved else None, life["stage"] not in ("egg", "dead"))
         loop_events += self._brain_played(owner, owner["stats"].get("brain", 0) - brain_before, now)
+        xp_news = []
+        for g in got:   # XP de jeu (Méninges, parties de Party sans alcool) ; jamais pour un titre ajouté
+            if g["kind"] == "reward" and g["source"] in ("brain", "party"):
+                xp_news += xp_gain(life, owner, "game", now)
         received = [g for g in data.get("gifts") or [] if isinstance(g, dict)]
         life, owner, applied = pet.gifts(life, owner, now, received)
         unlocked = pet.unlock(owner)
         journal += [{"kind": e["kind"], "detail": {k: v for k, v in e.items() if k != "kind"}} for e in events]
-        journal += [{"kind": "reward", "detail": {"source": g["source"]}} for g in got]
+        journal += [{"kind": "reward", "detail": {"source": g["source"]}} for g in got if g["kind"] == "reward"]
+        journal += [{"kind": "event_coins", "detail": {"coins": g["coins"]}} for g in got if g["kind"] == "event_coins"]
         journal += [{"kind": "gift_received", "detail": {"kind": a["kind"]}} for a in applied]
         s = {"now": now, "life": life, "owner": owner, "version": version, "journal": journal, "seed": str(uid),
              "gift_ids": [str(g.get("id")) for g in received if g.get("id")],
-             "changed": not saved or bool(events or got or applied or unlocked or loop_events),
-             "news": news_lines(life["name"], events, got, applied, unlocked) + loop_lines(life["name"], loop_events)}
+             "coins_applied": coins_done,
+             "changed": not saved or bool(events or got or applied or unlocked or loop_events or coins_done),
+             "news": news_lines(life["name"], events, got, applied, unlocked) + loop_lines(life["name"], loop_events)
+             + xp_news}
         pet_coll_store.enrich(self, token, s, data, events)   # collection : shiny, cadeaux d'événement, certificats
+        pet_welcome.apply(s, events)   # toute première éclosion : cadeau de bienvenue garanti (app/pet_welcome.py)
+        s["fresh"] = not saved
         return s
 
     @staticmethod
@@ -380,12 +375,15 @@ class PetStore:
             "p_life": s["life"], "p_owner": s["owner"], "p_version": s["version"], "p_hungry_at": proj["hungry_at"],
             "p_dies_at": proj["dies_at"], "p_cared": cared, "p_gifts": s["gift_ids"], "p_journal": s["journal"][-12:],
             "p_nudge": nudge,
-        }, "Ton compagnon n'a pas pu être enregistré. Réessaie dans un instant.")
+        }, "Ton Zicou n'a pas pu être enregistré. Réessaie dans un instant.")
 
     def _answer(self, s: dict, effect: dict | None = None) -> dict:
+        today = pet.day_of(s["now"])
         shown = pet.view(s["life"], s["owner"], s["now"]) | {
             "daily": pet_loop.view(s["life"], s["owner"], s["now"], pet_coll_store.ctx(s)),
-            "coll": pet_coll_store.summary(s)}
+            "coll": pet_coll_store.summary(s),
+            "xp": pet_xp.view(s["owner"], s["now"], pet_feast.xp_factor(s["life"], s["now"])),
+            "feast": pet_feast.view(s["life"], s["owner"], s["now"], today)}
         out = {"pet": shown, "news": s["news"], "effect": effect}
         if s.get("want_full"):
             out["collection"] = pet_coll_store.full(self, s)
@@ -398,6 +396,11 @@ class PetStore:
                 self._rpc(token, "pet_awards_claim", {"p_ids": s["awards_applied"]}, "Cadeaux pas encore rangés.")
             except pet.PetError:
                 pass   # ils restent dans owner["coll"]["awards"] : jamais rangés deux fois, marqués au prochain passage
+        if s.get("coins_applied"):
+            try:
+                self._rpc(token, "pet_event_coins_claim", {"p_ids": s["coins_applied"]}, "Pièces pas encore rangées.")
+            except pet.PetError:
+                pass   # gardées dans owner["claimed"]["event_coins"] : jamais versées deux fois, marquées plus tard
 
     def _retry(self, token: str, work, src: str | None = None, cared: bool = False):
         """Charge, applique `work(s)` (qui renvoie l'effet, ou None s'il n'y a rien à enregistrer), enregistre ; un
@@ -410,15 +413,27 @@ class PetStore:
             try:
                 self._save(token, s, cared=cared)
                 self._after_save(token, s)
+                self.party.mark_pet(self.accounts.gid(s["seed"]), s["life"]["name"],
+                                    s["life"]["stage"] not in ("egg", "dead"))   # adopté (œuf) : plus d'offre d'adoption
                 return self._answer(s, effect)
             except PetConflict:
                 if attempt == SAVE_ATTEMPTS - 1:
                     raise
-        raise PetConflict("Ton compagnon a changé sur un autre appareil.")
+        raise PetConflict("Ton Zicou a changé sur un autre appareil.")
 
     def me(self, token: str, src: str | None = "tab") -> dict:
         """Mon compagnon. `src` : d'où vient l'ouverture (mesure) ; « none » : simple relecture, pas comptée."""
         return self._retry(token, lambda s: None, src=None if src == "none" else SRC_ALIASES.get(src or "", "tab"))
+
+    def status(self, token: str) -> dict:
+        """Pastille de l'en-tête et de l'onglet Zicou : humeur, besoin, éclosion. Ne pond jamais d'œuf, n'enregistre
+        rien et ne compte pas d'ouverture (relu toutes les quelques minutes) ; sans compagnon : {"adopted": False}."""
+        s = self._live(token, None)
+        if s["fresh"]:
+            return {"adopted": False}
+        view = pet.view(s["life"], s["owner"], s["now"])
+        daily = pet_loop.view(s["life"], s["owner"], s["now"], pet_coll_store.ctx(s))
+        return pet_welcome.status(s, view, daily)
 
     def collection(self, token: str) -> dict:
         """Écran Collection (Zicoudex, boutique, atelier, vitrine, certificats) : simple relecture, pas une ouverture."""
@@ -449,8 +464,12 @@ class PetStore:
                 effect["found"] = pet_coll_store.settle_found(self, token, s, action, effect.get("found"))
                 pet_coll_store.finish(s)
                 more = effect["loop"]
+                if action == "treat":
+                    s["news"] += xp_gain(life, owner, "care", s["now"])
             else:
                 life, owner, effect = pet.act(s["life"], s["owner"], action, s["now"], score=played, name=name, outfit=outfit)
+                if action in pet.CARE_ACTIONS:
+                    s["news"] += xp_gain(life, owner, "care", s["now"])
                 streak = effect.get("streak", [])
                 more = pet_loop.after_care(owner, action, played, s["now"]) + pet_loop.streak_rewards(owner, streak) + streak
                 if action == "wake":
@@ -477,6 +496,8 @@ class PetStore:
             if what == "visit" and loop["day"] == pet.day_of(s["now"]) and loop["c"].get("visit"):
                 return None
             events = pet_loop.note(s["owner"], what, s["now"])
+            if s["life"]["stage"] not in ("egg", "dead"):
+                s["news"] += xp_gain(s["life"], s["owner"], "social", s["now"])
             if what == "gift" and s["life"]["stage"] not in ("egg", "dead"):
                 # Un cadeau à un ami est un vrai passage : la journée compte pour la série (playtest « Léa » : venue le
                 # vendredi, cadeau offert, coffre ouvert… et 🔥 0 le dimanche). Pas la simple visite (un toucher).
@@ -503,7 +524,7 @@ class PetStore:
                 "avatar_url": row.get("avatar_url") or None, "gifted": bool(row.get("gifted")), "pet": shown}
 
     def friends(self, token: str) -> dict:
-        rows = self._rpc(token, "pet_friends", {}, "Les compagnons de tes amis n'ont pas pu être chargés.")
+        rows = self._rpc(token, "pet_friends", {}, "Les Zicou de tes amis n'ont pas pu être chargés.")
         now = self.clock()
         cards = [c for c in (self._card(r, now) for r in rows or [] if isinstance(r, dict)) if c]
         if cards:
@@ -511,15 +532,63 @@ class PetStore:
         return {"friends": cards}
 
     def friend(self, token: str, friend_id: str) -> dict:
-        row = self._rpc(token, "pet_friend", {"p_friend": friend_id}, "Ce compagnon n'a pas pu être chargé.")
+        row = self._rpc(token, "pet_friend", {"p_friend": friend_id}, "Ce Zicou n'a pas pu être chargé.")
         card = self._card(row, self.clock()) if isinstance(row, dict) else None
         if not card:
-            raise pet.PetError("Ce compagnon n'a pas pu être chargé.")
+            raise pet.PetError("Ce Zicou n'a pas pu être chargé.")
         return card
+
+    def profile(self, token: str, member: str) -> dict | None:
+        """Fiche profil d'un membre : l'apparence publique de son Zicou (app/pet_profile.py). None : membre introuvable,
+        inactif ou bloqué (dans un sens ou l'autre) — la route répond alors 404, sans dire lequel. Rien n'est écrit."""
+        row = self._rpc(token, "pet_profile", {"p_member": member}, "Son Zicou n'a pas pu être chargé.")
+        return pet_profile.card(row, member, self.clock()) if isinstance(row, dict) else None
 
     def gift(self, token: str, friend_id: str, kind: str) -> dict:
         if kind not in pet.GIFTS:
             raise pet.PetError("Cadeau inconnu.")
+        if kind in pet_feast.GIFT_KINDS:
+            return self._gift_feast(token, friend_id, kind)
         self._rpc(token, "pet_gift", {"p_friend": friend_id, "p_kind": kind}, "Le cadeau n'a pas pu être offert.")
+        self._note(token, "gift")
+        return self.friend(token, friend_id)
+
+    def _gift_feast(self, token: str, friend_id: str, kind: str) -> dict:
+        """Offrir un festin au Zicou d'un ami (économie du 4.11.2026, usage n° 2) : payé en pièces par CELUI QUI OFFRE,
+        l'ami reçoit un EFFET (jamais des pièces : aucun transfert de monnaie). Même règle que les cadeaux gratuits :
+        un cadeau par ami et par jour (la base le garantit). Pièces débitées d'abord ; si la base refuse le cadeau,
+        elles sont rendues."""
+        feast = pet_feast.FEASTS[pet_feast.GIFT_KINDS[kind]]
+        card = self.friend(token, friend_id)
+        if card.get("gifted"):
+            raise pet.PetError("Tu lui as déjà fait un cadeau aujourd'hui. Reviens demain 💜")
+        if card["pet"].get("stage") in ("egg", "dead"):
+            raise pet.PetError("Son Zicou ne peut pas recevoir de cadeau pour l'instant.")
+
+        def pay(s: dict) -> dict:
+            if s["life"]["stage"] in ("egg", "dead"):
+                raise pet.PetError("Les cadeaux s'offrent de Zicou à Zicou : il faut que le tien soit là 🥚")
+            try:
+                pet_collection._spend(s["owner"], feast["price"])
+            except pet_collection.CollectionError as e:
+                raise pet.PetError(str(e)) from None
+            s["journal"] += [{"kind": "feast_gift", "detail": {"kind": kind, "price": feast["price"]}}]
+            return {"paid": feast["price"]}
+
+        def refund(s: dict) -> dict:
+            s["owner"].setdefault("loop", {})["coins"] = int(s["owner"]["loop"].get("coins") or 0) + feast["price"]
+            s["journal"] += [{"kind": "feast_refund", "detail": {"kind": kind, "price": feast["price"]}}]
+            s["news"].append({"kind": "refund", "text": f"🪙 {feast['price']} pièces rendues : le cadeau n'est pas parti"})
+            return {"refund": feast["price"]}
+
+        self._retry(token, pay)
+        try:
+            self._rpc(token, "pet_gift", {"p_friend": friend_id, "p_kind": kind}, "Le cadeau n'a pas pu être offert.")
+        except pet.PetError:
+            try:
+                self._retry(token, refund)
+            except pet.PetError:
+                log.error("Zicou : festin offert refusé ET pièces pas rendues (compte %s)", self.accounts._uid(token))
+            raise
         self._note(token, "gift")
         return self.friend(token, friend_id)

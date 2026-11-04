@@ -91,6 +91,8 @@ const newBadge = (type) => NEW_GAMES.includes(type) ? `<span class="g-new" aria-
 // Catégories de l'écran Jeux et de la salle de jeux : [id, titre, jeux dans l'ordre d'affichage].
 // Tout nouveau jeu doit y figurer (tests/test_game_categories.py le vérifie).
 // Méninges en tête : la première chose qu'on voit dans la liste (demande de l'admin, 03.11.2026).
+// Compagnon (Zicou) en bêta : éteint hors site de test (<html data-compagnon="off">), sa carte n'existe pas.
+const PET_ON = document.documentElement.dataset.compagnon !== "off";
 const GAME_CATEGORIES = [
   ["brain", "✨ Chaque jour", ["pet", "brain"]],
   ["drinks", "🍻 Alcool", ["beerpong", "whoof", "never", "roulette", "biskit", "casino", "purity"]],
@@ -198,7 +200,7 @@ const GAME_RULES = {
       <li><b>Dedans ou dehors</b> : entre tes 2 premières cartes, ou à l'extérieur ?</li>
       <li><b>Quel symbole</b> : ♠ ♥ ♦ ♣ ?</li>
     </ol>
-    <p><b>Poteau !</b> Si tu reçois une carte de même valeur qu'une carte que tu as déjà (au bateau aussi) : en mode soft, <b>tout le monde boit 1 gorgée</b> ; en mode hard, <b>celui qui l'a tirée boit cul sec</b>.</p>
+    <p><b>Poteau !</b> Si tu reçois une carte de même valeur qu'une carte que tu as déjà (au bateau aussi) : en mode soft, <b>tout le monde boit 1 gorgée</b> ; en mode hard, <b>celui qui l'a tirée boit un shot (ou un verre d'eau)</b>.</p>
     <p>Raté : tu bois ; réussi : tu distribues. En mode <b>soft</b>, 1 gorgée à chaque carte ; en mode <b>hard</b>, 1, 2, 3 puis 4 gorgées selon le tour. Une égalité (même valeur, ou carte « sur le poteau ») compte comme ratée. <b>L'As est la carte la plus forte.</b> Ensuite, toutes les mains se retournent : <b>plus personne ne voit ses cartes</b>.</p>
     <h3>2. La pyramide</h3>
     <ul>
@@ -206,7 +208,7 @@ const GAME_RULES = {
       <li>Si tu penses avoir la même valeur, touche <b>« Je donne N gorgées »</b> et distribue-les à voix haute (tu peux les partager). <b>Le bluff est permis !</b></li>
       <li>L'animateur tranche : <b>bu</b>, ou quelqu'un crie <b>« menteur ! »</b>. L'accusé retourne alors une de ses cartes : tout le monde la voit 3 secondes, puis elle se recache. « Il dit la vérité » ou « Bouuuh, menteur ! » : à vous de vous arranger pour les gorgées.</li>
       <li>Oublié tes cartes ? Demande à <b>en revoir</b> 1 à 4 (2 gorgées par carte) : l'animateur accepte et tu les vois 5 secondes, en privé.</li>
-      <li><b>Le sommet, c'est cul sec</b>, sans bluff : annonce si tu as la carte. Si tu l'as, tu le sais en privé et tu distribues ton cul sec. Sinon, tout le monde le sait… et tu passes par la roulette du bateau.</li>
+      <li><b>Le sommet, c'est un shot (ou un verre d'eau)</b>, sans bluff : annonce si tu as la carte. Si tu l'as, tu le sais en privé et tu le distribues. Sinon, tout le monde le sait… et tu passes par la roulette du bateau.</li>
     </ul>
     <h3>3. Le test de mémoire</h3>
     <p>Chacun tape les valeurs de ses 4 cartes, de gauche à droite. L'app retourne les vraies cartes et compte les erreurs.</p>
@@ -284,7 +286,7 @@ const GAME_RULES = {
     </ol>
     <h3>Des idées</h3>
     <ul>
-      <li>Qui boit (ou qui boit cul sec).</li>
+      <li>Qui boit (ou qui boit un shot, ou un verre d'eau).</li>
       <li>Qui paie la prochaine tournée.</li>
       <li>Qui fait la vaisselle ou va chercher les pizzas.</li>
       <li>Qui choisit la prochaine musique, qui commence un jeu, qui relève un défi.</li>
@@ -456,16 +458,16 @@ document.getElementById("gamesRoot").innerHTML = `
         <button class="g-go" data-create="purity">Lancer le test</button>
       </div>
 
-      <div class="gcard g-pt">
+      ${PET_ON ? `<div class="gcard g-pt">
         ${newBadge("pet")}
         <div class="g-head">
           <div class="g-icon" aria-hidden="true"><span class="g-pt-ico">${window.PetSkin ? window.PetSkin.render({ stage: "adult", variant: "star", emotion: "party", outfit: "noeud" }) : "🥚"}</span></div>
-          <div class="g-meta"><div class="g-title" data-pet-name>Compagnon</div><div class="g-tag">Ton petit compagnon à faire grandir, jour après jour.</div></div>
+          <div class="g-meta"><div class="g-title" data-pet-name>Zicou</div><div class="g-tag">Ton petit Zicou à faire grandir, jour après jour.</div></div>
         </div>
-        <p class="g-desc">Nourris-le, joue avec lui, éteins-lui la lumière : d'œuf à adulte en quelques jours, il devient « étoile » si tu en prends bien soin. Rends visite aux compagnons de tes amis.</p>
+        <p class="g-desc">Nourris-le, joue avec lui, éteins-lui la lumière : d'œuf à adulte en quelques jours, il devient « étoile » si tu en prends bien soin. Rends visite aux Zicou de tes amis.</p>
         <div class="g-chips"><span>Solo</span><span>🔒 Compte connecté</span><span>🔥 Chaque jour</span></div>
         <button type="button" class="g-go" data-pet-open="pet">M'en occuper</button>
-      </div>
+      </div>` : ""}
 
       <div class="gcard g-br">
         ${newBadge("brain")}
@@ -658,10 +660,10 @@ document.getElementById("gamesRoot").innerHTML = `
       <div class="gcard g-py">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.pyramid}</div>
-          <div class="g-meta"><div class="g-title">Pyramide</div><div class="g-tag">Mémoire, bluff… et cul sec.</div></div>
+          <div class="g-meta"><div class="g-title">Pyramide</div><div class="g-tag">Mémoire, bluff… et un shot au sommet.</div></div>
           ${helpBtn("pyramid")}
         </div>
-        <p class="g-desc">Rouge ou noir, plus ou moins, dedans ou dehors, symbole : 4 cartes chacun, puis on les retourne face cachée. La pyramide se dévoile, on donne des gorgées (bluff permis !), cul sec au sommet… et celui qui a la pire mémoire fait le bateau.</p>
+        <p class="g-desc">Rouge ou noir, plus ou moins, dedans ou dehors, symbole : 4 cartes chacun, puis on les retourne face cachée. La pyramide se dévoile, on donne des gorgées (bluff permis !), un shot (ou un verre d'eau) au sommet… et celui qui a la pire mémoire fait le bateau.</p>
         <div class="g-chips"><span>2+ joueurs, même table</span><span>Plein écran</span><span>Bluff</span></div>
         <div class="g-label">Gorgées à la distribution</div>
         <div class="g-modes" data-opt-group="pmode">
@@ -669,7 +671,7 @@ document.getElementById("gamesRoot").innerHTML = `
         </div>
         <div class="g-label">Poteau (deux fois la même carte)</div>
         <div class="g-modes" data-opt-group="poteau">
-          <button type="button" data-val="soft" class="on">😇 Tout le monde boit 1</button><button type="button" data-val="hard">🥃 Le tireur boit cul sec</button>
+          <button type="button" data-val="soft" class="on">😇 Tout le monde boit 1</button><button type="button" data-val="hard">🥃 Le tireur boit un shot (ou de l'eau)</button>
         </div>
         <div class="g-label">Gorgées par étage de la pyramide</div>
         <div class="g-modes" data-opt-group="floorsips">
@@ -812,7 +814,7 @@ document.addEventListener("click", (ev) => {
 // Compagnon : même principe que Méninges pour une page qui ne charge pas pet/pet.js (/admin, gardé en secours).
 document.addEventListener("click", (ev) => {
   const btn = ev.target.closest("[data-pet-open]");
-  if (!btn || window.Pet || document.getElementById("petJs")) return;
+  if (!btn || !PET_ON || window.Pet || document.getElementById("petJs")) return;
   const css = document.createElement("link");
   css.rel = "stylesheet";
   css.href = "/static/pet/pet.css";
@@ -822,7 +824,7 @@ document.addEventListener("click", (ev) => {
   js.id = "petJs";
   js.src = "/static/pet/pet.js";
   js.onload = () => window.Pet?.open(btn);
-  js.onerror = () => { js.remove(); if (typeof toast === "function") toast("Le Compagnon n'a pas pu se charger, réessaie"); };
+  js.onerror = () => { js.remove(); if (typeof toast === "function") toast("Zicou n'a pas pu se charger, réessaie"); };
   skinJs.onload = () => document.head.append(js);
   document.head.append(css, skinJs);
 });
@@ -1095,6 +1097,8 @@ function renderGame(g) {
   if (g?.type !== "heist" || !pyrFull || g.kicked || g.excluded) Heist.stop();
   if (g?.type !== "island" || !pyrFull || g.kicked || g.excluded) Island.stop();
   game = g;
+  window.ZicouHome?.gameSeen?.(g);   // invité sans compte : « Adopte ton Zicou » une fois, après sa 1re partie
+  window.GuestGate?.gameSeen(g);     // invité sans compte : « Garde tes scores », puis compte requis (guest-gate.js)
   GameAudio.observe(g, g ? myTurnKey(g) : "");
   $("gHome").classList.toggle("hidden", !!g);
   $("gamePlay").classList.toggle("hidden", !g);
@@ -1516,7 +1520,7 @@ function pyCard(c, size = "", extra = "") {
   if (!c || c === "??") return `<span class="py-card back ${size}" ${extra}><i></i></span>`;
   return `<span class="py-card ${"HD".includes(c[1]) ? "red" : ""} ${size}" ${extra}><b>${c[0] === "T" ? "10" : c[0]}</b><i>${SUITS[c[1]]}</i></span>`;
 }
-// Grande annonce animée, la même sur tous les téléphones (réponse, menteur, cul sec…).
+// Grande annonce animée, la même sur tous les téléphones (réponse, menteur, sommet…).
 function pyrFlash(kind, title, sub = "", card = "", ms = 2300) {
   GameAudio.play(["bad", "liar"].includes(kind) ? "lose" : kind === "summit" ? "win" : "reveal");
   document.querySelector(".py-flash")?.remove();
@@ -1545,7 +1549,7 @@ function pyrEvents(g) {
     const l = v.last, mine = l.pid === g.me?.pid;
     pyrFlash(l.ok ? "good" : "bad", l.ok ? `${mine ? "Bien joué" : esc(l.name)} !` : `Raté${mine ? "" : ` pour ${esc(l.name)}`} !`,
       `${esc(PYR_ANS[l.value])} · ${l.ok ? `distribue ${sipWord(l.sips)}` : `boit ${sipWord(l.sips)}`}`, l.card);
-    if (l.poteau) setTimeout(() => pyrFlash("summit", "POTEAU !", v.poteau_hard ? `${esc(l.name)} a deux fois la même carte · cul sec ! 🥃`
+    if (l.poteau) setTimeout(() => pyrFlash("summit", "POTEAU !", v.poteau_hard ? `${esc(l.name)} a deux fois la même carte · un shot (ou un verre d'eau) ! 🥃`
       : `${esc(l.name)} a deux fois la même carte · tout le monde boit 1 gorgée 🍻`, l.card), 2500);
   }
   const lateName = v.late?.name || "";
@@ -1553,7 +1557,7 @@ function pyrEvents(g) {
   pyrSeen.lateName = lateName;
   if (v.flipped > pyrSeen.flip) {
     pyrSeen.flip = v.flipped;
-    if (v.is_top) pyrFlash("summit", "CUL SEC !", "Dernière carte : pas de bluff. Tu l'as ? Annonce-le.", v.current);
+    if (v.is_top) pyrFlash("summit", "LE SOMMET !", "Dernière carte : un shot (ou un verre d'eau), pas de bluff. Tu l'as ? Annonce-le.", v.current);
   }
   if (v.reveal && v.reveal.n > pyrSeen.reveal) {
     pyrSeen.reveal = v.reveal.n;
@@ -1568,7 +1572,7 @@ function pyrEvents(g) {
   }
   if (v.top_me != null && pyrSeen.top !== v.top_me) {
     pyrSeen.top = v.top_me;
-    if (v.top_me) pyrFlash("good", "Tu as la carte !", "Distribue ton cul sec… en privé 🤫");
+    if (v.top_me) pyrFlash("good", "Tu as la carte !", "Distribue ton shot (ou ton verre d'eau)… en privé 🤫");
   }
   const peek = v.peeks.find((r) => r.mine && r.status === "ok" && r.age < 5);
   if (peek && peek.id !== pyrSeen.peek) {
@@ -1641,7 +1645,7 @@ function pyrHtml(g) {
     const worst = v.candidates;
     body = `<div class="py-hero"><div class="py-hero-k">🧠 Test de mémoire</div><div class="py-hero-t">Les vraies cartes</div></div>
       ${pyrSeats(g, { memory: true })}
-      <div class="py-cands"><div class="py-turn-k">Candidats au bateau</div>${worst.map((c) => `<span class="pill">${esc(c.name)} · ${c.errors} err.${c.liar ? " · menteur au cul sec" : ""}</span>`).join("")}</div>
+      <div class="py-cands"><div class="py-turn-k">Candidats au bateau</div>${worst.map((c) => `<span class="pill">${esc(c.name)} · ${c.errors} err.${c.liar ? " · menteur au sommet" : ""}</span>`).join("")}</div>
       ${host ? `<button class="py-main" data-gact="pboat">🚢 Qui fait le bateau ?${worst.length > 1 ? " (roulette)" : ""}</button>` : ""}`;
   } else if (g.phase === "boatpick") {
     const sp = v.spin, shown = !sp || pyrWheelShown === sp.id;
@@ -1705,7 +1709,7 @@ function pyrCurrent(g) {
   let mine = "";
   if (me && mySeat) {
     if (v.is_top) mine = v.top_me == null ? `<button class="py-main py-cul" data-gact="ptop">🥃 J'ai cette carte !</button>`
-      : v.top_me ? `<div class="py-ok">Tu as la carte : distribue ton cul sec en privé 🤫</div>` : `<div class="py-bad">Raté… tu iras à la roulette du bateau</div>`;
+      : v.top_me ? `<div class="py-ok">Tu as la carte : distribue ton shot (ou ton verre d'eau) en privé 🤫</div>` : `<div class="py-bad">Raté… tu iras à la roulette du bateau</div>`;
     else if (!v.claims.some((c) => c.mine)) mine = `<button class="py-main py-give" data-gact="pclaim">🍻 Je donne ${sipWord(v.floor_sips)}</button>`;
   }
   const manualGive = host && !v.is_top ? v.seats.filter((s) => s.manual && !v.claims.some((c) => c.pid === s.pid))
@@ -1713,7 +1717,7 @@ function pyrCurrent(g) {
   return `<div class="py-panel ${v.is_top ? "top" : ""}" data-key="now">
     <div class="py-now">${pyCard(v.current, "lg", 'data-flip="1"')}
       <div><div class="py-turn-k">${v.is_top ? "Le sommet" : `Étage ${v.floor}`}</div>
-        <div class="py-panel-t">${v.is_top ? "CUL SEC" : `Un ${esc(label)} !`}</div>
+        <div class="py-panel-t">${v.is_top ? "LE SOMMET" : `Un ${esc(label)} !`}</div>
         <div class="artist">${v.is_top ? "Pas de bluff : seul celui qui l'a vraiment distribue" : `${sipWord(v.floor_sips)} à donner · bluff permis`}</div></div></div>
     ${mine}${manualGive ? `<div class="py-manual">${manualGive}</div>` : ""}
     ${claims ? `<div class="py-claims">${claims}</div>` : ""}${pick}
@@ -1762,7 +1766,7 @@ function pyrBoat(g) {
     pyrSeen.boat = b.last.n;
     if (!first) {
       pyrFlash(b.last.ok ? "good" : "bad", b.last.ok ? "Bien vu !" : "Raté ! Retour au début", b.last.ok ? esc(PYR_ANS[b.last.value]) : "1 gorgée", b.last.card);
-      if (b.last.poteau) setTimeout(() => pyrFlash("summit", "POTEAU !", v.poteau_hard ? `Deux fois la même carte · ${esc(v.boat?.name)} boit cul sec ! 🥃` : "Deux fois la même carte · tout le monde boit 1 gorgée 🍻", b.last.card), 2500);
+      if (b.last.poteau) setTimeout(() => pyrFlash("summit", "POTEAU !", v.poteau_hard ? `Deux fois la même carte · ${esc(v.boat?.name)} boit un shot (ou un verre d'eau) ! 🥃` : "Deux fois la même carte · tout le monde boit 1 gorgée 🍻", b.last.card), 2500);
     }
   }
   const ref = b.step === 2 ? b.cards.slice(0, 1) : b.step === 3 ? b.cards.slice(0, 2) : [];
@@ -2912,7 +2916,7 @@ async function gameAction(action, extra = {}, opts = {}) {
     if (actionCode !== myGame) return false;
     if (e.status === 404 && e.detail?.ended) showGameEnded(e.detail.ended);
     else if (opts.quiet && e.status === 409) refreshGame();  // arrivé trop tard : on se recale sans message
-    else toast(e.message, "err");
+    else if (!window.GuestGate?.refused(e, actionCode)) toast(e.message, "err");
     if (e.status === 404) { setGame(""); renderGame(null); }
     return false;
   } finally {
@@ -3074,7 +3078,7 @@ document.addEventListener("click", async (ev) => {
     const g = await gapi("/api/games", { guest_id: guestId, name: guestName, ...payload });
     setGame(g.code); renderGame(g);
     toast(g.type === "room" ? `Salle ouverte : code ${g.code}` : `Partie créée : code ${g.code}`, "ok");
-  } catch (e) { toast(e.message, "err"); }
+  } catch (e) { if (!window.GuestGate?.refused(e)) toast(e.message, "err"); }
   b.disabled = false;
 });
 async function joinByCode() {
@@ -3094,7 +3098,7 @@ function rulesFor(type, g) {
   if (type === "blackjack") facts.push(sips ? `Mode <b>gorgées</b> · mise de 1 à <b>${sipWord(sips)}</b>` : "Mode <b>jetons</b> · 100 jetons au départ");
   if (type === "pyramid") facts.push(`${g.pyr?.floors || g.options?.floors || 5} étages`,
     g.pyr?.hard ? "Distribution <b>hard</b> : 1, 2, 3, 4 gorgées" : "Distribution <b>soft</b> : 1 gorgée par carte",
-    g.pyr?.poteau_hard ? "Poteau <b>hard</b> : cul sec pour le tireur" : "Poteau <b>soft</b> : tout le monde boit 1",
+    g.pyr?.poteau_hard ? "Poteau <b>hard</b> : un shot (ou un verre d'eau) pour le tireur" : "Poteau <b>soft</b> : tout le monde boit 1",
     g.pyr?.double ? "Étages : <b>2, 4, 6…</b> gorgées" : "Étages : <b>1, 2, 3…</b> gorgées", g.pyr?.boat_on ? "<b>Avec</b> le bateau" : "<b>Sans</b> bateau");
   if (type === "biskit") facts.push(g.bk?.alcohol ? `Avec alcool · gorgées <b>×${g.bk.mult}</b>` : "<b>Sans alcool</b> (points de gage)",
     g.bk?.biskit ? `Le Biskit : <b>${esc(g.bk.biskit)}</b>` : "", g.bk?.key ? `Dernière carte : <b>${esc(BK_RULES[g.bk.key][1])}</b> (surlignée plus bas)` : "");

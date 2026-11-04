@@ -13,15 +13,25 @@ struct NativeTabBar: UIViewRepresentable {
     private static let symbols = [
         "music": "music.note",
         "games": "gamecontroller",
+        // Zicou (onglet du 4.11) : une boule à facettes ; pleine quand l'onglet est choisi.
+        "pet": "circle.hexagongrid",
         "events": "calendar",
         "chats": "bubble.left.and.bubble.right",
         "feedback": "bubble.left",
         "account": "person.crop.circle",
     ]
+    /// Symbole de l'onglet choisi, quand il diffère (sinon le même, teinté).
+    private static let selectedSymbols = ["pet": "circle.hexagongrid.fill"]
     private static let fallbackSymbol = "circle"
     private static let soonBadge = "Bientôt"
     /// Délai laissé à la page pour confirmer l'onglet touché avant de revenir à l'onglet affiché.
     private static let confirmDelay: TimeInterval = 0.4
+
+    static func item(for tab: TabBarState.Tab, tag: Int) -> UITabBarItem {
+        let item = UITabBarItem(title: tab.label, image: UIImage(systemName: symbols[tab.id] ?? fallbackSymbol), tag: tag)
+        if let selected = selectedSymbols[tab.id] { item.selectedImage = UIImage(systemName: selected) }
+        return item
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(select: select)
@@ -41,9 +51,7 @@ struct NativeTabBar: UIViewRepresentable {
         if coordinator.ids != ids {
             coordinator.ids = ids
             let items = state.tabs.enumerated().map { index, tab in
-                UITabBarItem(title: tab.label,
-                             image: UIImage(systemName: Self.symbols[tab.id] ?? Self.fallbackSymbol),
-                             tag: index)
+                Self.item(for: tab, tag: index)
             }
             bar.setItems(items, animated: false)
         }

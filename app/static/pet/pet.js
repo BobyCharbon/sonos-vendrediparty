@@ -6,7 +6,7 @@
 // protégée, missions, rituels du matin et du soir, pièces. Chaque ouverture dit d'où elle vient (src, mesure).
 (function () {
   "use strict";
-  const GAME_NAME = "Compagnon";
+  const GAME_NAME = "Zicou";
   const PLAY_MS = 20000, SPAWN_MS = 650, NOTE_MS = 1150, NOTE_MS_CALM = 1700, TICK_MS = 1000, NEWS_MS = 4200;
   const GAUGES = [["food", "Ventre", "🍕"], ["joy", "Humeur", "🎵"], ["energy", "Énergie", "⚡"], ["care", "Forme", "🧼"]];
   const STAGES = { egg: "Œuf", baby: "Bébé", teen: "Ado", adult: "Adulte", dead: "Envolé" };
@@ -42,6 +42,10 @@
   // ── Panneau ──
   let root = null, opener = null, pet = null, friends = null, busy = false, game = null, screenSeq = 0;
   let openSrc = "tab", counted = false;   // la 1re lecture après l'ouverture compte une ouverture (pet_opens), pas les suivantes
+  // Onglet « Zicou » (4.11) : le panneau vit dans la section de l'onglet (#petTab), sous l'en-tête et au-dessus de la
+  // barre d'onglets, qui reste visible (pas de pt-open). Sans cet onglet (/admin…) : panneau plein écran comme avant.
+  let inTab = false;
+  const hasTab = () => typeof showTab === "function" && !!document.querySelector('#tabs [data-tab="pet"]');
   function panel() {
     if (root) return root;
     root = document.createElement("div");
@@ -62,6 +66,7 @@
     screenSeq += 1;
     clearTimers();
     r.dataset.screen = screen;
+    syncTabNav();
     r.innerHTML = `${html}<div class="pt-live pt-sr" role="status" aria-live="polite"></div><div class="pt-news" aria-hidden="true"></div>`
       + `<div class="pt-bursts" aria-hidden="true"></div>`;
     r.scrollTop = 0;
@@ -69,24 +74,66 @@
   }
   const loadingHtml = (text) => `<div class="pt-loading" role="status"><span class="pt-spin" aria-hidden="true"></span>${e(text)}</div>`;
   const top = (title, back) => `<div class="pt-top">
-      <button type="button" class="pt-round" data-pt="${back ? "home" : "close"}" aria-label="${back ? "Retour" : "Fermer"}">${back ? "‹" : "✕"}</button>
+      ${!back && inTab ? '<span class="pt-round-gap"></span>' : `<button type="button" class="pt-round" data-pt="${back ? "home" : "close"}" aria-label="${back ? "Retour" : "Fermer"}">${back ? "‹" : "✕"}</button>`}
       <h1 class="pt-title">${e(title)}</h1>
       ${window.GameAudio?.button ? window.GameAudio.button() : '<span class="pt-round-gap"></span>'}</div>`;
 
   async function open(fromEl, src) {
-    opener = fromEl || document.activeElement;
     openSrc = src || (fromEl ? "tab" : "link");
+    // Carte de Jeux, lien direct, notification : tout mène à l'onglet Zicou (même panneau).
+    if (hasTab()) {
+      if (inTab && root && !root.hidden) { counted = false; return refresh(); }
+      pendingSrc = openSrc;
+      return showTab("pet");
+    }
+    opener = fromEl || document.activeElement;
     counted = false;
     const r = panel();
     const wasHidden = r.hidden;
     r.hidden = false;
     document.documentElement.classList.add("pt-open");
     if (wasHidden) window.Nav?.open?.({ key: "pet", kind: "sheet", el: r, surface: r, gestures: false, selfAnimated: true, close: onBack });
-    show(loadingHtml("Réveil de ton compagnon…"), "loading");
+    show(loadingHtml("Réveil de ton Zicou…"), "loading");
     r.focus({ preventScroll: true });
     await refresh();
   }
+  let pendingSrc = null;
+  /** Onglet Zicou affiché (index.html, showTab) : le panneau s'installe dans la section de l'onglet. */
+  async function openTab(host) {
+    if (!host) return;
+    const r = panel();
+    if (inTab && !r.hidden && r.parentElement === host) { counted = false; return refresh(); }
+    if (!r.hidden && !inTab) close();
+    inTab = true;
+    openSrc = pendingSrc || "tab";
+    pendingSrc = null;
+    counted = false;
+    r.classList.add("pt-in-tab");
+    r.removeAttribute("aria-modal");
+    r.setAttribute("role", "region");
+    host.append(r);
+    r.hidden = false;
+    show(loadingHtml("Réveil de ton Zicou…"), "loading");
+    await refresh();
+  }
+  /** On quitte l'onglet Zicou : tout s'arrête (minuteurs, mini-jeu). */
+  function leaveTab() {
+    if (!inTab) return;
+    clearTimers();
+    stopGame();
+    screenSeq += 1;
+    window.Nav?.closed?.("pet");
+    inTab = false;
+    if (!root) return;
+    root.hidden = true;
+    root.innerHTML = "";
+    root.classList.remove("pt-in-tab");
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-modal", "true");
+    document.body.append(root);
+  }
   function close(fromBack) {
+    if (inTab) return typeof showTab === "function" && showTab("music");
     clearTimers();
     stopGame();
     screenSeq += 1;
@@ -97,13 +144,25 @@
     if (!fromBack) window.Nav?.closed?.("pet");
     try { opener?.focus?.(); } catch { /* bouton disparu */ }
   }
+  const SUB_SCREENS = ["outfits", "friends", "visit", "play", "result", "rename", "streak", "treasures", "odds", "reveal", "coll", "report"];
+  const navEntry = () => ({ key: "pet", kind: "sheet", el: root, surface: root, gestures: false, selfAnimated: true, close: onBack });
   function onBack() {
     if (!root || root.hidden) return;
-    const sub = ["outfits", "friends", "visit", "play", "result", "rename", "streak", "treasures", "odds", "reveal", "coll", "report"].includes(root.dataset.screen);
-    if (!sub) return close(true);
+    const sub = SUB_SCREENS.includes(root.dataset.screen);
+    if (!sub) return inTab ? undefined : close(true);
     stopGame();
     root.dataset.screen === "visit" ? showFriends() : home();
-    queueMicrotask(() => window.Nav?.open?.({ key: "pet", kind: "sheet", el: root, surface: root, gestures: false, selfAnimated: true, close: onBack }));
+    if (!inTab) queueMicrotask(() => window.Nav?.open?.(navEntry()));
+  }
+  // Onglet Zicou : seules ses pages (amis, garde-robe…) entrent dans la pile ; le retour du système y revient.
+  // Après la pile (microtâche) : un retour en cours de traitement ne doit pas refermer la page qu'il vient d'ouvrir.
+  function syncTabNav() {
+    if (!inTab) return;
+    queueMicrotask(() => {
+      if (!inTab || !root || root.hidden) return;
+      if (SUB_SCREENS.includes(root.dataset.screen)) window.Nav?.open?.(navEntry());
+      else window.Nav?.closed?.("pet");
+    });
   }
 
   // ── Serveur ──
@@ -120,7 +179,7 @@
     let data = null;
     try { data = await r.json(); } catch { /* réponse vide */ }
     if (r.status === 401) { const err = new Error("Ta connexion a expiré, reconnecte-toi."); err.login = true; throw err; }
-    if (!r.ok) throw new Error(typeof data?.detail === "string" ? data.detail : "Ton compagnon ne répond pas. Réessaie dans un instant.");
+    if (!r.ok) throw new Error(typeof data?.detail === "string" ? data.detail : "Zicou ne répond pas. Réessaie dans un instant.");
     return data;
   }
   async function refresh() {
@@ -131,6 +190,8 @@
       const data = await api("me", { src });
       if (!root || root.hidden || mine !== screenSeq) return;
       pet = data.pet;
+      window.ZicouHome?.petChanged?.(pet, data.news);
+      if (pendingVisit) return showVisit(pendingVisit);   // fiche profil › « Lui rendre visite »
       home();
       announce(data.news);
       if (pet.coll?.reveals?.length && window.PetCollection) window.PetCollection.reveals(pet.coll.reveals);
@@ -145,8 +206,9 @@
     const label = `${p.name}, ${STAGES[p.stage] || ""} ${EMOTIONS[p.emotion] || ""}`.trim();
     const acc = { ...(p.coll?.acc || p.acc || {}), ...(extra || {}) };   // collection : un accessoire par emplacement
     const shiny = Boolean(p.coll?.shiny ?? p.shiny);
+    const dyes = p.coll?.dye || p.dye || null;   // teintures (pet/economy.js)
     const svg = skin()?.render({ stage: p.stage, variant: p.variant, emotion: p.emotion, outfit: Object.keys(acc).length ? null : p.outfit,
-      accessories: acc, shiny, label: shiny ? `${label}, shiny` : label }) || "";
+      accessories: acc, shiny, dyes, label: shiny ? `${label}, shiny` : label }) || "";
     return `<div class="pt-art ${cls}" style="--pt-mood:${skin()?.moodColor(p.emotion) || "#5ee7ff"}">${svg}</div>`;
   }
   function loginScreen() {
@@ -154,9 +216,10 @@
     show(`${top(GAME_NAME)}<div class="pt-card pt-login">
       <div class="pt-art">${preview}</div>
       <h2>Adopte ton ${SPECIES}</h2>
-      <p class="pt-muted">Un petit compagnon à faire grandir chaque jour : nourris-le, joue avec lui, rends visite à ceux de tes amis.
-      Connecte-toi pour qu'il te suive sur tous tes appareils.</p>
-      <button type="button" class="pt-cta" data-pt="login">Me connecter</button></div>`, "login");
+      <p class="pt-muted">Un petit Zicou qui éclot rien que pour toi et grandit avec tes soirées, tes parties et ta musique.
+      Crée ton compte pour qu'il te suive sur tous tes appareils.</p>
+      <button type="button" class="pt-cta" data-pt="login">Créer mon compte</button>
+      <p class="pt-muted pt-tiny">Gratuit · avec ton numéro de téléphone · ton prénom de ce soir est gardé</p></div>`, "login");
   }
   function errorScreen(message) {
     show(`${top(GAME_NAME)}<div class="pt-card"><p>${e(message)}</p><button type="button" class="pt-cta" data-pt="retry">Réessayer</button></div>`, "error");
@@ -193,7 +256,7 @@
     show(`${top(p.name)}
       <div class="pt-hero${p.asleep ? " pt-night" : ""}">
         <div class="pt-chips"><span class="pt-chip">${e(stage)}</span><span class="pt-chip">🎂 ${hm(p.age_hours)}</span>
-          ${streakChip(p)}${coinChip(p)}${next}</div>
+          ${streakChip(p)}${coinChip(p)}${window.PetEconomy?.chips(p) || ""}${next}</div>
         <button type="button" class="pt-stage" data-pt="pet" aria-label="Caresser ${e(p.name)}">${art(p)}</button>
         <p class="pt-line${p.alert ? " pt-warn" : ""}">${e(p.line)}</p>
       </div>
@@ -209,9 +272,10 @@
         <button type="button" class="pt-ghost" data-pt="coll" data-s="craft">🔨 Atelier</button>
         <button type="button" class="pt-ghost" data-pt="treasures">💎 Trésors</button>
         <button type="button" class="pt-ghost" data-pt="friends">👫 Amis</button>
+        ${window.PetEconomy?.moreButtons(p) || ""}
         <button type="button" class="pt-ghost" data-pt="rename">✏️ Nom</button>
       </div>
-      <p class="pt-muted pt-small">Bonus : une partie de Méninges, une partie de Party ou une soirée lui font plaisir.
+      <p class="pt-muted pt-small">Bonus : une partie de Méninges, une partie de Party ou un titre ajouté à la file lui font plaisir.
         Record : ${hm(p.record_hours)} · meilleure série : ${p.best_streak} 🔥</p>`, "home");
     if (p.next_stage_in != null && p.next_stage_in < 3600) scheduleRefresh(p.next_stage_in);
   }
@@ -312,10 +376,13 @@
   const pct = (v) => `${String(v).replace(".", ",")} %`;
   function oddsScreen() {
     const d = pet.daily || {};
-    const rows = (d.odds || []).map((o) => `<li class="pt-r-${e(o.kind)}"><span>${e(o.label || ODDS[o.kind] || o.kind)}</span><b>${pct(o.pct)}</b></li>`).join("");
-    show(`${top("Le coffre du jour", true)}<div class="pt-card pt-odds"><h2>Chances de chaque coffre</h2><ul>${rows}</ul>
-      <p class="pt-pity">🛡️ Épique garanti au plus tard dans <b>${d.pity_left ?? "?"}</b> coffre${d.pity_left > 1 ? "s" : ""} (au moins un tous les ${d.pity || 30}).</p>
-      <p class="pt-muted">Même table pour le coffre du jour et le coffre bonus (pièces doublées). Un accessoire déjà à toi devient de la poussière d'étoile ✨
+    const line = (o) => `<li class="pt-r-${e(o.kind)}"><span>${e(o.label || ODDS[o.kind] || o.kind)}</span><b>${e(o.text || pct(o.pct))}</b></li>`;
+    const rows = (d.odds || []).map(line).join("");
+    const bonusRows = (d.bonus_odds || []).map(line).join("");
+    show(`${top("Le coffre du jour", true)}<div class="pt-card pt-odds"><h2>Chances du coffre du jour</h2><ul>${rows}</ul>
+      <p class="pt-pity">🛡️ Épique ou Légendaire garanti au plus tard dans <b>${d.pity_left ?? "?"}</b> coffre${d.pity_left > 1 ? "s" : ""} du jour (au moins un tous les ${d.pity || 45}).</p>
+      ${bonusRows ? `<h2>Chances du coffre bonus (missions)</h2><ul>${bonusRows}</ul>` : ""}
+      <p class="pt-muted">Le coffre bonus a sa propre table : jamais d'Épique, de Légendaire ni de Mythique. Un accessoire déjà à toi devient de la poussière d'étoile ✨
         (pour l'atelier). « Objet mystère » : un Mythique numéroté, en exemplaires limités. Zicou shiny : 1 chance sur 64 à l'éclosion.
         Le tirage est fait par Party, pas par ton téléphone. Rien ne s'achète avec de l'argent, rien n'a de valeur en argent.</p></div>`, "odds");
   }
@@ -419,7 +486,7 @@
 
   // ── Amis ──
   async function showFriends() {
-    show(`${top("Les compagnons de tes amis", true)}${loadingHtml("Visite en cours…")}`, "friends");
+    show(`${top("Les Zicou de tes amis", true)}${loadingHtml("Visite en cours…")}`, "friends");
     const mine = screenSeq;
     try {
       const data = await api("friends", {});
@@ -428,9 +495,9 @@
       const list = friends.map((f) => `<li><button type="button" class="pt-friend" data-pt="visit" data-id="${e(f.id)}">
         ${art(f.pet, "pt-mini")}<span><b>${e(f.pet.name)}</b><small>chez ${e(f.member)} · ${e(STAGES[f.pet.stage] || "")}</small></span>
         <span aria-hidden="true">${f.gifted ? "💜" : "›"}</span></button></li>`).join("");
-      show(`${top("Les compagnons de tes amis", true)}${list ? `<ul class="pt-friends">${list}</ul>`
-        : `<div class="pt-card"><p>Personne de tes groupes n'a encore de compagnon. Invite-les à adopter le leur !</p></div>`}
-        <p class="pt-muted pt-small">Tu vois les compagnons des membres de tes groupes. Un câlin ou un goûter par ami et par jour.</p>`, "friends");
+      show(`${top("Les Zicou de tes amis", true)}${list ? `<ul class="pt-friends">${list}</ul>`
+        : `<div class="pt-card"><p>Personne de tes groupes n'a encore de Zicou. Invite-les à adopter le leur !</p></div>`}
+        <p class="pt-muted pt-small">Tu vois les Zicou des membres de tes groupes. Un câlin ou un goûter par ami et par jour.</p>`, "friends");
     } catch (err) {
       if (mine === screenSeq) err.login ? loginScreen() : errorScreen(err.message);
     }
@@ -440,11 +507,35 @@
     const gifts = !alive ? `<p class="pt-muted">${p.stage === "egg" ? "Il est encore dans son œuf." : "Il s'est envolé."}</p>`
       : f.gifted ? `<p class="pt-line pt-gifted">💜 Tu lui as déjà fait plaisir aujourd'hui. Reviens demain !</p>`
         : `<div class="pt-acts pt-acts-2"><button type="button" class="pt-act" data-pt="gift" data-k="hug" data-id="${e(f.id)}"><span class="pt-act-i" aria-hidden="true">🤗</span><span>Un câlin</span></button>
-           <button type="button" class="pt-act" data-pt="gift" data-k="snack" data-id="${e(f.id)}"><span class="pt-act-i" aria-hidden="true">🍪</span><span>Un goûter</span></button></div>`;
+           <button type="button" class="pt-act" data-pt="gift" data-k="snack" data-id="${e(f.id)}"><span class="pt-act-i" aria-hidden="true">🍪</span><span>Un goûter</span></button></div>
+           ${window.PetEconomy?.giftFeasts(f, pet) || ""}`;
     show(`${top(p.name, true)}<div class="pt-hero"><div class="pt-chips"><span class="pt-chip">chez ${e(f.member)}</span>
       <span class="pt-chip">${e([STAGES[p.stage], VARIANTS[p.variant]].filter(Boolean).join(" "))}</span><span class="pt-chip">🎂 ${hm(p.age_hours)}</span></div>
       <div class="pt-stage">${art(p)}</div><p class="pt-line">${e(p.line)}</p></div>${gifts}
       ${window.PetCollection ? window.PetCollection.visitExtras(f) : ""}`, "visit");
+  }
+
+  // Fiche profil d'un ami (pet/profile-zicou.js, module Événements, app iPhone) : sa visite, directement.
+  let pendingVisit = null;
+  const MEMBER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  function visit(id) {
+    if (!MEMBER_ID.test(String(id || ""))) return;
+    pendingVisit = id;
+    if (root && !root.hidden && root.dataset.screen !== "loading") { showVisit(id); return; }
+    open(null, "link");
+  }
+  async function showVisit(id) {
+    pendingVisit = null;
+    show(`${top("Visite", true)}${loadingHtml("Visite en cours…")}`, "visit");
+    const mine = screenSeq;
+    try {
+      const card = await api("friend", { friend: id });
+      if (mine !== screenSeq) return;
+      friends = [card];
+      visitScreen(card);
+    } catch (err) {
+      if (mine === screenSeq) err.login ? loginScreen() : errorScreen(err.message);
+    }
   }
 
   // ── Mini-jeu : « Attrape les notes » (20 s) ──
@@ -515,6 +606,7 @@
     try {
       const data = await api("act", { action, ...extra });
       pet = data.pet;
+      window.ZicouHome?.petChanged?.(pet, data.news);
       if (!root || root.hidden) return;
       if (action === "play" && data.effect?.score != null) { playResult(data.effect); cue("win"); buzz([30, 50, 30]); }
       else { home(); react(action); }   // (écran du score : pas de bandeau par-dessus le chiffre)
@@ -592,8 +684,8 @@
     switch (b.dataset.pt) {
       case "close": return close();
       case "home": stopGame(); return root.dataset.screen === "visit" ? showFriends() : home();
-      case "retry": show(loadingHtml("Réveil de ton compagnon…"), "loading"); return refresh();
-      case "login": close(); return typeof showTab === "function" && showTab("account");
+      case "retry": show(loadingHtml("Réveil de ton Zicou…"), "loading"); return refresh();
+      case "login": if (!inTab) close(); return typeof showTab === "function" && showTab("account");
       case "act": return b.dataset.a === "play" ? startGame() : doAct(b.dataset.a);
       case "alert-feed": return doAct("feed");
       case "pet": return pet && !pet.asleep && pet.left.cuddle > 0 ? doAct("cuddle") : react("");
@@ -622,6 +714,7 @@
         root.querySelector("[data-pt-hits]").textContent = String(game.hits);
         return;
       default:
+        if (window.PetEconomy?.click(b, ev)) return;   // festins, niveau, chambre, caisse commune, Apple TV (pet/economy.js)
         window.PetCollection?.click(b, ev);   // écrans de la collection (pet/collection.js)
     }
   }
@@ -643,7 +736,7 @@
       visitScreen(card);
       cue("win");
       buzz([20, 40, 20]);
-      say(kind === "hug" ? "🤗 Câlin envoyé !" : "🍪 Goûter offert !");   // en bas, jamais sur le visage de son compagnon
+      say(kind === "hug" ? "🤗 Câlin envoyé !" : kind === "snack" ? "🍪 Goûter offert !" : window.PetEconomy?.giftSaid(kind) || "🎁 Cadeau offert !");   // en bas, jamais sur le visage de son compagnon
     } catch (err) {
       if (err.login) return loginScreen();
       say(err.message, true);
@@ -671,10 +764,11 @@
   try {
     const q = new URLSearchParams(location.search);
     const src = { notif: "notif", widget: "widget" }[q.get("src")] || "link";
-    if (q.get("pet") === "1") setTimeout(() => open(null, src), 300);
+    if (q.get("pet") === "1" && MEMBER_ID.test(q.get("visit") || "")) setTimeout(() => visit(q.get("visit")), 300);
+    else if (q.get("pet") === "1") setTimeout(() => open(null, src), 300);
   } catch { /* adresse illisible */ }
 
-  window.Pet = Object.freeze({ open, close, name: GAME_NAME });
+  window.Pet = Object.freeze({ open, close, openTab, leaveTab, visit, name: GAME_NAME, current: () => pet });
   // Pour la collection (pet/collection.js) : mêmes écrans, même serveur, même dessin.
   window.PetUI = Object.freeze({ show, top, api, art, say, burst, cue, buzz, calm, esc: e, loadingHtml, home: () => home(),
     current: () => pet, set: (p) => { pet = p; }, root: () => root, login: () => loginScreen(), announce });

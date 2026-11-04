@@ -107,7 +107,12 @@ function msWriteHtml(g) {
 }
 
 function msKill(g, s) {
-  return g.is_host ? `<button type="button" class="ms-kill" data-ms-hide="${s.i}" aria-label="Retirer cette réponse">🚫</button>` : "";
+  return g.is_host ? `<button type="button" class="ms-kill" data-ms-hide="${s.i}" aria-label="Retirer cette réponse">🚫</button>`
+    : msReport(g, s.i);
+}
+// « Signaler » (Apple 1.2) : tout joueur retire aussitôt une réponse choquante pour toute la table ; l'admin est prévenu.
+function msReport(g, i) {
+  return g.me ? `<button type="button" class="ms-kill ms-report" data-ms-report="${i}" aria-label="Signaler cette réponse">🚩</button>` : "";
 }
 
 function msSlotsReadonly(g) {
@@ -159,14 +164,14 @@ function msVotes(r) {
 function msRevealHtml(g) {
   const v = g.masque, open = msOpen(v);
   const rows = v.result.map((r, i) => {
-    if (r.hidden) return `<div class="ms-slot off"><div class="ms-slot-t">🚫 Réponse retirée</div></div>`;
+    if (r.hidden) return `<div class="ms-slot off"><div class="ms-slot-t">${r.reported ? "🚩 Réponse retirée après un signalement" : "🚫 Réponse retirée"}</div></div>`;
     const mark = (v.my_marks || [])[i];  // ma devinette sur cette réponse : juste, fausse, ou aucune
     const badge = mark === "right" ? `<span class="ms-mark right" role="img" aria-label="Tu as trouvé">✓</span>`
       : mark === "wrong" ? `<span class="ms-mark wrong" role="img" aria-label="Tu t'es trompé">✗</span>` : "";
     const who = r.open
       ? `<div class="ms-author"${GameFx.fx("pop", msKey(g, `who${i}`), 400 + 260 * i)}>C'était <b>${esc(r.author)}</b></div>`
       : `<div class="ms-author masked"${GameFx.fx("pop", msKey(g, `who${i}`), 400 + 260 * i)}>🎭 Masque gardé</div>`;
-    return `<div class="ms-slot ms-res ${mark || ""} ${r.open ? "" : "masked"}"${GameFx.fx("rise", msKey(g, `rev${i}`), 120 * i)}>${badge}
+    return `<div class="ms-slot ms-res ${mark || ""} ${r.open ? "" : "masked"}"${GameFx.fx("rise", msKey(g, `rev${i}`), 120 * i)}>${badge}${g.is_host ? "" : msReport(g, i)}
       ${who}<div class="ms-slot-t">« ${esc(r.text)} »</div>${msVotes(r)}</div>`;
   }).join("");
   const last = v.n >= v.count;
@@ -277,6 +282,11 @@ document.addEventListener("click", (ev) => {
   if (hide) {
     if (!confirm("Retirer cette réponse ? Elle sort du jeu, sans que personne sache qui l'a écrite.")) return;
     return pressed(hide, gameAction("mshide", { amount: +hide.dataset.msHide }));
+  }
+  const report = ev.target.closest("[data-ms-report]");
+  if (report) {
+    if (!confirm("Signaler cette réponse ? Elle disparaît pour toute la table et l'organisateur de Party est prévenu.")) return;
+    return pressed(report, gameAction("msreport", { amount: +report.dataset.msReport })).then((ok) => ok && toast("🚩 Merci, la réponse est retirée", "ok"));
   }
   const cat = ev.target.closest("[data-ms-cat]");
   if (cat) {

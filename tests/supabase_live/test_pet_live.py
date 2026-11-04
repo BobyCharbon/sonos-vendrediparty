@@ -92,7 +92,8 @@ def test_save_load_versions_and_guards(trio):
     assert r.status_code == 200 and r.json() == {"version": 1}, r.text
     loaded = a.rpc("pet_load", p_key=KEY()).json()
     assert loaded["pet"]["version"] == 1 and loaded["pet"]["life"]["stage"] == "egg"
-    assert loaded["gifts"] == [] and isinstance(loaded["brain"], list) and isinstance(loaded["events"], list)
+    assert loaded["gifts"] == [] and isinstance(loaded["brain"], list) and isinstance(loaded["coins"], list)
+    assert "events" not in loaded and "answers" not in loaded   # présence et réponses : plus rien (04.11.2026)
     conflict = save(a, life, owner, 0)
     assert conflict.status_code == 400 and "conflict" in conflict.json()["message"]
     bad = dict(life, stage="dragon")

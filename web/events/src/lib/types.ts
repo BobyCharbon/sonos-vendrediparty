@@ -67,6 +67,8 @@ export type EventRow = {
   public_link: boolean;
   show_participants: boolean;
   pot_enabled?: boolean;
+  /** Billets QR (migration 20261104233000 ; absente avant : éteinte) : l'organisateur l'active et remet les billets. */
+  tickets_enabled?: boolean;
   forum_enabled: boolean;
   notify_on_publish: boolean;
   reminders: Reminder[];
@@ -161,6 +163,8 @@ export type NotificationPrefs = {
   /** Billets payants (migration 20261103130000 ; absent avant : reçues) : quelqu'un dit avoir payé ma place / mon paiement confirmé. */
   ticket_pay_declared?: boolean;
   ticket_pay_confirmed?: boolean;
+  /** Billets QR (migration 20261104233000 ; absent avant : reçue) : l'organisateur m'a remis mon billet. */
+  ticket_issued?: boolean;
   /** Mes amis dans Party (migration 20261104090000 ; absents avant : reçues) : quelqu'un rejoint Party grâce à mon lien ;
    * un contact de l'iPhone arrive sur Party (notification calculée par l'app iPhone). */
   referral_joins?: boolean;

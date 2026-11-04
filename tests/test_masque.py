@@ -238,7 +238,7 @@ def test_actions_are_checked_by_the_server():
         assert c.post(f"/api/games/{code}", json={"guest_id": ids[1], "action": "msset", "settings": {"count": 5}}).status_code == 403
         assert c.post(f"/api/games/{code}", json={"guest_id": ids[0], "action": "start"}).status_code == 200
         for gid in ids:
-            r = c.post(f"/api/games/{code}", json={"guest_id": gid, "action": "mswrite", "guess": f"<b>{gid}</b>"})
+            r = c.post(f"/api/games/{code}", json={"guest_id": gid, "action": "mswrite", "guess": f"<b>{gid[-1]}</b> ma réponse"})
             assert r.status_code == 200
         v = r.json()["masque"]
         assert r.json()["phase"] == "guess"
@@ -250,6 +250,15 @@ def test_actions_are_checked_by_the_server():
         assert c.post(f"/api/games/{code}", json={"guest_id": ids[1], "action": "msreveal"}).status_code == 403
         assert c.post(f"/api/games/{code}", json={"guest_id": ids[0], "action": "msreveal"}).status_code == 200
         assert c.post(f"/api/games/{code}", json={"guest_id": ids[0], "action": "dbvote", "amount": 1}).status_code == 400
+        # « Signaler » (tout joueur, pas seulement l'animateur) : la réponse sort pour toute la table, l'admin le voit.
+        g = main.store.session.games[code]
+        other = next(i for i, sl in enumerate(g["masque"]["slots"]) if sl["gid"] == ids[2])
+        r = c.post(f"/api/games/{code}", json={"guest_id": ids[1], "action": "msreport", "amount": other})
+        assert r.status_code == 200
+        assert r.json()["masque"]["result"][other] == {"text": None, "hidden": True, "reported": True}
+        entry = main.journal.read(limit=1)[0]
+        assert entry["action"] == "game.report" and entry["details"]["text"] == "<b>2</b> ma réponse"
+        assert entry["details"]["author_id"] == ids[2]
     finally:
         for k in set(main.store.session.games) - before:
             main.store.session.games.pop(k, None)
@@ -305,3 +314,27 @@ def test_reshuffling_never_shows_the_same_question_twice_in_a_row():
         S["used"] = list(masque.deck(S))  # paquet épuisé
         masque.swap(g, random.Random(seed))
         assert S["q"]["text"] != before
+
+
+def test_answers_go_through_the_common_filter():
+    """B3 (audit du 04.11) : la réponse s'affiche à toute la table et sur la TV ; filtre commun, liens et numéros refusés."""
+    g = table()
+    with pytest.raises(masque.MasqueError, match="refusée"):
+        masque.write(g, "p1", "va voir www.exemple.com")
+    with pytest.raises(masque.MasqueError, match="refusée"):
+        masque.write(g, "p1", "appelle le 079 123 45 67")
+    masque.write(g, "p1", "Mon premier concert, à 12 ans")
+    assert masque.state(g)["answers"]["p1"] == "Mon premier concert, à 12 ans"
+
+
+def test_a_player_reports_an_answer_while_guessing():
+    g = table()
+    everyone_writes(g)
+    other = slot_of(g, "p2")
+    reported = masque.report(g, "p1", other)
+    assert reported == {"text": masque.state(g)["slots"][other]["text"], "author": "p2"}
+    view = masque.view(g, "p1", False)
+    assert next(s for s in view["slots"] if s["i"] == other) == {"i": other, "text": None, "hidden": True}
+    assert masque.report(g, "p1", other) is None  # déjà retirée
+    with pytest.raises(masque.MasqueError):
+        masque.report(g, "p2", slot_of(g, "p2"))  # pas sa propre réponse

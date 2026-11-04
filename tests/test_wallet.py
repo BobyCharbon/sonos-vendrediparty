@@ -81,7 +81,7 @@ class FakeBase:
         name = path.removeprefix("/rest/v1/rpc/")
         if name == "wallet_pass_issue":
             if isinstance(self.issue, int):
-                return httpx.Response(self.issue, json={"message": "Pas de billet pour cet événement : il faut être noté Présent."})
+                return httpx.Response(self.issue, json={"message": "Pas encore de billet pour cet événement : l'organisateur doit te le remettre."})
             return httpx.Response(200, json=self.issue)
         good = body.get("tok") == PASS_AUTH and body.get("serial") == SERIAL
         if name == "wallet_pass_by_token":
@@ -175,6 +175,7 @@ def test_pass_without_https_origin_does_not_promise_updates():
 def test_a_pass_no_longer_valid_is_voided():
     data = wl.ticket_pass(origin="https://p.ch", event=EVENT_ROW, user_id=ME, holder="Léa", ticket=TICKET, valid=False)
     assert data["voided"] is True
+    assert "barcodes" not in data  # billet retiré ou « Billets QR » éteints : plus de QR utilisable dans Cartes
 
 
 def test_pass_without_date_or_coordinates_stays_valid():
@@ -284,7 +285,7 @@ def test_build_uses_the_member_session_only(tmp_path):
 
 @pytest.mark.parametrize("issue", [400, payload(valid=False)])
 def test_no_pass_without_a_ticket(tmp_path, issue):
-    with pytest.raises(wl.WalletError, match="Présent"):
+    with pytest.raises(wl.WalletError, match="remettre"):
         tickets_for(tmp_path, FakeBase(issue=issue)).build("good", EVENT, "https://p.ch")
 
 
@@ -333,7 +334,7 @@ def test_route_refuses_a_bad_session_an_unknown_link_and_a_bad_event_id(client):
 def test_route_answers_404_when_the_member_has_no_ticket(tmp_path, monkeypatch):
     monkeypatch.setattr(main, "wallet", tickets_for(tmp_path, FakeBase(issue=400)))
     r = TestClient(main.app).post("/api/wallet/ticket", json={"token": "good", "event_id": EVENT})
-    assert r.status_code == 404 and "Présent" in r.json()["detail"]
+    assert r.status_code == 404 and "remettre" in r.json()["detail"]
 
 
 def test_route_answers_503_without_certificates(tmp_path, monkeypatch):

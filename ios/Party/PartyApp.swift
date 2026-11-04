@@ -15,14 +15,19 @@ struct PartyApp: App {
                 // Suivi de la file en direct (Live Activity « Ton titre arrive ») tant que l'app est au premier plan,
                 // quel que soit l'onglet, et aussi pour l'hôte en « Gérer la soirée » (écran natif non affiché).
                 .onChange(of: scenePhase) { phase in
+                    if phase == .active { model.refreshFeatures() }
                     if phase == .active { model.music?.start() } else if phase == .background { model.music?.stop() }
                     // « Partager › Party › Créer un événement » : l'assistant IA démarre avec le lien mis de côté.
                     if phase == .active, let link = SharedSession.takePendingEvent() { model.startAIEvent(link: link) }
                     // Noms des contacts : accès changé dans Réglages, ou reconnaissance ancienne (12 h).
                     if phase == .active { ContactNames.shared.appBecameActive() }
+                    // Action rapide de l'icône (lancement à froid compris) ; éclosion de Zicou finie app fermée.
+                    if phase == .active, let action = QuickAction.take() { model.perform(action) }
+                    if phase == .active && AppConfig.zicouBuild { PetWidgetBridge.appBecameActive() }
                 }
                 #if DEBUG
                 .task { TrackActivities.startDemoIfAsked() }
+                .task { HatchActivities.startDemoIfAsked() }
                 .overlay { HostDemo(model: model) }
                 .overlay { GroupAdminDemo(model: model) }
                 .overlay { MotionDemo(model: model) }
@@ -30,6 +35,9 @@ struct PartyApp: App {
                 #endif
                 .onReceive(NotificationCenter.default.publisher(for: .partyOpenURL)) { note in
                     if let url = note.object as? URL { model.open(url) }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .partyQuickAction)) { _ in
+                    if let action = QuickAction.take() { model.perform(action) }
                 }
         }
     }
@@ -62,18 +70,22 @@ struct ContentView: View {
                                     .transition(.opacity)
                             } else {
                                 // Vue invité ↔ Gérer la soirée : fondu enchaîné dans les deux sens (avant : seulement à l'aller).
-                                MusicView(store: music, topInset: proxy.safeAreaInsets.top, manage: hostTools("music"))
+                                MusicView(store: music, topInset: proxy.safeAreaInsets.top, manage: hostTools("music"),
+                                          signIn: model.settings?.session)
                                     .transition(.opacity)
                             }
                         }
                         if model.nativeScreen == "feedback", let feedback = model.feedback {
-                            FeedbackView(store: feedback, topInset: proxy.safeAreaInsets.top, admin: model.isHost ? model.feedbackAdmin : nil)
+                            // Page des Réglages depuis le 4.11 (l'onglet Zicou a pris sa place) : « ‹ Réglages ».
+                            FeedbackView(store: feedback, topInset: proxy.safeAreaInsets.top, admin: model.isHost ? model.feedbackAdmin : nil,
+                                         back: model.tabs?.isSubScreen == true ? { Motion.animate(Motion.smooth) { model.selectTab("account") } } : nil)
                         }
                         if model.nativeScreen == "chats", let chats = model.chats {
                             ChatsView(store: chats, topInset: proxy.safeAreaInsets.top)
                         }
                         if model.nativeScreen == "account", let settings = model.settings {
-                            SettingsView(store: settings, topInset: proxy.safeAreaInsets.top, isHost: model.isHost, hostMusic: model.hostMusic) { place in
+                            SettingsView(store: settings, topInset: proxy.safeAreaInsets.top, isHost: model.isHost, hostMusic: model.hostMusic,
+                                         feedbackEntry: model.tabs?.feedback) { place in
                                 Motion.animate(Motion.smooth) { model.show(place) }
                             }
                         }
@@ -108,7 +120,7 @@ struct ContentView: View {
                             .motionTransition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottomTrailing)))
                         }
                     }
-                    if let tabs = model.tabs, !tabs.hidden {
+                    if let tabs = model.visibleTabs, !tabs.hidden {
                         NativeTabBar(state: tabs, select: model.selectTab)
                             .frame(height: NativeTabBar.height + proxy.safeAreaInsets.bottom)
                             .motionTransition(.move(edge: .bottom))
@@ -126,6 +138,8 @@ struct ContentView: View {
         }
         .preferredColorScheme(.dark)
         // « Écrire » (Mes amis, fiches des membres) : la conversation privée s'ouvre dans Discussions (si disponible).
+        // Fiche d'un membre › son Zicou : visite (ami) ou « Adopter le mien », dans l'onglet Zicou de la page.
+        .environment(\.openZicou, OpenZicouAction { visit in model.openZicou(visit: visit) })
         .environment(\.writeDirect, model.canWriteDirect ? WriteDirectAction { user in await model.writeDirect(to: user) } : nil)
         .sheet(isPresented: $model.aiEventOpen, onDismiss: { model.aiEditEventId = nil }) {
             if let settings = model.settings {

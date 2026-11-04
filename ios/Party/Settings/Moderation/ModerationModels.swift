@@ -127,8 +127,8 @@ struct ModerationReport: Decodable, Equatable, Identifiable {
 
     static let kinds = [
         "group_message": "Message de groupe", "direct_message": "Message direct", "event_message": "Discussion d'événement",
-        "profile": "Profil", "profile_photo": "Photo de profil", "pet_name": "Nom du Zicou", "pet_item": "Objet du Compagnon",
-        "pet_offer": "Offre d'échange", "pet_showcase": "Vitrine", "pet_word": "Mot du Compagnon",
+        "profile": "Profil", "profile_photo": "Photo de profil", "pet_name": "Nom du Zicou", "pet_item": "Objet de Zicou",
+        "pet_offer": "Offre d'échange", "pet_showcase": "Vitrine", "pet_word": "Mot de Zicou",
     ]
     static let resolutions = ["hide": "Contenu masqué", "warn": "Averti", "suspend": "Suspendu", "ban": "Banni",
                               "dismiss": "Classé sans suite"]

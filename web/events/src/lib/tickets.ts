@@ -8,12 +8,20 @@ import type { RsvpStatus } from './types';
  * Billets QR d'un événement (migration 20261103130000) : la table est fermée, tout passe par des fonctions.
  * - le participant noté Présent lit son billet (my_event_ticket) ;
  * - l'organisateur, les co-organisateurs et les admins le scannent (check_in_ticket) et cochent « payé ».
+ * Billets remis (migration 20261104233000) : le QR n'existe pour le participant que si l'option « Billets QR » de
+ * l'événement est active ET que l'organisateur lui a remis son billet (ou confirmé sa place payée).
  */
+
+/** Ce qu'il faut pour payer sa place, avec ou sans QR. */
+export type TicketPayment = { plus_ones: number; paid: boolean; pay_pending: boolean; price_chf: number | null };
 
 export type MyTicket =
   | { state: 'none' }
   | { state: 'waitlist' }
-  | { state: 'ok'; token: string; code: string; plus_ones: number; checked_in_at: string | null; paid: boolean; pay_pending: boolean; price_chf: number | null };
+  /** off : option « Billets QR » éteinte ; pending : active, billet pas encore remis (jamais de jeton). */
+  | ({ state: 'off' } & TicketPayment)
+  | ({ state: 'pending' } & TicketPayment)
+  | ({ state: 'ok'; token: string; code: string; checked_in_at: string | null } & TicketPayment);
 
 /** Ce que l'organisateur voit d'une personne à l'entrée (jamais le jeton). */
 export type TicketPerson = {
@@ -29,7 +37,22 @@ export type TicketPerson = {
   pay_pending: boolean;
   pay_declared_at?: string | null;
   price_chf: number | null;
+  /** Billet remis par l'organisateur (absent avant la migration 20261104233000). */
+  issued?: boolean;
+  /** Billet remis par la place payée (« Reçu », « payé ») : il repart si ce paiement est annulé (20261105120000). */
+  issued_by_payment?: boolean;
+  tickets_enabled?: boolean;
+  /** Message pour l'organisateur après son geste (billet retiré avec le paiement) ; jamais venu de la base. */
+  notice?: string;
 };
+
+export const TICKET_TAKEN_BACK = 'Billet retiré : il avait été remis par ce paiement. Remets-le à la main si la personne le garde.';
+
+/** « Pas reçu » ou « payé » décoché : la base retire le billet remis par ce paiement ; on le dit à l'organisateur. */
+function withPaymentNotice(before: TicketPerson | undefined, after: TicketPerson, cancelled: boolean): TicketPerson {
+  const takenBack = cancelled && !!before?.issued && !!before.issued_by_payment && after.issued === false;
+  return takenBack ? { ...after, notice: TICKET_TAKEN_BACK } : after;
+}
 
 /** Comment payer l'organisateur (profil de paiement du Pot commun / Tricount) ; null : gratuit ou pas présent. */
 export type PayInfo = {
@@ -45,7 +68,7 @@ export type PayInfo = {
 };
 
 export type ScanResult =
-  | { result: 'ok' | 'already' | 'waitlist' | 'not_registered'; person: TicketPerson }
+  | { result: 'ok' | 'already' | 'waitlist' | 'not_registered' | 'not_issued' | 'tickets_off'; person: TicketPerson }
   | { result: 'other_event'; event_title: string }
   | { result: 'unknown' };
 
@@ -95,11 +118,17 @@ export function qrDataUri(text: string): string {
 export function asMyTicket(raw: unknown): MyTicket {
   const t = raw as (Partial<Omit<Extract<MyTicket, { state: 'ok' }>, 'state'>> & { state?: string }) | null;
   if (t?.state === 'waitlist') return { state: 'waitlist' };
+  if (t?.state === 'off') return { state: 'off', ...payment(t) };
+  if (t?.state === 'pending') return { state: 'pending', ...payment(t) };
   if (t?.state !== 'ok' || typeof t.token !== 'string' || !TOKEN.test(t.token) || typeof t.code !== 'string' || !CODE.test(t.code)) {
     return { state: 'none' };
   }
-  return { state: 'ok', token: t.token, code: t.code, plus_ones: Number(t.plus_ones) || 0, checked_in_at: t.checked_in_at ?? null,
-    paid: !!t.paid, pay_pending: !t.paid && !!t.pay_pending, price_chf: typeof t.price_chf === 'number' ? t.price_chf : null };
+  return { state: 'ok', token: t.token, code: t.code, checked_in_at: t.checked_in_at ?? null, ...payment(t) };
+}
+
+function payment(t: Partial<TicketPayment>): TicketPayment {
+  return { plus_ones: Number(t.plus_ones) || 0, paid: !!t.paid, pay_pending: !t.paid && !!t.pay_pending,
+    price_chf: typeof t.price_chf === 'number' ? t.price_chf : null };
 }
 
 /** Fonction absente de la base (migration pas encore appliquée) : pas de billet, sans message d'erreur technique. */
@@ -135,10 +164,31 @@ export async function fetchPayInfo(eventId: string): Promise<PayInfo | null> {
 }
 
 /** L'organisateur confirme : reçu (payé ✓) ou pas reçu (la personne est prévenue et peut redéclarer). */
-export async function confirmPayment(eventId: string, member: string, received: boolean): Promise<TicketPerson> {
+export async function confirmPayment(eventId: string, member: string, received: boolean, before?: TicketPerson): Promise<TicketPerson> {
   const person = must(await supabase.rpc('confirm_ticket_payment', { e: eventId, member, received })) as TicketPerson;
   notifyWallet(eventId, member);
+  return withPaymentNotice(before, person, !received);
+}
+
+/** L'organisateur remet (true) ou retire (false) le billet d'un présent ; la personne est prévenue à la remise. */
+export async function issueTicket(eventId: string, member: string, issued: boolean): Promise<TicketPerson> {
+  const person = must(await supabase.rpc('issue_event_ticket', { e: eventId, member, issued })) as TicketPerson;
+  notifyWallet(eventId, member);  // retiré : le pass dans Cartes devient « annulé »
   return person;
+}
+
+/** « Remettre à tous les présents » : nombre de billets remis par cet appui. */
+export async function issueAllTickets(eventId: string): Promise<number> {
+  const count = Number(must(await supabase.rpc('issue_all_event_tickets', { e: eventId }))) || 0;
+  notifyWallet(eventId);
+  return count;
+}
+
+/** Option « Billets QR » de l'événement (organisateurs, admins), à tout moment, même après publication. */
+export async function setTicketsEnabled(eventId: string, enabled: boolean): Promise<boolean> {
+  const on = must(await supabase.rpc('set_event_tickets', { e: eventId, enabled })) as boolean;
+  notifyWallet(eventId);  // éteinte : les pass déjà dans Cartes deviennent « annulés »
+  return on;
 }
 
 /** IBAN lisible par groupes de 4 : « CH93 0076 2011 6238 5295 7 ». */
@@ -167,10 +217,10 @@ export async function setArrival(eventId: string, member: string, arrived: boole
   return person;
 }
 
-export async function setPaid(eventId: string, member: string, paid: boolean): Promise<TicketPerson> {
+export async function setPaid(eventId: string, member: string, paid: boolean, before?: TicketPerson): Promise<TicketPerson> {
   const person = must(await supabase.rpc('set_ticket_paid', { e: eventId, member, is_paid: paid })) as TicketPerson;
   notifyWallet(eventId, member);
-  return person;
+  return withPaymentNotice(before, person, !paid);
 }
 
 /** Billet à montrer : Présent, publié, date fixée, et pas fini depuis plus d'un jour. */

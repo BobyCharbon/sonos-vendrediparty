@@ -42,7 +42,7 @@ export function PetStatsTile() {
   const sources = Object.entries(data?.sources_7d ?? {}).map(([k, n]) => `${SOURCES[k] ?? k} ${n}`).join(' · ');
   const off = Object.entries(data?.switches_off ?? {}).filter(([, n]) => n > 0).map(([k, n]) => `${SWITCHES[k] ?? k} ${n}`).join(' · ');
   return (
-    <Section title="Compagnon">
+    <Section title="Zicou">
       <ErrorText error={error} />
       {data ? (
         <Card style={{ gap: 12 }}>
@@ -53,7 +53,7 @@ export function PetStatsTile() {
             <Stat label="ouvertures / jour" value={data.opens_per_day != null ? String(data.opens_per_day) : '—'} />
           </View>
           <T size={14}>Retour J1 {cohortText(data.cohorts['1'])} · J7 {cohortText(data.cohorts['7'])} · J30 {cohortText(data.cohorts['30'])}</T>
-          <T muted size={13}>{data.alive} compagnon(s) en vie sur {data.pets} · {data.players} joueur(s) mesuré(s)</T>
+          <T muted size={13}>{data.alive} Zicou en vie sur {data.pets} · {data.players} joueur(s) mesuré(s)</T>
           <T muted size={13}>Ouvertures sur 7 j : {sources || 'aucune'}</T>
           <T muted size={13}>Interrupteurs coupés : {off || 'aucun'}</T>
         </Card>

@@ -30,6 +30,7 @@
       <label class="switch-row" style="margin-top:8px"><span class="grow">💡 Me prévenir des nouveaux avis (idées, bugs)</span><input type="checkbox" class="switch" data-pa-notif="feedback"></label>
       <p class="artist" data-pa="notifHelp" style="margin:6px 0 0;white-space:normal"></p>
     </div>
+    <div data-pa="gate"></div>
     <h2>Messages des invités <span class="badge hidden" data-pa="msgBadge"></span></h2>
     <div data-pa="messages" class="list"></div>
     <button type="button" class="secondary hidden" data-pa-act="readAll" style="width:100%;margin-top:8px">✓ Tout marquer comme lu</button>
@@ -161,6 +162,7 @@
   function render(s) {
     if (!root || !s) return;
     renderNotif(s);
+    window.GuestGateAdmin?.render(s.guest_gate);  // parties et titres en invité (guest-gate-admin.js)
     renderMessages(s);
     renderGuests(s);
     renderBans(s);
@@ -249,6 +251,7 @@
       onState = opts.onState || onState;
       onUnread = opts.onUnread || onUnread;
       root.innerHTML = SKELETON;
+      window.GuestGateAdmin?.mount(q("gate"));
       root.addEventListener("click", onClick);
       root.addEventListener("submit", onSubmit);
       root.addEventListener("input", onInput);

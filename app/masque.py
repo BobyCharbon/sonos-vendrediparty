@@ -18,6 +18,7 @@ d'animateur restent dans main.py, et tout passe par le verrou unique des jeux.
 import random
 
 from .masque_cards import MASQUE_CARDS
+from .moderation import ContentRefused, require_clean
 
 CATS = {
     "souvenirs": "📼 Souvenirs", "toi": "🪞 Toi en vrai", "liens": "🤝 Les liens",
@@ -137,6 +138,10 @@ def write(g: dict, gid: str, text, rng=random):
     text = _clean(text)
     if len(text) < MIN_ANSWER:
         raise MasqueError("Écris au moins quelques mots")
+    try:  # filtre commun (Apple 1.2) : la réponse s'affiche à toute la table et sur la TV
+        text = require_clean(text, "answer")
+    except ContentRefused as e:
+        raise MasqueError(str(e)) from None
     S["answers"][gid] = text
     if all(p["id"] in S["answers"] for p in g["players"]):
         show(g, rng)
@@ -230,6 +235,37 @@ def hide(g: dict, index):
         S["hidden"].append(index)
         for picks in S["guesses"].values():
             picks.pop(str(index), None)
+
+
+REPORTED = "Réponse retirée après un signalement."
+
+
+def report(g: dict, gid: str, index) -> dict | None:
+    """« Signaler » (tout joueur, Apple 1.2) : la réponse disparaît aussitôt pour toute la table (et la TV), sans dire
+    qui l'a signalée ; renvoie {text, author} pour le journal de l'admin (None si déjà retirée)."""
+    S = state(g)
+    if g["phase"] not in ("guess", "reveal") or not _player(g, gid):
+        raise MasqueError("Pas maintenant")
+    try:
+        index = int(index)
+    except (TypeError, ValueError):
+        raise MasqueError("Réponse inconnue") from None
+    if not 0 <= index < len(S["slots"]):
+        raise MasqueError("Réponse inconnue")
+    if index == _mine(S, gid):
+        raise MasqueError("C'est ta réponse")
+    slot = S["slots"][index]
+    if g["phase"] == "guess":
+        if index in S["hidden"]:
+            return None
+        hide(g, index)
+    else:
+        row = (S["result"] or [None] * (index + 1))[index]
+        if not row or row.get("hidden"):
+            return None
+        # Même liste que la dernière entrée de l'historique : la réponse sort aussi du bilan de fin.
+        S["result"][index] = {"text": None, "hidden": True, "reported": True}
+    return {"text": slot["text"], "author": slot["gid"]}
 
 
 def _frozen_name(g: dict, gid: str) -> str:

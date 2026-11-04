@@ -98,6 +98,17 @@
     return `<div class="fb-chips">${out.join("")}</div>`;
   }
 
+  // Avis reformulé par l'IA à la demande de l'invité (app/ai_feedback.py) : titre et version structurée,
+  // sous son texte d'origine (gardé tel quel en titre de la ligne).
+  function aiHtml(i) {
+    const a = i.context?.ai;
+    if (!a?.title) return "";
+    const rows = [["Description", a.description], ["Étapes", (a.steps || []).join(" → ")], ["Attendu", a.expected],
+      ["Constaté", a.actual], ["Besoin", a.need], ["Proposition", a.proposal], ["Jeu", a.game], ["Appareil", a.device]]
+      .filter(([, v]) => v).map(([k, v]) => `<div><b>${k} :</b> ${escape(v)}</div>`).join("");
+    return `<details class="fb-note fb-ai-note"><summary>✨ ${escape(a.title)}</summary>${rows}</details>`;
+  }
+
   function verifyHtml(i, id) {
     if (i.status !== "verify") return "";
     return `<div class="fb-verify"><b>🧪 À vérifier</b>
@@ -119,7 +130,7 @@
     return `<div class="track fb-item ${escape(i.status)}"><div class="meta">
         <div class="title">${i.priority ? `<span class="fb-prio ${escape(i.priority)}">${escape(meta?.priorities.find((p) => p.key === i.priority)?.label || "")}</span> ` : ""}${escape(i.text)}</div>
         <div class="artist">${metaLine(i)} · <button type="button" class="fb-id" data-fb-id="${id}" aria-label="Copier l'identifiant ${id}">#${id}</button></div>
-        ${chips(i)}
+        ${chips(i)}${aiHtml(i)}
         ${i.note && editing !== i.id ? `<div class="fb-note">📝 ${escape(i.note)}</div>` : ""}
         ${i.reply && editing !== i.id ? `<div class="fb-note">💬 ${escape(i.reply)}</div>` : ""}
         ${i.claude ? `<a class="fb-claude ${escape(i.claude.state)}" href="${escape(i.claude.url)}" target="_blank" rel="noopener">${CLAUDE[i.claude.state] || ""} · #${escape(i.claude.number)}</a>` : ""}
@@ -180,7 +191,7 @@
       && (!fine.platform || (i.platforms || []).includes(fine.platform)) && (!fine.effort || (i.effort || "none") === fine.effort)
       && (!fine.priority || (i.priority || "none") === fine.priority)
       && (!fine.tag || (i.tags || []).some((t) => t.toLowerCase() === fine.tag.toLowerCase()))
-      && (!q || [i.text, i.note, i.name, i.id, i.reply, ...(i.tags || [])].some((s) => String(s || "").toLowerCase().includes(q))));
+      && (!q || [i.text, i.context?.ai?.title, i.note, i.name, i.id, i.reply, ...(i.tags || [])].some((s) => String(s || "").toLowerCase().includes(q))));
   }
 
   function sorted(list) {

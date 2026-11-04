@@ -70,7 +70,11 @@ export function useTerms() {
     setUnanswered(!valid);
     return valid;
   }, []);
-  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    // Premier chargement hors du rendu (la règle react-hooks interdit un setState synchrone ici).
+    const first = setTimeout(() => void reload(), 0);
+    return () => clearTimeout(first);
+  }, [reload]);
 
   async function accept(): Promise<void> {
     const version = status?.version ?? (await reload())?.version;

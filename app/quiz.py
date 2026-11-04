@@ -520,6 +520,48 @@ def record(g: dict):
         _save_stats(data)
 
 
+def merge_player(old: str, new: str) -> bool:
+    """Un invité crée (ou relie) son compte : ses stats du Quiz, comptées sous son identifiant d'invité, passent au
+    compte (additionnées s'il en avait déjà). Renvoie True si quelque chose a changé."""
+    if not old or old == new:
+        return False
+    with _stats_lock:
+        data = _load_stats()
+        P = data.setdefault("players", {})
+        src = P.pop(old, None)
+        if not src:
+            return False
+        dst = P.get(new)
+        if not dst:
+            P[new] = src
+        else:
+            merged = {**dst, "name": dst.get("name") or src.get("name", "")}
+            for k in ("pts", "games", "wins", "ok", "n"):
+                merged[k] = dst.get(k, 0) + src.get(k, 0)
+            merged["best_streak"] = max(dst.get("best_streak", 0), src.get("best_streak", 0))
+            merged["last"] = max(dst.get("last", 0), src.get("last", 0))
+            merged["records"] = {m: max(dst.get("records", {}).get(m, 0), src.get("records", {}).get(m, 0))
+                                 for m in {*dst.get("records", {}), *src.get("records", {})}}
+            themes = {t: list(v) for t, v in dst.get("themes", {}).items()}
+            for t, (ok, n) in src.get("themes", {}).items():
+                cur = themes.setdefault(t, [0, 0])
+                themes[t] = [cur[0] + ok, cur[1] + n]
+            merged["themes"] = themes
+            P[new] = merged
+        _save_stats(data)
+        return True
+
+
+def forget_player(gid: str) -> bool:
+    """Compte supprimé : ses stats du Quiz partent. True si quelque chose a été effacé."""
+    with _stats_lock:
+        data = _load_stats()
+        if gid not in data.get("players", {}):
+            return False
+        _save_stats({**data, "players": {k: v for k, v in data["players"].items() if k != gid}})
+        return True
+
+
 def leaderboard(limit: int = 20) -> dict:
     """Classement général et records par mode, pour l'écran d'accueil du quiz."""
     data = _load_stats()

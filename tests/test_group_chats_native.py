@@ -184,21 +184,20 @@ def test_routes_validate_input_and_relay(monkeypatch):
     assert client.post("/api/account/chats/open", json={"token": "jeton", "group_id": GRP}).json()["name"] == "Les amis"
 
 
-def test_production_keeps_discussions_for_beta_testers(monkeypatch):
-    """Production (EVENTS_ENABLED=0) : Discussions « Bientôt » comme Événements ; seuls les bêta-testeurs y accèdent."""
+def test_production_has_no_discussions_but_blocking_still_works(monkeypatch):
+    """Décision du 04.11 : Discussions absentes hors site de test (DISCUSSIONS_ENABLED) ; leurs routes répondent 404,
+    même pour un bêta-testeur. Bloquer une personne reste possible (commun à toute l'app)."""
     chats, _ = fake()
-    beta = {"jeton-beta": True, "jeton-membre": False}
     monkeypatch.setattr(main, "group_chats", chats)
-    monkeypatch.setattr(main, "EVENTS_ENABLED", False)
-    monkeypatch.setattr(main.accounts, "beta", lambda token: beta[token])
-    monkeypatch.setattr(main, "_beta_checked", {})
+    monkeypatch.setenv("DISCUSSIONS_ENABLED", "0")
     client = TestClient(main.app)
-    refused = client.post("/api/account/chats", json={"token": "jeton-membre"})
-    assert refused.status_code == 403 and "bientôt" in refused.json()["detail"]
-    sent = client.post("/api/account/chats/send", json={"token": "jeton-membre", "group_id": GRP, "body": "Salut"})
-    assert sent.status_code == 403
-    assert client.post("/api/account/chats", json={"token": "jeton-beta"}).json()["chats"][0]["unread"] == 2
-    assert client.post("/api/account/chats/send", json={"token": "jeton-beta", "group_id": GRP, "body": "Salut"}).json() == {"ok": True}
+    for path, body in (("/api/account/chats", {"token": "jeton"}), ("/api/account/chats/send", {"token": "jeton", "group_id": GRP, "body": "Salut"}),
+                       ("/api/account/chats/direct", {"token": "jeton", "user_id": LEA})):
+        refused = client.post(path, json=body)
+        assert refused.status_code == 404 and refused.json()["detail"] == main.DISCUSSIONS_OFF
+    assert client.post("/api/account/chats/block", json={"token": "jeton", "user_id": LEA, "on": True}).status_code != 404
+    monkeypatch.setenv("DISCUSSIONS_ENABLED", "1")
+    assert client.post("/api/account/chats", json={"token": "jeton"}).json()["chats"][0]["unread"] == 2
 
 
 M4A = b"\x00\x00\x00\x1cftypM4A " + b"\x00" * 32
@@ -271,7 +270,6 @@ def test_admins_name_organizers_and_choose_who_writes_everyone(monkeypatch):
     monkeypatch.setattr(main, "group_chats", type("G", (), {
         "set_organizer": lambda self, *a: calls.append(("org",) + a) or {"ok": True},
         "set_everyone": lambda self, *a: calls.append(("all",) + a) or {"everyone": a[-1]}})())
-    monkeypatch.setattr(main, "EVENTS_ENABLED", True)
     c = TestClient(main.app)
     member = "22222222-2222-2222-2222-222222222222"
     assert c.post("/api/account/chats/organizer", json={"token": "t", "group_id": GRP, "user_id": member, "on": True}).status_code == 200

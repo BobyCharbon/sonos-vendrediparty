@@ -151,3 +151,30 @@ def test_reflet_pick_bet_secret_votes_and_the_counter(phones):
         expect(p.page.locator('.lk-win-t')).to_have_text('🎯 Pile dans le mille !')
     alice.tap('[data-gact="next"]')
     expect(bob.page.locator('[data-rf-pick]')).to_have_count(3)  # au tour de Bob devant le miroir
+
+
+def test_masque_filters_answers_and_a_player_reports_one_for_the_whole_table(phones):
+    """B3 (audit du 04.11, Apple 1.2) : filtre commun sur les réponses, et « 🚩 Signaler » pour tout joueur."""
+    alice, bob, chloe = table(phones, 'masque')
+    alice.tap('[data-gact="start"]')
+    bob.tap('[data-ms-compose]')
+    bob.page.locator('.ms-sheet textarea').fill('Va voir www.exemple.com')
+    bob.page.locator('.ms-sheet button[type="submit"]').click()
+    expect(bob.page.locator('.toast')).to_contain_text('Réponse refusée')
+    bob.page.locator('.ms-sheet textarea').fill('Le bruit du train de nuit')  # la feuille reste ouverte : il corrige
+    bob.page.locator('.ms-sheet button[type="submit"]').click()
+    expect(bob.page.locator('.ms-sheet')).to_have_count(0)
+    write(alice, 'La mer en hiver')
+    write(chloe, 'Ma grand-mère qui chante')
+    for p in (alice, bob, chloe):
+        expect(p.page.locator('.ms-slot')).to_have_count(2)
+    for p in (bob, chloe, alice):
+        p.tap('[data-ms-send]')
+    expect(chloe.page.locator('.ms-slot', has_text='train de nuit')).to_be_visible()
+    expect(alice.page.locator('[data-ms-report]')).to_have_count(0)  # l'animateur a déjà « Retirer »
+    chloe.page.once('dialog', lambda d: d.accept())
+    chloe.page.locator('.ms-slot', has_text='train de nuit').locator('[data-ms-report]').click()
+    expect(chloe.page.locator('.toast')).to_contain_text('la réponse est retirée')
+    for p in (alice, bob, chloe):
+        expect(p.page.locator('#game')).not_to_contain_text('train de nuit')
+        expect(p.page.locator('.ms-slot.off')).to_contain_text('Réponse retirée après un signalement')

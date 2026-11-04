@@ -102,3 +102,9 @@ body.pyr-full #game.g-pu { box-shadow: none; border: 0; padding: 16px; backgroun
 .pu-when { text-align: center; margin: -4px 0 14px; color: var(--g-soft); }
 
 @media (prefers-reduced-motion: reduce) { .pu-q, .pu-bar i { transition: none; } .pu-shape { animation: none; } }
+/* Réglages › Mes stats : choix « classement général » (désactivé par défaut) et rappel de ce qui est gardé. */
+.pu-public { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 16px; background: rgba(255,255,255,.06); cursor: pointer; }
+.pu-public input { flex: none; width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--accent, #ff4fa3); }
+.pu-public span { display: grid; gap: 3px; font-weight: 700; }
+.pu-public small { font-weight: 500; color: var(--g-soft); }
+.pu-note { margin: 10px 2px 0; font-size: .85rem; color: var(--g-soft); }

@@ -6,16 +6,22 @@
 · Tirage DATA-DRIVEN : une table pondérée (catégories → poids → réserve). Le tirage est fait par le serveur avec un
   hasard HMAC par compte, jour et coffre (app/pet_store.py) : imprévisible, rejouable et vérifiable ; le résultat garde
   son jet (`roll`) et la version de la table. Les accessoires viennent du catalogue (app/pet_catalog.json), par rareté.
-· Garantie anti-malchance : au plus 30 coffres d'affilée sans Épique (ou mieux) ; le 30e en donne un.
+· Garantie anti-malchance : au plus 45 coffres d'affilée sans Épique (ou mieux) ; le 45e coffre DU JOUR donne un Épique
+  ou un Légendaire (jamais le Mythique : économie du 4.11.2026, scratchpad economie/rapport.md).
+· Tables sur 100 000 (économie du 4.11.2026) : les petites chances s'affichent « 1 chance sur N » (jamais « 0,0 % »).
+  Le coffre bonus des missions a SA table (pièces, objets, Communs et Rares seulement), affichée elle aussi.
 · Doublon (objet déjà à toi) → poussière d'étoile ; Légendaire : d'abord ceux qui te manquent ; Mythique (« Objet
   mystère ») : seulement s'il reste des exemplaires (tirage limité, numérotés), sinon la part passe au Légendaire.
 Économie sans argent réel : rien ne s'achète avec de l'argent, rien ne s'échange contre de l'argent, aucun lot réel.
 """
+from decimal import ROUND_HALF_UP, Decimal
+
 from . import pet_catalog
 
-TABLE_VERSION = 2
-PITY = 30                                  # un Épique (ou mieux) au plus tard au 30e coffre
+TABLE_VERSION = 3
+PITY = 45                                  # un Épique ou un Légendaire au plus tard au 45e coffre (était 30)
 EPIC_PLUS = ("epic", "legendary", "mythic")
+GUARANTEED = ("epic", "legendary")         # la garantie ne tire JAMAIS le Mythique (avant : 2,5 % au 30e coffre)
 PIECE_DUST = 5                             # ancien morceau de tenue (lot 1) → poussière
 
 SNACKS = {   # goûters rares (sac) : donnés hors limite de repas
@@ -47,48 +53,79 @@ def _catalog() -> dict[str, dict]:
 ITEMS = _catalog()
 SNACK_WEIGHT, STICKER_WEIGHT = 8, 1   # objet : moitié goûters (3), moitié stickers (24)
 
-# Table du coffre du jour (et du coffre bonus) : poids sur 1000, affichés pour CHAQUE tirage (« i »).
+# Table du coffre du jour : poids sur 100 000 (avant : sur 1 000, pièces 500, objet 150, C 220, R 90, É 32, L 7, M 1),
+# affichés pour CHAQUE tirage (« i »).
+CHEST_COINS = (8, 20)      # pièces d'un coffre (avant : 10 à 30)
+OBJECT_POOL = (tuple((f"snack:{k}", SNACK_WEIGHT) for k in SNACKS)
+               + tuple((f"sticker:{k}", STICKER_WEIGHT) for k, _, _ in STICKERS))
 CHEST_TABLE = (
-    {"cat": "coins", "weight": 500, "coins": (10, 30)},
-    {"cat": "object", "weight": 150, "pool": tuple((f"snack:{k}", SNACK_WEIGHT) for k in SNACKS)
-                                             + tuple((f"sticker:{k}", STICKER_WEIGHT) for k, _, _ in STICKERS)},
-    {"cat": "common", "weight": 220},
-    {"cat": "rare", "weight": 90},
-    {"cat": "epic", "weight": 32},
-    {"cat": "legendary", "weight": 7},
+    {"cat": "coins", "weight": 58000, "coins": CHEST_COINS},
+    {"cat": "object", "weight": 30650, "pool": OBJECT_POOL},
+    {"cat": "common", "weight": 7000},
+    {"cat": "rare", "weight": 3000},
+    {"cat": "epic", "weight": 1100},
+    {"cat": "legendary", "weight": 249},
     {"cat": "mythic", "weight": 1},
 )
-BONUS_COINS_FACTOR = 2     # coffre bonus des missions : pièces doublées
+# Coffre bonus des missions : SA table (avant : la même que le coffre du jour, pièces doublées) — ni Épique, ni
+# Légendaire, ni Mythique ; il ne déclenche jamais la garantie (il la fait seulement avancer).
+BONUS_TABLE = (
+    {"cat": "coins", "weight": 72000, "coins": CHEST_COINS},
+    {"cat": "object", "weight": 24300, "pool": OBJECT_POOL},
+    {"cat": "common", "weight": 3000},
+    {"cat": "rare", "weight": 700},
+)
+BONUS_COINS_FACTOR = 1     # coffre bonus : pièces NON doublées (avant : 2)
 FALLBACK_COINS = 25        # réserve vide : des pièces à la place
-ODDS_LABELS = {"coins": "Pièces (10 à 30)", "object": "Goûter rare ou sticker", "common": "Accessoire Commun",
-               "rare": "Accessoire Rare", "epic": "Accessoire Épique", "legendary": "Accessoire Légendaire (numéroté)",
-               "mythic": "Objet mystère"}
+ODDS_LABELS = {"coins": f"Pièces ({CHEST_COINS[0]} à {CHEST_COINS[1]})", "object": "Goûter rare ou sticker",
+               "common": "Accessoire Commun", "rare": "Accessoire Rare", "epic": "Accessoire Épique",
+               "legendary": "Accessoire Légendaire (numéroté)", "mythic": "Objet mystère"}
+ONE_IN_BELOW_PCT = Decimal("0.1")     # sous 0,1 % : « 1 chance sur N » (une table sur 100 000 donnerait sinon « 0,0 % »)
 
 
-def _table(mythic_open: bool, guaranteed: bool) -> list[dict]:
-    """Table effective : sans Mythique disponible, sa part va au Légendaire ; garantie : Épique ou mieux seulement."""
+def _table(mythic_open: bool, guaranteed: bool, bonus: bool = False) -> list[dict]:
+    """Table effective : sans Mythique disponible, sa part va au Légendaire ; garantie (coffre du jour seulement) :
+    Épique ou Légendaire seulement, jamais le Mythique ; coffre bonus : sa propre table."""
+    if bonus:
+        return [dict(r) for r in BONUS_TABLE if r["weight"] > 0]
     rows = [dict(r) for r in CHEST_TABLE]
     if not mythic_open:
         myth = next(r for r in rows if r["cat"] == "mythic")
         next(r for r in rows if r["cat"] == "legendary")["weight"] += myth["weight"]
         myth["weight"] = 0
     if guaranteed:
-        rows = [r for r in rows if r["cat"] in EPIC_PLUS]
+        rows = [r for r in rows if r["cat"] in GUARANTEED]
     return [r for r in rows if r["weight"] > 0]
+
+
+def odds_text(weight: int, total: int) -> str:
+    """« 58 % », « 0,25 % » ou, sous 0,1 %, « 1 chance sur 100 000 » (espaces fines insécables entre les milliers)."""
+    pct = Decimal(100 * weight) / Decimal(total)
+    if pct >= ONE_IN_BELOW_PCT:
+        shown = pct.quantize(Decimal("0.1") if pct >= 1 else Decimal("0.01"), rounding=ROUND_HALF_UP).normalize()
+        return f"{shown:f} %".replace(".", ",")
+    n = round(total / weight)
+    return f"1 chance sur {n:,}".replace(",", "\u202f")
 
 
 def mythic_pool(mythic_left: dict | None) -> list[str]:
     return [m for m in pet_catalog.mythics("chest") if int((mythic_left or {}).get(m, 0)) > 0]
 
 
-def odds(pity: int = 0, mythic_left: dict | None = None) -> list[dict]:
-    """Chances du prochain coffre, en %, à une décimale (« Objet mystère : 0,1 % » compris)."""
-    guaranteed = pity >= PITY - 1
-    rows = _table(bool(mythic_pool(mythic_left)), guaranteed)
+def odds(pity: int = 0, mythic_left: dict | None = None, bonus: bool = False) -> list[dict]:
+    """Chances du prochain coffre (du jour, ou bonus), « Objet mystère » compris : `pct` (nombre) et `text` (à afficher :
+    « 58 % » ou « 1 chance sur 100 000 »)."""
+    guaranteed = pity >= PITY - 1 and not bonus
+    rows = _table(bool(mythic_pool(mythic_left)), guaranteed, bonus)
     total = sum(r["weight"] for r in rows)
-    shown = [{"kind": r["cat"], "label": ODDS_LABELS[r["cat"]], "pct": round(100 * r["weight"] / total, 1)} for r in rows]
-    if not guaranteed and not any(r["kind"] == "mythic" for r in shown):
-        shown.append({"kind": "mythic", "label": ODDS_LABELS["mythic"] + " (tous les exemplaires sont partis)", "pct": 0.0})
+    shown = [{"kind": r["cat"], "label": ODDS_LABELS[r["cat"]], "pct": round(100 * r["weight"] / total, 3),
+              "text": odds_text(r["weight"], total)} for r in rows]
+    if not guaranteed and not bonus and not any(r["kind"] == "mythic" for r in shown):
+        shown.append({"kind": "mythic", "label": ODDS_LABELS["mythic"] + " (tous les exemplaires sont partis)", "pct": 0.0,
+                      "text": "0 %"})
+    if bonus:
+        shown += [{"kind": k, "label": ODDS_LABELS[k], "pct": 0.0, "text": "0 % (jamais dans le coffre bonus)"}
+                  for k in ("epic", "legendary", "mythic")]
     return shown
 
 
@@ -122,11 +159,13 @@ class _Fixed:
         return self.value
 
 
-def draw(rng, inv: dict, owned: set[str], pity: int = 0, mythic_left: dict | None = None, bonus: bool = False) -> dict:
-    """Un tirage : la catégorie d'abord (poids de la table, garantie comprise), puis l'objet dans sa réserve."""
+def draw(rng, inv: dict, owned: set[str], pity: int = 0, mythic_left: dict | None = None, bonus: bool = False,
+         today: str | None = None) -> dict:
+    """Un tirage : la catégorie d'abord (poids de la table, garantie comprise), puis l'objet dans sa réserve (séries
+    déjà sorties le jour `today`)."""
     roll = rng.random()
-    guaranteed = pity >= PITY - 1
-    table = _table(bool(mythic_pool(mythic_left)), guaranteed)
+    guaranteed = pity >= PITY - 1 and not bonus
+    table = _table(bool(mythic_pool(mythic_left)), guaranteed, bonus)
     row = _weighted(_Fixed(roll), [(r, r["weight"]) for r in table])[0]
     factor = BONUS_COINS_FACTOR if bonus else 1
     base = {"cat": row["cat"], "roll": round(roll, 6), "table": TABLE_VERSION, "guaranteed": guaranteed}
@@ -139,15 +178,15 @@ def draw(rng, inv: dict, owned: set[str], pity: int = 0, mythic_left: dict | Non
             return base | {"kind": "coins", "amount": FALLBACK_COINS * factor}
         item = _weighted(rng, pool)[0]
         return base | {"kind": ITEMS[item]["family"], "item": item}
-    return base | _accessory(rng, row["cat"], owned, mythic_left)
+    return base | _accessory(rng, row["cat"], owned, mythic_left, today)
 
 
-def _accessory(rng, rarity: str, owned: set[str], mythic_left: dict | None) -> dict:
+def _accessory(rng, rarity: str, owned: set[str], mythic_left: dict | None, today: str | None = None) -> dict:
     if rarity == "mythic":
         pool = mythic_pool(mythic_left)
         iid = pool[int(rng.random() * len(pool)) % len(pool)]
         return {"kind": "item", "item": iid, "rarity": "mythic", "dup": False, "mint": True}
-    pool = pet_catalog.chest_pool(rarity)
+    pool = pet_catalog.chest_pool(rarity, today) or pet_catalog.chest_pool(rarity)
     if rarity == "legendary":
         missing = [i for i in pool if i not in owned]
         pool = missing or pool   # pas de doublon de Légendaire tant qu'il en manque un

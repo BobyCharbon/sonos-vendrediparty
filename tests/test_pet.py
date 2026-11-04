@@ -310,15 +310,29 @@ def test_an_old_game_does_not_count_and_an_egg_gets_nothing_but_the_cursor_moves
     assert owner2["claimed"]["brain"] == fresh and owner2["stats"]["brain"] == 1 and owner2["stats"]["party"] == 1
 
 
-def test_a_soiree_gives_a_big_bonus_once_and_the_light_necklace():
+def test_presence_and_answers_never_reward_anything_anymore():
+    """Décision de l'admin (04.11.2026) : plus de source « soirée » ni « rsvp » ; rewards ne lit plus les événements."""
+    assert set(pet.REWARDS) == {"brain", "party", "music"}
+    assert "events" not in pet.rewards.__code__.co_varnames[:pet.rewards.__code__.co_argcount]
+
+
+def test_event_coins_are_added_once_bounded_with_party_mood_and_the_light_necklace():
     life, owner = hatched()
-    life["g"] = {k: 20.0 for k in pet.GAUGES}
-    ev = [{"id": "e1", "starts_at": pet.iso(h(-2))}, {"id": "futur", "starts_at": pet.iso(h(5))}]
-    life, owner, got = pet.rewards(life, owner, h(0), [], [], ev)
-    assert got == [{"kind": "reward", "source": "soiree"}] and life["g"]["food"] == 45
-    assert pet.emotion(life, h(1)) == "party"
-    assert pet.unlock(owner) == ["boa"]
-    assert pet.rewards(life, owner, h(1), [], [], ev)[2] == []
+    grants = [{"id": "g1", "event": "Vendredi chez Ludo", "coins": 20},
+              {"id": "g2", "event": "Trop", "coins": 500}, {"id": "g3", "event": "Trop peu", "coins": 1},
+              {"id": "", "coins": 20}, {"id": "g4", "coins": "illisible"}]
+    life, owner, got, done = pet.event_coins(life, owner, h(0), grants)
+    assert got == [{"kind": "event_coins", "coins": 20, "event": "Vendredi chez Ludo"}] and done == ["g1"]
+    assert owner["loop"]["coins"] == 20 and owner["stats"]["soirees"] == 1
+    assert pet.emotion(life, h(1)) == "party" and pet.unlock(owner) == ["boa"]
+    life, owner, again, done = pet.event_coins(life, owner, h(1), grants)
+    assert again == [] and done == ["g1"] and owner["loop"]["coins"] == 20   # déjà rangé : seulement à marquer
+
+
+def test_an_egg_still_gets_its_event_coins():
+    life, owner = pet.new_pet(T0)
+    life, owner, got, _ = pet.event_coins(life, owner, T0, [{"id": "g1", "event": "E", "coins": 5}])
+    assert owner["loop"]["coins"] == 5 and got[0]["coins"] == 5 and not life.get("party_until")
 
 
 def test_gifts_from_friends():

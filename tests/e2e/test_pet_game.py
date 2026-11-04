@@ -77,6 +77,8 @@ def world(browser):
     supa = PetSupabase()
     server = Server(supa)
     phone = Phone(browser, server, "Alice")
+    # Accueil de Zicou (feuille « Quelqu'un t'attend… ») déjà vu : testé à part (tests/e2e/test_zicou_home.py).
+    phone.ctx.add_init_script("localStorage.setItem('zc_onb', JSON.stringify({ step: 'done' }))")
     yield phone, supa
     errors, server_errors = phone.errors, server.errors()
     phone.close()
@@ -90,7 +92,7 @@ def open_pet(phone):
     phone.open_games()
     card = phone.page.locator('#gHome section.g-cat').first.locator('.gcard').first
     expect(card).to_have_class("gcard g-pt")
-    expect(card.locator('[data-pet-name]')).to_have_text('Compagnon')
+    expect(card.locator('[data-pet-name]')).to_have_text('Zicou')
     expect(card.locator('.g-pt-ico svg')).to_be_visible()
     card.locator('[data-pet-open]').click()
     root = phone.page.locator('#petRoot')
@@ -103,14 +105,17 @@ def test_without_account_the_card_invites_to_sign_in(world):
     page = phone.page
     root = open_pet(phone)
     expect(root.locator('.pt-login h2')).to_have_text('Adopte ton Zicou')   # (le playtest a vu « Paillou »)
-    assert root.evaluate('el => getComputedStyle(el).position') == 'fixed'
+    # Onglet Zicou (4.11) : le panneau est dans la page, la barre d'onglets reste là (rien sur html/body).
+    assert page.evaluate("document.body.dataset.tab") == 'pet'
+    assert root.evaluate('el => getComputedStyle(el).position') != 'fixed'
     assert page.evaluate("getComputedStyle(document.body).overflowY") != 'hidden'
-    assert page.evaluate("document.documentElement.classList.contains('pt-open')")
-    expect(page.locator('#tabs')).to_be_hidden()
+    assert not page.evaluate("document.documentElement.classList.contains('pt-open')")
+    expect(page.locator('#tabs')).to_be_visible()
+    expect(root.locator('[data-pt="login"]')).to_have_text('Créer mon compte')
     phone.shot('pet-0-connexion')
     root.locator('[data-pt="login"]').click()
     expect(root).to_be_hidden()
-    assert not page.evaluate("document.documentElement.classList.contains('pt-open')")
+    assert page.evaluate("document.body.dataset.tab") == 'account'   # parcours de connexion existant (SMS)
 
 
 def test_egg_name_then_care_for_a_baby(world):
@@ -130,7 +135,7 @@ def test_egg_name_then_care_for_a_baby(world):
     # Bébé éclos depuis 30 min, ventre à moitié vide : on le nourrit.
     life, owner = grown(food=40)
     supa.seed(supa.base.users[TOK_A], life, owner)
-    root.locator('[data-pt="close"]').click()
+    phone.page.locator('#tabs [data-tab="games"]').click()   # on quitte l'onglet Zicou, puis on y revient
     root = open_pet(phone)
     expect(root.locator('.pt-gauges .pt-bar').first).to_have_attribute('aria-valuenow', '40')
     phone.shot('pet-2-accueil')
@@ -141,11 +146,12 @@ def test_egg_name_then_care_for_a_baby(world):
     # Dodo : la nuit tombe, les soins attendent ; on rallume.
     life = supa.base.pets[supa.base.users[TOK_A]]["life"]
     life["g"]["energy"] = 40
-    root.locator('[data-pt="close"]').click()
+    phone.page.locator('#tabs [data-tab="games"]').click()   # on quitte l'onglet Zicou, puis on y revient
     root = open_pet(phone)
     root.locator('[data-pt="act"][data-a="sleep"]').click()
     expect(root.locator('.pt-hero.pt-night')).to_be_visible()
     expect(root.locator('[data-a="feed"]')).to_have_attribute('aria-disabled', 'true')
+    root.locator('[data-a="feed"]').evaluate("el => el.scrollIntoView({ block: 'center' })")   # pas sous la barre d'onglets
     root.locator('[data-a="feed"]').click(force=True)   # aria-disabled : le toucher explique pourquoi
     expect(root.locator('.pt-live')).to_contain_text('il dort')
     phone.shot('pet-3-dodo')
@@ -297,7 +303,8 @@ def test_daily_chest_odds_streak_missions_and_treasures(world):
     life, owner = grown()
     supa.seed(supa.base.users[TOK_A], life, owner)
     root = open_pet(phone)
-    assert supa.base.opens[-1] == (supa.base.users[TOK_A], "tab")
+    # Ouvertures comptées (la pastille relit sans compter : source None)
+    assert [o for o in supa.base.opens if o[1]][-1] == (supa.base.users[TOK_A], "tab")
     chest = root.locator('[data-pt="chest"]')
     expect(chest).to_contain_text('Zicou a trouvé un truc')
     expect(root.locator('.pt-missions li')).to_have_count(3)
@@ -305,10 +312,10 @@ def test_daily_chest_odds_streak_missions_and_treasures(world):
     phone.shot('pet-9-boucle-du-jour')
     # Les chances, sous « i ».
     root.locator('[data-pt="odds"]').click()
-    expect(root.locator('.pt-odds li')).to_have_count(7)
-    expect(root.locator('.pt-odds')).to_contain_text('50 %')
+    expect(root.locator('.pt-odds li')).to_have_count(14)   # coffre du jour (7) + coffre bonus (7, dont 3 à 0 %)
+    expect(root.locator('.pt-odds')).to_contain_text('58 %')
     expect(root.locator('.pt-odds')).to_contain_text('Objet mystère')
-    expect(root.locator('.pt-pity')).to_contain_text('Épique garanti')
+    expect(root.locator('.pt-pity')).to_contain_text('Épique ou Légendaire garanti')
     page.go_back()
     # Le coffre : animation, puis révélation de ce que le serveur a tiré.
     root.locator('[data-pt="chest"]').click()

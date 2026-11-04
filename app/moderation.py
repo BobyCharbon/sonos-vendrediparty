@@ -8,7 +8,9 @@ Règle par type de texte :
 - noms et textes courts publics (« name », « word », « offer », « showcase ») : REFUS de tout mot haineux, sexuel ou
   injurieux, de tout lien et de tout numéro de téléphone (8 chiffres ou plus) — on choisit un autre nom ;
 - messages (« message ») : les insultes d'un mot sont MASQUÉES (••••) et le message part ; propos haineux ou sexuels,
-  insultes en plusieurs mots ou déguisées (s a l o p e) : REFUS. Liens et numéros restent permis (on s'en échange).
+  insultes en plusieurs mots ou déguisées (s a l o p e) : REFUS. Liens et numéros restent permis (on s'en échange) ;
+- réponses de jeu montrées à toute la table et sur la TV (« answer » : Le Masque, dilemmes proposés) : comme un message
+  (insultes masquées, le reste refusé), mais SANS lien ni numéro de téléphone.
 
 Contournements simples gérés : majuscules, accents, chiffres et signes à la place des lettres (s@l0pe), lettres
 répétées (saloooope), lettres séparées (s.a.l.o.p.e), caractères invisibles."""
@@ -32,7 +34,8 @@ MERGE_MIN = 3
 MASK = "•"
 
 PUBLIC_KINDS = ("name", "word", "offer", "showcase")
-KINDS = PUBLIC_KINDS + ("message",)
+MASKED_KINDS = ("message", "answer")  # insultes d'un mot masquées, pas refusées
+KINDS = PUBLIC_KINDS + MASKED_KINDS
 REASONS = {
     "haine": "des propos haineux",
     "sexuel": "un contenu sexuel",
@@ -125,7 +128,7 @@ def _hit(text: str, kind: str) -> str | None:
     for cat, _ in CATEGORIES:
         if _FULL[cat].search(words):
             return cat
-    if kind in PUBLIC_KINDS:
+    if kind != "message":
         low = text.lower()
         if LINK.search(low):
             return "lien"
@@ -147,18 +150,20 @@ def refusal(category: str, kind: str) -> str:
     reason = REASONS.get(category, "un mot interdit")
     if kind == "message":
         return f"Message non envoyé : il contient {reason}. Les règles de Party l'interdisent."
+    if kind == "answer":
+        return f"Réponse refusée : elle contient {reason}. Les règles de Party l'interdisent, écris-la autrement."
     return f"Ce texte n'est pas accepté : il contient {reason}. Choisis-en un autre."
 
 
 def check(text: str, kind: str = "name") -> Verdict:
-    """Verdict pour un texte de joueur. kind : name, word, offer, showcase (refus) ou message (insultes masquées)."""
+    """Verdict pour un texte de joueur. kind : name, word, offer, showcase (refus) ; message, answer (insultes masquées)."""
     if kind not in KINDS:
         raise ValueError(f"type de texte inconnu : {kind}")
     body = clean(text)
     category = _hit(body, kind)
     if category is None:
         return Verdict(True, None, body, None)
-    if kind == "message" and category == "insulte":
+    if kind in MASKED_KINDS and category == "insulte":
         masked = _mask_insults(body)
         if _hit(masked, kind) is None:
             return Verdict(True, "insulte", masked, None)

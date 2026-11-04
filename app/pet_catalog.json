@@ -1,11 +1,11 @@
 {
-  "_doc": "Catalogue unique de la collection du Compagnon (lot A, 4.11.2026). Lu par app/pet_catalog.py (serveur), recopié dans la base par la migration 20261104210000 (public.pet_catalog, un test vérifie l'égalité). Les dessins sont dans app/static/pet/acc-*.js (même identifiant). Les Mythiques ont un identifiant neutre (m-…) : leur nom n'est jamais envoyé à qui n'en possède pas.",
-  "version": 1,
+  "_doc": "Catalogue unique de la collection du Compagnon (lot A, 4.11.2026). Lu par app/pet_catalog.py (serveur), recopié dans la base par la migration 20261104210000 puis 20261105120000 (économie : prix, Mythiques 8 exemplaires ; public.pet_catalog, un test vérifie l'égalité). « release » : date de sortie de la série (coffres, boutique, atelier filtrés par le serveur ; Zicoudex « Bientôt »). Les dessins sont dans app/static/pet/acc-*.js (même identifiant). Les Mythiques ont un identifiant neutre (m-…) : leur nom n'est jamais envoyé à qui n'en possède pas.",
+  "version": 2,
   "rarities": [
-    {"id": "common", "label": "Commun", "color": "#9aa3b5", "dust": 5, "craft": 40, "shop": 60},
-    {"id": "rare", "label": "Rare", "color": "#4f9bff", "dust": 20, "craft": 100, "shop": 200},
-    {"id": "epic", "label": "Épique", "color": "#a565ff", "dust": 100, "craft": 400, "shop": null},
-    {"id": "legendary", "label": "Légendaire", "color": "#ffbf3c", "dust": 400, "craft": 1600, "shop": null},
+    {"id": "common", "label": "Commun", "color": "#9aa3b5", "dust": 5, "craft": 60, "shop": 300},
+    {"id": "rare", "label": "Rare", "color": "#4f9bff", "dust": 20, "craft": 150, "shop": 1200},
+    {"id": "epic", "label": "Épique", "color": "#a565ff", "dust": 100, "craft": 600, "shop": null},
+    {"id": "legendary", "label": "Légendaire", "color": "#ffbf3c", "dust": 400, "craft": 2400, "shop": null},
     {"id": "mythic", "label": "Mythique", "color": "rainbow", "dust": null, "craft": null, "shop": null}
   ],
   "slots": [
@@ -15,12 +15,12 @@
     {"id": "pet", "label": "Petit compagnon"}
   ],
   "series": [
-    {"id": "disco", "label": "Disco", "emoji": "🪩", "source": "chest", "bonus": {"coins": 150, "dust": 100}},
-    {"id": "montagne", "label": "Montagne suisse", "emoji": "🏔️", "source": "chest", "bonus": {"coins": 150, "dust": 100}},
-    {"id": "escalade", "label": "Escalade", "emoji": "🧗", "source": "chest", "bonus": {"coins": 150, "dust": 100}},
-    {"id": "halloween", "label": "Halloween", "emoji": "🎃", "source": "chest", "bonus": {"coins": 150, "dust": 100}},
-    {"id": "nouvelan", "label": "Nouvel An", "emoji": "🎆", "source": "chest", "bonus": {"coins": 150, "dust": 100}},
-    {"id": "soirees", "label": "Soirées Party", "emoji": "🎉", "source": "event", "bonus": {"coins": 200, "dust": 200}}
+    {"id": "disco", "label": "Disco", "emoji": "🪩", "source": "chest", "release": "2026-11-01", "bonus": {"coins": 150, "dust": 60}},
+    {"id": "montagne", "label": "Montagne suisse", "emoji": "🏔️", "source": "chest", "release": "2026-11-01", "bonus": {"coins": 150, "dust": 60}},
+    {"id": "escalade", "label": "Escalade", "emoji": "🧗", "source": "chest", "release": "2026-11-01", "bonus": {"coins": 150, "dust": 60}},
+    {"id": "halloween", "label": "Halloween", "emoji": "🎃", "source": "chest", "release": "2026-11-01", "bonus": {"coins": 150, "dust": 60}},
+    {"id": "nouvelan", "label": "Nouvel An", "emoji": "🎆", "source": "chest", "release": "2026-11-01", "bonus": {"coins": 150, "dust": 60}},
+    {"id": "soirees", "label": "Soirées Party", "emoji": "🎉", "source": "event", "release": "2026-11-01", "bonus": {"coins": 200, "dust": 120}}
   ],
   "items": [
     {"id": "lunettes", "series": "disco", "slot": "eyes", "rarity": "common", "label": "Lunettes de soleil", "emoji": "🕶️", "legacy": true},
@@ -29,11 +29,11 @@
     {"id": "facettes-miroir", "series": "disco", "slot": "facets", "rarity": "common", "label": "Facettes miroir", "emoji": "🪞"},
     {"id": "boa", "series": "disco", "slot": "neck", "rarity": "rare", "label": "Collier lumineux", "emoji": "✨", "legacy": true},
     {"id": "micro-chrome", "series": "disco", "slot": "hand", "rarity": "rare", "label": "Micro chromé", "emoji": "🎤"},
-    {"id": "decor-piste", "series": "disco", "slot": "decor", "rarity": "rare", "label": "Piste de danse lumineuse", "emoji": "🟪", "price": 350},
+    {"id": "decor-piste", "series": "disco", "slot": "decor", "rarity": "rare", "label": "Piste de danse lumineuse", "emoji": "🟪", "price": 1400},
     {"id": "casque", "series": "disco", "slot": "head", "rarity": "epic", "label": "Casque de DJ doré", "emoji": "🎧", "legacy": true},
     {"id": "paillettes", "series": "disco", "slot": "neck", "rarity": "epic", "label": "Veste à paillettes", "emoji": "🧥", "legacy": true},
     {"id": "facettes-or", "series": "disco", "slot": "facets", "rarity": "legendary", "label": "« Saturday Night Zicou » : facettes d'or", "emoji": "🌟"},
-    {"id": "m-disco", "series": "disco", "slot": "head", "rarity": "mythic", "label": "Couronne Aurore", "emoji": "👑", "edition": 25},
+    {"id": "m-disco", "series": "disco", "slot": "head", "rarity": "mythic", "label": "Couronne Aurore", "emoji": "👑", "edition": 8},
 
     {"id": "bonnet", "series": "montagne", "slot": "head", "rarity": "common", "label": "Bonnet à pompon", "emoji": "🧶", "legacy": true},
     {"id": "echarpe", "series": "montagne", "slot": "neck", "rarity": "common", "label": "Écharpe douillette", "emoji": "🧣", "legacy": true},
@@ -43,9 +43,9 @@
     {"id": "sac-rando", "series": "montagne", "slot": "back", "rarity": "rare", "label": "Sac à dos de rando", "emoji": "🎒"},
     {"id": "lunettes-glacier", "series": "montagne", "slot": "eyes", "rarity": "rare", "label": "Lunettes de glacier", "emoji": "🥽"},
     {"id": "cor-alpes", "series": "montagne", "slot": "hand", "rarity": "epic", "label": "Cor des Alpes", "emoji": "📯"},
-    {"id": "decor-chalet", "series": "montagne", "slot": "decor", "rarity": "epic", "label": "Chalet sous la neige", "emoji": "🏡", "price": 800},
+    {"id": "decor-chalet", "series": "montagne", "slot": "decor", "rarity": "epic", "label": "Chalet sous la neige", "emoji": "🏡", "price": 3200},
     {"id": "marmotte", "series": "montagne", "slot": "pet", "rarity": "legendary", "label": "Marmotte des Alpes", "emoji": "🐿️"},
-    {"id": "m-montagne", "series": "montagne", "slot": "facets", "rarity": "mythic", "label": "Facettes Glacier éternel", "emoji": "🧊", "edition": 25},
+    {"id": "m-montagne", "series": "montagne", "slot": "facets", "rarity": "mythic", "label": "Facettes Glacier éternel", "emoji": "🧊", "edition": 8},
 
     {"id": "casquette", "series": "escalade", "slot": "head", "rarity": "common", "label": "Casquette", "emoji": "🧢", "legacy": true},
     {"id": "sac-magnesie", "series": "escalade", "slot": "back", "rarity": "common", "label": "Sac à magnésie", "emoji": "👝"},
@@ -55,9 +55,9 @@
     {"id": "casque-grimpe", "series": "escalade", "slot": "head", "rarity": "rare", "label": "Casque de grimpe", "emoji": "⛑️"},
     {"id": "corde", "series": "escalade", "slot": "back", "rarity": "rare", "label": "Corde lovée", "emoji": "➰"},
     {"id": "nuage-magnesie", "series": "escalade", "slot": "effect", "rarity": "epic", "label": "Nuage de magnésie", "emoji": "☁️"},
-    {"id": "decor-mur", "series": "escalade", "slot": "decor", "rarity": "epic", "label": "Mur d'escalade", "emoji": "🧗", "price": 800},
+    {"id": "decor-mur", "series": "escalade", "slot": "decor", "rarity": "epic", "label": "Mur d'escalade", "emoji": "🧗", "price": 3200},
     {"id": "piolet-or", "series": "escalade", "slot": "hand", "rarity": "legendary", "label": "Piolet d'or", "emoji": "⛏️"},
-    {"id": "m-escalade", "series": "escalade", "slot": "effect", "rarity": "mythic", "label": "Aura du sommet", "emoji": "🏔️", "edition": 25},
+    {"id": "m-escalade", "series": "escalade", "slot": "effect", "rarity": "mythic", "label": "Aura du sommet", "emoji": "🏔️", "edition": 8},
 
     {"id": "chapeau-sorciere", "series": "halloween", "slot": "head", "rarity": "common", "label": "Chapeau de sorcière", "emoji": "🧙"},
     {"id": "loup-bal", "series": "halloween", "slot": "eyes", "rarity": "common", "label": "Loup de bal masqué", "emoji": "🎭"},
@@ -67,9 +67,9 @@
     {"id": "aureole", "series": "halloween", "slot": "head", "rarity": "rare", "label": "Auréole", "emoji": "😇", "legacy": true},
     {"id": "chauve-souris", "series": "halloween", "slot": "pet", "rarity": "rare", "label": "Chauve-souris", "emoji": "🦇"},
     {"id": "brume", "series": "halloween", "slot": "effect", "rarity": "epic", "label": "Brume ensorcelée", "emoji": "🌫️"},
-    {"id": "decor-manoir", "series": "halloween", "slot": "decor", "rarity": "epic", "label": "Manoir hanté", "emoji": "🏚️", "price": 800},
+    {"id": "decor-manoir", "series": "halloween", "slot": "decor", "rarity": "epic", "label": "Manoir hanté", "emoji": "🏚️", "price": 3200},
     {"id": "facettes-squelette", "series": "halloween", "slot": "facets", "rarity": "legendary", "label": "« Zicou Squelette » : facettes phosphorescentes", "emoji": "💀"},
-    {"id": "m-halloween", "series": "halloween", "slot": "effect", "rarity": "mythic", "label": "Pleine lune", "emoji": "🌕", "edition": 25},
+    {"id": "m-halloween", "series": "halloween", "slot": "effect", "rarity": "mythic", "label": "Pleine lune", "emoji": "🌕", "edition": 8},
 
     {"id": "chapeau", "series": "nouvelan", "slot": "head", "rarity": "common", "label": "Chapeau de fête", "emoji": "🥳", "legacy": true},
     {"id": "lunettes-2027", "series": "nouvelan", "slot": "eyes", "rarity": "common", "label": "Lunettes « 2027 »", "emoji": "👓"},
@@ -77,11 +77,11 @@
     {"id": "noeud-or", "series": "nouvelan", "slot": "neck", "rarity": "common", "label": "Nœud doré", "emoji": "🎀"},
     {"id": "confettis", "series": "nouvelan", "slot": "effect", "rarity": "rare", "label": "Pluie de confettis", "emoji": "🎊"},
     {"id": "escarpins-paillettes", "series": "nouvelan", "slot": "feet", "rarity": "rare", "label": "Souliers à paillettes", "emoji": "👠"},
-    {"id": "decor-minuit", "series": "nouvelan", "slot": "decor", "rarity": "rare", "label": "Minuit sur la ville", "emoji": "🌃", "price": 350},
+    {"id": "decor-minuit", "series": "nouvelan", "slot": "decor", "rarity": "rare", "label": "Minuit sur la ville", "emoji": "🌃", "price": 1400},
     {"id": "comete", "series": "nouvelan", "slot": "effect", "rarity": "epic", "label": "Comète", "emoji": "☄️", "legacy": true},
     {"id": "horloge-minuit", "series": "nouvelan", "slot": "hand", "rarity": "epic", "label": "Horloge de minuit", "emoji": "🕛"},
     {"id": "feu-artifice", "series": "nouvelan", "slot": "effect", "rarity": "legendary", "label": "Feu d'artifice", "emoji": "🎆"},
-    {"id": "m-nouvelan", "series": "nouvelan", "slot": "pet", "rarity": "mythic", "label": "Phénix de minuit", "emoji": "🐦‍🔥", "edition": 25},
+    {"id": "m-nouvelan", "series": "nouvelan", "slot": "pet", "rarity": "mythic", "label": "Phénix de minuit", "emoji": "🐦‍🔥", "edition": 8},
 
     {"id": "noeud", "series": "soirees", "slot": "neck", "rarity": "common", "label": "Nœud papillon", "emoji": "🎀", "legacy": true, "welcome": true},
     {"id": "bracelet-entree", "series": "soirees", "slot": "hand", "rarity": "common", "label": "Bracelet d'entrée", "emoji": "🎟️"},
@@ -89,7 +89,7 @@
     {"id": "lunettes-coeur", "series": "soirees", "slot": "eyes", "rarity": "common", "label": "Lunettes cœur", "emoji": "😍"},
     {"id": "ailes", "series": "soirees", "slot": "back", "rarity": "rare", "label": "Ailes de fée", "emoji": "🧚", "legacy": true},
     {"id": "baton-lumineux", "series": "soirees", "slot": "hand", "rarity": "rare", "label": "Bâton lumineux", "emoji": "🪄"},
-    {"id": "decor-salon", "series": "soirees", "slot": "decor", "rarity": "rare", "label": "Le salon de Party", "emoji": "🛋️", "price": 350},
+    {"id": "decor-salon", "series": "soirees", "slot": "decor", "rarity": "rare", "label": "Le salon de Party", "emoji": "🛋️", "price": 1400},
     {"id": "couronne", "series": "soirees", "slot": "head", "rarity": "epic", "label": "Couronne", "emoji": "👑", "legacy": true},
     {"id": "lumi", "series": "soirees", "slot": "pet", "rarity": "epic", "label": "Lumi la luciole", "emoji": "✨"},
     {"id": "projecteurs", "series": "soirees", "slot": "effect", "rarity": "legendary", "label": "« Hôte de la soirée » : projecteurs", "emoji": "🔦"},

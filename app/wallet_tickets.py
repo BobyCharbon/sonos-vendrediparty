@@ -1,7 +1,8 @@
 """« Ajouter à Apple Wallet » sous le billet d'un événement, et mises à jour automatiques du pass.
 
 Ajout : même vérification que pour afficher son billet (jeton Supabase du membre ; la base décide via
-wallet_pass_issue → my_event_ticket : Présent, hors liste d'attente, événement publié qu'il voit). Jamais le billet
+wallet_pass_issue → my_event_ticket : Présent, hors liste d'attente, événement publié qu'il voit, « Billets QR »
+activés et billet remis par l'organisateur, migration 20261104233000). Jamais le billet
 d'un autre. Safari ouvre un .pkpass par une simple navigation (pas de jeton dans l'adresse) : le billet est préparé
 à la demande (POST avec le jeton), gardé quelques minutes sous un lien aléatoire, puis téléchargé par ce lien.
 
@@ -82,7 +83,7 @@ class WalletTickets:
         self.accounts._uid(token)  # session valable, sinon « Reconnecte-toi »
         payload = self._member_rpc("wallet_pass_issue", token, {"e": event_id})
         if not isinstance(payload, dict) or not payload.get("valid"):
-            raise WalletError("Pas de billet pour cet événement : il faut être noté Présent.")
+            raise WalletError("Pas encore de billet pour cet événement : l'organisateur doit te le remettre.")
         return self._package(payload, origin)
 
     def prepare(self, token: str, event_id: str, origin: str) -> str:

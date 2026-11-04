@@ -90,25 +90,36 @@ def test_minting_is_numbered_idempotent_capped_and_certified(people):
     assert shown["serial"] == inst["serial"] and shown["owners"][0]["how"] == "minted" and "user_id" not in str(shown["owners"])
     assert pet_cert.verify(pet_cert.public_key_b64(KEY()), shown["payload"], shown["sig"])
     # Tirage d'un Mythique : plafonné, jamais réédité.
-    left = sql_test("select 25 - count(*)::int as n from public.pet_items where item = 'm-escalade';")[0]["n"]
+    edition = pet_catalog.item("m-escalade")["edition"]   # 8 depuis l'économie du 4.11 (migration 20261105120000)
+    left = sql_test(f"select {edition} - count(*)::int as n from public.pet_items where item = 'm-escalade';")[0]["n"]
     for n in range(left):
         sql_test(f"select private.pet_mint_for('{b.uid}', 'm-escalade', 'chest', 'chest:cap{n}', null);")
     r = b.rpc("pet_mint", p_item="m-escalade", p_source="chest", p_ref="chest:over", p_key=KEY())
     assert r.status_code == 400 and "partis" in r.json()["message"]
-    assert sql_test("select max(serial) as m from public.pet_items where item = 'm-escalade';")[0]["m"] == 25
+    assert sql_test("select max(serial) as m from public.pet_items where item = 'm-escalade';")[0]["m"] == edition
 
 
 def test_event_gifts_bounds_freeze_and_a_draw_for_present_people_only(people):
     admin, a, b, c = people
-    # Organisateur (c, membre VIP) : dans les bornes de l'admin seulement.
-    for prizes, why in (([{"item": "projecteurs", "pct": 50, "copies": 1}], "au plus"),
-                        ([{"item": "m-soirees", "pct": 5, "copies": 1}], "au plus"),
-                        ([{"item": "projecteurs", "pct": 5}], "exemplaires")):
-        r = c.rpc("pet_event_drop_save", p_event=EVENT, p_prizes=prizes)
-        assert r.status_code == 400 and why in r.json()["message"], r.text
-    assert b.rpc("pet_event_drop_save", p_event=EVENT, p_prizes=[{"item": "noeud-or", "pct": 100}]).status_code in (400, 403)   # ni admin ni organisateur
+    # Économie du 4.11 (migration 20261105120000) : cadeaux d'événement réservés aux admins et co-admins.
+    refused = c.rpc("pet_event_drop_save", p_event=EVENT, p_prizes=[{"item": "lumi", "pct": 1}])
+    assert refused.status_code == 403 and "admin" in refused.json()["message"]
+    # Si l'admin rouvre ce droit aux organisateurs : bornes abaissées et série Soirées Party seulement.
+    sql_test("update private.pet_drop_bounds set organizers = true where id = 1;")
+    try:
+        for prizes, why in (([{"item": "projecteurs", "pct": 5, "copies": 1}], "au plus"),
+                            ([{"item": "lumi", "pct": 5}], "au plus"),
+                            ([{"item": "m-soirees", "pct": 1, "copies": 1}], "au plus"),
+                            ([{"item": "noeud-or", "pct": 10}], "Soirées Party"),
+                            ([{"item": "projecteurs", "pct": 1}], "exemplaires")):
+            r = c.rpc("pet_event_drop_save", p_event=EVENT, p_prizes=prizes)
+            assert r.status_code == 400 and why in r.json()["message"], r.text
+        assert b.rpc("pet_event_drop_save", p_event=EVENT, p_prizes=[{"item": "lumi", "pct": 1}]).status_code in (400, 403)   # ni admin ni organisateur
+        ok = [{"item": "lumi", "pct": 3}, {"item": "projecteurs", "pct": 1, "copies": 1}]
+        assert c.rpc("pet_event_drop_save", p_event=EVENT, p_prizes=ok).status_code == 200
+    finally:
+        sql_test("update private.pet_drop_bounds set organizers = false where id = 1;")
     prizes = [{"item": "noeud-or", "pct": 100}, {"item": "lumi", "pct": 20}, {"item": "projecteurs", "pct": 10, "copies": 1}]
-    assert c.rpc("pet_event_drop_save", p_event=EVENT, p_prizes=prizes).status_code == 200
     # L'admin peut ajouter un Mythique (exemplaires restants).
     full = prizes + [{"item": "m-soirees", "pct": 100, "copies": 1}]
     r = admin.rpc("pet_event_drop_save", p_event=EVENT, p_prizes=full)
@@ -171,7 +182,7 @@ def test_names_are_filtered_reported_hidden_and_blocking_ends_the_friendship(peo
     assert a.rpc("pet_save", p_key=KEY(), p_life=named, p_owner=owner, p_version=1, p_hungry_at=None, p_dies_at=None).status_code == 200
     rid = b.rpc("report_content", p_kind="pet_name", p_target=a.uid, p_reason="harassment").json()
     snap = sql_test(f"select snapshot ->> 'text' as t, snapshot ->> 'place' as p, target_user::text as u from public.content_reports where id = '{rid}';")[0]
-    assert snap == {"t": "Pikou", "p": "Compagnon · nom", "u": a.uid}
+    assert snap == {"t": "Pikou", "p": "Zicou · nom", "u": a.uid}
     assert b.rpc("report_content", p_kind="pet_showcase", p_target=a.uid, p_reason="spam").status_code == 200
     sql_test("select private.moderation_hide_pet('pet_name', '" + a.uid + "'), private.moderation_hide_pet('pet_showcase', '" + a.uid + "');")
     row = sql_test(f"select name, life ->> 'name' as n, life -> 'showcase' ->> 'title' as t, version from public.pets where user_id = '{a.uid}';")[0]

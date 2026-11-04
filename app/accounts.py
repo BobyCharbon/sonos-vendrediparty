@@ -464,6 +464,11 @@ class Accounts:
             raise AccountError(self._db_message(r) if r.status_code < 500 else "Ton choix n'a pas été enregistré. Réessaie.")
         return r.json()
 
+    def uid_of(self, gid: str) -> str | None:
+        """Compte Supabase d'un identifiant de joueur relié depuis le démarrage du serveur (None sinon)."""
+        with self.lock:
+            return self.uid_by_gid.get(gid)
+
     def is_linked(self, gid: str) -> bool:
         """Ce joueur a relié un compte vérifié depuis le démarrage du serveur (jeux réservés aux comptes)."""
         with self.lock:
