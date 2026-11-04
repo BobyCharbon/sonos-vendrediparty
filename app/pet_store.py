@@ -15,7 +15,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import pet, pet_loop, pet_streak
+from . import moderation, pet, pet_coll_store, pet_loop, pet_streak
 from .accounts import AccountError
 
 PARTY_KEEP_SECONDS = 3 * 24 * 3600
@@ -26,7 +26,7 @@ SAVE_ATTEMPTS = 2   # un conflit (autre appareil) : on relit et on rejoue une fo
 # coffre de la base (migration 20261104170000). Elle seule permet d'écrire un personnage (pet_load / pet_save /
 # pet_gift) et elle rend les tirages imprévisibles (HMAC). Jamais envoyée au navigateur, jamais dans le dépôt.
 SECRET_ENV = "PET_SECRET"
-KEYED_RPC = ("pet_load", "pet_save", "pet_gift")
+KEYED_RPC = ("pet_load", "pet_save", "pet_gift", "pet_mint", "pet_cert_set", "pet_awards_claim")
 _PROCESS_KEY = secrets.token_bytes(32)   # dernier repli (disque illisible) : hasard imprévisible, jamais une valeur connue
 SECRET_FILE = "pet_secret"
 _ENROLLED: set[str] = set()               # clés déjà enrôlées dans la base par ce processus
@@ -357,10 +357,12 @@ class PetStore:
         journal += [{"kind": e["kind"], "detail": {k: v for k, v in e.items() if k != "kind"}} for e in events]
         journal += [{"kind": "reward", "detail": {"source": g["source"]}} for g in got]
         journal += [{"kind": "gift_received", "detail": {"kind": a["kind"]}} for a in applied]
-        return {"now": now, "life": life, "owner": owner, "version": version, "journal": journal, "seed": str(uid),
-                "gift_ids": [str(g.get("id")) for g in received if g.get("id")],
-                "changed": not saved or bool(events or got or applied or unlocked or loop_events),
-                "news": news_lines(life["name"], events, got, applied, unlocked) + loop_lines(life["name"], loop_events)}
+        s = {"now": now, "life": life, "owner": owner, "version": version, "journal": journal, "seed": str(uid),
+             "gift_ids": [str(g.get("id")) for g in received if g.get("id")],
+             "changed": not saved or bool(events or got or applied or unlocked or loop_events),
+             "news": news_lines(life["name"], events, got, applied, unlocked) + loop_lines(life["name"], loop_events)}
+        pet_coll_store.enrich(self, token, s, data, events)   # collection : shiny, cadeaux d'événement, certificats
+        return s
 
     @staticmethod
     def _brain_played(owner: dict, games: int, now: datetime) -> list[dict]:
@@ -381,8 +383,21 @@ class PetStore:
         }, "Ton compagnon n'a pas pu être enregistré. Réessaie dans un instant.")
 
     def _answer(self, s: dict, effect: dict | None = None) -> dict:
-        shown = pet.view(s["life"], s["owner"], s["now"]) | {"daily": pet_loop.view(s["life"], s["owner"], s["now"])}
-        return {"pet": shown, "news": s["news"], "effect": effect}
+        shown = pet.view(s["life"], s["owner"], s["now"]) | {
+            "daily": pet_loop.view(s["life"], s["owner"], s["now"], pet_coll_store.ctx(s)),
+            "coll": pet_coll_store.summary(s)}
+        out = {"pet": shown, "news": s["news"], "effect": effect}
+        if s.get("want_full"):
+            out["collection"] = pet_coll_store.full(self, s)
+        return out
+
+    def _after_save(self, token: str, s: dict) -> None:
+        """Cadeaux d'événement rangés dans la collection (déjà enregistrée) : marqués en base, une fois."""
+        if s.get("awards_applied"):
+            try:
+                self._rpc(token, "pet_awards_claim", {"p_ids": s["awards_applied"]}, "Cadeaux pas encore rangés.")
+            except pet.PetError:
+                pass   # ils restent dans owner["coll"]["awards"] : jamais rangés deux fois, marqués au prochain passage
 
     def _retry(self, token: str, work, src: str | None = None, cared: bool = False):
         """Charge, applique `work(s)` (qui renvoie l'effet, ou None s'il n'y a rien à enregistrer), enregistre ; un
@@ -394,6 +409,7 @@ class PetStore:
                 return self._answer(s)
             try:
                 self._save(token, s, cared=cared)
+                self._after_save(token, s)
                 return self._answer(s, effect)
             except PetConflict:
                 if attempt == SAVE_ATTEMPTS - 1:
@@ -404,17 +420,34 @@ class PetStore:
         """Mon compagnon. `src` : d'où vient l'ouverture (mesure) ; « none » : simple relecture, pas comptée."""
         return self._retry(token, lambda s: None, src=None if src == "none" else SRC_ALIASES.get(src or "", "tab"))
 
+    def collection(self, token: str) -> dict:
+        """Écran Collection (Zicoudex, boutique, atelier, vitrine, certificats) : simple relecture, pas une ouverture."""
+        def work(s: dict):
+            s["want_full"] = True
+        return self._retry(token, work)
+
     def act(self, token: str, action: str, score: int = 0, name: str = "", outfit: str = "", item: str = "",
             game: str = "", hits: int = 0) -> dict:
         """`score` (envoyé par d'anciens téléphones) est ignoré : le score du jeu vient du jeton de partie (`game`) et des
         notes attrapées (`hits`), vérifiés ici ; sans jeton, jouer reste un soin, avec un score de 0."""
         del score
+        if action == "outfit":   # ancienne tenue unique : un accessoire porté sur son emplacement
+            return pet_coll_store.act(self, token, "equip", item=outfit)
+        if action == "rename":
+            try:
+                name = moderation.require_clean(pet.clean_name(name), "name")
+            except moderation.ContentRefused as e:
+                raise pet.PetError(str(e)) from None
 
         def work(s: dict) -> dict:
             played = self._game_score(s["seed"], game, hits, s["now"], s["owner"]) if action == "play" and game else 0
             if action in pet_loop.LOOP_ACTIONS:
                 rng = self._rng(s["seed"], s["now"], action)
-                life, owner, effect = pet_loop.act(s["life"], s["owner"], action, s["now"], rng, item=item)
+                life, owner, effect = pet_loop.act(s["life"], s["owner"], action, s["now"], rng, item=item,
+                                                   ctx=pet_coll_store.ctx(s))
+                s["life"], s["owner"] = life, owner
+                effect["found"] = pet_coll_store.settle_found(self, token, s, action, effect.get("found"))
+                pet_coll_store.finish(s)
                 more = effect["loop"]
             else:
                 life, owner, effect = pet.act(s["life"], s["owner"], action, s["now"], score=played, name=name, outfit=outfit)
@@ -463,7 +496,7 @@ class PetStore:
         if not isinstance(life, dict):
             return None
         try:
-            shown = pet.friend_view(life, now)
+            shown = pet.friend_view(life, now) | pet_coll_store.friend_extras(life)
         except (KeyError, TypeError, ValueError):
             return None   # état illisible : cet ami n'apparaît pas plutôt que de tout casser
         return {"id": str(row.get("id")), "member": " ".join(str(row.get("name") or "?").split())[:40],

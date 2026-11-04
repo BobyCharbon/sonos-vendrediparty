@@ -27,7 +27,7 @@ from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import beerpong, brain, brain_game, calendar_ics, debate, games, heist, island, likely, links, masque, neon, president, psy, purity, quiz, reflet
-from . import pet, pet_store
+from . import pet, pet_coll_store, pet_store
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
 from .account_auth import AccountAuth
@@ -3551,6 +3551,58 @@ def pet_friend(body: PetFriend, request: Request):
 def pet_gift(body: PetGift, request: Request):
     """Câlin ou goûter pour le compagnon d'un ami : un par ami et par jour (la base y veille)."""
     return pet_call(request, lambda: pet_service().gift(body.token, body.friend, body.kind), body.token)
+
+
+# Collection (lot A, app/pet_collection.py, app/pet_coll_store.py) : Zicoudex, boutique, atelier, vitrine, certificats.
+class PetColl(BaseModel):
+    token: str = Field(min_length=21, max_length=4095)
+    action: Literal["equip", "buy", "craft", "showcase"]
+    item: str = Field(default="", max_length=40, pattern=r"^(snack:)?[a-z0-9-]{0,30}$")
+    slot: str = Field(default="", pattern=r"^[a-z]{0,10}$")
+    items: list[str] = Field(default_factory=list, max_length=3)
+    title: str = Field(default="", max_length=80)
+
+
+@app.post("/api/pet/collection")
+def pet_collection_view(body: AccountToken, request: Request):
+    """Écran Collection : Zicoudex (Mythiques masqués tant qu'on n'en a pas), boutique du jour, décor, atelier,
+    chances du coffre, vitrine, certificats de ses Légendaires et Mythiques."""
+    if not 20 < len(body.token) < 4096:
+        raise HTTPException(400, "Jeton invalide")
+    return pet_call(request, lambda: pet_service().collection(body.token), body.token)
+
+
+@app.post("/api/pet/coll")
+def pet_coll(body: PetColl, request: Request):
+    """Porter un accessoire, acheter (pièces gagnées seulement), fabriquer (poussière), composer sa vitrine."""
+    if any(not isinstance(i, str) or len(i) > 30 for i in body.items):
+        raise HTTPException(422, "Objets illisibles")
+    return pet_call(request, lambda: pet_coll_store.act(pet_service(), body.token, body.action, body.item, body.slot,
+                                                         body.items, body.title), body.token)
+
+
+@app.get("/api/pet/certificats/cle")
+def pet_cert_key():
+    """Clé publique (Ed25519) des certificats d'authenticité : chacun peut vérifier une signature."""
+    return pet_coll_store.public_key(pet_service())
+
+
+@app.get("/api/pet/verifier")
+def pet_verify(request: Request, code: str = Query(default="", max_length=40)):
+    """Vérifier un objet (code ZC-…) : certificat signé, numéro, provenance anonyme. Même sans compte."""
+    ip = client_ip(request)
+    if msg := account_limiter.blocked(ip):
+        raise HTTPException(429, msg)
+    try:
+        return pet_coll_store.verify(pet_service(), code)
+    except pet.PetError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/zicou/certificat")
+def pet_certificate_page():
+    """Page d'authenticité d'un objet du Compagnon (?code=ZC-…)."""
+    return page("pet/verify.html")
 
 
 @app.get("/qr/game/{code}.svg")

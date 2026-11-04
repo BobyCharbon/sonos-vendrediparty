@@ -45,7 +45,8 @@ class PetSupabase:
                           "/rest/v1/rpc/get_member_directory": [{"id": uid, "display_name": "Alice", "status": "active"}]}
                 if uid and path in simple:
                     return self._answer(200, json.dumps(simple[path]).encode())
-                if not path.startswith(("/auth/v1/user", "/rest/v1/rpc/pet_")):
+                if not path.startswith(("/auth/v1/user", "/rest/v1/rpc/pet_", "/rest/v1/rpc/report_content",
+                                        "/rest/v1/rpc/set_block", "/rest/v1/rpc/my_blocks")):
                     return self._answer(404, b"{}")
                 r = base.handler(httpx.Request("POST", "http://x" + path, headers={"Authorization": auth}, content=content))
                 return self._answer(r.status_code, r.content)
@@ -151,15 +152,15 @@ def test_egg_name_then_care_for_a_baby(world):
     root.locator('[data-pt="act"][data-a="wake"]').click()
     expect(root.locator('.pt-hero.pt-night')).to_have_count(0)
 
-    # Câlin en touchant le personnage, tenue débloquée (nœud).
+    # Câlin en touchant le personnage, puis la garde-robe (collection) : le nœud offert dès le premier jour.
     root.locator('[data-pt="pet"]').click()
     expect(root.locator('[data-a="cuddle"] small')).to_have_text(f'reste {pet.DAILY_LIMITS["cuddle"] - 1}')
-    root.locator('[data-pt="outfits"]').click()
-    expect(root.locator('.pt-tile[data-o="couronne"]')).to_have_attribute('aria-disabled', 'true')
-    root.locator('.pt-tile[data-o="noeud"]').click()
-    expect(root.locator('.pt-tile[data-o="noeud"]')).to_have_attribute('aria-pressed', 'true')
+    root.locator('[data-pt="coll"][data-s="wear"]').click()
+    root.locator('[data-pt="pc-slot"][data-s="neck"]').click()
+    root.locator('[data-pt="pc-wear"][data-i="noeud"]').click()
+    expect(root.locator('[data-pt="pc-wear"][data-i="noeud"]')).to_have_attribute('aria-pressed', 'true')
     phone.shot('pet-4-tenues')
-    assert supa.base.pets[supa.base.users[TOK_A]]["life"]["outfit"] == "noeud"
+    assert supa.base.pets[supa.base.users[TOK_A]]["life"]["acc"] == {"neck": "noeud"}
 
 
 def test_the_twenty_second_micro_game(world):
@@ -304,14 +305,17 @@ def test_daily_chest_odds_streak_missions_and_treasures(world):
     phone.shot('pet-9-boucle-du-jour')
     # Les chances, sous « i ».
     root.locator('[data-pt="odds"]').click()
-    expect(root.locator('.pt-odds li')).to_have_count(4)
-    expect(root.locator('.pt-odds')).to_contain_text('70 %')
+    expect(root.locator('.pt-odds li')).to_have_count(7)
+    expect(root.locator('.pt-odds')).to_contain_text('50 %')
+    expect(root.locator('.pt-odds')).to_contain_text('Objet mystère')
+    expect(root.locator('.pt-pity')).to_contain_text('Épique garanti')
     page.go_back()
     # Le coffre : animation, puis révélation de ce que le serveur a tiré.
     root.locator('[data-pt="chest"]').click()
     expect(root.locator('.pt-reveal h2')).not_to_be_empty()
     saved = supa.base.pets[supa.base.users[TOK_A]]["owner"]["loop"]["chest"]
-    assert saved["opened"] and saved["found"]["label"] in root.locator('.pt-reveal h2').inner_text()
+    shown = (saved["found"].get("item_info") or {}).get("label") if saved["found"]["kind"] == "item" and not saved["found"].get("dup") else saved["found"]["label"]
+    assert saved["opened"] and shown in root.locator('.pt-reveal h2').inner_text()
     phone.shot('pet-10-coffre')
     root.locator('.pt-reveal [data-pt="home"]').click()
     expect(root.locator('.pt-chest-done')).to_contain_text('un nouveau demain')
@@ -327,9 +331,9 @@ def test_daily_chest_odds_streak_missions_and_treasures(world):
     phone.shot('pet-11-serie')
     page.go_back()
     root.locator('.pt-more [data-pt="treasures"]').click()
-    expect(root.locator('.pt-treasures')).to_contain_text('La boutique arrive bientôt')
+    expect(root.locator('.pt-treasures [data-pt="coll"][data-s="shop"]')).to_be_visible()   # les pièces ont un usage
     expect(root.locator('.pt-album span')).to_have_count(25)
-    expect(root.locator('.pt-treasures h3', has_text='Morceaux de tenues')).to_have_count(1)
+    expect(root.locator('.pt-treasures h3', has_text='Morceaux de tenues')).to_have_count(0)
 
 
 def test_no_empty_pieces_title_once_every_outfit_is_won(world):

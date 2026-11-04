@@ -2,8 +2,8 @@
 
 Calcul pur, horloge (`now`) et hasard (`rng`) en paramètres : les tests simulent des semaines en une milliseconde.
   · coffre du jour : à la 1re visite du jour, « Zicou a trouvé un truc » ; tiré par le SERVEUR à l'ouverture, d'après
-    une table pondérée (app/pet_chest.py : 70 % pièces 10–30, 20 % objet, 8 % morceau de tenue, 2 % tenue rare) ;
-    un par jour, non cumulable, jusqu'à minuit ;
+    une table pondérée par rareté (app/pet_chest.py : pièces, goûter ou sticker, accessoire Commun → Mythique, avec
+    garantie d'un Épique au plus tard au 30e coffre) ; un par jour, non cumulable, jusqu'à minuit ;
   · missions : 3 par jour (soin, jeu, sociale) → coffre bonus à 3/3 ; une mission de la semaine → récompense ;
   · rituels : carte « réveil » le matin (avant 11 h), coucher le soir (21 h – 23 h 30) → « nuit douce » au réveil ;
   · paliers de série (app/pet_streak.py) : récompenses connues d'avance, une fois par compte ; la série demande un
@@ -18,7 +18,7 @@ import statistics
 import zlib
 from datetime import date, datetime, timedelta
 
-from . import pet, pet_chest, pet_streak, pet_texts
+from . import pet, pet_chest, pet_collection, pet_streak, pet_texts
 
 # ── Paliers de série : (pièces, gels offerts, ce qu'on montre d'avance) ──
 MILESTONE_REWARDS = {
@@ -259,15 +259,25 @@ def streak_rewards(owner: dict, streak_events: list[dict]) -> list[dict]:
 
 # ── Coffres ──
 
-def draw(rng, owner: dict, bonus: bool = False) -> dict:
-    """Tirage du serveur (table pondérée de app/pet_chest.py) ; un objet déjà complet sort de la réserve."""
-    loop = loop_of(owner)
-    return pet_chest.draw(rng, loop["inv"], set(owner.get("unlocked", [])), bonus=bonus)
+def draw(rng, owner: dict, bonus: bool = False, ctx: dict | None = None) -> dict:
+    """Tirage du serveur (table pondérée par rareté de app/pet_chest.py, garantie anti-malchance comprise).
+    ctx : ce que sait la base — owned (objets déjà à lui, exemplaires numérotés compris), mythic_left (Mythiques encore
+    disponibles)."""
+    loop, coll, ctx = loop_of(owner), pet_collection.coll_of(owner), ctx or {}
+    owned = ctx.get("owned") if ctx.get("owned") is not None else pet_collection.owned(owner)
+    return pet_chest.draw(rng, loop["inv"], set(owned), pity=coll["pity"], mythic_left=ctx.get("mythic_left"), bonus=bonus)
 
 
-def act(life: dict, owner: dict, action: str, now: datetime, rng, item: str = "") -> tuple[dict, dict, dict]:
+def _found(owner: dict, loop: dict, rng, bonus: bool, ctx: dict | None) -> dict:
+    coll = pet_collection.coll_of(owner)
+    raw = draw(rng, owner, bonus=bonus, ctx=ctx)
+    pet_chest.note_chest(coll, raw)
+    return pet_chest.apply(loop, raw, coll)
+
+
+def act(life: dict, owner: dict, action: str, now: datetime, rng, item: str = "", ctx: dict | None = None) -> tuple[dict, dict, dict]:
     """Actions de la boucle : coffre du jour, coffre bonus, coucher, goûter rare. Copies neuves ; PetError si
-    impossible (message doux)."""
+    impossible (message doux). Un Légendaire ou un Mythique tiré est marqué « mint » : app/pet_store.py le frappe."""
     if action not in LOOP_ACTIONS:
         raise pet.PetError("Action inconnue")
     life, owner = copy.deepcopy(life), copy.deepcopy(owner)
@@ -277,7 +287,7 @@ def act(life: dict, owner: dict, action: str, now: datetime, rng, item: str = ""
     life, owner, visit_events = visit(life, owner, now, rng)
     loop, effect = loop_of(owner), {"action": action, "events": life_events, "loop": visit_events, "streak": []}
     if action in ("chest", "bonus_chest"):
-        effect["found"] = _open(owner, loop, action, now, rng, effect)
+        effect["found"] = _open(owner, loop, action, now, rng, effect, ctx)
     elif action == "tuck":
         effect["text"] = _tuck(life, owner, loop, now, effect)
     else:
@@ -289,12 +299,12 @@ def act(life: dict, owner: dict, action: str, now: datetime, rng, item: str = ""
     return life, owner, effect
 
 
-def _open(owner: dict, loop: dict, action: str, now: datetime, rng, effect: dict) -> dict:
+def _open(owner: dict, loop: dict, action: str, now: datetime, rng, effect: dict, ctx: dict | None = None) -> dict:
     if action == "chest":
         chest = loop.get("chest") or {}
         if chest.get("opened"):
             raise pet.PetError("Tu as déjà ouvert le coffre du jour. Un nouveau t'attend demain 🎁")
-        found = pet_chest.apply(loop, draw(rng, owner))
+        found = _found(owner, loop, rng, False, ctx)
         loop["chest"] = {**chest, "opened": True, "found": found}
         effect["loop"] += note(owner, "chest", now)   # le coffre seul ne compte pas pour la série (il faut un soin)
         return found
@@ -302,7 +312,7 @@ def _open(owner: dict, loop: dict, action: str, now: datetime, rng, effect: dict
     if missions.get("bonus") != "ready":
         raise pet.PetError("Le coffre bonus s'ouvre quand les 3 missions du jour sont faites 🎯"
                            if missions.get("bonus") == "locked" else "Coffre bonus déjà ouvert aujourd'hui 🎁")
-    found = pet_chest.apply(loop, draw(rng, owner, bonus=True))
+    found = _found(owner, loop, rng, True, ctx)
     loop["missions"] = {**missions, "bonus": "opened", "found": found}
     return found
 
@@ -382,9 +392,9 @@ def _daily_text(loop: dict, at: datetime, hungry_at: str | None, count: int, see
 
 # ── Ce qu'on montre ──
 
-def view(life: dict, owner: dict, now: datetime) -> dict:
+def view(life: dict, owner: dict, now: datetime, ctx: dict | None = None) -> dict:
     loop, today, m = loop_of(copy.deepcopy(owner)), local(now).date(), minute_of(now)
-    unlocked = set(owner.get("unlocked", []))
+    pity = int((owner.get("coll") or {}).get("pity", 0))
     is_today = loop["day"] == today.isoformat()
     chest = loop.get("chest") if is_today else None
     missions = loop.get("missions") if is_today else None
@@ -395,7 +405,8 @@ def view(life: dict, owner: dict, now: datetime) -> dict:
     return {
         "coins": loop["coins"],
         "chest": {"state": "opened" if chest and chest.get("opened") else "ready", "found": (chest or {}).get("found")},
-        "odds": pet_chest.odds(),
+        "odds": pet_chest.odds(pity, (ctx or {}).get("mythic_left")),
+        "pity_left": pet_chest.pity_left(pity), "pity": pet_chest.PITY,
         "streak": {"count": count, "best": s.get("best", 0), "freezes": s.get("freezes", 0),
                    "today": s.get("last") == today.isoformat(),   # la journée compte déjà (sinon : la règle est affichée)
                    "max_freezes": pet_streak.MAX_FREEZES, "respite": _respite(s, today),
@@ -413,7 +424,7 @@ def view(life: dict, owner: dict, now: datetime) -> dict:
         "evening": {"tucked": loop.get("tucked") == today.isoformat()} if TUCK_START <= m < TUCK_END else None,
         "bag": pet_chest.bag(loop["inv"]),
         "stickers": pet_chest.stickers(loop["inv"]),
-        "pieces": pet_chest.pieces(loop["inv"], unlocked),
+        "pieces": [],   # anciens morceaux de tenue : convertis en poussière (app/pet_collection.py)
     }
 
 

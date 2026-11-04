@@ -99,7 +99,7 @@
   }
   function onBack() {
     if (!root || root.hidden) return;
-    const sub = ["outfits", "friends", "visit", "play", "result", "rename", "streak", "treasures", "odds", "reveal"].includes(root.dataset.screen);
+    const sub = ["outfits", "friends", "visit", "play", "result", "rename", "streak", "treasures", "odds", "reveal", "coll", "report"].includes(root.dataset.screen);
     if (!sub) return close(true);
     stopGame();
     root.dataset.screen === "visit" ? showFriends() : home();
@@ -133,6 +133,7 @@
       pet = data.pet;
       home();
       announce(data.news);
+      if (pet.coll?.reveals?.length && window.PetCollection) window.PetCollection.reveals(pet.coll.reveals);
     } catch (err) {
       if (!root || root.hidden || mine !== screenSeq) return;
       err.login ? loginScreen() : errorScreen(err.message);
@@ -140,9 +141,12 @@
   }
 
   // ── Écrans ──
-  function art(p, cls = "") {
+  function art(p, cls = "", extra) {
     const label = `${p.name}, ${STAGES[p.stage] || ""} ${EMOTIONS[p.emotion] || ""}`.trim();
-    const svg = skin()?.render({ stage: p.stage, variant: p.variant, emotion: p.emotion, outfit: p.outfit, label }) || "";
+    const acc = { ...(p.coll?.acc || p.acc || {}), ...(extra || {}) };   // collection : un accessoire par emplacement
+    const shiny = Boolean(p.coll?.shiny ?? p.shiny);
+    const svg = skin()?.render({ stage: p.stage, variant: p.variant, emotion: p.emotion, outfit: Object.keys(acc).length ? null : p.outfit,
+      accessories: acc, shiny, label: shiny ? `${label}, shiny` : label }) || "";
     return `<div class="pt-art ${cls}" style="--pt-mood:${skin()?.moodColor(p.emotion) || "#5ee7ff"}">${svg}</div>`;
   }
   function loginScreen() {
@@ -199,7 +203,10 @@
       ${dailyTop(p)}
       ${dailyBottom(p)}
       <div class="pt-more">
-        <button type="button" class="pt-ghost" data-pt="outfits">👕 Tenues</button>
+        <button type="button" class="pt-ghost" data-pt="coll" data-s="wear">👕 Garde-robe</button>
+        <button type="button" class="pt-ghost" data-pt="coll" data-s="dex">📖 Zicoudex${p.coll?.dex ? ` <small>${p.coll.dex.have}/${p.coll.dex.total}</small>` : ""}</button>
+        <button type="button" class="pt-ghost" data-pt="coll" data-s="shop">🛍️ Boutique</button>
+        <button type="button" class="pt-ghost" data-pt="coll" data-s="craft">🔨 Atelier</button>
         <button type="button" class="pt-ghost" data-pt="treasures">💎 Trésors</button>
         <button type="button" class="pt-ghost" data-pt="friends">👫 Amis</button>
         <button type="button" class="pt-ghost" data-pt="rename">✏️ Nom</button>
@@ -294,18 +301,23 @@
     const album = d.stickers.have.map((x) => `<span>${e(x)}</span>`).join("") + `<span class="pt-off">?</span>`.repeat(empty);
     const bag = d.bag.length ? d.bag.map((b) => `${e(b.emoji)} ${e(b.label)} ×${b.n}`).join(" · ") : "Vide pour l'instant";
     show(`${top("Trésors", true)}<div class="pt-card pt-treasures">
-      <div class="pt-big" aria-label="${d.coins} pièces">🪙 ${d.coins}</div>
-      <p class="pt-muted">La boutique arrive bientôt : garde tes pièces.</p>
+      <div class="pt-big" aria-label="${d.coins} pièces">🪙 ${d.coins} <small aria-label="${pet.coll?.dust || 0} poussières d'étoile">✨ ${pet.coll?.dust || 0}</small></div>
+      <div class="pt-acts pt-acts-2"><button type="button" class="pt-act" data-pt="coll" data-s="shop"><span class="pt-act-i" aria-hidden="true">🛍️</span><span>Boutique</span></button>
+        <button type="button" class="pt-act" data-pt="coll" data-s="craft"><span class="pt-act-i" aria-hidden="true">🔨</span><span>Atelier</span></button></div>
       ${pieces ? `<h3>Morceaux de tenues</h3><ul class="pt-pieces">${pieces}</ul>` : ""}
       <h3>Album de stickers · ${d.stickers.have.length}/${d.stickers.total}</h3><div class="pt-album" aria-label="${d.stickers.have.length} stickers sur ${d.stickers.total}">${album}</div>
       <h3>Sac</h3><p>${bag}</p>
       <p class="pt-muted pt-small">Pièces, objets et tenues se gagnent en jouant : ils ne s'achètent pas et n'ont aucune valeur en argent.</p></div>`, "treasures");
   }
+  const pct = (v) => `${String(v).replace(".", ",")} %`;
   function oddsScreen() {
-    const rows = (pet.daily?.odds || []).map((o) => `<li><span>${e(ODDS[o.kind] || o.kind)}</span><b>${o.pct} %</b></li>`).join("");
-    show(`${top("Le coffre du jour", true)}<div class="pt-card pt-odds"><h2>Chances</h2><ul>${rows}</ul>
-      <p class="pt-muted">Un coffre par jour, à ouvrir avant minuit (il ne s'accumule pas). Le tirage est fait par Party, pas par ton téléphone.
-        Déjà tout ce qu'il y a ? Des pièces à la place. Rien ne s'achète, rien n'a de valeur en argent.</p></div>`, "odds");
+    const d = pet.daily || {};
+    const rows = (d.odds || []).map((o) => `<li class="pt-r-${e(o.kind)}"><span>${e(o.label || ODDS[o.kind] || o.kind)}</span><b>${pct(o.pct)}</b></li>`).join("");
+    show(`${top("Le coffre du jour", true)}<div class="pt-card pt-odds"><h2>Chances de chaque coffre</h2><ul>${rows}</ul>
+      <p class="pt-pity">🛡️ Épique garanti au plus tard dans <b>${d.pity_left ?? "?"}</b> coffre${d.pity_left > 1 ? "s" : ""} (au moins un tous les ${d.pity || 30}).</p>
+      <p class="pt-muted">Même table pour le coffre du jour et le coffre bonus (pièces doublées). Un accessoire déjà à toi devient de la poussière d'étoile ✨
+        (pour l'atelier). « Objet mystère » : un Mythique numéroté, en exemplaires limités. Zicou shiny : 1 chance sur 64 à l'éclosion.
+        Le tirage est fait par Party, pas par ton téléphone. Rien ne s'achète avec de l'argent, rien n'a de valeur en argent.</p></div>`, "odds");
   }
   async function openChest(action) {
     if (busy) return;
@@ -332,6 +344,7 @@
   }
   function reveal(found, news) {
     if (!found) return home();
+    if (found.kind === "item" && window.PetCollection) { announce(news); return window.PetCollection.revealItem(found); }
     show(`${top("Surprise !", true)}<div class="pt-card pt-reveal">
       <div class="pt-reveal-i" aria-hidden="true">${e(found.emoji)}</div><h2>${e(found.label)}</h2>
       <p class="pt-muted">${e(FOUND_HINT[found.kind] || "")}</p>
@@ -430,7 +443,8 @@
            <button type="button" class="pt-act" data-pt="gift" data-k="snack" data-id="${e(f.id)}"><span class="pt-act-i" aria-hidden="true">🍪</span><span>Un goûter</span></button></div>`;
     show(`${top(p.name, true)}<div class="pt-hero"><div class="pt-chips"><span class="pt-chip">chez ${e(f.member)}</span>
       <span class="pt-chip">${e([STAGES[p.stage], VARIANTS[p.variant]].filter(Boolean).join(" "))}</span><span class="pt-chip">🎂 ${hm(p.age_hours)}</span></div>
-      <div class="pt-stage">${art(p)}</div><p class="pt-line">${e(p.line)}</p></div>${gifts}`, "visit");
+      <div class="pt-stage">${art(p)}</div><p class="pt-line">${e(p.line)}</p></div>${gifts}
+      ${window.PetCollection ? window.PetCollection.visitExtras(f) : ""}`, "visit");
   }
 
   // ── Mini-jeu : « Attrape les notes » (20 s) ──
@@ -583,7 +597,8 @@
       case "act": return b.dataset.a === "play" ? startGame() : doAct(b.dataset.a);
       case "alert-feed": return doAct("feed");
       case "pet": return pet && !pet.asleep && pet.left.cuddle > 0 ? doAct("cuddle") : react("");
-      case "outfits": return outfitsScreen();
+      case "outfits": return window.PetCollection ? window.PetCollection.open("wear") : outfitsScreen();
+      case "coll": return window.PetCollection?.open(b.dataset.s || "dex");
       case "wear": return doAct("outfit", { outfit: b.dataset.o || "" }).then(() => root?.dataset.screen === "home" && outfitsScreen());
       case "rename": return renameScreen();
       case "friends": return showFriends();
@@ -607,12 +622,14 @@
         root.querySelector("[data-pt-hits]").textContent = String(game.hits);
         return;
       default:
+        window.PetCollection?.click(b, ev);   // écrans de la collection (pet/collection.js)
     }
   }
   function onSubmit(ev) {
     const form = ev.target.closest("[data-pt-form]");
     if (!form) return;
     ev.preventDefault();
+    if (form.dataset.ptForm !== "rename") return window.PetCollection?.submit(form);
     const name = String(new FormData(form).get("name") || "").trim();
     if (!name) return say("Choisis un nom (20 lettres au plus).", true);
     doAct("rename", { name });
@@ -658,4 +675,7 @@
   } catch { /* adresse illisible */ }
 
   window.Pet = Object.freeze({ open, close, name: GAME_NAME });
+  // Pour la collection (pet/collection.js) : mêmes écrans, même serveur, même dessin.
+  window.PetUI = Object.freeze({ show, top, api, art, say, burst, cue, buzz, calm, esc: e, loadingHtml, home: () => home(),
+    current: () => pet, set: (p) => { pet = p; }, root: () => root, login: () => loginScreen(), announce });
 })();

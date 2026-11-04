@@ -37,7 +37,7 @@ def test_one_chest_a_day_until_midnight_and_never_cumulated():
     life, owner, events = opened(life, owner, at(4, 9))
     assert events[0] == {"kind": "new_day"} and pl.view(life, owner, at(4, 9))["chest"]["state"] == "ready"
     life, owner, effect = pl.act(life, owner, "chest", at(4, 9, 5), rng)
-    assert effect["found"]["kind"] in ("coins", "snack", "sticker", "piece", "outfit") and effect["found"]["label"]
+    assert effect["found"]["kind"] in ("coins", "snack", "sticker", "item") and effect["found"]["label"]
     with pytest.raises(pet.PetError, match="déjà ouvert"):
         pl.act(life, owner, "chest", at(4, 23, 59), rng)
     assert pl.view(life, owner, at(4, 23, 59))["chest"]["state"] == "opened"
@@ -59,22 +59,19 @@ def test_a_chest_not_opened_before_midnight_is_gone():
 
 def test_the_draw_follows_the_announced_odds():
     rng, count = random.Random(42), Counter()
-    for _ in range(20000):
-        count[pc.draw(rng, {}, {"noeud"})["cat"]] += 1
-    assert abs(count["coins"] / 20000 - 0.70) < 0.015 and abs(count["object"] / 20000 - 0.20) < 0.015
-    assert abs(count["piece"] / 20000 - 0.08) < 0.008 and abs(count["rare"] / 20000 - 0.02) < 0.005
-    assert pc.odds() == [{"kind": "coins", "pct": 70}, {"kind": "object", "pct": 20}, {"kind": "piece", "pct": 8},
-                         {"kind": "rare", "pct": 2}]
+    left = {m: 25 for m in pc.mythic_pool({"m-disco": 25, "m-montagne": 25, "m-escalade": 25, "m-halloween": 25, "m-nouvelan": 25})}
+    for _ in range(40000):
+        count[pc.draw(rng, {}, {"noeud"}, mythic_left=left)["cat"]] += 1
+    shown = {o["kind"]: o["pct"] for o in pc.odds(0, left)}
+    assert shown == {"coins": 50.0, "object": 15.0, "common": 22.0, "rare": 9.0, "epic": 3.2, "legendary": 0.7, "mythic": 0.1}
+    for kind, pct in shown.items():
+        assert abs(count[kind] / 400 - pct) < max(0.6, pct * 0.25), kind
 
 
-def test_the_draw_is_data_driven_deterministic_and_keeps_its_roll():
+def test_the_draw_is_deterministic_and_keeps_its_roll():
     a = pc.draw(random.Random("alice:2026-11-04:chest"), {}, set())
     b = pc.draw(random.Random("alice:2026-11-04:chest"), {}, set())
     assert a == b and a["table"] == pc.TABLE_VERSION and 0 <= a["roll"] < 1
-    # Une autre table (même code) : seulement des stickers.
-    table = ({"cat": "object", "weight": 1, "pool": (("sticker:disco", 1),)},)
-    assert pc.draw(random.Random(1), {}, set(), table=table)["item"] == "sticker:disco"
-    assert pc.draw(random.Random(1), {"sticker:disco": 1}, set(), table=table)["kind"] == "coins"   # déjà collé
 
 
 def test_objects_are_half_snacks_half_stickers_and_coins_stay_between_10_and_30():
@@ -91,25 +88,6 @@ def test_objects_are_half_snacks_half_stickers_and_coins_stay_between_10_and_30(
             bonus.append(d["amount"])
     assert 0.4 < fam["snack"] / (fam["snack"] + fam["sticker"]) < 0.6
     assert min(coins) == 10 and max(coins) == 30 and min(bonus) == 20 and max(bonus) == 60
-
-
-def test_the_inventory_is_ids_with_quantities_and_three_pieces_make_an_outfit():
-    loop = pl.new_loop()
-    for _ in range(3):
-        shown = pc.apply(loop, {"kind": "piece", "item": "piece:casque"})
-    assert shown["label"] == "Morceau de Casque de DJ (3/3)"
-    assert loop["inv"] == {"piece:casque": 3, "outfit:casque": 1}
-    pc.apply(loop, {"kind": "outfit", "item": "outfit:boa"})
-    pc.apply(loop, {"kind": "snack", "item": "snack:glace"})
-    pc.apply(loop, {"kind": "snack", "item": "snack:glace"})
-    assert loop["inv"]["snack:glace"] == 2 and pc.add(loop["inv"], "sticker:disco", 5)["sticker:disco"] == 1
-    owner = pet.new_owner() | {"loop": loop}
-    assert {"casque", "boa"} <= set(pet.unlock(owner))
-    # Tout est déjà à toi : jamais de morceau ni de tenue rare, des pièces à la place.
-    unlocked = {o[0] for o in pet.OUTFITS}
-    always = [pc.draw(random.Random(i), {}, unlocked) for i in range(400)]
-    assert not [d for d in always if d["kind"] in ("piece", "outfit")]
-    assert {d["amount"] for d in always if d["cat"] == "rare"} <= {50}
 
 
 def test_rare_snacks_go_to_the_bag_and_are_eaten_outside_the_meal_limit():
@@ -303,8 +281,8 @@ def test_view_shows_everything_the_screen_needs():
     assert v["evening"] == {"tucked": False} and v["morning"] is None and v["streak"]["respite"] == "friday"
     assert v["streak"]["next"] == {"days": 3, "reward": pl.MILESTONE_REWARDS[3][2]}
     assert [m["days"] for m in v["streak"]["milestones"]] == list(pl.MILESTONE_REWARDS)
-    assert v["odds"] == [{"kind": "coins", "pct": 70}, {"kind": "object", "pct": 20}, {"kind": "piece", "pct": 8},
-                         {"kind": "rare", "pct": 2}]
+    assert [o["kind"] for o in v["odds"]] == ["coins", "object", "common", "rare", "epic", "legendary", "mythic"]
+    assert v["odds"][-1]["pct"] == 0.0 and v["pity_left"] == pc.PITY   # sans Mythique disponible : « tous partis »
     assert len(v["missions"]) == 3 and v["week"]["coins"] == pl.WEEK_COINS and v["stickers"]["total"] == 25
 
 

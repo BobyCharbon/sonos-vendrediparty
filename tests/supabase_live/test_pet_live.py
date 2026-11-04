@@ -158,7 +158,7 @@ def test_the_python_layer_against_the_real_base(trio, monkeypatch):
     assert row == [{"h": True, "d": True}]
     if fed["pet"]["daily"]["chest"]["state"] == "ready":
         opened = store.act(token, "chest")
-        assert opened["effect"]["found"]["kind"] in ("coins", "snack", "sticker", "piece", "outfit")
+        assert opened["effect"]["found"]["kind"] in ("coins", "snack", "sticker", "item")
     nudge = sql_test(f"select nudge from public.pets where user_id = '{b.uid}';")[0]["nudge"]
     assert nudge and nudge["kind"] in ("pet_daily", "pet_streak") and 480 <= nudge["minute"] <= 1365
 

@@ -7,6 +7,7 @@ import { AttendeesBadge } from '@/components/AttendeesBadge';
 import { PendingPayments } from '@/components/PendingPayments';
 import { TicketCard } from '@/components/TicketCard';
 import { CalendarButton } from '@/components/CalendarButton';
+import { EventGiftsLink } from '@/components/EventGifts';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
 import { LinkedText } from '@/components/LinkedText';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
@@ -351,6 +352,7 @@ export default function EventScreen() {
       ) : null}
 
       <ErrorText error={error} />
+      {published && ev.date_mode === 'fixed' ? <EventGiftsLink eventId={ev.id} canManage={canManage} /> : null}
       {canManage && published && ev.visibility === 'invited' ? <InviteLinkCard kind="event" id={ev.id} /> : null}
       {canManage && published ? (
         <View style={st.orgZone}>

@@ -1,0 +1,133 @@
+/* 📖 Compagnon — collection (lot A) : même panneau fixe que pet.css (aucune règle sur html / body, CLAUDE.md iOS 26).
+   Couleurs des raretés : Commun gris, Rare bleu, Épique violet, Légendaire or, Mythique arc-en-ciel. */
+.pt-root { --pc-common: #9aa3b5; --pc-rare: #4f9bff; --pc-epic: #a565ff; --pc-legendary: #ffbf3c;
+  --pc-rainbow: linear-gradient(90deg, #ff4f9a, #ffb547, #ffe66b, #8be36b, #5ee7ff, #8f6bff, #ff4f9a); }
+
+.pc-wallet { display: flex; justify-content: center; gap: 10px; margin: 0 auto 10px; font-weight: 800; }
+.pc-wallet span { padding: 6px 12px; border-radius: 99px; background: rgba(255, 255, 255, .08); }
+.pc-wallet .pc-shiny { background: var(--pc-rainbow); color: #1b1030; }
+.pc-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
+.pc-tab { min-height: 44px; border: 0; border-radius: 14px; font-weight: 700; font-size: .85rem; background: rgba(255, 255, 255, .06);
+  box-shadow: inset 0 0 0 1px var(--pt-line); display: flex; align-items: center; justify-content: center; gap: 4px; }
+.pc-tab.on { background: rgba(143, 107, 255, .3); box-shadow: inset 0 0 0 2px var(--pt-violet); }
+.pc-wear-hero { padding: 8px; }
+.pc-wear-hero .pt-art { width: min(200px, 56vw); }
+.pc-slots { display: flex; gap: 6px; overflow-x: auto; padding: 10px 2px; scrollbar-width: none; }
+.pc-slot { flex: none; min-height: 44px; padding: 0 12px; border: 0; border-radius: 99px; font-weight: 700; font-size: .82rem;
+  background: rgba(255, 255, 255, .07); display: flex; gap: 6px; align-items: center; }
+.pc-slot small { color: var(--pt-muted); }
+.pc-slot.on { background: var(--pt-violet); }
+
+.pc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-top: 8px; }
+.pc-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px 10px; border: 0;
+  border-radius: 16px; background: var(--pt-surface); font-size: .74rem; line-height: 1.15; text-align: center;
+  box-shadow: inset 0 0 0 1.5px var(--pc-c, var(--pt-line)); transition: transform .25s var(--pt-spring); cursor: pointer; }
+.pc-tile b { font-weight: 700; overflow-wrap: anywhere; }
+.pc-tile small { color: var(--pt-muted); font-weight: 700; }
+.pc-tile.on { box-shadow: inset 0 0 0 3px var(--pt-neon); }
+.pc-tile input { position: absolute; top: 8px; left: 8px; width: 20px; height: 20px; accent-color: #ff4f9a; }
+.pc-tile:has(input:checked) { box-shadow: inset 0 0 0 3px var(--pt-neon); }
+.pc-off .pc-mini { filter: grayscale(1) brightness(.6); opacity: .55; }
+.pc-off b { color: var(--pt-muted); }
+.pc-b-common { --pc-c: color-mix(in srgb, var(--pc-common) 60%, transparent); }
+.pc-b-rare { --pc-c: var(--pc-rare); }
+.pc-b-epic { --pc-c: var(--pc-epic); }
+.pc-b-legendary { --pc-c: var(--pc-legendary); }
+.pc-b-mythic, .pc-masked { --pc-c: #ff4f9a; }
+.pc-mini { display: block; width: 72px; aspect-ratio: 1; }
+.pc-mini svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.pc-big { width: 120px; margin: 0 auto; }
+.pc-huge { width: 160px; }
+.pc-none { display: grid; place-items: center; font-size: 2rem; }
+.pc-rar { display: inline-block; padding: 1px 7px; border-radius: 99px; font-size: .66rem; font-weight: 800; letter-spacing: .02em; color: #120a26; }
+.pc-common { background: var(--pc-common); }
+.pc-rare { background: var(--pc-rare); }
+.pc-epic { background: var(--pc-epic); }
+.pc-legendary { background: var(--pc-legendary); }
+.pc-mythic { background: var(--pc-rainbow); background-size: 200% 100%; animation: pc-slide 3s linear infinite; }
+@keyframes pc-slide { to { background-position: 200% 0; } }
+
+/* Mythique pas encore trouvé : silhouette « ??? » qui scintille, sans nom ni image. */
+.pc-mystery { display: grid; place-items: center; border-radius: 50%; font: 900 1.4rem/1 system-ui, sans-serif; color: transparent;
+  background: radial-gradient(circle at 50% 46%, #1b1030 54%, transparent 56%), var(--pc-rainbow); background-size: 100% 100%, 300% 100%;
+  -webkit-background-clip: border-box; position: relative; animation: pc-slide 4s linear infinite; }
+.pc-mystery::after { content: "???"; position: absolute; inset: 0; display: grid; place-items: center; color: #f1ecff; font-weight: 900;
+  text-shadow: 0 0 10px #ff4f9a, 0 0 18px #5ee7ff; animation: pc-twinkle 1.6s ease-in-out infinite; }
+@keyframes pc-twinkle { 50% { opacity: .45; } }
+
+.pc-dex-top { margin-bottom: 10px; }
+.pc-series { margin: 16px 0; }
+.pc-series h3 { margin: 0 0 6px; font: 800 1.1rem/1.2 "Bricolage Grotesque", system-ui, sans-serif; }
+.pc-series h3 small { color: var(--pt-muted); font-size: .8rem; }
+.pc-series.done h3 { color: #ffe27a; }
+.pc-bar { height: 8px; border-radius: 99px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.pc-bar i { display: block; height: 100%; width: var(--v); background: var(--pc-rainbow); }
+.pc-detail { position: sticky; bottom: 10px; margin-top: 12px; box-shadow: inset 0 0 0 2px var(--pc-c, var(--pt-violet)), 0 18px 40px rgba(0, 0, 0, .5); z-index: 2; }
+.pc-acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 10px; }
+.pc-acts .pt-cta { width: auto; margin: 0; padding: 0 18px; }
+.pc-acts .pt-ghost, .pc-cert .pt-ghost, .pc-acts a.pt-ghost { padding: 0 14px; display: inline-flex; align-items: center; text-decoration: none; color: inherit; }
+.pc-serial { margin: 4px 0; font: 900 1.1rem/1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: .04em; color: #ffe27a; }
+
+.pc-list { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 8px; }
+.pc-buy, .pc-cert { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 16px; text-align: left;
+  background: var(--pt-surface); box-shadow: inset 0 0 0 1.5px var(--pc-c, var(--pt-line)); }
+.pc-buy .pc-mini, .pc-cert .pc-mini { width: 56px; }
+.pc-buy > span, .pc-cert > span { flex: 1; display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
+.pc-cert small { color: var(--pt-muted); font-size: .72rem; }
+.pc-price { width: auto !important; min-width: 84px; margin: 0 !important; padding: 0 12px !important; }
+.pc-price[aria-disabled="true"], .pt-cta[aria-disabled="true"] { opacity: .45; filter: saturate(.4); }
+.pc-own { color: #8be36b; font-weight: 800; }
+.pc-rates { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: .85rem; }
+.pc-rates th, .pc-rates td { padding: 6px; border-bottom: 1px solid var(--pt-line); text-align: center; }
+.pc-showcase { text-align: left; }
+.pc-showcase input[type="text"], .pc-showcase input:not([type]) , .pc-showcase #pcTitle { width: 100%; box-sizing: border-box; min-height: 46px; margin: 6px 0 10px;
+  padding: 0 14px; border: 0; border-radius: 14px; font: inherit; color: inherit; background: rgba(255, 255, 255, .08); }
+.pc-showcase .pt-cta { margin-top: 14px; }
+.pc-their h3 { margin: 0 0 6px; }
+.pc-safety { display: flex; justify-content: center; gap: 8px; margin-top: 14px; }
+.pc-safety .pt-ghost { padding: 0 14px; font-size: .84rem; }
+.pc-danger { background: rgba(255, 79, 154, .3) !important; }
+.pc-wide { width: 100%; }
+.pc-from { margin: 0 0 6px; font-weight: 800; color: #ffe27a; }
+
+/* Révélation d'un accessoire : halo à la couleur de la rareté. */
+.pc-reveal { overflow: hidden; }
+.pc-reveal .pc-glow { position: absolute; inset: -30% -30% auto; height: 120%; background: radial-gradient(circle, color-mix(in srgb, var(--pc-c, #8f6bff) 55%, transparent), transparent 60%);
+  animation: pc-pulse 2.4s ease-in-out infinite; pointer-events: none; }
+.pc-reveal .pc-reveal-art { width: min(200px, 56vw); animation: pt-reveal .7s var(--pt-spring) both; }
+@keyframes pc-pulse { 50% { opacity: .55; transform: scale(1.06); } }
+
+/* Mythique : 1) antennes arc-en-ciel  2) la boule se brise  3) l'objet apparaît  4) numéro tamponné, boutons. */
+.pc-myth { position: relative; min-height: 86vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; gap: 8px; padding: 20px 6px; border-radius: 28px; background: radial-gradient(circle at 50% 38%, #2a1458, #07040f 70%); }
+.pc-myth-stage { position: relative; width: min(260px, 70vw); aspect-ratio: 1; }
+.pc-myth-zicou { width: 100%; transition: opacity .35s, transform .35s; }
+.pc-myth[data-step="1"] .pc-myth-zicou .pt-led, .pc-myth[data-step="2"] .pc-myth-zicou .pt-led { animation: pc-hue .6s linear infinite; }
+.pc-myth[data-step="1"] .pc-myth-zicou circle.pt-led { fill: #ff4f9a; }
+@keyframes pc-hue { 0% { filter: hue-rotate(0); } 100% { filter: hue-rotate(360deg); } }
+.pc-myth[data-step="2"] .pc-myth-zicou { animation: pc-shake .12s linear infinite; }
+@keyframes pc-shake { 50% { transform: translate(2px, -2px) rotate(1deg); } }
+.pc-myth[data-step="3"] .pc-myth-zicou, .pc-myth[data-step="4"] .pc-myth-zicou { opacity: 0; transform: scale(1.4); }
+.pc-shards { position: absolute; inset: 0; pointer-events: none; }
+.pc-shards i { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px; opacity: 0; transform: rotate(var(--a));
+  background: linear-gradient(135deg, #f1ecff, #8f6bff 60%, #5ee7ff); clip-path: polygon(50% 0, 100% 60%, 30% 100%); }
+.pc-myth[data-step="3"] .pc-shards i { animation: pc-burst 1s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes pc-burst { 0% { opacity: 1; transform: rotate(var(--a)) translateY(0); } 100% { opacity: 0; transform: rotate(var(--a)) translateY(calc(-1 * var(--d))) scale(.4); } }
+.pc-myth-item { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; transform: scale(.2); transition: opacity .5s, transform .7s var(--pt-spring); }
+.pc-myth[data-step="3"] .pc-myth-item, .pc-myth[data-step="4"] .pc-myth-item { opacity: 1; transform: none; }
+.pc-myth-kicker { margin: 0; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #c9c2ea; }
+.pc-myth-name, .pc-myth .pc-rar, .pc-myth-note, .pc-myth-acts { opacity: 0; transition: opacity .5s; }
+.pc-myth[data-step="3"] .pc-myth-name, .pc-myth[data-step="4"] .pc-myth-name, .pc-myth[data-step="3"] .pc-rar, .pc-myth[data-step="4"] .pc-rar { opacity: 1; }
+.pc-myth-name { margin: 0; font: 900 1.8rem/1.1 "Bricolage Grotesque", system-ui, sans-serif;
+  background: var(--pc-rainbow); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: pc-slide 3s linear infinite; }
+.pc-stamp { margin: 6px 0; padding: 6px 16px; border: 3px solid #ffe27a; border-radius: 10px; font: 900 1.6rem/1 ui-monospace, "SF Mono", Menlo, monospace;
+  color: #ffe27a; transform: rotate(-8deg) scale(3); opacity: 0; }
+.pc-myth[data-step="4"] .pc-stamp { animation: pc-stamp .35s cubic-bezier(.3, 1.6, .5, 1) forwards; }
+@keyframes pc-stamp { to { transform: rotate(-8deg) scale(1); opacity: 1; } }
+.pc-myth[data-step="4"] .pc-myth-note, .pc-myth[data-step="4"] .pc-myth-acts { opacity: 1; }
+/* Animations réduites : simple fondu, sans éclats ni secousse ni flash. */
+.pc-calm .pc-myth-zicou, .pc-calm .pc-shards { display: none; }
+.pc-calm .pc-stamp { transform: rotate(-8deg); opacity: 1; animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .pc-myth *, .pc-mystery, .pc-mystery::after, .pc-mythic, .pc-glow, .pc-bar i { animation: none !important; transition: none !important; }
+}

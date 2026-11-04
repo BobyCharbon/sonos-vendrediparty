@@ -10,7 +10,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from app import accounts as accounts_mod, main, pet, pet_store
+from app import accounts as accounts_mod, main, pet, pet_catalog, pet_cert, pet_store
 
 TOK_A, TOK_B, TOK_GONE = "a" * 40, "b" * 40, "z" * 40
 ALICE, BOB = "9a8b7c6d-1111-4222-8333-444455556666", "5d1f7f0e-3a1b-4c6e-9d2a-0b8e1c2d3f40"
@@ -37,6 +37,9 @@ class FakeBase:
         self.enrolled: str | None = None   # clé propre au serveur, enrôlée une fois (pet_server_enroll)
         self.young: set[str] = set()   # comptes de moins de 3 jours (ne peuvent pas encore offrir)
         self.today = lambda: "2026-11-04"   # jour de Zurich des cadeaux (les tests à horloge simulée le remplacent)
+        self.items: list[dict] = []     # exemplaires numérotés (public.pet_items), frappés par pet_mint
+        self.awards: list[dict] = []    # cadeaux d'événement tirés par la base (public.pet_event_awards)
+        self.minted_at = "2026-11-04T09:00:00Z"
 
     def handler(self, request: httpx.Request):
         uid = self.users.get(request.headers["Authorization"].removeprefix("Bearer "))
@@ -47,7 +50,7 @@ class FakeBase:
             return httpx.Response(503, json={})
         body = json.loads(request.content or b"{}")
         name = path.removeprefix("/rest/v1/rpc/")
-        if name in ("pet_load", "pet_save", "pet_gift") and body.pop("p_key", None) not in (PET_KEY, self.enrolled or PET_KEY):
+        if name in pet_store.KEYED_RPC and body.pop("p_key", None) not in (PET_KEY, self.enrolled or PET_KEY):
             return self.err("server: Ton compagnon ne répond pas. Réessaie dans un instant.")
         return getattr(self, name)(uid, body)
 
@@ -62,7 +65,81 @@ class FakeBase:
             "pet": {k: copy.deepcopy(row[k]) for k in ("life", "owner", "version")} if row else None,
             "gifts": [{"id": g["id"], "kind": g["kind"], "from_name": g["from_name"]} for g in self.gifts
                       if g["to"] == uid and not g["applied"]],
-            "brain": self.brain.get(uid, []), "events": self.events.get(uid, [])})
+            "brain": self.brain.get(uid, []), "events": self.events.get(uid, []),
+            "items": [self._item_json(i) for i in self.items if i["owner"] == uid],
+            "mythic_left": {m: pet_catalog.item(m)["edition"] - sum(1 for i in self.items if i["item"] == m)
+                            for m in pet_catalog.mythics()},
+            "awards": [{k: a[k] for k in ("id", "event_id", "event", "item", "prize", "roll", "instance")}
+                       for a in self.awards if a["user"] == uid and not a.get("claimed")]})
+
+    # ── Modération commune (20261104200000) : Signaler, bloquer (un bloqué n'est plus un ami du Compagnon) ──
+    def report_content(self, uid, b):
+        self.reports = getattr(self, "reports", []) + [(uid, b["p_kind"], b["p_target"], b["p_reason"])]
+        return httpx.Response(200, json=f"r{len(self.reports)}")
+
+    def set_block(self, uid, b):
+        if b["blocked"]:
+            self.friends.get(uid, set()).discard(b["target"])
+            self.friends.get(b["target"], set()).discard(uid)
+        return httpx.Response(204)
+
+    def my_blocks(self, uid, _):
+        return httpx.Response(200, json=[])
+
+    # ── Collection (mêmes règles que la migration 20261104210000) ──
+    @staticmethod
+    def _item_json(i):
+        return {k: i.get(k) for k in ("id", "item", "serial", "edition", "minted_at", "source", "event_id", "code", "sig", "payload")}
+
+    def mint_for(self, uid, item, source, ref, event_id=None):
+        old = next((i for i in self.items if i["minted_for"] == uid and i["ref"] == ref), None)
+        if old:
+            return old
+        edition = pet_catalog.item(item).get("edition")
+        serial = 1 + max([i["serial"] for i in self.items if i["item"] == item], default=0)
+        if edition and serial > edition:
+            raise ValueError("sold_out")
+        inst = {"id": f"00000000-0000-4000-8000-{len(self.items) + 1:012d}", "item": item, "serial": serial,
+                "edition": edition, "minted_at": self.minted_at, "source": source, "event_id": event_id, "code": None,
+                "sig": None, "payload": None, "owner": uid, "minted_for": uid, "ref": ref}
+        self.items.append(inst)
+        return inst
+
+    def pet_mint(self, uid, b):
+        it = pet_catalog.item(b["p_item"])
+        if not it or it["rarity"] not in ("legendary", "mythic") or pet_catalog.is_event_only(it):
+            return self.err("invalid: Objet inconnu.")
+        if it["rarity"] == "mythic" and b["p_source"] == "atelier":
+            return self.err("invalid: Un Mythique ne se fabrique pas.")
+        try:
+            return httpx.Response(200, json=self._item_json(self.mint_for(uid, b["p_item"], b["p_source"], b["p_ref"])))
+        except ValueError:
+            return self.err("sold_out: Tous les exemplaires sont déjà partis.")
+
+    def pet_cert_set(self, uid, b):
+        inst = next((i for i in self.items if i["id"] == b["p_id"] and uid in (i["owner"], i["minted_for"])), None)
+        if not inst:
+            return self.err("invalid: Exemplaire inconnu.")
+        if not inst["sig"]:
+            if b["p_payload"] != pet_cert.payload(inst):
+                return self.err("invalid: Certificat illisible.")
+            inst.update(sig=b["p_sig"], code=b["p_code"], payload=b["p_payload"])
+        return httpx.Response(200, json=self._item_json(inst))
+
+    def pet_awards_claim(self, uid, b):
+        n = 0
+        for a in self.awards:
+            if a["user"] == uid and a["id"] in b["p_ids"] and not a.get("claimed"):
+                a["claimed"], n = True, n + 1
+        return httpx.Response(200, json=n)
+
+    def pet_verify(self, uid, b):
+        inst = next((i for i in self.items if i["code"] == b["p_code"] and i["sig"]), None)
+        if not inst:
+            return httpx.Response(200, content=b"null")
+        it = pet_catalog.item(inst["item"])
+        return httpx.Response(200, json=self._item_json(inst) | {"label": it["label"], "rarity": it["rarity"],
+                              "retired": inst["owner"] is None, "owners": [{"since": inst["minted_at"], "how": "minted"}]})
 
     def pet_server_enroll(self, uid, b):
         key = b.get("p_key") or ""
@@ -266,7 +343,7 @@ def test_friends_visit_and_gifts(setup):
     assert len(friends) == 1
     card = friends[0]
     assert card["member"] == "<b>Bob</b>" and card["gifted"] is False
-    assert set(card["pet"]) == {"name", "stage", "variant", "emotion", "outfit", "age_hours", "gen", "line"}
+    assert set(card["pet"]) == {"name", "stage", "variant", "emotion", "outfit", "age_hours", "gen", "line", "acc", "shiny", "showcase"}
     r = c.post("/api/pet/gift", json={"token": TOK_A, "friend": BOB, "kind": "hug"})
     assert r.status_code == 200 and r.json()["gifted"] is True
     again = c.post("/api/pet/gift", json={"token": TOK_A, "friend": BOB, "kind": "snack"})

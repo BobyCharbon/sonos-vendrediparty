@@ -1,10 +1,56 @@
--- PROD, retour arrière des garde-fous (20261104170000), de la boucle du jour (20261104150000) PUIS du compagnon (20261104130000) : le Compagnon disparaît (personnages, cadeaux et journal EFFACÉS,
+-- PROD, retour arrière de la collection (20261104210000 : catalogue, exemplaires et certificats, cadeaux d'événement
+-- EFFACÉS), puis des garde-fous (20261104170000), de la boucle du jour (20261104150000) PUIS du compagnon (20261104130000) : le Compagnon disparaît (personnages, cadeaux et journal EFFACÉS,
 -- l'app affiche « ne répond pas »), plus de rappel ni d'alerte. Les notifications pet_* déjà envoyées restent dans
 -- l'historique. Les branches pet_daily / pet_alert ajoutées à private.web_push_allowed et private.may_receive_push
 -- sont retirées de la définition en place (les autres types restent intacts). Tout ou rien.
 begin;
 
--- ══ D'abord les garde-fous (20261104170000) : fonctions à clé du serveur, enrôlement, colonnes d'appartenance ══
+-- ══ D'abord la collection (20261104210000) ══
+do $$
+begin
+  perform cron.unschedule('pet-event-draw') where exists (select 1 from cron.job where jobname = 'pet-event-draw');
+end $$;
+drop trigger if exists pets_moderate on public.pets;
+drop function if exists private.moderate_pet();
+drop function if exists public.pet_awards_claim(uuid[], text);
+drop function if exists public.pet_drop_bounds_set(boolean, jsonb, integer, integer);
+drop function if exists private.pet_event_draw_due(uuid);
+drop function if exists private.pet_event_draw(uuid);
+drop function if exists public.pet_event_drop_publish(uuid);
+drop function if exists public.pet_event_drop_delete(uuid);
+drop function if exists public.pet_event_drop_save(uuid, jsonb);
+drop function if exists private.pet_drop_editable(uuid);
+drop function if exists private.pet_drop_check(uuid, jsonb, text);
+drop function if exists public.pet_event_drop_get(uuid);
+drop function if exists private.pet_drop_view(public.pet_event_drops, boolean);
+drop function if exists private.pet_drop_roll(text, uuid, uuid, integer);
+drop function if exists private.pet_drop_draw_at(uuid);
+drop function if exists private.pet_drop_eligible(uuid);
+drop function if exists private.pet_drop_role(uuid);
+drop function if exists public.pet_verify(text);
+drop function if exists public.pet_cert_set(uuid, text, text, text, text);
+drop function if exists public.pet_mint(text, text, text, text);
+drop function if exists private.pet_mint_for(uuid, text, text, text, uuid);
+drop function if exists private.pet_item_json(public.pet_items);
+drop function if exists private.pet_item_payload(public.pet_items);
+drop table if exists public.pet_event_awards;
+drop table if exists public.pet_event_drops;
+drop table if exists private.pet_drop_bounds;
+drop table if exists public.pet_item_owners;
+drop table if exists public.pet_items;
+drop function if exists private.pet_items_guard();
+drop table if exists public.pet_catalog;
+-- Points d'accroche de la modération : de nouveau vides (comme 20261104200000, qui reste en prod).
+create or replace function private.report_snapshot_pet(p_kind text, p_id text, viewer uuid) returns jsonb
+language sql stable security definer set search_path = '' as $$ select null::jsonb; $$;
+create or replace function private.moderation_hide_pet(p_kind text, p_id text) returns void
+language plpgsql security definer set search_path = '' as $$ begin return; end $$;
+revoke all on function private.report_snapshot_pet(text, text, uuid), private.moderation_hide_pet(text, text)
+  from public, anon, authenticated;
+-- pet_load, pet_friends_of, pet_state_problem : supprimés plus bas avec le Compagnon (sections suivantes).
+delete from supabase_migrations.schema_migrations where version = '20261104210000';
+
+-- ══ Puis les garde-fous (20261104170000) : fonctions à clé du serveur, enrôlement, colonnes d'appartenance ══
 drop function if exists public.pet_gift(uuid, text, text);
 drop function if exists public.pet_save(jsonb, jsonb, integer, timestamptz, timestamptz, boolean, uuid[], jsonb, jsonb, text);
 drop function if exists public.pet_load(text, text);

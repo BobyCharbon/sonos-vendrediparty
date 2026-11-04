@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Certificat d'authenticité · Zicou</title>
+  <meta name="theme-color" content="#0d0920">
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="/static/favicon-32.png?v=3">
+  <link rel="stylesheet" href="/static/pet/pet.css">
+  <link rel="stylesheet" href="/static/pet/collection.css">
+  <style>
+    /* Page à part (pas installable) : le panneau du Compagnon sert de mise en page, sans règle sur html / body. */
+    body { margin: 0; background: #0d0920; }
+    .vf { position: static; min-height: 100vh; }
+    .vf form { display: flex; gap: 8px; margin: 12px 0; }
+    .vf input { flex: 1; min-height: 46px; padding: 0 14px; border: 0; border-radius: 14px; font: inherit; color: inherit; background: rgba(255, 255, 255, .08); }
+    .vf-ok { color: #8be36b; font-weight: 900; font-size: 1.15rem; }
+    .vf-bad { color: #ff7aa8; font-weight: 900; font-size: 1.15rem; }
+    .vf dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; text-align: left; margin: 14px 0; }
+    .vf dt { color: #a99ccf; }
+    .vf dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+    .vf code { font-size: .7rem; word-break: break-all; color: #a99ccf; }
+    .vf ol { text-align: left; padding-left: 20px; }
+  </style>
+</head>
+<body>
+<main class="pt-root vf" id="vf">
+  <div class="pt-top"><span class="pt-round-gap"></span><h1 class="pt-title">Vérifier un objet</h1><span class="pt-round-gap"></span></div>
+  <section class="pt-card">
+    <p class="pt-muted">Chaque Légendaire et Mythique du Compagnon Zicou a un certificat signé par le serveur de Party.
+      Entre son code (ZC-XXXX-XXXX-XXXX) pour vérifier qu'il est authentique.</p>
+    <form id="vfForm"><label class="pt-sr" for="vfCode">Code d'authenticité</label>
+      <input id="vfCode" name="code" maxlength="20" autocomplete="off" placeholder="ZC-XXXX-XXXX-XXXX">
+      <button type="submit" class="pt-ghost" style="padding:0 16px">Vérifier</button></form>
+  </section>
+  <section class="pt-card" id="vfOut" aria-live="polite" hidden></section>
+  <p class="pt-muted pt-small">Ces objets n'ont aucune valeur en argent et ne se vendent pas. Ce n'est ni un NFT ni une crypto-monnaie :
+    le certificat est une simple signature numérique (Ed25519) dont la clé publique est publiée : <a href="/api/pet/certificats/cle" style="color:inherit">clé publique</a>.</p>
+</main>
+<script src="/static/pet/skin.js"></script>
+<script src="/static/pet/acc-a.js"></script>
+<script src="/static/pet/acc-b.js"></script>
+<script>
+(function () {
+  "use strict";
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const HOW = { minted: "Frappé pour un joueur de Party", traded: "Échangé", gift: "Offert", admin: "Corrigé par l'admin" };
+  const SOURCE = { chest: "coffre du jour", bonus_chest: "coffre bonus", atelier: "atelier", event: "cadeau d'événement" };
+  const RAR = { legendary: "Légendaire", mythic: "Mythique" };
+  const out = document.getElementById("vfOut"), input = document.getElementById("vfCode");
+  const date = (s) => (s ? new Date(s).toLocaleDateString("fr-CH", { day: "numeric", month: "long", year: "numeric" }) : "");
+  async function check(code) {
+    out.hidden = false;
+    out.innerHTML = '<p class="pt-muted">Vérification…</p>';
+    let r, data;
+    try {
+      r = await fetch(`/api/pet/verifier?code=${encodeURIComponent(code)}`);
+      data = await r.json();
+    } catch { out.innerHTML = "<p>Pas de réseau. Réessaie dans un instant.</p>"; return; }
+    if (!r.ok) { out.innerHTML = `<p class="vf-bad">${esc(data?.detail || "Code illisible.")}</p>`; return; }
+    if (!data.found) { out.innerHTML = `<p class="vf-bad">✗ Aucun objet avec le code ${esc(data.code)}.</p><p class="pt-muted">Vérifie les lettres : un faux certificat ne passe pas.</p>`; return; }
+    const it = data.item || {};
+    const art = window.PetSkin && it.slot ? `<div class="pc-big pc-mini">${window.PetSkin.render({ stage: "adult", emotion: "happy", variant: "classic", accessories: { [it.slot]: it.id } })}</div>` : "";
+    const owners = (data.owners || []).map((o) => `<li>${esc(HOW[o.how] || o.how)} · ${esc(date(o.since))}</li>`).join("");
+    out.innerHTML = `${data.authentic ? '<p class="vf-ok">✓ Authentique : signé par Party</p>' : '<p class="vf-bad">✗ Signature invalide : ce certificat n\'est pas authentique</p>'}
+      ${art}<h2>${esc(it.label)}</h2><span class="pc-rar pc-${esc(it.rarity)}">${esc(RAR[it.rarity] || it.rarity)}</span>
+      <p class="pc-serial">n° ${esc(data.serial)}${data.of ? `/${esc(data.of)}` : ""}</p>
+      <dl><dt>Code</dt><dd>${esc(data.code)}</dd><dt>Frappé le</dt><dd>${esc(date(data.minted_at))}</dd>
+        <dt>Origine</dt><dd>${esc(SOURCE[data.source] || data.source)}${data.event ? ` · ${esc(data.event)}` : ""}</dd>
+        ${data.of ? `<dt>Tirage</dt><dd>${esc(data.of)} exemplaires au plus, jamais réédité</dd>` : ""}
+        <dt>Statut</dt><dd>${data.retired ? "Retiré du jeu (compte supprimé)" : "En circulation"}</dd></dl>
+      <h3>Provenance</h3><ol>${owners}</ol>
+      <details><summary class="pt-muted">Détails techniques</summary><p class="pt-muted">Texte signé et signature Ed25519 (empreinte de la clé : ${esc(data.key_fingerprint)}) :</p>
+        <code>${esc(data.payload)}</code><br><code>${esc(data.sig)}</code></details>`;
+  }
+  document.getElementById("vfForm").addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const code = input.value.trim();
+    if (code) { history.replaceState(null, "", `?code=${encodeURIComponent(code)}`); check(code); }
+  });
+  const start = new URLSearchParams(location.search).get("code");
+  if (start) { input.value = start; check(start); }
+})();
+</script>
+</body>
+</html>
