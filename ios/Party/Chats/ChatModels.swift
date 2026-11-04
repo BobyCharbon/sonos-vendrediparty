@@ -23,8 +23,15 @@ struct ChatSummary: Codable, Equatable, Identifiable {
     let last: String?
     let lastAt: String?
     let unread: Int
+    /// Message direct (conversation privée à deux, 4.11) : l'autre personne, sa photo (lien signé), bloquée par moi.
+    var direct = false
+    var userID: String?
+    var photo: String?
+    var blocked = false
 
-    enum CodingKeys: String, CodingKey { case id, name, member, notify, last, unread, lastAt = "last_at" }
+    enum CodingKeys: String, CodingKey {
+        case id, name, member, notify, last, unread, kind, photo, blocked, lastAt = "last_at", userID = "user_id"
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -35,6 +42,25 @@ struct ChatSummary: Codable, Equatable, Identifiable {
         last = try c.decodeIfPresent(String.self, forKey: .last)
         lastAt = try c.decodeIfPresent(String.self, forKey: .lastAt)
         unread = try c.decodeIfPresent(Int.self, forKey: .unread) ?? 0
+        direct = (try? c.decodeIfPresent(String.self, forKey: .kind)) == "direct"
+        userID = try c.decodeIfPresent(String.self, forKey: .userID)
+        photo = try c.decodeIfPresent(String.self, forKey: .photo)
+        blocked = try c.decodeIfPresent(Bool.self, forKey: .blocked) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encode(member, forKey: .member)
+        try c.encode(notify, forKey: .notify)
+        try c.encodeIfPresent(last, forKey: .last)
+        try c.encodeIfPresent(lastAt, forKey: .lastAt)
+        try c.encode(unread, forKey: .unread)
+        try c.encode(direct ? "direct" : "group", forKey: .kind)
+        try c.encodeIfPresent(userID, forKey: .userID)
+        try c.encodeIfPresent(photo, forKey: .photo)
+        try c.encode(blocked, forKey: .blocked)
     }
 }
 
@@ -131,11 +157,18 @@ struct Conversation: Codable, Equatable {
     var organizer: Bool? = nil
     /// Qui peut écrire @tout : "all" (tous les membres) ou "staff" (admins et organisateurs).
     var everyone: String? = nil
+    /// Message direct (conversation privée à deux) : l'autre personne, sa photo, bloquée par moi (absent : un groupe).
+    var direct: Bool? = nil
+    var userID: String? = nil
+    var photo: String? = nil
+    var blocked: Bool? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, name, member, admin, notify, reactions, members, messages, me, highlights, organizer, everyone
-        case canNameAdmins = "can_name_admins"
+        case id, name, member, admin, notify, reactions, members, messages, me, highlights, organizer, everyone, direct, photo, blocked
+        case canNameAdmins = "can_name_admins", userID = "user_id"
     }
+
+    var isDirect: Bool { direct == true }
 
     /// Admin ou organisateur : fait des annonces (@annonce) et les retire.
     var isStaff: Bool { admin || (member && organizer == true) }
@@ -143,6 +176,7 @@ struct Conversation: Codable, Equatable {
     var canEveryone: Bool { everyone != "staff" || isStaff }
     /// Prévenu avant l'envoi : @annonce d'un simple membre (message normal), @tout réservé par le groupe.
     func tagNote(for text: String) -> String? {
+        if isDirect { return nil }  // à deux : ni @tout ni @annonce
         if Mentions.isAnnouncement(text) && !isStaff {
             return "Seuls les admins et organisateurs du groupe font des annonces : ton message partira comme un message normal."
         }
@@ -173,12 +207,13 @@ struct Conversation: Codable, Equatable {
     func with(messages: [Message]) -> Conversation {
         Conversation(id: id, name: name, member: member, admin: admin, notify: notify, canNameAdmins: canNameAdmins,
                      me: me, reactions: reactions, members: members, messages: messages, highlights: highlights,
-                     organizer: organizer, everyone: everyone)
+                     organizer: organizer, everyone: everyone, direct: direct, userID: userID, photo: photo, blocked: blocked)
     }
 
     /// Membres cités par « @surnom » (sans accents ni casse) dans le texte (sauf moi) : envoyés avec le message,
     /// la base ne garde que les membres.
     func mentions(in body: String, me: String?) -> [String] {
+        if isDirect { return [] }
         let folded = Mentions.fold(body)
         return members.filter { $0.id != me && !$0.name.isEmpty && folded.contains("@" + Mentions.fold($0.name)) }.map(\.id)
     }
@@ -285,6 +320,7 @@ private struct ChatList: Decodable {
     let realtime: ChatRealtime.Endpoint?
 }
 private struct PhotoPath: Decodable { let path: String }
+private struct DirectChatID: Decodable { let id: String }
 
 extension PartyAPI {
     func chats(token: String) async throws -> ([ChatSummary], ChatRealtime.Endpoint?) {
@@ -292,13 +328,26 @@ extension PartyAPI {
         return (list.chats, list.realtime)
     }
 
-    func openChat(token: String, group: String) async throws -> Conversation {
-        try await postDecoding("/api/account/chats/open", body: ["token": token, "group_id": group])
+    func openChat(token: String, group: String, direct: Bool = false) async throws -> Conversation {
+        try await postDecoding("/api/account/chats/open", body: ["token": token, "group_id": group, "direct": direct])
+    }
+
+    /// « Écrire » : LA conversation privée avec cette personne (créée au besoin). contactHash : empreinte de son numéro
+    /// (contacts de l'iPhone), preuve qu'on la connaît quand on n'a ni groupe ni événement en commun.
+    func startDirectChat(token: String, user: String, contactHash: String? = nil) async throws -> String {
+        var body: [String: Any] = ["token": token, "user_id": user]
+        if let contactHash { body["contact_hash"] = contactHash }
+        let r: DirectChatID = try await postDecoding("/api/account/chats/direct", body: body)
+        return r.id
+    }
+
+    func blockDirect(token: String, user: String, on: Bool) async throws {
+        try await post("/api/account/chats/block", body: ["token": token, "user_id": user, "on": on])
     }
 
     func sendChat(token: String, group: String, body: String, replyTo: String?, photoPath: String?,
-                  mentions: [String], id: String, audioPath: String? = nil, audioSeconds: Double? = nil) async throws {
-        var payload: [String: Any] = ["token": token, "group_id": group, "body": body, "mentions": mentions, "id": id]
+                  mentions: [String], id: String, audioPath: String? = nil, audioSeconds: Double? = nil, direct: Bool = false) async throws {
+        var payload: [String: Any] = ["token": token, "group_id": group, "body": body, "mentions": mentions, "id": id, "direct": direct]
         if let audioPath { payload["audio_path"] = audioPath }
         if let audioSeconds { payload["audio_seconds"] = (audioSeconds * 10).rounded() / 10 }
         if let replyTo { payload["reply_to"] = replyTo }
@@ -318,20 +367,20 @@ extension PartyAPI {
         return r.path
     }
 
-    func reactChat(token: String, message: String, emoji: String, on: Bool) async throws {
-        try await post("/api/account/chats/react", body: ["token": token, "id": message, "emoji": emoji, "on": on])
+    func reactChat(token: String, message: String, emoji: String, on: Bool, direct: Bool = false) async throws {
+        try await post("/api/account/chats/react", body: ["token": token, "id": message, "emoji": emoji, "on": on, "direct": direct])
     }
 
-    func pinChat(token: String, message: String, pin: Bool) async throws {
-        try await post("/api/account/chats/pin", body: ["token": token, "id": message, "pin": pin])
+    func pinChat(token: String, message: String, pin: Bool, direct: Bool = false) async throws {
+        try await post("/api/account/chats/pin", body: ["token": token, "id": message, "pin": pin, "direct": direct])
     }
 
-    func deleteChat(token: String, message: String) async throws {
-        try await post("/api/account/chats/delete", body: ["token": token, "id": message])
+    func deleteChat(token: String, message: String, direct: Bool = false) async throws {
+        try await post("/api/account/chats/delete", body: ["token": token, "id": message, "direct": direct])
     }
 
-    func notifyChat(token: String, group: String, level: ChatNotify) async throws {
-        try await post("/api/account/chats/notify", body: ["token": token, "group_id": group, "level": level.rawValue])
+    func notifyChat(token: String, group: String, level: ChatNotify, direct: Bool = false) async throws {
+        try await post("/api/account/chats/notify", body: ["token": token, "group_id": group, "level": level.rawValue, "direct": direct])
     }
 
     func setChatAdmin(token: String, group: String, member: String, on: Bool) async throws {
@@ -346,7 +395,7 @@ extension PartyAPI {
         try await post("/api/account/chats/everyone", body: ["token": token, "group_id": group, "who": who])
     }
 
-    func readChat(token: String, group: String) async throws {
-        try await post("/api/account/chats/read", body: ["token": token, "group_id": group])
+    func readChat(token: String, group: String, direct: Bool = false) async throws {
+        try await post("/api/account/chats/read", body: ["token": token, "group_id": group, "direct": direct])
     }
 }

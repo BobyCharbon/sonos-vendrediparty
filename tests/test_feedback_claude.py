@@ -86,7 +86,7 @@ def test_send_to_claude_creates_a_labelled_issue_and_tracks_it(admin, monkeypatc
     assert guest["status"] == "progress" and "note" not in guest and "claude" not in guest  # l'invité voit « en cours »
 
 
-def test_closed_issue_marks_fixed_and_failed_run_goes_back_to_todo(admin, monkeypatch, tmp_path):  # noqa: F811
+def test_closed_issue_marks_fixed_and_failed_run_asks_the_admin_questions(admin, monkeypatch, tmp_path):  # noqa: F811
     issues = setup(monkeypatch, tmp_path)
     for t in ("Bug numéro un", "Bug numéro deux"):
         main.feedback.add(GUEST, "Léa", "bug", t, {})
@@ -102,7 +102,7 @@ def test_closed_issue_marks_fixed_and_failed_run_goes_back_to_todo(admin, monkey
     main.github.cache.clear()
     items = {i["id"]: i for i in admin.get("/api/admin/feedback").json()["items"]}
     assert items[ids[0]]["status"] == "verify" and items[ids[0]]["claude"]["state"] == "fixed"  # à vérifier par l'admin
-    assert items[ids[1]]["status"] == "new" and items[ids[1]]["claude"]["state"] == "failed"
+    assert items[ids[1]]["status"] == "questions" and items[ids[1]]["claude"]["state"] == "failed"
     assert items[ids[1]]["claude"]["error"] == "Les tests échouent : test_x"  # « Problème à corriger » dans l'admin
     assert "error" not in items[ids[0]]["claude"]
 
@@ -169,9 +169,9 @@ def test_fixed_by_claude_waits_for_the_admin_to_validate(admin, monkeypatch, tmp
     assert admin.get("/api/admin/state").json()["feedback_new"] == 1  # pastille : il y a une vérification à faire
     guest = TestClient(main.app).get("/api/feedback", params={"guest_id": GUEST}).json()["mine"][0]
     assert guest["status"] == "progress"  # l'invité ne voit « terminé » qu'après ta validation
-    # Pas corrigé : retour à traiter (on peut préciser et renvoyer à Claude).
-    item = admin.post("/api/admin/feedback", json={"ids": [fid], "action": "new"}).json()["items"][0]
-    assert item["status"] == "new" and item["claude"]["state"] == "fixed"
+    # Pas corrigé : « prêt à faire » de nouveau (on peut préciser et renvoyer à Claude).
+    item = admin.post("/api/admin/feedback", json={"ids": [fid], "action": "ready"}).json()["items"][0]
+    assert item["status"] == "ready" and item["claude"]["state"] == "fixed"
     note(admin, fid, "Toujours là sur iPhone : la barre reste trop haute.")
     assert admin.post(f"/api/admin/feedback/{fid}/claude").status_code == 200  # renvoyable
     issues[2]["state"] = "closed"
@@ -201,7 +201,7 @@ def test_resending_tells_claude_about_previous_attempts(admin, monkeypatch, tmp_
     issues[2]["comments"] = ["✅ Corrigé et poussé sur `develop` : https://github.com/owner/repo/commit/16fdc853518ba3a880cea8a613a775dcbfb9606d. L'image…"]
     main.github.cache.clear()
     assert first(admin)["claude"]["sha"] == "16fdc853518ba3a880cea8a613a775dcbfb9606d"
-    admin.post("/api/admin/feedback", json={"ids": [fid], "action": "new"})  # ↩︎ Pas corrigé
+    admin.post("/api/admin/feedback", json={"ids": [fid], "action": "ready"})  # ↩︎ Pas corrigé
     admin.post(f"/api/admin/feedback/{fid}/claude")
     third = issues[3]["body"]
     assert "#1" in third and "#2" in third and "git show 16fdc853518b" in third

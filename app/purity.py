@@ -313,6 +313,13 @@ def _save_stats(data: dict):
     tmp.replace(STATS_PATH)
 
 
+def _account_of(g: dict, gid: str) -> str | None:
+    """Compte (acct-…) de cette place : son identifiant, ou un alias de compte qui mène à elle."""
+    if gid.startswith("acct-"):
+        return gid
+    return next((a for a, o in (g.get("aliases") or {}).items() if o == gid and a.startswith("acct-")), None)
+
+
 def record(g: dict):
     """Ajoute chaque score révélé au classement général et garde le profil du dernier test de chacun."""
     if not STATS_PATH:
@@ -324,13 +331,15 @@ def record(g: dict):
     now = time.time()
     for pl in g["players"]:
         gid = pl["id"]
-        # Participation réservée aux comptes : le guest_id « acct-… » est l'identité stable.
-        if gid not in scores or not gid.startswith("acct-"):
+        # Participation réservée aux comptes : le guest_id « acct-… » est l'identité stable. Place restée à un
+        # identifiant d'invité mais reliée à un compte (alias) : le score va au compte, jamais perdu.
+        account = _account_of(g, gid)
+        if gid not in scores or not account:
             continue
-        old = data.get(gid) or {"plays": 0, "best": 0}
+        old = data.get(account) or {"plays": 0, "best": 0}
         cats = [{k: r[k] for k in ("id", "yes", "total", "pct")} for r in categories(g, gid)]
-        data[gid] = {"v": STATS_VERSION, "name": pl["name"], "plays": old["plays"] + 1, "best": max(old["best"], scores[gid]),
-                     "last": scores[gid], "last_at": now, "categories": cats}
+        data[account] = {"v": STATS_VERSION, "name": pl["name"], "plays": old["plays"] + 1, "best": max(old["best"], scores[gid]),
+                         "last": scores[gid], "last_at": now, "categories": cats}
     _save_stats(data)
 
 

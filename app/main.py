@@ -27,11 +27,13 @@ from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import beerpong, brain, brain_game, calendar_ics, debate, games, heist, island, likely, links, masque, neon, president, psy, purity, quiz, reflet
+from . import pet, pet_store
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
 from .account_auth import AccountAuth
 from .group_admin import ROLE_KEY, GroupAdmin
-from .contact_names import MAX_HASHES as CONTACT_MAX_HASHES, ContactNames
+from .app_invites import JOIN_PAGE as APP_JOIN_PAGE, AppInvites, join_meta
+from .contact_names import MAX_FRIENDS as CONTACT_MAX_FRIENDS, MAX_HASHES as CONTACT_MAX_HASHES, ContactNames
 from .group_chats import LEVELS as CHAT_LEVELS, PHOTO_MAX as CHAT_PHOTO_MAX, GroupChats
 from .wallet import MEDIA_TYPE as PKPASS_TYPE, PASS_TYPE_ID, WalletError
 from .wallet_tickets import WalletTickets
@@ -42,8 +44,10 @@ from .covers import Covers
 from .ai_events import MAX_IMAGE_B64 as AI_EVENT_MAX_IMAGE, MAX_TEXT as AI_EVENT_MAX_TEXT, MAX_TURNS as AI_EVENT_MAX_TURNS, EventAssistant
 from .places import MAX_QUERY as PLACE_MAX_QUERY, Places
 from .audit import AuditLog
-from .feedback import ADMIN_STATUSES as FEEDBACK_STATUSES, KINDS as FEEDBACK_KINDS, FeedbackBox, build_prompt
-from .feedback_remote import OPS as FEEDBACK_SYNC_OPS, SYNC_HEADER as FEEDBACK_SYNC_HEADER, FeedbackRemote, FeedbackUnavailable
+from .feedback import (ADMIN_STATUSES as FEEDBACK_STATUSES, AUTHORS as FEEDBACK_AUTHORS, KINDS as FEEDBACK_KINDS,
+                       FeedbackBox, build_prompt, meta as feedback_meta, with_defaults as feedback_with_defaults)
+from .feedback_remote import (OPS as FEEDBACK_SYNC_OPS, SYNC_HEADER as FEEDBACK_SYNC_HEADER, WRITES as FEEDBACK_SYNC_WRITES,
+                              FeedbackRemote, FeedbackUnavailable)
 from .github_issues import GitHubError, Issues
 from . import live_activity
 from .apns import TOPICS
@@ -1393,18 +1397,18 @@ def room_launch(room: dict, me: str, settings: dict):
     if kind == "president" and (len(room["players"]) > 6 or any(p.get("manual") for p in room["players"])):
         raise HTTPException(409, "Président accueille au maximum 6 joueurs, chacun avec son téléphone. Ajuste les participants de la salle avant de le lancer.")
     accounts_only = kind in ACCOUNT_GAMES
-    if accounts_only and not accounts.is_linked(me):
+    if accounts_only and not seat_linked(room, me):
         raise HTTPException(403, "Connecte-toi avec ton numéro pour lancer le Purify Test")
     host = room["host"] or me
     hp = games.player(room, host)
     fields = {k: v for k, v in settings.items() if k in GameCreate.model_fields and k not in ("guest_id", "name", "type", "token")}
-    fields["plays"] = bool(hp) and fields.get("plays", True) and (not accounts_only or accounts.is_linked(host))
+    fields["plays"] = bool(hp) and fields.get("plays", True) and (not accounts_only or seat_linked(room, host))
     body = GameCreate(guest_id=host, name=room.get("host_name") or "Animateur", type=kind, **fields)
     if len(store.session.games) >= 30:
         prune_games()
     child = build_game(body)
     for p in room["players"]:
-        if p["id"] == host or (accounts_only and not accounts.is_linked(p["id"])):
+        if p["id"] == host or (accounts_only and not seat_linked(room, p["id"])):
             continue  # Purify Test : seuls les comptes connectés sont inscrits d'office
         try:
             if p.get("manual"):
@@ -1415,10 +1419,23 @@ def room_launch(room: dict, me: str, settings: dict):
         except games.GameError:
             pass
     child["leads"] = list(room.get("leads", []))
+    # Les autres identités des joueurs (onglet resté sur l'identité d'invité, place reprise) les suivent dans le jeu :
+    # sinon ce téléphone y prendrait une deuxième place.
+    child["aliases"] = {a: o for a, o in (room.get("aliases") or {}).items() if games.player(child, o)}
     child["room"] = room["code"]
     room["rvotes"] = {}  # le vote du jeu suivant repart à zéro
     room["current"] = child["code"]
     store.session.games[child["code"]] = child
+
+
+def seat_ids(g: dict, gid: str) -> list[str]:
+    """Toutes les identités d'une place : la sienne et celles qui y mènent (alias)."""
+    return [gid] + [a for a, o in (g.get("aliases") or {}).items() if o == gid]
+
+
+def seat_linked(g: dict, gid: str) -> bool:
+    """La place appartient à un compte Party connecté (sous son identifiant ou l'un de ses alias)."""
+    return any(map(accounts.is_linked, seat_ids(g, gid)))
 
 
 def full_view(g: dict, gid: str) -> dict:
@@ -1434,7 +1451,7 @@ def full_view(g: dict, gid: str) -> dict:
         last = last_seen_of(g, real["id"])
         p["online"] = now - last < ONLINE_WINDOW
         p["seen_ago"] = int(now - last) if last else None
-        ids = [real["id"]] + [a for a, o in (g.get("aliases") or {}).items() if o == real["id"]]
+        ids = seat_ids(g, real["id"])
         if photo := next(filter(None, map(accounts.photo, ids)), None):
             p["photo"] = photo  # compte Party : la photo de profil remplace l'initiale
         if any(map(accounts.is_linked, ids)):
@@ -1472,6 +1489,7 @@ accounts = Accounts(_secret())
 group_admin = GroupAdmin(accounts)
 group_chats = GroupChats(group_admin)
 contact_names = ContactNames(accounts)
+app_invites = AppInvites(accounts, configured_public_url)
 # Billets dans Apple Wallet : certificats dans WALLET_DIR (par défaut DATA_DIR/wallet) ; sans eux, bouton masqué.
 wallet = WalletTickets(accounts, Path(os.environ.get("WALLET_DIR") or DATA_DIR / "wallet"))
 tricount =Tricount(group_admin, lambda: guest_url())
@@ -1511,14 +1529,9 @@ def account_link(body: AccountLink, request: Request):
     account_limiter.success(ip)
     log_account_link(account, ip)
     new, old = account["guest_id"], body.guest_id
-    if GUEST_ID_RE.match(old or "") and old != new:
-        with GAMES_LOCK:
-            link_seats(old, new)
-        # Choix de notifications faits avant de se connecter : ils suivent le compte (sans écraser les siens).
-        prefs = store.session.guest_notify
-        if old in prefs and new not in prefs:
-            prefs[new] = dict(prefs[old])
-            store.save(notify=False)
+    # Une place de compte ne passe jamais à un autre compte (téléphone qui change de compte).
+    if GUEST_ID_RE.match(old or "") and old != new and not old.startswith("acct-"):
+        merge_identity(old, new)
     if account["name"]:
         game_presence(request, new, account["name"])
     return account
@@ -1537,11 +1550,37 @@ def log_account_link(account: dict, ip: str):
     journal.record("account.link", name, {"id": gid, "name": name}, ip=ip)
 
 
-def link_seats(old: str, new: str):
-    """Les places que ce téléphone occupait dans des parties suivent désormais le compte."""
+def merge_identity(old: str, new: str):
+    """Avis 6bad207324a3 : un invité qui joue et se connecte en même temps n'a plus deux profils. Places de jeu,
+    fiche d'invité, bannissement, titres demandés, notifications : tout passe au compte, puis une seule sauvegarde
+    (verrou des parties puis celui de la soirée, dans cet ordre comme partout)."""
+    with GAMES_LOCK, store.lock:
+        changed = link_seats(old, new)
+        guest_changed = store.merge_guest(old, new)
+        if guest_changed:
+            store.version += 1  # liste des invités de l'hôte et file d'attente rechargées
+        if changed or guest_changed:
+            save_games(*changed)
+
+
+def link_seats(old: str, new: str) -> list[str]:
+    """Les places que ce téléphone occupait dans des parties deviennent celles du compte (vrai renommage, voir
+    app/seat_rename.py). À la déconnexion, la place reste au compte. Renvoie les codes des parties modifiées."""
+    changed = []
     for g in list(store.session.games.values()):
-        if games.player(g, old) and not games.player(g, new):
-            g.setdefault("aliases", {})[new] = canonical_gid(g, old)
+        seat = canonical_gid(g, old)  # place reprise plus tôt par ce téléphone (alias) : c'est elle qui suit
+        if games.rename_player(g, seat, new):
+            if seat != old:
+                g["aliases"][old] = new
+            changed.append(g["code"])
+        elif not games.player(g, new) and games.player(g, seat):
+            # Identifiant ancien ou atypique (pas renommable sans risque) : l'ancien alias, comme avant.
+            g.setdefault("aliases", {})[new] = seat
+            changed.append(g["code"])
+        if old in (g.get("kicked") or []) and new not in g["kicked"]:
+            g["kicked"].append(new)  # banni de cette partie : se connecter ne lève pas le bannissement
+            changed.append(g["code"])
+    return list(dict.fromkeys(changed))
 
 
 class AccountToken(BaseModel):
@@ -1648,6 +1687,18 @@ class NotificationPatch(BaseModel):
     group_messages: bool | None = None
     group_invites: bool | None = None
     group_joins: bool | None = None
+    # Billets payants (migration 20261103130000) : quelqu'un dit avoir payé ; mon paiement est confirmé.
+    ticket_pay_declared: bool | None = None
+    ticket_pay_confirmed: bool | None = None
+    # Mes amis dans Party (migration 20261104090000) : quelqu'un rejoint grâce à mon lien (envoyée par la base) ;
+    # un contact de l'iPhone arrive sur Party (notification locale de l'app, calculée sur l'iPhone).
+    referral_joins: bool | None = None
+    contact_joins: bool | None = None
+    # Messages directs (migration 20261104100000) : « Nouveau message de X ».
+    direct_messages: bool | None = None
+    # Compagnon (migration 20261104130000) : rappel doux du jour ; alertes avant qu'il ne s'envole.
+    pet_daily: bool | None = None
+    pet_alerts: bool | None = None
 
 
 class NotificationUpdate(MemberToken):
@@ -2017,8 +2068,21 @@ class AdminJournal(MemberToken):
 
 
 # Discussions de groupe (avis n°10) pour l'app native : la base revérifie tout avec la session du membre.
+# direct : conversation privée à deux (messages directs, 4.11) ; group_id est alors l'id de la conversation.
 class ChatRef(MemberToken):
     group_id: str = Field(pattern=UUID)
+    direct: bool = False
+
+
+class ChatDirectStart(MemberToken):
+    user_id: str = Field(pattern=UUID)
+    # Empreinte du numéro de la personne (contacts de l'iPhone, même clé que contacts_match) : preuve qu'on la connaît.
+    contact_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+
+class ChatBlock(MemberToken):
+    user_id: str = Field(pattern=UUID)
+    on: bool
 
 
 class ChatSend(ChatRef):
@@ -2038,6 +2102,7 @@ class ChatPhoto(ChatRef):
 
 class ChatMessage(MemberToken):
     id: str = Field(pattern=UUID)
+    direct: bool = False
 
 
 class ChatReact(ChatMessage):
@@ -2069,13 +2134,25 @@ def account_chats(body: MemberToken):
 
 @app.post("/api/account/chats/open")
 def account_chat_open(body: ChatRef):
-    return chats_call(body.token, lambda: group_chats.conversation(body.token, body.group_id))
+    return chats_call(body.token, lambda: group_chats.conversation(body.token, body.group_id, body.direct))
+
+
+@app.post("/api/account/chats/direct")
+def account_chat_direct(body: ChatDirectStart):
+    """« Écrire » (Mes amis, fiche d'un membre) : LA conversation privée avec cette personne (créée si besoin)."""
+    return chats_call(body.token, lambda: group_chats.start_direct(body.token, body.user_id, body.contact_hash))
+
+
+@app.post("/api/account/chats/block")
+def account_chat_block(body: ChatBlock):
+    """Bloquer / débloquer une personne en messages directs (elle n'en est pas prévenue)."""
+    return chats_call(body.token, lambda: group_chats.block(body.token, body.user_id, body.on))
 
 
 @app.post("/api/account/chats/send")
 def account_chat_send(body: ChatSend):
     return chats_call(body.token, lambda: group_chats.send(body.token, body.group_id, body.body.strip(), body.reply_to, body.photo_path,
-                                                 body.mentions, body.id, body.audio_path, body.audio_seconds))
+                                                 body.mentions, body.id, body.audio_path, body.audio_seconds, body.direct))
 
 
 @app.post("/api/account/chats/audio")
@@ -2375,22 +2452,22 @@ main{max-width:420px;padding:32px 24px;text-align:center}h1{font-size:1.8rem;mar
 
 @app.post("/api/account/chats/react")
 def account_chat_react(body: ChatReact):
-    return chats_call(body.token, lambda: group_chats.react(body.token, body.id, body.emoji, body.on))
+    return chats_call(body.token, lambda: group_chats.react(body.token, body.id, body.emoji, body.on, body.direct))
 
 
 @app.post("/api/account/chats/pin")
 def account_chat_pin(body: ChatPin):
-    return chats_call(body.token, lambda: group_chats.pin(body.token, body.id, body.pin))
+    return chats_call(body.token, lambda: group_chats.pin(body.token, body.id, body.pin, body.direct))
 
 
 @app.post("/api/account/chats/delete")
 def account_chat_delete(body: ChatMessage):
-    return chats_call(body.token, lambda: group_chats.delete(body.token, body.id))
+    return chats_call(body.token, lambda: group_chats.delete(body.token, body.id, body.direct))
 
 
 @app.post("/api/account/chats/notify")
 def account_chat_notify(body: ChatNotify):
-    return chats_call(body.token, lambda: group_chats.notify(body.token, body.group_id, body.level))
+    return chats_call(body.token, lambda: group_chats.notify(body.token, body.group_id, body.level, body.direct))
 
 
 @app.post("/api/account/chats/admin")
@@ -2412,7 +2489,7 @@ def account_chat_everyone(body: ChatEveryone):
 
 @app.post("/api/account/chats/read")
 def account_chat_read(body: ChatRef):
-    return chats_call(body.token, lambda: group_chats.read(body.token, body.group_id))
+    return chats_call(body.token, lambda: group_chats.read(body.token, body.group_id, body.direct))
 
 
 # Réglages natifs › Administration du groupe : la base revérifie chaque droit avec la session du membre.
@@ -2597,6 +2674,59 @@ def account_contacts_match(body: ContactHashes):
         return {"matches": contact_names.match(body.token, body.hashes)}
     except AccountError as e:
         raise HTTPException(429 if str(e).startswith("Trop de demandes") else 400, str(e))
+
+
+class FriendIds(MemberToken):
+    ids: list[str] = Field(max_length=CONTACT_MAX_FRIENDS)
+
+
+class AppInviteRenew(MemberToken):
+    renew: bool = False
+
+
+class AppInviteToken(BaseModel):
+    invite: str = Field(pattern=UUID)
+
+
+class AppInviteClaim(MemberToken):
+    invite: str = Field(pattern=UUID)
+
+
+@app.post("/api/account/contacts/friends")
+def account_contacts_friends(body: FriendIds):
+    """Réglages › Mes amis dans Party : surnom, photo, arrivée et groupes en commun des comptes reconnus sur l'iPhone."""
+    return {"friends": account_call(lambda: contact_names.friends(body.token, body.ids))}
+
+
+@app.post("/api/account/invite")
+def account_app_invite(body: AppInviteRenew):
+    """Mon lien personnel d'invitation dans Party (renew : nouveau lien, l'ancien ne marche plus)."""
+    try:
+        return app_invites.mine(body.token, body.renew)
+    except AccountError as e:
+        raise HTTPException(429 if "5 fois" in str(e) else 400, str(e))
+
+
+@app.post("/api/account/invite/preview")
+def account_app_invite_preview(body: AppInviteToken):
+    """Avant connexion : qui invite (surnom, photo). Lien inconnu ou retiré : invite = null."""
+    return {"invite": account_call(lambda: app_invites.preview(body.invite), 503)}
+
+
+@app.post("/api/account/invite/claim")
+def account_app_invite_claim(body: AppInviteClaim):
+    """Nouveau compte arrivé par un lien : la base note qui l'a invité (une fois) et prévient cette personne."""
+    return account_call(lambda: app_invites.claim(body.token, body.invite))
+
+
+class InvitedByIn(MemberToken):
+    id: str = Field(pattern=UUID)
+
+
+@app.post("/api/account/card/invited-by")
+def account_card_invited_by(body: InvitedByIn):
+    """Fiche d'un membre › « Invité par » (lien Party, groupe, événement) : null sans le droit « Voir qui a invité qui »."""
+    return {"invited_by": account_call(lambda: app_invites.invited_by(body.token, body.id))}
 
 
 class GroupInvitationAnswer(MemberToken):
@@ -2910,6 +3040,9 @@ def read_game(code: str, request: Request, guest_id: str, name: str):
     guest_id = canonical_gid(g, guest_id)
     sync_player_name(g, guest_id, name)
     admin_lead(g, request, guest_id)
+    if g.get("phase") == "end" and g.get("type") != "room" and guest_id.startswith("acct-") \
+            and any(p.get("id") == guest_id for p in g.get("players", [])):
+        pet_party_log.note(guest_id, str(g.get("id") or g["code"]))   # 🥚 petit bonus pour son compagnon
     if g.get("paused"):
         pass  # en pause : le temps ne fait rien avancer
     elif quiz.tick(g):  # Quiz : le temps a avancé (fin d'une question, question suivante…)
@@ -3146,7 +3279,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         try:
             if a == "join" and me not in other.get("kicked", []):
                 # Purify Test en cours dans la salle : seuls les comptes connectés y entrent.
-                if other["type"] not in ACCOUNT_GAMES or accounts.is_linked(me):
+                if other["type"] not in ACCOUNT_GAMES or seat_linked(g, me):
                     games.join(other, me, clean_name(body.name))
             elif a == "leave" and games.player(other, me):
                 games.leave(other, me)
@@ -3303,6 +3436,82 @@ def brain_game_local(body: BrainGameLocal):
         raise HTTPException(400, str(e))
 
 
+# 🥚 Compagnon : personnage à entretenir (app/pet.py pour la vie, app/pet_store.py pour la base). Compte requis.
+pet_party_log = pet_store.PartyLog(DATA_DIR / "pet_party.json")
+PET_ACTIONS = Literal["feed", "play", "cuddle", "sleep", "wake", "heal", "rename", "outfit", "new_egg"]
+
+
+class PetAct(BaseModel):
+    token: str = Field(min_length=21, max_length=4095)
+    action: PET_ACTIONS
+    score: int = Field(default=0, ge=0, le=pet.PLAY_SCORE_MAX)
+    name: str = Field(default="", max_length=60)
+    outfit: str = Field(default="", pattern=r"^[a-z]{0,20}$")
+
+
+class PetFriend(BaseModel):
+    token: str = Field(min_length=21, max_length=4095)
+    friend: str = Field(pattern=UUID)
+
+
+class PetGift(PetFriend):
+    kind: Literal["hug", "snack"]
+
+
+def pet_call(request: Request, work):
+    """Appel au nom du compte : mêmes garde-fous que Méninges (limite par adresse, jeton vérifié)."""
+    ip = client_ip(request)
+    if msg := account_limiter.blocked(ip):
+        raise HTTPException(429, msg)
+    try:
+        result = account_call(work, 401)
+    except pet_store.PetUnavailable as e:
+        raise HTTPException(503, str(e))
+    except pet_store.PetConflict as e:
+        raise HTTPException(409, str(e))
+    except pet.PetError as e:
+        raise HTTPException(400, str(e))
+    account_limiter.success(ip)
+    return result
+
+
+def pet_service() -> pet_store.PetStore:
+    return pet_store.PetStore(accounts, pet_party_log)
+
+
+@app.post("/api/pet/me")
+def pet_me(body: AccountToken, request: Request):
+    """Mon compagnon, vécu jusqu'à maintenant (un œuf au premier appel), avec les nouvelles (bonus, cadeaux, évolution)."""
+    if not 20 < len(body.token) < 4096:
+        raise HTTPException(400, "Jeton invalide")
+    return pet_call(request, lambda: pet_service().me(body.token))
+
+
+@app.post("/api/pet/act")
+def pet_act(body: PetAct, request: Request):
+    """Une action : nourrir, jouer (score du micro-jeu), câliner, lumière, soigner, nom, tenue, nouvel œuf."""
+    return pet_call(request, lambda: pet_service().act(body.token, body.action, body.score, body.name, body.outfit))
+
+
+@app.post("/api/pet/friends")
+def pet_friends(body: AccountToken, request: Request):
+    """Compagnons des membres de mes groupes (ce qui est montrable seulement)."""
+    if not 20 < len(body.token) < 4096:
+        raise HTTPException(400, "Jeton invalide")
+    return pet_call(request, lambda: pet_service().friends(body.token))
+
+
+@app.post("/api/pet/friend")
+def pet_friend(body: PetFriend, request: Request):
+    return pet_call(request, lambda: pet_service().friend(body.token, body.friend))
+
+
+@app.post("/api/pet/gift")
+def pet_gift(body: PetGift, request: Request):
+    """Câlin ou goûter pour le compagnon d'un ami : un par ami et par jour (la base y veille)."""
+    return pet_call(request, lambda: pet_service().gift(body.token, body.friend, body.kind))
+
+
 @app.get("/qr/game/{code}.svg")
 def game_qr(code: str):
     g = get_game(code)
@@ -3397,6 +3606,7 @@ def may_write_feedback(request: Request, token: str) -> bool:
 
 
 FEEDBACK_MIN_LENGTH = 30  # assez pour qu'une idée ou un bug soit compréhensible
+FEEDBACK_ADMIN_MIN_LENGTH = 5  # l'admin note pour lui-même : un titre court suffit
 
 
 @app.post("/api/feedback")
@@ -3437,13 +3647,32 @@ class FeedbackAction(BaseModel):
     note: str = Field(default="", max_length=10000)  # « note » : précisions / instructions de l'admin pour Claude
     reply: str = Field(default="", max_length=2000)  # « done » / « declined » : mot de l'admin pour l'invité
     priority: str = Field(default="", max_length=10)  # « priority » : high | medium | low | "" (retirée)
+    # « edit » : champs de classement (statut, priorité, zone, plateformes, effort, étiquettes, liens, note, mot).
+    fields: dict = Field(default_factory=dict)
+    # « comment » : message du fil admin ↔ Claude, son auteur, et un statut à poser en même temps (facultatif).
+    text: str = Field(default="", max_length=4000)
+    author: str = Field(default="admin", max_length=10)
+    status: str = Field(default="", max_length=12)
+
+
+class FeedbackNew(BaseModel):
+    """Avis écrit par l'admin (formulaire « Mon avis » ou « ＋ Nouvel avis », scripts de Claude) : classé dès la création."""
+    kind: str = "idea"
+    text: str = Field(max_length=4000)
+    name: str = Field(default="", max_length=60)
+    guest_id: str = Field(default="", max_length=80)  # l'admin le retrouve aussi dans « Mes retours »
+    context: dict = Field(default_factory=dict)
+    fields: dict = Field(default_factory=dict)  # status, priority, area, platforms, effort, tags, note, liens
+    author: str = Field(default="admin", max_length=10)
 
 
 MIN_CLAUDE_NOTE = 10  # Claude ne part pas sans instructions claires de l'admin
 
 
 def feedback_payload() -> dict:
-    return {"items": feedback.all(), "kinds": FEEDBACK_KINDS, "claude_ready": github.configured, "games": games.GAMES}
+    """Avis (anciens complétés par les valeurs par défaut) et « meta » : statuts, zones, efforts… lus par le web et l'iOS."""
+    return {"items": [feedback_with_defaults(i) for i in feedback.all()], "kinds": FEEDBACK_KINDS,
+            "claude_ready": github.configured, "games": games.GAMES, "meta": feedback_meta()}
 
 
 def sync_claude_fixes():
@@ -3495,9 +3724,11 @@ def feedback_sync(body: FeedbackSync, request: Request):
         raise HTTPException(400, "Opération inconnue")
     try:
         result = operation(**body.args)
-    except (TypeError, ValueError):
+    except TypeError:
         raise HTTPException(400, "Paramètres invalides")
-    if body.op in ("add", "update", "set_priority", "set_claude_state", "mark_sent", "absorb"):
+    except ValueError as e:  # message de validation, montré tel quel sur le site de test
+        raise HTTPException(400, str(e) or "Paramètres invalides")
+    if body.op in FEEDBACK_SYNC_WRITES:
         store.save()  # l'admin ouvert ici reçoit la mise à jour (pastille « Retours »)
     return {"result": result}
 
@@ -3529,14 +3760,84 @@ def admin_feedback_action(body: FeedbackAction):
         except ValueError as e:
             raise HTTPException(400, str(e))
         return feedback_payload()
+    if body.action == "edit":
+        return feedback_edit(body.ids, body.fields)
+    if body.action == "comment":
+        return feedback_comment(body)
     if body.action not in FEEDBACK_STATUSES + ("delete",):
         raise HTTPException(400, "Action inconnue")
     if body.action == "declined" and not body.reply.strip():
         raise HTTPException(400, "Écris un mot pour l'invité : il verra pourquoi ce n'est pas retenu")
-    for item in feedback.update(body.ids, body.action, body.reply):
+    try:
+        finished = feedback.update(body.ids, body.action, body.reply)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    for item in finished:
         notify_feedback_finished(item)
     store.save()
     return feedback_payload()
+
+
+def check_declined_reply(ids: list[str], fields: dict):
+    """« Pas retenu » demande un mot pour l'invité : celui qu'on envoie, ou celui déjà écrit."""
+    if fields.get("status") != "declined" or str(fields.get("reply", "")).strip():
+        return
+    if any(not (feedback_item(fid).get("reply") or "").strip() for fid in ids):
+        raise HTTPException(400, "Écris un mot pour l'invité : il verra pourquoi ce n'est pas retenu")
+
+
+def feedback_edit(ids: list[str], fields: dict) -> dict:
+    """Classement d'un ou plusieurs avis en une fois (action générique « edit »)."""
+    if not ids:
+        raise HTTPException(400, "Choisis au moins un avis")
+    check_declined_reply(ids, fields)
+    try:
+        finished = feedback.set_fields(ids, fields)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    for item in finished:
+        notify_feedback_finished(item)
+    store.save()
+    return feedback_payload()
+
+
+def feedback_comment(body: FeedbackAction) -> dict:
+    """Fil admin ↔ Claude sur un avis (les scripts de Claude écrivent en « claude »)."""
+    if len(body.ids) != 1:
+        raise HTTPException(400, "Un seul retour à la fois")
+    feedback_item(body.ids[0])
+    if body.status in ("done", "declined"):
+        raise HTTPException(400, "Terminé et Pas retenu se posent avec ✅ / 🚫 (l'invité est averti)")
+    try:
+        feedback.comment(body.ids[0], body.author, body.text, body.status)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    store.save()
+    return feedback_payload()
+
+
+@app.post("/api/admin/feedback/new", dependencies=[Depends(require_admin)])
+def admin_feedback_new(body: FeedbackNew, request: Request):
+    """L'admin (ou Claude par ses scripts) écrit un avis et le classe tout de suite : statut, priorité, zone…
+    Renvoie l'avis créé et la liste à jour."""
+    if body.guest_id:
+        check_guest_id(body.guest_id)
+    if body.author not in FEEDBACK_AUTHORS:
+        raise HTTPException(400, "Auteur inconnu")
+    text = " ".join(body.text.split())[:1000]
+    if len(text) < FEEDBACK_ADMIN_MIN_LENGTH:
+        raise HTTPException(400, f"Écris au moins {FEEDBACK_ADMIN_MIN_LENGTH} caractères")
+    if body.fields.get("status") in ("done", "declined"):
+        raise HTTPException(400, "Un nouvel avis ne peut pas être déjà terminé")
+    context = {k: str(v)[:40] for k, v in body.context.items() if k in ("tab", "game")}
+    context["site"] = feedback_site()[0]
+    name = " ".join(body.name.split())[:30] or ("Claude 🤖" if body.author == "claude" else "Admin")
+    try:
+        item = feedback.create_admin(body.guest_id or "admin", name, body.kind, text, context, body.fields, body.author)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    store.save()
+    return {"item": feedback_with_defaults(item), **feedback_payload()}
 
 
 def notify_feedback_finished(item: dict):
@@ -4066,6 +4367,17 @@ def events_redirect():
     return RedirectResponse("/events/", status_code=307)
 
 
+def join_page_meta(invite: str) -> str:
+    """Lien personnel d'invitation : « X t'invite sur Party » dans l'aperçu (WhatsApp, iMessage…). Base injoignable :
+    aperçu générique, la page s'ouvre quand même."""
+    try:
+        preview = app_invites.preview(invite)
+    except AccountError:
+        preview = None
+    base = configured_public_url()
+    return join_meta((preview or {}).get("inviter"), f"{base}/events/join/{invite}", base)
+
+
 @app.get("/events/{resource:path}")
 def events_web(resource: str):
     """Module web local ; l'accès aux données reste protégé par Supabase Auth/RLS."""
@@ -4088,6 +4400,8 @@ def events_web(resource: str):
         html = (root / "index.html").read_text(encoding="utf-8")
         if not EVENTS_ENABLED:
             html = html.replace("<html", '<html data-events="beta"', 1)  # le module réserve les sorties aux bêta-testeurs
+        if invite := APP_JOIN_PAGE.match(resource):
+            html = html.replace("</head>", join_page_meta(invite.group(1)) + "</head>", 1)
         response = Response(html, media_type="text/html; charset=utf-8", headers={"Cache-Control": "no-store"})
     else:
         return Response("Les événements sont momentanément indisponibles. Réessaie dans un instant.", status_code=503, headers=NO_CACHE)

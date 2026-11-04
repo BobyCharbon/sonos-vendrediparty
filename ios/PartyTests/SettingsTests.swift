@@ -133,5 +133,14 @@ struct SettingsTests {
         #expect(list.groups.map(\.name) == ["Les footeux", "Vendredi Party"])
         #expect(list.groups[0].mine && !list.groups[0].system && list.groups[1].system && !list.groups[1].mine)
         #expect(list.people.first?.name == "Léa")
+        #expect(list.others == nil && list.group("g2")?.name == "Vendredi Party")
+    }
+
+    @Test("Groupes : les groupes des autres (Admins du site seulement) se décodent à part et s'ouvrent comme les miens")
+    func decodesOtherGroupsForSiteAdmins() throws {
+        let list: GroupList = try decode(#"{"groups": [{"id": "g1", "name": "Les footeux", "system": false, "mine": true, "inside": true, "members": []}], "others": [{"id": "g3", "name": "DreamTeam", "system": false, "mine": true, "inside": false, "members": [{"id": "u4", "name": "Lidia"}]}], "people": []}"#)
+        #expect(list.groups.map(\.name) == ["Les footeux"])
+        #expect(list.others?.map(\.name) == ["DreamTeam"])
+        #expect(list.group("g3")?.mine == true && list.group("g3")?.inside == false)
     }
 }

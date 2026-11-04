@@ -50,6 +50,15 @@ struct EventNotificationPrefs: Codable, Equatable {
     /// l'organisateur confirme mon paiement.
     var ticketPayDeclared: Bool?
     var ticketPayConfirmed: Bool?
+    /// Mes amis dans Party (migration 20261104090000 ; absents avant : reçues) : quelqu'un rejoint Party grâce à mon
+    /// lien (envoyée par Party) ; un contact arrive sur Party (notification locale calculée par l'iPhone).
+    var referralJoins: Bool?
+    var contactJoins: Bool?
+    /// Messages directs (migration 20261104100000 ; absent avant : reçus) : « Nouveau message de X ».
+    var directMessages: Bool?
+    /// Compagnon (migration 20261104130000 ; absents avant : reçus) : rappel doux du jour, alertes avant son envol.
+    var petDaily: Bool?
+    var petAlerts: Bool?
 
     enum CodingKeys: String, CodingKey {
         case pushEnabled = "push_enabled", quietStart = "quiet_start", quietEnd = "quiet_end", newEvent = "new_event"
@@ -60,6 +69,8 @@ struct EventNotificationPrefs: Codable, Equatable {
         case proposalResult = "proposal_result", linkJoin = "link_join", groupMessages = "group_messages"
         case groupInvites = "group_invites", groupJoins = "group_joins"
         case ticketPayDeclared = "ticket_pay_declared", ticketPayConfirmed = "ticket_pay_confirmed"
+        case referralJoins = "referral_joins", contactJoins = "contact_joins", directMessages = "direct_messages"
+        case petDaily = "pet_daily", petAlerts = "pet_alerts"
     }
 
     var hasQuietHours: Bool { quietStart != nil && quietEnd != nil }

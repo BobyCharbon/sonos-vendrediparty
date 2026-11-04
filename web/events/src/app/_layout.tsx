@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { PendingInviteClaim } from '@/components/AppJoinScreen';
 import { Button, ErrorText, HeaderBack, Loading, Screen, T, Title } from '@/components/ui';
 import { useEdgeSwipeBack } from '@/lib/edgeSwipe';
 import { usePendingSync } from '@/lib/pending';
@@ -47,7 +48,7 @@ function inPartyShell(): boolean {
   return typeof window !== 'undefined' && window.parent !== window;
 }
 
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/scan(?:\/[a-f0-9]{64})?)?|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|chats(?:\/[a-f0-9-]{36})?|activity|announcements|account|settings\/(?:notifications|subscriptions|profile))$/i;
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/scan(?:\/[a-f0-9]{64})?)?|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|chats(?:\/[a-f0-9-]{36})?|activity|announcements|account|settings\/(?:notifications|subscriptions|profile))$/i;
 function initialDestination() {
   if (typeof window === 'undefined') return null;
   const path = location.pathname.replace(/^\/events(?=\/|$)/, '');
@@ -98,7 +99,7 @@ function Gate() {
   useEffect(() => {
     // Réglages : ouverts à tout compte connecté ; le reste attend la validation du membre.
     // Réglages et liens d'invitation : ouverts dès la connexion (l'invitation demande elle-même le profil complet).
-    const open = intent.current === '/account' || /^\/(?:group-)?invite\//.test(intent.current ?? '');
+    const open = intent.current === '/account' || /^\/(?:(?:group-)?invite|join)\//.test(intent.current ?? '');
     if (!loading && session && (active || open) && !profileError && intent.current) {
       const target = intent.current;
       intent.current = null;
@@ -132,6 +133,7 @@ function Gate() {
   return (
     <>
     {session && active && profile ? <PendingSync me={profile.id} /> : null}
+    {session && hasCompleteIdentity(profile) ? <PendingInviteClaim key={session.user.id} /> : null}
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.bg },
@@ -184,6 +186,8 @@ function Gate() {
       {/* Liens d'invitation (événement sur invitation, groupe) : lisibles avant connexion. */}
       <Stack.Screen name="invite/[token]" options={{ title: 'Invitation' }} />
       <Stack.Screen name="group-invite/[token]" options={{ title: 'Invitation' }} />
+      {/* Lien personnel d'invitation dans Party (« X t'invite sur Party ») : lisible avant connexion. */}
+      <Stack.Screen name="join/[token]" options={{ title: 'Invitation' }} />
       <Stack.Screen name="privacy" options={{ title: 'Confidentialité' }} />
     </Stack>
     </>

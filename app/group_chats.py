@@ -16,6 +16,7 @@ SIGNED_REUSE = 2400                  # un lien signé (1 h) resservi 40 min : le
 PHOTO_MAX = 8 * 1024 * 1024          # même limite que le stockage chat-photos
 REACTIONS = ("👍", "❤️", "😂", "😮", "😢", "🔥")
 LEVELS = ("all", "mentions", "none")
+DIRECT_LEVELS = ("all", "none")      # message direct : tout ou rien (pas de citation à deux)
 EVERYONE_BY = ("all", "staff")       # qui écrit @tout dans un groupe : tous les membres, ou admins et organisateurs
 SITE_ADMIN_RANK = 3                  # (anciens rangs, si access() ne donne pas site_admin) Co-admin et au-dessus : admins d'office des groupes dont ils font partie
 EVERYONE = re.compile(r"(^|\s)@tout(\s|$|[!?.,])", re.I)
@@ -103,15 +104,27 @@ class GroupChats:
 
     def chats(self, token: str) -> dict:
         rows = self.admin._rpc(token, "my_chats", {}, "Les discussions n'ont pas pu être chargées.") or []
+        # Messages directs : la photo de l'autre personne (lien signé, comme les auteurs des messages).
+        faces = self._cached_sign("profile-photos", [c.get("avatar_url") for c in rows if c.get("kind") == "direct"],
+                                  lambda paths: self.admin._photos(paths, token))
+        rows = [{**c, "photo": faces.get(c.get("avatar_url") or "")} if c.get("kind") == "direct" else c for c in rows]
         # Temps réel (adresse et clé publiques de Supabase) : l'app reçoit les nouveaux messages sans attendre.
         return {"chats": rows, "realtime": {"url": SUPABASE_URL.replace("https://", "wss://", 1) + "/realtime/v1/websocket",
                                             "key": SUPABASE_ANON_KEY}}
 
     def _chat(self, token: str, group_id: str) -> dict:
-        chat = next((c for c in self.chats(token)["chats"] if c.get("id") == group_id), None)
+        rows = self.admin._rpc(token, "my_chats", {}, "Les discussions n'ont pas pu être chargées.") or []
+        chat = next((c for c in rows if c.get("id") == group_id), None)
         if chat is None:
             raise AccountError("Cette discussion n'est pas accessible.")
         return chat
+
+    def _is_direct(self, token: str, chat_id: str) -> bool:
+        """Conversation directe dont je fais partie (la règle de lecture ne répond qu'à ses deux personnes)."""
+        try:
+            return bool(self._rows(f"/rest/v1/direct_chats?select=id&id=eq.{chat_id}", token))
+        except AccountError:
+            return False
 
     def _organizers(self, token: str, group_id: str) -> set[str]:
         """Organisateurs du groupe (vide tant que la migration n'est pas en place : rien ne casse)."""
@@ -125,7 +138,83 @@ class GroupChats:
         rows = self.admin._rpc(token, "group_chat_people", {"grp": group_id}, "Les membres n'ont pas pu être lus.") or []
         return {p["id"]: p for p in rows if (p.get("member") if ids is None else p["id"] in ids)}
 
-    def conversation(self, token: str, group_id: str) -> dict:
+    def start_direct(self, token: str, user_id: str, contact_hash: str | None = None) -> dict:
+        """« Écrire » : LA conversation privée avec cette personne (créée au besoin, une seule par paire)."""
+        args = {"target": user_id} | ({"contact_hash": contact_hash} if contact_hash else {})
+        chat = self.admin._rpc(token, "start_direct_chat", args, "Tu ne peux pas écrire à cette personne.")
+        if not isinstance(chat, str):
+            raise AccountError("Tu ne peux pas écrire à cette personne.")
+        return {"id": chat}
+
+    def block(self, token: str, user_id: str, on: bool) -> dict:
+        self.admin._rpc(token, "set_direct_block", {"target": user_id, "blocked": on}, "Le blocage n'a pas pu être enregistré.")
+        return {"blocked": on}
+
+    def _direct_conversation(self, token: str, chat_id: str) -> dict:
+        """Conversation privée à deux : même forme qu'un groupe (l'app la montre avec le même écran), sans admins,
+        organisateurs, @tout ni @annonce ; direct = True, user_id = l'autre personne."""
+        me_id = self.admin.accounts._uid(token)
+        # Lue directement (pas par my_chats) : une conversation tout juste ouverte, sans message, n'y figure pas encore.
+        jobs = {
+            "chat": POOL.submit(self._rows, f"/rest/v1/direct_chats?select=user_a,user_b&id=eq.{chat_id}", token),
+            "settings": POOL.submit(self._rows, f"/rest/v1/direct_chat_settings?select=notify&chat_id=eq.{chat_id}", token),
+            "blocks": POOL.submit(self._rows, "/rest/v1/direct_blocks?select=blocked_id", token),
+            "messages": POOL.submit(self._rows, f"/rest/v1/direct_messages?select=*&chat_id=eq.{chat_id}"
+                                                f"&order=created_at.desc&limit={PAGE}", token),
+            "highlights": POOL.submit(self._rows, f"/rest/v1/direct_messages?select=*&chat_id=eq.{chat_id}&pinned=is.true"
+                                                  f"&deleted_at=is.null&order=created_at.desc&limit={HIGHLIGHTS}", token),
+            "profiles": POOL.submit(self.admin._rpc, token, "direct_chat_people", {"chat": chat_id}, "La conversation n'a pas pu être lue."),
+        }
+        got = {k: f.result() for k, f in jobs.items()}
+        if not got["chat"]:
+            raise AccountError("Cette discussion n'est pas accessible.")
+        pair = got["chat"][0]
+        other = pair["user_b"] if pair["user_a"] == me_id else pair["user_a"]
+        notify = (got["settings"] or [{}])[0].get("notify") or "all"
+        blocked = any(b.get("blocked_id") == other for b in got["blocks"] or [])
+        messages = list(reversed(got["messages"]))
+        people = {p["id"]: p for p in got["profiles"] or []}
+        ids = ",".join(m["id"] for m in messages)
+        reactions = self._rows(f"/rest/v1/direct_message_reactions?select=message_id,user_id,emoji&message_id=in.({ids})",
+                               token) if ids else []
+        photos = self._cached_sign("chat-photos", [p for m in messages if not m.get("deleted_at")
+                                                   for p in (m.get("photo_path"), m.get("audio_path"))],
+                                   lambda paths: self._sign(paths, token))
+        faces = self._cached_sign("profile-photos", [p.get("avatar_url") for p in people.values()],
+                                  lambda paths: self.admin._photos(paths, token))
+
+        def name(uid: str) -> str:
+            return (people.get(uid) or {}).get("display_name") or "?"
+
+        def face(uid: str) -> str | None:
+            return faces.get((people.get(uid) or {}).get("avatar_url") or "")
+
+        by_id = {m["id"]: m for m in messages}
+        return {
+            "id": chat_id, "name": name(other) if name(other) != "?" else "Profil à compléter", "me": me_id, "direct": True,
+            "user_id": other, "photo": face(other), "blocked": blocked,
+            "member": True, "admin": False, "notify": notify, "organizer": False, "everyone": "staff",
+            "can_name_admins": False, "reactions": list(REACTIONS),
+            "members": [{"id": u, "name": name(u), "photo": face(u), "admin": False, "creator": False, "organizer": False,
+                         "phone": None} for u in people],
+            "messages": [self._message(m, by_id, me_id, name, face, photos, reactions) for m in messages],
+            "highlights": [{"id": m["id"], "author_name": name(m["user_id"]), "at": m["created_at"],
+                            "text": m.get("body") or ("🎤 Message vocal" if m.get("audio_path") else "📷 Photo"), "announcement": False}
+                           for m in reversed(got["highlights"] or []) if m.get("pinned") and not m.get("deleted_at")],
+        }
+
+    def conversation(self, token: str, group_id: str, direct: bool = False) -> dict:
+        if direct:
+            return self._direct_conversation(token, group_id)
+        try:
+            return self._group_conversation(token, group_id)
+        except AccountError:
+            # Toucher d'une notification (id seul) : un message direct se reconnaît ici, l'app n'a pas à le savoir.
+            if self._is_direct(token, group_id):
+                return self._direct_conversation(token, group_id)
+            raise
+
+    def _group_conversation(self, token: str, group_id: str) -> dict:
         self.admin.accounts._uid(token)  # jeton vérifié une fois (gardé 5 min), avant les lectures parallèles
         jobs = {
             "me": POOL.submit(self.admin.access, token),
@@ -220,7 +309,7 @@ class GroupChats:
 
     def send(self, token: str, group_id: str, body: str, reply_to: str | None, photo_path: str | None,
              mentions: list[str] | None = None, message_id: str | None = None,
-             audio_path: str | None = None, audio_seconds: float | None = None) -> dict:
+             audio_path: str | None = None, audio_seconds: float | None = None, direct: bool = False) -> dict:
         """Envoi. mentions fournies par l'app (elle connaît les membres) : un seul appel à la base, le plus rapide ;
         la base ne garde que les membres du groupe ; @tout cite tout le groupe (selon le choix du groupe) ; « @annonce »
         d'un admin ou d'un organisateur épingle le message en annonce et le notifie à tous (guard_group_message)."""
@@ -230,17 +319,21 @@ class GroupChats:
             raise AccountError("Photo invalide.")
         if audio_path and not audio_path.startswith(f"{group_id}/"):
             raise AccountError("Message vocal invalide.")
-        if mentions is None:
-            me = self.admin.accounts._uid(token)
-            people = {uid: p.get("display_name") or "" for uid, p in self._people(token, group_id, None).items()}
-            mentions = mentions_in(body, people, me)
-        row = {"group_id": group_id, "body": body, "photo_path": photo_path, "reply_to": reply_to,
-               "mentions": mentions, "mention_all": bool(EVERYONE.search(body))}
+        if direct:  # message direct (conversation à deux) : ni citation, ni @tout, ni @annonce
+            row = {"chat_id": group_id, "body": body, "photo_path": photo_path, "reply_to": reply_to}
+        else:
+            if mentions is None:
+                me = self.admin.accounts._uid(token)
+                people = {uid: p.get("display_name") or "" for uid, p in self._people(token, group_id, None).items()}
+                mentions = mentions_in(body, people, me)
+            row = {"group_id": group_id, "body": body, "photo_path": photo_path, "reply_to": reply_to,
+                   "mentions": mentions, "mention_all": bool(EVERYONE.search(body))}
         if audio_path:
             row.update(audio_path=audio_path, audio_seconds=round(min(max(audio_seconds or 0, 0), AUDIO_MAX_SECONDS), 1))
         if message_id:
             row["id"] = message_id  # identifiant choisi par l'app : le message affiché tout de suite garde sa place
-        r = self.admin._call("POST", "/rest/v1/group_messages", token, json=row, headers={"Prefer": "return=minimal"})
+        table = "direct_messages" if direct else "group_messages"
+        r = self.admin._call("POST", f"/rest/v1/{table}", token, json=row, headers={"Prefer": "return=minimal"})
         if r.status_code not in OK:
             raise AccountError(readable(r, "Le message n'a pas pu être envoyé. Réessaie."))
         return {"ok": True}
@@ -271,31 +364,39 @@ class GroupChats:
             raise AccountError("Le message vocal n'a pas pu être envoyé. Réessaie.")
         return {"path": path}
 
-    def react(self, token: str, message_id: str, emoji: str, on: bool) -> dict:
+    def react(self, token: str, message_id: str, emoji: str, on: bool, direct: bool = False) -> dict:
         if emoji not in REACTIONS:
             raise AccountError("Réaction inconnue.")
+        table = "/rest/v1/direct_message_reactions" if direct else "/rest/v1/group_message_reactions"
         if on:
-            r = self.admin._call("POST", "/rest/v1/group_message_reactions", token, json={"message_id": message_id, "emoji": emoji},
+            r = self.admin._call("POST", table, token, json={"message_id": message_id, "emoji": emoji},
                                  headers={"Prefer": "return=minimal,resolution=ignore-duplicates"})
         else:
             me = self.admin.accounts._uid(token)
-            r = self.admin._call("DELETE", "/rest/v1/group_message_reactions", token,
+            r = self.admin._call("DELETE", table, token,
                                  params={"message_id": f"eq.{message_id}", "user_id": f"eq.{me}", "emoji": f"eq.{emoji}"})
         if r.status_code not in OK:
             raise AccountError(readable(r, "La réaction n'a pas pu être enregistrée."))
         return {"ok": True}
 
-    def pin(self, token: str, message_id: str, pin: bool) -> dict:
-        self.admin._rpc(token, "pin_group_message", {"msg": message_id, "pin": pin}, "Réservé aux admins du groupe.")
+    def pin(self, token: str, message_id: str, pin: bool, direct: bool = False) -> dict:
+        if direct:
+            self.admin._rpc(token, "pin_direct_message", {"msg": message_id, "pin": pin}, "Ce message n'a pas pu être épinglé.")
+        else:
+            self.admin._rpc(token, "pin_group_message", {"msg": message_id, "pin": pin}, "Réservé aux admins du groupe.")
         return {"ok": True}
 
-    def delete(self, token: str, message_id: str) -> dict:
-        self.admin._rpc(token, "delete_group_message", {"msg": message_id}, "Ce message n'a pas pu être supprimé.")
+    def delete(self, token: str, message_id: str, direct: bool = False) -> dict:
+        self.admin._rpc(token, "delete_direct_message" if direct else "delete_group_message", {"msg": message_id},
+                        "Ce message n'a pas pu être supprimé.")
         return {"ok": True}
 
-    def notify(self, token: str, group_id: str, level: str) -> dict:
-        if level not in LEVELS:
+    def notify(self, token: str, group_id: str, level: str, direct: bool = False) -> dict:
+        if level not in (DIRECT_LEVELS if direct else LEVELS):
             raise AccountError("Choix inconnu.")
+        if direct:
+            self.admin._rpc(token, "set_direct_chat_notify", {"chat": group_id, "level": level}, "Le réglage n'a pas pu être enregistré.")
+            return {"notify": level}
         self.admin._rpc(token, "set_group_chat_notify", {"grp": group_id, "level": level}, "Le réglage n'a pas pu être enregistré.")
         return {"notify": level}
 
@@ -315,6 +416,9 @@ class GroupChats:
         self.admin._rpc(token, "set_group_everyone_tag", {"grp": group_id, "who": who}, "Réservé aux admins du groupe.")
         return {"everyone": who}
 
-    def read(self, token: str, group_id: str) -> dict:
+    def read(self, token: str, group_id: str, direct: bool = False) -> dict:
+        if direct:
+            self.admin._rpc(token, "mark_direct_read", {"chat": group_id}, "La discussion n'a pas pu être marquée comme lue.")
+            return {"ok": True}
         self.admin._rpc(token, "mark_group_read", {"grp": group_id}, "La discussion n'a pas pu être marquée comme lue.")
         return {"ok": True}

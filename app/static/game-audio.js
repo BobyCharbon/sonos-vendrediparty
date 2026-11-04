@@ -78,5 +78,12 @@ const GameAudio = (() => {
     if (!enabled) stop(); else { unlock(); play("turn"); }
     document.querySelectorAll("[data-game-sound]").forEach(el => { el.outerHTML = button(); });
   });
-  return { play, observe, tick, button };
+  // Effet ponctuel hors partie (Compagnon : nourrir, câliner…) : même réglage « Sons du jeu », sans partie observée.
+  function cue(kind) {
+    if (!enabled) return;
+    const was = active;
+    active = true;
+    try { unlock(); play(kind); } finally { active = was; }
+  }
+  return { play, observe, tick, button, cue };
 })();

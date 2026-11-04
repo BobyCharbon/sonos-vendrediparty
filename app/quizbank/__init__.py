@@ -1,4 +1,4 @@
-"""Banque de questions du Quiz : 14 thèmes, chacun fait de questions rédigées et de questions générées.
+"""Banque de questions du Quiz : 16 thèmes, chacun fait de questions rédigées et de questions générées.
 
 - Questions rédigées : un fichier texte par thème (app/quizbank/written/<thème>.txt), une question par ligne :
       difficulté|question|bonne réponse|mauvaise 1|mauvaise 2|mauvaise 3
@@ -17,6 +17,7 @@ from pathlib import Path
 THEMES = {
     "culture": ("Culture générale", "🧠"),
     "geo": ("Géographie", "🌍"),
+    "drapeaux": ("Drapeaux", "🚩"),
     "histoire": ("Histoire", "🏛️"),
     "sciences": ("Sciences", "🔬"),
     "tech": ("Informatique & IA", "💻"),
@@ -82,10 +83,10 @@ def load_written(theme: str) -> list[dict]:
 
 
 def _build() -> dict[str, list[dict]]:
-    from . import gen_culture, gen_cuisine, gen_divert, gen_geo, gen_histoire, gen_nature, gen_sciences, gen_sport, gen_suisse, gen_tech
+    from . import gen_culture, gen_cuisine, gen_divert, gen_drapeaux, gen_geo, gen_histoire, gen_nature, gen_sciences, gen_sport, gen_suisse, gen_tech
 
     bank: dict[str, list[dict]] = {t: load_written(t) for t in THEMES}
-    for mod in (gen_geo, gen_suisse, gen_sciences, gen_histoire, gen_culture, gen_cuisine, gen_divert, gen_sport, gen_nature, gen_tech):
+    for mod in (gen_geo, gen_drapeaux, gen_suisse, gen_sciences, gen_histoire, gen_culture, gen_cuisine, gen_divert, gen_sport, gen_nature, gen_tech):
         for q in mod.generate():
             if q:
                 bank[q["t"]].append(q)

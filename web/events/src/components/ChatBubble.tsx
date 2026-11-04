@@ -23,6 +23,8 @@ type Props = {
   isAdmin: boolean;
   /** Admin ou organisateur du groupe : retire les annonces. */
   isStaff?: boolean;
+  /** Peut épingler (admins d'un groupe ; les deux personnes d'un message direct). Par défaut : isAdmin. */
+  canPin?: boolean;
   onReply: () => void;
   onReact: (emoji: string) => void;
   onPin: () => void;
@@ -36,7 +38,7 @@ const REPLY_SWIPE = 64;
 
 /** Une bulle façon WhatsApp : glisser vers la droite pour répondre ; appui long (ou ⋯) pour réagir, répondre,
  * épingler ou retirer une annonce (admins), ou supprimer. Un message en cours d'envoi s'affiche déjà, avec « Envoi… ». */
-export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, audioUrl, reactions, canWrite, isAdmin, isStaff = isAdmin, onReply, onReact, onPin, onDelete, fresh = false }: Props) {
+export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, audioUrl, reactions, canWrite, isAdmin, isStaff = isAdmin, canPin = isAdmin, onReply, onReact, onPin, onDelete, fresh = false }: Props) {
   const [open, setOpen] = useState(false);
   // Fixé à l'apparition : la bulle ne remonte pas quand un autre message arrive.
   const [arrive] = useState(() => (fresh ? enter(mine ? 'bubbleMine' : 'bubbleTheirs') : undefined));
@@ -131,7 +133,7 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
             <View style={{ flexDirection: 'row', gap: 14, flexWrap: 'wrap' }}>
               <Action label="Répondre" onPress={() => { setOpen(false); onReply(); }} />
               {announced ? (isStaff ? <Action label="Retirer l’annonce" onPress={() => { setOpen(false); onPin(); }} /> : null)
-                : isAdmin ? <Action label={m.pinned ? 'Désépingler' : 'Épingler'} onPress={() => { setOpen(false); onPin(); }} /> : null}
+                : canPin ? <Action label={m.pinned ? 'Désépingler' : 'Épingler'} onPress={() => { setOpen(false); onPin(); }} /> : null}
               {mine || isAdmin ? <Action label="Supprimer" danger onPress={() => { setOpen(false); onDelete(); }} /> : null}
             </View>
           </View>

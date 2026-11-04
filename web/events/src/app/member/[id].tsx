@@ -1,7 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { Linking, View } from 'react-native';
 
+import { InvitedBySection } from '@/components/InvitedBy';
 import { Avatar, Button, Card, Cascade, Empty, ErrorText, Loading, Reveal, Screen, Section, T, Title } from '@/components/ui';
+import { useAuth } from '@/lib/auth';
 import { personLabel, useContactNames } from '@/lib/contactNames';
 import { useQuery } from '@/lib/data';
 import { supabase } from '@/lib/supabase';
@@ -38,6 +41,21 @@ export default function MemberScreen() {
     return (data as MemberCard | null) ?? null;
   }, [id]);
   const contacts = useContactNames();
+  const { eventsSoon } = useAuth();
+  const [writeError, setWriteError] = useState<string | null>(null);
+  const [opening, setOpening] = useState(false);
+
+  /** « Écrire » : la conversation privée à deux avec ce membre (créée au besoin, une seule par paire). */
+  async function write() {
+    setWriteError(null);
+    setOpening(true);
+    const { data: chat, error } = await supabase.rpc('start_direct_chat', { target: id });
+    setOpening(false);
+    if (error || typeof chat !== 'string') {
+      return setWriteError('Tu ne peux pas écrire à cette personne (il faut un groupe ou un événement en commun).');
+    }
+    router.push(`/chats/${chat}`);
+  }
 
   if (loading) return <Loading />;
   if (!data) {
@@ -65,6 +83,12 @@ export default function MemberScreen() {
         {known.secondary ? <T muted size={15}>{known.secondary} · dans tes contacts</T> : null}
         {fullName ? <T muted size={17}>{fullName}</T> : null}
         <T muted size={13}>{data.root ? '👑 Root' : (data.role_label ?? roleName(data.role))}{data.me ? ' · c’est toi' : ''}</T>
+        {/* Message direct : Discussions (réservées aux bêta-testeurs en production, « Bientôt » pour les autres). */}
+        {!data.me && !eventsSoon ? (
+          <Button small label="💬 Écrire" loading={opening}
+            onPress={() => void write()} />
+        ) : null}
+        <ErrorText error={writeError} />
       </View>
       {phone ? (
         <Card>
@@ -88,6 +112,8 @@ export default function MemberScreen() {
           <T>{data.groups.join(' · ')}</T>
         </Section>
       ) : null}
+      {/* Qui l'a invité (lien Party, groupe, événement) : admins seulement (droit « Voir qui a invité qui »). */}
+      {!data.me ? <InvitedBySection id={data.id} /> : null}
       {data.me ? (
         <T muted size={13}>Ton nom et ton numéro restent cachés tant que tu ne choisis pas de les montrer (Mon profil, Groupes).</T>
       ) : null}

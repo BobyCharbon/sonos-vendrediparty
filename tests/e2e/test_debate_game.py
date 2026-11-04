@@ -157,7 +157,7 @@ def test_new_badge_marks_only_this_game_on_the_home_cards(phones):
     badge = alice.page.locator('#gHome .gcard:has([data-create="debate"]) .g-new')
     expect(badge).to_be_visible()
     expect(badge).to_have_text('NEW')
-    expect(alice.page.locator('#gHome .g-new')).to_have_count(6)  # Méninges, Le Masque, Le Reflet, Qui es-tu vraiment ?, Pour ou contre et Beer pong
+    expect(alice.page.locator('#gHome .g-new')).to_have_count(7)  # Compagnon, Méninges, Le Masque, Le Reflet, Qui es-tu vraiment ?, Pour ou contre et Beer pong
     # En haut à droite de la carte, sans masquer le bouton « ? » des règles.
     card = alice.page.locator('#gHome .gcard:has([data-create="debate"])').bounding_box()
     b = badge.bounding_box()
@@ -171,12 +171,12 @@ def test_home_and_game_room_list_games_by_category(phones):
     alice.open_games()
     page = alice.page
     heads = page.locator('#gHome .g-cat-h')
-    expect(heads).to_have_text(['🧠 Entraînement', '🍻 Alcool', '🎮 Jeux 3D', '💞 Parler vrai', '🃏 Jeux de cartes', '🎉 Ambiance'])
+    expect(heads).to_have_text(['✨ Chaque jour', '🍻 Alcool', '🎮 Jeux 3D', '💞 Parler vrai', '🃏 Jeux de cartes', '🎉 Ambiance'])
     expect(page.locator('#gHome .g-cat[data-cat="talk"] [data-create]')).to_have_count(6)
     expect(page.locator('#gHome .g-cat[data-cat="talk"] [data-create="divan"]')).to_have_count(1)
     expect(page.locator('#gHome .g-cat[data-cat="cards"] [data-create="pyramid"]')).to_have_count(1)
     # Chaque jeu une seule fois ; ceux qui se jouent aussi avec alcool portent l'étiquette 🍻.
-    expect(page.locator('#gHome .gcard:not(.g-room-card)')).to_have_count(23)  # beer pong, Masque, Reflet et Méninges compris
+    expect(page.locator('#gHome .gcard:not(.g-room-card)')).to_have_count(24)  # beer pong, Masque, Reflet, Méninges et Compagnon compris
     expect(page.locator('#gHome .g-cat[data-cat="cards"] .gcard:has([data-create="pyramid"]) .g-drink')).to_be_visible()
     expect(page.locator('#gHome .g-cat[data-cat="drinks"] .g-drink')).to_have_count(0)
     # Le bouton d'une carte rangée crée toujours la partie.

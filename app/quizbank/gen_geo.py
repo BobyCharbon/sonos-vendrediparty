@@ -1,10 +1,10 @@
-"""Géographie : pays (capitales, drapeaux, monnaies, continents, population, superficie), grandes villes,
+"""Géographie : pays (capitales, monnaies, continents, population, superficie), grandes villes,
 États américains, provinces canadiennes, départements français."""
 
 import random
 
 from . import make, pick
-from .fr import bare, de, flag
+from .fr import bare, de
 
 EU, AS, AF, AM, OC = "Europe", "Asie", "Afrique", "Amérique", "Océanie"
 
@@ -484,8 +484,7 @@ def generate():
             pool = [x[2] for x in same if x[2]]
             out.append(make("geo", f"Quelle est la capitale {de(name)} ?", cap, pick(f"cap-{iso}", pool if len(pool) >= 3 else cap_names, cap), d))
             out.append(make("geo", f"{cap} est la capitale de quel pays ?", bare(name), pick(f"capr-{iso}", [bare(x[1]) for x in same], bare(name)), d))
-        out.append(make("geo", f"À quel pays appartient ce drapeau ? {flag(iso)}", bare(name), pick(f"flag-{iso}", [bare(x[1]) for x in same][:25], bare(name)), d))
-        out.append(make("geo", f"Quel est le drapeau {de(name)} ?", flag(iso), [flag(x[0]) for x in pick(f"flagr-{iso}", same, c)], d))
+        # Drapeaux : thème à part (gen_drapeaux.py), avec des sosies comme mauvaises réponses.
         if cur:
             curs = [x[4] for x in COUNTRIES if x[4] and x[4] != cur]
             out.append(make("geo", f"Quelle est la monnaie {de(name)} ?", cur, pick(f"cur-{iso}", curs, cur), min(3, d + 1) if cur != "euro" else d))

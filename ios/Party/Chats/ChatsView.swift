@@ -68,7 +68,7 @@ struct ChatsView: View {
             .motion(Motion.snappy, value: chats.map(\.id))
             .overlay {
                 if chats.isEmpty {
-                    ContentUnavailable(text: "Rejoins ou crée un groupe (bouton ✎ en haut) pour discuter avec ses membres.")
+                    ContentUnavailable(text: "Rejoins ou crée un groupe (bouton ✎ en haut) pour discuter avec ses membres, ou écris à un ami (Réglages › Mes amis).")
                         .transition(.opacity)
                 }
             }
@@ -145,13 +145,18 @@ private struct ContentUnavailable: View {
 
 private struct ChatRow: View {
     let chat: ChatSummary
+    @ObservedObject private var contacts = ContactNames.shared
+
+    /// Message direct : « Nom du contact · pseudo » (contacts de l'iPhone) ; groupe : son nom.
+    private var title: String { chat.direct ? contacts.label(for: chat.userID, pseudo: chat.name).text : chat.name }
 
     var body: some View {
         HStack(spacing: 12) {
-            Initials(name: chat.name, size: 48)
+            Initials(name: chat.direct ? contacts.label(for: chat.userID, pseudo: chat.name).primary : chat.name,
+                     photo: chat.direct ? chat.photo : nil, size: 48)
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
-                    Text(chat.name).font(.body.weight(.semibold)).lineLimit(1)
+                    Text(title).font(.body.weight(.semibold)).lineLimit(1)
                     Spacer()
                     Text(ChatDates.short(chat.lastAt)).font(.caption)
                         .foregroundStyle(chat.unread > 0 ? Color(uiColor: AppConfig.uiAccent) : .secondary)
@@ -176,7 +181,7 @@ private struct ChatRow: View {
         .motion(Motion.bouncy, value: chat.unread)
         .motion(Motion.smooth, value: chat.last)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(chat.name)\(chat.unread > 0 ? ", \(chat.unread) non lus" : "")")
+        .accessibilityLabel("\(chat.direct ? "Message direct, " : "")\(title)\(chat.unread > 0 ? ", \(chat.unread) non lus" : "")")
     }
 }
 

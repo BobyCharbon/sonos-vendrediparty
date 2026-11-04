@@ -185,6 +185,8 @@ export default function NotificationSettings() {
 
       <Section title="Discussions des groupes">
         <ToggleRow disabled={saving} label="Messages des groupes" hint="Les messages de tes groupes, selon le choix de chaque groupe (tous, si on me cite ou rien)" value={prefs.group_messages !== false} onChange={(v) => update({ group_messages: v })} />
+        {/* Messages directs (conversation privée à deux) : leur propre interrupteur ; la pause des Discussions les couvre aussi. */}
+        <ToggleRow disabled={saving} label="Messages directs" hint="« Nouveau message de … » quand quelqu’un t’écrit en privé (chaque conversation peut aussi être mise en sourdine)" value={prefs.direct_messages !== false} onChange={(v) => update({ direct_messages: v })} />
         <ChatsPause scope="chats" />
         {/* Groupes de Discussions : @tout et @annonce préviennent tout le groupe ; chacun peut le couper ici. */}
         <ToggleRow disabled={saving} label="Annonces et @tout des groupes"
@@ -192,6 +194,18 @@ export default function NotificationSettings() {
           value={prefs.group_broadcasts !== false} onChange={(v) => update({ group_broadcasts: v })} />
         <ToggleRow disabled={saving} label="Invitation dans un groupe" hint="Quelqu’un t’ajoute à un groupe" value={prefs.group_invites !== false} onChange={(v) => update({ group_invites: v })} />
         <ToggleRow disabled={saving} label="Quelqu’un rejoint mon groupe" hint="Un membre entre dans un groupe que tu as créé" value={prefs.group_joins !== false} onChange={(v) => update({ group_joins: v })} />
+      </Section>
+
+      {/* Mes amis dans Party : chaque type a son interrupteur, aussi dans les Réglages de l'app iPhone. */}
+      <Section title="Amis">
+        <ToggleRow disabled={saving} label="Quelqu’un rejoint Party grâce à moi" hint="Une personne s’inscrit avec ton lien d’invitation" value={prefs.referral_joins !== false} onChange={(v) => update({ referral_joins: v })} />
+        <ToggleRow disabled={saving} label="Un contact arrive sur Party" hint="Dans l’app iPhone : quelqu’un de tes contacts vient de s’inscrire" value={prefs.contact_joins !== false} onChange={(v) => update({ contact_joins: v })} />
+      </Section>
+
+      {/* Compagnon (jeu de l'onglet Jeux) : deux types, deux interrupteurs, aussi dans les Réglages de l'app iPhone. */}
+      <Section title="Compagnon">
+        <ToggleRow disabled={saving} label="Rappel du jour" hint="Une fois par jour au plus, en fin d’après-midi, s’il a un petit creux et que tu n’es pas encore passé" value={prefs.pet_daily !== false} onChange={(v) => update({ pet_daily: v })} />
+        <ToggleRow disabled={saving} label="Il a besoin de toi" hint="Deux alertes au plus avant qu’il ne s’envole, quand son ventre est vide depuis longtemps" value={prefs.pet_alerts !== false} onChange={(v) => update({ pet_alerts: v })} />
       </Section>
 
       <Section title="Quand j’organise">

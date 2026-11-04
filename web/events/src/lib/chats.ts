@@ -11,7 +11,14 @@ export type EveryoneBy = 'all' | 'staff';
 export type ChatSummary = {
   id: string; name: string; system: boolean; member: boolean; admin: boolean; creator: boolean;
   members: number; notify: NotifyLevel; last_at: string | null; last: string | null; unread: number;
+  /** Message direct (conversation privée à deux, 4.11) : l'autre personne (nom = son pseudo, photo), bloquée par moi. */
+  kind?: 'group' | 'direct'; user_id?: string; avatar_url?: string | null; blocked?: boolean;
 };
+/** Message direct tel que lu dans direct_messages, présenté comme un message de groupe (même bulle, même écran). */
+export type DirectMessageRow = Omit<GroupMessage, 'group_id' | 'mentions' | 'mention_all' | 'deleted_by_admin' | 'announcement'> & { chat_id: string };
+export function directAsGroupMessage(m: DirectMessageRow): GroupMessage {
+  return { ...m, group_id: m.chat_id, mentions: [], mention_all: false, deleted_by_admin: false, announcement: false };
+}
 export type GroupMessage = {
   id: string; group_id: string; user_id: string; body: string; photo_path: string | null; reply_to: string | null;
   audio_path?: string | null; audio_seconds?: number | null; pending?: boolean;

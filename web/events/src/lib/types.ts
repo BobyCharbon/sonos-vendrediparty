@@ -161,6 +161,15 @@ export type NotificationPrefs = {
   /** Billets payants (migration 20261103130000 ; absent avant : reçues) : quelqu'un dit avoir payé ma place / mon paiement confirmé. */
   ticket_pay_declared?: boolean;
   ticket_pay_confirmed?: boolean;
+  /** Mes amis dans Party (migration 20261104090000 ; absents avant : reçues) : quelqu'un rejoint Party grâce à mon lien ;
+   * un contact de l'iPhone arrive sur Party (notification calculée par l'app iPhone). */
+  referral_joins?: boolean;
+  contact_joins?: boolean;
+  /** Messages directs (migration 20261104100000 ; absent avant : reçus) : « Nouveau message de X ». */
+  direct_messages?: boolean;
+  /** Compagnon (migration 20261104130000 ; absents avant : reçus) : rappel doux du jour, alertes avant son envol. */
+  pet_daily?: boolean;
+  pet_alerts?: boolean;
 };
 
 /** Pause des notifications : 'all' = la lune, 'chats' = Discussions des groupes, 'event_chats' = discussions des événements. */

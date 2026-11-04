@@ -125,6 +125,8 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.dark)
+        // « Écrire » (Mes amis, fiches des membres) : la conversation privée s'ouvre dans Discussions (si disponible).
+        .environment(\.writeDirect, model.canWriteDirect ? WriteDirectAction { user in await model.writeDirect(to: user) } : nil)
         .sheet(isPresented: $model.aiEventOpen, onDismiss: { model.aiEditEventId = nil }) {
             if let settings = model.settings {
                 AIEventView(store: settings.aiEvent, editing: model.aiEditEventId) { id in model.openEvent(id) }

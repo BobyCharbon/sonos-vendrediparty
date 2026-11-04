@@ -196,12 +196,31 @@ struct NotificationSettingsView: View {
         Section("💬 Discussions des groupes") {
             eventToggle("group_messages", "bubble.left.and.bubble.right.fill", .green, "Messages des groupes",
                         "Selon le choix de chaque groupe : tous, si on me cite ou rien", p.groupMessages != false)
+            // Messages directs (conversation privée à deux) : leur propre interrupteur ; la pause ci-dessous les couvre aussi.
+            eventToggle("direct_messages", "bubble.left.fill", .mint, "Messages directs",
+                        "« Nouveau message de … » quand quelqu'un t'écrit en privé", p.directMessages != false)
             ChatsPauseRow(store: store.pause, scope: .chats)
             // Groupes de Discussions : @tout et @annonce préviennent tout le groupe ; chacun peut le couper ici.
             eventToggle("group_broadcasts", "megaphone.fill", .pink, "Annonces et @tout des groupes",
                         "Quand quelqu'un écrit @tout ou fait une annonce dans un de tes groupes", p.groupBroadcasts != false)
             eventToggle("group_invites", "person.badge.plus", .blue, "Invitation dans un groupe", "Quelqu'un t'ajoute à un groupe", p.groupInvites != false)
             eventToggle("group_joins", "person.2.fill", .teal, "Quelqu'un rejoint mon groupe", "Un membre entre dans un groupe que tu as créé", p.groupJoins != false)
+        }
+
+        // Mes amis dans Party : chaque type a son interrupteur (aussi sur le web).
+        Section("Amis") {
+            eventToggle("referral_joins", "envelope.open.fill", .purple, "Quelqu'un rejoint Party grâce à moi",
+                        "Une personne s'inscrit avec ton lien d'invitation", p.referralJoins != false)
+            eventToggle("contact_joins", "person.crop.circle.badge.checkmark", .green, "Un contact arrive sur Party",
+                        "Quelqu'un de tes contacts vient de s'inscrire (calculé sur cet iPhone)", p.contactJoins != false)
+        }
+
+        // Compagnon (onglet Jeux) : deux types, deux interrupteurs (aussi sur le web).
+        Section("Compagnon") {
+            eventToggle("pet_daily", "fork.knife", .orange, "Rappel du jour",
+                        "Une fois par jour au plus, en fin d'après-midi, s'il a un petit creux", p.petDaily != false)
+            eventToggle("pet_alerts", "heart.fill", .pink, "Il a besoin de toi",
+                        "Deux alertes au plus avant qu'il ne s'envole", p.petAlerts != false)
         }
 
         Section("Quand j'organise") {

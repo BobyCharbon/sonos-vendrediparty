@@ -1,4 +1,4 @@
-"""Quiz : 14 thèmes, 5 modes, jouable seul ou à plusieurs, avec un classement général entre les parties.
+"""Quiz : 16 thèmes, 5 modes, jouable seul ou à plusieurs, avec un classement général entre les parties.
 
 Modes
 - classic  : Classique. Tout le monde répond à la même question ; points selon la rapidité, bonus de série.

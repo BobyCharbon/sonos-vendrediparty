@@ -3,6 +3,7 @@ import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { LinkedText } from '@/components/LinkedText';
 import { Avatar, Button, ErrorText, Input, s, T } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { useContactNames, withContactNames } from '@/lib/contactNames';
@@ -177,7 +178,7 @@ function Chat({ id }: { id: string }) {
                         </T>
                       </View>
                     ) : null}
-                    <T size={15} color={mine ? colors.onAccent : colors.text}>{m.body}</T>
+                    <LinkedText size={15} color={mine ? colors.onAccent : colors.text} linkColor={mine ? colors.onAccent : colors.accent} text={m.body} />
                   </View>
                   <View style={s.row}>
                     <T muted size={11}>{formatMessageTime(m.created_at)}</T>

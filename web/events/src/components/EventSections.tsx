@@ -13,6 +13,7 @@ import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
 import { SharedBringRow } from './BringShared';
 import { DateTimeField } from './DateTimeField';
+import { LinkedText } from './LinkedText';
 import { RsvpButtons } from './RsvpButtons';
 import { Avatar, Button, Chip, ErrorText, Input, Meter, Reveal, s, Section, T } from './ui';
 
@@ -239,7 +240,7 @@ export function ParticipantsSection({
         <View style={{ gap: 6 }}>
           {notes.map((r) => (
             <View key={r.user_id} style={st.note}>
-              <T size={13} color={colors.textSoft}><T size={13} weight="bold">{nameOf(r.user_id)} · </T>{r.note}</T>
+              <LinkedText size={13} color={colors.textSoft} prefix={<T size={13} weight="bold">{nameOf(r.user_id)} · </T>} text={r.note} />
             </View>
           ))}
         </View>
@@ -518,7 +519,7 @@ export function BringSection({
             <SharedBringRow item={it} me={me} names={names} canParticipate={canParticipate} onChange={onChange} onError={setError} />
           ) : (
           <View style={s.rowBetween}>
-            <T style={{ flex: 1 }}>{it.label}</T>
+            <LinkedText style={{ flex: 1 }} text={it.label} />
             {/* Qui le prend change (moi, un autre, personne) : la nouvelle action se pose à sa place. */}
             <Reveal key={`${it.claimed_by ?? 'libre'}`} kind={grew || claimsChanged ? 'pop' : null}>
             {it.added_by === me ? (

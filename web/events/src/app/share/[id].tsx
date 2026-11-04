@@ -2,9 +2,11 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Linking, Pressable, View } from 'react-native';
 
+import { LinkedText } from '@/components/LinkedText';
 import { Badge, Button, Card, ErrorText, Field, Loading, Screen, s, T, Title } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
+import { safeHref } from '@/lib/links';
 import { formatLongDay, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
 import { rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
 import { supabase } from '@/lib/supabase';
@@ -44,7 +46,7 @@ export default function PublicEventScreen() {
   }
 
   const ev = data;
-  const mapsUrl = ev.location_url ?? (ev.location_address || ev.location_name ? `https://maps.apple.com/?q=${encodeURIComponent(ev.location_address ?? ev.location_name!)}` : null);
+  const mapsUrl = safeHref(ev.location_url) ?? (ev.location_address || ev.location_name ? `https://maps.apple.com/?q=${encodeURIComponent(ev.location_address ?? ev.location_name!)}` : null);
   const closed = ev.status !== 'published' || rsvpClosed(ev);
 
   async function answer(status: Rsvp['status']) {
@@ -95,7 +97,7 @@ export default function PublicEventScreen() {
           👥 {plural(ev.going, 'participant', 'participants')}{ev.max_participants ? ` sur ${ev.max_participants} places` : ''}
           {ev.rsvp_deadline ? ` · réponse avant le ${formatShort(ev.rsvp_deadline)}` : ''}
         </T>
-        {ev.description ? <T>{ev.description}</T> : null}
+        {ev.description ? <LinkedText text={ev.description} /> : null}
       </View>
 
       <Card>

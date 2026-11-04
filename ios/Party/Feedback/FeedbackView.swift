@@ -55,7 +55,10 @@ struct FeedbackView: View {
             if let admin { AdminNoticeHost(store: admin) }
             noticeBanner
         }
-        .task { await store.appear() }
+        .task {
+            store.asAdmin = admin != nil
+            await store.appear()
+        }
     }
 
     private var header: some View {
@@ -90,14 +93,27 @@ struct FeedbackView: View {
             .padding(8)
             .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
+            if let admin {  // hôte : son avis est classé dès l'envoi, comme « ＋ Nouvel avis »
+                DisclosureGroup("Classement (statut, priorité, zone…)") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        FeedbackClassifyFields(draft: $store.draft, meta: admin.meta, creating: true)
+                        TextField("Note / instructions pour Claude", text: $store.draft.note, axis: .vertical).lineLimit(1...6)
+                    }
+                    .padding(.top, 6)
+                }
+                .tint(Palette.accent)
+            }
+
             HStack {
-                Text(FeedbackRules.counter(store.trimmedText.count))
+                Text(FeedbackRules.counter(store.trimmedText.count, minimum: store.minimumLength))
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 Spacer()
                 Button {
                     writing = false
                     Haptics.tap()
-                    Task { await store.send() }
+                    Task {
+                        if let admin { await store.sendAsAdmin(admin) } else { await store.send() }
+                    }
                 } label: {
                     if store.sending { ProgressView().transition(.opacity) } else { Text("Envoyer").bold().transition(.opacity) }
                 }

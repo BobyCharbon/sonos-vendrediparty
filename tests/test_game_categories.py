@@ -14,8 +14,9 @@ def categories() -> list[tuple[str, str, list[str]]]:
     return [tuple(c) for c in json.loads(block)]
 
 
-# Rangés dans une catégorie sans être une partie du serveur : Méninges (entraînement solo, app/static/brain/).
-CLIENT_ONLY = {"brain"}
+# Rangés dans une catégorie sans être une partie du serveur : Méninges (entraînement solo, app/static/brain/) et
+# Compagnon (personnage à entretenir, app/static/pet/).
+CLIENT_ONLY = {"brain", "pet"}
 
 
 def test_every_game_is_in_exactly_one_category():
@@ -25,15 +26,15 @@ def test_every_game_is_in_exactly_one_category():
 
 
 def test_categories_in_the_chosen_order():
-    # Méninges en tête (demande de l'admin, 03.11.2026).
-    assert [label for _, label, _ in categories()] == ["🧠 Entraînement", "🍻 Alcool", "🎮 Jeux 3D", "💞 Parler vrai", "🃏 Jeux de cartes",
+    # Compagnon et Méninges en tête (demandes de l'admin, 03.11 et 04.11.2026).
+    assert [label for _, label, _ in categories()] == ["✨ Chaque jour", "🍻 Alcool", "🎮 Jeux 3D", "💞 Parler vrai", "🃏 Jeux de cartes",
                                                      "🎉 Ambiance"]
     cats = {cid: types for cid, _, types in categories()}
     assert set(cats["talk"]) == {"masque", "reflet", "psy", "divan", "debate", "tmc"}
     assert set(cats["cards"]) == {"pyramid", "blackjack", "president"}
     assert set(cats["three"]) == {"neon", "island", "heist"}
     assert set(cats["mood"]) == {"quiz", "undercover", "likely"}
-    assert cats["brain"] == ["brain"]
+    assert cats["brain"] == ["pet", "brain"]
 
 
 def test_brain_card_opens_the_training_panel_not_a_game():
@@ -48,3 +49,11 @@ def test_drink_tag_only_outside_the_alcohol_category():
     tagged = json.loads(re.search(r"const DRINK_TAG_GAMES = (\[.*?\]);", JS).group(1))
     alcohol = next(types for cid, _, types in categories() if cid == "drinks")
     assert set(tagged) == {"pyramid", "blackjack", "quiz", "likely"} and not set(tagged) & set(alcohol)
+
+
+def test_pet_card_opens_the_companion_panel():
+    """La carte Compagnon ouvre le panneau du personnage (data-pet-open), le skin est chargé avant le moteur."""
+    assert 'data-pet-open="pet"' in JS and 'data-create="pet"' not in JS
+    html = (Path(__file__).resolve().parent.parent / "app" / "static" / "index.html").read_text(encoding="utf-8")
+    assert html.index("/static/pet/skin.js") < html.index("/static/pet/pet.js")
+    assert "/static/pet/pet.css" in html

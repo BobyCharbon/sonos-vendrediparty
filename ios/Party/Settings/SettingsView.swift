@@ -9,6 +9,7 @@ struct SettingsView: View {
     var hostMusic: HostMusicStore?
     let open: (WebModel.PagePlace) -> Void
     @State private var confirmSignOut = false
+    @State private var joinLink: JoinLink?
 
     var body: some View {
         NavigationStack {
@@ -38,6 +39,13 @@ struct SettingsView: View {
                             SettingsRow(symbol: "person.3.fill", tint: .blue, title: "Groupes",
                                         hint: "Les groupes dont tu fais partie ; crée les tiens")
                         }
+                        NavigationLink {
+                            FriendsView(store: store.friends, privacy: store.privacy)
+                        } label: {
+                            SettingsRow(symbol: "person.2.circle.fill", tint: .pink, title: "Mes amis dans Party",
+                                        hint: "Tes contacts inscrits sur Party ; invite les autres")
+                        }
+                        .accessibilityIdentifier("settings-friends")
                     }
                 }
                 if isHost || store.account?.admin == true || store.account?.groupAdmin == true {
@@ -119,6 +127,18 @@ struct SettingsView: View {
             .motion(Motion.smooth, value: store.account?.feedback)
             .background(AppConfig.background)
             .navigationTitle("Réglages")
+            // Lien d'invitation dans Party ouvert dans l'app (/events/join/<lien>) : « X t'invite sur Party ».
+            // Gardé jusqu'à la connexion : la feuille revient alors et le lien est réclamé.
+            .sheet(item: $joinLink) { link in
+                JoinInviteSheet(store: store.friends, invite: link.id, signedIn: store.account != nil)
+                    .presentationDetents([.medium])
+            }
+            .onReceive(store.friends.$pendingInvite.dropFirst()) { invite in
+                if let invite { joinLink = JoinLink(id: invite) }
+            }
+            .onChange(of: store.account != nil) { signedIn in
+                if signedIn, let invite = store.friends.pendingInvite { joinLink = JoinLink(id: invite) }
+            }
             // Lune en haut à droite (avis de l'admin) : pause de tout, sauf les notifications admin.
             .toolbar {
                 if store.account != nil {
@@ -249,3 +269,4 @@ private struct SessionNotice: View {
 }
 
 private struct TricountLink: Identifiable { let id: String }
+private struct JoinLink: Identifiable { let id: String }

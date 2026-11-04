@@ -9,15 +9,19 @@ import { Avatar, Button, Card, Chip, ConfirmButton, ErrorText, Input, Screen, s,
 import { useAuth, useMe } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { must, supabase } from '@/lib/supabase';
-import { belowVip, roleName } from '@/lib/roles';
+import { belowVip, roleName, roleRank } from '@/lib/roles';
 import { VIP_GROUP_KEY, type MemberGroup, type Profile } from '@/lib/types';
 
 type Invitation = { id: string; group_id: string; group: string; invited_by: string | null; at: string };
 
-/** Groupes de membres pour inviter à un événement privé : partagés entre créateurs, modifiables par leur auteur et les admins. */
+/** Mes groupes (créés ou dont je fais partie), pour inviter à un événement privé ; modifiables par leur créateur.
+ * Les Admins du site (rang Admin et au-dessus, pas les Co-admins) voient aussi tous les autres, dans une section repliée. */
 export default function GroupsScreen() {
   const me = useMe();
-  const { can } = useAuth();
+  const { rank } = useAuth();
+  // Même critère que la base (private.sees_all_groups) : la base ne renvoie les groupes des autres qu'à eux.
+  const siteAdmin = rank >= roleRank('admin');
+  const [showAll, setShowAll] = useState(false);
   // « Gérer le groupe » depuis une discussion : ce groupe s'ouvre déjà déplié (?open=<id>).
   const params = useLocalSearchParams<{ open?: string }>();
   const [open, setOpen] = useState<string | null>(typeof params.open === 'string' && params.open ? params.open : null);
@@ -81,6 +85,79 @@ export default function GroupsScreen() {
       : 'Invitation gardée pour ce numéro : elle l’attendra dès son inscription.');
   }
 
+  // Mes groupes : créés par moi ou dont je fais partie (Vendredi Party seulement si j'en suis). La base ne renvoie
+  // les autres qu'aux Admins du site : ils vont dans « Tous les groupes (admin) ».
+  const isMine = (g: MemberGroup) => g.created_by === me.id || g.member_group_members.some((m) => m.user_id === me.id);
+  const mine = (data?.groups ?? []).filter(isMine);
+  const others = siteAdmin ? (data?.groups ?? []).filter((g) => !isMine(g)) : [];
+  // « Gérer le groupe » vers un groupe d'un autre : la section admin s'ouvre d'elle-même.
+  const allOpen = showAll || others.some((g) => g.id === open);
+
+  /** Une carte de groupe ; editable : « Modifier » (créateur dans Mes groupes, Admin du site dans Tous les groupes). */
+  function groupCard(g: MemberGroup, editable: boolean) {
+    const system = g.system_key === VIP_GROUP_KEY;
+    const canEdit = editable && !system;
+    const inside = new Set(g.member_group_members.map((m) => m.user_id));
+    const expanded = open === g.id;
+    return (
+      <Card key={g.id}>
+        <View style={[s.row, { justifyContent: 'space-between' }]}>
+          <View style={{ flex: 1 }}>
+            <T weight="bold">{g.name}</T>
+            <T muted size={13} numberOfLines={expanded ? undefined : 1}>
+              {inside.size ? [...inside].map((id) => personText(id, people.get(id)?.display_name ?? '?')).join(', ') : 'Personne pour l’instant'}
+            </T>
+          </View>
+          {canEdit ? <Button small variant="secondary" label={expanded ? 'Fermer' : 'Modifier'} onPress={() => setOpen(expanded ? null : g.id)} /> : null}
+        </View>
+        {inside.size ? (
+          <View style={s.wrap} accessibilityLabel="Membres du groupe : touche une photo pour voir le profil">
+            {[...inside].map((id) => {
+              const m = people.get(id);
+              return m ? <Avatar key={id} id={id} name={m.display_name} photo={m.avatar_url} size={34} /> : null;
+            })}
+          </View>
+        ) : null}
+        {inside.has(me.id) ? (
+          <ToggleRow
+            label="Montrer mon numéro dans ce groupe"
+            hint="Les membres de ce groupe le voient sur ta fiche profil. Caché par défaut."
+            value={!!data?.phoneGroups.has(g.id)}
+            disabled={busy}
+            onChange={(v) => void sharePhone(g.id, v)}
+          />
+        ) : null}
+        {system ? <T muted size={13}>Tous les Membres VIP et au-dessus, tenu à jour tout seul : passer quelqu’un Membre VIP l’ajoute, le remettre Guest le retire (Administration → Membres).</T> : null}
+        {expanded && canEdit ? (
+          <>
+            <View style={s.wrap}>
+              {(data?.members ?? []).map((m) => (
+                <Chip
+                  key={m.id}
+                  label={belowVip(m.role) && m.role !== 'basic' ? `${personText(m.id, m.display_name)} · ${roleName(m.role)}` : personText(m.id, m.display_name)}
+                  selected={inside.has(m.id)}
+                  disabled={busy}
+                  onPress={() => run(inside.has(m.id)
+                    ? supabase.from('member_group_members').delete().eq('group_id', g.id).eq('user_id', m.id)
+                    : supabase.from('member_group_members').insert({ group_id: g.id, user_id: m.id }))}
+                />
+              ))}
+            </View>
+            <View style={s.row}>
+              <Input accessibilityLabel="Inviter par surnom ou numéro" placeholder="Inviter : surnom ou numéro" value={guest}
+                onChangeText={(v) => { setGuest(v); setInvited(null); }} style={{ flex: 1 }} onSubmitEditing={() => void invite(g.id)} />
+              <Button small label="Inviter" disabled={!guest.trim() || busy} onPress={() => void invite(g.id)} />
+            </View>
+            {invited ? <T muted size={13}>{invited}</T> : null}
+            <InviteLinkCard kind="group" id={g.id} />
+            <ConfirmButton small label="Supprimer le groupe" confirmLabel="Confirmer la suppression" onConfirm={() => run(supabase.from('member_groups').delete().eq('id', g.id))} />
+            <T muted size={13}>Les invités qui ont déjà répondu gardent l’accès à leurs événements.</T>
+          </>
+        ) : null}
+      </Card>
+    );
+  }
+
   return (
     <Screen edges={[]}>
       <T muted>Un groupe sert à inviter plusieurs personnes d’un coup à un événement (Guests compris). Quelqu’un qui rejoint le groupe plus tard est aussi invité aux événements à venir.</T>
@@ -105,72 +182,20 @@ export default function GroupsScreen() {
         <NewGroupForm onCreated={(id) => { setOpen(id); void reload(); }} />
       </Section>
 
-      <Section title="Groupes">
-        {data && !data.groups.length ? <T muted>Aucun groupe pour l’instant.</T> : null}
-        {data?.groups.map((g) => {
-          const system = g.system_key === VIP_GROUP_KEY;
-          const mine = !system && (g.created_by === me.id || can('events.manage_all'));
-          const inside = new Set(g.member_group_members.map((m) => m.user_id));
-          const expanded = open === g.id;
-          return (
-            <Card key={g.id}>
-              <View style={[s.row, { justifyContent: 'space-between' }]}>
-                <View style={{ flex: 1 }}>
-                  <T weight="bold">{g.name}</T>
-                  <T muted size={13} numberOfLines={expanded ? undefined : 1}>
-                    {inside.size ? [...inside].map((id) => personText(id, people.get(id)?.display_name ?? '?')).join(', ') : 'Personne pour l’instant'}
-                  </T>
-                </View>
-                {mine ? <Button small variant="secondary" label={expanded ? 'Fermer' : 'Modifier'} onPress={() => setOpen(expanded ? null : g.id)} /> : null}
-              </View>
-              {inside.size ? (
-                <View style={s.wrap} accessibilityLabel="Membres du groupe : touche une photo pour voir le profil">
-                  {[...inside].map((id) => {
-                    const m = people.get(id);
-                    return m ? <Avatar key={id} id={id} name={m.display_name} photo={m.avatar_url} size={34} /> : null;
-                  })}
-                </View>
-              ) : null}
-              {inside.has(me.id) ? (
-                <ToggleRow
-                  label="Montrer mon numéro dans ce groupe"
-                  hint="Les membres de ce groupe le voient sur ta fiche profil. Caché par défaut."
-                  value={!!data?.phoneGroups.has(g.id)}
-                  disabled={busy}
-                  onChange={(v) => void sharePhone(g.id, v)}
-                />
-              ) : null}
-              {system ? <T muted size={13}>Tous les Membres VIP et au-dessus, tenu à jour tout seul : passer quelqu’un Membre VIP l’ajoute, le remettre Guest le retire (Administration → Membres).</T> : null}
-              {expanded && mine ? (
-                <>
-                  <View style={s.wrap}>
-                    {data.members.map((m) => (
-                      <Chip
-                        key={m.id}
-                        label={belowVip(m.role) && m.role !== 'basic' ? `${personText(m.id, m.display_name)} · ${roleName(m.role)}` : personText(m.id, m.display_name)}
-                        selected={inside.has(m.id)}
-                        disabled={busy}
-                        onPress={() => run(inside.has(m.id)
-                          ? supabase.from('member_group_members').delete().eq('group_id', g.id).eq('user_id', m.id)
-                          : supabase.from('member_group_members').insert({ group_id: g.id, user_id: m.id }))}
-                      />
-                    ))}
-                  </View>
-                  <View style={s.row}>
-                    <Input accessibilityLabel="Inviter par surnom ou numéro" placeholder="Inviter : surnom ou numéro" value={guest}
-                      onChangeText={(v) => { setGuest(v); setInvited(null); }} style={{ flex: 1 }} onSubmitEditing={() => void invite(g.id)} />
-                    <Button small label="Inviter" disabled={!guest.trim() || busy} onPress={() => void invite(g.id)} />
-                  </View>
-                  {invited ? <T muted size={13}>{invited}</T> : null}
-                  <InviteLinkCard kind="group" id={g.id} />
-                  <ConfirmButton small label="Supprimer le groupe" confirmLabel="Confirmer la suppression" onConfirm={() => run(supabase.from('member_groups').delete().eq('id', g.id))} />
-                  <T muted size={13}>Les invités qui ont déjà répondu gardent l’accès à leurs événements.</T>
-                </>
-              ) : null}
-            </Card>
-          );
-        })}
+      <Section title="Mes groupes">
+        {data && !mine.length ? <T muted>Tu ne fais partie d’aucun groupe pour l’instant.</T> : null}
+        {mine.map((g) => groupCard(g, g.created_by === me.id))}
       </Section>
+
+      {siteAdmin && others.length ? (
+        <Section title="Tous les groupes (admin)">
+          <Button small variant="secondary"
+            label={allOpen ? 'Masquer les autres groupes' : `Voir les ${others.length} autres groupe${others.length > 1 ? 's' : ''}`}
+            onPress={() => setShowAll(!allOpen)} />
+          {allOpen ? <T muted size={13}>Groupes dont tu ne fais pas partie : visibles par les Admins seulement.</T> : null}
+          {allOpen ? others.map((g) => groupCard(g, true)) : null}
+        </Section>
+      ) : null}
     </Screen>
   );
 }

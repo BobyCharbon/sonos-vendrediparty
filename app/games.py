@@ -16,6 +16,7 @@ import unicodedata
 
 from . import beerpong, debate, heist, island, likely, masque, neon, president, psy, purity, quiz, reflet
 from .divan_cards import DIVAN_CARDS
+from .seat_rename import rename_player  # noqa: F401  (games.rename_player : place renommée à la connexion d'un compte)
 from .tmc_questions import TMC_QUESTIONS
 from .party_questions import NEVER_AWKWARD, NEVER_HOT, NEVER_SOFT, WHOOF_AWKWARD, WHOOF_HOT, WHOOF_SOFT
 

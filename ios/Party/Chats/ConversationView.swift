@@ -24,15 +24,28 @@ struct ConversationView: View {
 
     private var chat: Conversation? { store.conversation?.id == group ? store.conversation : nil }
 
+    /// Titre : message direct, « Nom du contact · pseudo » de l'autre personne ; groupe, son nom.
+    private var title: String {
+        guard let chat else { return "Discussion" }
+        return chat.isDirect ? ContactNames.shared.label(for: chat.userID, pseudo: chat.name).text : chat.name
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if let chat {
                 if let banner = chat.banner {
-                    pinnedBanner(banner.item, others: banner.others, canRemove: chat.admin || (chat.isStaff && banner.item.announcement))
+                    pinnedBanner(banner.item, others: banner.others, canRemove: chat.admin || chat.isDirect || (chat.isStaff && banner.item.announcement))
                         .motionTransition(.unfold)
                 }
                 messages(chat).transition(.opacity)
-                if chat.member { composer(chat) }
+                if chat.blocked == true {
+                    // Message direct : j'ai bloqué cette personne ; l'historique reste, l'écriture revient en la débloquant.
+                    Text("Tu as bloqué \(title). Débloque-le dans les infos (ⓘ) pour lui écrire.")
+                        .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                        .padding().frame(maxWidth: .infinity).background(.bar)
+                } else if chat.member {
+                    composer(chat)
+                }
             } else if let error = store.error {
                 Text(error).foregroundStyle(.secondary).padding().frame(maxHeight: .infinity).transition(.opacity)
             } else {
@@ -43,16 +56,18 @@ struct ConversationView: View {
         .motion(Motion.smooth, value: chat == nil)
         .motion(Motion.snappy, value: chat?.banner?.item.id)
         .background(AppConfig.background.ignoresSafeArea())
-        .navigationTitle(chat?.name ?? "Discussion")
+        .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button { showInfo = true } label: { Image(systemName: "info.circle") }
-                    .accessibilityLabel("Infos du groupe")
+                    .accessibilityLabel(chat?.isDirect == true ? "Infos de la conversation" : "Infos du groupe")
                     .disabled(chat == nil)
             }
         }
-        .sheet(isPresented: $showInfo) { ChatInfoView(store: store) }
+        .sheet(isPresented: $showInfo) {
+            if store.conversation?.isDirect == true { DirectChatInfoView(store: store) } else { ChatInfoView(store: store) }
+        }
         .overlay(alignment: .bottom) { notice }
         .task(id: group) {
             while !Task.isCancelled {
@@ -117,7 +132,7 @@ struct ConversationView: View {
                     VStack(spacing: 12) {
                         Text("Aucun message pour l'instant. Lance la discussion !").foregroundStyle(.secondary)
                         // Groupe tout neuf (créé depuis Discussions) : y ajouter du monde.
-                        if chat.member && chat.members.count <= 1 {
+                        if chat.member && !chat.isDirect && chat.members.count <= 1 {
                             Button("Ajouter des membres") { showInfo = true }.buttonStyle(.borderedProminent)
                         }
                     }
@@ -125,7 +140,8 @@ struct ConversationView: View {
                     .frame(maxWidth: .infinity).listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
                 ForEach(chat.messages) { m in
-                    ChatBubble(message: m, reactions: chat.reactions, canWrite: chat.member, isAdmin: chat.admin, isStaff: chat.isStaff, player: player,
+                    ChatBubble(message: m, reactions: chat.reactions, canWrite: chat.member, isAdmin: chat.admin, isStaff: chat.isStaff,
+                               canPin: chat.admin || chat.isDirect, player: player,
                                onReact: { emoji in Haptics.tap(); Task { await store.react(m, emoji) } },
                                onReply: { reply(to: m) },
                                onPin: { Task { await store.pin(m) } },
@@ -204,7 +220,7 @@ struct ConversationView: View {
 
     /// Suggestions de l'@ en cours de frappe : membres filtrés en direct, puis @tout et @annonce ; un toucher insère.
     @ViewBuilder private func mentionBar(_ chat: Conversation) -> some View {
-        let found = Mentions.query(in: text).map {
+        let found: [Mentions.Suggestion] = chat.isDirect ? [] : Mentions.query(in: text).map {
             Mentions.suggestions(for: $0, members: chat.members, me: chat.me, everyone: chat.canEveryone, announce: chat.isStaff,
                                  contacts: ContactNames.shared.names)
         } ?? []
@@ -247,7 +263,7 @@ struct ConversationView: View {
     }
 
     private func field(_ chat: Conversation) -> some View {
-                TextField("Message… (@ pour citer, @tout, @annonce)", text: $text, axis: .vertical)
+                TextField(chat.isDirect ? "Message…" : "Message… (@ pour citer, @tout, @annonce)", text: $text, axis: .vertical)
                     .lineLimit(1...5)
                     .focused($writing)
                     .padding(.horizontal, 12).padding(.vertical, 8)
@@ -380,6 +396,8 @@ private struct ChatBubble: View {
     let isAdmin: Bool
     /// Admin ou organisateur : retire les annonces.
     let isStaff: Bool
+    /// Épingle : admins d'un groupe, les deux personnes d'un message direct.
+    let canPin: Bool
     @ObservedObject var player: VoicePlayer
     let onReact: (String) -> Void
     let onReply: () -> Void
@@ -467,7 +485,7 @@ private struct ChatBubble: View {
         Button { UIPasteboard.general.string = message.body } label: { Label("Copier", systemImage: "doc.on.doc") }
         if message.isAnnouncement {
             if isStaff { Button { onPin() } label: { Label("Retirer l'annonce", systemImage: "pin.slash") } }
-        } else if isAdmin {
+        } else if canPin {
             Button { onPin() } label: {
                 Label(message.pinned ? "Désépingler" : "Épingler", systemImage: message.pinned ? "pin.slash" : "pin")
             }

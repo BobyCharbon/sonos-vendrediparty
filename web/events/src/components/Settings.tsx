@@ -4,6 +4,7 @@ import { Pressable, View } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { roleName } from '@/lib/roles';
+import { AppInviteCard } from './AppInviteCard';
 import { IdentityForm } from './IdentityForm';
 import { MoonBanner, MoonButton, usePause } from './NotificationPause';
 import { SignedIn } from './SignedIn';
@@ -65,6 +66,9 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
         {profile.status === 'banned' ? <T muted size={14}>Ton accès a été retiré par un admin.</T> : null}
         {active ? <Button label="Voir les événements" variant="secondary" onPress={() => openPartyTab('events')} /> : eventsSoon && profile.status !== 'banned' ? <SignedIn /> : null}
       </Section>
+
+      {/* Inviter des amis dans Party (avis 84fab3987f68) : tout rôle qui a le droit « Inviter dans Party ». */}
+      {complete && can('members.invite') ? <AppInviteCard /> : null}
 
       <Card style={{ gap: 0, paddingVertical: 4 }}>
         {active ? (

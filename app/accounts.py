@@ -191,7 +191,9 @@ class Accounts:
 
     def groups(self, token: str) -> dict:
         """Mes groupes (créés ou dont je fais partie), leurs membres, et les personnes que je peux y ajouter
-        (annuaire : ce que mes droits me laissent voir). Lu avec la session du membre (règles de la base)."""
+        (annuaire : ce que mes droits me laissent voir). Lu avec la session du membre (règles de la base).
+        others : les autres groupes, que la base ne montre qu'aux Admins du site (rang Admin et au-dessus, pas les
+        Co-admins ; migration 20261104093000) ; vide pour tous les autres comptes. Un Admin les compose (mine)."""
         uid = self._uid(token)
         r = self._get("GET", "/rest/v1/member_groups?select=id,name,created_by,system_key,member_group_members(user_id)&order=name", token)
         rows = r.json() if r.status_code == 200 else None
@@ -200,17 +202,18 @@ class Accounts:
         if not isinstance(rows, list) or not isinstance(directory, list):
             raise AccountError("Tes groupes n'ont pas pu être lus. Réessaie dans un instant.")
         names = {p["id"]: p.get("display_name") or "Sans surnom" for p in directory}
-        groups = []
+        groups, others = [], []
         for g in rows:
             members = [m["user_id"] for m in g.get("member_group_members") or []]
-            if g.get("created_by") != uid and uid not in members:
-                continue
-            groups.append({"id": g["id"], "name": g["name"], "system": g.get("system_key") is not None,
-                           "mine": g.get("created_by") == uid and g.get("system_key") is None,
-                           "inside": uid in members,  # j'en fais partie : je peux y montrer mon numéro
-                           "members": [{"id": m, "name": names.get(m, "Membre du groupe")} for m in members]})
+            system = g.get("system_key") is not None
+            outside = g.get("created_by") != uid and uid not in members
+            (others if outside else groups).append({
+                "id": g["id"], "name": g["name"], "system": system,
+                "mine": not system and (outside or g.get("created_by") == uid),
+                "inside": uid in members,  # j'en fais partie : je peux y montrer mon numéro
+                "members": [{"id": m, "name": names.get(m, "Membre du groupe")} for m in members]})
         people = [{"id": p["id"], "name": names[p["id"]]} for p in directory if p["id"] != uid and p.get("status") == "active"]
-        return {"groups": groups, "people": sorted(people, key=lambda p: p["name"].lower())}
+        return {"groups": groups, "others": others, "people": sorted(people, key=lambda p: p["name"].lower())}
 
     def create_group(self, token: str, name: str, join: bool = False) -> dict:
         """Nouveau groupe (Réglages › Groupes, ou Discussions avec join : son créateur en fait partie d'office, pour

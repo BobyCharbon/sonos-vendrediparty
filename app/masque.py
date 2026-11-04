@@ -1,12 +1,16 @@
 """« Le Masque » — tout le monde répond en secret à la même question profonde, puis devine qui a écrit quoi.
 
 Un tour : une question s'affiche ; chacun écrit sa réponse sur son téléphone (une phrase). Quand tout le monde a écrit,
-les réponses apparaissent mélangées, sans prénom. Chacun relie les réponses aux prénoms et, pour la sienne, choisit en
-secret de lever le masque (se dévoiler, raconter) ou de rester masqué. À la révélation : l'auteur de chaque réponse
-dévoilée, qui l'avait trouvé ; une réponse masquée garde son secret (personne ne sait qui l'a trouvée).
+les réponses apparaissent mélangées, sans prénom (chacun voit celles des autres, jamais la sienne : un voisin ne doit
+pas pouvoir la repérer). Chacun relie les réponses aux prénoms.
 
-Points : 1 par auteur trouvé (sur les réponses dévoilées), 1 pour avoir levé son masque. Pas de point pour une réponse
-drôle : on joue la sincérité. L'animateur peut retirer une réponse (elle sort du jeu, sans son auteur).
+Le masque se règle UNE fois pour toute la table, par l'organisateur avant la partie (avis du 04.11) :
+- « open » (masques levés, par défaut) : à la révélation, l'auteur de chaque réponse, qui a voté quoi (juste ou faux) ;
+- « closed » (masques gardés) : personne ne saura jamais qui a écrit quoi ; on voit seulement à qui on a pensé, en
+  nombre, sans le prénom des votants (sinon l'absence de l'auteur parmi les votants le trahirait). Pas de points.
+
+Points (masques levés) : 1 par auteur trouvé. Pas de point pour une réponse drôle : on joue la sincérité. L'animateur
+peut retirer une réponse (elle sort du jeu, sans son auteur).
 
 Module autonome et testable (mêmes conventions que debate.py) : il ne connaît que la partie `g` ; les droits
 d'animateur restent dans main.py, et tout passe par le verrou unique des jeux.
@@ -22,9 +26,11 @@ CATS = {
 LEVELS = {"leger": "🌤 Léger", "profond": "🌊 Profond", "intime": "🕯 Intime"}
 DEFAULT_LEVELS = ["leger", "profond"]  # l'intime se choisit : jamais proposé d'office
 COUNTS = (5, 8, 12)
+MASKS = {"open": "🙋 Masques levés", "closed": "🎭 Masques gardés"}
+DEFAULT_MASK = "open"
 MIN_PLAYERS = 3  # deviner parmi deux réponses n'est pas un jeu
 MIN_ANSWER, MAX_ANSWER = 2, 140
-POINT_FOUND, POINT_UNMASK = 1, 1
+POINT_FOUND = 1
 
 
 class MasqueError(ValueError):
@@ -32,11 +38,17 @@ class MasqueError(ValueError):
 
 
 def state(g: dict) -> dict:
-    return g.setdefault("masque", {
-        "cats": list(CATS), "levels": list(DEFAULT_LEVELS), "count": COUNTS[1], "used": [], "n": 0, "q": None,
-        "answers": {}, "slots": [], "hidden": [], "guesses": {}, "unmask": {}, "sent": {}, "scores": {}, "history": [],
-        "result": None,
+    S = g.setdefault("masque", {
+        "cats": list(CATS), "levels": list(DEFAULT_LEVELS), "count": COUNTS[1], "mask": DEFAULT_MASK, "used": [],
+        "n": 0, "q": None, "answers": {}, "slots": [], "hidden": [], "guesses": {}, "sent": {}, "scores": {},
+        "history": [], "result": None,
     })
+    S.setdefault("mask", DEFAULT_MASK)  # partie créée avant le réglage commun
+    return S
+
+
+def is_open(S: dict) -> bool:
+    return S.get("mask", DEFAULT_MASK) == "open"
 
 
 def init(g: dict):
@@ -57,7 +69,8 @@ def deck(S: dict) -> list[int]:
 
 
 def configure(g: dict, settings: dict):
-    """Catégories, niveaux et nombre de questions : avant la partie, ou entre deux parties."""
+    """Catégories, niveaux, nombre de questions et masque (levé ou gardé pour toute la table) : avant la partie, ou
+    entre deux parties."""
     S = state(g)
     if g["phase"] not in ("lobby", "end"):
         raise MasqueError("Les réglages se changent avant la partie")
@@ -70,10 +83,13 @@ def configure(g: dict, settings: dict):
     count = settings.get("count", S["count"])
     if isinstance(count, bool) or not isinstance(count, int) or count not in COUNTS:
         raise MasqueError("Nombre de questions inconnu")
+    mask = settings.get("mask", S["mask"])
+    if not isinstance(mask, str) or mask not in MASKS:
+        raise MasqueError("Choix du masque inconnu")
     chosen = {"cats": list(dict.fromkeys(cats)), "levels": list(dict.fromkeys(levels))}
     if not deck(chosen):
         raise MasqueError("Aucune question pour ce choix")
-    S.update(chosen, count=count)
+    S.update(chosen, count=count, mask=mask)
 
 
 def start(g: dict, rng=random):
@@ -98,7 +114,7 @@ def _deal(g: dict, rng=random):
     pick = rng.choice(fresh)
     S["used"].append(pick)
     cat, level, text = MASQUE_CARDS[pick]
-    S.update(q={"text": text, "cat": cat, "level": level}, answers={}, slots=[], hidden=[], guesses={}, unmask={},
+    S.update(q={"text": text, "cat": cat, "level": level}, answers={}, slots=[], hidden=[], guesses={},
              sent={}, result=None, n=S["n"] + 1)
     g["phase"] = "write"
     g["round"] = g.get("round", 0) + 1
@@ -166,7 +182,8 @@ def _everyone_sent(g: dict) -> bool:
 
 
 def guess(g: dict, gid: str, picks, unmask=None):
-    """Ses devinettes (réponse → prénom) et, s'il a écrit, son choix de lever le masque. Envoi définitif."""
+    """Ses devinettes (réponse → prénom). Envoi définitif. `unmask` (ancien choix individuel du masque, encore envoyé
+    par une page restée ouverte) est ignoré : le masque se règle pour toute la table avant la partie."""
     S = state(g)
     if g["phase"] != "guess" or not _player(g, gid):
         raise MasqueError("Pas maintenant")
@@ -193,8 +210,6 @@ def guess(g: dict, gid: str, picks, unmask=None):
             raise MasqueError("Un prénom ne va qu'avec une réponse")
         clean[str(index)] = who
     S["guesses"][gid] = clean
-    if mine is not None:
-        S["unmask"][gid] = unmask is True
     S["sent"][gid] = True
     if _everyone_sent(g):
         reveal(g)
@@ -217,27 +232,49 @@ def hide(g: dict, index):
             picks.pop(str(index), None)
 
 
+def _frozen_name(g: dict, gid: str) -> str:
+    """Le prénom figé à l'apparition des réponses (un auteur parti reste nommé, masques levés), sinon l'actuel."""
+    frozen = next((a["name"] for a in state(g).get("authors") or [] if a["gid"] == gid), None)
+    return frozen or _name(g, gid)
+
+
+def _tally(names: list[str]) -> list[dict]:
+    """Masques gardés : à qui on a pensé, en nombre, triés par nombre puis par prénom (jamais dans l'ordre des votants,
+    qui dirait qui a voté et donc, par absence, qui a écrit)."""
+    counts: dict[str, int] = {}
+    for n in names:
+        counts[n] = counts.get(n, 0) + 1
+    return [{"guess": n, "n": k} for n, k in sorted(counts.items(), key=lambda x: (-x[1], x[0].casefold()))]
+
+
 def reveal(g: dict):
     S = state(g)
     if g["phase"] != "guess":
         raise MasqueError("Pas maintenant")
     if not any(S["sent"].values()):
         raise MasqueError("Personne n'a encore envoyé ses choix")
+    open_ = is_open(S)
     rows = []
     for i, slot in enumerate(S["slots"]):
         if i in S["hidden"]:
             rows.append({"text": None, "hidden": True})
             continue
-        author, open_ = slot["gid"], bool(S["unmask"].get(slot["gid"]))
-        found = [x for x, picks in S["guesses"].items() if picks.get(str(i)) == author]
+        author = slot["gid"]
+        # Votes dans l'ordre de la table : qui a pensé à qui (les justes d'abord).
+        voters = [p["id"] for p in g["players"] if str(i) in S["guesses"].get(p["id"], {})]
+        picked = {x: S["guesses"][x][str(i)] for x in voters}
+        found = [x for x in voters if picked[x] == author]
         if open_:
-            S["scores"][author] = S["scores"].get(author, 0) + POINT_UNMASK
             for x in found:
                 S["scores"][x] = S["scores"].get(x, 0) + POINT_FOUND
+            votes = [{"voter": _frozen_name(g, x), "guess": _frozen_name(g, picked[x]), "right": picked[x] == author}
+                     for x in sorted(voters, key=lambda x: picked[x] != author)]
+        else:
+            votes = _tally([_frozen_name(g, picked[x]) for x in voters])
         rows.append({"text": slot["text"], "hidden": False, "open": open_,
-                     "author": _name(g, author) if open_ else None,
-                     "found": [_name(g, x) for x in found] if open_ else None,
-                     "_author": author, "_found": found})
+                     "author": _frozen_name(g, author) if open_ else None,
+                     "found": [_frozen_name(g, x) for x in found] if open_ else None,
+                     "votes": votes, "_author": author, "_found": found})
     S["result"] = rows
     S["history"].append({"q": S["q"]["text"], "rows": rows})
     g["phase"] = "reveal"
@@ -266,22 +303,21 @@ def leave(g: dict, gid: str, rng=random):
         if len(S["answers"]) >= MIN_PLAYERS and all(p["id"] in S["answers"] for p in g["players"]):
             show(g, rng)
     elif g["phase"] == "guess":
-        # Sa réponse reste en jeu, masquée (la retirer à son départ dirait à tous qu'elle était la sienne).
-        S["unmask"].pop(gid, None)
+        # Sa réponse reste en jeu (la retirer à son départ dirait à tous qu'elle était la sienne) ; elle suit le
+        # masque de la table, choisi par l'organisateur avant la partie.
         if _everyone_sent(g):
             reveal(g)
 
 
 def summary(g: dict) -> dict:
+    """Bilan : classement et prix, masques levés seulement (masques gardés : ni points ni prix, rien ne se confirme)."""
     S = state(g)
     found: dict[str, int] = {}
-    opened: dict[str, int] = {}
     guessed_about: dict[str, list[int]] = {}
     for h in S["history"]:
         for r in h["rows"]:
             if r.get("hidden") or not r.get("open"):
                 continue
-            opened[r["_author"]] = opened.get(r["_author"], 0) + 1
             guessed_about.setdefault(r["_author"], []).append(len(r["_found"]))
             for x in r["_found"]:
                 found[x] = found.get(x, 0) + 1
@@ -297,7 +333,7 @@ def summary(g: dict) -> dict:
         least = None  # tout le monde à égalité : ce n'est un prix pour personne
     ranking = sorted(({"name": p["name"], "pid": p["pid"], "score": S["scores"].get(p["id"], 0)} for p in g["players"]),
                      key=lambda x: -x["score"])
-    return {"ranking": ranking, "sharp": best(found), "open": best(opened),
+    return {"ranking": ranking, "sharp": best(found),
             "mystery": [_name(g, a) for a, v in mystery.items() if v == least] if least is not None else [],
             "questions": len(S["history"])}
 
@@ -314,7 +350,8 @@ def view(g: dict, gid: str, lead: bool) -> dict:
     out = {"cats": S["cats"], "levels": S["levels"], "count": S["count"], "n": S["n"], "playing": bool(me),
            "cat_list": [{"id": k, "label": v, "size": sum(1 for c in MASQUE_CARDS if c[0] == k)} for k, v in CATS.items()],
            "level_list": [{"id": k, "label": v} for k, v in LEVELS.items()], "counts": list(COUNTS),
-           "min_players": MIN_PLAYERS, "max_answer": MAX_ANSWER,
+           "min_players": MIN_PLAYERS, "max_answer": MAX_ANSWER, "mask": S["mask"],
+           "mask_list": [{"id": k, "label": v} for k, v in MASKS.items()],
            "q": q and {**q, "cat_label": CATS[q["cat"]], "level_label": LEVELS[q["level"]]},
            "scores": [{"pid": p["pid"], "name": p["name"], "score": S["scores"].get(p["id"], 0)} for p in g["players"]]}
     if g["phase"] == "write":
@@ -323,12 +360,12 @@ def view(g: dict, gid: str, lead: bool) -> dict:
         out["can_show"] = lead and len(S["answers"]) >= MIN_PLAYERS
     if g["phase"] == "guess":
         mine = _mine(S, gid)
-        # Les réponses sans leur auteur : chacun ne connaît que la sienne (il l'a écrite).
-        out["slots"] = [{"i": i, "text": None if i in S["hidden"] else s["text"], "hidden": i in S["hidden"], "mine": i == mine}
-                        for i, s in enumerate(S["slots"])]
+        # Les réponses sans leur auteur, et sans la sienne : rien sur l'écran ne la désigne à un voisin (avis du 04.11).
+        # Tout joueur voit donc la même chose : les réponses des autres, autant de cartes que de prénoms à placer.
+        out["slots"] = [{"i": i, "text": None if i in S["hidden"] else s["text"], "hidden": i in S["hidden"]}
+                        for i, s in enumerate(S["slots"]) if i != mine]
         out["authors"] = [{"pid": a["pid"], "name": a["name"]} for a in S.get("authors") or [] if a["gid"] != gid]
         out["sent"] = bool(S["sent"].get(gid))
-        out["has_answer"] = mine is not None and mine not in S["hidden"]  # réponse retirée : plus de masque à choisir
         expected = set(S.get("guessers") or [])
         out["progress"] = [{"pid": p["pid"], "name": p["name"], "done": bool(S["sent"].get(p["id"]))} for p in g["players"]
                            if not expected or p["id"] in expected]
@@ -336,10 +373,12 @@ def view(g: dict, gid: str, lead: bool) -> dict:
         out["can_reveal"] = lead and any(S["sent"].values())
     if g["phase"] == "reveal":
         out["result"] = _public(S["result"])
-        # Ses devinettes justes, sur les masques levés seulement : un masque gardé ne confirme rien, même à qui a vu juste.
-        mine = S["guesses"].get(gid, {})
-        out["my_hits"] = [i for i, s in enumerate(S["slots"]) if mine.get(str(i)) == s["gid"] and i not in S["hidden"]
-                          and S["unmask"].get(s["gid"])]
+        # Ses devinettes, juste ou faux, sur chaque réponse (masques levés seulement : un masque gardé ne confirme rien,
+        # pas même à qui a vu juste ou faux, sinon on trouverait l'auteur par élimination).
+        picks = S["guesses"].get(gid, {})
+        out["my_marks"] = [None if r.get("hidden") or not r.get("open") or str(i) not in picks
+                           else "right" if picks[str(i)] == r["_author"] else "wrong"
+                           for i, r in enumerate(S["result"] or [])]
     if g["phase"] == "end":
         out["summary"] = summary(g)
         out["history"] = [{"q": h["q"], "rows": _public(h["rows"])} for h in S["history"]]
@@ -354,6 +393,6 @@ def summary_facts(g: dict) -> list[str]:
     facts = [f"{s['questions']} question(s) posée(s)"]
     if s["sharp"]:
         facts.append("Le plus perspicace : " + ", ".join(s["sharp"]))
-    if s["open"]:
-        facts.append("Livre ouvert : " + ", ".join(s["open"]))
+    if s["mystery"]:
+        facts.append("Le plus mystérieux : " + ", ".join(s["mystery"]))
     return facts

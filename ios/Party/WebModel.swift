@@ -129,6 +129,12 @@ final class WebModel: ObservableObject {
             selectTab("account")
             return
         }
+        // Lien d'invitation dans Party (/events/join/<lien>) : la feuille native « X t'invite sur Party » (Réglages).
+        if AppConfig.isInternal(url), let invite = Self.appInviteLink(in: url) {
+            settings?.friends.received(invite)
+            selectTab("account")
+            return
+        }
         let target = AppConfig.isInternal(url) ? url : start
         // Notification de discussion (?tab=chats&chat=<groupe>) : l'écran natif ouvre la conversation.
         chats?.requested = Self.chatRequested(in: target) ?? chats?.requested
@@ -162,6 +168,14 @@ final class WebModel: ObservableObject {
         guard parts.count == 3, ["pot", "tricount"].contains(parts[1]),
               parts[2].range(of: "^[0-9a-fA-F-]{36}$", options: .regularExpression) != nil else { return nil }
         return parts[2].lowercased()
+    }
+
+    nonisolated static func appInviteLink(in url: URL) -> String? {
+        let parts = url.pathComponents
+        guard parts.count == 4, parts[1] == "events", parts[2] == "join",
+              parts[3].range(of: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", options: .regularExpression) != nil
+        else { return nil }
+        return parts[3].lowercased()
     }
 
     nonisolated static func chatRequested(in url: URL) -> String? {
@@ -250,6 +264,28 @@ final class WebModel: ObservableObject {
         guard id.range(of: "^[0-9a-fA-F-]{36}$", options: .regularExpression) != nil else { return }
         selectTab("events")
         webView?.evaluateJavaScript("window.PartyEvents && PartyEvents.open('/events/event/\(id)')")
+    }
+
+    /// Messages directs : Discussions présentes et ouvertes (pas « Bientôt », réservé aux bêta-testeurs en production).
+    var canWriteDirect: Bool {
+        chats != nil && tabs?.tabs.contains { $0.id == "chats" && !$0.soon } == true
+    }
+
+    /// « Écrire » : LA conversation privée avec ce membre (créée au besoin), ouverte dans l'onglet Discussions.
+    /// Le numéro de la personne dans mes contacts (empreinte) prouve qu'on se connaît, sans groupe ni événement commun.
+    func writeDirect(to user: String) async -> Bool {
+        guard let chats, await chats.write(to: user, contactHash: ContactNames.shared.contactHash(for: user)) else { return false }
+        selectTab("chats")
+        return true
+    }
+
+    /// Lien interne « ?tab=chats&chat=<id> » suivi dans la page déjà chargée (fiche d'un joueur › Écrire, toucher
+    /// d'une notification) : l'écran natif ouvre la conversation, la page ne se recharge pas.
+    func openNativeChat(_ url: URL) -> Bool {
+        guard tabs != nil, let chats, let chat = Self.chatRequested(in: url) else { return false }
+        chats.requested = chat
+        selectTab("chats")
+        return true
     }
 
     /// Toucher d'un onglet natif : la page l'applique comme un toucher dans sa propre barre.

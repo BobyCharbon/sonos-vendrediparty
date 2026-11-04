@@ -8,12 +8,14 @@ import { PendingPayments } from '@/components/PendingPayments';
 import { TicketCard } from '@/components/TicketCard';
 import { CalendarButton } from '@/components/CalendarButton';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
+import { LinkedText } from '@/components/LinkedText';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
 import { Badge, Button, Card, Cascade, ConfirmButton, ErrorText, HeaderAction, HeaderBack, Screen, s, Section, Skeleton, T, Title, Toast } from '@/components/ui';
 import { fetchAttendance, localAttendance } from '@/lib/attendance';
 import { useAuth, useMe } from '@/lib/auth';
 import { personLabel, useContactNames, withContactNames } from '@/lib/contactNames';
 import { useQuery, useRealtime } from '@/lib/data';
+import { safeHref } from '@/lib/links';
 import { formatLongDay, formatMessageTime, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
 import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
@@ -31,7 +33,7 @@ type Full = EventRow & {
   date_options: (DateOption & { date_votes: DateVoteRow[] })[];
   polls: (Poll & { poll_options: PollOption[] })[];
   bring_items: BringItem[];
-  event_groups: { member_groups: { name: string } | null }[];
+  event_groups: { group_id: string }[];
 };
 
 /** Lien à partager : ouvre Party sur cet événement (page publique pour qui n'est pas membre). */
@@ -59,11 +61,11 @@ export default function EventScreen() {
   const [shareNote, setShareNote] = useState('');
 
   const { data: loaded, reload, error: loadError } = useQuery(async () => {
-    const [ev, members, results, myVotes, allVotes, messages, mute, links, attendance] = await Promise.all([
+    const [ev, members, results, myVotes, allVotes, messages, mute, links, attendance, groupNames] = await Promise.all([
       supabase
         .from('events')
         .select(
-          '*, category:categories(*), author:profiles!events_created_by_fkey(id, display_name), event_tags(tags(*)), event_organizers(user_id), rsvps(*), date_options(*, date_votes(*)), polls(*, poll_options(*)), bring_items(*, bring_claims(user_id, quantity)), event_groups(member_groups(name))',
+          '*, category:categories(*), author:profiles!events_created_by_fkey(id, display_name), event_tags(tags(*)), event_organizers(user_id), rsvps(*), date_options(*, date_votes(*)), polls(*, poll_options(*)), bring_items(*, bring_claims(user_id, quantity)), event_groups(group_id)',
         )
         .eq('id', id)
         .single(),
@@ -77,6 +79,8 @@ export default function EventScreen() {
       supabase.from('event_invites').select('user_id').eq('event_id', id).eq('via_link', true),
       // Pastille des présents : totaux exacts même si la liste des participants est cachée.
       fetchAttendance([id]),
+      // Noms des groupes invités : lisibles par qui voit l'événement, même sans faire partie du groupe.
+      supabase.rpc('event_group_names', { e: id }),
     ]);
     return {
       event: must(ev) as unknown as Full,
@@ -88,6 +92,7 @@ export default function EventScreen() {
       muted: must(mute).length > 0,
       viaLink: new Set(((links.data ?? []) as { user_id: string }[]).map((l) => l.user_id)),
       attendance: attendance.get(id) ?? null,
+      groupNames: ((groupNames.data ?? []) as string[]).join(', '),
       loadedAt: Date.now(),
     };
   }, [id, me.id]);
@@ -145,7 +150,8 @@ export default function EventScreen() {
   const people = data.attendance ?? localAttendance(ev.rsvps, data.names);
   const heads = people.going;
   const past = !!ev.starts_at && new Date(ev.ends_at ?? ev.starts_at).getTime() < data.loadedAt - 6 * 3600_000;
-  const mapsUrl = ev.location_url ?? (ev.location_address || ev.location_name ? `https://maps.apple.com/?q=${encodeURIComponent(ev.location_address ?? ev.location_name!)}` : null);
+  // Lien du lieu saisi librement : seulement http(s) (jamais javascript:/data:), sinon la recherche Plans.
+  const mapsUrl = safeHref(ev.location_url) ?? (ev.location_address || ev.location_name ? `https://maps.apple.com/?q=${encodeURIComponent(ev.location_address ?? ev.location_name!)}` : null);
   const mine = ev.rsvps.find((r) => r.user_id === me.id);
   const showCalendar = published && ev.date_mode === 'fixed' && !!ev.starts_at && mine?.status !== 'no';
 
@@ -198,10 +204,10 @@ export default function EventScreen() {
         </View>
         {ev.visibility === 'invited' ? (
           <T muted size={13}>
-            🔒 Sur invitation{ev.event_groups.length ? ` · ${ev.event_groups.map((g) => g.member_groups?.name).filter(Boolean).join(', ')}` : ''}
+            🔒 Sur invitation{data?.groupNames ? ` · ${data.groupNames}` : ''}
           </T>
         ) : !ev.public_link ? (
-          <T muted size={13}>👥 Groupe Vendredi Party{ev.event_groups?.length ? ` + ${ev.event_groups.map((g) => g.member_groups?.name).filter(Boolean).join(', ')}` : ''}</T>
+          <T muted size={13}>👥 Groupe Vendredi Party{data?.groupNames ? ` + ${data.groupNames}` : ''}</T>
         ) : null}
         {ev.public_link && published ? (
           <View style={s.row}>
@@ -277,7 +283,7 @@ export default function EventScreen() {
 
       {ev.description ? (
         <Section title="À propos">
-          <T color={colors.textSoft} style={{ lineHeight: 22 }}>{ev.description}</T>
+          <LinkedText text={ev.description} color={colors.textSoft} style={{ lineHeight: 22 }} />
         </Section>
       ) : null}
 
@@ -288,7 +294,7 @@ export default function EventScreen() {
               <T muted size={14}>{r.k}</T>
               <View style={{ flexShrink: 1, alignItems: 'flex-end' }}>
                 <T weight="semibold" style={{ textAlign: 'right' }}>{r.v}</T>
-                {r.sub ? <T muted size={13} style={{ textAlign: 'right' }}>{r.sub}</T> : null}
+                {r.sub ? <LinkedText text={r.sub} muted size={13} style={{ textAlign: 'right' }} /> : null}
               </View>
             </View>
           ))}

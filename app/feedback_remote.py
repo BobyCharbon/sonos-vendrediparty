@@ -15,12 +15,22 @@ SYNC_HEADER = "X-Feedback-Sync"
 READ_TTL = 3  # s : la pastille de l'admin relit souvent ; une liste de 3 s suffit
 # Opérations que la production accepte (lecture et écriture des avis, rien d'autre).
 OPS = ("add", "mine", "mark_seen", "all", "count_new", "get", "set_note", "set_priority", "mark_sent", "set_claude_state",
-       "update", "absorb")
+       "update", "absorb", "set_fields", "create_admin", "comment")
+# Ce qu'une production d'avant le classement (statuts « à mûrir », zone, fil…) sait déjà faire avec « update ».
+LEGACY_ACTIONS = ("new", "progress", "verify", "done", "declined", "delete")
+WRITES = ("add", "update", "set_priority", "set_claude_state", "mark_sent", "absorb", "set_fields", "create_admin", "comment",
+          "set_note")
 UNAVAILABLE = "Les avis sont momentanément indisponibles. Réessaie dans un instant."
+OUTDATED = ("La production n'a pas encore cette nouveauté des avis (classement, fil de discussion) : "
+            "réessaie quand elle aura été mise à jour.")
 
 
 class FeedbackUnavailable(RuntimeError):
     """La production ne répond pas : l'avis n'est ni perdu ni enregistré, on le dit à la personne."""
+
+
+class FeedbackOutdated(FeedbackUnavailable):
+    """La production, plus ancienne que le site de test, ne connaît pas encore cette opération : refus net, rien d'écrit."""
 
 
 class FeedbackRemote:
@@ -36,6 +46,11 @@ class FeedbackRemote:
             r = self.client.post(self.url + SYNC_PATH, json={"op": op, "args": args}, headers={SYNC_HEADER: self.secret})
         except httpx.HTTPError as e:
             raise FeedbackUnavailable(UNAVAILABLE) from e
+        if r.status_code == 400:
+            detail = (r.json() if r.headers.get("content-type", "").startswith("application/json") else {}).get("detail", "")
+            if detail == "Opération inconnue":
+                raise FeedbackOutdated(OUTDATED)
+            raise ValueError(detail or "Paramètres invalides")  # message de validation de la production
         if r.status_code != 200:
             raise FeedbackUnavailable(UNAVAILABLE)
         return r.json().get("result")
@@ -93,7 +108,22 @@ class FeedbackRemote:
         return self._write("set_claude_state", fid=fid, state=state, error=error, sha=sha, migrations=migrations)
 
     def update(self, ids: list[str], action: str, reply: str = "") -> list[dict]:
-        return self._write("update", ids=ids, action=action, reply=reply)
+        if action in LEGACY_ACTIONS:
+            return self._write("update", ids=ids, action=action, reply=reply)
+        # Nouveaux statuts : par set_fields, qu'une ancienne production refuse (elle aurait enregistré
+        # un statut qu'elle ne sait pas afficher).
+        return self.set_fields(ids, {"status": action, **({"reply": reply} if reply.strip() else {})})
+
+    def set_fields(self, ids: list[str], fields: dict, by: str = "admin") -> list[dict]:
+        return self._write("set_fields", ids=ids, fields=fields, by=by)
+
+    def create_admin(self, guest_id: str, name: str, kind: str, text: str, context: dict, fields: dict,
+                     by: str = "admin") -> dict:
+        return self._write("create_admin", guest_id=guest_id, name=name, kind=kind, text=text, context=context,
+                           fields=fields, by=by)
+
+    def comment(self, fid: str, author: str, text: str, status: str = "") -> dict | None:
+        return self._write("comment", fid=fid, author=author, text=text, status=status)
 
     def absorb(self, items: list[dict]) -> int:
         """Verse dans la liste commune des avis gardés jusqu'ici en local (une seule fois, sans doublon)."""

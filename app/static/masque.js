@@ -1,25 +1,25 @@
 // 🎭 Le Masque : tout le monde répond en secret à la même question, les réponses s'affichent sans prénom, chacun devine
-// qui a écrit quoi, puis chaque auteur choisit de lever son masque (et de raconter) ou de le garder.
+// qui a écrit quoi. L'organisateur choisit avant la partie, pour toute la table : masques levés (les auteurs et qui a
+// voté quoi se dévoilent) ou masques gardés (personne ne saura qui a écrit quoi).
 // Chargé après games.js (utilise gameAction, pressed, esc, toast, haptic, GameFx…).
 GAME_THEME.masque = "g-ms";
 GAME_RULES.masque = `
   <h3>Le principe</h3>
   <p>Une question profonde s'affiche. Chacun écrit <b>en secret</b> sa réponse sur son téléphone, en une phrase. Sois sincère : c'est tout le jeu.</p>
   <h3>Qui a écrit quoi ?</h3>
-  <p>Quand tout le monde a écrit, les réponses apparaissent <b>mélangées, sans prénom</b>. Touche un prénom sous chaque réponse pour deviner son auteur. Tu peux en laisser sans réponse.</p>
-  <h3>Lever le masque</h3>
-  <p>Pour ta propre réponse, tu choisis en secret : <b>🙋 lever le masque</b> (tout le monde saura que c'est toi, et tu peux raconter l'histoire derrière) ou <b>🎭 rester masqué</b> : l'app ne dira jamais que c'est toi, même pas à ceux qui avaient deviné. (Si tous les autres lèvent leur masque, le groupe pourra le deviner par élimination.)</p>
+  <p>Quand tout le monde a écrit, les réponses des autres apparaissent <b>mélangées, sans prénom</b> (la tienne n'est pas dans ta liste : ton voisin ne peut pas la repérer). Touche un prénom sous chaque réponse pour deviner son auteur. Tu peux en laisser sans réponse.</p>
+  <h3>Masques levés ou gardés</h3>
+  <p>L'organisateur choisit avant la partie, pour toute la table. <b>🙋 Masques levés</b> : à la révélation, on voit qui a écrit chaque réponse et qui a voté pour qui, en vert si c'était juste, en rouge sinon. <b>🎭 Masques gardés</b> : l'app ne dira jamais qui a écrit quoi ; on voit seulement à qui le groupe a pensé.</p>
   <h3>Les points</h3>
-  <p>1 point par auteur trouvé (sur les masques levés) et 1 point pour avoir levé le tien. Une réponse drôle ne rapporte rien : on joue la sincérité.</p>
+  <p>Masques levés : 1 point par auteur trouvé. Une réponse drôle ne rapporte rien : on joue la sincérité. Masques gardés : pas de points, on parle.</p>
   <h3>Bienveillance</h3>
-  <p>Tu peux toujours rester masqué. L'animateur peut retirer une réponse déplacée : elle sort du jeu sans que personne sache qui l'a écrite.</p>
+  <p>L'animateur peut retirer une réponse déplacée : elle sort du jeu sans que personne sache qui l'a écrite.</p>
   <h3>Les questions</h3>
   <p>Six catégories (souvenirs, toi en vrai, liens, valeurs, rêves et peurs, et si…) et trois niveaux : 🌤 léger, 🌊 profond et 🕯 intime, à cocher par l'animateur.</p>`;
 
 
 let msDraft = "";      // réponse en cours d'écriture (gardée si la feuille se ferme)
 let msPicks = {};      // devinettes en cours : numéro de réponse → pid
-let msUnmask = null;   // lever (true) ou garder (false) son masque ; null : pas encore choisi
 let msRoundKey = "";   // tout repart de zéro à chaque question
 
 const msKey = (g, part) => `ms:${g.id}:${g.round}:${part}`;
@@ -27,15 +27,15 @@ const msKey = (g, part) => `ms:${g.id}:${g.round}:${part}`;
 function msSyncRound(g) {
   const key = `${g.id}:${g.round}`;
   if (key === msRoundKey) return;
-  msRoundKey = key; msPicks = {}; msUnmask = null; msDraft = "";
+  msRoundKey = key; msPicks = {}; msDraft = "";
   try {  // page rechargée en pleine devinette : les prénoms déjà choisis reviennent
     const saved = JSON.parse(sessionStorage.getItem("vp_masque") || "null");
-    if (saved?.key === key) { msPicks = saved.picks || {}; msUnmask = saved.unmask ?? null; }
+    if (saved?.key === key) msPicks = saved.picks || {};
   } catch { /* stockage indisponible : on repart de zéro */ }
 }
 
 function msSave() {
-  try { sessionStorage.setItem("vp_masque", JSON.stringify({ key: msRoundKey, picks: msPicks, unmask: msUnmask })); } catch { /* rien */ }
+  try { sessionStorage.setItem("vp_masque", JSON.stringify({ key: msRoundKey, picks: msPicks })); } catch { /* rien */ }
 }
 
 function msHero(sub) {
@@ -59,11 +59,22 @@ function msSettingsHtml(g) {
   const cats = v.cat_list.map((c) => msChip(v.cats.includes(c.id), `data-ms-cat="${c.id}"`, `${esc(c.label)} <small>${c.size}</small>`)).join("");
   const levels = v.level_list.map((l) => msChip(v.levels.includes(l.id), `data-ms-level="${l.id}"`, esc(l.label))).join("");
   const counts = v.counts.map((n) => msChip(v.count === n, `data-ms-count="${n}"`, String(n))).join("");
+  const masks = v.mask_list.map((m) => msChip(v.mask === m.id, `data-ms-mask="${m.id}"`, esc(m.label))).join("");
   return `<div class="lk-setup ms-setup">
+    <div class="g-label">Les masques, pour toute la table</div><div class="lk-chips">${masks}</div>
+    <p class="artist ms-mask-help">${msMaskHelp(v)}</p>
     <div class="g-label">Catégories</div><div class="lk-chips">${cats}</div>
     <div class="g-label">Profondeur</div><div class="lk-chips">${levels}</div>
     <div class="g-label">Nombre de questions</div><div class="lk-chips">${counts}</div>
   </div>`;
+}
+
+const msOpen = (v) => v.mask !== "closed";
+
+function msMaskHelp(v) {
+  return msOpen(v)
+    ? "À la révélation : qui a écrit chaque réponse, et qui a voté pour qui."
+    : "Personne ne saura jamais qui a écrit quoi : on voit seulement à qui on a pensé.";
 }
 
 function msLobbyHtml(g) {
@@ -71,6 +82,7 @@ function msLobbyHtml(g) {
   if (!g.is_host) {
     return `${msHero("Réponds en secret, devine qui a écrit quoi.")}<div class="lk-card"><div class="title">${g.me ? "Tu es inscrit ✓" : `Partie de ${esc(g.host_name || "quelqu'un")}`}</div>
       <p class="artist">${esc(g.host_name || "L'animateur")} va poser la première question : tu répondras en secret sur ton téléphone.</p>
+      <div class="ms-mode">${esc(v.mask_list.find((m) => m.id === v.mask)?.label || "")}<span>${msMaskHelp(v)}</span></div>
       ${g.me ? "" : `<button class="lk-main" data-gact="join">Je joue aussi</button>`}</div>`;
   }
   return `${msHero("Réponds en secret, devine qui a écrit quoi.")}${msSettingsHtml(g)}
@@ -95,11 +107,11 @@ function msWriteHtml(g) {
 }
 
 function msKill(g, s) {
-  return g.is_host && !s.mine ? `<button type="button" class="ms-kill" data-ms-hide="${s.i}" aria-label="Retirer cette réponse">🚫</button>` : "";
+  return g.is_host ? `<button type="button" class="ms-kill" data-ms-hide="${s.i}" aria-label="Retirer cette réponse">🚫</button>` : "";
 }
 
 function msSlotsReadonly(g) {
-  return `<div class="ms-slots">${g.masque.slots.map((s) => s.hidden ? "" : `<div class="ms-slot ${s.mine ? "mine" : ""}">${msKill(g, s)}
+  return `<div class="ms-slots">${g.masque.slots.map((s) => s.hidden ? "" : `<div class="ms-slot">${msKill(g, s)}
       <div class="ms-slot-t">« ${esc(s.text)} »</div></div>`).join("")}</div>`;
 }
 
@@ -115,41 +127,53 @@ function msGuessHtml(g) {
   const used = new Set(Object.values(msPicks));
   const slots = v.slots.map((s) => {
     if (s.hidden) return `<div class="ms-slot off"><div class="ms-slot-t">🚫 Réponse retirée par l'animateur</div></div>`;
-    if (s.mine) return `<div class="ms-slot mine"><div class="ms-slot-k">✍️ Ta réponse</div><div class="ms-slot-t">« ${esc(s.text)} »</div></div>`;
     const names = v.authors.map((a) => {
       const on = msPicks[s.i] === a.pid;
       return `<button type="button" class="ms-name ${on ? "on" : used.has(a.pid) ? "used" : ""}" data-ms-slot="${s.i}" data-ms-pid="${esc(a.pid)}" aria-pressed="${on}" aria-label="${esc(a.name)} a écrit « ${esc(s.text)} »${used.has(a.pid) && !on ? " (déjà choisi pour une autre réponse)" : ""}">${esc(a.name)}</button>`;
     }).join("");
     return `<div class="ms-slot ${msPicks[s.i] ? "picked" : ""}"${GameFx.fx("rise", msKey(g, `slot${s.i}`), 80 * s.i)}>${msKill(g, s)}<div class="ms-slot-t">« ${esc(s.text)} »</div><div class="ms-names">${names}</div></div>`;
   }).join("");
-  const mask = v.has_answer ? `<div class="ms-mask"><div class="g-label">Ta réponse, à la révélation…</div><div class="lk-chips">
-      ${msChip(msUnmask === true, `data-ms-unmask="1"`, "🙋 Je lève le masque")}${msChip(msUnmask === false, `data-ms-unmask="0"`, "🎭 Je reste masqué")}</div></div>` : "";
-  const ready = !v.has_answer || msUnmask !== null;
   const picked = Object.keys(msPicks).length;
   const late = v.late ? `<p class="artist ms-help">Tu es arrivé pendant cette question : devine si tu veux, la révélation ne t'attend pas.</p>` : "";
-  return `${msQuestion(g, true)}${late}${mask}<p class="artist ms-help">Touche le prénom de l'auteur sous chaque réponse. Un prénom ne va qu'avec une réponse.</p>
+  return `${msQuestion(g, true)}${late}<p class="artist ms-help">Touche le prénom de l'auteur sous chaque réponse. Un prénom ne va qu'avec une réponse.</p>
     <div class="ms-slots">${slots}</div>
-    <button class="lk-main" data-ms-send ${ready ? "" : "disabled"}>📨 Envoyer mes choix${picked ? ` (${picked} deviné${picked > 1 ? "s" : ""})` : ""}</button>
-    ${ready ? "" : `<p class="artist ms-help">Choisis d'abord : lever ou garder ton masque.</p>`}
+    <button class="lk-main" data-ms-send>📨 Envoyer mes choix${picked ? ` (${picked} deviné${picked > 1 ? "s" : ""})` : ""}</button>
+    <p class="artist ms-help">${msOpen(v) ? "🙋 Masques levés : les auteurs se dévoilent à la révélation." : "🎭 Masques gardés : personne ne saura qui a écrit quoi."}</p>
     ${g.is_host && v.can_reveal ? `<button class="lk-sub" data-gact="msreveal" style="width:100%;margin-top:8px">👁 Révéler sans attendre</button>` : ""}`;
 }
 
+// Qui a voté pour qui. Masques levés : chaque votant, en vert s'il a vu juste, en rouge sinon (« pensait Bob »).
+// Masques gardés : seulement à qui on a pensé, en nombre (le prénom des votants trahirait l'auteur, seul absent).
+function msVotes(r) {
+  const votes = r.votes || [];
+  if (!votes.length) return `<div class="ms-votes none">Personne n'a voté pour cette réponse</div>`;
+  if (!r.open) {
+    return `<div class="ms-votes"><span class="ms-votes-k">On a pensé à</span>${votes.map((x) =>
+      `<span class="ms-vote">${esc(x.guess)}${x.n > 1 ? ` <b>×${x.n}</b>` : ""}</span>`).join("")}</div>`;
+  }
+  return `<div class="ms-votes">${votes.map((x) => x.right
+    ? `<span class="ms-vote right" title="${esc(x.voter)} a trouvé">✓ ${esc(x.voter)}</span>`
+    : `<span class="ms-vote wrong" title="${esc(x.voter)} s'est trompé">✗ ${esc(x.voter)} <small>pensait ${esc(x.guess)}</small></span>`).join("")}</div>`;
+}
+
 function msRevealHtml(g) {
-  const v = g.masque;
+  const v = g.masque, open = msOpen(v);
   const rows = v.result.map((r, i) => {
     if (r.hidden) return `<div class="ms-slot off"><div class="ms-slot-t">🚫 Réponse retirée</div></div>`;
-    const hit = v.my_hits.includes(i) ? ` <span class="ms-hit">✓ Tu l'avais trouvé</span>` : "";
+    const mark = (v.my_marks || [])[i];  // ma devinette sur cette réponse : juste, fausse, ou aucune
+    const badge = mark === "right" ? `<span class="ms-mark right" role="img" aria-label="Tu as trouvé">✓</span>`
+      : mark === "wrong" ? `<span class="ms-mark wrong" role="img" aria-label="Tu t'es trompé">✗</span>` : "";
     const who = r.open
-      ? `<div class="ms-who"${GameFx.fx("pop", msKey(g, `who${i}`), 400 + 260 * i)}>🙋 <b>${esc(r.author)}</b> lève le masque${hit}</div>
-         <div class="artist">${r.found.length ? `Trouvé par ${r.found.map(esc).join(", ")}` : "Personne ne l'avait trouvé"}</div>`
-      : `<div class="ms-who masked"${GameFx.fx("pop", msKey(g, `who${i}`), 400 + 260 * i)}>🎭 Reste masqué</div>`;
-    return `<div class="ms-slot ${r.open ? "open" : "masked"}"${GameFx.fx("rise", msKey(g, `rev${i}`), 120 * i)}><div class="ms-slot-t">« ${esc(r.text)} »</div>${who}</div>`;
+      ? `<div class="ms-author"${GameFx.fx("pop", msKey(g, `who${i}`), 400 + 260 * i)}>C'était <b>${esc(r.author)}</b></div>`
+      : `<div class="ms-author masked"${GameFx.fx("pop", msKey(g, `who${i}`), 400 + 260 * i)}>🎭 Masque gardé</div>`;
+    return `<div class="ms-slot ms-res ${mark || ""} ${r.open ? "" : "masked"}"${GameFx.fx("rise", msKey(g, `rev${i}`), 120 * i)}>${badge}
+      ${who}<div class="ms-slot-t">« ${esc(r.text)} »</div>${msVotes(r)}</div>`;
   }).join("");
   const last = v.n >= v.count;
   const scores = [...v.scores].sort((a, b) => b.score - a.score).map((s) => `<span class="ps-who ${s.score ? "on" : ""}">${esc(s.name)} · ${s.score}</span>`).join("");
   return `${msQuestion(g, true)}<div class="ms-slots">${rows}</div>
-    <p class="db-talk">💬 Ceux qui ont levé le masque racontent l'histoire derrière leur réponse.</p>
-    <div class="lk-card"><div class="title">Points</div><div class="ps-people">${scores}</div></div>
+    <p class="db-talk">${open ? "💬 Chacun raconte l'histoire derrière sa réponse." : "💬 Qui veut raconte… sans jamais rien avouer."}</p>
+    ${open ? `<div class="lk-card"><div class="title">Points</div><div class="ps-people">${scores}</div></div>` : ""}
     ${g.is_host ? `<button class="lk-main" data-gact="next">${last ? "📊 Voir le bilan" : "▶︎ Question suivante"}</button>` : ""}`;
 }
 
@@ -172,9 +196,8 @@ function msEndHtml(g) {
   const recap = (v.history || []).map((h) => `<li>${esc(h.q)}<ul>${h.rows.filter((r) => !r.hidden).map((r) => `<li>« ${esc(r.text)} » <span>${r.open ? `— ${esc(r.author)}` : "— 🎭"}</span></li>`).join("")}</ul></li>`).join("");
   return `<div class="lk-end-k">Bilan · ${s.questions || 0} question${s.questions > 1 ? "s" : ""}</div>
     ${msAward("🔎", "Le plus perspicace", s.sharp, "A trouvé le plus d'auteurs", `ms:${g.id}:end:sharp`)}
-    ${msAward("📖", "Livre ouvert", s.open, "A levé son masque le plus souvent", `ms:${g.id}:end:open`)}
-    ${msAward("🎭", "Le plus mystérieux", s.mystery, "Masque levé, et pourtant si peu deviné", `ms:${g.id}:end:mys`)}
-    <div class="list">${ranking}</div>
+    ${msAward("🎭", "Le plus mystérieux", s.mystery, "Le moins deviné de la table", `ms:${g.id}:end:mys`)}
+    ${msOpen(v) ? `<div class="list">${ranking}</div>` : `<p class="artist ms-help">🎭 Masques gardés : aucun auteur dévoilé, aucun point.</p>`}
     <details class="lk-recap"><summary>Revoir les réponses</summary><ol>${recap}</ol></details>
     ${g.is_host ? `${msSettingsHtml(g)}<button class="lk-main" data-gact="restart">🔁 Rejouer avec les mêmes joueurs</button>` : ""}`;
 }
@@ -184,7 +207,7 @@ function masqueHtml(g) {
   msSyncRound(g);
   if (g.phase !== "write") msCloseSheet();  // les réponses sont apparues : la feuille d'écriture n'a plus lieu d'être
   if (g.phase === "guess" && g.masque.slots) {  // choix devenus impossibles (réponse retirée, prénom disparu) : oubliés
-    const ok = new Set(g.masque.slots.filter((s) => !s.hidden && !s.mine).map((s) => String(s.i)));
+    const ok = new Set(g.masque.slots.filter((s) => !s.hidden).map((s) => String(s.i)));
     const names = new Set((g.masque.authors || []).map((a) => a.pid));
     msPicks = Object.fromEntries(Object.entries(msPicks).filter(([s, p]) => ok.has(s) && names.has(p)));
   }
@@ -213,7 +236,7 @@ function msOpenSheet() {
       <p class="ms-sheet-q">${esc(v.q?.text || "")}</p>
       <textarea name="text" rows="3" maxlength="${v.max_answer}" required placeholder="En une phrase, sincèrement…" aria-label="Ta réponse"></textarea>
       <div class="ms-count" aria-live="polite"></div>
-      <p class="artist">Personne ne saura que c'est toi, sauf si tu lèves le masque.</p>
+      <p class="artist">${msOpen(v) ? "Personne ne le saura avant la révélation : les masques tombent à la fin de la question." : "Masques gardés : personne ne saura jamais que c'est toi."}</p>
       <div class="db-sheet-row"><button type="button" class="lk-sub" data-ms-cancel>Annuler</button><button type="submit" class="lk-main">Envoyer en secret</button></div>
     </form>`;
   const area = wrap.querySelector("textarea"), count = wrap.querySelector(".ms-count");
@@ -248,10 +271,8 @@ document.addEventListener("click", (ev) => {
     haptic(12);
     return renderGame(game);
   }
-  const mask = ev.target.closest("[data-ms-unmask]");
-  if (mask) { msUnmask = mask.dataset.msUnmask === "1"; msSave(); haptic(15); return renderGame(game); }
   const send = ev.target.closest("[data-ms-send]");
-  if (send) return pressed(send, gameAction("msguess", { settings: { picks: msPicks, unmask: !!msUnmask } }));
+  if (send) return pressed(send, gameAction("msguess", { settings: { picks: msPicks } }));
   const hide = ev.target.closest("[data-ms-hide]");
   if (hide) {
     if (!confirm("Retirer cette réponse ? Elle sort du jeu, sans que personne sache qui l'a écrite.")) return;
@@ -269,6 +290,8 @@ document.addEventListener("click", (ev) => {
     if (!levels.length) return toast("Garde au moins un niveau", "err");
     return pressed(level, gameAction("msset", { settings: { levels } }));
   }
+  const mask = ev.target.closest("[data-ms-mask]");
+  if (mask) return pressed(mask, gameAction("msset", { settings: { mask: mask.dataset.msMask } }));
   const count = ev.target.closest("[data-ms-count]");
   if (count) return pressed(count, gameAction("msset", { settings: { count: +count.dataset.msCount } }));
 });

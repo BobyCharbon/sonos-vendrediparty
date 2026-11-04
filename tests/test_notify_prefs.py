@@ -313,7 +313,9 @@ def test_every_notification_type_has_its_own_switch_through_party(monkeypatch):
     fake = FakeAccounts()
     monkeypatch.setattr(main, "accounts", fake)
     client = TestClient(main.app)
-    for key in ("announcements", "rsvp_set", "invites", "proposal_result", "link_join", "group_messages", "group_invites", "group_joins"):
+    for key in ("announcements", "rsvp_set", "invites", "proposal_result", "link_join", "group_messages", "group_invites", "group_joins",
+                "group_broadcasts", "ticket_pay_declared", "ticket_pay_confirmed", "referral_joins", "contact_joins", "direct_messages",
+                "pet_daily", "pet_alerts"):
         r = client.post("/api/account/notifications/update", json={"token": "ok", "patch": {key: False}})
         assert r.status_code == 200 and r.json()["prefs"][key] is False, key
         assert client.post("/api/account/notifications/update", json={"token": "ok", "patch": {key: "non"}}).status_code == 422

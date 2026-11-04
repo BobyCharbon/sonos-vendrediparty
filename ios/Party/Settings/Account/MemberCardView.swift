@@ -103,6 +103,12 @@ final class PrivacyStore: ObservableObject {
     }
 
     /// Méninges du membre face aux miens ; nil si on n'est pas connecté ou si la comparaison est indisponible.
+    /// Fiche › « Invité par » (lien Party, groupe, événement) : nil sans le droit « Voir qui a invité qui ».
+    func invitedBy(_ id: String) async -> [InvitedBy]? {
+        guard let token = await web?.accountToken() else { return nil }
+        return (try? await api.invitedBy(token: token, id: id)) ?? nil
+    }
+
     func brainCompare(_ id: String) async -> BrainCompare? {
         guard let token = await web?.accountToken() else { return nil }
         return try? await api.brainCompare(token: token, target: id)
@@ -128,10 +134,16 @@ struct MemberCardView: View {
     @State private var card: MemberCard?
     @State private var error: String?
     @State private var brain: BrainCompare?
+    /// « Invité par » : seulement avec le droit « Voir qui a invité qui » (admins) ; nil sinon.
+    @State private var invitedBy: [InvitedBy]?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @ObservedObject private var contacts = ContactNames.shared
     @State private var contactSheet: ContactSheetItem?
+    /// « Écrire » : message direct dans Discussions (nil : indisponible, bouton caché).
+    @Environment(\.writeDirect) private var writeDirect
+    @State private var writing = false
+    @State private var writeProblem: String?
 
     var body: some View {
         NavigationStack {
@@ -154,6 +166,25 @@ struct MemberCardView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                         .accessibilityElement(children: .combine)
+                        if !card.me, let writeDirect {
+                            Button {
+                                Haptics.tap()
+                                writing = true
+                                Task {
+                                    let opened = await writeDirect.open(card.id)
+                                    writing = false
+                                    if opened { dismiss() } else {
+                                        writeProblem = "Tu ne peux pas écrire à cette personne : il faut un groupe ou un événement en commun, ou son numéro dans tes contacts."
+                                    }
+                                }
+                            } label: {
+                                Label("Écrire", systemImage: "bubble.left.fill").frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(writing)
+                            .accessibilityIdentifier("member-write")
+                            if let writeProblem { Text(writeProblem).font(.footnote).foregroundStyle(.secondary) }
+                        }
                     }
                     .listRowBackground(Color.clear)
                     if let phone = card.dialable {
@@ -173,6 +204,9 @@ struct MemberCardView: View {
                         Section(card.me ? "Mes groupes" : "Groupes en commun") {
                             Text(card.groups.joined(separator: " · "))
                         }
+                    }
+                    if let invitedBy, !invitedBy.isEmpty {
+                        InvitedBySection(rows: invitedBy)
                     }
                     if let brain, !card.me, !brain.isSelf {
                         BrainCompareSection(compare: brain)
@@ -202,6 +236,7 @@ struct MemberCardView: View {
             .task {
                 do { card = try await store.card(memberID) } catch { self.error = error.localizedDescription }
                 if card?.me == false { brain = await store.brainCompare(memberID) }
+                if card?.me == false { invitedBy = await store.invitedBy(memberID) }
             }
         }
         .tint(Palette.accent)

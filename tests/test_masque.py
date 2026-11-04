@@ -1,5 +1,6 @@
-"""« Le Masque » : réponses écrites en secret, mélangées sans prénom, devinettes, masque levé ou gardé, points, retrait
-d'une réponse par l'animateur, départs en pleine partie, et actions vérifiées par le serveur."""
+"""« Le Masque » : réponses écrites en secret, mélangées sans prénom, devinettes, masque levé ou gardé (réglé une fois
+pour toute la table), votes dévoilés, points, retrait d'une réponse par l'animateur, départs en pleine partie, et
+actions vérifiées par le serveur."""
 import json
 import random
 
@@ -10,10 +11,12 @@ from app import games, main, masque
 from app.masque_cards import MASQUE_CARDS
 
 
-def table(n=4, seed=3):
+def table(n=4, seed=3, mask=None):
     g = games.new_game("masque", host="h", name="Léa")
     for i in range(1, n):
         games.join(g, f"p{i}", f"Ami{i}")
+    if mask:
+        masque.configure(g, {"mask": mask})
     games.start(g, random.Random(seed))
     return g
 
@@ -44,33 +47,83 @@ def test_a_question_is_dealt_and_answers_stay_secret_until_everyone_has_written(
     assert g["phase"] == "guess" and all(len(s["text"]) <= masque.MAX_ANSWER for s in g["masque"]["slots"])
 
 
-def test_guessing_shows_answers_without_authors_and_each_sees_only_their_own():
+def test_guessing_shows_the_others_answers_without_authors_and_never_points_at_ones_own():
     g = table()
     everyone_writes(g)
     v = games.view(g, "p1")["masque"]
     dumped = json.dumps(v)
     assert all(f'"{gid}"' not in dumped for gid in ("h", "p2", "p3"))  # aucun identifiant secret ne sort
-    assert [s["mine"] for s in v["slots"]].count(True) == 1
+    # Avis du 04.11 : sa propre réponse n'apparaît pas (ni entourée, ni marquée) : un voisin ne peut pas la repérer.
+    assert "La réponse de Ami1" not in dumped and "mine" not in dumped
+    assert len(v["slots"]) == 3 and slot_of(g, "p1") not in [s["i"] for s in v["slots"]]
     assert {a["name"] for a in v["authors"]} == {"Léa", "Ami2", "Ami3"}  # pas soi-même
+    # Tous les joueurs voient autant de réponses ; un spectateur (la télé) les voit toutes, sans auteur.
+    assert {len(games.view(g, p["id"])["masque"]["slots"]) for p in g["players"]} == {3}
+    tv = games.view(g, "")["masque"]
+    assert len(tv["slots"]) == 4 and all(set(s) == {"i", "text", "hidden"} for s in tv["slots"])
 
 
-def test_points_go_to_finders_of_unmasked_answers_and_masked_answers_keep_their_secret():
+def test_masks_up_reveal_every_author_who_voted_for_whom_and_points_go_to_finders():
     g = table()
     everyone_writes(g)
     lea, a1 = slot_of(g, "h"), slot_of(g, "p1")
-    # Léa lève le masque, Ami1 le garde ; Ami2 trouve les deux, Ami3 se trompe sur Léa.
-    masque.guess(g, "h", {}, unmask=True)
-    masque.guess(g, "p1", {}, unmask=False)
-    masque.guess(g, "p2", {str(lea): pid(g, "h"), str(a1): pid(g, "p1")}, unmask=False)
-    masque.guess(g, "p3", {str(lea): pid(g, "p2")}, unmask=False)
+    # Ami2 trouve Léa et Ami1, Ami3 se trompe sur Léa (il pensait Ami2) ; un ancien client envoie encore « unmask ».
+    masque.guess(g, "h", {}, unmask=False)
+    masque.guess(g, "p1", {})
+    masque.guess(g, "p2", {str(lea): pid(g, "h"), str(a1): pid(g, "p1")})
+    masque.guess(g, "p3", {str(lea): pid(g, "p2")})
     assert g["phase"] == "reveal"
     rows = g["masque"]["result"]
+    assert all(r["open"] for r in rows)  # le masque est celui de la table, pas un choix de chacun
     assert rows[lea]["author"] == "Léa" and rows[lea]["found"] == ["Ami2"]
-    assert rows[a1]["author"] is None and rows[a1]["found"] is None  # masque gardé : rien ne filtre
-    assert g["masque"]["scores"] == {"h": 1, "p2": 1}  # Léa : masque levé ; Ami2 : Léa trouvée (Ami1 masqué ne compte pas)
+    assert rows[lea]["votes"] == [{"voter": "Ami2", "guess": "Léa", "right": True},
+                                  {"voter": "Ami3", "guess": "Ami2", "right": False}]  # les justes d'abord
+    assert rows[a1]["author"] == "Ami1" and rows[a1]["votes"] == [{"voter": "Ami2", "guess": "Ami1", "right": True}]
+    assert rows[slot_of(g, "p2")]["votes"] == []
+    assert g["masque"]["scores"] == {"p2": 2}  # 1 par auteur trouvé, plus de point pour « lever son masque »
+    marks = games.view(g, "p3")["masque"]["my_marks"]
+    assert marks[lea] == "wrong" and marks.count(None) == 3  # rouge sur sa devinette fausse, rien ailleurs
     v = games.view(g, "p2")["masque"]
-    assert v["my_hits"] == [lea]  # sa bonne devinette sur Ami1 masqué n'est pas confirmée
-    assert all(set(r) <= {"text", "hidden", "open", "author", "found"} for r in v["result"])
+    assert v["my_marks"][lea] == v["my_marks"][a1] == "right"
+    assert all(set(r) <= {"text", "hidden", "open", "author", "found", "votes"} for r in v["result"])
+    assert all(f'"{gid}"' not in json.dumps(v) for gid in ("h", "p1", "p3"))
+
+
+def test_masks_kept_never_tell_who_wrote_what_nor_who_voted():
+    g = table(mask="closed")
+    everyone_writes(g)
+    lea = slot_of(g, "h")
+    masque.guess(g, "h", {}, unmask=True)  # un ancien client qui « lève son masque » n'y change rien
+    masque.guess(g, "p1", {str(lea): pid(g, "h")})
+    masque.guess(g, "p2", {str(lea): pid(g, "h")})
+    masque.guess(g, "p3", {str(lea): pid(g, "p1")})
+    for viewer in ("h", "p1", "p2", "p3", ""):
+        v = games.view(g, viewer)["masque"]
+        row = v["result"][lea]
+        assert row["open"] is False and row["author"] is None and row["found"] is None
+        assert row["votes"] == [{"guess": "Léa", "n": 2}, {"guess": "Ami1", "n": 1}]  # à qui on a pensé, sans votant
+        assert set(v["my_marks"]) == {None}  # ni juste ni faux : rien ne se confirme par élimination
+        assert all(set(x) == {"guess", "n"} for r in v["result"] for x in r["votes"])  # jamais le prénom d'un votant
+    assert g["masque"]["scores"] == {}
+    games.next_step(g, random.Random(1))
+    assert games.view(g, "p1")["masque"]["mask"] == "closed"  # toute la partie
+
+
+def test_the_mask_is_one_setting_for_the_whole_table_chosen_before_the_game():
+    g = games.new_game("masque", host="h", name="Léa")
+    assert games.view(g, "h")["masque"]["mask"] == "open"  # par défaut : les masques tombent
+    for bad in ({"mask": "chacun"}, {"mask": True}, {"mask": ["open"]}):
+        with pytest.raises(masque.MasqueError):
+            masque.configure(g, bad)
+    masque.configure(g, {"mask": "closed"})
+    assert g["masque"]["mask"] == "closed"
+    games.join(g, "p1", "A")
+    games.join(g, "p2", "B")
+    games.start(g, random.Random(1))
+    with pytest.raises(masque.MasqueError):
+        masque.configure(g, {"mask": "open"})  # pas en pleine partie
+    del g["masque"]["mask"]  # partie créée avant ce réglage
+    assert masque.view(g, "h", True)["mask"] == "open"
 
 
 def test_cheating_guesses_are_refused():
@@ -83,7 +136,7 @@ def test_cheating_guesses_are_refused():
                   {"99": pid(g, "h")}, "pas un dict"):
         with pytest.raises(masque.MasqueError):
             masque.guess(g, "p1", picks)
-    masque.guess(g, "p1", {}, unmask=True)
+    masque.guess(g, "p1", {})
     with pytest.raises(masque.MasqueError, match="déjà"):
         masque.guess(g, "p1", {})
 
@@ -93,10 +146,10 @@ def test_the_host_can_remove_an_answer_and_reveal_without_waiting():
     everyone_writes(g)
     bad = slot_of(g, "p3")
     masque.hide(g, bad)
-    assert games.view(g, "p1")["masque"]["slots"][bad]["hidden"]
+    assert next(s for s in games.view(g, "p1")["masque"]["slots"] if s["i"] == bad)["hidden"]
     with pytest.raises(masque.MasqueError, match="Personne"):
         masque.reveal(g)
-    masque.guess(g, "p1", {str(bad): pid(g, "p3")}, unmask=False)  # choix sur une réponse retirée : ignoré, pas bloquant
+    masque.guess(g, "p1", {str(bad): pid(g, "p3")})  # choix sur une réponse retirée : ignoré, pas bloquant
     assert g["masque"]["guesses"]["p1"] == {}
     masque.reveal(g)
     assert g["masque"]["result"][bad] == {"text": None, "hidden": True}
@@ -112,13 +165,16 @@ def test_rounds_follow_until_the_chosen_count_then_a_summary():
     for _ in range(5):
         seen.add(g["masque"]["q"]["text"])
         everyone_writes(g)
-        for p in g["players"]:
-            masque.guess(g, p["id"], {}, unmask=True)
+        a1 = slot_of(g, "p1")
+        masque.guess(g, "h", {str(a1): pid(g, "p1")})  # Léa trouve Ami1 à chaque question
+        for p in g["players"][1:]:
+            masque.guess(g, p["id"], {})
         games.next_step(g, random.Random(2))
     assert g["phase"] == "end" and len(seen) == 5  # jamais deux fois la même question
     s = games.view(g, "h")["masque"]["summary"]
-    assert s["questions"] == 5 and set(s["open"]) == {"Léa", "Ami1", "Ami2"}
-    assert any("Livre ouvert" in f for f in masque.summary_facts(g))
+    assert s["questions"] == 5 and s["sharp"] == ["Léa"] and set(s["mystery"]) == {"Léa", "Ami2"} and "open" not in s
+    assert s["ranking"][0] == {"name": "Léa", "pid": pid(g, "h"), "score": 5}
+    assert any("perspicace" in f for f in masque.summary_facts(g))
 
 
 def test_settings_are_checked_and_only_change_between_games():
@@ -155,11 +211,11 @@ def test_a_player_leaving_never_blocks_the_game():
     games.leave(g, "p4")  # le seul qui manquait s'en va : la devinette commence
     assert g["phase"] == "guess"
     for p in g["players"][:3]:
-        masque.guess(g, p["id"], {}, unmask=True)
+        masque.guess(g, p["id"], {})
     gone = slot_of(g, "p3")
     games.leave(g, "p3")  # le dernier qui devait choisir part : la révélation arrive
     row = g["masque"]["result"][gone]
-    assert g["phase"] == "reveal" and not row["hidden"] and not row["open"]  # sa réponse reste, masquée : rien ne le trahit
+    assert g["phase"] == "reveal" and not row["hidden"] and row["author"] == "Ami3"  # masques levés : son prénom figé
     games.leave(g, "p2")
     assert g["phase"] == "end"  # à deux, ce n'est plus un jeu
 
@@ -185,10 +241,11 @@ def test_actions_are_checked_by_the_server():
             r = c.post(f"/api/games/{code}", json={"guest_id": gid, "action": "mswrite", "guess": f"<b>{gid}</b>"})
             assert r.status_code == 200
         v = r.json()["masque"]
-        assert r.json()["phase"] == "guess" and len(v["slots"]) == 3 and len(v["authors"]) == 2
-        target = next(s["i"] for s in v["slots"] if not s["mine"])
+        assert r.json()["phase"] == "guess"
+        assert len(v["slots"]) == 2 and len(v["authors"]) == 2  # sa propre réponse n'est pas dans sa liste
+        target = v["slots"][0]["i"]
         r = c.post(f"/api/games/{code}", json={"guest_id": ids[2], "action": "msguess",
-                                               "settings": {"picks": {str(target): v["authors"][0]["pid"]}, "unmask": True}})
+                                               "settings": {"picks": {str(target): v["authors"][0]["pid"]}}})
         assert r.status_code == 200 and r.json()["masque"]["sent"]
         assert c.post(f"/api/games/{code}", json={"guest_id": ids[1], "action": "msreveal"}).status_code == 403
         assert c.post(f"/api/games/{code}", json={"guest_id": ids[0], "action": "msreveal"}).status_code == 200
@@ -219,7 +276,7 @@ def test_invisible_answers_are_refused_and_hidden_texts_never_leave_the_server()
     everyone_writes(g)
     bad = slot_of(g, "p3")
     masque.hide(g, bad)
-    assert games.view(g, "p1")["masque"]["slots"][bad]["text"] is None
+    assert next(s for s in games.view(g, "p1")["masque"]["slots"] if s["i"] == bad)["text"] is None
 
 
 def test_a_seat_is_never_taken_back_by_name_during_a_secret_game():
@@ -236,11 +293,8 @@ def test_a_pick_made_impossible_never_blocks_sending_and_names_stay_put():
     games.leave(g, "p3")
     assert [a["name"] for a in games.view(g, "p1")["masque"]["authors"]] == names_before  # rien ne trahit p3
     masque.hide(g, slot_of(g, "p4"))
-    masque.guess(g, "p1", {str(target): next(a["pid"] for a in g["masque"]["authors"] if a["gid"] == "p3")}, unmask=True)
+    masque.guess(g, "p1", {str(target): next(a["pid"] for a in g["masque"]["authors"] if a["gid"] == "p3")})
     assert g["masque"]["sent"]["p1"]
-    assert not games.view(g, "p4")["masque"]["has_answer"]  # réponse retirée : plus de masque à choisir
-    masque.guess(g, "p2", {}, unmask="false")
-    assert g["masque"]["unmask"]["p2"] is False  # seul un vrai oui lève le masque
 
 
 def test_reshuffling_never_shows_the_same_question_twice_in_a_row():

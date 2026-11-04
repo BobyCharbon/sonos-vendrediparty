@@ -13,7 +13,14 @@ struct QuizTV: View {
             VStack(alignment: .leading, spacing: 26) {
                 if let theme = q["theme"].string { Text("\(q["icon"].string ?? "") \(theme)").font(.system(size: 34, weight: .bold)).foregroundStyle(TV.lavender) }
                 if !q.isNull {
-                    Text(q["text"].string ?? "").font(.system(size: 50, weight: .bold)).lineLimit(3).minimumScaleFactor(0.6)
+                    // Drapeaux : le drapeau à reconnaître sort du texte et s'affiche en très grand, lisible depuis le canapé.
+                    let parts = QuizFlag.split(q["text"].string ?? "")
+                    Text(parts.text).font(.system(size: 50, weight: .bold)).lineLimit(3).minimumScaleFactor(0.6)
+                    if let flag = parts.flag {
+                        Text(flag).font(.system(size: QuizFlag.questionSize)).lineLimit(1).minimumScaleFactor(0.5).frame(maxWidth: .infinity)
+                            .shadow(color: .black.opacity(0.35), radius: 12, y: 6)
+                            .accessibilityLabel("Drapeau à reconnaître")
+                    }
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
                         ForEach(Array(q["choices"].array.enumerated()), id: \.offset) { i, choice in answer(i, choice.string ?? "") }
                     }
@@ -44,7 +51,7 @@ struct QuizTV: View {
         return HStack(spacing: 18) {
             Text(Self.letters[i % 4]).font(.title2.heavy()).foregroundStyle(.black)
                 .frame(width: 58, height: 58).background(Self.colors[i % 4], in: Circle())
-            Text(text).font(.title3.bold()).lineLimit(2).minimumScaleFactor(0.7)
+            Text(text).font(QuizFlag.isFlag(text) ? .system(size: QuizFlag.answerSize) : .title3.bold()).lineLimit(2).minimumScaleFactor(0.7)
             Spacer()
             if reveal, let votes { Text("\(votes)").font(.title2.monospacedDigit().bold()).foregroundStyle(TV.muted) }
             if reveal && correct { Image(systemName: "checkmark.circle.fill").font(.title).foregroundStyle(TV.mint).transition(.popIn) }
@@ -56,6 +63,27 @@ struct QuizTV: View {
         .overlay(RoundedRectangle(cornerRadius: 24).stroke(TV.mint, lineWidth: reveal && correct ? 5 : 0))
         .scaleEffect(reveal && correct && !Motion.reduced ? 1.04 : 1)
         .zIndex(reveal && correct ? 1 : 0)
+    }
+}
+
+/// Drapeau emoji (paire d'indicateurs régionaux ISO, un seul caractère Swift) dans une question du Quiz.
+enum QuizFlag {
+    static let questionSize: CGFloat = 220
+    static let answerSize: CGFloat = 84
+
+    static func isFlag(_ c: Character) -> Bool {
+        c.unicodeScalars.count == 2 && c.unicodeScalars.allSatisfy { (0x1F1E6...0x1F1FF).contains($0.value) }
+    }
+
+    /// Une réponse faite d'un seul drapeau (« Quel est le drapeau de… ? »).
+    static func isFlag(_ text: String) -> Bool {
+        text.count == 1 && text.first.map(isFlag) == true
+    }
+
+    /// Le texte sans son drapeau, et le drapeau à afficher à part (nil s'il n'y en a pas).
+    static func split(_ text: String) -> (text: String, flag: String?) {
+        guard let flag = text.first(where: isFlag) else { return (text, nil) }
+        return (String(text.filter { !isFlag($0) }).trimmingCharacters(in: .whitespaces), String(flag))
     }
 }
 

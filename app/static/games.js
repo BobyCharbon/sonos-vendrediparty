@@ -86,13 +86,13 @@ GAME_THEME.neon = "g-nk";
 GAME_ICONS.president = President.crown;
 GAME_THEME.president = "g-pr";
 // Jeux récents : étiquette « NEW » sur leur carte et leur tuile dans la salle de jeux (retirer le type pour l'enlever).
-const NEW_GAMES = ["brain", "masque", "reflet", "psy", "debate", "beerpong"];
+const NEW_GAMES = ["pet", "brain", "masque", "reflet", "psy", "debate", "beerpong"];
 const newBadge = (type) => NEW_GAMES.includes(type) ? `<span class="g-new" aria-label="Nouveau jeu">NEW</span>` : "";
 // Catégories de l'écran Jeux et de la salle de jeux : [id, titre, jeux dans l'ordre d'affichage].
 // Tout nouveau jeu doit y figurer (tests/test_game_categories.py le vérifie).
 // Méninges en tête : la première chose qu'on voit dans la liste (demande de l'admin, 03.11.2026).
 const GAME_CATEGORIES = [
-  ["brain", "🧠 Entraînement", ["brain"]],
+  ["brain", "✨ Chaque jour", ["pet", "brain"]],
   ["drinks", "🍻 Alcool", ["beerpong", "whoof", "never", "roulette", "biskit", "casino", "purity"]],
   ["three", "🎮 Jeux 3D", ["neon", "island", "heist"]],
   ["talk", "💞 Parler vrai", ["masque", "reflet", "psy", "divan", "debate", "tmc"]],
@@ -430,7 +430,7 @@ document.getElementById("gamesRoot").innerHTML = `
       <div class="gcard g-qz">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.quiz}</div>
-          <div class="g-meta"><div class="g-title">Quiz</div><div class="g-tag">Des milliers de questions, 14 thèmes.</div></div>
+          <div class="g-meta"><div class="g-title">Quiz</div><div class="g-tag">Des milliers de questions, 16 thèmes.</div></div>
           ${helpBtn("quiz")}
         </div>
         <p class="g-desc">Culture générale, géo, histoire, sciences, cinéma, musique, sport, Suisse… Classique, Rapidité, Survie, Contre-la-montre ou Paliers : seul ou à plusieurs, avec un classement général entre les parties.</p>
@@ -454,6 +454,17 @@ document.getElementById("gamesRoot").innerHTML = `
         </div>
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="purity">Lancer le test</button>
+      </div>
+
+      <div class="gcard g-pt">
+        ${newBadge("pet")}
+        <div class="g-head">
+          <div class="g-icon" aria-hidden="true"><span class="g-pt-ico">${window.PetSkin ? window.PetSkin.render({ stage: "adult", variant: "star", emotion: "party", outfit: "noeud" }) : "🥚"}</span></div>
+          <div class="g-meta"><div class="g-title" data-pet-name>Compagnon</div><div class="g-tag">Ton petit compagnon à faire grandir, jour après jour.</div></div>
+        </div>
+        <p class="g-desc">Nourris-le, joue avec lui, éteins-lui la lumière : d'œuf à adulte en quelques jours, il devient « étoile » si tu en prends bien soin. Rends visite aux compagnons de tes amis.</p>
+        <div class="g-chips"><span>Solo</span><span>🔒 Compte connecté</span><span>🔥 Chaque jour</span></div>
+        <button type="button" class="g-go" data-pet-open="pet">M'en occuper</button>
       </div>
 
       <div class="gcard g-br">
@@ -544,7 +555,7 @@ document.getElementById("gamesRoot").innerHTML = `
           <div class="g-meta"><div class="g-title">Le Masque</div><div class="g-tag">Réponds en secret, devine qui a écrit quoi.</div></div>
           ${helpBtn("masque")}
         </div>
-        <p class="g-desc">Une question profonde, chacun écrit sa réponse en secret. Les réponses s'affichent sans prénom : à toi de deviner qui a écrit quoi. Puis chacun choisit de lever son masque et de raconter… ou de le garder.</p>
+        <p class="g-desc">Une question profonde, chacun écrit sa réponse en secret. Les réponses s'affichent sans prénom : à toi de deviner qui a écrit quoi. Masques levés ou gardés : l'organisateur choisit pour toute la table.</p>
         <div class="g-chips"><span>3+ joueurs</span><span>Sans alcool</span><span>Chacun son téléphone</span><span>6 catégories</span></div>
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="masque">Créer une partie</button>
@@ -798,6 +809,24 @@ document.addEventListener("click", (ev) => {
   document.head.append(css, js);
 });
 
+// Compagnon : même principe que Méninges pour une page qui ne charge pas pet/pet.js (/admin, gardé en secours).
+document.addEventListener("click", (ev) => {
+  const btn = ev.target.closest("[data-pet-open]");
+  if (!btn || window.Pet || document.getElementById("petJs")) return;
+  const css = document.createElement("link");
+  css.rel = "stylesheet";
+  css.href = "/static/pet/pet.css";
+  const skinJs = document.createElement("script");
+  skinJs.src = "/static/pet/skin.js";
+  const js = document.createElement("script");
+  js.id = "petJs";
+  js.src = "/static/pet/pet.js";
+  js.onload = () => window.Pet?.open(btn);
+  js.onerror = () => { js.remove(); if (typeof toast === "function") toast("Le Compagnon n'a pas pu se charger, réessaie"); };
+  skinJs.onload = () => document.head.append(js);
+  document.head.append(css, skinJs);
+});
+
 // Range les cartes de l'accueil par catégorie (une section titrée par catégorie, sous la carte de la salle de jeux).
 (function groupHomeCards() {
   const home = document.getElementById("gHome");
@@ -810,7 +839,8 @@ document.addEventListener("click", (ev) => {
     sec.innerHTML = `<h2 class="g-cat-h" id="gCat-${id}">${label}</h2>`;
     for (const type of types) {
       // Méninges (entraînement solo, sans partie) s'ouvre par data-brain-open au lieu de data-create.
-      const card = home.querySelector(`[data-create="${type}"], [data-brain-open="${type}"]`)?.closest(".gcard");
+      // Compagnon (personnage à entretenir, app/static/pet/) s'ouvre par data-pet-open.
+      const card = home.querySelector(`[data-create="${type}"], [data-brain-open="${type}"], [data-pet-open="${type}"]`)?.closest(".gcard");
       if (!card) continue;
       card.querySelector(".g-title")?.insertAdjacentHTML("beforeend", drinkTag(type));
       sec.append(card);
@@ -839,7 +869,7 @@ const phaseLabel = (g) => (g.type === "roulette" || isBJ(g) || g.type === "casin
   : g.type === "president" && g.phase === "exchange" ? "Échange des cartes"
   : g.type === "president" && g.phase === "end" ? "Classement"
   : g.type === "casino" && g.phase === "bet" ? "Faites vos jeux"
-  : g.type === "masque" ? { write: "Écriture en secret", guess: "Qui a écrit quoi ?", reveal: "Les masques tombent" }[g.phase] || GAME_PHASES[g.phase]
+  : g.type === "masque" ? { write: "Écriture en secret", guess: "Qui a écrit quoi ?", reveal: g.masque?.mask === "closed" ? "Les votes" : "Les masques tombent" }[g.phase] || GAME_PHASES[g.phase]
   : g.type === "reflet" ? { pick: "Devant le miroir", vote: "Vote secret", result: "Le reflet" }[g.phase] || GAME_PHASES[g.phase]
   : GAME_PHASES[g.phase];
 const WINNERS = { civils: "Les civils ont gagné 🎉", impostors: "Les undercovers ont gagné 🕵️", white: "Mr. White a trouvé le mot et gagne 🎩" };

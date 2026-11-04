@@ -16,6 +16,9 @@ final class FeedbackStore: ObservableObject {
     @Published var kind: FeedbackKind = .idea
     @Published var text = ""
     @Published var notice: Notice?
+    /// Hôte : son avis est classé dès l'envoi (statut, priorité, zone…) et 5 caractères suffisent.
+    @Published var asAdmin = false
+    @Published var draft = FeedbackDraft()
     /// Retours terminés depuis la dernière visite : mis en avant pendant cette visite, puis marqués « vus ».
     @Published private(set) var highlighted: Set<String> = []
 
@@ -32,8 +35,23 @@ final class FeedbackStore: ObservableObject {
 
     var trimmedText: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
 
+    var minimumLength: Int { asAdmin ? FeedbackRules.adminMinimumLength : FeedbackRules.minimumLength }
+
     var canSend: Bool {
-        !sending && (FeedbackRules.minimumLength...FeedbackRules.maximumLength).contains(trimmedText.count)
+        !sending && (minimumLength...FeedbackRules.maximumLength).contains(trimmedText.count)
+    }
+
+    /// Avis de l'hôte : créé déjà classé (POST /api/admin/feedback/new), puis « Mes retours » relus.
+    func sendAsAdmin(_ admin: FeedbackAdminStore) async {
+        guard canSend else { return }
+        sending = true
+        defer { sending = false }
+        if await admin.create(kind: kind.rawValue, text: trimmedText, draft: draft, tab: fromTab()) {
+            text = ""
+            draft = FeedbackDraft()
+            notice = Notice(text: "Merci ! Ton message est bien arrivé 🙏", isError: false)
+            await appear()
+        }
     }
 
     /// L'onglet s'affiche : ses retours, et les terminés passent « vus » (la pastille s'éteint aussi sur la page).

@@ -41,6 +41,9 @@ struct ContactNamesSnapshot: Codable, Equatable {
     var names: [String: String] = [:]
     /// Compte → identifiant du contact (« Voir le contact » sur la fiche).
     var contacts: [String: String] = [:]
+    /// Compte → empreinte de son numéro (celle que contacts_match a reconnue) : preuve, pour « Écrire » (messages
+    /// directs), qu'on a la personne dans ses contacts. Optionnel : un ancien cache se relit sans.
+    var hashes: [String: String]? = nil
     var syncedAt: Date?
     /// Empreinte de la liste envoyée : inutile de redemander si rien n'a changé.
     var fingerprint: String?
@@ -68,6 +71,8 @@ final class ContactNames: ObservableObject {
     private let file: URL?
     private let defaults: UserDefaults
     private var observer: NSObjectProtocol?
+    /// Après chaque nouvelle comparaison : l'ancien et le nouveau résultat (notification des contacts arrivés).
+    var matchesChanged: ((ContactNamesSnapshot, ContactNamesSnapshot) -> Void)?
     private var pendingChange: Task<Void, Never>?
 
     init(source: ContactsSource = DeviceContacts(), matcher: ContactsMatching? = nil,
@@ -90,6 +95,9 @@ final class ContactNames: ObservableObject {
     /// Branché au lancement (WebModel) : session du compte pour parler à Party, et suivi des changements du répertoire.
     func configure(api: PartyAPI, web: WebStorage) {
         matcher = PartyContactsMatcher(api: api, web: web)
+        // « Ton contact Léa est sur Party » : comparée à chaque nouvelle reconnaissance (Mes amis dans Party).
+        ContactJoinNotifier.shared.configure(api: api, web: web)
+        matchesChanged = { before, after in ContactJoinNotifier.shared.matchesChanged(before: before, after: after) }
         guard observer == nil else { return }
         observer = NotificationCenter.default.addObserver(forName: .CNContactStoreDidChange, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.contactsChanged() }
@@ -112,6 +120,9 @@ final class ContactNames: ObservableObject {
     }
 
     func contactIdentifier(for userID: String) -> String? { snapshot.contacts[userID] }
+
+    /// Empreinte du numéro de ce membre s'il est dans mes contacts (messages directs : « Écrire »).
+    func contactHash(for userID: String) -> String? { snapshot.hashes?[userID] }
 
     // MARK: Accès
 
@@ -153,7 +164,9 @@ final class ContactNames: ObservableObject {
             let fresh = snapshot.syncedAt.map { Date().timeIntervalSince($0) < Self.staleAfter } ?? false
             if !force && fresh && fingerprint == snapshot.fingerprint { return }
             let matches = table.isEmpty ? [] : try await matcher.match(table.keys.sorted())
+            let before = snapshot
             save(Self.snapshot(from: matches, table: table, fingerprint: fingerprint))
+            matchesChanged?(before, snapshot)
             error = nil
         } catch {
             self.error = (error as? LocalizedError)?.errorDescription ?? "Tes contacts n'ont pas pu être comparés. Réessaie plus tard."
@@ -180,6 +193,7 @@ final class ContactNames: ObservableObject {
             guard let entry = table[match.hash], result.names[match.userID] == nil else { continue }
             result.names[match.userID] = entry.name
             result.contacts[match.userID] = entry.identifier
+            result.hashes = (result.hashes ?? [:]).merging([match.userID: match.hash]) { first, _ in first }
         }
         return result
     }

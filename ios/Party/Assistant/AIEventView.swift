@@ -216,7 +216,7 @@ struct AIEventView: View {
             }
             Text(d.title.isEmpty ? "Titre à préciser" : d.title).font(.title2.weight(.bold))
                 .id(d.title).transition(.opacity)
-            if !d.description.isEmpty { Text(d.description).font(.subheadline) }
+            if !d.description.isEmpty { Text(LinkedText.attributed(d.description)).font(.subheadline) }
 
             part("Quand") { when(d) }
             part("Où") { placeRow(d) }
@@ -238,7 +238,8 @@ struct AIEventView: View {
             }
             if d.price_chf > 0 || !d.payment_info.isEmpty {
                 part("Prix") {
-                    row("banknote", (d.price_chf > 0 ? String(format: "%.2f CHF par personne", d.price_chf) : "Prix non précisé")
+                    // Infos de paiement : leurs liens (TWINT, page de paiement…) restent cliquables.
+                    linkedRow("banknote", (d.price_chf > 0 ? String(format: "%.2f CHF par personne", d.price_chf) : "Prix non précisé")
                         + (d.payment_info.isEmpty ? "" : " · " + d.payment_info))
                 }
             }
@@ -302,6 +303,13 @@ struct AIEventView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title.uppercased()).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             content()
+        }
+    }
+
+    private func linkedRow(_ symbol: String, _ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: symbol).foregroundStyle(Palette.accent).frame(width: 22)
+            Text(LinkedText.attributed(text)).font(.body)
         }
     }
 

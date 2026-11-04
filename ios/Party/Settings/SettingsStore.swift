@@ -53,6 +53,8 @@ final class SettingsStore: ObservableObject {
     private(set) lazy var session = AccountStore(api: api, web: web, settings: self)
     /// Nom public, numéro montré par groupe, fiches profil.
     private(set) lazy var privacy = PrivacyStore(api: api, web: web)
+    /// Réglages › Mes amis dans Party : contacts inscrits, à inviter, mon lien personnel.
+    private(set) lazy var friends = FriendsStore(api: api, web: web)
     /// Lune des Réglages et pause des Discussions.
     private(set) lazy var pause = PauseStore(api: api, web: web)
 
@@ -356,6 +358,11 @@ final class SettingsStore: ObservableObject {
         case ("group_joins", let v as Bool): p.groupJoins = v
         case ("ticket_pay_declared", let v as Bool): p.ticketPayDeclared = v
         case ("ticket_pay_confirmed", let v as Bool): p.ticketPayConfirmed = v
+        case ("referral_joins", let v as Bool): p.referralJoins = v
+        case ("contact_joins", let v as Bool): p.contactJoins = v
+        case ("direct_messages", let v as Bool): p.directMessages = v
+        case ("pet_daily", let v as Bool): p.petDaily = v
+        case ("pet_alerts", let v as Bool): p.petAlerts = v
         case ("quiet_start", let v as String): p.quietStart = v
         case ("quiet_end", let v as String): p.quietEnd = v
         default: break

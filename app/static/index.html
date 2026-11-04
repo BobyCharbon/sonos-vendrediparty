@@ -23,6 +23,7 @@
   <link rel="stylesheet" href="/static/music.css">
   <link rel="stylesheet" href="/static/games.css">
   <link rel="stylesheet" href="/static/brain/brain.css">
+  <link rel="stylesheet" href="/static/pet/pet.css">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=2">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v=2">
   <link rel="manifest" href="/static/manifest.json">
@@ -148,6 +149,8 @@
         <button type="button" role="radio" aria-checked="false" data-fb-kind="other">💬 Autre</button>
       </div>
       <textarea id="fbText" name="feedback" maxlength="1000" aria-label="Ton message" placeholder="Ex. : un mode d'équipe au Quiz, plus de cartes au Divan…"></textarea>
+      <!-- Compte admin : l'avis est classé dès l'envoi (statut, priorité, zone…), champs fournis par feedback-admin.js. -->
+      <div id="fbClassify" class="hidden"></div>
       <div class="row" style="margin-top:8px">
         <span class="grow artist" id="fbCount">0 / 1000</span>
         <button id="fbSend">Envoyer</button>
@@ -719,7 +722,9 @@ function fbSyncRole() {
   if (admin && !fbAdminMounted) {
     fbAdminMounted = true;
     FeedbackAdmin.mount($("fbAdmin"), { onCount: (n) => { fbAdminCount = n; fbBadge(); } });
+    FeedbackAdmin.whenMeta().then(() => { $("fbClassify").innerHTML = FeedbackAdmin.classifyHtml({ status: "new" }, { creating: true }); });
   }
+  $("fbClassify").classList.toggle("hidden", !admin);
   loadFeedback(false);
   fbBadge();
 }
@@ -761,22 +766,30 @@ document.addEventListener("click", (ev) => {
   fbKind = k.dataset.fbKind;
   document.querySelectorAll("[data-fb-kind]").forEach((b) => { b.classList.toggle("on", b === k); b.setAttribute("aria-checked", b === k); });
 });
-const FB_MIN = 30;  // comme le serveur (FEEDBACK_MIN_LENGTH)
+// Comme le serveur : 30 caractères pour un invité (FEEDBACK_MIN_LENGTH), 5 pour l'admin qui note pour lui-même.
+const fbMin = () => (fbIsAdmin() ? 5 : 30);
 $("fbText").addEventListener("input", () => {
-  const n = $("fbText").value.trim().length;
-  $("fbCount").textContent = n < FB_MIN ? `${n} / 1000 · encore ${FB_MIN - n} caractère${FB_MIN - n > 1 ? "s" : ""} minimum` : `${n} / 1000`;
+  const n = $("fbText").value.trim().length, min = fbMin();
+  $("fbCount").textContent = n < min ? `${n} / 1000 · encore ${min - n} caractère${min - n > 1 ? "s" : ""} minimum` : `${n} / 1000`;
 });
 $("fbForm").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const text = $("fbText").value.trim();
-  if (text.length < FB_MIN) return toast(`Écris au moins ${FB_MIN} caractères pour bien expliquer ton idée`, "err");
+  if (text.length < fbMin()) return toast(`Écris au moins ${fbMin()} caractères pour bien expliquer ton idée`, "err");
   $("fbSend").disabled = true;
   try {
     const context = { tab: fbTab, ...(typeof game !== "undefined" && game?.type ? { game: game.type } : {}) };
-    const token = (await freshToken()) || "";  // le serveur vérifie le droit « Écrire un avis »
-    const r = await api("/api/feedback", { method: "POST", body: JSON.stringify({ guest_id: guestId, name: guestName, kind: fbKind, text, context, token }) });
+    if (fbIsAdmin()) {  // admin : avis classé dès la création (statut, priorité, zone, plateformes, effort…)
+      await FeedbackAdmin.create({ kind: fbKind, text, name: guestName, guest_id: guestId, context,
+        fields: FeedbackAdmin.readClassify($("fbClassify")) });
+      $("fbClassify").innerHTML = FeedbackAdmin.classifyHtml({ status: "new" }, { creating: true });
+      await loadFeedback(false);
+    } else {
+      const token = (await freshToken()) || "";  // le serveur vérifie le droit « Écrire un avis »
+      const r = await api("/api/feedback", { method: "POST", body: JSON.stringify({ guest_id: guestId, name: guestName, kind: fbKind, text, context, token }) });
+      renderFeedback(r.mine);
+    }
     $("fbText").value = ""; $("fbCount").textContent = "0 / 1000";
-    renderFeedback(r.mine);
     toast("Merci ! Ton message est bien arrivé 🙏", "ok");
   } catch (e) { toast(e.message, "err"); }
   $("fbSend").disabled = false;
@@ -944,6 +957,10 @@ addEventListener("DOMContentLoaded", async () => {
     // Notification de discussion : la conversation du groupe (sinon la liste des discussions).
     const chat = params.get("chat") || "";
     showTab("chats", /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(chat) ? "/chats/" + chat : "/chats");
+    history.replaceState(null, "", location.pathname);
+  } else if (params.get("tab") === "games") {
+    // Notification du Compagnon (?tab=games&pet=1) : l'onglet Jeux ; pet/pet.js a déjà lu « pet » et ouvre le panneau.
+    showTab("games");
     history.replaceState(null, "", location.pathname);
   } else if (params.get("tab") === "events") {
     showTab("events", PartyEvents.target(params));
@@ -1182,5 +1199,7 @@ function listen() {
 <script src="/static/beerpong.js"></script>
 <script src="/static/brain/core.js"></script>
 <script src="/static/brain/stats.js"></script>
+<script src="/static/pet/skin.js"></script>
+<script src="/static/pet/pet.js"></script>
 </body>
 </html>

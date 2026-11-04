@@ -5,6 +5,7 @@ import { FlatList, Pressable, View } from 'react-native';
 import { ChatsSoon } from '@/components/ChatsSoon';
 import { ChatsPause } from '@/components/NotificationPause';
 import { NewGroupForm } from '@/components/NewGroupForm';
+import { usePersonText } from '@/components/PersonName';
 import { Avatar, Empty, ErrorText, Loading, s, T } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import type { ChatSummary } from '@/lib/chats';
@@ -29,7 +30,7 @@ function ChatsList() {
     if (error) throw new Error('Les discussions n’ont pas pu être chargées.');
     return (data as ChatSummary[]) ?? [];
   }, []);
-  useRealtime('chats-list', [{ table: 'group_messages' }], reload);
+  useRealtime('chats-list', [{ table: 'group_messages' }, { table: 'direct_messages' }], reload);
 
   if (loading && !data) return <Loading />;
   return (
@@ -50,7 +51,7 @@ function ChatsList() {
         data={data ?? []}
         keyExtractor={(c) => c.id}
         ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: colors.line, marginLeft: 76 }} />}
-        ListEmptyComponent={creating ? null : <Empty>Rejoins ou crée un groupe pour discuter avec ses membres.</Empty>}
+        ListEmptyComponent={creating ? null : <Empty>Rejoins ou crée un groupe pour discuter avec ses membres, ou écris à quelqu’un depuis sa fiche.</Empty>}
         renderItem={({ item: c }) => <ChatRow chat={c} />}
       />
     </View>
@@ -71,15 +72,20 @@ function NewGroupRow({ open, onToggle }: { open: boolean; onToggle: () => void }
 }
 
 function ChatRow({ chat }: { chat: ChatSummary }) {
+  const personText = usePersonText();
+  // Message direct : la personne (« Nom du contact · pseudo » dans l'app iPhone) et sa photo.
+  const direct = chat.kind === 'direct' && Boolean(chat.user_id);
+  const name = direct ? personText(chat.user_id, chat.name) : chat.name;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Discussion ${chat.name}${chat.unread ? `, ${chat.unread} non lus` : ''}`}
+    <Pressable accessibilityRole="button" accessibilityLabel={`${direct ? 'Message direct' : 'Discussion'} ${name}${chat.unread ? `, ${chat.unread} non lus` : ''}`}
       onPress={() => router.push(`/chats/${chat.id}`)}
       style={({ pressed }) => [{ flexDirection: 'row', gap: 12, alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
         transition('background-color', duration.fast), pressed && { backgroundColor: colors.fill }]}>
-      <Avatar id={chat.id} name={chat.name} size={48} profile={false} />
+      {direct ? <Avatar id={chat.user_id!} name={name} photo={chat.avatar_url ?? null} size={48} profile={false} />
+        : <Avatar id={chat.id} name={chat.name} size={48} profile={false} />}
       <View style={{ flex: 1, gap: 3 }}>
         <View style={s.rowBetween}>
-          <T weight="semibold" numberOfLines={1} style={{ flex: 1 }}>{chat.name}</T>
+          <T weight="semibold" numberOfLines={1} style={{ flex: 1 }}>{name}</T>
           {chat.last_at ? <T muted size={12} color={chat.unread ? colors.accent : undefined}>{formatMessageTime(chat.last_at)}</T> : null}
         </View>
         <View style={s.rowBetween}>

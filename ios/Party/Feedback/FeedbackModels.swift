@@ -7,7 +7,8 @@ struct FeedbackItem: Decodable, Equatable, Identifiable {
     let at: Double
     let kind: String
     let text: String
-    /// new · progress · done · declined (« sent » / « verify » arrivent déjà en « progress »).
+    /// new · progress · done · declined : le serveur ne montre jamais les statuts internes de l'hôte
+    /// (à mûrir, questions, prêt, plus tard → « new » ; bloqué, chez Claude, à vérifier → « progress »).
     let status: String
     /// Mot de l'hôte, une fois le retour terminé ou refusé.
     let reply: String
@@ -63,11 +64,13 @@ enum FeedbackStatus {
 /// Règles du serveur (app/main.py, send_feedback) rappelées avant l'envoi.
 enum FeedbackRules {
     static let minimumLength = 30
+    /// L'hôte note pour lui-même (FEEDBACK_ADMIN_MIN_LENGTH) : un titre court suffit.
+    static let adminMinimumLength = 5
     static let maximumLength = 1000
 
     /// « 12 / 1000 · encore 18 caractères minimum », puis « 42 / 1000 ».
-    static func counter(_ count: Int) -> String {
-        let missing = minimumLength - count
+    static func counter(_ count: Int, minimum: Int = minimumLength) -> String {
+        let missing = minimum - count
         guard missing > 0 else { return "\(count) / \(maximumLength)" }
         return "\(count) / \(maximumLength) · encore \(missing) caractère\(missing > 1 ? "s" : "") minimum"
     }
