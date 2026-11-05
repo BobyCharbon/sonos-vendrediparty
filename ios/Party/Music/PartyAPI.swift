@@ -247,9 +247,10 @@ final class PartyAPI {
         return try JSONDecoder().decode(T.self, from: try await send(request))
     }
 
-    func post(_ path: String, body: [String: Any]) async throws {
+    func post(_ path: String, body: [String: Any], timeout: TimeInterval? = nil) async throws {
         guard let url = url(path) else { throw PartyAPIError.offline }
         var request = URLRequest(url: url)
+        if let timeout { request.timeoutInterval = timeout }
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)

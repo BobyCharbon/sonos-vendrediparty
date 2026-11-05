@@ -1,5 +1,6 @@
 """Accès local aux enceintes Sonos via SoCo."""
 
+import logging
 import random
 import re
 import threading
@@ -10,6 +11,15 @@ import soco
 from soco.data_structures import DidlPlaylistContainer
 from soco.exceptions import SoCoUPnPException
 from soco.plugins.sharelink import ShareLinkPlugin
+
+# SoCo attend 20 s par défaut une enceinte qui ne répond pas (une enceinte qui décroche du Wi-Fi bloquait tout) ;
+# sur le réseau local, une réponse prend moins d'une seconde (mesuré le 05.11.2026 : file de 220 titres en 0,35 s).
+soco.config.REQUEST_TIMEOUT = 5.0
+# Réglage et lecture d'un volume : délai court, l'app renvoie de toute façon la valeur suivante.
+VOLUME_TIMEOUT = 2.5
+ZONES_TTL = 60
+
+log = logging.getLogger(__name__)
 
 TRACK_ID_RE = re.compile(r"spotify(?:%3a|:)track(?:%3a|:)([A-Za-z0-9]{22})", re.I)
 
@@ -45,6 +55,11 @@ def seconds(hms: str | None) -> int | None:
     return total
 
 
+def _read_volume(zone) -> int:
+    result = zone.renderingControl.GetVolume([("InstanceID", 0), ("Channel", "Master")], timeout=VOLUME_TIMEOUT)
+    return int(result["CurrentVolume"])
+
+
 def _reachable(zone) -> bool:
     """L'enceinte répond-elle ? (son nom est lu une fois puis gardé en cache par SoCo.)"""
     try:
@@ -59,18 +74,36 @@ class Sonos:
         self._zones: dict[str, soco.SoCo] = {}
         self._zones_at = 0.0
         self._lock = threading.Lock()
+        self._refresher: threading.Thread | None = None
+
+    def _refresh_zones(self):
+        if self.seed_ip:
+            zones = soco.SoCo(self.seed_ip).all_zones
+        else:
+            zones = soco.discover(timeout=3, include_invisible=False) or set()
+        # Une enceinte éteinte reste annoncée par les autres : on l'ignore au lieu de tout bloquer.
+        self._zones = {z.uid: z for z in zones if _reachable(z)}
+        self._zones_at = time.time()
+
+    def _refresh_in_background(self):
+        try:
+            with self._lock:
+                self._refresh_zones()
+        except Exception:
+            log.exception("Sonos : rafraîchissement des enceintes impossible")
 
     def _all_zones(self) -> dict[str, soco.SoCo]:
-        with self._lock:
-            if time.time() - self._zones_at > 60 or not self._zones:
-                if self.seed_ip:
-                    zones = soco.SoCo(self.seed_ip).all_zones
-                else:
-                    zones = soco.discover(timeout=3, include_invisible=False) or set()
-                # Une enceinte éteinte reste annoncée par les autres : on l'ignore au lieu de tout bloquer.
-                self._zones = {z.uid: z for z in zones if _reachable(z)}
-                self._zones_at = time.time()
+        """Les enceintes connues. Périmées, elles servent encore pendant leur relecture en arrière-plan : une enceinte
+        lente à répondre ne bloque plus le volume ni la liste (seule la toute première lecture attend)."""
+        if not self._zones:
+            with self._lock:
+                if not self._zones:
+                    self._refresh_zones()
             return self._zones
+        if time.time() - self._zones_at > ZONES_TTL and not (self._refresher and self._refresher.is_alive()):
+            self._refresher = threading.Thread(target=self._refresh_in_background, daemon=True)
+            self._refresher.start()
+        return self._zones
 
     def rooms(self) -> list[dict]:
         """Un élément par groupe Sonos (identifié par son coordinateur)."""
@@ -92,8 +125,9 @@ class Sonos:
     def coordinator(self, uid: str) -> soco.SoCo:
         zone = self._all_zones().get(uid)
         if zone is None:
-            self._zones_at = 0
-            zone = self._all_zones().get(uid)
+            with self._lock:
+                self._refresh_zones()
+            zone = self._zones.get(uid)
         if zone is None:
             raise LookupError("Enceinte Sonos introuvable")
         # Le groupe peut avoir changé depuis le démarrage de la session.
@@ -182,19 +216,22 @@ class Sonos:
         """Toutes les enceintes visibles, avec leur volume et leur appartenance au groupe de la soirée."""
         coord = self.coordinator(uid)
         result = []
-        for z in self._all_zones().values():
-            # On masque caissons, surrounds et 2e enceinte d'une paire stéréo ; mais si aucune
-            # enceinte d'un groupe n'est « visible » (cas de certaines paires), on garde la principale.
-            lone_master = z.uid == z.group.coordinator.uid and not any(m.is_visible for m in z.group.members)
-            if not (z.is_visible or lone_master):
-                continue
-            result.append({
-                "uid": z.uid,
-                "name": z.player_name,
-                "volume": z.volume,
-                "in_group": z.group.coordinator.uid == coord.uid,
-                "coordinator": z.uid == coord.uid,
-            })
+        for z in list(self._all_zones().values()):
+            try:
+                # On masque caissons, surrounds et 2e enceinte d'une paire stéréo ; mais si aucune
+                # enceinte d'un groupe n'est « visible » (cas de certaines paires), on garde la principale.
+                lone_master = z.uid == z.group.coordinator.uid and not any(m.is_visible for m in z.group.members)
+                if not (z.is_visible or lone_master):
+                    continue
+                result.append({
+                    "uid": z.uid,
+                    "name": z.player_name,
+                    "volume": _read_volume(z),
+                    "in_group": z.group.coordinator.uid == coord.uid,
+                    "coordinator": z.uid == coord.uid,
+                })
+            except Exception as e:  # enceinte qui a décroché du Wi-Fi : on liste les autres
+                log.warning("Sonos : %s ne répond pas (%s)", getattr(z, "ip_address", "?"), e)
         return sorted(result, key=lambda sp: (not sp["in_group"], sp["name"].lower()))
 
     def group_speaker(self, uid: str, speaker_uid: str, join: bool):
@@ -207,7 +244,8 @@ class Sonos:
         self._zones_at = 0  # la composition des groupes a changé
 
     def set_speaker_volume(self, speaker_uid: str, volume: int):
-        self._all_zones()[speaker_uid].volume = volume
+        self._all_zones()[speaker_uid].renderingControl.SetVolume(
+            [("InstanceID", 0), ("Channel", "Master"), ("DesiredVolume", volume)], timeout=VOLUME_TIMEOUT)
 
     def play(self, uid: str):
         self.coordinator(uid).play()
@@ -217,15 +255,21 @@ class Sonos:
 
     def set_volume(self, uid: str, volume: int):
         group = self.coordinator(uid).group
+        rendering = group.coordinator.groupRenderingControl
+
+        def set_group():
+            rendering.SetGroupVolume([("InstanceID", 0), ("DesiredVolume", volume)], timeout=VOLUME_TIMEOUT)
+
         try:
-            group.volume = volume
+            set_group()
         except SoCoUPnPException:
             # Erreur 801 intermittente : Sonos veut un « snapshot » du volume de groupe avant de le régler.
             if len(group.members) == 1:
-                group.coordinator.volume = volume
+                group.coordinator.renderingControl.SetVolume(
+                    [("InstanceID", 0), ("Channel", "Master"), ("DesiredVolume", volume)], timeout=VOLUME_TIMEOUT)
                 return
-            group.coordinator.groupRenderingControl.SnapshotGroupVolume([("InstanceID", 0)])
-            group.volume = volume
+            rendering.SnapshotGroupVolume([("InstanceID", 0)], timeout=VOLUME_TIMEOUT)
+            set_group()
 
     def skip(self, uid: str):
         self.coordinator(uid).next()
