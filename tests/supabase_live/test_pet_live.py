@@ -39,6 +39,20 @@ def KEY() -> str:  # noqa: N802 — clé du serveur Party (coffre de la base de 
 _KEY = ""
 
 
+def pet_cron(call: str, uid: str) -> int:
+    """Lance une tâche de notification Zicou (`call`, ex. "private.pet_notify('…')") en ne laissant visible que le
+    compagnon du compte Testeur `uid` : les autres (vrais membres présents sur la base de test) sont mis de côté le
+    temps d'une transaction et remis tels quels avant la fin, ils ne reçoivent donc jamais rien. Rend le nombre envoyé."""
+    return sql_test(f"""drop table IF EXISTS pg_temp._pet_cron_out;
+      begin;
+      create temp table _pet_hidden on commit drop as select user_id, stage from public.pets where user_id <> '{uid}';
+      update public.pets set stage = 'egg' where user_id in (select user_id from _pet_hidden);
+      create temp table _pet_cron_out as select {call} as n;
+      update public.pets p set stage = h.stage from _pet_hidden h where h.user_id = p.user_id;
+      commit;
+      select n from _pet_cron_out;""")[0]["n"]
+
+
 def wipe(ids: list[str]) -> None:
     users = ",".join(f"'{u}'" for u in ids)
     sql_test(f"""delete from public.pets where user_id in ({users});
@@ -171,7 +185,7 @@ def reset_b(b, **cols):
                                "alt_title": "Zicou", "alt_body": "Le coffre du jour brille sous mon lit. On l'ouvre ensemble ? 🎁"})
     sets = ", ".join(f"{k} = {v}" for k, v in {"dies_at": "null", **cols}.items())
     sql_test(f"""update public.pets set stage = 'baby', name = 'Zicou', daily_sent_on = null, last_seen_at = null,
-                   gifts_noted_at = now(), alerts_sent = '{{}}',
+                   gifts_noted_at = now(), alerts_sent = '{{}}', push_on = null, push_n = 0,
                    nudge = '{json.dumps(nudge, ensure_ascii=False).replace("'", "''")}'::jsonb, {sets}
                  where user_id = '{b.uid}';
                  delete from public.notifications where user_id = '{b.uid}' and kind like 'pet\\_%';""")
@@ -185,30 +199,36 @@ def pet_notes(b) -> list[dict]:
 def test_notifications_daily_reminder_at_the_learned_hour_and_alerts(trio):
     a, b, _ = trio
     reset_b(b, dies_at="'2026-11-06 12:00+01'")
-    assert sql_test("select private.pet_notify('2026-11-05 17:50+01') as n;")[0]["n"] == 1   # l'alerte des 48 h seulement
+    assert pet_cron("private.pet_notify('2026-11-05 17:50+01')", b.uid) == 1   # l'alerte des 48 h seulement
     assert [r["kind"] for r in pet_notes(b)] == ["pet_alert"]
-    sql_test("select private.pet_notify('2026-11-05 18:05+01');")   # 18 h 05 : l'heure apprise (18 h 00) est passée
+    # 18 h 05 : l'heure apprise (18 h 00) est passée, mais une alerte est déjà partie et l'envol est à moins de 48 h :
+    # le rappel ne prend pas la dernière place du jour (plafond de 2, gardée pour l'alerte « très faim »).
+    pet_cron("private.pet_notify('2026-11-05 18:05+01')", b.uid)
+    assert [r["kind"] for r in pet_notes(b)] == ["pet_alert"]
+    pet_cron("private.pet_notify('2026-11-06 02:00+01')", b.uid)   # 12 h avant : la seconde alerte vitale
+    assert [r["kind"] for r in pet_notes(b)] == ["pet_alert", "pet_alert"]
+    # Sans envol en vue, le rappel du jour part à l'heure apprise.
+    reset_b(b)
+    pet_cron("private.pet_notify('2026-11-05 18:05+01')", b.uid)
     rows = pet_notes(b)
-    assert [r["kind"] for r in rows] == ["pet_alert", "pet_daily"], rows
-    assert rows[1]["title"] == "Zicou" and "coffre" in rows[1]["body"]
+    assert [r["kind"] for r in rows] == ["pet_daily"], rows
+    assert rows[0]["title"] == "Zicou" and "coffre" in rows[0]["body"]
     assert all(r["url"] == "/?tab=games&pet=1&src=notif" for r in rows)
     assert not any(w in (r["title"] + r["body"]).lower() for r in rows for w in ("faute", "oubli", "mort"))
-    sql_test("select private.pet_notify('2026-11-05 21:00+01');")   # au plus une par jour (hors alertes vitales)
-    assert len(pet_notes(b)) == 2
-    sql_test("select private.pet_notify('2026-11-06 02:00+01');")   # 12 h avant : la seconde alerte vitale
-    assert [r["kind"] for r in pet_notes(b)].count("pet_alert") == 2
+    pet_cron("private.pet_notify('2026-11-05 21:00+01')", b.uid)   # au plus un rappel par jour
+    assert len(pet_notes(b)) == 1
 
 
 def test_never_at_night_never_once_visited_today_and_a_generic_text_otherwise(trio):
     _, b, _ = trio
     reset_b(b)
     for night in ("2026-11-05 23:10+01", "2026-11-06 07:50+01", "2026-11-06 03:00+01"):
-        sql_test(f"select private.pet_notify('{night}');")
+        pet_cron(f"private.pet_notify('{night}')", b.uid)
     assert pet_notes(b) == []
     sql_test(f"update public.pets set last_seen_at = '2026-11-06 09:00+01' where user_id = '{b.uid}';")
-    sql_test("select private.pet_notify('2026-11-06 19:00+01');")   # déjà passé aujourd'hui : rien
+    pet_cron("private.pet_notify('2026-11-06 19:00+01')", b.uid)   # déjà passé aujourd'hui : rien
     assert pet_notes(b) == []
-    sql_test("select private.pet_notify('2026-11-07 19:00+01');")   # le 7 : texte du 5 périmé → texte générique
+    pet_cron("private.pet_notify('2026-11-07 19:00+01')", b.uid)   # le 7 : texte du 5 périmé → texte générique
     rows = pet_notes(b)
     assert [r["kind"] for r in rows] == ["pet_daily"] and "🎁" in rows[0]["body"]
 
@@ -221,7 +241,7 @@ def test_never_during_a_soiree_where_you_are_present(trio):
       values ('{EVENT}', 'Test compagnon', '{b.uid}', 'published', '2026-11-05 17:30+01', '2026-11-05 23:30+01');
       insert into public.rsvps (event_id, user_id, status) values ('{EVENT}', '{b.uid}', 'yes'); commit;""")
     try:
-        sql_test("select private.pet_notify('2026-11-05 19:00+01');")
+        pet_cron("private.pet_notify('2026-11-05 19:00+01')", b.uid)
         assert pet_notes(b) == []
         assert sql_test(f"select private.pet_at_soiree('{b.uid}', '2026-11-05 17:10+01') as ok;") == [{"ok": True}]
         assert sql_test(f"select private.pet_at_soiree('{b.uid}', '2026-11-06 00:10+01') as ok;") == [{"ok": False}]
@@ -233,15 +253,17 @@ def test_a_gift_from_a_friend_then_nothing_else_that_day(trio):
     a, b, _ = trio
     reset_b(b)
     sql_test(f"""delete from public.pet_gifts where to_user = '{b.uid}';
-      insert into public.pet_gifts (from_user, to_user, kind, day) values ('{a.uid}', '{b.uid}', 'hug', '2026-11-05');""")
-    sql_test("select private.pet_notify('2026-11-05 10:00+01');")   # avant l'heure apprise : le cadeau, tout de suite
+      update public.pets set gifts_noted_at = '2026-11-05 09:00+01' where user_id = '{b.uid}';
+      insert into public.pet_gifts (from_user, to_user, kind, day, created_at)
+      values ('{a.uid}', '{b.uid}', 'hug', '2026-11-05', '2026-11-05 09:30+01');""")   # heures fixes : indépendant de l'heure réelle
+    pet_cron("private.pet_notify('2026-11-05 10:00+01')", b.uid)   # avant l'heure apprise : le cadeau, tout de suite
     rows = pet_notes(b)
     assert [r["kind"] for r in rows] == ["pet_gift"] and "câlin" in rows[0]["body"] and rows[0]["title"] == "Zicou"
-    sql_test("select private.pet_notify('2026-11-05 18:30+01');")
+    pet_cron("private.pet_notify('2026-11-05 18:30+01')", b.uid)
     assert len(pet_notes(b)) == 1
     # Le lendemain, le même cadeau (toujours pas ouvert) n'est pas renvoyé : le rappel du jour à la place.
     sql_test(f"update public.pets set nudge = null where user_id = '{b.uid}';")
-    sql_test("select private.pet_notify('2026-11-06 20:30+01');")
+    pet_cron("private.pet_notify('2026-11-06 20:30+01')", b.uid)
     assert [r["kind"] for r in pet_notes(b)] == ["pet_gift", "pet_daily"]
     sql_test(f"delete from public.pet_gifts where to_user = '{b.uid}';")
 
@@ -251,16 +273,16 @@ def test_streak_milestone_with_its_own_switch_and_the_daily_text_as_fallback(tri
     nudge = {"day": "2026-11-05", "minute": 600, "kind": "pet_streak", "title": "Zicou",
              "body": "Aujourd'hui, ça fera 7 jours qu'on se voit 🔥", "alt_title": "Zicou", "alt_body": "Repli du jour 🎁"}
     reset_b(b, nudge=nudge)
-    sql_test("select private.pet_notify('2026-11-05 10:05+01');")
+    pet_cron("private.pet_notify('2026-11-05 10:05+01')", b.uid)
     assert [(r["kind"], r["body"]) for r in pet_notes(b)] == [("pet_streak", nudge["body"])]
     reset_b(b, nudge=nudge)
     sql_test(f"update public.notification_prefs set pet_streaks = false where user_id = '{b.uid}';")
     try:
-        sql_test("select private.pet_notify('2026-11-05 10:05+01');")
+        pet_cron("private.pet_notify('2026-11-05 10:05+01')", b.uid)
         assert [(r["kind"], r["body"]) for r in pet_notes(b)] == [("pet_daily", "Repli du jour 🎁")]
         reset_b(b, nudge=nudge)
         sql_test(f"update public.notification_prefs set pet_daily = false where user_id = '{b.uid}';")
-        sql_test("select private.pet_notify('2026-11-05 10:05+01');")
+        pet_cron("private.pet_notify('2026-11-05 10:05+01')", b.uid)
         assert pet_notes(b) == []   # les deux coupés : rien
     finally:
         sql_test(f"update public.notification_prefs set pet_streaks = true, pet_daily = true where user_id = '{b.uid}';")

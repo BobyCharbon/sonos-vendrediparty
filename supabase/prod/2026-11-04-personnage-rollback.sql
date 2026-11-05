@@ -5,6 +5,14 @@
 -- sont retirées de la définition en place (les autres types restent intacts). Tout ou rien.
 begin;
 
+-- ══ Plafond des notifications Zicou (20261105170000) : fonctions et compteur RETIRÉS (pet_notify et pet_bar_notify,
+-- qui s'en servent, sont retirées plus bas avec le reste du Compagnon) ══
+drop function if exists private.pet_push_take(uuid, timestamptz, integer);
+drop function if exists private.pet_push_max();
+alter table public.pets drop column if exists push_on;
+alter table public.pets drop column if exists push_n;
+delete from supabase_migrations.schema_migrations where version = '20261105170000';
+
 -- ══ Barre « petit cadeau » (20261105160000) : tâche, fonctions, colonnes et interrupteur RETIRÉS (les notifications
 -- pet_bar déjà envoyées restent dans l'historique) ; branches pet_bar retirées de la définition en place ══
 do $$
