@@ -54,7 +54,7 @@ def test_migration_is_additive_and_filters_title_and_description():
     assert not re.search(r"\bdrop (table|column)\b", sql, re.IGNORECASE)
 
 
-def test_prod_files_are_ready_and_not_applied():
+def test_prod_files_are_ready():
     apply = (PROD / "2026-11-05-signaler-evenement-apply.sql").read_text(encoding="utf-8")
     rollback = (PROD / "2026-11-05-signaler-evenement-rollback.sql").read_text(encoding="utf-8")
     assert apply.count("begin;") == 1 and "commit;" in apply and "values ('20261105180000'" in apply
