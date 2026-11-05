@@ -55,3 +55,45 @@ def test_the_title_is_escaped_for_the_sonos_xml(monkeypatch):
         monkeypatch.setattr(player, "coordinator", lambda uid, m=mode: FakeCoordinator(m), raising=False)
         player.add_spotify_track("RINCON_X", "2Ye307CcSIpAOjBF3aD46f", "HAINE&SEX <live>", 3)
     assert calls == ["HAINE&amp;SEX &lt;live&gt;"] * 2
+
+
+class SourceCoordinator:
+    """Lecture venue d'ailleurs (Spotify Connect, TV) : Sonos refuse le mode aléatoire (UPnP 712) tant que la file
+    Sonos n'est pas la source (bug du 05.11.2026, « Play mode not supported »)."""
+
+    def __init__(self):
+        self.uid, self.on_queue, self._mode, self.cross_fade, self.queue_size, self.played = "RINCON_X", False, "NORMAL", False, 10, None
+        outer = self
+
+        class AV:
+            def SetAVTransportURI(self, args):
+                outer.on_queue = dict(args)["CurrentURI"] == f"x-rincon-queue:{outer.uid}#0"
+        self.avTransport = AV()
+
+    @property
+    def play_mode(self):
+        return self._mode
+
+    @play_mode.setter
+    def play_mode(self, mode):
+        if not self.on_queue:
+            raise sonos.SoCoUPnPException("UPnP Error 712 received: Play mode not supported", 712, "")
+        self._mode = mode
+
+    def clear_queue(self):
+        pass
+
+    def add_to_queue(self, item):
+        pass
+
+    def play_from_queue(self, index):
+        self.played = index
+
+
+def test_a_playlist_starts_even_when_another_source_was_playing(monkeypatch):
+    coord = SourceCoordinator()
+    player = sonos.Sonos.__new__(sonos.Sonos)
+    player._playlists = {"sq:1": ("sonos", object())}
+    monkeypatch.setattr(player, "coordinator", lambda uid: coord, raising=False)
+    player.launch_playlist("RINCON_X", "sq:1", [])
+    assert coord.play_mode == "SHUFFLE" and coord.played is not None
