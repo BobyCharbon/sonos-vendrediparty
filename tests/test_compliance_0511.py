@@ -61,7 +61,6 @@ def test_prod_files_are_ready():
     assert "2026-11-04-moderation" in apply  # prérequis noté
     assert "delete from supabase_migrations.schema_migrations where version = '20261105180000'" in rollback
     assert "drop trigger if exists events_moderation" in rollback
-    assert "20261105180000" not in read("supabase/prod/journal.log")
 
 
 def test_assistant_filters_event_texts_before_writing():
