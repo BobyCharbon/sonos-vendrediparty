@@ -7,7 +7,7 @@ import { RESPONSIBLE, SUPPORT_EMAIL } from '@/lib/contact';
 /** Politique de confidentialité (Apple 5.1.1(i), nLPD art. 19) : lisible par tous, sans compte. Chaque donnée, son but,
  * qui la reçoit (sous-traitants) et combien de temps elle est gardée. À tenir à jour avec App Privacy (App Store
  * Connect) et Data safety (Play Console) à chaque nouvelle donnée. */
-const UPDATED = '4 novembre 2026';
+const UPDATED = '5 novembre 2026';
 
 type Block = { title: string; paragraphs: string[] };
 
@@ -35,6 +35,7 @@ const BLOCKS: Block[] = [
       'Messages, photos et messages vocaux : envoyés seulement quand tu le décides. Le micro n’est utilisé que pendant que tu enregistres un vocal ou que tu dictes un texte ; ta voix dictée est transcrite en texte par le service vocal de ton système, pas par Party : Apple (Dictée) sur iPhone, Google ou Apple selon ton navigateur sur le web. Party et l’IA ne reçoivent que le texte. Les photos ne sont lues que celles que tu choisis.',
       'Organisateurs d’événements payants : les coordonnées de paiement que tu enregistres (IBAN, titulaire, liens de paiement comme Twint, note) sont montrées aux participants de tes événements payants pour qu’ils te paient. Party ne traite jamais l’argent lui-même.',
       'Billets : un billet QR personnel est créé pour tes événements à billets ; son passage à l’entrée est noté.',
+      'Invitation par lien : la page de l’invitation se lit sans compte et ne montre que le titre, la date, le nom du lieu, le prénom de la personne qui invite et au plus trois prénoms de ceux qui viennent (aucun si l’organisateur cache la liste). Pour répondre, tu donnes ton prénom et ton numéro (code par SMS) : l’organisateur voit ton prénom, ta réponse, par quel lien tu es venu et quand le lien a été ouvert, jamais ton numéro. Les relances de l’organisateur passent par une notification (si tu as l’app, avec son interrupteur « Invitations ») ou par un message qu’il t’envoie lui-même.',
     ],
   },
   {
@@ -84,7 +85,7 @@ const BLOCKS: Block[] = [
   {
     title: 'Combien de temps',
     paragraphs: [
-      'Ton compte et ce qui s’y rattache : jusqu’à ce que tu le supprimes. Notifications : 90 jours. Signalements traités : un an. Compteur des invités : 6 mois sans visite. Activité de la soirée : le temps de la soirée et au plus 3 jours.',
+      'Ton compte et ce qui s’y rattache : jusqu’à ce que tu le supprimes. Notifications : 90 jours. Signalements traités : un an. Compteur des invités : 6 mois sans visite. Compte créé seulement pour répondre à une invitation (prénom et numéro, sans l’app ni profil complété) : effacé avec ses réponses 7 jours après le dernier événement auquel il était invité. Activité de la soirée : le temps de la soirée et au plus 3 jours.',
       'Les textes écrits par d’autres membres peuvent encore citer ton surnom après la suppression de ton compte.',
     ],
   },

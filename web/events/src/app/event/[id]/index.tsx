@@ -10,7 +10,8 @@ import { TicketCard } from '@/components/TicketCard';
 import { TicketsManager } from '@/components/TicketsManager';
 import { CalendarButton } from '@/components/CalendarButton';
 import { EventGiftsLink } from '@/components/EventGifts';
-import { compagnonOn } from '@/lib/features';
+import { compagnonOn, invitesV2On } from '@/lib/features';
+import { GuestListCard } from '@/components/GuestListCard';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
 import { LinkedText } from '@/components/LinkedText';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
@@ -272,6 +273,11 @@ export default function EventScreen() {
         {ev.status === 'rejected' && ev.rejection_reason ? <T color={colors.coralSoft}>Motif du refus : {ev.rejection_reason}</T> : null}
       </View>
 
+      {/* Invitations v2 (bêta) : qui vient, qui n'a pas répondu, les liens envoyés ; « + » pour inviter. */}
+      {invitesV2On && canManage && published ? (
+        <GuestListCard event={ev} me={{ id: me.id, display_name: me.display_name ?? '' }} onChanged={reload} />
+      ) : null}
+
       {ev.status === 'pending' && can('events.approve') ? (
         <Card style={{ backgroundColor: colors.lavenderDim, borderColor: '#4A3F78' }}>
           <T weight="semibold">Cette proposition attend ta validation.</T>
@@ -381,7 +387,7 @@ export default function EventScreen() {
 
       <ErrorText error={error} />
       {compagnonOn && published && ev.date_mode === 'fixed' ? <EventGiftsLink eventId={ev.id} canManage={canManage} /> : null}
-      {canManage && published && ev.visibility === 'invited' ? <InviteLinkCard kind="event" id={ev.id} /> : null}
+      {!invitesV2On && canManage && published && ev.visibility === 'invited' ? <InviteLinkCard kind="event" id={ev.id} /> : null}
       {canManage && published ? (
         <View style={st.orgZone}>
           <T muted size={12} weight="bold">ZONE ORGANISATEUR</T>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 
+import { invitesV2On } from '@/lib/features';
 import { parseLoginPhone } from '@/lib/phone';
 import { belowVip, roleName } from '@/lib/roles';
 import { VIP_GROUP_KEY, type MemberGroup, type MemberRole } from '@/lib/types';
@@ -135,6 +136,11 @@ export function AudiencePicker({ value, onChange, groups, people, meId, allGroup
               ))}
             </View>
           ) : null}
+          {invitesV2On ? (
+            // Invitations v2 : les personnes en plus (même hors du groupe) et les liens se gèrent sur la fiche, carte « Invités ».
+            // « Inviter par numéro » disparaît : il ne prévenait personne (remplacé par le lien pour une personne).
+            <T muted size={13}>Pour inviter des personnes en plus ou envoyer un lien, utilise la carte « Invités » sur la fiche de l’événement, une fois publié. Elles n’entrent pas dans le groupe.</T>
+          ) : (<>
           <T muted size={13}>Ajouter des personnes</T>
           {picked.length ? (
             <View style={s.wrap}>{picked.map((p) => <Chip key={p.id} label={`✕ ${label(p)}`} selected onPress={() => toggle('invitees', p.id)} />)}</View>
@@ -152,6 +158,7 @@ export function AudiencePicker({ value, onChange, groups, people, meId, allGroup
             <View style={s.wrap}>{value.phones.map((p) => <Chip key={p} label={`✕ ${displayInvitePhone(p)}`} selected onPress={() => set({ phones: value.phones.filter((x) => x !== p) })} />)}</View>
           ) : null}
           <T muted size={13}>Avec l’indicatif du pays (+41, +33, +34…). Un numéro sans compte voit l’événement dès qu’il se connecte à Party avec ce numéro ; les invités reçoivent une invitation privée dans l’app (pas de SMS).</T>
+          </>)}
         </>
       )}
     </View>

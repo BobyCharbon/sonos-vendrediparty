@@ -37,3 +37,9 @@ def discussions_enabled() -> bool:
     """Discussions (groupes et messages directs) : DISCUSSIONS_ENABLED ("1" / "0") si elle est définie ; sinon
     allumées sur le site de test seulement (décision du 04.11 : absentes de la production, ni onglet ni « Bientôt »)."""
     return _flag("DISCUSSIONS_ENABLED")
+
+
+def invites_v2_enabled() -> bool:
+    """Invitations v2 (carte « Invités », liens pour plusieurs, réponse sans app) : INVITES_V2_ENABLED ("1" / "0") si elle
+    est définie ; sinon allumées sur le site de test seulement (bêta, décision du 05.11 : la prod quand l'admin le dira)."""
+    return _flag("INVITES_V2_ENABLED")

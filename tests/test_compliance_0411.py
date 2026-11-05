@@ -184,7 +184,7 @@ def test_privacy_policy_names_the_controller_every_data_and_processor():
     contact = open("web/events/src/lib/contact.ts", encoding="utf-8").read()
     assert "Ludovic Trombert" in contact and "support@vendrediparty.ch" in contact
     for word in ("téléphone", "photo", "Contacts", "vocaux", "micro", "Purify", "Anthropic", "Spotify", "Apple Wallet",
-                 "IBAN", "Supabase", "Twilio", "Infomaniak", "90 jours", "PFPDT", "4 novembre 2026", "ticket"):
+                 "IBAN", "Supabase", "Twilio", "Infomaniak", "90 jours", "PFPDT", "5 novembre 2026", "ticket", "Invitation par lien"):
         assert word in page, word
     for path in ("web/events/src/app/terms.tsx", "web/events/src/components/ReportSheet.tsx"):
         assert "SUPPORT_EMAIL" in open(path, encoding="utf-8").read()

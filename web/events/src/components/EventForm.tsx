@@ -395,7 +395,9 @@ export function EventForm({ eventId }: { eventId?: string }) {
     if (groupIds.length) {
       check(await supabase.from('event_groups').upsert(groupIds.map((group_id) => ({ event_id: id, group_id })), { ignoreDuplicates: true }));
     }
-    check(await supabase.from('event_invites').delete().eq('event_id', id).eq('via_group', false));
+    // Seulement ceux qu'on a enlevés : les autres gardent « invité par », « venu par le lien » (carte Invités).
+    const staleInvites = supabase.from('event_invites').delete().eq('event_id', id).eq('via_group', false);
+    check(await (who.invitees.length ? staleInvites.not('user_id', 'in', `(${who.invitees.join(',')})`) : staleInvites));
     if (who.invitees.length) {
       check(await supabase.from('event_invites').upsert(who.invitees.map((user_id) => ({ event_id: id, user_id })), { ignoreDuplicates: true }));
     }
