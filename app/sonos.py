@@ -45,6 +45,14 @@ def seconds(hms: str | None) -> int | None:
     return total
 
 
+def _reachable(zone) -> bool:
+    """L'enceinte répond-elle ? (son nom est lu une fois puis gardé en cache par SoCo.)"""
+    try:
+        return bool(zone.player_name)
+    except Exception:
+        return False
+
+
 class Sonos:
     def __init__(self, seed_ip: str | None = None):
         self.seed_ip = seed_ip
@@ -59,7 +67,8 @@ class Sonos:
                     zones = soco.SoCo(self.seed_ip).all_zones
                 else:
                     zones = soco.discover(timeout=3, include_invisible=False) or set()
-                self._zones = {z.uid: z for z in zones}
+                # Une enceinte éteinte reste annoncée par les autres : on l'ignore au lieu de tout bloquer.
+                self._zones = {z.uid: z for z in zones if _reachable(z)}
                 self._zones_at = time.time()
             return self._zones
 
@@ -67,8 +76,12 @@ class Sonos:
         """Un élément par groupe Sonos (identifié par son coordinateur)."""
         groups = {}
         for z in self._all_zones().values():
-            coord = z.group.coordinator
-            visible = {m.player_name for m in z.group.members if m.is_visible}
+            try:
+                coord = z.group.coordinator
+                members = list(z.group.members)
+            except Exception:  # groupe illisible (membre éteint) : l'enceinte seule
+                coord, members = z, [z]
+            visible = {m.player_name for m in members if _reachable(m) and m.is_visible}
             groups[coord.uid] = {
                 "uid": coord.uid,
                 "name": " + ".join(sorted(visible)) or coord.player_name,
