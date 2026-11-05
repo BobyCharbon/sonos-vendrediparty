@@ -103,3 +103,20 @@ def test_with_a_hunger_alert_coming_the_reminder_keeps_its_place(pair):
     assert kinds(c) == ["pet_bar"]
     run(c, "19:05")   # 12 h avant l'envol : l'alerte vitale, elle, l'a
     assert kinds(c) == ["pet_bar", "pet_alert"]
+
+
+def test_the_vital_alert_always_goes_even_after_two(pair):
+    """Seule exception au plafond (décision de l'admin) : « a besoin de toi », 12 h avant l'envol, une fois par envol."""
+    c, giver = pair
+    reset(c, dies_at="'2026-11-06 06:00+01'", minute=1080)
+    sql_test(f"""update public.pets set gifts_noted_at = '2026-11-05 09:00+01' where user_id = '{c.uid}';
+      insert into public.pet_gifts (from_user, to_user, kind, day, created_at)
+      values ('{giver.uid}', '{c.uid}', 'hug', '2026-11-05', '2026-11-05 09:30+01');""")
+    run(c, "10:40")   # le cadeau d'ami et l'alerte « très faim » (48 h) : plafond atteint
+    assert sorted(kinds(c)) == ["pet_alert", "pet_gift"]
+    run(c, "18:10")   # moins de 12 h avant l'envol : l'alerte vitale passe quand même
+    rows = sql_test(f"""select title from public.notifications where user_id = '{c.uid}' and kind = 'pet_alert'
+                        order by created_at;""")
+    assert [r["title"] for r in rows] == ["Zicou a très faim", "Zicou a besoin de toi"]
+    run(c, "18:20")
+    assert len(kinds(c)) == 3   # une seule fois par envol

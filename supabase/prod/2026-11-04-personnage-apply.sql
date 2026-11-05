@@ -22,7 +22,8 @@
 --   pg_cron « pet-bar-notify »). Serveur Party à déployer avec app/pet_bar.py et app/static/pet/bar.js / bar.css ;
 --   module Événements reconstruit (Réglages › Notifications › Zicou) ; app iPhone (NotificationSettingsView, widget).
 -- + le PLAFOND DES NOTIFICATIONS ZICOU (20261105170000 : au plus 2 par jour et par compte, toutes sortes confondues,
---   cadeau d'ami > très faim > rappel > barre ; la barre jamais après le rappel du jour ; pets.push_on / push_n,
+--   cadeau d'ami > très faim > rappel > barre ; seule exception : l'alerte vitale « a besoin de toi »
+--   (12 h avant l'envol) passe toujours ; la barre jamais après le rappel du jour ; pets.push_on / push_n,
 --   private.pet_push_take ; pet_notify et pet_bar_notify remplacées). Rien à déployer côté serveur Party.
 -- Serveur Party : poser PET_SECRET = la clé du coffre, lue en prod (lecture seule) par
 --   select decrypted_secret from vault.decrypted_secrets where name = 'pet_server_key';
@@ -2542,7 +2543,9 @@ insert into supabase_migrations.schema_migrations (version, name) values ('20261
 --
 -- Priorité aux plus utiles : cadeau d'ami > très faim > rappel > barre. Comme les envois s'étalent dans la journée, les
 -- moins utiles laissent de la place aux autres :
---   · cadeau d'ami et alertes : tant que moins de 2 sont partis aujourd'hui ;
+--   · cadeau d'ami et alerte « très faim » (48 h) : tant que moins de 2 sont partis aujourd'hui ;
+--   · SEULE EXCEPTION (décision de l'admin du 5.11.2026) : l'alerte vitale « a besoin de toi » (12 h avant l'envol)
+--     passe toujours, même après 2 (une fois par envol possible) ; elle compte quand même dans la journée ;
 --   · rappel du jour / palier : pareil, mais si une alerte « très faim » peut encore venir (envol dans moins de 48 h),
 --     il ne prend jamais la dernière place (l'alerte dit déjà « viens ») ;
 --   · barre pleine : seulement si RIEN n'est encore parti aujourd'hui (elle ne prend jamais la dernière place), donc
@@ -2561,6 +2564,7 @@ language sql immutable set search_path = '' as $$ select 2 $$;
 revoke all on function private.pet_push_max() from public, anon, authenticated;
 
 -- Prend une place du jour si moins de `below` notifications Zicou sont déjà parties aujourd'hui (Zurich) ; vrai si prise.
+-- below null : prise toujours (seule l'alerte vitale « a besoin de toi » s'en sert), mais comptée.
 create or replace function private.pet_push_take(uid uuid, at_time timestamptz, below integer) returns boolean
 language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -2570,7 +2574,7 @@ begin
   update public.pets
      set push_n = case when push_on = today then push_n + 1 else 1 end, push_on = today
    where user_id = uid
-     and (case when push_on = today then push_n else 0 end) < least(below, private.pet_push_max())
+     and (below is null or (case when push_on = today then push_n else 0 end) < least(below, private.pet_push_max()))
   returning true into taken;
   return coalesce(taken, false);
 end;
@@ -2667,7 +2671,8 @@ begin
     end loop;
   end if;
   -- Alertes vitales avant un envol : 48 h puis 12 h avant (une seule fois chacune, refaites s'il a remangé entre-temps).
-  -- Plafond du jour atteint : l'alerte attend (elle repart le lendemain si elle est toujours due).
+  -- Plafond du jour atteint : l'alerte « très faim » (48 h) attend le lendemain ; l'alerte vitale « a besoin de toi »
+  -- (12 h avant l'envol) passe TOUJOURS, seule exception, une fois par envol possible (alerts_sent).
   for r in select p.user_id, p.name, p.gen, p.dies_at, p.alerts_sent from public.pets p
             where p.stage in ('baby', 'teen', 'adult') and p.dies_at is not null
               and p.dies_at > at_time and p.dies_at <= at_time + interval '48 hours'
@@ -2675,7 +2680,8 @@ begin
     hours_left := floor(extract(epoch from (r.dies_at - at_time)) / 3600);
     tag := r.gen || ':' || case when hours_left < 12 then '12' else '48' end;
     continue when tag = any(r.alerts_sent);
-    continue when not private.pet_push_take(r.user_id, at_time, private.pet_push_max());
+    continue when not private.pet_push_take(r.user_id, at_time,
+                                            case when hours_left < 12 then null else private.pet_push_max() end);
     insert into public.notifications (user_id, kind, title, body, data)
     values (r.user_id, 'pet_alert',
             case when hours_left < 12 then r.name || ' a besoin de toi' else r.name || ' a très faim' end,

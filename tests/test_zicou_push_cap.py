@@ -57,3 +57,11 @@ def test_it_is_in_the_prod_file_with_its_rollback():
     back = ROLLBACK.read_text(encoding="utf-8")
     assert "drop function if exists private.pet_push_take(uuid, timestamptz, integer)" in back
     assert "drop column if exists push_n" in back
+
+
+def test_only_the_vital_alert_skips_the_cap():
+    text = sql()
+    assert "and (below is null or (case when push_on = today then push_n else 0 end) < least(below, private.pet_push_max()))" in text
+    body = function_body(text, "pet_notify")
+    assert "case when hours_left < 12 then null else private.pet_push_max() end" in body
+    assert text.count("then null else") == 1   # aucune autre notification ne passe outre
