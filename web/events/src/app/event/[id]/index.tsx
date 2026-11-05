@@ -5,6 +5,7 @@ import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { AttendanceEditor } from '@/components/AttendanceEditor';
 import { AttendeesBadge } from '@/components/AttendeesBadge';
 import { PendingPayments } from '@/components/PendingPayments';
+import { ReportSheet } from '@/components/ReportSheet';
 import { TicketCard } from '@/components/TicketCard';
 import { TicketsManager } from '@/components/TicketsManager';
 import { CalendarButton } from '@/components/CalendarButton';
@@ -20,6 +21,7 @@ import { personLabel, useContactNames, withContactNames } from '@/lib/contactNam
 import { useQuery, useRealtime } from '@/lib/data';
 import { safeHref } from '@/lib/links';
 import { formatLongDay, formatMessageTime, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
+import type { ReportTarget } from '@/lib/moderation';
 import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
 import { ticketRelevant, chf } from '@/lib/tickets';
@@ -62,6 +64,7 @@ export default function EventScreen() {
   const isAdmin = can('events.manage_all');
   const [error, setError] = useState<string | null>(null);
   const [shareNote, setShareNote] = useState('');
+  const [report, setReport] = useState<ReportTarget | null>(null);
   /** Paiement confirmé (« Reçu ») : il remet aussi le billet, la liste « Billets QR » se relit. */
   const [paymentsSeen, setPaymentsSeen] = useState(0);
 
@@ -370,6 +373,11 @@ export default function EventScreen() {
           {ev.event_tags.map(({ tags: t }) => <T key={t.id} size={13} weight="semibold" color={t.color}>#{t.name}</T>)}
         </View>
       ) : null}
+      {/* Apple 1.2 : titre, description et photo sont du contenu de membre ; tout le monde peut les signaler sauf l'auteur. */}
+      {ev.created_by !== me.id ? (
+        <Button small variant="ghost" label="Signaler cet événement" style={{ alignSelf: 'flex-start' }}
+          onPress={() => setReport({ kind: 'event', id: ev.id, label: 'cet événement' })} />
+      ) : null}
 
       <ErrorText error={error} />
       {compagnonOn && published && ev.date_mode === 'fixed' ? <EventGiftsLink eventId={ev.id} canManage={canManage} /> : null}
@@ -409,6 +417,7 @@ export default function EventScreen() {
       </Cascade>
     </Screen>
     {shareNote === 'Lien copié' ? <Toast message="Lien copié" onHide={() => setShareNote('')} /> : null}
+    <ReportSheet target={report} onClose={() => setReport(null)} />
     </>
   );
 }

@@ -7,7 +7,7 @@ import Foundation
 struct ReportTarget: Identifiable, Equatable {
     enum Kind: String {
         case groupMessage = "group_message", directMessage = "direct_message", eventMessage = "event_message"
-        case profile, profilePhoto = "profile_photo"
+        case profile, profilePhoto = "profile_photo", event
         case petName = "pet_name", petItem = "pet_item", petOffer = "pet_offer", petShowcase = "pet_showcase", petWord = "pet_word"
     }
 
@@ -127,7 +127,7 @@ struct ModerationReport: Decodable, Equatable, Identifiable {
 
     static let kinds = [
         "group_message": "Message de groupe", "direct_message": "Message direct", "event_message": "Discussion d'événement",
-        "profile": "Profil", "profile_photo": "Photo de profil", "pet_name": "Nom du Zicou", "pet_item": "Objet de Zicou",
+        "profile": "Profil", "profile_photo": "Photo de profil", "event": "Événement", "pet_name": "Nom du Zicou", "pet_item": "Objet de Zicou",
         "pet_offer": "Offre d'échange", "pet_showcase": "Vitrine", "pet_word": "Mot de Zicou",
     ]
     static let resolutions = ["hide": "Contenu masqué", "warn": "Averti", "suspend": "Suspendu", "ban": "Banni",

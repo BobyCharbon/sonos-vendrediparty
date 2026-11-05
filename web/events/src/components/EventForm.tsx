@@ -5,6 +5,7 @@ import { Pressable, View } from 'react-native';
 import { useAuth, useMe } from '@/lib/auth';
 import { fetchTaxonomy, useQuery } from '@/lib/data';
 import { parseLocalDateTime, toLocalInput } from '@/lib/format';
+import { dbMessage } from '@/lib/moderation';
 import { enter, pressTransition, useChangedSinceMount } from '@/lib/motion';
 import { check, must, supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
@@ -498,7 +499,9 @@ export function EventForm({ eventId }: { eventId?: string }) {
       if (eventId) notifyWallet(id);  // titre, date, lieu : les billets déjà dans Cartes se mettent à jour
       router.replace(`/event/${id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      // Filtre de la base (titre, description) ou CGU : sa phrase, sans la clé technique (« content_refused: … »).
+      const message = e instanceof Error ? e.message : String(e);
+      setError(dbMessage(message, message));
     } finally {
       setDraft(snapshot);
       saving.current = false;

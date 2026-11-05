@@ -3,11 +3,14 @@ import { useState } from 'react';
 import { Linking, Pressable, View } from 'react-native';
 
 import { LinkedText } from '@/components/LinkedText';
+import { ReportSheet } from '@/components/ReportSheet';
 import { RsvpButtons } from '@/components/RsvpButtons';
 import { Badge, Button, Card, ErrorText, Field, Loading, Screen, s, T, Title } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
+import { SUPPORT_EMAIL } from '@/lib/contact';
 import { useQuery } from '@/lib/data';
 import { safeHref } from '@/lib/links';
+import type { ReportTarget } from '@/lib/moderation';
 import { formatLongDay, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
 import { rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
 import { supabase } from '@/lib/supabase';
@@ -28,6 +31,7 @@ export default function PublicEventScreen() {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [report, setReport] = useState<ReportTarget | null>(null);
 
   const { data, reload, error: loadError, loading } = useQuery(async () => {
     const { data, error } = await supabase.rpc('public_event', { e: id });
@@ -133,6 +137,17 @@ export default function PublicEventScreen() {
         )}
         <ErrorText error={error} />
       </Card>
+      {/* Apple 1.2 : contenu de membre visible sans compte ; signaler demande d'être connecté (anti-abus), sinon l'adresse de contact. */}
+      {session ? (
+        <Button small variant="ghost" label="Signaler cet événement" style={{ alignSelf: 'flex-start' }}
+          onPress={() => setReport({ kind: 'event', id: ev.id, label: 'cet événement' })} />
+      ) : (
+        <Pressable accessibilityRole="link" accessibilityLabel="Signaler cet événement par e-mail"
+          onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`Signalement : événement ${ev.id}`)}`)}>
+          <T muted size={13}>Un contenu choquant ? Signale-le à {SUPPORT_EMAIL}</T>
+        </Pressable>
+      )}
+      <ReportSheet target={report} onClose={() => setReport(null)} />
     </Screen>
   );
 }

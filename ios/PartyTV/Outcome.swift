@@ -68,6 +68,7 @@ extension Outcome {
 
     /// Résultat à annoncer pour la partie affichée (nil : rien de décidé à cette phase).
     static func of(_ g: JSON) -> Outcome? {
+        if StoreGames.hides(g) { return nil }  // Casino et Blackjack masqués dans l'app de l'App Store
         let round = "\(g["code"].string ?? "")-\(g["type"].string ?? "")-\(g["round"].int ?? 0)"
         let sipsOption = g["options"]["sips"].int ?? 0
         var o: Outcome?
@@ -153,7 +154,7 @@ extension Outcome {
         let kind = last["kind"].string
         var line = Line(name: name, kind: .info, detail: last["text"].string)
         if kind == "sips" { line = Line(name: name, kind: .drink, amount: last["sips"].int) }
-        if kind == "shot" { line = Line(name: name, kind: .drink, detail: "Cul sec : un shot !") }
+        if kind == "shot" { line = Line(name: name, kind: .drink, detail: "Un shot (ou un verre d'eau)") }
         var lines = [line]
         if last["effect"].string == "team_sip", let team = last["team"].string {  // malus : toute l'équipe boit 1
             lines = B["players"].array.filter { $0["team"].string == team }.compactMap { $0["name"].string }.map { Line(name: $0, kind: .drink, amount: 1) }

@@ -11,7 +11,7 @@ from .group_admin import GroupAdmin
 from .group_chats import GroupChats
 
 UUID = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-KINDS = ("group_message", "direct_message", "event_message", "profile", "profile_photo",
+KINDS = ("group_message", "direct_message", "event_message", "profile", "profile_photo", "event",
          "pet_name", "pet_item", "pet_offer", "pet_showcase", "pet_word")
 REASONS = {
     "harassment": "Harcèlement",

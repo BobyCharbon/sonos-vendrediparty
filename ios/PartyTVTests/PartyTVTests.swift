@@ -193,3 +193,28 @@ struct QuizFlagTests {
         #expect(QuizFlag.isFlag("🇹🇩") && !QuizFlag.isFlag("Tchad") && !QuizFlag.isFlag("🚩") && !QuizFlag.isFlag("🇹🇩🇷🇴"))
     }
 }
+
+/// Contrôle App Store du 05.11.2026 (O1, O6) : rien qui pousse à boire, pas de jeu d'argent simulé dans l'app du Store.
+struct StoreComplianceTests {
+    @Test("Beer pong : un shot reste facultatif (« ou un verre d'eau »), jamais « cul sec »")
+    func shotIsOptional() throws {
+        let g: JSON = .object(["type": .string("beerpong"), "phase": .string("play"), "sips_log": .array([]),
+                               "bp": .object(["last": .object(["n": .number(2), "name": .string("Tom"), "kind": .string("shot"),
+                                                               "text": .string("Shot")]),
+                                              "players": .array([]), "team_names": .object([:])])])
+        let o = try #require(Outcome.of(g))
+        #expect(o.lines.first?.detail == "Un shot (ou un verre d'eau)")
+    }
+
+    @Test("Casino et Blackjack masqués dans l'app de l'App Store (Salle de jeux comprise), gardés en BETA ; Roulette montrée")
+    func moneyGamesHiddenInStoreApp() {
+        let casino: JSON = .object(["type": .string("casino"), "name": .string("Casino"), "phase": .string("bet")])
+        let room: JSON = .object(["type": .string("room"), "current": .object(["type": .string("blackjack"), "name": .string("Blackjack")])])
+        let roulette: JSON = .object(["type": .string("roulette"), "name": .string("Roulette")])
+        #expect(StoreGames.hides(casino, storeApp: true) && StoreGames.hides(room, storeApp: true))
+        #expect(!StoreGames.hides(casino, storeApp: false) && !StoreGames.hides(roulette, storeApp: true))
+        #expect(StoreGames.name(casino, storeApp: true) == "Partie en cours" && StoreGames.name(casino, storeApp: false) == "Casino")
+        #expect(StoreGames.name(roulette, storeApp: true) == "Roulette")
+        #expect(!StoreGames.isStoreApp)  // les tests tournent en Debug (Party BETA)
+    }
+}

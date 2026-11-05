@@ -111,7 +111,8 @@ struct WatchScreen: View {
     /// Un jeu vient d'être lancé dans la Salle de jeux : « C'est parti : Quiz ! » en grand, puis le jeu.
     private func introduce() {
         introTask?.cancel()
-        guard store.game["type"].string == "room", !store.game["current"].isNull, let name = shown["name"].string else {
+        guard store.game["type"].string == "room", !store.game["current"].isNull, !StoreGames.hides(shown),
+              let name = shown["name"].string else {
             return withAnimation(Motion.update) { intro = nil }
         }
         withAnimation(Motion.pop) { intro = name }
@@ -138,10 +139,10 @@ struct WatchScreen: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 24) {
             if shown != store.game { Text("🎲").font(.system(size: 50)) }
-            Text(shown["name"].string ?? "Partie").font(.system(size: 54, weight: .heavy)).lineLimit(1).fixedSize()
-                .id(shown["name"].string ?? "").transition(.motion(.push(from: .bottom)))
-            if let mode = shown["mode"].string { Text(mode).font(.system(size: 34, weight: .semibold)).foregroundStyle(TV.lavender).lineLimit(1) }
-            if !inLobby && !shown.isNull {
+            Text(StoreGames.name(shown)).font(.system(size: 54, weight: .heavy)).lineLimit(1).fixedSize()
+                .id(StoreGames.name(shown)).transition(.motion(.push(from: .bottom)))
+            if !StoreGames.hides(shown), let mode = shown["mode"].string { Text(mode).font(.system(size: 34, weight: .semibold)).foregroundStyle(TV.lavender).lineLimit(1) }
+            if !inLobby && !shown.isNull && !StoreGames.hides(shown) {
                 PhaseTag(text: Phase.label(shown)).transition(.popIn).id(Phase.label(shown))
                 if let info = Phase.progress(shown) {
                     Text(info).font(.system(size: 32, weight: .semibold)).foregroundStyle(TV.muted).lineLimit(1)

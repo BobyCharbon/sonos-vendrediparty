@@ -16,6 +16,8 @@ struct GameView: View {
     var body: some View {
         if game.isNull {
             ProgressView("Chargement de la partie…").font(.title2)
+        } else if StoreGames.hides(game) {
+            StoreHiddenTV()
         } else if game["type"].string == "room" {
             if game["current"].isNull { RoomTV(room: game, join: join) } else { GameView(game: game["current"], join: join) }
         } else if game["phase"].string == "lobby" {
@@ -71,6 +73,39 @@ struct GameView: View {
             case "island", "neon", "heist": ActionGameTV(game: game)
             default: GenericTV(game: game)
             }
+    }
+}
+
+/// App Apple TV de l'App Store : même règle que l'iPhone (AppConfig.isStoreApp, STORE_HIDDEN_GAMES dans app/main.py).
+/// Apple refuse les jeux d'argent simulés à un compte développeur individuel : Casino et Blackjack, lancés depuis le
+/// site, ne s'affichent pas sur la télé (ni plateau, ni nom, ni jetons) ; la BETA (TestFlight) les garde. La Roulette
+/// n'est pas concernée : c'est une roue qui tire un prénom, sans mise ni jetons.
+enum StoreGames {
+    static let hidden: Set<String> = ["casino", "blackjack"]
+    /// VendrediParty (ch.bobycharbon.party) et non Party BETA (….beta).
+    static var isStoreApp: Bool { !(Bundle.main.bundleIdentifier ?? "").hasSuffix(".beta") }
+    static let neutralName = "Partie en cours"
+
+    /// Le jeu affiché (celui de la Salle de jeux compris) est masqué dans cette app.
+    static func hides(_ game: JSON, storeApp: Bool = isStoreApp) -> Bool {
+        storeApp && hidden.contains(GameView.shown(game)["type"].string ?? "")
+    }
+
+    /// Nom montré à l'écran : neutre pour un jeu masqué.
+    static func name(_ game: JSON, storeApp: Bool = isStoreApp) -> String {
+        hides(game, storeApp: storeApp) ? neutralName : (GameView.shown(game)["name"].string ?? "Partie")
+    }
+}
+
+/// Jeu masqué dans l'app de l'App Store : la partie se joue sur les téléphones.
+struct StoreHiddenTV: View {
+    var body: some View {
+        VStack(spacing: 24) {
+            Text("📱").font(.system(size: 120))
+            Text("Partie en cours sur les téléphones").font(.system(size: 56, weight: .heavy))
+            Text("Ce jeu se suit sur les téléphones des joueurs.").font(.title2).foregroundStyle(TV.muted)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -151,6 +186,7 @@ struct SideBoard: View {
 
     static func rows(_ game: JSON) -> (String, [(name: String, value: String)])? {
         let g = shown(game)
+        if StoreGames.hides(g) { return nil }
         // Casino : le classement attend que la bille s'arrête (il dévoilerait qui a gagné).
         if CasinoTV.rolling(g) { return nil }
         func list(_ a: [JSON], _ value: (JSON) -> String) -> [(name: String, value: String)] { a.map { ($0["name"].string ?? "?", value($0)) } }

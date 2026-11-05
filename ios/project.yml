@@ -70,8 +70,8 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         NSCameraUsageDescription: "Pour scanner le QR code de l'hôte et les billets d'un événement, et prendre une photo de profil ou d'événement."
         NSPhotoLibraryUsageDescription: "Pour choisir une photo de profil ou d'événement."
-        NSSpeechRecognitionUsageDescription: "Pour décrire un événement à voix haute : l'assistant IA de Party le remplit pour toi."
-        NSMicrophoneUsageDescription: "Pour enregistrer tes messages vocaux dans les Discussions et pour les jeux qui utilisent le micro."
+        NSSpeechRecognitionUsageDescription: "Pour transformer ta voix en texte quand tu dictes (la description d'un événement pour l'assistant IA, ton avis). La transcription est faite par Apple."
+        NSMicrophoneUsageDescription: "Seulement quand tu touches le micro : pour dicter un texte (la description d'un événement à l'assistant IA, ton avis) ou t'enregistrer."
         NSContactsUsageDescription: "Pour afficher les membres Party qui sont dans tes contacts sous le nom que tu leur as donné. Seule une empreinte chiffrée des numéros est comparée ; tes contacts restent sur ton iPhone."
         ITSAppUsesNonExemptEncryption: false
         # Actions rapides de l'icône (appui long) : Party/QuickActions.swift. « Zicou » et « Cadeau du jour » sont

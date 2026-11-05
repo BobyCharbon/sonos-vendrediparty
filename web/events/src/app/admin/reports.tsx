@@ -16,7 +16,7 @@ type Action = 'hide' | 'warn' | 'suspend' | 'ban' | 'dismiss';
 type Report = {
   id: string; kind: string; target_id: string; reason: string; comment: string | null; status: Exclude<Status, 'all'>;
   resolution: string | null; note: string | null; created_at: string; handled_at: string | null; handled_by: string | null;
-  snapshot: { text?: string; photo_path?: string | null; place?: string; at?: string };
+  snapshot: { text?: string; photo_path?: string | null; place?: string; at?: string; cover_url?: string | null; event_id?: string };
   reporter: { id: string | null; name: string | null };
   target_user: { id: string; name: string; avatar_url: string | null; status: string } | null;
   same_target: number; user_reports: number;
@@ -25,7 +25,7 @@ type Report = {
 
 const KIND_LABELS: Record<string, string> = {
   group_message: 'Message de groupe', direct_message: 'Message direct', event_message: 'Discussion d’événement',
-  profile: 'Profil', profile_photo: 'Photo de profil', pet_name: 'Nom du Zicou', pet_item: 'Objet de Zicou',
+  profile: 'Profil', profile_photo: 'Photo de profil', event: 'Événement', pet_name: 'Nom du Zicou', pet_item: 'Objet de Zicou',
   pet_offer: 'Offre d’échange', pet_showcase: 'Vitrine', pet_word: 'Mot de Zicou',
 };
 const RESOLUTIONS: Record<string, string> = {
@@ -125,7 +125,13 @@ function ReportCard({ report: r, photo, canBan, onDone }: { report: Report; phot
           <Avatar id={user.id} name={user.name} photo={r.snapshot.photo_path} size={120} profile={false} />
         ) : null}
         {photo ? <Image source={{ uri: photo }} style={{ width: 160, height: 160, borderRadius: 10 }} accessibilityLabel="Photo signalée" /> : null}
+        {r.kind === 'event' && r.snapshot.cover_url ? (
+          <Image source={{ uri: r.snapshot.cover_url }} style={{ width: 200, height: 112, borderRadius: 10 }} accessibilityLabel="Photo de l’événement signalé" />
+        ) : null}
         <T>{r.snapshot.text || (r.kind === 'profile_photo' ? '' : '(sans texte)')}</T>
+        {r.kind === 'event' && r.snapshot.event_id ? (
+          <Button small variant="ghost" label="Ouvrir l’événement" onPress={() => router.push(`/event/${r.snapshot.event_id}`)} />
+        ) : null}
       </View>
       <T muted size={13}>Signalé par {r.reporter.name ?? 'un compte supprimé'}{r.comment ? ` : « ${r.comment} »` : ''}</T>
       {r.sanctions.length ? (

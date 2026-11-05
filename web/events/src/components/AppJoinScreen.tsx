@@ -9,6 +9,7 @@ import { appDownload, claimInvite, finalClaimError, forgetInvite, INVITE_TOKEN, 
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { hasCompleteIdentity } from '@/lib/profile';
+import { discussionsOn } from '@/lib/features';
 import { colors } from '@/lib/theme';
 
 /** Lien personnel d'invitation dans Party (/events/join/<lien>), avis 84fab3987f68 :
@@ -61,7 +62,7 @@ function Welcome({ token, preview }: { token: string; preview: InvitePreview }) 
       <Stack.Screen options={{ title: 'Invitation' }} />
       <Inviter preview={preview} />
       <T muted style={{ textAlign: 'center' }}>
-        Événements, discussions de groupe, jeux et musique de la soirée : rejoins tes amis sur Party.
+        {discussionsOn ? 'Événements, discussions de groupe, jeux et musique de la soirée' : 'Événements, jeux et musique de la soirée'} : rejoins tes amis sur Party.
         Il suffit de ton numéro de téléphone.
       </T>
       <View style={{ gap: 10 }}>

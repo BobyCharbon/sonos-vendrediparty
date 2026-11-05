@@ -16,6 +16,8 @@ struct ModerationTests {
         #expect(ReportTarget.Kind.profilePhoto.rawValue == "profile_photo")
         #expect(ReportTarget.Kind.directMessage.rawValue == "direct_message")
         #expect(ReportTarget.Kind.petOffer.rawValue == "pet_offer")  // point d'accroche du Compagnon
+        #expect(ReportTarget.Kind.event.rawValue == "event")  // signaler un événement (contrôle du 05.11)
+        #expect(ModerationReport.kinds["event"] == "Événement")
     }
 
     @Test("Conditions : version, acceptation et contact ; un ancien serveur sans champ ne casse rien")

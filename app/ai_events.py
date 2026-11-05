@@ -12,7 +12,7 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from . import covers as covers_mod, link_reader
+from . import covers as covers_mod, link_reader, moderation
 from .accounts import AccountError
 
 # Créer un événement demande de vraiment comprendre ce qui est dit (dates relatives, lieux, personnes) : le modèle le
@@ -277,6 +277,16 @@ def safe_url(url) -> str | None:
     return url if url.startswith("https://") else None
 
 
+
+def clean_event_text(text: str | None, part: str) -> str:
+    """Filtre de contenu (Apple 1.2) du titre et de la description, comme la base (events_moderation) : insulte d'un mot
+    masquée, propos haineux ou sexuels refusés avec une phrase claire avant toute écriture."""
+    verdict = moderation.check(text or "", "message")
+    if not verdict.ok:
+        reason = moderation.REASONS.get(verdict.category or "", "un mot interdit")
+        raise AccountError(f"Événement non enregistré : {part} contient {reason}. Les règles de Party l'interdisent.")
+    return verdict.text
+
 class Options:
     """Ce que la personne peut choisir : catégories et tags (nom → id), groupes (nom → id ; None = Vendredi Party,
     « people » = seulement les invités nommés, « public » = lien), personnes (nom → id, l'annuaire que ses droits lui
@@ -431,7 +441,8 @@ class EventAssistant:
         audience = o.audiences.get(d["audience"])
         fixed = d["date_mode"] == "fixed"
         return {
-            "title": d["title"], "description": d["description"], "category_id": o.categories.get(d["category"]),
+            "title": clean_event_text(d["title"], "le titre"),
+            "description": clean_event_text(d["description"], "la description"), "category_id": o.categories.get(d["category"]),
             "date_mode": d["date_mode"],
             "starts_at": local_time(d["start"], now).isoformat() if fixed else None,
             "ends_at": local_time(d["end"], now).isoformat() if fixed and d["end"] else None,
