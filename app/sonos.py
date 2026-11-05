@@ -269,6 +269,10 @@ class Sonos:
                 raise LookupError("Playlist introuvable")
             coord.clear_queue()
             coord.add_to_queue(self._playlists[playlist_id][1])
+        # La file Sonos devient la source d'abord : si Spotify Connect ou la TV jouait, Sonos refuse sinon le mode
+        # aléatoire (UPnP 712 « Play mode not supported »).
+        coord.avTransport.SetAVTransportURI([("InstanceID", 0), ("CurrentURI", f"x-rincon-queue:{coord.uid}#0"),
+                                             ("CurrentURIMetaData", "")])
         # Sonos mélange réellement la file : l'ordre de la file reste l'ordre de lecture.
         coord.play_mode = "SHUFFLE"
         coord.cross_fade = True
