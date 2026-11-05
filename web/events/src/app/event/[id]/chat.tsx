@@ -1,17 +1,31 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Avatar, Button, ErrorText, Input, s, T } from '@/components/ui';
+import { LinkedText } from '@/components/LinkedText';
+import { ReportSheet } from '@/components/ReportSheet';
+import { useTermsGate } from '@/components/TermsSheet';
+import { Avatar, Button, ErrorText, HeaderBack, Input, s, T } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { useContactNames, withContactNames } from '@/lib/contactNames';
 import { useQuery, useRealtime } from '@/lib/data';
 import { formatMessageTime } from '@/lib/format';
 import { enter } from '@/lib/motion';
+import { dbMessage, type ReportTarget } from '@/lib/moderation';
 import { check, must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
 import type { Message } from '@/lib/types';
+
+/** Hauteur du champ de saisie : une ligne au repos, puis il suit le texte (padding compris) jusqu'à 5 lignes environ. */
+const COMPOSER_MIN = 48;
+const COMPOSER_MAX = 132;
+/** Bordure du champ (1,5 px en haut et en bas), hors de la hauteur du contenu mesurée. */
+const COMPOSER_BORDERS = 3;
+const composerHeightFor = (content: number) => Math.min(COMPOSER_MAX, Math.max(COMPOSER_MIN, Math.ceil(content) + COMPOSER_BORDERS));
+
+/** Zone de toucher agrandie des petits liens sous un message (Épingler, Supprimer, Signaler), sans changer leur taille visible. */
+const ACTION_SLOP = { top: 12, bottom: 12, left: 6, right: 6 };
 
 export default function ChatRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -23,10 +37,19 @@ function Chat({ id }: { id: string }) {
   const { can } = useAuth();
   const isAdmin = can('events.manage_all');
   const [text, setText] = useState('');
+  const [composerHeight, setComposerHeight] = useState(COMPOSER_MIN);
+  // Fonction stable : react-native-web relit la taille du contenu à chaque nouvelle fonction (boucle de rendus sinon).
+  const onComposerSize = useCallback((e: { nativeEvent: { contentSize: { height: number } } }) => {
+    const next = composerHeightFor(e.nativeEvent.contentSize.height);
+    setComposerHeight((h) => (Math.abs(h - next) < 2 ? h : next));
+  }, []);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
+  // Modération commune : « Signaler » un message, CGU acceptées avant le premier message.
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+  const terms = useTermsGate();
   const [older, setOlder] = useState<Message[]>([]);
   const [olderMore, setOlderMore] = useState<boolean | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -93,6 +116,7 @@ function Chat({ id }: { id: string }) {
   async function send() {
     const body = text.trim();
     if (!body || sendingRef.current) return;
+    if (!terms.accepted && !(await terms.ensure())) return;
     sendingRef.current = true;
     setSending(true);
     setError(null);
@@ -107,7 +131,7 @@ function Chat({ id }: { id: string }) {
       followLatest.current = true;
       await reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(dbMessage(e instanceof Error ? e.message : String(e), 'Le message n’a pas pu être envoyé. Réessaie.'));
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -129,7 +153,11 @@ function Chat({ id }: { id: string }) {
 
   return (
     <SafeAreaView style={s.screen} edges={['bottom']}>
-      <Stack.Screen options={{ title: data?.event.title ?? 'Discussion' }} />
+      <Stack.Screen options={{
+        title: data?.event.title ?? 'Discussion',
+        // Ouverte par un lien ou une notification (rien derrière) : ‹ Événement ramène à sa fiche.
+        ...(router.canGoBack() ? {} : { headerLeft: () => <HeaderBack iconOnly label="Événement" onPress={() => router.replace(`/event/${id}`)} /> }),
+      }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
         {pinned.map((m) => (
           <View key={m.id} style={[{ margin: 12, marginBottom: 0, padding: 12, borderRadius: radius.md, backgroundColor: colors.surface }, enter('drop')]}>
@@ -171,24 +199,31 @@ function Chat({ id }: { id: string }) {
                   ) : null}
                   <View style={{ padding: 10, borderRadius: 16, backgroundColor: mine ? colors.accent : colors.surface, gap: 6 }}>
                     {quoted ? (
-                      <View style={{ padding: 6, borderRadius: 8, backgroundColor: mine ? '#BFD93F' : colors.surface2 }}>
+                      <View style={{ padding: 6, borderRadius: 8, backgroundColor: mine ? 'rgba(0,0,0,0.14)' : colors.surface2 }}>
                         <T size={12} color={mine ? colors.onAccent : colors.muted} numberOfLines={2}>
                           ↪ {names.get(quoted.user_id)} : {quoted.body}
                         </T>
                       </View>
                     ) : null}
-                    <T size={15} color={mine ? colors.onAccent : colors.text}>{m.body}</T>
+                    <LinkedText size={15} color={mine ? colors.onAccent : colors.text} linkColor={mine ? colors.onAccent : colors.accent} text={m.body} />
                   </View>
-                  <View style={s.row}>
+                  {/* Passe à la ligne sur un écran étroit : sinon cette ligne élargit la bulle au-delà de l'écran. */}
+                  <View style={[s.row, { flexWrap: 'wrap', rowGap: 2 }]}>
                     <T muted size={11}>{formatMessageTime(m.created_at)}</T>
                     {data?.canModerate ? (
-                      <Pressable onPress={() => togglePin(m)} accessibilityRole="button">
+                      <Pressable onPress={() => togglePin(m)} accessibilityRole="button" hitSlop={ACTION_SLOP}>
                         <T muted size={11}>{m.pinned ? 'Désépingler' : 'Épingler'}</T>
                       </Pressable>
                     ) : null}
                     {mine || can('chat.moderate') ? (
-                      <Pressable onPress={() => remove(m)} accessibilityRole="button">
+                      <Pressable onPress={() => remove(m)} accessibilityRole="button" hitSlop={ACTION_SLOP}>
                         <T muted size={11}>Supprimer</T>
+                      </Pressable>
+                    ) : null}
+                    {!mine ? (
+                      <Pressable onPress={() => setReportTarget({ kind: 'event_message', id: m.id, label: `le message de ${names.get(m.user_id) ?? '?'}` })}
+                        accessibilityRole="button" hitSlop={ACTION_SLOP} accessibilityLabel={`Signaler le message de ${names.get(m.user_id) ?? '?'}`}>
+                        <T muted size={11}>Signaler</T>
                       </Pressable>
                     ) : null}
                   </View>
@@ -210,17 +245,21 @@ function Chat({ id }: { id: string }) {
         <View style={[s.row, { padding: 12, borderTopWidth: 1, borderTopColor: colors.line }]}>
           <Input
             accessibilityLabel="Message"
-            placeholder="Écrire un message… (@prénom pour mentionner)"
+            placeholder="Message (@ pour citer)"
             value={text}
             onChangeText={setText}
             multiline
             editable={!sending}
             maxLength={4000}
-            style={{ flex: 1, height: undefined, minHeight: 46, maxHeight: 120, paddingTop: 12 }}
+            // Le champ grandit avec le texte (jusqu'à COMPOSER_MAX) : à hauteur fixe, la 2e ligne rognait le haut du texte.
+            onContentSizeChange={onComposerSize}
+            style={{ flex: 1, height: text ? composerHeight : COMPOSER_MIN, paddingTop: 12, paddingBottom: 12 }}
           />
           <Button label="Envoyer" onPress={send} disabled={!text.trim() || !data} loading={sending} small />
         </View>
       </KeyboardAvoidingView>
+      <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />
+      {terms.sheet}
     </SafeAreaView>
   );
 }

@@ -66,3 +66,4 @@ body.pyr-full #game.g-db { box-shadow: none; border: 0; padding: 16px; backgroun
 .db-sheet-row { display: flex; gap: 10px; align-items: center; }
 .db-sheet-row .lk-main { flex: 2; }
 .db-sheet-row .lk-sub { margin-top: 14px; }
+.db-report { display: block; margin: 10px auto 0; min-height: 44px; font-size: .85rem; }

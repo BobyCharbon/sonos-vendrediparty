@@ -66,7 +66,7 @@ struct NotificationPauseTests {
         let keys: [(String, KeyPath<EventNotificationPrefs, Bool?>)] = [
             ("announcements", \.announcements), ("rsvp_set", \.rsvpSet), ("invites", \.invites),
             ("proposal_result", \.proposalResult), ("link_join", \.linkJoin), ("group_messages", \.groupMessages),
-            ("group_invites", \.groupInvites), ("group_joins", \.groupJoins),
+            ("group_invites", \.groupInvites), ("group_joins", \.groupJoins), ("direct_messages", \.directMessages),
         ]
         for (key, path) in keys {
             #expect(SettingsStore.applying(key, false, to: p)[keyPath: path] == false, "\(key)")

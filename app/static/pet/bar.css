@@ -1,0 +1,57 @@
+/* 🎁 Zicou — barre « petit cadeau » (pet/bar.js). Couleurs calmes (jamais de rouge, jamais de compte à rebours) ;
+   animations en transform/opacity/background-position, coupées par prefers-reduced-motion. Rien sur html/body. */
+.zb {
+  --zb-a: #5ee7ff; --zb-b: #8f6bff; --zb-c: #ffb547;
+  display: flex; align-items: center; gap: 8px; min-height: 30px; margin: -2px 0 6px; padding: 0 2px;
+}
+.zb-i { flex: none; font-size: .95rem; line-height: 1; }
+.zb-when { flex: none; max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--pt-muted, #a99ccf); font-size: .78rem; }
+.zb-info, .zb-claim { flex: none; border: 0; cursor: pointer; font: inherit; touch-action: manipulation; }
+.zb-info { position: relative; flex: 0 0 22px; width: 22px; height: 22px; min-width: 0; min-height: 0; padding: 0; border-radius: 50%; background: rgba(255, 255, 255, .1);
+  color: var(--pt-muted, #a99ccf); font-size: .72rem; font-weight: 800; font-style: italic; }
+.zb-info::after { content: ""; position: absolute; inset: -11px; }   /* zone de toucher de 44 px */
+.zb-claim { min-width: 0; min-height: 28px; max-height: 32px; padding: 4px 12px; border-radius: 99px; font-size: .8rem; font-weight: 800; color: #1a1236;
+  background: linear-gradient(90deg, var(--zb-c), #ffd98a); box-shadow: 0 2px 10px rgba(255, 181, 71, .3); }
+.pt-root .zb-claim { color: #1a1236; }   /* plus fort que « .pt-root button { color: inherit } » */
+.pt-root .zb-info { color: var(--pt-muted, #a99ccf); }
+.zb-claim:active, .zb-info:active { transform: scale(.94); }
+.zb-today { margin: 0 0 8px; color: var(--pt-muted, #a99ccf); font-size: .88rem; }
+
+.zb-track { position: relative; flex: 1; min-width: 40px; height: 6px; border-radius: 99px; overflow: hidden; background: rgba(255, 255, 255, .1); }
+.zb-fill {
+  position: absolute; inset: 0; border-radius: inherit; transform-origin: 0 50%; transform: scaleX(var(--zb-s, 0));
+  background: linear-gradient(90deg, var(--zb-a), var(--zb-b), var(--zb-a)) 0 0 / 200% 100%;
+  transition: transform 1.2s cubic-bezier(.22, 1, .36, 1);
+  animation: zb-flow 4s linear infinite;
+}
+.zb-rest .zb-fill { animation: none; opacity: .5; }
+.zb-full .zb-fill { transform: none; background: linear-gradient(90deg, var(--zb-c), #ffd98a, var(--zb-c)) 0 0 / 200% 100%; animation-duration: 2.4s; }
+.zb-glow {
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .7) 50%, transparent 70%) -150% 0 / 60% 100% no-repeat;
+  animation: zb-shine 2.8s ease-in-out infinite;
+}
+.zb-full .zb-claim { animation: zb-pop .5s cubic-bezier(.34, 1.56, .64, 1) both; }
+.zb-intro .zb-fill { animation: zb-grow 1.1s cubic-bezier(.22, 1, .36, 1) both, zb-flow 4s linear infinite; }
+@keyframes zb-grow { from { transform: scaleX(0); } }
+@keyframes zb-flow { to { background-position: -200% 0; } }
+@keyframes zb-shine { 0%, 40% { background-position: -150% 0; } 100% { background-position: 250% 0; } }
+@keyframes zb-pop { from { transform: scale(.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* ── Anneau de la pastille de l'en-tête ── */
+.zb-ring {
+  position: absolute; inset: -5px; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(#5ee7ff var(--zb-p, 0%), rgba(255, 255, 255, .12) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+  transition: opacity .4s ease;
+}
+.zb-ring-rest { opacity: .45; }
+.zb-ring-full { background: conic-gradient(#ffb547 100%, transparent 0); animation: zb-ring-glow 2.6s ease-in-out infinite; }
+@keyframes zb-ring-glow { 50% { opacity: .55; transform: scale(1.06); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .zb-fill, .zb-intro .zb-fill, .zb-glow, .zb-ring-full, .zb-full .zb-claim { animation: none; transition: none; }
+}
+.zb-calm .zb-fill, .zb-calm .zb-glow { animation: none; }

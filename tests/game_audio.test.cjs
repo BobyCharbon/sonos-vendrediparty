@@ -51,3 +51,12 @@ test('storage restrictions and unavailable audio do not prevent playing', () => 
   s.listeners.click({ target: { closest: () => true } });
   assert.equal(s.notes.length, 0);
 });
+test('cue plays outside a game (Compagnon) and respects the mute switch', () => {
+  const s = setup();
+  s.audio.observe(null, '');
+  s.audio.play('win'); assert.equal(s.notes.length, 0);   // hors partie : play reste muet
+  s.audio.cue('win'); assert.equal(s.notes.length, 4);
+  s.audio.play('win'); assert.equal(s.notes.length, 4);   // cue ne laisse pas la partie « active »
+  s.listeners.click({ target: { closest: () => true } });
+  s.audio.cue('win'); assert.equal(s.notes.length, 4);
+});

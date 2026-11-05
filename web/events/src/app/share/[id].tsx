@@ -2,12 +2,19 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Linking, Pressable, View } from 'react-native';
 
+import { LinkedText } from '@/components/LinkedText';
+import { ReportSheet } from '@/components/ReportSheet';
+import { RsvpButtons } from '@/components/RsvpButtons';
 import { Badge, Button, Card, ErrorText, Field, Loading, Screen, s, T, Title } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
+import { SUPPORT_EMAIL } from '@/lib/contact';
 import { useQuery } from '@/lib/data';
+import { safeHref } from '@/lib/links';
+import type { ReportTarget } from '@/lib/moderation';
 import { formatLongDay, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
 import { rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
 import { supabase } from '@/lib/supabase';
+import { chf } from '@/lib/tickets';
 import { colors } from '@/lib/theme';
 import type { EventRow, Rsvp } from '@/lib/types';
 
@@ -24,6 +31,7 @@ export default function PublicEventScreen() {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [report, setReport] = useState<ReportTarget | null>(null);
 
   const { data, reload, error: loadError, loading } = useQuery(async () => {
     const { data, error } = await supabase.rpc('public_event', { e: id });
@@ -44,7 +52,7 @@ export default function PublicEventScreen() {
   }
 
   const ev = data;
-  const mapsUrl = ev.location_url ?? (ev.location_address || ev.location_name ? `https://maps.apple.com/?q=${encodeURIComponent(ev.location_address ?? ev.location_name!)}` : null);
+  const mapsUrl = safeHref(ev.location_url) ?? (ev.location_address || ev.location_name ? `https://maps.apple.com/?q=${encodeURIComponent(ev.location_address ?? ev.location_name!)}` : null);
   const closed = ev.status !== 'published' || rsvpClosed(ev);
 
   async function answer(status: Rsvp['status']) {
@@ -90,12 +98,12 @@ export default function PublicEventScreen() {
             {ev.location_name && ev.location_address ? <T muted size={13}>{ev.location_address}</T> : null}
           </Pressable>
         ) : null}
-        {ev.price_chf != null ? <T>💶 {ev.price_chf === 0 ? 'Gratuit' : `${ev.price_chf} CHF / personne`}</T> : null}
+        {ev.price_chf != null ? <T>💶 {ev.price_chf === 0 ? 'Gratuit' : `${chf(ev.price_chf)} / personne`}</T> : null}
         <T muted>
           👥 {plural(ev.going, 'participant', 'participants')}{ev.max_participants ? ` sur ${ev.max_participants} places` : ''}
           {ev.rsvp_deadline ? ` · réponse avant le ${formatShort(ev.rsvp_deadline)}` : ''}
         </T>
-        {ev.description ? <T>{ev.description}</T> : null}
+        {ev.description ? <LinkedText text={ev.description} /> : null}
       </View>
 
       <Card>
@@ -117,23 +125,29 @@ export default function PublicEventScreen() {
             <T weight="semibold">
               {ev.mine ? `Ta réponse : ${rsvpChoices[ev.mine.status].mine}${ev.mine.waitlisted && ev.mine.status === 'yes' ? ' (liste d’attente)' : ''}` : 'Tu viens ?'}
             </T>
-            <View style={s.row}>
-              {rsvpOptions(ev.allow_maybe).map((st) => (
-                <Button
-                  key={st}
-                  small
-                  variant={ev.mine?.status === st ? 'primary' : 'secondary'}
-                  label={`${rsvpChoices[st].icon} ${rsvpChoices[st].label}`}
-                  disabled={busy}
-                  onPress={() => answer(st)}
-                  style={{ flex: 1 }}
-                />
-              ))}
-            </View>
+            {/* Mêmes boutons que la fiche et la liste (couleur et pictogramme par réponse). */}
+            <RsvpButtons
+              options={rsvpOptions(ev.allow_maybe)}
+              selected={ev.mine?.status ?? null}
+              disabled={busy}
+              onSelect={(choice) => void answer(choice)}
+              accessibilityLabel={(k) => `${rsvpChoices[k].label} à ${ev.title}`}
+            />
           </>
         )}
         <ErrorText error={error} />
       </Card>
+      {/* Apple 1.2 : contenu de membre visible sans compte ; signaler demande d'être connecté (anti-abus), sinon l'adresse de contact. */}
+      {session ? (
+        <Button small variant="ghost" label="Signaler cet événement" style={{ alignSelf: 'flex-start' }}
+          onPress={() => setReport({ kind: 'event', id: ev.id, label: 'cet événement' })} />
+      ) : (
+        <Pressable accessibilityRole="link" accessibilityLabel="Signaler cet événement par e-mail"
+          onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`Signalement : événement ${ev.id}`)}`)}>
+          <T muted size={13}>Un contenu choquant ? Signale-le à {SUPPORT_EMAIL}</T>
+        </Pressable>
+      )}
+      <ReportSheet target={report} onClose={() => setReport(null)} />
     </Screen>
   );
 }

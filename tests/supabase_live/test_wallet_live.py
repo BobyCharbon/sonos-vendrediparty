@@ -34,13 +34,14 @@ def party():
     complete_profile(b, 'Guest B')
     # Sur invitation, sans notification : seuls les comptes de test le voient, personne n'est prévenu (conftest).
     eid = create_event(admin, 'Test billets Wallet', visibility='invited', notify_on_publish=False, price_chf=15,
-                       location_name='Chez Boby')
+                       location_name='Chez Boby', tickets_enabled=True)
     try:
         for who in (a, b):
             r = httpx.post(f'{TEST_URL}/rest/v1/event_invites', headers=admin.headers, json={'event_id': eid, 'user_id': who.uid}, timeout=30)
             assert r.status_code == 201, r.text
         answer(a, eid, 'yes')
         answer(b, eid, 'maybe')
+        assert admin.rpc('issue_all_event_tickets', e=eid).json() == 1  # billet de A remis (20261104233000)
         yield admin, a, b, eid
     finally:  # même si la mise en place échoue : la base de test ne garde rien (pass, appareils : en cascade)
         httpx.delete(f'{TEST_URL}/rest/v1/events?id=eq.{eid}', headers=admin.headers, timeout=30)
@@ -63,7 +64,7 @@ def test_only_a_present_guest_gets_a_pass_with_a_stable_token(party):
     assert mine['ticket']['token'] == ticket(a, eid)['token'] and mine['holder'] == 'Guest A'
     assert issue(a, eid)['auth_token'] == mine['auth_token']  # même pass à chaque ajout
     refused = b.rpc('wallet_pass_issue', e=eid)  # peut-être : pas de billet
-    assert refused.status_code >= 400 and 'Présent' in refused.text
+    assert refused.status_code >= 400 and 'remettre' in refused.text
     # Tables fermées, même pour un admin.
     assert admin.get(f'wallet_passes?event_id=eq.{eid}').status_code in (401, 403)
     assert admin.get('wallet_devices').status_code in (401, 403)

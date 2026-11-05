@@ -1,16 +1,21 @@
 import SwiftUI
 import UIKit
 
-/// Retours reçus (hôte) : filtre, statuts, instructions pour Claude, mot pour l'invité. Session d'hôte (cookie).
+/// Retours reçus (hôte) : vues, filtres, tris, classement, instructions pour Claude, fil, mot pour l'invité.
+/// Session d'hôte (cookie). Mêmes appels et mêmes mots que feedback-admin.js.
 @MainActor
 final class FeedbackAdminStore: ObservableObject {
     @Published private(set) var payload: AdminFeedback?
     @Published private(set) var error: String?
     @Published private(set) var busy: Set<String> = []
-    @Published var filter: AdminFeedback.Filter = .new
-    /// Tri gardé d'une ouverture à l'autre.
+    @Published var view = "mine"
+    @Published var filters = AdminFeedback.Filters()
+    /// Tri et regroupement gardés d'une ouverture à l'autre.
     @Published var sort: AdminFeedback.Sort = AdminFeedback.Sort(rawValue: UserDefaults.standard.string(forKey: "feedbackSort") ?? "") ?? .recent {
         didSet { UserDefaults.standard.set(sort.rawValue, forKey: "feedbackSort") }
+    }
+    @Published var groupByArea = UserDefaults.standard.bool(forKey: "feedbackGroup") {
+        didSet { UserDefaults.standard.set(groupByArea, forKey: "feedbackGroup") }
     }
     @Published var notice: String?
 
@@ -21,6 +26,8 @@ final class FeedbackAdminStore: ObservableObject {
         self.api = api
         self.web = web
     }
+
+    var meta: FeedbackMeta { payload?.meta ?? .fallback }
 
     func load() async {
         do {
@@ -35,12 +42,19 @@ final class FeedbackAdminStore: ObservableObject {
     /// Statut ou suppression ; « Terminé » et « Pas retenu » emportent le mot pour l'invité (il est averti).
     @discardableResult
     func set(_ item: AdminFeedback.Item, _ action: String, reply: String = "") async -> Bool {
-        if action == "declined" && reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        let word = reply.trimmingCharacters(in: .whitespacesAndNewlines)
+        if action == "declined" && word.isEmpty {
             notice = "Écris d'abord un mot pour l'invité : il verra pourquoi ce n'est pas retenu"
             return false
         }
         let done = await run(item.id) {
-            payload = try await api.adminFeedbackAction(item.id, action, reply: reply.trimmingCharacters(in: .whitespacesAndNewlines))
+            if action == "delete" {
+                payload = try await api.adminFeedbackAction(item.id, "delete")
+            } else {
+                var fields: [String: Any] = ["status": action]
+                if !word.isEmpty { fields["reply"] = word }
+                payload = try await api.adminFeedbackEdit([item.id], fields: fields)
+            }
         }
         if done {
             switch action {
@@ -53,14 +67,33 @@ final class FeedbackAdminStore: ObservableObject {
         return done
     }
 
+    /// Enregistre ce qui a changé dans le classement (un seul appel, historique côté serveur).
     @discardableResult
-    func saveNote(_ item: AdminFeedback.Item, _ note: String) async -> Bool {
-        guard note != item.note else { return true }
-        return await run(item.id) { payload = try await api.adminFeedbackAction(item.id, "note", note: note) }
+    func save(_ item: AdminFeedback.Item, _ draft: FeedbackDraft) async -> Bool {
+        let changes = draft.changes(from: item, meta)
+        guard !changes.isEmpty else { return true }
+        return await run(item.id) { payload = try await api.adminFeedbackEdit([item.id], fields: changes) }
     }
 
-    func copyPrompt(_ item: AdminFeedback.Item, note: String) async {
-        guard await saveNote(item, note) else { return }
+    func comment(_ item: AdminFeedback.Item, _ text: String) async -> Bool {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return false }
+        return await run(item.id) { payload = try await api.adminFeedbackComment(item.id, text: text) }
+    }
+
+    /// Avis écrit par l'hôte (« ＋ Nouvel avis » ou « Mon avis »), classé dès la création.
+    func create(kind: String, text: String, draft: FeedbackDraft, tab: String? = nil) async -> Bool {
+        let me = await web?.guestIdentity()
+        let done = await run("new") {
+            payload = try await api.adminFeedbackNew(kind: kind, text: text, name: me?.name ?? "", guestID: me?.id ?? "",
+                                                     tab: tab, fields: draft.fields(meta, creating: true))
+        }
+        if done { notice = "＋ Avis créé" }
+        return done
+    }
+
+    func copyPrompt(_ item: AdminFeedback.Item, draft: FeedbackDraft) async {
+        guard await save(item, draft) else { return }
         await run(item.id) {
             UIPasteboard.general.string = try await api.adminFeedbackPrompt(item.id)
             notice = "📋 Prompt copié"
@@ -68,19 +101,16 @@ final class FeedbackAdminStore: ObservableObject {
     }
 
     @discardableResult
-    func sendToClaude(_ item: AdminFeedback.Item, note: String) async -> Bool {
-        guard await saveNote(item, note) else { return false }
+    func sendToClaude(_ item: AdminFeedback.Item, draft: FeedbackDraft) async -> Bool {
+        guard await save(item, draft) else { return false }
         let done = await run(item.id) { payload = try await api.adminFeedbackToClaude(item.id) }
-        if done { notice = "🤖 Envoyé à Claude : suis-le dans « En cours »" }
+        if done { notice = "🤖 Envoyé à Claude : suis-le dans « Pour Claude »" }
         return done
-    }
-
-    func setPriority(_ item: AdminFeedback.Item, _ priority: String) async {
-        await run(item.id) { payload = try await api.adminFeedbackPriority(item.id, priority) }
     }
 
     func item(_ id: String) -> AdminFeedback.Item? { payload?.items.first { $0.id == id } }
 
+    @discardableResult
     private func run(_ key: String, _ work: () async throws -> Void) async -> Bool {
         busy.insert(key)
         defer { busy.remove(key) }
@@ -95,32 +125,39 @@ final class FeedbackAdminStore: ObservableObject {
     }
 }
 
-/// Liste des retours reçus, filtrée par état.
+/// Liste des retours reçus : vues rapides, filtres fins, tri, regroupement par zone, recherche.
 struct FeedbackAdminSection: View {
     @ObservedObject var store: FeedbackAdminStore
     @State private var editing: AdminFeedback.Item?
     @State private var deleting: AdminFeedback.Item?
+    @State private var creating = false
+    @State private var showFilters = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker("Filtrer", selection: $store.filter) {
-                ForEach(AdminFeedback.Filter.allCases) { filter in
-                    let n = store.payload?.count(filter) ?? 0
-                    Text(n > 0 && filter != .finished && filter != .all ? "\(filter.label) \(n)" : filter.label).tag(filter)
+            HStack {
+                Button { creating = true } label: { Label("Nouvel avis", systemImage: "plus") }
+                    .buttonStyle(.borderedProminent).tint(Palette.accent)
+                TextField("Rechercher (texte, #id, étiquette)", text: $store.filters.search)
+                    .textFieldStyle(.roundedBorder)
+                    .submitLabel(.search)
+            }
+            Picker("Vue", selection: $store.view) {
+                ForEach(store.meta.views) { view in
+                    let n = store.payload?.count(view: view.key) ?? 0
+                    Text(n > 0 && !["finished", "all"].contains(view.key) ? "\(view.label) \(n)" : view.label).tag(view.key)
                 }
             }
             .pickerStyle(.menu)
             .tint(Palette.accent)
-            Picker("Trier", selection: $store.sort) {
-                ForEach(AdminFeedback.Sort.allCases) { Text($0.label).tag($0) }
+            DisclosureGroup(isExpanded: $showFilters) {
+                FeedbackFilters(store: store)
+            } label: {
+                Text(store.filters.isEmpty ? "Filtres et tri" : "Filtres et tri · actifs").font(.subheadline.weight(.semibold))
             }
-            .pickerStyle(.segmented)
+            .tint(Palette.accent)
             if let payload = store.payload {
-                let shown = payload.shown(store.filter, sort: store.sort)
-                if shown.isEmpty {
-                    Text(store.filter.empty).foregroundStyle(.secondary).frame(maxWidth: .infinity).card()
-                }
-                ForEach(shown) { item in row(item, payload: payload) }
+                list(payload)
             } else if let error = store.error {
                 VStack(spacing: 10) {
                     Text(error).foregroundStyle(.secondary).multilineTextAlignment(.center)
@@ -132,9 +169,8 @@ struct FeedbackAdminSection: View {
             }
         }
         .task { await store.load() }
-        .sheet(item: $editing) { item in
-            FeedbackEditor(store: store, itemID: item.id)
-        }
+        .sheet(item: $editing) { item in FeedbackEditor(store: store, itemID: item.id) }
+        .sheet(isPresented: $creating) { FeedbackCreator(store: store) }
         .confirmationDialog("Supprimer ce retour ?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
                             titleVisibility: .visible) {
             Button("Supprimer", role: .destructive) {
@@ -144,16 +180,37 @@ struct FeedbackAdminSection: View {
         }
     }
 
+    @ViewBuilder
+    private func list(_ payload: AdminFeedback) -> some View {
+        let shown = payload.shown(view: store.view, filters: store.filters, sort: store.sort)
+        if shown.isEmpty {
+            Text(store.view == "mine" ? "Rien à faire de ton côté pour l'instant 🎉" : "Aucun retour.")
+                .foregroundStyle(.secondary).frame(maxWidth: .infinity).card()
+        } else if store.groupByArea {
+            ForEach(store.meta.areas) { area in
+                let group = shown.filter { $0.area == area.key }
+                if !group.isEmpty {
+                    Text("\(area.label) · \(group.count)").font(.headline).padding(.top, 6)
+                    ForEach(group) { row($0, payload: payload) }
+                }
+            }
+        } else {
+            ForEach(shown) { row($0, payload: payload) }
+        }
+    }
+
     private func row(_ item: AdminFeedback.Item, payload: AdminFeedback) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let meta = payload.meta
+        return VStack(alignment: .leading, spacing: 8) {
             if !item.priority.isEmpty {
-                Text(item.priorityLabel).font(.caption.weight(.heavy))
+                Text(meta.label(meta.priorities, item.priority)).font(.caption.weight(.heavy))
                     .padding(.horizontal, 8).padding(.vertical, 2)
                     .background(Color.white.opacity(0.1), in: Capsule())
             }
             Text(item.text)
+            if let ai = item.ai { AIVersionView(draft: ai) }
             HStack(spacing: 6) {
-                Text("\(payload.meta(item)) · \(item.statusLabel)").font(.caption).foregroundStyle(.secondary)
+                Text(payload.meta(item)).font(.caption).foregroundStyle(.secondary)
                 // Identifiant unique de l'avis : un toucher le copie, à donner à Claude (avis 73d690300d60).
                 Button {
                     UIPasteboard.general.string = item.id
@@ -166,6 +223,7 @@ struct FeedbackAdminSection: View {
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Copier l'identifiant \(item.id)")
             }
+            FeedbackChips(item: item, meta: meta)
             if !item.note.isEmpty { Label(item.note, systemImage: "note.text").font(.footnote).foregroundStyle(.secondary) }
             if !item.reply.isEmpty {
                 Label(item.reply, systemImage: "arrowshape.turn.up.left.fill").font(.footnote).foregroundStyle(Palette.accent)
@@ -184,7 +242,7 @@ struct FeedbackAdminSection: View {
                 .padding(8)
                 .background(Color.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
             }
-            actions(item)
+            actions(item, meta: meta)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
@@ -206,7 +264,7 @@ struct FeedbackAdminSection: View {
             HStack {
                 Button("✅ Validé, c'est corrigé") { Task { await store.set(item, "done", reply: item.reply) } }
                     .buttonStyle(.borderedProminent)
-                Button("↩︎ Pas corrigé") { Task { await store.set(item, "new") } }.buttonStyle(.bordered)
+                Button("↩︎ Pas corrigé") { Task { await store.set(item, "ready") } }.buttonStyle(.bordered)
             }
             .controlSize(.small)
         }
@@ -214,24 +272,24 @@ struct FeedbackAdminSection: View {
         .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
     }
 
-    private func actions(_ item: AdminFeedback.Item) -> some View {
+    private func actions(_ item: AdminFeedback.Item, meta: FeedbackMeta) -> some View {
         HStack(spacing: 8) {
             Button { editing = item } label: { Label("Modifier", systemImage: "pencil") }
                 .buttonStyle(.bordered)
             Menu {
-                if item.canStart { Button { Task { await store.set(item, "progress") } } label: { Label("En cours", systemImage: "wrench.and.screwdriver") } }
-                if item.canVerify { Button { Task { await store.set(item, "verify") } } label: { Label("À vérifier", systemImage: "checklist") } }
-                if item.canFinish {
-                    Button { Task { await store.set(item, "done", reply: item.reply) } } label: { Label("Terminé (l'invité est averti)", systemImage: "checkmark.circle") }
+                // « Pas retenu » demande un mot pour l'invité : dans Modifier.
+                ForEach(meta.manualStatuses.filter { $0.key != "declined" && $0.key != item.status }) { status in
+                    Button { Task { await store.set(item, status.key, reply: item.reply) } } label: {
+                        Label(status.label, systemImage: status.symbol)
+                    }
                 }
-                if item.canReopen { Button { Task { await store.set(item, "new") } } label: { Label("Remettre à traiter", systemImage: "arrow.uturn.backward") } }
                 Menu {
-                    ForEach(AdminFeedback.priorities, id: \.id) { p in
-                        Button { Task { await store.setPriority(item, p.id) } } label: {
-                            if item.priority == p.id { Label(p.label, systemImage: "checkmark") } else { Text(p.label) }
+                    ForEach(meta.priorities) { p in
+                        Button { Task { await store.save(item, with(item) { $0.priority = p.key }) } } label: {
+                            if item.priority == p.key { Label(p.label, systemImage: "checkmark") } else { Text(p.label) }
                         }
                     }
-                    if !item.priority.isEmpty { Button("Sans priorité") { Task { await store.setPriority(item, "") } } }
+                    if !item.priority.isEmpty { Button("Sans priorité") { Task { await store.save(item, with(item) { $0.priority = "" }) } } }
                 } label: { Label("Priorité", systemImage: "flag") }
                 Button(role: .destructive) { deleting = item } label: { Label("Supprimer", systemImage: "trash") }
             } label: {
@@ -242,89 +300,141 @@ struct FeedbackAdminSection: View {
         .controlSize(.small)
         .tint(Palette.accent)
     }
+
+    private func with(_ item: AdminFeedback.Item, _ change: (inout FeedbackDraft) -> Void) -> FeedbackDraft {
+        var draft = FeedbackDraft(item)
+        change(&draft)
+        return draft
+    }
 }
 
-/// Un retour : instructions pour Claude (enregistrer, copier le prompt, envoyer), mot pour l'invité, fin.
-private struct FeedbackEditor: View {
+/// Filtres fins, tri et regroupement.
+private struct FeedbackFilters: View {
     @ObservedObject var store: FeedbackAdminStore
-    let itemID: String
-    @State private var note = ""
-    @State private var reply = ""
-    @State private var loaded = false
-    @State private var confirmClaude = false
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            Form {
-                if let item = store.item(itemID) {
-                    Section {
-                        Text(item.text)
-                        Text(store.payload?.meta(item) ?? "").font(.caption).foregroundStyle(.secondary)
-                    }
-                    Section {
-                        TextField("Ex. : sur iPhone, le bouton Révéler reste grisé avec 2 joueurs ; il doit être actif dès qu'une personne a validé.",
-                                  text: $note, axis: .vertical)
-                            .lineLimit(3...10)
-                            .onChange(of: note) { if $0.count > 2000 { note = String($0.prefix(2000)) } }
-                        Button("Enregistrer") { Task { if await store.saveNote(item, note) { store.notice = "💾 Enregistré" } } }
-                        Button("Copier le prompt") { Task { await store.copyPrompt(item, note: note) } }
-                        Button("Envoyer à Claude") { confirmClaude = true }
-                            .disabled(!(store.payload?.claudeReady ?? false) || item.claudePending
-                                      || note.trimmingCharacters(in: .whitespacesAndNewlines).count < AdminFeedback.minimumNote)
-                    } header: {
-                        Text("Instructions pour Claude")
-                    } footer: {
-                        if store.payload?.claudeReady == false {
-                            Text("GitHub n'est pas configuré sur le serveur : copie le prompt pour le donner à Claude toi-même.")
-                        } else if item.claudePending {
-                            Text("Déjà confié à Claude : la correction est en cours.")
-                        } else {
-                            Text("Claude corrige selon tes instructions (\(AdminFeedback.minimumNote) caractères au moins) et commite sur develop ; le retour passe ensuite « À vérifier ».")
-                        }
-                    }
-                    Section {
-                        TextField("Ex. : c'est corrigé, merci ! / Pas prévu pour l'instant, mais on garde l'idée.", text: $reply, axis: .vertical)
-                            .lineLimit(2...6)
-                            .onChange(of: reply) { if $0.count > 500 { reply = String($0.prefix(500)) } }
-                        Button("✅ Terminé") { finish(item, "done") }
-                        Button("🚫 Pas retenu") { finish(item, "declined") }
-                            .disabled(reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    } header: {
-                        Text("Mot pour l'invité")
-                    } footer: {
-                        Text("Affiché avec « Terminé » ou « Pas retenu » ; l'invité reçoit une notification.")
-                    }
-                }
+        let meta = store.meta
+        VStack(alignment: .leading, spacing: 4) {
+            picker("Statut", $store.filters.status, meta.statuses.map { ($0.key, $0.title) })
+            picker("Zone", $store.filters.area, meta.areas.map { ($0.key, $0.label) })
+            picker("Plateforme", $store.filters.platform, meta.platforms.map { ($0.key, $0.label) })
+            picker("Effort", $store.filters.effort, meta.efforts.map { ($0.key, $0.label) } + [("none", "Pas estimé")])
+            picker("Priorité", $store.filters.priority, meta.priorities.map { ($0.key, $0.label) } + [("none", "Sans priorité")])
+            picker("Étiquette", $store.filters.tag, (store.payload?.allTags ?? []).map { ($0, "#\($0)") })
+            Picker("Tri", selection: $store.sort) {
+                ForEach(AdminFeedback.Sort.allCases) { Text($0.label).tag($0) }
             }
-            .navigationTitle("Retour")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Fermer") { dismiss() } }
+            Toggle("Regrouper par zone", isOn: $store.groupByArea)
+            if !store.filters.isEmpty {
+                Button("Effacer les filtres") { store.filters = AdminFeedback.Filters() }
             }
-            .disabled(store.busy.contains(itemID))
-            .overlay(alignment: .bottom) { AdminNotice(notice: $store.notice) }
-            .onAppear {
-                guard !loaded, let item = store.item(itemID) else { return }
-                note = item.note
-                reply = item.reply
-                loaded = true
-            }
-            .confirmationDialog("Confier ce retour à Claude ?", isPresented: $confirmClaude, titleVisibility: .visible) {
-                Button("Envoyer à Claude") {
-                    guard let item = store.item(itemID) else { return }
-                    Task { if await store.sendToClaude(item, note: note) { dismiss() } }
-                }
-            } message: {
-                Text("Il corrigera selon tes instructions et commitera sur develop.")
-            }
+        }
+        .padding(.top, 6)
+    }
+
+    private func picker(_ title: String, _ value: Binding<String>, _ options: [(String, String)]) -> some View {
+        Picker(title, selection: value) {
+            Text("Tous").tag("")
+            ForEach(options, id: \.0) { Text($0.1).tag($0.0) }
+        }
+    }
+}
+
+/// Pastilles d'un avis : statut (couleur et symbole du serveur), zone, plateformes, effort, étiquettes, fil, liens.
+struct FeedbackChips: View {
+    let item: AdminFeedback.Item
+    let meta: FeedbackMeta
+
+    var body: some View {
+        let status = meta.status(item.status)
+        let color = Color(hex: status.color) ?? .white
+        FlowChips {
+            Label(status.label, systemImage: status.symbol)
+                .font(.caption.weight(.heavy)).foregroundStyle(color)
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(color.opacity(0.15), in: Capsule())
+                .overlay(Capsule().strokeBorder(color.opacity(0.45)))
+            chip(meta.label(meta.areas, item.area))
+            ForEach(item.platforms, id: \.self) { chip(meta.label(meta.platforms, $0)) }
+            if !item.effort.isEmpty { chip(meta.label(meta.efforts, item.effort)) }
+            ForEach(item.tags, id: \.self) { chip("#\($0)") }
+            if !item.comments.isEmpty { chip("💬 \(item.comments.count)") }
+            ForEach(item.related, id: \.self) { chip("🔗 #\($0)") }
+            if !item.duplicateOf.isEmpty { chip("♊ doublon de #\(item.duplicateOf)") }
+            if !item.blockedBy.isEmpty { chip("⛔ bloqué par #\(item.blockedBy)") }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func chip(_ text: String) -> some View {
+        Text(text).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(Color.white.opacity(0.07), in: Capsule())
+    }
+}
+
+/// Pastilles qui passent à la ligne.
+private struct FlowChips: Layout {
+    var spacing: CGFloat = 4
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = arrange(proposal.width ?? .infinity, subviews)
+        return CGSize(width: proposal.width ?? rows.width, height: rows.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, line: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > bounds.minX && x + size.width > bounds.maxX { x = bounds.minX; y += line + spacing; line = 0 }
+            view.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            line = max(line, size.height)
         }
     }
 
-    private func finish(_ item: AdminFeedback.Item, _ action: String) {
-        Task {
-            guard await store.saveNote(item, note) else { return }
-            if await store.set(item, action, reply: reply) { dismiss() }
+    private func arrange(_ width: CGFloat, _ subviews: Subviews) -> (width: CGFloat, height: CGFloat) {
+        var x: CGFloat = 0, y: CGFloat = 0, line: CGFloat = 0, widest: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > 0 && x + size.width > width { y += line + spacing; x = 0; line = 0 }
+            x += size.width + spacing
+            line = max(line, size.height)
+            widest = max(widest, x)
         }
+        return (widest, y + line)
+    }
+}
+
+/// Avis reformulé par l'IA à la demande de la personne : titre ✨, type et zone, puis le détail (replié), comme la page.
+struct AIVersionView: View {
+    let draft: FeedbackAI.Draft
+    @State private var open = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $open) {
+            VStack(alignment: .leading, spacing: 6) {
+                if !draft.description.isEmpty { Text(draft.description).font(.footnote) }
+                ForEach(draft.rows, id: \.label) { row in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(row.label).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        Text(row.text).font(.footnote)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 4)
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("✨ \(draft.title)").font(.subheadline.weight(.semibold))
+                if !draft.kindAndArea.isEmpty {
+                    Text(draft.kindAndArea).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .tint(.white)
+        .padding(8)
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityIdentifier("feedbackAIVersion")
     }
 }

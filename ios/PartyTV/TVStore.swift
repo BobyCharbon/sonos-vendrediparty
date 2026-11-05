@@ -16,6 +16,11 @@ final class TVStore: ObservableObject {
     @Published private(set) var busy = false
     /// Parties en cours de la soirée (raccourci sur l'écran du code).
     @Published private(set) var games: [JSON] = []
+    /// Zicou des présents de la soirée qui dansent sous le coin musique (/api/tv/zicou).
+    @Published private(set) var zicous: [ZicouDancer] = []
+    /// Zicou en vedette (30 s au milieu de l'écran, payé en pièces gagnées) et décor débloqué par la caisse commune.
+    @Published private(set) var star: ZicouStar?
+    @Published private(set) var salon: [SalonBadge] = []
 
     private let client: TVClient
     private var loops: [Task<Void, Never>] = []
@@ -28,7 +33,7 @@ final class TVStore: ObservableObject {
     private var demoEvery: Duration = .seconds(4)
 
     init(client: TVClient = TVClient(), demo: (game: JSON, music: JSON)? = nil, before: JSON = .null,
-         steps: [JSON] = [], every: Double = 4) {
+         steps: [JSON] = [], every: Double = 4, zicou: JSON = .null) {
         self.client = client
         self.demo = demo != nil || !steps.isEmpty
         if let demo = demo ?? steps.first.map({ ($0["game"], $0["music"]) }) {
@@ -38,6 +43,9 @@ final class TVStore: ObservableObject {
             demoSteps = steps
             demoEvery = .milliseconds(Int(every * 1000))
             music = demo.music
+            zicous = ZicouDancer.list(zicou.isNull ? steps.first?["zicou"] ?? .null : zicou)
+            star = ZicouStar(zicou.isNull ? steps.first?["zicou"] ?? .null : zicou)
+            salon = SalonBadge.list(zicou.isNull ? steps.first?["zicou"] ?? .null : zicou)
         } else {
             screen = PinVault.read() == nil ? .pin : .code
         }
@@ -89,6 +97,9 @@ final class TVStore: ObservableObject {
     func leave() {
         stop()
         game = .null
+        zicous = []
+        star = nil
+        salon = []
         screen = .code
         Task { await refreshMusic() }
     }
@@ -122,6 +133,7 @@ final class TVStore: ObservableObject {
                 if step["game"].isNull { game = step } else {
                     game = step["game"]
                     if !step["music"].isNull { music = step["music"] }
+                    if !step["zicou"].isNull { zicous = ZicouDancer.list(step["zicou"]) }
                 }
             }
         }
@@ -138,6 +150,7 @@ final class TVStore: ObservableObject {
         loops.append(Task { [weak self] in
             while !Task.isCancelled {
                 await self?.refreshMusic()
+                await self?.refreshZicous(code)
                 try? await Task.sleep(for: Self.musicEvery)
             }
         })
@@ -167,6 +180,20 @@ final class TVStore: ObservableObject {
         guard let (json, status) = try? await authorized("api/tv"), status == 200 else { return }
         if json != music { withAnimation(Motion.update) { music = json } }
         games = json["games"].array
+    }
+
+    /// Zicou de la soirée ; `game` : la partie regardée (le serveur dit quelle place chacun y occupe).
+    private func refreshZicous(_ code: String) async {
+        guard let (json, status) = try? await authorized("api/tv/zicou?game=\(code)") else { return }
+        // 404 : Compagnon éteint sur ce serveur (en bêta, production) : pas de piste de danse.
+        if status == 404 { if !zicous.isEmpty { zicous = [] }; star = nil; salon = []; return }
+        guard status == 200 else { return }
+        let list = ZicouDancer.list(json)
+        if list != zicous { withAnimation(Motion.update) { zicous = list } }
+        let next = ZicouStar(json)
+        if next != star { withAnimation(Motion.update) { star = next } }
+        let badges = SalonBadge.list(json)
+        if badges != salon { salon = badges }
     }
 
     /// Requête de l'hôte ; si la session a expiré, reconnexion avec le code admin du trousseau puis nouvel essai.

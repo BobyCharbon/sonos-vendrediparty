@@ -29,6 +29,10 @@
     return {
       native: NATIVE_SCREENS,
       host: isHost(),
+      // Page affichée, y compris une page des Réglages sans bouton dans la barre (« Ton avis » : écran natif).
+      screen: document.body.dataset.tab || null,
+      // Ligne « Ton avis » / « Retours » des Réglages natifs (sortie de la barre le 4.11) : libellé et pastille.
+      feedback: typeof window.fbInfo === "function" ? window.fbInfo() : null,
       // Un jeu en plein écran masque la barre web (display: none) : la barre native suit.
       hidden: getComputedStyle(bar).display === "none",
       // Onglet masqué par la page (« Ton avis » sans le droit d'écrire un avis) : absent de la barre native aussi.
@@ -69,7 +73,11 @@
     select(id) {
       const button = [...bar.querySelectorAll("button[data-tab]")].find((b) => b.dataset.tab === id);
       if (button) button.click();
+      // Page sans bouton dans la barre (« Ton avis », sous Réglages) : ouverte directement, liens profonds compris.
+      else if (typeof showTab === "function") showTab(id);
     },
+    /** La page a changé quelque chose hors de la barre (pastille de « Ton avis ») : nouvelle description. */
+    refresh: schedule,
   };
   send();
 })();

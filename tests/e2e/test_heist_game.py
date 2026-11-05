@@ -7,8 +7,12 @@ from playwright.sync_api import expect
 from tests.e2e.helpers import Phone, Server, wait_state
 
 
+MUSEUM_LOAD_MS = 45000  # chargement du musée 3D (rechargement de la page, retour dans le jeu)
+
+
 @pytest.fixture
-def phones(browser):
+def phones(gpu_browser):  # 3D : carte graphique (tests/e2e/conftest.py)
+    browser = gpu_browser
     server=Server();made=[]
     def make(name,device='iphone'):
         p=Phone(browser,server,name,device);made.append(p);return p
@@ -94,11 +98,12 @@ def test_heist_coop_touch_late_join_and_network_recovery(phones):
         host.page.set_viewport_size({'width':width,'height':height})
         expect(host.page.locator('.hs-action')).to_be_in_viewport()
         assert host.page.evaluate("document.querySelector('.hs-root').scrollWidth<=innerWidth")
-    pid=host.state()['heist']['me'];host.page.reload();expect(host.page.locator('.hs-network')).to_have_text(re.compile('^(En ligne|Réseau lent)$'),timeout=15000)
+    # Après un rechargement, le musée 3D est reconstruit (shaders recompilés) : jusqu'à ~30 s sur un petit Mac de test.
+    pid=host.state()['heist']['me'];host.page.reload();expect(host.page.locator('.hs-network')).to_have_text(re.compile('^(En ligne|Réseau lent)$'),timeout=MUSEUM_LOAD_MS)
     assert host.state()['heist']['me']==pid
     host.page.locator('[data-gdrawer="open"]').click();host.page.locator('#gDrawer [data-gdrawer="minimize"]').click()
     expect(host.page.locator('.hs-root')).to_have_count(0)
-    host.page.locator('[data-pyr="enter"]').first.click();expect(host.page.locator('.hs-network')).to_have_text(re.compile('^(En ligne|Réseau lent)$'),timeout=15000)
+    host.page.locator('[data-pyr="enter"]').first.click();expect(host.page.locator('.hs-network')).to_have_text(re.compile('^(En ligne|Réseau lent)$'),timeout=MUSEUM_LOAD_MS)
 
 
 def test_heist_floating_joystick_and_quit_by_touch(phones):

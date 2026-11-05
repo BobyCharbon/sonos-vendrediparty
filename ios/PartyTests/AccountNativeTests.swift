@@ -143,7 +143,7 @@ struct AccountNativeTests {
         #expect(GroupTaxonomyView.next("#FF7A59") == "#D4F24A")
     }
 
-    @Test("Retours reçus : filtres, compteurs, d'où vient le retour, boutons selon l'état")
+    @Test("Retours reçus : vues, compteurs, d'où vient le retour ; un serveur sans « meta » utilise le secours")
     func feedbackAdmin() throws {
         let p: AdminFeedback = try decode("""
         {"items": [
@@ -155,15 +155,70 @@ struct AccountNativeTests {
           {"id": "d", "at": 1800000000, "kind": "idea", "name": "Max", "text": "Non", "status": "declined", "reply": "Pas prévu"}],
          "kinds": {"bug": "🐞 Bug", "idea": "💡 Idée", "other": "💬 Autre"}, "claude_ready": true, "games": {"undercover": "Undercover"}}
         """)
-        #expect(p.shown(.new).map(\.id) == ["a"] && p.shown(.progress).map(\.id) == ["b"])
-        #expect(p.shown(.verify).map(\.id) == ["c"] && p.shown(.finished).map(\.id) == ["d"] && p.count(.all) == 4)
+        #expect(p.meta == .fallback)
+        #expect(p.shown(view: "mine").map(\.id) == ["a", "c"] && p.shown(view: "claude").map(\.id) == ["b"])
+        #expect(p.shown(view: "finished").map(\.id) == ["d"] && p.count(view: "all") == 4)
         #expect(p.pending == 2)
         #expect(p.meta(p.items[0]).hasPrefix("🐞 Bug · Léa · ") && p.meta(p.items[0]).hasSuffix("jeu : Undercover · 🧪 site de test"))
         #expect(p.meta(p.items[1]).hasSuffix("depuis Musique"))
         #expect(p.items[1].claudePending && p.items[1].claude?.label == "🤖 Claude corrige" && p.items[2].claude?.migrations == ["20261029_x.sql"])
-        #expect(p.items[0].canStart && p.items[0].canVerify && p.items[0].canFinish && !p.items[0].canReopen)
-        #expect(p.items[3].canReopen && p.items[3].canStart && !p.items[3].canFinish && p.items[3].reply == "Pas prévu")
-        #expect(p.items[1].statusLabel == "🤖 Chez Claude")
+        // Anciens avis sans classement : zone déduite du jeu ou de l'onglet, le reste vide.
+        #expect(p.items[0].area == "games" && p.items[1].area == "music" && p.items[2].area == "general")
+        #expect(p.items[0].platforms.isEmpty && p.items[0].tags.isEmpty && p.items[0].comments.isEmpty)
+        #expect(p.meta.status("sent").technical && !p.meta.manualStatuses.contains { $0.key == "sent" })
+    }
+
+    @Test("Retours classés : meta du serveur, champs, fil, historique, filtres, tris et brouillon")
+    func feedbackTriage() throws {
+        let p: AdminFeedback = try decode("""
+        {"items": [
+          {"id": "a", "at": 1800000300, "kind": "idea", "name": "Admin", "text": "Retravailler le Quiz", "status": "think",
+           "priority": "high", "area": "games", "platforms": ["web", "iphone"], "effort": "m", "tags": ["quiz"],
+           "related": ["b"], "duplicate_of": "", "blocked_by": "b",
+           "comments": [{"id": "x1", "at": 1800000400, "by": "claude", "text": "Combien d'équipes ?"}],
+           "history": [{"at": 1800000300, "by": "admin", "field": "created", "to": "think"},
+                       {"at": 1800000350, "by": "admin", "field": "platforms", "from": [], "to": ["web", "iphone"]},
+                       {"at": 1800000360, "by": "admin", "field": "note"}]},
+          {"id": "b", "at": 1800000100, "kind": "bug", "name": "Léa", "text": "Bouton gris", "status": "questions", "area": "music"},
+          {"id": "c", "at": 1800000200, "kind": "bug", "name": "Tom", "text": "Écran figé", "status": "ready", "area": "tv", "effort": "xs"}],
+         "kinds": {}, "claude_ready": false, "games": {},
+         "meta": {"statuses": [{"key": "new", "label": "À trier", "icon": "📥", "symbol": "tray", "color": "#8fb4ff", "guest": "new", "mine": true},
+                               {"key": "think", "label": "Idée à mûrir", "icon": "💭", "symbol": "lightbulb", "color": "#c9a8ff", "guest": "new"},
+                               {"key": "questions", "label": "Questions à poser", "icon": "❓", "symbol": "questionmark.bubble", "color": "#ffb46b", "guest": "new", "mine": true},
+                               {"key": "ready", "label": "Prêt à faire", "icon": "🟢", "symbol": "flag.checkered", "color": "#7be0a6", "guest": "new"},
+                               {"key": "sent", "label": "Chez Claude (CI)", "icon": "🤖", "symbol": "cpu", "color": "#ffd27a", "guest": "progress", "technical": true}],
+                  "priorities": [{"key": "high", "label": "🔴 Haute"}], "areas": {"tv": "📺 TV", "music": "🎵 Musique", "games": "🎲 Jeux", "lune": "🌙 Lune"},
+                  "platforms": {"iphone": "📱 iPhone", "web": "🌐 Web"}, "efforts": {"m": "🟠 Moyen", "xs": "⚡ 5 min"},
+                  "views": [{"key": "mine", "label": "À moi", "statuses": ["new", "questions"]},
+                            {"key": "thinking", "label": "En réflexion", "statuses": ["think"]},
+                            {"key": "all", "label": "Tout", "statuses": []}],
+                  "mine": ["new", "questions"], "max_tags": 8}}
+        """)
+        #expect(p.meta.status("think").symbol == "lightbulb" && p.meta.status("questions").mine)
+        #expect(p.meta.areas.map(\.key) == ["music", "games", "tv", "lune"])  // ordre du secours, inconnues à la fin
+        #expect(p.meta.efforts.map(\.key) == ["xs", "m"])
+        let a = p.items[0]
+        #expect(a.platforms == ["web", "iphone"] && a.effort == "m" && a.tags == ["quiz"] && a.related == ["b"] && a.blockedBy == "b")
+        #expect(a.comments.first?.author == "Claude 🤖" && a.comments.first?.text == "Combien d'équipes ?")
+        #expect(a.history[1].to == "web, iphone" && a.history[2].to == nil)
+        #expect(p.pending == 1 && p.shown(view: "mine").map(\.id) == ["b"] && p.shown(view: "thinking").map(\.id) == ["a"])
+        #expect(p.shown(view: "all", filters: .init(area: "tv")).map(\.id) == ["c"])
+        #expect(p.shown(view: "all", filters: .init(platform: "iphone")).map(\.id) == ["a"])
+        #expect(p.shown(view: "all", filters: .init(effort: "none")).map(\.id) == ["b"])
+        #expect(p.shown(view: "all", filters: .init(search: "QUIZ")).map(\.id) == ["a"])
+        #expect(p.shown(view: "all", sort: .priority).first?.id == "a")
+        #expect(p.shown(view: "all", sort: .oldest).map(\.id) == ["b", "c", "a"])
+        #expect(p.shown(view: "all", sort: .effort).map(\.id) == ["c", "a", "b"])
+        // Brouillon : seuls les champs changés partent au serveur.
+        var draft = FeedbackDraft(a)
+        #expect(draft.changes(from: a, p.meta).isEmpty)
+        draft.status = "ready"
+        draft.platforms.insert("web")
+        draft.tags = "quiz, #équipes"
+        let changes = draft.changes(from: a, p.meta)
+        #expect(Set(changes.keys) == ["status", "tags"] && (changes["tags"] as? [String]) == ["quiz", "équipes"])
+        let created = FeedbackDraft().fields(p.meta, creating: true)
+        #expect(created["area"] == nil && created["reply"] == nil && (created["status"] as? String) == "new")
     }
 
     @Test("Ton avis : 30 caractères au moins, le compteur dit combien il en manque")
@@ -172,6 +227,7 @@ struct AccountNativeTests {
         #expect(FeedbackRules.counter(12) == "12 / 1000 · encore 18 caractères minimum")
         #expect(FeedbackRules.counter(29) == "29 / 1000 · encore 1 caractère minimum")
         #expect(FeedbackRules.counter(30) == "30 / 1000")
+        #expect(FeedbackRules.counter(3, minimum: FeedbackRules.adminMinimumLength) == "3 / 1000 · encore 2 caractères minimum")
     }
 
     @Test("Guest+ : au niveau de Guest ; « Ton avis » suit le droit « Écrire un avis » du compte")

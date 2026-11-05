@@ -50,6 +50,25 @@ struct EventNotificationPrefs: Codable, Equatable {
     /// l'organisateur confirme mon paiement.
     var ticketPayDeclared: Bool?
     var ticketPayConfirmed: Bool?
+    /// Billets QR (migration 20261104233000 ; absent avant : reçue) : « Ton billet est prêt », remis par l'organisateur.
+    var ticketIssued: Bool?
+    /// Mes amis dans Party (migration 20261104090000 ; absents avant : reçues) : quelqu'un rejoint Party grâce à mon
+    /// lien (envoyée par Party) ; un contact arrive sur Party (notification locale calculée par l'iPhone).
+    var referralJoins: Bool?
+    var contactJoins: Bool?
+    /// Messages directs (migration 20261104100000 ; absent avant : reçus) : « Nouveau message de X ».
+    var directMessages: Bool?
+    /// Compagnon (migration 20261104130000 ; absents avant : reçus) : rappel doux du jour, alertes avant son envol.
+    var petDaily: Bool?
+    var petAlerts: Bool?
+    /// Compagnon, lot 1 (migration 20261104150000 ; absents avant : reçus) : cadeau d'un ami, paliers de série.
+    var petGifts: Bool?
+    var petStreaks: Bool?
+    /// Barre « petit cadeau » pleine (migration 20261105160000) : 2 par jour au plus, jamais la nuit.
+    var petBar: Bool?
+    /// Modération (migration 20261104200000 ; absents avant : reçus) : nouveau signalement (modérateurs), message de la modération.
+    var moderationReports: Bool?
+    var moderationNotices: Bool?
 
     enum CodingKeys: String, CodingKey {
         case pushEnabled = "push_enabled", quietStart = "quiet_start", quietEnd = "quiet_end", newEvent = "new_event"
@@ -60,6 +79,10 @@ struct EventNotificationPrefs: Codable, Equatable {
         case proposalResult = "proposal_result", linkJoin = "link_join", groupMessages = "group_messages"
         case groupInvites = "group_invites", groupJoins = "group_joins"
         case ticketPayDeclared = "ticket_pay_declared", ticketPayConfirmed = "ticket_pay_confirmed"
+        case ticketIssued = "ticket_issued"
+        case referralJoins = "referral_joins", contactJoins = "contact_joins", directMessages = "direct_messages"
+        case petDaily = "pet_daily", petAlerts = "pet_alerts", petGifts = "pet_gifts", petStreaks = "pet_streaks", petBar = "pet_bar"
+        case moderationReports = "moderation_reports", moderationNotices = "moderation_notices"
     }
 
     var hasQuietHours: Bool { quietStart != nil && quietEnd != nil }
@@ -69,6 +92,8 @@ struct EventNotifyState: Decodable, Equatable {
     var prefs: EventNotificationPrefs
     /// Valide les propositions d'événements (droit events.approve) : réglage « Proposition à valider ».
     var approver: Bool
+    /// Droit « Modérer les signalements » : réglage « Nouveau signalement » (absent d'un ancien serveur : non).
+    var moderator: Bool? = nil
 }
 
 /// Choix proposés, mêmes libellés que le module Événements (web/events/src/app/settings/notifications.tsx).

@@ -82,16 +82,22 @@ class FakeSupabase:
 class Server:
     """Serveur Vendredi Party sur un port libre, avec ses propres données."""
 
-    def __init__(self, supabase: "FakeSupabase | None" = None):
+    def __init__(self, supabase: "FakeSupabase | None" = None, compagnon: bool = True, discussions: bool | None = None):
         with socket.socket() as s:
             s.bind(("127.0.0.1", 0))
             self.port = s.getsockname()[1]
         self.url = f"http://127.0.0.1:{self.port}"
         self.data = tempfile.mkdtemp(prefix="vp-e2e-")
-        env = {**os.environ, "DATA_DIR": self.data, "ADMIN_PIN": ADMIN_PIN}
+        # Compagnon et Discussions allumés comme sur le site de test ; compagnon=False : comme en production (Zicou éteint
+        # et, sauf choix contraire, Discussions absentes).
+        discussions = compagnon if discussions is None else discussions
+        env = {**os.environ, "DATA_DIR": self.data, "ADMIN_PIN": ADMIN_PIN, "COMPAGNON_ENABLED": "1" if compagnon else "0",
+               "DISCUSSIONS_ENABLED": "1" if discussions else "0"}
         env.pop("SPOTIFY_CLIENT_ID", None)
         if supabase:
-            env.update(SUPABASE_URL=supabase.url, SUPABASE_ANON_KEY="cle-publique-de-test")
+            # PET_SECRET : clé du serveur Party pour le Compagnon (valeur de test, celle du faux Supabase)
+            env.update(SUPABASE_URL=supabase.url, SUPABASE_ANON_KEY="cle-publique-de-test",
+                       PET_SECRET="cle-du-serveur-party-pour-les-tests-uniquement-0123456789")
         self.log = open(Path(self.data) / "server.log", "w")
         self.proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app", "--port", str(self.port), "--log-level", "warning"],
                                      cwd=ROOT, env=env, stdout=self.log, stderr=subprocess.STDOUT)
@@ -237,3 +243,18 @@ def sign_in(phone: "Phone", token: str):
     session = json.dumps({"access_token": token, "refresh_token": "r", "expires_at": int(time.time()) + 3600})
     phone.page.evaluate(f"localStorage.setItem('sb-e2e-auth-token', {json.dumps(session)})")
     phone.page.evaluate("linkAccount()")
+
+
+def pass_reveal(page, timeout: float = 5000):
+    """Scène d'ouverture de Zicou (app/static/pet/reveal.js) : « Passer » jusqu'à ce qu'elle se referme."""
+    from playwright.sync_api import expect
+    scene = page.locator('.zr')
+    expect(scene).to_be_visible(timeout=timeout)
+    for _ in range(3):
+        if not scene.count():
+            break
+        try:
+            scene.locator('.zr-skip').click(timeout=1000)
+        except Exception:   # la scène s'est refermée entre-temps
+            break
+    expect(scene).to_have_count(0, timeout=timeout)

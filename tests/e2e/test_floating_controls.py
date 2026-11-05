@@ -6,7 +6,8 @@ from tests.e2e.helpers import Phone, Server, wait_state
 
 
 @pytest.fixture
-def phones(browser):
+def phones(gpu_browser):  # 3D : carte graphique (tests/e2e/conftest.py)
+    browser = gpu_browser
     server=Server();made=[]
     def make(name):
         p=Phone(browser,server,name);made.append(p);return p
@@ -19,7 +20,11 @@ def phones(browser):
 
 def under_finger(p,sel,fx,fy):
     r=p.page.locator(sel).bounding_box()
-    assert abs(r['x']+r['width']/2-fx)<2 and abs(r['y']+r['height']/2-fy)<2,(sel,r,fx,fy)
+    # Effet « bouton enfoncé » (DASH : transform translateY(4px) tant qu'on le tient) : c'est la place du bouton,
+    # sans cet effet, qui doit être sous le doigt.
+    press=p.page.locator(sel).evaluate("el=>{const m=new DOMMatrix(getComputedStyle(el).transform);return [m.m41,m.m42]}")
+    cx,cy=r['x']+r['width']/2-press[0],r['y']+r['height']/2-press[1]
+    assert abs(cx-fx)<2 and abs(cy-fy)<2,(sel,r,press,fx,fy)
 
 
 def press(p,cdp,fx,fy,sel):

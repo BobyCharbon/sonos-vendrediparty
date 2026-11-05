@@ -4,6 +4,11 @@ import XCTest
 /// Créer avec l'IA : le brouillon se lit même si le serveur n'a pas (encore) tous les champs, et les dates s'affichent
 /// sans répéter le jour.
 final class AIEventTests: XCTestCase {
+    private final class NoCookies: CookieJar {
+        func allCookies() async -> [HTTPCookie] { [] }
+        func keep(_ cookies: [HTTPCookie]) async {}
+    }
+
     func testDraftFromAnOlderServerStillDecodes() throws {
         let json = """
         {"status":"ready","questions":[],"title":"Bowling","description":"","start":"2026-11-06T20:00","end":"",
@@ -41,5 +46,31 @@ final class AIEventTests: XCTestCase {
     func testSameDayEndShowsOnlyTheHour() {
         XCTAssertTrue(AIEvent.span("2026-11-14T20:00", "2026-11-14T23:30").hasSuffix("jusqu'à 23:30"))
         XCTAssertTrue(AIEvent.span("2026-11-14T20:00", "2026-11-15T02:00").contains("15 novembre"))
+    }
+
+    /// Demande de l'admin (04.11) : avant publication, un bandeau dit pour qui l'événement est publié ; public par défaut.
+    func testAudienceBannerSaysWhoSeesTheEvent() {
+        let pub = AIEvent.audienceBanner(AIEvent.publicAudience, invitees: [])
+        XCTAssertTrue(pub.isPublic)
+        XCTAssertEqual(pub.text, "🌍 Public + lien public : tout le monde peut le voir et le lien peut être partagé")
+        XCTAssertTrue(AIEvent.audienceBanner("", invitees: []).isPublic)  // rien de dit : public
+        XCTAssertEqual(AIEvent.audienceBanner(AIEvent.vipAudience, invitees: ["Léa"]).text, "👥 Membres Vendredi Party seulement + Léa")
+        XCTAssertEqual(AIEvent.audienceBanner(AIEvent.onlyInvitees, invitees: ["Léa", "Tom"]).text, "✉️ Invités seulement : Léa, Tom")
+        XCTAssertEqual(AIEvent.audienceBanner("Ski", invitees: []).text, "👥 Groupe « Ski » seulement")
+        XCTAssertFalse(AIEvent.audienceBanner("Ski", invitees: []).isPublic)
+    }
+
+    @MainActor
+    func testChangingTheAudienceKeepsTheRestOfTheDraft() throws {
+        let json = """
+        {"status":"ready","questions":[],"title":"Bowling","start":"2026-11-06T20:00","audience":"Public (lien)"}
+        """
+        let draft = try JSONDecoder().decode(AIEvent.Draft.self, from: Data(json.utf8))
+        let changed = AIEvent.withAudience(draft, AIEvent.vipAudience)
+        XCTAssertEqual(changed.audience, AIEvent.vipAudience)
+        XCTAssertEqual(changed.title, "Bowling")
+        let store = AIEventStore(api: PartyAPI(base: URL(string: "https://party.invalid")!, jar: NoCookies()), web: nil)
+        store.askForAudience()
+        XCTAssertEqual(store.unsent, "Seulement pour ")
     }
 }

@@ -82,6 +82,8 @@ enum NativeBridge {
         controller.addScriptMessageHandler(ScanHandler(model: model), contentWorld: .page, name: scanHandler)
         controller.addScriptMessageHandler(WalletHandler(), contentWorld: .page, name: NativeWallet.handler)
         controller.addScriptMessageHandler(ContactNamesBridge(), contentWorld: .page, name: ContactNamesBridge.handler)
+        // Zicou → widgets et Live Activity de l'éclosion (lecture des réponses /api/pet/* de la page).
+        if AppConfig.zicouBuild { PetWidgetBridge.install(in: controller) }
     }
 }
 
@@ -206,7 +208,7 @@ final class ContactNamesBridge: NSObject, WKScriptMessageHandlerWithReply {
     }
 }
 
-private extension WKSecurityOrigin {
+extension WKSecurityOrigin {
     var url: URL {
         URL(string: "\(`protocol`)://\(host)") ?? URL(string: "about:blank")!
     }

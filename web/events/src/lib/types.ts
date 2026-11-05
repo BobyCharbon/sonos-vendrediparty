@@ -67,6 +67,8 @@ export type EventRow = {
   public_link: boolean;
   show_participants: boolean;
   pot_enabled?: boolean;
+  /** Billets QR (migration 20261104233000 ; absente avant : éteinte) : l'organisateur l'active et remet les billets. */
+  tickets_enabled?: boolean;
   forum_enabled: boolean;
   notify_on_publish: boolean;
   reminders: Reminder[];
@@ -83,9 +85,15 @@ export type Rsvp = {
   event_id: string;
   user_id: string;
   status: RsvpStatus;
+  /** Accompagnants CONFIRMÉS (comptés dans les places, billets, pot, Wallet). */
   plus_ones: number;
   note: string | null;
   waitlisted: boolean;
+  /** Accompagnants en liste d’attente (événement complet) : la personne garde sa place, eux montent à leur rang. */
+  plus_ones_waitlisted?: number;
+  plus_ones_waitlisted_since?: string | null;
+  /** Moment de la réponse donnée : rang dans la liste d’attente. */
+  updated_at?: string;
   /** Réponse posée par l’organisateur (son identifiant) ; vide quand la personne a répondu elle-même. */
   set_by?: string | null;
 };
@@ -161,6 +169,25 @@ export type NotificationPrefs = {
   /** Billets payants (migration 20261103130000 ; absent avant : reçues) : quelqu'un dit avoir payé ma place / mon paiement confirmé. */
   ticket_pay_declared?: boolean;
   ticket_pay_confirmed?: boolean;
+  /** Billets QR (migration 20261104233000 ; absent avant : reçue) : l'organisateur m'a remis mon billet. */
+  ticket_issued?: boolean;
+  /** Mes amis dans Party (migration 20261104090000 ; absents avant : reçues) : quelqu'un rejoint Party grâce à mon lien ;
+   * un contact de l'iPhone arrive sur Party (notification calculée par l'app iPhone). */
+  referral_joins?: boolean;
+  contact_joins?: boolean;
+  /** Messages directs (migration 20261104100000 ; absent avant : reçus) : « Nouveau message de X ». */
+  direct_messages?: boolean;
+  /** Compagnon (migration 20261104130000 ; absents avant : reçus) : rappel doux du jour, alertes avant son envol. */
+  pet_daily?: boolean;
+  pet_alerts?: boolean;
+  /** Compagnon, lot 1 (migration 20261104150000 ; absents avant : reçus) : cadeau d'un ami, paliers de série. */
+  pet_gifts?: boolean;
+  pet_streaks?: boolean;
+  /** Barre « petit cadeau » pleine (migration 20261105160000 ; absent avant : reçue) : 2 par jour au plus, jamais la nuit. */
+  pet_bar?: boolean;
+  /** Modération (migration 20261104200000 ; absents avant : reçus) : nouveau signalement (modérateurs), message de la modération. */
+  moderation_reports?: boolean;
+  moderation_notices?: boolean;
 };
 
 /** Pause des notifications : 'all' = la lune, 'chats' = Discussions des groupes, 'event_chats' = discussions des événements. */
@@ -168,7 +195,7 @@ export type PauseScope = 'all' | 'chats' | 'event_chats';
 export type PauseSpan = '30m' | '1h' | '2h' | 'morning' | 'off';
 
 /** Droits qui ouvrent l'Administration (dans les Réglages). */
-export const ADMIN_PERMS = ['events.approve', 'members.approve', 'members.roles', 'members.ban', 'members.view_identity', 'roles.manage', 'taxonomy.manage', 'group.settings', 'announcements.publish'];
+export const ADMIN_PERMS = ['events.approve', 'members.approve', 'members.roles', 'members.ban', 'members.view_identity', 'roles.manage', 'taxonomy.manage', 'group.settings', 'announcements.publish', 'moderation.reports'];
 // Rôles (noms, rangs, ordre) : lib/roles.ts, lus dans la table public.roles (rôles personnalisés, réordonnables).
 export type Permission = { key: string; grp: string; label: string; hint: string | null; sort: number };
 

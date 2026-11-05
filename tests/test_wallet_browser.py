@@ -113,9 +113,9 @@ def test_error_from_the_server_is_shown(browser, origin):
     context, page, frame, state, errors = launch(browser, origin, IPHONE)
     try:
         page.route('**/api/wallet/ticket', lambda r: r.fulfill(status=404, content_type='application/json',
-                                                                 body=json.dumps({'detail': 'Pas de billet pour cet événement : il faut être noté Présent.'})))
+                                                                 body=json.dumps({'detail': 'Pas encore de billet pour cet événement : l’organisateur doit te le remettre.'})))
         frame.get_by_role('button', name=BADGE, exact=True).click()
-        pw.expect(frame.get_by_text('Pas de billet pour cet événement : il faut être noté Présent.', exact=True)).to_be_visible(timeout=10000)
+        pw.expect(frame.get_by_text('Pas encore de billet pour cet événement : l’organisateur doit te le remettre.', exact=True)).to_be_visible(timeout=10000)
         assert state['downloads'] == 0 and not errors
     finally:
         context.close()

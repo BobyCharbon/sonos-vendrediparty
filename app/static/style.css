@@ -1057,8 +1057,9 @@ body.pyr-full #game.g-qz { background: transparent; border: 0; padding: 0; box-s
 .g-qz .py-main:active { transform: translateY(6px); box-shadow: 0 2px 0 #0b6b49; }
 .g-qz .py-sub { background: rgba(255,255,255,.08); color: #fff; border: 0; }
 .qz-flag { font-size: 2.6em; line-height: 1; vertical-align: middle; display: inline-block; filter: drop-shadow(0 4px 6px rgba(0,0,0,.25)); }
-.qz-qtext .qz-flag { display: block; font-size: 3.4em; margin: 6px auto 0; }
-.qz-ans .qz-flag { font-size: 2.4rem; }
+/* Drapeaux (thème du Quiz) : le drapeau à reconnaître en grand, quelle que soit la taille du texte de la question. */
+.qz-qtext .qz-flag { display: block; font-size: clamp(5.5rem, 32vw, 8.5rem); margin: 8px auto 0; }
+.qz-ans .qz-flag { font-size: clamp(2.4rem, 11vw, 3.2rem); }
 .qz-ans.cut { visibility: visible; opacity: .12; text-decoration: line-through; }
 .qz-next-btns { display: flex; gap: 8px; }
 .qz-pause { width: auto; margin: 0; }
@@ -1541,14 +1542,6 @@ img.qr:not([src]) { visibility: hidden; }
 #gDrawerExit { display:grid; gap:8px; margin-bottom:16px; }
 @media(max-width:420px) { #gTop { gap:5px !important; } #gTop .g-top-ico { display:none; } #gTop .g-top-name { font-size:.85rem; } }
 
-/* Événements pas encore ouverts à ce compte (production, hors bêta-testeurs) : onglet visible, atténué, marqué « Bientôt ».
-   La classe events-soon est posée par events-shell.js. */
-html.events-soon .tabs :is([data-tab="events"], [data-tab="chats"]) { position: relative; opacity: .55; }
-html.events-soon .tabs [data-tab="events"] [data-events-badge], html.events-soon #chatsBadge { display: none; }
-html.events-soon .tabs :is([data-tab="events"], [data-tab="chats"])::after {
-  content: "Bientôt"; position: absolute; top: 2px; left: calc(50% + 4px); padding: 1px 6px; border-radius: 99px;
-  background: var(--accent-2, #ffb547); color: #2b1a00; font: 800 .58rem/1.4 system-ui, sans-serif; letter-spacing: .01em; }
-
 /* Présence des joueurs (menu ☰, retrait) : repérer un joueur parti ou en double */
 .g-pres { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; font-size: .75rem; font-weight: 600; vertical-align: middle; }
 .g-pres i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
@@ -1564,6 +1557,24 @@ html.events-soon .tabs :is([data-tab="events"], [data-tab="chats"])::after {
 .fb-form textarea { min-height:120px; }
 .fb-kinds { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; }
 .fb-kinds button { min-height:42px; }
+/* « Ton avis » avec l'IA (feedback-ai.js) : gros micro, « C'est bien ça ? », accord. */
+.fb-mic { min-height:56px; font-size:1.05rem; font-weight:700; border-radius:16px; display:flex; align-items:center; justify-content:center; gap:8px; }
+.fb-mic.on, .fb-mic-sm.on { background:#e5484d; color:#fff; animation: fb-mic-pulse 1.4s ease-in-out infinite; }
+@keyframes fb-mic-pulse { 50% { box-shadow:0 0 0 8px rgba(229,72,77,.18); } }
+@media (prefers-reduced-motion: reduce) { .fb-mic.on, .fb-mic-sm.on { animation:none; } }
+.fb-ai { display:flex; flex-direction:column; gap:10px; }
+.fb-ai-draft p { margin:4px 0; overflow-wrap:anywhere; }
+.fb-ai-draft ol { margin:4px 0; padding-left:20px; }
+.fb-ai-title { margin:6px 0 2px; font-size:1.1rem; overflow-wrap:anywhere; }
+.fb-ai-k { margin-top:8px; font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--muted, #c9c3dc); }
+.fb-ai-q { margin:0; font-weight:700; }
+.fb-ai-more { display:flex; flex-direction:column; gap:8px; }
+.fb-ai-actions { display:flex; flex-direction:column; gap:8px; }
+.fb-ai-actions button { min-height:44px; }
+.fb-ai-row { display:flex; align-items:center; gap:8px; margin:10px 2px 0; }
+.link-btn { all:unset; cursor:pointer; color:var(--accent); font-weight:600; font-size:.9rem; padding:6px 2px; text-align:center; }
+.fb-ai-sheet { display:flex; flex-direction:column; gap:10px; }
+.fb-ai-sheet p { margin:0; }
 .fb-item .title { white-space:normal; overflow-wrap:anywhere; font-weight:600; }
 .fb-st.done { color:#7be0a6; font-weight:700; }
 .fb-st.sent { color:#ffd27a; font-weight:700; }
@@ -1726,3 +1737,43 @@ html.native-tabs .g-mini { bottom: 12px; }
   background: rgba(255, 255, 255, .05); color: #dfe7ff; font-size: .9rem; }
 .g-lobby-mini .py-mini { margin-left: auto; }
 .g-lobby + .g-room-best, .g-room-best + .g-lobby { margin-top: 12px; }
+
+/* Retours : classement de l'admin (statuts de travail, zone, plateformes, effort, étiquettes, fil avec Claude). */
+.fb-top { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+.fb-top input[type=search] { flex: 1; min-width: 0; }
+.fb-newbtn { flex: none; white-space: nowrap; }
+.fb-filter { flex-wrap: wrap; }
+.fb-filter button { flex: 1 1 auto; }
+.fb-filters { margin-top: 8px; }
+.fb-filters summary { cursor: pointer; font-weight: 700; color: var(--muted); padding: 6px 2px; }
+.fb-classify { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.fb-field { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; color: var(--muted); min-width: 0; margin: 0; }
+.fb-field select, .fb-field input[type=text], .fb-field textarea { width: 100%; min-width: 0; color: var(--text, #fff); }
+.fb-wide { grid-column: 1 / -1; }
+.fb-platforms { border: 0; padding: 0; display: flex; flex-direction: row; flex-wrap: wrap; gap: 4px 12px; grid-column: 1 / -1; }
+.fb-platforms legend { padding: 0; margin-bottom: 4px; }
+.fb-platforms label, .fb-check { display: inline-flex; align-items: center; gap: 6px; color: var(--text, #fff); font-size: .9rem; }
+.fb-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.fb-chip { display: inline-block; padding: 2px 8px; border-radius: 99px; background: rgba(255, 255, 255, .07); font-size: .75rem; font-weight: 600; color: #d9d3ea; }
+.fb-stchip { color: var(--st, #fff); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st, #fff) 45%, transparent); background: color-mix(in srgb, var(--st, #fff) 14%, transparent); font-weight: 800; }
+.fb-tag { color: #b9c8ff; }
+.fb-quick { max-width: 150px; min-height: 36px; font-size: .82rem; }
+.fb-group { margin: 16px 2px 6px; font-size: 1rem; }
+.fb-group small { color: var(--muted); font-weight: 600; }
+.fb-thread { display: flex; flex-direction: column; gap: 6px; }
+.fb-msg { padding: 8px 10px; border-radius: 12px; background: rgba(255, 255, 255, .06); font-size: .88rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fb-msg.claude { background: rgba(143, 180, 255, .12); }
+.fb-msg small { margin-left: 6px; color: var(--muted); }
+.fb-history summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
+.fb-history ul { margin: 6px 0 0; padding-left: 18px; font-size: .8rem; color: #c9c3dc; }
+.fb-st.questions, .fb-st.verify, .fb-st.blocked { color: #ffb46b; font-weight: 700; }
+.fb-st.ready { color: #7be0a6; font-weight: 700; }
+/* Le texte de l'avis prend toute la largeur ; les actions (✏️, statut, ✕) passent dessous, à droite. */
+.fb-item > .meta { flex: 1 1 100%; }
+.fb-item > .icon-btns { margin-left: auto; align-items: center; }
+/* 🔐 Compte progressivement obligatoire (guest-gate.js) : titres restants en invité, feuille « Crée ton compte ». */
+.guest-tracks { margin: 8px 0 0; white-space: normal; }
+.gate-link { all: unset; color: var(--accent); font-weight: 600; cursor: pointer; text-decoration: underline; }
+.gate-link:focus-visible { box-shadow: var(--focus); border-radius: 4px; }
+.gate-sheet h2 { margin: 0; }
+.gate-sheet .sub { margin: 0; white-space: normal; }

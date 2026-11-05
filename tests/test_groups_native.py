@@ -49,6 +49,16 @@ def test_my_groups_are_the_ones_i_created_or_belong_to():
     assert {p["id"] for p in result["people"]} == {LEA, TOM}  # moi exclu
 
 
+def test_groups_i_am_not_in_go_to_others_which_the_base_only_returns_to_site_admins():
+    """Avis 1b4b43021c1e : Vendredi Party (je n'en fais pas partie) n'est pas dans Mes groupes. La base ne renvoie les
+    groupes des autres qu'aux Admins du site : ils arrivent dans others (section « Tous les groupes (admin) »)."""
+    acc, _ = fake_supabase()
+    result = acc.groups("tok")
+    assert VIP not in [g["id"] for g in result["groups"]]
+    assert [(g["name"], g["system"], g["mine"], g["inside"]) for g in result["others"]] == [("Vendredi Party", True, False, False)]
+    assert result["others"][0]["members"] == [{"id": TOM, "name": "Tom"}]
+
+
 def test_create_compose_and_delete_with_the_member_session():
     acc, seen = fake_supabase()
     acc.create_group("tok", "Les footeux")

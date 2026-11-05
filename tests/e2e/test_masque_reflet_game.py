@@ -1,5 +1,6 @@
 """« Le Masque » et « Le Reflet » de bout en bout (vrais boutons, trois téléphones) : écrire en secret, deviner qui a
-écrit quoi, lever ou garder son masque, révélation ; choisir une affirmation et parier, voter en secret, compteur."""
+écrit quoi (sans jamais voir la sienne), masques levés ou gardés pour toute la table, révélation avec les votes en vert
+ou rouge ; choisir une affirmation et parier, voter en secret, compteur."""
 import pytest
 pytest.importorskip('playwright.sync_api')
 from playwright.sync_api import expect
@@ -42,41 +43,90 @@ def write(phone, text):
     expect(phone.page.locator('.ms-sheet')).to_have_count(0)
 
 
-def test_masque_secret_answers_guesses_and_a_lifted_mask(phones):
-    alice, bob, chloe = table(phones, 'masque')
-    expect(alice.page.locator('.ms-hero')).to_be_visible()
-    alice.tap('[data-gact="start"]')
-    question = alice.page.locator('.ms-q-t').inner_text()
-    expect(bob.page.locator('.ms-q-t')).to_have_text(question)
+GREEN, RED = 'rgb(123, 216, 143)', 'rgb(255, 138, 122)'
 
+
+def border(locator):
+    return locator.evaluate('el => getComputedStyle(el).borderTopColor')
+
+
+def write_all(alice, bob, chloe):
     write(alice, "La mer <b>en hiver</b>")
     expect(alice.page.locator('.ms-mine-t')).to_contain_text('<b>en hiver</b>')  # texte échappé, jamais du HTML
     expect(bob.page.locator('body')).not_to_contain_text('La mer')  # secret tant que tout le monde n'a pas écrit
     write(bob, "Le bruit du train de nuit")
     write(chloe, "Ma grand-mère qui chante")
 
-    for p in (alice, bob, chloe):
-        expect(p.page.locator('.ms-slot')).to_have_count(3)
-    # Bob devine Alice pour « La mer… » et lève son masque ; les autres envoient sans deviner.
-    sea = bob.page.locator('.ms-slot', has_text='La mer')
-    sea.locator('.ms-name', has_text='Alice').click()
-    expect(sea.locator('.ms-name.on')).to_have_text('Alice')
-    bob.tap('[data-ms-unmask="1"]')
+
+def test_masque_masks_up_votes_in_green_and_red_and_ones_own_answer_never_shown(phones):
+    alice, bob, chloe = table(phones, 'masque')
+    expect(alice.page.locator('.ms-hero')).to_be_visible()
+    expect(alice.page.locator('[data-ms-mask="open"]')).to_have_attribute('aria-pressed', 'true')  # masques levés d'office
+    alice.tap('[data-gact="start"]')
+    question = alice.page.locator('.ms-q-t').inner_text()
+    expect(bob.page.locator('.ms-q-t')).to_have_text(question)
+    write_all(alice, bob, chloe)
+
+    # Avis du 04.11 : chacun voit les deux autres réponses, jamais la sienne (rien de jaune à repérer pour un voisin).
+    for p, own in ((alice, 'La mer'), (bob, 'train de nuit'), (chloe, 'grand-mère')):
+        expect(p.page.locator('.ms-slot')).to_have_count(2)
+        expect(p.page.locator('#game')).not_to_contain_text(own)
+        expect(p.page.locator('.ms-slot.mine, [data-ms-unmask]')).to_have_count(0)  # plus de choix du masque
+    # Bob trouve Alice ; Chloé pense que « La mer… » est de Bob ; Alice ne devine rien.
+    bob.page.locator('.ms-slot', has_text='La mer').locator('.ms-name', has_text='Alice').click()
+    expect(bob.page.locator('.ms-slot', has_text='La mer').locator('.ms-name.on')).to_have_text('Alice')
     bob.tap('[data-ms-send]')
     expect(bob.page.locator('.lk-done')).to_contain_text('Choix envoyés')
-    alice.tap('[data-ms-unmask="1"]')
-    alice.tap('[data-ms-send]')
-    chloe.tap('[data-ms-unmask="0"]')
+    expect(bob.page.locator('#game')).not_to_contain_text('train de nuit')  # même après l'envoi
+    chloe.page.locator('.ms-slot', has_text='La mer').locator('.ms-name', has_text='Bob').click()
     chloe.tap('[data-ms-send]')
+    alice.tap('[data-ms-send]')
 
     for p in (alice, bob, chloe):
-        expect(p.page.locator('.ms-slot.open')).to_have_count(2)
-        expect(p.page.locator('.ms-slot.masked')).to_contain_text('Reste masqué')
-        expect(p.page.locator('.ms-slot.masked')).not_to_contain_text('Chloe')  # le masque gardé ne trahit personne
-    expect(bob.page.locator('.ms-slot', has_text='La mer')).to_contain_text("Tu l'avais trouvé")
-    expect(alice.page.locator('.ms-slot', has_text='La mer')).to_contain_text('Trouvé par Bob')
+        sea = p.page.locator('.ms-slot', has_text='La mer')
+        expect(sea.locator('.ms-author')).to_have_text("C'était Alice")  # à qui était la réponse, en clair
+        expect(sea.locator('.ms-vote.right')).to_have_text('✓ Bob')  # qui a voté quoi
+        expect(sea.locator('.ms-vote.wrong')).to_contain_text('Chloe pensait Bob')
+        expect(p.page.locator('.ms-slot', has_text='train de nuit').locator('.ms-author')).to_have_text("C'était Bob")
+        expect(p.page.locator('.ms-slot', has_text='train de nuit')).to_contain_text("Personne n'a voté")
+    # Le vert ne dit que « juste » et le rouge « faux », pour qui regarde ; la coche en haut à droite.
+    bob_sea = bob.page.locator('.ms-slot', has_text='La mer')
+    expect(bob_sea.locator('.ms-mark.right')).to_have_text('✓')
+    assert border(bob_sea) == GREEN
+    chloe_sea = chloe.page.locator('.ms-slot', has_text='La mer')
+    expect(chloe_sea.locator('.ms-mark.wrong')).to_have_text('✗')
+    assert border(chloe_sea) == RED
+    for p in (alice, bob, chloe):  # sans devinette : ni vert ni rouge
+        assert border(p.page.locator('.ms-slot', has_text='grand-mère')) not in (GREEN, RED)
+    assert border(alice.page.locator('.ms-slot', has_text='La mer')) not in (GREEN, RED)
+    expect(bob.page.locator('body')).not_to_contain_text("Tu l'avais trouvé")
+    expect(bob.page.locator('.lk-card', has_text='Points')).to_contain_text('Bob · 1')
     alice.tap('[data-gact="next"]')
     expect(chloe.page.locator('.ms-q-n')).to_contain_text('Question 2/8')
+
+
+def test_masque_masks_kept_by_the_organizer_never_tell_who_wrote_what(phones):
+    alice, bob, chloe = table(phones, 'masque')
+    alice.tap('[data-ms-mask="closed"]')
+    expect(alice.page.locator('[data-ms-mask="closed"]')).to_have_attribute('aria-pressed', 'true')
+    expect(bob.page.locator('.ms-mode')).to_contain_text('Masques gardés')  # chacun sait à quoi s'attendre
+    alice.tap('[data-gact="start"]')
+    write_all(alice, bob, chloe)
+    for p in (alice, bob, chloe):
+        expect(p.page.locator('.ms-slot')).to_have_count(2)
+    bob.page.locator('.ms-slot', has_text='La mer').locator('.ms-name', has_text='Alice').click()
+    bob.tap('[data-ms-send]')
+    chloe.page.locator('.ms-slot', has_text='La mer').locator('.ms-name', has_text='Alice').click()
+    chloe.tap('[data-ms-send]')
+    alice.tap('[data-ms-send]')
+    for p in (alice, bob, chloe):
+        expect(p.page.locator('.ms-author.masked')).to_have_count(3)
+        sea = p.page.locator('.ms-slot', has_text='La mer')
+        expect(sea.locator('.ms-votes')).to_contain_text('On a pensé à')
+        expect(sea.locator('.ms-vote')).to_have_text('Alice ×2')  # à qui, en nombre, jamais le prénom des votants
+        expect(p.page.locator('.ms-mark, .ms-vote.right, .ms-vote.wrong')).to_have_count(0)  # rien ne se confirme
+        expect(p.page.locator('#game')).not_to_contain_text("C'était")
+        expect(p.page.locator('.lk-card', has_text='Points')).to_have_count(0)
 
 
 def test_reflet_pick_bet_secret_votes_and_the_counter(phones):
@@ -101,3 +151,30 @@ def test_reflet_pick_bet_secret_votes_and_the_counter(phones):
         expect(p.page.locator('.lk-win-t')).to_have_text('🎯 Pile dans le mille !')
     alice.tap('[data-gact="next"]')
     expect(bob.page.locator('[data-rf-pick]')).to_have_count(3)  # au tour de Bob devant le miroir
+
+
+def test_masque_filters_answers_and_a_player_reports_one_for_the_whole_table(phones):
+    """B3 (audit du 04.11, Apple 1.2) : filtre commun sur les réponses, et « 🚩 Signaler » pour tout joueur."""
+    alice, bob, chloe = table(phones, 'masque')
+    alice.tap('[data-gact="start"]')
+    bob.tap('[data-ms-compose]')
+    bob.page.locator('.ms-sheet textarea').fill('Va voir www.exemple.com')
+    bob.page.locator('.ms-sheet button[type="submit"]').click()
+    expect(bob.page.locator('.toast')).to_contain_text('Réponse refusée')
+    bob.page.locator('.ms-sheet textarea').fill('Le bruit du train de nuit')  # la feuille reste ouverte : il corrige
+    bob.page.locator('.ms-sheet button[type="submit"]').click()
+    expect(bob.page.locator('.ms-sheet')).to_have_count(0)
+    write(alice, 'La mer en hiver')
+    write(chloe, 'Ma grand-mère qui chante')
+    for p in (alice, bob, chloe):
+        expect(p.page.locator('.ms-slot')).to_have_count(2)
+    for p in (bob, chloe, alice):
+        p.tap('[data-ms-send]')
+    expect(chloe.page.locator('.ms-slot', has_text='train de nuit')).to_be_visible()
+    expect(alice.page.locator('[data-ms-report]')).to_have_count(0)  # l'animateur a déjà « Retirer »
+    chloe.page.once('dialog', lambda d: d.accept())
+    chloe.page.locator('.ms-slot', has_text='train de nuit').locator('[data-ms-report]').click()
+    expect(chloe.page.locator('.toast')).to_contain_text('la réponse est retirée')
+    for p in (alice, bob, chloe):
+        expect(p.page.locator('#game')).not_to_contain_text('train de nuit')
+        expect(p.page.locator('.ms-slot.off')).to_contain_text('Réponse retirée après un signalement')

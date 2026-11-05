@@ -13,6 +13,8 @@ final class WebModel: ObservableObject {
     @Published var ticketScanOpen = false
     private var ticketScanReply: CheckedContinuation<String?, Never>?
     private var chatsPreloaded = false
+    /// « Ajouter un titre » choisi avant que la page ait décrit ses onglets (lancement à froid).
+    private var musicSearchWanted = false
     /// Onglets de la page affichée ; nil sur une page sans barre d'onglets (admin, TV…).
     @Published private(set) var tabs: TabBarState?
     /// Écrans que l'hôte gère dans la page (« Gérer la soirée », « Gérer les retours ») plutôt qu'en vue invité
@@ -48,6 +50,10 @@ final class WebModel: ObservableObject {
     private(set) var feedbackAdmin: FeedbackAdminStore?
     /// Discussions de groupe (avis n°10), onglet natif.
     private(set) var chats: ChatsStore?
+    /// Discussions ouvertes sur ce site (/api/features.discussions ; absent ou hors ligne : fermées). Fermées : ni
+    /// onglet, ni « Écrire », ni conversation ouverte par un lien ou une notification.
+    @Published private(set) var discussions = false
+    private var api: PartyAPI?
 
     /// L'hôte gère la soirée dans l'écran natif (« Gérer la soirée ») plutôt qu'en vue invité ; retenu.
     @Published var hostNativeMusic = UserDefaults.standard.bool(forKey: "hostNativeMusic") {
@@ -73,6 +79,8 @@ final class WebModel: ObservableObject {
         self.webView = webView
         let cookieStore = webView.configuration.websiteDataStore.httpCookieStore
         let api = PartyAPI(base: start, jar: WebCookieJar(cookieStore))
+        self.api = api
+        refreshFeatures()
         // Session d'hôte (vp_admin) ou code saisi après le chargement de la page : l'extension « Partager »
         // reçoit la session à jour à chaque changement de cookie.
         cookieWatcher = CookieWatcher(store: cookieStore) { [weak self] in
@@ -129,9 +137,15 @@ final class WebModel: ObservableObject {
             selectTab("account")
             return
         }
+        // Lien d'invitation dans Party (/events/join/<lien>) : la feuille native « X t'invite sur Party » (Réglages).
+        if AppConfig.isInternal(url), let invite = Self.appInviteLink(in: url) {
+            settings?.friends.received(invite)
+            selectTab("account")
+            return
+        }
         let target = AppConfig.isInternal(url) ? url : start
         // Notification de discussion (?tab=chats&chat=<groupe>) : l'écran natif ouvre la conversation.
-        chats?.requested = Self.chatRequested(in: target) ?? chats?.requested
+        if discussions { chats?.requested = Self.chatRequested(in: target) ?? chats?.requested }
         guard let webView else {
             pending = target
             return
@@ -142,7 +156,11 @@ final class WebModel: ObservableObject {
 
     func showTabs(_ state: TabBarState) {
         awaitingTabs = false
-        if !chatsPreloaded {  // page chargée (session lisible) : la liste des discussions est prête avant l'onglet
+        if musicSearchWanted {
+            musicSearchWanted = false
+            selectTab("music")
+        }
+        if discussions && !chatsPreloaded {  // page chargée (session lisible) : la liste est prête avant l'onglet
             chatsPreloaded = true
             Task { [weak self] in await self?.chats?.preload() }
         }
@@ -157,11 +175,40 @@ final class WebModel: ObservableObject {
 
     var isHost: Bool { tabs?.host == true }
 
+    /// Barre d'onglets dessinée par l'app (Discussions retirées quand le site les a fermées).
+    var visibleTabs: TabBarState? { tabs?.visible(discussions: discussions) }
+
+    /// Fonctions ouvertes sur ce site (au lancement et au retour au premier plan). Une erreur réseau garde l'état connu.
+    func refreshFeatures() {
+        guard let api else { return }
+        Task { [weak self] in
+            guard let features = try? await api.features() else { return }
+            self?.featuresChanged(features)
+        }
+    }
+
+    func featuresChanged(_ features: PartyFeatures) {
+        guard features.discussions != discussions else { return }
+        discussions = features.discussions
+        if discussions, tabs != nil, !chatsPreloaded {
+            chatsPreloaded = true
+            Task { [weak self] in await self?.chats?.preload() }
+        }
+    }
+
     nonisolated static func tricountLink(in url: URL) -> String? {
         let parts = url.pathComponents
         guard parts.count == 3, ["pot", "tricount"].contains(parts[1]),
               parts[2].range(of: "^[0-9a-fA-F-]{36}$", options: .regularExpression) != nil else { return nil }
         return parts[2].lowercased()
+    }
+
+    nonisolated static func appInviteLink(in url: URL) -> String? {
+        let parts = url.pathComponents
+        guard parts.count == 4, parts[1] == "events", parts[2] == "join",
+              parts[3].range(of: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", options: .regularExpression) != nil
+        else { return nil }
+        return parts[3].lowercased()
     }
 
     nonisolated static func chatRequested(in url: URL) -> String? {
@@ -174,7 +221,7 @@ final class WebModel: ObservableObject {
 
     /// Onglet natif affiché (nil : la page). L'hôte qui gère cet écran garde la page.
     var nativeScreen: String? {
-        guard let screen = tabs?.nativeScreen, screen != pageDetail else { return nil }
+        guard let screen = visibleTabs?.nativeScreen, screen != pageDetail else { return nil }
         return isHost && hostManagedScreens.contains(screen) ? nil : screen
     }
 
@@ -252,7 +299,48 @@ final class WebModel: ObservableObject {
         webView?.evaluateJavaScript("window.PartyEvents && PartyEvents.open('/events/event/\(id)')")
     }
 
+    /// Messages directs : Discussions présentes et ouvertes (pas « Bientôt », réservé aux bêta-testeurs en production).
+    var canWriteDirect: Bool {
+        discussions && chats != nil && tabs?.tabs.contains { $0.id == "chats" && !$0.soon } == true
+    }
+
+    /// « Écrire » : LA conversation privée avec ce membre (créée au besoin), ouverte dans l'onglet Discussions.
+    /// Le numéro de la personne dans mes contacts (empreinte) prouve qu'on se connaît, sans groupe ni événement commun.
+    func writeDirect(to user: String) async -> Bool {
+        guard let chats, await chats.write(to: user, contactHash: ContactNames.shared.contactHash(for: user)) else { return false }
+        selectTab("chats")
+        return true
+    }
+
+    /// Fiche d'un membre › son Zicou : l'onglet Zicou de la page, sur sa visite (ami) ou sur le mien (« Adopter le mien »).
+    func openZicou(visit: String?) {
+        selectTab("pet")
+        if let visit, visit.range(of: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", options: .regularExpression) != nil {
+            webView?.evaluateJavaScript("window.Pet && Pet.visit('\(visit)')")
+        }
+    }
+
+    /// Lien interne « ?tab=chats&chat=<id> » suivi dans la page déjà chargée (fiche d'un joueur › Écrire, toucher
+    /// d'une notification) : l'écran natif ouvre la conversation, la page ne se recharge pas.
+    func openNativeChat(_ url: URL) -> Bool {
+        guard discussions, tabs != nil, let chats, let chat = Self.chatRequested(in: url) else { return false }
+        chats.requested = chat
+        selectTab("chats")
+        return true
+    }
+
     /// Toucher d'un onglet natif : la page l'applique comme un toucher dans sa propre barre.
+    /// Action rapide de l'icône : le Compagnon (adresse de la page) ou Musique avec la recherche prête.
+    func perform(_ action: QuickAction) {
+        switch action.target() {
+        case .page(let url):
+            open(url)
+        case .addTrack:
+            if tabs == nil { musicSearchWanted = true } else { selectTab("music") }
+            QuickAction.requestMusicSearch()
+        }
+    }
+
     func selectTab(_ id: String) {
         guard id.allSatisfy({ $0.isLetter }) else { return }  // identifiants de la page : music, games…
         if id == pageDetail { closePageDetail() }
@@ -315,6 +403,7 @@ extension WebModel: WebStorage {
     }
 
     func clearSession() async {
+        PetWidgetBridge.forget()  // widgets Zicou : plus de compte, plus de Zicou
         guard let webView else { return }
         // Le module Événements est rechargé avant de relier le compte : il ne peut plus réécrire l'ancienne session.
         let script = """

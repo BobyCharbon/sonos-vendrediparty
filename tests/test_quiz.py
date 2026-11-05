@@ -139,7 +139,8 @@ def test_bank_has_no_draft_leftovers():
     """Toutes les mauvaises réponses sont de vraies réponses (pas de brouillons « … seul », « — »…) et tous les thèmes ont 1000+ questions."""
     import re
     for t, qs in qb.BANK.items():
-        assert len(qs) >= 1000, t
+        # Drapeaux : un par pays (≈ 195), posés dans les deux sens ; voir tests/test_quiz_flags.py.
+        assert len(qs) >= (300 if t == "drapeaux" else 1000), t
         for q in qs:
             txt = " | ".join([q["q"], q["a"], *q["w"]])
             assert not re.search(r"\bseule?s?\b", " ".join(q["w"])), txt

@@ -46,10 +46,16 @@ Deno.serve(async (req: Request) => {
             if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password || (endpoint.port && endpoint.port !== '443')
               || !hosts.some((host) => endpoint.hostname === host || (host !== 'fcm.googleapis.com' && endpoint.hostname.endsWith('.' + host)))) throw new Error('Invalid endpoint');
             const target = new URL('/', row.origin);
-            if (row.kind === 'group_message' && row.group_id && /^[0-9a-f-]{36}$/.test(row.group_id)) {
-              // Discussion de groupe (avis n°10) : le toucher ouvre la conversation.
+            if ((row.kind === 'group_message' || row.kind === 'direct_message') && row.group_id && /^[0-9a-f-]{36}$/.test(row.group_id)) {
+              // Discussion de groupe (avis n°10) ou message direct (4.11) : le toucher ouvre la conversation.
               target.searchParams.set('tab', 'chats');
               target.searchParams.set('chat', row.group_id);
+            } else if (typeof row.kind === 'string' && row.kind.startsWith('pet_')) {
+              // Compagnon (4.11) : le toucher ouvre le personnage dans l'onglet Jeux (rappel, alertes, cadeau d'un
+              // ami, palier de série) ; src=notif pour la mesure des ouvertures (pet_opens).
+              target.searchParams.set('tab', 'games');
+              target.searchParams.set('pet', '1');
+              target.searchParams.set('src', 'notif');
             } else {
               target.searchParams.set('tab', 'events');
               if (row.event_id) target.searchParams.set('event', row.event_id);

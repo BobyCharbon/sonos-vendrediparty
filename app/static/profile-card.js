@@ -49,6 +49,9 @@
     sheet.addEventListener("click", (ev) => {
       if (sheet !== mine) return;
       if (ev.target.closest(".pc-add-contact")) { if (current?.phone) addContact(current); return; }
+      if (ev.target.closest(".pc-write")) { if (current?.id) write(current, ev.target.closest(".pc-write")); return; }
+      const zp = ev.target.closest("[data-zp]");
+      if (zp) return zicouAction(zp);
       if (ev.target === mine || ev.target.closest(".pc-close")) close();
     });
     document.body.append(sheet);
@@ -84,6 +87,29 @@
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   }
 
+  // 💬 Message direct (4.11) : seulement quand les Discussions existent (site de test ; absentes en production).
+  const canWrite = () => typeof showTab === "function" && document.documentElement.dataset.discussions !== "off";
+
+  // « Écrire » : LA conversation privée à deux (créée au besoin) ; app iPhone : l'écran natif des Discussions
+  // (l'app intercepte ?tab=chats&chat=…), ailleurs l'onglet Discussions de la page.
+  async function write(c, button) {
+    const ticket = shown;
+    button.disabled = true;
+    try {
+      const token = typeof freshToken === "function" ? await freshToken() : null;
+      const r = await fetch("/api/account/chats/direct", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, user_id: c.id }) });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !/^[0-9a-f-]{36}$/.test(data.id || "")) throw new Error(typeof data.detail === "string" ? data.detail : "Tu ne peux pas écrire à cette personne.");
+      if (ticket !== shown) return;
+      close();
+      if (window.PartyNative && window.PartyNative.tabs) location.assign(`/?tab=chats&chat=${data.id}`);
+      else showTab("chats", `/chats/${data.id}`);
+    } catch (e) {
+      button.disabled = false;
+      if (ticket === shown && typeof toast === "function") toast(e.message, "err");
+    }
+  }
+
   // Nom de mon répertoire pour ce membre (app iPhone seulement ; ailleurs rien).
   async function contactName(id) {
     try {
@@ -104,6 +130,8 @@
       ${known && c.display_name ? `<div class="artist">${escape(c.display_name)} · dans tes contacts</div>` : ""}
       ${name ? `<div class="artist">${escape(name)}</div>` : ""}
       <div class="artist">${c.root ? "👑 Root" : escape(c.role_label || ROLES[c.role] || c.role || "")}${c.me ? " · c'est toi" : ""}</div>
+      ${!c.me && c.id && canWrite() ? `<button type="button" class="pc-btn pc-write">💬 Écrire</button>` : ""}
+      ${c.id && window.ZicouProfile ? `<div class="pc-zicou" aria-live="polite"></div>` : ""}
       ${phone ? `<div class="pc-phone"><b>${escape(phone)}</b>
         <a class="pc-btn" href="tel:${escape(phone)}">Appeler</a><a class="pc-btn secondary" href="sms:${escape(phone)}">Message</a>
         ${!c.me && !known ? `<button type="button" class="pc-btn secondary pc-add-contact">Ajouter aux contacts</button>` : ""}</div>`
@@ -147,6 +175,21 @@
     } catch { /* Méninges indisponible : la fiche reste sans comparaison. */ }
   }
 
+  // 🪩 Son Zicou (pet/profile-zicou.js) : posé à sa place dès qu'il arrive, si la fiche montre toujours ce membre.
+  // Zicou éteint (production), membre bloqué : rien.
+  async function addZicou(token, id, ticket) {
+    const data = await window.ZicouProfile?.load(token, id);
+    const slot = sheet?.querySelector(".pc-zicou");
+    if (data && slot && ticket === shown) slot.innerHTML = window.ZicouProfile.html(data);
+  }
+  // Toucher : la visite d'un ami ou « Adopter le mien », dans l'onglet Zicou (la fiche se ferme).
+  function zicouAction(b) {
+    const visit = b.dataset.zp === "visit" ? b.dataset.id : null;
+    close();
+    if (visit) window.Pet?.visit?.(visit);
+    else window.Pet?.open?.(null, "link");
+  }
+
   async function open(game, pid) {
     const ticket = ++shown;
     const token = typeof freshToken === "function" ? await freshToken() : null;
@@ -162,6 +205,7 @@
       if (ticket !== shown) return;
       current = data;
       show(cardHtml(data, contact));
+      if (data.id) addZicou(token, data.id, ticket);
       if (data.id && !data.me) addBrain(token, data.id, ticket);
     } catch (e) {
       if (ticket !== shown) return;

@@ -21,6 +21,12 @@ MAX_TOKENS = 4000
 BURST = (15, 10 * 60)  # au plus 15 appels par personne en 10 minutes (une conversation compte plusieurs appels)
 MAX_LOG = 5000
 IMAGE_TYPES = {b"\xff\xd8\xff": "image/jpeg", b"\x89PNG": "image/png", b"RIFF": "image/webp"}
+# Accord exprès avant le 1er envoi à Anthropic (Apple 5.1.2(i)) : UN SEUL accord « IA » par compte, le même que l'IA
+# des avis (app/ai_feedback.ConsentBox, clé « acct:<uid> », /api/feedback/ai/consent) : l'app iPhone ne montre qu'une
+# feuille, qui couvre l'avis, l'assistant des événements (texte, captures, photos, liens) et le scan des tickets.
+CONSENT_ACCEPTED = "accepted"
+CONSENT_REQUIRED = "Accord requis : donne d'abord ton accord pour que Party envoie ta demande à Anthropic (Claude)."
+GLOBAL_OVER_BUDGET = "L'assistant IA a atteint sa limite pour ce mois-ci, pour toute l'app. Il repart le 1er."
 UNREADABLE = "Ce ticket n'a pas pu être lu. Reprends la photo bien à plat, ou saisis la dépense à la main."
 
 RECEIPT_SYSTEM = """Tu lis des photos de tickets de caisse, de factures et d'additions pour une app suisse de partage
@@ -122,6 +128,23 @@ class UsageLog:
         start = self.month_start(now)
         return sum(i["cost_usd"] for i in self.items if i["uid"] == uid and i["at"] >= start)
 
+    def spent_total_this_month(self, now: float) -> float:
+        """Dépense de toute l'app ce mois-ci (assistant, avis, toutes personnes) : plafond global."""
+        start = self.month_start(now)
+        return sum(i["cost_usd"] for i in self.items if i["at"] >= start)
+
+    def forget(self, subjects: set[str]) -> int:
+        """Compte supprimé : ses appels partent du journal (le texte dicté compris). Renvoie le nombre retiré."""
+        with self.lock:
+            kept = [i for i in self.items if i.get("uid") not in subjects]
+            removed = len(self.items) - len(kept)
+            if removed:
+                tmp = self.path.with_suffix(".tmp")
+                tmp.write_text(json.dumps(kept, ensure_ascii=False), encoding="utf-8")
+                tmp.replace(self.path)
+                self.items = kept
+        return removed
+
     def recent(self, uid: str, now: float, seconds: float) -> int:
         return sum(1 for i in self.items if i["uid"] == uid and now - i["at"] < seconds)
 
@@ -141,14 +164,39 @@ class UsageLog:
                 "recent": list(reversed(self.items[-50:]))}
 
 
+class ConsentRequired(AccountError):
+    """Pas encore d'accord pour envoyer à Anthropic : 403, l'app montre la feuille d'accord."""
+
+
+def assistant_consent_key(uid: str) -> str:
+    return f"acct:{uid}"  # même clé que l'IA des avis pour un compte (main.feedback_ai_subject)
+
+
 class Assistant:
-    def __init__(self, accounts, usage: UsageLog, client_factory, monthly_budget_usd: float, currencies: tuple[str, ...]):
+    def __init__(self, accounts, usage: UsageLog, client_factory, monthly_budget_usd: float, currencies: tuple[str, ...],
+                 consents=None, global_budget_usd: float = float("inf")):
         self.accounts = accounts
         self.usage = usage
         self.client_factory = client_factory  # None tant que la clé API n'est pas configurée
         self.budget = monthly_budget_usd
+        self.global_budget = global_budget_usd  # toute l'app, toutes personnes et tous usages (AI_GLOBAL_MONTHLY_BUDGET_USD)
         self.currencies = currencies
+        self.consents = consents  # app/ai_feedback.ConsentBox ; None (tests anciens) : aucun accord demandé
         self._client = None
+
+    def over_global_budget(self, now: float) -> bool:
+        return self.usage.spent_total_this_month(now) >= self.global_budget
+
+    def consent(self, uid: str) -> str:
+        """« accepted », « declined » ou « » (jamais demandé, ou texte d'accord changé)."""
+        return self.consents.state(assistant_consent_key(uid)) if self.consents is not None else CONSENT_ACCEPTED
+
+    def set_consent(self, token: str, accept: bool) -> dict:
+        uid = self.accounts._uid(token)
+        if self.consents is None:
+            raise AccountError("L'assistant IA n'est pas encore configuré sur ce serveur.")
+        self.consents.set(assistant_consent_key(uid), accept)
+        return self.status(token)
 
     def _client_or_error(self):
         if self.client_factory is None:
@@ -159,14 +207,18 @@ class Assistant:
 
     def status(self, token: str) -> dict:
         uid = self.accounts._uid(token)
+        now = time.time()
         return {"allowed": "ai.use" in self.accounts._perms(token), "configured": self.client_factory is not None,
-                "spent_usd": round(self.usage.spent_this_month(uid, time.time()), 4), "budget_usd": self.budget}
+                "consent": self.consent(uid), "global_full": self.over_global_budget(now),
+                "spent_usd": round(self.usage.spent_this_month(uid, now), 4), "budget_usd": self.budget}
 
     def allowed(self, token: str) -> str:
-        """Le compte a le droit « Utiliser l'assistant IA » ; renvoie son identifiant."""
+        """Le compte a le droit « Utiliser l'assistant IA » et a donné son accord ; renvoie son identifiant."""
         uid = self.accounts._uid(token)
         if "ai.use" not in self.accounts._perms(token):
             raise AccountError("L'assistant IA n'est pas activé pour ton compte. Demande à l'admin.")
+        if self.consent(uid) != CONSENT_ACCEPTED:
+            raise ConsentRequired(CONSENT_REQUIRED)
         return uid
 
     @staticmethod
@@ -177,6 +229,8 @@ class Assistant:
         """Avant un appel à l'IA : droit, plafond du mois et débit."""
         uid = self.allowed(token)
         now = time.time()
+        if self.over_global_budget(now):
+            raise AccountError(GLOBAL_OVER_BUDGET)
         if self.usage.spent_this_month(uid, now) >= self.budget:
             raise AccountError("Tu as atteint ta limite d'assistant IA pour ce mois-ci. Elle repart le 1er.")
         if self.usage.recent(uid, now, BURST[1]) >= BURST[0]:
@@ -228,5 +282,5 @@ class Assistant:
     def report(self, token: str) -> dict:
         if not self.accounts.is_party_admin(token):
             raise AccountError("Réservé aux admins.")
-        return {**self.usage.report(time.time()), "budget_usd": self.budget, "model": MODEL,
+        return {**self.usage.report(time.time()), "budget_usd": self.budget, "global_budget_usd": self.global_budget, "model": MODEL,
                 "configured": self.client_factory is not None}

@@ -95,6 +95,7 @@
     var spawnAcc = 0, nextSpawn = 1, pendingRebuild = false, pauseUntil = 0, bannerUntil = 0, needBanner = true;
     var run = 0, levelMisses = 0, wagonCount = 0, shownBanners = [], builtTier = 1;
     var stopped = false, paused = false, raf = 0, last = 0, now = 0;
+    var layer = null, sceneryDirty = true;   // calque du décor fixe (voir paintScenery)
 
     function rowsAvailable() {
       var room = H - 14 - STATION_H - TUNNEL_Y - 40;
@@ -146,6 +147,7 @@
         for (var k = i + 1; k < switches.length; k++) minGap = Math.min(minGap, Math.hypot(a.x - switches[k].x, a.y - switches[k].y));
       });
       hitRadius = Math.max(SWITCH_RADIUS, Math.min(MAX_HIT_RADIUS, minGap / 2));
+      sceneryDirty = true;
       // Les wagons en route gardent leur distance sur leur segment.
       wagons.forEach(function (w) { w.seg = w.owner ? w.owner.out[w.branch] : rootSeg; w.d = Math.min(w.d, w.seg.len); });
     }
@@ -226,11 +228,11 @@
       }
     }
 
-    function drawRails(seg) {
-      g.lineCap = 'round'; g.lineJoin = 'round';
-      g.setLineDash([3, 7]); g.strokeStyle = '#6b5640'; g.lineWidth = 16; strokePath(g, seg.pts);
-      g.setLineDash([]); g.strokeStyle = '#b8c2cc'; g.lineWidth = 9; strokePath(g, seg.pts);
-      g.strokeStyle = '#173a33'; g.lineWidth = 4; strokePath(g, seg.pts);
+    function drawRails(c, seg) {
+      c.lineCap = 'round'; c.lineJoin = 'round';
+      c.setLineDash([3, 7]); c.strokeStyle = '#6b5640'; c.lineWidth = 16; strokePath(c, seg.pts);
+      c.setLineDash([]); c.strokeStyle = '#b8c2cc'; c.lineWidth = 9; strokePath(c, seg.pts);
+      c.strokeStyle = '#173a33'; c.lineWidth = 4; strokePath(c, seg.pts);
     }
 
     function drawSwitch(s) {
@@ -248,12 +250,12 @@
       g.restore();
     }
 
-    function drawStation(lf) {
+    function drawStation(c, lf) {
       var x = lf.x - lf.w / 2, y = lf.y;
-      g.fillStyle = 'rgba(0,0,0,.25)'; roundRect(g, x + 2, y + 4, lf.w, STATION_H, 7); g.fill();
-      g.fillStyle = lf.hex; roundRect(g, x, y, lf.w, STATION_H, 7); g.fill();
-      g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(x, y, lf.w, 6);
-      g.save(); g.translate(lf.x, y + STATION_H / 2 + 3); shape(g, lf.kind, Math.min(8, lf.w / 3)); g.restore();
+      c.fillStyle = 'rgba(0,0,0,.25)'; roundRect(c, x + 2, y + 4, lf.w, STATION_H, 7); c.fill();
+      c.fillStyle = lf.hex; roundRect(c, x, y, lf.w, STATION_H, 7); c.fill();
+      c.fillStyle = 'rgba(0,0,0,.28)'; c.fillRect(x, y, lf.w, 6);
+      c.save(); c.translate(lf.x, y + STATION_H / 2 + 3); shape(c, lf.kind, Math.min(8, lf.w / 3)); c.restore();
     }
 
     function drawWagon(w) {
@@ -266,11 +268,11 @@
       g.restore();
     }
 
-    function drawTunnel() {
+    function drawTunnel(c) {
       var x = tree.x;
-      g.fillStyle = '#3d4a46'; g.beginPath(); g.arc(x, TUNNEL_Y, 30, Math.PI, 0); g.lineTo(x + 30, TUNNEL_Y + 6);
-      g.lineTo(x - 30, TUNNEL_Y + 6); g.closePath(); g.fill();
-      g.fillStyle = '#05100e'; g.beginPath(); g.arc(x, TUNNEL_Y + 4, 20, Math.PI, 0); g.closePath(); g.fill();
+      c.fillStyle = '#3d4a46'; c.beginPath(); c.arc(x, TUNNEL_Y, 30, Math.PI, 0); c.lineTo(x + 30, TUNNEL_Y + 6);
+      c.lineTo(x - 30, TUNNEL_Y + 6); c.closePath(); c.fill();
+      c.fillStyle = '#05100e'; c.beginPath(); c.arc(x, TUNNEL_Y + 4, 20, Math.PI, 0); c.closePath(); c.fill();
     }
 
     function drawFlashes() {
@@ -286,16 +288,32 @@
       });
     }
 
-    function draw() {
-      g.setTransform(dpr, 0, 0, dpr, 0, 0);
-      var bg = g.createLinearGradient(0, 0, 0, H);
+    // Décor fixe (fond, rails, gares, tunnel) peint une fois dans un calque, repeint seulement quand le réseau ou la
+    // taille change : chaque image ne dessine plus que ce calque, les wagons, les aiguillages et les éclairs
+    // (le décor coûtait l'essentiel de chaque image sur un écran Retina).
+    function paintScenery() {
+      if (!layer) layer = document.createElement('canvas');
+      layer.width = canvas.width; layer.height = canvas.height;
+      var c = layer.getContext('2d');
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      var bg = c.createLinearGradient(0, 0, 0, H);
       bg.addColorStop(0, '#16352f'); bg.addColorStop(1, '#0d2420');
-      g.fillStyle = bg; g.fillRect(0, 0, W, H);
+      c.fillStyle = bg; c.fillRect(0, 0, W, H);
+      if (tree) {
+        drawRails(c, rootSeg);
+        switches.forEach(function (s) { drawRails(c, s.out[0]); drawRails(c, s.out[1]); });
+        leaves.forEach(function (lf) { drawStation(c, lf); });
+        drawTunnel(c);
+      }
+      sceneryDirty = false;
+    }
+
+    function draw() {
+      if (sceneryDirty || !layer || layer.width !== canvas.width || layer.height !== canvas.height) paintScenery();
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.drawImage(layer, 0, 0);    // calque opaque (fond plein) : il recouvre toute l'image précédente
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
       if (!tree) return;
-      drawRails(rootSeg);
-      switches.forEach(function (s) { drawRails(s.out[0]); drawRails(s.out[1]); });
-      leaves.forEach(drawStation);
-      drawTunnel();
       wagons.forEach(drawWagon);
       switches.forEach(drawSwitch);
       drawFlashes();
@@ -333,6 +351,7 @@
         rows: switches.reduce(function (m, s) { return Math.max(m, s.depth + 1); }, 0),
         banners: shownBanners.slice(),
         switches: switches.map(function (s) { return { x: s.x, y: s.y, state: s.state }; }),
+        leaves: leaves.map(function (lf) { return { x: lf.x, y: lf.y, w: lf.w, hex: lf.hex }; }),
         wagons: wagons.map(function (w) {
           var to = w.seg.to;
           return to.leaf ? { id: w.id, next: -1, remaining: w.seg.len - w.d, want: -1 }

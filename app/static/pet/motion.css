@@ -1,0 +1,191 @@
+/* ✨ Zicou en mouvement (pet/motion.js). Uniquement transform et opacity (60 fps sur iPhone, rien qui déplace la mise en
+   page), courts, sans flash ; chaque classe pt-m-* est posée puis retirée par motion.js. Le panneau garde ses règles iOS
+   (jamais d'overflow ni de hauteur sur html/body). « Réduire les animations » : un fondu d'écran, rien d'autre. */
+.pt-root { --pt-m-spring: cubic-bezier(.34, 1.56, .64, 1); --pt-m-out: cubic-bezier(.2, .8, .2, 1); }
+
+/* ── Entrée d'un écran : ouverture (monte), page plus profonde (depuis la droite), retour (depuis la gauche) ── */
+.pt-m-enter-open > :not(.pt-news):not(.pt-bursts):not(.pt-live) { animation: pt-m-rise .5s var(--pt-m-out) both; }
+.pt-m-enter-open > :nth-child(2) { animation-delay: 50ms; }
+.pt-m-enter-open > :nth-child(3) { animation-delay: 100ms; }
+.pt-m-enter-open > :nth-child(n+4) { animation-delay: 140ms; }
+.pt-m-enter-deeper > :not(.pt-news):not(.pt-bursts):not(.pt-live) { animation: pt-m-from-right .38s var(--pt-m-out) both; }
+.pt-m-enter-back > :not(.pt-news):not(.pt-bursts):not(.pt-live) { animation: pt-m-from-left .38s var(--pt-m-out) both; }
+.pt-m-enter-tab > :not(.pt-top):not(.pc-wallet):not(.pc-tabs):not(.pt-news):not(.pt-bursts):not(.pt-live) { animation: pt-m-fade-up .3s var(--pt-m-out) both; }
+/* Cartes, tuiles, jauges et boutons : en cascade (index --i posé par motion.js, 12 au plus). */
+.pt-root[class*="pt-m-enter-"] [style*="--i"] { animation: pt-m-card .42s var(--pt-m-out) both; animation-delay: calc(var(--i) * 35ms + 80ms); }
+.pt-m-fade { animation: pt-m-fade .2s ease-out both; }
+.pt-m-hello { animation: pt-m-hello .9s var(--pt-m-spring) both; }
+
+/* ── Ambiance : les reflets de la boule à facettes dansent doucement sur la scène (opacité seule) ── */
+.pt-hero > :is(.pt-chips, .pt-stage, .pt-art, .pt-line, .pt-count, .pt-name, p, h2, h3, ul, form) { position: relative; }
+.pt-hero::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 30%, rgba(94, 231, 255, .35) 0 2px, transparent 3px),
+    radial-gradient(circle at 82% 22%, rgba(255, 140, 192, .35) 0 2.5px, transparent 3.5px),
+    radial-gradient(circle at 70% 70%, rgba(255, 211, 107, .3) 0 2px, transparent 3px),
+    radial-gradient(circle at 26% 76%, rgba(180, 155, 255, .4) 0 3px, transparent 4px),
+    radial-gradient(circle at 50% 12%, rgba(255, 255, 255, .3) 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 92% 58%, rgba(94, 231, 255, .3) 0 1.5px, transparent 2.5px);
+  animation: pt-m-disco 5s ease-in-out infinite; }
+.pt-hero.pt-night::before { opacity: .25; animation: none; }
+.pt-memo::before { display: none; }
+
+/* ── Toucher : boutons et Zicou s'enfoncent puis rebondissent ── */
+.pt-root .pt-stage:active .pt-art { transform: scale(.95); transition: transform .12s ease-out; }
+.pt-root .pt-stage .pt-art { transition: transform .35s var(--pt-m-spring); }
+.pt-root :is(.pc-tile, .pc-tab, .pt-chip-btn, .pt-swatch) { transition: transform .3s var(--pt-m-spring); }
+.pt-root :is(.pc-tile, .pc-tab, .pt-chip-btn, .pt-swatch):active { transform: scale(.94); transition-duration: .1s; }
+
+/* ── Chaque soin, son geste ── */
+.pt-m-eat { animation: pt-m-eat .9s ease-in-out; }
+.pt-m-hop { animation: pt-m-hop .9s var(--pt-m-spring); }
+.pt-m-hug { animation: pt-m-hug .9s var(--pt-m-spring); }
+.pt-m-wash { animation: pt-m-wash .9s ease-in-out; }
+.pt-m-sleep { animation: pt-m-sleep 1s ease-in-out; }
+.pt-m-wake { animation: pt-m-wake .9s var(--pt-m-spring); }
+.pt-m-equip { animation: pt-m-pop .6s var(--pt-m-spring); }
+.pt-m-boop { animation: pt-m-boop .6s var(--pt-m-spring); }
+.pt-m-giggle { animation: pt-m-wash .7s ease-in-out; }
+.pt-m-spin { animation: pt-m-spin .9s var(--pt-m-out); }
+.pt-m-press { display: inline-block; animation: pt-m-press .5s var(--pt-m-spring); }
+.pt-m-born { animation: pt-m-born 1.2s var(--pt-m-spring) both; }
+.pt-m-evolve { animation: pt-m-evolve 1.7s var(--pt-m-out); }
+.pt-m-evolve::after, .pt-m-mood::after { content: ""; position: absolute; inset: 12%; border-radius: 50%; pointer-events: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pt-mood, #5ee7ff) 70%, transparent), 0 0 30px color-mix(in srgb, var(--pt-mood, #5ee7ff) 60%, transparent); }
+.pt-m-evolve::after { animation: pt-m-ring 1.6s var(--pt-m-out) both; }
+.pt-m-mood::after { animation: pt-m-ring 1.1s var(--pt-m-out) both; }
+.pt-m-farewell { animation: pt-m-farewell 2.3s ease-in-out; }
+.pt-memo .pt-stage .pt-art { animation: pt-m-hover 4.5s ease-in-out infinite; }
+
+/* ── Au repos : petites idles selon l'humeur ── */
+.pt-m-idle-hop { animation: pt-m-hop 1s var(--pt-m-spring); }
+.pt-m-idle-spin { animation: pt-m-spin 1.2s var(--pt-m-out); }
+.pt-m-idle-sway { animation: pt-m-sway 1.3s ease-in-out; }
+.pt-m-idle-look { --lx: -6px; animation: pt-m-look 1.4s ease-in-out; }
+.pt-m-idle-yawn { animation: pt-m-yawn 1.4s ease-in-out; }
+.pt-m-idle-sigh { animation: pt-m-sigh 1.4s ease-in-out; }
+.pt-m-idle-rock { animation: pt-m-sway 1.2s ease-in-out; }
+
+/* ── Jauges : la barre part de l'ancienne valeur, l'icône rebondit, « +30 » s'envole ── */
+.pt-bar i, .pc-bar i { transform-origin: 0 50%; }
+.pt-m-fill { animation: pt-m-fill .9s var(--pt-m-out) both; }
+.pt-bar i { position: relative; }
+.pt-m-fill::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .7), transparent);
+  transform: translateX(-100%); animation: pt-m-sweep .8s ease-out .35s forwards; }
+.pt-gauge { position: relative; }
+.pt-m-up .pt-g-ico { animation: pt-m-pop .6s var(--pt-m-spring); }
+.pt-m-down .pt-g-ico { animation: pt-m-droop .8s ease-in-out; }
+.pt-m-delta { position: absolute; right: 10px; top: 6px; font-weight: 800; font-size: .85rem; color: #9bffcb; pointer-events: none;
+  animation: pt-m-delta 1.2s var(--pt-m-out) both; }
+
+/* ── Pièces : une seule pièce glisse calmement vers le compteur, qui défile ── */
+.pt-m-coin { position: fixed; z-index: 90; margin: -12px 0 0 -12px; font-size: 1.5rem; line-height: 1; pointer-events: none;
+  animation: pt-m-glide .7s cubic-bezier(.45, 0, .25, 1) both; }
+.pt-m-coin-in { animation: pt-m-pop .5s var(--pt-m-spring); }
+.pt-chip { position: relative; }
+.pt-m-flame { animation: pt-m-flame 1.2s var(--pt-m-spring); }
+.pt-m-level { animation: pt-m-flame 1.2s var(--pt-m-spring); }
+
+/* ── Missions : la coche saute, quelques confettis doux ── */
+.pt-missions li { position: relative; }
+.pt-m-done > span:first-child { display: inline-block; animation: pt-m-check .7s var(--pt-m-spring); }
+.pt-m-room .pt-room-lights { animation: pt-m-pop .8s var(--pt-m-spring); }
+.pt-m-room .pt-art { animation: pt-m-hop 1s var(--pt-m-spring); }
+
+/* ── Teinture : un balayage de couleur traverse Zicou ── */
+.pt-m-sweep { position: absolute; inset: 14% 12% 8%; border-radius: 50%; overflow: hidden; pointer-events: none; mix-blend-mode: screen; }
+.pt-m-sweep::before { content: ""; position: absolute; inset: 0; transform: translateX(-120%);
+  background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--pt-mood, #ff8cc0) 70%, #fff) 50%, transparent 80%);
+  animation: pt-m-sweep .9s var(--pt-m-out) forwards; }
+
+/* ── Éclosion : l'œuf tremble plus fort dans la dernière minute, se fissure, éclate ── */
+.pt-m-soon .pt-body { animation-duration: .7s !important; }
+.pt-m-crack { animation: pt-m-shake .12s linear 6; }
+.pt-m-cracks { position: absolute; inset: 22% 22% 14%; pointer-events: none; filter: drop-shadow(0 0 6px rgba(255, 255, 255, .8)); }
+.pt-hatch .pt-m-cracks { animation: pt-m-crack-out .35s ease-in forwards; }
+@keyframes pt-m-crack-out { to { opacity: 0; transform: scale(1.4); } }
+.pt-m-cracks svg { width: 100%; height: 100%; overflow: visible; }
+.pt-m-cracks path { fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 90; stroke-dashoffset: 90; animation: pt-m-draw .5s ease-out forwards; }
+
+/* ── Particules (miettes, notes, cœurs, bulles, Zzz, rayons, confettis) ── */
+.pt-m-fx { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.pt-m-p { position: absolute; left: calc(50% + var(--sx, 0px)); top: calc(62% + var(--sy, 0px)); margin: -10px 0 0 -10px; width: 20px; height: 20px; display: grid; place-items: center;
+  font-size: 1.6rem; line-height: 1; opacity: 0; animation: pt-m-particle 1.25s cubic-bezier(.15, .7, .3, 1) var(--delay, 0ms) forwards;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .35)); }
+.pt-m-fx-fall .pt-m-p { top: calc(76% + var(--sy, 0px)); animation-name: pt-m-fall; animation-timing-function: linear; }
+.pt-m-fx-drift .pt-m-p { left: 66%; top: 46%; animation-duration: 1.6s; animation-timing-function: ease-out; }
+.pt-m-fx-ray .pt-m-p { top: calc(60% + var(--sy, 0px)); animation-duration: .9s; }
+.pt-m-crumb { width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 3px; background: linear-gradient(135deg, #ffe08a, #ffb547 60%, #e8743b); font-size: 1.3rem; }
+.pt-m-crumb:nth-child(4n) { background: #ff4f9a; border-radius: 50%; width: 8px; height: 8px; }
+.pt-m-crumb:not(:empty) { width: 26px; height: 26px; margin: -13px 0 0 -13px; background: none; }
+.pt-m-bubble { width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%;
+  background: radial-gradient(circle at 32% 30%, rgba(255, 255, 255, .95) 0 14%, rgba(190, 245, 255, .25) 15% 60%, rgba(94, 231, 255, .45) 100%);
+  box-shadow: inset 0 0 0 1.5px rgba(210, 250, 255, .9), 0 0 10px rgba(94, 231, 255, .45); }
+.pt-m-bubble:nth-child(3n) { width: 14px; height: 14px; margin: -7px 0 0 -7px; }
+.pt-m-bubble:nth-child(3n+1) { width: 28px; height: 28px; margin: -14px 0 0 -14px; }
+.pt-m-zz { font: 800 1.2rem/1 "Bricolage Grotesque", system-ui, sans-serif; color: #c9b8ff; }
+.pt-m-ray { width: 6px; height: 16px; border-radius: 3px; background: #ffd36b; transform-origin: 50% 50%; }
+.pt-m-shell { width: 12px; height: 9px; border-radius: 6px 6px 3px 3px; background: #b49bff; box-shadow: inset 0 0 0 1.5px #0d0920; }
+.pt-m-small { font-size: .95rem; }
+/* Étoile à 4 branches (comme les reflets de la boule à facettes) : or, cyan ou rose, au hasard de leur rang. */
+.pt-m-star { width: 16px; height: 16px; margin: -8px 0 0 -8px; background: linear-gradient(135deg, #fff6c9, #ffd36b 55%, #ffb547);
+  clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%); }
+.pt-m-star:nth-child(3n+2) { background: linear-gradient(135deg, #fff, #5ee7ff); width: 12px; height: 12px; }
+.pt-m-star:nth-child(3n) { background: linear-gradient(135deg, #fff, #ff8cc0); width: 10px; height: 10px; }
+.pt-m-note { font: 800 1.35rem/1 "Bricolage Grotesque", system-ui, sans-serif; color: #5ee7ff; text-shadow: 0 0 10px rgba(94, 231, 255, .7); }
+.pt-m-note:nth-child(even) { color: #ff8cc0; text-shadow: 0 0 10px rgba(255, 140, 192, .7); }
+.pt-m-confetti { width: 6px; height: 9px; border-radius: 1.5px; background: var(--c, #b49bff); top: 50%; left: 30%; }
+.pt-chip .pt-m-p, .pt-missions .pt-m-p { top: 50%; }
+.pt-egg .pt-m-p, .pt-small-art .pt-m-p { top: 55%; }
+
+@keyframes pt-m-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes pt-m-from-right { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes pt-m-from-left { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+@keyframes pt-m-fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes pt-m-card { from { opacity: 0; transform: translateY(10px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes pt-m-fade { from { opacity: .3; } to { opacity: 1; } }
+@keyframes pt-m-hello { 0% { opacity: 0; transform: translateY(-34px) scale(.9, 1.1); } 45% { opacity: 1; transform: translateY(0) scale(1.14, .86); } 65% { transform: translateY(-8px) scale(.96, 1.05); } 82% { transform: scale(1.03, .97); } 100% { transform: none; } }
+@keyframes pt-m-eat { 0%, 100% { transform: none; } 12%, 40%, 68% { transform: scale(1.12, .86) translateY(4px); } 26%, 54% { transform: scale(.95, 1.07) translateY(-3px); } 84% { transform: scale(1.03, .98); } }
+@keyframes pt-m-hop { 0%, 100% { transform: none; } 14% { transform: scale(1.1, .88); } 38% { transform: translateY(-22px) scale(.92, 1.1); } 60% { transform: translateY(0) scale(1.12, .88); } 78% { transform: translateY(-5px) scale(.98, 1.02); } }
+@keyframes pt-m-hug { 0%, 100% { transform: none; } 25% { transform: scale(1.18, .84) rotate(-3deg); } 50% { transform: scale(.94, 1.08) rotate(3deg); } 75% { transform: scale(1.04, .97); } }
+@keyframes pt-m-wash { 0%, 100% { transform: none; } 15% { transform: rotate(-9deg) scale(1.04, .96); } 35% { transform: rotate(8deg) scale(.97, 1.03); } 55% { transform: rotate(-6deg); } 75% { transform: rotate(3deg); } }
+@keyframes pt-m-sleep { 0% { transform: none; } 50% { transform: translateY(5px) scale(1.03, .95); } 100% { transform: none; } }
+@keyframes pt-m-wake { 0% { transform: scale(1, .94); } 40% { transform: scale(.94, 1.1) translateY(-6px); } 100% { transform: none; } }
+@keyframes pt-m-press { 0%, 100% { transform: none; } 35% { transform: scale(1.35) rotate(-8deg); } 65% { transform: scale(.92) rotate(4deg); } }
+@keyframes pt-m-disco { 0%, 100% { opacity: .45; transform: scale(1); } 50% { opacity: 1; transform: scale(1.02); } }
+@keyframes pt-m-pop { 0%, 100% { transform: none; } 40% { transform: scale(1.14); } }
+@keyframes pt-m-boop { 0%, 100% { transform: none; } 25% { transform: scale(1.14, .84); } 55% { transform: scale(.93, 1.08) translateY(-6px); } 80% { transform: scale(1.02, .98); } }
+@keyframes pt-m-born { 0% { opacity: 0; transform: scale(.3); } 60% { opacity: 1; transform: scale(1.12); } 100% { transform: none; } }
+@keyframes pt-m-evolve { 0% { transform: scale(.86); } 50% { transform: scale(1.1); } 100% { transform: none; } }
+@keyframes pt-m-ring { 0% { opacity: 0; transform: scale(.7); } 35% { opacity: .65; } 100% { opacity: 0; transform: scale(1.35); } }
+@keyframes pt-m-farewell { 0%, 100% { transform: none; opacity: 1; } 50% { transform: translateY(-18px); opacity: .55; } }
+@keyframes pt-m-hover { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes pt-m-spin { 0% { transform: none; } 40% { transform: translateY(-12px) rotate(-12deg); } 70% { transform: translateY(0) rotate(8deg); } 100% { transform: none; } }
+@keyframes pt-m-sway { 0%, 100% { transform: none; } 30% { transform: rotate(-5deg); } 70% { transform: rotate(5deg); } }
+@keyframes pt-m-look { 0%, 100% { transform: none; } 50% { transform: translateX(-3px); } }
+@keyframes pt-m-yawn { 0%, 100% { transform: none; } 45% { transform: scale(.95, 1.07); } 70% { transform: scale(1.03, .96); } }
+@keyframes pt-m-sigh { 0%, 100% { transform: none; } 50% { transform: translateY(4px) scale(1.02, .96); } }
+@keyframes pt-m-fill { from { transform: scaleX(var(--from, 0)); } to { transform: scaleX(1); } }
+@keyframes pt-m-droop { 0%, 100% { transform: none; } 40% { transform: translateY(3px) rotate(-10deg); } }
+@keyframes pt-m-delta { 0% { opacity: 0; transform: translateY(6px); } 25% { opacity: 1; } 100% { opacity: 0; transform: translateY(-16px); } }
+@keyframes pt-m-glide { 0% { opacity: 0; transform: scale(.6); } 20% { opacity: 1; transform: scale(1); } 100% { opacity: .9; transform: translate(var(--tx), var(--ty)) scale(.7); } }
+@keyframes pt-m-flame { 0%, 100% { transform: none; } 35% { transform: scale(1.2); } 65% { transform: scale(.97); } }
+@keyframes pt-m-check { 0% { transform: scale(.4) rotate(-20deg); } 60% { transform: scale(1.3); } 100% { transform: none; } }
+@keyframes pt-m-sweep { to { transform: translateX(120%); } }
+@keyframes pt-m-shake { 0%, 100% { transform: none; } 25% { transform: rotate(-4deg); } 75% { transform: rotate(4deg); } }
+@keyframes pt-m-draw { to { stroke-dashoffset: 0; } }
+@keyframes pt-m-particle { 0% { opacity: 0; transform: scale(.3); } 10% { opacity: 1; transform: scale(1.25); } 22% { transform: translate(calc(var(--dx) * .25), calc(var(--dy) * .25)) scale(1); }
+  70% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--rot)) scale(.85); } }
+/* Miettes : petit saut hors de la bouche, puis la gravité (arc). */
+@keyframes pt-m-fall { 0% { opacity: 0; transform: scale(.4); animation-timing-function: cubic-bezier(.2, .8, .4, 1); }
+  8% { opacity: 1; transform: scale(1); }
+  35% { transform: translate(calc(var(--dx) * .5), calc(var(--dy) * -.3)) rotate(calc(var(--rot) * .5)); animation-timing-function: cubic-bezier(.5, 0, .9, .5); }
+  80% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); } }
+
+/* « Réduire les animations » : rien ne bouge, aucune particule ; un fondu d'écran court (pt-m-fade) reste. */
+@media (prefers-reduced-motion: reduce) {
+  .pt-m-fx, .pt-m-coin, .pt-m-delta, .pt-m-sweep, .pt-m-cracks { display: none !important; }
+  .pt-root.pt-m-fade { animation: pt-m-fade .2s ease-out both; }
+  .pt-root .pt-stage .pt-art, .pt-root .pt-stage:active .pt-art { transition: none; transform: none; }
+}

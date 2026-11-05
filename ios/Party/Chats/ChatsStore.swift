@@ -39,6 +39,8 @@ final class ChatsStore: ObservableObject {
     /// depuis les infos d'une discussion.
     private(set) lazy var groups = GroupsStore(api: api, web: web)
     private(set) lazy var privacy = PrivacyStore(api: api, web: web)
+    /// « Signaler » un message, conditions d'utilisation avant le premier message (modération commune).
+    private(set) lazy var moderation = ModerationStore(api: api, web: web)
 
     /// Nouveau groupe depuis Discussions : même création que Réglages › Groupes, le créateur dedans d'office ;
     /// la liste est relue et la discussion du groupe s'ouvre (requested).
@@ -53,6 +55,27 @@ final class ChatsStore: ObservableObject {
     }
 
     var unread: Int { chats?.reduce(0) { $0 + $1.unread } ?? 0 }
+
+    /// Conversation privée à deux (d'après la liste ou la conversation ouverte) ; inconnue : le serveur la reconnaît.
+    func isDirect(_ id: String) -> Bool {
+        conversation?.id == id ? conversation?.isDirect == true : chats?.first { $0.id == id }?.direct == true
+    }
+
+    /// « Écrire » (Mes amis, fiche d'un membre) : LA conversation privée avec cette personne, ouverte dans Discussions.
+    /// Rend false (et un message dans notice) si on ne peut pas lui écrire.
+    func write(to user: String, contactHash: String? = nil) async -> Bool {
+        var chat: String?
+        await run { token in chat = try await api.startDirectChat(token: token, user: user, contactHash: contactHash) }
+        guard let chat else { return false }
+        requested = chat
+        return true
+    }
+
+    /// Bloquer / débloquer l'autre personne d'un message direct (elle n'en est pas prévenue).
+    func setBlocked(_ on: Bool) async {
+        guard let user = conversation?.userID, conversation?.isDirect == true else { return }
+        await act { token in try await api.blockDirect(token: token, user: user, on: on) }
+    }
 
     func loadList() async {
         #if DEBUG
@@ -116,13 +139,13 @@ final class ChatsStore: ObservableObject {
             conversation = await account().flatMap { ChatsCache.load(Conversation.self, account: $0, name: "chat-" + group) }
         }
         await run(loading: conversation == nil) { token in
-            let fresh = try await api.openChat(token: token, group: group)
+            let fresh = try await api.openChat(token: token, group: group, direct: isDirect(group))
             if let account = ChatsCache.account(of: token) { ChatsCache.save(fresh, account: account, name: "chat-" + group) }
             let changed = fresh.messages.last?.id != conversation?.messages.filter { !$0.pending }.last?.id || conversation == nil
             pending.removeAll { p in fresh.messages.contains { $0.id == p.id } }
             let shown = pending.isEmpty ? fresh : fresh.with(messages: fresh.messages + pending)
             if shown != conversation { conversation = shown }
-            if changed && fresh.member { try? await api.readChat(token: token, group: group) }
+            if changed && fresh.member { try? await api.readChat(token: token, group: group, direct: fresh.isDirect) }
         }
         if chatLive == nil, conversation?.id == group { await startChatLive(group) }
     }
@@ -130,7 +153,7 @@ final class ChatsStore: ObservableObject {
     private func startChatLive(_ group: String) async {
         if endpoint == nil { await loadList() }
         guard let endpoint, let token = await web?.accountToken() else { return }
-        let live = ChatRealtime(endpoint: endpoint, token: token, group: group) { [weak self] in self?.refreshSoon(group) }
+        let live = ChatRealtime(endpoint: endpoint, token: token, group: group, direct: isDirect(group)) { [weak self] in self?.refreshSoon(group) }
         chatLive = live
         live.start()
     }
@@ -164,7 +187,7 @@ final class ChatsStore: ObservableObject {
         await run { token in
             let path = try await photo.asyncMap { try await api.uploadChatPhoto(token: token, group: chat.id, jpeg: $0) }
             try await api.sendChat(token: token, group: chat.id, body: body, replyTo: replyTo, photoPath: path,
-                                   mentions: chat.mentions(in: body, me: chat.me), id: id)
+                                   mentions: chat.mentions(in: body, me: chat.me), id: id, direct: chat.isDirect)
             sent = true
         }
         if !sent { drop(id) }
@@ -184,7 +207,7 @@ final class ChatsStore: ObservableObject {
         await run { token in
             let path = try await api.uploadChatAudio(token: token, group: chat.id, audio: data)
             try await api.sendChat(token: token, group: chat.id, body: "", replyTo: replyTo, photoPath: nil, mentions: [],
-                                   id: id, audioPath: path, audioSeconds: seconds)
+                                   id: id, audioPath: path, audioSeconds: seconds, direct: chat.isDirect)
             sent = true
         }
         if !sent { drop(id) }
@@ -214,25 +237,30 @@ final class ChatsStore: ObservableObject {
 
     func react(_ message: Conversation.Message, _ emoji: String) async {
         let on = !message.reactions.contains { $0.emoji == emoji && $0.mine }
-        await act { token in try await api.reactChat(token: token, message: message.id, emoji: emoji, on: on) }
+        let direct = conversation?.isDirect == true
+        await act { token in try await api.reactChat(token: token, message: message.id, emoji: emoji, on: on, direct: direct) }
     }
 
     func pin(_ message: Conversation.Message) async {
-        await act { token in try await api.pinChat(token: token, message: message.id, pin: !message.pinned) }
+        let direct = conversation?.isDirect == true
+        await act { token in try await api.pinChat(token: token, message: message.id, pin: !message.pinned, direct: direct) }
     }
 
     /// Retire une annonce (ou un épinglé) du bandeau : admins du groupe, d'un appui long sur le bandeau.
     func unpin(_ id: String) async {
-        await act { token in try await api.pinChat(token: token, message: id, pin: false) }
+        let direct = conversation?.isDirect == true
+        await act { token in try await api.pinChat(token: token, message: id, pin: false, direct: direct) }
     }
 
     func delete(_ message: Conversation.Message) async {
-        await act { token in try await api.deleteChat(token: token, message: message.id) }
+        let direct = conversation?.isDirect == true
+        await act { token in try await api.deleteChat(token: token, message: message.id, direct: direct) }
     }
 
     func setNotify(_ level: ChatNotify) async {
         guard let group = conversation?.id else { return }
-        await act { token in try await api.notifyChat(token: token, group: group, level: level) }
+        let direct = conversation?.isDirect == true
+        await act { token in try await api.notifyChat(token: token, group: group, level: level, direct: direct) }
     }
 
     func setOrganizer(_ member: Conversation.Member, _ on: Bool) async {

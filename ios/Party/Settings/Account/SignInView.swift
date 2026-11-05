@@ -188,7 +188,13 @@ struct PrivacyView: View {
             "Tu peux supprimer ton compte dans Réglages › Gérer mon compte. Cette action supprime tes contributions et les événements que tu as créés. Les textes rédigés par d'autres membres peuvent encore contenir des références à ton prénom.",
             "Pour toute question sur les données du groupe, contacte son administrateur par le canal habituel du groupe.",
         ]),
+        ("Signalements et blocages", [
+            "Quand tu signales un contenu, les modérateurs reçoivent ta raison, ton commentaire et une copie de ce contenu (pour un message direct : ce seul message). La personne signalée ne sait pas qui l'a signalée. Les signalements traités sont effacés après un an ; les blocages restent jusqu'à ce que tu débloques. Tout part avec la suppression du compte.",
+        ]),
     ]
+
+    /// Compte connecté : Personnes bloquées et conditions d'utilisation (modération commune).
+    var moderation: ModerationStore?
 
     var body: some View {
         List {
@@ -202,6 +208,18 @@ struct PrivacyView: View {
                                 hint: ContactNames.shared.access.canRead ? "Activé" : "Reconnaître les membres de ton répertoire")
                 }
                 .accessibilityIdentifier("contacts-settings")
+                if let moderation {
+                    NavigationLink { BlockedPeopleView(store: moderation) } label: {
+                        SettingsRow(symbol: "hand.raised.fill", tint: .red, title: "Personnes bloquées",
+                                    hint: "Elles ne peuvent plus t'écrire, te citer, t'inviter ni voir ta fiche")
+                    }
+                    .accessibilityIdentifier("blocked-people")
+                    NavigationLink { TermsView(store: moderation) } label: {
+                        SettingsRow(symbol: "doc.text.fill", tint: .gray, title: "Conditions d'utilisation",
+                                    hint: "Respect, contenus interdits, sanctions, contact")
+                    }
+                    .accessibilityIdentifier("terms")
+                }
             } header: {
                 Text("Mes choix")
             }

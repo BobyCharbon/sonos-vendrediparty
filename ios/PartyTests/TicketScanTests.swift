@@ -65,4 +65,17 @@ struct TicketPaymentNotificationTests {
         #expect(SettingsStore.applying("ticket_pay_declared", false, to: p).ticketPayDeclared == false)
         #expect(SettingsStore.applying("ticket_pay_confirmed", true, to: p).ticketPayConfirmed == true)
     }
+
+    @Test("« Billet prêt » : absent avant la migration (reçue), décodé, son propre interrupteur")
+    @MainActor
+    func ticketIssuedSwitch() throws {
+        let base = #"{"push_enabled": true, "new_event": "all", "event_changed": true, "poll_new": true, "date_fixed": true,"#
+            + #""poll_nudge": true, "waitlist": true, "reminders": [], "chat": "all", "rsvp_mine": true, "proposals": false"#
+        let before = try JSONDecoder().decode(EventNotificationPrefs.self, from: Data((base + "}").utf8))
+        #expect(before.ticketIssued == nil)
+        let p = try JSONDecoder().decode(EventNotificationPrefs.self, from: Data((base + #", "ticket_issued": false}"#).utf8))
+        #expect(p.ticketIssued == false)
+        #expect(SettingsStore.applying("ticket_issued", true, to: p).ticketIssued == true)
+        #expect(SettingsStore.applying("ticket_issued", false, to: p).ticketPayConfirmed == nil)
+    }
 }

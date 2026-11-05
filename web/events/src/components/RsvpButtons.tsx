@@ -57,7 +57,7 @@ export function RsvpButtons({ options, selected, busy, disabled, onSelect, acces
             <View key={on ? 'on' : 'off'} style={[on && changed ? enter('pop') : null, st.icon, { backgroundColor: on ? 'rgba(0,0,0,0.16)' : `${c.bg}26` }]}>
               <T size={14} style={{ ...font.bold, lineHeight: 16 }} color={on ? c.fg : c.bg}>{c.icon}</T>
             </View>
-            <T size={14} numberOfLines={1} style={{ ...font.semibold }} color={on ? c.fg : colors.text}>{label?.(k) ?? c.label}</T>
+            <T size={14} numberOfLines={2} style={{ ...font.semibold, textAlign: 'center' }} color={on ? c.fg : colors.text}>{label?.(k) ?? c.label}</T>
           </Pressable>
         );
       })}

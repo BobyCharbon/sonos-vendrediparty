@@ -6,13 +6,16 @@ import { localAttendance, type Attendance } from '@/lib/attendance';
 import { rsvpCounts, type EventListItem } from '@/lib/data';
 import { enter, pressTransition } from '@/lib/motion';
 import { dateTile, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
-import { rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
+import { onWaitlist, rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
 import { colors, font, radius } from '@/lib/theme';
 import type { RsvpStatus, Tag } from '@/lib/types';
 
 import { AttendeesBadge } from './AttendeesBadge';
 import { RsvpButtons } from './RsvpButtons';
 import { Badge, ErrorText, T } from './ui';
+
+/** Place gardée aux étiquettes (une catégorie) à côté de la pastille des présents ; moins : la pastille passe dessous. */
+const BADGES_MIN_WIDTH = 84;
 
 const statusBadges = {
   draft: { label: 'Brouillon', fg: colors.textSoft, bg: colors.surface2 },
@@ -94,7 +97,7 @@ export function EventCard({
   const closed = rsvpClosed(event, now);
   const needsAnswer = published && !past && !closed && (isPoll ? !voters.has(me) : !mine);
   const full = !!event.max_participants && (attendance?.going ?? counts.heads) >= event.max_participants;
-  const answered = mine && !isPoll && !mine.waitlisted ? mine.status : null;
+  const answered = mine && !isPoll && !onWaitlist(mine) ? mine.status : null;
   const tone: Tone = past || event.status === 'cancelled' ? 'past' : needsAnswer ? 'todo' : answered;
 
   async function answer(choice: RsvpStatus) {
@@ -112,7 +115,7 @@ export function EventCard({
   }
 
   const myBadge = mine && !isPoll
-    ? mine.waitlisted
+    ? onWaitlist(mine)
       ? { label: 'Liste d’attente', fg: colors.onAccent, bg: colors.lavender }
       : tone === 'past'
         ? mine.status === 'yes' ? { label: 'Tu y étais', fg: colors.muted, bg: colors.surface2 } : null
@@ -157,10 +160,14 @@ export function EventCard({
       >
         <DateTile iso={isPoll ? null : event.starts_at} tone={tone} />
         <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-          <View style={st.badges}>
-            {status ? <Badge {...status} /> : null}
-            {event.category ? <Badge label={event.category.name} fg={colors.onAccent} bg={event.category.color} /> : null}
-            {myBadge ? <Badge {...myBadge} /> : null}
+          {/* Étiquettes à gauche, pastille des présents à droite : le titre garde toute la largeur de la carte. */}
+          <View style={st.top}>
+            <View style={[st.badges, st.badgesGrow]}>
+              {status ? <Badge {...status} /> : null}
+              {event.category ? <Badge label={event.category.name} fg={colors.onAccent} bg={event.category.color} /> : null}
+              {myBadge ? <Badge {...myBadge} /> : null}
+            </View>
+            {published && !isPoll ? <AttendeesBadge attendance={people} past={tone === 'past'} /> : null}
           </View>
           <T style={{ ...font.display, fontSize: 20, lineHeight: 24 }} color={tone === 'past' ? colors.muted : colors.text} numberOfLines={2}>{event.title}</T>
           <T color={tone === 'past' ? colors.muted : colors.textSoft} size={14} numberOfLines={2}>
@@ -184,9 +191,8 @@ export function EventCard({
             </T>
           ) : null}
         </View>
-        {/* En haut à droite : qui vient (pastille), le chevron reste en bas. */}
+        {/* Le chevron reste en bas à droite. */}
         <View style={st.side}>
-          {published && !isPoll ? <AttendeesBadge attendance={people} past={tone === 'past'} /> : null}
           <T muted size={20} style={st.chevron}>›</T>
         </View>
       </Pressable>
@@ -251,6 +257,9 @@ const st = StyleSheet.create({
   main: { flexDirection: 'row', gap: 14, padding: 14, alignItems: 'flex-start' },
   tile: { position: 'relative', width: 56, paddingVertical: 8, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: 64 },
   badges: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  // Trop étroit pour les deux (texte agrandi) : la pastille passe à la ligne, à droite, sans couvrir les étiquettes.
+  top: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'flex-end', gap: 8 },
+  badgesGrow: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: BADGES_MIN_WIDTH },
   side: { alignSelf: 'stretch', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8, marginRight: -2 },
   chevron: { marginTop: 'auto' },
   quick: { gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.lineStrong, backgroundColor: 'rgba(0,0,0,0.12)' },

@@ -133,7 +133,7 @@ def tickets_backend(page, attendance=None, my_rsvp='yes'):
     return state
 
 
-def with_rsvps(page, rsvps):
+def with_rsvps(page, rsvps, **extra):
     """L'événement simulé (même forme que mock_services) avec ces réponses et un prix : liste et détail."""
     category = {'id': 'ed69d11e-34dd-43fe-b211-10d0dd158ba9', 'name': 'Soirée', 'color': '#FFB347', 'sort': 0, 'archived': False, 'icon': None}
     event = {'id': EVENT, 'title': 'Sortie de démonstration (test local)', 'description': None, 'created_by': USER,
@@ -142,7 +142,7 @@ def with_rsvps(page, rsvps):
              'category_id': category['id'], 'category': category, 'event_tags': [], 'date_options': [], 'rsvps': rsvps,
              'event_organizers': [], 'polls': [], 'bring_items': [], 'event_groups': [], 'author': {'display_name': 'Compte de démonstration'},
              'show_participants': True, 'allow_maybe': True, 'allow_plus_ones': True, 'max_plus_ones': 2, 'max_participants': None,
-             'rsvp_deadline': None, 'forum_enabled': False, 'all_day': False, 'price_chf': 20, 'visibility': 'all'}
+             'rsvp_deadline': None, 'forum_enabled': False, 'all_day': False, 'price_chf': 20, 'visibility': 'all', **extra}
     headers = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*'}
 
     def handle(route):
@@ -151,6 +151,7 @@ def with_rsvps(page, rsvps):
         single = 'id=eq.' in route.request.url
         route.fulfill(status=200, content_type='application/json', body=json.dumps(event if single else [event]), headers=headers)
     page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/events?**', handle)
+    return event  # modifiable par un test (l'option « Billets QR » allumée, par exemple)
 
 
 def launch(browser, origin, rsvps, native_scan=None, **backend):

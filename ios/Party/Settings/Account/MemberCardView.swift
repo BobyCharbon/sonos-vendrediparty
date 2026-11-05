@@ -12,9 +12,13 @@ struct MemberCard: Decodable, Equatable, Identifiable {
     let lastName: String?
     let phone: String?
     let groups: [String]
+    /// Ce membre m'a bloqué : fiche réduite au surnom (modération commune).
+    let restricted: Bool
+    /// Je l'ai bloqué.
+    let blocked: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, photo, role, root, me, phone, groups
+        case id, photo, role, root, me, phone, groups, restricted, blocked
         case roleLabel = "role_label"
         case displayName = "display_name", firstName = "first_name", lastName = "last_name"
     }
@@ -37,6 +41,8 @@ struct MemberCard: Decodable, Equatable, Identifiable {
         lastName = try c.decodeIfPresent(String.self, forKey: .lastName)
         phone = try c.decodeIfPresent(String.self, forKey: .phone)
         groups = try c.decodeIfPresent([String].self, forKey: .groups) ?? []
+        restricted = try c.decodeIfPresent(Bool.self, forKey: .restricted) ?? false
+        blocked = try c.decodeIfPresent(Bool.self, forKey: .blocked) ?? false
     }
 
     var fullName: String { [firstName, lastName].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ") }
@@ -82,6 +88,9 @@ final class PrivacyStore: ObservableObject {
         self.web = web
     }
 
+    /// Fiche › Bloquer, Signaler (modération commune).
+    private(set) lazy var moderation = ModerationStore(api: api, web: web)
+
     func load() async {
         guard let token = await web?.accountToken() else { return }
         privacy = try? await api.privacy(token: token)
@@ -103,6 +112,18 @@ final class PrivacyStore: ObservableObject {
     }
 
     /// Méninges du membre face aux miens ; nil si on n'est pas connecté ou si la comparaison est indisponible.
+    /// Fiche › « Invité par » (lien Party, groupe, événement) : nil sans le droit « Voir qui a invité qui ».
+    func invitedBy(_ id: String) async -> [InvitedBy]? {
+        guard let token = await web?.accountToken() else { return nil }
+        return (try? await api.invitedBy(token: token, id: id)) ?? nil
+    }
+
+    /// Zicou du membre (bêta) ; nil si éteint (404), bloqué ou hors connexion : la fiche reste alors sans Zicou.
+    func zicou(_ id: String) async -> MemberZicou? {
+        guard let token = await web?.accountToken() else { return nil }
+        return try? await api.memberZicou(token: token, id: id)
+    }
+
     func brainCompare(_ id: String) async -> BrainCompare? {
         guard let token = await web?.accountToken() else { return nil }
         return try? await api.brainCompare(token: token, target: id)
@@ -128,10 +149,19 @@ struct MemberCardView: View {
     @State private var card: MemberCard?
     @State private var error: String?
     @State private var brain: BrainCompare?
+    /// « Invité par » : seulement avec le droit « Voir qui a invité qui » (admins) ; nil sinon.
+    @State private var invitedBy: [InvitedBy]?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @ObservedObject private var contacts = ContactNames.shared
     @State private var contactSheet: ContactSheetItem?
+    /// « Écrire » : message direct dans Discussions (nil : indisponible, bouton caché).
+    @Environment(\.writeDirect) private var writeDirect
+    @State private var writing = false
+    @State private var writeProblem: String?
+    /// Son Zicou (vedette, ou œuf terne) ; nil : Zicou éteint, bloqué, ou pas encore chargé.
+    @State private var zicou: MemberZicou?
+    @Environment(\.openZicou) private var openZicou
 
     var body: some View {
         NavigationStack {
@@ -154,8 +184,37 @@ struct MemberCardView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                         .accessibilityElement(children: .combine)
+                        if !card.me, !card.blocked, !card.restricted, let writeDirect {
+                            Button {
+                                Haptics.tap()
+                                writing = true
+                                Task {
+                                    let opened = await writeDirect.open(card.id)
+                                    writing = false
+                                    if opened { dismiss() } else {
+                                        writeProblem = "Tu ne peux pas écrire à cette personne : il faut un groupe ou un événement en commun, ou son numéro dans tes contacts."
+                                    }
+                                }
+                            } label: {
+                                Label("Écrire", systemImage: "bubble.left.fill").frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(writing)
+                            .accessibilityIdentifier("member-write")
+                            if let writeProblem { Text(writeProblem).font(.footnote).foregroundStyle(.secondary) }
+                        }
                     }
                     .listRowBackground(Color.clear)
+                    if let zicou, !card.blocked, !card.restricted {
+                        Section {
+                            MemberZicouView(data: zicou) { visit in
+                                dismiss()
+                                openZicou?.open(visit)
+                            }
+                            .listRowInsets(EdgeInsets())
+                        }
+                        .listRowBackground(Color.clear)
+                    }
                     if let phone = card.dialable {
                         Section("Numéro") {
                             Text(phone).font(.headline)
@@ -163,7 +222,7 @@ struct MemberCardView: View {
                             Button("Message") { if let url = URL(string: "sms:\(phone)") { openURL(url) } }
                             if !card.me { contactButton(card, phone: phone) }
                         }
-                    } else if !card.me {
+                    } else if !card.me && !card.restricted {
                         Section {
                         } footer: {
                             Text("\(card.displayName.isEmpty ? "Ce membre" : card.displayName) ne montre pas son numéro dans vos groupes : impossible de l'ajouter aux contacts depuis Party.")
@@ -174,8 +233,16 @@ struct MemberCardView: View {
                             Text(card.groups.joined(separator: " · "))
                         }
                     }
+                    if let invitedBy, !invitedBy.isEmpty {
+                        InvitedBySection(rows: invitedBy)
+                    }
                     if let brain, !card.me, !brain.isSelf {
                         BrainCompareSection(compare: brain)
+                    }
+                    if !card.me {
+                        MemberSafetySection(moderation: store.moderation, card: card) {
+                            Task { self.card = try? await store.card(memberID) }
+                        }
                     }
                     if card.me {
                         Section {
@@ -201,7 +268,9 @@ struct MemberCardView: View {
             .motion(Motion.smooth, value: card == nil)
             .task {
                 do { card = try await store.card(memberID) } catch { self.error = error.localizedDescription }
+                if card != nil { zicou = await store.zicou(memberID) }
                 if card?.me == false { brain = await store.brainCompare(memberID) }
+                if card?.me == false { invitedBy = await store.invitedBy(memberID) }
             }
         }
         .tint(Palette.accent)
@@ -234,5 +303,42 @@ private extension MemberCardView {
             }
             .accessibilityIdentifier("member-add-contact")
         }
+    }
+}
+
+/// Fiche › Confidentialité : bloquer (blocage commun à toute l'app) et signaler le profil ou la photo.
+private struct MemberSafetySection: View {
+    @ObservedObject var moderation: ModerationStore
+    let card: MemberCard
+    let changed: () -> Void
+    @State private var confirmBlock = false
+    @State private var reporting: ReportTarget?
+
+    var body: some View {
+        let name = card.displayName.isEmpty ? "ce membre" : card.displayName
+        Section {
+            if card.blocked {
+                Button("Débloquer \(name)") { Task { await moderation.setBlocked(card.id, false); changed() } }
+                    .accessibilityIdentifier("member-unblock")
+            } else {
+                Button("Bloquer \(name)", role: .destructive) { confirmBlock = true }
+                    .accessibilityIdentifier("member-block")
+            }
+            Button("Signaler le profil") { reporting = ReportTarget(kind: .profile, id: card.id, label: name) }
+                .accessibilityIdentifier("member-report")
+            if card.photo != nil {
+                Button("Signaler la photo") { reporting = ReportTarget(kind: .profilePhoto, id: card.id, label: "la photo de profil") }
+            }
+        } header: {
+            Text("Confidentialité")
+        } footer: {
+            Text("Une personne bloquée ne peut plus t'écrire, te citer, t'inviter ni voir ta fiche ; elle n'en est pas prévenue.")
+        }
+        .confirmationDialog("Bloquer \(name) ?", isPresented: $confirmBlock, titleVisibility: .visible) {
+            Button("Bloquer", role: .destructive) { Task { await moderation.setBlocked(card.id, true); changed() } }
+        } message: {
+            Text("Tu pourras la débloquer ici ou dans Réglages › Confidentialité › Personnes bloquées.")
+        }
+        .sheet(item: $reporting) { ReportSheet(store: moderation, target: $0) }
     }
 }

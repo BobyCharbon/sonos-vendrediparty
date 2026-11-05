@@ -17,7 +17,9 @@
     "admin.purge": "a retiré les titres de",
     "admin.stop": "a arrêté la soirée",
     "admin.close_game": "a fermé la partie",
+    "admin.guest_gate": "a changé les limites des invités sans compte",
     "account.link": "s'est connecté à son compte",
+    "game.report": "a signalé une réponse dans",
   };
   const when = (t) => new Date(t * 1000).toLocaleString("fr-CH", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   let root = null, entries = [], done = false;
@@ -27,6 +29,12 @@
     if (e.action === "admin.rename") return ` → « ${escape(d.to)} »`;
     if (e.action === "admin.ban") return d.minutes === "sans limite" ? " (sans limite)" : ` (${escape(d.minutes)} min)`;
     if (e.action === "admin.login") return d.method ? ` (${escape(d.method)})` : "";
+    // Signalement d'un joueur (Masque, dilemme proposé) : le texte retiré et son auteur, pour bannir au besoin.
+    if (e.action === "game.report") return ` : « ${escape(d.text)} »${d.author ? ` (écrit par ${escape(d.author)})` : ""}`;
+    if (e.action === "admin.guest_gate") {
+      const names = { games: "parties avant compte", tracks: "titres par soirée" };
+      return " : " + Object.entries(d).map(([k, v]) => `${escape(names[k] || k)} ${escape(v)}`).join(", ");
+    }
     return "";
   }
 

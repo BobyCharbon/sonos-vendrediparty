@@ -71,8 +71,25 @@ final class PartyAPI {
         try await post("/api/hello", body: ["guest_id": guestID, "guest_name": name])
     }
 
-    func enqueue(trackID: String, guestID: String, name: String) async throws {
-        try await post("/api/queue", body: ["track_id": trackID, "guest_id": guestID, "guest_name": name])
+    /// Ajoute un titre ; renvoie les bandeaux de Zicou du serveur (« +5 🪙 pour Zicou », app/pet_reactions.py), vides
+    /// pour un invité sans compte, au-delà du plafond du jour ou réactions coupées.
+    @discardableResult
+    func enqueue(trackID: String, guestID: String, name: String) async throws -> [ZicouReaction] {
+        let added: EnqueueResult = try await postDecoding("/api/queue", body: ["track_id": trackID, "guest_id": guestID,
+                                                                             "guest_name": name])
+        return added.zicou ?? []
+    }
+
+    /// Fonctions en bêta du serveur (app/features.py) : le Compagnon est éteint en production tant qu'il est en bêta.
+    func features() async throws -> PartyFeatures {
+        try await get("/api/features", query: [:])
+    }
+
+    /// Réglages › Compagnon : « Réactions de Zicou » (on nil : simple lecture). Compte relié aux jeux seulement (acct-…).
+    func zicouReactions(guestID: String, on: Bool? = nil) async throws -> ZicouReactionsPrefs {
+        var body: [String: Any] = ["guest_id": guestID]
+        if let on { body["on"] = on }
+        return try await postDecoding("/api/pet/reactions/prefs", body: body)
     }
 
     func message(_ text: String, guestID: String, name: String) async throws {

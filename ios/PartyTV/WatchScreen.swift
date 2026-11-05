@@ -31,6 +31,12 @@ struct WatchScreen: View {
                 FitToStage {
                     VStack(alignment: .leading, spacing: 22) {
                         MusicCorner(music: store.music, next: SideBoard.shows(store.game) ? 2 : 4)
+                        // Les Zicou des présents dansent sous la musique (une seule rangée si le classement suit).
+                        if !store.zicous.isEmpty {
+                            ZicouFloorView(zicous: store.zicous, music: store.music, shown: shown,
+                                           limit: SideBoard.shows(store.game) ? ZicouFloorView.columns : ZicouFloor.maxVisible)
+                                .transition(.motion(.move(edge: .bottom).combined(with: .opacity)))
+                        }
                         SideBoard(game: store.game)
                     }
                 }
@@ -58,6 +64,21 @@ struct WatchScreen: View {
                                                         removal: .scale(scale: 0.85).combined(with: .opacity).animation(.easeIn(duration: 0.22)))))
                 }
                 .transition(.opacity)
+            }
+        }
+        .overlay {
+            // 🌟 Zicou en vedette : 30 s au milieu de l'écran, sauf pendant l'annonce d'un résultat.
+            if let star = store.star, flash == nil {
+                ZicouStarView(star: star).id(star.dancer.key)
+                    .transition(.motion(.scale(scale: 0.6).combined(with: .opacity)))
+            }
+        }
+        .animation(Motion.update, value: store.star?.dancer.key)
+        .overlay(alignment: .bottomLeading) {
+            // Décor du Salon de Party débloqué par la caisse commune du groupe.
+            if !store.salon.isEmpty {
+                HStack(spacing: 10) { ForEach(store.salon) { Text($0.emoji).accessibilityLabel($0.label) } }
+                    .font(.system(size: 44)).padding(.horizontal, 18).padding(.vertical, 8).glass(cornerRadius: 26).padding(24)
             }
         }
         .overlay(alignment: .bottom) {
@@ -90,7 +111,8 @@ struct WatchScreen: View {
     /// Un jeu vient d'être lancé dans la Salle de jeux : « C'est parti : Quiz ! » en grand, puis le jeu.
     private func introduce() {
         introTask?.cancel()
-        guard store.game["type"].string == "room", !store.game["current"].isNull, let name = shown["name"].string else {
+        guard store.game["type"].string == "room", !store.game["current"].isNull, !StoreGames.hides(shown),
+              let name = shown["name"].string else {
             return withAnimation(Motion.update) { intro = nil }
         }
         withAnimation(Motion.pop) { intro = name }
@@ -117,10 +139,10 @@ struct WatchScreen: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 24) {
             if shown != store.game { Text("🎲").font(.system(size: 50)) }
-            Text(shown["name"].string ?? "Partie").font(.system(size: 54, weight: .heavy)).lineLimit(1).fixedSize()
-                .id(shown["name"].string ?? "").transition(.motion(.push(from: .bottom)))
-            if let mode = shown["mode"].string { Text(mode).font(.system(size: 34, weight: .semibold)).foregroundStyle(TV.lavender).lineLimit(1) }
-            if !inLobby && !shown.isNull {
+            Text(StoreGames.name(shown)).font(.system(size: 54, weight: .heavy)).lineLimit(1).fixedSize()
+                .id(StoreGames.name(shown)).transition(.motion(.push(from: .bottom)))
+            if !StoreGames.hides(shown), let mode = shown["mode"].string { Text(mode).font(.system(size: 34, weight: .semibold)).foregroundStyle(TV.lavender).lineLimit(1) }
+            if !inLobby && !shown.isNull && !StoreGames.hides(shown) {
                 PhaseTag(text: Phase.label(shown)).transition(.popIn).id(Phase.label(shown))
                 if let info = Phase.progress(shown) {
                     Text(info).font(.system(size: 32, weight: .semibold)).foregroundStyle(TV.muted).lineLimit(1)
@@ -136,5 +158,37 @@ struct WatchScreen: View {
         .frame(height: 100)
         .animation(Motion.animation(.spring(response: 0.4, dampingFraction: 0.8)), value: Phase.label(shown))
         .animation(Motion.update, value: inLobby)
+    }
+}
+
+
+/// 🌟 Le Zicou en vedette : grand, au milieu, qui danse avec sa tenue ; seulement le surnom modéré (ou rien).
+struct ZicouStarView: View {
+    let star: ZicouStar
+    @State private var bounce = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Text("🌟 En vedette").font(.system(size: 38, weight: .heavy)).foregroundStyle(.yellow)
+            ZicouFigure(dancer: star.dancer, size: 420)
+                .rotationEffect(.degrees(reduceMotion ? 0 : (bounce ? 6 : -6)))
+                .offset(y: reduceMotion ? 0 : (bounce ? -18 : 0))
+            if let name = star.dancer.name {
+                Text("Le Zicou de \(name)").font(.system(size: 44, weight: .bold))
+            }
+            if star.waiting > 0 {
+                Text(star.waiting > 1 ? "\(star.waiting) Zicou attendent leur tour" : "1 Zicou attend son tour")
+                    .font(.title3).foregroundStyle(.secondary)
+            }
+        }
+        .padding(48)
+        .glass(cornerRadius: 48)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(star.dancer.name.map { "Le Zicou de \($0) est en vedette" } ?? "Un Zicou est en vedette")
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 0.26).repeatForever(autoreverses: true)) { bounce = true }
+        }
     }
 }

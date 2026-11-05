@@ -5,6 +5,7 @@ import { Pressable, View } from 'react-native';
 import { useAuth, useMe } from '@/lib/auth';
 import { fetchTaxonomy, useQuery } from '@/lib/data';
 import { parseLocalDateTime, toLocalInput } from '@/lib/format';
+import { dbMessage } from '@/lib/moderation';
 import { enter, pressTransition, useChangedSinceMount } from '@/lib/motion';
 import { check, must, supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
@@ -57,6 +58,8 @@ type Draft = {
   organizers: string[];
   show_participants: boolean;
   pot_enabled: boolean;
+  /** Billets QR : éteints par défaut ; l'organisateur remet ensuite chaque billet (migration 20261104233000). */
+  tickets_enabled: boolean;
   forum_enabled: boolean;
   notify_on_publish: boolean;
   polls: PollDraft[];
@@ -91,6 +94,7 @@ const emptyDraft: Draft = {
   organizers: [],
   show_participants: true,
   pot_enabled: false,
+  tickets_enabled: false,
   forum_enabled: true,
   notify_on_publish: true,
   polls: [],
@@ -117,6 +121,7 @@ function activeAdvanced(d: Draft): string[] {
     d.location_address || d.location_url ? 'adresse' : '',
     d.price_chf || d.payment_info ? 'prix' : '',
     d.max_participants ? 'places limitées' : '',
+    d.tickets_enabled ? 'billets QR' : '',
     d.allow_maybe ? '' : 'sans « Peut-être »',
     d.allow_plus_ones ? '' : 'sans accompagnants',
     d.allow_plus_ones && d.max_plus_ones.trim() ? 'accompagnants limités' : '',
@@ -200,6 +205,7 @@ async function loadDraft(eventId: string): Promise<Draft> {
     organizers: e.event_organizers.map((o) => o.user_id),
     show_participants: e.show_participants,
     pot_enabled: e.pot_enabled ?? false,
+    tickets_enabled: e.tickets_enabled ?? false,
     forum_enabled: e.forum_enabled,
     notify_on_publish: e.notify_on_publish,
     polls: e.polls
@@ -360,6 +366,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
         ...audienceToEvent(d.who),
         show_participants: d.show_participants,
         pot_enabled: d.pot_enabled,
+        tickets_enabled: d.tickets_enabled,
         forum_enabled: d.forum_enabled,
         notify_on_publish: d.notify_on_publish,
         reminders: ALL_REMINDERS,
@@ -375,7 +382,11 @@ export function EventForm({ eventId }: { eventId?: string }) {
       if (values.length) check(await supabase.from(table).insert(values.map((v) => ({ event_id: id, [col]: v }))));
     };
     await replace('event_tags', 'tag_id', d.tag_ids);
-    await replace('event_organizers', 'user_id', d.organizers.filter((u) => u !== me.id));
+    // Co-organisateurs : jamais sa propre ligne. Un co-organisateur (pas le créateur) qui enregistre se retirait
+    // lui-même, puis la base (RLS « gérer organisateurs ») refusait de réinscrire les autres : plus personne.
+    check(await supabase.from('event_organizers').delete().eq('event_id', id).neq('user_id', me.id));
+    const helpers = d.organizers.filter((u) => u !== me.id);
+    if (helpers.length) check(await supabase.from('event_organizers').insert(helpers.map((user_id) => ({ event_id: id, user_id }))));
     // Invités : la base recopie les membres des groupes (via_group) ; ici seulement les groupes et les invités cochés un par un.
     const who = audienceChildren(d.who);
     const groupIds = who.group_ids;
@@ -488,7 +499,9 @@ export function EventForm({ eventId }: { eventId?: string }) {
       if (eventId) notifyWallet(id);  // titre, date, lieu : les billets déjà dans Cartes se mettent à jour
       router.replace(`/event/${id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      // Filtre de la base (titre, description) ou CGU : sa phrase, sans la clé technique (« content_refused: … »).
+      const message = e instanceof Error ? e.message : String(e);
+      setError(dbMessage(message, message));
     } finally {
       setDraft(snapshot);
       saving.current = false;
@@ -506,7 +519,9 @@ export function EventForm({ eventId }: { eventId?: string }) {
     </View>
   );
 
-  const submitLabel = eventId && ctx.status === 'published'
+  // Publier n'a lieu que pour un nouvel événement, un brouillon ou un refusé (needsSubmit) : ailleurs (publié, en
+  // attente de validation, annulé), le bouton enregistre seulement et le dit.
+  const submitLabel = eventId && !['draft', 'rejected'].includes(ctx.status ?? '')
     ? 'Enregistrer'
     : isAdmin || !ctx.settings.require_approval ? 'Publier' : 'Envoyer pour validation';
 
@@ -625,6 +640,12 @@ export function EventForm({ eventId }: { eventId?: string }) {
                 <Field label="Paiement" placeholder="TWINT, sur place" value={d.payment_info} onChangeText={(payment_info) => set({ payment_info })} />
               </View>
             </View>
+            <ToggleRow
+              label="Billets QR"
+              hint="Tu remets son billet à chaque présent (ou il arrive avec la place payée) ; il le montre à l’entrée. Modifiable à tout moment."
+              value={d.tickets_enabled}
+              onChange={(v) => set({ tickets_enabled: v })}
+            />
           </>
         ) : null}
       </Section>

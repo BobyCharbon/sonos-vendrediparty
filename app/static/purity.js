@@ -143,7 +143,7 @@ function puProfileHtml(rows, key = "") {
   const sorted = [...rows].sort((a, b) => b.pct - a.pct || a.label.localeCompare(b.label));
   const list = sorted.map((r, i) => `<div class="pu-cat-row"><span class="pu-cat-e">${r.emoji}</span><b>${esc(r.label)}</b>
       <span class="pu-row-bar"><i style="width:${r.pct}%"${key ? `${GameFx.bar(`${key}:cat:${r.label}`, r.pct)} data-fx-d="${900 + i * 70}"` : ""}></i></span><span class="pu-row-s">${r.yes}/${r.total}</span></div>`).join("");
-  return `<div class="pu-profile"><h3>Ton profil d'impureté <small>🔒 toi seul le vois</small></h3>
+  return `<div class="pu-profile"><h3>Ton profil d'impureté <small>🔒 toi seul le vois, jamais enregistré</small></h3>
     ${puRadarSvg(rows, key)}<div class="pu-cat-list">${list}</div></div>`;
 }
 
@@ -211,17 +211,21 @@ function puRevealOk(b) {
     : "1 participant n'a pas encore validé et ne sera pas classé. Révéler quand même ?");
 }
 
-// 📊 Réglages → « Mes stats de jeu », onglet Purify Test : dernier test (score, grade, radar) et record, pour le seul titulaire du compte.
+// 📊 Réglages → « Mes stats de jeu », onglet Purify Test : dernier score, grade et record, pour le seul titulaire du compte.
+// Seul le score global est enregistré (le profil par catégorie se voit à la fin du test, jamais gardé) ; le classement
+// général est un choix (désactivé par défaut), modifiable ici à tout moment.
 function puStatsHtml(me) {
   if (!me.plays) {
     return `<div class="pu-card"><div class="pu-big">😇</div><div class="title">Pas encore de test</div>
-      <p class="artist">Passe le Purify Test dans l'onglet Jeux : ton dernier score et ton profil apparaîtront ici.</p>
+      <p class="artist">Passe le Purify Test dans l'onglet Jeux : ton dernier score apparaîtra ici.</p>
       <button class="py-main" data-tab="games">🎮 Aller aux jeux</button></div>`;
   }
   const when = me.last_at ? new Date(me.last_at * 1000).toLocaleDateString("fr-CH", { day: "numeric", month: "long", year: "numeric" }) : "";
   return `${puScoreHtml(me.last, "Ton dernier score d'impureté")}
     <p class="artist pu-when">${when ? `Test du ${when} · ` : ""}🏆 Record : ${me.best} % · ${me.plays} test${me.plays > 1 ? "s" : ""} passé${me.plays > 1 ? "s" : ""}</p>
-    ${puProfileHtml(me.categories)}`;
+    <label class="pu-public"><input type="checkbox" data-pu-public ${me.public ? "checked" : ""}>
+      <span>Apparaître dans le classement général<small>Ton prénom et ton record, visibles par les joueurs du Purify Test.</small></span></label>
+    <p class="artist pu-note">🔒 Seul ton score global est enregistré, jamais tes réponses ni ton profil par catégorie.</p>`;
 }
 
 let puStatsLoading = false;
@@ -262,7 +266,24 @@ document.addEventListener("click", (ev) => {
   const sips = ev.target.closest("[data-pu-sips]");
   if (sips && !sips.disabled) return pressed(sips, gameAction("puset", { settings: { sips: +sips.dataset.puSips } }));
 });
+// Classement général : un choix de chacun, enregistré tout de suite (l'interrupteur revient en arrière si ça échoue).
+async function puSetPublic(box) {
+  box.disabled = true;
+  try {
+    const token = await freshToken();
+    const r = await fetch("/api/purity/me/public", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, on: box.checked }) });
+    if (!r.ok) throw new Error();
+    toast(box.checked ? "Tu apparais dans le classement général" : "Tu n'apparais plus dans le classement général", "ok");
+  } catch {
+    box.checked = !box.checked;
+    toast("Ton choix n'a pas pu être enregistré. Réessaie.", "err");
+  } finally {
+    box.disabled = false;
+  }
+}
+
 document.addEventListener("change", (ev) => {
+  if (ev.target.matches("[data-pu-public]")) return puSetPublic(ev.target);
   if (ev.target.matches("[data-pu-alcohol]") && game?.type === "purity") gameAction("puset", { settings: { alcohol: ev.target.checked } });
 });
 // Onglet « Purify Test » de « Mes stats de jeu » ; app rouverte sur cette page : affiché dès que ce fichier est chargé.

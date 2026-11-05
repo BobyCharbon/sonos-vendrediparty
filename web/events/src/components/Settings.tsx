@@ -2,11 +2,13 @@ import { router, type Href } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
 import { useAuth } from '@/lib/auth';
+import { discussionsOn } from '@/lib/features';
+import { useShellFeedback } from '@/lib/shellFeedback';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { roleName } from '@/lib/roles';
+import { AppInviteCard } from './AppInviteCard';
 import { IdentityForm } from './IdentityForm';
 import { MoonBanner, MoonButton, usePause } from './NotificationPause';
-import { SignedIn } from './SignedIn';
 import { Avatar, Button, Card, LinkRow, RowDivider, s, Screen, Section, T, Title } from './ui';
 import { colors } from '@/lib/theme';
 
@@ -19,8 +21,9 @@ export function openPartyTab(tab: string, path?: string) {
 
 /** Réglages du compte Party : profil (prénom, nom, surnom, photo), accès aux événements, notifications, compte. */
 export function Settings({ topInset = false }: { topInset?: boolean }) {
-  const { profile, signOut, can, rank, isAdmin, eventsOpen, eventsSoon } = useAuth();
+  const { profile, signOut, can, rank, isAdmin, eventsOpen } = useAuth();
   const pause = usePause();
+  const feedback = useShellFeedback();
   if (!profile) return null;
   const complete = hasCompleteIdentity(profile);
   const active = eventsOpen && complete;
@@ -60,11 +63,14 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
       ) : null}
 
       <Section title="Événements du groupe">
-        {active ? <T muted size={14}>{can('events.view') ? 'Tu fais partie du groupe Vendredi Party : événements, sondages et discussions.' : 'Tu vois les événements publics et ceux où on t’invite.'}</T> : null}
+        {active ? <T muted size={14}>{can('events.view') ? `Tu fais partie du groupe Vendredi Party : événements, sondages${discussionsOn ? ' et discussions' : ''}.` : 'Tu vois les événements publics et ceux où on t’invite.'}</T> : null}
         {eventsOpen && !complete ? <T muted size={14}>Complète ton profil (prénom, nom, surnom et photo) pour voir les événements.</T> : null}
         {profile.status === 'banned' ? <T muted size={14}>Ton accès a été retiré par un admin.</T> : null}
-        {active ? <Button label="Voir les événements" variant="secondary" onPress={() => openPartyTab('events')} /> : eventsSoon && profile.status !== 'banned' ? <SignedIn /> : null}
+        {active ? <Button label="Voir les événements" variant="secondary" onPress={() => openPartyTab('events')} /> : null}
       </Section>
+
+      {/* Inviter des amis dans Party (avis 84fab3987f68) : tout rôle qui a le droit « Inviter dans Party ». */}
+      {complete && can('members.invite') ? <AppInviteCard /> : null}
 
       <Card style={{ gap: 0, paddingVertical: 4 }}>
         {active ? (
@@ -94,14 +100,17 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
         {/* Page de Party (hors du module) : un onglet par jeu (Purify Test pour commencer), à montrer si on veut. */}
         <LinkRow icon="🏆" tint="#FF9F0A" label="Mes stats de jeu" hint="Purify Test : ton dernier score, ton radar et ton record" onPress={() => openPartyTab('stats')} />
         <RowDivider />
-        {/* « Ton avis » : Guest+ et au-dessus (droit « Écrire un avis »). */}
-        {can('feedback.write') ? (
+        {/* « Ton avis » : Guest+ et au-dessus (droit « Écrire un avis »), et l’hôte (« Retours »). Sorti de la barre
+            d’onglets le 4.11 (onglet Zicou) : la pastille des avis à traiter / réponses reçues est sur cette ligne. */}
+        {can('feedback.write') || feedback?.allowed ? (
           <>
-            <LinkRow icon="💬" tint="#30D158" label="Ton avis" hint="Une idée, un bug ? Écris à l’organisateur" onPress={() => openPartyTab('feedback')} />
+            <LinkRow icon="💬" tint="#30D158" label={feedback?.label ?? 'Ton avis'}
+              hint={feedback?.label === 'Retours' ? 'Les idées et bugs des invités ; ton avis aussi' : 'Une idée, un bug ? Écris à l’organisateur'}
+              badge={feedback?.badge} onPress={() => openPartyTab('feedback')} />
             <RowDivider />
           </>
         ) : null}
-        <LinkRow icon="🔒" tint="#0A84FF" label="Confidentialité" hint="Tes données et tes choix" onPress={() => router.push('/privacy')} />
+        <LinkRow icon="🔒" tint="#0A84FF" label="Confidentialité" hint="Personnes bloquées, conditions d’utilisation, tes données" onPress={() => router.push('/settings/privacy')} />
         <RowDivider />
         <LinkRow icon="⚙️" tint="#636366" label="Gérer mon compte" hint="Suppression du compte" onPress={() => router.push('/settings/account')} />
       </Card>

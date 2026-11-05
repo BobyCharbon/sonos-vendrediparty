@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { Avatar, Button, Card, Empty, ErrorText, Input, LinkRow, Screen, s, Section, T, ToggleRow } from '@/components/ui';
+import { PetStatsTile } from '@/components/PetStatsTile';
+import { compagnonOn } from '@/lib/features';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { hasCompleteIdentity } from '@/lib/profile';
@@ -136,7 +138,17 @@ export default function Admin() {
         </Section>
       ) : null}
 
+      {/* Compagnon : mesure de l'envie de revenir chaque jour (réservée aux admins, pet_admin_stats). */}
+      {compagnonOn ? <PetStatsTile /> : null}
+
       <Card style={{ gap: 0, paddingVertical: 4 }}>
+        {/* Modération commune (Apple 1.2, Google UGC) : file des signalements, droit « Modérer les signalements ». */}
+        {can('moderation.reports') ? (
+          <>
+            <LinkRow label="Signalements" hint="Messages, profils et photos signalés : masquer, avertir, suspendre, bannir" onPress={() => router.push('/admin/reports')} />
+            <View style={s.divider} />
+          </>
+        ) : null}
         {can('roles.manage') || rank >= 99 ? (
           <>
             <LinkRow label="Rôles et droits" hint="Créer, renommer, réordonner les rôles et choisir leurs droits" onPress={() => router.push('/admin/roles')} />

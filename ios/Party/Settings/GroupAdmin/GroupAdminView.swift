@@ -148,6 +148,13 @@ struct GroupAdminView: View {
                                 hint: "Tous les inscrits : connexions, activité, tri")
                 }
             }
+            if access.can("moderation.reports") {
+                NavigationLink { ReportsAdminView(store: store.moderation, isAdmin: access.full) } label: {
+                    SettingsRow(symbol: "exclamationmark.bubble.fill", tint: .red, title: "Signalements",
+                                hint: "Messages, profils et photos signalés : masquer, avertir, suspendre, bannir")
+                }
+                .accessibilityIdentifier("admin-reports")
+            }
             if access.can("announcements.publish") {
                 NavigationLink { AnnouncementsView(store: session, canPublish: true) } label: {
                     SettingsRow(symbol: "megaphone.fill", tint: .orange, title: "Annonces admin", hint: "Un message obligatoire pour tout le groupe")

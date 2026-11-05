@@ -2,6 +2,7 @@ import { createElement, useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { enter } from '@/lib/motion';
+import { chf } from '@/lib/tickets';
 import { colors, font, radius } from '@/lib/theme';
 import type { ScanResult, TicketPerson } from '@/lib/tickets';
 import { formatTime, plural } from '@/lib/format';
@@ -76,6 +77,8 @@ const verdicts = {
   already: { icon: '!', title: 'Déjà scanné', fg: colors.onCoral, bg: colors.coral },
   waitlist: { icon: '⏳', title: 'Sur liste d’attente', fg: colors.onAccent, bg: colors.lavender },
   not_registered: { icon: '✕', title: 'Pas inscrit·e comme présent·e', fg: colors.onRed, bg: colors.red },
+  not_issued: { icon: '✕', title: 'Billet pas encore remis', fg: colors.onRed, bg: colors.red },
+  tickets_off: { icon: '✕', title: 'Billets QR désactivés', fg: colors.onRed, bg: colors.red },
   other_event: { icon: '✕', title: 'Billet d’un autre événement', fg: colors.onRed, bg: colors.red },
   unknown: { icon: '✕', title: 'Billet inconnu ou remplacé', fg: colors.onRed, bg: colors.red },
   invalid: { icon: '?', title: 'Ce QR n’est pas un billet Party', fg: colors.onRed, bg: colors.red },
@@ -86,11 +89,13 @@ export type Verdict = ScanResult | { result: 'invalid' };
 const statusLabel = { yes: 'Présent', maybe: 'Peut-être', no: 'Absent' } as const;
 
 /** Résultat d'un scan : grande pastille de couleur, puis la personne (photo, accompagnants, payé). */
-export function ScanVerdict({ verdict, onPaid, onConfirm, onNext }: {
+export function ScanVerdict({ verdict, onPaid, onConfirm, onIssue, onNext }: {
   verdict: Verdict;
   onPaid?: (p: TicketPerson, paid: boolean) => void;
   /** « J'ai payé » en attente : l'organisateur confirme reçu ou pas reçu (la personne est prévenue). */
   onConfirm?: (p: TicketPerson, received: boolean) => void;
+  /** Billet pas encore remis : l'organisateur peut le remettre sur place (la personne est prévenue). */
+  onIssue?: (p: TicketPerson) => void;
   onNext: () => void;
 }) {
   const v = verdicts[verdict.result];
@@ -100,7 +105,9 @@ export function ScanVerdict({ verdict, onPaid, onConfirm, onNext }: {
       : verdict.result === 'not_registered' && person ? (person.status ? `Réponse : ${statusLabel[person.status]}` : 'N’a pas répondu')
         : verdict.result === 'other_event' ? verdict.event_title
           : verdict.result === 'waitlist' ? 'Pas encore de place pour cette personne'
-            : null;
+            : verdict.result === 'not_issued' ? 'L’organisateur ne lui a pas encore remis son billet : ne pas faire entrer sur ce QR'
+              : verdict.result === 'tickets_off' ? 'Active « Billets QR » dans l’événement pour scanner les billets'
+                : null;
   const priced = person && person.price_chf != null && person.price_chf > 0;
   const personText = usePersonText();
   return (
@@ -120,13 +127,16 @@ export function ScanVerdict({ verdict, onPaid, onConfirm, onNext }: {
             <T muted size={14}>{person.plus_ones ? `+ ${plural(person.plus_ones, 'accompagnant')} · ${person.plus_ones + 1} personnes` : 'Seul·e'}</T>
             {priced ? (
               <T size={14} weight="bold" color={person.paid ? colors.mint : colors.coral}>
-                {person.paid ? '✓ Payé' : person.pay_pending ? `Dit avoir payé · à confirmer (${person.price_chf} CHF)` : `✗ Pas payé · ${person.price_chf} CHF`}
+                {person.paid ? '✓ Payé' : person.pay_pending ? `Dit avoir payé · à confirmer (${chf(person.price_chf ?? 0)})` : `✗ Pas payé · ${chf(person.price_chf ?? 0)}`}
               </T>
             ) : null}
           </View>
         </View>
       ) : null}
       <View style={st.actions}>
+        {person && verdict.result === 'not_issued' && onIssue ? (
+          <Button small label="Remettre le billet" onPress={() => onIssue(person)} style={{ flex: 1 }} />
+        ) : null}
         {person && priced && person.pay_pending && onConfirm ? (
           <>
             <Button small label="Reçu ✓" onPress={() => onConfirm(person, true)} style={{ flex: 1 }} />

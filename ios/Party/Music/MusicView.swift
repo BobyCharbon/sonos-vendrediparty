@@ -7,10 +7,14 @@ struct MusicView: View {
     let topInset: CGFloat
     /// Hôte seulement : rouvre l'onglet Musique de la page, avec ses réglages.
     var manage: (() -> Void)?
+    /// Connexion native (Réglages › Se connecter), ouverte par « Créer mon compte » quand la limite invité est atteinte.
+    var signIn: AccountStore?
 
     @State private var name = ""
     @State private var message = ""
     @State private var scanning = false
+    @State private var signingIn = false
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         ScrollView {
@@ -49,6 +53,12 @@ struct MusicView: View {
         .sheet(isPresented: $scanning) {
             QRScannerSheet { text in Task { await store.handleScanned(text) } }
         }
+        .sheet(isPresented: $signingIn, onDismiss: { Task { await store.reload() } }) {
+            if let signIn {
+                NavigationStack { SignInView(store: signIn) }
+                    .presentationDragIndicator(.visible)
+            }
+        }
         // Le suivi en direct tourne tant que l'app est ouverte (PartyApp, scenePhase) : on rafraîchit à l'affichage.
         .task { await store.reload() }
     }
@@ -57,7 +67,7 @@ struct MusicView: View {
     private var layoutKey: [String] {
         guard case .ready(let state) = store.phase else { return [] }
         return state.upcoming.map(\.id) + state.messages.map { "\($0.id)|\($0.reply ?? "")" }
-            + [state.blocked ?? "", state.error ?? "", state.now == nil ? "" : "now", "\(state.played.count)"]
+            + [state.blocked ?? "", state.error ?? "", state.guestTracks?.text ?? "", state.now == nil ? "" : "now", "\(state.played.count)"]
     }
 
     private var header: some View {
@@ -114,7 +124,25 @@ struct MusicView: View {
         }
         .tint(Palette.accent)
         .card()
-        if state.blocked == nil { search }
+        if let tracks = state.guestTracks {
+            Label(tracks.text, systemImage: "person.crop.circle.badge.plus")
+                .font(.footnote).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("guestTracks")
+                .motionTransition()
+            if tracks.needsAccount, signIn != nil {
+                Button { signingIn = true } label: {
+                    Label("Créer mon compte", systemImage: "person.crop.circle.badge.plus")
+                        .font(.body.weight(.semibold)).frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Palette.accent)
+                .accessibilityHint("Connexion par SMS : juste ton numéro")
+                .accessibilityIdentifier("guestCreateAccount")
+                .motionTransition()
+            }
+        }
+        if state.blocked == nil && (state.guestTracks?.left ?? 1) > 0 { search }
         upcoming(state)
         messages(state)
         if !state.played.isEmpty { played(state).motionTransition() }
@@ -122,11 +150,17 @@ struct MusicView: View {
 
     // MARK: Recherche
 
+    private func takeSearchFocus() {
+        guard QuickAction.takeMusicSearch() else { return }
+        searchFocused = true
+    }
+
     private var search: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 TextField("Titre, artiste ou lien", text: $store.query)
+                    .focused($searchFocused)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .submitLabel(.search)
@@ -141,6 +175,9 @@ struct MusicView: View {
             .motion(Motion.snappy, value: store.searching)
             .motion(Motion.snappy, value: store.query.isEmpty)
             .card()
+            // Action rapide « Ajouter un titre » (icône de l'app) : le clavier s'ouvre sur la recherche.
+            .onAppear { takeSearchFocus() }
+            .onReceive(NotificationCenter.default.publisher(for: .partyMusicSearch)) { _ in takeSearchFocus() }
             ForEach(store.results) { track in
                 TrackRow(title: track.title, subtitle: track.artist, art: track.image, store: store) {
                     Button { Haptics.tap(); Task { await store.add(track) } } label: {

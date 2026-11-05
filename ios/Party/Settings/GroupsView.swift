@@ -36,6 +36,11 @@ struct GroupList: Decodable, Equatable {
     let people: [Person]
     /// Après une création : l'identifiant du nouveau groupe.
     var created: String? = nil
+    /// Groupes dont je ne fais pas partie : la base ne les montre qu'aux Admins du site (pas aux Co-admins).
+    var others: [Group]? = nil
+
+    /// Un groupe, parmi les miens ou (Admin du site) les autres.
+    func group(_ id: String) -> Group? { groups.first { $0.id == id } ?? others?.first { $0.id == id } }
 }
 
 /// Invitation reçue (par mon compte ou mon numéro) : acceptée ou refusée dans Réglages › Groupes.
@@ -266,6 +271,7 @@ struct GroupsView: View {
     @ObservedObject var store: GroupsStore
     let privacy: PrivacyStore
     @State private var newName = ""
+    @State private var showAll = false
     @FocusState private var naming: Bool
 
     var body: some View {
@@ -308,6 +314,27 @@ struct GroupsView: View {
                         }
                     }
                 }
+                if let others = list.others, !others.isEmpty {
+                    Section {
+                        DisclosureGroup(isExpanded: $showAll) {
+                            ForEach(others) { group in
+                                NavigationLink {
+                                    GroupDetailView(store: store, privacy: privacy, groupID: group.id)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(group.name).font(.headline)
+                                        Text(subtitle(group)).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                                    }
+                                }
+                            }
+                        } label: {
+                            Text("Tous les groupes (admin) · \(others.count)")
+                        }
+                        .accessibilityIdentifier("all-groups")
+                    } footer: {
+                        Text("Groupes dont tu ne fais pas partie : visibles par les Admins seulement.")
+                    }
+                }
             }
         }
         .listStyle(.insetGrouped)
@@ -342,7 +369,8 @@ struct GroupsView: View {
     }
 
     private func subtitle(_ group: GroupList.Group) -> String {
-        let role = group.system ? "Les VIP" : group.mine ? "Créé par toi" : "Tu en fais partie"
+        let role = group.system ? "Les VIP" : store.list?.others?.contains(group) == true ? "Groupe d'un autre"
+            : group.mine ? "Créé par toi" : "Tu en fais partie"
         return "\(role) · \(group.members.count) personne\(group.members.count > 1 ? "s" : "")"
     }
 
@@ -397,7 +425,7 @@ struct GroupDetailView: View {
 
     var body: some View {
         List {
-            if let group = store.list?.groups.first(where: { $0.id == groupID }) {
+            if let group = store.list?.group(groupID) {
                 if group.inside {
                     Section {
                         Toggle(isOn: Binding(get: { privacy.sharesPhone(in: group.id) },
@@ -488,13 +516,13 @@ struct GroupDetailView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(AppConfig.background.ignoresSafeArea())
-        .navigationTitle(store.list?.groups.first(where: { $0.id == groupID })?.name ?? "Groupe")
+        .navigationTitle(store.list?.group(groupID)?.name ?? "Groupe")
         .navigationBarTitleDisplayMode(.inline)
         .overlay(alignment: .bottom) { GroupNotice(store: store) }
         .sheet(item: $profile) { target in MemberCardView(store: privacy, memberID: target.id) }
         .confirmationDialog("Supprimer ce groupe ?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Supprimer", role: .destructive) {
-                guard let group = store.list?.groups.first(where: { $0.id == groupID }) else { return }
+                guard let group = store.list?.group(groupID) else { return }
                 Task {
                     await store.delete(group)
                     dismiss()

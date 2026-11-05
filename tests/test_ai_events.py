@@ -266,3 +266,30 @@ def test_a_malformed_draft_from_the_app_is_cleaned_never_a_crash(tmp_path):
         d = ev.clean_draft({**READY, **bad}, ev.datetime.now(ev.ZURICH), {"categories": [], "tags": [], "audiences": ["Ski"],
                                                                           "people": ["Tom"]})
         assert isinstance(d["polls"], list) and isinstance(d["bring"], list)
+
+
+def test_without_saying_for_whom_the_event_is_public_with_a_public_link(tmp_path):
+    """Demande de l'admin (4.11) : rien de dit sur le public → public + lien public (plus le groupe Vendredi Party)."""
+    d = ev.clean_draft({"title": "Ciné", "start": NEXT_WEEK, "place_query": "Pathé Flon, Lausanne", "address_complete": True},
+                       datetime.now(ev.ZURICH),
+                       {"categories": [], "tags": [], "audiences": ["Vendredi Party", ev.PUBLIC_AUDIENCE], "people": []})
+    assert d["audience"] == ev.PUBLIC_AUDIENCE
+    a, accounts, _ = make(tmp_path)
+    a.create("ok", {k: v for k, v in READY.items() if k not in ("audience", "invitees")}, None)
+    row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
+    assert row["visibility"] == "all" and row["public_link"] is True
+    assert "Si la personne ne dit pas pour qui" in ev.SYSTEM and "{public}" in ev.SYSTEM
+
+
+def test_the_ai_never_turns_qr_tickets_on(tmp_path):
+    """Billets QR : l'organisateur les active lui-même ; ni le schéma, ni le brouillon, ni l'événement écrit n'en parlent."""
+    schema = ev.schema({"categories": [], "tags": [], "audiences": ["Vendredi Party"], "people": []})
+    assert not any("ticket" in k or "billet" in k for k in schema["properties"])
+    d = ev.clean_draft({**READY, "tickets_enabled": True, "tickets": True}, datetime.now(ev.ZURICH),
+                       {"categories": ["Soirée"], "tags": [], "audiences": ["Ski"], "people": ["Tom"]})
+    assert "tickets_enabled" not in d and "tickets" not in d
+    a, accounts, _ = make(tmp_path)
+    a.create("ok", {**READY, "tickets_enabled": True}, None)
+    writes = [j for m, p, j in accounts.calls if p.startswith("/rest/v1/events") and isinstance(j, dict)]
+    assert writes and all("tickets_enabled" not in j for j in writes)
+    assert "Billets QR : tu ne les actives JAMAIS" in ev.SYSTEM

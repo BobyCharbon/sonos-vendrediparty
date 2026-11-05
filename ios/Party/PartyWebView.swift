@@ -70,6 +70,10 @@ struct PartyWebView: UIViewRepresentable {
                 return decisionHandler(.cancel)
             }
             if (scheme == "https" || scheme == "http") && AppConfig.isInternal(url) {
+                // Page déjà là et Discussions natives : « ?tab=chats&chat=… » ouvre la conversation sans recharger.
+                if action.targetFrame?.isMainFrame != false, webView.url != nil, model.openNativeChat(url) {
+                    return decisionHandler(.cancel)
+                }
                 // target="_blank" vers le site lui-même : on reste dans la même vue.
                 if action.targetFrame == nil { webView.load(action.request); return decisionHandler(.cancel) }
                 return decisionHandler(.allow)

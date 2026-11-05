@@ -6,7 +6,6 @@ import { ErrorText, Section, T, ToggleRow } from './ui';
 /** Types de notifications de la soirée (GUEST_NOTIFY_DEFAULTS dans app/party.py), même ordre que l'app iOS. */
 const KINDS = [
   { kind: 'track', label: 'Mon titre passe', hint: 'Quand le titre que tu as ajouté démarre' },
-  { kind: 'games', label: 'Nouvelle partie lancée', hint: 'Quelqu’un lance un jeu : rejoins-le d’un toucher' },
   { kind: 'feedback', label: 'Réponse à mes avis', hint: 'Ton idée ou ton bug est terminé, ou l’organisateur te répond' },
 ] as const;
 
@@ -24,7 +23,7 @@ async function call(path: string, init?: RequestInit): Promise<GuestNotify | 'co
   return (await r.json()) as GuestNotify;
 }
 
-/** Réglages › Notifications › Soirée : musique, jeux et réponses aux avis (serveur Party, pas Supabase). */
+/** Réglages › Notifications › Soirée : musique et réponses aux avis (serveur Party, pas Supabase). */
 export function PartyNotifications() {
   const id = guestId();
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +43,7 @@ export function PartyNotifications() {
   }
 
   return (
-    <Section title="Soirée : musique, jeux et avis">
+    <Section title="Soirée : musique et avis">
       {data === 'code' ? (
         <T muted size={13}>Entre le code de la soirée (onglet Musique) pour choisir ces notifications.</T>
       ) : (

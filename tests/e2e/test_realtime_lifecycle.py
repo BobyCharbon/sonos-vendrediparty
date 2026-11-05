@@ -36,6 +36,9 @@ def test_visible_exit_for_player_and_host_stops_frame_requests(phones,kind,playi
     host.page.on("dialog",lambda d:d.accept())
     close.click()
     expect(host.page.locator("#gHome")).to_be_visible()
+    # La partie fermée retire ses entrées d'historique (nav.js : history.go(-n), asynchrone). Recharger pendant ce
+    # retour l'interrompt (net::ERR_ABORTED, aléatoire sur un poste chargé) : on attend qu'il soit fini, comme un humain.
+    host.page.wait_for_function("!(history.state && history.state.navDepth) && !Nav.depth")
     host.page.reload()
     expect(host.page.locator("#gamePlay")).not_to_be_visible()
 

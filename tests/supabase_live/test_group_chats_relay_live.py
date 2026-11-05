@@ -107,3 +107,35 @@ def test_a_guest_sees_the_name_of_an_admin_in_the_same_group(relay):
     seen = chats.conversation(tb, group)
     assert 'Admin test' in {m['name'] for m in seen['members']}
     assert any(m['author_name'] == 'Admin test' for m in seen['messages'])
+
+
+def test_native_relay_direct_messages(relay):
+    """Messages directs par le relais (app iOS) : « Écrire » ouvre LA conversation, envoi, photo, réaction, épinglage,
+    lecture, sourdine ; une notification (id seul) ouvre la conversation ; la liste montre la personne."""
+    chats, ta, tb, group, b_uid = relay
+    a_uid = chats.admin.accounts._uid(ta)
+    chat = chats.start_direct(ta, b_uid)['id']
+    assert chats.start_direct(tb, a_uid)['id'] == chat  # une seule conversation par paire
+    try:
+        chats.send(ta, chat, 'Salut en privé', None, None, direct=True)
+        path = chats.upload_photo(tb, chat, JPEG)['path']
+        first = chats.conversation(tb, chat, direct=True)['messages'][0]
+        chats.send(tb, chat, 'Coucou', first['id'], path, direct=True)
+        chats.react(tb, first['id'], '❤️', True, direct=True)
+        chats.pin(tb, first['id'], True, direct=True)
+        c = chats.conversation(ta, chat)  # sans « direct » : reconnu (toucher d'une notification)
+        assert c['direct'] and c['name'] == 'Testeur 2' and c['user_id'] == b_uid and not c['admin']
+        m1, m2 = c['messages']
+        assert m1['pinned'] and m1['reactions'] == [{'emoji': '❤️', 'count': 1, 'mine': False}]
+        assert m2['reply'] == {'name': 'Testeur 1', 'text': 'Salut en privé'} and m2['photo'].startswith(TEST_URL)
+        assert [h['id'] for h in c['highlights']] == [m1['id']]
+        row = next(r for r in chats.chats(ta)['chats'] if r['id'] == chat)
+        assert row['kind'] == 'direct' and row['user_id'] == b_uid and row['unread'] >= 1
+        chats.read(ta, chat, direct=True)
+        assert next(r for r in chats.chats(ta)['chats'] if r['id'] == chat)['unread'] == 0
+        assert chats.notify(ta, chat, 'none', direct=True) == {'notify': 'none'}
+        assert chats.conversation(ta, chat, direct=True)['notify'] == 'none'
+        chats.delete(ta, m1['id'], direct=True)
+    finally:
+        from tests.supabase_live.test_direct_messages_live import forget_pair
+        forget_pair(a_uid, b_uid)

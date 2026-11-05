@@ -82,6 +82,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         return true
     }
 
+    /// Actions rapides de l'icône (QuickActions.swift) : reçues par la scène.
+    func application(_ application: UIApplication, configurationForConnecting session: UISceneSession,
+                     options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        let configuration = UISceneConfiguration(name: nil, sessionRole: session.role)
+        configuration.delegateClass = QuickActionSceneDelegate.self
+        return configuration
+    }
+
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken token: Data) {
         Task { @MainActor in PushRegistrar.shared.deliver(token: token) }
     }

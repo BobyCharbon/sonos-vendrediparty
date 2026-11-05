@@ -11,8 +11,8 @@ struct SettingsTests {
 
     @Test("Invité et hôte : un oui/non par type (GET /api/notify, /api/admin/notify)")
     func decodesPartyPrefs() throws {
-        let guest: GuestNotifyState = try decode(#"{"prefs": {"track": true, "feedback": false, "games": true}, "subscribed": true}"#)
-        #expect(guest.prefs == ["track": true, "feedback": false, "games": true] && guest.subscribed)
+        let guest: GuestNotifyState = try decode(#"{"prefs": {"track": true, "feedback": false}, "subscribed": true}"#)
+        #expect(guest.prefs == ["track": true, "feedback": false] && guest.subscribed)
         let host: AdminNotifyState = try decode(#"{"admin_notify": {"messages": true, "games": false, "feedback": true}}"#)
         #expect(host.prefs["feedback"] == true && host.prefs["games"] == false)
     }
@@ -133,5 +133,14 @@ struct SettingsTests {
         #expect(list.groups.map(\.name) == ["Les footeux", "Vendredi Party"])
         #expect(list.groups[0].mine && !list.groups[0].system && list.groups[1].system && !list.groups[1].mine)
         #expect(list.people.first?.name == "Léa")
+        #expect(list.others == nil && list.group("g2")?.name == "Vendredi Party")
+    }
+
+    @Test("Groupes : les groupes des autres (Admins du site seulement) se décodent à part et s'ouvrent comme les miens")
+    func decodesOtherGroupsForSiteAdmins() throws {
+        let list: GroupList = try decode(#"{"groups": [{"id": "g1", "name": "Les footeux", "system": false, "mine": true, "inside": true, "members": []}], "others": [{"id": "g3", "name": "DreamTeam", "system": false, "mine": true, "inside": false, "members": [{"id": "u4", "name": "Lidia"}]}], "people": []}"#)
+        #expect(list.groups.map(\.name) == ["Les footeux"])
+        #expect(list.others?.map(\.name) == ["DreamTeam"])
+        #expect(list.group("g3")?.mine == true && list.group("g3")?.inside == false)
     }
 }

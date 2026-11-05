@@ -5,11 +5,13 @@ import { useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { PendingInviteClaim } from '@/components/AppJoinScreen';
 import { Button, ErrorText, HeaderBack, Loading, Screen, T, Title } from '@/components/ui';
 import { useEdgeSwipeBack } from '@/lib/edgeSwipe';
 import { usePendingSync } from '@/lib/pending';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { enableWebPush } from '@/lib/push';
 import { ShellSafeArea } from '@/lib/shellInsets';
 import { colors, font } from '@/lib/theme';
 
@@ -47,7 +49,7 @@ function inPartyShell(): boolean {
   return typeof window !== 'undefined' && window.parent !== window;
 }
 
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/scan(?:\/[a-f0-9]{64})?)?|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|chats(?:\/[a-f0-9-]{36})?|activity|announcements|account|settings\/(?:notifications|subscriptions|profile))$/i;
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/scan(?:\/[a-f0-9]{64})?)?|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|chats(?:\/[a-f0-9-]{36})?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
 function initialDestination() {
   if (typeof window === 'undefined') return null;
   const path = location.pathname.replace(/^\/events(?=\/|$)/, '');
@@ -59,7 +61,7 @@ function initialDestination() {
 }
 
 function Gate() {
-  const { loading, session, profile, profileError, refreshProfile, signOut, eventsOpen, eventsSoon } = useAuth();
+  const { loading, session, profile, profileError, refreshProfile, signOut, eventsOpen } = useAuth();
   // Tout compte actif au profil complet ouvre les sorties qu'il voit (Guests : publiques et invitations) ;
   // hors bêta ou profil incomplet : page d'accueil, Réglages ouverts.
   const active = eventsOpen && hasCompleteIdentity(profile);
@@ -88,17 +90,19 @@ function Gate() {
     if (typeof window === 'undefined') return;
     const onRefresh = (e: MessageEvent) => {
       if (e.origin === location.origin && e.data?.type === 'party-shell:refresh') void refreshProfile();
+      // Accueil de Zicou (pet/zicou-home.js) : la page a déjà obtenu l’autorisation, on abonne cet appareil au compte.
+      if (e.origin === location.origin && e.data?.type === 'party-shell:enable-push') void enableWebPush().catch(() => undefined);
     };
     window.addEventListener('message', onRefresh);
     return () => window.removeEventListener('message', onRefresh);
   }, [refreshProfile]);
   useEffect(() => {
     if (typeof window !== 'undefined' && window.parent !== window) window.parent.postMessage({ type: 'party-events:account' }, location.origin);
-  }, [session?.user.id, profile?.display_name, profile?.avatar_url, profile?.status, eventsSoon]);  // accès bêta compris
+  }, [session?.user.id, profile?.display_name, profile?.avatar_url, profile?.status]);
   useEffect(() => {
     // Réglages : ouverts à tout compte connecté ; le reste attend la validation du membre.
     // Réglages et liens d'invitation : ouverts dès la connexion (l'invitation demande elle-même le profil complet).
-    const open = intent.current === '/account' || /^\/(?:group-)?invite\//.test(intent.current ?? '');
+    const open = intent.current === '/account' || /^\/(?:(?:group-)?invite|join)\//.test(intent.current ?? '');
     if (!loading && session && (active || open) && !profileError && intent.current) {
       const target = intent.current;
       intent.current = null;
@@ -132,6 +136,7 @@ function Gate() {
   return (
     <>
     {session && active && profile ? <PendingSync me={profile.id} /> : null}
+    {session && hasCompleteIdentity(profile) ? <PendingInviteClaim key={session.user.id} /> : null}
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.bg },
@@ -154,6 +159,7 @@ function Gate() {
         <Stack.Screen name="event/[id]/chat" options={{ title: 'Discussion' }} />
         <Stack.Screen name="event/[id]/scan/index" options={{ title: 'Entrée' }} />
         <Stack.Screen name="event/[id]/scan/[token]" options={{ title: 'Entrée' }} />
+        <Stack.Screen name="event/[id]/gifts" options={{ title: 'Cadeaux de l’événement' }} />
         <Stack.Screen name="settings/notifications" options={{ title: 'Notifications et abonnements' }} />
         <Stack.Screen name="settings/subscriptions" options={{ title: 'Notifications et abonnements' }} />
         <Stack.Screen name="groups" options={{ title: 'Groupes' }} />
@@ -167,6 +173,7 @@ function Gate() {
         <Stack.Screen name="admin/roles" options={{ title: 'Rôles et droits' }} />
         <Stack.Screen name="admin/taxonomy" options={{ title: 'Catégories et tags' }} />
         <Stack.Screen name="admin/announcements" options={{ title: 'Annonces admin' }} />
+        <Stack.Screen name="admin/reports" options={{ title: 'Signalements' }} />
         <Stack.Screen name="announcements" options={{ title: 'Annonces admin' }} />
       </Stack.Protected>
       <Stack.Protected guard={!!session && !active}>
@@ -179,12 +186,17 @@ function Gate() {
         <Stack.Screen name="account" options={{ headerShown: false, title: 'Réglages' }} />
         <Stack.Screen name="settings/profile" options={{ title: 'Mon profil' }} />
         <Stack.Screen name="settings/account" options={{ title: 'Mon compte' }} />
+        <Stack.Screen name="settings/privacy" options={{ title: 'Confidentialité' }} />
       </Stack.Protected>
       <Stack.Screen name="share/[id]" options={{ title: '' }} />
       {/* Liens d'invitation (événement sur invitation, groupe) : lisibles avant connexion. */}
       <Stack.Screen name="invite/[token]" options={{ title: 'Invitation' }} />
       <Stack.Screen name="group-invite/[token]" options={{ title: 'Invitation' }} />
+      {/* Lien personnel d'invitation dans Party (« X t'invite sur Party ») : lisible avant connexion. */}
+      <Stack.Screen name="join/[token]" options={{ title: 'Invitation' }} />
       <Stack.Screen name="privacy" options={{ title: 'Confidentialité' }} />
+      {/* Conditions d'utilisation : lisibles par tous, même sans compte (Apple 1.2, Google UGC). */}
+      <Stack.Screen name="terms" options={{ title: 'Conditions d’utilisation' }} />
     </Stack>
     </>
   );

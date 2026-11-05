@@ -194,7 +194,7 @@ struct ContactNamesSettingsView: View {
 }
 
 /// iOS 18, accès limité : la liste d'Apple pour partager d'autres contacts avec Party.
-private struct LimitedPicker: ViewModifier {
+struct LimitedPicker: ViewModifier {
     @Binding var isPresented: Bool
 
     func body(content: Content) -> some View {

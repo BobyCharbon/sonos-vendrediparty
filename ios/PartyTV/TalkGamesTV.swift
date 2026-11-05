@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// 🎭 Le Masque sur la télé : la question, qui a écrit, puis les réponses sans prénom ; à la révélation, les masques
-/// levés (avec qui les avait trouvés) et ceux restés masqués.
+/// 🎭 Le Masque sur la télé : la question, qui a écrit, puis les réponses sans prénom ; à la révélation, masques levés :
+/// « C'était X » et qui a voté pour qui (vert juste, rouge faux) ; masques gardés : seulement à qui on a pensé.
+/// Aucun vert « par défaut » (avis du 04.11) : le vert ne veut dire que « deviné juste ».
 struct MasqueTV: View {
     let game: JSON
     private var V: JSON { game["masque"] }
@@ -19,38 +20,70 @@ struct MasqueTV: View {
                     .font(.system(size: 44, weight: .heavy)).foregroundStyle(TV.accent).contentTransition(.numericText())
                 PlayersRow(players: wrote.map { voted($0, $0["done"].bool == true) })
             case "guess":
-                answers(V["slots"].array.filter { $0["hidden"].bool != true }.map { ($0["text"].string ?? "", nil, nil) })
-                Text("🤔 Qui a écrit quoi ? Chacun devine sur son téléphone").font(.title2.bold()).foregroundStyle(TV.muted)
+                grid(V["slots"].array.filter { $0["hidden"].bool != true }) { slot in
+                    Text("« \(slot["text"].string ?? "") »").font(.system(size: 34, weight: .bold)).lineLimit(4).minimumScaleFactor(0.7)
+                }
+                Text(V["mask"].string == "closed" ? "🤔 Qui a écrit quoi ? 🎭 Masques gardés : personne ne le saura"
+                                                  : "🤔 Qui a écrit quoi ? Chacun devine sur son téléphone")
+                    .font(.title2.bold()).foregroundStyle(TV.muted)
             case "reveal":
-                answers(V["result"].array.filter { $0["hidden"].bool != true }.map { r in
-                    (r["text"].string ?? "", r["open"].bool == true ? "🙋 \(r["author"].string ?? "")" : "🎭 Reste masqué",
-                     r["open"].bool == true ? r["found"].array.compactMap { $0.string } : nil)
-                })
+                grid(V["result"].array.filter { $0["hidden"].bool != true }) { row in
+                    Self.revealCard(row)
+                }
             default:
                 EmptyView()
             }
         }
     }
 
-    /// Les réponses en grille : texte, puis l'auteur dévoilé (ou le masque) et qui l'avait trouvé.
-    private func answers(_ rows: [(String, String?, [String]?)]) -> some View {
+    /// Les réponses en grille, deux colonnes.
+    private func grid<Content: View>(_ rows: [JSON], @ViewBuilder content: @escaping (JSON) -> Content) -> some View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 24), GridItem(.flexible(), spacing: 24)], alignment: .leading, spacing: 24) {
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("« \(row.0) »").font(.system(size: 34, weight: .bold)).lineLimit(4).minimumScaleFactor(0.7)
-                    if let who = row.1 {
-                        Text(who).font(.title2.bold()).foregroundStyle(row.2 == nil ? TV.muted : TV.mint)
-                    }
-                    if let found = row.2 {
-                        Text(found.isEmpty ? "Personne ne l'avait trouvé" : "Trouvé par \(found.joined(separator: ", "))")
-                            .font(.title3).foregroundStyle(TV.muted)
-                    }
-                }
-                .padding(28)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .card(TV.surface, radius: 28)
+                VStack(alignment: .leading, spacing: 12) { content(row) }
+                    .padding(28)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .card(TV.surface, radius: 28)
             }
         }
+    }
+
+    /// Une réponse révélée : l'auteur bien en clair (ou le masque), le texte, puis les votes.
+    @ViewBuilder
+    static func revealCard(_ row: JSON) -> some View {
+        let open = row["open"].bool == true
+        Text(open ? "C'était \(row["author"].string ?? "")" : "🎭 Masque gardé")
+            .font(.title2.bold()).foregroundStyle(open ? TV.accent : TV.muted)
+        Text("« \(row["text"].string ?? "") »").font(.system(size: 34, weight: .bold)).lineLimit(4).minimumScaleFactor(0.7)
+        Text(votesLine(row)).font(.title3).lineLimit(3).minimumScaleFactor(0.7)
+    }
+
+    /// Masques levés : « ✓ Bob  ✗ Chloé (pensait Dan) », en vert / rouge. Masques gardés : « On a pensé à Bob ×2 ».
+    static func votesLine(_ row: JSON) -> AttributedString {
+        let votes = row["votes"].array
+        guard !votes.isEmpty else {
+            var none = AttributedString("Personne n'a voté pour cette réponse")
+            none.foregroundColor = TV.muted
+            return none
+        }
+        if row["open"].bool != true {
+            var line = AttributedString("On a pensé à ")
+            line.foregroundColor = TV.muted
+            for (i, v) in votes.enumerated() {
+                let n = v["n"].int ?? 1
+                line += AttributedString((i > 0 ? " · " : "") + (v["guess"].string ?? "") + (n > 1 ? " ×\(n)" : ""))
+            }
+            return line
+        }
+        var line = AttributedString()
+        for (i, v) in votes.enumerated() {
+            let right = v["right"].bool == true
+            var part = AttributedString((i > 0 ? "   " : "") + (right ? "✓ " : "✗ ") + (v["voter"].string ?? "")
+                                        + (right ? "" : " (pensait \(v["guess"].string ?? ""))"))
+            part.foregroundColor = right ? TV.mint : TV.red
+            line += part
+        }
+        return line
     }
 }
 

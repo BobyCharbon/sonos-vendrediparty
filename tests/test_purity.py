@@ -125,6 +125,9 @@ def test_general_leaderboard_persists_only_accounts(tmp_path, monkeypatch):
     answer_all(g, "acct-a", range(10))
     answer_all(g, "guest-anon-0001", range(10))
     purity.reveal(g)
+    assert purity.leaderboard() == {"rows": [], "total": 0}  # classement général : sur choix seulement
+    purity.set_public("acct-a", True)
+    purity.set_public("guest-anon-0001", True)  # jamais enregistré : rien à montrer
     lb = purity.leaderboard()
     names = [r["name"] for r in lb["rows"]]
     assert names == ["Alice"] and lb["total"] == 1
@@ -141,6 +144,8 @@ def test_leaderboard_keeps_the_impurity_record_and_ranks_it_first(tmp_path, monk
     purity.start(g)
     answer_all(g, "acct-b", range(10))
     purity.reveal(g)
+    for acct in ("acct-a", "acct-b"):
+        purity.set_public(acct, True)
     rows = purity.leaderboard()["rows"]
     assert [r["name"] for r in rows] == ["Alice", "Bob"]
     assert rows[0]["plays"] == 3
@@ -148,22 +153,37 @@ def test_leaderboard_keeps_the_impurity_record_and_ranks_it_first(tmp_path, monk
     assert rows[0]["last"] == round(100 * 20 / purity.TOTAL)
 
 
-def test_profile_keeps_the_last_test_by_category_for_its_owner_only(tmp_path, monkeypatch):
-    monkeypatch.setattr(purity, "STATS_PATH", tmp_path / "purity_stats.json")
+def test_only_the_global_score_is_kept_never_the_categories(tmp_path, monkeypatch):
+    """A4 (audit du 04.11, nLPD art. 5 let. c) : le profil par catégorie (sexe, drogues, infractions) n'est jamais
+    enregistré ; seul le score global l'est, et le classement public est un choix (désactivé par défaut)."""
+    path = tmp_path / "purity_stats.json"
+    monkeypatch.setattr(purity, "STATS_PATH", path)
     first_drug = next(i for i, (c, _) in enumerate(purity.QUESTIONS) if c == "drugs")
     for done in ([0, 1, 2], [0, first_drug]):
         g = make_game([("acct-a", "p1", "Alice")])
         purity.start(g)
         answer_all(g, "acct-a", done)
         purity.reveal(g)
+        assert purity.view(g, "acct-a")["me_categories"]  # vu à la fin du test, dans la partie
     me = purity.profile("acct-a")
-    assert me["plays"] == 2 and me["last"] == 2 and me["best"] == 3 and me["last_at"] > 0
-    cats = {r["id"]: r for r in me["categories"]}
-    assert [r["id"] for r in me["categories"]] == list(purity.CATEGORIES)
-    assert (cats["drugs"]["yes"], cats["drugs"]["total"], cats["drugs"]["pct"]) == (1, 10, 10)
-    assert cats["relations"]["yes"] == 1 and cats["rules"]["pct"] == 0
-    assert "categories" not in str(purity.leaderboard())  # le profil par catégorie ne sort jamais du classement public
-    assert purity.profile("acct-inconnu") == {"plays": 0}
+    assert me == {"name": "Alice", "plays": 2, "best": 3, "last": 2, "last_at": me["last_at"], "public": False}
+    stored = path.read_text()
+    assert "categories" not in stored and "drugs" not in stored
+    assert purity.profile("acct-inconnu") == {"plays": 0, "public": False}
+    assert purity.set_public("acct-a", True)["public"] is True
+    assert [r["name"] for r in purity.leaderboard()["rows"]] == ["Alice"]
+    assert purity.set_public("acct-a", False)["public"] is False and purity.leaderboard()["total"] == 0
+
+
+def test_old_category_profiles_are_scrubbed_and_an_account_is_forgotten(tmp_path, monkeypatch):
+    path = tmp_path / "purity_stats.json"
+    monkeypatch.setattr(purity, "STATS_PATH", path)
+    path.write_text('{"acct-a": {"v": 2, "name": "Alice", "plays": 1, "best": 9, "last": 9, "categories": [{"id": "sex", "pct": 40}]},'
+                    ' "acct-b": {"v": 2, "name": "Bob", "plays": 1, "best": 1, "last": 1}}')
+    purity.scrub()
+    assert "categories" not in path.read_text()
+    assert purity.forget("acct-a") is True and purity.forget("acct-a") is False
+    assert purity.profile("acct-a") == {"plays": 0, "public": False} and purity.profile("acct-b")["plays"] == 1
 
 
 def test_legacy_purity_stats_are_converted_to_impurity(tmp_path, monkeypatch):
@@ -171,9 +191,9 @@ def test_legacy_purity_stats_are_converted_to_impurity(tmp_path, monkeypatch):
     monkeypatch.setattr(purity, "STATS_PATH", path)
     # Ancien format : scores de pureté (meilleur = le plus pur).
     path.write_text('{"acct-a": {"name": "Alice", "plays": 2, "best": 90, "last": 70}}')
-    row = purity.leaderboard()["rows"][0]
+    row = purity.profile("acct-a")
     assert (row["best"], row["last"], row["plays"]) == (30, 30, 2)
-    assert purity.profile("acct-a")["categories"] == []  # pas de détail par catégorie avant la conversion
+    assert "categories" not in row
 
 
 def test_view_hides_individual_answers_at_results():
@@ -241,4 +261,4 @@ def test_profile_tolerates_an_incomplete_row(tmp_path, monkeypatch):
     path = tmp_path / "purity_stats.json"
     monkeypatch.setattr(purity, "STATS_PATH", path)
     path.write_text('{"acct-a": {"v": 2, "name": "Alice"}}')
-    assert purity.profile("acct-a") == {"name": "Alice", "plays": 0, "best": 0, "last": 0, "last_at": 0, "categories": []}
+    assert purity.profile("acct-a") == {"name": "Alice", "plays": 0, "best": 0, "last": 0, "last_at": 0, "public": False}

@@ -16,6 +16,7 @@ import unicodedata
 
 from . import beerpong, debate, heist, island, likely, masque, neon, president, psy, purity, quiz, reflet
 from .divan_cards import DIVAN_CARDS
+from .seat_rename import rename_player  # noqa: F401  (games.rename_player : place renommée à la connexion d'un compte)
 from .tmc_questions import TMC_QUESTIONS
 from .party_questions import NEVER_AWKWARD, NEVER_HOT, NEVER_SOFT, WHOOF_AWKWARD, WHOOF_HOT, WHOOF_SOFT
 
@@ -1148,7 +1149,7 @@ def tmc_view(g: dict, gid: str) -> dict:
 # --- Pyramide (jeu de cartes à boire, joueurs autour de la même table) ---
 # 1. Distribution : 4 questions par joueur (rouge/noir, plus/moins, dedans/dehors, symbole), une carte chacune.
 # 2. Pyramide : l'animateur retourne les cartes ; on peut donner les gorgées de l'étage, bluff compris ;
-#    accusé de mentir, on retourne une de ses cartes 3 s. Sommet : cul sec, sans bluff.
+#    accusé de mentir, on retourne une de ses cartes 3 s. Sommet : un shot (ou un verre d'eau), sans bluff.
 # 3. Mémoire : chacun retrouve ses 4 valeurs dans l'ordre. 4. Bateau pour celui qui en rate le plus.
 
 PYR_RANKS = "A23456789TJQK"
@@ -1226,7 +1227,7 @@ def pyr_start(g: dict, rng):
 
 
 def _pyr_poteau(g: dict, previous: list[str], card: str) -> bool:
-    """Poteau : le joueur a deux fois la même valeur. Soft : tout le monde boit 1 gorgée ; hard : lui, cul sec."""
+    """Poteau : le joueur a deux fois la même valeur. Soft : tout le monde boit 1 gorgée ; hard : lui, un shot (ou un verre d'eau)."""
     if not any(pyr_value(c) == pyr_value(card) for c in previous):
         return False
     if g["options"].get("poteau", "soft") == "soft":
@@ -1396,7 +1397,7 @@ def pyr_peek_decide(g: dict, req_id: str, ok: bool):
 
 
 def pyr_top(g: dict, actor: str):
-    """Sommet (cul sec) : on annonce avoir la carte, sans bluff ; l'app vérifie."""
+    """Sommet (un shot ou un verre d'eau) : on annonce avoir la carte, sans bluff ; l'app vérifie."""
     P = g["pyr"]
     if g["phase"] != "pyramid" or not P["flipped"] or not _pyr_current(P)[2]:
         raise GameError("Ce n'est pas encore le sommet")
@@ -2070,6 +2071,10 @@ def db_revote(g: dict):
 
 def db_propose(g: dict, gid: str, text):
     _db(debate.propose, g, gid, text)
+
+
+def db_report(g: dict, gid: str):
+    return _db(debate.report, g, gid)
 
 
 def db_accept(g: dict, proposal_id):

@@ -3,11 +3,10 @@ import { Linking, Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { pressTransition } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
-import { chf, declarePayment, fetchPayInfo, formatIban, type MyTicket, type PayInfo } from '@/lib/tickets';
+import { chf, declarePayment, fetchPayInfo, formatIban, type MyTicket, type PayInfo, type TicketPayment } from '@/lib/tickets';
 
+import { LinkedText } from './LinkedText';
 import { Button, ErrorText, T } from './ui';
-
-type OkTicket = Extract<MyTicket, { state: 'ok' }>;
 
 const LINK_LABELS: Record<string, string> = {
   revolut: 'Payer avec Revolut', paypal: 'Payer avec PayPal', lydia: 'Payer avec Lydia', other: 'Ouvrir le lien de paiement',
@@ -46,7 +45,7 @@ function PaySheet({ info, onDeclare, onClose, busy, error }: { info: PayInfo; on
       <View style={st.sheet} accessibilityViewIsModal>
         <T muted size={13}>Payer {info.organizer_name ?? 'l’organisateur'}</T>
         <T style={st.amount}>{chf(info.amount)}</T>
-        {info.payment_info ? <T size={14} color={colors.textSoft}>{info.payment_info}</T> : null}
+        {info.payment_info ? <LinkedText size={14} color={colors.textSoft} text={info.payment_info} /> : null}
         {info.note ? <T size={13} muted>« {info.note} »</T> : null}
         {twint ? <CopyRow label="Twint : numéro à copier dans l’app Twint" value={twint} /> : null}
         {links.map(([kind, url]) => (
@@ -70,10 +69,10 @@ function PaySheet({ info, onDeclare, onClose, busy, error }: { info: PayInfo; on
 }
 
 /**
- * Paiement « entre amis » sur le billet : à payer → « Payer l'organisateur » ; payé, en attente de confirmation ;
+ * Paiement « entre amis » sur le billet (avec ou sans QR : option « Billets QR » éteinte ou billet pas encore remis) : à payer → « Payer l'organisateur » ; payé, en attente de confirmation ;
  * ou ✓ payé (confirmé par l'organisateur).
  */
-export function PayOrganizer({ eventId, ticket, onTicket }: { eventId: string; ticket: OkTicket; onTicket: (t: MyTicket) => void }) {
+export function PayOrganizer({ eventId, ticket, onTicket }: { eventId: string; ticket: TicketPayment; onTicket: (t: MyTicket) => void }) {
   const [info, setInfo] = useState<PayInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

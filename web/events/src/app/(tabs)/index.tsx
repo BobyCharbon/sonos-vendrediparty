@@ -9,6 +9,7 @@ import { Button, Chip, Empty, ErrorText, Input, Reveal, s, Segmented, Skeleton, 
 import { useAuth, useMe } from '@/lib/auth';
 import { fetchAttendance } from '@/lib/attendance';
 import { fetchEventList, fetchTaxonomy, needsAnswer, useQuery } from '@/lib/data';
+import { plural } from '@/lib/format';
 import { must, supabase } from '@/lib/supabase';
 import { duration, ease, enter, pressTransition, transition } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
@@ -187,7 +188,7 @@ export default function Home() {
             style={{ backgroundColor: colors.lavenderDim, padding: 14, borderRadius: radius.md }}
           >
             <T size={14}>
-              <T weight="bold" size={14}>{pendingCount} proposition(s)</T> attendent ta validation ›
+              <T weight="bold" size={14}>{plural(pendingCount, 'proposition')}</T> {pendingCount > 1 ? 'attendent' : 'attend'} ta validation ›
             </T>
           </Pressable>
         ) : null}

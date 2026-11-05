@@ -74,6 +74,10 @@ struct AIEventView: View {
                 if let editing, store.editingId != editing { await store.startEditing(editing) }
                 else if editing == nil && store.editingId != nil { store.reset() }
             }
+            // Accord avant que quoi que ce soit parte à l'IA (Apple 5.1.2(i)), même texte et même accord que « Ton avis ».
+            .sheet(isPresented: $store.askingConsent, onDismiss: store.consentDismissed) {
+                AIConsentSheet(copy: .event) { accept in store.answerConsent(accept) }
+            }
             .onChange(of: store.draft) { _ in restartCountdown() }
             .onChange(of: store.created != nil) { done in if done { Haptics.success() } }
             .onChange(of: store.error) { error in if error != nil { Haptics.error() } }
@@ -214,15 +218,16 @@ struct AIEventView: View {
             if !d.summary.isEmpty {
                 Text(d.summary).font(.subheadline).foregroundStyle(.secondary)
             }
+            audienceBanner(d)
             Text(d.title.isEmpty ? "Titre à préciser" : d.title).font(.title2.weight(.bold))
                 .id(d.title).transition(.opacity)
-            if !d.description.isEmpty { Text(d.description).font(.subheadline) }
+            if !d.description.isEmpty { Text(LinkedText.attributed(d.description)).font(.subheadline) }
 
             part("Quand") { when(d) }
             part("Où") { placeRow(d) }
             part("Invités") {
                 row("person.3", d.invitees.isEmpty ? d.audience
-                    : d.audience == "Seulement les personnes invitées" ? d.invitees.joined(separator: ", ")
+                    : d.audience == AIEvent.onlyInvitees ? d.invitees.joined(separator: ", ")
                     : d.audience + " + " + d.invitees.joined(separator: ", "))
                 if !d.organizers.isEmpty { row("person.2.badge.gearshape", "Co-organisé avec " + d.organizers.joined(separator: ", ")) }
             }
@@ -238,7 +243,8 @@ struct AIEventView: View {
             }
             if d.price_chf > 0 || !d.payment_info.isEmpty {
                 part("Prix") {
-                    row("banknote", (d.price_chf > 0 ? String(format: "%.2f CHF par personne", d.price_chf) : "Prix non précisé")
+                    // Infos de paiement : leurs liens (TWINT, page de paiement…) restent cliquables.
+                    linkedRow("banknote", (d.price_chf > 0 ? String(format: "%.2f CHF par personne", d.price_chf) : "Prix non précisé")
                         + (d.payment_info.isEmpty ? "" : " · " + d.payment_info))
                 }
             }
@@ -286,6 +292,32 @@ struct AIEventView: View {
         .accessibilityIdentifier("ai-review")
     }
 
+    /// Pour qui l'événement est publié, en surbrillance, avec « Changer » (public par défaut quand rien n'est dit).
+    private func audienceBanner(_ d: AIEvent.Draft) -> some View {
+        let banner = AIEvent.audienceBanner(d.audience, invitees: d.invitees)
+        let tint: Color = banner.isPublic ? .yellow : Palette.accent
+        return HStack(alignment: .center, spacing: 10) {
+            Text(banner.text).font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+            Menu {
+                Button("🌍 Public + lien public") { store.setAudience(AIEvent.publicAudience) }
+                Button("👥 Membres Vendredi Party") { store.setAudience(AIEvent.vipAudience) }
+                Button("✉️ Un groupe ou des invités précis…") { store.askForAudience() }
+            } label: {
+                Text("Changer").font(.subheadline.weight(.bold))
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(tint.opacity(0.25), in: Capsule())
+            }
+            .accessibilityLabel("Changer pour qui l'événement est publié")
+        }
+        .padding(12)
+        .background(tint.opacity(0.18), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(tint.opacity(0.7), lineWidth: 1.5))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ai-audience")
+    }
+
     @ViewBuilder
     private func when(_ d: AIEvent.Draft) -> some View {
         if d.date_mode == "poll" {
@@ -302,6 +334,13 @@ struct AIEventView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title.uppercased()).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             content()
+        }
+    }
+
+    private func linkedRow(_ symbol: String, _ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: symbol).foregroundStyle(Palette.accent).frame(width: 22)
+            Text(LinkedText.attributed(text)).font(.body)
         }
     }
 

@@ -69,8 +69,10 @@ jobs:
           if [ "$PRODUCTION" = 1 ]; then
             VARIANT=(); BUNDLE_ID=ch.bobycharbon.party; HOST=party.bobycharbon.ch
           else
+            # PARTY_SWIFT_CONDITIONS=BETA : Zicou (widget, éclosion, actions rapides) compilé dans la BETA seulement.
             VARIANT=(PARTY_BUNDLE_SUFFIX=.beta PARTY_HOST=partytest.bobycharbon.ch
-                     "PARTY_DISPLAY_NAME=Party BETA" ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon-Beta)
+                     "PARTY_DISPLAY_NAME=Party BETA" ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon-Beta
+                     PARTY_SWIFT_CONDITIONS=BETA)
             BUNDLE_ID=ch.bobycharbon.party.beta; HOST=partytest.bobycharbon.ch
           fi
           echo "Variante : ${VARIANT[*]:-VendrediParty (production)}"
@@ -177,7 +179,7 @@ jobs:
             VARIANT=(); BUNDLE_ID=ch.bobycharbon.party
           else
             VARIANT=(PARTY_BUNDLE_SUFFIX=.beta PARTY_HOST=partytest.bobycharbon.ch "PARTY_DISPLAY_NAME=Party BETA"
-                     "ASSETCATALOG_COMPILER_APPICON_NAME=App Icon & Top Shelf Image Beta")
+                     "ASSETCATALOG_COMPILER_APPICON_NAME=App Icon & Top Shelf Image Beta" PARTY_SWIFT_CONDITIONS=BETA)
             BUNDLE_ID=ch.bobycharbon.party.beta
           fi
           echo "Variante : ${VARIANT[*]:-Party (production)}"

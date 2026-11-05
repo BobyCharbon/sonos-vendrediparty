@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { useChangedSinceMount } from '@/lib/motion';
-import { rsvpChoices, rsvpOptions, setRsvpFor } from '@/lib/rsvp';
+import { rsvpChoices, rsvpOptions, setRsvpFor, waitingPlusOnes } from '@/lib/rsvp';
 import type { EventRow, Rsvp, RsvpStatus } from '@/lib/types';
 
 import { RsvpButtons } from './RsvpButtons';
@@ -97,7 +97,7 @@ export function AttendanceEditor({ event, rsvps, names, me, onChange }: Props) {
                 <View style={[s.row, st.who]}>
                   <Avatar id={r.user_id} name={nameOf(r.user_id)} size={28} />
                   <View style={st.shrink}>
-                    <T weight="semibold" numberOfLines={1}>{nameOf(r.user_id)}{r.plus_ones ? ` +${r.plus_ones}` : ''}</T>
+                    <T weight="semibold" numberOfLines={1}>{nameOf(r.user_id)}{r.plus_ones ? ` +${r.plus_ones}` : ''}{waitingPlusOnes(r) ? ` (+${waitingPlusOnes(r)} en attente)` : ''}</T>
                     {r.set_by ? <T muted size={12}>Noté par {nameOf(r.set_by)}</T> : null}
                   </View>
                 </View>

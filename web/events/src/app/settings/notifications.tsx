@@ -4,6 +4,8 @@ import { View } from 'react-native';
 
 import { ChatsPause } from '@/components/NotificationPause';
 import { PartyNotifications } from '@/components/PartyNotifications';
+import { ZicouReactionsRow } from '@/components/ZicouReactionsRow';
+import { compagnonOn, discussionsOn } from '@/lib/features';
 import { SubscriptionPicker } from '@/components/SubscriptionPicker';
 import { Button, Chip, ErrorText, Field, LinkRow, Screen, s, Section, Segmented, T, ToggleRow } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
@@ -154,6 +156,7 @@ export default function NotificationSettings() {
         <ToggleRow disabled={saving} label="Rappel pour voter" hint="24 h avant la fin d’un sondage de dates, seulement si tu n’as pas encore voté" value={prefs.poll_nudge} onChange={(v) => update({ poll_nudge: v })} />
         <ToggleRow disabled={saving} label="Place libérée" hint="Tu es sur liste d’attente et une place se libère" value={prefs.waitlist} onChange={(v) => update({ waitlist: v })} />
         <ToggleRow disabled={saving} label="Paiement de ma place confirmé" hint="L’organisateur a reçu ton paiement (ou ne l’a pas reçu) après ton « J’ai payé »" value={prefs.ticket_pay_confirmed !== false} onChange={(v) => update({ ticket_pay_confirmed: v })} />
+        <ToggleRow disabled={saving} label="Billet prêt" hint="L’organisateur t’a remis ton billet QR : il s’affiche sur l’événement" value={prefs.ticket_issued !== false} onChange={(v) => update({ ticket_issued: v })} />
       </Section>
 
       <Section title="Rappels avant l’événement">
@@ -183,16 +186,38 @@ export default function NotificationSettings() {
         <ChatsPause scope="event_chats" />
       </Section>
 
-      <Section title="Discussions des groupes">
+      {/* Discussions éteintes (production) : seuls les réglages des groupes restent (invitation, nouveau membre). */}
+      <Section title={discussionsOn ? 'Discussions des groupes' : 'Groupes'}>
+        {discussionsOn ? <>
         <ToggleRow disabled={saving} label="Messages des groupes" hint="Les messages de tes groupes, selon le choix de chaque groupe (tous, si on me cite ou rien)" value={prefs.group_messages !== false} onChange={(v) => update({ group_messages: v })} />
+        {/* Messages directs (conversation privée à deux) : leur propre interrupteur ; la pause des Discussions les couvre aussi. */}
+        <ToggleRow disabled={saving} label="Messages directs" hint="« Nouveau message de … » quand quelqu’un t’écrit en privé (chaque conversation peut aussi être mise en sourdine)" value={prefs.direct_messages !== false} onChange={(v) => update({ direct_messages: v })} />
         <ChatsPause scope="chats" />
         {/* Groupes de Discussions : @tout et @annonce préviennent tout le groupe ; chacun peut le couper ici. */}
         <ToggleRow disabled={saving} label="Annonces et @tout des groupes"
           hint="Quand quelqu’un écrit @tout ou fait une annonce (@annonce) dans un de tes groupes. Les @surnom et les réponses restent notifiés selon le réglage de chaque groupe."
           value={prefs.group_broadcasts !== false} onChange={(v) => update({ group_broadcasts: v })} />
+        </> : null}
         <ToggleRow disabled={saving} label="Invitation dans un groupe" hint="Quelqu’un t’ajoute à un groupe" value={prefs.group_invites !== false} onChange={(v) => update({ group_invites: v })} />
         <ToggleRow disabled={saving} label="Quelqu’un rejoint mon groupe" hint="Un membre entre dans un groupe que tu as créé" value={prefs.group_joins !== false} onChange={(v) => update({ group_joins: v })} />
       </Section>
+
+      {/* Mes amis dans Party : chaque type a son interrupteur, aussi dans les Réglages de l'app iPhone. */}
+      <Section title="Amis">
+        <ToggleRow disabled={saving} label="Quelqu’un rejoint Party grâce à moi" hint="Une personne s’inscrit avec ton lien d’invitation" value={prefs.referral_joins !== false} onChange={(v) => update({ referral_joins: v })} />
+        <ToggleRow disabled={saving} label="Un contact arrive sur Party" hint="Dans l’app iPhone : quelqu’un de tes contacts vient de s’inscrire" value={prefs.contact_joins !== false} onChange={(v) => update({ contact_joins: v })} />
+      </Section>
+
+      {/* Compagnon (jeu de l'onglet Jeux) : un interrupteur par type, aussi dans les Réglages de l'app iPhone. Au plus une
+          notification par jour (hors alertes vitales), jamais la nuit ni pendant une soirée. En bêta : absent hors site de test. */}
+      {compagnonOn ? <Section title="Zicou">
+        <ToggleRow disabled={saving} label="Rappel du jour" hint="Une fois par jour au plus, vers l’heure où tu passes d’habitude, si tu n’es pas encore venu" value={prefs.pet_daily !== false} onChange={(v) => update({ pet_daily: v })} />
+        <ToggleRow disabled={saving} label="Alertes vitales" hint="Deux alertes au plus avant qu’il ne s’envole, quand son ventre est vide depuis longtemps" value={prefs.pet_alerts !== false} onChange={(v) => update({ pet_alerts: v })} />
+        <ToggleRow disabled={saving} label="Cadeau d’un ami" hint="Un ami lui a fait un câlin ou apporté un goûter" value={prefs.pet_gifts !== false} onChange={(v) => update({ pet_gifts: v })} />
+        <ToggleRow disabled={saving} label="Paliers de série" hint="Le jour où ta série 🔥 atteint un palier (3, 7, 14, 30 jours…)" value={prefs.pet_streaks !== false} onChange={(v) => update({ pet_streaks: v })} />
+        <ToggleRow disabled={saving} label="Barre pleine" hint="Ta barre 🎁 est pleine : deux fois par jour au plus, jamais la nuit (23 h – 8 h)" value={prefs.pet_bar !== false} onChange={(v) => update({ pet_bar: v })} />
+        <ZicouReactionsRow disabled={saving} />
+      </Section> : null}
 
       <Section title="Quand j’organise">
         <ToggleRow disabled={saving} label="Réponses à mes événements" hint="Quelqu’un répond Présent, Peut-être ou Absent à un événement que j’organise" value={prefs.rsvp_mine} onChange={(v) => update({ rsvp_mine: v })} />
@@ -200,6 +225,12 @@ export default function NotificationSettings() {
         <ToggleRow disabled={saving} label="Quelqu’un dit avoir payé" hint="Sur un événement payant que j’organise, une personne touche « J’ai payé » : à confirmer quand tu as reçu l’argent" value={prefs.ticket_pay_declared !== false} onChange={(v) => update({ ticket_pay_declared: v })} />
         <ToggleRow disabled={saving} label="Ma proposition validée ou refusée" hint="Un admin publie ou refuse l’événement que tu as proposé" value={prefs.proposal_result !== false} onChange={(v) => update({ proposal_result: v })} />
         {isAdmin ? <ToggleRow disabled={saving} label="Proposition à valider" hint="Un membre propose un événement qui attend la validation d’un admin" value={prefs.proposals} onChange={(v) => update({ proposals: v })} /> : null}
+      </Section>
+
+      {/* Modération commune : chaque type a son interrupteur (règle permanente). */}
+      <Section title="Modération">
+        <ToggleRow disabled={saving} label="Message de la modération" hint="Un modérateur t’avertit qu’un de tes contenus ne respecte pas les conditions d’utilisation" value={prefs.moderation_notices !== false} onChange={(v) => update({ moderation_notices: v })} />
+        {can('moderation.reports') ? <ToggleRow disabled={saving} label="Nouveau signalement" hint="Un message, un profil ou une photo vient d’être signalé (le contenu reste dans Administration › Signalements)" value={prefs.moderation_reports !== false} onChange={(v) => update({ moderation_reports: v })} /> : null}
       </Section>
 
       <Section title="Annonces des admins">

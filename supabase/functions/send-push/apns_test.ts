@@ -21,8 +21,14 @@ Deno.test('sans tous les secrets, pas de configuration', () => {
 Deno.test("le toucher ouvre l'événement, sinon l'activité", () => {
   assertEquals(tapPath({ event_id: '11111111-2222-3333-4444-555555555555' }), '/?tab=events&event=11111111-2222-3333-4444-555555555555');
   assertEquals(tapPath({ event_id: 'x"><script>' }), '/?tab=events&activity=1');
+  assertEquals(tapPath({ kind: 'pet_daily' }), '/?tab=games&pet=1&src=notif');
+  assertEquals(tapPath({ kind: 'pet_alert', event_id: '11111111-2222-3333-4444-555555555555' }), '/?tab=games&pet=1&src=notif');
+  assertEquals(tapPath({ kind: 'pet_gift' }), '/?tab=games&pet=1&src=notif');
+  assertEquals(tapPath({ kind: 'pet_streak' }), '/?tab=games&pet=1&src=notif');
+  assertEquals(tapPath({ kind: 'pet_bar' }), '/?tab=games&pet=1&src=notif');
   assertEquals(tapPath({ kind: 'group_message', group_id: '11111111-2222-3333-4444-555555555555' }), '/?tab=chats&chat=11111111-2222-3333-4444-555555555555');
   assertEquals(tapPath({ kind: 'group_message', group_id: '../admin' }), '/?tab=events&activity=1');
+  assertEquals(tapPath({ kind: 'direct_message', group_id: '11111111-2222-3333-4444-555555555555' }), '/?tab=chats&chat=11111111-2222-3333-4444-555555555555');
 });
 
 Deno.test('envoi signé ES256 vers le bon appareil, avec titre, texte et adresse', async () => {

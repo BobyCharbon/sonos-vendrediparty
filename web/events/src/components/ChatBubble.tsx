@@ -23,10 +23,14 @@ type Props = {
   isAdmin: boolean;
   /** Admin ou organisateur du groupe : retire les annonces. */
   isStaff?: boolean;
+  /** Peut épingler (admins d'un groupe ; les deux personnes d'un message direct). Par défaut : isAdmin. */
+  canPin?: boolean;
   onReply: () => void;
   onReact: (emoji: string) => void;
   onPin: () => void;
   onDelete: () => void;
+  /** « Signaler » (modération commune) : sur le message d'un autre, jamais sur le sien. */
+  onReport?: () => void;
   /** Message arrivé pendant que la discussion est ouverte : la bulle monte (pas à l'ouverture ni au défilement). */
   fresh?: boolean;
 };
@@ -36,7 +40,7 @@ const REPLY_SWIPE = 64;
 
 /** Une bulle façon WhatsApp : glisser vers la droite pour répondre ; appui long (ou ⋯) pour réagir, répondre,
  * épingler ou retirer une annonce (admins), ou supprimer. Un message en cours d'envoi s'affiche déjà, avec « Envoi… ». */
-export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, audioUrl, reactions, canWrite, isAdmin, isStaff = isAdmin, onReply, onReact, onPin, onDelete, fresh = false }: Props) {
+export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, audioUrl, reactions, canWrite, isAdmin, isStaff = isAdmin, canPin = isAdmin, onReply, onReact, onPin, onDelete, onReport, fresh = false }: Props) {
   const [open, setOpen] = useState(false);
   // Fixé à l'apparition : la bulle ne remonte pas quand un autre message arrive.
   const [arrive] = useState(() => (fresh ? enter(mine ? 'bubbleMine' : 'bubbleTheirs') : undefined));
@@ -62,7 +66,7 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
   const reacted = useChangedSinceMount([...counts].map(([e, c]) => `${e}${c.n}${c.mine}`).join());
   const bubbleColor = deleted ? colors.fill : mine ? colors.accent : colors.surface;
   const textColor = deleted ? colors.muted : mine ? colors.onAccent : colors.text;
-  const actions = canWrite && !deleted && !m.pending;
+  const actions = (canWrite || (!mine && !!onReport)) && !deleted && !m.pending;
   const announced = Boolean(m.announcement && m.pinned) && !deleted;
 
   return (
@@ -119,7 +123,7 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
         </View>
         {open ? (
           <View style={[{ gap: 6, padding: 8, borderRadius: 14, backgroundColor: colors.surface2 }, enter('drop')]}>
-            <View style={{ flexDirection: 'row', gap: 6 }}>
+            {canWrite ? <View style={{ flexDirection: 'row', gap: 6 }}>
               {REACTIONS.map((emoji) => (
                 <Pressable key={emoji} accessibilityRole="button" accessibilityLabel={`Réagir ${emoji}`} hitSlop={4}
                   onPress={() => { setOpen(false); onReact(emoji); }}
@@ -127,12 +131,13 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
                   <T size={22}>{emoji}</T>
                 </Pressable>
               ))}
-            </View>
+            </View> : null}
             <View style={{ flexDirection: 'row', gap: 14, flexWrap: 'wrap' }}>
-              <Action label="Répondre" onPress={() => { setOpen(false); onReply(); }} />
+              {canWrite ? <Action label="Répondre" onPress={() => { setOpen(false); onReply(); }} /> : null}
               {announced ? (isStaff ? <Action label="Retirer l’annonce" onPress={() => { setOpen(false); onPin(); }} /> : null)
-                : isAdmin ? <Action label={m.pinned ? 'Désépingler' : 'Épingler'} onPress={() => { setOpen(false); onPin(); }} /> : null}
+                : canPin ? <Action label={m.pinned ? 'Désépingler' : 'Épingler'} onPress={() => { setOpen(false); onPin(); }} /> : null}
               {mine || isAdmin ? <Action label="Supprimer" danger onPress={() => { setOpen(false); onDelete(); }} /> : null}
+              {!mine && onReport ? <Action label="Signaler" danger onPress={() => { setOpen(false); onReport(); }} /> : null}
             </View>
           </View>
         ) : null}

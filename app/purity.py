@@ -12,6 +12,7 @@ au compte), ce module travaille ensuite sur des identifiants de joueur.
 Module autonome et testable (mêmes conventions que quiz.py).
 """
 import json
+import threading
 import time
 from pathlib import Path
 
@@ -277,10 +278,15 @@ def gorgees(g: dict) -> list[dict]:
     return [{"pid": r["pid"], "name": r["name"], "sips": sips} for r in rows if r["score"] == top]
 
 
-# --- Classement général et profil privé (persistés entre les parties, par compte) ---
-# Une ligne par compte : name, plays, best (record d'impureté), last, last_at et categories (profil du dernier test,
-# lu seulement par son titulaire). « v » = 2 : scores d'impureté (avant : scores de pureté, convertis à la lecture).
+# --- Classement général et stats du compte (persistés entre les parties, par compte) ---
+# Une ligne par compte : name, plays, best (record d'impureté), last, last_at et public (classement général).
+# Données sensibles (nLPD art. 5 let. c : vie sexuelle, drogues, infractions) : seul le SCORE GLOBAL est gardé ; le
+# profil par catégorie ne se voit qu'à la fin du test, dans la partie, et n'est jamais enregistré (décision du 04.11).
+# Le classement général est un choix de chacun (public = False par défaut) ; tout part avec la suppression du compte.
+# « v » = 2 : scores d'impureté (avant : scores de pureté, convertis à la lecture).
 STATS_VERSION = 2
+KEPT_FIELDS = ("v", "name", "plays", "best", "last", "last_at", "public")
+_stats_lock = threading.RLock()  # lecture-modification du fichier (fin de test, choix du classement, suppression)
 
 
 def _upgrade(row: dict) -> dict:
@@ -290,8 +296,12 @@ def _upgrade(row: dict) -> dict:
     last = 100 - row.get("last", 100)
     # On ne connaît que le meilleur score de pureté (= l'impureté la plus basse) et le dernier : le record est le plus haut des deux.
     best = max(100 - row.get("best", 100), last)
-    return {**row, "v": STATS_VERSION, "best": best, "last": last, "last_at": row.get("last_at", 0),
-            "categories": row.get("categories", [])}
+    return {**row, "v": STATS_VERSION, "best": best, "last": last, "last_at": row.get("last_at", 0)}
+
+
+def _kept(row: dict) -> dict:
+    """Ce qu'on garde d'une ligne : jamais le profil par catégorie (ancien format compris)."""
+    return {k: row[k] for k in KEPT_FIELDS if k in row}
 
 
 def _load_stats() -> dict:
@@ -301,7 +311,7 @@ def _load_stats() -> dict:
         data = json.loads(STATS_PATH.read_text())
     except (ValueError, OSError):
         return {}
-    return {gid: _upgrade(row) for gid, row in data.items()}
+    return {gid: _kept(_upgrade(row)) for gid, row in data.items() if isinstance(row, dict)}
 
 
 def _save_stats(data: dict):
@@ -313,48 +323,87 @@ def _save_stats(data: dict):
     tmp.replace(STATS_PATH)
 
 
+def _account_of(g: dict, gid: str) -> str | None:
+    """Compte (acct-…) de cette place : son identifiant, ou un alias de compte qui mène à elle."""
+    if gid.startswith("acct-"):
+        return gid
+    return next((a for a, o in (g.get("aliases") or {}).items() if o == gid and a.startswith("acct-")), None)
+
+
 def record(g: dict):
-    """Ajoute chaque score révélé au classement général et garde le profil du dernier test de chacun."""
+    """Garde le score global révélé de chaque compte (jamais son profil par catégorie)."""
     if not STATS_PATH:
         return
     scores = g["purity"].get("scores", {})
     if not scores:
         return
+    with _stats_lock:
+        _record(g, scores)
+
+
+def _record(g: dict, scores: dict):
     data = _load_stats()
     now = time.time()
     for pl in g["players"]:
         gid = pl["id"]
-        # Participation réservée aux comptes : le guest_id « acct-… » est l'identité stable.
-        if gid not in scores or not gid.startswith("acct-"):
+        # Participation réservée aux comptes : le guest_id « acct-… » est l'identité stable. Place restée à un
+        # identifiant d'invité mais reliée à un compte (alias) : le score va au compte, jamais perdu.
+        account = _account_of(g, gid)
+        if gid not in scores or not account:
             continue
-        old = data.get(gid) or {"plays": 0, "best": 0}
-        cats = [{k: r[k] for k in ("id", "yes", "total", "pct")} for r in categories(g, gid)]
-        data[gid] = {"v": STATS_VERSION, "name": pl["name"], "plays": old["plays"] + 1, "best": max(old["best"], scores[gid]),
-                     "last": scores[gid], "last_at": now, "categories": cats}
+        old = data.get(account) or {"plays": 0, "best": 0}
+        data[account] = {"v": STATS_VERSION, "name": pl["name"], "plays": old["plays"] + 1, "best": max(old["best"], scores[gid]),
+                         "last": scores[gid], "last_at": now, "public": bool(old.get("public"))}
     _save_stats(data)
 
 
 def leaderboard(limit: int = 20) -> dict:
-    """Classement public : record d'impureté de chaque compte (jamais le profil par catégorie)."""
-    data = _load_stats()
-    rows = sorted(data.values(), key=lambda r: (-r.get("best", 0), r.get("name", "").casefold()))
+    """Classement public : record d'impureté des seuls comptes qui ont choisi d'y figurer (jamais de catégorie)."""
+    rows = [r for r in _load_stats().values() if r.get("public")]
+    rows.sort(key=lambda r: (-r.get("best", 0), r.get("name", "").casefold()))
     public = [{k: r.get(k, 0) for k in ("name", "plays", "best", "last")} for r in rows[:limit]]
-    return {"rows": public, "total": len(data)}
-
-
-def _with_labels(rows: list[dict]) -> list[dict]:
-    """Profil enregistré + libellé et emoji de chaque catégorie (dans l'ordre d'affichage)."""
-    by_id = {r["id"]: r for r in rows}
-    return [{**by_id[cid], "label": label, "emoji": emoji} for cid, (label, emoji) in CATEGORIES.items() if cid in by_id]
+    return {"rows": public, "total": len(rows)}
 
 
 def profile(gid: str) -> dict:
-    """Stats Purify Test d'un compte, pour son seul titulaire (Réglages) : dernier test par catégorie et record."""
+    """Stats Purify Test d'un compte, pour son seul titulaire (Réglages) : dernier score, record, classement."""
     row = _load_stats().get(gid)
     if not row:
-        return {"plays": 0}
+        return {"plays": 0, "public": False}
     return {"name": row.get("name", ""), "plays": row.get("plays", 0), "best": row.get("best", 0), "last": row.get("last", 0),
-            "last_at": row.get("last_at", 0), "categories": _with_labels(row.get("categories", []))}
+            "last_at": row.get("last_at", 0), "public": bool(row.get("public"))}
+
+
+def set_public(gid: str, on: bool) -> dict:
+    """Son choix « apparaître dans le classement général » (aucun test enregistré : rien à montrer)."""
+    with _stats_lock:
+        data = _load_stats()
+        if gid in data:
+            data[gid] = {**data[gid], "public": bool(on)}
+            _save_stats(data)
+    return profile(gid)
+
+
+def forget(gid: str) -> bool:
+    """Compte supprimé : sa ligne part. True si quelque chose a été effacé."""
+    with _stats_lock:
+        data = _load_stats()
+        if gid not in data:
+            return False
+        _save_stats({k: v for k, v in data.items() if k != gid})
+        return True
+
+
+def scrub() -> None:
+    """Au démarrage : réécrit le fichier sans les profils par catégorie gardés par l'ancienne version."""
+    if not (STATS_PATH and STATS_PATH.exists()):
+        return
+    try:
+        raw = json.loads(STATS_PATH.read_text())
+    except (ValueError, OSError):
+        return
+    if isinstance(raw, dict) and any(isinstance(r, dict) and "categories" in r for r in raw.values()):
+        _save_stats(_load_stats())
 
 
 def categories(g: dict, gid: str) -> list[dict]:

@@ -177,7 +177,7 @@ def test_segmented_thumb_glides_under_the_chosen_option(phone):
     page = phone.page
     page.goto("/")
     page.evaluate("account = { name: 'Léa', feedback: true }; fbSyncAccess();")  # « Ton avis » : Guest+ et au-dessus
-    page.locator('#tabs [data-tab="feedback"]').click()
+    page.evaluate("showTab('feedback')")   # Réglages › Ton avis (sorti de la barre le 4.11)
     page.wait_for_function("document.querySelector('#fbForm .fb-kinds').classList.contains('seg-glide')")
 
     def thumb_under(kind):

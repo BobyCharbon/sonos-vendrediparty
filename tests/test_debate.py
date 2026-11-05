@@ -284,6 +284,33 @@ def test_player_proposal_waits_for_the_host_then_comes_next():
     assert q["text"] == "Faut-il interdire les trottinettes en ville ?" and q["by"] == "Dan"
 
 
+def test_proposals_go_through_the_common_filter():
+    """B3 (audit du 04.11) : un dilemme proposé s'affiche à toute la table ; filtre commun, sans lien ni numéro."""
+    g = new()
+    for bad in ("Faut-il aller sur www.exemple.com ce soir ?", "Faut-il appeler le 079 123 45 67 ce soir ?"):
+        with pytest.raises(games.GameError, match="refusée"):
+            games.db_propose(g, HOST_GID, bad)
+
+
+def test_a_player_reports_a_proposed_dilemma_on_screen():
+    g = new()
+    games.join(g, "guest-dan-0001", "Dan")
+    games.start(g, random.Random(1))
+    with pytest.raises(games.GameError):
+        games.db_report(g, "guest-dan-0001")  # dilemme de la banque : rien à signaler
+    games.db_propose(g, "guest-dan-0001", "Faut-il interdire les trottinettes en ville ?")
+    games.db_accept(g, view(g)["proposals"][0]["id"])
+    vote_all(g, {"Alice": 1, "Bob": 1, "Chloé": 1})
+    games.db_vote(g, "guest-dan-0001", 1, "guest-dan-0001")
+    games.next_step(g, random.Random(1))
+    assert games.db_report(g, HOST_GID) == {"text": "Faut-il interdire les trottinettes en ville ?", "by": "Dan"}
+    q = view(g, "guest-dan-0001")["q"]
+    assert q["text"] == debate.REPORTED and q["reported"] is True
+    assert games.db_report(g, HOST_GID) is None
+    with pytest.raises(games.GameError):
+        games.db_report(g, "stranger-0001")
+
+
 def test_refused_proposal_disappears():
     g = new()
     games.db_propose(g, HOST_GID, "Les chaussettes dans les sandales, c'est acceptable ?")

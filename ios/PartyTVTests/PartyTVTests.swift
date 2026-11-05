@@ -63,6 +63,20 @@ struct PartyTVTests {
         }
     }
 
+    @Test("Le Masque : votes en clair (masques levés), en nombre sans votant (masques gardés)")
+    func masqueVotes() throws {
+        let open = try JSONDecoder().decode(JSON.self, from: Data(#"""
+            {"text":"La mer","open":true,"author":"Alice","votes":[{"voter":"Bob","guess":"Alice","right":true},
+             {"voter":"Chloé","guess":"Bob","right":false}]}
+            """#.utf8))
+        let line = String(MasqueTV.votesLine(open).characters)
+        #expect(line == "✓ Bob   ✗ Chloé (pensait Bob)")
+        let closed = try JSONDecoder().decode(JSON.self, from: Data(#"{"open":false,"votes":[{"guess":"Alice","n":2},{"guess":"Bob","n":1}]}"#.utf8))
+        #expect(String(MasqueTV.votesLine(closed).characters) == "On a pensé à Alice ×2 · Bob")
+        let none = try JSONDecoder().decode(JSON.self, from: Data(#"{"open":true,"votes":[]}"#.utf8))
+        #expect(String(MasqueTV.votesLine(none).characters) == "Personne n'a voté pour cette réponse")
+    }
+
     @Test("JSON : nombres, textes, absents")
     func json() throws {
         let j = try JSONDecoder().decode(JSON.self, from: Data(#"{"a":1,"b":"x","c":[true],"d":null,"e":2.5}"#.utf8))
@@ -166,5 +180,41 @@ struct BeerPongOutcomeTests {
         let old: JSON = .object(["n": .number(1), "name": .string("Boby"), "drink": .number(2), "give": .number(0), "age": .number(1)])
         let o = try #require(Outcome.of(game(["n": .number(4), "name": .string("Tom"), "kind": .string("sport"), "text": .string("15 abdos"), "team": .string("red")], log: [old])))
         #expect(o.lines.map(\.name) == ["Tom"] && o.lines(.drink).isEmpty)
+    }
+}
+
+/// Quiz Drapeaux (avis 544a8fd8b5bd) : lisible à la télé.
+struct QuizFlagTests {
+    @Test("Quiz Drapeaux : le drapeau sort de la question pour s'afficher en grand, les réponses-drapeaux sont reconnues")
+    func quizFlags() {
+        let parts = QuizFlag.split("À quel pays appartient ce drapeau ? 🇨🇭")
+        #expect(parts.text == "À quel pays appartient ce drapeau ?" && parts.flag == "🇨🇭")
+        #expect(QuizFlag.split("Quelle est la capitale de la Suisse ?").flag == nil)
+        #expect(QuizFlag.isFlag("🇹🇩") && !QuizFlag.isFlag("Tchad") && !QuizFlag.isFlag("🚩") && !QuizFlag.isFlag("🇹🇩🇷🇴"))
+    }
+}
+
+/// Contrôle App Store du 05.11.2026 (O1, O6) : rien qui pousse à boire, pas de jeu d'argent simulé dans l'app du Store.
+struct StoreComplianceTests {
+    @Test("Beer pong : un shot reste facultatif (« ou un verre d'eau »), jamais « cul sec »")
+    func shotIsOptional() throws {
+        let g: JSON = .object(["type": .string("beerpong"), "phase": .string("play"), "sips_log": .array([]),
+                               "bp": .object(["last": .object(["n": .number(2), "name": .string("Tom"), "kind": .string("shot"),
+                                                               "text": .string("Shot")]),
+                                              "players": .array([]), "team_names": .object([:])])])
+        let o = try #require(Outcome.of(g))
+        #expect(o.lines.first?.detail == "Un shot (ou un verre d'eau)")
+    }
+
+    @Test("Casino et Blackjack masqués dans l'app de l'App Store (Salle de jeux comprise), gardés en BETA ; Roulette montrée")
+    func moneyGamesHiddenInStoreApp() {
+        let casino: JSON = .object(["type": .string("casino"), "name": .string("Casino"), "phase": .string("bet")])
+        let room: JSON = .object(["type": .string("room"), "current": .object(["type": .string("blackjack"), "name": .string("Blackjack")])])
+        let roulette: JSON = .object(["type": .string("roulette"), "name": .string("Roulette")])
+        #expect(StoreGames.hides(casino, storeApp: true) && StoreGames.hides(room, storeApp: true))
+        #expect(!StoreGames.hides(casino, storeApp: false) && !StoreGames.hides(roulette, storeApp: true))
+        #expect(StoreGames.name(casino, storeApp: true) == "Partie en cours" && StoreGames.name(casino, storeApp: false) == "Casino")
+        #expect(StoreGames.name(roulette, storeApp: true) == "Roulette")
+        #expect(!StoreGames.isStoreApp)  // les tests tournent en Debug (Party BETA)
     }
 }

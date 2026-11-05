@@ -130,12 +130,12 @@ const GameFx = (() => {
   return { fx, bar: barAttr, num, flip, tap, hold, reduced: () => reduce.matches };
 })();
 
-// 🧠 Quiz : 14 thèmes, 5 modes, seul ou à plusieurs. Chargé après games.js (utilise renderGame, gameAction, pyrFlash…).
+// 🧠 Quiz : 16 thèmes, 5 modes, seul ou à plusieurs. Chargé après games.js (utilise renderGame, gameAction, pyrFlash…).
 GAME_THEME.quiz = "g-qz";
 GAME_NAMES.quiz = "Quiz";
 GAME_RULES.quiz = `
   <h3>Le principe</h3>
-  <p>Des milliers de questions à 4 choix, sur 14 thèmes (culture générale, géographie, histoire, sciences, corps humain, animaux, espace, cinéma & séries, musique, jeux vidéo, BD & mangas, sport, cuisine, Suisse). On joue <b>seul ou à plusieurs</b>, chacun sur son téléphone. L'animateur choisit le mode, les thèmes et la difficulté.</p>
+  <p>Des milliers de questions à 4 choix, sur 16 thèmes (culture générale, géographie, drapeaux, histoire, sciences, informatique & IA, corps humain, animaux, espace, cinéma & séries, musique, jeux vidéo, BD & mangas, sport, cuisine, Suisse). On joue <b>seul ou à plusieurs</b>, chacun sur son téléphone. L'animateur choisit le mode, les thèmes et la difficulté.</p>
   <h3>🏆 Classique</h3>
   <p>Tout le monde reçoit la même question en même temps. Bonne réponse : <b>500 points + jusqu'à 500 selon la rapidité</b>, et un bonus de série (+50 par bonne réponse d'affilée, jusqu'à +250).</p>
   <h3>⚡ Rapidité</h3>

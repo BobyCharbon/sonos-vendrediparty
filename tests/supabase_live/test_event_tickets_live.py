@@ -25,10 +25,12 @@ def party():
     admin, a, b = Session(ADMIN), Session(GUEST_A), Session(GUEST_B)
     complete_profile(a, 'Guest A')
     complete_profile(b, 'Guest B')
-    eid = create_event(admin, 'Test billets QR', public_link=True, price_chf=20, allow_plus_ones=True, max_plus_ones=2)
+    eid = create_event(admin, 'Test billets QR', public_link=True, price_chf=20, allow_plus_ones=True, max_plus_ones=2,
+                       tickets_enabled=True)
     answer(a, eid, 'yes')
     answer(admin, eid, 'yes', plus_ones=1)  # un Guest n'a pas droit aux accompagnants : l'admin vient à deux
     answer(b, eid, 'maybe')
+    assert admin.rpc('issue_all_event_tickets', e=eid).json() == 2  # billets remis (20261104233000)
     yield admin, a, b, eid
     httpx.delete(f'{TEST_URL}/rest/v1/events?id=eq.{eid}', headers=admin.headers, timeout=30)
 
@@ -100,6 +102,7 @@ def test_paid_is_ticked_by_hand_and_the_entry_list_shows_arrivals(party):
 def test_a_renewed_ticket_kills_the_old_qr_and_absent_people_are_refused(party):
     admin, a, b, eid = party
     answer(b, eid, 'yes')
+    assert admin.rpc('issue_event_ticket', e=eid, member=b.uid, issued=True).json()['issued'] is True
     old = ticket(b, eid)['token']
     new = b.rpc('renew_event_ticket', e=eid).json()
     assert new['state'] == 'ok' and new['token'] != old

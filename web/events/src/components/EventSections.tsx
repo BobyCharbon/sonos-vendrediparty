@@ -5,7 +5,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { formatShort, parseLocalDateTime } from '@/lib/format';
 import { enter, pressTransition, useChangedSinceMount } from '@/lib/motion';
 import { refreshPending } from '@/lib/pending';
-import { rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
+import { useAuth } from '@/lib/auth';
+import { guestsLine, onWaitlist, rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp, totalPlusOnes, waitingPlusOnes } from '@/lib/rsvp';
 import { supabase } from '@/lib/supabase';
 import { colors, font, radius } from '@/lib/theme';
 import type { BringItem, DateOption, DateVote, DateVoteRow, EventRow, Poll, PollOption, Rsvp, RsvpStatus } from '@/lib/types';
@@ -13,6 +14,7 @@ import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
 import { SharedBringRow } from './BringShared';
 import { DateTimeField } from './DateTimeField';
+import { LinkedText } from './LinkedText';
 import { RsvpButtons } from './RsvpButtons';
 import { Avatar, Button, Chip, ErrorText, Input, Meter, Reveal, s, Section, T } from './ui';
 
@@ -70,6 +72,10 @@ export function RsvpCard({
   onChange: () => void;
 }) {
   const mine = rsvps.find((r) => r.user_id === me);
+  const waiting = onWaitlist(mine);
+  // Accompagnants : réservés à qui en a le droit (un Guest n'en a pas, la base remet 0 en silence).
+  const { can } = useAuth();
+  const plusOnes = event.allow_plus_ones && event.max_plus_ones > 0 && can('events.plus_ones');
   const [note, setNote] = useState(mine?.note ?? '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -78,12 +84,16 @@ export function RsvpCard({
   if (picked && mine?.status === picked) setPicked(null);
   const closed = rsvpClosed(event);
   const heads = rsvps.filter((r) => r.status === 'yes' && !r.waitlisted).reduce((n, r) => n + 1 + r.plus_ones, 0);
-  const full = !!event.max_participants && heads >= event.max_participants && !(mine?.status === 'yes' && !mine.waitlisted);
+  const full = !!event.max_participants && heads >= event.max_participants && !(mine?.status === 'yes' && !waiting);
+  // Complet : un accompagnant de plus passe en liste d’attente ; la personne garde sa place.
+  const fullForMore = !!event.max_participants && heads >= event.max_participants && mine?.status === 'yes' && !waiting;
+  const guests = totalPlusOnes(mine);
+  const guestsWaiting = waiting ? 0 : waitingPlusOnes(mine);
   // Retour immédiat : le choix touché s’affiche (couleur, phrase) pendant l’enregistrement.
   const saving = (['yes', 'maybe', 'no'] as const).find((k) => k === busy) ?? null;
   const choosing = saving ?? picked;
   const shown = choosing ?? mine?.status ?? null;
-  const plusChanged = useChangedSinceMount(mine?.plus_ones ?? 0);
+  const plusChanged = useChangedSinceMount(guests);
 
   async function upsert(key: string, patch: Partial<Rsvp>) {
     setBusy(key);
@@ -104,7 +114,7 @@ export function RsvpCard({
     : choosing
       ? confirmations[choosing]
     : mine
-      ? mine.waitlisted ? 'Complet : tu es sur liste d’attente, on te prévient si une place se libère.' : confirmations[mine.status]
+      ? waiting ? 'Complet : tu es sur liste d’attente, on te prévient si une place se libère.' : confirmations[mine.status]
       : event.rsvp_deadline
         ? `Réponds avant le ${formatShort(event.rsvp_deadline)} pour que l’organisateur puisse s’organiser.`
         : 'Un clic suffit pour prévenir le groupe.';
@@ -115,7 +125,7 @@ export function RsvpCard({
       style={!mine && !closed ? { borderColor: 'rgba(255,79,154,0.55)', borderWidth: 1.5 } : undefined}
       right={!mine && !closed ? <View style={st.pill}><T size={12} weight="bold" color={colors.accent}>À répondre</T></View> : null}
     >
-      <T key={subtitle} size={14} style={enter('fade')} color={shown && !(mine?.waitlisted && !choosing) ? rsvpChoices[shown].bg : colors.textSoft}>{subtitle}</T>
+      <T key={subtitle} size={14} style={enter('fade')} color={shown && !(waiting && !choosing) ? rsvpChoices[shown].bg : colors.textSoft}>{subtitle}</T>
       {mine?.set_by && mine.set_by !== me ? (
         <T muted size={13}>C’est l’organisateur qui a noté ta réponse : tu peux la changer ici.</T>
       ) : null}
@@ -129,29 +139,39 @@ export function RsvpCard({
         disabled={closed}
         onSelect={(k) => upsert(k, { status: k })}
       />
-      {event.allow_plus_ones && mine?.status === 'yes' && event.max_plus_ones > 0 ? (
+      {plusOnes && mine?.status === 'yes' ? (
         <Reveal kind="drop" style={[s.rowBetween, st.subRow]}>
           <View style={{ flex: 1 }}>
             <T>Accompagnants</T>
             <T muted size={12}>{event.max_plus_ones >= UNLIMITED_PLUS_ONES ? '∞ Illimité' : `Jusqu’à ${event.max_plus_ones} personne${event.max_plus_ones > 1 ? 's' : ''}`}</T>
           </View>
           <View style={s.row}>
-            <Button small variant="secondary" label="−" disabled={!mine.plus_ones || closed} onPress={() => upsert('minus', { plus_ones: Math.max(0, mine.plus_ones - 1) })} />
-            <T key={mine.plus_ones} weight="bold" style={[{ minWidth: 28, textAlign: 'center' }, plusChanged ? enter('pop') : null]}>+{mine.plus_ones}</T>
-            <Button small variant="secondary" label="+" disabled={mine.plus_ones >= event.max_plus_ones || closed} onPress={() => upsert('plus', { plus_ones: Math.min(event.max_plus_ones, mine.plus_ones + 1) })} />
+            <Button small variant="secondary" label="−" accessibilityLabel="Retirer un accompagnant" disabled={!guests || closed} onPress={() => upsert('minus', { plus_ones: Math.max(0, guests - 1) })} />
+            <T key={guests} weight="bold" style={[{ minWidth: 28, textAlign: 'center' }, plusChanged ? enter('pop') : null]}>+{guests}</T>
+            <Button small variant="secondary" label="+" accessibilityLabel="Ajouter un accompagnant" disabled={guests >= event.max_plus_ones || closed} onPress={() => upsert('plus', { plus_ones: Math.min(event.max_plus_ones, guests + 1) })} />
           </View>
         </Reveal>
       ) : null}
-      {mine?.status === 'yes' && !(event.allow_plus_ones && event.max_plus_ones > 0) ? (
+      {plusOnes && mine?.status === 'yes' && !waiting && guests ? (
+        <T size={13} color={guestsWaiting ? colors.lavender : colors.textSoft}>{guestsLine(mine.plus_ones, guestsWaiting)}</T>
+      ) : null}
+      {plusOnes && fullForMore && !closed && guests < event.max_plus_ones ? (
+        <T muted size={12}>Complet : un accompagnant de plus passe en liste d’attente (tu gardes ta place) et monte dès qu’une place se libère.</T>
+      ) : null}
+      {mine?.status === 'yes' && !plusOnes ? (
         <Reveal kind="drop" style={[st.note, { borderLeftColor: colors.lavender }]}>
-          <T size={13} color={colors.textSoft}>Pas d’accompagnant pour cet événement : l’organisateur a réservé les places aux membres du groupe.</T>
+          <T size={13} color={colors.textSoft}>
+            {event.allow_plus_ones && event.max_plus_ones > 0
+              ? 'Les accompagnants sont réservés aux membres du groupe : ton compte n’en ajoute pas.'
+              : 'Pas d’accompagnant pour cet événement : l’organisateur a réservé les places aux membres du groupe.'}
+          </T>
         </Reveal>
       ) : null}
       {mine && !closed ? (
         <Reveal kind="drop" style={s.row}>
           <Input
             accessibilityLabel="Un petit mot perso pour l’organisateur"
-            placeholder="Un petit mot perso pour l’organisateur (facultatif)"
+            placeholder="Un mot pour l’organisateur (facultatif)"
             value={note}
             onChangeText={setNote}
             onSubmitEditing={() => note !== (mine.note ?? '') && upsert('note', { note: note.trim() || null })}
@@ -175,7 +195,7 @@ function PersonChip({ id, name, extra, viaLink = false, fresh = false }: { id: s
     <Pressable style={({ pressed }) => [st.person, arrive, pressTransition, viaLink && st.viaLink, pressed && { opacity: 0.7 }]} accessibilityRole="button"
       accessibilityLabel={`Profil de ${name}${viaLink ? ', invité par lien' : ''}`} onPress={() => router.push(`/member/${id}`)}>
       <Avatar id={id} name={name} size={24} profile={false} />
-      <T size={13} weight="semibold" color={viaLink ? colors.coral : undefined}>
+      <T size={13} weight="semibold" numberOfLines={1} style={{ flexShrink: 1 }} color={viaLink ? colors.coral : undefined}>
         {name}{extra ? <T size={13} muted> {extra}</T> : null}{viaLink ? <T size={11} color={colors.coral}> · lien</T> : null}
       </T>
     </Pressable>
@@ -196,7 +216,8 @@ export function ParticipantsSection({
   viaLink?: Set<string>;
 }) {
   const nameOf = (id: string) => (id === me ? 'Toi' : names.get(id) ?? '?');
-  const group = (st: RsvpStatus, waitlisted = false) => rsvps.filter((r) => r.status === st && r.waitlisted === waitlisted);
+  // « waitlisted » ne compte que pour un Présent (une réponse Peut-être / Absent n'est jamais en attente).
+  const group = (st: RsvpStatus, waitlisted = false) => rsvps.filter((r) => r.status === st && onWaitlist(r) === waitlisted);
   const yes = group('yes');
   const maybe = group('maybe');
   const no = group('no');
@@ -205,7 +226,16 @@ export function ParticipantsSection({
   const left = event.max_participants ? event.max_participants - heads : null;
   const notes = rsvps.filter((r) => r.note);
   // Une pastille qui arrive ou change de groupe « se pose » ; à l’ouverture, la liste s’affiche telle quelle.
-  const moved = useChangedSinceMount(rsvps.map((r) => `${r.user_id}:${r.status}:${r.waitlisted}`).sort().join(','));
+  const moved = useChangedSinceMount(rsvps.map((r) => `${r.user_id}:${r.status}:${r.waitlisted}:${waitingPlusOnes(r)}`).sort().join(','));
+  // Liste d’attente = personnes en attente ET accompagnants en attente d’un présent (qui, lui, a sa place), au rang.
+  const queue = [
+    ...waiting.map((r) => ({ r, extras: 0, since: r.updated_at ?? '' })),
+    ...yes.filter((r) => waitingPlusOnes(r) > 0).map((r) => ({ r, extras: waitingPlusOnes(r), since: r.plus_ones_waitlisted_since ?? '' })),
+  ].sort((a, b) => a.since.localeCompare(b.since));
+  const queuePlaces = queue.reduce((n, q) => n + (q.extras || 1 + q.r.plus_ones), 0);
+  const extrasName = (id: string, n: number) => (id === me
+    ? (n > 1 ? `Tes ${n} accompagnants` : 'Ton accompagnant')
+    : `${n > 1 ? `${n} accompagnants` : 'Accompagnant'} de ${nameOf(id)}`);
   if (!event.show_participants && rsvps.length <= 1) return null;
 
   const block = (label: string, list: Rsvp[], color: string, count = list.length) =>
@@ -233,13 +263,24 @@ export function ParticipantsSection({
       {rsvps.length === 0 ? <T muted size={14}>Personne n’a encore répondu. Sois le premier !</T> : null}
       {block('Présents', yes, colors.mint, heads)}
       {block('Peut-être', maybe, colors.coral)}
-      {block('Liste d’attente', waiting, colors.lavender)}
+      {queue.length ? (
+        <View style={{ gap: 8 }} accessibilityLabel={`Liste d’attente : ${queue.map((q) => (q.extras ? extrasName(q.r.user_id, q.extras) : nameOf(q.r.user_id))).join(', ')}`}>
+          <T size={12} weight="bold" color={colors.lavender}>{'Liste d’attente'.toUpperCase()} · {queuePlaces}</T>
+          <View style={s.wrap}>
+            {queue.map((q) => (
+              <PersonChip key={`${q.r.user_id}${q.extras ? ':plus' : ''}`} id={q.r.user_id} fresh={moved} viaLink={!q.extras && viaLink.has(q.r.user_id)}
+                name={q.extras ? extrasName(q.r.user_id, q.extras) : nameOf(q.r.user_id)}
+                extra={!q.extras && q.r.plus_ones ? `+${q.r.plus_ones}` : undefined} />
+            ))}
+          </View>
+        </View>
+      ) : null}
       {no.length ? <T muted size={13}>Absents : {no.map((r) => nameOf(r.user_id)).join(', ')}</T> : null}
       {notes.length ? (
         <View style={{ gap: 6 }}>
           {notes.map((r) => (
             <View key={r.user_id} style={st.note}>
-              <T size={13} color={colors.textSoft}><T size={13} weight="bold">{nameOf(r.user_id)} · </T>{r.note}</T>
+              <LinkedText size={13} color={colors.textSoft} prefix={<T size={13} weight="bold">{nameOf(r.user_id)} · </T>} text={r.note} />
             </View>
           ))}
         </View>
@@ -299,6 +340,7 @@ export function DatePollSection({
   async function propose() {
     const iso = parseLocalDateTime(proposal);
     if (!iso) return setError('Format attendu JJ.MM.AAAA HH:MM');
+    if (options.some((o) => new Date(o.starts_at).getTime() === new Date(iso).getTime())) return setError('Cette date est déjà proposée : vote pour elle.');
     if (await act(supabase.from('date_options').insert({ event_id: event.id, starts_at: iso, proposed_by: me }), onChange, setError)) setProposal('');
   }
 
@@ -326,7 +368,7 @@ export function DatePollSection({
                 <T weight="bold">{formatShort(o.starts_at)}</T>
                 <T muted size={12}>{yes} oui · {ifNeeded} si besoin · {no} non</T>
               </View>
-              {lead ? <View style={[st.pill, enter('pop')]}><T size={11} weight="bold" color={colors.onAccent}>EN TÊTE</T></View> : null}
+              {lead ? <View style={[st.pill, st.pillLead, enter('pop')]}><T size={11} weight="bold" color={colors.onAccent}>EN TÊTE</T></View> : null}
             </View>
             <Meter parts={[{ fraction: yes / total, color: colors.accent }, { fraction: ifNeeded / total, color: colors.lavender }]} />
             {!closed ? (
@@ -335,6 +377,7 @@ export function DatePollSection({
                   <Pressable
                     key={k}
                     accessibilityRole="button"
+                    accessibilityLabel={`${voteLabel[k]} : ${formatShort(o.starts_at)}`}
                     accessibilityState={{ selected: mine === k }}
                     onPress={() => vote(o.id, k)}
                     style={({ pressed }) => [{
@@ -431,7 +474,7 @@ export function PollSection({
             accessibilityState={{ selected: on }}
             disabled={closed || !canParticipate}
             onPress={() => toggle(o.id)}
-            style={({ pressed }) => [{ height: 48, borderRadius: 12, borderWidth: 1, borderColor: on ? colors.accent : colors.lineStrong, backgroundColor: colors.bg, overflow: 'hidden', justifyContent: 'center' }, pressTransition, pressed && st.pressed]}
+            style={({ pressed }) => [{ minHeight: 48, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: on ? colors.accent : colors.lineStrong, backgroundColor: colors.bg, overflow: 'hidden', justifyContent: 'center' }, pressTransition, pressed && st.pressed]}
           >
             {results ? (
               <Meter parts={[{ fraction: n / total, color: on ? colors.accentDim : colors.surface2 }]} track="transparent" height={null} style={st.pollFill} />
@@ -441,7 +484,7 @@ export function PollSection({
                 <View style={[st.radio, { borderColor: on ? colors.accent : colors.muted }, !poll.multiple_choice ? null : { borderRadius: 4 }]}>
                   {on ? <View style={[st.radioDot, enter('pop'), poll.multiple_choice && { borderRadius: 1 }]} /> : null}
                 </View>
-                <T weight="semibold" size={14} style={{ flex: 1 }} numberOfLines={1}>{o.label}</T>
+                <T weight="semibold" size={14} style={{ flex: 1 }} numberOfLines={3}>{o.label}</T>
               </View>
               {results ? <T muted size={13}>{n}</T> : null}
             </View>
@@ -518,7 +561,7 @@ export function BringSection({
             <SharedBringRow item={it} me={me} names={names} canParticipate={canParticipate} onChange={onChange} onError={setError} />
           ) : (
           <View style={s.rowBetween}>
-            <T style={{ flex: 1 }}>{it.label}</T>
+            <LinkedText style={{ flex: 1 }} text={it.label} />
             {/* Qui le prend change (moi, un autre, personne) : la nouvelle action se pose à sa place. */}
             <Reveal key={`${it.claimed_by ?? 'libre'}`} kind={grew || claimsChanged ? 'pop' : null}>
             {it.added_by === me ? (
@@ -551,8 +594,10 @@ export function BringSection({
 
 const st = StyleSheet.create({
   pill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(255,79,154,0.16)' },
+  // Texte sombre sur néon plein (sur le fond translucide, « EN TÊTE » était illisible : contraste 1,2).
+  pillLead: { backgroundColor: colors.accent },
   subRow: { paddingTop: 4 },
-  person: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 3, paddingRight: 10, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.surface2 },
+  person: { maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 3, paddingRight: 10, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.surface2 },
   viaLink: { borderWidth: 1, borderColor: colors.coral },
   pollFill: { position: 'absolute', left: 0, top: 0, bottom: 0, right: 0, borderRadius: 0 },
   pressed: { transform: [{ scale: 0.98 }] },

@@ -12,6 +12,7 @@ from .game_lock import LOCK as GAMES_LOCK
 
 MODES = ("next", "fair")
 HOST_ID = "host"
+PUSH_PER_GUEST = 3  # abonnements gardés par invité (ses appareils les plus récents)
 INACTIVE_AFTER = 3 * 3600  # un invité sans activité depuis 3 h est déconnecté  # les ajouts de l'hôte sont des demandes comme les autres, signées « Hôte »
 
 
@@ -33,7 +34,8 @@ class Request:
 # Notifications que chacun choisit (Réglages › Notifications) et leur valeur tant qu'il n'a rien choisi.
 ADMIN_NOTIFY_DEFAULTS = {"messages": True, "games": False, "feedback": True}
 # Choix de l'admin du 28.10.2026 : « Mon titre passe » coupé tant que l'invité ne le demande pas.
-GUEST_NOTIFY_DEFAULTS = {"track": False, "feedback": True, "games": False}
+# Choix de l'admin du 05.11.2026 : plus de notification « nouvelle partie » aux invités (l'hôte garde la sienne).
+GUEST_NOTIFY_DEFAULTS = {"track": False, "feedback": True}
 
 
 @dataclass
@@ -255,6 +257,43 @@ class PartyStore:
             self.save()
             return nonce if present else None
 
+    def merge_guest(self, old: str, new: str) -> bool:
+        """Un invité se connecte à son compte : son identifiant d'invité (old) devient celui du compte (new), sans
+        enregistrer (l'appelant enregistre une seule fois, sous GAMES_LOCK puis self.lock). Une seule entrée dans la
+        liste des invités (adresses, jetons d'accès, prénom), bannissement reporté sur le compte, titres demandés,
+        messages à l'hôte, abonnement aux notifications et Live Activity suivent le compte. Renvoie True si
+        quelque chose a changé."""
+        s = self.session
+        changed = False
+        if old in s.guests:
+            s.guests[new] = _merged_guest(s.guests.pop(old), s.guests.get(new))
+            changed = True
+        if old in s.bans:
+            s.bans[new] = _stricter_ban(s.bans[old], s.bans.get(new))  # l'ancien reste : un téléphone déconnecté
+            changed = True
+        for r in s.requests:
+            if r.guest_id == old:
+                r.guest_id = new
+                changed = True
+        for m in s.messages:
+            if m.get("guest_id") == old:
+                m["guest_id"] = new
+                changed = True
+        if old in s.push:
+            subs = s.push.pop(old)
+            ends = {x["endpoint"] for x in subs}
+            s.push[new] = ([x for x in s.push.get(new, []) if x["endpoint"] not in ends] + subs)[-PUSH_PER_GUEST:]
+            changed = True
+        if old in s.activity_start_tokens and new not in s.activity_start_tokens:
+            s.activity_start_tokens[new] = s.activity_start_tokens.pop(old)
+            changed = True
+        if old in s.guest_notify and new not in s.guest_notify:  # choix faits avant de se connecter (sans écraser)
+            s.guest_notify[new] = dict(s.guest_notify[old])
+            changed = True
+        if old in self.last_seen:
+            self.last_seen[new] = max(self.last_seen[old], self.last_seen.get(new, 0))
+        return changed
+
     def kick(self, guest_id: str):
         """Déconnecte un invité : jetons révoqués, il disparaît de la liste jusqu'à ce qu'il ressaisisse le code."""
         g = self.session.guests.pop(guest_id, {})
@@ -397,7 +436,7 @@ class PartyStore:
             self.session.admin_push = self.session.admin_push[-4:] + [sub]
         else:
             for gid in (guest_id, *also):
-                self.session.push[gid] = self.session.push.get(gid, [])[-2:] + [sub]
+                self.session.push[gid] = self.session.push.get(gid, [])[-(PUSH_PER_GUEST - 1):] + [sub]
         self.save()
 
     def remove_push(self, endpoint: str, save: bool = True):
@@ -408,6 +447,26 @@ class PartyStore:
                 del self.session.push[gid]
         if save:
             self.save()
+
+
+def _merged_guest(old: dict, new: dict | None) -> dict:
+    """Fiche d'invité unique après connexion à un compte : celle du compte complétée par celle du téléphone."""
+    if not new:
+        return dict(old)
+    via = list(dict.fromkeys(new.get("via", ["music"]) + old.get("via", ["music"])))
+    ips = list(dict.fromkeys(new.get("ips", []) + old.get("ips", [])))
+    tokens = list(dict.fromkeys(new.get("tokens", []) + old.get("tokens", [])))[-10:]
+    return {**old, **new, "via": via, "ips": ips, "tokens": tokens,
+            "joined_at": min(new.get("joined_at") or time.time(), old.get("joined_at") or time.time()),
+            "active_at": max(new.get("active_at") or 0, old.get("active_at") or 0)}
+
+
+def _stricter_ban(old: dict, new: dict | None) -> dict:
+    """Le bannissement reporté sur le compte : sans limite l'emporte, sinon le plus long."""
+    if not new:
+        return dict(old)
+    until = 0 if 0 in (old["until"], new["until"]) else max(old["until"], new["until"])
+    return {**new, "until": until, "ips": sorted(set(new.get("ips", [])) | set(old.get("ips", [])))}
 
 
 def insert_position(

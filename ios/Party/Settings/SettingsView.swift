@@ -7,8 +7,11 @@ struct SettingsView: View {
     let topInset: CGFloat
     let isHost: Bool
     var hostMusic: HostMusicStore?
+    /// « Ton avis » / « Retours » (page, native-tabs.js) : libellé et pastille des avis à traiter ou des réponses.
+    var feedbackEntry: TabBarState.FeedbackEntry?
     let open: (WebModel.PagePlace) -> Void
     @State private var confirmSignOut = false
+    @State private var joinLink: JoinLink?
 
     var body: some View {
         NavigationStack {
@@ -38,6 +41,13 @@ struct SettingsView: View {
                             SettingsRow(symbol: "person.3.fill", tint: .blue, title: "Groupes",
                                         hint: "Les groupes dont tu fais partie ; crée les tiens")
                         }
+                        NavigationLink {
+                            FriendsView(store: store.friends, privacy: store.privacy)
+                        } label: {
+                            SettingsRow(symbol: "person.2.circle.fill", tint: .pink, title: "Mes amis dans Party",
+                                        hint: "Tes contacts inscrits sur Party ; invite les autres")
+                        }
+                        .accessibilityIdentifier("settings-friends")
                     }
                 }
                 if isHost || store.account?.admin == true || store.account?.groupAdmin == true {
@@ -81,14 +91,19 @@ struct SettingsView: View {
                                         hint: "Purify Test et Méninges : scores, profil, records")
                         }
                     }
-                    // « Ton avis » : l'hôte, et les comptes Guest+ et au-dessus (droit « Écrire un avis »).
-                    if isHost || store.account?.feedback == true {
-                        page(.tab("feedback"), "bubble.left.and.bubble.right.fill", .green, "Ton avis", "Une idée, un bug ? Écris à l'organisateur")
+                    // « Ton avis » : l'hôte (« Retours »), et les comptes Guest+ et au-dessus (droit « Écrire un avis »).
+                    // Sorti de la barre d'onglets le 4.11 (onglet Zicou) : sa pastille est reportée ici.
+                    if Self.showsFeedback(isHost: isHost, account: store.account?.feedback == true, entry: feedbackEntry) {
+                        page(.tab("feedback"), "bubble.left.and.bubble.right.fill", .green, Self.feedbackTitle(isHost: isHost, entry: feedbackEntry),
+                             isHost ? "Les idées et bugs des invités ; ton avis aussi" : "Une idée, un bug ? Écris à l'organisateur",
+                             badge: feedbackEntry?.badge)
+                        .accessibilityIdentifier("settings-feedback")
                     }
                 }
                 Section {
-                    NavigationLink { PrivacyView() } label: {
-                        SettingsRow(symbol: "lock.fill", tint: .blue, title: "Confidentialité", hint: "Tes données et tes choix")
+                    NavigationLink { PrivacyView(moderation: store.account != nil ? store.moderation : nil) } label: {
+                        SettingsRow(symbol: "lock.fill", tint: .blue, title: "Confidentialité",
+                                    hint: store.account != nil ? "Personnes bloquées, conditions d'utilisation, tes données" : "Tes données et tes choix")
                     }
                     if store.account != nil {
                         NavigationLink {
@@ -119,6 +134,18 @@ struct SettingsView: View {
             .motion(Motion.smooth, value: store.account?.feedback)
             .background(AppConfig.background)
             .navigationTitle("Réglages")
+            // Lien d'invitation dans Party ouvert dans l'app (/events/join/<lien>) : « X t'invite sur Party ».
+            // Gardé jusqu'à la connexion : la feuille revient alors et le lien est réclamé.
+            .sheet(item: $joinLink) { link in
+                JoinInviteSheet(store: store.friends, invite: link.id, signedIn: store.account != nil)
+                    .presentationDetents([.medium])
+            }
+            .onReceive(store.friends.$pendingInvite.dropFirst()) { invite in
+                if let invite { joinLink = JoinLink(id: invite) }
+            }
+            .onChange(of: store.account != nil) { signedIn in
+                if signedIn, let invite = store.friends.pendingInvite { joinLink = JoinLink(id: invite) }
+            }
             // Lune en haut à droite (avis de l'admin) : pause de tout, sauf les notifications admin.
             .toolbar {
                 if store.account != nil {
@@ -176,11 +203,27 @@ struct SettingsView: View {
         }
     }
 
-    private func page(_ place: WebModel.PagePlace, _ symbol: String, _ tint: Color, _ title: String, _ hint: String) -> some View {
+    static func showsFeedback(isHost: Bool, account: Bool, entry: TabBarState.FeedbackEntry?) -> Bool {
+        isHost || account || entry?.allowed == true
+    }
+
+    static func feedbackTitle(isHost: Bool, entry: TabBarState.FeedbackEntry?) -> String {
+        entry?.label ?? (isHost ? "Retours" : "Ton avis")
+    }
+
+    private func page(_ place: WebModel.PagePlace, _ symbol: String, _ tint: Color, _ title: String, _ hint: String,
+                      badge: String? = nil) -> some View {
         Button { open(place) } label: {
             HStack {
                 SettingsRow(symbol: symbol, tint: tint, title: title, hint: hint)
                 Spacer(minLength: 0)
+                if let badge {
+                    Text(badge)
+                        .font(.footnote.weight(.semibold)).foregroundStyle(.white)
+                        .padding(.horizontal, 7).frame(minWidth: 22, minHeight: 22)
+                        .background(Color.red, in: Capsule())
+                        .accessibilityLabel("\(badge) à voir")
+                }
                 Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
             }
         }
@@ -249,3 +292,4 @@ private struct SessionNotice: View {
 }
 
 private struct TricountLink: Identifiable { let id: String }
+private struct JoinLink: Identifiable { let id: String }

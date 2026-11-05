@@ -5,19 +5,26 @@ import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { AttendanceEditor } from '@/components/AttendanceEditor';
 import { AttendeesBadge } from '@/components/AttendeesBadge';
 import { PendingPayments } from '@/components/PendingPayments';
+import { ReportSheet } from '@/components/ReportSheet';
 import { TicketCard } from '@/components/TicketCard';
+import { TicketsManager } from '@/components/TicketsManager';
 import { CalendarButton } from '@/components/CalendarButton';
+import { EventGiftsLink } from '@/components/EventGifts';
+import { compagnonOn } from '@/lib/features';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
+import { LinkedText } from '@/components/LinkedText';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
 import { Badge, Button, Card, Cascade, ConfirmButton, ErrorText, HeaderAction, HeaderBack, Screen, s, Section, Skeleton, T, Title, Toast } from '@/components/ui';
 import { fetchAttendance, localAttendance } from '@/lib/attendance';
 import { useAuth, useMe } from '@/lib/auth';
 import { personLabel, useContactNames, withContactNames } from '@/lib/contactNames';
 import { useQuery, useRealtime } from '@/lib/data';
+import { safeHref } from '@/lib/links';
 import { formatLongDay, formatMessageTime, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
+import type { ReportTarget } from '@/lib/moderation';
 import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
-import { ticketRelevant } from '@/lib/tickets';
+import { ticketRelevant, chf } from '@/lib/tickets';
 import type { BringItem, Category, DateOption, DateVoteRow, EventRow, Message, Poll, PollOption, Rsvp, Tag } from '@/lib/types';
 import { plusOnesLabel } from '@/lib/types';
 import { notifyWallet } from '@/lib/wallet';
@@ -31,7 +38,7 @@ type Full = EventRow & {
   date_options: (DateOption & { date_votes: DateVoteRow[] })[];
   polls: (Poll & { poll_options: PollOption[] })[];
   bring_items: BringItem[];
-  event_groups: { member_groups: { name: string } | null }[];
+  event_groups: { group_id: string }[];
 };
 
 /** Lien à partager : ouvre Party sur cet événement (page publique pour qui n'est pas membre). */
@@ -57,13 +64,16 @@ export default function EventScreen() {
   const isAdmin = can('events.manage_all');
   const [error, setError] = useState<string | null>(null);
   const [shareNote, setShareNote] = useState('');
+  const [report, setReport] = useState<ReportTarget | null>(null);
+  /** Paiement confirmé (« Reçu ») : il remet aussi le billet, la liste « Billets QR » se relit. */
+  const [paymentsSeen, setPaymentsSeen] = useState(0);
 
   const { data: loaded, reload, error: loadError } = useQuery(async () => {
-    const [ev, members, results, myVotes, allVotes, messages, mute, links, attendance] = await Promise.all([
+    const [ev, members, results, myVotes, allVotes, messages, mute, links, attendance, groupNames] = await Promise.all([
       supabase
         .from('events')
         .select(
-          '*, category:categories(*), author:profiles!events_created_by_fkey(id, display_name), event_tags(tags(*)), event_organizers(user_id), rsvps(*), date_options(*, date_votes(*)), polls(*, poll_options(*)), bring_items(*, bring_claims(user_id, quantity)), event_groups(member_groups(name))',
+          '*, category:categories(*), author:profiles!events_created_by_fkey(id, display_name), event_tags(tags(*)), event_organizers(user_id), rsvps(*), date_options(*, date_votes(*)), polls(*, poll_options(*)), bring_items(*, bring_claims(user_id, quantity)), event_groups(group_id)',
         )
         .eq('id', id)
         .single(),
@@ -77,6 +87,8 @@ export default function EventScreen() {
       supabase.from('event_invites').select('user_id').eq('event_id', id).eq('via_link', true),
       // Pastille des présents : totaux exacts même si la liste des participants est cachée.
       fetchAttendance([id]),
+      // Noms des groupes invités : lisibles par qui voit l'événement, même sans faire partie du groupe.
+      supabase.rpc('event_group_names', { e: id }),
     ]);
     return {
       event: must(ev) as unknown as Full,
@@ -88,6 +100,7 @@ export default function EventScreen() {
       muted: must(mute).length > 0,
       viaLink: new Set(((links.data ?? []) as { user_id: string }[]).map((l) => l.user_id)),
       attendance: attendance.get(id) ?? null,
+      groupNames: ((groupNames.data ?? []) as string[]).join(', '),
       loadedAt: Date.now(),
     };
   }, [id, me.id]);
@@ -121,7 +134,17 @@ export default function EventScreen() {
     return out;
   }, [data]);
 
-  if (!data || !ev) return loadError ? <Screen edges={[]}><ErrorText error={loadError} /></Screen> : <EventSkeleton />;
+  if (!data || !ev) {
+    if (!loadError) return <EventSkeleton />;
+    // Échec du chargement : jamais une impasse (retour à la liste, nouvel essai).
+    return (
+      <Screen edges={[]}>
+        <Stack.Screen options={{ title: '', ...(router.canGoBack() ? {} : { headerLeft: () => <HeaderBack label="Événements" onPress={() => router.replace('/')} /> }) }} />
+        <ErrorText error={loadError} />
+        <Button label="Réessayer" variant="secondary" onPress={reload} />
+      </Screen>
+    );
+  }
 
   const published = ev.status === 'published';
   const canEdit = isAdmin || (isOrganizer && (ev.status !== 'published' || can('events.edit_own_published')));
@@ -145,12 +168,13 @@ export default function EventScreen() {
   const people = data.attendance ?? localAttendance(ev.rsvps, data.names);
   const heads = people.going;
   const past = !!ev.starts_at && new Date(ev.ends_at ?? ev.starts_at).getTime() < data.loadedAt - 6 * 3600_000;
-  const mapsUrl = ev.location_url ?? (ev.location_address || ev.location_name ? `https://maps.apple.com/?q=${encodeURIComponent(ev.location_address ?? ev.location_name!)}` : null);
+  // Lien du lieu saisi librement : seulement http(s) (jamais javascript:/data:), sinon la recherche Plans.
+  const mapsUrl = safeHref(ev.location_url) ?? (ev.location_address || ev.location_name ? `https://maps.apple.com/?q=${encodeURIComponent(ev.location_address ?? ev.location_name!)}` : null);
   const mine = ev.rsvps.find((r) => r.user_id === me.id);
   const showCalendar = published && ev.date_mode === 'fixed' && !!ev.starts_at && mine?.status !== 'no';
 
   const infoRows = [
-    ev.price_chf != null ? { k: 'Prix', v: ev.price_chf === 0 ? 'Gratuit' : `${ev.price_chf} CHF / personne`, sub: ev.payment_info } : null,
+    ev.price_chf != null ? { k: 'Prix', v: ev.price_chf === 0 ? 'Gratuit' : `${chf(ev.price_chf)} / personne`, sub: ev.payment_info } : null,
     ev.max_participants
       ? { k: 'Places', v: `${heads} / ${ev.max_participants}`, sub: heads >= ev.max_participants ? (ev.waitlist_enabled ? 'Complet · liste d’attente ouverte' : 'Complet') : plural(ev.max_participants - heads, 'place libre', 'places libres') }
       : ev.date_mode === 'fixed' ? { k: 'Places', v: '∞ Illimité', sub: plural(heads, 'personne inscrite', 'personnes inscrites') } : null,
@@ -183,25 +207,26 @@ export default function EventScreen() {
       ) : null}
       {/* En-tête : l’essentiel en un coup d’œil */}
       <View style={{ gap: 10 }}>
-        <View style={s.wrap}>
-          {ev.status === 'pending' ? <Badge label="En attente de validation" fg={colors.lavender} bg={colors.lavenderDim} /> : null}
-          {ev.status === 'draft' ? <Badge label="Brouillon" fg={colors.textSoft} bg={colors.surface2} /> : null}
-          {ev.status === 'rejected' ? <Badge label="Refusé" fg={colors.coralSoft} bg={colors.coralDim} /> : null}
-          {ev.status === 'cancelled' ? <Badge label="Annulé" fg={colors.coralSoft} bg={colors.coralDim} /> : null}
-          {ev.date_mode === 'poll' ? <Badge label="Date à définir" fg={colors.coralSoft} bg={colors.coralDim} /> : null}
-          {ev.category ? <Badge label={ev.category.name} fg={colors.onAccent} bg={ev.category.color} /> : null}
-        </View>
-        {/* En haut à droite : qui vient, et combien (donne envie d’en être). */}
+        {/* En haut : les étiquettes, et à droite qui vient et combien (donne envie d’en être). Le titre, dessous,
+            garde toute la largeur : un long titre ne pousse plus la pastille hors de l’écran. */}
         <View style={st.titleRow}>
-          <Title size={32} style={{ lineHeight: 36, flex: 1 }}>{ev.title}</Title>
+          <View style={[s.wrap, st.badges]}>
+            {ev.status === 'pending' ? <Badge label="En attente de validation" fg={colors.lavender} bg={colors.lavenderDim} /> : null}
+            {ev.status === 'draft' ? <Badge label="Brouillon" fg={colors.textSoft} bg={colors.surface2} /> : null}
+            {ev.status === 'rejected' ? <Badge label="Refusé" fg={colors.coralSoft} bg={colors.coralDim} /> : null}
+            {ev.status === 'cancelled' ? <Badge label="Annulé" fg={colors.coralSoft} bg={colors.coralDim} /> : null}
+            {ev.date_mode === 'poll' ? <Badge label="Date à définir" fg={colors.coralSoft} bg={colors.coralDim} /> : null}
+            {ev.category ? <Badge label={ev.category.name} fg={colors.onAccent} bg={ev.category.color} /> : null}
+          </View>
           {published && ev.date_mode === 'fixed' ? <AttendeesBadge attendance={people} large past={past} /> : null}
         </View>
+        <Title size={32} style={{ lineHeight: 36 }}>{ev.title}</Title>
         {ev.visibility === 'invited' ? (
           <T muted size={13}>
-            🔒 Sur invitation{ev.event_groups.length ? ` · ${ev.event_groups.map((g) => g.member_groups?.name).filter(Boolean).join(', ')}` : ''}
+            🔒 Sur invitation{data?.groupNames ? ` · ${data.groupNames}` : ''}
           </T>
         ) : !ev.public_link ? (
-          <T muted size={13}>👥 Groupe Vendredi Party{ev.event_groups?.length ? ` + ${ev.event_groups.map((g) => g.member_groups?.name).filter(Boolean).join(', ')}` : ''}</T>
+          <T muted size={13}>👥 Groupe Vendredi Party{data?.groupNames ? ` + ${data.groupNames}` : ''}</T>
         ) : null}
         {ev.public_link && published ? (
           <View style={s.row}>
@@ -277,7 +302,7 @@ export default function EventScreen() {
 
       {ev.description ? (
         <Section title="À propos">
-          <T color={colors.textSoft} style={{ lineHeight: 22 }}>{ev.description}</T>
+          <LinkedText text={ev.description} color={colors.textSoft} style={{ lineHeight: 22 }} />
         </Section>
       ) : null}
 
@@ -288,7 +313,7 @@ export default function EventScreen() {
               <T muted size={14}>{r.k}</T>
               <View style={{ flexShrink: 1, alignItems: 'flex-end' }}>
                 <T weight="semibold" style={{ textAlign: 'right' }}>{r.v}</T>
-                {r.sub ? <T muted size={13} style={{ textAlign: 'right' }}>{r.sub}</T> : null}
+                {r.sub ? <LinkedText text={r.sub} muted size={13} style={{ textAlign: 'right' }} /> : null}
               </View>
             </View>
           ))}
@@ -299,8 +324,13 @@ export default function EventScreen() {
       {ev.date_mode === 'fixed' && published && canManage ? (
         <AttendanceEditor event={ev} rsvps={ev.rsvps} names={data.names} me={me.id} onChange={reload} />
       ) : null}
+      {ev.date_mode === 'fixed' && published && canManage ? (
+        <TicketsManager eventId={ev.id} enabled={!!ev.tickets_enabled} canToggle onToggled={reload}
+          refreshKey={`${paymentsSeen}|${ev.rsvps.map((r) => `${r.user_id}:${r.status}:${r.waitlisted}`).join(',')}`} />
+      ) : null}
       {ev.date_mode === 'fixed' && published && canManage && (ev.price_chf ?? 0) > 0 ? (
-        <PendingPayments eventId={ev.id} price={ev.price_chf!} refreshKey={ev.rsvps.map((r) => `${r.user_id}:${r.status}`).join(',')} />
+        <PendingPayments eventId={ev.id} price={ev.price_chf!} refreshKey={ev.rsvps.map((r) => `${r.user_id}:${r.status}`).join(',')}
+          onConfirmed={() => setPaymentsSeen((n) => n + 1)} />
       ) : null}
 
       {ev.polls
@@ -343,8 +373,14 @@ export default function EventScreen() {
           {ev.event_tags.map(({ tags: t }) => <T key={t.id} size={13} weight="semibold" color={t.color}>#{t.name}</T>)}
         </View>
       ) : null}
+      {/* Apple 1.2 : titre, description et photo sont du contenu de membre ; tout le monde peut les signaler sauf l'auteur. */}
+      {ev.created_by !== me.id ? (
+        <Button small variant="ghost" label="Signaler cet événement" style={{ alignSelf: 'flex-start' }}
+          onPress={() => setReport({ kind: 'event', id: ev.id, label: 'cet événement' })} />
+      ) : null}
 
       <ErrorText error={error} />
+      {compagnonOn && published && ev.date_mode === 'fixed' ? <EventGiftsLink eventId={ev.id} canManage={canManage} /> : null}
       {canManage && published && ev.visibility === 'invited' ? <InviteLinkCard kind="event" id={ev.id} /> : null}
       {canManage && published ? (
         <View style={st.orgZone}>
@@ -381,6 +417,7 @@ export default function EventScreen() {
       </Cascade>
     </Screen>
     {shareNote === 'Lien copié' ? <Toast message="Lien copié" onHide={() => setShareNote('')} /> : null}
+    <ReportSheet target={report} onClose={() => setReport(null)} />
     </>
   );
 }
@@ -416,7 +453,9 @@ function EventSkeleton() {
 const st = StyleSheet.create({
   cover: { width: '100%', aspectRatio: 16 / 9, borderRadius: radius.md, backgroundColor: colors.surface2, marginBottom: 14 },
   keyRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  // Étiquettes à gauche (au moins une catégorie), pastille à droite ; trop étroit : la pastille passe dessous.
+  badges: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 110 },
+  titleRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'flex-end', gap: 12 },
   keyIcon: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   notice: { padding: 12, borderRadius: radius.md },
   divided: { borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 12 },

@@ -70,9 +70,18 @@ final class TVClient {
 
     /// 401 : la session admin a expiré (le code admin est redemandé au trousseau puis renvoyé).
     func get(_ path: String) async throws -> (JSON, Int) {
-        let (data, response) = try await send(URLRequest(url: base.appendingPathComponent(path)))
+        let (data, response) = try await send(URLRequest(url: url(path)))
         let json = (try? JSONDecoder().decode(JSON.self, from: data)) ?? .null
         return (json, response.statusCode)
+    }
+
+    /// Adresse d'une route du site ; « chemin?question » garde sa question telle quelle (pas de « ? » encodé dans le chemin).
+    func url(_ path: String) -> URL {
+        let parts = path.split(separator: "?", maxSplits: 1).map(String.init)
+        let url = base.appendingPathComponent(parts.first ?? "")
+        guard parts.count == 2, var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+        components.percentEncodedQuery = parts[1]
+        return components.url ?? url
     }
 
     private func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {

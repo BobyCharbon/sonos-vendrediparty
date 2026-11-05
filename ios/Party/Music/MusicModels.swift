@@ -20,6 +20,8 @@ struct PartyState: Decodable, Equatable {
     let queueEditable: Bool
     /// PLAYING, PAUSED_PLAYBACK, STOPPED, TRANSITIONING (Sonos et Spotify, app/sonos.py · spotify_player.py).
     let playback: String?
+    /// Invité sans compte : titres encore possibles ce soir (nil : compte, sans cette limite ; app/guest_gate.py).
+    let guestTracks: GuestTracks?
 
     /// Musique en pause ou arrêtée : les heures de passage ne s'écoulent pas.
     var isPaused: Bool { playback == "PAUSED_PLAYBACK" || playback == "STOPPED" }
@@ -29,6 +31,7 @@ struct PartyState: Decodable, Equatable {
         case upcomingTotal = "upcoming_total"
         case queueEditable = "queue_editable"
         case playback = "state"
+        case guestTracks = "guest_tracks"
     }
 
     init(from decoder: Decoder) throws {
@@ -45,7 +48,29 @@ struct PartyState: Decodable, Equatable {
         messages = try c.decodeIfPresent([HostMessage].self, forKey: .messages) ?? []
         queueEditable = try c.decodeIfPresent(Bool.self, forKey: .queueEditable) ?? true
         playback = try c.decodeIfPresent(String.self, forKey: .playback)
+        guestTracks = try c.decodeIfPresent(GuestTracks.self, forKey: .guestTracks)
     }
+}
+
+/// Titres proposés en invité ce soir, au plus `limit` (réglé par l'admin ; 0 = compte requis pour proposer).
+struct GuestTracks: Decodable, Equatable {
+    let used: Int
+    let limit: Int
+    let left: Int
+
+    /// Texte affiché au-dessus de la recherche (la musique reste accessible sans compte).
+    var text: String {
+        let titles = { (n: Int) in "\(n) titre\(n > 1 ? "s" : "")" }
+        if left > 0 {
+            return "En invité : encore \(titles(left)) à proposer ce soir. Crée ton compte dans Réglages (juste ton numéro) pour en proposer plus."
+        }
+        let start = limit == 0 ? "Proposer des titres demande un compte ce soir."
+            : "Tu as proposé tes \(titles(limit)) de la soirée en invité."
+        return start + " Crée ton compte (juste ton numéro) pour en proposer d'autres."
+    }
+
+    /// Limite atteinte (ou compte requis ce soir) : la recherche disparaît, le bouton « Créer mon compte » la remplace.
+    var needsAccount: Bool { left <= 0 }
 }
 
 struct HostMessage: Decodable, Equatable, Identifiable {
@@ -124,4 +149,41 @@ enum PassageTime {
         let parts = calendar.dateComponents([.hour, .minute], from: at)
         return String(format: "vers %02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
     }
+}
+
+/// Réponse de POST /api/queue : bandeaux de Zicou éventuels (app/pet_reactions.py ; absents d'un ancien serveur).
+struct EnqueueResult: Decodable {
+    let zicou: [ZicouReaction]?
+}
+
+/// Petit bandeau « +5 🪙 pour Zicou » (kind reward) ou proposition d'adopter un Zicou, une seule fois (kind adopt).
+struct ZicouReaction: Decodable, Equatable {
+    let kind: String
+    let text: String
+}
+
+/// GET /api/features : fonctions en bêta. Compagnon (Zicou) : allumé sur le site de test seulement. Discussions :
+/// fermées en production tant qu'Apple ne les a pas vues (onglet, « Écrire », conversations natives masqués).
+/// Absent (ancien serveur) = éteint.
+struct PartyFeatures: Decodable, Equatable {
+    let compagnon: Bool
+    let discussions: Bool
+
+    init(compagnon: Bool, discussions: Bool = false) {
+        self.compagnon = compagnon
+        self.discussions = discussions
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        compagnon = try values.decodeIfPresent(Bool.self, forKey: .compagnon) ?? false
+        discussions = try values.decodeIfPresent(Bool.self, forKey: .discussions) ?? false
+    }
+
+    private enum CodingKeys: String, CodingKey { case compagnon, discussions }
+}
+
+/// Réglages › Compagnon : « Réactions de Zicou » (bandeaux dans l'app, jamais une notification).
+struct ZicouReactionsPrefs: Decodable, Equatable {
+    let enabled: Bool
 }

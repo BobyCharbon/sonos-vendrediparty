@@ -1,6 +1,8 @@
 """Administration du groupe pour l'app iOS native : demandes d'adhésion, propositions d'événements, membres,
 rôles et droits, journal. Tout passe par la session du membre : la base (droits, règles RLS, fonctions) décide
 de ce qu'il voit et peut faire ; le serveur ne fait que relayer et mettre en forme."""
+import re
+
 import httpx
 
 from .accounts import SUPABASE_URL, AccountError, Accounts
@@ -51,7 +53,9 @@ def readable(r: httpx.Response, fallback: str) -> str:
     for key, text in ERRORS.items():
         if key in message:
             return text
-    return message.removeprefix("forbidden: ") or fallback
+    # Phrases de la base précédées d'une clé (« content_refused: Message non envoyé… ») : la phrase seule.
+    return re.sub(r"^(forbidden|blocked|content_refused|terms_required|terms_version|rate_limited|not_found|self|reason|days): ",
+                  "", message) or fallback
 
 
 def _role(r, labels: dict | None = None) -> str:
@@ -107,6 +111,12 @@ def describe(e: dict, labels: dict | None = None) -> str:
         return f"{who} a réordonné les rôles"
     if action == "members.viewed":
         return f"{who} a ouvert la liste des membres (numéros compris)"
+    if action.startswith("moderation."):  # écran Signalements (modération commune, 4.11)
+        days = f" pour {d['days']} jour(s)" if d.get("days") else ""
+        verbs = {"hide": f"a masqué un contenu de {target}", "warn": f"a averti {target}",
+                 "suspend": f"a suspendu {target}{days}", "ban": f"a banni {target}", "lift": f"a réintégré {target}",
+                 "dismiss": "a classé un signalement sans suite", "settings": "a changé les réglages de la modération"}
+        return f"{who} {verbs.get(action.split('.', 1)[1], action)}"
     return f"{who} : {action}" + (f" · {target}" if target else "")
 
 

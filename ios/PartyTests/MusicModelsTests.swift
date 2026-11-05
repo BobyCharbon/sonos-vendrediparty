@@ -30,6 +30,18 @@ struct MusicModelsTests {
         #expect(state.messages.first?.reply == "OK 👍" && state.played.count == 1)
     }
 
+    @Test("Invité sans compte : titres restants ce soir, puis compte requis (app/guest_gate.py)")
+    func decodesGuestTracksLimit() throws {
+        let some: PartyState = try decode(#"{"active": true, "guest_tracks": {"used": 1, "limit": 3, "left": 2}}"#)
+        #expect(some.guestTracks?.left == 2 && some.guestTracks?.text.contains("encore 2 titres") == true)
+        let none: PartyState = try decode(#"{"active": true, "guest_tracks": {"used": 3, "limit": 3, "left": 0}}"#)
+        #expect(none.guestTracks?.text.hasPrefix("Tu as proposé tes 3 titres") == true)
+        let zero: PartyState = try decode(#"{"active": true, "guest_tracks": {"used": 0, "limit": 0, "left": 0}}"#)
+        #expect(zero.guestTracks?.text.contains("demande un compte") == true)
+        let member: PartyState = try decode(#"{"active": true, "guest_tracks": null}"#)
+        #expect(member.guestTracks == nil)
+    }
+
     @Test("Pas de soirée : seuls « active » et quelques champs sont envoyés")
     func decodesAClosedParty() throws {
         let state: PartyState = try decode(#"{"active": false}"#)

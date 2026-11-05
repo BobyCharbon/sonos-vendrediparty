@@ -50,7 +50,7 @@ struct CodeScreen: View {
                             Task { await store.watch(g["code"].string ?? "") }
                         } label: {
                             HStack {
-                                Text(g["name"].string ?? "Partie").font(.title3.bold())
+                                Text(StoreGames.name(g)).font(.title3.bold())
                                 Spacer()
                                 Text("\(g["players"].int ?? 0) joueurs · \(g["code"].string ?? "")").foregroundStyle(TV.muted)
                             }

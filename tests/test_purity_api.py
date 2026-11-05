@@ -121,7 +121,7 @@ def test_full_round_answers_stay_private_and_ranking_is_revealed(setup):
     assert [r['name'] for r in v['ranking']] == ['Bob', 'Alice']  # le plus impur en tête
     assert v['ranking'][0]['score'] == 9 and v['me_score'] == 0
     assert 'mine' not in v and 'questions' not in v
-    assert [r['name'] for r in v['leaderboard']['rows']] == ['Bob', 'Alice']
+    assert v['leaderboard'] == {'rows': [], 'total': 0}  # classement général : seulement ceux qui l'ont choisi
 
 
 def test_unrelated_actions_are_refused(setup):
@@ -163,6 +163,8 @@ def test_leaving_drops_private_answers(setup):
 def test_general_leaderboard_endpoint(setup):
     c, alice, _ = setup
     solo_round(c, create(c, alice).json()['code'], alice)
+    assert c.get('/api/purity/leaderboard').json()['total'] == 0  # désactivé par défaut
+    assert c.post('/api/purity/me/public', json={'token': TOK_A, 'on': True}).json()['public'] is True
     lb = c.get('/api/purity/leaderboard').json()
     assert lb['total'] == 1 and lb['rows'][0]['best'] == ONE_DONE
     assert alice not in str(lb)  # l'identifiant secret du compte ne fuit pas
@@ -170,12 +172,13 @@ def test_general_leaderboard_endpoint(setup):
 
 def test_my_stats_are_private_to_the_signed_in_account(setup):
     c, alice, bob = setup
-    assert c.post('/api/purity/me', json={'token': TOK_A}).json() == {'plays': 0}
+    assert c.post('/api/purity/me', json={'token': TOK_A}).json() == {'plays': 0, 'public': False}
     solo_round(c, create(c, alice).json()['code'], alice)
     me = c.post('/api/purity/me', json={'token': TOK_A}).json()
     assert me['plays'] == 1 and me['last'] == ONE_DONE and me['best'] == ONE_DONE
-    assert len(me['categories']) == len(purity.CATEGORIES) and me['categories'][0]['yes'] == 1
-    assert c.post('/api/purity/me', json={'token': TOK_B}).json() == {'plays': 0}  # Bob ne voit pas les stats d'Alice
+    assert 'categories' not in me and me['public'] is False  # jamais le profil par catégorie (A4)
+    assert c.post('/api/purity/me', json={'token': TOK_B}).json() == {'plays': 0, 'public': False}
+    assert c.post('/api/purity/me/public', json={'token': 'x' * 40, 'on': True}).status_code == 401  # Bob ne voit pas les stats d'Alice
     assert c.post('/api/purity/me', json={'token': 'x' * 40}).status_code == 401
     assert c.post('/api/purity/me', json={'token': ''}).status_code == 400
 

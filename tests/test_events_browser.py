@@ -637,3 +637,28 @@ def test_roles_screen_lists_custom_roles_reorders_and_creates(browser,events_ori
         page.get_by_role('switch',name='Publier sans validation').click()
         assert sent('set_role_permission')[-1]=={'target':'r_videurs','perm':'events.publish_direct','granted':True}
     finally: context.close()
+
+
+def test_settings_row_ton_avis_shows_the_party_badge_and_opens_the_page(browser, events_origin):
+    """Onglet Zicou (4.11) : « Ton avis » / « Retours » sort de la barre et devient une ligne des Réglages du module,
+    avec la pastille décrite par la page (avis à traiter, réponses reçues) ; la toucher ouvre la page de Party."""
+    context = browser.new_context(viewport={'width': 390, 'height': 844})
+    page = context.new_page(); mock_services(page)
+    errors = []; page.on('pageerror', lambda e: errors.append(str(e)))
+    try:
+        page.goto(events_origin, wait_until='domcontentloaded')
+        page.locator('#accountTab').click()
+        frame = page.frame_locator('#eventsFrame')
+        login(frame)
+        pw.expect(frame.get_by_role('button', name='Mon profil : Compte de démonstration')).to_be_visible(timeout=15000)
+        # L'hôte : « Retours », 2 avis à traiter (la page décrit la ligne : fbInfo / party-shell:feedback).
+        page.evaluate("""() => { account = { ...(account || {}), feedback: true };
+            window.fbInfo = () => ({ allowed: true, label: 'Retours', badge: '2' }); fbShare(); }""")
+        row = frame.get_by_role('button', name='Retours, 2 à voir')
+        pw.expect(row).to_be_visible()
+        row.click()
+        page.wait_for_function("document.body.dataset.tab === 'feedback'")
+        pw.expect(page.locator('[data-view="feedback"] .nav-back')).to_be_visible()
+        assert not errors, errors
+    finally:
+        context.close()

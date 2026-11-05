@@ -18,18 +18,21 @@ final class ChatRealtime {
     private let token: String
     private let topic: String
     private let filter: String?
+    private let direct: Bool
     private let changed: () -> Void
     private var socket: URLSessionWebSocketTask?
     private var tasks: [Task<Void, Never>] = []
     private var ref = 0
     private var stopped = false
 
-    /// group : écoute un groupe (conversation) ; nil : tous les groupes lisibles (liste des discussions).
-    init(endpoint: Endpoint, token: String, group: String?, changed: @escaping () -> Void) {
+    /// group : écoute un groupe (conversation) ; nil : tous les groupes et messages directs lisibles (liste des
+    /// discussions). direct : group est une conversation privée à deux (tables direct_*).
+    init(endpoint: Endpoint, token: String, group: String?, direct: Bool = false, changed: @escaping () -> Void) {
         self.endpoint = endpoint
         self.token = token
         self.topic = "realtime:party-chat-\(group ?? "list")-\(UUID().uuidString.prefix(8))"
-        self.filter = group.map { "group_id=eq.\($0)" }
+        self.filter = group.map { direct ? "chat_id=eq.\($0)" : "group_id=eq.\($0)" }
+        self.direct = direct
         self.changed = changed
     }
 
@@ -58,7 +61,7 @@ final class ChatRealtime {
         let socket = URLSession.shared.webSocketTask(with: url)
         self.socket = socket
         socket.resume()
-        send(Self.joinMessage(topic: topic, filter: filter, token: token, ref: nextRef()))
+        send(Self.joinMessage(topic: topic, filter: filter, token: token, ref: nextRef(), direct: direct))
         tasks.append(Task { [weak self] in await self?.listen(socket) })
         tasks.append(Task { [weak self] in
             while !Task.isCancelled {
@@ -70,13 +73,18 @@ final class ChatRealtime {
     }
 
     /// Abonnement : messages du groupe (ou de tous les groupes) et réactions ; la base filtre selon les droits du compte.
-    nonisolated static func joinMessage(topic: String, filter: String?, token: String, ref: String) -> [String: Any] {
-        var messages: [String: Any] = ["event": "*", "schema": "public", "table": "group_messages"]
+    /// Conversation directe : ses messages et réactions ; liste (sans filtre) : aussi les messages directs.
+    nonisolated static func joinMessage(topic: String, filter: String?, token: String, ref: String, direct: Bool = false) -> [String: Any] {
+        let prefix = direct ? "direct" : "group"
+        var messages: [String: Any] = ["event": "*", "schema": "public", "table": "\(prefix)_messages"]
         if let filter { messages["filter"] = filter }
-        let reactions: [String: Any] = ["event": "*", "schema": "public", "table": "group_message_reactions"]
+        let reactions: [String: Any] = ["event": "*", "schema": "public", "table": "\(prefix)_message_reactions"]
+        let changes = filter == nil && !direct
+            ? [messages, reactions, ["event": "*", "schema": "public", "table": "direct_messages"]]
+            : [messages, reactions]
         return [
             "topic": topic, "event": "phx_join", "ref": ref, "join_ref": ref,
-            "payload": ["config": ["broadcast": ["self": false], "presence": ["key": ""], "postgres_changes": [messages, reactions]],
+            "payload": ["config": ["broadcast": ["self": false], "presence": ["key": ""], "postgres_changes": changes],
                         "access_token": token],
         ]
     }
