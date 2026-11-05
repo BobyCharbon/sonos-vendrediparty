@@ -15,7 +15,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import (moderation, pet, pet_coll_store, pet_collection, pet_feast, pet_loop, pet_profile, pet_reactions, pet_streak, pet_welcome,
+from . import (moderation, pet, pet_bar, pet_coll_store, pet_collection, pet_feast, pet_loop, pet_profile, pet_reactions, pet_streak, pet_welcome,
                pet_xp)
 from .accounts import AccountError
 
@@ -56,6 +56,15 @@ class PetUnavailable(pet.PetError):
 
 class PetConflict(pet.PetError):
     pass
+
+
+class PetNotAdopted(pet.PetError):
+    """Pas encore de Zicou : seule l'adoption explicite (action « adopt ») pond l'œuf (bug du 5.11 : feuille d'accueil
+    fermée, et pourtant l'onglet Zicou pondait l'œuf qui éclosait)."""
+
+
+NOT_ADOPTED_TEXT = "Adopte d'abord ton Zicou 🥚"
+NOT_ADOPTED = {"adopted": False, "pet": None, "news": [], "effect": None}
 
 
 def load_secret(data_dir: Path | None) -> tuple[str, bool]:
@@ -355,6 +364,8 @@ class PetStore:
              "news": news_lines(life["name"], events, got, applied, unlocked) + loop_lines(life["name"], loop_events)
              + xp_news}
         pet_coll_store.enrich(self, token, s, data, events)   # collection : shiny, cadeaux d'événement, certificats
+        if pet_bar.ensure(s["owner"], now):   # barre « petit cadeau » (app/pet_bar.py) : part de maintenant
+            s["changed"] = True
         pet_welcome.apply(s, events)   # toute première éclosion : cadeau de bienvenue garanti (app/pet_welcome.py)
         s["fresh"] = not saved
         return s
@@ -383,8 +394,9 @@ class PetStore:
             "daily": pet_loop.view(s["life"], s["owner"], s["now"], pet_coll_store.ctx(s)),
             "coll": pet_coll_store.summary(s),
             "xp": pet_xp.view(s["owner"], s["now"], pet_feast.xp_factor(s["life"], s["now"])),
-            "feast": pet_feast.view(s["life"], s["owner"], s["now"], today)}
-        out = {"pet": shown, "news": s["news"], "effect": effect}
+            "feast": pet_feast.view(s["life"], s["owner"], s["now"], today),
+            "bar": pet_bar.view(s["life"], s["owner"], s["now"])}
+        out = {"adopted": True, "pet": shown, "news": s["news"], "effect": effect}
         if s.get("want_full"):
             out["collection"] = pet_coll_store.full(self, s)
         return out
@@ -402,11 +414,14 @@ class PetStore:
             except pet.PetError:
                 pass   # gardées dans owner["claimed"]["event_coins"] : jamais versées deux fois, marquées plus tard
 
-    def _retry(self, token: str, work, src: str | None = None, cared: bool = False):
+    def _retry(self, token: str, work, src: str | None = None, cared: bool = False, adopt: bool = False):
         """Charge, applique `work(s)` (qui renvoie l'effet, ou None s'il n'y a rien à enregistrer), enregistre ; un
-        conflit (autre appareil) : on relit et on rejoue une fois."""
+        conflit (autre appareil) : on relit et on rejoue une fois. Sans Zicou enregistré : PetNotAdopted, rien n'est
+        créé, sauf pour l'adoption explicite (`adopt`)."""
         for attempt in range(SAVE_ATTEMPTS):
             s = self._live(token, src)
+            if s["fresh"] and not adopt:
+                raise PetNotAdopted(NOT_ADOPTED_TEXT)
             effect = work(s)
             if effect is None and not s["changed"]:
                 return self._answer(s)
@@ -423,7 +438,23 @@ class PetStore:
 
     def me(self, token: str, src: str | None = "tab") -> dict:
         """Mon compagnon. `src` : d'où vient l'ouverture (mesure) ; « none » : simple relecture, pas comptée."""
-        return self._retry(token, lambda s: None, src=None if src == "none" else SRC_ALIASES.get(src or "", "tab"))
+        try:
+            return self._retry(token, lambda s: None, src=None if src == "none" else SRC_ALIASES.get(src or "", "tab"))
+        except PetNotAdopted:
+            return dict(NOT_ADOPTED)   # « pas encore adopté » : l'onglet montre l'adoption, rien n'est pondu
+
+    def adopt(self, token: str, name: str = "") -> dict:
+        """Adoption explicite (accueil : choix du nom → « Faire éclore ») : l'œuf est pondu maintenant, avec son nom
+        (3 min d'éclosion). Déjà adopté (deuxième toucher, autre appareil) : le Zicou tel quel, rien n'est changé."""
+        clean = moderation.require_clean(pet.clean_name(name), "name") if name.strip() else ""
+
+        def work(s: dict):
+            if not s["fresh"]:
+                return None
+            if clean:
+                s["life"]["name"] = clean
+            return {"action": "adopt", "unlocked": [], "found": None, "text": None}
+        return self._retry(token, work, adopt=True)
 
     def status(self, token: str) -> dict:
         """Pastille de l'en-tête et de l'onglet Zicou : humeur, besoin, éclosion. Ne pond jamais d'œuf, n'enregistre
@@ -433,7 +464,8 @@ class PetStore:
             return {"adopted": False}
         view = pet.view(s["life"], s["owner"], s["now"])
         daily = pet_loop.view(s["life"], s["owner"], s["now"], pet_coll_store.ctx(s))
-        return pet_welcome.status(s, view, daily)
+        # Petit anneau de la pastille : la barre « petit cadeau » (sans les chances, montrées dans l'onglet).
+        return pet_welcome.status(s, view, daily) | {"bar": pet_bar.view(s["life"], s["owner"], s["now"], with_odds=False)}
 
     def collection(self, token: str) -> dict:
         """Écran Collection (Zicoudex, boutique, atelier, vitrine, certificats) : simple relecture, pas une ouverture."""
@@ -448,6 +480,13 @@ class PetStore:
         del score
         if action == "outfit":   # ancienne tenue unique : un accessoire porté sur son emplacement
             return pet_coll_store.act(self, token, "equip", item=outfit)
+        if action == "adopt":
+            try:
+                return self.adopt(token, name)
+            except moderation.ContentRefused as e:
+                raise pet.PetError(str(e)) from None
+        if action == "bar":
+            return self._retry(token, self._claim_bar)
         if action == "rename":
             try:
                 name = moderation.require_clean(pet.clean_name(name), "name")
@@ -487,6 +526,18 @@ class PetStore:
                 out.update(score=played, hits=int(hits) if game else 0, notes=GAME_NOTES)
             return out
         return self._retry(token, work, cared=action in ("feed", "play", "cuddle", "heal", "sleep", "wake", "tuck", "treat"))
+
+    def _claim_bar(self, s: dict) -> dict:
+        """Barre « petit cadeau » pleine → récompense tirée ici (jet HMAC : compte, jour, numéro de la récupération du
+        jour). Rejouée après un conflit : même jet ; déjà récupérée sur un autre appareil : refus doux (jamais deux fois)."""
+        rng = self._rng(s["seed"], s["now"], f"bar{pet_bar.claimed_today(s['owner'], s['now'])}")
+        s["owner"], found, events = pet_bar.claim(s["life"], s["owner"], s["now"], rng)
+        if found["kind"] == "xp":
+            s["life"]["lvl"] = pet_xp.badge(s["owner"])   # badge vu des amis
+        s["news"] += [{"kind": "level", "text": f"⭐ {s['life']['name']} passe au niveau {e['level']}"
+                       + (f" ★{e['stars']}" if e["stars"] else "") + " !"} for e in events if e.get("level_up")]
+        s["journal"] += [{"kind": "bar", "detail": {"kind": found["kind"], "roll": found["roll"]}}]
+        return {"action": "bar", "unlocked": [], "found": found, "text": None}
 
     def _note(self, token: str, what: str) -> None:
         """Visite ou cadeau à un ami : missions sociales. Un échec ici ne gâche pas la visite (déjà réussie). La visite

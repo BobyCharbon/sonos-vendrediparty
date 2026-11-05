@@ -7,7 +7,7 @@ pytest.importorskip('playwright.sync_api')
 from playwright.sync_api import expect
 
 from app import pet_catalog, pet_collection
-from tests.e2e.helpers import sign_in
+from tests.e2e.helpers import pass_reveal, sign_in
 from tests.e2e.test_pet_game import grown, open_pet, world  # noqa: F401
 from tests.test_pet_api import ALICE, BOB, TOK_A
 
@@ -53,12 +53,14 @@ def test_shop_and_workshop_spend_earned_coins_and_dust(world):
     expect(root).to_contain_text('ne s\'achètent jamais avec de l\'argent')
     phone.shot('coll-2-boutique')
     first.click()
+    pass_reveal(phone.page)   # la carte de l'objet acheté (scène d'ouverture, pet/reveal.js)
     expect(root.locator('.pc-wallet')).not_to_contain_text('🪙 500')
     expect(root.locator('.pc-own').first).to_be_visible()
     root.locator('[data-pt="pc-tab"][data-t="craft"]').click()
     expect(root.locator('.pc-rates tbody tr')).to_have_count(4)
     phone.shot('coll-3-atelier')
     root.locator('[data-pt="pc-craft"][data-i="cor-alpes"]').click()
+    pass_reveal(phone.page)
     expect(root.locator('.pc-wallet')).to_contain_text('✨ 50')
     root.locator('[data-pt="pc-tab"][data-t="wear"]').click()
     root.locator('[data-pt="pc-slot"][data-s="hand"]').click()
@@ -74,6 +76,9 @@ def test_a_mythic_event_gift_is_revealed_in_several_steps_with_its_number(world)
     supa.base.awards.append({"id": "aw1", "user": ALICE, "event_id": "ev1", "event": "Soirée disco du 14", "item": "m-soirees",
                              "prize": 0, "roll": 0.4, "instance": inst["id"]})
     root = ready(phone, supa)
+    # Carte à gratter (scène d'ouverture, « Révéler » pour aller vite), silhouette « ??? », puis la suite en trois temps.
+    phone.page.locator('.zr .zr-open').click(timeout=8000)
+    expect(phone.page.locator('.zr')).to_have_count(0, timeout=8000)
     myth = root.locator('.pc-myth')
     expect(myth).to_be_visible(timeout=5000)
     expect(root.locator('.pc-from')).to_contain_text('Soirée disco du 14')

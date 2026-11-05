@@ -90,9 +90,11 @@ def test_dictation_then_rewrite_correct_and_send(browser, server):
         expect(page.locator("#fbMic")).to_contain_text("Je t'écoute")
         page.locator("#fbMic").tap()  # fini de parler : envoi
         expect(page.locator("#fbAiConsent")).to_be_visible()
+        # Accord unique pour toute l'IA de Party (787b822) : ce qui part chez Anthropic est dit avant l'accord.
         expect(page.locator("#fbAiConsent")).to_contain_text(
-            "Pour t'aider à écrire, Party envoie ton texte (et la transcription de ta voix) à Anthropic (Claude). "
-            "Rien d'autre n'est envoyé.")
+            "Quand tu utilises l'IA, Party envoie ce que tu lui confies à Anthropic (Claude) : le texte de ton avis "
+            "(et la transcription de ta voix)")
+        expect(page.locator("#fbAiConsent")).to_contain_text("Jamais ton numéro.")
         assert ai.calls == []  # rien n'est parti avant l'accord
         shot(guest, "2-accord")
         page.locator("#fbAiYes").tap()

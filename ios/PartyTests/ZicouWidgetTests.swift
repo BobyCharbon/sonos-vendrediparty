@@ -196,4 +196,30 @@ struct ZicouWidgetTests {
         b.emotion = "hungry"
         #expect(!PetWidgetBridge.sameLook(a, b))
     }
+
+    // MARK: Barre « petit cadeau » (widget moyen)
+
+    @Test("Barre : lue dans la réponse, se remplit, pleine à l'heure dite, une entrée pile à ce moment")
+    func bar() throws {
+        let json = #"""
+        {"name":"Paillette","stage":"adult","gauges":{"food":80,"joy":80,"energy":90,"care":90},
+         "bar":{"state":"filling","from":"2026-11-04T13:00:00+00:00","full_at":"2026-11-04T15:30:00+00:00"}}
+        """#
+        let pet = try #require(PetWidgetState.decode(Data(json.utf8), receivedAt: now))
+        let full = try #require(pet.barFullAt)
+        let from = try #require(pet.barFrom)
+        #expect(pet.barRest == false)
+        let half = PetForecast.moment(of: pet, at: from.addingTimeInterval(75 * 60))
+        #expect(abs((half.bar ?? 0) - 0.5) < 0.01 && !half.barFull)
+        let done = PetForecast.moment(of: pet, at: full)
+        #expect(done.bar == 1 && done.barFull)
+        if full > now, full < now.addingTimeInterval(PetForecast.horizon) {
+            #expect(PetForecast.moments(from: pet, now: now).contains { $0.date == full })
+        }
+        var old = pet
+        old.barFullAt = nil
+        #expect(PetForecast.moment(of: old, at: now).bar == nil)   // avant la barre : rien de montré
+        let rest = try #require(PetWidgetState.decode(Data(json.replacingOccurrences(of: "filling", with: "rest").utf8), receivedAt: now))
+        #expect(PetForecast.moment(of: rest, at: from.addingTimeInterval(60)).bar == 0)
+    }
 }

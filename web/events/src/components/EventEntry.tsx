@@ -132,26 +132,35 @@ export function EventEntry({ eventId, initialToken }: { eventId: string; initial
           {priced ? <T muted size={13}>{paidCount} / {present.length} ont payé</T> : null}
           {present.length === 0 ? <T muted size={14}>Personne n’est encore noté présent.</T> : null}
           {people.map((p) => (
+            // Nom et état sur une ligne, gestes dessous : sur un téléphone, trois boutons écrasaient le nom (« Z… »).
             <View key={p.user_id} style={[st.row, p.checked_in_at && st.rowIn]}>
-              <Avatar id={p.user_id} name={p.display_name} photo={p.avatar_url} size={36} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <T weight="semibold" numberOfLines={1}><PersonName id={p.user_id} pseudo={p.display_name} weight="semibold" />{p.plus_ones ? <T muted size={13}>  +{p.plus_ones}</T> : null}</T>
-                <T size={12} color={p.checked_in_at ? colors.mint : colors.muted}>
-                  {p.waitlisted ? 'Liste d’attente' : p.checked_in_at ? `✓ Arrivé·e à ${formatTime(p.checked_in_at)}` : 'Attendu·e'}
-                  {ticketsOn && !p.waitlisted ? <T size={12} color={p.issued ? colors.mint : colors.muted}>{p.issued ? '  ·  billet remis' : '  ·  billet à remettre'}</T> : null}
-                  {priced && !p.waitlisted ? <T size={12} color={p.paid ? colors.mint : p.pay_pending ? colors.coral : colors.coralSoft}>{p.paid ? '  ·  payé' : p.pay_pending ? '  ·  payé, à confirmer' : '  ·  pas payé'}</T> : null}
-                </T>
+              <View style={st.who}>
+                <Avatar id={p.user_id} name={p.display_name} photo={p.avatar_url} size={36} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  {/* « +1 » à part : un long nom se coupe (« … ») sans jamais cacher les accompagnants. */}
+                  <View style={st.nameLine}>
+                    <T weight="semibold" numberOfLines={1} style={{ flexShrink: 1 }}><PersonName id={p.user_id} pseudo={p.display_name} weight="semibold" /></T>
+                    {p.plus_ones ? <T muted size={13}>+{p.plus_ones}</T> : null}
+                  </View>
+                  <T size={12} color={p.checked_in_at ? colors.mint : colors.muted}>
+                    {p.waitlisted ? 'Liste d’attente' : p.checked_in_at ? `✓ Arrivé·e à ${formatTime(p.checked_in_at)}` : 'Attendu·e'}
+                    {ticketsOn && !p.waitlisted ? <T size={12} color={p.issued ? colors.mint : colors.muted}>{p.issued ? '  ·  billet remis' : '  ·  billet à remettre'}</T> : null}
+                    {priced && !p.waitlisted ? <T size={12} color={p.paid ? colors.mint : p.pay_pending ? colors.coral : colors.coralSoft}>{p.paid ? '  ·  payé' : p.pay_pending ? '  ·  payé, à confirmer' : '  ·  pas payé'}</T> : null}
+                  </T>
+                </View>
               </View>
-              {priced && !p.waitlisted && p.pay_pending ? (
-                <Button small label="Reçu ✓" onPress={() => act(confirmPayment(eventId, p.user_id, true))} />
-              ) : priced && !p.waitlisted ? (
-                <Button small variant="secondary" label={p.paid ? 'Payé ✓' : 'Payé ?'} onPress={() => act(setPaid(eventId, p.user_id, !p.paid, p))} />
-              ) : null}
-              {ticketsOn && !p.waitlisted ? <IssueButton person={p} onPress={(issued) => act(issueTicket(eventId, p.user_id, issued))} /> : null}
-              {!p.waitlisted ? (
-                <Button small variant={p.checked_in_at ? 'ghost' : 'secondary'} label={p.checked_in_at ? 'Annuler' : 'Arrivé'}
-                  onPress={() => act(setArrival(eventId, p.user_id, !p.checked_in_at))} />
-              ) : null}
+              {p.waitlisted ? null : <View style={st.actions}>
+                {priced && !p.waitlisted && p.pay_pending ? (
+                  <Button small label="Reçu ✓" onPress={() => act(confirmPayment(eventId, p.user_id, true))} />
+                ) : priced && !p.waitlisted ? (
+                  <Button small variant="secondary" label={p.paid ? 'Payé ✓' : 'Payé ?'} onPress={() => act(setPaid(eventId, p.user_id, !p.paid, p))} />
+                ) : null}
+                {ticketsOn && !p.waitlisted ? <IssueButton person={p} onPress={(issued) => act(issueTicket(eventId, p.user_id, issued))} /> : null}
+                {!p.waitlisted ? (
+                  <Button small variant={p.checked_in_at ? 'ghost' : 'secondary'} label={p.checked_in_at ? 'Annuler' : 'Arrivé'}
+                    onPress={() => act(setArrival(eventId, p.user_id, !p.checked_in_at))} />
+                ) : null}
+              </View>}
             </View>
           ))}
         </Section>
@@ -161,6 +170,10 @@ export function EventEntry({ eventId, initialToken }: { eventId: string; initial
 }
 
 const st = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingHorizontal: 8, borderRadius: radius.md, flexWrap: 'wrap' },
+  row: { gap: 8, paddingVertical: 8, paddingHorizontal: 8, borderRadius: radius.md },
+  who: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  nameLine: { flexDirection: 'row', alignItems: 'baseline', gap: 6, minWidth: 0 },
+  // Sous le nom, alignés après la photo (36 px + 10 px d'écart).
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingLeft: 46 },
   rowIn: { backgroundColor: 'rgba(91,227,166,0.08)' },
 });

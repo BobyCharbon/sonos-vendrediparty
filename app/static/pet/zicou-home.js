@@ -307,11 +307,13 @@
     if (!name) { err.textContent = "Choisis-lui un nom."; err.classList.remove("hidden"); return; }
     btn.disabled = true;
     try {
-      let me = await post("/api/pet/me", { src: "link" });   // l'œuf est pondu maintenant : 3 min d'éclosion
-      if (me.pet.name !== name) me = await post("/api/pet/act", { action: "rename", name });
+      // Adoption explicite : SEUL moment où l'œuf est pondu (3 min d'éclosion). Fermer la feuille ne pond rien.
+      let me = await post("/api/pet/act", { action: "adopt", name });
+      if (me.pet.name !== name) me = await post("/api/pet/act", { action: "rename", name });   // déjà adopté ailleurs
       saveOnb({ step: "hatching", name });
       petChanged(me.pet, me.news);
       openSheet("hatch");
+      if (currentTab() === "pet") window.Pet?.open?.(null, "none");   // l'onglet Zicou quitte l'écran d'adoption
     } catch (error) {
       err.textContent = error.message === "login" ? "Ta connexion a expiré, reconnecte-toi." : error.message;
       err.classList.remove("hidden");

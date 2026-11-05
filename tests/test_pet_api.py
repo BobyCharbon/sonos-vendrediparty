@@ -238,8 +238,12 @@ def setup(monkeypatch, tmp_path):
 
 
 def me(c, tok=TOK_A):
+    """Mon Zicou ; pas encore adopté : adopté d'abord (seule l'action « adopt » pond l'œuf, tests/test_pet_adoption.py)."""
     r = c.post("/api/pet/me", json={"token": tok})
     assert r.status_code == 200, r.text
+    if r.json()["adopted"] is False:
+        r = c.post("/api/pet/act", json={"token": tok, "action": "adopt"})
+        assert r.status_code == 200, r.text
     return r.json()
 
 
@@ -424,7 +428,7 @@ def test_opens_are_counted_with_their_source(setup):
     me(c)
     for src in ("notif", "widget", "link", "none"):
         assert c.post("/api/pet/me", json={"token": TOK_A, "src": src}).status_code == 200
-    assert [s for _, s in base.opens] == ["tab", "notification", "widget", "link", None]
+    assert [s for _, s in base.opens] == ["tab", None, "notification", "widget", "link", None]   # None : l'adoption
     assert c.post("/api/pet/me", json={"token": TOK_A, "src": "pirate"}).status_code == 422
     act(c, "rename", name="Bijou")
     assert base.opens[-1] == (ALICE, None)   # une action n'est pas une ouverture

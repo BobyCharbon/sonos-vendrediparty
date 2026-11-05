@@ -27,6 +27,9 @@ struct PetMoment: Equatable {
     let chestReady: Bool
     let streak: Int
     let hatchAt: Date?
+    /// Barre « petit cadeau » : 0…1 (nil : pas de barre, œuf ou envolé), pleine ou non.
+    var bar: Double? = nil
+    var barFull = false
 }
 
 /// Chronologie des widgets : on fait vivre Zicou à partir de la dernière lecture (mêmes règles que app/pet.py,
@@ -42,11 +45,28 @@ enum PetForecast {
         if let hatch = state.hatchAt, hatch > now, hatch < now.addingTimeInterval(horizon) { dates.append(hatch) }
         let midnight = nextMidnight(after: state.at)
         if midnight > now, midnight < now.addingTimeInterval(horizon) { dates.append(midnight) }
+        if let full = state.barFullAt, full > now, full < now.addingTimeInterval(horizon) { dates.append(full) }
         return Set(dates).sorted().map { moment(of: state, at: $0) }
     }
 
-    /// Zicou à `date` (une date antérieure à la lecture donne la lecture elle-même).
+    /// Zicou à `date`, avec sa barre « petit cadeau ».
     static func moment(of state: PetWidgetState, at date: Date) -> PetMoment {
+        var m = lifeMoment(of: state, at: date)
+        guard ["baby", "teen", "adult"].contains(m.stage), let full = state.barFullAt else { return m }
+        m.barFull = date >= full
+        if m.barFull {
+            m.bar = 1
+        } else if state.barRest == true {
+            m.bar = 0
+        } else if let from = state.barFrom, full > from {
+            // Approximation linéaire (la pause de nuit est déjà dans full_at ; seul le rythme de l'aiguille en diffère).
+            m.bar = min(0.99, max(0, date.timeIntervalSince(from) / full.timeIntervalSince(from)))
+        }
+        return m
+    }
+
+    /// Zicou à `date` (une date antérieure à la lecture donne la lecture elle-même).
+    static func lifeMoment(of state: PetWidgetState, at date: Date) -> PetMoment {
         let chest = state.chestReady || date >= nextMidnight(after: state.at)
         var life = Life(stage: state.stage, asleep: state.asleep, sick: state.sick, gauges: state.gauges)
         var from = state.at

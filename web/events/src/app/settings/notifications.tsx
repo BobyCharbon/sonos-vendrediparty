@@ -215,6 +215,7 @@ export default function NotificationSettings() {
         <ToggleRow disabled={saving} label="Alertes vitales" hint="Deux alertes au plus avant qu’il ne s’envole, quand son ventre est vide depuis longtemps" value={prefs.pet_alerts !== false} onChange={(v) => update({ pet_alerts: v })} />
         <ToggleRow disabled={saving} label="Cadeau d’un ami" hint="Un ami lui a fait un câlin ou apporté un goûter" value={prefs.pet_gifts !== false} onChange={(v) => update({ pet_gifts: v })} />
         <ToggleRow disabled={saving} label="Paliers de série" hint="Le jour où ta série 🔥 atteint un palier (3, 7, 14, 30 jours…)" value={prefs.pet_streaks !== false} onChange={(v) => update({ pet_streaks: v })} />
+        <ToggleRow disabled={saving} label="Barre pleine" hint="Ta barre 🎁 est pleine : deux fois par jour au plus, jamais la nuit (23 h – 8 h)" value={prefs.pet_bar !== false} onChange={(v) => update({ pet_bar: v })} />
         <ZicouReactionsRow disabled={saving} />
       </Section> : null}
 

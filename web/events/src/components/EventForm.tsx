@@ -381,7 +381,11 @@ export function EventForm({ eventId }: { eventId?: string }) {
       if (values.length) check(await supabase.from(table).insert(values.map((v) => ({ event_id: id, [col]: v }))));
     };
     await replace('event_tags', 'tag_id', d.tag_ids);
-    await replace('event_organizers', 'user_id', d.organizers.filter((u) => u !== me.id));
+    // Co-organisateurs : jamais sa propre ligne. Un co-organisateur (pas le créateur) qui enregistre se retirait
+    // lui-même, puis la base (RLS « gérer organisateurs ») refusait de réinscrire les autres : plus personne.
+    check(await supabase.from('event_organizers').delete().eq('event_id', id).neq('user_id', me.id));
+    const helpers = d.organizers.filter((u) => u !== me.id);
+    if (helpers.length) check(await supabase.from('event_organizers').insert(helpers.map((user_id) => ({ event_id: id, user_id }))));
     // Invités : la base recopie les membres des groupes (via_group) ; ici seulement les groupes et les invités cochés un par un.
     const who = audienceChildren(d.who);
     const groupIds = who.group_ids;
@@ -512,7 +516,9 @@ export function EventForm({ eventId }: { eventId?: string }) {
     </View>
   );
 
-  const submitLabel = eventId && ctx.status === 'published'
+  // Publier n'a lieu que pour un nouvel événement, un brouillon ou un refusé (needsSubmit) : ailleurs (publié, en
+  // attente de validation, annulé), le bouton enregistre seulement et le dit.
+  const submitLabel = eventId && !['draft', 'rejected'].includes(ctx.status ?? '')
     ? 'Enregistrer'
     : isAdmin || !ctx.settings.require_approval ? 'Publier' : 'Envoyer pour validation';
 

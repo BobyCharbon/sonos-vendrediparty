@@ -65,7 +65,9 @@ function zurichOffsetMinutes(d: Date): number {
 }
 
 export function initials(name: string): string {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || '?';
+  // Premières lettres des mots (jamais un demi-emoji : « Zoé 🎉 » → « Z », pas « Z� »).
+  const firsts = name.split(/\s+/).map((w) => Array.from(w)[0] ?? '').filter((c) => /\p{L}|\p{N}/u.test(c));
+  return firsts.slice(0, 2).join('').toUpperCase() || Array.from(name.trim())[0] || '?';
 }
 
 const avatarPalette = ['#FF7A59', '#B9A7FF', '#7AD3C8', '#F2C14A', '#7AA7FF', '#D4F24A'];
@@ -92,8 +94,15 @@ export function relativeDay(iso: string, now = new Date()): string {
   if (diff === 0) return 'Aujourd’hui';
   if (diff === 1) return 'Demain';
   if (diff === -1) return 'Hier';
-  if (diff > 1) return diff < 14 ? `Dans ${diff} jours` : `Dans ${Math.round(diff / 7)} semaines`;
-  return `Il y a ${-diff} jours`;
+  return `${diff > 0 ? 'Dans' : 'Il y a'} ${span(Math.abs(diff))}`;
+}
+
+/** Durée lisible : jours jusqu'à 2 semaines, puis semaines, mois, années (jamais « 213 semaines »). */
+function span(days: number): string {
+  if (days < 14) return `${days} jours`;
+  if (days < 60) return `${Math.round(days / 7)} semaines`;
+  if (days < 365) return `${Math.round(days / 30.44)} mois`;
+  return plural(Math.round(days / 365.25), 'an');
 }
 
 /** « 2 présents », « 1 présent », « 0 présent ». */

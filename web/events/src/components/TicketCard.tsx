@@ -4,7 +4,7 @@ import { Image, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { formatLongDay, formatTime, plural } from '@/lib/format';
 import { enter, pressTransition } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
-import { fetchMyTicket, prettyCode, qrDataUri, renewMyTicket, ticketLink, type MyTicket } from '@/lib/tickets';
+import { fetchMyTicket, prettyCode, qrDataUri, renewMyTicket, ticketLink, type MyTicket, chf } from '@/lib/tickets';
 
 import { PayOrganizer } from './PayOrganizer';
 import { WalletButton } from './WalletButton';
@@ -75,10 +75,9 @@ export function TicketCard({ event, me, answerKey }: Props) {
           <View style={{ flex: 1, gap: 2 }}>
             <T weight="bold" size={16}>Ton billet</T>
             <T muted size={14}>Ton billet arrivera quand l’organisateur l’aura validé.</T>
-            {ticket.price_chf ? (
-              <T size={12} color={ticket.paid ? colors.mint : colors.coralSoft}>
-                {ticket.paid ? '✓ Place payée' : ticket.pay_pending ? 'Payé · en attente de confirmation' : 'Paie ta place : le billet arrive dès que l’organisateur a reçu ton paiement.'}
-              </T>
+            {/* Payé ou en attente de confirmation : dit une seule fois, par la carte de paiement juste dessous. */}
+            {ticket.price_chf && !ticket.paid && !ticket.pay_pending ? (
+              <T size={12} color={colors.coralSoft}>Paie ta place : le billet arrive dès que l’organisateur a reçu ton paiement.</T>
             ) : null}
           </View>
         </View>
@@ -90,7 +89,7 @@ export function TicketCard({ event, me, answerKey }: Props) {
   const link = ticketLink(location.origin, event.id, ticket.token);
   const arrived = ticket.checked_in_at ? formatTime(ticket.checked_in_at) : null;
   const priced = ticket.price_chf != null && ticket.price_chf > 0;
-  const payLine = ticket.paid ? '✓ Payé' : ticket.pay_pending ? 'Payé · en attente de confirmation' : `À payer : ${ticket.price_chf} CHF`;
+  const payLine = ticket.paid ? '✓ Payé' : ticket.pay_pending ? 'Payé · en attente de confirmation' : `À payer : ${chf(ticket.price_chf ?? 0)}`;
   const payColor = ticket.paid ? colors.mint : ticket.pay_pending ? colors.coral : colors.coralSoft;
 
   return (
@@ -109,7 +108,8 @@ export function TicketCard({ event, me, answerKey }: Props) {
           <T size={13} color={arrived ? colors.mint : colors.textSoft}>
             {arrived ? `✓ Arrivée enregistrée à ${arrived}` : 'À montrer à l’entrée'}
           </T>
-          {priced ? <T size={12} color={payColor}>{payLine}</T> : null}
+          {/* Payé / en attente : la carte de paiement juste dessous le dit déjà (une seule fois). */}
+          {priced && !ticket.paid && !ticket.pay_pending ? <T size={12} color={payColor}>{payLine}</T> : null}
         </View>
         <T size={13} weight="bold" color={colors.accent}>Afficher ›</T>
       </Pressable>
@@ -140,7 +140,7 @@ export function TicketCard({ event, me, answerKey }: Props) {
             </View>
             {priced ? (
               <T size={14} weight="semibold" color={payColor} style={{ textAlign: 'center' }}>
-                {ticket.paid ? '✓ Place payée' : ticket.pay_pending ? 'Payé · en attente de confirmation' : `${ticket.price_chf} CHF à payer à l’organisateur`}
+                {ticket.paid ? '✓ Place payée' : ticket.pay_pending ? 'Payé · en attente de confirmation' : `${chf(ticket.price_chf ?? 0)} à payer à l’organisateur`}
               </T>
             ) : null}
             <Button label="Fermer" onPress={() => setOpen(false)} />

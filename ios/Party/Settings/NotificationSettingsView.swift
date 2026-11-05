@@ -232,6 +232,8 @@ struct NotificationSettingsView: View {
                             "Un ami lui a fait un câlin ou apporté un goûter", p.petGifts != false)
                 eventToggle("pet_streaks", "flame.fill", .red, "Paliers de série",
                             "Le jour où ta série atteint un palier (3, 7, 14, 30 jours…)", p.petStreaks != false)
+                eventToggle("pet_bar", "gauge.with.needle.fill", .yellow, "Barre pleine",
+                            "Ta barre est pleine : deux fois par jour au plus, jamais la nuit (23 h – 8 h)", p.petBar != false)
                 if let reactions = store.zicouReactions {
                     toggle("pet.reactions", "sparkles", .pink, "Réactions de Zicou",
                            "Un petit bandeau dans l'app quand il gagne des pièces (titre ajouté, partie terminée). Jamais de notification.",

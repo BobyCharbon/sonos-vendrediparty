@@ -206,6 +206,56 @@ def test_later_then_gentle_reminder_three_times_at_most(world):
     expect(sheet.locator("h2")).to_have_text("Comment va-t-il s'appeler ?")
 
 
+def pull_down(page, surface):
+    box = surface.bounding_box()
+    x, y = box["x"] + box["width"] / 2, box["y"] + 30
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x, y + 400, steps=8)
+    page.mouse.up()
+
+
+@pytest.mark.parametrize("how", ["swipe", "later", "backdrop"])
+def test_closing_the_welcome_sheet_lays_no_egg_and_the_tab_offers_adoption(world, how):
+    """Bug de l'admin du 5.11 : feuille d'accueil baissée d'un geste… et pourtant l'œuf pondu puis éclos. Fermer
+    (geste vers le bas, « Plus tard », toucher à côté) ne pond rien ; seul « Continuer » après le nom pond l'œuf."""
+    phone, supa = world
+    page = phone.page
+    page.goto("/")
+    page.locator('#tabs [data-tab="games"]').click()
+    sign_in(phone, TOK_A)
+    sheet = page.locator("#zicouSheet")
+    expect(sheet.locator("h2")).to_have_text("Quelqu'un t'attend…")
+    page.wait_for_timeout(400)
+    if how == "swipe":
+        pull_down(page, sheet.locator(".zc-sheet"))
+    elif how == "later":
+        sheet.locator("[data-zc-close]").click()
+    else:
+        page.mouse.click(10, 10)                                       # le fond, au-dessus de la feuille
+    expect(sheet).to_be_hidden()
+    assert onb(page)["step"] == "later"
+    # Rechargé, puis l'onglet Zicou (et la pastille, l'en-tête) : toujours aucun œuf, l'écran d'adoption.
+    page.reload()
+    page.locator('#tabs [data-tab="pet"]').click()
+    root = page.locator("#petRoot")
+    expect(root.locator(".pt-adopt h2")).to_have_text("Quelqu'un t'attend…")
+    page.evaluate("ZicouHome.refresh(true)")
+    page.wait_for_timeout(1500)
+    assert uid(supa) not in supa.base.pets
+    assert page.evaluate("ZicouHome.state().status.adopted") is False
+    expect(page.locator("#zicouSheet [data-zc-clock]")).to_have_count(0)  # aucun compte à rebours
+    # Adoption explicite depuis l'onglet : le nom, puis l'œuf (et lui seul) est pondu.
+    root.locator('[data-pt="adopt"]').click()
+    expect(sheet.locator("h2")).to_have_text("Comment va-t-il s'appeler ?")
+    sheet.locator('[data-zc="pick"][data-n="Bobby"]').click()
+    sheet.locator(".zc-name [type=submit]").click()
+    expect(sheet.locator("h2")).to_have_text("Bobby éclot bientôt")
+    assert supa.base.pets[uid(supa)]["life"]["name"] == "Bobby"
+    sheet.locator("[data-zc-close]").click()
+    expect(root.locator(".pt-hero.pt-egg")).to_be_visible()                   # l'onglet suit : l'œuf, plus l'adoption
+
+
 def test_guest_is_invited_once_after_his_first_game_never_after_a_drinking_game(world):
     phone, _ = world
     page = phone.page

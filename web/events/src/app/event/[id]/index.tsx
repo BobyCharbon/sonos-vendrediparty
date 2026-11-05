@@ -22,7 +22,7 @@ import { safeHref } from '@/lib/links';
 import { formatLongDay, formatMessageTime, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
 import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
-import { ticketRelevant } from '@/lib/tickets';
+import { ticketRelevant, chf } from '@/lib/tickets';
 import type { BringItem, Category, DateOption, DateVoteRow, EventRow, Message, Poll, PollOption, Rsvp, Tag } from '@/lib/types';
 import { plusOnesLabel } from '@/lib/types';
 import { notifyWallet } from '@/lib/wallet';
@@ -131,7 +131,17 @@ export default function EventScreen() {
     return out;
   }, [data]);
 
-  if (!data || !ev) return loadError ? <Screen edges={[]}><ErrorText error={loadError} /></Screen> : <EventSkeleton />;
+  if (!data || !ev) {
+    if (!loadError) return <EventSkeleton />;
+    // Échec du chargement : jamais une impasse (retour à la liste, nouvel essai).
+    return (
+      <Screen edges={[]}>
+        <Stack.Screen options={{ title: '', ...(router.canGoBack() ? {} : { headerLeft: () => <HeaderBack label="Événements" onPress={() => router.replace('/')} /> }) }} />
+        <ErrorText error={loadError} />
+        <Button label="Réessayer" variant="secondary" onPress={reload} />
+      </Screen>
+    );
+  }
 
   const published = ev.status === 'published';
   const canEdit = isAdmin || (isOrganizer && (ev.status !== 'published' || can('events.edit_own_published')));
@@ -161,7 +171,7 @@ export default function EventScreen() {
   const showCalendar = published && ev.date_mode === 'fixed' && !!ev.starts_at && mine?.status !== 'no';
 
   const infoRows = [
-    ev.price_chf != null ? { k: 'Prix', v: ev.price_chf === 0 ? 'Gratuit' : `${ev.price_chf} CHF / personne`, sub: ev.payment_info } : null,
+    ev.price_chf != null ? { k: 'Prix', v: ev.price_chf === 0 ? 'Gratuit' : `${chf(ev.price_chf)} / personne`, sub: ev.payment_info } : null,
     ev.max_participants
       ? { k: 'Places', v: `${heads} / ${ev.max_participants}`, sub: heads >= ev.max_participants ? (ev.waitlist_enabled ? 'Complet · liste d’attente ouverte' : 'Complet') : plural(ev.max_participants - heads, 'place libre', 'places libres') }
       : ev.date_mode === 'fixed' ? { k: 'Places', v: '∞ Illimité', sub: plural(heads, 'personne inscrite', 'personnes inscrites') } : null,
@@ -194,19 +204,20 @@ export default function EventScreen() {
       ) : null}
       {/* En-tête : l’essentiel en un coup d’œil */}
       <View style={{ gap: 10 }}>
-        <View style={s.wrap}>
-          {ev.status === 'pending' ? <Badge label="En attente de validation" fg={colors.lavender} bg={colors.lavenderDim} /> : null}
-          {ev.status === 'draft' ? <Badge label="Brouillon" fg={colors.textSoft} bg={colors.surface2} /> : null}
-          {ev.status === 'rejected' ? <Badge label="Refusé" fg={colors.coralSoft} bg={colors.coralDim} /> : null}
-          {ev.status === 'cancelled' ? <Badge label="Annulé" fg={colors.coralSoft} bg={colors.coralDim} /> : null}
-          {ev.date_mode === 'poll' ? <Badge label="Date à définir" fg={colors.coralSoft} bg={colors.coralDim} /> : null}
-          {ev.category ? <Badge label={ev.category.name} fg={colors.onAccent} bg={ev.category.color} /> : null}
-        </View>
-        {/* En haut à droite : qui vient, et combien (donne envie d’en être). */}
+        {/* En haut : les étiquettes, et à droite qui vient et combien (donne envie d’en être). Le titre, dessous,
+            garde toute la largeur : un long titre ne pousse plus la pastille hors de l’écran. */}
         <View style={st.titleRow}>
-          <Title size={32} style={{ lineHeight: 36, flex: 1 }}>{ev.title}</Title>
+          <View style={[s.wrap, st.badges]}>
+            {ev.status === 'pending' ? <Badge label="En attente de validation" fg={colors.lavender} bg={colors.lavenderDim} /> : null}
+            {ev.status === 'draft' ? <Badge label="Brouillon" fg={colors.textSoft} bg={colors.surface2} /> : null}
+            {ev.status === 'rejected' ? <Badge label="Refusé" fg={colors.coralSoft} bg={colors.coralDim} /> : null}
+            {ev.status === 'cancelled' ? <Badge label="Annulé" fg={colors.coralSoft} bg={colors.coralDim} /> : null}
+            {ev.date_mode === 'poll' ? <Badge label="Date à définir" fg={colors.coralSoft} bg={colors.coralDim} /> : null}
+            {ev.category ? <Badge label={ev.category.name} fg={colors.onAccent} bg={ev.category.color} /> : null}
+          </View>
           {published && ev.date_mode === 'fixed' ? <AttendeesBadge attendance={people} large past={past} /> : null}
         </View>
+        <Title size={32} style={{ lineHeight: 36 }}>{ev.title}</Title>
         {ev.visibility === 'invited' ? (
           <T muted size={13}>
             🔒 Sur invitation{data?.groupNames ? ` · ${data.groupNames}` : ''}
@@ -433,7 +444,9 @@ function EventSkeleton() {
 const st = StyleSheet.create({
   cover: { width: '100%', aspectRatio: 16 / 9, borderRadius: radius.md, backgroundColor: colors.surface2, marginBottom: 14 },
   keyRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  // Étiquettes à gauche (au moins une catégorie), pastille à droite ; trop étroit : la pastille passe dessous.
+  badges: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 110 },
+  titleRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'flex-end', gap: 12 },
   keyIcon: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   notice: { padding: 12, borderRadius: radius.md },
   divided: { borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 12 },

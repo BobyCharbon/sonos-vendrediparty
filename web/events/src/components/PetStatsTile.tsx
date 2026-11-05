@@ -21,7 +21,7 @@ type PetStats = {
 };
 
 const SOURCES: Record<string, string> = { tab: 'onglet Jeux', notification: 'notification', widget: 'widget', link: 'lien' };
-const SWITCHES: Record<string, string> = { pet_daily: 'rappel du jour', pet_alerts: 'alertes vitales', pet_gifts: 'cadeau d’un ami', pet_streaks: 'paliers de série' };
+const SWITCHES: Record<string, string> = { pet_daily: 'rappel du jour', pet_alerts: 'alertes vitales', pet_gifts: 'cadeau d’un ami', pet_streaks: 'paliers de série', pet_bar: 'barre pleine' };
 
 function cohortText(c: Cohort | undefined): string {
   if (!c || !c.eligible) return '—';

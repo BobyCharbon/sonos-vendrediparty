@@ -85,9 +85,15 @@ export type Rsvp = {
   event_id: string;
   user_id: string;
   status: RsvpStatus;
+  /** Accompagnants CONFIRMÉS (comptés dans les places, billets, pot, Wallet). */
   plus_ones: number;
   note: string | null;
   waitlisted: boolean;
+  /** Accompagnants en liste d’attente (événement complet) : la personne garde sa place, eux montent à leur rang. */
+  plus_ones_waitlisted?: number;
+  plus_ones_waitlisted_since?: string | null;
+  /** Moment de la réponse donnée : rang dans la liste d’attente. */
+  updated_at?: string;
   /** Réponse posée par l’organisateur (son identifiant) ; vide quand la personne a répondu elle-même. */
   set_by?: string | null;
 };
@@ -177,6 +183,8 @@ export type NotificationPrefs = {
   /** Compagnon, lot 1 (migration 20261104150000 ; absents avant : reçus) : cadeau d'un ami, paliers de série. */
   pet_gifts?: boolean;
   pet_streaks?: boolean;
+  /** Barre « petit cadeau » pleine (migration 20261105160000 ; absent avant : reçue) : 2 par jour au plus, jamais la nuit. */
+  pet_bar?: boolean;
   /** Modération (migration 20261104200000 ; absents avant : reçus) : nouveau signalement (modérateurs), message de la modération. */
   moderation_reports?: boolean;
   moderation_notices?: boolean;

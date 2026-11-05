@@ -387,6 +387,7 @@ final class SettingsStore: ObservableObject {
         case ("pet_alerts", let v as Bool): p.petAlerts = v
         case ("pet_gifts", let v as Bool): p.petGifts = v
         case ("pet_streaks", let v as Bool): p.petStreaks = v
+        case ("pet_bar", let v as Bool): p.petBar = v
         case ("moderation_reports", let v as Bool): p.moderationReports = v
         case ("moderation_notices", let v as Bool): p.moderationNotices = v
         case ("quiet_start", let v as String): p.quietStart = v

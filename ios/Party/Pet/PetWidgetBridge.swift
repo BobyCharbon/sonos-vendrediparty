@@ -18,7 +18,8 @@ enum PetWidgetBridge {
         window.webkit.messageHandlers.\(handler).postMessage({
           name: p.name, stage: p.stage, variant: p.variant, emotion: p.emotion, asleep: !!p.asleep, sick: !!p.sick,
           gauges: p.gauges || {}, streak: p.streak || 0, next_stage_in: p.next_stage_in, dies_at: p.dies_at || null,
-          daily: { chest: { state: (d.chest || {}).state || null }, streak: { count: (d.streak || {}).count || 0 } }
+          daily: { chest: { state: (d.chest || {}).state || null }, streak: { count: (d.streak || {}).count || 0 } },
+          bar: p.bar ? { state: p.bar.state || null, from: p.bar.from || null, full_at: p.bar.full_at || null } : null
         });
       };
       var original = window.fetch;

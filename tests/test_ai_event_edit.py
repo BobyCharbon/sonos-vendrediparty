@@ -111,3 +111,16 @@ def test_editing_with_the_ai_never_touches_the_qr_tickets_option(tmp_path):
     patch = next(body for m, p, body in accounts.calls if m == "PATCH" and p.startswith("/rest/v1/events"))
     assert "tickets_enabled" not in patch and patch["title"] == "Raclette géante"
     assert current(tmp_path)["audience"] == ev.VIP_AUDIENCE  # un événement existant garde son public
+
+
+def test_a_co_organizer_editing_with_the_ai_never_removes_himself(tmp_path):
+    """Bug : un co-organisateur (pas le créateur) qui modifie avec l'IA se retirait lui-même des co-organisateurs (il
+    n'est jamais dans la liste du brouillon) et perdait la main sur l'événement ; son invitation aussi."""
+    event = {**EVENT, "created_by": "someone-else", "event_organizers": [{"user_id": "u1"}],
+             "event_invites": [{"user_id": "p-tom", "via_group": False}, {"user_id": "u1", "via_group": False}]}
+    e, _, _ = editor(tmp_path, {}, event=event)
+    asked = {**e.load("ok", "e1")["draft"], "title": "Raclette géante"}
+    e, accounts, _ = editor(tmp_path, asked, event=event)
+    e.save("ok", "e1", asked, None, announce=False)
+    dropped = [p for m, p, _ in accounts.calls if m == "DELETE"]
+    assert not any("user_id=eq.u1" in p for p in dropped), dropped

@@ -2,6 +2,7 @@ import { createElement, useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { enter } from '@/lib/motion';
+import { chf } from '@/lib/tickets';
 import { colors, font, radius } from '@/lib/theme';
 import type { ScanResult, TicketPerson } from '@/lib/tickets';
 import { formatTime, plural } from '@/lib/format';
@@ -126,7 +127,7 @@ export function ScanVerdict({ verdict, onPaid, onConfirm, onIssue, onNext }: {
             <T muted size={14}>{person.plus_ones ? `+ ${plural(person.plus_ones, 'accompagnant')} · ${person.plus_ones + 1} personnes` : 'Seul·e'}</T>
             {priced ? (
               <T size={14} weight="bold" color={person.paid ? colors.mint : colors.coral}>
-                {person.paid ? '✓ Payé' : person.pay_pending ? `Dit avoir payé · à confirmer (${person.price_chf} CHF)` : `✗ Pas payé · ${person.price_chf} CHF`}
+                {person.paid ? '✓ Payé' : person.pay_pending ? `Dit avoir payé · à confirmer (${chf(person.price_chf ?? 0)})` : `✗ Pas payé · ${chf(person.price_chf ?? 0)}`}
               </T>
             ) : null}
           </View>

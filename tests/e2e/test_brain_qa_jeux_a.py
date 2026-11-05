@@ -278,6 +278,11 @@ def perform(b, game, how, action, cdp):
 def test_real_touch_and_real_keyboard_play_without_error(bench, game, how):
     b = bench(touch=how == 'touch')
     b.page.evaluate('window.__qaManual = true')
+    # Horloge arrêtée (avant la partie) : seul run_for fait avancer le jeu. Sinon l'horloge simulée suit aussi le temps
+    # réel, et le temps passé à exécuter un vrai toucher (plus lent qu'une touche, surtout sur un poste chargé) faisait
+    # avancer la route entre la décision du robot et son geste : un geste périmé envoyait la voiture dans un obstacle
+    # (Autoroute, échec aléatoire). Marge d'1 s : Date.now() de la page retarde un peu sur l'horloge (Python : secondes).
+    b.page.clock.pause_at((b.page.evaluate('Date.now()') + 1000) / 1000)
     b.start(game, 'human')
     cdp = b.page.context.new_cdp_session(b.page)
     for _ in range(900):                       # 36 s de jeu

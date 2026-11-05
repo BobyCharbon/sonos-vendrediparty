@@ -64,6 +64,8 @@ struct EventNotificationPrefs: Codable, Equatable {
     /// Compagnon, lot 1 (migration 20261104150000 ; absents avant : reçus) : cadeau d'un ami, paliers de série.
     var petGifts: Bool?
     var petStreaks: Bool?
+    /// Barre « petit cadeau » pleine (migration 20261105160000) : 2 par jour au plus, jamais la nuit.
+    var petBar: Bool?
     /// Modération (migration 20261104200000 ; absents avant : reçus) : nouveau signalement (modérateurs), message de la modération.
     var moderationReports: Bool?
     var moderationNotices: Bool?
@@ -79,7 +81,7 @@ struct EventNotificationPrefs: Codable, Equatable {
         case ticketPayDeclared = "ticket_pay_declared", ticketPayConfirmed = "ticket_pay_confirmed"
         case ticketIssued = "ticket_issued"
         case referralJoins = "referral_joins", contactJoins = "contact_joins", directMessages = "direct_messages"
-        case petDaily = "pet_daily", petAlerts = "pet_alerts", petGifts = "pet_gifts", petStreaks = "pet_streaks"
+        case petDaily = "pet_daily", petAlerts = "pet_alerts", petGifts = "pet_gifts", petStreaks = "pet_streaks", petBar = "pet_bar"
         case moderationReports = "moderation_reports", moderationNotices = "moderation_notices"
     }
 

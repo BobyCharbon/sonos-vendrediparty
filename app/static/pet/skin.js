@@ -93,6 +93,11 @@
     st.id = "pt-skin-style";
     st.textContent = ".pt-svg .pt-led{animation:pt-led 2.2s ease-in-out infinite}"
       + "@keyframes pt-led{0%,100%{opacity:1}50%{opacity:.55}}"
+      // Clignement des yeux ouverts (partout où Zicou est dessiné) ; regard : --lx / --ly posés par pet/motion.js.
+      + ".pt-svg .pt-eyes{transform-box:fill-box;transform-origin:50% 55%}"
+      + ".pt-e-happy .pt-eyes,.pt-e-hungry .pt-eyes,.pt-e-sad .pt-eyes{animation:pt-blink 5.3s ease-in-out infinite}"
+      + ".pt-svg .pt-face{transform:translate(var(--lx,0px),var(--ly,0px));transition:transform .35s cubic-bezier(.2,.8,.2,1)}"
+      + "@keyframes pt-blink{0%,93%,100%{transform:scaleY(1)}95.5%{transform:scaleY(.08)}}"
       + "@media (prefers-reduced-motion: reduce){.pt-svg,.pt-svg *{animation:none!important;transition:none!important}}";
     (document.head || document.documentElement).appendChild(st);
   }
@@ -192,7 +197,8 @@
 
   function face(cx, ey, gap, s, emotion) {
     const kind = { happy: "open", party: "happy", hungry: "plead", tired: "tired", sleep: "sleep", sad: "open", sick: "spiral", ghost: "x" }[emotion] || "open";
-    let out = eye(cx - gap, ey, s, kind) + eye(cx + gap, ey, s, kind) + brows(cx, ey, gap, s, emotion);
+    // pt-eyes (clignement) et pt-face (regard qui suit le doigt) : animés par pet/motion.css, jamais par le skin.
+    let out = `<g class="pt-eyes">${eye(cx - gap, ey, s, kind) + eye(cx + gap, ey, s, kind)}</g>` + brows(cx, ey, gap, s, emotion);
     if (["happy", "party", "hungry"].includes(emotion)) {
       out += [-1, 1].map((d) => `<ellipse cx="${n(cx + d * (gap + 12 * s))}" cy="${n(ey + 20 * s)}" rx="${n(8 * s)}" ry="${n(5 * s)}" fill="${C.blush}" opacity=".65"/>`).join("");
     }
@@ -205,7 +211,7 @@
     if (emotion === "hungry") {  // bave
       out += `<path class="pt-tear" d="${P`M${cx + 8 * s} ${my + 10 * s} q${3 * s} ${7 * s} 0 ${10 * s} q${-3 * s} ${-3 * s} 0 ${-10 * s}`}" fill="${C.cyan}"/>`;
     }
-    return out;
+    return `<g class="pt-face">${out}</g>`;
   }
 
   // ── Casque fin + deux antennes à LED (look = couleurs ; la tenue « casque » le remplace par une version dorée) ──

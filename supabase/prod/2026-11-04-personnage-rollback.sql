@@ -5,6 +5,33 @@
 -- sont retirées de la définition en place (les autres types restent intacts). Tout ou rien.
 begin;
 
+-- ══ Barre « petit cadeau » (20261105160000) : tâche, fonctions, colonnes et interrupteur RETIRÉS (les notifications
+-- pet_bar déjà envoyées restent dans l'historique) ; branches pet_bar retirées de la définition en place ══
+do $$
+begin
+  perform cron.unschedule('pet-bar-notify') where exists (select 1 from cron.job where jobname = 'pet-bar-notify');
+end $$;
+drop trigger if exists pets_bar_copy on public.pets;
+drop function if exists private.pet_bar_copy();
+drop function if exists private.pet_bar_notify(timestamptz);
+do $$
+declare
+  def text := pg_get_functiondef('private.web_push_allowed(public.notifications)'::regprocedure);
+begin
+  def := replace(def, E'\n    when ''pet_bar'' then coalesce(prefs.pet_bar, true)', '');
+  execute def;
+  def := pg_get_functiondef('private.may_receive_push(uuid, text)'::regprocedure);
+  def := replace(def, ', ''pet_bar''', '');
+  execute def;
+end $$;
+drop index if exists public.pets_bar_full_at;
+alter table public.pets drop column if exists bar_full_at;
+alter table public.pets drop column if exists bar_notified_for;
+alter table public.pets drop column if exists bar_sent_on;
+alter table public.pets drop column if exists bar_sent_n;
+alter table public.notification_prefs drop column if exists pet_bar;
+delete from supabase_migrations.schema_migrations where version = '20261105160000';
+
 -- ══ Nouvelle économie (20261105120000) : caisse commune EFFACÉE ; les cadeaux et le catalogue partent plus bas avec le
 -- Compagnon et la collection ══
 drop function if exists public.pet_pot_give(text, integer, text, text);

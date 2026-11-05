@@ -243,3 +243,18 @@ def sign_in(phone: "Phone", token: str):
     session = json.dumps({"access_token": token, "refresh_token": "r", "expires_at": int(time.time()) + 3600})
     phone.page.evaluate(f"localStorage.setItem('sb-e2e-auth-token', {json.dumps(session)})")
     phone.page.evaluate("linkAccount()")
+
+
+def pass_reveal(page, timeout: float = 5000):
+    """Scène d'ouverture de Zicou (app/static/pet/reveal.js) : « Passer » jusqu'à ce qu'elle se referme."""
+    from playwright.sync_api import expect
+    scene = page.locator('.zr')
+    expect(scene).to_be_visible(timeout=timeout)
+    for _ in range(3):
+        if not scene.count():
+            break
+        try:
+            scene.locator('.zr-skip').click(timeout=1000)
+        except Exception:   # la scène s'est refermée entre-temps
+            break
+    expect(scene).to_have_count(0, timeout=timeout)

@@ -24,6 +24,7 @@ ROBOT_JS = (Path(__file__).parent / 'qa_jeux_b_robot.js').read_text(encoding='ut
 TYPES = {'.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.txt': 'text/plain; charset=utf-8',
          '.html': 'text/html'}
 GAMES = ('aiguillage', 'encre', 'bascule', 'courant', 'balance', 'gouttes')
+AIGUILLAGE_CLIMB_TIER = 9   # palier de départ d'Aiguillages pour la montée au niveau 61 (voir le test)
 DEVICES = {
     'iphone': dict(viewport={'width': 390, 'height': 844}, device_scale_factor=3, is_mobile=True, has_touch=True),
     'ipad': dict(viewport={'width': 820, 'height': 1180}, device_scale_factor=2, is_mobile=True, has_touch=True),
@@ -161,7 +162,11 @@ def test_perfect_robot_climbs_past_level_60_without_losing_a_life(bench, game, i
     if game == 'aiguillage' and inp == 'key':
         pytest.skip('Aiguillages se joue au toucher seulement')
     b = bench('iphone' if inp == 'touch' else 'bureau')
-    b.start(game, 'parfait', inp)
+    # Aiguillages : 6 bons wagons par niveau à la cadence du jeu, soit ~10 min de jeu de 1 à 61 (≈ 18 min réelles
+    # au rendu Retina du navigateur de test). Départ au palier 9 (niveau 41, réseau complet à 10 gares) : la montée
+    # garde la partie la plus dure (41 → 61, cadence et vitesse maximales) ; les paliers 1 à 8 sont vérifiés par
+    # test_aiguillage_every_tier_…, test_perfect_robot_plays_on_every_screen (palier 8) et les parties passives / errantes.
+    b.start(game, 'parfait', inp, tier=AIGUILLAGE_CLIMB_TIER if game == 'aiguillage' else None)
     q = b.play(30 * 60, until_level=61)
     assert_clean_run(q, game)
     assert b.screen() == 'play', f'{game} : la partie a fini (robot parfait) {q}'
@@ -325,6 +330,52 @@ def test_aiguillage_every_tier_has_its_stations_and_big_enough_targets(bench, de
     assert seen[10]['stations'] == seen[20]['stations'] == 10
 
 
+# Couleur réellement peinte sur le canvas à trois points de chaque gare (bords gauche/droit, bas), comparée à la
+# couleur de la gare : 2 points sur 3 suffisent (un éclair ✓ peut passer sur l'un d'eux).
+STATION_PIXELS = """() => {
+  const cv = document.querySelector('canvas.br-aiguillage-canvas'), s = cv.brSnapshot();
+  const k = cv.width / cv.getBoundingClientRect().width, hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  // Copie dans un canvas de lecture (le canvas du jeu n'est jamais relu : pas d'avertissement Canvas2D).
+  const copy = Object.assign(document.createElement('canvas'), { width: cv.width, height: cv.height });
+  const g = copy.getContext('2d', { willReadFrequently: true });
+  g.drawImage(cv, 0, 0);
+  const img = g.getImageData(0, 0, cv.width, cv.height).data;
+  return s.leaves.map((lf) => {
+    const want = hex(lf.hex), pts = [[lf.x - lf.w / 2 + 3, lf.y + 14], [lf.x + lf.w / 2 - 3, lf.y + 14], [lf.x - lf.w / 2 + 3, lf.y + 32]];
+    const ok = pts.filter(([x, y]) => { const o = (Math.round(y * k) * cv.width + Math.round(x * k)) * 4;
+      return want.every((c, i) => Math.abs(c - img[o + i]) <= 6); }).length;
+    return { hex: lf.hex, ok };
+  });
+}"""
+
+
+def test_aiguillage_draws_each_station_where_it_is_after_a_new_network_and_a_rotation(bench):
+    """Le décor (rails, gares, tunnel) est peint à jour : au départ, après le nouveau réseau d'un palier et après
+    rotation de l'écran, chaque gare est bien peinte à sa place, de sa couleur."""
+    b = bench()
+    b.start('aiguillage', 'parfait', 'touch', tier=4)
+
+    def check(label):
+        bad = [s for s in b.page.evaluate(STATION_PIXELS) if s['ok'] < 2]
+        assert not bad, f'{label} : gare mal peinte {bad}'
+
+    b.page.clock.run_for(1000)
+    check('départ')
+    for _ in range(60):
+        b.page.clock.run_for(2000)
+        if b.qa()['snap']['tier'] >= 5:
+            break
+    assert b.qa()['snap']['stations'] == 6, b.qa()['snap']
+    b.page.clock.run_for(1000)
+    check('nouveau réseau')
+    b.page.set_viewport_size({'width': 844, 'height': 390})
+    b.page.clock.run_for(1000)
+    check('paysage')
+    q = b.qa()
+    assert_clean_run(q)
+    assert q['minLives'] == 3, q
+
+
 # ── Écrans : iPad, paysage (toutes les commandes à l'écran), mouvement réduit ──
 
 @pytest.mark.parametrize('setup', ['ipad', 'paysage', 'reduit'])
@@ -461,6 +512,10 @@ def syl_bench(bench):
     return make
 
 
+# Test long par nature (≈ 11 min seul sur le Mac mini de test) : ~1 500 mots tapés dans ~26 vraies parties, chacune
+# jouée manche après manche à l'horloge simulée. Plafond propre de 30 min (pytest-timeout : le marqueur l'emporte sur
+# --timeout), pour qu'un blocage réel échoue quand même.
+@pytest.mark.timeout(1800)
 def test_syllabes_accepts_1287_real_words_and_refuses_209_fake_ones(syl_bench):
     """Chaque partie sert un index limité aux débuts qui restent à tester : chaque début sort une fois par partie."""
     # Débuts grossiers (con, cul, enc…) : jamais proposés comme lettres de départ (voulu) ; leurs mots ne se tapent pas ici.

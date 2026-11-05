@@ -67,10 +67,12 @@
     clearTimers();
     r.dataset.screen = screen;
     syncTabNav();
+    const motion = window.PetMotion?.before(r);   // animations de ce qui change (pet/motion.js)
     r.innerHTML = `${html}<div class="pt-live pt-sr" role="status" aria-live="polite"></div><div class="pt-news" aria-hidden="true"></div>`
       + `<div class="pt-bursts" aria-hidden="true"></div>`;
     r.scrollTop = 0;
     if (!r.hidden && !r.contains(document.activeElement)) r.focus({ preventScroll: true });
+    motion?.(screen);
   }
   const loadingHtml = (text) => `<div class="pt-loading" role="status"><span class="pt-spin" aria-hidden="true"></span>${e(text)}</div>`;
   const top = (title, back) => `<div class="pt-top">
@@ -123,6 +125,7 @@
     stopGame();
     screenSeq += 1;
     window.Nav?.closed?.("pet");
+    window.PetMotion?.reset();
     inTab = false;
     if (!root) return;
     root.hidden = true;
@@ -189,11 +192,15 @@
       counted = true;
       const data = await api("me", { src });
       if (!root || root.hidden || mine !== screenSeq) return;
+      // Pas encore adopté : l'écran d'adoption. Le serveur ne pond l'œuf que sur « adopt » (choix du nom).
+      // Fiche profil › « Lui rendre visite » : la visite d'un ami passe avant, même sans Zicou à soi.
+      if (data.adopted === false || !data.pet) { pet = null; return pendingVisit ? showVisit(pendingVisit) : adoptScreen(); }
       pet = data.pet;
       window.ZicouHome?.petChanged?.(pet, data.news);
       if (pendingVisit) return showVisit(pendingVisit);   // fiche profil › « Lui rendre visite »
       home();
       announce(data.news);
+      window.PetReveal?.gifts(data.news);   // cadeau ou festin offert par un ami : le paquet cadeau à ouvrir
       if (pet.coll?.reveals?.length && window.PetCollection) window.PetCollection.reveals(pet.coll.reveals);
     } catch (err) {
       if (!root || root.hidden || mine !== screenSeq) return;
@@ -220,6 +227,24 @@
       Crée ton compte pour qu'il te suive sur tous tes appareils.</p>
       <button type="button" class="pt-cta" data-pt="login">Créer mon compte</button>
       <p class="pt-muted pt-tiny">Gratuit · avec ton numéro de téléphone · ton prénom de ce soir est gardé</p></div>`, "login");
+  }
+  /** Compte sans Zicou : rien n'est pondu tant qu'il ne choisit pas son nom (feuille d'accueil, pet/zicou-home.js). */
+  function adoptScreen() {
+    const egg = skin()?.render({ stage: "egg", variant: "classic", emotion: "egg", label: "Un œuf" }) || "🥚";
+    show(`${top(GAME_NAME)}<div class="pt-card pt-adopt">
+      <div class="pt-art pt-wobble">${egg}</div>
+      <h2>Quelqu'un t'attend…</h2>
+      <p class="pt-muted">Un petit Zicou va éclore rien que pour toi. Il grandit avec tes soirées, tes parties et ta musique.</p>
+      <button type="button" class="pt-cta" data-pt="adopt">Le découvrir</button></div>`, "adopt");
+  }
+  async function adoptHere() {
+    if (window.ZicouHome?.open) return window.ZicouHome.open("name");   // choix du nom → « Faire éclore »
+    try {
+      await api("act", { action: "adopt" });
+      refresh();
+    } catch (err) {
+      err.login ? loginScreen() : say(err.message, true);
+    }
   }
   function errorScreen(message) {
     show(`${top(GAME_NAME)}<div class="pt-card"><p>${e(message)}</p><button type="button" class="pt-cta" data-pt="retry">Réessayer</button></div>`, "error");
@@ -254,6 +279,7 @@
     const danger = alertCard(p);
     const next = p.next_stage_in != null ? `<span class="pt-chip">⏳ ${p.stage === "baby" ? "Ado" : "Adulte"} dans ${countdown(p.next_stage_in)}</span>` : "";
     show(`${top(p.name)}
+      ${window.ZicouBar?.html(p) || ""}
       <div class="pt-hero${p.asleep ? " pt-night" : ""}">
         <div class="pt-chips"><span class="pt-chip">${e(stage)}</span><span class="pt-chip">🎂 ${hm(p.age_hours)}</span>
           ${streakChip(p)}${coinChip(p)}${window.PetEconomy?.chips(p) || ""}${next}</div>
@@ -394,13 +420,17 @@
     cue("card");
     buzz([20, 40, 20]);
     const started = Date.now(), mine = screenSeq;
+    // Chances de CE coffre, lues avant le tirage (la réponse donne déjà celles du suivant) : montrées dans le paquet.
+    const d0 = pet?.daily || {};
+    const ctx = { odds: action === "chest" ? d0.odds : d0.bonus_odds, pack: action === "chest" ? "chest" : "bonus",
+      title: action === "chest" ? "Coffre du jour" : "Coffre bonus" };
     try {
       const data = await api("act", { action });
       const wait = Math.max(0, (calm() ? CHEST_MS_CALM : CHEST_MS) - (Date.now() - started));
       await new Promise((res) => setTimeout(res, wait));
       pet = data.pet;
       if (!root || root.hidden || mine !== screenSeq) return;
-      reveal(data.effect?.found, data.news);
+      reveal(data.effect?.found, data.news, ctx);
     } catch (err) {
       if (err.login) return loginScreen();
       home();
@@ -409,9 +439,12 @@
       busy = false;
     }
   }
-  function reveal(found, news) {
+  function reveal(found, news, ctx) {
     if (!found) return home();
-    if (found.kind === "item" && window.PetCollection) { announce(news); return window.PetCollection.revealItem(found); }
+    if (found.kind === "item" && window.PetCollection) { announce(news); return window.PetCollection.revealItem(found, ctx); }
+    // Scène d'ouverture (pet/reveal.js) par-dessus l'écran du résultat, déjà tiré par le serveur.
+    window.PetReveal?.play({ ...ctx, kind: found.kind, amount: found.amount, emoji: found.emoji, label: found.label,
+      sub: FOUND_HINT[found.kind], guaranteed: found.guaranteed, rarity: found.kind === "coins" ? "" : found.kind === "outfit" ? "rare" : "common" });
     show(`${top("Surprise !", true)}<div class="pt-card pt-reveal">
       <div class="pt-reveal-i" aria-hidden="true">${e(found.emoji)}</div><h2>${e(found.label)}</h2>
       <p class="pt-muted">${e(FOUND_HINT[found.kind] || "")}</p>
@@ -449,10 +482,13 @@
     }, TICK_MS);
   }
   function hatchLater() {
-    if (!calm()) root?.querySelector(".pt-stage")?.classList.add("pt-hatch");
+    // L'œuf tremble, se fissure (pet/motion.js), puis éclate ; Zicou apparaît à la relecture.
+    const shell = root?.querySelector(".pt-stage");
+    if (!calm() && window.PetMotion) { window.PetMotion.hatch(root); later(() => shell?.classList.add("pt-hatch"), 650); }
+    else if (!calm()) shell?.classList.add("pt-hatch");
     cue("win");
     buzz([30, 60, 30]);
-    later(refresh, calm() ? 200 : 900);
+    later(refresh, calm() ? 200 : window.PetMotion ? 1500 : 900);
   }
 
   function memorialScreen() {
@@ -641,7 +677,8 @@
     cue(sound);
     buzz(vib);
     const stage = root?.querySelector(".pt-stage");
-    if (stage && !calm()) { stage.classList.remove("pt-bounce"); void stage.offsetWidth; stage.classList.add("pt-bounce"); }
+    if (window.PetMotion) window.PetMotion.act(root, action);   // chaque soin son geste et ses particules
+    else if (stage && !calm()) { stage.classList.remove("pt-bounce"); void stage.offsetWidth; stage.classList.add("pt-bounce"); }
     if (text) burst(text);
   }
   function burst(text) {
@@ -686,6 +723,7 @@
       case "home": stopGame(); return root.dataset.screen === "visit" ? showFriends() : home();
       case "retry": show(loadingHtml("Réveil de ton Zicou…"), "loading"); return refresh();
       case "login": if (!inTab) close(); return typeof showTab === "function" && showTab("account");
+      case "adopt": return adoptHere();
       case "act": return b.dataset.a === "play" ? startGame() : doAct(b.dataset.a);
       case "alert-feed": return doAct("feed");
       case "pet": return pet && !pet.asleep && pet.left.cuddle > 0 ? doAct("cuddle") : react("");
@@ -748,7 +786,7 @@
   // Retour dans l'app (iPhone : minuteurs gelés en arrière-plan) : on relit l'état (œuf éclos, jauges, nouveau jour).
   document.addEventListener("visibilitychange", () => {
     if (document.hidden || !root || root.hidden || busy || game) return;
-    if (["home", "egg", "memorial"].includes(root.dataset.screen)) refresh();
+    if (["home", "egg", "memorial", "adopt"].includes(root.dataset.screen)) refresh();
   });
 
   // Carte de l'onglet Jeux (data-pet-open) et lien direct (?pet=1, notifications).

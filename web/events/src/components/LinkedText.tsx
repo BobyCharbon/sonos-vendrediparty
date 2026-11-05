@@ -26,7 +26,11 @@ interface LinkedTextProps {
   prefix?: ReactNode;
 }
 
-const linkStyle: TextStyle = { textDecorationLine: 'underline' };
+/** Web : une longue adresse se coupe n'importe où plutôt que d'élargir sa bulle au-delà de l'écran (le lien aussi :
+ * chaque texte imbriqué de react-native-web reprend sinon « break-word », qui ne réduit pas la largeur minimale). */
+const breakAnywhere = (Platform.OS === 'web' ? { overflowWrap: 'anywhere' } : {}) as TextStyle;
+
+const linkStyle: TextStyle = { textDecorationLine: 'underline', ...breakAnywhere };
 
 function Link({ segment, color }: { segment: Segment; color: string }) {
   const href = segment.href!;
@@ -49,10 +53,10 @@ function Link({ segment, color }: { segment: Segment; color: string }) {
   );
 }
 
-export function LinkedText({ text, linkColor = colors.accent, prefix, ...rest }: LinkedTextProps) {
+export function LinkedText({ text, linkColor = colors.accent, prefix, style, ...rest }: LinkedTextProps) {
   const segments = useMemo(() => linkify(text), [text]);
   return (
-    <T {...rest}>
+    <T {...rest} style={[breakAnywhere, style]}>
       {prefix}
       {segments.map((seg, i) => (seg.href ? <Link key={i} segment={seg} color={linkColor} /> : seg.text))}
     </T>

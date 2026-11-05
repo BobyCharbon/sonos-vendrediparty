@@ -36,6 +36,11 @@ struct PetWidgetState: Codable, Equatable {
     var diesAt: Date?
     /// Moment de la lecture (les jauges valent `gauges` à cet instant).
     var at: Date
+    /// Barre « petit cadeau » (app/pet_bar.py) : vide depuis `barFrom`, pleine à `barFullAt` (en pause la nuit :
+    /// le serveur en a déjà tenu compte) ; `barRest` : les 4 du jour sont faites. Absents avant la barre.
+    var barFrom: Date? = nil
+    var barFullAt: Date? = nil
+    var barRest: Bool? = nil
 
     static let defaultName = "Zicou"
     static let nameMax = 20
@@ -63,6 +68,12 @@ extension PetWidgetState {
             let streak: Streak?
         }
 
+        struct Bar: Decodable {
+            let state: String?
+            let from: String?
+            let full_at: String?
+        }
+
         let name: String?
         let stage: String
         let variant: String?
@@ -74,6 +85,7 @@ extension PetWidgetState {
         let next_stage_in: Double?
         let dies_at: String?
         let daily: Daily?
+        let bar: Bar?
     }
 
     static let stages: Set<String> = ["egg", "baby", "teen", "adult", "dead"]
@@ -91,7 +103,10 @@ extension PetWidgetState {
             gauges: Gauges(food: clamp(g?.food), joy: clamp(g?.joy), energy: clamp(g?.energy), care: clamp(g?.care)),
             streak: max(0, wire.daily?.streak?.count ?? wire.streak ?? 0),
             chestReady: wire.daily?.chest?.state == "ready",
-            hatchAt: hatchAt, diesAt: wire.dies_at.flatMap(parseDate), at: receivedAt)
+            hatchAt: hatchAt, diesAt: wire.dies_at.flatMap(parseDate), at: receivedAt,
+            barFrom: wire.bar?.state == "off" ? nil : wire.bar?.from.flatMap(parseDate),
+            barFullAt: wire.bar?.state == "off" ? nil : wire.bar?.full_at.flatMap(parseDate),
+            barRest: wire.bar.map { $0.state == "rest" })
     }
 
     /// Nom montré : celui du serveur (déjà filtré), sinon « Zicou ».

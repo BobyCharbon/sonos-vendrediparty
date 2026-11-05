@@ -1799,6 +1799,8 @@ class NotificationPatch(BaseModel):
     # Compagnon, lot 1 (migration 20261104150000) : cadeau d'un ami ; paliers de série.
     pet_gifts: bool | None = None
     pet_streaks: bool | None = None
+    # Barre « petit cadeau » pleine (migration 20261105160000) : au plus 2 par jour, jamais la nuit.
+    pet_bar: bool | None = None
     # Modération (migration 20261104200000) : nouveau signalement (modérateurs) ; message de la modération.
     moderation_reports: bool | None = None
     moderation_notices: bool | None = None
@@ -3594,7 +3596,9 @@ def brain_game_local(body: BrainGameLocal):
 # 🥚 Compagnon : personnage à entretenir (app/pet.py pour la vie, app/pet_store.py pour la base). Compte requis.
 pet_party_log = pet_store.PartyLog(DATA_DIR / "pet_party.json")
 PET_ACTIONS = Literal["feed", "play", "cuddle", "sleep", "wake", "heal", "rename", "outfit", "new_egg",
-                      "chest", "bonus_chest", "tuck", "treat"]   # les 4 dernières : boucle du jour (app/pet_loop.py)
+                      "chest", "bonus_chest", "tuck", "treat",   # ces 4 : boucle du jour (app/pet_loop.py)
+                      "adopt",   # adoption explicite : seule action qui pond le premier œuf
+                      "bar"]     # barre « petit cadeau » pleine : récupérer (app/pet_bar.py)
 
 
 class PetAct(BaseModel):
@@ -3656,7 +3660,8 @@ def pet_service() -> pet_store.PetStore:
 
 @app.post("/api/pet/me")
 def pet_me(body: PetMe, request: Request):
-    """Mon compagnon, vécu jusqu'à maintenant (un œuf au premier appel), avec les nouvelles (bonus, cadeaux, évolution)
+    """Mon compagnon, vécu jusqu'à maintenant (sans Zicou : {"adopted": false}, rien n'est pondu ; l'œuf ne vient
+    que de l'action « adopt »), avec les nouvelles (bonus, cadeaux, évolution)
     et la boucle du jour (coffre, série, missions, rituels). Compte une ouverture (src) pour la mesure."""
     if not 20 < len(body.token) < 4096:
         raise HTTPException(400, "Jeton invalide")

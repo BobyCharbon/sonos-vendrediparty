@@ -105,6 +105,7 @@ export function Button({
   loading,
   style,
   small,
+  accessibilityLabel,
 }: {
   label: string;
   onPress?: () => void;
@@ -113,12 +114,14 @@ export function Button({
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
   small?: boolean;
+  /** Libellé lu par VoiceOver quand le texte visible ne suffit pas (« + » → « Ajouter un accompagnant »). */
+  accessibilityLabel?: string;
 }) {
   const v = buttonVariants[variant];
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading }}
       onPress={onPress}
       disabled={disabled || loading}
@@ -176,7 +179,7 @@ export function Chip({
         disabled && { opacity: 0.45 },
       ]}
     >
-      <Text style={{ color: selected ? colors.onAccent : colors.textSoft, ...(selected ? font.bold : font.semibold), fontSize: 13 }}>{selected && !/^[✕✓+]/.test(label) ? '✓ ' : ''}{label}</Text>
+      <Text numberOfLines={1} style={{ color: selected ? colors.onAccent : colors.textSoft, ...(selected ? font.bold : font.semibold), fontSize: 13 }}>{selected && !/^[✕✓+]/.test(label) ? '✓ ' : ''}{label}</Text>
     </Pressable>
   );
 }
@@ -188,6 +191,10 @@ export function Badge({ label, fg, bg }: { label: string; fg: string; bg: string
     </View>
   );
 }
+
+/** Largeur d'écran (px) sous laquelle quatre / cinq onglets passent en grille au lieu d'être coupés. */
+const GRID_BELOW_FOUR = 360;
+const GRID_BELOW_FIVE = 384;
 
 export function Segmented<K extends string>({
   options,
@@ -201,8 +208,9 @@ export function Segmented<K extends string>({
   disabled?: boolean;
 }) {
   const { width } = useWindowDimensions();
-  // Sous 360 px, quatre onglets ne tiennent pas sur une ligne : grille régulière (2 ou 3 par ligne).
-  const grid = options.length > 3 && width < 360;
+  // Quatre onglets ne tiennent pas sur une ligne sous 360 px, cinq sous 390 px (« À ve… » à 360) :
+  // grille régulière (2 ou 3 par ligne).
+  const grid = options.length > 3 && width < (options.length > 4 ? GRID_BELOW_FIVE : GRID_BELOW_FOUR);
   // Cinq onglets et plus : texte et marges un peu réduits, pour tenir sur une ligne dès 343 px.
   const compact = options.length > 4;
   // Pastille du choix qui glisse d'un onglet à l'autre (comme iOS), une fois les onglets mesurés ;
@@ -552,7 +560,8 @@ export const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   button: { minHeight: 52, paddingVertical: 12, borderRadius: radius.md, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
-  chip: { minHeight: 44, paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  // maxWidth : un très long prénom reste dans sa ligne (« … ») au lieu de sortir de l'écran.
+  chip: { maxWidth: '100%', minHeight: 44, paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   badge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill },
   segmented: { flexDirection: 'row', gap: 2, padding: 3, borderRadius: 13, backgroundColor: colors.fill },
   segment: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, minHeight: 44, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
@@ -561,6 +570,9 @@ export const s = StyleSheet.create({
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52 },
   input: {
+    // Champ + bouton sur une ligne (« Ajouter », « Valider ») : sans minWidth 0, la largeur propre du champ HTML
+    // poussait le bouton hors de l'écran sur un petit écran ou avec un texte agrandi.
+    minWidth: 0,
     height: 48,
     borderRadius: 12,
     borderWidth: 1.5,
@@ -579,7 +591,7 @@ export const s = StyleSheet.create({
   rowBadge: { minWidth: 22, height: 22, paddingHorizontal: 7, borderRadius: 11, backgroundColor: '#FF3B30', alignItems: 'center', justifyContent: 'center' },
   rowBadgeText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   disclosure: { width: 8, height: 8, borderRightWidth: 2, borderTopWidth: 2, borderColor: colors.muted, opacity: 0.7, transform: [{ rotate: '45deg' }], marginRight: 4 },
-  headerButton: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44, paddingHorizontal: 8 },
+  headerButton: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44, minWidth: 44, paddingHorizontal: 8 },
   chevron: { width: 12, height: 12, borderLeftWidth: 2.5, borderBottomWidth: 2.5, borderColor: colors.accent, transform: [{ rotate: '45deg' }], marginLeft: 6, marginRight: 2 },
   divider: { height: 1, backgroundColor: colors.line },
   // Position fixe (web) : le toast reste en bas de l’écran même quand la page défile.
@@ -590,12 +602,19 @@ export const s = StyleSheet.create({
 });
 
 /** ‹ Retour d’en-tête, comme sur iPhone : chevron et nom de l’écran précédent, teintés. */
-export function HeaderBack({ label, onPress }: { label: string; onPress: () => void }) {
+/** Sous cette largeur (petit écran, texte agrandi), le ‹ de retour perd son libellé : il chevauchait les actions de droite. */
+const BACK_LABEL_MIN_WIDTH = 330;
+
+/** iconOnly : écran au titre centré (discussion) où le libellé chevaucherait le titre ; VoiceOver lit toujours « Retour : … ». */
+export function HeaderBack({ label, onPress, iconOnly = false }: { label: string; onPress: () => void; iconOnly?: boolean }) {
+  const { width } = useWindowDimensions();
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`Retour : ${label}`} onPress={onPress}
       style={({ pressed }) => [s.headerButton, { opacity: pressed ? 0.4 : 1 }]}>
       <View style={s.chevron} />
-      <Text numberOfLines={1} style={{ color: colors.accent, fontSize: 17, maxWidth: 160, ...font.medium }}>{label}</Text>
+      {!iconOnly && width >= BACK_LABEL_MIN_WIDTH ? (
+        <Text numberOfLines={1} style={{ color: colors.accent, fontSize: 17, maxWidth: 160, ...font.medium }}>{label}</Text>
+      ) : null}
     </Pressable>
   );
 }

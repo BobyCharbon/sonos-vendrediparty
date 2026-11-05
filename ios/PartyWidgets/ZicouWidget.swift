@@ -123,6 +123,9 @@ struct ZicouWidgetView: View {
                     GaugeRow(symbol: "heart.fill", value: m.gauges.joy, color: Z.pink, label: "Humeur")
                     GaugeRow(symbol: "bolt.fill", value: m.gauges.energy, color: Z.cyan, label: "Énergie")
                     GaugeRow(symbol: "sparkles", value: m.gauges.care, color: Z.green, label: "Forme")
+                    if let bar = m.bar {
+                        GaugeRow(symbol: "gift", value: bar * PetRates.full, color: Z.gold, label: "Petit cadeau")
+                    }
                 }
                 Spacer(minLength: 0)
                 footer(m).font(.caption2).foregroundStyle(.secondary)
@@ -152,6 +155,7 @@ struct ZicouWidgetView: View {
         HStack(spacing: 8) {
             if m.streak > 0 { Label("\(m.streak)", systemImage: "flame.fill") }
             if m.chestReady { Label(family == .systemMedium ? "Cadeau du jour prêt" : "Prêt", systemImage: "gift.fill") }
+            if m.barFull && family == .systemMedium { Label("Barre pleine", systemImage: "gift") }
         }
         .labelStyle(TightLabel())
         .lineLimit(1)

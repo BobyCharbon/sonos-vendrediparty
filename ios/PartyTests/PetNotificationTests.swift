@@ -36,4 +36,14 @@ struct PetNotificationTests {
         let before = try JSONDecoder().decode(EventNotificationPrefs.self, from: Data((base + "}").utf8))
         #expect(before.petGifts == nil && before.petStreaks == nil)
     }
+
+    @MainActor @Test("Barre pleine : son propre interrupteur, absent = reçue")
+    func barSwitch() throws {
+        let before = try JSONDecoder().decode(EventNotificationPrefs.self, from: Data((base + "}").utf8))
+        #expect(before.petBar == nil)
+        let off = SettingsStore.applying("pet_bar", false, to: before)
+        #expect(off.petBar == false && off.petStreaks == nil && off.petDaily == nil)
+        let decoded = try JSONDecoder().decode(EventNotificationPrefs.self, from: Data((base + #","pet_bar":false}"#).utf8))
+        #expect(decoded.petBar == false)
+    }
 }

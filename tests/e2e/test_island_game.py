@@ -10,7 +10,8 @@ from tests.e2e.helpers import Phone, Server, wait_state
 
 
 @pytest.fixture
-def phones(browser):
+def phones(gpu_browser):  # 3D : carte graphique (tests/e2e/conftest.py)
+    browser = gpu_browser
     server = Server()
     made = []
     def make(name, device='iphone'):

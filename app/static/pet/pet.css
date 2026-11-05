@@ -63,7 +63,8 @@ html.pt-open #tabs { display: none !important; }
 .pt-g-ico { grid-row: span 2; font-size: 1.3rem; }
 .pt-g-l { font-size: .8rem; font-weight: 700; color: var(--pt-muted); }
 .pt-bar { display: block; height: 8px; border-radius: 99px; background: rgba(255, 255, 255, .1); overflow: hidden; }
-.pt-bar i { display: block; height: 100%; width: var(--v); border-radius: inherit; background: linear-gradient(90deg, var(--pt-cyan), var(--pt-violet)); transition: width .6s var(--pt-spring); }
+/* Pas de transition sur width (propriété de mise en page) : la barre se remplit par transform (pet/motion.css). */
+.pt-bar i { display: block; height: 100%; width: var(--v); border-radius: inherit; background: linear-gradient(90deg, var(--pt-cyan), var(--pt-violet)); }
 .pt-low .pt-bar i { background: linear-gradient(90deg, var(--pt-amber), var(--pt-neon)); }
 
 .pt-acts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 12px; }

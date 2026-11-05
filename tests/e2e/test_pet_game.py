@@ -15,7 +15,7 @@ pytest.importorskip('playwright.sync_api')
 from playwright.sync_api import expect
 
 from app import pet
-from tests.e2e.helpers import Phone, Server, sign_in
+from tests.e2e.helpers import Phone, Server, pass_reveal, sign_in
 from tests.test_pet_api import BOB, TOK_A, FakeBase
 
 
@@ -124,11 +124,18 @@ def test_egg_name_then_care_for_a_baby(world):
     page.goto('/')
     sign_in(phone, TOK_A)
     root = open_pet(phone)
+    # Compte sans Zicou (4.11) : aucun œuf pondu d'office ; « Le découvrir » ouvre le choix du nom, puis l'œuf.
+    expect(root.locator('.pt-adopt h2')).to_have_text("Quelqu'un t'attend…")
+    root.locator('[data-pt="adopt"]').click()
+    sheet = page.locator('#zicouSheet')
+    expect(sheet.locator('h2')).to_have_text("Comment va-t-il s'appeler ?")
+    sheet.locator('.zc-name input').fill('<b>Bijou</b>')
+    sheet.locator('.zc-name [type=submit]').click()
+    expect(sheet.locator('h2')).to_have_text('<b>Bijou</b> éclot bientôt')   # affiché tel quel, jamais interprété
+    sheet.locator('[data-zc-close]').click()
     expect(root.locator('.pt-count')).to_contain_text('Éclosion dans')
-    expect(root.locator('.pt-art svg[role="img"]')).to_have_attribute('aria-label', 'Zicou, Œuf dans son œuf')
+    expect(root.locator('.pt-art svg[role="img"]')).to_have_attribute('aria-label', '<b>Bijou</b>, Œuf dans son œuf')
     phone.shot('pet-1-oeuf')
-    root.locator('#ptName').fill('<b>Bijou</b>')
-    root.locator('.pt-name button[type="submit"]').click()
     expect(root.locator('.pt-title')).to_have_text('<b>Bijou</b>')   # affiché tel quel, jamais interprété
     assert supa.base.pets[supa.base.users[TOK_A]]["life"]["name"] == '<b>Bijou</b>'
 
@@ -319,6 +326,7 @@ def test_daily_chest_odds_streak_missions_and_treasures(world):
     page.go_back()
     # Le coffre : animation, puis révélation de ce que le serveur a tiré.
     root.locator('[data-pt="chest"]').click()
+    pass_reveal(page)   # scène d'ouverture (paquet à déchirer) : testée à part, tests/e2e/test_zicou_reveal.py
     expect(root.locator('.pt-reveal h2')).not_to_be_empty()
     saved = supa.base.pets[supa.base.users[TOK_A]]["owner"]["loop"]["chest"]
     shown = (saved["found"].get("item_info") or {}).get("label") if saved["found"]["kind"] == "item" and not saved["found"].get("dup") else saved["found"]["label"]
@@ -369,7 +377,8 @@ def test_a_notification_link_counts_as_an_open_from_a_notification(world):
     root = page.locator('#petRoot')
     expect(root.locator('.pt-gauges')).to_be_visible()
     me = supa.base.users[TOK_A]
-    assert [src for uid, src in supa.base.opens if uid == me][-1] == "notification"
+    # Les relectures de la pastille (/api/pet/status, src None) ne sont pas des ouvertures : elles peuvent arriver après.
+    assert [src for uid, src in supa.base.opens if uid == me and src][-1] == "notification"
     nudge = supa.base.pets[me]["nudge"]
     assert nudge["title"] == "Zicou" and 8 * 60 <= nudge["minute"] <= 22 * 60 + 45
 
@@ -404,12 +413,15 @@ def test_lea_the_egg_hatches_on_return_without_reopening(world):
     page.clock.install(time=datetime.now(timezone.utc))
     page.goto('/')
     sign_in(phone, TOK_A)
-    life, owner = pet.new_pet(datetime.now(timezone.utc) - timedelta(seconds=pet.EGG_SECONDS - 4))
+    # Marge de 15 s avant l'éclosion : sur un poste chargé, ouvrir l'onglet prend parfois plus de 4 s.
+    hatch_at = datetime.now(timezone.utc) + timedelta(seconds=15)
+    life, owner = pet.new_pet(hatch_at - timedelta(seconds=pet.EGG_SECONDS))
     supa.seed(supa.base.users[TOK_A], life, owner)
     root = open_pet(phone)
     expect(root.locator('.pt-count')).to_contain_text('Éclosion dans')
     page.clock.pause_at(datetime.now(timezone.utc) + timedelta(milliseconds=500))   # l'app « dort » : plus aucun tic
-    page.wait_for_timeout(5000)                                                     # 5 vraies secondes passent
+    left = (hatch_at - datetime.now(timezone.utc)).total_seconds()
+    page.wait_for_timeout(max(0, left + 1) * 1000)                                  # l'heure d'éclosion passe
     page.clock.set_system_time(datetime.now(timezone.utc))
     page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")          # retour dans l'app
     page.clock.resume()

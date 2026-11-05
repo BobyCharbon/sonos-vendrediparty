@@ -200,12 +200,14 @@
       case "pc-close": picked = null; return render();
       case "pc-buy":
         if (b.getAttribute("aria-disabled") === "true") return UI().say("Pas assez de pièces pour l'instant 🪙 Elles se gagnent en jouant.", true);
-        return act({ action: "buy", item: b.dataset.i });
+        return act({ action: "buy", item: b.dataset.i }, (data) => unwrap(data.effect?.item, "shop"));
       case "pc-craft":
         if (b.getAttribute("aria-disabled") === "true") return UI().say("Pas assez de poussière d'étoile ✨ Les doublons en donnent.", true);
         return act({ action: "craft", item: b.dataset.i }, (data) => {
           const made = data.effect;
-          if (made?.serial) revealItem({ kind: "item", item: made.item, rarity: "legendary", serial: made.serial, code: made.code, label: "Fabriqué à l'atelier" });
+          if (made?.serial) revealItem({ kind: "item", item: made.item, rarity: "legendary", serial: made.serial, code: made.code, label: "Fabriqué à l'atelier" },
+            { pack: "craft", mode: "auto", title: "Atelier" });
+          else unwrap(made?.item, "craft");
         });
       case "pc-next": return nextReveal();
       case "pc-wear-new": return act({ action: "equip", item: b.dataset.i }, () => UI().home());
@@ -233,9 +235,27 @@
 
   // ── Révélations ──
   // Accessoire du coffre : carte à la couleur de sa rareté. Mythique : le grand moment, en plusieurs temps.
-  function revealItem(found) {
+  // Scène d'ouverture (pet/reveal.js) : le paquet à déchirer ou la carte à gratter, puis la révélation selon la rareté.
+  // ctx : { odds, pack, mode, title, from } donné par l'appelant (coffre, cadeau d'événement, boutique, atelier).
+  const scene = (spec) => window.PetReveal?.play(spec) || Promise.resolve({ skipped: true });
+  function sceneOf(found, info, ctx) {
+    return { title: "Surprise !", ...ctx, kind: "item", rarity: found.rarity, icon: mini(info, "zr-mini"), guaranteed: found.guaranteed,
+      label: found.dup ? found.label : info.label, sub: found.dup ? "Doublon : poussière d'étoile pour l'atelier ✨" : found.serial ? serial(found) : "" };
+  }
+  // Objet choisi (boutique, atelier) : pas de tirage, la carte s'ouvre seule, juste le petit moment de la rareté.
+  function unwrap(id, pack) {
+    const info = itemInfo(id);
+    if (!info?.slot) return;
+    scene({ kind: "item", pack, mode: "auto", title: pack === "shop" ? "Boutique" : "Atelier", rarity: info.rarity, icon: mini(info, "zr-mini"),
+      label: info.label, sub: "Rangé dans ta collection", oddsNote: "Objet choisi par toi : ce n'est pas un tirage." });
+  }
+  function revealItem(found, ctx) {
     const info = found.item_info || itemInfo(found.item) || { id: found.item, label: found.label, slot: "head", rarity: found.rarity };
-    if (found.rarity === "mythic" && !found.dup) return mythic(info, found);
+    if (found.rarity === "mythic" && !found.dup) {
+      // Silhouette « ??? » et craquelures dans la scène, puis la suite en trois temps (numéro tamponné) ci-dessous.
+      return scene({ ...sceneOf(found, info, ctx), icon: "", label: "Objet mystère" }).then((r) => mythic(info, found, r?.skipped));
+    }
+    scene(sceneOf(found, info, ctx));
     const p = UI().current();
     const extra = found.dup ? {} : { [info.slot]: info.id };
     UI().show(`${UI().top("Surprise !", true)}<div class="pt-card pt-reveal pc-reveal pc-b-${e(found.rarity)}">
@@ -253,9 +273,9 @@
     return null;
   }
   // Mythique : 1) antennes arc-en-ciel, 2) la boule se brise en éclats, 3) l'objet apparaît, numéro tamponné.
-  function mythic(info, found) {
+  function mythic(info, found, fast) {
     const p = UI().current();
-    const calm = UI().calm();
+    const calm = UI().calm() || Boolean(fast);   // scène passée : directement l'objet et son numéro
     const shards = Array.from({ length: 14 }, (_, i) => `<i style="--a:${i * 25.7}deg;--d:${70 + (i % 4) * 22}px"></i>`).join("");
     UI().show(`<div class="pc-myth${calm ? " pc-calm" : ""}" data-step="1" role="dialog" aria-label="Objet mythique">
       <div class="pc-myth-stage">${p ? UI().art(p, "pc-myth-zicou") : ""}<div class="pc-shards" aria-hidden="true">${shards}</div>
@@ -297,10 +317,16 @@
     }
     const found = { kind: "item", item: r.item.id, item_info: r.item, rarity: r.item.rarity, dup: r.dup, serial: r.serial, of: r.of, code: r.code,
       label: r.dup ? `Doublon : ${r.item.label} (+${r.dust} poussière ✨)` : r.item.label };
-    revealItem(found);
-    const card = UI().root()?.querySelector(".pt-reveal, .pc-myth");
-    card?.insertAdjacentHTML("afterbegin", `<p class="pc-from">🎁 Cadeau de « ${e(r.event)} »</p>`);
-    if (queue.length) UI().root()?.querySelectorAll('[data-pt="home"]').forEach((b) => { b.dataset.pt = "pc-next"; b.textContent = "Suivant"; });
+    const from = `Cadeau de « ${r.event} »`;
+    const mark = () => {
+      const card = UI().root()?.querySelector(".pt-reveal, .pc-myth");
+      if (card && !card.querySelector(".pc-from")) card.insertAdjacentHTML("afterbegin", `<p class="pc-from">🎁 ${e(from)}</p>`);
+      if (queue.length) UI().root()?.querySelectorAll('[data-pt="home"]').forEach((b) => { b.dataset.pt = "pc-next"; b.textContent = "Suivant"; });
+    };
+    const done = revealItem(found, { pack: "event", mode: "scratch", title: "Cadeau d'événement", from,
+      oddsNote: "Tirage fait par Party pour l'événement, avec les chances publiées avant l'événement puis figées. Il ne dépend jamais d'un billet ni d'un paiement." });
+    mark();
+    if (done?.then) done.then(mark);   // Mythique : l'écran arrive après la scène
   }
 
   // ── Chez un ami : vitrine, Signaler, Bloquer ──

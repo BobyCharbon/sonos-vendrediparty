@@ -181,10 +181,12 @@ class EventEditor:
     def _sync_lists(self, token, eid, e, d, o, uid, now, problems):
         self._sync_bring(token, eid, e, d, problems)
         self._sync_polls(token, eid, e, d, uid, problems)
+        # Sa propre ligne n'est jamais touchée : un co-organisateur ne figure pas dans son brouillon (il ne se nomme pas),
+        # il se retirait donc lui-même et perdait la main sur l'événement.
         self._sync_people(token, eid, "event_invites",
-                          {i["user_id"] for i in e.get("event_invites") or [] if not i.get("via_group")},
+                          {i["user_id"] for i in e.get("event_invites") or [] if not i.get("via_group")} - {uid},
                           {o.people[n] for n in d["invitees"]} - {uid}, "les invitations", problems)
-        self._sync_people(token, eid, "event_organizers", {x["user_id"] for x in e.get("event_organizers") or []},
+        self._sync_people(token, eid, "event_organizers", {x["user_id"] for x in e.get("event_organizers") or []} - {uid},
                           {o.people[n] for n in d["organizers"]} - {uid}, "les co-organisateurs", problems)
         old_tags = {t["tag_id"] for t in e.get("event_tags") or []}
         new_tags = {o.tags[t] for t in d["tags"]}
