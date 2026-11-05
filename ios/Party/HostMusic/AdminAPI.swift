@@ -18,7 +18,13 @@ extension PartyAPI {
 
     func adminSkip() async throws { try await post("/api/admin/skip", body: [:]) }
 
-    func adminVolume(_ volume: Int) async throws { try await post("/api/admin/volume", body: ["volume": volume]) }
+    /// Volume : délai court (le serveur répond en moins de 3 s même si une enceinte décroche), la valeur suivante
+    /// du curseur repart de toute façon.
+    static let volumeTimeout: TimeInterval = 6
+
+    func adminVolume(_ volume: Int) async throws {
+        try await post("/api/admin/volume", body: ["volume": volume], timeout: Self.volumeTimeout)
+    }
 
     func adminSearch(_ query: String) async throws -> [HostSearchTrack] {
         try await get("/api/admin/search", query: ["q": query])
@@ -72,7 +78,7 @@ extension PartyAPI {
     }
 
     func adminSpeakerVolume(uid: String, volume: Int) async throws {
-        try await post("/api/admin/speakers/volume", body: ["uid": uid, "volume": volume])
+        try await post("/api/admin/speakers/volume", body: ["uid": uid, "volume": volume], timeout: Self.volumeTimeout)
     }
 
     func adminSpotifyLogout() async throws -> AdminState { try await postDecoding("/api/admin/spotify/logout", body: [:]) }

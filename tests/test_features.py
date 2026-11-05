@@ -174,6 +174,17 @@ def test_speaker_group_and_volume(admin):
     assert calls == [("group", "RINCON_B", True), ("spvol", "RINCON_B", 0)]
 
 
+def test_a_speaker_that_does_not_answer_gives_a_clear_error_not_a_crash(admin):
+    def timeout(*_):
+        raise TimeoutError("timed out")
+
+    admin.fake.set_speaker_volume = timeout
+    admin.fake.set_volume = timeout
+    response = admin.post("/api/admin/speakers/volume", json={"uid": "RINCON_B", "volume": 30})
+    assert response.status_code == 502 and "ne répond pas" in response.json()["detail"]
+    assert admin.post("/api/admin/volume", json={"volume": 30}).status_code == 502
+
+
 def test_rename_updates_queue_and_guest_page(admin):
     guest = TestClient(main.app)
     guest.post("/api/join", json={"pin": main.store.session.guest_pin})

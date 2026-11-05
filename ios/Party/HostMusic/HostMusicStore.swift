@@ -48,11 +48,12 @@ final class HostMusicStore: ObservableObject {
     private weak var web: WebStorage?
     private var liveTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
-    private var volumeTask: Task<Void, Never>?
-    private var speakerVolumeTask: Task<Void, Never>?
+    private lazy var volumeSender = LatestValueSender(send: { [weak self] volume in
+        try await self?.api.adminVolume(volume)
+    }, onError: { [weak self] error in self?.notice = Notice(text: Self.message(error), isError: true) })
+    private var speakerVolumeSenders: [String: LatestValueSender] = [:]
     private static let reconnectDelay: Duration = .seconds(3)
     private static let searchDelay: Duration = .milliseconds(350)
-    private static let volumeDelay: Duration = .milliseconds(250)
 
     init(api: PartyAPI, web: WebStorage) {
         self.api = api
@@ -166,14 +167,10 @@ final class HostMusicStore: ObservableObject {
         }
     }
 
-    /// Curseur du volume : un envoi au plus toutes les 250 ms pendant le glissement, le dernier à la fin.
+    /// Curseur du volume : un envoi au plus toutes les 250 ms pendant le glissement, le dernier à la fin,
+    /// une seule requête en vol et jamais d'annulation (LatestValueSender).
     func setVolume(_ volume: Int) {
-        volumeTask?.cancel()
-        volumeTask = Task { [weak self] in
-            try? await Task.sleep(for: Self.volumeDelay)
-            guard !Task.isCancelled else { return }
-            do { try await self?.api.adminVolume(volume) } catch { self?.notice = Notice(text: Self.message(error), isError: true) }
-        }
+        volumeSender.submit(volume)
     }
 
     // MARK: Ajouter
@@ -332,14 +329,19 @@ final class HostMusicStore: ObservableObject {
         await run("sp.\(speaker.uid)") { speakers = try await api.adminGroupSpeaker(uid: speaker.uid, join: join) }
     }
 
+    /// Curseur d'une enceinte : même envoi que le volume global, un par enceinte (régler une enceinte n'écrase
+    /// plus la dernière valeur d'une autre).
     func setSpeakerVolume(_ speaker: Speaker, _ volume: Int) {
-        speakerVolumeTask?.cancel()
-        speakerVolumeTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(200))
-            guard !Task.isCancelled else { return }
-            do { try await self?.api.adminSpeakerVolume(uid: speaker.uid, volume: volume) }
-            catch { self?.notice = Notice(text: Self.message(error), isError: true) }
-        }
+        speakerVolumeSender(speaker.uid).submit(volume)
+    }
+
+    private func speakerVolumeSender(_ uid: String) -> LatestValueSender {
+        if let sender = speakerVolumeSenders[uid] { return sender }
+        let sender = LatestValueSender(send: { [weak self] volume in
+            try await self?.api.adminSpeakerVolume(uid: uid, volume: volume)
+        }, onError: { [weak self] error in self?.notice = Notice(text: Self.message(error), isError: true) })
+        speakerVolumeSenders[uid] = sender
+        return sender
     }
 
     #if DEBUG

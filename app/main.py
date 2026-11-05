@@ -922,6 +922,9 @@ def admin_volume(body: Volume):
         player().set_volume(store.session.room_uid, max(0, min(100, body.volume)))
     except SpotifyError as e:
         raise HTTPException(409, str(e))
+    except Exception as e:  # enceinte qui ne répond pas dans le délai court (app/sonos.py, VOLUME_TIMEOUT)
+        log.warning("Volume non réglé : %s", e)
+        raise HTTPException(502, "Les enceintes ne répondent pas, réessaie")
     _snap["data"] = None
     return {"ok": True}
 
@@ -968,6 +971,9 @@ def admin_speaker_volume(body: SpeakerVolume):
         sonos.set_speaker_volume(body.uid, max(0, min(100, body.volume)))
     except KeyError:
         raise HTTPException(404, "Enceinte introuvable")
+    except Exception as e:  # enceinte qui a décroché du Wi-Fi : réponse en moins de 3 s au lieu de 20
+        log.warning("Volume d'enceinte non réglé : %s", e)
+        raise HTTPException(502, "Cette enceinte ne répond pas, réessaie")
     _snap["data"] = None
     return {"ok": True}
 
