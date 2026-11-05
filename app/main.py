@@ -197,7 +197,9 @@ _snap_lock = threading.Lock()
 
 
 def guest_prefs(guest_id: str) -> dict:
-    return {**GUEST_NOTIFY_DEFAULTS, **store.session.guest_notify.get(guest_id, {})}
+    """Types connus seulement : un ancien choix (ex. « games », retiré le 05.11.2026) n'est plus renvoyé."""
+    saved = store.session.guest_notify.get(guest_id, {})
+    return {kind: saved.get(kind, on) for kind, on in GUEST_NOTIFY_DEFAULTS.items()}
 
 
 def notify_guest(guest_id: str, payload: dict, kind: str):
@@ -1347,11 +1349,8 @@ def create_game(body: GameCreate, request: Request):
     _game_creations[ip] = recent + [time.time()]
     game_presence(request, body.guest_id, body.name)
     title, text = f"🎮 {games.GAMES[g['type']]}", f"{g['host_name']} lance une partie · code {g['code']}"
+    # Seul l'hôte est prévenu (son réglage) ; les invités, jamais : chacun invite qui il veut (choix de l'admin du 05.11.2026).
     notify_admin({"title": title, "body": text, "url": "/admin#games", "tag": f"game-{g['code']}"}, kind="games")
-    for guest_id in list(store.session.push):
-        if guest_id not in (body.guest_id, HOST_ID):  # l'hôte est déjà prévenu en tant qu'hôte
-            notify_guest(guest_id, {"title": title, "body": text, "url": f"/?game={g['code']}", "tag": f"game-{g['code']}"},
-                         kind="games")
     store.session.games[g["code"]] = g
     if g["type"] != "room" and not gate_free(body.guest_id, request):
         guest_gate.record(body.guest_id, g["code"])  # sa nouvelle partie compte (une salle, non)

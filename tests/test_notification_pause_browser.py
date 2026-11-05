@@ -108,7 +108,7 @@ def test_group_and_event_discussions_have_separate_pauses_and_every_type_its_swi
                       'Invitation dans un groupe', 'Quelqu’un rejoint mon groupe', 'Quelqu’un rejoint par le lien',
                       'Ma proposition validée ou refusée', 'Annonces des admins'):
             pw.expect(frame.get_by_label(label, exact=True).first).to_be_attached()
-        pw.expect(frame.get_by_text('Soirée : musique, jeux et avis', exact=True)).to_be_visible()
+        pw.expect(frame.get_by_text('Soirée : musique et avis', exact=True)).to_be_visible()
         # Indépendantes de la lune : la lune reste éteinte.
         frame.get_by_role('button', name='Retour : Réglages').click()
         pw.expect(frame.get_by_role('button', name='Mettre les notifications en pause')).to_be_visible()

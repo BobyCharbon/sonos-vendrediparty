@@ -11,8 +11,8 @@ struct SettingsTests {
 
     @Test("Invité et hôte : un oui/non par type (GET /api/notify, /api/admin/notify)")
     func decodesPartyPrefs() throws {
-        let guest: GuestNotifyState = try decode(#"{"prefs": {"track": true, "feedback": false, "games": true}, "subscribed": true}"#)
-        #expect(guest.prefs == ["track": true, "feedback": false, "games": true] && guest.subscribed)
+        let guest: GuestNotifyState = try decode(#"{"prefs": {"track": true, "feedback": false}, "subscribed": true}"#)
+        #expect(guest.prefs == ["track": true, "feedback": false] && guest.subscribed)
         let host: AdminNotifyState = try decode(#"{"admin_notify": {"messages": true, "games": false, "feedback": true}}"#)
         #expect(host.prefs["feedback"] == true && host.prefs["games"] == false)
     }

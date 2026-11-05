@@ -72,12 +72,12 @@ struct NotificationSettingsView: View {
     }
 
     private var games: some View {
-        Section("🎮 Jeux") {
-            // L'hôte reçoit déjà chaque nouvelle partie en tant qu'hôte : un seul réglage, pas de doublon.
+        // Seul l'hôte est prévenu d'une nouvelle partie ; les invités, jamais (choix de l'admin du 05.11.2026).
+        Group {
             if store.hostMode {
-                hostToggle("games", "gamecontroller.fill", .orange, "Quelqu'un lance une partie", "Le jeu et son code, pour suivre ou fermer la partie")
-            } else {
-                guestToggle("games", "gamecontroller.fill", .orange, "Nouvelle partie lancée", "Quelqu'un lance un jeu : rejoins-le d'un toucher")
+                Section("🎮 Jeux") {
+                    hostToggle("games", "gamecontroller.fill", .orange, "Quelqu'un lance une partie", "Le jeu et son code, pour suivre ou fermer la partie")
+                }
             }
         }
     }

@@ -20,14 +20,16 @@ def play(guest_id: str):
 def test_guest_prefs_default_and_are_saved_per_kind(admin):  # noqa: F811
     guest = guest_client("guest-pref-1")
     r = guest.get("/api/notify?guest_id=guest-pref-1").json()
-    assert r == {"prefs": {"track": False, "feedback": True, "games": False}, "subscribed": False}
+    assert r == {"prefs": {"track": False, "feedback": True}, "subscribed": False}
 
-    assert guest.post("/api/notify", json={"guest_id": "guest-pref-1", "kind": "games", "on": True}).json()["prefs"]["games"]
+    assert guest.post("/api/notify", json={"guest_id": "guest-pref-1", "kind": "feedback", "on": False}).json()["prefs"]["feedback"] is False
+    # Plus de réglage invité « Nouvelle partie lancée » (choix de l'admin du 05.11.2026).
+    assert guest.post("/api/notify", json={"guest_id": "guest-pref-1", "kind": "games", "on": True}).status_code == 400
     assert guest.post("/api/notify", json={"guest_id": "guest-pref-1", "kind": "nope", "on": True}).status_code == 400
     # Réglages natifs : l'abonnement de l'iPhone ne touche pas aux types choisis.
     guest.post("/api/push/subscribe", json={"guest_id": "guest-pref-1", "subscription": SUB, "keep_prefs": True})
     assert guest.get("/api/notify?guest_id=guest-pref-1").json() == {
-        "prefs": {"track": False, "feedback": True, "games": True}, "subscribed": True}
+        "prefs": {"track": False, "feedback": False}, "subscribed": True}
     # Bouton « Préviens-moi quand mon titre passe » : il allume ce type.
     guest.post("/api/push/subscribe", json={"guest_id": "guest-pref-1", "subscription": SUB})
     assert guest.get("/api/notify?guest_id=guest-pref-1").json()["prefs"]["track"] is True
@@ -53,19 +55,25 @@ def test_guest_prefs_survive_a_new_party(admin):  # noqa: F811
     assert main.store.session.guest_notify["guest-pref-4"]["feedback"] is False
 
 
-def test_subscribed_guests_who_want_it_hear_about_new_games(admin, push):  # noqa: F811
+def test_only_the_host_hears_about_new_games_never_the_guests(admin, push):  # noqa: F811
+    """Choix de l'admin du 05.11.2026 : « c'est propre à chacun d'inviter les gens ou pas »."""
     fan = guest_client("guest-pref-5")
     fan.post("/api/push/subscribe", json={"guest_id": "guest-pref-5", "subscription": SUB})
-    fan.post("/api/notify", json={"guest_id": "guest-pref-5", "kind": "games", "on": True})
+    # Un ancien choix « games » resté dans la session ne compte plus et n'est plus renvoyé.
+    main.store.session.guest_notify["guest-pref-5"] = {**main.store.session.guest_notify.get("guest-pref-5", {}), "games": True}
+    assert "games" not in fan.get("/api/notify?guest_id=guest-pref-5").json()["prefs"]
+    host_sub = {**SUB, "endpoint": SUB["endpoint"] + "-host"}
+    admin.post("/api/admin/push/subscribe", json={"subscription": host_sub})
+    admin.post("/api/admin/notify", json={"kind": "games", "on": True})
     main._game_creations.clear()
-    # Celui qui lance la partie n'est pas prévenu de sa propre partie.
-    TestClient(main.app).post("/api/games", json={"guest_id": "guest-pref-5", "name": "Léa", "type": "whoof"})
-    assert not any(p["tag"].startswith("game-") for _, p in push.sent)
     g = TestClient(main.app).post("/api/games", json={"guest_id": "guest-pref-6", "name": "Tom", "type": "casino"}).json()
-    assert ([SUB], {"title": "🎮 Casino", "body": f"Tom lance une partie · code {g['code']}",
-                    "url": f"/?game={g['code']}", "tag": f"game-{g['code']}"}) in [
-        (subs, p) for subs, p in push.sent]
+    game_pushes = [(subs, p) for subs, p in push.sent if p["tag"] == f"game-{g['code']}"]
+    assert not any(SUB in subs for subs, _ in game_pushes)
+    assert any(host_sub in subs and p == {"title": "🎮 Casino", "body": f"Tom lance une partie · code {g['code']}",
+                                          "url": "/admin#games", "tag": f"game-{g['code']}"} for subs, p in game_pushes)
+    admin.post("/api/admin/notify", json={"kind": "games", "on": False})
     main.store.remove_push(SUB["endpoint"])
+    main.store.remove_push(host_sub["endpoint"])
 
 
 def test_host_reads_and_sets_feedback_notifications_separately(admin, push):  # noqa: F811
