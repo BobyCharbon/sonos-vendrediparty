@@ -118,7 +118,7 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, draf
   const inVip = new Set(list.people.filter((p) => p.source === 'vip').map((p) => p.id));
   const q = search.trim().toLowerCase();
   const choosable = (directory?.groups ?? []).filter((g) => !g.system_key && !list.groups.some((x) => x.id === g.id)
-    && (can('events.manage_all') || g.created_by === me.id || g.member_group_members.some((m) => m.user_id === me.id)));
+    && (can('events.manage_all') || g.member_group_members.some((m) => m.user_id === me.id)));  // ses groupes seulement (06.11)
   const foundGroups = choosable.filter((g) => !groups.some((x) => x.id === g.id) && (!q || g.name.toLowerCase().includes(q))).slice(0, q ? RESULTS_SHOWN : 4);
   const matches = q ? (directory?.people ?? []).filter((p) => p.id !== me.id && p.display_name.toLowerCase().includes(q)) : [];
   const foundPeople = matches.filter((p) => !people.some((x) => x.id === p.id)).slice(0, RESULTS_SHOWN);

@@ -28,7 +28,7 @@ class Resp:
 
 class FakeAccounts:
     def __init__(self, perms=("ai.use", "events.create", "events.publish_direct")):
-        self.perms, self.calls = set(perms), []
+        self.perms, self.calls, self.in_vip = set(perms), [], True
 
     def _uid(self, token):
         return "u1"
@@ -40,8 +40,10 @@ class FakeAccounts:
         return {"name": "Léa"}
 
     def groups(self, token):
-        return {"groups": [{"id": "g-vip", "name": "Vendredi Party", "system": True},
-                           {"id": "g-ski", "name": "Ski", "system": False}],
+        # Foot : créé par la personne mais elle n'en fait pas partie (jamais proposé, sauf à un admin).
+        return {"groups": [{"id": "g-vip", "name": "Vendredi Party", "system": True, "inside": self.in_vip},
+                           {"id": "g-ski", "name": "Ski", "system": False, "inside": True},
+                           {"id": "g-foot", "name": "Foot", "system": False, "inside": False}],
                 "people": [{"id": "p-tom", "name": "Tom"}, {"id": "p-lea", "name": "Léa"}]}
 
     def _get(self, method, path, token, json=None, headers=None):
@@ -278,7 +280,7 @@ def test_without_saying_for_whom_the_event_is_public_with_a_public_link(tmp_path
     a.create("ok", {k: v for k, v in READY.items() if k not in ("audience", "invitees")}, None)
     row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
     assert row["visibility"] == "all" and row["public_link"] is True
-    assert "Si la personne ne dit pas pour qui" in ev.SYSTEM and "{public}" in ev.SYSTEM
+    assert "Si elle n'en parle pas : « {public} »" in ev.SYSTEM
 
 
 def test_the_ai_never_turns_qr_tickets_on(tmp_path):
@@ -316,11 +318,13 @@ def test_step_two_saves_a_draft_without_inviting_anyone_and_proposes_the_named_p
     out = a.save_draft("ok", {**READY, "audience": ev.ONLY_INVITEES, "invitees": ["Tom", "Léa", "Inconnu"]}, None)
     # Léa est la personne connectée (FakeAccounts.link) mais pas u1 : seule une personne qui n'est pas soi est proposée.
     assert out == {"id": "e1", "status": "draft", "title": "Raclette chez Léa", "problems": [],
-                   "suggested": [{"id": "p-tom", "name": "Tom"}, {"id": "p-lea", "name": "Léa"}]}
+                   "suggested": [{"id": "p-tom", "name": "Tom"}, {"id": "p-lea", "name": "Léa"}],
+                   "preset": {"audience": "invite", "group_ids": []}}
     assert not any(p == "/rest/v1/event_invites" for _, p, _ in accounts.calls)
     assert not any(m == "PATCH" for m, _, _ in accounts.calls)  # jamais publié par l'IA : la personne publie à l'étape 2
     row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
-    assert row["status"] == "draft" and row["visibility"] == "invited"
+    # Visibilité choisie à l'étape 2 : en attendant, le défaut (public + lien public).
+    assert row["status"] == "draft" and row["visibility"] == "all" and row["public_link"] is True
 
 
 def test_step_two_draft_keeps_the_group_options_and_lists_but_not_qr_tickets(tmp_path):
@@ -329,7 +333,9 @@ def test_step_two_draft_keeps_the_group_options_and_lists_but_not_qr_tickets(tmp
     out = a.save_draft("ok", {**d, "tickets_enabled": True}, None)
     row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
     assert "tickets_enabled" not in row and out["status"] == "draft"
-    assert ("POST", "/rest/v1/event_groups", {"event_id": "e1", "group_id": "g-ski"}) in accounts.calls
+    # Le groupe dit à l'IA n'est qu'un pré-réglage de l'étape 2 : rien n'est écrit avant que la personne confirme.
+    assert not any(p == "/rest/v1/event_groups" for _, p, _ in accounts.calls)
+    assert out["preset"] == {"audience": "group", "group_ids": ["g-ski"]} and row["public_link"] is True
     assert any(p == "/rest/v1/bring_items" for _, p, _ in accounts.calls)
 
 
@@ -346,3 +352,37 @@ def test_step_two_draft_checks_rights_moderation_and_completeness(tmp_path):
     a, _, _ = make(tmp_path)
     with pytest.raises(AccountError, match="titre"):
         a.save_draft("ok", {**READY, "title": ""}, None)
+
+
+def test_the_ai_never_asks_who_sees_the_event_and_what_is_said_is_only_a_preset(tmp_path):
+    """Retour de l'admin (06.11) : la visibilité se choisit à l'étape 2, jamais à l'étape 1."""
+    assert "tu ne poses JAMAIS de question sur\n  la visibilité" in ev.SYSTEM and "pré-réglage" in ev.SYSTEM
+    asks = ["Pour qui est l'événement ?", "Public ou privé ?", "Qui peut le voir ?", "Le rendre visible à tous ?",
+            "À quelle heure ?"]
+    a, _, _ = make(tmp_path, {**READY, "status": "needs_info", "questions": asks})
+    assert a.draft("ok", ["Raclette"], None)["questions"] == ["À quelle heure ?"]
+    assert ev.preset("public") == {"audience": "public", "group_ids": []}
+    assert ev.preset(None) == {"audience": "vip", "group_ids": []}
+    a, _, _ = make(tmp_path)
+    assert a.save_draft("ok", {**READY, "audience": ev.PUBLIC_AUDIENCE}, None)["preset"]["audience"] == "public"
+    assert a.save_draft("ok", {**READY, "audience": "Vendredi Party"}, None)["preset"]["audience"] == "vip"
+
+
+def test_the_ai_only_offers_the_groups_the_person_is_in_vendredi_party_included(tmp_path):
+    """Question de l'admin (06.11) : un groupe (Vendredi Party compris) seulement si on en fait partie ; un admin
+    (events.manage_all) garde tous ses groupes. La base le garantit aussi (migration 20261106090000)."""
+    a, accounts, client = make(tmp_path)
+    a.draft("ok", ["Raclette"], None)
+    assert client.calls[-1]["output_config"]["format"]["schema"]["properties"]["audience"]["enum"] == \
+        ["Vendredi Party", "Ski", ev.ONLY_INVITEES, ev.PUBLIC_AUDIENCE]
+    accounts.in_vip = False
+    a.draft("ok", ["Raclette"], None)
+    assert client.calls[-1]["output_config"]["format"]["schema"]["properties"]["audience"]["enum"] == \
+        ["Ski", ev.ONLY_INVITEES, ev.PUBLIC_AUDIENCE]
+    # Dit à l'IA quand même (ou venu de l'app) : jamais retenu, le public par défaut le remplace.
+    assert a.save_draft("ok", {**READY, "audience": "Vendredi Party"}, None)["preset"]["audience"] == "public"
+    assert a.save_draft("ok", {**READY, "audience": "Foot"}, None)["preset"]["audience"] == "public"
+    accounts.perms.add("events.manage_all")
+    a.draft("ok", ["Raclette"], None)
+    assert client.calls[-1]["output_config"]["format"]["schema"]["properties"]["audience"]["enum"] == \
+        ["Vendredi Party", "Ski", "Foot", ev.ONLY_INVITEES, ev.PUBLIC_AUDIENCE]

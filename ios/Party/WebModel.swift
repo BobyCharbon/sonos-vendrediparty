@@ -299,10 +299,10 @@ final class WebModel: ObservableObject {
         webView?.evaluateJavaScript("window.PartyEvents && PartyEvents.open('/events/event/\(id)')")
     }
 
-    /// « Créer avec l'IA », étape 2 : le brouillon vient d'être enregistré, la page « Les invités » s'ouvre dans
-    /// Événements (personnes citées à l'IA cochées d'avance) ; on y invite soi-même puis on publie.
+    /// « Créer avec l'IA », étape 2 : le brouillon vient d'être enregistré, la page « Qui est invité » s'ouvre dans
+    /// Événements (pré-réglage de qui voit, personnes citées cochées d'avance) ; on y choisit soi-même puis on publie.
     func openInvite(_ created: AIEvent.Created) {
-        guard let path = AIEvent.invitePath(created.id, suggested: created.suggested.map(\.id)) else { return }
+        guard let path = AIEvent.invitePath(created.id, suggested: created.suggested.map(\.id), preset: created.preset) else { return }
         selectTab("events")
         webView?.evaluateJavaScript("window.PartyEvents && PartyEvents.open('\(path)')")
     }

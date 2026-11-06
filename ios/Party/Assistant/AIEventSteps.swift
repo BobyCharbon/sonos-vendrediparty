@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// « Créer avec l'IA » : « 1 La soirée · 2 Les invités · 3 C'est en ligne » (mêmes mots que la page web,
+/// « Créer avec l'IA » : « 1 La soirée · 2 Qui est invité · 3 C'est en ligne » (mêmes mots que la page web,
 /// web/events/src/components/AIEventSteps.tsx). L'étape en cours en couleur, celles d'avant cochées.
 struct AIEventSteps: View {
     let current: Int

@@ -4,10 +4,11 @@ import SwiftUI
 
 /// « ✨ Avec l'IA » (Événements), en deux étapes (demande de l'admin, 06.11) :
 /// 1. « La soirée » : on décrit l'événement à voix haute (ou par écrit) ; l'IA le remplit et pose ses questions s'il
-///    manque quelque chose (jamais « qui inviter ») ; le récapitulatif s'affiche avec le bandeau « qui voit » et
-///    « C'est juste ? » : « Oui, continuer » / « Corriger ».
-/// 2. « Les invités » : le brouillon est enregistré, puis la page web « Les invités » s'ouvre d'elle-même (personnes
-///    citées cochées d'avance) ; on y invite soi-même puis on publie, et la fiche s'ouvre (3. « C'est en ligne »).
+///    manque quelque chose (jamais « qui inviter » ni « qui voit ») ; récapitulatif, puis « C'est juste ? » :
+///    « Oui, continuer » / « Corriger ».
+/// 2. « Qui est invité » : le brouillon est enregistré, puis la page web s'ouvre d'elle-même : qui voit l'événement
+///    (public + lien par défaut, ou ce qui a été dit à l'IA), les invités (cochés d'avance), puis Publier ;
+///    la fiche s'ouvre ensuite (3. « C'est en ligne »).
 /// « Ouvrir l'événement » reste possible dès que le brouillon existe. Modifier avec l'IA garde son compte à rebours.
 struct AIEventView: View {
     @ObservedObject var store: AIEventStore
@@ -15,7 +16,7 @@ struct AIEventView: View {
     var editing: String? = nil
     /// Ouvre la fiche de l'événement dans Événements.
     let open: (String) -> Void
-    /// Étape 2 : ouvre la page « Les invités » du brouillon dans Événements.
+    /// Étape 2 : ouvre la page « Qui est invité » du brouillon dans Événements.
     var openInvite: (AIEvent.Created) -> Void = { _ in }
     @StateObject private var dictation = Dictation()
     @Environment(\.dismiss) private var dismiss
@@ -95,7 +96,7 @@ struct AIEventView: View {
             }
             .onChange(of: store.draft) { _ in restartCountdown() }
             .onChange(of: store.created != nil) { done in if done { Haptics.success() } }
-            // Étape 2 : « Brouillon enregistré » un instant, puis la page « Les invités » s'ouvre d'elle-même.
+            // Étape 2 : « Brouillon enregistré » un instant, puis la page « Qui est invité » s'ouvre d'elle-même.
             .task(id: store.openInviteSoon) {
                 guard store.openInviteSoon, let created = store.created else { return }
                 try? await Task.sleep(nanoseconds: Self.inviteDelay)
@@ -145,8 +146,7 @@ struct AIEventView: View {
                 tip("text.bubble", "Quoi", "raclette, bowling, anniversaire de Tom…")
                 tip("calendar", "Quand", "« samedi à 19h », « le 14 novembre de 20h à minuit »")
                 tip("mappin.and.ellipse", "Où", "une adresse ou un lieu : « au Fun Planet de Villeneuve »")
-                tip("eye", "Qui voit", "« pour le groupe Ski », « entre membres » ; sinon public avec un lien")
-                tip("person.badge.plus", "Les invités", "pas besoin de les dire : tu les choisis toi-même juste après")
+                tip("person.badge.plus", "Qui est invité", "pas besoin de le dire : juste après, tu choisis toi-même qui voit l'événement et qui est invité")
                 tip("plus.circle", "En plus", "prix, nombre de places, quoi amener, « avec un pot commun »")
                 tip("link", "Déjà en ligne ?", "colle le lien de l'événement, une affiche ou une capture d'écran : l'IA y lit tout")
             }
@@ -241,7 +241,6 @@ struct AIEventView: View {
             if !d.summary.isEmpty {
                 Text(d.summary).font(.subheadline).foregroundStyle(.secondary)
             }
-            audienceBanner(d)
             Text(d.title.isEmpty ? "Titre à préciser" : d.title).font(.title2.weight(.bold))
                 .id(d.title).transition(.opacity)
             if !d.description.isEmpty { Text(LinkedText.attributed(d.description)).font(.subheadline) }
@@ -250,8 +249,10 @@ struct AIEventView: View {
             part("Où") { placeRow(d) }
             part("Invités") {
                 if editing == nil {
-                    row("person.badge.plus", d.invitees.isEmpty ? "Tu les choisis toi-même à l'étape suivante"
-                        : "Proposés à l'étape suivante : " + d.invitees.joined(separator: ", ") + " (tu confirmes)")
+                    row("person.badge.plus", "Qui voit l'événement et qui est invité : tu le choisis à l'étape suivante")
+                    if !d.invitees.isEmpty {
+                        row("checkmark.circle", "Déjà cochés pour toi : " + d.invitees.joined(separator: ", ") + " (tu confirmes)")
+                    }
                 } else {
                     row("person.3", d.invitees.isEmpty ? d.audience
                         : d.audience == AIEvent.onlyInvitees ? d.invitees.joined(separator: ", ")
@@ -320,32 +321,6 @@ struct AIEventView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .accessibilityIdentifier("ai-review")
-    }
-
-    /// Pour qui l'événement est publié, en surbrillance, avec « Changer » (public par défaut quand rien n'est dit).
-    private func audienceBanner(_ d: AIEvent.Draft) -> some View {
-        let banner = AIEvent.audienceBanner(d.audience, invitees: d.invitees)
-        let tint: Color = banner.isPublic ? .yellow : Palette.accent
-        return HStack(alignment: .center, spacing: 10) {
-            Text(banner.text).font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-            Menu {
-                Button("🌍 Public + lien public") { store.setAudience(AIEvent.publicAudience) }
-                Button("👥 Membres Vendredi Party") { store.setAudience(AIEvent.vipAudience) }
-                Button("✉️ Un groupe ou des invités précis…") { store.askForAudience() }
-            } label: {
-                Text("Changer").font(.subheadline.weight(.bold))
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(tint.opacity(0.25), in: Capsule())
-            }
-            .accessibilityLabel("Changer pour qui l'événement est publié")
-        }
-        .padding(12)
-        .background(tint.opacity(0.18), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(tint.opacity(0.7), lineWidth: 1.5))
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("ai-audience")
     }
 
     @ViewBuilder
@@ -483,7 +458,7 @@ struct AIEventView: View {
     private var confirmCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("C'est juste ?").font(.title3.weight(.bold))
-            Text(store.canCreate ? "Ensuite, tu choisis toi-même qui inviter, puis tu publies."
+            Text(store.canCreate ? "Ensuite, tu choisis qui voit l'événement et qui est invité, puis tu publies."
                  : "Confirme d'abord l'adresse sur la carte.")
                 .font(.footnote).foregroundStyle(.secondary)
             Button {
@@ -540,12 +515,12 @@ struct AIEventView: View {
         .accessibilityIdentifier("ai-create")
     }
 
-    // ── Étape 2 : brouillon enregistré, la page « Les invités » s'ouvre ──
+    // ── Étape 2 : brouillon enregistré, la page « Qui est invité » s'ouvre ──
     private func draftSaved(_ c: AIEvent.Created) -> some View {
         VStack(spacing: 14) {
             SuccessCheck()
             Text(c.title).font(.title2.weight(.bold)).multilineTextAlignment(.center)
-            Text("Brouillon enregistré, encore invisible pour les autres. Choisis maintenant qui inviter, puis publie.")
+            Text("Brouillon enregistré, encore invisible pour les autres. Choisis maintenant qui voit l'événement et qui est invité, puis publie.")
                 .foregroundStyle(.secondary).multilineTextAlignment(.center)
             if !c.suggested.isEmpty {
                 Text("Déjà cochés : " + c.suggested.map(\.name).joined(separator: ", "))
@@ -557,7 +532,7 @@ struct AIEventView: View {
                     .font(.footnote).foregroundStyle(.orange).multilineTextAlignment(.leading)
             }
             Button { openInviteNow(c) } label: {
-                Label("Choisir les invités", systemImage: "person.badge.plus").frame(maxWidth: .infinity)
+                Label("Choisir qui est invité", systemImage: "person.badge.plus").frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent).controlSize(.large)
             .accessibilityIdentifier("ai-invite")

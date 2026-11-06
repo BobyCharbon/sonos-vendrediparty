@@ -47,32 +47,6 @@ final class AIEventTests: XCTestCase {
         XCTAssertTrue(AIEvent.span("2026-11-14T20:00", "2026-11-14T23:30").hasSuffix("jusqu'à 23:30"))
         XCTAssertTrue(AIEvent.span("2026-11-14T20:00", "2026-11-15T02:00").contains("15 novembre"))
     }
-
-    /// Demande de l'admin (04.11) : avant publication, un bandeau dit pour qui l'événement est publié ; public par défaut.
-    func testAudienceBannerSaysWhoSeesTheEvent() {
-        let pub = AIEvent.audienceBanner(AIEvent.publicAudience, invitees: [])
-        XCTAssertTrue(pub.isPublic)
-        XCTAssertEqual(pub.text, "🌍 Public + lien public : tout le monde peut le voir et le lien peut être partagé")
-        XCTAssertTrue(AIEvent.audienceBanner("", invitees: []).isPublic)  // rien de dit : public
-        XCTAssertEqual(AIEvent.audienceBanner(AIEvent.vipAudience, invitees: ["Léa"]).text, "👥 Membres Vendredi Party seulement + Léa")
-        XCTAssertEqual(AIEvent.audienceBanner(AIEvent.onlyInvitees, invitees: ["Léa", "Tom"]).text, "✉️ Sur invitation : Léa, Tom")
-        XCTAssertEqual(AIEvent.audienceBanner("Ski", invitees: []).text, "👥 Groupe « Ski » seulement")
-        XCTAssertFalse(AIEvent.audienceBanner("Ski", invitees: []).isPublic)
-    }
-
-    @MainActor
-    func testChangingTheAudienceKeepsTheRestOfTheDraft() throws {
-        let json = """
-        {"status":"ready","questions":[],"title":"Bowling","start":"2026-11-06T20:00","audience":"Public (lien)"}
-        """
-        let draft = try JSONDecoder().decode(AIEvent.Draft.self, from: Data(json.utf8))
-        let changed = AIEvent.withAudience(draft, AIEvent.vipAudience)
-        XCTAssertEqual(changed.audience, AIEvent.vipAudience)
-        XCTAssertEqual(changed.title, "Bowling")
-        let store = AIEventStore(api: PartyAPI(base: URL(string: "https://party.invalid")!, jar: NoCookies()), web: nil)
-        store.askForAudience()
-        XCTAssertEqual(store.unsent, "Seulement pour ")
-    }
 }
 
 /// Demande de l'admin (06.11) : deux étapes. 1 « La soirée » (l'IA ne demande jamais qui inviter), 2 « Les invités »
@@ -87,7 +61,7 @@ final class AIEventStepsTests: XCTestCase {
     private let tom = "aaaaaaaa-0000-4000-8000-000000000001"
 
     func testTheStepsFollowTheDraftThenThePublication() throws {
-        XCTAssertEqual(AIEvent.steps, ["La soirée", "Les invités", "C'est en ligne"])
+        XCTAssertEqual(AIEvent.steps, ["La soirée", "Qui est invité", "C'est en ligne"])
         XCTAssertEqual(AIEvent.step(nil), 1)
         let draft = try JSONDecoder().decode(AIEvent.Created.self, from: Data(#"{"id":"\#(eventId)","status":"draft","title":"Raclette"}"#.utf8))
         XCTAssertTrue(draft.isDraft)
@@ -109,8 +83,22 @@ final class AIEventStepsTests: XCTestCase {
         XCTAssertEqual(AIEvent.invitePath(eventId, suggested: []), "/events/event/\(eventId)/invite")
     }
 
-    func testOnlyInviteesNoLongerAsksWhomToInviteInStepOne() {
-        XCTAssertEqual(AIEvent.audienceBanner(AIEvent.onlyInvitees, invitees: []).text, "✉️ Sur invitation : tu choisis qui à l'étape suivante")
+    /// Retour de l'admin (06.11) : qui voit se choisit à l'étape 2 ; ce qui a été dit à l'IA n'est qu'un pré-réglage.
+    func testWhatWasSaidAboutWhoSeesItIsOnlyAPresetForStepTwo() throws {
+        let ski = "bbbbbbbb-0000-4000-8000-000000000001"
+        let json = #"{"id":"\#(eventId)","status":"draft","title":"Raclette","preset":{"audience":"group","group_ids":["\#(ski)","x'); alert(1)"]}}"#
+        let saved = try JSONDecoder().decode(AIEvent.Created.self, from: Data(json.utf8))
+        XCTAssertEqual(saved.preset?.audience, "group")
+        XCTAssertEqual(AIEvent.invitePath(saved.id, suggested: [tom], preset: saved.preset),
+                       "/events/event/\(eventId)/invite?audience=group&groups=\(ski)&suggested=\(tom)")
+        // Public (le défaut) : rien à pré-régler ; un mot inconnu n'est jamais repris.
+        let pub = AIEvent.Preset(audience: "public")
+        XCTAssertEqual(AIEvent.invitePath(eventId, suggested: [], preset: pub), "/events/event/\(eventId)/invite")
+        XCTAssertEqual(AIEvent.invitePath(eventId, suggested: [], preset: AIEvent.Preset(audience: "tout&x=1")), "/events/event/\(eventId)/invite")
+        XCTAssertEqual(AIEvent.invitePath(eventId, suggested: [], preset: AIEvent.Preset(audience: "vip")), "/events/event/\(eventId)/invite?audience=vip")
+        // Ancien serveur, sans pré-réglage.
+        let old = try JSONDecoder().decode(AIEvent.Created.self, from: Data(#"{"id":"\#(eventId)","status":"draft","title":"R"}"#.utf8))
+        XCTAssertNil(old.preset)
     }
 
     @MainActor

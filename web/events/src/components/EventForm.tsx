@@ -13,7 +13,7 @@ import type { DateMode, EventRow, MemberGroup, Poll, PollOption, Reminder } from
 import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
 import { Button, Cascade, Chip, ErrorText, Field, Input, Reveal, Rows, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
-import { AudiencePicker, audienceError, saveAudience, audienceFromEvent, audienceToEvent, DEFAULT_AUDIENCE, type AudienceValue, type Person } from './AudiencePicker';
+import { AudiencePicker, audienceError, saveAudience, audienceFromEvent, audienceToEvent, DEFAULT_AUDIENCE, mayUseVip, type AudienceValue, type Person } from './AudiencePicker';
 import { DateTimeField } from './DateTimeField';
 import { PlaceSearch } from './PlaceSearch';
 import { SaveAsTemplate, TemplateList } from './TemplatePicker';
@@ -247,6 +247,10 @@ export function EventForm({ eventId }: { eventId?: string }) {
     if (eventId && !draft) {
       const loaded = await loadDraft(eventId);
       setDraft(loaded);
+    }
+    // Hors du groupe Vendredi Party, on ne peut pas lui réserver un événement (base : 20261106090000) : public par défaut.
+    if (!eventId && !mayUseVip(must(groups) as MemberGroup[], me.id, can('events.manage_all'))) {
+      setDraft((d) => (d && d.who.audience === 'invite' && d.who.vip ? { ...d, who: { ...d.who, audience: 'public', vip: false } } : d));
     }
     return {
       ...taxonomy,

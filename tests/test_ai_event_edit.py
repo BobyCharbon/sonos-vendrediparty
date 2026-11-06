@@ -124,3 +124,14 @@ def test_a_co_organizer_editing_with_the_ai_never_removes_himself(tmp_path):
     e.save("ok", "e1", asked, None, announce=False)
     dropped = [p for m, p, _ in accounts.calls if m == "DELETE"]
     assert not any("user_id=eq.u1" in p for p in dropped), dropped
+
+
+def test_an_organizer_outside_vendredi_party_keeps_its_audience_when_editing(tmp_path):
+    """Question de l'admin (06.11) : Vendredi Party n'est proposé qu'à ses membres ; un événement qui lui est déjà
+    réservé le reste quand on le modifie (la visibilité ne change jamais sans qu'on le demande)."""
+    e, accounts, client = editor(tmp_path, {**current(tmp_path), "title": "Raclette géante"})
+    accounts.in_vip = False
+    assert e.load("ok", "e1")["draft"]["audience"] == ev.VIP_AUDIENCE
+    out = e.draft("ok", "e1", ["Appelle-la Raclette géante"])
+    assert out["draft"]["audience"] == ev.VIP_AUDIENCE and not any(c.startswith("Invités :") for c in out["changes"])
+    assert "Vendredi Party" in client.calls[-1]["output_config"]["format"]["schema"]["properties"]["audience"]["enum"]

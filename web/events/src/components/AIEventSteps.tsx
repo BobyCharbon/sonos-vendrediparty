@@ -4,7 +4,7 @@ import { T } from './ui';
 import { colors, radius } from '@/lib/theme';
 
 /** Les trois étapes de « Créer avec l'IA » (mêmes mots que l'écran natif, ios/Party/Assistant/AIEventSteps.swift). */
-export const AI_STEPS = ['La soirée', 'Les invités', 'C’est en ligne'] as const;
+export const AI_STEPS = ['La soirée', 'Qui est invité', 'C’est en ligne'] as const;
 
 /** Indicateur d'étapes : « 1 La soirée · 2 Les invités · 3 C'est en ligne », l'étape en cours en couleur, les faites cochées. */
 export function AIEventSteps({ current }: { current: 1 | 2 | 3 }) {

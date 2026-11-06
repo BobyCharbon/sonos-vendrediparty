@@ -2,7 +2,8 @@ import XCTest
 
 /// « Créer avec l'IA » en deux étapes (demande de l'admin, 06.11), sur des états figés sans serveur :
 /// 1. « La soirée » : récapitulatif, « C'est juste ? », « Oui, continuer » / « Corriger » ;
-/// 2. « Les invités » : brouillon enregistré, « Choisir les invités » et « Ouvrir l'événement » (aussi en haut).
+/// 2. « Qui est invité » : brouillon enregistré, « Choisir qui est invité » et « Ouvrir l'événement » (aussi en haut).
+/// Retour de l'admin (06.11) : aucun bandeau ni choix « qui voit » à l'étape 1.
 /// Captures dans $AI_STEPS_SHOTS (TEST_RUNNER_AI_STEPS_SHOTS) si la variable est définie.
 final class AIEventStepsUITests: XCTestCase {
     private static let draft = """
@@ -34,19 +35,23 @@ final class AIEventStepsUITests: XCTestCase {
         app.launch()
         let steps = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Étape 1 sur 3 : La soirée")).firstMatch
         XCTAssertTrue(steps.waitForExistence(timeout: 20))
-        shot(app, "01-ios-la-soiree-haut")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Public + lien public'")).firstMatch.exists)
+        shot(app, "01-ios-la-soiree-haut-v2")
         let proceed = app.buttons["ai-continue"]
         let correct = app.buttons["ai-correct"]
         for _ in 0..<8 where !(correct.exists && correct.isHittable) { app.swipeUp() }
         app.swipeUp()  // tout en bas : la carte « C'est juste ? » entière au-dessus de la barre de saisie
         XCTAssertTrue(proceed.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["C'est juste ?"].exists)
-        XCTAssertTrue(app.staticTexts["Proposés à l'étape suivante : Tom, Léa (tu confirmes)"].exists)
+        XCTAssertTrue(app.staticTexts["Déjà cochés pour toi : Tom, Léa (tu confirmes)"].exists)
+        XCTAssertTrue(app.staticTexts["Qui voit l'événement et qui est invité : tu le choisis à l'étape suivante"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["ai-audience"].exists)  // plus de bandeau « qui voit » ici
+        XCTAssertFalse(app.buttons["Changer pour qui l'événement est publié"].exists)
         // Le lieu est confirmé (PARTY_DEBUG_AI_PICK) : « Oui, continuer » est actif.
         let deadline = Date().addingTimeInterval(15)
         while !proceed.isEnabled && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.3)) }
         XCTAssertTrue(proceed.isEnabled)
-        shot(app, "01b-ios-la-soiree-c-est-juste")
+        shot(app, "01b-ios-la-soiree-c-est-juste-v2")
         correct.tap()
         // « Corriger » : le champ prend la main pour dire ce qui ne va pas (clavier matériel du simulateur : pas de clavier affiché).
         let field = app.textViews["ai-text"]
@@ -59,12 +64,12 @@ final class AIEventStepsUITests: XCTestCase {
         app.launchEnvironment["PARTY_DEBUG_AI_EVENT"] = "tips"
         app.launchEnvironment["PARTY_DEBUG_AI_CREATED"] = Self.created
         app.launch()
-        let steps = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Étape 2 sur 3 : Les invités")).firstMatch
+        let steps = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Étape 2 sur 3 : Qui est invité")).firstMatch
         XCTAssertTrue(steps.waitForExistence(timeout: 20))
         XCTAssertTrue(app.buttons["ai-invite"].exists)
         XCTAssertTrue(app.staticTexts["Déjà cochés : Tom, Léa"].exists)
         XCTAssertTrue(app.buttons["ai-open-event-toolbar"].exists)
-        shot(app, "02-ios-brouillon-enregistre")
+        shot(app, "02-ios-brouillon-enregistre-v2")
         app.buttons["ai-open-event"].tap()
         // « Ouvrir l'événement » : l'assistant se ferme, la fiche s'ouvre dans Événements.
         XCTAssertTrue(app.buttons["ai-open-event"].waitForNonExistence(timeout: 5))

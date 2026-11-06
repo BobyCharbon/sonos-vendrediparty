@@ -124,10 +124,18 @@ enum AIEvent {
         var approximate = false
     }
 
-    /// Personne citée à l'IA : proposée, cochée, à l'étape « Les invités » (jamais invitée par l'IA).
+    /// Personne citée à l'IA : proposée, cochée, à l'étape « Qui est invité » (jamais invitée par l'IA).
     struct Suggested: Decodable, Equatable {
         let id: String
         let name: String
+    }
+
+    /// Pré-réglage de « qui voit » (app/ai_events.py : preset) : public, vip, group (avec ses groupes) ou invite.
+    struct Preset: Decodable, Equatable {
+        let audience: String
+        var group_ids: [String] = []
+
+        static let kinds = ["public", "vip", "group", "invite"]
     }
 
     struct Created: Decodable, Equatable {
@@ -141,6 +149,8 @@ enum AIEvent {
         /// Événement modifié : ce qui a changé.
         var changes: [String] = []
         var suggested: [Suggested] = []
+        /// Ce que la personne a dit spontanément de qui voit l'événement : pré-réglage de l'étape 2 (public par défaut).
+        var preset: Preset?
 
         var isDraft: Bool { status == "draft" }
 
@@ -159,13 +169,14 @@ enum AIEvent {
             problems = (try? c.decodeIfPresent([String].self, forKey: .problems)) ?? nil ?? []
             changes = (try? c.decodeIfPresent([String].self, forKey: .changes)) ?? nil ?? []
             suggested = (try? c.decodeIfPresent([Suggested].self, forKey: .suggested)) ?? nil ?? []
+            preset = (try? c.decodeIfPresent(Preset.self, forKey: .preset)) ?? nil
         }
 
-        private enum CodingKeys: String, CodingKey { case id, status, title, problems, changes, suggested }
+        private enum CodingKeys: String, CodingKey { case id, status, title, problems, changes, suggested, preset }
     }
 
     /// Les trois étapes de « Créer avec l'IA » (demande de l'admin, 06.11), mêmes mots que la page web (AIEventSteps.tsx).
-    static let steps = ["La soirée", "Les invités", "C'est en ligne"]
+    static let steps = ["La soirée", "Qui est invité", "C'est en ligne"]
 
     /// Étape en cours : 1 tant que la soirée n'est pas confirmée, 2 une fois le brouillon enregistré, 3 publié.
     static func step(_ created: Created?) -> Int {
@@ -175,40 +186,27 @@ enum AIEvent {
 
     static let idPattern = "^[0-9a-fA-F-]{36}$"
 
-    /// Étape 2, page web : « /events/event/<id>/invite?suggested=… » (personnes citées à l'IA, cochées d'avance).
-    static func invitePath(_ id: String, suggested: [String]) -> String? {
-        guard id.range(of: idPattern, options: .regularExpression) != nil else { return nil }
-        let ids = suggested.filter { $0.range(of: idPattern, options: .regularExpression) != nil }
-        return "/events/event/\(id)/invite" + (ids.isEmpty ? "" : "?suggested=" + ids.joined(separator: ","))
+    /// Étape 2, page web : « /events/event/<id>/invite?audience=…&groups=…&suggested=… » (pré-réglage de qui voit,
+    /// personnes citées à l'IA cochées d'avance). Seulement des identifiants et des mots connus.
+    static func invitePath(_ id: String, suggested: [String], preset: Preset? = nil) -> String? {
+        guard isId(id) else { return nil }
+        var query: [String] = []
+        if let preset, Preset.kinds.contains(preset.audience), preset.audience != "public" {
+            query.append("audience=" + preset.audience)
+            let groups = preset.group_ids.filter(isId)
+            if !groups.isEmpty { query.append("groups=" + groups.joined(separator: ",")) }
+        }
+        let ids = suggested.filter(isId)
+        if !ids.isEmpty { query.append("suggested=" + ids.joined(separator: ",")) }
+        return "/events/event/\(id)/invite" + (query.isEmpty ? "" : "?" + query.joined(separator: "&"))
     }
+
+    static func isId(_ value: String) -> Bool { value.range(of: idPattern, options: .regularExpression) != nil }
 
     /// Publics connus du serveur (app/ai_events.py : PUBLIC_AUDIENCE, VIP_AUDIENCE, ONLY_INVITEES).
     static let publicAudience = "Public (lien)"
     static let vipAudience = "Vendredi Party"
     static let onlyInvitees = "Seulement les personnes invitées"
-
-    /// Bandeau « pour qui » avant publication (demande de l'admin, 4.11) : rien de dit = public + lien public.
-    /// isPublic : tout le monde le voit (mis en avant plus fort).
-    static func audienceBanner(_ audience: String, invitees: [String]) -> (text: String, isPublic: Bool) {
-        let plus = invitees.isEmpty ? "" : " + " + invitees.joined(separator: ", ")
-        switch audience {
-        case publicAudience, "":
-            return ("🌍 Public + lien public : tout le monde peut le voir et le lien peut être partagé", true)
-        case vipAudience:
-            return ("👥 Membres Vendredi Party seulement" + plus, false)
-        case onlyInvitees:
-            return ("✉️ Sur invitation : " + (invitees.isEmpty ? "tu choisis qui à l'étape suivante" : invitees.joined(separator: ", ")), false)
-        default:
-            return ("👥 Groupe « \(audience) » seulement" + plus, false)
-        }
-    }
-
-    /// Le même brouillon, publié pour un autre public (tout le reste gardé).
-    static func withAudience(_ draft: Draft, _ audience: String) -> Draft {
-        var copy = draft
-        copy.audience = audience
-        return copy
-    }
 
     /// Début et fin : « samedi 14 novembre à 20:00, jusqu'à 23:30 » (la date n'est répétée que si elle change).
     static func span(_ start: String, _ end: String) -> String {
@@ -412,17 +410,6 @@ final class AIEventStore: ObservableObject {
     func detach(_ shot: AIEvent.Shot) {
         images.removeAll { $0.id == shot.id }
         notice = nil
-    }
-
-    /// « Changer » sous le bandeau « pour qui » : public ou membres d'un toucher, sans repasser par l'IA ;
-    /// un groupe ou des invités précis se disent à l'IA (le champ est prérempli).
-    func setAudience(_ audience: String) {
-        guard let d = draft else { return }
-        draft = AIEvent.withAudience(d, audience)
-    }
-
-    func askForAudience() {
-        unsent = "Seulement pour "
     }
 
     func send(_ text: String) async {
