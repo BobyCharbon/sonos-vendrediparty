@@ -20,6 +20,7 @@ import { PlaceSearch } from './PlaceSearch';
 import { SaveAsTemplate, TemplateList } from './TemplatePicker';
 import { applyTemplate, templateData } from '@/lib/templates';
 import { notifyWallet } from '@/lib/wallet';
+import { AnnounceToggle } from './AnnounceToggle';
 
 type PollDraft = {
   id?: string;
@@ -63,6 +64,8 @@ type Draft = {
   tickets_enabled: boolean;
   forum_enabled: boolean;
   notify_on_publish: boolean;
+  /** « Prévenir le groupe » : éteint par défaut ; un simple membre du groupe fait une demande à l'admin du groupe. */
+  announce_group: boolean;
   polls: PollDraft[];
   /** quantity : texte du champ « Qté » ; vide ou 1 = un seul objet, pris en entier par une personne. */
   bring: { id?: string; label: string; quantity?: string }[];
@@ -99,6 +102,7 @@ const emptyDraft: Draft = {
   tickets_enabled: false,
   forum_enabled: true,
   notify_on_publish: true,
+  announce_group: false,
   polls: [],
   bring: [],
 };
@@ -133,8 +137,12 @@ function activeAdvanced(d: Draft): string[] {
     d.polls.length ? 'mini-sondages' : '',
     d.bring.length ? 'qui amène quoi' : '',
     d.forum_enabled ? '' : 'sans discussion',
-    d.notify_on_publish || d.who.audience === 'public' ? '' : 'sans annonce au groupe',
   ].filter(Boolean);
+}
+
+/** Réservé à un groupe (ou aux Membres Vendredi Party) : « Prévenir le groupe » a un sens. Public : jamais. */
+export function hasGroupAudience(who: AudienceValue): boolean {
+  return who.audience === 'invite' && (who.vip || who.group_ids.length > 0);
 }
 
 /** « 15 » → 15 (partagé entre plusieurs personnes) ; vide, 0 ou 1 → null (une personne prend l'objet entier). */
@@ -210,6 +218,7 @@ async function loadDraft(eventId: string): Promise<Draft> {
     tickets_enabled: e.tickets_enabled ?? false,
     forum_enabled: e.forum_enabled,
     notify_on_publish: e.notify_on_publish,
+    announce_group: !!e.announce_group,
     polls: e.polls
       .sort((a, b) => a.sort - b.sort)
       .map((p) => ({
@@ -378,6 +387,8 @@ export function EventForm({ eventId }: { eventId?: string }) {
         forum_enabled: d.forum_enabled,
         // Public : jamais d'annonce (la base l'impose aussi, migration 20261106200000).
         notify_on_publish: d.who.audience === 'public' ? false : d.notify_on_publish,
+        // « Prévenir le groupe » : jamais pour un public ; la base fait valider la demande (migration 20261106220000).
+        announce_group: hasGroupAudience(d.who) && d.announce_group,
         reminders: ALL_REMINDERS,
       },
     };
@@ -646,6 +657,9 @@ export function EventForm({ eventId }: { eventId?: string }) {
 
       <Section title={advanced ? 'Participants' : 'Qui'}>
         <AudiencePicker value={d.who} onChange={(who) => set({ who })} groups={ctx.groups} people={ctx.members} meId={me.id} allGroups={can('events.manage_all')} />
+        {hasGroupAudience(d.who) ? (
+          <AnnounceToggle groupIds={d.who.group_ids} vip={d.who.vip} value={d.announce_group} onChange={(announce_group) => set({ announce_group })} />
+        ) : null}
         {advanced ? (
           <>
             <Button small variant="ghost" label="Gérer les groupes ›" onPress={() => router.push('/groups')} />
@@ -748,8 +762,8 @@ export function EventForm({ eventId }: { eventId?: string }) {
           <Section title="Discussion et annonce">
             <Rows>
               <ToggleRow label="Forum de l’événement" value={d.forum_enabled} onChange={(v) => set({ forum_enabled: v })} />
-              {d.who.audience === 'public' ? null : (
-                <ToggleRow label="Prévenir le groupe à la publication" value={d.notify_on_publish} onChange={(v) => set({ notify_on_publish: v })} />
+              {d.who.audience === 'public' || !(d.who.invitees.length || d.who.phones.length) ? null : (
+                <ToggleRow label="Prévenir les personnes invitées une à une" value={d.notify_on_publish} onChange={(v) => set({ notify_on_publish: v })} />
               )}
             </Rows>
             <T muted size={13}>Les rappels avant l’événement, chacun les choisit dans ses Réglages → Notifications.</T>

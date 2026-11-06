@@ -14,7 +14,7 @@ import { pressTransition } from '@/lib/motion';
 import { colors, radius, rsvpColors } from '@/lib/theme';
 import type { EventRow } from '@/lib/types';
 
-type Ev = Pick<EventRow, 'id' | 'title' | 'starts_at' | 'ends_at' | 'all_day' | 'status'>;
+type Ev = Pick<EventRow, 'id' | 'title' | 'starts_at' | 'ends_at' | 'all_day' | 'status' | 'announce_group'>;
 type Me = { id: string; display_name: string };
 
 const NONE_COLOR = colors.lavender;

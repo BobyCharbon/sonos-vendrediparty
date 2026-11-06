@@ -59,6 +59,7 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
   const { can } = useAuth();
   const direct = can('events.publish_direct');
   const [busy, setBusy] = useState(false);
+  const [announce, setAnnounce] = useState(false);  // « Prévenir le groupe » : éteint par défaut (06.11)
   const [error, setError] = useState<string | null>(null);
 
   const { data, error: loadError, reload } = useQuery(async () => {
@@ -101,7 +102,9 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
     setError(null);
     try {
       const who = withVisibility(audienceFromEvent(ev), kind, groupIds);
-      check(await supabase.from('events').update(audienceToEvent(who)).eq('id', ev.id));
+      // Public ou sur invitation : jamais d'annonce au groupe ; la base fait valider la demande d'un simple membre.
+      const announceGroup = announce && (kind === 'vip' || kind === 'group');
+      check(await supabase.from('events').update({ ...audienceToEvent(who), announce_group: announceGroup }).eq('id', ev.id));
       await saveAudience(ev.id, { ...who, invitees: [], phones: [] }, { people: false });
       const status = proposing ? 'pending' : 'published';
       check(await supabase.from('events').update({ status }).eq('id', ev.id));
@@ -143,7 +146,8 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
             : 'Un toucher le publie. Tu invites ensuite, l’événement en ligne, avec le lien à partager.'}
         </T>
         <PublishChoice groups={data.groups} vipOk={data.vipOk} suggested={suggested} suggestedGroups={knownGroups}
-          proposing={proposing} busy={busy} onPublish={(kind, ids) => void publish(kind, ids)} />
+          proposing={proposing} busy={busy} onPublish={(kind, ids) => void publish(kind, ids)}
+          announce={announce} onAnnounce={setAnnounce} />
         <ErrorText error={error} />
       </Card>
 

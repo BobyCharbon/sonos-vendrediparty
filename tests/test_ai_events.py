@@ -402,6 +402,16 @@ def test_a_public_event_never_announces_itself_but_a_group_event_still_does(tmp_
     assert row["notify_on_publish"] is True
 
 
+def test_the_ai_never_announces_to_a_group_by_itself(tmp_path):
+    """Annonces de groupe (06.11) : l'IA n'allume jamais « Prévenir le groupe », même si elle a compris « préviens le
+    groupe » ; la personne le choisit à l'étape 2 et la base fait valider la demande."""
+    for audience in ("Ski", "Public (lien)"):
+        a, accounts, _ = make(tmp_path)
+        a.create("ok", {**READY, "audience": audience, "notify": True}, None)
+        row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
+        assert row["announce_group"] is False
+
+
 def test_step_two_draft_keeps_the_named_people_with_the_draft_without_inviting_them(tmp_path):
     """Retour de l'admin (06.11) : les personnes citées à l'IA restent avec le brouillon (events.ai_suggested), pour être
     cochées d'avance quand l'étape 2 est rouverte depuis la fiche ; jamais une invitation."""

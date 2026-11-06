@@ -82,6 +82,15 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Tout prénom ou texte saisi par un joueur passe par `esc()` avant d'entrer dans du HTML, attributs compris
   (test : `tests/e2e/test_names_escaped.py`).
 
+## Annonces aux groupes (décision du 06.11.2026, migration 20261106220000)
+- Un événement public ne prévient jamais personne. Un événement de groupe (groupe choisi ou Membres Vendredi Party) ne
+  prévient le groupe que par « Prévenir le groupe » (`events.announce_group`, éteint par défaut) : demande à valider
+  (`event_announcements` : créateur / admins / organisateurs du groupe, droit `groups.announce_approve`, première réponse
+  gagne, d'office après 48 h par pg_cron), ou envoi direct si l'organisateur est valideur ou le groupe « libre ».
+- Jamais de notification à un groupe hors de `private.send_announcement` (ni `private_invite` à un membre venu par le
+  groupe, ni « Nouvel événement » aux Membres VIP) : `private.should_invite` le garantit ; l'IA n'allume jamais
+  `announce_group`. Tests : `tests/supabase_live/test_annonces_groupe_live.py`, banc des bots phase `annonces`.
+
 ## Base Supabase (Événements, comptes)
 - Deux bases (décision du 24 octobre 2026) : une base de TEST pour le site de test (développement, tests, données
   jetables) et la base de PRODUCTION. Tant que la base de test n'est pas branchée, le site de test lit encore la prod.

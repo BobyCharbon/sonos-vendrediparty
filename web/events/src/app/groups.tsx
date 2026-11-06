@@ -2,6 +2,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
+import { GroupEventRules } from '@/components/GroupEventRules';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
 import { NewGroupForm } from '@/components/NewGroupForm';
 import { usePersonText } from '@/components/PersonName';
@@ -34,7 +35,7 @@ export default function GroupsScreen() {
 
   const { data, reload, error: loadError } = useQuery(async () => {
     const [groups, members, privacy, invitations] = await Promise.all([
-      supabase.from('member_groups').select('id, name, created_by, system_key, member_group_members(user_id)').order('name'),
+      supabase.from('member_groups').select('id, name, created_by, system_key, events_need_approval, announce_mode, member_group_members(user_id)').order('name'),
       supabase.from('profiles').select('id, display_name, role, avatar_url').eq('status', 'active').order('display_name'),
       supabase.rpc('my_privacy'),
       supabase.rpc('my_group_invitations'),
@@ -128,6 +129,11 @@ export default function GroupsScreen() {
           />
         ) : null}
         {system ? <T muted size={13}>Tous les Membres VIP et au-dessus, tenu à jour tout seul : passer quelqu’un Membre VIP l’ajoute, le remettre Guest le retire (Administration → Membres).</T> : null}
+        {/* Réglages des événements du groupe (06.11) : son créateur ; Vendredi Party : les Co-admins et plus. */}
+        {(system && rank >= roleRank('coadmin')) || (expanded && canEdit) ? (
+          <GroupEventRules groupId={g.id} needApproval={!!g.events_need_approval} mode={g.announce_mode ?? 'request'} system={system}
+            onSaved={() => void reload()} />
+        ) : null}
         {expanded && canEdit ? (
           <>
             <View style={s.wrap}>

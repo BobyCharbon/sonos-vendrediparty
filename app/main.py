@@ -1817,6 +1817,11 @@ class NotificationPatch(BaseModel):
     # Modération (migration 20261104200000) : nouveau signalement (modérateurs) ; message de la modération.
     moderation_reports: bool | None = None
     moderation_notices: bool | None = None
+    # Annonces aux groupes (migration 20261106220000) : annonce à valider, événement à valider pour mon groupe,
+    # réponse du groupe à mes demandes.
+    announce_requests: bool | None = None
+    group_event_requests: bool | None = None
+    announce_results: bool | None = None
 
 
 class NotificationUpdate(MemberToken):

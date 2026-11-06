@@ -497,6 +497,9 @@ class EventAssistant:
             "rsvp_deadline": local_time(d["rsvp_deadline"], now).isoformat() if d["rsvp_deadline"] else None,
             "visibility": "all" if audience in (None, "public") else "invited", "public_link": audience == "public",
             "show_participants": d["show_participants"], "forum_enabled": d["forum"], "notify_on_publish": d["notify"],
+            # Annonce au groupe (06.11) : jamais décidée par l'IA ; « Prévenir le groupe » se choisit à l'étape 2, et la
+            # base la fait valider (migration 20261106220000).
+            "announce_group": False,
             "pot_enabled": d["pot"], "cover_url": d["cover_url"] or None, "reminders": REMINDERS, "created_by": uid, "status": "draft",
         }
 

@@ -13,6 +13,7 @@ import { CalendarButton } from '@/components/CalendarButton';
 import { EventGiftsLink } from '@/components/EventGifts';
 import { compagnonOn, invitesV2On } from '@/lib/features';
 import { GuestListCard } from '@/components/GuestListCard';
+import { AnnounceStatusCard } from '@/components/AnnounceStatusCard';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
 import { parseIds } from '@/components/InviteStep';
 import { LinkedText } from '@/components/LinkedText';
@@ -306,6 +307,12 @@ export default function EventScreen() {
         <GuestListCard event={ev} me={{ id: me.id, display_name: me.display_name ?? '' }} onChanged={reload}
           openSheet={step === 'online' && invite === 'link'} headline={step === 'online' && invite === 'link' ? 'C’est en ligne : envoie le lien à tes invités' : undefined}
           initialPeople={step === 'online' && invite === 'link' ? parseIds(suggested) : []} />
+      ) : null}
+
+      {/* Événement de groupe : où en est l'annonce (« Prévenir le groupe », validation de l'admin du groupe, 06.11). */}
+      {canManage && published && !ev.public_link && ((ev.event_groups ?? []).length || ev.visibility === 'all') ? (
+        <AnnounceStatusCard eventId={ev.id} groupIds={(ev.event_groups ?? []).map((g) => g.group_id)} vip={ev.visibility === 'all'}
+          announceOn={!!ev.announce_group} refreshKey={ev.updated_at} onChanged={reload} />
       ) : null}
 
       {ev.status === 'pending' && can('events.approve') ? (

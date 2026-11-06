@@ -22,6 +22,12 @@ sh tests/bots/build_events.sh $W                          # module de HEAD const
 .venv/bin/python -m tests.bots.run connexion creation_simple creation ia invitations retirer droits_creation \
   reponses sondage_dates forum paiements billets sans_app signaler valider modifier annuler droits page_party droits_matrice
 sh tests/bots/ios_run.sh $W http://127.0.0.1:$BOTS_PORT "<session de Bot Olga, littéral JS>"   # app iPhone (Release)
+# Annonces aux groupes (06.11) : Olga demande, Ada accepte, Côme refuse, 48 h simulées ; puis l'iPhone (organisatrice, valideuse)
+.venv/bin/python -m tests.bots.run annonces
+BOTS_IOS_TEST=BotsAnnouncementsUITests/testOrganizerAsksToTellTheGroup BOTS_IOS_WHO=olga BOTS_IOS_PHONE=0790000103 \
+  sh tests/bots/ios_run.sh $W http://127.0.0.1:$BOTS_PORT '""' "Bot Annonce iPhone"
+BOTS_IOS_TEST=BotsAnnouncementsUITests/testValidatorAcceptsInActivity BOTS_IOS_WHO=ada BOTS_IOS_PHONE=0790000101 \
+  sh tests/bots/ios_run.sh $W http://127.0.0.1:$BOTS_PORT '""' "Bot Annonce iPhone"
 .venv/bin/python -m tests.bots.cleanup                    # événements supprimés, quarantaine retirée, CGU remises
 ```
 
@@ -30,6 +36,9 @@ sh tests/bots/ios_run.sh $W http://127.0.0.1:$BOTS_PORT "<session de Bot Olga, l
 - `rights.py` (phase `droits_matrice`) : rôle personnalisé « Bot rôle test » donné à Bot Violette ; pour chaque droit
   Événements, avec / sans, l'écran ET l'API REST Supabase avec le jeton du bot ; rôles et droits photographiés puis
   remis exactement (`roles-avant.json`, `rights.json`).
+- `annonces.py` (phase `annonces`) : « Prévenir le groupe » par Bot Olga (simple membre de « Bots ») ; Bot Ada accepte,
+  Bot Côme refuse, la troisième part d'office (date de la demande reculée de 49 h dans la base de TEST, puis la tâche
+  planifiée) ; un public n'a ni interrupteur ni demande ; statuts sur la fiche et notifications vérifiés dans la base.
 - `snapshot.py <bot> <chemin>` : arbre d'accessibilité d'une page vue par un bot (mise au point).
 - Défilement : `Phone.finger_scroll` envoie un vrai geste tactile (CDP `synthesizeScrollGesture`) au point donné et
   regarde les conteneurs sous le doigt ; « bloqué » (il restait de quoi défiler) = anomalie 🔴.

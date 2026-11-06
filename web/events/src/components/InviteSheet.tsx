@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { AnnounceToggle } from './AnnounceToggle';
 import { SheetBackdrop, SheetClose, SheetTop, useSheetDrag, useSheetTop } from './SheetGesture';
 import { Avatar, Button, ErrorText, Input, Segmented, T, Toast } from './ui';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { formatShort } from '@/lib/format';
+import { turnOnAnnounce } from '@/lib/groupAnnounce';
 import {
   copyText, createInvite, inviteLinkUrl, inviteMessage, invitePeople, openMessages, openWhatsApp, ruleSentence, shareInvite,
   type GuestList,
@@ -16,7 +18,7 @@ import { colors, radius } from '@/lib/theme';
 import { qrDataUri } from '@/lib/tickets';
 import type { EventRow } from '@/lib/types';
 
-type Ev = Pick<EventRow, 'id' | 'title' | 'starts_at' | 'ends_at' | 'all_day'>;
+type Ev = Pick<EventRow, 'id' | 'title' | 'starts_at' | 'ends_at' | 'all_day' | 'announce_group'>;
 type Mode = 'one' | 'several';
 type Until = 'event' | '3d' | '7d';
 type Person = { id: string; display_name: string; avatar_url: string | null };
@@ -57,6 +59,8 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
   const [search, setSearch] = useState('');
   const [people, setPeople] = useState<Person[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
+  // « Prévenir le groupe » pour les groupes ajoutés ici (éteint par défaut ; déjà allumé : les nouveaux groupes suivent).
+  const [announce, setAnnounce] = useState(false);
 
   const { data: directory } = useQuery(async () => {
     if (!visible) return null;
@@ -139,9 +143,12 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
     setError(null);
     try {
       const done = await invitePeople(event.id, people.map((p) => p.id), groups.map((g) => g.id));
+      if (groups.length && announce && !event.announce_group) await turnOnAnnounce(event.id);
       const total = done.people + done.groups;
       const who = people.map((p) => p.display_name).concat(groups.map((g) => g.name)).join(', ');
-      setNote(total ? `${who} : invités, prévenus dans Party` : 'Déjà invités');
+      const groupsTold = !groups.length || announce || event.announce_group;
+      setNote(total ? `${who} : invités${groupsTold ? ', prévenus dans Party' : ' (le groupe le voit dans Party, sans notification)'}` : 'Déjà invités');
+      setAnnounce(false);
       setPeople([]);
       setGroups([]);
       setSearch('');
@@ -252,6 +259,9 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
                   <T size={14} weight="semibold">« {search.trim()} » n’est pas sur Party ?</T>
                   <T size={13} color={colors.accent} weight="semibold">Envoie-lui un lien pour une personne ›</T>
                 </Pressable>
+              ) : null}
+              {groups.length && !event.announce_group ? (
+                <AnnounceToggle groupIds={groups.map((g) => g.id)} value={announce} onChange={setAnnounce} disabled={busy} />
               ) : null}
               {picked ? <Button label={`Inviter ${names.join(', ')}`} loading={busy} onPress={() => void addPeople()} /> : null}
             </View>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { AnnounceToggle } from './AnnounceToggle';
 import type { AudienceValue } from './AudiencePicker';
 import { Button, Chip, s, T } from './ui';
 import { pressTransition } from '@/lib/motion';
@@ -61,9 +62,11 @@ export function publishLabel(kind: Visibility, groupNames: string[], proposing: 
  * « Invités » en avant. Un groupe se choisit d'abord (puces), puis « Publier pour « Ski » ». suggested : le choix dit à
  * l'IA, mis en avant. groups : seulement ceux dont la personne fait partie ; vipOk : elle est dans Vendredi Party.
  */
-export function PublishChoice({ groups, vipOk, suggested, suggestedGroups, proposing, busy, onPublish }: {
+export function PublishChoice({ groups, vipOk, suggested, suggestedGroups, proposing, busy, onPublish, announce, onAnnounce }: {
   groups: MemberGroup[]; vipOk: boolean; suggested: Visibility; suggestedGroups: string[]; proposing: boolean; busy: boolean;
   onPublish: (kind: Visibility, groupIds: string[]) => void;
+  /** « Prévenir le groupe » (Membres Vendredi Party, un groupe) : éteint par défaut, jamais pour le public. */
+  announce: boolean; onAnnounce: (on: boolean) => void;
 }) {
   const kinds = VISIBILITIES.filter((k) => (k !== 'group' || groups.length) && (k !== 'vip' || vipOk));
   const [picking, setPicking] = useState(suggested === 'group');
@@ -88,6 +91,7 @@ export function PublishChoice({ groups, vipOk, suggested, suggestedGroups, propo
               <T size={13} color={colors.textSoft}>{visibilitySentence(k, k === 'group' ? names : [], proposing)}</T>
               {k !== 'group' ? <T size={14} weight="bold" color={colors.accent}>{label} ›</T> : null}
             </Pressable>
+            {k === 'vip' ? <AnnounceToggle groupIds={[]} vip value={announce} onChange={onAnnounce} disabled={busy} /> : null}
             {k === 'group' && picking ? (
               <View style={{ gap: 10 }}>
                 <View style={s.wrap}>
@@ -96,6 +100,7 @@ export function PublishChoice({ groups, vipOk, suggested, suggestedGroups, propo
                       onPress={() => setChosen((c) => (c.includes(g.id) ? c.filter((x) => x !== g.id) : [...c, g.id]))} />
                   ))}
                 </View>
+                <AnnounceToggle groupIds={chosen} value={announce} onChange={onAnnounce} disabled={busy} />
                 <Button label={publishLabel('group', names, proposing)} disabled={!chosen.length || busy} loading={busy}
                   onPress={() => onPublish('group', chosen)} />
               </View>

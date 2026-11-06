@@ -224,6 +224,9 @@ export default function NotificationSettings() {
         <ToggleRow disabled={saving} label="Quelqu’un rejoint par le lien" hint="Une personne s’inscrit à ton événement avec son lien d’invitation" value={prefs.link_join !== false} onChange={(v) => update({ link_join: v })} />
         <ToggleRow disabled={saving} label="Quelqu’un dit avoir payé" hint="Sur un événement payant que j’organise, une personne touche « J’ai payé » : à confirmer quand tu as reçu l’argent" value={prefs.ticket_pay_declared !== false} onChange={(v) => update({ ticket_pay_declared: v })} />
         <ToggleRow disabled={saving} label="Ma proposition validée ou refusée" hint="Un admin publie ou refuse l’événement que tu as proposé" value={prefs.proposal_result !== false} onChange={(v) => update({ proposal_result: v })} />
+        <ToggleRow disabled={saving} label="Réponse du groupe à mes demandes" hint="Ton annonce au groupe est acceptée, refusée ou partie d’office après 48 h ; ton événement est accepté ou refusé par le groupe" value={prefs.announce_results !== false} onChange={(v) => update({ announce_results: v })} />
+        <ToggleRow disabled={saving} label="Annonce à valider" hint="Un membre de ton groupe veut prévenir le groupe d’un événement (tu es créateur, admin ou organisateur du groupe)" value={prefs.announce_requests !== false} onChange={(v) => update({ announce_requests: v })} />
+        <ToggleRow disabled={saving} label="Événement à valider pour mon groupe" hint="Un membre propose un événement à ton groupe, réglé « avec validation »" value={prefs.group_event_requests !== false} onChange={(v) => update({ group_event_requests: v })} />
         {isAdmin ? <ToggleRow disabled={saving} label="Proposition à valider" hint="Un membre propose un événement qui attend la validation d’un admin" value={prefs.proposals} onChange={(v) => update({ proposals: v })} /> : null}
       </Section>
 

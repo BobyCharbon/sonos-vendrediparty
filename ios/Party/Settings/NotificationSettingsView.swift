@@ -259,6 +259,15 @@ struct NotificationSettingsView: View {
                         "Sur un événement payant que j'organise : à confirmer quand tu as reçu l'argent", p.ticketPayDeclared != false)
             eventToggle("proposal_result", "checkmark.circle.fill", .green, "Ma proposition validée ou refusée",
                         "Un admin publie ou refuse l'événement que tu as proposé", p.proposalResult != false)
+            // Annonces aux groupes (06.11) : mêmes libellés que le module Événements.
+            eventToggle("announce_results", "megaphone.fill", .green, "Réponse du groupe à mes demandes",
+                        "Ton annonce au groupe est acceptée, refusée ou partie d'office après 48 h ; ton événement est accepté ou refusé par le groupe",
+                        p.announceResults != false)
+            eventToggle("announce_requests", "person.3.sequence.fill", .orange, "Annonce à valider",
+                        "Un membre de ton groupe veut prévenir le groupe d'un événement (tu es créateur, admin ou organisateur du groupe)",
+                        p.announceRequests != false)
+            eventToggle("group_event_requests", "calendar.badge.checkmark", .indigo, "Événement à valider pour mon groupe",
+                        "Un membre propose un événement à ton groupe, réglé « avec validation »", p.groupEventRequests != false)
             if state.approver {
                 eventToggle("proposals", "checkmark.seal.fill", .indigo, "Proposition à valider", "Un membre propose un événement à valider", p.proposals)
             }

@@ -7,7 +7,7 @@ import traceback
 
 from playwright.sync_api import sync_playwright
 
-from tests.bots import phases, rights, scenario
+from tests.bots import annonces, phases, rights, scenario
 from tests.bots.bench import anomaly, load_state
 
 
@@ -22,7 +22,7 @@ def main(argv: list[str]) -> None:
         browser = p.chromium.launch()
         for name in argv:
             step = (getattr(scenario, f"phase_{name}", None) or getattr(rights, f"phase_{name}", None)
-                    or getattr(phases, f"phase_{name}"))
+                    or getattr(annonces, f"phase_{name}", None) or getattr(phases, f"phase_{name}"))
             print(f"════ phase {name} ════", flush=True)
             try:
                 step(browser, origin, only)

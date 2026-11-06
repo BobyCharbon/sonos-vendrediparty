@@ -277,9 +277,12 @@ def test_new_event_is_public_by_default_and_a_public_event_never_announces_itsel
         page.goto(f'{v2_origin}/events/event/new', wait_until='domcontentloaded')
         pw.expect(page.get_by_role('button', name='✓ Publique + lien')).to_be_visible(timeout=15000)
         pw.expect(page.get_by_text('Les événements publics ne préviennent personne : partage le lien.', exact=False)).to_be_visible()
-        pw.expect(page.get_by_text('Prévenir le groupe à la publication', exact=True)).to_have_count(0)
-        # Sur invitation : le groupe peut être prévenu, le réglage revient.
+        pw.expect(page.get_by_role('switch', name='Prévenir le groupe')).to_have_count(0)
+        # Sur invitation, un groupe choisi (ici Vendredi Party) : « Prévenir le groupe » apparaît, éteint (annonces, 06.11).
         page.get_by_role('button', name='Sur invitation', exact=True).click()
-        pw.expect(page.get_by_text('Prévenir le groupe à la publication', exact=True)).to_have_count(1)
+        pw.expect(page.get_by_role('switch', name='Prévenir le groupe')).to_have_count(0)
+        page.get_by_role('button', name='👥 Vendredi Party').click()
+        pw.expect(page.get_by_role('switch', name='Prévenir le groupe')).to_have_count(1)
+        pw.expect(page.get_by_role('switch', name='Prévenir le groupe')).not_to_be_checked()
     finally:
         context.close()

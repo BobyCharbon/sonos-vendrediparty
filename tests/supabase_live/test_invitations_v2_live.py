@@ -42,7 +42,7 @@ def test_links_for_one_or_several_people_and_answer_without_a_full_profile(peopl
 
         # Sans compte : la carte, sans l'adresse exacte ; l'ouverture est notée (« A ouvert »).
         preview = anon_rpc('invite_preview', token=single['token'], opened=True).json()
-        assert preview['title'] == 'Test invitations v2' and preview['inviter'] == 'Admin'
+        assert preview['title'] == 'Test invitations v2' and preview['inviter'] == 'Admin test'  # surnom complet (20261106200000)
         assert preview['location_name'] == 'Chez Admin' and preview['location_address'] is None
         assert preview['state'] == 'pending' and preview['label'] == 'Léa' and preview['event_id'] is None
         assert anon_rpc('invite_preview', token='00000000-0000-4000-8000-000000000000').json() is None
@@ -128,7 +128,7 @@ def test_party_people_are_added_out_of_the_group_and_nudged_once_a_day(people):
         nudge = admin.rpc('nudge_invitees', e=event, people=[ga.uid, gb.uid]).json()
         assert nudge['notified'] == 1 and nudge['share'] == [ga.uid] and nudge['skipped'] == 0
         notes = gb.get(f"notifications?select=title,body,dedupe_key&kind=eq.private_invite&event_id=eq.{event}&dedupe_key=like.invite_nudge*").json()
-        assert len(notes) == 1 and notes[0]['body'] == 'Admin attend ta réponse : tu viens ?'
+        assert len(notes) == 1 and notes[0]['body'] == 'Admin test attend ta réponse : tu viens ?'
         # Une seule relance par jour et par personne ; qui a répondu n'est jamais relancé.
         again = admin.rpc('nudge_invitees', e=event, people=[ga.uid, gb.uid]).json()
         assert again == {'notified': 0, 'skipped': 2, 'share': []}
