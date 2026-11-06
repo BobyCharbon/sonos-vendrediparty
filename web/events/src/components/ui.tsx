@@ -18,6 +18,8 @@ import {
 } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
+import { useMaySeePhoto } from '@/lib/auth';
+import { friendlyError } from '@/lib/errors';
 import { avatarColor, initials } from '@/lib/format';
 import { duration, ease, enter, pressTransition, transition, type Enter } from '@/lib/motion';
 import { colors, font, radius, type FontWeight } from '@/lib/theme';
@@ -48,8 +50,9 @@ export function Screen({
   );
 }
 
-export function Title({ children, size = 28, style }: { children: ReactNode; size?: number; style?: StyleProp<TextStyle> }) {
-  return <Text style={[s.title, { fontSize: size }, style]}>{children}</Text>;
+/** level : vrai titre pour les lecteurs d'écran (h1 de la page quand l'en-tête n'en montre pas). */
+export function Title({ children, size = 28, style, level }: { children: ReactNode; size?: number; style?: StyleProp<TextStyle>; level?: 1 | 2 }) {
+  return <Text role={level ? 'heading' : undefined} aria-level={level} style={[s.title, { fontSize: size }, style]}>{children}</Text>;
 }
 
 export function T({
@@ -400,15 +403,17 @@ export function Avatar({ id, name, size = 32, photo, profile = true }: { id: str
 function AvatarFace({ id, name, size, photo }: { id: string; name: string; size: number; photo?: string | null }) {
   const [signed, setSigned] = useState<{ path: string; url: string } | null>(null);
   const url = signed && signed.path === photo ? signed.url : null;
+  const maySee = useMaySeePhoto();
+  const allowed = !!photo && maySee(photo);
   useEffect(() => {
     let mounted = true;
-    if (photo) {
+    if (photo && allowed) {
       void supabase.storage.from(PROFILE_PHOTOS).createSignedUrl(photo, 300).then(({ data }) => {
         if (mounted && data?.signedUrl) setSigned({ path: photo, url: data.signedUrl });
       }).catch(() => {});
     }
     return () => { mounted = false; };
-  }, [photo]);
+  }, [photo, allowed]);
   return (
     <View style={[s.avatar, { width: size, height: size, backgroundColor: avatarColor(id) }]}>
       {url
@@ -490,7 +495,7 @@ export function Toast({ message, onHide }: { message: string; onHide: () => void
     <View pointerEvents="none" style={s.toastWrap}>
       <View accessibilityRole="alert" accessibilityLiveRegion="polite"
         style={[s.toast, enter('rise'), transition('opacity, transform', duration.base), leaving && { opacity: 0, transform: [{ translateY: 8 }] }]}>
-        <Text style={{ color: colors.text, ...font.semibold, fontSize: 14, textAlign: 'center' }}>{message}</Text>
+        <Text style={{ color: colors.text, ...font.semibold, fontSize: 14, textAlign: 'center' }}>{friendlyError(message)}</Text>
       </View>
     </View>
   );
@@ -498,7 +503,7 @@ export function Toast({ message, onHide }: { message: string; onHide: () => void
 
 export function ErrorText({ error }: { error: string | null }) {
   if (!error) return null;
-  return <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ color: colors.coralSoft, fontSize: 14, ...font.body }}>{error}</Text>;
+  return <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ color: colors.coralSoft, fontSize: 14, ...font.body }}>{friendlyError(error)}</Text>;
 }
 
 export function Empty({ children }: { children: ReactNode }) {

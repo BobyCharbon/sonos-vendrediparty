@@ -1,4 +1,5 @@
 import { refreshPending } from './pending';
+import { friendlyError } from './errors';
 import { supabase } from './supabase';
 import { plural } from './format';
 import { colors } from './theme';
@@ -72,8 +73,7 @@ export async function setRsvpFor(eventId: string, member: string, answer: RsvpSt
 }
 
 function friendlyRsvpError(message: string): string {
-  if (/permission denied/i.test(message)) return 'Ta réponse n’a pas pu être enregistrée. Recharge la page puis réessaie.';
-  return message;
+  return friendlyError(message);
 }
 
 export const rsvpChoices: Record<RsvpStatus, { label: string; icon: string; fg: string; bg: string; dim: string; mine: string }> = {

@@ -191,7 +191,9 @@ export default function EventScreen() {
     <>
       <Stack.Screen
         options={{
-          title: '',
+          // Le titre de l'événement est le titre de niveau 1 de la page (plus de h1 vide dans l'en-tête).
+          title: ev.title,
+          headerTitle: () => null,
           // Ouvert par un lien (rien derrière) : ‹ Événements ramène à la liste ; sinon le ‹ commun de la pile.
           ...(router.canGoBack() ? {} : { headerLeft: () => <HeaderBack label="Événements" onPress={() => router.replace('/')} /> }),
           headerRight: () => (
@@ -225,7 +227,7 @@ export default function EventScreen() {
           </View>
           {published && ev.date_mode === 'fixed' ? <AttendeesBadge attendance={people} large past={past} /> : null}
         </View>
-        <Title size={32} style={{ lineHeight: 36 }}>{ev.title}</Title>
+        <Title level={1} size={32} style={{ lineHeight: 36 }}>{ev.title}</Title>
         {ev.visibility === 'invited' ? (
           <T muted size={13}>
             🔒 Sur invitation{data?.groupNames ? ` · ${data.groupNames}` : ''}
@@ -327,7 +329,7 @@ export default function EventScreen() {
           names={data.names}
           onChange={reload}
         />
-      ) : published ? (
+      ) : published && can('events.rsvp') ? (
         <RsvpCard event={ev} me={me.id} rsvps={ev.rsvps} onChange={reload} />
       ) : null}
       {mine?.status === 'yes' && ticketRelevant(ev, data.loadedAt) ? (
@@ -435,6 +437,23 @@ export default function EventScreen() {
         <View style={st.orgZone}>
           <T muted size={12} weight="bold">ENTRÉE</T>
           <Button label="📷 Scanner les billets" onPress={() => router.push(`/event/${ev.id}/scan`)} />
+        </View>
+      ) : null}
+      {/* Annulé : l'admin (events.manage_all) le rouvre ; son créateur ou un admin le supprime (base : 20261106200000). */}
+      {ev.status === 'cancelled' && (isAdmin || ev.created_by === me.id) ? (
+        <View style={st.orgZone}>
+          <T muted size={12} weight="bold">ÉVÉNEMENT ANNULÉ</T>
+          {isAdmin ? (
+            <ConfirmButton small label="Rouvrir l’événement" confirmLabel="Oui, rouvrir"
+              onConfirm={() => run(supabase.from('events').update({ status: 'published' }).eq('id', ev.id)).then(() => notifyWallet(ev.id))} />
+          ) : null}
+          <ConfirmButton small label="Supprimer l’événement" confirmLabel="Oui, supprimer"
+            onConfirm={async () => {
+              const { error: failed } = await supabase.from('events').delete().eq('id', ev.id);
+              if (failed) return setError(failed.message);
+              if (router.canGoBack()) router.back();
+              else router.replace('/');
+            }} />
         </View>
       ) : null}
       {ev.created_by === me.id && ['draft', 'pending', 'rejected'].includes(ev.status) ? (

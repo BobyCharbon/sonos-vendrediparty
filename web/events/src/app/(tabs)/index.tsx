@@ -23,6 +23,8 @@ export default function Home() {
   const isAdmin = can('events.approve');
   // App iPhone et droit « Utiliser l'assistant IA » : l'événement se décrit à voix haute dans un écran natif.
   const native = (globalThis as { PartyNative?: { ai?: { createEvent?: () => void } } }).PartyNative;
+  // « + Proposer » seulement avec le droit de créer (campagne des bots : Membres et Guests remplissaient tout pour rien).
+  const canPropose = can('events.create');
   const aiEvent = can('ai.use') && can('events.create') && native?.ai?.createEvent ? () => native.ai!.createEvent!() : null;
   const [tab, setTab] = useState<Tab>('upcoming');
   const [filter, setFilter] = useState<Filter>({ kind: 'all' });
@@ -235,29 +237,38 @@ export default function Home() {
         ))}
       </ScrollView>
 
+      {canPropose || aiEvent ? (
       <View pointerEvents="box-none" style={st.fabWrap}>
-        <View pointerEvents={fabAway ? 'none' : 'box-none'} style={[st.fabColumn, transition('transform, opacity', duration.base, ease.out),
+        {/* Effacé : hors de l'arbre d'accessibilité aussi (VoiceOver « activer » touchait ce qu'il y a derrière). */}
+        <View pointerEvents={fabAway ? 'none' : 'box-none'} aria-hidden={fabAway || undefined} accessibilityElementsHidden={fabAway}
+          importantForAccessibility={fabAway ? 'no-hide-descendants' : 'auto'}
+          style={[st.fabColumn, transition('transform, opacity', duration.base, ease.out),
           fabAway && { opacity: 0, transform: [{ translateY: 24 }, { scale: 0.9 }] }]}>
         {aiEvent ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Créer un événement avec l'IA, en le décrivant à voix haute"
+            focusable={!fabAway}
             onPress={aiEvent}
             style={({ pressed }) => [st.fab, st.fabAI, pressed && { opacity: 0.85 }]}
           >
             <T color={colors.text} style={{ ...font.bold, fontSize: 15 }}>✨ Avec l’IA</T>
           </Pressable>
         ) : null}
+        {canPropose ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Proposer un événement"
+          focusable={!fabAway}
           onPress={() => router.push('/event/new')}
           style={({ pressed }) => [st.fab, enter('pop'), pressTransition, pressed && { opacity: 0.9, transform: [{ scale: 0.94 }] }]}
         >
           <T color={colors.onAccent} style={{ ...font.bold, fontSize: 15 }}>+ Proposer</T>
         </Pressable>
+        ) : null}
         </View>
       </View>
+      ) : null}
     </SafeAreaView>
   );
 }

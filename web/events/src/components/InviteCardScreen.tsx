@@ -11,6 +11,7 @@ import { avatarColor, formatLongDay, formatTime, initials } from '@/lib/format';
 import { acceptInvite, fetchInviteCard, type Accepted, type InviteCard } from '@/lib/invites';
 import { enter, pressTransition } from '@/lib/motion';
 import { safeHref } from '@/lib/links';
+import { acceptTermsIfNeeded, dbMessage, TERMS_PATH } from '@/lib/moderation';
 import { parseLoginPhone } from '@/lib/phone';
 import { supabase } from '@/lib/supabase';
 import { colors, radius, rsvpColors } from '@/lib/theme';
@@ -22,6 +23,8 @@ const ANSWERS: { key: RsvpStatus; label: string }[] = [
   { key: 'yes', label: 'Je viens !' }, { key: 'maybe', label: 'Peut-être' }, { key: 'no', label: 'Je ne peux pas' },
 ];
 const DONE_WORDS: Record<RsvpStatus, string> = { yes: 'Tu viens à', maybe: 'Tu viens peut-être à', no: 'Tu ne viens pas à' };
+/** Conditions d'utilisation, ouvertes à côté (l'invitation reste là où elle en est). */
+const termsUrl = () => (typeof location !== 'undefined' ? `${location.origin}/events${TERMS_PATH}` : `https://party.bobycharbon.ch/events${TERMS_PATH}`);
 const CLOSED: Record<string, string> = {
   full: 'Ce lien a déjà servi : toutes ses places sont prises. Demande ton propre lien à la personne qui t’a invité.',
   expired: 'Ce lien n’est plus valable (date limite passée). Demande un nouveau lien à la personne qui t’a invité.',
@@ -179,11 +182,15 @@ function Identify({ token, card, answer, onBack, onDone }: {
     setBusy(true);
     setError(null);
     try {
+      // Le prénom est vu des autres invités : CGU acceptées d'abord (exigées en prod), par le geste « Confirmer »
+      // sous la phrase « En répondant, j'accepte les conditions d'utilisation » (Apple 1.2, Google UGC).
+      if (first) await acceptTermsIfNeeded();
       const done = await acceptInvite(token, answer, first);
       await refreshProfile();
       onDone(done, first);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const message = e instanceof Error ? e.message : String(e);
+      setError(dbMessage(message, message));
       started.current = false;
     } finally {
       setBusy(false);
@@ -240,7 +247,10 @@ function Identify({ token, card, answer, onBack, onDone }: {
       <Field label="Prénom" value={name} onChangeText={setName} autoComplete="given-name" textContentType="givenName" autoCapitalize="words"
         maxLength={40} editable={!busy && !sentTo} placeholder="Ton prénom" />
       {session ? (
+        <>
+        <TermsConsent />
         <Button label="Confirmer" loading={busy} disabled={!name.trim()} onPress={() => void accept(name.trim())} />
+        </>
       ) : !sentTo ? (
         <>
           <View style={{ gap: 6 }}>
@@ -258,6 +268,7 @@ function Identify({ token, card, answer, onBack, onDone }: {
         <View style={[{ gap: 10 }, enter('slideIn')]}>
           <Field label={`Code reçu par SMS au ${sentTo}`} placeholder="123456" keyboardType="number-pad" autoComplete="one-time-code"
             textContentType="oneTimeCode" maxLength={CODE_LENGTH} value={code} onChangeText={setCode} autoFocus onSubmitEditing={() => void verify()} />
+          <TermsConsent />
           <Button label="Confirmer" loading={busy} disabled={code.trim().length < CODE_LENGTH} onPress={() => void verify()} />
           <Button small variant="ghost" label="Changer de numéro" onPress={() => { setSentTo(null); setCode(''); }} />
         </View>
@@ -266,6 +277,19 @@ function Identify({ token, card, answer, onBack, onDone }: {
       <T muted size={12}>Ton numéro sert seulement à te reconnaître et à te prévenir si la soirée change. {host} ne le voit pas.</T>
       <Button small variant="ghost" label="‹ Retour à l’invitation" onPress={onBack} />
     </Screen>
+  );
+}
+
+/** Acceptation des conditions dans le geste : la phrase est juste au-dessus de « Confirmer », avec le lien. */
+function TermsConsent() {
+  return (
+    <View style={{ gap: 2 }}>
+      <T muted size={13}>En répondant, j’accepte les conditions d’utilisation de Party.</T>
+      <Pressable accessibilityRole="link" accessibilityLabel="Lire les conditions d’utilisation" hitSlop={8}
+        onPress={() => void Linking.openURL(termsUrl())} style={{ alignSelf: 'flex-start', minHeight: 32, justifyContent: 'center' }}>
+        <T size={13} weight="semibold" color={colors.accent}>Lire les conditions d’utilisation</T>
+      </Pressable>
+    </View>
   );
 }
 

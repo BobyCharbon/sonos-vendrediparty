@@ -70,6 +70,7 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Groupes : on ne réserve un événement qu'aux groupes dont on FAIT PARTIE, « Membres Vendredi Party » compris
   (écrans : `choosableGroups` / `mayUseVip`, assistant IA ; base : migration 20261106090000, triggers
   `guard_event_group` et `guard_event_vip_visibility`). Un admin (events.manage_all) garde tous les groupes.
+- Public par défaut (formulaire et IA) ; un événement public ne prévient JAMAIS personne à sa publication (base : `events_public_silent`, 20261106200000).
 
 ## Jeux — requêtes simultanées
 - Tous les téléphones interrogent la partie chaque seconde, en parallèle. Toute lecture-modification d'une partie

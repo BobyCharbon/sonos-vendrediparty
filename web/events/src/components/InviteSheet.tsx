@@ -83,7 +83,7 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
     setPeople(directory.people.filter((p) => initialPeople.includes(p.id) && p.id !== me.id && !already.has(p.id)));
   }, [directory, initialPeople, list.people, me.id]);
 
-  const host = me.display_name.split(' ')[0] || 'Moi';
+  const host = me.display_name.trim() || 'Moi';
   const when = event.starts_at ? formatShort(event.starts_at).toLowerCase() : null;
   const message = (url: string) => inviteMessage({ name: mode === 'one' ? label : null, host, title: event.title, when, url });
   const reset = () => setLink(null);  // un réglage change : le prochain envoi crée un nouveau lien
@@ -140,7 +140,7 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
     try {
       const done = await invitePeople(event.id, people.map((p) => p.id), groups.map((g) => g.id));
       const total = done.people + done.groups;
-      const who = people.map((p) => p.display_name.split(' ')[0]).concat(groups.map((g) => g.name)).join(', ');
+      const who = people.map((p) => p.display_name).concat(groups.map((g) => g.name)).join(', ');
       setNote(total ? `${who} : invités, prévenus dans Party` : 'Déjà invités');
       setPeople([]);
       setGroups([]);
@@ -153,7 +153,7 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
     }
   }
 
-  const names = people.map((p) => p.display_name.split(' ')[0]).concat(groups.map((g) => g.name));
+  const names = people.map((p) => p.display_name).concat(groups.map((g) => g.name));
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>

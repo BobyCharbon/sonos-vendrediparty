@@ -386,3 +386,17 @@ def test_the_ai_only_offers_the_groups_the_person_is_in_vendredi_party_included(
     a.draft("ok", ["Raclette"], None)
     assert client.calls[-1]["output_config"]["format"]["schema"]["properties"]["audience"]["enum"] == \
         ["Vendredi Party", "Ski", "Foot", ev.ONLY_INVITEES, ev.PUBLIC_AUDIENCE]
+
+
+def test_a_public_event_never_announces_itself_but_a_group_event_still_does(tmp_path):
+    """Décision de l'admin (06.11) : public → jamais de notification de publication (sinon spam), même si l'IA a
+    compris « préviens tout le monde ». Le brouillon de l'étape 2 garde le réglage : la base décide à la publication
+    (un brouillon public passé à un groupe à l'étape 2 prévient bien son groupe)."""
+    a, accounts, _ = make(tmp_path)
+    a.create("ok", {**READY, "audience": "Public (lien)", "notify": True}, None)
+    row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
+    assert row["public_link"] and row["notify_on_publish"] is False
+    a, accounts, _ = make(tmp_path)
+    a.create("ok", {**READY, "audience": "Ski", "notify": True}, None)
+    row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
+    assert row["notify_on_publish"] is True

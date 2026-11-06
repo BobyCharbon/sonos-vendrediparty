@@ -50,7 +50,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
   const { data: list, reload, error: loadError } = useQuery(() => fetchGuestList(event.id), [event.id]);
 
   const refresh = () => { reload(); onChanged(); };
-  const host = me.display_name.split(' ')[0] || 'Moi';
+  const host = me.display_name.trim() || 'Moi';
 
   async function run(job: () => Promise<string | null>) {
     setError(null);
@@ -69,7 +69,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
     if (result.notified) return `${g.name} a reçu un rappel dans Party`;
     if (result.skipped) return `${g.name} a déjà été relancé aujourd’hui`;
     const url = g.link_token ? inviteLinkUrl(g.link_token) : `${location.origin}/events/event/${event.id}`;
-    const shared = await shareInvite(inviteMessage({ name: g.name.split(' ')[0], host, title: event.title, when: when(event), url, nudge: true }), url, event.title);
+    const shared = await shareInvite(inviteMessage({ name: g.name, host, title: event.title, when: when(event), url, nudge: true }), url, event.title);
     return shared === 'copied' ? 'Message copié : colle-le dans WhatsApp ou Messages' : null;
   });
 
@@ -168,7 +168,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
         <Pressable accessibilityRole="button" onPress={() => void nudgeAll(waiting)}
           style={({ pressed }) => [st.nudgeAll, pressTransition, pressed && { transform: [{ scale: 0.98 }] }]}>
           <T size={14} weight="bold" color={colors.accent}>
-            ↻ Relancer {waiting.length > 1 ? `les ${waiting.length} qui n’ont pas répondu` : `${waiting[0]!.name.split(' ')[0]}, sans réponse`}
+            ↻ Relancer {waiting.length > 1 ? `les ${waiting.length} qui n’ont pas répondu` : `${waiting[0]!.name}, sans réponse`}
           </T>
         </Pressable>
       ) : null}
@@ -269,7 +269,7 @@ function GuestRow({ guest, me, onNudge, onRemove }: { guest: Guest; me: string; 
         <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
           <View style={[st.rowCenter, { gap: 6 }]}>
             <T weight="semibold" size={15} numberOfLines={1} style={{ flexShrink: 1 }}>{guest.name}</T>
-            {!guest.has_app ? <View style={st.tag}><T size={10} weight="bold" color={colors.muted}>SANS L’APP</T></View> : null}
+            {guest.light ? <View style={st.tag}><T size={10} weight="bold" color={colors.muted}>SANS L’APP</T></View> : null}
           </View>
           <T muted size={12} numberOfLines={1}>{guestOrigin(guest, me)}</T>
         </View>
@@ -302,7 +302,7 @@ function LinkRow({ link, onNudge, onStop }: { link: SentLink; onNudge: () => voi
         <View style={st.linkIcon}><T size={17}>{link.max_uses > 1 ? '👥' : '🔗'}</T></View>
         <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
           <T weight="semibold" size={15} numberOfLines={1}>{title}</T>
-          <T muted size={12} numberOfLines={2}>{linkLine(link)}{link.max_uses > 1 && link.arrivals.length ? ` · ${link.arrivals.map((a) => a.name.split(' ')[0]).join(', ')}` : ''}</T>
+          <T muted size={12} numberOfLines={2}>{linkLine(link)}{link.max_uses > 1 && link.arrivals.length ? ` · ${link.arrivals.map((a) => a.name).join(', ')}` : ''}</T>
         </View>
         <View style={[st.pill, { borderColor: badge.c }]}><T size={12} weight="bold" color={badge.c}>{badge.t}</T></View>
       </View>
@@ -322,7 +322,7 @@ function SwipeRow({ actions, label, children }: { actions: SwipeAction[]; label:
     <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={st.swipe}>
       <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} bounces={false}>
         {content}
-        <View style={{ flexDirection: 'row', width: actions.length * ACTION_WIDTH }}>
+        <View style={[st.swipeActions, { width: actions.length * ACTION_WIDTH }]}>
           {actions.map((a) => (
             <Pressable key={a.label} accessibilityRole="button" accessibilityLabel={`${a.label.replace('↻ ', '')} ${label}`} onPress={a.onPress}
               style={[st.swipeAction, { backgroundColor: a.color }]}>
@@ -352,7 +352,9 @@ const st = StyleSheet.create({
   swipe: { borderRadius: radius.md, overflow: 'hidden' },
   rowShell: { backgroundColor: colors.surface, borderRadius: radius.md },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 6, paddingHorizontal: 4 },
-  swipeAction: { width: ACTION_WIDTH, alignItems: 'center', justifyContent: 'center' },
+  // Hauteur de la ligne, jamais moins de 44 px (« Confirmer » s'écrasait à 16 px, texte coupé : campagne des bots).
+  swipeActions: { flexDirection: 'row', alignSelf: 'stretch', minHeight: 56 },
+  swipeAction: { width: ACTION_WIDTH, minHeight: 56, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: radius.pill, borderWidth: 1 },
   dot: { width: 7, height: 7, borderRadius: 4 },
   tag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: colors.fillStrong },

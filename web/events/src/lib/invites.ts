@@ -1,5 +1,6 @@
 import { Linking, Platform } from 'react-native';
 
+import { friendlyError } from './errors';
 import { formatShort } from './format';
 
 const shortDate = (iso: string | null) => formatShort(iso).toLowerCase();
@@ -70,7 +71,7 @@ export function ruleSentence(list: Pick<GuestList, 'vip' | 'public' | 'vip_name'
 
 /** D'où vient la personne, en mots simples : « Ajoutée par toi », « Par le lien « Léa » · invitée par Ludo »… */
 export function guestOrigin(p: Guest, me: string): string {
-  const by = p.invited_by_id === me ? 'toi' : p.invited_by?.split(' ')[0] || null;
+  const by = p.invited_by_id === me ? 'toi' : p.invited_by?.trim() || null;
   if (p.source === 'vip' || p.source === 'group') return `Avec le groupe ${p.group ?? ''}`.trim();
   if (p.source === 'public') return 'A répondu au lien public';
   if (p.source === 'link') {
@@ -139,7 +140,7 @@ export function openMessages(text: string) {
   void Linking.openURL(`sms:?&body=${encodeURIComponent(text)}`);
 }
 
-const readable = (message: string | undefined, fallback: string) => (message ? message.replace(/^[a-z_]+: /, '') : fallback);
+const readable = (message: string | undefined, fallback: string) => (message ? friendlyError(message.replace(/^[a-z_]+: /, '')) : fallback);
 
 async function call<T>(name: string, args: Record<string, unknown>, fallback: string): Promise<T> {
   const { data, error } = await supabase.rpc(name, args);

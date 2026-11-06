@@ -91,7 +91,8 @@ const emptyDraft: Draft = {
   max_plus_ones: '',
   allow_maybe: true,
   rsvp_deadline: '',
-  who: DEFAULT_AUDIENCE,
+  // Public + lien public par défaut, comme l'assistant IA (décision de l'admin, 06.11) ; un public ne prévient personne.
+  who: { ...DEFAULT_AUDIENCE, audience: 'public', vip: false },
   organizers: [],
   show_participants: true,
   pot_enabled: false,
@@ -132,7 +133,7 @@ function activeAdvanced(d: Draft): string[] {
     d.polls.length ? 'mini-sondages' : '',
     d.bring.length ? 'qui amène quoi' : '',
     d.forum_enabled ? '' : 'sans discussion',
-    d.notify_on_publish ? '' : 'sans annonce au groupe',
+    d.notify_on_publish || d.who.audience === 'public' ? '' : 'sans annonce au groupe',
   ].filter(Boolean);
 }
 
@@ -375,7 +376,8 @@ export function EventForm({ eventId }: { eventId?: string }) {
         pot_enabled: d.pot_enabled,
         tickets_enabled: d.tickets_enabled,
         forum_enabled: d.forum_enabled,
-        notify_on_publish: d.notify_on_publish,
+        // Public : jamais d'annonce (la base l'impose aussi, migration 20261106200000).
+        notify_on_publish: d.who.audience === 'public' ? false : d.notify_on_publish,
         reminders: ALL_REMINDERS,
       },
     };
@@ -676,6 +678,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
 
       {advanced ? (
         <View style={{ gap: 14 }}>
+          {can('polls.create') || d.polls.length ? (
           <Section title="Mini-sondages">
             {d.polls.map((p, i) => (
               <Reveal key={p.id ?? `new-${i}`} kind={pollsGrew ? 'rise' : null} style={{ gap: 12, paddingVertical: 12, borderTopWidth: i ? 1 : 0, borderTopColor: colors.line }}>
@@ -704,7 +707,8 @@ export function EventForm({ eventId }: { eventId?: string }) {
                 <Button small variant="danger" label="Retirer ce sondage" onPress={() => set({ polls: d.polls.filter((_, j) => j !== i) })} />
               </Reveal>
             ))}
-            <Button
+            {/* Sans « Créer des sondages » (polls.create), la base refuse : le bouton n'est pas proposé. */}
+            {can('polls.create') ? <Button
               small
               variant="ghost"
               label="+ Ajouter un sondage"
@@ -713,8 +717,9 @@ export function EventForm({ eventId }: { eventId?: string }) {
                   polls: [...d.polls, { question: '', options: [{ label: '' }, { label: '' }], multiple_choice: false, anonymous: false, members_can_add_options: false, results_after_vote: false }],
                 })
               }
-            />
+            /> : null}
           </Section>
+          ) : null}
 
           <Section title="Qui amène quoi">
             {d.bring.map((b, i) => (
@@ -743,7 +748,9 @@ export function EventForm({ eventId }: { eventId?: string }) {
           <Section title="Discussion et annonce">
             <Rows>
               <ToggleRow label="Forum de l’événement" value={d.forum_enabled} onChange={(v) => set({ forum_enabled: v })} />
-              <ToggleRow label="Prévenir le groupe à la publication" value={d.notify_on_publish} onChange={(v) => set({ notify_on_publish: v })} />
+              {d.who.audience === 'public' ? null : (
+                <ToggleRow label="Prévenir le groupe à la publication" value={d.notify_on_publish} onChange={(v) => set({ notify_on_publish: v })} />
+              )}
             </Rows>
             <T muted size={13}>Les rappels avant l’événement, chacun les choisit dans ses Réglages → Notifications.</T>
           </Section>

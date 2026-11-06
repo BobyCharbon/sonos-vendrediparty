@@ -176,8 +176,9 @@ def test_simple_form_publishes_with_the_usual_defaults(browser, events_origin):
         assert row['status'] == 'draft' and row['title'] == 'Karting du vendredi'
         assert row['starts_at'] == '2030-12-12T18:00:00.000Z'  # 19:00 à Zurich
         assert row['location_address'] == 'Quai du Mont-Blanc 1, 1201 Genève' and row['location_url'] == 'https://maps.google.com/?cid=1'
-        # Réglages habituels : groupe Vendredi Party, billets QR éteints, annonce au groupe, +1 sans limite, tous les rappels.
-        assert (row['visibility'], row['public_link'], row['tickets_enabled'], row['notify_on_publish']) == ('all', False, False, True)
+        # Réglages habituels : public + lien (décision du 06.11, comme l'IA) donc AUCUNE annonce, billets QR éteints,
+        # +1 sans limite, tous les rappels.
+        assert (row['visibility'], row['public_link'], row['tickets_enabled'], row['notify_on_publish']) == ('all', True, False, False)
         assert row['allow_plus_ones'] is True and row['max_plus_ones'] == 10 and row['allow_maybe'] is True
         assert row['reminders'] == ['7d', '1d', '2h', '0h'] and row['max_participants'] is None and row['price_chf'] is None
         # Publication APRÈS les enfants (tags, invités…) : un seul PATCH de statut, à la fin.
@@ -204,7 +205,7 @@ def test_advanced_form_sends_every_option(browser, events_origin):
         field(frame, 'Prix / pers. (CHF)').fill('25,50')
         field(frame, 'Paiement').fill('TWINT')
         frame.get_by_role('switch', name='Billets QR', exact=True).click()
-        frame.get_by_role('button', name='Publique + lien', exact=True).click()
+        pw.expect(frame.get_by_role('button', name='✓ Publique + lien', exact=True)).to_be_visible()  # public par défaut
         field(frame, 'Nombre de places (vide = illimité)').fill('12')
         frame.get_by_role('switch', name='Liste d’attente', exact=True).click()
         frame.get_by_role('switch', name='Réponse « Peut-être » autorisée', exact=True).click()
@@ -221,7 +222,8 @@ def test_advanced_form_sends_every_option(browser, events_origin):
         frame.get_by_placeholder('Fromage, pain…').fill('Pain')
         frame.get_by_placeholder('Qté', exact=True).fill('3')
         frame.get_by_role('switch', name='Forum de l’événement', exact=True).click()
-        frame.get_by_role('switch', name='Prévenir le groupe à la publication', exact=True).click()
+        # Public : pas de réglage « Prévenir le groupe » (un public ne prévient jamais personne, décision du 06.11).
+        pw.expect(frame.get_by_role('switch', name='Prévenir le groupe à la publication', exact=True)).to_have_count(0)
         shot(page, 'formulaire-avance')
         frame.get_by_role('button', name='Publier', exact=True).click()
         pw.expect(frame.get_by_role('button', name='Modifier', exact=True)).to_be_visible(timeout=10000)
@@ -288,7 +290,9 @@ def test_invite_only_event_saves_people_and_phone_numbers(browser, events_origin
         open_form(frame, 'Simple')
         field(frame, 'Titre').fill('Anniversaire surprise')
         fill_date(frame, 'Début', '2030-12-12', '20:00')
-        frame.get_by_role('button', name='✓ 👥 Vendredi Party · 2', exact=True).click()  # décoché : sur invitation seulement
+        # Public par défaut (06.11) : « Sur invitation », Vendredi Party non coché → sur invitation seulement.
+        frame.get_by_role('button', name='Sur invitation', exact=True).click()
+        pw.expect(frame.get_by_role('button', name='👥 Vendredi Party · 2', exact=True)).to_be_visible()
         frame.get_by_role('button', name='Publier', exact=True).click()
         pw.expect(frame.get_by_text('Choisis qui inviter : le groupe Vendredi Party, un groupe ou des personnes', exact=True)).to_be_visible()
         assert not base.wrote('POST', 'events')

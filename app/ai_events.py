@@ -542,6 +542,8 @@ class EventAssistant:
         if not invite:  # étape 2 : la visibilité se choisit avant de publier ; d'ici là, le défaut (public + lien)
             d = {**d, "audience": PUBLIC_AUDIENCE}
         audience = o.audiences.get(d["audience"])
+        if invite and audience == "public":  # publié tout de suite : public → jamais d'annonce (décision du 06.11)
+            d = {**d, "notify": False}
         if invite and audience == "people" and not d["invitees"]:
             raise AccountError("Dis qui inviter : personne n'est nommé.")
         r = self.accounts._get("POST", "/rest/v1/events?select=id", token,

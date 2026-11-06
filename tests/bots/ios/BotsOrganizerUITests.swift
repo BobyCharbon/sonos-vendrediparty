@@ -140,6 +140,13 @@ final class BotsOrganizerUITests: XCTestCase {
         let back = app.webViews.buttons["Retour : Événements"]
         if back.exists { back.tap() }
         let propose = app.webViews.buttons["Proposer un événement"]
+        // Liste défilée : « + Proposer » effacé doit être SORTI de l'arbre d'accessibilité (bug 3 : VoiceOver l'activait
+        // et touchait ce qu'il y avait derrière). Puis on remonte la liste : il revient, on le touche.
+        Thread.sleep(forTimeInterval: 2)
+        for _ in 0..<4 { swipeUp(app) }
+        Thread.sleep(forTimeInterval: 1)
+        note(propose.exists ? "❌ « + Proposer » effacé mais encore dans l'arbre d'accessibilité" : "✅ « + Proposer » effacé : hors de l'arbre d'accessibilité")
+        for _ in 0..<4 where !propose.exists { swipeUp(app, from: 0.35, to: 0.8) }
         if propose.waitForExistence(timeout: 15) {
             Thread.sleep(forTimeInterval: 2)
             propose.tap()

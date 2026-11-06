@@ -146,6 +146,18 @@ export function useAuth(): AuthState {
   return ctx;
 }
 
+/** Photo de profil lisible par ce compte (règle de stockage « photos du groupe autorisé ») : la sienne, ou celles des
+ * autres avec « Voir les événements » ou un droit de gestion des membres. Sinon on ne la demande pas (400 en console
+ * chez les Membres et Guests : campagne des bots, 06.11) et les initiales restent. */
+const PHOTO_PERMS = ['events.view', 'members.approve', 'members.view_identity', 'members.roles', 'members.ban'];
+export function useMaySeePhoto(): (path: string) => boolean {
+  const ctx = useContext(AuthContext);
+  return (path: string) => {
+    if (!ctx?.session) return false;
+    return path.startsWith(`${ctx.session.user.id}/`) || PHOTO_PERMS.some((p) => ctx.can(p));
+  };
+}
+
 /** Utilisateur connecté et actif (les écrans protégés ne s'affichent que dans ce cas). */
 export function useMe(): Profile {
   const { profile } = useAuth();

@@ -1,6 +1,8 @@
+import { friendlyError } from './errors';
+
 /** Vérifie une écriture Supabase, qui peut réussir sans renvoyer de données. */
 export function check(res: { error: { message: string } | null }): void {
-  if (res.error) throw new Error(res.error.message);
+  if (res.error) throw new Error(friendlyError(res.error.message));
 }
 
 /** Exige des données pour une lecture ou une écriture avec `.select()`. */
