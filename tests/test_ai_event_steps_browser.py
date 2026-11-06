@@ -277,3 +277,19 @@ def test_iphone_app_opens_step_two_in_the_party_page_and_it_stays_open(browser, 
         pw.expect(step).to_be_visible(timeout=15000)
     finally:
         context.close()
+
+
+def test_step_two_without_being_signed_in_asks_to_sign_in_then_opens(browser, events_origin):  # noqa: F811
+    """Banc des bots (06.11) : ouverte sans session, l'étape 2 plantait (« La page n'a pas pu s'ouvrir »)."""
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
+    page = context.new_page()
+    try:
+        mock_services(page, people=PEOPLE)
+        draft_event(page)
+        page.goto(f'{events_origin}/events/event/{EVENT}/invite', wait_until='domcontentloaded')
+        pw.expect(page.get_by_role('button', name='Recevoir un code par SMS')).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_text('La page n’a pas pu s’ouvrir', exact=True)).to_have_count(0)
+        login(page)
+        pw.expect(page.get_by_role('progressbar', name='Étape 2 sur 3 : Qui est invité')).to_be_visible(timeout=15000)
+    finally:
+        context.close()

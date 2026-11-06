@@ -162,6 +162,8 @@ function Gate() {
         <Stack.Screen name="event/[id]/scan/index" options={{ title: 'Entrée' }} />
         <Stack.Screen name="event/[id]/scan/[token]" options={{ title: 'Entrée' }} />
         <Stack.Screen name="event/[id]/gifts" options={{ title: 'Cadeaux de l’événement' }} />
+        {/* Étape 2 de l'assistant IA : connecté seulement (sinon la page plantait au lieu de demander la connexion). */}
+        <Stack.Screen name="event/[id]/invite" options={{ title: 'Qui est invité' }} />
         <Stack.Screen name="settings/notifications" options={{ title: 'Notifications et abonnements' }} />
         <Stack.Screen name="settings/subscriptions" options={{ title: 'Notifications et abonnements' }} />
         <Stack.Screen name="groups" options={{ title: 'Groupes' }} />
