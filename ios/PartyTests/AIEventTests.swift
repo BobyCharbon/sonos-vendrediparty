@@ -55,7 +55,7 @@ final class AIEventTests: XCTestCase {
         XCTAssertEqual(pub.text, "🌍 Public + lien public : tout le monde peut le voir et le lien peut être partagé")
         XCTAssertTrue(AIEvent.audienceBanner("", invitees: []).isPublic)  // rien de dit : public
         XCTAssertEqual(AIEvent.audienceBanner(AIEvent.vipAudience, invitees: ["Léa"]).text, "👥 Membres Vendredi Party seulement + Léa")
-        XCTAssertEqual(AIEvent.audienceBanner(AIEvent.onlyInvitees, invitees: ["Léa", "Tom"]).text, "✉️ Invités seulement : Léa, Tom")
+        XCTAssertEqual(AIEvent.audienceBanner(AIEvent.onlyInvitees, invitees: ["Léa", "Tom"]).text, "✉️ Sur invitation : Léa, Tom")
         XCTAssertEqual(AIEvent.audienceBanner("Ski", invitees: []).text, "👥 Groupe « Ski » seulement")
         XCTAssertFalse(AIEvent.audienceBanner("Ski", invitees: []).isPublic)
     }
@@ -72,5 +72,57 @@ final class AIEventTests: XCTestCase {
         let store = AIEventStore(api: PartyAPI(base: URL(string: "https://party.invalid")!, jar: NoCookies()), web: nil)
         store.askForAudience()
         XCTAssertEqual(store.unsent, "Seulement pour ")
+    }
+}
+
+/// Demande de l'admin (06.11) : deux étapes. 1 « La soirée » (l'IA ne demande jamais qui inviter), 2 « Les invités »
+/// (brouillon enregistré, la page web d'invitation s'ouvre avec les personnes citées cochées), 3 « C'est en ligne ».
+final class AIEventStepsTests: XCTestCase {
+    private final class NoCookies: CookieJar {
+        func allCookies() async -> [HTTPCookie] { [] }
+        func keep(_ cookies: [HTTPCookie]) async {}
+    }
+
+    private let eventId = "11111111-2222-4333-8444-555555555555"
+    private let tom = "aaaaaaaa-0000-4000-8000-000000000001"
+
+    func testTheStepsFollowTheDraftThenThePublication() throws {
+        XCTAssertEqual(AIEvent.steps, ["La soirée", "Les invités", "C'est en ligne"])
+        XCTAssertEqual(AIEvent.step(nil), 1)
+        let draft = try JSONDecoder().decode(AIEvent.Created.self, from: Data(#"{"id":"\#(eventId)","status":"draft","title":"Raclette"}"#.utf8))
+        XCTAssertTrue(draft.isDraft)
+        XCTAssertEqual(AIEvent.step(draft), 2)
+        XCTAssertEqual(AIEvent.step(AIEvent.Created(id: eventId, status: "published", title: "Raclette")), 3)
+    }
+
+    func testTheSavedDraftCarriesThePeopleNamedToTheAIAsSuggestions() throws {
+        let json = #"{"id":"\#(eventId)","status":"draft","title":"Raclette","problems":[],"suggested":[{"id":"\#(tom)","name":"Tom"}]}"#
+        let saved = try JSONDecoder().decode(AIEvent.Created.self, from: Data(json.utf8))
+        XCTAssertEqual(saved.suggested, [AIEvent.Suggested(id: tom, name: "Tom")])
+        XCTAssertEqual(AIEvent.invitePath(saved.id, suggested: saved.suggested.map(\.id)),
+                       "/events/event/\(eventId)/invite?suggested=\(tom)")
+    }
+
+    func testTheInvitePathNeverCarriesAnythingButIds() {
+        XCTAssertNil(AIEvent.invitePath("'); alert(1); ('", suggested: []))
+        XCTAssertEqual(AIEvent.invitePath(eventId, suggested: ["x'); alert(1)", tom]), "/events/event/\(eventId)/invite?suggested=\(tom)")
+        XCTAssertEqual(AIEvent.invitePath(eventId, suggested: []), "/events/event/\(eventId)/invite")
+    }
+
+    func testOnlyInviteesNoLongerAsksWhomToInviteInStepOne() {
+        XCTAssertEqual(AIEvent.audienceBanner(AIEvent.onlyInvitees, invitees: []).text, "✉️ Sur invitation : tu choisis qui à l'étape suivante")
+    }
+
+    @MainActor
+    func testTheDraftStepNoLongerOpensOnceHandledAndResetsToStepOne() {
+        let store = AIEventStore(api: PartyAPI(base: URL(string: "https://party.invalid")!, jar: NoCookies()), web: nil)
+        XCTAssertFalse(store.openInviteSoon)
+        store.showDemoCreated(AIEvent.Created(id: eventId, status: "draft", title: "Raclette"))
+        XCTAssertEqual(AIEvent.step(store.created), 2)
+        store.inviteOpened()
+        XCTAssertFalse(store.openInviteSoon)
+        store.reset()
+        XCTAssertNil(store.created)
+        XCTAssertEqual(AIEvent.step(store.created), 1)
     }
 }

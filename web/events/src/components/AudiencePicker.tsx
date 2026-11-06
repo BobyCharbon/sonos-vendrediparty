@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { invitesV2On } from '@/lib/features';
+import { check, supabase } from '@/lib/supabase';
 import { parseLoginPhone } from '@/lib/phone';
 import { belowVip, roleName } from '@/lib/roles';
 import { VIP_GROUP_KEY, type MemberGroup, type MemberRole } from '@/lib/types';
@@ -39,6 +40,33 @@ export function audienceToEvent(v: AudienceValue): { visibility: 'all' | 'invite
 export function audienceChildren(v: AudienceValue) {
   const invite = v.audience === 'invite';
   return { group_ids: invite ? v.group_ids : [], invitees: invite ? v.invitees : [], phones: invite ? v.phones : [] };
+}
+
+/**
+ * Groupes, invités un à un et numéros enregistrés (formulaire, étape « Les invités » de l'assistant IA). La base recopie
+ * les membres des groupes (via_group). people false : les invités un à un ne sont pas touchés (invitations v2 : ajoutés
+ * par la feuille « Inviter »). Seulement ceux qu'on a enlevés partent : les autres gardent « invité par », « venu par le lien ».
+ */
+export async function saveAudience(id: string, v: AudienceValue, { people = true }: { people?: boolean } = {}) {
+  const who = audienceChildren(v);
+  const groupIds = who.group_ids;
+  const staleGroups = supabase.from('event_groups').delete().eq('event_id', id);
+  check(await (groupIds.length ? staleGroups.not('group_id', 'in', `(${groupIds.join(',')})`) : staleGroups));
+  if (groupIds.length) {
+    check(await supabase.from('event_groups').upsert(groupIds.map((group_id) => ({ event_id: id, group_id })), { ignoreDuplicates: true }));
+  }
+  if (!people) return;
+  const staleInvites = supabase.from('event_invites').delete().eq('event_id', id).eq('via_group', false);
+  check(await (who.invitees.length ? staleInvites.not('user_id', 'in', `(${who.invitees.join(',')})`) : staleInvites));
+  if (who.invitees.length) {
+    check(await supabase.from('event_invites').upsert(who.invitees.map((user_id) => ({ event_id: id, user_id })), { ignoreDuplicates: true }));
+  }
+  // Numéros : on ne retire que ceux enlevés (pas de seconde invitation pour ceux déjà invités).
+  const stalePhones = supabase.from('event_phone_invites').delete().eq('event_id', id);
+  check(await (who.phones.length ? stalePhones.not('phone', 'in', `(${who.phones.join(',')})`) : stalePhones));
+  if (who.phones.length) {
+    check(await supabase.from('event_phone_invites').upsert(who.phones.map((phone) => ({ event_id: id, phone })), { ignoreDuplicates: true }));
+  }
 }
 
 export function audienceError(v: AudienceValue): string | null {
@@ -80,13 +108,14 @@ export function displayInvitePhone(phone: string): string {
 
 const PEOPLE_SHOWN = 24;
 
-export function AudiencePicker({ value, onChange, groups, people, meId, allGroups }: {
+export function AudiencePicker({ value, onChange, groups, people, meId, allGroups, peopleNote }: {
   value: AudienceValue;
   onChange: (v: AudienceValue) => void;
   groups: MemberGroup[];
   people: Person[];
   meId: string;
   allGroups: boolean;  // admins : tous les groupes ; sinon ceux qu'on a créés ou dont on fait partie
+  peopleNote?: string;  // invitations v2 : où se font les invitations en plus (sinon la carte « Invités » de la fiche)
 }) {
   const [search, setSearch] = useState('');
   const [phone, setPhone] = useState('');
@@ -139,7 +168,7 @@ export function AudiencePicker({ value, onChange, groups, people, meId, allGroup
           {invitesV2On ? (
             // Invitations v2 : les personnes en plus (même hors du groupe) et les liens se gèrent sur la fiche, carte « Invités ».
             // « Inviter par numéro » disparaît : il ne prévenait personne (remplacé par le lien pour une personne).
-            <T muted size={13}>Pour inviter des personnes en plus ou envoyer un lien, utilise la carte « Invités » sur la fiche de l’événement, une fois publié. Elles n’entrent pas dans le groupe.</T>
+            <T muted size={13}>{peopleNote ?? 'Pour inviter des personnes en plus ou envoyer un lien, utilise la carte « Invités » sur la fiche de l’événement, une fois publié. Elles n’entrent pas dans le groupe.'}</T>
           ) : (<>
           <T muted size={13}>Ajouter des personnes</T>
           {picked.length ? (

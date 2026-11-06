@@ -137,7 +137,8 @@ def test_phone_invite_is_gone_with_v2_and_the_form_keeps_link_guests():
     picker = (ROOT / "web/events/src/components/AudiencePicker.tsx").read_text(encoding="utf-8")
     assert "invitesV2On ? (" in picker and "carte « Invités »" in picker
     form = (ROOT / "web/events/src/components/EventForm.tsx").read_text(encoding="utf-8")
-    assert "staleInvites.not('user_id', 'in'" in form  # « venu par le lien » n'est plus effacé en enregistrant
+    # « venu par le lien » n'est plus effacé en enregistrant (écriture partagée avec l'étape « Les invités » de l'IA).
+    assert "await saveAudience(id, d.who)" in form and "staleInvites.not('user_id', 'in'" in picker
 
 
 def test_install_party_is_optional_and_never_rewarded():

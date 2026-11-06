@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Avatar, Button, ErrorText, Input, Segmented, T, Toast } from './ui';
@@ -35,9 +35,13 @@ function untilDate(until: Until, ev: Ev): string | null {
  * Feuille « Inviter » (bêta invites_v2, maquette A) : en haut le lien prêt à partager (feuille de partage du téléphone,
  * WhatsApp, Messages, QR), pour une personne ou pour plusieurs avec places et date limite ; dessous, ajouter des gens de
  * Party (même hors du groupe) ou un groupe, en puces ; en bas, la règle en une phrase. Personne n'entre dans un groupe.
+ * draft : étape « Les invités » de l'assistant IA, l'événement est encore un brouillon : pas encore de lien (la base
+ * l'exige publié), les personnes ajoutées sont prévenues à la publication ; initialPeople : celles que la personne a
+ * citées à l'IA, déjà cochées (jamais invitées sans son « Inviter »).
  */
-export function InviteSheet({ visible, event, me, list, onClose, onInvited }: {
+export function InviteSheet({ visible, event, me, list, onClose, onInvited, draft = false, initialPeople = [] }: {
   visible: boolean; event: Ev; me: { id: string; display_name: string }; list: GuestList; onClose: () => void; onInvited: () => void;
+  draft?: boolean; initialPeople?: string[];
 }) {
   const { can } = useAuth();
   const [mode, setMode] = useState<Mode>('several');
@@ -61,6 +65,15 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited }: {
     ]);
     return { people: (p.data ?? []) as Person[], groups: (g.data ?? []) as Group[] };
   }, [visible]);
+
+  // Pré-sélection (une seule fois, dès que l'annuaire est lu) : les personnes citées, pas encore invitées.
+  const preselected = useRef(false);
+  useEffect(() => {
+    if (preselected.current || !directory || !initialPeople.length) return;
+    preselected.current = true;
+    const already = new Set(list.people.map((p) => p.id));
+    setPeople(directory.people.filter((p) => initialPeople.includes(p.id) && p.id !== me.id && !already.has(p.id)));
+  }, [directory, initialPeople, list.people, me.id]);
 
   const host = me.display_name.split(' ')[0] || 'Moi';
   const when = event.starts_at ? formatShort(event.starts_at).toLowerCase() : null;
@@ -119,7 +132,8 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited }: {
     try {
       const done = await invitePeople(event.id, people.map((p) => p.id), groups.map((g) => g.id));
       const total = done.people + done.groups;
-      setNote(total ? `${people.map((p) => p.display_name.split(' ')[0]).concat(groups.map((g) => g.name)).join(', ')} : invités, prévenus dans Party` : 'Déjà invités');
+      const who = people.map((p) => p.display_name.split(' ')[0]).concat(groups.map((g) => g.name)).join(', ');
+      setNote(total ? `${who} : invités, ${draft ? 'prévenus à la publication' : 'prévenus dans Party'}` : 'Déjà invités');
       setPeople([]);
       setGroups([]);
       setSearch('');
@@ -148,7 +162,13 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited }: {
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={{ gap: 18, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
-            {/* 1. Le lien, prêt à partager */}
+            {/* 1. Le lien, prêt à partager (brouillon : il arrive avec la publication) */}
+            {draft ? (
+              <View style={st.linkCard}>
+                <T weight="bold" size={17}>🔗 Le lien à partager</T>
+                <T size={13} color={colors.textSoft}>Il arrive dès la publication, sur la fiche (carte « Invités ») : WhatsApp, Messages, QR code, même pour qui n’a pas l’app.</T>
+              </View>
+            ) : (
             <View style={st.linkCard}>
               <T weight="bold" size={17}>🔗 Envoyer le lien</T>
               <T size={13} color={colors.textSoft}>Même sans l’app : la personne répond depuis le lien, en quelques secondes.</T>
@@ -196,6 +216,7 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited }: {
               </View>
               {link ? <Button small variant="ghost" label="Nouveau lien (pour quelqu’un d’autre)" onPress={() => { reset(); setLabel(''); }} /> : null}
             </View>
+            )}
 
             {/* 2. Des gens de Party, même hors du groupe, ou un groupe */}
             <View style={{ gap: 10 }}>
@@ -221,7 +242,7 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited }: {
                     onPress={() => setPeople([...people, p])} />
                 );
               })}
-              {q && !matches.length && !foundGroups.length ? (
+              {q && !matches.length && !foundGroups.length && !draft ? (
                 <Pressable accessibilityRole="button" onPress={() => { setMode('one'); setLabel(search.trim()); reset(); setSearch(''); }} style={st.notFound}>
                   <T size={14} weight="semibold">« {search.trim()} » n’est pas sur Party ?</T>
                   <T size={13} color={colors.accent} weight="semibold">Envoie-lui un lien pour une personne ›</T>
@@ -235,7 +256,7 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited }: {
               <T weight="bold" size={15}>{ruleSentence(after)}</T>
               <T muted size={13}>
                 {names.length ? `${names.join(', ')} ${names.length > 1 ? 'voient' : 'voit'} l’événement` : 'Les invités voient l’événement'} sans entrer dans le groupe.
-                Ils reçoivent une notification Party s’ils ont l’app.
+                {draft ? 'Ils reçoivent une notification Party à la publication, s’ils ont l’app.' : 'Ils reçoivent une notification Party s’ils ont l’app.'}
               </T>
             </View>
             <ErrorText error={error} />

@@ -124,14 +124,32 @@ enum AIEvent {
         var approximate = false
     }
 
+    /// Personne citée à l'IA : proposée, cochée, à l'étape « Les invités » (jamais invitée par l'IA).
+    struct Suggested: Decodable, Equatable {
+        let id: String
+        let name: String
+    }
+
     struct Created: Decodable, Equatable {
         let id: String
+        /// « draft » : étape 1 confirmée, brouillon enregistré (étape 2 : les invités) ; « published » / « pending » :
+        /// ancien parcours ; « updated » : événement modifié.
         let status: String
         let title: String
         /// Ce qui n'a pas pu être ajouté (un sondage, les tags…) : l'événement existe, à compléter à la main.
         var problems: [String] = []
         /// Événement modifié : ce qui a changé.
         var changes: [String] = []
+        var suggested: [Suggested] = []
+
+        var isDraft: Bool { status == "draft" }
+
+        init(id: String, status: String, title: String, suggested: [Suggested] = []) {
+            self.id = id
+            self.status = status
+            self.title = title
+            self.suggested = suggested
+        }
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -140,9 +158,28 @@ enum AIEvent {
             title = try c.decode(String.self, forKey: .title)
             problems = (try? c.decodeIfPresent([String].self, forKey: .problems)) ?? nil ?? []
             changes = (try? c.decodeIfPresent([String].self, forKey: .changes)) ?? nil ?? []
+            suggested = (try? c.decodeIfPresent([Suggested].self, forKey: .suggested)) ?? nil ?? []
         }
 
-        private enum CodingKeys: String, CodingKey { case id, status, title, problems, changes }
+        private enum CodingKeys: String, CodingKey { case id, status, title, problems, changes, suggested }
+    }
+
+    /// Les trois étapes de « Créer avec l'IA » (demande de l'admin, 06.11), mêmes mots que la page web (AIEventSteps.tsx).
+    static let steps = ["La soirée", "Les invités", "C'est en ligne"]
+
+    /// Étape en cours : 1 tant que la soirée n'est pas confirmée, 2 une fois le brouillon enregistré, 3 publié.
+    static func step(_ created: Created?) -> Int {
+        guard let created else { return 1 }
+        return created.isDraft ? 2 : 3
+    }
+
+    static let idPattern = "^[0-9a-fA-F-]{36}$"
+
+    /// Étape 2, page web : « /events/event/<id>/invite?suggested=… » (personnes citées à l'IA, cochées d'avance).
+    static func invitePath(_ id: String, suggested: [String]) -> String? {
+        guard id.range(of: idPattern, options: .regularExpression) != nil else { return nil }
+        let ids = suggested.filter { $0.range(of: idPattern, options: .regularExpression) != nil }
+        return "/events/event/\(id)/invite" + (ids.isEmpty ? "" : "?suggested=" + ids.joined(separator: ","))
     }
 
     /// Publics connus du serveur (app/ai_events.py : PUBLIC_AUDIENCE, VIP_AUDIENCE, ONLY_INVITEES).
@@ -160,7 +197,7 @@ enum AIEvent {
         case vipAudience:
             return ("👥 Membres Vendredi Party seulement" + plus, false)
         case onlyInvitees:
-            return ("✉️ Invités seulement : " + (invitees.isEmpty ? "dis qui inviter" : invitees.joined(separator: ", ")), false)
+            return ("✉️ Sur invitation : " + (invitees.isEmpty ? "tu choisis qui à l'étape suivante" : invitees.joined(separator: ", ")), false)
         default:
             return ("👥 Groupe « \(audience) » seulement" + plus, false)
         }
@@ -253,6 +290,8 @@ final class AIEventStore: ObservableObject {
     @Published private(set) var thinking = false
     @Published private(set) var creating = false
     @Published private(set) var created: AIEvent.Created?
+    /// Brouillon tout juste enregistré : l'étape 2 (les invités) s'ouvre d'elle-même dans un instant.
+    @Published private(set) var openInviteSoon = false
     /// Modifier un événement publié (« ✨ Modifier avec l'IA ») : son id ; nil = créer un événement.
     @Published private(set) var editingId: String?
     /// Ce que la demande change, en mots simples (montré avant d'enregistrer).
@@ -297,6 +336,7 @@ final class AIEventStore: ObservableObject {
         candidates = []
         lastSearch = ""
         created = nil
+        openInviteSoon = false
         error = nil
         editingId = nil
         images = []
@@ -544,6 +584,11 @@ final class AIEventStore: ObservableObject {
     }
 
     #if DEBUG
+    /// Captures sur simulateur : brouillon déjà enregistré (étape 2), sans appeler le serveur.
+    func showDemoCreated(_ demo: AIEvent.Created) {
+        created = demo
+    }
+
     /// Captures sur simulateur : une fiche figée, sans appeler le serveur (l'adresse est cherchée pour de vrai).
     func showDemo(_ demo: AIEvent.Draft, said: String) async {
         turns = said.isEmpty ? [] : [said]
@@ -559,6 +604,11 @@ final class AIEventStore: ObservableObject {
         (45.8...47.85).contains(c.latitude) && (5.95...10.5).contains(c.longitude)
     }
 
+    /// L'étape 2 s'ouvre (ou la personne a choisi « Ouvrir l'événement ») : plus d'ouverture automatique.
+    func inviteOpened() {
+        openInviteSoon = false
+    }
+
     func create() async {
         guard let draft, canCreate, !creating else { return }
         guard let token = await web?.accountToken() else { return }
@@ -569,7 +619,9 @@ final class AIEventStore: ObservableObject {
                 created = try await api.aiEventEditSave(token: token, id: editingId, draft: draft,
                                                         place: place == loadedPlace ? nil : place, announce: announce)
             } else {
-                created = try await api.aiEventCreate(token: token, draft: draft, place: place)
+                // Étape 1 confirmée : brouillon, sans invité ; l'étape 2 (les invités) s'ouvre ensuite.
+                created = try await api.aiEventSaveDraft(token: token, draft: draft, place: place)
+                openInviteSoon = created?.isDraft == true
             }
         } catch {
             self.error = error.localizedDescription
@@ -626,6 +678,14 @@ extension PartyAPI {
         if let data = try? JSONEncoder().encode(draft), let json = try? JSONSerialization.jsonObject(with: data) { body["draft"] = json }
         if let place { body["place"] = ["name": place.name, "address": place.address, "url": place.url] }
         return try await postDecoding("/api/account/ai/event/edit/save", body: body, timeout: 60)
+    }
+
+    /// « Oui, continuer » : l'événement en brouillon, sans aucun invité (étape 2 : la personne invite elle-même).
+    func aiEventSaveDraft(token: String, draft: AIEvent.Draft, place: AIEvent.Place?) async throws -> AIEvent.Created {
+        var body: [String: Any] = ["token": token]
+        if let data = try? JSONEncoder().encode(draft), let json = try? JSONSerialization.jsonObject(with: data) { body["draft"] = json }
+        if let place { body["place"] = ["name": place.name, "address": place.address, "url": place.url] }
+        return try await postDecoding("/api/account/ai/event/draft/save", body: body, timeout: 60)
     }
 
     func aiEventCreate(token: String, draft: AIEvent.Draft, place: AIEvent.Place?) async throws -> AIEvent.Created {

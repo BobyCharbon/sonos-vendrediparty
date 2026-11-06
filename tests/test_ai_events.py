@@ -293,3 +293,56 @@ def test_the_ai_never_turns_qr_tickets_on(tmp_path):
     writes = [j for m, p, j in accounts.calls if p.startswith("/rest/v1/events") and isinstance(j, dict)]
     assert writes and all("tickets_enabled" not in j for j in writes)
     assert "Billets QR : tu ne les actives JAMAIS" in ev.SYSTEM
+
+
+# ── Deux étapes (demande de l'admin, 06.11) : la soirée, puis les invités choisis par la personne ──
+
+def test_the_prompt_never_asks_whom_to_invite_and_never_invents_guests(tmp_path):
+    a, _, client = make(tmp_path)
+    a.draft("ok", ["Raclette chez Léa samedi à 20h"], None)
+    system = client.calls[0]["system"]
+    assert "tu ne demandes JAMAIS qui inviter" in system and "tu n'inventes aucun invité" in system
+    assert "ni\nsur qui inviter" in system and "tu ne les invites pas toi-même" in system
+
+
+def test_a_question_about_whom_to_invite_is_dropped(tmp_path):
+    a, _, _ = make(tmp_path, {**READY, "status": "needs_info", "questions": ["Qui veux-tu inviter ?", "Tu invites le groupe ?"]})
+    d = a.draft("ok", ["Raclette chez Léa samedi à 20h"], None)
+    assert d["questions"] == [] and d["status"] == "ready"
+
+
+def test_step_two_saves_a_draft_without_inviting_anyone_and_proposes_the_named_people(tmp_path):
+    a, accounts, _ = make(tmp_path)
+    out = a.save_draft("ok", {**READY, "audience": ev.ONLY_INVITEES, "invitees": ["Tom", "Léa", "Inconnu"]}, None)
+    # Léa est la personne connectée (FakeAccounts.link) mais pas u1 : seule une personne qui n'est pas soi est proposée.
+    assert out == {"id": "e1", "status": "draft", "title": "Raclette chez Léa", "problems": [],
+                   "suggested": [{"id": "p-tom", "name": "Tom"}, {"id": "p-lea", "name": "Léa"}]}
+    assert not any(p == "/rest/v1/event_invites" for _, p, _ in accounts.calls)
+    assert not any(m == "PATCH" for m, _, _ in accounts.calls)  # jamais publié par l'IA : la personne publie à l'étape 2
+    row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
+    assert row["status"] == "draft" and row["visibility"] == "invited"
+
+
+def test_step_two_draft_keeps_the_group_options_and_lists_but_not_qr_tickets(tmp_path):
+    a, accounts, _ = make(tmp_path, {**READY, "tickets_enabled": True})
+    d = a.draft("ok", ["Raclette, billets QR"], None)
+    out = a.save_draft("ok", {**d, "tickets_enabled": True}, None)
+    row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
+    assert "tickets_enabled" not in row and out["status"] == "draft"
+    assert ("POST", "/rest/v1/event_groups", {"event_id": "e1", "group_id": "g-ski"}) in accounts.calls
+    assert any(p == "/rest/v1/bring_items" for _, p, _ in accounts.calls)
+
+
+def test_step_two_draft_needs_no_named_guest_even_for_invitees_only(tmp_path):
+    a, _, _ = make(tmp_path, perms=("ai.use", "events.create"))
+    out = a.save_draft("ok", {**READY, "audience": ev.ONLY_INVITEES, "invitees": []}, None)
+    assert out["status"] == "draft" and out["suggested"] == []
+
+
+def test_step_two_draft_checks_rights_moderation_and_completeness(tmp_path):
+    a, _, _ = make(tmp_path, perms=("ai.use",))
+    with pytest.raises(AccountError, match="créer"):
+        a.save_draft("ok", READY, None)
+    a, _, _ = make(tmp_path)
+    with pytest.raises(AccountError, match="titre"):
+        a.save_draft("ok", {**READY, "title": ""}, None)

@@ -2474,6 +2474,13 @@ def account_ai_event_create(body: AiEventCreate):
     return account_call(lambda: event_assistant.create(body.token, body.draft, body.place))
 
 
+@app.post("/api/account/ai/event/draft/save")
+def account_ai_event_draft_save(body: AiEventCreate):
+    """Étape 1 « La soirée » confirmée (« Oui, continuer ») → événement en brouillon, sans invité ; l'app ouvre ensuite
+    l'étape 2 « Les invités » (/events/event/<id>/invite), où la personne invite elle-même puis publie."""
+    return account_call(lambda: event_assistant.save_draft(body.token, body.draft, body.place))
+
+
 EVENT_ID = r"^[0-9a-f-]{36}$"
 
 

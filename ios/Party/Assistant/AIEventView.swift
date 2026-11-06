@@ -2,15 +2,21 @@ import MapKit
 import PhotosUI
 import SwiftUI
 
-/// « ✨ Avec l'IA » (Événements) : on décrit l'événement à voix haute (ou par écrit) ; l'IA le remplit, pose ses
-/// questions s'il manque quelque chose ; la fiche s'affiche avec l'adresse trouvée, et « Créer » ne s'active
-/// qu'après 5 secondes, le temps de tout relire.
+/// « ✨ Avec l'IA » (Événements), en deux étapes (demande de l'admin, 06.11) :
+/// 1. « La soirée » : on décrit l'événement à voix haute (ou par écrit) ; l'IA le remplit et pose ses questions s'il
+///    manque quelque chose (jamais « qui inviter ») ; le récapitulatif s'affiche avec le bandeau « qui voit » et
+///    « C'est juste ? » : « Oui, continuer » / « Corriger ».
+/// 2. « Les invités » : le brouillon est enregistré, puis la page web « Les invités » s'ouvre d'elle-même (personnes
+///    citées cochées d'avance) ; on y invite soi-même puis on publie, et la fiche s'ouvre (3. « C'est en ligne »).
+/// « Ouvrir l'événement » reste possible dès que le brouillon existe. Modifier avec l'IA garde son compte à rebours.
 struct AIEventView: View {
     @ObservedObject var store: AIEventStore
     /// Événement publié à modifier (« ✨ Modifier avec l'IA ») ; nil : créer un événement.
     var editing: String? = nil
-    /// Événement créé : l'app l'ouvre dans Événements.
+    /// Ouvre la fiche de l'événement dans Événements.
     let open: (String) -> Void
+    /// Étape 2 : ouvre la page « Les invités » du brouillon dans Événements.
+    var openInvite: (AIEvent.Created) -> Void = { _ in }
     @StateObject private var dictation = Dictation()
     @Environment(\.dismiss) private var dismiss
     @State private var typed = ""
@@ -22,11 +28,16 @@ struct AIEventView: View {
     @State private var dropTargeted = false
 
     static let reviewSeconds = 5
+    /// Le temps de voir « Brouillon enregistré » avant que l'étape 2 s'ouvre.
+    static let inviteDelay: UInt64 = 1_200_000_000
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    if editing == nil {
+                        AIEventSteps(current: AIEvent.step(store.created)).accessibilityIdentifier("ai-steps")
+                    }
                     if let created = store.created {
                         done(created).motionTransition(.scale(scale: 0.9).combined(with: .opacity))
                     } else {
@@ -64,7 +75,11 @@ struct AIEventView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Fermer") { close() } }
-                if !store.turns.isEmpty && store.created == nil {
+                if let created = store.created, created.isDraft {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("Ouvrir l'événement") { openEventNow(created) }.accessibilityIdentifier("ai-open-event-toolbar")
+                    }
+                } else if !store.turns.isEmpty && store.created == nil {
                     ToolbarItem(placement: .primaryAction) {
                         Button("Recommencer") { restart() }.disabled(store.thinking)
                     }
@@ -80,6 +95,13 @@ struct AIEventView: View {
             }
             .onChange(of: store.draft) { _ in restartCountdown() }
             .onChange(of: store.created != nil) { done in if done { Haptics.success() } }
+            // Étape 2 : « Brouillon enregistré » un instant, puis la page « Les invités » s'ouvre d'elle-même.
+            .task(id: store.openInviteSoon) {
+                guard store.openInviteSoon, let created = store.created else { return }
+                try? await Task.sleep(nanoseconds: Self.inviteDelay)
+                guard !Task.isCancelled, store.openInviteSoon else { return }
+                openInviteNow(created)
+            }
             .onChange(of: store.error) { error in if error != nil { Haptics.error() } }
             .onChange(of: store.unsent) { text in
                 guard let text else { return }
@@ -123,7 +145,8 @@ struct AIEventView: View {
                 tip("text.bubble", "Quoi", "raclette, bowling, anniversaire de Tom…")
                 tip("calendar", "Quand", "« samedi à 19h », « le 14 novembre de 20h à minuit »")
                 tip("mappin.and.ellipse", "Où", "une adresse ou un lieu : « au Fun Planet de Villeneuve »")
-                tip("person.3", "Qui", "« pour le groupe Ski » ; sinon Vendredi Party")
+                tip("eye", "Qui voit", "« pour le groupe Ski », « entre membres » ; sinon public avec un lien")
+                tip("person.badge.plus", "Les invités", "pas besoin de les dire : tu les choisis toi-même juste après")
                 tip("plus.circle", "En plus", "prix, nombre de places, quoi amener, « avec un pot commun »")
                 tip("link", "Déjà en ligne ?", "colle le lien de l'événement, une affiche ou une capture d'écran : l'IA y lit tout")
             }
@@ -226,9 +249,14 @@ struct AIEventView: View {
             part("Quand") { when(d) }
             part("Où") { placeRow(d) }
             part("Invités") {
-                row("person.3", d.invitees.isEmpty ? d.audience
-                    : d.audience == AIEvent.onlyInvitees ? d.invitees.joined(separator: ", ")
-                    : d.audience + " + " + d.invitees.joined(separator: ", "))
+                if editing == nil {
+                    row("person.badge.plus", d.invitees.isEmpty ? "Tu les choisis toi-même à l'étape suivante"
+                        : "Proposés à l'étape suivante : " + d.invitees.joined(separator: ", ") + " (tu confirmes)")
+                } else {
+                    row("person.3", d.invitees.isEmpty ? d.audience
+                        : d.audience == AIEvent.onlyInvitees ? d.invitees.joined(separator: ", ")
+                        : d.audience + " + " + d.invitees.joined(separator: ", "))
+                }
                 if !d.organizers.isEmpty { row("person.2.badge.gearshape", "Co-organisé avec " + d.organizers.joined(separator: ", ")) }
             }
             part("Réponses") {
@@ -281,9 +309,11 @@ struct AIEventView: View {
             }
             Text("Pour changer quoi que ce soit, dis-le simplement : « mets 15 places », « enlève le sondage »…")
                 .font(.caption).foregroundStyle(.secondary)
-            if store.canCreate { createButton }
+            if editing == nil {
+                if d.ready { confirmCard }
+            } else if store.canCreate { createButton }
             else if d.ready && !store.searchingPlace {
-                Text("Confirme l'adresse sur la carte pour pouvoir créer l'événement.").font(.footnote).foregroundStyle(.secondary)
+                Text("Confirme l'adresse sur la carte pour pouvoir enregistrer.").font(.footnote).foregroundStyle(.secondary)
             }
         }
         .padding(16)
@@ -448,6 +478,44 @@ struct AIEventView: View {
         .accessibilityIdentifier("ai-place-choices")
     }
 
+    /// Étape 1, fin : « C'est juste ? ». « Oui, continuer » enregistre le brouillon (étape 2 : les invités) ;
+    /// « Corriger » rouvre le champ pour dire ce qui ne va pas.
+    private var confirmCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("C'est juste ?").font(.title3.weight(.bold))
+            Text(store.canCreate ? "Ensuite, tu choisis toi-même qui inviter, puis tu publies."
+                 : "Confirme d'abord l'adresse sur la carte.")
+                .font(.footnote).foregroundStyle(.secondary)
+            Button {
+                Haptics.press()
+                Task { await store.create() }
+            } label: {
+                HStack {
+                    if store.creating { ProgressView().tint(.black) }
+                    Text("Oui, continuer").font(.headline)
+                }
+                .frame(maxWidth: .infinity).padding(.vertical, 14)
+                .background(store.canCreate ? Palette.accent : Color.white.opacity(0.12), in: Capsule())
+                .foregroundStyle(store.canCreate ? Color.black : Color.secondary)
+            }
+            .disabled(!store.canCreate || store.creating)
+            .accessibilityIdentifier("ai-continue")
+            Button {
+                Haptics.tap()
+                typing = true
+            } label: {
+                Text("Corriger").font(.headline).frame(maxWidth: .infinity).padding(.vertical, 12)
+                    .background(Color.white.opacity(0.1), in: Capsule())
+            }
+            .disabled(store.creating)
+            .accessibilityIdentifier("ai-correct")
+        }
+        .padding(14)
+        .background(Palette.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ai-confirm")
+    }
+
     private var createButton: some View {
         Button {
             Haptics.press()
@@ -472,8 +540,54 @@ struct AIEventView: View {
         .accessibilityIdentifier("ai-create")
     }
 
+    // ── Étape 2 : brouillon enregistré, la page « Les invités » s'ouvre ──
+    private func draftSaved(_ c: AIEvent.Created) -> some View {
+        VStack(spacing: 14) {
+            SuccessCheck()
+            Text(c.title).font(.title2.weight(.bold)).multilineTextAlignment(.center)
+            Text("Brouillon enregistré, encore invisible pour les autres. Choisis maintenant qui inviter, puis publie.")
+                .foregroundStyle(.secondary).multilineTextAlignment(.center)
+            if !c.suggested.isEmpty {
+                Text("Déjà cochés : " + c.suggested.map(\.name).joined(separator: ", "))
+                    .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            }
+            if !c.problems.isEmpty {
+                Label("Pas ajouté : " + c.problems.joined(separator: ", ") + ". Ouvre l'événement pour le compléter.",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .font(.footnote).foregroundStyle(.orange).multilineTextAlignment(.leading)
+            }
+            Button { openInviteNow(c) } label: {
+                Label("Choisir les invités", systemImage: "person.badge.plus").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent).controlSize(.large)
+            .accessibilityIdentifier("ai-invite")
+            Button("Ouvrir l'événement") { openEventNow(c) }
+                .accessibilityIdentifier("ai-open-event")
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 24)
+    }
+
+    private func openInviteNow(_ c: AIEvent.Created) {
+        store.inviteOpened()
+        openInvite(c)
+        close()
+    }
+
+    /// Finir à la main : la fiche du brouillon (« Modifier », « Inviter et publier »).
+    private func openEventNow(_ c: AIEvent.Created) {
+        store.inviteOpened()
+        open(c.id)
+        close()
+    }
+
     // ── C'est fait ──
+    @ViewBuilder
     private func done(_ c: AIEvent.Created) -> some View {
+        if c.isDraft { draftSaved(c) } else { published(c) }
+    }
+
+    private func published(_ c: AIEvent.Created) -> some View {
         VStack(spacing: 14) {
             SuccessCheck()
             Text(c.title).font(.title2.weight(.bold)).multilineTextAlignment(.center)
