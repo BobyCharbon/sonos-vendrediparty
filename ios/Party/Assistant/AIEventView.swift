@@ -526,7 +526,7 @@ struct AIEventView: View {
         VStack(spacing: 14) {
             SuccessCheck()
             Text(c.title).font(.title2.weight(.bold)).multilineTextAlignment(.center)
-            Text("Brouillon enregistré, encore invisible pour les autres. Choisis maintenant qui voit l'événement et qui est invité, puis publie.")
+            Text("Brouillon enregistré, encore invisible pour les autres. Choisis maintenant qui le voit : un toucher le publie, puis tu envoies le lien à tes invités.")
                 .foregroundStyle(.secondary).multilineTextAlignment(.center)
             if !c.suggested.isEmpty {
                 Text("Déjà cochés : " + c.suggested.map(\.name).joined(separator: ", "))

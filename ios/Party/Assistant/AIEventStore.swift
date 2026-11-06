@@ -576,7 +576,7 @@ final class AIEventStore: ObservableObject {
         return place != nil
     }
 
-    #if DEBUG
+    #if DEBUG || E2E_HOOKS
     /// Captures sur simulateur : brouillon déjà enregistré (étape 2), sans appeler le serveur.
     func showDemoCreated(_ demo: AIEvent.Created) {
         created = demo

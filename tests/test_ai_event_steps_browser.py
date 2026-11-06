@@ -1,9 +1,9 @@
-"""« Créer avec l'IA » en deux étapes (demande de l'admin, 06.11), module web dans un vrai navigateur (Supabase simulé,
-personne de réel n'est prévenu) : l'app iPhone enregistre le brouillon puis ouvre l'étape 2 « Les invités »
-(/events/event/<id>/invite?suggested=…) ; la personne invite elle-même, publie, et la fiche s'ouvre (étape 3).
-- invitations v2 (site de test) : la feuille « Inviter » s'ouvre tout de suite, la personne citée à l'IA déjà cochée,
-  pas encore de lien (brouillon) ; « Inviter Tom » puis « Publier » ;
-- production (v2 éteint) : le sélecteur du formulaire, Tom coché ; « Publier sans inviter pour l'instant » n'invite personne.
+"""« Créer avec l'IA » en deux étapes (demandes de l'admin, 06.11), module web dans un vrai navigateur (Supabase simulé,
+personne de réel n'est prévenu) : l'app iPhone enregistre le brouillon puis ouvre l'étape 2 « Qui est invité »
+(/events/event/<id>/invite?suggested=…). Un toucher sur « qui voit » PUBLIE (ou envoie pour validation) :
+- sur invitation : la feuille « Inviter » s'ouvre avec le lien prêt, la personne citée à l'IA cochée ;
+- un groupe ou les Membres : la fiche, « ＋ Inviter d'autres personnes » en avant ; public : la fiche ;
+- sans le droit de publier : envoyé pour validation, le lien arrive après ; invitations v2 éteintes : carte du lien.
 Captures (390 px) dans $AI_STEPS_SHOTS si la variable est définie."""
 import json
 import os
@@ -84,7 +84,9 @@ def open_step_two(page, origin, query=f'suggested={TOM},pas-un-id'):
     pw.expect(page.get_by_role('progressbar', name='Étape 2 sur 3 : Qui est invité')).to_be_visible(timeout=15000)
 
 
-def test_v2_who_sees_it_is_chosen_first_public_by_default_then_the_invite_sheet_then_publish(browser, v2_origin):  # noqa: F811
+def test_v2_invitation_only_publishes_in_one_touch_then_the_link_is_ready_to_share(browser, v2_origin):  # noqa: F811
+    """Retour de l'admin (06.11) : « Sur invitation » publie tout de suite, puis la feuille « Inviter » s'ouvre avec le
+    LIEN PRÊT (Partager, WhatsApp, Messages, QR), la personne citée à l'IA cochée. Jamais de lien « après publication »."""
     context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
     page = context.new_page()
     errors = []
@@ -94,42 +96,90 @@ def test_v2_who_sees_it_is_chosen_first_public_by_default_then_the_invite_sheet_
         calls = mock_invites(page, guest_list=EMPTY_LIST)
         writes = draft_event(page)
         open_step_two(page, v2_origin)
-        # En haut : qui voit, le défaut (public + lien) en surbrillance avec ce que ça veut dire.
-        pw.expect(page.get_by_text('Qui voit l’événement ?', exact=True)).to_be_visible()
-        pw.expect(page.get_by_role('radio', name='🌍 Public + lien public')).to_have_attribute('aria-checked', 'true')
-        pw.expect(page.get_by_text('Tout le monde peut le voir', exact=False)).to_be_visible()
-        for name in ('👥 Membres Vendredi Party', '✉️ Sur invitation seulement'):
-            pw.expect(page.get_by_role('radio', name=name)).to_be_visible()
-        assert not [c for c in calls if c[0] == 'invite_people']  # jamais invitée sans son « Inviter »
-        shot(page, '02-web-qui-est-invite-v2')
-        # Puis les invités : la feuille « Inviter », Tom (cité à l'IA) déjà coché, pas encore de lien (brouillon).
-        page.get_by_role('button', name='＋ Inviter Tom…').click()
+        pw.expect(page.get_by_text('Un toucher le publie', exact=False)).to_be_visible()
+        pw.expect(page.get_by_text('Il arrive dès la publication', exact=False)).to_have_count(0)
+        shot(page, '02-web-qui-voit-un-toucher-v2')
+        page.get_by_role('button', name='✉️ Sur invitation seulement : Publier et envoyer le lien').click()
         sheet = page.get_by_label('Inviter à Raclette chez Camille')
-        pw.expect(sheet.get_by_text('🔗 Le lien à partager', exact=True)).to_be_visible(timeout=5000)
-        pw.expect(sheet.get_by_role('button', name='Retirer Tom')).to_be_visible(timeout=5000)
-        pw.expect(sheet.get_by_role('button', name='Partager le lien…')).to_have_count(0)
-        shot(page, '02b-web-feuille-inviter-v2')
-        sheet.get_by_role('button', name='Inviter Tom').click()
-        pw.expect(page.get_by_text('Tom : invités, prévenus à la publication', exact=True)).to_be_visible(timeout=5000)
-        assert ('invite_people', {'e': EVENT, 'people': [TOM], 'groups': []}) in calls
-        sheet.get_by_role('button', name='Fermer').click()
-        # Membres Vendredi Party : la phrase change ; enregistré au moment de publier, avant le statut.
-        page.get_by_role('radio', name='👥 Membres Vendredi Party').click()
-        pw.expect(page.get_by_text('Tous les Membres VIP et au-dessus le voient', exact=False)).to_be_visible()
-        page.get_by_role('button', name='Publier', exact=True).click()
-        pw.expect(page.get_by_text('C’est en ligne !', exact=True)).to_be_visible(timeout=10000)
-        pw.expect(page.get_by_role('progressbar', name='Étape 3 sur 3 : C’est en ligne')).to_be_visible()
-        visibility = writes.index(('PATCH', 'events', {'visibility': 'all', 'public_link': False}))
+        pw.expect(sheet.get_by_text('C’est en ligne : envoie le lien à tes invités', exact=True)).to_be_visible(timeout=10000)
+        pw.expect(sheet.get_by_role('button', name='Partager le lien…')).to_be_visible()
+        for how in ('WhatsApp', 'Messages', 'QR code'):
+            pw.expect(sheet.get_by_role('button', name=how, exact=True)).to_be_visible()
+        pw.expect(sheet.get_by_role('button', name='Retirer Tom')).to_be_visible(timeout=5000)  # cité à l'IA, coché
+        assert not [c for c in calls if c[0] == 'invite_people']  # jamais invité sans son « Inviter »
+        visibility = writes.index(('PATCH', 'events', {'visibility': 'invited', 'public_link': False}))
         assert visibility < writes.index(('PATCH', 'events', {'status': 'published'}))
-        assert 'step=online' in page.url
-        shot(page, '03-web-c-est-en-ligne-v2')
-        assert page.locator('html').evaluate('e => e.scrollWidth <= innerWidth')
+        assert 'invite=link' in page.url
+        shot(page, '03-web-lien-pret-v2')
+        sheet.get_by_role('button', name='WhatsApp', exact=True).click()
+        pw.expect(sheet.get_by_text('✓ Lien prêt', exact=False)).to_be_visible(timeout=5000)
+        assert any(c[0] == 'create_event_invite' for c in calls)
         assert not errors, errors
     finally:
         context.close()
 
 
-def test_production_public_by_default_publish_without_inviting_invites_nobody(browser, events_origin):  # noqa: F811
+def test_v2_members_publish_in_one_touch_then_the_guest_card_offers_to_invite_more(browser, v2_origin):  # noqa: F811
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
+    page = context.new_page()
+    try:
+        mock_services(page, people=PEOPLE)
+        mock_invites(page, guest_list=EMPTY_LIST)
+        writes = draft_event(page)
+        open_step_two(page, v2_origin)
+        page.get_by_role('button', name='👥 Membres Vendredi Party : Publier pour les Membres Vendredi Party').click()
+        pw.expect(page.get_by_text('C’est en ligne !', exact=True)).to_be_visible(timeout=10000)
+        pw.expect(page.get_by_role('button', name='＋ Inviter d’autres personnes')).to_be_visible()
+        pw.expect(page.get_by_label('Inviter à Raclette chez Camille')).to_have_count(0)  # la fiche, pas la feuille
+        assert ('PATCH', 'events', {'visibility': 'all', 'public_link': False}) in writes
+        assert ('PATCH', 'events', {'status': 'published'}) in writes
+        shot(page, '03-web-membres-fiche-v2')
+    finally:
+        context.close()
+
+
+def test_a_group_is_chosen_then_published_for_it(browser, v2_origin):  # noqa: F811
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
+    page = context.new_page()
+    try:
+        mock_services(page, people=PEOPLE)
+        member_without_vip(page)
+        mock_invites(page, guest_list=EMPTY_LIST)
+        writes = draft_event(page)
+        open_step_two(page, v2_origin)
+        page.get_by_role('button', name='👥 Un groupe', exact=True).click()
+        assert not [w for w in writes if w == ('PATCH', 'events', {'status': 'published'})]  # choisir le groupe d'abord
+        page.get_by_role('button', name='Publier pour « Ski »').click()
+        pw.expect(page.get_by_role('button', name='＋ Inviter d’autres personnes')).to_be_visible(timeout=10000)
+        assert ('POST', 'event_groups', [{'event_id': EVENT, 'group_id': SKI}]) in writes
+        assert ('PATCH', 'events', {'status': 'published'}) in writes
+    finally:
+        context.close()
+
+
+def test_without_the_right_to_publish_invitation_only_is_sent_for_validation_and_says_when_the_link_comes(browser, v2_origin):  # noqa: F811
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
+    page = context.new_page()
+    try:
+        mock_services(page, people=PEOPLE)
+        mock_invites(page, guest_list=EMPTY_LIST)
+        perms = ['events.view', 'events.rsvp', 'events.create', 'chat.write']  # pas « publier sans validation »
+        page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/rpc/my_permissions*', lambda route: route.fulfill(
+            status=204, headers=CORS) if route.request.method == 'OPTIONS' else route.fulfill(
+            status=200, content_type='application/json', headers=CORS, body=json.dumps(perms)))
+        writes = draft_event(page)
+        open_step_two(page, v2_origin)
+        pw.expect(page.get_by_text('Un toucher l’envoie pour validation', exact=False)).to_be_visible()
+        page.get_by_role('button', name='✉️ Sur invitation seulement : Envoyer pour validation').click()
+        pw.expect(page.get_by_text('Envoyé pour validation', exact=True)).to_be_visible(timeout=10000)
+        pw.expect(page.get_by_text('Le lien à partager à tes invités sera disponible dès la validation.', exact=False)).to_be_visible()
+        assert ('PATCH', 'events', {'status': 'pending'}) in writes
+        pw.expect(page.get_by_role('button', name='Partager le lien…')).to_have_count(0)
+    finally:
+        context.close()
+
+
+def test_invitations_off_public_publishes_in_one_touch_and_invites_nobody(browser, events_origin):  # noqa: F811
     context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
     page = context.new_page()
     errors = []
@@ -138,9 +188,8 @@ def test_production_public_by_default_publish_without_inviting_invites_nobody(br
         mock_services(page, people=PEOPLE)
         writes = draft_event(page)
         open_step_two(page, events_origin)
-        pw.expect(page.get_by_text('Public : pas besoin d’inviter', exact=False)).to_be_visible(timeout=5000)
         pw.expect(page.get_by_role('button', name='Ouvrir l’événement (finir à la main)')).to_be_visible()
-        page.get_by_role('button', name='Publier sans inviter pour l’instant').click()
+        page.get_by_role('button', name='🌍 Public + lien public : Publier').click()
         pw.expect(page.get_by_text('C’est en ligne !', exact=True)).to_be_visible(timeout=10000)
         assert not [w for w in writes if w[1] == 'event_invites' and w[0] == 'POST']
         assert ('PATCH', 'events', {'visibility': 'all', 'public_link': True}) in writes
@@ -150,22 +199,19 @@ def test_production_public_by_default_publish_without_inviting_invites_nobody(br
         context.close()
 
 
-def test_production_invite_only_preset_checks_the_named_person_and_invites_before_publishing(browser, events_origin):  # noqa: F811
+def test_invitations_off_invitation_only_opens_the_event_with_its_link_card_first(browser, events_origin):  # noqa: F811
     context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
     page = context.new_page()
     try:
         mock_services(page, people=PEOPLE)
         writes = draft_event(page)
         open_step_two(page, events_origin, f'audience=invite&suggested={TOM}')  # « j'invite seulement Tom » dit à l'IA
-        pw.expect(page.get_by_role('radio', name='✉️ Sur invitation seulement')).to_have_attribute('aria-checked', 'true')
-        pw.expect(page.get_by_role('button', name='✕ Tom')).to_be_visible(timeout=5000)  # sélecteur actuel, Tom coché
-        shot(page, '02-web-prod-qui-est-invite-v2')
-        page.get_by_role('button', name='Publier', exact=True).click()
+        pw.expect(page.get_by_text('Suggéré', exact=True)).to_be_visible()
+        page.get_by_role('button', name='✉️ Sur invitation seulement : Publier et envoyer le lien').click()
         pw.expect(page.get_by_text('C’est en ligne !', exact=True)).to_be_visible(timeout=10000)
-        invited = [w for w in writes if w[1] == 'event_invites' and w[0] == 'POST']
-        assert invited and invited[0][2] == [{'event_id': EVENT, 'user_id': TOM}]
+        pw.expect(page.get_by_text('Lien d’invitation', exact=True)).to_be_visible()
         assert ('PATCH', 'events', {'visibility': 'invited', 'public_link': False}) in writes
-        assert writes.index(invited[0]) < writes.index(('PATCH', 'events', {'status': 'published'}))
+        assert not [w for w in writes if w[1] == 'event_invites' and w[0] == 'POST']
     finally:
         context.close()
 
@@ -179,9 +225,9 @@ def test_only_the_groups_the_organizer_is_in_are_offered(browser, events_origin)
         member_without_vip(page)
         draft_event(page)
         open_step_two(page, events_origin, f'audience=vip&groups={FOOT}')  # pré-réglage non permis : ignoré
-        pw.expect(page.get_by_role('radio', name='🌍 Public + lien public')).to_have_attribute('aria-checked', 'true')
-        pw.expect(page.get_by_role('radio', name='👥 Membres Vendredi Party')).to_have_count(0)
-        page.get_by_role('radio', name='👥 Un groupe').click()
+        pw.expect(page.get_by_role('button', name='🌍 Public + lien public : Publier')).to_be_visible()
+        pw.expect(page.get_by_role('button', name='👥 Membres Vendredi Party', exact=False)).to_have_count(0)
+        page.get_by_role('button', name='👥 Un groupe', exact=True).click()
         pw.expect(page.get_by_role('button', name='Ski · 2')).to_be_visible()
         pw.expect(page.get_by_role('button', name='Foot · 1')).to_have_count(0)  # créé par lui, mais il n'en fait pas partie
         # Formulaire classique : pas de « Vendredi Party », seulement ses groupes, public par défaut.

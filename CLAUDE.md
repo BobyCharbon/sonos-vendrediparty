@@ -39,6 +39,12 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   `frameAt` (app/static/index.html) : sinon, au « prêt » du module, la page le renvoie à son ancienne page (bug de prod du
   06.11 : l'étape 2 « Qui est invité » se refermait). Test : `test_iphone_app_opens_step_two_in_the_party_page_and_it_stays_open`.
   Essai réel simulateur + base de TEST : `ios/PartyUITests/AIEventRealE2EUITests.swift` (ignoré sans son environnement).
+  En configuration Release (comme l'App Store) : `xcodebuild test -configuration Release ENABLE_TESTABILITY=YES
+  PARTY_SWIFT_CONDITIONS=E2E_HOOKS PARTY_BASE_URL=http://127.0.0.1:<port>` ; `E2E_HOOKS` ne va jamais dans project.yml
+  ni dans un workflow (test `test_recette_hooks_never_reach_the_app_store_build`). Brouillon de recette : `"notify": false`
+  (la base de TEST contient de vrais comptes).
+- Étape 2 « Qui est invité » : un toucher sur « qui voit » publie (ou envoie pour validation) ; on invite APRÈS, l'événement
+  en ligne. Jamais de lien « disponible à la publication ».
 
 ## Module Événements (web/events) — défilement tactile
 - Jamais de règle `overscroll-behavior` ni `touch-action` sur `*` (web/events/scripts/postbuild.mjs). Sous Android,

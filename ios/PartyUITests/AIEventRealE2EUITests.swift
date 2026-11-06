@@ -4,8 +4,9 @@ import XCTest
 /// branché sur la base de TEST : app construite avec PARTY_BASE_URL=http://127.0.0.1:<port>, session du compte de test
 /// et brouillon passés par l'environnement (TEST_RUNNER_AI_E2E_SESSION, TEST_RUNNER_AI_E2E_DRAFT). Ignoré sinon.
 /// « Oui, continuer » → (CGU exigées : feuille « Avant de publier », « J'accepte », nouvel essai) → brouillon enregistré
-/// → l'étape 2 « Qui est invité » s'ouvre dans Événements ET y reste → « Sur invitation seulement » → « Publier sans
-/// inviter pour l'instant » → la fiche « C'est en ligne ! ». Captures dans $AI_E2E_SHOTS.
+/// → l'étape 2 « Qui est invité » s'ouvre dans Événements ET y reste → un toucher sur « qui voit » publie : sur invitation,
+/// la feuille « Inviter » avec le lien prêt (QR) ; Membres : la fiche et « ＋ Inviter d'autres personnes » ; public : la
+/// fiche ; sans le droit de publier : « Envoyé pour validation ». Captures dans $AI_E2E_SHOTS.
 final class AIEventRealE2EUITests: XCTestCase {
     private let env = ProcessInfo.processInfo.environment
 
@@ -62,15 +63,52 @@ final class AIEventRealE2EUITests: XCTestCase {
         XCTAssertTrue(step.exists, "L'étape 2 s'est refermée")
         shot(app, "04-etape-2-toujours-ouverte")
 
-        let invitedOnly = app.webViews.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Sur invitation seulement'")).firstMatch
-        XCTAssertTrue(invitedOnly.waitForExistence(timeout: 10))
-        invitedOnly.tap()  // personne de réel n'est prévenu
-        let publish = app.webViews.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Publier sans inviter'")).firstMatch
-        for _ in 0..<8 where !(publish.exists && publish.isHittable) { app.webViews.firstMatch.swipeUp() }
-        shot(app, "05-sur-invitation")
-        publish.tap()
-        XCTAssertTrue(label(app, "C’est en ligne !").waitForExistence(timeout: 30)
-                      || app.staticTexts["C’est en ligne !"].waitForExistence(timeout: 5), "La fiche publiée ne s'est pas ouverte")
-        shot(app, "06-publie-fiche")
+        // Un toucher sur « qui voit » publie (AI_E2E_CHOICE : invite, vip, public) ; AI_E2E_PROPOSING=1 : compte sans le
+        // droit de publier directement, l'événement part en validation.
+        let choice = env["AI_E2E_CHOICE"] ?? "invite"
+        let proposing = env["AI_E2E_PROPOSING"] == "1"
+        let titles = ["invite": "✉️ Sur invitation seulement", "vip": "👥 Membres Vendredi Party", "public": "🌍 Public + lien public"]
+        let actions = ["invite": "Publier et envoyer le lien", "vip": "Publier pour les Membres Vendredi Party", "public": "Publier"]
+        let name = "\(titles[choice]!) : \(proposing ? "Envoyer pour validation" : actions[choice]!)"
+        let option = app.webViews.buttons[name]
+        for _ in 0..<6 where !(option.exists && option.isHittable) { app.webViews.firstMatch.swipeUp() }
+        XCTAssertTrue(option.waitForExistence(timeout: 10), "Bouton « \(name) » introuvable")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'dès la publication'")).firstMatch.exists)
+        shot(app, "05-qui-voit-un-toucher")
+        option.tap()
+
+        if proposing {
+            XCTAssertTrue(label(app, "Envoyé pour validation").waitForExistence(timeout: 30), "« Envoyé pour validation » attendu")
+            if choice == "invite" {
+                XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'sera disponible dès la validation'")).firstMatch.exists)
+            }
+            XCTAssertFalse(app.webViews.buttons["Partager le lien…"].exists)
+            shot(app, "06-envoye-pour-validation")
+        } else if choice == "invite" && env["AI_E2E_V2"] == "0" {
+            // Invitations v2 éteintes : la fiche, la carte « Lien d'invitation » en tête.
+            XCTAssertTrue(label(app, "C’est en ligne !").waitForExistence(timeout: 30), "La fiche publiée ne s'est pas ouverte")
+            let create = app.webViews.buttons["Créer un lien unique"]
+            XCTAssertTrue(create.waitForExistence(timeout: 20), "Carte du lien attendue")
+            shot(app, "06-fiche-carte-du-lien")
+            create.tap()
+            XCTAssertTrue(app.webViews.buttons["Créer un autre lien unique"].waitForExistence(timeout: 20), "Lien créé attendu")
+            shot(app, "07-lien-cree")
+        } else if choice == "invite" {
+            // La feuille « Inviter » s'ouvre aussitôt, lien prêt à partager.
+            XCTAssertTrue(label(app, "C’est en ligne : envoie le lien à tes invités").waitForExistence(timeout: 30))
+            let share = app.webViews.buttons["Partager le lien…"]
+            XCTAssertTrue(share.waitForExistence(timeout: 10))
+            for how in ["WhatsApp", "Messages", "QR code", "Copier"] { XCTAssertTrue(app.webViews.buttons[how].exists, how) }
+            shot(app, "06-lien-pret-a-partager")
+            app.webViews.buttons["QR code"].tap()  // crée le vrai lien (base de TEST) et le montre en QR
+            XCTAssertTrue(app.webViews.images["QR code du lien d’invitation"].waitForExistence(timeout: 20), "QR du lien attendu")
+            shot(app, "07-qr-du-lien")
+        } else {
+            XCTAssertTrue(label(app, "C’est en ligne !").waitForExistence(timeout: 30), "La fiche publiée ne s'est pas ouverte")
+            if choice == "vip" && env["AI_E2E_V2"] != "0" {  // carte « Invités » : invitations v2 seulement
+                XCTAssertTrue(app.webViews.buttons["＋ Inviter d’autres personnes"].waitForExistence(timeout: 20))
+            }
+            shot(app, "06-publie-fiche")
+        }
     }
 }

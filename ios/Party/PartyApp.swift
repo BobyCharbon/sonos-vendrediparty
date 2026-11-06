@@ -31,6 +31,10 @@ struct PartyApp: App {
                 .overlay { HostDemo(model: model) }
                 .overlay { GroupAdminDemo(model: model) }
                 .overlay { MotionDemo(model: model) }
+                #endif
+                // Recette réelle (simulateur, serveur local, base de TEST) : aussi en Release avec E2E_HOOKS, jamais dans
+                // l'app de l'App Store (le réglage n'est passé qu'en ligne de commande par la recette).
+                #if DEBUG || E2E_HOOKS
                 .overlay { AIEventDemo(model: model) }
                 #endif
                 .onReceive(NotificationCenter.default.publisher(for: .partyOpenURL)) { note in
@@ -180,32 +184,6 @@ private struct HostDemo: View {
     }
 }
 
-/// Simulateur : PARTY_DEBUG_AI_EVENT=tips|<AIEvent.Draft en JSON> ouvre « Créer avec l'IA » (conseils, ou fiche figée).
-private struct AIEventDemo: View {
-    @ObservedObject var model: WebModel
-
-    var body: some View {
-        Color.clear.task {
-            guard let value = ProcessInfo.processInfo.environment["PARTY_DEBUG_AI_EVENT"] else { return }
-            try? await Task.sleep(for: .seconds(1))
-            if let draft = try? JSONDecoder().decode(AIEvent.Draft.self, from: Data(value.utf8)) {
-                await model.settings?.aiEvent.showDemo(draft, said: ProcessInfo.processInfo.environment["PARTY_DEBUG_AI_SAID"] ?? "")
-                // PARTY_DEBUG_AI_PICK=1 : le premier lieu trouvé est confirmé (« Oui, continuer » actif).
-                if ProcessInfo.processInfo.environment["PARTY_DEBUG_AI_PICK"] == "1", let store = model.settings?.aiEvent {
-                    store.choose(store.candidates.first ?? store.asSaid)
-                }
-            }
-            // PARTY_DEBUG_AI_CREATED=<AIEvent.Created en JSON> : l'étape 2 (brouillon enregistré), sans ouverture automatique.
-            if let created = ProcessInfo.processInfo.environment["PARTY_DEBUG_AI_CREATED"],
-               let demo = try? JSONDecoder().decode(AIEvent.Created.self, from: Data(created.utf8)) {
-                model.settings?.aiEvent.showDemoCreated(demo)
-            }
-            model.aiEventOpen = true
-        }
-        .allowsHitTesting(false)
-    }
-}
-
 /// Simulateur : PARTY_DEBUG_GROUP_ADMIN=<GroupAdminStore.Demo en JSON> affiche Administration du groupe sur un état figé.
 private struct GroupAdminDemo: View {
     @ObservedObject var model: WebModel
@@ -230,6 +208,34 @@ private struct GroupAdminDemo: View {
                 assertionFailure("PARTY_DEBUG_GROUP_ADMIN illisible : \(error)")
             }
         }
+    }
+}
+#endif
+
+#if DEBUG || E2E_HOOKS
+/// Simulateur : PARTY_DEBUG_AI_EVENT=tips|<AIEvent.Draft en JSON> ouvre « Créer avec l'IA » (conseils, ou fiche figée).
+private struct AIEventDemo: View {
+    @ObservedObject var model: WebModel
+
+    var body: some View {
+        Color.clear.task {
+            guard let value = ProcessInfo.processInfo.environment["PARTY_DEBUG_AI_EVENT"] else { return }
+            try? await Task.sleep(for: .seconds(1))
+            if let draft = try? JSONDecoder().decode(AIEvent.Draft.self, from: Data(value.utf8)) {
+                await model.settings?.aiEvent.showDemo(draft, said: ProcessInfo.processInfo.environment["PARTY_DEBUG_AI_SAID"] ?? "")
+                // PARTY_DEBUG_AI_PICK=1 : le premier lieu trouvé est confirmé (« Oui, continuer » actif).
+                if ProcessInfo.processInfo.environment["PARTY_DEBUG_AI_PICK"] == "1", let store = model.settings?.aiEvent {
+                    store.choose(store.candidates.first ?? store.asSaid)
+                }
+            }
+            // PARTY_DEBUG_AI_CREATED=<AIEvent.Created en JSON> : l'étape 2 (brouillon enregistré), sans ouverture automatique.
+            if let created = ProcessInfo.processInfo.environment["PARTY_DEBUG_AI_CREATED"],
+               let demo = try? JSONDecoder().decode(AIEvent.Created.self, from: Data(created.utf8)) {
+                model.settings?.aiEvent.showDemoCreated(demo)
+            }
+            model.aiEventOpen = true
+        }
+        .allowsHitTesting(false)
     }
 }
 #endif

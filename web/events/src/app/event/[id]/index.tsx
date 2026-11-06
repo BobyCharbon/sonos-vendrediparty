@@ -14,6 +14,7 @@ import { EventGiftsLink } from '@/components/EventGifts';
 import { compagnonOn, invitesV2On } from '@/lib/features';
 import { GuestListCard } from '@/components/GuestListCard';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
+import { parseIds } from '@/components/InviteStep';
 import { LinkedText } from '@/components/LinkedText';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
 import { Badge, Button, Card, Cascade, ConfirmButton, ErrorText, HeaderAction, HeaderBack, Screen, s, Section, Skeleton, T, Title, Toast } from '@/components/ui';
@@ -60,7 +61,9 @@ async function sharePublicLink(ev: Pick<EventRow, 'id' | 'title'>): Promise<stri
 }
 
 export default function EventScreen() {
-  const { id, step } = useLocalSearchParams<{ id: string; step?: string }>();
+  // ?step=online : étape 3 de l'assistant IA ; &invite=link : la feuille « Inviter » s'ouvre (lien prêt, ?suggested= cochés) ;
+  // &invite=more : la carte « Invités » passe en tête (publié pour un groupe).
+  const { id, step, invite, suggested } = useLocalSearchParams<{ id: string; step?: string; invite?: string; suggested?: string }>();
   const me = useMe();
   const { can } = useAuth();
   const isAdmin = can('events.manage_all');
@@ -278,10 +281,11 @@ export default function EventScreen() {
       {step === 'online' && canManage && (published || ev.status === 'pending') ? (
         <Card style={{ backgroundColor: colors.accentDim, borderColor: '#5A2346' }}>
           <AIEventSteps current={3} />
-          <T weight="bold" size={17}>{published ? 'C’est en ligne !' : 'Envoyé pour validation'}</T>
+          <T weight="bold" size={17}>{!published ? 'Envoyé pour validation' : invite === 'link' ? 'C’est en ligne : envoie le lien à tes invités' : 'C’est en ligne !'}</T>
           <T size={13} color={colors.textSoft}>
             {published ? 'Tu peux tout changer toi-même : « Modifier » en haut' : 'Il sera visible une fois validé par un admin. Tu peux encore tout changer : « Modifier » en haut'}
             {invitesV2On && published ? ', et inviter d’autres personnes ou envoyer un lien avec la carte « Invités ».' : '.'}
+            {!published && ev.visibility === 'invited' ? ' Le lien à partager à tes invités sera disponible dès la validation.' : ''}
           </T>
         </Card>
       ) : null}
@@ -294,8 +298,12 @@ export default function EventScreen() {
       ) : null}
 
       {/* Invitations v2 (bêta) : qui vient, qui n'a pas répondu, les liens envoyés ; « + » pour inviter. */}
+      {/* Invitations v2 éteintes : juste publié sur invitation, le lien à partager en tête de fiche. */}
+      {!invitesV2On && canManage && published && ev.visibility === 'invited' && step === 'online' ? <InviteLinkCard kind="event" id={ev.id} /> : null}
       {invitesV2On && canManage && published ? (
-        <GuestListCard event={ev} me={{ id: me.id, display_name: me.display_name ?? '' }} onChanged={reload} />
+        <GuestListCard event={ev} me={{ id: me.id, display_name: me.display_name ?? '' }} onChanged={reload}
+          openSheet={step === 'online' && invite === 'link'} headline={step === 'online' && invite === 'link' ? 'C’est en ligne : envoie le lien à tes invités' : undefined}
+          initialPeople={step === 'online' && invite === 'link' ? parseIds(suggested) : []} />
       ) : null}
 
       {ev.status === 'pending' && can('events.approve') ? (
@@ -407,7 +415,7 @@ export default function EventScreen() {
 
       <ErrorText error={error} />
       {compagnonOn && published && ev.date_mode === 'fixed' ? <EventGiftsLink eventId={ev.id} canManage={canManage} /> : null}
-      {!invitesV2On && canManage && published && ev.visibility === 'invited' ? <InviteLinkCard kind="event" id={ev.id} /> : null}
+      {!invitesV2On && canManage && published && ev.visibility === 'invited' && step !== 'online' ? <InviteLinkCard kind="event" id={ev.id} /> : null}
       {canManage && published ? (
         <View style={st.orgZone}>
           <T muted size={12} weight="bold">ZONE ORGANISATEUR</T>

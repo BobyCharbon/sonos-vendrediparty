@@ -37,9 +37,13 @@ const when = (ev: Ev) => (ev.starts_at ? formatShort(ev.starts_at).toLowerCase()
  * à qui on a envoyé un lien et qui a invité qui. « + » ouvre la feuille « Inviter » ; « Relancer » envoie une notification
  * Party (si la personne a l'app) ou ouvre la feuille de partage avec un message prêt ; glisser une ligne : Relancer, Retirer.
  */
-export function GuestListCard({ event, me, onChanged }: { event: Ev; me: Me; onChanged: () => void }) {
+export function GuestListCard({ event, me, onChanged, openSheet = false, headline, initialPeople = [] }: {
+  event: Ev; me: Me; onChanged: () => void;
+  /** Juste publié « Sur invitation » (assistant IA) : la feuille « Inviter » s'ouvre aussitôt, lien prêt. */
+  openSheet?: boolean; headline?: string; initialPeople?: string[];
+}) {
   const [filter, setFilter] = useState<GuestFilter>('all');
-  const [sheet, setSheet] = useState(false);
+  const [sheet, setSheet] = useState(openSheet);
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -125,6 +129,11 @@ export function GuestListCard({ event, me, onChanged }: { event: Ev; me: Me; onC
         </Pressable>
       </View>
 
+      <Pressable accessibilityRole="button" onPress={() => setSheet(true)}
+        style={({ pressed }) => [st.inviteMore, pressTransition, pressed && { transform: [{ scale: 0.98 }] }]}>
+        <T size={15} weight="bold" color={colors.onAction}>＋ Inviter d’autres personnes</T>
+      </Pressable>
+
       <View style={st.rule}>
         <T size={14} weight="bold">{ruleSentence(list)}</T>
         <T muted size={12}>Personne n’est ajouté au groupe : les invités voient cet événement, rien d’autre.</T>
@@ -188,7 +197,8 @@ export function GuestListCard({ event, me, onChanged }: { event: Ev; me: Me; onC
         </View>
       )}
 
-      <InviteSheet visible={sheet} event={event} me={me} list={list} onClose={() => setSheet(false)} onInvited={refresh} />
+      <InviteSheet visible={sheet} event={event} me={me} list={list} onClose={() => setSheet(false)} onInvited={refresh}
+        headline={headline} initialPeople={initialPeople} />
       {note ? <Toast message={note} onHide={() => setNote(null)} /> : null}
     </View>
   );
@@ -326,6 +336,7 @@ function SwipeRow({ actions, label, children }: { actions: SwipeAction[]; label:
 }
 
 const st = StyleSheet.create({
+  inviteMore: { minHeight: 48, borderRadius: radius.md, backgroundColor: colors.action, alignItems: 'center', justifyContent: 'center' },
   card: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.lg, padding: 16, gap: 14 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   plus: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.action, alignItems: 'center', justifyContent: 'center' },

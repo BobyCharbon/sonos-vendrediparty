@@ -1,19 +1,16 @@
 import { router, Stack } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AIEventSteps } from './AIEventSteps';
-import { audienceError, audienceFromEvent, audienceToEvent, choosableGroups, mayUseVip, PeoplePicker, saveAudience, type AudienceValue, type Person } from './AudiencePicker';
-import { InviteSheet } from './InviteSheet';
+import { audienceFromEvent, audienceToEvent, choosableGroups, mayUseVip, saveAudience } from './AudiencePicker';
 import { Button, Card, ErrorText, HeaderBack, Loading, Screen, T, Title } from './ui';
-import { VisibilityChoice, VISIBILITIES, withVisibility, type Visibility } from './VisibilityChoice';
+import { PublishChoice, VISIBILITIES, withVisibility, type Visibility } from './VisibilityChoice';
 import { useAuth, useMe } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { invitesV2On } from '@/lib/features';
-import { fetchGuestList } from '@/lib/invites';
 import { dbMessage } from '@/lib/moderation';
 import { check, must, supabase } from '@/lib/supabase';
-import { colors, radius } from '@/lib/theme';
 import type { EventRow, MemberGroup } from '@/lib/types';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -31,12 +28,6 @@ export function parseVisibility(raw: string | string[] | undefined): Visibility 
   return (VISIBILITIES as readonly string[]).includes(value ?? '') ? (value as Visibility) : 'public';
 }
 
-/** Les personnes déjà ajoutées par la feuille « Inviter » (la règle « qui voit » est choisie juste au-dessus). */
-export function invitedLine(names: string[]): string {
-  if (!names.length) return 'Personne en plus pour l’instant';
-  return `${names.length > 1 ? 'Invités en plus' : 'Invité en plus'} : ${names.join(', ')}`;
-}
-
 export type Preset = { visibility: Visibility; groups: string[]; suggested: string[] };
 
 type Draft = Pick<EventRow, 'id' | 'title' | 'status' | 'created_by' | 'starts_at' | 'ends_at' | 'all_day' | 'visibility' | 'public_link'> & {
@@ -46,51 +37,45 @@ type Draft = Pick<EventRow, 'id' | 'title' | 'status' | 'created_by' | 'starts_a
 };
 
 /**
- * Départ de l'étape : le pré-réglage dit à l'IA, seulement s'il est permis (ses groupes, Vendredi Party s'il en fait
- * partie ; sinon le défaut, public + lien), et les personnes citées cochées (sans invitations v2).
+ * Après la publication : où aller. Sur invitation (v2) : la fiche ouvre aussitôt la feuille « Inviter », lien prêt, personnes
+ * citées cochées ; un groupe ou les Membres : la fiche, carte « Invités » en avant ; public : la fiche. Proposé (validation) :
+ * la fiche, qui dit que le lien arrive après la validation. v1 (invitations v2 éteintes) : la fiche et sa carte du lien.
  */
-function startValue(event: Draft, preset: Preset, groups: MemberGroup[], vipOk: boolean, people: Person[], meId: string): AudienceValue {
-  const known = preset.groups.filter((id) => groups.some((g) => g.id === id));
-  const allowed = (preset.visibility !== 'group' || known.length) && (preset.visibility !== 'vip' || vipOk);
-  const kind = allowed ? preset.visibility : 'public';
-  const base = withVisibility(audienceFromEvent(event), kind, known);
-  const named = preset.suggested.filter((id) => id !== meId && people.some((p) => p.id === id));
-  return invitesV2On || !named.length ? base : { ...base, invitees: [...new Set([...base.invitees, ...named])] };
+export function afterPublish(id: string, kind: Visibility, published: boolean, suggested: string[], v2: boolean): string {
+  const base = `/event/${id}?step=online`;
+  if (!published || !v2) return base;
+  if (kind === 'invite') return `${base}&invite=link${suggested.length ? `&suggested=${suggested.join(',')}` : ''}`;
+  if (kind === 'vip' || kind === 'group') return `${base}&invite=more`;
+  return base;
 }
 
 /**
- * Étape 2 « Qui est invité » de « Créer avec l'IA » (retour de l'admin, 06.11) : l'événement est un brouillon
- * (public + lien en attendant). En haut, qui le voit (public + lien par défaut, en surbrillance) ; puis les invités
- * (feuille « Inviter » des invitations v2, sinon le sélecteur actuel) ; puis Publier. La fiche s'ouvre ensuite (étape 3).
+ * Étape 2 « Qui est invité » de « Créer avec l'IA » (retours de l'admin, 06.11) : l'événement est un brouillon. Un toucher
+ * sur « qui voit » le publie (ou l'envoie pour validation) ; on invite ENSUITE, l'événement en ligne, avec le lien prêt.
+ * Jamais de lien « pas encore disponible ». La fiche s'ouvre ensuite (étape 3).
  */
 export function InviteStep({ eventId, preset }: { eventId: string; preset: Preset }) {
   const me = useMe();
   const { can } = useAuth();
   const direct = can('events.publish_direct');
-  const [who, setWho] = useState<AudienceValue | null>(null);
-  const [sheet, setSheet] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { data, error: loadError, reload } = useQuery(async () => {
-    const [ev, members, allGroups, settings, list] = await Promise.all([
+    const [ev, allGroups, settings] = await Promise.all([
       supabase.from('events').select('id, title, status, created_by, starts_at, ends_at, all_day, visibility, public_link, event_groups(group_id), event_invites(user_id, via_group), event_phone_invites(phone)')
         .eq('id', eventId).single(),
-      supabase.from('profiles').select('id, display_name, role').eq('status', 'active').order('display_name'),
       supabase.from('member_groups').select('id, name, created_by, system_key, member_group_members(user_id)').order('name'),
       supabase.from('group_settings').select('require_approval').single(),
-      invitesV2On ? fetchGuestList(eventId) : Promise.resolve(null),
     ]);
     const event = must(ev) as unknown as Draft;
-    const people = must(members) as Person[];
     const every = must(allGroups) as MemberGroup[];
     const groups = choosableGroups(every, me.id, can('events.manage_all'));
     const vipOk = mayUseVip(every, me.id, can('events.manage_all'));
-    setWho((current) => current ?? startValue(event, preset, groups, vipOk, people, me.id));
-    return { event, people, groups, vipOk, approval: !!(must(settings) as { require_approval: boolean }).require_approval, list };
+    return { event, groups, vipOk, approval: !!(must(settings) as { require_approval: boolean }).require_approval };
   }, [eventId]);
 
-  if (!data || !who) {
+  if (!data) {
     return (
       <Screen edges={[]}>
         {loadError ? <><ErrorText error={loadError} /><Button label="Réessayer" variant="secondary" onPress={reload} /></> : <Loading />}
@@ -101,20 +86,23 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
   const ev = data.event;
   const proposing = !direct && data.approval;
   const openEvent = () => router.replace(`/event/${ev.id}`);
-  const named = data.people.filter((p) => preset.suggested.includes(p.id) && p.id !== me.id).map((p) => p.display_name.split(' ')[0]);
+  // Pré-réglage dit à l'IA, seulement s'il est permis (ses groupes, Vendredi Party s'il en fait partie).
+  const knownGroups = preset.groups.filter((id) => data.groups.some((g) => g.id === id));
+  const allowed = (preset.visibility !== 'group' || knownGroups.length) && (preset.visibility !== 'vip' || data.vipOk);
+  const suggested: Visibility = allowed ? preset.visibility : 'public';
+  const named = preset.suggested.filter((id) => id !== me.id);
 
-  /** Qui voit est toujours enregistré ; withInvites : les personnes ajoutées une à une aussi (sans invitations v2). */
-  async function publish(withInvites: boolean) {
-    const wrong = withInvites && !invitesV2On ? audienceError(who!) : null;
-    if (wrong) return setError(wrong);
+  /** Qui voit, puis le statut (publié, ou proposé sans le droit « publier sans validation »), puis la fiche. */
+  async function publish(kind: Visibility, groupIds: string[]) {
     setBusy(true);
     setError(null);
     try {
-      check(await supabase.from('events').update(audienceToEvent(who!)).eq('id', ev.id));
-      await saveAudience(ev.id, withInvites ? who! : { ...who!, invitees: [], phones: [] }, { people: withInvites && !invitesV2On });
-      // Comme le formulaire : publié directement (droit « publier sans validation »), sinon proposé.
-      check(await supabase.from('events').update({ status: direct ? 'published' : 'pending' }).eq('id', ev.id));
-      router.replace(`/event/${ev.id}?step=online`);
+      const who = withVisibility(audienceFromEvent(ev), kind, groupIds);
+      check(await supabase.from('events').update(audienceToEvent(who)).eq('id', ev.id));
+      await saveAudience(ev.id, { ...who, invitees: [], phones: [] }, { people: false });
+      const status = proposing ? 'pending' : 'published';
+      check(await supabase.from('events').update({ status }).eq('id', ev.id));
+      router.replace(afterPublish(ev.id, kind, status === 'published', named, invitesV2On) as never);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       setError(dbMessage(message, message));
@@ -145,41 +133,16 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
 
       <Card>
         <T weight="bold" size={17}>Qui voit l’événement ?</T>
-        <VisibilityChoice value={who} onChange={setWho} groups={data.groups} vipOk={data.vipOk} />
-      </Card>
-
-      <Card>
-        <T weight="bold" size={17}>Les invités</T>
-        {invitesV2On && data.list ? (
-          <>
-            <T weight="semibold">{invitedLine(data.list.people.filter((p) => p.source === 'person').map((p) => p.name.split(' ')[0]))}</T>
-            <T muted size={13}>Des gens de Party, même hors du groupe, sans y entrer. Prévenus dans Party à la publication ; le lien à partager arrive avec la publication.</T>
-            <Button variant="secondary" label={named.length ? `＋ Inviter ${named.join(', ')}…` : '＋ Inviter des personnes'} onPress={() => setSheet(true)} />
-          </>
-        ) : who.audience === 'public' ? (
-          <T muted size={13}>Public : pas besoin d’inviter, tout le monde le voit. Partage le lien depuis la fiche, une fois publié.</T>
-        ) : (
-          <PeoplePicker value={who} onChange={setWho} people={data.people} meId={me.id} />
-        )}
-      </Card>
-
-      <View style={st.publish}>
-        {proposing ? <T muted size={13}>Un admin doit valider ta proposition avant qu’elle soit visible.</T> : null}
+        <T muted size={13}>
+          {proposing ? 'Un toucher l’envoie pour validation : un admin le valide avant qu’il soit visible.'
+            : 'Un toucher le publie. Tu invites ensuite, l’événement en ligne, avec le lien à partager.'}
+        </T>
+        <PublishChoice groups={data.groups} vipOk={data.vipOk} suggested={suggested} suggestedGroups={knownGroups}
+          proposing={proposing} busy={busy} onPublish={(kind, ids) => void publish(kind, ids)} />
         <ErrorText error={error} />
-        <Button label={proposing ? 'Envoyer pour validation' : 'Publier'} loading={busy} onPress={() => void publish(true)} />
-        <Button variant="secondary" label={proposing ? 'Envoyer sans inviter pour l’instant' : 'Publier sans inviter pour l’instant'}
-          disabled={busy} onPress={() => void publish(false)} />
-        <Button variant="ghost" small label="Ouvrir l’événement (finir à la main)" disabled={busy} onPress={openEvent} />
-      </View>
+      </Card>
 
-      {invitesV2On && data.list ? (
-        <InviteSheet visible={sheet} draft initialPeople={preset.suggested} event={ev} me={{ id: me.id, display_name: me.display_name ?? '' }}
-          list={data.list} onClose={() => setSheet(false)} onInvited={reload} />
-      ) : null}
+      <Button variant="ghost" small label="Ouvrir l’événement (finir à la main)" disabled={busy} onPress={openEvent} />
     </Screen>
   );
 }
-
-const st = StyleSheet.create({
-  publish: { gap: 10, padding: 14, borderRadius: radius.md, backgroundColor: colors.surface },
-});

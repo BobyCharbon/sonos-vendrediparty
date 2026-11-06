@@ -193,21 +193,23 @@ def phase_ia(browser, origin, only):
             _check_screen(p, f"étape 2 IA ({kind})")
             with p.step(f"choix « {kind} »"):
                 page = p.page
-                if kind == "invite":  # Sur invitation seulement → Publier → feuille Inviter avec le lien
-                    p.tap(page.get_by_role("radio", name=re.compile("Sur invitation seulement")), "✉️ Sur invitation seulement")
-                    p.shot("sur-invitation")
-                    p.tap(page.get_by_role("button", name="Publier", exact=True), "Publier")
-                elif kind == "group":  # Un groupe → Bots → « Publier sans inviter pour l'instant »
-                    p.tap(page.get_by_role("radio", name=re.compile("Un groupe")), "👥 Un groupe")
+                # Étape 2 (06.11) : un toucher sur « qui voit » publie ; on invite ensuite, l'événement en ligne.
+                if kind == "invite":  # Sur invitation seulement → publié → feuille Inviter avec le lien prêt
+                    p.tap(page.get_by_role("button", name=re.compile("^✉️ Sur invitation seulement : ")), "✉️ Sur invitation seulement")
+                elif kind == "group":  # Un groupe → Bots → « Publier pour « Bots » » (jamais sans groupe coché)
+                    p.tap(page.get_by_role("button", name="👥 Un groupe", exact=True), "👥 Un groupe")
                     page.wait_for_timeout(800)
                     p.dump("un-groupe")
                     c = f.chip(p, f"{GROUP_BOTS} · ").first
-                    if f.selected(c):
-                        p.log(f"groupe {GROUP_BOTS} déjà coché d'office")
-                    else:
-                        p.tap(c, f"groupe {GROUP_BOTS}")
+                    for other in page.get_by_role("button", name=re.compile(r" · \d+$")).all():  # rien de coché : bouton inactif
+                        if f.selected(other):
+                            p.tap(other, "décocher " + (other.inner_text() or "groupe"))
+                    none = page.get_by_role("button", name="Choisis un groupe")
+                    if not (none.count() and none.first.is_disabled()):
+                        p.flag("🟠", "IA « Un groupe » : on peut publier sans groupe coché")
+                    p.tap(c, f"groupe {GROUP_BOTS}")
                     p.shot("groupe-choisi")
-                    p.tap(page.get_by_role("button", name="Publier sans inviter pour l’instant"), "Publier sans inviter pour l'instant")
+                    p.tap(page.get_by_role("button", name=f"Publier pour « {GROUP_BOTS} »"), f"Publier pour « {GROUP_BOTS} »")
                 else:  # Public (par défaut) → « Ouvrir l'événement (finir à la main) » puis publier depuis la fiche
                     p.tap(page.get_by_role("button", name="Ouvrir l’événement (finir à la main)"), "Ouvrir l'événement (finir à la main)")
                     page.wait_for_timeout(3000)
@@ -217,7 +219,7 @@ def phase_ia(browser, origin, only):
                     if publish.count():
                         p.tap(publish.first, publish.first.inner_text())
                         page.wait_for_timeout(3000)
-                        again = page.get_by_role("button", name="Publier", exact=True)
+                        again = page.get_by_role("button", name="🌍 Public + lien public : Publier")
                         if again.count():  # « Inviter et publier » ramène à l'étape 2 : on y publie
                             p.shot("retour-etape2")
                             p.tap(again.first, "Publier (étape 2)")
