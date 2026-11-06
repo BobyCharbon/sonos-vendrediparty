@@ -11,7 +11,7 @@ from playwright.sync_api import expect
 
 from app import pet
 from tests.e2e.helpers import FakeSupabase, Phone, Server, sign_in
-from tests.e2e.test_pet_game import PetSupabase, grown
+from tests.e2e.test_pet_game import PetSupabase, grown, week_bonus
 from tests.test_pet_api import TOK_A
 
 DAY_MS = 86400000
@@ -114,8 +114,14 @@ def test_welcome_flow_name_hatch_gift_then_notifications(world):
     page.evaluate("ZicouHome.refresh(true)")
     expect(sheet.locator("h2")).to_have_text("Coucou, je suis Bobby !")
     expect(sheet.locator(".zc-gift")).to_contain_text("Nœud papillon · 50 pièces · garanti")
+    # La feuille s'ouvre dès que la pastille voit l'éclosion ; l'enregistrement (/api/pet/me) part en même temps.
+    deadline = time.monotonic() + 5
+    while "welcome" not in supa.base.pets[uid(supa)]["owner"] and time.monotonic() < deadline:
+        page.wait_for_timeout(50)
     saved = supa.base.pets[uid(supa)]
-    assert saved["owner"]["welcome"]["item"] == "noeud" and saved["owner"]["loop"]["coins"] == 50
+    # 50 pièces du cadeau, plus les 60 de « Passe le voir vendredi » si cette mission est tombée un vendredi.
+    assert saved["owner"]["welcome"]["item"] == "noeud"
+    assert saved["owner"]["loop"]["coins"] == 50 + week_bonus(saved["owner"])
     assert saved["life"]["acc"]["neck"] == "noeud"
     assert pushes == [] and page.evaluate("__pushAsked") == 0        # pas de demande de notifications avant le cadeau
     phone.shot("zicou-4-cadeau")

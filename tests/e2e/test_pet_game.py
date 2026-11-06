@@ -14,7 +14,7 @@ import pytest
 pytest.importorskip('playwright.sync_api')
 from playwright.sync_api import expect
 
-from app import pet
+from app import pet, pet_loop, pet_streak
 from tests.e2e.helpers import Phone, Server, pass_reveal, sign_in
 from tests.test_pet_api import BOB, TOK_A, FakeBase
 
@@ -70,6 +70,26 @@ def grown(minutes_ago=30, **gauges):
     pet.advance(life, now, owner)
     life["g"].update(gauges)
     return life, owner
+
+
+def quiet_week() -> dict:
+    """Mission de la semaine imposée (« 5 jours de soins », impossible à finir pendant un test) : sinon le serveur en tire
+    une selon le compte et le JOUR, et un vendredi « Passe le voir vendredi » se valide dès l'ouverture (+60 pièces) —
+    les comptes de pièces des tests changeaient selon le jour de la semaine."""
+    today = datetime.now(timezone.utc).astimezone(pet.TZ).date()
+    return {"key": pet_loop.week_key(today), "id": "care5", "text": "Prends soin de lui 5 jours cette semaine",
+            "counter": "care_day", "need": 5, "have": 0, "done": False}
+
+
+def week_bonus(owner: dict) -> int:
+    """Pièces de la mission de la semaine déjà gagnées par un compte créé par le serveur pendant le test. À la première
+    ouverture, seule « Passe le voir vendredi » peut se valider, et seulement un vendredi."""
+    week = owner["loop"].get("week") or {}
+    if not week.get("done"):
+        return 0
+    assert week["id"] == "friday", week
+    assert datetime.now(timezone.utc).astimezone(pet.TZ).weekday() == pet_streak.FRIDAY
+    return pet_loop.WEEK_COINS
 
 
 @pytest.fixture
