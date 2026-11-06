@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
+import { SheetBackdrop, SheetTop, useSheetDrag, useSheetTop } from './SheetGesture';
 import { Button, ErrorText, Input, T } from './ui';
 import { SUPPORT_EMAIL } from '@/lib/contact';
 import { REPORT_REASONS, reportContent, type ReportReason, type ReportTarget } from '@/lib/moderation';
@@ -19,6 +20,9 @@ export function ReportSheet({ target, onClose }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const card = useRef<View>(null);
+  const overlay = useRef<View>(null);
+  const sheetTop = useSheetTop();
 
   function close() {
     const done = sent;
@@ -28,6 +32,8 @@ export function ReportSheet({ target, onClose }: Props) {
     setSent(false);
     onClose(done);
   }
+
+  useSheetDrag(!!target, close, card, overlay);
 
   async function send() {
     if (!target || !reason) return;
@@ -45,8 +51,10 @@ export function ReportSheet({ target, onClose }: Props) {
 
   return (
     <Modal visible={!!target} transparent animationType="fade" onRequestClose={close}>
-      <View style={st.overlay}>
-        <View style={st.sheet} accessibilityViewIsModal accessibilityLabel="Signaler">
+      <View ref={overlay} style={[st.overlay, { paddingTop: sheetTop }]}>
+        <SheetBackdrop onPress={close} />
+        <View ref={card} style={st.sheet} accessibilityViewIsModal accessibilityLabel="Signaler">
+          <SheetTop onClose={close} />
           {sent ? (
             <>
               <T weight="bold" size={18}>Merci, c’est envoyé</T>

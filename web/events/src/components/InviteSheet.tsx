@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { SheetBackdrop, SheetClose, SheetTop, useSheetDrag, useSheetTop } from './SheetGesture';
 import { Avatar, Button, ErrorText, Input, Segmented, T, Toast } from './ui';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
@@ -68,6 +69,13 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
 
   // Pré-sélection (une seule fois, dès que l'annuaire est lu) : les personnes citées, pas encore invitées.
   const preselected = useRef(false);
+  const sheetRef = useRef<View>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const qrRef = useRef<View>(null);
+  // Glisser vers le bas (poignée, titre, ou contenu tout en haut) ferme la feuille, comme sur iPhone ; le QR se ferme pareil.
+  useSheetDrag(visible, onClose, sheetRef, scrollRef);
+  const top = useSheetTop();
+  useSheetDrag(visible && qr, () => setQr(false), qrRef);
   useEffect(() => {
     if (preselected.current || !directory || !initialPeople.length) return;
     preselected.current = true;
@@ -149,19 +157,18 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={st.overlay}>
-        <View style={st.sheet} accessibilityViewIsModal accessibilityLabel={`Inviter à ${event.title}`}>
+      <View style={[st.overlay, { paddingTop: top }]}>
+        <SheetBackdrop onPress={onClose} />
+        <View ref={sheetRef} style={st.sheet} accessibilityViewIsModal accessibilityLabel={`Inviter à ${event.title}`}>
           <View style={st.grabber} />
           <View style={st.head}>
             <View style={{ flex: 1 }}>
               <T weight="bold" size={20} numberOfLines={1}>Inviter</T>
               <T muted size={13} numberOfLines={1}>À {event.title}, et seulement à cet événement.</T>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Fermer" hitSlop={8} onPress={onClose} style={st.close}>
-              <T weight="bold" color={colors.textSoft}>✕</T>
-            </Pressable>
+            <SheetClose onPress={onClose} />
           </View>
-          <ScrollView contentContainerStyle={{ gap: 18, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
+          <ScrollView ref={scrollRef} contentContainerStyle={{ gap: 18, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
             {headline ? (
               <View style={st.headline} accessibilityRole="header">
                 <T weight="bold" size={17}>{headline}</T>
@@ -260,7 +267,7 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
             <ErrorText error={error} />
           </ScrollView>
         </View>
-        {qr && link ? <QrOverlay url={link} title={event.title} when={when} places={mode === 'several' ? places : 1} onClose={() => setQr(false)} /> : null}
+        {qr && link ? <QrOverlay cardRef={qrRef} url={link} title={event.title} when={when} places={mode === 'several' ? places : 1} onClose={() => setQr(false)} /> : null}
         {note ? <Toast message={note} onHide={() => setNote(null)} /> : null}
       </View>
     </Modal>
@@ -307,10 +314,14 @@ function ResultRow({ title, hint, icon, person, disabled, onPress }: {
 }
 
 /** QR code pour quelqu'un en face : l'appareil photo du téléphone ouvre l'invitation, sans app. */
-function QrOverlay({ url, title, when, places, onClose }: { url: string; title: string; when: string | null; places: number; onClose: () => void }) {
+function QrOverlay({ url, title, when, places, onClose, cardRef }: {
+  url: string; title: string; when: string | null; places: number; onClose: () => void; cardRef: RefObject<View | null>;
+}) {
   return (
-    <View style={st.qrOverlay} accessibilityViewIsModal accessibilityLabel="QR code de l’invitation">
-      <View style={st.qrCard}>
+    <View style={[st.qrOverlay, { paddingTop: useSheetTop() }]} accessibilityViewIsModal accessibilityLabel="QR code de l’invitation">
+      <SheetBackdrop onPress={onClose} />
+      <View ref={cardRef} style={st.qrCard}>
+        <SheetTop onClose={onClose} />
         <T weight="bold" size={20} style={{ textAlign: 'center' }}>Montre ce code</T>
         <T muted size={13} style={{ textAlign: 'center' }} numberOfLines={2}>{title}{when ? ` · ${when}` : ''}</T>
         <Image source={{ uri: qrDataUri(url) }} style={st.qr} accessibilityLabel="QR code du lien d’invitation" />
@@ -326,11 +337,10 @@ function QrOverlay({ url, title, when, places, onClose }: { url: string; title: 
 
 const st = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(8,5,20,0.6)', justifyContent: 'flex-end' },
-  sheet: { maxHeight: '94%', backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1,
+  sheet: { maxHeight: '100%', backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1,
     borderColor: colors.line, paddingHorizontal: 16, paddingTop: 8, width: '100%', maxWidth: 640, alignSelf: 'center' },
   grabber: { alignSelf: 'center', width: 40, height: 5, borderRadius: 3, backgroundColor: colors.lineStrong, marginBottom: 10 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
-  close: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center' },
   headline: { padding: 14, borderRadius: radius.md, backgroundColor: colors.accentDim, borderWidth: 1, borderColor: '#5A2346' },
   linkCard: { gap: 12, padding: 16, borderRadius: radius.lg, backgroundColor: colors.accentDim, borderWidth: 1, borderColor: '#5A2346' },
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

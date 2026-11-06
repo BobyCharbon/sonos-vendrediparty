@@ -116,6 +116,44 @@ final class InviteSheetScrollUITests: XCTestCase {
         XCTAssertTrue(onScreen(app, bottom), "Feuille rouverte : le doigt ne la fait plus défiler")
     }
 
+    /// Vidéo de l'admin (06.11, iPhone réel) : tirée vers le bas depuis la poignée ou le titre, la feuille revenait en place
+    /// et ne se fermait jamais ; le ✕ était caché sous la pastille de Zicou. Tirée franchement, elle doit disparaître.
+    func testPullingTheHandleOrTheTitleDownClosesTheSheet() throws {
+        let (app, title) = openSheet()
+        let web = app.webViews.firstMatch
+        // Repère sûr : le ✕ en haut à droite, sur la ligne du titre ; la poignée est juste au-dessus, au milieu.
+        let close = app.webViews.buttons.matching(NSPredicate(format: "label == 'Fermer'")).firstMatch
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        let row = close.frame, view = web.frame
+        let point = { (x: CGFloat, y: CGFloat) in web.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: x - view.minX, dy: y - view.minY)) }
+        // 1. La poignée.
+        let handle = point(view.midX, row.minY - 22)
+        shot(app, "f1-avant-poignee")
+        handle.press(forDuration: 0.05, thenDragTo: web.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)),
+                     withVelocity: .default, thenHoldForDuration: 0)
+        XCTAssertTrue(title.waitForNonExistence(timeout: 5), "Tirée vers le bas par la poignée, la feuille ne se ferme pas")
+        shot(app, "f2-apres-poignee")
+
+        // 2. Rouverte, tirée par le titre.
+        let invite = app.webViews.buttons.matching(NSPredicate(format: "label == 'Inviter'")).firstMatch
+        invite.tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 15))
+        Thread.sleep(forTimeInterval: 1)
+        point(view.minX + 70, close.frame.midY)   // le mot « Inviter »
+            .press(forDuration: 0.05, thenDragTo: web.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)),
+                   withVelocity: .default, thenHoldForDuration: 0)
+        XCTAssertTrue(title.waitForNonExistence(timeout: 5), "Tirée vers le bas par le titre, la feuille ne se ferme pas")
+
+        // 3. Rouverte : le ✕ en haut à droite se touche (rien ne flotte dessus) et ferme.
+        invite.tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 15))
+        Thread.sleep(forTimeInterval: 1)
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        shot(app, "f3-croix-visible")
+        close.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(title.waitForNonExistence(timeout: 5), "Le ✕ ne ferme pas la feuille (couvert ?)")
+    }
+
     func testFingerScrollsTheInviteSheetToItsBottom() throws {
         let (app, title) = openSheet()
 

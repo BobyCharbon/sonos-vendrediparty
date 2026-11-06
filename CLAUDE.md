@@ -53,6 +53,12 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   `touch-action: pan-x pan-y` sur `*` ne corrige rien et bloque le zoom à deux doigts.
 - Test réel : `test_android_finger_on_an_event_card_scrolls_the_list` (geste tactile Chrome, départ sur une carte).
   Tout bug de défilement / toucher doit d'abord être reproduit par un test de ce type avant d'être corrigé.
+- Feuilles et fenêtres (Inviter, QR, Signaler, billet, payer, CGU, toute nouvelle) : `components/SheetGesture.tsx` —
+  `useSheetDrag` (glisser vers le bas depuis la poignée / le titre, ou le contenu tout en haut, ferme), ✕ `SheetClose`
+  en haut à droite, fond `SheetBackdrop` qui ferme, marge `useSheetTop` (jamais sous la barre d'état d'iOS, qui garde
+  les touchers : la poignée ne s'attrapait pas). Une feuille ouverte prévient Party (`party-events:sheet`) qui cache la
+  pastille de Zicou (elle couvrait le ✕, vidéo de l'admin du 06.11). Tests : `tests/test_sheets_touch_scroll_browser.py`,
+  `ios/PartyUITests/InviteSheetScrollUITests.swift` (simulateur + base de TEST).
 - Billets QR : option par événement (`events.tickets_enabled`, éteinte par défaut) activée par l'organisateur lui-même ;
   l'IA de création / modification (app/ai_events.py, ai_event_edit.py) ne l'active JAMAIS (hors de son schéma) ; un QR
   n'existe que si l'option est active ET le billet remis (`issue_event_ticket`, ou place payée confirmée).

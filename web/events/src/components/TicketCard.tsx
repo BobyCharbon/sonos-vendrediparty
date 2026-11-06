@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { formatLongDay, formatTime, plural } from '@/lib/format';
@@ -8,6 +8,7 @@ import { fetchMyTicket, prettyCode, qrDataUri, renewMyTicket, ticketLink, type M
 
 import { PayOrganizer } from './PayOrganizer';
 import { WalletButton } from './WalletButton';
+import { SheetBackdrop, SheetTop, useSheetDrag, useSheetTop } from './SheetGesture';
 import { Avatar, Button, ConfirmButton, ErrorText, T } from './ui';
 
 type Props = {
@@ -31,6 +32,10 @@ const ISSUE_POLL_MS = 15000;
 export function TicketCard({ event, me, answerKey }: Props) {
   const [ticket, setTicket] = useState<MyTicket | null>(null);
   const [open, setOpen] = useState(false);
+  const card = useRef<View>(null);
+  const overlay = useRef<View>(null);
+  const sheetTop = useSheetTop();
+  useSheetDrag(open, () => setOpen(false), card, overlay);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => fetchMyTicket(event.id).then(
@@ -119,8 +124,10 @@ export function TicketCard({ event, me, answerKey }: Props) {
 
       {/* Fenêtre au-dessus de toute la page (la page derrière garde sa hauteur). */}
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <View accessibilityViewIsModal accessibilityLabel="Ton billet" style={st.overlay}>
-          <View style={[st.ticket, enter('rise')]}>
+        <View ref={overlay} accessibilityViewIsModal accessibilityLabel="Ton billet" style={[st.overlay, { paddingTop: sheetTop }]}>
+          <SheetBackdrop onPress={() => setOpen(false)} />
+          <View ref={card} style={[st.ticket, enter('rise')]}>
+            <SheetTop onClose={() => setOpen(false)} />
             <View style={st.who}>
               <Avatar id={me.id} name={me.display_name} photo={me.avatar_url} size={44} profile={false} />
               <View style={{ flex: 1 }}>

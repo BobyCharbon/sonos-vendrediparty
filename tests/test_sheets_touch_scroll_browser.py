@@ -241,3 +241,182 @@ def test_on_a_short_screen_the_finger_reaches_the_bottom_of_the_ticket_and_pay_w
         assert not errors, errors
     finally:
         context.close()
+
+
+# ── Fermer une feuille comme sur iPhone (vidéo de l'admin du 06.11 : « je ne peux pas abaisser la fiche ») ──────────
+
+def finger_down(page, x: float, y0: float, distance: float, steps: int = 14, hold_ms: int = 0):
+    """Vrai glisser du doigt vers le BAS (événements tactiles CDP, comme un pouce qui tire la feuille)."""
+    cdp = page.context.new_cdp_session(page)
+    cdp.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [{'x': x, 'y': y0}]})
+    for i in range(1, steps + 1):
+        cdp.send('Input.dispatchTouchEvent', {'type': 'touchMove', 'touchPoints': [{'x': x, 'y': y0 + distance * i / steps}]})
+        page.wait_for_timeout(16)
+    if hold_ms:
+        page.wait_for_timeout(hold_ms)
+    cdp.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
+    page.wait_for_timeout(500)
+
+
+def sheet_open_signal(page) -> bool:
+    """La page Party sait qu'une feuille est ouverte (elle cache la pastille de Zicou qui couvrait le ✕)."""
+    return page.evaluate("document.documentElement.classList.contains('events-sheet')")
+
+
+def open_invite(browser, origin, device):  # noqa: F811
+    profile, in_party = (IPHONE_APP, True) if device == 'iphone-app' else (ANDROID_PHONE, False)
+    context, page, frame, errors = open_app(browser, origin, profile, in_party, people=PEOPLE, setup=[mock_invites])
+    sheet = open_invite_sheet(frame)
+    page.wait_for_timeout(600)  # la feuille finit de monter
+    return context, page, frame, errors, sheet
+
+
+@pytest.mark.parametrize('device', ['iphone-app', 'android'])
+@pytest.mark.parametrize('start', ['poignée', 'titre', 'contenu en haut'])
+def test_pulling_the_invite_sheet_down_closes_it(browser, v2_origin, device, start):  # noqa: F811
+    """Doigt sur la poignée, le titre « Inviter », ou le contenu (tout en haut) : tiré vers le bas, la feuille se ferme."""
+    context, page, frame, errors, sheet = open_invite(browser, v2_origin, device)
+    try:
+        if device == 'iphone-app':
+            assert sheet_open_signal(page)
+        target = {'poignée': None, 'titre': sheet.get_by_text('Inviter', exact=True),
+                  'contenu en haut': sheet.get_by_text('🔗 Envoyer le lien', exact=True)}[start]
+        box = sheet.bounding_box()
+        if target is None:
+            x, y = box['x'] + box['width'] / 2, box['y'] + 12  # la poignée, tout en haut de la feuille
+        else:
+            b = target.bounding_box()
+            x, y = b['x'] + min(b['width'] / 2, 60), b['y'] + b['height'] / 2
+        shot(page, f'fermer-{device}-{start}-1-avant')
+        finger_down(page, x, y, 420)
+        pw.expect(sheet).to_have_count(0, timeout=3000)
+        shot(page, f'fermer-{device}-{start}-2-apres')
+        if device == 'iphone-app':
+            assert not sheet_open_signal(page)
+        assert not errors, errors
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize('device', ['iphone-app', 'android'])
+def test_a_small_pull_brings_the_sheet_back_and_scrolled_content_scrolls_instead(browser, v2_origin, device):  # noqa: F811
+    """Un petit glisser lent ne ferme pas (la feuille revient) ; contenu défilé, tirer vers le bas le fait remonter."""
+    context, page, frame, errors, sheet = open_invite(browser, v2_origin, device)
+    try:
+        box = sheet.bounding_box()
+        finger_down(page, box['x'] + box['width'] / 2, box['y'] + 12, 60, steps=20, hold_ms=200)
+        pw.expect(sheet).to_be_visible()
+        assert abs(sheet.bounding_box()['y'] - box['y']) < 2, 'la feuille n’est pas revenue en place'
+        sheet.get_by_label('Chercher une personne ou un groupe').fill('marc')   # un contenu bien plus haut que l'écran
+        cdp = context.new_cdp_session(page)
+        title = sheet.get_by_text('🔗 Envoyer le lien', exact=True)
+        for _ in range(3):
+            finger_up(page, cdp, 195, page.viewport_size['height'] * 0.7)
+        assert not visible(page, title)
+        finger_down(page, 195, page.viewport_size['height'] * 0.4, 250)
+        pw.expect(sheet).to_be_visible()  # le contenu a défilé, la feuille est restée
+        assert not errors, errors
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize('device', ['iphone-app', 'android'])
+def test_the_close_button_and_the_dimmed_background_close_the_invite_sheet(browser, v2_origin, device):  # noqa: F811
+    context, page, frame, errors, sheet = open_invite(browser, v2_origin, device)
+    try:
+        close = sheet.get_by_role('button', name='Fermer', exact=True)
+        b = close.bounding_box()
+        assert visible(page, close) and b['x'] + b['width'] <= page.viewport_size['width'] - 8
+        if device == 'iphone-app':
+            # Vidéo de l'admin : la pastille de Zicou (page Party, en haut à droite) couvrait le ✕. Pastille affichée de
+            # force (compte avec un Zicou) : cachée tant que la feuille est ouverte, de retour après.
+            page.evaluate("document.getElementById('zicouFloat').classList.remove('hidden')")
+            assert page.evaluate("getComputedStyle(document.getElementById('zicouFloat')).display") == 'none'
+            hit = page.evaluate(f"document.elementFromPoint({b['x'] + b['width'] / 2}, {b['y'] + b['height'] / 2})?.id")
+            assert hit == 'eventsFrame', f'le ✕ est couvert par #{hit}'
+            # La feuille reste sous la barre d'état (sa poignée s'attrape) : marge du haut de l'iPhone respectée.
+            assert sheet.bounding_box()['y'] >= page.evaluate("PartyEvents.frameInsets().top")
+        close.click()
+        pw.expect(sheet).to_have_count(0, timeout=3000)
+        if device == 'iphone-app':
+            assert page.evaluate("getComputedStyle(document.getElementById('zicouFloat')).display") != 'none'
+        frame.get_by_role('button', name='Inviter', exact=True).click()
+        pw.expect(sheet).to_be_visible(timeout=5000)
+        page.wait_for_timeout(500)
+        page.touchscreen.tap(195, sheet.bounding_box()['y'] - 12)   # le fond assombri, au-dessus de la feuille
+        pw.expect(sheet).to_have_count(0, timeout=3000)
+        assert not errors, errors
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize('device', ['iphone-app', 'android'])
+def test_every_window_has_a_close_button_and_closes_when_pulled_down(browser, v2_origin, device):  # noqa: F811
+    """QR de l'invitation, billet, payer l'organisateur : ✕ en haut à droite, et tirées vers le bas elles se ferment."""
+    base, in_party = (IPHONE_APP, True) if device == 'iphone-app' else (ANDROID_PHONE, False)
+    context, page, frame, errors = open_app(browser, v2_origin, base, in_party, setup=[ticket_setup, mock_invites])
+    try:
+        frame.get_by_text(TITLE, exact=True).click()
+        cdp = context.new_cdp_session(page)
+        # Billet : tiré vers le bas depuis sa poignée.
+        show = frame.get_by_role('button', name='Afficher ton billet à montrer à l’entrée', exact=True)
+        pw.expect(show).to_be_attached(timeout=15000)
+        assert finger_reaches(page, cdp, show, (195, page.viewport_size['height'] * 0.6))
+        show.click()
+        ticket = frame.get_by_label('Ton billet', exact=True)
+        pw.expect(ticket.get_by_role('button', name='Fermer la fenêtre')).to_be_visible(timeout=5000)
+        page.wait_for_timeout(500)
+        x_box = ticket.get_by_role('button', name='Fermer la fenêtre').bounding_box()
+        finger_down(page, 195, x_box['y'] + x_box['height'] / 2, 400)
+        pw.expect(ticket).to_have_count(0, timeout=3000)
+        # Payer l'organisateur : ✕.
+        pay = frame.get_by_role('button', name='Payer l’organisateur · 20 CHF', exact=True)
+        assert finger_reaches(page, cdp, pay, (195, page.viewport_size['height'] * 0.6))
+        pay.click()
+        window = frame.get_by_label('Payer l’organisateur', exact=True)
+        pw.expect(window.get_by_role('button', name='Fermer la fenêtre')).to_be_visible(timeout=10000)
+        page.wait_for_timeout(400)
+        window.get_by_role('button', name='Fermer la fenêtre').click()
+        pw.expect(window).to_have_count(0, timeout=3000)
+        assert not errors, errors
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize('device', ['iphone-app', 'android'])
+def test_the_invitation_qr_and_the_report_window_close_by_pulling_down(browser, v2_origin, device):  # noqa: F811
+    context, page, frame, errors, sheet = open_invite(browser, v2_origin, device)
+    try:
+        cdp = context.new_cdp_session(page)
+        qr_button = sheet.get_by_role('button', name='QR code')
+        assert finger_reaches(page, cdp, qr_button, (195, page.viewport_size['height'] * 0.7))
+        qr_button.click()
+        qr = frame.get_by_label('QR code de l’invitation', exact=True)
+        pw.expect(qr.get_by_role('button', name='Fermer la fenêtre')).to_be_visible(timeout=5000)
+        page.wait_for_timeout(400)
+        top = qr.get_by_text('Montre ce code', exact=True).bounding_box()
+        finger_down(page, 195, top['y'] - 20, 400)
+        pw.expect(qr).to_have_count(0, timeout=3000)
+        pw.expect(sheet).to_be_visible()  # seule la fenêtre du QR s'est fermée
+        assert not errors, errors
+    finally:
+        context.close()
+    base, in_party = (IPHONE_APP, True) if device == 'iphone-app' else (ANDROID_PHONE, False)
+    context, page, frame, errors = open_app(browser, v2_origin, base, in_party, setup=[report_setup, mock_invites])
+    try:
+        frame.get_by_text('Soirée signalable (test local)', exact=True).first.click()
+        cdp = context.new_cdp_session(page)
+        report = frame.get_by_role('button', name='Signaler cet événement')
+        pw.expect(report).to_be_attached(timeout=15000)
+        assert finger_reaches(page, cdp, report, (195, page.viewport_size['height'] * 0.6))
+        report.click()
+        window = frame.get_by_label('Signaler', exact=True)
+        close = window.get_by_role('button', name='Fermer la fenêtre')
+        pw.expect(close).to_be_visible(timeout=5000)
+        page.wait_for_timeout(400)
+        b = close.bounding_box()
+        finger_down(page, b['x'] - 120, b['y'] + b['height'] / 2, 420)
+        pw.expect(window).to_have_count(0, timeout=3000)
+        assert not errors, errors
+    finally:
+        context.close()
