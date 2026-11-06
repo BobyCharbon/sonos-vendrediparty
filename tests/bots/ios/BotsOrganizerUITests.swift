@@ -143,8 +143,12 @@ final class BotsOrganizerUITests: XCTestCase {
         // Liste défilée : « + Proposer » effacé doit être SORTI de l'arbre d'accessibilité (bug 3 : VoiceOver l'activait
         // et touchait ce qu'il y avait derrière). Puis on remonte la liste : il revient, on le touche.
         Thread.sleep(forTimeInterval: 2)
-        for _ in 0..<4 { swipeUp(app) }
-        Thread.sleep(forTimeInterval: 1)
+        _ = propose.waitForExistence(timeout: 15)
+        // Deux gestes seulement : en bout de liste, le rebond remonte la page et « + Proposer » revient (voulu).
+        for _ in 0..<2 { swipeUp(app, from: 0.7, to: 0.45) }
+        Thread.sleep(forTimeInterval: 1.5)
+        shot(app, "liste-defilee")
+        note("liste défilée : « + Proposer » exists=\(propose.exists) hittable=\(propose.exists && propose.isHittable) frame=\(propose.exists ? propose.frame : .zero)")
         note(propose.exists ? "❌ « + Proposer » effacé mais encore dans l'arbre d'accessibilité" : "✅ « + Proposer » effacé : hors de l'arbre d'accessibilité")
         for _ in 0..<4 where !propose.exists { swipeUp(app, from: 0.35, to: 0.8) }
         if propose.waitForExistence(timeout: 15) {
