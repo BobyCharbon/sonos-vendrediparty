@@ -536,3 +536,38 @@ def test_public_event_link_is_copied_for_sharing(browser, events_origin):
         assert not errors
     finally:
         context.close()
+
+
+def test_terms_are_asked_before_a_new_event_then_it_is_created(browser, events_origin):
+    """CGU exigées en prod (terms_enforced, 06.11) : sans elles, la base refuse le nouvel événement (terms_required).
+    Le formulaire montre d'abord la feuille « Avant de publier » ; « J'accepte » enregistre puis crée l'événement."""
+    context, page, frame, base, errors = launch(browser, events_origin)
+    terms = {'accepted': False, 'calls': []}
+
+    def rpc(route):
+        if route.request.method == 'OPTIONS':
+            return route.fulfill(status=204, headers=HEADERS)
+        name = urlparse(route.request.url).path.rsplit('/', 1)[-1]
+        terms['calls'].append(name)
+        if name == 'accept_terms':
+            terms['accepted'] = True
+        FakeBase.reply(route, {'version': '2026-11-04', 'accepted': terms['accepted'], 'accepted_at': None,
+                               'contact_email': None, 'enforced': True})
+    page.route(REST + 'rpc/my_terms*', rpc)
+    page.route(REST + 'rpc/accept_terms*', rpc)
+    try:
+        open_form(frame, 'Simple')
+        field(frame, 'Titre').fill('Samedi party chez Boby')
+        fill_date(frame, 'Début', '2030-12-12', '19:00')
+        field(frame, 'Lieu').fill('Chez Boby')
+        frame.get_by_role('button', name='Publier', exact=True).click()
+        pw.expect(frame.get_by_text('Avant de publier', exact=True)).to_be_visible(timeout=10000)
+        assert not base.wrote('POST', 'events')  # rien d'écrit avant l'acceptation
+        frame.get_by_role('button', name='J’accepte', exact=True).click()
+        pw.expect(frame.get_by_role('button', name='Modifier', exact=True)).to_be_visible(timeout=10000)
+        assert 'accept_terms' in terms['calls']
+        (_, row), = base.wrote('POST', 'events')
+        assert row['title'] == 'Samedi party chez Boby'
+        assert not errors, errors
+    finally:
+        context.close()

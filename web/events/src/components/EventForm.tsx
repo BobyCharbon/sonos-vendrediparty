@@ -6,6 +6,7 @@ import { useAuth, useMe } from '@/lib/auth';
 import { fetchTaxonomy, useQuery } from '@/lib/data';
 import { parseLocalDateTime, toLocalInput } from '@/lib/format';
 import { dbMessage } from '@/lib/moderation';
+import { useTermsGate } from './TermsSheet';
 import { enter, pressTransition, useChangedSinceMount } from '@/lib/motion';
 import { check, must, supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
@@ -225,6 +226,8 @@ async function loadDraft(eventId: string): Promise<Draft> {
 
 export function EventForm({ eventId }: { eventId?: string }) {
   const me = useMe();
+  // CGU exigées en prod (terms_enforced) : un nouvel événement les fait accepter avant d'être enregistré.
+  const terms = useTermsGate();
   const { can } = useAuth();
   const isAdmin = can('events.publish_direct');  // publie sans passer par la validation
   const [draft, setDraft] = useState<Draft | null>(eventId ? null : emptyDraft);
@@ -460,6 +463,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
     setError(null);
     const v = validate();
     if (typeof v === 'string') return setError(v);
+    if (!savedEventId.current && !terms.accepted && !(await terms.ensure())) return;
     saving.current = true;
     setBusy(true);
     // Travailler sur une copie : conserver les identifiants reçus même en cas d'échec partiel.
@@ -776,6 +780,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
       ) : null}
       </Cascade>
       </View>
+      {terms.sheet}
     </Screen>
   );
 }

@@ -34,6 +34,12 @@ App iOS native (ios/, WKWebView) : la barre d'onglets y est une vraie UITabBar, 
 la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un bouton `#tabs [data-tab]` de plus
 (icône SF Symbol dans `ios/Party/NativeTabBar.swift`). Tests : `tests/e2e/test_native_tabs.py`.
 
+## Page Party ↔ module Événements (iframe)
+- Une page ouverte de l'extérieur (app iPhone : `PartyEvents.open('/events/event/<id>/invite')`) doit mettre à jour
+  `frameAt` (app/static/index.html) : sinon, au « prêt » du module, la page le renvoie à son ancienne page (bug de prod du
+  06.11 : l'étape 2 « Qui est invité » se refermait). Test : `test_iphone_app_opens_step_two_in_the_party_page_and_it_stays_open`.
+  Essai réel simulateur + base de TEST : `ios/PartyUITests/AIEventRealE2EUITests.swift` (ignoré sans son environnement).
+
 ## Module Événements (web/events) — défilement tactile
 - Jamais de règle `overscroll-behavior` ni `touch-action` sur `*` (web/events/scripts/postbuild.mjs). Sous Android,
   Chrome traite chaque carte en `overflow: hidden` comme un conteneur de défilement : avec
@@ -77,6 +83,7 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   la base de test à l'identique de la prod (c'est ainsi qu'on passe en prod).
 - Une migration doit être purement additive et rejouable (`add column if not exists`, `drop policy if exists`
   avant `create policy`, `create or replace function`, `drop trigger if exists`), pour ne jamais casser la prod.
+- Les CGU sont exigées en prod (terms_enforced) : tout nouveau chemin qui publie du contenu doit gérer terms_required (feuille CGU puis nouvel essai). Serveur : `db_refusal` / `refusal` lèvent `TermsRequired` → 403 `{"code": "terms_required"}` ; iOS : `PartyAPIError.termsRequired` + `TermsAcceptSheet` ; web : `useTermsGate().ensure()`. Tests : `tests/test_terms_required.py`, `tests/supabase_live/test_terms_required_live.py`, `AIEventTermsTests`.
 - Vérifier les politiques RLS existantes : une politique `for update` donne accès à toute la ligne ; protéger les
   colonnes sensibles avec un trigger de garde (modèle : `guard_profile`, `guard_bring_item`).
 

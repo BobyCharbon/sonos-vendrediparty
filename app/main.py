@@ -33,7 +33,7 @@ from . import pet_pot, tv_star
 # Adresse du déploiement et fonctions en bêta (Compagnon : allumé sur le site de test seulement).
 from .features import COMPAGNON_SOON, TEST_SITE_HOST, compagnon_enabled, configured_public_url, discussions_enabled, invites_v2_enabled
 from .game_lock import LOCK as GAMES_LOCK
-from .accounts import AccountError, Accounts
+from .accounts import AccountError, Accounts, TermsRequired
 from .account_auth import AccountAuth
 from .group_admin import ROLE_KEY, GroupAdmin
 from .app_invites import JOIN_PAGE as APP_JOIN_PAGE, AppInvites, join_meta
@@ -166,6 +166,13 @@ async def lifespan(app):
 
 
 app = FastAPI(title="Vendredi Party", lifespan=lifespan)
+
+
+@app.exception_handler(TermsRequired)
+async def terms_required_response(request: Request, exc: TermsRequired):
+    """CGU exigées par la base (terms_enforced) et pas encore acceptées : 403 avec un code reconnaissable, l'app ouvre
+    la feuille des CGU (accept_terms) puis relance l'action."""
+    return JSONResponse({"detail": str(exc), "code": exc.code}, status_code=403)
 
 
 @app.exception_handler(FeedbackUnavailable)
@@ -1893,6 +1900,8 @@ def account_call(work, status: int = 400):
         return work()
     except ConsentRequired as e:  # IA : accord exprès pas encore donné (l'app montre sa feuille d'accord)
         raise HTTPException(403, str(e))
+    except TermsRequired:  # 403 {"code": "terms_required"} (terms_required_response) : feuille des CGU puis nouvel essai
+        raise
     except AccountError as e:
         raise HTTPException(status, str(e))
 

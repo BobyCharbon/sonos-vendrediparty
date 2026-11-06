@@ -16,7 +16,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from . import covers as covers_mod, link_reader, moderation
-from .accounts import AccountError
+from .accounts import AccountError, db_refusal
 
 # Créer un événement demande de vraiment comprendre ce qui est dit (dates relatives, lieux, personnes) : le modèle le
 # plus intelligent, avec une réflexion poussée (≈ 3 à 5 centimes par message).
@@ -548,8 +548,8 @@ class EventAssistant:
                                json=self._event_row(d, o, place if isinstance(place, dict) else {}, uid, now),
                                headers={"Prefer": "return=representation"})
         rows = r.json() if r.status_code in (200, 201) else None
-        if not rows:
-            raise AccountError("L'événement n'a pas pu être créé. Réessaie, ou crée-le à la main.")
+        if not rows:  # CGU exigées (terms_required → 403), titre refusé (content_refused) : la phrase de la base
+            raise db_refusal(r, "L'événement n'a pas pu être créé. Réessaie, ou crée-le à la main.")
         eid = rows[0]["id"]
         problems: list[str] = []
         if audience not in (None, "public", "people"):

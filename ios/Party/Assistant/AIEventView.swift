@@ -94,6 +94,12 @@ struct AIEventView: View {
             .sheet(isPresented: $store.askingConsent, onDismiss: store.consentDismissed) {
                 AIConsentSheet(copy: .event) { accept in store.answerConsent(accept) }
             }
+            // CGU exigées (403 terms_required) : « Avant de publier », puis l'enregistrement repart tout seul.
+            .sheet(isPresented: $store.askingTerms, onDismiss: { store.answerTerms(false) }) {
+                if let moderation = store.moderation {
+                    TermsAcceptSheet(store: moderation) { accepted in store.answerTerms(accepted) }
+                }
+            }
             .onChange(of: store.draft) { _ in restartCountdown() }
             .onChange(of: store.created != nil) { done in if done { Haptics.success() } }
             // Étape 2 : « Brouillon enregistré » un instant, puis la page « Qui est invité » s'ouvre d'elle-même.

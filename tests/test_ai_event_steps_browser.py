@@ -193,3 +193,41 @@ def test_only_the_groups_the_organizer_is_in_are_offered(browser, events_origin)
         pw.expect(page.get_by_role('button', name='Foot · 1')).to_have_count(0)
     finally:
         context.close()
+
+
+@pytest.mark.parametrize('start', ['events', 'account'])
+def test_iphone_app_opens_step_two_in_the_party_page_and_it_stays_open(browser, events_origin, start):  # noqa: F811
+    """Bug de prod (06.11) : l'app iPhone ouvre l'étape 2 par PartyEvents.open('/events/event/<id>/invite…') ; le module
+    rechargé disait « prêt » sur /event/<id>/invite, la page Party (qui croyait encore le module sur « / » ou « /account »)
+    le renvoyait aussitôt à sa page d'avant : l'étape 2 se fermait. Elle doit rester ouverte, puis la fiche aussi."""
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
+    page = context.new_page()
+    try:
+        mock_services(page, people=PEOPLE)
+        draft_event(page)
+        page.goto(events_origin, wait_until='domcontentloaded')
+        page.get_by_role('button', name='Événements', exact=True).click()
+        frame = page.frame_locator('#eventsFrame')
+        login(frame)
+        pw.expect(frame.get_by_label('Rechercher un événement')).to_be_visible(timeout=15000)
+        if start == 'account':  # assistant ouvert depuis Réglages : le module est sur /account
+            page.evaluate("showTab('account')")
+            pw.expect(frame.get_by_text('Confidentialité', exact=False).first).to_be_visible(timeout=15000)
+            page.evaluate("showTab('events')")  # ce que fait l'app (selectTab) juste avant d'ouvrir l'étape 2
+        page.evaluate(f"PartyEvents.open('/events/event/{EVENT}/invite?suggested={TOM}')")
+        step = frame.get_by_role('progressbar', name='Étape 2 sur 3 : Qui est invité')
+        pw.expect(step).to_be_visible(timeout=15000)
+        page.wait_for_timeout(2500)  # le renvoi arrivait juste après « prêt »
+        pw.expect(step).to_be_visible()
+        assert page.frame(url=lambda u: '/invite' in u) is not None
+        shot(page, f'02-app-etape-2-reste-ouverte-{start}')
+        # « Ouvrir l'événement » de l'assistant (PartyEvents.open de la fiche) : la fiche reste ouverte elle aussi.
+        page.evaluate(f"PartyEvents.open('/events/event/{EVENT}')")
+        pw.expect(frame.get_by_role('button', name='Inviter et publier')).to_be_visible(timeout=15000)
+        page.wait_for_timeout(2500)
+        pw.expect(frame.get_by_role('button', name='Inviter et publier')).to_be_visible()
+        # Reprendre le brouillon depuis sa fiche : « Inviter et publier » ouvre l'étape 2.
+        frame.get_by_role('button', name='Inviter et publier').click()
+        pw.expect(step).to_be_visible(timeout=15000)
+    finally:
+        context.close()

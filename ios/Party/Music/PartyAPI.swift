@@ -8,12 +8,15 @@ enum PartyAPIError: LocalizedError, Equatable {
     case server(String)
     /// Titre déjà dans la file : à confirmer (ajout de l'hôte).
     case duplicate(String)
+    /// La base exige les conditions d'utilisation avant de publier (403 {"code": "terms_required"}, terms_enforced) :
+    /// l'écran ouvre la feuille des CGU (TermsAcceptSheet) puis relance l'action.
+    case termsRequired(String)
     case offline
 
     var errorDescription: String? {
         switch self {
         case .needsCode: return "Code de la soirée requis"
-        case .server(let message), .duplicate(let message): return message
+        case .server(let message), .duplicate(let message), .termsRequired(let message): return message
         case .offline: return "Party ! est injoignable : vérifie ta connexion"
         }
     }
@@ -37,10 +40,12 @@ final class PartyAPI {
     private let session: URLSession
     private let log = Logger(subsystem: "ch.bobycharbon.party", category: "api")
 
-    init(base: URL, jar: CookieJar) {
+    /// protocolClasses : serveur simulé des tests (URLProtocol) ; nil en vrai.
+    init(base: URL, jar: CookieJar, protocolClasses: [AnyClass]? = nil) {
         self.base = base
         self.jar = jar
         let config = URLSessionConfiguration.default
+        if let protocolClasses { config.protocolClasses = protocolClasses }
         config.httpCookieStorage = nil
         config.httpShouldSetCookies = false
         config.httpCookieAcceptPolicy = .never
@@ -275,7 +280,11 @@ final class PartyAPI {
         }
         if status == 401 && request.url?.path != "/api/join" { throw PartyAPIError.needsCode }
         guard (200..<300).contains(status) else {
-            let detail = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["detail"]
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let detail = json?["detail"]
+            if json?["code"] as? String == "terms_required" {
+                throw PartyAPIError.termsRequired(detail as? String ?? "Accepte les conditions d'utilisation de Party pour publier.")
+            }
             // Doublon (ajout de l'hôte) : {"duplicate": true, "message": …} ; l'hôte décide d'ajouter quand même.
             if let info = detail as? [String: Any], info["duplicate"] as? Bool == true {
                 throw PartyAPIError.duplicate(info["message"] as? String ?? "Ce titre est déjà dans la file")

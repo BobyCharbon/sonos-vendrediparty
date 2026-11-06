@@ -3,6 +3,7 @@ puis donne au compte un identifiant de joueur stable et secret, le même sur tou
 import hashlib
 import hmac
 import os
+import re
 import secrets
 import threading
 import time
@@ -28,6 +29,34 @@ PROFILE_FIELDS = "id,display_name,first_name,last_name,phone,avatar_url,role,sta
 
 class AccountError(Exception):
     pass
+
+
+class TermsRequired(AccountError):
+    """La base refuse la publication : CGU de Party pas encore acceptées alors que l'admin les exige
+    (private.require_terms, réglage terms_enforced). Réponse 403 {"code": "terms_required"} : l'app ouvre la feuille
+    des CGU puis relance l'action."""
+    code = "terms_required"
+
+
+# Refus de la base précédés d'une clé (« content_refused: Événement non enregistré… ») : la phrase est pour la personne.
+DB_REFUSAL = re.compile(r"^(forbidden|blocked|content_refused|terms_required|terms_version|rate_limited|not_found|"
+                        r"profile_incomplete|self|reason|days): (.+)$", re.DOTALL)
+
+
+def db_refusal(r: httpx.Response, fallback: str) -> AccountError:
+    """Réponse d'erreur de PostgREST → l'erreur à lever : TermsRequired pour terms_required, sinon la phrase de la base
+    (refus de contenu, blocage…), ou le message général `fallback` (panne, erreur sans phrase lisible)."""
+    try:
+        body = r.json() if r.status_code < 500 else None
+    except ValueError:  # réponse vide ou pas du JSON
+        body = None
+    message = str(body.get("message", "")) if isinstance(body, dict) else ""
+    found = DB_REFUSAL.match(message.strip())
+    if not found:
+        return AccountError(fallback)
+    key, text = found.group(1), found.group(2).strip()
+    text = text[:1].upper() + text[1:]
+    return TermsRequired(text) if key == "terms_required" else AccountError(text)
 
 
 def pause_end(value) -> float:
@@ -225,7 +254,7 @@ class Accounts:
         r = self._get("POST", "/rest/v1/member_groups", token, json={"name": name, "created_by": uid},
                       headers={"Prefer": "return=representation"})
         if r.status_code not in (200, 201, 204):
-            raise AccountError("Le groupe n'a pas été créé. Réessaie.")
+            raise db_refusal(r, "Le groupe n'a pas été créé. Réessaie.")
         rows = r.json() if r.content else []
         created = rows[0].get("id") if isinstance(rows, list) and rows and isinstance(rows[0], dict) else None
         if join and created:
@@ -329,7 +358,8 @@ class Accounts:
         if r.status_code not in (200, 204):
             if uploaded:
                 self._remove_photos([uploaded], token)
-            raise AccountError(self._db_message(r))
+            refusal = db_refusal(r, "")
+            raise refusal if str(refusal) else AccountError(self._db_message(r))
         if uploaded and old:
             self._remove_photos([old], token)
         return self.profile(token)
@@ -393,6 +423,9 @@ class Accounts:
         if r.status_code == 204:  # fonction sans résultat (annuler un lien…)
             return None
         if r.status_code != 200:
+            refusal = db_refusal(r, "")
+            if str(refusal):
+                raise refusal
             try:
                 message = str(r.json().get("message", "")) if r.status_code < 500 else ""
             except ValueError:
