@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 
+import { invitesV2On } from '@/lib/features';
+import { check, supabase } from '@/lib/supabase';
 import { parseLoginPhone } from '@/lib/phone';
 import { belowVip, roleName } from '@/lib/roles';
 import { VIP_GROUP_KEY, type MemberGroup, type MemberRole } from '@/lib/types';
@@ -38,6 +40,33 @@ export function audienceToEvent(v: AudienceValue): { visibility: 'all' | 'invite
 export function audienceChildren(v: AudienceValue) {
   const invite = v.audience === 'invite';
   return { group_ids: invite ? v.group_ids : [], invitees: invite ? v.invitees : [], phones: invite ? v.phones : [] };
+}
+
+/**
+ * Groupes, invités un à un et numéros enregistrés (formulaire, étape « Les invités » de l'assistant IA). La base recopie
+ * les membres des groupes (via_group). people false : les invités un à un ne sont pas touchés (invitations v2 : ajoutés
+ * par la feuille « Inviter »). Seulement ceux qu'on a enlevés partent : les autres gardent « invité par », « venu par le lien ».
+ */
+export async function saveAudience(id: string, v: AudienceValue, { people = true }: { people?: boolean } = {}) {
+  const who = audienceChildren(v);
+  const groupIds = who.group_ids;
+  const staleGroups = supabase.from('event_groups').delete().eq('event_id', id);
+  check(await (groupIds.length ? staleGroups.not('group_id', 'in', `(${groupIds.join(',')})`) : staleGroups));
+  if (groupIds.length) {
+    check(await supabase.from('event_groups').upsert(groupIds.map((group_id) => ({ event_id: id, group_id })), { ignoreDuplicates: true }));
+  }
+  if (!people) return;
+  const staleInvites = supabase.from('event_invites').delete().eq('event_id', id).eq('via_group', false);
+  check(await (who.invitees.length ? staleInvites.not('user_id', 'in', `(${who.invitees.join(',')})`) : staleInvites));
+  if (who.invitees.length) {
+    check(await supabase.from('event_invites').upsert(who.invitees.map((user_id) => ({ event_id: id, user_id })), { ignoreDuplicates: true }));
+  }
+  // Numéros : on ne retire que ceux enlevés (pas de seconde invitation pour ceux déjà invités).
+  const stalePhones = supabase.from('event_phone_invites').delete().eq('event_id', id);
+  check(await (who.phones.length ? stalePhones.not('phone', 'in', `(${who.phones.join(',')})`) : stalePhones));
+  if (who.phones.length) {
+    check(await supabase.from('event_phone_invites').upsert(who.phones.map((phone) => ({ event_id: id, phone })), { ignoreDuplicates: true }));
+  }
 }
 
 export function audienceError(v: AudienceValue): string | null {
@@ -79,24 +108,80 @@ export function displayInvitePhone(phone: string): string {
 
 const PEOPLE_SHOWN = 24;
 
-export function AudiencePicker({ value, onChange, groups, people, meId, allGroups }: {
+export function AudiencePicker({ value, onChange, groups, people, meId, allGroups, peopleNote }: {
   value: AudienceValue;
   onChange: (v: AudienceValue) => void;
   groups: MemberGroup[];
   people: Person[];
   meId: string;
   allGroups: boolean;  // admins : tous les groupes ; sinon ceux qu'on a créés ou dont on fait partie
+  peopleNote?: string;  // invitations v2 : où se font les invitations en plus (sinon la carte « Invités » de la fiche)
+}) {
+  const set = (patch: Partial<AudienceValue>) => onChange({ ...value, ...patch });
+  const vipGroup = groups.find((g) => g.system_key === VIP_GROUP_KEY);
+  const choosable = choosableGroups(groups, meId, allGroups);
+  const vipOk = mayUseVip(groups, meId, allGroups) || value.vip;  // déjà réservé à Vendredi Party : reste affiché
+
+  return (
+    <View style={{ gap: 10 }}>
+      <T muted size={13}>Qui est invité ?</T>
+      <View style={s.wrap} accessibilityRole="radiogroup" accessibilityLabel="Qui est invité">
+        <Chip label="Sur invitation" selected={value.audience === 'invite'} onPress={() => set({ audience: 'invite' })} />
+        <Chip label="Publique + lien" selected={value.audience === 'public'} onPress={() => set({ audience: 'public' })} />
+      </View>
+      {value.audience === 'public' ? (
+        <T muted size={13}>Tous les comptes Party la voient, Guests compris, et toute personne qui a le lien : elle voit l’essentiel et peut répondre après connexion par SMS.</T>
+      ) : (
+        <>
+          {vipOk ? (<>
+          <Chip
+            label={`👥 Vendredi Party${vipGroup ? ` · ${vipGroup.member_group_members.length}` : ''}`}
+            selected={value.vip}
+            onPress={() => set({ vip: !value.vip })}
+          />
+          <T muted size={13}>Tous les Membres VIP et au-dessus. Ajoute d’autres groupes ou des personnes en plus si tu veux.</T>
+          </>) : <T muted size={13}>Choisis un de tes groupes ou des personnes.</T>}
+          {choosable.length ? (
+            <View style={s.wrap}>
+              {choosable.map((g) => (
+                <Chip key={g.id} label={`${g.name} · ${g.member_group_members.length}`} selected={value.group_ids.includes(g.id)}
+                  onPress={() => set({ group_ids: value.group_ids.includes(g.id) ? value.group_ids.filter((x) => x !== g.id) : [...value.group_ids, g.id] })} />
+              ))}
+            </View>
+          ) : null}
+          {invitesV2On ? (
+            // Invitations v2 : les personnes en plus (même hors du groupe) et les liens se gèrent sur la fiche, carte « Invités ».
+            // « Inviter par numéro » disparaît : il ne prévenait personne (remplacé par le lien pour une personne).
+            <T muted size={13}>{peopleNote ?? 'Pour inviter des personnes en plus ou envoyer un lien, utilise la carte « Invités » sur la fiche de l’événement, une fois publié. Elles n’entrent pas dans le groupe.'}</T>
+          ) : <PeoplePicker value={value} onChange={onChange} people={people} meId={meId} />}
+        </>
+      )}
+    </View>
+  );
+}
+
+/**
+ * Groupes qu'on peut inviter (hors Vendredi Party) : seulement ceux dont on FAIT PARTIE (question de l'admin, 06.11 ;
+ * la base le garantit : migration 20261106090000). Un admin (events.manage_all) : tous ceux qu'il voit, comme avant.
+ */
+export function choosableGroups(groups: MemberGroup[], meId: string, allGroups: boolean): MemberGroup[] {
+  return groups.filter((g) => g.system_key !== VIP_GROUP_KEY && (allGroups || g.member_group_members.some((m) => m.user_id === meId)));
+}
+
+/** « Membres Vendredi Party » : seulement pour qui est dans le groupe Vendredi Party (ou un admin). */
+export function mayUseVip(groups: MemberGroup[], meId: string, allGroups: boolean): boolean {
+  return allGroups || groups.some((g) => g.system_key === VIP_GROUP_KEY && g.member_group_members.some((m) => m.user_id === meId));
+}
+
+/** Personnes ajoutées une à une (compte ou numéro avec indicatif), sans invitations v2. */
+export function PeoplePicker({ value, onChange, people, meId }: {
+  value: AudienceValue; onChange: (v: AudienceValue) => void; people: Person[]; meId: string;
 }) {
   const [search, setSearch] = useState('');
   const [phone, setPhone] = useState('');
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const set = (patch: Partial<AudienceValue>) => onChange({ ...value, ...patch });
-  const toggle = (key: 'group_ids' | 'invitees', id: string) =>
-    set({ [key]: value[key].includes(id) ? value[key].filter((x) => x !== id) : [...value[key], id] });
-
-  const vipGroup = groups.find((g) => g.system_key === VIP_GROUP_KEY);
-  const choosable = groups.filter((g) => g.system_key !== VIP_GROUP_KEY
-    && (allGroups || g.created_by === meId || g.member_group_members.some((m) => m.user_id === meId)));
+  const toggle = (id: string) => set({ invitees: value.invitees.includes(id) ? value.invitees.filter((x) => x !== id) : [...value.invitees, id] });
   const q = search.trim().toLowerCase();
   const others = people.filter((p) => p.id !== meId);
   const picked = others.filter((p) => value.invitees.includes(p.id));
@@ -113,47 +198,23 @@ export function AudiencePicker({ value, onChange, groups, people, meId, allGroup
 
   return (
     <View style={{ gap: 10 }}>
-      <T muted size={13}>Qui est invité ?</T>
-      <View style={s.wrap} accessibilityRole="radiogroup" accessibilityLabel="Qui est invité">
-        <Chip label="Sur invitation" selected={value.audience === 'invite'} onPress={() => set({ audience: 'invite' })} />
-        <Chip label="Publique + lien" selected={value.audience === 'public'} onPress={() => set({ audience: 'public' })} />
+      <T muted size={13}>Ajouter des personnes</T>
+      {picked.length ? (
+        <View style={s.wrap}>{picked.map((p) => <Chip key={p.id} label={`✕ ${label(p)}`} selected onPress={() => toggle(p.id)} />)}</View>
+      ) : null}
+      <Input accessibilityLabel="Chercher une personne à inviter" placeholder="Chercher par surnom" value={search} onChangeText={setSearch} />
+      {found.length ? <View style={s.wrap}>{found.map((p) => <Chip key={p.id} label={`+ ${label(p)}`} onPress={() => toggle(p.id)} />)}</View> : null}
+      {q && !found.length ? <T muted size={13}>Personne avec ce surnom : invite par numéro ci-dessous.</T> : null}
+      <View style={s.row}>
+        <Input accessibilityLabel="Inviter par numéro de téléphone" placeholder="+41 79 123 45 67" keyboardType="phone-pad" value={phone}
+          onChangeText={setPhone} onSubmitEditing={addPhone} style={{ flex: 1 }} />
+        <Button small label="Inviter" disabled={!phone.trim()} onPress={addPhone} />
       </View>
-      {value.audience === 'public' ? (
-        <T muted size={13}>Tous les comptes Party la voient, Guests compris, et toute personne qui a le lien : elle voit l’essentiel et peut répondre après connexion par SMS.</T>
-      ) : (
-        <>
-          <Chip
-            label={`👥 Vendredi Party${vipGroup ? ` · ${vipGroup.member_group_members.length}` : ''}`}
-            selected={value.vip}
-            onPress={() => set({ vip: !value.vip })}
-          />
-          <T muted size={13}>Tous les Membres VIP et au-dessus. Ajoute d’autres groupes ou des personnes en plus si tu veux.</T>
-          {choosable.length ? (
-            <View style={s.wrap}>
-              {choosable.map((g) => (
-                <Chip key={g.id} label={`${g.name} · ${g.member_group_members.length}`} selected={value.group_ids.includes(g.id)} onPress={() => toggle('group_ids', g.id)} />
-              ))}
-            </View>
-          ) : null}
-          <T muted size={13}>Ajouter des personnes</T>
-          {picked.length ? (
-            <View style={s.wrap}>{picked.map((p) => <Chip key={p.id} label={`✕ ${label(p)}`} selected onPress={() => toggle('invitees', p.id)} />)}</View>
-          ) : null}
-          <Input accessibilityLabel="Chercher une personne à inviter" placeholder="Chercher par surnom" value={search} onChangeText={setSearch} />
-          {found.length ? <View style={s.wrap}>{found.map((p) => <Chip key={p.id} label={`+ ${label(p)}`} onPress={() => toggle('invitees', p.id)} />)}</View> : null}
-          {q && !found.length ? <T muted size={13}>Personne avec ce surnom : invite par numéro ci-dessous.</T> : null}
-          <View style={s.row}>
-            <Input accessibilityLabel="Inviter par numéro de téléphone" placeholder="+41 79 123 45 67" keyboardType="phone-pad" value={phone}
-              onChangeText={setPhone} onSubmitEditing={addPhone} style={{ flex: 1 }} />
-            <Button small label="Inviter" disabled={!phone.trim()} onPress={addPhone} />
-          </View>
-          <ErrorText error={phoneError} />
-          {value.phones.length ? (
-            <View style={s.wrap}>{value.phones.map((p) => <Chip key={p} label={`✕ ${displayInvitePhone(p)}`} selected onPress={() => set({ phones: value.phones.filter((x) => x !== p) })} />)}</View>
-          ) : null}
-          <T muted size={13}>Avec l’indicatif du pays (+41, +33, +34…). Un numéro sans compte voit l’événement dès qu’il se connecte à Party avec ce numéro ; les invités reçoivent une invitation privée dans l’app (pas de SMS).</T>
-        </>
-      )}
+      <ErrorText error={phoneError} />
+      {value.phones.length ? (
+        <View style={s.wrap}>{value.phones.map((p) => <Chip key={p} label={`✕ ${displayInvitePhone(p)}`} selected onPress={() => set({ phones: value.phones.filter((x) => x !== p) })} />)}</View>
+      ) : null}
+      <T muted size={13}>Avec l’indicatif du pays (+41, +33, +34…). Un numéro sans compte voit l’événement dès qu’il se connecte à Party avec ce numéro ; les invités reçoivent une invitation privée dans l’app (pas de SMS).</T>
     </View>
   );
 }

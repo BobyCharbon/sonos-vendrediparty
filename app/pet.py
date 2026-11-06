@@ -463,7 +463,7 @@ def _care_action(life: dict, owner: dict, action: str, score: int) -> None:
         life["asleep"] = False
         return
     if life["asleep"]:
-        raise PetError("Chut, il dort 🌙 Rallume la lumière pour le réveiller.")
+        raise PetError("Chut, il dort 🌙 Touche « Réveiller ☀️ » pour allumer la lumière.")
     if action == "feed":
         if g["food"] >= FULL_ENOUGH:
             raise PetError("Il n'a plus faim pour l'instant 😋")
@@ -472,7 +472,7 @@ def _care_action(life: dict, owner: dict, action: str, score: int) -> None:
         st["feeds"] = st.get("feeds", 0) + 1
     elif action == "play":
         if g["energy"] < PLAY_MIN_ENERGY:
-            raise PetError("Il est trop fatigué pour jouer : éteins-lui la lumière 🌙")
+            raise PetError("Il est trop fatigué pour jouer : touche « Dodo 🌙 » pour éteindre la lumière.")
         _use(owner, "play")
         s = max(0, min(PLAY_SCORE_MAX, int(score)))
         _add(life, {"joy": PLAY_JOY_MIN + s * PLAY_JOY_SCORE})

@@ -231,11 +231,26 @@
   }).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "hidden"] });
 
   // ── Grand titre qui se replie dans une barre translucide en défilant (comme les apps iOS) ──
+  // Avis 6.11 : le grand titre se dessinait sur l'heure de la barre d'état. Le petit titre centré et la barre translucide
+  // arrivent dès que le grand titre est entièrement sous la zone de la barre (barre d'état + 44 px) : il est alors
+  // couvert, jamais lisible en double. Un grand titre plus haut que la barre (texte agrandi) qui touche la barre d'état
+  // fait aussi venir la barre (nav-scrolled). La zone sûre se lit sur la barre (padding-top: env(safe-area-inset-top)).
+  const BAR_PX = 44;
   function largeTitle(titleEl, barEl) {
-    if (!titleEl || !barEl || !("IntersectionObserver" in window)) return;
-    new IntersectionObserver(([entry]) => {
-      document.body.classList.toggle("nav-compact", !entry.isIntersecting && entry.boundingClientRect.top < 0);
-    }, { threshold: 0, rootMargin: "-44px 0px 0px 0px" }).observe(titleEl);
+    if (!titleEl || !barEl) return;
+    const safeTop = () => parseFloat(getComputedStyle(barEl).paddingTop) || 0;
+    let queued = false;
+    const sync = () => {
+      queued = false;
+      const box = titleEl.getBoundingClientRect(), top = safeTop(), shown = box.height > 0;
+      document.body.classList.toggle("nav-scrolled", shown && box.top < top);
+      document.body.classList.toggle("nav-compact", shown && box.bottom < top + BAR_PX);
+    };
+    const later = () => { if (!queued) { queued = true; requestAnimationFrame(sync); } };
+    addEventListener("scroll", later, { passive: true });
+    addEventListener("resize", later);
+    new MutationObserver(later).observe(document.body, { attributes: true, attributeFilter: ["data-tab"] });
+    sync();
     barEl.addEventListener("click", () => scrollTo({ top: 0, behavior: reduceMotion.matches ? "auto" : "smooth" }));
   }
 

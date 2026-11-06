@@ -13,7 +13,7 @@ import type { DateMode, EventRow, MemberGroup, Poll, PollOption, Reminder } from
 import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
 import { Button, Cascade, Chip, ErrorText, Field, Input, Reveal, Rows, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
-import { AudiencePicker, audienceChildren, audienceError, audienceFromEvent, audienceToEvent, DEFAULT_AUDIENCE, type AudienceValue, type Person } from './AudiencePicker';
+import { AudiencePicker, audienceError, saveAudience, audienceFromEvent, audienceToEvent, DEFAULT_AUDIENCE, mayUseVip, type AudienceValue, type Person } from './AudiencePicker';
 import { DateTimeField } from './DateTimeField';
 import { PlaceSearch } from './PlaceSearch';
 import { SaveAsTemplate, TemplateList } from './TemplatePicker';
@@ -248,6 +248,10 @@ export function EventForm({ eventId }: { eventId?: string }) {
       const loaded = await loadDraft(eventId);
       setDraft(loaded);
     }
+    // Hors du groupe Vendredi Party, on ne peut pas lui réserver un événement (base : 20261106090000) : public par défaut.
+    if (!eventId && !mayUseVip(must(groups) as MemberGroup[], me.id, can('events.manage_all'))) {
+      setDraft((d) => (d && d.who.audience === 'invite' && d.who.vip ? { ...d, who: { ...d.who, audience: 'public', vip: false } } : d));
+    }
     return {
       ...taxonomy,
       members: must(members) as Person[],
@@ -388,23 +392,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
     const helpers = d.organizers.filter((u) => u !== me.id);
     if (helpers.length) check(await supabase.from('event_organizers').insert(helpers.map((user_id) => ({ event_id: id, user_id }))));
     // Invités : la base recopie les membres des groupes (via_group) ; ici seulement les groupes et les invités cochés un par un.
-    const who = audienceChildren(d.who);
-    const groupIds = who.group_ids;
-    const staleGroups = supabase.from('event_groups').delete().eq('event_id', id);
-    check(await (groupIds.length ? staleGroups.not('group_id', 'in', `(${groupIds.join(',')})`) : staleGroups));
-    if (groupIds.length) {
-      check(await supabase.from('event_groups').upsert(groupIds.map((group_id) => ({ event_id: id, group_id })), { ignoreDuplicates: true }));
-    }
-    check(await supabase.from('event_invites').delete().eq('event_id', id).eq('via_group', false));
-    if (who.invitees.length) {
-      check(await supabase.from('event_invites').upsert(who.invitees.map((user_id) => ({ event_id: id, user_id })), { ignoreDuplicates: true }));
-    }
-    // Numéros : on ne retire que ceux enlevés (pas de seconde invitation pour ceux déjà invités).
-    const stalePhones = supabase.from('event_phone_invites').delete().eq('event_id', id);
-    check(await (who.phones.length ? stalePhones.not('phone', 'in', `(${who.phones.join(',')})`) : stalePhones));
-    if (who.phones.length) {
-      check(await supabase.from('event_phone_invites').upsert(who.phones.map((phone) => ({ event_id: id, phone })), { ignoreDuplicates: true }));
-    }
+    await saveAudience(id, d.who);
 
     // Créneaux : on garde les votes des créneaux existants
     if (d.date_mode === 'poll') {

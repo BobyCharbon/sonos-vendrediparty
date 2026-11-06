@@ -44,6 +44,14 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Billets QR : option par événement (`events.tickets_enabled`, éteinte par défaut) activée par l'organisateur lui-même ;
   l'IA de création / modification (app/ai_events.py, ai_event_edit.py) ne l'active JAMAIS (hors de son schéma) ; un QR
   n'existe que si l'option est active ET le billet remis (`issue_event_ticket`, ou place payée confirmée).
+- « Créer avec l'IA » en étapes (06.11) : 1 « La soirée » (l'IA ne demande JAMAIS qui inviter ni qui voit
+  l'événement ; ce qui est dit spontanément n'est qu'un pré-réglage), récapitulatif + « C'est juste ? » ;
+  2 « Qui est invité » (web `/event/<id>/invite`, brouillon public + lien en attendant) : le bandeau / choix « qui voit »
+  (public + lien public par défaut, en surbrillance) est ICI, puis les invités, puis Publier ; 3 la fiche s'ouvre.
+  Jamais de bandeau ni de choix de visibilité à l'étape 1. Accord IA, filtre de modération et droits inchangés.
+- Groupes : on ne réserve un événement qu'aux groupes dont on FAIT PARTIE, « Membres Vendredi Party » compris
+  (écrans : `choosableGroups` / `mayUseVip`, assistant IA ; base : migration 20261106090000, triggers
+  `guard_event_group` et `guard_event_vip_visibility`). Un admin (events.manage_all) garde tous les groupes.
 
 ## Jeux — requêtes simultanées
 - Tous les téléphones interrogent la partie chaque seconde, en parallèle. Toute lecture-modification d'une partie

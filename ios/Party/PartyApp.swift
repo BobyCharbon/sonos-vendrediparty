@@ -143,7 +143,8 @@ struct ContentView: View {
         .environment(\.writeDirect, model.canWriteDirect ? WriteDirectAction { user in await model.writeDirect(to: user) } : nil)
         .sheet(isPresented: $model.aiEventOpen, onDismiss: { model.aiEditEventId = nil }) {
             if let settings = model.settings {
-                AIEventView(store: settings.aiEvent, editing: model.aiEditEventId) { id in model.openEvent(id) }
+                AIEventView(store: settings.aiEvent, editing: model.aiEditEventId,
+                            open: { id in model.openEvent(id) }, openInvite: { created in model.openInvite(created) })
                     .presentationDragIndicator(.visible)
             }
         }
@@ -189,6 +190,15 @@ private struct AIEventDemo: View {
             try? await Task.sleep(for: .seconds(1))
             if let draft = try? JSONDecoder().decode(AIEvent.Draft.self, from: Data(value.utf8)) {
                 await model.settings?.aiEvent.showDemo(draft, said: ProcessInfo.processInfo.environment["PARTY_DEBUG_AI_SAID"] ?? "")
+                // PARTY_DEBUG_AI_PICK=1 : le premier lieu trouvé est confirmé (« Oui, continuer » actif).
+                if ProcessInfo.processInfo.environment["PARTY_DEBUG_AI_PICK"] == "1", let store = model.settings?.aiEvent {
+                    store.choose(store.candidates.first ?? store.asSaid)
+                }
+            }
+            // PARTY_DEBUG_AI_CREATED=<AIEvent.Created en JSON> : l'étape 2 (brouillon enregistré), sans ouverture automatique.
+            if let created = ProcessInfo.processInfo.environment["PARTY_DEBUG_AI_CREATED"],
+               let demo = try? JSONDecoder().decode(AIEvent.Created.self, from: Data(created.utf8)) {
+                model.settings?.aiEvent.showDemoCreated(demo)
             }
             model.aiEventOpen = true
         }

@@ -8,7 +8,7 @@ from playwright.sync_api import expect
 
 from app import pet_collection
 from tests.e2e.helpers import sign_in
-from tests.e2e.test_pet_game import grown, open_pet, world  # noqa: F401
+from tests.e2e.test_pet_game import grown, open_pet, quiet_week, world  # noqa: F401
 from tests.test_pet_api import ALICE, BOB, TOK_A
 from tests.test_pet_economy_api import Pot
 
@@ -18,7 +18,7 @@ def ready(phone, supa, coins=0, dust=0, inv=None):
     page.goto('/')
     sign_in(phone, TOK_A)
     life, owner = grown()
-    owner["loop"] = {"coins": coins}
+    owner["loop"] = {"coins": coins, "week": quiet_week()}   # pas de +60 « vendredi » au milieu des comptes
     owner["coll"] = pet_collection.new_coll() | {"dust": dust, "upgraded": True, "inv": inv or {"noeud": 1}}
     supa.seed(ALICE, life, owner)
     return open_pet(phone)

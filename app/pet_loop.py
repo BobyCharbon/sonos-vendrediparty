@@ -187,7 +187,10 @@ def _roll_week(loop: dict, owner: dict, today: date, rng, life: dict) -> None:
     key = week_key(today)
     if (loop.get("week") or {}).get("key") == key:
         return
-    mid, text, counter, need = _pick(rng, WEEKLY)
+    # Tirée un vendredi ou après, « Passe le voir vendredi » se validait aussitôt (ou devenait impossible) : une autre,
+    # avec le même tirage (HMAC du compte et du jour).
+    choices = WEEKLY if today.weekday() < pet_streak.FRIDAY else tuple(w for w in WEEKLY if w[0] != "friday")
+    mid, text, counter, need = _pick(rng, choices)
     loop["week"] = {"key": key, "id": mid, "text": text.format(n=life["name"]), "counter": counter, "need": need,
                     "have": 0, "done": False}
 

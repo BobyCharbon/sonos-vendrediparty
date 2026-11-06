@@ -28,6 +28,11 @@ def bring_text(item: dict) -> str:
     return f"{item['quantity']} {item['label']}" if item.get("quantity") else item["label"]
 
 
+def kept(e: dict) -> str | None:
+    """Événement réservé à Vendredi Party : ce public reste proposé à qui le modifie, même hors du groupe."""
+    return VIP_AUDIENCE if e.get("visibility") == "all" and not e.get("public_link") else None
+
+
 def audience_of(e: dict, o: Options) -> str:
     if e.get("public_link"):
         return PUBLIC_AUDIENCE
@@ -136,20 +141,20 @@ class EventEditor:
         self._check(token, e)
         place = {"name": e.get("location_name") or "", "address": e.get("location_address") or "",
                  "url": e.get("location_url") or ""}
-        return {"draft": draft_of(e, self.events._options(token)), "place": place}
+        return {"draft": draft_of(e, self.events._options(token, keep=kept(e))), "place": place}
 
     def draft(self, token: str, eid: str, turns: list[str]) -> dict:
         """Ce que la personne demande → l'événement modifié et la liste des changements (rien n'est encore écrit)."""
         e = self._event(token, eid)
         self._check(token, e)
-        current = draft_of(e, self.events._options(token))
+        current = draft_of(e, self.events._options(token, keep=kept(e)))
         new = self.events.draft(token, turns, current, editing=True)
         return {"draft": new, "changes": changes(current, new)}
 
     def save(self, token: str, eid: str, draft: dict, place: dict | None, announce: bool) -> dict:
         e = self._event(token, eid)
         uid = self._check(token, e)
-        o = self.events._options(token)
+        o = self.events._options(token, keep=kept(e))
         now = datetime.now(ZURICH)
         before = draft_of(e, o)
         d = o.clean({**draft, "questions": []}, now)

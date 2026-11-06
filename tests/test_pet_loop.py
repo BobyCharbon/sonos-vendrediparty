@@ -187,6 +187,28 @@ def test_coming_on_friday_counts_for_the_friday_mission():
     assert {"kind": "week_done", "id": "friday", "text": "Passe le voir vendredi", "coins": pl.WEEK_COINS} in events
 
 
+@pytest.mark.parametrize("day", [6, 7, 8])   # vendredi, samedi, dimanche
+def test_the_friday_mission_is_never_drawn_on_or_after_friday(day):
+    """Tirée un vendredi, « Passe le voir vendredi » se validait à la seconde où elle apparaissait (+60 pièces sans
+    objectif) ; plus tard dans la semaine, elle était impossible. Une autre mission, même tirage (HMAC du jour)."""
+    drawn = set()
+    for seed in range(200):
+        life, owner = hatched(at(day, 10))
+        life, owner, events = opened(life, owner, at(day, 10), rng=random.Random(seed))
+        drawn.add(owner["loop"]["week"]["id"])
+        assert not any(e["kind"] == "week_done" for e in events)
+    assert "friday" not in drawn and drawn == {w[0] for w in pl.WEEKLY} - {"friday"}
+
+
+def test_the_friday_mission_can_still_be_drawn_before_friday():
+    drawn = set()
+    for seed in range(200):
+        life, owner = hatched(at(5, 10))   # jeudi
+        life, owner, _ = opened(life, owner, at(5, 10), rng=random.Random(seed))
+        drawn.add(owner["loop"]["week"]["id"])
+    assert drawn == {w[0] for w in pl.WEEKLY}
+
+
 # ── Rituels ──
 
 def test_the_morning_card_before_11_only_and_dreams_vary():

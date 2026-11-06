@@ -31,12 +31,13 @@ from . import pet, pet_coll_store, pet_reactions, pet_store
 from . import tv_zicou
 from . import pet_pot, tv_star
 # Adresse du déploiement et fonctions en bêta (Compagnon : allumé sur le site de test seulement).
-from .features import COMPAGNON_SOON, TEST_SITE_HOST, compagnon_enabled, configured_public_url, discussions_enabled
+from .features import COMPAGNON_SOON, TEST_SITE_HOST, compagnon_enabled, configured_public_url, discussions_enabled, invites_v2_enabled
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts
 from .account_auth import AccountAuth
 from .group_admin import ROLE_KEY, GroupAdmin
 from .app_invites import JOIN_PAGE as APP_JOIN_PAGE, AppInvites, join_meta
+from . import event_invites
 from .contact_names import MAX_FRIENDS as CONTACT_MAX_FRIENDS, MAX_HASHES as CONTACT_MAX_HASHES, ContactNames
 from .group_chats import LEVELS as CHAT_LEVELS, PHOTO_MAX as CHAT_PHOTO_MAX, GroupChats
 from .moderation import ContentRefused, require_clean
@@ -2473,6 +2474,13 @@ def account_ai_event_create(body: AiEventCreate):
     return account_call(lambda: event_assistant.create(body.token, body.draft, body.place))
 
 
+@app.post("/api/account/ai/event/draft/save")
+def account_ai_event_draft_save(body: AiEventCreate):
+    """Étape 1 « La soirée » confirmée (« Oui, continuer ») → événement en brouillon, sans invité ; l'app ouvre ensuite
+    l'étape 2 « Les invités » (/events/event/<id>/invite), où la personne invite elle-même puis publie."""
+    return account_call(lambda: event_assistant.save_draft(body.token, body.draft, body.place))
+
+
 EVENT_ID = r"^[0-9a-f-]{36}$"
 
 
@@ -4802,7 +4810,7 @@ async def no_cache_static(request: Request, call_next):
     return response
 
 
-_pages: dict[tuple[str, bool, bool], str] = {}
+_pages: dict[tuple[str, bool, bool, bool], str] = {}
 # Morceaux de page du Compagnon (onglet, pastilles, scripts) : retirés de la page quand il est éteint.
 COMPAGNON_BLOCK = re.compile(r"[ \t]*<!-- compagnon -->.*?<!-- /compagnon -->\n?", re.S)
 
@@ -4822,13 +4830,21 @@ def discussions_page(html: str) -> str:
     return html.replace("<html", '<html data-discussions="off"', 1)
 
 
+def invites_page(html: str) -> str:
+    """Invitations v2 éteintes (production) : <html data-invites="off">, lu par le module Événements (ancienne carte
+    « Lien d'invitation », inviter par numéro dans « Modifier »)."""
+    if invites_v2_enabled():
+        return html
+    return html.replace("<html", '<html data-invites="off"', 1)
+
+
 def features_page(html: str) -> str:
-    return discussions_page(compagnon_page(html))
+    return discussions_page(compagnon_page(invites_page(html)))
 
 
 def page(name: str) -> Response:
     """Page HTML avec des adresses de scripts et de styles versionnées (mises en cache jusqu'au prochain déploiement)."""
-    key = (name, compagnon_enabled(), discussions_enabled())
+    key = (name, compagnon_enabled(), discussions_enabled(), invites_v2_enabled())
     if key not in _pages:
         html = features_page((STATIC / name).read_text(encoding="utf-8"))
         _pages[key] = re.sub(r'(/static/[\w./-]+\.(?:js|css))(?=")', rf"\1?v={BUILD_ID}", html)
@@ -5020,6 +5036,10 @@ def events_web(resource: str):
         html = features_page((root / "index.html").read_text(encoding="utf-8"))
         if invite := APP_JOIN_PAGE.match(resource):
             html = html.replace("</head>", join_page_meta(invite.group(1)) + "</head>", 1)
+        elif invites_v2_enabled() and (event_invite := event_invites.INVITE_PAGE.match(resource)):
+            # Lien d'invitation à un événement : « Ludo t'invite : … », la date et l'affiche dans l'aperçu.
+            meta = event_invites.page_meta(accounts, event_invite.group(1), configured_public_url())
+            html = html.replace("</head>", meta + "</head>", 1)
         response = Response(html, media_type="text/html; charset=utf-8", headers={"Cache-Control": "no-store"})
     else:
         return Response("Les événements sont momentanément indisponibles. Réessaie dans un instant.", status_code=503, headers=NO_CACHE)
@@ -5044,7 +5064,8 @@ IOS_BETA_APP_ID = "GS2B6GA9JA.ch.bobycharbon.party.beta"
 def features():
     """Fonctions en bêta pour les apps natives (la page web les lit sur <html data-compagnon> / data-discussions) :
     Compagnon (Zicou) et Discussions (groupes, messages directs)."""
-    return JSONResponse({"compagnon": compagnon_enabled(), "discussions": discussions_enabled()}, headers=NO_CACHE)
+    return JSONResponse({"compagnon": compagnon_enabled(), "discussions": discussions_enabled(),
+                         "invites_v2": invites_v2_enabled()}, headers=NO_CACHE)
 
 
 @app.get("/.well-known/apple-app-site-association")

@@ -322,7 +322,7 @@
       }));
     }
     if (emotion === "hungry") out += thoughtPizza(Math.min(340, cx + r + 40), Math.max(66, cy - r - 30));
-    if (emotion === "tired" || emotion === "sleep") out += zzz(Math.min(300, cx + r * 0.75), Math.max(92, cy - r * 1.15));
+    if (emotion === "sleep") out += zzz(Math.min(300, cx + r * 0.75), Math.max(92, cy - r * 1.15));
     if (emotion === "sick") {
       out += `<g transform="translate(${n(cx + r * 0.55)} ${n(cy + r * 0.38)}) rotate(35)"><rect x="${n(-4)}" y="0" width="${n(8)}" height="${n(34)}" rx="${n(4)}" fill="#fff" stroke="${C.ink}" stroke-width="${n(3)}"/>`
         + `<circle cx="0" cy="${n(36)}" r="${n(7)}" fill="#ff6b6b" stroke="${C.ink}" stroke-width="${n(3)}"/></g>`;

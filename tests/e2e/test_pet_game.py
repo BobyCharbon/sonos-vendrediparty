@@ -14,7 +14,7 @@ import pytest
 pytest.importorskip('playwright.sync_api')
 from playwright.sync_api import expect
 
-from app import pet
+from app import pet, pet_loop
 from tests.e2e.helpers import Phone, Server, pass_reveal, sign_in
 from tests.test_pet_api import BOB, TOK_A, FakeBase
 
@@ -70,6 +70,15 @@ def grown(minutes_ago=30, **gauges):
     pet.advance(life, now, owner)
     life["g"].update(gauges)
     return life, owner
+
+
+def quiet_week() -> dict:
+    """Mission de la semaine imposée (« 5 jours de soins », impossible à finir pendant un test) : sinon le serveur en tire
+    une selon le compte et le JOUR, et un vendredi « Passe le voir vendredi » se valide dès l'ouverture (+60 pièces) —
+    les comptes de pièces des tests changeaient selon le jour de la semaine."""
+    today = datetime.now(timezone.utc).astimezone(pet.TZ).date()
+    return {"key": pet_loop.week_key(today), "id": "care5", "text": "Prends soin de lui 5 jours cette semaine",
+            "counter": "care_day", "need": 5, "have": 0, "done": False}
 
 
 @pytest.fixture
@@ -160,9 +169,9 @@ def test_egg_name_then_care_for_a_baby(world):
     expect(root.locator('[data-a="feed"]')).to_have_attribute('aria-disabled', 'true')
     root.locator('[data-a="feed"]').evaluate("el => el.scrollIntoView({ block: 'center' })")   # pas sous la barre d'onglets
     root.locator('[data-a="feed"]').click(force=True)   # aria-disabled : le toucher explique pourquoi
-    expect(root.locator('.pt-live')).to_contain_text('il dort')
+    expect(root.locator('.pt-live')).to_contain_text('Zicou dort 🌙 Le réveiller ?')   # il propose de le réveiller
     phone.shot('pet-3-dodo')
-    root.locator('[data-pt="act"][data-a="wake"]').click()
+    root.locator('.pt-acts [data-pt="act"][data-a="wake"]').click()
     expect(root.locator('.pt-hero.pt-night')).to_have_count(0)
 
     # Câlin en touchant le personnage, puis la garde-robe (collection) : le nœud offert dès le premier jour.

@@ -2,6 +2,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 
+import { AIEventSteps } from '@/components/AIEventSteps';
 import { AttendanceEditor } from '@/components/AttendanceEditor';
 import { AttendeesBadge } from '@/components/AttendeesBadge';
 import { PendingPayments } from '@/components/PendingPayments';
@@ -10,7 +11,8 @@ import { TicketCard } from '@/components/TicketCard';
 import { TicketsManager } from '@/components/TicketsManager';
 import { CalendarButton } from '@/components/CalendarButton';
 import { EventGiftsLink } from '@/components/EventGifts';
-import { compagnonOn } from '@/lib/features';
+import { compagnonOn, invitesV2On } from '@/lib/features';
+import { GuestListCard } from '@/components/GuestListCard';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
 import { LinkedText } from '@/components/LinkedText';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
@@ -58,7 +60,7 @@ async function sharePublicLink(ev: Pick<EventRow, 'id' | 'title'>): Promise<stri
 }
 
 export default function EventScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, step } = useLocalSearchParams<{ id: string; step?: string }>();
   const me = useMe();
   const { can } = useAuth();
   const isAdmin = can('events.manage_all');
@@ -272,6 +274,30 @@ export default function EventScreen() {
         {ev.status === 'rejected' && ev.rejection_reason ? <T color={colors.coralSoft}>Motif du refus : {ev.rejection_reason}</T> : null}
       </View>
 
+      {/* « Créer avec l'IA », étape 3 : c'est en ligne, et tout se modifie ici. */}
+      {step === 'online' && canManage && (published || ev.status === 'pending') ? (
+        <Card style={{ backgroundColor: colors.accentDim, borderColor: '#5A2346' }}>
+          <AIEventSteps current={3} />
+          <T weight="bold" size={17}>{published ? 'C’est en ligne !' : 'Envoyé pour validation'}</T>
+          <T size={13} color={colors.textSoft}>
+            {published ? 'Tu peux tout changer toi-même : « Modifier » en haut' : 'Il sera visible une fois validé par un admin. Tu peux encore tout changer : « Modifier » en haut'}
+            {invitesV2On && published ? ', et inviter d’autres personnes ou envoyer un lien avec la carte « Invités ».' : '.'}
+          </T>
+        </Card>
+      ) : null}
+      {/* Brouillon (assistant IA ou formulaire) : choisir les invités puis publier, comme l'étape 2 de l'assistant. */}
+      {ev.status === 'draft' && canManage ? (
+        <Card>
+          <T weight="semibold">Ce brouillon n’est visible que par toi.</T>
+          <Button label="Inviter et publier" onPress={() => router.push(`/event/${ev.id}/invite`)} />
+        </Card>
+      ) : null}
+
+      {/* Invitations v2 (bêta) : qui vient, qui n'a pas répondu, les liens envoyés ; « + » pour inviter. */}
+      {invitesV2On && canManage && published ? (
+        <GuestListCard event={ev} me={{ id: me.id, display_name: me.display_name ?? '' }} onChanged={reload} />
+      ) : null}
+
       {ev.status === 'pending' && can('events.approve') ? (
         <Card style={{ backgroundColor: colors.lavenderDim, borderColor: '#4A3F78' }}>
           <T weight="semibold">Cette proposition attend ta validation.</T>
@@ -381,7 +407,7 @@ export default function EventScreen() {
 
       <ErrorText error={error} />
       {compagnonOn && published && ev.date_mode === 'fixed' ? <EventGiftsLink eventId={ev.id} canManage={canManage} /> : null}
-      {canManage && published && ev.visibility === 'invited' ? <InviteLinkCard kind="event" id={ev.id} /> : null}
+      {!invitesV2On && canManage && published && ev.visibility === 'invited' ? <InviteLinkCard kind="event" id={ev.id} /> : null}
       {canManage && published ? (
         <View style={st.orgZone}>
           <T muted size={12} weight="bold">ZONE ORGANISATEUR</T>

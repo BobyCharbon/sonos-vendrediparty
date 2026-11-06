@@ -121,7 +121,9 @@ function Gate() {
     requestAnimationFrame(() => router.replace(`/share/${id}` as Href));
   }, [loading, session, active, profileError, asked]);
 
-  if (loading) return <Loading />;
+  // Invitation à un événement (v2) : la connexion par SMS se fait sur la page même ; on ne démonte pas l'écran pendant
+  // que le profil se charge (sinon la réponse en cours est perdue et le routeur repart ailleurs).
+  if (loading && !(session && /^\/invite\//.test(path))) return <Loading />;
   if (profileError && session) {
     return (
       <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center' }}>

@@ -80,7 +80,7 @@ def test_the_dj_headset_outfit_replaces_zicou_headset_with_a_golden_one(page):
 
 def test_animations_classes_sleep_tear_and_twinkle(page):
     assert mount(page, stage="adult", emotion="sleep").locator('.pt-z').count() == 1
-    assert mount(page, stage="baby", emotion="tired").locator('.pt-z').count() == 1
+    assert mount(page, stage="baby", emotion="tired").locator('.pt-z').count() == 0   # fatigué mais éveillé (avis 6.11)
     assert mount(page, stage="teen", emotion="sad").locator('.pt-tear').count() == 1
     assert mount(page, stage="adult", emotion="hungry").locator('.pt-tear').count() == 1
     assert mount(page, stage="adult", emotion="party").locator('.pt-fx').count() > 10

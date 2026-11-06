@@ -5,7 +5,10 @@ prix et paiement, places et liste d'attente, accompagnants, réponses, invités,
 qui amène quoi, pot commun, discussion, notification.
 
 L'événement est écrit avec la session de la personne (règles de la base) : l'IA ne peut rien faire de plus qu'elle.
-Comme dans le formulaire web : créé en brouillon, puis publié (droit « publier directement ») ou proposé."""
+Deux étapes (demande de l'admin, 06.11) : 1. « La soirée » : l'IA comprend la soirée, sans jamais demander qui inviter,
+et la personne confirme le récapitulatif ; 2. « Les invités » : l'événement est enregistré en BROUILLON (save_draft),
+puis la personne invite elle-même (écran web /event/<id>/invite) et publie. Les personnes nommées spontanément ne sont
+que proposées (suggested), jamais invitées par l'IA. create() (anciennes versions de l'app) garde l'ancien parcours."""
 import base64
 import json
 import re
@@ -71,10 +74,15 @@ Tu remplis TOUT le formulaire de l'événement, et tu le modifies quand la perso
 - show_participants : liste des participants visible (true par défaut). forum : discussion de l'événement (true par
   défaut). notify : prévenir les invités à la publication (true par défaut).
 - category : la plus juste parmi la liste, ou vide. tags : parmi la liste des tags, seulement s'ils vont vraiment.
-- audience : pour qui est l'événement, parmi la liste. Si la personne ne dit pas pour qui : « {public} » (public, avec
-  un lien qui peut être partagé). « {vip} » si elle dit que c'est pour le groupe ou entre membres ; un autre groupe
-  s'il est nommé ; « {only} » si elle n'invite que des personnes nommées. invitees : personnes invitées par leur nom, parmi la liste des personnes (rapproche les
-  noms mal dictés). organizers : co-organisateurs nommés, parmi la liste des personnes.
+- audience : qui voit l'événement se choisit à l'étape suivante, par la personne : tu ne poses JAMAIS de question sur
+  la visibilité. Si elle n'en parle pas : « {public} ». Seulement si elle le dit spontanément, note-le comme
+  pré-réglage qu'elle confirmera : « {vip} » si c'est pour le groupe ou entre membres ; un autre groupe s'il est nommé ;
+  « {only} » si elle n'invite que des personnes nommées.
+- invitees : tu ne demandes JAMAIS qui inviter et tu n'inventes aucun invité : la personne choisit elle-même ses invités
+  à l'étape suivante, après avoir confirmé la soirée. Seulement si elle cite spontanément des personnes à inviter, mets
+  leurs noms ici, parmi la liste des personnes (rapproche les noms mal dictés) : elles lui seront proposées, cochées, à
+  l'étape des invitations ; tu ne les invites pas toi-même. Sinon : liste vide.
+- organizers : co-organisateurs nommés, parmi la liste des personnes.
 - polls : les mini-sondages demandés (« un sondage pour savoir qui mange la fondue ou autre chose ») : question claire
   et options (« Fondue moitié-moitié », « Autre plat ») ; multiple : plusieurs réponses permises ; anonymous : votes
   cachés ; add_options : les invités peuvent ajouter des options (« ouvert », « chacun propose »).
@@ -98,8 +106,9 @@ demande les infos manquantes.
 - not_understood : ce que tu n'as pas compris ou pas pu placer, cité avec ce que tu en penses. Vide si tout est clair.
 
 S'il manque la date (ou les dates à voter), l'adresse complète (address_complete false), ou si un point est vraiment ambigu (deux dates possibles, une heure sans
-matin/soir évident, un nom qui correspond à plusieurs personnes), status = « needs_info » et questions = les questions
-précises, courtes, en tutoyant (une par point). Ne pose pas de question sur ce que tu peux déduire. Sinon status =
+matin/soir évident, un co-organisateur dont le nom correspond à plusieurs personnes), status = « needs_info » et questions
+= les questions précises, courtes, en tutoyant (une par point). Ne pose pas de question sur ce que tu peux déduire, ni
+sur qui inviter (c'est l'étape suivante, faite par la personne elle-même). Sinon status =
 « ready ». Garde toujours tout ce qui est déjà compris ; quand la personne répond ou corrige, applique exactement ce
 qu'elle dit au brouillon précédent sans rien perdre d'autre.
 
@@ -196,7 +205,8 @@ def clean_draft(raw: dict, now: datetime, choices: dict[str, list[str]]) -> dict
         raise AccountError(NOT_UNDERSTOOD)
     """Réponse de Claude → brouillon sûr : champs bornés, dates vérifiées, choix limités aux listes connues, et les
     questions qui manquent ajoutées."""
-    questions = _texts(raw.get("questions"), 200, 5)
+    # Qui inviter se choisit à l'étape 2, par la personne : une question de l'IA à ce sujet n'est jamais posée.
+    questions = [q for q in _texts(raw.get("questions"), 200, 5) if not ASKS_WHO.search(q)]
     title = _text(raw, "title", 120)
     poll_mode = raw.get("date_mode") == "poll"
     start = _when(raw.get("start"), now) if not poll_mode else ""
@@ -259,6 +269,8 @@ def clean_draft(raw: dict, now: datetime, choices: dict[str, list[str]]) -> dict
     }
 
 
+# Qui inviter et qui voit l'événement se choisissent à l'étape 2 : jamais une question de l'IA à ce sujet.
+ASKS_WHO = re.compile(r"\binvit|visib|\bpubli(c|que)\b|\bpriv[ée]|qui (le |la |peut le |peut la |pourra )?voi|pour qui", re.IGNORECASE)
 BRING_COUNT = re.compile(r"^\s*(\d{1,3})\s*[x×]?\s+(.+)$")
 
 
@@ -286,6 +298,24 @@ def clean_event_text(text: str | None, part: str) -> str:
         reason = moderation.REASONS.get(verdict.category or "", "un mot interdit")
         raise AccountError(f"Événement non enregistré : {part} contient {reason}. Les règles de Party l'interdisent.")
     return verdict.text
+
+def preset(audience: str | None) -> dict:
+    """Ce que la personne a dit spontanément de « qui voit » → pré-réglage de l'étape 2 (elle le confirme ou le change) :
+    public (défaut), vip (membres Vendredi Party), group (un groupe nommé), invite (sur invitation seulement)."""
+    if audience == "public":
+        return {"audience": "public", "group_ids": []}
+    if audience is None:
+        return {"audience": "vip", "group_ids": []}
+    if audience == "people":
+        return {"audience": "invite", "group_ids": []}
+    return {"audience": "group", "group_ids": [audience]}
+
+
+def draft_audience(draft: dict, o: "Options") -> str:
+    """Le public dit à l'IA (même si le brouillon est écrit public en attendant l'étape 2) ; inconnu : public."""
+    said = draft.get("audience") if isinstance(draft, dict) else None
+    return said if said in o.audiences else PUBLIC_AUDIENCE
+
 
 class Options:
     """Ce que la personne peut choisir : catégories et tags (nom → id), groupes (nom → id ; None = Vendredi Party,
@@ -316,12 +346,20 @@ class EventAssistant:
         rows = r.json() if r.status_code == 200 else []
         return [x for x in rows if isinstance(x, dict)] if isinstance(rows, list) else []
 
-    def _options(self, token: str) -> Options:
+    def _options(self, token: str, keep: str | None = None) -> Options:
+        """keep : le public actuel d'un événement modifié (ai_event_edit), gardé même hors de ses groupes, pour ne
+        jamais changer la visibilité sans que la personne le demande."""
         categories = {c["name"]: c["id"] for c in self._rows(token, "/rest/v1/categories?select=id,name&archived=eq.false&order=sort")}
         tags = {t["name"]: t["id"] for t in self._rows(token, "/rest/v1/tags?select=id,name&archived=eq.false&order=name")}
         mine = self.accounts.groups(token)
-        audiences: dict[str, str | None] = {VIP_AUDIENCE: None}
-        for g in mine["groups"]:
+        # Seulement les groupes dont la personne fait partie, Vendredi Party compris (question de l'admin, 06.11 ;
+        # la base le garantit : migration 20261106090000) ; un admin (events.manage_all) garde tous ses groupes.
+        admin = "events.manage_all" in self.accounts._perms(token)
+        inside = [g for g in mine["groups"] if admin or g.get("inside")]
+        audiences: dict[str, str | None] = {}
+        if admin or keep == VIP_AUDIENCE or any(g["system"] for g in inside):
+            audiences[VIP_AUDIENCE] = None
+        for g in inside:
             if not g["system"] and g["name"] not in audiences:
                 audiences[g["name"]] = g["id"]
         audiences[ONLY_INVITEES] = "people"
@@ -371,7 +409,7 @@ class EventAssistant:
         turns = [str(t).strip()[:MAX_TEXT] for t in turns if str(t).strip()][-MAX_TURNS:]
         if not turns:
             raise AccountError("Décris l'événement, à voix haute ou par écrit.")
-        o = self._options(token)
+        o = self._options(token, keep=(previous or {}).get("audience") if editing else None)
         now = datetime.now(ZURICH)
         system = SYSTEM.format(now=f"{WEEKDAYS[now.weekday()]} {now:%d.%m.%Y %H:%M}", vip=VIP_AUDIENCE, public=PUBLIC_AUDIENCE, only=ONLY_INVITEES,
                                me=o.me or "La personne", first=o.me.split()[0] if o.me else "moi",
@@ -470,8 +508,30 @@ class EventAssistant:
             return None
         return r.json()[0] if one and r.json() else None
 
+    def save_draft(self, token: str, draft: dict, place: dict | None) -> dict:
+        """Étape 1 confirmée (« Oui, continuer ») → l'événement complet en BROUILLON, public + lien public par défaut,
+        sans groupe ni invité : à l'étape 2 « Qui est invité », la personne choisit qui le voit et qui est invité, puis
+        publie. Ce qu'elle a dit spontanément n'est qu'un pré-réglage (preset) et des personnes cochées (suggested)."""
+        saved = self._store(token, draft, place, invite=False)
+        d, o, uid = saved["draft"], saved["options"], saved["uid"]
+        suggested = [{"id": o.people[n], "name": n} for n in d["invitees"] if o.people[n] != uid]
+        return {"id": saved["id"], "status": "draft", "title": d["title"], "problems": saved["problems"],
+                "suggested": suggested, "preset": preset(o.audiences.get(d["audience"]))}
+
     def create(self, token: str, draft: dict, place: dict | None) -> dict:
-        """Brouillon confirmé (après le compte à rebours de l'app) → événement complet, écrit avec la session de la personne."""
+        """Ancien parcours (versions de l'app d'avant les deux étapes) : brouillon confirmé → événement publié ou proposé,
+        avec les invités nommés."""
+        saved = self._store(token, draft, place, invite=True)
+        eid = saved["id"]
+        status = "published" if "events.publish_direct" in saved["perms"] else "pending"
+        p = self.accounts._get("PATCH", f"/rest/v1/events?id=eq.{eid}", token, json={"status": status})
+        if p.status_code not in (200, 204):
+            raise AccountError("L'événement est enregistré en brouillon : ouvre-le pour le publier.")
+        return {"id": eid, "status": status, "title": saved["draft"]["title"], "problems": saved["problems"]}
+
+    def _store(self, token: str, draft: dict, place: dict | None, invite: bool) -> dict:
+        """Brouillon de l'IA → événement en brouillon (status draft) et tout ce qui s'y rattache, écrit avec la session
+        de la personne. invite : les personnes nommées sont invitées (ancien parcours) ; sinon personne ne l'est."""
         uid = self.ai.allowed(token)
         perms = self._can_create(token)
         o = self._options(token)
@@ -479,8 +539,10 @@ class EventAssistant:
         d = o.clean({**draft, "questions": []}, now)
         if d["status"] != "ready":
             raise AccountError("Il manque encore le titre, la date ou l'adresse complète.")
+        if not invite:  # étape 2 : la visibilité se choisit avant de publier ; d'ici là, le défaut (public + lien)
+            d = {**d, "audience": PUBLIC_AUDIENCE}
         audience = o.audiences.get(d["audience"])
-        if audience == "people" and not d["invitees"]:
+        if invite and audience == "people" and not d["invitees"]:
             raise AccountError("Dis qui inviter : personne n'est nommé.")
         r = self.accounts._get("POST", "/rest/v1/events?select=id", token,
                                json=self._event_row(d, o, place if isinstance(place, dict) else {}, uid, now),
@@ -493,7 +555,7 @@ class EventAssistant:
         if audience not in (None, "public", "people"):
             self._add(token, "/rest/v1/event_groups", {"event_id": eid, "group_id": audience}, "le groupe invité", problems)
         invited = [o.people[n] for n in d["invitees"] if o.people[n] != uid]
-        if invited and audience != "public":
+        if invite and invited and audience != "public":
             self._add(token, "/rest/v1/event_invites", [{"event_id": eid, "user_id": w} for w in invited], "les invitations", problems)
         helpers = [o.people[n] for n in d["organizers"] if o.people[n] != uid]
         if helpers:
@@ -517,8 +579,5 @@ class EventAssistant:
         if d["bring"]:
             self._add(token, "/rest/v1/bring_items", [{"event_id": eid, "sort": i, **bring_row(b)} for i, b in enumerate(d["bring"])],
                       "« qui amène quoi »", problems)
-        status = "published" if "events.publish_direct" in perms else "pending"
-        p = self.accounts._get("PATCH", f"/rest/v1/events?id=eq.{eid}", token, json={"status": status})
-        if p.status_code not in (200, 204):
-            raise AccountError("L'événement est enregistré en brouillon : ouvre-le pour le publier.")
-        return {"id": eid, "status": status, "title": d["title"], "problems": problems}
+        return {"id": eid, "draft": {**d, "audience": draft_audience(draft, o)}, "options": o, "uid": uid, "perms": perms,
+                "problems": problems}

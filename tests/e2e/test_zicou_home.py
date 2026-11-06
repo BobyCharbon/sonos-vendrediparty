@@ -114,7 +114,12 @@ def test_welcome_flow_name_hatch_gift_then_notifications(world):
     page.evaluate("ZicouHome.refresh(true)")
     expect(sheet.locator("h2")).to_have_text("Coucou, je suis Bobby !")
     expect(sheet.locator(".zc-gift")).to_contain_text("Nœud papillon · 50 pièces · garanti")
+    # La feuille s'ouvre dès que la pastille voit l'éclosion ; l'enregistrement (/api/pet/me) part en même temps.
+    deadline = time.monotonic() + 5
+    while "welcome" not in supa.base.pets[uid(supa)]["owner"] and time.monotonic() < deadline:
+        page.wait_for_timeout(50)
     saved = supa.base.pets[uid(supa)]
+    # 50 pièces, quel que soit le jour : « Passe le voir vendredi » n'est jamais tirée un vendredi (app/pet_loop.py).
     assert saved["owner"]["welcome"]["item"] == "noeud" and saved["owner"]["loop"]["coins"] == 50
     assert saved["life"]["acc"]["neck"] == "noeud"
     assert pushes == [] and page.evaluate("__pushAsked") == 0        # pas de demande de notifications avant le cadeau

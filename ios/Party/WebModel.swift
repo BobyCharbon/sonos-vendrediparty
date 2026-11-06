@@ -299,6 +299,14 @@ final class WebModel: ObservableObject {
         webView?.evaluateJavaScript("window.PartyEvents && PartyEvents.open('/events/event/\(id)')")
     }
 
+    /// « Créer avec l'IA », étape 2 : le brouillon vient d'être enregistré, la page « Qui est invité » s'ouvre dans
+    /// Événements (pré-réglage de qui voit, personnes citées cochées d'avance) ; on y choisit soi-même puis on publie.
+    func openInvite(_ created: AIEvent.Created) {
+        guard let path = AIEvent.invitePath(created.id, suggested: created.suggested.map(\.id), preset: created.preset) else { return }
+        selectTab("events")
+        webView?.evaluateJavaScript("window.PartyEvents && PartyEvents.open('\(path)')")
+    }
+
     /// Messages directs : Discussions présentes et ouvertes (pas « Bientôt », réservé aux bêta-testeurs en production).
     var canWriteDirect: Bool {
         discussions && chats != nil && tabs?.tabs.contains { $0.id == "chats" && !$0.soon } == true

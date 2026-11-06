@@ -108,7 +108,7 @@ export default function SignIn() {
               label={`Code reçu au ${sentTo}`}
               placeholder="123456"
               keyboardType="number-pad"
-              autoComplete="sms-otp"
+              autoComplete="one-time-code"
               textContentType="oneTimeCode"
               maxLength={6}
               value={code}
