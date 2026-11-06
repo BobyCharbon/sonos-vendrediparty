@@ -6,6 +6,7 @@ Usage : .venv/bin/python -m tests.bots.setup_accounts"""
 from __future__ import annotations
 
 import struct
+import time
 import zlib
 
 import httpx
@@ -44,9 +45,11 @@ def reset_no_app_bots() -> None:
 
 def prepare_account(bot, color: tuple[int, int, int]) -> str:
     s = Session(bot.phone)
-    path = f"{s.uid}/bot-avatar.png"
+    # Nouveau fichier à chaque passage : aucune règle « update » sur profile-photos (un upsert d'un fichier existant
+    # est refusé, banc relancé le 06.11).
+    path = f"{s.uid}/bot-avatar-{time.time_ns()}.png"
     up = httpx.post(f"{TEST_URL}/storage/v1/object/profile-photos/{path}", content=_png(color),
-                    headers={**s.headers, "Content-Type": "image/png", "x-upsert": "true"}, timeout=30)
+                    headers={**s.headers, "Content-Type": "image/png"}, timeout=30)
     if up.status_code not in (200, 201):
         raise RuntimeError(f"Photo de {bot.nickname} : {up.status_code} {up.text}")
     sql(f"""update public.profiles set display_name = {q(bot.nickname)}, first_name = {q(bot.first)},
