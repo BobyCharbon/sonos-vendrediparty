@@ -78,6 +78,17 @@ html.pt-open #tabs { display: none !important; }
 .pt-act small { color: var(--pt-muted); font-weight: 600; }
 .pt-act[aria-disabled="true"] { opacity: .45; }
 .pt-light { background: linear-gradient(160deg, #2b2160, #1a1340); }
+/* Trois états (avis 6.11) : fatigué → « Dodo » mis en avant ; endormi → « Réveiller ☀️ » bien visible ; la question
+   « Le réveiller ? » apparaît quand on touche un soin pendant son sommeil. */
+.pt-light small { font-size: .62rem; line-height: 1.15; text-align: center; }
+.pt-light.pt-suggest { box-shadow: inset 0 0 0 2px #b49bff, 0 0 18px rgba(180, 155, 255, .45); }
+.pt-light.pt-wake { color: #12082a; background: linear-gradient(160deg, #ffe08a, #ffb547); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .5), 0 0 18px rgba(255, 181, 71, .45); }
+.pt-light.pt-wake small { color: rgba(18, 8, 42, .75); }
+.pt-wake-ask { margin-top: 12px; padding: 12px 14px; border-radius: 18px; text-align: center; background: rgba(36, 26, 72, .96);
+  box-shadow: inset 0 0 0 1px var(--pt-line), 0 10px 30px rgba(0, 0, 0, .35); animation: pt-in .45s var(--pt-spring) both; }
+.pt-wake-ask p { margin: 0; font-weight: 700; }
+.pt-wake-btns { display: grid; grid-template-columns: 1.4fr 1fr; gap: 8px; margin-top: 10px; }
+.pt-wake-btns .pt-cta { margin: 0; min-height: 46px; font-size: .95rem; }
 .pt-more { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
 .pt-more .pt-ghost { padding: 0 4px; font-size: .84rem; }
 .pt-ghost { min-height: 46px; border: 0; border-radius: 14px; font-weight: 700; background: rgba(255, 255, 255, .07); box-shadow: inset 0 0 0 1px var(--pt-line); transition: transform .25s var(--pt-spring); }
@@ -238,5 +249,6 @@ html.pt-open #tabs { display: none !important; }
 .pt-in-tab .pt-news { bottom: calc(var(--tabs-height, 72px) + 12px); }
 .pt-in-tab .pt-top { min-height: 40px; }
 .pt-in-tab .pt-title { font-size: 1.25rem; }
+.pt-title-gap { min-height: 1px; }   /* onglet : le grand titre « Zicou » de l'app suffit, pas de doublon */
 /* Le grand titre « Zicou » de l'onglet suffit : la pastille de l'en-tête s'efface ici (on y est déjà). */
 body[data-tab="pet"] .zc-chip { display: none; }

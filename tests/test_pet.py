@@ -102,6 +102,25 @@ def test_turning_the_light_off_and_on():
     assert not life["asleep"] and life["g"]["energy"] > 40
 
 
+def test_tired_awake_and_asleep_are_three_distinct_states_with_messages_naming_real_buttons():
+    """Avis 6.11 : « Je ne comprends pas comment allumer la lumière ». Fatigué = éveillé (il propose Dodo) ; endormi =
+    les refus nomment le bouton « Réveiller » (et « Dodo » pour jouer quand il est trop fatigué)."""
+    life, owner = hatched()
+    life["g"]["energy"] = pet.PLAY_MIN_ENERGY - 1
+    assert not life["asleep"] and pet.emotion(life, h(0)) == "tired"
+    assert "sieste" in pet.mood_line(life, h(0))
+    with pytest.raises(pet.PetError, match="« Dodo 🌙 »"):
+        pet.act(life, owner, "play", h(0))
+    life, owner, _ = pet.act(life, owner, "sleep", h(0))
+    assert life["asleep"] and pet.emotion(life, h(0)) == "sleep"
+    with pytest.raises(pet.PetError, match="« Réveiller ☀️ »"):
+        pet.act(life, owner, "cuddle", h(0.1))
+    with pytest.raises(pet.PetError, match="déjà"):
+        pet.act(life, owner, "sleep", h(0.1))
+    life, owner, _ = pet.act(life, owner, "wake", h(0.2))
+    assert not life["asleep"]
+
+
 def test_a_dirty_pet_gets_sick_and_a_heal_cures_it():
     life, owner = hatched()
     life["g"]["care"] = 1

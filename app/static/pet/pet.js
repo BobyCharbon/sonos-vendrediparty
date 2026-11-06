@@ -75,9 +75,11 @@
     motion?.(screen);
   }
   const loadingHtml = (text) => `<div class="pt-loading" role="status"><span class="pt-spin" aria-hidden="true"></span>${e(text)}</div>`;
+  // Dans l'onglet, le grand titre de l'app dit déjà « Zicou » : pas de second titre identique (avis 6.11). Un Zicou
+  // renommé garde son nom ici, sous le grand titre.
   const top = (title, back) => `<div class="pt-top">
       ${!back && inTab ? '<span class="pt-round-gap"></span>' : `<button type="button" class="pt-round" data-pt="${back ? "home" : "close"}" aria-label="${back ? "Retour" : "Fermer"}">${back ? "‹" : "✕"}</button>`}
-      <h1 class="pt-title">${e(title)}</h1>
+      ${!back && inTab && title === GAME_NAME ? '<span class="pt-title pt-title-gap" aria-hidden="true"></span>' : `<h1 class="pt-title">${e(title)}</h1>`}
       ${window.GameAudio?.button ? window.GameAudio.button() : '<span class="pt-round-gap"></span>'}</div>`;
 
   async function open(fromEl, src) {
@@ -274,8 +276,8 @@
         <span class="pt-act-i" aria-hidden="true">${icon}</span><span>${label}</span><small aria-hidden="true">reste ${left}</small></button>`;
     }).join("");
     const light = p.asleep
-      ? `<button type="button" class="pt-act pt-light" data-pt="act" data-a="wake"><span class="pt-act-i" aria-hidden="true">💡</span><span>Rallumer</span></button>`
-      : `<button type="button" class="pt-act pt-light" data-pt="act" data-a="sleep"><span class="pt-act-i" aria-hidden="true">🌙</span><span>Dodo</span></button>`;
+      ? `<button type="button" class="pt-act pt-light pt-wake" data-pt="act" data-a="wake" aria-label="Réveiller ${e(p.name)} : allumer la lumière"><span class="pt-act-i" aria-hidden="true">☀️</span><span>Réveiller</span><small aria-hidden="true">Allumer la lumière</small></button>`
+      : `<button type="button" class="pt-act pt-light${p.emotion === "tired" ? " pt-suggest" : ""}" data-pt="act" data-a="sleep" aria-label="Dodo : éteindre la lumière"><span class="pt-act-i" aria-hidden="true">🌙</span><span>Dodo</span><small aria-hidden="true">Éteindre la lumière</small></button>`;
     const danger = alertCard(p);
     const next = p.next_stage_in != null ? `<span class="pt-chip">⏳ ${p.stage === "baby" ? "Ado" : "Adulte"} dans ${countdown(p.next_stage_in)}</span>` : "";
     show(`${top(p.name)}
@@ -632,6 +634,30 @@
 
   // ── Actions ──
   const waiting = [];
+  /** Relit Zicou chez le serveur et redessine l'accueil s'il est affiché ; false si la lecture échoue. */
+  async function resync() {
+    try {
+      const data = await api("me", { src: "none" });
+      if (!data?.pet || !root || root.hidden) return false;
+      pet = data.pet;
+      window.ZicouHome?.petChanged?.(pet, data.news);
+      if (root.dataset.screen === "home") home();
+      return true;
+    } catch { return false; }
+  }
+  /** Il dort : au lieu d'un simple refus, on propose de le réveiller (un vrai bouton, juste là). */
+  function askWake() {
+    const hero = root?.querySelector(".pt-hero");
+    if (!hero || !pet) return;
+    root.querySelector(".pt-wake-ask")?.remove();
+    const text = `Chut, ${pet.name} dort 🌙 Le réveiller ?`;
+    hero.insertAdjacentHTML("afterend", `<div class="pt-wake-ask" role="group" aria-label="${e(text)}"><p>${e(text)}</p>
+      <div class="pt-wake-btns"><button type="button" class="pt-cta" data-pt="act" data-a="wake">☀️ Le réveiller</button>
+      <button type="button" class="pt-ghost" data-pt="wake-no">Laisser dormir</button></div></div>`);
+    const live = root.querySelector(".pt-live");
+    if (live) live.textContent = text;
+    buzz(15);
+  }
   async function doAct(action, extra = {}) {
     if (busy) {
       if (QUEUED.includes(action) && waiting.length < 3) { waiting.push([action, extra]); burst("⏳"); }
@@ -652,6 +678,8 @@
       waiting.length = 0;
       if (err.login) return loginScreen();
       if (root?.dataset.screen === "loading" || mine !== screenSeq) home();   // fin du mini-jeu : retour à l'accueil
+      const wasAsleep = Boolean(pet?.asleep);
+      if (await resync() && pet.asleep && action !== "wake" && action !== "sleep") { if (!wasAsleep) cue("lose"); return askWake(); }
       say(err.message, true);
       cue("lose");
     } finally {
@@ -715,7 +743,8 @@
     if (!b || !root.contains(b)) return;
     if (b.getAttribute("aria-disabled") === "true") {
       const a = b.dataset.a;
-      say(pet?.asleep && a ? "Chut, il dort 🌙 Rallume la lumière pour le réveiller." : b.dataset.pt === "wear" ? "Pas encore débloquée : " + (b.querySelector("small")?.textContent || "") : "C'est tout pour aujourd'hui, reviens demain 💜");
+      if (pet?.asleep && a) return askWake();
+      say(b.dataset.pt === "wear" ? "Pas encore débloquée : " + (b.querySelector("small")?.textContent || "") : "C'est tout pour aujourd'hui, reviens demain 💜");
       return;
     }
     switch (b.dataset.pt) {
@@ -726,6 +755,7 @@
       case "adopt": return adoptHere();
       case "act": return b.dataset.a === "play" ? startGame() : doAct(b.dataset.a);
       case "alert-feed": return doAct("feed");
+      case "wake-no": root.querySelector(".pt-wake-ask")?.remove(); return;
       case "pet": return pet && !pet.asleep && pet.left.cuddle > 0 ? doAct("cuddle") : react("");
       case "outfits": return window.PetCollection ? window.PetCollection.open("wear") : outfitsScreen();
       case "coll": return window.PetCollection?.open(b.dataset.s || "dex");

@@ -160,9 +160,9 @@ def test_egg_name_then_care_for_a_baby(world):
     expect(root.locator('[data-a="feed"]')).to_have_attribute('aria-disabled', 'true')
     root.locator('[data-a="feed"]').evaluate("el => el.scrollIntoView({ block: 'center' })")   # pas sous la barre d'onglets
     root.locator('[data-a="feed"]').click(force=True)   # aria-disabled : le toucher explique pourquoi
-    expect(root.locator('.pt-live')).to_contain_text('il dort')
+    expect(root.locator('.pt-live')).to_contain_text('Zicou dort 🌙 Le réveiller ?')   # il propose de le réveiller
     phone.shot('pet-3-dodo')
-    root.locator('[data-pt="act"][data-a="wake"]').click()
+    root.locator('.pt-acts [data-pt="act"][data-a="wake"]').click()
     expect(root.locator('.pt-hero.pt-night')).to_have_count(0)
 
     # Câlin en touchant le personnage, puis la garde-robe (collection) : le nœud offert dès le premier jour.

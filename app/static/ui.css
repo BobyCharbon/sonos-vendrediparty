@@ -59,8 +59,9 @@ body[data-tab="host"] .events-frame, body[data-tab="stats"] .events-frame, body[
   opacity: 0; pointer-events: none; transition: opacity .18s ease;
 }
 .nav-bar span { font-weight: 650; font-size: 1.0625rem; letter-spacing: -0.012em; transform: translateY(6px); transition: transform .35s var(--spring); }
-body.nav-compact .nav-bar { opacity: 1; pointer-events: auto; cursor: default; }
-body.nav-compact .nav-bar span { transform: none; }
+.nav-bar span { opacity: 0; transition: transform .35s var(--spring), opacity .18s ease; }
+body.nav-scrolled .nav-bar, body.nav-compact .nav-bar { opacity: 1; pointer-events: auto; cursor: default; }
+body.nav-compact .nav-bar span { transform: none; opacity: 1; }
 body[data-tab="events"] .nav-bar, body[data-tab="account"] .nav-bar, body[data-tab="host"] .nav-bar,
 body[data-tab="stats"] .nav-bar, body[data-tab="feedback"] .nav-bar, body.pyr-full .nav-bar { display: none; }
 
