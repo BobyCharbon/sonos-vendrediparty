@@ -125,3 +125,16 @@ l'admin. Toujours :
 
 ## Tests
 `python -m pytest -q --ignore=tests/e2e` avant tout commit.
+
+### Avant toute mise en production : recette RÉELLE (règle de l'admin, 06.11.2026)
+Des tests avec des faux (Supabase simulé, écrans isolés) ne suffisent pas : l'assistant IA « testé » a cassé en prod
+(CGU exigées en prod seulement, invitations v2 allumées en prod). Avant tout merge dans `main` et tout changement de
+réglage de prod :
+- Parcourir pour de vrai chaque parcours touché, de bout en bout, comme un utilisateur : app iPhone dans le simulateur
+  (configuration Release, comme l'App Store) + serveur local branché sur la base TEST, et le site web dans un vrai
+  navigateur (Playwright), avec des captures de chaque étape.
+- Avec EXACTEMENT les réglages de la prod : drapeaux (`/api/features` de prod : compagnon, discussions, invites_v2…),
+  `terms_enforced`, rôles/droits du compte (admin ET simple membre ET Guest), données réalistes.
+- Changer un réglage de prod (drapeau, CGU, droit) = refaire la recette des parcours qu'il touche AVANT de le changer.
+- Le rapport dit ce qui a été testé pour de vrai et ce qui ne l'a été qu'avec des faux. Pas de « prêt » sans recette.
+- La production n'est pas un banc d'essai : en cas de doute, ça reste sur develop / le site de test.
