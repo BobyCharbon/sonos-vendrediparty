@@ -515,6 +515,10 @@ class EventAssistant:
         saved = self._store(token, draft, place, invite=False)
         d, o, uid = saved["draft"], saved["options"], saved["uid"]
         suggested = [{"id": o.people[n], "name": n} for n in d["invitees"] if o.people[n] != uid]
+        if suggested:  # retenues avec le brouillon (cochées d'avance à l'étape 2 rouverte), jamais invitées ;
+            # base sans la colonne (migration pas encore appliquée) : sans conséquence, l'adresse de l'étape 2 les porte.
+            self.accounts._get("PATCH", f"/rest/v1/events?id=eq.{saved['id']}", token,
+                               json={"ai_suggested": [p["id"] for p in suggested]})
         return {"id": saved["id"], "status": "draft", "title": d["title"], "problems": saved["problems"],
                 "suggested": suggested, "preset": preset(o.audiences.get(d["audience"]))}
 

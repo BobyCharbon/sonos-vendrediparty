@@ -62,17 +62,20 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
   const [error, setError] = useState<string | null>(null);
 
   const { data, error: loadError, reload } = useQuery(async () => {
-    const [ev, allGroups, settings] = await Promise.all([
+    const [ev, allGroups, settings, kept] = await Promise.all([
       supabase.from('events').select('id, title, status, created_by, starts_at, ends_at, all_day, visibility, public_link, event_groups(group_id), event_invites(user_id, via_group), event_phone_invites(phone)')
         .eq('id', eventId).single(),
       supabase.from('member_groups').select('id, name, created_by, system_key, member_group_members(user_id)').order('name'),
       supabase.from('group_settings').select('require_approval').single(),
+      // Personnes citées à l'IA, gardées avec le brouillon (étape rouverte depuis la fiche) ; base sans la colonne : rien.
+      supabase.from('events').select('ai_suggested').eq('id', eventId).maybeSingle(),
     ]);
     const event = must(ev) as unknown as Draft;
     const every = must(allGroups) as MemberGroup[];
     const groups = choosableGroups(every, me.id, can('events.manage_all'));
     const vipOk = mayUseVip(every, me.id, can('events.manage_all'));
-    return { event, groups, vipOk, approval: !!(must(settings) as { require_approval: boolean }).require_approval };
+    const stored = ((kept.data as { ai_suggested?: string[] } | null)?.ai_suggested ?? []).filter((id) => parseIds(id).length);
+    return { event, groups, vipOk, stored, approval: !!(must(settings) as { require_approval: boolean }).require_approval };
   }, [eventId]);
 
   if (!data) {
@@ -90,7 +93,7 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
   const knownGroups = preset.groups.filter((id) => data.groups.some((g) => g.id === id));
   const allowed = (preset.visibility !== 'group' || knownGroups.length) && (preset.visibility !== 'vip' || data.vipOk);
   const suggested: Visibility = allowed ? preset.visibility : 'public';
-  const named = preset.suggested.filter((id) => id !== me.id);
+  const named = (preset.suggested.length ? preset.suggested : data.stored).filter((id) => id !== me.id);
 
   /** Qui voit, puis le statut (publié, ou proposé sans le droit « publier sans validation »), puis la fiche. */
   async function publish(kind: Visibility, groupIds: string[]) {
@@ -102,6 +105,8 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
       await saveAudience(ev.id, { ...who, invitees: [], phones: [] }, { people: false });
       const status = proposing ? 'pending' : 'published';
       check(await supabase.from('events').update({ status }).eq('id', ev.id));
+      // Publié : les personnes citées ne servent plus (elles sont cochées dans la feuille « Inviter », jamais invitées).
+      if (data!.stored.length) await supabase.from('events').update({ ai_suggested: [] }).eq('id', ev.id);
       router.replace(afterPublish(ev.id, kind, status === 'published', named, invitesV2On) as never);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);

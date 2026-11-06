@@ -29,7 +29,7 @@ def shot(page, name: str):
         page.screenshot(path=str(SHOTS / f'{name}.png'))
 
 
-def draft_event(page) -> list:
+def draft_event(page, ai_suggested=None) -> list:
     """L'événement que l'IA vient d'enregistrer : un brouillon public + lien (le défaut, en attendant l'étape 2), sans
     invité. Garde les écritures."""
     writes = []
@@ -40,6 +40,8 @@ def draft_event(page) -> list:
              'event_groups': [], 'event_invites': [], 'event_phone_invites': [], 'author': {'display_name': 'Compte de démonstration'},
              'show_participants': True, 'allow_maybe': True, 'allow_plus_ones': True, 'max_plus_ones': 10, 'max_participants': None,
              'rsvp_deadline': None, 'forum_enabled': True, 'price_chf': None, 'tickets_enabled': False}
+    if ai_suggested is not None:
+        event['ai_suggested'] = ai_suggested
 
     def handle(route):
         request = route.request
@@ -291,5 +293,24 @@ def test_step_two_without_being_signed_in_asks_to_sign_in_then_opens(browser, ev
         pw.expect(page.get_by_text('La page n’a pas pu s’ouvrir', exact=True)).to_have_count(0)
         login(page)
         pw.expect(page.get_by_role('progressbar', name='Étape 2 sur 3 : Qui est invité')).to_be_visible(timeout=15000)
+    finally:
+        context.close()
+
+
+def test_step_two_reopened_from_the_event_keeps_the_people_named_to_the_ai(browser, v2_origin):  # noqa: F811
+    """Retour de l'admin (06.11, bot n° 13) : rouverte depuis « Inviter et publier » (sans ?suggested=), l'étape 2
+    retrouve les personnes citées à l'IA, gardées avec le brouillon (events.ai_suggested) ; vidées à la publication."""
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
+    page = context.new_page()
+    try:
+        mock_services(page, people=PEOPLE)
+        calls = mock_invites(page, guest_list=EMPTY_LIST)
+        writes = draft_event(page, ai_suggested=[TOM])
+        open_step_two(page, v2_origin, 'from=event')
+        page.get_by_role('button', name='✉️ Sur invitation seulement : Publier et envoyer le lien').click()
+        sheet = page.get_by_label('Inviter à Raclette chez Camille')
+        pw.expect(sheet.get_by_role('button', name='Retirer Tom')).to_be_visible(timeout=10000)
+        assert not [c for c in calls if c[0] == 'invite_people']
+        assert ('PATCH', 'events', {'ai_suggested': []}) in writes
     finally:
         context.close()
