@@ -51,7 +51,9 @@ final class FeedbackStore: ObservableObject {
     }
 
     /// Minimum de caractères avant « Envoyer » : une phrase courte suffit quand l'IA reformule.
-    private var effectiveMinimum: Int { !asAdmin && ai?.usable == true ? FeedbackAI.minimumLength : minimumLength }
+    private var effectiveMinimum: Int { aiReady ? FeedbackAI.minimumLength : minimumLength }
+    /// L'IA peut reformuler (admin compris, retour du 07.11 : dictée + IA aussi pour l'hôte).
+    var aiReady: Bool { ai?.usable == true }
     var canSubmit: Bool {
         !sending && aiStep == .none && (effectiveMinimum...FeedbackRules.maximumLength).contains(trimmedText.count)
     }
@@ -95,14 +97,14 @@ final class FeedbackStore: ObservableObject {
     }
 
     func refreshAI() async {
-        guard !asAdmin, let me = await web?.guestIdentity() else { return }
+        guard let me = await web?.guestIdentity() else { return }
         ai = try? await api.feedbackAIStatus(guestID: me.id, token: await web?.accountToken())
     }
 
     /// « Envoyer » (ou fin de la dictée) : l'IA reformule si elle peut aider (après l'accord), sinon envoi comme avant.
     func submit() async {
         guard canSubmit else { return }
-        if asAdmin || ai?.usable != true { return await sendPlain() }
+        if !aiReady { return await sendPlain() }
         if ai?.accepted != true {
             guard await askConsent() else { return await sendPlain() }
         }

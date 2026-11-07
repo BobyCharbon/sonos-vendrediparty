@@ -141,7 +141,7 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
   if (ev.status !== 'draft') {
     return (
       <Screen edges={[]}>
-        <Stack.Screen options={{ title: '', headerLeft: () => <HeaderBack label="Événements" onPress={() => router.replace('/')} /> }} />
+        <Stack.Screen options={{ title: '', headerLeft: () => <HeaderBack label="L’événement" onPress={openEvent} /> }} />
         <AIEventSteps current={3} />
         <T>{ev.status === 'pending' ? 'Cet événement attend déjà sa validation.' : 'Cet événement est déjà publié.'}</T>
         <Button label="Ouvrir l’événement" onPress={openEvent} />
@@ -151,7 +151,8 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
 
   return (
     <Screen edges={[]}>
-      <Stack.Screen options={{ title: 'Qui est invité', headerLeft: () => <HeaderBack label="Événements" onPress={() => router.replace('/')} /> }} />
+      {/* Retour : la fiche du brouillon, jamais l'accueil (on devait deviner qu'il était dans les brouillons, retour du 07.11). */}
+      <Stack.Screen options={{ title: 'Qui est invité', headerLeft: () => <HeaderBack label="L’événement" onPress={openEvent} /> }} />
       <AIEventSteps current={2} />
       <View style={{ gap: 4 }}>
         <T muted size={13}>Brouillon enregistré · encore invisible pour les autres</T>

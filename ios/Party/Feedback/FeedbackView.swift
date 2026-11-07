@@ -34,7 +34,8 @@ struct FeedbackView: View {
                     if part == .received {
                         FeedbackAdminSection(store: admin).transition(.opacity)
                     } else {
-                        form.transition(.opacity)
+                        if store.aiStep == .none { form.transition(.opacity) } else { aiReview.transition(.opacity) }
+                        aiRow
                         mine
                     }
                 } else {
@@ -103,7 +104,7 @@ struct FeedbackView: View {
             }
             .pickerStyle(.segmented)
 
-            if admin == nil { micButton }
+            micButton
 
             ZStack(alignment: .topLeading) {
                 if store.text.isEmpty {
@@ -132,14 +133,15 @@ struct FeedbackView: View {
             }
 
             HStack {
-                Text(FeedbackRules.counter(store.trimmedText.count, minimum: admin == nil ? store.counterMinimum : store.minimumLength))
+                Text(FeedbackRules.counter(store.trimmedText.count, minimum: admin != nil && !store.aiReady ? store.minimumLength : store.counterMinimum))
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 Spacer()
                 Button {
                     writing = false
                     Haptics.tap()
                     Task {
-                        if let admin { await store.sendAsAdmin(admin) } else { await store.submit() }
+                        // Hôte : avec l'IA, comme les invités ; sans elle, son avis classé d'office.
+                        if let admin, !store.aiReady { await store.sendAsAdmin(admin) } else { await store.submit() }
                     }
                 } label: {
                     if store.sending { ProgressView().transition(.opacity) } else { Text("Envoyer").bold().transition(.opacity) }
@@ -147,7 +149,7 @@ struct FeedbackView: View {
                 .motion(Motion.snappy, value: store.sending)
                 .buttonStyle(.borderedProminent)
                 .tint(Palette.accent)
-                .disabled(admin == nil ? !store.canSubmit : !store.canSend)
+                .disabled(admin != nil && !store.aiReady ? !store.canSend : !store.canSubmit)
             }
         }
         .card()
@@ -175,7 +177,7 @@ struct FeedbackView: View {
         if dictation.listening {
             Task {
                 _ = await dictation.stopAndCollect()
-                if dictatingExtra { await store.sendExtra() } else { await store.submit() }
+                if dictatingExtra { await store.sendExtra() } else if let admin, !store.aiReady { await store.sendAsAdmin(admin) } else { await store.submit() }
             }
             return
         }
