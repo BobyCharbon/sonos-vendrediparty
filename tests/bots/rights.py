@@ -65,6 +65,11 @@ class Matrix:
         save_state(rights_role=key)
         self.set_perms(PERMS + BASE)
         sql(f"update public.profiles set role = {q(key)} where id = {q(self.me.uid)}")
+        # CGU exigées pendant la campagne : les bots qui créent les événements de la matrice les acceptent d'abord
+        # (sinon terms_required, pas le droit, ferait échouer la mise en place).
+        version = sql("select terms_version from private.moderation_settings where id = 1")[0]["terms_version"]
+        for s in (self.orga, self.vip, self.marc, self.me):
+            s.rpc("accept_terms", p_version=version)
         # Bot Violette garde les groupes « Bots 2 » (pas « Bots ») ; quitter Membre VIP la sort de Vendredi Party.
         start = iso(20)
         self.m = self._event(self.orga, "Bot matrice des droits", visibility="invited", tickets_enabled=True, price_chf=10,
@@ -103,6 +108,12 @@ class Matrix:
     def restore(self) -> None:
         snap = json.loads((OUT / "roles-avant.json").read_text())
         sql(f"update public.profiles set role = {q(snap['tester_role'])} where id = {q(self.me.uid)}")
+        if not hasattr(self, "role"):  # mise en place interrompue (base lente) : le rôle a pu être créé quand même
+            found = sql(f"select key from public.roles where label = {q(ROLE_LABEL)}")
+            if not found:
+                self.p.log("rôle de test jamais créé : rien à retirer")
+                return
+            self.role = found[0]["key"]
         r = self.admin.rpc("delete_role", role_key=self.role, move_to=snap["tester_role"])
         self.p.log(f"delete_role : {r.status_code} {r.text[:200]}")
         sql(f"delete from public.role_permissions where role = {q(self.role)}; delete from public.roles where key = {q(self.role)}")

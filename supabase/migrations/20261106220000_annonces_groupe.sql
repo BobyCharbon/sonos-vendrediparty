@@ -404,7 +404,7 @@ grant execute on function public.answer_announcement(uuid, boolean) to authentic
 
 create or replace function public.answer_group_event(e uuid, g uuid, accept boolean) returns jsonb
 language plpgsql security definer set search_path = '' as $$
-declare r public.event_groups; ev public.events;
+declare r public.event_groups; ev public.events; a uuid;
 begin
   select * into r from public.event_groups where event_id = e and group_id = g for update;
   if r.event_id is null then raise exception 'Cette demande n’existe plus'; end if;
@@ -414,12 +414,22 @@ begin
   if r.status <> 'pending' then
     return jsonb_build_object('status', r.status, 'already', true, 'answered_by', private.person_label(r.answered_by));
   end if;
+  select * into ev from public.events where id = e;
+  -- Une seule décision (06.11, Q3) : accepter l'événement envoie aussi l'annonce demandée (« Prévenir le groupe »),
+  -- acceptée par ce valideur ; refuser l'événement : rien n'est envoyé.
+  if accept and ev.announce_group and ev.status = 'published' and not ev.public_link then
+    insert into public.event_announcements (event_id, group_id, requested_by, status, answered_by, answered_at)
+      values (e, g, ev.created_by, 'accepted', auth.uid(), now())
+      on conflict (event_id, group_id) do nothing
+      returning id into a;
+  end if;
   update public.event_groups set status = case when accept then 'approved' else 'refused' end,
     answered_by = auth.uid(), answered_at = now() where event_id = e and group_id = g;
-  select * into ev from public.events where id = e;
+  if a is not null then perform private.send_announcement(a); end if;
   perform private.tell_requester(coalesce(r.requested_by, ev.created_by), case when accept then 'group_event_accepted' else 'group_event_refused' end, e,
     case when accept then 'Événement accepté par le groupe' else 'Événement refusé par le groupe' end,
-    case when accept then '« ' || ev.title || ' » est maintenant visible par le groupe ' || private.group_label(g) || '.'
+    case when accept then '« ' || ev.title || ' » est maintenant visible par le groupe ' || private.group_label(g)
+                          || case when a is not null then ', qui est prévenu.' else '.' end
          else '« ' || ev.title || ' » ne sera pas visible par le groupe ' || private.group_label(g) || '.' end);
   return jsonb_build_object('status', case when accept then 'approved' else 'refused' end, 'already', false);
 end $$;

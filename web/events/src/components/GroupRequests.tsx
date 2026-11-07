@@ -67,7 +67,7 @@ export function GroupRequests({ refreshKey }: Props) {
           ) : (
             <T size={13} color={colors.textSoft}>
               {`Accepté, ${r.group} (${r.members} membres) voit l’événement. Refusé, il reste invisible pour le groupe.`}
-              {r.announce ? ' L’organisateur veut aussi prévenir le groupe : sa demande arrivera ici ensuite.' : ''}
+              {r.announce ? ' L’organisateur veut aussi prévenir le groupe : accepté, le groupe reçoit aussi la notification.' : ''}
             </T>
           )}
           {r.auto_at ? <T size={12} muted>Sans réponse, l’annonce part d’office {formatShort(r.auto_at)}.</T> : null}

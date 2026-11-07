@@ -253,3 +253,22 @@ def test_the_screen_knows_whether_the_announcement_goes_directly():
       r := jsonb_build_object('olga', r->>bots::text, 'ada', public.my_announce_modes(array[bots])->>bots::text);
       raise exception 'résultat: olga=% ada=%', r->>'olga', r->>'ada';""")
     assert "résultat: olga=request ada=direct" in out, out
+
+
+def test_accepting_a_proposed_group_event_also_sends_the_requested_announcement():
+    """Décision du 06.11 (Q3) : groupe « avec validation » + « Prévenir le groupe » → une seule décision. Accepter
+    l'événement envoie aussi l'annonce (sans seconde demande) ; refuser l'événement : rien."""
+    out = run(as_bot("ada") + """
+      perform public.set_group_event_rules(bots2, true, 'request');""" + olga_event(announce=True, group="bots2") + as_bot("ada") + """
+      perform public.answer_group_event(e, bots2, true);""" + as_postgres() + f"""
+      raise exception 'résultat: annonce=% par_ada=% violette=% demandes=%',
+        (select status from public.event_announcements where event_id = e),
+        (select answered_by = ada from public.event_announcements where event_id = e),
+        {count('private_invite', 'violette')}, {count('announce_request')};""")
+    assert "résultat: annonce=accepted par_ada=t violette=1 demandes=0" in out, out
+    refused = run(as_bot("ada") + """
+      perform public.set_group_event_rules(bots2, true, 'request');""" + olga_event(announce=True, group="bots2") + as_bot("ada") + """
+      perform public.answer_group_event(e, bots2, false);""" + as_postgres() + f"""
+      raise exception 'résultat: annonces=% notifications=%', (select count(*) from public.event_announcements where event_id = e),
+        {count('private_invite')} + {count('announce_request')};""")
+    assert "résultat: annonces=0 notifications=0" in refused, refused

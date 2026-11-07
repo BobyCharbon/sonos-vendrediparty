@@ -15,7 +15,7 @@ from tests.bots.common import BY_KEY, q, sql
 from tests.bots.flows import accept_terms_if_asked, audience_invite_groups, day, fill, set_date, submit, toggle
 
 TITLES = {"accept": "Bot Annonce acceptée", "refuse": "Bot Annonce refusée", "silence": "Bot Annonce sans réponse",
-          "ios": "Bot Annonce iPhone", "public": "Bot Annonce publique"}
+          "ios": "Bot Annonce iPhone", "public": "Bot Annonce publique", "proposed": "Bot Annonce groupe à valider"}
 REQUEST_SENTENCE = "Ta demande sera envoyée à l’admin du groupe ; sans réponse sous 48 h, l’annonce part automatiquement."
 
 
@@ -34,7 +34,7 @@ def told(eid: str, key: str, kind: str) -> int:
                    and (event_id = {q(eid)} or data->>'target_event' = {q(eid)})""")[0]["n"]
 
 
-def create_for_group(p, title: str, offset: int, announce: bool, public: bool = False) -> str | None:
+def create_for_group(p, title: str, offset: int, announce: bool, public: bool = False, group: str = "Bots") -> str | None:
     """Formulaire « Proposer » : groupe « Bots » (ou public), « Prévenir le groupe » selon announce, puis Publier."""
     page = p.page
     p.goto("/events/event/new")
@@ -51,7 +51,7 @@ def create_for_group(p, title: str, offset: int, announce: bool, public: bool = 
         else:
             p.log("public : pas d'interrupteur « Prévenir le groupe » (attendu)")
     else:
-        audience_invite_groups(p, ["Bots"])
+        audience_invite_groups(p, [group])
         sw = page.get_by_label("Prévenir le groupe", exact=True)
         if not p.see(sw, "l'interrupteur « Prévenir le groupe »"):
             p.flag("🔴", "« Prévenir le groupe » absent pour un événement de groupe")
@@ -60,7 +60,8 @@ def create_for_group(p, title: str, offset: int, announce: bool, public: bool = 
             p.flag("🔴", "« Prévenir le groupe » allumé par défaut")
         if announce:
             toggle(p, "Prévenir le groupe", True)
-            p.expect_or_flag(page.get_by_text(REQUEST_SENTENCE, exact=True), "la phrase « Ta demande sera envoyée à l’admin du groupe… »", "🔴")
+            if group == "Bots":
+                p.expect_or_flag(page.get_by_text(REQUEST_SENTENCE, exact=True), "la phrase « Ta demande sera envoyée à l’admin du groupe… »", "🔴")
         p.shot(f"formulaire-{'annonce' if announce else 'sans-annonce'}")
     return submit(p, "Publier")
 
@@ -114,7 +115,55 @@ def phase_annonces(browser, origin, only):
 
     # 5. Ce que voient l'organisatrice et un membre du groupe.
     results(browser, origin, ids)
+    # 6. Q3 (06.11) : groupe « Bots 2 » avec validation ; accepter l'événement envoie aussi l'annonce demandée.
+    proposed_group_event(browser, origin, ids)
     save_state(annonces=ids)
+
+
+def proposed_group_event(browser, origin, ids: dict) -> None:
+    gid = sql("select id from public.member_groups where name = 'Bots 2'")[0]["id"]
+    was = sql(f"select events_need_approval, announce_mode from public.member_groups where id = {q(gid)}")[0]
+    sql(f"update public.member_groups set events_need_approval = true, announce_mode = 'request' where id = {q(gid)}")
+    try:
+        if "proposed" not in ids:
+            p = phone(browser, "orga1", origin, "annonces-groupe-a-valider")
+            try:
+                p.sign_in()
+                eid = create_for_group(p, TITLES["proposed"], 25, True, group="Bots 2")
+                if eid:
+                    ids["proposed"] = eid
+                    save_state(annonces=ids)
+                    p.expect_or_flag(p.page.get_by_text("En attente de validation du groupe", exact=False), "« En attente de validation du groupe »", "🟠")
+                    p.shot("fiche-groupe-a-valider")
+            finally:
+                p.close()
+        eid = ids.get("proposed")
+        if not eid:
+            return
+        before = told(eid, "vip4", "private_invite")
+        a = phone(browser, "admin", origin, "annonces-groupe-accepte")
+        try:
+            a.sign_in()
+            a.goto("/events/activity")
+            card = a.page.get_by_label(f"Événement à valider : {TITLES['proposed']}, pour Bots 2")
+            if a.expect_or_flag(card, "la carte « Événement à valider »", "🔴", timeout=20000):
+                a.expect_or_flag(card.get_by_text("accepté, le groupe reçoit aussi la notification", exact=False), "la phrase « le groupe reçoit aussi la notification »", "🟠")
+                a.shot("evenement-a-valider")
+                a.tap(card.get_by_role("button", name="Accepter"), "Accepter (événement + annonce)")
+                a.page.wait_for_timeout(2500)
+                a.shot("evenement-accepte")
+        finally:
+            a.close()
+        ann = announcement(eid)
+        after = told(eid, "vip4", "private_invite")
+        extra = sql(f"select count(*) n from public.notifications where kind = 'announce_request' and data->>'target_event' = {q(eid)}")[0]["n"]
+        print(f"annonces : Q3 → annonce {ann} ; Violette prévenue {before} → {after} (attendu 0 → 1) ; seconde demande {extra} (attendu 0)", flush=True)
+        if ann.get("status") != "accepted" or after != 1 or before != 0 or extra:
+            from tests.bots.bench import anomaly
+            anomaly("admin", "🔴", "accepter l'événement n'envoie pas l'annonce demandée (Q3)", f"{ann} {before}->{after} demandes={extra}")
+    finally:
+        sql(f"update public.member_groups set events_need_approval = {str(was['events_need_approval']).lower()}, "
+            f"announce_mode = {q(was['announce_mode'])} where id = {q(gid)}")
 
 
 def answer(browser, origin, key: str, eid: str | None, title: str, accept: bool) -> None:
