@@ -5,11 +5,16 @@ calendrier, itinéraire, Installer Party, changer d'avis, liens expiré / plein 
 Usage (serveur du banc lancé, BOTS_OUT / BOTS_PORT réglés) :
   .venv/bin/python -m tests.bots.invitations_c2 <phase> [<phase>…]
 Phases : setup carte feuille groupes sans_app limites relances retrait_puis_lien orga_son_lien meta nettoyage
-Titres des événements préfixés « [C2-03] » ; seulement les groupes Bots / Bots 2 et les comptes « Bot … »."""
+Relance (après corrections) : numeros_neufs bloquer bloque_creation … panne … debloquer numeros_retirer.
+Titres des événements préfixés « [C2-03] » (ou $BOTS_PREFIX, « [R-03] » pour la relance) ; seulement les groupes
+Bots / Bots 2 et les comptes « Bot … ». $BOTS_SANSAPP_PHONES="<Sam>,<Sara>" : numéros neufs pour refaire le parcours
+« sans compte » (ajoutés à sms_test_otp de la base TEST par numeros_neufs, retirés par numeros_retirer)."""
 from __future__ import annotations
 
+import os
 import re
 import sys
+from dataclasses import replace
 import traceback
 from datetime import date, timedelta
 
@@ -17,10 +22,29 @@ import httpx
 from playwright.sync_api import sync_playwright
 
 from tests.bots import flows as f
-from tests.bots.bench import anomaly, load_state, phone, save_state
-from tests.bots.common import BY_KEY, GROUP_BOTS, GROUP_BOTS_2, TEST_URL, Session, q, sql
+from tests.bots.bench import Phone, anomaly, load_state, save_state
+from tests.bots.common import BY_KEY as BOTS_BY_KEY
+from tests.bots.common import GROUP_BOTS, GROUP_BOTS_2, OTP, TEST_URL, Session, auth_config, patch_auth_config, q, sql
 
-PREFIX = "[C2-03]"
+PREFIX = os.environ.get("BOTS_PREFIX") or "[C2-03]"
+NEW_PHONES = tuple(x for x in (os.environ.get("BOTS_SANSAPP_PHONES") or "").split(",") if x)
+
+
+def _with_new_phones() -> dict:
+    """Les bots, avec Sam et Sara sur des numéros neufs si demandé (sans toucher à la liste commune)."""
+    if len(NEW_PHONES) != 2:
+        return dict(BOTS_BY_KEY)
+    return {**BOTS_BY_KEY, "sansapp1": replace(BOTS_BY_KEY["sansapp1"], phone=NEW_PHONES[0]),
+            "sansapp2": replace(BOTS_BY_KEY["sansapp2"], phone=NEW_PHONES[1])}
+
+
+BY_KEY = _with_new_phones()
+
+
+def phone(browser, key: str, origin: str, phase: str) -> Phone:
+    return Phone(browser, BY_KEY[key], origin, phase)
+
+
 E1_TITLE = f"{PREFIX} Invitations"
 E2_TITLE = f"{PREFIX} Limites"
 E3_TITLE = f"{PREFIX} Oscar"
@@ -80,14 +104,23 @@ def opened(p) -> list[str]:
     return p.page.evaluate("window.__opened || []")
 
 
+def _sheet_panel(p):
+    """Le panneau de la feuille (le nom « Inviter à … » est sur la fenêtre plein écran depuis fix-H ; le panneau a
+    testID="invite-sheet")."""
+    panel = p.page.locator('[data-testid="invite-sheet"]')
+    return panel if panel.count() else p.page.get_by_label(re.compile("^Inviter à "))
+
+
 def sheet_of(p):
-    s = p.page.get_by_label(re.compile("^Inviter à "))
-    s.wait_for(state="visible", timeout=10000)
+    p.page.get_by_role("dialog", name=re.compile("^Inviter à ")).or_(p.page.get_by_label(re.compile("^Inviter à "))) \
+        .first.wait_for(state="visible", timeout=10000)
+    s = _sheet_panel(p)
+    s.first.wait_for(state="visible", timeout=10000)
     return s
 
 
 def sheet_visible(p) -> bool:
-    s = p.page.get_by_label(re.compile("^Inviter à "))
+    s = _sheet_panel(p)
     return bool(s.count()) and s.first.is_visible()
 
 
@@ -763,7 +796,7 @@ def _identify(p, bot, *, wrong_first: bool) -> None:
         p.tap(send, "Recevoir mon code par SMS (hors ligne)")
         page.wait_for_timeout(2500)
         p.shot("hors-ligne")
-        err = page.get_by_text(re.compile("Le code n’a pas pu être envoyé"))
+        err = page.get_by_text(re.compile("Le code n’a pas pu être envoyé|Pas de connexion"))
         if not err.count():
             p.flag("🟠", "hors ligne : aucun message quand le code ne part pas")
         p.ctx.set_offline(False)
@@ -794,7 +827,7 @@ def open_invite(p, tok: str) -> None:
     for attempt in range(4):
         p.goto(f"/events/invite/{tok}")
         try:
-            p.page.get_by_text(re.compile(re.escape(E1_TITLE) + "|Lien indisponible")).first.wait_for(timeout=45000)
+            p.page.get_by_text(re.compile(re.escape(E1_TITLE) + "|Lien indisponible|Réponse impossible|Connexion difficile")).first.wait_for(timeout=45000)
         except Exception:
             continue
         if p.page.get_by_text("Lien indisponible").count():
@@ -803,6 +836,11 @@ def open_invite(p, tok: str) -> None:
             if attempt == 0:
                 p.flag("🟠", "base lente / erreur passagère : l'invité lit « Lien indisponible · Ce lien d'invitation n'existe plus » "
                              "(faux : le lien existe), sans bouton Réessayer", body[:200])
+            p.page.wait_for_timeout(5000)
+            continue
+        if p.page.get_by_text("Connexion difficile").count():
+            p.log(f"« Connexion difficile » (essai {attempt + 1}) : base lente, nouvel essai")
+            p.shot("connexion-difficile")
             p.page.wait_for_timeout(5000)
             continue
         return
@@ -1009,7 +1047,7 @@ def _anon_card(browser, origin, path: str, shot_name: str, key: str = "sansapp2"
     try:
         p.goto(path)
         try:
-            p.page.get_by_text(re.compile(r"\[C2-03\]|Lien indisponible")).first.wait_for(timeout=45000)
+            p.page.get_by_text(re.compile(re.escape(PREFIX) + "|Lien indisponible|Connexion difficile")).first.wait_for(timeout=45000)
         except Exception:
             p.log("carte pas chargée en 45 s")
         p.page.wait_for_timeout(1500)
@@ -1035,16 +1073,18 @@ def phase_limites(browser, origin):
         open_invite(p, st['link_two'])
         p.shot("carte-gus")
         p.see(page.get_by_text(re.compile("reste 1 place")), "« reste 1 place »", 4000)
-        with p.step("Gus (compte) : Je viens ! → enregistré tout de suite"):
+        with p.step("Gus (compte) : Je viens ! → enregistré tout de suite (refusé s'il est bloqué par Olga)"):
+            gus_blocked = _blocked_now()
             p.tap(page.get_by_role("button", name="Je viens !").first, "Je viens !")
             page.wait_for_timeout(5000)
             p.shot("gus-confirmation")
-            p.log(f"appels accept_invite : {len(acc)}")
-            p.see(page.get_by_text(re.compile("C’est noté")), "C'est noté (Gus)", 6000) or \
-                p.flag("🔴", "compte existant : pas de confirmation par le lien")
+            p.log(f"appels accept_invite : {len(acc)} ; bloqué : {gus_blocked}")
+            if not gus_blocked:
+                p.see(page.get_by_text(re.compile("C’est noté")), "C'est noté (Gus)", 6000) or \
+                    p.flag("🔴", "compte existant : pas de confirmation par le lien")
             g = _db_guest(e1, BY_KEY["guest1"].phone)
             p.log(f"base : {g}")
-            if g.get("status") != "yes":
+            if g.get("status") != "yes" and not gus_blocked:
                 p.flag("🔴", "Gus : réponse par le lien pas enregistrée", str(g))
             if g.get("display_name") != "Bot Gus":
                 p.flag("🔴", "Gus : son surnom a été changé par le lien", str(g))
@@ -1053,8 +1093,17 @@ def phase_limites(browser, origin):
             if blocked and g.get("status"):
                 p.flag("🟡", "Bot Gus, bloqué par l'organisatrice, entre quand même par un lien pour plusieurs (aucun contrôle du blocage)",
                        "accept_invite n'appelle pas blocked_either")
+            if blocked and not g.get("status"):
+                body = page.locator("body").inner_text()
+                p.log(f"Gus bloqué : {len(acc)} appel(s) accept_invite ; écran {body[:300]!r}")
+                if len(acc) > 2:
+                    p.flag("🔴", "Gus bloqué : accept_invite relancé en boucle", f"{len(acc)} appels")
+                if "Réponse impossible" not in body or "Je viens !" in body:
+                    p.flag("🟠", "Gus bloqué : pas d'écran « Réponse impossible » clair (ou « Je viens ! » encore là)", body[:200])
     finally:
         p.close()
+    if load_state().get("blocked_by_r03") and not _db_guest(e1, BY_KEY["guest1"].phone).get("status"):
+        _take_place_gina(browser, origin, st["link_two"], e1)
     text = _anon_card(browser, origin, f"/events/invite/{st['link_two']}", "lien-plein")
     if "toutes ses places sont prises" not in text:
         anomaly("sansapp2", "🔴", "lien plein : pas de message « toutes ses places sont prises »", text[:200])
@@ -1400,9 +1449,19 @@ def phase_orga_son_lien(browser, origin):
         p.log(f"lien : {row}")
         if row["opened_at"]:
             p.flag("🟡", "l'organisatrice qui ouvre son propre lien le marque « A ouvert »")
-        with p.step("Je viens ! sur son propre lien"):
-            p.tap(page.get_by_role("button", name="Je viens !").first, "Je viens !")
-            page.wait_for_timeout(5000)
+        with p.step("sa carte dit « C'est ton lien », sans « Je viens ! »"):
+            p.see(page.get_by_text(re.compile("C’est ton lien d’invitation")).first, "« C'est ton lien d'invitation »", 6000) or \
+                p.flag("🟠", "l'organisatrice sur son propre lien : pas de « C'est ton lien d'invitation »")
+        with p.step("Je viens ! sur son propre lien (s'il est encore proposé), puis l'API"):
+            jv = page.get_by_role("button", name="Je viens !")
+            if jv.count():
+                p.flag("🟡", "l'organisatrice voit encore « Je viens ! » sur son propre lien")
+                p.tap(jv.first, "Je viens !")
+                page.wait_for_timeout(5000)
+            r = Session(BY_KEY["orga1"].phone).rpc("accept_invite", token=st["link_orga"], answer="yes")
+            p.log(f"accept_invite (API, Olga) : {r.status_code} {r.text[:300]}")
+            if r.status_code == 200 and not r.json().get("organizer"):
+                p.flag("🟠", "accept_invite de l'organisatrice sur son lien ne renvoie pas organizer: true", r.text[:200])
             p.shot("son-lien-reponse")
             row = [x for x in links_of(st["e1"]) if x["token"] == st["link_orga"]][0]
             olga = sql("select id from public.profiles where display_name = 'Bot Olga'")[0]["id"]
@@ -1485,6 +1544,222 @@ def phase_carte_finale(browser, origin):
             p.log(f"« {text} » visible : {page.get_by_text(re.compile(text)).count()}")
         p.scroll_to_bottom("fiche (carte finale)")
         check_cut(p, "carte finale")
+    finally:
+        p.close()
+
+
+def _take_place_gina(browser, origin, tok: str, e1: str) -> None:
+    """Gus refusé (bloqué) : Bot Gina (Guest, iPhone) prend la 2e place du lien, pour garder la suite (lien plein)."""
+    p = signed_phone(browser, "guest2", origin, "lien-plein")
+    try:
+        open_invite(p, tok)
+        with p.step("Gina (compte) : Je viens ! par le lien pour plusieurs"):
+            p.tap(p.page.get_by_role("button", name="Je viens !").first, "Je viens !")
+            p.see(p.page.get_by_text(re.compile("C’est noté")), "C'est noté (Gina)", 10000) or \
+                p.flag("🔴", "Gina : pas de confirmation par le lien")
+            p.shot("gina-confirmation")
+            p.log(f"base : {_db_guest(e1, BY_KEY['guest2'].phone)}")
+    finally:
+        p.close()
+
+
+def _otp_entries() -> list[str]:
+    return [x for x in (auth_config().get("sms_test_otp") or "").split(",") if x]
+
+
+def _patch_otp(entries: list[str]) -> None:
+    """L'API exige la liste ET sa date de validité (gardée telle quelle)."""
+    until = auth_config().get("sms_test_otp_valid_until") or "2027-10-25T00:00:00+00:00"
+    patch_auth_config({"sms_test_otp": ",".join(entries), "sms_test_otp_valid_until": until})
+
+
+def phase_numeros_neufs(browser, origin):
+    """Numéros neufs de Sam et Sara ajoutés à sms_test_otp (base TEST) ; aucun compte ne doit exister pour eux."""
+    if len(NEW_PHONES) != 2:
+        raise RuntimeError("BOTS_SANSAPP_PHONES=<Sam>,<Sara> requis")
+    for n in NEW_PHONES:
+        if sql(f"select 1 from auth.users where phone = {q(n)}"):
+            raise RuntimeError(f"le numéro {n} a déjà un compte : pas neuf")
+    entries = _otp_entries()
+    known = {e.split("=")[0] for e in entries}
+    missing = [f"{n}={OTP}" for n in NEW_PHONES if n not in known]
+    if missing:
+        _patch_otp(entries + missing)
+    print("sms_test_otp + ", missing, flush=True)
+
+
+def phase_numeros_retirer(browser, origin):
+    """Fin : comptes minimaux des numéros neufs supprimés, numéros retirés de sms_test_otp."""
+    if len(NEW_PHONES) != 2:
+        return
+    ids = sql(f"select id from auth.users where phone in ({q(NEW_PHONES[0])}, {q(NEW_PHONES[1])})") or []
+    for row in ids:
+        sql(f"delete from auth.users where id = '{row['id']}'")
+    entries = [e for e in _otp_entries() if e.split("=")[0] not in NEW_PHONES]
+    _patch_otp(entries)
+    print("comptes supprimés :", len(ids), "; numéros retirés de sms_test_otp", flush=True)
+
+
+def _ids(*names: str) -> list[str]:
+    return [sql(f"select id from public.profiles where display_name = {q(n)}")[0]["id"] for n in names]
+
+
+def phase_bloquer(browser, origin):
+    """Olga bloque Bot Gus (comme dans la campagne 2, par l'agent « signaler ») ; noté pour le retirer à la fin."""
+    olga, gus = _ids("Bot Olga", "Bot Gus")
+    # (un autre agent peut retirer « son » blocage pendant la campagne : relancer cette phase juste avant d'en dépendre)
+    made = sql(f"insert into public.direct_blocks (user_id, blocked_id) values ('{olga}', '{gus}') "
+               "on conflict do nothing returning user_id")
+    save_state(blocked_by_r03=bool(made) or bool(load_state().get("blocked_by_r03")))
+    print("blocage Olga → Gus :", "créé" if made else "déjà là", flush=True)
+
+
+def phase_debloquer(browser, origin):
+    if not load_state().get("blocked_by_r03"):
+        print("blocage Olga → Gus pas créé par ce banc : laissé", flush=True)
+        return
+    olga, gus = _ids("Bot Olga", "Bot Gus")
+    sql(f"delete from public.direct_blocks where user_id = '{olga}' and blocked_id = '{gus}'")
+    save_state(blocked_by_r03=False)
+    print("blocage Olga → Gus retiré", flush=True)
+
+
+def phase_bloque_creation(browser, origin):
+    """Bug 2 : Olga (qui a bloqué Gus) publie un événement « Sur invitation · Bots » au formulaire : publié, Gus sauté."""
+    title = f"{PREFIX} Bloqué"
+    p = signed_phone(browser, "orga1", origin, "bloque-creation")
+    try:
+        with p.step("Olga publie pour Bots (Gus bloqué)"):
+            e = f.create_simple(p, title, 7, [GROUP_BOTS])
+            p.shot("bloque-publie")
+        rows = sql(f"""select e.id, e.status::text status,
+                       (select count(*) from public.event_invites i join public.profiles x on x.id = i.user_id
+                         where i.event_id = e.id and x.display_name = 'Bot Gus') gus,
+                       (select count(*) from public.event_invites i where i.event_id = e.id) invited
+                       from public.events e where e.title = {q(title)} order by e.created_at""")
+        p.log(f"base : {rows} (id rendu : {e})")
+        if not rows or rows[-1]["status"] != "published":
+            p.flag("🔴", "un membre bloqué empêche encore de publier pour le groupe", str(rows))
+        if len(rows) > 1:
+            p.flag("🟠", "brouillons laissés en route", str(rows))
+        if rows and rows[-1]["gus"]:
+            p.flag("🔴", "Gus (bloqué) invité quand même", str(rows))
+        if rows and rows[-1]["invited"] < 3:
+            p.flag("🟠", "trop peu d'invités pour Bots (le groupe a-t-il été sauté entier ?)", str(rows))
+    finally:
+        p.close()
+
+
+def _blocked_now() -> bool:
+    return bool(sql("""select 1 from public.direct_blocks d join public.profiles a on a.id = d.user_id
+                       join public.profiles b on b.id = d.blocked_id where a.display_name = 'Bot Olga' and b.display_name = 'Bot Gus'"""))
+
+
+def phase_groupes_bloque(browser, origin):
+    """Bugs 2 et 3 : feuille Inviter, « Bots » (Gus bloqué par Olga) + Bot Max → tout passe sauf Gus ; puis une panne
+    d'invite_people → l'erreur est visible à l'écran, près du bouton."""
+    title = f"{PREFIX} Bloqué feuille"
+    p = signed_phone(browser, "orga1", origin, "groupes-bloque")
+    page = p.page
+    try:
+        if not load_state().get("e4"):
+            save_state(e4=f.create_simple(p, title, 10, [GROUP_BOTS_2]))
+        e4 = load_state()["e4"]
+        open_event(p, "e4")
+        sheet = open_sheet(p)
+        search = sheet.get_by_label("Chercher une personne ou un groupe")
+        with p.step("Bots (Gus bloqué) + Bot Max → Inviter"):
+            p.log(f"blocage Olga → Gus en place : {_blocked_now()}")
+            p.type(search, GROUP_BOTS, "la recherche")
+            page.wait_for_timeout(1200)
+            p.tap(sheet.get_by_role("button", name=f"Ajouter {GROUP_BOTS}", exact=True), f"Ajouter {GROUP_BOTS}")
+            p.type(search, "Max", "la recherche")
+            page.wait_for_timeout(1200)
+            p.tap(sheet.get_by_role("button", name=re.compile("^Ajouter Bot Max$")).first, "Ajouter Bot Max")
+            search.fill("")
+            p.tap(sheet.get_by_role("button", name=re.compile("^Inviter ")).first, "Inviter (Bots, Bot Max)")
+            rows = []
+            for _ in range(40):
+                page.wait_for_timeout(1000)
+                rows = sql(f"""select p.display_name, i.via_group from public.event_invites i join public.profiles p on p.id = i.user_id
+                               where i.event_id = '{e4}' and p.display_name in ('Bot Max', 'Bot Gus', 'Bot Victor')""")
+                if any(r["display_name"] == "Bot Max" for r in rows):
+                    break
+            t = toast(p, "Inviter (Bots, Max)", 8000)
+            p.shot("bots-max")
+            groups = sql(f"select g.name from public.event_groups eg join public.member_groups g on g.id = eg.group_id where eg.event_id = '{e4}'")
+            blocked = _blocked_now()
+            p.log(f"base : {rows} ; groupes {groups} ; blocage toujours là : {blocked}")
+            names = {r["display_name"] for r in rows}
+            if "Bot Max" not in names or GROUP_BOTS not in {g["name"] for g in groups}:
+                p.flag("🔴", "Inviter Bots (membre bloqué) + Bot Max : échec", f"{rows} {groups} toast {t!r}")
+            if blocked and "Bot Gus" in names:
+                p.flag("🔴", "Gus (bloqué par l'organisatrice) invité quand même par le groupe", str(rows))
+            if page.get_by_text(re.compile("inviter cette personne")).count():
+                p.flag("🟠", "message « tu ne peux pas inviter cette personne » alors que l'invitation a réussi")
+        with p.step("panne d'invite_people : l'erreur se voit sans défiler"):
+            if not sheet_visible(p):
+                sheet = open_sheet(p)
+                search = sheet.get_by_label("Chercher une personne ou un groupe")
+            page.route("**/rest/v1/rpc/invite_people*", lambda r: r.fulfill(
+                status=503, content_type="application/json",
+                body='{"code":"57014","message":"canceling statement due to statement timeout"}'))
+            p.type(search, "Gina", "la recherche")
+            page.wait_for_timeout(1200)
+            p.tap(sheet.get_by_role("button", name=re.compile("^Ajouter Bot Gina$")).first, "Ajouter Bot Gina")
+            search.fill("")
+            btn = sheet.get_by_role("button", name=re.compile("^Inviter ")).first
+            p.tap(btn, "Inviter (Bot Gina) pendant la panne")
+            page.wait_for_timeout(3000)
+            p.shot("panne-inviter")
+            err = page.get_by_role("alert").or_(page.get_by_text(re.compile("pas pu|réessaie|Réessaie|lente|connexion", re.I)))
+            vis = [e for e in err.all() if e.is_visible()]
+            boxes = [e.bounding_box() for e in vis]
+            texts = [e.inner_text()[:120] for e in vis]
+            p.log(f"erreurs visibles : {texts} {boxes}")
+            if not vis:
+                p.flag("🟠", "Inviter refusé (panne) : aucun message")
+            elif not any(b and 0 <= b["y"] <= 844 - b["height"] for b in boxes):
+                p.flag("🟠", "Inviter refusé (panne) : le message est hors de l'écran", str(boxes))
+            if any("statement timeout" in x or "canceling" in x for x in texts):
+                p.flag("🟠", "Inviter refusé (panne) : texte Postgres brut", str(texts))
+            page.unroute("**/rest/v1/rpc/invite_people*")
+    finally:
+        p.close()
+
+
+def phase_panne(browser, origin):
+    """Bug 7 : panne passagère de invite_preview → « Connexion difficile » + Réessayer (jamais « n'existe plus »)."""
+    st = load_state()
+    p = fresh_phone(browser, "sansapp2", origin, "panne")
+    page = p.page
+    state = {"fail": True}
+
+    def outage(route):
+        if state["fail"]:
+            route.fulfill(status=503, content_type="application/json",
+                          body='{"code":"57014","message":"canceling statement due to statement timeout"}')
+        else:
+            route.continue_()
+    try:
+        tok = Session(BY_KEY["orga1"].phone).rpc("create_event_invite", e=st["e1"], places=3, label="Panne").json()["token"]
+        page.route("**/rest/v1/rpc/invite_preview*", outage)
+        p.goto(f"/events/invite/{tok}")
+        page.wait_for_timeout(6000)
+        p.shot("panne")
+        body = page.locator("body").inner_text()
+        p.log(f"écran pendant la panne : {body[:300]!r}")
+        if "n’existe plus" in body or "statement timeout" in body:
+            p.flag("🟠", "panne passagère : « n'existe plus » ou texte Postgres", body[:200])
+        retry = page.get_by_role("button", name="Réessayer")
+        if "Connexion difficile" not in body or not retry.count():
+            p.flag("🟠", "panne passagère : pas de « Connexion difficile » + « Réessayer »", body[:200])
+            return
+        state["fail"] = False
+        p.tap(retry.first, "Réessayer")
+        p.see(page.get_by_text(re.compile(re.escape(E1_TITLE))).first, "la carte après Réessayer", 15000) or \
+            p.flag("🟠", "Réessayer ne ramène pas la carte")
+        p.shot("apres-reessayer")
     finally:
         p.close()
 

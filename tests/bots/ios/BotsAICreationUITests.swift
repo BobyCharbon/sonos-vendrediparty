@@ -62,7 +62,7 @@ final class BotsAICreationUITests: XCTestCase {
     /// Textes visibles (lecture tolérante : un élément qui disparaît entre-temps est ignoré).
     private func texts(_ query: XCUIElementQuery, _ keep: (String) -> Bool = { $0.count > 12 }, most: Int = 10) -> [String] {
         var out: [String] = []
-        let n = min(query.count, 150)
+        let n = min(query.count, 40)  // machine chargée : chaque lecture d'élément coûte des secondes
         for i in 0..<n where out.count < most {
             let e = query.element(boundBy: i)
             guard e.exists else { continue }
@@ -148,6 +148,9 @@ final class BotsAICreationUITests: XCTestCase {
             Thread.sleep(forTimeInterval: 1.5)
             shot(app, "accord-refuse")
             note("après « Pas maintenant » : \(texts(app.staticTexts, { $0.count > 20 }, most: 4))")
+            // fix E : l'explication passe au-dessus des conseils, visible sans défiler (identifiant ai-error).
+            let why = app.descendants(matching: .any)["ai-error"]
+            check(why.exists && why.isHittable, "accord refusé : explication visible sans défiler (« \(why.exists ? why.label : "absente") »)")
             app.buttons["Envoyer"].firstMatch.tap()
             if accept.waitForExistence(timeout: 8) { accept.tap() } else { note("❌ feuille d'accord pas reproposée au 2e envoi") }
         } else {
@@ -264,8 +267,8 @@ final class BotsAICreationUITests: XCTestCase {
             group.tap()
             Thread.sleep(forTimeInterval: 1)
             shot(app, "un-groupe")
-            let toggle = app.webViews.switches["Prévenir le groupe"].firstMatch
-            if reach(app, toggle) { toggle.tap(); note("« Prévenir le groupe » allumé") } else { note("❌ interrupteur « Prévenir le groupe » introuvable") }
+            let toggle = app.webViews.switches.matching(NSPredicate(format: "label BEGINSWITH 'Prévenir «'")).firstMatch  // fix C1 : « Prévenir « Bots » »
+            if reach(app, toggle) { toggle.tap(); note("« \(toggle.label) » allumé") } else { note("❌ interrupteur « Prévenir le groupe » introuvable") }
             Thread.sleep(forTimeInterval: 1)
             note("phrase : \(texts(app.webViews.staticTexts, { $0.contains("groupe") }, most: 4))")
             shot(app, "prevenir-le-groupe")

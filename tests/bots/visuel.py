@@ -23,7 +23,7 @@ from tests.bots.bench import OUT, PHONES, Phone, anomaly, load_state, save_state
 from tests.bots.common import BY_KEY, OTP, TEST_REF, TEST_URL, publishable_key, q, sql
 from tests.bots.flows import create_simple
 
-PREFIX = "[C2-09]"
+PREFIX = os.environ.get("VISUEL_PREFIX", "[C2-09]")  # relance : VISUEL_PREFIX="[R-09]"
 LONG_TITLE = f"{PREFIX} 🎉🍕 Très longue soirée raclette-fondue au bord du lac Léman avec un titre interminable 🥂✨"
 STORAGE_KEY = f"sb-{TEST_REF}-auth-token"
 AXE = Path(os.environ.get("AXE_JS", OUT.parent / "axe" / "package" / "axe.min.js"))
@@ -205,7 +205,8 @@ def settle(p: Phone, ms: int = 2500) -> None:
         pass
     p.page.wait_for_timeout(ms)
     try:  # écran encore en chargement (roue) : on attend qu'il soit prêt, la machine du banc est très chargée
-        p.page.wait_for_function("() => !document.querySelector('[role=progressbar]')", timeout=60000)
+        # la jauge « N sur M places prises » est aussi un progressbar (fix-C1) : seule une roue compte
+        p.page.wait_for_function("() => !document.querySelector('[role=progressbar]:not([aria-label*=\"places\"])')", timeout=60000)
         p.page.wait_for_timeout(800)
     except Exception:
         p.log("⚠️ écran toujours en chargement après 60 s")

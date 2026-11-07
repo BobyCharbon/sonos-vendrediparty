@@ -9,6 +9,7 @@ Usage : BOTS_OUT=<dossier> .venv/bin/python -m tests.bots.run ap_setup ap_anonym
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 from datetime import datetime, timedelta, timezone
@@ -19,10 +20,12 @@ from tests.bots import flows as f
 from tests.bots.bench import OUT, Phone, anomaly, load_state, save_state
 from tests.bots.common import BY_KEY, Bot, OTP, q, sql
 
-PREFIX = "[C2-10]"
+# Relance : AP_PREFIX="[R-10]" et AP_PHONES=<Noé>,<Nora> (numéros neufs, ajoutés à sms_test_otp par ap_numeros).
+PREFIX = os.environ.get("AP_PREFIX", "[C2-10]")
+_PHONES = (os.environ.get("AP_PHONES") or "41790000116,41790000117").split(",")
 NEW_BOTS = {
-    "noe": Bot("noe", "41790000116", "Noé", "Nouveau", "none", "iphone"),
-    "nora": Bot("nora", "41790000117", "Nora", "Nouvelle", "none", "android"),
+    "noe": Bot("noe", _PHONES[0], "Noé", "Nouveau", "none", "iphone"),
+    "nora": Bot("nora", _PHONES[1], "Nora", "Nouvelle", "none", "android"),
 }
 PERF_COUNT = 32
 
@@ -151,13 +154,23 @@ def phase_ap_apercus(browser, origin, only):
     for name, path in (("événement public", f"/events/event/{st['ap_public']}"), ("partage", f"/events/share/{st['ap_public']}"),
                        ("événement sur invitation", f"/events/event/{st['ap_invited']}"), ("module", "/events/")):
         out[name] = og_tags(origin, path)
+    cover = "https://ewromqfsmcqsthftyhzm.supabase.co/storage/v1/object/public/bots/affiche-r10.jpg"
+    sql(f"update public.events set cover_url = {q(cover)} where id = {q(st['ap_public'])}")
+    out["public avec affiche"] = og_tags(origin, f"/events/event/{st['ap_public']}")
+    out["partage Party avec affiche"] = og_tags(origin, f"/?tab=events&event={st['ap_public']}")
+    out["public annulé"] = og_tags(origin, f"/events/share/{st['ap_public_cancel']}")
+    sql(f"update public.events set cover_url = null where id = {q(st['ap_public'])}")
+    for k in ("public avec affiche", "partage Party avec affiche"):
+        if out[k].get("og:image") != cover:
+            anomaly("banc", "🟠", f"Aperçu ({k}) : l'affiche de l'événement n'est pas l'image de l'aperçu",
+                    json.dumps(out[k], ensure_ascii=False))
     (OUT / "apercus.json").write_text(json.dumps(out, indent=2, ensure_ascii=False))
     print(json.dumps(out, indent=1, ensure_ascii=False))
     pub = out["événement public"]
-    if "[C2-10]" not in (pub.get("og:title") or ""):
+    if PREFIX not in (pub.get("og:title") or ""):
         anomaly("banc", "🟠", "Aperçu du lien public d'un événement : ni titre ni date de l'événement (balises Open Graph génériques)",
                 json.dumps(pub, ensure_ascii=False))
-    if out["événement sur invitation"].get("og:title", "").find("[C2-10]") >= 0:
+    if out["événement sur invitation"].get("og:title", "").find(PREFIX) >= 0:
         anomaly("banc", "🔴", "Aperçu d'un événement SUR INVITATION : le titre fuite dans les balises", json.dumps(out["événement sur invitation"]))
 
 
@@ -306,10 +319,23 @@ def phase_ap_premiere(browser, origin, only):
             name = page.get_by_label("Ton prénom, pour que l’organisateur sache qui vient")
             if p.see(name, "le champ prénom", 20000):
                 p.type(name, "Bot Noé", "le prénom")
-                with page.expect_response(lambda r: "/rest/v1/profiles" in r.url and r.request.method == "PATCH", timeout=30000) as resp:
-                    p.tap(page.get_by_role("button", name="Continuer"), "Continuer")
-                p.log(f"enregistrement du prénom : HTTP {resp.value.status}")
+                patches: list[int] = []
+                page.on("response", lambda r: patches.append(r.status)
+                        if "/rest/v1/profiles" in r.url and r.request.method == "PATCH" else None)
+                p.tap(page.get_by_role("button", name="Continuer"), "Continuer")
                 page.wait_for_timeout(2500)
+                sheet = f.accept_terms_if_asked(p)
+                p.log(f"feuille CGU au prénom : {sheet}")
+                if not sheet:
+                    p.flag("🔴", "Lien public, nouveau compte : « Continuer » (prénom) sans feuille CGU (CGU exigées)")
+                for _ in range(40):
+                    if patches:
+                        break
+                    page.wait_for_timeout(500)
+                page.wait_for_timeout(2500)
+                p.log(f"enregistrement du prénom : HTTP {patches}")
+                if any(st >= 400 for st in patches):
+                    p.flag("🟠", "enregistrement du prénom : réponse en erreur", str(patches))
                 p.shot("prenom-enregistre")
                 if page.get_by_text("Ton prénom n’a pas été enregistré").count():
                     p.flag("🔴", "Lien public, nouveau compte : « Continuer » (prénom) refusé par la base (terms_required, 403) "
@@ -479,7 +505,10 @@ def phase_ap_connexion_erreurs(browser, origin, only):
             p.ctx.set_offline(False)
         with p.step("double toucher Recevoir un code"):
             with page.expect_response(lambda r: "/auth/v1/otp" in r.url, timeout=90000):
-                _double_tap(p, page.get_by_role("button", name="Recevoir un code par SMS"), "Recevoir un code par SMS")
+                if os.environ.get("AP_SIMPLE_CODE"):  # relance : le 2e toucher ouvrait la Confidentialité (constat R-10)
+                    p.tap(page.get_by_role("button", name="Recevoir un code par SMS"), "Recevoir un code par SMS")
+                else:
+                    _double_tap(p, page.get_by_role("button", name="Recevoir un code par SMS"), "Recevoir un code par SMS")
             page.wait_for_timeout(2500)
             p.shot("code-demande")
         code = page.get_by_placeholder("123456", exact=True)
@@ -539,7 +568,7 @@ def phase_ap_partage(browser, origin, only):
         o.close()
     if not url:
         return
-    meta = og_tags(origin, url.replace("http://127.0.0.1:8810", ""))
+    meta = og_tags(origin, re.sub(r"^https?://[^/]+", "", url))
     anomaly_detail = json.dumps(meta, ensure_ascii=False)
     print("aperçu du lien partagé :", anomaly_detail)
     if PREFIX not in json.dumps(meta, ensure_ascii=False):
@@ -820,10 +849,14 @@ def phase_ap_session(browser, origin, only):
             body = page.locator("body").inner_text()
             p.shot("session-morte")
             p.log(f"session morte : {page.url} | {body[:300]!r}")
-            if not login.count():
+            offer = page.get_by_role("button", name="Se connecter", exact=True)
+            if not login.count() and not offer.count():
                 p.flag("🟠", "session expirée : le lien d'un événement sur invitation affiche la page publique "
                        "(« Lien indisponible ») au lieu de proposer la connexion", f"{page.url} : {body[:200]}")
         with p.step("reconnexion depuis là"):
+            if not login.count() and offer.count():
+                p.tap(offer, "Se connecter (page « Connecte-toi pour voir cet événement »)")
+                page.wait_for_timeout(1500)
             if not login.count():
                 p.goto("/events/")
                 _ready(p)
@@ -831,6 +864,8 @@ def phase_ap_session(browser, origin, only):
             trail = _url_trail(p, 15)
             p.log(f"après reconnexion : {trail}")
             p.shot("apres-reconnexion")
+            if f"/event/{ev}" not in page.url:
+                p.flag("🟡", "session expirée → Se connecter : retour ailleurs que sur l'événement demandé", page.url)
         with p.step("déconnexion (Réglages) puis lien de l'événement"):
             p.goto("/events/account")
             _ready(p)
@@ -852,6 +887,10 @@ def phase_ap_session(browser, origin, only):
             p.log(f"lien après déconnexion : {page.url} | {body[:200]!r}")
             if f"{PREFIX} Soirée Bots" in body:
                 p.flag("🔴", "après déconnexion, l'événement sur invitation reste lisible")
+            offer = page.get_by_role("button", name="Se connecter", exact=True)
+            if not login.count() and offer.count():
+                p.tap(offer, "Se connecter (après déconnexion)")
+                page.wait_for_timeout(1500)
             if not login.count():
                 p.flag("🟡", "membre déconnecté qui ouvre le lien d'un événement sur invitation : « Lien indisponible », "
                        "aucun bouton pour se connecter", body[:200])
@@ -887,6 +926,47 @@ def phase_ap_session(browser, origin, only):
         p.close()
 
 
+def phase_ap_rechargement(browser, origin, only):
+    """Relance (correction C2 n° 2) : l'intention n'est plus gardée dans sessionStorage une fois servie. Un membre sans
+    session ouvre le lien d'un événement sur invitation → « Se connecter » → la page de connexion est RECHARGÉE (onglet
+    rechargé par iOS pendant qu'on lit le SMS, ou geste « tirer pour recharger ») → connexion : où arrive-t-il ?
+    Témoin : même parcours sans rechargement."""
+    st = load_state()
+    ev = st["ap_invited"]
+    for reload_sign_in in (False, True):
+        tag = "avec-rechargement" if reload_sign_in else "sans-rechargement"
+        p = P(browser, "vip3", origin, f"rechargement-{tag}", fresh=True)
+        page = p.page
+        try:
+            p.goto(f"/events/event/{ev}")
+            _ready(p)
+            page.wait_for_timeout(1500)
+            p.log(f"ouvert : {page.url}")
+            p.shot("lien-sans-session")
+            offer = page.get_by_role("button", name="Se connecter", exact=True)
+            if not p.see(offer, "« Se connecter » (événement sur invitation, sans session)", 20000):
+                p.flag("🟠", "lien d'un événement sur invitation sans session : pas de « Se connecter »",
+                       page.locator("body").inner_text()[:200])
+                continue
+            p.tap(offer, "Se connecter")
+            page.wait_for_timeout(1500)
+            if reload_sign_in:
+                page.reload(wait_until="domcontentloaded")
+                _ready(p)
+                p.log(f"page de connexion rechargée : {page.url}")
+                p.shot("connexion-rechargee")
+            _sign_in_here(p, BY_KEY["vip3"])
+            trail = _url_trail(p, 15)
+            p.log(f"après connexion : {trail}")
+            p.shot("apres-connexion")
+            if f"/event/{ev}" not in page.url and f"/share/{ev}" not in page.url:
+                p.flag("🟠" if reload_sign_in else "🔴",
+                       f"lien d'un événement → Se connecter{' → page rechargée' if reload_sign_in else ''} → connexion : "
+                       "arrivée sur la liste, pas sur l'événement demandé", page.url)
+        finally:
+            p.close()
+
+
 # ── 6. Performances : liste avec 30+ événements ─────────────────────────────────────────────────────────────────
 
 def phase_ap_perf(browser, origin, only):
@@ -900,7 +980,7 @@ def phase_ap_perf(browser, origin, only):
                 t0 = time.time()
                 p.goto("/events/")
                 page.get_by_label("Rechercher un événement").wait_for(timeout=60000)
-                page.get_by_text(re.compile(r"\[C2-10\] (Perf|Soirée)")).first.wait_for(timeout=60000)
+                page.get_by_text(re.compile(re.escape(PREFIX) + r" (Perf|Soirée)")).first.wait_for(timeout=60000)
                 t_first = time.time() - t0
                 nav = page.evaluate("""() => { const n = performance.getEntriesByType('navigation')[0];
                     const r = performance.getEntriesByType('resource');
@@ -908,7 +988,7 @@ def phase_ap_perf(browser, origin, only):
                             bytes: r.reduce((a, x) => a + (x.transferSize || 0), 0) + (n.transferSize || 0),
                             requests: r.length,
                             supabase: r.filter(x => x.name.includes('supabase.co')).map(x => [x.name.split('?')[0].split('/').slice(-1)[0], Math.round(x.duration)])}; }""")
-                cards = page.get_by_text(re.compile(r"\[C2-10\] Perf")).count()
+                cards = page.get_by_text(re.compile(re.escape(PREFIX) + r" Perf")).count()
                 results.append({"bot": key, "run": run, "first_card_s": round(t_first, 2), "cards_in_dom": cards, **nav})
                 p.log(f"mesure {run} : première carte en {t_first:.2f} s ; {nav} ; cartes Perf dans la page : {cards}")
             p.shot("liste-30")
@@ -930,6 +1010,38 @@ def phase_ap_menage(browser, origin, only):
     n = sql(f"""with d as (delete from public.events where title like {q(PREFIX + '%')} returning 1) select count(*) n from d""")
     sql(f"delete from auth.users where phone in ({q(NEW_BOTS['noe'].phone)}, {q(NEW_BOTS['nora'].phone)})")
     print("événements supprimés :", n)
+    phase_ap_numeros_retirer(browser, origin, only)
+
+
+def _otp_entries() -> list[str]:
+    from tests.bots.common import auth_config
+    return [x for x in (auth_config().get("sms_test_otp") or "").split(",") if x]
+
+
+def _patch_otp(entries: list[str]) -> None:
+    from tests.bots.common import auth_config, patch_auth_config
+    until = auth_config().get("sms_test_otp_valid_until") or "2027-10-25T00:00:00+00:00"
+    patch_auth_config({"sms_test_otp": ",".join(entries), "sms_test_otp_valid_until": until})
+
+
+def phase_ap_numeros(browser, origin, only):
+    """Numéros neufs de Noé et Nora ajoutés à sms_test_otp (base TEST) ; aucun compte ne doit exister pour eux."""
+    phones = [b.phone for b in NEW_BOTS.values()]
+    for n in phones:
+        if sql(f"select 1 from auth.users where phone = {q(n)}"):
+            raise RuntimeError(f"le numéro {n} a déjà un compte : pas neuf")
+    entries = _otp_entries()
+    known = {e.split("=")[0] for e in entries}
+    missing = [f"{n}={OTP}" for n in phones if n not in known]
+    if missing:
+        _patch_otp(entries + missing)
+    print("sms_test_otp + ", missing, flush=True)
+
+
+def phase_ap_numeros_retirer(browser, origin, only):
+    phones = {b.phone for b in NEW_BOTS.values()}
+    _patch_otp([e for e in _otp_entries() if e.split("=")[0] not in phones])
+    print("numéros retirés de sms_test_otp :", sorted(phones), flush=True)
 
 
 if __name__ == "__main__":

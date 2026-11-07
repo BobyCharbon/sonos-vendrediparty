@@ -22,7 +22,7 @@ from tests.bots.bench import anomaly, load_state, phone, save_state
 from tests.bots.common import BY_KEY, TEST_URL, Session, q, sql
 from tests.bots.flows import accept_terms_if_asked, audience_invite_groups, chip, day, fill, selected, set_date, submit, toggle
 
-P = "[C2-07] "
+P = os.environ.get("C2_PREFIX", "[C2-07] ")  # relance : C2_PREFIX="[R-07] "
 # Demandeur : Bot Oscar (simple membre de « Bots »). Bot Olga a bloqué Bot Gus (autre agent) : elle ne peut plus publier pour
 # « Bots » (bug relevé au rapport). « Bots 2 » : Bot Valentin (membre).
 ORG = "orga2"
@@ -443,15 +443,22 @@ def phase_ia(browser, origin, only):
         page.wait_for_timeout(800)
         if not selected(chip(p, "Bots · ").first):
             p.tap(chip(p, "Bots · ").first, "groupe Bots")
-        all_sw = page.get_by_label("Prévenir le groupe", exact=True)
-        p.log(f"interrupteurs « Prévenir le groupe » à l'étape 2 : {all_sw.count()}")
-        sw = all_sw.last  # celui de la carte « Un groupe » (un autre sous « Membres Vendredi Party », même état)
+        all_sw = page.get_by_label(re.compile("^Prévenir "))
+        p.log(f"interrupteurs « Prévenir … » à l'étape 2 : {all_sw.count()} "
+              f"{[all_sw.nth(i).get_attribute('aria-label') for i in range(all_sw.count())]}")
+        old = page.get_by_label("Prévenir le groupe", exact=True).count()
+        if old:
+            p.flag("🟡", f"IA étape 2 : encore {old} interrupteur(s) au libellé ambigu « Prévenir le groupe »")
+        sw = page.get_by_label("Prévenir « Bots »", exact=True)
         if p.expect_or_flag(sw, "« Prévenir le groupe » à l'étape 2 de l'IA", "🔴"):
             if sw.is_checked():
                 p.flag("🔴", "IA étape 2 : « Prévenir le groupe » allumé par défaut")
             p.tap(sw, "Prévenir le groupe (carte Un groupe) → oui")
             page.wait_for_timeout(800)
-            p.log(f"états des interrupteurs : {[all_sw.nth(i).is_checked() for i in range(all_sw.count())]}")
+            states = [all_sw.nth(i).is_checked() for i in range(all_sw.count())]
+            p.log(f"états des interrupteurs : {states}")
+            if sum(states) != 1:
+                p.flag("🟡", f"IA étape 2 : allumer « Prévenir « Bots » » change aussi l'autre interrupteur ({states})")
             p.expect_or_flag(page.get_by_text(REQUEST_SENTENCE, exact=True).last, "IA : phrase « Ta demande sera envoyée… »", "🟠")
         # Public : l'interrupteur disparaît.
         pub = page.get_by_role("button", name=re.compile("^🌍"))
@@ -851,13 +858,21 @@ def phase_pause(browser, origin, only):
         f.fill("25:99")
         f.press("Tab")
         page.wait_for_timeout(1000)
-        p.expect_or_flag(page.get_by_text("Saisis une heure entre 00:00 et 23:59.", exact=True), "message d'heure invalide", "🟡")
+        p.expect_or_flag(page.get_by_text("Saisis une heure entre 00:00 et 23:59", exact=False), "message d'heure invalide", "🟡")
         f = page.get_by_label("Début (HH:MM)", exact=True)
         f.fill(end)
         f.press("Tab")
         page.wait_for_timeout(1000)
-        p.expect_or_flag(page.get_by_text("Le début et la fin du mode silencieux doivent être différents.", exact=True), "message début = fin", "🟡")
+        p.expect_or_flag(page.get_by_text("Le début et la fin des heures de silence doivent être différents.", exact=True), "message début = fin", "🟡")
         p.shot("silence-erreurs")
+        # Entrée + saisie libre « 7h » (fix-D) : Fin = 07:00.
+        f = page.get_by_label("Fin (HH:MM)", exact=True)
+        f.fill("7h")
+        f.press("Enter")
+        page.wait_for_timeout(2000)
+        r = sql(f"select quiet_end from public.notification_prefs where user_id = {q(uid(key))}")[0]
+        report(key, str(r["quiet_end"]).startswith("07:00"), "🟠", "« 7h » + Entrée → Fin 07:00", r)
+        p.shot("silence-7h")
         # « Recevoir mes alertes » éteint : tout refusé (sauf l'essai).
         toggle(p, "Recevoir mes alertes", False)
         page.wait_for_timeout(1500)
@@ -876,13 +891,241 @@ def phase_pause(browser, origin, only):
 # ── Nettoyage : seulement mes événements [C2-07] ──────────────────────────────────────────────────────────────────
 
 def phase_menage(browser, origin, only):
-    rows = sql("select id, title from public.events where title like '[C2-07]%'")
+    rows = sql(f"select id, title from public.events where title like {q(P + '%')}")
     print("à supprimer :", [r["title"] for r in rows], flush=True)
     if rows:
         idl = ",".join(q(r["id"]) for r in rows)
         sql(f"delete from public.notifications where event_id in ({idl}) or data->>'target_event' in ({idl})")
         sql(f"delete from public.events where id in ({idl})")
-    print("reste :", sql("select count(*) n from public.events where title like '[C2-07]%'"), flush=True)
+    print("reste :", sql(f"select count(*) n from public.events where title like {q(P + '%')}"), flush=True)
+
+
+# ── Relance : blocage (bug 1), brouillons orphelins (bug 2), interrupteurs masqués (bug 5), suite de la feuille Inviter ──
+
+def drafts_of(title: str) -> list:
+    return sql(f"select id, status from public.events where title = {q(P + title)} order by created_at") or []
+
+
+def phase_blocage(browser, origin, only):
+    """Olga bloque Gus (membre de « Bots ») le temps de la phase : elle publie pour « Bots » par le formulaire."""
+    s = ids()
+    olga, gus = uid("orga1"), uid("guest1")
+    sql(f"insert into public.direct_blocks (user_id, blocked_id) values ({q(olga)}, {q(gus)}) on conflict do nothing")
+    try:
+        if "block" not in s:
+            o = phone(browser, "orga1", origin, "r-blocage")
+            try:
+                o.sign_in()
+                accept_terms_if_asked(o)
+                eid = new_event(o, "Olga a bloqué Gus", 45, announce=True)
+                if eid:
+                    keep("block", eid)
+                    o.shot("fiche-blocage")
+                if o.page.get_by_text("ne peux pas inviter", exact=False).count():
+                    o.flag("🔴", "blocage : message « tu ne peux pas inviter » à la publication")
+            finally:
+                o.close()
+        s = ids()
+        rows = drafts_of("Olga a bloqué Gus")
+        report("orga1", len(rows) == 1 and rows[0]["status"] == "published", "🔴", "blocage : publié, un seul événement (aucun brouillon orphelin)", rows)
+        if "block" in s:
+            e = s["block"]
+            inv = lambda k: sql(f"select count(*) n from public.event_invites where event_id = {q(e)} and user_id = {q(uid(k))}")[0]["n"]
+            report("orga1", inv("guest1") == 0 and inv("vip1") == 1, "🔴", "blocage : Gus sauté, Victor invité", (inv("guest1"), inv("vip1")))
+            st = announcements(e)
+            report("orga1", [x["status"] for x in st] == ["pending"], "🔴", "blocage : demande d'annonce ouverte", st)
+            # Ada accepte : Gus ne doit rien recevoir.
+            aid = sql(f"select id from public.event_announcements where event_id = {q(e)}")[0]["id"]
+            r = Cached("admin").rpc("answer_announcement", a=aid, accept=True)
+            report("admin", r.status_code == 200, "🔴", "blocage : Ada accepte", r.text[:160])
+            report("guest1", told(e, "guest1", "private_invite") == 0 and told(e, "vip1", "private_invite") == 1, "🔴",
+                   "blocage : annonce acceptée, Gus jamais prévenu, Victor oui", (told(e, "guest1", "private_invite"), told(e, "vip1", "private_invite")))
+    finally:
+        sql(f"delete from public.direct_blocks where user_id = {q(olga)} and blocked_id = {q(gus)}")
+        print("blocage retiré :", sql(f"select count(*) n from public.direct_blocks where user_id = {q(olga)}"), flush=True)
+
+
+HIDDEN_FOR_MEMBERS = ("Nouveau sondage", "Rappel pour voter", "Un organisateur répond pour moi", "Paiement de ma place confirmé",
+                      "Billet prêt", "Réponses à mes événements", "Ma proposition validée ou refusée", "Quelqu’un dit avoir payé",
+                      "Proposition à valider")
+
+
+def phase_masques(browser, origin, only):
+    """Marc (Membre), Gus (Guest) : les 9 interrupteurs refusés par may_receive_push sont masqués ; Victor (VIP) les garde."""
+    for key, want_hidden in (("membre1", True), ("guest1", True), ("vip1", False)):
+        p = phone(browser, key, origin, "r-masques")
+        page = p.page
+        try:
+            p.sign_in()
+            p.goto("/events/settings/notifications")
+            p.see(page.get_by_label("Recevoir mes alertes", exact=True), "Réglages › Notifications", 30000)
+            page.wait_for_timeout(2500)
+            p.shot("reglages", full=True)
+            shown = [l for l in LABELS if page.get_by_label(l, exact=True).count()]
+            bad = [l for l in HIDDEN_FOR_MEMBERS if (l in shown) == want_hidden]
+            sections = {t: page.get_by_text(t, exact=False).count() for t in ("Nouveaux événements", "Messages des discussions")}
+            p.log(f"affichés : {shown} ; sections : {sections}")
+            report(key, not bad, "🟠", f"interrupteurs {'masqués' if want_hidden else 'présents'} ({BY_KEY[key].role})", {"en trop/manquants": bad, "sections": sections})
+            for l in shown:  # chaque interrupteur affiché à un non-VIP doit pouvoir partir
+                col, kind = LABELS[l]
+                if kind and want_hidden and kind not in ("announce_request", "group_event_request", "announce_accepted"):
+                    ok = allowed(key, kind, None)
+                    if not ok:
+                        report(key, False, "🟡", f"« {l} » affiché à un {BY_KEY[key].role} mais web_push_allowed({kind}) = false", kind)
+        finally:
+            p.close()
+
+
+def phase_feuille_suite(browser, origin, only):
+    """Après la feuille Inviter (annonce à « Bots 2 » seulement) : fiche, puis Modifier sans toucher l'interrupteur,
+    puis allumer / couper dans Modifier : que deviennent la demande de « Bots 2 » et celle de « Bots » ?"""
+    s = ids()
+    key, who = ("sheet_olga", "orga1") if "sheet_olga" in s else ("sheet", ORG)
+    if key not in s:
+        print("pas d'événement « sheet »", flush=True)
+        return
+    e = s[key]
+    o = phone(browser, who, origin, "r-feuille-suite")
+    page = o.page
+    try:
+        o.sign_in()
+        o.goto(f"/events/event/{e}")
+        page.wait_for_timeout(3000)
+        o.shot("fiche-apres-feuille")
+        o.dump("fiche-apres-feuille")
+        sw = page.get_by_label("Prévenir le groupe", exact=True)
+        o.log(f"fiche : interrupteur « Prévenir le groupe » {'allumé' if sw.count() and sw.is_checked() else 'éteint/absent'} ; statuts : "
+              f"{[t for t in ('Bots 2 · Annonce en attente', 'Bots · Annonce', 'Annonce en attente') if page.get_by_text(t, exact=False).count()]}")
+        before = announcements(e)
+        # Modifier : enregistrer sans toucher à l'interrupteur.
+        o.goto(f"/events/event/{e}/edit")
+        o.see(page.get_by_label("Titre", exact=True), "Modifier", 20000)
+        sw = page.get_by_label("Prévenir le groupe", exact=True)
+        o.log(f"Modifier : interrupteur {'allumé' if sw.count() and sw.is_checked() else 'éteint/absent'}")
+        o.shot("modifier-apres-feuille")
+        fill(o, "Description", "Événement de test des bots (relance 07). Modifié sans toucher à l'annonce.")
+        o.tap(page.get_by_role("button", name=re.compile("^Enregistrer")).last, "Enregistrer (sans toucher)")
+        page.wait_for_timeout(3500)
+        accept_terms_if_asked(o)
+        after = announcements(e)
+        report(who, after == before and bool(after), "🟠", "Modifier sans toucher l'interrupteur : la demande de « Bots 2 » reste", (before, after))
+        # Allumer puis couper dans Modifier : constat de ce que deviennent les demandes (Bots et Bots 2).
+        for on in (True, False):
+            o.goto(f"/events/event/{e}/edit")
+            o.see(page.get_by_label("Titre", exact=True), "Modifier", 20000)
+            toggle(o, "Prévenir le groupe", on)
+            o.shot(f"modifier-{'on' if on else 'off'}-apres-feuille")
+            o.tap(page.get_by_role("button", name=re.compile("^Enregistrer")).last, "Enregistrer")
+            page.wait_for_timeout(3500)
+            accept_terms_if_asked(o)
+            print(f"Modifier, interrupteur {'allumé' if on else 'coupé'} →", announcements(e), flush=True)
+            o.log(f"Modifier {'on' if on else 'off'} → {announcements(e)}")
+    finally:
+        o.close()
+    report("admin", requests_to(e, "admin") <= 1, "🟡", "feuille + Modifier : une seule « Annonce à valider » pour Ada", requests_to(e, "admin"))
+
+
+def sheet_add_group(o, eid: str, group: str, announce: bool = True) -> None:
+    """Feuille Inviter par l'écran : chercher le groupe, l'ajouter, « Prévenir le groupe », Inviter."""
+    page = o.page
+    o.goto(f"/events/event/{eid}")
+    o.tap(page.get_by_role("button", name="Inviter", exact=True), "Inviter")
+    sheet = page.get_by_label(re.compile("^Inviter à "))
+    o.see(sheet, "la feuille Inviter", 10000)
+    o.type(sheet.get_by_label("Chercher une personne ou un groupe"), group, "recherche")
+    page.wait_for_timeout(1500)
+    o.tap(sheet.get_by_role("button", name=re.compile(f"^Ajouter {group}")).first, f"Ajouter {group}")
+    page.wait_for_timeout(800)
+    sw = sheet.get_by_label("Prévenir le groupe", exact=True)
+    if o.expect_or_flag(sw, "« Prévenir le groupe » dans la feuille", "🔴"):
+        if sw.is_checked():
+            o.flag("🔴", "feuille Inviter : « Prévenir le groupe » allumé par défaut")
+        if announce:
+            o.tap(sw, "Prévenir le groupe → oui")
+            page.wait_for_timeout(800)
+        o.shot("feuille-annonce")
+        o.dump("feuille-annonce")
+        o.tap(sheet.get_by_role("button", name=re.compile("^Inviter ")).first, f"Inviter ({group})")
+        page.wait_for_timeout(3500)
+        o.shot("feuille-apres")
+
+
+def phase_feuille_olga(browser, origin, only):
+    """Bug 3 rejoué par l'écran : Olga (membre de « Bots » ET « Bots 2 », pas créatrice) publie pour « Bots » sans annonce,
+    puis feuille Inviter : + « Bots 2 » + « Prévenir le groupe ». Attendu : seule « Bots 2 » est annoncée (demande à Ada)."""
+    s = ids()
+    o = phone(browser, "orga1", origin, "r-feuille-olga")
+    try:
+        o.sign_in()
+        accept_terms_if_asked(o)
+        if "sheet_olga" not in s:
+            eid = new_event(o, "Inviter Bots 2 (Olga)", 47, announce=False)
+            if not eid:
+                return
+            keep("sheet_olga", eid)
+            s = ids()
+        e = s["sheet_olga"]
+        if not announcements(e):
+            sheet_add_group(o, e, "Bots 2")
+        o.goto(f"/events/event/{e}")
+        o.page.wait_for_timeout(3000)
+        o.shot("fiche-apres-feuille")
+        o.dump("fiche-apres-feuille")
+    finally:
+        o.close()
+    st = announcements(e)
+    report("orga1", [(x["grp"], x["status"]) for x in st] == [("Bots 2", "pending")], "🟠",
+           "feuille Inviter (Olga) : seule « Bots 2 » est annoncée, en attente", st)
+    report("vip1", told(e, "vip1", "private_invite") == 0, "🔴", "feuille Inviter : Victor (Bots seulement) pas prévenu", told(e, "vip1", "private_invite"))
+    report("admin", requests_to(e, "admin") == 1, "🟠", "feuille Inviter : Ada reçoit une « Annonce à valider »", requests_to(e, "admin"))
+    flag = sql(f"select announce_group from public.events where id = {q(e)}")[0]["announce_group"]
+    eg = sql(f"select (select name from public.member_groups where id = group_id) g, announce from public.event_groups where event_id = {q(e)} order by 1")
+    print("announce_group =", flag, "event_groups =", eg, flush=True)
+    report("orga1", flag is False, "🟠", "feuille Inviter : announce_group de l'événement reste éteint", flag)
+
+
+ENGLISH = ("current transaction is aborted", "statement timeout", "canceling statement", "commands ignored")
+
+
+def phase_erreurs(browser, origin, only):
+    """Bug 9 : erreurs de la base simulées dans le navigateur (réponse 500 de PostgREST, comme sous la charge) :
+    la fiche (25P02) et la publication du formulaire (57014) doivent parler français."""
+    s = ids()
+    v = phone(browser, "vip1", origin, "r-erreurs")
+    page = v.page
+    try:
+        v.sign_in()
+        body = json.dumps({"code": "25P02", "details": None, "hint": None,
+                           "message": "current transaction is aborted, commands ignored until end of transaction block"})
+        page.route(re.compile(r".*/rest/v1/events\?.*"), lambda r: r.fulfill(status=500, content_type="application/json", body=body))
+        v.goto(f"/events/event/{s.get('accept', '00000000-0000-0000-0000-000000000000')}")
+        page.wait_for_timeout(6000)
+        v.shot("fiche-25P02")
+        text = page.locator("body").inner_text()
+        eng = [w for w in ENGLISH if w in text]
+        report("vip1", not eng, "🟡", "fiche : erreur 25P02 en français", eng or text[:200])
+        page.unroute(re.compile(r".*/rest/v1/events\?.*"))
+        body = json.dumps({"code": "57014", "details": None, "hint": None, "message": "canceling statement due to statement timeout"})
+        page.route(re.compile(r".*/rest/v1/events(\?.*)?$"),
+                   lambda r: r.fulfill(status=500, content_type="application/json", body=body) if r.request.method == "POST" else r.continue_())
+        v.goto("/events/event/new")
+        v.see(page.get_by_label("Titre", exact=True), "le formulaire", 30000)
+        fill(v, "Titre", P + "Erreur simulée (jamais créé)")
+        set_date(v, "Début", day(46), "19:30")
+        fill(v, "Lieu", "Salle des bots, Vevey")
+        audience_invite_groups(v, ["Bots"])
+        v.shot("formulaire-avant")
+        v.tap(page.get_by_role("button", name=re.compile("^(Publier|Envoyer pour validation)$")).last, "Publier (POST refusé 57014)")
+        page.wait_for_timeout(5000)
+        accept_terms_if_asked(v)
+        v.shot("formulaire-57014")
+        text = page.locator("body").inner_text()
+        eng = [w for w in ENGLISH if w in text]
+        report("vip1", not eng, "🟡", "formulaire : erreur 57014 en français", eng or "ok")
+        m = re.search(r"[^\n]*(délai|lent|répond|Réessaie)[^\n]*", text)
+        v.log(f"message affiché : {m.group(0) if m else '(aucun message reconnu)'}")
+    finally:
+        v.close()
 
 
 PHASES = {name[6:]: fn for name, fn in globals().items() if name.startswith("phase_")}

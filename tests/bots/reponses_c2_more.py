@@ -141,6 +141,17 @@ def phase_dates_sans_peutetre(browser, origin, only):
     _vote_round(browser, origin, "dates_sans_peutetre", plan)
     out = _fix(browser, origin, "dates_sans_peutetre")
     print("sondage sans Peut-être :", out, flush=True)
+    # Lot B : « Si besoin » ne crée AUCUNE réponse (Peut-être interdit) ; « Oui » → Présent (dans les places).
+    if out["event"]["date_mode"] == "fixed":
+        want = {v["name"]: v["vote"] for v in out["votes"] if v["starts_at"] == out["event"]["starts_at"]}
+        got = {r["name"]: r["status"] for r in out["rsvps"]}
+        bad = {n: (v, got.get(n)) for n, v in want.items()
+               if (v == "yes" and got.get(n) != "yes") or (v == "if_needed" and got.get(n) is not None)}
+        print("conversion sans Peut-être :", want, got, bad, flush=True)
+        if bad:
+            p = phone(browser, "orga1", origin, "c2-dates_sans_peutetre-fixer")
+            p.flag("🔴", "date fixée (sans Peut-être) : votes mal convertis", str(bad))
+            p.close()
     save_state(c2_dates_sans_peutetre=out)
 
 
@@ -229,9 +240,9 @@ def phase_objets(browser, origin, only):
         with p.step("J'en amène 4 bouteilles (+ ×4) puis − ×1"):
             row = page.get_by_text("Bouteilles de jus").first.locator("xpath=../..")
             for i in range(4):
-                p.tap(row.get_by_role("button", name="+", exact=True), f"+ bouteille ({i + 1})")
+                p.tap(page.get_by_label("En amener un de plus : Bouteilles de jus"), f"+ bouteille ({i + 1})")
                 page.wait_for_timeout(1300)
-            p.tap(row.get_by_role("button", name="−", exact=True), "− bouteille")
+            p.tap(page.get_by_label("En amener un de moins : Bouteilles de jus"), "− bouteille")
             page.wait_for_timeout(1500)
             p.shot("bouteilles")
             c = claims()
@@ -429,6 +440,26 @@ def phase_forum(browser, origin, only):
                 p.flag("🟡", "message supprimé : le bandeau « Épinglé » reste affiché", str(pinned))
     finally:
         p.close()
+    # Relance (lot B) : l'organisatrice ne réécrit pas le message d'un invité ; un invité n'épingle pas.
+    victor_msgs = [x for x in _messages() if x["name"] == "Bot Victor"]
+    if victor_msgs:
+        r = api("orga1").patch(f"messages?id=eq.{victor_msgs[-1]['id']}", {"body": "Texte réécrit par Olga"})
+        print("Olga réécrit le message de Victor (API) :", r.status_code, r.text[:200], flush=True)
+        if r.status_code < 300 and "réécrit" in r.text:
+            p = phone(browser, "orga1", origin, "c2-forum")
+            p.flag("🟠", "forum : l'organisatrice peut encore réécrire le message d'un invité", r.text[:200])
+            p.close()
+    r = api("vip3").post("messages", {"event_id": ev("places"), "user_id": api("vip3").uid, "body": "Message de Valentin", "pinned": True})
+    print("Valentin écrit avec pinned=true :", r.status_code, r.text[:300], flush=True)
+    if r.status_code < 300:
+        mid = r.json()[0]["id"]
+        pinned_now = sql(f"select pinned from public.messages where id = '{mid}'")[0]["pinned"]
+        r2 = api("vip3").patch(f"messages?id=eq.{mid}", {"pinned": True})
+        print("Valentin épingle son message :", pinned_now, r2.status_code, r2.text[:200], flush=True)
+        if pinned_now or (r2.status_code < 300 and '"pinned":true' in r2.text.replace(" ", "")):
+            p = phone(browser, "vip3", origin, "c2-forum")
+            p.flag("🟡", "forum : un invité peut encore épingler son message", f"{pinned_now} {r2.text[:200]}")
+            p.close()
     reports = sql(f"""select r.* from private.reports r where r.created_at > now() - interval '1 hour' order by r.created_at desc limit 3""") \
         if sql("select to_regclass('private.reports') t")[0]["t"] else []
     print("signalements :", reports, flush=True)
@@ -604,7 +635,7 @@ def phase_bouteilles(browser, origin, only):
         p.shot("avant")
         seen = []
         for i in range(3):
-            p.tap(row.get_by_role("button", name="+", exact=True), f"+ bouteille ({i + 1})")
+            p.tap(page.get_by_label("En amener un de plus : Bouteilles de jus"), f"+ bouteille ({i + 1})")
             page.wait_for_timeout(2000)
             mine_db = sql(f"select quantity from public.bring_claims where item_id = '{item}' and user_id = '{api('vip1').uid}'")
             shown = row.inner_text().replace("\n", " ")[:120]
@@ -660,7 +691,44 @@ def phase_verif(browser, origin, only):
 
 
 def phase_mot(browser, origin, only):
-    """Le « petit mot perso pour l'organisateur » de Vera : Valentin (simple invité) le voit-il ?"""
+    """Le « petit mot perso pour l'organisateur » de Vera : Valentin (simple invité) le voit-il ? Olga le voit-elle ?"""
+    from tests.bots.reponses_c2 import note_box
+    p = phone(browser, "vip2", origin, "c2-mot")
+    try:
+        open_event(p, "places")
+        with p.step("Vera écrit son petit mot"):
+            box = note_box(p)
+            box.fill("")
+            p.type(box, "Je suis allergique aux noix (pour Olga)", "le petit mot")
+            p.tap(p.page.get_by_role("button", name="Envoyer", exact=True), "Envoyer le mot")
+            p.page.wait_for_timeout(2500)
+            if f.accept_terms_if_asked(p):
+                p.page.wait_for_timeout(2500)
+            p.shot("mot-envoye")
+            r = mine("places", "vip2")
+            p.log(f"base : {r}")
+            if not r or "allergique" not in (r["note"] or ""):
+                p.flag("🔴", "petit mot de Vera pas enregistré (rsvp_notes)", str(r))
+            if r and r.get("raw_note"):
+                p.flag("🟠", "petit mot : rsvps.note n'est pas vidé (lisible par tous)", str(r))
+    finally:
+        p.close()
+    p = phone(browser, "orga1", origin, "c2-mot")
+    try:
+        open_event(p, "places")
+        note = p.page.get_by_text(re.compile("allergique aux noix")).first
+        if p.see(note, "le mot de Vera (organisatrice)", 30000):
+            note.scroll_into_view_if_needed()
+            p.shot("mot-vu-par-olga")
+        else:
+            p.flag("🟠", "l'organisatrice ne voit pas le petit mot de Vera dans « Qui vient ? »")
+        p.log(f"titre « Petits mots » : {p.page.get_by_text(re.compile('Petits mots')).count()}")
+    finally:
+        p.close()
+    r = api("vip3").get(f"rsvp_notes?event_id=eq.{ev('places')}&select=user_id,note")
+    print("rsvp_notes lus par Valentin (API) :", r.status_code, r.text[:300], flush=True)
+    r2 = api("vip3").get(f"rsvps?event_id=eq.{ev('places')}&select=user_id,note&note=not.is.null")
+    print("rsvps.note non vides lus par Valentin (API) :", r2.status_code, r2.text[:300], flush=True)
     p = phone(browser, "vip3", origin, "c2-mot")
     try:
         open_event(p, "places")

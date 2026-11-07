@@ -1,6 +1,8 @@
 """Invitations v2 (05.11.2026, bêta), sur la VRAIE base de test (jamais la prod) : liens pour une personne ou pour
 plusieurs, carte lisible sans compte, réponse en une fois avec le prénom seul, carte « Invités » de l'organisateur,
 gens de Party ajoutés hors du groupe, relances (une par jour), retrait, comptes invités minimaux effacés après.
+CGU exigées comme en prod (terms_enforced) : le compte neuf les accepte au geste « Confirmer » de la carte, avant sa
+réponse (InviteCardScreen → acceptTermsIfNeeded) ; sans elles, son prénom est refusé (terms_required).
 Seuls des comptes de test sont invités ou prévenus ; aucun SMS (codes fixes).
 Lancement : SUPABASE_LIVE_TESTS=1 python -m pytest tests/supabase_live/test_invitations_v2_live.py -q"""
 import httpx
@@ -12,16 +14,32 @@ from tests.supabase_live.test_member_admin_live import TEST_URL, Session, pytest
 from tests.supabase_live.test_rsvp_digest_live import sql
 
 
+def terms_version() -> str:
+    return sql('select terms_version v from private.moderation_settings where id = 1')[0]['v']
+
+
+def terms_enforced() -> bool:
+    return sql('select terms_enforced from private.moderation_settings where id = 1')[0]['terms_enforced']
+
+
 @pytest.fixture(scope='module')
 def people():
     sessions = Session(ADMIN), Session(GUEST_A), Session(GUEST_B), Session(VIP), Session(NEW)
     newcomer = sessions[-1]
-    # Compte neuf : aucun prénom (comme une personne qui reçoit le lien sur WhatsApp).
-    sql(f"update public.profiles set display_name = '' where id = '{newcomer.uid}'; "
-        f"delete from private.light_invitees where user_id = '{newcomer.uid}'")
+    # Comptes déjà là : CGU acceptées (comme un vrai compte avant son premier contenu).
+    for s in sessions[:-1]:
+        assert s.rpc('accept_terms', p_version=terms_version()).status_code in (200, 204)
+    # Compte neuf : aucun prénom ni CGU (comme une personne qui reçoit le lien sur WhatsApp) ; remis tel quel après.
+    accepted = sql(f"select version from public.terms_acceptances where user_id = '{newcomer.uid}'")
+    reset = (f"update public.profiles set display_name = '' where id = '{newcomer.uid}'; "
+             f"delete from private.light_invitees where user_id = '{newcomer.uid}'; "
+             f"delete from public.terms_acceptances where user_id = '{newcomer.uid}'")
+    sql(reset)
     yield sessions
-    sql(f"update public.profiles set display_name = '' where id = '{newcomer.uid}'; "
-        f"delete from private.light_invitees where user_id = '{newcomer.uid}'")
+    sql(reset)
+    for row in accepted:
+        sql(f"insert into public.terms_acceptances (user_id, version) values ('{newcomer.uid}', '{row['version']}') "
+            "on conflict do nothing")
 
 
 def error_of(r: httpx.Response) -> str:
@@ -50,6 +68,12 @@ def test_links_for_one_or_several_people_and_answer_without_a_full_profile(peopl
 
         # Compte neuf : le prénom suffit ; il voit l'événement, n'entre dans aucun groupe.
         assert 'first_name_required' in error_of(new.rpc('accept_invite', token=single['token'], answer='yes'))
+        if terms_enforced():  # CGU exigées (prod) : pas de prénom enregistré tant qu'elles ne sont pas acceptées
+            assert 'terms_required' in error_of(new.rpc('accept_invite', token=single['token'], answer='yes', first_name='Léa'))
+            assert sql(f"select display_name from public.profiles where id = '{new.uid}'") == [{'display_name': ''}]
+            assert anon_rpc('invite_preview', token=single['token']).json()['state'] == 'opened'  # lien intact (ouvert, pas servi)
+        # Le geste « Confirmer » de la carte accepte les CGU, puis répond.
+        assert new.rpc('accept_terms', p_version=terms_version()).status_code in (200, 204)
         done = new.rpc('accept_invite', token=single['token'], answer='yes', first_name='Léa').json()
         assert done['event_id'] == event and done['location_address'] == 'Rue Secrète 1, Sion'
         assert sql(f"select display_name, first_name from public.profiles where id = '{new.uid}'") == [{'display_name': 'Léa', 'first_name': ''}]

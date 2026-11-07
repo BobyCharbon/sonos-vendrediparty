@@ -3,7 +3,8 @@
 # Anthropic) contre le serveur du banc (base de TEST), sur un simulateur dédié (défaut « C2-02 iPhone »), vidéo comprise.
 # Usage : sh tests/bots/ios_run_ia.sh <dossier de travail (contient src/)> <origine> build
 #         BOTS_IOS_PHONE=0790000104 BOTS_IOS_DRAFT='<json>' BOTS_IOS_CASE=nom sh tests/bots/ios_run_ia.sh <dossier> <origine> <test>
-#   <test> : méthode de BotsAICreationUITests (ex. testLogin, testStepOneThenInvite…).
+#   <test> : méthode de BotsAICreationUITests (ex. testLogin, testStepOneToThree…), ou d'une autre classe du banc
+#   avec BOTS_IOS_CLASS (ex. BotsMemberNotificationsUITests, BOTS_IOS_STEP=off|on|de pour testQuietHours).
 set -e
 WORK="${1:?dossier de travail}"; ORIGIN="${2:?origine}"; WHAT="${3:?build ou test}"
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -15,7 +16,7 @@ if [ -z "$SIM" ]; then SIM=$(xcrun simctl create "$SIM_NAME" "iPhone 17"); fi
 xcrun simctl boot "$SIM" 2>/dev/null || true
 COMMON="-project $WORK/src/ios/Party.xcodeproj -scheme Party -configuration Release -destination id=$SIM -derivedDataPath $WORK/ios-dd"
 if [ "$WHAT" = build ]; then
-  cp "$REPO"/tests/bots/ios/BotsAICreationUITests.swift "$WORK/src/ios/PartyUITests/"
+  cp "$REPO"/tests/bots/ios/BotsAICreationUITests.swift "$REPO"/tests/bots/ios/BotsMemberNotificationsUITests.swift "$WORK/src/ios/PartyUITests/"
   sed -i '' 's/testTargets: \[PartyTests, PartyUITests\]/testTargets: [PartyUITests]/' "$WORK/src/ios/project.yml"
   (cd "$WORK/src/ios" && xcodegen generate --quiet)
   # shellcheck disable=SC2086
@@ -29,8 +30,8 @@ xcrun simctl io "$SIM" recordVideo --codec h264 --force "$OUTDIR/video-$CASE.mp4
 REC=$!
 set +e
 TEST_RUNNER_BOTS_IOS_OUT="$OUTDIR/$CASE" TEST_RUNNER_BOTS_IOS_PHONE="${BOTS_IOS_PHONE:-0790000104}" \
-TEST_RUNNER_BOTS_IOS_DRAFT="${BOTS_IOS_DRAFT:-}" TEST_RUNNER_BOTS_IOS_CASE="$CASE" TEST_RUNNER_BOTS_IOS_CHOICE="${BOTS_IOS_CHOICE:-invite}" \
-xcodebuild test-without-building $COMMON -only-testing:"PartyUITests/BotsAICreationUITests/$WHAT" \
+TEST_RUNNER_BOTS_IOS_DRAFT="${BOTS_IOS_DRAFT:-}" TEST_RUNNER_BOTS_IOS_STEP="${BOTS_IOS_STEP:-}" TEST_RUNNER_BOTS_IOS_CASE="$CASE" TEST_RUNNER_BOTS_IOS_CHOICE="${BOTS_IOS_CHOICE:-invite}" \
+xcodebuild test-without-building $COMMON -only-testing:"PartyUITests/${BOTS_IOS_CLASS:-BotsAICreationUITests}/$WHAT" \
   > "$OUTDIR/xcodebuild-$CASE.log" 2>&1
 STATUS=$?
 kill -INT $REC; wait $REC 2>/dev/null

@@ -18,7 +18,8 @@ from tests.bots import flows as f
 from tests.bots.bench import anomaly, load_state, phone, save_state
 from tests.bots.common import BY_KEY, GROUP_BOTS, TEST_URL, Session, q, sql
 
-PREFIX = "[C2-05]"
+import os as _os
+PREFIX = _os.environ.get("ARGENT_PREFIX", "[C2-05]")  # relance : « [R-05] »
 PAID_TITLE = f"{PREFIX} Soirée payante"
 FREE_TITLE = f"{PREFIX} Soirée gratuite"
 PRICE = 20
@@ -630,7 +631,8 @@ def _scan(p, code: str, expect: str, what: str, severity: str = "🔴") -> str:
     p.type(page.get_by_label("Code du billet"), code, "le code")
     p.tap(btn(p, "Valider"), "Valider")
     settle(p)
-    alert = page.get_by_role("alert")
+    # Le verdict est l'alerte qui porte un aria-label (le message de caméra refusée est aussi une alerte, sans label).
+    alert = page.locator('[role="alert"][aria-label]')
     label = alert.first.get_attribute("aria-label") if alert.count() else ""
     p.log(f"verdict : {label}")
     check(p, bool(label) and label.startswith(expect), severity, what, str(label))
@@ -674,7 +676,7 @@ def phase_scan(browser, origin, only):
             p.shot("non-remis")
             p.tap(btn(p, "Remettre le billet").first, "Remettre le billet (verdict)")
             settle(p)
-            label = page.get_by_role("alert").first.get_attribute("aria-label") or ""
+            label = page.locator('[role="alert"][aria-label]').first.get_attribute("aria-label") or ""
             p.log(f"verdict après remise : {label}")
             check(p, label.startswith("Bienvenue"), "🟠", "remise sur place → QR repasse → « Bienvenue ! »", label)
             check(p, ticket("vip2").get("checked_in_at") is not None, "🟠", "base : arrivée de Vera notée")
@@ -690,7 +692,7 @@ def phase_scan(browser, origin, only):
             check(p, not t.get("paid") and t.get("issued_at") is not None, "🔴", "Victor : payé annulé, billet (remis à la main) gardé", str(t))
         with p.step("arrivée manuelle (Annuler / Arrivé) sur Marc"):
             p.tap(btn(p, "Billet suivant"), "Billet suivant")
-            p.tap(row_button(p, "Bot Marc", "Annuler"), "Annuler l'arrivée (Marc)")
+            p.tap(row_button(p, "Bot Marc", "Annuler l’arrivée"), "Annuler l’arrivée (Marc)")  # libellé complet depuis fix-D
             settle(p)
             check(p, ticket("membre1").get("checked_in_at") is None, "🔴", "base : arrivée de Marc annulée")
             p.tap(row_button(p, "Bot Marc", "Arrivé"), "Arrivé (Marc)")
@@ -874,7 +876,7 @@ def phase_pot(browser, origin, only):
     members = {m["name"]: m["id"] for m in st.get("members", [])}
     print("membres :", members, flush=True)
     me = st.get("me")
-    exp = {"title": "Fromage [C2-05]", "amount_cents": 6000, "currency": "CHF", "paid_by": me, "split_mode": "equal",
+    exp = {"title": f"Fromage {PREFIX}", "amount_cents": 6000, "currency": "CHF", "paid_by": me, "split_mode": "equal",
            "spent_on": f.day(0), "category": "food",
            "shares": [{"member_id": members[n], "weight": 1} for n in ("Bot Marc", "Bot Vera", "Bot Victor") if n in members]}
     r = _tc(origin, "/expense", token=marc.token, group_id=grp, expense=exp)
@@ -1242,7 +1244,7 @@ def phase_pot_logique(browser, origin, only):
     G = q(grp)
     mem = {r["name"]: r["id"] for r in sql(f"select id, name from public.tc_members where group_id = {G}")}
     print("membres du pot :", list(mem), flush=True)
-    exp = {"title": "Fromage [C2-05]", "amount_cents": 6000, "paid_by": mem["Bot Marc"], "split_mode": "equal",
+    exp = {"title": f"Fromage {PREFIX}", "amount_cents": 6000, "paid_by": mem["Bot Marc"], "split_mode": "equal",
            "shares": [{"member_id": mem[n]} for n in ("Bot Marc", "Bot Vera", "Bot Victor")]}
     import json
     r = as_user("membre1", f"public.tc_save_expense({G}, {q(json.dumps(exp))}::jsonb)")

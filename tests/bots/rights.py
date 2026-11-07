@@ -239,7 +239,10 @@ class Matrix:
         if perm == "ai.use":
             r = httpx.post(f"{self.origin}/api/account/ai/status", json={"token": s.token}, timeout=30)
             d = httpx.post(f"{self.origin}/api/account/ai/event/draft/save", timeout=30,
-                           json={"token": s.token, "draft": {"title": "Bot IA matrice", "start": iso(22)[:16]}, "place": None})
+                           json={"token": s.token, "place": None,
+                                 # Adresse complète : sinon toujours 400 « Il manque… l'adresse » (faux « refusé »)
+                                 "draft": {"title": "Bot IA matrice", "start": iso(22)[:16],
+                                           "place_query": "Rue du Marché 1, 1204 Genève", "address_complete": True}})
             if d.status_code == 200:
                 sql(f"delete from public.events where id = {q(d.json()['id'])}")
             return None, d.status_code == 200, f"ai/status allowed={r.json().get('allowed')} ; draft/save → {d.status_code} (bouton IA : app iPhone seulement)"
@@ -323,8 +326,16 @@ class Matrix:
             r = rest(s, "POST", "event_groups", json={"event_id": own, "group_id": gid[name]})
             self.record(f"groupe « {name} » sur son événement", name == GROUP_BOTS_2, None, r.status_code < 300, f"POST event_groups → {r.status_code} {r.text[:100]}")
             sql(f"delete from public.event_groups where event_id = {q(own)}")
-        ui_chips = self.ui("/events/event/new", lambda pg: pg.get_by_label("Titre", exact=True),
-                           lambda pg: pg.get_by_role("button", name=re.compile(rf"^(✓ )?{GROUP_BOTS} · ")))
+        self.ui("/events/event/new", lambda pg: pg.get_by_label("Titre", exact=True), lambda pg: pg.get_by_label("Titre", exact=True))
+        # Les puces de groupes n'existent qu'en « Sur invitation » (défaut : public + lien, sans puce)
+        invite = self.p.page.get_by_role("radiogroup", name="Qui est invité").get_by_role("button", name=re.compile("Sur invitation"))
+        if invite.count():
+            invite.first.tap()
+            self.p.page.wait_for_timeout(2000)
+        chips = self.p.page.get_by_role("button", name=re.compile(rf"^(✓ )?{GROUP_BOTS} · "))
+        other = self.p.page.get_by_role("button", name=re.compile(rf"^(✓ )?{GROUP_BOTS_2} · "))
+        ui_chips = chips.count() > 0
+        self.record("choisir le groupe « Bots 2 » (dont elle fait partie)", True, other.count() > 0, None, "puce visible en « Sur invitation »")
         self.record("choisir le groupe « Bots » (hors du groupe)", False, ui_chips, None, "puce visible dans le formulaire")
         self.grant("events.manage_all", True)
         full = load_state()["e_full"]

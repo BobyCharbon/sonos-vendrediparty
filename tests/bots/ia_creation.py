@@ -5,6 +5,7 @@ Sans clé Anthropic : les brouillons sont injectés par POST /api/account/ai/eve
 Usage : BOTS_OUT=<dossier> .venv/bin/python -m tests.bots.ia_creation <phase…>   (phases : voir PHASES)"""
 from __future__ import annotations
 
+import os
 import re
 import sys
 import threading
@@ -32,7 +33,7 @@ def sql(query: str):
                 raise
             time.sleep(8 + attempt * 4)
 
-PREFIX = "[C2-02]"
+PREFIX = os.environ.get("BOTS_PREFIX", "[C2-02]")  # relance : « [R-02] »
 DRAFT = {"status": "ready", "questions": [], "description": "Assistant IA, recette de la campagne 2. Ignorer.",
          "end": "", "place_query": "Rue du Lac 12, Vevey", "place_name": "Chez les bots", "place_broad": "",
          "address_complete": True, "price_chf": 0, "max_participants": 0, "category": "Soirée", "audience": "",
@@ -174,7 +175,10 @@ def phase_api(browser):
     print("statut", st, flush=True)
     out = post("/api/account/ai/consent", {"token": s.token, "accept": False})
     print("accord refusé", out, flush=True)
-    refused = save_draft("orga2", "accord refusé", 30)
+    # Appel direct : save_draft() donne d'abord l'accord (comme l'app), ce qui fausserait ce cas.
+    refused = post("/api/account/ai/event/draft/save", {"token": s.token, "place": PLACE,
+                    "draft": {**DRAFT, "title": f"{PREFIX} accord refusé", "start": f"{f.day(30)}T19:00"}})
+    print("brouillon (accord refusé)", refused, flush=True)
     if refused["status"] != 403:
         note_api("🔴", "brouillon enregistré alors que l'accord IA est refusé", str(refused)[:300])
     post("/api/account/ai/consent", {"token": s.token, "accept": True})
@@ -331,15 +335,17 @@ def phase_groupe(browser):
         none = page.get_by_role("button", name="Choisis un groupe")
         check(p, none.count() > 0 and none.first.is_disabled(), "🔴", "sans groupe coché : bouton « Choisis un groupe » inactif")
         # Un interrupteur dans la carte « Membres Vendredi Party » ; celui de la carte « Un groupe » disparaît sans groupe
-        check(p, page.get_by_label("Prévenir le groupe", exact=True).count() <= 1, "🟡", "sans groupe : pas d'interrupteur « Prévenir le groupe » dans « Un groupe »")
+        check(p, page.get_by_role("switch", name=re.compile("^Prévenir (le groupe|«)")).count() == 0, "🟡", "sans groupe : pas d'interrupteur « Prévenir … » dans « Un groupe »")
         p.shot("aucun-groupe")
         p.tap(f.chip(p, f"{GROUP_BOTS} · ").first, "groupe Bots")
-        sw = page.get_by_label("Prévenir le groupe", exact=True).last  # celui de la carte « Un groupe »
+        sw = page.get_by_label(f"Prévenir « {GROUP_BOTS} »", exact=True)  # celui de la carte « Un groupe » (fix C1 : nom propre)
         if not sw.is_checked():
-            p.tap(sw, "Prévenir le groupe → oui")
+            p.tap(sw, f"Prévenir « {GROUP_BOTS} » → oui")
         page.wait_for_timeout(800)
-        vip_sw = page.get_by_label("Prévenir le groupe", exact=True).first
-        p.log(f"interrupteur de la carte Membres après celui du groupe : {vip_sw.is_checked()} (même réglage partagé ?)")
+        vip_sw = page.get_by_label("Prévenir les Membres Vendredi Party", exact=True)
+        vip_on = vip_sw.count() > 0 and vip_sw.first.is_checked()
+        p.log(f"interrupteur de la carte Membres après celui du groupe : {vip_on} (bug 4 de la campagne : réglage partagé)")
+        check(p, not vip_on, "🟡", "« Prévenir les Membres » reste éteint quand on allume « Prévenir « Bots » » (bug 4)")
         p.shot("bots-prevenir")
         p.dump("bots-prevenir")
         btn = page.get_by_role("button", name=f"Publier pour « {GROUP_BOTS} »")
@@ -476,9 +482,9 @@ def phase_validation(browser):
                 c = f.chip(p, f"{GROUP_BOTS} · ").first
                 if not f.selected(c):
                     p.tap(c, "Bots")
-                sw = page.get_by_label("Prévenir le groupe", exact=True).last
+                sw = page.get_by_label(f"Prévenir « {GROUP_BOTS} »", exact=True)
                 if not sw.is_checked():
-                    p.tap(sw, "Prévenir le groupe → oui")
+                    p.tap(sw, f"Prévenir « {GROUP_BOTS} » → oui")
                 p.shot("groupe-prevenir")
                 buttons = page.get_by_role("button", name="Envoyer pour validation", exact=True)
                 p.tap(buttons.last, "Envoyer pour validation (groupe)")
@@ -597,7 +603,154 @@ def phase_autre(browser):
         p.close()
 
 
-PHASES = {"autre": phase_autre, "groupe_oscar": phase_groupe_oscar, "api": phase_api, "invite": phase_invite, "groupe": phase_groupe, "public": phase_public,
+def phase_groupe_bloque(browser):
+    """Relance du bug 1 : Bot Olga bloque Bot Gus (membre de « Bots »), puis publie pour « Bots » depuis l'étape 2.
+    Attendu (fix A) : publié, Gus sauté sans rien dire, les autres membres invités ; le blocage est retiré à la fin."""
+    olga, gus = session("orga1"), session("guest1")
+    r = olga.rpc("set_block", target=gus.uid, blocked=True)
+    print("blocage Olga → Gus", r.status_code, r.text[:200], flush=True)
+    try:
+        out = save_draft("orga1", "Groupe avec un bloqué", 29)
+        eid = out["body"]["id"]
+        save_state(e_group_block=eid)
+        p = signed(browser, "orga1", "ia-groupe-bloque")
+        try:
+            if not step2(p, eid, f"?audience=group&groups={gid(GROUP_BOTS)}"):
+                return
+            page = p.page
+            c = f.chip(p, f"{GROUP_BOTS} · ").first
+            if not f.selected(c):
+                p.tap(c, "groupe Bots")
+            p.shot("etape2-bots")
+            p.tap(page.get_by_role("button", name=f"Publier pour « {GROUP_BOTS} »"), "Publier pour « Bots » (Gus bloqué)")
+            page.wait_for_timeout(3500)
+            if f.accept_terms_if_asked(p):
+                page.wait_for_timeout(3000)
+            ok = p.expect_or_flag(page.get_by_text("C’est en ligne !").first, "« C'est en ligne ! » malgré un membre bloqué (bug 1)", "🔴", 40000)
+            p.shot("etape3-ou-erreur")
+            p.dump("etape3-ou-erreur")
+            if not ok:
+                p.log("écran : " + p.dump("erreur").replace("\n", " | ")[:600])
+            row = ev(eid)
+            p.log(f"base : {row}")
+            check(p, row["status"] == "published" and row["groups"] == [GROUP_BOTS], "🔴", "base : publié pour « Bots » (bug 1)", str(row))
+            inv = sql(f"""select p.display_name n from public.event_invites i join public.profiles p on p.id = i.user_id
+                where i.event_id = {q(eid)} order by 1""")
+            names = [x["n"] for x in inv]
+            p.log(f"invités en base : {names}")
+            check(p, not any("Gus" in n for n in names), "🔴", "Bot Gus (bloqué) n'est pas invité", str(names))
+            check(p, any("Victor" in n for n in names), "🟠", "les autres membres de « Bots » sont invités", str(names))
+        finally:
+            p.close()
+    finally:
+        r = olga.rpc("set_block", target=gus.uid, blocked=False)
+        print("blocage retiré", r.status_code, r.text[:200], flush=True)
+
+
+def phase_echec_etape2(browser):
+    """Nouveau (fix C1 n° 2) : l'écriture du statut échoue (réseau coupé sur ce seul PATCH) après « qui voit » →
+    message « Rien n'est publié », brouillon remis comme avant (visibilité, groupes, sans annonce) ; nouvel essai OK."""
+    out = save_draft("orga1", "Echec etape 2", 35)
+    eid = out["body"]["id"]
+    before = ev(eid)
+    p = signed(browser, "orga1", "ia-echec-etape2")
+    try:
+        if not step2(p, eid, f"?audience=group&groups={gid(GROUP_BOTS_2)}"):
+            return
+        page = p.page
+        failed: list[str] = []
+
+        def fail_status(route):
+            req = route.request
+            body = req.post_data or ""
+            if req.method == "PATCH" and '"status"' in body:
+                failed.append(body[:200])
+                return route.abort("internetdisconnected")
+            return route.continue_()
+
+        page.route("**/rest/v1/events*", fail_status)
+        c = f.chip(p, f"{GROUP_BOTS_2} · ").first
+        if not f.selected(c):
+            p.tap(c, "groupe Bots 2")
+        sw = page.get_by_label(f"Prévenir « {GROUP_BOTS_2} »", exact=True)
+        if sw.count() and not sw.is_checked():
+            p.tap(sw, f"Prévenir « {GROUP_BOTS_2} » → oui")
+        p.tap(page.get_by_role("button", name=f"Publier pour « {GROUP_BOTS_2} »"), "Publier (statut coupé)")
+        page.wait_for_timeout(5000)
+        f.accept_terms_if_asked(p)
+        page.wait_for_timeout(2000)
+        p.shot("echec-statut")
+        txt = p.dump("echec-statut")
+        p.log(f"PATCH du statut coupés : {failed}")
+        check(p, "Rien n’est publié" in txt or "Rien n'est publié" in txt, "🟠", "message « Rien n'est publié, le brouillon est resté tel quel »", txt[:400].replace("\n", " | "))
+        row = ev(eid)
+        p.log(f"base avant : {before} ; après l'échec : {row}")
+        check(p, row["status"] == "draft" and not row["announce_group"], "🔴", "base : toujours brouillon, sans annonce", str(row))
+        check(p, row["visibility"] == before["visibility"] and row["groups"] == before["groups"], "🟡",
+              "base : « qui voit » et groupes remis comme avant", f"avant {before} / après {row}")
+        page.unroute("**/rest/v1/events*")
+        p.tap(page.get_by_role("button", name=f"Publier pour « {GROUP_BOTS_2} »"), "Publier (nouvel essai)")
+        page.wait_for_timeout(4000)
+        f.accept_terms_if_asked(p)
+        p.expect_or_flag(page.get_by_text("C’est en ligne !").first, "nouvel essai : « C'est en ligne ! »", "🔴", 40000)
+        p.shot("nouvel-essai")
+        row = ev(eid)
+        p.log(f"base après le nouvel essai : {row}")
+        check(p, row["status"] == "published" and row["groups"] == [GROUP_BOTS_2] and row["announce_group"], "🔴",
+              "base : publié pour « Bots 2 » avec l'annonce", str(row))
+    finally:
+        p.close()
+
+
+def phase_valider_ia(browser):
+    """« Non testé » de la campagne : Bot Côme (co-admin) approuve les deux propositions IA de Bot Victor ; Victor
+    retrouve alors son événement en ligne et le lien d'invitation (feuille Inviter)."""
+    st = load_state()
+    for kind in ("invite", "group"):
+        eid = st.get(f"e_valid_{kind}")
+        if not eid:
+            continue
+        p = signed(browser, "coadmin", f"ia-valider-{kind}")
+        try:
+            p.goto(f"/events/event/{eid}")
+            p.page.wait_for_timeout(3500)
+            p.shot("proposition")
+            p.tap(p.page.get_by_role("button", name="Approuver"), "Approuver")
+            p.page.wait_for_timeout(3500)
+            p.shot("approuvee")
+            row = ev(eid)
+            p.log(f"base : {row}")
+            check(p, row["status"] == "published", "🔴", f"Approuver publie la proposition IA ({kind})", str(row))
+            if kind == "group":
+                check(p, row["announcements"] >= 1, "🟠", "annonce demandée par Victor créée à la validation", str(row))
+        finally:
+            p.close()
+        if kind != "invite":
+            continue
+        p = signed(browser, "vip1", "ia-valide-victor")
+        try:
+            p.goto(f"/events/event/{eid}")
+            p.page.wait_for_timeout(3500)
+            p.shot("fiche-validee")
+            txt = p.dump("fiche-validee")
+            invite = p.page.get_by_role("button", name=re.compile("^(Inviter|Partager)"))
+            check(p, invite.count() > 0, "🟠", "Victor : bouton Inviter / Partager sur son événement validé", txt[:300].replace("\n", " | "))
+            if invite.count():
+                p.tap(invite.first, invite.first.inner_text()[:40])
+                p.page.wait_for_timeout(3000)
+                f.accept_terms_if_asked(p)
+                sheet = p.page.get_by_label(re.compile("^Inviter à "))
+                if p.expect_or_flag(sheet, "feuille Inviter après validation", "🟠", 15000):
+                    p.shot("feuille-apres-validation")
+                    p.tap(sheet.get_by_role("button", name="Copier"), "Copier")
+                    p.page.wait_for_timeout(1500)
+                    clip = p.page.evaluate("navigator.clipboard.readText()")
+                    check(p, "/events/invite/" in (clip or ""), "🟠", "lien d'invitation copié après validation", repr(clip))
+        finally:
+            p.close()
+
+
+PHASES = {"valider_ia": phase_valider_ia, "groupe_bloque": phase_groupe_bloque, "echec_etape2": phase_echec_etape2, "autre": phase_autre, "groupe_oscar": phase_groupe_oscar, "api": phase_api, "invite": phase_invite, "groupe": phase_groupe, "public": phase_public,
           "reprise": phase_reprise, "validation": phase_validation, "quitter": phase_quitter}
 
 

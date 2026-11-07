@@ -6,6 +6,7 @@ Titres préfixés « [C2-01] » ; seuls les groupes Bots / Bots 2 et les comptes
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import traceback
@@ -16,8 +17,10 @@ from tests.bots import flows as f
 from tests.bots.bench import OUT, anomaly, load_state, phone, save_state
 from tests.bots.common import GROUP_BOTS, GROUP_BOTS_2, q, sql
 
-PREFIX = "[C2-01] "
-NEW_TAG = "c2-01-test"
+# Relance (07.11) : C01_PREFIX="[R-01] " ; le tag et le modèle suivent le préfixe (nettoyage limité à ce passage).
+PREFIX = os.environ.get("C01_PREFIX", "[C2-01] ")
+_SLUG = re.sub(r"[^a-z0-9]+", "-", PREFIX.lower()).strip("-")
+NEW_TAG = f"{_SLUG}-test"
 LIMITS_ONLY: set[str] = set()  # vide : tous les cas limites
 FINDINGS = OUT / "constats.jsonl"
 
@@ -177,6 +180,11 @@ def phase_simple(browser, origin, only=None):
             else:
                 note("Google Maps", "champ absent (pas de clé)")
         f.fill(p, "Lieu", "Salle des bots C2-01, Vevey")
+        page.wait_for_timeout(800)
+        stale = page.get_by_text(re.compile("Google Maps ne répond pas")).count()
+        note("Google Maps : message encore affiché après le lieu tapé à la main", stale)
+        if stale:
+            p.flag("🟡", "message Google Maps périmé après le lieu tapé à la main", "")
         f.toggle(p, "Pot commun", True)
         p.shot("simple-rempli", full=True)
         p.scroll_to_bottom("formulaire simple")
@@ -250,6 +258,8 @@ def fill_advanced(p, title: str) -> None:
     f.fill(p, "Accompagnants max par personne (vide = illimité)", "2")
     f.toggle(p, "Liste des participants visible", False)
     f.set_date(p, "Date limite de réponse (optionnel)", f.day(7), "12:00")
+    offered = [t.replace("✓ ", "") for t in page.get_by_role("button", name=re.compile(r"^(✓ )?Bot ")).all_inner_texts()]
+    note("co-organisateurs proposés", offered)
     p.tap(f.chip(p, "Bot Oscar", exact=True).first, "co-organisateur Bot Oscar")
     p.tap(f.chip(p, "Bot Côme", exact=True).first, "co-organisateur Bot Côme")
     p.tap(f.chip(p, "Bot Côme", exact=True).first, "retirer Bot Côme")
@@ -301,6 +311,7 @@ def phase_avance(browser, origin, only=None):
         e["starts"], e["ends"], e["rsvp"] = zurich("starts_at", eid), zurich("ends_at", eid), zurich("rsvp_deadline", eid)
         e["price"] = float(e["price_chf"]) if e["price_chf"] is not None else None
         e["invites_n"] = e["invites"]["n"]
+        e["tags"] = sorted(e["tags"])
         compare(p, "avancé", e, {
             "category": "Voyage", "tags": sorted(["karting", "bar", NEW_TAG]), "starts": f"{f.day(8)} 20:00",
             "ends": f"{f.day(9)} 02:00", "location_name": "Chez les bots", "location_address": "Rue du Lac 12, 1800 Vevey",
@@ -468,34 +479,52 @@ def phase_erreurs(browser, origin, only=None):
         p.close()
 
 
+LIMIT_CASES = [  # (cas, réglages, phrase attendue depuis la correction C1 du 07.11 ; None = accepté)
+    ("début hier", {"start": (-1, "19:30")}, "Le début est déjà passé"),
+    ("date limite de réponse après le début", {"start": (4, "19:30"), "rsvp": (6, "12:00")},
+     "La date limite de réponse doit être avant le début"),
+    ("fin du vote après le premier créneau", {"poll": True}, "La fin du vote doit être avant le premier créneau"),
+    ("accompagnants max -3", {"start": (4, "19:30"), "plus": "-3"}, "Accompagnants max : un nombre entier"),
+    ("accompagnants max 0", {"start": (4, "19:30"), "plus": "0"}, "Accompagnants max : 1 au moins"),
+    ("accompagnants max 50", {"start": (4, "19:30"), "plus": "50"}, "Accompagnants max : 9 au plus"),
+    ("titre de 200 caractères", {"start": (4, "19:30"), "title": PREFIX + "x" * 200}, None),
+    ("accompagnants max 2.7", {"start": (4, "19:30"), "plus": "2.7"}, "Accompagnants max : un nombre entier"),
+    ("prix 1000000000", {"start": (4, "19:30"), "price": "1000000000"}, "Le prix ne peut pas dépasser"),
+    ("prix 12.345", {"start": (4, "19:30"), "price": "12.345"}, "deux chiffres après la virgule"),
+    ("prix 100001", {"start": (4, "19:30"), "price": "100001"}, "Le prix ne peut pas dépasser"),
+    ("prix 100000", {"start": (4, "19:30"), "price": "100000"}, None),
+    ("places 10001", {"start": (4, "19:30"), "places": "10001"}, "Nombre de places : 10"),
+    ("début il y a 30 min (tolérance 1 h)", {"start": "now-30"}, None),
+    ("créneau passé dans un sondage", {"poll_past": True}, "déjà passé"),
+    ("date limite de réponse après le 1er créneau", {"poll_rsvp": True}, "avant le premier créneau"),
+]
+
+
 def phase_limites(browser, origin, only=None):
-    # Cas limites qui passent : chacun dans un formulaire neuf, enregistré en BROUILLON (rien n'est publié)
-    cases = [c for c in [
-        ("début hier", {"start": (-1, "19:30")}),
-        ("date limite de réponse après le début", {"start": (4, "19:30"), "rsvp": (6, "12:00")}),
-        ("fin du vote après le premier créneau", {"poll": True}),
-        ("accompagnants max -3", {"start": (4, "19:30"), "plus": "-3"}),
-        ("accompagnants max 0", {"start": (4, "19:30"), "plus": "0"}),
-        ("accompagnants max 50", {"start": (4, "19:30"), "plus": "50"}),
-        ("titre de 200 caractères", {"start": (4, "19:30"), "title": PREFIX + "x" * 200}),
-        ("accompagnants max 2.7", {"start": (4, "19:30"), "plus": "2.7"}),
-        ("prix 1000000000", {"start": (4, "19:30"), "price": "1000000000"}),
-        ("prix 12.345", {"start": (4, "19:30"), "price": "12.345"}),
-    ] if not LIMITS_ONLY or c[0] in LIMITS_ONLY]
+    """Chaque cas dans un formulaire neuf, « Enregistrer en brouillon » (rien n'est publié) : message attendu, rien en base."""
+    from datetime import datetime, timedelta
+    cases = [c for c in LIMIT_CASES if not LIMITS_ONLY or c[0] in LIMITS_ONLY]
     p = signed(browser, "orga1", origin, "c01-limites")
     page = p.page
     try:
-        for case, opt in cases:
+        for case, opt, expect in cases:
             with p.step(case):
                 open_form(p, advanced=True)
                 title = opt.get("title") or f"{PREFIX}Limite {case}"
                 f.fill(p, "Titre", title)
                 typed = page.get_by_label("Titre", exact=True).input_value()
-                if opt.get("poll"):
+                if opt.get("poll") or opt.get("poll_past") or opt.get("poll_rsvp"):
                     p.tap(page.get_by_role("tab", name="Date à définir"), "Date à définir")
-                    f.set_date(p, "Créneau 1", f.day(5), "19:00")
+                    f.set_date(p, "Créneau 1", f.day(-1 if opt.get("poll_past") else 5), "19:00")
                     f.set_date(p, "Créneau 2", f.day(6), "19:00")
-                    f.set_date(p, "Fin du vote (optionnel)", f.day(20), "19:00")
+                    if opt.get("poll"):
+                        f.set_date(p, "Fin du vote (optionnel)", f.day(20), "19:00")
+                    if opt.get("poll_rsvp"):
+                        f.set_date(p, "Date limite de réponse (optionnel)", f.day(5), "20:00")
+                elif opt["start"] == "now-30":
+                    t = datetime.now() - timedelta(minutes=30)
+                    t = t.replace(minute=0 if t.minute < 30 else 30)
+                    f.set_date(p, "Début", t.strftime("%Y-%m-%d"), t.strftime("%H:%M"))
                 else:
                     f.set_date(p, "Début", f.day(opt["start"][0]), opt["start"][1])
                 if "rsvp" in opt:
@@ -504,13 +533,20 @@ def phase_limites(browser, origin, only=None):
                     f.fill(p, "Accompagnants max par personne (vide = illimité)", opt["plus"])
                 if "price" in opt:
                     f.fill(p, "Prix / pers. (CHF)", opt["price"])
+                if "places" in opt:
+                    f.fill(p, "Nombre de places (vide = illimité)", opt["places"])
                 p.tap(page.get_by_role("button", name="Enregistrer en brouillon"), "Enregistrer en brouillon")
                 page.wait_for_timeout(3500)
                 f.accept_terms_if_asked(p)
+                page.wait_for_timeout(1500)
                 shown = alerts(p)
-                rows = sql(f"select id, max_plus_ones, price_chf, length(title) n, status from events where title like {q(typed[:60] + '%')} and created_by = (select id from profiles where display_name = 'Bot Olga')")
-                note(f"limite « {case} »", {"message": shown, "en base": rows, "longueur saisie": len(typed)})
+                rows = sql(f"select id, max_plus_ones, price_chf, max_participants, length(title) n, status from events where title like {q(typed[:60] + '%')} and created_by = (select id from profiles where display_name = 'Bot Olga')")
+                note(f"limite « {case} »", {"message": shown, "attendu": expect, "en base": rows, "longueur saisie": len(typed)})
                 p.shot("limite")
+                if expect and (rows or not any(expect in m for m in shown)):
+                    p.flag("🟠", f"limite « {case} » : refus attendu absent", f"affiché={shown} ; base={rows}")
+                if not expect and not rows:
+                    p.flag("🟠", f"limite « {case} » : cas valide refusé", f"affiché={shown}")
     finally:
         p.close()
 
@@ -702,9 +738,22 @@ def phase_brouillon(browser, origin, only=None):
 
 # ── 8. Retour arrière et rechargement en plein formulaire ───────────────────────────────────────────────────────
 
+def browser_back(p) -> None:
+    """Retour du navigateur ; la garde l'annule (API Navigation) : pas de chargement à attendre."""
+    p.log("retour arrière du navigateur")
+    try:
+        p.page.go_back(timeout=4000)
+    except Exception:
+        p.log("retour annulé par la page (aucun chargement)")
+
+
 def phase_retour(browser, origin, only=None):
+    """Retour arrière, rechargement, « Annuler » en plein formulaire : « Abandonner les changements ? » (correction C1)."""
     p = signed(browser, "orga2", origin, "c01-retour")
     page = p.page
+    dialogs: list[str] = []
+    page.on("dialog", lambda d: dialogs.append(d.type))  # Phone._dialog accepte ; ici on note seulement le type
+    leave = page.get_by_role("dialog", name="Abandonner les changements ?")
     try:
         page.wait_for_timeout(2500)
         p.tap(page.get_by_role("button", name="Proposer un événement"), "+ Proposer", timeout=60000)
@@ -714,28 +763,70 @@ def phase_retour(browser, origin, only=None):
         f.fill(p, "Description", "Texte tapé avant le retour")
         f.fill(p, "Nombre de places (vide = illimité)", "8")
         p.log("retour arrière du navigateur (geste)")
-        page.go_back()
+        browser_back(p)
         page.wait_for_timeout(2000)
-        note("retour arrière : page", page.url)
-        note("retour arrière : confirmation demandée", "aucune boîte" if "/event/new" not in page.url else "resté")
+        asked = leave.count() > 0 and leave.first.is_visible()
+        note("retour arrière : question « Abandonner les changements ? »", {"affichée": asked, "url": page.url})
         p.shot("apres-retour")
-        page.go_forward()
-        page.wait_for_timeout(2500)
-        kept = page.get_by_label("Titre", exact=True).input_value() if page.get_by_label("Titre", exact=True).count() else None
-        note("retour puis avancer : titre conservé", kept)
-        p.tap(page.get_by_role("tab", name="Avancé"), "Avancé") if page.get_by_role("tab", name="Avancé").count() else None
-        f.fill(p, "Titre", PREFIX + "Rechargement")
-        f.fill(p, "Nombre de places (vide = illimité)", "8")
+        if not asked:
+            p.flag("🟠", "retour arrière en plein formulaire : pas de question, saisie perdue", page.url)
+        else:
+            p.tap(leave.get_by_role("button", name="Continuer à modifier"), "Continuer à modifier")
+            page.wait_for_timeout(1000)
+            kept = page.get_by_label("Titre", exact=True).input_value() if page.get_by_label("Titre", exact=True).count() else None
+            note("Continuer à modifier : titre conservé", kept)
+            if kept != PREFIX + "Retour arrière":
+                p.flag("🟠", "« Continuer à modifier » : saisie perdue", str(kept))
+            # Deuxième retour : la question revient-elle ?
+            browser_back(p)
+            page.wait_for_timeout(2000)
+            again = leave.count() > 0 and leave.first.is_visible()
+            note("2e retour arrière : question à nouveau", again)
+            if not again:
+                p.flag("🟠", "2e retour arrière après « Continuer à modifier » : pas de question", page.url)
+            else:
+                p.tap(leave.get_by_role("button", name="Continuer à modifier"), "Continuer à modifier (2)")
+        # « Annuler » (chevron de l'en-tête)
+        back = page.get_by_role("button", name=re.compile("^Retour : Annuler$|^(‹ ?)?Annuler$"))
+        note("bouton Annuler / chevron sur le formulaire", back.count())
+        if back.count():
+            p.tap(back.first, "‹ Annuler")
+            page.wait_for_timeout(1500)
+            asked = leave.count() > 0 and leave.first.is_visible()
+            note("‹ Annuler : question", asked)
+            p.shot("annuler-question")
+            if asked:
+                p.tap(leave.get_by_role("button", name="Continuer à modifier"), "Continuer à modifier (3)")
+        # Rechargement : question du navigateur (beforeunload), acceptée par le bot → la saisie est perdue (voulu)
+        n = len(dialogs)
         page.reload()
         p.see(page.get_by_label("Titre", exact=True), "le formulaire rechargé", 30000)
         page.wait_for_timeout(1500)
-        note("rechargement : titre conservé", page.get_by_label("Titre", exact=True).input_value())
+        note("rechargement : question du navigateur", dialogs[n:])
+        if "beforeunload" not in dialogs[n:]:
+            p.flag("🟡", "rechargement en plein formulaire : pas de question du navigateur", str(dialogs[n:]))
+        note("rechargement : titre après (accepté)", page.get_by_label("Titre", exact=True).input_value())
         note("rechargement : mode retenu", page.get_by_role("tab", name="Avancé").get_attribute("aria-selected"))
         p.shot("apres-rechargement")
-        # Fermer par la croix / « Annuler » s'il existe
-        close = page.get_by_role("button", name=re.compile("^(Annuler|Fermer|Retour)$"))
-        note("bouton Annuler/Fermer/Retour visible sur le formulaire", close.count())
-        note("événements « Retour/Rechargement » créés", sql(f"select count(*) n from events where title in ({q(PREFIX + 'Retour arrière')}, {q(PREFIX + 'Rechargement')})"))
+        # Formulaire intact (vide) : aucune question au départ
+        browser_back(p)
+        page.wait_for_timeout(2000)
+        note("formulaire vide + retour : question (ne doit pas)", leave.count() > 0 and leave.first.is_visible())
+        # Abandonner pour de bon
+        note("formulaire vide + retour : page", page.url)
+        p.tap(page.get_by_role("button", name="Proposer un événement"), "+ Proposer (2)", timeout=60000)
+        p.see(page.get_by_label("Titre", exact=True), "le formulaire", 30000)
+        f.fill(p, "Titre", PREFIX + "À abandonner")
+        browser_back(p)
+        page.wait_for_timeout(2000)
+        if leave.count() and leave.first.is_visible():
+            p.tap(leave.get_by_role("button", name="Abandonner"), "Abandonner")
+            page.wait_for_timeout(2000)
+            note("Abandonner : page", page.url)
+            if "/event/new" in page.url:
+                p.flag("🟠", "« Abandonner » ne quitte pas le formulaire", page.url)
+        note("événements « Retour/Rechargement/Abandon » créés", sql(
+            f"select count(*) n from events where title in ({q(PREFIX + 'Retour arrière')}, {q(PREFIX + 'À abandonner')})"))
     finally:
         p.close()
 
@@ -791,7 +882,7 @@ def phase_roles(browser, origin, only=None):
 
 # ── 10. Modèles d'événement ─────────────────────────────────────────────────────────────────────────────────────
 
-TPL_NAME = "C2-01 modèle"
+TPL_NAME = f"{PREFIX.strip()} modèle"
 
 
 def phase_modele(browser, origin, only=None):

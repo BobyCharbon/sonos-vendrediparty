@@ -29,7 +29,8 @@ Phone.tap.__defaults__ = (60000,)
 Phone.see.__defaults__ = (45000,)
 Phone.expect_or_flag.__defaults__ = ("🟠", 45000)
 
-PREFIX = "[C2-04]"
+import os
+PREFIX = os.environ.get("BOTS_PREFIX", "[C2-04]")  # relance : « [R-04] »
 NOTE = f"Salut Olga, j'amène mon cousin 🙂 n°{int(time.time()) % 1000}"
 TZ = timezone.utc
 
@@ -108,9 +109,11 @@ def ev(key: str) -> str:
 # ── Vérités de la base ──────────────────────────────────────────────────────────────────────────────────────────
 
 def rows(event_key: str) -> list[dict]:
-    return sql(f"""select p.display_name name, r.status, r.waitlisted, r.plus_ones, r.plus_ones_waitlisted pw, r.note,
-                          r.updated_at, r.set_by
+    # Le petit mot vit dans rsvp_notes depuis le lot B (rsvps.note est vidé par un déclencheur).
+    return sql(f"""select p.display_name name, r.status, r.waitlisted, r.plus_ones, r.plus_ones_waitlisted pw,
+                          coalesce(n.note, r.note) note, r.note raw_note, r.updated_at, r.set_by
                    from public.rsvps r join public.profiles p on p.id = r.user_id
+                   left join public.rsvp_notes n on n.event_id = r.event_id and n.user_id = r.user_id
                    where r.event_id = '{ev(event_key)}' order by r.updated_at""")
 
 
@@ -594,11 +597,11 @@ def phase_attente_suite(browser, origin, only):
             open_event(p, "places")
             p.shot("fiche")
             r = mine("places", k)
-            on_wait = p.page.get_by_text(re.compile("tu es sur liste d’attente")).count() > 0
+            on_wait = p.page.get_by_text(re.compile(r"tu es (\d+(ʳᵉ|ᵉ) )?sur (la )?liste d’attente")).count() > 0
             p.log(f"base : {r} ; écran « liste d'attente » : {on_wait}")
             if r and r["status"] == "yes" and bool(r["waitlisted"]) != on_wait:
                 p.flag("🔴", "statut liste d'attente : l'écran ne dit pas ce que dit la base", f"base {r}, écran {on_wait}")
-            rank = p.page.get_by_text(re.compile(r"(\d+(e|er|ᵉ)|rang|position)", re.I)).count()
+            rank = p.page.get_by_text(re.compile(r"tu es \d+(ʳᵉ|ᵉ) sur la liste d’attente|\(\d+ en attente\)")).count()
             p.log(f"rang affiché : {bool(rank)}")
             check_counts(p, "places", f"vu par {BY_KEY[k].nickname}")
         finally:
@@ -622,6 +625,15 @@ def phase_sans_attente(browser, origin, only):
             if r and r["status"] == "yes":
                 p.flag("🔴", "liste d'attente désactivée : un Présent est quand même accepté (mis en liste d'attente)",
                        f"base {r} ; l'écran : {p.page.get_by_role('radiogroup').first.inner_text()[:80]}")
+            msg = p.page.get_by_text(re.compile("C’est complet|C'est complet")).count()
+            card = p.page.get_by_role("radiogroup").first.locator("xpath=..").inner_text()
+            p.log(f"relance : « C'est complet » à l'écran : {bool(msg)} ; carte : {card[:300]!r}")
+            if not msg:
+                p.flag("🟠", "liste d'attente désactivée : refus sans message « C'est complet. » à l'écran", card[:300])
+            if "liste d’attente" in card:
+                p.flag("🟠", "liste d'attente désactivée : la carte parle encore de liste d'attente", card[:300])
+            n = sql(f"select count(*) n from public.rsvps where event_id = '{ev('sans_attente')}' and status = 'yes'")[0]["n"]
+            p.log(f"présents en base : {n} / 2")
         check_counts(p, "sans_attente", "complet sans attente")
     finally:
         p.close()
@@ -681,7 +693,7 @@ def phase_cache(browser, origin, only):
         open_event(p, "cache")
         p.shot("cache-vu-par-valentin")
         full_info = p.page.get_by_text("Complet · liste d’attente ouverte").count()
-        warn = p.page.get_by_text(re.compile("L’événement est complet : en répondant Présent")).count()
+        warn = p.page.get_by_text(re.compile("Complet. Tu seras en liste d’attente si tu réponds Présent")).count()
         p.log(f"participants cachés, complet : ligne Places « Complet » {bool(full_info)} ; avertissement sur la carte Réponse {bool(warn)}")
         if full_info and not warn:
             p.flag("🟡", "participants cachés et complet : la carte « Tu viens ? » ne prévient pas qu'un Présent part en liste d'attente",
@@ -705,7 +717,7 @@ def phase_cache(browser, origin, only):
     try:
         open_event(p, "places")
         tree = p.dump("places-vu-par-valentin")
-        r = api("vip3").get(f"rsvps?event_id=eq.{ev('places')}&select=user_id,note&note=not.is.null")
+        r = api("vip3").get(f"rsvp_notes?event_id=eq.{ev('places')}&select=user_id,note")
         p.log(f"mots lisibles par Valentin (API) : {r.text[:300]}")
         if "Salut Olga" in tree:
             p.shot("mot-visible-par-tous")
