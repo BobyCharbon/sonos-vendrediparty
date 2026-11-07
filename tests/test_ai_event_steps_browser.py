@@ -183,6 +183,25 @@ def test_without_the_right_to_publish_invitation_only_is_sent_for_validation_and
         context.close()
 
 
+def test_back_from_step_two_opens_the_draft_event_not_the_home_page(browser, events_origin):  # noqa: F811
+    """Retour de l'admin (07.11) : le retour de l'étape 2 menait à l'accueil, il fallait deviner que l'événement était
+    dans les brouillons. Il ouvre la fiche du brouillon, rien n'est publié."""
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
+    page = context.new_page()
+    try:
+        mock_services(page, people=PEOPLE)
+        writes = draft_event(page)
+        open_step_two(page, events_origin)
+        pw.expect(page.get_by_role('button', name='Retour : Événements', exact=True)).to_have_count(0)
+        page.get_by_role('button', name='Retour : L’événement', exact=True).click()
+        page.wait_for_url(f'**/events/event/{EVENT}', timeout=10000)
+        pw.expect(page.get_by_role('progressbar', name='Étape 2 sur 3 : Qui est invité')).to_have_count(0)
+        assert not [w for w in writes if w[0] == 'PATCH' and w[1] == 'events' and 'status' in w[2]]
+        shot(page, '07-retour-etape-2-fiche')
+    finally:
+        context.close()
+
+
 def test_invitations_off_public_publishes_in_one_touch_and_invites_nobody(browser, events_origin):  # noqa: F811
     context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
     page = context.new_page()
