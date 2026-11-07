@@ -49,15 +49,26 @@ function inPartyShell(): boolean {
   return typeof window !== 'undefined' && window.parent !== window;
 }
 
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/scan(?:\/[a-f0-9]{64})?)?|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|chats(?:\/[a-f0-9-]{36})?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
-function initialDestination() {
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/invite|\/gifts|\/scan(?:\/[a-f0-9]{64})?)?|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|chats(?:\/[a-f0-9-]{36})?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
+/** Pages de passage (accueil du module, connexion, « Faisons connaissance ») : seules à reprendre l'intention gardée. */
+const transitPath = /^\/?(?:sign-in|welcome)?$/i;
+
+/** Page demandée à l'ouverture. L'adresse ouverte prime toujours : une autre page précise (/share/B, /privacy…)
+ * efface l'intention gardée (campagne 2, 07.11 : le lien A ressortait à la place de B, « Lien indisponible » en boucle). */
+function initialDestination(): string | null {
   if (typeof window === 'undefined') return null;
   const path = location.pathname.replace(/^\/events(?=\/|$)/, '');
   try {
     if (validDestination.test(path)) { sessionStorage.setItem(intentKey, path); return path; }
+    if (!transitPath.test(path)) { sessionStorage.removeItem(intentKey); return null; }
     const previous = sessionStorage.getItem(intentKey);
     return previous && validDestination.test(previous) ? previous : null;
   } catch { return validDestination.test(path) ? path : null; }
+}
+
+/** Intention servie : elle ne ressert plus à la prochaine ouverture (elle reste en mémoire pour l'après-connexion). */
+function forgetStoredIntent() {
+  try { sessionStorage.removeItem(intentKey); } catch { /* Stockage indisponible. */ }
 }
 
 function Gate() {
@@ -106,7 +117,7 @@ function Gate() {
     if (!loading && session && (active || open) && !profileError && intent.current) {
       const target = intent.current;
       intent.current = null;
-      try { sessionStorage.removeItem(intentKey); } catch { /* Stockage indisponible. */ }
+      forgetStoredIntent();
       if (path !== target) requestAnimationFrame(() => router.replace(target as Href));
     }
   }, [loading, session, active, profileError, path, asked]);
@@ -118,6 +129,7 @@ function Gate() {
     const key = `${session?.user.id ?? ''}|${id}`;
     if (loading || profileError || active || !id || shared.current === key) return;
     shared.current = key;
+    forgetStoredIntent();
     requestAnimationFrame(() => router.replace(`/share/${id}` as Href));
   }, [loading, session, active, profileError, asked]);
 
@@ -162,6 +174,8 @@ function Gate() {
         <Stack.Screen name="event/[id]/scan/index" options={{ title: 'Entrée' }} />
         <Stack.Screen name="event/[id]/scan/[token]" options={{ title: 'Entrée' }} />
         <Stack.Screen name="event/[id]/gifts" options={{ title: 'Cadeaux de l’événement' }} />
+        {/* Étape 2 de l'assistant IA : connecté seulement (sinon la page plantait au lieu de demander la connexion). */}
+        <Stack.Screen name="event/[id]/invite" options={{ title: 'Qui est invité' }} />
         <Stack.Screen name="settings/notifications" options={{ title: 'Notifications et abonnements' }} />
         <Stack.Screen name="settings/subscriptions" options={{ title: 'Notifications et abonnements' }} />
         <Stack.Screen name="groups" options={{ title: 'Groupes' }} />

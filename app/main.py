@@ -33,11 +33,11 @@ from . import pet_pot, tv_star
 # Adresse du déploiement et fonctions en bêta (Compagnon : allumé sur le site de test seulement).
 from .features import COMPAGNON_SOON, TEST_SITE_HOST, compagnon_enabled, configured_public_url, discussions_enabled, invites_v2_enabled
 from .game_lock import LOCK as GAMES_LOCK
-from .accounts import AccountError, Accounts
+from .accounts import AccountError, Accounts, ServiceUnavailable, TermsRequired
 from .account_auth import AccountAuth
 from .group_admin import ROLE_KEY, GroupAdmin
 from .app_invites import JOIN_PAGE as APP_JOIN_PAGE, AppInvites, join_meta
-from . import event_invites
+from . import event_invites, event_preview
 from .contact_names import MAX_FRIENDS as CONTACT_MAX_FRIENDS, MAX_HASHES as CONTACT_MAX_HASHES, ContactNames
 from .group_chats import LEVELS as CHAT_LEVELS, PHOTO_MAX as CHAT_PHOTO_MAX, GroupChats
 from .moderation import ContentRefused, require_clean
@@ -166,6 +166,13 @@ async def lifespan(app):
 
 
 app = FastAPI(title="Vendredi Party", lifespan=lifespan)
+
+
+@app.exception_handler(TermsRequired)
+async def terms_required_response(request: Request, exc: TermsRequired):
+    """CGU exigées par la base (terms_enforced) et pas encore acceptées : 403 avec un code reconnaissable, l'app ouvre
+    la feuille des CGU (accept_terms) puis relance l'action."""
+    return JSONResponse({"detail": str(exc), "code": exc.code}, status_code=403)
 
 
 @app.exception_handler(FeedbackUnavailable)
@@ -1810,6 +1817,11 @@ class NotificationPatch(BaseModel):
     # Modération (migration 20261104200000) : nouveau signalement (modérateurs) ; message de la modération.
     moderation_reports: bool | None = None
     moderation_notices: bool | None = None
+    # Annonces aux groupes (migration 20261106220000) : annonce à valider, événement à valider pour mon groupe,
+    # réponse du groupe à mes demandes.
+    announce_requests: bool | None = None
+    group_event_requests: bool | None = None
+    announce_results: bool | None = None
 
 
 class NotificationUpdate(MemberToken):
@@ -1821,6 +1833,8 @@ def account_notifications(body: MemberToken):
     """Réglages natifs › Notifications › Événements : lues avec la session du membre (ses droits Supabase)."""
     try:
         return accounts.notification_prefs(body.token)
+    except ServiceUnavailable as e:  # base lente ou injoignable : « Réessaie », pas « reconnecte-toi »
+        raise HTTPException(503, str(e))
     except AccountError as e:
         raise HTTPException(401, str(e))
 
@@ -1835,6 +1849,8 @@ def account_notifications_update(body: NotificationUpdate):
         raise HTTPException(400, "Valeur manquante")
     try:
         return accounts.update_notification_prefs(body.token, patch)
+    except ServiceUnavailable as e:  # base lente ou injoignable : « Réessaie », pas « reconnecte-toi »
+        raise HTTPException(503, str(e))
     except AccountError as e:
         raise HTTPException(401, str(e))
 
@@ -1893,6 +1909,10 @@ def account_call(work, status: int = 400):
         return work()
     except ConsentRequired as e:  # IA : accord exprès pas encore donné (l'app montre sa feuille d'accord)
         raise HTTPException(403, str(e))
+    except TermsRequired:  # 403 {"code": "terms_required"} (terms_required_response) : feuille des CGU puis nouvel essai
+        raise
+    except ServiceUnavailable as e:  # panne passagère de la base : « Réessaie dans un instant », jamais un refus
+        raise HTTPException(503, str(e))
     except AccountError as e:
         raise HTTPException(status, str(e))
 
@@ -4852,8 +4872,15 @@ def page(name: str) -> Response:
 
 
 @app.get("/")
-def index():
-    return page("index.html")
+def index(tab: str = Query("", max_length=20), event: str = Query("", max_length=40)):
+    """Page de Party. Lien de « Partager le lien » d'un événement (/?tab=events&event=<id>) : aperçu de l'événement
+    s'il est public (titre, date, image), rien sinon."""
+    response = page("index.html")
+    event_id = event_preview.event_id_of_query(tab, event)
+    if not event_id:
+        return response
+    html = event_preview.with_preview(response.body.decode(), accounts, event_id, configured_public_url())
+    return Response(html, media_type="text/html; charset=utf-8", headers=NO_CACHE)
 
 
 @app.get("/admin")
@@ -4978,15 +5005,17 @@ def tv_zicou_state(game: str = Query("", pattern=r"^\d{0,4}$")):
 @app.get("/api/calendar.ics")
 def calendar_file(
     uid: str = Query(max_length=36),
-    title: str = Query(max_length=200),
+    title: str = Query(max_length=1000),
     start: str = Query(max_length=40),
     end: str | None = Query(default=None, max_length=40),
-    location: str = Query(default="", max_length=300),
-    description: str = Query(default="", max_length=2000),
+    location: str = Query(default="", max_length=2000),
+    description: str = Query(default="", max_length=8000),
     url: str = Query(default="", max_length=500),
 ):
-    """Sortie au format iCalendar. Le client transmet ce qu'il affiche déjà : iOS ouvre
-    alors directement « Ajouter au calendrier » et Android l'importe dans l'agenda choisi."""
+    """Événement au format iCalendar. Le client transmet ce qu'il affiche déjà : iOS ouvre
+    alors directement « Ajouter au calendrier » et Android l'importe dans l'agenda choisi.
+    Titre, lieu (+ adresse) et description trop longs sont tronqués par calendar_ics.build (200 / 300 / 2000),
+    jamais refusés (campagne 2) ; seule une taille absurde est refusée (422)."""
     try:
         body = calendar_ics.build(uid=uid, title=title, start=start, end=end, location=location, description=description, url=url)
     except calendar_ics.CalendarError as exc:
@@ -5040,6 +5069,9 @@ def events_web(resource: str):
             # Lien d'invitation à un événement : « Ludo t'invite : … », la date et l'affiche dans l'aperçu.
             meta = event_invites.page_meta(accounts, event_invite.group(1), configured_public_url())
             html = html.replace("</head>", meta + "</head>", 1)
+        elif event_id := event_preview.event_id_of_page(resource):
+            # Fiche ou page de partage d'un événement PUBLIC : titre, date et image dans l'aperçu ; rien sinon.
+            html = event_preview.with_preview(html, accounts, event_id, configured_public_url())
         response = Response(html, media_type="text/html; charset=utf-8", headers={"Cache-Control": "no-store"})
     else:
         return Response("Les événements sont momentanément indisponibles. Réessaie dans un instant.", status_code=503, headers=NO_CACHE)

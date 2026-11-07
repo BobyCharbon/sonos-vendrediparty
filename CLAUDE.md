@@ -34,6 +34,18 @@ App iOS native (ios/, WKWebView) : la barre d'onglets y est une vraie UITabBar, 
 la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un bouton `#tabs [data-tab]` de plus
 (icône SF Symbol dans `ios/Party/NativeTabBar.swift`). Tests : `tests/e2e/test_native_tabs.py`.
 
+## Page Party ↔ module Événements (iframe)
+- Une page ouverte de l'extérieur (app iPhone : `PartyEvents.open('/events/event/<id>/invite')`) doit mettre à jour
+  `frameAt` (app/static/index.html) : sinon, au « prêt » du module, la page le renvoie à son ancienne page (bug de prod du
+  06.11 : l'étape 2 « Qui est invité » se refermait). Test : `test_iphone_app_opens_step_two_in_the_party_page_and_it_stays_open`.
+  Essai réel simulateur + base de TEST : `ios/PartyUITests/AIEventRealE2EUITests.swift` (ignoré sans son environnement).
+  En configuration Release (comme l'App Store) : `xcodebuild test -configuration Release ENABLE_TESTABILITY=YES
+  PARTY_SWIFT_CONDITIONS=E2E_HOOKS PARTY_BASE_URL=http://127.0.0.1:<port>` ; `E2E_HOOKS` ne va jamais dans project.yml
+  ni dans un workflow (test `test_recette_hooks_never_reach_the_app_store_build`). Brouillon de recette : `"notify": false`
+  (la base de TEST contient de vrais comptes).
+- Étape 2 « Qui est invité » : un toucher sur « qui voit » publie (ou envoie pour validation) ; on invite APRÈS, l'événement
+  en ligne. Jamais de lien « disponible à la publication ».
+
 ## Module Événements (web/events) — défilement tactile
 - Jamais de règle `overscroll-behavior` ni `touch-action` sur `*` (web/events/scripts/postbuild.mjs). Sous Android,
   Chrome traite chaque carte en `overflow: hidden` comme un conteneur de défilement : avec
@@ -41,6 +53,12 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   `touch-action: pan-x pan-y` sur `*` ne corrige rien et bloque le zoom à deux doigts.
 - Test réel : `test_android_finger_on_an_event_card_scrolls_the_list` (geste tactile Chrome, départ sur une carte).
   Tout bug de défilement / toucher doit d'abord être reproduit par un test de ce type avant d'être corrigé.
+- Feuilles et fenêtres (Inviter, QR, Signaler, billet, payer, CGU, toute nouvelle) : `components/SheetGesture.tsx` —
+  `useSheetDrag` (glisser vers le bas depuis la poignée / le titre, ou le contenu tout en haut, ferme), ✕ `SheetClose`
+  en haut à droite, fond `SheetBackdrop` qui ferme, marge `useSheetTop` (jamais sous la barre d'état d'iOS, qui garde
+  les touchers : la poignée ne s'attrapait pas). Une feuille ouverte prévient Party (`party-events:sheet`) qui cache la
+  pastille de Zicou (elle couvrait le ✕, vidéo de l'admin du 06.11). Tests : `tests/test_sheets_touch_scroll_browser.py`,
+  `ios/PartyUITests/InviteSheetScrollUITests.swift` (simulateur + base de TEST).
 - Billets QR : option par événement (`events.tickets_enabled`, éteinte par défaut) activée par l'organisateur lui-même ;
   l'IA de création / modification (app/ai_events.py, ai_event_edit.py) ne l'active JAMAIS (hors de son schéma) ; un QR
   n'existe que si l'option est active ET le billet remis (`issue_event_ticket`, ou place payée confirmée).
@@ -52,6 +70,7 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Groupes : on ne réserve un événement qu'aux groupes dont on FAIT PARTIE, « Membres Vendredi Party » compris
   (écrans : `choosableGroups` / `mayUseVip`, assistant IA ; base : migration 20261106090000, triggers
   `guard_event_group` et `guard_event_vip_visibility`). Un admin (events.manage_all) garde tous les groupes.
+- Public par défaut (formulaire et IA) ; un événement public ne prévient JAMAIS personne à sa publication (base : `events_public_silent`, 20261106200000).
 
 ## Jeux — requêtes simultanées
 - Tous les téléphones interrogent la partie chaque seconde, en parallèle. Toute lecture-modification d'une partie
@@ -62,6 +81,15 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Test : `tests/test_game_concurrency.py` (requêtes simultanées, une seule étape appliquée).
 - Tout prénom ou texte saisi par un joueur passe par `esc()` avant d'entrer dans du HTML, attributs compris
   (test : `tests/e2e/test_names_escaped.py`).
+
+## Annonces aux groupes (décision du 06.11.2026, migration 20261106220000)
+- Un événement public ne prévient jamais personne. Un événement de groupe (groupe choisi ou Membres Vendredi Party) ne
+  prévient le groupe que par « Prévenir le groupe » (`events.announce_group`, éteint par défaut) : demande à valider
+  (`event_announcements` : créateur / admins / organisateurs du groupe, droit `groups.announce_approve`, première réponse
+  gagne, d'office après 48 h par pg_cron), ou envoi direct si l'organisateur est valideur ou le groupe « libre ».
+- Jamais de notification à un groupe hors de `private.send_announcement` (ni `private_invite` à un membre venu par le
+  groupe, ni « Nouvel événement » aux Membres VIP) : `private.should_invite` le garantit ; l'IA n'allume jamais
+  `announce_group`. Tests : `tests/supabase_live/test_annonces_groupe_live.py`, banc des bots phase `annonces`.
 
 ## Base Supabase (Événements, comptes)
 - Deux bases (décision du 24 octobre 2026) : une base de TEST pour le site de test (développement, tests, données
@@ -77,6 +105,7 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   la base de test à l'identique de la prod (c'est ainsi qu'on passe en prod).
 - Une migration doit être purement additive et rejouable (`add column if not exists`, `drop policy if exists`
   avant `create policy`, `create or replace function`, `drop trigger if exists`), pour ne jamais casser la prod.
+- Les CGU sont exigées en prod (terms_enforced) : tout nouveau chemin qui publie du contenu doit gérer terms_required (feuille CGU puis nouvel essai). Serveur : `db_refusal` / `refusal` lèvent `TermsRequired` → 403 `{"code": "terms_required"}` ; iOS : `PartyAPIError.termsRequired` + `TermsAcceptSheet` ; web : `useTermsGate().ensure()`. Tests : `tests/test_terms_required.py`, `tests/supabase_live/test_terms_required_live.py`, `AIEventTermsTests`.
 - Vérifier les politiques RLS existantes : une politique `for update` donne accès à toute la ligne ; protéger les
   colonnes sensibles avec un trigger de garde (modèle : `guard_profile`, `guard_bring_item`).
 
@@ -125,3 +154,16 @@ l'admin. Toujours :
 
 ## Tests
 `python -m pytest -q --ignore=tests/e2e` avant tout commit.
+
+### Avant toute mise en production : recette RÉELLE (règle de l'admin, 06.11.2026)
+Des tests avec des faux (Supabase simulé, écrans isolés) ne suffisent pas : l'assistant IA « testé » a cassé en prod
+(CGU exigées en prod seulement, invitations v2 allumées en prod). Avant tout merge dans `main` et tout changement de
+réglage de prod :
+- Parcourir pour de vrai chaque parcours touché, de bout en bout, comme un utilisateur : app iPhone dans le simulateur
+  (configuration Release, comme l'App Store) + serveur local branché sur la base TEST, et le site web dans un vrai
+  navigateur (Playwright), avec des captures de chaque étape.
+- Avec EXACTEMENT les réglages de la prod : drapeaux (`/api/features` de prod : compagnon, discussions, invites_v2…),
+  `terms_enforced`, rôles/droits du compte (admin ET simple membre ET Guest), données réalistes.
+- Changer un réglage de prod (drapeau, CGU, droit) = refaire la recette des parcours qu'il touche AVANT de le changer.
+- Le rapport dit ce qui a été testé pour de vrai et ce qui ne l'a été qu'avec des faux. Pas de « prêt » sans recette.
+- La production n'est pas un banc d'essai : en cas de doute, ça reste sur develop / le site de test.

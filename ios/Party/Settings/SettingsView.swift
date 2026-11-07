@@ -36,7 +36,7 @@ struct SettingsView: View {
                         }
                         .accessibilityIdentifier("settings-tricount")
                         NavigationLink {
-                            GroupsView(store: store.groups, privacy: store.privacy)
+                            GroupsView(store: store.groups, privacy: store.privacy, moderation: store.moderation)
                         } label: {
                             SettingsRow(symbol: "person.3.fill", tint: .blue, title: "Groupes",
                                         hint: "Les groupes dont tu fais partie ; crée les tiens")

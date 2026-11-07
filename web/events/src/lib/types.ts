@@ -71,6 +71,8 @@ export type EventRow = {
   tickets_enabled?: boolean;
   forum_enabled: boolean;
   notify_on_publish: boolean;
+  /** « Prévenir le groupe » (06.11) : demande d'annonce au groupe, validée par son admin (migration 20261106220000). */
+  announce_group?: boolean;
   reminders: Reminder[];
   created_at: string;
   updated_at: string;
@@ -78,7 +80,11 @@ export type EventRow = {
 
 /** Groupe de membres réutilisable pour inviter à un événement privé. */
 /** system_key 'vip' : groupe « Vendredi Party » (Membres VIP et au-dessus), tenu à jour par la base selon le statut. */
-export type MemberGroup = { id: string; name: string; created_by: string | null; system_key?: string | null; member_group_members: { user_id: string }[] };
+export type MemberGroup = {
+  id: string; name: string; created_by: string | null; system_key?: string | null; member_group_members: { user_id: string }[];
+  /** Réglages du groupe (créateur) : événements des membres à valider ; annonces libres ou sur demande. */
+  events_need_approval?: boolean; announce_mode?: 'request' | 'free';
+};
 export const VIP_GROUP_KEY = 'vip';
 
 export type Rsvp = {
@@ -160,6 +166,10 @@ export type NotificationPrefs = {
   rsvp_set: boolean;
   invites: boolean;
   proposal_result: boolean;
+  /** Annonces aux groupes (06.11) : demandes à valider, événements à valider, réponses à mes demandes. */
+  announce_requests?: boolean;
+  group_event_requests?: boolean;
+  announce_results?: boolean;
   link_join: boolean;
   group_messages: boolean;
   group_invites: boolean;

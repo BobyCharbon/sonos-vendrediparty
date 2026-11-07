@@ -14,7 +14,7 @@ type Suggestion = { id: string; main: string; secondary: string };
 export type Place = { name: string; address: string; url: string };
 
 /** Recherche Google Maps : choisir un lieu remplit nom, adresse et lien Google Maps. */
-export function PlaceSearch({ onPick }: { onPick: (place: Place) => void }) {
+export function PlaceSearch({ onPick, typed }: { onPick: (place: Place) => void; typed?: string }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Suggestion[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +84,8 @@ export function PlaceSearch({ onPick }: { onPick: (place: Place) => void }) {
           ))}
         </View>
       ) : null}
-      {error ? <T size={12} color={colors.coral}>{error}</T> : null}
+      {/* Lieu rempli à la main : le message « Google Maps ne répond pas » n'a plus lieu d'être. */}
+      {error && !typed?.trim() ? <T size={12} color={colors.coral}>{error}</T> : null}
     </View>
   );
 }

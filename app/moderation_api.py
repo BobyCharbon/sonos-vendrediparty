@@ -6,7 +6,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from .accounts import AccountError
+from .accounts import AccountError, TermsRequired
 from .group_admin import GroupAdmin
 from .group_chats import GroupChats
 
@@ -152,6 +152,8 @@ def router(moderation: Moderation) -> APIRouter:
     def call(work, status: int = 400):
         try:
             return work()
+        except TermsRequired:
+            raise
         except AccountError as e:
             raise HTTPException(status, str(e))
 

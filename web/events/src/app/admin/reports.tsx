@@ -25,8 +25,16 @@ type Report = {
 
 const KIND_LABELS: Record<string, string> = {
   group_message: 'Message de groupe', direct_message: 'Message direct', event_message: 'Discussion d’événement',
-  profile: 'Profil', profile_photo: 'Photo de profil', event: 'Événement', pet_name: 'Nom du Zicou', pet_item: 'Objet de Zicou',
+  profile: 'Profil', profile_photo: 'Photo de profil', event: 'Événement',
+  rsvp_note: 'Petit mot', poll: 'Sondage', poll_option: 'Choix de sondage', bring_item: 'Objet à amener', pet_name: 'Nom du Zicou', pet_item: 'Objet de Zicou',
   pet_offer: 'Offre d’échange', pet_showcase: 'Vitrine', pet_word: 'Mot de Zicou',
+};
+/** Contenus rattachés à un événement : « Ouvrir l'événement » mène au contexte (la copie garde event_id). */
+const EVENT_KINDS = new Set(['event', 'event_message', 'rsvp_note', 'poll', 'poll_option', 'bring_item']);
+/** Ce que « Masquer le contenu » fait, dit avant de toucher (la base : private.moderation_hide). */
+const HIDE_EFFECT: Record<string, string> = {
+  rsvp_note: 'Masquer supprime ce mot.', poll: 'Masquer remplace la question par « Question masquée par la modération ».',
+  poll_option: 'Masquer supprime ce choix (et ses votes).', bring_item: 'Masquer retire cet objet de la liste.',
 };
 const RESOLUTIONS: Record<string, string> = {
   hide: 'Contenu masqué', warn: 'Averti', suspend: 'Suspendu', ban: 'Banni', dismiss: 'Classé sans suite',
@@ -129,7 +137,7 @@ function ReportCard({ report: r, photo, canBan, onDone }: { report: Report; phot
           <Image source={{ uri: r.snapshot.cover_url }} style={{ width: 200, height: 112, borderRadius: 10 }} accessibilityLabel="Photo de l’événement signalé" />
         ) : null}
         <T>{r.snapshot.text || (r.kind === 'profile_photo' ? '' : '(sans texte)')}</T>
-        {r.kind === 'event' && r.snapshot.event_id ? (
+        {EVENT_KINDS.has(r.kind) && r.snapshot.event_id ? (
           <Button small variant="ghost" label="Ouvrir l’événement" onPress={() => router.push(`/event/${r.snapshot.event_id}`)} />
         ) : null}
       </View>
@@ -141,6 +149,7 @@ function ReportCard({ report: r, photo, canBan, onDone }: { report: Report; phot
         <T size={13} weight="semibold">{RESOLUTIONS[r.resolution ?? ''] ?? r.status}{r.handled_by ? ` par ${r.handled_by}` : ''}{r.handled_at ? ` · ${when(r.handled_at)}` : ''}{r.note ? ` · « ${r.note} »` : ''}</T>
       ) : (
         <>
+          {HIDE_EFFECT[r.kind] ? <T muted size={12}>{HIDE_EFFECT[r.kind]}</T> : null}
           <Input accessibilityLabel="Note (envoyée avec l’avertissement)" placeholder="Note (envoyée avec l’avertissement, notée au journal)"
             value={note} onChangeText={setNote} maxLength={500} />
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>

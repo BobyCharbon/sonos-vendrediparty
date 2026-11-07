@@ -216,6 +216,8 @@ NEWCOMER = '41768163120'  # Guest au profil vide (code fixe de la base de test) 
 def test_a_deleted_account_leaves_no_answer_vote_or_message_behind(people, made):
     admin, ga, gb = people
     who = Session(NEWCOMER)
+    # CGU exigées (comme en prod) : le nouveau venu les accepte avant d'écrire ; ses acceptations partent avec le compte.
+    assert who.rpc('accept_terms', p_version=who.rpc('my_terms').json()['version']).json()['accepted'] is True
     eid = made('Test participant compte supprimé')
     poll = made('Test participant compte supprimé (sondage)', date_mode='poll', starts_at=None)
     r = httpx.post(f'{TEST_URL}/rest/v1/date_options', headers={**admin.headers, 'Prefer': 'return=representation'}, timeout=30,

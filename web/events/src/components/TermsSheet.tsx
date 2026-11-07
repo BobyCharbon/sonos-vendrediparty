@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Modal, StyleSheet, View } from 'react-native';
 
+import { SheetBackdrop, SheetTop, useSheetDrag, useSheetTop } from './SheetGesture';
 import { Button, ErrorText, T } from './ui';
 import { TERMS_PATH, useTerms } from '@/lib/moderation';
 import { colors, radius } from '@/lib/theme';
@@ -14,6 +15,10 @@ export function useTermsGate() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const answer = useRef<((ok: boolean) => void) | null>(null);
+  const card = useRef<View>(null);
+  const overlay = useRef<View>(null);
+  const sheetTop = useSheetTop();
+  useSheetDrag(open, () => finish(false), card, overlay);   // glisser vers le bas = « Plus tard »
 
   async function ensure(): Promise<boolean> {
     if (terms.accepted) return true;
@@ -46,8 +51,10 @@ export function useTermsGate() {
 
   const sheet = (
     <Modal visible={open} transparent animationType="fade" onRequestClose={() => finish(false)}>
-      <View style={st.overlay}>
-        <View style={st.sheet} accessibilityViewIsModal accessibilityLabel="Conditions d’utilisation">
+      <View ref={overlay} style={[st.overlay, { paddingTop: sheetTop }]}>
+        <SheetBackdrop onPress={() => finish(false)} />
+        <View ref={card} style={st.sheet} accessibilityViewIsModal accessibilityLabel="Conditions d’utilisation">
+          <SheetTop onClose={() => finish(false)} />
           <T weight="bold" size={18}>Avant de publier</T>
           <T size={14}>Sur Party, on se respecte : pas de harcèlement, pas de propos haineux ni de contenu sexuel, pas
             d’arnaque ni de vente. Les objets du jeu n’ont aucune valeur en argent. Tout contenu peut être signalé ; un

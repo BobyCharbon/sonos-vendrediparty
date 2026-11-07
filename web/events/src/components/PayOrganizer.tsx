@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Linking, Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { pressTransition } from '@/lib/motion';
@@ -6,6 +6,7 @@ import { colors, font, radius } from '@/lib/theme';
 import { chf, declarePayment, fetchPayInfo, formatIban, type MyTicket, type PayInfo, type TicketPayment } from '@/lib/tickets';
 
 import { LinkedText } from './LinkedText';
+import { SheetBackdrop, SheetTop, useSheetDrag, useSheetTop } from './SheetGesture';
 import { Button, ErrorText, T } from './ui';
 
 const LINK_LABELS: Record<string, string> = {
@@ -40,9 +41,15 @@ function PaySheet({ info, onDeclare, onClose, busy, error }: { info: PayInfo; on
   const twint = info.links.twint;
   const links = Object.entries(info.links).filter(([k, v]) => k !== 'twint' && safeLink(v));
   const nothing = !twint && !links.length && !info.iban && !info.payment_info;
+  const card = useRef<View>(null);
+  const overlay = useRef<View>(null);
+  const sheetTop = useSheetTop();
+  useSheetDrag(true, onClose, card, overlay);   // monté seulement quand la fenêtre est ouverte
   return (
-    <View style={st.overlay}>
-      <View style={st.sheet} accessibilityViewIsModal>
+    <View ref={overlay} style={[st.overlay, { paddingTop: sheetTop }]}>
+      <SheetBackdrop onPress={onClose} />
+      <View ref={card} style={st.sheet} accessibilityViewIsModal accessibilityLabel="Payer l’organisateur">
+        <SheetTop onClose={onClose} />
         <T muted size={13}>Payer {info.organizer_name ?? 'l’organisateur'}</T>
         <T style={st.amount}>{chf(info.amount)}</T>
         {info.payment_info ? <LinkedText size={14} color={colors.textSoft} text={info.payment_info} /> : null}

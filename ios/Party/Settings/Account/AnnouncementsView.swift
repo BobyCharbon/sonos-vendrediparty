@@ -163,7 +163,7 @@ struct GameStatsView: View {
         Section {
             VStack(spacing: 6) {
                 Text("Ton dernier score d'impureté").font(.subheadline).foregroundStyle(.secondary)
-                Text("\(stats.last) %").font(.system(size: 52, weight: .heavy, design: .rounded)).foregroundStyle(Palette.accent)
+                Text("\(stats.last) %").scaledFont(size: 52, weight: .heavy, design: .rounded, relativeTo: .largeTitle).foregroundStyle(Palette.accent)
                     .contentTransition(.numericText())
                     .motion(Motion.smooth, value: stats.last)
 

@@ -270,6 +270,9 @@ final class GroupsStore: ObservableObject {
 struct GroupsView: View {
     @ObservedObject var store: GroupsStore
     let privacy: PrivacyStore
+    /// CGU exigées (terms_enforced) avant un premier nom de groupe : la feuille, puis la création repart.
+    var moderation: ModerationStore?
+    @State private var askTerms = false
     @State private var newName = ""
     @State private var showAll = false
     @FocusState private var naming: Bool
@@ -366,6 +369,11 @@ struct GroupsView: View {
             await store.load()
             await privacy.load()
         }
+        .sheet(isPresented: $askTerms) {
+            if let moderation {
+                TermsAcceptSheet(store: moderation) { accepted in if accepted { create() } }
+            }
+        }
     }
 
     private func subtitle(_ group: GroupList.Group) -> String {
@@ -378,7 +386,13 @@ struct GroupsView: View {
         let name = newName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         naming = false
-        Task { if await store.create(name) != nil { newName = "" } }
+        Task {
+            if let moderation, !(await moderation.termsAccepted()) {
+                askTerms = true
+                return
+            }
+            if await store.create(name) != nil { newName = "" }
+        }
     }
 }
 

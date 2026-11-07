@@ -73,5 +73,5 @@ const st = StyleSheet.create({
   prominent: { backgroundColor: colors.coral, borderColor: colors.coral },
   quiet: { backgroundColor: colors.fill, borderColor: 'transparent' },
   choice: { flex: 1, minHeight: 44, borderRadius: radius.md, borderWidth: 1, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, backgroundColor: colors.fill },
-  alt: { alignSelf: 'center', minHeight: 32, justifyContent: 'center', paddingHorizontal: 8 },
+  alt: { alignSelf: 'center', minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
 });

@@ -40,7 +40,9 @@ enum AppConfig {
 
     static func isInternal(_ url: URL) -> Bool {
         guard let host = url.host?.lowercased() else { return false }
-        return internalHosts.contains(host) || internalHostSuffixes.contains { host.hasSuffix($0) }
+        // Le site chargé par l'app (PARTY_BASE_URL) l'est toujours : serveur local des essais sur simulateur compris.
+        return host == baseURL.host?.lowercased() || internalHosts.contains(host)
+            || internalHostSuffixes.contains { host.hasSuffix($0) }
     }
 }
 

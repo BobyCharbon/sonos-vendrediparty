@@ -6,6 +6,7 @@ import { supabase } from './supabase';
  * La base décide de tout (filtre, droits, limites) ; ces fonctions ne font que l'appeler. */
 
 export type ReportKind = 'group_message' | 'direct_message' | 'event_message' | 'profile' | 'profile_photo' | 'event'
+  | 'rsvp_note' | 'poll' | 'poll_option' | 'bring_item'
   | 'pet_name' | 'pet_item' | 'pet_offer' | 'pet_showcase' | 'pet_word';
 export type ReportReason = 'harassment' | 'shocking' | 'spam' | 'scam' | 'other';
 export type ReportTarget = { kind: ReportKind; id: string; label: string };
@@ -84,6 +85,15 @@ export function useTerms() {
   }
 
   return { status, accepted: Boolean(status?.accepted) || unanswered, reload, accept };
+}
+
+/** Acceptation dite dans le geste lui-même (« En répondant, j'accepte les conditions d'utilisation » au-dessus du
+ * bouton, invité sans l'app) : enregistrée par la base, à la version en cours, avant le premier contenu (le prénom). */
+export async function acceptTermsIfNeeded(): Promise<void> {
+  const { data } = await supabase.rpc('my_terms');
+  if (!isTermsStatus(data) || data.accepted) return;
+  const { error } = await supabase.rpc('accept_terms', { p_version: data.version });
+  if (error) throw new Error(dbMessage(error.message, 'L’acceptation des conditions n’a pas été enregistrée. Réessaie.'));
 }
 
 export type PublicInfo = { terms_version: string; contact_email: string | null; terms_enforced: boolean };

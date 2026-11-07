@@ -145,7 +145,9 @@ def test_accounts_reads_and_patches_only_the_members_own_row():
         return httpx.Response(404)
 
     acc = accounts_mod.Accounts(b"secret", httpx.Client(transport=httpx.MockTransport(handler)))
-    assert acc.notification_prefs("tok") == {"prefs": {"user_id": "u-9", "chat": "all"}, "approver": True, "moderator": False}
+    state = acc.notification_prefs("tok")
+    assert {k: state[k] for k in ("prefs", "approver", "moderator")} == {"prefs": {"user_id": "u-9", "chat": "all"},
+                                                                          "approver": True, "moderator": False}
     acc.update_notification_prefs("tok", {"chat": "none"})
     patch = next(s for s in seen if s[0] == "PATCH")
     assert patch[2] == "user_id=eq.u-9" and patch[3] == b'{"chat":"none"}'

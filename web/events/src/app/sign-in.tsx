@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
 
 import { Button, ErrorText, Field, Screen, T, Title } from '@/components/ui';
+import { authErrorMessage } from '@/lib/authErrors';
 import { enter, pressTransition } from '@/lib/motion';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
@@ -28,17 +29,17 @@ export default function SignIn() {
     setBusy(true);
     const { error } = await supabase.auth.signInWithOtp({ phone: e164 });
     setBusy(false);
-    if (error) return setError(error.message);
+    if (error) return setError(authErrorMessage(error, 'send'));
     setSentTo(e164);
   }
 
   async function verify() {
-    if (!sentTo) return;
+    if (!sentTo || busy) return;
     setError(null);
     setBusy(true);
     const { error } = await supabase.auth.verifyOtp({ phone: sentTo, token: code.trim(), type: 'sms' });
     setBusy(false);
-    if (error) setError('Code incorrect ou expiré');
+    if (error) setError(authErrorMessage(error, 'verify'));
     // La redirection est gérée par le layout racine.
   }
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { supabase } from '@/lib/supabase';
@@ -33,15 +33,39 @@ export function SharedBringRow({ item, me, names, canParticipate, onChange, onEr
 }) {
   const [busy, setBusy] = useState(false);
   const total = item.quantity ?? 0;
-  const { taken, mine, left, who } = bringShares(item, names, me);
+  const shares = bringShares(item, names, me);
+  // « + » / « − » successifs : la quantité voulue s'affiche tout de suite et les envois se suivent (le dernier gagne),
+  // au lieu de repartir d'une fiche pas encore relue (des touchers se perdaient).
+  const [wanted, setWanted] = useState<number | null>(null);
+  if (wanted !== null && !busy && wanted === shares.mine) setWanted(null);
+  const target = useRef<number | null>(null);
+  const mine = wanted ?? shares.mine;
+  const taken = shares.taken - shares.mine + mine;
+  const left = Math.max(total - taken, 0);
+  const { who } = shares;
 
-  const bring = async (count: number) => {
+  const write = (count: number) => (count > 0
+    ? supabase.from('bring_claims').upsert({ item_id: item.id, user_id: me, quantity: count }, { onConflict: 'item_id,user_id' })
+    : supabase.from('bring_claims').delete().eq('item_id', item.id).eq('user_id', me));
+
+  const bring = async (delta: number) => {
+    const next = Math.max(0, Math.min((target.current ?? mine) + delta, shares.mine + Math.max(total - shares.taken, 0)));
+    const running = target.current !== null;
+    target.current = next;
+    setWanted(next);
+    if (running) return;
     setBusy(true);
-    const { error } = count > 0
-      ? await supabase.from('bring_claims').upsert({ item_id: item.id, user_id: me, quantity: count }, { onConflict: 'item_id,user_id' })
-      : await supabase.from('bring_claims').delete().eq('item_id', item.id).eq('user_id', me);
+    let sent: number | null = null;
+    let failure: string | null = null;
+    while (target.current !== sent && !failure) {
+      sent = target.current;
+      const { error } = await write(sent ?? 0);
+      failure = error ? error.message : null;
+    }
+    target.current = null;
+    if (failure) setWanted(null);
     setBusy(false);
-    onError(error ? error.message : '');
+    onError(failure ?? '');
     onChange();
   };
 
@@ -57,9 +81,11 @@ export function SharedBringRow({ item, me, names, canParticipate, onChange, onEr
       {canParticipate && (left > 0 || mine > 0) ? (
         <View style={styles.line}>
           <T style={{ flex: 1 }}>{mine ? `J’en amène ${mine}` : 'J’en amène…'}</T>
-          <Button small variant="secondary" label="−" disabled={busy || mine === 0} onPress={() => bring(mine - 1)} />
+          <Button small variant="secondary" label="−" accessibilityLabel={`En amener un de moins : ${item.label}`} style={styles.step}
+            disabled={mine === 0} onPress={() => void bring(-1)} />
           <T style={styles.count}>{mine}</T>
-          <Button small label="+" disabled={busy || left === 0} onPress={() => bring(mine + 1)} />
+          <Button small label="+" accessibilityLabel={`En amener un de plus : ${item.label}`} style={styles.step}
+            disabled={left === 0} onPress={() => void bring(1)} />
         </View>
       ) : null}
     </View>
@@ -69,5 +95,7 @@ export function SharedBringRow({ item, me, names, canParticipate, onChange, onEr
 const styles = StyleSheet.create({
   box: { gap: 6 },
   line: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  // ± : 44 × 44 au moins (cible tactile Apple).
+  step: { minWidth: 44, paddingHorizontal: 0 },
   count: { minWidth: 24, textAlign: 'center', fontWeight: '700' },
 });

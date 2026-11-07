@@ -321,7 +321,7 @@ def test_step_two_saves_a_draft_without_inviting_anyone_and_proposes_the_named_p
                    "suggested": [{"id": "p-tom", "name": "Tom"}, {"id": "p-lea", "name": "Léa"}],
                    "preset": {"audience": "invite", "group_ids": []}}
     assert not any(p == "/rest/v1/event_invites" for _, p, _ in accounts.calls)
-    assert not any(m == "PATCH" for m, _, _ in accounts.calls)  # jamais publié par l'IA : la personne publie à l'étape 2
+    assert not any(m == "PATCH" and "status" in (j or {}) for m, _, j in accounts.calls)  # jamais publié par l'IA : étape 2
     row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
     # Visibilité choisie à l'étape 2 : en attendant, le défaut (public + lien public).
     assert row["status"] == "draft" and row["visibility"] == "all" and row["public_link"] is True
@@ -386,3 +386,53 @@ def test_the_ai_only_offers_the_groups_the_person_is_in_vendredi_party_included(
     a.draft("ok", ["Raclette"], None)
     assert client.calls[-1]["output_config"]["format"]["schema"]["properties"]["audience"]["enum"] == \
         ["Vendredi Party", "Ski", "Foot", ev.ONLY_INVITEES, ev.PUBLIC_AUDIENCE]
+
+
+def test_a_public_event_never_announces_itself_but_a_group_event_still_does(tmp_path):
+    """Décision de l'admin (06.11) : public → jamais de notification de publication (sinon spam), même si l'IA a
+    compris « préviens tout le monde ». Le brouillon de l'étape 2 garde le réglage : la base décide à la publication
+    (un brouillon public passé à un groupe à l'étape 2 prévient bien son groupe)."""
+    a, accounts, _ = make(tmp_path)
+    a.create("ok", {**READY, "audience": "Public (lien)", "notify": True}, None)
+    row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
+    assert row["public_link"] and row["notify_on_publish"] is False
+    a, accounts, _ = make(tmp_path)
+    a.create("ok", {**READY, "audience": "Ski", "notify": True}, None)
+    row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
+    assert row["notify_on_publish"] is True
+
+
+def test_the_ai_never_announces_to_a_group_by_itself(tmp_path):
+    """Annonces de groupe (06.11) : l'IA n'allume jamais « Prévenir le groupe », même si elle a compris « préviens le
+    groupe » ; la personne le choisit à l'étape 2 et la base fait valider la demande."""
+    for audience in ("Ski", "Public (lien)"):
+        a, accounts, _ = make(tmp_path)
+        a.create("ok", {**READY, "audience": audience, "notify": True}, None)
+        row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
+        assert row["announce_group"] is False
+
+
+def test_step_two_draft_keeps_the_named_people_with_the_draft_without_inviting_them(tmp_path):
+    """Retour de l'admin (06.11) : les personnes citées à l'IA restent avec le brouillon (events.ai_suggested), pour être
+    cochées d'avance quand l'étape 2 est rouverte depuis la fiche ; jamais une invitation."""
+    a, accounts, _ = make(tmp_path)
+    a.save_draft("ok", {**READY, "invitees": ["Tom", "Léa"]}, None)
+    kept = [j for m, p, j in accounts.calls if m == "PATCH" and p == "/rest/v1/events?id=eq.e1"]
+    assert kept == [{"ai_suggested": ["p-tom", "p-lea"]}]
+    assert not any(p.startswith("/rest/v1/event_invites") for _, p, _ in accounts.calls)
+
+
+def test_a_base_without_the_column_still_saves_the_draft(tmp_path):
+    a, accounts, _ = make(tmp_path)
+    plain = accounts._get
+    accounts._get = lambda method, path, token, json=None, headers=None: (
+        Resp(400, {"code": "PGRST204", "message": "Could not find the 'ai_suggested' column"})
+        if method == "PATCH" and isinstance(json, dict) and "ai_suggested" in json else plain(method, path, token, json=json, headers=headers))
+    out = a.save_draft("ok", {**READY, "invitees": ["Tom"]}, None)
+    assert out["id"] == "e1" and out["problems"] == []
+
+
+def test_without_named_people_nothing_more_is_written(tmp_path):
+    a, accounts, _ = make(tmp_path)
+    a.save_draft("ok", {**READY, "invitees": []}, None)
+    assert not any(m == "PATCH" for m, _, _ in accounts.calls)

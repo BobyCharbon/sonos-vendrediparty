@@ -69,3 +69,15 @@ def test_main_site_declares_the_play_store_app(monkeypatch):
 
 def test_test_site_declares_the_android_beta_app(monkeypatch):
     assert asset_links(monkeypatch, "https://partytest.bobycharbon.ch") == "ch.bobycharbon.party.beta"
+
+
+def test_recette_hooks_never_reach_the_app_store_build():
+    """Crochets de la recette réelle (brouillon et session injectés) : compilés en Debug, ou en Release seulement quand la
+    recette passe PARTY_SWIFT_CONDITIONS=E2E_HOOKS en ligne de commande ; jamais dans project.yml ni le workflow."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    assert "E2E_HOOKS" not in (root / "ios/project.yml").read_text(encoding="utf-8")
+    for workflow in (root / ".github/workflows").glob("*.yml"):
+        assert "E2E_HOOKS" not in workflow.read_text(encoding="utf-8"), workflow.name
+    app = (root / "ios/Party/PartyApp.swift").read_text(encoding="utf-8")
+    assert "#if DEBUG || E2E_HOOKS\n                .overlay { AIEventDemo(model: model) }" in app

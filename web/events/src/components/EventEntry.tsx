@@ -157,7 +157,7 @@ export function EventEntry({ eventId, initialToken }: { eventId: string; initial
                 ) : null}
                 {ticketsOn && !p.waitlisted ? <IssueButton person={p} onPress={(issued) => act(issueTicket(eventId, p.user_id, issued))} /> : null}
                 {!p.waitlisted ? (
-                  <Button small variant={p.checked_in_at ? 'ghost' : 'secondary'} label={p.checked_in_at ? 'Annuler' : 'Arrivé'}
+                  <Button small variant={p.checked_in_at ? 'ghost' : 'secondary'} label={p.checked_in_at ? 'Annuler l’arrivée' : 'Arrivé'}
                     onPress={() => act(setArrival(eventId, p.user_id, !p.checked_in_at))} />
                 ) : null}
               </View>}

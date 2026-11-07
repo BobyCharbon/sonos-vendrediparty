@@ -8,7 +8,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 from .accounts import SUPABASE_ANON_KEY, SUPABASE_URL, AccountError
-from .group_admin import OK, GroupAdmin, readable
+from .group_admin import OK, GroupAdmin, refusal
 
 PAGE = 150
 PHOTO_TTL = 3600
@@ -335,7 +335,7 @@ class GroupChats:
         table = "direct_messages" if direct else "group_messages"
         r = self.admin._call("POST", f"/rest/v1/{table}", token, json=row, headers={"Prefer": "return=minimal"})
         if r.status_code not in OK:
-            raise AccountError(readable(r, "Le message n'a pas pu être envoyé. Réessaie."))
+            raise refusal(r, "Le message n'a pas pu être envoyé. Réessaie.")
         return {"ok": True}
 
     def upload_photo(self, token: str, group_id: str, data: bytes) -> dict:
@@ -376,7 +376,7 @@ class GroupChats:
             r = self.admin._call("DELETE", table, token,
                                  params={"message_id": f"eq.{message_id}", "user_id": f"eq.{me}", "emoji": f"eq.{emoji}"})
         if r.status_code not in OK:
-            raise AccountError(readable(r, "La réaction n'a pas pu être enregistrée."))
+            raise refusal(r, "La réaction n'a pas pu être enregistrée.")
         return {"ok": True}
 
     def pin(self, token: str, message_id: str, pin: bool, direct: bool = False) -> dict:

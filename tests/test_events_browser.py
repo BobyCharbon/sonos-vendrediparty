@@ -396,6 +396,7 @@ def test_phone_invite_requires_the_country_code(browser,events_origin):
         page.goto(events_origin+'/events/',wait_until='domcontentloaded')
         login(page)
         page.get_by_role('button',name='Proposer un événement').click()
+        page.get_by_role('button',name='Sur invitation',exact=True).click()  # public par défaut (06.11)
         field=page.get_by_label('Inviter par numéro de téléphone',exact=True)
         pw.expect(field).to_be_visible(timeout=15000)
         invite=page.get_by_role('button',name='Inviter',exact=True)

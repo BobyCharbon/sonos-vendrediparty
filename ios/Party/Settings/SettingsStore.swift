@@ -53,7 +53,11 @@ final class SettingsStore: ObservableObject {
     /// Réglages › Groupes (même session de compte).
     private(set) lazy var groups = GroupsStore(api: api, web: web)
     private(set) lazy var tricount = TricountStore(api: api, web: web)
-    private(set) lazy var aiEvent = AIEventStore(api: api, web: web)
+    private(set) lazy var aiEvent: AIEventStore = {
+        let store = AIEventStore(api: api, web: web)
+        store.moderation = moderation  // CGU exigées : feuille « Avant de publier » puis nouvel essai
+        return store
+    }()
     private(set) lazy var groupAdmin = GroupAdminStore(api: api, web: web)
     /// Connexion, déconnexion, suppression, annonces, stats de jeu.
     private(set) lazy var session = AccountStore(api: api, web: web, settings: self)
@@ -390,6 +394,9 @@ final class SettingsStore: ObservableObject {
         case ("pet_bar", let v as Bool): p.petBar = v
         case ("moderation_reports", let v as Bool): p.moderationReports = v
         case ("moderation_notices", let v as Bool): p.moderationNotices = v
+        case ("announce_requests", let v as Bool): p.announceRequests = v
+        case ("group_event_requests", let v as Bool): p.groupEventRequests = v
+        case ("announce_results", let v as Bool): p.announceResults = v
         case ("quiet_start", let v as String): p.quietStart = v
         case ("quiet_end", let v as String): p.quietEnd = v
         default: break

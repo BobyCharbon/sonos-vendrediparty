@@ -16,7 +16,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from . import covers as covers_mod, link_reader, moderation
-from .accounts import AccountError
+from .accounts import AccountError, db_refusal
 
 # Créer un événement demande de vraiment comprendre ce qui est dit (dates relatives, lieux, personnes) : le modèle le
 # plus intelligent, avec une réflexion poussée (≈ 3 à 5 centimes par message).
@@ -497,6 +497,9 @@ class EventAssistant:
             "rsvp_deadline": local_time(d["rsvp_deadline"], now).isoformat() if d["rsvp_deadline"] else None,
             "visibility": "all" if audience in (None, "public") else "invited", "public_link": audience == "public",
             "show_participants": d["show_participants"], "forum_enabled": d["forum"], "notify_on_publish": d["notify"],
+            # Annonce au groupe (06.11) : jamais décidée par l'IA ; « Prévenir le groupe » se choisit à l'étape 2, et la
+            # base la fait valider (migration 20261106220000).
+            "announce_group": False,
             "pot_enabled": d["pot"], "cover_url": d["cover_url"] or None, "reminders": REMINDERS, "created_by": uid, "status": "draft",
         }
 
@@ -515,6 +518,10 @@ class EventAssistant:
         saved = self._store(token, draft, place, invite=False)
         d, o, uid = saved["draft"], saved["options"], saved["uid"]
         suggested = [{"id": o.people[n], "name": n} for n in d["invitees"] if o.people[n] != uid]
+        if suggested:  # retenues avec le brouillon (cochées d'avance à l'étape 2 rouverte), jamais invitées ;
+            # base sans la colonne (migration pas encore appliquée) : sans conséquence, l'adresse de l'étape 2 les porte.
+            self.accounts._get("PATCH", f"/rest/v1/events?id=eq.{saved['id']}", token,
+                               json={"ai_suggested": [p["id"] for p in suggested]})
         return {"id": saved["id"], "status": "draft", "title": d["title"], "problems": saved["problems"],
                 "suggested": suggested, "preset": preset(o.audiences.get(d["audience"]))}
 
@@ -542,14 +549,16 @@ class EventAssistant:
         if not invite:  # étape 2 : la visibilité se choisit avant de publier ; d'ici là, le défaut (public + lien)
             d = {**d, "audience": PUBLIC_AUDIENCE}
         audience = o.audiences.get(d["audience"])
+        if invite and audience == "public":  # publié tout de suite : public → jamais d'annonce (décision du 06.11)
+            d = {**d, "notify": False}
         if invite and audience == "people" and not d["invitees"]:
             raise AccountError("Dis qui inviter : personne n'est nommé.")
         r = self.accounts._get("POST", "/rest/v1/events?select=id", token,
                                json=self._event_row(d, o, place if isinstance(place, dict) else {}, uid, now),
                                headers={"Prefer": "return=representation"})
         rows = r.json() if r.status_code in (200, 201) else None
-        if not rows:
-            raise AccountError("L'événement n'a pas pu être créé. Réessaie, ou crée-le à la main.")
+        if not rows:  # CGU exigées (terms_required → 403), titre refusé (content_refused) : la phrase de la base
+            raise db_refusal(r, "L'événement n'a pas pu être créé. Réessaie, ou crée-le à la main.")
         eid = rows[0]["id"]
         problems: list[str] = []
         if audience not in (None, "public", "people"):

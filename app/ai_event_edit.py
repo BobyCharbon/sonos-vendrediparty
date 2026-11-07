@@ -5,7 +5,7 @@ Les invités sont prévenus par la base quand la date ou le lieu change ; sur de
 l'événement récapitule tous les changements."""
 from datetime import datetime
 
-from .accounts import AccountError
+from .accounts import AccountError, db_refusal
 from .ai_events import (ONLY_INVITEES, PUBLIC_AUDIENCE, VIP_AUDIENCE, ZURICH, EventAssistant, Options, bring_row,
                         local_time)
 
@@ -168,7 +168,9 @@ class EventEditor:
                 row.pop(key)
         r = self.accounts._get("PATCH", f"/rest/v1/events?id=eq.{eid}", token, json=row,
                                headers={"Prefer": "return=representation"})
-        if r.status_code not in (200, 204) or (r.status_code == 200 and not r.json()):
+        if r.status_code not in (200, 204):
+            raise db_refusal(r, NOT_ALLOWED)
+        if r.status_code == 200 and not r.json():
             raise AccountError(NOT_ALLOWED)
         problems: list[str] = []
         self._sync_lists(token, eid, e, d, o, uid, now, problems)

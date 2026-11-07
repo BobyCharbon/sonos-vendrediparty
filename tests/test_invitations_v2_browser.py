@@ -289,3 +289,65 @@ def test_android_finger_on_a_guest_row_scrolls_the_page(browser, v2_origin):  # 
         assert page.evaluate(scroller) > before + 100, 'le doigt sur une ligne d’invité n’a pas fait défiler la page'
     finally:
         context.close()
+
+
+def test_guest_without_app_accepts_the_terms_when_they_are_required(browser, v2_origin):  # noqa: F811
+    """Bug de la campagne des bots (06.11) : CGU exigées (prod), l'invité sans l'app restait bloqué sur 403 terms_required
+    (réponse jamais enregistrée, compte sans prénom). « En répondant, j'accepte les conditions d'utilisation » est écrit
+    au-dessus de « Confirmer », avec le lien vers les conditions ; Confirmer enregistre l'acceptation PUIS la réponse."""
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
+    page = context.new_page()
+    errors = []
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    try:
+        mock_services(page)
+        calls = mock_invites(page, card={**CARD, 'inviter': 'Ludo'})
+        terms = {'accepted': False}
+
+        def my_terms(route):
+            if route.request.method == 'OPTIONS':
+                return route.fulfill(status=204, headers=CORS)
+            calls.append(('my_terms', {}))
+            route.fulfill(status=200, content_type='application/json', headers=CORS, body=json.dumps(
+                {'version': '2026-11-04', 'accepted': terms['accepted'], 'accepted_at': None, 'contact_email': None, 'enforced': True}))
+
+        def accept_terms(route):
+            if route.request.method == 'OPTIONS':
+                return route.fulfill(status=204, headers=CORS)
+            calls.append(('accept_terms', json.loads(route.request.post_data or '{}')))
+            terms['accepted'] = True
+            route.fulfill(status=200, content_type='application/json', headers=CORS, body=json.dumps(
+                {'version': '2026-11-04', 'accepted': True, 'accepted_at': '2026-11-06T10:00:00Z', 'contact_email': None, 'enforced': True}))
+
+        def accept_invite(route):  # comme la base : le prénom (contenu visible) exige les CGU
+            if route.request.method == 'OPTIONS':
+                return route.fulfill(status=204, headers=CORS)
+            calls.append(('accept_invite', json.loads(route.request.post_data or '{}')))
+            if not terms['accepted']:
+                return route.fulfill(status=403, content_type='application/json', headers=CORS, body=json.dumps(
+                    {'code': '42501', 'message': 'terms_required: accepte les conditions d\'utilisation de Party pour publier (Réglages › Confidentialité).'}))
+            route.fulfill(status=200, content_type='application/json', headers=CORS, body=json.dumps(ACCEPTED))
+        page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/rpc/my_terms', my_terms)
+        page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/rpc/accept_terms', accept_terms)
+        page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/rpc/accept_invite', accept_invite)
+
+        page.goto(f'{v2_origin}/events/invite/{TOKEN}', wait_until='domcontentloaded')
+        page.get_by_role('button', name='Je viens !').click()
+        page.get_by_label('Prénom', exact=True).fill('Léa')
+        page.get_by_label('Numéro de portable').fill('079 456 12 38')
+        page.get_by_role('button', name='Recevoir mon code par SMS').click()
+        page.get_by_placeholder('123456', exact=True).fill('123456')
+        # L'acceptation est dite avant le geste, avec le lien vers les conditions (Apple 1.2).
+        pw.expect(page.get_by_text('En répondant, j’accepte les conditions d’utilisation de Party.', exact=False)).to_be_visible()
+        pw.expect(page.get_by_role('link', name='Lire les conditions d’utilisation')).to_be_visible()
+        shot(page, '11-invite-cgu-dans-confirmer')
+        page.get_by_role('button', name='Confirmer', exact=True).click()
+        pw.expect(page.get_by_text('C’est noté, Léa !', exact=True)).to_be_visible(timeout=10000)
+        names = [c[0] for c in calls]
+        assert ('accept_terms', {'p_version': '2026-11-04'}) in calls
+        assert names.index('accept_terms') < names.index('accept_invite'), names
+        assert ('accept_invite', {'token': TOKEN, 'answer': 'yes', 'first_name': 'Léa'}) in calls
+        pw.expect(page.get_by_text('terms_required', exact=False)).to_have_count(0)
+        assert not errors, errors
+    finally:
+        context.close()

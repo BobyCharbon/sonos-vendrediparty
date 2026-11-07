@@ -69,3 +69,18 @@ def test_a_published_event_is_changed_by_voice_keeping_what_guests_already_said(
         assert row["polls"] == [] and row["messages"][0]["body"].startswith("✏️ Événement mis à jour")
     finally:
         httpx.delete(f"{TEST_URL}/rest/v1/events?id=eq.{eid}", headers=who.headers, timeout=30)
+
+
+def test_the_people_named_to_the_ai_stay_with_the_draft_without_being_invited(live):
+    """Retour de l'admin (06.11) : events.ai_suggested (migration 20261106210000), écrit avec la session de la personne."""
+    a, token, who = live
+    o = a._options(token)
+    others = [n for n, uid in o.people.items() if uid != who.uid][:2]
+    draft = {**READY, "title": "Personnes citées (test)", "category": "", "audience": "", "invitees": others, "polls": [], "notify": False}
+    out = a.save_draft(token, draft, {"name": "Chez Léa", "address": "Rue du Lac 12, 1800 Vevey", "url": ""})
+    try:
+        row = who.get(f"events?id=eq.{out['id']}&select=status,ai_suggested,event_invites(user_id)").json()[0]
+        assert row["status"] == "draft" and row["event_invites"] == []
+        assert sorted(row["ai_suggested"]) == sorted(o.people[n] for n in others)
+    finally:
+        httpx.delete(f"{TEST_URL}/rest/v1/events?id=eq.{out['id']}", headers=who.headers, timeout=30)

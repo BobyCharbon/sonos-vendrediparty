@@ -69,6 +69,11 @@ struct EventNotificationPrefs: Codable, Equatable {
     /// Modération (migration 20261104200000 ; absents avant : reçus) : nouveau signalement (modérateurs), message de la modération.
     var moderationReports: Bool?
     var moderationNotices: Bool?
+    /// Annonces aux groupes (migration 20261106220000 ; absents avant : reçues) : annonce à valider, événement à valider
+    /// pour mon groupe, réponse du groupe à mes demandes.
+    var announceRequests: Bool?
+    var groupEventRequests: Bool?
+    var announceResults: Bool?
 
     enum CodingKeys: String, CodingKey {
         case pushEnabled = "push_enabled", quietStart = "quiet_start", quietEnd = "quiet_end", newEvent = "new_event"
@@ -83,6 +88,7 @@ struct EventNotificationPrefs: Codable, Equatable {
         case referralJoins = "referral_joins", contactJoins = "contact_joins", directMessages = "direct_messages"
         case petDaily = "pet_daily", petAlerts = "pet_alerts", petGifts = "pet_gifts", petStreaks = "pet_streaks", petBar = "pet_bar"
         case moderationReports = "moderation_reports", moderationNotices = "moderation_notices"
+        case announceRequests = "announce_requests", groupEventRequests = "group_event_requests", announceResults = "announce_results"
     }
 
     var hasQuietHours: Bool { quietStart != nil && quietEnd != nil }
@@ -94,6 +100,14 @@ struct EventNotifyState: Decodable, Equatable {
     var approver: Bool
     /// Droit « Modérer les signalements » : réglage « Nouveau signalement » (absent d'un ancien serveur : non).
     var moderator: Bool? = nil
+    /// Réglages qui ne servent jamais à ce compte (Membre, Guest : private.may_receive_push les refuse aux non-Membres
+    /// VIP) : cachés. Absent d'un ancien serveur : tout est affiché.
+    var hidden: [String]? = nil
+
+    /// L'interrupteur `key` (colonne de notification_prefs) a un sens pour ce compte.
+    func shows(_ key: String) -> Bool {
+        !(hidden ?? []).contains(key)
+    }
 }
 
 /// Choix proposés, mêmes libellés que le module Événements (web/events/src/app/settings/notifications.tsx).

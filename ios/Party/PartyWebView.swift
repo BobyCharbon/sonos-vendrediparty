@@ -19,6 +19,8 @@ struct PartyWebView: UIViewRepresentable {
         config.mediaTypesRequiringUserActionForPlayback = []
         config.applicationNameForUserAgent = AppConfig.userAgentSuffix
         NativeBridge.install(in: config.userContentController, model: model)
+        // Taille du texte d'iOS (Dynamic Type) : le texte des pages grandit avec elle (TextScale).
+        TextScale.install(in: config.userContentController)
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
@@ -38,6 +40,7 @@ struct PartyWebView: UIViewRepresentable {
         #if DEBUG
         if #available(iOS 16.4, *) { webView.isInspectable = true }  // Safari > Développement sur le Mac
         #endif
+        context.coordinator.followTextSize()
         context.coordinator.webView = webView
         model.attach(webView)
         return webView
@@ -54,8 +57,28 @@ struct PartyWebView: UIViewRepresentable {
         let model: WebModel
         weak var webView: WKWebView?
 
+        private var textSizeObserver: NSObjectProtocol?
+
         init(model: WebModel) {
             self.model = model
+        }
+
+        deinit {
+            if let textSizeObserver { NotificationCenter.default.removeObserver(textSizeObserver) }
+        }
+
+        /// Réglages › Luminosité et affichage › Taille du texte (ou Accessibilité) changé app ouverte : la page suit.
+        func followTextSize() {
+            guard textSizeObserver == nil else { return }
+            textSizeObserver = NotificationCenter.default.addObserver(
+                forName: UIContentSizeCategory.didChangeNotification, object: nil, queue: .main
+            ) { [weak self] note in
+                let category = note.userInfo?[UIContentSizeCategory.newValueUserInfoKey] as? UIContentSizeCategory
+                MainActor.assumeIsolated {
+                    guard let webView = self?.webView else { return }
+                    TextScale.update(webView, category: category ?? UIApplication.shared.preferredContentSizeCategory)
+                }
+            }
         }
 
         // MARK: Navigation : le site dans l'app, le reste dehors

@@ -1,22 +1,25 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Linking, Pressable, View } from 'react-native';
 
 import { LinkedText } from '@/components/LinkedText';
 import { ReportSheet } from '@/components/ReportSheet';
 import { RsvpButtons } from '@/components/RsvpButtons';
+import { useTermsGate } from '@/components/TermsSheet';
 import { Badge, Button, Card, ErrorText, Field, Loading, Screen, s, T, Title } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { SUPPORT_EMAIL } from '@/lib/contact';
 import { useQuery } from '@/lib/data';
 import { safeHref } from '@/lib/links';
-import type { ReportTarget } from '@/lib/moderation';
+import { dbMessage, isTermsError, type ReportTarget } from '@/lib/moderation';
 import { formatLongDay, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
 import { rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
 import { supabase } from '@/lib/supabase';
 import { chf } from '@/lib/tickets';
 import { colors } from '@/lib/theme';
 import type { EventRow, Rsvp } from '@/lib/types';
+
+const EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type PublicEvent = Pick<EventRow, 'id' | 'title' | 'description' | 'status' | 'date_mode' | 'starts_at' | 'ends_at' | 'location_name'
   | 'location_address' | 'location_url' | 'price_chf' | 'allow_maybe' | 'rsvp_deadline' | 'max_participants'> & {
@@ -28,25 +31,47 @@ type PublicEvent = Pick<EventRow, 'id' | 'title' | 'description' | 'status' | 'd
 export default function PublicEventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session, profile, refreshProfile } = useAuth();
-  const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<ReportTarget | null>(null);
+  const validId = typeof id === 'string' && EVENT_ID.test(id);
 
   const { data, reload, error: loadError, loading } = useQuery(async () => {
+    if (!validId) return null;  // lien tronqué : pas de requête refusée par la base
     const { data, error } = await supabase.rpc('public_event', { e: id });
     if (error) throw new Error(error.message);
     return (data as PublicEvent | null) ?? null;
   }, [id, session?.user.id]);
 
-  if (loading) return <Loading />;
+  if (loading && !data) return <Loading />;
+  if (!data && loadError) {
+    // Panne passagère (réseau, base lente) : jamais « n'existe plus ».
+    return (
+      <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 12 }}>
+        <Stack.Screen options={{ title: '' }} />
+        <Title>Connexion difficile</Title>
+        <T muted>L’événement n’a pas pu être chargé. Vérifie ta connexion puis réessaie.</T>
+        <Button label="Réessayer" onPress={() => void reload()} />
+      </Screen>
+    );
+  }
   if (!data) {
     return (
       <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 12 }}>
         <Stack.Screen options={{ title: '' }} />
-        <Title>Lien indisponible</Title>
-        <T muted>Cet événement n’existe plus ou n’est plus partagé publiquement.</T>
-        <ErrorText error={loadError} />
+        {!session && validId ? (
+          // Événement sur invitation (ou session expirée) : on propose de se connecter au lieu d'un lien « mort ».
+          <>
+            <Title>Connecte-toi pour voir cet événement</Title>
+            <T muted>Cet événement n’est pas public. Si tu y es invité, connecte-toi avec ton numéro de téléphone pour l’ouvrir.</T>
+            <Button label="Se connecter" onPress={() => router.push('/sign-in')} />
+          </>
+        ) : (
+          <>
+            <Title>Lien indisponible</Title>
+            <T muted>{validId ? 'Cet événement n’existe plus ou n’est plus partagé publiquement.' : 'Ce lien n’est pas complet. Copie-le en entier depuis le message reçu.'}</T>
+          </>
+        )}
       </Screen>
     );
   }
@@ -68,13 +93,7 @@ export default function PublicEventScreen() {
     }
   }
 
-  async function saveName() {
-    setBusy(true);
-    const { error } = await supabase.from('profiles').update({ display_name: name.trim() }).eq('id', session!.user.id);
-    setBusy(false);
-    if (error) return setError('Ton prénom n’a pas été enregistré. Réessaie.');
-    await refreshProfile();
-  }
+
 
   return (
     <Screen>
@@ -107,7 +126,10 @@ export default function PublicEventScreen() {
       </View>
 
       <Card>
-        {!session ? (
+        {closed && !session ? (
+          // Annulé ou réponses closes : rien à faire en se connectant.
+          <T muted>{ev.status === 'cancelled' ? 'Cet événement a été annulé.' : 'Les réponses sont closes.'}</T>
+        ) : !session ? (
           <>
             <T weight="semibold">Tu viens ?</T>
             <T muted size={13}>Connecte-toi avec ton numéro de téléphone pour répondre. Tu reçois un code par SMS.</T>
@@ -117,8 +139,7 @@ export default function PublicEventScreen() {
           <T muted>{ev.status === 'cancelled' ? 'Cet événement a été annulé.' : 'Les réponses sont closes.'}</T>
         ) : !profile?.display_name.trim() ? (
           <>
-            <Field label="Ton prénom, pour que l’organisateur sache qui vient" value={name} onChangeText={setName} maxLength={40} />
-            <Button label="Continuer" disabled={!name.trim()} loading={busy} onPress={saveName} />
+            <FirstNameForm userId={session.user.id} onSaved={refreshProfile} />
           </>
         ) : (
           <>
@@ -149,5 +170,44 @@ export default function PublicEventScreen() {
       )}
       <ReportSheet target={report} onClose={() => setReport(null)} />
     </Screen>
+  );
+}
+
+/** Prénom d'un compte neuf : il est vu des autres, donc CGU acceptées avant (exigées en prod : sinon 403 terms_required
+ * sans issue). Composant à part : la feuille ne lit les CGU qu'une fois connecté (jamais pour un visiteur). */
+function FirstNameForm({ userId, onSaved }: { userId: string; onSaved: () => Promise<unknown> | void }) {
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const saving = useRef(false);
+  const terms = useTermsGate();
+
+  async function saveName() {
+    const value = name.trim();
+    if (!value || saving.current) return;
+    saving.current = true;  // avant l'attente des CGU : un double toucher n'enregistre qu'une fois
+    setError(null);
+    try {
+      if (!(await terms.ensure())) return;
+      setBusy(true);
+      const write = () => supabase.from('profiles').update({ display_name: value }).eq('id', userId);
+      let { error } = await write();
+      // La base exige encore les CGU (statut lu avant leur exigence) : la feuille, puis un seul nouvel essai.
+      if (error && isTermsError(error.message) && (await terms.ensure())) ({ error } = await write());
+      if (error) return setError(dbMessage(error.message, 'Ton prénom n’a pas été enregistré. Réessaie.'));
+      await onSaved();
+    } finally {
+      saving.current = false;
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <Field label="Ton prénom, pour que l’organisateur sache qui vient" value={name} onChangeText={setName} maxLength={40} />
+      <Button label="Continuer" disabled={!name.trim()} loading={busy} onPress={saveName} />
+      <ErrorText error={error} />
+      {terms.sheet}
+    </>
   );
 }

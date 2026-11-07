@@ -6,7 +6,7 @@ import { Avatar, ErrorText, Meter, Skeleton, T, Toast } from './ui';
 import { useQuery } from '@/lib/data';
 import { formatShort } from '@/lib/format';
 import {
-  fetchGuestList, filterGuests, filterLinks, guestCounts, guestOrigin, inviteLinkUrl, inviteMessage, linkLine, nudgeInvitees,
+  fetchGuestList, filterGuests, filterLinks, guestCounts, guestOrigin, inviteLinkUrl, inviteMessage, linkLine, linkSpokenNames, linkTitle, nudgeInvitees,
   nudgeLink, removeInvitee, ruleSentence, shareInvite, statusWords, stopLink,
   type Guest, type GuestFilter, type GuestList, type SentLink,
 } from '@/lib/invites';
@@ -14,7 +14,7 @@ import { pressTransition } from '@/lib/motion';
 import { colors, radius, rsvpColors } from '@/lib/theme';
 import type { EventRow } from '@/lib/types';
 
-type Ev = Pick<EventRow, 'id' | 'title' | 'starts_at' | 'ends_at' | 'all_day' | 'status'>;
+type Ev = Pick<EventRow, 'id' | 'title' | 'starts_at' | 'ends_at' | 'all_day' | 'status' | 'announce_group'>;
 type Me = { id: string; display_name: string };
 
 const NONE_COLOR = colors.lavender;
@@ -37,16 +37,20 @@ const when = (ev: Ev) => (ev.starts_at ? formatShort(ev.starts_at).toLowerCase()
  * à qui on a envoyé un lien et qui a invité qui. « + » ouvre la feuille « Inviter » ; « Relancer » envoie une notification
  * Party (si la personne a l'app) ou ouvre la feuille de partage avec un message prêt ; glisser une ligne : Relancer, Retirer.
  */
-export function GuestListCard({ event, me, onChanged }: { event: Ev; me: Me; onChanged: () => void }) {
+export function GuestListCard({ event, me, onChanged, openSheet = false, headline, initialPeople = [] }: {
+  event: Ev; me: Me; onChanged: () => void;
+  /** Juste publié « Sur invitation » (assistant IA) : la feuille « Inviter » s'ouvre aussitôt, lien prêt. */
+  openSheet?: boolean; headline?: string; initialPeople?: string[];
+}) {
   const [filter, setFilter] = useState<GuestFilter>('all');
-  const [sheet, setSheet] = useState(false);
+  const [sheet, setSheet] = useState(openSheet);
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { data: list, reload, error: loadError } = useQuery(() => fetchGuestList(event.id), [event.id]);
 
   const refresh = () => { reload(); onChanged(); };
-  const host = me.display_name.split(' ')[0] || 'Moi';
+  const host = me.display_name.trim() || 'Moi';
 
   async function run(job: () => Promise<string | null>) {
     setError(null);
@@ -65,14 +69,18 @@ export function GuestListCard({ event, me, onChanged }: { event: Ev; me: Me; onC
     if (result.notified) return `${g.name} a reçu un rappel dans Party`;
     if (result.skipped) return `${g.name} a déjà été relancé aujourd’hui`;
     const url = g.link_token ? inviteLinkUrl(g.link_token) : `${location.origin}/events/event/${event.id}`;
-    const shared = await shareInvite(inviteMessage({ name: g.name.split(' ')[0], host, title: event.title, when: when(event), url, nudge: true }), url, event.title);
+    const shared = await shareInvite(inviteMessage({ name: g.name, host, title: event.title, when: when(event), url, nudge: true }), url, event.title);
     return shared === 'copied' ? 'Message copié : colle-le dans WhatsApp ou Messages' : null;
   });
 
+  // Seulement ceux qui ont l'app : les autres ne reçoivent rien d'ici, ils ne sont donc jamais notés « relancés »
+  // (leur bouton « Relancer », qui ouvre le partage avec leur lien, reste sur leur ligne).
   const nudgeAll = (people: Guest[]) => run(async () => {
-    const result = await nudgeInvitees(event.id, people.map((p) => p.id));
+    const reachable = people.filter((p) => p.has_app);
+    const withoutApp = people.length - reachable.length;
+    const result = reachable.length ? await nudgeInvitees(event.id, reachable.map((p) => p.id)) : { notified: 0, skipped: 0, share: [] };
     const parts = [result.notified ? `${result.notified} ${result.notified > 1 ? 'rappels envoyés' : 'rappel envoyé'} dans Party` : null,
-      result.share.length ? `${result.share.length} sans l’app : relance-les une par une` : null,
+      withoutApp + result.share.length ? `${withoutApp + result.share.length} sans l’app : relance-les une par une (« Relancer » sur leur ligne)` : null,
       result.skipped ? `${result.skipped} déjà relancé${result.skipped > 1 ? 's' : ''} aujourd’hui` : null].filter(Boolean);
     return parts.join(' · ') || 'Personne à relancer';
   });
@@ -108,8 +116,9 @@ export function GuestListCard({ event, me, onChanged }: { event: Ev; me: Me; onC
   const row = (g: Guest) => (
     <GuestRow key={g.id} guest={g} me={me.id} onNudge={() => void nudge(g)} onRemove={g.removable ? () => void remove(g) : null} />
   );
+  const spoken = linkSpokenNames(list.links);
   const linkRows = (links: SentLink[]) => links.map((l) => (
-    <LinkRow key={l.token} link={l} onNudge={() => void nudgeByLink(l)} onStop={() => void stop(l)} />
+    <LinkRow key={l.token} link={l} spokenName={spoken.get(l.token) ?? linkTitle(l)} onNudge={() => void nudgeByLink(l)} onStop={() => void stop(l)} />
   ));
 
   return (
@@ -124,6 +133,11 @@ export function GuestListCard({ event, me, onChanged }: { event: Ev; me: Me; onC
           <T size={26} weight="bold" color={colors.onAction} style={{ lineHeight: 28 }}>+</T>
         </Pressable>
       </View>
+
+      <Pressable accessibilityRole="button" onPress={() => setSheet(true)}
+        style={({ pressed }) => [st.inviteMore, pressTransition, pressed && { transform: [{ scale: 0.98 }] }]}>
+        <T size={15} weight="bold" color={colors.onAction}>＋ Inviter d’autres personnes</T>
+      </Pressable>
 
       <View style={st.rule}>
         <T size={14} weight="bold">{ruleSentence(list)}</T>
@@ -159,7 +173,7 @@ export function GuestListCard({ event, me, onChanged }: { event: Ev; me: Me; onC
         <Pressable accessibilityRole="button" onPress={() => void nudgeAll(waiting)}
           style={({ pressed }) => [st.nudgeAll, pressTransition, pressed && { transform: [{ scale: 0.98 }] }]}>
           <T size={14} weight="bold" color={colors.accent}>
-            ↻ Relancer {waiting.length > 1 ? `les ${waiting.length} qui n’ont pas répondu` : `${waiting[0]!.name.split(' ')[0]}, sans réponse`}
+            ↻ Relancer {waiting.length > 1 ? `les ${waiting.length} qui n’ont pas répondu` : `${waiting[0]!.name}, sans réponse`}
           </T>
         </Pressable>
       ) : null}
@@ -188,7 +202,8 @@ export function GuestListCard({ event, me, onChanged }: { event: Ev; me: Me; onC
         </View>
       )}
 
-      <InviteSheet visible={sheet} event={event} me={me} list={list} onClose={() => setSheet(false)} onInvited={refresh} />
+      <InviteSheet visible={sheet} event={event} me={me} list={list} onClose={() => setSheet(false)} onInvited={refresh}
+        headline={headline} initialPeople={initialPeople} />
       {note ? <Toast message={note} onHide={() => setNote(null)} /> : null}
     </View>
   );
@@ -259,7 +274,7 @@ function GuestRow({ guest, me, onNudge, onRemove }: { guest: Guest; me: string; 
         <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
           <View style={[st.rowCenter, { gap: 6 }]}>
             <T weight="semibold" size={15} numberOfLines={1} style={{ flexShrink: 1 }}>{guest.name}</T>
-            {!guest.has_app ? <View style={st.tag}><T size={10} weight="bold" color={colors.muted}>SANS L’APP</T></View> : null}
+            {guest.light ? <View style={st.tag}><T size={10} weight="bold" color={colors.muted}>SANS L’APP</T></View> : null}
           </View>
           <T muted size={12} numberOfLines={1}>{guestOrigin(guest, me)}</T>
         </View>
@@ -274,10 +289,10 @@ function GuestRow({ guest, me, onNudge, onRemove }: { guest: Guest; me: string; 
   );
 }
 
-function LinkRow({ link, onNudge, onStop }: { link: SentLink; onNudge: () => void; onStop: () => void }) {
+function LinkRow({ link, spokenName, onNudge, onStop }: { link: SentLink; spokenName: string; onNudge: () => void; onStop: () => void }) {
   const [confirm, setConfirm] = useState(false);
   const live = link.state === 'pending' || link.state === 'opened';
-  const title = link.label ? `Lien pour ${link.label}` : link.max_uses > 1 ? 'Lien pour plusieurs' : 'Lien pour une personne';
+  const title = linkTitle(link);
   const badge = link.state === 'opened' && !link.arrivals.length ? { t: 'A ouvert', c: colors.coral }
     : link.state === 'pending' ? { t: 'Pas ouvert', c: UNOPENED_COLOR }
       : link.arrivals.length ? { t: link.max_uses > 1 ? `${link.uses}/${link.max_uses}` : 'Répondu', c: rsvpColors.yes }
@@ -287,12 +302,12 @@ function LinkRow({ link, onNudge, onStop }: { link: SentLink; onNudge: () => voi
     { label: confirm ? 'Confirmer' : 'Arrêter', color: colors.red, fg: colors.onRed, onPress: () => (confirm ? onStop() : setConfirm(true)) },
   ] : [];
   return (
-    <SwipeRow actions={actions} label={title}>
+    <SwipeRow actions={actions} label={spokenName}>
       <View style={st.row}>
         <View style={st.linkIcon}><T size={17}>{link.max_uses > 1 ? '👥' : '🔗'}</T></View>
         <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
           <T weight="semibold" size={15} numberOfLines={1}>{title}</T>
-          <T muted size={12} numberOfLines={2}>{linkLine(link)}{link.max_uses > 1 && link.arrivals.length ? ` · ${link.arrivals.map((a) => a.name.split(' ')[0]).join(', ')}` : ''}</T>
+          <T muted size={12} numberOfLines={2}>{linkLine(link)}{link.max_uses > 1 && link.arrivals.length ? ` · ${link.arrivals.map((a) => a.name).join(', ')}` : ''}</T>
         </View>
         <View style={[st.pill, { borderColor: badge.c }]}><T size={12} weight="bold" color={badge.c}>{badge.t}</T></View>
       </View>
@@ -312,7 +327,7 @@ function SwipeRow({ actions, label, children }: { actions: SwipeAction[]; label:
     <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={st.swipe}>
       <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} bounces={false}>
         {content}
-        <View style={{ flexDirection: 'row', width: actions.length * ACTION_WIDTH }}>
+        <View style={[st.swipeActions, { width: actions.length * ACTION_WIDTH }]}>
           {actions.map((a) => (
             <Pressable key={a.label} accessibilityRole="button" accessibilityLabel={`${a.label.replace('↻ ', '')} ${label}`} onPress={a.onPress}
               style={[st.swipeAction, { backgroundColor: a.color }]}>
@@ -326,6 +341,7 @@ function SwipeRow({ actions, label, children }: { actions: SwipeAction[]; label:
 }
 
 const st = StyleSheet.create({
+  inviteMore: { minHeight: 48, borderRadius: radius.md, backgroundColor: colors.action, alignItems: 'center', justifyContent: 'center' },
   card: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.lg, padding: 16, gap: 14 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   plus: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.action, alignItems: 'center', justifyContent: 'center' },
@@ -341,7 +357,9 @@ const st = StyleSheet.create({
   swipe: { borderRadius: radius.md, overflow: 'hidden' },
   rowShell: { backgroundColor: colors.surface, borderRadius: radius.md },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 6, paddingHorizontal: 4 },
-  swipeAction: { width: ACTION_WIDTH, alignItems: 'center', justifyContent: 'center' },
+  // Hauteur de la ligne, jamais moins de 44 px (« Confirmer » s'écrasait à 16 px, texte coupé : campagne des bots).
+  swipeActions: { flexDirection: 'row', alignSelf: 'stretch', minHeight: 56 },
+  swipeAction: { width: ACTION_WIDTH, minHeight: 56, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: radius.pill, borderWidth: 1 },
   dot: { width: 7, height: 7, borderRadius: 4 },
   tag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: colors.fillStrong },

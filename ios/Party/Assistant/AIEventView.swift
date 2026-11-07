@@ -29,8 +29,6 @@ struct AIEventView: View {
     @State private var dropTargeted = false
 
     static let reviewSeconds = 5
-    /// Le temps de voir « Brouillon enregistré » avant que l'étape 2 s'ouvre.
-    static let inviteDelay: UInt64 = 1_200_000_000
 
     var body: some View {
         NavigationStack {
@@ -42,6 +40,9 @@ struct AIEventView: View {
                     if let created = store.created {
                         done(created).motionTransition(.scale(scale: 0.9).combined(with: .opacity))
                     } else {
+                        // Rien encore dit (ex. « Pas maintenant » sur l'accord IA) : l'explication tout en haut, visible
+                        // sans défiler, au-dessus des conseils (campagne 2) ; sinon sous la fiche, comme avant.
+                        if errorOnTop, let error = shownError { errorLabel(error) }
                         if store.turns.isEmpty {
                             if editing != nil { AIEditTips().transition(.opacity) } else { tips.transition(.opacity) }
                         }
@@ -55,11 +56,7 @@ struct AIEventView: View {
                             if !draft.ready { questions(draft).motionTransition() }
                             review(draft).motionTransition()
                         }
-                        if let error = store.error ?? dictation.problem {
-                            Label(error, systemImage: "exclamationmark.triangle.fill")
-                                .font(.footnote).foregroundStyle(.orange)
-                                .motionTransition(.unfold)
-                        }
+                        if !errorOnTop, let error = shownError { errorLabel(error) }
                     }
                 }
                 // Chaque étape (phrase dite, l'IA réfléchit, fiche prête, questions, créé) arrive en douceur ;
@@ -94,15 +91,16 @@ struct AIEventView: View {
             .sheet(isPresented: $store.askingConsent, onDismiss: store.consentDismissed) {
                 AIConsentSheet(copy: .event) { accept in store.answerConsent(accept) }
             }
+            // CGU exigées (403 terms_required) : « Avant de publier », puis l'enregistrement repart tout seul.
+            .sheet(isPresented: $store.askingTerms, onDismiss: { store.answerTerms(false) }) {
+                if let moderation = store.moderation {
+                    TermsAcceptSheet(store: moderation) { accepted in store.answerTerms(accepted) }
+                }
+            }
             .onChange(of: store.draft) { _ in restartCountdown() }
             .onChange(of: store.created != nil) { done in if done { Haptics.success() } }
-            // Étape 2 : « Brouillon enregistré » un instant, puis la page « Qui est invité » s'ouvre d'elle-même.
-            .task(id: store.openInviteSoon) {
-                guard store.openInviteSoon, let created = store.created else { return }
-                try? await Task.sleep(nanoseconds: Self.inviteDelay)
-                guard !Task.isCancelled, store.openInviteSoon else { return }
-                openInviteNow(created)
-            }
+            // Étape 2 : « Brouillon enregistré » reste affiché jusqu'au toucher (« Choisir qui est invité », « Ouvrir
+            // l'événement » ou « Fermer ») ; plus d'ouverture automatique qui rendait ces boutons intouchables (campagne 2).
             .onChange(of: store.error) { error in if error != nil { Haptics.error() } }
             .onChange(of: store.unsent) { text in
                 guard let text else { return }
@@ -126,6 +124,18 @@ struct AIEventView: View {
             }
         }
         .tint(Palette.accent)
+    }
+
+    private var shownError: String? { store.error ?? dictation.problem }
+
+    /// Aucun échange encore : le message (accord refusé, connexion…) passe au-dessus des conseils.
+    private var errorOnTop: Bool { store.turns.isEmpty && store.draft == nil }
+
+    private func errorLabel(_ error: String) -> some View {
+        Label(error, systemImage: "exclamationmark.triangle.fill")
+            .font(.footnote).foregroundStyle(.orange)
+            .accessibilityIdentifier("ai-error")
+            .motionTransition(.unfold)
     }
 
     /// Étape affichée : sert de repère aux animations (pas le contenu, qui change à chaque correction).
@@ -515,12 +525,12 @@ struct AIEventView: View {
         .accessibilityIdentifier("ai-create")
     }
 
-    // ── Étape 2 : brouillon enregistré, la page « Qui est invité » s'ouvre ──
+    // ── Étape 2 : brouillon enregistré ; « Choisir qui est invité » ouvre la page « Qui est invité » ──
     private func draftSaved(_ c: AIEvent.Created) -> some View {
         VStack(spacing: 14) {
             SuccessCheck()
             Text(c.title).font(.title2.weight(.bold)).multilineTextAlignment(.center)
-            Text("Brouillon enregistré, encore invisible pour les autres. Choisis maintenant qui voit l'événement et qui est invité, puis publie.")
+            Text("Brouillon enregistré, encore invisible pour les autres. Choisis maintenant qui le voit : un toucher le publie, puis tu envoies le lien à tes invités.")
                 .foregroundStyle(.secondary).multilineTextAlignment(.center)
             if !c.suggested.isEmpty {
                 Text("Déjà cochés : " + c.suggested.map(\.name).joined(separator: ", "))
@@ -544,14 +554,12 @@ struct AIEventView: View {
     }
 
     private func openInviteNow(_ c: AIEvent.Created) {
-        store.inviteOpened()
         openInvite(c)
         close()
     }
 
     /// Finir à la main : la fiche du brouillon (« Modifier », « Inviter et publier »).
     private func openEventNow(_ c: AIEvent.Created) {
-        store.inviteOpened()
         open(c.id)
         close()
     }

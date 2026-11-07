@@ -3,6 +3,7 @@ import { Pressable, View } from 'react-native';
 
 import { Button, Empty, ErrorText, Reveal, Screen, T, Title } from '@/components/ui';
 import { Announcements } from '@/components/Announcements';
+import { GroupRequests } from '@/components/GroupRequests';
 import { useMe } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { formatMessageTime } from '@/lib/format';
@@ -45,6 +46,8 @@ export default function Activity() {
         {unread ? <Button small variant="ghost" label="Tout marquer lu" onPress={markAll} /> : null}
       </View>
       <ErrorText error={error} />
+      {/* Annonces et événements à valider pour mes groupes (le toucher sur la notification ouvre cet onglet). */}
+      <GroupRequests refreshKey={data?.length} />
       <Announcements compact />
       <Title size={20}>Notifications des événements</Title>
       {data?.length === 0 ? <Empty>Aucune notification pour l’instant.</Empty> : null}

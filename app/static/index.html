@@ -561,6 +561,17 @@ function frameRoute(path) {
   frame.addEventListener("load", () => $("eventsLoading").classList.add("hidden"), { once: true });
   frame.src = "/events" + (frameAt === "/" ? "/" : frameAt);
 }
+// Page ouverte de l'extérieur (app iPhone : étape 2 de « Créer avec l'IA », fiche d'un événement) : PartyEvents.open
+// recharge le module sur cette page ; Party la retient, sinon le module, une fois prêt, était renvoyé à l'ancienne page
+// (« / », « /account ») et l'étape 2 se fermait aussitôt (bug de prod du 06.11).
+const openFrameAt = PartyEvents.open.bind(PartyEvents);
+PartyEvents.open = (target) => {
+  if (target) {
+    frameAt = target.replace(/^\/events(?=\/|$)/, "").split(/[?#]/)[0] || "/";
+    frameReady = false;
+  }
+  openFrameAt(target);
+};
 function storedSession() {
   try {
     const key = Object.keys(localStorage).find((k) => /^sb-.+-auth-token$/.test(k));
@@ -741,8 +752,11 @@ showAccount();
 window.addEventListener("message", (event) => {
   if (event.origin !== location.origin) return;
   if (event.data?.type === "party-events:account") linkAccount();
+  // Feuille ouverte dans le module (Inviter, QR, billet…) : rien ne flotte par-dessus (pastille de Zicou sur le ✕).
+  if (event.data?.type === "party-events:sheet") document.documentElement.classList.toggle("events-sheet", event.data.open === true);
   if (event.data?.type === "party-events:ready") {
     frameReady = true;
+    document.documentElement.classList.remove("events-sheet");  // module rechargé : plus de feuille ouverte
     setTimeout(fbShare);
     const at = event.data.path || "/";
     if (frameAt && frameAt !== at) $("eventsFrame").contentWindow.postMessage({ type: "party-shell:navigate", path: frameAt }, location.origin);

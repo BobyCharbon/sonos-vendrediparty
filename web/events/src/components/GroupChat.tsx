@@ -73,6 +73,8 @@ export function GroupChat({ id, direct = false }: { id: string; direct?: boolean
   const [bannerMenu, setBannerMenu] = useState(false);
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [sending, setSending] = useState(false);
+  // Envoi en cours (texte ou vocal) : un double toucher, même pendant l'attente des CGU, n'envoie qu'un message.
+  const sendingRef = useRef(false);
   // Messages envoyés pas encore revenus de la base : affichés tout de suite (« Envoi… »), comme Snapchat.
   const [pending, setPending] = useState<GroupMessage[]>([]);
   const [voice, setVoice] = useState<{ rec: VoiceRecording; started: number } | null>(null);
@@ -204,8 +206,17 @@ export function GroupChat({ id, direct = false }: { id: string; direct?: boolean
   /** Texte, photo ou vocal : la bulle apparaît tout de suite, le champ se vide ; en cas d'échec, le texte revient. */
   async function send(photoPath: string | null = null, audio: { blob: Blob; seconds: number; ext: 'm4a' | 'webm' } | null = null) {
     const body = audio ? '' : text.trim();
-    if (!body && !photoPath && !audio) return;
-    if (!terms.accepted && !(await terms.ensure())) return;
+    if ((!body && !photoPath && !audio) || sendingRef.current) return;
+    sendingRef.current = true;
+    try {
+      if (!terms.accepted && !(await terms.ensure())) return;
+      await deliver(body, photoPath, audio);
+    } finally {
+      sendingRef.current = false;
+    }
+  }
+
+  async function deliver(body: string, photoPath: string | null, audio: { blob: Blob; seconds: number; ext: 'm4a' | 'webm' } | null) {
     const quoted = replyTo;
     const messageId = newMessageId();
     const announced = isStaff && isAnnouncement(body);

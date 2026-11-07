@@ -14,6 +14,8 @@ struct ProfileView: View {
     @State private var newPhotoData: Data?
     @State private var photoError: String?
     @State private var filled = false
+    /// CGU exigées (terms_enforced) avant un nouveau surnom : la feuille, puis l'enregistrement repart.
+    @State private var askTerms = false
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -72,6 +74,9 @@ struct ProfileView: View {
             fill()
         }
         .onChange(of: picked) { item in Task { await load(item) } }
+        .sheet(isPresented: $askTerms) {
+            TermsAcceptSheet(store: store.moderation) { accepted in if accepted { save() } }
+        }
     }
 
     // MARK: Photo
@@ -156,6 +161,10 @@ struct ProfileView: View {
     private func save() {
         focused = false
         Task {
+            if nickname != store.profile?.displayName, !(await store.moderation.termsAccepted()) {
+                askTerms = true
+                return
+            }
             if await store.saveProfile(first: first, last: last, nickname: nickname, photo: newPhotoData) {
                 newPhotoData = nil
                 newPhoto = nil

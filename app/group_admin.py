@@ -5,7 +5,7 @@ import re
 
 import httpx
 
-from .accounts import SUPABASE_URL, AccountError, Accounts
+from .accounts import SUPABASE_URL, AccountError, Accounts, TermsRequired
 
 ROOT_ID = "298ff6e0-07b2-4127-bb69-d254dd63a3d5"
 ROOT_RANK = 99
@@ -56,6 +56,16 @@ def readable(r: httpx.Response, fallback: str) -> str:
     # Phrases de la base précédées d'une clé (« content_refused: Message non envoyé… ») : la phrase seule.
     return re.sub(r"^(forbidden|blocked|content_refused|terms_required|terms_version|rate_limited|not_found|self|reason|days): ",
                   "", message) or fallback
+
+
+def refusal(r: httpx.Response, fallback: str) -> AccountError:
+    """readable() sous forme d'erreur à lever : TermsRequired (403 terms_required) quand la base exige les CGU."""
+    try:
+        message = str(r.json().get("message", ""))
+    except (ValueError, AttributeError):
+        message = ""
+    error = TermsRequired if message.startswith("terms_required") else AccountError
+    return error(readable(r, fallback))
 
 
 def _role(r, labels: dict | None = None) -> str:
@@ -153,13 +163,13 @@ class GroupAdmin:
     def _rpc(self, token: str, name: str, args: dict, fallback: str = "La modification n'a pas été enregistrée. Réessaie."):
         r = self._call("POST", f"/rest/v1/rpc/{name}", token, json=args)
         if r.status_code not in OK:
-            raise AccountError(readable(r, fallback))
+            raise refusal(r, fallback)
         return r.json() if r.content else None
 
     def _write(self, method: str, path: str, token: str, body: dict, fallback: str) -> httpx.Response:
         r = self._call(method, path, token, json=body, headers={"Prefer": "return=representation"})
         if r.status_code not in OK:
-            raise AccountError(readable(r, fallback))
+            raise refusal(r, fallback)
         if r.status_code == 200 and r.json() == []:  # règles de la base : ligne hors de portée, rien n'a changé
             raise AccountError("Tu n'as pas le droit de faire cette modification.")
         return r

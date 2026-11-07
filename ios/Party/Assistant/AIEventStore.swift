@@ -288,8 +288,6 @@ final class AIEventStore: ObservableObject {
     @Published private(set) var thinking = false
     @Published private(set) var creating = false
     @Published private(set) var created: AIEvent.Created?
-    /// Brouillon tout juste enregistré : l'étape 2 (les invités) s'ouvre d'elle-même dans un instant.
-    @Published private(set) var openInviteSoon = false
     /// Modifier un événement publié (« ✨ Modifier avec l'IA ») : son id ; nil = créer un événement.
     @Published private(set) var editingId: String?
     /// Ce que la demande change, en mots simples (montré avant d'enregistrer).
@@ -308,6 +306,12 @@ final class AIEventStore: ObservableObject {
     private var consentAnswer: CheckedContinuation<Bool, Never>?
     /// Accord déjà vu accepté pendant cette ouverture de l'app (pas de nouvelle question au serveur).
     private(set) var consentAccepted = false
+    /// CGU exigées par la base (terms_enforced) et pas encore acceptées : la feuille « Avant de publier » s'ouvre, puis
+    /// l'enregistrement repart tout seul une fois acceptées.
+    @Published var askingTerms = false
+    private var termsAnswer: CheckedContinuation<Bool, Never>?
+    /// Conditions d'utilisation (même store que Réglages › Confidentialité) ; posé par SettingsStore.
+    var moderation: ModerationStore?
 
     private let api: PartyAPI
     private weak var web: WebStorage?
@@ -334,7 +338,6 @@ final class AIEventStore: ObservableObject {
         candidates = []
         lastSearch = ""
         created = nil
-        openInviteSoon = false
         error = nil
         editingId = nil
         images = []
@@ -570,10 +573,16 @@ final class AIEventStore: ObservableObject {
         return place != nil
     }
 
-    #if DEBUG
+    #if DEBUG || E2E_HOOKS
     /// Captures sur simulateur : brouillon déjà enregistré (étape 2), sans appeler le serveur.
     func showDemoCreated(_ demo: AIEvent.Created) {
         created = demo
+    }
+
+    /// Tests : une fiche prête, lieu déjà choisi sur la carte (rien n'est cherché).
+    func showDemoReady(_ demo: AIEvent.Draft, place: AIEvent.Place) {
+        draft = demo
+        self.place = place
     }
 
     /// Captures sur simulateur : une fiche figée, sans appeler le serveur (l'adresse est cherchée pour de vrai).
@@ -591,28 +600,47 @@ final class AIEventStore: ObservableObject {
         (45.8...47.85).contains(c.latitude) && (5.95...10.5).contains(c.longitude)
     }
 
-    /// L'étape 2 s'ouvre (ou la personne a choisi « Ouvrir l'événement ») : plus d'ouverture automatique.
-    func inviteOpened() {
-        openInviteSoon = false
-    }
-
     func create() async {
         guard let draft, canCreate, !creating else { return }
         guard let token = await web?.accountToken() else { return }
         creating = true
         defer { creating = false }
         do {
-            if let editingId {
-                created = try await api.aiEventEditSave(token: token, id: editingId, draft: draft,
-                                                        place: place == loadedPlace ? nil : place, announce: announce)
-            } else {
-                // Étape 1 confirmée : brouillon, sans invité ; l'étape 2 (les invités) s'ouvre ensuite.
-                created = try await api.aiEventSaveDraft(token: token, draft: draft, place: place)
-                openInviteSoon = created?.isDraft == true
-            }
+            try await save(draft, token: token)
+        } catch PartyAPIError.termsRequired(let message) {
+            // CGU exigées en prod : la feuille, puis le même enregistrement, sans rien retaper.
+            guard await askTerms() else { return self.error = message }
+            do { try await save(draft, token: token) } catch { self.error = error.localizedDescription }
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    private func save(_ draft: AIEvent.Draft, token: String) async throws {
+        if let editingId {
+            created = try await api.aiEventEditSave(token: token, id: editingId, draft: draft,
+                                                    place: place == loadedPlace ? nil : place, announce: announce)
+        } else {
+            // Étape 1 confirmée : brouillon, sans invité ; l'étape 2 (les invités) s'ouvre au toucher de « Choisir qui
+            // est invité » (jamais d'elle-même : les boutons de « Brouillon enregistré » doivent rester touchables).
+            created = try await api.aiEventSaveDraft(token: token, draft: draft, place: place)
+        }
+    }
+
+    /// Feuille des CGU (TermsAcceptSheet) : true une fois acceptées, false si la personne renonce.
+    func askTerms() async -> Bool {
+        guard moderation != nil else { return false }
+        termsAnswer?.resume(returning: false)
+        askingTerms = true
+        return await withCheckedContinuation { termsAnswer = $0 }
+    }
+
+    /// « J'accepte » (après l'enregistrement de l'acceptation) ou « Plus tard » / feuille fermée d'un geste.
+    func answerTerms(_ accepted: Bool) {
+        let answer = termsAnswer
+        termsAnswer = nil
+        askingTerms = false
+        answer?.resume(returning: accepted)
     }
 }
 

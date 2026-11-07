@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { AnnounceToggle } from './AnnounceToggle';
+import { SheetBackdrop, SheetClose, SheetTop, useSheetDrag, useSheetTop } from './SheetGesture';
 import { Avatar, Button, ErrorText, Input, Segmented, T, Toast } from './ui';
 import { useAuth } from '@/lib/auth';
+import { dbMessage } from '@/lib/moderation';
 import { useQuery } from '@/lib/data';
 import { formatShort } from '@/lib/format';
 import {
@@ -15,7 +18,7 @@ import { colors, radius } from '@/lib/theme';
 import { qrDataUri } from '@/lib/tickets';
 import type { EventRow } from '@/lib/types';
 
-type Ev = Pick<EventRow, 'id' | 'title' | 'starts_at' | 'ends_at' | 'all_day'>;
+type Ev = Pick<EventRow, 'id' | 'title' | 'starts_at' | 'ends_at' | 'all_day' | 'announce_group'>;
 type Mode = 'one' | 'several';
 type Until = 'event' | '3d' | '7d';
 type Person = { id: string; display_name: string; avatar_url: string | null };
@@ -35,13 +38,13 @@ function untilDate(until: Until, ev: Ev): string | null {
  * Feuille « Inviter » (bêta invites_v2, maquette A) : en haut le lien prêt à partager (feuille de partage du téléphone,
  * WhatsApp, Messages, QR), pour une personne ou pour plusieurs avec places et date limite ; dessous, ajouter des gens de
  * Party (même hors du groupe) ou un groupe, en puces ; en bas, la règle en une phrase. Personne n'entre dans un groupe.
- * draft : étape « Les invités » de l'assistant IA, l'événement est encore un brouillon : pas encore de lien (la base
- * l'exige publié), les personnes ajoutées sont prévenues à la publication ; initialPeople : celles que la personne a
- * citées à l'IA, déjà cochées (jamais invitées sans son « Inviter »).
+ * Toujours ouverte sur un événement publié : le lien est toujours disponible (jamais « après la publication »).
+ * headline : « C'est en ligne : envoie le lien à tes invités » juste après la publication (assistant IA) ;
+ * initialPeople : les personnes citées à l'IA, déjà cochées (jamais invitées sans son « Inviter »).
  */
-export function InviteSheet({ visible, event, me, list, onClose, onInvited, draft = false, initialPeople = [] }: {
+export function InviteSheet({ visible, event, me, list, onClose, onInvited, headline, initialPeople = [] }: {
   visible: boolean; event: Ev; me: { id: string; display_name: string }; list: GuestList; onClose: () => void; onInvited: () => void;
-  draft?: boolean; initialPeople?: string[];
+  headline?: string; initialPeople?: string[];
 }) {
   const { can } = useAuth();
   const [mode, setMode] = useState<Mode>('several');
@@ -52,10 +55,22 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, draf
   const [qr, setQr] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Où montrer l'erreur : sous le bouton touché (le lien en haut, « Inviter … » plus bas), jamais hors de l'écran.
+  const [errorAt, setErrorAt] = useState<'link' | 'people'>('link');
+  const fail = (at: 'link' | 'people', e: unknown) => {
+    const message = e instanceof Error ? e.message : String(e);
+    setErrorAt(at);
+    setError(dbMessage(message, message));
+  };
+  // Double toucher : un seul lien créé, une seule invitation envoyée.
+  const creating = useRef(false);
+  const inviting = useRef(false);
   const [note, setNote] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [people, setPeople] = useState<Person[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
+  // « Prévenir le groupe » pour les groupes ajoutés ici (éteint par défaut ; déjà allumé : les nouveaux groupes suivent).
+  const [announce, setAnnounce] = useState(false);
 
   const { data: directory } = useQuery(async () => {
     if (!visible) return null;
@@ -68,6 +83,13 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, draf
 
   // Pré-sélection (une seule fois, dès que l'annuaire est lu) : les personnes citées, pas encore invitées.
   const preselected = useRef(false);
+  const sheetRef = useRef<View>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const qrRef = useRef<View>(null);
+  // Glisser vers le bas (poignée, titre, ou contenu tout en haut) ferme la feuille, comme sur iPhone ; le QR se ferme pareil.
+  useSheetDrag(visible, onClose, sheetRef, scrollRef);
+  const top = useSheetTop();
+  useSheetDrag(visible && qr, () => setQr(false), qrRef);
   useEffect(() => {
     if (preselected.current || !directory || !initialPeople.length) return;
     preselected.current = true;
@@ -75,7 +97,7 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, draf
     setPeople(directory.people.filter((p) => initialPeople.includes(p.id) && p.id !== me.id && !already.has(p.id)));
   }, [directory, initialPeople, list.people, me.id]);
 
-  const host = me.display_name.split(' ')[0] || 'Moi';
+  const host = me.display_name.trim() || 'Moi';
   const when = event.starts_at ? formatShort(event.starts_at).toLowerCase() : null;
   const message = (url: string) => inviteMessage({ name: mode === 'one' ? label : null, host, title: event.title, when, url });
   const reset = () => setLink(null);  // un réglage change : le prochain envoi crée un nouveau lien
@@ -83,6 +105,8 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, draf
   /** Le lien se crée au premier envoi, avec les réglages choisis (jamais de bouton « Créer un lien »). */
   async function ensureLink(): Promise<string | null> {
     if (link) return link;
+    if (creating.current) return null;
+    creating.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -92,9 +116,10 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, draf
       onInvited();
       return url;
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      fail('link', e);
       return null;
     } finally {
+      creating.current = false;
       setBusy(false);
     }
   }
@@ -127,48 +152,54 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, draf
     people: [...list.people, ...people.filter((p) => !invited.has(p.id)).map((p) => ({ source: 'person' as const, id: p.id }))] } as GuestList;
 
   async function addPeople() {
+    if (inviting.current) return;
+    inviting.current = true;
     setBusy(true);
     setError(null);
     try {
-      const done = await invitePeople(event.id, people.map((p) => p.id), groups.map((g) => g.id));
+      // « Prévenir le groupe » vaut pour les groupes ajoutés ici, jamais pour ceux déjà là (base : event_groups.announce).
+      const done = await invitePeople(event.id, people.map((p) => p.id), groups.map((g) => g.id), groups.length > 0 && announce && !event.announce_group);
       const total = done.people + done.groups;
-      const who = people.map((p) => p.display_name.split(' ')[0]).concat(groups.map((g) => g.name)).join(', ');
-      setNote(total ? `${who} : invités, ${draft ? 'prévenus à la publication' : 'prévenus dans Party'}` : 'Déjà invités');
+      const who = people.map((p) => p.display_name).concat(groups.map((g) => g.name)).join(', ');
+      const groupsTold = !groups.length || announce || event.announce_group;
+      setNote(total ? `${who} : invités${groupsTold ? ', prévenus dans Party' : ' (le groupe le voit dans Party, sans notification)'}` : 'Déjà invités');
+      setAnnounce(false);
       setPeople([]);
       setGroups([]);
       setSearch('');
       onInvited();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      fail('people', e);
     } finally {
+      inviting.current = false;
       setBusy(false);
     }
   }
 
-  const names = people.map((p) => p.display_name.split(' ')[0]).concat(groups.map((g) => g.name));
+  const names = people.map((p) => p.display_name).concat(groups.map((g) => g.name));
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={st.overlay}>
-        <View style={st.sheet} accessibilityViewIsModal accessibilityLabel={`Inviter à ${event.title}`}>
+    // Nom de la fenêtre (role=dialog) : sur le Modal lui-même, sinon le lecteur d'écran annonce une fenêtre sans nom.
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} aria-label={`Inviter à ${event.title}`}>
+      <View style={[st.overlay, { paddingTop: top }]}>
+        <SheetBackdrop onPress={onClose} />
+        {/* Le nom est sur la fenêtre (role=dialog) : le répéter ici le faisait lire deux fois. */}
+        <View ref={sheetRef} style={st.sheet} accessibilityViewIsModal testID="invite-sheet">
           <View style={st.grabber} />
           <View style={st.head}>
             <View style={{ flex: 1 }}>
               <T weight="bold" size={20} numberOfLines={1}>Inviter</T>
               <T muted size={13} numberOfLines={1}>À {event.title}, et seulement à cet événement.</T>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Fermer" hitSlop={8} onPress={onClose} style={st.close}>
-              <T weight="bold" color={colors.textSoft}>✕</T>
-            </Pressable>
+            <SheetClose onPress={onClose} />
           </View>
-          <ScrollView contentContainerStyle={{ gap: 18, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
-            {/* 1. Le lien, prêt à partager (brouillon : il arrive avec la publication) */}
-            {draft ? (
-              <View style={st.linkCard}>
-                <T weight="bold" size={17}>🔗 Le lien à partager</T>
-                <T size={13} color={colors.textSoft}>Il arrive dès la publication, sur la fiche (carte « Invités ») : WhatsApp, Messages, QR code, même pour qui n’a pas l’app.</T>
+          <ScrollView ref={scrollRef} contentContainerStyle={{ gap: 18, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
+            {headline ? (
+              <View style={st.headline} accessibilityRole="header">
+                <T weight="bold" size={17}>{headline}</T>
               </View>
-            ) : (
+            ) : null}
+            {/* 1. Le lien, prêt à partager */}
             <View style={st.linkCard}>
               <T weight="bold" size={17}>🔗 Envoyer le lien</T>
               <T size={13} color={colors.textSoft}>Même sans l’app : la personne répond depuis le lien, en quelques secondes.</T>
@@ -201,7 +232,7 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, draf
                 </View>
               </View>
               <View style={st.bubble}>
-                <T size={13} color={colors.text}>{message(link ?? 'party.bobycharbon.ch/events/invite/…')}</T>
+                <T size={13} color={colors.text}>{message(link ?? inviteLinkUrl('…').replace(/^https?:\/\//, ''))}</T>
               </View>
               {link ? <T size={12} muted numberOfLines={1}>✓ Lien prêt : {link.replace(/^https?:\/\//, '')}</T> : null}
               <Button label="Partager le lien…" loading={busy} onPress={() => void send('share')} />
@@ -214,9 +245,9 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, draf
                   </Pressable>
                 ))}
               </View>
+              {errorAt === 'link' ? <ErrorText error={error} /> : null}
               {link ? <Button small variant="ghost" label="Nouveau lien (pour quelqu’un d’autre)" onPress={() => { reset(); setLabel(''); }} /> : null}
             </View>
-            )}
 
             {/* 2. Des gens de Party, même hors du groupe, ou un groupe */}
             <View style={{ gap: 10 }}>
@@ -242,13 +273,17 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, draf
                     onPress={() => setPeople([...people, p])} />
                 );
               })}
-              {q && !matches.length && !foundGroups.length && !draft ? (
+              {q && !matches.length && !foundGroups.length ? (
                 <Pressable accessibilityRole="button" onPress={() => { setMode('one'); setLabel(search.trim()); reset(); setSearch(''); }} style={st.notFound}>
                   <T size={14} weight="semibold">« {search.trim()} » n’est pas sur Party ?</T>
                   <T size={13} color={colors.accent} weight="semibold">Envoie-lui un lien pour une personne ›</T>
                 </Pressable>
               ) : null}
+              {groups.length && !event.announce_group ? (
+                <AnnounceToggle groupIds={groups.map((g) => g.id)} value={announce} onChange={setAnnounce} disabled={busy} />
+              ) : null}
               {picked ? <Button label={`Inviter ${names.join(', ')}`} loading={busy} onPress={() => void addPeople()} /> : null}
+              {errorAt === 'people' ? <ErrorText error={error} /> : null}
             </View>
 
             {/* 3. La règle, en une phrase */}
@@ -256,13 +291,12 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, draf
               <T weight="bold" size={15}>{ruleSentence(after)}</T>
               <T muted size={13}>
                 {names.length ? `${names.join(', ')} ${names.length > 1 ? 'voient' : 'voit'} l’événement` : 'Les invités voient l’événement'} sans entrer dans le groupe.
-                {draft ? 'Ils reçoivent une notification Party à la publication, s’ils ont l’app.' : 'Ils reçoivent une notification Party s’ils ont l’app.'}
+                {' Ils reçoivent une notification Party s’ils ont l’app.'}
               </T>
             </View>
-            <ErrorText error={error} />
           </ScrollView>
         </View>
-        {qr && link ? <QrOverlay url={link} title={event.title} when={when} places={mode === 'several' ? places : 1} onClose={() => setQr(false)} /> : null}
+        {qr && link ? <QrOverlay cardRef={qrRef} url={link} title={event.title} when={when} places={mode === 'several' ? places : 1} onClose={() => setQr(false)} /> : null}
         {note ? <Toast message={note} onHide={() => setNote(null)} /> : null}
       </View>
     </Modal>
@@ -309,10 +343,14 @@ function ResultRow({ title, hint, icon, person, disabled, onPress }: {
 }
 
 /** QR code pour quelqu'un en face : l'appareil photo du téléphone ouvre l'invitation, sans app. */
-function QrOverlay({ url, title, when, places, onClose }: { url: string; title: string; when: string | null; places: number; onClose: () => void }) {
+function QrOverlay({ url, title, when, places, onClose, cardRef }: {
+  url: string; title: string; when: string | null; places: number; onClose: () => void; cardRef: RefObject<View | null>;
+}) {
   return (
-    <View style={st.qrOverlay} accessibilityViewIsModal accessibilityLabel="QR code de l’invitation">
-      <View style={st.qrCard}>
+    <View style={[st.qrOverlay, { paddingTop: useSheetTop() }]} accessibilityViewIsModal accessibilityLabel="QR code de l’invitation">
+      <SheetBackdrop onPress={onClose} />
+      <View ref={cardRef} style={st.qrCard}>
+        <SheetTop onClose={onClose} />
         <T weight="bold" size={20} style={{ textAlign: 'center' }}>Montre ce code</T>
         <T muted size={13} style={{ textAlign: 'center' }} numberOfLines={2}>{title}{when ? ` · ${when}` : ''}</T>
         <Image source={{ uri: qrDataUri(url) }} style={st.qr} accessibilityLabel="QR code du lien d’invitation" />
@@ -328,11 +366,11 @@ function QrOverlay({ url, title, when, places, onClose }: { url: string; title: 
 
 const st = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(8,5,20,0.6)', justifyContent: 'flex-end' },
-  sheet: { maxHeight: '94%', backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1,
+  sheet: { maxHeight: '100%', backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1,
     borderColor: colors.line, paddingHorizontal: 16, paddingTop: 8, width: '100%', maxWidth: 640, alignSelf: 'center' },
   grabber: { alignSelf: 'center', width: 40, height: 5, borderRadius: 3, backgroundColor: colors.lineStrong, marginBottom: 10 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
-  close: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center' },
+  headline: { padding: 14, borderRadius: radius.md, backgroundColor: colors.accentDim, borderWidth: 1, borderColor: '#5A2346' },
   linkCard: { gap: 12, padding: 16, borderRadius: radius.lg, backgroundColor: colors.accentDim, borderWidth: 1, borderColor: '#5A2346' },
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 3, borderRadius: radius.pill, backgroundColor: colors.fillStrong },

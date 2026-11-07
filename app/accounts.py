@@ -3,6 +3,7 @@ puis donne au compte un identifiant de joueur stable et secret, le même sur tou
 import hashlib
 import hmac
 import os
+import re
 import secrets
 import threading
 import time
@@ -24,10 +25,60 @@ GROUP_ADMIN_PERMS = {"events.approve", "members.approve", "members.roles", "memb
                      "roles.manage", "taxonomy.manage", "group.settings", "announcements.publish",
                      "moderation.reports"}  # Administration › Signalements (modération commune)
 PROFILE_FIELDS = "id,display_name,first_name,last_name,phone,avatar_url,role,status"
+# Membre VIP : droit events.view (private.is_member). Sans lui, private.may_receive_push refuse toujours les types de
+# ces réglages (notification_prefs) : l'écran les cache au lieu d'afficher des interrupteurs qui ne servent jamais
+# (campagne 2). À tenir à jour avec may_receive_push.
+MEMBER_PERM = "events.view"
+NON_MEMBER_HIDDEN_PREFS = ("chat", "new_event", "poll_new", "poll_nudge", "proposal_result", "proposals", "rsvp_mine",
+                           "rsvp_set", "ticket_issued", "ticket_pay_confirmed", "ticket_pay_declared")
 
 
 class AccountError(Exception):
     pass
+
+
+RETRY_LATER = "Le service des comptes ne répond pas. Réessaie dans un instant."
+
+
+class ServiceUnavailable(AccountError):
+    """Panne passagère de la base (réseau, 5xx, 429) : ce n'est PAS un refus. Réponse 503 « Réessaie dans un
+    instant » (account_call) au lieu de « pas activé pour ton compte » ou « connexion expirée »."""
+
+    def __init__(self, message: str = RETRY_LATER):
+        super().__init__(message)
+
+
+def transient(status: int) -> bool:
+    """Réponse de la base qui dit « plus tard » (surcharge, délai dépassé), pas « non »."""
+    return status >= 500 or status == 429
+
+
+class TermsRequired(AccountError):
+    """La base refuse la publication : CGU de Party pas encore acceptées alors que l'admin les exige
+    (private.require_terms, réglage terms_enforced). Réponse 403 {"code": "terms_required"} : l'app ouvre la feuille
+    des CGU puis relance l'action."""
+    code = "terms_required"
+
+
+# Refus de la base précédés d'une clé (« content_refused: Événement non enregistré… ») : la phrase est pour la personne.
+DB_REFUSAL = re.compile(r"^(forbidden|blocked|content_refused|terms_required|terms_version|rate_limited|not_found|"
+                        r"profile_incomplete|self|reason|days): (.+)$", re.DOTALL)
+
+
+def db_refusal(r: httpx.Response, fallback: str) -> AccountError:
+    """Réponse d'erreur de PostgREST → l'erreur à lever : TermsRequired pour terms_required, sinon la phrase de la base
+    (refus de contenu, blocage…), ou le message général `fallback` (panne, erreur sans phrase lisible)."""
+    try:
+        body = r.json() if r.status_code < 500 else None
+    except ValueError:  # réponse vide ou pas du JSON
+        body = None
+    message = str(body.get("message", "")) if isinstance(body, dict) else ""
+    found = DB_REFUSAL.match(message.strip())
+    if not found:
+        return AccountError(fallback)
+    key, text = found.group(1), found.group(2).strip()
+    text = text[:1].upper() + text[1:]
+    return TermsRequired(text) if key == "terms_required" else AccountError(text)
 
 
 def pause_end(value) -> float:
@@ -58,7 +109,7 @@ class Accounts:
         try:
             return self.client.request(method, SUPABASE_URL + path, headers={**auth, **(headers or {})}, **kw)
         except httpx.HTTPError as e:
-            raise AccountError("Le service des comptes ne répond pas. Réessaie dans un instant.") from e
+            raise ServiceUnavailable() from e
 
     def _uid(self, token: str) -> str:
         """Identifiant Supabase du jeton ; seule cette vérification est gardée 5 min."""
@@ -69,6 +120,8 @@ class Accounts:
         if hit and now - hit[0] < CACHE_TTL:
             return hit[1]
         r = self._get("GET", "/auth/v1/user", token)
+        if transient(r.status_code):
+            raise ServiceUnavailable()
         if r.status_code != 200 or not r.json().get("id"):
             raise AccountError("Ta connexion a expiré. Reconnecte-toi.")
         uid = r.json()["id"]
@@ -84,7 +137,15 @@ class Accounts:
     def _perms(self, token: str) -> set[str]:
         self._uid(token)
         r = self._get("POST", "/rest/v1/rpc/my_permissions", token, json={})
-        perms = r.json() if r.status_code == 200 else []
+        if transient(r.status_code):
+            # Hoquet de la base : surtout pas « aucun droit » (l'admin lisait « IA pas activée pour ton compte »).
+            raise ServiceUnavailable()
+        if r.status_code != 200:
+            return set()
+        try:
+            perms = r.json()
+        except ValueError:
+            raise ServiceUnavailable() from None
         return set(perms) if isinstance(perms, list) else set()
 
     def is_party_admin(self, token: str) -> bool:
@@ -168,11 +229,12 @@ class Accounts:
         if not isinstance(rows, list) or not rows:
             raise AccountError("Préférences introuvables. Ouvre une fois les Événements, puis réessaie.")
         self._remember_pause(uid, rows[0])
-        p = self._get("POST", "/rest/v1/rpc/my_permissions", token, json={})
-        perms = p.json() if p.status_code == 200 else []
-        perms = perms if isinstance(perms, list) else []
-        # moderator : droit « Modérer les signalements » (réglage « Nouveau signalement »).
-        return {"prefs": rows[0], "approver": "events.approve" in perms, "moderator": "moderation.reports" in perms}
+        perms = self._perms(token)   # hoquet de la base : « Réessaie », jamais un écran sans droits
+        member = MEMBER_PERM in perms
+        # moderator : droit « Modérer les signalements » (réglage « Nouveau signalement ») ; hidden : réglages qui ne
+        # servent jamais à ce compte (Membre, Guest), cachés par l'app et le web.
+        return {"prefs": rows[0], "approver": "events.approve" in perms, "moderator": "moderation.reports" in perms,
+                "member": member, "hidden": [] if member else sorted(NON_MEMBER_HIDDEN_PREFS)}
 
     def update_notification_prefs(self, token: str, patch: dict) -> dict:
         uid = self._uid(token)
@@ -225,7 +287,7 @@ class Accounts:
         r = self._get("POST", "/rest/v1/member_groups", token, json={"name": name, "created_by": uid},
                       headers={"Prefer": "return=representation"})
         if r.status_code not in (200, 201, 204):
-            raise AccountError("Le groupe n'a pas été créé. Réessaie.")
+            raise db_refusal(r, "Le groupe n'a pas été créé. Réessaie.")
         rows = r.json() if r.content else []
         created = rows[0].get("id") if isinstance(rows, list) and rows and isinstance(rows[0], dict) else None
         if join and created:
@@ -329,7 +391,8 @@ class Accounts:
         if r.status_code not in (200, 204):
             if uploaded:
                 self._remove_photos([uploaded], token)
-            raise AccountError(self._db_message(r))
+            refusal = db_refusal(r, "")
+            raise refusal if str(refusal) else AccountError(self._db_message(r))
         if uploaded and old:
             self._remove_photos([old], token)
         return self.profile(token)
@@ -393,6 +456,9 @@ class Accounts:
         if r.status_code == 204:  # fonction sans résultat (annuler un lien…)
             return None
         if r.status_code != 200:
+            refusal = db_refusal(r, "")
+            if str(refusal):
+                raise refusal
             try:
                 message = str(r.json().get("message", "")) if r.status_code < 500 else ""
             except ValueError:

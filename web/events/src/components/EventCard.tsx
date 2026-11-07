@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { useAuth } from '@/lib/auth';
 import { localAttendance, type Attendance } from '@/lib/attendance';
 import { rsvpCounts, type EventListItem } from '@/lib/data';
 import { enter, pressTransition } from '@/lib/motion';
@@ -95,7 +96,9 @@ export function EventCard({
   const published = event.status === 'published';
   const past = !!event.starts_at && new Date(event.starts_at).getTime() < now - 6 * 3600_000;
   const closed = rsvpClosed(event, now);
-  const needsAnswer = published && !past && !closed && (isPoll ? !voters.has(me) : !mine);
+  // Sans « Répondre aux événements » (events.rsvp), la base refuse : pas de boutons de réponse.
+  const { can } = useAuth();
+  const needsAnswer = can('events.rsvp') && published && !past && !closed && (isPoll ? !voters.has(me) : !mine);
   const full = !!event.max_participants && (attendance?.going ?? counts.heads) >= event.max_participants;
   const answered = mine && !isPoll && !onWaitlist(mine) ? mine.status : null;
   const tone: Tone = past || event.status === 'cancelled' ? 'past' : needsAnswer ? 'todo' : answered;
@@ -154,7 +157,7 @@ export function EventCard({
       ) : null}
       <Pressable
         accessibilityRole="link"
-        accessibilityLabel={`${event.title}, ${isPoll ? 'date à définir' : formatShort(event.starts_at)}`}
+        accessibilityLabel={`${event.title}${event.status === 'cancelled' ? ', annulé' : ''}, ${isPoll ? 'date à définir' : formatShort(event.starts_at)}`}
         onPress={() => router.push(`/event/${event.id}`)}
         style={({ pressed }) => [st.main, pressTransition, pressed && { opacity: 0.7 }]}
       >
@@ -169,7 +172,7 @@ export function EventCard({
             </View>
             {published && !isPoll ? <AttendeesBadge attendance={people} past={tone === 'past'} /> : null}
           </View>
-          <T style={{ ...font.display, fontSize: 20, lineHeight: 24 }} color={tone === 'past' ? colors.muted : colors.text} numberOfLines={2}>{event.title}</T>
+          <T style={{ ...font.display, fontSize: 20, lineHeight: 24, ...(event.status === 'cancelled' ? { textDecorationLine: 'line-through' } : null) }} color={tone === 'past' ? colors.muted : colors.text} numberOfLines={2}>{event.title}</T>
           <T color={tone === 'past' ? colors.muted : colors.textSoft} size={14} numberOfLines={2}>
             {isPoll
               ? `${plural(event.date_options.length, 'date proposée', 'dates proposées')}${event.poll_deadline ? ` · vote avant ${formatShort(event.poll_deadline)}` : ''}`

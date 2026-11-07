@@ -111,7 +111,7 @@ struct TricountGroupView: View {
                     .font(.footnote.weight(.semibold)).foregroundStyle(.secondary).multilineTextAlignment(.center)
             }
             Text(TCColor.phrase(g.my_balance_cents, g.currency))
-                .font(.system(size: 30, weight: .heavy, design: .rounded)).foregroundStyle(TCColor.of(g.my_balance_cents))
+                .scaledFont(size: 30, weight: .heavy, design: .rounded, relativeTo: .largeTitle).foregroundStyle(TCColor.of(g.my_balance_cents))
                 .contentTransition(.numericText()).multilineTextAlignment(.center)
                 .accessibilityIdentifier("tc-my-balance")
             HStack(spacing: 18) {
@@ -328,7 +328,7 @@ struct PaySheet: View {
                 Section {
                     VStack(spacing: 6) {
                         Text("Tu rembourses \(transfer.to_name)").font(.headline)
-                        Text(Money.text(transfer.amount_cents, group.currency)).font(.system(size: 40, weight: .heavy, design: .rounded))
+                        Text(Money.text(transfer.amount_cents, group.currency)).scaledFont(size: 40, weight: .heavy, design: .rounded, relativeTo: .largeTitle)
                     }
                     .frame(maxWidth: .infinity).padding(.vertical, 8)
                 }

@@ -34,8 +34,12 @@ export function IdentityForm({ profile, submitLabel, onSaved }: { profile: Profi
 
   async function save() {
     if (saving.current || !hasCompleteIdentity(identity)) return;
-    if (identity.display_name !== profile.display_name && !terms.accepted && !(await terms.ensure())) return;
+    // Garde posée AVANT l'attente des CGU : un double toucher pendant cette attente n'enregistre pas deux fois.
     saving.current = true;
+    if (identity.display_name !== profile.display_name && !terms.accepted && !(await terms.ensure())) {
+      saving.current = false;
+      return;
+    }
     setBusy(true);
     setError(null);
     let uploaded: string | null = null;

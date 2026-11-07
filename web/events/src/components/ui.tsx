@@ -18,6 +18,8 @@ import {
 } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
+import { useMaySeePhoto } from '@/lib/auth';
+import { friendlyError } from '@/lib/errors';
 import { avatarColor, initials } from '@/lib/format';
 import { duration, ease, enter, pressTransition, transition, type Enter } from '@/lib/motion';
 import { colors, font, radius, type FontWeight } from '@/lib/theme';
@@ -48,8 +50,9 @@ export function Screen({
   );
 }
 
-export function Title({ children, size = 28, style }: { children: ReactNode; size?: number; style?: StyleProp<TextStyle> }) {
-  return <Text style={[s.title, { fontSize: size }, style]}>{children}</Text>;
+/** level : vrai titre pour les lecteurs d'écran (h1 de la page quand l'en-tête n'en montre pas). */
+export function Title({ children, size = 28, style, level }: { children: ReactNode; size?: number; style?: StyleProp<TextStyle>; level?: 1 | 2 }) {
+  return <Text role={level ? 'heading' : undefined} aria-level={level} style={[s.title, { fontSize: size }, style]}>{children}</Text>;
 }
 
 export function T({
@@ -383,6 +386,8 @@ export function Input({ inputRef, ...props }: TextInputProps & { inputRef?: Ref<
   return <TextInput ref={inputRef} placeholderTextColor={colors.muted} {...props} {...ring.handlers} style={[s.input, inputTransition, ring.focused && s.inputFocus, props.style]} />;
 }
 
+/** Cible tactile minimale (Apple, WCAG 2.5.8). */
+const MIN_TARGET = 44;
 const MEMBER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** Photo ronde d'un membre ; toucher ouvre sa fiche profil (partout : participants, discussions, groupes…).
@@ -391,28 +396,50 @@ export function Avatar({ id, name, size = 32, photo, profile = true }: { id: str
   const face = <AvatarFace id={id} name={name} size={size} photo={photo} />;
   if (!profile || !MEMBER_ID.test(id)) return face;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Profil de ${name}`} hitSlop={6} onPress={() => router.push(`/member/${id}`)}>
+    // Cible de 44 px même pour une petite photo (hitSlop est ignoré sur le web) : marge négative, la mise en page ne bouge pas.
+    <Pressable accessibilityRole="button" accessibilityLabel={`Profil de ${name}`} hitSlop={6} onPress={() => router.push(`/member/${id}`)}
+      style={{ padding: Math.max(0, (MIN_TARGET - size) / 2), margin: -Math.max(0, (MIN_TARGET - size) / 2) }}>
       {face}
     </Pressable>
   );
 }
 
+/** Durée des liens signés des photos ; on les réutilise jusqu'à 1 min avant leur fin. */
+const PHOTO_URL_TTL_S = 300;
+const PHOTO_URL_REUSE_MS = (PHOTO_URL_TTL_S - 60) * 1000;
+const signedPhotos = new Map<string, { at: number; url: Promise<string | null> }>();
+
+/** Un seul lien signé par photo pour toute la page (campagne 2 : la même photo était signée et téléchargée 3 à 5 fois,
+ * une fois par carte ou à chaque nouvel affichage, chaque lien neuf déjouant le cache du navigateur). */
+function signedPhotoUrl(path: string): Promise<string | null> {
+  const hit = signedPhotos.get(path);
+  if (hit && Date.now() - hit.at < PHOTO_URL_REUSE_MS) return hit.url;
+  const url = supabase.storage.from(PROFILE_PHOTOS).createSignedUrl(path, PHOTO_URL_TTL_S)
+    .then(({ data }) => data?.signedUrl ?? null)
+    .catch(() => null);
+  signedPhotos.set(path, { at: Date.now(), url });
+  void url.then((u) => { if (!u) signedPhotos.delete(path); });
+  return url;
+}
+
 function AvatarFace({ id, name, size, photo }: { id: string; name: string; size: number; photo?: string | null }) {
   const [signed, setSigned] = useState<{ path: string; url: string } | null>(null);
   const url = signed && signed.path === photo ? signed.url : null;
+  const maySee = useMaySeePhoto();
+  const allowed = !!photo && maySee(photo);
   useEffect(() => {
     let mounted = true;
-    if (photo) {
-      void supabase.storage.from(PROFILE_PHOTOS).createSignedUrl(photo, 300).then(({ data }) => {
-        if (mounted && data?.signedUrl) setSigned({ path: photo, url: data.signedUrl });
-      }).catch(() => {});
+    if (photo && allowed) {
+      void signedPhotoUrl(photo).then((signedUrl) => {
+        if (mounted && signedUrl) setSigned({ path: photo, url: signedUrl });
+      });
     }
     return () => { mounted = false; };
-  }, [photo]);
+  }, [photo, allowed]);
   return (
     <View style={[s.avatar, { width: size, height: size, backgroundColor: avatarColor(id) }]}>
       {url
-        ? <Image accessibilityLabel={`Photo de ${name}`} source={{ uri: url }} style={{ width: size, height: size, borderRadius: size / 2 }} onError={() => setSigned(null)} />
+        ? <Image accessibilityLabel={`Photo de ${name}`} source={{ uri: url }} style={{ width: size, height: size, borderRadius: size / 2 }} onError={() => { if (photo) signedPhotos.delete(photo); setSigned(null); }} />
         : <Text style={{ color: colors.onAccent, ...font.bold, fontSize: size * 0.36 }}>{initials(name)}</Text>}
     </View>
   );
@@ -490,7 +517,7 @@ export function Toast({ message, onHide }: { message: string; onHide: () => void
     <View pointerEvents="none" style={s.toastWrap}>
       <View accessibilityRole="alert" accessibilityLiveRegion="polite"
         style={[s.toast, enter('rise'), transition('opacity, transform', duration.base), leaving && { opacity: 0, transform: [{ translateY: 8 }] }]}>
-        <Text style={{ color: colors.text, ...font.semibold, fontSize: 14, textAlign: 'center' }}>{message}</Text>
+        <Text style={{ color: colors.text, ...font.semibold, fontSize: 14, textAlign: 'center' }}>{friendlyError(message)}</Text>
       </View>
     </View>
   );
@@ -498,7 +525,7 @@ export function Toast({ message, onHide }: { message: string; onHide: () => void
 
 export function ErrorText({ error }: { error: string | null }) {
   if (!error) return null;
-  return <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ color: colors.coralSoft, fontSize: 14, ...font.body }}>{error}</Text>;
+  return <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ color: colors.coralSoft, fontSize: 14, ...font.body }}>{friendlyError(error)}</Text>;
 }
 
 export function Empty({ children }: { children: ReactNode }) {
@@ -566,7 +593,8 @@ export const s = StyleSheet.create({
   segmented: { flexDirection: 'row', gap: 2, padding: 3, borderRadius: 13, backgroundColor: colors.fill },
   segment: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, minHeight: 44, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
   segmentThumb: { position: 'absolute', top: 3, bottom: 3, left: 0, borderRadius: 10 },
-  segmentOn: { backgroundColor: colors.accent, shadowColor: colors.accent, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
+  // Blanc sur le rose foncé des gros boutons (AA) : sur #FF4F9A le contraste n'était que de 3,07:1 (campagne 2).
+  segmentOn: { backgroundColor: colors.action, shadowColor: colors.accent, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52 },
   input: {
@@ -620,9 +648,9 @@ export function HeaderBack({ label, onPress, iconOnly = false }: { label: string
 }
 
 /** Action d’en-tête en texte teinté (« Modifier »…) ; l’action principale est en gras. */
-export function HeaderAction({ label, onPress, prominent }: { label: string; onPress: () => void; prominent?: boolean }) {
+export function HeaderAction({ label, onPress, prominent, accessibilityLabel }: { label: string; onPress: () => void; prominent?: boolean; accessibilityLabel?: string }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
+    <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} onPress={onPress}
       style={({ pressed }) => [s.headerButton, { opacity: pressed ? 0.4 : 1 }]}>
       <Text style={{ color: colors.accent, fontSize: 17, ...(prominent ? font.semibold : font.body) }}>{label}</Text>
     </Pressable>
