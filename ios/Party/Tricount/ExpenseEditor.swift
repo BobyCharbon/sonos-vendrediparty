@@ -56,7 +56,7 @@ struct ExpenseEditor: View {
                 Section {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         TextField("0.00", text: $draft.amount)
-                            .keyboardType(.decimalPad).font(.system(size: 44, weight: .heavy, design: .rounded))
+                            .keyboardType(.decimalPad).scaledFont(size: 44, weight: .heavy, design: .rounded, relativeTo: .largeTitle)
                             .multilineTextAlignment(.trailing).focused($amountFocused)
                             .accessibilityIdentifier("tc-amount")
                         Text(draft.currency.isEmpty ? group.currency : draft.currency).font(.title2.weight(.semibold)).foregroundStyle(.secondary)

@@ -9,6 +9,7 @@
 Captures (390 px) dans $ANNONCES_SHOTS si la variable est définie."""
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -62,9 +63,10 @@ def test_step_two_switch_is_off_by_default_explains_the_request_and_is_saved(bro
         member_without_vip(page)
         rpc(page, 'my_announce_modes', {SKI: 'request'})
         open_step_two(page, v2_origin, 'audience=public')
-        pw.expect(page.get_by_role('switch', name='Prévenir le groupe')).to_have_count(0)  # public, sur invitation : jamais
+        pw.expect(page.get_by_role('switch', name=re.compile('^Prévenir'))).to_have_count(0)  # public, sur invitation : jamais
         page.get_by_role('button', name='👥 Un groupe').click()
-        switch = page.get_by_role('switch', name='Prévenir le groupe')
+        # Lot C1 (campagne 2) : le nom lu par VoiceOver dit QUEL groupe est prévenu.
+        switch = page.get_by_role('switch', name='Prévenir « Ski »', exact=True)
         pw.expect(switch).to_be_visible(timeout=5000)
         pw.expect(switch).not_to_be_checked()
         pw.expect(page.get_by_text('Le groupe voit l’événement dans Party, sans notification.', exact=True)).to_be_visible()
@@ -74,7 +76,9 @@ def test_step_two_switch_is_off_by_default_explains_the_request_and_is_saved(bro
         shot(page, '01-etape2-prevenir-le-groupe')
         page.get_by_role('button', name='Publier pour « Ski »').click()
         pw.expect(page.get_by_text('C’est en ligne !', exact=True)).to_be_visible(timeout=10000)
-        assert ('PATCH', 'events', {'visibility': 'invited', 'public_link': False, 'announce_group': True}) in writes, writes
+        # Lot C1 : l'annonce part avec le statut, en dernier (un échec en route ne prévient personne).
+        visibility = writes.index(('PATCH', 'events', {'visibility': 'invited', 'public_link': False}))
+        assert visibility < writes.index(('PATCH', 'events', {'status': 'published', 'announce_group': True})), writes
         assert not errors, errors
     finally:
         context.close()

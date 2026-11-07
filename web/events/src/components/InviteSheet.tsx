@@ -5,9 +5,9 @@ import { AnnounceToggle } from './AnnounceToggle';
 import { SheetBackdrop, SheetClose, SheetTop, useSheetDrag, useSheetTop } from './SheetGesture';
 import { Avatar, Button, ErrorText, Input, Segmented, T, Toast } from './ui';
 import { useAuth } from '@/lib/auth';
+import { dbMessage } from '@/lib/moderation';
 import { useQuery } from '@/lib/data';
 import { formatShort } from '@/lib/format';
-import { turnOnAnnounce } from '@/lib/groupAnnounce';
 import {
   copyText, createInvite, inviteLinkUrl, inviteMessage, invitePeople, openMessages, openWhatsApp, ruleSentence, shareInvite,
   type GuestList,
@@ -55,6 +55,16 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
   const [qr, setQr] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Où montrer l'erreur : sous le bouton touché (le lien en haut, « Inviter … » plus bas), jamais hors de l'écran.
+  const [errorAt, setErrorAt] = useState<'link' | 'people'>('link');
+  const fail = (at: 'link' | 'people', e: unknown) => {
+    const message = e instanceof Error ? e.message : String(e);
+    setErrorAt(at);
+    setError(dbMessage(message, message));
+  };
+  // Double toucher : un seul lien créé, une seule invitation envoyée.
+  const creating = useRef(false);
+  const inviting = useRef(false);
   const [note, setNote] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [people, setPeople] = useState<Person[]>([]);
@@ -95,6 +105,8 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
   /** Le lien se crée au premier envoi, avec les réglages choisis (jamais de bouton « Créer un lien »). */
   async function ensureLink(): Promise<string | null> {
     if (link) return link;
+    if (creating.current) return null;
+    creating.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -104,9 +116,10 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
       onInvited();
       return url;
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      fail('link', e);
       return null;
     } finally {
+      creating.current = false;
       setBusy(false);
     }
   }
@@ -139,11 +152,13 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
     people: [...list.people, ...people.filter((p) => !invited.has(p.id)).map((p) => ({ source: 'person' as const, id: p.id }))] } as GuestList;
 
   async function addPeople() {
+    if (inviting.current) return;
+    inviting.current = true;
     setBusy(true);
     setError(null);
     try {
-      const done = await invitePeople(event.id, people.map((p) => p.id), groups.map((g) => g.id));
-      if (groups.length && announce && !event.announce_group) await turnOnAnnounce(event.id);
+      // « Prévenir le groupe » vaut pour les groupes ajoutés ici, jamais pour ceux déjà là (base : event_groups.announce).
+      const done = await invitePeople(event.id, people.map((p) => p.id), groups.map((g) => g.id), groups.length > 0 && announce && !event.announce_group);
       const total = done.people + done.groups;
       const who = people.map((p) => p.display_name).concat(groups.map((g) => g.name)).join(', ');
       const groupsTold = !groups.length || announce || event.announce_group;
@@ -154,8 +169,9 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
       setSearch('');
       onInvited();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      fail('people', e);
     } finally {
+      inviting.current = false;
       setBusy(false);
     }
   }
@@ -163,10 +179,12 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
   const names = people.map((p) => p.display_name).concat(groups.map((g) => g.name));
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    // Nom de la fenêtre (role=dialog) : sur le Modal lui-même, sinon le lecteur d'écran annonce une fenêtre sans nom.
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} aria-label={`Inviter à ${event.title}`}>
       <View style={[st.overlay, { paddingTop: top }]}>
         <SheetBackdrop onPress={onClose} />
-        <View ref={sheetRef} style={st.sheet} accessibilityViewIsModal accessibilityLabel={`Inviter à ${event.title}`}>
+        {/* Le nom est sur la fenêtre (role=dialog) : le répéter ici le faisait lire deux fois. */}
+        <View ref={sheetRef} style={st.sheet} accessibilityViewIsModal testID="invite-sheet">
           <View style={st.grabber} />
           <View style={st.head}>
             <View style={{ flex: 1 }}>
@@ -214,7 +232,7 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
                 </View>
               </View>
               <View style={st.bubble}>
-                <T size={13} color={colors.text}>{message(link ?? 'party.bobycharbon.ch/events/invite/…')}</T>
+                <T size={13} color={colors.text}>{message(link ?? inviteLinkUrl('…').replace(/^https?:\/\//, ''))}</T>
               </View>
               {link ? <T size={12} muted numberOfLines={1}>✓ Lien prêt : {link.replace(/^https?:\/\//, '')}</T> : null}
               <Button label="Partager le lien…" loading={busy} onPress={() => void send('share')} />
@@ -227,6 +245,7 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
                   </Pressable>
                 ))}
               </View>
+              {errorAt === 'link' ? <ErrorText error={error} /> : null}
               {link ? <Button small variant="ghost" label="Nouveau lien (pour quelqu’un d’autre)" onPress={() => { reset(); setLabel(''); }} /> : null}
             </View>
 
@@ -264,6 +283,7 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
                 <AnnounceToggle groupIds={groups.map((g) => g.id)} value={announce} onChange={setAnnounce} disabled={busy} />
               ) : null}
               {picked ? <Button label={`Inviter ${names.join(', ')}`} loading={busy} onPress={() => void addPeople()} /> : null}
+              {errorAt === 'people' ? <ErrorText error={error} /> : null}
             </View>
 
             {/* 3. La règle, en une phrase */}
@@ -274,7 +294,6 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
                 {' Ils reçoivent une notification Party s’ils ont l’app.'}
               </T>
             </View>
-            <ErrorText error={error} />
           </ScrollView>
         </View>
         {qr && link ? <QrOverlay cardRef={qrRef} url={link} title={event.title} when={when} places={mode === 'several' ? places : 1} onClose={() => setQr(false)} /> : null}

@@ -233,6 +233,10 @@ private struct AIEventDemo: View {
                let demo = try? JSONDecoder().decode(AIEvent.Created.self, from: Data(created.utf8)) {
                 model.settings?.aiEvent.showDemoCreated(demo)
             }
+            // PARTY_DEBUG_AI_ERROR=<message> : un message affiché avant tout échange (ex. accord IA refusé).
+            if let message = ProcessInfo.processInfo.environment["PARTY_DEBUG_AI_ERROR"] {
+                model.settings?.aiEvent.error = message
+            }
             model.aiEventOpen = true
         }
         .allowsHitTesting(false)

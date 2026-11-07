@@ -67,7 +67,8 @@ const st = StyleSheet.create({
   track: { flexDirection: 'row', gap: 2, padding: 3, marginVertical: 8, marginHorizontal: 12, borderRadius: 13,
     backgroundColor: 'rgba(255,255,255,0.06)' },
   link: { flexGrow: 1, flexShrink: 1, minWidth: 0, flexBasis: 'auto', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8, minHeight: 44, borderRadius: 10 },
-  linkOn: { backgroundColor: colors.accent, shadowColor: colors.accent, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
+  // Blanc sur le rose foncé des gros boutons (AA, 4,5:1) : #FF4F9A ne donnait que 3,07:1 (campagne 2).
+  linkOn: { backgroundColor: colors.action, shadowColor: colors.accent, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
   thumb: { position: 'absolute', top: 3, bottom: 3, left: 0, borderRadius: 10 },
   badge: { minWidth: 20, height: 20, paddingHorizontal: 6, borderRadius: 10, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
 });

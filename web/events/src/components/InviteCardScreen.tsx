@@ -5,10 +5,12 @@ import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { CalendarButton } from './CalendarButton';
 import { Button, ErrorText, Field, Input, Loading, Screen, T, Title } from './ui';
 import { appDownload } from '@/lib/appInvite';
+import { authErrorMessage } from '@/lib/authErrors';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { avatarColor, formatLongDay, formatTime, initials } from '@/lib/format';
 import { acceptInvite, fetchInviteCard, type Accepted, type InviteCard } from '@/lib/invites';
+import { canInstallWebApp, installWebApp, isAndroid } from '@/lib/installPrompt';
 import { enter, pressTransition } from '@/lib/motion';
 import { safeHref } from '@/lib/links';
 import { acceptTermsIfNeeded, dbMessage, TERMS_PATH } from '@/lib/moderation';
@@ -30,6 +32,22 @@ const CLOSED: Record<string, string> = {
   expired: 'Ce lien n’est plus valable (date limite passée). Demande un nouveau lien à la personne qui t’a invité.',
   revoked: 'La personne qui t’a invité a arrêté ce lien. Demande-lui un nouveau lien.',
 };
+/** Refus définitifs de accept_invite (retiré de la liste, lien arrêté / plein / expiré, événement annulé ou fermé,
+ * organisateur sur son propre lien) : inutile de réessayer, on ne propose plus de répondre. */
+const FINAL_REFUSAL = /retiré de la liste|arrêté|déjà servi|places de ce lien|plus valable|annulé|n'est plus ouvert|n’est plus ouvert|n'existe|n’existe|ton propre lien|organisat|ne peux pas répondre/i;
+
+export function isFinalRefusal(message: string): boolean {
+  return FINAL_REFUSAL.test(message);
+}
+
+const OWN_LINK = 'Envoie-le à la personne invitée : il ne sert pas pour toi. Ta propre réponse se donne sur la fiche de l’événement.';
+const isOrganizer = (value: object) => (value as { organizer?: boolean }).organizer === true;
+
+function refusalText(message: string): string {
+  return /retiré de la liste/i.test(message)
+    ? 'L’organisateur t’a retiré de la liste des invités : tu ne peux plus répondre à cette invitation.'
+    : message;
+}
 
 /**
  * Invitation à un événement, lisible SANS compte (bêta invites_v2, maquette C 5 à 7) : qui invite, quand, où, qui vient
@@ -49,25 +67,33 @@ export function InviteCardScreen({ token }: { token: string | undefined }) {
   const [answer, setAnswer] = useState<RsvpStatus | null>(null);
   const [done, setDone] = useState<Accepted | null>(null);
   const [firstName, setFirstName] = useState<string | null>(null);
+  const [refused, setRefused] = useState<string | null>(null);
 
   if (!valid) return <Closed text="Ce lien d’invitation n’est pas complet. Copie-le en entier depuis le message reçu." />;
   if (loading && !card) return <Loading />;
-  if (!card) return <Closed text="Ce lien d’invitation n’existe plus." error={error} />;
+  // Panne passagère (réseau, base lente) : jamais « n'existe plus », un bouton pour réessayer.
+  if (!card && error) return <Closed title="Connexion difficile" text="L’invitation n’a pas pu être chargée. Vérifie ta connexion puis réessaie." onRetry={() => void reload()} />;
+  if (!card) return <Closed text="Ce lien d’invitation n’existe plus." />;
+  if (refused) return <Closed title="Réponse impossible" text={refused} />;
+  // L'organisateur (ou un co-organisateur) sur son propre lien : la base ne le consomme pas et le dit (organizer).
+  if (done && isOrganizer(done)) {
+    return <Closed title="C’est ton lien d’invitation" text={OWN_LINK} />;
+  }
   if (done) return <Done card={card} done={done} name={firstName} onChange={() => { setDone(null); setAnswer(null); reload(); }} />;
   if (answer) {
     return <Identify token={token!} card={card} answer={answer} onBack={() => setAnswer(null)}
-      onDone={(a, name) => { setFirstName(name); setDone(a); }} />;
+      onDone={(a, name) => { setFirstName(name); setDone(a); }} onRefused={(text) => { setAnswer(null); setRefused(text); }} />;
   }
   return <Card card={card} onAnswer={setAnswer} />;
 }
 
-function Closed({ text, error }: { text: string; error?: string | null }) {
+function Closed({ text, title = 'Lien indisponible', onRetry }: { text: string; title?: string; onRetry?: () => void }) {
   return (
     <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 12 }}>
       <Stack.Screen options={{ title: 'Invitation' }} />
-      <Title>Lien indisponible</Title>
+      <Title>{title}</Title>
       <T muted>{text}</T>
-      <ErrorText error={error ?? null} />
+      {onRetry ? <Button label="Réessayer" onPress={onRetry} /> : null}
     </Screen>
   );
 }
@@ -131,6 +157,9 @@ function Card({ card, onAnswer }: { card: InviteCard; onAnswer: (a: RsvpStatus) 
       </View>
       {cancelled ? (
         <View style={st.notice}><T weight="bold" color={colors.coralSoft}>Cet événement est annulé.</T></View>
+      ) : isOrganizer(card) ? (
+        // L'organisateur voit la carte telle que l'invité la verra, sans y répondre (le lien n'est pas pour lui).
+        <View style={st.notice}><T color={colors.coralSoft}>C’est ton lien d’invitation. {OWN_LINK}</T></View>
       ) : closed ? (
         <View style={st.notice}><T color={colors.coralSoft}>{CLOSED[card.state]}</T></View>
       ) : card.closed ? (
@@ -165,8 +194,9 @@ function Line({ icon, title, hint }: { icon: string; title: string; hint?: strin
 }
 
 /** Prénom, numéro (+41 d'office), code SMS ; déjà connecté : on enregistre tout de suite (le prénom si le compte n'en a pas). */
-function Identify({ token, card, answer, onBack, onDone }: {
+function Identify({ token, card, answer, onBack, onDone, onRefused }: {
   token: string; card: InviteCard; answer: RsvpStatus; onBack: () => void; onDone: (a: Accepted, name: string | null) => void;
+  onRefused: (text: string) => void;
 }) {
   const { session, refreshProfile } = useAuth();
   const [name, setName] = useState('');
@@ -176,9 +206,12 @@ function Identify({ token, card, answer, onBack, onDone }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const started = useRef(false);
+  const busyRef = useRef(false);
   const named = card.me_named;
 
   async function accept(first: string | null) {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -189,21 +222,25 @@ function Identify({ token, card, answer, onBack, onDone }: {
       await refreshProfile();
       onDone(done, first);
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      setError(dbMessage(message, message));
-      started.current = false;
+      const raw = e instanceof Error ? e.message : String(e);
+      const message = dbMessage(raw, raw || 'Ta réponse n’a pas pu être enregistrée. Réessaie.');
+      // Refus définitif : on s'arrête au premier (jamais de nouvel essai automatique, ≈150 appels refusés avant).
+      if (isFinalRefusal(message)) return onRefused(refusalText(message));
+      setError(message);
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }
 
-  // Déjà connecté avec un prénom : rien à demander.
+  // Déjà connecté avec un prénom : rien à demander. Un seul essai automatique ; ensuite, « Réessayer » à la main.
   useEffect(() => {
     if (session && named && !started.current) {
       started.current = true;
       void accept(null);
     }
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- un seul départ, à l'arrivée sur l'écran
+  }, [session, named]);
 
   async function sendCode() {
     setError(null);
@@ -213,17 +250,17 @@ function Identify({ token, card, answer, onBack, onDone }: {
     setBusy(true);
     const { error } = await supabase.auth.signInWithOtp({ phone: parsed.number });
     setBusy(false);
-    if (error) return setError('Le code n’a pas pu être envoyé. Réessaie dans une minute.');
+    if (error) return setError(authErrorMessage(error, 'send'));
     setSentTo(parsed.number);
   }
 
   async function verify() {
-    if (!sentTo) return;
+    if (!sentTo || busyRef.current) return;
     setBusy(true);
     setError(null);
     const { error } = await supabase.auth.verifyOtp({ phone: sentTo, token: code.trim(), type: 'sms' });
     setBusy(false);
-    if (error) return setError('Code incorrect ou expiré.');
+    if (error) return setError(authErrorMessage(error, 'verify'));
     await accept(name.trim());
   }
 
@@ -231,7 +268,13 @@ function Identify({ token, card, answer, onBack, onDone }: {
     return (
       <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 16 }}>
         <Stack.Screen options={{ title: 'Invitation' }} />
-        {error ? <><ErrorText error={error} /><Button label="Retour à l’invitation" variant="secondary" onPress={onBack} /></> : <Loading />}
+        {error ? (
+          <>
+            <ErrorText error={error} />
+            <Button label="Réessayer" loading={busy} onPress={() => void accept(null)} />
+            <Button label="Retour à l’invitation" variant="secondary" onPress={onBack} />
+          </>
+        ) : <Loading />}
       </Screen>
     );
   }
@@ -301,6 +344,10 @@ function Done({ card, done, name, onChange }: { card: InviteCard; done: Accepted
   const place = done.location_address ?? done.location_name;
   const maps = safeHref(done.location_url) ?? (place ? `https://maps.apple.com/?q=${encodeURIComponent(place)}` : null);
   const download = appDownload();
+  // Android : jamais l'App Store d'Apple ; la page s'installe si Chrome le propose, sinon pas de bouton.
+  const android = isAndroid();
+  const [installable, setInstallable] = useState(() => !android || canInstallWebApp());
+  const install = () => (android ? void installWebApp().catch(() => false).then(() => setInstallable(false)) : void Linking.openURL(download.url));
   const coming = done.status !== 'no';
   return (
     <Screen contentStyle={{ gap: 18 }}>
@@ -337,10 +384,14 @@ function Done({ card, done, name, onChange }: { card: InviteCard; done: Accepted
           <T size={14} color={colors.textSoft}>
             Si l’heure change, ce que chacun amène, la musique en direct. Installer Party est facultatif : avec ton numéro, tu y retrouves ton invitation.
           </T>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Button label="Installer Party" style={{ flex: 1 }} onPress={() => void Linking.openURL(download.url)} />
-            <Button label="Plus tard" variant="secondary" style={{ flex: 1 }} onPress={() => setLater(true)} />
-          </View>
+          {installable ? (
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Button label="Installer Party" style={{ flex: 1 }} onPress={install} />
+              <Button label="Plus tard" variant="secondary" style={{ flex: 1 }} onPress={() => setLater(true)} />
+            </View>
+          ) : (
+            <T size={13} color={colors.textSoft}>Garde ce lien : en le rouvrant, tu retrouves ton invitation.</T>
+          )}
         </View>
       ) : null}
       <T muted size={13} style={{ textAlign: 'center' }}>Un empêchement ? Rouvre ce même lien pour changer ta réponse.</T>

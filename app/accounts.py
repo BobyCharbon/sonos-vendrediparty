@@ -25,10 +25,32 @@ GROUP_ADMIN_PERMS = {"events.approve", "members.approve", "members.roles", "memb
                      "roles.manage", "taxonomy.manage", "group.settings", "announcements.publish",
                      "moderation.reports"}  # Administration › Signalements (modération commune)
 PROFILE_FIELDS = "id,display_name,first_name,last_name,phone,avatar_url,role,status"
+# Membre VIP : droit events.view (private.is_member). Sans lui, private.may_receive_push refuse toujours les types de
+# ces réglages (notification_prefs) : l'écran les cache au lieu d'afficher des interrupteurs qui ne servent jamais
+# (campagne 2). À tenir à jour avec may_receive_push.
+MEMBER_PERM = "events.view"
+NON_MEMBER_HIDDEN_PREFS = ("chat", "new_event", "poll_new", "poll_nudge", "proposal_result", "proposals", "rsvp_mine",
+                           "rsvp_set", "ticket_issued", "ticket_pay_confirmed", "ticket_pay_declared")
 
 
 class AccountError(Exception):
     pass
+
+
+RETRY_LATER = "Le service des comptes ne répond pas. Réessaie dans un instant."
+
+
+class ServiceUnavailable(AccountError):
+    """Panne passagère de la base (réseau, 5xx, 429) : ce n'est PAS un refus. Réponse 503 « Réessaie dans un
+    instant » (account_call) au lieu de « pas activé pour ton compte » ou « connexion expirée »."""
+
+    def __init__(self, message: str = RETRY_LATER):
+        super().__init__(message)
+
+
+def transient(status: int) -> bool:
+    """Réponse de la base qui dit « plus tard » (surcharge, délai dépassé), pas « non »."""
+    return status >= 500 or status == 429
 
 
 class TermsRequired(AccountError):
@@ -87,7 +109,7 @@ class Accounts:
         try:
             return self.client.request(method, SUPABASE_URL + path, headers={**auth, **(headers or {})}, **kw)
         except httpx.HTTPError as e:
-            raise AccountError("Le service des comptes ne répond pas. Réessaie dans un instant.") from e
+            raise ServiceUnavailable() from e
 
     def _uid(self, token: str) -> str:
         """Identifiant Supabase du jeton ; seule cette vérification est gardée 5 min."""
@@ -98,6 +120,8 @@ class Accounts:
         if hit and now - hit[0] < CACHE_TTL:
             return hit[1]
         r = self._get("GET", "/auth/v1/user", token)
+        if transient(r.status_code):
+            raise ServiceUnavailable()
         if r.status_code != 200 or not r.json().get("id"):
             raise AccountError("Ta connexion a expiré. Reconnecte-toi.")
         uid = r.json()["id"]
@@ -113,7 +137,15 @@ class Accounts:
     def _perms(self, token: str) -> set[str]:
         self._uid(token)
         r = self._get("POST", "/rest/v1/rpc/my_permissions", token, json={})
-        perms = r.json() if r.status_code == 200 else []
+        if transient(r.status_code):
+            # Hoquet de la base : surtout pas « aucun droit » (l'admin lisait « IA pas activée pour ton compte »).
+            raise ServiceUnavailable()
+        if r.status_code != 200:
+            return set()
+        try:
+            perms = r.json()
+        except ValueError:
+            raise ServiceUnavailable() from None
         return set(perms) if isinstance(perms, list) else set()
 
     def is_party_admin(self, token: str) -> bool:
@@ -197,11 +229,12 @@ class Accounts:
         if not isinstance(rows, list) or not rows:
             raise AccountError("Préférences introuvables. Ouvre une fois les Événements, puis réessaie.")
         self._remember_pause(uid, rows[0])
-        p = self._get("POST", "/rest/v1/rpc/my_permissions", token, json={})
-        perms = p.json() if p.status_code == 200 else []
-        perms = perms if isinstance(perms, list) else []
-        # moderator : droit « Modérer les signalements » (réglage « Nouveau signalement »).
-        return {"prefs": rows[0], "approver": "events.approve" in perms, "moderator": "moderation.reports" in perms}
+        perms = self._perms(token)   # hoquet de la base : « Réessaie », jamais un écran sans droits
+        member = MEMBER_PERM in perms
+        # moderator : droit « Modérer les signalements » (réglage « Nouveau signalement ») ; hidden : réglages qui ne
+        # servent jamais à ce compte (Membre, Guest), cachés par l'app et le web.
+        return {"prefs": rows[0], "approver": "events.approve" in perms, "moderator": "moderation.reports" in perms,
+                "member": member, "hidden": [] if member else sorted(NON_MEMBER_HIDDEN_PREFS)}
 
     def update_notification_prefs(self, token: str, patch: dict) -> dict:
         uid = self._uid(token)

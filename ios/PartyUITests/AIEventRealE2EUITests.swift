@@ -54,7 +54,13 @@ final class AIEventRealE2EUITests: XCTestCase {
         }
         XCTAssertFalse(app.staticTexts["L'événement n'a pas pu être créé. Réessaie, ou crée-le à la main."].exists)
 
-        // Brouillon enregistré, puis l'étape 2 s'ouvre d'elle-même dans Événements (l'assistant se ferme).
+        // « Brouillon enregistré » reste affiché ; « Choisir qui est invité » ouvre l'étape 2 dans Événements.
+        let invite = app.buttons["ai-invite"]
+        XCTAssertTrue(invite.waitForExistence(timeout: 60), "« Brouillon enregistré » ne s'est pas affiché")
+        Thread.sleep(forTimeInterval: 3)
+        XCTAssertTrue(invite.isHittable, "« Choisir qui est invité » doit rester touchable")
+        shot(app, "02b-brouillon-enregistre")
+        invite.tap()
         let step = label(app, "Étape 2 sur 3 : Qui est invité")
         XCTAssertTrue(step.waitForExistence(timeout: 60), "L'étape 2 « Qui est invité » ne s'est pas ouverte")
         XCTAssertTrue(app.buttons["ai-continue"].waitForNonExistence(timeout: 20))

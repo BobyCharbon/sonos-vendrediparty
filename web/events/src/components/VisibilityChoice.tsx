@@ -65,8 +65,8 @@ export function publishLabel(kind: Visibility, groupNames: string[], proposing: 
 export function PublishChoice({ groups, vipOk, suggested, suggestedGroups, proposing, busy, onPublish, announce, onAnnounce }: {
   groups: MemberGroup[]; vipOk: boolean; suggested: Visibility; suggestedGroups: string[]; proposing: boolean; busy: boolean;
   onPublish: (kind: Visibility, groupIds: string[]) => void;
-  /** « Prévenir le groupe » (Membres Vendredi Party, un groupe) : éteint par défaut, jamais pour le public. */
-  announce: boolean; onAnnounce: (on: boolean) => void;
+  /** « Prévenir » (Membres Vendredi Party, un groupe) : un interrupteur par carte, éteints par défaut, jamais pour le public. */
+  announce: { vip: boolean; group: boolean }; onAnnounce: (kind: 'vip' | 'group', on: boolean) => void;
 }) {
   const kinds = VISIBILITIES.filter((k) => (k !== 'group' || groups.length) && (k !== 'vip' || vipOk));
   const [picking, setPicking] = useState(suggested === 'group');
@@ -91,7 +91,8 @@ export function PublishChoice({ groups, vipOk, suggested, suggestedGroups, propo
               <T size={13} color={colors.textSoft}>{visibilitySentence(k, k === 'group' ? names : [], proposing)}</T>
               {k !== 'group' ? <T size={14} weight="bold" color={colors.accent}>{label} ›</T> : null}
             </Pressable>
-            {k === 'vip' ? <AnnounceToggle groupIds={[]} vip value={announce} onChange={onAnnounce} disabled={busy} /> : null}
+            {k === 'vip' ? <AnnounceToggle groupIds={[]} vip label="Prévenir les Membres Vendredi Party" value={announce.vip}
+              onChange={(on) => onAnnounce('vip', on)} disabled={busy} /> : null}
             {k === 'group' && picking ? (
               <View style={{ gap: 10 }}>
                 <View style={s.wrap}>
@@ -100,7 +101,8 @@ export function PublishChoice({ groups, vipOk, suggested, suggestedGroups, propo
                       onPress={() => setChosen((c) => (c.includes(g.id) ? c.filter((x) => x !== g.id) : [...c, g.id]))} />
                   ))}
                 </View>
-                <AnnounceToggle groupIds={chosen} value={announce} onChange={onAnnounce} disabled={busy} />
+                <AnnounceToggle groupIds={chosen} label={names.length ? `Prévenir ${names.map((n) => `« ${n} »`).join(', ')}` : 'Prévenir le groupe'}
+                  value={announce.group} onChange={(on) => onAnnounce('group', on)} disabled={busy} />
                 <Button label={publishLabel('group', names, proposing)} disabled={!chosen.length || busy} loading={busy}
                   onPress={() => onPublish('group', chosen)} />
               </View>

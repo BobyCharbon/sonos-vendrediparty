@@ -12,6 +12,8 @@ type Props = {
   value: boolean;
   onChange: (on: boolean) => void;
   disabled?: boolean;
+  /** Libellé (et nom lu par VoiceOver) quand deux interrupteurs se côtoient ; « Prévenir le groupe » sinon. */
+  label?: string;
 };
 
 /**
@@ -19,7 +21,7 @@ type Props = {
  * l'affiche pas, la base l'ignore). La phrase dit ce qui va se passer : notification directe (admin du groupe, groupe
  * « libre ») ou demande à l'admin du groupe, envoyée d'office après 48 h sans réponse.
  */
-export function AnnounceToggle({ groupIds, vip = false, value, onChange, disabled = false }: Props) {
+export function AnnounceToggle({ groupIds, vip = false, value, onChange, disabled = false, label = 'Prévenir le groupe' }: Props) {
   const [modes, setModes] = useState<AnnounceMode[]>([]);
   const key = groupIds.join(',');
 
@@ -35,7 +37,7 @@ export function AnnounceToggle({ groupIds, vip = false, value, onChange, disable
   if (!groupIds.length && !vip) return null;
   return (
     <View style={{ gap: 4 }}>
-      <ToggleRow label="Prévenir le groupe" value={value} onChange={onChange} disabled={disabled} />
+      <ToggleRow label={label} value={value} onChange={onChange} disabled={disabled} />
       <View accessibilityLiveRegion="polite"><T muted size={13}>{announceSentence(value, modes)}</T></View>
     </View>
   );

@@ -15,17 +15,39 @@ def post(s: Session, table: str, body: dict) -> httpx.Response:
     return httpx.post(f'{TEST_URL}/rest/v1/{table}', timeout=30, headers={**s.headers, 'Prefer': 'return=representation'}, json=body)
 
 
+def terms_enforced() -> bool:
+    return sql("select terms_enforced from private.moderation_settings where id = 1")[0]['terms_enforced']
+
+
+def set_terms_enforced(value: bool):
+    sql(f"update private.moderation_settings set terms_enforced = {'true' if value else 'false'} where id = 1")
+
+
 def unblock_all(*people: Session):
     ids = ",".join(f"'{p.uid}'" for p in people)
     sql(f"delete from public.direct_blocks where user_id in ({ids}) or blocked_id in ({ids})")
 
 
 @pytest.fixture(scope='module')
-def people():
+def terms_were():
+    """CGU exigées ou non avant ces tests (vrai sur TEST comme en prod) : remis tel quel à la fin, quoi qu'il arrive."""
+    was = terms_enforced()
+    try:
+        yield was
+    finally:
+        set_terms_enforced(was)
+
+
+@pytest.fixture(scope='module')
+def people(terms_were):
     admin, a, b, c = Session(ADMIN), Session(GUEST_A), Session(GUEST_B), Session(VIP)
     for s, name in ((a, 'Testeur 1'), (b, 'Testeur 2')):
         s.set_nickname(name)
     unblock_all(a, b, c)
+    # CGU exigées comme en prod : les testeurs les acceptent, comme un vrai compte avant son premier message.
+    for s in (a, b, c):
+        version = s.rpc('my_terms').json()['version']
+        assert s.rpc('accept_terms', p_version=version).status_code == 200
     sql(f"delete from public.content_reports where reporter_id in ('{a.uid}', '{b.uid}', '{c.uid}')")
     r = post(a, 'member_groups', {'name': 'Test modération', 'created_by': a.uid})
     assert r.status_code == 201, r.text
@@ -33,7 +55,6 @@ def people():
     assert post(a, 'member_group_members', {'group_id': group, 'user_id': b.uid}).status_code == 201
     yield admin, a, b, c, group
     unblock_all(a, b, c)
-    sql("update private.moderation_settings set terms_enforced = false where id = 1")
     sql(f"update public.profiles set status = 'active' where id in ('{a.uid}', '{b.uid}') and status = 'banned'")
     sql(f"update public.moderation_sanctions set lifted_at = now() where user_id in ('{a.uid}', '{b.uid}') and lifted_at is null")
     sql(f"delete from public.content_reports where reporter_id in ('{a.uid}', '{b.uid}', '{c.uid}')")
@@ -124,7 +145,7 @@ def test_hide_warn_suspend_ban_and_lift_by_account_identifier(people):
     rid = b.rpc('report_content', p_kind='profile', p_target=a.uid, p_reason='harassment').json()
     assert admin.rpc('moderation_act', p_report=rid, p_action='warn', p_note='Reste correct').status_code == 200
     assert sql(f"select count(*)::int n from public.notifications where user_id = '{a.uid}' and kind = 'moderation_notice'")[0]['n'] >= 1
-    assert a.get('moderation_sanctions?select=kind').json()[-1]['kind'] == 'warn'  # visible par la personne
+    assert a.get('moderation_sanctions?select=kind&order=created_at.desc&limit=1').json()[0]['kind'] == 'warn'  # visible par la personne
 
     rid = b.rpc('report_content', p_kind='profile', p_target=a.uid, p_reason='harassment').json()
     assert admin.rpc('moderation_act', p_report=rid, p_action='suspend').status_code >= 400  # durée obligatoire
@@ -184,7 +205,7 @@ def test_blocking_stops_direct_messages_mentions_invitations_notifications_and_t
     assert b.rpc('member_card', target=a.uid).json().get('restricted') is None
 
 
-def test_terms_are_accepted_per_version_and_enforced_when_the_admin_asks(people):
+def test_terms_are_accepted_per_version_and_enforced_when_the_admin_asks(people, terms_were):
     admin, a, b, c, group = people
     sql(f"delete from public.terms_acceptances where user_id = '{a.uid}'")
     info = a.rpc('my_terms').json()
@@ -197,7 +218,9 @@ def test_terms_are_accepted_per_version_and_enforced_when_the_admin_asks(people)
         assert a.rpc('accept_terms', p_version='1999-01-01').status_code >= 400
         assert a.rpc('accept_terms', p_version=info['version']).json()['accepted'] is True
         assert say(a, group, 'premier message').status_code == 201
+        assert admin.rpc('set_moderation_settings', p_terms_enforced=False).status_code == 200
+        anon = httpx.post(f'{TEST_URL}/rest/v1/rpc/moderation_public_info', headers={'apikey': a.key}, json={}, timeout=30)
+        assert anon.status_code == 200 and anon.json()['terms_enforced'] is False
     finally:
-        admin.rpc('set_moderation_settings', p_terms_enforced=False)
-    anon = httpx.post(f'{TEST_URL}/rest/v1/rpc/moderation_public_info', headers={'apikey': a.key}, json={}, timeout=30)
-    assert anon.status_code == 200 and anon.json()['terms_enforced'] is False
+        set_terms_enforced(terms_were)  # jamais laissé éteint (la base de TEST suit les réglages de prod)
+    assert terms_enforced() is terms_were

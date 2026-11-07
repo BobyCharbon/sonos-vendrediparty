@@ -1,10 +1,13 @@
-import { router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { router, Stack } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { useAuth, useMe } from '@/lib/auth';
 import { fetchTaxonomy, useQuery } from '@/lib/data';
+import { dateProblem, placesProblem, plusOnesProblem, priceProblem } from '@/lib/eventChecks';
+import { useLeaveGuard } from './LeaveGuard';
 import { parseLocalDateTime, toLocalInput } from '@/lib/format';
+import { friendlyError } from '@/lib/errors';
 import { dbMessage } from '@/lib/moderation';
 import { useTermsGate } from './TermsSheet';
 import { enter, pressTransition, useChangedSinceMount } from '@/lib/motion';
@@ -13,7 +16,7 @@ import { colors } from '@/lib/theme';
 import type { DateMode, EventRow, MemberGroup, Poll, PollOption, Reminder } from '@/lib/types';
 import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
-import { Button, Cascade, Chip, ErrorText, Field, Input, Reveal, Rows, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
+import { Button, Cascade, Chip, ErrorText, Field, HeaderBack, Input, Reveal, Rows, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
 import { AudiencePicker, audienceError, saveAudience, audienceFromEvent, audienceToEvent, DEFAULT_AUDIENCE, mayUseVip, type AudienceValue, type Person } from './AudiencePicker';
 import { DateTimeField } from './DateTimeField';
 import { PlaceSearch } from './PlaceSearch';
@@ -241,6 +244,8 @@ export function EventForm({ eventId }: { eventId?: string }) {
   const { can } = useAuth();
   const isAdmin = can('events.publish_direct');  // publie sans passer par la validation
   const [draft, setDraft] = useState<Draft | null>(eventId ? null : emptyDraft);
+  // Ce qui était là à l'ouverture : la base de « changements non enregistrés » et du « début changé ».
+  const [initial, setInitial] = useState<Draft | null>(eventId ? null : emptyDraft);
   const savedEventId = useRef(eventId);
   const saving = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -248,17 +253,33 @@ export function EventForm({ eventId }: { eventId?: string }) {
   const [newTag, setNewTag] = useState('');
   const [mode, setModeState] = useState<FormMode>(readMode);
   const setMode = (next: FormMode) => { setModeState(next); saveMode(next); };
+  // Brouillon créé par une publication qui a échoué en route : repris au nouvel essai, supprimé si l'on abandonne.
+  const [orphan, setOrphan] = useState<string | null>(null);
+  const orphanDraft = useRef<string | null>(null);
+  // Enregistré : on part (après le rendu qui lève la garde « Abandonner les changements ? »).
+  const [doneAt, setDoneAt] = useState<string | null>(null);
+  useEffect(() => { if (doneAt) router.replace(doneAt as never); }, [doneAt]);
+  const dirty = !!draft && !!initial && JSON.stringify(draft) !== JSON.stringify(initial);
+  const leaveSheet = useLeaveGuard(
+    (dirty || !!orphan) && !doneAt,
+    orphan ? 'Le brouillon commencé est supprimé.' : null,
+    orphan ? async () => { check(await supabase.from('events').delete().eq('id', orphan)); } : undefined,
+  );
+  const cancel = () => (router.canGoBack() ? router.back() : router.replace((eventId ? `/event/${eventId}` : '/') as never));
 
   const { data: ctx, error: contextError, reload: reloadCtx } = useQuery(async () => {
-    const [taxonomy, members, groups, settings, current] = await Promise.all([
+    const [taxonomy, members, groups, settings, current, editorRoles] = await Promise.all([
       fetchTaxonomy(),
       supabase.from('profiles').select('id, display_name, role').eq('status', 'active').order('display_name'),
       supabase.from('member_groups').select('id, name, created_by, system_key, member_group_members(user_id)').order('name'),
       supabase.from('group_settings').select('require_approval').single(),
       eventId ? supabase.from('events').select('status').eq('id', eventId).single() : Promise.resolve(null),
+      // Co-organisateurs : seulement des rôles qui peuvent modifier un événement publié (sinon ni Modifier ni Annuler).
+      supabase.from('role_permissions').select('role').in('perm', ['events.edit_own_published', 'events.manage_all']),
     ]);
     if (eventId && !draft) {
       const loaded = await loadDraft(eventId);
+      setInitial(loaded);
       setDraft(loaded);
     }
     // Hors du groupe Vendredi Party, on ne peut pas lui réserver un événement (base : 20261106090000) : public par défaut.
@@ -271,6 +292,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
       groups: must(groups) as MemberGroup[],
       settings: must(settings) as { require_approval: boolean },
       status: current ? (must(current) as { status: EventRow['status'] }).status : null,
+      editors: new Set((must(editorRoles) as { role: string }[]).map((r) => r.role)),
     };
   }, [eventId]);
 
@@ -302,7 +324,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
     const name = newTag.trim().replace(/^#/, '').toLowerCase();
     if (!name) return;
     const { data, error } = await supabase.from('tags').insert({ name, created_by: me.id }).select('id').single();
-    if (error) return setError(error.message.includes('duplicate') ? 'Ce tag existe déjà' : error.message);
+    if (error) return setError(error.message.includes('duplicate') ? 'Ce tag existe déjà' : friendlyError(dbMessage(error.message, error.message)));
     setNewTag('');
     await reloadCtx();
     set({ tag_ids: [...d.tag_ids, data.id] });
@@ -337,11 +359,22 @@ export function EventForm({ eventId }: { eventId?: string }) {
       }
       if (slots.length < 2 && !d.members_can_propose_dates) return 'Propose au moins deux créneaux';
     }
+    // Dates incohérentes (brouillon comme publication) : début passé, date limite après le début, vote après les créneaux.
+    const datesWrong = dateProblem({
+      now: Date.now(), starts, rsvpDeadline, pollDeadline: deadline,
+      slots: slots.map((sl) => ({ iso: sl.iso, isNew: !sl.id })),
+      startsChanged: !eventId || d.starts_at !== initial?.starts_at,
+    });
+    if (datesWrong) return datesWrong;
     const num = (v: string) => (v.trim() ? Number(v.replace(',', '.')) : null);
+    // Jamais corrigé en silence : la phrase dit ce qui ne va pas (accompagnants, prix, places).
+    const amountWrong = placesProblem(d.max_participants) ?? priceProblem(d.price_chf)
+      ?? (d.allow_plus_ones ? plusOnesProblem(d.max_plus_ones, UNLIMITED_PLUS_ONES - 1) : null);
+    if (amountWrong) return amountWrong;
     const max = num(d.max_participants);
-    if (max !== null && (!Number.isInteger(max) || max < 1)) return 'Nombre de places invalide';
     const price = num(d.price_chf);
-    if (price !== null && (!Number.isFinite(price) || price < 0)) return 'Le prix doit être un montant positif ou zéro';
+    const plusMax = d.max_plus_ones.trim();
+    const maxPlusOnes = plusMax && !plusOnesProblem(plusMax, UNLIMITED_PLUS_ONES - 1) ? Number(plusMax) : UNLIMITED_PLUS_ONES;
     if (d.location_url.trim()) {
       try {
         const url = new URL(d.location_url.trim());
@@ -377,7 +410,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
         max_participants: max,
         waitlist_enabled: d.waitlist_enabled,
         allow_plus_ones: d.allow_plus_ones,
-        max_plus_ones: d.max_plus_ones.trim() ? Math.max(1, Math.min(UNLIMITED_PLUS_ONES - 1, Number(d.max_plus_ones) || 1)) : UNLIMITED_PLUS_ONES,
+        max_plus_ones: maxPlusOnes,
         allow_maybe: d.allow_maybe,
         rsvp_deadline: rsvpDeadline,
         ...audienceToEvent(d.who),
@@ -472,15 +505,26 @@ export function EventForm({ eventId }: { eventId?: string }) {
   }
 
   async function submit(asDraft: boolean) {
+    // La garde AVANT toute attente (CGU comprises) : un double toucher ne crée jamais deux événements.
     if (saving.current) return;
-    setError(null);
-    const v = validate();
-    if (typeof v === 'string') return setError(v);
-    if (!savedEventId.current && !terms.accepted && !(await terms.ensure())) return;
     saving.current = true;
-    setBusy(true);
+    setError(null);
+    try {
+      const v = validate();
+      if (typeof v === 'string') return setError(v);
+      if (!savedEventId.current && !terms.accepted && !(await terms.ensure())) return;
+      setBusy(true);
+      await save(v, asDraft);
+    } finally {
+      saving.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function save(v: Exclude<ReturnType<typeof validate>, string>, asDraft: boolean) {
     // Travailler sur une copie : conserver les identifiants reçus même en cas d'échec partiel.
     const snapshot = JSON.parse(JSON.stringify(d)) as Draft;
+    let createdNow = false;
     try {
       let id = savedEventId.current;
       const previous = id ? await loadDraft(id) : null;
@@ -490,11 +534,14 @@ export function EventForm({ eventId }: { eventId?: string }) {
       if (short) throw new Error(short);
       if (!id) {
         // Créé en brouillon pour attacher tags/sondages AVANT la publication (et donc les notifications).
+        // Un échec plus loin : le nouvel essai reprend CE brouillon (savedEventId), jamais un second.
         id = must(await supabase.from('events').insert({ ...v.row, status: 'draft' }).select('id').single()).id as string;
         savedEventId.current = id;
+        createdNow = true;
       } else {
         check(await supabase.from('events').update(v.row).eq('id', id));
       }
+      if (createdNow && !asDraft) orphanDraft.current = id;
       await syncChildren(id, v.slots, snapshot, previous);
       const status = ctx!.status;
       const needsSubmit = !eventId || status === 'draft' || status === 'rejected';
@@ -502,22 +549,29 @@ export function EventForm({ eventId }: { eventId?: string }) {
         check(await supabase.from('events').update({ status: isAdmin ? 'published' : 'pending' }).eq('id', id));
       }
       if (eventId) notifyWallet(id);  // titre, date, lieu : les billets déjà dans Cartes se mettent à jour
-      router.replace(`/event/${id}`);
+      orphanDraft.current = null;
+      setOrphan(null);
+      setDoneAt(`/event/${id}`);
     } catch (e) {
       // Filtre de la base (titre, description) ou CGU : sa phrase, sans la clé technique (« content_refused: … »).
       const message = e instanceof Error ? e.message : String(e);
-      setError(dbMessage(message, message));
+      // Toutes les écritures (sondages, choix, objets compris) : clé retirée, puis phrase claire si c'est technique.
+      const text = friendlyError(dbMessage(message, message));
+      // Brouillon créé puis étape ratée : on le dit (le nouvel essai le reprend ; « Abandonner » le supprime).
+      setOrphan(orphanDraft.current);
+      setError(orphanDraft.current && !asDraft
+        ? `L’événement n’est pas encore publié : ${text.replace(/[.!]?\s*$/, '.')} Touche à nouveau le bouton pour réessayer (le même brouillon est repris).`
+        : text);
     } finally {
       setDraft(snapshot);
-      saving.current = false;
-      setBusy(false);
     }
   }
 
   const memberChips = (key: 'organizers') => (
     <View style={s.wrap}>
       {ctx.members
-        .filter((m) => m.id !== me.id && m.role !== 'guest' && m.role !== 'guestplus')  // co-organisateurs : membres seulement
+        // Co-organisateurs : comptes qui peuvent modifier (déjà choisis : gardés visibles pour pouvoir les retirer).
+        .filter((m) => m.id !== me.id && (ctx.editors.has(m.role ?? '') || d[key].includes(m.id)))
         .map((m) => (
           <Chip key={m.id} label={m.display_name} selected={d[key].includes(m.id)} onPress={() => toggleIn(key, m.id)} />
         ))}
@@ -536,6 +590,10 @@ export function EventForm({ eventId }: { eventId?: string }) {
 
   return (
     <Screen edges={[]}>
+      {/* « Annuler » plutôt que le titre (parfois long) de l'événement, qui chevauchait « Modifier » ; la garde
+          « Abandonner les changements ? » s'applique aussi à ce bouton. */}
+      {/* Nouvel événement : chevron seul (le titre « Proposer un événement » est long, le libellé le chevauchait). */}
+      <Stack.Screen options={{ headerLeft: () => <HeaderBack label="Annuler" iconOnly={!eventId} onPress={cancel} /> }} />
       <View pointerEvents={busy ? 'none' : 'auto'} style={{ gap: 14 }}>
       {/* Ouverture en cascade ; en passant en Avancé, les sections ajoutées montent à leur tour. */}
       <Cascade>
@@ -631,7 +689,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
       </Section>
 
       <Section title={advanced ? 'Lieu et prix' : 'Où'}>
-        <PlaceSearch onPick={(p) => set({ location_name: p.name, location_address: p.address, location_url: p.url })} />
+        <PlaceSearch typed={d.location_name} onPick={(p) => set({ location_name: p.name, location_address: p.address, location_url: p.url })} />
         <Field label="Lieu" placeholder="Chez Marco" value={d.location_name} onChangeText={(location_name) => set({ location_name })} />
         {advanced ? (
           <>
@@ -802,6 +860,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
       </Cascade>
       </View>
       {terms.sheet}
+      {leaveSheet}
     </Screen>
   );
 }

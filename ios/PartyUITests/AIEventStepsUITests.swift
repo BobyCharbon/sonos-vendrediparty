@@ -70,8 +70,26 @@ final class AIEventStepsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Déjà cochés : Tom, Léa"].exists)
         XCTAssertTrue(app.buttons["ai-open-event-toolbar"].exists)
         shot(app, "02-ios-brouillon-enregistre-v2")
+        // « Brouillon enregistré » reste affiché jusqu'au toucher : ses boutons restent touchables (campagne 2, n° 5).
+        Thread.sleep(forTimeInterval: 4)
+        XCTAssertTrue(app.buttons["ai-invite"].isHittable)
+        XCTAssertTrue(app.buttons["ai-open-event"].isHittable)
         app.buttons["ai-open-event"].tap()
         // « Ouvrir l'événement » : l'assistant se ferme, la fiche s'ouvre dans Événements.
         XCTAssertTrue(app.buttons["ai-open-event"].waitForNonExistence(timeout: 5))
+    }
+
+    /// « Pas maintenant » sur l'accord IA : l'explication se lit sur le premier écran, sans défiler (campagne 2).
+    func testDeclinedConsentExplanationIsVisibleWithoutScrolling() {
+        let app = XCUIApplication()
+        app.launchEnvironment["PARTY_DEBUG_AI_EVENT"] = "tips"
+        app.launchEnvironment["PARTY_DEBUG_AI_ERROR"] = "Sans ton accord, l'assistant ne peut rien envoyer à l'IA. Tu peux créer l'événement à la main."
+        app.launch()
+        let message = app.descendants(matching: .any)["ai-error"]
+        XCTAssertTrue(message.waitForExistence(timeout: 20))
+        XCTAssertTrue(message.isHittable, "L'explication doit être visible sans défiler")
+        let window = app.windows.firstMatch.frame
+        XCTAssertLessThan(message.frame.maxY, window.maxY - 120, "Au-dessus de la barre de saisie")
+        shot(app, "03-ios-accord-refuse-explication")
     }
 }

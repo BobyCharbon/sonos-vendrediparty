@@ -1,11 +1,12 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Image, Linking, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { AIEventSteps } from '@/components/AIEventSteps';
 import { AttendanceEditor } from '@/components/AttendanceEditor';
 import { AttendeesBadge } from '@/components/AttendeesBadge';
 import { PendingPayments } from '@/components/PendingPayments';
+import { RejectProposal } from '@/components/RejectProposal';
 import { ReportSheet } from '@/components/ReportSheet';
 import { TicketCard } from '@/components/TicketCard';
 import { TicketsManager } from '@/components/TicketsManager';
@@ -23,6 +24,9 @@ import { fetchAttendance, localAttendance } from '@/lib/attendance';
 import { useAuth, useMe } from '@/lib/auth';
 import { personLabel, useContactNames, withContactNames } from '@/lib/contactNames';
 import { useQuery, useRealtime } from '@/lib/data';
+import { GONE_TEXT, isGoneError, isNetworkError } from '@/lib/errors';
+import { eventPeopleIds } from '@/lib/eventPeople';
+import { useOnline, usePaymentsTick, useSlowLoad } from '@/lib/connectivity';
 import { safeHref } from '@/lib/links';
 import { formatLongDay, formatMessageTime, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
 import type { ReportTarget } from '@/lib/moderation';
@@ -44,6 +48,11 @@ type Full = EventRow & {
   bring_items: BringItem[];
   event_groups: { group_id: string }[];
 };
+
+/** Le temps réel accepte au plus 100 valeurs dans un filtre « in ». */
+const REALTIME_IN_MAX = 100;
+/** En dessous (ou texte agrandi), les actions d'en-tête passent en icônes : le retour « ‹ Événements » garde sa place. */
+const NARROW_HEADER_WIDTH = 380;
 
 /** Lien à partager : ouvre Party sur cet événement (page publique pour qui n'est pas membre). */
 async function sharePublicLink(ev: Pick<EventRow, 'id' | 'title'>): Promise<string> {
@@ -67,6 +76,7 @@ export default function EventScreen() {
   const { id, step, invite, suggested } = useLocalSearchParams<{ id: string; step?: string; invite?: string; suggested?: string }>();
   const me = useMe();
   const { can } = useAuth();
+  const { width, fontScale } = useWindowDimensions();
   const isAdmin = can('events.manage_all');
   const [error, setError] = useState<string | null>(null);
   const [shareNote, setShareNote] = useState('');
@@ -74,8 +84,10 @@ export default function EventScreen() {
   /** Paiement confirmé (« Reçu ») : il remet aussi le billet, la liste « Billets QR » se relit. */
   const [paymentsSeen, setPaymentsSeen] = useState(0);
 
+  // Campagne 2 (07.11) : seul l'événement est obligatoire (must) ; le reste (sondages, profils, messages…) se lit avec un
+  // repli, et seulement pour CET événement (avant : tous les profils, résultats et votes de Party à chaque ouverture).
   const { data: loaded, reload, error: loadError } = useQuery(async () => {
-    const [ev, members, results, myVotes, allVotes, messages, mute, links, attendance, groupNames] = await Promise.all([
+    const [ev, messages, mute, links, attendance, groupNames] = await Promise.all([
       supabase
         .from('events')
         .select(
@@ -83,27 +95,35 @@ export default function EventScreen() {
         )
         .eq('id', id)
         .single(),
-      supabase.from('profiles').select('id, display_name'),
-      supabase.from('poll_results').select('*'),
-      supabase.from('poll_votes').select('poll_id, option_id').eq('user_id', me.id),
-      supabase.from('poll_votes').select('option_id, user_id'),
       supabase.from('messages').select('*').eq('event_id', id).is('deleted_at', null).order('created_at', { ascending: false }).limit(2),
       supabase.from('event_mutes').select('event_id').eq('event_id', id).eq('user_id', me.id),
       // Invités arrivés par le lien (lisible par les organisateurs et les admins : orange dans « Qui vient ? »).
       supabase.from('event_invites').select('user_id').eq('event_id', id).eq('via_link', true),
       // Pastille des présents : totaux exacts même si la liste des participants est cachée.
-      fetchAttendance([id]),
+      fetchAttendance([id]).catch(() => new Map()),
       // Noms des groupes invités : lisibles par qui voit l'événement, même sans faire partie du groupe.
       supabase.rpc('event_group_names', { e: id }),
     ]);
+    const event = must(ev) as unknown as Full;
+    const pollIds = event.polls.map((p) => p.id);
+    const [results, allVotes] = pollIds.length
+      ? await Promise.all([
+          supabase.from('poll_results').select('*').in('poll_id', pollIds),
+          supabase.from('poll_votes').select('option_id, user_id').in('poll_id', pollIds),
+        ])
+      : [{ data: [] }, { data: [] }];
+    const votes = (allVotes.data ?? []) as { option_id: string; user_id: string }[];
+    const msgs = (messages.data ?? []) as Message[];
+    const peopleIds = eventPeopleIds(event, votes, msgs);
+    const members = peopleIds.length ? await supabase.from('profiles').select('id, display_name').in('id', peopleIds) : { data: [] };
     return {
-      event: must(ev) as unknown as Full,
-      names: new Map(must(members).map((m) => [m.id as string, m.display_name as string])),
-      results: must(results) as { poll_id: string; option_id: string; votes: number }[],
-      myVotes: new Set(must(myVotes).map((v) => v.option_id as string)),
-      allVotes: must(allVotes) as { option_id: string; user_id: string }[],
-      messages: must(messages) as Message[],
-      muted: must(mute).length > 0,
+      event,
+      names: new Map(((members.data ?? []) as { id: string; display_name: string }[]).map((m) => [m.id, m.display_name])),
+      results: (results.data ?? []) as { poll_id: string; option_id: string; votes: number }[],
+      myVotes: new Set(votes.filter((v) => v.user_id === me.id).map((v) => v.option_id)),
+      allVotes: votes,
+      messages: msgs,
+      muted: (mute.data ?? []).length > 0,
       viaLink: new Set(((links.data ?? []) as { user_id: string }[]).map((l) => l.user_id)),
       attendance: attendance.get(id) ?? null,
       groupNames: ((groupNames.data ?? []) as string[]).join(', '),
@@ -115,14 +135,24 @@ export default function EventScreen() {
   const contacts = useContactNames();
   const data = useMemo(() => (loaded ? { ...loaded, names: withContactNames(loaded.names, contacts) } : loaded), [loaded, contacts]);
 
+  // Temps réel filtré sur CET événement : un vote ailleurs dans Party ne recharge plus la fiche (campagne 2, rapport 10).
+  const optionIds = (loaded?.event.date_options ?? []).map((o) => o.id).slice(0, REALTIME_IN_MAX);
+  const pollIds = (loaded?.event.polls ?? []).map((p) => p.id).slice(0, REALTIME_IN_MAX);
   useRealtime(`event-${id}`, [
     { table: 'rsvps', filter: `event_id=eq.${id}` },
-    { table: 'date_votes' },
-    { table: 'poll_votes' },
+    ...(optionIds.length ? [{ table: 'date_votes', filter: `option_id=in.(${optionIds.join(',')})` }] : []),
+    ...(pollIds.length ? [{ table: 'poll_votes', filter: `poll_id=in.(${pollIds.join(',')})` }] : []),
     { table: 'messages', filter: `event_id=eq.${id}` },
   ], reload);
 
+  const online = useOnline(reload);
+  const slow = useSlowLoad(!loaded && !loadError);
+
   const ev = data?.event;
+  // Payant : « J'ai payé » (invité) et « Reçu » (organisateur) apparaissent sans recharger la page. Les billets ne sont pas
+  // lisibles en direct (table fermée, fonctions seulement) : relecture légère des deux cartes, page visible seulement.
+  const mineYes = !!ev && ev.rsvps.some((r) => r.user_id === me.id && r.status === 'yes');
+  const paymentsTick = usePaymentsTick(!!ev && ev.status === 'published' && (ev.price_chf ?? 0) > 0 && (mineYes || isAdmin || ev.created_by === me.id || ev.event_organizers.some((o) => o.user_id === me.id)));
   const isOrganizer = !!ev && (ev.created_by === me.id || ev.event_organizers.some((o) => o.user_id === me.id));
   const canManage = isAdmin || isOrganizer;
 
@@ -141,18 +171,12 @@ export default function EventScreen() {
   }, [data]);
 
   if (!data || !ev) {
-    if (!loadError) return <EventSkeleton />;
-    // Échec du chargement : jamais une impasse (retour à la liste, nouvel essai).
-    return (
-      <Screen edges={[]}>
-        <Stack.Screen options={{ title: '', ...(router.canGoBack() ? {} : { headerLeft: () => <HeaderBack label="Événements" onPress={() => router.replace('/')} /> }) }} />
-        <ErrorText error={loadError} />
-        <Button label="Réessayer" variant="secondary" onPress={reload} />
-      </Screen>
-    );
+    if (!loadError && online && !slow) return <EventSkeleton />;
+    return <LoadProblem error={loadError} online={online} onRetry={reload} />;
   }
 
   const published = ev.status === 'published';
+  const narrow = width < NARROW_HEADER_WIDTH || fontScale > 1.15;
   const canEdit = isAdmin || (isOrganizer && (ev.status !== 'published' || can('events.edit_own_published')));
   // App iPhone et droit IA : « ✨ IA » ouvre l'écran natif où l'on dit ce qui change (« décale à 21h »…).
   const native = (globalThis as { PartyNative?: { ai?: { editEvent?: (id: string) => void } } }).PartyNative;
@@ -199,8 +223,12 @@ export default function EventScreen() {
           ...(router.canGoBack() ? {} : { headerLeft: () => <HeaderBack label="Événements" onPress={() => router.replace('/')} /> }),
           headerRight: () => (
             <View style={s.row}>
-              {published ? <HeaderAction label={data.muted ? '🔕 Réactiver' : '🔔 Sourdine'} onPress={toggleMute} /> : null}
-              {canEdit && aiEdit ? <HeaderAction label="✨ IA" onPress={() => aiEdit(ev.id)} /> : null}
+              {/* Écran étroit (360 px, texte agrandi) : l'icône seule, sinon « ‹ Événements » passait sous « 🔔 Sourdine ». */}
+              {published ? (
+                <HeaderAction label={narrow ? (data.muted ? '🔕' : '🔔') : data.muted ? '🔕 Réactiver' : '🔔 Sourdine'}
+                  accessibilityLabel={data.muted ? 'Réactiver les notifications de cet événement' : 'Mettre cet événement en sourdine'} onPress={toggleMute} />
+              ) : null}
+              {canEdit && aiEdit ? <HeaderAction label={narrow ? '✨' : '✨ IA'} accessibilityLabel="Modifier avec l’IA" onPress={() => aiEdit(ev.id)} /> : null}
               {canEdit ? <HeaderAction prominent label="Modifier" onPress={() => router.push(`/event/${ev.id}/edit`)} /> : null}
             </View>
           ),
@@ -318,10 +346,8 @@ export default function EventScreen() {
       {ev.status === 'pending' && can('events.approve') ? (
         <Card style={{ backgroundColor: colors.lavenderDim, borderColor: '#4A3F78' }}>
           <T weight="semibold">Cette proposition attend ta validation.</T>
-          <View style={s.row}>
-            <Button small label="Approuver" style={{ flex: 1 }} onPress={() => run(supabase.rpc('approve_event', { e: ev.id }))} />
-            <Button small variant="danger" label="Refuser" style={{ flex: 1 }} onPress={() => run(supabase.rpc('reject_event', { e: ev.id, reason: null }))} />
-          </View>
+          <RejectProposal eventId={ev.id} onDone={(failed) => { setError(failed); reload(); }}
+            extra={<Button small label="Approuver" style={{ flex: 1 }} onPress={() => run(supabase.rpc('approve_event', { e: ev.id }))} />} />
         </Card>
       ) : null}
 
@@ -340,7 +366,7 @@ export default function EventScreen() {
         <RsvpCard event={ev} me={me.id} rsvps={ev.rsvps} onChange={reload} />
       ) : null}
       {mine?.status === 'yes' && ticketRelevant(ev, data.loadedAt) ? (
-        <TicketCard event={ev} me={me} answerKey={`${mine.status}:${mine.waitlisted}:${mine.plus_ones}`} />
+        <TicketCard event={ev} me={me} answerKey={`${mine.status}:${mine.waitlisted}:${mine.plus_ones}:${paymentsTick}`} />
       ) : null}
 
       {ev.description ? (
@@ -372,7 +398,7 @@ export default function EventScreen() {
           refreshKey={`${paymentsSeen}|${ev.rsvps.map((r) => `${r.user_id}:${r.status}:${r.waitlisted}`).join(',')}`} />
       ) : null}
       {ev.date_mode === 'fixed' && published && canManage && (ev.price_chf ?? 0) > 0 ? (
-        <PendingPayments eventId={ev.id} price={ev.price_chf!} refreshKey={ev.rsvps.map((r) => `${r.user_id}:${r.status}`).join(',')}
+        <PendingPayments eventId={ev.id} price={ev.price_chf!} refreshKey={`${paymentsTick}|${ev.rsvps.map((r) => `${r.user_id}:${r.status}`).join(',')}`}
           onConfirmed={() => setPaymentsSeen((n) => n + 1)} />
       ) : null}
 
@@ -431,12 +457,14 @@ export default function EventScreen() {
           {ev.date_mode === 'fixed' ? (
             <Button label="📷 Scanner les billets" onPress={() => router.push(`/event/${ev.id}/scan`)} />
           ) : null}
-          <ConfirmButton
+          {/* La base exige le droit de modifier pour annuler, sauf pour le créateur (campagne 2, lot A) : un co-organisateur
+              « Membre » sans « Modifier » ne voit plus « Annuler l’événement ». */}
+          {canEdit || ev.created_by === me.id ? <ConfirmButton
             small
             label="Annuler l’événement"
             confirmLabel="Oui, annuler"
             onConfirm={() => run(supabase.from('events').update({ status: 'cancelled' }).eq('id', ev.id)).then(() => notifyWallet(ev.id))}
-          />
+          /> : null}
         </View>
       ) : null}
       {/* Droits « Scanner les billets » (tickets.scan) ou « Confirmer les paiements » (tickets.pay) sans organiser l'événement : l'entrée seulement. */}
@@ -479,6 +507,27 @@ export default function EventScreen() {
     {shareNote === 'Lien copié' ? <Toast message="Lien copié" onHide={() => setShareNote('')} /> : null}
     <ReportSheet target={report} onClose={() => setReport(null)} />
     </>
+  );
+}
+
+/** Chargement impossible : jamais une impasse ni l'anglais de la base. Supprimé / pas ouvert : pas de « Réessayer » inutile ;
+ * hors ligne : « Pas de connexion », la fiche se recharge seule au retour du réseau. */
+function LoadProblem({ error, online, onRetry }: { error: string | null; online: boolean; onRetry: () => void }) {
+  const gone = !!error && isGoneError(error);
+  const offline = !online || (!!error && isNetworkError(error));
+  const text = gone ? GONE_TEXT
+    : offline ? 'Pas de connexion. Vérifie ton réseau : la fiche se chargera dès qu’il revient.'
+    : error ?? 'Le chargement prend plus de temps que prévu.';
+  return (
+    <Screen edges={[]}>
+      <Stack.Screen options={{ title: 'Événement', ...(router.canGoBack() ? {} : { headerLeft: () => <HeaderBack label="Événements" onPress={() => router.replace('/')} /> }) }} />
+      <ErrorText error={text} />
+      {gone ? (
+        <Button label="Retour aux événements" variant="secondary" onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
+      ) : (
+        <Button label="Réessayer" variant="secondary" onPress={onRetry} />
+      )}
+    </Screen>
   );
 }
 

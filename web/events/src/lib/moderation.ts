@@ -6,6 +6,7 @@ import { supabase } from './supabase';
  * La base décide de tout (filtre, droits, limites) ; ces fonctions ne font que l'appeler. */
 
 export type ReportKind = 'group_message' | 'direct_message' | 'event_message' | 'profile' | 'profile_photo' | 'event'
+  | 'rsvp_note' | 'poll' | 'poll_option' | 'bring_item'
   | 'pet_name' | 'pet_item' | 'pet_offer' | 'pet_showcase' | 'pet_word';
 export type ReportReason = 'harassment' | 'shocking' | 'spam' | 'scam' | 'other';
 export type ReportTarget = { kind: ReportKind; id: string; label: string };

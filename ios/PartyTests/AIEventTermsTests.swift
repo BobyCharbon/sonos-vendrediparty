@@ -64,7 +64,7 @@ final class AIEventTermsTests: XCTestCase {
         await saving.value
         XCTAssertFalse(store.askingTerms)
         XCTAssertEqual(store.created?.id, "3d966d59-11e2-4785-a543-7c91a9c2b877")
-        XCTAssertTrue(store.openInviteSoon)  // l'étape 2 s'ouvre ensuite, comme sans CGU
+        XCTAssertEqual(AIEvent.step(store.created), 2)  // « Brouillon enregistré », comme sans CGU (l'étape 2 au toucher)
         XCTAssertNil(store.error)
         XCTAssertEqual(TermsServer.calls.filter { $0 == "/api/account/ai/event/draft/save" }.count, 2)
         XCTAssertTrue(TermsServer.calls.contains("/api/account/moderation/terms/accept"))

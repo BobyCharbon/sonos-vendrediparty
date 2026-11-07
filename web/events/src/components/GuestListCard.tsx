@@ -6,7 +6,7 @@ import { Avatar, ErrorText, Meter, Skeleton, T, Toast } from './ui';
 import { useQuery } from '@/lib/data';
 import { formatShort } from '@/lib/format';
 import {
-  fetchGuestList, filterGuests, filterLinks, guestCounts, guestOrigin, inviteLinkUrl, inviteMessage, linkLine, nudgeInvitees,
+  fetchGuestList, filterGuests, filterLinks, guestCounts, guestOrigin, inviteLinkUrl, inviteMessage, linkLine, linkSpokenNames, linkTitle, nudgeInvitees,
   nudgeLink, removeInvitee, ruleSentence, shareInvite, statusWords, stopLink,
   type Guest, type GuestFilter, type GuestList, type SentLink,
 } from '@/lib/invites';
@@ -73,10 +73,14 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
     return shared === 'copied' ? 'Message copié : colle-le dans WhatsApp ou Messages' : null;
   });
 
+  // Seulement ceux qui ont l'app : les autres ne reçoivent rien d'ici, ils ne sont donc jamais notés « relancés »
+  // (leur bouton « Relancer », qui ouvre le partage avec leur lien, reste sur leur ligne).
   const nudgeAll = (people: Guest[]) => run(async () => {
-    const result = await nudgeInvitees(event.id, people.map((p) => p.id));
+    const reachable = people.filter((p) => p.has_app);
+    const withoutApp = people.length - reachable.length;
+    const result = reachable.length ? await nudgeInvitees(event.id, reachable.map((p) => p.id)) : { notified: 0, skipped: 0, share: [] };
     const parts = [result.notified ? `${result.notified} ${result.notified > 1 ? 'rappels envoyés' : 'rappel envoyé'} dans Party` : null,
-      result.share.length ? `${result.share.length} sans l’app : relance-les une par une` : null,
+      withoutApp + result.share.length ? `${withoutApp + result.share.length} sans l’app : relance-les une par une (« Relancer » sur leur ligne)` : null,
       result.skipped ? `${result.skipped} déjà relancé${result.skipped > 1 ? 's' : ''} aujourd’hui` : null].filter(Boolean);
     return parts.join(' · ') || 'Personne à relancer';
   });
@@ -112,8 +116,9 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
   const row = (g: Guest) => (
     <GuestRow key={g.id} guest={g} me={me.id} onNudge={() => void nudge(g)} onRemove={g.removable ? () => void remove(g) : null} />
   );
+  const spoken = linkSpokenNames(list.links);
   const linkRows = (links: SentLink[]) => links.map((l) => (
-    <LinkRow key={l.token} link={l} onNudge={() => void nudgeByLink(l)} onStop={() => void stop(l)} />
+    <LinkRow key={l.token} link={l} spokenName={spoken.get(l.token) ?? linkTitle(l)} onNudge={() => void nudgeByLink(l)} onStop={() => void stop(l)} />
   ));
 
   return (
@@ -284,10 +289,10 @@ function GuestRow({ guest, me, onNudge, onRemove }: { guest: Guest; me: string; 
   );
 }
 
-function LinkRow({ link, onNudge, onStop }: { link: SentLink; onNudge: () => void; onStop: () => void }) {
+function LinkRow({ link, spokenName, onNudge, onStop }: { link: SentLink; spokenName: string; onNudge: () => void; onStop: () => void }) {
   const [confirm, setConfirm] = useState(false);
   const live = link.state === 'pending' || link.state === 'opened';
-  const title = link.label ? `Lien pour ${link.label}` : link.max_uses > 1 ? 'Lien pour plusieurs' : 'Lien pour une personne';
+  const title = linkTitle(link);
   const badge = link.state === 'opened' && !link.arrivals.length ? { t: 'A ouvert', c: colors.coral }
     : link.state === 'pending' ? { t: 'Pas ouvert', c: UNOPENED_COLOR }
       : link.arrivals.length ? { t: link.max_uses > 1 ? `${link.uses}/${link.max_uses}` : 'Répondu', c: rsvpColors.yes }
@@ -297,7 +302,7 @@ function LinkRow({ link, onNudge, onStop }: { link: SentLink; onNudge: () => voi
     { label: confirm ? 'Confirmer' : 'Arrêter', color: colors.red, fg: colors.onRed, onPress: () => (confirm ? onStop() : setConfirm(true)) },
   ] : [];
   return (
-    <SwipeRow actions={actions} label={title}>
+    <SwipeRow actions={actions} label={spokenName}>
       <View style={st.row}>
         <View style={st.linkIcon}><T size={17}>{link.max_uses > 1 ? '👥' : '🔗'}</T></View>
         <View style={{ flex: 1, gap: 2, minWidth: 0 }}>

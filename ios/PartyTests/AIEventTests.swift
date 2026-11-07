@@ -104,11 +104,8 @@ final class AIEventStepsTests: XCTestCase {
     @MainActor
     func testTheDraftStepNoLongerOpensOnceHandledAndResetsToStepOne() {
         let store = AIEventStore(api: PartyAPI(base: URL(string: "https://party.invalid")!, jar: NoCookies()), web: nil)
-        XCTAssertFalse(store.openInviteSoon)
         store.showDemoCreated(AIEvent.Created(id: eventId, status: "draft", title: "Raclette"))
         XCTAssertEqual(AIEvent.step(store.created), 2)
-        store.inviteOpened()
-        XCTAssertFalse(store.openInviteSoon)
         store.reset()
         XCTAssertNil(store.created)
         XCTAssertEqual(AIEvent.step(store.created), 1)

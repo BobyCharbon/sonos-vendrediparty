@@ -168,7 +168,7 @@ export function ChatsPause({ scope = 'chats', compact = false }: { scope?: Exclu
 
 const styles = StyleSheet.create({
   moonWrap: { position: 'absolute', top: 0, right: 0, zIndex: 20, alignItems: 'flex-end' },
-  moon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.fill },
+  moon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.fill },
   moonOn: { backgroundColor: colors.coral },
   moonGlyph: { fontSize: 22, color: colors.textSoft, lineHeight: 26 },
   dropdown: { marginTop: 8, width: 260, borderRadius: radius.md, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.lineStrong,

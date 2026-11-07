@@ -2,10 +2,10 @@ import { Linking, Platform } from 'react-native';
 
 import { friendlyError } from './errors';
 import { formatShort } from './format';
-
-const shortDate = (iso: string | null) => formatShort(iso).toLowerCase();
 import { supabase } from './supabase';
 import type { RsvpStatus } from './types';
+
+const shortDate = (iso: string | null) => formatShort(iso).toLowerCase();
 
 /**
  * Invitations v2 (bêta, migration 20261105200000) : carte « Invités » de l'organisateur, feuille « Inviter », carte
@@ -96,6 +96,29 @@ export function linkLine(l: SentLink): string {
   return `Envoyé ${shortDate(l.created_at)} · pas encore ouvert`;
 }
 
+/** Titre d'un lien de la carte « Invités ». */
+export function linkTitle(l: SentLink): string {
+  if (l.label) return `Lien pour ${l.label}`;
+  return l.max_uses > 1 ? 'Lien pour plusieurs' : 'Lien pour une personne';
+}
+
+/** Nom lu par VoiceOver pour chaque lien : distinct même quand plusieurs liens ont le même titre (« Relancer Lien pour
+ * plusieurs » ×3 ne disait pas lequel). Les homonymes sont numérotés, du plus ancien au plus récent, avec leurs places. */
+export function linkSpokenNames(links: SentLink[]): Map<string, string> {
+  const byTitle = new Map<string, SentLink[]>();
+  for (const l of links) byTitle.set(linkTitle(l), [...(byTitle.get(linkTitle(l)) ?? []), l]);
+  const names = new Map<string, string>();
+  for (const [title, same] of byTitle) {
+    const ordered = [...same].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.token.localeCompare(b.token));
+    ordered.forEach((l, i) => {
+      if (ordered.length === 1) return names.set(l.token, title);
+      const places = l.max_uses > 1 ? `, ${l.max_uses} places` : '';
+      names.set(l.token, `${title} n° ${i + 1}${places}, envoyé ${shortDate(l.created_at)}`);
+    });
+  }
+  return names;
+}
+
 export function inviteLinkUrl(token: string): string {
   const origin = typeof location !== 'undefined' ? location.origin : 'https://party.bobycharbon.ch';
   return `${origin}/events/invite/${token}`;
@@ -152,8 +175,9 @@ export const fetchGuestList = (e: string) => call<GuestList>('event_guest_list',
 export const createInvite = (e: string, places: number, until: string | null, label: string | null) =>
   call<{ token: string; expires_at: string; max_uses: number; label: string | null }>(
     'create_event_invite', { e, places, until, label }, 'Le lien n’a pas pu être créé. Réessaie.');
-export const invitePeople = (e: string, people: string[], groups: string[]) =>
-  call<{ people: number; groups: number }>('invite_people', { e, people, groups }, 'L’invitation n’a pas pu être envoyée.');
+/** announce : « Prévenir le groupe » pour les groupes ajoutés ICI seulement (event_groups.announce, migration 20261107100000). */
+export const invitePeople = (e: string, people: string[], groups: string[], announce = false) =>
+  call<{ people: number; groups: number }>('invite_people', { e, people, groups, ...(announce ? { announce } : {}) }, 'L’invitation n’a pas pu être envoyée.');
 export const removeInvitee = (e: string, member: string) => call<null>('remove_invitee', { e, member }, 'La personne n’a pas pu être retirée.');
 export const nudgeInvitees = (e: string, people: string[]) =>
   call<{ notified: number; skipped: number; share: string[] }>('nudge_invitees', { e, people }, 'La relance n’a pas pu partir.');

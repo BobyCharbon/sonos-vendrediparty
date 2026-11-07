@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -7,14 +7,15 @@ import { EventCard } from '@/components/EventCard';
 import { SignedIn } from '@/components/SignedIn';
 import { Button, Chip, Empty, ErrorText, Input, Reveal, s, Segmented, Skeleton, T, Title } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
-import { fetchAttendance } from '@/lib/attendance';
+import { type Attendance, fetchAttendance } from '@/lib/attendance';
+import { inTab, type ListTab } from '@/lib/eventTime';
 import { fetchEventList, fetchTaxonomy, needsAnswer, useQuery } from '@/lib/data';
 import { plural } from '@/lib/format';
 import { must, supabase } from '@/lib/supabase';
 import { duration, ease, enter, pressTransition, transition } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
 
-type Tab = 'upcoming' | 'polls' | 'pending' | 'drafts' | 'past';
+type Tab = ListTab;
 type Filter = { kind: 'all' } | { kind: 'subscribed' } | { kind: 'category'; id: string } | { kind: 'tag'; id: string };
 
 export default function Home() {
@@ -40,11 +41,8 @@ export default function Home() {
       supabase.from('tag_subscriptions').select('tag_id').eq('user_id', me.id),
       supabase.from('category_subscriptions').select('category_id').eq('user_id', me.id),
     ]);
-    // Pastille des présents : totaux exacts, même quand la liste des participants est cachée.
-    const attendance = await fetchAttendance(events.map((e) => e.id));
     return {
       events,
-      attendance,
       loadedAt: Date.now(),
       ...taxonomy,
       subscribedTags: new Set(must(tagSubs).map((r) => r.tag_id as string)),
@@ -52,29 +50,22 @@ export default function Home() {
     };
   }, [me.id]);
 
+  // Pastille des présents : totaux exacts même quand la liste des participants est cachée. Lue APRÈS l'affichage des cartes
+  // (avant : une étape réseau de plus avant la première carte) ; les cartes comptent les réponses en attendant.
+  const eventIds = (data?.events ?? []).map((e) => e.id).join(',');
+  const [attendance, setAttendance] = useState<Map<string, Attendance>>(new Map());
+  useEffect(() => {
+    let current = true;
+    if (eventIds) void fetchAttendance(eventIds.split(',')).then((a) => { if (current) setAttendance(a); });
+    return () => { current = false; };
+  }, [eventIds, data?.loadedAt]);
+
   const tagsById = useMemo(() => new Map((data?.tags ?? []).map((t) => [t.id, t])), [data?.tags]);
 
   const visible = useMemo(() => {
     if (!data) return [];
-    const now = data.loadedAt - 6 * 3600_000; // un événement reste « à venir » 6 h après son début
     return data.events
-      .filter((e) => {
-        const started = e.starts_at ? new Date(e.starts_at).getTime() : null;
-        switch (tab) {
-          case 'upcoming':
-            return e.status === 'published' && e.date_mode === 'fixed' && started !== null && started >= now;
-          case 'polls':
-            return e.status === 'published' && e.date_mode === 'poll';
-          // Mes propositions envoyées, qui attendent la validation d'un admin.
-          case 'pending':
-            return e.created_by === me.id && e.status === 'pending';
-          // Mes brouillons, et mes propositions refusées à retravailler.
-          case 'drafts':
-            return e.created_by === me.id && (e.status === 'draft' || e.status === 'rejected');
-          case 'past':
-            return (e.status === 'published' || e.status === 'cancelled') && started !== null && started < now;
-        }
-      })
+      .filter((e) => inTab(e, tab, me.id, data.loadedAt))
       .filter((e) => {
         const query = search.trim().toLocaleLowerCase('fr');
         if (!query) return true;
@@ -222,7 +213,7 @@ export default function Home() {
           <View style={{ gap: 10 }}>
             <T size={13} weight="bold" color={colors.mint} style={st.label}>TU Y VAS</T>
             {goingList.map((e, i) => (
-              <EventCard key={e.id} index={i} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp now={data!.loadedAt} attendance={data!.attendance.get(e.id)} />
+              <EventCard key={e.id} index={i} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp now={data!.loadedAt} attendance={attendance.get(e.id)} />
             ))}
           </View>
         ) : null}
@@ -233,7 +224,7 @@ export default function Home() {
         ) : null}
         {goingList.length && rest.length ? <T size={13} weight="bold" color={colors.muted} style={[st.label, { marginTop: 6 }]}>À VENIR</T> : null}
         {rest.map((e, i) => (
-          <EventCard key={e.id} index={goingList.length + i} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp={tab === 'polls' || tab === 'upcoming'} now={data!.loadedAt} attendance={data!.attendance.get(e.id)} />
+          <EventCard key={e.id} index={goingList.length + i} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp={tab === 'polls' || tab === 'upcoming'} now={data!.loadedAt} attendance={attendance.get(e.id)} />
         ))}
       </ScrollView>
 
@@ -249,6 +240,7 @@ export default function Home() {
             accessibilityRole="button"
             accessibilityLabel="Créer un événement avec l'IA, en le décrivant à voix haute"
             focusable={!fabAway}
+            tabIndex={fabAway ? -1 : 0}
             onPress={aiEvent}
             style={({ pressed }) => [st.fab, st.fabAI, pressed && { opacity: 0.85 }]}
           >
@@ -260,6 +252,7 @@ export default function Home() {
           accessibilityRole="button"
           accessibilityLabel="Proposer un événement"
           focusable={!fabAway}
+            tabIndex={fabAway ? -1 : 0}
           onPress={() => router.push('/event/new')}
           style={({ pressed }) => [st.fab, enter('pop'), pressTransition, pressed && { opacity: 0.9, transform: [{ scale: 0.94 }] }]}
         >

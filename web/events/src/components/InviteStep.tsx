@@ -1,5 +1,5 @@
 import { router, Stack } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import { AIEventSteps } from './AIEventSteps';
@@ -26,6 +26,17 @@ export function parseIds(raw: string | string[] | undefined): string[] {
 export function parseVisibility(raw: string | string[] | undefined): Visibility {
   const value = Array.isArray(raw) ? raw[0] : raw;
   return (VISIBILITIES as readonly string[]).includes(value ?? '') ? (value as Visibility) : 'public';
+}
+
+/** Après un échec de publication : « qui voit » et groupes d'avant, sans annonce (au mieux : l'erreur reste affichée). */
+async function restoreDraft(ev: Draft) {
+  try {
+    const before = audienceFromEvent(ev);
+    await supabase.from('events').update({ ...audienceToEvent(before), announce_group: false }).eq('id', ev.id).eq('status', 'draft');
+    await saveAudience(ev.id, { ...before, invitees: [], phones: [] }, { people: false });
+  } catch {
+    // Réseau coupé : le brouillon reste invisible pour les autres ; le prochain essai réécrit tout.
+  }
 }
 
 export type Preset = { visibility: Visibility; groups: string[]; suggested: string[] };
@@ -59,7 +70,8 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
   const { can } = useAuth();
   const direct = can('events.publish_direct');
   const [busy, setBusy] = useState(false);
-  const [announce, setAnnounce] = useState(false);  // « Prévenir le groupe » : éteint par défaut (06.11)
+  const [announce, setAnnounce] = useState({ vip: false, group: false });  // « Prévenir » : éteints par défaut, chacun le sien
+  const publishing = useRef(false);  // double toucher : une seule publication
   const [error, setError] = useState<string | null>(null);
 
   const { data, error: loadError, reload } = useQuery(async () => {
@@ -98,23 +110,30 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
 
   /** Qui voit, puis le statut (publié, ou proposé sans le droit « publier sans validation »), puis la fiche. */
   async function publish(kind: Visibility, groupIds: string[]) {
+    if (publishing.current) return;
+    publishing.current = true;
     setBusy(true);
     setError(null);
     try {
       const who = withVisibility(audienceFromEvent(ev), kind, groupIds);
       // Public ou sur invitation : jamais d'annonce au groupe ; la base fait valider la demande d'un simple membre.
-      const announceGroup = announce && (kind === 'vip' || kind === 'group');
-      check(await supabase.from('events').update({ ...audienceToEvent(who), announce_group: announceGroup }).eq('id', ev.id));
+      // Écrit avec le statut, en dernier : un échec en route ne laisse jamais « Prévenir » allumé sur le brouillon.
+      const announceGroup = (kind === 'vip' && announce.vip) || (kind === 'group' && announce.group);
+      check(await supabase.from('events').update(audienceToEvent(who)).eq('id', ev.id));
       await saveAudience(ev.id, { ...who, invitees: [], phones: [] }, { people: false });
       const status = proposing ? 'pending' : 'published';
-      check(await supabase.from('events').update({ status }).eq('id', ev.id));
+      check(await supabase.from('events').update({ status, announce_group: announceGroup }).eq('id', ev.id));
       // Publié : les personnes citées ne servent plus (elles sont cochées dans la feuille « Inviter », jamais invitées).
       if (data!.stored.length) await supabase.from('events').update({ ai_suggested: [] }).eq('id', ev.id);
       router.replace(afterPublish(ev.id, kind, status === 'published', named, invitesV2On) as never);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      setError(dbMessage(message, message));
+      // Le brouillon reprend son « qui voit » d'avant : un nouvel essai repart du même brouillon, sans état à moitié.
+      await restoreDraft(ev);
+      setError(`Rien n’est publié, le brouillon est resté tel quel : ${dbMessage(message, message)}`);
+      reload();
     } finally {
+      publishing.current = false;
       setBusy(false);
     }
   }
@@ -147,7 +166,7 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
         </T>
         <PublishChoice groups={data.groups} vipOk={data.vipOk} suggested={suggested} suggestedGroups={knownGroups}
           proposing={proposing} busy={busy} onPublish={(kind, ids) => void publish(kind, ids)}
-          announce={announce} onAnnounce={setAnnounce} />
+          announce={announce} onAnnounce={(kind, on) => setAnnounce((a) => ({ ...a, [kind]: on }))} />
         <ErrorText error={error} />
       </Card>
 

@@ -91,7 +91,10 @@ def open_app(browser, origin, profile: dict, in_party: bool, **services):  # noq
 def open_invite_sheet(frame):
     frame.get_by_text(TITLE, exact=True).click()
     frame.get_by_role('button', name='Inviter', exact=True).click()
-    sheet = frame.get_by_label(f'Inviter à {TITLE}')
+    # La fenêtre (role=dialog) porte le nom, une seule fois (campagne 2) ; la feuille elle-même est le panneau intérieur.
+    dialog = frame.get_by_role('dialog', name=f'Inviter à {TITLE}', exact=True)
+    pw.expect(frame.get_by_label(f'Inviter à {TITLE}', exact=True)).to_have_count(1)
+    sheet = dialog.get_by_test_id('invite-sheet')
     pw.expect(sheet.get_by_text('🔗 Envoyer le lien', exact=True)).to_be_visible(timeout=15000)
     return sheet
 

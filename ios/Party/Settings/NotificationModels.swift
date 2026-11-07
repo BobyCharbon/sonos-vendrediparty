@@ -100,6 +100,14 @@ struct EventNotifyState: Decodable, Equatable {
     var approver: Bool
     /// Droit « Modérer les signalements » : réglage « Nouveau signalement » (absent d'un ancien serveur : non).
     var moderator: Bool? = nil
+    /// Réglages qui ne servent jamais à ce compte (Membre, Guest : private.may_receive_push les refuse aux non-Membres
+    /// VIP) : cachés. Absent d'un ancien serveur : tout est affiché.
+    var hidden: [String]? = nil
+
+    /// L'interrupteur `key` (colonne de notification_prefs) a un sens pour ce compte.
+    func shows(_ key: String) -> Bool {
+        !(hidden ?? []).contains(key)
+    }
 }
 
 /// Choix proposés, mêmes libellés que le module Événements (web/events/src/app/settings/notifications.tsx).

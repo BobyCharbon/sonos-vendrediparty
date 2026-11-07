@@ -11,6 +11,7 @@ import { Button, Chip, ErrorText, Field, LinkRow, Screen, s, Section, Segmented,
 import { useAuth, useMe } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { check, must, supabase } from '@/lib/supabase';
+import { normalizeTime, prefShown } from '@/lib/notificationPrefs';
 import { enableWebPush, testWebPush, webPushState, type WebPushState } from '@/lib/push';
 import type { ChatMode, NewEventScope, NotificationPrefs, Reminder } from '@/lib/types';
 
@@ -32,6 +33,10 @@ export default function NotificationSettings() {
   const fromFilter = useLocalSearchParams<{ topics?: string }>().topics === '1';
   const { can } = useAuth();
   const isAdmin = can('events.approve');  // reçoit les propositions à valider
+  // Membre de base et Guest : la base n'envoie jamais certains types (private.may_receive_push) → interrupteurs masqués.
+  const mayShow = (key: string) => prefShown(key, can('events.view'));
+  const [timeError, setTimeError] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<{ quiet_start?: string; quiet_end?: string }>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const saveLock = useRef(false);
@@ -83,12 +88,24 @@ export default function NotificationSettings() {
     } finally { setDeviceBusy(false); }
   }
   const hhmm = (t: string | null) => (t ?? '').slice(0, 5);
-  const setTime = (key: 'quiet_start' | 'quiet_end', v: string) => {
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) return setError('Saisis une heure entre 00:00 et 23:59.');
+  // Enregistré au départ du champ (onBlur) ou à Entrée : onEndEditing n'existe pas sur le web (campagne 2, rapport 07).
+  const setTime = (key: 'quiet_start' | 'quiet_end') => {
+    const raw = drafts[key];
+    if (raw === undefined) return;
+    const v = normalizeTime(raw);
+    if (!v) return setTimeError('Saisis une heure entre 00:00 et 23:59 (par exemple 23:00).');
     const other = key === 'quiet_start' ? prefs!.quiet_end : prefs!.quiet_start;
-    if (v === other?.slice(0, 5)) return setError('Le début et la fin du mode silencieux doivent être différents.');
-    void update({ [key]: v });
+    if (v === other?.slice(0, 5)) return setTimeError('Le début et la fin des heures de silence doivent être différents.');
+    setTimeError(null);
+    setDrafts(({ [key]: _done, ...rest }) => rest);
+    if (v !== hhmm(prefs![key])) void update({ [key]: v });
   };
+  const timeField = (key: 'quiet_start' | 'quiet_end', label: string, placeholder: string) => (
+    <Field label={label} editable={!saving} value={drafts[key] ?? hhmm(prefs![key])} placeholder={placeholder}
+      inputMode="numeric" maxLength={5} returnKeyType="done"
+      onChangeText={(v) => setDrafts((d) => ({ ...d, [key]: v }))}
+      onBlur={() => setTime(key)} onSubmitEditing={() => setTime(key)} />
+  );
 
   return (
     <Screen edges={[]}>
@@ -128,35 +145,34 @@ export default function NotificationSettings() {
         />
         {quiet ? (
           <View style={s.row}>
-            <View style={{ flex: 1 }}>
-              <Field label="Début (HH:MM)" key={prefs.quiet_start} editable={!saving} defaultValue={hhmm(prefs.quiet_start)} onEndEditing={(e) => setTime('quiet_start', e.nativeEvent.text)} placeholder="23:00" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Field label="Fin (HH:MM)" key={prefs.quiet_end} editable={!saving} defaultValue={hhmm(prefs.quiet_end)} onEndEditing={(e) => setTime('quiet_end', e.nativeEvent.text)} placeholder="08:00" />
-            </View>
+            <View style={{ flex: 1 }}>{timeField('quiet_start', 'Début (HH:MM)', '23:00')}</View>
+            <View style={{ flex: 1 }}>{timeField('quiet_end', 'Fin (HH:MM)', '08:00')}</View>
           </View>
         ) : null}
+        {quiet ? <ErrorText error={timeError} /> : null}
       </Section>
 
-      <Section title="Nouveaux événements et abonnements">
+      {mayShow('new_event') || fromFilter ? <Section title="Nouveaux événements et abonnements">
+        {mayShow('new_event') ? <>
         <T muted size={13}>Quand un nouvel événement est publié, me prévenir :</T>
         <Segmented<NotificationPrefs['new_event']> value={prefs.new_event} disabled={saving}
           onChange={(new_event) => update({ new_event })}
           options={[{ key: 'all', label: 'Toujours' }, { key: 'subscribed', label: 'Si abonné' }, { key: 'none', label: 'Jamais' }]} />
         <T muted size={13}>{newEventHints[prefs.new_event]}</T>
-        {prefs.new_event === 'subscribed' || fromFilter ? <SubscriptionPicker disabled={saving} /> : null}
-      </Section>
+        </> : null}
+        {(mayShow('new_event') && prefs.new_event === 'subscribed') || fromFilter ? <SubscriptionPicker disabled={saving} /> : null}
+      </Section> : null}
 
       <Section title="Événements où je suis inscrit">
         <ToggleRow disabled={saving} label="Événement modifié ou annulé" hint="Changement de date, d’heure ou de lieu, ou annulation" value={prefs.event_changed} onChange={(v) => update({ event_changed: v })} />
-        <ToggleRow disabled={saving} label="Nouveau sondage" hint="L’organisateur ajoute un sondage à l’événement" value={prefs.poll_new} onChange={(v) => update({ poll_new: v })} />
+        {mayShow('poll_new') ? <ToggleRow disabled={saving} label="Nouveau sondage" hint="L’organisateur ajoute un sondage à l’événement" value={prefs.poll_new} onChange={(v) => update({ poll_new: v })} /> : null}
         <ToggleRow disabled={saving} label="Date choisie" hint="Le sondage de dates est terminé et la date est fixée" value={prefs.date_fixed} onChange={(v) => update({ date_fixed: v })} />
-        <ToggleRow disabled={saving} label="Un organisateur répond pour moi" hint="Il te note présent, peut-être ou absent à sa place" value={prefs.rsvp_set !== false} onChange={(v) => update({ rsvp_set: v })} />
-        <ToggleRow disabled={saving} label="Invitation à un événement privé" hint="On t’invite à un événement réservé aux invités" value={prefs.invites !== false} onChange={(v) => update({ invites: v })} />
-        <ToggleRow disabled={saving} label="Rappel pour voter" hint="24 h avant la fin d’un sondage de dates, seulement si tu n’as pas encore voté" value={prefs.poll_nudge} onChange={(v) => update({ poll_nudge: v })} />
+        {mayShow('rsvp_set') ? <ToggleRow disabled={saving} label="Un organisateur répond pour moi" hint="Il te note présent, peut-être ou absent à sa place" value={prefs.rsvp_set !== false} onChange={(v) => update({ rsvp_set: v })} /> : null}
+        <ToggleRow disabled={saving} label="Invitation à un événement privé" hint="On t’invite à un événement réservé aux invités, ou on t’ajoute comme co-organisateur" value={prefs.invites !== false} onChange={(v) => update({ invites: v })} />
+        {mayShow('poll_nudge') ? <ToggleRow disabled={saving} label="Rappel pour voter" hint="24 h avant la fin d’un sondage de dates, seulement si tu n’as pas encore voté" value={prefs.poll_nudge} onChange={(v) => update({ poll_nudge: v })} /> : null}
         <ToggleRow disabled={saving} label="Place libérée" hint="Tu es sur liste d’attente et une place se libère" value={prefs.waitlist} onChange={(v) => update({ waitlist: v })} />
-        <ToggleRow disabled={saving} label="Paiement de ma place confirmé" hint="L’organisateur a reçu ton paiement (ou ne l’a pas reçu) après ton « J’ai payé »" value={prefs.ticket_pay_confirmed !== false} onChange={(v) => update({ ticket_pay_confirmed: v })} />
-        <ToggleRow disabled={saving} label="Billet prêt" hint="L’organisateur t’a remis ton billet QR : il s’affiche sur l’événement" value={prefs.ticket_issued !== false} onChange={(v) => update({ ticket_issued: v })} />
+        {mayShow('ticket_pay_confirmed') ? <ToggleRow disabled={saving} label="Paiement de ma place confirmé" hint="L’organisateur a reçu ton paiement (ou ne l’a pas reçu) après ton « J’ai payé »" value={prefs.ticket_pay_confirmed !== false} onChange={(v) => update({ ticket_pay_confirmed: v })} /> : null}
+        {mayShow('ticket_issued') ? <ToggleRow disabled={saving} label="Billet prêt" hint="L’organisateur t’a remis ton billet QR : il s’affiche sur l’événement" value={prefs.ticket_issued !== false} onChange={(v) => update({ ticket_issued: v })} /> : null}
       </Section>
 
       <Section title="Rappels avant l’événement">
@@ -174,7 +190,7 @@ export default function NotificationSettings() {
         </View>
       </Section>
 
-      <Section title="Messages des discussions">
+      {mayShow('chat') ? <Section title="Messages des discussions">
         <Segmented<ChatMode>
           disabled={saving}
           value={prefs.chat}
@@ -184,7 +200,7 @@ export default function NotificationSettings() {
         <T muted size={13}>{chatHints[prefs.chat]}</T>
         {/* Deux pauses distinctes (avis de l'admin) : discussions des événements ici, groupes plus bas. */}
         <ChatsPause scope="event_chats" />
-      </Section>
+      </Section> : null}
 
       {/* Discussions éteintes (production) : seuls les réglages des groupes restent (invitation, nouveau membre). */}
       <Section title={discussionsOn ? 'Discussions des groupes' : 'Groupes'}>
@@ -220,14 +236,14 @@ export default function NotificationSettings() {
       </Section> : null}
 
       <Section title="Quand j’organise">
-        <ToggleRow disabled={saving} label="Réponses à mes événements" hint="Quelqu’un répond Présent, Peut-être ou Absent à un événement que j’organise" value={prefs.rsvp_mine} onChange={(v) => update({ rsvp_mine: v })} />
+        {mayShow('rsvp_mine') ? <ToggleRow disabled={saving} label="Réponses à mes événements" hint="Quelqu’un répond Présent, Peut-être ou Absent à un événement que j’organise" value={prefs.rsvp_mine} onChange={(v) => update({ rsvp_mine: v })} /> : null}
         <ToggleRow disabled={saving} label="Quelqu’un rejoint par le lien" hint="Une personne s’inscrit à ton événement avec son lien d’invitation" value={prefs.link_join !== false} onChange={(v) => update({ link_join: v })} />
-        <ToggleRow disabled={saving} label="Quelqu’un dit avoir payé" hint="Sur un événement payant que j’organise, une personne touche « J’ai payé » : à confirmer quand tu as reçu l’argent" value={prefs.ticket_pay_declared !== false} onChange={(v) => update({ ticket_pay_declared: v })} />
-        <ToggleRow disabled={saving} label="Ma proposition validée ou refusée" hint="Un admin publie ou refuse l’événement que tu as proposé" value={prefs.proposal_result !== false} onChange={(v) => update({ proposal_result: v })} />
+        {mayShow('ticket_pay_declared') ? <ToggleRow disabled={saving} label="Quelqu’un dit avoir payé" hint="Sur un événement payant que j’organise, une personne touche « J’ai payé » : à confirmer quand tu as reçu l’argent" value={prefs.ticket_pay_declared !== false} onChange={(v) => update({ ticket_pay_declared: v })} /> : null}
+        {mayShow('proposal_result') ? <ToggleRow disabled={saving} label="Ma proposition validée ou refusée" hint="Un admin publie ou refuse l’événement que tu as proposé" value={prefs.proposal_result !== false} onChange={(v) => update({ proposal_result: v })} /> : null}
         <ToggleRow disabled={saving} label="Réponse du groupe à mes demandes" hint="Ton annonce au groupe est acceptée, refusée ou partie d’office après 48 h ; ton événement est accepté ou refusé par le groupe" value={prefs.announce_results !== false} onChange={(v) => update({ announce_results: v })} />
         <ToggleRow disabled={saving} label="Annonce à valider" hint="Un membre de ton groupe veut prévenir le groupe d’un événement (tu es créateur, admin ou organisateur du groupe)" value={prefs.announce_requests !== false} onChange={(v) => update({ announce_requests: v })} />
         <ToggleRow disabled={saving} label="Événement à valider pour mon groupe" hint="Un membre propose un événement à ton groupe, réglé « avec validation »" value={prefs.group_event_requests !== false} onChange={(v) => update({ group_event_requests: v })} />
-        {isAdmin ? <ToggleRow disabled={saving} label="Proposition à valider" hint="Un membre propose un événement qui attend la validation d’un admin" value={prefs.proposals} onChange={(v) => update({ proposals: v })} /> : null}
+        {isAdmin && mayShow('proposals') ? <ToggleRow disabled={saving} label="Proposition à valider" hint="Un membre propose un événement qui attend la validation d’un admin" value={prefs.proposals} onChange={(v) => update({ proposals: v })} /> : null}
       </Section>
 
       {/* Modération commune : chaque type a son interrupteur (règle permanente). */}

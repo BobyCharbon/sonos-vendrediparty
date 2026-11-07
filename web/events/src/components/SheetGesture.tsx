@@ -175,7 +175,8 @@ export function SheetTop({ onClose, label = 'Fermer la fenêtre' }: { onClose: (
 }
 
 const st = StyleSheet.create({
-  close: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center' },
+  // 44×44 (cible tactile minimale) : hitSlop est ignoré par react-native-web, le ✕ ne mesurait que 36 px sur le web.
+  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center' },
   bar: { position: 'absolute', width: 14, height: 2, borderRadius: 1, backgroundColor: colors.textSoft },
   backdrop: { position: 'fixed' as 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   top: { height: 28, justifyContent: 'center', marginTop: -6 },

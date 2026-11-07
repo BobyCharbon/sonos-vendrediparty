@@ -109,8 +109,10 @@ def test_v2_invitation_only_publishes_in_one_touch_then_the_link_is_ready_to_sha
             pw.expect(sheet.get_by_role('button', name=how, exact=True)).to_be_visible()
         pw.expect(sheet.get_by_role('button', name='Retirer Tom')).to_be_visible(timeout=5000)  # cité à l'IA, coché
         assert not [c for c in calls if c[0] == 'invite_people']  # jamais invité sans son « Inviter »
-        visibility = writes.index(('PATCH', 'events', {'visibility': 'invited', 'public_link': False, 'announce_group': False}))
-        assert visibility < writes.index(('PATCH', 'events', {'status': 'published'}))
+        visibility = writes.index(('PATCH', 'events', {'visibility': 'invited', 'public_link': False}))
+        assert visibility < writes.index(('PATCH', 'events', {'status': 'published', 'announce_group': False}))
+        # Lot C1 (campagne 2) : l'annonce part seulement avec le statut, en dernier (un échec en route n'annonce rien).
+        assert all('status' in w[2] for w in writes if w[0] == 'PATCH' and isinstance(w[2], dict) and 'announce_group' in w[2])
         assert 'invite=link' in page.url
         shot(page, '03-web-lien-pret-v2')
         sheet.get_by_role('button', name='WhatsApp', exact=True).click()
@@ -133,8 +135,8 @@ def test_v2_members_publish_in_one_touch_then_the_guest_card_offers_to_invite_mo
         pw.expect(page.get_by_text('C’est en ligne !', exact=True)).to_be_visible(timeout=10000)
         pw.expect(page.get_by_role('button', name='＋ Inviter d’autres personnes')).to_be_visible()
         pw.expect(page.get_by_label('Inviter à Raclette chez Camille')).to_have_count(0)  # la fiche, pas la feuille
-        assert ('PATCH', 'events', {'visibility': 'all', 'public_link': False, 'announce_group': False}) in writes
-        assert ('PATCH', 'events', {'status': 'published'}) in writes
+        assert ('PATCH', 'events', {'visibility': 'all', 'public_link': False}) in writes
+        assert ('PATCH', 'events', {'status': 'published', 'announce_group': False}) in writes
         shot(page, '03-web-membres-fiche-v2')
     finally:
         context.close()
@@ -150,11 +152,11 @@ def test_a_group_is_chosen_then_published_for_it(browser, v2_origin):  # noqa: F
         writes = draft_event(page)
         open_step_two(page, v2_origin)
         page.get_by_role('button', name='👥 Un groupe', exact=True).click()
-        assert not [w for w in writes if w == ('PATCH', 'events', {'status': 'published'})]  # choisir le groupe d'abord
+        assert not [w for w in writes if w[0] == 'PATCH' and isinstance(w[2], dict) and 'status' in w[2]]  # choisir le groupe d'abord
         page.get_by_role('button', name='Publier pour « Ski »').click()
         pw.expect(page.get_by_role('button', name='＋ Inviter d’autres personnes')).to_be_visible(timeout=10000)
         assert ('POST', 'event_groups', [{'event_id': EVENT, 'group_id': SKI}]) in writes
-        assert ('PATCH', 'events', {'status': 'published'}) in writes
+        assert ('PATCH', 'events', {'status': 'published', 'announce_group': False}) in writes
     finally:
         context.close()
 
@@ -175,7 +177,7 @@ def test_without_the_right_to_publish_invitation_only_is_sent_for_validation_and
         page.get_by_role('button', name='✉️ Sur invitation seulement : Envoyer pour validation').click()
         pw.expect(page.get_by_text('Envoyé pour validation', exact=True)).to_be_visible(timeout=10000)
         pw.expect(page.get_by_text('Le lien à partager à tes invités sera disponible dès la validation.', exact=False)).to_be_visible()
-        assert ('PATCH', 'events', {'status': 'pending'}) in writes
+        assert ('PATCH', 'events', {'status': 'pending', 'announce_group': False}) in writes
         pw.expect(page.get_by_role('button', name='Partager le lien…')).to_have_count(0)
     finally:
         context.close()
@@ -194,8 +196,8 @@ def test_invitations_off_public_publishes_in_one_touch_and_invites_nobody(browse
         page.get_by_role('button', name='🌍 Public + lien public : Publier').click()
         pw.expect(page.get_by_text('C’est en ligne !', exact=True)).to_be_visible(timeout=10000)
         assert not [w for w in writes if w[1] == 'event_invites' and w[0] == 'POST']
-        assert ('PATCH', 'events', {'visibility': 'all', 'public_link': True, 'announce_group': False}) in writes
-        assert ('PATCH', 'events', {'status': 'published'}) in writes
+        assert ('PATCH', 'events', {'visibility': 'all', 'public_link': True}) in writes
+        assert ('PATCH', 'events', {'status': 'published', 'announce_group': False}) in writes
         assert not errors, errors
     finally:
         context.close()
@@ -212,7 +214,7 @@ def test_invitations_off_invitation_only_opens_the_event_with_its_link_card_firs
         page.get_by_role('button', name='✉️ Sur invitation seulement : Publier et envoyer le lien').click()
         pw.expect(page.get_by_text('C’est en ligne !', exact=True)).to_be_visible(timeout=10000)
         pw.expect(page.get_by_text('Lien d’invitation', exact=True)).to_be_visible()
-        assert ('PATCH', 'events', {'visibility': 'invited', 'public_link': False, 'announce_group': False}) in writes
+        assert ('PATCH', 'events', {'visibility': 'invited', 'public_link': False}) in writes
         assert not [w for w in writes if w[1] == 'event_invites' and w[0] == 'POST']
     finally:
         context.close()

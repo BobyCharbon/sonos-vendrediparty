@@ -44,6 +44,16 @@ def preview(accounts: Accounts, token: str) -> dict | None:
     return row if isinstance(row, dict) else None
 
 
+def image_tags(card: dict, public_url: str) -> dict:
+    """Image de l'aperçu : l'affiche de l'événement (https seulement), sinon l'icône de Party (512 × 512)."""
+    cover = str(card.get("cover_url") or "")
+    if cover.startswith("https://"):
+        return {"og:image": cover, "twitter:card": "summary_large_image", "twitter:image": cover}
+    image = public_url.rstrip("/") + SHARE_IMAGE
+    return {"og:image": image, "og:image:width": "512", "og:image:height": "512", "twitter:card": "summary",
+            "twitter:image": image}
+
+
 def invite_meta(card: dict | None, page_url: str, public_url: str) -> str:
     """Balises Open Graph et Twitter de la carte d'invitation, texte échappé."""
     card = card or {}
@@ -56,15 +66,9 @@ def invite_meta(card: dict | None, page_url: str, public_url: str) -> str:
     parts = [short_date(card.get("starts_at"), bool(card.get("all_day"))), str(card.get("location_name") or "").strip()[:NAME_MAX]]
     when_where = " · ".join(p for p in parts if p)
     description = (f"{when_where}. " if when_where else "") + "Réponds en quelques secondes, sans installer d'app."
-    cover = str(card.get("cover_url") or "")
-    large = cover.startswith("https://")
-    image = cover if large else public_url.rstrip("/") + SHARE_IMAGE
     tags = {"og:type": "website", "og:site_name": "Party", "og:title": title, "og:description": description,
-            "og:url": page_url, "og:image": image,
-            "twitter:card": "summary_large_image" if large else "summary", "twitter:title": title,
-            "twitter:description": description, "twitter:image": image}
-    if not large:
-        tags.update({"og:image:width": "512", "og:image:height": "512"})
+            "og:url": page_url, "twitter:title": title, "twitter:description": description,
+            **image_tags(card, public_url)}
     meta = "".join(f'<meta {"name" if k.startswith("twitter:") else "property"}="{k}" content="{html.escape(v, quote=True)}">'
                    for k, v in tags.items())
     return f'{meta}<meta name="description" content="{html.escape(description, quote=True)}">'

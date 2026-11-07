@@ -1,12 +1,18 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { formatShort, parseLocalDateTime } from '@/lib/format';
 import { enter, pressTransition, useChangedSinceMount } from '@/lib/motion';
 import { refreshPending } from '@/lib/pending';
+import { fetchAttendance } from '@/lib/attendance';
+import { useQuery } from '@/lib/data';
+import { friendlyError } from '@/lib/errors';
+import { waitlistQueue, waitlistRank } from '@/lib/eventChecks';
 import { useAuth } from '@/lib/auth';
-import { guestsLine, onWaitlist, rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp, totalPlusOnes, waitingPlusOnes } from '@/lib/rsvp';
+import { dbMessage, type ReportTarget } from '@/lib/moderation';
+import { fetchRsvpNotes, guestsLine, onWaitlist, rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp, totalPlusOnes, waitingPlusOnes } from '@/lib/rsvp';
+import { noteToSend, othersNotes } from '@/lib/rsvpNote';
 import { supabase } from '@/lib/supabase';
 import { colors, font, radius } from '@/lib/theme';
 import type { BringItem, DateOption, DateVote, DateVoteRow, EventRow, Poll, PollOption, Rsvp, RsvpStatus } from '@/lib/types';
@@ -15,10 +21,14 @@ import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 import { SharedBringRow } from './BringShared';
 import { DateTimeField } from './DateTimeField';
 import { LinkedText } from './LinkedText';
+import { ReportSheet } from './ReportSheet';
 import { RsvpButtons } from './RsvpButtons';
+import { useTermsGate } from './TermsSheet';
 import { Avatar, Button, Chip, ErrorText, Input, Meter, Reveal, s, Section, T } from './ui';
 
 type Names = Map<string, string>;
+/** Choix de sondage tel que la base le rend (`poll_options(*)`) : son auteur sert à « Signaler ». */
+type OptionRow = PollOption & { created_by?: string | null };
 
 const voteLabel: Record<DateVote, string> = { yes: 'Oui', if_needed: 'Si besoin', no: 'Non' };
 const voteColor: Record<DateVote, string> = { yes: colors.accent, if_needed: colors.lavender, no: colors.coral };
@@ -46,9 +56,29 @@ async function act(p: PromiseLike<{ error: { message: string } | null }>, onDone
     onDone();
     return true;
   } catch (e) {
-    onError(e instanceof Error ? e.message : 'La connexion a échoué. Réessaie.');
+    onError(refusalText(e instanceof Error ? e.message : 'La connexion a échoué. Réessaie.'));
     return false;
   }
+}
+
+/** Refus de la base en français, sans sa clé technique (« content_refused: Choix non enregistré : il contient… »). */
+function refusalText(message: string): string {
+  return friendlyError(dbMessage(message, message));
+}
+
+/** Petits mots que la base nous laisse lire, relus à chaque changement des réponses (le mot passe par rsvps). */
+function useRsvpNotes(eventId: string, rsvps: Rsvp[]) {
+  return useQuery(() => fetchRsvpNotes(eventId), [eventId, rsvps]);
+}
+
+/** « Signaler » discret sous un contenu écrit par quelqu'un d'autre (Apple 1.2, Google UGC). */
+function ReportLink({ label, text = 'Signaler', onPress }: { label: string; text?: string; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={`Signaler ${label}`} hitSlop={10} onPress={onPress}
+      style={({ pressed }) => [st.reportLink, pressed && { opacity: 0.6 }]}>
+      <T muted size={12} numberOfLines={1}>{text}</T>
+    </Pressable>
+  );
 }
 
 // --------------------------------------------------------------------------
@@ -76,45 +106,117 @@ export function RsvpCard({
   // Accompagnants : réservés à qui en a le droit (un Guest n'en a pas, la base remet 0 en silence).
   const { can } = useAuth();
   const plusOnes = event.allow_plus_ones && event.max_plus_ones > 0 && can('events.plus_ones');
-  const [note, setNote] = useState(mine?.note ?? '');
+  // Mon mot (table rsvp_notes) ; ce que je tape le remplace à l'écran jusqu'à l'envoi.
+  const { data: notes, reload: reloadNotes } = useRsvpNotes(event.id, rsvps);
+  const savedNote = notes?.find((n) => n.user_id === me)?.note ?? '';
+  const [typed, setTyped] = useState<string | null>(null);
+  const note = typed ?? savedNote;
+  const noteChange = noteToSend(savedNote, note);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   // Choix enregistré, affiché jusqu’à ce que la fiche rechargée le confirme (pas de retour en arrière d’un instant).
   const [picked, setPicked] = useState<RsvpStatus | null>(null);
   if (picked && mine?.status === picked) setPicked(null);
+  // CGU exigées avant le premier contenu : le petit mot est lu par l'organisateur (règle « contenu des joueurs »).
+  const terms = useTermsGate();
   const closed = rsvpClosed(event);
-  const heads = rsvps.filter((r) => r.status === 'yes' && !r.waitlisted).reduce((n, r) => n + 1 + r.plus_ones, 0);
+  // Participants masqués : seules nos réponses sont lisibles ; le total exact vient de la base (event_attendance).
+  const hidden = !event.show_participants && !!event.max_participants;
+  const { data: counted } = useQuery(async () => (hidden ? (await fetchAttendance([event.id])).get(event.id) ?? null : null),
+    [event.id, hidden, rsvps.map((r) => `${r.user_id}:${r.status}:${r.waitlisted}:${r.plus_ones}`).join()]);
+  const visibleHeads = rsvps.filter((r) => r.status === 'yes' && !r.waitlisted).reduce((n, r) => n + 1 + r.plus_ones, 0);
+  const heads = hidden && counted ? Math.max(counted.going, visibleHeads) : visibleHeads;
   const full = !!event.max_participants && heads >= event.max_participants && !(mine?.status === 'yes' && !waiting);
   // Complet : un accompagnant de plus passe en liste d’attente ; la personne garde sa place.
   const fullForMore = !!event.max_participants && heads >= event.max_participants && mine?.status === 'yes' && !waiting;
-  const guests = totalPlusOnes(mine);
+  // Rang dans la liste d'attente (file lisible) ; participants masqués : combien attendent en tout.
+  const rank = waiting ? waitlistRank(rsvps, me) : null;
+  const queueSize = hidden && counted ? counted.waitlist : waitlistQueue(rsvps).length;
+  const serverGuests = totalPlusOnes(mine);
+  // « + » / « − » : la valeur voulue s'affiche tout de suite et part dans l'ordre ; jamais un toucher perdu.
+  const [wantGuests, setWantGuests] = useState<number | null>(null);
+  if (wantGuests !== null && busy !== 'guests' && wantGuests === serverGuests) setWantGuests(null);
+  const guests = wantGuests ?? serverGuests;
+  const guestsTarget = useRef<number | null>(null);
+  const guestsSaving = useRef(false);
   const guestsWaiting = waiting ? 0 : waitingPlusOnes(mine);
-  // Retour immédiat : le choix touché s’affiche (couleur, phrase) pendant l’enregistrement.
   const saving = (['yes', 'maybe', 'no'] as const).find((k) => k === busy) ?? null;
-  const choosing = saving ?? picked;
-  const shown = choosing ?? mine?.status ?? null;
+  // La confirmation (« C'est noté, tu viens ! ») n'apparaît qu'une fois la réponse ENREGISTRÉE ; avant : « Enregistrement… ».
+  const shown = saving ? null : picked ?? mine?.status ?? null;
   const plusChanged = useChangedSinceMount(guests);
+  const answering = useRef(false);
 
-  async function upsert(key: string, patch: Partial<Rsvp>) {
+  async function upsert(key: string, patch: Parameters<typeof saveRsvp>[3]): Promise<boolean> {
+    if (answering.current) return false;
+    answering.current = true;
     setBusy(key);
     try {
       await saveRsvp(event.id, me, mine, patch);
       if (patch.status) setPicked(patch.status);
       setError(null);
       onChange();
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'La connexion a échoué. Réessaie.');
+      return false;
     } finally {
+      answering.current = false;
       setBusy(null);
     }
   }
 
+  /** Accompagnants : chaque toucher part de la dernière valeur voulue ; les envois se suivent, le dernier gagne. */
+  async function changeGuests(delta: number) {
+    const base = guestsTarget.current ?? guests;
+    const next = Math.max(0, Math.min(event.max_plus_ones, base + delta));
+    guestsTarget.current = next;
+    setWantGuests(next);
+    if (guestsSaving.current) return;
+    guestsSaving.current = true;
+    setBusy('guests');
+    try {
+      let sent: number | null = null;
+      while (guestsTarget.current !== sent) {
+        sent = guestsTarget.current;
+        await saveRsvp(event.id, me, mine, { plus_ones: sent ?? 0 });
+      }
+      setError(null);
+      onChange();
+    } catch (e) {
+      setWantGuests(null);
+      setError(e instanceof Error ? e.message : 'La connexion a échoué. Réessaie.');
+      onChange();
+    } finally {
+      guestsTarget.current = null;
+      guestsSaving.current = false;
+      setBusy(null);
+    }
+  }
+
+  async function sendNote() {
+    const next = noteToSend(savedNote, note);
+    if (next === undefined) return;
+    // Effacer son mot ne publie rien : pas de CGU à accepter pour ça.
+    if (next !== '' && !(await terms.ensure())) return;
+    if (await upsert('note', { note: next })) {
+      setTyped(null);
+      await reloadNotes();
+    }
+  }
+
+  const waitingLine = rank
+    ? `Complet : tu es ${rank === 1 ? '1ʳᵉ' : `${rank}ᵉ`} sur la liste d’attente. On te prévient dès qu’une place se libère.`
+    : queueSize > 0
+      ? `Complet : tu es sur liste d’attente (${queueSize} en attente). On te prévient dès qu’une place se libère.`
+      : 'Complet : tu es sur liste d’attente, on te prévient si une place se libère.';
   const subtitle = closed
     ? mine ? 'Les réponses sont closes.' : 'Les réponses sont closes : tu n’as pas répondu.'
-    : choosing
-      ? confirmations[choosing]
+    : saving
+      ? 'Enregistrement…'
+    : picked
+      ? confirmations[picked]
     : mine
-      ? waiting ? 'Complet : tu es sur liste d’attente, on te prévient si une place se libère.' : confirmations[mine.status]
+      ? waiting ? waitingLine : confirmations[mine.status]
       : event.rsvp_deadline
         ? `Réponds avant le ${formatShort(event.rsvp_deadline)} pour que l’organisateur puisse s’organiser.`
         : 'Un clic suffit pour prévenir le groupe.';
@@ -125,12 +227,14 @@ export function RsvpCard({
       style={!mine && !closed ? { borderColor: 'rgba(255,79,154,0.55)', borderWidth: 1.5 } : undefined}
       right={!mine && !closed ? <View style={st.pill}><T size={12} weight="bold" color={colors.accent}>À répondre</T></View> : null}
     >
-      <T key={subtitle} size={14} style={enter('fade')} color={shown && !(waiting && !choosing) ? rsvpChoices[shown].bg : colors.textSoft}>{subtitle}</T>
+      <T key={subtitle} size={14} style={enter('fade')} color={shown && !(waiting && !picked) ? rsvpChoices[shown].bg : colors.textSoft}>{subtitle}</T>
       {mine?.set_by && mine.set_by !== me ? (
         <T muted size={13}>C’est l’organisateur qui a noté ta réponse : tu peux la changer ici.</T>
       ) : null}
       {full && !closed && event.waitlist_enabled && mine?.status !== 'yes' ? (
-        <T size={13} color={colors.lavender}>L’événement est complet : en répondant Présent, tu passes en liste d’attente.</T>
+        <T size={13} color={colors.lavender}>
+          Complet. Tu seras en liste d’attente si tu réponds Présent{queueSize ? ` (${queueSize} déjà avant toi)` : ''}.
+        </T>
       ) : null}
       <RsvpButtons
         options={rsvpOptions(event.allow_maybe)}
@@ -146,9 +250,9 @@ export function RsvpCard({
             <T muted size={12}>{event.max_plus_ones >= UNLIMITED_PLUS_ONES ? '∞ Illimité' : `Jusqu’à ${event.max_plus_ones} personne${event.max_plus_ones > 1 ? 's' : ''}`}</T>
           </View>
           <View style={s.row}>
-            <Button small variant="secondary" label="−" accessibilityLabel="Retirer un accompagnant" disabled={!guests || closed} onPress={() => upsert('minus', { plus_ones: Math.max(0, guests - 1) })} />
+            <Button small variant="secondary" label="−" accessibilityLabel="Retirer un accompagnant" style={st.stepBtn} disabled={!guests || closed} onPress={() => void changeGuests(-1)} />
             <T key={guests} weight="bold" style={[{ minWidth: 28, textAlign: 'center' }, plusChanged ? enter('pop') : null]}>+{guests}</T>
-            <Button small variant="secondary" label="+" accessibilityLabel="Ajouter un accompagnant" disabled={guests >= event.max_plus_ones || closed} onPress={() => upsert('plus', { plus_ones: Math.min(event.max_plus_ones, guests + 1) })} />
+            <Button small variant="secondary" label="+" accessibilityLabel="Ajouter un accompagnant" style={st.stepBtn} disabled={guests >= event.max_plus_ones || closed} onPress={() => void changeGuests(1)} />
           </View>
         </Reveal>
       ) : null}
@@ -173,27 +277,30 @@ export function RsvpCard({
             accessibilityLabel="Un petit mot perso pour l’organisateur"
             placeholder="Un mot pour l’organisateur (facultatif)"
             value={note}
-            onChangeText={setNote}
-            onSubmitEditing={() => note !== (mine.note ?? '') && upsert('note', { note: note.trim() || null })}
+            onChangeText={setTyped}
+            onSubmitEditing={() => { if (noteChange !== undefined) void sendNote(); }}
             style={{ flex: 1 }}
             maxLength={140}
           />
-          {note !== (mine.note ?? '') ? <Reveal kind="pop"><Button small label="Envoyer" loading={busy === 'note'} onPress={() => upsert('note', { note: note.trim() || null })} /></Reveal> : null}
+          {noteChange !== undefined ? (
+            <Reveal kind="pop"><Button small label={noteChange ? 'Envoyer' : 'Effacer'} loading={busy === 'note'} onPress={() => void sendNote()} /></Reveal>
+          ) : null}
         </Reveal>
       ) : null}
       <ErrorText error={error} />
+      {terms.sheet}
     </Section>
   );
 }
 
 /** Participant : photo et prénom ; toucher l'un ou l'autre ouvre sa fiche profil. En orange : arrivé par le lien
  * d'invitation (visible des organisateurs). */
-function PersonChip({ id, name, extra, viaLink = false, fresh = false }: { id: string; name: string; extra?: string; viaLink?: boolean; fresh?: boolean }) {
+function PersonChip({ id, name, extra, viaLink = false, fresh = false, self = false }: { id: string; name: string; extra?: string; viaLink?: boolean; fresh?: boolean; self?: boolean }) {
   // Fixé à l’apparition : les pastilles déjà là ne rebondissent pas quand une autre arrive.
   const [arrive] = useState(() => (fresh ? enter('pop') : undefined));
   return (
     <Pressable style={({ pressed }) => [st.person, arrive, pressTransition, viaLink && st.viaLink, pressed && { opacity: 0.7 }]} accessibilityRole="button"
-      accessibilityLabel={`Profil de ${name}${viaLink ? ', invité par lien' : ''}`} onPress={() => router.push(`/member/${id}`)}>
+      accessibilityLabel={`${self ? 'Ton profil' : `Profil de ${name}`}${viaLink ? ', invité par lien' : ''}`} onPress={() => router.push(`/member/${id}`)}>
       <Avatar id={id} name={name} size={24} profile={false} />
       <T size={13} weight="semibold" numberOfLines={1} style={{ flexShrink: 1 }} color={viaLink ? colors.coral : undefined}>
         {name}{extra ? <T size={13} muted> {extra}</T> : null}{viaLink ? <T size={11} color={colors.coral}> · lien</T> : null}
@@ -221,17 +328,16 @@ export function ParticipantsSection({
   const yes = group('yes');
   const maybe = group('maybe');
   const no = group('no');
-  const waiting = group('yes', true);
   const heads = yes.reduce((n, r) => n + 1 + r.plus_ones, 0);
   const left = event.max_participants ? event.max_participants - heads : null;
-  const notes = rsvps.filter((r) => r.note);
+  // Mots des autres : la base ne les rend qu'à l'organisation et aux admins (un invité ne lit que le sien).
+  const { data: readable } = useRsvpNotes(event.id, rsvps);
+  const notes = othersNotes(readable ?? [], me, rsvps.map((r) => r.user_id));
+  const [report, setReport] = useState<ReportTarget | null>(null);
   // Une pastille qui arrive ou change de groupe « se pose » ; à l’ouverture, la liste s’affiche telle quelle.
   const moved = useChangedSinceMount(rsvps.map((r) => `${r.user_id}:${r.status}:${r.waitlisted}:${waitingPlusOnes(r)}`).sort().join(','));
   // Liste d’attente = personnes en attente ET accompagnants en attente d’un présent (qui, lui, a sa place), au rang.
-  const queue = [
-    ...waiting.map((r) => ({ r, extras: 0, since: r.updated_at ?? '' })),
-    ...yes.filter((r) => waitingPlusOnes(r) > 0).map((r) => ({ r, extras: waitingPlusOnes(r), since: r.plus_ones_waitlisted_since ?? '' })),
-  ].sort((a, b) => a.since.localeCompare(b.since));
+  const queue = waitlistQueue(rsvps);
   const queuePlaces = queue.reduce((n, q) => n + (q.extras || 1 + q.r.plus_ones), 0);
   const extrasName = (id: string, n: number) => (id === me
     ? (n > 1 ? `Tes ${n} accompagnants` : 'Ton accompagnant')
@@ -243,7 +349,7 @@ export function ParticipantsSection({
       <View style={{ gap: 8 }} accessibilityLabel={`${label} : ${list.map((r) => nameOf(r.user_id)).join(', ')}`}>
         <T size={12} weight="bold" color={color}>{label.toUpperCase()} · {count}</T>
         <View style={s.wrap}>
-          {list.map((r) => <PersonChip key={r.user_id} id={r.user_id} name={nameOf(r.user_id)} extra={r.plus_ones ? `+${r.plus_ones}` : undefined} viaLink={viaLink.has(r.user_id)} fresh={moved} />)}
+          {list.map((r) => <PersonChip key={r.user_id} id={r.user_id} self={r.user_id === me} name={nameOf(r.user_id)} extra={r.plus_ones ? `+${r.plus_ones}` : undefined} viaLink={viaLink.has(r.user_id)} fresh={moved} />)}
         </View>
       </View>
     ) : null;
@@ -256,7 +362,9 @@ export function ParticipantsSection({
       ) : <T muted size={13}>{heads} personne{heads > 1 ? 's' : ''} · ∞</T>}
     >
       {event.max_participants ? (
-        <View accessibilityLabel={`${heads} sur ${event.max_participants} places prises`}>
+        // Rôle « barre de progression » : sans rôle, le libellé d'une View n'est jamais lu.
+        <View accessible accessibilityRole="progressbar" accessibilityLabel={`${heads} sur ${event.max_participants} places prises`}
+          accessibilityValue={{ min: 0, max: event.max_participants, now: Math.min(heads, event.max_participants) }}>
           <Meter parts={[{ fraction: heads / event.max_participants, color: colors.accent }]} />
         </View>
       ) : null}
@@ -268,7 +376,7 @@ export function ParticipantsSection({
           <T size={12} weight="bold" color={colors.lavender}>{'Liste d’attente'.toUpperCase()} · {queuePlaces}</T>
           <View style={s.wrap}>
             {queue.map((q) => (
-              <PersonChip key={`${q.r.user_id}${q.extras ? ':plus' : ''}`} id={q.r.user_id} fresh={moved} viaLink={!q.extras && viaLink.has(q.r.user_id)}
+              <PersonChip key={`${q.r.user_id}${q.extras ? ':plus' : ''}`} id={q.r.user_id} fresh={moved} self={!q.extras && q.r.user_id === me} viaLink={!q.extras && viaLink.has(q.r.user_id)}
                 name={q.extras ? extrasName(q.r.user_id, q.extras) : nameOf(q.r.user_id)}
                 extra={!q.extras && q.r.plus_ones ? `+${q.r.plus_ones}` : undefined} />
             ))}
@@ -278,13 +386,17 @@ export function ParticipantsSection({
       {no.length ? <T muted size={13}>Absents : {no.map((r) => nameOf(r.user_id)).join(', ')}</T> : null}
       {notes.length ? (
         <View style={{ gap: 6 }}>
-          {notes.map((r) => (
-            <View key={r.user_id} style={st.note}>
-              <LinkedText size={13} color={colors.textSoft} prefix={<T size={13} weight="bold">{nameOf(r.user_id)} · </T>} text={r.note} />
+          <T muted size={12}>Petits mots (visibles par l’organisation seulement)</T>
+          {notes.map((n) => (
+            <View key={n.id} style={[st.note, s.rowBetween]}>
+              <LinkedText style={{ flex: 1 }} size={13} color={colors.textSoft} prefix={<T size={13} weight="bold">{nameOf(n.user_id)} · </T>} text={n.note} />
+              <ReportLink label={`le mot de ${nameOf(n.user_id)}`}
+                onPress={() => setReport({ kind: 'rsvp_note', id: n.id, label: `le mot de ${nameOf(n.user_id)}` })} />
             </View>
           ))}
         </View>
       ) : null}
+      <ReportSheet target={report} onClose={() => setReport(null)} />
     </Section>
   );
 }
@@ -368,7 +480,7 @@ export function DatePollSection({
                 <T weight="bold">{formatShort(o.starts_at)}</T>
                 <T muted size={12}>{yes} oui · {ifNeeded} si besoin · {no} non</T>
               </View>
-              {lead ? <View style={[st.pill, st.pillLead, enter('pop')]}><T size={11} weight="bold" color={colors.onAccent}>EN TÊTE</T></View> : null}
+              {lead ? <View style={[st.pill, st.pillLead, enter('pop')]}><T size={11} weight="bold" color={colors.onAction}>EN TÊTE</T></View> : null}
             </View>
             <Meter parts={[{ fraction: yes / total, color: colors.accent }, { fraction: ifNeeded / total, color: colors.lavender }]} />
             {!closed ? (
@@ -430,7 +542,7 @@ export function PollSection({
   onChange,
 }: {
   poll: Poll;
-  options: PollOption[];
+  options: OptionRow[];
   results: Map<string, number> | null;
   myVotes: Set<string>;
   voters: Map<string, string[]>;
@@ -441,6 +553,14 @@ export function PollSection({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [newOption, setNewOption] = useState('');
+  // CGU avant le premier choix proposé (contenu lu par les autres invités) ; « Signaler » un choix ou la question.
+  const terms = useTermsGate();
+  const [report, setReport] = useState<ReportTarget | null>(null);
+  const addOption = async () => {
+    const text = newOption.trim();
+    if (!text || !(await terms.ensure())) return;
+    if (await act(supabase.from('poll_options').insert({ poll_id: poll.id, label: text, created_by: me, sort: options.length }), onChange, setError)) setNewOption('');
+  };
   const closed = !!poll.closes_at && new Date(poll.closes_at) < new Date();
   const total = results ? Math.max(1, [...results.values()].reduce((a, b) => a + b, 0)) : 1;
 
@@ -491,6 +611,14 @@ export function PollSection({
           </Pressable>
         );
       })}
+      {options.filter((o) => o.created_by && o.created_by !== me).length ? (
+        <View style={s.wrap}>
+          {options.filter((o) => o.created_by && o.created_by !== me).map((o) => (
+            <ReportLink key={o.id} label={`le choix « ${o.label} »`} text={`Signaler « ${o.label} »`}
+              onPress={() => setReport({ kind: 'poll_option', id: o.id, label: `le choix « ${o.label} »` })} />
+          ))}
+        </View>
+      ) : null}
       {!results ? <T muted size={12}>Les résultats s’affichent après ton vote.</T> : null}
       {!poll.anonymous && results
         ? options.filter((o) => voters.get(o.id)?.length).map((o) => (
@@ -500,15 +628,9 @@ export function PollSection({
       {!canParticipate ? <T muted size={12}>Les votes seront disponibles lorsque l’événement sera publié.</T> : closed ? <T muted size={12}>Ce sondage est clos.</T> : null}
       {!closed && canParticipate && (poll.members_can_add_options || canManage) ? (
         <View style={s.row}>
-          <Input placeholder="Proposer une option" value={newOption} onChangeText={setNewOption} style={{ flex: 1 }} />
-          <Button
-            small
-            label="Ajouter"
-            disabled={!newOption.trim()}
-            onPress={async () => {
-              if (await act(supabase.from('poll_options').insert({ poll_id: poll.id, label: newOption.trim(), created_by: me, sort: options.length }), onChange, setError)) setNewOption('');
-            }}
-          />
+          <Input placeholder="Proposer une option" accessibilityLabel="Proposer une option" value={newOption} onChangeText={setNewOption}
+            onSubmitEditing={() => void addOption()} maxLength={200} style={{ flex: 1 }} />
+          <Button small label="Ajouter" disabled={!newOption.trim()} onPress={() => void addOption()} />
         </View>
       ) : null}
       {canManage ? (
@@ -519,7 +641,12 @@ export function PollSection({
           />
         </View>
       ) : null}
+      {poll.created_by && poll.created_by !== me ? (
+        <ReportLink label="ce sondage" text="Signaler ce sondage" onPress={() => setReport({ kind: 'poll', id: poll.id, label: 'ce sondage' })} />
+      ) : null}
       <ErrorText error={error} />
+      {terms.sheet}
+      <ReportSheet target={report} onClose={() => setReport(null)} />
     </Section>
   );
 }
@@ -546,10 +673,13 @@ export function BringSection({
   const [label, setLabel] = useState('');
   const grew = useChangedSinceMount(items.length);
   const claimsChanged = useChangedSinceMount(items.map((it) => it.claimed_by ?? '').join());
+  // CGU avant le premier objet ajouté (lu par tous les invités) ; « Signaler » l'objet d'un autre.
+  const terms = useTermsGate();
+  const [report, setReport] = useState<ReportTarget | null>(null);
   if (!items.length && !canParticipate) return null;
   const add = async () => {
     const text = label.trim();
-    if (!text) return;
+    if (!text || !(await terms.ensure())) return;
     const sort = items.reduce((max, it) => Math.max(max, it.sort), 0) + 1;
     if (await act(supabase.from('bring_items').insert({ event_id: eventId, label: text, sort, added_by: me, claimed_by: me }), onChange, setError)) setLabel('');
   };
@@ -578,16 +708,24 @@ export function BringSection({
             </Reveal>
           </View>
           )}
-          {it.added_by ? null : <T style={{ color: colors.coral, fontSize: 12 }}>Demandé par l’organisateur</T>}
+          <View style={s.rowBetween}>
+            {it.added_by ? null : <T style={{ color: colors.coral, fontSize: 12 }}>Demandé par l’organisateur</T>}
+            {it.added_by !== me ? (
+              <ReportLink label={`l’objet « ${it.label} »`} onPress={() => setReport({ kind: 'bring_item', id: it.id, label: `l’objet « ${it.label} »` })} />
+            ) : null}
+          </View>
         </Reveal>
       ))}
       {canParticipate ? (
         <View style={s.rowBetween}>
-          <Input placeholder="Ce que j’amène" value={label} onChangeText={setLabel} maxLength={100} style={{ flex: 1 }} />
+          <Input placeholder="Ce que j’amène" accessibilityLabel="Ce que j’amène" value={label} onChangeText={setLabel}
+            onSubmitEditing={() => void add()} maxLength={100} style={{ flex: 1 }} />
           <Button small label="Ajouter" onPress={add} />
         </View>
       ) : null}
       <ErrorText error={error} />
+      {terms.sheet}
+      <ReportSheet target={report} onClose={() => setReport(null)} />
     </Section>
   );
 }
@@ -595,12 +733,16 @@ export function BringSection({
 const st = StyleSheet.create({
   pill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(255,79,154,0.16)' },
   // Texte sombre sur néon plein (sur le fond translucide, « EN TÊTE » était illisible : contraste 1,2).
-  pillLead: { backgroundColor: colors.accent },
+  // Rose foncé du thème (texte blanc lisible), plus l'ancien rose néon.
+  pillLead: { backgroundColor: colors.action },
   subRow: { paddingTop: 4 },
+  // ± : 44 × 44 au moins (cible tactile Apple), pas seulement 44 de haut.
+  stepBtn: { minWidth: 44, paddingHorizontal: 0 },
   person: { maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 3, paddingRight: 10, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.surface2 },
   viaLink: { borderWidth: 1, borderColor: colors.coral },
   pollFill: { position: 'absolute', left: 0, top: 0, bottom: 0, right: 0, borderRadius: 0 },
   pressed: { transform: [{ scale: 0.98 }] },
+  reportLink: { alignSelf: 'flex-end', marginLeft: 'auto', paddingVertical: 2, paddingHorizontal: 4 },
   note: { padding: 10, borderRadius: radius.sm, backgroundColor: colors.bg, borderLeftWidth: 3, borderLeftColor: colors.lineStrong },
   radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },

@@ -237,6 +237,14 @@ final class BotsAICreationUITests: XCTestCase {
             shot(app, "fiche-brouillon")
             _ = reach(app, publish)
             publish.tap()
+        } else {
+            // « Brouillon enregistré » reste affiché jusqu'au toucher (campagne 2, fix E) : boutons touchables.
+            let invite = app.buttons["ai-invite"]
+            check(invite.waitForExistence(timeout: 30), "« Brouillon enregistré » : « Choisir qui est invité »")
+            Thread.sleep(forTimeInterval: 3)
+            check(invite.isHittable && app.buttons["ai-open-event"].isHittable, "boutons de « Brouillon enregistré » touchables après 3 s")
+            shot(app, "brouillon-enregistre-reste")
+            invite.tap()
         }
         let step2 = label(app, "Étape 2 sur 3 : Qui est invité")
         check(step2.waitForExistence(timeout: 60), "étape 2 « Qui est invité » ouverte")

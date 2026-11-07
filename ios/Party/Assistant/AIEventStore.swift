@@ -288,8 +288,6 @@ final class AIEventStore: ObservableObject {
     @Published private(set) var thinking = false
     @Published private(set) var creating = false
     @Published private(set) var created: AIEvent.Created?
-    /// Brouillon tout juste enregistré : l'étape 2 (les invités) s'ouvre d'elle-même dans un instant.
-    @Published private(set) var openInviteSoon = false
     /// Modifier un événement publié (« ✨ Modifier avec l'IA ») : son id ; nil = créer un événement.
     @Published private(set) var editingId: String?
     /// Ce que la demande change, en mots simples (montré avant d'enregistrer).
@@ -340,7 +338,6 @@ final class AIEventStore: ObservableObject {
         candidates = []
         lastSearch = ""
         created = nil
-        openInviteSoon = false
         error = nil
         editingId = nil
         images = []
@@ -603,11 +600,6 @@ final class AIEventStore: ObservableObject {
         (45.8...47.85).contains(c.latitude) && (5.95...10.5).contains(c.longitude)
     }
 
-    /// L'étape 2 s'ouvre (ou la personne a choisi « Ouvrir l'événement ») : plus d'ouverture automatique.
-    func inviteOpened() {
-        openInviteSoon = false
-    }
-
     func create() async {
         guard let draft, canCreate, !creating else { return }
         guard let token = await web?.accountToken() else { return }
@@ -629,9 +621,9 @@ final class AIEventStore: ObservableObject {
             created = try await api.aiEventEditSave(token: token, id: editingId, draft: draft,
                                                     place: place == loadedPlace ? nil : place, announce: announce)
         } else {
-            // Étape 1 confirmée : brouillon, sans invité ; l'étape 2 (les invités) s'ouvre ensuite.
+            // Étape 1 confirmée : brouillon, sans invité ; l'étape 2 (les invités) s'ouvre au toucher de « Choisir qui
+            // est invité » (jamais d'elle-même : les boutons de « Brouillon enregistré » doivent rester touchables).
             created = try await api.aiEventSaveDraft(token: token, draft: draft, place: place)
-            openInviteSoon = created?.isDraft == true
         }
     }
 

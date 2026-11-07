@@ -157,7 +157,7 @@ export function EventCard({
       ) : null}
       <Pressable
         accessibilityRole="link"
-        accessibilityLabel={`${event.title}, ${isPoll ? 'date à définir' : formatShort(event.starts_at)}`}
+        accessibilityLabel={`${event.title}${event.status === 'cancelled' ? ', annulé' : ''}, ${isPoll ? 'date à définir' : formatShort(event.starts_at)}`}
         onPress={() => router.push(`/event/${event.id}`)}
         style={({ pressed }) => [st.main, pressTransition, pressed && { opacity: 0.7 }]}
       >
@@ -172,7 +172,7 @@ export function EventCard({
             </View>
             {published && !isPoll ? <AttendeesBadge attendance={people} past={tone === 'past'} /> : null}
           </View>
-          <T style={{ ...font.display, fontSize: 20, lineHeight: 24 }} color={tone === 'past' ? colors.muted : colors.text} numberOfLines={2}>{event.title}</T>
+          <T style={{ ...font.display, fontSize: 20, lineHeight: 24, ...(event.status === 'cancelled' ? { textDecorationLine: 'line-through' } : null) }} color={tone === 'past' ? colors.muted : colors.text} numberOfLines={2}>{event.title}</T>
           <T color={tone === 'past' ? colors.muted : colors.textSoft} size={14} numberOfLines={2}>
             {isPoll
               ? `${plural(event.date_options.length, 'date proposée', 'dates proposées')}${event.poll_deadline ? ` · vote avant ${formatShort(event.poll_deadline)}` : ''}`

@@ -1,13 +1,15 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Platform, Pressable, View, type TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LinkedText } from '@/components/LinkedText';
+import { MentionSuggestions } from '@/components/MentionSuggestions';
 import { ReportSheet } from '@/components/ReportSheet';
 import { useTermsGate } from '@/components/TermsSheet';
 import { Avatar, Button, ErrorText, HeaderBack, Input, s, T } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
+import { insertMention, mentionQuery, mentionSuggestions } from '@/lib/chats';
 import { useContactNames, withContactNames } from '@/lib/contactNames';
 import { useQuery, useRealtime } from '@/lib/data';
 import { formatMessageTime } from '@/lib/format';
@@ -26,6 +28,8 @@ const composerHeightFor = (content: number) => Math.min(COMPOSER_MAX, Math.max(C
 
 /** Zone de toucher agrandie des petits liens sous un message (Épingler, Supprimer, Signaler), sans changer leur taille visible. */
 const ACTION_SLOP = { top: 12, bottom: 12, left: 6, right: 6 };
+/** Texte affiché à la place d'un message d'une personne que j'ai bloquée (Réglages › Confidentialité). */
+const BLOCKED_TEXT = 'Message masqué (personne bloquée)';
 
 export default function ChatRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -37,6 +41,9 @@ function Chat({ id }: { id: string }) {
   const { can } = useAuth();
   const isAdmin = can('events.manage_all');
   const [text, setText] = useState('');
+  // Place du curseur (suggestions de l'@ en cours de frappe) et champ, pour y revenir après un choix.
+  const [cursor, setCursor] = useState(0);
+  const input = useRef<TextInput>(null);
   const [composerHeight, setComposerHeight] = useState(COMPOSER_MIN);
   // Fonction stable : react-native-web relit la taille du contenu à chaque nouvelle fonction (boucle de rendus sinon).
   const onComposerSize = useCallback((e: { nativeEvent: { contentSize: { height: number } } }) => {
@@ -58,11 +65,13 @@ function Chat({ id }: { id: string }) {
   const list = useRef<FlatList<Message>>(null);
 
   const { data, error: loadError, loading, reload } = useQuery(async () => {
-    const [ev, msgs, members, pins] = await Promise.all([
+    const [ev, msgs, members, pins, blocks] = await Promise.all([
       supabase.from('events').select('title, created_by, event_organizers(user_id)').eq('id', id).single(),
       supabase.from('messages').select('*').eq('event_id', id).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(101),
       supabase.from('profiles').select('id, display_name').eq('status', 'active'),
       supabase.from('messages').select('*').eq('event_id', id).eq('pinned', true).is('deleted_at', null).order('created_at'),
+      // Mes blocages (lus seulement par moi) : leurs messages sont masqués ici, comme dans les discussions.
+      supabase.from('direct_blocks').select('blocked_id'),
     ]);
     const event = must(ev) as { title: string; created_by: string; event_organizers: { user_id: string }[] };
     return {
@@ -71,6 +80,7 @@ function Chat({ id }: { id: string }) {
       hasMore: msgs.data!.length > 100,
       pinned: must(pins) as Message[],
       members: must(members) as { id: string; display_name: string }[],
+      blocked: new Set(((blocks.data as { blocked_id: string }[] | null) ?? []).map((b) => b.blocked_id)),
       canModerate: isAdmin || event.created_by === me.id || event.event_organizers.some((o) => o.user_id === me.id),
     };
   }, [id]);
@@ -89,7 +99,22 @@ function Chat({ id }: { id: string }) {
   // seuls les plus récents (le mien envoyé, ceux reçus) montent.
   const [openedUpTo, setOpenedUpTo] = useState<string | null>(null);
   if (data && openedUpTo === null) setOpenedUpTo(data.messages[0]?.created_at ?? '');
-  const pinned = data?.pinned ?? [];
+  const blocked = data?.blocked;
+  const isBlocked = (uid: string) => Boolean(blocked?.has(uid));
+  const bodyOf = (m: Message) => (isBlocked(m.user_id) ? BLOCKED_TEXT : m.body);
+  const pinned = (data?.pinned ?? []).filter((m) => !isBlocked(m.user_id));
+  // « @ pour citer » : les membres (moi et les personnes bloquées exceptés) dont le surnom commence par les lettres tapées.
+  const typing = mentionQuery(text, cursor);
+  const suggestions = useMemo(() => (typing === null ? [] : mentionSuggestions(typing,
+    (data?.members ?? []).filter((m) => m.id !== me.id && !blocked?.has(m.id)), { everyone: false, announce: false }, contacts)),
+  [typing, data?.members, blocked, me.id, contacts]);
+
+  function pickMention(label: string) {
+    const next = insertMention(text, cursor, label);
+    setText(next.text);
+    setCursor(next.cursor);
+    input.current?.focus();
+  }
 
   async function loadOlder() {
     if (loadingOlderRef.current || !data) return;
@@ -116,8 +141,12 @@ function Chat({ id }: { id: string }) {
   async function send() {
     const body = text.trim();
     if (!body || sendingRef.current) return;
-    if (!terms.accepted && !(await terms.ensure())) return;
+    // Garde posée AVANT l'attente des CGU : un double toucher pendant cette attente n'envoie pas deux messages.
     sendingRef.current = true;
+    if (!terms.accepted && !(await terms.ensure())) {
+      sendingRef.current = false;
+      return;
+    }
     setSending(true);
     setError(null);
     // « @Prénom » dans le texte -> mention (notifiée même en mode « Mentions »)
@@ -127,6 +156,7 @@ function Chat({ id }: { id: string }) {
     try {
       check(await supabase.from('messages').insert({ event_id: id, user_id: me.id, body, reply_to: replyTo?.id ?? null, mentions }));
       setText('');
+      setCursor(0);
       setReplyTo(null);
       followLatest.current = true;
       await reload();
@@ -163,7 +193,7 @@ function Chat({ id }: { id: string }) {
           <View key={m.id} style={[{ margin: 12, marginBottom: 0, padding: 12, borderRadius: radius.md, backgroundColor: colors.surface }, enter('drop')]}>
             <T size={13} color={colors.textSoft}>
               <T size={13} weight="bold" color={colors.accent}>Épinglé · </T>
-              {names.get(m.user_id)} : {m.body}
+              {names.get(m.user_id)} : {bodyOf(m)}
             </T>
           </View>
         ))}
@@ -182,10 +212,11 @@ function Chat({ id }: { id: string }) {
           renderItem={({ item: m }) => {
             const mine = m.user_id === me.id;
             const quoted = m.reply_to ? byId.get(m.reply_to) : null;
+            const hidden = isBlocked(m.user_id);
             return (
               <ArrivingRow fresh={openedUpTo !== null && m.created_at > openedUpTo} mine={mine}>
               <Pressable
-                onLongPress={() => setReplyTo(m)}
+                onLongPress={() => { if (!hidden) setReplyTo(m); }}
                 accessibilityHint="Appui long pour répondre"
                 style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end', justifyContent: mine ? 'flex-end' : 'flex-start' }}
               >
@@ -201,16 +232,18 @@ function Chat({ id }: { id: string }) {
                     {quoted ? (
                       <View style={{ padding: 6, borderRadius: 8, backgroundColor: mine ? 'rgba(0,0,0,0.14)' : colors.surface2 }}>
                         <T size={12} color={mine ? colors.onAccent : colors.muted} numberOfLines={2}>
-                          ↪ {names.get(quoted.user_id)} : {quoted.body}
+                          ↪ {names.get(quoted.user_id)} : {bodyOf(quoted)}
                         </T>
                       </View>
                     ) : null}
-                    <LinkedText size={15} color={mine ? colors.onAccent : colors.text} linkColor={mine ? colors.onAccent : colors.accent} text={m.body} />
+                    {hidden
+                      ? <T size={14} muted style={{ fontStyle: 'italic' }}>{BLOCKED_TEXT}</T>
+                      : <LinkedText size={15} color={mine ? colors.onAccent : colors.text} linkColor={mine ? colors.onAccent : colors.accent} text={m.body} />}
                   </View>
                   {/* Passe à la ligne sur un écran étroit : sinon cette ligne élargit la bulle au-delà de l'écran. */}
                   <View style={[s.row, { flexWrap: 'wrap', rowGap: 2 }]}>
                     <T muted size={11}>{formatMessageTime(m.created_at)}</T>
-                    {data?.canModerate ? (
+                    {data?.canModerate && !hidden ? (
                       <Pressable onPress={() => togglePin(m)} accessibilityRole="button" hitSlop={ACTION_SLOP}>
                         <T muted size={11}>{m.pinned ? 'Désépingler' : 'Épingler'}</T>
                       </Pressable>
@@ -220,7 +253,7 @@ function Chat({ id }: { id: string }) {
                         <T muted size={11}>Supprimer</T>
                       </Pressable>
                     ) : null}
-                    {!mine ? (
+                    {!mine && !hidden ? (
                       <Pressable onPress={() => setReportTarget({ kind: 'event_message', id: m.id, label: `le message de ${names.get(m.user_id) ?? '?'}` })}
                         accessibilityRole="button" hitSlop={ACTION_SLOP} accessibilityLabel={`Signaler le message de ${names.get(m.user_id) ?? '?'}`}>
                         <T muted size={11}>Signaler</T>
@@ -242,12 +275,15 @@ function Chat({ id }: { id: string }) {
             <Button small variant="ghost" label="✕" onPress={() => setReplyTo(null)} />
           </View>
         ) : null}
+        <MentionSuggestions suggestions={suggestions} onPick={(sug) => pickMention(sug.label)} />
         <View style={[s.row, { padding: 12, borderTopWidth: 1, borderTopColor: colors.line }]}>
           <Input
+            inputRef={input}
             accessibilityLabel="Message"
             placeholder="Message (@ pour citer)"
             value={text}
-            onChangeText={setText}
+            onChangeText={(v) => { setText(v); setCursor(v.length); }}
+            onSelectionChange={(e) => setCursor(e.nativeEvent.selection.end)}
             multiline
             editable={!sending}
             maxLength={4000}

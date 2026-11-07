@@ -135,65 +135,37 @@ struct NotificationSettingsView: View {
             Text("📅 Événements · général")
         }
 
-        Section {
-            Picker("Me prévenir", selection: choice("new_event", p.newEvent)) {
-                ForEach(EventChoices.newEvent, id: \.key) { Text($0.label).tag($0.key) }
-            }
-            .pickerStyle(.segmented)
-            .disabled(store.saving.contains("events.new_event"))
-            if p.newEvent == "subscribed" {
-                NavigationLink {
-                    SubscriptionsView(store: store)
-                } label: {
-                    SettingsRow(symbol: "tag.fill", tint: .orange, title: "Choisir mes catégories et tags",
-                                hint: store.subscriptions.map { "\($0.count) suivi\($0.count > 1 ? "s" : "")" })
-                }
-            }
-        } header: {
-            Text("Nouvel événement publié")
-        } footer: {
-            Text(EventChoices.hint(EventChoices.newEvent, for: p.newEvent))
-        }
+        if state.shows("new_event") { newEventSection(p) }
 
         Section("Événements où je suis inscrit") {
             eventToggle("event_changed", "calendar.badge.exclamationmark", .red, "Modifié ou annulé", "Date, heure ou lieu changé, ou annulation", p.eventChanged)
-            eventToggle("poll_new", "chart.bar.fill", .blue, "Nouveau sondage", "L'organisateur ajoute un sondage", p.pollNew)
+            if state.shows("poll_new") {
+                eventToggle("poll_new", "chart.bar.fill", .blue, "Nouveau sondage", "L'organisateur ajoute un sondage", p.pollNew)
+            }
             eventToggle("date_fixed", "calendar.badge.checkmark", .green, "Date choisie", "Le sondage de dates est terminé, la date est fixée", p.dateFixed)
-            eventToggle("poll_nudge", "hand.raised.fill", .orange, "Rappel pour voter", "24 h avant la fin d'un sondage de dates, si tu n'as pas voté", p.pollNudge)
+            if state.shows("poll_nudge") {
+                eventToggle("poll_nudge", "hand.raised.fill", .orange, "Rappel pour voter", "24 h avant la fin d'un sondage de dates, si tu n'as pas voté", p.pollNudge)
+            }
             eventToggle("waitlist", "person.crop.circle.badge.plus", .teal, "Place libérée", "Tu es sur liste d'attente et une place se libère", p.waitlist)
-            eventToggle("rsvp_set", "person.crop.circle.badge.checkmark", .indigo, "Un organisateur répond pour moi",
-                        "Il te note présent, peut-être ou absent à ta place", p.rsvpSet != false)
-            eventToggle("invites", "envelope.fill", .purple, "Invitation à un événement privé", "On t'invite à un événement réservé aux invités", p.invites != false)
-            eventToggle("ticket_pay_confirmed", "checkmark.seal.fill", .green, "Paiement de ma place confirmé",
-                        "L'organisateur a reçu ton paiement (ou ne l'a pas reçu) après ton « J'ai payé »", p.ticketPayConfirmed != false)
-            eventToggle("ticket_issued", "qrcode", .pink, "Billet prêt",
-                        "L'organisateur t'a remis ton billet QR : il s'affiche sur l'événement", p.ticketIssued != false)
+            if state.shows("rsvp_set") {
+                eventToggle("rsvp_set", "person.crop.circle.badge.checkmark", .indigo, "Un organisateur répond pour moi",
+                            "Il te note présent, peut-être ou absent à ta place", p.rsvpSet != false)
+            }
+            eventToggle("invites", "envelope.fill", .purple, "Invitation à un événement privé",
+                        "On t'invite à un événement réservé aux invités, ou quand on t'ajoute comme co-organisateur", p.invites != false)
+            if state.shows("ticket_pay_confirmed") {
+                eventToggle("ticket_pay_confirmed", "checkmark.seal.fill", .green, "Paiement de ma place confirmé",
+                            "L'organisateur a reçu ton paiement (ou ne l'a pas reçu) après ton « J'ai payé »", p.ticketPayConfirmed != false)
+            }
+            if state.shows("ticket_issued") {
+                eventToggle("ticket_issued", "qrcode", .pink, "Billet prêt",
+                            "L'organisateur t'a remis ton billet QR : il s'affiche sur l'événement", p.ticketIssued != false)
+            }
         }
 
-        Section {
-            ForEach(EventChoices.reminders, id: \.key) { reminder in
-                toggle("events.reminders." + reminder.key, "alarm.fill", .orange, reminder.label, nil,
-                       isOn: p.reminders.contains(reminder.key)) { on in await store.toggleReminder(reminder.key, on) }
-            }
-        } header: {
-            Text("Rappels avant l'événement")
-        } footer: {
-            Text("Pour les événements où tu as répondu Présent ou Peut-être. Coche-en autant que tu veux.")
-        }
+        remindersSection(p)
 
-        Section {
-            Picker("Messages", selection: choice("chat", p.chat)) {
-                ForEach(EventChoices.chat, id: \.key) { Text($0.label).tag($0.key) }
-            }
-            .pickerStyle(.segmented)
-            .disabled(store.saving.contains("events.chat"))
-            // Deux sourdines distinctes (avis de l'admin) : discussions des événements ici, groupes plus bas.
-            ChatsPauseRow(store: store.pause, scope: .eventChats)
-        } header: {
-            Text("Discussions des événements")
-        } footer: {
-            Text(EventChoices.hint(EventChoices.chat, for: p.chat))
-        }
+        if state.shows("chat") { eventChatsSection(p) }
 
         // Discussions des groupes fermées sur ce site (production, hors revue Apple) : pas de réglages pour elles.
         if store.discussions {
@@ -253,12 +225,18 @@ struct NotificationSettingsView: View {
         }
 
         Section("Quand j'organise") {
-            eventToggle("rsvp_mine", "person.3.fill", .blue, "Réponses à mes événements", "Quelqu'un répond Présent, Peut-être ou Absent", p.rsvpMine)
+            if state.shows("rsvp_mine") {
+                eventToggle("rsvp_mine", "person.3.fill", .blue, "Réponses à mes événements", "Quelqu'un répond Présent, Peut-être ou Absent", p.rsvpMine)
+            }
             eventToggle("link_join", "link", .blue, "Quelqu'un rejoint par le lien", "Une personne s'inscrit avec le lien d'invitation", p.linkJoin != false)
-            eventToggle("ticket_pay_declared", "banknote.fill", .orange, "Quelqu'un dit avoir payé",
-                        "Sur un événement payant que j'organise : à confirmer quand tu as reçu l'argent", p.ticketPayDeclared != false)
-            eventToggle("proposal_result", "checkmark.circle.fill", .green, "Ma proposition validée ou refusée",
-                        "Un admin publie ou refuse l'événement que tu as proposé", p.proposalResult != false)
+            if state.shows("ticket_pay_declared") {
+                eventToggle("ticket_pay_declared", "banknote.fill", .orange, "Quelqu'un dit avoir payé",
+                            "Sur un événement payant que j'organise : à confirmer quand tu as reçu l'argent", p.ticketPayDeclared != false)
+            }
+            if state.shows("proposal_result") {
+                eventToggle("proposal_result", "checkmark.circle.fill", .green, "Ma proposition validée ou refusée",
+                            "Un admin publie ou refuse l'événement que tu as proposé", p.proposalResult != false)
+            }
             // Annonces aux groupes (06.11) : mêmes libellés que le module Événements.
             eventToggle("announce_results", "megaphone.fill", .green, "Réponse du groupe à mes demandes",
                         "Ton annonce au groupe est acceptée, refusée ou partie d'office après 48 h ; ton événement est accepté ou refusé par le groupe",
@@ -268,7 +246,7 @@ struct NotificationSettingsView: View {
                         p.announceRequests != false)
             eventToggle("group_event_requests", "calendar.badge.checkmark", .indigo, "Événement à valider pour mon groupe",
                         "Un membre propose un événement à ton groupe, réglé « avec validation »", p.groupEventRequests != false)
-            if state.approver {
+            if state.approver && state.shows("proposals") {
                 eventToggle("proposals", "checkmark.seal.fill", .indigo, "Proposition à valider", "Un membre propose un événement à valider", p.proposals)
             }
         }
@@ -281,6 +259,59 @@ struct NotificationSettingsView: View {
             }
         } footer: {
             Text("Pour couper un seul événement, utilise « Sourdine » sur sa page.")
+        }
+    }
+
+    // MARK: Sections
+
+    private func newEventSection(_ p: EventNotificationPrefs) -> some View {
+        Section {
+            Picker("Me prévenir", selection: choice("new_event", p.newEvent)) {
+                ForEach(EventChoices.newEvent, id: \.key) { Text($0.label).tag($0.key) }
+            }
+            .pickerStyle(.segmented)
+            .disabled(store.saving.contains("events.new_event"))
+            if p.newEvent == "subscribed" {
+                NavigationLink {
+                    SubscriptionsView(store: store)
+                } label: {
+                    SettingsRow(symbol: "tag.fill", tint: .orange, title: "Choisir mes catégories et tags",
+                                hint: store.subscriptions.map { "\($0.count) suivi\($0.count > 1 ? "s" : "")" })
+                }
+            }
+        } header: {
+            Text("Nouvel événement publié")
+        } footer: {
+            Text(EventChoices.hint(EventChoices.newEvent, for: p.newEvent))
+        }
+    }
+
+    private func remindersSection(_ p: EventNotificationPrefs) -> some View {
+        Section {
+            ForEach(EventChoices.reminders, id: \.key) { reminder in
+                toggle("events.reminders." + reminder.key, "alarm.fill", .orange, reminder.label, nil,
+                       isOn: p.reminders.contains(reminder.key)) { on in await store.toggleReminder(reminder.key, on) }
+            }
+        } header: {
+            Text("Rappels avant l'événement")
+        } footer: {
+            Text("Pour les événements où tu as répondu Présent ou Peut-être. Coche-en autant que tu veux.")
+        }
+    }
+
+    private func eventChatsSection(_ p: EventNotificationPrefs) -> some View {
+        Section {
+            Picker("Messages", selection: choice("chat", p.chat)) {
+                ForEach(EventChoices.chat, id: \.key) { Text($0.label).tag($0.key) }
+            }
+            .pickerStyle(.segmented)
+            .disabled(store.saving.contains("events.chat"))
+            // Deux sourdines distinctes (avis de l'admin) : discussions des événements ici, groupes plus bas.
+            ChatsPauseRow(store: store.pause, scope: .eventChats)
+        } header: {
+            Text("Discussions des événements")
+        } footer: {
+            Text(EventChoices.hint(EventChoices.chat, for: p.chat))
         }
     }
 
