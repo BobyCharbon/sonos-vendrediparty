@@ -4100,6 +4100,11 @@ def send_feedback(body: FeedbackIn, request: Request):
     context["site"] = feedback_site()[0]  # liste commune aux deux sites : d'où vient l'avis
     # Pas de prénom (invité qui n'a encore rien ajouté) : « Anonyme ». clean_name refuserait un prénom vide.
     name = " ".join(body.name.split())[:30] or "Anonyme"
+    # Accord IA de l'auteur, gardé avec l'avis (il voyage avec lui d'un site à l'autre) : sans lui, l'avis ne part
+    # jamais chez Claude (may_send_to_claude).
+    who = feedback_author_subject(body)
+    context["ai_who"] = who
+    context["ai_ok"] = "1" if ai_consents.state(who) == ai_feedback.ACCEPTED else ""
     feedback.add(body.guest_id, name, kind, text, context)
     summary = structured["title"] if structured else text[:140]
     notify_admin({"title": f"{FEEDBACK_KINDS[kind]} de {name}", "body": summary, "url": "/admin#feedback", "tag": "feedback"},
@@ -4432,10 +4437,34 @@ def admin_feedback_prompt(fid: str):
     return {"prompt": feedback_prompt(feedback_item(fid))}
 
 
+def feedback_author_subject(body) -> str:
+    """Auteur d'un avis pour l'accord IA : « acct:<uid> » (compte connecté), sinon « guest:<id> »."""
+    if body.token:
+        with contextlib.suppress(AccountError):
+            return "acct:" + accounts._uid(body.token)
+    return "guest:" + body.guest_id
+
+
+def may_send_to_claude(item: dict) -> bool:
+    """Un avis part chez Claude (GitHub, puis Anthropic) seulement avec l'accord IA de son auteur (Apple 5.1.2(i),
+    nLPD) ; les avis de l'admin et de Claude, toujours. Le prénom n'est jamais envoyé (build_prompt)."""
+    if item.get("origin") in ("admin", "claude"):
+        return True
+    ctx = item.get("context") or {}
+    subject = ctx.get("ai_who") or "guest:" + str(item.get("guest_id", ""))
+    now = ai_consents.state(subject)
+    if now:  # accord connu sur ce site : il fait foi (un retrait l'emporte)
+        return now == ai_feedback.ACCEPTED
+    return ctx.get("ai_ok") == "1"  # avis venu de l'autre site : l'accord donné en l'écrivant
+
+
 @app.post("/api/admin/feedback/{fid}/claude", dependencies=[Depends(require_admin)])
 def admin_feedback_to_claude(fid: str):
     """Confie le retour à Claude : issue GitHub « claude-fix » → correction commitée sur develop."""
     item = feedback_item(fid)
+    if not may_send_to_claude(item):
+        raise HTTPException(403, "L'auteur de cet avis n'a pas accepté l'IA : il ne part pas chez Claude. "
+                                 "Traite-le toi-même, ou recrée-le avec tes mots (avis de l'admin).")
     if item.get("claude", {}).get("state") == "pending":
         raise HTTPException(409, "Déjà confié à Claude : la correction est en cours")
     if len(item.get("note", "")) < MIN_CLAUDE_NOTE:

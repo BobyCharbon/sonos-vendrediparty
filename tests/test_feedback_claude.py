@@ -5,7 +5,7 @@ import json
 import httpx
 from fastapi.testclient import TestClient
 
-from app import github_issues, main
+from app import ai_feedback, github_issues, main
 from app.feedback import FeedbackBox, build_prompt
 from tests.test_features import admin, snap  # noqa: F401 (fixture)
 
@@ -32,9 +32,13 @@ def fake_github(issues: dict):
     return httpx.Client(transport=httpx.MockTransport(handler))
 
 
-def setup(monkeypatch, tmp_path, token="gh-token"):
+def setup(monkeypatch, tmp_path, token="gh-token", consent=True):
     issues = {}
     monkeypatch.setattr(main, "feedback", FeedbackBox(tmp_path / "feedback.json"))
+    consents = ai_feedback.ConsentBox(tmp_path / "consent.json")
+    if consent:  # l'invité a accepté l'IA : son avis peut partir chez Claude
+        consents.set("guest:" + GUEST, True)
+    monkeypatch.setattr(main, "ai_consents", consents)
     monkeypatch.setattr(main, "github", github_issues.Issues(token, "owner/repo", fake_github(issues)))
     return issues
 
@@ -134,7 +138,7 @@ def test_github_down_while_syncing_keeps_the_admin_list_working(admin, monkeypat
 
 
 def test_github_refusal_says_what_to_fix(admin, monkeypatch, tmp_path):  # noqa: F811
-    monkeypatch.setattr(main, "feedback", FeedbackBox(tmp_path / "feedback.json"))
+    setup(monkeypatch, tmp_path)
     refuse = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(403, json={"message": "Resource not accessible by personal access token"})))
     monkeypatch.setattr(main, "github", github_issues.Issues("gh-token", "owner/repo", refuse))
     send(admin)
@@ -254,3 +258,35 @@ def test_fix_without_migration_has_no_warning(admin, monkeypatch, tmp_path):  # 
     issues[1]["comments"] = ["✅ Corrigé et poussé sur `develop` : https://github.com/owner/repo/commit/abcdef1234567."]
     main.github.cache.clear()
     assert "migrations" not in first(admin)["claude"]
+
+
+def test_a_feedback_goes_to_claude_only_with_its_author_ai_consent_and_never_with_the_name(admin, monkeypatch, tmp_path):  # noqa: F811
+    """Exigence Apple (09.11, règle 5.1.2(i)) : un avis ne part chez Claude (GitHub puis Anthropic) qu'avec l'accord IA
+    de son auteur ; le prénom n'est jamais envoyé ; les avis de l'admin partent toujours."""
+    issues = setup(monkeypatch, tmp_path, consent=False)
+    send(admin)
+    fid = first(admin)["id"]
+    note(admin, fid)
+    refused = admin.post(f"/api/admin/feedback/{fid}/claude")
+    assert refused.status_code == 403 and "pas accepté l'IA" in refused.json()["detail"] and not issues
+    main.ai_consents.set("guest:" + GUEST, True)
+    assert admin.post(f"/api/admin/feedback/{fid}/claude").status_code == 200
+    assert "Léa" not in issues[1]["body"] and "Léa" not in issues[1]["title"]
+    main.ai_consents.set("guest:" + GUEST, False)  # retrait de l'accord : plus rien ne part
+    mine = main.feedback.create_admin(GUEST, "Boby", "bug", "Avis de l'admin, à corriger", {}, {})
+    note(admin, mine["id"])
+    assert admin.post(f"/api/admin/feedback/{mine['id']}/claude").status_code == 200
+
+
+def test_a_signed_in_author_is_matched_by_account_for_the_ai_consent(monkeypatch, tmp_path):
+    monkeypatch.setattr(main.accounts, "_uid", lambda token: "uid-42")
+    body = type("B", (), {"token": "jeton", "guest_id": GUEST})()
+    assert main.feedback_author_subject(body) == "acct:uid-42"
+    consents = ai_feedback.ConsentBox(tmp_path / "c.json")
+    consents.set("acct:uid-42", True)
+    monkeypatch.setattr(main, "ai_consents", consents)
+    assert main.may_send_to_claude({"guest_id": GUEST, "context": {"ai_who": "acct:uid-42"}})
+    assert not main.may_send_to_claude({"guest_id": GUEST})  # invité sans accord
+    # Avis venu de l'autre site (accord inconnu ici) : l'accord noté en l'écrivant.
+    assert main.may_send_to_claude({"guest_id": "autre-site-guest", "context": {"ai_who": "guest:x", "ai_ok": "1"}})
+    assert not main.may_send_to_claude({"guest_id": "autre-site-guest", "context": {"ai_who": "guest:x", "ai_ok": ""}})

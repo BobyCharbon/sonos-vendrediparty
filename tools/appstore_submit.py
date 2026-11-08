@@ -6,7 +6,7 @@ Lancé par .github/workflows/ios-appstore.yml (secrets ASC_KEY_ID, ASC_ISSUER_ID
       lecture seule : versions, builds de l'app, notes et compte de démo de la revue (jamais le mot de passe).
   python3 tools/appstore_submit.py submit <fichier .p8> <version> <build>
       version modifiable (créée si besoin) ← build (traité, sans chiffrement propre), nouveautés
-      (ios/appstore/whats-new-fr.txt), notes pour les examinateurs (ios/appstore/review-notes.txt), compte de démo
+      (ios/appstore/whats-new-fr.txt, seulement après une 1re version publiée : Apple les refuse sur la première), notes pour les examinateurs (ios/appstore/review-notes.txt), compte de démo
       repris de la revue précédente (jamais dans le dépôt), puis envoi en revue.
 Rien n'est envoyé si un fichier manque, si le build n'est pas traité ou si aucun compte de démo n'est connu.
 """
@@ -26,6 +26,8 @@ EDITABLE = {"PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADAT
 NOTES_MAX = 4000          # limite d'Apple pour les notes de revue
 WHATS_NEW_MAX = 4000
 BUILD_WAIT_S, POLL_S = 45 * 60, 30
+PUBLISHED = {"READY_FOR_SALE", "READY_FOR_DISTRIBUTION", "REPLACED_WITH_NEW_VERSION", "REMOVED_FROM_SALE",
+             "DEVELOPER_REMOVED_FROM_SALE"}
 
 
 class Asc:
@@ -145,13 +147,14 @@ def send_to_review(asc: Asc, app: str, version_id: str) -> str:
 
 def submit(key: str, version: str, build: str) -> int:
     notes = NOTES_FILE.read_text().strip()
-    whats_new = WHATS_NEW_FILE.read_text().strip()
     if not notes or len(notes) > NOTES_MAX:
         raise SystemExit(f"Notes de revue vides ou trop longues ({len(notes)} / {NOTES_MAX})")
-    if not whats_new or len(whats_new) > WHATS_NEW_MAX:
-        raise SystemExit(f"Nouveautés vides ou trop longues ({len(whats_new)} / {WHATS_NEW_MAX})")
     asc = Asc(key)
     app = app_id(asc)
+    first_release = not any(state(x) in PUBLISHED for x in versions(asc, app))
+    whats_new = "" if first_release else WHATS_NEW_FILE.read_text().strip()
+    if not first_release and (not whats_new or len(whats_new) > WHATS_NEW_MAX):
+        raise SystemExit(f"Nouveautés vides ou trop longues ({len(whats_new)} / {WHATS_NEW_MAX})")
     v = editable_version(asc, app, version)
     current = review_detail(asc, v["id"])
     demo = known_demo(asc, app, current)
@@ -165,13 +168,16 @@ def submit(key: str, version: str, build: str) -> int:
     asc.call("PATCH", f"/v1/appStoreVersions/{v['id']}/relationships/build", {"data": {"type": "builds", "id": b["id"]}})
     print(f"Build {build} choisi pour la version {version}")
 
-    loc = next((x for x in asc.data(f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations")
-                if x["attributes"]["locale"] == LOCALE), None)
-    if loc is None:
-        raise SystemExit(f"Pas de fiche {LOCALE} pour la version {version}")
-    asc.call("PATCH", f"/v1/appStoreVersionLocalizations/{loc['id']}", {"data": {
-        "type": "appStoreVersionLocalizations", "id": loc["id"], "attributes": {"whatsNew": whats_new}}})
-    print("Nouveautés enregistrées")
+    if first_release:
+        print("Première version : pas de « Nouveautés » (Apple les refuse)")
+    else:
+        loc = next((x for x in asc.data(f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations")
+                    if x["attributes"]["locale"] == LOCALE), None)
+        if loc is None:
+            raise SystemExit(f"Pas de fiche {LOCALE} pour la version {version}")
+        asc.call("PATCH", f"/v1/appStoreVersionLocalizations/{loc['id']}", {"data": {
+            "type": "appStoreVersionLocalizations", "id": loc["id"], "attributes": {"whatsNew": whats_new}}})
+        print("Nouveautés enregistrées")
 
     attrs = {"notes": notes, "demoAccountRequired": True, "demoAccountName": demo["demoAccountName"],
              "demoAccountPassword": demo["demoAccountPassword"]}
