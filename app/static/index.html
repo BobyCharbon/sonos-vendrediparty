@@ -536,7 +536,16 @@ function showStats(name = statsTab) {
 }
 document.addEventListener("click", (ev) => { const t = ev.target.closest("[data-stats-tab]"); if (t) showStats(t.dataset.statsTab); });
 // Boutons d'onglet seulement : le <body> porte aussi data-tab (sinon chaque toucher ramène en haut de page).
-document.addEventListener("click", (ev) => { const t = ev.target.closest("button[data-tab]"); if (t) showTab(t.dataset.tab); });
+document.addEventListener("click", (ev) => {
+  const t = ev.target.closest("button[data-tab]");
+  if (!t) return;
+  // Onglet Événements retouché alors qu'il est déjà ouvert (barre native de l'app iPhone comprise) : le module repart de
+  // la liste, rechargé. La page restait parfois vide après un retour dans l'app (retour de l'admin, 07.11).
+  if (t.dataset.tab === "events" && document.body.dataset.tab === "events" && $("eventsFrame").hasAttribute("src")) {
+    return PartyEvents.open("/events/");
+  }
+  showTab(t.dataset.tab);
+});
 document.addEventListener("click", (ev) => {
   if (!ev.target.closest("[data-host-back]")) return;
   if (Nav.has(document.body.dataset.tab)) Nav.back();  // l'écran repart par la droite, comme sur iPhone

@@ -575,6 +575,37 @@ def test_event_detail_has_an_ios_back_button_and_an_edge_swipe_goes_back(browser
         context.close()
 
 
+def test_touching_the_events_tab_again_reloads_the_events_page(browser, events_origin):
+    """Retour de l'admin (07.11) : dans l'app iPhone, la page Événements restait vide après un retour, il fallait quitter
+    l'app. Retoucher l'onglet Événements déjà ouvert recharge le module sur la liste (comme un onglet iOS)."""
+    context=browser.new_context(viewport={'width':390,'height':844},has_touch=True)
+    page=context.new_page();mock_services(page)
+    try:
+        page.goto(events_origin,wait_until='domcontentloaded')
+        tab=page.get_by_role('button',name='Événements',exact=True)
+        tab.click()
+        frame=page.frame_locator('#eventsFrame')
+        login(frame)
+        card=frame.get_by_text('Sortie de démonstration (test local)',exact=True)
+        pw.expect(card).to_be_visible(timeout=15000)
+        card.click()
+        pw.expect(frame.get_by_role('button',name='Retour : Événements')).to_be_visible()
+        page.evaluate("document.getElementById('eventsFrame').contentWindow.__avant = 1")
+        # App iPhone : la barre native reste visible sur la fiche et transmet le toucher (PartyTabs.select → clic du bouton).
+        page.evaluate("document.querySelector('#tabs [data-tab=events]').click()")
+        pw.expect(card).to_be_visible(timeout=15000)
+        pw.expect(frame.get_by_role('button',name='Retour : Événements')).to_have_count(0)
+        assert page.evaluate("document.getElementById('eventsFrame').contentWindow.__avant") is None  # vraiment rechargé
+        # Premier toucher depuis un autre onglet : pas de rechargement (la page garde sa place).
+        page.get_by_role('button',name='Musique',exact=True).click()
+        page.evaluate("document.getElementById('eventsFrame').contentWindow.__avant = 2")
+        page.evaluate("document.querySelector('#tabs [data-tab=events]').click()")
+        pw.expect(card).to_be_visible()
+        assert page.evaluate("document.getElementById('eventsFrame').contentWindow.__avant") == 2
+    finally:
+        context.close()
+
+
 def test_organizer_marks_a_guest_present_then_absent_then_removes_the_answer(browser, events_origin):
     lea = '5b0c7e1e-1d3a-4c8e-9a51-6f2f4b9d0a11'
     context=browser.new_context(viewport={'width':390,'height':844})
