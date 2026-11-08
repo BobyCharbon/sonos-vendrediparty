@@ -66,8 +66,11 @@ final class BotsFeedbackEditUITests: XCTestCase {
         XCTAssertTrue(edit.waitForExistence(timeout: 30), "« Modifier » sur l'avis envoyé")
         shot(app, "envoye")
         edit.tap()
-        let sheetEditor = app.textViews.firstMatch
-        XCTAssertTrue(sheetEditor.waitForExistence(timeout: 10), "feuille « Modifier mon avis »")
+        // La feuille s'ouvre par-dessus : attendre son titre, puis prendre SA zone de texte (la dernière à l'écran).
+        XCTAssertTrue(app.navigationBars["Modifier mon avis"].waitForExistence(timeout: 10), "feuille « Modifier mon avis »")
+        // Sa zone de texte reprend le texte envoyé (celle du formulaire, dessous, est vide après l'envoi).
+        let sheetEditor = app.textViews.matching(NSPredicate(format: "value == %@", original)).firstMatch
+        XCTAssertTrue(sheetEditor.waitForExistence(timeout: 5), "la feuille reprend le texte envoyé")
         sheetEditor.tap()
         sheetEditor.typeText(" Modifié \(stamp).")
         shot(app, "modifie")

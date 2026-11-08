@@ -98,10 +98,9 @@ final class BotsAnnouncementsUITests: XCTestCase {
 
     func testValidatorAcceptsInActivity() throws {
         let app = launchSignedIn()
-        // « Activité » est aussi une catégorie (filtre de la liste) : l'onglet est le plus haut des deux.
-        let matches = app.webViews.descendants(matching: .any).matching(NSPredicate(format: "label == 'Activité'"))
-        guard matches.firstMatch.waitForExistence(timeout: 20) else { note("❌ onglet « Activité » du module introuvable"); shot(app, "sans-activite"); return }
-        let activity = matches.allElementsBoundByIndex.filter { $0.frame.height > 0 }.min { $0.frame.minY < $1.frame.minY } ?? matches.firstMatch
+        // Accueil compact (08.11) : l'Activité s'ouvre par la cloche (« Activité » ou « Activité, N nouveauté(s)… »).
+        let activity = app.webViews.buttons.matching(NSPredicate(format: "label == 'Activité' OR label BEGINSWITH 'Activité,'")).firstMatch
+        guard activity.waitForExistence(timeout: 20) else { note("❌ cloche « Activité » de l'accueil introuvable"); shot(app, "sans-activite"); return }
         activity.tap()
         Thread.sleep(forTimeInterval: 3)
         let card = any(app, "label BEGINSWITH 'Annonce à valider : \(title)'")
