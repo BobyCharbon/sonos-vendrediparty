@@ -36,10 +36,19 @@ export function useQuery<T>(fn: () => Promise<T>, deps: unknown[] = []) {
   return { data, error, loading, reload, setData };
 }
 
-/** Recharge quand une des tables change pour cet événement (temps réel Supabase). */
+/** Changements groupés : une rafale (plusieurs lignes écrites d'un coup) ne recharge qu'une fois. */
+const REALTIME_SETTLE_MS = 400;
+
+/** Recharge quand une des tables change (temps réel Supabase ; chacun ne reçoit que ce que les règles d'accès lui montrent). */
 export function useRealtime(channel: string, tables: { table: string; filter?: string }[], onChange: () => void) {
-  const cb = useRef(onChange);
-  useEffect(() => { cb.current = onChange; }, [onChange]);
+  const latest = useRef(onChange);
+  useEffect(() => { latest.current = onChange; }, [onChange]);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cb = useRef(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => { timer.current = null; latest.current(); }, REALTIME_SETTLE_MS);
+  });
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   const key = JSON.stringify(tables);
   useFocusEffect(useCallback(() => {
     // Une fiche et son éditeur peuvent coexister dans la pile de navigation.

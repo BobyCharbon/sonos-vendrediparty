@@ -143,6 +143,11 @@ export default function EventScreen() {
     ...(optionIds.length ? [{ table: 'date_votes', filter: `option_id=in.(${optionIds.join(',')})` }] : []),
     ...(pollIds.length ? [{ table: 'poll_votes', filter: `poll_id=in.(${pollIds.join(',')})` }] : []),
     { table: 'messages', filter: `event_id=eq.${id}` },
+    // Ce que font les autres dans l'événement, sans recharger (retour du 08.11).
+    { table: 'events', filter: `id=eq.${id}` },
+    { table: 'bring_items', filter: `event_id=eq.${id}` },
+    { table: 'date_options', filter: `event_id=eq.${id}` },
+    { table: 'event_organizers', filter: `event_id=eq.${id}` },
   ], reload);
 
   const online = useOnline(reload);

@@ -9,7 +9,7 @@ import { Button, Chip, Empty, ErrorText, Input, Reveal, s, Segmented, Skeleton, 
 import { useAuth, useMe } from '@/lib/auth';
 import { type Attendance, fetchAttendance } from '@/lib/attendance';
 import { inTab, type ListTab } from '@/lib/eventTime';
-import { fetchEventList, fetchTaxonomy, needsAnswer, useQuery } from '@/lib/data';
+import { fetchEventList, fetchTaxonomy, needsAnswer, useQuery, useRealtime } from '@/lib/data';
 import { plural } from '@/lib/format';
 import { must, supabase } from '@/lib/supabase';
 import { duration, ease, enter, pressTransition, transition } from '@/lib/motion';
@@ -49,6 +49,14 @@ export default function Home() {
       subscribedCategories: new Set(must(catSubs).map((r) => r.category_id as string)),
     };
   }, [me.id]);
+  // Temps réel (retour du 08.11) : ajouté à un groupe, invité, événement publié ou modifié → la liste suit sans recharger.
+  useRealtime('events-list', [
+    { table: 'events' },
+    { table: 'event_invites', filter: `user_id=eq.${me.id}` },
+    { table: 'member_group_members', filter: `user_id=eq.${me.id}` },
+    { table: 'event_groups' },
+    { table: 'rsvps', filter: `user_id=eq.${me.id}` },
+  ], reload);
 
   // Pastille des présents : totaux exacts même quand la liste des participants est cachée. Lue APRÈS l'affichage des cartes
   // (avant : une étape réseau de plus avant la première carte) ; les cartes comptent les réponses en attendant.
