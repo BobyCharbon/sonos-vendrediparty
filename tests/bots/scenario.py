@@ -66,7 +66,7 @@ def create_full(p) -> str | None:
         p.tap(page.get_by_role("button", name="+ Ajouter un objet"), "+ Ajouter un objet")
         page.get_by_placeholder("Fromage, pain…").last.fill("Pain")
     f.toggle(p, "Forum de l’événement", True)
-    f.toggle(p, "Prévenir « Bots »", True)   # libellé de la campagne 2 : le nom du groupe choisi
+    f.toggle(p, "Prévenir le groupe", True)   # libellé de la campagne 2 (AnnounceToggle)
     p.shot("avance-rempli")
     _check_screen(p, "formulaire avancé")
     p.shot("avance-bas")
