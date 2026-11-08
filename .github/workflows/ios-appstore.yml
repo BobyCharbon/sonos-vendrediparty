@@ -1,0 +1,54 @@
+name: App iOS → revue App Store
+
+# Lancement manuel seulement (onglet Actions) : « check » lit l'état sur App Store Connect sans rien changer ;
+# « submit » choisit le build de main, enregistre les nouveautés (ios/appstore/whats-new-fr.txt) et les notes pour les
+# examinateurs (ios/appstore/review-notes.txt), garde le compte de démo déjà saisi, puis envoie la version en revue.
+# Secrets : ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (les mêmes que l'envoi TestFlight).
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: check (lecture) ou submit (envoi en revue)
+        type: choice
+        options: [check, submit]
+        default: check
+      version:
+        description: Version (ex. 1.0.0)
+        required: false
+      build:
+        description: Numéro du build (numéro du passage « App iOS → TestFlight » de main)
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-appstore
+  cancel-in-progress: false
+
+jobs:
+  appstore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Revue App Store
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          MODE: ${{ inputs.mode }}
+          VERSION: ${{ inputs.version }}
+          BUILD: ${{ inputs.build }}
+        run: |
+          KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s\n' "$ASC_KEY_P8" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          python3 -m venv "$RUNNER_TEMP/asc"
+          "$RUNNER_TEMP/asc/bin/pip" install --quiet cryptography
+          if [ "$MODE" = "submit" ]; then
+            "$RUNNER_TEMP/asc/bin/python" tools/appstore_submit.py submit "$KEY_PATH" "$VERSION" "$BUILD"
+          else
+            "$RUNNER_TEMP/asc/bin/python" tools/appstore_submit.py check "$KEY_PATH"
+          fi
+          rm -f "$KEY_PATH"
