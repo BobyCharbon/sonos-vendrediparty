@@ -126,7 +126,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
       <View style={st.head}>
         <View style={{ flex: 1, gap: 2 }}>
           <T weight="bold" size={20}>Invités · {counts.total}</T>
-          <T muted size={13}>{counts.yes} {counts.yes > 1 ? 'viennent' : 'vient'} · {counts.none + counts.unopened} sans réponse</T>
+          <T muted size={13}>{list.poll ? `${counts.yes} ${counts.yes > 1 ? 'ont voté les dates' : 'a voté les dates'}` : `${counts.yes} ${counts.yes > 1 ? 'viennent' : 'vient'}`} · {counts.none + counts.unopened} sans réponse</T>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Inviter" onPress={() => setSheet(true)}
           style={({ pressed }) => [st.plus, pressTransition, pressed && { transform: [{ scale: 0.92 }] }]}>
@@ -154,16 +154,17 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
       ) : null}
 
       <View style={st.tiles} accessibilityRole="tablist" accessibilityLabel="Filtrer les invités">
-        {TILES.map((t) => {
+        {TILES.filter((t) => !list.poll || (t.key !== 'maybe' && t.key !== 'no')).map((t) => {
           const on = filter === t.key;
+          const label = list.poll && t.key === 'yes' ? 'Ont voté' : t.label;
           return (
             <Pressable key={t.key} accessibilityRole="tab" accessibilityState={{ selected: on }} aria-selected={on}
-              accessibilityLabel={`${counts[t.key]} ${t.label}`}
+              accessibilityLabel={`${counts[t.key]} ${label}`}
               onPress={() => setFilter(on ? 'all' : t.key)}
               style={({ pressed }) => [st.tile, on && { borderColor: t.color, backgroundColor: colors.surface2 }, pressTransition,
                 pressed && { transform: [{ scale: 0.96 }] }]}>
               <T size={22} weight="bold" color={t.color}>{counts[t.key]}</T>
-              <T size={12} weight="semibold" color={on ? colors.text : colors.muted} numberOfLines={1}>{t.label}</T>
+              <T size={12} weight="semibold" color={on ? colors.text : colors.muted} numberOfLines={1}>{label}</T>
             </Pressable>
           );
         })}
@@ -234,6 +235,7 @@ function GroupBlock({ name, people, open, onToggle, children }: { name: string; 
   const yes = people.filter((p) => p.status === 'yes').length;
   const maybe = people.filter((p) => p.status === 'maybe').length;
   const none = people.filter((p) => !p.status).length;
+  const answered = people[0]?.poll ? `${yes} ${yes > 1 ? 'ont voté' : 'a voté'}` : `${yes} ${yes > 1 ? 'viennent' : 'vient'}`;
   return (
     <View style={{ gap: 6 }}>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`Groupe ${name}, ${people.length} personnes`}
@@ -241,7 +243,7 @@ function GroupBlock({ name, people, open, onToggle, children }: { name: string; 
         <View style={st.groupIcon}><T size={18}>👥</T></View>
         <View style={{ flex: 1, gap: 2 }}>
           <T weight="bold" size={15} numberOfLines={1}>{name} · {people.length}</T>
-          <T muted size={12} numberOfLines={1}>{yes} {yes > 1 ? 'viennent' : 'vient'}{maybe ? ` · ${maybe} peut-être` : ''}{none ? ` · ${none} sans réponse` : ''}</T>
+          <T muted size={12} numberOfLines={1}>{answered}{maybe ? ` · ${maybe} peut-être` : ''}{none ? ` · ${none} sans réponse` : ''}</T>
         </View>
         <T size={18} color={colors.muted} style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>›</T>
       </Pressable>
@@ -251,7 +253,8 @@ function GroupBlock({ name, people, open, onToggle, children }: { name: string; 
 }
 
 function StatusPill({ guest }: { guest: Guest }) {
-  const label = guest.status === 'yes' && guest.waitlisted ? 'En attente' : guest.status ? statusWords[guest.status] : 'Pas répondu';
+  const label = guest.poll ? (guest.status ? 'A voté' : 'Pas voté')
+    : guest.status === 'yes' && guest.waitlisted ? 'En attente' : guest.status ? statusWords[guest.status] : 'Pas répondu';
   const color = guest.status ? rsvpColors[guest.status] : NONE_COLOR;
   return (
     <View style={[st.pill, { borderColor: color }]}>

@@ -51,7 +51,8 @@ Tu remplis TOUT le formulaire de l'événement, et tu le modifies quand la perso
 - date_mode : « fixed » (une date) ou « poll » (la personne veut faire voter une date : « on vote pour la date »,
   « vendredi ou samedi ? »). start / end : date et heure locales AAAA-MM-JJTHH:MM (date fixe) ; « samedi » = le
   prochain samedi ; « 19h », « 7 heures du soir » ; sans heure de fin : end vide. date_options : les dates proposées
-  au vote (poll, au moins deux) ; poll_deadline : fin du vote si dite. Une date passée n'est jamais voulue.
+  au vote (poll, au moins deux), chacune AAAA-MM-JJTHH:MM ; jours dits sans heure : écris-les AAAA-MM-JJ et demande
+  l'heure (questions), jamais de nouveau les dates ; poll_deadline : fin du vote si dite. Une date passée n'est jamais voulue.
 - place_kind : « home » si l'événement a lieu chez un particulier ou à une simple adresse (domicile, chalet, jardin,
   appartement : « chez moi », « chez Léa », une rue et un numéro sans nom d'établissement) ; « venue » si c'est un
   établissement ou un lieu nommé (bar, restaurant, salle, club, entreprise, parc, piste) ; « none » si aucun lieu. Le
@@ -160,7 +161,8 @@ def schema(choices: dict[str, list[str]]) -> dict:
 def local_time(value: str, now: datetime) -> datetime | None:
     """« 2026-11-07T20:00 » (heure de Suisse) → date avec fuseau ; rien si illisible ou déjà passée."""
     try:
-        when = datetime.strptime(str(value or "")[:16], "%Y-%m-%dT%H:%M").replace(tzinfo=ZURICH)
+        # « 2026-11-14 19:00 » (espace) vaut « 2026-11-14T19:00 » (le modèle écrit parfois l'une ou l'autre).
+        when = datetime.strptime(str(value or "").strip().replace(" ", "T", 1)[:16], "%Y-%m-%dT%H:%M").replace(tzinfo=ZURICH)
     except ValueError:
         return None
     return when if when > now else None
@@ -193,6 +195,19 @@ def _when(value, now: datetime) -> str:
     return t.strftime("%Y-%m-%dT%H:%M") if t else ""
 
 
+def _future_days(values, now: datetime) -> set[str]:
+    """Jours « AAAA-MM-JJ » à venir (sans heure) parmi les dates proposées au vote."""
+    days = set()
+    for v in values if isinstance(values, list) else []:
+        try:
+            day = datetime.strptime(str(v).strip()[:10], "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if day >= now.date():
+            days.add(day.isoformat())
+    return days
+
+
 def place_kind(raw: dict) -> str:
     """Le type de lieu compris par l'IA ; un ancien brouillon sans type mais avec un lieu = établissement."""
     if raw.get("place_kind") in PLACE_KINDS:
@@ -221,6 +236,12 @@ def clean_draft(raw: dict, now: datetime, choices: dict[str, list[str]]) -> dict
     if not title and not any("titre" in q.lower() or "appeler" in q.lower() for q in questions):
         questions.append("Comment veux-tu appeler cet événement ?")
     dated = len(slots) >= 2 if poll_mode else bool(start)
+    # Sondage : des jours dits sans heure (« le 14 ou le 21 ») ne sont pas perdus de vue : on demande l'heure, jamais
+    # de nouveau les dates (sinon la question tournait en boucle et le sondage ne se créait pas, retour du 08.11).
+    days_only = poll_mode and not dated and len(_future_days(raw.get("date_options"), now)) >= 2
+    if days_only and not any("heure" in q.lower() for q in questions):
+        questions = [q for q in questions if not any(w in q.lower() for w in ("quand", "date", "jour"))]
+        questions.append("À quelle heure pour les dates proposées ?")
     if not dated and not any(w in q.lower() for q in questions for w in ("quand", "date", "jour", "heure")):
         questions.append("Quelles dates proposer au vote ?" if poll_mode else "Quel jour et à quelle heure ?")
     polls = []

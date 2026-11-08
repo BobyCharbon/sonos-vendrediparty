@@ -17,6 +17,8 @@ export type Guest = {
   id: string; name: string; avatar_url: string | null; status: RsvpStatus | null; waitlisted: boolean; plus_ones: number;
   source: GuestSource; group: string | null; invited_by: string | null; invited_by_id: string | null; link_label: string | null; link_token: string | null;
   has_app: boolean; light: boolean; nudged_today: boolean; removable: boolean;
+  /** Sondage de dates : a voté pour au moins une date ; poll : la liste est celle d'un sondage (08.11). */
+  voted?: boolean; poll?: boolean;
 };
 export type LinkState = 'pending' | 'opened' | 'full' | 'expired' | 'revoked';
 export type SentLink = {
@@ -25,7 +27,7 @@ export type SentLink = {
   nudged_today: boolean; arrivals: { id: string; name: string; status: RsvpStatus | null }[];
 };
 export type GuestList = {
-  vip: boolean; public: boolean; vip_name: string | null;
+  vip: boolean; public: boolean; vip_name: string | null; poll?: boolean;
   groups: { id: string; name: string; members: number }[];
   people: Guest[]; links: SentLink[];
 };
@@ -171,7 +173,17 @@ async function call<T>(name: string, args: Record<string, unknown>, fallback: st
   return data as T;
 }
 
-export const fetchGuestList = (e: string) => call<GuestList>('event_guest_list', { e }, 'La liste des invités n’a pas pu être lue.');
+export const fetchGuestList = (e: string) =>
+  call<GuestList>('event_guest_list', { e }, 'La liste des invités n’a pas pu être lue.').then(pollGuestList);
+
+/**
+ * Sondage de dates (08.11) : répondre, c'est voter les dates. « A voté » tient la place de « vient » (mêmes comptes, mêmes
+ * filtres, même relance) ; une ancienne réponse « je viens » donnée par un lien ne compte pas tant que la date n'est pas fixée.
+ */
+export function pollGuestList(list: GuestList): GuestList {
+  if (!list.poll) return list;
+  return { ...list, people: list.people.map((p) => ({ ...p, poll: true, status: p.voted ? 'yes' : null, waitlisted: false, plus_ones: 0 })) };
+}
 export const createInvite = (e: string, places: number, until: string | null, label: string | null) =>
   call<{ token: string; expires_at: string; max_uses: number; label: string | null }>(
     'create_event_invite', { e, places, until, label }, 'Le lien n’a pas pu être créé. Réessaie.');
@@ -193,12 +205,13 @@ export type InviteCard = {
   location_address: string | null; location_url: string | null; me_named: boolean;
 };
 export type Accepted = {
-  event_id: string; status: RsvpStatus; title: string; starts_at: string | null; ends_at: string | null; all_day: boolean;
+  event_id: string; status: RsvpStatus | null; title: string; starts_at: string | null; ends_at: string | null; all_day: boolean;
   date_mode: string; location_name: string | null; location_address: string | null; location_url: string | null;
   description: string | null; waitlisted: boolean | null;
 };
 
 export const fetchInviteCard = (token: string, opened: boolean) =>
   call<InviteCard | null>('invite_preview', { token, opened }, 'L’invitation n’a pas pu être lue. Réessaie dans un instant.');
-export const acceptInvite = (token: string, answer: RsvpStatus, firstName: string | null) =>
+/** « poll » : sondage de dates, on rejoint l'événement sans « je viens » puis on vote les dates (08.11). */
+export const acceptInvite = (token: string, answer: RsvpStatus | 'poll', firstName: string | null) =>
   call<Accepted>('accept_invite', { token, answer, first_name: firstName }, 'Ta réponse n’a pas pu être enregistrée. Réessaie.');

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { CalendarButton } from './CalendarButton';
+import { InviteDateVotes } from './InviteDateVotes';
 import { Button, ErrorText, Field, Input, Loading, Screen, T, Title } from './ui';
 import { appDownload } from '@/lib/appInvite';
 import { authErrorMessage } from '@/lib/authErrors';
@@ -24,6 +25,7 @@ const CODE_LENGTH = 6;
 const ANSWERS: { key: RsvpStatus; label: string }[] = [
   { key: 'yes', label: 'Je viens !' }, { key: 'maybe', label: 'Peut-être' }, { key: 'no', label: 'Je ne peux pas' },
 ];
+type Answer = RsvpStatus | 'poll';
 const DONE_WORDS: Record<RsvpStatus, string> = { yes: 'Tu viens à', maybe: 'Tu viens peut-être à', no: 'Tu ne viens pas à' };
 /** Conditions d'utilisation, ouvertes à côté (l'invitation reste là où elle en est). */
 const termsUrl = () => (typeof location !== 'undefined' ? `${location.origin}/events${TERMS_PATH}` : `https://party.bobycharbon.ch/events${TERMS_PATH}`);
@@ -64,7 +66,7 @@ export function InviteCardScreen({ token }: { token: string | undefined }) {
     opened.current = true;
     return fetchInviteCard(token!, first);  // première lecture : « A ouvert » chez l'organisateur
   }, [token, session?.user.id]);
-  const [answer, setAnswer] = useState<RsvpStatus | null>(null);
+  const [answer, setAnswer] = useState<Answer | null>(null);
   const [done, setDone] = useState<Accepted | null>(null);
   const [firstName, setFirstName] = useState<string | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
@@ -119,7 +121,7 @@ function Host({ card }: { card: InviteCard }) {
   );
 }
 
-function Card({ card, onAnswer }: { card: InviteCard; onAnswer: (a: RsvpStatus) => void }) {
+function Card({ card, onAnswer }: { card: InviteCard; onAnswer: (a: Answer) => void }) {
   const closed = card.state === 'full' || card.state === 'expired' || card.state === 'revoked';
   const cancelled = card.status === 'cancelled';
   const names = card.going_names;
@@ -164,6 +166,16 @@ function Card({ card, onAnswer }: { card: InviteCard; onAnswer: (a: RsvpStatus) 
         <View style={st.notice}><T color={colors.coralSoft}>{CLOSED[card.state]}</T></View>
       ) : card.closed ? (
         <View style={st.notice}><T color={colors.coralSoft}>Les réponses sont fermées pour cet événement.</T></View>
+      ) : card.date_mode === 'poll' ? (
+        // Sondage de dates : on répond en votant les dates, comme dans l'app (jamais « Je viens » avant la date fixée).
+        <View style={{ gap: 10 }}>
+          <T style={{ textAlign: 'center' }} color={colors.textSoft}>La date n’est pas encore fixée : indique les dates où tu es dispo, {card.inviter || 'l’organisateur'} choisira celle qui arrange le plus de monde.</T>
+          <Pressable accessibilityRole="button" onPress={() => onAnswer('poll')}
+            style={({ pressed }) => [st.answer, st.answerYes, pressTransition, pressed && { transform: [{ scale: 0.97 }] }]}>
+            <T weight="bold" size={17} color={colors.onAction}>📅 Choisir mes dates</T>
+          </Pressable>
+          <T muted size={13} style={{ textAlign: 'center' }}>Pas besoin d’installer l’app.</T>
+        </View>
       ) : (
         <View style={{ gap: 10 }}>
           {card.mine ? <T weight="semibold" style={{ textAlign: 'center' }}>Ta réponse : {ANSWERS.find((a) => a.key === card.mine)?.label}. Tu peux la changer.</T> : null}
@@ -195,7 +207,7 @@ function Line({ icon, title, hint }: { icon: string; title: string; hint?: strin
 
 /** Prénom, numéro (+41 d'office), code SMS ; déjà connecté : on enregistre tout de suite (le prénom si le compte n'en a pas). */
 function Identify({ token, card, answer, onBack, onDone, onRefused }: {
-  token: string; card: InviteCard; answer: RsvpStatus; onBack: () => void; onDone: (a: Accepted, name: string | null) => void;
+  token: string; card: InviteCard; answer: Answer; onBack: () => void; onDone: (a: Accepted, name: string | null) => void;
   onRefused: (text: string) => void;
 }) {
   const { session, refreshProfile } = useAuth();
@@ -284,7 +296,7 @@ function Identify({ token, card, answer, onBack, onDone, onRefused }: {
     <Screen contentStyle={{ gap: 18 }}>
       <Stack.Screen options={{ title: 'Invitation' }} />
       <View style={[{ gap: 6 }, enter('slideIn')]}>
-        <Title size={30}>{answer === 'no' ? 'Dommage !' : answer === 'maybe' ? 'Peut-être, c’est noté' : 'Super, tu viens ! 🎉'}</Title>
+        <Title size={30}>{answer === 'poll' ? 'Tes dates 📅' : answer === 'no' ? 'Dommage !' : answer === 'maybe' ? 'Peut-être, c’est noté' : 'Super, tu viens ! 🎉'}</Title>
         <T muted>{session ? `Ton prénom, pour que ${host} sache que c’est toi.` : `Deux infos pour que ${host} sache que c’est toi.`}</T>
       </View>
       <Field label="Prénom" value={name} onChangeText={setName} autoComplete="given-name" textContentType="givenName" autoCapitalize="words"
@@ -337,6 +349,33 @@ function TermsConsent() {
 }
 
 function Done({ card, done, name, onChange }: { card: InviteCard; done: Accepted; name: string | null; onChange: () => void }) {
+  if (done.status === null) return <PollDone card={card} done={done} name={name} />;
+  return <Answered card={card} done={done as Accepted & { status: RsvpStatus }} name={name} onChange={onChange} />;
+}
+
+/** Sondage de dates : on vote les dates tout de suite ; l'organisateur fixe ensuite celle qui arrange le plus de monde. */
+function PollDone({ card, done, name }: { card: InviteCard; done: Accepted; name: string | null }) {
+  const { profile } = useAuth();
+  const [votes, setVotes] = useState(0);
+  const first = (name ?? profile?.display_name ?? '').split(' ')[0];
+  const host = card.inviter || 'L’organisateur';
+  return (
+    <Screen contentStyle={{ gap: 18 }}>
+      <Stack.Screen options={{ title: 'Invitation' }} />
+      <View style={[{ gap: 6 }, enter('rise')]}>
+        <Title size={28}>{votes ? `C’est noté${first ? `, ${first}` : ''} !` : `Tes dates${first ? `, ${first}` : ''}`}</Title>
+        <T color={colors.textSoft}>
+          Pour <T weight="bold">{done.title}</T> : réponds pour chaque date. {host} fixera celle qui arrange le plus de monde,
+          et tu seras inscrit selon ton vote pour cette date.
+        </T>
+      </View>
+      <InviteDateVotes eventId={done.event_id} onVoted={setVotes} />
+      <T muted size={13} style={{ textAlign: 'center' }}>Tes votes sont enregistrés à chaque toucher. Rouvre ce même lien pour les changer.</T>
+    </Screen>
+  );
+}
+
+function Answered({ card, done, name, onChange }: { card: InviteCard; done: Accepted & { status: RsvpStatus }; name: string | null; onChange: () => void }) {
   const { profile } = useAuth();
   const [later, setLater] = useState(false);
   const first = (name ?? profile?.display_name ?? '').split(' ')[0];

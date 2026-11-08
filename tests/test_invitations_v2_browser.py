@@ -7,6 +7,7 @@
 Captures (390 px, thème sombre) dans $INVITES_SHOTS si la variable est définie."""
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -349,5 +350,88 @@ def test_guest_without_app_accepts_the_terms_when_they_are_required(browser, v2_
         assert ('accept_invite', {'token': TOKEN, 'answer': 'yes', 'first_name': 'Léa'}) in calls
         pw.expect(page.get_by_text('terms_required', exact=False)).to_have_count(0)
         assert not errors, errors
+    finally:
+        context.close()
+
+
+POLL_OPTIONS = [{'id': IDS[8], 'starts_at': '2030-11-20T19:00:00Z'}, {'id': IDS[9], 'starts_at': '2030-11-27T19:00:00Z'}]
+
+
+def test_a_link_guest_answers_a_date_poll_by_voting_the_dates(browser, v2_origin):  # noqa: F811
+    """Retour de l'admin (08.11) : par un lien, un sondage de dates ne proposait que « Je viens / Je ne peux pas » et
+    l'invité était compté comme venant. Il vote maintenant les dates, comme dans l'app ; aucun « je viens » envoyé."""
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
+    page = context.new_page()
+    errors = []
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    votes = []
+    try:
+        mock_services(page)
+        calls = mock_invites(page, card={**CARD, 'inviter': 'Ludo', 'date_mode': 'poll', 'starts_at': None, 'going': 0, 'going_names': []})
+        accepted = {**ACCEPTED, 'status': None, 'date_mode': 'poll', 'starts_at': None}
+
+        def accept(route):
+            if route.request.method == 'OPTIONS':
+                return route.fulfill(status=204, headers=CORS)
+            calls.append(('accept_invite', json.loads(route.request.post_data or '{}')))
+            route.fulfill(status=200, content_type='application/json', headers=CORS, body=json.dumps(accepted))
+
+        def table(route):
+            request = route.request
+            if request.method == 'OPTIONS':
+                return route.fulfill(status=204, headers=CORS)
+            if '/date_options' in request.url:
+                return route.fulfill(status=200, content_type='application/json', headers=CORS, body=json.dumps(POLL_OPTIONS))
+            if request.method == 'POST':
+                votes.append(json.loads(request.post_data or '{}'))
+                return route.fulfill(status=201, content_type='application/json', headers=CORS, body='[]')
+            route.fulfill(status=200, content_type='application/json', headers=CORS, body='[]')
+        page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/rpc/accept_invite', accept)
+        page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/date_options*', table)
+        page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/date_votes*', table)
+
+        page.goto(f'{v2_origin}/events/invite/{TOKEN}', wait_until='domcontentloaded')
+        pw.expect(page.get_by_text('Date à définir', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_role('button', name='Je viens !')).to_have_count(0)
+        shot(page, '20-sondage-carte', full=True)
+        page.get_by_role('button', name='📅 Choisir mes dates').click()
+        pw.expect(page.get_by_text('Tes dates 📅', exact=True)).to_be_visible()
+        page.get_by_label('Prénom', exact=True).fill('Léa')
+        page.get_by_label('Numéro de portable').fill('079 456 12 38')
+        page.get_by_role('button', name='Recevoir mon code par SMS').click()
+        page.get_by_placeholder('123456', exact=True).fill('123456')
+        page.get_by_role('button', name='Confirmer', exact=True).click()
+        pw.expect(page.get_by_text('Tes dates, Léa', exact=True)).to_be_visible(timeout=10000)
+        assert ('accept_invite', {'token': TOKEN, 'answer': 'poll', 'first_name': 'Léa'}) in calls
+        yes = page.get_by_role('button', name=re.compile('^Oui : '))
+        pw.expect(yes).to_have_count(2)
+        yes.first.click()
+        page.get_by_role('button', name=re.compile('^Non : ')).nth(1).click()
+        pw.expect(page.get_by_text('C’est noté, Léa !', exact=True)).to_be_visible()
+        assert [(v['option_id'], v['vote']) for v in votes] == [(IDS[8], 'yes'), (IDS[9], 'no')]
+        pw.expect(page.get_by_role('button', name='Ajouter à mon agenda')).to_have_count(0)  # pas de date avant qu'elle soit fixée
+        shot(page, '21-sondage-votes', full=True)
+        assert page.locator('html').evaluate('e => e.scrollWidth <= innerWidth')
+        assert not errors, errors
+    finally:
+        context.close()
+
+
+def test_the_guest_card_of_a_date_poll_counts_who_voted(browser, v2_origin):  # noqa: F811
+    """Retour de l'admin (08.11) : « 2 viennent » alors que 3 avaient voté. Pour un sondage, la carte compte les votants ;
+    une ancienne réponse « je viens » donnée par un lien ne compte pas, et pas de « Peut-être » ni « Absents »."""
+    voted = {IDS[0], IDS[2], IDS[5]}
+    people = [{**p, 'voted': p['id'] in voted} for p in GUEST_LIST['people']]
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
+    page = context.new_page()
+    try:
+        mock_services(page)
+        mock_invites(page, guest_list={**GUEST_LIST, 'poll': True, 'people': people})
+        card = open_event(page, v2_origin)
+        pw.expect(card.get_by_text('3 ont voté les dates · ', exact=False)).to_be_visible()
+        pw.expect(card.get_by_role('tab', name=re.compile('Ont voté'))).to_be_visible()
+        pw.expect(card.get_by_role('tab', name=re.compile('Peut-être|Absents'))).to_have_count(0)
+        pw.expect(card.get_by_text('A voté', exact=True).first).to_be_visible()
+        shot(page, '22-sondage-invites', full=True)
     finally:
         context.close()

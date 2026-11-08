@@ -593,9 +593,10 @@ def test_touching_the_events_tab_again_reloads_the_events_page(browser, events_o
         page.evaluate("document.getElementById('eventsFrame').contentWindow.__avant = 1")
         # App iPhone : la barre native reste visible sur la fiche et transmet le toucher (PartyTabs.select → clic du bouton).
         page.evaluate("document.querySelector('#tabs [data-tab=events]').click()")
+        # Vraiment rechargé : la marque posée dans l'ancienne page a disparu (attendre avant de lire la liste).
+        page.wait_for_function("() => document.getElementById('eventsFrame').contentWindow.__avant === undefined", timeout=15000)
+        pw.expect(frame.get_by_role('button',name='Retour : Événements')).to_have_count(0,timeout=15000)
         pw.expect(card).to_be_visible(timeout=15000)
-        pw.expect(frame.get_by_role('button',name='Retour : Événements')).to_have_count(0)
-        assert page.evaluate("document.getElementById('eventsFrame').contentWindow.__avant") is None  # vraiment rechargé
         # Premier toucher depuis un autre onglet : pas de rechargement (la page garde sa place).
         page.get_by_role('button',name='Musique',exact=True).click()
         page.evaluate("document.getElementById('eventsFrame').contentWindow.__avant = 2")

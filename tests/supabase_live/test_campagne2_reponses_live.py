@@ -11,6 +11,7 @@ Seule la course à la dernière place utilise de vraies transactions simultanée
 - sondages et « Qui amène quoi » : filtre, CGU, signalables ; proposer une date passée refusé ;
 - pot commun : supprimer l'événement supprime (ou clôt) son pot ; photos de tickets orphelines purgées."""
 import json
+import os
 import subprocess
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -22,13 +23,22 @@ ROOT = Path(__file__).resolve().parents[2]
 ADMIN = 'a7610087-3f63-43d0-8657-a3459f0fddcb'  # Admin test (41790000004)
 T1 = '407eb502-c0b8-45f3-8d3a-be471b72c4b5'     # Testeur 1, CGU acceptées
 T2 = 'b539febf-3f90-42b0-ab6b-ed18f3a2380c'     # Testeur 2, sans CGU
-VIP = '63364824-6982-4a3c-befc-fb37d204a3e8'    # VIP test (Guest)
+VIP_PHONE = '41790000003'                       # VIP test (Guest) : compte recréé après une suppression → id lu par le numéro
 
 
 def sql_test(query: str) -> str:
     out = subprocess.run(['python3', str(ROOT / 'supabase/tools/sbq.py'), 'test', 'rw'], input=query,
                          capture_output=True, text=True, timeout=180)
     return out.stdout + out.stderr
+
+
+def _uid_of(phone: str) -> str:
+    out = subprocess.run(['python3', str(ROOT / 'supabase/tools/sbq.py'), 'test'],
+                         input=f"select id from auth.users where phone = '{phone}'", capture_output=True, text=True, timeout=180)
+    return json.loads(out.stdout)[0]['id']
+
+
+VIP = _uid_of(VIP_PHONE) if os.environ.get('SUPABASE_LIVE_TESTS') else ''
 
 
 def as_(uid: str) -> str:

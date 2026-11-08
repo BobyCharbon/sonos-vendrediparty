@@ -436,3 +436,16 @@ def test_without_named_people_nothing_more_is_written(tmp_path):
     a, accounts, _ = make(tmp_path)
     a.save_draft("ok", {**READY, "invitees": []}, None)
     assert not any(m == "PATCH" for m, _, _ in accounts.calls)
+
+
+def test_poll_dates_said_without_an_hour_ask_for_the_hour_not_for_dates_again():
+    """Retour de l'admin (08.11) : « le 14 ou le 21 » sans heure → les dates étaient jetées et l'IA redemandait les dates
+    en boucle : impossible de créer un sondage. On demande l'heure, une seule fois ; avec l'heure, c'est prêt."""
+    now = datetime.now(ev.ZURICH)
+    day = lambda n: (now + timedelta(days=n)).strftime("%Y-%m-%d")  # noqa: E731
+    choices = {"categories": [], "tags": [], "audiences": [], "people": []}
+    base = {"title": "Raclette", "date_mode": "poll", "place_query": "Rue du Rhône 1, 1950 Sion", "address_complete": True}
+    d = ev.clean_draft({**base, "date_options": [day(8), day(15)]}, now, choices)
+    assert d["status"] == "needs_info" and d["questions"] == ["À quelle heure pour les dates proposées ?"]
+    d = ev.clean_draft({**base, "date_options": [f"{day(8)} 19:00", f"{day(15)}T19:30"]}, now, choices)  # espace ou « T »
+    assert d["status"] == "ready" and d["date_options"] == [f"{day(8)}T19:00", f"{day(15)}T19:30"]
