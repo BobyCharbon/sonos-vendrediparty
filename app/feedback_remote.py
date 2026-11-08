@@ -15,11 +15,11 @@ SYNC_HEADER = "X-Feedback-Sync"
 READ_TTL = 3  # s : la pastille de l'admin relit souvent ; une liste de 3 s suffit
 # Opérations que la production accepte (lecture et écriture des avis, rien d'autre).
 OPS = ("add", "mine", "mark_seen", "all", "count_new", "get", "set_note", "set_priority", "mark_sent", "set_claude_state",
-       "update", "absorb", "set_fields", "create_admin", "comment")
+       "update", "absorb", "set_fields", "create_admin", "comment", "edit_text")
 # Ce qu'une production d'avant le classement (statuts « à mûrir », zone, fil…) sait déjà faire avec « update ».
 LEGACY_ACTIONS = ("new", "progress", "verify", "done", "declined", "delete")
 WRITES = ("add", "update", "set_priority", "set_claude_state", "mark_sent", "absorb", "set_fields", "create_admin", "comment",
-          "set_note")
+          "set_note", "edit_text")
 UNAVAILABLE = "Les avis sont momentanément indisponibles. Réessaie dans un instant."
 OUTDATED = ("La production n'a pas encore cette nouveauté des avis (classement, fil de discussion) : "
             "réessaie quand elle aura été mise à jour.")
@@ -124,6 +124,9 @@ class FeedbackRemote:
 
     def comment(self, fid: str, author: str, text: str, status: str = "") -> dict | None:
         return self._write("comment", fid=fid, author=author, text=text, status=status)
+
+    def edit_text(self, guest_id: str, fid: str, text: str) -> dict | None:
+        return self._write("edit_text", guest_id=guest_id, fid=fid, text=text)
 
     def absorb(self, items: list[dict]) -> int:
         """Verse dans la liste commune des avis gardés jusqu'ici en local (une seule fois, sans doublon)."""

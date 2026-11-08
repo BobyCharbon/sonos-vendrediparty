@@ -20,6 +20,7 @@ MAX_RELATED = 10
 MAX_COMMENTS = 20  # fil admin ↔ Claude : les plus anciens messages partent au-delà
 MAX_COMMENT = 1000
 MAX_HISTORY = 60
+MAX_EDITS = 20  # anciens textes gardés par avis (modifications de l'auteur)
 
 # Statuts, dans l'ordre du travail. guest : ce que l'invité en voit (new = « Envoyé », progress = « En cours »,
 # done, declined) ; admin_only : posé par l'admin seul (jamais par Claude) ; technical : posé par le serveur
@@ -122,6 +123,10 @@ DELETED_NAME = "Compte supprimé"
 ANONYMIZED = ("device", "ip", "photo")  # ce qui désignerait encore la personne dans un avis gardé
 
 
+class FeedbackClosed(ValueError):
+    """Avis terminé ou pas retenu : son texte ne change plus."""
+
+
 class FeedbackBox:
     def __init__(self, path: Path):
         self.path = Path(path)
@@ -187,7 +192,7 @@ class FeedbackBox:
         def public(i: dict) -> dict:
             status = GUEST_VIEW.get(i["status"], "new")
             title = ai_title(i)
-            return {**{k: i[k] for k in ("id", "at", "kind", "text")}, "status": status,
+            return {**{k: i[k] for k in ("id", "at", "kind", "text")}, "status": status, "edited_at": i.get("edited_at", 0),
                     "reply": i.get("reply", "") if status in FINISHED else "", "unseen": bool(i.get("unseen")),
                     **({"title": title} if title else {})}
         return [public(i) for i in reversed(self.items) if i["guest_id"] == guest_id][:20]
@@ -260,14 +265,40 @@ class FeedbackBox:
 
     def absorb(self, items: list[dict]) -> int:
         """Avis d'un autre site (test) versés dans cette liste, une seule fois : ceux déjà présents sont ignorés,
-        l'ordre d'arrivée est gardé. Renvoie le nombre d'avis ajoutés."""
+        l'ordre d'arrivée est gardé ; un texte modifié par son auteur plus récemment suit (jamais une version plus
+        ancienne). Renvoie le nombre d'avis ajoutés."""
         with self.lock:
-            known = {i["id"] for i in self.items}
+            known = {i["id"]: i for i in self.items}
             fresh = [i for i in items if isinstance(i, dict) and i.get("id") and i["id"] not in known and i.get("text")]
+            edited = False
+            for i in items:
+                mine = known.get(i.get("id")) if isinstance(i, dict) else None
+                if mine is not None and i.get("text") and float(i.get("edited_at") or 0) > float(mine.get("edited_at") or 0):
+                    mine.update(text=i["text"], edited_at=i["edited_at"], edits=list(i.get("edits") or [])[-MAX_EDITS:])
+                    edited = True
             if fresh:
                 self.items = sorted(self.items + fresh, key=lambda i: i.get("at", 0))[-MAX_ITEMS:]
+            if fresh or edited:
                 self._save()
         return len(fresh)
+
+    def edit_text(self, guest_id: str, fid: str, text: str) -> dict | None:
+        """L'auteur réécrit son avis (retour de l'admin, 08.11) : l'ancien texte et l'heure sont gardés (edits),
+        l'historique le note. None si l'avis n'est pas le sien ; FeedbackClosed si l'admin l'a déjà fermé."""
+        with self.lock:
+            item = next((i for i in self.items if i["id"] == fid and i["guest_id"] == guest_id), None)
+            if item is None:
+                return None
+            if item["status"] in FINISHED:
+                raise FeedbackClosed("Cet avis est fermé : écris-en un nouveau si besoin.")
+            if item["text"] == text:
+                return item
+            now = time.time()
+            item["edits"] = (list(item.get("edits") or []) + [{"at": now, "before": item["text"]}])[-MAX_EDITS:]
+            item["history"] = (list(item.get("history") or []) + [{"at": now, "by": "author", "field": "text"}])[-MAX_HISTORY:]
+            item.update(text=text, edited_at=now)
+            self._save()
+            return item
 
     def update(self, ids: list[str], action: str, reply: str = "") -> list[dict]:
         """Change le statut (ou supprime). Renvoie les retours qui viennent d'être terminés / pas retenus,

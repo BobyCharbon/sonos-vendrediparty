@@ -221,3 +221,38 @@ def test_admin_creates_classifies_filters_and_discusses(browser, server):
         assert not guest.errors and not boss.errors, guest.errors + boss.errors
     finally:
         guest.close(); boss.close()
+
+
+def test_the_author_rewrites_his_feedback_and_the_admin_sees_the_new_text(browser, server):
+    """Retour de l'admin (08.11) : l'auteur modifie son avis à tout moment ; « modifié le … » s'affiche, l'admin voit le
+    nouveau texte ; un avis terminé n'a plus de bouton « Modifier »."""
+    guest, boss = Phone(browser, server, "Lea"), Phone(browser, server, "Admin", "desktop")
+    try:
+        guest.page.goto("/")
+        sign_in(guest, "jeton-de-test-guest-plus-0001")
+        open_feedback(guest)
+        guest.page.locator("#fbText").fill("Le joystick est trop petit sur mon iPhone")
+        guest.page.locator("#fbSend").tap()
+        expect(guest.page.locator("#fbMine")).to_contain_text("Le joystick est trop petit")
+        guest.page.locator("#fbMine [data-fb-edit]").tap()
+        box = guest.page.locator("#fbMine textarea")
+        expect(box).to_have_value("Le joystick est trop petit sur mon iPhone")
+        box.fill("Le joystick est trop petit sur mon iPhone, surtout en mode paysage")
+        guest.page.locator("#fbMine [data-fb-save]").tap()
+        expect(guest.page.locator("#fbMine")).to_contain_text("surtout en mode paysage")
+        expect(guest.page.locator("#fbMine .fb-edited")).to_contain_text("modifié le")
+        guest.shot("feedback_modifie")
+        boss.page.goto("/admin")
+        boss.page.locator("#pin").fill(ADMIN_PIN)
+        boss.page.locator("#pin").press("Enter")
+        boss.page.locator('button[data-tab="feedback"]').click()
+        expect(boss.page.locator("#fbList")).to_contain_text("surtout en mode paysage")
+        boss.page.locator("#fbList [data-fb-status]").first.select_option("done")
+        expect(boss.page.locator("#fbList")).to_contain_text("Rien à faire de ton côté")
+        guest.page.locator('button[data-tab="music"]').tap()
+        open_feedback(guest)
+        expect(guest.page.locator("#fbMine")).to_contain_text("✅ Terminé")
+        expect(guest.page.locator("#fbMine [data-fb-edit]")).to_have_count(0)
+        assert not guest.errors and not boss.errors, guest.errors + boss.errors
+    finally:
+        guest.close(); boss.close()

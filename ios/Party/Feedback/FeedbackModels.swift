@@ -16,8 +16,13 @@ struct FeedbackItem: Decodable, Equatable, Identifiable {
     let unseen: Bool
     /// Titre de la version reformulée par l'IA (absent pour un avis écrit sans elle).
     var title: String?
+    /// Dernière modification du texte par son auteur (0 : jamais), retour de l'admin du 08.11.
+    var edited_at: Double?
 
     var date: Date { Date(timeIntervalSince1970: at) }
+    var editedDate: Date? { (edited_at ?? 0) > 0 ? Date(timeIntervalSince1970: edited_at!) : nil }
+    /// Terminé ou pas retenu : le texte ne change plus.
+    var editable: Bool { status != "done" && status != "declined" }
 }
 
 struct FeedbackList: Decodable {

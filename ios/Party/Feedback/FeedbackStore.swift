@@ -205,6 +205,19 @@ final class FeedbackStore: ObservableObject {
         }
     }
 
+    /// Modifier son avis (retour de l'admin, 08.11) : vrai si c'est enregistré.
+    func edit(_ item: FeedbackItem, text: String) async -> Bool {
+        guard let me = await web?.guestIdentity() else { return false }
+        do {
+            items = try await api.editFeedback(guestID: me.id, id: item.id, text: text, token: await web?.accountToken())
+            notice = Notice(text: "Avis modifié ✓", isError: false)
+            return true
+        } catch {
+            notice = Notice(text: error.localizedDescription, isError: true)
+            return false
+        }
+    }
+
     func send() async {
         guard canSend, let me = await web?.guestIdentity() else { return }
         sending = true

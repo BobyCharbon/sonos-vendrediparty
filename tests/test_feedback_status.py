@@ -67,7 +67,7 @@ def test_guest_sees_no_internal_fields_and_others_cannot_mark_seen(admin, monkey
     _, fid = setup(monkeypatch, tmp_path)
     act(admin, fid, "note", note="Instructions internes pour Claude")
     act(admin, fid, "done", reply="Fait.")
-    assert set(mine()) == {"id", "at", "kind", "text", "status", "reply", "unseen"}
+    assert set(mine()) == {"id", "at", "kind", "text", "status", "reply", "unseen", "edited_at"}
     TestClient(main.app).post("/api/feedback/seen", json={"guest_id": "feedback-other-0009"})
     assert mine()["unseen"] is True
     assert TestClient(main.app).post("/api/admin/feedback", json={"ids": [fid], "action": "progress"}).status_code == 401

@@ -4167,6 +4167,39 @@ def feedback_ai_rewrite(body: FeedbackAiRewrite, request: Request):
         return {"status": "unavailable", "message": str(e)}
 
 
+class FeedbackEdit(BaseModel):
+    guest_id: str
+    id: str = Field(max_length=40)
+    text: str = Field(max_length=4000)
+    token: str = Field(default="", max_length=4096)
+
+
+FEEDBACK_CLOSED = "Cet avis est fermé"
+
+
+@app.post("/api/feedback/edit")
+def edit_feedback(body: FeedbackEdit, request: Request):
+    """L'auteur réécrit son avis à tout moment (retour de l'admin, 08.11) : l'ancien texte et l'heure restent dans sa
+    trace. Mêmes droits que pour l'écrire ; un avis terminé ou pas retenu ne change plus."""
+    check_guest_id(body.guest_id)
+    if msg := ban_message(body.guest_id, client_ip(request)):
+        raise HTTPException(403, msg)
+    if not may_write_feedback(request, body.token):
+        raise HTTPException(403, "Modifier un avis est réservé aux comptes Guest+ et plus : connecte-toi avec ton numéro.")
+    text = " ".join(body.text.split())[:1000]
+    if len(text) < FEEDBACK_AI_MIN_LENGTH:
+        raise HTTPException(400, f"Écris au moins {FEEDBACK_AI_MIN_LENGTH} caractères")
+    try:
+        item = feedback.edit_text(body.guest_id, body.id, text)
+    except FeedbackUnavailable as e:
+        raise HTTPException(503, str(e)) from None
+    except ValueError as e:  # avis fermé (ici ou dit par la production)
+        raise HTTPException(409 if str(e).startswith(FEEDBACK_CLOSED) else 400, str(e)) from None
+    if item is None:
+        raise HTTPException(404, "Avis introuvable")
+    return {"mine": feedback.mine(body.guest_id)}
+
+
 @app.get("/api/feedback")
 def my_feedback(guest_id: str = ""):
     check_guest_id(guest_id)

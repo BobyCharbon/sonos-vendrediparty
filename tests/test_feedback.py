@@ -48,7 +48,7 @@ def test_native_app_request_is_accepted(monkeypatch, tmp_path):
                                       "context": {"tab": "games"}, "token": PLUS})
     assert r.status_code == 200
     [mine] = r.json()["mine"]
-    assert set(mine) == {"id", "at", "kind", "text", "status", "reply", "unseen"}  # décodé par FeedbackItem
+    assert set(mine) == {"id", "at", "kind", "text", "status", "reply", "unseen", "edited_at"}  # décodé par FeedbackItem
     assert main.feedback.all()[0]["name"] == "Anonyme" and main.feedback.all()[0]["context"] == {"tab": "games", "site": "Prod"}
     assert c.post("/api/feedback/seen", json={"guest_id": GUEST}).status_code == 200
 

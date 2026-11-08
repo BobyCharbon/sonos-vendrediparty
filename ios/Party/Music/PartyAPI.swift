@@ -208,6 +208,13 @@ final class PartyAPI {
         return list.mine
     }
 
+    /// L'auteur réécrit son avis encore ouvert ; le serveur garde l'ancien texte et l'heure (POST /api/feedback/edit).
+    func editFeedback(guestID: String, id: String, text: String, token: String?) async throws -> [FeedbackItem] {
+        let list: FeedbackList = try await postDecoding("/api/feedback/edit",
+                                                        body: ["guest_id": guestID, "id": id, "text": text, "token": token ?? ""])
+        return list.mine
+    }
+
     func markFeedbackSeen(guestID: String) async throws {
         try await post("/api/feedback/seen", body: ["guest_id": guestID])
     }

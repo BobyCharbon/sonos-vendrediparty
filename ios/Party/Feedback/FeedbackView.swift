@@ -15,6 +15,8 @@ struct FeedbackView: View {
     @State private var dictationBase = ""
     @State private var dictatingExtra = false
     @State private var part: Part = .received
+    @State private var editing: FeedbackItem?
+    @State private var editText = ""
 
     private enum Part: String, CaseIterable, Identifiable {
         case received, mine
@@ -70,6 +72,7 @@ struct FeedbackView: View {
             await store.refreshAI()
         }
         .sheet(isPresented: $store.askingConsent, onDismiss: store.consentDismissed) { consentSheet }
+        .sheet(item: $editing) { item in editSheet(item) }
         .onChange(of: dictation.text) { heard in
             guard dictation.listening else { return }
             let joined = [dictationBase, heard].filter { !$0.isEmpty }.joined(separator: " ")
@@ -288,10 +291,17 @@ struct FeedbackView: View {
                 let isNew = store.highlighted.contains(item.id)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(item.title ?? item.text)
-                    Text("\(FeedbackKind.label(for: item.kind)) · \(item.date.formatted(.dateTime.day().month(.abbreviated))) · \(FeedbackStatus.label(for: item.status))")
+                    if item.title != nil { Text(item.text).font(.subheadline).foregroundStyle(.secondary) }
+                    Text("\(FeedbackKind.label(for: item.kind)) · \(item.date.formatted(.dateTime.day().month(.abbreviated))) · \(FeedbackStatus.label(for: item.status))"
+                         + (item.editedDate.map { " · modifié le " + $0.formatted(.dateTime.day().month(.abbreviated).hour().minute()) } ?? ""))
                         .font(.caption).foregroundStyle(.secondary)
                     if !item.reply.isEmpty {
                         Label(item.reply, systemImage: "arrowshape.turn.up.left.fill").foregroundStyle(Palette.accent)
+                    }
+                    if item.editable {
+                        Button { editing = item; editText = item.text } label: { Label("Modifier", systemImage: "pencil") }
+                            .font(.footnote.weight(.semibold)).tint(Palette.accent)
+                            .accessibilityIdentifier("feedback-edit")
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -304,6 +314,30 @@ struct FeedbackView: View {
             ProgressView().frame(maxWidth: .infinity).transition(.opacity)
         }
 
+    }
+
+    /// Modifier son avis : le texte entier, comme à l'envoi ; l'ancien reste dans la trace de l'avis (serveur).
+    private func editSheet(_ item: FeedbackItem) -> some View {
+        NavigationStack {
+            TextEditor(text: $editText)
+                .padding(8)
+                .scrollContentBackground(.hidden)
+                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .padding()
+                .navigationTitle("Modifier mon avis")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Annuler") { editing = nil } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Enregistrer") {
+                            let text = editText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            Task { if await store.edit(item, text: text) { editing = nil } }
+                        }
+                        .disabled(editText.trimmingCharacters(in: .whitespacesAndNewlines).count < FeedbackAI.minimumLength)
+                    }
+                }
+        }
+        .presentationDetents([.medium, .large])
     }
 
     private var noticeBanner: some View {

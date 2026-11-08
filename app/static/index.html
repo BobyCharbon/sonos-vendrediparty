@@ -849,16 +849,49 @@ function fbSyncRole() {
   loadFeedback(false);
   fbBadge();
 }
+// Ses avis : l'auteur peut réécrire un avis encore ouvert, à tout moment (retour de l'admin, 08.11).
+let fbMineItems = [];
+const fbWhen = (t) => new Date(t * 1000).toLocaleString("fr-CH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 function renderFeedback(mine) {
+  fbMineItems = mine;
   fbUnseen = mine.filter((m) => m.unseen).length;
   fbBadge();
   $("fbMineH").classList.toggle("hidden", !mine.length);
-  $("fbMine").innerHTML = mine.map((m) => `<div class="track fb-item ${m.unseen ? "unseen" : ""}"><div class="meta">
+  $("fbMine").innerHTML = mine.map((m) => `<div class="track fb-item ${m.unseen ? "unseen" : ""}" data-fb-id="${esc(m.id)}"><div class="meta">
     <div class="title">${esc(m.title || m.text)}</div>
+    ${m.title ? `<div class="fb-text">${esc(m.text)}</div>` : ""}
     <div class="artist">${{ idea: "💡 Idée", bug: "🐞 Bug", other: "💬 Autre" }[m.kind] || ""} · ${new Date(m.at * 1000).toLocaleDateString("fr-CH", { day: "numeric", month: "short" })}
-      · <span class="fb-st ${m.status}">${FB_STATUS[m.status] || ""}</span></div>
-    ${m.reply ? `<div class="fb-reply">💬 ${esc(m.reply)}</div>` : ""}</div></div>`).join("");
+      · <span class="fb-st ${m.status}">${FB_STATUS[m.status] || ""}</span>${m.edited_at ? ` · <span class="fb-edited">modifié le ${fbWhen(m.edited_at)}</span>` : ""}</div>
+    ${m.reply ? `<div class="fb-reply">💬 ${esc(m.reply)}</div>` : ""}
+    ${["done", "declined"].includes(m.status) ? "" : `<button type="button" class="secondary small fb-edit" data-fb-edit="${esc(m.id)}">✏️ Modifier</button>`}</div></div>`).join("");
 }
+document.addEventListener("click", async (ev) => {
+  const open = ev.target.closest("[data-fb-edit]");
+  if (open) {
+    const m = fbMineItems.find((x) => x.id === open.dataset.fbEdit);
+    const meta = open.closest(".meta");
+    if (!m || !meta) return;
+    meta.innerHTML = `<textarea class="fb-edit-text" maxlength="1000" aria-label="Ton avis">${esc(m.text)}</textarea>
+      <div class="row"><button type="button" class="small" data-fb-save="${esc(m.id)}">Enregistrer</button>
+      <button type="button" class="secondary small" data-fb-cancel>Annuler</button></div>`;
+    meta.querySelector("textarea").focus();
+    return;
+  }
+  if (ev.target.closest("[data-fb-cancel]")) return renderFeedback(fbMineItems);
+  const save = ev.target.closest("[data-fb-save]");
+  if (!save) return;
+  const text = save.closest(".meta").querySelector("textarea").value.trim();
+  save.disabled = true;
+  try {
+    const token = (await freshToken()) || "";
+    const r = await api("/api/feedback/edit", { method: "POST", body: JSON.stringify({ guest_id: guestId, id: save.dataset.fbSave, text, token }) });
+    renderFeedback(r.mine);
+    toast("Avis modifié ✓", "ok");
+  } catch (e) {
+    save.disabled = false;
+    toast(e.message || "L'avis n'a pas pu être modifié", "err");
+  }
+});
 // shown : l'onglet est affiché → ses retours terminés sont « vus » (la pastille s'éteint).
 async function loadFeedback(shown = document.body.dataset.tab === "feedback") {
   if (shown && fbIsAdmin() && fbView === "admin") FeedbackAdmin.load();
