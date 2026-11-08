@@ -176,7 +176,7 @@ export default function Home() {
         {filtersOpen ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, flexGrow: 0 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 16 }}>
           <Chip label="Tout" selected={isSel({ kind: 'all' })} onPress={() => setFilter({ kind: 'all' })} />
-          <Chip label="Mes abonnements" selected={isSel({ kind: 'subscribed' })} onPress={() => setFilter({ kind: 'subscribed' })} />
+          <Chip label="Mes abonnements" selected={isSel({ kind: 'subscribed' })} onPress={() => setFilter(isSel({ kind: 'subscribed' }) ? { kind: 'all' } : { kind: 'subscribed' })} />
           {data?.categories.map((c) => (
             <Chip
               key={c.id}

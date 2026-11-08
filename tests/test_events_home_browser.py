@@ -216,6 +216,11 @@ def test_new_poll_is_obvious_and_every_pill_works(browser, events_origin):
         pw.expect(frame.get_by_test_id('pill-filters')).to_contain_text('Filtre : Soirée')
         frame.get_by_role('button', name='✓ Soirée', exact=True).click()
         pw.expect(frame.get_by_test_id('pill-filters')).to_have_text('Filtres')
+        # « Mes abonnements » se retire aussi d'un second toucher (essai réel du 08.11).
+        frame.get_by_role('button', name='Mes abonnements', exact=True).click()
+        pw.expect(frame.get_by_test_id('pill-filters')).to_contain_text('Filtre : Mes abonnements')
+        frame.get_by_role('button', name='✓ Mes abonnements', exact=True).click()
+        pw.expect(frame.get_by_test_id('pill-filters')).to_have_text('Filtres')
         frame.get_by_test_id('pill-filters').click()
         pw.expect(frame.get_by_role('button', name='Mes abonnements', exact=True)).to_have_count(0)
 
