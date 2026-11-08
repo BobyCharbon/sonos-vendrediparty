@@ -348,11 +348,14 @@ function SwipeRow({ actions, label, children }: { actions: SwipeAction[]; label:
   const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const full = actions.length * ACTION_WIDTH;
   const closing = useRef(false);  // retour à 0 en cours : ce défilement n'est pas une ouverture
-  const close = useMemo(() => () => {
-    openRows.delete(close);
-    closing.current = true;
-    setTimeout(() => { closing.current = false; }, CLOSE_MS);  // jamais bloquée si le retour n'arrive pas à 0
-    scroller.current?.scrollTo({ x: 0, animated: true });
+  const close = useMemo(() => {
+    const fn = () => {
+      openRows.delete(fn);
+      closing.current = true;
+      setTimeout(() => { closing.current = false; }, CLOSE_MS);  // jamais bloquée si le retour n'arrive pas à 0
+      scroller.current?.scrollTo({ x: 0, animated: true });
+    };
+    return fn;
   }, []);
   useEffect(() => {
     watchPageScroll();
