@@ -20,7 +20,7 @@ NOTIFS = [
     {'id': 'n4', 'kind': 'date_fixed', 'title': 'Date fixée', 'body': 'Karaoké', 'event_id': None,
      'created_at': '2026-11-06T09:00:00Z', 'read_at': '2026-11-06T10:00:00Z'},
 ]
-IMPORTANT = {'private_invite', 'new_event', 'group_invite', 'poll_new', 'poll_nudge', 'date_fixed', 'event_changed', 'waitlist',
+IMPORTANT = {'announce_accepted', 'announce_refused', 'group_event_accepted', 'group_event_refused', 'private_invite', 'new_event', 'group_invite', 'poll_new', 'poll_nudge', 'date_fixed', 'event_changed', 'waitlist',
              'coorganizer_added', 'approved', 'rejected', 'group_event_request', 'announce_request', 'ticket_issued',
              'ticket_pay_confirmed', 'ticket_pay_declared', 'moderation_notice'}
 CORS = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Expose-Headers': 'Content-Range',
@@ -240,3 +240,18 @@ def test_new_poll_is_obvious_and_every_pill_works(browser, events_origin):
         assert not errors, errors
     finally:
         context.close()
+
+
+def test_answers_to_the_organizer_requests_count_as_important():
+    """Recette des bots du 08.11 : « Ton annonce a été acceptée / refusée » et la réponse pour un événement de groupe
+    étaient cachées par le filtre « Importantes ». Toute réponse d'une demande (tell_requester) est importante."""
+    import re
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    ts = (root / 'web/events/src/lib/activityBadge.ts').read_text()
+    listed = set(re.findall(r"'([a-z_]+)'", ts.split('IMPORTANT_KINDS = [')[1].split('] as const')[0]))
+    assert listed == IMPORTANT
+    sql = '\n'.join(p.read_text() for p in (root / 'supabase/migrations').glob('*.sql'))
+    answers = set(re.findall(r"tell_requester\([^;]*?'((?:announce|group_event)_[a-z]+)'", sql))
+    assert {'announce_accepted', 'announce_refused', 'group_event_accepted', 'group_event_refused'} <= answers | IMPORTANT
+    assert answers <= IMPORTANT
