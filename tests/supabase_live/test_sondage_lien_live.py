@@ -92,3 +92,22 @@ def test_a_removed_guest_loses_his_votes_and_the_fixed_date_frees_places_for_yes
         assert [rsvp(event, p.uid) for p in (ga, gb, new, vip)] == ['no', 'yes', None, None]
     finally:
         sql(f"delete from public.events where id = '{event}'")
+
+
+def test_if_needed_without_maybe_frees_the_place_for_a_yes(people):  # noqa: F811
+    """Agent « Cohérence » (08.11) : 1 place, « Peut-être » désactivé ; A avait « je viens » par lien et vote « Si
+    besoin », B vote Oui → A n'a plus de réponse et B prend la place (elle restait vide)."""
+    admin, ga, gb, _vip, _new = people
+    event = create_event(admin, 'Test sondage si besoin', visibility='invited', date_mode='poll', starts_at=None,
+                         allow_maybe=False, max_participants=1, waitlist_enabled=False)
+    try:
+        first = option(admin, event, 22)
+        link = admin.rpc('create_event_invite', e=event, places=2).json()
+        for who in (ga, gb):
+            assert who.rpc('accept_invite', token=link['token'], answer='poll').status_code == 200
+        sql(f"insert into public.rsvps (event_id, user_id, status) values ('{event}', '{ga.uid}', 'yes')")
+        vote(ga, first, 'if_needed'); vote(gb, first, 'yes')
+        assert admin.rpc('fix_event_date', e=event, opt=first).status_code in (200, 204)
+        assert [rsvp(event, p.uid) for p in (ga, gb)] == [None, 'yes']
+    finally:
+        sql(f"delete from public.events where id = '{event}'")

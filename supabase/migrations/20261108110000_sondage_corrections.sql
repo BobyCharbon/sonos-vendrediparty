@@ -1,7 +1,7 @@
 -- Sondage de dates, corrections de l'agent « Cohérence » (08.11) :
 -- - un invité retiré par l'organisateur perd aussi ses votes de dates (il revenait dans la liste, « vient » à la date fixée) ;
 -- - date fixée : les « Non » d'abord (la place libérée sert aux « Oui ») ; « Si besoin » sans « Peut-être » efface
---   l'ancienne réponse (le vote décide, comme avec « Peut-être »).
+--   l'ancienne réponse avant les « Oui » (le vote décide, comme avec « Peut-être »).
 -- Purement additif et rejouable (create or replace).
 
 create or replace function public.remove_invitee(e uuid, member uuid) returns void
@@ -36,15 +36,17 @@ begin
   insert into rsvps (event_id, user_id, status)
   select e, dv.user_id, 'no'::rsvp_status from date_votes dv where dv.option_id = opt and dv.vote = 'no'
   on conflict (event_id, user_id) do update set status = 'no';
+  -- « Si besoin » sans « Peut-être » : l'ancienne réponse part AVANT les « Oui » (sa place leur revient).
+  if not ev.allow_maybe then
+    delete from rsvps r using date_votes dv
+      where dv.option_id = opt and dv.vote = 'if_needed' and r.event_id = e and r.user_id = dv.user_id;
+  end if;
   for v in select dv.user_id, dv.vote from date_votes dv
            where dv.option_id = opt and dv.vote in ('yes', 'if_needed')
            order by (dv.vote = 'yes') desc, dv.user_id loop
     -- « Si besoin » sans « Peut-être » : aucune réponse (07.11), la personne répondra elle-même.
     -- Le vote décide aussi ici : une ancienne réponse « je viens » ne reste pas (elle prendrait une place).
-    if v.vote = 'if_needed' and not ev.allow_maybe then
-      delete from rsvps where event_id = e and user_id = v.user_id;
-      continue;
-    end if;
+    continue when v.vote = 'if_needed' and not ev.allow_maybe;  -- réponse déjà effacée plus haut
     -- Sans liste d'attente : seuls les « Oui » qui tiennent dans les places sont inscrits.
     continue when v.vote = 'yes' and not ev.waitlist_enabled and ev.max_participants is not null
       and (select coalesce(sum(1 + r.plus_ones), 0) from rsvps r
