@@ -695,3 +695,23 @@ def test_settings_row_ton_avis_shows_the_party_badge_and_opens_the_page(browser,
         assert not errors, errors
     finally:
         context.close()
+
+
+def test_about_comes_right_after_the_place(browser, events_origin):
+    """Demande de l'admin (08.11) : « À propos » juste après le lieu, avant l'agenda, la réponse et le reste de la fiche."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page();mock_services(page)
+    try:
+        page.goto(events_origin,wait_until='domcontentloaded')
+        page.get_by_role('button',name='Événements',exact=True).click()
+        frame=page.frame_locator('#eventsFrame')
+        login(frame)
+        frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
+        place=frame.get_by_text('Lieu de démonstration',exact=True).first
+        about=frame.get_by_text('Données fictives réservées aux tests.',exact=True)
+        answer=frame.get_by_role('button',name='Ajouter à mon agenda').first
+        pw.expect(about).to_be_visible(timeout=15000)
+        pw.expect(answer).to_be_visible()
+        y=lambda loc: loc.bounding_box()['y']  # noqa: E731
+        assert y(place) < y(about) < y(answer)
+    finally: context.close()

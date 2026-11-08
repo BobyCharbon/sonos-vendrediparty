@@ -303,6 +303,13 @@ export default function EventScreen() {
           </Pressable>
         ) : null}
 
+        {/* « À propos » juste après le lieu : on lit de quoi il s'agit avant de répondre (demande de l'admin, 08.11). */}
+        {ev.description ? (
+          <Section title="À propos">
+            <LinkedText text={ev.description} color={colors.textSoft} style={{ lineHeight: 22 }} />
+          </Section>
+        ) : null}
+
         {showCalendar ? <CalendarButton event={ev} prominent={mine?.status === 'yes' || mine?.status === 'maybe'} /> : null}
 
         {ev.status === 'cancelled' ? (
@@ -372,12 +379,6 @@ export default function EventScreen() {
       ) : null}
       {mine?.status === 'yes' && ticketRelevant(ev, data.loadedAt) ? (
         <TicketCard event={ev} me={me} answerKey={`${mine.status}:${mine.waitlisted}:${mine.plus_ones}:${paymentsTick}`} />
-      ) : null}
-
-      {ev.description ? (
-        <Section title="À propos">
-          <LinkedText text={ev.description} color={colors.textSoft} style={{ lineHeight: 22 }} />
-        </Section>
       ) : null}
 
       {infoRows.length ? (
