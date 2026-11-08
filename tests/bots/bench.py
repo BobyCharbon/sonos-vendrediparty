@@ -256,6 +256,17 @@ class Phone:
             self.flag("🔴", f"{what} : ne défile pas au doigt", f"conteneurs sous le doigt : {before}")
         return "moved" if moved else "blocked"
 
+    def finger_swipe_left(self, what: str, target, distance: int = 320) -> None:
+        """Glisse le doigt vers la gauche sur un élément (ligne qui glisse, comme Mail) : vrai geste tactile."""
+        target.scroll_into_view_if_needed()
+        box = target.bounding_box()
+        cdp = self.ctx.new_cdp_session(self.page)
+        cdp.send("Input.synthesizeScrollGesture", {"x": box["x"] + box["width"] * 0.8, "y": box["y"] + box["height"] / 2,
+                                                   "xDistance": -distance, "gestureSourceType": "touch", "speed": 900})
+        cdp.detach()
+        self.page.wait_for_timeout(700)
+        self.log(f"glisse le doigt vers la gauche sur {what}")
+
     def scroll_to_bottom(self, what: str, x: float | None = None, y: float | None = None, tries: int = 10) -> str:
         """Fait défiler au doigt jusqu'en bas ; « end » si le bas est atteint."""
         result = "end"

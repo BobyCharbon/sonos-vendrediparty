@@ -276,20 +276,28 @@ def phase_retirer(browser, origin, only):
     try:
         _open(p, "e_full")
         page.get_by_text(re.compile("^Invités · ")).first.wait_for(timeout=20000)
-        with p.step("retirer Bot Gina"):
-            remove = page.get_by_role("button", name=re.compile("Retirer.*Bot Gina"))
-            remove.first.scroll_into_view_if_needed()
-            p.tap(remove.first, "Retirer Bot Gina")
-            page.wait_for_timeout(1200)
-            p.shot("confirmer-visible")
-            confirm = page.get_by_role("button", name=re.compile("^Confirmer"))
-            box = confirm.first.bounding_box() if confirm.count() else None
-            p.log(f"bouton Confirmer : {box}")
-            if box and box["height"] < 40:
-                p.flag("🟠", "Retirer un invité : le bouton « Confirmer » révélé est écrasé / mal placé", str(box))
-            p.tap(confirm.first, "Confirmer le retrait")
-            page.wait_for_timeout(2500)
-            p.shot("apres-retrait")
+        invited = sql(f"""select 1 from public.event_invites i join public.profiles p on p.id = i.user_id
+                          where i.event_id = '{load_state()['e_full']}' and p.display_name = 'Bot Gina'""")
+        if not invited:
+            p.log("Bot Gina déjà retirée (phase invitations) : on passe à la réinvitation")
+        if invited:
+            with p.step("retirer Bot Gina"):
+                remove = page.get_by_role("button", name=re.compile("Retirer.*Bot Gina"))
+                # Comme un doigt : la ligne glisse vers la gauche et montre « Retirer » (la faire défiler par programme
+                # fait aussi défiler la page, qui referme la ligne : correction du 08.11).
+                row = page.locator('[data-testid="swipe-row"]').filter(has_text="Bot Gina").first
+                p.finger_swipe_left("la ligne de Bot Gina", row)
+                p.tap(remove.first, "Retirer Bot Gina")
+                page.wait_for_timeout(1200)
+                p.shot("confirmer-visible")
+                confirm = page.get_by_role("button", name=re.compile("^Confirmer"))
+                box = confirm.first.bounding_box() if confirm.count() else None
+                p.log(f"bouton Confirmer : {box}")
+                if box and box["height"] < 40:
+                    p.flag("🟠", "Retirer un invité : le bouton « Confirmer » révélé est écrasé / mal placé", str(box))
+                p.tap(confirm.first, "Confirmer le retrait")
+                page.wait_for_timeout(2500)
+                p.shot("apres-retrait")
         rows = sql(f"""select 1 from public.event_invites i join public.profiles p on p.id = i.user_id
                        where i.event_id = '{load_state()['e_full']}' and p.display_name = 'Bot Gina'""")
         p.log(f"Bot Gina encore invitée en base : {bool(rows)}")
