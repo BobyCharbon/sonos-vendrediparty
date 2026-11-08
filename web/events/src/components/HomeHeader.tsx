@@ -7,13 +7,15 @@ import { duration, enter, pressTransition, transition } from '@/lib/motion';
 import { colors, font } from '@/lib/theme';
 
 /** Icônes au trait (même dessin que les maquettes), en SVG dans la page : le module ne tourne que sur le web. */
-function Icon({ paths }: { paths: string[] }) {
+export function Icon({ paths }: { paths: string[] }) {
   return createElement('svg', {
     width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: colors.text, strokeWidth: 2,
     strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true,
   }, paths.map((d) => createElement('path', { key: d, d })));
 }
 const SEARCH = ['M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14', 'M20 20l-3.5-3.5'];
+/** ✕ dessiné : le caractère « ✕ » passait par la police des emojis (carré « ? » sur le simulateur iPhone). */
+export const CLOSE = ['M6 6l12 12', 'M18 6L6 18'];
 const BELL = ['M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8', 'M10 20a2 2 0 0 0 4 0'];
 
 type HeaderProps = {

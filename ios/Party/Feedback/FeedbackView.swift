@@ -292,14 +292,19 @@ struct FeedbackView: View {
             ForEach(store.items) { item in
                 let isNew = store.highlighted.contains(item.id)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(item.title ?? item.text)
-                    if item.title != nil { Text(item.text).font(.subheadline).foregroundStyle(.secondary) }
-                    Text("\(FeedbackKind.label(for: item.kind)) · \(item.date.formatted(.dateTime.day().month(.abbreviated))) · \(FeedbackStatus.label(for: item.status))"
-                         + (item.editedDate.map { " · modifié le " + $0.formatted(.dateTime.day().month(.abbreviated).hour().minute()) } ?? ""))
-                        .font(.caption).foregroundStyle(.secondary)
-                    if !item.reply.isEmpty {
-                        Label(item.reply, systemImage: "arrowshape.turn.up.left.fill").foregroundStyle(Palette.accent)
+                    // Le texte de l'avis lu d'un bloc ; « Modifier » reste un bouton à part (VoiceOver et toucher).
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(item.title ?? item.text)
+                        if item.title != nil { Text(item.text).font(.subheadline).foregroundStyle(.secondary) }
+                        Text("\(FeedbackKind.label(for: item.kind)) · \(item.date.formatted(.dateTime.day().month(.abbreviated))) · \(FeedbackStatus.label(for: item.status))"
+                             + (item.editedDate.map { " · modifié le " + $0.formatted(.dateTime.day().month(.abbreviated).hour().minute()) } ?? ""))
+                            .font(.caption).foregroundStyle(.secondary)
+                        if !item.reply.isEmpty {
+                            Label(item.reply, systemImage: "arrowshape.turn.up.left.fill").foregroundStyle(Palette.accent)
+                        }
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityHint(isNew ? "Nouvelle réponse" : "")
                     if item.editable {
                         Button { editing = item; editText = item.text; editError = nil } label: { Label("Modifier", systemImage: "pencil") }
                             .font(.footnote.weight(.semibold)).tint(Palette.accent)
@@ -309,8 +314,6 @@ struct FeedbackView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .card(isNew ? Palette.mine : Palette.card)
                 .motionTransition()
-                .accessibilityElement(children: .combine)
-                .accessibilityHint(isNew ? "Nouvelle réponse" : "")
             }
         } else if !store.loaded {
             ProgressView().frame(maxWidth: .infinity).transition(.opacity)

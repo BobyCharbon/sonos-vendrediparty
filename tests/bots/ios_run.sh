@@ -17,6 +17,9 @@ sed -i '' 's/testTargets: \[PartyTests, PartyUITests\]/testTargets: [PartyUITest
 SIM=$(xcrun simctl list devices | grep "Bots iPhone 17 (" | head -1 | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
 if [ -z "$SIM" ]; then SIM=$(xcrun simctl create "Bots iPhone 17" "iPhone 17"); fi
 xcrun simctl boot "$SIM" 2>/dev/null || true
+# App vierge à chaque test : sinon la session du bot précédent reste (la valideuse voyait l'Activité d'Olga).
+xcrun simctl uninstall "$SIM" ch.bobycharbon.party 2>/dev/null || true
+xcrun simctl keychain "$SIM" reset 2>/dev/null || true   # la session gardée dans le trousseau survit à la désinstallation
 xcrun simctl io "$SIM" recordVideo --codec h264 --force "$OUTDIR/video-$(echo "$TEST" | tr '/' '-').mp4" &
 REC=$!
 # Toujours recompiler le test du banc (sinon xcodebuild peut relancer un ancien PartyUITests-Runner).

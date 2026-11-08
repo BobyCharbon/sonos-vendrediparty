@@ -1,9 +1,10 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button, Chip, Empty, ErrorText, Reveal, Screen, T, Title } from '@/components/ui';
 import { Announcements } from '@/components/Announcements';
+import { CLOSE, Icon } from '@/components/HomeHeader';
 import { GroupRequests } from '@/components/GroupRequests';
 import { BADGE_RED, HIDDEN_KIND, isImportant } from '@/lib/activityBadge';
 import { useMe } from '@/lib/auth';
@@ -11,7 +12,7 @@ import { useQuery } from '@/lib/data';
 import { formatMessageTime } from '@/lib/format';
 import { duration, pressTransition, transition } from '@/lib/motion';
 import { must, supabase } from '@/lib/supabase';
-import { colors, font, radius } from '@/lib/theme';
+import { colors, radius } from '@/lib/theme';
 
 type Item = { id: string; kind: string; title: string; body: string; event_id: string | null; created_at: string; read_at: string | null };
 type Filter = 'important' | 'all';
@@ -62,7 +63,7 @@ export default function Activity() {
         {unread ? <Button small variant="ghost" label="Tout marquer lu" onPress={markAll} /> : null}
         <Pressable accessibilityRole="button" accessibilityLabel="Fermer l'activité" onPress={close}
           style={({ pressed }) => [st.close, pressed && { opacity: 0.6 }]}>
-          <Text style={st.closeText}>✕</Text>
+          <Icon paths={CLOSE} />
         </Pressable>
       </View>
       <View style={st.filters}>
@@ -112,7 +113,6 @@ function Row({ n, index, onPress }: { n: Item; index: number; onPress: () => voi
 const st = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   close: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center' },
-  closeText: { color: colors.textSoft, fontSize: 18, lineHeight: 20, ...font.semibold },
   filters: { flexDirection: 'row', gap: 6 },
   section: { letterSpacing: 0.6, marginTop: 6 },
   note: { textAlign: 'center', marginTop: 8 },
