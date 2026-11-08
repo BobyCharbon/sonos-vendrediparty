@@ -303,7 +303,7 @@ def phase_annuler(browser, origin):
         with p.step("liste après annulation"):
             go_list(p)
             found = {}
-            for t in ("À venir", "Sondages", "En attente", "Brouillons", "Passés"):
+            for t in ("À venir", "Sondages", "Brouillons", "Passés"):
                 tab(p, t)
                 found[t] = in_list(p, title)
                 if t == "À venir":
@@ -449,10 +449,10 @@ def phase_proposition(browser, origin):
         p.log(f"E2 = {eid} statut {ev(eid).get('status') if eid else None}")
         p.expect_or_flag(page.get_by_text("En attente de validation").first, "le badge « En attente de validation »")
         go_list(p)
-        tab(p, "En attente")
+        tab(p, "Brouillons")  # « En attente » est rangé dans « Brouillons » (accueil du 08.11)
         p.shot("onglet-en-attente")
         if not in_list(p, "Proposition Victor"):
-            p.flag("🟠", "proposition : absente de l'onglet « En attente » de son auteur")
+            p.flag("🟠", "proposition : absente de l'onglet « Brouillons » de son auteur")
     finally:
         p.close()
     eid = load_state()["c6_e2"]
@@ -743,7 +743,7 @@ def phase_annule_liste(browser, origin):
         try:
             go_list(p)
             found = {}
-            for t in ("À venir", "Sondages", "En attente", "Brouillons", "Passés"):
+            for t in ("À venir", "Sondages", "Brouillons", "Passés"):
                 tab(p, t)
                 found[t] = in_list(p, "Liste Zygomatique")
                 if t == "À venir":

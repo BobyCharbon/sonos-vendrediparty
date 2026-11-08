@@ -10,7 +10,7 @@ const RELEASE = 'transform .32s cubic-bezier(.2, .9, .3, 1)';
 const project = (velocity: number) => (velocity / 1000) * 0.998 / (1 - 0.998);
 
 // Écrans racines (onglets) : rien « derrière » à retrouver par un glisser.
-const ROOTS = new Set(['/', '/activity', '/profile', '/account', '/welcome', '/sign-in']);
+const ROOTS = new Set(['/', '/profile', '/account', '/welcome', '/sign-in']);
 // Le geste ne démarre jamais dans un champ, une fenêtre (recadrage photo, feuille) ou une zone qui glisse déjà.
 const OWN_GESTURE = 'input, textarea, select, [role="dialog"], [aria-modal="true"], [data-no-edge-swipe]';
 const currentPath = () => location.pathname.replace(/^\/events(?=\/|$)/, '') || '/';

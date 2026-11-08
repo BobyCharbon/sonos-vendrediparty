@@ -437,7 +437,7 @@ def test_editing_a_pending_proposal_never_says_publish(browser, events_origin):
     context, page, frame, base, errors = launch(browser, events_origin, event=full_event(
         {'title': 'Proposition', 'status': 'pending', 'starts_at': '2030-11-14T18:00:00Z'}))
     try:
-        frame.get_by_role('tab', name='En attente', exact=True).click()
+        frame.get_by_role('tab', name='Brouillons', exact=True).click()  # propositions en attente rangées ici (08.11)
         open_event(frame, 'Proposition')
         frame.get_by_role('button', name='Modifier', exact=True).click()
         pw.expect(field(frame, 'Titre')).to_have_value('Proposition', timeout=10000)

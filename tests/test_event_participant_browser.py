@@ -166,12 +166,13 @@ def test_list_search_tabs_and_attendance_pill(browser, events_origin):
         pw.expect(page.get_by_text('Soirée de test participant').first).to_be_visible(timeout=15000)
         pw.expect(page.get_by_role('button', name='3 présents ou peut-être : 2 présents, 1 peut-être', exact=True)).to_be_visible()
         assert page.get_by_text('Liste d’attente', exact=False).count() == 0  # mon « Peut-être » n'est pas une attente
+        page.get_by_role('button', name='Rechercher', exact=True).click()
         search = page.get_by_label('Rechercher un événement')
         search.fill('bar du lac')
         pw.expect(page.get_by_text('Week-end à choisir')).to_have_count(0)
         pw.expect(page.get_by_text('Soirée de test participant').first).to_be_visible()
         search.fill('')
-        page.get_by_role('tab', name='Sondages', exact=True).click()
+        page.get_by_test_id('pill-polls').click()  # « Sondages, 1 en attente de ton vote »
         pw.expect(page.get_by_text('Week-end à choisir').first).to_be_visible()
         pw.expect(page.get_by_text('Soirée de test participant')).to_have_count(0)
     finally:

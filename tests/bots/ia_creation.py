@@ -121,7 +121,7 @@ def signed(browser, key: str, phase: str):
     for attempt in range(5):
         p.goto("/events/")
         field = page.get_by_label("Ton numéro de téléphone", exact=True)
-        listed = page.get_by_label("Rechercher un événement")
+        listed = page.get_by_role("button", name="Rechercher", exact=True)
         try:
             field.or_(listed).first.wait_for(state="visible", timeout=40000)
         except Exception:

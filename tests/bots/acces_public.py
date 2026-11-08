@@ -714,7 +714,7 @@ def phase_ap_reseau(browser, origin, only):
             p.ctx.set_offline(False)
             p.goto("/events/")
             page.wait_for_timeout(4000)
-            p.expect_or_flag(page.get_by_label("Rechercher un événement"), "liste revenue après le réseau")
+            p.expect_or_flag(page.get_by_role("button", name="Rechercher", exact=True), "liste revenue après le réseau")
     finally:
         p.ctx.set_offline(False)
         p.close()
@@ -979,7 +979,7 @@ def phase_ap_perf(browser, origin, only):
             for run in range(3):
                 t0 = time.time()
                 p.goto("/events/")
-                page.get_by_label("Rechercher un événement").wait_for(timeout=60000)
+                page.get_by_role("button", name="Rechercher", exact=True).wait_for(timeout=60000)
                 page.get_by_text(re.compile(re.escape(PREFIX) + r" (Perf|Soirée)")).first.wait_for(timeout=60000)
                 t_first = time.time() - t0
                 nav = page.evaluate("""() => { const n = performance.getEntriesByType('navigation')[0];

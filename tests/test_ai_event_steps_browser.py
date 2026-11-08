@@ -81,7 +81,7 @@ def member_without_vip(page):
 def open_step_two(page, origin, query=f'suggested={TOM},pas-un-id'):
     page.goto(f'{origin}/events/', wait_until='domcontentloaded')
     login(page)
-    pw.expect(page.get_by_label('Rechercher un événement')).to_be_visible(timeout=15000)
+    pw.expect(page.get_by_role('button', name='Rechercher', exact=True)).to_be_visible(timeout=15000)
     page.goto(f'{origin}/events/event/{EVENT}/invite?{query}', wait_until='domcontentloaded')
     pw.expect(page.get_by_role('progressbar', name='Étape 2 sur 3 : Qui est invité')).to_be_visible(timeout=15000)
 
@@ -278,7 +278,7 @@ def test_iphone_app_opens_step_two_in_the_party_page_and_it_stays_open(browser, 
         page.get_by_role('button', name='Événements', exact=True).click()
         frame = page.frame_locator('#eventsFrame')
         login(frame)
-        pw.expect(frame.get_by_label('Rechercher un événement')).to_be_visible(timeout=15000)
+        pw.expect(frame.get_by_role('button', name='Rechercher', exact=True)).to_be_visible(timeout=15000)
         if start == 'account':  # assistant ouvert depuis Réglages : le module est sur /account
             page.evaluate("showTab('account')")
             pw.expect(frame.get_by_text('Confidentialité', exact=False).first).to_be_visible(timeout=15000)

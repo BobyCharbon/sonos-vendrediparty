@@ -28,9 +28,10 @@ def test_sheet_close_button_is_44_by_44_on_the_web():
 
 def test_active_segments_and_tabs_use_the_deep_pink_of_main_buttons():
     ui = (SRC / 'components/ui.tsx').read_text()
-    tabs = (SRC / 'app/(tabs)/_layout.tsx').read_text()
+    # Accueil (08.11) : les onglets du haut sont devenus des pastilles (HomeHeader), même rose profond.
+    pills = (SRC / 'components/HomeHeader.tsx').read_text()
     assert re.search(r'segmentOn: \{ backgroundColor: colors\.action', ui)
-    assert re.search(r'linkOn: \{ backgroundColor: colors\.action', tabs)
+    assert re.search(r'pillOn: \{ backgroundColor: colors\.action', pills)
 
 
 def test_unknown_page_is_in_french():

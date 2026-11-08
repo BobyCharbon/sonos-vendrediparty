@@ -118,7 +118,7 @@ def signed(browser, key: str, origin: str, phase: str):
     for attempt in range(3):
         p.goto("/events/")
         login = page.get_by_label("Ton numéro de téléphone", exact=True)
-        listed = page.get_by_label("Rechercher un événement")
+        listed = page.get_by_role("button", name="Rechercher", exact=True)
         try:
             login.or_(listed).first.wait_for(state="visible", timeout=60000)
         except Exception:

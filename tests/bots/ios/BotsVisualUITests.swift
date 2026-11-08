@@ -87,8 +87,11 @@ final class BotsVisualUITests: XCTestCase {
     /// Relance R-09 : la liste du banc a ~80 cartes ; parcourir son arbre d'accessibilité bloquait l'app (« main thread
     /// busy for 30 s » sous la charge). On filtre la liste par le champ de recherche, puis on touche la carte.
     private func openEventByName(_ app: XCUIApplication, _ text: String = "Très longue") -> XCUIElement {
+        // Accueil compact (08.11) : le champ s'ouvre par la loupe.
+        let loupe = app.webViews.buttons["Rechercher"].firstMatch
+        if loupe.waitForExistence(timeout: 60) { loupe.tap() }
         let search = app.webViews.textFields["Rechercher un événement"].firstMatch
-        if search.waitForExistence(timeout: 60) {
+        if search.waitForExistence(timeout: 10) {
             search.tap()
             search.typeText(text)
             Thread.sleep(forTimeInterval: 3)
@@ -193,8 +196,8 @@ final class BotsVisualUITests: XCTestCase {
             note("❌ bouton « Inviter » introuvable sur la fiche (ou hors de la zone touchable : y=\(invite.exists ? Int(invite.frame.minY) : -1))")
         }
 
-        // Retour : bouton ‹ puis glissement depuis le bord gauche. La liste est reconnue à son champ de recherche.
-        let list = app.webViews.textFields["Rechercher un événement"].firstMatch
+        // Retour : bouton ‹ puis glissement depuis le bord gauche. La liste est reconnue à sa loupe.
+        let list = app.webViews.buttons["Rechercher"].firstMatch
         let back = app.webViews.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Retour'")).firstMatch
         for _ in 0..<8 where !(back.exists && back.isHittable) { swipeUp(app, from: 0.3, to: 0.8) }
         note(back.exists ? "bouton retour « \(back.label) » \(Int(back.frame.width))×\(Int(back.frame.height)) y=\(Int(back.frame.minY))" : "❌ pas de bouton retour sur la fiche")

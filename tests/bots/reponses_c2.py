@@ -356,7 +356,7 @@ def phase_login(browser, origin, only):
         try:
             with p.step("connexion"):
                 p.sign_in()
-                p.see(p.page.get_by_label("Rechercher un événement"), "la liste des événements", 30000)
+                p.see(p.page.get_by_role("button", name="Rechercher", exact=True), "la liste des événements", 30000)
                 f.accept_terms_if_asked(p)
         finally:
             p.close()

@@ -15,7 +15,7 @@ def phase_connexion(browser, origin, only):
         p = phone(browser, key, origin, "connexion")
         try:
             p.sign_in()
-            p.see(p.page.get_by_label("Rechercher un événement"), "la liste des événements", 30000)
+            p.see(p.page.get_by_role("button", name="Rechercher", exact=True), "la liste des événements", 30000)
             p.shot("liste")
             p.finger_scroll("liste des événements")
             p.check_texts_cut("liste")

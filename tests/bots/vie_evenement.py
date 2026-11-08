@@ -132,7 +132,7 @@ def go_list(p) -> None:
     """Liste chargée (plus de cartes fantômes) ; erreur de la base → « Réessayer »."""
     p.goto("/events/")
     page = p.page
-    page.get_by_label("Rechercher un événement").wait_for(timeout=90000)
+    page.get_by_role("button", name="Rechercher", exact=True).wait_for(timeout=90000)
     for _ in range(4):
         page.wait_for_timeout(1500)
         try:
@@ -167,7 +167,7 @@ def phase_connexion(browser, origin):
         try:
             p.sign_in()
             f.accept_terms_if_asked(p)
-            p.see(p.page.get_by_label("Rechercher un événement"), "la liste", 30000)
+            p.see(p.page.get_by_role("button", name="Rechercher", exact=True), "la liste", 30000)
         finally:
             p.close()
 
@@ -498,7 +498,7 @@ def phase_annuler(browser, origin):
             go_list(p)
             p.shot("liste-a-venir")
             found = {}
-            for t in ("À venir", "Sondages", "En attente", "Brouillons", "Passés"):
+            for t in ("À venir", "Sondages", "Brouillons", "Passés"):
                 tab(p, t)
                 found[t] = in_list(p, title)
             p.log(f"événement annulé (date future) visible dans : {found}")
@@ -846,6 +846,7 @@ def phase_liste(browser, origin):
             if not page.get_by_text("Liste Zygomatique").count():
                 p.flag("🟠", "nouvel événement du groupe absent de « À venir »")
             with p.step("recherche par titre, lieu, sans résultat"):
+                p.tap(page.get_by_role("button", name="Rechercher", exact=True), "la loupe")
                 s = page.get_by_label("Rechercher un événement")
                 p.type(s, "zygomatique", "la recherche")
                 page.wait_for_timeout(800)
@@ -992,7 +993,7 @@ def phase_annule_liste(browser, origin):
             control = in_list(p, "Proposition Victor")
             p.log(f"témoin « Proposition Victor » (publié, à venir) visible : {control}")
             found = {}
-            for t in ("À venir", "Sondages", "En attente", "Brouillons", "Passés"):
+            for t in ("À venir", "Sondages", "Brouillons", "Passés"):
                 tab(p, t)
                 p.page.wait_for_timeout(1000)
                 found[t] = in_list(p, "Liste Zygomatique")

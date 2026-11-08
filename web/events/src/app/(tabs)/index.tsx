@@ -5,7 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EventCard } from '@/components/EventCard';
 import { SignedIn } from '@/components/SignedIn';
-import { Button, Chip, Empty, ErrorText, Input, Reveal, s, Segmented, Skeleton, T, Title } from '@/components/ui';
+import { HomeHeader, HomePills } from '@/components/HomeHeader';
+import { Button, Chip, Empty, ErrorText, Input, Reveal, s, Skeleton, T } from '@/components/ui';
+import { useImportantUnread } from '@/lib/activityBadge';
 import { useAuth, useMe } from '@/lib/auth';
 import { type Attendance, fetchAttendance } from '@/lib/attendance';
 import { inTab, type ListTab } from '@/lib/eventTime';
@@ -16,6 +18,7 @@ import { duration, ease, enter, pressTransition, transition } from '@/lib/motion
 import { colors, font, radius } from '@/lib/theme';
 
 type Tab = ListTab;
+type PillKey = Exclude<Tab, 'pending'> | 'filters';
 type Filter = { kind: 'all' } | { kind: 'subscribed' } | { kind: 'category'; id: string } | { kind: 'tag'; id: string };
 
 export default function Home() {
@@ -30,6 +33,8 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>('upcoming');
   const [filter, setFilter] = useState<Filter>({ kind: 'all' });
   const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   // « + Proposer » s’efface en descendant dans la liste et revient dès qu’on remonte (comme Mail ou Photos).
   const [fabAway, setFabAway] = useState(false);
   const lastY = useRef(0);
@@ -73,7 +78,8 @@ export default function Home() {
   const visible = useMemo(() => {
     if (!data) return [];
     return data.events
-      .filter((e) => inTab(e, tab, me.id, data.loadedAt))
+      // « Brouillons » range aussi mes propositions en attente de validation (plus d'onglet « En attente »).
+      .filter((e) => inTab(e, tab, me.id, data.loadedAt) || (tab === 'drafts' && inTab(e, 'pending', me.id, data.loadedAt)))
       .filter((e) => {
         const query = search.trim().toLocaleLowerCase('fr');
         if (!query) return true;
@@ -107,7 +113,19 @@ export default function Home() {
   const goingList = tab === 'upcoming' ? visible.filter(going) : [];
   const rest = tab === 'upcoming' ? visible.filter((e) => !going(e)) : visible;
   const unvotedPolls = data?.events.filter((e) => e.date_mode === 'poll' && awaiting(e)).length ?? 0;
-  const pollsToAnswer = tab === 'upcoming' && filter.kind === 'all' && !search.trim() ? unvotedPolls : 0;
+  // Sondages qui attendent mon vote : bandeau en tête de liste (hors onglet Sondages et pendant une recherche),
+  // compte rouge sur « Sondages ».
+  const openPolls = tab === 'polls' || !data || search.trim() ? [] : data.events.filter((e) => e.date_mode === 'poll' && awaiting(e));
+  const pollBanner = openPolls.length === 0 ? null : openPolls.length === 1
+    ? { only: openPolls[0].id, title: `Nouveau sondage : ${openPolls[0].title}`, body: 'Choisis les dates qui t’arrangent.',
+      label: `Nouveau sondage : ${openPolls[0].title}. Choisis les dates qui t’arrangent. Voter` }
+    : { only: null, title: `${openPolls.length} sondages attendent ton vote`, body: openPolls.map((e) => e.title).join(' · '),
+      label: `${openPolls.length} sondages attendent ton vote. Voter` };
+  const important = useImportantUnread(data?.loadedAt);
+  const filterName = filter.kind === 'subscribed' ? 'Mes abonnements'
+    : filter.kind === 'category' ? data?.categories.find((c) => c.id === filter.id)?.name
+    : filter.kind === 'tag' ? `#${data?.tags.find((t) => t.id === filter.id)?.name ?? ''}` : null;
+  const filterLabel = filterName ? `Filtre : ${filterName}` : 'Filtres';
   const isSel = (f: Filter) => JSON.stringify(f) === JSON.stringify(filter);
 
   return (
@@ -126,36 +144,37 @@ export default function Home() {
           if (away !== fabAway) setFabAway(away);
         }}
       >
-        <View style={s.rowBetween}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <T muted size={14}>Salut {me.display_name} 👋</T>
-            <Title size={28}>
-              Les événements du groupe
-            </Title>
-          </View>
-        </View>
-
-        <Input
-          accessibilityLabel="Rechercher un événement"
-          placeholder="Rechercher un événement, un lieu, un tag…"
-          value={search}
-          onChangeText={setSearch}
-          returnKeyType="search"
+        <HomeHeader
+          searchOpen={searchOpen}
+          onToggleSearch={() => { if (searchOpen) setSearch(''); setSearchOpen(!searchOpen); }}
+          important={important}
+          onBell={() => router.push('/activity')}
         />
 
-        <Segmented<Tab>
-          value={tab}
-          onChange={setTab}
-          options={[
-            { key: 'upcoming', label: 'À venir' },
-            { key: 'polls', label: 'Sondages', dot: unvotedPolls > 0 },
-            { key: 'pending', label: 'En attente' },
-            { key: 'drafts', label: 'Brouillons' },
-            { key: 'past', label: 'Passés' },
+        {searchOpen ? (
+          <Input
+            accessibilityLabel="Rechercher un événement"
+            placeholder="Rechercher un événement, un lieu, un tag…"
+            value={search}
+            onChangeText={setSearch}
+            returnKeyType="search"
+            autoFocus
+          />
+        ) : null}
+
+        <HomePills<PillKey>
+          items={[
+            { key: 'upcoming', label: 'À venir', selected: tab === 'upcoming' },
+            { key: 'polls', label: 'Sondages', count: unvotedPolls, selected: tab === 'polls' },
+            { key: 'drafts', label: 'Brouillons', selected: tab === 'drafts' },
+            { key: 'past', label: 'Passés', selected: tab === 'past' },
+            { key: 'filters', label: filterLabel, selected: filter.kind !== 'all', outline: filtersOpen },
           ]}
+          onPress={(k) => (k === 'filters' ? setFiltersOpen(!filtersOpen) : setTab(k))}
         />
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 16 }}>
+        {filtersOpen ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, flexGrow: 0 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 16 }}>
           <Chip label="Tout" selected={isSel({ kind: 'all' })} onPress={() => setFilter({ kind: 'all' })} />
           <Chip label="Mes abonnements" selected={isSel({ kind: 'subscribed' })} onPress={() => setFilter({ kind: 'subscribed' })} />
           {data?.categories.map((c) => (
@@ -177,6 +196,21 @@ export default function Home() {
             />
           ))}
         </ScrollView>
+        ) : null}
+
+        {pollBanner ? (
+          <Pressable accessibilityRole="button" testID="poll-banner"
+            accessibilityLabel={pollBanner.label}
+            onPress={() => (pollBanner.only ? router.push(`/event/${pollBanner.only}`) : setTab('polls'))}
+            style={({ pressed }) => [st.banner, enter('drop'), pressTransition, pressed && { opacity: 0.8 }]}>
+            <View style={st.bannerIcon}><T size={18}>🗳️</T></View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <T size={15} weight="bold">{pollBanner.title}</T>
+              <T size={13} color={colors.textSoft}>{pollBanner.body}</T>
+            </View>
+            <View style={st.bannerCta}><T size={13} weight="bold" color={colors.onAction}>Voter</T></View>
+          </Pressable>
+        ) : null}
 
         {!can('events.view') ? (
           <SignedIn note="Tu vois ici les événements publics et ceux où on t’invite. Les jeux et la musique sont ouverts avec ton compte." />
@@ -203,8 +237,7 @@ export default function Home() {
               {search.trim() ? 'Aucun événement ne correspond à ta recherche.'
                 : filter.kind === 'subscribed' ? 'Aucun événement pour tes abonnements pour le moment.'
                 : filter.kind !== 'all' ? 'Aucun événement avec ce filtre pour le moment.'
-                : tab === 'pending' ? 'Tes propositions envoyées, en attente de validation, apparaîtront ici.'
-                : tab === 'drafts' ? 'Tes brouillons (et propositions refusées à retravailler) apparaîtront ici.'
+                : tab === 'drafts' ? 'Tes brouillons, tes propositions en attente de validation et celles à retravailler apparaîtront ici.'
                 : tab === 'polls' ? 'Aucune date à choisir pour le moment.'
                 : tab === 'past' ? 'Les événements passés apparaîtront ici.'
                 : 'Le groupe attend son premier événement. Lance une idée !'}
@@ -224,11 +257,6 @@ export default function Home() {
               <EventCard key={e.id} index={i} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp now={data!.loadedAt} attendance={attendance.get(e.id)} />
             ))}
           </View>
-        ) : null}
-        {pollsToAnswer > 0 ? (
-          <Pressable accessibilityRole="button" onPress={() => setTab('polls')} style={({ pressed }) => [st.banner, enter('drop'), pressTransition, pressed && { opacity: 0.8 }]}>
-            <T size={14}><T size={14} weight="bold">{pollsToAnswer} sondage{pollsToAnswer > 1 ? 's' : ''} de date</T> attend{pollsToAnswer > 1 ? 'ent' : ''} ton vote ›</T>
-          </Pressable>
         ) : null}
         {goingList.length && rest.length ? <T size={13} weight="bold" color={colors.muted} style={[st.label, { marginTop: 6 }]}>À VENIR</T> : null}
         {rest.map((e, i) => (
@@ -299,7 +327,10 @@ function ListSkeleton() {
 const st = StyleSheet.create({
   ghost: { flexDirection: 'row', gap: 14, padding: 14, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   label: { letterSpacing: 0.6 },
-  banner: { backgroundColor: colors.coralDim, padding: 14, borderRadius: radius.md, borderWidth: 1, borderColor: '#5A4024' },
+  banner: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.accentDim, padding: 12,
+    borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.accent },
+  bannerIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,79,154,0.18)', alignItems: 'center', justifyContent: 'center' },
+  bannerCta: { paddingHorizontal: 14, minHeight: 36, borderRadius: 18, backgroundColor: colors.action, alignItems: 'center', justifyContent: 'center' },
   fabWrap: { position: 'absolute', left: 0, right: 0, bottom: 16, alignItems: 'center' },
   fabColumn: { width: '100%', maxWidth: 640, alignItems: 'flex-end', paddingRight: 16, gap: 10 },
   fabAI: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.accent },

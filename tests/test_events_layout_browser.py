@@ -129,7 +129,7 @@ def test_list_tabs_are_never_cut_and_nothing_leaves_the_screen(browser, events_o
     try:
         pw.expect(page.get_by_role('tab', name='Passés', exact=True)).to_be_visible(timeout=15000)
         pw.expect(page.get_by_text(LONG_TITLE, exact=True)).to_be_visible()
-        for label in ('À venir', 'Sondages', 'En attente', 'Brouillons', 'Passés'):
+        for label in ('À venir', 'Sondages', 'Brouillons', 'Passés'):
             text = page.get_by_role('tab', name=label, exact=True).locator('div[dir="auto"]').first
             assert text.evaluate('e => e.scrollWidth <= e.clientWidth + 1'), f'onglet coupé à {width} px : {label}'
         assert page.evaluate(OVERFLOW) == []
