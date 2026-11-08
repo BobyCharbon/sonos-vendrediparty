@@ -17,6 +17,8 @@ def tv(monkeypatch):
     monkeypatch.setattr(main.store.session, 'event_title', '')
     monkeypatch.setattr(main.store.session, 'games', {})
     monkeypatch.setattr(main, 'snapshot', lambda *a, **k: {})
+    # Plafond de créations par adresse (5 / 10 min) : les tests précédents du même processus ne comptent pas.
+    monkeypatch.setattr(main, '_game_creations', {})
     monkeypatch.setattr(main, 'public_sonos', lambda snap, guest_id='': {"state": "PLAYING", "now": NOW, "upcoming": UPCOMING})
     with TestClient(main.app) as host, TestClient(main.app) as guest:
         assert host.post('/api/admin/login', json={'pin': '9999'}).status_code == 200
