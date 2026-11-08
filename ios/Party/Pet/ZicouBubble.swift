@@ -68,11 +68,19 @@ struct ZicouBubble: View {
     /// Sous le titre des écrans (et la cloche des Événements) : la bulle ne les couvre pas en haut.
     static let topClearance: CGFloat = 112
     private static let hintSeconds: Double = 4.5
+    /// Penché dans le sens du glisser (degrés par point parcouru depuis le dernier mouvement), borné.
+    private static let tiltPerPoint: Double = 1.6
+    private static let maxTilt: Double = 14
 
     @AppStorage(ZicouBubblePrefs.spotKey) private var spotName = ZicouSpot.bottomTrailing.rawValue
     @State private var drag: CGSize = .zero
     @State private var dragging = false
     @State private var shownHint: String?
+    /// Penché pendant le glisser (suit la vitesse du doigt), redressé à l'atterrissage.
+    @State private var tilt: Double = 0
+    @State private var lastX: CGFloat = 0
+    /// Emplacement visé pendant le glisser : il s'allume parmi les six repères.
+    @State private var aimed: ZicouSpot?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var spot: ZicouSpot { ZicouSpot(rawValue: spotName) ?? .bottomTrailing }
@@ -81,6 +89,13 @@ struct ZicouBubble: View {
         GeometryReader { proxy in
             let base = spot.center(in: proxy.size, insets: insets, side: Self.side)
             ZStack {
+                if dragging {
+                    ForEach(ZicouSpot.allCases, id: \.self) { target in
+                        guide(target == aimed)
+                            .position(target.center(in: proxy.size, insets: insets, side: Self.side))
+                            .transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.6)))
+                    }
+                }
                 if let shownHint {
                     hintView(shownHint)
                         .position(x: hintX(base: base, width: proxy.size.width), y: base.y - Self.side / 2 - 22)
@@ -88,7 +103,8 @@ struct ZicouBubble: View {
                 }
                 head
                     .position(x: base.x + drag.width, y: base.y + drag.height)
-                    .gesture(moveGesture(base: base, size: proxy.size))
+                    // Priorité au glisser : le doigt qui bouge déplace la bulle au lieu de toucher le bouton.
+                    .highPriorityGesture(moveGesture(base: base, size: proxy.size))
             }
         }
         .onAppear { showHint(state.hint) }
@@ -115,7 +131,8 @@ struct ZicouBubble: View {
                         .offset(x: 1, y: -1)
                 }
             }
-            .scaleEffect(dragging ? 1.12 : 1)
+            .rotationEffect(.degrees(tilt))
+            .scaleEffect(dragging ? 1.15 : 1)
             .shadow(color: .black.opacity(dragging ? 0.5 : 0.35), radius: dragging ? 14 : 8, y: dragging ? 8 : 4)
         }
         .buttonStyle(.plain)
@@ -129,6 +146,19 @@ struct ZicouBubble: View {
                 Button(Self.spotName(target)) { move(to: target) }
             }
         }
+    }
+
+    /// Repère d'un emplacement pendant le glisser : un cercle discret, rose et un peu plus grand s'il est visé.
+    private func guide(_ isAimed: Bool) -> some View {
+        Circle()
+            .fill(isAimed ? Z.pink.opacity(0.22) : .white.opacity(0.04))
+            .overlay(Circle().strokeBorder(isAimed ? Z.pink : .white.opacity(0.28),
+                                           style: StrokeStyle(lineWidth: isAimed ? 2.5 : 1.5, dash: isAimed ? [] : [4, 4])))
+            .frame(width: Self.side, height: Self.side)
+            .scaleEffect(isAimed && !reduceMotion ? 1.12 : 1)
+            .animation(Motion.pick(Motion.snappy, reduced: reduceMotion), value: isAimed)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     private func hintView(_ text: String) -> some View {
@@ -151,9 +181,22 @@ struct ZicouBubble: View {
     private func moveGesture(base: CGPoint, size: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 8)
             .onChanged { value in
-                if !dragging { Haptics.selection() }
-                dragging = true
-                drag = value.translation
+                if !dragging {
+                    Haptics.press()
+                    lastX = 0
+                    withAnimation(Motion.pick(Motion.snappy, reduced: reduceMotion)) { dragging = true }
+                }
+                drag = value.translation   // 1:1 avec le doigt, sans animation
+                let point = CGPoint(x: base.x + value.translation.width, y: base.y + value.translation.height)
+                let target = ZicouSpot.nearest(to: point, in: size, insets: insets, side: Self.side)
+                if target != aimed {
+                    if aimed != nil { Haptics.selection() }
+                    aimed = target
+                }
+                guard !reduceMotion else { return }
+                let lean = max(-Self.maxTilt, min(Self.maxTilt, Double(value.translation.width - lastX) * Self.tiltPerPoint))
+                lastX = value.translation.width
+                withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.7)) { tilt = lean }
             }
             .onEnded { value in
                 let end = CGPoint(x: base.x + value.predictedEndTranslation.width, y: base.y + value.predictedEndTranslation.height)
@@ -162,9 +205,11 @@ struct ZicouBubble: View {
                 // La bulle repart de là où le doigt l'a lâchée vers son nouvel emplacement, sans saut.
                 spotName = target.rawValue
                 drag = CGSize(width: base.x + value.translation.width - landed.x, height: base.y + value.translation.height - landed.y)
+                aimed = nil
                 withAnimation(Motion.pick(Motion.bouncy, reduced: reduceMotion)) {
                     drag = .zero
                     dragging = false
+                    tilt = 0
                 }
                 Haptics.tap()
             }

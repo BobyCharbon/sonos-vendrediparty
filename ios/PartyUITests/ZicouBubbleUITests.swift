@@ -47,7 +47,8 @@ final class ZicouBubbleUITests: XCTestCase {
         // Glisser vers le haut à gauche : elle s'y pose.
         let start = bubble.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let target = app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.18))
-        start.press(forDuration: 0.2, thenDragTo: target)
+        // Glisser lent, comme un doigt, puis tenu un instant : la bulle suit le doigt, les repères s'affichent.
+        start.press(forDuration: 0.3, thenDragTo: target, withVelocity: XCUIGestureVelocity(220), thenHoldForDuration: 0.8)
         let movedLeft = NSPredicate { _, _ in bubble.frame.midX < screen.midX && bubble.frame.midY < screen.midY }
         wait(for: [expectation(for: movedLeft, evaluatedWith: nil)], timeout: 5)
         snapshot(app, "bulle-2-haut-gauche")
