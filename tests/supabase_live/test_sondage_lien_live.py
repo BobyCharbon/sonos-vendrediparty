@@ -66,3 +66,29 @@ def test_a_link_guest_votes_the_dates_and_the_fixed_date_follows_the_votes(peopl
         assert new.rpc('accept_invite', token=link['token'], answer='yes').json()['status'] == 'yes'
     finally:
         sql(f"delete from public.events where id = '{event}'")
+
+
+def test_a_removed_guest_loses_his_votes_and_the_fixed_date_frees_places_for_yes(people):  # noqa: F811
+    """Agent « Cohérence » (08.11) : un invité retiré après avoir voté revenait dans la liste et était inscrit à la date
+    fixée ; avec les places prises, un « Non » qui remplace un ancien « je viens » doit libérer la place pour un « Oui » ;
+    « Si besoin » sans « Peut-être » efface l'ancienne réponse."""
+    admin, ga, gb, vip, new = people
+    event = create_event(admin, 'Test sondage places', visibility='invited', date_mode='poll', starts_at=None,
+                         allow_maybe=False, max_participants=2, waitlist_enabled=False)
+    try:
+        first = option(admin, event, 21)
+        link = admin.rpc('create_event_invite', e=event, places=4).json()
+        for who in (ga, gb, vip):
+            assert who.rpc('accept_invite', token=link['token'], answer='poll').status_code == 200
+        # Retiré après avoir voté : ses votes partent, il n'est plus dans la liste ni inscrit plus tard.
+        vote(vip, first, 'yes')
+        assert admin.rpc('remove_invitee', e=event, member=vip.uid).status_code in (200, 204)
+        assert vip.uid not in {p['id'] for p in admin.rpc('event_guest_list', e=event).json()['people']}
+        # Anciennes réponses « je viens » d'avant le sondage (deux places, prises) : ga vote Non, gb Oui, new Si besoin.
+        sql(f"insert into public.rsvps (event_id, user_id, status) values ('{event}', '{ga.uid}', 'yes'), ('{event}', '{new.uid}', 'yes')")
+        sql(f"insert into public.event_invites (event_id, user_id, via_group, via_link) values ('{event}', '{new.uid}', false, true) on conflict do nothing")
+        vote(ga, first, 'no'); vote(gb, first, 'yes'); vote(new, first, 'if_needed')
+        assert admin.rpc('fix_event_date', e=event, opt=first).status_code in (200, 204)
+        assert [rsvp(event, p.uid) for p in (ga, gb, new, vip)] == ['no', 'yes', None, None]
+    finally:
+        sql(f"delete from public.events where id = '{event}'")

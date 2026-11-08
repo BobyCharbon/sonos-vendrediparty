@@ -161,7 +161,8 @@ class Sonos:
                     moved = None
                 # Seulement un groupe qui continue (encore groupé, ou qui joue) : jamais une enceinte retirée à l'arrêt.
                 if moved is not None and moved.uid != uid and (len(moved.group.members) > 1 or _playing(moved)):
-                    self._last_members[uid] = {m.uid for m in moved.group.members}
+                    # L'enceinte de la soirée reste dans le groupe retenu : la lecture suivante suit encore.
+                    self._last_members[uid] = {uid} | {m.uid for m in moved.group.members}
                     return moved
         self._last_members[uid] = members
         return coord

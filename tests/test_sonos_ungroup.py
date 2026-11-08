@@ -76,4 +76,4 @@ def test_two_speakers_the_party_one_removed_the_other_keeps_playing_alone():
     s.coordinator("salon")
     regroup(salon)
     regroup(cuisine)
-    assert s.coordinator("salon") is cuisine
+    assert [s.coordinator("salon") for _ in range(4)] == [cuisine] * 4  # et ça tient (rapport de l'agent cohérence)

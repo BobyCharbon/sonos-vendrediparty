@@ -297,6 +297,11 @@ class FeedbackBox:
             item["edits"] = (list(item.get("edits") or []) + [{"at": now, "before": item["text"]}])[-MAX_EDITS:]
             item["history"] = (list(item.get("history") or []) + [{"at": now, "by": "author", "field": "text"}])[-MAX_HISTORY:]
             item.update(text=text, edited_at=now)
+            # Le titre de la version IA décrivait l'ancien texte : il ne reste pas affiché au-dessus du nouveau
+            # (le classement de l'IA, lui, reste).
+            ai = (item.get("context") or {}).get("ai")
+            if isinstance(ai, dict) and ai.get("title"):
+                item["context"] = {**item["context"], "ai": {k: v for k, v in ai.items() if k != "title"}}
             self._save()
             return item
 

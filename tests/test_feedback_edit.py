@@ -54,3 +54,14 @@ def test_the_latest_edit_follows_from_one_site_to_the_other(tmp_path):
     assert there.get(item["id"])["text"] == NEW_TEXT
     there.absorb([dict(item)])  # une ancienne version ne revient jamais par-dessus
     assert there.get(item["id"])["text"] == NEW_TEXT
+
+
+def test_an_ai_title_does_not_stay_above_a_rewritten_text(tmp_path):
+    """Agent « Cohérence » (08.11) : le titre de la version IA restait affiché en gros au-dessus du nouveau texte."""
+    box = FeedbackBox(tmp_path / "f.json")
+    item = box.add(GUEST, "Léa", "idea", "Un mode équipe au Quiz, avec deux camps",
+                   {"ai": {"title": "Quiz en équipes", "kind": "idea", "area": "games"}})
+    assert box.mine(GUEST)[0]["title"] == "Quiz en équipes"
+    box.edit_text(GUEST, item["id"], NEW_TEXT)
+    assert "title" not in box.mine(GUEST)[0]
+    assert box.get(item["id"])["context"]["ai"]["area"] == "games"  # le classement de l'IA reste
