@@ -13,6 +13,11 @@ enum NativeBridge {
     static let aiHandler = "partyAI"
     static let scanHandler = "partyScan"
 
+    /// `PartyNative.zicou` : présent seulement dans la BETA (Zicou compilé) ; ailleurs null, la page garde sa pastille.
+    private static let zicouScript = AppConfig.zicouBuild
+        ? "{ update: function (state) { try { window.webkit.messageHandlers.\(ZicouBubbleHandler.handler).postMessage(state); } catch (e) {} } }"
+        : "null"
+
     private static let script = """
     (function () {
       try { Object.defineProperty(navigator, "standalone", { get: function () { return true; }, configurable: true }); } catch (e) {}
@@ -57,6 +62,8 @@ enum NativeBridge {
           }
         },
         // « Ajouter à l'app Cartes Apple » (billet) : feuille d'ajout PassKit ; promesse résolue à sa fermeture.
+        // Bulle de Zicou native (BETA) : la page la décrit (pet/zicou-home.js), l'app la dessine et la déplace.
+        zicou: \(zicouScript),
         wallet: {
           available: \(NativeWallet.available ? "true" : "false"),
           add: function (url) { return window.webkit.messageHandlers.\(NativeWallet.handler).postMessage(String(url)); }
@@ -83,7 +90,10 @@ enum NativeBridge {
         controller.addScriptMessageHandler(WalletHandler(), contentWorld: .page, name: NativeWallet.handler)
         controller.addScriptMessageHandler(ContactNamesBridge(), contentWorld: .page, name: ContactNamesBridge.handler)
         // Zicou → widgets et Live Activity de l'éclosion (lecture des réponses /api/pet/* de la page).
-        if AppConfig.zicouBuild { PetWidgetBridge.install(in: controller) }
+        if AppConfig.zicouBuild {
+            PetWidgetBridge.install(in: controller)
+            controller.add(ZicouBubbleHandler(model: model), name: ZicouBubbleHandler.handler)
+        }
     }
 }
 

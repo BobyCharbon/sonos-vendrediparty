@@ -17,6 +17,8 @@ final class WebModel: ObservableObject {
     private var musicSearchWanted = false
     /// Onglets de la page affichée ; nil sur une page sans barre d'onglets (admin, TV…).
     @Published private(set) var tabs: TabBarState?
+    /// Bulle de Zicou décrite par la page (pet/zicou-home.js) ; nil tant que la page n'en a rien dit (Zicou éteint).
+    @Published private(set) var zicouBubble: ZicouBubbleState?
     /// Écrans que l'hôte gère dans la page (« Gérer la soirée », « Gérer les retours ») plutôt qu'en vue invité
     /// native ; retenu écran par écran, d'une ouverture à l'autre. Sans effet pour un invité.
     @Published private(set) var hostManagedScreens = WebModel.savedManagedScreens() {
@@ -347,6 +349,16 @@ final class WebModel: ObservableObject {
             if tabs == nil { musicSearchWanted = true } else { selectTab("music") }
             QuickAction.requestMusicSearch()
         }
+    }
+
+    func showZicouBubble(_ state: ZicouBubbleState) {
+        guard state != zicouBubble else { return }
+        zicouBubble = state
+    }
+
+    /// Toucher de la bulle native : la page ouvre Zicou (onglet, ou l'accueil de l'œuf).
+    func openZicouBubble() {
+        webView?.evaluateJavaScript("window.ZicouHome && ZicouHome.openFromApp && ZicouHome.openFromApp()")
     }
 
     func selectTab(_ id: String) {

@@ -38,6 +38,12 @@
   // L'app iOS dessine Musique, Discussions et Réglages en natif : la feuille attend un onglet affiché par la page.
   const pageVisible = () => !native() || WEB_TABS.includes(currentTab());
   const inGame = () => document.body.classList.contains("pyr-full");
+  // App iOS BETA : la bulle est native (déplaçable, Réglages › Bulle de Zicou) ; la page la décrit et cache la sienne.
+  const nativeBubble = () => window.PartyNative?.zicou || null;
+  if (nativeBubble()) document.documentElement.classList.add("native-zicou");
+  // Navigateur : « Bulle de Zicou » des Réglages (module Événements, même origine) ; "1" = masquée sur cet appareil.
+  const OFF_KEY = "zc_bubble_off";
+  const bubbleOn = () => local.get(OFF_KEY) !== "1";
 
   function onb() {
     try { return { step: "new", ...(JSON.parse(local.get(KEY) || "{}")) }; } catch { return { step: "new" }; }
@@ -105,12 +111,13 @@
     const tabBadge = $("petBadge");
     const st = status;
     const visible = signedIn() && !!st;
+    const shown = visible && bubbleOn();
     const egg = !st?.adopted;
     const view = egg ? { stage: "egg", emotion: "egg" } : st;
     const red = !egg && ["alert", "gift"].includes(st?.need);
     const key = visible ? JSON.stringify([view.stage, view.emotion, view.variant, view.acc, view.shiny, red]) : "";
     chips.forEach((chip) => {
-      chip.classList.toggle("hidden", !visible);
+      chip.classList.toggle("hidden", !shown);
       if (!visible || key === shownKey) return;
       chip.querySelector(".zc-head").innerHTML = headSvg(view);
       chip.style.setProperty("--zc-mood", skin()?.moodColor(view.emotion) || "#5ee7ff");
@@ -131,12 +138,47 @@
       chips.forEach((chip) => chip.classList.add("zc-hello"));   // la toute première fois : un petit salut pour qu'on la remarque
     }
     maybeBubble();
+    sendNative();
+  }
+
+  // ── Bulle native (app iOS) : ce que la page sait, l'app le dessine ──
+  let nativeHint = null, nativeSent = "", nativeQueued = false;
+  function nativeState() {
+    const st = status;
+    const egg = !st?.adopted;
+    const view = egg ? { stage: "egg", emotion: "egg" } : st;
+    const red = !egg && ["alert", "gift"].includes(st?.need);
+    const html = document.documentElement.classList;
+    // Jamais pendant une partie en plein écran, dans l'onglet Zicou, sous une feuille (Zicou ou module Événements).
+    const visible = signedIn() && !!st && currentTab() !== "pet" && !inGame() && !sheetStep
+      && !html.contains("pt-open") && !html.contains("events-sheet");
+    return { visible, stage: view.stage || "egg", emotion: view.emotion || "egg", red, asleep: !!st?.asleep,
+      label: !st ? "Zicou" : egg ? "Zicou : un œuf t'attend" : `${st.name} : ${moodWord(st)}${red ? ", il a besoin de toi" : ""}`,
+      hint: nativeHint };
+  }
+  function sendNative() {
+    const bridge = nativeBubble();
+    if (!bridge || nativeQueued) return;
+    nativeQueued = true;
+    requestAnimationFrame(() => {
+      nativeQueued = false;
+      const state = nativeState();
+      const json = JSON.stringify(state);
+      if (json === nativeSent) return;
+      nativeSent = json;
+      bridge.update(state);
+    });
+  }
+  if (nativeBubble()) {
+    new MutationObserver(sendNative).observe(document.body, { attributes: true, attributeFilter: ["class", "data-tab"] });
+    new MutationObserver(sendNative).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
   }
   const MOODS = { happy: "content", party: "en fête", hungry: "a faim", tired: "fatigué", sad: "s'ennuie", sick: "patraque",
     sleep: "endormi", egg: "dans son œuf", ghost: "envolé" };
   const moodWord = (st) => MOODS[st.emotion] || "";
   // « Psst… ton cadeau du jour ! » : une fois par jour au plus, seulement pour le coffre (les urgences ont le point rouge).
   function maybeBubble() {
+    if (nativeBubble()) return nativeTip();
     const chip = $("zicouChip");
     if (!chip || chip.classList.contains("hidden") || status?.need !== "chest" || local.get(BUBBLE_KEY) === today()) return;
     if (currentTab() === "pet" || inGame() || sheetStep || !chip.offsetParent) return;
@@ -147,6 +189,20 @@
     b.textContent = "Psst… ton cadeau du jour ! 🎁";
     chip.after(b);
     setTimeout(() => b.remove(), BUBBLE_MS);
+  }
+  // App iOS : même règle (coffre du jour, une fois par jour), le message s'affiche à côté de la bulle native.
+  function nativeTip() {
+    if (status?.need !== "chest" || local.get(BUBBLE_KEY) === today() || !nativeState().visible) return;
+    local.set(BUBBLE_KEY, today());
+    nativeHint = "Psst… ton cadeau du jour ! 🎁";
+    sendNative();
+    setTimeout(() => { nativeHint = null; sendNative(); }, BUBBLE_MS);
+  }
+  /** Réglages › Bulle de Zicou (navigateur) : afficher ou masquer la pastille sur cet appareil. */
+  function setBubble(on) {
+    if (on) { try { localStorage.removeItem(OFF_KEY); } catch { /* navigation privée */ } } else local.set(OFF_KEY, "1");
+    shownKey = "";
+    render();
   }
   function openZicou() {
     // Pas encore d'œuf : la 1re fois l'accueil, ensuite directement le choix du nom.
@@ -182,6 +238,7 @@
     pendingStep = null;
     const el = sheetEl();
     sheetStep = step;
+    sendNative();
     clearInterval(countdown);
     el.innerHTML = `<div class="zc-sheet" data-step="${step}">${STEPS[step]()}</div>`;
     el.classList.remove("hidden", "zc-out");
@@ -199,6 +256,7 @@
     clearInterval(countdown);
     const was = sheetStep;
     sheetStep = null;
+    sendNative();
     sheet.classList.add("hidden");
     document.documentElement.classList.remove("zc-sheet-open");
     sheetClosed(was);
@@ -472,6 +530,7 @@
     // Fin de partie en plein écran : la feuille passe au-dessus du classement, sans rien interrompre.
     const el = sheetEl();
     sheetStep = "guest";
+    sendNative();
     el.innerHTML = `<div class="zc-sheet" data-step="guest">${STEPS.guest()}</div>`;
     el.classList.remove("hidden");
   }
@@ -502,6 +561,11 @@
     refreshStatus(true);
   }
 
-  window.ZicouHome = Object.freeze({ refresh: refreshStatus, accountChanged, petChanged, tabChanged, gameSeen, open: openSheet, close: closeSheet,
+  // Réglages du module Événements (iframe) : la bulle suit le choix sans recharger.
+  window.addEventListener("message", (ev) => {
+    if (ev.origin === location.origin && ev.data?.type === "party-events:zicou-bubble") setBubble(ev.data.on !== false);
+  });
+
+  window.ZicouHome = Object.freeze({ refresh: refreshStatus, openFromApp: openZicou, setBubble, bubbleOn, accountChanged, petChanged, tabChanged, gameSeen, open: openSheet, close: closeSheet,
     state: () => ({ status, onb: onb(), step: sheetStep }) });
 })();

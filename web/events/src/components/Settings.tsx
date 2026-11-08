@@ -7,6 +7,7 @@ import { useShellFeedback } from '@/lib/shellFeedback';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { roleName } from '@/lib/roles';
 import { AppInviteCard } from './AppInviteCard';
+import { ZicouBubbleToggle } from './ZicouBubbleToggle';
 import { IdentityForm } from './IdentityForm';
 import { MoonBanner, MoonButton, usePause } from './NotificationPause';
 import { Avatar, Button, Card, LinkRow, RowDivider, s, Screen, Section, T, Title } from './ui';
@@ -114,6 +115,8 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
         <RowDivider />
         <LinkRow icon="⚙️" tint="#636366" label="Gérer mon compte" hint="Suppression du compte" onPress={() => router.push('/settings/account')} />
       </Card>
+
+      <ZicouBubbleToggle />
 
       <Button label="Se déconnecter" variant="danger" onPress={signOut} />
     </Screen>

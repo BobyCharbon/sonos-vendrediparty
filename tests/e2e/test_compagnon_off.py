@@ -78,4 +78,4 @@ def test_the_companion_api_is_closed(app):
     status = app.evaluate("fetch('/api/pet/status', {method: 'POST', headers: {'Content-Type': 'application/json'},"
                           " body: '{}'}).then((r) => r.status)")
     assert status == 404
-    assert app.evaluate("fetch('/api/features').then((r) => r.json())") == {"compagnon": False, "discussions": False}
+    assert app.evaluate("fetch('/api/features').then((r) => r.json())") == {"compagnon": False, "discussions": False, "invites_v2": False}

@@ -9,8 +9,11 @@ struct SettingsView: View {
     var hostMusic: HostMusicStore?
     /// « Ton avis » / « Retours » (page, native-tabs.js) : libellé et pastille des avis à traiter ou des réponses.
     var feedbackEntry: TabBarState.FeedbackEntry?
+    /// Zicou présent sur ce site (la page a décrit sa bulle) : ligne « Bulle de Zicou ».
+    var zicouAvailable = false
     let open: (WebModel.PagePlace) -> Void
     @State private var confirmSignOut = false
+    @AppStorage(ZicouBubblePrefs.shownKey) private var zicouBubbleShown = true
     @State private var joinLink: JoinLink?
 
     var body: some View {
@@ -48,6 +51,18 @@ struct SettingsView: View {
                                         hint: "Tes contacts inscrits sur Party ; invite les autres")
                         }
                         .accessibilityIdentifier("settings-friends")
+                    }
+                }
+                if zicouAvailable {
+                    Section {
+                        Toggle(isOn: $zicouBubbleShown) {
+                            SettingsRow(symbol: "circle.circle.fill", tint: .purple, title: "Bulle de Zicou",
+                                        hint: "Sa petite tête par-dessus l'app ; fais-la glisser pour la déplacer")
+                        }
+                        .tint(Palette.accent)
+                        .accessibilityIdentifier("settings-zicou-bubble")
+                    } footer: {
+                        Text("Masquée, Zicou reste dans son onglet.")
                     }
                 }
                 if isHost || store.account?.admin == true || store.account?.groupAdmin == true {

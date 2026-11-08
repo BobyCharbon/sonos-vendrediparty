@@ -38,6 +38,8 @@ body[data-tab="events"] .zc-float:not(.hidden) {
 body.pyr-full .zc-chip, html.pt-open .zc-chip, body.pyr-full .zc-bubble { display: none !important; }
 /* Ni par-dessus une feuille du module Événements (elle couvrait son ✕ : retour de l'admin du 06.11). */
 html.events-sheet .zc-float, html.events-sheet .zc-bubble { display: none !important; }
+/* App iOS BETA : la bulle est dessinée par l'app (ios/Party/Pet/ZicouBubble.swift), déplaçable et masquable. */
+html.native-zicou .zc-chip, html.native-zicou .zc-bubble { display: none !important; }
 
 /* ── Feuille d'accueil (non bloquante : fond léger, se ferme d'un geste, « Plus tard » visible) ── */
 .zc-modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; background: rgba(6, 3, 14, .45); }

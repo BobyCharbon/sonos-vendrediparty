@@ -143,6 +143,10 @@ l'admin. Toujours :
   (`zicou_react`), la page reçoit `data-compagnon="off"` et perd ses blocs `<!-- compagnon -->…<!-- /compagnon -->`
   (index.html) ; module Événements : `compagnonOn` (`web/events/src/lib/features.ts`) ; iOS : `GET /api/features`.
 - Tout nouvel élément de Zicou (route, onglet, carte, réglage, notification, écran natif) passe par ce drapeau.
+- Bulle de Zicou (avis 3cd6d282745b) : dans l'app iOS BETA, elle est native (`ios/Party/Pet/ZicouBubble.swift`,
+  déplaçable vers 6 emplacements, Réglages › « Bulle de Zicou ») ; la page la décrit (`PartyNative.zicou.update`,
+  pet/zicou-home.js) et cache sa pastille (`html.native-zicou`). Navigateur : `zc_bubble_off`. Tests :
+  `tests/e2e/test_zicou_bubble.py`, `ZicouBubbleTests`, `ZicouBubbleUITests` (serveur local, TEST_RUNNER_PARTY_ZICOU_UI=1).
 - Jamais allumé en production ni migré en production avant que l'admin dise « le projet Compagnon est complet ».
 - Ne jamais changer l'icône de Vendredi Party.
 - Tests : `tests/test_compagnon_flag.py`, `tests/e2e/test_compagnon_off.py` (les autres tests tournent allumé).

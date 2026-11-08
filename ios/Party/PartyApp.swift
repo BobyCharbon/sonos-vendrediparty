@@ -49,6 +49,7 @@ struct PartyApp: App {
 
 struct ContentView: View {
     @ObservedObject var model: WebModel
+    @AppStorage(ZicouBubblePrefs.shownKey) private var zicouBubbleShown = true
 
     /// « Gérer la soirée » (écran natif de l'hôte) / « Gérer les retours » (page) : réservé à l'hôte.
     private func hostTools(_ screen: String) -> (() -> Void)? {
@@ -89,7 +90,7 @@ struct ContentView: View {
                         }
                         if model.nativeScreen == "account", let settings = model.settings {
                             SettingsView(store: settings, topInset: proxy.safeAreaInsets.top, isHost: model.isHost, hostMusic: model.hostMusic,
-                                         feedbackEntry: model.tabs?.feedback) { place in
+                                         feedbackEntry: model.tabs?.feedback, zicouAvailable: model.zicouBubble != nil) { place in
                                 Motion.animate(Motion.smooth) { model.show(place) }
                             }
                         }
@@ -123,6 +124,14 @@ struct ContentView: View {
                             .accessibilityHint("Affiche l'écran Musique des invités ; le choix est retenu")
                             .motionTransition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottomTrailing)))
                         }
+                        // Bulle de Zicou (BETA) : par-dessus la page et les écrans natifs, déplaçable, masquable.
+                        if zicouBubbleShown, let zicou = model.zicouBubble, zicou.visible, model.tabs?.hidden != true {
+                            ZicouBubble(state: zicou, insets: EdgeInsets(top: proxy.safeAreaInsets.top, leading: proxy.safeAreaInsets.leading,
+                                                                         bottom: 0, trailing: proxy.safeAreaInsets.trailing)) {
+                                model.openZicouBubble()
+                            }
+                            .motionTransition(.opacity.combined(with: .scale(scale: 0.6)))
+                        }
                     }
                     if let tabs = model.visibleTabs, !tabs.hidden {
                         NativeTabBar(state: tabs, select: model.selectTab)
@@ -134,6 +143,7 @@ struct ContentView: View {
                 // Barre d'onglets native qui se cache (plein écran d'un jeu) ou revient : glissement court,
                 // fondu avec Réduire les animations.
                 .motion(Motion.snappy, value: model.tabs?.hidden ?? true)
+                .motion(Motion.snappy, value: zicouBubbleShown && model.zicouBubble?.visible == true)
 
                 if model.failed {
                     OfflineView { model.reload() }
