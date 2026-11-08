@@ -60,6 +60,14 @@ def _read_volume(zone) -> int:
     return int(result["CurrentVolume"])
 
 
+def _playing(zone) -> bool:
+    """L'enceinte joue (ou se met à jouer) ; illisible : on considère qu'elle ne joue pas."""
+    try:
+        return zone.get_current_transport_info().get("current_transport_state") in ("PLAYING", "TRANSITIONING")
+    except Exception:
+        return False
+
+
 def _reachable(zone) -> bool:
     """L'enceinte répond-elle ? (son nom est lu une fois puis gardé en cache par SoCo.)"""
     try:
@@ -75,6 +83,8 @@ class Sonos:
         self._zones_at = 0.0
         self._lock = threading.Lock()
         self._refresher: threading.Thread | None = None
+        # Dernier groupe vu pour chaque enceinte de soirée : si elle en sort, la soirée suit ceux qui continuent.
+        self._last_members: dict[str, set[str]] = {}
 
     def _refresh_zones(self):
         if self.seed_ip:
@@ -131,7 +141,30 @@ class Sonos:
         if zone is None:
             raise LookupError("Enceinte Sonos introuvable")
         # Le groupe peut avoir changé depuis le démarrage de la session.
-        return zone.group.coordinator
+        return self._follow_group(uid, zone.group.coordinator)
+
+    def _follow_group(self, uid: str, coord: soco.SoCo) -> soco.SoCo:
+        """L'enceinte de la soirée retirée de son groupe (app Sonos) : Sonos continue la musique sur les autres, la
+        soirée les suit au lieu d'afficher « en pause » (retour de l'admin, 08.11). Revenue dans un groupe : normal."""
+        try:
+            members = {m.uid for m in coord.group.members}
+        except Exception:  # groupe illisible : on garde l'enceinte telle quelle
+            return coord
+        before = self._last_members.get(uid, set())
+        if members == {uid} and len(before) > 1 and not _playing(coord):
+            zones = self._all_zones()
+            for other in sorted(before - {uid}):
+                zone = zones.get(other)
+                try:
+                    moved = zone.group.coordinator if zone is not None else None
+                except Exception:
+                    moved = None
+                # Seulement un groupe qui continue (encore groupé, ou qui joue) : jamais une enceinte retirée à l'arrêt.
+                if moved is not None and moved.uid != uid and (len(moved.group.members) > 1 or _playing(moved)):
+                    self._last_members[uid] = {m.uid for m in moved.group.members}
+                    return moved
+        self._last_members[uid] = members
+        return coord
 
     def snapshot(self, uid: str, max_upcoming: int = 300) -> dict:
         coord = self.coordinator(uid)
