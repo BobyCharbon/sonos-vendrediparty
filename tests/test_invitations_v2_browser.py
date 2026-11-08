@@ -450,3 +450,36 @@ def test_a_closed_date_poll_says_so_before_asking_who_you_are(browser, v2_origin
         pw.expect(page.get_by_role('button', name='📅 Choisir mes dates')).to_have_count(0)
     finally:
         context.close()
+
+
+ROW_OFFSET = """(name) => [...document.querySelectorAll('*')].find(e => e.textContent === name && !e.children.length)
+    .closest('[data-testid="swipe-row"]')"""
+
+
+def test_a_swiped_guest_row_closes_by_itself_and_only_one_stays_open(browser, v2_origin):  # noqa: F811
+    """Retour de l'admin (08.11) : des lignes montraient « Retirer » toutes seules (un défilement un peu en biais les
+    ouvrait et rien ne les refermait). Comme Mail : une seule ligne ouverte, et le défilement de la page la referme."""
+    many = {**GUEST_LIST, 'people': [guest(i % 8, f'Invité {i}', None, 'person') | {'id': f'bbbbbbbb-0000-4000-8000-{i:012d}'} for i in range(20)]}
+    context = browser.new_context(**ANDROID_PHONE)
+    page = context.new_page()
+    try:
+        mock_services(page)
+        mock_invites(page, guest_list=many)
+        page.goto(f'{v2_origin}/events/', wait_until='domcontentloaded')
+        login(page)
+        page.get_by_text('Sortie de démonstration (test local)', exact=True).click()
+        pw.expect(page.get_by_text('Invité 3', exact=True)).to_be_visible(timeout=15000)
+        page.wait_for_timeout(1500)  # fin de la mise en page de la carte (les lignes prennent leur largeur)
+        offset = lambda name: page.evaluate(f"(n) => ({ROW_OFFSET})(n).scrollLeft", name)  # noqa: E731
+        page.evaluate(f"(n) => {{ ({ROW_OFFSET})(n).scrollLeft = 9999 }}", 'Invité 3')
+        page.wait_for_timeout(400)
+        assert offset("Invité 3") > 50  # ouverte : « Retirer » visible
+        page.evaluate(f"(n) => {{ ({ROW_OFFSET})(n).scrollLeft = 9999 }}", 'Invité 4')
+        page.wait_for_timeout(700)
+        assert offset('Invité 4') > 50 and offset('Invité 3') < 5  # une seule ouverte à la fois
+        page.mouse.move(195, 500)
+        page.mouse.wheel(0, 300)  # la page défile : la ligne ouverte se referme
+        page.wait_for_timeout(700)
+        assert offset('Invité 4') < 5
+    finally:
+        context.close()

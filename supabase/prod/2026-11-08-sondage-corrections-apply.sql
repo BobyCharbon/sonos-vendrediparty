@@ -3,8 +3,8 @@
 begin;
 -- Sondage de dates, corrections de l'agent « Cohérence » (08.11) :
 -- - un invité retiré par l'organisateur perd aussi ses votes de dates (il revenait dans la liste, « vient » à la date fixée) ;
--- - date fixée : les « Non » d'abord (la place libérée sert aux « Oui ») ; « Si besoin » sans « Peut-être » efface
---   l'ancienne réponse avant les « Oui » (le vote décide, comme avec « Peut-être »).
+-- - date fixée (règle de l'admin) : Oui et « Si besoin » = vient, Non = ne vient pas ; les « Non » d'abord, puis les
+--   places dans l'ordre, les « Oui » avant les « Si besoin ».
 -- - la carte d'un lien dit « fermé » quand la date limite des votes d'un sondage est passée (invite_preview).
 -- Purement additif et rejouable (create or replace).
 
@@ -36,29 +36,24 @@ begin
   if not found then raise exception 'Créneau introuvable'; end if;
   update events set date_mode = 'fixed', starts_at = o.starts_at, ends_at = o.ends_at where id = e;
   select * into ev from events where id = e;
-  -- D'abord les « Non » (08.11) : une ancienne réponse « je viens » qu'ils remplacent libère sa place pour les « Oui ».
+  -- Le vote pour la date retenue décide (règle de l'admin, 08.11) : Oui et « Si besoin » = vient (la personne est
+  -- disponible, la date l'arrange juste moins), Non = ne vient pas. Une ancienne réponse donnée par un lien est remplacée.
+  -- D'abord les « Non », puis on retire les anciennes réponses des votants (Oui, Si besoin) : les places se répartissent
+  -- ensuite dans l'ordre, les « Oui » avant les « Si besoin ».
   insert into rsvps (event_id, user_id, status)
   select e, dv.user_id, 'no'::rsvp_status from date_votes dv where dv.option_id = opt and dv.vote = 'no'
   on conflict (event_id, user_id) do update set status = 'no';
-  -- « Si besoin » sans « Peut-être » : l'ancienne réponse part AVANT les « Oui » (sa place leur revient).
-  if not ev.allow_maybe then
-    delete from rsvps r using date_votes dv
-      where dv.option_id = opt and dv.vote = 'if_needed' and r.event_id = e and r.user_id = dv.user_id;
-  end if;
+  delete from rsvps r using date_votes dv
+    where dv.option_id = opt and dv.vote in ('yes', 'if_needed') and r.event_id = e and r.user_id = dv.user_id;
   for v in select dv.user_id, dv.vote from date_votes dv
            where dv.option_id = opt and dv.vote in ('yes', 'if_needed')
            order by (dv.vote = 'yes') desc, dv.user_id loop
-    -- « Si besoin » sans « Peut-être » : aucune réponse (07.11), la personne répondra elle-même.
-    -- Le vote décide aussi ici : une ancienne réponse « je viens » ne reste pas (elle prendrait une place).
-    continue when v.vote = 'if_needed' and not ev.allow_maybe;  -- réponse déjà effacée plus haut
-    -- Sans liste d'attente : seuls les « Oui » qui tiennent dans les places sont inscrits.
-    continue when v.vote = 'yes' and not ev.waitlist_enabled and ev.max_participants is not null
+    -- Sans liste d'attente : seuls ceux qui tiennent dans les places sont inscrits.
+    continue when not ev.waitlist_enabled and ev.max_participants is not null
       and (select coalesce(sum(1 + r.plus_ones), 0) from rsvps r
            where r.event_id = e and r.status = 'yes' and not r.waitlisted) >= ev.max_participants;
-    -- Le vote pour la date retenue décide (08.11) : il remplace une ancienne réponse donnée par un lien.
-    insert into rsvps (event_id, user_id, status)
-    values (e, v.user_id, case v.vote when 'yes' then 'yes'::rsvp_status else 'maybe'::rsvp_status end)
-    on conflict (event_id, user_id) do update set status = excluded.status;
+    insert into rsvps (event_id, user_id, status) values (e, v.user_id, 'yes'::rsvp_status)
+    on conflict (event_id, user_id) do update set status = 'yes';
   end loop;
   perform apply_waitlist(e);
 end $$;

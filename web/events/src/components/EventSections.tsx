@@ -519,7 +519,7 @@ export function DatePollSection({
       ) : null}
       {canManage ? (
         <T muted size={12}>
-          Fixer une date : les Oui deviennent Présent, les Si besoin deviennent Peut-être, et tout le monde est prévenu.
+          Fixer une date : les Oui et les Si besoin deviennent Présent (les Oui d’abord s’il y a peu de places), les Non Absent, et tout le monde est prévenu.
         </T>
       ) : null}
       <ErrorText error={error} />

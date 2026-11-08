@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { InviteSheet } from './InviteSheet';
@@ -320,17 +320,70 @@ function LinkRow({ link, spokenName, onNudge, onStop }: { link: SentLink; spoken
 
 type SwipeAction = { label: string; color: string; fg: string; onPress: () => void };
 
+/** Lignes ouvertes (une seule à la fois) : chacune se ferme quand une autre s'ouvre ou quand la page défile. */
+const openRows = new Set<() => void>();
+let pageScrollWatched = false;
+
+function watchPageScroll() {
+  if (pageScrollWatched || typeof document === 'undefined') return;
+  pageScrollWatched = true;
+  // Défilement de la page (pas d'une ligne) : toute ligne ouverte se referme, comme Mail sur iPhone.
+  document.addEventListener('scroll', (e) => {
+    const target = e.target as Element | null;
+    if (target?.closest?.('[data-testid="swipe-row"]')) return;  // le glissé d'une ligne n'est pas un défilement de la page
+    openRows.forEach((close) => close());
+  }, { capture: true, passive: true });
+}
+
+/** Fin du geste : ouverte si on a tiré au-delà de la moitié des actions, sinon fermée (jamais entre les deux). */
+const SETTLE_MS = 140;
+const CLOSE_MS = 600;  // durée max. du retour animé d'une ligne
+
 /** Ligne qui glisse vers la gauche pour montrer ses actions (comme Mail sur iPhone). Défilement horizontal natif du
- * navigateur avec aimantation : le doigt qui monte ou descend fait toujours défiler la page. */
+ * navigateur : le doigt qui monte ou descend fait toujours défiler la page. Une seule ligne ouverte, refermée par le
+ * défilement de la page (retour de l'admin, 08.11 : des lignes montraient « Retirer » toutes seules). */
 function SwipeRow({ actions, label, children }: { actions: SwipeAction[]; label: string; children: ReactNode }) {
   const [width, setWidth] = useState(0);
+  const scroller = useRef<ScrollView>(null);
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const full = actions.length * ACTION_WIDTH;
+  const closing = useRef(false);  // retour à 0 en cours : ce défilement n'est pas une ouverture
+  const close = useMemo(() => () => {
+    openRows.delete(close);
+    closing.current = true;
+    setTimeout(() => { closing.current = false; }, CLOSE_MS);  // jamais bloquée si le retour n'arrive pas à 0
+    scroller.current?.scrollTo({ x: 0, animated: true });
+  }, []);
+  useEffect(() => {
+    watchPageScroll();
+    return () => { openRows.delete(close); if (settle.current) clearTimeout(settle.current); };
+  }, [close]);
   const content = useMemo(() => <View style={[st.rowShell, width ? { width } : null]}>{children}</View>, [children, width]);
   if (!actions.length) return <View style={st.rowShell}>{children}</View>;
+
+  function onScroll(x: number) {
+    if (closing.current) {
+      if (x <= 0) closing.current = false;
+      return;
+    }
+    if (x > 4) {
+      openRows.forEach((other) => { if (other !== close) other(); });
+      openRows.add(close);
+    }
+    if (settle.current) clearTimeout(settle.current);
+    settle.current = setTimeout(() => {
+      const open = x > full / 2;
+      if (!open) openRows.delete(close);
+      if (x > 0 && x < full) scroller.current?.scrollTo({ x: open ? full : 0, animated: true });
+    }, SETTLE_MS);
+  }
+
   return (
     <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={st.swipe}>
-      <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} bounces={false}>
+      <ScrollView ref={scroller} testID="swipe-row" horizontal showsHorizontalScrollIndicator={false} bounces={false} scrollEventThrottle={16}
+        onScroll={(e) => onScroll(e.nativeEvent.contentOffset.x)}>
         {content}
-        <View style={[st.swipeActions, { width: actions.length * ACTION_WIDTH }]}>
+        <View style={[st.swipeActions, { width: full }]}>
           {actions.map((a) => (
             <Pressable key={a.label} accessibilityRole="button" accessibilityLabel={`${a.label.replace('↻ ', '')} ${label}`} onPress={a.onPress}
               style={[st.swipeAction, { backgroundColor: a.color }]}>

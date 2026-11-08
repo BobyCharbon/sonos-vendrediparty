@@ -1,6 +1,7 @@
 """Sondage de dates, une seule logique partout (retours de l'admin du 08.11), sur la VRAIE base de TEST : l'invité venu
 par un lien vote les dates comme un membre (jamais de « je viens » avant la date fixée), la liste des invités compte les
-votants, et la date fixée inscrit chacun selon son vote pour CETTE date (le vote remplace une ancienne réponse).
+votants, et la date fixée inscrit chacun selon son vote pour CETTE date (Oui et Si besoin = vient, Non = ne vient pas ;
+le vote remplace une ancienne réponse).
 Lancement : SUPABASE_LIVE_TESTS=1 python -m pytest tests/supabase_live/test_sondage_lien_live.py -q"""
 from datetime import datetime, timedelta, timezone
 
@@ -59,7 +60,7 @@ def test_a_link_guest_votes_the_dates_and_the_fixed_date_follows_the_votes(peopl
         # Ancienne réponse par lien d'avant (« je viens ») : le vote pour la date retenue la remplace.
         sql(f"insert into public.rsvps (event_id, user_id, status) values ('{event}', '{new.uid}', 'yes')")
         assert admin.rpc('fix_event_date', e=event, opt=first).status_code in (200, 204)
-        assert [rsvp(event, p.uid) for p in (ga, gb, new)] == ['yes', 'maybe', 'no']
+        assert [rsvp(event, p.uid) for p in (ga, gb, new)] == ['yes', 'yes', 'no']  # « Si besoin » = vient (règle de l'admin)
 
         # Date fixée : on répond normalement, « poll » n'est plus une réponse.
         assert 'La date est fixée' in error_of(new.rpc('accept_invite', token=link['token'], answer='poll'))
@@ -89,14 +90,14 @@ def test_a_removed_guest_loses_his_votes_and_the_fixed_date_frees_places_for_yes
         sql(f"insert into public.event_invites (event_id, user_id, via_group, via_link) values ('{event}', '{new.uid}', false, true) on conflict do nothing")
         vote(ga, first, 'no'); vote(gb, first, 'yes'); vote(new, first, 'if_needed')
         assert admin.rpc('fix_event_date', e=event, opt=first).status_code in (200, 204)
-        assert [rsvp(event, p.uid) for p in (ga, gb, new, vip)] == ['no', 'yes', None, None]
+        assert [rsvp(event, p.uid) for p in (ga, gb, new, vip)] == ['no', 'yes', 'yes', None]
     finally:
         sql(f"delete from public.events where id = '{event}'")
 
 
 def test_if_needed_without_maybe_frees_the_place_for_a_yes(people):  # noqa: F811
-    """Agent « Cohérence » (08.11) : 1 place, « Peut-être » désactivé ; A avait « je viens » par lien et vote « Si
-    besoin », B vote Oui → A n'a plus de réponse et B prend la place (elle restait vide)."""
+    """1 place, « Peut-être » désactivé ; A avait « je viens » par lien et vote « Si besoin », B vote Oui → les « Oui »
+    passent d'abord : B prend la place, A (Si besoin = vient, mais plus de place) n'est pas inscrit."""
     admin, ga, gb, _vip, _new = people
     event = create_event(admin, 'Test sondage si besoin', visibility='invited', date_mode='poll', starts_at=None,
                          allow_maybe=False, max_participants=1, waitlist_enabled=False)
