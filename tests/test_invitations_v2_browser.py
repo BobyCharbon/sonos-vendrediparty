@@ -435,3 +435,18 @@ def test_the_guest_card_of_a_date_poll_counts_who_voted(browser, v2_origin):  # 
         shot(page, '22-sondage-invites', full=True)
     finally:
         context.close()
+
+
+def test_a_closed_date_poll_says_so_before_asking_who_you_are(browser, v2_origin):  # noqa: F811
+    """Agent « Bugs et affichage » (08.11) : sondage dont la date limite des votes est passée → la carte le dit tout de
+    suite (avant on demandait prénom, numéro et code, puis le vote était refusé avec « Réessaie »)."""
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
+    page = context.new_page()
+    try:
+        mock_services(page)
+        mock_invites(page, card={**CARD, 'date_mode': 'poll', 'starts_at': None, 'closed': True})
+        page.goto(f'{v2_origin}/events/invite/{TOKEN}', wait_until='domcontentloaded')
+        pw.expect(page.get_by_text('Les votes sont fermés pour ce sondage : l’organisateur va fixer la date.', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_role('button', name='📅 Choisir mes dates')).to_have_count(0)
+    finally:
+        context.close()

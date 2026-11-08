@@ -854,6 +854,8 @@ let fbMineItems = [];
 const fbWhen = (t) => new Date(t * 1000).toLocaleString("fr-CH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 function renderFeedback(mine) {
   fbMineItems = mine;
+  // Une modification en cours n'est jamais effacée par un rechargement de la liste (retour à l'app, rôle relu…).
+  if ($("fbMine").querySelector("textarea.fb-edit-text")) return;
   fbUnseen = mine.filter((m) => m.unseen).length;
   fbBadge();
   $("fbMineH").classList.toggle("hidden", !mine.length);
@@ -874,10 +876,12 @@ document.addEventListener("click", async (ev) => {
     meta.innerHTML = `<textarea class="fb-edit-text" maxlength="1000" aria-label="Ton avis">${esc(m.text)}</textarea>
       <div class="row"><button type="button" class="small" data-fb-save="${esc(m.id)}">Enregistrer</button>
       <button type="button" class="secondary small" data-fb-cancel>Annuler</button></div>`;
-    meta.querySelector("textarea").focus();
+    const area = meta.querySelector("textarea");
+    area.style.height = `${Math.min(area.scrollHeight + 8, innerHeight * 0.6)}px`;  // tout le texte visible d'emblée
+    area.focus();
     return;
   }
-  if (ev.target.closest("[data-fb-cancel]")) return renderFeedback(fbMineItems);
+  if (ev.target.closest("[data-fb-cancel]")) { ev.target.closest(".meta").innerHTML = ""; return renderFeedback(fbMineItems); }
   const save = ev.target.closest("[data-fb-save]");
   if (!save) return;
   const text = save.closest(".meta").querySelector("textarea").value.trim();
@@ -885,6 +889,7 @@ document.addEventListener("click", async (ev) => {
   try {
     const token = (await freshToken()) || "";
     const r = await api("/api/feedback/edit", { method: "POST", body: JSON.stringify({ guest_id: guestId, id: save.dataset.fbSave, text, token }) });
+    save.closest(".meta").innerHTML = "";  // fermée : la liste peut se redessiner
     renderFeedback(r.mine);
     toast("Avis modifié ✓", "ok");
   } catch (e) {

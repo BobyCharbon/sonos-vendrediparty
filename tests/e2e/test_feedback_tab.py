@@ -238,6 +238,10 @@ def test_the_author_rewrites_his_feedback_and_the_admin_sees_the_new_text(browse
         box = guest.page.locator("#fbMine textarea")
         expect(box).to_have_value("Le joystick est trop petit sur mon iPhone")
         box.fill("Le joystick est trop petit sur mon iPhone, surtout en mode paysage")
+        guest.page.evaluate("loadFeedback(false)")  # rechargement de la liste pendant la saisie : rien n'est perdu
+        guest.page.wait_for_timeout(500)
+        expect(box).to_have_value("Le joystick est trop petit sur mon iPhone, surtout en mode paysage")
+        assert box.evaluate("e => e.getBoundingClientRect().height") >= 190
         guest.page.locator("#fbMine [data-fb-save]").tap()
         expect(guest.page.locator("#fbMine")).to_contain_text("surtout en mode paysage")
         expect(guest.page.locator("#fbMine .fb-edited")).to_contain_text("modifié le")

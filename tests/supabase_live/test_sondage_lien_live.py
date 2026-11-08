@@ -111,3 +111,16 @@ def test_if_needed_without_maybe_frees_the_place_for_a_yes(people):  # noqa: F81
         assert [rsvp(event, p.uid) for p in (ga, gb)] == [None, 'yes']
     finally:
         sql(f"delete from public.events where id = '{event}'")
+
+
+def test_the_link_card_of_a_poll_is_closed_when_the_vote_deadline_is_past(people):  # noqa: F811
+    from tests.supabase_live.test_invite_links_live import anon_rpc
+    admin = people[0]
+    event = create_event(admin, 'Test sondage fermé', visibility='invited', date_mode='poll', starts_at=None)
+    try:
+        link = admin.rpc('create_event_invite', e=event, places=2).json()
+        assert anon_rpc('invite_preview', token=link['token']).json()['closed'] is False
+        sql(f"update public.events set poll_deadline = now() - interval '1 hour' where id = '{event}'")
+        assert anon_rpc('invite_preview', token=link['token']).json()['closed'] is True
+    finally:
+        sql(f"delete from public.events where id = '{event}'")

@@ -1628,7 +1628,7 @@ body:not(.admin-music) .admin-games { display: none !important; }
 .fb-text { margin-top: 2px; font-size: .9rem; opacity: .8; white-space: pre-wrap; overflow-wrap: anywhere; }
 .fb-edited { opacity: .7; }
 .fb-edit { margin-top: 8px; }
-.fb-edit-text { width: 100%; min-height: 110px; box-sizing: border-box; }
+.fb-edit-text { width: 100%; min-height: 200px; max-height: 60vh; box-sizing: border-box; }
 .fb-reply { margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.06); font-size: .9rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 .fb-st.progress { color:#ffd27a; font-weight:700; }
 .fb-st.declined { color:#c9c3dc; font-weight:700; }

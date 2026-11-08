@@ -165,7 +165,7 @@ function Card({ card, onAnswer }: { card: InviteCard; onAnswer: (a: Answer) => v
       ) : closed ? (
         <View style={st.notice}><T color={colors.coralSoft}>{CLOSED[card.state]}</T></View>
       ) : card.closed ? (
-        <View style={st.notice}><T color={colors.coralSoft}>Les réponses sont fermées pour cet événement.</T></View>
+        <View style={st.notice}><T color={colors.coralSoft}>{card.date_mode === 'poll' ? 'Les votes sont fermés pour ce sondage : l’organisateur va fixer la date.' : 'Les réponses sont fermées pour cet événement.'}</T></View>
       ) : card.date_mode === 'poll' ? (
         // Sondage de dates : on répond en votant les dates, comme dans l'app (jamais « Je viens » avant la date fixée).
         <View style={{ gap: 10 }}>

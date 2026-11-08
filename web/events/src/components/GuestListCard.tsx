@@ -164,7 +164,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
               style={({ pressed }) => [st.tile, on && { borderColor: t.color, backgroundColor: colors.surface2 }, pressTransition,
                 pressed && { transform: [{ scale: 0.96 }] }]}>
               <T size={22} weight="bold" color={t.color}>{counts[t.key]}</T>
-              <T size={12} weight="semibold" color={on ? colors.text : colors.muted} numberOfLines={1}>{label}</T>
+              <T size={12} weight="semibold" color={on ? colors.text : colors.muted} numberOfLines={2} style={{ textAlign: 'center' }}>{label}</T>
             </Pressable>
           );
         })}

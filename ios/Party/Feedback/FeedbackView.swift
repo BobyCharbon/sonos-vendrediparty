@@ -17,6 +17,8 @@ struct FeedbackView: View {
     @State private var part: Part = .received
     @State private var editing: FeedbackItem?
     @State private var editText = ""
+    @State private var editBusy = false
+    @State private var editError: String?
 
     private enum Part: String, CaseIterable, Identifiable {
         case received, mine
@@ -299,7 +301,7 @@ struct FeedbackView: View {
                         Label(item.reply, systemImage: "arrowshape.turn.up.left.fill").foregroundStyle(Palette.accent)
                     }
                     if item.editable {
-                        Button { editing = item; editText = item.text } label: { Label("Modifier", systemImage: "pencil") }
+                        Button { editing = item; editText = item.text; editError = nil } label: { Label("Modifier", systemImage: "pencil") }
                             .font(.footnote.weight(.semibold)).tint(Palette.accent)
                             .accessibilityIdentifier("feedback-edit")
                     }
@@ -319,21 +321,37 @@ struct FeedbackView: View {
     /// Modifier son avis : le texte entier, comme à l'envoi ; l'ancien reste dans la trace de l'avis (serveur).
     private func editSheet(_ item: FeedbackItem) -> some View {
         NavigationStack {
-            TextEditor(text: $editText)
-                .padding(8)
-                .scrollContentBackground(.hidden)
-                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .padding()
+            VStack(alignment: .leading, spacing: 8) {
+                TextEditor(text: $editText)
+                    .padding(8)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                if let editError {
+                    Label(editError, systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.red)
+                        .accessibilityIdentifier("feedback-edit-error")
+                }
+            }
+            .padding()
                 .navigationTitle("Modifier mon avis")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Annuler") { editing = nil } }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Enregistrer") {
-                            let text = editText.trimmingCharacters(in: .whitespacesAndNewlines)
-                            Task { if await store.edit(item, text: text) { editing = nil } }
+                        if editBusy {
+                            ProgressView()
+                        } else {
+                            Button("Enregistrer") {
+                                let text = editText.trimmingCharacters(in: .whitespacesAndNewlines)
+                                editBusy = true
+                                editError = nil
+                                Task {
+                                    editError = await store.edit(item, text: text)
+                                    editBusy = false
+                                    if editError == nil { editing = nil }
+                                }
+                            }
+                            .disabled(editText.trimmingCharacters(in: .whitespacesAndNewlines).count < FeedbackAI.minimumLength)
                         }
-                        .disabled(editText.trimmingCharacters(in: .whitespacesAndNewlines).count < FeedbackAI.minimumLength)
                     }
                 }
         }

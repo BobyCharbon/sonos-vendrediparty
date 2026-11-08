@@ -46,7 +46,10 @@ export function InviteDateVotes({ eventId, onVoted }: { eventId: string; onVoted
     const { error: refused } = await supabase.from('date_votes').upsert({ option_id: option, user_id: me, vote });
     if (refused) {
       setMine(before);
-      return setError(dbMessage(refused.message, 'Ton vote n’a pas pu être enregistré. Réessaie.'));
+      // Refus des règles d'accès : le vote est fermé (date limite passée, date fixée) — réessayer ne servirait à rien.
+      return setError(refused.code === '42501'
+        ? 'Les votes sont fermés pour ce sondage : l’organisateur va fixer la date.'
+        : dbMessage(refused.message, 'Ton vote n’a pas pu être enregistré. Vérifie ta connexion puis réessaie.'));
     }
     onVoted(Object.keys(next).length);
   }
