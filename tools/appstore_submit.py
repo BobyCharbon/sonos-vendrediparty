@@ -10,10 +10,12 @@ Lancé par .github/workflows/ios-appstore.yml (secrets ASC_KEY_ID, ASC_ISSUER_ID
       repris de la revue précédente (jamais dans le dépôt), puis envoi en revue.
 Rien n'est envoyé si un fichier manque, si le build n'est pas traité ou si aucun compte de démo n'est connu.
 """
+import hashlib
 import json
 import pathlib
 import sys
 import time
+import urllib.request
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from testflight_publish import api  # noqa: E402  (même jeton signé, même appel)
@@ -293,9 +295,90 @@ def fill(key: str, version: str) -> int:
     return 0
 
 
+SCREENSHOTS_DIR = ROOT / "ios/appstore/screenshots"
+SCREENSHOT_TYPE = "APP_IPHONE_67"          # 6,9" / 6,7" : 1320 × 2868, la taille exigée par Apple pour l'iPhone
+IPHONE_TYPES = {"APP_IPHONE_67", "APP_IPHONE_65", "APP_IPHONE_61", "APP_IPHONE_58", "APP_IPHONE_55"}
+ASSET_WAIT_S = 5 * 60
+
+
+def upload_parts(operations: list, data: bytes) -> None:
+    for op in operations:
+        chunk = data[op["offset"]:op["offset"] + op["length"]]
+        headers = {h["name"]: h["value"] for h in op.get("requestHeaders") or []}
+        req = urllib.request.Request(op["url"], data=chunk, method=op["method"], headers=headers)
+        with urllib.request.urlopen(req, timeout=120) as r:
+            r.read()
+
+
+def upload_screenshot(asc: Asc, set_id: str, path: pathlib.Path) -> str:
+    data = path.read_bytes()
+    reserved = asc.call("POST", "/v1/appScreenshots", {"data": {
+        "type": "appScreenshots", "attributes": {"fileName": path.name, "fileSize": len(data)},
+        "relationships": {"appScreenshotSet": {"data": {"type": "appScreenshotSets", "id": set_id}}}}})["data"]
+    upload_parts(reserved["attributes"]["uploadOperations"], data)
+    asc.call("PATCH", f"/v1/appScreenshots/{reserved['id']}", {"data": {
+        "type": "appScreenshots", "id": reserved["id"],
+        "attributes": {"uploaded": True, "sourceFileChecksum": hashlib.md5(data).hexdigest()}}})
+    return reserved["id"]
+
+
+def wait_assets(asc: Asc, ids: list[str]) -> None:
+    deadline = time.time() + ASSET_WAIT_S
+    pending = set(ids)
+    while pending and time.time() < deadline:
+        for shot_id in sorted(pending):
+            st = asc.call("GET", f"/v1/appScreenshots/{shot_id}")["data"]["attributes"].get("assetDeliveryState") or {}
+            if st.get("state") == "COMPLETE":
+                pending.discard(shot_id)
+            elif st.get("state") == "FAILED":
+                raise SystemExit(f"Capture refusée par Apple : {st.get('errors')}")
+        if pending:
+            time.sleep(10)
+    if pending:
+        raise SystemExit(f"Captures pas traitées au bout de {ASSET_WAIT_S // 60} min : {sorted(pending)}")
+
+
+def screens(key: str, version: str) -> int:
+    """Remplace les captures iPhone de la fiche fr-FR par ios/appstore/screenshots/*.png (6,9", ordre des noms)."""
+    files = sorted(SCREENSHOTS_DIR.glob("*.png"))
+    if not 3 <= len(files) <= 10:
+        raise SystemExit(f"Il faut 3 à 10 captures dans {SCREENSHOTS_DIR} ({len(files)} trouvées)")
+    asc = Asc(key)
+    app = app_id(asc)
+    v = editable_version(asc, app, version)
+    loc = next((x for x in asc.data(f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations")
+                if x["attributes"]["locale"] == LOCALE), None)
+    if loc is None:
+        raise SystemExit(f"Pas de fiche {LOCALE}")
+    sets = asc.data(f"/v1/appStoreVersionLocalizations/{loc['id']}/appScreenshotSets")
+    target = next((s for s in sets if s["attributes"]["screenshotDisplayType"] == SCREENSHOT_TYPE), None)
+    if target is None:
+        target = asc.call("POST", "/v1/appScreenshotSets", {"data": {
+            "type": "appScreenshotSets", "attributes": {"screenshotDisplayType": SCREENSHOT_TYPE},
+            "relationships": {"appStoreVersionLocalization": {"data": {"type": "appStoreVersionLocalizations",
+                                                                        "id": loc["id"]}}}}})["data"]
+        print(f"Jeu de captures {SCREENSHOT_TYPE} créé")
+    ids = [upload_screenshot(asc, target["id"], f) for f in files]
+    wait_assets(asc, ids)
+    print(f"{len(ids)} captures {SCREENSHOT_TYPE} envoyées : {', '.join(f.name for f in files)}")
+    # Les anciennes captures iPhone (autres tailles, et celles du jeu 6,9" d'avant) partent : sinon l'App Store
+    # montrerait encore l'ancienne app sur les petits écrans.
+    for s in asc.data(f"/v1/appStoreVersionLocalizations/{loc['id']}/appScreenshotSets"):
+        if s["attributes"]["screenshotDisplayType"] not in IPHONE_TYPES:
+            continue
+        for shot in asc.data(f"/v1/appScreenshotSets/{s['id']}/appScreenshots"):
+            if shot["id"] not in ids:
+                asc.call("DELETE", f"/v1/appScreenshots/{shot['id']}")
+                print(f"Ancienne capture retirée : {s['attributes']['screenshotDisplayType']} "
+                      f"{shot['attributes'].get('fileName')}")
+    return 0
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 4 and sys.argv[1] == "fill":
         sys.exit(fill(sys.argv[2], sys.argv[3]))
+    if len(sys.argv) == 4 and sys.argv[1] == "screens":
+        sys.exit(screens(sys.argv[2], sys.argv[3]))
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
     if mode == "check" and len(sys.argv) == 3:
         sys.exit(check(sys.argv[2]))
