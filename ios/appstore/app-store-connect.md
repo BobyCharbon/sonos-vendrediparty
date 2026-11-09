@@ -20,9 +20,7 @@ drapeaux de prod lus sur https://party.bobycharbon.ch/api/features : `compagnon:
 Les deux pages sont dessinées en JavaScript : `curl` reçoit une page sans texte, un navigateur affiche bien tout.
 À ouvrir une fois dans Safari pour vérifier.
 
-**Script d'envoi** : `tools/appstore_submit.py submit` exige `ios/appstore/whats-new-fr.txt` et envoie toujours
-`whatsNew`. Pour 1.0.0, ce fichier n'existe pas (exprès) : le script s'arrêtera. Envoyer 1.0.0 à la main dans App
-Store Connect, ou adapter le script (ne pas envoyer `whatsNew` à une première version) avant de le lancer.
+**Script d'envoi** : `tools/appstore_submit.py submit` (workflow « App Store », mode submit) n'envoie pas de « Nouveautés » pour une première version. Il exige que le compte de démo soit déjà saisi dans App Store Connect (section 3).
 
 ## 2. Contact pour la revue (App Review Information › Contact)
 
@@ -41,8 +39,7 @@ Store Connect, ou adapter le script (ne pas envoyer `whatsNew` à une première 
 | Password | Le code fixe à 6 chiffres : voir le fichier local `~/sb-work/apple/demo.txt` (ligne `code=`). Jamais dans le dépôt. |
 
 À faire avant l'envoi :
-- **Le compte est encore « Guest » en production** (lu le 09.11 : `role = guest`). Le passer en **Guest+** (Guest +
-  « Écrire un avis ») : sans ça, « Ton avis », son IA et « Modifier » ne s'affichent pas, et les notes mentent.
+- Fait le 09.11 (prod) : « Apple-test » est **Guest+**, profil complet (prénom Apple, nom Review, photo neutre « AR »). La photo de profil est facultative depuis le 09.11.
 - Guest+ n'a pas `events.publish_direct` : ses événements partent « pour validation ». Prévoir de valider (ou
   refuser) rapidement les propositions d'« Apple-test » pendant la revue.
 - Vérifier que le code fixe marche encore en production (connexion sur un iPhone avec l'app App Store/TestFlight) et
