@@ -138,7 +138,7 @@ struct MemberDetailView: View {
             Text("Rôle")
         } footer: {
             Text(person.complete ? "Membre : mêmes droits que Guest, sans être dans le groupe Vendredi Party. Membre VIP et plus : dans le groupe."
-                                 : "Profil incomplet : il reste Guest ou Membre tant qu'il manque nom, prénom, surnom ou photo.")
+                                 : "Profil incomplet : il reste Guest ou Membre tant qu'il manque nom, prénom ou surnom.")
         }
     }
 

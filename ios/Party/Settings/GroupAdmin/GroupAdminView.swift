@@ -89,7 +89,7 @@ struct GroupAdminView: View {
                     }
                     if let message = request.message, !message.isEmpty { Text("« \(message) »").font(.subheadline) }
                     if !request.complete {
-                        Text("Nom, prénom, surnom et photo à compléter avant de pouvoir accepter.")
+                        Text("Nom, prénom et surnom à compléter avant de pouvoir accepter.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                     HStack {

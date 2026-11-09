@@ -25,7 +25,7 @@ ROLE_KEY = r"^[a-z][a-z0-9_]{1,30}$"
 STATUS_LABELS = {"active": "actif", "banned": "accès retiré", "pending": "en attente"}
 ERRORS = {  # exception de la base → phrase pour l'écran
     "last_admin": "Désigne d'abord un autre administrateur actif.",
-    "profile_incomplete": "Ce compte doit d'abord renseigner son nom, son prénom, son surnom et sa photo.",
+    "profile_incomplete": "Ce compte doit d'abord renseigner son nom, son prénom et son surnom.",
     "confirm": "Le surnom tapé ne correspond pas.",
     "role_duplicate": "Ce nom de rôle existe déjà.",
     "role_not_empty": "Ce rôle a encore des comptes : choisis le rôle qui les reprend.",
@@ -41,8 +41,9 @@ OK = (200, 201, 204)
 
 
 def complete(p: dict) -> bool:
-    """Nom, prénom, surnom et photo : obligatoires pour passer au-dessus de Guest (même règle que guard_profile)."""
-    return all((p.get(k) or "").strip() for k in ("first_name", "last_name", "display_name", "avatar_url"))
+    """Nom, prénom et surnom : obligatoires pour passer au-dessus de Guest (même règle que guard_profile).
+    La photo est facultative (décision du 09.11.2026)."""
+    return all((p.get(k) or "").strip() for k in ("first_name", "last_name", "display_name"))
 
 
 def readable(r: httpx.Response, fallback: str) -> str:

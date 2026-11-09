@@ -375,7 +375,7 @@ class Accounts:
     def update_profile(self, token: str, fields: dict, photo: bytes | None) -> dict:
         """Prénom, nom, surnom et, au besoin, nouvelle photo (JPEG déjà recadré par l'app) : la photo va dans le
         dossier du membre, puis le profil la désigne ; l'ancienne est effacée. Refusé : la photo envoyée est retirée.
-        Les règles (tout obligatoire, surnom ≤ 40) sont aussi vérifiées par la base (trigger guard_profile)."""
+        Les règles (prénom, nom, surnom obligatoires, photo facultative, surnom ≤ 40) sont aussi vérifiées par la base (trigger guard_profile)."""
         uid = self._uid(token)
         before = self.profile(token)
         uploaded = None

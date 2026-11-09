@@ -62,7 +62,7 @@ const ROLE_ERRORS: [string, string][] = [
   ['role_color', 'Cette couleur n’est pas valable.'],
   ['role_icon', 'Une seule icône (emoji).'],
   ['role_limit', '40 rôles au maximum.'],
-  ['profile_incomplete', 'Un de ces comptes doit d’abord renseigner son nom, son prénom, son surnom et sa photo.'],
+  ['profile_incomplete', 'Un de ces comptes doit d’abord renseigner son nom, son prénom et son surnom.'],
 ];
 
 /** Message de la base → phrase pour l'écran. */

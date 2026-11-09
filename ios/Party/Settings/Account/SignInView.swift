@@ -175,7 +175,7 @@ struct PrivacyView: View {
         ]),
         ("Ton compte", [
             "Numéro de téléphone : il sert à te connecter avec un code reçu par SMS et à te reconnaître. Il est visible par toi, par les administrateurs qui gèrent les accès et, si tu le choisis dans tes réglages, par les membres de tes groupes.",
-            "Surnom, prénom, nom et photo de profil : ils te présentent aux autres dans les jeux, les événements et les groupes. Tu les modifies à tout moment dans Réglages › Mon profil.",
+            "Surnom, prénom, nom et, si tu veux, photo de profil : ils te présentent aux autres dans les jeux, les événements et les groupes. Tu les modifies à tout moment dans Réglages › Mon profil.",
             "Rôle, groupes, amis et invitations : ils décident de ce que tu vois et de ce que tu peux faire.",
         ]),
         ("Événements, groupes et messages", [

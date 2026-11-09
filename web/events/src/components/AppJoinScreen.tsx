@@ -15,7 +15,7 @@ import { colors } from '@/lib/theme';
 /** Lien personnel d'invitation dans Party (/events/join/<lien>), avis 84fab3987f68 :
  * 1. avant connexion : « Ludo t'invite sur Party » (surnom et photo seulement), l'app à télécharger, ou « Continuer
  *    sur le web » (inscription par SMS, le lien est gardé) ;
- * 2. connecté au profil incomplet : prénom, nom, surnom, photo ici même ;
+ * 2. connecté au profil incomplet : prénom, nom, surnom ici même (photo facultative) ;
  * 3. profil complet : le lien est réclamé une fois (la base vérifie : nouveau compte, pas soi-même) et l'inviteur prévenu.
  * Le lien ne donne aucun droit : le compte reste Guest. */
 export function AppJoinScreen({ token }: { token: string | undefined }) {
@@ -34,7 +34,7 @@ export function AppJoinScreen({ token }: { token: string | undefined }) {
         <Stack.Screen options={{ title: 'Invitation' }} />
         <View style={{ gap: 8 }}>
           <Title size={30}>Complète ton profil</Title>
-          <T muted>Ton prénom, ton nom, ton surnom et ta photo : {preview.inviter || 'ton ami'} te reconnaîtra tout de suite.</T>
+          <T muted>Ton prénom, ton nom et ton surnom (une photo si tu veux) : {preview.inviter || 'ton ami'} te reconnaîtra tout de suite.</T>
         </View>
         <IdentityForm profile={profile} submitLabel="Continuer" onSaved={() => void refreshProfile()} />
       </Screen>

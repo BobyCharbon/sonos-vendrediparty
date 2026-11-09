@@ -89,10 +89,10 @@ struct SettingsTests {
 
     @Test("Mon profil : tout obligatoire, surnom 40 caractères au plus, espaces nettoyés")
     func profileRules() {
-        #expect(ProfileRules.isComplete(first: "Ludo", last: "T", nickname: "Boby", hasPhoto: true))
-        #expect(!ProfileRules.isComplete(first: "Ludo", last: "T", nickname: "Boby", hasPhoto: false))
-        #expect(!ProfileRules.isComplete(first: "  ", last: "T", nickname: "Boby", hasPhoto: true))
-        #expect(!ProfileRules.isComplete(first: "Ludo", last: "T", nickname: String(repeating: "x", count: 41), hasPhoto: true))
+        #expect(ProfileRules.isComplete(first: "Ludo", last: "T", nickname: "Boby"))   // photo facultative
+        #expect(!ProfileRules.isComplete(first: "  ", last: "T", nickname: "Boby"))
+        #expect(!ProfileRules.isComplete(first: "Ludo", last: "", nickname: "Boby"))
+        #expect(!ProfileRules.isComplete(first: "Ludo", last: "T", nickname: String(repeating: "x", count: 41)))
         #expect(ProfileRules.clean("  Jean   Paul ") == "Jean Paul")
     }
 

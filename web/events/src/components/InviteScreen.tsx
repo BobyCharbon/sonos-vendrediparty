@@ -18,7 +18,7 @@ type GroupPreview = { id: string; name: string; creator: string | null; members:
 
 /** Lien d'invitation (événement réservé à un groupe, ou groupe privé), avis n°9 :
  * 1. sans compte : rien n'est montré, on s'inscrit d'abord avec son numéro (SMS) ;
- * 2. compte au profil incomplet : nom, prénom, surnom et photo sont demandés ici même ;
+ * 2. compte au profil incomplet : nom, prénom et surnom sont demandés ici même (photo facultative) ;
  * 3. profil complet : on rejoint tout de suite et on arrive sur l'événement (ou ses groupes).
  * L'organisateur (ou le créateur du groupe) est prévenu à l'arrivée. La base revérifie chaque étape. */
 export function InviteScreen({ kind, token }: { kind: 'event' | 'group'; token: string | undefined }) {
@@ -48,7 +48,7 @@ export function InviteScreen({ kind, token }: { kind: 'event' | 'group'; token: 
         <View style={{ gap: 8 }}>
           <Title size={30}>Complète ton profil</Title>
           <T muted>
-            Encore une étape : ton prénom, ton nom, ton surnom et ta photo, pour que le groupe te reconnaisse.
+            Encore une étape : ton prénom, ton nom et ton surnom (une photo si tu veux), pour que le groupe te reconnaisse.
             Tu accèdes ensuite directement à {kind === 'event' ? 'l’événement' : 'ce groupe'}.
           </T>
         </View>

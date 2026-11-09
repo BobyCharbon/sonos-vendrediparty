@@ -65,7 +65,7 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
 
       <Section title="Événements du groupe">
         {active ? <T muted size={14}>{can('events.view') ? `Tu fais partie du groupe Vendredi Party : événements, sondages${discussionsOn ? ' et discussions' : ''}.` : 'Tu vois les événements publics et ceux où on t’invite.'}</T> : null}
-        {eventsOpen && !complete ? <T muted size={14}>Complète ton profil (prénom, nom, surnom et photo) pour voir les événements.</T> : null}
+        {eventsOpen && !complete ? <T muted size={14}>Complète ton profil (prénom, nom et surnom) pour voir les événements.</T> : null}
         {profile.status === 'banned' ? <T muted size={14}>Ton accès a été retiré par un admin.</T> : null}
         {active ? <Button label="Voir les événements" variant="secondary" onPress={() => openPartyTab('events')} /> : null}
       </Section>

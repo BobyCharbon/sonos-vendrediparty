@@ -62,7 +62,7 @@ export default function Members() {
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       setError(message.includes('last_admin') ? 'Désigne d’abord un autre administrateur actif.'
-        : message.includes('profile_incomplete') ? 'Ce compte doit d’abord renseigner son nom, son prénom, son surnom et sa photo.'
+        : message.includes('profile_incomplete') ? 'Ce compte doit d’abord renseigner son nom, son prénom et son surnom.'
         : message.replace(/^forbidden: /, ''));
     } finally {
       updating.current = false;
@@ -141,7 +141,7 @@ function MemberRow({ person: p, beta, me, myRank, canRoles, canBan, canDelete, b
               ? <Chip label="Retirer l’accès" color={colors.coral} disabled={busy} onPress={() => onUpdate(p.id, { status: 'banned' })} />
               : <Chip label="Réintégrer" disabled={busy} onPress={() => onUpdate(p.id, { status: 'active' })} />
           ) : null}
-          {p.status === 'active' && canRoles && !hasCompleteIdentity(p) ? <T muted size={13}>Profil incomplet : il reste Guest tant qu’il manque nom, prénom, surnom ou photo.</T> : null}
+          {p.status === 'active' && canRoles && !hasCompleteIdentity(p) ? <T muted size={13}>Profil incomplet : il reste Guest tant qu’il manque nom, prénom ou surnom.</T> : null}
         </View>
       ) : null}
       {canDelete ? (

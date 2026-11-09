@@ -47,7 +47,7 @@ export default function Admin() {
 
   async function run(p: PromiseLike<{ error: { message: string } | null }>) {
     const { error } = await p;
-    setError(error?.message.includes('profile_incomplete') ? 'Ce membre doit d’abord renseigner son nom, son prénom, son surnom et sa photo.' : error?.message ?? null);
+    setError(error?.message.includes('profile_incomplete') ? 'Ce membre doit d’abord renseigner son nom, son prénom et son surnom.' : error?.message ?? null);
     reload();
   }
 
@@ -116,7 +116,7 @@ export default function Admin() {
                 </View>
               </View>
               {message ? <T size={14}>« {message} »</T> : null}
-              {!hasCompleteIdentity(m) ? <T muted size={13}>Nom, prénom, surnom et photo à compléter avant de pouvoir accepter.</T> : null}
+              {!hasCompleteIdentity(m) ? <T muted size={13}>Nom, prénom et surnom à compléter avant de pouvoir accepter.</T> : null}
               <View style={s.row}>
                 <Button small label="Accepter" style={{ flex: 1 }} disabled={!hasCompleteIdentity(m)} onPress={() => run(supabase.rpc('decide_join_request', { member: m.id, accept: true }))} />
                 <Button small variant="danger" label="Refuser" style={{ flex: 1 }} onPress={() => run(supabase.rpc('decide_join_request', { member: m.id, accept: false }))} />

@@ -256,7 +256,8 @@ struct MemberProfile: Decodable, Equatable {
     }
 }
 
-/// Règles de Mon profil, les mêmes que la base (trigger guard_profile) : tout est obligatoire, surnom ≤ 40.
+/// Règles de Mon profil, les mêmes que la base (trigger guard_profile) : prénom, nom et surnom
+/// obligatoires, surnom ≤ 40 ; la photo est facultative (décision du 09.11.2026).
 enum ProfileRules {
     static let nicknameLength = 40
     static let nameLength = 100
@@ -265,8 +266,8 @@ enum ProfileRules {
         text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 
-    static func isComplete(first: String, last: String, nickname: String, hasPhoto: Bool) -> Bool {
-        !clean(first).isEmpty && !clean(last).isEmpty && !clean(nickname).isEmpty && hasPhoto
+    static func isComplete(first: String, last: String, nickname: String) -> Bool {
+        !clean(first).isEmpty && !clean(last).isEmpty && !clean(nickname).isEmpty
             && clean(nickname).count <= nicknameLength
     }
 }

@@ -135,7 +135,7 @@ struct AdminOverview: Decodable, Equatable {
         let photo: String?
         let message: String?
         let at: String?
-        /// Nom, prénom, surnom et photo renseignés : sinon la base refuse l'acceptation.
+        /// Nom, prénom et surnom renseignés (photo facultative) : sinon la base refuse l'acceptation.
         let complete: Bool
 
         enum CodingKeys: String, CodingKey { case id, name, phone, photo, message, at, complete, fullName = "full_name" }

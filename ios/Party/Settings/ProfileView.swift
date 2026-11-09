@@ -2,7 +2,7 @@ import PhotosUI
 import SwiftUI
 
 /// Réglages › Mon profil : photo, prénom et nom (privés), surnom (public). Mêmes règles que le module Événements :
-/// tout est obligatoire, le surnom tient en 40 caractères.
+/// prénom, nom et surnom obligatoires (photo facultative), le surnom tient en 40 caractères.
 struct ProfileView: View {
     @ObservedObject var store: SettingsStore
 
@@ -95,7 +95,7 @@ struct ProfileView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
         } footer: {
-            Text("Obligatoire : pour que le groupe te reconnaisse, dans les jeux comme dans les événements. La photo est recadrée en carré.")
+            Text("Facultative : elle aide le groupe à te reconnaître, dans les jeux comme dans les événements. La photo est recadrée en carré.")
         }
     }
 
@@ -147,7 +147,7 @@ struct ProfileView: View {
     }
 
     private var canSave: Bool {
-        changed && ProfileRules.isComplete(first: first, last: last, nickname: nickname, hasPhoto: hasPhoto)
+        changed && ProfileRules.isComplete(first: first, last: last, nickname: nickname)
     }
 
     private func fill() {
