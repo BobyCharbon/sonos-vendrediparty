@@ -81,6 +81,23 @@ def check(key: str) -> int:
             la = loc["attributes"]
             print(f"  {la['locale']} : nouveautés {len(la.get('whatsNew') or '')} car., "
                   f"description {len(la.get('description') or '')} car.")
+        for loc in asc.data(f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations"):
+            la = loc["attributes"]
+            print(f"  fiche {la['locale']} : support {la.get('supportUrl')}, marketing {la.get('marketingUrl')}, "
+                  f"mots-clés {la.get('keywords')!r}\n  description : {la.get('description')!r}")
+        rating = api(asc.key, "GET", f"/v1/appStoreVersions/{v['id']}/ageRatingDeclaration")
+        if "error" not in rating:
+            print(f"  âge : {rating['data']['attributes']}")
+    for info in asc.data(f"/v1/apps/{app}/appInfos"):
+        print(f"- appInfo {info['id']} : {info['attributes'].get('appStoreState') or info['attributes'].get('state')}, "
+              f"âge {info['attributes'].get('appStoreAgeRating')}")
+        for loc in asc.data(f"/v1/appInfos/{info['id']}/appInfoLocalizations"):
+            la = loc["attributes"]
+            print(f"  {la['locale']} : nom {la.get('name')!r}, sous-titre {la.get('subtitle')!r}, "
+                  f"confidentialité {la.get('privacyPolicyUrl')}")
+        rating = api(asc.key, "GET", f"/v1/appInfos/{info['id']}/ageRatingDeclaration")
+        if "error" not in rating:
+            print(f"  âge (appInfo) : {rating['data']['attributes']}")
     for b in asc.data(f"/v1/builds?filter[app]={app}&filter[preReleaseVersion.platform]=IOS&sort=-uploadedDate&limit=5"):
         a = b["attributes"]
         print(f"- build {a['version']} : {a['processingState']}, envoyé {a['uploadedDate'][:16]}, expiré {a.get('expired')}")
