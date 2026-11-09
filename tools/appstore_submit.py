@@ -138,8 +138,10 @@ def details(asc: Asc, app: str) -> None:
     avail = api(asc.key, "GET", f"/v1/apps/{app}/appAvailabilityV2")
     if "error" not in avail:
         terr = asc.data(f"/v2/appAvailabilities/{avail['data']['id']}/territoryAvailabilities?limit=200&include=territory")
-        on = [t["relationships"]["territory"]["data"]["id"] for t in terr if t["attributes"].get("available")]
-        print(f"- disponible dans {len(on)} pays : {', '.join(on[:10])}")
+        on = sorted(t["relationships"]["territory"]["data"]["id"] for t in terr if t["attributes"].get("available"))
+        off = sorted(t["relationships"]["territory"]["data"]["id"] for t in terr if not t["attributes"].get("available"))
+        print(f"- disponible dans {len(on)} pays : {', '.join(on)}")
+        print(f"- non disponible ({len(off)}) : {', '.join(off)}")
     else:
         print(f"- disponibilité : {avail['error']} {str(avail['detail'])[:200]}")
     price = api(asc.key, "GET", f"/v1/apps/{app}/appPriceSchedule?include=baseTerritory,manualPrices")
