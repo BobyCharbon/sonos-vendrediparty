@@ -162,7 +162,9 @@ struct MoonBanner: View {
     @ObservedObject var store: PauseStore
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 30)) { context in
+        // Rien du tout hors pause : un TimelineView vide laissait une carte vide sous le compte (examinateur, 09.11).
+        if store.active(.all) != nil {
+            TimelineView(.periodic(from: .now, by: 30)) { context in
             if let until = store.active(.all, now: context.date) {
                 HStack(spacing: 12) {
                     Image(systemName: "moon.fill").foregroundStyle(.orange).accessibilityHidden(true)
@@ -176,6 +178,7 @@ struct MoonBanner: View {
                         .disabled(store.busy)
                 }
                 .accessibilityElement(children: .contain)
+            }
             }
         }
     }
