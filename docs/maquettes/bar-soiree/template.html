@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Party · Bar de la soirée — maquettes</title>
+<style>
+@font-face { font-family: "Bricolage"; src: url(data:font/woff2;base64,{{FONT}}) format("woff2"); font-weight: 800; }
+:root {
+  --bg:#15102A; --surface:#221A3D; --surface2:#2C2350; --line:#2F2752; --line2:#3E3468;
+  --text:#F5F0FF; --soft:#D9D2EE; --muted:#B1A8CF; --accent:#FF4F9A; --action:#D92A73;
+  --fill:rgba(255,255,255,.07); --fill2:rgba(255,255,255,.12);
+  --coral:#FFB347; --coralDim:#3B2918; --lav:#B9A7FF; --lavDim:#2A2440;
+  --mint:#5BE3A6; --mintDim:#123527; --red:#FF6363; --redDim:#3A1519;
+  --sys:-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: var(--sys); color: var(--text); background: #0C0819;
+  background-image: radial-gradient(900px 500px at 10% -5%, #3A1730 0%, transparent 60%),
+                    radial-gradient(800px 500px at 100% 0%, #3B2918 0%, transparent 55%);
+  padding: 40px 24px 64px;
+}
+.disp { font-family: "Bricolage", var(--sys); font-weight: 800; letter-spacing: -.02em; }
+header.page { max-width: 1240px; margin: 0 auto 28px; }
+header.page h1 { font-size: clamp(30px, 4.4vw, 52px); line-height: 1; margin: 0 0 10px; }
+header.page h1 span { color: var(--accent); }
+header.page p { color: var(--soft); margin: 0; font-size: 16px; line-height: 1.5; max-width: 780px; }
+.flow { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 0; padding: 0; list-style: none; }
+.flow li { background: var(--fill); border: 1px solid var(--line2); border-radius: 999px; padding: 6px 12px; font-size: 13px; color: var(--soft); }
+.flow li b { color: var(--accent); margin-right: 4px; }
+.legend { margin-top: 14px; font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+.legend i { display: inline-block; width: 28px; height: 16px; border: 2px dashed var(--accent); border-radius: 6px; flex: none; }
+
+.grid { max-width: 1240px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 40px 28px; justify-items: center; }
+figure { margin: 0; width: 360px; }
+figcaption { margin-bottom: 14px; min-height: 92px; }
+figcaption .who { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; margin-bottom: 8px; }
+.who.org { background: #3A1730; color: var(--accent); }
+.who.guest { background: var(--lavDim); color: var(--lav); }
+.who.srv { background: var(--coralDim); color: var(--coral); }
+figcaption h2 { font-size: 22px; margin: 0 0 4px; line-height: 1.1; }
+figcaption h2 em { font-style: normal; color: var(--muted); margin-right: 6px; }
+figcaption p { margin: 0; font-size: 14px; color: var(--soft); line-height: 1.45; }
+
+/* Téléphone */
+.phone { width: 360px; border-radius: 46px; padding: 10px; background: #050309; box-shadow: 0 30px 60px rgba(0,0,0,.55), inset 0 0 0 2px #2b2540; }
+.screen { position: relative; border-radius: 37px; overflow: hidden; background: var(--bg); min-height: 740px; display: flex; flex-direction: column; }
+.status { height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 26px 0 30px; font-size: 14px; font-weight: 600; flex: none; }
+.status .island { width: 96px; height: 28px; border-radius: 20px; background: #000; }
+.status .ic { letter-spacing: 2px; font-size: 12px; }
+.body { padding: 4px 14px 16px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+.navbar { display: flex; align-items: center; gap: 8px; padding: 2px 2px 4px; }
+.navbar .back { color: var(--accent); font-size: 15px; white-space: nowrap; }
+.navbar .title { flex: 1; text-align: center; font-weight: 600; font-size: 15px; margin-right: 58px; white-space: nowrap; }
+.tabs { flex: none; display: flex; justify-content: space-around; padding: 8px 6px 22px; border-top: 1px solid var(--line); background: rgba(21,16,42,.96); }
+.tabs div { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10.5px; color: var(--muted); }
+.tabs div span { font-size: 19px; filter: grayscale(1) brightness(1.4); opacity: .7; }
+.tabs div.on { color: var(--accent); }
+.tabs div.on span { filter: none; opacity: 1; }
+
+/* Briques */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.sec { font-size: 17px; font-weight: 700; display: flex; justify-content: space-between; align-items: baseline; }
+.sec small { font-size: 13px; font-weight: 600; color: var(--accent); }
+.muted { color: var(--muted); }
+.soft { color: var(--soft); }
+.t12 { font-size: 12px; } .t13 { font-size: 13px; } .t14 { font-size: 14px; } .t15 { font-size: 15px; }
+.b { font-weight: 700; } .sb { font-weight: 600; }
+.row { display: flex; align-items: center; gap: 10px; }
+.grow { flex: 1; min-width: 0; }
+.btn { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; border-radius: 14px; font-weight: 700; font-size: 15.5px; background: var(--action); color: #fff; text-align: center; padding: 0 14px; }
+.btn.sec2 { background: var(--fill2); color: var(--text); }
+.btn.ghost { background: transparent; color: var(--accent); min-height: 40px; }
+.btn.small { min-height: 34px; font-size: 13.5px; border-radius: 10px; padding: 0 12px; }
+.btn.mint { background: var(--mint); color: #0B2A1D; }
+.chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--fill2); color: var(--soft); white-space: nowrap; }
+.chip.coral { background: var(--coralDim); color: var(--coral); }
+.chip.mint { background: var(--mintDim); color: var(--mint); }
+.chip.red { background: var(--redDim); color: #FF8A8A; }
+.chip.lav { background: var(--lavDim); color: var(--lav); }
+.chip.pink { background: #3A1730; color: var(--accent); }
+.tile { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 21px; flex: none; background: var(--surface2); }
+.tile.s { width: 30px; height: 30px; border-radius: 8px; font-size: 16px; }
+.stepper { display: flex; align-items: center; gap: 6px; flex: none; }
+.stepper i { font-style: normal; width: 29px; height: 29px; border-radius: 50%; display: grid; place-items: center; background: var(--fill2); font-size: 18px; font-weight: 600; color: var(--text); }
+.stepper i.p { background: var(--action); color: #fff; }
+.stepper b { min-width: 20px; text-align: center; font-size: 16px; }
+.stepper.dim { opacity: .4; }
+.item { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 14px; background: var(--fill); border: 1px solid transparent; }
+.item.sel { border-color: rgba(255,79,154,.55); background: rgba(255,79,154,.08); }
+.item.out { opacity: .5; }
+.toggle { width: 51px; height: 31px; border-radius: 999px; background: var(--mint); position: relative; flex: none; }
+.toggle::after { content: ""; position: absolute; right: 2px; top: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; }
+.field { background: var(--fill); border-radius: 12px; padding: 8px 12px; display: flex; flex-direction: column; gap: 1px; }
+.field span { font-size: 11.5px; color: var(--muted); }
+.field b { font-weight: 500; font-size: 15px; }
+.seg { display: flex; background: var(--fill); border-radius: 10px; padding: 3px; gap: 3px; }
+.seg div { flex: 1; text-align: center; font-size: 13px; font-weight: 600; padding: 6px 0; border-radius: 8px; color: var(--soft); }
+.seg div.on { background: var(--surface2); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.bar { height: 6px; border-radius: 999px; background: var(--fill2); overflow: hidden; }
+.bar > div { height: 100%; border-radius: 999px; background: var(--mint); }
+.bar.coral > div { background: var(--coral); }
+.bar.red > div { background: var(--red); }
+.av { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700; flex: none; color: #1b1030; }
+.avs { display: flex; } .avs .av { margin-right: -8px; border: 2px solid var(--surface); width: 32px; height: 32px; font-size: 11px; }
+.orgzone { border: 1px dashed var(--line2); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.orgzone > .lbl { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .02em; }
+.new { position: relative; outline: 2px dashed var(--accent); outline-offset: 4px; border-radius: 14px; }
+.new::before { content: "NOUVEAU"; position: absolute; top: -13px; right: 10px; background: var(--accent); color: #240A18; font-size: 9.5px; font-weight: 800; letter-spacing: .08em; padding: 2px 6px; border-radius: 5px; z-index: 2; }
+.hr { height: 1px; background: var(--line); margin: 2px 0; }
+.kv { display: flex; justify-content: space-between; font-size: 14px; }
+.kv b { font-variant-numeric: tabular-nums; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* Écran 1 */
+.hero { height: 150px; border-radius: 20px; background:
+  radial-gradient(120px 90px at 25% 30%, rgba(255,179,71,.9), transparent 70%),
+  radial-gradient(160px 110px at 80% 60%, rgba(255,79,154,.85), transparent 70%),
+  linear-gradient(135deg, #3b1a5c, #1d1238); position: relative; overflow: hidden; flex: none; }
+.hero::after { content: "🎉"; position: absolute; right: 16px; bottom: 10px; font-size: 44px; }
+.ev-title { font-size: 27px; line-height: 1.05; margin: 2px 0 0; }
+
+/* Écran 4 : QR */
+.qrbox { background: #fff; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.qrbox svg { width: 200px; height: 200px; display: block; }
+.qrbox .who2 { color: #15102A; font-weight: 700; font-size: 15px; }
+.qrbox .hint { color: #5b5470; font-size: 12px; }
+
+/* Écran 5 : scanner */
+.cam { height: 190px; margin: 0 -14px; flex: none; background:
+  radial-gradient(140px 80px at 50% 55%, rgba(255,255,255,.10), transparent 70%),
+  linear-gradient(160deg, #1d1a24, #0b0a10 70%); position: relative; display: grid; place-items: center; }
+.cam .frame { width: 128px; height: 128px; position: relative; }
+.cam .frame i { position: absolute; width: 30px; height: 30px; border: 4px solid var(--mint); }
+.cam .frame i:nth-child(1) { left: 0; top: 0; border-right: 0; border-bottom: 0; border-radius: 10px 0 0 0; }
+.cam .frame i:nth-child(2) { right: 0; top: 0; border-left: 0; border-bottom: 0; border-radius: 0 10px 0 0; }
+.cam .frame i:nth-child(3) { left: 0; bottom: 0; border-right: 0; border-top: 0; border-radius: 0 0 0 10px; }
+.cam .frame i:nth-child(4) { right: 0; bottom: 0; border-left: 0; border-top: 0; border-radius: 0 0 10px 0; }
+.cam .ok { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); background: var(--mintDim); color: var(--mint); font-weight: 700; font-size: 13px; padding: 5px 12px; border-radius: 999px; white-space: nowrap; }
+.toast { background: var(--mintDim); border: 1px solid rgba(91,227,166,.45); border-radius: 14px; padding: 11px 12px; display: flex; gap: 10px; align-items: flex-start; }
+.warn { background: var(--coralDim); border: 1px solid rgba(255,179,71,.45); border-radius: 12px; padding: 9px 11px; font-size: 13px; color: #FFD099; }
+
+/* Écran 6 */
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stats div { background: var(--fill); border-radius: 14px; padding: 10px 8px; text-align: center; }
+.stats b { display: block; font-size: 21px; line-height: 1.1; }
+.stats span { font-size: 11px; color: var(--muted); }
+
+.notes { max-width: 1240px; margin: 48px auto 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.notes .card h3 { margin: 0; font-size: 17px; }
+.notes .card li { font-size: 14px; color: var(--soft); line-height: 1.5; }
+.notes .card ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+footer { max-width: 1240px; margin: 28px auto 0; color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+
+<header class="page">
+  <h1 class="disp">Party · <span>Bar de la soirée</span></h1>
+  <p>Maquettes pour discuter, pas encore du code. Le bar se crée depuis un événement : ce n'est pas un réglage général. L'organisateur fixe les articles, les prix et le stock. Chaque invité remplit son panier et reçoit un QR. À chaque scan au bar, un article est servi : le stock baisse et le prix s'ajoute à son ardoise.</p>
+  <ol class="flow">
+    <li><b>1</b>Créer depuis l'événement</li>
+    <li><b>2</b>Articles, prix, stock</li>
+    <li><b>3</b>Panier de l'invité</li>
+    <li><b>4</b>Son QR</li>
+    <li><b>5</b>Scan au bar</li>
+    <li><b>6</b>Suivi en direct</li>
+  </ol>
+  <div class="legend"><i></i> Bordure rose pointillée : ce qui est nouveau sur un écran qui existe déjà.</div>
+</header>
+
+<main class="grid">
+
+<!-- 1 · Page de l'événement (organisateur) -->
+<figure>
+  <figcaption>
+    <span class="who org">Organisateur</span>
+    <h2 class="disp"><em>1</em>Créer le bar depuis l'événement</h2>
+    <p>Sur la page de son événement, l'organisateur trouve « Créer le bar de la soirée » dans sa zone organisateur. Rien à chercher dans les Réglages.</p>
+  </figcaption>
+  <div class="phone"><div class="screen">
+    <div class="status"><span>21:42</span><div class="island"></div><span class="ic">▮▮▮ ◔</span></div>
+    <div class="body">
+      <div class="navbar"><span class="back">‹ Événements</span><span class="title"></span><span class="back">Modifier</span></div>
+      <div class="hero"></div>
+      <div>
+        <div class="row" style="gap:6px;margin-bottom:6px"><span class="chip pink">Privé</span><span class="chip mint">Tu organises</span></div>
+        <h3 class="disp ev-title">Soirée privée chez Boby</h3>
+        <div class="soft t14" style="margin-top:6px">Sam. 21 nov. · 21:00 → 03:00</div>
+        <div class="muted t14">Salle du Bourg, Lausanne</div>
+      </div>
+      <div class="card">
+        <div class="sec">Qui vient ? <small>18 présents</small></div>
+        <div class="row">
+          <div class="avs">
+            <div class="av" style="background:#FFB347">LM</div><div class="av" style="background:#B9A7FF">MD</div><div class="av" style="background:#5BE3A6">SR</div><div class="av" style="background:#FF8AC0">JB</div><div class="av" style="background:#FFD099">AK</div>
+          </div>
+          <span class="muted t13" style="margin-left:14px">+13 · 3 peut-être</span>
+        </div>
+      </div>
+      <div class="card" style="gap:6px">
+        <div class="sec">Qui amène quoi</div>
+        <div class="row t14"><span class="grow soft">Glaçons</span><span class="muted t13">Marc</span></div>
+        <div class="row t14"><span class="grow soft">Enceinte</span><span class="muted t13">Boby</span></div>
+      </div>
+      <div class="orgzone">
+        <div class="lbl">ZONE ORGANISATEUR</div>
+        <div class="btn sec2">📷 Scanner les billets</div>
+        <div class="new"><div class="btn">🍹 Créer le bar de la soirée</div></div>
+        <div class="t12 muted" style="text-align:center">Annuler l'événement</div>
+      </div>
+    </div>
+    <div class="tabs"><div><span>🎵</span>Musique</div><div><span>🎮</span>Jeux</div><div class="on"><span>📅</span>Événements</div><div><span>👤</span>Compte</div></div>
+  </div></div>
+</figure>
+
+<!-- 2 · Gérer le bar (organisateur) -->
+<figure>
+  <figcaption>
+    <span class="who org">Organisateur</span>
+    <h2 class="disp"><em>2</em>Articles, prix et stock</h2>
+    <p>Une liste simple : nom, prix, stock. On change le stock en direct avec − / +, et chaque changement apparaît tout de suite chez les invités. Âge minimum par article, si besoin.</p>
+  </figcaption>
+  <div class="phone"><div class="screen">
+    <div class="status"><span>18:05</span><div class="island"></div><span class="ic">▮▮▮ ◔</span></div>
+    <div class="body">
+      <div class="navbar"><span class="back">‹ Retour</span><span class="title">Bar de la soirée</span></div>
+      <div class="card" style="padding:10px 14px">
+        <div class="row"><div class="grow"><div class="t15 sb">Commandes ouvertes</div><div class="t12 muted">Les invités peuvent remplir leur panier.</div></div><div class="toggle"></div></div>
+      </div>
+      <div class="card">
+        <div class="sec">Articles <small>+ Ajouter</small></div>
+        <div class="item"><div class="tile">🥃</div><div class="grow"><div class="t15 sb">Whisky Coca</div><div class="t12 muted"><span class="num">4.06 CHF</span> · <span class="chip coral" style="padding:1px 6px">18+</span></div></div><div class="stepper"><i>−</i><b class="num">10</b><i>+</i></div></div>
+        <div class="item"><div class="tile">🍸</div><div class="grow"><div class="t15 sb">Vodka Red Bull</div><div class="t12 muted"><span class="num">4.50 CHF</span> · <span class="chip coral" style="padding:1px 6px">18+</span></div></div><div class="stepper"><i>−</i><b class="num">12</b><i>+</i></div></div>
+        <div class="item"><div class="tile">🍺</div><div class="grow"><div class="t15 sb">Bière</div><div class="t12 muted"><span class="num">3 CHF</span> · <span class="chip" style="padding:1px 6px">16+</span></div></div><div class="stepper"><i>−</i><b class="num">24</b><i>+</i></div></div>
+        <div class="item"><div class="tile">🥤</div><div class="grow"><div class="t15 sb">Coca / Ice Tea</div><div class="t12 muted"><span class="num">2 CHF</span></div></div><span class="chip lav">Illimité</span></div>
+        <div class="t12 muted">Le chiffre = ce qu'il reste en stock. Il baisse à chaque article servi au bar.</div>
+      </div>
+      <div class="card new">
+        <div class="sec">Nouvel article</div>
+        <div class="field"><span>Nom</span><b>Gin Tonic</b></div>
+        <div class="row" style="gap:8px">
+          <div class="field grow"><span>Prix</span><b class="num">5.00 CHF</b></div>
+          <div class="field grow"><span>Stock (vide = illimité)</span><b class="num">6</b></div>
+        </div>
+        <div class="t12 muted">Âge minimum</div>
+        <div class="seg"><div>Aucun</div><div>16+</div><div class="on">18+</div></div>
+        <div class="btn">Ajouter l'article</div>
+      </div>
+      <div class="card" style="padding:10px 14px">
+        <div class="row"><div class="tile s">🔗</div><div class="grow"><div class="t14 sb">Lien du bar</div><div class="t12 muted">party.bobycharbon.ch/…/bar</div></div><span class="t13 b" style="color:var(--accent)">Copier</span></div>
+      </div>
+    </div>
+  </div></div>
+</figure>
+
+<!-- 3 · Panier de l'invité -->
+<figure>
+  <figcaption>
+    <span class="who guest">Invité</span>
+    <h2 class="disp"><em>3</em>Le bar, côté invité</h2>
+    <p>L'invité voit les articles, le prix et ce qu'il reste. Il choisit ses quantités, puis touche « Recevoir mon QR ». Un article épuisé ne se commande plus.</p>
+  </figcaption>
+  <div class="phone"><div class="screen">
+    <div class="status"><span>21:58</span><div class="island"></div><span class="ic">▮▮▮ ◔</span></div>
+    <div class="body">
+      <div class="navbar"><span class="back">‹ Retour</span><span class="title">Bar de la soirée</span></div>
+      <div class="t14 soft" style="padding:0 2px">Choisis tes consommations. Tu reçois un QR : chaque scan au bar = un article servi.</div>
+      <div class="item sel"><div class="tile">🥃</div><div class="grow"><div class="t15 sb">Whisky Coca <span class="chip coral" style="padding:1px 6px">18+</span></div><div class="t13"><span class="num b">4.06 CHF</span> · <span style="color:var(--coral)">reste 4</span></div></div><div class="stepper"><i>−</i><b>2</b><i class="p">+</i></div></div>
+      <div class="item sel"><div class="tile">🍸</div><div class="grow"><div class="t15 sb">Vodka Red Bull <span class="chip coral" style="padding:1px 6px">18+</span></div><div class="t13"><span class="num b">4.50 CHF</span> · <span class="muted">8 dispo</span></div></div><div class="stepper"><i>−</i><b>1</b><i class="p">+</i></div></div>
+      <div class="item"><div class="tile">🍺</div><div class="grow"><div class="t15 sb">Bière <span class="chip" style="padding:1px 6px">16+</span></div><div class="t13"><span class="num b">3 CHF</span> · <span class="muted">17 dispo</span></div></div><div class="stepper"><i class="p">+</i></div></div>
+      <div class="item out"><div class="tile">🍹</div><div class="grow"><div class="t15 sb">Gin Tonic</div><div class="t13"><span class="num b">5 CHF</span> · <span style="color:var(--red)">épuisé</span></div></div><div class="stepper dim"><i>+</i></div></div>
+      <div class="item"><div class="tile">🥤</div><div class="grow"><div class="t15 sb">Coca / Ice Tea</div><div class="t13"><span class="num b">2 CHF</span> · <span class="muted">à volonté</span></div></div><div class="stepper"><i class="p">+</i></div></div>
+      <div style="flex:1"></div>
+      <div class="card new" style="background:var(--surface2);border-color:var(--line2)">
+        <div class="row"><div class="grow"><div class="t13 muted">3 articles</div><div class="disp num" style="font-size:22px;white-space:nowrap">12.62 CHF</div></div><div class="btn" style="padding:0 16px">Recevoir mon QR</div></div>
+        <div class="t12 muted">Rien n'est encaissé maintenant : tu paies ce qui t'est servi (ou tout d'un coup, si tu préfères).</div>
+      </div>
+    </div>
+  </div></div>
+</figure>
+
+<!-- 4 · Mon QR -->
+<figure>
+  <figcaption>
+    <span class="who guest">Invité</span>
+    <h2 class="disp"><em>4</em>Son QR et son ardoise</h2>
+    <p>Un seul QR pour toute la soirée. Il montre ce qui a déjà été servi et ce qui reste à servir. Il paie l'organisateur comme pour un billet aujourd'hui : Twint, IBAN, puis « J'ai payé ». Paiement par carte avec Stripe plus tard.</p>
+  </figcaption>
+  <div class="phone"><div class="screen">
+    <div class="status"><span>23:14</span><div class="island"></div><span class="ic">▮▮▮ ◔</span></div>
+    <div class="body">
+      <div class="navbar"><span class="back">‹ Bar</span><span class="title">Mon QR du bar</span></div>
+      <div class="qrbox">{{QR}}<div class="who2">Léa M. · Soirée privée chez Boby</div><div class="hint">Montre-le au bar · luminosité au max ☀️</div></div>
+      <div class="card">
+        <div class="sec">Ma commande <small>Modifier</small></div>
+        <div>
+          <div class="row t14"><span class="grow sb">🥃 Whisky Coca × 2</span><span class="chip mint">1 servi</span></div>
+          <div class="bar" style="margin-top:6px"><div style="width:50%"></div></div>
+        </div>
+        <div>
+          <div class="row t14"><span class="grow sb">🍸 Vodka Red Bull × 1</span><span class="chip">à servir</span></div>
+          <div class="bar" style="margin-top:6px"><div style="width:0"></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="kv"><span class="soft">Déjà servi</span><b>4.06 CHF</b></div>
+        <div class="kv"><span class="muted">Reste à servir</span><b class="muted">8.56 CHF</b></div>
+        <div class="hr"></div>
+        <div class="btn">Payer Boby · 4.06 CHF</div>
+        <div class="btn sec2 small" style="min-height:38px">Tout payer d'avance · 12.62 CHF</div>
+        <div class="row" style="justify-content:center"><span class="chip lav">💳 Carte (Stripe) : bientôt</span></div>
+      </div>
+    </div>
+  </div></div>
+</figure>
+
+<!-- 5 · Scan au bar -->
+<figure>
+  <figcaption>
+    <span class="who srv">Au bar</span>
+    <h2 class="disp"><em>5</em>Scanner et servir</h2>
+    <p>Le scanner des billets, en mode « Bar ». On scanne, on voit ce qui reste à servir, on touche « Servir ». Le stock baisse de 1 et le prix s'ajoute à l'ardoise. Une erreur se corrige avec « Annuler ».</p>
+  </figcaption>
+  <div class="phone"><div class="screen">
+    <div class="status"><span>23:15</span><div class="island"></div><span class="ic">▮▮▮ ◔</span></div>
+    <div class="body">
+      <div class="navbar"><span class="back">‹ Fermer</span><span class="title">Scanner · Bar</span></div>
+      <div class="seg new"><div>🎟️ Billets</div><div class="on">🍹 Bar</div></div>
+      <div class="cam"><div class="frame"><i></i><i></i><i></i><i></i></div><div class="ok">✓ QR de Léa M. reconnu</div></div>
+      <div class="card">
+        <div class="row"><div class="av" style="background:#FFB347;width:40px;height:40px">LM</div><div class="grow"><div class="t15 b">Léa Martin</div><div class="t12 muted">2 articles à servir</div></div></div>
+        <div class="warn">⚠︎ Articles 18+ : vérifie l'âge si tu as un doute.</div>
+        <div class="item"><div class="tile s">🥃</div><div class="grow"><div class="t14 sb">Whisky Coca</div><div class="t12 muted">1 à servir · stock <span class="num">3</span></div></div><div class="btn small mint">Servir</div></div>
+        <div class="item"><div class="tile s">🍸</div><div class="grow"><div class="t14 sb">Vodka Red Bull</div><div class="t12 muted">1 à servir · stock <span class="num">8</span></div></div><div class="btn small mint">Servir</div></div>
+      </div>
+      <div class="toast">
+        <span style="font-size:18px">✓</span>
+        <div class="grow"><div class="t14 b" style="color:var(--mint)">Whisky Coca servi à Léa</div><div class="t12 soft">Stock 4 → 3 · +4.06 CHF sur son ardoise</div></div>
+        <span class="t13 b" style="color:var(--mint)">Annuler</span>
+      </div>
+      <div class="btn ghost t14">+ Servir un article hors commande</div>
+    </div>
+  </div></div>
+</figure>
+
+<!-- 6 · Suivi en direct -->
+<figure>
+  <figcaption>
+    <span class="who org">Organisateur</span>
+    <h2 class="disp"><em>6</em>Suivi en direct</h2>
+    <p>Pendant la soirée : ce qui reste, ce qui est commandé mais pas encore servi, et qui doit combien. Il confirme les paiements reçus, comme pour les billets.</p>
+  </figcaption>
+  <div class="phone"><div class="screen">
+    <div class="status"><span>00:32</span><div class="island"></div><span class="ic">▮▮▮ ◔</span></div>
+    <div class="body">
+      <div class="navbar"><span class="back">‹ Retour</span><span class="title">Bar · en direct</span></div>
+      <div class="stats">
+        <div><b class="disp num">46</b><span>servis</span></div>
+        <div><b class="disp num">187.30</b><span>CHF servis</span></div>
+        <div><b class="disp num" style="color:var(--mint)">142</b><span>CHF payés</span></div>
+      </div>
+      <div class="card">
+        <div class="sec">Stock</div>
+        <div><div class="row t14"><span class="grow sb">🥃 Whisky Coca</span><span class="num b" style="color:var(--coral)">3 / 10</span></div><div class="bar coral" style="margin:5px 0 3px"><div style="width:30%"></div></div><div class="t12 muted">2 commandés pas encore servis</div></div>
+        <div><div class="row t14"><span class="grow sb">🍸 Vodka Red Bull</span><span class="num b">8 / 12</span></div><div class="bar" style="margin:5px 0 3px"><div style="width:67%"></div></div><div class="t12 muted">3 commandés pas encore servis</div></div>
+        <div><div class="row t14"><span class="grow sb">🍺 Bière</span><span class="num b">17 / 24</span></div><div class="bar" style="margin-top:5px"><div style="width:71%"></div></div></div>
+        <div><div class="row t14"><span class="grow sb">🍹 Gin Tonic</span><span class="chip red">Épuisé</span></div><div class="bar red" style="margin-top:5px"><div style="width:2%"></div></div></div>
+      </div>
+      <div class="card">
+        <div class="sec">Ardoises</div>
+        <div class="row"><div class="av" style="background:#B9A7FF">MD</div><div class="grow"><div class="t14 sb">Marc D.</div><div class="t12" style="color:var(--coral)">Payé par Twint ?</div></div><span class="num t14 b">12.18</span><div class="btn small mint">Confirmer</div></div>
+        <div class="row"><div class="av" style="background:#FFB347">LM</div><div class="grow"><div class="t14 sb">Léa M.</div><div class="t12 muted">À payer</div></div><span class="num t14 b">4.06</span></div>
+        <div class="row"><div class="av" style="background:#5BE3A6">SR</div><div class="grow"><div class="t14 sb">Sofia R.</div><div class="t12" style="color:var(--mint)">✓ Payé</div></div><span class="num t14 b muted">9.00</span></div>
+      </div>
+      <div class="row" style="gap:8px"><div class="btn sec2 small grow">Fermer le bar</div><div class="btn sec2 small grow">Exporter</div></div>
+    </div>
+  </div></div>
+</figure>
+
+</main>
+
+<section class="notes">
+  <div class="card"><h3 class="disp">Ce qui est repris de Party</h3><ul>
+    <li>Page de l'événement et zone organisateur (écran 1).</li>
+    <li>Scanner des billets : il gagne un mode « Bar » (écran 5).</li>
+    <li>« Payer l'organisateur » : Twint, IBAN, liens, « J'ai payé », puis confirmation (écrans 4 et 6).</li>
+    <li>Mêmes droits que l'entrée : un aide peut servir sans organiser l'événement.</li>
+  </ul></div>
+  <div class="card"><h3 class="disp">Plus tard</h3><ul>
+    <li>Paiement par carte avec Stripe (lien de paiement ou Stripe Connect pour l'organisateur).</li>
+    <li>Photos des articles, catégories (Softs, Bières, Cocktails…).</li>
+    <li>Reprendre la carte d'une soirée à l'autre (modèle).</li>
+  </ul></div>
+</section>
+<footer>Maquettes du 10.11.2026. Les écrans montrent l'intention, pas le rendu final. Couleurs et polices reprises de Party (thème Événements).</footer>
+</body>
+</html>
