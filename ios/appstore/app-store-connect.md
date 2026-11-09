@@ -9,7 +9,7 @@ drapeaux de prod lus sur https://party.bobycharbon.ch/api/features : `compagnon:
 | Champ | Valeur |
 |---|---|
 | Nouveautés (What's New) | **Rien** : 1.0.0 est la première version, Apple n'affiche pas ce champ. |
-| Notes pour la revue (App Review Information › Notes) | Copier `ios/appstore/review-notes.txt` (3 791 caractères, limite 4 000). |
+| Notes pour la revue (App Review Information › Notes) | Copier `ios/appstore/review-notes.txt` (3 845 caractères, limite 4 000). |
 | URL d'assistance (Support URL) | `https://party.bobycharbon.ch/events/terms` (répond 200 ; le contact support@vendrediparty.ch y figure) |
 | URL de confidentialité (Privacy Policy URL) | `https://party.bobycharbon.ch/events/privacy` (répond 200) |
 | URL marketing | Vide. **Jamais** `vendrediparty.ch` : ce domaine n'a pas de site (aucun enregistrement A), seulement la messagerie. |
@@ -91,7 +91,7 @@ publicité, aucun SDK d'analyse. Pour chaque type ci-dessous : **lié à l'ident
 | User Content | Photos or Videos | Photo de profil, d'événement, ticket du Pot commun, captures données à l'IA | oui |
 | User Content | Emails or Text Messages | Messages de la Discussion d'un événement, messages à l'hôte | oui |
 | User Content | Other User Content | Événements, sondages, votes, avis (et leurs modifications), titres demandés, dépenses | oui |
-| User Content | **Gameplay Content** | Scores et stats de jeu liés au compte (Mes stats de jeu : Méninges, Purify Test, Quiz) | **non → à ajouter** |
+| User Content | **Gameplay Content** | Scores et stats de jeu liés au compte (Mes stats de jeu : Méninges, Purify Test, Quiz) | oui (ajouté le 09.11) |
 | Identifiers | User ID | Identifiant du compte | oui |
 | Identifiers | Device ID | Identifiant d'invité tiré au hasard, jeton de notifications APNs, inscription Wallet | oui |
 | Usage Data | Product Interaction | Journal d'usage de l'IA (plafond mensuel), journal admin | oui |
@@ -101,23 +101,12 @@ sont du contenu), santé, historique de navigation, historique de recherche (la 
 gardée), données sensibles (les profils par catégorie de Purify Test ne sont jamais gardés, `purity.scrub`), audio
 (la dictée est faite par Apple ; les messages vocaux n'existent que dans Discussions, éteintes), diagnostics, publicité.
 
-**Écarts entre le manifeste et la réalité** (pour l'agent qui corrige `ios/Party/PrivacyInfo.xcprivacy`) :
-1. **Gameplay Content manque** : les scores et stats de jeu sont gardés avec le compte.
-2. **Purchase History, à trancher** : le statut « Payé » d'une place et les dépenses du Pot commun sont gardés avec le
-   compte. Lecture prudente : le déclarer (Purchase History, App Functionality). Sinon, considérer que « Other
-   Financial Info » + « Other User Content » le couvrent. Choisir, puis mettre le même dans le manifeste et ici.
-3. Le texte du micro (`NSMicrophoneUsageDescription`) dit « ou t'enregistrer » : l'enregistrement (messages vocaux)
-   n'est atteignable que dans Discussions, éteintes en production. Sans gravité, mais à reformuler à la prochaine
-   version si Discussions reste éteint.
-4. Le manifeste ne déclare plus `AudioData` : juste (rien n'est envoyé en audio dans l'app App Store).
-
-Autres écarts de textes vus en passant (pas dans App Store Connect, mais un examinateur peut les lire) :
-- L'écran natif **Réglages › Confidentialité** (`PrivacyView`, SignInView.swift) affiche « Mise à jour du 19 octobre
-  2026 » et ne parle ni de l'IA (Anthropic), ni de GitHub, ni de Wallet, alors que la politique web est du
-  9 novembre 2026. Il ne contient pas non plus de lien vers la politique complète.
-- La politique web dit qu'on retire l'accord IA « dans Réglages › Confidentialité » ; dans l'app iPhone, cet endroit
-  n'a pas de ligne IA : le retrait est dans **Réglages › Ton avis › Retirer mon accord** (c'est ce que disent la feuille
-  d'accord et les notes). Un compte Guest (sans « Écrire un avis ») ne trouve donc aucun endroit pour retirer son accord.
+**État au 09.11.2026** : le manifeste `ios/Party/PrivacyInfo.xcprivacy` déclare exactement ces 11 types (Phone,
+Name, Photos, Contacts, Emails/Text, Other User Content, Gameplay Content, User ID, Device ID, Product Interaction,
+Other Financial Info), tous liés à l'identité, sans suivi, pour le fonctionnement de l'app. Cocher **exactement** les
+mêmes dans App Store Connect. Purchase History : non déclaré (couvert par Other Financial Info + Other User Content).
+L'écran natif Réglages › Confidentialité est daté du 9 novembre 2026 comme la politique web, et l'accord IA s'y
+retire (« IA de Party ») pour tous les comptes.
 
 ## 6. Description, sous-titre, mots-clés
 
