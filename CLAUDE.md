@@ -134,7 +134,9 @@ l'admin. Toujours :
 - Données : toute nouvelle mesure → politique de confidentialité, App Privacy, Data safety, durée de conservation ; aucun
   SDK tiers d'analyse ou de pub ; tout part avec la suppression du compte.
 - Questionnaire d'âge App Store Connect à refaire dès qu'on ajoute concours, tirage, chat, contenu de joueur ou achat.
-  Distribution : Suisse seulement ; tout nouveau pays ou une app Android publique → nouvelle revue.
+  Distribution (décision de l'admin du 09.11.2026) : les 26 pays francophones de l'App Store (Suisse, France, Belgique,
+  Luxembourg, Canada, Afrique francophone, Maghreb, Liban, Maurice, Seychelles, Vanuatu) ; tout autre pays ou une app
+  Android publique → nouvelle revue. UE (France, Belgique, Luxembourg) : statut DSA déclaré et RGPD dans la politique.
 
 ## Zicou : bêta seulement (décision de l'admin, 04.11.2026)
 - Zicou est ÉTEINT hors site de test par `compagnon_enabled()` (`app/features.py` : `COMPAGNON_ENABLED`

@@ -1,5 +1,5 @@
 ABOUT THE APP
-Party is a free app for a circle of friends in Switzerland (our group, "Vendredi Party", lives inside it): organise parties and events, and play party games together. Switzerland only, 18+, interface in French.
+Party is a free app made by a circle of friends in Switzerland (our group, "Vendredi Party", lives inside it): organise parties and events, and play party games together. French-speaking countries only, 18+, interface in French.
 
 SIGN-IN
 Phone number + 6-digit SMS code, no password. The demo account ("Apple-test") is in the Sign-in information fields; its code is fixed. Tab "Se connecter" > "Se connecter" > number > "Recevoir un code par SMS" > code.

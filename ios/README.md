@@ -102,7 +102,7 @@ groupe interne « Équipe » (distribution automatique) et groupe externe « Inv
 
 ### 7. App Store
 État au 26 octobre 2026 : version 1.0.0, build 7 (site principal), fiche, 4 captures (workflow
-« App iOS → captures App Store »), classification 18+, confidentialité publiée, gratuite, Suisse seulement
+« App iOS → captures App Store »), classification 18+, confidentialité publiée, gratuite, pays francophones (26, décision du 09.11.2026)
 (l'UE exige la déclaration de statut de commerçant). Reste au titulaire du compte : droits sur le contenu,
 puis « Ajouter pour vérification » › Soumettre.
 
