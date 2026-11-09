@@ -10,6 +10,7 @@ Lancé par .github/workflows/ios-appstore.yml (secrets ASC_KEY_ID, ASC_ISSUER_ID
       repris de la revue précédente (jamais dans le dépôt), puis envoi en revue.
 Rien n'est envoyé si un fichier manque, si le build n'est pas traité ou si aucun compte de démo n'est connu.
 """
+import json
 import pathlib
 import sys
 import time
@@ -206,7 +207,49 @@ def submit(key: str, version: str, build: str) -> int:
     return 0
 
 
+METADATA_FILE = ROOT / "ios/appstore/metadata-fr.json"
+
+
+def patch(asc: Asc, kind: str, obj_id: str, attrs: dict, label: str) -> None:
+    out = api(asc.key, "PATCH", f"/v1/{kind}/{obj_id}", {"data": {"type": kind, "id": obj_id, "attributes": attrs}})
+    print(f"{label} : {'refusé, ' + str(out['error']) + ' ' + str(out['detail'])[:400] if 'error' in out else 'enregistré'}")
+
+
+def fill(key: str, version: str) -> int:
+    """Fiche de la version (nom, sous-titre, description, URL, mots-clés), classification par âge et nom du compte de
+    démo, d'après ios/appstore/metadata-fr.json. Le code du compte de démo n'est jamais écrit ici (saisi à la main)."""
+    meta = json.loads(METADATA_FILE.read_text())
+    asc = Asc(key)
+    app = app_id(asc)
+    v = editable_version(asc, app, version)
+    for info in asc.data(f"/v1/apps/{app}/appInfos"):
+        if (info["attributes"].get("appStoreState") or info["attributes"].get("state")) not in EDITABLE:
+            continue
+        for loc in asc.data(f"/v1/appInfos/{info['id']}/appInfoLocalizations"):
+            if loc["attributes"]["locale"] == LOCALE:
+                patch(asc, "appInfoLocalizations", loc["id"], {"name": meta["name"]}, f"Nom « {meta['name']} »")
+                patch(asc, "appInfoLocalizations", loc["id"], {"subtitle": meta["subtitle"],
+                      "privacyPolicyUrl": meta["privacyPolicyUrl"]}, "Sous-titre et confidentialité")
+        rating = api(asc.key, "GET", f"/v1/appInfos/{info['id']}/ageRatingDeclaration")
+        if "error" not in rating:
+            patch(asc, "ageRatingDeclarations", rating["data"]["id"], meta["ageRating"], "Classification par âge")
+    for loc in asc.data(f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations"):
+        if loc["attributes"]["locale"] == LOCALE:
+            patch(asc, "appStoreVersionLocalizations", loc["id"], {k: meta[k] for k in
+                  ("description", "keywords", "supportUrl", "marketingUrl")}, "Description, mots-clés et URL")
+    current = review_detail(asc, v["id"])
+    attrs = {"demoAccountRequired": True, "demoAccountName": meta["demoAccountName"]}
+    if current:
+        patch(asc, "appStoreReviewDetails", current["id"], attrs, "Compte de démo (nom ; code à saisir à la main)")
+    else:
+        save_review_detail(asc, v["id"], None, attrs)
+        print("Compte de démo (nom) créé ; code à saisir à la main")
+    return 0
+
+
 if __name__ == "__main__":
+    if len(sys.argv) == 4 and sys.argv[1] == "fill":
+        sys.exit(fill(sys.argv[2], sys.argv[3]))
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
     if mode == "check" and len(sys.argv) == 3:
         sys.exit(check(sys.argv[2]))

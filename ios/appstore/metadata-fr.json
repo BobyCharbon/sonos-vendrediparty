@@ -1,0 +1,22 @@
+{
+  "name": "Party",
+  "subtitle": "Musique, jeux et soirées",
+  "privacyPolicyUrl": "https://party.bobycharbon.ch/events/privacy",
+  "supportUrl": "https://party.bobycharbon.ch/events/terms",
+  "marketingUrl": "https://party.bobycharbon.ch",
+  "keywords": "soirée,fête,musique,playlist,jeux,quiz,amis,événements,apéro,vendredi",
+  "description": "Party réunit toute la soirée sur les téléphones des invités. C'est l'app de notre groupe d'amis, Vendredi Party, qu'on retrouve à l'intérieur.\n\nMUSIQUE\nScanne le QR code de l'hôte ou entre le code de la soirée, puis propose tes titres : ils rejoignent la file d'attente commune. Chacun voit ce qui passe et ce qui arrive.\n\nJEUX\nUne salle de jeux pour tout le groupe : un seul code, et les téléphones passent d'un jeu à l'autre avec le tableau des scores de la soirée. Quiz, Méninges, Président, Braquage en miniature et bien d'autres, en équipe ou en solo, sans rien installer de plus.\n\nÉVÉNEMENTS\nCrée un événement (avec l'aide de l'IA si tu veux), invite tes amis ou un groupe, et vois qui vient. Chacun répond en un geste et ajoute l'événement à son agenda.\n\nTON AVIS\nUne idée, un bug ? Écris-le directement aux organisateurs depuis l'app.\n\nSans publicité ni suivi publicitaire. Réservé aux adultes (18+).",
+  "ageRating": {
+    "contests": "NONE",
+    "userGeneratedContent": true,
+    "messagingAndChat": true,
+    "alcoholTobaccoOrDrugUseOrReferences": "FREQUENT_OR_INTENSE",
+    "matureOrSuggestiveThemes": "FREQUENT_OR_INTENSE",
+    "gamblingSimulated": "NONE",
+    "gambling": false,
+    "lootBox": false,
+    "unrestrictedWebAccess": false,
+    "advertising": false
+  },
+  "demoAccountName": "+41 79 000 09 99"
+}
