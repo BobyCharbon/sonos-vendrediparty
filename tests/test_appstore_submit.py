@@ -58,3 +58,14 @@ def test_the_store_screenshots_never_show_alcohol_casino_or_zicou():
     captures = [line for line in script.splitlines() if line.startswith("capture ") and "warmup" not in line]
     assert len(captures) >= 3
     assert not any(word in line for line in captures for word in ("drinks", "casino", "blackjack", "pet", "mood"))
+
+
+def test_the_beta_app_is_never_picked_even_when_apple_lists_it_first():
+    # Arrange : le filtre bundleId d'Apple renvoie aussi la BETA, parfois en premier
+    apps = [{"id": "beta", "attributes": {"bundleId": "ch.bobycharbon.party.beta"}},
+            {"id": "store", "attributes": {"bundleId": "ch.bobycharbon.party"}}]
+
+    # Act / Assert
+    assert appstore_submit.pick_app(apps) == "store"
+    with pytest.raises(SystemExit):
+        appstore_submit.pick_app(apps[:1])

@@ -47,11 +47,16 @@ class Asc:
         return self.call("GET", path).get("data") or []
 
 
+def pick_app(apps: list) -> str:
+    """L'app de l'App Store, jamais la BETA : le filtre d'Apple renvoie aussi ch.bobycharbon.party.beta."""
+    exact = [a for a in apps if a.get("attributes", {}).get("bundleId") == BUNDLE_ID]
+    if len(exact) != 1:
+        raise SystemExit(f"App {BUNDLE_ID} introuvable ou ambiguë ({len(exact)} résultats exacts)")
+    return exact[0]["id"]
+
+
 def app_id(asc: Asc) -> str:
-    apps = asc.data(f"/v1/apps?filter[bundleId]={BUNDLE_ID}")
-    if not apps:
-        raise SystemExit(f"App {BUNDLE_ID} introuvable")
-    return apps[0]["id"]
+    return pick_app(asc.data(f"/v1/apps?filter[bundleId]={BUNDLE_ID}"))
 
 
 def versions(asc: Asc, app: str) -> list:
