@@ -21,17 +21,20 @@ xcrun simctl status_bar "$UDID" override --time 9:41 --batteryState charged --ba
   --wifiBars 3 --cellularBars 4 --cellularMode active
 xcrun simctl install "$UDID" "$APP"
 
-capture() {  # capture <numéro> <onglet>
+capture() {  # capture <numéro-nom> <onglet> [JS lancé 2,5 s après le chargement : défiler, ouvrir un écran]
   local js="localStorage.setItem('vp_tab','$2');localStorage.setItem('vp_name','Léa');localStorage.setItem('vp_install_dismissed','1')"
+  if [ -n "${3:-}" ]; then js="$js;addEventListener('load',function(){setTimeout(function(){$3},2500)})"; fi
   SIMCTL_CHILD_PARTY_DEBUG_JS="$js" xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE_ID" >/dev/null
   sleep "$LOAD_SECONDS"
-  xcrun simctl io "$UDID" screenshot "$OUT/$1-$2.png" >/dev/null
-  echo "$OUT/$1-$2.png"
+  xcrun simctl io "$UDID" screenshot "$OUT/$1.png" >/dev/null
+  echo "$OUT/$1.png"
 }
 
 # Premier lancement à blanc : le cache web se remplit, les captures suivantes sont complètes.
-capture 0 music >/dev/null && rm -f "$OUT/0-music.png"
-capture 1 games
-capture 2 music
-capture 3 feedback
-capture 4 account
+capture 0-warmup music >/dev/null && rm -f "$OUT/0-warmup.png"
+# Jamais à l'écran (revue Apple) : catégorie « 🍻 Alcool », étiquettes 🍻, Casino, Blackjack, Zicou.
+capture 1-games games
+capture 2-games-3d games "var h=document.getElementById('gCat-three');if(h){h.scrollIntoView({block:'start'});window.scrollBy(0,-90)}"
+capture 3-meninges games "var b=document.querySelector('[data-brain-open]');if(b){b.click()}"
+capture 4-settings account
+capture 5-music music
