@@ -102,7 +102,51 @@ def check(key: str) -> int:
     for b in asc.data(f"/v1/builds?filter[app]={app}&filter[preReleaseVersion.platform]=IOS&sort=-uploadedDate&limit=5"):
         a = b["attributes"]
         print(f"- build {a['version']} : {a['processingState']}, envoyé {a['uploadedDate'][:16]}, expiré {a.get('expired')}")
+    details(asc, app)
     return 0
+
+
+def masked(value: str | None) -> str:
+    return "—" if not value else f"oui (…{value[-2:]})"
+
+
+def details(asc: Asc, app: str) -> None:
+    """Le reste de la fiche, en lecture : droits, catégories, version, contact (masqué), disponibilité, prix, captures."""
+    a = asc.call("GET", f"/v1/apps/{app}")["data"]["attributes"]
+    print(f"- app : droits de contenu {a.get('contentRightsDeclaration')}, langue {a.get('primaryLocale')}")
+    for info in asc.data(f"/v1/apps/{app}/appInfos"):
+        for rel in ("primaryCategory", "primarySubcategoryOne", "secondaryCategory"):
+            out = api(asc.key, "GET", f"/v1/appInfos/{info['id']}/{rel}")
+            print(f"  {rel} : {(out.get('data') or {}).get('id') if 'error' not in out else out['error']}")
+    for v in versions(asc, app):
+        va = v["attributes"]
+        print(f"- version {va['versionString']} : copyright {va.get('copyright')!r}, sortie {va.get('releaseType')}")
+        detail = review_detail(asc, v["id"])
+        if detail:
+            d = detail["attributes"]
+            print(f"  contact : prénom {masked(d.get('contactFirstName'))}, nom {masked(d.get('contactLastName'))}, "
+                  f"téléphone {masked(d.get('contactPhone'))}, e-mail {d.get('contactEmail')}, "
+                  f"code de démo {'saisi' if d.get('demoAccountPassword') else 'MANQUANT'}")
+        for loc in asc.data(f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations"):
+            for s in asc.data(f"/v1/appStoreVersionLocalizations/{loc['id']}/appScreenshotSets"):
+                shots = asc.data(f"/v1/appScreenshotSets/{s['id']}/appScreenshots")
+                print(f"  captures {s['attributes']['screenshotDisplayType']} : {len(shots)}")
+                for shot in shots:
+                    asset = shot["attributes"].get("imageAsset") or {}
+                    url = (asset.get("templateUrl") or "").replace("{w}", "600").replace("{h}", "1300").replace("{f}", "png")
+                    print(f"    {shot['attributes'].get('fileName')} {url}")
+    avail = api(asc.key, "GET", f"/v1/apps/{app}/appAvailabilityV2")
+    if "error" not in avail:
+        terr = asc.data(f"/v2/appAvailabilities/{avail['data']['id']}/territoryAvailabilities?limit=200&include=territory")
+        on = [t["relationships"]["territory"]["data"]["id"] for t in terr if t["attributes"].get("available")]
+        print(f"- disponible dans {len(on)} pays : {', '.join(on[:10])}")
+    else:
+        print(f"- disponibilité : {avail['error']} {str(avail['detail'])[:200]}")
+    price = api(asc.key, "GET", f"/v1/apps/{app}/appPriceSchedule?include=baseTerritory,manualPrices")
+    if "error" not in price:
+        print(f"- prix : {[i.get('type') + ':' + i.get('id', '')[:40] for i in price.get('included', [])]}")
+    else:
+        print(f"- prix : {price['error']} {str(price['detail'])[:200]}")
 
 
 def editable_version(asc: Asc, app: str, version: str) -> dict:
