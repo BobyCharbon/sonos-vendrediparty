@@ -191,6 +191,10 @@ class Assistant:
         """« accepted », « declined » ou « » (jamais demandé, ou texte d'accord changé)."""
         return self.consents.state(assistant_consent_key(uid)) if self.consents is not None else CONSENT_ACCEPTED
 
+    def consent_at(self, uid: str) -> float | None:
+        """Date de l'accord en cours (Réglages › Confidentialité : « Accord donné le … ») ; None sans accord."""
+        return self.consents.accepted_at(assistant_consent_key(uid)) if self.consents is not None else None
+
     def set_consent(self, token: str, accept: bool) -> dict:
         uid = self.accounts._uid(token)
         if self.consents is None:
@@ -209,7 +213,7 @@ class Assistant:
         uid = self.accounts._uid(token)
         now = time.time()
         return {"allowed": "ai.use" in self.accounts._perms(token), "configured": self.client_factory is not None,
-                "consent": self.consent(uid), "global_full": self.over_global_budget(now),
+                "consent": self.consent(uid), "consent_at": self.consent_at(uid), "global_full": self.over_global_budget(now),
                 "spent_usd": round(self.usage.spent_this_month(uid, now), 4), "budget_usd": self.budget}
 
     def allowed(self, token: str) -> str:

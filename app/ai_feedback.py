@@ -163,6 +163,12 @@ class ConsentBox:
             return ""  # texte d'accord changé : on redemande
         return entry.get("state", "")
 
+    def accepted_at(self, subject: str) -> float | None:
+        """Date (secondes) de l'accord en cours ; None sans accord valable (jamais donné, refusé, retiré, ancien texte)."""
+        if self.state(subject) != ACCEPTED:
+            return None
+        return (self.items.get(subject) or {}).get("at")
+
     def set(self, subject: str, accepted: bool) -> str:
         with self.lock:
             entry = {"state": ACCEPTED if accepted else DECLINED, "at": time.time(), "version": CONSENT_VERSION}

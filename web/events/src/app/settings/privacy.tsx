@@ -3,14 +3,16 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { Avatar, Button, Card, Empty, ErrorText, LinkRow, Loading, RowDivider, Screen, Section, T } from '@/components/ui';
+import { AI_CONSENT_TEXT, aiConsentLabel, aiConsentStatus, setAiConsent } from '@/lib/aiConsent';
 import { useQuery } from '@/lib/data';
 import { myBlocks, setBlocked, TERMS_PATH, useTerms } from '@/lib/moderation';
 
 /** Réglages › Confidentialité : personnes bloquées (blocage commun à toute l'app), conditions d'utilisation acceptées,
- * politique de confidentialité. */
+ * accord pour l'IA (pour TOUS les comptes : le voir, le retirer, le redonner), politique de confidentialité. */
 export default function PrivacySettings() {
   const { data, loading, error, reload } = useQuery(myBlocks, []);
   const terms = useTerms();
+  const ai = useQuery(aiConsentStatus, []);
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -36,7 +38,21 @@ export default function PrivacySettings() {
     }
   }
 
+  async function answerAi(accept: boolean) {
+    setBusy('ai');
+    setActionError(null);
+    try {
+      await setAiConsent(accept);
+      await ai.reload();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Ton choix pour l’IA n’a pas été enregistré.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const accepted = terms.status?.accepted;
+  const aiAccepted = ai.data?.consent === 'accepted';
   const acceptedAt = terms.status?.accepted_at ? new Date(terms.status.accepted_at).toLocaleDateString('fr-CH') : null;
   return (
     <Screen edges={[]}>
@@ -66,6 +82,20 @@ export default function PrivacySettings() {
           <Button small variant="secondary" label="Lire les conditions" onPress={() => router.push(TERMS_PATH)} />
           {terms.status && !accepted ? <Button small label="J’accepte les conditions" onPress={() => void accept()} /> : null}
         </View>
+      </Section>
+      <Section title="IA de Party">
+        {ai.loading && !ai.data ? <Loading /> : null}
+        {ai.data ? <T muted size={13}>{aiConsentLabel(ai.data)}</T> : null}
+        {ai.data && !aiAccepted ? <T muted size={13}>{AI_CONSENT_TEXT}</T> : null}
+        {ai.data ? (
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+            {aiAccepted
+              ? <Button small variant="secondary" label="Retirer mon accord" loading={busy === 'ai'} onPress={() => void answerAi(false)} />
+              : <Button small label="J’accepte" loading={busy === 'ai'} onPress={() => void answerAi(true)} />}
+          </View>
+        ) : null}
+        <T muted size={13}>Sans accord, tout marche sans l’IA. Un seul accord pour toute l’IA de Party (Ton avis, assistant des événements, tickets).</T>
+        <ErrorText error={ai.error} />
       </Section>
       <ErrorText error={actionError} />
       <Card style={{ gap: 0, paddingVertical: 4 }}>

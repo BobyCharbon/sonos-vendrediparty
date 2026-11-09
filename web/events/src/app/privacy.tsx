@@ -7,7 +7,7 @@ import { RESPONSIBLE, SUPPORT_EMAIL } from '@/lib/contact';
 /** Politique de confidentialité (Apple 5.1.1(i), nLPD art. 19) : lisible par tous, sans compte. Chaque donnée, son but,
  * qui la reçoit (sous-traitants) et combien de temps elle est gardée. À tenir à jour avec App Privacy (App Store
  * Connect) et Data safety (Play Console) à chaque nouvelle donnée. */
-const UPDATED = '5 novembre 2026';
+const UPDATED = '9 novembre 2026';
 
 type Block = { title: string; paragraphs: string[] };
 
@@ -57,8 +57,16 @@ const BLOCKS: Block[] = [
     title: 'L’IA (Anthropic, Claude)',
     paragraphs: [
       'Seulement après ton accord exprès (une feuille te le demande avant la première fois), Party envoie à Anthropic ce que tu confies à l’IA : le texte de ton avis (et la transcription de ta voix) pour le mettre au propre ; avec l’assistant des événements, ta description, tes captures d’écran, tes photos, les liens que tu donnes et les noms utiles à l’événement ; pour un ticket du pot commun, sa photo.',
-      'Ton numéro n’est jamais envoyé. Anthropic traite ces données pour répondre et ne les utilise pas pour entraîner ses modèles. Tu retires ton accord à tout moment dans Réglages › Ton avis ; sans accord, tout marche sans l’IA.',
+      'Ton numéro n’est jamais envoyé. Anthropic traite ces données pour répondre et ne les utilise pas pour entraîner ses modèles. Tu vois, retires ou redonnes ton accord à tout moment dans Réglages › Confidentialité ; sans accord, tout marche sans l’IA.',
       'Chaque appel est noté (date, coût, ce que tu as demandé) pour les plafonds mensuels et le contrôle des coûts ; les plus anciens partent automatiquement et tout part avec ton compte.',
+    ],
+  },
+  {
+    title: 'Tes avis sur l’app (« Ton avis »)',
+    paragraphs: [
+      'Quand tu écris un avis (idée, bug), l’administrateur reçoit ton texte, ton prénom, l’écran où tu étais et ton appareil (modèle, version du système et de l’app). Il peut te répondre dans l’app.',
+      'Si tu modifies ton avis, les versions précédentes sont gardées avec leur date (au plus les 20 dernières) pour que l’administrateur voie ce qui a changé. Elles partent avec l’avis.',
+      'Pour corriger l’app, l’administrateur peut confier un avis à une IA de développement : l’avis est alors copié sur GitHub (où le code de Party est gardé), puis lu par Claude (Anthropic). Cela n’arrive que si tu as donné ton accord pour l’IA, et toujours sans ton prénom ni ton numéro. Sans accord, ton avis reste chez l’administrateur.',
     ],
   },
   {
@@ -66,6 +74,7 @@ const BLOCKS: Block[] = [
     paragraphs: [
       'Notifications : l’adresse de notification de ton appareil (Apple Push Notification service pour l’iPhone, service push de ton navigateur sur le web) est enregistrée avec ton compte. Chaque type de notification a son interrupteur dans Réglages › Notifications. L’historique des notifications est effacé après 90 jours.',
       'Apple Wallet : si tu ajoutes un billet, le pass contient ton surnom, l’événement et ton QR ; ton iPhone s’inscrit auprès de Party pour recevoir ses mises à jour.',
+      'Identifiant de l’appareil : Party enregistre un identifiant d’invité tiré au hasard (pour te reconnaître à la soirée sans compte), le jeton de notifications de ton appareil et, si tu ajoutes un billet à Wallet, l’identifiant d’inscription de ton iPhone. Ils servent seulement à faire marcher l’app, jamais à te suivre ni à faire de la publicité.',
       'Journaux techniques : le serveur garde les connexions et les actions d’administration (date, compte, adresse IP) pour la sécurité, et des journaux d’erreurs sans contenu de message.',
     ],
   },
@@ -75,11 +84,12 @@ const BLOCKS: Block[] = [
       'Supabase : base de données et connexion, hébergées en Suisse (Zurich).',
       'Twilio : envoi du code de connexion par SMS (ton numéro).',
       'Anthropic : l’IA, seulement avec ton accord (voir plus haut).',
+      'GitHub : garde le code de Party ; y sont copiés, sans ton prénom, les avis confiés à l’IA de développement, seulement avec ton accord pour l’IA.',
       'Spotify : recherche et lecture des titres de la soirée.',
       'Apple : notifications de l’iPhone (APNs), billets Apple Wallet, app Apple TV, et la dictée vocale sur iPhone (transcription de ta voix, seulement quand tu dictes).',
       'Google : la recherche d’un lieu dans l’assistant des événements (le texte du lieu), et la dictée vocale dans Chrome (transcription de ta voix, seulement quand tu dictes).',
       'Infomaniak (Suisse) : messagerie de l’adresse de contact, quand tu nous écris.',
-      'Le serveur de Party est hébergé en Suisse. Twilio, Anthropic, Spotify, Apple et Google peuvent traiter des données hors de Suisse, notamment aux États-Unis, avec les garanties prévues par la nLPD (Swiss-U.S. Data Privacy Framework ou clauses contractuelles types).',
+      'Le serveur de Party est hébergé en Suisse. Twilio, Anthropic, GitHub, Spotify, Apple et Google peuvent traiter des données hors de Suisse, notamment aux États-Unis, avec les garanties prévues par la nLPD (Swiss-U.S. Data Privacy Framework ou clauses contractuelles types).',
     ],
   },
   {

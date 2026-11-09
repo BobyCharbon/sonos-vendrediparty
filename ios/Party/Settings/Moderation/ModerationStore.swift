@@ -6,6 +6,8 @@ final class ModerationStore: ObservableObject {
     @Published private(set) var blocked: [BlockedPerson]?
     @Published private(set) var terms: TermsStatus?
     @Published private(set) var queue: ModerationQueue?
+    /// Accord « IA de Party » du compte (Réglages › Confidentialité), pour tous les comptes ; nil tant qu'il n'est pas lu.
+    @Published private(set) var aiConsent: AIConsentState?
     @Published private(set) var busy: Set<String> = []
     @Published var error: String?
     @Published var notice: String?
@@ -68,6 +70,17 @@ final class ModerationStore: ObservableObject {
         guard let version = terms?.version else { return false }
         await run("accept") { token in terms = try await api.acceptTerms(token: token, version: version) }
         return terms?.accepted == true
+    }
+
+    // MARK: Accord IA
+
+    func loadAIConsent() async {
+        await run("ai") { token in aiConsent = try await api.accountAIConsent(token: token) }
+    }
+
+    /// Retirer (false) ou donner (true, après la feuille d'accord) : le même accord que « Ton avis » et l'assistant.
+    func setAIConsent(_ accept: Bool) async {
+        await run("ai") { token in aiConsent = try await api.setAccountAIConsent(token: token, accept: accept) }
     }
 
     // MARK: Signalements (modérateurs)

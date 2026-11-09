@@ -115,6 +115,31 @@ struct AppStoreReadinessTests {
         let types = (plist["NSPrivacyCollectedDataTypes"] as? [[String: Any]] ?? []).compactMap { $0["NSPrivacyCollectedDataType"] as? String }
         #expect(types.contains("NSPrivacyCollectedDataTypeOtherFinancialInfo"))
         #expect(types.contains("NSPrivacyCollectedDataTypePhoneNumber"))
+        // Exigence Apple du 09.11 : identifiant de l'appareil déclaré ; plus d'audio (dictée faite par Apple).
+        #expect(types.contains("NSPrivacyCollectedDataTypeDeviceID"))
+        #expect(types.contains("NSPrivacyCollectedDataTypeGameplayContent"))
+        #expect(!types.contains("NSPrivacyCollectedDataTypeAudioData"))
+    }
+
+    // ── Réglages › Confidentialité : accord IA pour tous les comptes ──
+
+    @Test("Accord IA : date en français, « Pas d'accord » sans accord ; ancien serveur sans date")
+    func aiConsentLabel() throws {
+        let given: AIConsentState = try decode(#"{"consent": "accepted", "consent_at": 1794225600}"#)
+        #expect(given.accepted && given.label.hasPrefix("Accord donné le ") && given.label.contains("2026"))
+        let declined: AIConsentState = try decode(#"{"consent": "declined", "consent_at": null}"#)
+        #expect(!declined.accepted && declined.label.hasPrefix("Pas d'accord"))
+        let old: AIConsentState = try decode(#"{"consent": "accepted"}"#)
+        #expect(old.label == "Accord donné.")
+        #expect(AIConsentSheet.Copy.settings.text == FeedbackAI.consentText)
+        #expect(FeedbackAI.consentFootnote.contains("Réglages › Confidentialité"))
+    }
+
+    @Test("CGU : aucune tolérance, signalements traités sous 24 heures")
+    func termsZeroTolerance() {
+        let all = TermsView.sections.flatMap { $0.1 }.joined(separator: " ")
+        #expect(all.contains("Aucune tolérance pour les contenus choquants ou les utilisateurs abusifs"))
+        #expect(all.contains("traités sous 24 heures"))
     }
 
     // ── Musique : limite invité ──

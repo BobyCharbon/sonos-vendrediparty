@@ -16,6 +16,7 @@ export const TERMS_SECTIONS: { title: string; paragraphs: string[] }[] = [
       'Pas de harcèlement : ni insultes répétées, ni menaces, ni moqueries visant une personne, ni messages insistants à quelqu’un qui ne veut pas te répondre.',
       'Interdits : propos haineux (origine, religion, genre, orientation, handicap…), contenu sexuel ou violent, contenu illégal, photos d’autres personnes sans leur accord, usurpation d’identité, spam et publicité.',
       'Un filtre retire automatiquement certains mots ; il ne remplace pas le bon sens.',
+      'Aucune tolérance pour les contenus choquants ou les utilisateurs abusifs : le contenu est retiré et le compte peut être suspendu ou banni.',
     ],
   },
   {
@@ -28,7 +29,7 @@ export const TERMS_SECTIONS: { title: string; paragraphs: string[] }[] = [
   {
     title: 'Signaler et bloquer',
     paragraphs: [
-      '« Signaler » existe sur chaque message, profil, photo et réponse de jeu montrée à la table. Un modérateur reçoit le signalement avec une copie du contenu concerné (pour un message direct : ce seul message) ; la personne signalée ne sait pas qui l’a signalée.',
+      '« Signaler » existe sur chaque message, profil, photo et réponse de jeu montrée à la table. Un modérateur reçoit le signalement avec une copie du contenu concerné (pour un message direct : ce seul message) ; la personne signalée ne sait pas qui l’a signalée. Les signalements sont traités sous 24 heures.',
       'Tu peux bloquer quelqu’un depuis sa fiche ou une conversation : il ne peut plus t’écrire, te citer, t’inviter ni voir ta fiche. La liste « Personnes bloquées » est dans Réglages › Confidentialité.',
     ],
   },
