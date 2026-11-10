@@ -228,7 +228,7 @@ def test_guest_without_app_signs_in_by_the_normal_page_then_the_answer_is_sent(b
         shot(page, '08-invite-connexion-normale')
         login(page)
         # Retour sur le lien : la réponse choisie avant part d'elle-même (profil complet), sans retoucher « Je viens ».
-        pw.expect(page.get_by_text('C’est noté, Compte !', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_text('C’est noté, Camille !', exact=True)).to_be_visible(timeout=15000)
         pw.expect(page.get_by_text('Ludo est prévenu.', exact=True)).to_be_visible()
         assert ('accept_invite', {'token': TOKEN, 'answer': 'yes', 'first_name': None}) in calls
         assert [c[0] for c in calls].count('accept_invite') == 1
@@ -339,7 +339,7 @@ def test_an_account_without_the_terms_sees_the_terms_sheet_before_its_answer(bro
         pw.expect(page.get_by_text('Avant de publier', exact=True)).to_be_visible(timeout=15000)
         shot(page, '11-invite-cgu-feuille')
         page.get_by_role('button', name='J’accepte').click()
-        pw.expect(page.get_by_text('C’est noté, Compte !', exact=True)).to_be_visible(timeout=10000)
+        pw.expect(page.get_by_text('C’est noté, Camille !', exact=True)).to_be_visible(timeout=10000)
         names = [c[0] for c in calls]
         assert ('accept_terms', {'p_version': '2026-11-04'}) in calls
         assert names.index('accept_terms') < len(names) - 1 - names[::-1].index('accept_invite'), names
@@ -393,13 +393,13 @@ def test_a_link_guest_answers_a_date_poll_by_voting_the_dates(browser, v2_origin
         shot(page, '20-sondage-carte', full=True)
         page.get_by_role('button', name='📅 Choisir mes dates').click()
         login(page)  # page de connexion normale, puis retour sur le lien
-        pw.expect(page.get_by_text('Tes dates, Compte', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_text('Tes dates, Camille', exact=True)).to_be_visible(timeout=15000)
         assert ('accept_invite', {'token': TOKEN, 'answer': 'poll', 'first_name': None}) in calls
         yes = page.get_by_role('button', name=re.compile('^Oui : '))
         pw.expect(yes).to_have_count(2)
         yes.first.click()
         page.get_by_role('button', name=re.compile('^Non : ')).nth(1).click()
-        pw.expect(page.get_by_text('C’est noté, Compte !', exact=True)).to_be_visible()
+        pw.expect(page.get_by_text('C’est noté, Camille !', exact=True)).to_be_visible()
         assert [(v['option_id'], v['vote']) for v in votes] == [(IDS[8], 'yes'), (IDS[9], 'no')]
         pw.expect(page.get_by_role('button', name='Voir l’événement et les votes')).to_be_visible()
         pw.expect(page.get_by_role('button', name='Ajouter à mon agenda')).to_have_count(0)  # pas de date avant qu'elle soit fixée

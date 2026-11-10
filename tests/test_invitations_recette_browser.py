@@ -60,7 +60,7 @@ def test_inside_the_installed_app_the_invitation_never_offers_to_install_party(b
         pw.expect(page.get_by_text('Pas besoin d’installer l’app.', exact=True)).to_have_count(0)
         page.get_by_role('button', name='Je viens !').click()
         login(page)
-        pw.expect(page.get_by_text('C’est noté, Compte !', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_text('C’est noté, Camille !', exact=True)).to_be_visible(timeout=15000)
         pw.expect(page.get_by_role('button', name='Installer Party')).to_have_count(0)
         pw.expect(page.get_by_text('Reçois les nouvelles de la soirée', exact=True)).to_have_count(0)
         assert not errors, errors
@@ -85,5 +85,18 @@ def test_a_new_invite_only_event_from_the_form_opens_the_invite_sheet_right_away
         (_, row), = base.wrote('POST', 'events')
         assert (row['visibility'], row['public_link']) == ('invited', False)
         assert not errors, errors
+    finally:
+        context.close()
+
+
+def test_a_link_already_answered_says_the_answer_with_clean_punctuation(browser, v2_origin):  # noqa: F811
+    """Recette du 10.11 : « Ta réponse : Je viens !. » puis « Je viens . » ; attendu « Ta réponse : Je viens. »."""
+    context = browser.new_context(viewport={'width': 390, 'height': 844})
+    page = context.new_page()
+    try:
+        mock_services(page)
+        mock_invites(page, card={**CARD, 'mine': 'yes'})
+        page.goto(f'{v2_origin}/events/invite/{TOKEN}', wait_until='domcontentloaded')
+        pw.expect(page.get_by_text('Ta réponse : Je viens. Tu peux la changer.', exact=True)).to_be_visible(timeout=15000)
     finally:
         context.close()

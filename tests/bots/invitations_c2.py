@@ -950,11 +950,11 @@ def phase_sans_app(browser, origin):
             if page.url != before:
                 p.goto(f"/events/invite/{tok}")
                 page.wait_for_timeout(3500)
-        with p.step("rouvrir le lien : « Ta réponse : Je viens ! », changer pour Peut-être"):
+        with p.step("rouvrir le lien : « Ta réponse : Je viens. », changer pour Peut-être"):
             open_invite(p, tok)
             page.wait_for_timeout(1500)
             p.shot("lien-rouvert")
-            p.see(page.get_by_text(re.compile("Ta réponse : Je viens !")), "« Ta réponse : Je viens ! »", 6000) or \
+            p.see(page.get_by_text(re.compile("Ta réponse : Je viens\\.")), "« Ta réponse : Je viens. »", 6000) or \
                 p.flag("🔴", "lien rouvert : la réponse donnée n'est pas montrée")
             if page.get_by_text("L’adresse exacte après ta réponse").count():
                 p.flag("🟡", "lien rouvert après réponse : encore « L'adresse exacte après ta réponse »")

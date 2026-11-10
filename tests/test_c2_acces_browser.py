@@ -327,7 +327,7 @@ def test_android_is_never_sent_to_the_app_store(browser, v2_origin):  # noqa: F8
         page.goto(f'{v2_origin}/events/invite/{TOKEN}', wait_until='domcontentloaded')
         page.get_by_role('button', name='Je viens !').click()
         login(page)
-        pw.expect(page.get_by_text('C’est noté, Compte !', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_text('C’est noté, Camille !', exact=True)).to_be_visible(timeout=15000)
         pw.expect(page.get_by_role('button', name='Installer Party')).to_have_count(0)
         pw.expect(page.get_by_text('Garde ce lien', exact=False)).to_be_visible()
     finally:
