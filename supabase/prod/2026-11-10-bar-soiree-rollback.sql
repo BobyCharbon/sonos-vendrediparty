@@ -149,7 +149,7 @@ drop function if exists private.guard_bar_unit(), private.guard_bar_append_only(
 alter table public.notification_prefs drop column if exists bar_served, drop column if exists bar_changed,
   drop column if exists bar_refund_declared, drop column if exists bar_refund_confirmed;
 
-delete from supabase_migrations.schema_migrations where version in ('20261110120000', '20261110130000', '20261110140000');
+delete from supabase_migrations.schema_migrations where version in ('20261110120000', '20261110130000', '20261110140000', '20261110150000');
 commit;
 
 notify pgrst, 'reload schema';

@@ -91,3 +91,27 @@ def test_a_corrected_glass_stays_out_of_stock_and_no_serve_is_undone_once_the_ba
     done = serve(barman, event, ga.uid, [(vrb, 1)])
     sql(f"update public.event_bars set closed_at = now() where event_id = '{event}'")
     assert 'fermé' in refused(barman.rpc('bar_undo_serve', e=event, serve=done['serve_id']))
+
+
+def test_an_account_that_used_the_bar_can_still_be_deleted_and_the_log_only_loses_the_name():
+    """Apple 5.1.1(v) : supprimer un compte qui a commandé au bar (test réel du 10.11 : refusé, registre en ajout seul).
+    Transaction ANNULÉE : rien ne reste."""
+    from tests.supabase_live.test_annonces_groupe_live import as_postgres, run
+    out = run(as_postgres() + """
+      insert into public.events (title, status, visibility, notify_on_publish, starts_at, created_by)
+        values ('[Recette] Bar compte supprimé', 'published', 'invited', false, now() + interval '2 days', olga) returning id into e;
+      insert into public.event_bars (event_id, created_by, closes_at) values (e, olga, now() + interval '3 days');
+      insert into public.event_bar_log (event_id, actor, kind, user_id, qty) values (e, violette, 'served', violette, 1);
+      delete from public.profiles where id = violette;
+      raise exception 'résultat: lignes=% sans_nom=%',
+        (select count(*) from public.event_bar_log where event_id = e),
+        (select count(*) from public.event_bar_log where event_id = e and actor is null and user_id is null and qty = 1);""")
+    assert "résultat: lignes=1 sans_nom=1" in out, out
+    # Une modification ordinaire du registre reste refusée.
+    out = run(as_postgres() + """
+      insert into public.events (title, status, visibility, notify_on_publish, starts_at, created_by)
+        values ('[Recette] Bar registre', 'published', 'invited', false, now() + interval '2 days', olga) returning id into e;
+      insert into public.event_bars (event_id, created_by, closes_at) values (e, olga, now() + interval '3 days');
+      insert into public.event_bar_log (event_id, actor, kind, user_id, qty) values (e, violette, 'served', violette, 1);
+      update public.event_bar_log set user_id = null where event_id = e;""")
+    assert 'registre en ajout seul' in out, out
