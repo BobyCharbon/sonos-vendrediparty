@@ -1,4 +1,4 @@
-# Maquettes « Bar de la soirée » (v3, 10.11.2026)
+# Maquettes « Bar de la soirée » (v4, 10.11.2026)
 
 Proposition à valider, pas encore de code. Le bar se crée depuis un événement, dans la zone organisateur ;
 les co-organisateurs gèrent tout comme l'organisateur. L'organisateur fixe les articles, les prix et le stock,
@@ -13,3 +13,5 @@ toujours affiché en grand. Il rembourse après la soirée (Stripe plus tard).
 
 v3 : un seul QR par invité pour toute la soirée (app + app Cartes Apple, carte mise à jour après chaque service),
 barmans nommés par l'organisateur, le barman voit toute la commande au scan, sélectionne et sert.
+v4 : maximum « en attente » par article et par personne (commandé, pas encore servi ; on recommande dès qu'un verre est servi),
+stock virtuel pour les organisateurs (servi, réservé, disponible).

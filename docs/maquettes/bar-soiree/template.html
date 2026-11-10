@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Party · Bar de la soirée — maquettes v3</title>
+<title>Party · Bar de la soirée — maquettes v4</title>
 <style>
 {{STYLE}}
 </style>
@@ -14,6 +14,7 @@
   <h1 class="disp">Party · <span>Bar de la soirée</span></h1>
   <p>L'organisateur achète les boissons et fixe un prix par article. Les co-organisateurs gèrent tout avec lui, et des barmans nommés pour la soirée scannent et servent. Chaque invité a <b>un seul QR pour toute la soirée</b>, dans l'app et dans l'app Cartes d'Apple. Ce QR est relié à son compte et à toutes ses commandes.</p>
   <p>Au bar, le barman scanne le QR, voit tout ce que l'invité a commandé, demande « qu'est-ce que tu veux ? », sélectionne et touche « Servir ». C'est seulement à ce moment que le prix passe sur le solde, toujours affiché en grand. Le solde se rembourse après la soirée, avec un engagement coché à chaque commande.</p>
+  <p>Pour chaque article, l'organisateur fixe un <b>maximum « en attente » par personne</b> : ce qui est commandé mais pas encore servi. Dès qu'un verre est servi, on peut en recommander un. Les organisateurs voient le <b>stock virtuel</b> : servi, réservé, encore disponible.</p>
   <ol class="flow">
     <li><b>1</b>Créer depuis l'événement</li>
     <li><b>2</b>Articles et stock</li>
@@ -79,7 +80,7 @@
   <figcaption>
     <span class="who org">Organisateur et co-organisateurs</span>
     <h2 class="disp"><em>2</em>Articles, prix et stock</h2>
-    <p>Tu fixes le prix de chaque article et le stock que tu as acheté. Tu peux tout changer pendant la soirée, et les invités voient les changements tout de suite.</p>
+    <p>Pour chaque article : le prix, le stock acheté et le maximum en attente par personne. Tu peux tout changer pendant la soirée, et les invités voient les changements tout de suite.</p>
   </figcaption>
   <div class="phone"><div class="screen">
     <div class="status"><span>18:05</span><div class="island"></div><span class="ic">▮▮▮ ◔</span></div>
@@ -91,15 +92,21 @@
       </div>
       <div class="card">
         <div class="sec">Articles</div>
-        <div class="item"><div class="tile">🍸</div><div class="grow"><div class="t15 sb">Vodka Red Bull</div><div class="t12 muted"><span class="num">4.50 CHF</span> · <span class="chip coral xs">18+</span></div></div><div class="stepper"><i>−</i><b class="num">12</b><i>+</i></div></div>
-        <div class="item"><div class="tile">🥃</div><div class="grow"><div class="t15 sb">Whisky Coca</div><div class="t12 muted"><span class="num">4.06 CHF</span> · <span class="chip coral xs">18+</span></div></div><div class="stepper"><i>−</i><b class="num">10</b><i>+</i></div></div>
-        <div class="item"><div class="tile">🍺</div><div class="grow"><div class="t15 sb">Bière</div><div class="t12 muted"><span class="num">3 CHF</span> · <span class="chip xs">16+</span></div></div><div class="stepper"><i>−</i><b class="num">24</b><i>+</i></div></div>
-        <div class="item"><div class="tile">🍹</div><div class="grow"><div class="t15 sb">Gin Tonic</div><div class="t12 muted"><span class="num">5 CHF</span> · <span class="chip coral xs">18+</span></div></div><div class="stepper"><i>−</i><b class="num">6</b><i>+</i></div></div>
+        <div class="item"><div class="tile">🍸</div><div class="grow"><div class="t15 sb">Vodka Red Bull</div><div class="t12 muted"><span class="num">4.50 CHF</span> · <span class="chip coral xs">18+</span> · max 3</div></div><div class="stepper"><i>−</i><b class="num">12</b><i>+</i></div></div>
+        <div class="item"><div class="tile">🥃</div><div class="grow"><div class="t15 sb">Whisky Coca</div><div class="t12 muted"><span class="num">4.06 CHF</span> · <span class="chip coral xs">18+</span> · max 2</div></div><div class="stepper"><i>−</i><b class="num">10</b><i>+</i></div></div>
+        <div class="item"><div class="tile">🍺</div><div class="grow"><div class="t15 sb">Bière</div><div class="t12 muted"><span class="num">3 CHF</span> · <span class="chip xs">16+</span> · max 4</div></div><div class="stepper"><i>−</i><b class="num">24</b><i>+</i></div></div>
+        <div class="item"><div class="tile">🍹</div><div class="grow"><div class="t15 sb">Gin Tonic</div><div class="t12 muted"><span class="num">5 CHF</span> · <span class="chip coral xs">18+</span> · max 2</div></div><div class="stepper"><i>−</i><b class="num">6</b><i>+</i></div></div>
         <div class="item"><div class="tile">🥤</div><div class="grow"><div class="t15 sb">Coca</div><div class="t12 muted"><span class="num">2 CHF</span></div></div><span class="chip lav">Illimité</span></div>
         <div class="item"><div class="tile">🧃</div><div class="grow"><div class="t15 sb">Thé froid</div><div class="t12 muted"><span class="num">2 CHF</span></div></div><span class="chip lav">Illimité</span></div>
-        <div class="t12 muted">Le chiffre = ce qu'il reste. Il baisse à chaque article servi au bar.</div>
+        <div class="t12 muted">Le chiffre = ce qu'il reste. « max 3 » = 3 en attente au plus par personne.</div>
       </div>
-      <div class="btn sec2">+ Ajouter un article (nom, prix, stock, âge)</div>
+      <div class="card">
+        <div class="sec">Modifier · Vodka Red Bull</div>
+        <div class="row" style="gap:8px"><div class="field grow"><span>Prix</span><b class="num">4.50 CHF</b></div><div class="field grow"><span>Stock acheté</span><b class="num">12</b></div></div>
+        <div class="hl"><div class="row"><div class="grow"><div class="t14 sb">Max en attente par personne</div><div class="t12 muted">Commandées, pas encore servies</div></div><div class="stepper"><i>−</i><b class="num">3</b><i>+</i></div></div></div>
+        <div class="t12 muted">Dès qu'un verre est servi, la personne peut en recommander un. Vide = pas de limite.</div>
+      </div>
+      <div class="btn sec2">+ Ajouter un article</div>
     </div>
   </div></div>
 </figure>
@@ -175,32 +182,24 @@
 <figure>
   <figcaption>
     <span class="who guest">Invité</span>
-    <h2 class="disp"><em>5</em>Commander et s'engager</h2>
-    <p>Son solde reste en haut, en grand. À chaque commande, il coche l'engagement. Sans la case cochée, le bouton reste éteint.</p>
+    <h2 class="disp"><em>5</em>Commander, dans les limites</h2>
+    <p>Léa met 3 Vodka Red Bull : c'est le maximum en attente, donc le + se bloque jusqu'à ce qu'on lui en serve une. Puis elle coche l'engagement et valide.</p>
   </figcaption>
   <div class="phone"><div class="screen">
     <div class="status"><span>23:05</span><div class="island"></div><span class="ic">▮▮▮ ◔</span></div>
     <div class="body">
       <div class="navbar"><span class="back">‹ Retour</span><span class="title">Bar de la soirée</span></div>
       <div class="owe compact"><div class="grow"><div class="lbl">À rembourser</div><div class="sub">à Boby · Revolut</div></div><div class="disp amt">4.06<small>CHF</small></div></div>
-      <div class="item sel"><div class="tile">🍸</div><div class="grow"><div class="t15 sb">Vodka Red Bull</div><div class="t13"><span class="num b">4.50 CHF</span> · <span class="muted">8 dispo</span></div></div><div class="stepper"><i>−</i><b>3</b><i class="p">+</i></div></div>
-      <div class="item sel"><div class="tile">🥃</div><div class="grow"><div class="t15 sb">Whisky Coca</div><div class="t13"><span class="num b">4.06 CHF</span> · <span style="color:var(--coral)">reste 3</span></div></div><div class="stepper"><i>−</i><b>2</b><i class="p">+</i></div></div>
+      <div class="item sel"><div class="tile">🍸</div><div class="grow"><div class="t15 sb">Vodka Red Bull</div><div class="t13"><span class="num b">4.50 CHF</span> · <span style="color:var(--coral)">max atteint</span></div></div><div class="stepper"><i>−</i><b>3</b><i class="x">+</i></div></div>
+      <div class="warn">Maximum 3 Vodka Red Bull en attente par personne. Tu pourras en recommander une dès qu'une te sera servie.</div>
+      <div class="item sel"><div class="tile">🥃</div><div class="grow"><div class="t15 sb">Whisky Coca</div><div class="t13"><span class="num b">4.06 CHF</span> · <span class="muted">2 / 2 max</span></div></div><div class="stepper"><i>−</i><b>2</b><i class="x">+</i></div></div>
       <div class="item sel"><div class="tile">🥤</div><div class="grow"><div class="t15 sb">Coca</div><div class="t13"><span class="num b">2 CHF</span></div></div><div class="stepper"><i>−</i><b>1</b><i class="p">+</i></div></div>
-      <div class="overlay">
-        <div class="sheet">
-          <div class="grab"></div>
-          <div class="row"><div class="grow t15 b">Ajouter à ma commande</div><span class="t13 b" style="color:var(--accent)">✕</span></div>
-          <div class="mini">
-            <span>🍸 Vodka Red Bull × 3</span><b class="num">13.50</b>
-            <span>🥃 Whisky Coca × 2</span><b class="num">8.12</b>
-            <span>🥤 Coca × 1</span><b class="num">2.00</b>
-            <span>🧃 Thé froid × 1</span><b class="num">2.00</b>
-          </div>
-          <div class="kv t13"><span class="muted">Ton solde si tout est servi</span><b>4.06 → 29.68 CHF</b></div>
-          <div class="t12 muted">Rien n'est dû tant que ce n'est pas servi au bar. Une commande jamais servie ne coûte rien.</div>
-          <div class="check"><div class="box">✓</div><div class="t13" style="line-height:1.45">Je m'engage à rembourser à <b>Boby</b>, par <b>Revolut</b>, avant le <b>dim. 23 nov.</b>, chaque consommation servie à mon nom.<div class="t12" style="color:var(--accent);margin-top:4px">Lire les conditions du bar</div></div></div>
-          <div class="btn">Valider la commande</div>
-        </div>
+      <div class="item sel"><div class="tile">🧃</div><div class="grow"><div class="t15 sb">Thé froid</div><div class="t13"><span class="num b">2 CHF</span></div></div><div class="stepper"><i>−</i><b>1</b><i class="p">+</i></div></div>
+      <div class="card" style="background:var(--surface2);border-color:var(--line2)">
+        <div class="kv"><span>7 articles</span><b class="disp" style="font-size:20px">25.62 CHF</b></div>
+        <div class="kv t13"><span class="muted">Ton solde si tout est servi</span><b>4.06 → 29.68 CHF</b></div>
+        <div class="check"><div class="box">✓</div><div class="t13" style="line-height:1.45">Je m'engage à rembourser à <b>Boby</b>, par <b>Revolut</b>, avant le <b>dim. 23 nov.</b>, chaque consommation servie à mon nom.</div></div>
+        <div class="btn">Valider la commande</div>
       </div>
     </div>
   </div></div>
@@ -293,7 +292,7 @@
   <figcaption>
     <span class="who org">Organisateur et co-organisateurs</span>
     <h2 class="disp"><em>9</em>Suivi en direct</h2>
-    <p>Le stock, ce que chacun doit, et les remboursements annoncés à confirmer, comme pour les billets payants aujourd'hui.</p>
+    <p>Le stock virtuel par article : servi, réservé (commandé mais pas encore servi) et encore disponible. Puis ce que chacun doit, et les remboursements à confirmer.</p>
   </figcaption>
   <div class="phone"><div class="screen">
     <div class="status"><span>00:32</span><div class="island"></div><span class="ic">▮▮▮ ◔</span></div>
@@ -306,10 +305,12 @@
         <div><b class="disp num" style="color:var(--mint)">142</b><span>CHF remboursés</span></div>
       </div>
       <div class="card">
-        <div class="sec">Stock</div>
-        <div><div class="row t14"><span class="grow sb">🥃 Whisky Coca</span><span class="num b" style="color:var(--coral)">3 / 10</span></div><div class="bar coral" style="margin:5px 0 3px"><div style="width:30%"></div></div><div class="t12 muted">4 commandés pas encore servis</div></div>
-        <div><div class="row t14"><span class="grow sb">🍸 Vodka Red Bull</span><span class="num b">6 / 12</span></div><div class="bar" style="margin-top:5px"><div style="width:50%"></div></div></div>
-        <div><div class="row t14"><span class="grow sb">🍹 Gin Tonic</span><span class="chip red">Épuisé</span></div><div class="bar red" style="margin-top:5px"><div style="width:2%"></div></div></div>
+        <div class="sec">Stock virtuel</div>
+        <div><div class="row t14"><span class="grow sb">🥃 Whisky Coca</span><span class="num b" style="color:var(--coral)">2 dispo</span></div><div class="stack" style="margin:5px 0 3px"><i class="s-serv" style="width:50%"></i><i class="s-res" style="width:30%"></i><i class="s-free" style="width:20%"></i></div><div class="t12 muted">10 achetés · 5 servis · 3 réservés</div></div>
+        <div><div class="row t14"><span class="grow sb">🍸 Vodka Red Bull</span><span class="num b" style="color:var(--coral)">2 dispo</span></div><div class="stack" style="margin:5px 0 3px"><i class="s-serv" style="width:50%"></i><i class="s-res" style="width:33%"></i><i class="s-free" style="width:17%"></i></div><div class="t12 muted">12 achetés · 6 servis · 4 réservés</div></div>
+        <div><div class="row t14"><span class="grow sb">🍺 Bière</span><span class="num b">15 dispo</span></div><div class="stack" style="margin:5px 0 3px"><i class="s-serv" style="width:29%"></i><i class="s-res" style="width:8%"></i><i class="s-free" style="width:63%"></i></div><div class="t12 muted">24 achetés · 7 servis · 2 réservés</div></div>
+        <div><div class="row t14"><span class="grow sb">🍹 Gin Tonic</span><span class="chip red">Épuisé</span></div><div class="stack" style="margin-top:5px"><i class="s-serv" style="width:100%"></i></div></div>
+        <div class="row t11 muted" style="gap:12px"><span><i class="dot s-serv"></i> servis</span><span><i class="dot s-res"></i> réservés</span><span><i class="dot s-free"></i> disponibles</span></div>
       </div>
       <div class="card">
         <div class="sec">Qui doit combien</div>
@@ -373,6 +374,6 @@
     <li>Photos des articles et reprise de la carte d'une soirée à l'autre.</li>
   </ul></div>
 </section>
-<footer>Maquettes v3 du 10.11.2026. Les écrans montrent l'intention, pas le rendu final. Couleurs et polices de Party (thème Événements).</footer>
+<footer>Maquettes v4 du 10.11.2026. Les écrans montrent l'intention, pas le rendu final. Couleurs et polices de Party (thème Événements).</footer>
 </body>
 </html>

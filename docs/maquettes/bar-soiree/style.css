@@ -201,3 +201,10 @@ footer { max-width: 1240px; margin: 28px auto 0; color: var(--muted); font-size:
 .qrbox.sm svg { width: 128px; height: 128px; }
 .mini { font-size: 12.5px; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; }
 .kv b { white-space: nowrap; }
+/* v4 : limite en attente, stock virtuel */
+.stepper i.x { opacity: .3; }
+.hl { border: 1.5px solid rgba(255,79,154,.6); background: rgba(255,79,154,.08); border-radius: 14px; padding: 10px 12px; }
+.stack { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--fill2); }
+.stack i { display: block; height: 100%; }
+.s-serv { background: var(--mint); } .s-res { background: var(--coral); } .s-free { background: rgba(255,255,255,.28); }
+i.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 3px; vertical-align: 0; }
