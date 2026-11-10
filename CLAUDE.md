@@ -72,6 +72,16 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   `guard_event_group` et `guard_event_vip_visibility`). Un admin (events.manage_all) garde tous les groupes.
 - Public par défaut (formulaire et IA) ; un événement public ne prévient JAMAIS personne à sa publication (base : `events_public_silent`, 20261106200000).
 
+## Inscription des invités (avis 39f148377a8f, 10.11.2026) — profil complet, parcours normal
+- Toute personne invitée (lien d'invitation, lien public « Partager », groupe) passe par la connexion NORMALE de l'app
+  (`/sign-in` : pays, numéro, code SMS), puis « Faisons connaissance » (`IdentityForm` : prénom, nom, surnom ; photo
+  facultative ; CGU au premier surnom), puis revient à l'invitation (intention gardée, `lib/inviteIntent.ts`, 10 min).
+  Plus jamais de compte « au prénom seul » : `accept_invite` refuse `profile_required` (migration 20261110090000).
+- Sondage de dates : on vote les dates (jamais « Présent » sur la page publique d'un sondage) ; la carte compte les
+  votants (`voters`). La purge des invités légers compte les votes (bug du paintball : votants effacés avec leurs votes).
+- Tests : `tests/supabase_live/test_inscription_complete_live.py`, `test_inscription_complete_browser_live.py` (vrai
+  navigateur ; base de TEST ou copie locale via PARTY_TEST_SUPABASE_URL / PARTY_TEST_DB_CONTAINER / PARTY_TEST_EVENTS_DIST).
+
 ## Jeux — requêtes simultanées
 - Tous les téléphones interrogent la partie chaque seconde, en parallèle. Toute lecture-modification d'une partie
   (action, avancée automatique type `quiz.tick`, image des jeux temps réel) passe par le verrou unique

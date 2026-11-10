@@ -3,7 +3,10 @@ fois de suite, l'organisateur ne reçoit qu'UNE notification au bout de 5 minute
 notification créée réveille l'envoi tout de suite (sans attendre la tâche de chaque minute).
 Lancement : SUPABASE_LIVE_TESTS=1 python -m pytest tests/supabase_live -q"""
 import json
+import os
 import pathlib
+import re
+import subprocess
 import urllib.request
 
 import httpx
@@ -13,11 +16,31 @@ from tests.supabase_live.test_audiences_live import ADMIN, GUEST_A, GUEST_B, cre
 from tests.supabase_live.test_member_admin_live import TEST_URL, Session, pytestmark  # noqa: F401
 
 TEST_REF = 'ewromqfsmcqsthftyhzm'  # base de TEST uniquement
+
+
+def _local_sql(query: str) -> list:
+    """Base locale : la dernière requête qui lit rend ses lignes, comme l'API de gestion ; les écritures rendent []."""
+    statements = [q.strip() for q in query.strip().rstrip(';').split(';\n') if q.strip()]
+    *before, last = statements or ['select 1']
+    reads = re.match(r'(?is)^\s*(select|with)\b', last) and not re.search(r'(?is)\b(insert|update|delete)\b', last)
+    script = ';\n'.join(before + [f'select coalesce(jsonb_agg(t), \'[]\') from ({last}) t' if reads else last]) + ';'
+    container = os.environ['PARTY_TEST_DB_CONTAINER']
+    if not re.fullmatch(r'supabase_db_[\w.-]+', container):
+        raise RuntimeError(f'conteneur Postgres local inattendu : {container}')
+    out = subprocess.run(['docker', 'exec', '-i', container, 'psql', '-U', 'postgres', '-d', 'postgres',
+                          '-v', 'ON_ERROR_STOP=1', '-At', '-q'], input=script, capture_output=True, text=True, timeout=120)
+    if out.returncode:
+        raise RuntimeError(out.stderr.strip())
+    lines = [line for line in out.stdout.splitlines() if line.strip()]
+    return json.loads(lines[-1]) if reads and lines else []
 TOKEN_FILE = pathlib.Path.home() / '.config/supabase-claude/token'
 
 
 def sql(query: str) -> list:
-    """SQL sur la base de TEST (API de gestion) : avancer le temps de la fenêtre, lancer l'envoi groupé."""
+    """SQL sur la base de TEST (API de gestion) : avancer le temps de la fenêtre, lancer l'envoi groupé.
+    Copie locale : PARTY_TEST_DB_CONTAINER=<conteneur Postgres de `supabase start`>, même résultat (lignes en JSON)."""
+    if os.environ.get('PARTY_TEST_DB_CONTAINER'):
+        return _local_sql(query)
     req = urllib.request.Request(f'https://api.supabase.com/v1/projects/{TEST_REF}/database/query', method='POST',
                                  data=json.dumps({'query': query}).encode(),
                                  headers={'Authorization': f'Bearer {TOKEN_FILE.read_text().strip()}',

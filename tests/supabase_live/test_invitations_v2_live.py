@@ -31,8 +31,11 @@ def people():
         assert s.rpc('accept_terms', p_version=terms_version()).status_code in (200, 204)
     # Compte neuf : aucun prénom ni CGU (comme une personne qui reçoit le lien sur WhatsApp) ; remis tel quel après.
     accepted = sql(f"select version from public.terms_acceptances where user_id = '{newcomer.uid}'")
-    reset = (f"update public.profiles set display_name = '' where id = '{newcomer.uid}'; "
-             f"delete from private.light_invitees where user_id = '{newcomer.uid}'; "
+    # Le garde de profil interdit de vider un profil complet : déclencheurs coupés pour cette remise à zéro de test.
+    reset = ("begin;\nset local session_replication_role = replica;\n"
+             f"update public.profiles set display_name = '', first_name = '', last_name = '' where id = '{newcomer.uid}';\n"
+             "commit;\n"
+             f"delete from private.light_invitees where user_id = '{newcomer.uid}';\n"
              f"delete from public.terms_acceptances where user_id = '{newcomer.uid}'")
     sql(reset)
     yield sessions
@@ -47,7 +50,7 @@ def error_of(r: httpx.Response) -> str:
     return r.text
 
 
-def test_links_for_one_or_several_people_and_answer_without_a_full_profile(people):
+def test_links_for_one_or_several_people_and_answer_once_the_profile_is_complete(people):
     admin, ga, gb, vip, new = people
     event = create_event(admin, 'Test invitations v2', visibility='invited', location_name='Chez Admin',
                          location_address='Rue Secrète 1, Sion')
@@ -66,17 +69,23 @@ def test_links_for_one_or_several_people_and_answer_without_a_full_profile(peopl
         assert anon_rpc('invite_preview', token='00000000-0000-4000-8000-000000000000').json() is None
         assert anon_rpc('accept_invite', token=single['token'], answer='yes').status_code >= 400  # compte requis
 
-        # Compte neuf : le prénom suffit ; il voit l'événement, n'entre dans aucun groupe.
-        assert 'first_name_required' in error_of(new.rpc('accept_invite', token=single['token'], answer='yes'))
-        if terms_enforced():  # CGU exigées (prod) : pas de prénom enregistré tant qu'elles ne sont pas acceptées
-            assert 'terms_required' in error_of(new.rpc('accept_invite', token=single['token'], answer='yes', first_name='Léa'))
+        # Compte neuf (10.11) : profil complet obligatoire, le prénom seul ne suffit plus ; le lien reste intact.
+        assert 'profile_required' in error_of(new.rpc('accept_invite', token=single['token'], answer='yes'))
+        assert 'profile_required' in error_of(new.rpc('accept_invite', token=single['token'], answer='yes', first_name='Léa'))
+        assert anon_rpc('invite_preview', token=single['token']).json()['state'] == 'opened'  # lien intact (ouvert, pas servi)
+        identity = {'first_name': 'Léa', 'last_name': 'Lien', 'display_name': 'Léa'}
+        if terms_enforced():  # CGU exigées (prod) : pas de surnom enregistré tant qu'elles ne sont pas acceptées
+            refused = httpx.patch(f'{TEST_URL}/rest/v1/profiles?id=eq.{new.uid}', headers=new.headers, json=identity, timeout=30)
+            assert refused.status_code >= 400 and 'terms_required' in refused.text
             assert sql(f"select display_name from public.profiles where id = '{new.uid}'") == [{'display_name': ''}]
-            assert anon_rpc('invite_preview', token=single['token']).json()['state'] == 'opened'  # lien intact (ouvert, pas servi)
-        # Le geste « Confirmer » de la carte accepte les CGU, puis répond.
+        # « Faisons connaissance » : CGU acceptées, profil complet, puis la réponse ; il voit l'événement, sans groupe.
         assert new.rpc('accept_terms', p_version=terms_version()).status_code in (200, 204)
-        done = new.rpc('accept_invite', token=single['token'], answer='yes', first_name='Léa').json()
+        r = httpx.patch(f'{TEST_URL}/rest/v1/profiles?id=eq.{new.uid}', headers=new.headers, json=identity, timeout=30)
+        assert r.status_code in (200, 204), r.text
+        done = new.rpc('accept_invite', token=single['token'], answer='yes').json()
         assert done['event_id'] == event and done['location_address'] == 'Rue Secrète 1, Sion'
-        assert sql(f"select display_name, first_name from public.profiles where id = '{new.uid}'") == [{'display_name': 'Léa', 'first_name': ''}]
+        assert sql(f"select display_name, first_name from public.profiles where id = '{new.uid}'") == [{'display_name': 'Léa', 'first_name': 'Léa'}]
+        assert not sql(f"select 1 from private.light_invitees where user_id = '{new.uid}'")  # plus aucun compte « léger »
         assert new.get(f'events?select=id&id=eq.{event}').json() == [{'id': event}]
         assert new.get(f'member_group_members?select=group_id&user_id=eq.{new.uid}').json() == []
         row = admin.get(f'event_invites?select=via_link,via_group,invited_by,link_token&event_id=eq.{event}&user_id=eq.{new.uid}').json()
@@ -99,7 +108,7 @@ def test_links_for_one_or_several_people_and_answer_without_a_full_profile(peopl
         assert ga.rpc('event_guest_list', e=event).status_code >= 400
         card = admin.rpc('event_guest_list', e=event).json()
         by_id = {p['id']: p for p in card['people']}
-        assert by_id[new.uid]['source'] == 'link' and by_id[new.uid]['link_label'] == 'Léa' and by_id[new.uid]['light']
+        assert by_id[new.uid]['source'] == 'link' and by_id[new.uid]['link_label'] == 'Léa' and not by_id[new.uid]['light']
         assert by_id[new.uid]['invited_by'] == 'Admin test' and by_id[new.uid]['status'] == 'maybe' and by_id[new.uid]['removable']
         assert (by_id[ga.uid]['status'], by_id[gb.uid]['status']) == ('maybe', 'no')
         links = {l['token']: l for l in card['links']}
@@ -113,9 +122,10 @@ def test_links_for_one_or_several_people_and_answer_without_a_full_profile(peopl
         assert admin.get(f'rsvps?select=status&event_id=eq.{event}&user_id=eq.{new.uid}').json() == []
         assert 'removed' in error_of(new.rpc('accept_invite', token=single['token'], answer='yes'))
 
-        # Compte invité minimal, plus d'événement à venir, 7 jours passés : prêt à être effacé (on ne l'efface pas ici).
-        sql(f"update private.light_invitees set created_at = now() - interval '8 days' where user_id = '{new.uid}'")
-        assert {'u': new.uid} in sql('select private.light_invitees_to_purge() u')
+        # Purge des comptes minimaux (10.11) : une personne au profil complet, ou qui a été invitée, n'est jamais effacée.
+        sql(f"insert into private.light_invitees (user_id, event_id, created_at) values ('{new.uid}', '{event}', now() - interval '8 days') "
+            "on conflict (user_id) do update set created_at = now() - interval '8 days'")
+        assert {'u': new.uid} not in sql('select private.light_invitees_to_purge() u')
         assert {'u': ga.uid} not in sql('select private.light_invitees_to_purge() u')  # profil complet : jamais
 
         # Lien arrêté, puis événement annulé : refusés avec la raison.

@@ -1,34 +1,32 @@
-import { Stack } from 'expo-router';
+import { router, Stack, type Href } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { CalendarButton } from './CalendarButton';
+import { IdentityForm } from './IdentityForm';
 import { InviteDateVotes } from './InviteDateVotes';
-import { Button, ErrorText, Field, Input, Loading, Screen, T, Title } from './ui';
+import { useTermsGate } from './TermsSheet';
+import { Button, ErrorText, Loading, Screen, T, Title } from './ui';
 import { appDownload } from '@/lib/appInvite';
-import { authErrorMessage } from '@/lib/authErrors';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { avatarColor, formatLongDay, formatTime, initials } from '@/lib/format';
 import { acceptInvite, fetchInviteCard, type Accepted, type InviteCard } from '@/lib/invites';
+import { clearInviteAnswer, peekInviteAnswer, rememberInviteAnswer } from '@/lib/inviteIntent';
 import { canInstallWebApp, installWebApp, isAndroid } from '@/lib/installPrompt';
 import { enter, pressTransition } from '@/lib/motion';
 import { safeHref } from '@/lib/links';
-import { acceptTermsIfNeeded, dbMessage, TERMS_PATH } from '@/lib/moderation';
-import { parseLoginPhone } from '@/lib/phone';
-import { supabase } from '@/lib/supabase';
+import { dbMessage, isTermsError } from '@/lib/moderation';
+import { hasCompleteIdentity } from '@/lib/profile';
 import { colors, radius, rsvpColors } from '@/lib/theme';
 import type { RsvpStatus } from '@/lib/types';
 
 const TOKEN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const CODE_LENGTH = 6;
 const ANSWERS: { key: RsvpStatus; label: string }[] = [
   { key: 'yes', label: 'Je viens !' }, { key: 'maybe', label: 'Peut-être' }, { key: 'no', label: 'Je ne peux pas' },
 ];
 type Answer = RsvpStatus | 'poll';
 const DONE_WORDS: Record<RsvpStatus, string> = { yes: 'Tu viens à', maybe: 'Tu viens peut-être à', no: 'Tu ne viens pas à' };
-/** Conditions d'utilisation, ouvertes à côté (l'invitation reste là où elle en est). */
-const termsUrl = () => (typeof location !== 'undefined' ? `${location.origin}/events${TERMS_PATH}` : `https://party.bobycharbon.ch/events${TERMS_PATH}`);
 const CLOSED: Record<string, string> = {
   full: 'Ce lien a déjà servi : toutes ses places sont prises. Demande ton propre lien à la personne qui t’a invité.',
   expired: 'Ce lien n’est plus valable (date limite passée). Demande un nouveau lien à la personne qui t’a invité.',
@@ -52,9 +50,10 @@ function refusalText(message: string): string {
 }
 
 /**
- * Invitation à un événement, lisible SANS compte (bêta invites_v2, maquette C 5 à 7) : qui invite, quand, où, qui vient
- * déjà → « Je viens » → prénom et numéro → code SMS (rempli tout seul par l'iPhone) → c'est noté, avec calendrier,
- * itinéraire et l'app proposée sans obligation ni récompense. Rouvrir le même lien permet de changer sa réponse.
+ * Invitation à un événement, lisible SANS compte (invites_v2) : qui invite, quand, où, qui vient ou a voté → réponse →
+ * inscription COMPLÈTE par le parcours normal de l'app (10.11, avis 39f148377a8f) : page de connexion (pays, numéro, code
+ * SMS), puis « Faisons connaissance » (prénom, nom, surnom ; photo facultative) → la réponse choisie est reprise d'elle-
+ * même → c'est noté (sondage : on vote les dates, puis la fiche s'ouvre). Rouvrir le même lien permet de changer sa réponse.
  */
 export function InviteCardScreen({ token }: { token: string | undefined }) {
   const valid = typeof token === 'string' && TOKEN.test(token);
@@ -66,10 +65,17 @@ export function InviteCardScreen({ token }: { token: string | undefined }) {
     opened.current = true;
     return fetchInviteCard(token!, first);  // première lecture : « A ouvert » chez l'organisateur
   }, [token, session?.user.id]);
-  const [answer, setAnswer] = useState<Answer | null>(null);
+  // Retour de la page de connexion : la réponse choisie avant est reprise d'elle-même (un seul toucher en tout).
+  const [answer, setAnswer] = useState<Answer | null>(() => (valid && session ? peekInviteAnswer(token!) : null));
   const [done, setDone] = useState<Accepted | null>(null);
-  const [firstName, setFirstName] = useState<string | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
+
+  /** Sans compte : la page de connexion normale de l'app (jamais un formulaire à part), puis retour ici. */
+  function choose(a: Answer) {
+    if (session) return setAnswer(a);
+    rememberInviteAnswer(token!, a);
+    router.push('/sign-in' as Href);
+  }
 
   if (!valid) return <Closed text="Ce lien d’invitation n’est pas complet. Copie-le en entier depuis le message reçu." />;
   if (loading && !card) return <Loading />;
@@ -81,12 +87,12 @@ export function InviteCardScreen({ token }: { token: string | undefined }) {
   if (done && isOrganizer(done)) {
     return <Closed title="C’est ton lien d’invitation" text={OWN_LINK} />;
   }
-  if (done) return <Done card={card} done={done} name={firstName} onChange={() => { setDone(null); setAnswer(null); reload(); }} />;
+  if (done) return <Done card={card} done={done} onChange={() => { setDone(null); setAnswer(null); reload(); }} />;
   if (answer) {
-    return <Identify token={token!} card={card} answer={answer} onBack={() => setAnswer(null)}
-      onDone={(a, name) => { setFirstName(name); setDone(a); }} onRefused={(text) => { setAnswer(null); setRefused(text); }} />;
+    return <Respond token={token!} card={card} answer={answer} onBack={() => { clearInviteAnswer(); setAnswer(null); }}
+      onDone={(a) => { clearInviteAnswer(); setDone(a); }} onRefused={(text) => { clearInviteAnswer(); setAnswer(null); setRefused(text); }} />;
   }
-  return <Card card={card} onAnswer={setAnswer} />;
+  return <Card card={card} onAnswer={choose} />;
 }
 
 function Closed({ text, title = 'Lien indisponible', onRetry }: { text: string; title?: string; onRetry?: () => void }) {
@@ -124,11 +130,15 @@ function Host({ card }: { card: InviteCard }) {
 function Card({ card, onAnswer }: { card: InviteCard; onAnswer: (a: Answer) => void }) {
   const closed = card.state === 'full' || card.state === 'expired' || card.state === 'revoked';
   const cancelled = card.status === 'cancelled';
-  const names = card.going_names;
-  const others = Math.max(card.going - names.length, 0);
+  // Sondage : on compte les votants, comme le sondage de la fiche (10.11 : « 2 viennent » mais 3 votes).
+  const poll = card.date_mode === 'poll';
+  const names = poll ? card.voter_names ?? [] : card.going_names;
+  const total = poll ? card.voters ?? 0 : card.going;
+  const others = Math.max(total - names.length, 0);
+  const verb = poll ? (total > 1 ? 'ont voté' : 'a voté') : (total > 1 ? 'viennent' : 'vient');
   const coming = names.length
-    ? `${names.join(', ')}${others ? ` et ${others} ${others > 1 ? 'autres' : 'autre'}` : ''} ${card.going > 1 ? 'viennent' : 'vient'}`
-    : card.going ? `${card.going} ${card.going > 1 ? 'personnes viennent' : 'personne vient'}` : 'Sois le premier à répondre';
+    ? `${names.join(', ')}${others ? ` et ${others} ${others > 1 ? 'autres' : 'autre'}` : ''} ${verb}`
+    : total ? `${total} ${total > 1 ? 'personnes' : 'personne'} ${verb}` : poll ? 'Sois le premier à voter' : 'Sois le premier à répondre';
   const answers = ANSWERS.filter((a) => a.key !== 'maybe' || card.allow_maybe);
   return (
     <Screen contentStyle={{ gap: 18 }}>
@@ -205,34 +215,37 @@ function Line({ icon, title, hint }: { icon: string; title: string; hint?: strin
   );
 }
 
-/** Prénom, numéro (+41 d'office), code SMS ; déjà connecté : on enregistre tout de suite (le prénom si le compte n'en a pas). */
-function Identify({ token, card, answer, onBack, onDone, onRefused }: {
-  token: string; card: InviteCard; answer: Answer; onBack: () => void; onDone: (a: Accepted, name: string | null) => void;
+/**
+ * Réponse d'un compte connecté. Profil incomplet (compte neuf, ancien compte « au prénom seul ») : « Faisons
+ * connaissance », le même formulaire que partout dans l'app (prénom, nom, surnom ; photo facultative), puis la réponse
+ * part d'elle-même. Profil complet : la réponse part tout de suite (un seul essai automatique, puis « Réessayer »).
+ */
+function Respond({ token, card, answer, onBack, onDone, onRefused }: {
+  token: string; card: InviteCard; answer: Answer; onBack: () => void; onDone: (a: Accepted) => void;
   onRefused: (text: string) => void;
 }) {
-  const { session, refreshProfile } = useAuth();
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [code, setCode] = useState('');
-  const [sentTo, setSentTo] = useState<string | null>(null);
+  const { profile } = useAuth();
+  const complete = hasCompleteIdentity(profile);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const started = useRef(false);
   const busyRef = useRef(false);
-  const named = card.me_named;
+  // CGU : acceptées dans « Faisons connaissance » (premier surnom). Un ancien compte qui ne les a pas encore acceptées
+  // voit la feuille des CGU si la base les exige (jamais d'acceptation silencieuse, Apple 1.2), puis un seul nouvel essai.
+  const terms = useTermsGate();
 
-  async function accept(first: string | null) {
+  async function accept() {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     setError(null);
     try {
-      // Le prénom est vu des autres invités : CGU acceptées d'abord (exigées en prod), par le geste « Confirmer »
-      // sous la phrase « En répondant, j'accepte les conditions d'utilisation » (Apple 1.2, Google UGC).
-      if (first) await acceptTermsIfNeeded();
-      const done = await acceptInvite(token, answer, first);
-      await refreshProfile();
-      onDone(done, first);
+      try {
+        onDone(await acceptInvite(token, answer));
+      } catch (e) {
+        if (!(e instanceof Error && isTermsError(e.message) && (await terms.ensure()))) throw e;
+        onDone(await acceptInvite(token, answer));
+      }
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
       const message = dbMessage(raw, raw || 'Ta réponse n’a pas pu être enregistrée. Réessaie.');
@@ -245,45 +258,25 @@ function Identify({ token, card, answer, onBack, onDone, onRefused }: {
     }
   }
 
-  // Déjà connecté avec un prénom : rien à demander. Un seul essai automatique ; ensuite, « Réessayer » à la main.
+  // Profil complet (tout de suite, ou juste après « Faisons connaissance ») : la réponse part une seule fois.
   useEffect(() => {
-    if (session && named && !started.current) {
+    if (complete && !started.current) {
       started.current = true;
-      void accept(null);
+      void accept();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- un seul départ, à l'arrivée sur l'écran
-  }, [session, named]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- un seul départ, dès que le profil est complet
+  }, [complete]);
 
-  async function sendCode() {
-    setError(null);
-    if (!name.trim()) return setError('Écris ton prénom.');
-    const parsed = parseLoginPhone(phone, 'CH');
-    if (!parsed) return setError('Vérifie ton numéro (ex. 079 123 45 67, ou +33 6 12 34 56 78 depuis l’étranger).');
-    setBusy(true);
-    const { error } = await supabase.auth.signInWithOtp({ phone: parsed.number });
-    setBusy(false);
-    if (error) return setError(authErrorMessage(error, 'send'));
-    setSentTo(parsed.number);
-  }
-
-  async function verify() {
-    if (!sentTo || busyRef.current) return;
-    setBusy(true);
-    setError(null);
-    const { error } = await supabase.auth.verifyOtp({ phone: sentTo, token: code.trim(), type: 'sms' });
-    setBusy(false);
-    if (error) return setError(authErrorMessage(error, 'verify'));
-    await accept(name.trim());
-  }
-
-  if (session && named) {
+  if (!profile) return <Loading />;
+  if (complete) {
     return (
       <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 16 }}>
         <Stack.Screen options={{ title: 'Invitation' }} />
+        {terms.sheet}
         {error ? (
           <>
             <ErrorText error={error} />
-            <Button label="Réessayer" loading={busy} onPress={() => void accept(null)} />
+            <Button label="Réessayer" loading={busy} onPress={() => void accept()} />
             <Button label="Retour à l’invitation" variant="secondary" onPress={onBack} />
           </>
         ) : <Loading />}
@@ -296,68 +289,32 @@ function Identify({ token, card, answer, onBack, onDone, onRefused }: {
     <Screen contentStyle={{ gap: 18 }}>
       <Stack.Screen options={{ title: 'Invitation' }} />
       <View style={[{ gap: 6 }, enter('slideIn')]}>
-        <Title size={30}>{answer === 'poll' ? 'Tes dates 📅' : answer === 'no' ? 'Dommage !' : answer === 'maybe' ? 'Peut-être, c’est noté' : 'Super, tu viens ! 🎉'}</Title>
-        <T muted>{session ? `Ton prénom, pour que ${host} sache que c’est toi.` : `Deux infos pour que ${host} sache que c’est toi.`}</T>
+        <Title size={30}>Faisons connaissance</Title>
+        <T muted>{`Pour répondre à ${host}, complète ton profil Party : c’est le même partout dans l’app. Ta réponse part juste après.`}</T>
       </View>
-      <Field label="Prénom" value={name} onChangeText={setName} autoComplete="given-name" textContentType="givenName" autoCapitalize="words"
-        maxLength={40} editable={!busy && !sentTo} placeholder="Ton prénom" />
-      {session ? (
-        <>
-        <TermsConsent />
-        <Button label="Confirmer" loading={busy} disabled={!name.trim()} onPress={() => void accept(name.trim())} />
-        </>
-      ) : !sentTo ? (
-        <>
-          <View style={{ gap: 6 }}>
-            <T weight="semibold">Numéro de portable</T>
-            <View style={st.phoneRow}>
-              <View style={st.prefix}><T weight="semibold">🇨🇭 +41</T></View>
-              <Input accessibilityLabel="Numéro de portable" placeholder="079 123 45 67" keyboardType="phone-pad" autoComplete="tel"
-                textContentType="telephoneNumber" value={phone} onChangeText={setPhone} editable={!busy} onSubmitEditing={() => void sendCode()} style={{ flex: 1 }} />
-            </View>
-            <T muted size={12}>Depuis l’étranger : commence par +33, +34…</T>
-          </View>
-          <Button label="Recevoir mon code par SMS" loading={busy} disabled={!name.trim() || !phone.trim()} onPress={() => void sendCode()} />
-        </>
-      ) : (
-        <View style={[{ gap: 10 }, enter('slideIn')]}>
-          <Field label={`Code reçu par SMS au ${sentTo}`} placeholder="123456" keyboardType="number-pad" autoComplete="one-time-code"
-            textContentType="oneTimeCode" maxLength={CODE_LENGTH} value={code} onChangeText={setCode} autoFocus onSubmitEditing={() => void verify()} />
-          <TermsConsent />
-          <Button label="Confirmer" loading={busy} disabled={code.trim().length < CODE_LENGTH} onPress={() => void verify()} />
-          <Button small variant="ghost" label="Changer de numéro" onPress={() => { setSentTo(null); setCode(''); }} />
-        </View>
-      )}
+      <IdentityForm profile={profile} submitLabel={answer === 'poll' ? 'Continuer vers mes dates' : 'Continuer'} />
       <ErrorText error={error} />
-      <T muted size={12}>Ton numéro sert seulement à te reconnaître et à te prévenir si la soirée change. {host} ne le voit pas.</T>
       <Button small variant="ghost" label="‹ Retour à l’invitation" onPress={onBack} />
     </Screen>
   );
 }
 
-/** Acceptation des conditions dans le geste : la phrase est juste au-dessus de « Confirmer », avec le lien. */
-function TermsConsent() {
-  return (
-    <View style={{ gap: 2 }}>
-      <T muted size={13}>En répondant, j’accepte les conditions d’utilisation de Party.</T>
-      <Pressable accessibilityRole="link" accessibilityLabel="Lire les conditions d’utilisation" hitSlop={8}
-        onPress={() => void Linking.openURL(termsUrl())} style={{ alignSelf: 'flex-start', minHeight: 32, justifyContent: 'center' }}>
-        <T size={13} weight="semibold" color={colors.accent}>Lire les conditions d’utilisation</T>
-      </Pressable>
-    </View>
-  );
+function Done({ card, done, onChange }: { card: InviteCard; done: Accepted; onChange: () => void }) {
+  if (done.status === null) return <PollDone card={card} done={done} />;
+  return <Answered card={card} done={done as Accepted & { status: RsvpStatus }} onChange={onChange} />;
 }
 
-function Done({ card, done, name, onChange }: { card: InviteCard; done: Accepted; name: string | null; onChange: () => void }) {
-  if (done.status === null) return <PollDone card={card} done={done} name={name} />;
-  return <Answered card={card} done={done as Accepted & { status: RsvpStatus }} name={name} onChange={onChange} />;
+/** La fiche complète de l'événement, comme pour tout membre (profil complet : elle s'ouvre). Identifiant vérifié. */
+function OpenEvent({ id, label }: { id: string; label: string }) {
+  if (!TOKEN.test(id)) return null;
+  return <Button label={label} variant="secondary" onPress={() => router.replace(`/event/${id}` as Href)} />;
 }
 
 /** Sondage de dates : on vote les dates tout de suite ; l'organisateur fixe ensuite celle qui arrange le plus de monde. */
-function PollDone({ card, done, name }: { card: InviteCard; done: Accepted; name: string | null }) {
+function PollDone({ card, done }: { card: InviteCard; done: Accepted }) {
   const { profile } = useAuth();
   const [votes, setVotes] = useState(0);
-  const first = (name ?? profile?.display_name ?? '').split(' ')[0];
+  const first = (profile?.display_name ?? '').split(' ')[0];
   const host = card.inviter || 'L’organisateur';
   return (
     <Screen contentStyle={{ gap: 18 }}>
@@ -371,14 +328,15 @@ function PollDone({ card, done, name }: { card: InviteCard; done: Accepted; name
       </View>
       <InviteDateVotes eventId={done.event_id} onVoted={setVotes} />
       <T muted size={13} style={{ textAlign: 'center' }}>Tes votes sont enregistrés à chaque toucher. Rouvre ce même lien pour les changer.</T>
+      <OpenEvent id={done.event_id} label="Voir l’événement et les votes" />
     </Screen>
   );
 }
 
-function Answered({ card, done, name, onChange }: { card: InviteCard; done: Accepted & { status: RsvpStatus }; name: string | null; onChange: () => void }) {
+function Answered({ card, done, onChange }: { card: InviteCard; done: Accepted & { status: RsvpStatus }; onChange: () => void }) {
   const { profile } = useAuth();
   const [later, setLater] = useState(false);
-  const first = (name ?? profile?.display_name ?? '').split(' ')[0];
+  const first = (profile?.display_name ?? '').split(' ')[0];
   const host = card.inviter || 'L’organisateur';
   const place = done.location_address ?? done.location_name;
   const maps = safeHref(done.location_url) ?? (place ? `https://maps.apple.com/?q=${encodeURIComponent(place)}` : null);
@@ -433,6 +391,7 @@ function Answered({ card, done, name, onChange }: { card: InviteCard; done: Acce
           )}
         </View>
       ) : null}
+      <OpenEvent id={done.event_id} label="Voir l’événement" />
       <T muted size={13} style={{ textAlign: 'center' }}>Un empêchement ? Rouvre ce même lien pour changer ta réponse.</T>
       <Button small variant="ghost" label="Changer ma réponse" onPress={onChange} />
     </Screen>
@@ -452,8 +411,6 @@ const st = StyleSheet.create({
   answer: { minHeight: 54, borderRadius: radius.md, backgroundColor: colors.fillStrong, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: 'transparent' },
   answerYes: { backgroundColor: colors.action },
   notice: { padding: 14, borderRadius: radius.md, backgroundColor: colors.coralDim },
-  phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  prefix: { height: 48, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.fill, justifyContent: 'center' },
   check: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
   appCard: { gap: 10, padding: 16, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   appIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.action, alignItems: 'center', justifyContent: 'center' },

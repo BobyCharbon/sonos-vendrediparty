@@ -41,12 +41,16 @@ def test_a_link_guest_votes_the_dates_and_the_fixed_date_follows_the_votes(peopl
         # Carte : date à définir. Répondre « Je viens » (ancienne page) ou « poll » : aucune réponse « je viens ».
         assert ga.rpc('accept_invite', token=link['token'], answer='yes').json()['status'] is None
         assert gb.rpc('accept_invite', token=link['token'], answer='poll').json()['status'] is None
+        # Compte neuf : profil complet d'abord (« Faisons connaissance », 10.11), puis il vote comme un membre.
         assert new.rpc('accept_terms', p_version=terms_version()).status_code in (200, 204)
-        done = new.rpc('accept_invite', token=link['token'], answer='poll', first_name='Zoé').json()
+        r = httpx.patch(f'{TEST_URL}/rest/v1/profiles?id=eq.{new.uid}', headers=new.headers, timeout=30,
+                        json={'first_name': 'Zoé', 'last_name': 'Sondage', 'display_name': 'Zoé'})
+        assert r.status_code in (200, 204), r.text
+        done = new.rpc('accept_invite', token=link['token'], answer='poll').json()
         assert done['status'] is None and done['date_mode'] == 'poll'
         assert [rsvp(event, p.uid) for p in (ga, gb, new)] == [None, None, None]
 
-        # Ils votent les dates comme dans l'app (leur compte léger suffit).
+        # Ils votent les dates comme dans l'app.
         vote(ga, first, 'yes'); vote(ga, second, 'no')
         vote(gb, first, 'if_needed')
         vote(new, first, 'no'); vote(new, second, 'yes')

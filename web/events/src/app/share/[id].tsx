@@ -1,40 +1,45 @@
-import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
+import { router, Stack, useLocalSearchParams, type Href } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Linking, Pressable, View } from 'react-native';
 
+import { IdentityForm } from '@/components/IdentityForm';
 import { LinkedText } from '@/components/LinkedText';
 import { ReportSheet } from '@/components/ReportSheet';
-import { RsvpButtons } from '@/components/RsvpButtons';
-import { useTermsGate } from '@/components/TermsSheet';
-import { Badge, Button, Card, ErrorText, Field, Loading, Screen, s, T, Title } from '@/components/ui';
+import { Badge, Button, Card, Loading, Screen, s, T, Title } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { SUPPORT_EMAIL } from '@/lib/contact';
 import { useQuery } from '@/lib/data';
 import { safeHref } from '@/lib/links';
-import { dbMessage, isTermsError, type ReportTarget } from '@/lib/moderation';
+import { type ReportTarget } from '@/lib/moderation';
 import { formatLongDay, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
-import { rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
+import { hasCompleteIdentity } from '@/lib/profile';
+import { rsvpClosed } from '@/lib/rsvp';
 import { supabase } from '@/lib/supabase';
 import { chf } from '@/lib/tickets';
 import { colors } from '@/lib/theme';
-import type { EventRow, Rsvp } from '@/lib/types';
+import type { EventRow, Profile, Rsvp } from '@/lib/types';
 
 const EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type PublicEvent = Pick<EventRow, 'id' | 'title' | 'description' | 'status' | 'date_mode' | 'starts_at' | 'ends_at' | 'location_name'
   | 'location_address' | 'location_url' | 'price_chf' | 'allow_maybe' | 'rsvp_deadline' | 'max_participants'> & {
   going: number;
+  /** Sondage : personnes qui ont voté au moins une date (10.11 ; base plus ancienne : absent). */
+  voters?: number;
   mine: Pick<Rsvp, 'status' | 'waitlisted' | 'plus_ones' | 'note'> | null;
 };
 
-/** Lien public d'un événement : l'essentiel sans compte, la réponse après connexion par SMS (même sans être membre). */
+/**
+ * Lien public d'un événement (« Partager le lien ») : l'essentiel sans compte. Pour répondre, le parcours normal de l'app
+ * (10.11, avis 39f148377a8f) : connexion SMS, profil complet (« Faisons connaissance »), puis la FICHE de l'événement,
+ * comme pour tout membre (sondage : on y vote les dates ; jamais de « Présent » sans date sur un sondage).
+ */
 export default function PublicEventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { session, profile, refreshProfile } = useAuth();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { session, profile } = useAuth();
   const [report, setReport] = useState<ReportTarget | null>(null);
   const validId = typeof id === 'string' && EVENT_ID.test(id);
+  const ready = !!session && hasCompleteIdentity(profile) && profile?.status === 'active';
 
   const { data, reload, error: loadError, loading } = useQuery(async () => {
     if (!validId) return null;  // lien tronqué : pas de requête refusée par la base
@@ -42,6 +47,11 @@ export default function PublicEventScreen() {
     if (error) throw new Error(error.message);
     return (data as PublicEvent | null) ?? null;
   }, [id, session?.user.id]);
+
+  // Compte prêt (profil complet) : la fiche de l'événement, où l'on répond ou vote comme dans toute l'app.
+  useEffect(() => {
+    if (validId && ready) router.replace(`/event/${id}` as Href);
+  }, [validId, ready, id]);
 
   if (loading && !data) return <Loading />;
   if (!data && loadError) {
@@ -54,6 +64,21 @@ export default function PublicEventScreen() {
         <Button label="Réessayer" onPress={() => void reload()} />
       </Screen>
     );
+  }
+  if (validId && ready) return <OpeningEvent id={id} />;
+  if (session && profile && hasCompleteIdentity(profile) && profile.status !== 'active') {
+    // Profil complet mais compte en attente ou banni : jamais un formulaire sans bouton (comme « welcome »).
+    return (
+      <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 12 }}>
+        <Stack.Screen options={{ title: '' }} />
+        <Title>{profile.status === 'banned' ? 'Accès retiré' : 'Compte en attente'}</Title>
+        <T muted>{profile.status === 'banned' ? 'Ton accès a été retiré par un admin du groupe.' : 'Ton compte n’est pas encore actif : réessaie un peu plus tard.'}</T>
+      </Screen>
+    );
+  }
+  if (!data && session && validId && profile && !hasCompleteIdentity(profile)) {
+    // Événement sur invitation ouvert par un compte au profil incomplet (ancien « prénom seul ») : on complète, puis la fiche.
+    return <CompleteProfile profile={profile} intro="Complète ton profil Party pour ouvrir l’événement." />;
   }
   if (!data) {
     return (
@@ -78,22 +103,9 @@ export default function PublicEventScreen() {
 
   const ev = data;
   const mapsUrl = safeHref(ev.location_url) ?? (ev.location_address || ev.location_name ? `https://maps.apple.com/?q=${encodeURIComponent(ev.location_address ?? ev.location_name!)}` : null);
+  const poll = ev.date_mode === 'poll';
   const closed = ev.status !== 'published' || rsvpClosed(ev);
-
-  async function answer(status: Rsvp['status']) {
-    setBusy(true);
-    setError(null);
-    try {
-      await saveRsvp(ev.id, session!.user.id, ev.mine ?? undefined, { status });
-      await reload();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-
+  const voters = ev.voters ?? 0;
 
   return (
     <Screen>
@@ -119,8 +131,10 @@ export default function PublicEventScreen() {
         ) : null}
         {ev.price_chf != null ? <T>💶 {ev.price_chf === 0 ? 'Gratuit' : `${chf(ev.price_chf)} / personne`}</T> : null}
         <T muted>
-          👥 {plural(ev.going, 'participant', 'participants')}{ev.max_participants ? ` sur ${ev.max_participants} places` : ''}
-          {ev.rsvp_deadline ? ` · réponse avant le ${formatShort(ev.rsvp_deadline)}` : ''}
+          {poll
+            ? `🗳️ ${voters ? `${plural(voters, 'personne a', 'personnes ont')} déjà voté` : 'Personne n’a encore voté'} pour la date`
+            : `👥 ${plural(ev.going, 'participant', 'participants')}${ev.max_participants ? ` sur ${ev.max_participants} places` : ''}`}
+          {!poll && ev.rsvp_deadline ? ` · réponse avant le ${formatShort(ev.rsvp_deadline)}` : ''}
         </T>
         {ev.description ? <LinkedText text={ev.description} /> : null}
       </View>
@@ -131,32 +145,18 @@ export default function PublicEventScreen() {
           <T muted>{ev.status === 'cancelled' ? 'Cet événement a été annulé.' : 'Les réponses sont closes.'}</T>
         ) : !session ? (
           <>
-            <T weight="semibold">Tu viens ?</T>
-            <T muted size={13}>Connecte-toi avec ton numéro de téléphone pour répondre. Tu reçois un code par SMS.</T>
-            <Button label="Se connecter pour répondre" onPress={() => router.push('/sign-in')} />
+            <T weight="semibold">{poll ? 'Tes dates ?' : 'Tu viens ?'}</T>
+            <T muted size={13}>
+              {poll ? 'Connecte-toi avec ton numéro de téléphone pour choisir les dates où tu es dispo.' : 'Connecte-toi avec ton numéro de téléphone pour répondre.'} Tu reçois un code par SMS.
+            </T>
+            <Button label={poll ? 'Se connecter pour choisir mes dates' : 'Se connecter pour répondre'} onPress={() => router.push('/sign-in' as Href)} />
           </>
         ) : closed ? (
           <T muted>{ev.status === 'cancelled' ? 'Cet événement a été annulé.' : 'Les réponses sont closes.'}</T>
-        ) : !profile?.display_name.trim() ? (
-          <>
-            <FirstNameForm userId={session.user.id} onSaved={refreshProfile} />
-          </>
-        ) : (
-          <>
-            <T weight="semibold">
-              {ev.mine ? `Ta réponse : ${rsvpChoices[ev.mine.status].mine}${ev.mine.waitlisted && ev.mine.status === 'yes' ? ' (liste d’attente)' : ''}` : 'Tu viens ?'}
-            </T>
-            {/* Mêmes boutons que la fiche et la liste (couleur et pictogramme par réponse). */}
-            <RsvpButtons
-              options={rsvpOptions(ev.allow_maybe)}
-              selected={ev.mine?.status ?? null}
-              disabled={busy}
-              onSelect={(choice) => void answer(choice)}
-              accessibilityLabel={(k) => `${rsvpChoices[k].label} à ${ev.title}`}
-            />
-          </>
-        )}
-        <ErrorText error={error} />
+        ) : profile ? (
+          <CompleteProfile profile={profile} inCard
+            intro={poll ? 'Pour choisir tes dates, complète ton profil Party : c’est le même partout dans l’app.' : 'Pour répondre, complète ton profil Party : c’est le même partout dans l’app.'} />
+        ) : <Loading />}
       </Card>
       {/* Apple 1.2 : contenu de membre visible sans compte ; signaler demande d'être connecté (anti-abus), sinon l'adresse de contact. */}
       {session ? (
@@ -173,41 +173,27 @@ export default function PublicEventScreen() {
   );
 }
 
-/** Prénom d'un compte neuf : il est vu des autres, donc CGU acceptées avant (exigées en prod : sinon 403 terms_required
- * sans issue). Composant à part : la feuille ne lit les CGU qu'une fois connecté (jamais pour un visiteur). */
-function FirstNameForm({ userId, onSaved }: { userId: string; onSaved: () => Promise<unknown> | void }) {
-  const [name, setName] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const saving = useRef(false);
-  const terms = useTermsGate();
+/** Profil complet, par le formulaire de toute l'app (prénom, nom, surnom ; photo facultative ; CGU au premier surnom). */
+function CompleteProfile({ profile, intro, inCard = false }: { profile: Profile; intro: string; inCard?: boolean }) {
+  const form = (
+    <View style={{ gap: 14 }}>
+      <View style={{ gap: 6 }}>
+        <Title size={inCard ? 24 : 32}>Faisons connaissance</Title>
+        <T muted>{intro}</T>
+      </View>
+      <IdentityForm profile={profile} submitLabel="Continuer" />
+    </View>
+  );
+  return inCard ? form : <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 16 }}><Stack.Screen options={{ title: '' }} />{form}</Screen>;
+}
 
-  async function saveName() {
-    const value = name.trim();
-    if (!value || saving.current) return;
-    saving.current = true;  // avant l'attente des CGU : un double toucher n'enregistre qu'une fois
-    setError(null);
-    try {
-      if (!(await terms.ensure())) return;
-      setBusy(true);
-      const write = () => supabase.from('profiles').update({ display_name: value }).eq('id', userId);
-      let { error } = await write();
-      // La base exige encore les CGU (statut lu avant leur exigence) : la feuille, puis un seul nouvel essai.
-      if (error && isTermsError(error.message) && (await terms.ensure())) ({ error } = await write());
-      if (error) return setError(dbMessage(error.message, 'Ton prénom n’a pas été enregistré. Réessaie.'));
-      await onSaved();
-    } finally {
-      saving.current = false;
-      setBusy(false);
-    }
-  }
-
+/** Redirection vers la fiche en cours ; le bouton reste là si elle tarde (jamais d'écran vide). */
+function OpeningEvent({ id }: { id: string }) {
   return (
-    <>
-      <Field label="Ton prénom, pour que l’organisateur sache qui vient" value={name} onChangeText={setName} maxLength={40} />
-      <Button label="Continuer" disabled={!name.trim()} loading={busy} onPress={saveName} />
-      <ErrorText error={error} />
-      {terms.sheet}
-    </>
+    <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 12 }}>
+      <Stack.Screen options={{ title: '' }} />
+      <Loading />
+      <Button label="Ouvrir l’événement" variant="secondary" onPress={() => router.replace(`/event/${id}` as Href)} />
+    </Screen>
   );
 }

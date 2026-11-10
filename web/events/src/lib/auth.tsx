@@ -6,6 +6,7 @@ import { belowVip, roleBook, setRoleBook, type Role } from './roles';
 import { supabase } from './supabase';
 import { ADMIN_PERMS, type Profile } from './types';
 import { syncWebPush, unregisterPushToken } from './push';
+import { clearInviteAnswer } from './inviteIntent';
 
 type AuthState = {
   loading: boolean;
@@ -129,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       eventsOpen: !!session && profile?.id === session.user.id && profile.status === 'active',
       refreshProfile: () => loadProfile(session?.user.id),
       signOut: async () => {
+        clearInviteAnswer();  // réponse d'invitation gardée pour la connexion : jamais reprise par un autre compte
         await unregisterPushToken().catch((error) => console.warn('Déconnexion push :', error));
         const { error } = await supabase.auth.signOut({ scope: 'local' });
         if (error) setProfileError('La déconnexion n’a pas abouti. Vérifie ta connexion et réessaie.');

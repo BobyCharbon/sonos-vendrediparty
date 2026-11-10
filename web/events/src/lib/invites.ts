@@ -2,6 +2,7 @@ import { Linking, Platform } from 'react-native';
 
 import { friendlyError } from './errors';
 import { formatShort } from './format';
+import { isTermsError } from './moderation';
 import { supabase } from './supabase';
 import type { RsvpStatus } from './types';
 
@@ -169,7 +170,8 @@ const readable = (message: string | undefined, fallback: string) => (message ? f
 
 async function call<T>(name: string, args: Record<string, unknown>, fallback: string): Promise<T> {
   const { data, error } = await supabase.rpc(name, args);
-  if (error) throw new Error(readable(error.message, fallback));
+  // CGU exigées : on garde le code (« terms_required: … ») pour que l'écran ouvre la feuille des CGU puis réessaie.
+  if (error) throw new Error(isTermsError(error.message) ? error.message : readable(error.message, fallback));
   return data as T;
 }
 
@@ -203,6 +205,8 @@ export type InviteCard = {
   all_day: boolean; location_name: string | null; cover_url: string | null; description: string | null; allow_maybe: boolean;
   closed: boolean; going: number; going_names: string[]; mine: RsvpStatus | null; event_id: string | null;
   location_address: string | null; location_url: string | null; me_named: boolean;
+  /** Sondage (10.11) : personnes qui ont voté au moins une date, et si mon profil est complet (base plus ancienne : absents). */
+  voters?: number; voter_names?: string[]; me_complete?: boolean;
 };
 export type Accepted = {
   event_id: string; status: RsvpStatus | null; title: string; starts_at: string | null; ends_at: string | null; all_day: boolean;
@@ -212,6 +216,7 @@ export type Accepted = {
 
 export const fetchInviteCard = (token: string, opened: boolean) =>
   call<InviteCard | null>('invite_preview', { token, opened }, 'L’invitation n’a pas pu être lue. Réessaie dans un instant.');
-/** « poll » : sondage de dates, on rejoint l'événement sans « je viens » puis on vote les dates (08.11). */
-export const acceptInvite = (token: string, answer: RsvpStatus | 'poll', firstName: string | null) =>
-  call<Accepted>('accept_invite', { token, answer, first_name: firstName }, 'Ta réponse n’a pas pu être enregistrée. Réessaie.');
+/** « poll » : sondage de dates, on rejoint l'événement sans « je viens » puis on vote les dates (08.11).
+ * Profil complet exigé par la base (10.11) : plus de prénom envoyé ici, il vient de « Faisons connaissance ». */
+export const acceptInvite = (token: string, answer: RsvpStatus | 'poll') =>
+  call<Accepted>('accept_invite', { token, answer, first_name: null }, 'Ta réponse n’a pas pu être enregistrée. Réessaie.');

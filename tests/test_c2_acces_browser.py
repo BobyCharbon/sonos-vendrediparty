@@ -73,7 +73,9 @@ def mock_public_events(page, calls, events):
 
 
 # 1 -------------------------------------------------------------------------------------------------------------------
-def test_new_account_on_a_public_link_accepts_the_terms_then_its_first_name_is_saved(browser, v2_origin):  # noqa: F811
+def test_new_account_on_a_public_link_completes_its_profile_then_lands_on_the_event(browser, v2_origin):  # noqa: F811
+    """Avis 39f148377a8f (10.11) : plus de « prénom seul » sur la page publique. Connexion SMS, puis « Faisons connaissance »
+    (prénom, nom, surnom ; CGU au premier surnom), puis la FICHE de l'événement, comme pour tout membre."""
     errors = []
     ctx, page = new_page(browser, errors)
     try:
@@ -85,27 +87,35 @@ def test_new_account_on_a_public_link_accepts_the_terms_then_its_first_name_is_s
                    'first_name': None, 'last_name': None, 'created_at': '2026-11-07T08:00:00Z'}
         page.route(f'{SUPA}/rest/v1/rpc/get_member_directory*', lambda r: fulfill(r, profile))
 
-        def profiles(route):  # comme la base : le prénom (contenu visible) exige les CGU
+        def profiles(route):  # comme la base : le surnom (contenu visible) exige les CGU
             if route.request.method == 'PATCH':
                 calls.append(('profiles', route.request.post_data))
                 if not terms['accepted']:
                     return fulfill(route, TERMS_REQUIRED, 403)
-                profile['display_name'] = json.loads(route.request.post_data)['display_name']
-                return fulfill(route, [])
+                sent = json.loads(route.request.post_data)
+                profile.update({k: sent[k] for k in ('display_name', 'first_name', 'last_name') if k in sent})
+                return fulfill(route, [{'id': USER}])
             fulfill(route, [{'id': USER, 'display_name': profile['display_name']}])
         page.route(f'{SUPA}/rest/v1/profiles*', profiles)
 
         page.goto(f'{v2_origin}/events/share/{EVENT}', wait_until='domcontentloaded')
         page.get_by_role('button', name='Se connecter pour répondre').click()
         login(page)
-        page.goto(f'{v2_origin}/events/share/{EVENT}', wait_until='domcontentloaded')
-        page.get_by_label('Ton prénom, pour que l’organisateur sache qui vient').fill('Noé')
+        # Retour sur le lien public après la connexion (10.11 : avant, l'accueil s'ouvrait et l'événement était perdu).
+        pw.expect(page.get_by_text('Faisons connaissance', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_label('Ton prénom, pour que l’organisateur sache qui vient')).to_have_count(0)
+        page.get_by_label('Prénom', exact=True).fill('Noé')
+        page.get_by_label('Nom', exact=True).fill('Martin')
+        page.get_by_label('Surnom', exact=False).fill('Noé')
         page.get_by_role('button', name='Continuer').click()
         pw.expect(page.get_by_text('Avant de publier', exact=True)).to_be_visible(timeout=10000)
         page.get_by_role('button', name='J’accepte').click()
-        pw.expect(page.get_by_role('button', name='Présent', exact=False).first).to_be_visible(timeout=10000)
+        # Profil complet : la fiche de l'événement (où l'on répond ou vote comme dans toute l'app).
+        page.wait_for_url(f'**/events/event/{EVENT}', timeout=15000)
         names = [c[0] for c in calls]
         assert 'accept_terms' in names and names.index('accept_terms') < names.index('profiles'), names
+        assert json.loads(dict(calls)['profiles']) == {'first_name': 'Noé', 'last_name': 'Martin', 'display_name': 'Noé',
+                                                       'avatar_url': None}
         pw.expect(page.get_by_text('n’a pas été enregistré', exact=False)).to_have_count(0)
         assert not errors, errors
     finally:
@@ -316,12 +326,8 @@ def test_android_is_never_sent_to_the_app_store(browser, v2_origin):  # noqa: F8
         mock_invites(page, card={**CARD, 'inviter': 'Ludo'})
         page.goto(f'{v2_origin}/events/invite/{TOKEN}', wait_until='domcontentloaded')
         page.get_by_role('button', name='Je viens !').click()
-        page.get_by_label('Prénom', exact=True).fill('Sara')
-        page.get_by_label('Numéro de portable').fill('079 456 12 38')
-        page.get_by_role('button', name='Recevoir mon code par SMS').click()
-        page.get_by_placeholder('123456', exact=True).fill('123456')
-        page.get_by_role('button', name='Confirmer', exact=True).click()
-        pw.expect(page.get_by_text('C’est noté, Sara !', exact=True)).to_be_visible(timeout=10000)
+        login(page)
+        pw.expect(page.get_by_text('C’est noté, Compte !', exact=True)).to_be_visible(timeout=15000)
         pw.expect(page.get_by_role('button', name='Installer Party')).to_have_count(0)
         pw.expect(page.get_by_text('Garde ce lien', exact=False)).to_be_visible()
     finally:

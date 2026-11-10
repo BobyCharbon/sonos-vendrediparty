@@ -411,6 +411,7 @@ export function DatePollSection({
   options,
   votes,
   names,
+  undecided = [],
   onChange,
 }: {
   event: EventRow;
@@ -419,6 +420,8 @@ export function DatePollSection({
   options: DateOption[];
   votes: DateVoteRow[];
   names: Names;
+  /** Organisateurs : ont dit venir (ancienne page publique, réponse d'avant le sondage) sans avoir voté de date. */
+  undecided?: string[];
   onChange: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
@@ -466,6 +469,16 @@ export function DatePollSection({
       <T muted size={13}>
         {event.status !== 'published' ? 'Les votes seront disponibles lorsque l’événement sera publié.' : closed ? 'Le vote est terminé.' : event.poll_deadline ? `Vote jusqu’au ${formatShort(event.poll_deadline)}` : 'Pour chaque date : Oui, Si besoin ou Non.'}
       </T>
+      {canManage && undecided.length ? (
+        // Avis 39f148377a8f (10.11) : ces personnes avaient répondu « Présent » sur la page publique d'un sondage ;
+        // invisibles dans les votes, l'organisateur les voit ici pour leur demander leurs dates.
+        <View style={st.undecided} accessibilityLabel={`${undecided.length} sans date choisie : ${undecided.join(', ')}`}>
+          <T size={13} weight="bold" color={colors.coralSoft}>
+            {undecided.length} {undecided.length > 1 ? 'personnes ont dit venir' : 'personne a dit venir'} sans choisir de date
+          </T>
+          <T size={12} color={colors.textSoft}>{undecided.join(', ')} : demande-leur de voter pour les dates.</T>
+        </View>
+      ) : null}
       {scored.map(({ o, vs, yes, ifNeeded, no }) => {
         const mine = myVote.value(o.id);
         const total = Math.max(1, yes + ifNeeded + no);
@@ -731,6 +744,7 @@ export function BringSection({
 }
 
 const st = StyleSheet.create({
+  undecided: { gap: 2, padding: 10, borderRadius: radius.md, backgroundColor: colors.coralDim },
   pill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(255,79,154,0.16)' },
   // Texte sombre sur néon plein (sur le fond translucide, « EN TÊTE » était illisible : contraste 1,2).
   // Rose foncé du thème (texte blanc lisible), plus l'ancien rose néon.
