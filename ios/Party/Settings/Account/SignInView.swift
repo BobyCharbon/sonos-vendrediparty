@@ -188,6 +188,9 @@ struct PrivacyView: View {
         ("Contacts de ton iPhone", [
             "Seulement si tu l'autorises : l'app transforme chaque numéro de tes contacts en une empreinte (un code chiffré dont on ne peut pas retrouver le numéro), sur ton iPhone, et l'envoie pour reconnaître les personnes déjà inscrites. Les noms de tes contacts ne quittent jamais ton iPhone et le serveur ne garde pas ces empreintes.",
         ]),
+        ("Calendrier de ton iPhone", [
+            "Seulement si tu l'autorises, quand tu touches « Mettre les dates dans mon agenda » d'un sondage : l'app ajoute les dates proposées dans ton calendrier, puis, une fois la date fixée, garde la bonne et retire les autres. Elle ne lit que les entrées qu'elle a ajoutées ; rien de ton calendrier ne quitte ton iPhone.",
+        ]),
         ("Jeux, musique et stats", [
             "Pendant une soirée, ton prénom et tes réponses de jeu sont visibles par les joueurs de la partie (et sur l'écran de la soirée). Les titres que tu proposes sont envoyés à Spotify pour être recherchés et joués sur le compte de l'hôte, avec ton prénom visible dans la file.",
             "Stats de jeux (Quiz, Méninges, Purify Test) : gardées avec ton compte pour te montrer tes progrès et les classements.",

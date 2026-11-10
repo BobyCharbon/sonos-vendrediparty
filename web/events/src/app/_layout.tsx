@@ -12,6 +12,7 @@ import { usePendingSync } from '@/lib/pending';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { enableWebPush } from '@/lib/push';
+import { sweepNativeCalendar } from '@/lib/calendar';
 import { ShellSafeArea } from '@/lib/shellInsets';
 import { colors, font } from '@/lib/theme';
 
@@ -83,6 +84,15 @@ function Gate() {
   const [asked, setAsked] = useState(0);
   const shared = useRef<string | null>(null);
   useEdgeSwipeBack();
+  // App iPhone : dates de sondage « À confirmer » dans le calendrier ; une fois par connexion, le ménage des sondages
+  // tranchés ou annulés depuis (avis 9ddbdea7fe8f).
+  const sweptFor = useRef<string | null>(null);
+  useEffect(() => {
+    const uid = session?.user.id ?? null;
+    if (!uid || !active || sweptFor.current === uid) return;
+    sweptFor.current = uid;
+    void sweepNativeCalendar();
+  }, [session?.user.id, active]);
   // Page Party autour du module : elle demande une page (onglet Événements ou Réglages) et suit la connexion.
   useEffect(() => {
     if (typeof window === 'undefined' || window.parent === window) return;

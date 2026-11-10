@@ -1,5 +1,6 @@
 import { Linking, Platform } from 'react-native';
 
+import { supabase } from './supabase';
 import type { EventRow } from './types';
 
 type CalendarEvent = Pick<EventRow, 'id' | 'title' | 'description' | 'starts_at' | 'ends_at' | 'location_name' | 'location_address'>;
@@ -46,7 +47,7 @@ type ProposedDate = { id: string; starts_at: string; ends_at?: string | null };
  * l’iPhone propose « Tout ajouter » en un toucher. Les dates déjà passées ne sont pas envoyées.
  */
 export function pollDatesIcsUrl(ev: PollEvent, dates: ProposedDate[], now: number = Date.now()): string | null {
-  const upcoming = dates.filter((d) => new Date(d.starts_at).getTime() > now).slice(0, 20);
+  const upcoming = upcomingDates(dates, now);
   if (!upcoming.length) return null;
   const q = new URLSearchParams({
     uid: ev.id,
@@ -101,4 +102,59 @@ export function openGoogleCalendar(url: string) {
     return;
   }
   void Linking.openURL(url);
+}
+
+/** Calendrier natif de l'app iPhone (avis 9ddbdea7fe8f) ; null dans un navigateur. */
+type NativeCalendar = {
+  add(req: { eventId: string; title: string; location: string; notes: string; url: string;
+    dates: { id: string; start: string; end: string }[] }): Promise<{ added?: number; total?: number; denied?: boolean }>;
+  status(eventId: string): Promise<{ added: number }>;
+  settle(req: { eventId: string; title?: string; start?: string | null; end?: string | null; cancelled?: boolean }): Promise<{ changed: boolean }>;
+  pending(): Promise<string[]>;
+};
+
+export function nativeCalendar(): NativeCalendar | null {
+  if (typeof window === 'undefined') return null;
+  return (window as unknown as { PartyNative?: { calendar?: NativeCalendar } }).PartyNative?.calendar ?? null;
+}
+
+/** Dates à venir du sondage, au plus 20 (comme le fichier .ics). */
+export function upcomingDates<T extends { starts_at: string }>(dates: T[], now: number = Date.now()): T[] {
+  return dates.filter((d) => new Date(d.starts_at).getTime() > now).slice(0, 20);
+}
+
+type SettleEvent = Pick<EventRow, 'id' | 'title' | 'status' | 'date_mode' | 'starts_at' | 'ends_at'>;
+
+/**
+ * Date fixée (ou événement annulé) : l'app garde la bonne entrée sous le vrai titre et retire les autres dates
+ * « À confirmer ». Sans app ou sans dates ajoutées : rien. Les erreurs n'empêchent jamais l'écran de s'afficher.
+ */
+export async function settleNativeDates(ev: SettleEvent | null, eventId?: string): Promise<void> {
+  const native = nativeCalendar();
+  if (!native) return;
+  try {
+    if (!ev) {
+      if (eventId) await native.settle({ eventId, cancelled: true });  // événement supprimé ou plus visible
+      return;
+    }
+    if (ev.status === 'cancelled') await native.settle({ eventId: ev.id, cancelled: true });
+    else if (ev.date_mode === 'fixed' && ev.starts_at) await native.settle({ eventId: ev.id, title: ev.title, start: ev.starts_at, end: ev.ends_at });
+  } catch { /* App plus ancienne ou calendrier inaccessible : on réessaiera au prochain passage. */ }
+}
+
+/**
+ * Au démarrage (une fois par connexion) : les sondages dont l'app garde des dates « À confirmer » sont relus ; date
+ * fixée ou événement annulé / disparu → l'app fait le ménage, même si la personne n'a pas rouvert la fiche.
+ */
+export async function sweepNativeCalendar(): Promise<void> {
+  const native = nativeCalendar();
+  if (!native) return;
+  try {
+    const ids = (await native.pending()).filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 50);
+    if (!ids.length) return;
+    const { data, error } = await supabase.from('events').select('id, title, status, date_mode, starts_at, ends_at').in('id', ids);
+    if (error) return;
+    const rows = (data ?? []) as SettleEvent[];
+    for (const id of ids) await settleNativeDates(rows.find((r) => r.id === id) ?? null, id);
+  } catch { /* Hors ligne ou app plus ancienne : au prochain démarrage. */ }
 }

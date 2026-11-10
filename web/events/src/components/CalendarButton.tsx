@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { calendarPlatform, googleCalendarUrl, icsUrl, openGoogleCalendar, openIcs, pollDatesIcsUrl } from '@/lib/calendar';
+import { calendarPlatform, googleCalendarUrl, icsUrl, nativeCalendar, openGoogleCalendar, openIcs, pollDatesIcsUrl, upcomingDates } from '@/lib/calendar';
 import { duration, enter, pressTransition, transition } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
 import type { EventRow } from '@/lib/types';
@@ -62,27 +62,65 @@ export function CalendarButton({ event, prominent = false }: { event: Ev; promin
 
 /**
  * Sondage de dates : toutes les dates proposées dans l’agenda en un toucher, chacune « À confirmer » (avis 9ddbdea7fe8f).
- * Un seul fichier : l’iPhone affiche la liste et « Tout ajouter » ; Android et ordinateur l’ouvrent avec l’agenda choisi.
+ * App iPhone : directement dans le calendrier (une autorisation la première fois) ; la date fixée, l’app garde la bonne
+ * et retire les autres toute seule. Navigateur : un seul fichier .ics (l’iPhone propose « Tout ajouter »).
  */
 export function PollDatesCalendarButton({ event, dates }: {
   event: Pick<EventRow, 'id' | 'title' | 'description' | 'location_name' | 'location_address'>;
   dates: { id: string; starts_at: string; ends_at?: string | null }[];
 }) {
+  const [native] = useState(nativeCalendar);
+  const [inCalendar, setInCalendar] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [denied, setDenied] = useState(false);
+  const upcoming = upcomingDates(dates);
+  const n = upcoming.length;
+  useEffect(() => {
+    if (!native) return;
+    let alive = true;
+    native.status(event.id).then((r) => { if (alive) setInCalendar(r.added ?? 0); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [native, event.id, n]);
   const url = pollDatesIcsUrl(event, dates);
-  if (!url) return null;
-  const n = (url.match(/[?&]d=/g) ?? []).length;
+  if (!url || !n) return null;
+  const done = native && inCalendar >= n;
+
+  async function add() {
+    if (!native) return openIcs(url!);
+    setBusy(true);
+    try {
+      const where = [event.location_name, event.location_address].filter(Boolean).join(', ');
+      const r = await native.add({ eventId: event.id, title: event.title, location: where, notes: (event.description ?? '').slice(0, 1500),
+        url: `${window.location.origin}/events/event/${event.id}`,
+        dates: upcoming.map((d) => ({ id: d.id, start: d.starts_at, end: d.ends_at ?? '' })) });
+      if (r.denied) setDenied(true);
+      else setInCalendar(r.total ?? n);
+    } catch {
+      openIcs(url!);  // app plus ancienne : le fichier .ics, comme dans le navigateur
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const label = done ? (n > 1 ? `Les ${n} dates sont dans ton agenda` : 'La date est dans ton agenda')
+    : n > 1 ? `Mettre les ${n} dates dans mon agenda` : 'Mettre la date dans mon agenda';
+  const hint = denied ? 'Party n’a pas accès à ton calendrier : autorise-le dans Réglages › Party › Calendriers.'
+    : native ? 'Notées « À confirmer ». Quand la date sera fixée, Party gardera la bonne et retirera les autres.'
+      : 'Notées « À confirmer » : garde le créneau ; une fois la date fixée, supprime les autres.';
   return (
     <View style={{ gap: 4 }}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={n > 1 ? `Mettre les ${n} dates dans mon agenda` : 'Mettre la date dans mon agenda'}
-        onPress={() => openIcs(url)}
+        accessibilityLabel={label}
+        accessibilityState={{ disabled: !!done || busy }}
+        disabled={!!done || busy}
+        onPress={() => void add()}
         style={({ pressed }) => [st.button, st.quiet, transition('background-color, transform, opacity', duration.slow), pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] }]}
       >
-        <T size={17}>📆</T>
-        <T size={15} style={{ ...font.bold }}>{n > 1 ? `Mettre les ${n} dates dans mon agenda` : 'Mettre la date dans mon agenda'}</T>
+        <T size={17}>{done ? '✓' : '📆'}</T>
+        <T size={15} style={{ ...font.bold }} color={done ? colors.textSoft : colors.text}>{busy ? 'Ajout…' : label}</T>
       </Pressable>
-      <T muted size={12} style={{ textAlign: 'center' }}>Notées « À confirmer » : garde le créneau ; une fois la date fixée, supprime les autres.</T>
+      <T muted size={12} style={{ textAlign: 'center' }}>{hint}</T>
     </View>
   );
 }
