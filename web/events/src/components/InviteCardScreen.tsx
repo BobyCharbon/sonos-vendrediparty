@@ -188,7 +188,7 @@ function Card({ card, onAnswer }: { card: InviteCard; onAnswer: (a: Answer) => v
         </View>
       ) : (
         <View style={{ gap: 10 }}>
-          {card.mine ? <T weight="semibold" style={{ textAlign: 'center' }}>Ta réponse : {(ANSWERS.find((a) => a.key === card.mine)?.label ?? '').replace(/[.!]\s*$/, '')}. Tu peux la changer.</T> : null}
+          {card.mine ? <T weight="semibold" style={{ textAlign: 'center' }}>Ta réponse : {(ANSWERS.find((a) => a.key === card.mine)?.label ?? '').replace(/\s*[.!]\s*$/, '')}. Tu peux la changer.</T> : null}
           {answers.map((a) => (
             <Pressable key={a.key} accessibilityRole="button" accessibilityState={{ selected: card.mine === a.key }} onPress={() => onAnswer(a.key)}
               style={({ pressed }) => [st.answer, a.key === 'yes' ? st.answerYes : null, card.mine === a.key && { borderColor: rsvpColors[a.key] },
@@ -314,7 +314,7 @@ function OpenEvent({ id, label }: { id: string; label: string }) {
 function PollDone({ card, done }: { card: InviteCard; done: Accepted }) {
   const { profile } = useAuth();
   const [votes, setVotes] = useState(0);
-  const first = (profile?.display_name ?? '').split(' ')[0];
+  const first = profile?.first_name?.trim() || (profile?.display_name ?? '').split(' ')[0];  // le prénom (profil complet)
   const host = card.inviter || 'L’organisateur';
   return (
     <Screen contentStyle={{ gap: 18 }}>
@@ -336,7 +336,7 @@ function PollDone({ card, done }: { card: InviteCard; done: Accepted }) {
 function Answered({ card, done, onChange }: { card: InviteCard; done: Accepted & { status: RsvpStatus }; onChange: () => void }) {
   const { profile } = useAuth();
   const [later, setLater] = useState(false);
-  const first = (profile?.display_name ?? '').split(' ')[0];
+  const first = profile?.first_name?.trim() || (profile?.display_name ?? '').split(' ')[0];  // le prénom (profil complet)
   const host = card.inviter || 'L’organisateur';
   const place = done.location_address ?? done.location_name;
   const maps = safeHref(done.location_url) ?? (place ? `https://maps.apple.com/?q=${encodeURIComponent(place)}` : null);

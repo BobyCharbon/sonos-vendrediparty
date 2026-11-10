@@ -219,7 +219,7 @@ export function RsvpCard({
       ? waiting ? waitingLine : confirmations[mine.status]
       : event.rsvp_deadline
         ? `Réponds avant le ${formatShort(event.rsvp_deadline)} pour que l’organisateur puisse s’organiser.`
-        : 'Un clic suffit pour prévenir le groupe.';
+        : 'Un clic suffit pour prévenir l’organisateur.';
 
   return (
     <Section

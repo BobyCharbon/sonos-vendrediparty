@@ -223,7 +223,7 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
               <View style={{ gap: 6 }}>
                 <T weight="semibold" size={13} color={colors.textSoft}>Valable jusqu’au</T>
                 <View style={st.chips}>
-                  {([['event', event.starts_at ? 'Après l’événement' : '14 jours'], ['3d', '3 jours'], ['7d', '7 jours']] as [Until, string][]).map(([k, l]) => (
+                  {([['event', event.starts_at ? 'Après l’événement' : 'Jusqu’à la date choisie'], ['3d', '3 jours'], ['7d', '7 jours']] as [Until, string][]).map(([k, l]) => (
                     <Pressable key={k} accessibilityRole="radio" accessibilityState={{ checked: until === k }} aria-checked={until === k}
                       onPress={() => { setUntil(k); reset(); }} style={[st.chip, until === k && st.chipOn]}>
                       <T size={13} weight="semibold" color={until === k ? colors.onAction : colors.textSoft}>{l}</T>
