@@ -110,8 +110,9 @@ window.FeedbackAI = (() => {
     }
     busy = false;
     if (r.status === "unavailable") {
-      toast(r.message, "err");
-      closeReview(false);
+      // IA indisponible (limite du jour, budget, panne) : l'avis part quand même, tel quel (retour du 11.11).
+      if (status) status.remaining = 0;
+      await send(false);
       return;
     }
     draft = r.draft;

@@ -208,22 +208,26 @@ class FeedbackWriter:
         return sum(1 for i in self.ai.usage.items
                    if i.get("uid") == subject and i.get("feature") == FEATURE and now - i.get("at", 0) < DAY)
 
-    def status(self, subject: str) -> dict:
-        now = time.time()
+    def remaining(self, subject: str, host: bool = False) -> int:
+        """L'hôte n'a pas de limite du jour (retour de l'admin du 11.11 : « je ne veux pas être bloqué »)."""
+        return DAILY_LIMIT if host else max(0, DAILY_LIMIT - self.used_today(subject, time.time()))
+
+    def status(self, subject: str, host: bool = False) -> dict:
         return {"configured": self.ai.client_factory is not None, "consent": self.consents.state(subject),
-                "remaining": max(0, DAILY_LIMIT - self.used_today(subject, now)), "daily_limit": DAILY_LIMIT,
+                "remaining": self.remaining(subject, host), "daily_limit": DAILY_LIMIT,
                 "max_turn": MAX_TURN, "max_turns": MAX_TURNS}
 
-    def _check(self, subject: str):
+    def _check(self, subject: str, host: bool = False):
         if self.ai.client_factory is None:
             raise Unavailable(UNAVAILABLE)
         now = time.time()
-        if self.ai.over_global_budget(now) or self.ai.usage.spent_this_month(subject, now) >= self.ai.budget:
+        # Hôte : ni limite du jour ni budget personnel ; seul le plafond global du mois (sécurité de la clé) reste.
+        if self.ai.over_global_budget(now) or (not host and self.ai.usage.spent_this_month(subject, now) >= self.ai.budget):
             raise Unavailable(OVER_BUDGET)
-        if self.used_today(subject, now) >= DAILY_LIMIT:
+        if not host and self.used_today(subject, now) >= DAILY_LIMIT:
             raise Unavailable(OVER_DAILY)
 
-    def rewrite(self, subject: str, name: str, turns: list[str], context: dict) -> dict:
+    def rewrite(self, subject: str, name: str, turns: list[str], context: dict, host: bool = False) -> dict:
         """Ce que la personne a dit (description, puis réponses ou corrections) → avis structuré, ou une question.
         PermissionError sans accord (aucun appel) ; ValueError pour un texte vide ou trop long ; Unavailable sinon."""
         if self.consents.state(subject) != ACCEPTED:
@@ -233,7 +237,7 @@ class FeedbackWriter:
             raise ValueError("Dis ou écris ton avis.")
         if any(len(t) > MAX_TURN for t in turns):
             raise ValueError(f"{MAX_TURN} caractères au maximum par message.")
-        self._check(subject)
+        self._check(subject, host)
         games = _games(self.games)
         context = context or {}
         system = SYSTEM.format(areas=", ".join(AREAS), games=", ".join(games),
@@ -261,7 +265,7 @@ class FeedbackWriter:
             raise Unavailable(NOT_UNDERSTOOD) from None
         question = _text(raw, "question", 160) if raw.get("status") == "needs_info" else ""
         return {"status": "needs_info" if question else "ready", "question": question, "draft": draft,
-                "remaining": max(0, DAILY_LIMIT - self.used_today(subject, time.time()))}
+                "remaining": self.remaining(subject, host)}
 
     def _log(self, subject: str, name: str, usage):
         """Même journal que l'assistant (page de l'admin, plafond du mois) ; le texte n'y est pas recopié."""

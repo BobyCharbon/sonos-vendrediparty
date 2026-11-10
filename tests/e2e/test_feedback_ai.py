@@ -176,6 +176,24 @@ def test_send_my_text_as_is_and_writing_without_ai(browser, server):
         guest.close()
 
 
+def test_ai_at_its_daily_limit_still_sends_the_review_as_is(browser, server):
+    """Retour de l'admin du 11.11 : « Tu as utilisé l'IA 10 fois aujourd'hui » s'affichait et l'avis ne partait pas."""
+    guest = Phone(browser, server, "Lea")
+    try:
+        ai = FakeAI(guest.page, [{"status": "unavailable", "message": "Tu as utilisé l'IA 10 fois aujourd'hui : elle revient demain."}])
+        open_feedback(guest)
+        page = guest.page
+        page.locator("#fbText").fill("Pouvoir agrandir la photo d'un joueur en touchant dessus, sans trop la dégrader")
+        page.locator("#fbSend").tap()
+        page.locator("#fbAiYes").tap()  # accord de la feuille
+        expect(page.locator("#fbMine")).to_contain_text("Pouvoir agrandir la photo d'un joueur")
+        expect(page.locator("#fbAiReview")).to_be_hidden()
+        assert len(ai.calls) == 1
+        assert not guest.errors, guest.errors
+    finally:
+        guest.close()
+
+
 def test_declining_the_sheet_writes_without_ai(browser, server):
     guest = Phone(browser, server, "Lea")
     try:

@@ -137,6 +137,18 @@ def test_daily_limit_and_text_limits(tmp_path):
         w.rewrite("guest:y", "", ["   "], {})
 
 
+def test_the_host_is_never_stopped_by_the_daily_limit_or_the_personal_budget(tmp_path):
+    """Retour de l'admin du 11.11 : « moi en tout cas je ne veux pas être bloqué »."""
+    w, client = writer(tmp_path, budget=0.0)
+    w.consents.set("acct:hote", True)
+    for _ in range(aif.DAILY_LIMIT + 3):
+        r = w.rewrite("acct:hote", "", ["Le quiz plante"], {}, host=True)
+    assert r["remaining"] == aif.DAILY_LIMIT and w.status("acct:hote", host=True)["remaining"] == aif.DAILY_LIMIT
+    assert len(client.calls) == aif.DAILY_LIMIT + 3
+    with pytest.raises(aif.Unavailable):  # le même compte, hors session d'hôte, reste limité
+        w.rewrite("acct:hote", "", ["Le quiz plante"], {})
+
+
 def test_budget_reached_or_ai_off_or_down_means_write_without_it(tmp_path):
     w, client = writer(tmp_path, budget=0.0)
     w.consents.set("guest:x", True)

@@ -4151,7 +4151,7 @@ def feedback_ai_subject(request: Request, body: FeedbackAiIn) -> str:
 @app.post("/api/feedback/ai/status")
 def feedback_ai_status(body: FeedbackAiIn, request: Request):
     """L'IA peut-elle aider (configurée, accord donné ou à demander, reformulations restantes aujourd'hui) ?"""
-    return feedback_writer.status(feedback_ai_subject(request, body))
+    return feedback_writer.status(feedback_ai_subject(request, body), host=is_admin(request))
 
 
 @app.post("/api/feedback/ai/consent")
@@ -4159,7 +4159,7 @@ def feedback_ai_consent(body: FeedbackAiConsent, request: Request):
     """« J'accepte » / « Écrire sans l'IA » (feuille d'accord), ou retrait de l'accord dans Réglages."""
     subject = feedback_ai_subject(request, body)
     feedback_writer.consents.set(subject, body.accept)
-    return feedback_writer.status(subject)
+    return feedback_writer.status(subject, host=is_admin(request))
 
 
 @app.post("/api/feedback/ai/rewrite")
@@ -4169,7 +4169,7 @@ def feedback_ai_rewrite(body: FeedbackAiRewrite, request: Request):
     subject = feedback_ai_subject(request, body)
     context = {k: str(v)[:40] for k, v in body.context.items() if k in FEEDBACK_CONTEXT}
     try:
-        return feedback_writer.rewrite(subject, body.name, body.turns, context)
+        return feedback_writer.rewrite(subject, body.name, body.turns, context, host=is_admin(request))
     except PermissionError as e:
         raise HTTPException(403, str(e)) from None
     except ValueError as e:
