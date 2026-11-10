@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { PollDatesCalendarButton } from './CalendarButton';
 import { ErrorText, Loading, T } from './ui';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
@@ -8,7 +9,7 @@ import { formatShort } from '@/lib/format';
 import { dbMessage } from '@/lib/moderation';
 import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
-import type { DateVote } from '@/lib/types';
+import type { DateVote, EventRow } from '@/lib/types';
 
 const CHOICES: { key: DateVote; label: string; color: string }[] = [
   { key: 'yes', label: 'Oui', color: colors.accent },
@@ -23,7 +24,11 @@ type Option = { id: string; starts_at: string };
  * que dans l'app (Oui, Si besoin, Non), enregistrés avec son compte (profil complet). L'organisateur fixe ensuite la date qui
  * arrange le plus de monde ; chacun est alors inscrit selon son vote pour cette date.
  */
-export function InviteDateVotes({ eventId, onVoted }: { eventId: string; onVoted: (count: number) => void }) {
+export function InviteDateVotes({ eventId, onVoted, calendar }: {
+  eventId: string; onVoted: (count: number) => void;
+  /** Titre, lieu, description : pour mettre toutes les dates dans l'agenda (avis 9ddbdea7fe8f). */
+  calendar?: Pick<EventRow, 'title' | 'description' | 'location_name' | 'location_address'>;
+}) {
   const { session } = useAuth();
   const me = session?.user.id ?? '';
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +80,7 @@ export function InviteDateVotes({ eventId, onVoted }: { eventId: string; onVoted
           </View>
         </View>
       ))}
+      {calendar ? <PollDatesCalendarButton event={{ id: eventId, ...calendar }} dates={data} /> : null}
       <ErrorText error={error} />
     </View>
   );

@@ -5104,6 +5104,34 @@ def calendar_file(
     })
 
 
+@app.get("/api/calendar-dates.ics")
+def calendar_dates_file(
+    uid: str = Query(max_length=36),
+    title: str = Query(max_length=1000),
+    d: list[str] = Query(default=[], max_length=calendar_ics.MAX_DATES + 1),
+    location: str = Query(default="", max_length=2000),
+    description: str = Query(default="", max_length=8000),
+    url: str = Query(default="", max_length=500),
+):
+    """Sondage de dates : toutes les dates proposées dans un seul fichier iCalendar (avis 9ddbdea7fe8f). Chaque `d` vaut
+    « identifiant|début|fin » (fin facultative). iOS propose « Tout ajouter » ; chaque entrée est « À confirmer »."""
+    try:
+        dates = []
+        for raw in d:
+            parts = raw.split("|")
+            if len(parts) != 3 or len(raw) > 200:
+                raise calendar_ics.CalendarError("Date proposée invalide")
+            dates.append((parts[0], parts[1], parts[2] or None))
+        body = calendar_ics.build_dates(uid=uid, title=title, dates=dates, location=location, description=description, url=url)
+    except calendar_ics.CalendarError as exc:
+        raise HTTPException(400, str(exc)) from None
+    return Response(body, media_type="text/calendar; charset=utf-8", headers={
+        **NO_CACHE,
+        "Content-Disposition": f'attachment; filename="{calendar_ics.filename("dates " + title)}"',
+        "X-Content-Type-Options": "nosniff",
+    })
+
+
 @app.get("/events")
 def events_redirect():
     return RedirectResponse("/events/", status_code=307)

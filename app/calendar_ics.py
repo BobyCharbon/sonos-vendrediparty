@@ -100,3 +100,52 @@ def build(*, uid: str, title: str, start: str, end: str | None = None, location:
         "END:VCALENDAR",
     ]
     return "\r\n".join(_fold(line) for line in lines) + "\r\n"
+
+
+# Sondage de dates (avis 9ddbdea7fe8f, 10.11.2026) : toutes les dates proposées en un seul fichier, une entrée par date.
+# iOS propose alors « Tout ajouter » ; chaque entrée est provisoire (garder le créneau, rien n'est encore fixé).
+MAX_DATES = 20
+TENTATIVE_PREFIX = "À confirmer · "
+
+
+def build_dates(*, uid: str, title: str, dates: list[tuple[str, str, str | None]], location: str = "",
+                description: str = "", url: str = "", now: datetime | None = None) -> str:
+    """dates : (identifiant de la date proposée, début, fin facultative)."""
+    try:
+        str(uuid.UUID(uid))
+    except (TypeError, ValueError):
+        raise CalendarError("Identifiant invalide") from None
+    title = title.strip()
+    if not title:
+        raise CalendarError("Titre manquant")
+    if not dates:
+        raise CalendarError("Aucune date proposée")
+    if len(dates) > MAX_DATES:
+        raise CalendarError(f"{MAX_DATES} dates au plus")
+    if url and not re.fullmatch(r"https?://[^\s\"<>]{1,500}", url):
+        url = ""
+    note = (f"Date proposée dans le sondage de « {title[:120]} » : rien n'est encore fixé. Garde le créneau ; "
+            "quand la date sera choisie, supprime les autres.")
+    details = "\n\n".join(part for part in (note, description.strip()[:1500], url) if part)
+    stamp = _stamp((now or datetime.now(timezone.utc)).astimezone(timezone.utc))
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Vendredi Party//Evenements//FR", "CALSCALE:GREGORIAN",
+             "METHOD:PUBLISH"]
+    for option, start, end in dates:
+        try:
+            option_id = str(uuid.UUID(option))
+        except (TypeError, ValueError):
+            raise CalendarError("Date proposée invalide") from None
+        begin = _instant(start, "Début")
+        finish = _instant(end, "Fin") if end else begin + DEFAULT_DURATION
+        if finish <= begin or finish - begin > MAX_DURATION:
+            finish = begin + DEFAULT_DURATION
+        lines += ["BEGIN:VEVENT", f"UID:{option_id}@vendredi-party", f"DTSTAMP:{stamp}", f"DTSTART:{_stamp(begin)}",
+                  f"DTEND:{_stamp(finish)}", f"SUMMARY:{_text(TENTATIVE_PREFIX + title, 200)}", "STATUS:TENTATIVE",
+                  f"DESCRIPTION:{_text(details, 2600)}"]
+        if location.strip():
+            lines.append(f"LOCATION:{_text(location.strip(), 300)}")
+        if url:
+            lines.append(f"URL:{url}")
+        lines.append("END:VEVENT")
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(_fold(line) for line in lines) + "\r\n"

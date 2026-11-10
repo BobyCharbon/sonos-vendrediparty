@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { calendarPlatform, googleCalendarUrl, icsUrl, openGoogleCalendar, openIcs } from '@/lib/calendar';
+import { calendarPlatform, googleCalendarUrl, icsUrl, openGoogleCalendar, openIcs, pollDatesIcsUrl } from '@/lib/calendar';
 import { duration, enter, pressTransition, transition } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
 import type { EventRow } from '@/lib/types';
@@ -56,6 +56,33 @@ export function CalendarButton({ event, prominent = false }: { event: Ev; promin
           <T size={12} muted>Autre choix : <T size={12} weight="semibold" color={colors.textSoft}>{alt.label}</T></T>
         </Pressable>
       ) : null}
+    </View>
+  );
+}
+
+/**
+ * Sondage de dates : toutes les dates proposées dans l’agenda en un toucher, chacune « À confirmer » (avis 9ddbdea7fe8f).
+ * Un seul fichier : l’iPhone affiche la liste et « Tout ajouter » ; Android et ordinateur l’ouvrent avec l’agenda choisi.
+ */
+export function PollDatesCalendarButton({ event, dates }: {
+  event: Pick<EventRow, 'id' | 'title' | 'description' | 'location_name' | 'location_address'>;
+  dates: { id: string; starts_at: string; ends_at?: string | null }[];
+}) {
+  const url = pollDatesIcsUrl(event, dates);
+  if (!url) return null;
+  const n = (url.match(/[?&]d=/g) ?? []).length;
+  return (
+    <View style={{ gap: 4 }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={n > 1 ? `Mettre les ${n} dates dans mon agenda` : 'Mettre la date dans mon agenda'}
+        onPress={() => openIcs(url)}
+        style={({ pressed }) => [st.button, st.quiet, transition('background-color, transform, opacity', duration.slow), pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] }]}
+      >
+        <T size={17}>📆</T>
+        <T size={15} style={{ ...font.bold }}>{n > 1 ? `Mettre les ${n} dates dans mon agenda` : 'Mettre la date dans mon agenda'}</T>
+      </Pressable>
+      <T muted size={12} style={{ textAlign: 'center' }}>Notées « À confirmer » : garde le créneau ; une fois la date fixée, supprime les autres.</T>
     </View>
   );
 }
