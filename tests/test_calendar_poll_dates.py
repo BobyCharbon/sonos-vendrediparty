@@ -70,3 +70,83 @@ def test_on_the_event_page_one_touch_sends_every_upcoming_date_to_the_calendar(b
         assert all('SUMMARY:À confirmer · Soirée de test participant' in e and 'LOCATION:Cobalt Project' in e for e in entries)
     finally:
         context.close()
+
+
+NATIVE = """
+window.__cal = { calls: [], added: 0, denied: %s };
+window.PartyNative = { tabs: { update() {} }, calendar: {
+  add(req) { window.__cal.calls.push(['add', req]); if (window.__cal.denied) return Promise.resolve({ denied: true });
+             window.__cal.added = req.dates.length; return Promise.resolve({ added: req.dates.length, total: req.dates.length }); },
+  status(id) { window.__cal.calls.push(['status', id]); return Promise.resolve({ added: window.__cal.added }); },
+  settle(req) { window.__cal.calls.push(['settle', req]); return Promise.resolve({ changed: true }); },
+  pending() { window.__cal.calls.push(['pending']); return Promise.resolve([]); },
+} };
+"""
+
+
+def _open_in_app(browser, origin, ev, denied=False):
+    import json as _json
+
+    from tests.test_event_participant_browser import HEADERS, REST, USER, login, mock_services, pw
+    context = browser.new_context(viewport={'width': 402, 'height': 874})
+    context.add_init_script(NATIVE % ('true' if denied else 'false'))
+    page = context.new_page()
+    mock_services(page)
+
+    def events(route):
+        if route.request.method == 'OPTIONS':
+            return route.fulfill(status=204, headers=HEADERS)
+        single = 'vnd.pgrst.object' in (route.request.headers.get('accept') or '')
+        route.fulfill(status=200, content_type='application/json', body=_json.dumps(ev if single else [ev]), headers=HEADERS)
+    page.route(REST + 'events?**', events)
+    page.route(REST + 'profiles?**', lambda r: r.fulfill(status=200, content_type='application/json', headers=HEADERS,
+                                                          body=_json.dumps([{'id': USER, 'display_name': 'Camille'}])))
+    page.goto(origin + '/events/', wait_until='domcontentloaded')
+    login(page)
+    pw.expect(page.get_by_role('button', name='Se connecter', exact=True)).to_have_count(0, timeout=15000)
+    page.goto(f'{origin}/events/event/{EVENT_PAGE}', wait_until='domcontentloaded')
+    return context, page, pw
+
+
+def _poll_event():
+    from tests.test_event_participant_browser import event_row
+    return event_row(date_mode='poll', starts_at=None, max_participants=None, location_name='Cobalt Project', date_options=[
+        {'id': OPT1, 'event_id': EVENT_PAGE, 'starts_at': '2030-11-20T18:00:00Z', 'ends_at': None, 'proposed_by': None, 'date_votes': []},
+        {'id': OPT2, 'event_id': EVENT_PAGE, 'starts_at': '2030-11-27T18:00:00Z', 'ends_at': None, 'proposed_by': None, 'date_votes': []},
+    ])
+
+
+def test_in_the_iphone_app_one_touch_puts_every_date_in_the_calendar(browser, events_origin):  # noqa: F811
+    context, page, pw = _open_in_app(browser, events_origin, _poll_event())
+    try:
+        pw.expect(page.get_by_text('Quand la date sera fixée, Party gardera la bonne et retirera les autres.', exact=False)).to_be_visible(timeout=15000)
+        page.get_by_role('button', name='Mettre les 2 dates dans mon agenda', exact=True).click()
+        pw.expect(page.get_by_role('button', name='Les 2 dates sont dans ton agenda', exact=True)).to_be_visible(timeout=10000)
+        calls = page.evaluate('window.__cal.calls')
+        add = next(c[1] for c in calls if c[0] == 'add')
+        assert [d['id'] for d in add['dates']] == [OPT1, OPT2] and add['title'] == 'Soirée de test participant'
+        assert add['location'] == 'Cobalt Project' and add['eventId'] == EVENT_PAGE
+    finally:
+        context.close()
+
+
+def test_without_calendar_access_the_app_says_where_to_allow_it(browser, events_origin):  # noqa: F811
+    context, page, pw = _open_in_app(browser, events_origin, _poll_event(), denied=True)
+    try:
+        page.get_by_role('button', name='Mettre les 2 dates dans mon agenda', exact=True).click()
+        pw.expect(page.get_by_text('autorise-le dans Réglages › Party › Calendriers', exact=False)).to_be_visible(timeout=10000)
+    finally:
+        context.close()
+
+
+def test_once_the_date_is_fixed_the_app_keeps_it_and_removes_the_others(browser, events_origin):  # noqa: F811
+    from tests.test_event_participant_browser import event_row
+    fixed = event_row(date_mode='fixed', starts_at='2030-11-27T18:00:00Z', max_participants=None)
+    context, page, pw = _open_in_app(browser, events_origin, fixed)
+    try:
+        page.wait_for_function("() => window.__cal.calls.some((c) => c[0] === 'settle')", timeout=15000)
+        settle = next(c[1] for c in page.evaluate('window.__cal.calls') if c[0] == 'settle')
+        assert settle['eventId'] == EVENT_PAGE and settle['start'] == '2030-11-27T18:00:00Z'
+        assert settle['title'] == 'Soirée de test participant' and not settle.get('cancelled')
+    finally:
+        context.close()

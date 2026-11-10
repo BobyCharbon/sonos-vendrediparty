@@ -72,6 +72,8 @@ targets:
         NSPhotoLibraryUsageDescription: "Pour choisir une photo de profil ou d'événement."
         NSSpeechRecognitionUsageDescription: "Pour transformer ta voix en texte quand tu dictes (la description d'un événement pour l'assistant IA, ton avis). La transcription est faite par Apple."
         NSMicrophoneUsageDescription: "Seulement quand tu touches le micro : pour dicter un texte (la description d'un événement à l'assistant IA, ton avis) ou t'enregistrer."
+        NSCalendarsFullAccessUsageDescription: "Pour mettre les dates proposées d'un sondage dans ton calendrier en un toucher, puis retirer toute seule celles qui ne sont pas retenues quand la date est fixée. Rien ne quitte ton iPhone."
+        NSCalendarsUsageDescription: "Pour mettre les dates proposées d'un sondage dans ton calendrier en un toucher, puis retirer toute seule celles qui ne sont pas retenues quand la date est fixée. Rien ne quitte ton iPhone."
         NSContactsUsageDescription: "Pour afficher les membres Party qui sont dans tes contacts sous le nom que tu leur as donné. Seule une empreinte chiffrée des numéros est comparée ; tes contacts restent sur ton iPhone."
         ITSAppUsesNonExemptEncryption: false
         # Actions rapides de l'icône (appui long) : Party/QuickActions.swift. « Zicou » et « Cadeau du jour » sont

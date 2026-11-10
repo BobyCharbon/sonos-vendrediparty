@@ -1,5 +1,5 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Image, Linking, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { AIEventSteps } from '@/components/AIEventSteps';
@@ -21,6 +21,7 @@ import { LinkedText } from '@/components/LinkedText';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
 import { Badge, Button, Card, Cascade, ConfirmButton, ErrorText, HeaderAction, HeaderBack, Screen, s, Section, Skeleton, T, Title, Toast } from '@/components/ui';
 import { fetchAttendance, localAttendance } from '@/lib/attendance';
+import { settleNativeDates } from '@/lib/calendar';
 import { useAuth, useMe } from '@/lib/auth';
 import { personLabel, useContactNames, withContactNames } from '@/lib/contactNames';
 import { useQuery, useRealtime } from '@/lib/data';
@@ -156,6 +157,11 @@ export default function EventScreen() {
   const slow = useSlowLoad(!loaded && !loadError);
 
   const ev = data?.event;
+  // Dates « À confirmer » mises dans le calendrier de l'iPhone (avis 9ddbdea7fe8f) : date fixée ou événement annulé,
+  // l'app garde la bonne entrée et retire les autres, sans rien demander.
+  useEffect(() => {
+    if (ev) void settleNativeDates(ev);
+  }, [ev?.id, ev?.status, ev?.date_mode, ev?.starts_at, ev?.ends_at, ev?.title]);  // eslint-disable-line react-hooks/exhaustive-deps
   // Payant : « J'ai payé » (invité) et « Reçu » (organisateur) apparaissent sans recharger la page. Les billets ne sont pas
   // lisibles en direct (table fermée, fonctions seulement) : relecture légère des deux cartes, page visible seulement.
   const mineYes = !!ev && ev.rsvps.some((r) => r.user_id === me.id && r.status === 'yes');

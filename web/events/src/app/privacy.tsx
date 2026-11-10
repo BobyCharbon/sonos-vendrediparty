@@ -45,6 +45,12 @@ const BLOCKS: Block[] = [
     ],
   },
   {
+    title: 'Calendrier de ton iPhone',
+    paragraphs: [
+      'Seulement si tu l’autorises, quand tu touches « Mettre les dates dans mon agenda » d’un sondage : l’app ajoute les dates proposées dans ton calendrier, puis, une fois la date fixée, garde la bonne et retire les autres. Elle ne lit que les entrées qu’elle a ajoutées ; rien de ton calendrier ne quitte ton iPhone.',
+    ],
+  },
+  {
     title: 'Jeux, musique et stats',
     paragraphs: [
       'Pendant une soirée, ton prénom et tes réponses de jeu sont visibles par les joueurs de la partie (et sur l’écran de la soirée). Les titres que tu proposes sont envoyés à Spotify pour être recherchés et joués sur le compte de l’hôte, avec ton prénom visible dans la file.',

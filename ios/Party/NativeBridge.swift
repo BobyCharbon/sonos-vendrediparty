@@ -61,6 +61,15 @@ enum NativeBridge {
             return window.webkit.messageHandlers.\(ContactNamesBridge.handler).postMessage(Object.assign({ action: "add" }, person || {}));
           }
         },
+        // Sondage de dates (avis 9ddbdea7fe8f) : toutes les dates dans le calendrier de l'iPhone, puis, la date fixée,
+        // la bonne reste et les autres partent. Promesses : add → { added, total } ou { denied } ; status → { added } ;
+        // settle → { changed } ; pending → [identifiants d'événements].
+        calendar: {
+          add: function (req) { return window.webkit.messageHandlers.\(NativeCalendarBridge.handler).postMessage(Object.assign({ action: "add" }, req || {})); },
+          status: function (id) { return window.webkit.messageHandlers.\(NativeCalendarBridge.handler).postMessage({ action: "status", eventId: String(id) }); },
+          settle: function (req) { return window.webkit.messageHandlers.\(NativeCalendarBridge.handler).postMessage(Object.assign({ action: "settle" }, req || {})); },
+          pending: function () { return window.webkit.messageHandlers.\(NativeCalendarBridge.handler).postMessage({ action: "pending" }); }
+        },
         // « Ajouter à l'app Cartes Apple » (billet) : feuille d'ajout PassKit ; promesse résolue à sa fermeture.
         // Bulle de Zicou native (BETA) : la page la décrit (pet/zicou-home.js), l'app la dessine et la déplace.
         zicou: \(zicouScript),
@@ -89,6 +98,7 @@ enum NativeBridge {
         controller.addScriptMessageHandler(ScanHandler(model: model), contentWorld: .page, name: scanHandler)
         controller.addScriptMessageHandler(WalletHandler(), contentWorld: .page, name: NativeWallet.handler)
         controller.addScriptMessageHandler(ContactNamesBridge(), contentWorld: .page, name: ContactNamesBridge.handler)
+        controller.addScriptMessageHandler(NativeCalendarBridge(), contentWorld: .page, name: NativeCalendarBridge.handler)
         // Zicou → widgets et Live Activity de l'éclosion (lecture des réponses /api/pet/* de la page).
         if AppConfig.zicouBuild {
             PetWidgetBridge.install(in: controller)
