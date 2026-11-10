@@ -31,13 +31,13 @@ export function ProfilePhotoField({ userId, name, currentPhoto, photo, onChange,
 
   return (
     <View style={{ gap: 12 }}>
-      <T weight="semibold">Photo de profil (obligatoire)</T>
+      <T weight="semibold">Photo de profil (vivement conseillée)</T>
       <View style={{ alignItems: 'center' }}>
         {photo
           ? <Image accessibilityLabel="Aperçu de ta photo de profil" source={{ uri: photo }} style={{ width: 96, height: 96, borderRadius: 48 }} />
           : <Avatar id={userId} name={name || '?'} photo={currentPhoto} size={96} profile={false} />}
       </View>
-      <T muted size={13}>Pour que le groupe te reconnaisse, dans les jeux comme dans les événements. Tu la recadres juste après l’avoir choisie.</T>
+      <T muted size={13}>Facultative, mais vivement conseillée : le groupe te reconnaît, dans les jeux comme dans les événements. Tu la recadres juste après l’avoir choisie.</T>
       <input ref={gallery} type="file" accept="image/*,.heic,.heif" hidden onChange={picked} />
       <input ref={camera} type="file" accept="image/*" capture="user" hidden onChange={picked} />
       <Button label={photo || currentPhoto ? 'Changer de photo' : 'Choisir une photo'} variant="secondary" disabled={disabled} onPress={() => gallery.current?.click()} />

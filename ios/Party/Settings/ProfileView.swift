@@ -95,7 +95,7 @@ struct ProfileView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
         } footer: {
-            Text("Facultative : elle aide le groupe à te reconnaître, dans les jeux comme dans les événements. La photo est recadrée en carré.")
+            Text("Facultative, mais vivement conseillée : elle aide le groupe à te reconnaître, dans les jeux comme dans les événements. La photo est recadrée en carré.")
         }
     }
 
