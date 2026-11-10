@@ -69,7 +69,10 @@ export async function saveAudience(id: string, v: AudienceValue, { people = true
   }
 }
 
-export function audienceError(v: AudienceValue): string | null {
+// Invitations v2 : « Sur invitation » sans groupe est permis, les personnes s'invitent ensuite sur la fiche (carte
+// « Invités »), comme le dit le formulaire ; sans v2, il faut choisir qui inviter ici même.
+export function audienceError(v: AudienceValue, v2: boolean = invitesV2On): string | null {
+  if (v2) return null;
   if (v.audience === 'invite' && !v.vip && !v.group_ids.length && !v.invitees.length && !v.phones.length) {
     return 'Choisis qui inviter : le groupe Vendredi Party, un groupe ou des personnes';
   }
