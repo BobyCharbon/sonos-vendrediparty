@@ -5,6 +5,7 @@ import { Image, Linking, Pressable, StyleSheet, useWindowDimensions, View } from
 import { AIEventSteps } from '@/components/AIEventSteps';
 import { AttendanceEditor } from '@/components/AttendanceEditor';
 import { AttendeesBadge } from '@/components/AttendeesBadge';
+import { BarEntry } from '@/components/bar/BarEntry';
 import { PendingPayments } from '@/components/PendingPayments';
 import { RejectProposal } from '@/components/RejectProposal';
 import { ReportSheet } from '@/components/ReportSheet';
@@ -12,7 +13,7 @@ import { TicketCard } from '@/components/TicketCard';
 import { TicketsManager } from '@/components/TicketsManager';
 import { CalendarButton } from '@/components/CalendarButton';
 import { EventGiftsLink } from '@/components/EventGifts';
-import { compagnonOn, invitesV2On } from '@/lib/features';
+import { barOn, compagnonOn, invitesV2On } from '@/lib/features';
 import { GuestListCard } from '@/components/GuestListCard';
 import { AnnounceStatusCard } from '@/components/AnnounceStatusCard';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
@@ -381,6 +382,8 @@ export default function EventScreen() {
       {mine?.status === 'yes' && ticketRelevant(ev, data.loadedAt) ? (
         <TicketCard event={ev} me={me} answerKey={`${mine.status}:${mine.waitlisted}:${mine.plus_ones}:${paymentsTick}`} />
       ) : null}
+      {/* Bar de la soirée : solde EN GRAND du présent, « Scanner au bar » du barman. */}
+      {barOn && published ? <BarEntry eventId={ev.id} zone="guest" /> : null}
 
       {infoRows.length ? (
         <Card>
@@ -464,6 +467,7 @@ export default function EventScreen() {
           {ev.date_mode === 'fixed' ? (
             <Button label="📷 Scanner les billets" onPress={() => router.push(`/event/${ev.id}/scan`)} />
           ) : null}
+          {barOn ? <BarEntry eventId={ev.id} zone="organizer" /> : null}
           {/* La base exige le droit de modifier pour annuler, sauf pour le créateur (campagne 2, lot A) : un co-organisateur
               « Membre » sans « Modifier » ne voit plus « Annuler l’événement ». */}
           {canEdit || ev.created_by === me.id ? <ConfirmButton

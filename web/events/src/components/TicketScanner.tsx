@@ -155,7 +155,12 @@ export function ScanVerdict({ verdict, onPaid, onConfirm, onIssue, onNext }: {
  * Zone de scan : caméra native (app iPhone), caméra du navigateur si elle sait lire les QR, et toujours le code court
  * à taper. Sans caméra intégrée (Safari) : l'appareil photo du téléphone ouvre directement le billet ici.
  */
-export function ScanControls({ paused, onScanned }: { paused: boolean; onScanned: (raw: string) => void }) {
+export function ScanControls({ paused, onScanned, labels }: {
+  paused: boolean;
+  onScanned: (raw: string) => void;
+  /** Autres textes (scanner du bar : « Scanner un QR », « Code du QR ») ; par défaut ceux des billets. */
+  labels?: { scan?: string; code?: string; placeholder?: string; noCamera?: string };
+}) {
   const [code, setCode] = useState('');
   const [cameraError, setCameraError] = useState<string | null>(null);
   const native = nativeScanner();
@@ -173,20 +178,20 @@ export function ScanControls({ paused, onScanned }: { paused: boolean; onScanned
 
   return (
     <View style={{ gap: 12 }}>
-      {native ? <Button label="📷 Scanner un billet" onPress={scanNative} /> : null}
+      {native ? <Button label={labels?.scan ?? '📷 Scanner un billet'} onPress={scanNative} /> : null}
       {web && !cameraError ? <WebCamera paused={paused} onCode={onScanned} onError={onError} /> : null}
       {!native && !web ? (
-        <T muted size={13}>Ouvre l’appareil photo du téléphone et vise le QR du billet : il s’ouvre directement ici et l’arrivée est notée.</T>
+        <T muted size={13}>{labels?.noCamera ?? 'Ouvre l’appareil photo du téléphone et vise le QR du billet : il s’ouvre directement ici et l’arrivée est notée.'}</T>
       ) : null}
       {cameraError ? <T size={13} color={colors.coralSoft}>{cameraError}</T> : null}
       <View style={st.manual}>
         <Input
           value={code}
           onChangeText={(t) => setCode(t.toUpperCase())}
-          placeholder="Code du billet (ex. K7M 2QX)"
+          placeholder={labels?.placeholder ?? 'Code du billet (ex. K7M 2QX)'}
           autoCapitalize="characters"
           autoCorrect={false}
-          accessibilityLabel="Code du billet"
+          accessibilityLabel={labels?.code ?? 'Code du billet'}
           onSubmitEditing={() => { if (code.trim()) { onScanned(code); setCode(''); } }}
           style={{ flex: 1 }}
         />

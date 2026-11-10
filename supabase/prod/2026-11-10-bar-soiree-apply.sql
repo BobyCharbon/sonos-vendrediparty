@@ -485,7 +485,7 @@ end $$;
 -- 6. Invités -------------------------------------------------------------------------------------------------------
 create or replace function public.my_bar(e uuid) returns jsonb
 language plpgsql security definer set search_path = '' as $$
-declare b public.event_bars; me uuid := auth.uid(); t public.event_tickets; pay public.tc_payment; eligible boolean;
+declare b public.event_bars; me uuid := auth.uid(); t public.event_tickets; pay public.tc_payment; eligible boolean; owes boolean;
 begin
   if me is null or not public.can_see_event(e) then raise exception 'Événement introuvable' using errcode = '42501'; end if;
   select * into b from public.event_bars where event_id = e;
@@ -493,7 +493,9 @@ begin
   if b.closed_at is null and now() >= b.closes_at then perform private.bar_close(e); select * into b from public.event_bars where event_id = e; end if;
   eligible := private.bar_eligible(e, me);
   if eligible then t := private.ensure_ticket(e, me); end if;  -- un seul QR par soirée (entrée et bar)
-  select * into pay from public.tc_payment where user_id = b.payee_id;
+  -- Coordonnées de paiement (IBAN, lien) : seulement à qui peut commander, doit de l'argent, ou gère le bar.
+  owes := eligible or private.bar_balance(e, me) > 0 or private.bar_can_manage(e);
+  if owes then select * into pay from public.tc_payment where user_id = b.payee_id; end if;
   return jsonb_build_object(
     'phase', private.bar_phase(b), 'eligible', eligible, 'manage', private.bar_can_manage(e), 'serve', private.bar_can_serve(e),
     'closes_at', b.closes_at, 'preorder_until', b.preorder_until,
@@ -508,10 +510,11 @@ begin
     'refund_declared', coalesce((select sum(r.amount_chf) from public.event_bar_refunds r where r.event_id = e and r.user_id = me and r.status = 'declared'), 0),
     'items', coalesce((select jsonb_agg(jsonb_build_object(
         'id', i.id, 'name', i.name, 'emoji', i.emoji, 'price_chf', i.price_chf, 'age_min', i.age_min, 'max_pending', i.max_pending,
-        'available', case when i.stock is null then null else greatest(i.stock - c.served - c.pending, 0) end,
+        'active', i.active, 'available', case when i.stock is null then null else greatest(i.stock - c.served - c.pending, 0) end,
         'mine_pending', (select count(*) from public.event_bar_units u where u.item_id = i.id and u.user_id = me and u.status = 'pending'))
         order by i.sort, i.name)
-      from public.event_bar_items i cross join lateral private.bar_counts(i.id) c where i.event_id = e and i.active), '[]'::jsonb),
+      from public.event_bar_items i cross join lateral private.bar_counts(i.id) c where i.event_id = e
+        and (i.active or exists (select 1 from public.event_bar_units u where u.item_id = i.id and u.user_id = me and u.status = 'pending'))), '[]'::jsonb),
     'served', coalesce((select jsonb_agg(jsonb_build_object('at', u.served_at, 'item', i.name, 'emoji', i.emoji, 'price_chf', u.price_chf) order by u.served_at)
       from public.event_bar_units u join public.event_bar_items i on i.id = u.item_id
       where u.event_id = e and u.user_id = me and u.status = 'served'), '[]'::jsonb),

@@ -286,3 +286,22 @@ def test_the_single_qr_goes_to_apple_wallet_with_the_bar_balance_even_with_ticke
     assert gb.rpc('wallet_push_targets', e=event, member=ga.uid).status_code >= 400
     # Pas Présent : ni bar ni pass.
     assert gb.rpc('wallet_pass_issue', e=event).status_code == 200  # gb est Présent dans ce bar (fixture)
+
+
+def test_payment_details_stay_private_and_pending_glasses_of_a_removed_item_stay_visible(people, bar):
+    """Relecture du 10.11 : l'IBAN / le lien de l'organisateur seulement pour qui peut commander, doit ou gère ; un
+    article retiré en pleine soirée garde ses verres en attente visibles et annulables chez l'invité."""
+    admin, ga, gb, _barman = people
+    event, vrb, _coca = bar
+    sql(f"insert into public.tc_payment (user_id, iban, holder, links) values ('{admin.uid}', 'CH9300762011623852957', 'Admin Test', "
+        """'{"revolut": "https://revolut.me/admin"}'::jsonb) on conflict (user_id) do update set links = excluded.links""")
+    assert ok(ga.rpc('my_bar', e=event))['payee']['link'] == 'https://revolut.me/admin'  # présent : il peut rembourser
+    sql(f"delete from public.rsvps where event_id = '{event}' and user_id = '{gb.uid}'")
+    outsider = ok(gb.rpc('my_bar', e=event))
+    assert outsider['eligible'] is False and outsider['payee']['link'] is None and outsider['payee']['iban'] is None
+    ok(order(ga, event, [(vrb, 1)]))
+    ok(admin.rpc('bar_save_item', e=event, item={'id': vrb, 'name': 'Vodka Red Bull', 'active': False}))
+    item = next(i for i in ok(ga.rpc('my_bar', e=event))['items'] if i['id'] == vrb)
+    assert item['active'] is False and item['mine_pending'] == 1
+    ok(ga.rpc('bar_cancel_mine', e=event, item=vrb, qty=1))
+    assert all(i['id'] != vrb for i in ok(ga.rpc('my_bar', e=event))['items'])
