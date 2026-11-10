@@ -38,6 +38,7 @@ function status(p: BarPerson): { text: string; color: string } {
   const waiting = p.pending ? ` · ${p.pending} en attente` : '';
   if (declared > 0) return { text: `Dit avoir remboursé ${barChf(declared)}${waiting}`, color: colors.coral };
   if (p.balance > 0) return { text: `À rembourser${waiting}`, color: colors.muted };
+  if (p.balance < 0) return { text: `À lui rendre ${barChf(-p.balance)}${waiting}`, color: colors.coral };
   if (p.refunded > 0) return { text: `✓ Remboursé${waiting}`, color: colors.mint };
   return { text: p.pending ? `${p.pending} en attente` : 'Rien à rembourser', color: colors.muted };
 }
@@ -47,7 +48,8 @@ export function LiveTab({ eventId, overview, onOverview }: { eventId: string; ov
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const t = overview.totals;
-  const due = round2(t.served_chf - t.refunded_chf);
+  // Ce qui reste à recevoir : la somme des soldes positifs (un « à lui rendre » ne cache pas ce que doivent les autres).
+  const due = round2(overview.people.reduce((sum, p) => sum + Math.max(p.balance, 0), 0));
   const people = [...overview.people].sort((a, b) => (b.declared?.length ?? 0) - (a.declared?.length ?? 0) || b.balance - a.balance);
 
   async function confirm(refund: string, received: boolean) {
@@ -107,7 +109,7 @@ export function LiveTab({ eventId, overview, onOverview }: { eventId: string; ov
                   <T weight="semibold" size={15} numberOfLines={1}>{p.name}</T>
                   <T size={12} color={s.color}>{s.text}</T>
                 </View>
-                <T size={15} weight="bold" color={p.balance > 0 ? colors.text : colors.muted}>{amount(p.balance)}</T>
+                <T size={15} weight="bold" color={p.balance > 0 ? colors.text : colors.muted}>{amount(Math.abs(p.balance))}</T>
                 <T muted size={16}>›</T>
               </Pressable>
               {(p.declared ?? []).map((d) => (

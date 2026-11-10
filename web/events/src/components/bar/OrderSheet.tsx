@@ -7,6 +7,7 @@ import { colors, font, radius } from '@/lib/theme';
 
 import { SheetBackdrop, SheetTop, useSheetDrag, useSheetTop } from '../SheetGesture';
 import { Button, ErrorText, T } from '../ui';
+import { NETWORK_TEXT } from '@/lib/errors';
 
 type Props = {
   eventId: string;
@@ -26,6 +27,11 @@ const STALE = new Set(['terms_changed', 'stock', 'max_pending']);
  * Feuille « Valider la commande » : total, solde si tout est servi, et l'engagement à cocher — le texte EXACT de la base
  * (my_bar.pledge_text), renvoyé tel quel. Case décochée d'office si le texte change pendant que la feuille est ouverte.
  */
+// Réponse perdue (réseau) : la commande est peut-être passée ; jamais « réessaie » tout court, qui fait commander deux fois
+// (test réel du 10.11 dans le simulateur : « La connexion a échoué… réessaie » s'affichait).
+const LOST = 'La réponse n’est pas arrivée : vérifie « En attente » avant de renvoyer ta commande.';
+const lostAnswer = (text: string) => (text === NETWORK_TEXT ? LOST : text);
+
 export function OrderSheet({ eventId, bar, lines, open, onClose, onDone, onStale }: Props) {
   const card = useRef<View>(null);
   const overlay = useRef<View>(null);
@@ -57,7 +63,7 @@ export function OrderSheet({ eventId, bar, lines, open, onClose, onDone, onStale
       } else {
         setError(code === 'stock' || code === 'max_pending'
           ? `${errorText(e, 'Plus assez de stock.')} Ta commande a été ajustée : vérifie-la.`
-          : errorText(e, 'La réponse n’est pas arrivée : vérifie « En attente » avant de renvoyer ta commande.'));
+          : lostAnswer(errorText(e, LOST)));
       }
       // Code connu (stock, maximum, conditions) ou réponse perdue : on relit « Mon bar » avant tout nouvel envoi
       // (la commande a peut-être été enregistrée : vérifier « En attente » plutôt que la renvoyer).

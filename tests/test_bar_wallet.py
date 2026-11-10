@@ -30,3 +30,11 @@ def test_the_bar_puts_the_balance_first_with_a_change_message_and_keeps_the_sing
 def test_round_amounts_and_one_article_read_naturally():
     fields = build(bar={**BAR, "balance": 4, "pending": 1, "repay_by": None})["eventTicket"]
     assert fields["primaryFields"][0]["value"] == "4 CHF" and fields["headerFields"][0]["value"] == "1 article"
+
+
+def test_a_negative_balance_reads_as_money_to_give_back_never_as_minus_to_repay():
+    # Arrange : un verre déjà remboursé a été corrigé (test réel du 10.11 : « À REMBOURSER -8 CHF »)
+    fields = build(bar={**BAR, "balance": -8})["eventTicket"]
+
+    # Assert
+    assert fields["primaryFields"][0]["label"] == "À TE RENDRE" and fields["primaryFields"][0]["value"] == "8 CHF"

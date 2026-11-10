@@ -16,12 +16,15 @@ type Props = {
  * encore servi s'affiche à part, « pas dû ».
  */
 export function BarBalance({ bar, compact = false }: Props) {
-  const label = bar.phase === 'closed' && bar.balance > 0 ? 'RESTE À REMBOURSER' : 'À REMBOURSER';
+  // Solde négatif : un verre déjà remboursé a ensuite été corrigé ou annulé, l'organisateur lui doit la différence
+  // (test réel du 10.11 : « À REMBOURSER -8 CHF » s'affichait).
+  const credit = bar.balance < 0;
+  const label = credit ? 'À TE RENDRE' : bar.phase === 'closed' && bar.balance > 0 ? 'RESTE À REMBOURSER' : 'À REMBOURSER';
   return (
     <View style={[st.hero, compact && st.compact]}>
       <T size={12} weight="bold" color={colors.coralSoft} style={st.label}>{label}</T>
-      <View style={st.amountRow} accessibilityLabel={`${label.toLowerCase()} : ${barChf(bar.balance)}`}>
-        <Text testID="bar-balance" style={[st.amount, compact && st.amountCompact]}>{amount(bar.balance)}</Text>
+      <View style={st.amountRow} accessibilityLabel={`${label.toLowerCase()} : ${barChf(Math.abs(bar.balance))}`}>
+        <Text testID="bar-balance" style={[st.amount, compact && st.amountCompact]}>{amount(Math.abs(bar.balance))}</Text>
         <Text style={st.unit}>CHF</Text>
       </View>
       <T size={compact ? 13 : 14} color={colors.textSoft}>{payeeLine(bar.payee)}</T>

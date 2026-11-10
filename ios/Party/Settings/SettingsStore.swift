@@ -32,6 +32,8 @@ final class SettingsStore: ObservableObject {
     @Published private(set) var compagnon = false
     /// Discussions ouvertes sur ce site (/api/features.discussions) : sinon leurs réglages de notification sont cachés.
     @Published private(set) var discussions = false
+    /// Bar de la soirée allumé sur ce site (/api/features.bar) : sinon ses réglages de notification sont cachés.
+    @Published private(set) var bar = false
     @Published private(set) var events: EventsPhase = .signedOut
     @Published private(set) var liveActivities = LiveActivitySetting.isEnabled
     /// Mon profil ; nil tant qu'il n'est pas lu (ou pas connecté).
@@ -127,6 +129,7 @@ final class SettingsStore: ObservableObject {
         let features = try? await api.features()
         compagnon = features?.compagnon ?? false
         discussions = features?.discussions ?? false
+        bar = features?.bar ?? false
         if let me = await web?.guestIdentity() {
             guest = try? await api.notifyPrefs(guestID: me.id)
             zicouReactions = compagnon && me.id.hasPrefix("acct-")
@@ -384,6 +387,10 @@ final class SettingsStore: ObservableObject {
         case ("ticket_pay_declared", let v as Bool): p.ticketPayDeclared = v
         case ("ticket_pay_confirmed", let v as Bool): p.ticketPayConfirmed = v
         case ("ticket_issued", let v as Bool): p.ticketIssued = v
+        case ("bar_served", let v as Bool): p.barServed = v
+        case ("bar_changed", let v as Bool): p.barChanged = v
+        case ("bar_refund_confirmed", let v as Bool): p.barRefundConfirmed = v
+        case ("bar_refund_declared", let v as Bool): p.barRefundDeclared = v
         case ("referral_joins", let v as Bool): p.referralJoins = v
         case ("contact_joins", let v as Bool): p.contactJoins = v
         case ("direct_messages", let v as Bool): p.directMessages = v

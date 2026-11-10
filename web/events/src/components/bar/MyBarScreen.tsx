@@ -13,6 +13,7 @@ import { Badge, Button, Card, Empty, ErrorText, Loading, Screen, T, Toast } from
 import { BarBalance } from './BarBalance';
 import { BarHeader } from './BarHeader';
 import { BarMenu } from './BarMenu';
+import { WalletButton } from '../WalletButton';
 import { BarQr } from './BarQr';
 import { CancelledList, PendingList, PledgesLine, ServedList } from './MyBarLists';
 import { OrderSheet } from './OrderSheet';
@@ -98,10 +99,16 @@ export function MyBarScreen({ eventId }: { eventId: string }) {
             <Button variant="secondary" label="Retour à l’événement" onPress={() => back(eventId)} />
           </Card>
         ) : null}
-        {bar.qr && bar.phase !== 'closed' ? <BarQr eventId={eventId} qr={bar.qr} /> : null}
+        {bar.qr && bar.phase !== 'closed' ? (
+          <>
+            <BarQr eventId={eventId} qr={bar.qr} />
+            {/* Le même QR dans l'app Cartes, avec le solde du bar (test réel du 10.11 : le bouton manquait ici). */}
+            <WalletButton eventId={eventId} />
+          </>
+        ) : null}
         {bar.phase !== 'closed' ? <BarMenu bar={bar} cart={cart} onCart={setCart} onOrder={() => setSheet(true)} /> : null}
         <PendingList bar={bar} busy={busy} onCancel={(item, name) => void act(item, () => barCancelMine(eventId, item, 1),
-          `1 ${name} annulé : il redevient disponible pour les autres.`)} />
+          `Annulé : 1 × ${name}, de nouveau disponible pour les autres.`)} />
         <ServedList bar={bar} />
         <CancelledList bar={bar} />
         <RefundCard bar={bar} busy={busy === 'refund'} onDeclare={(amount) => void act('refund', () => barDeclareRefund(eventId, amount),

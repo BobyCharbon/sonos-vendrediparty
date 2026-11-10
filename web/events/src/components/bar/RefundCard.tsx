@@ -24,7 +24,7 @@ export function RefundCard({ bar, busy, onDeclare }: { bar: MyBar; busy: boolean
   return (
     <Section title="Rembourser">
       <T size={14} color={colors.textSoft}>
-        Il te reste {barChf(owed)} à rembourser à {name}{p.repay_by ? `, avant ${dayLabel(p.repay_by)}` : ''}.
+        Il te reste {barChf(owed)} à rembourser à {name}{p.repay_by ? `, avant ${dayLabel(p.repay_by).replace(/\.$/, '')}` : ''}.
       </T>
       {link ? (
         <Button label={`Rembourser ${name} avec ${p.method === 'twint' ? 'Twint' : 'Revolut'}`} onPress={() => void Linking.openURL(link)} />

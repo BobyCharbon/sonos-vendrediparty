@@ -65,12 +65,12 @@ export function BarPersonScreen({ eventId, member }: { eventId: string; member: 
       <BarHeader title={name} eventId={eventId} />
       <View style={st.hero}>
         <View style={{ flex: 1, gap: 2 }}>
-          <T size={12} weight="bold" color={colors.coralSoft}>À REMBOURSER</T>
+          <T size={12} weight="bold" color={colors.coralSoft}>{person.balance < 0 ? 'À LUI RENDRE' : 'À REMBOURSER'}</T>
           <T size={13} color={colors.textSoft}>
             {person.pledges.length ? `✓ ${plural(person.pledges.length, 'engagement accepté', 'engagements acceptés')}` : 'Pas encore d’engagement'}
           </T>
         </View>
-        <Text style={st.amount}>{amount(person.balance)}</Text>
+        <Text style={st.amount}>{amount(Math.abs(person.balance))}</Text>
         <T size={14} weight="bold" color={colors.textSoft}>CHF</T>
       </View>
 

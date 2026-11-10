@@ -206,13 +206,17 @@ def _with_bar(fields: dict, bar: dict) -> dict:
     """Bar de la soirée (maquette v6, écran 9) : « À REMBOURSER » en grand (« Nouveau solde : … » à chaque service),
     « À SERVIR » en tête ; le titre de l'événement passe en second ; les conditions de remboursement au dos."""
     pending = int(bar.get("pending") or 0)
+    # Solde négatif : un verre déjà remboursé a été corrigé ou annulé, l'organisateur doit la différence (test du 10.11).
+    balance = float(bar.get("balance") or 0)
+    credit = balance < 0
     title = {**fields["primaryFields"][0], "key": "event"}
     due = _bar_date(bar.get("repay_by"))
     terms = f"À rembourser à {bar.get('payee') or 'l’organisateur'} par {bar.get('method') or 'Revolut'}" + (f", avant le {due}." if due else ", après la soirée.")
     return {**fields,
             "headerFields": [{"key": "bar_pending", "label": "À SERVIR", "value": f"{pending} article{'s' if pending > 1 else ''}",
                               "changeMessage": "À servir : %@"}],
-            "primaryFields": [{"key": "bar_balance", "label": "À REMBOURSER", "value": _chf(bar.get("balance")),
+            "primaryFields": [{"key": "bar_balance", "label": "À TE RENDRE" if credit else "À REMBOURSER",
+                               "value": _chf(abs(balance)),
                                "changeMessage": "Nouveau solde : %@"}],
             "secondaryFields": [title, *fields.get("secondaryFields", [])][:3],
             "backFields": [*fields.get("backFields", []), {"key": "bar_terms", "label": "Bar de la soirée", "value": terms}]}
