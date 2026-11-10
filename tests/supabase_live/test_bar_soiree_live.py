@@ -226,7 +226,8 @@ def test_organizer_sees_reservations_cancels_them_and_confirms_refunds(people, b
     # Annuler le verre réservé de Marc : la place revient, Marc est prévenu.
     ok(admin.rpc('bar_cancel_units', e=event, member=gb.uid, item=vrb, qty=1))
     assert any('annulé' in n['body'] for n in notes(gb, event, 'bar_changed'))
-    assert ok(admin.rpc('bar_overview', e=event))['cancellations'][0]['name'] == 'Testeur 2'
+    name = sql(f"select display_name from public.profiles where id = '{gb.uid}'")[0]['display_name']
+    assert ok(admin.rpc('bar_overview', e=event))['cancellations'][0]['name'] == name
     # Remboursement : jamais plus que le solde ; annoncé, puis confirmé par l'organisateur.
     assert 'invalide' in refused(ga.rpc('bar_declare_refund', e=event, amount=10))
     ok(ga.rpc('bar_declare_refund', e=event, amount=4.5))
