@@ -212,3 +212,6 @@ i.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; marg
 .btn.redg { background: var(--redDim); color: #FF8A8A; }
 .item.cancelled { opacity: .6; }
 .item.cancelled s { text-decoration-thickness: 2px; }
+/* v6 : confirmation du barman */
+.done { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 0 4px; }
+.ok-big { width: 76px; height: 76px; border-radius: 50%; background: var(--mint); color: #0B2A1D; display: grid; place-items: center; font-size: 40px; font-weight: 800; box-shadow: 0 10px 30px rgba(91,227,166,.35); }
