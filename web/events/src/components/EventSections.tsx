@@ -18,6 +18,7 @@ import { colors, font, radius } from '@/lib/theme';
 import type { BringItem, DateOption, DateVote, DateVoteRow, EventRow, Poll, PollOption, Rsvp, RsvpStatus } from '@/lib/types';
 import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
+import { PollDatesCalendarButton } from './CalendarButton';
 import { SharedBringRow } from './BringShared';
 import { DateTimeField } from './DateTimeField';
 import { LinkedText } from './LinkedText';
@@ -524,6 +525,7 @@ export function DatePollSection({
           </View>
         );
       })}
+      {!closed && event.status === 'published' ? <PollDatesCalendarButton event={event} dates={options} /> : null}
       {!closed && event.members_can_propose_dates ? (
         <View style={{ gap: 8 }}>
           <DateTimeField label="Proposer une date" value={proposal} onChangeText={setProposal} />

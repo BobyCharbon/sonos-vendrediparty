@@ -38,6 +38,28 @@ export function icsUrl(ev: CalendarEvent): string | null {
   return `${origin}/api/calendar.ics?${q.toString()}`;
 }
 
+type PollEvent = Pick<EventRow, 'id' | 'title' | 'description' | 'location_name' | 'location_address'>;
+type ProposedDate = { id: string; starts_at: string; ends_at?: string | null };
+
+/**
+ * Sondage de dates (avis 9ddbdea7fe8f, 10.11) : toutes les dates proposées dans UN fichier .ics, chacune « À confirmer » ;
+ * l’iPhone propose « Tout ajouter » en un toucher. Les dates déjà passées ne sont pas envoyées.
+ */
+export function pollDatesIcsUrl(ev: PollEvent, dates: ProposedDate[], now: number = Date.now()): string | null {
+  const upcoming = dates.filter((d) => new Date(d.starts_at).getTime() > now).slice(0, 20);
+  if (!upcoming.length) return null;
+  const q = new URLSearchParams({
+    uid: ev.id,
+    title: ev.title,
+    location: location(ev as CalendarEvent),
+    description: (ev.description ?? '').slice(0, 1500),
+    url: typeof window !== 'undefined' ? `${window.location.origin}/events/event/${ev.id}` : '',
+  });
+  for (const d of upcoming) q.append('d', `${d.id}|${d.starts_at}|${d.ends_at ?? ''}`);
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  return `${origin}/api/calendar-dates.ics?${q.toString()}`;
+}
+
 /** Lien Google Agenda : Android l’ouvre dans l’application Google Agenda. */
 export function googleCalendarUrl(ev: CalendarEvent): string | null {
   if (!ev.starts_at) return null;
