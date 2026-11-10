@@ -123,8 +123,18 @@ def sign_in(page, number: str):
     pw.expect(page.get_by_text('Ton compte Party', exact=True)).to_be_visible(timeout=20000)
     pw.expect(page.get_by_role('radio', name='Suisse +41')).to_be_visible()
     page.get_by_label('Ton numéro de téléphone', exact=True).fill(number)
-    page.get_by_role('button', name='Recevoir un code par SMS').click()
-    page.get_by_placeholder('123456', exact=True).fill('123456')
+    code = page.get_by_placeholder('123456', exact=True)
+    for _ in range(3):  # limite d'Auth : un code par minute et par numéro (la préparation du test en a déjà demandé un)
+        page.get_by_role('button', name='Recevoir un code par SMS').click()
+        try:
+            code.wait_for(timeout=15000)
+            break
+        except Exception:
+            if not page.get_by_text('Attends quelques secondes', exact=False).is_visible():
+                shot(page, 'zz-echec-code-sms')
+                raise
+            page.wait_for_timeout(31000)
+    code.fill('123456')
     page.get_by_role('button', name='Se connecter', exact=True).click()
 
 
