@@ -490,6 +490,8 @@ function showTab(tab, eventTarget) {
   $("appTitle").textContent = ({ music: "Musique", games: "Jeux", pet: "Zicou", events: "Événements", chats: "Discussions", feedback: fbIsAdmin() ? "Retours" : "Ton avis", account: account ? "Réglages" : "Se connecter", host: "Invités et messages", stats: "Mes stats de jeu" })[tab];
   $("navBarTitle").textContent = $("appTitle").textContent;
   store("vp_tab", tab);
+  // Un autre onglet : l'adresse oublie l'événement partagé (un rechargement ne ramène plus dessus).
+  if (tab !== "events" && location.search) history.replaceState(null, "", location.pathname);
   if (tab === "games") refreshGame();
   // Onglet Zicou : le panneau du Compagnon s'affiche dans la page (pet/pet.js) ; en partant, il s'arrête.
   if (tab === "pet") window.Pet?.openTab?.($("petTab"));
@@ -1148,7 +1150,11 @@ addEventListener("DOMContentLoaded", async () => {
     history.replaceState(null, "", location.pathname);
   } else if (params.get("tab") === "events") {
     showTab("events", PartyEvents.target(params));
-    history.replaceState(null, "", location.pathname);
+    // Lien « Partager » : l'adresse garde l'événement (lui seul, jamais un billet scanné) ; recharger la page (iOS
+    // recharge l'app installée) le rouvre au lieu de la connexion puis de l'accueil (recette du 10.11.2026).
+    const shared = params.get("event") || "";
+    const keep = !params.has("ticket") && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(shared);
+    history.replaceState(null, "", location.pathname + (keep ? "?tab=events&event=" + shared.toLowerCase() : ""));
   } else showTab(params.has("pin") ? "music" : store("vp_tab") || "music");
   PartyEvents.preload();  // pastille « réponses attendues » sans ouvrir l’onglet
   if (params.has("pin")) {

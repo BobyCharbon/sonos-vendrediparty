@@ -13,7 +13,7 @@ import { useQuery } from '@/lib/data';
 import { avatarColor, formatLongDay, formatTime, initials } from '@/lib/format';
 import { acceptInvite, fetchInviteCard, type Accepted, type InviteCard } from '@/lib/invites';
 import { clearInviteAnswer, peekInviteAnswer, rememberInviteAnswer } from '@/lib/inviteIntent';
-import { canInstallWebApp, installWebApp, isAndroid } from '@/lib/installPrompt';
+import { canInstallWebApp, insideInstalledApp, installWebApp, isAndroid } from '@/lib/installPrompt';
 import { enter, pressTransition } from '@/lib/motion';
 import { safeHref } from '@/lib/links';
 import { dbMessage, isTermsError } from '@/lib/moderation';
@@ -184,11 +184,11 @@ function Card({ card, onAnswer }: { card: InviteCard; onAnswer: (a: Answer) => v
             style={({ pressed }) => [st.answer, st.answerYes, pressTransition, pressed && { transform: [{ scale: 0.97 }] }]}>
             <T weight="bold" size={17} color={colors.onAction}>📅 Choisir mes dates</T>
           </Pressable>
-          <T muted size={13} style={{ textAlign: 'center' }}>Pas besoin d’installer l’app.</T>
+          {insideInstalledApp() ? null : <T muted size={13} style={{ textAlign: 'center' }}>Pas besoin d’installer l’app.</T>}
         </View>
       ) : (
         <View style={{ gap: 10 }}>
-          {card.mine ? <T weight="semibold" style={{ textAlign: 'center' }}>Ta réponse : {ANSWERS.find((a) => a.key === card.mine)?.label}. Tu peux la changer.</T> : null}
+          {card.mine ? <T weight="semibold" style={{ textAlign: 'center' }}>Ta réponse : {(ANSWERS.find((a) => a.key === card.mine)?.label ?? '').replace(/[.!]\s*$/, '')}. Tu peux la changer.</T> : null}
           {answers.map((a) => (
             <Pressable key={a.key} accessibilityRole="button" accessibilityState={{ selected: card.mine === a.key }} onPress={() => onAnswer(a.key)}
               style={({ pressed }) => [st.answer, a.key === 'yes' ? st.answerYes : null, card.mine === a.key && { borderColor: rsvpColors[a.key] },
@@ -196,7 +196,7 @@ function Card({ card, onAnswer }: { card: InviteCard; onAnswer: (a: Answer) => v
               <T weight="bold" size={17} color={a.key === 'yes' ? colors.onAction : colors.text}>{a.label}</T>
             </Pressable>
           ))}
-          <T muted size={13} style={{ textAlign: 'center' }}>Pas besoin d’installer l’app.</T>
+          {insideInstalledApp() ? null : <T muted size={13} style={{ textAlign: 'center' }}>Pas besoin d’installer l’app.</T>}
         </View>
       )}
     </Screen>
@@ -374,7 +374,7 @@ function Answered({ card, done, onChange }: { card: InviteCard; done: Accepted &
           </View>
         </View>
       ) : null}
-      {!later ? (
+      {!later && !insideInstalledApp() ? (
         <View style={st.appCard}>
           <View style={st.appIcon}><T weight="bold" color={colors.onAction}>P!</T></View>
           <T weight="bold" size={17}>Reçois les nouvelles de la soirée</T>

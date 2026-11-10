@@ -21,8 +21,9 @@ CORS = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET
         'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, prefer, accept-profile, content-profile'}
 
 
-def open_groups(page, events_origin, rank: int, groups: list[dict]):
-    """rank : my_rank simulé (anciens rangs : Co-admin 3, Admin 4). groups : ce que la base renvoie à ce compte."""
+def open_groups(page, events_origin, rank: int, groups: list[dict], before_open=None):
+    """rank : my_rank simulé (anciens rangs : Co-admin 3, Admin 4). groups : ce que la base renvoie à ce compte.
+    before_open(page) : simulations de plus, prioritaires, posées avant l'ouverture de la page."""
     mock_services(page)
     people = [{'id': USER, 'display_name': 'Compte de démonstration', 'role': 'admin', 'avatar_url': None},
               {'id': LEA, 'display_name': 'Léa', 'role': 'member', 'avatar_url': None},
@@ -48,6 +49,8 @@ def open_groups(page, events_origin, rank: int, groups: list[dict]):
         route.fulfill(status=200, content_type='application/json', body=json.dumps(result), headers=CORS)
 
     page.route('https://gsuetixzobooggeaubvb.supabase.co/**', handle)
+    if before_open:
+        before_open(page)
     page.goto(events_origin, wait_until='domcontentloaded')
     page.locator('#accountTab').click()
     frame = page.frame_locator('#eventsFrame')

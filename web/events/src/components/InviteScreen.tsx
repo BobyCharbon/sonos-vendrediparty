@@ -46,9 +46,9 @@ export function InviteScreen({ kind, token }: { kind: 'event' | 'group'; token: 
       <Screen contentStyle={{ gap: 20 }}>
         <Stack.Screen options={{ title: 'Invitation' }} />
         <View style={{ gap: 8 }}>
-          <Title size={30}>Complète ton profil</Title>
+          <Title size={30}>Faisons connaissance</Title>
           <T muted>
-            Encore une étape : ton prénom, ton nom et ton surnom (une photo si tu veux), pour que le groupe te reconnaisse.
+            Encore une étape : ton prénom, ton nom et ton surnom (une photo aussi, vivement conseillée), pour que le groupe te reconnaisse.
             Tu accèdes ensuite directement à {kind === 'event' ? 'l’événement' : 'ce groupe'}.
           </T>
         </View>

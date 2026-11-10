@@ -128,6 +128,11 @@ export default function GroupsScreen() {
             onChange={(v) => void sharePhone(g.id, v)}
           />
         ) : null}
+        {inside.has(me.id) && !system && g.created_by !== me.id ? (
+          // Quitter soi-même (recette du 10.11) : la base le permet (politique « quitter le groupe »), jamais Vendredi Party.
+          <ConfirmButton small label="Quitter le groupe" confirmLabel="Confirmer : quitter le groupe"
+            onConfirm={() => run(supabase.from('member_group_members').delete().eq('group_id', g.id).eq('user_id', me.id).select('user_id').single())} />
+        ) : null}
         {system ? <T muted size={13}>Tous les Membres VIP et au-dessus, tenu à jour tout seul : passer quelqu’un Membre VIP l’ajoute, le remettre Guest le retire (Administration → Membres).</T> : null}
         {/* Réglages des événements du groupe (06.11) : son créateur ; Vendredi Party : les Co-admins et plus. */}
         {(system && rank >= roleRank('coadmin')) || (expanded && canEdit) ? (

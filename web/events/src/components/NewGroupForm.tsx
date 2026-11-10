@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 
+import { useTermsGate } from './TermsSheet';
 import { Button, ErrorText, Input, s } from './ui';
 import { useMe } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
@@ -20,11 +21,15 @@ export function NewGroupForm({ join = true, autoFocus = false, onCreated }: Prop
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Le nom d'un groupe est un contenu : CGU acceptées d'abord (feuille, puis nouvel essai), comme en prod (terms_enforced).
+  const terms = useTermsGate();
+
   async function create() {
     const clean = name.trim();
     if (!clean || busy) return;
-    setBusy(true);
     setError(null);
+    if (!(await terms.ensure())) return;
+    setBusy(true);
     const { data: created, error } = await supabase.from('member_groups').insert({ name: clean, created_by: me.id }).select('id').single();
     if (error || !created) {
       setBusy(false);
@@ -46,6 +51,7 @@ export function NewGroupForm({ join = true, autoFocus = false, onCreated }: Prop
 
   return (
     <View style={{ gap: 8 }}>
+      {terms.sheet}
       <View style={s.row}>
         <Input accessibilityLabel="Nom du groupe" placeholder="Ex. Les footeux" value={name} onChangeText={setName} maxLength={60}
           style={{ flex: 1 }} onSubmitEditing={() => void create()} autoFocus={autoFocus} />

@@ -17,6 +17,8 @@ import type { DateMode, EventRow, MemberGroup, Poll, PollOption, Reminder } from
 import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
 import { Button, Cascade, Chip, ErrorText, Field, HeaderBack, Input, Reveal, Rows, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
+import { afterPublish } from './InviteStep';
+import { invitesV2On } from '@/lib/features';
 import { AudiencePicker, audienceError, saveAudience, audienceFromEvent, audienceToEvent, DEFAULT_AUDIENCE, mayUseVip, type AudienceValue, type Person } from './AudiencePicker';
 import { DateTimeField } from './DateTimeField';
 import { PlaceSearch } from './PlaceSearch';
@@ -551,7 +553,10 @@ export function EventForm({ eventId }: { eventId?: string }) {
       if (eventId) notifyWallet(id);  // titre, date, lieu : les billets déjà dans Cartes se mettent à jour
       orphanDraft.current = null;
       setOrphan(null);
-      setDoneAt(`/event/${id}`);
+      // Nouvel événement « Sur invitation » (sans groupe), invitations v2 : la fiche ouvre aussitôt la feuille « Inviter »,
+      // lien prêt, comme l'étape 2 de « Créer avec l'IA » (recette réelle du 10.11.2026).
+      const invitedOnly = snapshot.who.audience === 'invite' && !snapshot.who.vip && !snapshot.who.group_ids.length;
+      setDoneAt(!eventId && !asDraft && invitedOnly ? afterPublish(id, 'invite', isAdmin, [], invitesV2On) : `/event/${id}`);
     } catch (e) {
       // Filtre de la base (titre, description) ou CGU : sa phrase, sans la clé technique (« content_refused: … »).
       const message = e instanceof Error ? e.message : String(e);
@@ -716,7 +721,8 @@ export function EventForm({ eventId }: { eventId?: string }) {
       <Section title={advanced ? 'Participants' : 'Qui'}>
         <AudiencePicker value={d.who} onChange={(who) => set({ who })} groups={ctx.groups} people={ctx.members} meId={me.id} allGroups={can('events.manage_all')} />
         {hasGroupAudience(d.who) ? (
-          <AnnounceToggle groupIds={d.who.group_ids} vip={d.who.vip} value={d.announce_group} onChange={(announce_group) => set({ announce_group })} />
+          <AnnounceToggle groupIds={d.who.group_ids} vip={d.who.vip} value={d.announce_group} onChange={(announce_group) => set({ announce_group })}
+            label={d.who.vip && !d.who.group_ids.length ? 'Prévenir les Membres Vendredi Party' : 'Prévenir le groupe'} />
         ) : null}
         {advanced ? (
           <>
