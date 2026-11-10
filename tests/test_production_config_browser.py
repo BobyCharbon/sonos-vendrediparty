@@ -52,11 +52,13 @@ chats_tab = lambda page: page.locator('#tabs [data-tab="chats"]')
 
 
 def test_server_says_production_features(prod_origin):
-    assert httpx.get(f'{prod_origin}/api/features').json() == {'compagnon': False, 'discussions': False, 'invites_v2': False}
+    assert httpx.get(f'{prod_origin}/api/features').json() == {'compagnon': False, 'discussions': False, 'invites_v2': False,
+                                                              'bar': False}  # bar de la soirée : en construction
     page = httpx.get(prod_origin).text
     assert 'data-discussions="off"' in page and 'data-compagnon="off"' in page and 'data-events=' not in page
     module = httpx.get(f'{prod_origin}/events/').text
     assert 'data-discussions="off"' in module and 'data-invites="off"' in module and 'data-events=' not in module
+    assert 'data-bar="off"' in module  # bar de la soirée absent de la production
     assert httpx.post(f'{prod_origin}/api/account/chats', json={'token': 'x' * 30}).status_code == 404
     assert httpx.post(f'{prod_origin}/api/account/chats/send', json={'token': 'x'}).status_code == 404
     assert httpx.get(f'{prod_origin}/static/pet/pet.js').status_code == 404

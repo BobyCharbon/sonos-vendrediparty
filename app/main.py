@@ -31,7 +31,7 @@ from . import pet, pet_coll_store, pet_reactions, pet_store
 from . import tv_zicou
 from . import pet_pot, tv_star
 # Adresse du déploiement et fonctions en bêta (Compagnon : allumé sur le site de test seulement).
-from .features import COMPAGNON_SOON, TEST_SITE_HOST, compagnon_enabled, configured_public_url, discussions_enabled, invites_v2_enabled
+from .features import COMPAGNON_SOON, TEST_SITE_HOST, bar_enabled, compagnon_enabled, configured_public_url, discussions_enabled, invites_v2_enabled
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts, ServiceUnavailable, TermsRequired
 from .account_auth import AccountAuth
@@ -4920,13 +4920,22 @@ def invites_page(html: str) -> str:
     return html.replace("<html", '<html data-invites="off"', 1)
 
 
+def bar_page(html: str) -> str:
+    """Bar de la soirée éteint (production, en construction) : <html data-bar="off">, lu par le module Événements
+    (ni bouton « Créer le bar », ni carte du bar, ni scanner du bar)."""
+    if bar_enabled():
+        return html
+    return html.replace("<html", '<html data-bar="off"', 1)
+
+
 def features_page(html: str) -> str:
-    return discussions_page(compagnon_page(invites_page(html)))
+    # Le bar en premier : son attribut se place après les autres (« <html data-compagnon=… » reste en tête, tests Zicou).
+    return discussions_page(compagnon_page(invites_page(bar_page(html))))
 
 
 def page(name: str) -> Response:
     """Page HTML avec des adresses de scripts et de styles versionnées (mises en cache jusqu'au prochain déploiement)."""
-    key = (name, compagnon_enabled(), discussions_enabled(), invites_v2_enabled())
+    key = (name, compagnon_enabled(), discussions_enabled(), invites_v2_enabled(), bar_enabled())
     if key not in _pages:
         html = features_page((STATIC / name).read_text(encoding="utf-8"))
         _pages[key] = re.sub(r'(/static/[\w./-]+\.(?:js|css))(?=")', rf"\1?v={BUILD_ID}", html)
@@ -5159,7 +5168,7 @@ def features():
     """Fonctions en bêta pour les apps natives (la page web les lit sur <html data-compagnon> / data-discussions) :
     Compagnon (Zicou) et Discussions (groupes, messages directs)."""
     return JSONResponse({"compagnon": compagnon_enabled(), "discussions": discussions_enabled(),
-                         "invites_v2": invites_v2_enabled()}, headers=NO_CACHE)
+                         "invites_v2": invites_v2_enabled(), "bar": bar_enabled()}, headers=NO_CACHE)
 
 
 @app.get("/.well-known/apple-app-site-association")

@@ -43,3 +43,9 @@ def invites_v2_enabled() -> bool:
     """Invitations v2 (carte « Invités », liens pour plusieurs, réponse sans app) : INVITES_V2_ENABLED ("1" / "0") si elle
     est définie ; sinon allumées sur le site de test seulement (bêta, décision du 05.11 : la prod quand l'admin le dira)."""
     return _flag("INVITES_V2_ENABLED")
+
+
+def bar_enabled() -> bool:
+    """Bar de la soirée (articles, stock, commandes, QR, barmans ; maquettes v6 du 10.11) : BAR_ENABLED ("1" / "0") si elle
+    est définie ; sinon allumé sur le site de test seulement (en construction : la prod après recette et « Ok prod »)."""
+    return _flag("BAR_ENABLED")

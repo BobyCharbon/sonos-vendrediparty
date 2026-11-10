@@ -15,3 +15,9 @@ export const discussionsOn = typeof document === 'undefined' || document.documen
  * Party sert alors la page avec <html data-invites="off"> (app/features.py) : ancienne carte « Lien d'invitation ».
  */
 export const invitesV2On = typeof document === 'undefined' || document.documentElement.dataset.invites !== 'off';
+
+/**
+ * Bar de la soirée (articles, stock, commandes, QR unique, barmans) : en construction, absent hors site de test — Party
+ * sert alors la page avec <html data-bar="off"> (app/features.py) : ni bouton, ni carte, ni scanner du bar.
+ */
+export const barOn = typeof document === 'undefined' || document.documentElement.dataset.bar !== 'off';
