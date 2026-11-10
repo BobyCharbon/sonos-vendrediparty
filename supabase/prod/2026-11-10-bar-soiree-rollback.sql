@@ -2,6 +2,9 @@
 -- d'avant, puis suppression du bar (tables, fonctions, tâches planifiées, interrupteurs). EFFACE les données du bar.
 -- Tout ou rien.
 begin;
+-- 20261110140000 bar_corrections : déclencheur des réponses « Absent » (sur rsvps, table qui reste).
+drop trigger if exists bar_cancel_absent on public.rsvps;
+drop function if exists private.bar_cancel_absent();
 create or replace function private.may_receive_push(uid uuid, kind text) returns boolean
 language sql stable security definer set search_path = '' as $$
   select private.is_member(uid)
@@ -146,7 +149,7 @@ drop function if exists private.guard_bar_unit(), private.guard_bar_append_only(
 alter table public.notification_prefs drop column if exists bar_served, drop column if exists bar_changed,
   drop column if exists bar_refund_declared, drop column if exists bar_refund_confirmed;
 
-delete from supabase_migrations.schema_migrations where version in ('20261110120000', '20261110130000');
+delete from supabase_migrations.schema_migrations where version in ('20261110120000', '20261110130000', '20261110140000');
 commit;
 
 notify pgrst, 'reload schema';

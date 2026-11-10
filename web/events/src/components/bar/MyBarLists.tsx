@@ -19,7 +19,7 @@ export function PendingList({ bar, busy, onCancel }: { bar: MyBar; busy: string 
         <View key={i.id} style={st.row}>
           <View style={{ flex: 1, minWidth: 0 }}>
             <T weight="semibold" size={15} numberOfLines={2}>{itemLabel(i)}</T>
-            <T muted size={12}>× {i.mine_pending} en attente · à servir</T>
+            <T muted size={12}>× {i.mine_pending} en attente · à servir{i.mine_pending_chf != null ? ` · ${barChf(i.mine_pending_chf)} (prix à la commande)` : ''}</T>
           </View>
           <Button small variant="danger" label="Annuler 1" accessibilityLabel={`Annuler 1 ${i.name}`}
             loading={busy === i.id} disabled={!!busy && busy !== i.id} onPress={() => onCancel(i.id, i.name)} />

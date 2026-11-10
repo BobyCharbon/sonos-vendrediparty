@@ -16,7 +16,7 @@ import { chf } from './tickets';
 export type BarPhase = 'waiting' | 'preorder' | 'open' | 'closed';
 export type PayMethod = 'revolut' | 'twint' | 'iban';
 export type AgeMin = 0 | 16 | 18;
-export type CancelReason = 'mine' | 'organizer' | 'closed' | 'removed' | null;
+export type CancelReason = 'mine' | 'organizer' | 'closed' | 'removed' | 'absent' | null;
 
 export type MyBarItem = {
   id: string; name: string; emoji: string | null; price_chf: number; age_min: AgeMin; max_pending: number | null;
@@ -24,6 +24,8 @@ export type MyBarItem = {
   available: number | null;
   /** Mes verres de cet article commandés, pas encore servis. */
   mine_pending: number;
+  /** Total de mes verres en attente de cet article, aux prix de la commande (absent des anciennes versions de la base). */
+  mine_pending_chf?: number;
 };
 export type Payee = {
   id: string | null; name: string | null; method: PayMethod; repay_by: string | null;
@@ -65,7 +67,8 @@ export type BarUnit = {
 };
 export type BarPersonDetail = { id: string; name: string | null; balance: number; pledges: string[]; units: BarUnit[] };
 
-export type ScanLine = { item: string; name: string; emoji: string | null; price_chf: number; age_min: AgeMin; qty: number; stock: number | null };
+/** `prices` : prix figé de chaque verre en attente, dans l'ordre où la base les sert (le prix de la carte a pu changer). */
+export type ScanLine = { item: string; name: string; emoji: string | null; price_chf: number; age_min: AgeMin; qty: number; stock: number | null; prices?: number[] };
 export type BarScan =
   | { result: 'ok'; member: string; name: string; avatar_url: string | null; pledged_at: string | null; balance: number; pending: ScanLine[] }
   | { result: 'closed' | 'not_present'; name: string | null }
@@ -200,7 +203,7 @@ export function phaseLine(bar: { phase: BarPhase; preorder_until: string | null;
 }
 
 export const CANCEL_LABEL: Record<Exclude<CancelReason, null>, string> = {
-  mine: 'annulé par toi', organizer: 'annulé par l’organisateur', closed: 'bar fermé, rien à payer', removed: 'retiré de la carte',
+  mine: 'annulé par toi', organizer: 'annulé par l’organisateur', closed: 'bar fermé, rien à payer', removed: 'retiré de la carte', absent: 'annulé : plus noté « Présent »',
 };
 export const cancelLabel = (reason: CancelReason) => (reason ? CANCEL_LABEL[reason] : 'corrigé : servi par erreur');
 
@@ -256,9 +259,18 @@ export const orderPayload = (lines: CartLine[]) => lines.map((l) => ({ item: l.i
 /** Au plus ce qui est en attente, et ce qu'il reste physiquement (stock − servis) si le stock est fixé. */
 export const serveMax = (line: ScanLine) => Math.max(0, Math.min(line.qty, line.stock ?? line.qty));
 
+/** Montant débité pour `qty` verres de cette ligne : les prix figés à la commande (test réel du 10.11 : le panneau annonçait
+ * 22.50 CHF au nouveau prix, la base débitait 21.00 au prix de la commande). */
+export function serveAmount(line: ScanLine, qty: number): number {
+  const prices = line.prices ?? [];
+  const known = prices.slice(0, qty).reduce((a, p) => a + Number(p), 0);
+  return round2(known + Math.max(qty - prices.length, 0) * line.price_chf);
+}
+
 export function servePicks(pending: ScanLine[], picks: Cart): { count: number; total: number; lines: { line: ScanLine; qty: number }[] } {
   const lines = pending.map((line) => ({ line, qty: Math.min(picks[line.item] ?? 0, serveMax(line)) })).filter((l) => l.qty > 0);
-  const { count, total } = linesTotal(lines.map((l) => ({ qty: l.qty, item: l.line })));
+  const count = lines.reduce((a, l) => a + l.qty, 0);
+  const total = round2(lines.reduce((a, l) => a + serveAmount(l.line, l.qty), 0));
   return { count, total, lines };
 }
 

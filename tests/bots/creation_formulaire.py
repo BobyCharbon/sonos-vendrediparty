@@ -458,7 +458,7 @@ def phase_erreurs(browser, origin, only=None):
         vip = f.chip(p, "👥 Vendredi Party")
         if vip.count() and f.selected(vip.first):
             p.tap(vip.first, "décocher Vendredi Party")
-        try_submit(p, "sur invitation sans groupe", "Choisis qui inviter")
+        # Invitations v2 (prod) : « Sur invitation » sans groupe est permis (les personnes s'invitent ensuite sur la fiche).
         f.audience_invite_groups(p, [GROUP_BOTS])
         # Mini-sondage incomplet
         p.tap(page.get_by_role("button", name="+ Ajouter un sondage"), "+ Ajouter un sondage")

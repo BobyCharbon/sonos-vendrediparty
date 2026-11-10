@@ -98,8 +98,9 @@ export default function EventScreen() {
         .single(),
       supabase.from('messages').select('*').eq('event_id', id).is('deleted_at', null).order('created_at', { ascending: false }).limit(2),
       supabase.from('event_mutes').select('event_id').eq('event_id', id).eq('user_id', me.id),
-      // Invités arrivés par le lien (lisible par les organisateurs et les admins : orange dans « Qui vient ? »).
-      supabase.from('event_invites').select('user_id').eq('event_id', id).eq('via_link', true),
+      // Invités (lisibles par les organisateurs et les admins) : ceux arrivés par le lien sont en orange dans « Qui vient ? »,
+      // et tous, même sans réponse, se trouvent dans Présences › « Ajouter quelqu'un » (test réel du bar, 10.11).
+      supabase.from('event_invites').select('user_id, via_link').eq('event_id', id),
       // Pastille des présents : totaux exacts même si la liste des participants est cachée.
       fetchAttendance([id]).catch(() => new Map()),
       // Noms des groupes invités : lisibles par qui voit l'événement, même sans faire partie du groupe.
@@ -115,7 +116,8 @@ export default function EventScreen() {
       : [{ data: [] }, { data: [] }];
     const votes = (allVotes.data ?? []) as { option_id: string; user_id: string }[];
     const msgs = (messages.data ?? []) as Message[];
-    const peopleIds = eventPeopleIds(event, votes, msgs);
+    const invites = (links.data ?? []) as { user_id: string; via_link: boolean }[];
+    const peopleIds = eventPeopleIds(event, votes, msgs, invites);
     const members = peopleIds.length ? await supabase.from('profiles').select('id, display_name').in('id', peopleIds) : { data: [] };
     return {
       event,
@@ -125,7 +127,7 @@ export default function EventScreen() {
       allVotes: votes,
       messages: msgs,
       muted: (mute.data ?? []).length > 0,
-      viaLink: new Set(((links.data ?? []) as { user_id: string }[]).map((l) => l.user_id)),
+      viaLink: new Set(invites.filter((l) => l.via_link).map((l) => l.user_id)),
       attendance: attendance.get(id) ?? null,
       groupNames: ((groupNames.data ?? []) as string[]).join(', '),
       loadedAt: Date.now(),
@@ -383,7 +385,7 @@ export default function EventScreen() {
         <TicketCard event={ev} me={me} answerKey={`${mine.status}:${mine.waitlisted}:${mine.plus_ones}:${paymentsTick}`} />
       ) : null}
       {/* Bar de la soirée : solde EN GRAND du présent, « Scanner au bar » du barman. */}
-      {barOn && published ? <BarEntry eventId={ev.id} zone="guest" /> : null}
+      {barOn && published ? <BarEntry eventId={ev.id} zone="guest" answer={mine?.status ?? ''} /> : null}
 
       {infoRows.length ? (
         <Card>

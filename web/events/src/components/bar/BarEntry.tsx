@@ -15,13 +15,15 @@ import { BarBalance } from './BarBalance';
 const SHARE_MS = 2000;
 const shared = new Map<string, { at: number; promise: Promise<MyBar | null> }>();
 
-function sharedMyBar(eventId: string): Promise<MyBar | null> {
-  const hit = shared.get(eventId);
+function sharedMyBar(eventId: string, answer: string): Promise<MyBar | null> {
+  // Ma réponse fait partie de la clé : « ✓ Présent » touché, la carte du bar se relit tout de suite (test réel du 10.11).
+  const key = `${eventId}:${answer}`;
+  const hit = shared.get(key);
   const now = Date.now();
   if (hit && now - hit.at < SHARE_MS) return hit.promise;
   const promise = fetchMyBar(eventId);
-  shared.set(eventId, { at: now, promise });
-  promise.catch(() => shared.delete(eventId));
+  shared.set(key, { at: now, promise });
+  promise.catch(() => shared.delete(key));
   return promise;
 }
 
@@ -30,8 +32,8 @@ function sharedMyBar(eventId: string): Promise<MyBar | null> {
  * - zone="organizer" (dans la ZONE ORGANISATEUR) : « Créer le bar de la soirée », puis « Gérer le bar » et « Scanner au bar » ;
  * - zone="guest" : la carte du présent avec son solde EN GRAND et « Ouvrir le bar › » ; le barman y trouve « Scanner au bar ».
  */
-export function BarEntry({ eventId, zone }: { eventId: string; zone: 'guest' | 'organizer' }) {
-  const { data: bar, error, loading, reload } = useQuery(() => sharedMyBar(eventId), [eventId]);
+export function BarEntry({ eventId, zone, answer = '' }: { eventId: string; zone: 'guest' | 'organizer'; answer?: string }) {
+  const { data: bar, error, loading, reload } = useQuery(() => sharedMyBar(eventId, answer), [eventId, answer]);
   useBarRefresh(reload, barOn && !!bar && bar.phase !== 'closed');
   const [busy, setBusy] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);

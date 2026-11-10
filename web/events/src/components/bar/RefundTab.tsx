@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useMe } from '@/lib/auth';
+import { useQuery } from '@/lib/data';
+import { supabase } from '@/lib/supabase';
 import { barSaveSettings, errorText, type BarOverview, type BarSettings, type EventPeople, type PayMethod } from '@/lib/bar';
 import { colors, radius } from '@/lib/theme';
 
@@ -16,6 +18,12 @@ const METHODS: { key: PayMethod; label: string; hint: string }[] = [
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+/** Le profil de paiement (Pot commun) a-t-il ce moyen ? Sinon les invités n'auraient ni numéro, ni lien, ni IBAN. */
+function hasMethod(pay: { iban: string | null; links: Record<string, string> | null } | null, method: PayMethod): boolean {
+  if (method === 'iban') return !!pay?.iban?.trim();
+  return !!pay?.links?.[method]?.trim();
+}
+
 /** Onglet « Rembourser » : moyen, bénéficiaire (organisateur ou co-organisateur), date limite ; ces choix forment le
  * texte d'engagement que chaque invité coche avant de commander (nouvelle version : chacun est prévenu). */
 export function RefundTab({ eventId, overview, people, onOverview, onSaved }: {
@@ -29,6 +37,12 @@ export function RefundTab({ eventId, overview, people, onOverview, onSaved }: {
   const [repayBy, setRepayBy] = useState(overview.repay_by ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Le profil de paiement de l'organisateur lui-même (celui d'un co-organisateur n'est pas toujours lisible).
+  const { data: myPay, loading: payLoading } = useQuery(async () => {
+    const { data } = await supabase.from('tc_payment').select('iban, links').eq('user_id', me.id).maybeSingle();
+    return (data ?? null) as { iban: string | null; links: Record<string, string> | null } | null;
+  }, [me.id]);
+  const missing = payee === me.id && !payLoading && !hasMethod(myPay, method);
   const dirty = method !== overview.pay_method || payee !== overview.payee_id || repayBy !== (overview.repay_by ?? '');
 
   async function save() {
@@ -69,6 +83,11 @@ export function RefundTab({ eventId, overview, people, onOverview, onSaved }: {
               label={`${people?.profiles.get(id)?.name ?? 'Organisateur'}${id === me.id ? ' (toi)' : ''}`} />
           ))}
         </View>
+        {missing ? (
+          <T size={13} color={colors.coral}>
+            Ton profil de paiement n’a pas de {METHODS.find((m) => m.key === method)?.label} : les invités ne sauront pas où te rembourser. Ajoute-le dans Réglages › Pot commun › Mon profil de paiement.
+          </T>
+        ) : null}
         <DateField label="À rembourser avant le" value={repayBy} onChange={setRepayBy} min={today()}
           hint="Vide : « après la soirée », sans date limite." />
       </Section>

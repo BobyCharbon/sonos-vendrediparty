@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import {
   ageWarnings, amount, barChf, barServe, errorCode, errorText, itemLabel, newClientKey, round2, serveMax, servePicks,
-  type BarScan, type Cart,
+  serveAmount, type BarScan, type Cart, type ScanLine,
 } from '@/lib/bar';
 import { formatTime, plural } from '@/lib/format';
 import { enter } from '@/lib/motion';
@@ -23,6 +23,13 @@ type Person = Extract<BarScan, { result: 'ok' }>;
  * Après le scan (barman) : la personne, son engagement, son solde, ce qu'elle a commandé ; le barman choisit (0…quantité)
  * puis « Servir ». Une clé par geste : un double toucher ou une reprise réseau ne sert jamais deux fois.
  */
+/** Prix figés des verres en attente : « 5 CHF », ou « 5–5.50 CHF » si la carte a changé entre deux commandes. */
+function pricesLabel(l: ScanLine): string {
+  const prices = (l.prices ?? [l.price_chf]).map(Number);
+  const lo = Math.min(...prices), hi = Math.max(...prices);
+  return lo === hi ? barChf(lo) : `${barChf(lo).replace(/\s*CHF$/, '')}–${barChf(hi)}`;
+}
+
 export function ServePanel({ eventId, person, onServed, onStale, onNext }: {
   eventId: string; person: Person; onServed: (s: Served) => void; onStale: () => void; onNext: () => void;
 }) {
@@ -51,7 +58,7 @@ export function ServePanel({ eventId, person, onServed, onStale, onNext }: {
       const debited = Number(r.total);
       onServed({
         serveId: r.serve_id, name: who, total: debited, before: r.balance_before ?? round2(Number(r.balance) - debited), after: Number(r.balance),
-        lines: lines.map((l) => ({ label: itemLabel(l.line), qty: l.qty, total: round2(l.qty * l.line.price_chf) })),
+        lines: lines.map((l) => ({ label: itemLabel(l.line), qty: l.qty, total: serveAmount(l.line, l.qty) })),
       });
     } catch (e) {
       const code = errorCode(e);
@@ -88,7 +95,7 @@ export function ServePanel({ eventId, person, onServed, onStale, onNext }: {
                 <View style={st.tile}><Text style={{ fontSize: 20 }}>{l.emoji || '🍹'}</Text></View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <T weight="semibold" size={15} numberOfLines={2}>{l.name}</T>
-                  <T muted size={12}>{plural(l.qty, 'commandé')}{l.stock != null ? ` · stock ${l.stock}` : ''} · {barChf(l.price_chf)}</T>
+                  <T muted size={12}>{plural(l.qty, 'commandé')}{l.stock != null ? ` · stock ${l.stock}` : ''} · {pricesLabel(l)}</T>
                 </View>
                 <Stepper label={l.name} value={qty} max={serveMax(l)} tone="mint" hideZero disabled={busy} onChange={(n) => pick(l.item, n)} />
               </View>
