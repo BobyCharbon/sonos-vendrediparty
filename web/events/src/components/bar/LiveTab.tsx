@@ -2,11 +2,12 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { amount, barChf, barConfirmRefund, errorText, round2, stockParts, type BarItem, type BarOverview, type BarPerson } from '@/lib/bar';
+import { amount, barChf, barConfirmRefund, errorText, optionsOf, round2, stockParts, type BarItem, type BarOverview, type BarPerson } from '@/lib/bar';
 import { formatTime, plural } from '@/lib/format';
 import { colors, font, radius } from '@/lib/theme';
 
 import { Avatar, Badge, Button, ErrorText, Meter, Section, T } from '../ui';
+import { StockLog } from './StockLog';
 
 const PART = { served: colors.lavender, pending: colors.coral, free: colors.mint };
 
@@ -22,6 +23,7 @@ function StockLine({ item }: { item: BarItem }) {
     <View style={{ gap: 5 }}>
       <View style={st.line}>
         <T weight="semibold" size={14} style={{ flex: 1 }} numberOfLines={1}>{item.emoji ? `${item.emoji} ` : ''}{item.name}</T>
+        {item.unavailable ? <Badge label="Indisponible" fg={colors.textSoft} bg={colors.surface2} /> : null}
         {right}
       </View>
       {parts ? <Meter height={8} parts={[{ fraction: parts.served, color: PART.served }, { fraction: parts.pending, color: PART.pending },
@@ -48,6 +50,7 @@ export function LiveTab({ eventId, overview, onOverview }: { eventId: string; ov
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const t = overview.totals;
+  const free = optionsOf(overview).free_bar;
   // Ce qui reste à recevoir : la somme des soldes positifs (un « à lui rendre » ne cache pas ce que doivent les autres).
   const due = round2(overview.people.reduce((sum, p) => sum + Math.max(p.balance, 0), 0));
   const people = [...overview.people].sort((a, b) => (b.declared?.length ?? 0) - (a.declared?.length ?? 0) || b.balance - a.balance);
@@ -68,8 +71,14 @@ export function LiveTab({ eventId, overview, onOverview }: { eventId: string; ov
     <>
       <View style={st.stats}>
         <View style={st.stat}><Text style={st.big}>{t.served}</Text><T muted size={12} style={st.center}>servis</T></View>
-        <View style={st.stat}><Text style={[st.big, { color: colors.coral }]}>{amount(due)}</Text><T muted size={12} style={st.center}>CHF à recevoir</T></View>
-        <View style={st.stat}><Text style={[st.big, { color: colors.mint }]}>{amount(t.refunded_chf)}</Text><T muted size={12} style={st.center}>CHF remboursés</T></View>
+        {free ? (
+          <View style={st.stat}><Text style={[st.big, { color: colors.mint }]}>{t.served}</Text><T muted size={12} style={st.center}>offerts (bar offert)</T></View>
+        ) : (
+          <>
+            <View style={st.stat}><Text style={[st.big, { color: colors.coral }]}>{amount(due)}</Text><T muted size={12} style={st.center}>CHF à recevoir</T></View>
+            <View style={st.stat}><Text style={[st.big, { color: colors.mint }]}>{amount(t.refunded_chf)}</Text><T muted size={12} style={st.center}>CHF remboursés</T></View>
+          </>
+        )}
       </View>
       <Section title="Stock virtuel">
         {overview.items.length === 0 ? <T muted size={14}>Pas encore d’article.</T> : null}
@@ -83,6 +92,7 @@ export function LiveTab({ eventId, overview, onOverview }: { eventId: string; ov
           ))}
         </View>
       </Section>
+      <StockLog log={overview.stock_log} />
       {overview.cancellations.length ? (
         <Section title="Dernières annulations">
           {overview.cancellations.map((c, i) => (

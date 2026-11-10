@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 import httpx
 import pytest
 
-from tests.supabase_live.test_audiences_live import ADMIN, GUEST_A, VIP, create_event
+from tests.supabase_live.test_audiences_live import ADMIN, GUEST_A, VIP, complete_profile, create_event
 from tests.supabase_live.test_invitations_v2_live import terms_version
 from tests.supabase_live.test_member_admin_live import KEY_FILE, LOCAL_TEST, TEST_URL, Session, pytestmark as live  # noqa: F401
 from tests.supabase_live.test_rsvp_digest_live import sql
@@ -86,6 +86,7 @@ def bar():
     admin, guest, barman = Session(ADMIN), Session(GUEST_A), Session(VIP)
     for s in (admin, guest, barman):
         assert s.rpc('accept_terms', p_version=terms_version()).status_code in (200, 204)
+    complete_profile(barman, 'VIP test')  # remis à vide par la recette de l'inscription : le bar exige un profil complet
     event = create_event(admin, 'Soirée bar recette', visibility='all', public_link=True)
     for s in (admin, guest, barman):
         r = httpx.post(f'{TEST_URL}/rest/v1/rsvps', headers=s.headers, timeout=30, json={'event_id': event, 'user_id': s.uid, 'status': 'yes'})

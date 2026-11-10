@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { barChf, barOrder, errorCode, errorText, itemLabel, linesTotal, orderPayload, round2, type CartLine, type MyBar } from '@/lib/bar';
+import { barChf, barOrder, errorCode, errorText, itemLabel, linesTotal, optionsOf, orderPayload, round2, type CartLine, type MyBar } from '@/lib/bar';
 import { plural } from '@/lib/format';
 import { colors, font, radius } from '@/lib/theme';
 
@@ -21,7 +21,7 @@ type Props = {
   onStale: () => void;
 };
 
-const STALE = new Set(['terms_changed', 'stock', 'max_pending']);
+const STALE = new Set(['terms_changed', 'stock', 'max_pending', 'unavailable', 'max_person', 'limit_glasses', 'limit_chf', 'counter_only']);
 
 /**
  * Feuille « Valider la commande » : total, solde si tout est servi, et l'engagement à cocher — le texte EXACT de la base
@@ -44,7 +44,9 @@ export function OrderSheet({ eventId, bar, lines, open, onClose, onDone, onStale
   useSheetDrag(open, close, card, overlay);
 
   const pledgeKey = `${bar.pledge_version}|${bar.pledge_text}`;
-  const checked = checkedFor === pledgeKey;
+  // Bar offert : rien à rembourser, pas d'engagement à cocher.
+  const free = optionsOf(bar).free_bar;
+  const checked = free || checkedFor === pledgeKey;
   const { count, total } = linesTotal(lines);
   const after = round2(bar.balance + bar.pending_total + total);
 
@@ -52,7 +54,7 @@ export function OrderSheet({ eventId, bar, lines, open, onClose, onDone, onStale
     setBusy(true);
     setError(null);
     try {
-      const next = await barOrder(eventId, orderPayload(lines), bar.pledge_text, bar.pledge_version);
+      const next = await barOrder(eventId, orderPayload(lines), free ? null : bar.pledge_text, free ? null : bar.pledge_version);
       setCheckedFor(null);
       onDone(next);
     } catch (e) {
@@ -63,7 +65,7 @@ export function OrderSheet({ eventId, bar, lines, open, onClose, onDone, onStale
       } else {
         setError(code === 'stock' || code === 'max_pending'
           ? `${errorText(e, 'Plus assez de stock.')} Ta commande a été ajustée : vérifie-la.`
-          : lostAnswer(errorText(e, LOST)));
+          : code && STALE.has(code) ? errorText(e, 'Commande refusée.') : lostAnswer(errorText(e, LOST)));
       }
       // Code connu (stock, maximum, conditions) ou réponse perdue : on relit « Mon bar » avant tout nouvel envoi
       // (la commande a peut-être été enregistrée : vérifier « En attente » plutôt que la renvoyer).
@@ -83,25 +85,25 @@ export function OrderSheet({ eventId, bar, lines, open, onClose, onDone, onStale
           {lines.map((l) => (
             <View key={l.item.id} style={st.kv}>
               <T size={15} style={{ flex: 1 }}>{itemLabel(l.item)} × {l.qty}</T>
-              <T size={15} weight="semibold">{barChf(l.qty * l.item.price_chf)}</T>
+              {free ? null : <T size={15} weight="semibold">{barChf(l.qty * l.item.price_chf)}</T>}
             </View>
           ))}
           {lines.length === 0 ? <T muted size={14}>Plus rien à commander : le stock a changé.</T> : null}
           <View style={[st.kv, st.total]}>
             <T size={15}>{plural(count, 'article')}</T>
-            <Text style={st.amount}>{barChf(total)}</Text>
+            <Text style={st.amount}>{free ? 'Offert' : barChf(total)}</Text>
           </View>
-          <T size={14} color={colors.textSoft}>Ton solde si tout est servi : {barChf(bar.balance)} → {barChf(after)}</T>
+          {free ? null : <T size={14} color={colors.textSoft}>Ton solde si tout est servi : {barChf(bar.balance)} → {barChf(after)}</T>}
           {bar.phase === 'preorder' ? <T size={13} muted>Précommande : servie au bar une fois ouvert.</T> : null}
-          <Pressable accessibilityRole="checkbox" accessibilityState={{ checked }} aria-checked={checked}
+          {free ? null : <Pressable accessibilityRole="checkbox" accessibilityState={{ checked }} aria-checked={checked}
             onPress={() => setCheckedFor(checked ? null : pledgeKey)}
             style={({ pressed }) => [st.check, checked && st.checkOn, pressed && { opacity: 0.85 }]}>
             <View style={[st.box, checked && st.boxOn]}>{checked ? <Text style={st.tick}>✓</Text> : null}</View>
             <T size={14} style={{ flex: 1, lineHeight: 20 }}>{bar.pledge_text}</T>
-          </Pressable>
+          </Pressable>}
           <Button label="Valider la commande" disabled={!checked || !count} loading={busy} onPress={() => void submit()} />
           <ErrorText error={error} />
-          <T muted size={12}>Rien n’est dû avant le service au bar. Tu peux annuler ce qui n’est pas encore servi.</T>
+          <T muted size={12}>{free ? 'Bar offert : rien à payer.' : 'Rien n’est dû avant le service au bar.'} Tu peux annuler ce qui n’est pas encore servi.</T>
         </View>
       </View>
     </Modal>

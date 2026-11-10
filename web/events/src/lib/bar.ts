@@ -16,7 +16,22 @@ import { chf } from './tickets';
 export type BarPhase = 'waiting' | 'preorder' | 'open' | 'closed';
 export type PayMethod = 'revolut' | 'twint' | 'iban';
 export type AgeMin = 0 | 16 | 18;
-export type CancelReason = 'mine' | 'organizer' | 'closed' | 'removed' | 'absent' | null;
+export type CancelReason = 'mine' | 'organizer' | 'closed' | 'removed' | 'absent' | 'undone' | null;
+export type BarCategory = 'softs' | 'bieres' | 'vins' | 'cocktails' | 'shots' | 'autre';
+
+/** Options de l'organisateur (migration 20261110160000) ; absentes d'une base pas encore migrée (valeurs par défaut). */
+export type BarOptions = {
+  guest_orders: boolean; counter_serve: boolean; show_stock: boolean; free_bar: boolean;
+  limit_glasses: number | null; limit_chf: number | null;
+  staff_adjust_stock: boolean; staff_unavailable: boolean; staff_correct: boolean; staff_prices: boolean; staff_items: boolean;
+};
+/** Ce que je peux faire pendant la soirée (barman : ce que l'organisateur permet ; organisateur : tout). */
+export type BarRights = { adjust_stock: boolean; unavailable: boolean; correct: boolean; prices: boolean; items: boolean };
+export const DEFAULT_OPTIONS: BarOptions = {
+  guest_orders: true, counter_serve: false, show_stock: true, free_bar: false, limit_glasses: null, limit_chf: null,
+  staff_adjust_stock: true, staff_unavailable: true, staff_correct: true, staff_prices: false, staff_items: false,
+};
+export const optionsOf = (x: { options?: BarOptions | null }): BarOptions => ({ ...DEFAULT_OPTIONS, ...(x.options ?? {}) });
 
 export type MyBarItem = {
   id: string; name: string; emoji: string | null; price_chf: number; age_min: AgeMin; max_pending: number | null;
@@ -26,6 +41,13 @@ export type MyBarItem = {
   mine_pending: number;
   /** Total de mes verres en attente de cet article, aux prix de la commande (absent des anciennes versions de la base). */
   mine_pending_chf?: number;
+  category?: BarCategory; detail?: string | null; max_per_person?: number | null;
+  /** « Indisponible pour l'instant » (barman) : visible grisé, plus de nouvelle commande. */
+  unavailable?: boolean;
+  /** Épuisé, même quand le stock n'est pas montré. */
+  sold_out?: boolean;
+  /** Mes verres de cet article sur la soirée (servis + en attente), pour le maximum par personne. */
+  mine_total?: number;
 };
 export type Payee = {
   id: string | null; name: string | null; method: PayMethod; repay_by: string | null;
@@ -42,12 +64,22 @@ export type MyBar = {
   served: { at: string; item: string; emoji: string | null; price_chf: number }[];
   cancelled: { item: string; emoji: string | null; reason: CancelReason; at: string | null }[];
   pledges: string[];
+  options?: BarOptions;
+  rights?: BarRights | null;
+  /** Engagement de la version en cours déjà accepté (service au comptoir sans commande). */
+  pledged_current?: boolean;
+  /** Ma soirée (servis + en attente) : pour les limites par personne. */
+  mine?: { glasses: number; chf: number };
 };
 
 export type BarItem = {
   id: string; name: string; emoji: string | null; price_chf: number; stock: number | null; age_min: AgeMin;
   max_pending: number | null; sort: number; active: boolean; served: number; pending: number; available: number | null;
+  category?: BarCategory; detail?: string | null; max_per_person?: number | null; unavailable?: boolean;
+  /** Reste physique (stock − servis) ; null : illimité. */
+  left?: number | null;
 };
+export type StockLogEntry = { at: string; actor: string | null; item: string | null; kind: string; qty: number | null; amount: number | null };
 export type BarStaff = { id: string; name: string; avatar_url: string | null; served: number };
 export type BarPerson = {
   id: string; name: string; avatar_url: string | null; balance: number; pending: number; served: number;
@@ -60,6 +92,8 @@ export type BarOverview = {
   items: BarItem[]; staff: BarStaff[]; people: BarPerson[];
   totals: { served: number; served_chf: number; refunded_chf: number };
   cancellations: { at: string; name: string | null; item: string | null; qty: number | null; kind: string }[];
+  options?: BarOptions;
+  stock_log?: StockLogEntry[];
 };
 export type BarUnit = {
   id: string; item: string; name: string; emoji: string | null; price_chf: number;
@@ -69,8 +103,14 @@ export type BarPersonDetail = { id: string; name: string | null; balance: number
 
 /** `prices` : prix figé de chaque verre en attente, dans l'ordre où la base les sert (le prix de la carte a pu changer). */
 export type ScanLine = { item: string; name: string; emoji: string | null; price_chf: number; age_min: AgeMin; qty: number; stock: number | null; prices?: number[] };
+/** Carte du comptoir (service sans commande). */
+export type CounterItem = {
+  item: string; name: string; emoji: string | null; detail?: string | null; category?: BarCategory; price_chf: number;
+  age_min: AgeMin; unavailable: boolean; available: number | null;
+};
 export type BarScan =
-  | { result: 'ok'; member: string; name: string; avatar_url: string | null; pledged_at: string | null; balance: number; pending: ScanLine[] }
+  | { result: 'ok'; member: string; name: string; avatar_url: string | null; pledged_at: string | null; balance: number; pending: ScanLine[];
+      pledged_current?: boolean; free?: boolean; counter?: boolean; rights?: BarRights | null; menu?: CounterItem[] }
   | { result: 'closed' | 'not_present'; name: string | null }
   | { result: 'unknown' | 'other_event' };
 export type ServeResult = {
@@ -80,11 +120,12 @@ export type ServeResult = {
 export type ItemInput = {
   id?: string; name: string; emoji: string | null; price_chf?: number; stock?: number | null; age_min?: AgeMin;
   max_pending?: number | null; active?: boolean;
+  category?: BarCategory; detail?: string | null; max_per_person?: number | null; unavailable?: boolean;
 };
 export type BarSettings = Partial<{
   orders_open: boolean; preorder_enabled: boolean; preorder_until: string | null; closes_at: string;
   pay_method: PayMethod; repay_by: string | null; payee_id: string;
-}>;
+} & BarOptions>;
 
 /** Refus de la base : message lisible (sans « stock: »), et le code gardé pour que l'écran réagisse. */
 export class BarError extends Error {
@@ -127,7 +168,7 @@ export async function fetchMyBar(e: string): Promise<MyBar | null> {
   return (data as MyBar | null) ?? null;
 }
 
-export const barOrder = (e: string, lines: { item: string; qty: number }[], pledgeText: string, pledgeVersion: number) =>
+export const barOrder = (e: string, lines: { item: string; qty: number }[], pledgeText: string | null, pledgeVersion: number | null) =>
   call<MyBar>('bar_order', { e, lines, pledge_text: pledgeText, pledge_version: pledgeVersion }, 'La commande n’a pas pu être envoyée.');
 export const barCancelMine = (e: string, item: string, qty: number) =>
   call<MyBar>('bar_cancel_mine', { e, item, qty }, 'L’annulation n’a pas pu être enregistrée.');
@@ -135,7 +176,7 @@ export const barDeclareRefund = (e: string, amount: number) =>
   call<MyBar>('bar_declare_refund', { e, amount }, 'Le remboursement n’a pas pu être annoncé.');
 
 export const barScan = (e: string, scanned: string) => call<BarScan>('bar_scan', { e, scanned }, 'Le QR n’a pas pu être lu.');
-export const barServe = (e: string, member: string, lines: { item: string; qty: number }[], clientKey: string) =>
+export const barServe = (e: string, member: string, lines: { item: string; qty: number; extra?: number }[], clientKey: string) =>
   call<ServeResult>('bar_serve', { e, member, lines, client_key: clientKey }, 'Le service n’a pas pu être enregistré.');
 export const barUndoServe = (e: string, serve: string) =>
   call<{ undone: number; balance: number }>('bar_undo_serve', { e, serve }, 'L’annulation n’a pas pu être enregistrée.');
@@ -148,11 +189,22 @@ export const barSaveSettings = (e: string, settings: BarSettings) =>
   call<BarOverview>('bar_save_settings', { e, settings }, 'Les réglages n’ont pas pu être enregistrés.');
 export const barSetStaff = (e: string, member: string, barman: boolean) =>
   call<BarOverview>('bar_set_staff', { e, member, barman }, 'Le barman n’a pas pu être enregistré.');
+/** Gestes de la soirée sur un article : « Il en reste… », « + Réassort », « Indisponible », « De nouveau dispo », « Prix ». */
+export type ItemAction = 'remaining' | 'restock' | 'unavailable' | 'available' | 'price';
+export const barItemAction = (e: string, item: string, action: ItemAction, amount: number | null = null) =>
+  call<BarItem>('bar_item_action', { e, item, action, amount }, 'Le changement n’a pas pu être enregistré.');
+export const barStaffItems = (e: string) =>
+  call<{ rights: BarRights | null; items: BarItem[] }>('bar_staff_items', { e }, 'La carte n’a pas pu être lue.');
+export const barPledge = (e: string, pledgeText: string, pledgeVersion: number) =>
+  call<MyBar>('bar_pledge', { e, pledge_text: pledgeText, pledge_version: pledgeVersion }, 'L’engagement n’a pas pu être enregistré.');
 export const barConfirmRefund = (e: string, refund: string, received: boolean) =>
   call<BarOverview>('bar_confirm_refund', { e, refund, received }, 'La réponse n’a pas pu être enregistrée.');
 export const barPerson = (e: string, member: string) => call<BarPersonDetail>('bar_person', { e, member }, 'La fiche n’a pas pu être lue.');
 export const barCancelUnits = (e: string, member: string, item: string, qty: number) =>
   call<BarPersonDetail>('bar_cancel_units', { e, member, item, qty }, 'L’annulation n’a pas pu être enregistrée.');
+/** Barman autorisé : annuler un verre en attente de la personne servie (la base répond { cancelled }). */
+export const barStaffCancel = (e: string, member: string, item: string, qty = 1) =>
+  call<{ cancelled: number }>('bar_cancel_units', { e, member, item, qty }, 'L’annulation n’a pas pu être enregistrée.');
 export const barCorrectUnit = (e: string, unit: string) =>
   call<BarPersonDetail>('bar_correct_unit', { e, unit }, 'La correction n’a pas pu être enregistrée.');
 
@@ -204,6 +256,7 @@ export function phaseLine(bar: { phase: BarPhase; preorder_until: string | null;
 
 export const CANCEL_LABEL: Record<Exclude<CancelReason, null>, string> = {
   mine: 'annulé par toi', organizer: 'annulé par l’organisateur', closed: 'bar fermé, rien à payer', removed: 'retiré de la carte', absent: 'annulé : plus noté « Présent »',
+  undone: 'service annulé par le barman, rien à payer',
 };
 export const cancelLabel = (reason: CancelReason) => (reason ? CANCEL_LABEL[reason] : 'corrigé : servi par erreur');
 
@@ -218,15 +271,23 @@ export const itemLabel = (i: { emoji: string | null; name: string }) => (i.emoji
 export const MAX_LINE_QTY = 50;
 
 export type Cart = Readonly<Record<string, number>>;
-export type AddLimit = { max: number; reason: 'stock' | 'max_pending' | 'line' };
+export type AddLimit = { max: number; reason: 'stock' | 'max_pending' | 'line' | 'unavailable' | 'max_person' };
 
-export const canOrder = (bar: Pick<MyBar, 'eligible' | 'phase'>) => bar.eligible && (bar.phase === 'open' || bar.phase === 'preorder');
+/** Commander dans l'app : présent, phase ouverte (ou précommande), et l'organisateur n'a pas réservé les commandes au comptoir. */
+export const canOrder = (bar: Pick<MyBar, 'eligible' | 'phase' | 'options'>) =>
+  bar.eligible && (bar.phase === 'open' || bar.phase === 'preorder') && optionsOf(bar).guest_orders;
 
 /** Combien je peux mettre dans ma commande pour cet article, et ce qui bloque d'abord. Précommande : sans maximum en
  * attente (la base l'ignore), mais toujours dans le stock. */
 export function addLimit(item: MyBarItem, phase: BarPhase): AddLimit {
+  if (item.unavailable) return { max: 0, reason: 'unavailable' };
+  if (item.sold_out && item.available == null) return { max: 0, reason: 'stock' };
   let limit: AddLimit = { max: MAX_LINE_QTY, reason: 'line' };
   if (item.available != null && item.available < limit.max) limit = { max: Math.max(0, item.available), reason: 'stock' };
+  if (item.max_per_person != null) {
+    const left = Math.max(0, item.max_per_person - (item.mine_total ?? item.mine_pending));
+    if (left < limit.max) limit = { max: left, reason: 'max_person' };
+  }
   if (phase === 'open' && item.max_pending != null) {
     const left = Math.max(0, item.max_pending - item.mine_pending);
     if (left < limit.max) limit = { max: left, reason: 'max_pending' };
@@ -289,11 +350,16 @@ export function newClientKey(): string {
 
 // --- Gestion (organisateurs) -----------------------------------------------------------------------------------------
 
-export type ItemDraft = { name: string; emoji: string; price: string; stock: string; maxPending: string; age: AgeMin; active: boolean };
+export type ItemDraft = {
+  name: string; emoji: string; price: string; stock: string; maxPending: string; age: AgeMin; active: boolean;
+  category: BarCategory; detail: string; maxPerPerson: string; unavailable: boolean;
+};
 
 export const draftOf = (i?: BarItem): ItemDraft => ({
   name: i?.name ?? '', emoji: i?.emoji ?? '', price: i ? String(i.price_chf) : '', stock: i?.stock != null ? String(i.stock) : '',
   maxPending: i?.max_pending != null ? String(i.max_pending) : '', age: i?.age_min ?? 0, active: i?.active ?? true,
+  category: i?.category ?? 'autre', detail: i?.detail ?? '', maxPerPerson: i?.max_per_person != null ? String(i.max_per_person) : '',
+  unavailable: i?.unavailable ?? false,
 });
 
 const WHOLE = /^\d+$/;
@@ -315,9 +381,16 @@ export function parseItemDraft(d: ItemDraft, id?: string): { input: ItemInput } 
   if (maxText && (!WHOLE.test(maxText) || Number(maxText) < 1 || Number(maxText) > 50)) {
     return { error: 'Maximum en attente : de 1 à 50, ou vide pour sans limite.' };
   }
+  const detail = d.detail.trim();
+  if (detail.length > 30) return { error: 'Précision : 30 signes au plus (par exemple « 33 cl »).' };
+  const perText = d.maxPerPerson.trim();
+  if (perText && (!WHOLE.test(perText) || Number(perText) < 1 || Number(perText) > 100)) {
+    return { error: 'Maximum par personne pour la soirée : de 1 à 100, ou vide pour sans limite.' };
+  }
   return { input: {
-    ...(id ? { id, active: d.active } : {}), name, emoji: emoji || null, price_chf: price,
+    ...(id ? { id, active: d.active, unavailable: d.unavailable } : {}), name, emoji: emoji || null, price_chf: price,
     stock: stockText ? Number(stockText) : null, max_pending: maxText ? Number(maxText) : null, age_min: d.age,
+    category: d.category, detail: detail || null, max_per_person: perText ? Number(perText) : null,
   } };
 }
 

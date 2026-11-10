@@ -55,19 +55,27 @@ export function ServedPanel({ eventId, served, onUndone, onNext }: {
         {served.lines.map((l) => (
           <View key={l.label} style={st.kv}>
             <T size={15} style={{ flex: 1 }}>{l.label} × {l.qty}</T>
-            <T size={15} weight="semibold">{barChf(l.total)}</T>
+            {served.free ? null : <T size={15} weight="semibold">{barChf(l.total)}</T>}
           </View>
         ))}
-        <View style={[st.kv, st.sum]}>
-          <T size={15} weight="bold" style={{ flex: 1 }}>Débité</T>
-          <T size={17} weight="bold">{barChf(served.total)}</T>
-        </View>
-        <View style={st.kv}>
-          <T size={13} muted style={{ flex: 1 }}>Solde de {served.name}</T>
-          <T size={14} weight="bold">{barChf(served.before)} → {barChf(served.after)}</T>
-        </View>
+        {served.free ? (
+          <View style={[st.kv, st.sum]}><T size={15} weight="bold" style={{ flex: 1 }}>Bar offert : rien à payer</T></View>
+        ) : (
+          <>
+            <View style={[st.kv, st.sum]}>
+              <T size={15} weight="bold" style={{ flex: 1 }}>Débité</T>
+              <T size={17} weight="bold">{barChf(served.total)}</T>
+            </View>
+            <View style={st.kv}>
+              <T size={13} muted style={{ flex: 1 }}>Solde de {served.name}</T>
+              <T size={14} weight="bold">{barChf(served.before)} → {barChf(served.after)}</T>
+            </View>
+          </>
+        )}
       </View>
-      {left > 0 ? (
+      {served.canUndo === false ? (
+        <T muted size={13} style={{ textAlign: 'center' }}>L’organisateur garde l’annulation des services : demande-lui de corriger si besoin.</T>
+      ) : left > 0 ? (
         <View style={{ gap: 6 }}>
           <BigButton tone="red" label={`Annuler · ${left} s`} accessibilityLabel={`Annuler ce service, encore ${left} secondes`}
             loading={busy} onPress={() => void undo()} />

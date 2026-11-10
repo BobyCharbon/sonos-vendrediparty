@@ -10,12 +10,13 @@ import { Badge, Button, Empty, ErrorText, Loading, Screen, Segmented, T, Toast }
 import { BarHeader } from './BarHeader';
 import { ItemsTab } from './ItemsTab';
 import { LiveTab } from './LiveTab';
+import { OptionsTab } from './OptionsTab';
 import { RefundTab } from './RefundTab';
 import { StaffTab } from './StaffTab';
 
-type Tab = 'items' | 'refund' | 'staff' | 'live';
+type Tab = 'items' | 'options' | 'refund' | 'staff' | 'live';
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'items', label: 'Articles' }, { key: 'refund', label: 'Rembourser' }, { key: 'staff', label: 'Barmans' }, { key: 'live', label: 'Direct' },
+  { key: 'items', label: 'Articles' }, { key: 'options', label: 'Options' }, { key: 'refund', label: 'Rembourser' }, { key: 'staff', label: 'Barmans' }, { key: 'live', label: 'Direct' },
 ];
 
 const back = (eventId: string) => (router.canGoBack() ? router.back() : router.replace(`/event/${eventId}`));
@@ -38,7 +39,7 @@ function NoBar({ eventId, onCreated }: { eventId: string; onCreated: (o: BarOver
 }
 
 /**
- * Gérer le bar (organisateur, co-organisateurs, admin) : 4 onglets — Articles · Rembourser · Barmans · Direct.
+ * Gérer le bar (organisateur, co-organisateurs, admin) : 5 onglets — Articles · Options · Rembourser · Barmans · Direct.
  * Relu toutes les 10 s et après chaque geste ; la base refuse tout le reste (« réservé aux organisateurs »).
  */
 export function BarManage({ eventId }: { eventId: string }) {
@@ -72,6 +73,7 @@ export function BarManage({ eventId }: { eventId: string }) {
       </View>
       <Segmented options={TABS} value={tab} onChange={setTab} />
       {tab === 'items' ? <ItemsTab {...props} reload={() => void reload()} /> : null}
+      {tab === 'options' ? <OptionsTab {...props} /> : null}
       {tab === 'refund' ? <RefundTab key={`${overview.pay_method}|${overview.payee_id}|${overview.repay_by}`} {...props} people={people}
         onSaved={() => setToast('Conditions enregistrées : les invités qui ont commandé sont prévenus.')} /> : null}
       {tab === 'staff' ? <StaffTab {...props} people={people} /> : null}

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import {
-  barCancelMine, barChf, barDeclareRefund, canOrder, cartLines, errorText, fetchMyBar, phaseLine, PHASE_LABEL, useBarRefresh,
+  barCancelMine, barChf, barDeclareRefund, canOrder, cartLines, errorText, fetchMyBar, optionsOf, phaseLine, PHASE_LABEL, useBarRefresh,
   type BarPhase, type Cart, type MyBar,
 } from '@/lib/bar';
 import { useQuery } from '@/lib/data';
@@ -17,6 +17,7 @@ import { WalletButton } from '../WalletButton';
 import { BarQr } from './BarQr';
 import { CancelledList, PendingList, PledgesLine, ServedList } from './MyBarLists';
 import { OrderSheet } from './OrderSheet';
+import { needsCounterPledge, PledgeCard } from './PledgeCard';
 import { RefundCard } from './RefundCard';
 
 const PHASE_TONE: Record<BarPhase, { fg: string; bg: string }> = {
@@ -31,7 +32,9 @@ const back = (eventId: string) => (router.canGoBack() ? router.back() : router.r
 /** Où en est le bar, et ce que je peux faire maintenant. */
 function PhaseCard({ bar }: { bar: MyBar }) {
   const tone = PHASE_TONE[bar.phase];
-  const hint = bar.phase === 'open' ? 'Commande ici, puis montre ton QR au barman : il te sert et c’est noté.'
+  const counterOnly = !optionsOf(bar).guest_orders;
+  const hint = bar.phase !== 'closed' && counterOnly ? 'Commande au comptoir : montre ton QR au barman, il te sert et c’est noté.'
+    : bar.phase === 'open' ? 'Commande ici, puis montre ton QR au barman : il te sert et c’est noté.'
     : bar.phase === 'preorder' ? 'Commande maintenant : ce sera servi une fois le bar ouvert.'
       : bar.phase === 'waiting' ? 'Tu pourras commander dès que l’organisateur ouvre les commandes.'
         : 'Plus de commande possible. Ce qui n’a pas été servi est annulé, rien à payer.';
@@ -106,6 +109,7 @@ export function MyBarScreen({ eventId }: { eventId: string }) {
             <WalletButton eventId={eventId} />
           </>
         ) : null}
+        {needsCounterPledge(bar) ? <PledgeCard eventId={eventId} bar={bar} onDone={(next) => { setData(next); setToast('Engagement accepté : le barman peut te servir.'); }} /> : null}
         {bar.phase !== 'closed' ? <BarMenu bar={bar} cart={cart} onCart={setCart} onOrder={() => setSheet(true)} /> : null}
         <PendingList bar={bar} busy={busy} onCancel={(item, name) => void act(item, () => barCancelMine(eventId, item, 1),
           `Annulé : 1 × ${name}, de nouveau disponible pour les autres.`)} />

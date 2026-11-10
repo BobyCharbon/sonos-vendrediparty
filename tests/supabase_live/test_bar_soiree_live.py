@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta, timezone
 import httpx
 import pytest
 
-from tests.supabase_live.test_audiences_live import ADMIN, GUEST_A, GUEST_B, VIP, create_event
+from tests.supabase_live.test_audiences_live import ADMIN, GUEST_A, GUEST_B, VIP, complete_profile, create_event
 from tests.supabase_live.test_invitations_v2_live import terms_version
 from tests.supabase_live.test_member_admin_live import TEST_URL, Session, pytestmark  # noqa: F401
 from tests.supabase_live.test_rsvp_digest_live import sql
@@ -31,6 +31,8 @@ def people():
     admin, ga, gb, barman = Session(ADMIN), Session(GUEST_A), Session(GUEST_B), Session(VIP)
     for s in (admin, ga, gb, barman):
         assert s.rpc('accept_terms', p_version=terms_version()).status_code in (200, 204)
+    # Le compte VIP de test est remis à vide par la recette de l'inscription : le bar exige un profil complet.
+    complete_profile(barman, 'VIP test')
     return admin, ga, gb, barman
 
 

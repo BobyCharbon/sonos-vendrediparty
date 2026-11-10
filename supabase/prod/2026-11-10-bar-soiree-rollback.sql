@@ -1,7 +1,12 @@
--- PROD, retour arrière du bar de la soirée (20261110120000 + 20261110130000) : fonctions de notification et de Wallet
+-- PROD, retour arrière du bar de la soirée (20261110120000 à 20261110160000) : fonctions de notification et de Wallet
 -- d'avant, puis suppression du bar (tables, fonctions, tâches planifiées, interrupteurs). EFFACE les données du bar.
 -- Tout ou rien.
 begin;
+-- 20261110160000 bar_options : fonctions ajoutées (les colonnes partent avec les tables plus bas).
+drop function if exists public.bar_item_action(uuid, uuid, text, numeric), public.bar_staff_items(uuid), public.bar_pledge(uuid, text, int),
+  private.bar_options(public.event_bars), private.bar_counter_on(public.event_bars), private.bar_may(uuid, text), private.bar_rights(uuid),
+  private.bar_item_json(public.event_bar_items), private.bar_pledged(public.event_bars, uuid),
+  private.bar_check_limits(public.event_bars, public.event_bar_items, uuid, bigint, numeric), private.bar_lock_person(uuid, uuid);
 -- 20261110140000 bar_corrections : déclencheur des réponses « Absent » (sur rsvps, table qui reste).
 drop trigger if exists bar_cancel_absent on public.rsvps;
 drop function if exists private.bar_cancel_absent();
@@ -149,7 +154,11 @@ drop function if exists private.guard_bar_unit(), private.guard_bar_append_only(
 alter table public.notification_prefs drop column if exists bar_served, drop column if exists bar_changed,
   drop column if exists bar_refund_declared, drop column if exists bar_refund_confirmed;
 
-delete from supabase_migrations.schema_migrations where version in ('20261110120000', '20261110130000', '20261110140000', '20261110150000');
+delete from supabase_migrations.schema_migrations where version = '20261110120000';
+delete from supabase_migrations.schema_migrations where version = '20261110130000';
+delete from supabase_migrations.schema_migrations where version = '20261110140000';
+delete from supabase_migrations.schema_migrations where version = '20261110150000';
+delete from supabase_migrations.schema_migrations where version = '20261110160000';
 commit;
 
 notify pgrst, 'reload schema';

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { barChf, barSaveItem, errorCode, errorText, type BarItem, type BarOverview, type ItemInput } from '@/lib/bar';
+import { barChf, barSaveItem, errorCode, errorText, optionsOf, type BarItem, type BarOverview, type ItemInput } from '@/lib/bar';
+import { CATEGORY_LABEL } from '@/lib/barOptions';
 import { colors, radius } from '@/lib/theme';
 
 import { useTermsGate } from '../TermsSheet';
@@ -11,8 +12,12 @@ import { ItemForm } from './ItemForm';
 import { Stepper } from './Stepper';
 
 /** Une ligne : prix, âge, maximum ; le chiffre du stepper = ce qu'il reste (stock − servis − réservés). */
-function ItemRow({ item, busy, onEdit, onStock }: { item: BarItem; busy: boolean; onEdit: () => void; onStock: (stock: number) => void }) {
-  const meta = [barChf(item.price_chf), item.max_pending != null ? `max ${item.max_pending}` : null, item.active ? null : 'retiré de la carte']
+function ItemRow({ item, busy, free, onEdit, onStock }: {
+  item: BarItem; busy: boolean; free: boolean; onEdit: () => void; onStock: (stock: number) => void;
+}) {
+  const meta = [free ? 'offert' : barChf(item.price_chf), item.category ? CATEGORY_LABEL[item.category] : null, item.detail || null,
+    item.max_pending != null ? `max ${item.max_pending}` : null,
+    item.max_per_person != null ? `${item.max_per_person} par personne` : null, item.active ? null : 'retiré de la carte']
     .filter(Boolean).join(' · ');
   const left = item.available ?? 0;
   return (
@@ -25,6 +30,7 @@ function ItemRow({ item, busy, onEdit, onStock }: { item: BarItem; busy: boolean
           <View style={st.meta}>
             <T muted size={12}>{meta}</T>
             {item.age_min ? <Badge label={`${item.age_min}+`} fg={colors.onCoral} bg={colors.coral} /> : null}
+            {item.unavailable ? <Badge label="Indisponible" fg={colors.textSoft} bg={colors.surface2} /> : null}
           </View>
           <T size={12} weight="semibold" color={colors.accent}>Modifier ›</T>
         </View>
@@ -77,7 +83,7 @@ export function ItemsTab({ eventId, overview, onOverview, reload }: {
       <Section title="Articles">
         {overview.items.length === 0 ? <T muted size={14}>Pas encore d’article : ajoute ce que tu as acheté.</T> : null}
         {overview.items.map((item) => (
-          <ItemRow key={item.id} item={item} busy={busy === item.id} onEdit={() => setEditing(item)}
+          <ItemRow key={item.id} item={item} busy={busy === item.id} free={optionsOf(overview).free_bar} onEdit={() => setEditing(item)}
             onStock={(stock) => void save({ id: item.id, name: item.name, emoji: item.emoji, stock: Math.max(0, stock) })} />
         ))}
         {overview.items.length ? <T muted size={12}>Le chiffre = ce qu’il reste. « max 3 » = 3 en attente au plus par personne.</T> : null}

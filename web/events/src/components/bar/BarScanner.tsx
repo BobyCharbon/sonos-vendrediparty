@@ -14,6 +14,7 @@ import { BarHeader } from './BarHeader';
 import { BigButton } from './BigButton';
 import { ServedPanel } from './ServedPanel';
 import { ServePanel, type Served } from './ServePanel';
+import { StockPanel } from './StockPanel';
 
 type Refusal = 'unknown' | 'other_event' | 'not_present' | 'closed' | 'invalid';
 type Person = Extract<BarScan, { result: 'ok' }>;
@@ -156,6 +157,7 @@ export function BarScanner({ eventId }: { eventId: string }) {
       {step.kind === 'refused' ? <Refused result={step.result} name={step.name} onNext={next} /> : null}
       {busy && step.kind === 'scan' ? <T muted size={13}>Lecture du QR…</T> : null}
       <ErrorText error={error} />
+      {step.kind === 'scan' ? <StockPanel eventId={eventId} /> : null}
     </Screen>
   );
 }
