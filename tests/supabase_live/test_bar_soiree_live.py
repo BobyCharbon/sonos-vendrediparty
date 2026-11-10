@@ -263,3 +263,25 @@ def test_pledges_and_journal_are_append_only(people, bar):
         sql(f"delete from public.event_bar_log where event_id = '{event}'")
     with pytest.raises(RuntimeError, match='forbidden'):
         sql(f"update public.event_bar_units set price_chf = 0 where event_id = '{event}'")
+
+
+def test_the_single_qr_goes_to_apple_wallet_with_the_bar_balance_even_with_tickets_off(people, bar):
+    """Demande de l'admin (10.11) : un seul QR, aussi dans l'app Cartes Apple ; billets QR éteints, le bar suffit."""
+    admin, ga, gb, barman = people
+    event, vrb, _coca = bar
+    assert not sql(f"select tickets_enabled from public.events where id = '{event}'")[0]['tickets_enabled']
+    ok(order(ga, event, [(vrb, 2)]))
+    issued = ok(ga.rpc('wallet_pass_issue', e=event))
+    assert issued['valid'] is True and issued['bar']['pending'] == 2 and float(issued['bar']['balance']) == 0
+    assert issued['ticket']['token'] == ok(ga.rpc('my_bar', e=event))['qr']['token']  # le même QR qu'à l'écran
+    before = sql(f"select updated_at from public.wallet_passes where event_id = '{event}' and user_id = '{ga.uid}'")[0]['updated_at']
+    ok(admin.rpc('bar_set_staff', e=event, member=barman.uid, barman=True))
+    ok(barman.rpc('bar_serve', e=event, member=ga.uid, lines=[{'item': vrb, 'qty': 1}], client_key=str(uuid.uuid4())))
+    after = sql(f"select updated_at from public.wallet_passes where event_id = '{event}' and user_id = '{ga.uid}'")[0]['updated_at']
+    assert after > before  # l'iPhone redemande le pass : « Nouveau solde : 4.50 CHF »
+    assert float(ok(ga.rpc('wallet_pass_issue', e=event))['bar']['balance']) == 4.5
+    # Le barman peut prévenir l'iPhone de la personne qu'il sert ; un autre invité, non.
+    assert barman.rpc('wallet_push_targets', e=event, member=ga.uid).status_code == 200
+    assert gb.rpc('wallet_push_targets', e=event, member=ga.uid).status_code >= 400
+    # Pas Présent : ni bar ni pass.
+    assert gb.rpc('wallet_pass_issue', e=event).status_code == 200  # gb est Présent dans ce bar (fixture)

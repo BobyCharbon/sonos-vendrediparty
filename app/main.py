@@ -1822,6 +1822,12 @@ class NotificationPatch(BaseModel):
     announce_requests: bool | None = None
     group_event_requests: bool | None = None
     announce_results: bool | None = None
+    # Bar de la soirée (migration 20261110120000) : verres servis, changements, remboursement annoncé / confirmé.
+    # Reçues aussi par les Guests (may_receive_push) : jamais dans NON_MEMBER_HIDDEN_PREFS.
+    bar_served: bool | None = None
+    bar_changed: bool | None = None
+    bar_refund_declared: bool | None = None
+    bar_refund_confirmed: bool | None = None
 
 
 class NotificationUpdate(MemberToken):
