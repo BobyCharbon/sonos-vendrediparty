@@ -45,8 +45,12 @@ def sql(query: str) -> list:
                                  data=json.dumps({'query': query}).encode(),
                                  headers={'Authorization': f'Bearer {TOKEN_FILE.read_text().strip()}',
                                           'Content-Type': 'application/json', 'User-Agent': 'party-claude'})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return json.loads(r.read().decode() or '[]')
+    # Refus de la base : RuntimeError avec son message, comme la copie locale (les tests attendent le texte du refus).
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return json.loads(r.read().decode() or '[]')
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(e.read().decode()[:2000]) from e
 
 
 def answer(s: Session, event: str, status: str):

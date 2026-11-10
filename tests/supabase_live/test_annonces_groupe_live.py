@@ -22,7 +22,11 @@ BOTS = {"ada": "41790000101", "come": "41790000102", "olga": "41790000103", "vic
 DECLARE = "e uuid; a uuid; n int; m int; r jsonb; bots uuid; bots2 uuid; " + " ".join(f"{k} uuid;" for k in BOTS)
 SETUP = "\n".join(f"select id into {k} from public.profiles where phone = '{p}';" for k, p in BOTS.items()) + """
 select id into bots from public.member_groups where name = 'Bots';
-select id into bots2 from public.member_groups where name = 'Bots 2';"""
+select id into bots2 from public.member_groups where name = 'Bots 2';
+-- CGU exigées (comme en prod) : les bots les ont acceptées (annulé avec le reste de la transaction).
+insert into public.terms_acceptances (user_id, version)
+  select p.id, (select terms_version from private.moderation_settings where id = 1) from public.profiles p
+  where p.phone in (""" + ", ".join(f"'{p}'" for p in BOTS.values()) + """) on conflict do nothing;"""
 
 
 def as_bot(name: str) -> str:
