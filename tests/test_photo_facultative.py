@@ -42,5 +42,12 @@ def test_the_migration_drops_the_photo_from_every_identity_check_but_keeps_valid
 def test_no_visible_text_still_calls_the_photo_mandatory():
     places = [*(ROOT / "web/events/src").rglob("*.ts*"), *(ROOT / "ios/Party").rglob("*.swift"), *(ROOT / "app").glob("*.py")]
     offenders = [p.name for p in places
-                 if re.search(r"son surnom et sa photo\.|surnom et photo (à compléter|obligatoires)|surnom ou photo|Obligatoire : pour que le groupe", p.read_text())]
+                 if re.search(r"son surnom et sa photo\.|surnom et photo (à compléter|obligatoires)|surnom ou photo|Obligatoire : pour que le groupe|Photo de profil \(obligatoire\)", p.read_text())]
     assert offenders == []
+
+
+def test_the_photo_is_shown_as_strongly_recommended_on_the_web_and_in_the_iphone_app():
+    web = (ROOT / "web/events/src/components/ProfilePhotoField.tsx").read_text()
+    ios = (ROOT / "ios/Party/Settings/ProfileView.swift").read_text()
+    assert "Photo de profil (vivement conseillée)" in web
+    assert "vivement conseillée" in ios
