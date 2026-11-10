@@ -49,12 +49,13 @@ function inPartyShell(): boolean {
   return typeof window !== 'undefined' && window.parent !== window;
 }
 
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/invite|\/gifts|\/scan(?:\/[a-f0-9]{64})?)?|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|chats(?:\/[a-f0-9-]{36})?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/invite|\/gifts|\/scan(?:\/[a-f0-9]{64})?)?|share\/[a-f0-9-]{36}|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|chats(?:\/[a-f0-9-]{36})?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
 /** Pages de passage (accueil du module, connexion, « Faisons connaissance ») : seules à reprendre l'intention gardée. */
 const transitPath = /^\/?(?:sign-in|welcome)?$/i;
 
 /** Page demandée à l'ouverture. L'adresse ouverte prime toujours : une autre page précise (/share/B, /privacy…)
- * efface l'intention gardée (campagne 2, 07.11 : le lien A ressortait à la place de B, « Lien indisponible » en boucle). */
+ * remplace ou efface l'intention gardée (campagne 2, 07.11 : le lien A ressortait à la place de B, « Lien indisponible »
+ * en boucle). /share/<id> est gardée (10.11) : après la connexion SMS, on revient sur l'événement au lieu de l'accueil. */
 function initialDestination(): string | null {
   if (typeof window === 'undefined') return null;
   const path = location.pathname.replace(/^\/events(?=\/|$)/, '');
@@ -112,8 +113,8 @@ function Gate() {
   }, [session?.user.id, profile?.display_name, profile?.avatar_url, profile?.status]);
   useEffect(() => {
     // Réglages : ouverts à tout compte connecté ; le reste attend la validation du membre.
-    // Réglages et liens d'invitation : ouverts dès la connexion (l'invitation demande elle-même le profil complet).
-    const open = intent.current === '/account' || /^\/(?:(?:group-)?invite|join)\//.test(intent.current ?? '');
+    // Réglages, liens d'invitation et lien public : ouverts dès la connexion (ils demandent eux-mêmes le profil complet).
+    const open = intent.current === '/account' || /^\/(?:(?:group-)?invite|join|share)\//.test(intent.current ?? '');
     if (!loading && session && (active || open) && !profileError && intent.current) {
       const target = intent.current;
       intent.current = null;

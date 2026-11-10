@@ -21,3 +21,12 @@ export function eventPeopleIds(event: unknown, ...more: unknown[]): string[] {
   more.forEach((m) => collect(m, ids));
   return [...ids];
 }
+
+/** Sondage : personnes notées « Présent » ou « Peut-être » qui n'ont voté aucune date (réponses d'avant le 10.11). */
+export function undecidedNames(ev: { rsvps: { user_id: string; status: string }[]; date_options: { date_votes: { user_id: string }[] }[] },
+  names: Map<string, string>): string[] {
+  const voters = new Set(ev.date_options.flatMap((o) => o.date_votes.map((v) => v.user_id)));
+  return ev.rsvps
+    .filter((r) => (r.status === 'yes' || r.status === 'maybe') && !voters.has(r.user_id))
+    .map((r) => names.get(r.user_id) || 'Quelqu’un');
+}

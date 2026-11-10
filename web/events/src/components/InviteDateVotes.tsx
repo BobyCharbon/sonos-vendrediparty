@@ -20,7 +20,7 @@ type Option = { id: string; starts_at: string };
 
 /**
  * Sondage de dates vu par un invité venu par un lien (retour de l'admin, 08.11) : les mêmes dates et les mêmes choix
- * que dans l'app (Oui, Si besoin, Non), enregistrés avec son compte léger. L'organisateur fixe ensuite la date qui
+ * que dans l'app (Oui, Si besoin, Non), enregistrés avec son compte (profil complet). L'organisateur fixe ensuite la date qui
  * arrange le plus de monde ; chacun est alors inscrit selon son vote pour cette date.
  */
 export function InviteDateVotes({ eventId, onVoted }: { eventId: string; onVoted: (count: number) => void }) {

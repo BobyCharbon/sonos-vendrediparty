@@ -25,7 +25,7 @@ import { useAuth, useMe } from '@/lib/auth';
 import { personLabel, useContactNames, withContactNames } from '@/lib/contactNames';
 import { useQuery, useRealtime } from '@/lib/data';
 import { GONE_TEXT, isGoneError, isNetworkError } from '@/lib/errors';
-import { eventPeopleIds } from '@/lib/eventPeople';
+import { eventPeopleIds, undecidedNames } from '@/lib/eventPeople';
 import { useOnline, usePaymentsTick, useSlowLoad } from '@/lib/connectivity';
 import { safeHref } from '@/lib/links';
 import { formatLongDay, formatMessageTime, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
@@ -372,6 +372,7 @@ export default function EventScreen() {
           options={ev.date_options}
           votes={ev.date_options.flatMap((o) => o.date_votes)}
           names={data.names}
+          undecided={canManage ? undecidedNames(ev, data.names) : []}
           onChange={reload}
         />
       ) : published && can('events.rsvp') ? (

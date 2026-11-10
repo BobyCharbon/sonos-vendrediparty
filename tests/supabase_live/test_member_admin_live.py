@@ -6,12 +6,21 @@ Clé publique de la base de test lue dans ~/.config/supabase-claude/test-publish
 import os
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 import httpx
 import pytest
 
-TEST_URL = 'https://ewromqfsmcqsthftyhzm.supabase.co'  # Vendrediparty-test, jamais la prod
-KEY_FILE = Path.home() / '.config/supabase-claude/test-publishable-key'
+# Vendrediparty-test, jamais la prod. Copie locale (Supabase dans Docker, mêmes migrations, numéros à code fixe) :
+# PARTY_TEST_SUPABASE_URL=http://127.0.0.1:54321 et PARTY_TEST_KEY_FILE=<fichier de la clé anon locale>.
+TEST_URL = (os.environ.get('PARTY_TEST_SUPABASE_URL') or 'https://ewromqfsmcqsthftyhzm.supabase.co').rstrip('/').lower()
+# Liste blanche : la base de TEST ou une copie locale, jamais rien d'autre (ni la prod, ni un domaine qui y mène).
+TEST_HOSTS = ('ewromqfsmcqsthftyhzm.supabase.co', '127.0.0.1', 'localhost')
+assert urlparse(TEST_URL).hostname in TEST_HOSTS, f'base de test inconnue : {TEST_URL}'
+LOCAL_TEST = urlparse(TEST_URL).hostname in ('127.0.0.1', 'localhost')
+# Copie locale : URL locale ET conteneur Postgres local, l'un sans l'autre mélangerait deux bases.
+assert LOCAL_TEST == bool(os.environ.get('PARTY_TEST_DB_CONTAINER')), 'PARTY_TEST_SUPABASE_URL locale et PARTY_TEST_DB_CONTAINER vont ensemble'
+KEY_FILE = Path(os.environ.get('PARTY_TEST_KEY_FILE') or Path.home() / '.config/supabase-claude/test-publishable-key')
 ADMIN_PHONE = '41790000004'  # compte Admin de test (Root = vrai numéro, vrai SMS : jamais dans les tests)
 ROOT_ID = '298ff6e0-07b2-4127-bb69-d254dd63a3d5'
 GUESTS = ['41790000001', '41790000002', '41790000003']

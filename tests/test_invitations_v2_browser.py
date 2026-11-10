@@ -1,8 +1,9 @@
 """Invitations v2 (05.11.2026, bêta), module web dans un vrai navigateur (Supabase simulé, aucun SMS réel) :
 - organisateur : carte « Invités » (compteurs, filtres, qui a invité qui, liens envoyés), relance, feuille « Inviter »
   (lien pour une personne / pour plusieurs, places, QR), ajouter quelqu'un de Party hors du groupe ;
-- invité sans app : carte lisible sans compte (noms échappés) → « Je viens » → prénom + numéro → code (autocomplétion
-  one-time-code) → confirmation avec calendrier, itinéraire et Party proposé sans obligation ;
+- invité sans app : carte lisible sans compte (noms échappés) → « Je viens » → page de connexion NORMALE de l'app (pays,
+  numéro, code ; 10.11 : plus de formulaire à part) → retour sur le lien, la réponse part d'elle-même → confirmation avec
+  calendrier, itinéraire, la fiche de l'événement et Party proposé sans obligation ;
 - Android : le doigt posé sur une ligne d'invité (qui glisse à gauche) fait toujours défiler la page.
 Captures (390 px, thème sombre) dans $INVITES_SHOTS si la variable est définie."""
 import json
@@ -202,7 +203,7 @@ def test_organizer_sees_who_comes_filters_nudges_and_invites(browser, v2_origin)
         context.close()
 
 
-def test_guest_without_app_answers_with_first_name_phone_and_code(browser, v2_origin):  # noqa: F811
+def test_guest_without_app_signs_in_by_the_normal_page_then_the_answer_is_sent(browser, v2_origin):  # noqa: F811
     context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
     page = context.new_page()
     errors = []
@@ -220,19 +221,18 @@ def test_guest_without_app_answers_with_first_name_phone_and_code(browser, v2_or
         shot(page, '07-invite-carte-sans-compte', full=True)
 
         page.get_by_role('button', name='Je viens !').click()
-        page.get_by_label('Prénom', exact=True).fill('Léa')
-        page.get_by_label('Numéro de portable').fill('079 456 12 38')
-        shot(page, '08-invite-prenom-numero')
-        page.get_by_role('button', name='Recevoir mon code par SMS').click()
-        code = page.get_by_placeholder('123456', exact=True)
-        pw.expect(code).to_be_visible(timeout=5000)
-        assert code.get_attribute('autocomplete') == 'one-time-code'
-        code.fill('123456')
-        shot(page, '09-invite-code-sms')
-        page.get_by_role('button', name='Confirmer', exact=True).click()
-        pw.expect(page.get_by_text('C’est noté, Léa !', exact=True)).to_be_visible(timeout=10000)
+        # Inscription par le parcours normal de l'app (10.11) : la page de connexion, avec le choix du pays.
+        pw.expect(page.get_by_text('Ton compte Party', exact=True)).to_be_visible(timeout=10000)
+        pw.expect(page.get_by_role('radio', name='France +33')).to_be_visible()
+        pw.expect(page.get_by_label('Numéro de portable')).to_have_count(0)  # plus de formulaire à part (+41 imposé)
+        shot(page, '08-invite-connexion-normale')
+        login(page)
+        # Retour sur le lien : la réponse choisie avant part d'elle-même (profil complet), sans retoucher « Je viens ».
+        pw.expect(page.get_by_text('C’est noté, Compte !', exact=True)).to_be_visible(timeout=15000)
         pw.expect(page.get_by_text('Ludo est prévenu.', exact=True)).to_be_visible()
-        assert ('accept_invite', {'token': TOKEN, 'answer': 'yes', 'first_name': 'Léa'}) in calls
+        assert ('accept_invite', {'token': TOKEN, 'answer': 'yes', 'first_name': None}) in calls
+        assert [c[0] for c in calls].count('accept_invite') == 1
+        pw.expect(page.get_by_role('button', name='Voir l’événement', exact=True)).to_be_visible()
         pw.expect(page.get_by_text('Rue du Marché 4, Sion', exact=True)).to_be_visible()
         pw.expect(page.get_by_role('button', name='Ajouter à mon agenda')).to_be_visible()
         pw.expect(page.get_by_role('button', name='📍 Itinéraire')).to_be_visible()
@@ -292,10 +292,10 @@ def test_android_finger_on_a_guest_row_scrolls_the_page(browser, v2_origin):  # 
         context.close()
 
 
-def test_guest_without_app_accepts_the_terms_when_they_are_required(browser, v2_origin):  # noqa: F811
-    """Bug de la campagne des bots (06.11) : CGU exigées (prod), l'invité sans l'app restait bloqué sur 403 terms_required
-    (réponse jamais enregistrée, compte sans prénom). « En répondant, j'accepte les conditions d'utilisation » est écrit
-    au-dessus de « Confirmer », avec le lien vers les conditions ; Confirmer enregistre l'acceptation PUIS la réponse."""
+def test_an_account_without_the_terms_sees_the_terms_sheet_before_its_answer(browser, v2_origin):  # noqa: F811
+    """Bug de la campagne des bots (06.11) : CGU exigées (prod), l'invité restait bloqué sur 403 terms_required. Depuis le
+    10.11, les CGU s'acceptent dans « Faisons connaissance » ; un ancien compte qui ne les a pas acceptées voit la feuille
+    des CGU (jamais d'acceptation silencieuse), puis sa réponse part une seule fois de plus."""
     context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
     page = context.new_page()
     errors = []
@@ -320,7 +320,7 @@ def test_guest_without_app_accepts_the_terms_when_they_are_required(browser, v2_
             route.fulfill(status=200, content_type='application/json', headers=CORS, body=json.dumps(
                 {'version': '2026-11-04', 'accepted': True, 'accepted_at': '2026-11-06T10:00:00Z', 'contact_email': None, 'enforced': True}))
 
-        def accept_invite(route):  # comme la base : le prénom (contenu visible) exige les CGU
+        def accept_invite(route):  # comme la base quand les CGU sont exigées et pas encore acceptées
             if route.request.method == 'OPTIONS':
                 return route.fulfill(status=204, headers=CORS)
             calls.append(('accept_invite', json.loads(route.request.post_data or '{}')))
@@ -334,20 +334,17 @@ def test_guest_without_app_accepts_the_terms_when_they_are_required(browser, v2_
 
         page.goto(f'{v2_origin}/events/invite/{TOKEN}', wait_until='domcontentloaded')
         page.get_by_role('button', name='Je viens !').click()
-        page.get_by_label('Prénom', exact=True).fill('Léa')
-        page.get_by_label('Numéro de portable').fill('079 456 12 38')
-        page.get_by_role('button', name='Recevoir mon code par SMS').click()
-        page.get_by_placeholder('123456', exact=True).fill('123456')
-        # L'acceptation est dite avant le geste, avec le lien vers les conditions (Apple 1.2).
-        pw.expect(page.get_by_text('En répondant, j’accepte les conditions d’utilisation de Party.', exact=False)).to_be_visible()
-        pw.expect(page.get_by_role('link', name='Lire les conditions d’utilisation')).to_be_visible()
-        shot(page, '11-invite-cgu-dans-confirmer')
-        page.get_by_role('button', name='Confirmer', exact=True).click()
-        pw.expect(page.get_by_text('C’est noté, Léa !', exact=True)).to_be_visible(timeout=10000)
+        login(page)
+        # La feuille des CGU, avec le geste explicite (Apple 1.2), puis la réponse.
+        pw.expect(page.get_by_text('Avant de publier', exact=True)).to_be_visible(timeout=15000)
+        shot(page, '11-invite-cgu-feuille')
+        page.get_by_role('button', name='J’accepte').click()
+        pw.expect(page.get_by_text('C’est noté, Compte !', exact=True)).to_be_visible(timeout=10000)
         names = [c[0] for c in calls]
         assert ('accept_terms', {'p_version': '2026-11-04'}) in calls
-        assert names.index('accept_terms') < names.index('accept_invite'), names
-        assert ('accept_invite', {'token': TOKEN, 'answer': 'yes', 'first_name': 'Léa'}) in calls
+        assert names.index('accept_terms') < len(names) - 1 - names[::-1].index('accept_invite'), names
+        assert names.count('accept_invite') == 2, names  # refusée (CGU), puis acceptée une seule fois de plus
+        assert ('accept_invite', {'token': TOKEN, 'answer': 'yes', 'first_name': None}) in calls
         pw.expect(page.get_by_text('terms_required', exact=False)).to_have_count(0)
         assert not errors, errors
     finally:
@@ -395,20 +392,16 @@ def test_a_link_guest_answers_a_date_poll_by_voting_the_dates(browser, v2_origin
         pw.expect(page.get_by_role('button', name='Je viens !')).to_have_count(0)
         shot(page, '20-sondage-carte', full=True)
         page.get_by_role('button', name='📅 Choisir mes dates').click()
-        pw.expect(page.get_by_text('Tes dates 📅', exact=True)).to_be_visible()
-        page.get_by_label('Prénom', exact=True).fill('Léa')
-        page.get_by_label('Numéro de portable').fill('079 456 12 38')
-        page.get_by_role('button', name='Recevoir mon code par SMS').click()
-        page.get_by_placeholder('123456', exact=True).fill('123456')
-        page.get_by_role('button', name='Confirmer', exact=True).click()
-        pw.expect(page.get_by_text('Tes dates, Léa', exact=True)).to_be_visible(timeout=10000)
-        assert ('accept_invite', {'token': TOKEN, 'answer': 'poll', 'first_name': 'Léa'}) in calls
+        login(page)  # page de connexion normale, puis retour sur le lien
+        pw.expect(page.get_by_text('Tes dates, Compte', exact=True)).to_be_visible(timeout=15000)
+        assert ('accept_invite', {'token': TOKEN, 'answer': 'poll', 'first_name': None}) in calls
         yes = page.get_by_role('button', name=re.compile('^Oui : '))
         pw.expect(yes).to_have_count(2)
         yes.first.click()
         page.get_by_role('button', name=re.compile('^Non : ')).nth(1).click()
-        pw.expect(page.get_by_text('C’est noté, Léa !', exact=True)).to_be_visible()
+        pw.expect(page.get_by_text('C’est noté, Compte !', exact=True)).to_be_visible()
         assert [(v['option_id'], v['vote']) for v in votes] == [(IDS[8], 'yes'), (IDS[9], 'no')]
+        pw.expect(page.get_by_role('button', name='Voir l’événement et les votes')).to_be_visible()
         pw.expect(page.get_by_role('button', name='Ajouter à mon agenda')).to_have_count(0)  # pas de date avant qu'elle soit fixée
         shot(page, '21-sondage-votes', full=True)
         assert page.locator('html').evaluate('e => e.scrollWidth <= innerWidth')
@@ -433,6 +426,22 @@ def test_the_guest_card_of_a_date_poll_counts_who_voted(browser, v2_origin):  # 
         pw.expect(card.get_by_role('tab', name=re.compile('Peut-être|Absents'))).to_have_count(0)
         pw.expect(card.get_by_text('A voté', exact=True).first).to_be_visible()
         shot(page, '22-sondage-invites', full=True)
+    finally:
+        context.close()
+
+
+def test_the_invite_card_of_a_date_poll_shows_who_voted_not_who_comes(browser, v2_origin):  # noqa: F811
+    """Avis bfe0c5d502fc / 39f148377a8f (10.11) : la carte d'un sondage disait « 2 viennent » alors que 3 avaient voté. Elle
+    compte maintenant les votants, comme le sondage de la fiche."""
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
+    page = context.new_page()
+    try:
+        mock_services(page)
+        mock_invites(page, card={**CARD, 'inviter': 'Ludo', 'date_mode': 'poll', 'starts_at': None, 'going': 2,
+                                 'going_names': ['Mariana', 'Marco'], 'voters': 3, 'voter_names': ['Anaïs', 'Mariana', 'Marco']})
+        page.goto(f'{v2_origin}/events/invite/{TOKEN}', wait_until='domcontentloaded')
+        pw.expect(page.get_by_text('Anaïs, Mariana, Marco ont voté', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_text('viennent', exact=False)).to_have_count(0)
     finally:
         context.close()
 
