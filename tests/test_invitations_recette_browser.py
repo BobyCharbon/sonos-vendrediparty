@@ -7,7 +7,7 @@ import json
 from urllib.parse import parse_qs, urlparse
 
 from tests.test_c2_acces_browser import mock_terms
-from tests.test_events_browser import USER, browser, events_origin, mock_services, pw  # noqa: F401 (fixtures)
+from tests.test_events_browser import EVENT, USER, browser, events_origin, mock_services, pw  # noqa: F401 (fixtures)
 from tests.test_groups_browser import INSIDE, MINE, VIP, open_groups, phone  # noqa: F401 (fixture phone)
 from tests.test_invitations_v2_browser import CARD, TOKEN, mock_invites, v2_origin  # noqa: F401 (fixture)
 from tests.test_events_browser import login
@@ -100,3 +100,60 @@ def test_a_link_already_answered_says_the_answer_with_clean_punctuation(browser,
         pw.expect(page.get_by_text('Ta réponse : Je viens. Tu peux la changer.', exact=True)).to_be_visible(timeout=15000)
     finally:
         context.close()
+
+
+def _card(browser, v2_origin, card):  # noqa: F811
+    context = browser.new_context(viewport={'width': 390, 'height': 844})
+    page = context.new_page()
+    mock_services(page)
+    mock_invites(page, card={**CARD, **card})
+    page.goto(f'{v2_origin}/events/invite/{TOKEN}', wait_until='domcontentloaded')
+    return context, page
+
+
+def test_a_removed_guest_is_told_at_once_and_cannot_answer(browser, v2_origin):  # noqa: F811
+    context, page = _card(browser, v2_origin, {'state': 'removed', 'event_id': None, 'mine': None})
+    try:
+        pw.expect(page.get_by_text('L’organisateur t’a retiré de la liste des invités : ce lien ne te permet plus de répondre.', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_role('button', name='Je viens !')).to_have_count(0)
+    finally:
+        context.close()
+
+
+def test_someone_already_invited_on_a_used_link_is_led_to_the_event(browser, v2_origin):  # noqa: F811
+    context, page = _card(browser, v2_origin, {'state': 'full', 'already': True, 'event_id': EVENT, 'mine': 'yes',
+                                              'places_left': None, 'multi': False})
+    try:
+        pw.expect(page.get_by_text('Tu es déjà invité à cet événement (ta réponse : Je viens).', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_role('button', name='Voir l’événement', exact=True)).to_be_visible()
+        pw.expect(page.get_by_text('Ce lien a déjà servi', exact=False)).to_have_count(0)
+    finally:
+        context.close()
+
+
+def test_an_expired_link_for_several_people_no_longer_counts_places(browser, v2_origin):  # noqa: F811
+    context, page = _card(browser, v2_origin, {'state': 'expired', 'places_left': None, 'multi': True})
+    try:
+        pw.expect(page.get_by_text('Lien pour plusieurs', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_text('reste', exact=False)).to_have_count(0)
+    finally:
+        context.close()
+
+
+def test_touching_someone_in_my_group_sends_an_invitation_instead_of_adding_him(phone, events_origin):  # noqa: F811
+    page, errors = phone
+    calls, inserts = [], []
+    cors = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*'}
+
+    def extra(p):
+        p.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/rpc/invite_to_group*',
+                lambda route: (calls.append(route.request.post_data) if route.request.method == 'POST' else None,
+                               route.fulfill(status=200, content_type='application/json', body='{"invited":"member"}', headers=cors)))
+        p.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/member_group_members*',
+                lambda route: (inserts.append(1) if route.request.method == 'POST' else None, route.fallback()))
+    frame = open_groups(page, events_origin, rank=1, groups=[MINE], before_open=extra)
+    frame.get_by_role('button', name='Modifier', exact=True).click()
+    frame.get_by_role('button', name='Tom', exact=True).click()
+    pw.expect(frame.get_by_text('Tom a reçu ton invitation', exact=False)).to_be_visible(timeout=10000)
+    assert calls and json.loads(calls[0])['member'] and not inserts, (calls, inserts)
+    assert not errors, errors

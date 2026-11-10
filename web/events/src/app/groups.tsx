@@ -86,6 +86,15 @@ export default function GroupsScreen() {
       : 'Invitation gardée pour ce numéro : elle l’attendra dès son inscription.');
   }
 
+  async function inviteMember(group: string, m: { id: string; display_name: string }) {
+    setBusy(true);
+    const { error } = await supabase.rpc('invite_to_group', { grp: group, member: m.id, phone: null });
+    setBusy(false);
+    if (error) return setError(error.message.replace(/^\w+: /, ''));
+    setError(null);
+    setInvited(`${m.display_name} a reçu ton invitation : il entre dans le groupe dès qu’il accepte (Réglages → Groupes).`);
+  }
+
   // Mes groupes : créés par moi ou dont je fais partie (Vendredi Party seulement si j'en suis). La base ne renvoie
   // les autres qu'aux Admins du site : ils vont dans « Tous les groupes (admin) ».
   const isMine = (g: MemberGroup) => g.created_by === me.id || g.member_group_members.some((m) => m.user_id === me.id);
@@ -148,9 +157,13 @@ export default function GroupsScreen() {
                   label={belowVip(m.role) && m.role !== 'basic' ? `${personText(m.id, m.display_name)} · ${roleName(m.role)}` : personText(m.id, m.display_name)}
                   selected={inside.has(m.id)}
                   disabled={busy}
-                  onPress={() => run(inside.has(m.id)
-                    ? supabase.from('member_group_members').delete().eq('group_id', g.id).eq('user_id', m.id)
-                    : supabase.from('member_group_members').insert({ group_id: g.id, user_id: m.id }))}
+                  onPress={() => inside.has(m.id)
+                    ? run(supabase.from('member_group_members').delete().eq('group_id', g.id).eq('user_id', m.id))
+                    : m.id === me.id
+                      ? run(supabase.from('member_group_members').insert({ group_id: g.id, user_id: m.id }))
+                      // Quelqu'un d'autre : une invitation qu'il accepte (Réglages › Groupes), jamais un ajout d'office
+                      // sans le prévenir (recette du 10.11). Il est prévenu (notification « invitation dans un groupe »).
+                      : void inviteMember(g.id, m)}
                 />
               ))}
             </View>

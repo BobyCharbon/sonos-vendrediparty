@@ -200,13 +200,15 @@ export const stopLink = (tok: string) => call<null>('revoke_invite_link', { tok 
 
 /** Carte d'invitation (lisible sans compte). */
 export type InviteCard = {
-  state: LinkState | 'mine'; version: number; label: string | null; places_left: number | null; inviter: string | null;
+  state: LinkState | 'mine' | 'removed'; version: number; label: string | null; places_left: number | null; inviter: string | null;
   title: string; status: 'published' | 'cancelled'; date_mode: 'fixed' | 'poll'; starts_at: string | null; ends_at: string | null;
   all_day: boolean; location_name: string | null; cover_url: string | null; description: string | null; allow_maybe: boolean;
   closed: boolean; going: number; going_names: string[]; mine: RsvpStatus | null; event_id: string | null;
   location_address: string | null; location_url: string | null; me_named: boolean;
   /** Sondage (10.11) : personnes qui ont voté au moins une date, et si mon profil est complet (base plus ancienne : absents). */
   voters?: number; voter_names?: string[]; me_complete?: boolean;
+  /** Déjà invité autrement (event_id fourni) ; lien prévu pour plusieurs (même fermé). Base plus ancienne : absents. */
+  already?: boolean; multi?: boolean;
 };
 export type Accepted = {
   event_id: string; status: RsvpStatus | null; title: string; starts_at: string | null; ends_at: string | null; all_day: boolean;
