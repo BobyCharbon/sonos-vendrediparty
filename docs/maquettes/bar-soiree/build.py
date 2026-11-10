@@ -43,6 +43,9 @@ def qr_svg(data: str) -> str:
 
 def main() -> None:
     template = (HERE / "template.html").read_text(encoding="utf-8")
+    style = HERE / "style.css"
+    if "{{STYLE}}" in template:
+        template = template.replace("{{STYLE}}", style.read_text(encoding="utf-8"))
     glyphs = "".join(sorted(set(template))) + "0123456789"
     html = template.replace("{{FONT}}", font_base64(glyphs)).replace("{{QR}}", qr_svg(QR_TEXT))
     out = HERE / "bar-soiree.html"
