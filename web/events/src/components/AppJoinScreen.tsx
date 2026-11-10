@@ -34,7 +34,7 @@ export function AppJoinScreen({ token }: { token: string | undefined }) {
         <Stack.Screen options={{ title: 'Invitation' }} />
         <View style={{ gap: 8 }}>
           <Title size={30}>Complète ton profil</Title>
-          <T muted>Ton prénom, ton nom et ton surnom (une photo si tu veux) : {preview.inviter || 'ton ami'} te reconnaîtra tout de suite.</T>
+          <T muted>Ton prénom, ton nom et ton surnom (une photo aussi, vivement conseillée) : {preview.inviter || 'ton ami'} te reconnaîtra tout de suite.</T>
         </View>
         <IdentityForm profile={profile} submitLabel="Continuer" onSaved={() => void refreshProfile()} />
       </Screen>

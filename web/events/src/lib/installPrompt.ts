@@ -32,3 +32,18 @@ export async function installWebApp(): Promise<boolean> {
   const choice = await event.userChoice?.catch(() => null);
   return choice?.outcome !== 'dismissed';
 }
+
+/** Déjà dans Party installée (app iPhone : pont PartyNative ; app web sur l'écran d'accueil), y compris depuis le
+ * cadre de la page Party : rien ne propose d'installer l'app (recette réelle du 10.11.2026, simulateur iPhone). */
+export function insideInstalledApp(): boolean {
+  if (typeof window === 'undefined') return false;
+  const frames: Window[] = [window];
+  try { if (window.parent && window.parent !== window) frames.push(window.parent); } catch { /* Autre origine. */ }
+  return frames.some((w) => {
+    try {
+      return !!(w as Window & { PartyNative?: unknown }).PartyNative
+        || (w.navigator as Navigator & { standalone?: boolean }).standalone === true
+        || w.matchMedia?.('(display-mode: standalone)').matches === true;
+    } catch { return false; }
+  });
+}

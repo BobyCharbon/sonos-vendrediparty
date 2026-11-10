@@ -53,6 +53,8 @@ type Full = EventRow & {
 const REALTIME_IN_MAX = 100;
 /** En dessous (ou texte agrandi), les actions d'en-tête passent en icônes : le retour « ‹ Événements » garde sa place. */
 const NARROW_HEADER_WIDTH = 380;
+/** Avec « ✨ IA » (app iPhone, organisateur) : il faut environ 460 pt pour tout écrire (recette du 10.11 : chevauchement). */
+const NARROW_HEADER_WIDTH_WITH_AI = 470;
 
 /** Lien à partager : ouvre Party sur cet événement (page publique pour qui n'est pas membre). */
 async function sharePublicLink(ev: Pick<EventRow, 'id' | 'title'>): Promise<string> {
@@ -181,11 +183,11 @@ export default function EventScreen() {
   }
 
   const published = ev.status === 'published';
-  const narrow = width < NARROW_HEADER_WIDTH || fontScale > 1.15;
   const canEdit = isAdmin || (isOrganizer && (ev.status !== 'published' || can('events.edit_own_published')));
   // App iPhone et droit IA : « ✨ IA » ouvre l'écran natif où l'on dit ce qui change (« décale à 21h »…).
   const native = (globalThis as { PartyNative?: { ai?: { editEvent?: (id: string) => void } } }).PartyNative;
   const aiEdit = can('ai.use') && native?.ai?.editEvent ? (id: string) => native.ai!.editEvent!(id) : null;
+  const narrow = width < (aiEdit && canEdit ? NARROW_HEADER_WIDTH_WITH_AI : NARROW_HEADER_WIDTH) || fontScale > 1.15;
 
   async function run(p: PromiseLike<{ error: { message: string } | null }>) {
     const { error } = await p;

@@ -282,7 +282,8 @@ def test_new_event_is_public_by_default_and_a_public_event_never_announces_itsel
         page.get_by_role('button', name='Sur invitation', exact=True).click()
         pw.expect(page.get_by_role('switch', name='Prévenir le groupe')).to_have_count(0)
         page.get_by_role('button', name='👥 Vendredi Party').click()
-        pw.expect(page.get_by_role('switch', name='Prévenir le groupe')).to_have_count(1)
-        pw.expect(page.get_by_role('switch', name='Prévenir le groupe')).not_to_be_checked()
+        # Vendredi Party seul : le libellé le dit (recette du 10.11 : « Prévenir le groupe » prêtait à confusion).
+        pw.expect(page.get_by_role('switch', name='Prévenir les Membres Vendredi Party')).to_have_count(1)
+        pw.expect(page.get_by_role('switch', name='Prévenir les Membres Vendredi Party')).not_to_be_checked()
     finally:
         context.close()

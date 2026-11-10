@@ -79,6 +79,15 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   Plus jamais de compte « au prénom seul » : `accept_invite` refuse `profile_required` (migration 20261110090000).
 - Sondage de dates : on vote les dates (jamais « Présent » sur la page publique d'un sondage) ; la carte compte les
   votants (`voters`). La purge des invités légers compte les votes (bug du paintball : votants effacés avec leurs votes).
+- La base refuse toute réponse (`rsvps`) ou vote (`date_votes`) CRÉÉ pour soi avec un profil incomplet (`profile_required`,
+  déclencheurs `rsvps_identity` / `date_votes_identity`, migration 20261110100000) ; l'organisateur note toujours une présence
+  (`set_rsvp_for`). Photo jamais exigée : « vivement conseillée » (web et iOS, `test_photo_facultative.py`).
+- Recette réelle du 10.11 (migration 20261110100100) : un lien « Après l'événement » suit la date fixée (`follows_event`) ;
+  supprimer l'événement supprime ses liens ; un votant retiré du groupe garde le sondage ; on quitte soi-même un groupe
+  (jamais Membres Vendredi Party). Dans Party installée (app iPhone, écran d'accueil), rien ne propose d'installer Party
+  (`insideInstalledApp`). Lien « Partager » rechargé : l'adresse garde `?tab=events&event=<id>` (jamais un billet).
+  Tests : `test_invitations_recette_live.py`, `test_reponse_profil_complet_live.py`, `test_invitations_recette_browser.py`,
+  `test_shared_link_reload_browser.py`.
 - Tests : `tests/supabase_live/test_inscription_complete_live.py`, `test_inscription_complete_browser_live.py` (vrai
   navigateur ; base de TEST ou copie locale via PARTY_TEST_SUPABASE_URL / PARTY_TEST_DB_CONTAINER / PARTY_TEST_EVENTS_DIST).
 

@@ -210,7 +210,7 @@ def test_a_maybe_or_absent_answer_is_never_on_the_waitlist(people, made):
     assert now[ga.uid] == ('maybe', False, 0) and now[gb.uid] == ('no', False, 0)
 
 
-NEWCOMER = '41768163120'  # Guest au profil vide (code fixe de la base de test) ; recréé à la connexion suivante
+NEWCOMER = '41768163120'  # Guest au profil vide (code fixe de la base de test), complété ici ; recréé à la connexion suivante
 
 
 def test_a_deleted_account_leaves_no_answer_vote_or_message_behind(people, made):
@@ -218,6 +218,10 @@ def test_a_deleted_account_leaves_no_answer_vote_or_message_behind(people, made)
     who = Session(NEWCOMER)
     # CGU exigées (comme en prod) : le nouveau venu les accepte avant d'écrire ; ses acceptations partent avec le compte.
     assert who.rpc('accept_terms', p_version=who.rpc('my_terms').json()['version']).json()['accepted'] is True
+    # Répondre ou voter exige un profil complet (« Faisons connaissance », migration 20261110100000).
+    r = httpx.patch(f'{TEST_URL}/rest/v1/profiles?id=eq.{who.uid}', headers=who.headers, timeout=30,
+                    json={'first_name': 'Nouveau', 'last_name': 'Venu', 'display_name': 'Nouveau V.'})
+    assert r.status_code in (200, 204), r.text
     eid = made('Test participant compte supprimé')
     poll = made('Test participant compte supprimé (sondage)', date_mode='poll', starts_at=None)
     r = httpx.post(f'{TEST_URL}/rest/v1/date_options', headers={**admin.headers, 'Prefer': 'return=representation'}, timeout=30,
