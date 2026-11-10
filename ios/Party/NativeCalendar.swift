@@ -16,11 +16,21 @@ enum PollCalendar {
     static let tentativeNote = "Date proposée : rien n’est encore fixé. Party retirera les autres dates quand celle-ci sera choisie."
     static let fixedNote = "Date fixée par l’organisateur."
 
+    /// Trois ans : plus loin que toute date proposée (la recherche d'EventKit s'arrête à quatre ans).
+    static let searchSpan: TimeInterval = 3 * 365 * 86_400
+
     static func tentativeTitle(_ title: String) -> String { prefix + title }
+
+    static func sameStart(_ a: Date, _ b: Date) -> Bool { abs(a.timeIntervalSince(b)) <= sameStartTolerance }
+
+    /// Lien vers l'événement, écrit par l'app (jamais repris de la page) : il permet de retrouver ses entrées.
+    static func link(_ event: String) -> URL {
+        AppConfig.baseURL.appendingPathComponent("events/event/\(event.lowercased())")
+    }
 
     /// Date fixée : l'entrée qui commence au même moment reste, toutes les autres partent.
     static func settle(stored: [String: Date], fixedStart: Date) -> (keep: String?, remove: [String]) {
-        let keep = stored.first { abs($0.value.timeIntervalSince(fixedStart)) <= sameStartTolerance }?.key
+        let keep = stored.first { sameStart($0.value, fixedStart) }?.key
         return (keep, stored.keys.filter { $0 != keep }.sorted())
     }
 
@@ -40,7 +50,6 @@ struct PollCalendarRequest {
     let title: String
     let location: String
     let notes: String
-    let url: URL?
     let dates: [Slot]
 
     init?(_ body: [String: Any]) {
@@ -58,7 +67,6 @@ struct PollCalendarRequest {
         self.title = String(title.prefix(200))
         location = String(((body["location"] as? String) ?? "").prefix(300))
         notes = String(((body["notes"] as? String) ?? "").prefix(2000))
-        url = (body["url"] as? String).flatMap(URL.init(string:)).flatMap { AppConfig.isInternal($0) ? $0 : nil }
         dates = slots
     }
 }
@@ -90,15 +98,35 @@ struct PollCalendarWriter {
     let store: EKEventStore
     let memory: PollCalendarMemory
 
-    /// Entrées encore présentes (l'utilisateur a pu en supprimer à la main).
+    /// Entrées encore présentes (l'utilisateur a pu en supprimer à la main). Sur un vrai iPhone (calendrier iCloud,
+    /// Exchange, Google), l'identifiant d'une entrée change souvent après sa synchronisation : l'app ne retrouvait plus
+    /// ses dates et rien n'était retiré (essai de l'admin du 10.11). Elle les retrouve aussi par leur lien vers
+    /// l'événement, toujours écrit par l'app et propre à cet événement.
     func present(_ event: String) -> [String: EKEvent] {
-        memory.entries(event).compactMapValues { store.event(withIdentifier: $0) }
+        var found = memory.entries(event).compactMapValues { store.event(withIdentifier: $0) }
+        for entry in linked(event) where !found.values.contains(where: { PollCalendar.sameStart($0.startDate, entry.startDate) }) {
+            found[entry.eventIdentifier ?? UUID().uuidString] = entry
+        }
+        return found
+    }
+
+    /// Entrées « À confirmer » de cet événement, retrouvées par leur lien (de la veille à trois ans).
+    private func linked(_ event: String) -> [EKEvent] {
+        let now = Date()
+        let window = store.predicateForEvents(withStart: now.addingTimeInterval(-86_400),
+                                              end: now.addingTimeInterval(PollCalendar.searchSpan), calendars: nil)
+        let link = PollCalendar.link(event).absoluteString.lowercased()
+        return store.events(matching: window).filter {
+            $0.title?.hasPrefix(PollCalendar.prefix) == true && $0.url?.absoluteString.lowercased() == link
+        }
     }
 
     func add(_ request: PollCalendarRequest) -> [String: Any] {
-        var entries: [String: String] = present(request.eventId).compactMapValues(\.eventIdentifier)
+        let live = present(request.eventId)
+        var entries: [String: String] = live.compactMapValues(\.eventIdentifier)
         var added = 0
-        for slot in request.dates where entries[slot.id] == nil {
+        for slot in request.dates where entries[slot.id] == nil
+            && !live.values.contains(where: { PollCalendar.sameStart($0.startDate, slot.start) }) {
             let entry = EKEvent(eventStore: store)
             entry.calendar = store.defaultCalendarForNewEvents
             entry.title = PollCalendar.tentativeTitle(request.title)
@@ -107,7 +135,7 @@ struct PollCalendarWriter {
             entry.availability = .tentative
             entry.location = request.location.isEmpty ? nil : request.location
             entry.notes = [PollCalendar.tentativeNote, request.notes].filter { !$0.isEmpty }.joined(separator: "\n\n")
-            entry.url = request.url
+            entry.url = PollCalendar.link(request.eventId)
             guard (try? store.save(entry, span: .thisEvent)) != nil, let id = entry.eventIdentifier else { continue }
             entries[slot.id] = id
             added += 1

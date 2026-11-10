@@ -81,6 +81,40 @@ struct PollCalendarTests {
         try store.remove(final, span: .thisEvent)
     }
 
+    /// Vrai iPhone (calendrier iCloud) : l'identifiant d'une entrée change après synchronisation. Essai de l'admin du
+    /// 10.11 : les 4 dates restaient après « Fixer cette date ». L'app retrouve ses entrées par leur lien.
+    @Test("Identifiants changés par la synchronisation : l'app retrouve ses dates et fait quand même le ménage",
+          .enabled(if: Self.calendarAllowed))
+    func settlesEvenWhenTheCalendarChangedTheIdentifiers() throws {
+        let store = EKEventStore()
+        let memory = PollCalendarMemory(defaults: try #require(UserDefaults(suiteName: "poll-calendar-tests-\(UUID().uuidString)")))
+        let writer = PollCalendarWriter(store: store, memory: memory)
+        let start1 = Date().addingTimeInterval(50 * 86_400).rounded()
+        let start2 = start1.addingTimeInterval(7 * 86_400)
+        let iso = ISO8601DateFormatter()
+        let request = try #require(PollCalendarRequest(body(dates: [
+            ["id": d1, "start": iso.string(from: start1), "end": ""],
+            ["id": d2, "start": iso.string(from: start2), "end": ""],
+        ])))
+        defer { writer.settle(event, start: nil, end: nil, title: nil, cancelled: true) }
+        #expect(writer.add(request)["total"] as? Int == 2)
+        let written = writer.present(event)
+        #expect(written.values.allSatisfy { $0.url == PollCalendar.link(event) })
+
+        // Ce que fait iCloud : les identifiants retenus par l'app ne mènent plus nulle part.
+        memory.save(event, [d1: "perime-1", d2: "perime-2"])
+        #expect(writer.present(event).count == 2)
+        #expect(writer.add(request)["added"] as? Int == 0)  // toujours pas de doublon
+
+        #expect(writer.settle(event, start: start1, end: nil, title: "Paintball", cancelled: false))
+        let left = store.events(matching: store.predicateForEvents(withStart: start1.addingTimeInterval(-60),
+                                                                  end: start2.addingTimeInterval(4 * 3600), calendars: nil))
+            .filter { $0.url == PollCalendar.link(event) }
+        #expect(left.count == 1)
+        #expect(left.first?.title == "Paintball" && left.first?.startDate == start1)
+        try left.forEach { try store.remove($0, span: .thisEvent) }
+    }
+
     static var calendarAllowed: Bool {
         let status = EKEventStore.authorizationStatus(for: .event)
         if #available(iOS 17.0, *) { return status == .fullAccess }
