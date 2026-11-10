@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Party · Bar de la soirée — maquettes v4</title>
+<title>Party · Bar de la soirée — maquettes v5</title>
 <style>
 {{STYLE}}
 </style>
@@ -14,7 +14,7 @@
   <h1 class="disp">Party · <span>Bar de la soirée</span></h1>
   <p>L'organisateur achète les boissons et fixe un prix par article. Les co-organisateurs gèrent tout avec lui, et des barmans nommés pour la soirée scannent et servent. Chaque invité a <b>un seul QR pour toute la soirée</b>, dans l'app et dans l'app Cartes d'Apple. Ce QR est relié à son compte et à toutes ses commandes.</p>
   <p>Au bar, le barman scanne le QR, voit tout ce que l'invité a commandé, demande « qu'est-ce que tu veux ? », sélectionne et touche « Servir ». C'est seulement à ce moment que le prix passe sur le solde, toujours affiché en grand. Le solde se rembourse après la soirée, avec un engagement coché à chaque commande.</p>
-  <p>Pour chaque article, l'organisateur fixe un <b>maximum « en attente » par personne</b> : ce qui est commandé mais pas encore servi. Dès qu'un verre est servi, on peut en recommander un. Les organisateurs voient le <b>stock virtuel</b> : servi, réservé, encore disponible.</p>
+  <p>Pour chaque article, l'organisateur fixe un <b>maximum « en attente » par personne</b> : ce qui est commandé mais pas encore servi. Dès qu'un verre est servi, on peut en recommander un. Ce qu'on ne boira finalement pas s'annule, article par article. Les organisateurs voient le <b>stock virtuel</b> : servi, réservé, encore disponible.</p>
   <ol class="flow">
     <li><b>1</b>Créer depuis l'événement</li>
     <li><b>2</b>Articles et stock</li>
@@ -24,8 +24,9 @@
     <li><b>6</b>Solde et QR unique</li>
     <li><b>7</b>Scan : le barman choisit</li>
     <li><b>8</b>Carte dans Cartes Apple</li>
-    <li><b>9</b>Suivi en direct</li>
-    <li><b>10</b>Après la soirée</li>
+    <li><b>9</b>Annuler ce qu'on ne boira pas</li>
+    <li><b>10</b>Suivi en direct</li>
+    <li><b>11</b>Après la soirée</li>
   </ol>
   <div class="legend"><i></i> Bordure rose pointillée : ce qui s'ajoute à un écran qui existe déjà dans Party.</div>
 </header>
@@ -225,7 +226,7 @@
       <div class="qrbox sm">{{QR}}<div class="hint">Mon QR pour toute la soirée · à montrer au bar</div></div>
       <div class="new"><div class="walletbtn"><span class="wl"></span>Ajouter à l'app Cartes Apple</div></div>
       <div class="card" style="gap:8px">
-        <div class="sec">Ma commande <small>+ Commander</small></div>
+        <div class="sec">En attente <small>Annuler ›</small></div>
         <div class="row t14"><span class="grow">🍸 Vodka Red Bull × 3</span><span class="chip">à servir</span></div>
         <div class="row t14"><span class="grow">🥃 Whisky Coca × 2</span><span class="chip">à servir</span></div>
         <div class="row t14"><span class="grow">🥤 Coca × 1</span><span class="chip">à servir</span></div>
@@ -287,11 +288,39 @@
   </div></div>
 </figure>
 
-<!-- 9 · Suivi en direct -->
+<!-- 9 · Annuler ce qu'on ne boira pas -->
+<figure>
+  <figcaption>
+    <span class="who guest">Invité</span>
+    <h2 class="disp"><em>9</em>Annuler ce qu'on ne boira pas</h2>
+    <p>Elle voit tout ce qui est en attente et choisit : « ça je garde, ça j'annule ». Ce qui est annulé redevient disponible pour les autres. Ce qui est déjà servi ne s'annule plus.</p>
+  </figcaption>
+  <div class="phone"><div class="screen">
+    <div class="status"><span>23:41</span><div class="island"></div><span class="ic">▮▮▮ ◔</span></div>
+    <div class="body">
+      <div class="navbar"><span class="back">‹ Mon bar</span><span class="title">En attente</span></div>
+      <div class="owe compact"><div class="grow"><div class="lbl">À rembourser</div><div class="sub">déjà servi</div></div><div class="disp amt">10.56<small>CHF</small></div></div>
+      <div class="t13 soft" style="padding:0 2px">Commandé, pas encore servi : rien n'est dû pour ces verres. Annule ce que tu ne boiras pas, ça libère la place pour les autres.</div>
+      <div class="card">
+        <div class="item"><div class="tile s">🍸</div><div class="grow"><div class="t15 sb">Vodka Red Bull</div><div class="t12 muted">× 2 en attente · 4.50 CHF pièce</div></div><div class="btn small redg">Annuler 1</div></div>
+        <div class="item cancelled"><div class="tile s">🥃</div><div class="grow"><div class="t15 sb"><s>Whisky Coca</s></div><div class="t12" style="color:#FF8A8A">× 2 annulés à 23:41</div></div><span class="chip red">Annulé</span></div>
+        <div class="item"><div class="tile s">🥤</div><div class="grow"><div class="t15 sb">Coca</div><div class="t12 muted">× 1 en attente · 2 CHF</div></div><div class="btn small redg">Annuler</div></div>
+        <div class="kv"><span class="muted">Encore en attente (pas dû)</span><b>11.00 CHF</b></div>
+      </div>
+      <div class="toast">
+        <span style="font-size:18px">✓</span>
+        <div class="grow"><div class="t14 b" style="color:var(--mint)">2 Whisky Coca annulés</div><div class="t12 soft">Ils redeviennent disponibles pour les autres.</div></div>
+      </div>
+      <div class="t12 muted" style="padding:0 4px">Les organisateurs voient l'annulation tout de suite dans le stock virtuel.</div>
+    </div>
+  </div></div>
+</figure>
+
+<!-- 10 · Suivi en direct -->
 <figure>
   <figcaption>
     <span class="who org">Organisateur et co-organisateurs</span>
-    <h2 class="disp"><em>9</em>Suivi en direct</h2>
+    <h2 class="disp"><em>10</em>Suivi en direct</h2>
     <p>Le stock virtuel par article : servi, réservé (commandé mais pas encore servi) et encore disponible. Puis ce que chacun doit, et les remboursements à confirmer.</p>
   </figcaption>
   <div class="phone"><div class="screen">
@@ -312,6 +341,11 @@
         <div><div class="row t14"><span class="grow sb">🍹 Gin Tonic</span><span class="chip red">Épuisé</span></div><div class="stack" style="margin-top:5px"><i class="s-serv" style="width:100%"></i></div></div>
         <div class="row t11 muted" style="gap:12px"><span><i class="dot s-serv"></i> servis</span><span><i class="dot s-res"></i> réservés</span><span><i class="dot s-free"></i> disponibles</span></div>
       </div>
+      <div class="card" style="gap:6px">
+        <div class="sec">Dernières annulations</div>
+        <div class="line"><span class="h">23:41</span><span>Léa M. · 🥃 Whisky Coca × 2</span><b></b></div>
+        <div class="line"><span class="h">23:20</span><span>Kim A. · 🍺 Bière × 1</span><b></b></div>
+      </div>
       <div class="card">
         <div class="sec">Qui doit combien</div>
         <div class="row"><div class="av" style="background:#B9A7FF">MD</div><div class="grow"><div class="t14 sb">Marc D.</div><div class="t12" style="color:var(--coral)">Dit avoir remboursé</div></div><span class="num t14 b">12.18</span><div class="btn small mint">Confirmer</div></div>
@@ -322,11 +356,11 @@
   </div></div>
 </figure>
 
-<!-- 10 · Après la soirée -->
+<!-- 11 · Après la soirée -->
 <figure>
   <figcaption>
     <span class="who guest">Invité</span>
-    <h2 class="disp"><em>10</em>Après la soirée : le relevé</h2>
+    <h2 class="disp"><em>11</em>Après la soirée : le relevé</h2>
     <p>Le lendemain : le montant à rembourser en grand, chaque consommation servie avec son heure, et les engagements acceptés. Il rembourse, touche « J'ai remboursé », et l'organisateur confirme.</p>
   </figcaption>
   <div class="phone"><div class="screen">
@@ -335,7 +369,7 @@
       <div class="navbar"><span class="back">‹ Retour</span><span class="title">Mon relevé du bar</span></div>
       <div class="owe">
         <div class="lbl">RESTE À REMBOURSER</div>
-        <div class="disp amt">21.12<small>CHF</small></div>
+        <div class="disp amt">17.06<small>CHF</small></div>
         <div class="sub">à Boby · Revolut · avant dim. 23 nov. (demain)</div>
       </div>
       <div class="card">
@@ -344,11 +378,10 @@
         <div class="line"><span class="h">23:16</span><span>🍸 Vodka Red Bull</span><b class="num">4.50</b></div>
         <div class="line"><span class="h">23:16</span><span>🧃 Thé froid</span><b class="num">2.00</b></div>
         <div class="line"><span class="h">23:58</span><span>🍸 Vodka Red Bull</span><b class="num">4.50</b></div>
-        <div class="line"><span class="h">00:40</span><span>🥃 Whisky Coca</span><b class="num">4.06</b></div>
         <div class="line"><span class="h">01:15</span><span>🥤 Coca</span><b class="num">2.00</b></div>
         <div class="hr"></div>
-        <div class="line"><span></span><span class="b">Total</span><b class="num">21.12 CHF</b></div>
-        <div class="t12 muted">Commandés, jamais servis : 🍸 × 1, 🥃 × 1. Rien à payer.</div>
+        <div class="line"><span></span><span class="b">Total</span><b class="num">17.06 CHF</b></div>
+        <div class="t12 muted">Annulés : 🥃 × 2 · jamais servi : 🍸 × 1. Rien à payer.</div>
       </div>
       <div class="t13 soft" style="padding:0 4px">✓ Engagements acceptés le 21 nov. à 22:03 et 23:05 · <span style="color:var(--accent)">revoir</span></div>
       <div class="btn">Rembourser Boby avec Revolut</div>
@@ -374,6 +407,6 @@
     <li>Photos des articles et reprise de la carte d'une soirée à l'autre.</li>
   </ul></div>
 </section>
-<footer>Maquettes v4 du 10.11.2026. Les écrans montrent l'intention, pas le rendu final. Couleurs et polices de Party (thème Événements).</footer>
+<footer>Maquettes v5 du 10.11.2026. Les écrans montrent l'intention, pas le rendu final. Couleurs et polices de Party (thème Événements).</footer>
 </body>
 </html>

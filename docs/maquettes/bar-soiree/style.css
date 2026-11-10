@@ -208,3 +208,7 @@ footer { max-width: 1240px; margin: 28px auto 0; color: var(--muted); font-size:
 .stack i { display: block; height: 100%; }
 .s-serv { background: var(--mint); } .s-res { background: var(--coral); } .s-free { background: rgba(255,255,255,.28); }
 i.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 3px; vertical-align: 0; }
+/* v5 : annulation */
+.btn.redg { background: var(--redDim); color: #FF8A8A; }
+.item.cancelled { opacity: .6; }
+.item.cancelled s { text-decoration-thickness: 2px; }
