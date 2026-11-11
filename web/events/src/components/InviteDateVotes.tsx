@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { PollDatesCalendarButton } from './CalendarButton';
 import { ErrorText, Loading, T } from './ui';
+import { ValidateDates } from './ValidateDates';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { formatShort } from '@/lib/format';
@@ -26,7 +26,7 @@ type Option = { id: string; starts_at: string };
  */
 export function InviteDateVotes({ eventId, onVoted, calendar }: {
   eventId: string; onVoted: (count: number) => void;
-  /** Titre, lieu, description : pour mettre toutes les dates dans l'agenda (avis 9ddbdea7fe8f). */
+  /** Titre, lieu, description : « Valider mes dates » puis l'agenda (avis 9ddbdea7fe8f, retour du 11.11). */
   calendar?: Pick<EventRow, 'title' | 'description' | 'location_name' | 'location_address'>;
 }) {
   const { session } = useAuth();
@@ -80,7 +80,7 @@ export function InviteDateVotes({ eventId, onVoted, calendar }: {
           </View>
         </View>
       ))}
-      {calendar ? <PollDatesCalendarButton event={{ id: eventId, ...calendar }} dates={data} /> : null}
+      {calendar ? <ValidateDates event={{ id: eventId, ...calendar }} dates={data} votes={mine} /> : null}
       <ErrorText error={error} />
     </View>
   );

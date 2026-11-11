@@ -129,7 +129,7 @@ type SettleEvent = Pick<EventRow, 'id' | 'title' | 'status' | 'date_mode' | 'sta
  * Date fixée (ou événement annulé) : l'app garde la bonne entrée sous le vrai titre et retire les autres dates
  * « À confirmer ». Sans app ou sans dates ajoutées : rien. Les erreurs n'empêchent jamais l'écran de s'afficher.
  */
-export async function settleNativeDates(ev: SettleEvent | null, eventId?: string): Promise<void> {
+export async function settleNativeDates(ev: SettleEvent | null, eventId?: string, declined = false): Promise<void> {
   const native = nativeCalendar();
   if (!native) return;
   try {
@@ -137,7 +137,8 @@ export async function settleNativeDates(ev: SettleEvent | null, eventId?: string
       if (eventId) await native.settle({ eventId, cancelled: true });  // événement supprimé ou plus visible
       return;
     }
-    if (ev.status === 'cancelled') await native.settle({ eventId: ev.id, cancelled: true });
+    // Annulé, ou « Non » à la date retenue : toutes ses dates partent de l'agenda.
+    if (ev.status === 'cancelled' || (declined && ev.date_mode === 'fixed')) await native.settle({ eventId: ev.id, cancelled: true });
     else if (ev.date_mode === 'fixed' && ev.starts_at) await native.settle({ eventId: ev.id, title: ev.title, start: ev.starts_at, end: ev.ends_at });
   } catch { /* App plus ancienne ou calendrier inaccessible : on réessaiera au prochain passage. */ }
 }
@@ -155,6 +156,76 @@ export async function sweepNativeCalendar(): Promise<void> {
     const { data, error } = await supabase.from('events').select('id, title, status, date_mode, starts_at, ends_at').in('id', ids);
     if (error) return;
     const rows = (data ?? []) as SettleEvent[];
-    for (const id of ids) await settleNativeDates(rows.find((r) => r.id === id) ?? null, id);
+    const me = (await supabase.auth.getSession()).data.session?.user.id;
+    const answers = me ? ((await supabase.from('rsvps').select('event_id, status').eq('user_id', me).in('event_id', ids)).data ?? []) : [];
+    const declined = new Set(answers.filter((a) => a.status === 'no').map((a) => a.event_id as string));
+    for (const id of ids) await settleNativeDates(rows.find((r) => r.id === id) ?? null, id, declined.has(id));
   } catch { /* Hors ligne ou app plus ancienne : au prochain démarrage. */ }
+}
+
+/**
+ * Dates d'un sondage à mettre dans l'agenda (retour de l'admin du 11.11) : celles votées Oui ou Si besoin ; sans aucun
+ * vote, toutes. À venir seulement, comme le calendrier abonné de la base (fonction calendar_feed).
+ */
+export function datesToAdd<T extends ProposedDate>(dates: T[], votes: Record<string, string | null | undefined>, now: number = Date.now()): T[] {
+  const voted = dates.some((d) => votes[d.id]);
+  return upcomingDates(voted ? dates.filter((d) => votes[d.id] === 'yes' || votes[d.id] === 'if_needed') : dates, now);
+}
+
+const SUBSCRIBED = 'vp_agenda_';
+
+/** Navigateur : déjà abonné à l'agenda de cet événement (sur cet appareil). */
+export function subscribedTo(eventId: string): boolean {
+  try { return typeof localStorage !== 'undefined' && localStorage.getItem(SUBSCRIBED + eventId) === '1'; } catch { return false; }
+}
+
+function rememberSubscription(eventId: string) {
+  try { localStorage.setItem(SUBSCRIBED + eventId, '1'); } catch { /* navigation privée : le bouton reviendra, sans gravité */ }
+}
+
+/** Adresse que l'agenda relit tout seul ; Android passe par Google Agenda, l'iPhone et le Mac par webcal://. */
+export function subscribeLink(token: string, origin: string, platform: CalendarPlatform = calendarPlatform()): string {
+  const webcal = `${origin.replace(/^https?:/, 'webcal:')}/api/calendar-feed/${token}.ics`;
+  return platform === 'android' ? `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcal)}` : webcal;
+}
+
+export type AddDatesResult = 'native' | 'subscribed' | 'file' | 'denied';
+
+/**
+ * Met les dates du sondage dans l'agenda et le garde à jour : app iPhone → directement dans le calendrier (le ménage se
+ * fait à l'ouverture de l'app) ; navigateur → abonnement à un petit calendrier que l'agenda relit tout seul (la date fixée
+ * y reste, les autres disparaissent, sans rouvrir Party). Base injoignable : le fichier .ics, comme avant.
+ */
+/** Le lien secret de l'agenda abonné, demandé à l'avance (le toucher ouvre ensuite l'agenda sans attendre). */
+export async function subscriptionToken(eventId: string): Promise<string | null> {
+  if (nativeCalendar()) return null;
+  try {
+    const { data, error } = await supabase.rpc('calendar_feed_token', { e: eventId });
+    return !error && typeof data === 'string' && /^[0-9a-f]{36}$/.test(data) ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function addPollDates(ev: PollEvent, dates: ProposedDate[], token?: string | null): Promise<AddDatesResult> {
+  const native = nativeCalendar();
+  if (native) {
+    try {
+      const r = await native.add({ eventId: ev.id, title: ev.title, location: location(ev as CalendarEvent),
+        notes: (ev.description ?? '').slice(0, 1500), url: `${window.location.origin}/events/event/${ev.id}`,
+        dates: dates.map((d) => ({ id: d.id, start: d.starts_at, end: d.ends_at ?? '' })) });
+      return r.denied ? 'denied' : 'native';
+    } catch { /* app plus ancienne : comme dans le navigateur */ }
+  }
+  const feed = token ?? await subscriptionToken(ev.id);
+  if (!feed) {
+    const url = pollDatesIcsUrl(ev, dates);
+    if (url) openIcs(url);
+    return 'file';
+  }
+  const link = subscribeLink(feed, window.location.origin);
+  if (link.startsWith('https:')) openGoogleCalendar(link);
+  else openIcs(link);
+  rememberSubscription(ev.id);
+  return 'subscribed';
 }

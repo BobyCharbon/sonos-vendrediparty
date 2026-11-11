@@ -162,9 +162,10 @@ export default function EventScreen() {
   const ev = data?.event;
   // Dates « À confirmer » mises dans le calendrier de l'iPhone (avis 9ddbdea7fe8f) : date fixée ou événement annulé,
   // l'app garde la bonne entrée et retire les autres, sans rien demander.
+  const declinedDate = !!ev && ev.rsvps.some((r) => r.user_id === me.id && r.status === 'no');
   useEffect(() => {
-    if (ev) void settleNativeDates(ev);
-  }, [ev?.id, ev?.status, ev?.date_mode, ev?.starts_at, ev?.ends_at, ev?.title]);  // eslint-disable-line react-hooks/exhaustive-deps
+    if (ev) void settleNativeDates(ev, undefined, declinedDate);
+  }, [ev?.id, ev?.status, ev?.date_mode, ev?.starts_at, ev?.ends_at, ev?.title, declinedDate]);  // eslint-disable-line react-hooks/exhaustive-deps
   // Payant : « J'ai payé » (invité) et « Reçu » (organisateur) apparaissent sans recharger la page. Les billets ne sont pas
   // lisibles en direct (table fermée, fonctions seulement) : relecture légère des deux cartes, page visible seulement.
   const mineYes = !!ev && ev.rsvps.some((r) => r.user_id === me.id && r.status === 'yes');

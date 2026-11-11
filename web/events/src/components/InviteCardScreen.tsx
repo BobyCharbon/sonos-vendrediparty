@@ -335,7 +335,7 @@ function PollDone({ card, done }: { card: InviteCard; done: Accepted }) {
       </View>
       <InviteDateVotes eventId={done.event_id} onVoted={setVotes}
         calendar={{ title: done.title, description: done.description ?? '', location_name: done.location_name, location_address: done.location_address }} />
-      <T muted size={13} style={{ textAlign: 'center' }}>Tes votes sont enregistrés à chaque toucher. Rouvre ce même lien pour les changer.</T>
+      <T muted size={13} style={{ textAlign: 'center' }}>Rouvre ce même lien pour changer tes réponses.</T>
       <OpenEvent id={done.event_id} label="Voir l’événement et les votes" />
     </Screen>
   );

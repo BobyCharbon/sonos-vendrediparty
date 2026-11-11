@@ -149,3 +149,56 @@ def build_dates(*, uid: str, title: str, dates: list[tuple[str, str, str | None]
         lines.append("END:VEVENT")
     lines.append("END:VCALENDAR")
     return "\r\n".join(_fold(line) for line in lines) + "\r\n"
+
+
+# Agenda abonné d'un sondage (retour de l'admin du 11.11.2026) : l'agenda de la personne relit ce calendrier tout seul.
+# Sondage ouvert : ses dates « À confirmer » ; date fixée : la seule bonne, sous le vrai titre ; sinon : vide.
+FEED_REFRESH = "PT1H"
+
+
+def build_feed(feed: dict | None, *, event_url: str = "", now: datetime | None = None) -> str:
+    """feed : réponse de la fonction calendar_feed de la base (None : lien inconnu → calendrier vide)."""
+    title = str((feed or {}).get("title") or "").strip()[:200]
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Vendredi Party//Evenements//FR", "CALSCALE:GREGORIAN",
+             "METHOD:PUBLISH", f"X-WR-CALNAME:{_text((title + ' · ' if title else '') + 'Vendredi Party', 240)}",
+             f"REFRESH-INTERVAL;VALUE=DURATION:{FEED_REFRESH}", f"X-PUBLISHED-TTL:{FEED_REFRESH}"]
+    if feed and feed.get("active") and title:
+        lines += _feed_entries(feed, title, event_url, _stamp((now or datetime.now(timezone.utc)).astimezone(timezone.utc)))
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(_fold(line) for line in lines) + "\r\n"
+
+
+def _feed_entries(feed: dict, title: str, url: str, stamp: str) -> list[str]:
+    location = str(feed.get("location") or "").strip()
+    if url and not re.fullmatch(r"https?://[^\s\"<>]{1,500}", url):
+        url = ""
+    if feed.get("date_mode") == "fixed":
+        if not feed.get("starts_at") or feed.get("my_rsvp") == "no":
+            return []  # date pas encore connue, ou la personne ne vient pas
+        slots = [(str(feed.get("event_id")), feed["starts_at"], feed.get("ends_at"))]
+        summary, status, note = title, "CONFIRMED", "Date fixée par l'organisateur."
+    else:
+        slots = [(str(d.get("id")), d.get("starts_at"), d.get("ends_at")) for d in (feed.get("dates") or [])][:MAX_DATES]
+        summary, status = TENTATIVE_PREFIX + title, "TENTATIVE"
+        note = "Date proposée : rien n'est encore fixé. Quand la date sera choisie, ton agenda gardera la bonne et retirera les autres."
+    out: list[str] = []
+    for slot, start, end in slots:
+        try:
+            slot_id = str(uuid.UUID(slot))
+            begin = _instant(str(start), "Début")
+            finish = _instant(str(end), "Fin") if end else begin + DEFAULT_DURATION
+        except (CalendarError, ValueError):
+            continue
+        if finish <= begin or finish - begin > MAX_DURATION:
+            finish = begin + DEFAULT_DURATION
+        out += ["BEGIN:VEVENT", f"UID:{slot_id}@vendredi-party-agenda", f"DTSTAMP:{stamp}", f"DTSTART:{_stamp(begin)}",
+                f"DTEND:{_stamp(finish)}", f"SUMMARY:{_text(summary, 200)}", f"STATUS:{status}",
+                f"DESCRIPTION:{_text(chr(10).join(p for p in (note, url) if p), 800)}"]
+        if location:
+            out.append(f"LOCATION:{_text(location, 300)}")
+        if url:
+            out.append(f"URL:{url}")
+        if status == "CONFIRMED":
+            out += ["BEGIN:VALARM", "ACTION:DISPLAY", f"DESCRIPTION:{_text(title, 200)}", "TRIGGER:-PT2H", "END:VALARM"]
+        out.append("END:VEVENT")
+    return out

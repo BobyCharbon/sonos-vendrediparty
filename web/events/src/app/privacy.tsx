@@ -45,9 +45,10 @@ const BLOCKS: Block[] = [
     ],
   },
   {
-    title: 'Calendrier de ton iPhone',
+    title: 'Ton agenda',
     paragraphs: [
-      'Seulement si tu l’autorises, quand tu touches « Mettre les dates dans mon agenda » d’un sondage : l’app ajoute les dates proposées dans ton calendrier, puis, une fois la date fixée, garde la bonne et retire les autres. Elle ne lit que les entrées qu’elle a ajoutées ; rien de ton calendrier ne quitte ton iPhone.',
+      'App iPhone, seulement si tu l’autorises, quand tu ajoutes les dates d’un sondage à ton agenda : l’app les met dans ton calendrier, puis, une fois la date fixée, garde la bonne et retire les autres. Elle ne lit que les entrées qu’elle a ajoutées ; rien de ton calendrier ne quitte ton iPhone.',
+      'Dans le navigateur, ton agenda s’abonne à un lien secret, propre à toi et à cet événement : il n’y lit que le titre, le lieu et tes dates (celles que tu as votées, puis la date fixée). Le lien disparaît avec l’événement ou avec ton compte.',
     ],
   },
   {

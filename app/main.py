@@ -29,6 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from . import beerpong, brain, brain_game, calendar_ics, debate, games, heist, island, likely, links, masque, neon, president, psy, purity, quiz, reflet
 from . import pet, pet_coll_store, pet_reactions, pet_store
 from . import tv_zicou
+from . import calendar_feed
 from . import pet_pot, tv_star
 # Adresse du déploiement et fonctions en bêta (Compagnon : allumé sur le site de test seulement).
 from .features import COMPAGNON_SOON, TEST_SITE_HOST, bar_enabled, compagnon_enabled, configured_public_url, discussions_enabled, invites_v2_enabled
@@ -5128,6 +5129,23 @@ def calendar_dates_file(
     return Response(body, media_type="text/calendar; charset=utf-8", headers={
         **NO_CACHE,
         "Content-Disposition": f'attachment; filename="{calendar_ics.filename("dates " + title)}"',
+        "X-Content-Type-Options": "nosniff",
+    })
+
+
+@app.get("/api/calendar-feed/{token}.ics")
+def calendar_feed_file(token: str):
+    """Agenda abonné d'un sondage de dates (retour de l'admin du 11.11.2026) : relu tout seul par l'agenda de la
+    personne. Sondage ouvert : ses dates « À confirmer » ; date fixée : la seule bonne ; annulé ou plus concerné : vide."""
+    feed, reachable = calendar_feed.read(accounts, token.lower())
+    if not reachable:
+        # Base injoignable : l'agenda garde ce qu'il a et réessaie plus tard (jamais vidé pour une panne).
+        raise HTTPException(503, "Réessaie plus tard")
+    event_id = str((feed or {}).get("event_id") or "")
+    url = f"{configured_public_url().rstrip('/')}/events/event/{event_id}" if event_id else ""
+    return Response(calendar_ics.build_feed(feed, event_url=url), media_type="text/calendar; charset=utf-8", headers={
+        **NO_CACHE,
+        "Content-Disposition": 'inline; filename="vendredi-party.ics"',
         "X-Content-Type-Options": "nosniff",
     })
 
