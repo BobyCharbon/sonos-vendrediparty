@@ -32,7 +32,7 @@ export function ValidateDates({ event, dates, votes }: Props) {
     <View style={{ gap: 6 }}>
       <Button label="Valider mes dates" disabled={!answered} onPress={() => setOpen(true)} />
       {hint ? <T muted size={12} style={st.center}>{hint}</T> : null}
-      <ValidatedSheet visible={open} onClose={() => setOpen(false)} event={event} dates={datesToAdd(dates, votes)} />
+      {open ? <ValidatedSheet visible onClose={() => setOpen(false)} event={event} dates={datesToAdd(dates, votes)} /> : null}
     </View>
   );
 }
@@ -61,8 +61,7 @@ function ValidatedSheet({ visible, onClose, event, dates }: {
 
   useEffect(() => {
     if (!visible) return;
-    let alive = true;
-    setResult(null);
+    let alive = true;  // feuille montée à chaque ouverture : résultat remis à zéro
     // Demandé dès l'ouverture : le toucher sur « Ajouter » ouvre l'agenda tout de suite (sinon Safari peut le bloquer).
     void agendaLink(event.id).then(async (l) => {
       if (!alive) return;
