@@ -47,8 +47,8 @@ const BLOCKS: Block[] = [
   {
     title: 'Ton agenda',
     paragraphs: [
-      'App iPhone, seulement si tu l’autorises, quand tu ajoutes les dates d’un sondage à ton agenda : l’app les met dans ton calendrier, puis, une fois la date fixée, garde la bonne et retire les autres. Elle ne lit que les entrées qu’elle a ajoutées ; rien de ton calendrier ne quitte ton iPhone.',
-      'Dans le navigateur, ton agenda s’abonne à un lien secret, propre à toi et à cet événement : il n’y lit que le titre, le lieu et tes dates (celles que tu as votées, puis la date fixée). Le lien disparaît avec l’événement ou avec ton compte.',
+      'Quand tu ajoutes un événement à ton agenda, ton agenda s’abonne à ton calendrier « Vendredi Party », un lien secret propre à toi : il n’y lit que les événements que tu y as ajoutés (titre, description, lieu, date, ou tes dates votées tant que la date n’est pas fixée) et suit leurs changements. Party note seulement quand ton agenda l’a relu pour la dernière fois, pour savoir qu’il est abonné. Tout disparaît avec ton compte.',
+      'App iPhone, seulement si tu l’autorises, si l’agenda abonné n’est pas disponible : l’app met elle-même les dates d’un sondage dans ton calendrier, puis, une fois la date fixée, garde la bonne et retire les autres. Elle ne lit que les entrées qu’elle a ajoutées ; rien de ton calendrier ne quitte ton iPhone.',
     ],
   },
   {

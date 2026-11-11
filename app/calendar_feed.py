@@ -1,4 +1,4 @@
-"""Agenda abonné d'un sondage de dates (retour de l'admin du 11.11.2026) : lu avec le jeton secret de la personne,
+"""Agenda abonné « Vendredi Party » (retours de l'admin du 11.11.2026) : lu avec le jeton secret de la personne,
 sans session (l'agenda de l'iPhone ou Google Agenda le relit tout seul). La base décide de ce qui est montré
 (fonction calendar_feed) ; ici on ne fait que la lire."""
 import re

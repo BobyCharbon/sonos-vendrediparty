@@ -5135,15 +5135,14 @@ def calendar_dates_file(
 
 @app.get("/api/calendar-feed/{token}.ics")
 def calendar_feed_file(token: str):
-    """Agenda abonné d'un sondage de dates (retour de l'admin du 11.11.2026) : relu tout seul par l'agenda de la
-    personne. Sondage ouvert : ses dates « À confirmer » ; date fixée : la seule bonne ; annulé ou plus concerné : vide."""
+    """Agenda abonné « Vendredi Party » de la personne (retours de l'admin du 11.11.2026) : relu tout seul par son
+    agenda. Chaque événement ajouté suit ses changements ; sondage ouvert : ses dates « À confirmer » ; date fixée : la
+    seule bonne ; Non, annulé ou plus concerné : rien."""
     feed, reachable = calendar_feed.read(accounts, token.lower())
     if not reachable:
         # Base injoignable : l'agenda garde ce qu'il a et réessaie plus tard (jamais vidé pour une panne).
         raise HTTPException(503, "Réessaie plus tard")
-    event_id = str((feed or {}).get("event_id") or "")
-    url = f"{configured_public_url().rstrip('/')}/events/event/{event_id}" if event_id else ""
-    return Response(calendar_ics.build_feed(feed, event_url=url), media_type="text/calendar; charset=utf-8", headers={
+    return Response(calendar_ics.build_feed(feed, base_url=configured_public_url()), media_type="text/calendar; charset=utf-8", headers={
         **NO_CACHE,
         "Content-Disposition": 'inline; filename="vendredi-party.ics"',
         "X-Content-Type-Options": "nosniff",

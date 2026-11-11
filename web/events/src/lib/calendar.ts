@@ -172,60 +172,66 @@ export function datesToAdd<T extends ProposedDate>(dates: T[], votes: Record<str
   return upcomingDates(voted ? dates.filter((d) => votes[d.id] === 'yes' || votes[d.id] === 'if_needed') : dates, now);
 }
 
-const SUBSCRIBED = 'vp_agenda_';
-
-/** Navigateur : déjà abonné à l'agenda de cet événement (sur cet appareil). */
-export function subscribedTo(eventId: string): boolean {
-  try { return typeof localStorage !== 'undefined' && localStorage.getItem(SUBSCRIBED + eventId) === '1'; } catch { return false; }
-}
-
-function rememberSubscription(eventId: string) {
-  try { localStorage.setItem(SUBSCRIBED + eventId, '1'); } catch { /* navigation privée : le bouton reviendra, sans gravité */ }
-}
-
-/** Adresse que l'agenda relit tout seul ; Android passe par Google Agenda, l'iPhone et le Mac par webcal://. */
-export function subscribeLink(token: string, origin: string, platform: CalendarPlatform = calendarPlatform()): string {
+/** Adresse que l'agenda relit tout seul ; Google Agenda par son lien d'abonnement, l'iPhone, le Mac et Outlook par webcal://. */
+export function subscribeLink(token: string, origin: string, platform: CalendarPlatform | 'google' = calendarPlatform()): string {
   const webcal = `${origin.replace(/^https?:/, 'webcal:')}/api/calendar-feed/${token}.ics`;
-  return platform === 'android' ? `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcal)}` : webcal;
+  return platform === 'android' || platform === 'google' ? `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcal)}` : webcal;
 }
 
-export type AddDatesResult = 'native' | 'subscribed' | 'file' | 'denied';
+/** Le calendrier « Vendredi Party » de la personne : son lien, s'il est déjà abonné (lu par un agenda) et si l'événement y est. */
+export type AgendaLink = { token: string; subscribed: boolean; added: boolean };
 
 /**
- * Met les dates du sondage dans l'agenda et le garde à jour : app iPhone → directement dans le calendrier (le ménage se
- * fait à l'ouverture de l'app) ; navigateur → abonnement à un petit calendrier que l'agenda relit tout seul (la date fixée
- * y reste, les autres disparaissent, sans rouvrir Party). Base injoignable : le fichier .ics, comme avant.
+ * Demandé à l'avance (le toucher ouvre ensuite l'agenda sans attendre, sinon Safari peut le bloquer). Ne rien ajouter :
+ * seul le toucher ajoute l'événement (add = true). Sans compte ou base injoignable : null (on garde l'ancien ajout).
  */
-/** Le lien secret de l'agenda abonné, demandé à l'avance (le toucher ouvre ensuite l'agenda sans attendre). */
-export async function subscriptionToken(eventId: string): Promise<string | null> {
-  if (nativeCalendar()) return null;
+export async function agendaLink(eventId: string, add = false): Promise<AgendaLink | null> {
   try {
-    const { data, error } = await supabase.rpc('calendar_feed_token', { e: eventId });
-    return !error && typeof data === 'string' && /^[0-9a-f]{36}$/.test(data) ? data : null;
+    const { data, error } = await supabase.rpc('calendar_feed_token', { e: eventId, add });
+    const r = data as Partial<AgendaLink> | null;
+    if (error || !r || typeof r.token !== 'string' || !/^[0-9a-f]{36}$/.test(r.token)) return null;
+    return { token: r.token, subscribed: r.subscribed === true, added: r.added === true };
   } catch {
     return null;
   }
 }
 
-export async function addPollDates(ev: PollEvent, dates: ProposedDate[], token?: string | null): Promise<AddDatesResult> {
-  const native = nativeCalendar();
-  if (native) {
-    try {
-      const r = await native.add({ eventId: ev.id, title: ev.title, location: location(ev as CalendarEvent),
-        notes: (ev.description ?? '').slice(0, 1500), url: `${window.location.origin}/events/event/${ev.id}`,
-        dates: dates.map((d) => ({ id: d.id, start: d.starts_at, end: d.ends_at ?? '' })) });
-      return r.denied ? 'denied' : 'native';
-    } catch { /* app plus ancienne : comme dans le navigateur */ }
+export type AddDatesResult = 'added' | 'subscribed' | 'native' | 'file' | 'denied';
+
+/**
+ * Ajout à l'agenda, partout la même méthode (retours de l'admin du 11.11) : l'événement entre dans le calendrier
+ * « Vendredi Party » de la personne, que son agenda relit tout seul (date, lieu, titre, description modifiés suivent).
+ * Première fois : l'agenda propose de s'abonner ; ensuite, rien à ouvrir. Sans lien : `fallback` (ancien ajout ponctuel).
+ */
+export async function addToAgenda(eventId: string, link: AgendaLink | null, fallback: () => Promise<AddDatesResult> | AddDatesResult,
+  via: CalendarPlatform | 'google' = calendarPlatform()): Promise<AddDatesResult> {
+  if (!link) return fallback();
+  if (!link.subscribed) {
+    const url = subscribeLink(link.token, window.location.origin, via);
+    if (url.startsWith('https:')) openGoogleCalendar(url);
+    else openIcs(url);
   }
-  const feed = token ?? await subscriptionToken(ev.id);
-  if (!feed) {
+  const saved = await agendaLink(eventId, true);
+  if (!saved) return link.subscribed ? fallback() : 'subscribed';
+  // App iPhone : les dates déjà mises directement dans le calendrier feraient doublon avec l'agenda abonné.
+  try { await nativeCalendar()?.settle({ eventId, cancelled: true }); } catch { /* app plus ancienne */ }
+  return link.subscribed ? 'added' : 'subscribed';
+}
+
+/** Sondage : sans agenda abonné possible, l'app iPhone les met dans le calendrier ; sinon le fichier .ics, comme avant. */
+export async function addPollDates(ev: PollEvent, dates: ProposedDate[], link?: AgendaLink | null): Promise<AddDatesResult> {
+  return addToAgenda(ev.id, link ?? null, async () => {
+    const native = nativeCalendar();
+    if (native) {
+      try {
+        const r = await native.add({ eventId: ev.id, title: ev.title, location: location(ev as CalendarEvent),
+          notes: (ev.description ?? '').slice(0, 1500), url: `${window.location.origin}/events/event/${ev.id}`,
+          dates: dates.map((d) => ({ id: d.id, start: d.starts_at, end: d.ends_at ?? '' })) });
+        return r.denied ? 'denied' : 'native';
+      } catch { /* app plus ancienne : comme dans le navigateur */ }
+    }
     const url = pollDatesIcsUrl(ev, dates);
     if (url) openIcs(url);
     return 'file';
-  }
-  const link = subscribeLink(feed, window.location.origin);
-  if (link.startsWith('https:')) openGoogleCalendar(link);
-  else openIcs(link);
-  rememberSubscription(ev.id);
-  return 'subscribed';
+  });
 }

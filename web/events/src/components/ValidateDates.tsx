@@ -3,7 +3,7 @@ import { Modal, StyleSheet, View } from 'react-native';
 
 import { SheetBackdrop, SheetTop, useSheetDrag, useSheetSignal, useSheetTop } from './SheetGesture';
 import { Button, T } from './ui';
-import { addPollDates, datesToAdd, nativeCalendar, subscribedTo, subscriptionToken, type AddDatesResult } from '@/lib/calendar';
+import { addPollDates, agendaLink, datesToAdd, nativeCalendar, type AddDatesResult, type AgendaLink } from '@/lib/calendar';
 import { formatShort } from '@/lib/format';
 import { colors, radius } from '@/lib/theme';
 import type { DateVote, EventRow } from '@/lib/types';
@@ -37,9 +37,10 @@ export function ValidateDates({ event, dates, votes }: Props) {
   );
 }
 
-const DONE: Record<AddDatesResult, string> = {
+export const AGENDA_DONE: Record<AddDatesResult, string> = {
+  added: '✓ Ajouté à ton calendrier « Vendredi Party » : il y apparaît d’ici peu (au plus une heure) et suivra chaque changement.',
   native: '✓ C’est dans ton agenda. Quand la date sera fixée, Party gardera la bonne et retirera les autres.',
-  subscribed: '✓ Confirme l’abonnement dans ton agenda : il se mettra ensuite à jour tout seul.',
+  subscribed: '✓ Confirme l’abonnement « Vendredi Party » dans ton agenda : tes événements s’y mettront ensuite à jour tout seuls.',
   file: 'Ajoute-les dans la fenêtre qui s’ouvre.',
   denied: 'Party n’a pas accès à ton calendrier : autorise-le dans Réglages › Party › Calendriers.',
 };
@@ -51,7 +52,7 @@ function ValidatedSheet({ visible, onClose, event, dates }: {
   const overlay = useRef<View>(null);
   const sheetTop = useSheetTop();
   const [already, setAlready] = useState(false);
-  const [token, setToken] = useState<string | null>(null);
+  const [link, setLink] = useState<AgendaLink | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<AddDatesResult | null>(null);
   useSheetDrag(visible, onClose, card, overlay);
@@ -62,21 +63,22 @@ function ValidatedSheet({ visible, onClose, event, dates }: {
     if (!visible) return;
     let alive = true;
     setResult(null);
-    const native = nativeCalendar();
-    if (native) {
-      native.status(event.id).then((r) => { if (alive) setAlready(n > 0 && (r.added ?? 0) >= n); }).catch(() => undefined);
-    } else {
-      setAlready(subscribedTo(event.id));
-      // Demandé dès l'ouverture : le toucher sur « Ajouter » ouvre l'agenda tout de suite (sinon Safari peut le bloquer).
-      void subscriptionToken(event.id).then((t) => { if (alive) setToken(t); });
-    }
+    // Demandé dès l'ouverture : le toucher sur « Ajouter » ouvre l'agenda tout de suite (sinon Safari peut le bloquer).
+    void agendaLink(event.id).then(async (l) => {
+      if (!alive) return;
+      setLink(l);
+      if (l) return setAlready(l.added && l.subscribed);
+      const native = nativeCalendar();  // sans agenda abonné : les dates déjà mises par l'app iPhone
+      const r = native ? await native.status(event.id).catch(() => ({ added: 0 })) : { added: 0 };
+      if (alive) setAlready(n > 0 && (r.added ?? 0) >= n);
+    });
     return () => { alive = false; };
   }, [visible, event.id, n]);
 
   async function add() {
     setBusy(true);
     try {
-      setResult(await addPollDates(event, dates, token));
+      setResult(await addPollDates(event, dates, link));
     } finally {
       setBusy(false);
     }
@@ -103,7 +105,7 @@ function ValidatedSheet({ visible, onClose, event, dates }: {
           ) : null}
           {result ? (
             <>
-              <T size={14} weight="bold" color={result === 'denied' ? colors.coralSoft : colors.mint} style={st.center}>{DONE[result]}</T>
+              <T size={14} weight="bold" color={result === 'denied' ? colors.coralSoft : colors.mint} style={st.center}>{AGENDA_DONE[result]}</T>
               <Button label="Terminé" onPress={onClose} />
             </>
           ) : already || !n ? (
