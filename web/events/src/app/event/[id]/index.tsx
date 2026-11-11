@@ -396,6 +396,10 @@ export default function EventScreen() {
       {mine?.status === 'yes' && ticketRelevant(ev, data.loadedAt) ? (
         <TicketCard event={ev} me={me} answerKey={`${mine.status}:${mine.waitlisted}:${mine.plus_ones}:${paymentsTick}`} />
       ) : null}
+      {/* Invités (avis 83ebee37aa0f, 11.11) : le même menu, les chiffres seulement (aucun nom) et leurs propres liens, après leur réponse. */}
+      {invitesV2On && !canManage && published ? (
+        <GuestListCard event={ev} me={{ id: me.id, display_name: me.display_name ?? '' }} onChanged={reload} quietOnError />
+      ) : null}
       {/* Bar de la soirée : solde EN GRAND du présent, « Scanner au bar » du barman. */}
       {barOn && published ? <BarEntry eventId={ev.id} zone="guest" answer={mine?.status ?? ''} /> : null}
 

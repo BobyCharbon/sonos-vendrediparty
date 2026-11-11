@@ -25,10 +25,14 @@ export type LinkState = 'pending' | 'opened' | 'full' | 'expired' | 'revoked';
 export type SentLink = {
   token: string; label: string | null; max_uses: number; uses: number; created_at: string; expires_at: string;
   opened_at: string | null; state: LinkState; version: number; created_by: string | null; created_by_id: string | null;
-  nudged_today: boolean; arrivals: { id: string; name: string; status: RsvpStatus | null }[];
+  /** Vue d'un invité : name (et id) vides, seul le nombre de réponses compte. */
+  nudged_today: boolean; arrivals: { id: string | null; name: string | null; status: RsvpStatus | null }[];
 };
+export type GuestCounts = Record<Exclude<GuestFilter, 'all'>, number> & { total: number };
 export type GuestList = {
   vip: boolean; public: boolean; vip_name: string | null; poll?: boolean;
+  /** Vue d'un invité (avis 83ebee37aa0f, 11.11) : les chiffres seulement (people vide), ses liens à lui, sans nom. */
+  guest?: boolean; counts?: GuestCounts;
   groups: { id: string; name: string; members: number }[];
   people: Guest[]; links: SentLink[];
 };
@@ -41,7 +45,8 @@ function waitingLinks(list: GuestList) {
   return list.links.filter((l) => l.max_uses === 1 && (l.state === 'pending' || l.state === 'opened') && !l.arrivals.length);
 }
 
-export function guestCounts(list: GuestList): Record<Exclude<GuestFilter, 'all'>, number> & { total: number } {
+export function guestCounts(list: GuestList): GuestCounts {
+  if (list.counts) return list.counts;
   const count = (s: RsvpStatus) => list.people.filter((p) => p.status === s).length;
   const waiting = waitingLinks(list);
   const unopened = waiting.filter((l) => l.state === 'pending').length;
@@ -97,7 +102,7 @@ export function linkLine(l: SentLink): string {
     const places = unlimited(l.max_uses) ? `${l.uses} ${l.uses > 1 ? 'personnes' : 'personne'} · sans limite` : `${l.uses} sur ${l.max_uses} places`;
     return l.state === 'expired' ? `${places} · terminé` : `${places} · jusqu’au ${shortDate(l.expires_at)}`;
   }
-  if (l.arrivals.length) return `${l.arrivals[0]!.name} a répondu${l.arrivals[0]!.status ? ` « ${statusWords[l.arrivals[0]!.status]} »` : ''}`;
+  if (l.arrivals.length) return `${l.arrivals[0]!.name ?? 'Une personne'} a répondu${l.arrivals[0]!.status ? ` « ${statusWords[l.arrivals[0]!.status]} »` : ''}`;
   if (l.state === 'expired') return 'Plus valable · jamais utilisé';
   if (l.state === 'opened') return `Ouvert ${shortDate(l.opened_at)} · pas encore de réponse`;
   return `Envoyé ${shortDate(l.created_at)} · pas encore ouvert`;
@@ -180,7 +185,16 @@ async function call<T>(name: string, args: Record<string, unknown>, fallback: st
 }
 
 export const fetchGuestList = (e: string) =>
-  call<GuestList>('event_guest_list', { e }, 'La liste des invités n’a pas pu être lue.').then(pollGuestList);
+  call<GuestList>('event_guest_list', { e }, 'La liste des invités n’a pas pu être lue.').then(checkGuestList).then(pollGuestList);
+
+/** Réponse de la base vérifiée avant l'écran : une liste malformée ne doit jamais faire tomber la fiche. */
+function checkGuestList(list: unknown): GuestList {
+  const l = list as Partial<GuestList> | null;
+  if (!l || typeof l !== 'object' || !Array.isArray(l.people) || !Array.isArray(l.links) || !Array.isArray(l.groups)) {
+    throw new Error('La liste des invités n’a pas pu être lue.');
+  }
+  return l as GuestList;
+}
 
 /**
  * Sondage de dates (08.11) : répondre, c'est voter les dates. « A voté » tient la place de « vient » (mêmes comptes, mêmes

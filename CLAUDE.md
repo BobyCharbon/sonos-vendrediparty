@@ -71,6 +71,11 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   − / + pour 50 à 2 places ; valable jusqu'au lendemain de l'événement (suit sa date, sondage sans date : 1 an), jamais de
   choix de durée à l'écran ; l'organisateur l'arrête quand il veut (« Arrêter », `revoke_invite_link`).
   Tests : `tests/supabase_live/test_lien_sans_limite_live.py`, `tests/test_invitations_v2_browser.py`.
+- Menu de partage commun (avis 83ebee37aa0f, 11.11) : chaque invité a la carte « Invités » de l'organisateur avec les
+  CHIFFRES seulement (jamais un nom, ni relance ni retrait), crée ses propres liens nommés (20 en attente au plus), les recopie
+  et les arrête (`event_guest_list` vue `guest`, `create_event_invite`, `revoke_invite_link`, migration 20261111120000).
+  Tout lien se nomme (« Plusieurs » compris) et se recopie (« Copier ») : le même lien, jamais un nouveau.
+  Tests : `tests/supabase_live/test_partage_commun_live.py`, `tests/test_partage_commun_browser.py`.
 - Agenda (11.11) : partout la même méthode, le calendrier abonné « Vendredi Party » de la personne (un lien par personne,
   `calendar_feed_token(e, add)` / `calendar_feed`, `/api/calendar-feed/<jeton>.ics`) : ajouter un événement (bouton
   « Ajouter à mon agenda », « Valider mes dates ») l'y met, et l'agenda suit tout changement sans rouvrir Party. Ouvrir une

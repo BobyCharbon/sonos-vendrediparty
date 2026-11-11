@@ -6,7 +6,7 @@ import { Avatar, ErrorText, Meter, Skeleton, T, Toast } from './ui';
 import { useQuery } from '@/lib/data';
 import { formatShort } from '@/lib/format';
 import {
-  fetchGuestList, filterGuests, filterLinks, guestCounts, guestOrigin, inviteLinkUrl, inviteMessage, linkLine, linkSpokenNames, linkTitle, nudgeInvitees,
+  copyText, fetchGuestList, filterGuests, filterLinks, guestCounts, guestOrigin, inviteLinkUrl, inviteMessage, linkLine, linkSpokenNames, linkTitle, nudgeInvitees,
   nudgeLink, removeInvitee, ruleSentence, shareInvite, statusWords, stopLink, unlimited,
   type Guest, type GuestFilter, type GuestList, type SentLink,
 } from '@/lib/invites';
@@ -37,8 +37,10 @@ const when = (ev: Ev) => (ev.starts_at ? formatShort(ev.starts_at).toLowerCase()
  * à qui on a envoyé un lien et qui a invité qui. « + » ouvre la feuille « Inviter » ; « Relancer » envoie une notification
  * Party (si la personne a l'app) ou ouvre la feuille de partage avec un message prêt ; glisser une ligne : Relancer, Retirer.
  */
-export function GuestListCard({ event, me, onChanged, openSheet = false, headline, initialPeople = [] }: {
+export function GuestListCard({ event, me, onChanged, openSheet = false, headline, initialPeople = [], quietOnError = false }: {
   event: Ev; me: Me; onChanged: () => void;
+  /** Vue d'un invité : liste illisible → rien du tout (sa réponse et la fiche restent), jamais une carte d'erreur. */
+  quietOnError?: boolean;
   /** Juste publié « Sur invitation » (assistant IA) : la feuille « Inviter » s'ouvre aussitôt, lien prêt. */
   openSheet?: boolean; headline?: string; initialPeople?: string[];
 }) {
@@ -100,6 +102,11 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
 
   const stop = (l: SentLink) => run(async () => { await stopLink(l.token); return 'Lien arrêté : il ne marche plus'; });
 
+  /** Le même lien, recopié (perdu, ou à renvoyer) : jamais un nouveau lien. */
+  const copyLink = (l: SentLink) => run(async () =>
+    ((await copyText(inviteLinkUrl(l.token))) ? 'Lien copié' : 'Copie impossible : réessaie'));
+
+  if (!list && loadError && quietOnError) return null;
   if (!list) {
     return (
       <View style={st.card}>
@@ -110,6 +117,8 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
   }
 
   const counts = guestCounts(list);
+  // Vue d'un invité (avis 83ebee37aa0f, 11.11) : les mêmes chiffres, jamais un nom ; ses liens à lui.
+  const guest = !!list.guest;
   const waiting = list.people.filter((p) => !p.status && !p.nudged_today);
   const extra = list.people.filter((p) => p.source === 'person' || p.source === 'link' || p.source === 'public');
 
@@ -118,7 +127,8 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
   );
   const spoken = linkSpokenNames(list.links);
   const linkRows = (links: SentLink[]) => links.map((l) => (
-    <LinkRow key={l.token} link={l} spokenName={spoken.get(l.token) ?? linkTitle(l)} onNudge={() => void nudgeByLink(l)} onStop={() => void stop(l)} />
+    <LinkRow key={l.token} link={l} spokenName={spoken.get(l.token) ?? linkTitle(l)} onNudge={guest ? null : () => void nudgeByLink(l)}
+      onStop={() => void stop(l)} onCopy={() => void copyLink(l)} />
   ));
 
   return (
@@ -126,7 +136,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
       <View style={st.head}>
         <View style={{ flex: 1, gap: 2 }}>
           <T weight="bold" size={20}>Invités · {counts.total}</T>
-          <T muted size={13}>{list.poll ? `${counts.yes} ${counts.yes > 1 ? 'ont voté les dates' : 'a voté les dates'}` : `${counts.yes} ${counts.yes > 1 ? 'viennent' : 'vient'}`} · {counts.none + counts.unopened} sans réponse</T>
+          <T muted size={13}>{guest ? 'Tu vois les chiffres ; toi aussi, tu peux inviter. ' : ''}{list.poll ? `${counts.yes} ${counts.yes > 1 ? 'ont voté les dates' : 'a voté les dates'}` : `${counts.yes} ${counts.yes > 1 ? 'viennent' : 'vient'}`} · {counts.none + counts.unopened} sans réponse</T>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Inviter" onPress={() => setSheet(true)}
           style={({ pressed }) => [st.plus, pressTransition, pressed && { transform: [{ scale: 0.92 }] }]}>
@@ -141,7 +151,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
 
       <View style={st.rule}>
         <T size={14} weight="bold">{ruleSentence(list)}</T>
-        <T muted size={12}>Personne n’est ajouté au groupe : les invités voient cet événement, rien d’autre.</T>
+        <T muted size={12}>{guest ? 'Les personnes que tu invites voient cet événement, rien d’autre.' : 'Personne n’est ajouté au groupe : les invités voient cet événement, rien d’autre.'}</T>
       </View>
 
       {counts.total ? (
@@ -160,7 +170,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
           return (
             <Pressable key={t.key} accessibilityRole="tab" accessibilityState={{ selected: on }} aria-selected={on}
               accessibilityLabel={`${counts[t.key]} ${label}`}
-              onPress={() => setFilter(on ? 'all' : t.key)}
+              disabled={guest} onPress={() => setFilter(on ? 'all' : t.key)}
               style={({ pressed }) => [st.tile, on && { borderColor: t.color, backgroundColor: colors.surface2 }, pressTransition,
                 pressed && { transform: [{ scale: 0.96 }] }]}>
               <T size={22} weight="bold" color={t.color}>{counts[t.key]}</T>
@@ -170,7 +180,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
         })}
       </View>
 
-      {waiting.length ? (
+      {waiting.length && !guest ? (
         <Pressable accessibilityRole="button" onPress={() => void nudgeAll(waiting)}
           style={({ pressed }) => [st.nudgeAll, pressTransition, pressed && { transform: [{ scale: 0.98 }] }]}>
           <T size={14} weight="bold" color={colors.accent}>
@@ -181,7 +191,13 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
 
       <ErrorText error={error} />
 
-      {filter === 'all' ? (
+      {guest ? (
+        <View style={{ gap: 14 }}>
+          {list.links.length ? <Block title={`Mes liens · ${list.links.length}`}>{linkRows(list.links)}</Block> : (
+            <T muted size={14}>Touche « + » pour envoyer ton propre lien : tu verras combien de personnes y répondent.</T>
+          )}
+        </View>
+      ) : filter === 'all' ? (
         <View style={{ gap: 14 }}>
           {groupBlocks(list).map((b) => (
             <GroupBlock key={b.name} name={b.name} people={b.people} open={open.has(b.name)}
@@ -203,7 +219,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
         </View>
       )}
 
-      <InviteSheet visible={sheet} event={event} me={me} list={list} onClose={() => setSheet(false)} onInvited={refresh}
+      <InviteSheet visible={sheet} event={event} me={me} list={list} onClose={() => setSheet(false)} onInvited={refresh} guest={guest}
         headline={headline} initialPeople={initialPeople} />
       {note ? <Toast message={note} onHide={() => setNote(null)} /> : null}
     </View>
@@ -292,16 +308,21 @@ function GuestRow({ guest, me, onNudge, onRemove }: { guest: Guest; me: string; 
   );
 }
 
-function LinkRow({ link, spokenName, onNudge, onStop }: { link: SentLink; spokenName: string; onNudge: () => void; onStop: () => void }) {
+function LinkRow({ link, spokenName, onNudge, onStop, onCopy }: {
+  link: SentLink; spokenName: string; onNudge: (() => void) | null; onStop: () => void; onCopy: () => void;
+}) {
   const [confirm, setConfirm] = useState(false);
-  const live = link.state === 'pending' || link.state === 'opened';
+  // Un lien « Plusieurs » sans limite reste « ouvert » après des réponses : il se recopie tant qu'il marche.
+  const live = link.state === 'pending' || link.state === 'opened' || (link.max_uses > 1 && link.uses < link.max_uses
+    && link.state !== 'expired' && link.state !== 'revoked');
+  const arrivalNames = link.arrivals.map((a) => a.name).filter(Boolean).join(', ');
   const title = linkTitle(link);
   const badge = link.state === 'opened' && !link.arrivals.length ? { t: 'A ouvert', c: colors.coral }
     : link.state === 'pending' ? { t: 'Pas ouvert', c: UNOPENED_COLOR }
       : link.arrivals.length ? { t: unlimited(link.max_uses) ? `${link.uses} ✓` : link.max_uses > 1 ? `${link.uses}/${link.max_uses}` : 'Répondu', c: rsvpColors.yes }
         : { t: link.state === 'revoked' ? 'Arrêté' : 'Terminé', c: colors.muted };
   const actions = live ? [
-    ...(link.nudged_today ? [] : [{ label: '↻ Relancer', color: colors.lavender, fg: colors.bg, onPress: onNudge }]),
+    ...(link.nudged_today || !onNudge ? [] : [{ label: '↻ Relancer', color: colors.lavender, fg: colors.bg, onPress: onNudge }]),
     { label: confirm ? 'Confirmer' : 'Arrêter', color: colors.red, fg: colors.onRed, onPress: () => (confirm ? onStop() : setConfirm(true)) },
   ] : [];
   return (
@@ -310,9 +331,15 @@ function LinkRow({ link, spokenName, onNudge, onStop }: { link: SentLink; spoken
         <View style={st.linkIcon}><T size={17}>{link.max_uses > 1 ? '👥' : '🔗'}</T></View>
         <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
           <T weight="semibold" size={15} numberOfLines={1}>{title}</T>
-          <T muted size={12} numberOfLines={2}>{linkLine(link)}{link.max_uses > 1 && link.arrivals.length ? ` · ${link.arrivals.map((a) => a.name).join(', ')}` : ''}</T>
+          <T muted size={12} numberOfLines={2}>{linkLine(link)}{link.max_uses > 1 && arrivalNames ? ` · ${arrivalNames}` : ''}</T>
         </View>
         <View style={[st.pill, { borderColor: badge.c }]}><T size={12} weight="bold" color={badge.c}>{badge.t}</T></View>
+        {live ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Copier le lien : ${spokenName}`} onPress={onCopy} hitSlop={8}
+            style={({ pressed }) => [st.copy, pressTransition, pressed && { transform: [{ scale: 0.92 }] }]}>
+            <T size={13} weight="bold" color={colors.accent}>Copier</T>
+          </Pressable>
+        ) : null}
       </View>
     </SwipeRow>
   );
@@ -420,6 +447,7 @@ const st = StyleSheet.create({
   swipeActions: { flexDirection: 'row', alignSelf: 'stretch', minHeight: 56 },
   swipeAction: { width: ACTION_WIDTH, minHeight: 56, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: radius.pill, borderWidth: 1 },
+  copy: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.surface2 },
   dot: { width: 7, height: 7, borderRadius: 4 },
   tag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: colors.fillStrong },
   smallAction: { minHeight: 32, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.accentDim, alignItems: 'center', justifyContent: 'center' },
