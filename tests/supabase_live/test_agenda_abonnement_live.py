@@ -12,6 +12,50 @@ POLL = olga_event(announce=False) + """
 
 AS_ANON = "execute 'reset role'; perform set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true); execute 'set local role anon';"
 MINE = "(public.calendar_feed(current_setting('party.t'))->'events'->0)"
+# Victor sans agenda encore abonné (annulé avec le reste de la transaction).
+FRESH_VICTOR = "delete from public.calendar_feeds where user_id = victor;"
+OUT_OF_BOTS = "delete from public.member_group_members where group_id = bots and user_id = victor;"
+
+
+def test_removed_from_the_group_the_event_leaves_the_agenda_and_nothing_leaks():
+    """Question de l'admin (11.11) : retiré du groupe, plus invité → l'agenda ne montre plus rien, même pas le titre."""
+    out = run(olga_event(announce=False) + as_bot("victor") + f"""
+      perform set_config('party.t', public.calendar_feed_token(e, true)->>'token', true);
+      {AS_ANON}
+      n := jsonb_array_length(public.calendar_feed(current_setting('party.t'))->'events');
+      {as_postgres()}
+      {OUT_OF_BOTS}
+      {AS_ANON}
+      r := public.calendar_feed(current_setting('party.t'));
+      raise exception 'résultat: membre=% retiré=% titre_visible=%', n, jsonb_array_length(r->'events'),
+        (r::text like '%Test annonce bots%')::text;""")
+    assert "résultat: membre=1 retiré=0 titre_visible=false" in out, out
+
+
+def test_an_event_made_private_or_cancelled_leaves_the_agenda():
+    out = run(olga_event(announce=False, public=True) + as_postgres() + OUT_OF_BOTS + as_bot("victor") + f"""
+      perform set_config('party.t', public.calendar_feed_token(e, true)->>'token', true);
+      {AS_ANON}
+      n := jsonb_array_length(public.calendar_feed(current_setting('party.t'))->'events');
+      {as_bot('olga')}
+      update public.events set visibility = 'invited', public_link = false where id = e;
+      {AS_ANON}
+      m := jsonb_array_length(public.calendar_feed(current_setting('party.t'))->'events');
+      {as_bot('olga')}
+      update public.events set visibility = 'all', public_link = true, status = 'cancelled' where id = e;
+      {AS_ANON}
+      raise exception 'résultat: public=% prive=% annule=%', n, m,
+        jsonb_array_length(public.calendar_feed(current_setting('party.t'))->'events');""")
+    assert "résultat: public=1 prive=0 annule=0" in out, out
+
+
+def test_reading_the_agenda_does_not_change_who_the_caller_is():
+    out = run(olga_event(announce=False) + as_bot("victor") + f"""
+      perform set_config('party.t', public.calendar_feed_token(e, true)->>'token', true);
+      {AS_ANON}
+      perform public.calendar_feed(current_setting('party.t'));
+      raise exception 'résultat: apres=%', coalesce(auth.uid()::text, 'personne');""")
+    assert "résultat: apres=personne" in out, out
 
 
 def opt(rank: int) -> str:
@@ -39,7 +83,7 @@ def test_the_subscribed_calendar_follows_my_votes_then_the_fixed_date():
 
 
 def test_one_link_per_person_any_event_follows_its_changes_and_knows_when_subscribed():
-    out = run(olga_event(announce=False) + as_bot("victor") + f"""
+    out = run(FRESH_VICTOR + olga_event(announce=False) + as_bot("victor") + f"""
       r := public.calendar_feed_token(e, true);
       perform set_config('party.t', r->>'token', true);
       m := case when (r->>'subscribed')::boolean then 1 else 0 end;
