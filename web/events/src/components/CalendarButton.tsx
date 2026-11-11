@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import {
-  addToAgenda, agendaLink, calendarPlatform, googleCalendarUrl, icsUrl, openGoogleCalendar, openIcs,
+  addToAgenda, agendaLink, calendarPlatform, googleCalendarUrl, icsUrl, openGoogleCalendar, openIcs, pollDatesOnce,
   type AddDatesResult, type AgendaLink, type CalendarPlatform,
 } from '@/lib/calendar';
 import { duration, enter, pressTransition, transition } from '@/lib/motion';
@@ -20,10 +20,11 @@ type Via = CalendarPlatform | 'google';
  * de la personne, que son agenda relit tout seul. Date, heure, lieu, titre ou description changent : son agenda suit.
  * Première fois : l'agenda propose de s'abonner (iPhone, Mac, Outlook par webcal ; Android et Google par Google Agenda) ;
  * ensuite un toucher suffit, et chaque réponse Présent / Peut-être y met l'événement toute seule (`answer` : relu à chaque
- * réponse). Sans compte ou base injoignable : l'ancien ajout ponctuel (.ics ou Google Agenda).
+ * réponse). Sondage de dates (`dates` : les dates votées Oui / Si besoin, sinon toutes) : le même bouton abonne, puis les
+ * dates votées arrivent toutes seules, « À confirmer ». Sans compte ou base injoignable : l'ancien ajout ponctuel (.ics ou Google Agenda).
  */
-export function CalendarButton({ event, prominent = false, answer = null }: {
-  event: Ev; prominent?: boolean; answer?: string | null;
+export function CalendarButton({ event, prominent = false, answer = null, dates }: {
+  event: Ev; prominent?: boolean; answer?: string | null; dates?: { id: string; starts_at: string; ends_at?: string | null }[];
 }) {
   const [platform] = useState(calendarPlatform);
   const [choices, setChoices] = useState(false);
@@ -40,10 +41,12 @@ export function CalendarButton({ event, prominent = false, answer = null }: {
     return () => { alive = false; };
   }, [event.id, answer]);
 
-  if (!ics || !google) return null;
+  const poll = !event.starts_at && !!dates?.length;
+  if (!poll && (!ics || !google)) return null;
   const inAgenda = !!link?.added && link.subscribed;
 
-  const once = (via: Via): AddDatesResult => {
+  const once = (via: Via): AddDatesResult | Promise<AddDatesResult> => {
+    if (poll || !ics || !google) return pollDatesOnce(event, dates ?? []);
     if (via === 'google' || via === 'android') openGoogleCalendar(google);
     else openIcs(ics);
     return 'file';
@@ -63,7 +66,7 @@ export function CalendarButton({ event, prominent = false, answer = null }: {
     if (link?.subscribed || platform !== 'desktop') void add(platform);
     else setChoices((v) => !v);
   };
-  const alt = link?.subscribed ? null : platform === 'ios'
+  const alt = link?.subscribed || (poll && !link) ? null : platform === 'ios'
     ? { label: 'Google Agenda', via: 'google' as Via }
     : platform === 'android'
       ? { label: 'Autre agenda', via: 'ios' as Via }

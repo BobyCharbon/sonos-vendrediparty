@@ -22,7 +22,7 @@ import { LinkedText } from '@/components/LinkedText';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
 import { Badge, Button, Card, Cascade, ConfirmButton, ErrorText, HeaderAction, HeaderBack, Screen, s, Section, Skeleton, T, Title, Toast } from '@/components/ui';
 import { fetchAttendance, localAttendance } from '@/lib/attendance';
-import { settleNativeDates } from '@/lib/calendar';
+import { datesToAdd, settleNativeDates } from '@/lib/calendar';
 import { useAuth, useMe } from '@/lib/auth';
 import { personLabel, useContactNames, withContactNames } from '@/lib/contactNames';
 import { useQuery, useRealtime } from '@/lib/data';
@@ -218,7 +218,10 @@ export default function EventScreen() {
   // Lien du lieu saisi librement : seulement http(s) (jamais javascript:/data:), sinon la recherche Plans.
   const mapsUrl = safeHref(ev.location_url) ?? (ev.location_address || ev.location_name ? `https://maps.apple.com/?q=${encodeURIComponent(ev.location_address ?? ev.location_name!)}` : null);
   const mine = ev.rsvps.find((r) => r.user_id === me.id);
-  const showCalendar = published && ev.date_mode === 'fixed' && !!ev.starts_at && mine?.status !== 'no';
+  // Sondage de dates : le même bouton abonne l'agenda ; les dates votées Oui / Si besoin y arrivent ensuite toutes seules.
+  const myDateVotes = Object.fromEntries(ev.date_options.map((o) => [o.id, o.date_votes.find((v) => v.user_id === me.id)?.vote ?? null]));
+  const pollDates = ev.date_mode === 'poll' ? datesToAdd(ev.date_options, myDateVotes, data.loadedAt) : [];
+  const showCalendar = published && mine?.status !== 'no' && (ev.date_mode === 'fixed' ? !!ev.starts_at : pollDates.length > 0);
 
   const infoRows = [
     ev.price_chf != null ? { k: 'Prix', v: ev.price_chf === 0 ? 'Gratuit' : `${chf(ev.price_chf)} / personne`, sub: ev.payment_info } : null,
@@ -322,7 +325,7 @@ export default function EventScreen() {
           </Section>
         ) : null}
 
-        {showCalendar ? <CalendarButton event={ev} answer={mine?.status ?? null} prominent={mine?.status === 'yes' || mine?.status === 'maybe'} /> : null}
+        {showCalendar ? <CalendarButton event={ev} dates={pollDates} answer={`${mine?.status ?? ''}${Object.values(myDateVotes).join(',')}`} prominent={mine?.status === 'yes' || mine?.status === 'maybe'} /> : null}
 
         {ev.status === 'cancelled' ? (
           <View style={[st.notice, { backgroundColor: colors.coralDim }]}>

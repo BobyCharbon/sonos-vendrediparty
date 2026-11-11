@@ -285,3 +285,32 @@ def test_once_subscribed_one_tap_adds_a_normal_event_and_says_it_follows_changes
         pw.expect(page.get_by_text('Se met à jour tout seul si l’événement change.', exact=True)).to_be_visible(timeout=15000)
     finally:
         context.close()
+
+
+def test_a_date_poll_has_the_add_to_my_agenda_button_even_before_voting(browser, events_origin):  # noqa: F811
+    """Retour de l'admin (11.11, soir) : sur un sondage, pas de bouton « Ajouter à mon agenda » → qui ne l'avait jamais
+    activé ne le pouvait pas d'ici. Le même bouton abonne ; les dates votées Oui / Si besoin y arrivent ensuite seules."""
+    context, page, pw, calls = _web_poll(browser, events_origin, token=True)
+    try:
+        page.reload(wait_until='domcontentloaded')  # le lien est demandé à l'ouverture de la fiche
+        page.get_by_role('button', name='Ajouter à mon agenda', exact=True).click(timeout=15000)
+        page.get_by_role('button', name='Apple · Outlook', exact=True).click()
+        pw.expect(page.get_by_text('Confirme l’abonnement « Vendredi Party »', exact=False)).to_be_visible(timeout=10000)
+        assert calls[-1] is True
+    finally:
+        context.close()
+
+
+def test_a_poll_where_i_voted_no_everywhere_has_no_agenda_button(browser, events_origin):  # noqa: F811
+    from tests.test_event_participant_browser import USER, event_row, open_event, pw
+    no = lambda opt: [{'option_id': opt, 'user_id': USER, 'vote': 'no'}]  # noqa: E731
+    ev = event_row(date_mode='poll', starts_at=None, max_participants=None, date_options=[
+        {'id': OPT1, 'event_id': EVENT_PAGE, 'starts_at': '2030-11-20T18:00:00Z', 'ends_at': None, 'proposed_by': None, 'date_votes': no(OPT1)},
+        {'id': OPT2, 'event_id': EVENT_PAGE, 'starts_at': '2030-11-27T18:00:00Z', 'ends_at': None, 'proposed_by': None, 'date_votes': no(OPT2)},
+    ])
+    context, page = open_event(browser, events_origin, ev)
+    try:
+        pw.expect(page.get_by_role('button', name=re.compile(r'^Non : ')).first).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_role('button', name='Ajouter à mon agenda', exact=True)).to_have_count(0)
+    finally:
+        context.close()

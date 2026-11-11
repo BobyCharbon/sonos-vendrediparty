@@ -220,7 +220,12 @@ export async function addToAgenda(eventId: string, link: AgendaLink | null, fall
 
 /** Sondage : sans agenda abonné possible, l'app iPhone les met dans le calendrier ; sinon le fichier .ics, comme avant. */
 export async function addPollDates(ev: PollEvent, dates: ProposedDate[], link?: AgendaLink | null): Promise<AddDatesResult> {
-  return addToAgenda(ev.id, link ?? null, async () => {
+  return addToAgenda(ev.id, link ?? null, () => pollDatesOnce(ev, dates));
+}
+
+/** Sondage sans agenda abonné possible : l'app iPhone met les dates dans le calendrier, sinon le fichier .ics. */
+export async function pollDatesOnce(ev: PollEvent, dates: ProposedDate[]): Promise<AddDatesResult> {
+  {
     const native = nativeCalendar();
     if (native) {
       try {
@@ -233,5 +238,5 @@ export async function addPollDates(ev: PollEvent, dates: ProposedDate[], link?: 
     const url = pollDatesIcsUrl(ev, dates);
     if (url) openIcs(url);
     return 'file';
-  });
+  }
 }
