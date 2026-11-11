@@ -7,7 +7,7 @@ import { useQuery } from '@/lib/data';
 import { formatShort } from '@/lib/format';
 import {
   fetchGuestList, filterGuests, filterLinks, guestCounts, guestOrigin, inviteLinkUrl, inviteMessage, linkLine, linkSpokenNames, linkTitle, nudgeInvitees,
-  nudgeLink, removeInvitee, ruleSentence, shareInvite, statusWords, stopLink,
+  nudgeLink, removeInvitee, ruleSentence, shareInvite, statusWords, stopLink, unlimited,
   type Guest, type GuestFilter, type GuestList, type SentLink,
 } from '@/lib/invites';
 import { pressTransition } from '@/lib/motion';
@@ -298,7 +298,7 @@ function LinkRow({ link, spokenName, onNudge, onStop }: { link: SentLink; spoken
   const title = linkTitle(link);
   const badge = link.state === 'opened' && !link.arrivals.length ? { t: 'A ouvert', c: colors.coral }
     : link.state === 'pending' ? { t: 'Pas ouvert', c: UNOPENED_COLOR }
-      : link.arrivals.length ? { t: link.max_uses > 1 ? `${link.uses}/${link.max_uses}` : 'Répondu', c: rsvpColors.yes }
+      : link.arrivals.length ? { t: unlimited(link.max_uses) ? `${link.uses} ✓` : link.max_uses > 1 ? `${link.uses}/${link.max_uses}` : 'Répondu', c: rsvpColors.yes }
         : { t: link.state === 'revoked' ? 'Arrêté' : 'Terminé', c: colors.muted };
   const actions = live ? [
     ...(link.nudged_today ? [] : [{ label: '↻ Relancer', color: colors.lavender, fg: colors.bg, onPress: onNudge }]),

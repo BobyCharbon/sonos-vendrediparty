@@ -11,7 +11,7 @@ import { appDownload } from '@/lib/appInvite';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { avatarColor, formatLongDay, formatTime, initials } from '@/lib/format';
-import { acceptInvite, fetchInviteCard, type Accepted, type InviteCard } from '@/lib/invites';
+import { acceptInvite, fetchInviteCard, unlimited, type Accepted, type InviteCard } from '@/lib/invites';
 import { clearInviteAnswer, peekInviteAnswer, rememberInviteAnswer } from '@/lib/inviteIntent';
 import { canInstallWebApp, insideInstalledApp, installWebApp, isAndroid } from '@/lib/installPrompt';
 import { enter, pressTransition } from '@/lib/motion';
@@ -122,7 +122,7 @@ function Host({ card }: { card: InviteCard }) {
       </View>
       <View style={{ flex: 1 }}>
         <T weight="bold" size={15}>{name} t’invite{card.label ? `, ${card.label}` : ''}</T>
-        <T muted size={12}>{card.places_left != null ? `Lien pour plusieurs · reste ${card.places_left} ${card.places_left > 1 ? 'places' : 'place'}` : card.multi ? 'Lien pour plusieurs' : 'Seulement toi, avec ce lien'}</T>
+        <T muted size={12}>{card.places_left != null && !unlimited(card.places_left) ? `Lien pour plusieurs · reste ${card.places_left} ${card.places_left > 1 ? 'places' : 'place'}` : card.multi ? 'Lien pour plusieurs' : 'Seulement toi, avec ce lien'}</T>
       </View>
     </View>
   );

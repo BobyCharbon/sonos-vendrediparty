@@ -86,11 +86,15 @@ export function guestOrigin(p: Guest, me: string): string {
 
 export const statusWords: Record<RsvpStatus, string> = { yes: 'Vient', maybe: 'Peut-être', no: 'Absent' };
 
+/** Lien « Plusieurs » sans limite de places (la base enregistre 10000 places, 11.11.2026). */
+export const UNLIMITED_SEATS = 0;
+export const unlimited = (seats: number | null | undefined): boolean => (seats ?? 0) > 50;
+
 /** Suivi d'un lien en une ligne : « Pas encore ouvert », « Ouvert · pas de réponse », « 2 sur 10 places »… */
 export function linkLine(l: SentLink): string {
   if (l.state === 'revoked') return 'Arrêté';
   if (l.max_uses > 1) {
-    const places = `${l.uses} sur ${l.max_uses} places`;
+    const places = unlimited(l.max_uses) ? `${l.uses} ${l.uses > 1 ? 'personnes' : 'personne'} · sans limite` : `${l.uses} sur ${l.max_uses} places`;
     return l.state === 'expired' ? `${places} · terminé` : `${places} · jusqu’au ${shortDate(l.expires_at)}`;
   }
   if (l.arrivals.length) return `${l.arrivals[0]!.name} a répondu${l.arrivals[0]!.status ? ` « ${statusWords[l.arrivals[0]!.status]} »` : ''}`;
@@ -115,7 +119,7 @@ export function linkSpokenNames(links: SentLink[]): Map<string, string> {
     const ordered = [...same].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.token.localeCompare(b.token));
     ordered.forEach((l, i) => {
       if (ordered.length === 1) return names.set(l.token, title);
-      const places = l.max_uses > 1 ? `, ${l.max_uses} places` : '';
+      const places = unlimited(l.max_uses) ? ', sans limite' : l.max_uses > 1 ? `, ${l.max_uses} places` : '';
       names.set(l.token, `${title} n° ${i + 1}${places}, envoyé ${shortDate(l.created_at)}`);
     });
   }

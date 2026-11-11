@@ -67,6 +67,10 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   2 « Qui est invité » (web `/event/<id>/invite`, brouillon public + lien en attendant) : le bandeau / choix « qui voit »
   (public + lien public par défaut, en surbrillance) est ICI, puis les invités, puis Publier ; 3 la fiche s'ouvre.
   Jamais de bandeau ni de choix de visibilité à l'étape 1. Accord IA, filtre de modération et droits inchangés.
+- Lien d'invitation « Plusieurs » (11.11) : sans limite de places par défaut (∞ = 10000 en base, `create_event_invite(e, 0)`),
+  − / + pour 50 à 2 places ; valable jusqu'au lendemain de l'événement (suit sa date, sondage sans date : 1 an), jamais de
+  choix de durée à l'écran ; l'organisateur l'arrête quand il veut (« Arrêter », `revoke_invite_link`).
+  Tests : `tests/supabase_live/test_lien_sans_limite_live.py`, `tests/test_invitations_v2_browser.py`.
 - Agenda (11.11) : partout la même méthode, le calendrier abonné « Vendredi Party » de la personne (un lien par personne,
   `calendar_feed_token(e, add)` / `calendar_feed`, `/api/calendar-feed/<jeton>.ics`) : ajouter un événement (bouton
   « Ajouter à mon agenda », « Valider mes dates ») l'y met, et l'agenda suit tout changement sans rouvrir Party. Ouvrir une

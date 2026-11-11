@@ -12,6 +12,7 @@ import { usePendingSync } from '@/lib/pending';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { enableWebPush } from '@/lib/push';
+import { PushInvite } from '@/components/PushInvite';
 import { sweepNativeCalendar } from '@/lib/calendar';
 import { ShellSafeArea } from '@/lib/shellInsets';
 import { colors, font } from '@/lib/theme';
@@ -161,6 +162,8 @@ function Gate() {
   return (
     <>
     {session && active && profile ? <PendingSync me={profile.id} /> : null}
+    {/* App web installée : proposer les notifications en arrivant dans les Événements (retour de l'admin, 11.11). */}
+    {session && active ? <PushInvite path={path} /> : null}
     {session && hasCompleteIdentity(profile) ? <PendingInviteClaim key={session.user.id} /> : null}
     <Stack
       screenOptions={{
