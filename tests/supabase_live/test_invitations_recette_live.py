@@ -61,3 +61,44 @@ def test_a_member_leaves_a_group_himself_but_never_the_members_group():
         (select count(*) from public.member_group_members mm join public.member_groups g on g.id = mm.group_id
           where g.system_key is not null and mm.user_id = victor) = m, m;""")
     assert "résultat: victor_bots=0 systeme_garde=t" in out, out
+
+
+INVITED = as_bot("olga") + """
+  insert into public.events (title, status, visibility, notify_on_publish, starts_at)
+    values ('[Recette] Détails liens', 'published', 'invited', false, now() + interval '20 days') returning id into e;"""
+
+
+def test_a_removed_guest_sees_it_on_the_card_and_his_place_goes_back_to_the_link():
+    out = run(INVITED + """
+      r := public.create_event_invite(e, 5);""" + as_bot("violette") + """
+      perform public.accept_invite((r->>'token')::uuid, 'yes');""" + as_postgres() + """
+      select uses into n from private.invite_links where token = (r->>'token')::uuid;""" + as_bot("olga") + """
+      perform public.remove_invitee(e, violette);""" + as_bot("violette") + """
+      r := r || jsonb_build_object('card', public.invite_preview((r->>'token')::uuid));""" + as_postgres() + """
+      raise exception 'résultat: avant=% apres=% etat=% evenement=% places=%', n,
+        (select uses from private.invite_links where token = (r->>'token')::uuid),
+        r->'card'->>'state', coalesce(r->'card'->>'event_id', 'aucun'), r->'card'->>'places_left';""")
+    assert "résultat: avant=1 apres=0 etat=removed evenement=aucun places=5" in out, out
+
+
+def test_someone_already_invited_opening_a_used_link_is_led_to_the_event():
+    out = run(INVITED + """
+      insert into public.event_invites (event_id, user_id) values (e, valentin);
+      r := public.create_event_invite(e, 1);""" + as_bot("victor") + """
+      perform public.accept_invite((r->>'token')::uuid, 'yes');""" + as_bot("valentin") + """
+      r := public.invite_preview((r->>'token')::uuid);""" + as_postgres() + """
+      raise exception 'résultat: etat=% deja=% evenement=% places=% multi=%', r->>'state', r->>'already',
+        (r->>'event_id')::uuid = e, coalesce(r->>'places_left', 'aucune'), r->>'multi';""")
+    assert "résultat: etat=full deja=true evenement=t places=aucune multi=false" in out, out
+
+
+def test_a_guest_sees_the_nickname_of_the_members_of_his_group():
+    out = run("""
+      select id into a from public.profiles where phone = '41790000006';  -- Guest de test (sans droit de voir les membres)
+      insert into public.member_group_members (group_id, user_id) values (bots, a);""" + as_bot("a") + """
+      select count(*) into n from public.profiles where id = ada;          -- Ada : même groupe
+      select count(*) into m from public.profiles where id = violette;     -- Violette : aucun groupe en commun""" + as_postgres() + """
+      raise exception 'résultat: voit_tout=% meme_groupe=% autre=%',
+        (select public.has_perm('events.view') from (select set_config('request.jwt.claims', json_build_object('sub', a)::text, true)) x),
+        n, m;""")
+    assert "meme_groupe=1 autre=0" in out, out

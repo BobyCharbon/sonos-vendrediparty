@@ -9,7 +9,7 @@ import { dbMessage } from '@/lib/moderation';
 import { useQuery } from '@/lib/data';
 import { formatShort } from '@/lib/format';
 import {
-  copyText, createInvite, inviteLinkUrl, inviteMessage, invitePeople, openMessages, openWhatsApp, ruleSentence, shareInvite,
+  UNLIMITED_SEATS, copyText, createInvite, inviteLinkUrl, inviteMessage, invitePeople, openMessages, openWhatsApp, ruleSentence, shareInvite,
   type GuestList,
 } from '@/lib/invites';
 import { pressTransition } from '@/lib/motion';
@@ -20,19 +20,11 @@ import type { EventRow } from '@/lib/types';
 
 type Ev = Pick<EventRow, 'id' | 'title' | 'starts_at' | 'ends_at' | 'all_day' | 'announce_group'>;
 type Mode = 'one' | 'several';
-type Until = 'event' | '3d' | '7d';
 type Person = { id: string; display_name: string; avatar_url: string | null };
 type Group = { id: string; name: string; created_by: string | null; system_key: string | null; member_group_members: { user_id: string }[] };
 
-const DEFAULT_PLACES = 10;
 const MAX_PLACES = 50;
 const RESULTS_SHOWN = 12;
-const DAY = 86_400_000;
-
-function untilDate(until: Until, ev: Ev): string | null {
-  if (until === 'event') return null;  // la base choisit : lendemain de l'événement
-  return new Date(Date.now() + (until === '3d' ? 3 : 7) * DAY).toISOString();
-}
 
 /**
  * Feuille « Inviter » (bêta invites_v2, maquette A) : en haut le lien prêt à partager (feuille de partage du téléphone,
@@ -48,9 +40,9 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
 }) {
   const { can } = useAuth();
   const [mode, setMode] = useState<Mode>('several');
-  const [places, setPlaces] = useState(DEFAULT_PLACES);
+  // Sans limite par défaut (retour de l'admin, 11.11) ; − / + pour choisir un nombre de places.
+  const [places, setPlaces] = useState(UNLIMITED_SEATS);
   const [label, setLabel] = useState('');
-  const [until, setUntil] = useState<Until>('event');
   const [link, setLink] = useState<string | null>(null);
   const [qr, setQr] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -110,7 +102,8 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
     setBusy(true);
     setError(null);
     try {
-      const made = await createInvite(event.id, mode === 'one' ? 1 : places, untilDate(until, event), mode === 'one' ? label.trim() || null : null);
+      // Valable jusqu'à la fin de l'événement (la base suit sa date) ; l'organisateur peut l'arrêter à tout moment.
+      const made = await createInvite(event.id, mode === 'one' ? 1 : places, null, mode === 'one' ? label.trim() || null : null);
       const url = inviteLinkUrl(made.token);
       setLink(url);
       onInvited();
@@ -215,22 +208,12 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
                 <View style={st.stepperRow}>
                   <View style={{ flex: 1 }}>
                     <T weight="semibold" size={15}>Nombre de places</T>
-                    <T muted size={12}>Les {places} premiers qui répondent ; ensuite le lien se ferme.</T>
+                    <T muted size={12}>{places === UNLIMITED_SEATS ? 'Sans limite : tous ceux qui ont le lien peuvent répondre.' : `Les ${places} premiers qui répondent ; ensuite le lien se ferme.`}</T>
                   </View>
                   <Stepper value={places} onChange={(n) => { setPlaces(n); reset(); }} />
                 </View>
               )}
-              <View style={{ gap: 6 }}>
-                <T weight="semibold" size={13} color={colors.textSoft}>Valable jusqu’au</T>
-                <View style={st.chips}>
-                  {([['event', event.starts_at ? 'Après l’événement' : 'Jusqu’à la date choisie'], ['3d', '3 jours'], ['7d', '7 jours']] as [Until, string][]).map(([k, l]) => (
-                    <Pressable key={k} accessibilityRole="radio" accessibilityState={{ checked: until === k }} aria-checked={until === k}
-                      onPress={() => { setUntil(k); reset(); }} style={[st.chip, until === k && st.chipOn]}>
-                      <T size={13} weight="semibold" color={until === k ? colors.onAction : colors.textSoft}>{l}</T>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
+              <T muted size={12}>Valable jusqu’à la fin de l’événement. Tu peux l’arrêter à tout moment dans la liste des invités.</T>
               <View style={st.bubble}>
                 <T size={13} color={colors.text}>{message(link ?? inviteLinkUrl('…').replace(/^https?:\/\//, ''))}</T>
               </View>
@@ -303,15 +286,21 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
   );
 }
 
+/** Places d'un lien « Plusieurs » : ∞ (sans limite, par défaut), puis − pour 50, 49… jusqu'à 2 ; + revient à ∞. */
 function Stepper({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  const open = value === UNLIMITED_SEATS;
+  const less = open ? MAX_PLACES : value - 1;
+  const more = value >= MAX_PLACES ? UNLIMITED_SEATS : value + 1;
   return (
     <View style={st.stepper}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Une place de moins" disabled={value <= 2} onPress={() => onChange(value - 1)} style={st.stepBtn}>
-        <T size={20} weight="bold" color={value <= 2 ? colors.muted : colors.text}>−</T>
+      <Pressable accessibilityRole="button" accessibilityLabel="Une place de moins" disabled={!open && value <= 2} onPress={() => onChange(less)} style={st.stepBtn}>
+        <T size={20} weight="bold" color={!open && value <= 2 ? colors.muted : colors.text}>−</T>
       </Pressable>
-      <T size={17} weight="bold" style={{ minWidth: 28, textAlign: 'center' }}>{value}</T>
-      <Pressable accessibilityRole="button" accessibilityLabel="Une place de plus" disabled={value >= MAX_PLACES} onPress={() => onChange(value + 1)} style={st.stepBtn}>
-        <T size={20} weight="bold" color={value >= MAX_PLACES ? colors.muted : colors.text}>+</T>
+      <View accessible accessibilityLabel={open ? 'Sans limite' : `${value} places`}>
+        <T size={open ? 22 : 17} weight="bold" style={{ minWidth: 28, textAlign: 'center' }}>{open ? '∞' : value}</T>
+      </View>
+      <Pressable accessibilityRole="button" accessibilityLabel={value >= MAX_PLACES ? 'Sans limite' : 'Une place de plus'} disabled={open} onPress={() => onChange(more)} style={st.stepBtn}>
+        <T size={20} weight="bold" color={open ? colors.muted : colors.text}>+</T>
       </Pressable>
     </View>
   );
@@ -355,7 +344,7 @@ function QrOverlay({ url, title, when, places, onClose, cardRef }: {
         <T muted size={13} style={{ textAlign: 'center' }} numberOfLines={2}>{title}{when ? ` · ${when}` : ''}</T>
         <Image source={{ uri: qrDataUri(url) }} style={st.qr} accessibilityLabel="QR code du lien d’invitation" />
         <T size={13} weight="semibold" color={colors.textSoft} style={{ textAlign: 'center' }}>
-          {places > 1 ? `👥 Pour plusieurs · ${places} places` : '🔗 Pour une personne'}
+          {places === UNLIMITED_SEATS ? '👥 Pour plusieurs · sans limite' : places > 1 ? `👥 Pour plusieurs · ${places} places` : '🔗 Pour une personne'}
         </T>
         <T muted size={12} style={{ textAlign: 'center' }}>La personne vise le code avec l’appareil photo et répond. Pas besoin de l’app.</T>
         <Button label="Fermer" variant="secondary" onPress={onClose} />

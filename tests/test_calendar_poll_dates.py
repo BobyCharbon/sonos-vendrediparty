@@ -1,6 +1,9 @@
 """Sondage de dates → toutes les dates proposées dans l'agenda en un toucher (avis 9ddbdea7fe8f du 10.11.2026).
 Un seul fichier .ics avec une entrée par date : l'iPhone propose « Tout ajouter ». Chaque entrée commence par
 « À confirmer · » et est marquée provisoire (STATUS:TENTATIVE) : on garde le créneau, rien n'est encore fixé."""
+import json
+import re
+
 from fastapi.testclient import TestClient
 
 from app import calendar_ics, main
@@ -50,7 +53,33 @@ def test_bad_or_too_many_dates_are_refused():
     assert client.get("/api/calendar-dates.ics", params=base + many).status_code == 400
 
 
-def test_on_the_event_page_one_touch_sends_every_upcoming_date_to_the_calendar(browser, events_origin):  # noqa: F811
+TOKEN = "b" * 36
+
+
+def _vote_yes(page, pw, count):
+    """Oui sur les `count` premières dates du sondage (les votes partent à chaque toucher)."""
+    for i in range(count):
+        page.get_by_role('button', name=re.compile(r'^Oui : ')).nth(i).click()
+    pw.expect(page.get_by_role('button', name='Valider mes dates', exact=True)).to_be_enabled()
+
+
+def mock_agenda(page, subscribed: bool = False) -> list[bool]:
+    """Le calendrier « Vendredi Party » de la personne (fonction calendar_feed_token) ; rend la liste des `add` reçus."""
+    from tests.test_event_participant_browser import HEADERS, REST
+    calls: list[bool] = []
+
+    def answer(route):
+        if route.request.method == 'OPTIONS':
+            return route.fulfill(status=204, headers=HEADERS)
+        add = bool(json.loads(route.request.post_data or '{}').get('add'))
+        calls.append(add)
+        route.fulfill(status=200, content_type='application/json', headers=HEADERS,
+                      body=json.dumps({'token': TOKEN, 'subscribed': subscribed, 'added': any(calls)}))
+    page.route(REST + 'rpc/calendar_feed_token', answer)
+    return calls
+
+
+def _web_poll(browser, events_origin, token: bool, subscribed: bool = False):
     from tests.test_event_participant_browser import event_row, open_event, pw
     ev = event_row(date_mode='poll', starts_at=None, max_participants=None, location_name='Cobalt Project', date_options=[
         {'id': OPT1, 'event_id': EVENT_PAGE, 'starts_at': '2030-11-20T18:00:00Z', 'ends_at': None, 'proposed_by': None, 'date_votes': []},
@@ -58,16 +87,53 @@ def test_on_the_event_page_one_touch_sends_every_upcoming_date_to_the_calendar(b
         {'id': OPT3, 'event_id': EVENT_PAGE, 'starts_at': '2020-01-01T18:00:00Z', 'ends_at': None, 'proposed_by': None, 'date_votes': []},
     ])
     context, page = open_event(browser, events_origin, ev)
+    calls = mock_agenda(page, subscribed) if token else []
+    return context, page, pw, calls
+
+
+def test_validate_confirms_then_subscribes_the_agenda_to_my_voted_dates(browser, events_origin):  # noqa: F811
+    context, page, pw, calls = _web_poll(browser, events_origin, token=True)
     try:
-        button = page.get_by_role('button', name='Mettre les 2 dates dans mon agenda', exact=True)  # la date passée n'y est pas
-        pw.expect(button).to_be_visible(timeout=15000)
-        pw.expect(page.get_by_text('Notées « À confirmer »', exact=False)).to_be_visible()
+        valider = page.get_by_role('button', name='Valider mes dates', exact=True)
+        pw.expect(valider).to_be_disabled(timeout=15000)  # rien voté : on dit quoi faire
+        pw.expect(page.get_by_text('Réponds Oui, Si besoin ou Non pour chaque date, puis valide.')).to_be_visible()
+        _vote_yes(page, pw, 3)  # la date passée n'ira pas dans l'agenda
+        valider.click()
+        pw.expect(page.get_by_text('C’est validé !', exact=True)).to_be_visible()
+        pw.expect(page.get_by_text('ton agenda se mettra à jour tout seul', exact=False)).to_be_visible()
+        page.wait_for_timeout(300)
+        assert calls and not any(calls)  # ouvrir la fenêtre n'ajoute rien
+        page.get_by_role('button', name='Ajouter les 2 dates à mon agenda', exact=True).click()
+        pw.expect(page.get_by_text('Confirme l’abonnement « Vendredi Party » dans ton agenda', exact=False)).to_be_visible(timeout=10000)
+        assert calls[-1] is True  # le toucher ajoute l'événement au calendrier
+    finally:
+        context.close()
+
+
+def test_already_subscribed_validate_adds_the_event_without_opening_anything(browser, events_origin):  # noqa: F811
+    context, page, pw, calls = _web_poll(browser, events_origin, token=True, subscribed=True)
+    try:
+        _vote_yes(page, pw, 3)  # la date passée n'ira pas dans l'agenda
+        page.get_by_role('button', name='Valider mes dates', exact=True).click()
+        page.get_by_role('button', name='Ajouter les 2 dates à mon agenda', exact=True).click()
+        pw.expect(page.get_by_text('Ajouté à ton calendrier « Vendredi Party »', exact=False)).to_be_visible(timeout=10000)
+        assert calls[-1] is True
+        page.get_by_role('button', name='Terminé', exact=True).click()
+        page.get_by_role('button', name='Valider mes dates', exact=True).click()
+        pw.expect(page.get_by_text('Tes dates sont déjà dans ton agenda.', exact=False)).to_be_visible()
+    finally:
+        context.close()
+
+
+def test_without_the_subscription_link_the_voted_dates_still_come_as_a_file(browser, events_origin):  # noqa: F811
+    context, page, pw, _ = _web_poll(browser, events_origin, token=False)
+    try:
+        _vote_yes(page, pw, 3)  # la date passée n'ira pas dans l'agenda
+        page.get_by_role('button', name='Valider mes dates', exact=True).click()
         with page.expect_download() as info:
-            button.click()
+            page.get_by_role('button', name='Ajouter les 2 dates à mon agenda', exact=True).click()
         body = unfold(open(info.value.path(), encoding='utf-8').read())
-        entries = events(body)
-        assert [e.split('UID:')[1].split('@')[0] for e in entries] == [OPT1, OPT2]
-        assert all('SUMMARY:À confirmer · Soirée de test participant' in e and 'LOCATION:Cobalt Project' in e for e in entries)
+        assert [e.split('UID:')[1].split('@')[0] for e in events(body)] == [OPT1, OPT2]
     finally:
         context.close()
 
@@ -84,7 +150,7 @@ window.PartyNative = { tabs: { update() {} }, calendar: {
 """
 
 
-def _open_in_app(browser, origin, ev, denied=False):
+def _open_in_app(browser, origin, ev, denied=False, agenda=False):
     import json as _json
 
     from tests.test_event_participant_browser import HEADERS, REST, USER, login, mock_services, pw
@@ -92,6 +158,8 @@ def _open_in_app(browser, origin, ev, denied=False):
     context.add_init_script(NATIVE % ('true' if denied else 'false'))
     page = context.new_page()
     mock_services(page)
+    if agenda:
+        mock_agenda(page)
 
     def events(route):
         if route.request.method == 'OPTIONS':
@@ -116,14 +184,31 @@ def _poll_event():
     ])
 
 
-def test_in_the_iphone_app_one_touch_puts_every_date_in_the_calendar(browser, events_origin):  # noqa: F811
+def test_in_the_iphone_app_validate_subscribes_and_clears_dates_the_app_had_put_itself(browser, events_origin):  # noqa: F811
+    """App iPhone : la même méthode (agenda abonné) ; les dates mises avant par l'app partent, sinon doublon."""
+    context, page, pw = _open_in_app(browser, events_origin, _poll_event(), agenda=True)
+    try:
+        pw.expect(page.get_by_role('button', name='Valider mes dates', exact=True)).to_be_visible(timeout=15000)
+        _vote_yes(page, pw, 2)
+        page.get_by_role('button', name='Valider mes dates', exact=True).click()
+        page.get_by_role('button', name='Ajouter les 2 dates à mon agenda', exact=True).click()
+        pw.expect(page.get_by_text('Confirme l’abonnement « Vendredi Party »', exact=False)).to_be_visible(timeout=10000)
+        calls = page.evaluate('window.__cal.calls')
+        assert not [c for c in calls if c[0] == 'add']
+        assert any(c[0] == 'settle' and c[1]['eventId'] == EVENT_PAGE and c[1].get('cancelled') for c in calls)
+    finally:
+        context.close()
+
+
+def test_in_the_iphone_app_without_the_agenda_link_the_app_puts_the_dates_itself(browser, events_origin):  # noqa: F811
     context, page, pw = _open_in_app(browser, events_origin, _poll_event())
     try:
-        pw.expect(page.get_by_text('Quand la date sera fixée, Party gardera la bonne et retirera les autres.', exact=False)).to_be_visible(timeout=15000)
-        page.get_by_role('button', name='Mettre les 2 dates dans mon agenda', exact=True).click()
-        pw.expect(page.get_by_role('button', name='Les 2 dates sont dans ton agenda', exact=True)).to_be_visible(timeout=10000)
-        calls = page.evaluate('window.__cal.calls')
-        add = next(c[1] for c in calls if c[0] == 'add')
+        pw.expect(page.get_by_role('button', name='Valider mes dates', exact=True)).to_be_visible(timeout=15000)
+        _vote_yes(page, pw, 2)
+        page.get_by_role('button', name='Valider mes dates', exact=True).click()
+        page.get_by_role('button', name='Ajouter les 2 dates à mon agenda', exact=True).click()
+        pw.expect(page.get_by_text('Party gardera la bonne et retirera les autres', exact=False)).to_be_visible(timeout=10000)
+        add = next(c[1] for c in page.evaluate('window.__cal.calls') if c[0] == 'add')
         assert [d['id'] for d in add['dates']] == [OPT1, OPT2] and add['title'] == 'Soirée de test participant'
         assert add['location'] == 'Cobalt Project' and add['eventId'] == EVENT_PAGE
     finally:
@@ -133,7 +218,10 @@ def test_in_the_iphone_app_one_touch_puts_every_date_in_the_calendar(browser, ev
 def test_without_calendar_access_the_app_says_where_to_allow_it(browser, events_origin):  # noqa: F811
     context, page, pw = _open_in_app(browser, events_origin, _poll_event(), denied=True)
     try:
-        page.get_by_role('button', name='Mettre les 2 dates dans mon agenda', exact=True).click()
+        pw.expect(page.get_by_role('button', name='Valider mes dates', exact=True)).to_be_visible(timeout=15000)
+        _vote_yes(page, pw, 1)
+        page.get_by_role('button', name='Valider mes dates', exact=True).click()
+        page.get_by_role('button', name='Ajouter la date à mon agenda', exact=True).click()
         pw.expect(page.get_by_text('autorise-le dans Réglages › Party › Calendriers', exact=False)).to_be_visible(timeout=10000)
     finally:
         context.close()
@@ -148,5 +236,52 @@ def test_once_the_date_is_fixed_the_app_keeps_it_and_removes_the_others(browser,
         settle = next(c[1] for c in page.evaluate('window.__cal.calls') if c[0] == 'settle')
         assert settle['eventId'] == EVENT_PAGE and settle['start'] == '2030-11-27T18:00:00Z'
         assert settle['title'] == 'Soirée de test participant' and not settle.get('cancelled')
+    finally:
+        context.close()
+
+
+def test_someone_who_said_no_to_the_fixed_date_keeps_nothing_in_the_calendar(browser, events_origin):  # noqa: F811
+    from tests.test_event_participant_browser import USER, event_row
+    fixed = event_row(date_mode='fixed', starts_at='2030-11-27T18:00:00Z', max_participants=None)
+    fixed['rsvps'] = [{'event_id': EVENT_PAGE, 'user_id': USER, 'status': 'no', 'plus_ones': 0, 'note': None, 'waitlisted': False}]
+    context, page, pw = _open_in_app(browser, events_origin, fixed)
+    try:
+        page.wait_for_function("() => window.__cal.calls.some((c) => c[0] === 'settle')", timeout=15000)
+        settle = next(c[1] for c in page.evaluate('window.__cal.calls') if c[0] == 'settle')
+        assert settle['eventId'] == EVENT_PAGE and settle.get('cancelled') is True
+    finally:
+        context.close()
+
+
+def _web_fixed(browser, events_origin, subscribed: bool):
+    from tests.test_event_participant_browser import event_row, open_event, pw
+    ev = event_row(date_mode='fixed', starts_at='2030-11-27T18:00:00Z', max_participants=None)
+    context, page = open_event(browser, events_origin, ev)
+    calls = mock_agenda(page, subscribed)
+    page.reload(wait_until='domcontentloaded')  # le lien est demandé à l'ouverture de la fiche
+    return context, page, pw, calls
+
+
+def test_a_normal_event_goes_to_the_same_subscribed_calendar(browser, events_origin):  # noqa: F811
+    """Retour de l'admin (11.11) : même méthode pour un événement normal. Ordinateur : Apple · Outlook → abonnement."""
+    context, page, pw, calls = _web_fixed(browser, events_origin, subscribed=False)
+    try:
+        page.get_by_role('button', name='Ajouter à mon agenda', exact=True).click(timeout=15000)
+        page.get_by_role('button', name='Apple · Outlook', exact=True).click()
+        pw.expect(page.get_by_text('Confirme l’abonnement « Vendredi Party »', exact=False)).to_be_visible(timeout=10000)
+        assert calls[0] is False and calls[-1] is True
+    finally:
+        context.close()
+
+
+def test_once_subscribed_one_tap_adds_a_normal_event_and_says_it_follows_changes(browser, events_origin):  # noqa: F811
+    context, page, pw, calls = _web_fixed(browser, events_origin, subscribed=True)
+    try:
+        page.get_by_role('button', name='Ajouter à mon agenda', exact=True).click(timeout=15000)
+        pw.expect(page.get_by_text('Ajouté à ton calendrier « Vendredi Party »', exact=False)).to_be_visible(timeout=10000)
+        pw.expect(page.get_by_role('button', name='Déjà dans ton agenda, mis à jour tout seul')).to_be_disabled()
+        assert calls[-1] is True
+        page.reload(wait_until='domcontentloaded')
+        pw.expect(page.get_by_text('Se met à jour tout seul si l’événement change.', exact=True)).to_be_visible(timeout=15000)
     finally:
         context.close()

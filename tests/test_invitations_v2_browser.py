@@ -178,14 +178,22 @@ def test_organizer_sees_who_comes_filters_nudges_and_invites(browser, v2_origin)
         created = [c for c in calls if c[0] == 'create_event_invite']
         assert created == [('create_event_invite', {'e': EVENT, 'places': 1, 'until': None, 'label': 'Léa'})]
         shot(page, '04-organisateur-lien-une-personne')
-        # Pour plusieurs : 11 places, valable 7 jours, QR code.
+        # Pour plusieurs (retour de l'admin du 11.11) : sans limite par défaut, jusqu'à la fin de l'événement, sans durée
+        # à choisir ; − / + pour un nombre de places, + au-delà de 50 revient à ∞. QR code.
         sheet.get_by_role('tab', name='Plusieurs').click()
-        sheet.get_by_role('button', name='Une place de plus').click()
-        sheet.get_by_role('radio', name='7 jours').click()
+        pw.expect(sheet.get_by_label('Sans limite', exact=True).first).to_be_visible()
+        pw.expect(sheet.get_by_text('Sans limite : tous ceux qui ont le lien peuvent répondre.', exact=True)).to_be_visible()
+        pw.expect(sheet.get_by_text('Valable jusqu’à la fin de l’événement', exact=False)).to_be_visible()
+        shot(page, '04b-organisateur-lien-plusieurs-sans-limite')
+        assert sheet.get_by_role('radio', name='7 jours').count() == 0 and sheet.get_by_role('radio', name='3 jours').count() == 0
+        sheet.get_by_role('button', name='Une place de moins').click()
+        pw.expect(sheet.get_by_text('Les 50 premiers qui répondent', exact=False)).to_be_visible()
+        sheet.get_by_role('button', name='Sans limite').click()
         sheet.get_by_role('button', name='QR code').click()
         pw.expect(page.get_by_text('Montre ce code', exact=True)).to_be_visible(timeout=5000)
+        pw.expect(page.get_by_text('👥 Pour plusieurs · sans limite', exact=True)).to_be_visible()
         args = [c for c in calls if c[0] == 'create_event_invite'][-1][1]
-        assert args['places'] == 11 and args['label'] is None and args['until']
+        assert args == {'e': EVENT, 'places': 0, 'until': None, 'label': None}
         shot(page, '05-organisateur-qr-plusieurs')
         page.get_by_role('button', name='Fermer', exact=True).last.click()
 

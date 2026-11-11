@@ -29,9 +29,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from . import beerpong, brain, brain_game, calendar_ics, debate, games, heist, island, likely, links, masque, neon, president, psy, purity, quiz, reflet
 from . import pet, pet_coll_store, pet_reactions, pet_store
 from . import tv_zicou
+from . import calendar_feed
 from . import pet_pot, tv_star
 # Adresse du déploiement et fonctions en bêta (Compagnon : allumé sur le site de test seulement).
-from .features import COMPAGNON_SOON, TEST_SITE_HOST, compagnon_enabled, configured_public_url, discussions_enabled, invites_v2_enabled
+from .features import COMPAGNON_SOON, TEST_SITE_HOST, bar_enabled, compagnon_enabled, configured_public_url, discussions_enabled, invites_v2_enabled
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts, ServiceUnavailable, TermsRequired
 from .account_auth import AccountAuth
@@ -1822,6 +1823,12 @@ class NotificationPatch(BaseModel):
     announce_requests: bool | None = None
     group_event_requests: bool | None = None
     announce_results: bool | None = None
+    # Bar de la soirée (migration 20261110120000) : verres servis, changements, remboursement annoncé / confirmé.
+    # Reçues aussi par les Guests (may_receive_push) : jamais dans NON_MEMBER_HIDDEN_PREFS.
+    bar_served: bool | None = None
+    bar_changed: bool | None = None
+    bar_refund_declared: bool | None = None
+    bar_refund_confirmed: bool | None = None
 
 
 class NotificationUpdate(MemberToken):
@@ -4145,7 +4152,7 @@ def feedback_ai_subject(request: Request, body: FeedbackAiIn) -> str:
 @app.post("/api/feedback/ai/status")
 def feedback_ai_status(body: FeedbackAiIn, request: Request):
     """L'IA peut-elle aider (configurée, accord donné ou à demander, reformulations restantes aujourd'hui) ?"""
-    return feedback_writer.status(feedback_ai_subject(request, body))
+    return feedback_writer.status(feedback_ai_subject(request, body), host=is_admin(request))
 
 
 @app.post("/api/feedback/ai/consent")
@@ -4153,7 +4160,7 @@ def feedback_ai_consent(body: FeedbackAiConsent, request: Request):
     """« J'accepte » / « Écrire sans l'IA » (feuille d'accord), ou retrait de l'accord dans Réglages."""
     subject = feedback_ai_subject(request, body)
     feedback_writer.consents.set(subject, body.accept)
-    return feedback_writer.status(subject)
+    return feedback_writer.status(subject, host=is_admin(request))
 
 
 @app.post("/api/feedback/ai/rewrite")
@@ -4163,7 +4170,7 @@ def feedback_ai_rewrite(body: FeedbackAiRewrite, request: Request):
     subject = feedback_ai_subject(request, body)
     context = {k: str(v)[:40] for k, v in body.context.items() if k in FEEDBACK_CONTEXT}
     try:
-        return feedback_writer.rewrite(subject, body.name, body.turns, context)
+        return feedback_writer.rewrite(subject, body.name, body.turns, context, host=is_admin(request))
     except PermissionError as e:
         raise HTTPException(403, str(e)) from None
     except ValueError as e:
@@ -4920,13 +4927,22 @@ def invites_page(html: str) -> str:
     return html.replace("<html", '<html data-invites="off"', 1)
 
 
+def bar_page(html: str) -> str:
+    """Bar de la soirée éteint (production, en construction) : <html data-bar="off">, lu par le module Événements
+    (ni bouton « Créer le bar », ni carte du bar, ni scanner du bar)."""
+    if bar_enabled():
+        return html
+    return html.replace("<html", '<html data-bar="off"', 1)
+
+
 def features_page(html: str) -> str:
-    return discussions_page(compagnon_page(invites_page(html)))
+    # Le bar en premier : son attribut se place après les autres (« <html data-compagnon=… » reste en tête, tests Zicou).
+    return discussions_page(compagnon_page(invites_page(bar_page(html))))
 
 
 def page(name: str) -> Response:
     """Page HTML avec des adresses de scripts et de styles versionnées (mises en cache jusqu'au prochain déploiement)."""
-    key = (name, compagnon_enabled(), discussions_enabled(), invites_v2_enabled())
+    key = (name, compagnon_enabled(), discussions_enabled(), invites_v2_enabled(), bar_enabled())
     if key not in _pages:
         html = features_page((STATIC / name).read_text(encoding="utf-8"))
         _pages[key] = re.sub(r'(/static/[\w./-]+\.(?:js|css))(?=")', rf"\1?v={BUILD_ID}", html)
@@ -5117,6 +5133,22 @@ def calendar_dates_file(
     })
 
 
+@app.get("/api/calendar-feed/{token}.ics")
+def calendar_feed_file(token: str):
+    """Agenda abonné « Vendredi Party » de la personne (retours de l'admin du 11.11.2026) : relu tout seul par son
+    agenda. Chaque événement ajouté suit ses changements ; sondage ouvert : ses dates « À confirmer » ; date fixée : la
+    seule bonne ; Non, annulé ou plus concerné : rien."""
+    feed, reachable = calendar_feed.read(accounts, token.lower())
+    if not reachable:
+        # Base injoignable : l'agenda garde ce qu'il a et réessaie plus tard (jamais vidé pour une panne).
+        raise HTTPException(503, "Réessaie plus tard")
+    return Response(calendar_ics.build_feed(feed, base_url=configured_public_url()), media_type="text/calendar; charset=utf-8", headers={
+        **NO_CACHE,
+        "Content-Disposition": 'inline; filename="vendredi-party.ics"',
+        "X-Content-Type-Options": "nosniff",
+    })
+
+
 @app.get("/events")
 def events_redirect():
     return RedirectResponse("/events/", status_code=307)
@@ -5187,7 +5219,7 @@ def features():
     """Fonctions en bêta pour les apps natives (la page web les lit sur <html data-compagnon> / data-discussions) :
     Compagnon (Zicou) et Discussions (groupes, messages directs)."""
     return JSONResponse({"compagnon": compagnon_enabled(), "discussions": discussions_enabled(),
-                         "invites_v2": invites_v2_enabled()}, headers=NO_CACHE)
+                         "invites_v2": invites_v2_enabled(), "bar": bar_enabled()}, headers=NO_CACHE)
 
 
 @app.get("/.well-known/apple-app-site-association")

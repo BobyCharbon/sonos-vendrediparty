@@ -187,8 +187,43 @@ def _fields(event: dict, ticket: dict, holder: str) -> dict:
             "secondaryFields": secondary, "auxiliaryFields": auxiliary + _status_fields(ticket), "backFields": back}
 
 
+def _chf(amount) -> str:
+    value = round(float(amount or 0), 2)
+    return f"{int(value)} CHF" if value == int(value) else f"{value:.2f} CHF"
+
+
+def _bar_date(iso: str | None) -> str:
+    """« 23 novembre 2026 » (date limite de remboursement), comme le texte d'engagement de la base."""
+    months = ("janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre")
+    try:
+        day = datetime.fromisoformat(iso).date() if iso else None
+    except ValueError:
+        day = None
+    return f"{day.day} {months[day.month - 1]} {day.year}" if day else ""
+
+
+def _with_bar(fields: dict, bar: dict) -> dict:
+    """Bar de la soirée (maquette v6, écran 9) : « À REMBOURSER » en grand (« Nouveau solde : … » à chaque service),
+    « À SERVIR » en tête ; le titre de l'événement passe en second ; les conditions de remboursement au dos."""
+    pending = int(bar.get("pending") or 0)
+    # Solde négatif : un verre déjà remboursé a été corrigé ou annulé, l'organisateur doit la différence (test du 10.11).
+    balance = float(bar.get("balance") or 0)
+    credit = balance < 0
+    title = {**fields["primaryFields"][0], "key": "event"}
+    due = _bar_date(bar.get("repay_by"))
+    terms = f"À rembourser à {bar.get('payee') or 'l’organisateur'} par {bar.get('method') or 'Revolut'}" + (f", avant le {due}." if due else ", après la soirée.")
+    return {**fields,
+            "headerFields": [{"key": "bar_pending", "label": "À SERVIR", "value": f"{pending} article{'s' if pending > 1 else ''}",
+                              "changeMessage": "À servir : %@"}],
+            "primaryFields": [{"key": "bar_balance", "label": "À TE RENDRE" if credit else "À REMBOURSER",
+                               "value": _chf(abs(balance)),
+                               "changeMessage": "Nouveau solde : %@"}],
+            "secondaryFields": [title, *fields.get("secondaryFields", [])][:3],
+            "backFields": [*fields.get("backFields", []), {"key": "bar_terms", "label": "Bar de la soirée", "value": terms}]}
+
+
 def ticket_pass(*, origin: str, event: dict, ticket: dict, holder: str, user_id: str,
-                auth_token: str | None = None, valid: bool = True) -> dict:
+                auth_token: str | None = None, valid: bool = True, bar: dict | None = None) -> dict:
     """pass.json d'un billet (format eventTicket). Avec auth_token et une origine https : le pass se met à jour tout
     seul (PassKit Web Service sur <origine>/api/wallet/passkit). valid=False : pass annulé, sans QR (plus Présent,
     événement annulé, billet retiré ou option « Billets QR » éteinte)."""
@@ -207,7 +242,7 @@ def ticket_pass(*, origin: str, event: dict, ticket: dict, holder: str, user_id:
         "backgroundColor": BACKGROUND,
         "labelColor": LABEL,
         "sharingProhibited": True,
-        "eventTicket": _fields(event, ticket, holder),
+        "eventTicket": _with_bar(_fields(event, ticket, holder), bar) if bar else _fields(event, ticket, holder),
     }
     # Pass annulé (billet retiré, option « Billets QR » éteinte, plus Présent) : plus aucun QR utilisable dans Cartes.
     if valid and ticket.get("token") and ticket.get("code"):

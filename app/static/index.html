@@ -1214,11 +1214,15 @@ const otherIosBrowser = () => /CriOS|FxiOS|EdgiOS/.test(navigator.userAgent);
 // Où est la barre d'adresse ? Depuis iOS 26, chacun la met en haut ou en bas (Réglages > Safari) et aucune page web
 // ne peut le savoir : on demande, on retient la réponse ; sans réponse, on montre les deux emplacements possibles.
 const barPos = () => ipad ? "top" : (store("vp_bar") || "");
+// Barre en bas, Safari 27 : le bouton est à gauche de l'adresse sur un grand iPhone (Pro Max, Plus, Air), à droite sur un
+// iPhone ou un iPhone Pro (retour de l'admin du 11.11.2026). Seule la largeur de l'écran les distingue (en points).
+const LARGE_IPHONE_PT = 420;
+const largeIphone = () => !ipad && Math.min(screen.width, screen.height) >= LARGE_IPHONE_PT;
 function arrowSpots(pos) {
   const v = safariVersion();
   const spot = (p) => otherIosBrowser() || ipad ? (p === "top" ? "tr" : "br")
     : p === "top" ? (v >= 27 ? "tl" : "bc")  // barre en haut : menu à gauche de l'adresse (27) ou Partager dans la barre du bas
-    : v >= 27 ? "bl" : v >= 26 ? "br" : "bc";
+    : v >= 27 ? (largeIphone() ? "bl" : "br") : v >= 26 ? "br" : "bc";
   return pos ? [spot(pos)] : [...new Set([spot("bottom"), spot("top")])];
 }
 function installSteps() {
@@ -1244,7 +1248,11 @@ function installSteps() {
   ];
   // Safari 27+ : icône de menu à gauche de l'adresse ; Safari 26 : ••• à droite (barre en bas) ou Partager dans
   // la barre du bas (barre en haut) ; avant : Partager au centre de la barre du bas.
-  const first = v >= 27 ? step("pagemenu", `Touche l'icône de menu <b>à gauche de l'adresse</b>, ${where}.`)
+  const bottomSide = largeIphone() ? "gauche" : "droite";
+  const first = v >= 27 ? step("pagemenu", pos === "top" || bottomSide === "gauche"
+      ? `Touche l'icône de menu <b>à gauche de l'adresse</b>, ${where}.`
+      : pos === "bottom" ? `Touche l'icône de menu <b>à droite de l'adresse</b>, en bas de l'écran.`
+      : `Touche l'icône de menu à côté de l'adresse : <b>à droite</b> si ta barre est en bas, <b>à gauche</b> si elle est en haut.`)
     : v >= 26 && pos === "bottom" ? step("more", `Touche <b>•••</b> à droite de la barre d'adresse, en bas de l'écran.`)
     : v >= 26 && !pos ? step("more", `Barre d'adresse en bas : touche <b>•••</b> à droite de l'adresse. Barre en haut : passe à l'étape 2.`)
     : null;

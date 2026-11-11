@@ -5,7 +5,7 @@ import { View } from 'react-native';
 import { ChatsPause } from '@/components/NotificationPause';
 import { PartyNotifications } from '@/components/PartyNotifications';
 import { ZicouReactionsRow } from '@/components/ZicouReactionsRow';
-import { compagnonOn, discussionsOn } from '@/lib/features';
+import { compagnonOn, discussionsOn, barOn } from '@/lib/features';
 import { SubscriptionPicker } from '@/components/SubscriptionPicker';
 import { Button, Chip, ErrorText, Field, LinkRow, Screen, s, Section, Segmented, T, ToggleRow } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
@@ -173,6 +173,13 @@ export default function NotificationSettings() {
         <ToggleRow disabled={saving} label="Place libérée" hint="Tu es sur liste d’attente et une place se libère" value={prefs.waitlist} onChange={(v) => update({ waitlist: v })} />
         {mayShow('ticket_pay_confirmed') ? <ToggleRow disabled={saving} label="Paiement de ma place confirmé" hint="L’organisateur a reçu ton paiement (ou ne l’a pas reçu) après ton « J’ai payé »" value={prefs.ticket_pay_confirmed !== false} onChange={(v) => update({ ticket_pay_confirmed: v })} /> : null}
         {mayShow('ticket_issued') ? <ToggleRow disabled={saving} label="Billet prêt" hint="L’organisateur t’a remis ton billet QR : il s’affiche sur l’événement" value={prefs.ticket_issued !== false} onChange={(v) => update({ ticket_issued: v })} /> : null}
+        {barOn ? (
+          <>
+            <ToggleRow disabled={saving} label="Bar : verres servis" hint="À chaque passage au bar : ce qui t’a été servi et ton solde à rembourser" value={prefs.bar_served !== false} onChange={(v) => update({ bar_served: v })} />
+            <ToggleRow disabled={saving} label="Bar : changements" hint="Un verre annulé ou corrigé, les conditions de remboursement changées, le bar fermé, tu es nommé barman" value={prefs.bar_changed !== false} onChange={(v) => update({ bar_changed: v })} />
+            <ToggleRow disabled={saving} label="Bar : remboursement confirmé" hint="L’organisateur a reçu (ou pas) ton remboursement" value={prefs.bar_refund_confirmed !== false} onChange={(v) => update({ bar_refund_confirmed: v })} />
+          </>
+        ) : null}
       </Section>
 
       <Section title="Rappels avant l’événement">
@@ -239,6 +246,7 @@ export default function NotificationSettings() {
         {mayShow('rsvp_mine') ? <ToggleRow disabled={saving} label="Réponses à mes événements" hint="Quelqu’un répond Présent, Peut-être ou Absent à un événement que j’organise" value={prefs.rsvp_mine} onChange={(v) => update({ rsvp_mine: v })} /> : null}
         <ToggleRow disabled={saving} label="Quelqu’un rejoint par le lien" hint="Une personne s’inscrit à ton événement avec son lien d’invitation" value={prefs.link_join !== false} onChange={(v) => update({ link_join: v })} />
         {mayShow('ticket_pay_declared') ? <ToggleRow disabled={saving} label="Quelqu’un dit avoir payé" hint="Sur un événement payant que j’organise, une personne touche « J’ai payé » : à confirmer quand tu as reçu l’argent" value={prefs.ticket_pay_declared !== false} onChange={(v) => update({ ticket_pay_declared: v })} /> : null}
+        {barOn ? <ToggleRow disabled={saving} label="Bar : quelqu’un dit avoir remboursé" hint="Au bar d’une soirée que j’organise : à confirmer quand tu as reçu l’argent" value={prefs.bar_refund_declared !== false} onChange={(v) => update({ bar_refund_declared: v })} /> : null}
         {mayShow('proposal_result') ? <ToggleRow disabled={saving} label="Ma proposition validée ou refusée" hint="Un admin publie ou refuse l’événement que tu as proposé" value={prefs.proposal_result !== false} onChange={(v) => update({ proposal_result: v })} /> : null}
         <ToggleRow disabled={saving} label="Réponse du groupe à mes demandes" hint="Ton annonce au groupe est acceptée, refusée ou partie d’office après 48 h ; ton événement est accepté ou refusé par le groupe" value={prefs.announce_results !== false} onChange={(v) => update({ announce_results: v })} />
         <ToggleRow disabled={saving} label="Annonce à valider" hint="Un membre de ton groupe veut prévenir le groupe d’un événement (tu es créateur, admin ou organisateur du groupe)" value={prefs.announce_requests !== false} onChange={(v) => update({ announce_requests: v })} />

@@ -10,9 +10,12 @@ Lancé par .github/workflows/ios-appstore.yml (secrets ASC_KEY_ID, ASC_ISSUER_ID
       repris de la revue précédente (jamais dans le dépôt), puis envoi en revue.
 Rien n'est envoyé si un fichier manque, si le build n'est pas traité ou si aucun compte de démo n'est connu.
 """
+import hashlib
+import json
 import pathlib
 import sys
 import time
+import urllib.request
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from testflight_publish import api  # noqa: E402  (même jeton signé, même appel)
@@ -44,11 +47,16 @@ class Asc:
         return self.call("GET", path).get("data") or []
 
 
+def pick_app(apps: list) -> str:
+    """L'app de l'App Store, jamais la BETA : le filtre d'Apple renvoie aussi ch.bobycharbon.party.beta."""
+    exact = [a for a in apps if a.get("attributes", {}).get("bundleId") == BUNDLE_ID]
+    if len(exact) != 1:
+        raise SystemExit(f"App {BUNDLE_ID} introuvable ou ambiguë ({len(exact)} résultats exacts)")
+    return exact[0]["id"]
+
+
 def app_id(asc: Asc) -> str:
-    apps = asc.data(f"/v1/apps?filter[bundleId]={BUNDLE_ID}")
-    if not apps:
-        raise SystemExit(f"App {BUNDLE_ID} introuvable")
-    return apps[0]["id"]
+    return pick_app(asc.data(f"/v1/apps?filter[bundleId]={BUNDLE_ID}"))
 
 
 def versions(asc: Asc, app: str) -> list:
@@ -81,10 +89,73 @@ def check(key: str) -> int:
             la = loc["attributes"]
             print(f"  {la['locale']} : nouveautés {len(la.get('whatsNew') or '')} car., "
                   f"description {len(la.get('description') or '')} car.")
+        for loc in asc.data(f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations"):
+            la = loc["attributes"]
+            print(f"  fiche {la['locale']} : support {la.get('supportUrl')}, marketing {la.get('marketingUrl')}, "
+                  f"mots-clés {la.get('keywords')!r}\n  description : {la.get('description')!r}")
+        rating = api(asc.key, "GET", f"/v1/appStoreVersions/{v['id']}/ageRatingDeclaration")
+        if "error" not in rating:
+            print(f"  âge : {rating['data']['attributes']}")
+    for info in asc.data(f"/v1/apps/{app}/appInfos"):
+        print(f"- appInfo {info['id']} : {info['attributes'].get('appStoreState') or info['attributes'].get('state')}, "
+              f"âge {info['attributes'].get('appStoreAgeRating')}")
+        for loc in asc.data(f"/v1/appInfos/{info['id']}/appInfoLocalizations"):
+            la = loc["attributes"]
+            print(f"  {la['locale']} : nom {la.get('name')!r}, sous-titre {la.get('subtitle')!r}, "
+                  f"confidentialité {la.get('privacyPolicyUrl')}")
+        rating = api(asc.key, "GET", f"/v1/appInfos/{info['id']}/ageRatingDeclaration")
+        if "error" not in rating:
+            print(f"  âge (appInfo) : {rating['data']['attributes']}")
     for b in asc.data(f"/v1/builds?filter[app]={app}&filter[preReleaseVersion.platform]=IOS&sort=-uploadedDate&limit=5"):
         a = b["attributes"]
         print(f"- build {a['version']} : {a['processingState']}, envoyé {a['uploadedDate'][:16]}, expiré {a.get('expired')}")
+    details(asc, app)
     return 0
+
+
+def masked(value: str | None) -> str:
+    return "—" if not value else f"oui (…{value[-2:]})"
+
+
+def details(asc: Asc, app: str) -> None:
+    """Le reste de la fiche, en lecture : droits, catégories, version, contact (masqué), disponibilité, prix, captures."""
+    a = asc.call("GET", f"/v1/apps/{app}")["data"]["attributes"]
+    print(f"- app : droits de contenu {a.get('contentRightsDeclaration')}, langue {a.get('primaryLocale')}")
+    for info in asc.data(f"/v1/apps/{app}/appInfos"):
+        for rel in ("primaryCategory", "primarySubcategoryOne", "secondaryCategory"):
+            out = api(asc.key, "GET", f"/v1/appInfos/{info['id']}/{rel}")
+            print(f"  {rel} : {(out.get('data') or {}).get('id') if 'error' not in out else out['error']}")
+    for v in versions(asc, app):
+        va = v["attributes"]
+        print(f"- version {va['versionString']} : copyright {va.get('copyright')!r}, sortie {va.get('releaseType')}")
+        detail = review_detail(asc, v["id"])
+        if detail:
+            d = detail["attributes"]
+            print(f"  contact : prénom {masked(d.get('contactFirstName'))}, nom {masked(d.get('contactLastName'))}, "
+                  f"téléphone {masked(d.get('contactPhone'))}, e-mail {d.get('contactEmail')}, "
+                  f"code de démo {'saisi' if d.get('demoAccountPassword') else 'MANQUANT'}")
+        for loc in asc.data(f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations"):
+            for s in asc.data(f"/v1/appStoreVersionLocalizations/{loc['id']}/appScreenshotSets"):
+                shots = asc.data(f"/v1/appScreenshotSets/{s['id']}/appScreenshots")
+                print(f"  captures {s['attributes']['screenshotDisplayType']} : {len(shots)}")
+                for shot in shots:
+                    asset = shot["attributes"].get("imageAsset") or {}
+                    url = (asset.get("templateUrl") or "").replace("{w}", "600").replace("{h}", "1300").replace("{f}", "png")
+                    print(f"    {shot['attributes'].get('fileName')} {url}")
+    avail = api(asc.key, "GET", f"/v1/apps/{app}/appAvailabilityV2")
+    if "error" not in avail:
+        terr = asc.data(f"/v2/appAvailabilities/{avail['data']['id']}/territoryAvailabilities?limit=200&include=territory")
+        on = sorted(t["relationships"]["territory"]["data"]["id"] for t in terr if t["attributes"].get("available"))
+        off = sorted(t["relationships"]["territory"]["data"]["id"] for t in terr if not t["attributes"].get("available"))
+        print(f"- disponible dans {len(on)} pays : {', '.join(on)}")
+        print(f"- non disponible ({len(off)}) : {', '.join(off)}")
+    else:
+        print(f"- disponibilité : {avail['error']} {str(avail['detail'])[:200]}")
+    price = api(asc.key, "GET", f"/v1/apps/{app}/appPriceSchedule?include=baseTerritory,manualPrices")
+    if "error" not in price:
+        print(f"- prix : {[i.get('type') + ':' + i.get('id', '')[:40] for i in price.get('included', [])]}")
+    else:
+        print(f"- prix : {price['error']} {str(price['detail'])[:200]}")
 
 
 def editable_version(asc: Asc, app: str, version: str) -> dict:
@@ -189,7 +260,130 @@ def submit(key: str, version: str, build: str) -> int:
     return 0
 
 
+METADATA_FILE = ROOT / "ios/appstore/metadata-fr.json"
+
+
+def patch(asc: Asc, kind: str, obj_id: str, attrs: dict, label: str) -> None:
+    out = api(asc.key, "PATCH", f"/v1/{kind}/{obj_id}", {"data": {"type": kind, "id": obj_id, "attributes": attrs}})
+    print(f"{label} : {'refusé, ' + str(out['error']) + ' ' + str(out['detail'])[:400] if 'error' in out else 'enregistré'}")
+
+
+def fill(key: str, version: str) -> int:
+    """Fiche de la version (nom, sous-titre, description, URL, mots-clés), classification par âge et nom du compte de
+    démo, d'après ios/appstore/metadata-fr.json. Le code du compte de démo n'est jamais écrit ici (saisi à la main)."""
+    meta = json.loads(METADATA_FILE.read_text())
+    asc = Asc(key)
+    app = app_id(asc)
+    v = editable_version(asc, app, version)
+    for info in asc.data(f"/v1/apps/{app}/appInfos"):
+        if (info["attributes"].get("appStoreState") or info["attributes"].get("state")) not in EDITABLE:
+            continue
+        for loc in asc.data(f"/v1/appInfos/{info['id']}/appInfoLocalizations"):
+            if loc["attributes"]["locale"] == LOCALE:
+                patch(asc, "appInfoLocalizations", loc["id"], {"name": meta["name"]}, f"Nom « {meta['name']} »")
+                patch(asc, "appInfoLocalizations", loc["id"], {"subtitle": meta["subtitle"],
+                      "privacyPolicyUrl": meta["privacyPolicyUrl"]}, "Sous-titre et confidentialité")
+        rating = api(asc.key, "GET", f"/v1/appInfos/{info['id']}/ageRatingDeclaration")
+        if "error" not in rating:
+            patch(asc, "ageRatingDeclarations", rating["data"]["id"], meta["ageRating"], "Classification par âge")
+    for loc in asc.data(f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations"):
+        if loc["attributes"]["locale"] == LOCALE:
+            patch(asc, "appStoreVersionLocalizations", loc["id"], {k: meta[k] for k in
+                  ("description", "keywords", "supportUrl", "marketingUrl")}, "Description, mots-clés et URL")
+    current = review_detail(asc, v["id"])
+    attrs = {"demoAccountRequired": True, "demoAccountName": meta["demoAccountName"]}
+    if current:
+        patch(asc, "appStoreReviewDetails", current["id"], attrs, "Compte de démo (nom ; code à saisir à la main)")
+    else:
+        save_review_detail(asc, v["id"], None, attrs)
+        print("Compte de démo (nom) créé ; code à saisir à la main")
+    return 0
+
+
+SCREENSHOTS_DIR = ROOT / "ios/appstore/screenshots"
+SCREENSHOT_TYPE = "APP_IPHONE_67"          # 6,9" / 6,7" : 1320 × 2868, la taille exigée par Apple pour l'iPhone
+IPHONE_TYPES = {"APP_IPHONE_67", "APP_IPHONE_65", "APP_IPHONE_61", "APP_IPHONE_58", "APP_IPHONE_55"}
+ASSET_WAIT_S = 5 * 60
+
+
+def upload_parts(operations: list, data: bytes) -> None:
+    for op in operations:
+        chunk = data[op["offset"]:op["offset"] + op["length"]]
+        headers = {h["name"]: h["value"] for h in op.get("requestHeaders") or []}
+        req = urllib.request.Request(op["url"], data=chunk, method=op["method"], headers=headers)
+        with urllib.request.urlopen(req, timeout=120) as r:
+            r.read()
+
+
+def upload_screenshot(asc: Asc, set_id: str, path: pathlib.Path) -> str:
+    data = path.read_bytes()
+    reserved = asc.call("POST", "/v1/appScreenshots", {"data": {
+        "type": "appScreenshots", "attributes": {"fileName": path.name, "fileSize": len(data)},
+        "relationships": {"appScreenshotSet": {"data": {"type": "appScreenshotSets", "id": set_id}}}}})["data"]
+    upload_parts(reserved["attributes"]["uploadOperations"], data)
+    asc.call("PATCH", f"/v1/appScreenshots/{reserved['id']}", {"data": {
+        "type": "appScreenshots", "id": reserved["id"],
+        "attributes": {"uploaded": True, "sourceFileChecksum": hashlib.md5(data).hexdigest()}}})
+    return reserved["id"]
+
+
+def wait_assets(asc: Asc, ids: list[str]) -> None:
+    deadline = time.time() + ASSET_WAIT_S
+    pending = set(ids)
+    while pending and time.time() < deadline:
+        for shot_id in sorted(pending):
+            st = asc.call("GET", f"/v1/appScreenshots/{shot_id}")["data"]["attributes"].get("assetDeliveryState") or {}
+            if st.get("state") == "COMPLETE":
+                pending.discard(shot_id)
+            elif st.get("state") == "FAILED":
+                raise SystemExit(f"Capture refusée par Apple : {st.get('errors')}")
+        if pending:
+            time.sleep(10)
+    if pending:
+        raise SystemExit(f"Captures pas traitées au bout de {ASSET_WAIT_S // 60} min : {sorted(pending)}")
+
+
+def screens(key: str, version: str) -> int:
+    """Remplace les captures iPhone de la fiche fr-FR par ios/appstore/screenshots/*.png (6,9", ordre des noms)."""
+    files = sorted(SCREENSHOTS_DIR.glob("*.png"))
+    if not 3 <= len(files) <= 10:
+        raise SystemExit(f"Il faut 3 à 10 captures dans {SCREENSHOTS_DIR} ({len(files)} trouvées)")
+    asc = Asc(key)
+    app = app_id(asc)
+    v = editable_version(asc, app, version)
+    loc = next((x for x in asc.data(f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations")
+                if x["attributes"]["locale"] == LOCALE), None)
+    if loc is None:
+        raise SystemExit(f"Pas de fiche {LOCALE}")
+    sets = asc.data(f"/v1/appStoreVersionLocalizations/{loc['id']}/appScreenshotSets")
+    target = next((s for s in sets if s["attributes"]["screenshotDisplayType"] == SCREENSHOT_TYPE), None)
+    if target is None:
+        target = asc.call("POST", "/v1/appScreenshotSets", {"data": {
+            "type": "appScreenshotSets", "attributes": {"screenshotDisplayType": SCREENSHOT_TYPE},
+            "relationships": {"appStoreVersionLocalization": {"data": {"type": "appStoreVersionLocalizations",
+                                                                        "id": loc["id"]}}}}})["data"]
+        print(f"Jeu de captures {SCREENSHOT_TYPE} créé")
+    ids = [upload_screenshot(asc, target["id"], f) for f in files]
+    wait_assets(asc, ids)
+    print(f"{len(ids)} captures {SCREENSHOT_TYPE} envoyées : {', '.join(f.name for f in files)}")
+    # Les anciennes captures iPhone (autres tailles, et celles du jeu 6,9" d'avant) partent : sinon l'App Store
+    # montrerait encore l'ancienne app sur les petits écrans.
+    for s in asc.data(f"/v1/appStoreVersionLocalizations/{loc['id']}/appScreenshotSets"):
+        if s["attributes"]["screenshotDisplayType"] not in IPHONE_TYPES:
+            continue
+        for shot in asc.data(f"/v1/appScreenshotSets/{s['id']}/appScreenshots"):
+            if shot["id"] not in ids:
+                asc.call("DELETE", f"/v1/appScreenshots/{shot['id']}")
+                print(f"Ancienne capture retirée : {s['attributes']['screenshotDisplayType']} "
+                      f"{shot['attributes'].get('fileName')}")
+    return 0
+
+
 if __name__ == "__main__":
+    if len(sys.argv) == 4 and sys.argv[1] == "fill":
+        sys.exit(fill(sys.argv[2], sys.argv[3]))
+    if len(sys.argv) == 4 and sys.argv[1] == "screens":
+        sys.exit(screens(sys.argv[2], sys.argv[3]))
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
     if mode == "check" and len(sys.argv) == 3:
         sys.exit(check(sys.argv[2]))

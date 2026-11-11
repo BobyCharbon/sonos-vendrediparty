@@ -41,7 +41,7 @@ jobs:
             VARIANT=()
           else
             VARIANT=(PARTY_BUNDLE_SUFFIX= PARTY_HOST=party.bobycharbon.ch
-                     "PARTY_DISPLAY_NAME=Party !" ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon)
+                     "PARTY_DISPLAY_NAME=Party" ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon)
           fi
           xcodebuild build -project Party.xcodeproj -scheme Party -configuration Debug \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build \

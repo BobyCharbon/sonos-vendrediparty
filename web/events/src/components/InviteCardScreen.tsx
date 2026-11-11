@@ -11,7 +11,7 @@ import { appDownload } from '@/lib/appInvite';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { avatarColor, formatLongDay, formatTime, initials } from '@/lib/format';
-import { acceptInvite, fetchInviteCard, type Accepted, type InviteCard } from '@/lib/invites';
+import { acceptInvite, fetchInviteCard, unlimited, type Accepted, type InviteCard } from '@/lib/invites';
 import { clearInviteAnswer, peekInviteAnswer, rememberInviteAnswer } from '@/lib/inviteIntent';
 import { canInstallWebApp, insideInstalledApp, installWebApp, isAndroid } from '@/lib/installPrompt';
 import { enter, pressTransition } from '@/lib/motion';
@@ -31,6 +31,7 @@ const CLOSED: Record<string, string> = {
   full: 'Ce lien a déjà servi : toutes ses places sont prises. Demande ton propre lien à la personne qui t’a invité.',
   expired: 'Ce lien n’est plus valable (date limite passée). Demande un nouveau lien à la personne qui t’a invité.',
   revoked: 'La personne qui t’a invité a arrêté ce lien. Demande-lui un nouveau lien.',
+  removed: 'L’organisateur t’a retiré de la liste des invités : ce lien ne te permet plus de répondre.',
 };
 /** Refus définitifs de accept_invite (retiré de la liste, lien arrêté / plein / expiré, événement annulé ou fermé,
  * organisateur sur son propre lien) : inutile de réessayer, on ne propose plus de répondre. */
@@ -121,14 +122,14 @@ function Host({ card }: { card: InviteCard }) {
       </View>
       <View style={{ flex: 1 }}>
         <T weight="bold" size={15}>{name} t’invite{card.label ? `, ${card.label}` : ''}</T>
-        <T muted size={12}>{card.places_left != null ? `Lien pour plusieurs · reste ${card.places_left} ${card.places_left > 1 ? 'places' : 'place'}` : 'Seulement toi, avec ce lien'}</T>
+        <T muted size={12}>{card.places_left != null && !unlimited(card.places_left) ? `Lien pour plusieurs · reste ${card.places_left} ${card.places_left > 1 ? 'places' : 'place'}` : card.multi ? 'Lien pour plusieurs' : 'Seulement toi, avec ce lien'}</T>
       </View>
     </View>
   );
 }
 
 function Card({ card, onAnswer }: { card: InviteCard; onAnswer: (a: Answer) => void }) {
-  const closed = card.state === 'full' || card.state === 'expired' || card.state === 'revoked';
+  const closed = card.state === 'full' || card.state === 'expired' || card.state === 'revoked' || card.state === 'removed';
   const cancelled = card.status === 'cancelled';
   // Sondage : on compte les votants, comme le sondage de la fiche (10.11 : « 2 viennent » mais 3 votes).
   const poll = card.date_mode === 'poll';
@@ -172,6 +173,12 @@ function Card({ card, onAnswer }: { card: InviteCard; onAnswer: (a: Answer) => v
       ) : isOrganizer(card) ? (
         // L'organisateur voit la carte telle que l'invité la verra, sans y répondre (le lien n'est pas pour lui).
         <View style={st.notice}><T color={colors.coralSoft}>C’est ton lien d’invitation. {OWN_LINK}</T></View>
+      ) : closed && card.already && card.event_id ? (
+        // Déjà invité autrement (liste, groupe, autre lien) : ce lien ne sert plus, mais l'événement l'attend.
+        <View style={{ gap: 10 }}>
+          <View style={st.notice}><T color={colors.textSoft}>Tu es déjà invité à cet événement{card.mine ? ` (ta réponse : ${(ANSWERS.find((a) => a.key === card.mine)?.label ?? '').replace(/\s*[.!]\s*$/, '')})` : ''}.</T></View>
+          <OpenEvent id={card.event_id} label="Voir l’événement" />
+        </View>
       ) : closed ? (
         <View style={st.notice}><T color={colors.coralSoft}>{CLOSED[card.state]}</T></View>
       ) : card.closed ? (
@@ -328,7 +335,7 @@ function PollDone({ card, done }: { card: InviteCard; done: Accepted }) {
       </View>
       <InviteDateVotes eventId={done.event_id} onVoted={setVotes}
         calendar={{ title: done.title, description: done.description ?? '', location_name: done.location_name, location_address: done.location_address }} />
-      <T muted size={13} style={{ textAlign: 'center' }}>Tes votes sont enregistrés à chaque toucher. Rouvre ce même lien pour les changer.</T>
+      <T muted size={13} style={{ textAlign: 'center' }}>Rouvre ce même lien pour changer tes réponses.</T>
       <OpenEvent id={done.event_id} label="Voir l’événement et les votes" />
     </Screen>
   );

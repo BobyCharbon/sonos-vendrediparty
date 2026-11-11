@@ -5,6 +5,7 @@ import { Image, Linking, Pressable, StyleSheet, useWindowDimensions, View } from
 import { AIEventSteps } from '@/components/AIEventSteps';
 import { AttendanceEditor } from '@/components/AttendanceEditor';
 import { AttendeesBadge } from '@/components/AttendeesBadge';
+import { BarEntry } from '@/components/bar/BarEntry';
 import { PendingPayments } from '@/components/PendingPayments';
 import { RejectProposal } from '@/components/RejectProposal';
 import { ReportSheet } from '@/components/ReportSheet';
@@ -12,7 +13,7 @@ import { TicketCard } from '@/components/TicketCard';
 import { TicketsManager } from '@/components/TicketsManager';
 import { CalendarButton } from '@/components/CalendarButton';
 import { EventGiftsLink } from '@/components/EventGifts';
-import { compagnonOn, invitesV2On } from '@/lib/features';
+import { barOn, compagnonOn, invitesV2On } from '@/lib/features';
 import { GuestListCard } from '@/components/GuestListCard';
 import { AnnounceStatusCard } from '@/components/AnnounceStatusCard';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
@@ -100,8 +101,9 @@ export default function EventScreen() {
         .single(),
       supabase.from('messages').select('*').eq('event_id', id).is('deleted_at', null).order('created_at', { ascending: false }).limit(2),
       supabase.from('event_mutes').select('event_id').eq('event_id', id).eq('user_id', me.id),
-      // Invités arrivés par le lien (lisible par les organisateurs et les admins : orange dans « Qui vient ? »).
-      supabase.from('event_invites').select('user_id').eq('event_id', id).eq('via_link', true),
+      // Invités (lisibles par les organisateurs et les admins) : ceux arrivés par le lien sont en orange dans « Qui vient ? »,
+      // et tous, même sans réponse, se trouvent dans Présences › « Ajouter quelqu'un » (test réel du bar, 10.11).
+      supabase.from('event_invites').select('user_id, via_link').eq('event_id', id),
       // Pastille des présents : totaux exacts même si la liste des participants est cachée.
       fetchAttendance([id]).catch(() => new Map()),
       // Noms des groupes invités : lisibles par qui voit l'événement, même sans faire partie du groupe.
@@ -117,7 +119,8 @@ export default function EventScreen() {
       : [{ data: [] }, { data: [] }];
     const votes = (allVotes.data ?? []) as { option_id: string; user_id: string }[];
     const msgs = (messages.data ?? []) as Message[];
-    const peopleIds = eventPeopleIds(event, votes, msgs);
+    const invites = (links.data ?? []) as { user_id: string; via_link: boolean }[];
+    const peopleIds = eventPeopleIds(event, votes, msgs, invites);
     const members = peopleIds.length ? await supabase.from('profiles').select('id, display_name').in('id', peopleIds) : { data: [] };
     return {
       event,
@@ -127,7 +130,7 @@ export default function EventScreen() {
       allVotes: votes,
       messages: msgs,
       muted: (mute.data ?? []).length > 0,
-      viaLink: new Set(((links.data ?? []) as { user_id: string }[]).map((l) => l.user_id)),
+      viaLink: new Set(invites.filter((l) => l.via_link).map((l) => l.user_id)),
       attendance: attendance.get(id) ?? null,
       groupNames: ((groupNames.data ?? []) as string[]).join(', '),
       loadedAt: Date.now(),
@@ -159,9 +162,10 @@ export default function EventScreen() {
   const ev = data?.event;
   // Dates « À confirmer » mises dans le calendrier de l'iPhone (avis 9ddbdea7fe8f) : date fixée ou événement annulé,
   // l'app garde la bonne entrée et retire les autres, sans rien demander.
+  const declinedDate = !!ev && ev.rsvps.some((r) => r.user_id === me.id && r.status === 'no');
   useEffect(() => {
-    if (ev) void settleNativeDates(ev);
-  }, [ev?.id, ev?.status, ev?.date_mode, ev?.starts_at, ev?.ends_at, ev?.title]);  // eslint-disable-line react-hooks/exhaustive-deps
+    if (ev) void settleNativeDates(ev, undefined, declinedDate);
+  }, [ev?.id, ev?.status, ev?.date_mode, ev?.starts_at, ev?.ends_at, ev?.title, declinedDate]);  // eslint-disable-line react-hooks/exhaustive-deps
   // Payant : « J'ai payé » (invité) et « Reçu » (organisateur) apparaissent sans recharger la page. Les billets ne sont pas
   // lisibles en direct (table fermée, fonctions seulement) : relecture légère des deux cartes, page visible seulement.
   const mineYes = !!ev && ev.rsvps.some((r) => r.user_id === me.id && r.status === 'yes');
@@ -389,6 +393,8 @@ export default function EventScreen() {
       {mine?.status === 'yes' && ticketRelevant(ev, data.loadedAt) ? (
         <TicketCard event={ev} me={me} answerKey={`${mine.status}:${mine.waitlisted}:${mine.plus_ones}:${paymentsTick}`} />
       ) : null}
+      {/* Bar de la soirée : solde EN GRAND du présent, « Scanner au bar » du barman. */}
+      {barOn && published ? <BarEntry eventId={ev.id} zone="guest" answer={mine?.status ?? ''} /> : null}
 
       {infoRows.length ? (
         <Card>
@@ -472,6 +478,7 @@ export default function EventScreen() {
           {ev.date_mode === 'fixed' ? (
             <Button label="📷 Scanner les billets" onPress={() => router.push(`/event/${ev.id}/scan`)} />
           ) : null}
+          {barOn ? <BarEntry eventId={ev.id} zone="organizer" /> : null}
           {/* La base exige le droit de modifier pour annuler, sauf pour le créateur (campagne 2, lot A) : un co-organisateur
               « Membre » sans « Modifier » ne voit plus « Annuler l’événement ». */}
           {canEdit || ev.created_by === me.id ? <ConfirmButton

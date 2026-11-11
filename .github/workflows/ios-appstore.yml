@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: check (lecture) ou submit (envoi en revue)
+        description: check (lecture), fill (fiche, âge, compte de démo d'après ios/appstore/metadata-fr.json), screens (captures d'ios/appstore/screenshots) ou submit (envoi en revue)
         type: choice
-        options: [check, submit]
+        options: [check, fill, screens, submit]
         default: check
       version:
         description: Version (ex. 1.0.0)
@@ -46,7 +46,11 @@ jobs:
           chmod 600 "$KEY_PATH"
           python3 -m venv "$RUNNER_TEMP/asc"
           "$RUNNER_TEMP/asc/bin/pip" install --quiet cryptography
-          if [ "$MODE" = "submit" ]; then
+          if [ "$MODE" = "screens" ]; then
+            "$RUNNER_TEMP/asc/bin/python" tools/appstore_submit.py screens "$KEY_PATH" "$VERSION"
+          elif [ "$MODE" = "fill" ]; then
+            "$RUNNER_TEMP/asc/bin/python" tools/appstore_submit.py fill "$KEY_PATH" "$VERSION"
+          elif [ "$MODE" = "submit" ]; then
             "$RUNNER_TEMP/asc/bin/python" tools/appstore_submit.py submit "$KEY_PATH" "$VERSION" "$BUILD"
           else
             "$RUNNER_TEMP/asc/bin/python" tools/appstore_submit.py check "$KEY_PATH"

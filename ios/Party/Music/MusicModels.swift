@@ -168,19 +168,23 @@ struct ZicouReaction: Decodable, Equatable {
 struct PartyFeatures: Decodable, Equatable {
     let compagnon: Bool
     let discussions: Bool
+    /// Bar de la soirée (BAR_ENABLED, site de test seulement pour l'instant) : ses réglages de notification n'apparaissent qu'allumé.
+    let bar: Bool
 
-    init(compagnon: Bool, discussions: Bool = false) {
+    init(compagnon: Bool, discussions: Bool = false, bar: Bool = false) {
         self.compagnon = compagnon
         self.discussions = discussions
+        self.bar = bar
     }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         compagnon = try values.decodeIfPresent(Bool.self, forKey: .compagnon) ?? false
         discussions = try values.decodeIfPresent(Bool.self, forKey: .discussions) ?? false
+        bar = try values.decodeIfPresent(Bool.self, forKey: .bar) ?? false
     }
 
-    private enum CodingKeys: String, CodingKey { case compagnon, discussions }
+    private enum CodingKeys: String, CodingKey { case compagnon, discussions, bar }
 }
 
 /// Réglages › Compagnon : « Réactions de Zicou » (bandeaux dans l'app, jamais une notification).

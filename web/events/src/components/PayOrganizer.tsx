@@ -14,12 +14,12 @@ const LINK_LABELS: Record<string, string> = {
 };
 
 /** Lien de paiement sûr (https seulement) ; le profil de paiement est déjà nettoyé côté serveur, on revérifie. */
-function safeLink(url: string): string | null {
+export function safeLink(url: string): string | null {
   try { return new URL(url).protocol === 'https:' ? url : null; } catch { return null; }
 }
 
 /** Copie avec retour visible (« Copié ✓ ») ; sans presse-papiers, le texte reste affiché pour une copie à la main. */
-function CopyRow({ label, value, shown = value }: { label: string; value: string; shown?: string }) {
+export function CopyRow({ label, value, shown = value }: { label: string; value: string; shown?: string }) {
   const [done, setDone] = useState<'ok' | 'fail' | null>(null);
   async function copy() {
     try { await navigator.clipboard.writeText(value); setDone('ok'); } catch { setDone('fail'); }

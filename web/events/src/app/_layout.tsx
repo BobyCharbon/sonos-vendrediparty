@@ -12,6 +12,7 @@ import { usePendingSync } from '@/lib/pending';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { enableWebPush } from '@/lib/push';
+import { PushInvite } from '@/components/PushInvite';
 import { sweepNativeCalendar } from '@/lib/calendar';
 import { ShellSafeArea } from '@/lib/shellInsets';
 import { colors, font } from '@/lib/theme';
@@ -50,7 +51,7 @@ function inPartyShell(): boolean {
   return typeof window !== 'undefined' && window.parent !== window;
 }
 
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/invite|\/gifts|\/scan(?:\/[a-f0-9]{64})?)?|share\/[a-f0-9-]{36}|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|chats(?:\/[a-f0-9-]{36})?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/invite|\/gifts|\/scan(?:\/[a-f0-9]{64})?|\/bar(?:\/scan|\/manage|\/person\/[a-f0-9-]{36})?)?|share\/[a-f0-9-]{36}|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|chats(?:\/[a-f0-9-]{36})?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
 /** Pages de passage (accueil du module, connexion, « Faisons connaissance ») : seules à reprendre l'intention gardée. */
 const transitPath = /^\/?(?:sign-in|welcome)?$/i;
 
@@ -161,6 +162,8 @@ function Gate() {
   return (
     <>
     {session && active && profile ? <PendingSync me={profile.id} /> : null}
+    {/* App web installée : proposer les notifications en arrivant dans les Événements (retour de l'admin, 11.11). */}
+    {session && active ? <PushInvite path={path} /> : null}
     {session && hasCompleteIdentity(profile) ? <PendingInviteClaim key={session.user.id} /> : null}
     <Stack
       screenOptions={{
@@ -185,6 +188,11 @@ function Gate() {
         <Stack.Screen name="event/[id]/scan/index" options={{ title: 'Entrée' }} />
         <Stack.Screen name="event/[id]/scan/[token]" options={{ title: 'Entrée' }} />
         <Stack.Screen name="event/[id]/gifts" options={{ title: 'Cadeaux de l’événement' }} />
+        {/* Bar de la soirée (drapeau barOn : éteint, ces pages disent « bientôt »). */}
+        <Stack.Screen name="event/[id]/bar/index" options={{ title: 'Mon bar' }} />
+        <Stack.Screen name="event/[id]/bar/scan" options={{ title: 'Scanner au bar' }} />
+        <Stack.Screen name="event/[id]/bar/manage" options={{ title: 'Bar de la soirée' }} />
+        <Stack.Screen name="event/[id]/bar/person/[member]" options={{ title: 'Réservations' }} />
         {/* Étape 2 de l'assistant IA : connecté seulement (sinon la page plantait au lieu de demander la connexion). */}
         <Stack.Screen name="event/[id]/invite" options={{ title: 'Qui est invité' }} />
         <Stack.Screen name="settings/notifications" options={{ title: 'Notifications et abonnements' }} />

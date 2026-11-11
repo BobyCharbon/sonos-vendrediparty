@@ -86,11 +86,15 @@ export function guestOrigin(p: Guest, me: string): string {
 
 export const statusWords: Record<RsvpStatus, string> = { yes: 'Vient', maybe: 'Peut-être', no: 'Absent' };
 
+/** Lien « Plusieurs » sans limite de places (la base enregistre 10000 places, 11.11.2026). */
+export const UNLIMITED_SEATS = 0;
+export const unlimited = (seats: number | null | undefined): boolean => (seats ?? 0) > 50;
+
 /** Suivi d'un lien en une ligne : « Pas encore ouvert », « Ouvert · pas de réponse », « 2 sur 10 places »… */
 export function linkLine(l: SentLink): string {
   if (l.state === 'revoked') return 'Arrêté';
   if (l.max_uses > 1) {
-    const places = `${l.uses} sur ${l.max_uses} places`;
+    const places = unlimited(l.max_uses) ? `${l.uses} ${l.uses > 1 ? 'personnes' : 'personne'} · sans limite` : `${l.uses} sur ${l.max_uses} places`;
     return l.state === 'expired' ? `${places} · terminé` : `${places} · jusqu’au ${shortDate(l.expires_at)}`;
   }
   if (l.arrivals.length) return `${l.arrivals[0]!.name} a répondu${l.arrivals[0]!.status ? ` « ${statusWords[l.arrivals[0]!.status]} »` : ''}`;
@@ -115,7 +119,7 @@ export function linkSpokenNames(links: SentLink[]): Map<string, string> {
     const ordered = [...same].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.token.localeCompare(b.token));
     ordered.forEach((l, i) => {
       if (ordered.length === 1) return names.set(l.token, title);
-      const places = l.max_uses > 1 ? `, ${l.max_uses} places` : '';
+      const places = unlimited(l.max_uses) ? ', sans limite' : l.max_uses > 1 ? `, ${l.max_uses} places` : '';
       names.set(l.token, `${title} n° ${i + 1}${places}, envoyé ${shortDate(l.created_at)}`);
     });
   }
@@ -200,13 +204,15 @@ export const stopLink = (tok: string) => call<null>('revoke_invite_link', { tok 
 
 /** Carte d'invitation (lisible sans compte). */
 export type InviteCard = {
-  state: LinkState | 'mine'; version: number; label: string | null; places_left: number | null; inviter: string | null;
+  state: LinkState | 'mine' | 'removed'; version: number; label: string | null; places_left: number | null; inviter: string | null;
   title: string; status: 'published' | 'cancelled'; date_mode: 'fixed' | 'poll'; starts_at: string | null; ends_at: string | null;
   all_day: boolean; location_name: string | null; cover_url: string | null; description: string | null; allow_maybe: boolean;
   closed: boolean; going: number; going_names: string[]; mine: RsvpStatus | null; event_id: string | null;
   location_address: string | null; location_url: string | null; me_named: boolean;
   /** Sondage (10.11) : personnes qui ont voté au moins une date, et si mon profil est complet (base plus ancienne : absents). */
   voters?: number; voter_names?: string[]; me_complete?: boolean;
+  /** Déjà invité autrement (event_id fourni) ; lien prévu pour plusieurs (même fermé). Base plus ancienne : absents. */
+  already?: boolean; multi?: boolean;
 };
 export type Accepted = {
   event_id: string; status: RsvpStatus | null; title: string; starts_at: string | null; ends_at: string | null; all_day: boolean;

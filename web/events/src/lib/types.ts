@@ -181,6 +181,11 @@ export type NotificationPrefs = {
   ticket_pay_confirmed?: boolean;
   /** Billets QR (migration 20261104233000 ; absent avant : reçue) : l'organisateur m'a remis mon billet. */
   ticket_issued?: boolean;
+  // Bar de la soirée (20261110120000) : chaque type a son interrupteur.
+  bar_served?: boolean;
+  bar_changed?: boolean;
+  bar_refund_declared?: boolean;
+  bar_refund_confirmed?: boolean;
   /** Mes amis dans Party (migration 20261104090000 ; absents avant : reçues) : quelqu'un rejoint Party grâce à mon lien ;
    * un contact de l'iPhone arrive sur Party (notification calculée par l'app iPhone). */
   referral_joins?: boolean;

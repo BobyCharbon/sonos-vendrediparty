@@ -13,7 +13,7 @@ drapeaux de prod lus sur https://party.bobycharbon.ch/api/features : `compagnon:
 | URL d'assistance (Support URL) | `https://party.bobycharbon.ch/events/terms` (répond 200 ; le contact support@vendrediparty.ch y figure) |
 | URL de confidentialité (Privacy Policy URL) | `https://party.bobycharbon.ch/events/privacy` (répond 200) |
 | URL marketing | Vide. **Jamais** `vendrediparty.ch` : ce domaine n'a pas de site (aucun enregistrement A), seulement la messagerie. |
-| Prix / disponibilité | Gratuit, Suisse seulement |
+| Prix / disponibilité | Gratuit, les 26 pays francophones de l’App Store (décision du 09.11.2026) |
 | Chiffrement | Aucun chiffrement propre (`ITSAppUsesNonExemptEncryption = false` dans Info.plist) |
 | Contenu de tiers | Oui, avec les droits : titres et pochettes lus par les API Spotify, Deezer, YouTube, Apple Music ; lieux par Google Maps |
 

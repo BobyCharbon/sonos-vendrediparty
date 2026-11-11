@@ -67,6 +67,15 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   2 « Qui est invité » (web `/event/<id>/invite`, brouillon public + lien en attendant) : le bandeau / choix « qui voit »
   (public + lien public par défaut, en surbrillance) est ICI, puis les invités, puis Publier ; 3 la fiche s'ouvre.
   Jamais de bandeau ni de choix de visibilité à l'étape 1. Accord IA, filtre de modération et droits inchangés.
+- Lien d'invitation « Plusieurs » (11.11) : sans limite de places par défaut (∞ = 10000 en base, `create_event_invite(e, 0)`),
+  − / + pour 50 à 2 places ; valable jusqu'au lendemain de l'événement (suit sa date, sondage sans date : 1 an), jamais de
+  choix de durée à l'écran ; l'organisateur l'arrête quand il veut (« Arrêter », `revoke_invite_link`).
+  Tests : `tests/supabase_live/test_lien_sans_limite_live.py`, `tests/test_invitations_v2_browser.py`.
+- Agenda (11.11) : partout la même méthode, le calendrier abonné « Vendredi Party » de la personne (un lien par personne,
+  `calendar_feed_token(e, add)` / `calendar_feed`, `/api/calendar-feed/<jeton>.ics`) : ajouter un événement (bouton
+  « Ajouter à mon agenda », « Valider mes dates ») l'y met, et l'agenda suit tout changement sans rouvrir Party. Ouvrir une
+  fiche n'ajoute rien (add = false). Fichier .ics ponctuel / calendrier natif de l'app seulement en secours.
+  Tests : `tests/test_calendar_feed.py`, `tests/test_calendar_poll_dates.py`, `tests/supabase_live/test_agenda_abonnement_live.py`.
 - Groupes : on ne réserve un événement qu'aux groupes dont on FAIT PARTIE, « Membres Vendredi Party » compris
   (écrans : `choosableGroups` / `mayUseVip`, assistant IA ; base : migration 20261106090000, triggers
   `guard_event_group` et `guard_event_vip_visibility`). Un admin (events.manage_all) garde tous les groupes.
@@ -153,7 +162,9 @@ l'admin. Toujours :
 - Données : toute nouvelle mesure → politique de confidentialité, App Privacy, Data safety, durée de conservation ; aucun
   SDK tiers d'analyse ou de pub ; tout part avec la suppression du compte.
 - Questionnaire d'âge App Store Connect à refaire dès qu'on ajoute concours, tirage, chat, contenu de joueur ou achat.
-  Distribution : Suisse seulement ; tout nouveau pays ou une app Android publique → nouvelle revue.
+  Distribution (décision de l'admin du 09.11.2026) : les 26 pays francophones de l'App Store (Suisse, France, Belgique,
+  Luxembourg, Canada, Afrique francophone, Maghreb, Liban, Maurice, Seychelles, Vanuatu) ; tout autre pays ou une app
+  Android publique → nouvelle revue. UE (France, Belgique, Luxembourg) : statut DSA déclaré et RGPD dans la politique.
 
 ## Zicou : bêta seulement (décision de l'admin, 04.11.2026)
 - Zicou est ÉTEINT hors site de test par `compagnon_enabled()` (`app/features.py` : `COMPAGNON_ENABLED`

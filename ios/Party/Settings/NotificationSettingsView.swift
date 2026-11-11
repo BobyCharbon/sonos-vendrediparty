@@ -161,6 +161,15 @@ struct NotificationSettingsView: View {
                 eventToggle("ticket_issued", "qrcode", .pink, "Billet prêt",
                             "L'organisateur t'a remis ton billet QR : il s'affiche sur l'événement", p.ticketIssued != false)
             }
+            // Bar de la soirée : mêmes interrupteurs que le site (test réel du 10.11 : ils manquaient dans l'app).
+            if store.bar {
+                eventToggle("bar_served", "wineglass.fill", .purple, "Bar : verres servis",
+                            "À chaque passage au bar : ce qui t'a été servi et ton solde à rembourser", p.barServed != false)
+                eventToggle("bar_changed", "arrow.triangle.2.circlepath", .orange, "Bar : changements",
+                            "Un verre annulé ou corrigé, les conditions de remboursement changées, le bar fermé, tu es nommé barman", p.barChanged != false)
+                eventToggle("bar_refund_confirmed", "checkmark.circle.fill", .green, "Bar : remboursement confirmé",
+                            "L'organisateur a reçu (ou pas) ton remboursement", p.barRefundConfirmed != false)
+            }
         }
 
         remindersSection(p)
@@ -229,6 +238,10 @@ struct NotificationSettingsView: View {
                 eventToggle("rsvp_mine", "person.3.fill", .blue, "Réponses à mes événements", "Quelqu'un répond Présent, Peut-être ou Absent", p.rsvpMine)
             }
             eventToggle("link_join", "link", .blue, "Quelqu'un rejoint par le lien", "Une personne s'inscrit avec le lien d'invitation", p.linkJoin != false)
+            if store.bar {
+                eventToggle("bar_refund_declared", "banknote.fill", .purple, "Bar : quelqu'un dit avoir remboursé",
+                            "Au bar d'une soirée que j'organise : à confirmer quand tu as reçu l'argent", p.barRefundDeclared != false)
+            }
             if state.shows("ticket_pay_declared") {
                 eventToggle("ticket_pay_declared", "banknote.fill", .orange, "Quelqu'un dit avoir payé",
                             "Sur un événement payant que j'organise : à confirmer quand tu as reçu l'argent", p.ticketPayDeclared != false)

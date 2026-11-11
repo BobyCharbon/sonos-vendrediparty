@@ -160,8 +160,14 @@ final class FeedbackStore: ObservableObject {
             let r = try await api.feedbackAIRewrite(guestID: me.id, token: await web?.accountToken(), name: me.name,
                                                     turns: aiTurns, context: context)
             guard !r.unavailable, let draft = r.draft else {
-                notice = Notice(text: r.message.isEmpty ? "L'IA n'est pas disponible : écris ton avis comme d'habitude." : r.message, isError: true)
+                // IA indisponible (limite du jour, budget, panne) : l'avis part quand même, tel quel (retour du 11.11 :
+                // le message s'affichait et rien n'était envoyé).
                 aiStep = .none
+                await sendAI(useDraft: false)
+                if notice?.isError == false {
+                    notice = Notice(text: "Merci ! Ton avis est bien arrivé, tel quel 🙏 (l'IA n'a pas pu t'aider cette fois)", isError: false)
+                }
+                await refreshAI()
                 return
             }
             aiDraft = draft
