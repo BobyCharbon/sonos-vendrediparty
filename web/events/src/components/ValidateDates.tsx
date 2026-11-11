@@ -38,9 +38,9 @@ export function ValidateDates({ event, dates, votes }: Props) {
 }
 
 export const AGENDA_DONE: Record<AddDatesResult, string> = {
-  added: '✓ Ajouté à ton calendrier « Vendredi Party » : il y apparaît d’ici peu (au plus une heure) et suivra chaque changement.',
+  added: '✓ Ajouté à ton calendrier « Vendredi Party » : il y apparaît d’ici peu (au plus une heure) et suivra chaque changement. Désormais, chaque événement où tu réponds Présent ou Peut-être s’y ajoute tout seul.',
   native: '✓ C’est dans ton agenda. Quand la date sera fixée, Party gardera la bonne et retirera les autres.',
-  subscribed: '✓ Confirme l’abonnement « Vendredi Party » dans ton agenda : tes événements s’y mettront ensuite à jour tout seuls.',
+  subscribed: '✓ Confirme l’abonnement « Vendredi Party » dans ton agenda : ensuite, chaque événement où tu réponds Présent ou Peut-être s’y ajoute et s’y met à jour tout seul.',
   file: 'Ajoute-les dans la fenêtre qui s’ouvre.',
   denied: 'Party n’a pas accès à ton calendrier : autorise-le dans Réglages › Party › Calendriers.',
 };

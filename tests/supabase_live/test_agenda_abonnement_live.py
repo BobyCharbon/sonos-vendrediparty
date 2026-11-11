@@ -142,3 +142,36 @@ def test_opening_the_sheet_adds_nothing_only_the_tap_does():
       {as_bot('victor')}
       raise exception 'résultat: ouvert=% % ajouté=%', m, n, public.calendar_feed_token(e, true)->>'added';""")
     assert "résultat: ouvert=0 0 ajouté=true" in out, out
+
+
+def test_once_activated_answers_fill_the_agenda_by_themselves():
+    """Retour de l'admin du 11.11 : agenda activé une fois → Présent / Peut-être y mettent l'événement tout seuls
+    (Peut-être marqué), Pas présent l'en retire ; sans réponse, rien n'y entre."""
+    out = run(olga_event(announce=False) + as_bot("victor") + f"""
+      perform set_config('party.t', public.calendar_feed_token(e)->>'token', true);  -- activé ailleurs, rien ajouté ici
+      {AS_ANON}
+      n := jsonb_array_length(public.calendar_feed(current_setting('party.t'))->'events');
+      {as_bot('victor')}
+      insert into public.rsvps (event_id, user_id, status) values (e, victor, 'maybe');
+      {AS_ANON}
+      r := {MINE};
+      {as_bot('victor')}
+      m := (public.calendar_feed_token(e)->>'added')::boolean::int;
+      update public.rsvps set status = 'no' where event_id = e and user_id = victor;
+      {AS_ANON}
+      raise exception 'résultat: sans_reponse=% peut_etre=% ajoute=% pas_present=%', n, r->>'my_rsvp', m,
+        jsonb_array_length(public.calendar_feed(current_setting('party.t'))->'events');""")
+    assert "résultat: sans_reponse=0 peut_etre=maybe ajoute=1 pas_present=0" in out, out
+
+
+def test_a_poll_vote_puts_the_dates_in_the_agenda_if_needed_is_marked():
+    out = run(POLL + as_bot("victor") + f"""
+      perform set_config('party.t', public.calendar_feed_token(e)->>'token', true);
+      insert into public.date_votes (option_id, user_id, vote)
+        select id, victor, case when starts_at < now() + interval '45 days' then 'yes' else 'if_needed' end::public.date_vote
+        from public.date_options where event_id = e and starts_at < now() + interval '50 days';
+      {AS_ANON}
+      r := {MINE};
+      raise exception 'résultat: dates=% si_besoin=%', jsonb_array_length(r->'dates'),
+        (select count(*) from jsonb_array_elements(r->'dates') d where (d->>'maybe')::boolean);""")
+    assert "résultat: dates=2 si_besoin=1" in out, out

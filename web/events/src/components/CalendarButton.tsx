@@ -19,9 +19,12 @@ type Via = CalendarPlatform | 'google';
  * « Ajouter à mon agenda » (retours de l'admin du 11.11.2026) : l'événement entre dans le calendrier « Vendredi Party »
  * de la personne, que son agenda relit tout seul. Date, heure, lieu, titre ou description changent : son agenda suit.
  * Première fois : l'agenda propose de s'abonner (iPhone, Mac, Outlook par webcal ; Android et Google par Google Agenda) ;
- * ensuite un toucher suffit. Sans compte ou base injoignable : l'ancien ajout ponctuel (.ics ou Google Agenda).
+ * ensuite un toucher suffit, et chaque réponse Présent / Peut-être y met l'événement toute seule (`answer` : relu à chaque
+ * réponse). Sans compte ou base injoignable : l'ancien ajout ponctuel (.ics ou Google Agenda).
  */
-export function CalendarButton({ event, prominent = false }: { event: Ev; prominent?: boolean }) {
+export function CalendarButton({ event, prominent = false, answer = null }: {
+  event: Ev; prominent?: boolean; answer?: string | null;
+}) {
   const [platform] = useState(calendarPlatform);
   const [choices, setChoices] = useState(false);
   const [link, setLink] = useState<AgendaLink | null>(null);
@@ -35,7 +38,7 @@ export function CalendarButton({ event, prominent = false }: { event: Ev; promin
     // Demandé à l'avance : le toucher ouvre ensuite l'agenda sans attendre (Safari bloque une ouverture trop tardive).
     void agendaLink(event.id).then((l) => { if (alive) setLink(l); });
     return () => { alive = false; };
-  }, [event.id]);
+  }, [event.id, answer]);
 
   if (!ics || !google) return null;
   const inAgenda = !!link?.added && link.subscribed;

@@ -322,7 +322,7 @@ export default function EventScreen() {
           </Section>
         ) : null}
 
-        {showCalendar ? <CalendarButton event={ev} prominent={mine?.status === 'yes' || mine?.status === 'maybe'} /> : null}
+        {showCalendar ? <CalendarButton event={ev} answer={mine?.status ?? null} prominent={mine?.status === 'yes' || mine?.status === 'maybe'} /> : null}
 
         {ev.status === 'cancelled' ? (
           <View style={[st.notice, { backgroundColor: colors.coralDim }]}>

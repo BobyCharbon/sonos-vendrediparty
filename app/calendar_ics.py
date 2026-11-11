@@ -156,6 +156,9 @@ def build_dates(*, uid: str, title: str, dates: list[tuple[str, str, str | None]
 # « À confirmer » ; date fixée : la seule bonne, sous le vrai titre ; Non, annulé ou plus concerné : rien.
 FEED_REFRESH = "PT1H"
 FEED_NAME = "Vendredi Party"
+# Réponse Peut-être (date fixée) ou date votée Si besoin (sondage) : marquée devant le titre (retour de l'admin du 11.11).
+MAYBE_PREFIX = "[Peut-être] "
+IF_NEEDED_PREFIX = "[Si besoin] "
 
 
 def build_feed(feed: dict | None, *, base_url: str = "", now: datetime | None = None) -> str:
@@ -191,16 +194,18 @@ def _event_entries(event: dict, base_url: str, stamp: str) -> list[str]:
     if event.get("date_mode") == "fixed":
         if not event.get("starts_at") or event.get("my_rsvp") == "no":
             return []  # date pas encore connue, ou la personne ne vient pas
-        slots = [(event_id, event["starts_at"], event.get("ends_at"))]
+        maybe = event.get("my_rsvp") == "maybe"  # Peut-être : il le voit dans son agenda (et pense à dire Oui)
+        slots = [(event_id, event["starts_at"], event.get("ends_at"), MAYBE_PREFIX if maybe else "")]
         summary, status, note = title, "CONFIRMED", ""
     else:
-        slots = [(str(d.get("id")), d.get("starts_at"), d.get("ends_at")) for d in (event.get("dates") or [])][:MAX_DATES]
+        slots = [(str(d.get("id")), d.get("starts_at"), d.get("ends_at"), IF_NEEDED_PREFIX if d.get("maybe") is True else "")
+                 for d in (event.get("dates") or []) if isinstance(d, dict)][:MAX_DATES]
         summary, status = TENTATIVE_PREFIX + title, "TENTATIVE"
         note = "Date proposée : rien n'est encore fixé. Quand la date sera choisie, ton agenda gardera la bonne et retirera les autres."
     details = "\n\n".join(p for p in (note, description, url) if p)
     modified = _modified(event.get("updated_at")) or stamp
     out: list[str] = []
-    for slot, start, end in slots:
+    for slot, start, end, prefix in slots:
         try:
             slot_id = str(uuid.UUID(slot))
             begin = _instant(str(start), "Début")
@@ -210,7 +215,7 @@ def _event_entries(event: dict, base_url: str, stamp: str) -> list[str]:
         if finish <= begin or finish - begin > MAX_DURATION:
             finish = begin + DEFAULT_DURATION
         out += ["BEGIN:VEVENT", f"UID:{slot_id}@vendredi-party-agenda", f"DTSTAMP:{stamp}", f"LAST-MODIFIED:{modified}",
-                f"DTSTART:{_stamp(begin)}", f"DTEND:{_stamp(finish)}", f"SUMMARY:{_text(summary, 200)}",
+                f"DTSTART:{_stamp(begin)}", f"DTEND:{_stamp(finish)}", f"SUMMARY:{_text(prefix + summary, 200)}",
                 f"STATUS:{status}"]
         if details:
             out.append(f"DESCRIPTION:{_text(details, 2600)}")

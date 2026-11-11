@@ -74,7 +74,8 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Agenda (11.11) : partout la même méthode, le calendrier abonné « Vendredi Party » de la personne (un lien par personne,
   `calendar_feed_token(e, add)` / `calendar_feed`, `/api/calendar-feed/<jeton>.ics`) : ajouter un événement (bouton
   « Ajouter à mon agenda », « Valider mes dates ») l'y met, et l'agenda suit tout changement sans rouvrir Party. Ouvrir une
-  fiche n'ajoute rien (add = false). Fichier .ics ponctuel / calendrier natif de l'app seulement en secours.
+  fiche n'ajoute rien (add = false). Une fois l'agenda activé, chaque réponse Présent / Peut-être (ou vote Oui / Si besoin)
+  y met l'événement toute seule (`private.feed_includes`), Pas présent l'en retire ; titre « [Peut-être] » / « [Si besoin] ». Fichier .ics ponctuel / calendrier natif de l'app seulement en secours.
   Tests : `tests/test_calendar_feed.py`, `tests/test_calendar_poll_dates.py`, `tests/supabase_live/test_agenda_abonnement_live.py`.
 - Groupes : on ne réserve un événement qu'aux groupes dont on FAIT PARTIE, « Membres Vendredi Party » compris
   (écrans : `choosableGroups` / `mayUseVip`, assistant IA ; base : migration 20261106090000, triggers

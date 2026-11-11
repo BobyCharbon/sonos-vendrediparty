@@ -87,3 +87,20 @@ def test_a_broken_event_never_breaks_the_others():
     body = calendar_ics.build_feed({"events": [{"event_id": "x", "title": "?"}, "rien", event(starts_at="demain"),
                                               event(event_id=OTHER, date_mode="fixed", starts_at="2026-12-04T19:00:00Z")]})
     assert len(entries(body)) == 3
+
+
+def test_maybe_answer_is_marked_in_front_of_the_title_yes_is_plain():
+    """Retour de l'admin du 11.11 : Peut-être → « [Peut-être] » devant le titre ; Présent → le titre seul."""
+    fixed = {"date_mode": "fixed", "starts_at": "2027-01-16T19:00:00+00:00", "dates": []}
+    maybe = entries(calendar_ics.build_feed(feed(**fixed, my_rsvp="maybe")))
+    yes = entries(calendar_ics.build_feed(feed(**fixed, my_rsvp="yes")))
+    assert len(maybe) == 1 and "SUMMARY:[Peut-être] Paintball" in maybe[0]
+    assert len(yes) == 1 and "SUMMARY:Paintball\r\n" in yes[0]
+
+
+def test_poll_date_voted_if_needed_is_marked():
+    dates = [{"id": OPT1, "starts_at": "2027-01-16T13:00:00+00:00", "ends_at": None, "maybe": True},
+             {"id": OPT2, "starts_at": "2027-01-17T13:00:00+00:00", "ends_at": None, "maybe": False}]
+    found = entries(calendar_ics.build_feed(feed(dates=dates)))
+    assert "SUMMARY:[Si besoin] À confirmer · Paintball" in found[0]
+    assert "SUMMARY:À confirmer · Paintball" in found[1] and "[Si besoin]" not in found[1]
