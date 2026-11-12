@@ -133,7 +133,7 @@ def test_v2_members_publish_in_one_touch_then_the_guest_card_offers_to_invite_mo
         open_step_two(page, v2_origin)
         page.get_by_role('button', name='👥 Membres Vendredi Party : Publier pour les Membres Vendredi Party').click()
         pw.expect(page.get_by_text('C’est en ligne !', exact=True)).to_be_visible(timeout=10000)
-        pw.expect(page.get_by_role('button', name='＋ Inviter d’autres personnes')).to_be_visible()
+        pw.expect(page.get_by_label('Invités', exact=True).get_by_role('button', name='Inviter', exact=True)).to_be_visible()
         pw.expect(page.get_by_label('Inviter à Raclette chez Camille')).to_have_count(0)  # la fiche, pas la feuille
         assert ('PATCH', 'events', {'visibility': 'all', 'public_link': False}) in writes
         assert ('PATCH', 'events', {'status': 'published', 'announce_group': False}) in writes
@@ -154,7 +154,7 @@ def test_a_group_is_chosen_then_published_for_it(browser, v2_origin):  # noqa: F
         page.get_by_role('button', name='👥 Un groupe', exact=True).click()
         assert not [w for w in writes if w[0] == 'PATCH' and isinstance(w[2], dict) and 'status' in w[2]]  # choisir le groupe d'abord
         page.get_by_role('button', name='Publier pour « Ski »').click()
-        pw.expect(page.get_by_role('button', name='＋ Inviter d’autres personnes')).to_be_visible(timeout=10000)
+        pw.expect(page.get_by_label('Invités', exact=True).get_by_role('button', name='Inviter', exact=True)).to_be_visible(timeout=10000)
         assert ('POST', 'event_groups', [{'event_id': EVENT, 'group_id': SKI}]) in writes
         assert ('PATCH', 'events', {'status': 'published', 'announce_group': False}) in writes
     finally:

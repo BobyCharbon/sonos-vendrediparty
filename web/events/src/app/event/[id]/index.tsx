@@ -358,17 +358,7 @@ export default function EventScreen() {
       {/* Invitations v2 (bêta) : qui vient, qui n'a pas répondu, les liens envoyés ; « + » pour inviter. */}
       {/* Invitations v2 éteintes : juste publié sur invitation, le lien à partager en tête de fiche. */}
       {!invitesV2On && canManage && published && ev.visibility === 'invited' && step === 'online' ? <InviteLinkCard kind="event" id={ev.id} /> : null}
-      {invitesV2On && canManage && published ? (
-        <GuestListCard event={ev} me={{ id: me.id, display_name: me.display_name ?? '' }} onChanged={reload}
-          openSheet={step === 'online' && invite === 'link'} headline={step === 'online' && invite === 'link' ? 'C’est en ligne : envoie le lien à tes invités' : undefined}
-          initialPeople={step === 'online' && invite === 'link' ? parseIds(suggested) : []} />
-      ) : null}
 
-      {/* Événement de groupe : où en est l'annonce (« Prévenir le groupe », validation de l'admin du groupe, 06.11). */}
-      {canManage && published && !ev.public_link && ((ev.event_groups ?? []).length || ev.visibility === 'all') ? (
-        <AnnounceStatusCard eventId={ev.id} groupIds={(ev.event_groups ?? []).map((g) => g.group_id)} vip={ev.visibility === 'all'}
-          announceOn={!!ev.announce_group} refreshKey={ev.updated_at} onChanged={reload} />
-      ) : null}
 
       {ev.status === 'pending' && can('events.approve') ? (
         <Card style={{ backgroundColor: colors.lavenderDim, borderColor: '#4A3F78' }}>
@@ -396,7 +386,18 @@ export default function EventScreen() {
       {mine?.status === 'yes' && ticketRelevant(ev, data.loadedAt) ? (
         <TicketCard event={ev} me={me} answerKey={`${mine.status}:${mine.waitlisted}:${mine.plus_ones}:${paymentsTick}`} />
       ) : null}
-      {/* Invités (avis 83ebee37aa0f, 11.11) : le même menu, les chiffres seulement (aucun nom) et leurs propres liens, après leur réponse. */}
+      {/* Ordre de la fiche (demande de l'admin, 12.11) : description, ta réponse, puis la carte Invités (repliée).
+          Invités (avis 83ebee37aa0f, 11.11) : le même menu ; un invité y voit les chiffres seulement (aucun nom) et ses liens. */}
+      {invitesV2On && canManage && published ? (
+        <GuestListCard event={ev} me={{ id: me.id, display_name: me.display_name ?? '' }} onChanged={reload}
+          openSheet={step === 'online' && invite === 'link'} headline={step === 'online' && invite === 'link' ? 'C’est en ligne : envoie le lien à tes invités' : undefined}
+          initialPeople={step === 'online' && invite === 'link' ? parseIds(suggested) : []} />
+      ) : null}
+      {/* Événement de groupe : où en est l'annonce (« Prévenir le groupe », validation de l'admin du groupe, 06.11). */}
+      {canManage && published && !ev.public_link && ((ev.event_groups ?? []).length || ev.visibility === 'all') ? (
+        <AnnounceStatusCard eventId={ev.id} groupIds={(ev.event_groups ?? []).map((g) => g.group_id)} vip={ev.visibility === 'all'}
+          announceOn={!!ev.announce_group} refreshKey={ev.updated_at} onChanged={reload} />
+      ) : null}
       {invitesV2On && !canManage && published ? (
         <GuestListCard event={ev} me={{ id: me.id, display_name: me.display_name ?? '' }} onChanged={reload} quietOnError />
       ) : null}

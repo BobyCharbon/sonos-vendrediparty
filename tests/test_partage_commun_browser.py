@@ -8,7 +8,7 @@ import pytest
 
 from tests.test_event_participant_browser import GUEST_PERMS, LEA, event_row, rsvp
 from tests.test_events_browser import DIST, EVENT, USER, browser, login, mock_services, pw  # noqa: F401
-from tests.test_invitations_v2_browser import IDS, TOKEN, mock_invites, open_event, shot, v2_origin  # noqa: F401
+from tests.test_invitations_v2_browser import IDS, TOKEN, expand_guests, mock_invites, open_event, shot, v2_origin  # noqa: F401
 
 pytestmark = pytest.mark.skipif(not (DIST / 'index.html').exists(), reason='Construire web/events avant les tests navigateur')
 REST = 'https://gsuetixzobooggeaubvb.supabase.co/rest/v1/'
@@ -47,6 +47,7 @@ def open_as_guest(browser, origin):  # noqa: F811
     page.goto(f'{origin}/events/event/{EVENT}', wait_until='domcontentloaded')
     card = page.get_by_label('Invités', exact=True)
     pw.expect(card.get_by_text('Invités · 10', exact=True)).to_be_visible(timeout=15000)
+    expand_guests(card)
     return context, page, card, calls
 
 

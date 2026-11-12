@@ -46,6 +46,8 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
 }) {
   const [filter, setFilter] = useState<GuestFilter>('all');
   const [sheet, setSheet] = useState(openSheet);
+  // Repliée par défaut (demande de l'admin, 12.11) : l'essentiel en deux lignes, le détail au toucher.
+  const [expanded, setExpanded] = useState(false);
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -147,7 +149,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
       <View style={st.head}>
         <View style={{ flex: 1, gap: 2 }}>
           <T weight="bold" size={20}>Invités · {counts.total}</T>
-          <T muted size={13}>{guest ? 'Tu vois les chiffres ; toi aussi, tu peux inviter. ' : ''}{list.poll ? `${counts.yes} ${counts.yes > 1 ? 'ont voté les dates' : 'a voté les dates'}` : `${counts.yes} ${counts.yes > 1 ? 'viennent' : 'vient'}`} · {counts.none + counts.unopened} sans réponse</T>
+          <T muted size={13}>{summaryLine(counts, !!list.poll)}</T>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Inviter" onPress={() => setSheet(true)}
           style={({ pressed }) => [st.plus, pressTransition, pressed && { transform: [{ scale: 0.92 }] }]}>
@@ -167,24 +169,35 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
         </View>
       ) : null}
 
-      <Pressable accessibilityRole="button" onPress={() => setSheet(true)}
-        style={({ pressed }) => [st.inviteMore, pressTransition, pressed && { transform: [{ scale: 0.98 }] }]}>
-        <T size={15} weight="bold" color={colors.onAction}>＋ Inviter d’autres personnes</T>
-      </Pressable>
-
-      <View style={st.rule}>
-        <T size={14} weight="bold">{ruleSentence(list)}</T>
-        <T muted size={12}>{guest ? guestRule : 'Personne n’est ajouté au groupe : les invités voient cet événement, rien d’autre.'}</T>
-      </View>
-
       {counts.total ? (
-        <Meter height={8} parts={[
+        <Meter height={6} parts={[
           { fraction: counts.yes / counts.total, color: rsvpColors.yes },
           { fraction: counts.maybe / counts.total, color: rsvpColors.maybe },
           { fraction: counts.no / counts.total, color: rsvpColors.no },
           { fraction: counts.none / counts.total, color: NONE_COLOR },
         ]} />
       ) : null}
+
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded }} aria-expanded={expanded}
+        accessibilityLabel={expanded ? 'Réduire la liste des invités' : 'Voir le détail des invités'}
+        onPress={() => setExpanded((v) => !v)} hitSlop={6}
+        style={({ pressed }) => [st.toggle, pressed && { opacity: 0.7 }]}>
+        <T size={14} weight="semibold" color={colors.accent}>{expanded ? 'Réduire' : 'Voir le détail'}</T>
+        <T size={16} color={colors.accent} style={{ transform: [{ rotate: expanded ? '-90deg' : '90deg' }] }}>›</T>
+      </Pressable>
+
+      <ErrorText error={error} />
+
+      {expanded ? (<>
+      <Pressable accessibilityRole="button" onPress={() => setSheet(true)}
+        style={({ pressed }) => [st.inviteMore, pressTransition, pressed && { transform: [{ scale: 0.98 }] }]}>
+        <T size={15} weight="bold" color={colors.onAction}>＋ Inviter d’autres personnes</T>
+      </Pressable>
+
+      <View style={st.rule}>
+        <T size={14} weight="bold">{guest ? 'Tu vois les chiffres ; toi aussi, tu peux inviter. ' : ''}{ruleSentence(list)}</T>
+        <T muted size={12}>{guest ? guestRule : 'Personne n’est ajouté au groupe : les invités voient cet événement, rien d’autre.'}</T>
+      </View>
 
       <View style={st.tiles} accessibilityRole="tablist" accessibilityLabel="Filtrer les invités">
         {TILES.filter((t) => !list.poll || (t.key !== 'maybe' && t.key !== 'no')).map((t) => {
@@ -211,9 +224,6 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
           </T>
         </Pressable>
       ) : null}
-
-      <ErrorText error={error} />
-
 
       {guest ? (
         <View style={{ gap: 14 }}>
@@ -242,12 +252,23 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
           {!filterGuests(list, filter).length && !filterLinks(list, filter).length ? <T muted size={14}>Personne ici.</T> : null}
         </View>
       )}
+      </>) : null}
 
       <InviteSheet visible={sheet} event={event} me={me} list={list} onClose={() => setSheet(false)} onInvited={refresh} guest={guest}
         headline={headline} initialPeople={initialPeople} />
       {note ? <Toast message={note} onHide={() => setNote(null)} /> : null}
     </View>
   );
+}
+
+/** L'essentiel en une ligne (carte repliée) : les chiffres non nuls seulement. */
+function summaryLine(c: ReturnType<typeof guestCounts>, poll: boolean): string {
+  const none = c.none + c.unopened;
+  const parts = poll
+    ? [`${c.yes} ${c.yes > 1 ? 'ont voté les dates' : 'a voté les dates'}`]
+    : [`${c.yes} ${c.yes > 1 ? 'viennent' : 'vient'}`, c.maybe ? `${c.maybe} peut-être` : null,
+       c.no ? `${c.no} ${c.no > 1 ? 'absents' : 'absent'}` : null];
+  return [...parts, none ? `${none} sans réponse` : null].filter(Boolean).join(' · ');
 }
 
 /** Le groupe Vendredi Party et les groupes invités, repliés en une ligne chacun. */
@@ -483,7 +504,8 @@ function SwipeRow({ actions, label, children }: { actions: SwipeAction[]; label:
 
 const st = StyleSheet.create({
   inviteMore: { minHeight: 48, borderRadius: radius.md, backgroundColor: colors.action, alignItems: 'center', justifyContent: 'center' },
-  card: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.lg, padding: 16, gap: 14 },
+  card: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.lg, padding: 16, gap: 12 },
+  toggle: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, minHeight: 32 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   plus: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.action, alignItems: 'center', justifyContent: 'center' },
   rule: { gap: 2, padding: 12, borderRadius: radius.md, backgroundColor: colors.fill },

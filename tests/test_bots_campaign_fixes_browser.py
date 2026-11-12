@@ -12,7 +12,7 @@ import json
 import pytest
 
 from tests.test_events_browser import EVENT, USER, browser, login, mock_services, pw  # noqa: F401
-from tests.test_invitations_v2_browser import CORS, GUEST_LIST, guest, mock_invites, v2_origin  # noqa: F401
+from tests.test_invitations_v2_browser import CORS, GUEST_LIST, expand_guests, guest, mock_invites, v2_origin  # noqa: F401
 
 BASE = 'https://gsuetixzobooggeaubvb.supabase.co/rest/v1'
 OTHER = 'eeeeeeee-0000-4000-8000-000000000001'
@@ -143,6 +143,7 @@ def test_remove_guest_confirm_button_is_finger_sized_with_its_whole_label(browse
         page.goto(f'{v2_origin}/events/', wait_until='domcontentloaded')
         login(page)
         page.get_by_text('Sortie de démonstration (test local)', exact=True).click()
+        expand_guests(page.get_by_label('Invités', exact=True))
         remove = page.get_by_role('button', name='Retirer Marco Costa')
         pw.expect(remove).to_have_count(1, timeout=15000)
         remove.scroll_into_view_if_needed()
@@ -249,6 +250,7 @@ def test_guest_list_uses_whole_nicknames_and_marks_only_people_without_account(b
         page.goto(f'{v2_origin}/events/', wait_until='domcontentloaded')
         login(page)
         page.get_by_text('Sortie de démonstration (test local)', exact=True).click()
+        expand_guests(page.get_by_label('Invités', exact=True))
         card = page.get_by_label('Invités', exact=True)
         pw.expect(card.get_by_text('Bot Max', exact=True)).to_be_visible(timeout=15000)
         # « SANS L'APP » : seulement Léa (arrivée par un lien, sans compte Party) ; un membre qui passe par le site, non.
