@@ -35,7 +35,7 @@ const CLOSED: Record<string, string> = {
 };
 /** Refus définitifs de accept_invite (retiré de la liste, lien arrêté / plein / expiré, événement annulé ou fermé,
  * organisateur sur son propre lien) : inutile de réessayer, on ne propose plus de répondre. */
-const FINAL_REFUSAL = /retiré de la liste|arrêté|déjà servi|places de ce lien|plus valable|annulé|n'est plus ouvert|n’est plus ouvert|n'existe|n’existe|ton propre lien|organisat|ne peux pas répondre/i;
+const FINAL_REFUSAL = /retiré de la liste|arrêté|déjà servi|places de ce lien|plus valable|annulé|n'est plus ouvert|n’est plus ouvert|n'existe|n’existe|ton propre lien|organisat|ne peux pas répondre|pas accepté/i;
 
 export function isFinalRefusal(message: string): boolean {
   return FINAL_REFUSAL.test(message);
@@ -88,6 +88,7 @@ export function InviteCardScreen({ token }: { token: string | undefined }) {
   if (done && isOrganizer(done)) {
     return <Closed title="C’est ton lien d’invitation" text={OWN_LINK} />;
   }
+  if (done?.pending) return <Waiting title={done.title} host={done.host ?? card.host ?? null} />;
   if (done) return <Done card={card} done={done} onChange={() => { setDone(null); setAnswer(null); reload(); }} />;
   if (answer) {
     return <Respond token={token!} card={card} answer={answer} onBack={() => { clearInviteAnswer(); setAnswer(null); }}
@@ -173,6 +174,11 @@ function Card({ card, onAnswer }: { card: InviteCard; onAnswer: (a: Answer) => v
       ) : isOrganizer(card) ? (
         // L'organisateur voit la carte telle que l'invité la verra, sans y répondre (le lien n'est pas pour lui).
         <View style={st.notice}><T color={colors.coralSoft}>C’est ton lien d’invitation. {OWN_LINK}</T></View>
+      ) : card.state === 'waiting' ? (
+        // Arrivé par le lien d'un invité (12.11) : l'organisateur doit d'abord accepter.
+        <View style={st.notice}><T color={colors.textSoft}>Ta demande est envoyée : {card.host || 'l’organisateur'} doit l’accepter. Tu recevras une notification dès que c’est fait.</T></View>
+      ) : card.state === 'refused' ? (
+        <View style={st.notice}><T color={colors.coralSoft}>{card.host || 'L’organisateur'} n’a pas pu accepter ta venue cette fois.</T></View>
       ) : closed && card.already && card.event_id ? (
         // Déjà invité autrement (liste, groupe, autre lien) : ce lien ne sert plus, mais l'événement l'attend.
         <View style={{ gap: 10 }}>
@@ -186,6 +192,7 @@ function Card({ card, onAnswer }: { card: InviteCard; onAnswer: (a: Answer) => v
       ) : card.date_mode === 'poll' ? (
         // Sondage de dates : on répond en votant les dates, comme dans l'app (jamais « Je viens » avant la date fixée).
         <View style={{ gap: 10 }}>
+          <Approval card={card} />
           <T style={{ textAlign: 'center' }} color={colors.textSoft}>La date n’est pas encore fixée : indique les dates où tu es dispo, {card.inviter || 'l’organisateur'} choisira celle qui arrange le plus de monde.</T>
           <Pressable accessibilityRole="button" onPress={() => onAnswer('poll')}
             style={({ pressed }) => [st.answer, st.answerYes, pressTransition, pressed && { transform: [{ scale: 0.97 }] }]}>
@@ -195,6 +202,7 @@ function Card({ card, onAnswer }: { card: InviteCard; onAnswer: (a: Answer) => v
         </View>
       ) : (
         <View style={{ gap: 10 }}>
+          <Approval card={card} />
           {card.mine ? <T weight="semibold" style={{ textAlign: 'center' }}>Ta réponse : {(ANSWERS.find((a) => a.key === card.mine)?.label ?? '').replace(/\s*[.!]\s*$/, '')}. Tu peux la changer.</T> : null}
           {answers.map((a) => (
             <Pressable key={a.key} accessibilityRole="button" accessibilityState={{ selected: card.mine === a.key }} onPress={() => onAnswer(a.key)}
@@ -206,6 +214,31 @@ function Card({ card, onAnswer }: { card: InviteCard; onAnswer: (a: Answer) => v
           {insideInstalledApp() ? null : <T muted size={13} style={{ textAlign: 'center' }}>Pas besoin d’installer l’app.</T>}
         </View>
       )}
+    </Screen>
+  );
+}
+
+/** Lien d'un invité, événement sans lien public (12.11) : on le dit AVANT la réponse, sans surprise. */
+function Approval({ card }: { card: InviteCard }) {
+  if (!card.approval) return null;
+  return (
+    <T size={13} color={colors.textSoft} style={{ textAlign: 'center' }}>
+      {card.host || 'L’organisateur'} accepte chaque invité : tu verras l’événement dès qu’il aura dit oui.
+    </T>
+  );
+}
+
+/** Demande envoyée (12.11) : rien d'autre à faire, la notification arrive dès l'accord. */
+function Waiting({ title, host }: { title: string; host: string | null }) {
+  return (
+    <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 12 }}>
+      <Stack.Screen options={{ title: 'Invitation' }} />
+      <T size={44} style={{ textAlign: 'center' }}>⏳</T>
+      <Title style={{ textAlign: 'center' }}>Demande envoyée</Title>
+      <T color={colors.textSoft} style={{ textAlign: 'center' }}>
+        {host || 'L’organisateur'} doit accepter ta venue à <T weight="bold">{title}</T>. Tu recevras une notification dès que c’est fait,
+        et l’événement s’ouvrira dans Party.
+      </T>
     </Screen>
   );
 }

@@ -54,7 +54,8 @@ def test_a_guest_only_sees_his_own_links_and_never_who_came_by_name():
       raise exception 'résultat: liens=% reponses=% nom=% viennent=%', jsonb_array_length(r->'links'),
         jsonb_array_length(r->'links'->0->'arrivals'), coalesce(r->'links'->0->'arrivals'->0->>'name', 'aucun'),
         r->'counts'->>'yes';""")
-    assert "résultat: liens=1 reponses=1 nom=aucun viennent=2" in out, out
+    # Violette arrive par le lien d'un invité : elle attend l'accord de l'organisatrice (12.11), elle ne compte pas encore.
+    assert "résultat: liens=1 reponses=1 nom=aucun viennent=1" in out, out
 
 
 def test_a_guest_stops_his_own_link_but_another_guest_cannot():

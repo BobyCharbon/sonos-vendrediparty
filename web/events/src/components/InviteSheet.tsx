@@ -224,6 +224,9 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
                 </View>
               )}
               <T muted size={12}>Valable jusqu’à la fin de l’événement. Tu peux le recopier ou l’arrêter à tout moment dans {guest ? '« Mes liens »' : 'la liste des invités'}.</T>
+              {guest && !list.public ? (
+                <T size={12} weight="semibold" color={colors.coralSoft}>Chaque personne que tu invites attend l’accord de l’organisateur avant de voir l’événement.</T>
+              ) : null}
               <View style={st.bubble}>
                 <T size={13} color={colors.text}>{message(link ?? inviteLinkUrl('…').replace(/^https?:\/\//, ''))}</T>
               </View>

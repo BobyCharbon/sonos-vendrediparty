@@ -6,9 +6,9 @@ import { Avatar, ErrorText, Meter, Skeleton, T, Toast } from './ui';
 import { useQuery } from '@/lib/data';
 import { formatShort } from '@/lib/format';
 import {
-  copyText, fetchGuestList, filterGuests, filterLinks, guestCounts, guestOrigin, inviteLinkUrl, inviteMessage, linkLine, linkSpokenNames, linkTitle, nudgeInvitees,
+  copyText, decideJoinRequest, fetchGuestList, filterGuests, filterLinks, guestCounts, guestOrigin, inviteLinkUrl, inviteMessage, linkLine, linkSpokenNames, linkTitle, nudgeInvitees,
   nudgeLink, removeInvitee, ruleSentence, shareInvite, statusWords, stopLink, unlimited,
-  type Guest, type GuestFilter, type GuestList, type SentLink,
+  type Guest, type GuestFilter, type GuestList, type JoinRequest, type SentLink,
 } from '@/lib/invites';
 import { pressTransition } from '@/lib/motion';
 import { colors, radius, rsvpColors } from '@/lib/theme';
@@ -106,6 +106,13 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
   const copyLink = (l: SentLink) => run(async () =>
     ((await copyText(inviteLinkUrl(l.token))) ? 'Lien copié' : 'Copie impossible : réessaie'));
 
+  /** Personne invitée par un invité (12.11) : l'organisateur l'accepte (elle voit l'événement) ou la refuse. */
+  const decide = (r: JoinRequest, accept: boolean) => run(async () => {
+    await decideJoinRequest(event.id, r.id, accept);
+    onChanged();
+    return accept ? `${r.name} est invité : il voit l’événement` : `${r.name} ne verra pas l’événement`;
+  });
+
   if (!list && loadError && quietOnError) return null;
   if (!list) {
     return (
@@ -121,6 +128,10 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
   const guest = !!list.guest;
   const waiting = list.people.filter((p) => !p.status && !p.nudged_today);
   const extra = list.people.filter((p) => p.source === 'person' || p.source === 'link' || p.source === 'public');
+  const requests = guest ? [] : list.requests ?? [];
+  // Sans lien public, la personne invitée par un invité attend l'accord de l'organisateur (12.11).
+  const guestRule = list.public ? 'Les personnes que tu invites voient cet événement, rien d’autre.'
+    : 'Chaque personne que tu invites attend l’accord de l’organisateur avant de voir l’événement.';
 
   const row = (g: Guest) => (
     <GuestRow key={g.id} guest={g} me={me.id} onNudge={() => void nudge(g)} onRemove={g.removable ? () => void remove(g) : null} />
@@ -151,7 +162,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
 
       <View style={st.rule}>
         <T size={14} weight="bold">{ruleSentence(list)}</T>
-        <T muted size={12}>{guest ? 'Les personnes que tu invites voient cet événement, rien d’autre.' : 'Personne n’est ajouté au groupe : les invités voient cet événement, rien d’autre.'}</T>
+        <T muted size={12}>{guest ? guestRule : 'Personne n’est ajouté au groupe : les invités voient cet événement, rien d’autre.'}</T>
       </View>
 
       {counts.total ? (
@@ -190,6 +201,14 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
       ) : null}
 
       <ErrorText error={error} />
+
+      {requests.length ? (
+        <Block title={`À accepter · ${requests.length}`} hint="Invités par tes invités">
+          {requests.map((r) => (
+            <RequestRow key={r.id} request={r} me={me.id} onAccept={() => void decide(r, true)} onRefuse={() => void decide(r, false)} />
+          ))}
+        </Block>
+      ) : null}
 
       {guest ? (
         <View style={{ gap: 14 }}>
@@ -308,6 +327,35 @@ function GuestRow({ guest, me, onNudge, onRemove }: { guest: Guest; me: string; 
   );
 }
 
+const ANSWER_WORDS = { yes: 'Viendrait', maybe: 'Peut-être', no: 'Ne peut pas', poll: 'Votera les dates' } as const;
+
+/** Une demande : qui, invité par qui, sa réponse ; Accepter (il voit l'événement) ou Refuser (en deux temps). */
+function RequestRow({ request, me, onAccept, onRefuse }: { request: JoinRequest; me: string; onAccept: () => void; onRefuse: () => void }) {
+  const [confirm, setConfirm] = useState(false);
+  const by = request.invited_by_id === me ? 'toi' : request.invited_by?.trim() || 'un invité';
+  const origin = `Invité par ${by}${request.link_label ? ` · lien « ${request.link_label} »` : ''}`;
+  return (
+    <View style={[st.row, st.request]} accessibilityLabel={`${request.name}, ${origin}, attend ton accord`}>
+      <Avatar id={request.id} name={request.name} photo={request.avatar_url} size={40} profile={false} />
+      <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
+        <T weight="semibold" size={15} numberOfLines={1}>{request.name}</T>
+        <T muted size={12} numberOfLines={2}>{origin} · {ANSWER_WORDS[request.answer]}</T>
+      </View>
+      <View style={{ gap: 6 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Accepter ${request.name}`} hitSlop={4} onPress={onAccept}
+          style={({ pressed }) => [st.accept, pressTransition, pressed && { transform: [{ scale: 0.96 }] }]}>
+          <T size={13} weight="bold" color={colors.onAction}>Accepter</T>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={confirm ? `Confirmer le refus de ${request.name}` : `Refuser ${request.name}`}
+          hitSlop={4} onPress={() => (confirm ? onRefuse() : setConfirm(true))}
+          style={({ pressed }) => [st.refuse, pressed && { opacity: 0.7 }]}>
+          <T size={13} weight="bold" color={colors.red}>{confirm ? 'Confirmer' : 'Refuser'}</T>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 function LinkRow({ link, spokenName, onNudge, onStop, onCopy }: {
   link: SentLink; spokenName: string; onNudge: (() => void) | null; onStop: () => void; onCopy: () => void;
 }) {
@@ -317,7 +365,9 @@ function LinkRow({ link, spokenName, onNudge, onStop, onCopy }: {
     && link.state !== 'expired' && link.state !== 'revoked');
   const arrivalNames = link.arrivals.map((a) => a.name).filter(Boolean).join(', ');
   const title = linkTitle(link);
-  const badge = link.state === 'opened' && !link.arrivals.length ? { t: 'A ouvert', c: colors.coral }
+  const asking = link.arrivals.filter((a) => a.request === 'pending').length;
+  const badge = asking && link.max_uses === 1 ? { t: 'En attente', c: colors.coral }
+    : link.state === 'opened' && !link.arrivals.length ? { t: 'A ouvert', c: colors.coral }
     : link.state === 'pending' ? { t: 'Pas ouvert', c: UNOPENED_COLOR }
       : link.arrivals.length ? { t: unlimited(link.max_uses) ? `${link.uses} ✓` : link.max_uses > 1 ? `${link.uses}/${link.max_uses}` : 'Répondu', c: rsvpColors.yes }
         : { t: link.state === 'revoked' ? 'Arrêté' : 'Terminé', c: colors.muted };
@@ -448,6 +498,9 @@ const st = StyleSheet.create({
   swipeAction: { width: ACTION_WIDTH, minHeight: 56, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: radius.pill, borderWidth: 1 },
   copy: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.surface2 },
+  request: { borderWidth: 1, borderColor: colors.coral, borderRadius: radius.md, padding: 10 },
+  accept: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: colors.action, alignItems: 'center' },
+  refuse: { paddingHorizontal: 12, paddingVertical: 5, alignItems: 'center' },
   dot: { width: 7, height: 7, borderRadius: 4 },
   tag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: colors.fillStrong },
   smallAction: { minHeight: 32, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.accentDim, alignItems: 'center', justifyContent: 'center' },
