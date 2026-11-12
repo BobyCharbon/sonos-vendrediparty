@@ -145,7 +145,7 @@ begin
         answer = excluded.answer, status = 'pending', created_at = now(), decided_at = null, decided_by = null;
       select display_name into inviter from public.profiles where id = l.created_by;
       for u in select x from (select ev.created_by x union select user_id from public.event_organizers where event_id = ev.id) o loop
-        perform public.queue_notification(u, 'link_join', ev.id, ev.title,
+        perform public.queue_notification(u, 'join_request', ev.id, ev.title,
           coalesce(nullif(btrim(who), ''), 'Quelqu''un') || ' aimerait venir (invité par '
             || coalesce(nullif(btrim(inviter), ''), 'un invité') || ') : accepte ou refuse dans la liste des invités.',
           'join_request:' || ev.id || ':' || me);
@@ -402,3 +402,41 @@ begin
 end $$;
 revoke all on function public.decide_join_request(uuid, uuid, boolean) from public, anon;
 grant execute on function public.decide_join_request(uuid, uuid, boolean) to authenticated;
+
+-- 7. « À valider » (onglet Activité) : les demandes de tous MES événements (organisateur ou co-organisateur), pour les
+-- voir tout de suite sans ouvrir chaque fiche.
+create or replace function public.my_join_requests() returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'event_id', ev.id, 'title', ev.title, 'starts_at', ev.starts_at, 'date_mode', ev.date_mode,
+      'id', p.id, 'name', p.display_name, 'avatar_url', p.avatar_url, 'answer', q.answer, 'created_at', q.created_at,
+      'invited_by', (select display_name from public.profiles where id = q.invited_by), 'invited_by_id', q.invited_by,
+      'link_label', (select il.label from private.invite_links il where il.token = q.token)) order by q.created_at), '[]'::jsonb)
+  from public.event_join_requests q
+  join public.events ev on ev.id = q.event_id
+  join public.profiles p on p.id = q.user_id
+  where q.status = 'pending' and p.status = 'active' and ev.status = 'published'
+    and (ev.created_by = auth.uid() or exists (select 1 from public.event_organizers o where o.event_id = ev.id and o.user_id = auth.uid()))
+    and not exists (select 1 from public.event_invites i where i.event_id = q.event_id and i.user_id = q.user_id);
+$$;
+revoke all on function public.my_join_requests() from public, anon;
+grant execute on function public.my_join_requests() to authenticated;
+
+-- 8. Notification « join_request » (12.11) : importante (bulle rouge de la cloche) pour être vue tout de suite ; même
+-- interrupteur que « Quelqu'un rejoint ou demande à venir par un lien » (notification_prefs.link_join), tous canaux.
+do $$ declare def text; anchor text := $a$    when 'link_join' then prefs.link_join$a$;
+begin
+  def := pg_get_functiondef('private.web_push_allowed(public.notifications)'::regprocedure);
+  if position('''join_request''' in def) = 0 then
+    if position(anchor in def) = 0 then raise exception 'web_push_allowed : ancre link_join introuvable'; end if;
+    def := replace(def, anchor, anchor || $a$
+    when 'join_request' then coalesce(prefs.link_join, true)$a$);
+    execute def;
+  end if;
+  def := pg_get_functiondef('private.may_receive_push(uuid, text)'::regprocedure);
+  if position('''join_request''' in def) = 0 then
+    if position('''link_join'',' in def) = 0 then raise exception 'may_receive_push : ancre link_join introuvable'; end if;
+    def := replace(def, '''link_join'',', '''link_join'', ''join_request'',');
+    execute def;
+  end if;
+end $$;

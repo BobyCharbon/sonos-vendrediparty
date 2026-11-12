@@ -237,7 +237,7 @@ struct NotificationSettingsView: View {
             if state.shows("rsvp_mine") {
                 eventToggle("rsvp_mine", "person.3.fill", .blue, "Réponses à mes événements", "Quelqu'un répond Présent, Peut-être ou Absent", p.rsvpMine)
             }
-            eventToggle("link_join", "link", .blue, "Quelqu'un rejoint par le lien", "Une personne s'inscrit avec le lien d'invitation", p.linkJoin != false)
+            eventToggle("link_join", "link", .blue, "Quelqu'un rejoint ou demande à venir", "Une personne répond par un lien, ou attend ton accord", p.linkJoin != false)
             if store.bar {
                 eventToggle("bar_refund_declared", "banknote.fill", .purple, "Bar : quelqu'un dit avoir remboursé",
                             "Au bar d'une soirée que j'organise : à confirmer quand tu as reçu l'argent", p.barRefundDeclared != false)

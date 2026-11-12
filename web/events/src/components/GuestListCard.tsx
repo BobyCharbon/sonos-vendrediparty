@@ -155,6 +155,18 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
         </Pressable>
       </View>
 
+      {requests.length ? (
+        <View style={st.asking}>
+          <T size={15} weight="bold" color={colors.coral}>
+            {requests.length > 1 ? `${requests.length} personnes attendent ton accord` : `${requests[0]!.name} attend ton accord`}
+          </T>
+          <T muted size={12}>Invités par tes invités : ils ne voient l’événement qu’une fois acceptés.</T>
+          {requests.map((r) => (
+            <RequestRow key={r.id} request={r} me={me.id} onAccept={() => void decide(r, true)} onRefuse={() => void decide(r, false)} />
+          ))}
+        </View>
+      ) : null}
+
       <Pressable accessibilityRole="button" onPress={() => setSheet(true)}
         style={({ pressed }) => [st.inviteMore, pressTransition, pressed && { transform: [{ scale: 0.98 }] }]}>
         <T size={15} weight="bold" color={colors.onAction}>＋ Inviter d’autres personnes</T>
@@ -202,13 +214,6 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
 
       <ErrorText error={error} />
 
-      {requests.length ? (
-        <Block title={`À accepter · ${requests.length}`} hint="Invités par tes invités">
-          {requests.map((r) => (
-            <RequestRow key={r.id} request={r} me={me.id} onAccept={() => void decide(r, true)} onRefuse={() => void decide(r, false)} />
-          ))}
-        </Block>
-      ) : null}
 
       {guest ? (
         <View style={{ gap: 14 }}>
@@ -498,7 +503,8 @@ const st = StyleSheet.create({
   swipeAction: { width: ACTION_WIDTH, minHeight: 56, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: radius.pill, borderWidth: 1 },
   copy: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.surface2 },
-  request: { borderWidth: 1, borderColor: colors.coral, borderRadius: radius.md, padding: 10 },
+  request: { borderRadius: radius.md, padding: 10, backgroundColor: colors.surface2 },
+  asking: { gap: 8, padding: 12, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.coral },
   accept: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: colors.action, alignItems: 'center' },
   refuse: { paddingHorizontal: 12, paddingVertical: 5, alignItems: 'center' },
   dot: { width: 7, height: 7, borderRadius: 4 },

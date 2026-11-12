@@ -244,7 +244,7 @@ export default function NotificationSettings() {
 
       <Section title="Quand j’organise">
         {mayShow('rsvp_mine') ? <ToggleRow disabled={saving} label="Réponses à mes événements" hint="Quelqu’un répond Présent, Peut-être ou Absent à un événement que j’organise" value={prefs.rsvp_mine} onChange={(v) => update({ rsvp_mine: v })} /> : null}
-        <ToggleRow disabled={saving} label="Quelqu’un rejoint par le lien" hint="Une personne s’inscrit à ton événement avec son lien d’invitation" value={prefs.link_join !== false} onChange={(v) => update({ link_join: v })} />
+        <ToggleRow disabled={saving} label="Quelqu’un rejoint ou demande à venir par un lien" hint="Une personne répond avec un lien d’invitation, ou attend ton accord (lien d’un invité)" value={prefs.link_join !== false} onChange={(v) => update({ link_join: v })} />
         {mayShow('ticket_pay_declared') ? <ToggleRow disabled={saving} label="Quelqu’un dit avoir payé" hint="Sur un événement payant que j’organise, une personne touche « J’ai payé » : à confirmer quand tu as reçu l’argent" value={prefs.ticket_pay_declared !== false} onChange={(v) => update({ ticket_pay_declared: v })} /> : null}
         {barOn ? <ToggleRow disabled={saving} label="Bar : quelqu’un dit avoir remboursé" hint="Au bar d’une soirée que j’organise : à confirmer quand tu as reçu l’argent" value={prefs.bar_refund_declared !== false} onChange={(v) => update({ bar_refund_declared: v })} /> : null}
         {mayShow('proposal_result') ? <ToggleRow disabled={saving} label="Ma proposition validée ou refusée" hint="Un admin publie ou refuse l’événement que tu as proposé" value={prefs.proposal_result !== false} onChange={(v) => update({ proposal_result: v })} /> : null}

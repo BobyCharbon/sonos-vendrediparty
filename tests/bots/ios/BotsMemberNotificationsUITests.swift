@@ -70,7 +70,7 @@ final class BotsMemberNotificationsUITests: XCTestCase {
                       "Billet prêt", "Réponses à mes événements", "Quelqu'un dit avoir payé", "Ma proposition validée ou refusée",
                       "Nouvel événement publié", "Discussions des événements"]
         let shown = ["Modifié ou annulé", "Date choisie", "Place libérée", "Invitation à un événement privé",
-                     "Quelqu'un rejoint par le lien", "Heures de silence"]
+                     "Quelqu'un rejoint ou demande à venir", "Heures de silence"]
         for t in hidden { check(!seen.contains(t) && !seen.contains(t.uppercased()), "caché : \(t)") }
         for t in shown { check(seen.contains(t), "affiché : \(t)") }
     }

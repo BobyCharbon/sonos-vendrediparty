@@ -28,8 +28,8 @@ def test_the_organizer_sees_the_request_and_is_notified():
       raise exception 'résultat: demandes=% par=% reponse=% liste=% notif=%', jsonb_array_length(r->'requests'),
         r->'requests'->0->>'invited_by', r->'requests'->0->>'answer',
         (select count(*) from jsonb_array_elements(r->'people') p where p->>'id' = violette::text),
-        (select count(*) from public.notifications where user_id = olga and event_id = e and kind = 'link_join'
-           and body like '%aimerait venir%');""")
+        (select count(*) from public.notifications x where x.user_id = olga and x.event_id = e and x.kind = 'join_request'
+           and x.body like '%aimerait venir%' and private.web_push_allowed(x));""")
     assert "résultat: demandes=1 par=Bot Victor reponse=maybe liste=0 notif=1" in out, out
 
 
@@ -94,3 +94,15 @@ def test_a_public_event_does_not_ask_for_approval():
       r := public.accept_invite((r->>'token')::uuid, 'yes');
       raise exception 'résultat: en_attente=% vient=%', coalesce(r->>'pending', 'non'), r->>'status';""")
     assert "résultat: en_attente=non vient=yes" in out, out
+
+
+def test_a_co_organizer_sees_the_request_in_activity_and_accepts_it():
+    out = run(VICTOR_LINK + as_bot("olga") + """
+      insert into public.event_organizers (event_id, user_id) values (e, ada);""" + as_bot("violette") + """
+      perform public.accept_invite(a, 'yes');""" + as_bot("ada") + """
+      r := public.my_join_requests();
+      m := jsonb_array_length(r);
+      perform public.decide_join_request(e, violette, true);""" + as_bot("valentin") + """
+      n := jsonb_array_length(public.my_join_requests());""" + as_bot("violette") + """
+      raise exception 'résultat: ada_voit=% titre=% valentin_voit=% violette_voit=%', m, r->0->>'title', n, public.can_see_event(e);""")
+    assert "résultat: ada_voit=1 titre=Test annonce bots valentin_voit=0 violette_voit=t" in out, out

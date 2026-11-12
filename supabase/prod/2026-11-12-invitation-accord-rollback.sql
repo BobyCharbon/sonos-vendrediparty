@@ -265,6 +265,19 @@ revoke all on function public.event_guest_list(uuid) from public, anon;
 grant execute on function public.event_guest_list(uuid) to authenticated;
 
 drop function if exists public.decide_join_request(uuid, uuid, boolean);
+drop function if exists public.my_join_requests();
+do $$ declare def text;
+begin
+  def := pg_get_functiondef('private.web_push_allowed(public.notifications)'::regprocedure);
+  if position('''join_request''' in def) > 0 then
+    execute replace(def, $a$
+    when 'join_request' then coalesce(prefs.link_join, true)$a$, '');
+  end if;
+  def := pg_get_functiondef('private.may_receive_push(uuid, text)'::regprocedure);
+  if position('''join_request''' in def) > 0 then
+    execute replace(def, '''link_join'', ''join_request'',', '''link_join'',');
+  end if;
+end $$;
 drop function if exists private.join_request_state(uuid, uuid);
 drop function if exists private.join_request_answer(public.events, text);
 drop function if exists private.needs_approval(public.events, uuid);

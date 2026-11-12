@@ -13,6 +13,8 @@ export const IMPORTANT_KINDS = [
   'poll_new', 'poll_nudge', 'date_fixed',
   'event_changed', 'waitlist', 'coorganizer_added',
   'approved', 'rejected', 'group_event_request', 'announce_request',
+  // Personne invitée par un invité, qui attend l'accord de l'organisateur (12.11) : à voir tout de suite.
+  'join_request',
   // Réponse à une demande de l'organisateur (annonce, événement de groupe) : il l'attend (recette des bots du 08.11).
   'announce_accepted', 'announce_refused', 'group_event_accepted', 'group_event_refused',
   'ticket_issued', 'ticket_pay_confirmed', 'ticket_pay_declared', 'moderation_notice',

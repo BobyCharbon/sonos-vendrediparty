@@ -69,12 +69,12 @@ def test_a_person_invited_by_a_guest_waits_then_the_organizer_accepts(browser, p
         pw.expect(page.get_by_role('button', name='Se connecter', exact=True)).to_have_count(0, timeout=30000)
         page.goto(f'{party}/events/event/{e}', wait_until='domcontentloaded')
         card = page.get_by_label('Invités', exact=True)
-        pw.expect(card.get_by_text('À ACCEPTER · 1', exact=True)).to_be_visible(timeout=30000)
-        card.get_by_text('À ACCEPTER · 1', exact=True).scroll_into_view_if_needed()
+        pw.expect(card.get_by_text('Guest B attend ton accord', exact=True)).to_be_visible(timeout=30000)
+        card.get_by_text('Guest B attend ton accord', exact=True).scroll_into_view_if_needed()
         shot(page, '02-organisateur-a-accepter')
         card.get_by_role('button', name='Accepter Guest B').click()
         pw.expect(page.get_by_text('Guest B est invité : il voit l’événement', exact=True)).to_be_visible(timeout=15000)
-        pw.expect(card.get_by_text('À ACCEPTER · 1', exact=True)).to_have_count(0)
+        pw.expect(card.get_by_text('Guest B attend ton accord', exact=True)).to_have_count(0)
         shot(page, '03-organisateur-accepte')
         assert not errors, errors
     finally:

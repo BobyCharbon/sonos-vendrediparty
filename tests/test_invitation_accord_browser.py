@@ -39,9 +39,10 @@ def test_the_organizer_accepts_someone_invited_by_a_guest(browser, v2_origin):  
         calls = []
         reply(page, 'decide_join_request', GUEST_LIST, calls)
         card = open_event(page, v2_origin)
-        pw.expect(card.get_by_text('À ACCEPTER · 1', exact=True)).to_be_visible()
+        # Tout en haut de la carte, avant tout le reste : l'organisateur le voit tout de suite.
+        pw.expect(card.get_by_text('Nina attend ton accord', exact=True)).to_be_visible()
         pw.expect(card.get_by_text('Invité par Julien · lien « Collègues » · Viendrait', exact=True)).to_be_visible()
-        card.get_by_text('À ACCEPTER · 1', exact=True).scroll_into_view_if_needed()
+        assert page.get_by_text('Nina attend ton accord', exact=True).bounding_box()['y'] < 844
         shot(page, '30-accord-a-accepter')
 
         # Refuser se fait en deux temps : le premier toucher ne décide rien.
@@ -105,5 +106,33 @@ def test_a_refused_person_is_told_kindly_without_answers(browser, v2_origin):  #
         page.goto(f'{v2_origin}/events/invite/{TOKEN}', wait_until='domcontentloaded')
         pw.expect(page.get_by_text('Ludo n’a pas pu accepter ta venue cette fois.', exact=True)).to_be_visible(timeout=15000)
         pw.expect(page.get_by_role('button', name='Je viens !')).to_have_count(0)
+    finally:
+        context.close()
+
+
+ACTIVITY_REQUEST = {**REQUEST, 'event_id': IDS[9], 'title': 'Soirée jeux', 'starts_at': '2030-11-20T19:00:00Z', 'date_mode': 'fixed'}
+
+
+def test_the_organizer_sees_requests_of_all_his_events_in_activity(browser, v2_origin):  # noqa: F811
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
+    page = context.new_page()
+    errors = []
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    try:
+        mock_services(page)
+        mock_invites(page)
+        calls = []
+        reply(page, 'my_join_requests', [ACTIVITY_REQUEST], calls)
+        reply(page, 'decide_join_request', GUEST_LIST, calls)
+        page.goto(f'{v2_origin}/events/', wait_until='domcontentloaded')
+        login(page)
+        page.goto(f'{v2_origin}/events/activity', wait_until='domcontentloaded')
+        pw.expect(page.get_by_text('INVITÉ À ACCEPTER · SOIRÉE JEUX', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_text('Nina aimerait venir', exact=True)).to_be_visible()
+        shot(page, '33-accord-activite')
+        page.get_by_role('button', name='Accepter Nina').click()
+        pw.expect(page.get_by_text('Nina est invité à « Soirée jeux » : il voit l’événement.', exact=True)).to_be_visible(timeout=5000)
+        assert ('decide_join_request', {'e': IDS[9], 'person': IDS[8], 'accept': True}) in calls
+        assert not errors, errors
     finally:
         context.close()

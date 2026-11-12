@@ -105,7 +105,7 @@ def test_group_and_event_discussions_have_separate_pauses_and_every_type_its_swi
         assert picks[-1] == {'what': 'event_chats', 'span': '2h'}
         # Chaque type qu'on peut recevoir a son interrupteur, y compris les annonces des admins et la soirée.
         for label in ('Un organisateur répond pour moi', 'Invitation à un événement privé', 'Messages des groupes',
-                      'Invitation dans un groupe', 'Quelqu’un rejoint mon groupe', 'Quelqu’un rejoint par le lien',
+                      'Invitation dans un groupe', 'Quelqu’un rejoint mon groupe', 'Quelqu’un rejoint ou demande à venir par un lien',
                       'Ma proposition validée ou refusée', 'Annonces des admins'):
             pw.expect(frame.get_by_label(label, exact=True).first).to_be_attached()
         pw.expect(frame.get_by_text('Soirée : musique et avis', exact=True)).to_be_visible()

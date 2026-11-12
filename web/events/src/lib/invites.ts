@@ -230,6 +230,10 @@ export const nudgeInvitees = (e: string, people: string[]) =>
   call<{ notified: number; skipped: number; share: string[] }>('nudge_invitees', { e, people }, 'La relance n’a pas pu partir.');
 export const nudgeLink = (tok: string) => call<null>('nudge_invite_link', { tok }, 'La relance n’a pas pu partir.');
 export const stopLink = (tok: string) => call<null>('revoke_invite_link', { tok }, 'Le lien n’a pas pu être arrêté.');
+/** « À valider » (onglet Activité) : demandes de tous mes événements, organisateur ou co-organisateur (12.11). */
+export type MyJoinRequest = JoinRequest & { event_id: string; title: string; starts_at: string | null; date_mode: 'fixed' | 'poll' };
+export const fetchMyJoinRequests = () =>
+  call<MyJoinRequest[] | null>('my_join_requests', {}, 'Les demandes à accepter ne se chargent pas.').then((r) => (Array.isArray(r) ? r : []));
 /** Accepter ou refuser une personne invitée par un invité (12.11) ; renvoie la liste à jour. */
 export const decideJoinRequest = (e: string, person: string, accept: boolean) =>
   call<GuestList>('decide_join_request', { e, person, accept }, 'Ta décision n’a pas pu être enregistrée. Réessaie.')
