@@ -14,6 +14,7 @@ from tests.supabase_live.test_inscription_complete_browser_live import browser, 
 from tests.supabase_live.test_invitations_v2_live import terms_version
 from tests.supabase_live.test_member_admin_live import Session, pytestmark as live  # noqa: F401
 from tests.supabase_live.test_rsvp_digest_live import sql
+from tests.test_invitations_v2_browser import expand_guests
 
 pw = pytest.importorskip('playwright.sync_api')
 DIST = Path(os.environ.get('PARTY_TEST_EVENTS_DIST') or '/nonexistent')
@@ -56,6 +57,7 @@ def test_a_guest_sees_numbers_only_creates_his_named_link_and_copies_it_again(br
         page.goto(f'{party}/events/event/{e}', wait_until='domcontentloaded')
         card = page.get_by_label('Invités', exact=True)
         pw.expect(card.get_by_text('Invités · 3', exact=True)).to_be_visible(timeout=30000)
+        expand_guests(card)  # carte repliée par défaut (12.11)
         pw.expect(card.get_by_role('tab', name='1 Viennent')).to_be_visible()
         pw.expect(card.get_by_role('tab', name='1 Lien pas ouvert')).to_be_visible()
         # Aucun nom : ni Testeur 2 (qui vient), ni le lien de l'admin.
