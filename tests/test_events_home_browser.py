@@ -21,7 +21,7 @@ NOTIFS = [
      'created_at': '2026-11-06T09:00:00Z', 'read_at': '2026-11-06T10:00:00Z'},
 ]
 IMPORTANT = {'announce_accepted', 'announce_refused', 'group_event_accepted', 'group_event_refused', 'private_invite', 'new_event', 'group_invite', 'poll_new', 'poll_nudge', 'date_fixed', 'event_changed', 'waitlist',
-             'coorganizer_added', 'approved', 'rejected', 'group_event_request', 'announce_request', 'ticket_issued',
+             'coorganizer_added', 'approved', 'rejected', 'group_event_request', 'announce_request', 'join_request', 'ticket_issued',
              'ticket_pay_confirmed', 'ticket_pay_declared', 'moderation_notice'}
 CORS = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Expose-Headers': 'Content-Range',
         'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS, HEAD'}

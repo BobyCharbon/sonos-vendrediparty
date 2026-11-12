@@ -71,6 +71,16 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   − / + pour 50 à 2 places ; valable jusqu'au lendemain de l'événement (suit sa date, sondage sans date : 1 an), jamais de
   choix de durée à l'écran ; l'organisateur l'arrête quand il veut (« Arrêter », `revoke_invite_link`).
   Tests : `tests/supabase_live/test_lien_sans_limite_live.py`, `tests/test_invitations_v2_browser.py`.
+- Menu de partage commun (avis 83ebee37aa0f, 11.11) : chaque invité a la carte « Invités » de l'organisateur avec les
+  CHIFFRES seulement (jamais un nom, ni relance ni retrait), crée ses propres liens nommés (20 en attente au plus), les recopie
+  et les arrête (`event_guest_list` vue `guest`, `create_event_invite`, `revoke_invite_link`, migration 20261111120000).
+  Tout lien se nomme (« Plusieurs » compris) et se recopie (« Copier ») : le même lien, jamais un nouveau.
+  Tests : `tests/supabase_live/test_partage_commun_live.py`, `tests/test_partage_commun_browser.py`.
+- Accord de l'organisateur (12.11) : sans lien public (sur invitation, groupe, Membres Vendredi Party), la personne venue par
+  le lien d'un INVITÉ attend l'accord (`event_join_requests`, `accept_invite` → `pending`, « À accepter » dans la carte
+  Invités, `decide_join_request`) ; elle ne voit ni la fiche ni l'adresse avant. Seuls l'organisateur et les co-organisateurs
+  (et `events.manage_all`) font entrer directement (`private.needs_approval`). Leur lien vaut accord, même après un refus (refus par erreur). Événement public : inchangé.
+  Tests : `tests/supabase_live/test_invitation_accord_live.py`, `tests/test_invitation_accord_browser.py`.
 - Agenda (11.11) : partout la même méthode, le calendrier abonné « Vendredi Party » de la personne (un lien par personne,
   `calendar_feed_token(e, add)` / `calendar_feed`, `/api/calendar-feed/<jeton>.ics`) : ajouter un événement (bouton
   « Ajouter à mon agenda », « Valider mes dates ») l'y met, et l'agenda suit tout changement sans rouvrir Party. Ouvrir une

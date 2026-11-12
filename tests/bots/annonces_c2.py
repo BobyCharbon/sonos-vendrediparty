@@ -734,7 +734,7 @@ LABELS = {  # libellé de l'écran → colonne de notification_prefs, kind de no
     "Paiement de ma place confirmé": ("ticket_pay_confirmed", "ticket_pay_confirmed"),
     "Billet prêt": ("ticket_issued", "ticket_issued"),
     "Réponses à mes événements": ("rsvp_mine", "rsvp"),
-    "Quelqu’un rejoint par le lien": ("link_join", "link_join"),
+    "Quelqu’un rejoint ou demande à venir par un lien": ("link_join", "link_join"),
     "Quelqu’un dit avoir payé": ("ticket_pay_declared", "ticket_pay_declared"),
     "Ma proposition validée ou refusée": ("proposal_result", "approved"),
     "Réponse du groupe à mes demandes": ("announce_results", "announce_accepted"),

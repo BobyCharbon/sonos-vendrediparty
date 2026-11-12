@@ -34,9 +34,11 @@ const RESULTS_SHOWN = 12;
  * headline : « C'est en ligne : envoie le lien à tes invités » juste après la publication (assistant IA) ;
  * initialPeople : les personnes citées à l'IA, déjà cochées (jamais invitées sans son « Inviter »).
  */
-export function InviteSheet({ visible, event, me, list, onClose, onInvited, headline, initialPeople = [] }: {
+export function InviteSheet({ visible, event, me, list, onClose, onInvited, headline, initialPeople = [], guest = false }: {
   visible: boolean; event: Ev; me: { id: string; display_name: string }; list: GuestList; onClose: () => void; onInvited: () => void;
   headline?: string; initialPeople?: string[];
+  /** Un invité (avis 83ebee37aa0f, 11.11) : il envoie ses propres liens, sans ajouter de gens de Party ni de groupe. */
+  guest?: boolean;
 }) {
   const { can } = useAuth();
   const [mode, setMode] = useState<Mode>('several');
@@ -65,7 +67,7 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
   const [announce, setAnnounce] = useState(false);
 
   const { data: directory } = useQuery(async () => {
-    if (!visible) return null;
+    if (!visible || guest) return null;
     const [p, g] = await Promise.all([
       supabase.from('profiles').select('id, display_name, avatar_url').eq('status', 'active').order('display_name'),
       supabase.from('member_groups').select('id, name, created_by, system_key, member_group_members(user_id)').order('name'),
@@ -103,7 +105,8 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
     setError(null);
     try {
       // Valable jusqu'à la fin de l'événement (la base suit sa date) ; l'organisateur peut l'arrêter à tout moment.
-      const made = await createInvite(event.id, mode === 'one' ? 1 : places, null, mode === 'one' ? label.trim() || null : null);
+      // Un nom pour chaque lien, « Plusieurs » compris (« Groupe foot ») : on sait à qui on l'a donné (11.11).
+      const made = await createInvite(event.id, mode === 'one' ? 1 : places, null, label.trim() || null);
       const url = inviteLinkUrl(made.token);
       setLink(url);
       onInvited();
@@ -197,14 +200,20 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
               <T weight="bold" size={17}>🔗 Envoyer le lien</T>
               <T size={13} color={colors.textSoft}>Même sans l’app : la personne répond depuis le lien, en quelques secondes.</T>
               <Segmented options={[{ key: 'one', label: 'Une personne' }, { key: 'several', label: 'Plusieurs' }]} value={mode}
-                onChange={(m) => { setMode(m); reset(); }} />
+                onChange={(m) => { setMode(m); setLabel(''); reset(); }} />
               {mode === 'one' ? (
                 <View style={{ gap: 4 }}>
                   <Input accessibilityLabel="Pour qui ? (facultatif)" placeholder="Pour qui ? Prénom (facultatif)" value={label} maxLength={40}
                     onChangeText={(v) => { setLabel(v); reset(); }} autoCapitalize="words" />
-                  <T muted size={12}>Le lien ne sert qu’à cette personne. Tu verras quand elle l’ouvre et ce qu’elle répond.</T>
+                  <T muted size={12}>Le lien ne sert qu’à cette personne. Tu verras quand elle l’ouvre et {guest ? 'si elle répond' : 'ce qu’elle répond'}.</T>
                 </View>
               ) : (
+                <View style={{ gap: 12 }}>
+                <View style={{ gap: 4 }}>
+                  <Input accessibilityLabel="Nom du lien (facultatif)" placeholder="Nom du lien, ex. Groupe foot (facultatif)" value={label} maxLength={40}
+                    onChangeText={(v) => { setLabel(v); reset(); }} autoCapitalize="sentences" />
+                  <T muted size={12}>Pour savoir à qui tu l’as donné. Visible par toi et les organisateurs.</T>
+                </View>
                 <View style={st.stepperRow}>
                   <View style={{ flex: 1 }}>
                     <T weight="semibold" size={15}>Nombre de places</T>
@@ -212,8 +221,12 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
                   </View>
                   <Stepper value={places} onChange={(n) => { setPlaces(n); reset(); }} />
                 </View>
+                </View>
               )}
-              <T muted size={12}>Valable jusqu’à la fin de l’événement. Tu peux l’arrêter à tout moment dans la liste des invités.</T>
+              <T muted size={12}>Valable jusqu’à la fin de l’événement. Tu peux le recopier ou l’arrêter à tout moment dans {guest ? '« Mes liens »' : 'la liste des invités'}.</T>
+              {guest && !list.public ? (
+                <T size={12} weight="semibold" color={colors.coralSoft}>Chaque personne que tu invites attend l’accord de l’organisateur avant de voir l’événement.</T>
+              ) : null}
               <View style={st.bubble}>
                 <T size={13} color={colors.text}>{message(link ?? inviteLinkUrl('…').replace(/^https?:\/\//, ''))}</T>
               </View>
@@ -232,7 +245,8 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
               {link ? <Button small variant="ghost" label="Nouveau lien (pour quelqu’un d’autre)" onPress={() => { reset(); setLabel(''); }} /> : null}
             </View>
 
-            {/* 2. Des gens de Party, même hors du groupe, ou un groupe */}
+            {/* 2. Des gens de Party, même hors du groupe, ou un groupe (organisateurs seulement) */}
+            {guest ? null : <>
             <View style={{ gap: 10 }}>
               <T weight="bold" size={17}>Ajouter des gens de Party</T>
               <Input accessibilityLabel="Chercher une personne ou un groupe" placeholder="🔍 Un prénom, un surnom, un groupe…" value={search} onChangeText={setSearch} />
@@ -277,6 +291,7 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
                 {' Ils reçoivent une notification Party s’ils ont l’app.'}
               </T>
             </View>
+            </>}
           </ScrollView>
         </View>
         {qr && link ? <QrOverlay cardRef={qrRef} url={link} title={event.title} when={when} places={mode === 'several' ? places : 1} onClose={() => setQr(false)} /> : null}

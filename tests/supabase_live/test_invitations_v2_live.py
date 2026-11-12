@@ -105,7 +105,9 @@ def test_links_for_one_or_several_people_and_answer_once_the_profile_is_complete
         assert 'places de ce lien sont prises' in error_of(vip.rpc('accept_invite', token=several['token'], answer='yes'))
 
         # Carte « Invités » : qui vient, d'où (lien noté « Léa »), invité par qui, liens et arrivées.
-        assert ga.rpc('event_guest_list', e=event).status_code >= 400
+        # Un invité a le même menu, mais seulement les chiffres : aucun nom (avis 83ebee37aa0f, 11.11.2026).
+        seen = ga.rpc('event_guest_list', e=event).json()
+        assert seen['guest'] is True and seen['people'] == [] and 'Léa' not in str(seen['counts'])
         card = admin.rpc('event_guest_list', e=event).json()
         by_id = {p['id']: p for p in card['people']}
         assert by_id[new.uid]['source'] == 'link' and by_id[new.uid]['link_label'] == 'Léa' and not by_id[new.uid]['light']

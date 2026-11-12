@@ -119,13 +119,21 @@ def shot(page, name: str, full: bool = False):
         page.screenshot(path=str(SHOTS / f'{name}.png'), full_page=full)
 
 
-def open_event(page, origin):
+def open_event(page, origin, expand: bool = True):
     page.goto(f'{origin}/events/', wait_until='domcontentloaded')
     login(page)
     page.get_by_text('Sortie de démonstration (test local)', exact=True).click()
     card = page.get_by_label('Invités', exact=True)
     pw.expect(card.get_by_text('Invités · 9', exact=True)).to_be_visible(timeout=15000)
+    if expand:
+        expand_guests(card)
     return card
+
+
+def expand_guests(card):
+    """La carte Invités est repliée par défaut (12.11) : « Voir le détail » montre filtres, listes et liens."""
+    card.get_by_role('button', name='Voir le détail des invités').click()
+    pw.expect(card.get_by_role('button', name='Réduire la liste des invités')).to_be_visible()
 
 
 def test_organizer_sees_who_comes_filters_nudges_and_invites(browser, v2_origin):  # noqa: F811
@@ -282,6 +290,7 @@ def test_android_finger_on_a_guest_row_scrolls_the_page(browser, v2_origin):  # 
         page.goto(f'{v2_origin}/events/', wait_until='domcontentloaded')
         login(page)
         page.get_by_text('Sortie de démonstration (test local)', exact=True).click()
+        expand_guests(page.get_by_label('Invités', exact=True))
         row = page.get_by_text('Invité 3', exact=True)
         pw.expect(row).to_be_visible(timeout=15000)
         row.scroll_into_view_if_needed()
@@ -485,6 +494,7 @@ def test_a_swiped_guest_row_closes_by_itself_and_only_one_stays_open(browser, v2
         page.goto(f'{v2_origin}/events/', wait_until='domcontentloaded')
         login(page)
         page.get_by_text('Sortie de démonstration (test local)', exact=True).click()
+        expand_guests(page.get_by_label('Invités', exact=True))
         pw.expect(page.get_by_text('Invité 3', exact=True)).to_be_visible(timeout=15000)
         page.wait_for_timeout(1500)  # fin de la mise en page de la carte (les lignes prennent leur largeur)
         offset = lambda name: page.evaluate(f"(n) => ({ROW_OFFSET})(n).scrollLeft", name)  # noqa: E731
@@ -498,5 +508,30 @@ def test_a_swiped_guest_row_closes_by_itself_and_only_one_stays_open(browser, v2
         page.mouse.wheel(0, 300)  # la page défile : la ligne ouverte se referme
         page.wait_for_timeout(700)
         assert offset('Invité 4') < 5
+    finally:
+        context.close()
+
+
+def test_the_guest_card_is_folded_under_the_answer_and_unfolds(browser, v2_origin):  # noqa: F811
+    """Demande de l'admin (12.11) : la fiche montre la description, puis la réponse, puis la carte Invités REPLIÉE (les
+    chiffres en une ligne) ; « Voir le détail » montre filtres, listes et liens, « Réduire » les cache."""
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
+    page = context.new_page()
+    try:
+        mock_services(page)
+        mock_invites(page)
+        card = open_event(page, v2_origin, expand=False)
+        pw.expect(card.get_by_role('tablist', name='Filtrer les invités')).to_have_count(0)
+        pw.expect(card.get_by_text('＋ Inviter d’autres personnes', exact=True)).to_have_count(0)
+        pw.expect(card.get_by_role('button', name='Inviter', exact=True)).to_be_visible()
+        folded = card.bounding_box()['height']
+        answer = page.get_by_role('button', name='Présent', exact=False).first
+        assert answer.bounding_box()['y'] < card.bounding_box()['y']
+        shot(page, '40-invites-replie')
+        expand_guests(card)
+        pw.expect(card.get_by_role('tablist', name='Filtrer les invités')).to_be_visible()
+        assert card.bounding_box()['height'] > folded * 2
+        card.get_by_role('button', name='Réduire la liste des invités').click()
+        pw.expect(card.get_by_role('tablist', name='Filtrer les invités')).to_have_count(0)
     finally:
         context.close()

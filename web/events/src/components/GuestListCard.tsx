@@ -6,9 +6,9 @@ import { Avatar, ErrorText, Meter, Skeleton, T, Toast } from './ui';
 import { useQuery } from '@/lib/data';
 import { formatShort } from '@/lib/format';
 import {
-  fetchGuestList, filterGuests, filterLinks, guestCounts, guestOrigin, inviteLinkUrl, inviteMessage, linkLine, linkSpokenNames, linkTitle, nudgeInvitees,
+  copyText, decideJoinRequest, fetchGuestList, filterGuests, filterLinks, guestCounts, guestOrigin, inviteLinkUrl, inviteMessage, linkLine, linkSpokenNames, linkTitle, nudgeInvitees,
   nudgeLink, removeInvitee, ruleSentence, shareInvite, statusWords, stopLink, unlimited,
-  type Guest, type GuestFilter, type GuestList, type SentLink,
+  type Guest, type GuestFilter, type GuestList, type JoinRequest, type SentLink,
 } from '@/lib/invites';
 import { pressTransition } from '@/lib/motion';
 import { colors, radius, rsvpColors } from '@/lib/theme';
@@ -37,13 +37,17 @@ const when = (ev: Ev) => (ev.starts_at ? formatShort(ev.starts_at).toLowerCase()
  * à qui on a envoyé un lien et qui a invité qui. « + » ouvre la feuille « Inviter » ; « Relancer » envoie une notification
  * Party (si la personne a l'app) ou ouvre la feuille de partage avec un message prêt ; glisser une ligne : Relancer, Retirer.
  */
-export function GuestListCard({ event, me, onChanged, openSheet = false, headline, initialPeople = [] }: {
+export function GuestListCard({ event, me, onChanged, openSheet = false, headline, initialPeople = [], quietOnError = false }: {
   event: Ev; me: Me; onChanged: () => void;
+  /** Vue d'un invité : liste illisible → rien du tout (sa réponse et la fiche restent), jamais une carte d'erreur. */
+  quietOnError?: boolean;
   /** Juste publié « Sur invitation » (assistant IA) : la feuille « Inviter » s'ouvre aussitôt, lien prêt. */
   openSheet?: boolean; headline?: string; initialPeople?: string[];
 }) {
   const [filter, setFilter] = useState<GuestFilter>('all');
   const [sheet, setSheet] = useState(openSheet);
+  // Repliée par défaut (demande de l'admin, 12.11) : l'essentiel en deux lignes, le détail au toucher.
+  const [expanded, setExpanded] = useState(false);
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +104,18 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
 
   const stop = (l: SentLink) => run(async () => { await stopLink(l.token); return 'Lien arrêté : il ne marche plus'; });
 
+  /** Le même lien, recopié (perdu, ou à renvoyer) : jamais un nouveau lien. */
+  const copyLink = (l: SentLink) => run(async () =>
+    ((await copyText(inviteLinkUrl(l.token))) ? 'Lien copié' : 'Copie impossible : réessaie'));
+
+  /** Personne invitée par un invité (12.11) : l'organisateur l'accepte (elle voit l'événement) ou la refuse. */
+  const decide = (r: JoinRequest, accept: boolean) => run(async () => {
+    await decideJoinRequest(event.id, r.id, accept);
+    onChanged();
+    return accept ? `${r.name} est invité : il voit l’événement` : `${r.name} ne verra pas l’événement`;
+  });
+
+  if (!list && loadError && quietOnError) return null;
   if (!list) {
     return (
       <View style={st.card}>
@@ -110,15 +126,22 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
   }
 
   const counts = guestCounts(list);
+  // Vue d'un invité (avis 83ebee37aa0f, 11.11) : les mêmes chiffres, jamais un nom ; ses liens à lui.
+  const guest = !!list.guest;
   const waiting = list.people.filter((p) => !p.status && !p.nudged_today);
   const extra = list.people.filter((p) => p.source === 'person' || p.source === 'link' || p.source === 'public');
+  const requests = guest ? [] : list.requests ?? [];
+  // Sans lien public, la personne invitée par un invité attend l'accord de l'organisateur (12.11).
+  const guestRule = list.public ? 'Les personnes que tu invites voient cet événement, rien d’autre.'
+    : 'Chaque personne que tu invites attend l’accord de l’organisateur avant de voir l’événement.';
 
   const row = (g: Guest) => (
     <GuestRow key={g.id} guest={g} me={me.id} onNudge={() => void nudge(g)} onRemove={g.removable ? () => void remove(g) : null} />
   );
   const spoken = linkSpokenNames(list.links);
   const linkRows = (links: SentLink[]) => links.map((l) => (
-    <LinkRow key={l.token} link={l} spokenName={spoken.get(l.token) ?? linkTitle(l)} onNudge={() => void nudgeByLink(l)} onStop={() => void stop(l)} />
+    <LinkRow key={l.token} link={l} spokenName={spoken.get(l.token) ?? linkTitle(l)} onNudge={guest ? null : () => void nudgeByLink(l)}
+      onStop={() => void stop(l)} onCopy={() => void copyLink(l)} />
   ));
 
   return (
@@ -126,7 +149,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
       <View style={st.head}>
         <View style={{ flex: 1, gap: 2 }}>
           <T weight="bold" size={20}>Invités · {counts.total}</T>
-          <T muted size={13}>{list.poll ? `${counts.yes} ${counts.yes > 1 ? 'ont voté les dates' : 'a voté les dates'}` : `${counts.yes} ${counts.yes > 1 ? 'viennent' : 'vient'}`} · {counts.none + counts.unopened} sans réponse</T>
+          <T muted size={13}>{summaryLine(counts, !!list.poll)}</T>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Inviter" onPress={() => setSheet(true)}
           style={({ pressed }) => [st.plus, pressTransition, pressed && { transform: [{ scale: 0.92 }] }]}>
@@ -134,24 +157,47 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
         </Pressable>
       </View>
 
-      <Pressable accessibilityRole="button" onPress={() => setSheet(true)}
-        style={({ pressed }) => [st.inviteMore, pressTransition, pressed && { transform: [{ scale: 0.98 }] }]}>
-        <T size={15} weight="bold" color={colors.onAction}>＋ Inviter d’autres personnes</T>
-      </Pressable>
-
-      <View style={st.rule}>
-        <T size={14} weight="bold">{ruleSentence(list)}</T>
-        <T muted size={12}>Personne n’est ajouté au groupe : les invités voient cet événement, rien d’autre.</T>
-      </View>
+      {requests.length ? (
+        <View style={st.asking}>
+          <T size={15} weight="bold" color={colors.coral}>
+            {requests.length > 1 ? `${requests.length} personnes attendent ton accord` : `${requests[0]!.name} attend ton accord`}
+          </T>
+          <T muted size={12}>Invités par tes invités : ils ne voient l’événement qu’une fois acceptés.</T>
+          {requests.map((r) => (
+            <RequestRow key={r.id} request={r} me={me.id} onAccept={() => void decide(r, true)} onRefuse={() => void decide(r, false)} />
+          ))}
+        </View>
+      ) : null}
 
       {counts.total ? (
-        <Meter height={8} parts={[
+        <Meter height={6} parts={[
           { fraction: counts.yes / counts.total, color: rsvpColors.yes },
           { fraction: counts.maybe / counts.total, color: rsvpColors.maybe },
           { fraction: counts.no / counts.total, color: rsvpColors.no },
           { fraction: counts.none / counts.total, color: NONE_COLOR },
         ]} />
       ) : null}
+
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded }} aria-expanded={expanded}
+        accessibilityLabel={expanded ? 'Réduire la liste des invités' : 'Voir le détail des invités'}
+        onPress={() => setExpanded((v) => !v)} hitSlop={6}
+        style={({ pressed }) => [st.toggle, pressed && { opacity: 0.7 }]}>
+        <T size={14} weight="semibold" color={colors.accent}>{expanded ? 'Réduire' : 'Voir le détail'}</T>
+        <T size={16} color={colors.accent} style={{ transform: [{ rotate: expanded ? '-90deg' : '90deg' }] }}>›</T>
+      </Pressable>
+
+      <ErrorText error={error} />
+
+      {expanded ? (<>
+      <Pressable accessibilityRole="button" onPress={() => setSheet(true)}
+        style={({ pressed }) => [st.inviteMore, pressTransition, pressed && { transform: [{ scale: 0.98 }] }]}>
+        <T size={15} weight="bold" color={colors.onAction}>＋ Inviter d’autres personnes</T>
+      </Pressable>
+
+      <View style={st.rule}>
+        <T size={14} weight="bold">{guest ? 'Tu vois les chiffres ; toi aussi, tu peux inviter. ' : ''}{ruleSentence(list)}</T>
+        <T muted size={12}>{guest ? guestRule : 'Personne n’est ajouté au groupe : les invités voient cet événement, rien d’autre.'}</T>
+      </View>
 
       <View style={st.tiles} accessibilityRole="tablist" accessibilityLabel="Filtrer les invités">
         {TILES.filter((t) => !list.poll || (t.key !== 'maybe' && t.key !== 'no')).map((t) => {
@@ -160,7 +206,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
           return (
             <Pressable key={t.key} accessibilityRole="tab" accessibilityState={{ selected: on }} aria-selected={on}
               accessibilityLabel={`${counts[t.key]} ${label}`}
-              onPress={() => setFilter(on ? 'all' : t.key)}
+              disabled={guest} onPress={() => setFilter(on ? 'all' : t.key)}
               style={({ pressed }) => [st.tile, on && { borderColor: t.color, backgroundColor: colors.surface2 }, pressTransition,
                 pressed && { transform: [{ scale: 0.96 }] }]}>
               <T size={22} weight="bold" color={t.color}>{counts[t.key]}</T>
@@ -170,7 +216,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
         })}
       </View>
 
-      {waiting.length ? (
+      {waiting.length && !guest ? (
         <Pressable accessibilityRole="button" onPress={() => void nudgeAll(waiting)}
           style={({ pressed }) => [st.nudgeAll, pressTransition, pressed && { transform: [{ scale: 0.98 }] }]}>
           <T size={14} weight="bold" color={colors.accent}>
@@ -179,9 +225,13 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
         </Pressable>
       ) : null}
 
-      <ErrorText error={error} />
-
-      {filter === 'all' ? (
+      {guest ? (
+        <View style={{ gap: 14 }}>
+          {list.links.length ? <Block title={`Mes liens · ${list.links.length}`}>{linkRows(list.links)}</Block> : (
+            <T muted size={14}>Touche « + » pour envoyer ton propre lien : tu verras combien de personnes y répondent.</T>
+          )}
+        </View>
+      ) : filter === 'all' ? (
         <View style={{ gap: 14 }}>
           {groupBlocks(list).map((b) => (
             <GroupBlock key={b.name} name={b.name} people={b.people} open={open.has(b.name)}
@@ -202,12 +252,23 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
           {!filterGuests(list, filter).length && !filterLinks(list, filter).length ? <T muted size={14}>Personne ici.</T> : null}
         </View>
       )}
+      </>) : null}
 
-      <InviteSheet visible={sheet} event={event} me={me} list={list} onClose={() => setSheet(false)} onInvited={refresh}
+      <InviteSheet visible={sheet} event={event} me={me} list={list} onClose={() => setSheet(false)} onInvited={refresh} guest={guest}
         headline={headline} initialPeople={initialPeople} />
       {note ? <Toast message={note} onHide={() => setNote(null)} /> : null}
     </View>
   );
+}
+
+/** L'essentiel en une ligne (carte repliée) : les chiffres non nuls seulement. */
+function summaryLine(c: ReturnType<typeof guestCounts>, poll: boolean): string {
+  const none = c.none + c.unopened;
+  const parts = poll
+    ? [`${c.yes} ${c.yes > 1 ? 'ont voté les dates' : 'a voté les dates'}`]
+    : [`${c.yes} ${c.yes > 1 ? 'viennent' : 'vient'}`, c.maybe ? `${c.maybe} peut-être` : null,
+       c.no ? `${c.no} ${c.no > 1 ? 'absents' : 'absent'}` : null];
+  return [...parts, none ? `${none} sans réponse` : null].filter(Boolean).join(' · ');
 }
 
 /** Le groupe Vendredi Party et les groupes invités, repliés en une ligne chacun. */
@@ -292,16 +353,52 @@ function GuestRow({ guest, me, onNudge, onRemove }: { guest: Guest; me: string; 
   );
 }
 
-function LinkRow({ link, spokenName, onNudge, onStop }: { link: SentLink; spokenName: string; onNudge: () => void; onStop: () => void }) {
+const ANSWER_WORDS = { yes: 'Viendrait', maybe: 'Peut-être', no: 'Ne peut pas', poll: 'Votera les dates' } as const;
+
+/** Une demande : qui, invité par qui, sa réponse ; Accepter (il voit l'événement) ou Refuser (en deux temps). */
+function RequestRow({ request, me, onAccept, onRefuse }: { request: JoinRequest; me: string; onAccept: () => void; onRefuse: () => void }) {
   const [confirm, setConfirm] = useState(false);
-  const live = link.state === 'pending' || link.state === 'opened';
+  const by = request.invited_by_id === me ? 'toi' : request.invited_by?.trim() || 'un invité';
+  const origin = `Invité par ${by}${request.link_label ? ` · lien « ${request.link_label} »` : ''}`;
+  return (
+    <View style={[st.row, st.request]} accessibilityLabel={`${request.name}, ${origin}, attend ton accord`}>
+      <Avatar id={request.id} name={request.name} photo={request.avatar_url} size={40} profile={false} />
+      <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
+        <T weight="semibold" size={15} numberOfLines={1}>{request.name}</T>
+        <T muted size={12} numberOfLines={2}>{origin} · {ANSWER_WORDS[request.answer]}</T>
+      </View>
+      <View style={{ gap: 6 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Accepter ${request.name}`} hitSlop={4} onPress={onAccept}
+          style={({ pressed }) => [st.accept, pressTransition, pressed && { transform: [{ scale: 0.96 }] }]}>
+          <T size={13} weight="bold" color={colors.onAction}>Accepter</T>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={confirm ? `Confirmer le refus de ${request.name}` : `Refuser ${request.name}`}
+          hitSlop={4} onPress={() => (confirm ? onRefuse() : setConfirm(true))}
+          style={({ pressed }) => [st.refuse, pressed && { opacity: 0.7 }]}>
+          <T size={13} weight="bold" color={colors.red}>{confirm ? 'Confirmer' : 'Refuser'}</T>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function LinkRow({ link, spokenName, onNudge, onStop, onCopy }: {
+  link: SentLink; spokenName: string; onNudge: (() => void) | null; onStop: () => void; onCopy: () => void;
+}) {
+  const [confirm, setConfirm] = useState(false);
+  // Un lien « Plusieurs » sans limite reste « ouvert » après des réponses : il se recopie tant qu'il marche.
+  const live = link.state === 'pending' || link.state === 'opened' || (link.max_uses > 1 && link.uses < link.max_uses
+    && link.state !== 'expired' && link.state !== 'revoked');
+  const arrivalNames = link.arrivals.map((a) => a.name).filter(Boolean).join(', ');
   const title = linkTitle(link);
-  const badge = link.state === 'opened' && !link.arrivals.length ? { t: 'A ouvert', c: colors.coral }
+  const asking = link.arrivals.filter((a) => a.request === 'pending').length;
+  const badge = asking && link.max_uses === 1 ? { t: 'En attente', c: colors.coral }
+    : link.state === 'opened' && !link.arrivals.length ? { t: 'A ouvert', c: colors.coral }
     : link.state === 'pending' ? { t: 'Pas ouvert', c: UNOPENED_COLOR }
       : link.arrivals.length ? { t: unlimited(link.max_uses) ? `${link.uses} ✓` : link.max_uses > 1 ? `${link.uses}/${link.max_uses}` : 'Répondu', c: rsvpColors.yes }
         : { t: link.state === 'revoked' ? 'Arrêté' : 'Terminé', c: colors.muted };
   const actions = live ? [
-    ...(link.nudged_today ? [] : [{ label: '↻ Relancer', color: colors.lavender, fg: colors.bg, onPress: onNudge }]),
+    ...(link.nudged_today || !onNudge ? [] : [{ label: '↻ Relancer', color: colors.lavender, fg: colors.bg, onPress: onNudge }]),
     { label: confirm ? 'Confirmer' : 'Arrêter', color: colors.red, fg: colors.onRed, onPress: () => (confirm ? onStop() : setConfirm(true)) },
   ] : [];
   return (
@@ -310,9 +407,15 @@ function LinkRow({ link, spokenName, onNudge, onStop }: { link: SentLink; spoken
         <View style={st.linkIcon}><T size={17}>{link.max_uses > 1 ? '👥' : '🔗'}</T></View>
         <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
           <T weight="semibold" size={15} numberOfLines={1}>{title}</T>
-          <T muted size={12} numberOfLines={2}>{linkLine(link)}{link.max_uses > 1 && link.arrivals.length ? ` · ${link.arrivals.map((a) => a.name).join(', ')}` : ''}</T>
+          <T muted size={12} numberOfLines={2}>{linkLine(link)}{link.max_uses > 1 && arrivalNames ? ` · ${arrivalNames}` : ''}</T>
         </View>
         <View style={[st.pill, { borderColor: badge.c }]}><T size={12} weight="bold" color={badge.c}>{badge.t}</T></View>
+        {live ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Copier le lien : ${spokenName}`} onPress={onCopy} hitSlop={8}
+            style={({ pressed }) => [st.copy, pressTransition, pressed && { transform: [{ scale: 0.92 }] }]}>
+            <T size={13} weight="bold" color={colors.accent}>Copier</T>
+          </Pressable>
+        ) : null}
       </View>
     </SwipeRow>
   );
@@ -401,7 +504,8 @@ function SwipeRow({ actions, label, children }: { actions: SwipeAction[]; label:
 
 const st = StyleSheet.create({
   inviteMore: { minHeight: 48, borderRadius: radius.md, backgroundColor: colors.action, alignItems: 'center', justifyContent: 'center' },
-  card: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.lg, padding: 16, gap: 14 },
+  card: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.lg, padding: 16, gap: 12 },
+  toggle: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, minHeight: 32 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   plus: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.action, alignItems: 'center', justifyContent: 'center' },
   rule: { gap: 2, padding: 12, borderRadius: radius.md, backgroundColor: colors.fill },
@@ -420,6 +524,11 @@ const st = StyleSheet.create({
   swipeActions: { flexDirection: 'row', alignSelf: 'stretch', minHeight: 56 },
   swipeAction: { width: ACTION_WIDTH, minHeight: 56, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: radius.pill, borderWidth: 1 },
+  copy: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.surface2 },
+  request: { borderRadius: radius.md, padding: 10, backgroundColor: colors.surface2 },
+  asking: { gap: 8, padding: 12, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.coral },
+  accept: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: colors.action, alignItems: 'center' },
+  refuse: { paddingHorizontal: 12, paddingVertical: 5, alignItems: 'center' },
   dot: { width: 7, height: 7, borderRadius: 4 },
   tag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: colors.fillStrong },
   smallAction: { minHeight: 32, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.accentDim, alignItems: 'center', justifyContent: 'center' },

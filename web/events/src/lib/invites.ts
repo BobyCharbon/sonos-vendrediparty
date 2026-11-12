@@ -25,12 +25,25 @@ export type LinkState = 'pending' | 'opened' | 'full' | 'expired' | 'revoked';
 export type SentLink = {
   token: string; label: string | null; max_uses: number; uses: number; created_at: string; expires_at: string;
   opened_at: string | null; state: LinkState; version: number; created_by: string | null; created_by_id: string | null;
-  nudged_today: boolean; arrivals: { id: string; name: string; status: RsvpStatus | null }[];
+  /** Vue d'un invité : name (et id) vides, seul le nombre de réponses compte. */
+  nudged_today: boolean; arrivals: Arrival[];
 };
+/** request (12.11) : arrivée par le lien d'un invité, en attente de l'accord de l'organisateur, ou pas acceptée. */
+export type Arrival = { id: string | null; name: string | null; status: RsvpStatus | null; request?: 'pending' | 'refused' | null };
+/** Demande à accepter (12.11) : personne arrivée par le lien d'un invité sur un événement sans lien public. */
+export type JoinRequest = {
+  id: string; name: string; avatar_url: string | null; answer: RsvpStatus | 'poll'; created_at: string;
+  invited_by: string | null; invited_by_id: string | null; link_label: string | null;
+};
+export type GuestCounts = Record<Exclude<GuestFilter, 'all'>, number> & { total: number };
 export type GuestList = {
   vip: boolean; public: boolean; vip_name: string | null; poll?: boolean;
+  /** Vue d'un invité (avis 83ebee37aa0f, 11.11) : les chiffres seulement (people vide), ses liens à lui, sans nom. */
+  guest?: boolean; counts?: GuestCounts;
   groups: { id: string; name: string; members: number }[];
   people: Guest[]; links: SentLink[];
+  /** Organisateur : personnes qui attendent son accord (base plus ancienne : absent). */
+  requests?: JoinRequest[];
 };
 
 /** Filtres de la carte : réponses, pas encore répondu, lien pas encore ouvert. */
@@ -41,7 +54,8 @@ function waitingLinks(list: GuestList) {
   return list.links.filter((l) => l.max_uses === 1 && (l.state === 'pending' || l.state === 'opened') && !l.arrivals.length);
 }
 
-export function guestCounts(list: GuestList): Record<Exclude<GuestFilter, 'all'>, number> & { total: number } {
+export function guestCounts(list: GuestList): GuestCounts {
+  if (list.counts) return list.counts;
   const count = (s: RsvpStatus) => list.people.filter((p) => p.status === s).length;
   const waiting = waitingLinks(list);
   const unopened = waiting.filter((l) => l.state === 'pending').length;
@@ -95,9 +109,14 @@ export function linkLine(l: SentLink): string {
   if (l.state === 'revoked') return 'Arrêté';
   if (l.max_uses > 1) {
     const places = unlimited(l.max_uses) ? `${l.uses} ${l.uses > 1 ? 'personnes' : 'personne'} · sans limite` : `${l.uses} sur ${l.max_uses} places`;
-    return l.state === 'expired' ? `${places} · terminé` : `${places} · jusqu’au ${shortDate(l.expires_at)}`;
+    const waiting = l.arrivals.filter((a) => a.request === 'pending').length;
+    const line = l.state === 'expired' ? `${places} · terminé` : `${places} · jusqu’au ${shortDate(l.expires_at)}`;
+    return waiting ? `${line} · ${waiting} en attente d’accord` : line;
   }
-  if (l.arrivals.length) return `${l.arrivals[0]!.name} a répondu${l.arrivals[0]!.status ? ` « ${statusWords[l.arrivals[0]!.status]} »` : ''}`;
+  const first = l.arrivals[0];
+  if (first?.request === 'pending') return `${first.name ?? 'Une personne'} attend l’accord de l’organisateur`;
+  if (first?.request === 'refused') return `${first.name ? `${first.name} · ` : ''}demande refusée par l’organisateur`;
+  if (first) return `${first.name ?? 'Une personne'} a répondu${first.status ? ` « ${statusWords[first.status]} »` : ''}`;
   if (l.state === 'expired') return 'Plus valable · jamais utilisé';
   if (l.state === 'opened') return `Ouvert ${shortDate(l.opened_at)} · pas encore de réponse`;
   return `Envoyé ${shortDate(l.created_at)} · pas encore ouvert`;
@@ -180,7 +199,17 @@ async function call<T>(name: string, args: Record<string, unknown>, fallback: st
 }
 
 export const fetchGuestList = (e: string) =>
-  call<GuestList>('event_guest_list', { e }, 'La liste des invités n’a pas pu être lue.').then(pollGuestList);
+  call<GuestList>('event_guest_list', { e }, 'La liste des invités n’a pas pu être lue.').then(checkGuestList).then(pollGuestList);
+
+/** Réponse de la base vérifiée avant l'écran : une liste malformée ne doit jamais faire tomber la fiche. */
+function checkGuestList(list: unknown): GuestList {
+  const l = list as Partial<GuestList> | null;
+  if (!l || typeof l !== 'object' || !Array.isArray(l.people) || !Array.isArray(l.links) || !Array.isArray(l.groups)
+      || (l.requests != null && !Array.isArray(l.requests))) {
+    throw new Error('La liste des invités n’a pas pu être lue.');
+  }
+  return l as GuestList;
+}
 
 /**
  * Sondage de dates (08.11) : répondre, c'est voter les dates. « A voté » tient la place de « vient » (mêmes comptes, mêmes
@@ -201,10 +230,18 @@ export const nudgeInvitees = (e: string, people: string[]) =>
   call<{ notified: number; skipped: number; share: string[] }>('nudge_invitees', { e, people }, 'La relance n’a pas pu partir.');
 export const nudgeLink = (tok: string) => call<null>('nudge_invite_link', { tok }, 'La relance n’a pas pu partir.');
 export const stopLink = (tok: string) => call<null>('revoke_invite_link', { tok }, 'Le lien n’a pas pu être arrêté.');
+/** « À valider » (onglet Activité) : demandes de tous mes événements, organisateur ou co-organisateur (12.11). */
+export type MyJoinRequest = JoinRequest & { event_id: string; title: string; starts_at: string | null; date_mode: 'fixed' | 'poll' };
+export const fetchMyJoinRequests = () =>
+  call<MyJoinRequest[] | null>('my_join_requests', {}, 'Les demandes à accepter ne se chargent pas.').then((r) => (Array.isArray(r) ? r : []));
+/** Accepter ou refuser une personne invitée par un invité (12.11) ; renvoie la liste à jour. */
+export const decideJoinRequest = (e: string, person: string, accept: boolean) =>
+  call<GuestList>('decide_join_request', { e, person, accept }, 'Ta décision n’a pas pu être enregistrée. Réessaie.')
+    .then(checkGuestList).then(pollGuestList);
 
 /** Carte d'invitation (lisible sans compte). */
 export type InviteCard = {
-  state: LinkState | 'mine' | 'removed'; version: number; label: string | null; places_left: number | null; inviter: string | null;
+  state: LinkState | 'mine' | 'removed' | 'waiting' | 'refused'; version: number; label: string | null; places_left: number | null; inviter: string | null;
   title: string; status: 'published' | 'cancelled'; date_mode: 'fixed' | 'poll'; starts_at: string | null; ends_at: string | null;
   all_day: boolean; location_name: string | null; cover_url: string | null; description: string | null; allow_maybe: boolean;
   closed: boolean; going: number; going_names: string[]; mine: RsvpStatus | null; event_id: string | null;
@@ -213,11 +250,15 @@ export type InviteCard = {
   voters?: number; voter_names?: string[]; me_complete?: boolean;
   /** Déjà invité autrement (event_id fourni) ; lien prévu pour plusieurs (même fermé). Base plus ancienne : absents. */
   already?: boolean; multi?: boolean;
+  /** 12.11 : l'organisateur accepte chaque personne venue par ce lien (lien d'un invité, événement sans lien public). */
+  approval?: boolean; host?: string | null;
 };
 export type Accepted = {
   event_id: string; status: RsvpStatus | null; title: string; starts_at: string | null; ends_at: string | null; all_day: boolean;
   date_mode: string; location_name: string | null; location_address: string | null; location_url: string | null;
   description: string | null; waitlisted: boolean | null;
+  /** 12.11 : demande envoyée, l'organisateur (host) doit accepter avant que la personne voie l'événement. */
+  pending?: boolean; host?: string | null;
 };
 
 export const fetchInviteCard = (token: string, opened: boolean) =>
