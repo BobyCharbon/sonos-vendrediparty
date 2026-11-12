@@ -90,12 +90,15 @@ begin
 
   sees := public.can_see_event(ev.id);
   select * into req from public.event_join_requests q where q.event_id = ev.id and q.user_id = me;
-  -- Demande déjà envoyée (par ce lien ou un autre) : on garde la réponse la plus récente, on attend l'organisateur.
-  if not sees and req.status = 'pending' then
+  if not sees and req.status in ('pending', 'refused') and not private.needs_approval(ev, l.created_by) then
+    -- Lien de l'organisateur ou d'un co-organisateur : il vaut accord, même après un refus (refus par erreur, 12.11).
+    update public.event_join_requests q set status = 'accepted', decided_at = now(), decided_by = l.created_by
+      where q.event_id = ev.id and q.user_id = me;
+  elsif not sees and req.status = 'pending' then
+    -- Demande déjà envoyée (par le lien d'un invité) : on garde la réponse la plus récente, on attend l'organisateur.
     update public.event_join_requests q set answer = accept_invite.answer where q.event_id = ev.id and q.user_id = me;
     return private.join_request_answer(ev, answer);
-  end if;
-  if not sees and req.status = 'refused' then
+  elsif not sees and req.status = 'refused' then
     raise exception 'refused: l''organisateur n''a pas accepté ta venue à cet événement' using errcode = '42501';
   end if;
 
@@ -203,8 +206,9 @@ begin
   if me is not null then
     sees := public.can_see_event(ev.id);
     select * into req from public.event_join_requests q where q.event_id = ev.id and q.user_id = me;
-    waiting := not sees and not organizer and coalesce(req.status = 'pending', false);
-    refused := not sees and not organizer and coalesce(req.status = 'refused', false);
+    -- Le lien de l'organisateur ou d'un co-organisateur vaut accord : ni « en attente » ni « refusé » dessus.
+    waiting := not sees and not organizer and coalesce(req.status = 'pending', false) and private.needs_approval(ev, l.created_by);
+    refused := not sees and not organizer and coalesce(req.status = 'refused', false) and private.needs_approval(ev, l.created_by);
     arrived := coalesce(l.used_by = me, false)
       or exists (select 1 from private.invite_link_arrivals a where a.token = l.token and a.user_id = me);
     select * into mine from public.rsvps r where r.event_id = ev.id and r.user_id = me;

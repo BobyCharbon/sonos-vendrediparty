@@ -79,7 +79,7 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Accord de l'organisateur (12.11) : sans lien public (sur invitation, groupe, Membres Vendredi Party), la personne venue par
   le lien d'un INVITÉ attend l'accord (`event_join_requests`, `accept_invite` → `pending`, « À accepter » dans la carte
   Invités, `decide_join_request`) ; elle ne voit ni la fiche ni l'adresse avant. Seuls l'organisateur et les co-organisateurs
-  (et `events.manage_all`) font entrer directement (`private.needs_approval`). Événement public : inchangé.
+  (et `events.manage_all`) font entrer directement (`private.needs_approval`). Leur lien vaut accord, même après un refus (refus par erreur). Événement public : inchangé.
   Tests : `tests/supabase_live/test_invitation_accord_live.py`, `tests/test_invitation_accord_browser.py`.
 - Agenda (11.11) : partout la même méthode, le calendrier abonné « Vendredi Party » de la personne (un lien par personne,
   `calendar_feed_token(e, add)` / `calendar_feed`, `/api/calendar-feed/<jeton>.ics`) : ajouter un événement (bouton

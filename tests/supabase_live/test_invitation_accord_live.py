@@ -106,3 +106,19 @@ def test_a_co_organizer_sees_the_request_in_activity_and_accepts_it():
       n := jsonb_array_length(public.my_join_requests());""" + as_bot("violette") + """
       raise exception 'résultat: ada_voit=% titre=% valentin_voit=% violette_voit=%', m, r->0->>'title', n, public.can_see_event(e);""")
     assert "résultat: ada_voit=1 titre=Test annonce bots valentin_voit=0 violette_voit=t" in out, out
+
+
+def test_after_a_refusal_by_mistake_the_organizer_link_lets_her_in():
+    """Refus par erreur (question de l'admin, 12.11) : le lien de l'organisateur vaut accord, même après un refus ;
+    celui d'un invité reste fermé."""
+    out = run(VICTOR_LINK + as_bot("violette") + """
+      perform public.accept_invite(a, 'yes');""" + as_bot("olga") + """
+      perform public.decide_join_request(e, violette, false);
+      r := public.create_event_invite(e, 1);""" + as_bot("violette") + """
+      m := case when public.invite_preview((r->>'token')::uuid)->>'state' in ('waiting', 'refused') then 1 else 0 end;
+      r := public.accept_invite((r->>'token')::uuid, 'maybe');""" + as_postgres() + """
+      raise exception 'résultat: carte_bloquee=% en_attente=% voit=% vient=% demande=%', m, coalesce(r->>'pending', 'non'),
+        (select count(*) from public.event_invites where event_id = e and user_id = violette),
+        (select status from public.rsvps where event_id = e and user_id = violette),
+        (select status from public.event_join_requests where event_id = e and user_id = violette);""")
+    assert "résultat: carte_bloquee=0 en_attente=non voit=1 vient=maybe demande=accepted" in out, out
