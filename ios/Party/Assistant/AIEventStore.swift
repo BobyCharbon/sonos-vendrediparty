@@ -67,6 +67,8 @@ enum AIEvent {
         var not_understood: [String]
 
         var ready: Bool { status == "ready" && questions.isEmpty }
+        /// « Lieu à définir » (avis 2237524ab14b) : la date est réservée, le lieu viendra plus tard.
+        var placeLater: Bool { place_kind == "later" }
 
         /// Champs absents (serveur plus ancien ou plus récent que l'app) : valeurs vides, jamais une erreur.
         init(from decoder: Decoder) throws {
@@ -566,11 +568,11 @@ final class AIEventStore: ObservableObject {
     }
 
     /// « Créer » n'est possible que si le brouillon est complet et que le lieu a été confirmé sur la carte : les invités
-    /// ont toujours une adresse où se rendre.
+    /// ont toujours une adresse où se rendre, sauf « lieu à définir » dit à l'IA.
     var canCreate: Bool {
         guard let draft, draft.ready else { return false }
         if editingId != nil { return !changes.isEmpty && (place != nil || draft.place_query.isEmpty) }
-        return place != nil
+        return place != nil || draft.placeLater
     }
 
     #if DEBUG || E2E_HOOKS

@@ -6,8 +6,8 @@ l'événement récapitule tous les changements."""
 from datetime import datetime
 
 from .accounts import AccountError, db_refusal
-from .ai_events import (ONLY_INVITEES, PUBLIC_AUDIENCE, VIP_AUDIENCE, ZURICH, EventAssistant, Options, bring_row,
-                        local_time)
+from .ai_events import (LATER_PLACE, ONLY_INVITEES, PUBLIC_AUDIENCE, VIP_AUDIENCE, ZURICH, EventAssistant, Options,
+                        bring_row, local_time)
 
 SELECT = ("*, category:categories(name), event_tags(tag_id), event_organizers(user_id), event_invites(user_id, via_group),"
           " event_groups(group_id), date_options(starts_at), polls(id, question, poll_options(label)),"
@@ -47,16 +47,17 @@ def draft_of(e: dict, o: Options) -> dict:
     """Événement en base → brouillon au format de l'IA (celui qu'elle renvoie à la création)."""
     person = {pid: name for name, pid in o.people.items()}
     tag = {tid: name for name, tid in o.tags.items()}
-    place = e.get("location_address") or e.get("location_name") or ""
+    later = (e.get("location_name") or "") == LATER_PLACE and not e.get("location_address")
+    place = "" if later else e.get("location_address") or e.get("location_name") or ""
     home = str(e.get("location_name") or "").lower().startswith("chez ")
     return {
         "status": "ready", "questions": [], "title": e.get("title") or "", "description": e.get("description") or "",
         "date_mode": e.get("date_mode") or "fixed", "start": _local(e.get("starts_at")), "end": _local(e.get("ends_at")),
         "date_options": sorted(_local(d["starts_at"]) for d in e.get("date_options") or []),
         "poll_deadline": _local(e.get("poll_deadline")),
-        "place_kind": ("home" if home else "venue") if place else "none",
+        "place_kind": "later" if later else ("home" if home else "venue") if place else "none",
         "place_query": place, "place_name": e.get("location_name") or "", "place_broad": "",
-        "address_complete": bool(place),
+        "address_complete": bool(place) or later,
         "price_chf": float(e.get("price_chf") or 0), "payment_info": e.get("payment_info") or "",
         "max_participants": e.get("max_participants") or 0, "waitlist": bool(e.get("waitlist_enabled", True)),
         "plus_ones": bool(e.get("allow_plus_ones", True)), "max_plus_ones": e.get("max_plus_ones") or 0,
@@ -94,7 +95,9 @@ def changes(old: dict, new: dict) -> list[str]:
     labels = [("title", "Titre"), ("start", "Début"), ("end", "Fin"), ("place_query", "Lieu"), ("price_chf", "Prix (CHF)"),
               ("max_participants", "Places (0 = illimité)"), ("payment_info", "Paiement"), ("rsvp_deadline", "Réponse avant")]
     for key, label in labels:
-        if old.get(key) != new.get(key):
+        if key == "place_query" and new.get("place_kind") == "later" and old.get("place_kind") != "later":
+            out.append(f"Lieu : {LATER_PLACE.lower()}")
+        elif old.get(key) != new.get(key):
             out.append(f"{label} : {_shown(key, new.get(key))}")
     if old.get("description") != new.get("description"):
         out.append("Description mise à jour")
@@ -163,7 +166,8 @@ class EventEditor:
         row = self.events._event_row(d, o, place if isinstance(place, dict) else {}, uid, now)
         for key in ("created_by", "status", "reminders"):
             row.pop(key)
-        if not isinstance(place, dict):  # lieu inchangé : on garde l'adresse et le lien actuels
+        # Lieu inchangé : on garde l'adresse et le lien actuels ; « lieu à définir » remplace le lieu (avis 2237524ab14b).
+        if not isinstance(place, dict) and d["place_kind"] != "later":
             for key in ("location_name", "location_address", "location_url"):
                 row.pop(key)
         r = self.accounts._get("PATCH", f"/rest/v1/events?id=eq.{eid}", token, json=row,

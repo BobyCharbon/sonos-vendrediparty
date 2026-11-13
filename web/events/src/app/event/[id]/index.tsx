@@ -54,6 +54,8 @@ type Full = EventRow & {
 };
 
 /** Le temps réel accepte au plus 100 valeurs dans un filtre « in ». */
+/** Le lieu que met l'IA quand on le dit « à définir » (app/ai_events.py LATER_PLACE). */
+const PLACE_LATER = 'Lieu à définir';
 const REALTIME_IN_MAX = 100;
 /** En dessous (ou texte agrandi), les actions d'en-tête passent en icônes : le retour « ‹ Événements » garde sa place. */
 const NARROW_HEADER_WIDTH = 380;
@@ -218,7 +220,9 @@ export default function EventScreen() {
   const heads = people.going;
   const past = !!ev.starts_at && new Date(ev.ends_at ?? ev.starts_at).getTime() < data.loadedAt - 6 * 3600_000;
   // Lien du lieu saisi librement : seulement http(s) (jamais javascript:/data:), sinon la recherche Plans.
-  const mapsUrl = safeHref(ev.location_url) ?? (ev.location_address || ev.location_name ? `https://maps.apple.com/?q=${encodeURIComponent(ev.location_address ?? ev.location_name!)}` : null);
+  // « Lieu à définir » (avis 2237524ab14b) : la date est réservée, pas encore d'itinéraire.
+  const placeLater = ev.location_name === PLACE_LATER && !ev.location_address;
+  const mapsUrl = placeLater ? null : safeHref(ev.location_url) ?? (ev.location_address || ev.location_name ? `https://maps.apple.com/?q=${encodeURIComponent(ev.location_address ?? ev.location_name!)}` : null);
   const mine = ev.rsvps.find((r) => r.user_id === me.id);
   // Sondage de dates : le même bouton abonne l'agenda ; les dates votées Oui / Si besoin y arrivent ensuite toutes seules.
   const myDateVotes = Object.fromEntries(ev.date_options.map((o) => [o.id, o.date_votes.find((v) => v.user_id === me.id)?.vote ?? null]));
@@ -318,6 +322,7 @@ export default function EventScreen() {
             <View style={{ flex: 1 }}>
               <T weight="bold" size={16}>{ev.location_name ?? ev.location_address}</T>
               {ev.location_name && ev.location_address ? <T muted size={13}>{ev.location_address}</T> : null}
+              {placeLater ? <T muted size={13}>L’organisateur l’ajoutera plus tard.</T> : null}
             </View>
             {mapsUrl ? <T size={13} weight="bold" color={colors.accent}>Itinéraire ›</T> : null}
           </Pressable>

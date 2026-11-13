@@ -35,7 +35,8 @@ VIP_AUDIENCE = "Vendredi Party"
 PUBLIC_AUDIENCE = "Public (lien)"
 ONLY_INVITEES = "Seulement les personnes invitées"
 WEEKDAYS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
-PLACE_KINDS = ("home", "venue", "none")  # domicile (adresses), établissement (lieux nommés), aucun lieu
+PLACE_KINDS = ("home", "venue", "none", "later")  # domicile (adresses), établissement (lieux nommés), aucun lieu, à définir
+LATER_PLACE = "Lieu à définir"  # avis 2237524ab14b (13.11) : réserver la date avant de connaître le lieu
 NOT_UNDERSTOOD = "Je n'ai pas réussi à comprendre la description. Réessaie, ou crée l'événement à la main."
 
 SYSTEM = """Tu es l'assistant de l'app suisse « Party » (soirées et sorties entre amis, en Suisse romande). {me} te
@@ -55,7 +56,9 @@ Tu remplis TOUT le formulaire de l'événement, et tu le modifies quand la perso
   l'heure (questions), jamais de nouveau les dates ; poll_deadline : fin du vote si dite. Une date passée n'est jamais voulue.
 - place_kind : « home » si l'événement a lieu chez un particulier ou à une simple adresse (domicile, chalet, jardin,
   appartement : « chez moi », « chez Léa », une rue et un numéro sans nom d'établissement) ; « venue » si c'est un
-  établissement ou un lieu nommé (bar, restaurant, salle, club, entreprise, parc, piste) ; « none » si aucun lieu. Le
+  établissement ou un lieu nommé (bar, restaurant, salle, club, entreprise, parc, piste) ; « later » si la personne dit
+  que le lieu n'est pas encore connu (« lieu à définir », « on verra pour le lieu », « je ne sais pas encore où »,
+  « on réserve juste la date ») : place_query et place_name vides, et tu ne demandes PAS l'adresse ; « none » si aucun lieu. Le
   bon type décide de la recherche : une adresse de domicile est cherchée parmi les ADRESSES, jamais parmi les commerces.
 - place_query : ce qu'il faut chercher sur une carte, en corrigeant les fautes de dictée (accents, noms de rues et de
   communes, Suisse ou France voisine) ; vide si aucun lieu. home : l'adresse SEULE, au format postal (« Chemin des
@@ -66,7 +69,9 @@ Tu remplis TOUT le formulaire de l'événement, et tu le modifies quand la perso
 - address_complete : true seulement si le lieu permet à tous les invités de s'y rendre sans rien demander : une adresse
   complète (rue, numéro, NPA ou localité) ou un établissement public nommé avec sa ville (« Café de Collex »,
   « Pathé Flon, Lausanne »). « Chez moi », « chez Léa », « à mon domicile », une ville ou un quartier seuls : false, et
-  tu demandes l'adresse complète (« Quelle est l'adresse complète : rue, numéro, NPA et localité ? »).
+  tu demandes l'adresse complète (« Quelle est l'adresse complète : rue, numéro, NPA et localité ? (Pas encore de
+  lieu : dis « lieu à définir ».) »). Un lieu est dit :
+  toujours son adresse complète, même si la personne ajoute « à confirmer » ; « later » seulement sans aucun lieu.
 - price_chf : prix par personne (0 si gratuit ou non dit). payment_info : comment payer (« TWINT », « sur place »,
   « billets en ligne »).
 - max_participants : 0 = pas de limite. waitlist : liste d'attente quand c'est plein (true par défaut).
@@ -230,9 +235,13 @@ def clean_draft(raw: dict, now: datetime, choices: dict[str, list[str]]) -> dict
         end = ""
     slots = sorted({s for s in (_when(v, now) for v in raw.get("date_options") or []) if s})[:10] if poll_mode else []
     # Toujours une adresse où les invités peuvent se rendre : « chez moi » ou une ville seule ne suffisent pas.
-    located = bool(_text(raw, "place_query", 200)) and raw.get("address_complete") is True
+    # Sauf « lieu à définir » (avis 2237524ab14b) : la date est réservée, le lieu viendra plus tard.
+    later = place_kind(raw) == "later"
+    if later:
+        questions = [q for q in questions if not any(w in q.lower() for w in ("adresse", "lieu", " où"))]
+    located = later or (bool(_text(raw, "place_query", 200)) and raw.get("address_complete") is True)
     if not located and not any("adresse" in q.lower() for q in questions):
-        questions.append("Quelle est l'adresse complète : rue, numéro, NPA et localité ?")
+        questions.append("Quelle est l'adresse complète : rue, numéro, NPA et localité ? (Pas encore de lieu : dis « lieu à définir ».)")
     if not title and not any("titre" in q.lower() or "appeler" in q.lower() for q in questions):
         questions.append("Comment veux-tu appeler cet événement ?")
     dated = len(slots) >= 2 if poll_mode else bool(start)
@@ -260,8 +269,8 @@ def clean_draft(raw: dict, now: datetime, choices: dict[str, list[str]]) -> dict
         "start": start, "end": end, "date_options": slots,
         "poll_deadline": _when(raw.get("poll_deadline"), now) if poll_mode else "",
         "place_kind": place_kind(raw),
-        "place_query": _text(raw, "place_query", 200),
-        "place_name": _text(raw, "place_name", 120),
+        "place_query": "" if later else _text(raw, "place_query", 200),
+        "place_name": LATER_PLACE if later else _text(raw, "place_name", 120),
         "place_broad": _text(raw, "place_broad", 200) if place_kind(raw) == "venue" else "",
         "address_complete": located,
         "price_chf": round(_number(raw.get("price_chf"), 10000.0), 2),

@@ -111,6 +111,10 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Groupes : « Inviter avec un lien » (lien réutilisable du groupe) en haut de son groupe, web et iPhone ; le groupe s'ouvre
   juste après sa création. Qui ouvre le lien rejoint directement (connexion SMS et profil d'abord).
 - Recette simulateur de ces avis : `ios/PartyUITests/RecetteAvisUITests.swift` (serveur local + base de TEST).
+- Date de création (« Événement créé le … · modifié le … », « Sondage créé le … ») tout en bas de chaque fiche (`createdLine`).
+- « Lieu à définir » (avis 2237524ab14b) : dit à l'IA, la date est réservée sans lieu (`place_kind` « later », `LATER_PLACE`
+  en base, aucune question d'adresse, pas d'itinéraire sur la fiche) ; un lieu dit exige toujours son adresse complète
+  confirmée. Tests : `test_place_to_be_defined_*`, `AIEventPlaceLaterTests`, recette `test8AIPlaceToBeDefined`.
 
 ## Inscription des invités (avis 39f148377a8f, 10.11.2026) — profil complet, parcours normal
 - Toute personne invitée (lien d'invitation, lien public « Partager », groupe) passe par la connexion NORMALE de l'app

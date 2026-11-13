@@ -368,7 +368,11 @@ struct AIEventView: View {
 
     @ViewBuilder
     private func placeRow(_ d: AIEvent.Draft) -> some View {
-        if store.searchingPlace {
+        if d.placeLater {
+            row("mappin.and.ellipse", "Lieu à définir\nTu l'ajouteras plus tard en modifiant l'événement")
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("ai-place-later")
+        } else if store.searchingPlace {
             HStack(spacing: 10) { ProgressView(); Text("Recherche du lieu…").foregroundStyle(.secondary) }
                 .transition(.opacity)
         } else if let p = store.place {

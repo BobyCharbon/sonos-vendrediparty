@@ -134,6 +134,23 @@ final class RecetteAvisUITests: XCTestCase {
 
     // MARK: 3. Admin : connexion, connexions récentes, « Nouveau compte », groupes
 
+    /// Connexion du compte de test « Admin test » (code fixe, aucun SMS) si l'app n'est pas déjà connectée.
+    private func signInAdmin() {
+        settingsTab()
+        guard app.staticTexts["Se connecter"].exists else { return }
+        XCTAssertTrue(openRow("Se connecter"))
+        let field = app.textFields["login-phone"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "champ du numéro")
+        field.tap()
+        app.typeText("0790000004")
+        app.buttons["login-send"].tap()
+        let code = app.textFields["login-code"]
+        XCTAssertTrue(code.waitForExistence(timeout: 20), "champ du code")
+        code.tap()
+        app.typeText("123456")
+        XCTAssertTrue(app.staticTexts["Admin test"].waitForExistence(timeout: 30), "connecté en Admin test")
+    }
+
     func test3AdminSettingsAndGroups() {
         launch()
         settingsTab()
@@ -315,5 +332,43 @@ final class RecetteAvisUITests: XCTestCase {
         shot("salle/regles")
         let ok = webButton("J'ai compris")
         if ok.exists { ok.tap() }
+    }
+
+    // MARK: 8. « Créer avec l'IA » : lieu à définir (avis 2237524ab14b), puis la fiche (date de création tout en bas)
+
+    func test8AIPlaceToBeDefined() throws {
+        try XCTSkipUnless(env["RECETTE_LATER"] != nil, "recette « lieu à définir » (RECETTE_LATER)")
+        launch()
+        signInAdmin()
+        app.terminate()
+        app = XCUIApplication()
+        app.launchEnvironment["PARTY_DEBUG_JS"] = "localStorage.setItem('vp_install_dismissed','1');"
+        app.launchEnvironment["PARTY_DEBUG_AI_EVENT"] = env["RECETTE_LATER"]
+        app.launchEnvironment["PARTY_DEBUG_AI_SAID"] = "Raclette le 12 décembre à 20h, lieu à définir"
+        app.launch()
+        let later = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Lieu à définir'")).firstMatch
+        XCTAssertTrue(later.waitForExistence(timeout: 40), "« Lieu à définir » dans le récapitulatif")
+        shot("lieu/recap-ou")
+        let proceed = app.buttons["ai-continue"]
+        for _ in 0..<10 where !(proceed.exists && proceed.isHittable) { app.swipeUp() }
+        shot("lieu/recap")
+        XCTAssertTrue(proceed.isEnabled, "« Oui, continuer » actif sans lieu sur la carte")
+        proceed.tap()
+        let invite = app.buttons["ai-invite"]
+        XCTAssertTrue(invite.waitForExistence(timeout: 60), "brouillon enregistré")
+        shot("lieu/brouillon-enregistre")
+    }
+
+    func test9PlaceToBeDefinedAndCreatedAtTheBottom() throws {
+        let id = try XCTUnwrap(env["RECETTE_LATER_EVENT"], "événement « Lieu à définir » publié (RECETTE_LATER_EVENT)")
+        launch(openEvents("/event/\(id)"))
+        let place = web("Lieu à définir")
+        XCTAssertTrue(place.waitForExistence(timeout: 60), "« Lieu à définir » sur la fiche")
+        XCTAssertTrue(web("ajoutera plus tard").exists, "« L’organisateur l’ajoutera plus tard. »")
+        XCTAssertFalse(web("Itinéraire").exists, "pas d'itinéraire")
+        shot("lieu/fiche")
+        let created = web("Événement créé le")
+        XCTAssertTrue(reveal(created), "« Événement créé le … » tout en bas")
+        shot("lieu/cree-le-en-bas")
     }
 }
