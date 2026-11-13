@@ -177,3 +177,22 @@ def test_list_search_tabs_and_attendance_pill(browser, events_origin):
         pw.expect(page.get_by_text('Soirée de test participant')).to_have_count(0)
     finally:
         context.close()
+
+
+def test_the_date_poll_says_when_it_was_created_and_last_changed(browser, events_origin):  # noqa: F811
+    """Avis de l'admin (10.11) : en haut du sondage, la date de création et celle de la dernière modification
+    (l'événement, ou la dernière date proposée)."""
+    option = {'id': '0d0d0d0d-0000-4000-8000-000000000001', 'event_id': EVENT, 'starts_at': '2030-11-20T18:00:00Z',
+              'ends_at': None, 'proposed_by': LEA, 'created_at': '2026-11-03T16:45:00Z', 'date_votes': []}
+    ev = event_row(date_mode='poll', starts_at=None, date_options=[option], updated_at='2026-11-02T09:00:00Z')
+    context, page = open_event(browser, events_origin, ev)
+    try:
+        pw.expect(page.get_by_text('Sondage créé le 1 nov. à 09:00 · modifié le 3 nov. à 17:45', exact=True)).to_be_visible()
+    finally:
+        context.close()
+    ev = event_row(date_mode='poll', starts_at=None, date_options=[{**option, 'created_at': '2026-11-01T08:00:20Z'}])
+    context, page = open_event(browser, events_origin, ev)
+    try:
+        pw.expect(page.get_by_text('Sondage créé le 1 nov. à 09:00', exact=True)).to_be_visible()  # rien changé depuis
+    finally:
+        context.close()

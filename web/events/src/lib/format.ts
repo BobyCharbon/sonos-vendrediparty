@@ -109,3 +109,26 @@ function span(days: number): string {
 export function plural(n: number, singular: string, pluralForm = `${singular}s`): string {
   return `${n} ${n > 1 ? pluralForm : singular}`;
 }
+
+const SAME_MOMENT_MS = 60_000;
+const stampFmt = new Intl.DateTimeFormat('fr-CH', { timeZone: TZ, day: 'numeric', month: 'short' });
+
+/** « 6 nov. à 19:30 » */
+function stamp(t: number): string {
+  const d = new Date(t);
+  return `${stampFmt.format(d)} à ${timeFmt.format(d)}`;
+}
+
+/**
+ * En haut d'un sondage de dates (avis de l'admin, 10.11) : « Sondage créé le 6 nov. à 19:30 · modifié le 9 nov. à 08:12 ».
+ * Dernière modification : l'événement, ou la dernière date proposée ; rien si rien n'a changé depuis la création.
+ */
+export function pollDatesLine(createdAt: string, updatedAt: string | null | undefined, optionDates: (string | undefined)[]): string {
+  const created = new Date(createdAt).getTime();
+  const last = [updatedAt, ...optionDates].reduce<number>((max, iso) => {
+    const t = iso ? new Date(iso).getTime() : NaN;
+    return Number.isFinite(t) && t > max ? t : max;
+  }, created);
+  const base = `Sondage créé le ${stamp(created)}`;
+  return last - created > SAME_MOMENT_MS ? `${base} · modifié le ${stamp(last)}` : base;
+}

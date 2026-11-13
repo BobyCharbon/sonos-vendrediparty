@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { formatShort, parseLocalDateTime } from '@/lib/format';
+import { formatShort, parseLocalDateTime, pollDatesLine } from '@/lib/format';
 import { enter, pressTransition, useChangedSinceMount } from '@/lib/motion';
 import { refreshPending } from '@/lib/pending';
 import { fetchAttendance } from '@/lib/attendance';
@@ -466,6 +466,9 @@ export function DatePollSection({
       style={!closed && !voters.has(me) && options.length ? { borderColor: colors.accent, borderWidth: 2, backgroundColor: '#22152A' } : undefined}
       right={!closed && !voters.has(me) && options.length ? <View style={st.pill}><T size={12} weight="bold" color={colors.accent}>À répondre</T></View> : <T muted size={12}>{voters.size} votant{voters.size > 1 ? 's' : ''}</T>}
     >
+      <T muted size={12}>
+        {pollDatesLine(event.created_at, event.updated_at, options.map((o) => o.created_at))}
+      </T>
       {!closed && !voters.has(me) && options.length ? <T size={14} color={colors.textSoft}>Indique pour chaque date si tu es dispo : l’organisateur fixera celle qui arrange le plus de monde.</T> : null}
       <T muted size={13}>
         {event.status !== 'published' ? 'Les votes seront disponibles lorsque l’événement sera publié.' : closed ? 'Le vote est terminé.' : event.poll_deadline ? `Vote jusqu’au ${formatShort(event.poll_deadline)}` : 'Pour chaque date : Oui, Si besoin ou Non.'}
