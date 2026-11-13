@@ -20,6 +20,7 @@ import { InviteLinkCard } from '@/components/InviteLinkCard';
 import { parseIds } from '@/components/InviteStep';
 import { LinkedText } from '@/components/LinkedText';
 import { CarpoolCard } from '@/components/CarpoolCard';
+import { NotifyBanner } from '@/components/NotifyBanner';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
 import { Badge, Button, Card, Cascade, ConfirmButton, ErrorText, HeaderAction, HeaderBack, Screen, s, Section, Skeleton, T, Title, Toast } from '@/components/ui';
 import { fetchAttendance, localAttendance } from '@/lib/attendance';
@@ -258,6 +259,8 @@ export default function EventScreen() {
     <Screen edges={[]}>
       {/* Ouverture : l’en-tête puis chaque bloc montent en cascade (une seule fois, pas aux rechargements). */}
       <Cascade>
+      {/* Notifications éteintes sur cet appareil : le dire en haut, avec « Activer » (avis c77d117ab172, 13.11). */}
+      {published && me.id ? <NotifyBanner /> : null}
       {/* Affiche de l’événement (lue sur la page de l’événement par l’assistant IA) */}
       {ev.cover_url?.startsWith('https://') ? (
         <Image source={{ uri: ev.cover_url }} style={st.cover} resizeMode="cover" accessibilityLabel="Affiche de l’événement" />
