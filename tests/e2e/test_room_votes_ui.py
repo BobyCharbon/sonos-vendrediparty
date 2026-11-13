@@ -51,3 +51,28 @@ def test_players_vote_and_the_host_launches_the_favourite(phones):
     boby.tap('.g-room-best [data-room-pick="quiz"]')
     boby.tap('.g-room-sheet [data-create="quiz"]')
     wait_state(boby, lambda g: g.get('type') == 'quiz' or (g.get('room_info') or {}).get('current'), timeout=10)
+
+
+def test_a_participant_reads_the_rules_of_a_game_before_voting(phones):
+    """Avis de l'admin (10.11) : « ? » en haut à droite de chaque jeu de la salle (règles, sans voter), « NEW » à gauche."""
+    boby = phones('Boby')
+    code = boby.create('room')
+    lea = phones('Lea')
+    lea.join(code)
+    lea.act('join')
+    help_btn = lea.page.locator('#gamePlay .g-room-cell:has([data-room-vote="undercover"]) .g-room-help')
+    expect(help_btn).to_be_visible()
+    tile = lea.page.locator('#gamePlay [data-room-vote="undercover"]').bounding_box()
+    box = help_btn.bounding_box()
+    assert box['x'] + box['width'] / 2 > tile['x'] + tile['width'] / 2 and box['y'] < tile['y'] + 10  # en haut à droite
+    help_btn.click()
+    expect(lea.page.locator('#rulesModal')).to_be_visible()
+    expect(lea.page.locator('#rulesTitle')).to_have_text('Undercover')
+    expect(lea.page.locator('#gamePlay [data-room-vote="undercover"]')).to_have_attribute('aria-pressed', 'false')  # rien voté
+    lea.page.locator('#rulesModal [data-rules-close]').last.click()
+    expect(lea.page.locator('#rulesModal')).to_be_hidden()
+    # Le nouveau jeu garde « NEW », à gauche ; le « ? » reste à droite.
+    new = lea.page.locator('#gamePlay .g-room-tile .g-new').first
+    if new.count():
+        cell = new.locator('xpath=ancestor::div[contains(@class,"g-room-cell")]').bounding_box()
+        assert new.bounding_box()['x'] < cell['x'] + cell['width'] / 2

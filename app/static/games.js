@@ -2664,13 +2664,16 @@ function lobbyInviteFull(g) {
 
 // ── Salle de jeux ──
 // Tuile d'un jeu de la salle : l'animateur la touche pour lancer le jeu ; un participant, pour voter (un seul choix).
-// Compteur de votes en haut à droite, vu de tous.
+// En haut à gauche : le compteur de votes (vu de tous), sinon « NEW » ; en haut à droite : « ? », les règles du jeu, pour
+// savoir ce que c'est avant de voter (avis de l'admin, 10.11). Le « ? » est à côté de la tuile, jamais dedans (un bouton
+// dans un bouton) : le toucher ouvre les règles sans voter.
 function roomTileHtml(c, R = {}, lead = false) {
   const n = (R.votes || {})[c.type] || 0, mine = R.my_vote === c.type;
   const action = lead ? `data-room-pick="${c.type}"` : `data-room-vote="${c.type}" aria-pressed="${mine}"`;
-  return `<button type="button" class="g-room-tile ${GAME_THEME[c.type] || ""} ${mine ? "voted" : ""} ${(R.top || []).includes(c.type) ? "top" : ""}" ${action}
+  const help = GAME_RULES[c.type] ? `<button type="button" class="g-room-help" data-rules="${esc(c.type)}" aria-label="Règles : ${esc(c.name)}">?</button>` : "";
+  return `<div class="g-room-cell"><button type="button" class="g-room-tile ${GAME_THEME[c.type] || ""} ${mine ? "voted" : ""} ${(R.top || []).includes(c.type) ? "top" : ""}" ${action}
       aria-label="${esc(c.name)}${n ? `, ${n} vote${n > 1 ? "s" : ""}` : ""}${mine ? ", ton vote" : ""}">${n ? `<i class="g-room-votes" data-bump="room-${esc(c.type)}" aria-hidden="true">${n}</i>` : newBadge(c.type)}
-    <span class="g-room-tile-i">${GAME_ICONS[c.type] || ""}</span><b>${esc(c.name)}${drinkTag(c.type)}</b></button>`;
+    <span class="g-room-tile-i">${GAME_ICONS[c.type] || ""}</span><b>${esc(c.name)}${drinkTag(c.type)}</b></button>${help}</div>`;
 }
 // Tuiles groupées par catégorie, dans le même ordre que l'écran Jeux ; un jeu sans catégorie va à la fin.
 const STORE_HIDDEN = document.documentElement.classList.contains("party-store") ? ["casino", "blackjack"] : [];
