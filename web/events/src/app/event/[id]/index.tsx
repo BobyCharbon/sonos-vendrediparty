@@ -32,7 +32,7 @@ import { GONE_TEXT, isGoneError, isNetworkError } from '@/lib/errors';
 import { eventPeopleIds, undecidedNames } from '@/lib/eventPeople';
 import { useOnline, usePaymentsTick, useSlowLoad } from '@/lib/connectivity';
 import { safeHref } from '@/lib/links';
-import { formatLongDay, formatMessageTime, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
+import { createdLine, formatLongDay, formatMessageTime, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
 import type { ReportTarget } from '@/lib/moderation';
 import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
@@ -222,6 +222,7 @@ export default function EventScreen() {
   const mine = ev.rsvps.find((r) => r.user_id === me.id);
   // Sondage de dates : le même bouton abonne l'agenda ; les dates votées Oui / Si besoin y arrivent ensuite toutes seules.
   const myDateVotes = Object.fromEntries(ev.date_options.map((o) => [o.id, o.date_votes.find((v) => v.user_id === me.id)?.vote ?? null]));
+  const createdText = createdLine(ev.date_mode === 'poll', ev.created_at, ev.updated_at, ev.date_options.map((o) => o.created_at));
   const pollDates = ev.date_mode === 'poll' ? datesToAdd(ev.date_options, myDateVotes, data.loadedAt) : [];
   const showCalendar = published && mine?.status !== 'no' && (ev.date_mode === 'fixed' ? !!ev.starts_at : pollDates.length > 0);
 
@@ -538,6 +539,8 @@ export default function EventScreen() {
           }}
         />
       ) : null}
+      {/* Avis de l'admin (13.11) : tout en bas de chaque fiche, quand l'événement (ou le sondage) a été créé et modifié. */}
+      {createdText ? <T muted size={12} style={{ textAlign: 'center' }}>{createdText}</T> : null}
       </Cascade>
     </Screen>
     {shareNote === 'Lien copié' ? <Toast message="Lien copié" onHide={() => setShareNote('')} /> : null}

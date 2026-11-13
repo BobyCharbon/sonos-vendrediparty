@@ -4,6 +4,7 @@ qui en a le droit, accompagnant de plus en liste d'attente quand l'événement e
 liste d'attente), vote du sondage de dates lisible au lecteur d'écran.
 Module construit ailleurs que web/events/dist : EVENTS_TEST_DIST=<dossier> (sinon web/events/dist)."""
 import json
+import re
 
 import pytest
 
@@ -179,20 +180,40 @@ def test_list_search_tabs_and_attendance_pill(browser, events_origin):
         context.close()
 
 
+def _bottom_line(page, pattern: str):
+    """La dernière ligne de la fiche (l'année n'apparaît que hors de l'année en cours)."""
+    line = page.get_by_text(re.compile(pattern))
+    pw.expect(line).to_be_visible()
+    last = page.evaluate("""(text) => {
+        const all = [...document.querySelectorAll('div[dir="auto"]')].filter((n) => n.offsetParent && n.textContent.trim());
+        return all[all.length - 1].textContent.trim();
+    }""", None)
+    assert re.fullmatch(pattern, last), last
+
+
 def test_the_date_poll_says_when_it_was_created_and_last_changed(browser, events_origin):  # noqa: F811
-    """Avis de l'admin (10.11) : en haut du sondage, la date de création et celle de la dernière modification
-    (l'événement, ou la dernière date proposée)."""
+    """Avis de l'admin (10.11 puis 13.11) : tout en bas de la fiche, la date de création et celle de la dernière
+    modification (l'événement, ou la dernière date proposée)."""
     option = {'id': '0d0d0d0d-0000-4000-8000-000000000001', 'event_id': EVENT, 'starts_at': '2030-11-20T18:00:00Z',
               'ends_at': None, 'proposed_by': LEA, 'created_at': '2026-11-03T16:45:00Z', 'date_votes': []}
     ev = event_row(date_mode='poll', starts_at=None, date_options=[option], updated_at='2026-11-02T09:00:00Z')
     context, page = open_event(browser, events_origin, ev)
     try:
-        pw.expect(page.get_by_text('Sondage créé le 1 nov. à 09:00 · modifié le 3 nov. à 17:45', exact=True)).to_be_visible()
+        _bottom_line(page, r'Sondage créé le 1 nov\.( 2026)? à 09:00 · modifié le 3 nov\.( 2026)? à 17:45')
     finally:
         context.close()
     ev = event_row(date_mode='poll', starts_at=None, date_options=[{**option, 'created_at': '2026-11-01T08:00:20Z'}])
     context, page = open_event(browser, events_origin, ev)
     try:
-        pw.expect(page.get_by_text('Sondage créé le 1 nov. à 09:00', exact=True)).to_be_visible()  # rien changé depuis
+        _bottom_line(page, r'Sondage créé le 1 nov\.( 2026)? à 09:00')  # rien changé depuis
+    finally:
+        context.close()
+
+
+def test_every_event_says_when_it_was_created_at_the_very_bottom(browser, events_origin):  # noqa: F811
+    """Avis de l'admin (13.11) : chaque événement, pas seulement les sondages, dit tout en bas quand il a été créé."""
+    context, page = open_event(browser, events_origin, event_row(updated_at='2026-11-05T17:10:00Z'))
+    try:
+        _bottom_line(page, r'Événement créé le 1 nov\.( 2026)? à 09:00 · modifié le 5 nov\.( 2026)? à 18:10')
     finally:
         context.close()
