@@ -135,3 +135,18 @@ def test_an_organizer_outside_vendredi_party_keeps_its_audience_when_editing(tmp
     out = e.draft("ok", "e1", ["Appelle-la Raclette géante"])
     assert out["draft"]["audience"] == ev.VIP_AUDIENCE and not any(c.startswith("Invités :") for c in out["changes"])
     assert "Vendredi Party" in client.calls[-1]["output_config"]["format"]["schema"]["properties"]["audience"]["enum"]
+
+
+def test_an_event_with_its_place_to_be_defined_stays_so_and_can_get_one_later(tmp_path):
+    """Avis 2237524ab14b : « Lieu à définir » se relit comme tel ; le passer à « à définir » remplace l'ancien lieu."""
+    tbd = {**EVENT, "location_name": "Lieu à définir", "location_address": None, "location_url": None}
+    e, _, _ = editor(tmp_path, {}, event=tbd)
+    d = e.load("ok", "e1")["draft"]
+    assert d["place_kind"] == "later" and d["place_query"] == "" and d["address_complete"]
+
+    asked = {**current(tmp_path), "place_kind": "later", "place_query": "", "place_name": "", "address_complete": False}
+    e, accounts, _ = editor(tmp_path, asked)
+    out = e.save("ok", "e1", asked, None, announce=False)
+    patch = next(body for m, p, body in accounts.calls if m == "PATCH" and p.startswith("/rest/v1/events"))
+    assert patch["location_name"] == "Lieu à définir" and patch["location_address"] is None
+    assert "Lieu : lieu à définir" in out["changes"]

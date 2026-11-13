@@ -474,7 +474,7 @@ def phase_validation(browser):
                 check(p, page.get_by_text("Le lien à partager arrive dès qu’un admin a validé.").count() > 0, "🟡", "phrase du lien après validation")
                 p.tap(page.get_by_role("button", name="✉️ Sur invitation seulement : Envoyer pour validation"), "Sur invitation : Envoyer pour validation")
             else:
-                p.tap(page.get_by_role("button", name="👥 Un groupe", exact=True), "Un groupe")
+                p.tap(page.get_by_role("button", name="👥 Des groupes", exact=True), "Un groupe")
                 page.wait_for_timeout(800)
                 for c in page.get_by_role("button", name=re.compile(r" · \d+$")).all():
                     if f.selected(c) and not (c.get_attribute("aria-label") or c.inner_text()).lstrip("✓ ").startswith(f"{GROUP_BOTS} · "):

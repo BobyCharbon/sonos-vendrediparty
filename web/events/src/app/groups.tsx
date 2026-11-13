@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { GroupEventRules } from '@/components/GroupEventRules';
-import { InviteLinkCard } from '@/components/InviteLinkCard';
+import { GroupQuickInvite, InviteLinkCard } from '@/components/InviteLinkCard';
 import { NewGroupForm } from '@/components/NewGroupForm';
 import { usePersonText } from '@/components/PersonName';
 import { Avatar, Button, Card, Chip, ConfirmButton, ErrorText, Input, Screen, s, Section, T, ToggleRow } from '@/components/ui';
@@ -120,6 +120,7 @@ export default function GroupsScreen() {
           </View>
           {canEdit ? <Button small variant="secondary" label={expanded ? 'Fermer' : 'Modifier'} onPress={() => setOpen(expanded ? null : g.id)} /> : null}
         </View>
+        {canEdit && g.created_by === me.id ? <GroupQuickInvite id={g.id} name={g.name} /> : null}
         {inside.size ? (
           <View style={s.wrap} accessibilityLabel="Membres du groupe : touche une photo pour voir le profil">
             {[...inside].map((id) => {

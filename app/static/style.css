@@ -216,7 +216,14 @@ details[open] > summary h2::after { content: " ▾"; }
 .g-new { position: absolute; top: -9px; right: 16px; z-index: 1; padding: 3px 10px; border-radius: 999px; pointer-events: none;
   font: 900 .72rem/1.2 system-ui, sans-serif; letter-spacing: .08em; color: #3a1800;
   background: linear-gradient(135deg, #ffe27a, #ff9f43); box-shadow: 0 4px 12px rgba(255, 159, 67, .45), 0 0 0 2px rgba(0, 0, 0, .18); }
-.g-room-tile .g-new { top: -7px; right: -4px; padding: 2px 7px; font-size: .62rem; }
+.g-room-tile .g-new { top: -7px; right: auto; left: 0; padding: 2px 7px; font-size: .62rem; }
+/* Salle de jeux : « ? » en haut à droite de chaque jeu (règles), « NEW » / votes en haut à gauche (avis du 10.11). */
+.g-room-cell { position: relative; display: grid; }
+.g-room-help { position: absolute; top: -8px; right: -2px; z-index: 2; width: 26px; height: 26px; min-width: 0; min-height: 0; padding: 0; margin: 0; border: 0; border-radius: 50%; line-height: 1;
+  display: grid; place-items: center; font: 900 .85rem system-ui; color: #fff; background: rgba(40, 32, 70, .92);
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .35), 0 4px 10px rgba(0, 0, 0, .4); transition: transform .15s var(--spring); }
+.g-room-help::after { content: ""; position: absolute; inset: -9px; }   /* 44 px au doigt */
+.g-room-help:active { transform: scale(.88); }
 /* Catégories de l'écran Jeux et de la salle de jeux. */
 .g-cat { margin-top: 26px; }
 .g-cat-h { margin: 0 4px 12px; font: 800 1.35rem/1.15 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: -0.01em; }
@@ -1274,8 +1281,8 @@ body.pyr-full #game.g-rm { background: transparent; border: 0; padding: 0; box-s
   background: var(--g-accent, var(--accent)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 3px 8px rgba(0, 0, 0, .3); }
 .g-room-tile-i svg { width: 24px; height: 24px; }
 .g-room-tile:not(:disabled):active { transform: scale(.94); }
-/* Votes de la salle : compteur en haut à droite de chaque jeu, son propre vote entouré, le plus voté en or. */
-.g-room-votes { position: absolute; top: -8px; right: -6px; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 13px;
+/* Votes de la salle : compteur en haut à gauche de chaque jeu, son propre vote entouré, le plus voté en or. */
+.g-room-votes { position: absolute; top: -8px; left: -6px; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 13px;
   display: grid; place-items: center; font: 900 .85rem system-ui; font-style: normal; color: #1a1020; background: #ffd84d;
   box-shadow: 0 4px 10px rgba(0, 0, 0, .4); animation: room-vote-pop .35s var(--spring); }
 @keyframes room-vote-pop { from { transform: scale(.3); } to { transform: scale(1); } }

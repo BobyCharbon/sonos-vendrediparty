@@ -66,11 +66,12 @@ def test_companion_links_fall_back_to_music(app, link):
     assert app.evaluate("document.getElementById('appTitle').textContent") == "Musique"
 
 
-def test_a_remembered_zicou_tab_opens_music(app):
+def test_a_remembered_zicou_tab_opens_events(app):
+    """Ouverture : toujours l'onglet Événements (avis fb95d317cb64), jamais Zicou éteint."""
     app.evaluate("localStorage.setItem('vp_tab', 'pet')")
     app.reload()
     app.wait_for_function("document.body.dataset.tab")
-    assert app.evaluate("document.body.dataset.tab") == "music"
+    assert app.evaluate("document.body.dataset.tab") == "events"
     assert not visible_zicou_text(app)
 
 
@@ -78,4 +79,4 @@ def test_the_companion_api_is_closed(app):
     status = app.evaluate("fetch('/api/pet/status', {method: 'POST', headers: {'Content-Type': 'application/json'},"
                           " body: '{}'}).then((r) => r.status)")
     assert status == 404
-    assert app.evaluate("fetch('/api/features').then((r) => r.json())") == {"compagnon": False, "discussions": False, "invites_v2": False}
+    assert app.evaluate("fetch('/api/features').then((r) => r.json())") == {"compagnon": False, "discussions": False, "invites_v2": False, "bar": False}

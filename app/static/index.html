@@ -466,6 +466,11 @@ const SUB_SCREENS = { host: "account", stats: "account", feedback: "account" };
 const compagnonOn = document.documentElement.dataset.compagnon !== "off";
 // Discussions : absentes hors site de test (<html data-discussions="off">, app/features.py) : ni onglet ni pastille.
 const discussionsOn = document.documentElement.dataset.discussions !== "off";
+// Ouverture de l'app (web, iPhone, Android plus tard) : toujours l'onglet Événements (avis fb95d317cb64, 13.11),
+// sauf au milieu d'une partie (onglet Jeux quitté avec une partie en cours : on y revient, la partie en plein écran).
+function startTab() {
+  return store("vp_tab") === "games" && store("vp_game") ? "games" : "events";
+}
 // Les événements utilisent leur compte SMS ; les accès musique/jeux restent indépendants.
 function showTab(tab, eventTarget) {
   if (!["music", "games", "pet", "events", "chats", "feedback", "account", "host", "stats"].includes(tab)) tab = "music";
@@ -487,6 +492,10 @@ function showTab(tab, eventTarget) {
   });
   if (!["feedback", "account", "host", "stats"].includes(tab) && document.body.dataset.tab) fbTab = tab;
   document.body.dataset.tab = tab;  // la lumière de scène et le titre suivent l'onglet
+  // Une partie en plein écran ne vaut que dans l'onglet Jeux : en partant (« Se connecter » d'un jeu, lien…), la page
+  // quitte le plein écran (barre d'onglets, native comprise, de retour ; mini-barre pour revenir). Sinon : écran vide
+  // sans barre, il fallait relancer l'app (avis 8d5ec90f63da, Purify Test, 11.11).
+  if (typeof syncGameChrome === "function") syncGameChrome();
   $("appTitle").textContent = ({ music: "Musique", games: "Jeux", pet: "Zicou", events: "Événements", chats: "Discussions", feedback: fbIsAdmin() ? "Retours" : "Ton avis", account: account ? "Réglages" : "Se connecter", host: "Invités et messages", stats: "Mes stats de jeu" })[tab];
   $("navBarTitle").textContent = $("appTitle").textContent;
   store("vp_tab", tab);
@@ -1155,7 +1164,7 @@ addEventListener("DOMContentLoaded", async () => {
     const shared = params.get("event") || "";
     const keep = !params.has("ticket") && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(shared);
     history.replaceState(null, "", location.pathname + (keep ? "?tab=events&event=" + shared.toLowerCase() : ""));
-  } else showTab(params.has("pin") ? "music" : store("vp_tab") || "music");
+  } else showTab(params.has("pin") ? "music" : startTab());
   PartyEvents.preload();  // pastille « réponses attendues » sans ouvrir l’onglet
   if (params.has("pin")) {
     const pin = params.get("pin");

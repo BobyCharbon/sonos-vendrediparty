@@ -110,6 +110,25 @@ struct GroupAdminTests {
         #expect(team.map(\.id) == ["c"])
     }
 
+    @Test("Connexions récentes : aujourd'hui, hier, cette semaine, la plus récente d'abord ; au-delà de 7 jours, rien")
+    func recentSignIns() throws {
+        let m: AdminMembers = try decode("""
+        {"me": "me", "perms": [], "rank": 5, "people": [
+          {"id": "a", "name": "Léa", "status": "active", "last_sign_in_at": "2026-11-13T09:00:00Z"},
+          {"id": "b", "name": "Tom", "status": "active", "last_sign_in_at": "2026-11-13T11:30:00Z"},
+          {"id": "c", "name": "Zoé", "status": "active", "last_sign_in_at": "2026-11-12T20:00:00Z"},
+          {"id": "d", "name": "Max", "status": "active", "last_sign_in_at": "2026-11-09T20:00:00Z"},
+          {"id": "e", "name": "Ugo", "status": "active", "last_sign_in_at": "2026-10-01T20:00:00Z"},
+          {"id": "f", "name": "Ana", "status": "active"}]}
+        """)
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let now = ISO8601DateFormatter().date(from: "2026-11-13T12:00:00Z")!
+        let groups = UserList.recent(m.people, now: now, calendar: utc)
+        #expect(groups.map(\.label) == ["Aujourd'hui", "Hier", "Ces 7 derniers jours"])
+        #expect(groups.map { $0.people.map(\.id) } == [["b", "a"], ["c"], ["d"]])
+    }
+
     @Test("Écran Rôles et droits : rôles du plus haut au plus bas, nombre de comptes, gestion permise")
     func customRolesScreen() throws {
         let r: AdminRoles = try decode("""

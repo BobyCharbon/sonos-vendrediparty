@@ -75,6 +75,8 @@ struct EventNotificationPrefs: Codable, Equatable {
     /// Modération (migration 20261104200000 ; absents avant : reçus) : nouveau signalement (modérateurs), message de la modération.
     var moderationReports: Bool?
     var moderationNotices: Bool?
+    /// Nouveau compte (migration 20261113100000 ; absent avant : reçu) : ceux qui valident les membres.
+    var memberSignups: Bool?
     /// Annonces aux groupes (migration 20261106220000 ; absents avant : reçues) : annonce à valider, événement à valider
     /// pour mon groupe, réponse du groupe à mes demandes.
     var announceRequests: Bool?
@@ -95,7 +97,7 @@ struct EventNotificationPrefs: Codable, Equatable {
         case barRefundDeclared = "bar_refund_declared"
         case referralJoins = "referral_joins", contactJoins = "contact_joins", directMessages = "direct_messages"
         case petDaily = "pet_daily", petAlerts = "pet_alerts", petGifts = "pet_gifts", petStreaks = "pet_streaks", petBar = "pet_bar"
-        case moderationReports = "moderation_reports", moderationNotices = "moderation_notices"
+        case moderationReports = "moderation_reports", moderationNotices = "moderation_notices", memberSignups = "member_signups"
         case announceRequests = "announce_requests", groupEventRequests = "group_event_requests", announceResults = "announce_results"
     }
 
@@ -108,6 +110,8 @@ struct EventNotifyState: Decodable, Equatable {
     var approver: Bool
     /// Droit « Modérer les signalements » : réglage « Nouveau signalement » (absent d'un ancien serveur : non).
     var moderator: Bool? = nil
+    /// Valide les membres (droit members.approve) : réglage « Nouveau compte » (absent d'un ancien serveur : non).
+    var signups: Bool? = nil
     /// Réglages qui ne servent jamais à ce compte (Membre, Guest : private.may_receive_push les refuse aux non-Membres
     /// VIP) : cachés. Absent d'un ancien serveur : tout est affiché.
     var hidden: [String]? = nil

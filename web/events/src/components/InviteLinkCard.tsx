@@ -27,13 +27,32 @@ const STATUS: Record<LinkRow['status'], string> = { pending: 'En attente', used:
 export function InviteLinkCard({ kind, id }: { kind: Kind; id: string }) {
   const [mode, setMode] = useState<Mode>('single');
   return (
-    <Section title="Lien d’invitation">
+    <Section title={kind === 'group' ? 'Autres liens d’invitation' : 'Lien d’invitation'}>
       {kind === 'group' ? (
         <Segmented options={[{ key: 'single', label: 'Lien unique' }, { key: 'reusable', label: 'Réutilisable' }]}
           value={mode} onChange={setMode} />
       ) : null}
       {mode === 'single' ? <SingleUseLinks kind={kind} id={id} /> : <ReusableLink id={id} />}
     </Section>
+  );
+}
+
+/**
+ * En haut de son groupe (avis e39b166040ea, 13.11) : « Inviter avec un lien » prêt tout de suite (le lien du groupe,
+ * réutilisable) : Copier ou Partager. Qui l'ouvre rejoint le groupe directement (connexion par SMS et profil d'abord).
+ */
+export function GroupQuickInvite({ id, name }: { id: string; name: string }) {
+  const { data: url, error } = useQuery(async () => {
+    const { data, error: failed } = await supabase.rpc('group_invite_link', { grp: id, renew: false });
+    if (failed || !data) throw new Error('Le lien n’a pas pu être créé. Réessaie.');
+    return inviteUrl('group', data as string);
+  }, [id]);
+  return (
+    <View style={{ gap: 8, padding: 12, borderRadius: radius.md, backgroundColor: colors.accentDim }} accessibilityLabel={`Inviter dans ${name}`}>
+      <T weight="bold" size={15}>👋 Inviter avec un lien</T>
+      <T muted size={13}>Envoie-le par WhatsApp, Messages… Qui l’ouvre rejoint « {name} » tout de suite (avec son numéro s’il n’a pas encore de compte). Tu es prévenu à chaque arrivée.</T>
+      {url ? <LinkActions url={url} /> : error ? <ErrorText error={error} /> : <T muted size={13}>Préparation du lien…</T>}
+    </View>
   );
 }
 

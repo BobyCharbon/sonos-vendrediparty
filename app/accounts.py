@@ -234,6 +234,8 @@ class Accounts:
         # moderator : droit « Modérer les signalements » (réglage « Nouveau signalement ») ; hidden : réglages qui ne
         # servent jamais à ce compte (Membre, Guest), cachés par l'app et le web.
         return {"prefs": rows[0], "approver": "events.approve" in perms, "moderator": "moderation.reports" in perms,
+                # signups : valide les membres (members.approve) : réglage « Nouveau compte » (avis 662065a54b22).
+                "signups": "members.approve" in perms,
                 "member": member, "hidden": [] if member else sorted(NON_MEMBER_HIDDEN_PREFS)}
 
     def update_notification_prefs(self, token: str, patch: dict) -> dict:

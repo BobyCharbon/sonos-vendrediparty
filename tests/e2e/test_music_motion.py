@@ -35,6 +35,7 @@ def phone(browser):
     page.route("**/api/state*", lambda r: r.fulfill(json=current["state"]))
     page.route("**/api/hello", lambda r: r.fulfill(json={}))
     page.goto("/")
+    page.locator('#tabs [data-tab="music"]').click()  # l'app s'ouvre sur Événements (avis fb95d317cb64)
     expect(page.locator("#party")).to_be_visible()
     expect(page.locator("#upcoming .track")).to_have_count(3)
     yield page, current

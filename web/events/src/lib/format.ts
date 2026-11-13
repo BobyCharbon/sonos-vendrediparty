@@ -109,3 +109,37 @@ function span(days: number): string {
 export function plural(n: number, singular: string, pluralForm = `${singular}s`): string {
   return `${n} ${n > 1 ? pluralForm : singular}`;
 }
+
+const SAME_MOMENT_MS = 60_000;
+const stampFmt = new Intl.DateTimeFormat('fr-CH', { timeZone: TZ, day: 'numeric', month: 'short' });
+const stampYearFmt = new Intl.DateTimeFormat('fr-CH', { timeZone: TZ, day: 'numeric', month: 'short', year: 'numeric' });
+
+/** « 6 nov. à 19:30 » (l'année seulement si ce n'est pas l'année en cours : « 6 nov. 2025 à 19:30 »). */
+function stamp(t: number, now: number): string {
+  const d = new Date(t);
+  const sameYear = yearFmt.format(d) === yearFmt.format(new Date(now));
+  return `${(sameYear ? stampFmt : stampYearFmt).format(d)} à ${timeFmt.format(d)}`;
+}
+const yearFmt = new Intl.DateTimeFormat('fr-CH', { timeZone: TZ, year: 'numeric' });
+
+/**
+ * Tout en bas de chaque fiche (avis de l'admin, 10.11 puis 13.11) : « Événement créé le 6 nov. à 19:30 · modifié le
+ * 9 nov. à 08:12 » (« Sondage créé le … » pour un sondage de dates). Dernière modification : l'événement, ou la
+ * dernière date proposée ; rien si rien n'a changé depuis la création. Date de création inconnue : chaîne vide.
+ */
+export function createdLine(
+  isPoll: boolean,
+  createdAt: string | null | undefined,
+  updatedAt: string | null | undefined,
+  optionDates: (string | undefined)[] = [],
+  now: number = Date.now(),
+): string {
+  const created = createdAt ? new Date(createdAt).getTime() : NaN;
+  if (!Number.isFinite(created)) return '';  // date inconnue : pas de ligne plutôt qu'une page cassée
+  const last = [updatedAt, ...optionDates].reduce<number>((max, iso) => {
+    const t = iso ? new Date(iso).getTime() : NaN;
+    return Number.isFinite(t) && t > max ? t : max;
+  }, created);
+  const base = `${isPoll ? 'Sondage' : 'Événement'} créé le ${stamp(created, now)}`;
+  return last - created > SAME_MOMENT_MS ? `${base} · modifié le ${stamp(last, now)}` : base;
+}

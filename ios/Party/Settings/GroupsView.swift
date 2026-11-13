@@ -275,6 +275,8 @@ struct GroupsView: View {
     @State private var askTerms = false
     @State private var newName = ""
     @State private var showAll = false
+    /// Groupe tout juste créé : sa page s'ouvre, « Inviter avec un lien » en haut (avis e39b166040ea).
+    @State private var created: String?
     @FocusState private var naming: Bool
 
     var body: some View {
@@ -374,6 +376,9 @@ struct GroupsView: View {
                 TermsAcceptSheet(store: moderation) { accepted in if accepted { create() } }
             }
         }
+        .navigationDestination(isPresented: Binding(get: { created != nil }, set: { if !$0 { created = nil } })) {
+            if let created { GroupDetailView(store: store, privacy: privacy, groupID: created) }
+        }
     }
 
     private func subtitle(_ group: GroupList.Group) -> String {
@@ -391,7 +396,10 @@ struct GroupsView: View {
                 askTerms = true
                 return
             }
-            if await store.create(name) != nil { newName = "" }
+            if let id = await store.create(name) {
+                newName = ""
+                created = id
+            }
         }
     }
 }
@@ -456,6 +464,7 @@ struct GroupDetailView: View {
                     }
                 }
                 if group.mine {
+                    QuickInviteSection(store: store, group: group)
                     Section {
                         if store.list?.people.isEmpty == true {
                             Text("Personne d'autre à ajouter pour l'instant.").foregroundStyle(.secondary)
@@ -556,6 +565,34 @@ private struct GroupNotice: View {
 }
 
 
+/// En haut de son groupe (avis e39b166040ea, 13.11) : « Inviter avec un lien » en un toucher. Le lien du groupe
+/// (réutilisable) est prêt dès l'ouverture ; quiconque l'ouvre rejoint le groupe directement (connexion par SMS et
+/// profil d'abord s'il n'a pas de compte). Les liens uniques restent plus bas.
+private struct QuickInviteSection: View {
+    @ObservedObject var store: GroupsStore
+    let group: GroupList.Group
+
+    var body: some View {
+        Section {
+            if let url = store.links[group.id] {
+                ShareLink(item: url, subject: Text("Invitation Party"), message: Text("Rejoins le groupe « \(group.name) » sur Party")) {
+                    Label("Inviter avec un lien", systemImage: "person.badge.plus")
+                        .font(.body.weight(.semibold))
+                }
+                .accessibilityIdentifier("group-quick-invite")
+            } else {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("Préparation du lien…").foregroundStyle(.secondary)
+                }
+            }
+        } footer: {
+            Text("Envoie-le par WhatsApp, Messages… Qui l'ouvre rejoint « \(group.name) » tout de suite (avec son numéro s'il n'a pas encore de compte). Tu es prévenu à chaque arrivée.")
+        }
+        .task(id: group.id) { if store.links[group.id] == nil { await store.link(for: group) } }
+    }
+}
+
 /// Lien d'invitation d'un groupe : lien unique (par défaut : une personne, une fois, 7 jours) ou lien réutilisable.
 private struct InviteLinkSection: View {
     @ObservedObject var store: GroupsStore
@@ -571,7 +608,7 @@ private struct InviteLinkSection: View {
             .pickerStyle(.segmented)
             if reusable { reusableRows } else { singleRows }
         } header: {
-            Text("Lien d'invitation")
+            Text("Autres liens d'invitation")
         } footer: {
             Text(reusable
                  ? "Lien réutilisable : il marche pour tout le monde, jusqu'à ce que tu le renouvelles. Chacun s'inscrit, complète son profil puis rejoint le groupe. Tu es prévenu à chaque arrivée."

@@ -383,6 +383,8 @@ final class SettingsAuditUITests: XCTestCase {
         let group = app.staticTexts["Audit natif"].firstMatch
         XCTAssertTrue(group.waitForExistence(timeout: 15), "groupe « Audit natif »")
         group.tap()
+        // En haut (avis e39b166040ea) : « Inviter avec un lien », prêt dès l'ouverture.
+        XCTAssertTrue(app.buttons["group-quick-invite"].waitForExistence(timeout: 15), "« Inviter avec un lien » en haut")
         let create = app.buttons["group-single-link"]
         for _ in 0..<6 where !(create.exists && create.isHittable) { app.swipeUp() }
         XCTAssertTrue(create.waitForExistence(timeout: 10), "bouton « Créer un lien unique »")
@@ -402,9 +404,7 @@ final class SettingsAuditUITests: XCTestCase {
         let reusable = app.buttons["Réutilisable"].firstMatch
         for _ in 0..<4 where !(reusable.exists && reusable.isHittable) { app.swipeDown() }
         reusable.tap()
-        let show = app.buttons["Afficher le lien réutilisable"]
-        XCTAssertTrue(show.waitForExistence(timeout: 10), "mode réutilisable")
-        show.tap()
+        // Le lien réutilisable est déjà prêt (préparé par « Inviter avec un lien ») : partage direct.
         XCTAssertTrue(app.buttons["Partager le lien"].waitForExistence(timeout: 15), "lien réutilisable affiché")
         record("lien-reutilisable")
         back()

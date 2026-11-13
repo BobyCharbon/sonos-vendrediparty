@@ -90,7 +90,31 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Groupes : on ne réserve un événement qu'aux groupes dont on FAIT PARTIE, « Membres Vendredi Party » compris
   (écrans : `choosableGroups` / `mayUseVip`, assistant IA ; base : migration 20261106090000, triggers
   `guard_event_group` et `guard_event_vip_visibility`). Un admin (events.manage_all) garde tous les groupes.
+- Étape 2 « Qui est invité », carte « 👥 Des groupes » (avis 8eb031acd60f, 13.11) : on coche les Membres Vendredi Party et/ou
+  un ou plusieurs groupes, puis « Publier pour … » (jamais de publication au premier toucher pour les groupes) ; un seul
+  « Prévenir » pour tous les groupes cochés. Public et « Sur invitation » publient toujours d'un toucher.
+- Covoiturage (avis 34d5c07f2e56, 13.11, migration 20261113090000) : option de l'organisateur (`events.carpool_enabled`,
+  éteinte par défaut, jamais allumée par l'IA) ; seuls les participants (Présent / Peut-être) et les organisateurs y prennent
+  part, tout par les fonctions `carpool*` (table sans accès direct, places comptées sous verrou, ville filtrée comme un nom,
+  CGU) ; « Pas présent » fait quitter le covoiturage. Carte `CarpoolCard`. Aucun argent ni partage de frais ici.
+  Tests : `tests/supabase_live/test_covoiturage_live.py`, `test_covoiturage_browser_live.py`, `tests/test_covoiturage_browser.py`.
 - Public par défaut (formulaire et IA) ; un événement public ne prévient JAMAIS personne à sa publication (base : `events_public_silent`, 20261106200000).
+
+## Avis du 13.11.2026 (à garder)
+- Ouverture de l'app (web, iPhone, Android plus tard) : toujours l'onglet Événements (`startTab()`, index.html), sauf au
+  milieu d'une partie (dernier onglet Jeux + partie en cours). Les tests qui veulent Musique la touchent eux-mêmes.
+- « Nouveau compte » (migration 20261113100000) : ceux qui ont `members.approve` sont prévenus quand un profil devient
+  complet, une seule fois ; interrupteur `notification_prefs.member_signups` (web + iPhone, section « Comptes et
+  modération »), respecté par `web_push_allowed`. Tests : `tests/supabase_live/test_nouveau_compte_live.py`.
+- Bandeau « Ne rate rien de cet événement » en haut de la fiche (`NotifyBanner`) tant que les notifications de CET appareil
+  sont éteintes ; app iPhone : `PartyNative.push.enable()` (demande d'iOS + abonnement ; refusées : Réglages d'iOS).
+- Groupes : « Inviter avec un lien » (lien réutilisable du groupe) en haut de son groupe, web et iPhone ; le groupe s'ouvre
+  juste après sa création. Qui ouvre le lien rejoint directement (connexion SMS et profil d'abord).
+- Recette simulateur de ces avis : `ios/PartyUITests/RecetteAvisUITests.swift` (serveur local + base de TEST).
+- Date de création (« Événement créé le … · modifié le … », « Sondage créé le … ») tout en bas de chaque fiche (`createdLine`).
+- « Lieu à définir » (avis 2237524ab14b) : dit à l'IA, la date est réservée sans lieu (`place_kind` « later », `LATER_PLACE`
+  en base, aucune question d'adresse, pas d'itinéraire sur la fiche) ; un lieu dit exige toujours son adresse complète
+  confirmée. Tests : `test_place_to_be_defined_*`, `AIEventPlaceLaterTests`, recette `test8AIPlaceToBeDefined`.
 
 ## Inscription des invités (avis 39f148377a8f, 10.11.2026) — profil complet, parcours normal
 - Toute personne invitée (lien d'invitation, lien public « Partager », groupe) passe par la connexion NORMALE de l'app
@@ -118,6 +142,9 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   ni modifier une partie hors de ce verrou (bug corrigé : une question de quiz ratée retirait toutes les vies,
   la main de Blackjack était distribuée plusieurs fois).
 - Test : `tests/test_game_concurrency.py` (requêtes simultanées, une seule étape appliquée).
+- Une partie en plein écran ne vaut que dans l'onglet Jeux : `showTab` appelle `syncGameChrome()` à chaque changement
+  d'onglet (sinon « Se connecter » d'un jeu laissait un écran vide sans barre d'onglets, native comprise ; avis 8d5ec90f63da).
+  Test : `tests/e2e/test_purity_game.py`.
 - Tout prénom ou texte saisi par un joueur passe par `esc()` avant d'entrer dans du HTML, attributs compris
   (test : `tests/e2e/test_names_escaped.py`).
 

@@ -76,9 +76,10 @@ def test_screens_offer_the_switch_off_by_default_and_never_for_a_public_event():
     assert "announce_group: false," in form and "announce_group: hasGroupAudience(d.who) && d.announce_group" in form
     assert "return who.audience === 'invite' && (who.vip || who.group_ids.length > 0);" in form
     step = (WEB / "components/InviteStep.tsx").read_text(encoding="utf-8")
-    # Deux interrupteurs indépendants, éteints par défaut ; jamais pour un public ni « sur invitation » (campagne 2, C1).
-    assert "useState({ vip: false, group: false });" in step
-    assert "(kind === 'vip' && announce.vip) || (kind === 'group' && announce.group)" in step
+    # Un interrupteur pour tous les groupes cochés (Membres compris, avis du 11.11), éteint par défaut ; jamais pour un
+    # public ni « sur invitation » (campagne 2, C1).
+    assert "useState(false);  // « Prévenir » les groupes cochés : éteint par défaut" in step
+    assert "const announceGroup = (kind === 'vip' || kind === 'group') && announce;" in step
     lib = (WEB / "lib/groupAnnounce.ts").read_text(encoding="utf-8")
     assert "Ta demande sera envoyée à l’admin du groupe ; sans réponse sous 48 h, l’annonce part automatiquement." in lib
 

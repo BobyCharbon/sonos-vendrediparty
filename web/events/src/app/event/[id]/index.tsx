@@ -19,6 +19,8 @@ import { AnnounceStatusCard } from '@/components/AnnounceStatusCard';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
 import { parseIds } from '@/components/InviteStep';
 import { LinkedText } from '@/components/LinkedText';
+import { CarpoolCard } from '@/components/CarpoolCard';
+import { NotifyBanner } from '@/components/NotifyBanner';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
 import { Badge, Button, Card, Cascade, ConfirmButton, ErrorText, HeaderAction, HeaderBack, Screen, s, Section, Skeleton, T, Title, Toast } from '@/components/ui';
 import { fetchAttendance, localAttendance } from '@/lib/attendance';
@@ -30,7 +32,7 @@ import { GONE_TEXT, isGoneError, isNetworkError } from '@/lib/errors';
 import { eventPeopleIds, undecidedNames } from '@/lib/eventPeople';
 import { useOnline, usePaymentsTick, useSlowLoad } from '@/lib/connectivity';
 import { safeHref } from '@/lib/links';
-import { formatLongDay, formatMessageTime, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
+import { createdLine, formatLongDay, formatMessageTime, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
 import type { ReportTarget } from '@/lib/moderation';
 import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
@@ -52,6 +54,8 @@ type Full = EventRow & {
 };
 
 /** Le temps réel accepte au plus 100 valeurs dans un filtre « in ». */
+/** Le lieu que met l'IA quand on le dit « à définir » (app/ai_events.py LATER_PLACE). */
+const PLACE_LATER = 'Lieu à définir';
 const REALTIME_IN_MAX = 100;
 /** En dessous (ou texte agrandi), les actions d'en-tête passent en icônes : le retour « ‹ Événements » garde sa place. */
 const NARROW_HEADER_WIDTH = 380;
@@ -216,10 +220,13 @@ export default function EventScreen() {
   const heads = people.going;
   const past = !!ev.starts_at && new Date(ev.ends_at ?? ev.starts_at).getTime() < data.loadedAt - 6 * 3600_000;
   // Lien du lieu saisi librement : seulement http(s) (jamais javascript:/data:), sinon la recherche Plans.
-  const mapsUrl = safeHref(ev.location_url) ?? (ev.location_address || ev.location_name ? `https://maps.apple.com/?q=${encodeURIComponent(ev.location_address ?? ev.location_name!)}` : null);
+  // « Lieu à définir » (avis 2237524ab14b) : la date est réservée, pas encore d'itinéraire.
+  const placeLater = ev.location_name === PLACE_LATER && !ev.location_address;
+  const mapsUrl = placeLater ? null : safeHref(ev.location_url) ?? (ev.location_address || ev.location_name ? `https://maps.apple.com/?q=${encodeURIComponent(ev.location_address ?? ev.location_name!)}` : null);
   const mine = ev.rsvps.find((r) => r.user_id === me.id);
   // Sondage de dates : le même bouton abonne l'agenda ; les dates votées Oui / Si besoin y arrivent ensuite toutes seules.
   const myDateVotes = Object.fromEntries(ev.date_options.map((o) => [o.id, o.date_votes.find((v) => v.user_id === me.id)?.vote ?? null]));
+  const createdText = createdLine(ev.date_mode === 'poll', ev.created_at, ev.updated_at, ev.date_options.map((o) => o.created_at));
   const pollDates = ev.date_mode === 'poll' ? datesToAdd(ev.date_options, myDateVotes, data.loadedAt) : [];
   const showCalendar = published && mine?.status !== 'no' && (ev.date_mode === 'fixed' ? !!ev.starts_at : pollDates.length > 0);
 
@@ -257,6 +264,8 @@ export default function EventScreen() {
     <Screen edges={[]}>
       {/* Ouverture : l’en-tête puis chaque bloc montent en cascade (une seule fois, pas aux rechargements). */}
       <Cascade>
+      {/* Notifications éteintes sur cet appareil : le dire en haut, avec « Activer » (avis c77d117ab172, 13.11). */}
+      {published && me.id ? <NotifyBanner /> : null}
       {/* Affiche de l’événement (lue sur la page de l’événement par l’assistant IA) */}
       {ev.cover_url?.startsWith('https://') ? (
         <Image source={{ uri: ev.cover_url }} style={st.cover} resizeMode="cover" accessibilityLabel="Affiche de l’événement" />
@@ -313,6 +322,7 @@ export default function EventScreen() {
             <View style={{ flex: 1 }}>
               <T weight="bold" size={16}>{ev.location_name ?? ev.location_address}</T>
               {ev.location_name && ev.location_address ? <T muted size={13}>{ev.location_address}</T> : null}
+              {placeLater ? <T muted size={13}>L’organisateur l’ajoutera plus tard.</T> : null}
             </View>
             {mapsUrl ? <T size={13} weight="bold" color={colors.accent}>Itinéraire ›</T> : null}
           </Pressable>
@@ -401,6 +411,8 @@ export default function EventScreen() {
       {invitesV2On && !canManage && published ? (
         <GuestListCard event={ev} me={{ id: me.id, display_name: me.display_name ?? '' }} onChanged={reload} quietOnError />
       ) : null}
+      {/* Covoiturage (avis 34d5c07f2e56, 11.11) : option de l'organisateur, pour les participants. */}
+      {ev.carpool_enabled && published ? <CarpoolCard eventId={ev.id} answer={mine?.status ?? ''} /> : null}
       {/* Bar de la soirée : solde EN GRAND du présent, « Scanner au bar » du barman. */}
       {barOn && published ? <BarEntry eventId={ev.id} zone="guest" answer={mine?.status ?? ''} /> : null}
 
@@ -532,6 +544,8 @@ export default function EventScreen() {
           }}
         />
       ) : null}
+      {/* Avis de l'admin (13.11) : tout en bas de chaque fiche, quand l'événement (ou le sondage) a été créé et modifié. */}
+      {createdText ? <T muted size={12} style={{ textAlign: 'center' }}>{createdText}</T> : null}
       </Cascade>
     </Screen>
     {shareNote === 'Lien copié' ? <Toast message="Lien copié" onHide={() => setShareNote('')} /> : null}

@@ -1818,6 +1818,8 @@ class NotificationPatch(BaseModel):
     # Modération (migration 20261104200000) : nouveau signalement (modérateurs) ; message de la modération.
     moderation_reports: bool | None = None
     moderation_notices: bool | None = None
+    # Nouveau compte (migration 20261113100000) : quelqu'un a fini de créer son compte (ceux qui valident les membres).
+    member_signups: bool | None = None
     # Annonces aux groupes (migration 20261106220000) : annonce à valider, événement à valider pour mon groupe,
     # réponse du groupe à mes demandes.
     announce_requests: bool | None = None

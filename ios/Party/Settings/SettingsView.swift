@@ -88,6 +88,10 @@ struct SettingsView: View {
                             }
                         }
                         if store.account?.groupAdmin == true {
+                            // Avis 0abef7ffe7ba (13.11) : les connexions récentes en un toucher (Root et Admin).
+                            RecentSignInsRow(admin: store.groupAdmin)
+                        }
+                        if store.account?.groupAdmin == true {
                             NavigationLink {
                                 GroupAdminView(store: store.groupAdmin, session: store.session, open: open)
                             } label: {
@@ -174,6 +178,10 @@ struct SettingsView: View {
         .task {
             await store.refreshAccount()
             await store.pause.load()
+        }
+        // « Connexions récentes » (Root, Admin) : les droits d'administration sont lus ici, la ligne vide ne se montre pas.
+        .task(id: store.account?.groupAdmin) {
+            if store.account?.groupAdmin == true && store.groupAdmin.overview == nil { await store.groupAdmin.loadOverview() }
         }
         .confirmationDialog("Se déconnecter de ce compte ?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button("Se déconnecter", role: .destructive) { Task { await store.session.signOut() } }
@@ -308,3 +316,21 @@ private struct SessionNotice: View {
 
 private struct TricountLink: Identifiable { let id: String }
 private struct JoinLink: Identifiable { let id: String }
+
+/// Réglages › « Connexions récentes » (avis 0abef7ffe7ba) : seulement pour qui voit la liste complète des inscrits
+/// (Root, Admin : access.full, comme « Utilisateurs » dans Administration du groupe).
+private struct RecentSignInsRow: View {
+    @ObservedObject var admin: GroupAdminStore
+
+    var body: some View {
+        Group {
+            if admin.overview?.access.full == true {
+                NavigationLink { GroupUsersView(store: admin) } label: {
+                    SettingsRow(symbol: "clock.fill", tint: .teal, title: "Connexions récentes",
+                                hint: "Qui s'est connecté aujourd'hui, hier, cette semaine")
+                }
+                .accessibilityIdentifier("settings-recent-sign-ins")
+            }
+        }
+    }
+}

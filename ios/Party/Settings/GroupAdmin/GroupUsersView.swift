@@ -13,6 +13,9 @@ struct GroupUsersView: View {
             if let members = store.members {
                 let rows = UserList.arrange(members.people, search: search, filter: filter, sort: sort, descending: descending,
                                            vipRank: members.access.vipRank)
+                if search.isEmpty {
+                    RecentSignInsSection(store: store, groups: UserList.recent(members.people))
+                }
                 Section {
                     Picker("Trier par", selection: Binding(get: { sort }, set: { choose($0) })) {
                         ForEach(UserList.Sort.allCases) { Text($0.label).tag($0) }
@@ -190,5 +193,40 @@ struct ColorDot: View {
     var body: some View {
         Circle().fill(Color(hex: hex) ?? Palette.accent).frame(width: 24, height: 24)
             .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
+    }
+}
+
+/// Connexions récentes (avis 0abef7ffe7ba) : qui est venu aujourd'hui, hier, cette semaine, d'un coup d'œil.
+private struct RecentSignInsSection: View {
+    @ObservedObject var store: GroupAdminStore
+    let groups: [UserList.RecentGroup]
+
+    var body: some View {
+        Section("Connexions récentes") {
+            if groups.isEmpty {
+                Text("Personne ne s'est connecté ces 7 derniers jours.").foregroundStyle(.secondary)
+            }
+            ForEach(groups) { group in
+                Text("\(group.label.uppercased()) · \(group.people.count)")
+                    .font(.caption.weight(.bold)).foregroundStyle(.secondary)
+                ForEach(group.people) { person in
+                    NavigationLink { MemberDetailView(store: store, memberID: person.id) } label: {
+                        HStack(spacing: 10) {
+                            AdminAvatar(photo: person.photo, name: person.name)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(person.displayName).font(.body.weight(.semibold))
+                                if let device = person.lastDevice, !device.isEmpty {
+                                    Text(String(device.prefix(60))).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                }
+                            }
+                            Spacer(minLength: 8)
+                            Text(AdminDate.text(person.lastSignInAt) ?? "").font(.footnote).foregroundStyle(.secondary)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                    .accessibilityIdentifier("recent-sign-in")
+                }
+            }
+        }
     }
 }

@@ -197,7 +197,7 @@ def phase_ia(browser, origin, only):
                 if kind == "invite":  # Sur invitation seulement → publié → feuille Inviter avec le lien prêt
                     p.tap(page.get_by_role("button", name=re.compile("^✉️ Sur invitation seulement : ")), "✉️ Sur invitation seulement")
                 elif kind == "group":  # Un groupe → Bots → « Publier pour « Bots » » (jamais sans groupe coché)
-                    p.tap(page.get_by_role("button", name="👥 Un groupe", exact=True), "👥 Un groupe")
+                    p.tap(page.get_by_role("button", name="👥 Des groupes", exact=True), "👥 Des groupes")
                     page.wait_for_timeout(800)
                     p.dump("un-groupe")
                     c = f.chip(p, f"{GROUP_BOTS} · ").first

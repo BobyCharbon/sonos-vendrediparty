@@ -70,7 +70,7 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
   const { can } = useAuth();
   const direct = can('events.publish_direct');
   const [busy, setBusy] = useState(false);
-  const [announce, setAnnounce] = useState({ vip: false, group: false });  // « Prévenir » : éteints par défaut, chacun le sien
+  const [announce, setAnnounce] = useState(false);  // « Prévenir » les groupes cochés : éteint par défaut
   const publishing = useRef(false);  // double toucher : une seule publication
   const [error, setError] = useState<string | null>(null);
 
@@ -109,16 +109,16 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
   const named = (preset.suggested.length ? preset.suggested : data.stored).filter((id) => id !== me.id);
 
   /** Qui voit, puis le statut (publié, ou proposé sans le droit « publier sans validation »), puis la fiche. */
-  async function publish(kind: Visibility, groupIds: string[]) {
+  async function publish(kind: Visibility, groupIds: string[], vip: boolean) {
     if (publishing.current) return;
     publishing.current = true;
     setBusy(true);
     setError(null);
     try {
-      const who = withVisibility(audienceFromEvent(ev), kind, groupIds);
+      const who = withVisibility(audienceFromEvent(ev), kind, groupIds, vip);
       // Public ou sur invitation : jamais d'annonce au groupe ; la base fait valider la demande d'un simple membre.
       // Écrit avec le statut, en dernier : un échec en route ne laisse jamais « Prévenir » allumé sur le brouillon.
-      const announceGroup = (kind === 'vip' && announce.vip) || (kind === 'group' && announce.group);
+      const announceGroup = (kind === 'vip' || kind === 'group') && announce;
       check(await supabase.from('events').update(audienceToEvent(who)).eq('id', ev.id));
       await saveAudience(ev.id, { ...who, invitees: [], phones: [] }, { people: false });
       const status = proposing ? 'pending' : 'published';
@@ -162,12 +162,12 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
       <Card>
         <T weight="bold" size={17}>Qui voit l’événement ?</T>
         <T muted size={13}>
-          {proposing ? 'Un toucher l’envoie pour validation : un admin le valide avant qu’il soit visible.'
-            : 'Un toucher le publie. Tu invites ensuite, l’événement en ligne, avec le lien à partager.'}
+          {proposing ? 'Un toucher l’envoie pour validation (les groupes : coche-les d’abord) : un admin le valide avant qu’il soit visible.'
+            : 'Un toucher le publie (les groupes : coche-les d’abord). Tu invites ensuite, l’événement en ligne, avec le lien à partager.'}
         </T>
         <PublishChoice groups={data.groups} vipOk={data.vipOk} suggested={suggested} suggestedGroups={knownGroups}
-          proposing={proposing} busy={busy} onPublish={(kind, ids) => void publish(kind, ids)}
-          announce={announce} onAnnounce={(kind, on) => setAnnounce((a) => ({ ...a, [kind]: on }))} />
+          proposing={proposing} busy={busy} onPublish={(kind, ids, vip) => void publish(kind, ids, vip)}
+          announce={announce} onAnnounce={setAnnounce} />
         <ErrorText error={error} />
       </Card>
 

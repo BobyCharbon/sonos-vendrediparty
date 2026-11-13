@@ -242,6 +242,19 @@ final class SettingsStore: ObservableObject {
                                  : "Plus de décompte dans la Dynamic Island", isError: false)
     }
 
+    /// Bandeau « Active les notifications » d'un événement (avis c77d117ab172, 13.11) : la demande d'iOS, puis cet iPhone
+    /// abonné (soirée et événements du compte) ; refusées avant : les Réglages d'iOS s'ouvrent (seul endroit pour les rallumer).
+    func enableFromPage() async -> String {
+        if await PushRegistrar.shared.status() == "denied" {
+            openSystemSettings()
+            return "denied"
+        }
+        await setDevice(true)
+        if !deviceSubscribed { await syncEventsPush(true) }  // au moins les événements du compte (soirée sans code)
+        permission = await PushRegistrar.shared.status()
+        return permission
+    }
+
     func openSystemSettings() {
         if let url = URL(string: UIApplication.openNotificationSettingsURLString) { UIApplication.shared.open(url) }
     }
@@ -401,6 +414,7 @@ final class SettingsStore: ObservableObject {
         case ("pet_bar", let v as Bool): p.petBar = v
         case ("moderation_reports", let v as Bool): p.moderationReports = v
         case ("moderation_notices", let v as Bool): p.moderationNotices = v
+        case ("member_signups", let v as Bool): p.memberSignups = v
         case ("announce_requests", let v as Bool): p.announceRequests = v
         case ("group_event_requests", let v as Bool): p.groupEventRequests = v
         case ("announce_results", let v as Bool): p.announceResults = v

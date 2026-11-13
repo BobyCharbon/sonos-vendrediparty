@@ -224,9 +224,13 @@ struct NotificationSettingsView: View {
         }
 
         // Modération commune : chaque type a son interrupteur (règle permanente).
-        Section("Modération") {
+        Section("Comptes et modération") {
             eventToggle("moderation_notices", "exclamationmark.shield.fill", .orange, "Message de la modération",
                         "Un modérateur t'avertit qu'un de tes contenus ne respecte pas les conditions d'utilisation", p.moderationNotices != false)
+            if state.signups == true {
+                eventToggle("member_signups", "person.badge.plus", .green, "Nouveau compte",
+                            "Quelqu'un vient de créer son compte (prénom, nom et surnom remplis)", p.memberSignups != false)
+            }
             if state.moderator == true {
                 eventToggle("moderation_reports", "exclamationmark.bubble.fill", .red, "Nouveau signalement",
                             "Un message, un profil ou une photo vient d'être signalé", p.moderationReports != false)

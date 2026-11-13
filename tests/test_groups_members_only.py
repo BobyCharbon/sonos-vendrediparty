@@ -31,4 +31,4 @@ def test_screens_offer_only_the_groups_one_is_in():
     sheet = (ROOT / "web/events/src/components/InviteSheet.tsx").read_text(encoding="utf-8")
     assert "g.created_by === me.id" not in sheet
     step = (ROOT / "web/events/src/components/VisibilityChoice.tsx").read_text(encoding="utf-8")
-    assert "(k !== 'vip' || vipOk)" in step
+    assert "...(vipOk ? [{ id: VIP_CHIP" in step and "const vip = vipOk && chosen.includes(VIP_CHIP)" in step

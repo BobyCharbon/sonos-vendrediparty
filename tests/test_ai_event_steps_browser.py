@@ -123,21 +123,60 @@ def test_v2_invitation_only_publishes_in_one_touch_then_the_link_is_ready_to_sha
         context.close()
 
 
-def test_v2_members_publish_in_one_touch_then_the_guest_card_offers_to_invite_more(browser, v2_origin):  # noqa: F811
+def with_vip_and_ski(page):
+    """Compte de démo dans le groupe Vendredi Party ET dans « Ski »."""
+    groups = [{'id': VIP_GROUP, 'name': 'Vendredi Party', 'created_by': None, 'system_key': 'vip', 'member_group_members': [{'user_id': USER}]},
+              {'id': SKI, 'name': 'Ski', 'created_by': TOM, 'system_key': None, 'member_group_members': [{'user_id': USER}, {'user_id': TOM}]}]
+    page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/member_groups*', lambda route: route.fulfill(status=204, headers=CORS)
+               if route.request.method == 'OPTIONS' else route.fulfill(status=200, content_type='application/json', headers=CORS,
+                                                                        body=json.dumps(groups)))
+
+
+def test_v2_members_are_ticked_then_published_then_the_guest_card_offers_to_invite_more(browser, v2_origin):  # noqa: F811
     context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
     page = context.new_page()
     try:
         mock_services(page, people=PEOPLE)
+        with_vip_and_ski(page)
         mock_invites(page, guest_list=EMPTY_LIST)
-        writes = draft_event(page)
-        open_step_two(page, v2_origin)
-        page.get_by_role('button', name='👥 Membres Vendredi Party : Publier pour les Membres Vendredi Party').click()
+        writes = draft_event(page, ai_suggested=None)
+        open_step_two(page, v2_origin, 'audience=vip')
+        # Suggéré par l'IA : « Des groupes » est ouvert, les Membres Vendredi Party déjà cochés ; rien n'est publié avant le bouton.
+        pw.expect(page.get_by_role('button', name='✓ 👥 Membres Vendredi Party', exact=True)).to_be_visible()
+        assert not [w for w in writes if w[0] == 'PATCH' and isinstance(w[2], dict) and 'status' in w[2]]
+        page.get_by_role('button', name='Publier pour les Membres Vendredi Party').click()
         pw.expect(page.get_by_text('C’est en ligne !', exact=True)).to_be_visible(timeout=10000)
         pw.expect(page.get_by_label('Invités', exact=True).get_by_role('button', name='Inviter', exact=True)).to_be_visible()
         pw.expect(page.get_by_label('Inviter à Raclette chez Camille')).to_have_count(0)  # la fiche, pas la feuille
         assert ('PATCH', 'events', {'visibility': 'all', 'public_link': False}) in writes
         assert ('PATCH', 'events', {'status': 'published', 'announce_group': False}) in writes
         shot(page, '03-web-membres-fiche-v2')
+    finally:
+        context.close()
+
+
+def test_members_and_another_group_are_invited_together(browser, v2_origin):  # noqa: F811
+    """Avis de l'admin (11.11) : « Membres Vendredi Party » + un autre groupe, puis seulement publier."""
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
+    page = context.new_page()
+    try:
+        mock_services(page, people=PEOPLE)
+        with_vip_and_ski(page)
+        mock_invites(page, guest_list=EMPTY_LIST)
+        writes = draft_event(page)
+        open_step_two(page, v2_origin, 'audience=public')
+        page.get_by_role('button', name='👥 Des groupes', exact=True).click()
+        page.get_by_role('button', name='Ski · 2').click()  # les Membres sont déjà cochés : on ajoute « Ski »
+        rpc_switch = page.get_by_role('switch', name='Prévenir « Membres Vendredi Party », « Ski »', exact=True)
+        pw.expect(rpc_switch).to_be_visible()
+        pw.expect(rpc_switch).not_to_be_checked()
+        shot(page, '04-web-membres-et-ski')
+        assert not [w for w in writes if w[0] == 'PATCH' and isinstance(w[2], dict) and 'status' in w[2]]
+        page.get_by_role('button', name='Publier pour « Membres Vendredi Party », « Ski »').click()
+        pw.expect(page.get_by_text('C’est en ligne !', exact=True)).to_be_visible(timeout=10000)
+        assert ('PATCH', 'events', {'visibility': 'all', 'public_link': False}) in writes
+        assert ('POST', 'event_groups', [{'event_id': EVENT, 'group_id': SKI}]) in writes
+        assert ('PATCH', 'events', {'status': 'published', 'announce_group': False}) in writes
     finally:
         context.close()
 
@@ -151,7 +190,7 @@ def test_a_group_is_chosen_then_published_for_it(browser, v2_origin):  # noqa: F
         mock_invites(page, guest_list=EMPTY_LIST)
         writes = draft_event(page)
         open_step_two(page, v2_origin)
-        page.get_by_role('button', name='👥 Un groupe', exact=True).click()
+        page.get_by_role('button', name='👥 Des groupes', exact=True).click()
         assert not [w for w in writes if w[0] == 'PATCH' and isinstance(w[2], dict) and 'status' in w[2]]  # choisir le groupe d'abord
         page.get_by_role('button', name='Publier pour « Ski »').click()
         pw.expect(page.get_by_label('Invités', exact=True).get_by_role('button', name='Inviter', exact=True)).to_be_visible(timeout=10000)
@@ -250,7 +289,7 @@ def test_only_the_groups_the_organizer_is_in_are_offered(browser, events_origin)
         open_step_two(page, events_origin, f'audience=vip&groups={FOOT}')  # pré-réglage non permis : ignoré
         pw.expect(page.get_by_role('button', name='🌍 Public + lien public : Publier')).to_be_visible()
         pw.expect(page.get_by_role('button', name='👥 Membres Vendredi Party', exact=False)).to_have_count(0)
-        page.get_by_role('button', name='👥 Un groupe', exact=True).click()
+        page.get_by_role('button', name='👥 Des groupes', exact=True).click()
         pw.expect(page.get_by_role('button', name='Ski · 2')).to_be_visible()
         pw.expect(page.get_by_role('button', name='Foot · 1')).to_have_count(0)  # créé par lui, mais il n'en fait pas partie
         # Formulaire classique : pas de « Vendredi Party », seulement ses groupes, public par défaut.

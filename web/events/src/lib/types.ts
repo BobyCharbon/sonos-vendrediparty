@@ -67,6 +67,8 @@ export type EventRow = {
   public_link: boolean;
   show_participants: boolean;
   pot_enabled?: boolean;
+  /** Covoiturage (migration 20261113090000 ; absente avant : éteint). */
+  carpool_enabled?: boolean;
   /** Billets QR (migration 20261104233000 ; absente avant : éteinte) : l'organisateur l'active et remet les billets. */
   tickets_enabled?: boolean;
   forum_enabled: boolean;
@@ -104,7 +106,7 @@ export type Rsvp = {
   set_by?: string | null;
 };
 
-export type DateOption = { id: string; event_id: string; starts_at: string; ends_at: string | null; proposed_by: string | null };
+export type DateOption = { id: string; event_id: string; starts_at: string; ends_at: string | null; proposed_by: string | null; created_at?: string };
 export type DateVoteRow = { option_id: string; user_id: string; vote: DateVote };
 
 export type Poll = {
@@ -203,6 +205,8 @@ export type NotificationPrefs = {
   /** Modération (migration 20261104200000 ; absents avant : reçus) : nouveau signalement (modérateurs), message de la modération. */
   moderation_reports?: boolean;
   moderation_notices?: boolean;
+  /** Nouveau compte (migration 20261113100000 ; absent avant : reçu) : ceux qui valident les membres. */
+  member_signups?: boolean;
 };
 
 /** Pause des notifications : 'all' = la lune, 'chats' = Discussions des groupes, 'event_chats' = discussions des événements. */

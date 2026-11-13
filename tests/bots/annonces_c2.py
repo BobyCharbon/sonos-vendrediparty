@@ -439,7 +439,7 @@ def phase_ia(browser, origin, only):
         p.goto(f"/events/event/{eid}/invite")
         p.page.wait_for_timeout(3000)
         accept_terms_if_asked(p)
-        p.tap(page.get_by_role("button", name="👥 Un groupe", exact=True), "👥 Un groupe")
+        p.tap(page.get_by_role("button", name="👥 Des groupes", exact=True), "👥 Des groupes")
         page.wait_for_timeout(800)
         if not selected(chip(p, "Bots · ").first):
             p.tap(chip(p, "Bots · ").first, "groupe Bots")

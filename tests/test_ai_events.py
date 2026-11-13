@@ -449,3 +449,26 @@ def test_poll_dates_said_without_an_hour_ask_for_the_hour_not_for_dates_again():
     assert d["status"] == "needs_info" and d["questions"] == ["À quelle heure pour les dates proposées ?"]
     d = ev.clean_draft({**base, "date_options": [f"{day(8)} 19:00", f"{day(15)}T19:30"]}, now, choices)  # espace ou « T »
     assert d["status"] == "ready" and d["date_options"] == [f"{day(8)}T19:00", f"{day(15)}T19:30"]
+
+
+def test_place_to_be_defined_books_the_date_without_asking_the_address(tmp_path):
+    """Avis 2237524ab14b (13.11) : « lieu à définir » réserve la date ; l'IA ne demande plus l'adresse."""
+    later = {**READY, "place_kind": "later", "place_query": "", "place_name": "", "address_complete": False,
+             "status": "needs_info", "questions": ["Où aura lieu la soirée ?"]}
+    a, accounts, client = make(tmp_path, later)
+    d = a.draft("ok", ["Raclette samedi à 20h, lieu à définir"], None)
+    assert d["status"] == "ready" and d["questions"] == []
+    assert d["place_kind"] == "later" and d["place_query"] == "" and d["place_name"] == "Lieu à définir"
+    assert "later" in client.calls[0]["output_config"]["format"]["schema"]["properties"]["place_kind"]["enum"]
+    assert "lieu à définir" in client.calls[0]["system"]
+    a.save_draft("ok", d, None)
+    row = next(body for method, path, body in accounts.calls if method == "POST" and path.startswith("/rest/v1/events"))
+    assert row["location_name"] == "Lieu à définir" and row["location_address"] is None and row["location_url"] is None
+
+
+def test_a_said_place_still_needs_its_full_address_and_says_how_to_skip_it(tmp_path):
+    a, _, _ = make(tmp_path, {**READY, "place_kind": "home", "place_query": "Lutry", "place_name": "Chez Boby",
+                              "address_complete": False})
+    d = a.draft("ok", ["Soirée chez moi samedi"], None)
+    assert d["status"] == "needs_info"
+    assert any("adresse complète" in q and "lieu à définir" in q for q in d["questions"])

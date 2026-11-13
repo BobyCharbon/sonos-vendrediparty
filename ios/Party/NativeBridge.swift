@@ -31,7 +31,9 @@ enum NativeBridge {
         push: {
           // Promesse : { token, environment, bundleId } ; rejetée si l'utilisateur refuse les notifications.
           register: function () { return window.webkit.messageHandlers.\(pushHandler).postMessage({ action: "register" }); },
-          status: function () { return window.webkit.messageHandlers.\(pushHandler).postMessage({ action: "status" }); }
+          status: function () { return window.webkit.messageHandlers.\(pushHandler).postMessage({ action: "status" }); },
+          // Bandeau d'un événement : demande d'iOS + abonnement de cet iPhone ; refusées : ouvre les Réglages d'iOS.
+          enable: function () { return window.webkit.messageHandlers.\(pushHandler).postMessage({ action: "enable" }); }
         },
         // Barre d'onglets native : la page la décrit (app/static/native-tabs.js), l'app la dessine.
         tabs: {
@@ -92,7 +94,7 @@ enum NativeBridge {
         }
         #endif
         controller.add(HapticHandler(), name: hapticHandler)
-        controller.addScriptMessageHandler(PushHandler(), contentWorld: .page, name: pushHandler)
+        controller.addScriptMessageHandler(PushHandler(model: model), contentWorld: .page, name: pushHandler)
         controller.add(TabsHandler(model: model), name: tabsHandler)
         controller.add(AIHandler(model: model), name: aiHandler)
         controller.addScriptMessageHandler(ScanHandler(model: model), contentWorld: .page, name: scanHandler)
@@ -189,6 +191,12 @@ private final class HapticHandler: NSObject, WKScriptMessageHandler {
 
 /// Inscription aux notifications natives, appelée par la page (bouton « Activer les notifications »).
 private final class PushHandler: NSObject, WKScriptMessageHandlerWithReply {
+    private weak var model: WebModel?
+
+    init(model: WebModel) {
+        self.model = model
+    }
+
     @MainActor
     func userContentController(_ controller: WKUserContentController,
                                didReceive message: WKScriptMessage) async -> (Any?, String?) {
@@ -201,6 +209,9 @@ private final class PushHandler: NSObject, WKScriptMessageHandlerWithReply {
                 return (["token": token, "environment": PushRegistrar.environment, "bundleId": Bundle.main.bundleIdentifier ?? ""], nil)
             case "status":
                 return (["status": await PushRegistrar.shared.status()], nil)
+            case "enable":
+                guard let settings = model?.settings else { return (nil, "Réglages pas encore prêts") }
+                return (["status": await settings.enableFromPage()], nil)
             default:
                 return (nil, "Action inconnue")
             }

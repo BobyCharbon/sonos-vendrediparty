@@ -494,6 +494,29 @@ enum UserList {
         }
     }
 
+    /// Connexions récentes (avis 0abef7ffe7ba, 13.11) : les 7 derniers jours, par jour, la plus récente d'abord
+    /// (comme le module web, lib/users.ts recentSignIns).
+    struct RecentGroup: Identifiable, Equatable {
+        let label: String
+        let people: [AdminMembers.Person]
+        var id: String { label }
+    }
+
+    static func recent(_ people: [AdminMembers.Person], now: Date = Date(), calendar: Calendar = .current) -> [RecentGroup] {
+        let today = calendar.startOfDay(for: now)
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today),
+              let since = calendar.date(byAdding: .day, value: -6, to: today) else { return [] }
+        let seen = people.compactMap { p in AdminDate.date(p.lastSignInAt).map { (p, $0) } }
+            .filter { $0.1 >= since }
+            .sorted { $0.1 > $1.1 }
+        let groups = [
+            RecentGroup(label: "Aujourd'hui", people: seen.filter { $0.1 >= today }.map(\.0)),
+            RecentGroup(label: "Hier", people: seen.filter { $0.1 >= yesterday && $0.1 < today }.map(\.0)),
+            RecentGroup(label: "Ces 7 derniers jours", people: seen.filter { $0.1 < yesterday }.map(\.0)),
+        ]
+        return groups.filter { !$0.people.isEmpty }
+    }
+
     static func arrange(_ people: [AdminMembers.Person], search: String, filter: Filter, sort: Sort, descending: Bool,
                         now: Date = Date(), vipRank: Int = MemberRole.member.rank) -> [AdminMembers.Person] {
         let rows = people.filter { $0.matches(search) && matches($0, filter, now: now, vipRank: vipRank) }

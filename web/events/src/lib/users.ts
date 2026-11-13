@@ -89,3 +89,20 @@ export function arrangeUsers(users: readonly UserRow[], opts: { search: string; 
       return order * dir || name(a).localeCompare(name(b), 'fr');
     });
 }
+
+export type RecentGroup = { label: string; rows: UserRow[] };
+const RECENT_DAYS = 7;
+
+/** Connexions récentes (avis 0abef7ffe7ba, 13.11) : les 7 derniers jours, la plus récente d'abord, par jour. */
+export function recentSignIns(users: readonly UserRow[], now: Date = new Date()): RecentGroup[] {
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const since = midnight - (RECENT_DAYS - 1) * DAY;
+  const recent = users.filter((u) => time(u.last_sign_in_at) >= since && time(u.last_sign_in_at) <= now.getTime() + DAY)
+    .sort((a, b) => time(b.last_sign_in_at) - time(a.last_sign_in_at));
+  const groups: RecentGroup[] = [
+    { label: 'Aujourd’hui', rows: recent.filter((u) => time(u.last_sign_in_at) >= midnight) },
+    { label: 'Hier', rows: recent.filter((u) => time(u.last_sign_in_at) >= midnight - DAY && time(u.last_sign_in_at) < midnight) },
+    { label: `Ces ${RECENT_DAYS} derniers jours`, rows: recent.filter((u) => time(u.last_sign_in_at) < midnight - DAY) },
+  ];
+  return groups.filter((g) => g.rows.length);
+}

@@ -88,6 +88,12 @@ def test_purity_private_answers_reveal_and_accounts_only(phones):
     assert not carol.state().get('me')
     carol.tap('[data-pu-login]')
     expect(carol.page.locator('body')).to_have_attribute('data-tab', 'account')
+    # Avis 8d5ec90f63da (11.11) : écran blanc à la connexion, dans une salle. La partie quitte le plein écran : barre
+    # d'onglets visible (dans l'app iPhone, la barre native la suit), page de connexion à l'écran, mini-barre pour revenir.
+    expect(carol.page.locator('body')).not_to_have_class(re.compile(r'\bpyr-full\b'))
+    expect(carol.page.locator('#tabs')).to_be_visible()
+    expect(carol.page.locator('#gamePlay')).to_be_hidden()
+    expect(carol.page.locator('#gMini')).to_be_visible()
 
     bob.join(code)
     wait_state(alice, lambda g: len(g['players']) == 2)

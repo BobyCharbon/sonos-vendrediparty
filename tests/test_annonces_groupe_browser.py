@@ -64,7 +64,7 @@ def test_step_two_switch_is_off_by_default_explains_the_request_and_is_saved(bro
         rpc(page, 'my_announce_modes', {SKI: 'request'})
         open_step_two(page, v2_origin, 'audience=public')
         pw.expect(page.get_by_role('switch', name=re.compile('^Prévenir'))).to_have_count(0)  # public, sur invitation : jamais
-        page.get_by_role('button', name='👥 Un groupe').click()
+        page.get_by_role('button', name='👥 Des groupes').click()
         # Lot C1 (campagne 2) : le nom lu par VoiceOver dit QUEL groupe est prévenu.
         switch = page.get_by_role('switch', name='Prévenir « Ski »', exact=True)
         pw.expect(switch).to_be_visible(timeout=5000)
