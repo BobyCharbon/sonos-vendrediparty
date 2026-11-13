@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { discussionsOn } from '@/lib/features';
 import { useShellFeedback } from '@/lib/shellFeedback';
 import { hasCompleteIdentity } from '@/lib/profile';
-import { roleName } from '@/lib/roles';
+import { roleName, roleRank } from '@/lib/roles';
 import { AppInviteCard } from './AppInviteCard';
 import { ZicouBubbleToggle } from './ZicouBubbleToggle';
 import { IdentityForm } from './IdentityForm';
@@ -86,6 +86,13 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
           <>
             <LinkRow icon="🛡️" tint="#5E5CE6" label="Administration" hint="Demandes, membres, rôles et droits" onPress={() => router.push('/admin')} />
             <RowDivider />
+            {rank >= roleRank('admin') ? (
+              <>
+                {/* Avis 0abef7ffe7ba (13.11) : les connexions récentes en un toucher depuis les Réglages. */}
+                <LinkRow icon="🕒" tint="#30B0C7" label="Connexions récentes" hint="Qui s’est connecté aujourd’hui, hier, cette semaine" onPress={() => router.push('/admin/users')} />
+                <RowDivider />
+              </>
+            ) : null}
           </>
         ) : null}
         {can('party.admin') && can('party.settings') ? (

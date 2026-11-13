@@ -193,3 +193,31 @@ def test_users_section_waits_for_the_database_update_without_breaking(browser, e
         pw.expect(page.get_by_text('Cette liste s’ouvrira après la mise à jour de la base', exact=False)).to_be_visible(timeout=15000)
     finally:
         context.close()
+
+
+def test_recent_connections_are_grouped_by_day_and_reachable_from_settings(browser, events_origin):
+    """Avis 0abef7ffe7ba (13.11) : Réglages › Connexions récentes ; aujourd'hui, hier, cette semaine, la plus récente d'abord."""
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    iso = lambda d: d.strftime('%Y-%m-%dT%H:%M:%SZ')  # noqa: E731
+    context = browser.new_context(viewport={'width': 390, 'height': 844})
+    page = context.new_page(); mock_services(page); member_admin(page)
+    people = [person(USER, 'Compte de démonstration', 'admin', '41791234567', last=iso(now - timedelta(minutes=5))),
+              person(TOM, 'Tom', 'guest', '41790000000', last=iso(now - timedelta(days=3))),
+              person(SAM, 'Sam', 'admin', '41790000044', last=iso(now - timedelta(days=40)))]
+    page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/rpc/admin_member_list*', lambda r: r.fulfill(
+        status=204, headers=HEADERS) if r.request.method == 'OPTIONS' else r.fulfill(
+        status=200, content_type='application/json', headers=HEADERS, body=json.dumps(people)))
+    try:
+        page.goto(events_origin + '/events/account', wait_until='domcontentloaded')
+        login(page)
+        page.goto(events_origin + '/events/account', wait_until='domcontentloaded')
+        page.get_by_role('button', name='Connexions récentes', exact=False).first.click()
+        pw.expect(page.get_by_text('AUJOURD’HUI · 1', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_text('CES 7 DERNIERS JOURS · 1', exact=True)).to_be_visible()
+        recent = page.get_by_label('Connexion récente : ', exact=False)
+        assert recent.count() == 2  # Sam (40 jours) n'y est pas
+        pw.expect(recent.nth(0)).to_contain_text('Compte de démonstration')
+        pw.expect(recent.nth(1)).to_contain_text('Tom')
+    finally:
+        context.close()

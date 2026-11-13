@@ -10,7 +10,7 @@ import { hasCompleteIdentity } from '@/lib/profile';
 import { check, supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 import { roleName, roleRank } from '@/lib/roles';
-import { arrangeUsers, defaultDescending, USER_FILTERS, USER_SORTS, type UserFilter, type UserRow, type UserSort } from '@/lib/users';
+import { arrangeUsers, defaultDescending, recentSignIns, USER_FILTERS, USER_SORTS, type UserFilter, type UserRow, type UserSort } from '@/lib/users';
 
 const DAY = 86_400_000;
 
@@ -52,6 +52,7 @@ export default function Users() {
       {data ? (
         <>
           <T muted size={13}>{data.length} personne(s) inscrite(s) avec leur numéro · ouverture notée dans le journal</T>
+          <RecentSignIns users={data} />
           <Input placeholder="Rechercher (surnom, prénom, nom, numéro)" value={search} onChangeText={setSearch} accessibilityLabel="Rechercher un utilisateur" />
           <Section title="Trier par">
             <View style={s.wrap}>
@@ -101,5 +102,29 @@ function UserCard({ user: u }: { user: UserRow }) {
         <Chip label="Gérer dans Membres" onPress={() => router.push('/admin/members')} />
       </View>
     </View>
+  );
+}
+
+/** Connexions récentes (avis 0abef7ffe7ba) : qui est venu aujourd'hui, hier, cette semaine, d'un coup d'œil. */
+function RecentSignIns({ users }: { users: UserRow[] }) {
+  const groups = recentSignIns(users);
+  return (
+    <Section title="Connexions récentes">
+      {groups.length ? groups.map((g) => (
+        <View key={g.label} style={{ gap: 6 }}>
+          <T size={12} weight="bold" color={colors.textSoft}>{`${g.label.toUpperCase()} · ${g.rows.length}`}</T>
+          {g.rows.map((u) => (
+            <View key={u.id} style={[s.row, { gap: 10 }]} accessibilityLabel={`Connexion récente : ${u.display_name || 'sans surnom'}`}>
+              <Avatar id={u.id} name={u.display_name || '?'} photo={u.avatar_url} size={28} />
+              <View style={{ flex: 1 }}>
+                <T size={14} weight="semibold">{u.display_name || 'Profil à compléter'}</T>
+                {u.last_device ? <T muted size={12} numberOfLines={1}>{u.last_device.slice(0, 60)}</T> : null}
+              </View>
+              <T muted size={13}>{u.last_sign_in_at ? formatMessageTime(u.last_sign_in_at) : ''}</T>
+            </View>
+          ))}
+        </View>
+      )) : <T muted>Personne ne s’est connecté ces 7 derniers jours.</T>}
+    </Section>
   );
 }

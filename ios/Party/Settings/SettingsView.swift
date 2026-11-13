@@ -87,6 +87,14 @@ struct SettingsView: View {
                                             hint: "Qui l'utilise et ce que ça coûte ce mois-ci")
                             }
                         }
+                        if store.account?.admin == true && store.account?.groupAdmin == true {
+                            // Avis 0abef7ffe7ba (13.11) : les connexions récentes en un toucher depuis les Réglages.
+                            NavigationLink { GroupUsersView(store: store.groupAdmin) } label: {
+                                SettingsRow(symbol: "clock.fill", tint: .teal, title: "Connexions récentes",
+                                            hint: "Qui s'est connecté aujourd'hui, hier, cette semaine")
+                            }
+                            .accessibilityIdentifier("settings-recent-sign-ins")
+                        }
                         if store.account?.groupAdmin == true {
                             NavigationLink {
                                 GroupAdminView(store: store.groupAdmin, session: store.session, open: open)
