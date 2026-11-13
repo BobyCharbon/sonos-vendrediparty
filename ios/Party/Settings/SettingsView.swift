@@ -87,13 +87,9 @@ struct SettingsView: View {
                                             hint: "Qui l'utilise et ce que ça coûte ce mois-ci")
                             }
                         }
-                        if store.account?.admin == true && store.account?.groupAdmin == true {
-                            // Avis 0abef7ffe7ba (13.11) : les connexions récentes en un toucher depuis les Réglages.
-                            NavigationLink { GroupUsersView(store: store.groupAdmin) } label: {
-                                SettingsRow(symbol: "clock.fill", tint: .teal, title: "Connexions récentes",
-                                            hint: "Qui s'est connecté aujourd'hui, hier, cette semaine")
-                            }
-                            .accessibilityIdentifier("settings-recent-sign-ins")
+                        if store.account?.groupAdmin == true {
+                            // Avis 0abef7ffe7ba (13.11) : les connexions récentes en un toucher (Root et Admin).
+                            RecentSignInsRow(admin: store.groupAdmin)
                         }
                         if store.account?.groupAdmin == true {
                             NavigationLink {
@@ -316,3 +312,22 @@ private struct SessionNotice: View {
 
 private struct TricountLink: Identifiable { let id: String }
 private struct JoinLink: Identifiable { let id: String }
+
+/// Réglages › « Connexions récentes » (avis 0abef7ffe7ba) : seulement pour qui voit la liste complète des inscrits
+/// (Root, Admin : access.full, comme « Utilisateurs » dans Administration du groupe).
+private struct RecentSignInsRow: View {
+    @ObservedObject var admin: GroupAdminStore
+
+    var body: some View {
+        Group {
+            if admin.overview?.access.full == true {
+                NavigationLink { GroupUsersView(store: admin) } label: {
+                    SettingsRow(symbol: "clock.fill", tint: .teal, title: "Connexions récentes",
+                                hint: "Qui s'est connecté aujourd'hui, hier, cette semaine")
+                }
+                .accessibilityIdentifier("settings-recent-sign-ins")
+            }
+        }
+        .task { if admin.overview == nil { await admin.loadOverview() } }
+    }
+}

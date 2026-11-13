@@ -66,7 +66,7 @@ def test_page_hides_its_own_tab_bar_and_describes_the_tabs(app):
     assert [t["label"] for t in state["tabs"]][4] == "Discussions"
     assert [t["label"] for t in state["tabs"]][:3] == ["Musique", "Jeux", "Zicou"]
     assert state["feedback"] == {"allowed": True, "label": "Ton avis", "badge": None}
-    assert active(state) == ["music"] and state["hidden"] is False
+    assert active(state) == ["events"] and state["hidden"] is False  # l'app s'ouvre sur Événements (avis fb95d317cb64)
     assert app.evaluate("document.documentElement.classList.contains('native-tabs')")
     assert app.evaluate("document.getElementById('tabs').getBoundingClientRect().height") == 0
     # Le bas de page n'est plus réservé à la barre web : la barre native est sous la vue web, pas par-dessus.
@@ -169,7 +169,8 @@ def test_discussions_tab_opens_the_group_chats_of_the_events_module(app):
     app.wait_for_function("document.body.dataset.tab === 'chats'")
     assert active(last_state(app)) == ["chats"]
     assert app.evaluate("document.getElementById('appTitle').textContent") == "Discussions"
-    assert app.evaluate("document.getElementById('eventsFrame').getAttribute('src')") == "/events/chats"
+    # Module déjà chargé (l'app s'ouvre sur Événements) : il change de page sans recharger le cadre.
+    app.wait_for_function("frameAt === '/chats'")
     assert app.evaluate("!document.querySelector('.events-panel').classList.contains('hidden')")
     # Retour aux Événements : la liste des événements, pas la discussion.
     app.evaluate("PartyTabs.select('events')")

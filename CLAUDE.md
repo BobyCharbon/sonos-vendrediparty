@@ -100,6 +100,18 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   Tests : `tests/supabase_live/test_covoiturage_live.py`, `test_covoiturage_browser_live.py`, `tests/test_covoiturage_browser.py`.
 - Public par défaut (formulaire et IA) ; un événement public ne prévient JAMAIS personne à sa publication (base : `events_public_silent`, 20261106200000).
 
+## Avis du 13.11.2026 (à garder)
+- Ouverture de l'app (web, iPhone, Android plus tard) : toujours l'onglet Événements (`startTab()`, index.html), sauf au
+  milieu d'une partie (dernier onglet Jeux + partie en cours). Les tests qui veulent Musique la touchent eux-mêmes.
+- « Nouveau compte » (migration 20261113100000) : ceux qui ont `members.approve` sont prévenus quand un profil devient
+  complet, une seule fois ; interrupteur `notification_prefs.member_signups` (web + iPhone, section « Comptes et
+  modération »), respecté par `web_push_allowed`. Tests : `tests/supabase_live/test_nouveau_compte_live.py`.
+- Bandeau « Ne rate rien de cet événement » en haut de la fiche (`NotifyBanner`) tant que les notifications de CET appareil
+  sont éteintes ; app iPhone : `PartyNative.push.enable()` (demande d'iOS + abonnement ; refusées : Réglages d'iOS).
+- Groupes : « Inviter avec un lien » (lien réutilisable du groupe) en haut de son groupe, web et iPhone ; le groupe s'ouvre
+  juste après sa création. Qui ouvre le lien rejoint directement (connexion SMS et profil d'abord).
+- Recette simulateur de ces avis : `ios/PartyUITests/RecetteAvisUITests.swift` (serveur local + base de TEST).
+
 ## Inscription des invités (avis 39f148377a8f, 10.11.2026) — profil complet, parcours normal
 - Toute personne invitée (lien d'invitation, lien public « Partager », groupe) passe par la connexion NORMALE de l'app
   (`/sign-in` : pays, numéro, code SMS), puis « Faisons connaissance » (`IdentityForm` : prénom, nom, surnom ; photo
