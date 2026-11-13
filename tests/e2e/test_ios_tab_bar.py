@@ -66,13 +66,14 @@ def test_installed_app_every_tab_exceeds_the_physical_screen(browser, server):
     expect(page.locator("#tabs")).to_be_visible()
     names = check_every_tab(page)
     assert {"music", "games"} <= set(names)
-    # Au lancement direct sur un onglet court (comme à l'ouverture de l'app), sans passer par Jeux.
-    for name in ("music", "events", "account"):
-        page.evaluate(f"localStorage.setItem('vp_tab', '{name}')")
+    # Au lancement (l'app s'ouvre toujours sur Événements, avis fb95d317cb64), page courte, sans passer par Jeux.
+    for last in ("music", "account"):
+        page.evaluate(f"localStorage.setItem('vp_tab', '{last}')")
         page.reload()
         page.wait_for_timeout(300)
+        assert page.evaluate("document.body.dataset.tab") == "events"
         h = page_height(page)
-        assert h["scroll"] > h["screen"], f"lancement sur {name} : page {h['scroll']} px ≤ écran {h['screen']} px"
+        assert h["scroll"] > h["screen"], f"lancement après {last} : page {h['scroll']} px ≤ écran {h['screen']} px"
     ctx.close()
 
 
@@ -104,3 +105,21 @@ def test_css_never_locks_page_scrolling_per_tab():
     from pathlib import Path
     css = (Path(__file__).resolve().parents[2] / "app" / "static" / "style.css").read_text(encoding="utf-8")
     assert not re.search(r"(html|body)[^{]*data-tab[^{]*\{[^}]*(overflow:\s*hidden|height:\s*100d?vh)", css)
+
+
+def test_the_app_opens_on_events_except_in_the_middle_of_a_game(browser, server):
+    """Avis fb95d317cb64 (13.11) : à l'ouverture, toujours l'onglet Événements ; une partie en cours ramène à Jeux."""
+    ctx = ios_app(browser, server)
+    page = ctx.new_page()
+    page.goto("/")
+    expect(page.locator("#tabs")).to_be_visible()
+    assert page.evaluate("document.body.dataset.tab") == "events"
+    page.locator('#tabs button[data-tab="music"]').click()
+    page.reload()
+    page.wait_for_function("document.body.dataset.tab")
+    assert page.evaluate("document.body.dataset.tab") == "events"
+    page.evaluate("localStorage.setItem('vp_tab', 'games'); localStorage.setItem('vp_game', '1234')")
+    page.reload()
+    page.wait_for_function("document.body.dataset.tab")
+    assert page.evaluate("document.body.dataset.tab") == "games"
+    ctx.close()
