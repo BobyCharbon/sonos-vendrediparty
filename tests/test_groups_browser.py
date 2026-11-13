@@ -98,3 +98,28 @@ def test_a_site_admin_sees_every_other_group_in_a_folded_admin_section_and_can_e
     frame.get_by_role('button', name='Masquer les autres groupes').click()
     pw.expect(frame.get_by_text('DreamTeam', exact=True)).to_have_count(0)
     assert not errors, errors
+
+
+def test_my_own_group_offers_a_ready_invite_link_at_the_top(phone, events_origin):
+    """Avis e39b166040ea (13.11) : « Inviter avec un lien » prêt en haut de MON groupe (Copier / Partager), sans ouvrir
+    « Modifier » ; pas sur le groupe d'un autre."""
+    page, errors = phone
+    token = '0a0b0c0d-0000-4000-8000-00000000abcd'
+    calls = []
+
+    def link(route):
+        if route.request.method == 'OPTIONS':
+            return route.fulfill(status=204, headers=CORS)
+        calls.append(json.loads(route.request.post_data or '{}'))
+        route.fulfill(status=200, content_type='application/json', body=json.dumps(token), headers=CORS)
+
+    frame = open_groups(page, events_origin, rank=3, groups=[MINE, INSIDE],
+                        before_open=lambda p: p.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/rpc/group_invite_link*', link))
+    card = frame.get_by_label('Inviter dans Mes potes')
+    pw.expect(card).to_be_visible()
+    pw.expect(card.get_by_text(f'/events/group-invite/{token}', exact=False)).to_be_visible()
+    pw.expect(card.get_by_role('button', name='Copier')).to_be_visible()
+    pw.expect(card.get_by_role('button', name='Partager')).to_be_visible()
+    pw.expect(frame.get_by_label('Inviter dans Rando')).to_have_count(0)
+    assert calls and calls[0]['renew'] is False
+    assert not errors, errors
