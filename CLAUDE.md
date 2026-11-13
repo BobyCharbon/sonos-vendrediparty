@@ -90,6 +90,14 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Groupes : on ne réserve un événement qu'aux groupes dont on FAIT PARTIE, « Membres Vendredi Party » compris
   (écrans : `choosableGroups` / `mayUseVip`, assistant IA ; base : migration 20261106090000, triggers
   `guard_event_group` et `guard_event_vip_visibility`). Un admin (events.manage_all) garde tous les groupes.
+- Étape 2 « Qui est invité », carte « 👥 Des groupes » (avis 8eb031acd60f, 13.11) : on coche les Membres Vendredi Party et/ou
+  un ou plusieurs groupes, puis « Publier pour … » (jamais de publication au premier toucher pour les groupes) ; un seul
+  « Prévenir » pour tous les groupes cochés. Public et « Sur invitation » publient toujours d'un toucher.
+- Covoiturage (avis 34d5c07f2e56, 13.11, migration 20261113090000) : option de l'organisateur (`events.carpool_enabled`,
+  éteinte par défaut, jamais allumée par l'IA) ; seuls les participants (Présent / Peut-être) et les organisateurs y prennent
+  part, tout par les fonctions `carpool*` (table sans accès direct, places comptées sous verrou, ville filtrée comme un nom,
+  CGU) ; « Pas présent » fait quitter le covoiturage. Carte `CarpoolCard`. Aucun argent ni partage de frais ici.
+  Tests : `tests/supabase_live/test_covoiturage_live.py`, `test_covoiturage_browser_live.py`, `tests/test_covoiturage_browser.py`.
 - Public par défaut (formulaire et IA) ; un événement public ne prévient JAMAIS personne à sa publication (base : `events_public_silent`, 20261106200000).
 
 ## Inscription des invités (avis 39f148377a8f, 10.11.2026) — profil complet, parcours normal
@@ -118,6 +126,9 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   ni modifier une partie hors de ce verrou (bug corrigé : une question de quiz ratée retirait toutes les vies,
   la main de Blackjack était distribuée plusieurs fois).
 - Test : `tests/test_game_concurrency.py` (requêtes simultanées, une seule étape appliquée).
+- Une partie en plein écran ne vaut que dans l'onglet Jeux : `showTab` appelle `syncGameChrome()` à chaque changement
+  d'onglet (sinon « Se connecter » d'un jeu laissait un écran vide sans barre d'onglets, native comprise ; avis 8d5ec90f63da).
+  Test : `tests/e2e/test_purity_game.py`.
 - Tout prénom ou texte saisi par un joueur passe par `esc()` avant d'entrer dans du HTML, attributs compris
   (test : `tests/e2e/test_names_escaped.py`).
 

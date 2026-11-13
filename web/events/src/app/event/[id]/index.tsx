@@ -19,6 +19,7 @@ import { AnnounceStatusCard } from '@/components/AnnounceStatusCard';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
 import { parseIds } from '@/components/InviteStep';
 import { LinkedText } from '@/components/LinkedText';
+import { CarpoolCard } from '@/components/CarpoolCard';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
 import { Badge, Button, Card, Cascade, ConfirmButton, ErrorText, HeaderAction, HeaderBack, Screen, s, Section, Skeleton, T, Title, Toast } from '@/components/ui';
 import { fetchAttendance, localAttendance } from '@/lib/attendance';
@@ -401,6 +402,8 @@ export default function EventScreen() {
       {invitesV2On && !canManage && published ? (
         <GuestListCard event={ev} me={{ id: me.id, display_name: me.display_name ?? '' }} onChanged={reload} quietOnError />
       ) : null}
+      {/* Covoiturage (avis 34d5c07f2e56, 11.11) : option de l'organisateur, pour les participants. */}
+      {ev.carpool_enabled && published ? <CarpoolCard eventId={ev.id} answer={mine?.status ?? ''} /> : null}
       {/* Bar de la soirée : solde EN GRAND du présent, « Scanner au bar » du barman. */}
       {barOn && published ? <BarEntry eventId={ev.id} zone="guest" answer={mine?.status ?? ''} /> : null}
 

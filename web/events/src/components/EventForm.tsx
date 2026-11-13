@@ -65,6 +65,7 @@ type Draft = {
   organizers: string[];
   show_participants: boolean;
   pot_enabled: boolean;
+  carpool_enabled: boolean;
   /** Billets QR : éteints par défaut ; l'organisateur remet ensuite chaque billet (migration 20261104233000). */
   tickets_enabled: boolean;
   forum_enabled: boolean;
@@ -104,6 +105,7 @@ const emptyDraft: Draft = {
   organizers: [],
   show_participants: true,
   pot_enabled: false,
+  carpool_enabled: false,
   tickets_enabled: false,
   forum_enabled: true,
   notify_on_publish: true,
@@ -220,6 +222,7 @@ async function loadDraft(eventId: string): Promise<Draft> {
     organizers: e.event_organizers.map((o) => o.user_id),
     show_participants: e.show_participants,
     pot_enabled: e.pot_enabled ?? false,
+    carpool_enabled: e.carpool_enabled ?? false,
     tickets_enabled: e.tickets_enabled ?? false,
     forum_enabled: e.forum_enabled,
     notify_on_publish: e.notify_on_publish,
@@ -418,6 +421,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
         ...audienceToEvent(d.who),
         show_participants: d.show_participants,
         pot_enabled: d.pot_enabled,
+        carpool_enabled: d.carpool_enabled,
         tickets_enabled: d.tickets_enabled,
         forum_enabled: d.forum_enabled,
         // Public : jamais d'annonce (la base l'impose aussi, migration 20261106200000).
@@ -751,6 +755,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
         ) : null}
         <Rows>
           <ToggleRow label="Pot commun" hint="Les présents le trouvent dans Réglages › Pot commun pour partager les dépenses" value={d.pot_enabled} onChange={(v) => set({ pot_enabled: v })} />
+          <ToggleRow label="Covoiturage" hint="Les participants proposent leurs places ou en cherchent une, ville de départ en option" value={d.carpool_enabled} onChange={(v) => set({ carpool_enabled: v })} />
         </Rows>
       </Section>
 
