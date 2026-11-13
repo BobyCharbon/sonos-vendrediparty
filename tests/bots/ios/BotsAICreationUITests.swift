@@ -262,7 +262,7 @@ final class BotsAICreationUITests: XCTestCase {
         let choice = env["BOTS_IOS_CHOICE"] ?? "invite"
         switch choice {
         case "group":
-            let group = webButton(app, "👥 Un groupe")
+            let group = webButton(app, "👥 Des groupes")
             _ = reach(app, group)
             group.tap()
             Thread.sleep(forTimeInterval: 1)

@@ -276,3 +276,21 @@ def test_accepting_a_proposed_group_event_also_sends_the_requested_announcement(
       raise exception 'résultat: annonces=% notifications=%', (select count(*) from public.event_announcements where event_id = e),
         {count('private_invite')} + {count('announce_request')};""")
     assert "résultat: annonces=0 notifications=0" in refused, refused
+
+
+def test_members_and_a_group_together_both_see_and_both_are_announced():
+    """Avis de l'admin (11.11) : étape 2 « Des groupes » — les Membres Vendredi Party ET « Bots » ensemble (visibility 'all'
+    + event_groups) ; « Prévenir » vaut pour les deux : une annonce par groupe, rien d'autre."""
+    out = run(as_postgres() + """
+      insert into public.member_group_members (group_id, user_id) values (private.vip_group_id(), olga) on conflict do nothing;"""
+              + as_bot("olga") + """
+      insert into public.events (title, status, visibility, public_link, notify_on_publish, announce_group, starts_at)
+        values ('Membres et Bots', 'draft', 'all', false, false, true, now() + interval '30 days') returning id into e;
+      insert into public.event_groups (event_id, group_id) values (e, bots);
+      update public.events set status = 'published' where id = e;""" + as_bot("ada") + """
+      m := case when public.can_see_event(e) then 1 else 0 end;""" + as_postgres() + """
+      raise exception 'résultat: ada_voit=% annonces=% vip=% bots=%', m,
+        (select count(*) from public.event_announcements where event_id = e),
+        (select count(*) from public.event_announcements where event_id = e and group_id = private.vip_group_id()),
+        (select count(*) from public.event_announcements where event_id = e and group_id = bots);""")
+    assert "résultat: ada_voit=1 annonces=2 vip=1 bots=1" in out, out

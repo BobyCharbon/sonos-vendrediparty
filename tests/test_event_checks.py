@@ -137,9 +137,9 @@ def test_invite_step_publishes_without_a_half_changed_draft():
 
 def test_announce_switches_are_independent_and_named():
     step = src('components/InviteStep.tsx')
-    assert 'useState({ vip: false, group: false });  // « Prévenir » : éteints par défaut, chacun le sien' in step
+    assert 'useState(false);  // « Prévenir » les groupes cochés : éteint par défaut' in step
     choice = src('components/VisibilityChoice.tsx')
-    assert 'label="Prévenir les Membres Vendredi Party"' in choice and 'announce.vip' in choice and 'announce.group' in choice
+    assert "'Prévenir les Membres Vendredi Party'" in choice and 'label={announceLabel}' in choice
 
 
 def test_invite_sheet_error_is_shown_next_to_its_button():
