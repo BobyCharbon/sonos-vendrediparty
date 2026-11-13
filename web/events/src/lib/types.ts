@@ -205,6 +205,8 @@ export type NotificationPrefs = {
   /** Modération (migration 20261104200000 ; absents avant : reçus) : nouveau signalement (modérateurs), message de la modération. */
   moderation_reports?: boolean;
   moderation_notices?: boolean;
+  /** Nouveau compte (migration 20261113100000 ; absent avant : reçu) : ceux qui valident les membres. */
+  member_signups?: boolean;
 };
 
 /** Pause des notifications : 'all' = la lune, 'chats' = Discussions des groupes, 'event_chats' = discussions des événements. */

@@ -255,8 +255,9 @@ export default function NotificationSettings() {
       </Section>
 
       {/* Modération commune : chaque type a son interrupteur (règle permanente). */}
-      <Section title="Modération">
+      <Section title="Comptes et modération">
         <ToggleRow disabled={saving} label="Message de la modération" hint="Un modérateur t’avertit qu’un de tes contenus ne respecte pas les conditions d’utilisation" value={prefs.moderation_notices !== false} onChange={(v) => update({ moderation_notices: v })} />
+        {can('members.approve') ? <ToggleRow disabled={saving} label="Nouveau compte" hint="Quelqu’un vient de créer son compte (prénom, nom et surnom remplis)" value={prefs.member_signups !== false} onChange={(v) => update({ member_signups: v })} /> : null}
         {can('moderation.reports') ? <ToggleRow disabled={saving} label="Nouveau signalement" hint="Un message, un profil ou une photo vient d’être signalé (le contenu reste dans Administration › Signalements)" value={prefs.moderation_reports !== false} onChange={(v) => update({ moderation_reports: v })} /> : null}
       </Section>
 

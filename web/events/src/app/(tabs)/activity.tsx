@@ -41,6 +41,8 @@ export default function Activity() {
   async function open(n: Item) {
     if (!n.read_at) await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', n.id);
     if (n.event_id) router.push(`/event/${n.event_id}`);
+    // Nouveau compte (admins, avis 662065a54b22) : la liste des inscrits, connexions récentes en haut.
+    else if (n.kind === 'member_signup') router.push('/admin/users');
     else reload();
   }
 

@@ -401,6 +401,7 @@ final class SettingsStore: ObservableObject {
         case ("pet_bar", let v as Bool): p.petBar = v
         case ("moderation_reports", let v as Bool): p.moderationReports = v
         case ("moderation_notices", let v as Bool): p.moderationNotices = v
+        case ("member_signups", let v as Bool): p.memberSignups = v
         case ("announce_requests", let v as Bool): p.announceRequests = v
         case ("group_event_requests", let v as Bool): p.groupEventRequests = v
         case ("announce_results", let v as Bool): p.announceResults = v

@@ -146,8 +146,8 @@ def test_accounts_reads_and_patches_only_the_members_own_row():
 
     acc = accounts_mod.Accounts(b"secret", httpx.Client(transport=httpx.MockTransport(handler)))
     state = acc.notification_prefs("tok")
-    assert {k: state[k] for k in ("prefs", "approver", "moderator")} == {"prefs": {"user_id": "u-9", "chat": "all"},
-                                                                          "approver": True, "moderator": False}
+    assert {k: state[k] for k in ("prefs", "approver", "moderator", "signups")} == {
+        "prefs": {"user_id": "u-9", "chat": "all"}, "approver": True, "moderator": False, "signups": False}
     acc.update_notification_prefs("tok", {"chat": "none"})
     patch = next(s for s in seen if s[0] == "PATCH")
     assert patch[2] == "user_id=eq.u-9" and patch[3] == b'{"chat":"none"}'
@@ -329,3 +329,19 @@ def test_every_notification_type_has_its_own_switch_through_party(monkeypatch):
         r = client.post("/api/account/notifications/update", json={"token": "ok", "patch": {key: False}})
         assert r.status_code == 200 and r.json()["prefs"][key] is False, key
         assert client.post("/api/account/notifications/update", json={"token": "ok", "patch": {key: "non"}}).status_code == 422
+
+
+def test_new_account_switch_exists_on_the_server_the_web_and_the_iphone():
+    """Avis 662065a54b22 (12.11) : « Nouveau compte » pour ceux qui valident les membres, coupable partout."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    from app.main import NotificationPatch
+    assert NotificationPatch(member_signups=False).member_signups is False
+    web = (root / "web/events/src/app/settings/notifications.tsx").read_text(encoding="utf-8")
+    assert "can('members.approve') ? <ToggleRow" in web and "update({ member_signups: v })" in web
+    ios = (root / "ios/Party/Settings/NotificationSettingsView.swift").read_text(encoding="utf-8")
+    assert 'eventToggle("member_signups"' in ios and "state.signups == true" in ios
+    store = (root / "ios/Party/Settings/SettingsStore.swift").read_text(encoding="utf-8")
+    assert 'case ("member_signups", let v as Bool): p.memberSignups = v' in store
+    sql = (root / "supabase/migrations/20261113100000_nouveau_compte.sql").read_text(encoding="utf-8")
+    assert "when 'member_signup' then coalesce(prefs.member_signups, true)" in sql
