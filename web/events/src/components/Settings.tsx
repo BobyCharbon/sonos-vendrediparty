@@ -100,6 +100,9 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
             {/* Page de Party (hors du module) : ce qui concerne toute la soirée, pas seulement la musique. */}
             <LinkRow icon="👥" tint="#0A84FF" label="Invités, messages et notifications" hint="Messages des invités, invités, bannis, notifications de l’hôte" onPress={() => openPartyTab('host')} />
             <RowDivider />
+            {/* Avis eb710b132330 : un message pour tout le monde (maintenance, information, annonce), sur tous les onglets. */}
+            <LinkRow icon="📣" tint="#FF9F0A" label="Annonce et maintenance" hint="Un message pour tout le monde, sur tous les onglets" onPress={() => openPartyTab('notice')} />
+            <RowDivider />
             {/* Page admin de Party (hors du module) : entrée avec le compte, sans code PIN. Gardée en secours. */}
             <LinkRow icon="🎛️" tint="#636366" label="Admin de la soirée" hint="Musique, enceintes, joueurs, jeux et réglages du site" onPress={() => { window.top!.location.href = '/admin'; }} />
             <RowDivider />

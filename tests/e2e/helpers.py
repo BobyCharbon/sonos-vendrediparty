@@ -99,8 +99,12 @@ class Server:
             env.update(SUPABASE_URL=supabase.url, SUPABASE_ANON_KEY="cle-publique-de-test",
                        PET_SECRET="cle-du-serveur-party-pour-les-tests-uniquement-0123456789")
         self.log = open(Path(self.data) / "server.log", "w")
+        self._env = env
+        self._launch()
+
+    def _launch(self):
         self.proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app", "--port", str(self.port), "--log-level", "warning"],
-                                     cwd=ROOT, env=env, stdout=self.log, stderr=subprocess.STDOUT)
+                                     cwd=ROOT, env=self._env, stdout=self.log, stderr=subprocess.STDOUT)
         for _ in range(600):  # jusqu’à 60 s : sur une machine chargée (autres serveurs de test), le démarrage est lent
             try:
                 if httpx.get(self.url + "/", timeout=1).status_code == 200:
@@ -115,12 +119,19 @@ class Server:
         text = (Path(self.data) / "server.log").read_text()
         return text if "Traceback" in text else ""
 
-    def stop(self):
+    def halt(self):
+        """Arrêt du serveur seul (comme pendant une mise à jour) ; start_again() le relance, mêmes port et données."""
         self.proc.terminate()
         try:
             self.proc.wait(5)
         except subprocess.TimeoutExpired:
             self.proc.kill()
+
+    def start_again(self):
+        self._launch()
+
+    def stop(self):
+        self.halt()
         self.log.close()
 
 

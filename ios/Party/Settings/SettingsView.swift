@@ -82,6 +82,10 @@ struct SettingsView: View {
                             }
                         }
                         if store.account?.admin == true {
+                            // Avis eb710b132330 : un message pour tout le monde (maintenance, information, annonce).
+                            page(.tab("notice"), "megaphone.fill", .orange, "Annonce et maintenance",
+                                 "Un message pour tout le monde, sur tous les onglets")
+                                .accessibilityIdentifier("settings-notice")
                             NavigationLink { AIUsageView(store: store.tricount) } label: {
                                 SettingsRow(symbol: "sparkles", tint: .purple, title: "Assistant IA",
                                             hint: "Qui l'utilise et ce que ça coûte ce mois-ci")

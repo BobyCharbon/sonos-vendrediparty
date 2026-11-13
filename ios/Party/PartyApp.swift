@@ -144,9 +144,19 @@ struct ContentView: View {
                 // fondu avec Réduire les animations.
                 .motion(Motion.snappy, value: model.tabs?.hidden ?? true)
                 .motion(Motion.snappy, value: zicouBubbleShown && model.zicouBubble?.visible == true)
+                .motion(Motion.smooth, value: model.notice)
+
+                // Maintenance, information, annonce (notice.js) : par-dessus la page, les écrans natifs et la barre.
+                if let notice = model.notice, !model.failed {
+                    PartyNoticeView(notice: notice, topInset: proxy.safeAreaInsets.top,
+                                    close: { Motion.animate(Motion.smooth) { model.hideNotice(notice.id) } },
+                                    manage: { Motion.animate(Motion.smooth) { model.show(.tab("notice")) } })
+                        .ignoresSafeArea()
+                        .motionTransition(.opacity)
+                }
 
                 if model.failed {
-                    OfflineView { model.reload() }
+                    OfflineView(busy: model.serverBusy, quietRetry: { model.retryQuietly() }) { model.reload() }
                 }
             }
         }

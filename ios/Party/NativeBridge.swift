@@ -35,6 +35,13 @@ enum NativeBridge {
           // Bandeau d'un événement : demande d'iOS + abonnement de cet iPhone ; refusées : ouvre les Réglages d'iOS.
           enable: function () { return window.webkit.messageHandlers.\(pushHandler).postMessage({ action: "enable" }); }
         },
+        // Message pour tout le monde (notice.js) : maintenance, information, annonce ; l'app le dessine sur tous
+        // ses écrans. null : plus rien à montrer.
+        notice: {
+          update: function (state) {
+            try { window.webkit.messageHandlers.\(PartyNoticeHandler.handler).postMessage(state || null); } catch (e) {}
+          }
+        },
         // Barre d'onglets native : la page la décrit (app/static/native-tabs.js), l'app la dessine.
         tabs: {
           update: function (state) {
@@ -96,6 +103,7 @@ enum NativeBridge {
         controller.add(HapticHandler(), name: hapticHandler)
         controller.addScriptMessageHandler(PushHandler(model: model), contentWorld: .page, name: pushHandler)
         controller.add(TabsHandler(model: model), name: tabsHandler)
+        controller.add(PartyNoticeHandler(model: model), name: PartyNoticeHandler.handler)
         controller.add(AIHandler(model: model), name: aiHandler)
         controller.addScriptMessageHandler(ScanHandler(model: model), contentWorld: .page, name: scanHandler)
         controller.addScriptMessageHandler(WalletHandler(), contentWorld: .page, name: NativeWallet.handler)
