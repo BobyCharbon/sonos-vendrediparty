@@ -179,6 +179,10 @@ struct SettingsView: View {
             await store.refreshAccount()
             await store.pause.load()
         }
+        // « Connexions récentes » (Root, Admin) : les droits d'administration sont lus ici, la ligne vide ne se montre pas.
+        .task(id: store.account?.groupAdmin) {
+            if store.account?.groupAdmin == true && store.groupAdmin.overview == nil { await store.groupAdmin.loadOverview() }
+        }
         .confirmationDialog("Se déconnecter de ce compte ?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button("Se déconnecter", role: .destructive) { Task { await store.session.signOut() } }
         } message: {
@@ -328,6 +332,5 @@ private struct RecentSignInsRow: View {
                 .accessibilityIdentifier("settings-recent-sign-ins")
             }
         }
-        .task { if admin.overview == nil { await admin.loadOverview() } }
     }
 }
