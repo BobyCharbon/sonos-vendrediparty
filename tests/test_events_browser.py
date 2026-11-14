@@ -67,7 +67,7 @@ def browser(request):
             p.stop()
 
 
-def mock_services(page, pending=False, events=1, people=(), roles=None, unread=()):
+def mock_services(page, pending=False, events=1, people=(), roles=None, unread=(), rsvps=()):
     calls = []
     profile = {'id': USER, 'display_name': 'Compte de démonstration', 'phone': '41791234567', 'role': 'guest' if pending else 'admin', 'status': 'active', 'avatar_url': f'{USER}/photo.jpg', 'first_name': 'Camille', 'last_name': 'Demo', 'created_at': '2026-10-19T08:00:00Z'}
     category = {'id': 'ed69d11e-34dd-43fe-b211-10d0dd158ba9', 'name': 'Soirée', 'color': '#FFB347', 'sort': 0, 'archived': False, 'icon': None}
@@ -78,6 +78,7 @@ def mock_services(page, pending=False, events=1, people=(), roles=None, unread=(
              'event_organizers': [], 'polls': [], 'bring_items': [], 'author': {'display_name': profile['display_name']},
              'show_participants': True, 'allow_maybe': True, 'allow_plus_ones': False, 'max_plus_ones': 0, 'max_participants': None,
              'rsvp_deadline': None, 'forum_enabled': True, 'all_day': False, 'price_chf': None, 'visibility': 'all'}
+    event['rsvps'] = [dict(r) for r in rsvps]
     # Droits du compte (catalogue réel : migration 20261020160100) ; un invité ne voit pas les sorties.
     perms = ['games.create', 'music.add'] if pending else ['events.view', 'events.rsvp', 'events.plus_ones', 'events.create', 'events.publish_direct',
              'events.edit_own_published', 'events.manage_all', 'events.approve', 'events.see_participants', 'polls.create', 'chat.write', 'chat.moderate',
@@ -464,6 +465,24 @@ def test_pending_badge_stays_on_when_leaving_the_events_screen(browser, events_o
         pw.expect(badge).to_have_text('1'); pw.expect(badge).to_be_visible()
         page.locator('#tabs [data-tab="events"]').click()
         pw.expect(badge).to_have_text('1')
+    finally:
+        context.close()
+
+
+def test_each_answer_shows_when_it_was_given(browser, events_origin):
+    """Avis 2f5abe63e8ff : sous chaque réponse, en petit, le jour et l'heure où la personne a répondu (heure de Zurich)."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page()
+    lea='7a1b2c3d-4e5f-4061-8172-839405162738'
+    mock_services(page, people=[{'id':lea,'display_name':'Léa'}],
+                  rsvps=[{'event_id':EVENT,'user_id':lea,'status':'yes','plus_ones':0,'note':None,'waitlisted':False,'updated_at':'2026-11-13T20:17:00Z'}])
+    try:
+        page.goto(events_origin, wait_until='domcontentloaded')
+        page.get_by_role('button',name='Événements',exact=True).click()
+        frame=page.frame_locator('#eventsFrame'); login(frame)
+        frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
+        chip=frame.get_by_role('button',name='Profil de Léa')
+        pw.expect(chip).to_contain_text('13.11 · 21:17', timeout=15000)
     finally:
         context.close()
 

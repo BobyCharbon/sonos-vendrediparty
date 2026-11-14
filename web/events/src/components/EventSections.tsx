@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { formatShort, parseLocalDateTime } from '@/lib/format';
+import { formatAnswerTime, formatShort, parseLocalDateTime } from '@/lib/format';
 import { enter, pressTransition, useChangedSinceMount } from '@/lib/motion';
 import { refreshPending } from '@/lib/pending';
 import { fetchAttendance } from '@/lib/attendance';
@@ -296,7 +296,7 @@ export function RsvpCard({
 
 /** Participant : photo et prénom ; toucher l'un ou l'autre ouvre sa fiche profil. En orange : arrivé par le lien
  * d'invitation (visible des organisateurs). */
-function PersonChip({ id, name, extra, viaLink = false, fresh = false, self = false }: { id: string; name: string; extra?: string; viaLink?: boolean; fresh?: boolean; self?: boolean }) {
+function PersonChip({ id, name, extra, when, viaLink = false, fresh = false, self = false }: { id: string; name: string; extra?: string; when?: string; viaLink?: boolean; fresh?: boolean; self?: boolean }) {
   // Fixé à l’apparition : les pastilles déjà là ne rebondissent pas quand une autre arrive.
   const [arrive] = useState(() => (fresh ? enter('pop') : undefined));
   return (
@@ -305,10 +305,14 @@ function PersonChip({ id, name, extra, viaLink = false, fresh = false, self = fa
       <Avatar id={id} name={name} size={24} profile={false} />
       <T size={13} weight="semibold" numberOfLines={1} style={{ flexShrink: 1 }} color={viaLink ? colors.coral : undefined}>
         {name}{extra ? <T size={13} muted> {extra}</T> : null}{viaLink ? <T size={11} color={colors.coral}> · lien</T> : null}
+        {when ? <T size={11} muted> {when}</T> : null}
       </T>
     </Pressable>
   );
 }
+
+/** « Léa (13.11 · 21:17) » ; le nom seul quand l'heure n'est pas connue. */
+const withTime = (name: string, iso: string | null | undefined) => (formatAnswerTime(iso) ? `${name} (${formatAnswerTime(iso)})` : name);
 
 export function ParticipantsSection({
   event,
@@ -350,7 +354,8 @@ export function ParticipantsSection({
       <View style={{ gap: 8 }} accessibilityLabel={`${label} : ${list.map((r) => nameOf(r.user_id)).join(', ')}`}>
         <T size={12} weight="bold" color={color}>{label.toUpperCase()} · {count}</T>
         <View style={s.wrap}>
-          {list.map((r) => <PersonChip key={r.user_id} id={r.user_id} self={r.user_id === me} name={nameOf(r.user_id)} extra={r.plus_ones ? `+${r.plus_ones}` : undefined} viaLink={viaLink.has(r.user_id)} fresh={moved} />)}
+          {list.map((r) => <PersonChip key={r.user_id} id={r.user_id} self={r.user_id === me} name={nameOf(r.user_id)} extra={r.plus_ones ? `+${r.plus_ones}` : undefined}
+            when={formatAnswerTime(r.updated_at)} viaLink={viaLink.has(r.user_id)} fresh={moved} />)}
         </View>
       </View>
     ) : null;
@@ -379,12 +384,12 @@ export function ParticipantsSection({
             {queue.map((q) => (
               <PersonChip key={`${q.r.user_id}${q.extras ? ':plus' : ''}`} id={q.r.user_id} fresh={moved} self={!q.extras && q.r.user_id === me} viaLink={!q.extras && viaLink.has(q.r.user_id)}
                 name={q.extras ? extrasName(q.r.user_id, q.extras) : nameOf(q.r.user_id)}
-                extra={!q.extras && q.r.plus_ones ? `+${q.r.plus_ones}` : undefined} />
+                extra={!q.extras && q.r.plus_ones ? `+${q.r.plus_ones}` : undefined} when={q.extras ? undefined : formatAnswerTime(q.r.updated_at)} />
             ))}
           </View>
         </View>
       ) : null}
-      {no.length ? <T muted size={13}>Absents : {no.map((r) => nameOf(r.user_id)).join(', ')}</T> : null}
+      {no.length ? <T muted size={13}>Absents : {no.map((r) => withTime(nameOf(r.user_id), r.updated_at)).join(', ')}</T> : null}
       {notes.length ? (
         <View style={{ gap: 6 }}>
           <T muted size={12}>Petits mots (visibles par l’organisation seulement)</T>
@@ -517,7 +522,7 @@ export function DatePollSection({
               </View>
             ) : null}
             {canManage && vs.length ? (
-              <T muted size={12}>{vs.map((v) => `${names.get(v.user_id) ?? '?'} (${voteLabel[v.vote]})`).join(', ')}</T>
+              <T muted size={12}>{vs.map((v) => `${names.get(v.user_id) ?? '?'} (${[voteLabel[v.vote], formatAnswerTime(v.voted_at)].filter(Boolean).join(' · ')})`).join(', ')}</T>
             ) : null}
             {canManage ? (
               <Button small variant={lead ? 'primary' : 'secondary'} label="Fixer cette date" onPress={() => act(supabase.rpc('fix_event_date', { e: event.id, opt: o.id }), onChange, setError)} />
