@@ -8,7 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&display=swap">
   <script src="/static/ios-app.js"></script>
-  <!-- Maintenance / information / annonce pour tout le monde, et « Mise à jour en cours » pendant un redémarrage. -->
+  <!-- Maintenance / information / annonce pour tout le monde, et « Mise à jour en cours » pendant un redémarrage.
+       Page de l'admin : une maintenance n'y est qu'un bandeau (sinon l'écran couvrait le code PIN et tout le panneau). -->
+  <script>window.partyIsAdmin = () => true;</script>
   <script src="/static/notice.js"></script>
   <!-- Page de l'admin (tout y passe par le code PIN ou un compte admin) : une maintenance s'y lit en bandeau, jamais un écran
        qui bloque le code ou la soirée (recette du 14.11, tests/e2e/test_notice.py). -->
