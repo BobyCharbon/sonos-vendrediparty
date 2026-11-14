@@ -66,4 +66,4 @@ export function useImportantUnread(refreshKey?: unknown): number {
 }
 
 /** Rouge des pastilles iOS (cloche de l'accueil et nouveautés importantes). */
-export const BADGE_RED = '#FF3B30';
+export const BADGE_RED = '#D70015';

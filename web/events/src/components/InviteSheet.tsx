@@ -237,7 +237,7 @@ export function InviteSheet({ visible, event, me, list, onClose, onInvited, head
                   <Pressable key={k} accessibilityRole="button" accessibilityLabel={l} disabled={busy} onPress={() => void send(k)}
                     style={({ pressed }) => [st.shareBtn, pressTransition, pressed && { transform: [{ scale: 0.95 }] }]}>
                     <T size={20}>{icon}</T>
-                    <T size={11} weight="semibold" color={colors.textSoft}>{l}</T>
+                    <T size={12} weight="semibold" color={colors.textSoft}>{l}</T>
                   </Pressable>
                 ))}
               </View>

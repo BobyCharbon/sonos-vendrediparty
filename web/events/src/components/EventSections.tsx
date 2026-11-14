@@ -227,7 +227,7 @@ export function RsvpCard({
     <Section
       title={mine ? 'Ta réponse' : 'Tu viens ?'}
       style={!mine && !closed ? { borderColor: 'rgba(255,79,154,0.55)', borderWidth: 1.5 } : undefined}
-      right={!mine && !closed ? <View style={st.pill}><T size={12} weight="bold" color={colors.accent}>À répondre</T></View> : null}
+      right={!mine && !closed ? <View style={st.pill}><T size={12} weight="bold" color={colors.accentSoft}>À répondre</T></View> : null}
     >
       <T key={subtitle} size={14} style={enter('fade')} color={shown && !(waiting && !picked) ? rsvpChoices[shown].bg : colors.textSoft}>{subtitle}</T>
       {mine?.set_by && mine.set_by !== me ? (
@@ -305,9 +305,10 @@ function PersonChip({ id, name, extra, when, viaLink = false, fresh = false, sel
       accessibilityLabel={`${self ? 'Ton profil' : `Profil de ${name}`}${viaLink ? ', invité par lien' : ''}`} onPress={() => router.push(`/member/${id}`)}>
       <Avatar id={id} name={name} size={24} profile={false} />
       <T size={13} weight="semibold" numberOfLines={1} style={{ flexShrink: 1 }} color={viaLink ? colors.coral : undefined}>
-        {name}{extra ? <T size={13} muted> {extra}</T> : null}{viaLink ? <T size={11} color={colors.coral}> · lien</T> : null}
-        {when ? <T size={11} muted> {when}</T> : null}
+        {name}{extra ? <T size={13} muted> {extra}</T> : null}{viaLink ? <T size={12} color={colors.coral}> · lien</T> : null}
       </T>
+      {/* L'heure reste entière (12 px, lisible) : un long nom se coupe avant elle. */}
+      {when ? <T size={12} muted style={{ flexShrink: 0 }}>{when}</T> : null}
     </Pressable>
   );
 }
@@ -468,7 +469,7 @@ export function DatePollSection({
     <Section
       title="Quelle date ?"
       style={!closed && !voters.has(me) && options.length ? { borderColor: colors.accent, borderWidth: 2, backgroundColor: '#22152A' } : undefined}
-      right={!closed && !voters.has(me) && options.length ? <View style={st.pill}><T size={12} weight="bold" color={colors.accent}>À répondre</T></View> : <T muted size={12}>{voters.size} votant{voters.size > 1 ? 's' : ''}</T>}
+      right={!closed && !voters.has(me) && options.length ? <View style={st.pill}><T size={12} weight="bold" color={colors.accentSoft}>À répondre</T></View> : <T muted size={12}>{voters.size} votant{voters.size > 1 ? 's' : ''}</T>}
     >
       {!closed && !voters.has(me) && options.length ? <T size={14} color={colors.textSoft}>Indique pour chaque date si tu es dispo : l’organisateur fixera celle qui arrange le plus de monde.</T> : null}
       <T muted size={13}>
@@ -498,7 +499,7 @@ export function DatePollSection({
                 <T weight="bold">{formatShort(o.starts_at)}</T>
                 <T muted size={12}>{yes} oui · {ifNeeded} si besoin · {no} non</T>
               </View>
-              {lead ? <View style={[st.pill, st.pillLead, enter('pop')]}><T size={11} weight="bold" color={colors.onAction}>EN TÊTE</T></View> : null}
+              {lead ? <View style={[st.pill, st.pillLead, enter('pop')]}><T size={12} weight="bold" color={colors.onAction}>EN TÊTE</T></View> : null}
             </View>
             <Meter parts={[{ fraction: yes / total, color: colors.accent }, { fraction: ifNeeded / total, color: colors.lavender }]} />
             {!closed ? (

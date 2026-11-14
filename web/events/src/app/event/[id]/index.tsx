@@ -480,7 +480,7 @@ export default function EventScreen() {
               <T key={m.id} size={14} color={colors.textSoft} numberOfLines={2}>
                 <T size={14} weight="bold">{data.names.get(m.user_id)} </T>
                 {m.body}
-                <T muted size={11}>  {formatMessageTime(m.created_at)}</T>
+                <T muted size={12}>  {formatMessageTime(m.created_at)}</T>
               </T>
             ))}
           </Section>

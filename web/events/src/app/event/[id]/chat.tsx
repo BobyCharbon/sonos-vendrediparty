@@ -242,21 +242,21 @@ function Chat({ id }: { id: string }) {
                   </View>
                   {/* Passe à la ligne sur un écran étroit : sinon cette ligne élargit la bulle au-delà de l'écran. */}
                   <View style={[s.row, { flexWrap: 'wrap', rowGap: 2 }]}>
-                    <T muted size={11}>{formatMessageTime(m.created_at)}</T>
+                    <T muted size={12}>{formatMessageTime(m.created_at)}</T>
                     {data?.canModerate && !hidden ? (
                       <Pressable onPress={() => togglePin(m)} accessibilityRole="button" hitSlop={ACTION_SLOP}>
-                        <T muted size={11}>{m.pinned ? 'Désépingler' : 'Épingler'}</T>
+                        <T muted size={12}>{m.pinned ? 'Désépingler' : 'Épingler'}</T>
                       </Pressable>
                     ) : null}
                     {mine || can('chat.moderate') ? (
                       <Pressable onPress={() => remove(m)} accessibilityRole="button" hitSlop={ACTION_SLOP}>
-                        <T muted size={11}>Supprimer</T>
+                        <T muted size={12}>Supprimer</T>
                       </Pressable>
                     ) : null}
                     {!mine && !hidden ? (
                       <Pressable onPress={() => setReportTarget({ kind: 'event_message', id: m.id, label: `le message de ${names.get(m.user_id) ?? '?'}` })}
                         accessibilityRole="button" hitSlop={ACTION_SLOP} accessibilityLabel={`Signaler le message de ${names.get(m.user_id) ?? '?'}`}>
-                        <T muted size={11}>Signaler</T>
+                        <T muted size={12}>Signaler</T>
                       </Pressable>
                     ) : null}
                   </View>

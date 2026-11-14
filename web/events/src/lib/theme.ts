@@ -11,6 +11,8 @@ export const colors = {
   textSoft: '#D9D2EE',
   muted: '#B1A8CF',
   accent: '#FF4F9A',
+  // Le néon en texte sur un fond clair-violet (cartes de choix, pastilles) : un ton plus clair, lisible (AA ≥ 4.5:1).
+  accentSoft: '#FF6FAE',
   // Fond des boutons principaux : le néon un ton plus profond, pour un texte blanc lisible (AA), comme dans Party.
   action: '#D92A73',
   onAction: '#FFFFFF',

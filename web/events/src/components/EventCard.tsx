@@ -34,7 +34,7 @@ function DateTile({ iso, tone }: { iso: string | null; tone: Tone }) {
     return (
       <View style={[st.tile, { backgroundColor: tone === 'todo' ? colors.accent : colors.coralDim }]}>
         <T size={24} color={tone === 'todo' ? colors.onAccent : colors.coral} style={{ ...font.display }}>?</T>
-        <T size={10} weight="bold" color={tone === 'todo' ? colors.onAccent : colors.coralSoft}>DATE</T>
+        <T size={12} weight="bold" color={tone === 'todo' ? colors.onAccent : colors.coralSoft}>DATE</T>
       </View>
     );
   }
@@ -48,9 +48,9 @@ function DateTile({ iso, tone }: { iso: string | null; tone: Tone }) {
         : { bg: colors.accentDim, top: colors.accent, day: colors.text, bottom: colors.textSoft };
   return (
     <View style={[st.tile, { backgroundColor: c.bg }]}>
-      <T size={10} weight="bold" color={c.top}>{d.weekday}</T>
+      <T size={12} weight="bold" color={c.top}>{d.weekday}</T>
       <T size={24} color={c.day} style={{ ...font.display, lineHeight: 26 }}>{d.day}</T>
-      <T size={10} weight="bold" color={c.bottom}>{d.month}</T>
+      <T size={12} weight="bold" color={c.bottom}>{d.month}</T>
       {tone === 'yes' || tone === 'no' ? (
         <View style={[st.seal, { backgroundColor: rsvpChoices[tone].bg }]}>
           <T size={11} style={{ ...font.bold, lineHeight: 13 }} color={rsvpChoices[tone].fg}>{rsvpChoices[tone].icon}</T>
