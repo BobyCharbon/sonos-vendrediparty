@@ -1,7 +1,9 @@
-"""Limitation des essais de code PIN (page exposée sur Internet)."""
+"""Limitation des essais de code PIN (page exposée sur Internet), sessions fermées."""
 
+import json
 import threading
 import time
+from pathlib import Path
 
 
 class Limiter:
@@ -53,3 +55,30 @@ class Limiter:
     def _minutes(until: float) -> str:
         left = until - time.time()
         return f"{max(1, round(left))} s" if left < 60 else f"{max(1, round(left / 60))} min"
+
+
+class Revoked:
+    """Sessions fermées par une déconnexion : refusées jusqu'à leur fin naturelle (keep secondes), même si le
+    cookie a été copié. Gardées dans un petit fichier JSON : un redémarrage du serveur ne les rouvre pas."""
+
+    def __init__(self, path: Path, keep: int):
+        self.path, self.keep = path, keep
+        self._lock = threading.Lock()
+        try:
+            self._ids = {str(k): float(v) for k, v in json.loads(path.read_text()).items()}
+        except (OSError, ValueError, AttributeError):
+            self._ids = {}
+
+    def add(self, sid: str):
+        now = time.time()
+        with self._lock:
+            self._ids = {k: v for k, v in self._ids.items() if now - v < self.keep}
+            self._ids[sid] = now
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(self._ids))
+            tmp.replace(self.path)
+
+    def __contains__(self, sid: str) -> bool:
+        with self._lock:
+            return sid in self._ids
