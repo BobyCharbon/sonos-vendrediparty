@@ -101,6 +101,11 @@ def test_review_notes_describe_every_big_feature_delivered_by_the_web():
         "nouveau compte": "Nouveau compte",
         "annonce et maintenance": "maintenance",
         "billets QR / Wallet": "Wallet",
+        "fiche en direct": "updates live",
+        "nom qui ouvre le profil": "open the profile",
+        "heure des réponses et des votes": "shows its time",
+        "surnom à 12 caractères": "12 characters",
+        "Pyramide : 30 s, cartes protégées des captures": "hidden from screenshots",
     }
     missing = [name for name, word in features.items() if word.lower() not in notes.lower()]
     assert not missing, missing
