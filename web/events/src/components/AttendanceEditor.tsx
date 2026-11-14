@@ -95,7 +95,7 @@ export function AttendanceEditor({ event, rsvps, names, me, onChange }: Props) {
             <Reveal key={r.user_id} kind={grew ? 'rise' : null} style={st.person}>
               <View style={s.rowBetween}>
                 <View style={[s.row, st.who]}>
-                  <Avatar id={r.user_id} name={nameOf(r.user_id)} size={28} />
+                  <Avatar id={r.user_id} name={names.get(r.user_id) ?? nameOf(r.user_id)} size={28} />
                   <View style={st.shrink}>
                     <T weight="semibold" numberOfLines={1}>{nameOf(r.user_id)}{r.plus_ones ? ` +${r.plus_ones}` : ''}{waitingPlusOnes(r) ? ` (+${waitingPlusOnes(r)} en attente)` : ''}</T>
                     {r.set_by ? <T muted size={12}>Noté par {nameOf(r.set_by)}</T> : null}

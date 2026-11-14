@@ -487,6 +487,24 @@ def test_each_answer_shows_when_it_was_given(browser, events_origin):
         context.close()
 
 
+def test_my_own_chip_shows_my_initial_not_the_t_of_toi(browser, events_origin):
+    """Ma pastille dans « Qui vient ? » s'appelle « Toi », mais sa bulle porte MON initiale (C de Compte de démonstration),
+    jamais le T de « Toi » (retour de l'admin, 14.11)."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page()
+    mock_services(page, rsvps=[{'event_id':EVENT,'user_id':USER,'status':'yes','plus_ones':0,'note':None,'waitlisted':False,'updated_at':'2026-11-13T20:17:00Z'}])
+    try:
+        page.goto(events_origin, wait_until='domcontentloaded')
+        page.get_by_role('button',name='Événements',exact=True).click()
+        frame=page.frame_locator('#eventsFrame'); login(frame)
+        frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
+        chip=frame.get_by_role('button',name='Ton profil')
+        pw.expect(chip).to_contain_text('Toi', timeout=15000)
+        assert chip.inner_text().split()[0] == 'C', chip.inner_text()
+    finally:
+        context.close()
+
+
 def test_the_event_page_catches_up_when_the_app_comes_back(browser, events_origin):
     """Avis ead4902642da : iPhone sorti de veille (le temps réel a pu manquer un changement), la fiche se relit toute seule :
     la personne qui a répondu entre-temps apparaît, sans recharger la page."""

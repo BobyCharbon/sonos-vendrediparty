@@ -297,13 +297,14 @@ export function RsvpCard({
 
 /** Participant : photo et prénom ; toucher l'un ou l'autre ouvre sa fiche profil. En orange : arrivé par le lien
  * d'invitation (visible des organisateurs). */
-function PersonChip({ id, name, extra, when, viaLink = false, fresh = false, self = false }: { id: string; name: string; extra?: string; when?: string; viaLink?: boolean; fresh?: boolean; self?: boolean }) {
+/** face : le nom dont la bulle prend l'initiale (« Toi » garde l'initiale de la personne, pas un T). */
+function PersonChip({ id, name, face = name, extra, when, viaLink = false, fresh = false, self = false }: { id: string; name: string; face?: string; extra?: string; when?: string; viaLink?: boolean; fresh?: boolean; self?: boolean }) {
   // Fixé à l’apparition : les pastilles déjà là ne rebondissent pas quand une autre arrive.
   const [arrive] = useState(() => (fresh ? enter('pop') : undefined));
   return (
     <Pressable style={({ pressed }) => [st.person, arrive, pressTransition, viaLink && st.viaLink, pressed && { opacity: 0.7 }]} accessibilityRole="button"
       accessibilityLabel={`${self ? 'Ton profil' : `Profil de ${name}`}${viaLink ? ', invité par lien' : ''}`} onPress={() => router.push(`/member/${id}`)}>
-      <Avatar id={id} name={name} size={24} profile={false} />
+      <Avatar id={id} name={face} size={24} profile={false} />
       <T size={13} weight="semibold" numberOfLines={1} style={{ flexShrink: 1 }} color={viaLink ? colors.coral : undefined}>
         {name}{extra ? <T size={13} muted> {extra}</T> : null}{viaLink ? <T size={12} color={colors.coral}> · lien</T> : null}
       </T>
@@ -327,6 +328,7 @@ export function ParticipantsSection({
   viaLink?: Set<string>;
 }) {
   const nameOf = (id: string) => (id === me ? 'Toi' : names.get(id) ?? '?');
+  const faceOf = (id: string) => names.get(id) ?? nameOf(id);
   // « waitlisted » ne compte que pour un Présent (une réponse Peut-être / Absent n'est jamais en attente).
   const group = (st: RsvpStatus, waitlisted = false) => rsvps.filter((r) => r.status === st && onWaitlist(r) === waitlisted);
   const yes = group('yes');
@@ -353,7 +355,7 @@ export function ParticipantsSection({
       <View style={{ gap: 8 }} accessibilityLabel={`${label} : ${list.map((r) => nameOf(r.user_id)).join(', ')}`}>
         <T size={12} weight="bold" color={color}>{label.toUpperCase()} · {count}</T>
         <View style={s.wrap}>
-          {list.map((r) => <PersonChip key={r.user_id} id={r.user_id} self={r.user_id === me} name={nameOf(r.user_id)} extra={r.plus_ones ? `+${r.plus_ones}` : undefined}
+          {list.map((r) => <PersonChip key={r.user_id} id={r.user_id} self={r.user_id === me} name={nameOf(r.user_id)} face={faceOf(r.user_id)} extra={r.plus_ones ? `+${r.plus_ones}` : undefined}
             when={formatAnswerTime(r.updated_at)} viaLink={viaLink.has(r.user_id)} fresh={moved} />)}
         </View>
       </View>
@@ -382,7 +384,7 @@ export function ParticipantsSection({
           <View style={s.wrap}>
             {queue.map((q) => (
               <PersonChip key={`${q.r.user_id}${q.extras ? ':plus' : ''}`} id={q.r.user_id} fresh={moved} self={!q.extras && q.r.user_id === me} viaLink={!q.extras && viaLink.has(q.r.user_id)}
-                name={q.extras ? extrasName(q.r.user_id, q.extras) : nameOf(q.r.user_id)}
+                name={q.extras ? extrasName(q.r.user_id, q.extras) : nameOf(q.r.user_id)} face={faceOf(q.r.user_id)}
                 extra={!q.extras && q.r.plus_ones ? `+${q.r.plus_ones}` : undefined} when={q.extras ? undefined : formatAnswerTime(q.r.updated_at)} />
             ))}
           </View>
