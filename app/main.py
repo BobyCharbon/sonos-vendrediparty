@@ -66,7 +66,7 @@ from .apns import TOPICS
 from .party import ADMIN_NOTIFY_DEFAULTS, GUEST_NOTIFY_DEFAULTS, HOST_ID, MODES, PartyStore, end_of_requests, fair_moves, insert_position
 from .apns import Apns
 from .push import Push, valid_subscription
-from .security import Limiter
+from .security import Limiter, Revoked
 from .sonos import Sonos, seconds
 from .spotify import Spotify, SpotifyError, SpotifyUser
 from .spotify_player import QUEUE_MANAGED_IN_SPOTIFY, SpotifyPlayer
@@ -422,9 +422,37 @@ def _eq(a: str, b: str) -> bool:
     return hmac.compare_digest(a.encode("utf-8", "replace"), b.encode("utf-8", "replace"))
 
 
+ADMIN_SESSION = 30 * 86400  # s : une session admin s'arrête au bout de 30 jours, même si le navigateur garde le cookie
+admin_logged_out = Revoked(DATA_DIR / "admin_logouts.json", ADMIN_SESSION)
+
+
+def _admin_cookie(sid: str) -> str:
+    # Une session par connexion (« <date>-<hasard>.<signature> ») : se déconnecter la ferme pour de bon, sans toucher
+    # aux autres appareils ; signée avec le code admin : changer le code déconnecte tout le monde.
+    return f"{sid}.{_token('admin', ADMIN_PIN + ':' + sid)}"
+
+
+def new_admin_cookie() -> str:
+    return _admin_cookie(f"{int(time.time()):x}-{secrets.token_hex(8)}")
+
+
+def admin_session(request: Request) -> str | None:
+    """Identifiant de la session admin du cookie, si elle est signée, a moins de 30 jours et n'a pas été fermée."""
+    value = request.cookies.get("vp_admin", "")
+    sid = value.partition(".")[0]
+    if not (ADMIN_PIN and sid and _eq(value, _admin_cookie(sid))):
+        return None
+    try:
+        born = int(sid.partition("-")[0], 16)
+    except ValueError:
+        return None
+    if not 0 <= time.time() - born < ADMIN_SESSION or sid in admin_logged_out:
+        return None
+    return sid
+
+
 def is_admin(request: Request) -> bool:
-    token = request.cookies.get("vp_admin", "")
-    return bool(ADMIN_PIN) and _eq(token, _token("admin", ADMIN_PIN))
+    return admin_session(request) is not None
 
 
 def require_admin(request: Request):
@@ -535,7 +563,7 @@ def admin_login(body: Login, request: Request, response: Response):
         journal.record("admin.login_failed", "Inconnu", ip=ip)
         raise HTTPException(401, "Code incorrect")
     admin_limiter.success(ip)
-    set_auth_cookie(request, response, "vp_admin", _token("admin", ADMIN_PIN), "strict")
+    set_auth_cookie(request, response, "vp_admin", new_admin_cookie(), "strict")
     response.delete_cookie("vp_admin_by")
     journal.record("admin.login", PIN_ACTOR, details={"method": "code PIN"}, ip=ip)
     return {"ok": True}
@@ -576,8 +604,9 @@ def admin_new_pin(request: Request, body: PinChoice | None = None):
 
 @app.post("/api/admin/logout")
 def admin_logout(request: Request, response: Response):
-    if is_admin(request):
+    if sid := admin_session(request):
         log_admin(request, "admin.logout")
+        admin_logged_out.add(sid)  # le cookie, même copié, ne vaut plus rien
     response.delete_cookie("vp_admin")
     response.delete_cookie("vp_admin_by")
     return {"ok": True}
@@ -3118,7 +3147,7 @@ def account_admin(body: AccountToken, request: Request, response: Response):
         journal.record("admin.denied", name, {"id": who["guest_id"], "name": name}, ip=ip)
         raise HTTPException(403, "Ton compte n'a pas l'accès admin de Party")
     account_limiter.success(ip)
-    set_auth_cookie(request, response, "vp_admin", _token("admin", ADMIN_PIN), "strict")
+    set_auth_cookie(request, response, "vp_admin", new_admin_cookie(), "strict")
     set_auth_cookie(request, response, "vp_admin_by", _actor_cookie(name), "strict")
     journal.record("admin.login", name, {"id": who["guest_id"], "name": name}, {"method": "compte"}, ip=ip)
     return {"ok": True}
@@ -5320,16 +5349,14 @@ def _admin_notice() -> dict:
     return {"notice": {**n.public(), "at": n.at, "by": n.by} if n else None}
 
 
-@app.get("/api/admin/notice")
-def admin_notice_get(request: Request):
-    require_admin(request)
+@app.get("/api/admin/notice", dependencies=[Depends(require_admin)])
+def admin_notice_get():
     return JSONResponse(_admin_notice(), headers=NO_CACHE)
 
 
-@app.post("/api/admin/notice")
+@app.post("/api/admin/notice", dependencies=[Depends(require_admin)])
 def admin_notice_set(body: NoticeBody, request: Request):
     """Réglages › « Annonce et maintenance » : l'admin affiche un message à tout le monde, sur tous les onglets."""
-    require_admin(request)
     actor = admin_actor(request)
     try:
         n = notices.set(make_notice(body.kind, body.title, body.message, by=actor))
@@ -5339,9 +5366,8 @@ def admin_notice_set(body: NoticeBody, request: Request):
     return JSONResponse(_admin_notice(), headers=NO_CACHE)
 
 
-@app.delete("/api/admin/notice")
+@app.delete("/api/admin/notice", dependencies=[Depends(require_admin)])
 def admin_notice_clear(request: Request):
-    require_admin(request)
     if notices.admin_notice():
         notices.clear()
         journal.record("notice.clear", admin_actor(request), None, None, ip=client_ip(request))

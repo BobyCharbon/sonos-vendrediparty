@@ -58,6 +58,7 @@ class AccountAuth:
 
     def sign_out(self, token: str) -> None:
         """Ferme la session de cet appareil (les autres appareils restent connectés). Déjà expirée : rien à faire."""
+        self.accounts.forget(token)
         try:
             self.accounts._get("POST", "/auth/v1/logout?scope=local", token)
         except AccountError:
