@@ -67,7 +67,7 @@ def browser(request):
             p.stop()
 
 
-def mock_services(page, pending=False, events=1, people=(), roles=None):
+def mock_services(page, pending=False, events=1, people=(), roles=None, unread=(), rsvps=()):
     calls = []
     profile = {'id': USER, 'display_name': 'Compte de démonstration', 'phone': '41791234567', 'role': 'guest' if pending else 'admin', 'status': 'active', 'avatar_url': f'{USER}/photo.jpg', 'first_name': 'Camille', 'last_name': 'Demo', 'created_at': '2026-10-19T08:00:00Z'}
     category = {'id': 'ed69d11e-34dd-43fe-b211-10d0dd158ba9', 'name': 'Soirée', 'color': '#FFB347', 'sort': 0, 'archived': False, 'icon': None}
@@ -78,6 +78,7 @@ def mock_services(page, pending=False, events=1, people=(), roles=None):
              'event_organizers': [], 'polls': [], 'bring_items': [], 'author': {'display_name': profile['display_name']},
              'show_participants': True, 'allow_maybe': True, 'allow_plus_ones': False, 'max_plus_ones': 0, 'max_participants': None,
              'rsvp_deadline': None, 'forum_enabled': True, 'all_day': False, 'price_chf': None, 'visibility': 'all'}
+    event['rsvps'] = rsvps if isinstance(rsvps, list) else [dict(r) for r in rsvps]  # liste : le test peut l'allonger
     # Droits du compte (catalogue réel : migration 20261020160100) ; un invité ne voit pas les sorties.
     perms = ['games.create', 'music.add'] if pending else ['events.view', 'events.rsvp', 'events.plus_ones', 'events.create', 'events.publish_direct',
              'events.edit_own_published', 'events.manage_all', 'events.approve', 'events.see_participants', 'polls.create', 'chat.write', 'chat.moderate',
@@ -127,6 +128,7 @@ def mock_services(page, pending=False, events=1, people=(), roles=None):
             result=None
         elif path.endswith('/group_settings'): result={'organizers_can_edit_published':True,'name':'Groupe de démonstration','timezone':'Europe/Zurich','require_approval':True,'coadmins_skip_approval':True,'members_can_create_tags':False}
         elif path.endswith('/profiles'): result=[{'id':USER,'display_name':profile['display_name']},*people]
+        elif path.endswith('/notifications') and request.method=='GET': result=[{'event_id':e} for e in unread]
         route.fulfill(status=200,content_type='application/json',body=json.dumps(result),headers=headers)
     page.route('https://gsuetixzobooggeaubvb.supabase.co/**', handle)
     page.route_web_socket('wss://gsuetixzobooggeaubvb.supabase.co/**', lambda ws:ws.on_message(lambda _message: None))
@@ -463,6 +465,85 @@ def test_pending_badge_stays_on_when_leaving_the_events_screen(browser, events_o
         pw.expect(badge).to_have_text('1'); pw.expect(badge).to_be_visible()
         page.locator('#tabs [data-tab="events"]').click()
         pw.expect(badge).to_have_text('1')
+    finally:
+        context.close()
+
+
+def test_each_answer_shows_when_it_was_given(browser, events_origin):
+    """Avis 2f5abe63e8ff : sous chaque réponse, en petit, le jour et l'heure où la personne a répondu (heure de Zurich)."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page()
+    lea='7a1b2c3d-4e5f-4061-8172-839405162738'
+    mock_services(page, people=[{'id':lea,'display_name':'Léa'}],
+                  rsvps=[{'event_id':EVENT,'user_id':lea,'status':'yes','plus_ones':0,'note':None,'waitlisted':False,'updated_at':'2026-11-13T20:17:00Z'}])
+    try:
+        page.goto(events_origin, wait_until='domcontentloaded')
+        page.get_by_role('button',name='Événements',exact=True).click()
+        frame=page.frame_locator('#eventsFrame'); login(frame)
+        frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
+        chip=frame.get_by_role('button',name='Profil de Léa')
+        pw.expect(chip).to_contain_text('13.11 · 21:17', timeout=15000)
+    finally:
+        context.close()
+
+
+def test_the_event_page_catches_up_when_the_app_comes_back(browser, events_origin):
+    """Avis ead4902642da : iPhone sorti de veille (le temps réel a pu manquer un changement), la fiche se relit toute seule :
+    la personne qui a répondu entre-temps apparaît, sans recharger la page."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page()
+    lea='7a1b2c3d-4e5f-4061-8172-839405162738'
+    answers=[]
+    mock_services(page, people=[{'id':lea,'display_name':'Léa'}], rsvps=answers)
+    try:
+        page.goto(events_origin, wait_until='domcontentloaded')
+        page.get_by_role('button',name='Événements',exact=True).click()
+        frame=page.frame_locator('#eventsFrame'); login(frame)
+        frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
+        pw.expect(frame.get_by_text('Personne n’a encore répondu',exact=False)).to_be_visible(timeout=15000)
+        answers.append({'event_id':EVENT,'user_id':lea,'status':'yes','plus_ones':0,'note':None,'waitlisted':False,'updated_at':'2026-11-14T18:00:00Z'})
+        page.frame_locator('#eventsFrame').locator('body').evaluate("() => document.dispatchEvent(new Event('visibilitychange'))")
+        pw.expect(frame.get_by_role('button',name='Profil de Léa')).to_be_visible(timeout=10000)
+    finally:
+        context.close()
+
+
+def test_an_absent_name_opens_the_profile(browser, events_origin):
+    """Avis 36c47b3d1f82 : « Absents : Tom (13.11 · 21:17) » — le nom se touche et ouvre la fiche de Tom."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page()
+    tom='8b2c3d4e-5f60-4172-8394-a5b6c7d8e9f0'
+    mock_services(page, people=[{'id':tom,'display_name':'Tom'}],
+                  rsvps=[{'event_id':EVENT,'user_id':tom,'status':'no','plus_ones':0,'note':None,'waitlisted':False,'updated_at':'2026-11-13T20:17:00Z'}])
+    try:
+        page.goto(events_origin, wait_until='domcontentloaded')
+        page.get_by_role('button',name='Événements',exact=True).click()
+        frame=page.frame_locator('#eventsFrame'); login(frame)
+        frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
+        link=frame.get_by_role('link',name='Profil de Tom')
+        pw.expect(link).to_be_visible(timeout=15000)
+        pw.expect(frame.get_by_text('Absents :',exact=False)).to_contain_text('(13.11 · 21:17)')
+        link.click()
+        page.wait_for_function(f"document.getElementById('eventsFrame').contentWindow.location.pathname.endsWith('/member/{tom}')", timeout=10000)
+    finally:
+        context.close()
+
+
+def test_events_tab_badge_also_counts_unopened_important_news(browser, events_origin):
+    """Avis a1d340ff00dd : une nouveauté importante pas encore ouverte (date fixée, changement…) se voit sur l'onglet
+    Événements, en plus des réponses attendues ; un même événement ne compte qu'une fois."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page()
+    other='5b0c7d2e-1111-4222-8333-944455556666'
+    # 1 réponse attendue (EVENT) + nouveautés : la même (EVENT, invitation), une autre fiche (date fixée, 2 fois), un groupe.
+    mock_services(page, unread=(EVENT, other, other, None))
+    badge=page.locator('#tabs [data-events-badge]')
+    try:
+        page.goto(events_origin, wait_until='domcontentloaded')
+        page.get_by_role('button',name='Événements',exact=True).click()
+        login(page.frame_locator('#eventsFrame'))
+        pw.expect(badge).to_have_text('3', timeout=10000)
+        pw.expect(page.locator('#tabs [data-tab="events"]')).to_have_attribute('aria-label', 'Événements, 3 à voir')
     finally:
         context.close()
 

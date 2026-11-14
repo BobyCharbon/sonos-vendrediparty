@@ -84,7 +84,7 @@ jobs:
           fi
           echo "PLAY_READY=1" >> "$GITHUB_ENV"
 
-      - uses: r0adkll/upload-google-play@v1
+      - uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1 (épinglé : action tierce qui reçoit le compte de service Google Play)
         if: env.PLAY_READY == '1'
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}

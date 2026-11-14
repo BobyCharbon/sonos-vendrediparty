@@ -55,3 +55,32 @@ def test_a_player_without_an_account_is_not_tappable(browser, server):
         assert lea.page.locator('.g-lobby-players [data-profile-pid]').filter(has_text="Max").count() == 0
     finally:
         lea.close(); max_.close()
+
+
+def test_names_in_the_vote_results_open_the_profile_too(browser, server):
+    """Avis 36c47b3d1f82 : dans les résultats d'un vote (« Qui de nous ? »), le nom d'un joueur avec un compte se touche
+    et ouvre sa fiche ; les avatars de ceux qui ont voté aussi."""
+    lea, tom = Phone(browser, server, "Lea"), Phone(browser, server, "Tom")
+    try:
+        lea.page.goto("/")
+        sign_in(lea, "jeton-de-test-guest-plus-0001")
+        lea.page.wait_for_function("account && account.name === 'Léa'")
+        code = lea.create("whoof")
+        tom.page.goto("/")
+        sign_in(tom, "jeton-de-test-guest-0001")  # connecté : on ne voit les profils qu'avec un compte
+        tom.page.wait_for_function("account && account.name === 'Tom'")
+        tom.join(code)
+        expect(lea.page.locator(".g-lobby-players").filter(has_text="Tom")).to_be_visible()
+        lea.tap('[data-gact="start"]')
+        expect(lea.page.locator(".qs-q")).to_contain_text("Qui de nous")
+        lea.page.locator(".qs-pick", has_text="Moi").click()
+        expect(lea.page.locator(".qs-who[data-profile-pid]")).to_have_count(2)  # les avatars des votants se touchent
+        tom.page.locator(".qs-pick", has_text="Léa").click()
+        winner = tom.page.locator(".qs-win-names [data-profile-pid]")
+        expect(winner).to_have_text("Léa", timeout=10000)
+        tom.shot("profile_from_results")
+        winner.click()
+        expect(tom.page.locator(".pc-card")).to_contain_text("Léa")
+        assert not lea.errors and not tom.errors and not server.errors(), lea.errors + tom.errors
+    finally:
+        lea.close(); tom.close()
