@@ -60,3 +60,25 @@ Deno.test('pendant une pause : sans son, interruption « passive »', () => {
   assertEquals(apsFor('T', 'B', false), { alert: { title: 'T', body: 'B' }, sound: 'default' });
   assertEquals(apsFor('T', 'B', true), { alert: { title: 'T', body: 'B' }, 'interruption-level': 'passive' });
 });
+
+Deno.test("les notifications d'un même événement se regroupent (thread-id)", async () => {
+  const { cfg } = await config();
+  let sent: { aps: Record<string, unknown>; url: string } | null = null;
+  globalThis.fetch = ((_: string, init: RequestInit) => { sent = JSON.parse(init.body as string); return Promise.resolve(new Response(null, { status: 200 })); }) as typeof fetch;
+  await sendApns(cfg, TOKEN, 'n4', 't', 'b', { event_id: '11111111-2222-3333-4444-555555555555' });
+  assertEquals(sent!.aps['thread-id'], '/?tab=events&event=11111111-2222-3333-4444-555555555555');
+});
+
+Deno.test("jeton d'un build Xcode (sandbox) : l'autre serveur d'Apple avant d'oublier l'appareil", async () => {
+  const { cfg } = await config();
+  const hosts: string[] = [];
+  globalThis.fetch = ((url: string) => {
+    hosts.push(new URL(url).host);
+    const sandbox = url.includes('sandbox');
+    return Promise.resolve(sandbox ? new Response(null, { status: 200 }) : new Response(JSON.stringify({ reason: 'BadDeviceToken' }), { status: 400 }));
+  }) as typeof fetch;
+  assertEquals(await sendApns(cfg, TOKEN, 'n5', 't', 'b', {}), { ok: true });
+  assertEquals(hosts, ['api.push.apple.com', 'api.sandbox.push.apple.com']);
+  globalThis.fetch = (() => Promise.resolve(new Response(JSON.stringify({ reason: 'BadDeviceToken' }), { status: 400 }))) as typeof fetch;
+  assertEquals(await sendApns(cfg, TOKEN, 'n6', 't', 'b', {}), { ok: false, code: 'DeviceNotRegistered', permanent: true });
+});

@@ -46,6 +46,16 @@ def page(browser, server):
     ctx.close()
 
 
+def test_track_notification_link_opens_music_not_the_start_tab(page):
+    """« Ton titre passe » (url /?tab=music) : l'app s'ouvre d'habitude sur Événements, ici sur la Musique."""
+    page.goto("/?tab=music")
+    page.wait_for_function("document.body.dataset.tab")
+    assert page.evaluate("document.body.dataset.tab") == "music"
+    page.goto("/")
+    page.wait_for_function("document.body.dataset.tab")
+    assert page.evaluate("document.body.dataset.tab") == "events"
+
+
 def test_native_app_supports_notifications_without_web_push(page):
     assert page.evaluate("Push.supported()")
     assert page.evaluate("Push.permission()") == "default"

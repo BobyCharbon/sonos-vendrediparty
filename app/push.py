@@ -56,6 +56,9 @@ class Push:
 
     def send(self, subs: list[dict], payload: dict, on_gone=lambda sub: None):
         """Envoie en arrière-plan ; on_gone(sub) quand l'abonnement n'existe plus (désinstallé, refusé)."""
+        # Apple et Web Push refusent plus de 4 Ko (une réponse d'avis va jusqu'à 2000 caractères) : comme Supabase.
+        payload = {**payload, "title": payload.get("title", "")[:100], "body": payload.get("body", "")[:180]}
+
         def run():
             for sub in subs:
                 if "apns" in sub:

@@ -9,6 +9,7 @@ import logging
 import json
 import threading
 import time
+import uuid
 
 import httpx
 from cryptography.hazmat.primitives import hashes, serialization
@@ -24,6 +25,9 @@ TOKEN_LIFETIME = 50 * 60
 # L'appareil a désinstallé l'app ou appartient à une autre app : on oublie l'abonnement.
 GONE_REASONS = {"Unregistered", "BadDeviceToken", "DeviceTokenNotForTopic"}
 TTL_SECONDS = 300
+# Apple surchargée (429 TooManyRequests, 500, 503) ou injoignable : deux nouveaux essais, après 1 puis 3 s.
+RETRY_STATUSES = {429, 500, 503}
+RETRY_DELAYS = (1, 3)
 TOKEN_HEX = set("0123456789abcdef")
 
 
@@ -86,32 +90,49 @@ class Apns:
         body = {"aps": aps}
         if payload.get("url"):
             body["url"] = payload["url"]  # ouverte par l'app au toucher (PushRegistrar.swift)
-        response = self.client.post(
-            f"{HOSTS[target['environment']]}/3/device/{target['token']}", json=body,
-            headers={"authorization": f"bearer {self._provider_token()}", "apns-topic": target["topic"],
-                     "apns-push-type": "alert", "apns-priority": "5" if silent else "10",
-                     "apns-expiration": str(int(time.time()) + TTL_SECONDS)})
-        return self._alive(response)
+        return self._post(target, body, {"apns-topic": target["topic"], "apns-push-type": "alert",
+                                         "apns-priority": "5" if silent else "10"})
 
     def send_live_activity(self, target: dict, event: str, aps: dict, priority: int = 10) -> bool:
         """Live Activity (app/live_activity.py) : event start | update | end ; target = jeton de l'activité ou de
         démarrage, environnement et app. False si le jeton n'existe plus (activité terminée, app désinstallée)."""
         body = {"aps": {"timestamp": int(time.time()), "event": event, **aps}}
-        response = self.client.post(
-            f"{HOSTS[target['environment']]}/3/device/{target['token']}", json=body,
-            headers={"authorization": f"bearer {self._provider_token()}",
-                     "apns-topic": target["topic"] + ".push-type.liveactivity",
-                     "apns-push-type": "liveactivity", "apns-priority": str(priority),
-                     "apns-expiration": str(int(time.time()) + TTL_SECONDS)})
-        return self._alive(response)
+        return self._post(target, body, {"apns-topic": target["topic"] + ".push-type.liveactivity",
+                                         "apns-push-type": "liveactivity", "apns-priority": str(priority)})
+
+    def _post(self, target: dict, body: dict, headers: dict) -> bool:
+        """Envoi avec nouveaux essais. Même apns-id et apns-collapse-id à chaque essai : une alerte arrivée malgré une
+        erreur réseau est remplacée sur l'iPhone par la suivante, jamais montrée deux fois (Live Activity : iOS ignore
+        déjà une mise à jour au même « timestamp »)."""
+        notification_id = str(uuid.uuid4())
+        headers = {**headers, "apns-id": notification_id, "apns-expiration": str(int(time.time()) + TTL_SECONDS)}
+        if headers["apns-push-type"] == "alert":
+            headers["apns-collapse-id"] = notification_id
+        response = None
+        for delay in (*RETRY_DELAYS, None):
+            try:
+                response = self.client.post(f"{HOSTS[target['environment']]}/3/device/{target['token']}", json=body,
+                                            headers={**headers, "authorization": f"bearer {self._provider_token()}"})
+            except httpx.TransportError:
+                response = None
+            else:
+                if response.status_code == 403 and self._reason(response) == "ExpiredProviderToken":
+                    with self._lock:
+                        self._token = ""  # horloge décalée ou jeton trop vieux : un nouveau au prochain essai
+                elif response.status_code not in RETRY_STATUSES:
+                    break
+            if delay is None:
+                break
+            time.sleep(delay)
+        return response is None or self._alive(response)
+
+    @staticmethod
+    def _reason(response: httpx.Response) -> str:
+        try:
+            return response.json().get("reason") or ""
+        except (ValueError, AttributeError):
+            return ""
 
     @staticmethod
     def _alive(response: httpx.Response) -> bool:
-        if response.status_code == 410:
-            return False
-        if response.status_code == 400:
-            try:
-                return response.json().get("reason") not in GONE_REASONS
-            except ValueError:
-                return True
-        return True
+        return response.status_code != 410 and (response.status_code != 400 or Apns._reason(response) not in GONE_REASONS)

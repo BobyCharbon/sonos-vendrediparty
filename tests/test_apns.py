@@ -84,7 +84,7 @@ def test_uninstalled_or_foreign_devices_are_reported_gone(key_pem, status, reaso
     assert sender.send(apns_sub(), {"title": "a", "body": "b"}) is False
 
 
-def test_other_apple_errors_keep_the_device(key_pem):
+def test_other_apple_errors_keep_the_device(key_pem, no_wait):
     sender = make_apns(key_pem, lambda request: httpx.Response(429, json={"reason": "TooManyRequests"}))
     assert sender.send(apns_sub(), {"title": "a", "body": "b"}) is True
 
@@ -176,3 +176,81 @@ def test_live_activity_update_goes_to_the_liveactivity_topic():
     assert r.headers["apns-push-type"] == "liveactivity" and r.headers["apns-priority"] == "5"
     body = _json.loads(r.content)["aps"]
     assert body["event"] == "update" and body["content-state"] == {"ahead": 1} and body["timestamp"] > 0
+
+
+@pytest.fixture
+def no_wait(monkeypatch):
+    monkeypatch.setattr(apns_mod, "RETRY_DELAYS", (0, 0))
+
+
+def test_apple_busy_is_retried_with_the_same_id_so_never_shown_twice(key_pem, no_wait):
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(503 if len(seen) == 1 else 200, json={"reason": "ServiceUnavailable"})
+
+    sender = make_apns(key_pem, handler)
+    assert sender.send(apns_sub(), {"title": "a", "body": "b"}) is True
+    first, second = seen
+    assert first.headers["apns-id"] == second.headers["apns-id"]
+    # Même apns-collapse-id : si le premier essai était arrivé quand même, l'iPhone le remplace (pas de doublon).
+    assert first.headers["apns-collapse-id"] == second.headers["apns-collapse-id"] == first.headers["apns-id"]
+
+
+def test_too_many_requests_stops_after_three_tries_and_keeps_the_device(key_pem, no_wait):
+    seen = []
+    sender = make_apns(key_pem, lambda r: seen.append(r) or httpx.Response(429, json={"reason": "TooManyRequests"}))
+    assert sender.send(apns_sub(), {"title": "a", "body": "b"}) is True
+    assert len(seen) == 3
+
+
+def test_apple_unreachable_is_retried_then_given_up_without_error(key_pem, no_wait):
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        raise httpx.ConnectError("down")
+
+    assert make_apns(key_pem, handler).send(apns_sub(), {"title": "a", "body": "b"}) is True
+    assert len(seen) == 3
+
+
+def test_expired_provider_token_is_renewed_and_the_alert_resent(key_pem, no_wait):
+    tokens = []
+
+    def handler(request):
+        tokens.append(request.headers["authorization"])
+        return httpx.Response(403, json={"reason": "ExpiredProviderToken"}) if len(tokens) == 1 else httpx.Response(200)
+
+    assert make_apns(key_pem, handler).send(apns_sub(), {"title": "a", "body": "b"}) is True
+    assert len(tokens) == 2 and tokens[0] != tokens[1]
+
+
+def test_provider_token_is_renewed_before_apple_s_one_hour_limit(key_pem):
+    tokens = []
+    sender = make_apns(key_pem, lambda r: tokens.append(r.headers["authorization"]) or httpx.Response(200))
+    sender.send(apns_sub(), {"title": "a", "body": "b"})
+    sender._token_at -= apns_mod.TOKEN_LIFETIME + 1  # 50 min plus tard
+    sender.send(apns_sub(), {"title": "a", "body": "b"})
+    assert apns_mod.TOKEN_LIFETIME < 3600 and tokens[0] != tokens[1]
+
+
+def test_a_long_reply_still_fits_in_apple_s_4_kb(tmp_path, key_pem):
+    seen = []
+    sender = make_apns(key_pem, lambda r: seen.append(r) or httpx.Response(200))
+    push = Push(tmp_path, "https://party.bobycharbon.ch", apns=sender)
+    # Réponse de l'admin à un avis : jusqu'à 2000 caractères (emoji compris, 4 octets chacun).
+    push.send([apns_sub()], {"title": "✅ Ton retour est terminé", "body": "🎉" * 2000, "url": "/?tab=feedback",
+                             "tag": "feedback-1"})
+    assert wait_for(lambda: seen)
+    assert len(seen[0].content) <= 4096
+    assert json.loads(seen[0].content)["aps"]["alert"]["body"] == "🎉" * 180
+
+
+def test_live_activity_is_retried_when_apple_is_busy(key_pem, no_wait):
+    seen = []
+    sender = make_apns(key_pem, lambda r: seen.append(r) or httpx.Response(500 if len(seen) == 1 else 200))
+    target = {"token": TOKEN, "environment": "production", "topic": "ch.bobycharbon.party"}
+    assert sender.send_live_activity(target, "update", {"content-state": {"ahead": 1}}) is True
+    assert len(seen) == 2

@@ -261,7 +261,7 @@ def track_changed(data: dict, done: list):
     for r in done:
         if r.track_id == cur["track_id"]:
             notify_guest(r.guest_id, {"title": "🎶 Ton titre passe !", "body": f"{r.title} · {r.artist}",
-                                      "url": "/", "tag": "now-playing"}, kind="track")
+                                      "url": "/?tab=music", "tag": "now-playing"}, kind="track")
 
 
 def snapshot(force: bool = False) -> dict:

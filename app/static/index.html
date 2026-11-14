@@ -1159,6 +1159,10 @@ addEventListener("DOMContentLoaded", async () => {
   } else if (params.get("tab") === "feedback") {
     showTab(fbAllowed() ? "feedback" : "music");
     history.replaceState(null, "", location.pathname);
+  } else if (params.get("tab") === "music") {
+    // Notification « Ton titre passe » : la Musique, pas l'onglet d'ouverture (Événements).
+    showTab("music");
+    history.replaceState(null, "", location.pathname);
   } else if (params.get("tab") === "chats") {
     // Notification de discussion : la conversation du groupe (sinon la liste des discussions).
     const chat = params.get("chat") || "";

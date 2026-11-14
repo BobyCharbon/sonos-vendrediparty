@@ -80,6 +80,7 @@ def test_guest_subscribes_and_is_notified_when_track_starts(admin, push):  # noq
 
     assert push.sent and push.sent[-1][0] == [SUB]
     assert push.sent[-1][1]["title"] == "🎶 Ton titre passe !"
+    assert push.sent[-1][1]["url"] == "/?tab=music"  # le toucher ouvre la Musique, pas l'onglet d'ouverture
     assert main.store.session.played[-1]["title"] == "Mon titre"
     # Même titre au tour suivant : ni nouvelle notification, ni doublon dans l'historique.
     count = len(push.sent)
