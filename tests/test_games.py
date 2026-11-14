@@ -718,16 +718,63 @@ def test_pyramid_deal_rules_and_hidden_hands():
     games.pyr_answer(g, "p1", "dedans")    # 9H entre 2 et 12
     games.pyr_answer(g, "p0", "D")         # KD carreau
     games.pyr_answer(g, "p1", "S")         # 3S pique
+    assert g["phase"] == "look"  # chacun mémorise ses cartes avant la pyramide
+    end_look(g)
     assert g["phase"] == "pyramid"
     v = games.view(g, "p0")["pyr"]
     assert all(c == "??" for s in v["seats"] for c in s["cards"])  # plus personne ne voit ses cartes
     assert v["pyramid"] == ["??"] * 15
 
 
+def end_look(g):
+    g["pyr"]["look_at"] -= games.PYR_LOOK_SECONDS  # les 30 s de mémorisation sont passées
+    games.pyr_start_pyramid(g)
+
+
 def finish_deal(g):
     P = g["pyr"]
     while g["phase"] == "deal":
         games.pyr_answer(g, P["order"][P["turn"]], games.PYR_STEPS[P["step"]][0])
+    end_look(g)
+
+
+def test_pyramid_everyone_memorises_only_their_own_cards_for_at_least_thirty_seconds():
+    """Avis 4c55c231a4d2 : après la distribution, chacun voit SES 4 cartes au moins 30 s ; l'animateur lance ensuite."""
+    g = games.new_game("pyramid", host="p0", name="P0")
+    games.join(g, "p1", "P1")
+    games.join(g, "p2", "P2")
+    games.add_guest(g, "Mamie")  # sans téléphone : l'animateur joue pour elle
+    games.start(g, random.Random(7))
+    P = g["pyr"]
+    while g["phase"] == "deal":
+        games.pyr_answer(g, P["order"][P["turn"]], games.PYR_STEPS[P["step"]][0])
+    assert g["phase"] == "look"
+    mamie = next(p["id"] for p in g["players"] if p["name"] == "Mamie")
+    seats = lambda gid: {s["name"]: s["cards"] for s in games.view(g, gid)["pyr"]["seats"]}
+    assert seats("p1")["P1"] == P["hands"]["p1"] and seats("p1")["P2"] == ["??"] * 4 and seats("p1")["P0"] == ["??"] * 4
+    assert seats("p0")["Mamie"] == P["hands"][mamie]  # l'animateur montre ses cartes à qui n'a pas de téléphone
+    assert seats("p1")["Mamie"] == ["??"] * 4
+    assert 29 <= games.view(g, "p1")["pyr"]["look_left"] <= 30
+    with pytest.raises(games.GameError, match="pour mémoriser"):
+        games.pyr_start_pyramid(g)  # trop tôt
+    with pytest.raises(games.GameError):
+        games.pyr_flip(g)  # la pyramide n'a pas commencé
+    end_look(g)
+    assert g["phase"] == "pyramid" and seats("p1")["P1"] == ["??"] * 4
+    with pytest.raises(games.GameError):
+        games.pyr_start_pyramid(g)  # déjà lancée
+
+
+def test_pyramid_a_late_player_accepted_while_memorising_deals_when_the_pyramid_starts():
+    g = pyramid(n=2)
+    P = g["pyr"]
+    while g["phase"] == "deal":
+        games.pyr_answer(g, P["order"][P["turn"]], games.PYR_STEPS[P["step"]][0])
+    games.join(g, "p9", "P9")
+    games.pyr_accept(g, "p9")
+    assert P["queue"] == ["p9"] and not P.get("late")
+    end_look(g)
+    assert P["late"]["gid"] == "p9"  # sa distribution perso commence avec la pyramide
 
 
 def test_pyramid_claim_accuse_reveal_and_peek():

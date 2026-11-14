@@ -201,7 +201,8 @@ const GAME_RULES = {
       <li><b>Quel symbole</b> : ♠ ♥ ♦ ♣ ?</li>
     </ol>
     <p><b>Poteau !</b> Si tu reçois une carte de même valeur qu'une carte que tu as déjà (au bateau aussi) : en mode soft, <b>tout le monde boit 1 gorgée</b> ; en mode hard, <b>celui qui l'a tirée boit un shot (ou un verre d'eau)</b>.</p>
-    <p>Raté : tu bois ; réussi : tu distribues. En mode <b>soft</b>, 1 gorgée à chaque carte ; en mode <b>hard</b>, 1, 2, 3 puis 4 gorgées selon le tour. Une égalité (même valeur, ou carte « sur le poteau ») compte comme ratée. <b>L'As est la carte la plus forte.</b> Ensuite, toutes les mains se retournent : <b>plus personne ne voit ses cartes</b>.</p>
+    <p>Raté : tu bois ; réussi : tu distribues. En mode <b>soft</b>, 1 gorgée à chaque carte ; en mode <b>hard</b>, 1, 2, 3 puis 4 gorgées selon le tour. Une égalité (même valeur, ou carte « sur le poteau ») compte comme ratée. <b>L'As est la carte la plus forte.</b></p>
+    <p><b>Mémorise !</b> Après la distribution, chacun voit <b>ses</b> 4 cartes au moins 30 secondes, puis l'animateur lance la pyramide : toutes les mains se retournent et <b>plus personne ne voit ses cartes</b>. Pas de capture d'écran : dans l'app iPhone, elle est noire.</p>
     <h3>2. La pyramide</h3>
     <ul>
       <li>L'animateur retourne les cartes une par une, de la base vers le sommet. Étage 1 : 1 gorgée, étage 2 : 2 gorgées… (ou 2, 4, 6… si l'animateur a choisi les gorgées doublées).</li>
@@ -923,6 +924,7 @@ function syncGameChrome() {
     mini.addEventListener("click", () => openGameFull());
     document.body.append(mini);
   }
+  pyrSecretSync(full ? g : null);
   const show = !!g && !full;
   mini.classList.toggle("hidden", !show);
   document.body.classList.toggle("has-mini", show);
@@ -1228,7 +1230,7 @@ function renderGame(g) {
   } else if (g.type === "pyramid" || g.type === "biskit") {
     // Mise à jour fine (morph) : une carte déjà retournée ne se retourne plus quand un autre joueur agit.
     morphGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g)));
-    if (g.type === "pyramid") pyrWheel(g);
+    if (g.type === "pyramid") { pyrWheel(g); pyrLookStart(); }
   } else {
     // Jeux simples : chaque étape (phase) arrive en fondu ; même clé = même nœud, rien ne se rejoue entre deux étapes.
     const step = STEP_FADE.includes(g.type) ? `<div class="g-step" data-key="${esc(`${g.type}:${g.phase}`)}">${body}</div>` : body;
@@ -1583,7 +1585,7 @@ function pyrEvents(g) {
 
 function pyrPhase(g) {
   const v = g.pyr;
-  return { lobby: "Préparation", deal: `Distribution · tour ${v.step || 1}/4`, pyramid: `Pyramide · ${v.flipped || 0}/${v.size}`,
+  return { lobby: "Préparation", deal: `Distribution · tour ${v.step || 1}/4`, look: "Mémorisation", pyramid: `Pyramide · ${v.flipped || 0}/${v.size}`,
     memory: "Test de mémoire", memres: "Résultats", boatpick: "Qui fait le bateau ?", boat: "Le bateau", end: "Fin" }[g.phase] || "";
 }
 function pyrSeats(g, opts = {}) {
@@ -1626,6 +1628,8 @@ function pyrHtml(g) {
         : `<div class="py-q">${PYR_Q[v.step].q}</div>${ref.length ? `<div class="py-ref">${ref.map((c) => pyCard(c, "md")).join("")}<span class="py-card ghost md"><b>?</b></span></div>` : ""}
            <div class="py-wait">${esc(cur?.name)} réfléchit…</div>`}
       <h3 class="py-h">Les mains</h3>${pyrSeats(g)}`;
+  } else if (g.phase === "look") {
+    body = pyrLookHtml(g);
   } else if (g.phase === "pyramid" && v.late) {
     const L = v.late, seat = v.seats.find((s) => s.pid === L.pid), mine = L.pid === me?.pid;
     const ref = L.step === 2 ? seat.cards.slice(0, 1) : L.step === 3 ? seat.cards.slice(0, 2) : [];
@@ -1674,6 +1678,54 @@ function pyrHtml(g) {
   const wait = g.phase !== "lobby" && v.me?.pending ? `<div class="py-panel py-pend"><div class="py-wait">⏳ L'animateur doit accepter ton arrivée…</div></div>`
     : !me && outsider ? `<button class="py-sub" data-gact="join">🙋 Demander à rejoindre la partie</button>` : "";
   return `<div class="py-body">${pend}${wait}${body}</div>`;
+}
+
+// 🧠 Mémorisation (avis 4c55c231a4d2) : chacun voit SES cartes au moins 30 s, puis l'animateur lance la pyramide.
+// App iPhone : les cartes sont montrées par l'app, dans un panneau qu'une capture d'écran rend noir (pyrSecretSync).
+function pyrLookHtml(g) {
+  const v = g.pyr, host = g.is_host, seat = v.seats.find((s) => s.pid === g.me?.pid), app = pyrSecretApp();
+  const manual = host ? v.seats.filter((s) => s.manual && s.cards.some((c) => c !== "??")) : [];
+  const mine = !seat ? "" : app
+    ? `<div class="py-panel py-look-app"><div class="py-panel-t">📱 Tes cartes sont en bas de l'écran</div><div class="artist">À l'abri : une capture d'écran est noire.</div></div>`
+    : `<div class="py-hand-cards py-look-cards">${seat.cards.map((c) => pyCard(c, "md")).join("")}</div><div class="py-look-rule">📵 Pas de capture d'écran : c'est un jeu de mémoire !</div>`;
+  return `<div class="py-hero"><div class="py-hero-k">🧠 Mémorise tes cartes</div><div class="py-hero-t">${seat ? "Retiens-les bien" : "Chacun retient ses cartes"}</div>
+      <div class="artist">Ensuite elles se retournent… et à la fin, test de mémoire.</div></div>
+    ${mine}
+    ${manual.map((s) => `<div class="py-panel"><div class="py-turn-k">✍️ Cartes de ${esc(s.name)}</div><div class="py-hand-cards">${s.cards.map((c) => pyCard(c, "md")).join("")}</div></div>`).join("")}
+    <div class="py-look-time" data-look-end="${Date.now() + v.look_left * 1000}">${pyrLookText(v.look_left)}</div>
+    ${host ? `<button class="py-main" data-gact="plook" ${v.look_left ? "disabled" : ""}>▶︎ Lancer la pyramide</button>` : `<div class="py-wait">L'animateur lance la pyramide…</div>`}`;
+}
+const pyrLookText = (left) => left ? `⏳ Encore ${left} s pour mémoriser` : "✓ C'est bon, la pyramide peut commencer";
+let pyrLookTimer = null;
+function pyrLookTick() {
+  const el = document.querySelector(".py-look-time[data-look-end]");
+  if (!el) { clearInterval(pyrLookTimer); pyrLookTimer = null; return; }
+  const left = Math.max(0, Math.ceil((Number(el.dataset.lookEnd) - Date.now()) / 1000));
+  el.textContent = pyrLookText(left);
+  const go = document.querySelector('[data-gact="plook"]');
+  if (go) go.disabled = left > 0;
+}
+function pyrLookStart() {
+  if (!document.querySelector(".py-look-time")) return;
+  pyrLookTick();
+  if (!pyrLookTimer) pyrLookTimer = setInterval(pyrLookTick, 500);
+}
+// App iPhone : mes cartes à mémoriser vont dans le panneau protégé de l'app ; ailleurs (autre étape, autre onglet,
+// partie réduite) le panneau est retiré. Envoyé seulement quand ça change.
+let pyrSecretSent = "";
+function pyrSecretApp() {
+  const s = window.PartyNative && window.PartyNative.secret;
+  return s && typeof s.update === "function" ? s : null;
+}
+function pyrSecretSync(g) {
+  const app = pyrSecretApp();
+  if (!app) return;
+  const seat = g && g.type === "pyramid" && g.phase === "look" ? g.pyr?.seats?.find((s) => s.pid === g.me?.pid) : null;
+  const cards = (seat?.cards || []).filter((c) => c && c !== "??");
+  const key = cards.join(",");
+  if (key === pyrSecretSent) return;
+  pyrSecretSent = key;
+  try { app.update(cards.length ? { cards, title: "Tes cartes · mémorise-les" } : null); } catch (e) { /* app d'avant */ }
 }
 
 function pyrBoard(g) {
