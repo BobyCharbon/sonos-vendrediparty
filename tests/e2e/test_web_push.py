@@ -350,6 +350,19 @@ def test_track_notification_opens_the_music_tab(device):
     assert device.click("/") == [["open", device.server.url + "/?tab=music"]]
 
 
+def test_new_account_notification_opens_the_account_tab(device):
+    """« Nouveau compte » (data.url /?tab=account, campagne du 14.11) ouvre l'onglet du compte, pas Événements."""
+    gid = "e2e-push-signup-" + secrets.token_hex(4)
+    open_guest(device, gid)
+    subscribe_guest(device)
+    device.page.locator('#tabs [data-tab="events"]').click()
+    device.push_raw("/", {"title": "👋 Nouveau compte", "body": "Léa vient de créer son compte.", "url": "/?tab=account",
+                          "tag": "party-event-signup"})
+    device.notifications("/")
+    assert device.click("/") == [["focus", "/"]]
+    expect(device.page.locator("body")).to_have_attribute("data-tab", "account", timeout=30000)
+
+
 def test_expired_subscription_is_forgotten(device, fake):
     gid = "e2e-push-max-" + secrets.token_hex(4)
     open_guest(device, gid)

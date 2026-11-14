@@ -45,7 +45,10 @@ export default function MemberScreen() {
     if (!valid) return null;
     const { data, error } = await supabase.rpc('member_card', { target: id });
     if (error) throw new Error(error.message);
-    return (data as MemberCard | null) ?? null;
+    // Réponse inattendue (rien, texte, liste) : « Ce profil n'est pas disponible » au lieu d'un écran planté.
+    const card = data as Partial<MemberCard> | null;
+    if (!card || typeof card !== 'object' || Array.isArray(card) || typeof card.id !== 'string') return null;
+    return { ...card, groups: Array.isArray(card.groups) ? card.groups : [] } as MemberCard;
   }, [id]);
   const contacts = useContactNames();
   const [writeError, setWriteError] = useState<string | null>(null);

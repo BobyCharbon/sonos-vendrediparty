@@ -1160,6 +1160,10 @@ addEventListener("DOMContentLoaded", async () => {
     // Notification « Ton titre passe » : Musique, pas l'onglet d'ouverture habituel (Événements).
     showTab("music");
     history.replaceState(null, "", location.pathname);
+  } else if (params.get("tab") === "account") {
+    // Notification « Nouveau compte » (data.url /?tab=account) : l'onglet du compte, pas Événements.
+    showTab("account");
+    history.replaceState(null, "", location.pathname);
   } else if (params.get("tab") === "feedback") {
     showTab(fbAllowed() ? "feedback" : "music");
     history.replaceState(null, "", location.pathname);

@@ -401,7 +401,7 @@ export default function EventScreen() {
           onChange={reload}
         />
       ) : published && can('events.rsvp') ? (
-        <RsvpCard event={ev} me={me.id} rsvps={ev.rsvps} onChange={reload} />
+        <RsvpCard event={ev} me={me.id} rsvps={ev.rsvps} onChange={reload} organizer={isOrganizer} />
       ) : null}
       {mine?.status === 'yes' && ticketRelevant(ev, data.loadedAt) ? (
         <TicketCard event={ev} me={me} answerKey={`${mine.status}:${mine.waitlisted}:${mine.plus_ones}:${paymentsTick}`} />

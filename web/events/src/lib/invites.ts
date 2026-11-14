@@ -124,8 +124,8 @@ export function linkLine(l: SentLink): string {
 
 /** Titre d'un lien de la carte « Invités ». */
 export function linkTitle(l: SentLink): string {
-  if (l.label) return `Lien pour ${l.label}`;
-  return l.max_uses > 1 ? 'Lien pour plusieurs' : 'Lien pour une personne';
+  const title = l.label ? `Lien pour ${l.label}` : l.max_uses > 1 ? 'Lien pour plusieurs' : 'Lien pour une personne';
+  return l.state === 'revoked' ? `${title} (arrêté)` : title;
 }
 
 /** Nom lu par VoiceOver pour chaque lien : distinct même quand plusieurs liens ont le même titre (« Relancer Lien pour

@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
 
+import { notificationTarget } from './target.ts';
+
 type Keys = { publicKey: string; privateKey: string };
 type Delivery = {
   id: string; attempts: number; subscription: { endpoint: string; keys: { auth: string; p256dh: string } };
@@ -35,6 +37,9 @@ Deno.serve(async (req: Request) => {
     while (Date.now() < deadline) {
       const batch = checked(await db.rpc('claim_web_push_deliveries', { batch_size: 20 })) as Delivery[];
       if (!batch.length) break;
+      // Page portée par la notification (data.url, ex. « Nouveau compte » → Réglages) ; sans elle, la page par défaut.
+      const { data: extra } = await db.from('notifications').select('id, data').in('id', batch.map((row) => row.notification_id));
+      const urls = new Map((extra ?? []).map((n: { id: string; data: { url?: unknown } | null }) => [n.id, n.data?.url]));
       // Cinq envois au maximum en parallèle ; le cron suivant reprend le reste.
       for (let offset = 0; offset < batch.length; offset += 5) {
         await Promise.all(batch.slice(offset, offset + 5).map(async (row) => {
@@ -45,25 +50,9 @@ Deno.serve(async (req: Request) => {
             const hosts = ['fcm.googleapis.com', 'push.services.mozilla.com', 'push.apple.com', 'notify.windows.com'];
             if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password || (endpoint.port && endpoint.port !== '443')
               || !hosts.some((host) => endpoint.hostname === host || (host !== 'fcm.googleapis.com' && endpoint.hostname.endsWith('.' + host)))) throw new Error('Invalid endpoint');
-            const target = new URL('/', row.origin);
-            if ((row.kind === 'group_message' || row.kind === 'direct_message') && row.group_id && /^[0-9a-f-]{36}$/.test(row.group_id)) {
-              // Discussion de groupe (avis n°10) ou message direct (4.11) : le toucher ouvre la conversation.
-              target.searchParams.set('tab', 'chats');
-              target.searchParams.set('chat', row.group_id);
-            } else if (typeof row.kind === 'string' && row.kind.startsWith('pet_')) {
-              // Compagnon (4.11) : le toucher ouvre le personnage dans l'onglet Jeux (rappel, alertes, cadeau d'un
-              // ami, palier de série) ; src=notif pour la mesure des ouvertures (pet_opens).
-              target.searchParams.set('tab', 'games');
-              target.searchParams.set('pet', '1');
-              target.searchParams.set('src', 'notif');
-            } else {
-              target.searchParams.set('tab', 'events');
-              if (row.event_id) target.searchParams.set('event', row.event_id);
-              else target.searchParams.set('activity', '1');
-            }
             const payload = JSON.stringify({
               title: row.title.slice(0, 100), body: row.body.slice(0, 180),
-              tag: 'party-event-' + row.notification_id, url: target.href, silent: row.silent === true,
+              tag: 'party-event-' + row.notification_id, url: notificationTarget({ ...row, url: urls.get(row.notification_id) }), silent: row.silent === true,
             });
             const request = webpush.generateRequestDetails(row.subscription, payload, {
               vapidDetails: { ...keys!, subject: 'https://party.bobycharbon.ch' },
