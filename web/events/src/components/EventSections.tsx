@@ -26,6 +26,7 @@ import { ReportSheet } from './ReportSheet';
 import { RsvpButtons } from './RsvpButtons';
 import { useTermsGate } from './TermsSheet';
 import { Avatar, Button, Chip, ErrorText, Input, Meter, Reveal, s, Section, T } from './ui';
+import { NameLinks, type NamedPerson } from './NameLinks';
 
 type Names = Map<string, string>;
 /** Choix de sondage tel que la base le rend (`poll_options(*)`) : son auteur sert à « Signaler ». */
@@ -311,9 +312,6 @@ function PersonChip({ id, name, extra, when, viaLink = false, fresh = false, sel
   );
 }
 
-/** « Léa (13.11 · 21:17) » ; le nom seul quand l'heure n'est pas connue. */
-const withTime = (name: string, iso: string | null | undefined) => (formatAnswerTime(iso) ? `${name} (${formatAnswerTime(iso)})` : name);
-
 export function ParticipantsSection({
   event,
   me,
@@ -389,7 +387,8 @@ export function ParticipantsSection({
           </View>
         </View>
       ) : null}
-      {no.length ? <T muted size={13}>Absents : {no.map((r) => withTime(nameOf(r.user_id), r.updated_at)).join(', ')}</T> : null}
+      <NameLinks size={13} prefix="Absents : " testID="absent"
+        people={no.map((r) => ({ id: r.user_id, label: nameOf(r.user_id), after: formatAnswerTime(r.updated_at) ? ` (${formatAnswerTime(r.updated_at)})` : '' }))} />
       {notes.length ? (
         <View style={{ gap: 6 }}>
           <T muted size={12}>Petits mots (visibles par l’organisation seulement)</T>
@@ -522,7 +521,8 @@ export function DatePollSection({
               </View>
             ) : null}
             {canManage && vs.length ? (
-              <T muted size={12}>{vs.map((v) => `${names.get(v.user_id) ?? '?'} (${[voteLabel[v.vote], formatAnswerTime(v.voted_at)].filter(Boolean).join(' · ')})`).join(', ')}</T>
+              <NameLinks testID="date-voter" people={vs.map((v) => ({ id: v.user_id, label: names.get(v.user_id) ?? '?',
+                after: ` (${[voteLabel[v.vote], formatAnswerTime(v.voted_at)].filter(Boolean).join(' · ')})` }))} />
             ) : null}
             {canManage ? (
               <Button small variant={lead ? 'primary' : 'secondary'} label="Fixer cette date" onPress={() => act(supabase.rpc('fix_event_date', { e: event.id, opt: o.id }), onChange, setError)} />
@@ -567,7 +567,7 @@ export function PollSection({
   options: OptionRow[];
   results: Map<string, number> | null;
   myVotes: Set<string>;
-  voters: Map<string, string[]>;
+  voters: Map<string, NamedPerson[]>;
   me: string;
   canManage: boolean;
   canParticipate: boolean;
@@ -644,7 +644,7 @@ export function PollSection({
       {!results ? <T muted size={12}>Les résultats s’affichent après ton vote.</T> : null}
       {!poll.anonymous && results
         ? options.filter((o) => voters.get(o.id)?.length).map((o) => (
-            <T key={o.id} muted size={12}>{o.label} : {voters.get(o.id)!.join(', ')}</T>
+            <NameLinks key={o.id} prefix={`${o.label} : `} people={voters.get(o.id)!} testID="poll-voter" />
           ))
         : null}
       {!canParticipate ? <T muted size={12}>Les votes seront disponibles lorsque l’événement sera publié.</T> : closed ? <T muted size={12}>Ce sondage est clos.</T> : null}
@@ -721,7 +721,7 @@ export function BringSection({
             ) : it.claimed_by === me ? (
               <Button small variant="secondary" label="Je ne prends plus" onPress={() => act(supabase.from('bring_items').update({ claimed_by: null }).eq('id', it.id), onChange, setError)} />
             ) : it.claimed_by ? (
-              <T muted>{names.get(it.claimed_by) ?? '?'}</T>
+              <NameLinks size={15} people={[{ id: it.claimed_by, label: names.get(it.claimed_by) ?? '?' }]} />
             ) : canParticipate ? (
               <Button small label="Je prends" onPress={() => act(supabase.from('bring_items').update({ claimed_by: me }).eq('id', it.id), onChange, setError)} />
             ) : (

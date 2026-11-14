@@ -95,3 +95,6 @@ body.pyr-full #gTop { gap: 6px; }
 
 /* Compteurs qui rebondissent (games.js › bumpCounters) : un texte en ligne doit être un bloc pour pouvoir grandir. */
 b[data-bump] { display: inline-block; }
+
+/* Avis 36c47b3d1f82 : nom d'un joueur avec un compte, dans les résultats : il ouvre sa fiche profil. */
+.g-who { cursor: pointer; text-decoration: underline dotted; text-decoration-thickness: 1px; text-underline-offset: 3px; }

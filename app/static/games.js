@@ -1261,6 +1261,12 @@ function profileAttrs(g, p) {
   return p.account && p.pid ? `data-profile-game="${esc(g.code)}" data-profile-pid="${esc(p.pid)}" role="button" tabindex="0" aria-label="Profil de ${esc(p.name)}"` : "";
 }
 
+// Avis 36c47b3d1f82 : dans les résultats et les listes, le nom d'un joueur qui a un compte ouvre sa fiche profil.
+function whoName(g, name) {
+  const p = g?.players?.find((x) => x.name === name);
+  return p && p.account ? `<span class="g-who" ${profileAttrs(g, p)}>${esc(name)}</span>` : esc(name);
+}
+
 // Pastille ronde avec l'initiale, d'une couleur stable par joueur.
 function avatar(p, cls = "") {
   let h = 0;
@@ -1289,7 +1295,7 @@ function questionHtml(g, me) {
     : `<div class="qs-grid" role="group" aria-label="Ton vote">${g.players.map((p) => `
         <button type="button" class="qs-pick" data-gact="vote" data-target="${esc(p.pid)}">
           ${avatar(p)}<span class="qs-name">${p.pid === me.pid ? "Moi" : esc(p.name)}</span></button>`).join("")}</div>`;
-  const who = g.players.map((p) => `<span class="qs-who ${p.voted ? "ok" : ""}" title="${esc(p.name)}${p.voted ? " a répondu" : " réfléchit…"}">${avatar(p)}</span>`).join("");
+  const who = g.players.map((p) => `<span class="qs-who ${p.voted ? "ok" : ""}" title="${esc(p.name)}${p.voted ? " a répondu" : " réfléchit…"}" ${profileAttrs(g, p)}>${avatar(p)}</span>`).join("");
   return `<div class="qs" data-key="q${g.round}">
     <div class="question qs-q">${esc(g.question)}</div>
     <p class="qs-help" role="status">${help}</p>
@@ -1309,11 +1315,11 @@ function resultsHtml(g) {
   const drink = sips ? `<div class="qs-drink">🍻 ${top.length > 1 ? "Ils boivent" : "Boit"} ${sips} gorgée${sips > 1 ? "s" : ""}</div>` : "";
   const rest = g.results.filter((r) => !top.includes(r));
   return `<div class="qs-win">
-      <div class="qs-win-names">${top.map((r) => `<span>👑 ${esc(r.name)}</span>`).join("")}</div>
+      <div class="qs-win-names">${top.map((r) => `<span>👑 ${whoName(g, r.name)}</span>`).join("")}</div>
       <div class="qs-win-n">${max} vote${max > 1 ? "s" : ""} sur ${g.players.length}</div>${drink}
     </div>
     ${rest.length ? `<div class="list qs-bars">${rest.map((r) => `<div class="bar" style="--w:${Math.round(100 * r.count / max)}%">
-      <span>${esc(r.name)}</span><b>${r.count}</b></div>`).join("")}</div>` : ""}`;
+      <span>${whoName(g, r.name)}</span><b>${r.count}</b></div>`).join("")}</div>` : ""}`;
 }
 
 // 🎆 Animation de fin de main, seulement sur l'écran du joueur concerné.
@@ -2585,11 +2591,11 @@ function neverResultsHtml(g) {
   const did = g.results.filter((r) => r.answer === "yes"), never = g.results.filter((r) => r.answer === "no");
   const sips = g.options?.sips || 0;
   const drink = sips && did.length
-    ? `<div class="drink">🍻 ${did.map((r) => esc(r.name)).join(", ")} boi${did.length > 1 ? "vent" : "t"} ${sips} gorgée${sips > 1 ? "s" : ""} !</div>`
+    ? `<div class="drink">🍻 ${did.map((r) => whoName(g, r.name)).join(", ")} boi${did.length > 1 ? "vent" : "t"} ${sips} gorgée${sips > 1 ? "s" : ""} !</div>`
     : !did.length ? `<div class="drink">😇 Personne ne l'a fait… tout le monde est sage ?</div>` : "";
   const col = (emo, label, list, cls) => `<div class="never-col ${cls}"><div class="never-head"><span aria-hidden="true">${emo}</span><b>${list.length}</b></div>
     <div class="never-lbl">${label}</div>
-    <div class="chips">${list.map((r) => `<span class="pill">${esc(r.name)}</span>`).join("") || `<span class="artist">personne</span>`}</div></div>`;
+    <div class="chips">${list.map((r) => `<span class="pill">${whoName(g, r.name)}</span>`).join("") || `<span class="artist">personne</span>`}</div></div>`;
   return drink + `<div class="never-res">${col("🍻", "L'ont déjà fait", did, "did")}${col("😇", "Jamais", never, "nev")}</div>`;
 }
 

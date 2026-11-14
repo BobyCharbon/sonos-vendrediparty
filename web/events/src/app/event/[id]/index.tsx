@@ -40,6 +40,7 @@ import { ticketRelevant, chf } from '@/lib/tickets';
 import type { BringItem, Category, DateOption, DateVoteRow, EventRow, Message, Poll, PollOption, Rsvp, Tag } from '@/lib/types';
 import { plusOnesLabel } from '@/lib/types';
 import { notifyWallet } from '@/lib/wallet';
+import type { NamedPerson } from '@/components/NameLinks';
 
 type Full = EventRow & {
   category: Category | null;
@@ -178,13 +179,13 @@ export default function EventScreen() {
   const canManage = isAdmin || isOrganizer;
 
   const pollData = useMemo(() => {
-    if (!data) return new Map<string, { results: Map<string, number> | null; voters: Map<string, string[]> }>();
-    const out = new Map<string, { results: Map<string, number> | null; voters: Map<string, string[]> }>();
+    if (!data) return new Map<string, { results: Map<string, number> | null; voters: Map<string, NamedPerson[]> }>();
+    const out = new Map<string, { results: Map<string, number> | null; voters: Map<string, NamedPerson[]> }>();
     for (const p of data.event.polls) {
       const rows = data.results.filter((r) => r.poll_id === p.id);
-      const voters = new Map<string, string[]>();
+      const voters = new Map<string, NamedPerson[]>();
       for (const o of p.poll_options) {
-        voters.set(o.id, data.allVotes.filter((v) => v.option_id === o.id).map((v) => data.names.get(v.user_id) ?? '?'));
+        voters.set(o.id, data.allVotes.filter((v) => v.option_id === o.id).map((v) => ({ id: v.user_id, label: data.names.get(v.user_id) ?? '?' })));
       }
       out.set(p.id, { results: rows.length ? new Map(rows.map((r) => [r.option_id, r.votes])) : null, voters });
     }

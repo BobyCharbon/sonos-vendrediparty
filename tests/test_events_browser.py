@@ -487,6 +487,27 @@ def test_each_answer_shows_when_it_was_given(browser, events_origin):
         context.close()
 
 
+def test_an_absent_name_opens_the_profile(browser, events_origin):
+    """Avis 36c47b3d1f82 : « Absents : Tom (13.11 · 21:17) » — le nom se touche et ouvre la fiche de Tom."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page()
+    tom='8b2c3d4e-5f60-4172-8394-a5b6c7d8e9f0'
+    mock_services(page, people=[{'id':tom,'display_name':'Tom'}],
+                  rsvps=[{'event_id':EVENT,'user_id':tom,'status':'no','plus_ones':0,'note':None,'waitlisted':False,'updated_at':'2026-11-13T20:17:00Z'}])
+    try:
+        page.goto(events_origin, wait_until='domcontentloaded')
+        page.get_by_role('button',name='Événements',exact=True).click()
+        frame=page.frame_locator('#eventsFrame'); login(frame)
+        frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
+        link=frame.get_by_role('link',name='Profil de Tom')
+        pw.expect(link).to_be_visible(timeout=15000)
+        pw.expect(frame.get_by_text('Absents :',exact=False)).to_contain_text('(13.11 · 21:17)')
+        link.click()
+        page.wait_for_function(f"document.getElementById('eventsFrame').contentWindow.location.pathname.endsWith('/member/{tom}')", timeout=10000)
+    finally:
+        context.close()
+
+
 def test_events_tab_badge_also_counts_unopened_important_news(browser, events_origin):
     """Avis a1d340ff00dd : une nouveauté importante pas encore ouverte (date fixée, changement…) se voit sur l'onglet
     Événements, en plus des réponses attendues ; un même événement ne compte qu'une fois."""
