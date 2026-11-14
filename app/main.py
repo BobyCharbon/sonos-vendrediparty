@@ -5233,6 +5233,28 @@ def features():
                          "invites_v2": invites_v2_enabled(), "bar": bar_enabled()}, headers=NO_CACHE)
 
 
+# En-têtes de sécurité de toutes les réponses (campagne du 14.11.2026). Cadre : seulement Party elle-même (la page met le
+# module Événements en iframe, même origine) ; jamais un autre site (vol de clics sur l'admin). HSTS : seulement reçu en
+# HTTPS (le relais redirige déjà http → https), sans les sous-domaines.
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "SAMEORIGIN",
+    "Content-Security-Policy": "frame-ancestors 'self'; base-uri 'self'; object-src 'none'",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+}
+HSTS = "max-age=15552000"
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    for name, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    if request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https":
+        response.headers.setdefault("Strict-Transport-Security", HSTS)
+    return response
+
+
 NOTICE_HEADER = "X-Party-Notice"
 
 
