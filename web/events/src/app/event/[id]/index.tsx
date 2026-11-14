@@ -30,7 +30,7 @@ import { personLabel, useContactNames, withContactNames } from '@/lib/contactNam
 import { useQuery, useRealtime } from '@/lib/data';
 import { GONE_TEXT, isGoneError, isNetworkError } from '@/lib/errors';
 import { eventPeopleIds, undecidedNames } from '@/lib/eventPeople';
-import { useOnline, usePaymentsTick, useSlowLoad } from '@/lib/connectivity';
+import { useLiveRefresh, useOnline, usePaymentsTick, useSlowLoad } from '@/lib/connectivity';
 import { safeHref } from '@/lib/links';
 import { createdLine, formatLongDay, formatMessageTime, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
 import type { ReportTarget } from '@/lib/moderation';
@@ -40,6 +40,7 @@ import { ticketRelevant, chf } from '@/lib/tickets';
 import type { BringItem, Category, DateOption, DateVoteRow, EventRow, Message, Poll, PollOption, Rsvp, Tag } from '@/lib/types';
 import { plusOnesLabel } from '@/lib/types';
 import { notifyWallet } from '@/lib/wallet';
+import type { NamedPerson } from '@/components/NameLinks';
 
 type Full = EventRow & {
   category: Category | null;
@@ -57,6 +58,8 @@ type Full = EventRow & {
 /** Le lieu que met l'IA quand on le dit « à définir » (app/ai_events.py LATER_PLACE). */
 const PLACE_LATER = 'Lieu à définir';
 const REALTIME_IN_MAX = 100;
+/** Relecture de la fiche tant qu'elle est visible : covoiturage, demandes à accepter (hors temps réel). */
+const LIVE_REFRESH_MS = 45_000;
 /** En dessous (ou texte agrandi), les actions d'en-tête passent en icônes : le retour « ‹ Événements » garde sa place. */
 const NARROW_HEADER_WIDTH = 380;
 /** Avec « ✨ IA » (app iPhone, organisateur) : il faut environ 460 pt pour tout écrire (recette du 10.11 : chevauchement). */
@@ -148,6 +151,7 @@ export default function EventScreen() {
   // Temps réel filtré sur CET événement : un vote ailleurs dans Party ne recharge plus la fiche (campagne 2, rapport 10).
   const optionIds = (loaded?.event.date_options ?? []).map((o) => o.id).slice(0, REALTIME_IN_MAX);
   const pollIds = (loaded?.event.polls ?? []).map((p) => p.id).slice(0, REALTIME_IN_MAX);
+  const bringIds = (loaded?.event.bring_items ?? []).map((b) => b.id).slice(0, REALTIME_IN_MAX);
   useRealtime(`event-${id}`, [
     { table: 'rsvps', filter: `event_id=eq.${id}` },
     ...(optionIds.length ? [{ table: 'date_votes', filter: `option_id=in.(${optionIds.join(',')})` }] : []),
@@ -158,7 +162,13 @@ export default function EventScreen() {
     { table: 'bring_items', filter: `event_id=eq.${id}` },
     { table: 'date_options', filter: `event_id=eq.${id}` },
     { table: 'event_organizers', filter: `event_id=eq.${id}` },
+    // Avis ead4902642da : arrivées par lien et invitations, groupes, quantités « Qui amène quoi ».
+    { table: 'event_invites', filter: `event_id=eq.${id}` },
+    { table: 'event_groups', filter: `event_id=eq.${id}` },
+    ...(bringIds.length ? [{ table: 'bring_claims', filter: `item_id=in.(${bringIds.join(',')})` }] : []),
   ], reload);
+  // Retour sur l'app (veille) et relecture régulière de ce qui ne passe pas par le temps réel.
+  useLiveRefresh(reload, LIVE_REFRESH_MS);
 
   const online = useOnline(reload);
   const slow = useSlowLoad(!loaded && !loadError);
@@ -178,13 +188,13 @@ export default function EventScreen() {
   const canManage = isAdmin || isOrganizer;
 
   const pollData = useMemo(() => {
-    if (!data) return new Map<string, { results: Map<string, number> | null; voters: Map<string, string[]> }>();
-    const out = new Map<string, { results: Map<string, number> | null; voters: Map<string, string[]> }>();
+    if (!data) return new Map<string, { results: Map<string, number> | null; voters: Map<string, NamedPerson[]> }>();
+    const out = new Map<string, { results: Map<string, number> | null; voters: Map<string, NamedPerson[]> }>();
     for (const p of data.event.polls) {
       const rows = data.results.filter((r) => r.poll_id === p.id);
-      const voters = new Map<string, string[]>();
+      const voters = new Map<string, NamedPerson[]>();
       for (const o of p.poll_options) {
-        voters.set(o.id, data.allVotes.filter((v) => v.option_id === o.id).map((v) => data.names.get(v.user_id) ?? '?'));
+        voters.set(o.id, data.allVotes.filter((v) => v.option_id === o.id).map((v) => ({ id: v.user_id, label: data.names.get(v.user_id) ?? '?' })));
       }
       out.set(p.id, { results: rows.length ? new Map(rows.map((r) => [r.option_id, r.votes])) : null, voters });
     }
@@ -399,7 +409,7 @@ export default function EventScreen() {
       {/* Ordre de la fiche (demande de l'admin, 12.11) : description, ta réponse, puis la carte Invités (repliée).
           Invités (avis 83ebee37aa0f, 11.11) : le même menu ; un invité y voit les chiffres seulement (aucun nom) et ses liens. */}
       {invitesV2On && canManage && published ? (
-        <GuestListCard event={ev} me={{ id: me.id, display_name: me.display_name ?? '' }} onChanged={reload}
+        <GuestListCard event={ev} me={{ id: me.id, display_name: me.display_name ?? '' }} refreshKey={data} onChanged={reload}
           openSheet={step === 'online' && invite === 'link'} headline={step === 'online' && invite === 'link' ? 'C’est en ligne : envoie le lien à tes invités' : undefined}
           initialPeople={step === 'online' && invite === 'link' ? parseIds(suggested) : []} />
       ) : null}
@@ -409,10 +419,10 @@ export default function EventScreen() {
           announceOn={!!ev.announce_group} refreshKey={ev.updated_at} onChanged={reload} />
       ) : null}
       {invitesV2On && !canManage && published ? (
-        <GuestListCard event={ev} me={{ id: me.id, display_name: me.display_name ?? '' }} onChanged={reload} quietOnError />
+        <GuestListCard event={ev} me={{ id: me.id, display_name: me.display_name ?? '' }} refreshKey={data} onChanged={reload} quietOnError />
       ) : null}
       {/* Covoiturage (avis 34d5c07f2e56, 11.11) : option de l'organisateur, pour les participants. */}
-      {ev.carpool_enabled && published ? <CarpoolCard eventId={ev.id} answer={mine?.status ?? ''} /> : null}
+      {ev.carpool_enabled && published ? <CarpoolCard eventId={ev.id} answer={mine?.status ?? ''} refreshKey={data} /> : null}
       {/* Bar de la soirée : solde EN GRAND du présent, « Scanner au bar » du barman. */}
       {barOn && published ? <BarEntry eventId={ev.id} zone="guest" answer={mine?.status ?? ''} /> : null}
 

@@ -37,7 +37,8 @@ window.PartyEvents = {
     document.querySelectorAll('[data-events-badge]').forEach((el) => {
       el.textContent = String(n);
       el.classList.toggle('hidden', n === 0);
-      el.closest('button')?.setAttribute('aria-label', n ? `Événements, ${n} événement${n > 1 ? 's' : ''} en attente de ta réponse` : 'Événements');
+      // Réponses attendues et nouveautés importantes pas encore ouvertes (avis a1d340ff00dd).
+      el.closest('button')?.setAttribute('aria-label', n ? `Événements, ${n} à voir` : 'Événements');
     });
     try { sessionStorage.setItem('vp_events_pending', String(n)); } catch { /* Stockage bloqué. */ }
     try {
