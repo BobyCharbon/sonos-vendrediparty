@@ -489,7 +489,7 @@ def test_each_answer_shows_when_it_was_given(browser, events_origin):
 
 
 def test_my_own_chip_shows_my_initial_not_the_t_of_toi(browser, events_origin):
-    """Ma pastille dans « Qui vient ? » s'appelle « Toi », mais sa bulle porte MON initiale (C de Compte de démonstration),
+    """Ma pastille dans « Qui vient ? » s'appelle « Toi », mais sa bulle porte MES initiales (CD : Compte de démonstration),
     jamais le T de « Toi » (retour de l'admin, 14.11)."""
     context=browser.new_context(viewport={'width':390,'height':844})
     page=context.new_page()
@@ -501,7 +501,7 @@ def test_my_own_chip_shows_my_initial_not_the_t_of_toi(browser, events_origin):
         frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
         chip=frame.get_by_role('button',name='Ton profil')
         pw.expect(chip).to_contain_text('Toi', timeout=15000)
-        assert chip.inner_text().split()[0] == 'C', chip.inner_text()
+        assert chip.inner_text().split()[0] == 'CD', chip.inner_text()
     finally:
         context.close()
 
