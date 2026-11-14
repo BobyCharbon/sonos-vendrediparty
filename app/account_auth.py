@@ -66,10 +66,24 @@ class AccountAuth:
     def delete_account(self, token: str, confirm: str) -> None:
         if confirm.strip() != CONFIRM_DELETE:
             raise AccountError(f"Écris {CONFIRM_DELETE} pour confirmer.")
-        self.accounts._uid(token)
+        uid = self.accounts._uid(token)
+        photos = self._own_photos(uid, token)
         r = self.accounts._get("POST", "/rest/v1/rpc/delete_my_account", token, json={})
         if r.status_code not in (200, 204):
             if "last_admin" in r.text:
                 raise AccountError("Tu es le dernier administrateur : désigne d'abord un autre administrateur actif dans Membres.")
             raise AccountError("Ton compte n'a pas pu être supprimé. Vérifie ta connexion et réessaie.")
+        # Les fichiers du Storage ne suivent pas la cascade de la base : ses photos de profil partent aussi (5.1.1(v)).
+        if photos:
+            self.accounts._remove_photos(photos, token)
         self.sign_out(token)
+
+    def _own_photos(self, uid: str, token: str) -> list[str]:
+        """Photos de profil du compte (dossier <uid>/ du Storage), lues avant la suppression ; aucune lisible : []."""
+        try:
+            r = self.accounts._get("POST", f"/storage/v1/object/list/{accounts_mod.PROFILE_PHOTOS}", token,
+                                   json={"prefix": uid, "limit": 1000, "offset": 0})
+            rows = r.json() if r.status_code == 200 else []
+        except (AccountError, ValueError):
+            return []
+        return [f"{uid}/{row['name']}" for row in rows if isinstance(row, dict) and row.get("name")]
