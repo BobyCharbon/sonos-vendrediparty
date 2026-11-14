@@ -1693,7 +1693,7 @@ function pyrLookHtml(g) {
   const manual = host ? v.seats.filter((s) => s.manual && s.cards.some((c) => c !== "??")) : [];
   const mine = !seat ? "" : app
     ? `<div class="py-panel py-look-app"><div class="py-panel-t">📱 Tes cartes sont en bas de l'écran</div><div class="artist">À l'abri : une capture d'écran est noire.</div></div>`
-    : `<div class="py-hand-cards py-look-cards">${seat.cards.map((c) => pyCard(c, "md")).join("")}</div><div class="py-look-rule">📵 Pas de capture d'écran : c'est un jeu de mémoire !</div>`;
+    : `<div class="py-hand-cards py-look-cards">${seat.cards.map((c) => pyCard(c, "md")).join("")}</div><div class="py-look-rule">📵 Pas de capture d'écran : c'est un jeu de mémoire&nbsp;!</div>`;
   return `<div class="py-hero"><div class="py-hero-k">🧠 Mémorise tes cartes</div><div class="py-hero-t">${seat ? "Retiens-les bien" : "Chacun retient ses cartes"}</div>
       <div class="artist">Ensuite elles se retournent… et à la fin, test de mémoire.</div></div>
     ${mine}
