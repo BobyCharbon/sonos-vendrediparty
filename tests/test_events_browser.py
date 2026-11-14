@@ -207,8 +207,9 @@ def test_sms_login_events_details_and_rsvp(browser,events_origin,country,width):
         pw.expect(frame.get_by_text('C’est noté, tu viens !',exact=True)).to_be_visible(timeout=10000)
         pw.expect(frame.get_by_text('PRÉSENTS · 1',exact=True)).to_be_visible()
         pw.expect(frame.get_by_text('Toi',exact=True)).to_be_visible()
-        # Les accompagnants ne sont pas autorisés sur cette sortie : un message remplace le compteur.
-        pw.expect(frame.get_by_text('Pas d’accompagnant pour cet événement',exact=False)).to_be_visible()
+        # Les accompagnants ne sont pas autorisés sur cette sortie : un message remplace le compteur, sans parler d'un
+        # groupe (recette des nouveaux comptes, 14.11 : « réservé aux membres du groupe » sur un événement sans groupe).
+        pw.expect(frame.get_by_text('Pas d’accompagnant pour cet événement.',exact=True)).to_be_visible()
         # Plus de réponse attendue : la pastille de l’onglet Événements disparaît.
         pw.expect(page.locator('[data-tab="events"] [data-events-badge]')).to_be_hidden(timeout=10000)
         assert any(method=='POST' and path.endswith('/rsvps') for method,path,_ in calls)
