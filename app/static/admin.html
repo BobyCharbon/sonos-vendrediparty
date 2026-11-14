@@ -10,6 +10,9 @@
   <script src="/static/ios-app.js"></script>
   <!-- Maintenance / information / annonce pour tout le monde, et « Mise à jour en cours » pendant un redémarrage. -->
   <script src="/static/notice.js"></script>
+  <!-- Page de l'admin (tout y passe par le code PIN ou un compte admin) : une maintenance s'y lit en bandeau, jamais un écran
+       qui bloque le code ou la soirée (recette du 14.11, tests/e2e/test_notice.py). -->
+  <script>window.partyIsAdmin = () => true;</script>
   <link rel="stylesheet" href="/static/notice.css">
   <link rel="stylesheet" href="/static/style.css">
   <link rel="stylesheet" href="/static/president.css">

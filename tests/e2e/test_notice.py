@@ -115,6 +115,20 @@ def test_a_server_update_says_so_and_the_game_comes_back_by_itself(guest, server
     guest.errors[:] = [e for e in guest.errors if "Failed to fetch" not in e and "fetch" not in e.lower()]
 
 
+def test_a_maintenance_never_locks_the_admin_page(browser, server):
+    """Recette du 14.11 : la page /admin (code PIN) était couverte par la maintenance, formulaire du code compris."""
+    admin_api(server).post("/api/admin/notice", json={"kind": "maintenance", "message": "Retour vers 23 h"})
+    page = browser.new_page(base_url=server.url)
+    page.goto("/admin")
+    expect(page.locator("#partyNotice.pn-banner")).to_contain_text("Retour vers 23 h")
+    expect(page.locator("#partyNotice.pn-overlay")).to_have_count(0)
+    page.locator("#pin").fill(ADMIN_PIN)
+    page.locator("#login button[type=submit], #login button").first.click()
+    expect(page.locator("#panel")).to_be_visible()
+    expect(page.locator("#partyNotice.pn-overlay")).to_have_count(0)
+    page.close()
+
+
 def test_the_admin_writes_the_message_in_the_settings_and_keeps_the_app_during_maintenance(browser, server):
     admin = Phone(browser, server, "Boby")
     admin.page.goto("/")
