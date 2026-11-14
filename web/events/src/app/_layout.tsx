@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { PendingInviteClaim } from '@/components/AppJoinScreen';
 import { Button, ErrorText, HeaderBack, Loading, Screen, T, Title } from '@/components/ui';
+import { DESTINATION_KEY } from '@/lib/destination';
 import { useEdgeSwipeBack } from '@/lib/edgeSwipe';
 import { usePendingSync } from '@/lib/pending';
 import { hasCompleteIdentity } from '@/lib/profile';
@@ -45,7 +46,7 @@ function backLabel(label?: string) {
   return label && !label.startsWith('(') ? label : label?.startsWith('(') ? 'Événements' : 'Retour';
 }
 
-const intentKey = 'party-events-destination';
+const intentKey = DESTINATION_KEY;
 // Dans la page Party, l'onglet porte déjà le grand titre (« Discussions ») : pas d'en-tête en double.
 function inPartyShell(): boolean {
   return typeof window !== 'undefined' && window.parent !== window;
