@@ -133,7 +133,7 @@ export function AudiencePicker({ value, onChange, groups, people, meId, allGroup
         <Chip label="Publique + lien" selected={value.audience === 'public'} onPress={() => set({ audience: 'public' })} />
       </View>
       {value.audience === 'public' ? (
-        <T muted size={13}>Tous les comptes Party la voient, Guests compris, et toute personne qui a le lien : elle voit l’essentiel et peut répondre après connexion par SMS. Les événements publics ne préviennent personne : partage le lien.</T>
+        <T muted size={13}>Tous les comptes Party le voient, même les tout nouveaux, ainsi que toute personne qui a le lien : elle voit l’essentiel et peut répondre après connexion par SMS. Un événement public ne prévient personne : partage le lien.</T>
       ) : (
         <>
           {vipOk ? (<>

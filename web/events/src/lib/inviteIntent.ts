@@ -27,6 +27,18 @@ export function peekInviteAnswer(token: string, now: number = Date.now()): Pendi
   }
 }
 
+/** Une réponse à une invitation attend la connexion (n'importe quel lien) : la page de connexion le dit (recette UX du 14.11). */
+export function hasPendingInviteAnswer(now: number = Date.now()): boolean {
+  try {
+    const raw = sessionStorage.getItem(KEY);
+    if (!raw) return false;
+    const saved = JSON.parse(raw) as { token?: unknown; at?: unknown };
+    return typeof saved.token === 'string' && typeof saved.at === 'number' && now - saved.at >= 0 && now - saved.at < MAX_AGE_MS;
+  } catch {
+    return false;
+  }
+}
+
 export function clearInviteAnswer(): void {
   try { sessionStorage.removeItem(KEY); } catch { /* Stockage indisponible. */ }
 }

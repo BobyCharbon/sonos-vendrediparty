@@ -53,8 +53,9 @@ export function useRealtime(channel: string, tables: { table: string; filter?: s
   useFocusEffect(useCallback(() => {
     // Une fiche et son éditeur peuvent coexister dans la pile de navigation.
     // Un sujet unique évite de réutiliser un canal déjà abonné pendant sa fermeture.
-    let ch = supabase.channel(`${channel}-${++realtimeSubscriptionSequence}`);
     const descriptors = JSON.parse(key) as { table: string; filter?: string }[];
+    if (!descriptors.length) return undefined;
+    let ch = supabase.channel(`${channel}-${++realtimeSubscriptionSequence}`);
     for (const t of descriptors) {
       ch = ch.on('postgres_changes', { event: '*', schema: 'public', table: t.table, filter: t.filter }, () => cb.current());
     }

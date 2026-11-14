@@ -84,3 +84,26 @@ def test_names_in_the_vote_results_open_the_profile_too(browser, server):
         assert not lea.errors and not tom.errors and not server.errors(), lea.errors + tom.errors
     finally:
         lea.close(); tom.close()
+
+
+def test_two_players_with_the_same_name_each_open_their_own_profile(browser, server):
+    """Deux « Léa » à la table : le nom dans les résultats ouvre la fiche de celle qui a reçu les votes (son pid), jamais
+    celle de l'autre ; sans pid (Pour ou contre ne donne que des prénoms), un prénom en double n'ouvre aucune fiche."""
+    lea = Phone(browser, server, "Lea")
+    try:
+        lea.open_games()
+        links = lea.page.evaluate("""() => {
+          const g = { code: '1234', type: 'whoof', options: {}, players: [
+            { pid: 'p1', name: 'Léa', account: true }, { pid: 'p2', name: 'Léa', account: true }],
+            results: [{ pid: 'p2', name: 'Léa', count: 2 }, { pid: 'p1', name: 'Léa', count: 1 }] };
+          const box = document.createElement('div');
+          box.innerHTML = resultsHtml(g);
+          const won = [...box.querySelectorAll('.qs-win-names [data-profile-pid]')].map((e) => e.dataset.profilePid);
+          const rest = [...box.querySelectorAll('.qs-bars [data-profile-pid]')].map((e) => e.dataset.profilePid);
+          return { won, rest, debate: whoName(g, 'Léa') };
+        }""")
+        assert links["won"] == ["p2"] and links["rest"] == ["p1"]
+        assert "data-profile-pid" not in links["debate"]
+        assert lea.errors == []
+    finally:
+        lea.close()

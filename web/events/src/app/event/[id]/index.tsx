@@ -162,11 +162,13 @@ export default function EventScreen() {
     { table: 'bring_items', filter: `event_id=eq.${id}` },
     { table: 'date_options', filter: `event_id=eq.${id}` },
     { table: 'event_organizers', filter: `event_id=eq.${id}` },
-    // Avis ead4902642da : arrivées par lien et invitations, groupes, quantités « Qui amène quoi ».
+    // Avis ead4902642da : arrivées par lien et invitations, groupes.
     { table: 'event_invites', filter: `event_id=eq.${id}` },
     { table: 'event_groups', filter: `event_id=eq.${id}` },
-    ...(bringIds.length ? [{ table: 'bring_claims', filter: `item_id=in.(${bringIds.join(',')})` }] : []),
   ], reload);
+  // Quantités « Qui amène quoi » dans leur propre canal : une table hors de la publication fait échouer tout son canal
+  // (base sans la migration 20261114110000) ; seules les quantités attendraient alors la relecture (tests/test_realtime_channels.py).
+  useRealtime(`event-${id}-quantities`, bringIds.length ? [{ table: 'bring_claims', filter: `item_id=in.(${bringIds.join(',')})` }] : [], reload);
   // Retour sur l'app (veille) et relecture régulière de ce qui ne passe pas par le temps réel.
   useLiveRefresh(reload, LIVE_REFRESH_MS);
 
@@ -305,7 +307,7 @@ export default function EventScreen() {
         ) : null}
         {ev.public_link && published ? (
           <View style={s.row}>
-            <T muted size={13} style={{ flex: 1 }}>🌍 Publique : tous les comptes Party et toute personne qui a le lien{shareNote && shareNote !== 'Lien copié' ? ` · ${shareNote}` : ''}</T>
+            <T muted size={13} style={{ flex: 1 }}>🌍 Public : tous les comptes Party et toute personne qui a le lien{shareNote && shareNote !== 'Lien copié' ? ` · ${shareNote}` : ''}</T>
             <Button small variant="secondary" label="Partager le lien" onPress={async () => setShareNote(await sharePublicLink(ev))} />
           </View>
         ) : null}

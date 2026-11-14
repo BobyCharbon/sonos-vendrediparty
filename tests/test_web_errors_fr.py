@@ -66,3 +66,18 @@ def test_missing_or_closed_event_is_detected_to_hide_the_useless_retry():
 def test_offline_errors_are_detected():
     assert run('isNetworkError', ['Failed to fetch', 'NetworkError when attempting to fetch resource.', 'numeric field overflow',
                                   'La connexion a échoué. Vérifie ton réseau puis réessaie.']) == [True, True, False, True]
+
+
+def test_shown_errors_never_show_the_technical_key_of_the_base():
+    """Recette UX du 14.11 : « forbidden: réservé aux organisateurs », « profile_required: complète ton profil… » arrivaient
+    tels quels à l'écran (ErrorText, Toast) quand l'erreur passait par check() / must(). La clé saute, la phrase commence
+    par une majuscule ; une phrase de la base sans clé ne change pas."""
+    shown = run('shownError', ['forbidden: réservé aux organisateurs', 'profile_required: complète ton profil (prénom, nom et surnom) pour répondre',
+                               'content_refused: Ce texte n’est pas accepté.', 'La date limite de réponse est passée',
+                               'new row violates row-level security policy for table "events"'])
+    assert shown[0] == 'Réservé aux organisateurs'
+    assert shown[1] == 'Complète ton profil (prénom, nom et surnom) pour répondre'
+    assert shown[2] == 'Ce texte n’est pas accepté.'
+    assert shown[3] == 'La date limite de réponse est passée'
+    assert 'pas le droit' in shown[4]
+    assert not any(':' in s.split(' ')[0] for s in shown)

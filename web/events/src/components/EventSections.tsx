@@ -219,9 +219,12 @@ export function RsvpCard({
       ? confirmations[picked]
     : mine
       ? waiting ? waitingLine : confirmations[mine.status]
+      // L'organisateur sur sa propre fiche : « prévenir l'organisateur » ne veut rien dire (recette UX du 14.11).
+      : event.created_by === me
+        ? 'Dis aux invités si tu y seras, toi aussi.'
       : event.rsvp_deadline
         ? `Réponds avant le ${formatShort(event.rsvp_deadline)} pour que l’organisateur puisse s’organiser.`
-        : 'Un clic suffit pour prévenir l’organisateur.';
+        : 'Un toucher suffit pour prévenir l’organisateur.';
 
   return (
     <Section
@@ -269,7 +272,7 @@ export function RsvpCard({
           <T size={13} color={colors.textSoft}>
             {event.allow_plus_ones && event.max_plus_ones > 0
               ? 'Les accompagnants sont réservés aux membres du groupe : ton compte n’en ajoute pas.'
-              : 'Pas d’accompagnant pour cet événement : l’organisateur a réservé les places aux membres du groupe.'}
+              : 'Pas d’accompagnant pour cet événement.'}
           </T>
         </Reveal>
       ) : null}

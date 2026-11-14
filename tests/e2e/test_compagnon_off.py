@@ -79,4 +79,6 @@ def test_the_companion_api_is_closed(app):
     status = app.evaluate("fetch('/api/pet/status', {method: 'POST', headers: {'Content-Type': 'application/json'},"
                           " body: '{}'}).then((r) => r.status)")
     assert status == 404
-    assert app.evaluate("fetch('/api/features').then((r) => r.json())") == {"compagnon": False, "discussions": False, "invites_v2": False, "bar": False}
+    # Invitations v2 et bar suivent leur propre drapeau (prod : invites_v2 allumées) ; ici, seuls Zicou et Discussions comptent.
+    features = app.evaluate("fetch('/api/features').then((r) => r.json())")
+    assert (features["compagnon"], features["discussions"]) == (False, False), features

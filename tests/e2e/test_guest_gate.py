@@ -105,3 +105,41 @@ def test_music_shows_the_guest_limit_and_the_account_screen(browser, server):
         assert lea.errors == []
     finally:
         lea.close()
+
+
+def test_production_limit_three_games_then_creating_or_a_room_game_asks_for_an_account(browser, monkeypatch):
+    """Réglage de la production (GUEST_GAMES_BEFORE_ACCOUNT=3, rien changé par l'admin) : Léa, invitée, joue 3 parties ;
+    créer une 4e partie depuis l'accueil des jeux ouvre l'écran « Crée ton compte » (rien n'est créé), et un jeu lancé
+    dans une salle de jeux la laisse dans la salle avec le même écran, sans place dans le jeu."""
+    monkeypatch.setenv("GUEST_GAMES_BEFORE_ACCOUNT", "3")
+    server = Server(compagnon=False)
+    lea = Phone(browser, server, "Lea")
+    try:
+        for _ in range(3):
+            lea.join(host_game(server))
+            assert wait_state(lea, lambda s: bool(s.get("me")))["gate"]["limit"] == 3
+        lea.open_games()
+        lea.page.locator('#gHome .gcard [data-create="whoof"]').click()
+        gate = lea.page.locator('#gateModal [data-gate="games"]')
+        expect(gate).to_be_visible(timeout=8000)
+        expect(gate).to_contain_text("Tu as joué tes 3 parties en invité")
+        expect(gate.locator("[data-gate-create]")).to_have_text("Créer mon compte")
+        lea.shot("gate-prod-creer")
+        gate.locator("[data-gate-later]").click()
+
+        # Salle de jeux : Léa y entre (une salle ne compte pas), l'animateur lance un jeu, elle n'y a pas de place.
+        room = httpx.post(f"{server.url}/api/games", json={"type": "room", "guest_id": HOST, "name": "Boby"}, timeout=10).json()["code"]
+        lea.join(room)
+        wait_state(lea, lambda s: bool(s.get("me")))
+        r = httpx.post(f"{server.url}/api/games/{room}", json={"guest_id": HOST, "name": "Boby", "action": "launch",
+                                                               "settings": {"type": "whoof"}}, timeout=10)
+        assert r.status_code == 200, r.text
+        expect(lea.page.locator('#gateModal [data-gate="games"]')).to_be_visible(timeout=10000)
+        child = r.json()["room_info"]["current"]["code"]
+        assert not httpx.get(f"{server.url}/api/games/{child}", params={"guest_id": lea.gid}, timeout=10).json().get("me")
+        lea.shot("gate-prod-salle")
+        assert lea.errors == [], lea.errors
+        assert not server.errors()
+    finally:
+        lea.close()
+        server.stop()
