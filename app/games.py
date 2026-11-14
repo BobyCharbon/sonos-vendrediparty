@@ -17,6 +17,7 @@ import unicodedata
 
 from . import beerpong, debate, heist, island, likely, masque, neon, president, psy, purity, quiz, reflet
 from .divan_cards import DIVAN_CARDS
+from .moderation import ContentRefused, require_clean
 from .seat_rename import rename_player  # noqa: F401  (games.rename_player : place renommée à la connexion d'un compte)
 from .tmc_questions import TMC_QUESTIONS
 from .party_questions import NEVER_AWKWARD, NEVER_HOT, NEVER_SOFT, WHOOF_AWKWARD, WHOOF_HOT, WHOOF_SOFT
@@ -139,6 +140,15 @@ ROLE_LABELS = {"civil": "Civil", "undercover": "Undercover", "white": "Mr. White
 
 class GameError(Exception):
     pass
+
+
+def shown_text(text: str, kind: str) -> str:
+    """Texte libre montré à toute la table et sur la TV : filtre commun (Apple 1.2). « name » refuse, « answer »
+    masque une insulte d'un mot et refuse liens, numéros et le reste."""
+    try:
+        return require_clean(text, kind)
+    except ContentRefused as e:
+        raise GameError(str(e)) from None
 
 
 def normalize(text: str) -> str:
@@ -278,6 +288,7 @@ def add_guest(g: dict, name: str, guest_id: str | None = None):
     name = " ".join((name or "").split())[:30]
     if not name:
         raise GameError("Écris un prénom")
+    name = shown_text(name, "name")
     if guest_id:
         if not guest_id.startswith("manual-"):
             raise GameError("Identité manuelle non valide")
@@ -429,6 +440,8 @@ def set_names(g: dict, names: list[str]):
     clean = []
     for n in names:
         n = " ".join(str(n).split())[:20]
+        if n:
+            n = shown_text(n, "name")
         if n and n.lower() not in [c.lower() for c in clean]:
             clean.append(n)
     if len(clean) > 30:
@@ -1055,7 +1068,7 @@ def tmc_answer(g: dict, gid: str, text: str):
         raise GameError("C'est à la personne interrogée d'écrire sa réponse")
     if not text:
         raise GameError("Écris une réponse")
-    d["answers"][d["subject"]] = text  # au nom du sujet, même saisi sur le téléphone de l'animateur
+    d["answers"][d["subject"]] = shown_text(text, "answer")  # au nom du sujet, même saisi sur le téléphone de l'animateur
     g["phase"] = "guess"
 
 
@@ -1854,6 +1867,7 @@ def bk_complete(g: dict, actor: str, target: str = "", text: str = "", rng: rand
         t = " ".join(text.split())[:120]
         if not t:
             raise GameError("Écris ta règle")
+        t = shown_text(t, "answer")
         B["rules"].append({"id": secrets.token_hex(3), "text": t, "by": n(g, actor)})
         _bk_out(g, f"Nouvelle règle : « {t} »")
     elif kind == "unrule":
@@ -2315,6 +2329,8 @@ def white_guess(g: dict, gid: str, guess: str):
     if g["phase"] != "white_guess" or not g["last"] or g["last"]["eliminated"] != gid:
         raise GameError("Ce n'est pas à toi de deviner")
     guess = guess.strip()[:40]
+    if guess:
+        guess = shown_text(guess, "answer")
     g["last"]["guess"] = guess
     if normalize(guess) == normalize(g["words"]["civil"]):
         g.update(winner="white", phase="end")

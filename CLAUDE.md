@@ -160,6 +160,9 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   Test : `tests/e2e/test_purity_game.py`.
 - Tout prénom ou texte saisi par un joueur passe par `esc()` avant d'entrer dans du HTML, attributs compris
   (test : `tests/e2e/test_names_escaped.py`).
+- Tout texte libre d'un jeu montré aux autres (prénom ajouté par l'animateur, roue, réponse écrite, règle, devinette)
+  passe aussi le filtre commun : `games.shown_text` (« name » refuse, « answer » masque une insulte) ; en base, prénom,
+  nom, nom de lien d'invitation et nom du lieu sont filtrés (migration 20261114123000). Test : `tests/test_compliance_1411.py`.
 - Pyramide (avis 4c55c231a4d2) : après la distribution, phase « look » : chacun voit SES cartes (et l'animateur celles
   des joueurs sans téléphone) au moins `PYR_LOOK_SECONDS` (30 s), puis l'animateur lance la pyramide (`plook`). Dans l'app
   iPhone, la page ne dessine pas ces cartes : `PartyNative.secret.update` → panneau natif `SecretCardsView`, qu'une
