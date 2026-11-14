@@ -305,7 +305,7 @@ export default function EventScreen() {
         ) : null}
         {ev.public_link && published ? (
           <View style={s.row}>
-            <T muted size={13} style={{ flex: 1 }}>🌍 Publique : tous les comptes Party et toute personne qui a le lien{shareNote && shareNote !== 'Lien copié' ? ` · ${shareNote}` : ''}</T>
+            <T muted size={13} style={{ flex: 1 }}>🌍 Public : tous les comptes Party et toute personne qui a le lien{shareNote && shareNote !== 'Lien copié' ? ` · ${shareNote}` : ''}</T>
             <Button small variant="secondary" label="Partager le lien" onPress={async () => setShareNote(await sharePublicLink(ev))} />
           </View>
         ) : null}

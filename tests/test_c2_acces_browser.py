@@ -98,17 +98,23 @@ def test_new_account_on_a_public_link_completes_its_profile_then_lands_on_the_ev
             fulfill(route, [{'id': USER, 'display_name': profile['display_name']}])
         page.route(f'{SUPA}/rest/v1/profiles*', profiles)
 
+        # Le formulaire ne s'affiche que sur le lien : avant, « Faisons connaissance » passait d'abord par l'accueil (/welcome)
+        # puis revenait sur le lien, et ce qui était déjà tapé (prénom, nom) était perdu (« Continuer » restait grisé).
+        page.add_init_script('''window.__welcomeForm = false; document.addEventListener('DOMContentLoaded', () => {
+            const look = () => { if (location.pathname.endsWith('/welcome') && document.body.innerText.includes('Faisons connaissance')) window.__welcomeForm = true; };
+            look(); new MutationObserver(look).observe(document.body, {subtree: true, childList: true, characterData: true}); });''')
         page.goto(f'{v2_origin}/events/share/{EVENT}', wait_until='domcontentloaded')
         page.get_by_role('button', name='Se connecter pour répondre').click()
         login(page)
         # Retour sur le lien public après la connexion (10.11 : avant, l'accueil s'ouvrait et l'événement était perdu).
         pw.expect(page.get_by_text('Faisons connaissance', exact=True)).to_be_visible(timeout=15000)
         pw.expect(page.get_by_label('Ton prénom, pour que l’organisateur sache qui vient')).to_have_count(0)
+        assert page.url.endswith(f'/events/share/{EVENT}') and not page.evaluate('() => window.__welcomeForm'), page.url
         page.get_by_label('Prénom', exact=True).fill('Noé')
         page.get_by_label('Nom', exact=True).fill('Martin')
         page.get_by_label('Surnom', exact=False).fill('Noé')
         page.get_by_role('button', name='Continuer').click()
-        pw.expect(page.get_by_text('Avant de publier', exact=True)).to_be_visible(timeout=10000)
+        pw.expect(page.get_by_text('Avant de commencer', exact=True)).to_be_visible(timeout=10000)
         page.get_by_role('button', name='J’accepte').click()
         # Profil complet : la fiche de l'événement (où l'on répond ou vote comme dans toute l'app).
         page.wait_for_url(f'**/events/event/{EVENT}', timeout=15000)

@@ -5,7 +5,8 @@ document.addEventListener("touchstart", () => {}, { passive: true });
 // un interrupteur natif (<input type=checkbox switch>) : on en garde un invisible pour s'en servir.
 let hapticSwitch = null;
 function haptic(pattern = 60) {
-  if (navigator.vibrate) { try { navigator.vibrate(pattern); return; } catch {} }
+  // Chrome refuse (et le note en erreur dans la console) toute vibration avant le premier toucher, ex. après un rechargement.
+  if (navigator.vibrate) { if (navigator.userActivation?.hasBeenActive === false) return; try { navigator.vibrate(pattern); return; } catch {} }
   try {
     if (!hapticSwitch) {
       hapticSwitch = document.createElement("label");
@@ -988,7 +989,10 @@ async function refreshGame() {
       if (myRoom && myRoom === myGame) { myRoom = ""; store("vp_room", ""); }
       setGame("");
       if (e.detail?.ended) showGameEnded(e.detail.ended);
+      // Code tapé (ou lien) qui ne mène à rien : on dit de vérifier le code (recette UX du 14.11), pas « n'existe plus ».
+      else if (autoJoin) toast(`Aucune partie avec le code ${code}. Vérifie-le auprès de l’animateur.`, "err");
       else toast("Cette partie n'existe plus", "err");
+      autoJoin = false;
     }
     else if (!game) toast("Impossible de charger la partie, réessaie", "err");
     if (e.status === 404 || !game) renderGame(null);
@@ -1262,8 +1266,10 @@ function profileAttrs(g, p) {
 }
 
 // Avis 36c47b3d1f82 : dans les résultats et les listes, le nom d'un joueur qui a un compte ouvre sa fiche profil.
-function whoName(g, name) {
-  const p = g?.players?.find((x) => x.name === name);
+// Retrouvé par son pid quand le résultat le donne ; par le prénom seulement s'il est unique (deux « Léa » : pas de fiche).
+function whoName(g, name, pid) {
+  const same = (g?.players || []).filter((x) => (pid ? x.pid === pid : x.name === name));
+  const p = same.length === 1 ? same[0] : null;
   return p && p.account ? `<span class="g-who" ${profileAttrs(g, p)}>${esc(name)}</span>` : esc(name);
 }
 
@@ -1315,11 +1321,11 @@ function resultsHtml(g) {
   const drink = sips ? `<div class="qs-drink">🍻 ${top.length > 1 ? "Ils boivent" : "Boit"} ${sips} gorgée${sips > 1 ? "s" : ""}</div>` : "";
   const rest = g.results.filter((r) => !top.includes(r));
   return `<div class="qs-win">
-      <div class="qs-win-names">${top.map((r) => `<span>👑 ${whoName(g, r.name)}</span>`).join("")}</div>
+      <div class="qs-win-names">${top.map((r) => `<span>👑 ${whoName(g, r.name, r.pid)}</span>`).join("")}</div>
       <div class="qs-win-n">${max} vote${max > 1 ? "s" : ""} sur ${g.players.length}</div>${drink}
     </div>
     ${rest.length ? `<div class="list qs-bars">${rest.map((r) => `<div class="bar" style="--w:${Math.round(100 * r.count / max)}%">
-      <span>${whoName(g, r.name)}</span><b>${r.count}</b></div>`).join("")}</div>` : ""}`;
+      <span>${whoName(g, r.name, r.pid)}</span><b>${r.count}</b></div>`).join("")}</div>` : ""}`;
 }
 
 // 🎆 Animation de fin de main, seulement sur l'écran du joueur concerné.
@@ -2591,11 +2597,11 @@ function neverResultsHtml(g) {
   const did = g.results.filter((r) => r.answer === "yes"), never = g.results.filter((r) => r.answer === "no");
   const sips = g.options?.sips || 0;
   const drink = sips && did.length
-    ? `<div class="drink">🍻 ${did.map((r) => whoName(g, r.name)).join(", ")} boi${did.length > 1 ? "vent" : "t"} ${sips} gorgée${sips > 1 ? "s" : ""} !</div>`
+    ? `<div class="drink">🍻 ${did.map((r) => whoName(g, r.name, r.pid)).join(", ")} boi${did.length > 1 ? "vent" : "t"} ${sips} gorgée${sips > 1 ? "s" : ""} !</div>`
     : !did.length ? `<div class="drink">😇 Personne ne l'a fait… tout le monde est sage ?</div>` : "";
   const col = (emo, label, list, cls) => `<div class="never-col ${cls}"><div class="never-head"><span aria-hidden="true">${emo}</span><b>${list.length}</b></div>
     <div class="never-lbl">${label}</div>
-    <div class="chips">${list.map((r) => `<span class="pill">${whoName(g, r.name)}</span>`).join("") || `<span class="artist">personne</span>`}</div></div>`;
+    <div class="chips">${list.map((r) => `<span class="pill">${whoName(g, r.name, r.pid)}</span>`).join("") || `<span class="artist">personne</span>`}</div></div>`;
   return drink + `<div class="never-res">${col("🍻", "L'ont déjà fait", did, "did")}${col("😇", "Jamais", never, "nev")}</div>`;
 }
 
@@ -2955,6 +2961,9 @@ const gInflight = new Set();
 async function gameAction(action, extra = {}, opts = {}) {
   if (!myGame) return;
   if (action === "join") extra = { ...extra, token: (typeof freshToken === "function" && await freshToken()) || "" };
+  // « Suivant » touché en même temps par l'animateur et l'admin : le serveur n'applique que le premier (étape vue ici).
+  // Le Quiz a son propre jeton ; les jeux en temps réel changent d'étape tout seuls.
+  if (action === "next" && game && !["quiz", "neon", "island", "heist"].includes(game.type)) extra = { ...extra, step: `${game.phase}:${game.round}` };
   const key = myGame + ":" + action + JSON.stringify(extra);
   if (gInflight.has(key)) return;
   gInflight.add(key);

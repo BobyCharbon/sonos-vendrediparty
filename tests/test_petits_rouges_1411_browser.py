@@ -27,7 +27,7 @@ def test_the_organizer_is_not_asked_to_answer_his_own_event(browser, events_orig
         login(frame)
         frame.get_by_text('Sortie de démonstration (test local)', exact=True).click()
         pw.expect(frame.get_by_text('Ta présence', exact=True)).to_be_visible(timeout=15000)
-        pw.expect(frame.get_by_text('Tu organises : dis seulement si tu seras là, pour le compte des présents.', exact=True)).to_be_visible()
+        pw.expect(frame.get_by_text('Dis aux invités si tu y seras, toi aussi.', exact=True)).to_be_visible()
         assert frame.get_by_text('À répondre', exact=True).count() == 0
         assert frame.get_by_text('Tu viens ?', exact=True).count() == 0
         # Il peut toujours dire qu'il sera là.

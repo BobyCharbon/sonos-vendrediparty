@@ -223,11 +223,12 @@ export function RsvpCard({
       ? confirmations[picked]
     : mine
       ? waiting ? waitingLine : confirmations[mine.status]
+      // L'organisateur ou un co-organisateur sur sa propre fiche : « prévenir l'organisateur » ne veut rien dire (14.11).
       : organizer
-        ? 'Tu organises : dis seulement si tu seras là, pour le compte des présents.'
+        ? 'Dis aux invités si tu y seras, toi aussi.'
       : event.rsvp_deadline
         ? `Réponds avant le ${formatShort(event.rsvp_deadline)} pour que l’organisateur puisse s’organiser.`
-        : 'Un clic suffit pour prévenir l’organisateur.';
+        : 'Un toucher suffit pour prévenir l’organisateur.';
 
   return (
     <Section

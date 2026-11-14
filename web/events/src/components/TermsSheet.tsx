@@ -8,8 +8,10 @@ import { TERMS_PATH, useTerms } from '@/lib/moderation';
 import { colors, radius } from '@/lib/theme';
 
 /** Conditions d'utilisation à accepter avant le PREMIER contenu (message, surnom, nom de groupe ; Google UGC) :
+ * Titre selon le moment (recette UX du 14.11) : « Avant de publier » par défaut, « Avant de commencer » au premier
+ * surnom, « Avant de répondre » sur une invitation ; personne ne « publie » en choisissant son surnom.
  * `await ensure()` vaut true une fois acceptées (tout de suite si c'est déjà fait), false si la personne renonce. */
-export function useTermsGate() {
+export function useTermsGate(title = 'Avant de publier') {
   const terms = useTerms();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -55,7 +57,7 @@ export function useTermsGate() {
         <SheetBackdrop onPress={() => finish(false)} />
         <View ref={card} style={st.sheet} accessibilityViewIsModal accessibilityLabel="Conditions d’utilisation">
           <SheetTop onClose={() => finish(false)} />
-          <T weight="bold" size={18}>Avant de publier</T>
+          <T weight="bold" size={18}>{title}</T>
           <T size={14}>Sur Party, on se respecte : pas de harcèlement, pas de propos haineux ni de contenu sexuel, pas
             d’arnaque ni de vente. Les objets du jeu n’ont aucune valeur en argent. Tout contenu peut être signalé ; un
             modérateur peut le masquer, avertir, suspendre ou bannir un compte.</T>

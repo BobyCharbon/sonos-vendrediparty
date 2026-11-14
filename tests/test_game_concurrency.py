@@ -78,3 +78,21 @@ def test_simultaneous_last_bets_deal_the_blackjack_hand_once(monkeypatch):
         errors = all_at_once(lambda: [bet(gid) for gid in ("host-aaaaaaaa", "guest-bbbbbbbb")], n=4)
         assert all(getattr(e, "status_code", None) == 409 for e in errors), errors  # mise refusée après la donne : normal
         assert len(deals) == 1, f"la main a été distribuée {len(deals)} fois"
+
+
+def test_host_and_admin_tapping_next_together_move_on_one_question_only():
+    """L'animateur et l'admin (animateur lui aussi) touchent « Question suivante » au même moment : la page envoie l'étape
+    qu'elle voit (step = phase:manche) ; le second appui, arrivé après le premier, ne saute pas la nouvelle question."""
+    for _ in range(40):
+        g = games.new_game("whoof", "host-aaaaaaaa", "Hôte", code="5678")
+        games.join(g, "guest-bbbbbbbb", "Bob")
+        g["leads"] = ["guest-bbbbbbbb"]
+        main.store.session.games["5678"] = g
+        games.start(g)
+        g["phase"] = "results"
+        seen = f'{g["phase"]}:{g["round"]}'
+        before = g["round"]
+        nxt = lambda gid: main.game_action("5678", main.GameAction(guest_id=gid, name="x", action="next", step=seen), request())  # noqa: E731
+        errors = all_at_once(lambda: nxt("host-aaaaaaaa" if threading.get_ident() % 2 else "guest-bbbbbbbb"), n=4)
+        assert all(getattr(e, "status_code", None) == 409 for e in errors), errors
+        assert g["round"] == before + 1, f"{g['round'] - before} questions passées d'un coup"

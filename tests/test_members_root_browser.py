@@ -211,6 +211,8 @@ def test_recent_connections_are_grouped_by_day_and_reachable_from_settings(brows
     try:
         page.goto(events_origin + '/events/account', wait_until='domcontentloaded')
         login(page)
+        # Connexion terminée (session enregistrée) avant de recharger la page : sinon le rechargement retombait sur « Se connecter ».
+        pw.expect(page.get_by_role('button', name='Se connecter', exact=True)).to_have_count(0, timeout=15000)
         page.goto(events_origin + '/events/account', wait_until='domcontentloaded')
         page.get_by_role('button', name='Connexions récentes', exact=False).first.click()
         pw.expect(page.get_by_text('AUJOURD’HUI · 1', exact=True)).to_be_visible(timeout=15000)
