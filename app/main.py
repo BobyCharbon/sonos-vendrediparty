@@ -4094,17 +4094,32 @@ def public_sonos(snap: dict, guest_id: str = "", mine_of: set[str] | None = None
     }
 
 
+# Pochettes relayées par /art : seulement celles que le serveur a lui-même données aux pages (lues dans l'état du
+# Sonos). Sinon /art?p=/getaa?u=http://… ferait chercher par l'enceinte n'importe quelle adresse du réseau local.
+ART_PATHS: dict[str, None] = {}
+ART_PATHS_MAX = 2000
+ART_LOCK = threading.Lock()
+
+
 def art_url(url: str) -> str:
     # Les pochettes Sonos sont servies par l'enceinte : on les relaie pour les téléphones.
     if not url:
         return ""
     m = re.match(r"^(?:https?://[\d.]+:1400)?(/getaa\?.*)$", url)
-    return f"/art?p={quote(m.group(1), safe='')}" if m else url
+    if not m:
+        return url
+    path = m.group(1)
+    with ART_LOCK:
+        ART_PATHS.pop(path, None)
+        ART_PATHS[path] = None  # la plus récente en dernier
+        while len(ART_PATHS) > ART_PATHS_MAX:
+            ART_PATHS.pop(next(iter(ART_PATHS)))
+    return f"/art?p={quote(path, safe='')}"
 
 
 @app.get("/art", dependencies=[Depends(require_viewer)])
 def art(p: str):
-    if not p.startswith("/getaa?") or not store.session.room_uid:
+    if p not in ART_PATHS or not store.session.room_uid:
         raise HTTPException(404)
     try:
         ip = (_snap["data"] or snapshot())["coordinator_ip"]
@@ -4925,28 +4940,53 @@ def push_unsubscribe(body: PushUnsubscribe):
     return {"ok": True}
 
 
+# Flux SSE ouverts (une page = un flux). Bornés au total et par adresse ; jamais de refus : au-delà, on ferme le
+# plus ancien flux de la même adresse (ou, liste pleine, de l'adresse qui en tient le plus), sa page se reconnecte.
+# Une soirée (~60 invités, souvent la même adresse derrière la box, quelques onglets + TV) reste loin de ces bornes.
+SSE_MAX = 600
+SSE_PER_IP = 200
+SSE_STREAMS: dict[object, tuple[str, asyncio.Event]] = {}  # dans l'ordre d'ouverture
+
+
+def sse_open(ip: str) -> tuple[object, asyncio.Event]:
+    by_ip: dict[str, list] = {}
+    for key, (owner, _) in SSE_STREAMS.items():
+        by_ip.setdefault(owner, []).append(key)
+    if len(by_ip.get(ip, [])) >= SSE_PER_IP:
+        SSE_STREAMS.pop(by_ip[ip][0])[1].set()
+    elif len(SSE_STREAMS) >= SSE_MAX:
+        SSE_STREAMS.pop(max(by_ip.values(), key=len)[0])[1].set()
+    key, stop = object(), asyncio.Event()
+    SSE_STREAMS[key] = (ip, stop)
+    return key, stop
+
+
 @app.get("/api/events")
 async def events(request: Request):
     """Flux SSE : envoie un signal dès que l'état change, la page se rafraîchit aussitôt."""
     async def stream():
-        last, last_ping, last_notice = None, time.time(), None
-        while not await request.is_disconnected():
-            version = events_version()
-            current = notices.current()
-            notice_id = current.id if current else ""
-            if notice_id != last_notice:
-                # Message pour tout le monde (notice.js) : une page ouverte le voit aussitôt, même sans rien faire.
-                last_notice = notice_id
-                yield f"event: notice\ndata: {notice_id}\n\n"
-            if version != last:
-                last = version
-                # « version du site|version de l'état » : une page dont la version du site change se recharge.
-                yield f"data: {BUILD_ID}|{version}\n\n"
-            elif time.time() - last_ping > 15:
-                # Garde la connexion ouverte à travers HAProxy.
-                yield ": ping\n\n"
-                last_ping = time.time()
-            await asyncio.sleep(0.3)
+        key, stop = sse_open(client_ip(request))
+        try:
+            last, last_ping, last_notice = None, time.time(), None
+            while not stop.is_set() and not await request.is_disconnected():
+                version = events_version()
+                current = notices.current()
+                notice_id = current.id if current else ""
+                if notice_id != last_notice:
+                    # Message pour tout le monde (notice.js) : une page ouverte le voit aussitôt, même sans rien faire.
+                    last_notice = notice_id
+                    yield f"event: notice\ndata: {notice_id}\n\n"
+                if version != last:
+                    last = version
+                    # « version du site|version de l'état » : une page dont la version du site change se recharge.
+                    yield f"data: {BUILD_ID}|{version}\n\n"
+                elif time.time() - last_ping > 15:
+                    # Garde la connexion ouverte à travers HAProxy.
+                    yield ": ping\n\n"
+                    last_ping = time.time()
+                await asyncio.sleep(0.3)
+        finally:
+            SSE_STREAMS.pop(key, None)
 
     return StreamingResponse(stream(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
