@@ -86,7 +86,7 @@ const st = StyleSheet.create({
   pressed: { opacity: 0.75, transform: [{ scale: 0.95 }] },
   badge: { position: 'absolute', top: 1, right: -1, minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10,
     backgroundColor: BADGE_RED, borderWidth: 2, borderColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
-  badgeText: { color: '#FFFFFF', fontSize: 11, lineHeight: 13, ...font.bold },
+  badgeText: { color: '#FFFFFF', fontSize: 12, lineHeight: 14, ...font.bold },
   pillsScroll: { marginHorizontal: -16, flexGrow: 0 },
   pills: { gap: 6, paddingHorizontal: 16, alignItems: 'center' },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 11, borderRadius: 20,
@@ -97,5 +97,5 @@ const st = StyleSheet.create({
   pillTextOn: { color: colors.onAction, ...font.bold },
   pillBadge: { minWidth: 18, height: 18, paddingHorizontal: 5, borderRadius: 9, backgroundColor: BADGE_RED, alignItems: 'center', justifyContent: 'center' },
   pillBadgeOn: { backgroundColor: '#FFFFFF' },
-  pillBadgeText: { color: '#FFFFFF', fontSize: 11, ...font.bold },
+  pillBadgeText: { color: '#FFFFFF', fontSize: 12, ...font.bold },
 });

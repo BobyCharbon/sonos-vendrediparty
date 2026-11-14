@@ -105,10 +105,10 @@ export function PublishChoice({ groups, vipOk, suggested, suggestedGroups, propo
               style={({ pressed }) => [{ gap: 6 }, pressTransition, pressed && { opacity: 0.85, transform: [{ scale: 0.99 }] }]}>
               <View style={st.titleRow}>
                 <T weight="bold" size={16} style={{ flex: 1 }}>{TITLES[k]}</T>
-                {on ? <View style={st.tag}><T size={11} weight="bold" color={colors.onAction}>Suggéré</T></View> : null}
+                {on ? <View style={st.tag}><T size={12} weight="bold" color={colors.onAction}>Suggéré</T></View> : null}
               </View>
               <T size={13} color={colors.textSoft}>{visibilitySentence(k, k === 'group' ? names : [], proposing)}</T>
-              {k !== 'group' ? <T size={14} weight="bold" color={colors.accent}>{label} ›</T> : null}
+              {k !== 'group' ? <T size={14} weight="bold" color={colors.accentSoft}>{label} ›</T> : null}
             </Pressable>
             {k === 'group' && picking ? (
               <View style={{ gap: 10 }}>
@@ -120,7 +120,7 @@ export function PublishChoice({ groups, vipOk, suggested, suggestedGroups, propo
                 <Button label={publishLabel('group', names, proposing)} disabled={!names.length || busy} loading={busy}
                   onPress={() => onPublish(vip && !groupIds.length ? 'vip' : 'group', groupIds, vip)} />
               </View>
-            ) : k === 'group' ? <T size={14} weight="bold" color={colors.accent}>Choisir les groupes ›</T> : null}
+            ) : k === 'group' ? <T size={14} weight="bold" color={colors.accentSoft}>Choisir les groupes ›</T> : null}
           </View>
         );
       })}

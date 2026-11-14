@@ -1,6 +1,6 @@
 import { router, Stack } from 'expo-router';
 import { useRef, useState } from 'react';
-import { View } from 'react-native';
+import { useWindowDimensions, View } from 'react-native';
 
 import { AIEventSteps } from './AIEventSteps';
 import { audienceFromEvent, audienceToEvent, choosableGroups, mayUseVip, saveAudience } from './AudiencePicker';
@@ -69,6 +69,7 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
   const me = useMe();
   const { can } = useAuth();
   const direct = can('events.publish_direct');
+  const narrow = useWindowDimensions().width < 400;
   const [busy, setBusy] = useState(false);
   const [announce, setAnnounce] = useState(false);  // « Prévenir » les groupes cochés : éteint par défaut
   const publishing = useRef(false);  // double toucher : une seule publication
@@ -152,7 +153,8 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
   return (
     <Screen edges={[]}>
       {/* Retour : la fiche du brouillon, jamais l'accueil (on devait deviner qu'il était dans les brouillons, retour du 07.11). */}
-      <Stack.Screen options={{ title: 'Qui est invité', headerLeft: () => <HeaderBack label="L’événement" onPress={openEvent} /> }} />
+      {/* Sous 400 px, « ‹ L'événement » touchait le titre centré (« L’événementQui est invité ») : la flèche seule. */}
+      <Stack.Screen options={{ title: 'Qui est invité', headerLeft: () => <HeaderBack label="L’événement" iconOnly={narrow} onPress={openEvent} /> }} />
       <AIEventSteps current={2} />
       <View style={{ gap: 4 }}>
         <T muted size={13}>Brouillon enregistré · encore invisible pour les autres</T>

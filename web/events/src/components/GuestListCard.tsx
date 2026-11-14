@@ -339,8 +339,8 @@ function GuestRow({ guest, me, onNudge, onRemove }: { guest: Guest; me: string; 
         <Avatar id={guest.id} name={guest.name} photo={guest.avatar_url} size={40} profile={false} />
         <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
           <View style={[st.rowCenter, { gap: 6 }]}>
-            <T weight="semibold" size={15} numberOfLines={1} style={{ flexShrink: 1 }}>{guest.name}</T>
-            {guest.light ? <View style={st.tag}><T size={10} weight="bold" color={colors.muted}>SANS L’APP</T></View> : null}
+            <T weight="semibold" size={15} numberOfLines={2} style={{ flexShrink: 1 }}>{guest.name}</T>
+            {guest.light ? <View style={st.tag}><T size={12} weight="bold" color={colors.muted}>SANS L’APP</T></View> : null}
           </View>
           <T muted size={12} numberOfLines={1}>{guestOrigin(guest, me)}</T>
         </View>
@@ -349,7 +349,7 @@ function GuestRow({ guest, me, onNudge, onRemove }: { guest: Guest; me: string; 
             style={({ pressed }) => [st.smallAction, pressed && { opacity: 0.7 }]}>
             <T size={12} weight="bold" color={colors.accent}>Relancer</T>
           </Pressable>
-        ) : !guest.status && guest.nudged_today ? <T size={11} muted>Relancé ✓</T> : <StatusPill guest={guest} />}
+        ) : !guest.status && guest.nudged_today ? <T size={12} muted>Relancé ✓</T> : <StatusPill guest={guest} />}
       </View>
     </SwipeRow>
   );
@@ -408,10 +408,11 @@ function LinkRow({ link, spokenName, onNudge, onStop, onCopy }: {
       <View style={st.row}>
         <View style={st.linkIcon}><T size={17}>{link.max_uses > 1 ? '👥' : '🔗'}</T></View>
         <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
-          <T weight="semibold" size={15} numberOfLines={1}>{title}</T>
+          <T weight="semibold" size={15} numberOfLines={2}>{title}</T>
           <T muted size={12} numberOfLines={2}>{linkLine(link)}{link.max_uses > 1 && arrivalNames ? ` · ${arrivalNames}` : ''}</T>
+          {/* Sous le texte, pas à côté : à 375 px, l'état et « Copier » ne laissaient que « Lien pou… » au nom du lien. */}
+          <View style={[st.pill, { borderColor: badge.c, alignSelf: 'flex-start', marginTop: 2 }]}><T size={12} weight="bold" color={badge.c}>{badge.t}</T></View>
         </View>
-        <View style={[st.pill, { borderColor: badge.c }]}><T size={12} weight="bold" color={badge.c}>{badge.t}</T></View>
         {live ? (
           <Pressable accessibilityRole="button" accessibilityLabel={`Copier le lien : ${spokenName}`} onPress={onCopy} hitSlop={8}
             style={({ pressed }) => [st.copy, pressTransition, pressed && { transform: [{ scale: 0.92 }] }]}>

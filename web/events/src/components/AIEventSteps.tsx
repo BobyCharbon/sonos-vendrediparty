@@ -17,9 +17,10 @@ export function AIEventSteps({ current }: { current: 1 | 2 | 3 }) {
         return (
           <View key={label} style={[st.step, on && st.stepOn]}>
             <View style={[st.dot, (on || done) && st.dotOn]}>
-              <T size={11} weight="bold" color={on || done ? colors.onAction : colors.muted}>{done ? '✓' : n}</T>
+              <T size={12} weight="bold" color={on || done ? colors.onAction : colors.muted}>{done ? '✓' : n}</T>
             </View>
-            <T size={11.5} weight={on ? 'bold' : 'semibold'} color={on ? colors.text : colors.muted} numberOfLines={1}>{label}</T>
+            {/* 12 px, sur deux lignes au besoin : dans une carte à 375 px, « La soirée » était coupé (« La soiré… »). */}
+            <T size={12} weight={on ? 'bold' : 'semibold'} color={on ? colors.text : colors.muted} numberOfLines={2} style={{ flexShrink: 1 }}>{label}</T>
           </View>
         );
       })}

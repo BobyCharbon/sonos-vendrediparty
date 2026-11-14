@@ -616,7 +616,7 @@ export const s = StyleSheet.create({
   pressed: { transform: [{ scale: 0.97 }] },
   linkRow: { marginHorizontal: -8, paddingHorizontal: 8, paddingVertical: 8, borderRadius: 12 },
   iconTile: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  rowBadge: { minWidth: 22, height: 22, paddingHorizontal: 7, borderRadius: 11, backgroundColor: '#FF3B30', alignItems: 'center', justifyContent: 'center' },
+  rowBadge: { minWidth: 22, height: 22, paddingHorizontal: 7, borderRadius: 11, backgroundColor: '#D70015', alignItems: 'center', justifyContent: 'center' },
   rowBadgeText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   disclosure: { width: 8, height: 8, borderRightWidth: 2, borderTopWidth: 2, borderColor: colors.muted, opacity: 0.7, transform: [{ rotate: '45deg' }], marginRight: 4 },
   headerButton: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44, minWidth: 44, paddingHorizontal: 8 },

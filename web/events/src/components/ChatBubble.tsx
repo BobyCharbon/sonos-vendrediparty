@@ -114,7 +114,7 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
           </View>
         ) : null}
         <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-          <T muted size={11}>{m.pending ? 'Envoi…' : formatMessageTime(m.created_at)}{m.edited_at && !deleted ? ' · modifié' : ''}</T>
+          <T muted size={12}>{m.pending ? 'Envoi…' : formatMessageTime(m.created_at)}{m.edited_at && !deleted ? ' · modifié' : ''}</T>
           {actions ? (
             <Pressable accessibilityRole="button" accessibilityLabel="Actions du message" hitSlop={8} onPress={() => setOpen((v) => !v)}>
               <T muted size={13}>⋯</T>
