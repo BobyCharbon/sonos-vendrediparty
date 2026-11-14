@@ -95,17 +95,20 @@ publicité, aucun SDK d'analyse. Pour chaque type ci-dessous : **lié à l'ident
 | Identifiers | User ID | Identifiant du compte | oui |
 | Identifiers | Device ID | Identifiant d'invité tiré au hasard, jeton de notifications APNs, inscription Wallet | oui |
 | Usage Data | Product Interaction | Journal d'usage de l'IA (plafond mensuel), journal admin | oui |
+| Diagnostics | **Other Diagnostic Data** | Modèle de l'appareil, version d'iOS et de l'app joints à chaque avis (« Ton avis ») | oui (ajouté le 14.11) |
 
 Pas collecté (à laisser décoché) : e-mail, adresse postale, localisation (aucun CoreLocation ; les adresses d'événement
-sont du contenu), santé, historique de navigation, historique de recherche (la recherche de titres n'est pas
-gardée), données sensibles (les profils par catégorie de Purify Test ne sont jamais gardés, `purity.scrub`), audio
-(la dictée est faite par Apple ; les messages vocaux n'existent que dans Discussions, éteintes), diagnostics, publicité.
+et la ville du covoiturage sont du contenu), santé, historique de navigation, historique de recherche (la recherche de
+titres n'est pas gardée), données sensibles (les profils par catégorie de Purify Test ne sont jamais gardés,
+`purity.scrub`), audio (la dictée est faite par Apple ; les messages vocaux n'existent que dans Discussions, éteintes),
+Crash Data / Performance Data, publicité.
 
-**État au 09.11.2026** : le manifeste `ios/Party/PrivacyInfo.xcprivacy` déclare exactement ces 11 types (Phone,
+**État au 14.11.2026** : le manifeste `ios/Party/PrivacyInfo.xcprivacy` déclare exactement ces 12 types (Phone,
 Name, Photos, Contacts, Emails/Text, Other User Content, Gameplay Content, User ID, Device ID, Product Interaction,
-Other Financial Info), tous liés à l'identité, sans suivi, pour le fonctionnement de l'app. Cocher **exactement** les
-mêmes dans App Store Connect. Purchase History : non déclaré (couvert par Other Financial Info + Other User Content).
-L'écran natif Réglages › Confidentialité est daté du 9 novembre 2026 comme la politique web, et l'accord IA s'y
+Other Diagnostic Data, Other Financial Info), tous liés à l'identité, sans suivi, pour le fonctionnement de l'app.
+Cocher **exactement** les mêmes dans App Store Connect (**Other Diagnostic Data est à cocher en plus**, 14.11).
+Purchase History : non déclaré (couvert par Other Financial Info + Other User Content).
+L'écran natif Réglages › Confidentialité est daté du 14 novembre 2026 comme la politique web, et l'accord IA s'y
 retire (« IA de Party ») pour tous les comptes.
 
 ## 6. Description, sous-titre, mots-clés
