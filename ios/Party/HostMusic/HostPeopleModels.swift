@@ -115,7 +115,9 @@ struct PartyJournal: Decodable {
         private static let labels = [
             "admin.login": "s'est connecté à l'admin", "admin.login_failed": "code admin incorrect",
             "admin.denied": "accès admin refusé (compte sans droits)", "admin.logout": "s'est déconnecté de l'admin",
-            "admin.pin": "a changé le code de la soirée", "admin.ban": "a bloqué", "admin.unban": "a débloqué",
+            "admin.pin": "a changé le code de la soirée",
+            "notice.set": "a affiché un message à tout le monde", "notice.clear": "a retiré le message pour tout le monde",
+            "admin.ban": "a bloqué", "admin.unban": "a débloqué",
             "admin.rename": "a renommé", "admin.kick": "a déconnecté", "admin.purge": "a retiré les titres de",
             "admin.stop": "a arrêté la soirée", "admin.close_game": "a fermé la partie",
             "account.link": "s'est connecté à son compte",

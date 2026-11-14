@@ -10,6 +10,8 @@
     "admin.denied": "accès admin refusé (compte sans droits)",
     "admin.logout": "s'est déconnecté de l'admin",
     "admin.pin": "a changé le code de la soirée",
+    "notice.set": "a affiché un message à tout le monde",
+    "notice.clear": "a retiré le message pour tout le monde",
     "admin.ban": "a bloqué",
     "admin.unban": "a débloqué",
     "admin.rename": "a renommé",

@@ -1,0 +1,53 @@
+/* Message pour tout le monde (notice.js) : panneaux fixes au-dessus de la page, qui garde sa hauteur
+   (jamais d'overflow ni de hauteur sur html / body : bug iOS 26, voir CLAUDE.md). */
+.pn-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  display: flex; align-items: center; justify-content: center;
+  padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+  background: rgba(10, 8, 18, 0.82);
+  -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%);
+  animation: pn-fade 0.25s ease-out;
+}
+.pn-card {
+  width: 100%; max-width: 360px; text-align: center;
+  padding: 28px 22px 22px; border-radius: 24px;
+  background: var(--card, #1a1526); color: var(--text, #f4f1fa);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.pn-icon { font-size: 44px; line-height: 1; margin-bottom: 12px; }
+.pn-title { margin: 0 0 8px; font-size: 1.35rem; letter-spacing: -0.01em; }
+.pn-text { margin: 0 0 16px; color: var(--muted, #a79fba); white-space: pre-line; }
+.pn-wait { margin: 0; display: inline-flex; align-items: center; gap: 10px; font-size: 0.85rem; color: var(--muted, #a79fba); }
+.pn-dots { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(255, 255, 255, 0.18);
+  border-top-color: var(--accent, #ff4f9a); animation: pn-spin 0.9s linear infinite; }
+
+.pn-banner {
+  position: fixed; z-index: 9500;
+  top: calc(env(safe-area-inset-top) + 8px); left: 50%; transform: translateX(-50%);
+  width: calc(100% - 24px); max-width: 560px;
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 12px 12px 14px; border-radius: 16px;
+  background: var(--card-2, #241d35); color: var(--text, #f4f1fa);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  animation: pn-drop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.pn-banner.pn-announce { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 0 0 1.5px var(--accent, #ff4f9a); }
+.pn-banner.pn-maintenance { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 0 0 1.5px var(--accent-2, #ffb347); }
+.pn-banner-icon { font-size: 22px; line-height: 1.2; flex: none; }
+.pn-banner-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pn-banner-title { font-size: 0.95rem; }
+.pn-banner-text { font-size: 0.88rem; color: var(--muted, #a79fba); white-space: pre-line; overflow-wrap: anywhere; }
+.pn-banner-close, .pn-banner-act {
+  flex: none; border: 0; cursor: pointer; font: inherit; color: var(--text, #f4f1fa);
+  background: rgba(255, 255, 255, 0.1); border-radius: 999px;
+}
+.pn-banner-close { width: 32px; height: 32px; font-size: 14px; }
+.pn-banner-act { padding: 6px 12px; font-size: 0.85rem; font-weight: 600; }
+
+@keyframes pn-fade { from { opacity: 0; } }
+@keyframes pn-drop { from { opacity: 0; transform: translate(-50%, -12px); } }
+@keyframes pn-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .pn-overlay, .pn-banner { animation: none; }
+  .pn-dots { animation-duration: 2.4s; }
+}

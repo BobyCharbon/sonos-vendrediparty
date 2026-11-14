@@ -5,6 +5,10 @@ import WebKit
 @MainActor
 final class WebModel: ObservableObject {
     @Published var failed = false
+    /// Le serveur a répondu « occupé » (502/503/504) au chargement de la page : il redémarre (mise à jour).
+    @Published var serverBusy = false
+    /// Message pour tout le monde décrit par la page (notice.js) : maintenance, information, annonce, serveur absent.
+    @Published private(set) var notice: PartyNoticeState?
     /// Écran « Créer un événement avec l'IA », demandé par le module Événements.
     @Published var aiEventOpen = false
     /// « ✨ Modifier avec l'IA » sur un événement : son id (nil : l'écran IA crée un événement).
@@ -29,9 +33,9 @@ final class WebModel: ObservableObject {
     private static let legacyMusicKey = "musicHostManages"
     /// Dernier onglet de contenu (Musique, Jeux…) : contexte d'une idée envoyée depuis « Ton avis ».
     private(set) var lastContentTab: String?
-    private static let settingsTabs: Set<String> = ["feedback", "account", "host", "stats"]
+    private static let settingsTabs: Set<String> = ["feedback", "account", "host", "notice", "stats"]
     /// Écrans de la page rangés sous Réglages (index.html, SUB_SCREENS) : ouverts depuis les Réglages natifs.
-    private static let settingsSubScreens: Set<String> = ["host", "stats"]
+    private static let settingsSubScreens: Set<String> = ["host", "notice", "stats"]
     let start: URL
     weak var webView: WKWebView?
     /// Adresse demandée avant que la vue web existe (app lancée par un lien ou une notification).
@@ -351,6 +355,18 @@ final class WebModel: ObservableObject {
         }
     }
 
+    func showNotice(_ state: PartyNoticeState?) {
+        guard state != notice else { return }
+        notice = state
+    }
+
+    /// ✕ d'une information ou d'une annonce : la page retient ce message comme masqué (même mémoire que le web).
+    func hideNotice(_ id: String) {
+        notice = nil
+        guard let script = Self.call("window.PartyNotice && PartyNotice.hide", id) else { return }
+        webView?.evaluateJavaScript(script)
+    }
+
     func showZicouBubble(_ state: ZicouBubbleState) {
         guard state != zicouBubble else { return }
         zicouBubble = state
@@ -365,6 +381,12 @@ final class WebModel: ObservableObject {
         guard id.allSatisfy({ $0.isLetter }) else { return }  // identifiants de la page : music, games…
         if id == pageDetail { closePageDetail() }
         webView?.evaluateJavaScript("window.PartyTabs && PartyTabs.select('\(id)')")
+    }
+
+    /// Nouvel essai automatique depuis l'écran « hors ligne », qui reste affiché jusqu'au chargement réussi.
+    func retryQuietly() {
+        guard let webView, !webView.isLoading else { return }
+        webView.load(URLRequest(url: webView.url ?? start))
     }
 
     func reload() {

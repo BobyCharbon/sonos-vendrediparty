@@ -8,6 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&display=swap">
   <script src="/static/ios-app.js"></script>
+  <!-- Maintenance / information / annonce pour tout le monde, et « Mise à jour en cours » pendant un redémarrage. -->
+  <script src="/static/notice.js"></script>
+  <link rel="stylesheet" href="/static/notice.css">
   <link rel="stylesheet" href="/static/style.css">
   <link rel="stylesheet" href="/static/president.css">
   <link rel="stylesheet" href="/static/neon.css">
@@ -140,6 +143,15 @@
     <h1 class="screen-title" id="hostTitle">Invités et messages</h1>
     <div id="peopleAdmin" class="admin-only"></div>
     <div id="auditAdmin" class="admin-only"></div>
+  </section>
+
+  <!-- Réglages → « Annonce et maintenance » (compte admin) : un message pour tout le monde, sur tous les onglets. -->
+  <section data-view="notice" class="nav-screen hidden" aria-labelledby="noticeTitleHead">
+    <header class="nav-head">
+      <button type="button" class="nav-back" data-host-back aria-label="Retour aux Réglages"><svg viewBox="0 0 12 21" aria-hidden="true"><path d="M10.5 1.5 1.5 10.5l9 9"/></svg><span>Réglages</span></button>
+    </header>
+    <h1 class="screen-title" id="noticeTitleHead">Annonce et maintenance</h1>
+    <div id="noticeAdmin" class="admin-only"></div>
   </section>
 
   <!-- Réglages → « Mes stats de jeu » : un onglet par jeu (Purify Test, Méninges) ; Méninges marche aussi sans compte. -->
@@ -461,7 +473,7 @@ $("nameChip").addEventListener("click", changeName);
 
 // Pages des Réglages : elles s'empilent par-dessus les Réglages (‹ Réglages, glisser depuis le bord, retour).
 // « Ton avis » / « Retours » : sorti de la barre d'onglets (onglet Zicou, 4.11), c'est une page des Réglages.
-const SUB_SCREENS = { host: "account", stats: "account", feedback: "account" };
+const SUB_SCREENS = { host: "account", notice: "account", stats: "account", feedback: "account" };
 // Compagnon (Zicou) en bêta : éteint hors site de test, le serveur marque la page data-compagnon="off" sans ses morceaux.
 const compagnonOn = document.documentElement.dataset.compagnon !== "off";
 // Discussions : absentes hors site de test (<html data-discussions="off">, app/features.py) : ni onglet ni pastille.
@@ -473,7 +485,8 @@ function startTab() {
 }
 // Les événements utilisent leur compte SMS ; les accès musique/jeux restent indépendants.
 function showTab(tab, eventTarget) {
-  if (!["music", "games", "pet", "events", "chats", "feedback", "account", "host", "stats"].includes(tab)) tab = "music";
+  if (!["music", "games", "pet", "events", "chats", "feedback", "account", "host", "notice", "stats"].includes(tab)) tab = "music";
+  if (tab === "notice" && !fbIsAdmin()) tab = "account";
   if (tab === "pet" && !compagnonOn) tab = "music";
   // « Ton avis » : réservé à l'hôte et aux comptes qui ont le droit d'écrire un avis (liens profonds compris).
   if (tab === "feedback" && !fbAllowed()) tab = account ? "account" : "music";
@@ -490,13 +503,13 @@ function showTab(tab, eventTarget) {
     if (current) el.setAttribute("aria-current", "page");
     else el.removeAttribute("aria-current");
   });
-  if (!["feedback", "account", "host", "stats"].includes(tab) && document.body.dataset.tab) fbTab = tab;
+  if (!["feedback", "account", "host", "notice", "stats"].includes(tab) && document.body.dataset.tab) fbTab = tab;
   document.body.dataset.tab = tab;  // la lumière de scène et le titre suivent l'onglet
   // Une partie en plein écran ne vaut que dans l'onglet Jeux : en partant (« Se connecter » d'un jeu, lien…), la page
   // quitte le plein écran (barre d'onglets, native comprise, de retour ; mini-barre pour revenir). Sinon : écran vide
   // sans barre, il fallait relancer l'app (avis 8d5ec90f63da, Purify Test, 11.11).
   if (typeof syncGameChrome === "function") syncGameChrome();
-  $("appTitle").textContent = ({ music: "Musique", games: "Jeux", pet: "Zicou", events: "Événements", chats: "Discussions", feedback: fbIsAdmin() ? "Retours" : "Ton avis", account: account ? "Réglages" : "Se connecter", host: "Invités et messages", stats: "Mes stats de jeu" })[tab];
+  $("appTitle").textContent = ({ music: "Musique", games: "Jeux", pet: "Zicou", events: "Événements", chats: "Discussions", feedback: fbIsAdmin() ? "Retours" : "Ton avis", account: account ? "Réglages" : "Se connecter", host: "Invités et messages", notice: "Annonce et maintenance", stats: "Mes stats de jeu" })[tab];
   $("navBarTitle").textContent = $("appTitle").textContent;
   store("vp_tab", tab);
   // Un autre onglet : l'adresse oublie l'événement partagé (un rechargement ne ramène plus dessus).
@@ -510,6 +523,7 @@ function showTab(tab, eventTarget) {
   if (tab === "music" && musicAdminMounted && fbIsAdmin()) MusicAdmin.show();
   if (tab === "host" && musicAdminMounted) { MusicAdmin.refresh(); window.AuditAdmin?.refresh(); }
   if (tab === "stats") showStats();
+  if (tab === "notice") window.NoticeAdmin?.refresh();
   // Événements et Réglages partagent le même module (une seule connexion) : on change juste de page dedans.
   if (tab === "events") frameRoute(eventTarget || (frameAt === "/account" || frameAt?.startsWith("/chats") ? "/" : null));
   // Discussions de groupe (avis n°10) : mêmes connexion et module, page /chats.
@@ -783,7 +797,7 @@ window.addEventListener("message", (event) => {
   }
   // Fiche profil d'un ami (module Événements) › son Zicou : la visite, dans l'onglet Zicou.
   if (event.data?.type === "party-events:open-tab" && event.data.tab === "pet" && event.data.visit && window.Pet?.visit) return window.Pet.visit(event.data.visit);
-  if (event.data?.type === "party-events:open-tab" && ["feedback", "music", "games", "pet", "events", "chats", "host", "stats"].includes(event.data.tab)) {
+  if (event.data?.type === "party-events:open-tab" && ["feedback", "music", "games", "pet", "events", "chats", "host", "notice", "stats"].includes(event.data.tab)) {
     showTab(event.data.tab);
     if (document.body.dataset.tab === event.data.tab && ["events", "chats"].includes(event.data.tab) && /^\/[a-z0-9/-]*$/.test(event.data.path || "")) frameRoute(event.data.path);
   }
@@ -823,7 +837,10 @@ function fbBadge() {
 // Rôle du compte (admin ou non) : onglet Retours, et pilotage de la musique dans l'onglet Musique.
 // Les outils admin sont chargés en bas de page : une session admin obtenue avant (réseau rapide) attend qu'ils
 // soient là, sinon ils ne se montaient jamais et le compte admin restait sans outils (bug du 26.10).
-const adminToolsReady = () => !!(window.MusicAdmin && window.PeopleAdmin && window.GamesAdmin && window.AuditAdmin && window.FeedbackAdmin);
+const adminToolsReady = () => !!(window.MusicAdmin && window.PeopleAdmin && window.GamesAdmin && window.AuditAdmin && window.FeedbackAdmin && window.NoticeAdmin);
+// Message pour tout le monde (notice.js) : l'admin garde la main pendant une maintenance (bandeau + « Gérer »).
+window.partyIsAdmin = () => fbIsAdmin();
+window.partyOpenNotice = () => showTab("notice");
 addEventListener("DOMContentLoaded", () => fbSyncRole());
 function fbSyncRole() {
   fbSyncAccess();
@@ -841,9 +858,11 @@ function fbSyncRole() {
     // Jeux : parties en cours de toute la soirée (en haut de l'onglet Jeux).
     GamesAdmin.mount($("gamesAdmin"), { onState: (s) => MusicAdmin.render(s) });
     AuditAdmin.mount($("auditAdmin"));
+    NoticeAdmin.mount($("noticeAdmin"));
     MusicAdmin.mount($("musicAdmin"), { onState: (s) => { PeopleAdmin.render(s); GamesAdmin.render(s); } });
   }
   if (!admin && hostUnread) { hostUnread = 0; accountBadge(); }
+  window.PartyNotice?.render();
   $("fbScreenTitle").textContent = admin ? "Retours" : "Ton avis";
   if (document.body.dataset.tab === "feedback") $("appTitle").textContent = admin ? "Retours" : "Ton avis";
   fbShare();
@@ -1380,7 +1399,9 @@ function listen() {
     clearTimeout(refreshTimer);
     refreshTimer = setTimeout(() => { if (musicChanged) refresh(); if (gameChanged && myGame) refreshGame(); }, 60);
   };
-  source.onerror = () => { source.close(); setTimeout(listen, 3000); };
+  // Message pour tout le monde (notice.js) : nouveau message aussitôt ; flux coupé (serveur qui redémarre) : on vérifie.
+  source.addEventListener("notice", (ev) => window.PartyNotice?.seen(ev.data));
+  source.onerror = () => { window.PartyNotice?.probe(); source.close(); setTimeout(listen, 3000); };
 }
 </script>
 <script src="/static/president.js"></script>
@@ -1397,6 +1418,7 @@ function listen() {
 <script src="/static/guest-gate-admin.js"></script>
 <script src="/static/people-admin.js"></script>
 <script src="/static/audit-admin.js"></script>
+<script src="/static/notice-admin.js"></script>
 <script src="/static/games-admin.js"></script>
 <script src="/static/quiz.js"></script>
 <script src="/static/purity.js"></script>

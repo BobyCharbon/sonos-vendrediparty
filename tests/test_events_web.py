@@ -141,6 +141,8 @@ def test_settings_open_the_party_page_for_guests_messages_and_notifications():
     assert "openPartyTab('host')" in ui and "Invités, messages et notifications" in ui
     assert "Admin de la soirée" in ui
     page = (root / "app/static/index.html").read_text(encoding="utf-8")
-    assert '"feedback", "music", "games", "pet", "events", "chats", "host", "stats"].includes(event.data.tab)' in page
+    assert '"feedback", "music", "games", "pet", "events", "chats", "host", "notice", "stats"].includes(event.data.tab)' in page
+    # « Annonce et maintenance » (avis eb710b132330) : la page de Party, réservée au même compte admin.
+    assert "openPartyTab('notice')" in ui and "Annonce et maintenance" in ui
     # Tout compte : « Mes stats de jeu » ouvre la page de Party (un onglet par jeu, Purify Test pour commencer).
     assert "openPartyTab('stats')" in ui and "Mes stats de jeu" in ui

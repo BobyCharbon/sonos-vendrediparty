@@ -51,6 +51,7 @@ from .account_data import LocalStores, activity_forgetter, forget_local
 from .ai_event_edit import EventEditor
 from . import ai_feedback
 from .covers import Covers
+from .notice import NoticeError, NoticeStore, make as make_notice
 from .ai_events import MAX_IMAGE_B64 as AI_EVENT_MAX_IMAGE, MAX_TEXT as AI_EVENT_MAX_TEXT, MAX_TURNS as AI_EVENT_MAX_TURNS, EventAssistant
 from .places import MAX_QUERY as PLACE_MAX_QUERY, Places
 from .audit import AuditLog
@@ -72,6 +73,7 @@ from .spotify_player import QUEUE_MANAGED_IN_SPOTIFY, SpotifyPlayer
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
 journal = AuditLog(DATA_DIR / "audit.jsonl")  # actions admin et connexions : ajout seul
+notices = NoticeStore(DATA_DIR / "notice.json")  # maintenance / information / annonce pour tout le monde
 # Compte progressivement obligatoire : parties et titres en invité, réglés par l'admin (app/guest_gate.py).
 guest_gate = GuestGate(DATA_DIR / "guest_gate.json")
 ADMIN_PIN = os.environ.get("ADMIN_PIN", "")
@@ -160,6 +162,7 @@ def absorb_local_feedback():
 
 @contextlib.asynccontextmanager
 async def lifespan(app):
+    notices.clear_auto()  # le serveur est revenu : la mise à jour est finie (l'annonce de l'admin reste)
     threading.Thread(target=watch_sonos, daemon=True).start()
     if feedback is not local_feedback:
         threading.Thread(target=absorb_local_feedback, daemon=True).start()
@@ -4860,9 +4863,15 @@ def push_unsubscribe(body: PushUnsubscribe):
 async def events(request: Request):
     """Flux SSE : envoie un signal dès que l'état change, la page se rafraîchit aussitôt."""
     async def stream():
-        last, last_ping = None, time.time()
+        last, last_ping, last_notice = None, time.time(), None
         while not await request.is_disconnected():
             version = events_version()
+            current = notices.current()
+            notice_id = current.id if current else ""
+            if notice_id != last_notice:
+                # Message pour tout le monde (notice.js) : une page ouverte le voit aussitôt, même sans rien faire.
+                last_notice = notice_id
+                yield f"event: notice\ndata: {notice_id}\n\n"
             if version != last:
                 last = version
                 # « version du site|version de l'état » : une page dont la version du site change se recharge.
@@ -5222,6 +5231,66 @@ def features():
     Compagnon (Zicou) et Discussions (groupes, messages directs)."""
     return JSONResponse({"compagnon": compagnon_enabled(), "discussions": discussions_enabled(),
                          "invites_v2": invites_v2_enabled(), "bar": bar_enabled()}, headers=NO_CACHE)
+
+
+NOTICE_HEADER = "X-Party-Notice"
+
+
+@app.middleware("http")
+async def notice_header(request: Request, call_next):
+    """Chaque réponse de l'API dit quel message est affiché (son identifiant, vide sinon) : un téléphone qui joue
+    (une requête par seconde) voit « Mise à jour en cours » tout de suite, sans attendre sa prochaine lecture."""
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        n = notices.current()
+        response.headers[NOTICE_HEADER] = n.id if n else ""
+    return response
+
+
+@app.get("/api/notice")
+def notice_now():
+    """Le message pour tout le monde (maintenance, information, annonce), ou null. Public, sans compte."""
+    n = notices.current()
+    return JSONResponse({"notice": n.public() if n else None}, headers=NO_CACHE)
+
+
+class NoticeBody(BaseModel):
+    kind: Literal["maintenance", "info", "announce"]
+    title: str | None = Field(None, max_length=400)
+    message: str | None = Field(None, max_length=2000)
+
+
+def _admin_notice() -> dict:
+    n = notices.admin_notice()
+    return {"notice": {**n.public(), "at": n.at, "by": n.by} if n else None}
+
+
+@app.get("/api/admin/notice")
+def admin_notice_get(request: Request):
+    require_admin(request)
+    return JSONResponse(_admin_notice(), headers=NO_CACHE)
+
+
+@app.post("/api/admin/notice")
+def admin_notice_set(body: NoticeBody, request: Request):
+    """Réglages › « Annonce et maintenance » : l'admin affiche un message à tout le monde, sur tous les onglets."""
+    require_admin(request)
+    actor = admin_actor(request)
+    try:
+        n = notices.set(make_notice(body.kind, body.title, body.message, by=actor))
+    except NoticeError as e:
+        raise HTTPException(400, str(e))
+    journal.record("notice.set", actor, None, {"kind": n.kind, "title": n.title}, ip=client_ip(request))
+    return JSONResponse(_admin_notice(), headers=NO_CACHE)
+
+
+@app.delete("/api/admin/notice")
+def admin_notice_clear(request: Request):
+    require_admin(request)
+    if notices.admin_notice():
+        notices.clear()
+        journal.record("notice.clear", admin_actor(request), None, None, ip=client_ip(request))
+    return JSONResponse(_admin_notice(), headers=NO_CACHE)
 
 
 @app.get("/.well-known/apple-app-site-association")

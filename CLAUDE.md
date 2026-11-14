@@ -116,6 +116,19 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   en base, aucune question d'adresse, pas d'itinéraire sur la fiche) ; un lieu dit exige toujours son adresse complète
   confirmée. Tests : `test_place_to_be_defined_*`, `AIEventPlaceLaterTests`, recette `test8AIPlaceToBeDefined`.
 
+## Message pour tout le monde et mises à jour (avis eb710b132330, 13.11.2026)
+- Réglages › « Annonce et maintenance » (Root / Admin, web `notice-admin.js`, iPhone ligne native → page `notice`) :
+  Maintenance (écran qui couvre l'app, sauf chez l'admin : bandeau « Gérer »), Information, Annonce (bandeau en haut,
+  ✕ par message). Serveur : `app/notice.py`, `/api/notice` (public), `/api/admin/notice` (session admin, journal).
+- Affichage : `app/static/notice.js` en tête de index.html ET admin.html (avant tout appel au serveur) ; sur tous les
+  onglets ; nouveau message aussitôt par le flux `/api/events` (événement `notice`) et l'en-tête `X-Party-Notice`.
+  App iPhone : `PartyNative.notice.update` → `PartyNoticeView` natif par-dessus tous les écrans (Réglages compris).
+- Mise à jour du serveur : TOUJOURS `deploy/update.sh prod|test` (pose « Mise à jour en cours » avant de redémarrer,
+  le serveur revenu l'efface ; l'annonce de l'admin est gardée à part). Serveur injoignable (502/503/504, flux coupé) :
+  « Mise à jour en cours » / « Party ne répond pas », réessai tout seul ; jamais « injoignable ». iOS : `OfflineView`
+  (réessai automatique, page d'erreur du relais jamais affichée).
+- Tests : `tests/test_notice.py`, `tests/e2e/test_notice.py` (serveur arrêté puis relancé), `PartyNoticeTests`.
+
 ## Inscription des invités (avis 39f148377a8f, 10.11.2026) — profil complet, parcours normal
 - Toute personne invitée (lien d'invitation, lien public « Partager », groupe) passe par la connexion NORMALE de l'app
   (`/sign-in` : pays, numéro, code SMS), puis « Faisons connaissance » (`IdentityForm` : prénom, nom, surnom ; photo

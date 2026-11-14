@@ -115,6 +115,14 @@ struct PartyWebView: UIViewRepresentable {
                 showCalendar(url)
                 return decisionHandler(.cancel)
             }
+            // Serveur qui redémarre (mise à jour) : le relais répond 502 / 503 / 504. Jamais sa page d'erreur brute :
+            // l'écran « Mise à jour en cours » de l'app, qui réessaie tout seul.
+            if response.isForMainFrame, let http = response.response as? HTTPURLResponse,
+               OfflineView.busyStatuses.contains(http.statusCode) {
+                model.serverBusy = true
+                model.failed = true
+                return decisionHandler(.cancel)
+            }
             decisionHandler(.allow)
         }
 
@@ -125,6 +133,7 @@ struct PartyWebView: UIViewRepresentable {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             model.pageLoaded()
             model.failed = false
+            model.serverBusy = false
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -143,7 +152,11 @@ struct PartyWebView: UIViewRepresentable {
         private func handle(_ error: Error) {
             let code = (error as NSError).code
             // Navigation annulée par nous-mêmes (lien externe, .ics) : pas une panne réseau.
-            if code == NSURLErrorCancelled || code == 102 /* WebKitErrorFrameLoadInterruptedByPolicyChange */ { return }
+            if code == NSURLErrorCancelled || code == 102 /* WebKitErrorFrameLoadInterruptedByPolicyChange */ {
+                return
+            }
+            // Mise à jour (ou maintenance) annoncée juste avant : le serveur redémarre, ce n'est pas une panne.
+            if model.notice?.kind == .maintenance || model.notice?.kind == .down { model.serverBusy = true }
             model.failed = true
         }
 
