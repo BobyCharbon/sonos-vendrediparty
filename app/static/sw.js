@@ -27,8 +27,13 @@ self.addEventListener("notificationclick", (ev) => {
     const open = wins.find((w) => new URL(w.url).origin === url.origin && new URL(w.url).pathname === url.pathname);
     if (open) {
       try {
-        // Un événement ouvre sa fiche dans l’onglet, même si Musique était affiché.
-        if (url.search && open.url !== url.href) await open.navigate(url.href);
+        // Un événement ouvre sa fiche dans l’onglet, même si Musique était affiché. Toujours : open.url garde
+        // l’adresse d’arrivée (history.replaceState ne la change pas), la comparer laissait la page sur place.
+        // Page que ce service worker ne contrôle pas (abonnement Événements, portée /events/) : navigate() est
+        // refusé ; la page ouvre alors l’adresse elle-même (push.js), au lieu d’un 2e Party.
+        if (url.search || url.hash) {
+          await open.navigate(url.href).catch(() => open.postMessage({ type: "party-open", url: url.href }));
+        }
         return await open.focus();
       } catch { /* L’onglet peut avoir été fermé pendant le clic : en ouvrir un autre. */ }
     }
