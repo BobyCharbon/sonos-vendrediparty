@@ -35,6 +35,13 @@ export function friendlyError(message: string): string {
   return ENGLISH.test(message) ? GENERIC : message;
 }
 
+/** Phrase affichée (ErrorText, Toast) : sans la clé technique de la base (« forbidden: », « profile_required: »…), que
+ * les écrans gardent dans e.message pour leurs décisions (CGU…) ; première lettre en majuscule (recette UX du 14.11). */
+export function shownError(message: string): string {
+  const text = friendlyError(message.replace(/^[a-z_]+ ?: /, '').trim());
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 /** L'événement n'existe plus ou n'est pas ouvert à cette personne : « Réessayer » ne servirait à rien. */
 export function isGoneError(message: string): boolean {
   // Brut (PostgREST) ou déjà traduit (must / check passent par friendlyError).

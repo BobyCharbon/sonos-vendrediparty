@@ -108,7 +108,7 @@ def test_new_account_on_a_public_link_completes_its_profile_then_lands_on_the_ev
         page.get_by_label('Nom', exact=True).fill('Martin')
         page.get_by_label('Surnom', exact=False).fill('Noé')
         page.get_by_role('button', name='Continuer').click()
-        pw.expect(page.get_by_text('Avant de publier', exact=True)).to_be_visible(timeout=10000)
+        pw.expect(page.get_by_text('Avant de commencer', exact=True)).to_be_visible(timeout=10000)
         page.get_by_role('button', name='J’accepte').click()
         # Profil complet : la fiche de l'événement (où l'on répond ou vote comme dans toute l'app).
         page.wait_for_url(f'**/events/event/{EVENT}', timeout=15000)

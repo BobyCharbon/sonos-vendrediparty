@@ -353,7 +353,7 @@ def test_an_account_without_the_terms_sees_the_terms_sheet_before_its_answer(bro
         page.get_by_role('button', name='Je viens !').click()
         login(page)
         # La feuille des CGU, avec le geste explicite (Apple 1.2), puis la réponse.
-        pw.expect(page.get_by_text('Avant de publier', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_text('Avant de répondre', exact=True)).to_be_visible(timeout=15000)
         shot(page, '11-invite-cgu-feuille')
         page.get_by_role('button', name='J’accepte').click()
         pw.expect(page.get_by_text('C’est noté, Camille !', exact=True)).to_be_visible(timeout=10000)

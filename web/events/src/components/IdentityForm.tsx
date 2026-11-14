@@ -16,6 +16,13 @@ function gameNickname(): string {
   try { return typeof localStorage === 'undefined' ? '' : (localStorage.getItem('vp_name') ?? '').trim().slice(0, 30); } catch { return ''; }
 }
 
+/** « Écris ton prénom et ton surnom pour continuer. » : les champs obligatoires encore vides. */
+function missingText(identity: { first_name: string; last_name: string; display_name: string }): string {
+  const missing = [!identity.first_name && 'ton prénom', !identity.last_name && 'ton nom', !identity.display_name && 'ton surnom'].filter(Boolean) as string[];
+  const list = missing.length > 1 ? `${missing.slice(0, -1).join(', ')} et ${missing[missing.length - 1]}` : missing[0];
+  return `Écris ${list} pour continuer.`;
+}
+
 /** Nom, prénom (privés), surnom (public) et photo sur une seule page, pour bien voir la différence. */
 export function IdentityForm({ profile, submitLabel, onSaved }: { profile: Profile; submitLabel: string; onSaved?: () => void }) {
   const { refreshProfile } = useAuth();
@@ -28,7 +35,7 @@ export function IdentityForm({ profile, submitLabel, onSaved }: { profile: Profi
   const [saved, setSaved] = useState(false);
   const saving = useRef(false);
   // Le surnom est vu de tous : conditions d'utilisation acceptées avant le premier nom (modération commune).
-  const terms = useTermsGate();
+  const terms = useTermsGate('Avant de commencer');
   const identity = { first_name: firstName.trim(), last_name: lastName.trim(), display_name: nickname.trim(), avatar_url: photo ?? profile.avatar_url };
   const changed = !!photo || identity.first_name !== (profile.first_name ?? '') || identity.last_name !== (profile.last_name ?? '') || identity.display_name !== profile.display_name;
 
@@ -81,6 +88,8 @@ export function IdentityForm({ profile, submitLabel, onSaved }: { profile: Profi
       {changed || !hasCompleteIdentity(profile) ? (
         <Button label={submitLabel} onPress={save} loading={busy} disabled={!hasCompleteIdentity(identity)} />
       ) : null}
+      {/* Bouton grisé : dire ce qui manque (recette UX du 14.11, rien n'expliquait pourquoi « Continuer » ne répondait pas). */}
+      {!hasCompleteIdentity(identity) ? <T muted size={13} style={{ textAlign: 'center' }}>{missingText(identity)}</T> : null}
     </View>
   );
 }

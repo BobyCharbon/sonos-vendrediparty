@@ -153,7 +153,8 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Inviter" onPress={() => setSheet(true)}
           style={({ pressed }) => [st.plus, pressTransition, pressed && { transform: [{ scale: 0.92 }] }]}>
-          <T size={26} weight="bold" color={colors.onAction} style={{ lineHeight: 28 }}>+</T>
+          {/* « + » seul ne disait pas quoi faire (recette UX du 14.11) : le mot est écrit. */}
+          <T size={16} weight="bold" color={colors.onAction}>+ Inviter</T>
         </Pressable>
       </View>
 
@@ -507,7 +508,7 @@ const st = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: radius.lg, padding: 16, gap: 12 },
   toggle: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, minHeight: 32 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  plus: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.action, alignItems: 'center', justifyContent: 'center' },
+  plus: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: colors.action, alignItems: 'center', justifyContent: 'center' },
   rule: { gap: 2, padding: 12, borderRadius: radius.md, backgroundColor: colors.fill },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tile: { flexGrow: 1, flexBasis: '30%', minHeight: 64, paddingVertical: 8, paddingHorizontal: 8, borderRadius: radius.md,

@@ -19,7 +19,7 @@ import {
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
 import { useMaySeePhoto } from '@/lib/auth';
-import { friendlyError } from '@/lib/errors';
+import { shownError } from '@/lib/errors';
 import { avatarColor, initials } from '@/lib/format';
 import { duration, ease, enter, pressTransition, transition, type Enter } from '@/lib/motion';
 import { colors, font, radius, type FontWeight } from '@/lib/theme';
@@ -517,7 +517,7 @@ export function Toast({ message, onHide }: { message: string; onHide: () => void
     <View pointerEvents="none" style={s.toastWrap}>
       <View accessibilityRole="alert" accessibilityLiveRegion="polite"
         style={[s.toast, enter('rise'), transition('opacity, transform', duration.base), leaving && { opacity: 0, transform: [{ translateY: 8 }] }]}>
-        <Text style={{ color: colors.text, ...font.semibold, fontSize: 14, textAlign: 'center' }}>{friendlyError(message)}</Text>
+        <Text style={{ color: colors.text, ...font.semibold, fontSize: 14, textAlign: 'center' }}>{shownError(message)}</Text>
       </View>
     </View>
   );
@@ -525,7 +525,7 @@ export function Toast({ message, onHide }: { message: string; onHide: () => void
 
 export function ErrorText({ error }: { error: string | null }) {
   if (!error) return null;
-  return <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ color: colors.coralSoft, fontSize: 14, ...font.body }}>{friendlyError(error)}</Text>;
+  return <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={{ color: colors.coralSoft, fontSize: 14, ...font.body }}>{shownError(error)}</Text>;
 }
 
 export function Empty({ children }: { children: ReactNode }) {
