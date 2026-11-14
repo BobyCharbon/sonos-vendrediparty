@@ -2,11 +2,18 @@
 suis pas ». Dans un vrai navigateur : « Mes groupes » = créés par moi ou dont je fais partie ; « Modifier » réservé au
 créateur ; les Admins du site (rang Admin) voient en plus « Tous les groupes (admin) », repliée. Supabase est simulé."""
 import json
+import os
+from pathlib import Path
+import re
+import tempfile
 from urllib.parse import urlparse
 
 import pytest
 
 from tests.test_events_browser import USER, browser, events_origin, login, mock_services, pw  # noqa: F401 (fixtures)
+
+# Captures pour le rapport : PARTY_SHOTS=<dossier>, sinon le dossier temporaire.
+SHOTS = Path(os.environ.get('PARTY_SHOTS') or tempfile.gettempdir())
 
 LEA, TOM = '7a1c2b3d-0000-4000-8000-000000000001', '7a1c2b3d-0000-4000-8000-000000000002'
 MINE = {'id': '5e0d6a51-8f1c-4c51-9a6b-2b8f1e4c0a01', 'name': 'Mes potes', 'created_by': USER, 'system_key': None,
@@ -122,4 +129,52 @@ def test_my_own_group_offers_a_ready_invite_link_at_the_top(phone, events_origin
     pw.expect(card.get_by_role('button', name='Partager')).to_be_visible()
     pw.expect(frame.get_by_label('Inviter dans Rando')).to_have_count(0)
     assert calls and calls[0]['renew'] is False
+    assert not errors, errors
+
+
+def test_plus_button_opens_add_to_group_sheet_people_of_party_and_the_group_link(phone, events_origin):
+    """Avis de l'admin (14.11) : « un bouton + comme sur événement pour rajouter une personne dans son groupe ».
+    « + Ajouter » sur MON groupe (pas sur celui d'un autre) ouvre « Ajouter au groupe » : chercher quelqu'un de Party
+    (déjà membre : grisé) et l'inviter (invite_to_group, il accepte), ou le lien du groupe ; jamais un numéro affiché."""
+    page, errors = phone
+    token = '0a0b0c0d-0000-4000-8000-00000000abcd'
+    invites = []
+
+    def rpc(route):
+        if route.request.method == 'OPTIONS':
+            return route.fulfill(status=204, headers=CORS)
+        if '/invite_to_group' in route.request.url:
+            invites.append(json.loads(route.request.post_data or '{}'))
+            body = {'invited': 'member'}
+        else:
+            body = token
+        route.fulfill(status=200, content_type='application/json', body=json.dumps(body), headers=CORS)
+
+    def extra(p):
+        p.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/rpc/group_invite_link*', rpc)
+        p.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/rpc/invite_to_group*', rpc)
+
+    frame = open_groups(page, events_origin, rank=3, groups=[MINE, INSIDE], before_open=extra)
+    pw.expect(frame.get_by_role('button', name='Ajouter au groupe Rando')).to_have_count(0)
+    page.screenshot(path=str(SHOTS / 'groupe-bouton-ajouter.png'))
+    frame.get_by_role('button', name='Ajouter au groupe Mes potes').click()
+    sheet = frame.get_by_test_id('group-add-sheet')
+    pw.expect(sheet.get_by_text('Ajouter au groupe', exact=True)).to_be_visible()
+    pw.expect(sheet.get_by_text(f'/events/group-invite/{token}', exact=False)).to_be_visible()
+    for name in ('Partager le lien…', 'WhatsApp', 'Messages', 'QR code', 'Copier'):
+        pw.expect(sheet.get_by_role('button', name=name)).to_be_visible()
+
+    search = sheet.get_by_label('Chercher une personne')
+    search.fill('lé')  # Léa est déjà dans le groupe : grisée
+    pw.expect(sheet.get_by_text('Déjà dans le groupe')).to_be_visible()
+    search.fill('to')
+    sheet.get_by_role('button', name='Ajouter Tom').click()
+    page.screenshot(path=str(SHOTS / 'groupe-ajouter-feuille.png'))
+    sheet.get_by_role('button', name='Inviter Tom').click()
+    pw.expect(frame.get_by_text('Tom : invitation envoyée', exact=False)).to_be_visible()
+    assert invites == [{'grp': MINE['id'], 'member': TOM, 'phone': None}]
+    assert not re.search(r'(?<![\w-])\+?\d[\d ]{7,}', sheet.inner_text())  # aucun numéro de téléphone (le lien, oui)
+
+    sheet.get_by_role('button', name='Fermer').first.click()
+    pw.expect(sheet).to_have_count(0)
     assert not errors, errors

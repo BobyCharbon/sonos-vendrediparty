@@ -1,7 +1,8 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
+import { GroupAddSheet } from '@/components/GroupAddSheet';
 import { GroupEventRules } from '@/components/GroupEventRules';
 import { GroupQuickInvite, InviteLinkCard } from '@/components/InviteLinkCard';
 import { NewGroupForm } from '@/components/NewGroupForm';
@@ -10,7 +11,9 @@ import { Avatar, Button, Card, Chip, ConfirmButton, ErrorText, Input, Screen, s,
 import { useAuth, useMe } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { must, supabase } from '@/lib/supabase';
+import { pressTransition } from '@/lib/motion';
 import { belowVip, roleName, roleRank } from '@/lib/roles';
+import { colors } from '@/lib/theme';
 import { VIP_GROUP_KEY, type MemberGroup, type Profile } from '@/lib/types';
 
 type Invitation = { id: string; group_id: string; group: string; invited_by: string | null; at: string };
@@ -30,6 +33,8 @@ export default function GroupsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [guest, setGuest] = useState('');
   const [invited, setInvited] = useState<string | null>(null);
+  // « + Ajouter » (avis du 14.11) : la feuille « Ajouter au groupe » de ce groupe.
+  const [adding, setAdding] = useState<string | null>(null);
   // App iPhone : membres de mon répertoire en « Nom du contact · pseudo ».
   const personText = usePersonText();
 
@@ -118,6 +123,14 @@ export default function GroupsScreen() {
               {inside.size ? [...inside].map((id) => personText(id, people.get(id)?.display_name ?? '?')).join(', ') : 'Personne pour l’instant'}
             </T>
           </View>
+          {canEdit ? (
+            // Comme « + Inviter » d'un événement : le mot est écrit, « + » seul ne disait pas quoi faire.
+            <Pressable accessibilityRole="button" accessibilityLabel={`Ajouter au groupe ${g.name}`} onPress={() => setAdding(g.id)}
+              style={({ pressed }) => [{ minHeight: 40, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.action, alignItems: 'center', justifyContent: 'center' },
+                pressTransition, pressed && { transform: [{ scale: 0.92 }] }]}>
+              <T size={15} weight="bold" color={colors.onAction}>+ Ajouter</T>
+            </Pressable>
+          ) : null}
           {canEdit ? <Button small variant="secondary" label={expanded ? 'Fermer' : 'Modifier'} onPress={() => setOpen(expanded ? null : g.id)} /> : null}
         </View>
         {canEdit && g.created_by === me.id ? <GroupQuickInvite id={g.id} name={g.name} /> : null}
@@ -183,6 +196,8 @@ export default function GroupsScreen() {
     );
   }
 
+  const addingGroup = (data?.groups ?? []).find((g) => g.id === adding);
+
   return (
     <Screen edges={[]}>
       <T muted>Un groupe sert à inviter plusieurs personnes d’un coup à un événement (Guests compris). Quelqu’un qui rejoint le groupe plus tard est aussi invité aux événements à venir.</T>
@@ -220,6 +235,12 @@ export default function GroupsScreen() {
           {allOpen ? <T muted size={13}>Groupes dont tu ne fais pas partie : visibles par les Admins seulement.</T> : null}
           {allOpen ? others.map((g) => groupCard(g, true)) : null}
         </Section>
+      ) : null}
+
+      {addingGroup ? (
+        <GroupAddSheet visible group={addingGroup} me={me} people={data?.members ?? []}
+          inside={new Set(addingGroup.member_group_members.map((m) => m.user_id))}
+          onClose={() => setAdding(null)} onDone={() => void reload()} />
       ) : null}
     </Screen>
   );

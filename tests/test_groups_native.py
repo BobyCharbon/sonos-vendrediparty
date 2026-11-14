@@ -121,3 +121,16 @@ def test_group_created_from_discussions_includes_its_creator_and_returns_its_id(
     c = TestClient(main.app)
     assert c.post("/api/account/groups/create", json={"token": "tok", "name": "Apéro", "join": True}).status_code == 200
     assert fake.calls == [("create", "Apéro", "join")]
+
+
+def test_iphone_group_has_a_plus_that_invites_people_and_shares_the_group_link():
+    """Avis de l'admin (14.11) : « + Ajouter » en haut de MON groupe ouvre « Ajouter au groupe » : une INVITATION
+    (invite_to_group, la personne accepte), jamais un ajout d'office ; le lien du groupe pour qui n'a pas l'app.
+    Source seulement : l'app se compile et se teste sur le Mac mini."""
+    from pathlib import Path
+    swift = (Path(__file__).resolve().parents[1] / "ios/Party/Settings/GroupsView.swift").read_text(encoding="utf-8")
+    sheet = swift[swift.index("private struct GroupAddSheet"):swift.index("private struct InviteLinkSection")]
+    assert 'accessibilityIdentifier("group-add")' in swift and "GroupAddSheet(store: store, group: group)" in swift
+    assert "?.mine == true" in swift  # seulement sur mes groupes (droits de la base : créateur, Admin)
+    assert "store.invite(person: person, to: group)" in sheet and "store.toggle(" not in sheet
+    assert "ShareLink(item: url" in sheet and "QRCodeView.image" in sheet and "phone" not in sheet
