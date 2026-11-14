@@ -4108,7 +4108,7 @@ def send_feedback(body: FeedbackIn, request: Request):
         context["ai"] = structured
     minimum = FEEDBACK_AI_MIN_LENGTH if structured else FEEDBACK_MIN_LENGTH
     if len(text) < minimum:
-        raise HTTPException(400, f"Écris au moins {minimum} caractères pour bien expliquer ton idée")
+        raise HTTPException(400, f"Écris au moins {minimum} caractères pour bien te faire comprendre")
     context["site"] = feedback_site()[0]  # liste commune aux deux sites : d'où vient l'avis
     # Pas de prénom (invité qui n'a encore rien ajouté) : « Anonyme ». clean_name refuserait un prénom vide.
     name = " ".join(body.name.split())[:30] or "Anonyme"

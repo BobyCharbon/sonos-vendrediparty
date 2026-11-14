@@ -51,6 +51,9 @@ body[data-tab="events"] .events-panel, body[data-tab="account"] .events-panel {
   display: flex; flex-direction: column; background: var(--bg);
 }
 body[data-tab="events"] .events-panel.hidden, body[data-tab="account"] .events-panel.hidden { display: none; }
+/* Partie en cours : la mini-barre « Reprendre » (76 px au-dessus du bas, 60 px de haut) ne recouvre pas le module, qui
+   s'arrête juste au-dessus (recette UX du 14.11 : elle cachait « + Proposer » et « Avec l'IA »). */
+body.has-mini[data-tab="events"] .events-panel, body.has-mini[data-tab="account"] .events-panel { bottom: calc(144px + env(safe-area-inset-bottom)); }
 body[data-tab="events"] .events-frame, body[data-tab="account"] .events-frame { flex: 1 1 auto; width: 100%; height: auto; min-height: 0; border-radius: 0; }
 body[data-tab="events"] .tabs, body[data-tab="account"] .tabs { touch-action: manipulation; }
 /* Rien ne recouvre le module : le bandeau d’installation reste sur Musique et Jeux. */
@@ -1400,6 +1403,7 @@ body[data-tab="music"] .tabs button.on .tab-ico { stroke: var(--accent-2); filte
     background: radial-gradient(60% 50% at 50% 0%, rgba(255, 79, 154, .18), transparent 70%), var(--bg); }
   .app-title, .top-head h1 { font-size: 2.75rem; }
   body[data-tab="events"] .events-panel, body[data-tab="account"] .events-panel { left: 96px; bottom: 0; }
+  body.has-mini[data-tab="events"] .events-panel, body.has-mini[data-tab="account"] .events-panel { bottom: 92px; }
 }
 /* Petits écrans (iPhone SE…) : un peu plus compact */
 @media (max-width: 360px) {
@@ -1655,6 +1659,7 @@ html.native-tabs #tabs { visibility: hidden; height: 0; min-height: 0; padding: 
 html.native-tabs body { padding-bottom: 24px; }
 html.native-tabs body.has-mini { padding-bottom: 100px; }
 html.native-tabs .g-mini { bottom: 12px; }
+html.native-tabs body.has-mini[data-tab="events"] .events-panel, html.native-tabs body.has-mini[data-tab="account"] .events-panel { bottom: 80px; }
 
 /* 👤 Fiche profil d'un joueur (profile-card.js) */
 .pc-backdrop { position: fixed; inset: 0; z-index: 90; display: grid; place-items: end center; background: rgba(0,0,0,.55);

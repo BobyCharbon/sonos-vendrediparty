@@ -4,6 +4,7 @@ import { KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
 
 import { Button, ErrorText, Field, Screen, T, Title } from '@/components/ui';
 import { authErrorMessage } from '@/lib/authErrors';
+import { hasPendingInviteAnswer } from '@/lib/inviteIntent';
 import { enter, pressTransition } from '@/lib/motion';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
@@ -17,6 +18,8 @@ export default function SignIn() {
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Venu d'une invitation (« Je viens ! ») : la page dit pourquoi elle demande un numéro (recette UX du 14.11).
+  const [fromInvite] = useState(hasPendingInviteAnswer);
 
   async function sendCode() {
     setError(null);
@@ -50,7 +53,9 @@ export default function SignIn() {
           <Title size={40}>
             Ton compte Party
           </Title>
-          <T muted>Connecte-toi par SMS : ton surnom et ta photo te suivent dans les jeux, et tu peux demander à rejoindre les événements du groupe.</T>
+          <T muted>{fromInvite
+            ? 'Pour envoyer ta réponse, entre ton numéro : tu reçois un code par SMS. Ensuite, tu reviens tout seul à l’invitation.'
+            : 'Connecte-toi par SMS : ton surnom et ta photo te suivent dans les jeux, et tu peux demander à rejoindre les événements du groupe.'}</T>
         </View>
 
         {!sentTo ? (

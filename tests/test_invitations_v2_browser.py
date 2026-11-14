@@ -239,6 +239,8 @@ def test_guest_without_app_signs_in_by_the_normal_page_then_the_answer_is_sent(b
         page.get_by_role('button', name='Je viens !').click()
         # Inscription par le parcours normal de l'app (10.11) : la page de connexion, avec le choix du pays.
         pw.expect(page.get_by_text('Ton compte Party', exact=True)).to_be_visible(timeout=10000)
+        # Recette UX du 14.11 : la page dit pourquoi elle demande un numéro.
+        pw.expect(page.get_by_text('Pour envoyer ta réponse, entre ton numéro', exact=False)).to_be_visible()
         pw.expect(page.get_by_role('radio', name='France +33')).to_be_visible()
         pw.expect(page.get_by_label('Numéro de portable')).to_have_count(0)  # plus de formulaire à part (+41 imposé)
         shot(page, '08-invite-connexion-normale')

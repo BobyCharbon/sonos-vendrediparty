@@ -966,7 +966,7 @@ $("fbText").addEventListener("input", () => {
 $("fbForm").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const text = $("fbText").value.trim();
-  if (text.length < fbMin()) return toast(`Écris au moins ${fbMin()} caractères pour bien expliquer ton idée`, "err");
+  if (text.length < fbMin()) return toast(`Écris au moins ${fbMin()} caractères pour bien te faire comprendre (encore ${fbMin() - text.length})`, "err");
   $("fbSend").disabled = true;
   try {
     const context = { tab: fbTab, ...(typeof game !== "undefined" && game?.type ? { game: game.type } : {}) };
@@ -980,7 +980,7 @@ $("fbForm").addEventListener("submit", async (ev) => {
     } else if (await FeedbackAI.take(text, context)) {
       // L'IA a pris la main (feuille d'accord, reformulation, « C'est bien ça ? ») : elle appelle fbPost.
     } else {
-      if (text.length < 30) throw new Error("Écris au moins 30 caractères pour bien expliquer ton idée");
+      if (text.length < 30) throw new Error(`Écris au moins 30 caractères pour bien te faire comprendre (encore ${30 - text.length})`);
       await fbPost(text, fbKind, context, null);
     }
   } catch (e) { toast(e.message, "err"); }

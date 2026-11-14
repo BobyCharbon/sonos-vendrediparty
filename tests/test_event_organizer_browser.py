@@ -532,7 +532,7 @@ def test_public_event_link_is_copied_for_sharing(browser, events_origin):
         event_frame = page.frame(url=f'{events_origin}/events/')
         event_frame.evaluate('Object.defineProperty(navigator, "share", { value: undefined, configurable: true })')
         open_event(frame)
-        pw.expect(frame.get_by_text('🌍 Publique : tous les comptes Party et toute personne qui a le lien', exact=True)).to_be_visible(timeout=10000)
+        pw.expect(frame.get_by_text('🌍 Public : tous les comptes Party et toute personne qui a le lien', exact=True)).to_be_visible(timeout=10000)
         frame.get_by_role('button', name='Partager le lien', exact=True).click()
         pw.expect(frame.get_by_text('Lien copié', exact=True)).to_be_visible(timeout=5000)
         copied = event_frame.evaluate('navigator.clipboard.readText()')

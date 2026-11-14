@@ -163,7 +163,7 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
         <T weight="bold" size={17}>Qui voit l’événement ?</T>
         <T muted size={13}>
           {proposing ? 'Un toucher l’envoie pour validation (les groupes : coche-les d’abord) : un admin le valide avant qu’il soit visible.'
-            : 'Un toucher le publie (les groupes : coche-les d’abord). Tu invites ensuite, l’événement en ligne, avec le lien à partager.'}
+            : 'Un toucher le publie (les groupes : coche-les d’abord). Une fois l’événement en ligne, tu invites qui tu veux avec le lien à partager.'}
         </T>
         <PublishChoice groups={data.groups} vipOk={data.vipOk} suggested={suggested} suggestedGroups={knownGroups}
           proposing={proposing} busy={busy} onPublish={(kind, ids, vip) => void publish(kind, ids, vip)}

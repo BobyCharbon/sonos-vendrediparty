@@ -85,11 +85,11 @@ export function IdentityForm({ profile, submitLabel, onSaved }: { profile: Profi
       <ProfilePhotoField userId={profile.id} name={nickname} currentPhoto={profile.avatar_url} photo={photo} onChange={(uri) => { setPhoto(uri); setSaved(false); }} disabled={busy} />
       <ErrorText error={error} />
       {saved && !changed ? <T size={14} weight="semibold">✓ Enregistré</T> : null}
+      {/* Bouton grisé : dire ce qui manque (recette UX du 14.11, rien n'expliquait pourquoi « Continuer » ne répondait pas). */}
+      {!hasCompleteIdentity(identity) ? <T muted size={13} style={{ textAlign: 'center' }}>{missingText(identity)}</T> : null}
       {changed || !hasCompleteIdentity(profile) ? (
         <Button label={submitLabel} onPress={save} loading={busy} disabled={!hasCompleteIdentity(identity)} />
       ) : null}
-      {/* Bouton grisé : dire ce qui manque (recette UX du 14.11, rien n'expliquait pourquoi « Continuer » ne répondait pas). */}
-      {!hasCompleteIdentity(identity) ? <T muted size={13} style={{ textAlign: 'center' }}>{missingText(identity)}</T> : null}
     </View>
   );
 }
