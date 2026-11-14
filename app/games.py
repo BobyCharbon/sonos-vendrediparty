@@ -9,6 +9,7 @@ par un « pid » aléatoire : les vues ne contiennent jamais le guest_id des aut
 se faire passer pour eux et lire leur mot.
 """
 
+import math
 import random
 import secrets
 import time
@@ -1155,6 +1156,9 @@ def tmc_view(g: dict, gid: str) -> dict:
 PYR_RANKS = "A23456789TJQK"
 PYR_SUITS = "SHDC"
 PYR_STEPS = {1: ("red", "black"), 2: ("plus", "moins"), 3: ("dedans", "dehors"), 4: tuple(PYR_SUITS)}
+# Après la distribution, chacun voit ses 4 cartes au moins ce temps-là avant que l'animateur lance la pyramide
+# (avis 4c55c231a4d2) ; dans l'app iPhone, une capture d'écran de ces cartes est noire (SecretCards.swift).
+PYR_LOOK_SECONDS = 30
 
 
 def pyr_size(floors: int) -> int:
@@ -1274,8 +1278,33 @@ def pyr_answer(g: dict, actor: str, value: str):
         P["step"] += 1
         g["round"] = P["step"]
         if P["step"] > 4:
-            g["phase"] = "pyramid"  # les mains se retournent : plus personne ne voit ses cartes
-            _pyr_next_late(g)
+            _pyr_end_deal(g)
+
+
+def _pyr_end_deal(g: dict):
+    """Fin de la distribution : chacun mémorise ses propres cartes (« look »), au moins PYR_LOOK_SECONDS."""
+    g["phase"] = "look"
+    g["pyr"]["look_at"] = time.time()
+    _pyr_event(g["pyr"])
+
+
+def pyr_look_left(P: dict, now: float | None = None) -> int:
+    """Secondes avant que l'animateur puisse lancer la pyramide (0 : il peut)."""
+    elapsed = (time.time() if now is None else now) - P.get("look_at", 0)
+    return max(0, math.ceil(PYR_LOOK_SECONDS - elapsed))
+
+
+def pyr_start_pyramid(g: dict):
+    """L'animateur lance la pyramide une fois le temps de mémorisation écoulé : les mains se retournent."""
+    P = g["pyr"]
+    if g["phase"] != "look":
+        raise GameError("Pas le moment")
+    left = pyr_look_left(P)
+    if left:
+        raise GameError(f"Encore {left} s pour mémoriser les cartes")
+    g["phase"] = "pyramid"  # les mains se retournent : plus personne ne voit ses cartes
+    _pyr_event(P)
+    _pyr_next_late(g)
 
 
 def _pyr_next_late(g: dict):
@@ -1300,7 +1329,7 @@ def pyr_accept(g: dict, target: str):
     if not p:
         raise GameError("Joueur introuvable")
     p["pending"] = False
-    if g["phase"] in ("deal", "pyramid") and target not in P["order"] and target not in P.setdefault("queue", []):
+    if g["phase"] in ("deal", "look", "pyramid") and target not in P["order"] and target not in P.setdefault("queue", []):
         if len(P["deck"]) - 4 * len(P["queue"]) < 4:
             raise GameError("Plus assez de cartes dans le paquet pour un joueur de plus")
         P["queue"].append(target)
@@ -1525,7 +1554,7 @@ def pyr_leave(g: dict, gid: str):
         if P["turn"] >= len(P["order"]):
             P["turn"], P["step"] = 0, P["step"] + 1
             if P["step"] > 4:
-                g["phase"] = "pyramid"
+                _pyr_end_deal(g)
     P["candidates"] = [c for c in P["candidates"] if c != gid]
     P["claims"] = [c for c in P["claims"] if c["gid"] != gid]
     if g["phase"] == "pyramid":
@@ -1551,7 +1580,9 @@ def pyr_view(g: dict, gid: str) -> dict:
     for x in P["order"]:
         hand = P["hands"][x]
         # Distribution perso d'un nouveau venu : ses cartes restent visibles de tous jusqu'à la 4e.
-        cards = list(hand) if not hidden or (late and late["gid"] == x) else ["??"] * len(hand)
+        # Mémorisation : chacun ne voit que ses cartes (et l'animateur celles des joueurs sans téléphone).
+        looking = g["phase"] == "look" and (x == gid or (is_manual(g, x) and is_lead(g, gid)))
+        cards = list(hand) if not hidden or looking or (late and late["gid"] == x) else ["??"] * len(hand)
         if hidden and reveal and reveal["gid"] == x and now - reveal["at"] < 3:
             cards[reveal["slot"]] = hand[reveal["slot"]]  # carte retournée devant tout le monde, 3 secondes
         if hidden and x == gid:
@@ -1569,6 +1600,7 @@ def pyr_view(g: dict, gid: str) -> dict:
     last = P["last"]
     out = {
         "floors": P["floors"], "size": len(P["pyramid"]), "flipped": P["flipped"],
+        "look_left": pyr_look_left(P, now) if g["phase"] == "look" else 0, "look_seconds": PYR_LOOK_SECONDS,
         "pyramid": [c if i < P["flipped"] else "??" for i, c in enumerate(P["pyramid"])],
         "current": cur_card, "floor": floor, "is_top": bool(top), "deck_left": len(P["deck"]),
         "seats": seats, "turn": pid(P["order"][P["turn"]]) if g["phase"] == "deal" and P["order"] else None,

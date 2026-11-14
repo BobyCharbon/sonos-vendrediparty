@@ -107,7 +107,11 @@ export type Rsvp = {
 };
 
 export type DateOption = { id: string; event_id: string; starts_at: string; ends_at: string | null; proposed_by: string | null; created_at?: string };
-export type DateVoteRow = { option_id: string; user_id: string; vote: DateVote };
+export type DateVoteRow = {
+  option_id: string; user_id: string; vote: DateVote;
+  /** Heure du vote (serveur) ; absente pour les votes d'avant le 14.11.2026. */
+  voted_at?: string | null;
+};
 
 export type Poll = {
   id: string;

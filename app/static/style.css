@@ -670,6 +670,9 @@ body.pyr-full .py-card:not(.back):not(.ghost) { box-shadow: 0 8px 18px rgba(0,0,
 .py-mini { padding: 8px 12px; border-radius: 12px; font-size: .85rem; font-weight: 800; background: #2a1f45; color: #fff; }
 .py-mini.ok { background: #1f6f5c; } .py-mini.bad { background: #8a1645; }
 .py-wait { text-align: center; color: #a79fba; padding: 10px; animation: py-breathe 1.6s ease-in-out infinite; }
+.py-look-cards { margin: 10px 0 2px; }
+.py-look-rule, .py-look-time { text-align: center; color: #a79fba; font-size: .9rem; }
+.py-look-time { font-weight: 700; color: var(--py-cyan); margin-top: 6px; }
 @keyframes py-breathe { 50% { opacity: .45; } }
 .py-steps { display: flex; align-items: center; gap: 6px; margin: 2px 6px; }
 .py-steps span { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font: 800 .85rem system-ui; background: #2a1f45; color: #a79fba; flex: none; }
