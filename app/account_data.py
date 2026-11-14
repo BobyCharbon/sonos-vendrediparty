@@ -30,10 +30,10 @@ def subjects(uid: str) -> set[str]:
     return {uid, "acct:" + uid}
 
 
-def forget_local(stores: LocalStores, uid: str, consent_keys: tuple[str, ...]) -> dict:
-    """Efface tout ce qui est lié au compte `uid` ; chaque fichier est tenté même si un autre échoue (disque, format).
-    Renvoie ce qui a été fait (pour les tests et le journal du serveur, jamais montré à la personne)."""
-    gid = "acct-" + uid
+def forget_local(stores: LocalStores, uid: str, gid: str, consent_keys: tuple[str, ...]) -> dict:
+    """Efface tout ce qui est lié au compte `uid` (identifiant de joueur `gid`, signé par le serveur : accounts.gid) ;
+    chaque fichier est tenté même si un autre échoue (disque, format). Renvoie ce qui a été fait (pour les tests et le
+    journal du serveur, jamais montré à la personne)."""
     steps = {
         "purity": lambda: stores.purity_forget(gid),
         "quiz": lambda: stores.quiz_forget(gid),

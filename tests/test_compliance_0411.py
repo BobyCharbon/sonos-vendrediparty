@@ -107,7 +107,7 @@ def test_account_deletion_forgets_every_local_file(tmp_path, monkeypatch):
                                       consent_forget=consents.forget, gate_forget=gate.forget, feedback_forget=box.forget,
                                       activity_forget=account_data.activity_forgetter(activity))
 
-    done = account_data.forget_local(stores, UID, (ai.assistant_consent_key(UID),))
+    done = account_data.forget_local(stores, UID, GID, (ai.assistant_consent_key(UID),))
 
     assert "error" not in done.values()
     assert purity.profile(GID)["plays"] == 0 and purity.profile("acct-autre")["plays"] == 1
@@ -128,7 +128,7 @@ def test_a_broken_file_does_not_stop_the_others(tmp_path):
     stores = account_data.LocalStores(purity_forget=boom, quiz_forget=lambda g: calls.append("quiz"), usage_forget=lambda s: 0,
                                       consent_forget=lambda k: None, gate_forget=lambda g: None, feedback_forget=lambda g: 0,
                                       activity_forget=lambda g: calls.append("pet"))
-    done = account_data.forget_local(stores, UID, ())
+    done = account_data.forget_local(stores, UID, GID, ())
     assert done["purity"] == "error" and calls == ["quiz", "pet"]
 
 
@@ -141,9 +141,27 @@ def test_delete_route_purges_local_data(monkeypatch):
 
     monkeypatch.setattr(main, "account_auth", Auth())
     monkeypatch.setattr(main.accounts, "_uid", lambda token: UID)
-    monkeypatch.setattr(main, "forget_local", lambda stores, uid, keys: seen.append((uid, keys)))
+    monkeypatch.setattr(main, "forget_local", lambda stores, uid, gid, keys: seen.append((uid, gid, keys)))
     assert TestClient(main.app).post("/api/account/delete", json={"token": "t", "confirm": "SUPPRIMER"}).json() == {"ok": True}
-    assert seen == ["base", (UID, ("acct:" + UID,))]
+    assert seen == ["base", (UID, main.accounts.gid(UID), ("acct:" + UID,))]
+
+
+def test_delete_route_erases_what_the_account_really_played(monkeypatch):
+    # L'identifiant de joueur d'un compte est signé par le serveur (accounts.gid), jamais « acct-<uid> » : avant, la
+    # suppression effaçait « acct-<uid> » et laissait les parties, le Quiz, le Purify Test et les avis du vrai compte.
+    class Auth:
+        def delete_account(self, token, confirm):
+            return None
+
+    monkeypatch.setattr(main, "account_auth", Auth())
+    monkeypatch.setattr(main.accounts, "_uid", lambda token: UID)
+    gid = main.accounts.gid(UID)
+    assert gid != GID
+    main.guest_gate.record(gid, "4321")
+    main.local_feedback.add(gid, "Léa", "idea", "Une idée de Léa pour la soirée", {})
+    assert TestClient(main.app).post("/api/account/delete", json={"token": "t", "confirm": "SUPPRIMER"}).json() == {"ok": True}
+    assert main.guest_gate.played(gid) == 0
+    assert not main.local_feedback.mine(gid)
 
 
 def test_web_account_deletion_goes_through_the_server():
