@@ -1156,6 +1156,10 @@ addEventListener("DOMContentLoaded", async () => {
     setGame(params.get("game").replace(/\D/g, "").slice(0, 4)); autoJoin = true;
     history.replaceState(null, "", location.pathname);
     showTab("games");
+  } else if (params.get("tab") === "music") {
+    // Notification « Ton titre passe » : Musique, pas l'onglet d'ouverture habituel (Événements).
+    showTab("music");
+    history.replaceState(null, "", location.pathname);
   } else if (params.get("tab") === "feedback") {
     showTab(fbAllowed() ? "feedback" : "music");
     history.replaceState(null, "", location.pathname);

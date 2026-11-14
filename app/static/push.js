@@ -48,6 +48,17 @@ const NativePush = (() => {
   };
 })();
 
+// Toucher d'une notification dont le service worker ne contrôle pas cette page (Événements : portée « /events/ ») :
+// il demande à la page d'ouvrir l'adresse (sw.js). Même site seulement.
+if (navigator.serviceWorker) {
+  navigator.serviceWorker.addEventListener("message", (e) => {
+    if (e.data?.type !== "party-open") return;
+    const url = new URL(e.data.url, location.href);
+    if (url.origin === location.origin) location.assign(url.href);
+  });
+  navigator.serviceWorker.startMessages();
+}
+
 const Push = {
   // iPhone : depuis l'app native, ou depuis l'app ajoutée à l'écran d'accueil (iOS 16.4+).
   supported: () => !!NativePush || ("serviceWorker" in navigator && "PushManager" in window && "Notification" in window),
