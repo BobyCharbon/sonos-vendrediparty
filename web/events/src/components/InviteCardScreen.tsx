@@ -272,7 +272,7 @@ function Respond({ token, card, answer, onBack, onDone, onRefused }: {
   const busyRef = useRef(false);
   // CGU : acceptées dans « Faisons connaissance » (premier surnom). Un ancien compte qui ne les a pas encore acceptées
   // voit la feuille des CGU si la base les exige (jamais d'acceptation silencieuse, Apple 1.2), puis un seul nouvel essai.
-  const terms = useTermsGate();
+  const terms = useTermsGate('Avant de répondre');
 
   async function accept() {
     if (busyRef.current) return;

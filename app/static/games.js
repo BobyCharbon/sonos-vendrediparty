@@ -989,7 +989,10 @@ async function refreshGame() {
       if (myRoom && myRoom === myGame) { myRoom = ""; store("vp_room", ""); }
       setGame("");
       if (e.detail?.ended) showGameEnded(e.detail.ended);
+      // Code tapé (ou lien) qui ne mène à rien : on dit de vérifier le code (recette UX du 14.11), pas « n'existe plus ».
+      else if (autoJoin) toast(`Aucune partie avec le code ${code}. Vérifie-le auprès de l’animateur.`, "err");
       else toast("Cette partie n'existe plus", "err");
+      autoJoin = false;
     }
     else if (!game) toast("Impossible de charger la partie, réessaie", "err");
     if (e.status === 404 || !game) renderGame(null);
