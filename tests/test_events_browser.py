@@ -67,7 +67,7 @@ def browser(request):
             p.stop()
 
 
-def mock_services(page, pending=False, events=1, people=(), roles=None):
+def mock_services(page, pending=False, events=1, people=(), roles=None, unread=()):
     calls = []
     profile = {'id': USER, 'display_name': 'Compte de démonstration', 'phone': '41791234567', 'role': 'guest' if pending else 'admin', 'status': 'active', 'avatar_url': f'{USER}/photo.jpg', 'first_name': 'Camille', 'last_name': 'Demo', 'created_at': '2026-10-19T08:00:00Z'}
     category = {'id': 'ed69d11e-34dd-43fe-b211-10d0dd158ba9', 'name': 'Soirée', 'color': '#FFB347', 'sort': 0, 'archived': False, 'icon': None}
@@ -127,6 +127,7 @@ def mock_services(page, pending=False, events=1, people=(), roles=None):
             result=None
         elif path.endswith('/group_settings'): result={'organizers_can_edit_published':True,'name':'Groupe de démonstration','timezone':'Europe/Zurich','require_approval':True,'coadmins_skip_approval':True,'members_can_create_tags':False}
         elif path.endswith('/profiles'): result=[{'id':USER,'display_name':profile['display_name']},*people]
+        elif path.endswith('/notifications') and request.method=='GET': result=[{'event_id':e} for e in unread]
         route.fulfill(status=200,content_type='application/json',body=json.dumps(result),headers=headers)
     page.route('https://gsuetixzobooggeaubvb.supabase.co/**', handle)
     page.route_web_socket('wss://gsuetixzobooggeaubvb.supabase.co/**', lambda ws:ws.on_message(lambda _message: None))
@@ -463,6 +464,25 @@ def test_pending_badge_stays_on_when_leaving_the_events_screen(browser, events_o
         pw.expect(badge).to_have_text('1'); pw.expect(badge).to_be_visible()
         page.locator('#tabs [data-tab="events"]').click()
         pw.expect(badge).to_have_text('1')
+    finally:
+        context.close()
+
+
+def test_events_tab_badge_also_counts_unopened_important_news(browser, events_origin):
+    """Avis a1d340ff00dd : une nouveauté importante pas encore ouverte (date fixée, changement…) se voit sur l'onglet
+    Événements, en plus des réponses attendues ; un même événement ne compte qu'une fois."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page()
+    other='5b0c7d2e-1111-4222-8333-944455556666'
+    # 1 réponse attendue (EVENT) + nouveautés : la même (EVENT, invitation), une autre fiche (date fixée, 2 fois), un groupe.
+    mock_services(page, unread=(EVENT, other, other, None))
+    badge=page.locator('#tabs [data-events-badge]')
+    try:
+        page.goto(events_origin, wait_until='domcontentloaded')
+        page.get_by_role('button',name='Événements',exact=True).click()
+        login(page.frame_locator('#eventsFrame'))
+        pw.expect(badge).to_have_text('3', timeout=10000)
+        pw.expect(page.locator('#tabs [data-tab="events"]')).to_have_attribute('aria-label', 'Événements, 3 à voir')
     finally:
         context.close()
 
