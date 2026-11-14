@@ -63,7 +63,7 @@ final class HostMusicStore: ObservableObject {
     // MARK: Suivi
 
     func start() {
-        #if DEBUG
+        #if DEBUG || E2E_HOOKS
         if demo { return }
         #endif
         guard liveTask == nil else { return }
@@ -221,7 +221,7 @@ final class HostMusicStore: ObservableObject {
 
     /// Poignée « réorganiser » lâchée : le titre va à la place du titre visé (un seul déplacement côté Sonos).
     func move(_ track: AdminState.QueueTrack, to position: Int) async {
-        #if DEBUG
+        #if DEBUG || E2E_HOOKS
         if demo, var state, let from = state.queue.firstIndex(of: track), let to = state.queue.firstIndex(where: { $0.pos == position }) {
             try? await Task.sleep(for: .seconds(1))  // comme le serveur et Sonos : la réponse arrive après le lâcher
             state.queue = QueueOrder.moving(state.queue, from: from, to: to)
@@ -344,7 +344,7 @@ final class HostMusicStore: ObservableObject {
         return sender
     }
 
-    #if DEBUG
+    #if DEBUG || E2E_HOOKS
     /// Simulateur : SIMCTL_CHILD_PARTY_DEBUG_HOST_DEMO=<état JSON> affiche l'écran sans serveur (captures, réglages).
     func showDemo(_ state: AdminState) {
         apply(state)

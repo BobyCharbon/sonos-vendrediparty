@@ -28,13 +28,13 @@ struct PartyApp: App {
                 #if DEBUG
                 .task { TrackActivities.startDemoIfAsked() }
                 .task { HatchActivities.startDemoIfAsked() }
-                .overlay { HostDemo(model: model) }
-                .overlay { GroupAdminDemo(model: model) }
                 .overlay { MotionDemo(model: model) }
                 #endif
-                // Recette réelle (simulateur, serveur local, base de TEST) : aussi en Release avec E2E_HOOKS, jamais dans
-                // l'app de l'App Store (le réglage n'est passé qu'en ligne de commande par la recette).
+                // Recette réelle (simulateur, serveur local, base de TEST) et tests d'interface en Release : aussi avec
+                // E2E_HOOKS, jamais dans l'app de l'App Store (le réglage n'est passé qu'en ligne de commande).
                 #if DEBUG || E2E_HOOKS
+                .overlay { HostDemo(model: model) }
+                .overlay { GroupAdminDemo(model: model) }
                 .overlay { AIEventDemo(model: model) }
                 #endif
                 .onReceive(NotificationCenter.default.publisher(for: .partyOpenURL)) { note in
@@ -190,7 +190,7 @@ struct ContentView: View {
     }
 }
 
-#if DEBUG
+#if DEBUG || E2E_HOOKS
 /// Simulateur : PARTY_DEBUG_HOST_DEMO=<état JSON de /api/admin/state> affiche « Gérer la soirée » sur un état figé.
 private struct HostDemo: View {
     @ObservedObject var model: WebModel

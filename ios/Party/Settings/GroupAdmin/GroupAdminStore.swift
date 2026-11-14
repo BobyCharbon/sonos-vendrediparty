@@ -23,7 +23,7 @@ final class GroupAdminStore: ObservableObject {
     /// Administration › Signalements (droit « Modérer les signalements »).
     private(set) lazy var moderation = ModerationStore(api: api, web: web)
 
-    #if DEBUG
+    #if DEBUG || E2E_HOOKS
     /// Simulateur : PARTY_DEBUG_GROUP_ADMIN={"overview": …, "members": …, "roles": …} affiche l'écran sans serveur.
     struct Demo: Decodable {
         let overview: AdminOverview

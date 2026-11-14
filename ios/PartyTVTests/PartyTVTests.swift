@@ -48,9 +48,13 @@ struct PartyTVTests {
     @Test("Classements de la colonne de droite : jetons (Blackjack, Casino), points (Président)")
     func sideBoards() throws {
         let s = try all()
-        #expect(SideBoard.rows(s["blackjack_play"])?.0 == "Jetons" && SideBoard.rows(s["blackjack_play"])?.1.count == 4)
         #expect(SideBoard.rows(s["president"])?.0 == "Points")
-        #expect(SideBoard.rows(s["casino"])?.1.first?.value == "100")
+        if StoreGames.isStoreApp {  // App Store (Release) : Casino et Blackjack masqués, aucun classement de jetons
+            #expect(SideBoard.rows(s["blackjack_play"]) == nil && SideBoard.rows(s["casino"]) == nil)
+        } else {
+            #expect(SideBoard.rows(s["blackjack_play"])?.0 == "Jetons" && SideBoard.rows(s["blackjack_play"])?.1.count == 4)
+            #expect(SideBoard.rows(s["casino"])?.1.first?.value == "100")
+        }
         #expect(SideBoard.rows(s["room_lobby"]) == nil)
     }
 
@@ -101,7 +105,7 @@ struct OutcomeTests {
         #expect(o.lines(.drink).allSatisfy { $0.amount == 2 })
     }
 
-    @Test("Blackjack aux gorgées : les perdants boivent, les gagnants distribuent")
+    @Test("Blackjack aux gorgées : les perdants boivent, les gagnants distribuent", .enabled(if: !StoreGames.isStoreApp, "Casino et Blackjack : BETA seulement"))
     func blackjackSips() throws {
         let o = try #require(Outcome.of(try samples()["blackjack_results"]))
         #expect(Dictionary(uniqueKeysWithValues: o.lines(.drink).map { ($0.name, $0.amount ?? 0) }) == ["Boby": 1, "Tom": 4, "Nina": 2])
@@ -122,14 +126,14 @@ struct OutcomeTests {
         #expect(Set(o.lines(.lose).map(\.name)) == ["Léa", "Max", "Boby"])
     }
 
-    @Test("Casino : annoncé une fois la bille arrêtée, avec qui boit et qui distribue")
+    @Test("Casino : annoncé une fois la bille arrêtée, avec qui boit et qui distribue", .enabled(if: !StoreGames.isStoreApp, "Casino et Blackjack : BETA seulement"))
     func casinoSpin() throws {
         let o = try #require(Outcome.of(try samples()["casino_results"]))
         #expect(o.headline == "Le 6 noir est sorti !")
         #expect(o.lines(.drink).map(\.name) == ["Max"] && o.lines(.give).map(\.name) == ["Nina"])
     }
 
-    @Test("Annonce plein écran : même sort regroupé sur une ligne, dans l'ordre du tableau")
+    @Test("Annonce plein écran : même sort regroupé sur une ligne, dans l'ordre du tableau", .enabled(if: !StoreGames.isStoreApp, "Casino et Blackjack : BETA seulement"))
     func flashGroups() throws {
         let o = try #require(Outcome.of(try samples()["blackjack_results"]))
         let groups = o.groups
@@ -139,7 +143,7 @@ struct OutcomeTests {
         #expect(groups.first?.verb == "boit 1 gorgée")
     }
 
-    @Test("Casino : tant que la bille roule, le classement ne dévoile pas qui a bu ou gagné")
+    @Test("Casino : tant que la bille roule, le classement ne dévoile pas qui a bu ou gagné", .enabled(if: !StoreGames.isStoreApp, "Casino et Blackjack : BETA seulement"))
     func casinoBoardWaitsForTheBall() {
         func casino(age: Double) -> JSON {
             .object(["type": .string("casino"), "phase": .string("results"),
@@ -215,6 +219,10 @@ struct StoreComplianceTests {
         #expect(!StoreGames.hides(casino, storeApp: false) && !StoreGames.hides(roulette, storeApp: true))
         #expect(StoreGames.name(casino, storeApp: true) == "Partie en cours" && StoreGames.name(casino, storeApp: false) == "Casino")
         #expect(StoreGames.name(roulette, storeApp: true) == "Roulette")
-        #expect(!StoreGames.isStoreApp)  // les tests tournent en Debug (Party BETA)
+        #if DEBUG
+        #expect(!StoreGames.isStoreApp)  // Debug = Party BETA
+        #else
+        #expect(StoreGames.isStoreApp)  // Release = app de l'App Store
+        #endif
     }
 }
