@@ -42,6 +42,13 @@ enum NativeBridge {
             try { window.webkit.messageHandlers.\(PartyNoticeHandler.handler).postMessage(state || null); } catch (e) {}
           }
         },
+        // Pyramide (avis 4c55c231a4d2) : les cartes à mémoriser, montrées par l'app dans un panneau qu'une capture
+        // d'écran rend noir. null : plus de panneau.
+        secret: {
+          update: function (state) {
+            try { window.webkit.messageHandlers.\(SecretCardsHandler.handler).postMessage(state || null); } catch (e) {}
+          }
+        },
         // Barre d'onglets native : la page la décrit (app/static/native-tabs.js), l'app la dessine.
         tabs: {
           update: function (state) {
@@ -104,6 +111,7 @@ enum NativeBridge {
         controller.addScriptMessageHandler(PushHandler(model: model), contentWorld: .page, name: pushHandler)
         controller.add(TabsHandler(model: model), name: tabsHandler)
         controller.add(PartyNoticeHandler(model: model), name: PartyNoticeHandler.handler)
+        controller.add(SecretCardsHandler(model: model), name: SecretCardsHandler.handler)
         controller.add(AIHandler(model: model), name: aiHandler)
         controller.addScriptMessageHandler(ScanHandler(model: model), contentWorld: .page, name: scanHandler)
         controller.addScriptMessageHandler(WalletHandler(), contentWorld: .page, name: NativeWallet.handler)

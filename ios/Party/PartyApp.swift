@@ -124,6 +124,14 @@ struct ContentView: View {
                             .accessibilityHint("Affiche l'écran Musique des invités ; le choix est retenu")
                             .motionTransition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottomTrailing)))
                         }
+                        // Pyramide : les cartes à mémoriser, en bas de l'écran de jeu, protégées des captures.
+                        if let secret = model.secretCards {
+                            SecretCardsView(state: secret)
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, proxy.safeAreaInsets.bottom + 16)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                                .motionTransition(.move(edge: .bottom).combined(with: .opacity))
+                        }
                         // Bulle de Zicou (BETA) : par-dessus la page et les écrans natifs, déplaçable, masquable.
                         if zicouBubbleShown, let zicou = model.zicouBubble, zicou.visible, model.tabs?.hidden != true {
                             ZicouBubble(state: zicou, insets: EdgeInsets(top: proxy.safeAreaInsets.top, leading: proxy.safeAreaInsets.leading,
@@ -145,6 +153,7 @@ struct ContentView: View {
                 .motion(Motion.snappy, value: model.tabs?.hidden ?? true)
                 .motion(Motion.snappy, value: zicouBubbleShown && model.zicouBubble?.visible == true)
                 .motion(Motion.smooth, value: model.notice)
+                .motion(Motion.smooth, value: model.secretCards)
 
                 // Maintenance, information, annonce (notice.js) : par-dessus la page, les écrans natifs et la barre.
                 if let notice = model.notice, !model.failed {

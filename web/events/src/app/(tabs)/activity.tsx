@@ -10,6 +10,7 @@ import { BADGE_RED, HIDDEN_KIND, isImportant } from '@/lib/activityBadge';
 import { useMe } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { formatMessageTime } from '@/lib/format';
+import { refreshPending } from '@/lib/pending';
 import { duration, pressTransition, transition } from '@/lib/motion';
 import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
@@ -40,6 +41,7 @@ export default function Activity() {
 
   async function open(n: Item) {
     if (!n.read_at) await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', n.id);
+    refreshPending();  // pastille de l'onglet Événements
     if (n.event_id) router.push(`/event/${n.event_id}`);
     // Nouveau compte (admins, avis 662065a54b22) : la liste des inscrits, connexions récentes en haut.
     else if (n.kind === 'member_signup') router.push('/admin/users');
@@ -48,6 +50,7 @@ export default function Activity() {
 
   async function markAll() {
     await supabase.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null);
+    refreshPending();
     reload();
   }
 

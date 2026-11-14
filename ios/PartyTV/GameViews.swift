@@ -130,6 +130,7 @@ enum Phase {
         case "card": return "Carte tirée"
         case "answer": return "Réponse en cours"
         case "deal": return "Distribution"
+        case "look": return "Chacun mémorise ses cartes"
         case "pyramid": return "La pyramide"
         case "memory", "memres": return "Mémoire"
         case "boatpick", "boat": return "Le bateau"

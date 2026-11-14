@@ -9,6 +9,8 @@ final class WebModel: ObservableObject {
     @Published var serverBusy = false
     /// Message pour tout le monde décrit par la page (notice.js) : maintenance, information, annonce, serveur absent.
     @Published private(set) var notice: PartyNoticeState?
+    /// Pyramide : cartes à mémoriser, dans un panneau protégé des captures (SecretCards.swift).
+    @Published private(set) var secretCards: SecretCardsState?
     /// Écran « Créer un événement avec l'IA », demandé par le module Événements.
     @Published var aiEventOpen = false
     /// « ✨ Modifier avec l'IA » sur un événement : son id (nil : l'écran IA crée un événement).
@@ -289,6 +291,7 @@ final class WebModel: ObservableObject {
     /// au rechargement) ; une page sans barre d'onglets (admin, TV…) la retire à la fin du chargement.
     func pageStarted() {
         awaitingTabs = true
+        secretCards = nil  // page rechargée : elle redemandera le panneau si la partie en est encore là
     }
 
     func pageLoaded() {
@@ -353,6 +356,11 @@ final class WebModel: ObservableObject {
             if tabs == nil { musicSearchWanted = true } else { selectTab("music") }
             QuickAction.requestMusicSearch()
         }
+    }
+
+    func showSecretCards(_ state: SecretCardsState?) {
+        guard state != secretCards else { return }
+        secretCards = state
     }
 
     func showNotice(_ state: PartyNoticeState?) {

@@ -19,8 +19,9 @@ const DEFAULT_SEATS = 3;
  * place, qui monte avec qui. Option de l'événement ; seuls les participants (Présent / Peut-être) y prennent part.
  * answer : la réponse de la personne (la carte se recharge quand elle change).
  */
-export function CarpoolCard({ eventId, answer }: { eventId: string; answer: string }) {
-  const { data } = useQuery(() => fetchCarpool(eventId), [eventId, answer]);
+export function CarpoolCard({ eventId, answer, refreshKey }: { eventId: string; answer: string; refreshKey?: unknown }) {
+  // refreshKey : la fiche s'est relue (temps réel, relecture régulière) → le covoiturage aussi (avis ead4902642da).
+  const { data } = useQuery(() => fetchCarpool(eventId), [eventId, answer, refreshKey]);
   const [fresh, setFresh] = useState<Carpool | null>(null);
   const [mode, setMode] = useState<Mode>(null);
   const [busy, setBusy] = useState(false);

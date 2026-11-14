@@ -160,6 +160,12 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   Test : `tests/e2e/test_purity_game.py`.
 - Tout prénom ou texte saisi par un joueur passe par `esc()` avant d'entrer dans du HTML, attributs compris
   (test : `tests/e2e/test_names_escaped.py`).
+- Pyramide (avis 4c55c231a4d2) : après la distribution, phase « look » : chacun voit SES cartes (et l'animateur celles
+  des joueurs sans téléphone) au moins `PYR_LOOK_SECONDS` (30 s), puis l'animateur lance la pyramide (`plook`). Dans l'app
+  iPhone, la page ne dessine pas ces cartes : `PartyNative.secret.update` → panneau natif `SecretCardsView`, qu'une
+  capture ou un enregistrement d'écran rend noir (ScreenshotProof). Navigateur : impossible de bloquer une capture.
+  Tests : `tests/test_games.py`, `tests/e2e/test_pyramid_memorise.py`, `SecretCardsTests`, `SecretCardsUITests`
+  (TEST_RUNNER_PARTY_SECRET_SHOT=/chemin.png : vraie capture du système, contrôlée noire).
 
 ## Annonces aux groupes (décision du 06.11.2026, migration 20261106220000)
 - Un événement public ne prévient jamais personne. Un événement de groupe (groupe choisi ou Membres Vendredi Party) ne

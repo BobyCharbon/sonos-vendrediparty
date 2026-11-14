@@ -9,8 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  packages: write
+  contents: read   # « packages: write » seulement pour les jobs qui publient l'image
 
 jobs:
   tests:
@@ -28,6 +27,9 @@ jobs:
   image-develop:
     if: github.ref_name == 'develop'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -56,6 +58,9 @@ jobs:
     if: github.ref_name == 'main'
     needs: tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3

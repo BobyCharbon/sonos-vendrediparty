@@ -143,7 +143,7 @@ function dbBarsHtml(g) {
   return `<div class="db-bars">${v.scale.map((label, i) => `<div class="db-bar db-c${i}">
       <span class="db-bar-l">${DB_EMOJI[i]} ${esc(label)}</span><i style="--w:${Math.round((r.counts[i] / max) * 100)}%"${GameFx.bar(k(i), Math.round((r.counts[i] / max) * 100))} data-fx-d="${200 + i * 80}"></i>
       <b><span${GameFx.num(k(i), r.counts[i], r.before ? r.before[i] : 0)} data-fx-d="${200 + i * 80}">${r.counts[i]}</span>${r.before ? `<small> (avant ${r.before[i]})</small>` : ""}</b>
-      ${r.names && r.names[i].length ? `<div class="db-names">${r.names[i].map(esc).join(", ")}</div>` : ""}</div>`).join("")}</div>`;
+      ${r.names && r.names[i].length ? `<div class="db-names">${r.names[i].map((n) => whoName(g, n)).join(", ")}</div>` : ""}</div>`).join("")}</div>`;
 }
 
 function dbVerdict(r) {
