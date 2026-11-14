@@ -37,8 +37,10 @@ const when = (ev: Ev) => (ev.starts_at ? formatShort(ev.starts_at).toLowerCase()
  * à qui on a envoyé un lien et qui a invité qui. « + » ouvre la feuille « Inviter » ; « Relancer » envoie une notification
  * Party (si la personne a l'app) ou ouvre la feuille de partage avec un message prêt ; glisser une ligne : Relancer, Retirer.
  */
-export function GuestListCard({ event, me, onChanged, openSheet = false, headline, initialPeople = [], quietOnError = false }: {
+export function GuestListCard({ event, me, onChanged, openSheet = false, headline, initialPeople = [], quietOnError = false, refreshKey }: {
   event: Ev; me: Me; onChanged: () => void;
+  /** Change quand la fiche se relit (temps réel, avis ead4902642da) : la liste des invités se relit avec elle. */
+  refreshKey?: unknown;
   /** Vue d'un invité : liste illisible → rien du tout (sa réponse et la fiche restent), jamais une carte d'erreur. */
   quietOnError?: boolean;
   /** Juste publié « Sur invitation » (assistant IA) : la feuille « Inviter » s'ouvre aussitôt, lien prêt. */
@@ -51,7 +53,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { data: list, reload, error: loadError } = useQuery(() => fetchGuestList(event.id), [event.id]);
+  const { data: list, reload, error: loadError } = useQuery(() => fetchGuestList(event.id), [event.id, refreshKey]);
 
   const refresh = () => { reload(); onChanged(); };
   const host = me.display_name.trim() || 'Moi';

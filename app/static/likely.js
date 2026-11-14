@@ -105,7 +105,7 @@ function lkBarsHtml(g) {
   const v = g.likely, max = Math.max(1, ...v.result.rows.map((r) => r.count));
   return `<div class="lk-bars">${v.result.rows.map((r, i) => {
     const pct = Math.round((r.count / max) * 100), k = lkKey(g, `bar:${r.name}`);
-    return `<div class="lk-bar"${GameFx.fx("rise", k, 350 + i * 90)}><span>${esc(r.name)}</span>
+    return `<div class="lk-bar"${GameFx.fx("rise", k, 350 + i * 90)}><span>${whoName(g, r.name)}</span>
     <i style="--w:${pct}%"${GameFx.bar(k, pct)}></i><b${GameFx.num(k, r.count, 0)}>${r.count}</b></div>`;
   }).join("")}</div>`;
 }

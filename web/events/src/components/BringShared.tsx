@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 import type { BringItem } from '@/lib/types';
 
+import { NameLinks, type NamedPerson } from './NameLinks';
 import { Button, Meter, T } from './ui';
 
 type Names = Map<string, string>;
@@ -14,11 +15,11 @@ export function bringShares(item: BringItem, names: Names, me: string) {
   const claims = item.bring_claims ?? [];
   const taken = claims.reduce((sum, c) => sum + c.quantity, 0);
   const mine = claims.find((c) => c.user_id === me)?.quantity ?? 0;
-  const who = claims
+  const people: NamedPerson[] = claims
     .filter((c) => c.quantity > 0)
-    .map((c) => `${c.user_id === me ? 'Moi' : names.get(c.user_id) ?? '?'} ${c.quantity}`)
-    .join(' · ');
-  return { taken, mine, left: Math.max((item.quantity ?? 0) - taken, 0), who };
+    .map((c) => ({ id: c.user_id, label: c.user_id === me ? 'Moi' : names.get(c.user_id) ?? '?', after: ` ${c.quantity}` }));
+  const who = people.map((p) => `${p.label}${p.after}`).join(' · ');
+  return { taken, mine, left: Math.max((item.quantity ?? 0) - taken, 0), who, people };
 }
 
 /** Un objet à partager (« 15 bouteilles ») : chacun dit combien il en amène, sans jamais dépasser la quantité demandée
@@ -42,7 +43,6 @@ export function SharedBringRow({ item, me, names, canParticipate, onChange, onEr
   const mine = wanted ?? shares.mine;
   const taken = shares.taken - shares.mine + mine;
   const left = Math.max(total - taken, 0);
-  const { who } = shares;
 
   const write = (count: number) => (count > 0
     ? supabase.from('bring_claims').upsert({ item_id: item.id, user_id: me, quantity: count }, { onConflict: 'item_id,user_id' })
@@ -76,7 +76,7 @@ export function SharedBringRow({ item, me, names, canParticipate, onChange, onEr
         <T muted>{taken} / {total}</T>
       </View>
       <Meter parts={[{ fraction: total ? taken / total : 0, color: left ? colors.accent : colors.mint }]} />
-      {who ? <T muted size={12}>{who}</T> : null}
+      <NameLinks separator=" · " people={shares.people} testID="bring-claim" />
       {!left && !mine ? <T size={12} color={colors.mint}>Tout est pris, merci !</T> : null}
       {canParticipate && (left > 0 || mine > 0) ? (
         <View style={styles.line}>
