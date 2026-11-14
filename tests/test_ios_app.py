@@ -81,3 +81,26 @@ def test_recette_hooks_never_reach_the_app_store_build():
         assert "E2E_HOOKS" not in workflow.read_text(encoding="utf-8"), workflow.name
     app = (root / "ios/Party/PartyApp.swift").read_text(encoding="utf-8")
     assert "#if DEBUG || E2E_HOOKS\n                .overlay { AIEventDemo(model: model) }" in app
+
+
+def test_review_notes_describe_every_big_feature_delivered_by_the_web():
+    """Apple 2.3.1(a) : chaque grosse fonction livrée par le site dans l'app iOS est décrite dans les notes pour les
+    examinateurs (ios/appstore/review-notes.txt, envoyées par tools/appstore_submit.py, 4 000 caractères au plus)."""
+    from pathlib import Path
+    notes = (Path(__file__).resolve().parents[1] / "ios/appstore/review-notes.txt").read_text(encoding="utf-8").strip()
+    assert len(notes) <= 4000
+    features = {
+        "invitations v2 (liens pour une personne / Plusieurs)": "Plusieurs",
+        "partage commun (chaque invité crée ses liens)": "own links",
+        "accord de l'organisateur": "À accepter",
+        "sondage de dates": "Date poll",
+        "agenda abonné": "calendar feed",
+        "covoiturage": "Carpool",
+        "liens de groupe": "Inviter avec un lien",
+        "inscription complète des invités": "nickname",
+        "nouveau compte": "Nouveau compte",
+        "annonce et maintenance": "maintenance",
+        "billets QR / Wallet": "Wallet",
+    }
+    missing = [name for name, word in features.items() if word.lower() not in notes.lower()]
+    assert not missing, missing

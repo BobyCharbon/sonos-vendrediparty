@@ -9,7 +9,7 @@ drapeaux de prod lus sur https://party.bobycharbon.ch/api/features : `compagnon:
 | Champ | Valeur |
 |---|---|
 | Nouveautés (What's New) | **Rien** : 1.0.0 est la première version, Apple n'affiche pas ce champ. |
-| Notes pour la revue (App Review Information › Notes) | Copier `ios/appstore/review-notes.txt` (3 845 caractères, limite 4 000). |
+| Notes pour la revue (App Review Information › Notes) | Copier `ios/appstore/review-notes.txt` (3 991 caractères, limite 4 000 ; à jour au 14.11.2026 : invitations v2, partage commun, accord de l'organisateur, sondage de dates, agenda abonné, covoiturage, liens de groupe, Nouveau compte, annonce et maintenance — test `test_review_notes_describe_every_big_feature_delivered_by_the_web`). |
 | URL d'assistance (Support URL) | `https://party.bobycharbon.ch/events/terms` (répond 200 ; le contact support@vendrediparty.ch y figure) |
 | URL de confidentialité (Privacy Policy URL) | `https://party.bobycharbon.ch/events/privacy` (répond 200) |
 | URL marketing | Vide. **Jamais** `vendrediparty.ch` : ce domaine n'a pas de site (aucun enregistrement A), seulement la messagerie. |
@@ -75,6 +75,11 @@ Résultat attendu : **18+**. Libellés anglais d'App Store Connect (ils peuvent 
 | Contests | Aucun | Aucun concours ni tirage (Zicou éteint) |
 | Gambling (argent réel) | Non | |
 | Loot Boxes | Non | Coffres de Zicou absents (bêta seulement) |
+
+Si Apple calcule moins que 18+, choisir 18+ (classification plus élevée) : la description et les notes disent 18+.
+**À refaire avant** d'ouvrir en production iOS : Zicou (tirages, coffres, concours → Contests / Loot Boxes), Casino ou
+Blackjack dans l'app App Store (Simulated Gambling), le Bar de la soirée (commandes de boissons), une publicité, un
+accès web libre, une vérification d'âge. Les Discussions (chat) sont déjà déclarées (Messaging and Chat : Oui).
 
 ## 5. Confidentialité de l'app (App Privacy)
 
