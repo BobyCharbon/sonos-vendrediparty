@@ -27,6 +27,16 @@ export function formatMessageTime(iso: string): string {
   return msgFmt.format(new Date(iso));
 }
 
+const answerDayFmt = new Intl.DateTimeFormat('fr-CH', { timeZone: TZ, day: '2-digit', month: '2-digit' });
+
+/** Moment d'une réponse ou d'un vote, en petit sous le nom (avis 2f5abe63e8ff) : « 13.11 · 21:17 » ; vide sans heure. */
+export function formatAnswerTime(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${answerDayFmt.format(d)} · ${timeFmt.format(d)}`;
+}
+
 /** Saisie « JJ.MM.AAAA HH:MM » (heure de Zurich) -> ISO. Renvoie null si invalide. */
 export function parseLocalDateTime(input: string): string | null {
   const m = input.trim().match(/^(\d{1,2})[./](\d{1,2})[./](\d{4}|\d{2})(?:\s+(\d{1,2})[:h](\d{2}))?$/);

@@ -3,7 +3,7 @@ import { View } from 'react-native';
 
 import { useAuth } from '@/lib/auth';
 import { PROFILE_PHOTOS, uploadProfilePhoto } from '@/lib/photos';
-import { hasCompleteIdentity } from '@/lib/profile';
+import { NICKNAME_MAX, hasCompleteIdentity } from '@/lib/profile';
 import { check, supabase } from '@/lib/supabase';
 import type { Profile } from '@/lib/types';
 import { dbMessage } from '@/lib/moderation';
@@ -62,7 +62,7 @@ export function IdentityForm({ profile, submitLabel, onSaved }: { profile: Profi
       if (uploaded) await supabase.storage.from(PROFILE_PHOTOS).remove([uploaded]).catch(() => {});
       const fallback = 'Tes informations n’ont pas pu être enregistrées. Vérifie ta connexion puis réessaie.';
       // Filtre de la base : « Ce texte n'est pas accepté : il contient une insulte… » (surnom refusé).
-      setError(e instanceof Error ? (/^(content_refused|terms_required): /.test(e.message) ? dbMessage(e.message, fallback) : e.message) : fallback);
+      setError(e instanceof Error ? (/^(content_refused|terms_required|nickname_too_long): /.test(e.message) ? dbMessage(e.message, fallback) : e.message) : fallback);
     } finally {
       saving.current = false;
       setBusy(false);
@@ -81,7 +81,7 @@ export function IdentityForm({ profile, submitLabel, onSaved }: { profile: Profi
         </View>
       </View>
       <T muted size={13}>🔒 Ton prénom et ton nom ne sont visibles que par toi et les admins.</T>
-      <Field label="Surnom" hint="👀 Ce que tout le monde voit : jeux, événements, discussions." value={nickname} onChangeText={(v) => { setNickname(v); setSaved(false); }} maxLength={40} editable={!busy} />
+      <Field label="Surnom" hint={`👀 Ce que tout le monde voit : jeux, événements, discussions. ${nickname.length} / ${NICKNAME_MAX}`} value={nickname} onChangeText={(v) => { setNickname(v); setSaved(false); }} maxLength={NICKNAME_MAX} editable={!busy} />
       <ProfilePhotoField userId={profile.id} name={nickname} currentPhoto={profile.avatar_url} photo={photo} onChange={(uri) => { setPhoto(uri); setSaved(false); }} disabled={busy} />
       <ErrorText error={error} />
       {saved && !changed ? <T size={14} weight="semibold">✓ Enregistré</T> : null}

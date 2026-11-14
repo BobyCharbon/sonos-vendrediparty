@@ -16,6 +16,10 @@ import { plural } from '@/lib/format';
 import { must, supabase } from '@/lib/supabase';
 import { duration, ease, enter, pressTransition, transition } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
+import { useLiveRefresh } from '@/lib/connectivity';
+
+/** Relecture de l'accueil tant qu'il est visible (filet du temps réel, avis ead4902642da). */
+const LIVE_REFRESH_MS = 60_000;
 
 type Tab = ListTab;
 type PillKey = Exclude<Tab, 'pending'> | 'filters';
@@ -62,6 +66,10 @@ export default function Home() {
     { table: 'event_groups' },
     { table: 'rsvps', filter: `user_id=eq.${me.id}` },
   ], reload);
+  // Avis ead4902642da : la réponse d'un autre (« Présent »…) change aussitôt la pastille des présents de sa carte.
+  const [attendanceTick, setAttendanceTick] = useState(0);
+  useRealtime('events-attendance', [{ table: 'rsvps' }], () => setAttendanceTick((n) => n + 1));
+  useLiveRefresh(reload, LIVE_REFRESH_MS);
 
   // Pastille des présents : totaux exacts même quand la liste des participants est cachée. Lue APRÈS l'affichage des cartes
   // (avant : une étape réseau de plus avant la première carte) ; les cartes comptent les réponses en attendant.
@@ -71,7 +79,7 @@ export default function Home() {
     let current = true;
     if (eventIds) void fetchAttendance(eventIds.split(',')).then((a) => { if (current) setAttendance(a); });
     return () => { current = false; };
-  }, [eventIds, data?.loadedAt]);
+  }, [eventIds, data?.loadedAt, attendanceTick]);
 
   const tagsById = useMemo(() => new Map((data?.tags ?? []).map((t) => [t.id, t])), [data?.tags]);
 
