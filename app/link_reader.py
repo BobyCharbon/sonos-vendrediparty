@@ -2,8 +2,8 @@
 données structurées (schema.org Event : date, lieu, prix), lien de billetterie et texte visible de la page.
 
 Sécurité : seulement http(s) vers des adresses publiques (jamais le réseau local ni le serveur lui-même, même après une
-redirection), 8 s et 1,5 Mo au plus, pages HTML ou texte seulement. Le contenu lu est une DONNÉE donnée à Claude, jamais
-une instruction (le prompt le rappelle)."""
+redirection ni si le nom change d'adresse entre-temps), 15 s et 1,5 Mo au plus, pages HTML ou texte seulement. Le contenu
+lu est une DONNÉE donnée à Claude, jamais une instruction (le prompt le rappelle)."""
 import ipaddress
 import json
 import re
@@ -12,6 +12,7 @@ import time
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
 
+import httpcore
 import httpx
 
 URL = re.compile(r"https?://[^\s<>\"'«»]+", re.I)
@@ -20,6 +21,7 @@ MAX_BYTES = 1_500_000
 MAX_IMAGE = 8_000_000
 MAX_TEXT = 6000
 TIMEOUT = 8
+TOTAL = 15  # s : une page entière (en-têtes compris), même servie goutte à goutte
 MAX_REDIRECTS = 4
 CACHE_SECONDS = 600
 UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Party/1.0"
@@ -40,16 +42,65 @@ def find_urls(text: str) -> list[str]:
     return list(dict.fromkeys(found))[:MAX_LINKS]
 
 
-def _public(host: str) -> bool:
-    """Toutes les adresses du nom sont publiques (pas de 127.0.0.1, 192.168…, métadonnées cloud, IPv6 locales)."""
+def _public_addresses(host: str) -> list[str]:
+    """Adresses du nom si TOUTES sont publiques (pas de 127.0.0.1, 192.168…, métadonnées cloud, IPv6 locales), sinon []."""
     try:
         infos = socket.getaddrinfo(host, None)
     except (socket.gaierror, UnicodeError):
-        return False
-    ips = {ipaddress.ip_address(i[4][0].split("%")[0]) for i in infos}
+        return []
+    ips = list(dict.fromkeys(ipaddress.ip_address(i[4][0].split("%")[0]) for i in infos))
     # Une IPv6 qui cache une IPv4 (::ffff:127.0.0.1, 64:ff9b::…) est jugée sur l'IPv4 qu'elle cache.
     real = {getattr(ip, "ipv4_mapped", None) or getattr(ip, "sixtofour", None) or ip for ip in ips}
-    return bool(real) and all(ip.is_global and not ip.is_multicast for ip in real | ips)
+    if not real or not all(ip.is_global and not ip.is_multicast for ip in real | set(ips)):
+        return []
+    return [str(ip) for ip in sorted(ips, key=lambda ip: ip.version)]  # IPv4 d'abord (pas toujours d'IPv6 sortante)
+
+
+def _public(host: str) -> bool:
+    return bool(_public_addresses(host))
+
+
+class _Deadline:
+    """Connexion avec une heure limite pour TOUTES ses lectures : une page qui envoie un octet de temps en temps ne garde
+    jamais le serveur occupé plus de TOTAL secondes (le délai d'httpx ne vaut que pour une lecture)."""
+
+    def __init__(self, stream, until: float):
+        self.stream, self.until = stream, until
+
+    def read(self, max_bytes: int, timeout: float | None = None) -> bytes:
+        left = self.until - time.monotonic()
+        if left <= 0:
+            raise httpcore.ReadTimeout("page trop lente")
+        return self.stream.read(max_bytes, min(timeout or left, left))
+
+    def start_tls(self, *args, **kwargs):
+        return _Deadline(self.stream.start_tls(*args, **kwargs), self.until)
+
+    def __getattr__(self, name):
+        return getattr(self.stream, name)
+
+
+class _PublicOnly(httpcore.SyncBackend):
+    """Se connecte à l'adresse vérifiée elle-même : un nom qui change d'adresse entre la vérification et la connexion
+    (DNS rebinding) n'atteint jamais le réseau local."""
+
+    def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
+        addresses = _public_addresses(host)
+        if not addresses:
+            raise LinkError("adresse non publique")
+        for address in addresses:
+            try:
+                stream = super().connect_tcp(address, port, timeout, local_address, socket_options)
+                return _Deadline(stream, time.monotonic() + TOTAL)
+            except (httpcore.ConnectError, httpcore.ConnectTimeout):
+                if address == addresses[-1]:
+                    raise
+
+
+def _client() -> httpx.Client:
+    transport = httpx.HTTPTransport()
+    transport._pool._network_backend = _PublicOnly()  # httpx ne permet pas de le passer autrement
+    return httpx.Client(transport=transport, timeout=TIMEOUT, follow_redirects=False, trust_env=False)
 
 
 def _download(url: str, client: httpx.Client, accept, limit: int, cut: bool = False) -> tuple[str, bytes, httpx.Response]:
@@ -91,7 +142,7 @@ def _fetch(url: str, client: httpx.Client) -> tuple[str, str]:
 def fetch_image(url: str, client: httpx.Client | None = None) -> bytes:
     """L'image d'une page (affiche, flyer), téléchargée pour être gardée chez nous : 8 Mo au plus."""
     own = client is None
-    client = client or httpx.Client(timeout=TIMEOUT, follow_redirects=False)
+    client = client or _client()
     try:
         return _download(url, client, lambda kind: kind.startswith("image/"), MAX_IMAGE)[1]
     except (httpx.HTTPError, ValueError) as e:
@@ -215,7 +266,7 @@ def read(url: str, client: httpx.Client | None = None) -> dict:
     if hit and time.time() - hit[0] < CACHE_SECONDS:
         return hit[1]
     own = client is None
-    client = client or httpx.Client(timeout=TIMEOUT, follow_redirects=False)
+    client = client or _client()
     try:
         final, page = _fetch(url, client)
     except httpx.HTTPError as e:

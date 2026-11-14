@@ -182,3 +182,73 @@ def test_broken_or_huge_images_are_refused_never_a_crash(tmp_path):
         with pytest.raises(CoverError):
             store.keep(data)
     assert not store.owns("https://evil.example/x.jpg") and not store.owns("https://party.test/covers/../a.jpg")
+
+
+def _local_server(handler):
+    """Vrai serveur HTTP sur 127.0.0.1 (port libre) : ce que le lecteur de liens ne doit jamais atteindre."""
+    import http.server
+    import threading
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
+def test_a_name_that_switches_to_a_local_address_after_the_check_is_never_reached(monkeypatch):
+    # DNS rebinding : le nom est public à la vérification, puis 127.0.0.1 à la connexion. Avant, httpx résolvait le nom
+    # une seconde fois et se connectait au serveur local ; maintenant la connexion n'utilise que des adresses vérifiées.
+    import http.server
+    hits = []
+
+    class Secret(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            hits.append(self.path)
+            self.send_response(200)
+            self.send_header("content-type", "text/html")
+            self.end_headers()
+            self.wfile.write(b"<title>Admin du routeur</title>")
+
+        def log_message(self, *a):
+            pass
+
+    server = _local_server(Secret)
+    port = server.server_address[1]
+    real = lr.socket.getaddrinfo
+    monkeypatch.setattr(lr.socket, "getaddrinfo",
+                        lambda host, *a, **k: real("127.0.0.1", *a, **k) if host == "rebind.example" else real(host, *a, **k))
+    try:
+        with pytest.raises(lr.LinkError, match="non publique"):
+            lr._client().get(f"http://rebind.example:{port}/admin")   # _public (vérification) dit oui : fixture
+        assert hits == []
+    finally:
+        server.shutdown()
+
+
+def test_a_page_served_drop_by_drop_is_cut_after_the_total_delay(monkeypatch):
+    # Une page qui envoie un octet de temps en temps (sous le délai de lecture) gardait le serveur occupé sans fin.
+    import http.server
+    import time
+
+    class Drip(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("content-type", "text/html")
+            self.send_header("content-length", "1000")
+            self.end_headers()
+            for _ in range(1000):
+                self.wfile.write(b"x")
+                self.wfile.flush()
+                time.sleep(0.2)
+
+        def log_message(self, *a):
+            pass
+
+    server = _local_server(Drip)
+    monkeypatch.setattr(lr, "TOTAL", 1)
+    monkeypatch.setattr(lr, "_public_addresses", lambda host: ["127.0.0.1"])   # le serveur de test passe pour public
+    start = time.monotonic()
+    try:
+        with pytest.raises(httpx.TimeoutException):
+            lr._client().get(f"http://drip.example:{server.server_address[1]}/").read()
+        assert time.monotonic() - start < 3
+    finally:
+        server.shutdown()
