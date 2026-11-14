@@ -269,7 +269,7 @@ export function RsvpCard({
           <T size={13} color={colors.textSoft}>
             {event.allow_plus_ones && event.max_plus_ones > 0
               ? 'Les accompagnants sont réservés aux membres du groupe : ton compte n’en ajoute pas.'
-              : 'Pas d’accompagnant pour cet événement : l’organisateur a réservé les places aux membres du groupe.'}
+              : 'Pas d’accompagnant pour cet événement.'}
           </T>
         </Reveal>
       ) : null}

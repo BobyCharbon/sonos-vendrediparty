@@ -59,12 +59,13 @@ def party(tmp_path_factory):
     env = {'PATH': os.environ['PATH'], 'HOME': os.environ.get('HOME', '/tmp'), 'LANG': 'C.UTF-8',
            'DATA_DIR': str(tmp_path_factory.mktemp('party-inscription')), 'EVENTS_WEB_DIR': str(DIST),
            'ADMIN_PIN': '8462', 'SPOTIFY_CLIENT_ID': '', 'SPOTIFY_CLIENT_SECRET': '', 'INVITES_V2_ENABLED': '1',
+           'COMPAGNON_ENABLED': '0', 'DISCUSSIONS_ENABLED': '0', 'BAR_ENABLED': '0',  # drapeaux de la prod (/api/features)
            'SUPABASE_URL': TEST_URL, 'SUPABASE_ANON_KEY': KEY_FILE.read_text().strip(), 'PYTHONDONTWRITEBYTECODE': '1'}
     process = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', str(port),
                                 '--lifespan', 'off'], cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     origin = f'http://127.0.0.1:{port}'
     try:
-        deadline = time.monotonic() + 60
+        deadline = time.monotonic() + 180  # machine chargée (recettes en parallèle) : le démarrage peut dépasser la minute
         while time.monotonic() < deadline:
             try:
                 if httpx.get(origin, timeout=1).status_code == 200:
@@ -124,16 +125,19 @@ def sign_in(page, number: str):
     pw.expect(page.get_by_role('radio', name='Suisse +41')).to_be_visible()
     page.get_by_label('Ton numéro de téléphone', exact=True).fill(number)
     code = page.get_by_placeholder('123456', exact=True)
-    for _ in range(3):  # limite d'Auth : un code par minute et par numéro (la préparation du test en a déjà demandé un)
+    # Limites d'Auth : un code par minute et par numéro (« Attends N secondes… »), et un plafond de demandes par adresse
+    # (« Trop de demandes de code… ») quand plusieurs recettes tournent en même temps : on attend puis UN seul nouvel essai.
+    waiting = page.get_by_text(re.compile('^(Attends .*secondes avant de redemander un code|Trop de demandes de code)'))
+    for attempt in range(2):
         page.get_by_role('button', name='Recevoir un code par SMS').click()
         try:
             code.wait_for(timeout=15000)
             break
         except Exception:
-            if not page.get_by_text('Attends quelques secondes', exact=False).is_visible():
+            if attempt == 1 or not waiting.is_visible():
                 shot(page, 'zz-echec-code-sms')
                 raise
-            page.wait_for_timeout(31000)
+            page.wait_for_timeout(180000 if page.get_by_text('Trop de demandes de code', exact=False).count() else 61000)
     code.fill('123456')
     page.get_by_role('button', name='Se connecter', exact=True).click()
 
