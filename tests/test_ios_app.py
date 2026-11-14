@@ -80,4 +80,6 @@ def test_recette_hooks_never_reach_the_app_store_build():
     for workflow in (root / ".github/workflows").glob("*.yml"):
         assert "E2E_HOOKS" not in workflow.read_text(encoding="utf-8"), workflow.name
     app = (root / "ios/Party/PartyApp.swift").read_text(encoding="utf-8")
-    assert "#if DEBUG || E2E_HOOKS\n                .overlay { AIEventDemo(model: model) }" in app
+    hooks = app.split("#if DEBUG || E2E_HOOKS\n", 1)[1].split("#endif", 1)[0]
+    for demo in ("HostDemo", "GroupAdminDemo", "AIEventDemo"):  # écrans figés des tests d'interface en Release
+        assert f".overlay {{ {demo}(model: model) }}" in hooks, demo

@@ -173,8 +173,12 @@ struct AppStoreReadinessTests {
 
     // ── Zicou : BETA seulement ──
 
-    @Test("Tests (configuration Debug = BETA) : Zicou compilé ; l'App Store (Release) ne le compile pas")
+    @Test("Zicou compilé dans la BETA (Debug) seulement ; l'App Store (Release) ne le compile pas")
     func zicouIsABetaBuild() {
+        #if BETA
         #expect(AppConfig.zicouBuild)
+        #else
+        #expect(!AppConfig.zicouBuild)
+        #endif
     }
 }
