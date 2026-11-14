@@ -186,6 +186,39 @@ app.mount("/static", StaticFiles(directory=STATIC), name="static")
 # Compression : les pages et scripts pèsent environ 4 fois moins sur le réseau (le flux temps réel n'est pas compressé).
 app.add_middleware(GZipMiddleware, minimum_size=800, compresslevel=6)
 
+# Plus gros envoi permis : une photo de discussion de 8 Mo en base64 (≈ 11,2 Mo) ; au-delà, 413 sans tout lire.
+MAX_BODY = 12 * 1024 * 1024
+TOO_LARGE = "Envoi trop lourd"
+
+
+class BodyLimit:
+    """Corps de requête borné, qu'il soit annoncé (Content-Length) ou envoyé en morceaux : un envoi démesuré ne
+    remplit jamais la mémoire du serveur (uvicorn n'a pas de limite)."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        declared = dict(scope["headers"]).get(b"content-length", b"0")
+        if not declared.isdigit() or int(declared) > MAX_BODY:
+            return await JSONResponse({"detail": TOO_LARGE}, status_code=413)(scope, receive, send)
+        total = 0
+
+        async def counted():
+            nonlocal total
+            message = await receive()
+            total += len(message.get("body", b""))
+            if total > MAX_BODY:
+                raise HTTPException(413, TOO_LARGE)
+            return message
+
+        await self.app(scope, counted, send)
+
+
+app.add_middleware(BodyLimit)
+
 
 @app.exception_handler(SpotifyError)
 async def spotify_error_response(request: Request, error: SpotifyError):
@@ -1760,7 +1793,7 @@ def account_delete(body: AccountDelete):
         uid = accounts._uid(body.token)
     result = account_call(lambda: account_auth.delete_account(body.token, body.confirm) or {"ok": True})
     if uid:  # « Tout part avec la suppression du compte » : fichiers locaux du serveur compris (app/account_data.py)
-        forget_local(local_stores(), uid, (assistant_consent_key(uid),))
+        forget_local(local_stores(), uid, accounts.gid(uid), (assistant_consent_key(uid),))
     return result
 
 
@@ -4297,7 +4330,7 @@ class FeedbackSync(BaseModel):
 def feedback_sync(body: FeedbackSync, request: Request):
     """Production : le site de test lit et écrit la liste commune des avis (secret partagé, opérations des avis seules)."""
     given = request.headers.get(FEEDBACK_SYNC_HEADER, "")
-    if len(FEEDBACK_SYNC_SECRET) < FEEDBACK_SYNC_MIN_SECRET or not hmac.compare_digest(given, FEEDBACK_SYNC_SECRET):
+    if len(FEEDBACK_SYNC_SECRET) < FEEDBACK_SYNC_MIN_SECRET or not _eq(given, FEEDBACK_SYNC_SECRET):
         raise HTTPException(403, "Synchronisation des avis refusée")
     if feedback is not local_feedback:
         raise HTTPException(409, "Ce serveur n'est pas celui qui garde les avis")

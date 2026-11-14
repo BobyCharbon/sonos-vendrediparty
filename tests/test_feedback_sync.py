@@ -57,6 +57,13 @@ def test_wrong_secret_or_unknown_operation_is_refused(prod):
         FeedbackRemote("http://testserver", "autre" * 10, client=client).all()
 
 
+def test_non_ascii_secret_is_refused_not_crashed(prod):
+    # Avant : hmac.compare_digest(str, str) levait TypeError (500) sur un en-tête non-ASCII (« é » en latin-1).
+    r = TestClient(main.app).post("/api/feedback-sync", json={"op": "all"},
+                                  headers=[(b"X-Feedback-Sync", "é".encode("latin-1"))])
+    assert r.status_code == 403
+
+
 def test_sync_is_off_without_a_long_secret(monkeypatch, prod):
     monkeypatch.setattr(main, "FEEDBACK_SYNC_SECRET", "court")
     r = TestClient(main.app).post("/api/feedback-sync", json={"op": "all"}, headers={"X-Feedback-Sync": "court"})

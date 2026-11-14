@@ -70,3 +70,27 @@ def test_quiz_configure_with_non_string_theme_does_not_crash(client):
         "guest_id": "host-robust-2", "action": "qset", "settings": {"themes": [[1], "inconnu"]},
     })
     assert r.status_code != 500
+
+
+def test_huge_body_is_refused_before_being_read(client):
+    # Avant : un corps de 50 Mo était lu en entier, puis recopié dans l'erreur 422 (mémoire du serveur ×2).
+    big = b'{"guest_id":"' + b"a" * (main.MAX_BODY + 1) + b'"}'
+    r = client.post("/api/feedback", content=big, headers={"content-type": "application/json"})
+    assert r.status_code == 413 and r.json()["detail"] == "Envoi trop lourd"
+
+
+def test_huge_chunked_body_without_length_is_refused(client):
+    # Sans Content-Length (envoi en morceaux) : compté au fil de la lecture.
+    def chunks():
+        for _ in range(main.MAX_BODY // 1_000_000 + 2):
+            yield b"a" * 1_000_000
+    r = client.post("/api/feedback", content=chunks(), headers={"content-type": "application/json"})
+    assert r.status_code == 413
+
+
+def test_largest_real_upload_still_passes_the_limit(client):
+    # Photo de discussion de 8 Mo (la plus grosse permise) en base64 : jamais coupée par la borne générale.
+    photo = "A" * (main.CHAT_PHOTO_MAX * 4 // 3 + 8)
+    r = client.post("/api/account/chats/photo", json={"token": "x" * 40, "group_id": "00000000-0000-4000-8000-000000000000",
+                                                     "photo": photo})
+    assert r.status_code != 413
