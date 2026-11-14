@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 
 /** Au-delà, un chargement sans réponse affiche un message et « Réessayer » (plus de squelette ni de roue sans fin). */
@@ -25,6 +25,27 @@ export function useOnline(onBack?: () => void): boolean {
     };
   }, [onBack]);
   return online;
+}
+
+/**
+ * Filet du temps réel (avis ead4902642da) : relit l'écran quand on revient sur l'app (iPhone sorti de veille, onglet
+ * retrouvé — le canal temps réel a pu manquer des changements) et, tant que l'écran est visible, toutes les `everyMs`
+ * (ce qui ne passe pas par le temps réel : covoiturage, demandes à accepter).
+ */
+export function useLiveRefresh(onRefresh: () => void, everyMs: number): void {
+  const latest = useRef(onRefresh);
+  useEffect(() => { latest.current = onRefresh; }, [onRefresh]);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const visible = () => document.visibilityState === 'visible';
+    const onVisible = () => { if (visible()) latest.current(); };
+    const timer = setInterval(() => { if (visible()) latest.current(); }, everyMs);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [everyMs]);
 }
 
 /** Vrai quand `pending` dure plus de SLOW_LOAD_MS. */

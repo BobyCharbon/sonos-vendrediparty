@@ -78,7 +78,7 @@ def mock_services(page, pending=False, events=1, people=(), roles=None, unread=(
              'event_organizers': [], 'polls': [], 'bring_items': [], 'author': {'display_name': profile['display_name']},
              'show_participants': True, 'allow_maybe': True, 'allow_plus_ones': False, 'max_plus_ones': 0, 'max_participants': None,
              'rsvp_deadline': None, 'forum_enabled': True, 'all_day': False, 'price_chf': None, 'visibility': 'all'}
-    event['rsvps'] = [dict(r) for r in rsvps]
+    event['rsvps'] = rsvps if isinstance(rsvps, list) else [dict(r) for r in rsvps]  # liste : le test peut l'allonger
     # Droits du compte (catalogue réel : migration 20261020160100) ; un invité ne voit pas les sorties.
     perms = ['games.create', 'music.add'] if pending else ['events.view', 'events.rsvp', 'events.plus_ones', 'events.create', 'events.publish_direct',
              'events.edit_own_published', 'events.manage_all', 'events.approve', 'events.see_participants', 'polls.create', 'chat.write', 'chat.moderate',
@@ -483,6 +483,27 @@ def test_each_answer_shows_when_it_was_given(browser, events_origin):
         frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
         chip=frame.get_by_role('button',name='Profil de Léa')
         pw.expect(chip).to_contain_text('13.11 · 21:17', timeout=15000)
+    finally:
+        context.close()
+
+
+def test_the_event_page_catches_up_when_the_app_comes_back(browser, events_origin):
+    """Avis ead4902642da : iPhone sorti de veille (le temps réel a pu manquer un changement), la fiche se relit toute seule :
+    la personne qui a répondu entre-temps apparaît, sans recharger la page."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page()
+    lea='7a1b2c3d-4e5f-4061-8172-839405162738'
+    answers=[]
+    mock_services(page, people=[{'id':lea,'display_name':'Léa'}], rsvps=answers)
+    try:
+        page.goto(events_origin, wait_until='domcontentloaded')
+        page.get_by_role('button',name='Événements',exact=True).click()
+        frame=page.frame_locator('#eventsFrame'); login(frame)
+        frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
+        pw.expect(frame.get_by_text('Personne n’a encore répondu',exact=False)).to_be_visible(timeout=15000)
+        answers.append({'event_id':EVENT,'user_id':lea,'status':'yes','plus_ones':0,'note':None,'waitlisted':False,'updated_at':'2026-11-14T18:00:00Z'})
+        page.frame_locator('#eventsFrame').locator('body').evaluate("() => document.dispatchEvent(new Event('visibilitychange'))")
+        pw.expect(frame.get_by_role('button',name='Profil de Léa')).to_be_visible(timeout=10000)
     finally:
         context.close()
 
