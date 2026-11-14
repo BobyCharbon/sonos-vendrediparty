@@ -3289,6 +3289,7 @@ class GameAction(BaseModel):
     settings: dict = {}  # Quiz : réglages de la partie (mode, thèmes, difficulté…)
     done: bool = False  # Purify Test : affirmation cochée (« déjà fait ») ou décochée
     token: str = Field(default="", max_length=4096)  # Purify Test : jeton du compte Party pour rejoindre
+    step: str = Field(default="", max_length=60)  # « Suivant » : l'étape vue par la page (phase:manche), voir plus bas
 
 
 PURITY_ONLY = {"puset", "puans", "pusub", "puunsub", "pureveal"}
@@ -3415,6 +3416,9 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         raise HTTPException(403, "Seul l'animateur de la partie peut faire ça")
     if g.get("paused") and a not in PAUSE_ALLOWED:
         raise HTTPException(409, "⏸ La partie est en pause : l'animateur la relance")
+    # L'animateur et l'admin touchent « Suivant » au même moment : le second appui ne saute pas l'étape d'après.
+    if a == "next" and body.step and body.step != f'{g["phase"]}:{g["round"]}':
+        raise HTTPException(409, "C'est déjà passé à la suite")
     if a == "join" and (msg := ban_message(me, client_ip(request))):
         raise HTTPException(403, msg)
     # Invité au bout de ses parties en invité : une NOUVELLE partie demande un compte (sa place, elle, reste).
