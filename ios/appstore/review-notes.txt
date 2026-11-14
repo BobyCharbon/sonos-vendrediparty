@@ -1,46 +1,56 @@
 ABOUT THE APP
-Party is a free app made by a circle of friends in Switzerland (our group, "Vendredi Party", lives inside it): organise parties and events, and play party games together. French-speaking countries only, 18+, interface in French.
+Party is a free app made by friends in Switzerland (our group "Vendredi Party" lives inside it): organise events, play party games. French-speaking countries, 18+, in French.
 
 SIGN-IN
-Phone number + 6-digit SMS code, no password. The demo account ("Apple-test") is in the Sign-in information fields; its code is fixed. Tab "Se connecter" > "Se connecter" > number > "Recevoir un code par SMS" > code.
+Phone number + 6-digit SMS code, no password. Demo account "Apple-test" in Sign-in information (fixed code): tab "Se connecter" > "Se connecter" > number > code.
 
 NATIVE FEATURES (4.2)
-- Native tab bar; Music, Settings, "Ton avis" (feedback), the event AI assistant, Groups and "Pot commun" (shared expenses) are SwiftUI screens.
-- Push notifications, one switch per type (Settings > Notifications).
-- Live Activity "Ton titre arrive" when your song request is about to play.
-- Apple Wallet event tickets; camera QR scanner; VisionKit receipt scanner.
-- Contacts (optional): members shown with your address-book names; only hashed numbers are compared.
-- Dictation (Speech framework), share extension (song link to the party queue), quick action, universal links, haptics.
+- Native tab bar; SwiftUI screens: Music, Settings, Groups, "Ton avis" (feedback), event AI assistant, "Pot commun" (shared expenses), announcement banner, offline screen.
+- Push notifications, one switch per type; Live Activity "Ton titre arrive".
+- Apple Wallet tickets, camera QR scanner, VisionKit receipt scanner, Calendar (date polls), optional Contacts (hashed numbers only), dictation (Speech), share extension, quick action, universal links, haptics.
+- Pyramide game: 30 s to memorise your cards, in a native panel hidden from screenshots.
 
 WEB CONTENT (2.5.2)
-The Events and Games tabs come from our own website (party.bobycharbon.ch) in a WKWebView: the same HTML/JS as the website for all users. No executable code is downloaded to add or change native features. Other sites open in Safari.
+The Events and Games tabs are our own website (party.bobycharbon.ch) in a WKWebView: the same HTML/JS for every user, calling only the native features above. No code is downloaded to add or change native features; other sites open in Safari.
+
+EVENTS (web, Events tab)
+- Create an event (form or "Avec l'IA"), then "Qui est invité": who sees it (public, invitation, group), then invite.
+- Invitation links, one per person or "Plusieurs" (several people). Each guest can create, copy and stop own links; sees counts only, never names.
+- Not public: someone coming through a guest's link waits for the organiser ("À accepter").
+- Date poll: guests vote dates, the organiser fixes one.
+- "Ajouter à mon agenda": a personal calendar feed (subscribed once) follows the event and the answers.
+- Carpool (organiser's option): participants offer or take seats. No money.
+- Groups: "Inviter avec un lien" (reusable group link).
+- Invited people sign in like everyone (SMS code, first and last name, nickname of 12 characters max) before answering.
+- Event page updates live (arrivals, answers, carpool); tap a name to open the profile; each answer and date vote shows its time.
+- Admins only: "Nouveau compte" notification; an announcement or maintenance message for everyone.
 
 PAYMENTS (3.1.3(e))
-Party sells nothing: no in-app purchase, no digital goods, no commission. An organiser may set a price for a real-world event (a seat, a meal). Participants pay the organiser directly, outside the app (Twint, bank transfer, PayPal/Revolut link), then tap "J'ai payé"; the organiser confirms. "Pot commun" only records who owes what; money is paid outside the app.
+Party sells nothing: no in-app purchase, no digital goods. An organiser may price a real-world event (seat, meal); participants pay the organiser outside the app (Twint, bank transfer, payment link), then tap "J'ai payé". "Pot commun" only records who owes what.
 
 AI
-"Avec l'IA" (Events), the writing help in "Ton avis" and receipt reading in "Pot commun" send text/images to Anthropic (Claude) only after a consent sheet ("J'accepte"). Declining keeps everything working without AI. The phone number is never sent. Shown and withdrawn by every account in Settings > Confidentialité > "IA de Party" > "Retirer mon accord".
+"Avec l'IA", writing help in "Ton avis" and receipt reading in "Pot commun" send text/images to Anthropic (Claude) only after consent ("J'accepte"); all works without AI. Phone number never sent. Withdraw: Settings > Confidentialité > "IA de Party".
 
 USER CONTENT (1.2)
-Terms accepted before the first content. Automatic word filter. "Signaler" on events, polls, messages, profiles and photos; "Bloquer" on a member's profile; list in Settings > Confidentialité > "Personnes bloquées". Contact: support@vendrediparty.ch (in the Terms).
+Terms before the first content, word filter, "Signaler" on events, polls, messages, profiles, photos; "Bloquer" on a profile (Settings > Confidentialité > "Personnes bloquées"). Contact: support@vendrediparty.ch.
 
 ACCOUNT DELETION
 Settings > "Gérer mon compte" > type SUPPRIMER > "Supprimer définitivement mon compte".
 
 PARTY GAMES (18+)
-Some games are drinking games for adults (the "Alcool" category, and an optional sips setting in a few others). Nobody has to drink alcohol: a glass of water counts, and 0 sips is the alcohol-free version. No gambling: no bets, no purchases, no prizes. Casino and Blackjack are not offered in this app.
+Some are drinking games for adults ("Alcool" category, optional sips). Nobody has to drink: water counts, 0 sips is alcohol-free. No gambling: no bets, purchases or prizes; no Casino or Blackjack.
 
 WITHOUT AN ACCOUNT
-Guests can play and request songs without an account (3 games and 3 song requests per party). After that we ask for a verified phone number, to prevent abuse at a party (fake names, queue spam, ban evasion).
+3 games and 3 song requests per party, then a verified phone number (anti-abuse).
 
 HOW TO TRY IT
 1. Sign in with the demo account.
-2. Events tab > "Avec l'IA": describe an evening (e.g. "dinner at my place Friday 8 pm"), tap "J'accepte", answer, confirm the place, "Oui, continuer".
-3. "Choisir qui est invité": tap a "who sees it" option > "Envoyer pour validation".
-4. Games tab: "Créer un quiz" (works solo) or Méninges > "Faire chauffer".
-5. Settings > Ton avis: write, "Envoyer", then "Modifier" under "Mes retours".
+2. Events > "Avec l'IA": describe an evening ("dinner at my place Friday 8 pm"), "J'accepte", answer, "Oui, continuer".
+3. "Qui est invité": tap a "who sees it" option ("Envoyer pour validation").
+4. Games: "Créer un quiz" (solo) or Méninges > "Faire chauffer".
+5. Settings > Ton avis: write, "Envoyer".
 
 NOTES
-- The demo account is a Guest+ member: its events wait for an admin's approval before others see them (meanwhile under Events > "Brouillons").
-- Music is for a live party: guests scan the host's QR code or type its 4-digit code; with no party running, the Music tab shows that join screen.
-- An Apple TV app (read-only: current game and music queue) shares this App Store record; it is not part of this submission.
+- Demo account is Guest+: its events wait for an admin's approval (until then in Events > "Brouillons").
+- Music needs a live party (host's QR or 4-digit code).
+- The Apple TV app (same record) is not in this submission.
