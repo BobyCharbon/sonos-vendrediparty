@@ -5,6 +5,7 @@
 
 export const APNS_TOKEN = /^apns:([0-9a-f]{64,200})$/;
 const JWT_LIFETIME_MS = 50 * 60_000;
+const PRODUCTION = 'api.push.apple.com', SANDBOX = 'api.sandbox.push.apple.com';
 
 type Config = { key: string; keyId: string; teamId: string; topic: string; host: string };
 export type ApnsResult = { ok: true } | { ok: false; code: string; permanent: boolean };
@@ -12,7 +13,7 @@ export type ApnsResult = { ok: true } | { ok: false; code: string; permanent: bo
 export function apnsConfig(env: (name: string) => string | undefined): Config | null {
   const key = env('APNS_KEY_P8'), keyId = env('APNS_KEY_ID'), teamId = env('APNS_TEAM_ID'), topic = env('APNS_TOPIC');
   if (!key || !keyId || !teamId || !topic) return null;
-  const host = env('APNS_SANDBOX') === '1' ? 'api.sandbox.push.apple.com' : 'api.push.apple.com';
+  const host = env('APNS_SANDBOX') === '1' ? SANDBOX : PRODUCTION;
   return { key, keyId, teamId, topic, host };
 }
 
@@ -57,10 +58,11 @@ export async function sendApns(config: Config, token: string, notificationId: st
                                data: Record<string, unknown>): Promise<ApnsResult> {
   const device = APNS_TOKEN.exec(token)?.[1];
   if (!device) return { ok: false, code: 'BadDeviceToken', permanent: true };
-  const payload = { aps: apsFor(title, body, data.silent === true), url: tapPath(data) };
-  let response: Response;
-  try {
-    response = await fetch(`https://${config.host}/3/device/${device}`, {
+  const url = tapPath(data);
+  // thread-id : les notifications d'un même événement (ou d'une même discussion) se regroupent sur l'iPhone.
+  const payload = { aps: { ...apsFor(title, body, data.silent === true), 'thread-id': url }, url };
+  const post = async (host: string) => {
+    const response = await fetch(`https://${host}/3/device/${device}`, {
       method: 'POST',
       headers: {
         authorization: `bearer ${await jwt(config)}`, 'apns-topic': config.topic, 'apns-push-type': 'alert',
@@ -68,11 +70,21 @@ export async function sendApns(config: Config, token: string, notificationId: st
       },
       body: JSON.stringify(payload), signal: AbortSignal.timeout(10_000),
     });
+    if (response.ok) return { response, reason: '' };
+    return { response, reason: ((await response.json().catch(() => ({}))) as { reason?: string }).reason || `ApnsHTTP${response.status}` };
+  };
+  let response: Response, reason: string;
+  try {
+    ({ response, reason } = await post(config.host));
+    // Jeton d'un build Xcode (serveur « sandbox » d'Apple) sur une base réglée pour TestFlight / l'App Store, ou
+    // l'inverse : l'autre serveur d'Apple avant d'oublier l'appareil.
+    if (reason === 'BadDeviceToken') {
+      ({ response, reason } = await post(config.host === SANDBOX ? PRODUCTION : SANDBOX));
+    }
   } catch {
     return { ok: false, code: 'ApnsUnavailable', permanent: false };
   }
   if (response.ok) return { ok: true };
-  const reason = ((await response.json().catch(() => ({}))) as { reason?: string }).reason || `ApnsHTTP${response.status}`;
   // Appareil désinscrit ou jeton d'une autre app : comme « DeviceNotRegistered » chez Expo, on oublie ce jeton.
   const gone = response.status === 410 || ['BadDeviceToken', 'DeviceTokenNotForTopic', 'Unregistered'].includes(reason);
   return { ok: false, code: gone ? 'DeviceNotRegistered' : reason, permanent: gone || response.status === 400 };
