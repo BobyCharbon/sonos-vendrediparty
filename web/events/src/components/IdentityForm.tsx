@@ -11,9 +11,10 @@ import { ProfilePhotoField } from './ProfilePhotoField';
 import { useTermsGate } from './TermsSheet';
 import { Button, ErrorText, Field, T } from './ui';
 
-/** Surnom déjà choisi dans les jeux de Party (même origine) : il pré-remplit un profil qui n'en a pas encore. */
+/** Surnom déjà choisi dans les jeux de Party (même origine) : il pré-remplit un profil qui n'en a pas encore, coupé à la
+ * limite du surnom (un nom de jeu plus long était refusé par la base au premier essai). */
 function gameNickname(): string {
-  try { return typeof localStorage === 'undefined' ? '' : (localStorage.getItem('vp_name') ?? '').trim().slice(0, 30); } catch { return ''; }
+  try { return typeof localStorage === 'undefined' ? '' : (localStorage.getItem('vp_name') ?? '').trim().slice(0, NICKNAME_MAX).trim(); } catch { return ''; }
 }
 
 /** Nom, prénom (privés), surnom (public) et photo sur une seule page, pour bien voir la différence. */

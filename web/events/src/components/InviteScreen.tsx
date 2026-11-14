@@ -26,7 +26,7 @@ export function InviteScreen({ kind, token }: { kind: 'event' | 'group'; token: 
   const valid = typeof token === 'string' && TOKEN.test(token);
   const complete = hasCompleteIdentity(profile);
 
-  if (!valid) return <Unavailable />;
+  if (!valid) return <Unavailable kind={kind} />;
   if (!session) {
     return (
       <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 16 }}>
@@ -59,12 +59,14 @@ export function InviteScreen({ kind, token }: { kind: 'event' | 'group'; token: 
   return <JoinInvite kind={kind} token={token} />;
 }
 
-function Unavailable({ error }: { error?: string | null }) {
+function Unavailable({ kind, error }: { kind: 'event' | 'group'; error?: string | null }) {
   return (
     <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 12 }}>
       <Stack.Screen options={{ title: 'Invitation' }} />
       <Title>Lien indisponible</Title>
-      <T muted>Ce lien n’est plus valable : un lien unique ne marche qu’une fois, pendant 7 jours, et l’organisateur peut l’annuler ou le remplacer. Demande ton propre lien à la personne qui t’a invité.</T>
+      <T muted>{kind === 'group'
+        ? 'Ce lien n’est plus valable : un lien pour une personne ne marche qu’une fois, pendant 7 jours, et le lien du groupe change quand il est renouvelé. Demande un nouveau lien à la personne qui t’a invité.'
+        : 'Ce lien n’est plus valable : un lien unique ne marche qu’une fois, pendant 7 jours, et l’organisateur peut l’annuler ou le remplacer. Demande ton propre lien à la personne qui t’a invité.'}</T>
       <ErrorText error={error ?? null} />
     </Screen>
   );
@@ -102,7 +104,7 @@ function JoinInvite({ kind, token }: { kind: 'event' | 'group'; token: string })
   }, [data, cancelled, kind, token, target, refreshProfile]);
 
   if (loading) return <Loading />;
-  if (!data) return <Unavailable error={loadError} />;
+  if (!data) return <Unavailable kind={kind} error={loadError} />;
   if (cancelled && event) {
     return (
       <Screen contentStyle={{ gap: 16 }}>
