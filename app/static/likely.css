@@ -29,7 +29,7 @@ body.pyr-full #game.g-lk { box-shadow: none; border: 0; padding: 16px; backgroun
 
 .lk-card { text-align: center; padding: 18px 16px; border-radius: 22px; background: rgba(255,255,255,.07); }
 .lk-q { text-align: center; padding: 22px 18px; border-radius: 24px; background: #fff; color: #10343a; box-shadow: 0 16px 34px rgba(0,0,0,.3); }
-.lk-q-n { font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #1f8a8f; }
+.lk-q-n { font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #1a7c80; }
 .lk-q-t { font: 800 1.45rem/1.2 "Bricolage Grotesque", system-ui, sans-serif; margin-top: 8px; text-wrap: balance; }
 .lk-q.small { padding: 14px 16px; }
 .lk-q.small .lk-q-t { font-size: 1.05rem; }

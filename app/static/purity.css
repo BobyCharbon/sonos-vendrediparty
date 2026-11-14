@@ -1,5 +1,5 @@
 /* 😇 Purify Test */
-.g-pu { --g-bg: #1f1235; --g-accent: #ff9ad5; --g-ink: #fff; --g-soft: #f3d9ff; --g-chip: #33204f; }
+.g-pu { --g-bg: #1f1235; --g-accent: #ff9ad5; --g-ink: #2a0a1f; --g-soft: #f3d9ff; --g-chip: #33204f; }
 .game.g-pu { background: var(--g-bg); color: #fff; }
 body.pyr-full #game.g-pu { box-shadow: none; border: 0; padding: 16px; background: radial-gradient(120% 60% at 50% 0%, #3b1f5e, #1f1235 70%); }
 .g-pu .py-main { background: linear-gradient(135deg, #ffb3e0, #ff6fb5); color: #2a0a1f; border: 0; box-shadow: 0 8px 0 #b03a7c, 0 16px 30px rgba(255,111,181,.35); }

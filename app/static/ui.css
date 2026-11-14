@@ -67,6 +67,8 @@ body[data-tab="stats"] .nav-bar, body[data-tab="feedback"] .nav-bar, body.pyr-fu
 
 /* ── Barre d'onglets : un libellé par onglet, sur une ligne (taille iOS) ── */
 .tabs button span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; font-size: .6875rem; letter-spacing: 0; }
+/* Rail de l'ordinateur (96 px) : « Se connecter » tenait sur une ligne coupée (« Se connec… ») ; il passe à la ligne. */
+@media (min-width: 900px) { .tabs button { padding-inline: 2px; } .tabs button span { white-space: normal; text-align: center; line-height: 1.2; } }
 
 /* ── Gestes en cours ou terminés : rien ne lutte contre le doigt ── */
 .nav-gesture, .nav-gesture * { -webkit-user-select: none !important; user-select: none !important; }

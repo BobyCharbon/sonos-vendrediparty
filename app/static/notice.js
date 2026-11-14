@@ -119,11 +119,20 @@
     }
     if (!document.body) { document.addEventListener("DOMContentLoaded", render, { once: true }); return; }
     html.classList.toggle("notice-blocking", blocks(s, admin));
+    html.classList.remove("pn-banner-on");
     if (!s) return;
     root = blocks(s, admin) ? overlay(s) : banner(s, admin);
     root.id = "partyNotice";
     document.body.appendChild(root);
+    fitBanner();
   }
+  // Le bandeau ne cache pas le haut de la page (titre, prénom) : la page descend de sa hauteur (notice.css).
+  function fitBanner() {
+    if (!root || !root.classList.contains("pn-banner")) return;
+    document.documentElement.classList.add("pn-banner-on");
+    document.documentElement.style.setProperty("--pn-banner-h", root.offsetHeight + "px");
+  }
+  window.addEventListener("resize", fitBanner);
 
   function overlay(s) {
     var o = el("div", "pn-overlay");

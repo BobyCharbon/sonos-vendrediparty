@@ -15,7 +15,7 @@
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 .pn-icon { font-size: 44px; line-height: 1; margin-bottom: 12px; }
-.pn-title { margin: 0 0 8px; font-size: 1.35rem; letter-spacing: -0.01em; }
+.pn-title { margin: 0 0 8px; font-size: 1.35rem; letter-spacing: -0.01em; color: inherit; text-transform: none; }
 .pn-text { margin: 0 0 16px; color: var(--muted, #a79fba); white-space: pre-line; }
 .pn-wait { margin: 0; display: inline-flex; align-items: center; gap: 10px; font-size: 0.85rem; color: var(--muted, #a79fba); }
 .pn-dots { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(255, 255, 255, 0.18);
@@ -31,6 +31,10 @@
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
   animation: pn-drop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
+/* La page descend sous le bandeau (titre et prénom visibles) : seulement un padding, jamais de hauteur sur body. */
+html.pn-banner-on body { padding-top: calc(env(safe-area-inset-top) + var(--pn-banner-h, 0px) + 16px); }
+/* Ordinateur : rail d'onglets à gauche (96 px), le bandeau se centre sur le contenu. */
+@media (min-width: 900px) { .pn-banner { left: calc(50% + 48px); max-width: min(560px, calc(100% - 120px)); } }
 .pn-banner.pn-announce { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 0 0 1.5px var(--accent, #ff4f9a); }
 .pn-banner.pn-maintenance { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 0 0 1.5px var(--accent-2, #ffb347); }
 .pn-banner-icon { font-size: 22px; line-height: 1.2; flex: none; }
