@@ -2,7 +2,7 @@ import PhotosUI
 import SwiftUI
 
 /// Réglages › Mon profil : photo, prénom et nom (privés), surnom (public). Mêmes règles que le module Événements :
-/// prénom, nom et surnom obligatoires (photo facultative), le surnom tient en 40 caractères.
+/// prénom, nom et surnom obligatoires (photo facultative), le surnom tient en 12 caractères.
 struct ProfileView: View {
     @ObservedObject var store: SettingsStore
 
@@ -33,7 +33,10 @@ struct ProfileView: View {
             Section {
                 TextField("Surnom", text: $nickname)
                     .onChange(of: nickname) { new in
-                        if new.count > ProfileRules.nicknameLength { nickname = String(new.prefix(ProfileRules.nicknameLength)) }
+                        // Un surnom d'avant la règle (plus long) reste affiché tel quel ; dès qu'on y touche, il passe à 12.
+                        if new.count > ProfileRules.nicknameLength && new != store.profile?.displayName {
+                            nickname = String(new.prefix(ProfileRules.nicknameLength))
+                        }
                     }
             } header: {
                 Text("Surnom")
@@ -147,7 +150,7 @@ struct ProfileView: View {
     }
 
     private var canSave: Bool {
-        changed && ProfileRules.isComplete(first: first, last: last, nickname: nickname)
+        changed && ProfileRules.isComplete(first: first, last: last, nickname: nickname, saved: store.profile?.displayName ?? "")
     }
 
     private func fill() {

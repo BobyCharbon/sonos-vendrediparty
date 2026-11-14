@@ -87,12 +87,16 @@ struct SettingsTests {
         #expect(banned.roleLabel == "Accès retiré")
     }
 
-    @Test("Mon profil : tout obligatoire, surnom 40 caractères au plus, espaces nettoyés")
+    @Test("Mon profil : tout obligatoire, surnom 12 caractères au plus (un ancien plus long reste), espaces nettoyés")
     func profileRules() {
         #expect(ProfileRules.isComplete(first: "Ludo", last: "T", nickname: "Boby"))   // photo facultative
         #expect(!ProfileRules.isComplete(first: "  ", last: "T", nickname: "Boby"))
         #expect(!ProfileRules.isComplete(first: "Ludo", last: "", nickname: "Boby"))
-        #expect(!ProfileRules.isComplete(first: "Ludo", last: "T", nickname: String(repeating: "x", count: 41)))
+        #expect(ProfileRules.isComplete(first: "Ludo", last: "T", nickname: String(repeating: "x", count: 12)))
+        #expect(!ProfileRules.isComplete(first: "Ludo", last: "T", nickname: String(repeating: "x", count: 13)))
+        // Surnom de 16 caractères d'avant la règle : on peut encore changer sa photo ou son nom sans y toucher.
+        #expect(ProfileRules.isComplete(first: "Ludo", last: "T", nickname: "Nina la recette!", saved: "Nina la recette!"))
+        #expect(!ProfileRules.isComplete(first: "Ludo", last: "T", nickname: "Nina la recette?", saved: "Nina la recette!"))
         #expect(ProfileRules.clean("  Jean   Paul ") == "Jean Paul")
     }
 

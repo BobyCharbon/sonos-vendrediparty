@@ -24,8 +24,10 @@ export const TERMS_PATH = '/terms';
 /** Phrase d'une erreur de la base, sans sa clé technique (« content_refused: Message non envoyé… »). */
 export function dbMessage(message: string | undefined | null, fallback: string): string {
   const text = (message ?? '').trim();
-  const known = /^(content_refused|terms_required|terms_version|blocked|forbidden|rate_limited|not_found|self|reason|days): /;
-  return known.test(text) ? text.replace(known, '') : fallback;
+  const known = /^(content_refused|terms_required|terms_version|blocked|forbidden|rate_limited|not_found|self|reason|days|nickname_too_long): /;
+  if (!known.test(text)) return fallback;
+  const said = text.replace(known, '');
+  return said.charAt(0).toUpperCase() + said.slice(1);
 }
 
 export function isTermsError(message: string | undefined | null): boolean {
