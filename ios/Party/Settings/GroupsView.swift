@@ -223,6 +223,18 @@ final class GroupsStore: ObservableObject {
         return done
     }
 
+    /// « + Ajouter » (avis du 14.11) : une invitation pour une personne de Party (jamais un ajout d'office) ; elle est
+    /// prévenue (notification « invitation dans un groupe », son interrupteur) et entre dès qu'elle accepte.
+    func invite(person: GroupList.Person, to group: GroupList.Group) async -> Bool {
+        var done = false
+        await run("invite.\(group.id).\(person.id)") { token in
+            _ = try await api.inviteToGroup(token: token, groupID: group.id, member: person.id, phone: nil)
+            notice = "\(ContactNames.shared.displayName(for: person.id, fallback: person.name)) a reçu ton invitation"
+            done = true
+        }
+        return done
+    }
+
     /// Nouveau groupe (Réglages › Groupes ou Discussions) ; son créateur en fait partie d'office (Créateur · Admin) ;
     /// renvoie son identifiant.
     func create(_ name: String, join: Bool = true) async -> String? {
@@ -435,6 +447,8 @@ struct GroupDetailView: View {
     @State private var confirmDelete = false
     @State private var profile: ProfileTarget?
     @State private var guest = ""
+    /// « + Ajouter » (avis du 14.11) : la feuille « Ajouter au groupe ».
+    @State private var adding = false
     @Environment(\.dismiss) private var dismiss
 
     /// Fiche à ouvrir (un membre touché dans la liste).
@@ -542,6 +556,21 @@ struct GroupDetailView: View {
         .navigationTitle(store.list?.group(groupID)?.name ?? "Groupe")
         .navigationBarTitleDisplayMode(.inline)
         .overlay(alignment: .bottom) { GroupNotice(store: store) }
+        .toolbar {
+            // Comme « + Inviter » d'un événement : visible en haut de MON groupe (droits de la base : créateur, Admin).
+            ToolbarItem(placement: .primaryAction) {
+                if store.list?.group(groupID)?.mine == true {
+                    Button { Haptics.tap(); adding = true } label: {
+                        Label("Ajouter", systemImage: "plus").labelStyle(.titleAndIcon).font(.body.weight(.semibold))
+                    }
+                    .accessibilityLabel("Ajouter au groupe")
+                    .accessibilityIdentifier("group-add")
+                }
+            }
+        }
+        .sheet(isPresented: $adding) {
+            if let group = store.list?.group(groupID) { GroupAddSheet(store: store, group: group) }
+        }
         .sheet(item: $profile) { target in MemberCardView(store: privacy, memberID: target.id) }
         .confirmationDialog("Supprimer ce groupe ?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Supprimer", role: .destructive) {
@@ -590,6 +619,128 @@ private struct QuickInviteSection: View {
             Text("Envoie-le par WhatsApp, Messages… Qui l'ouvre rejoint « \(group.name) » tout de suite (avec son numéro s'il n'a pas encore de compte). Tu es prévenu à chaque arrivée.")
         }
         .task(id: group.id) { if store.links[group.id] == nil { await store.link(for: group) } }
+    }
+}
+
+/// « + Ajouter » d'un groupe (avis de l'admin du 14.11), comme « Inviter » d'un événement : chercher quelqu'un de
+/// Party (surnom ou nom du répertoire, jamais un numéro) et l'inviter d'un toucher — il entre dès qu'il accepte —,
+/// ou envoyer le lien du groupe (Partager, Copier, QR) à qui n'a pas encore l'app. Même feuille sur le web
+/// (web/events/src/components/GroupAddSheet.tsx).
+private struct GroupAddSheet: View {
+    @ObservedObject var store: GroupsStore
+    let group: GroupList.Group
+    @ObservedObject private var contacts = ContactNames.shared
+    @State private var search = ""
+    @State private var invited: Set<String> = []
+    @State private var showQR = false
+    @Environment(\.dismiss) private var dismiss
+
+    private var query: String { search.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: ["@"]).lowercased() }
+
+    private var matches: [GroupList.Person] {
+        guard !query.isEmpty else { return [] }
+        return Array((store.list?.people ?? []).filter {
+            $0.name.lowercased().contains(query) || contacts.displayName(for: $0.id, fallback: $0.name).lowercased().contains(query)
+        }.prefix(12))
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    if query.isEmpty {
+                        Text("Cherche un prénom ou un surnom.").foregroundStyle(.secondary)
+                    } else if matches.isEmpty {
+                        Text("« \(search.trimmingCharacters(in: .whitespaces)) » n'est pas sur Party ? Envoie-lui le lien du groupe, juste en dessous.")
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(matches) { person in row(person) }
+                } header: {
+                    Text("Des gens de Party")
+                } footer: {
+                    Text("Chacun reçoit une notification Party et entre dans le groupe dès qu'il accepte (Réglages › Groupes).")
+                }
+                Section {
+                    if let url = store.links[group.id] {
+                        Text(url.absoluteString).font(.footnote).textSelection(.enabled)
+                        ShareLink(item: url, subject: Text("Invitation Party"), message: Text("Rejoins le groupe « \(group.name) » sur Party")) {
+                            Label("Partager le lien…", systemImage: "square.and.arrow.up").font(.body.weight(.semibold))
+                        }
+                        .accessibilityIdentifier("group-add-share")
+                        Button {
+                            UIPasteboard.general.string = url.absoluteString
+                            Haptics.tap()
+                            store.notice = "Lien copié"
+                        } label: { Label("Copier le lien", systemImage: "doc.on.doc") }
+                        Button { Motion.animate { showQR.toggle() } } label: {
+                            Label(showQR ? "Cacher le QR code" : "Montrer le QR code", systemImage: "qrcode")
+                        }
+                        if showQR, let image = QRCodeView.image(url.absoluteString) {
+                            Image(uiImage: image)
+                                .interpolation(.none)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxWidth: 240)
+                                .padding(10)
+                                .background(.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .frame(maxWidth: .infinity)
+                                .accessibilityLabel("QR code du lien du groupe")
+                        }
+                    } else {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Préparation du lien…").foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("Pas encore sur Party ?")
+                } footer: {
+                    Text("Envoie le lien du groupe : la personne s'inscrit avec son numéro, complète son profil et rejoint « \(group.name) ». Tu es prévenu à chaque arrivée.")
+                }
+            }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(AppConfig.background.ignoresSafeArea())
+            .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Un prénom, un surnom…")
+            .autocorrectionDisabled()
+            .navigationTitle("Ajouter au groupe")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button { dismiss() } label: { Image(systemName: "xmark") }
+                        .accessibilityLabel("Fermer")
+                }
+            }
+            .overlay(alignment: .bottom) { GroupNotice(store: store) }
+            .task(id: group.id) { if store.links[group.id] == nil { await store.link(for: group) } }
+        }
+        .presentationDetents([.large])
+    }
+
+    private func row(_ person: GroupList.Person) -> some View {
+        let inside = (store.list?.group(group.id) ?? group).members.contains { $0.id == person.id }
+        let sent = invited.contains(person.id)
+        return Button {
+            Haptics.tap()
+            Task { if await store.invite(person: person, to: group) { invited.insert(person.id) } }
+        } label: {
+            HStack {
+                PersonName(id: person.id, pseudo: person.name)
+                Spacer()
+                if store.busy.contains("invite.\(group.id).\(person.id)") {
+                    ProgressView()
+                } else if inside {
+                    Text("Déjà dans le groupe").font(.footnote).foregroundStyle(.secondary)
+                } else if sent {
+                    Text("Invité").font(.footnote.weight(.semibold)).foregroundStyle(Palette.accent)
+                } else {
+                    Image(systemName: "plus.circle.fill").font(.title3).foregroundStyle(Palette.accent)
+                }
+            }
+        }
+        .foregroundStyle(.primary)
+        .disabled(inside || sent)
+        .accessibilityHint(inside ? "Déjà dans le groupe" : sent ? "Invitation envoyée" : "Lui envoie une invitation dans le groupe")
     }
 }
 

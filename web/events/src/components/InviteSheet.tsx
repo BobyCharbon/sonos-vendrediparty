@@ -321,7 +321,7 @@ function Stepper({ value, onChange }: { value: number; onChange: (n: number) => 
   );
 }
 
-function PickedChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+export function PickedChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`Retirer ${label}`} onPress={onRemove} style={[st.chip, st.chipOn]}>
       <T size={13} weight="bold" color={colors.onAction} numberOfLines={1}>{label}  ✕</T>
@@ -329,7 +329,7 @@ function PickedChip({ label, onRemove }: { label: string; onRemove: () => void }
   );
 }
 
-function ResultRow({ title, hint, icon, person, disabled, onPress }: {
+export function ResultRow({ title, hint, icon, person, disabled, onPress }: {
   title: string; hint: string; icon?: string; person?: Person; disabled?: boolean; onPress: () => void;
 }) {
   return (
@@ -347,8 +347,10 @@ function ResultRow({ title, hint, icon, person, disabled, onPress }: {
 }
 
 /** QR code pour quelqu'un en face : l'appareil photo du téléphone ouvre l'invitation, sans app. */
-function QrOverlay({ url, title, when, places, onClose, cardRef }: {
-  url: string; title: string; when: string | null; places: number; onClose: () => void; cardRef: RefObject<View | null>;
+export function QrOverlay({ url, title, when, places = 1, caption, hint, onClose, cardRef }: {
+  url: string; title: string; when: string | null; places?: number; onClose: () => void; cardRef: RefObject<View | null>;
+  /** Autre chose qu'un lien d'événement (lien d'un groupe) : la ligne du lien et la consigne, à la place. */
+  caption?: string; hint?: string;
 }) {
   return (
     <View style={[st.qrOverlay, { paddingTop: useSheetTop() }]} accessibilityViewIsModal accessibilityLabel="QR code de l’invitation">
@@ -359,16 +361,17 @@ function QrOverlay({ url, title, when, places, onClose, cardRef }: {
         <T muted size={13} style={{ textAlign: 'center' }} numberOfLines={2}>{title}{when ? ` · ${when}` : ''}</T>
         <Image source={{ uri: qrDataUri(url) }} style={st.qr} accessibilityLabel="QR code du lien d’invitation" />
         <T size={13} weight="semibold" color={colors.textSoft} style={{ textAlign: 'center' }}>
-          {places === UNLIMITED_SEATS ? '👥 Pour plusieurs · sans limite' : places > 1 ? `👥 Pour plusieurs · ${places} places` : '🔗 Pour une personne'}
+          {caption ?? (places === UNLIMITED_SEATS ? '👥 Pour plusieurs · sans limite' : places > 1 ? `👥 Pour plusieurs · ${places} places` : '🔗 Pour une personne')}
         </T>
-        <T muted size={12} style={{ textAlign: 'center' }}>La personne vise le code avec l’appareil photo et répond. Pas besoin de l’app.</T>
+        <T muted size={12} style={{ textAlign: 'center' }}>{hint ?? 'La personne vise le code avec l’appareil photo et répond. Pas besoin de l’app.'}</T>
         <Button label="Fermer" variant="secondary" onPress={onClose} />
       </View>
     </View>
   );
 }
 
-const st = StyleSheet.create({
+/** Mêmes formes pour la feuille « Ajouter au groupe » (GroupAddSheet). */
+export const st = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(8,5,20,0.6)', justifyContent: 'flex-end' },
   sheet: { maxHeight: '100%', backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1,
     borderColor: colors.line, paddingHorizontal: 16, paddingTop: 8, width: '100%', maxWidth: 640, alignSelf: 'center' },
