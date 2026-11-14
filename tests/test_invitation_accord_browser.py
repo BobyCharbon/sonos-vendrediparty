@@ -126,6 +126,8 @@ def test_the_organizer_sees_requests_of_all_his_events_in_activity(browser, v2_o
         reply(page, 'decide_join_request', GUEST_LIST, calls)
         page.goto(f'{v2_origin}/events/', wait_until='domcontentloaded')
         login(page)
+        # Connexion terminée (session enregistrée) avant de recharger la page : sinon le rechargement retombait sur « Se connecter ».
+        pw.expect(page.get_by_role('button', name='Se connecter', exact=True)).to_have_count(0, timeout=15000)
         page.goto(f'{v2_origin}/events/activity', wait_until='domcontentloaded')
         pw.expect(page.get_by_text('INVITÉ À ACCEPTER · SOIRÉE JEUX', exact=True)).to_be_visible(timeout=15000)
         pw.expect(page.get_by_text('Nina aimerait venir', exact=True)).to_be_visible()
