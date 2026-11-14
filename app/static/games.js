@@ -661,7 +661,7 @@ document.getElementById("gamesRoot").innerHTML = `
       <div class="gcard g-py">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.pyramid}</div>
-          <div class="g-meta"><div class="g-title">Pyramide</div><div class="g-tag">Mémoire, bluff… et un shot au sommet.</div></div>
+          <div class="g-meta"><div class="g-title">Pyramide</div><div class="g-tag">Mémoire, bluff… et un shot (ou un verre d'eau) au sommet.</div></div>
           ${helpBtn("pyramid")}
         </div>
         <p class="g-desc">Rouge ou noir, plus ou moins, dedans ou dehors, symbole : 4 cartes chacun, puis on les retourne face cachée. La pyramide se dévoile, on donne des gorgées (bluff permis !), un shot (ou un verre d'eau) au sommet… et celui qui a la pire mémoire fait le bateau.</p>
