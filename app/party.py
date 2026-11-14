@@ -13,6 +13,10 @@ from .game_lock import LOCK as GAMES_LOCK
 MODES = ("next", "fair")
 HOST_ID = "host"
 PUSH_PER_GUEST = 3  # abonnements gardés par invité (ses appareils les plus récents)
+# Liste des invités : la page des jeux est publique (/api/presence). Pleine, ou une même adresse en tient déjà
+# beaucoup, l'invité « jeux » vu le moins récemment laisse sa place (il revient à son prochain signe de vie).
+GUESTS_MAX = 300
+GUESTS_PER_IP = 120  # une soirée (~60 invités sur le même Wi-Fi, donc souvent la même adresse) y tient largement
 INACTIVE_AFTER = 3 * 3600  # un invité sans activité depuis 3 h est déconnecté  # les ajouts de l'hôte sont des demandes comme les autres, signées « Hôte »
 
 
@@ -204,8 +208,8 @@ class PartyStore:
             self.seen(guest_id)
             return
         if g is None:
-            if len(self.session.guests) >= 300:
-                return  # garde-fou : la page des jeux est publique
+            if not self._make_room(ip):
+                return  # liste pleine d'invités entrés avec le code de la soirée
             g = self.session.guests[guest_id] = {"name": name, "ips": [], "joined_at": time.time(), "via": []}
         if via not in g.setdefault("via", ["music"]):
             g["via"].append(via)
@@ -215,6 +219,34 @@ class PartyStore:
         if ip and ip not in self.ignored_ips and ip not in g["ips"]:
             g["ips"].append(ip)
         self.save()
+
+    def _make_room(self, ip: str) -> bool:
+        """Place pour un nouvel invité : on retire l'invité « jeux » seulement (sans le code de la soirée) vu le moins
+        récemment, de la même adresse si elle en tient déjà GUESTS_PER_IP, sinon de toute la liste si elle est pleine.
+        Un invité entré avec le code n'est jamais retiré ; un vrai joueur, vu chaque seconde, passe après les faux."""
+        def games_only(gid, g):
+            return gid != HOST_ID and g.get("via") == ["games"] and not g.get("tokens")
+
+        guests = self.session.guests
+        entries = dict(guests)  # copie : d'autres requêtes ajoutent des invités en parallèle
+
+        def last(gid):
+            g = entries[gid]
+            return max(g.get("active_at") or g["joined_at"], self.last_seen.get(gid, 0))
+
+        same_ip = [gid for gid, g in entries.items() if ip and ip in g["ips"] and games_only(gid, g)]
+        if len(same_ip) >= GUESTS_PER_IP:
+            pool = same_ip
+        elif len(entries) >= GUESTS_MAX:
+            pool = [gid for gid, g in entries.items() if games_only(gid, g)]
+        else:
+            return True
+        if not pool:
+            return False
+        old = min(pool, key=last)
+        guests.pop(old, None)
+        self.last_seen.pop(old, None)
+        return True
 
     def rename_guest(self, guest_id: str, name: str):
         """Nouveau prénom partout : file d'attente, historique, messages, bannissements."""
