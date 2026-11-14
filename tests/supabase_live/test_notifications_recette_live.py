@@ -196,6 +196,22 @@ def test_the_refusal_reaches_the_phone_of_someone_who_cannot_see_the_event(w):
     assert len(no) == 1 and no[0]['event_id'] is None, no
 
 
+def test_someone_waiting_for_approval_learns_the_cancellation_once_without_a_link(w):
+    """Décision de l'admin (14.11) : la personne en attente d'accord apprend l'annulation, une fois, sans lien vers
+    l'événement qu'elle ne voit pas (migration 20261114220000)."""
+    who, _, made = w
+    oscar, gus, maxi = who['oscar'], who['gus'], who['max']
+    e = event(oscar, 'Test notifs annulation en attente')
+    made.append(e)
+    assert oscar.rpc('invite_people', e=e, people=[gus.uid]).status_code == 200
+    token = gus.rpc('create_event_invite', e=e, places=1).json()['token']
+    assert maxi.rpc('accept_invite', token=token, answer='yes').json().get('pending') is True
+    patch(oscar, 'events', f'id=eq.{e}', {'status': 'cancelled'})
+    told = maxi.get(f'notifications?select=kind,title,event_id&dedupe_key=eq.join_cancelled:{e}').json()
+    assert told == [{'kind': 'event_changed', 'title': 'Événement annulé', 'event_id': None}], told
+    assert [n['title'] for n in notes(gus, e, 'event_changed')] == ['Événement annulé']  # l'invité, comme avant
+
+
 def test_answers_are_grouped_and_the_two_hours_reminder_comes_once(w):
     """Tâches planifiées de la base (chaque minute pour les réponses, toutes les 5 minutes pour les rappels) : jusqu'à
     8 minutes d'attente."""
