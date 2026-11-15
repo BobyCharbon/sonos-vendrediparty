@@ -96,7 +96,7 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Paiement (maquette validée le 15.11, migration 20261115120000) : l'organisateur choisit « On me paie » (défaut, lien
   facultatif : Revolut…), « Paiement en ligne » (lien https obligatoire : billetterie) ou « Sur place » (`events.payment_mode`,
   `payment_url`). Les deux premiers : la personne note « J'ai payé », l'organisateur confirme « Reçu ✓ » (jamais payé sur sa
-  seule parole : une place payée remet le billet QR). Sur place : aucun bouton, `declare_ticket_payment` refuse. L'IA ne
+  seule parole : une place payée remet le billet QR). Sur place : aucun bouton, `declare_ticket_payment` refuse « J'ai payé » (annuler une déclaration d'avant reste possible). L'IA ne
   choisit jamais le mode. Tests : `tests/supabase_live/test_paiement_mode_live.py`, `test_event_tickets_browser.py`.
 - Covoiturage (avis 34d5c07f2e56, 13.11, migration 20261113090000) : option de l'organisateur (`events.carpool_enabled`,
   éteinte par défaut, jamais allumée par l'IA) ; seuls les participants (Présent / Peut-être) et les organisateurs y prennent
