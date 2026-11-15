@@ -108,7 +108,8 @@ def test_a_full_event_with_waitlist_still_waitlists():
 
 # 2. Fixer une date ----------------------------------------------------------------------------------------------
 
-def test_fixing_a_date_with_maybe_disabled_turns_if_needed_votes_into_no_answer():
+def test_fixing_a_date_with_maybe_disabled_still_counts_if_needed_votes_as_coming():
+    """Règle de l'admin du 08.11 (do_fix_event_date) : Oui et « Si besoin » = vient, même sans « Peut-être »."""
     out = scenario(f"""{event_sql("date_mode='poll'; allow_maybe=false")}
       insert into public.date_options (event_id, starts_at) values (e, now() + interval '20 days') returning id into o;
       insert into public.date_votes (option_id, user_id, vote) values (o, '{T1}', 'yes'), (o, '{T2}', 'if_needed');
@@ -118,7 +119,7 @@ def test_fixing_a_date_with_maybe_disabled_turns_if_needed_votes_into_no_answer(
              || ' t2=' || coalesce((select status::text from public.rsvps where event_id = e and user_id = '{T2}'), 'aucune')
              || ' mode=' || (select date_mode::text from public.events where id = e);
       raise exception 'résultat:%', r;""")
-    assert 'fixer=ok' in out and 't1=yes' in out and 't2=aucune' in out and 'mode=fixed' in out, out
+    assert 'fixer=ok' in out and 't1=yes' in out and 't2=yes' in out and 'mode=fixed' in out, out
 
 
 def test_fixing_a_date_without_waitlist_registers_only_what_fits():
