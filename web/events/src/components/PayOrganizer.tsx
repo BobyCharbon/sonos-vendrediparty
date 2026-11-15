@@ -3,7 +3,8 @@ import { Linking, Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { pressTransition } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
-import { chf, declarePayment, fetchPayInfo, formatIban, type MyTicket, type PayInfo, type TicketPayment } from '@/lib/tickets';
+import { chf, declarePayment, fetchPayInfo, formatIban, payLinkLabel, type MyTicket, type PayInfo, type TicketPayment } from '@/lib/tickets';
+import type { PaymentMode } from '@/lib/types';
 
 import { LinkedText } from './LinkedText';
 import { SheetBackdrop, SheetTop, useSheetDrag, useSheetTop } from './SheetGesture';
@@ -39,8 +40,9 @@ export function CopyRow({ label, value, shown = value }: { label: string; value:
 /** Moyens de paiement de l'organisateur, montant et référence, puis « J'ai payé ». */
 function PaySheet({ info, onDeclare, onClose, busy, error }: { info: PayInfo; onDeclare: () => void; onClose: () => void; busy: boolean; error: string | null }) {
   const twint = info.links.twint;
-  const links = Object.entries(info.links).filter(([k, v]) => k !== 'twint' && safeLink(v));
-  const nothing = !twint && !links.length && !info.iban && !info.payment_info;
+  const eventLink = info.payment_url ? safeLink(info.payment_url) : null;  // le lien choisi pour CET événement d'abord
+  const links = Object.entries(info.links).filter(([k, v]) => k !== 'twint' && safeLink(v) && v !== eventLink);
+  const nothing = !twint && !eventLink && !links.length && !info.iban && !info.payment_info;
   const card = useRef<View>(null);
   const overlay = useRef<View>(null);
   const sheetTop = useSheetTop();
@@ -54,6 +56,7 @@ function PaySheet({ info, onDeclare, onClose, busy, error }: { info: PayInfo; on
         <T style={st.amount}>{chf(info.amount)}</T>
         {info.payment_info ? <LinkedText size={14} color={colors.textSoft} text={info.payment_info} /> : null}
         {info.note ? <T size={13} muted>« {info.note} »</T> : null}
+        {eventLink ? <Button variant="secondary" label={payLinkLabel(eventLink)} onPress={() => Linking.openURL(eventLink)} /> : null}
         {twint ? <CopyRow label="Twint : numéro à copier dans l’app Twint" value={twint} /> : null}
         {links.map(([kind, url]) => (
           <Button key={kind} variant="secondary" label={LINK_LABELS[kind] ?? 'Ouvrir le lien de paiement'} onPress={() => Linking.openURL(url)} />
@@ -75,11 +78,14 @@ function PaySheet({ info, onDeclare, onClose, busy, error }: { info: PayInfo; on
   );
 }
 
+/** Comment payer cet événement (réglage de l'organisateur, maquette du 15.11.2026). */
+export type PaySetup = { mode: PaymentMode; url: string | null; organizer: string | null; info: string | null };
+
 /**
  * Paiement « entre amis » sur le billet (avec ou sans QR : option « Billets QR » éteinte ou billet pas encore remis) : à payer → « Payer l'organisateur » ; payé, en attente de confirmation ;
  * ou ✓ payé (confirmé par l'organisateur).
  */
-export function PayOrganizer({ eventId, ticket, onTicket }: { eventId: string; ticket: TicketPayment; onTicket: (t: MyTicket) => void }) {
+export function PayOrganizer({ eventId, ticket, onTicket, pay }: { eventId: string; ticket: TicketPayment; onTicket: (t: MyTicket) => void; pay: PaySetup }) {
   const [info, setInfo] = useState<PayInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -112,6 +118,7 @@ export function PayOrganizer({ eventId, ticket, onTicket }: { eventId: string; t
   }
 
   if (price <= 0) return null;
+  const online = pay.mode === 'online' && pay.url ? safeLink(pay.url) : null;
   if (ticket.paid) {
     return <View style={[st.status, st.paid]}><T size={14} weight="bold" color={colors.mint}>✓ Place payée · {chf(price)}</T></View>;
   }
@@ -120,16 +127,38 @@ export function PayOrganizer({ eventId, ticket, onTicket }: { eventId: string; t
       <View style={[st.status, st.pending]}>
         <View style={{ flex: 1 }}>
           <T size={14} weight="bold" color={colors.coral}>Payé · en attente de confirmation</T>
-          <T size={12} muted>L’organisateur confirme dès qu’il a reçu tes {chf(price)}.</T>
+          <T size={12} muted>{online ? 'L’organisateur confirme dès qu’il a vérifié ton paiement.' : `L’organisateur confirme dès qu’il a reçu tes ${chf(price)}.`}</T>
         </View>
         <Button small variant="ghost" label="Annuler" loading={busy} onPress={() => declare(false)} />
         <ErrorText error={error} />
       </View>
     );
   }
+  // Sur place : rien à payer ni à noter dans Party (l'organisateur peut cocher « payé » à l'entrée).
+  if (pay.mode === 'on_site') {
+    return (
+      <View style={[st.status, st.onSite]}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <T size={14} weight="bold" color={colors.coralSoft}>📍 {chf(price)} · à payer sur place</T>
+          {pay.info ? <LinkedText size={12} color={colors.muted} text={pay.info} /> : null}
+        </View>
+      </View>
+    );
+  }
+  // En ligne : le bouton ouvre la billetterie (ou le lien), puis la personne note « J'ai payé » ; l'organisateur confirme.
+  if (online) {
+    return (
+      <View style={{ gap: 6 }}>
+        <Button label={`Payer en ligne · ${chf(price)} ↗`} onPress={() => Linking.openURL(online)} />
+        <T size={12} muted>{(() => { try { return new URL(online).hostname.replace(/^www\./, ''); } catch { return ''; } })()}{pay.info ? ` · ${pay.info}` : ''}</T>
+        <Button variant="secondary" label="J’ai payé" loading={busy} onPress={() => declare(true)} />
+        <ErrorText error={error} />
+      </View>
+    );
+  }
   return (
     <View style={{ gap: 6 }}>
-      <Button label={`Payer l’organisateur · ${chf(price)}`} loading={busy && !info} onPress={open} />
+      <Button label={`Payer ${pay.organizer?.trim() || 'l’organisateur'} · ${chf(price)}`} loading={busy && !info} onPress={open} />
       {!info ? <ErrorText error={error} /> : null}
       <Modal visible={!!info} transparent animationType="fade" onRequestClose={() => setInfo(null)}>
         {info ? <PaySheet info={info} busy={busy} error={error} onDeclare={() => declare(true)} onClose={() => setInfo(null)} /> : null}
@@ -145,5 +174,6 @@ const st = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radius.md, backgroundColor: colors.fill },
   status: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radius.md, borderWidth: 1, flexWrap: 'wrap' },
   paid: { borderColor: 'rgba(91,227,166,.45)', backgroundColor: colors.mintDim },
+  onSite: { borderColor: 'rgba(255,179,71,.30)', backgroundColor: colors.fill },
   pending: { borderColor: 'rgba(255,179,71,.45)', backgroundColor: colors.coralDim },
 });

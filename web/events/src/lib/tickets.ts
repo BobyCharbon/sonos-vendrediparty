@@ -2,7 +2,7 @@ import { toQR } from 'toqr';
 
 import { must, supabase } from './supabase';
 import { notifyWallet } from './wallet';
-import type { RsvpStatus } from './types';
+import type { PaymentMode, RsvpStatus } from './types';
 
 /**
  * Billets QR d'un événement (migration 20261103130000) : la table est fermée, tout passe par des fonctions.
@@ -60,12 +60,24 @@ export type PayInfo = {
   organizer_name: string | null;
   amount: number;
   payment_info: string | null;
+  /** Mode et lien de l'événement (migration 20261115120000 ; absents avant : « On me paie », sans lien). */
+  mode?: PaymentMode;
+  payment_url?: string | null;
   iban: string | null;
   holder: string | null;
   links: Record<string, string>;
   note: string | null;
   reference: string;
 };
+
+/** Texte du bouton d'un lien de paiement, d'après son site. */
+export function payLinkLabel(url: string): string {
+  const host = (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } })();
+  if (host === 'revolut.me' || host.endsWith('.revolut.com') || host === 'revolut.com') return 'Payer avec Revolut';
+  if (host === 'paypal.me' || host.endsWith('paypal.com')) return 'Payer avec PayPal';
+  if (host.endsWith('lydia-app.com') || host.endsWith('lydia.me')) return 'Payer avec Lydia';
+  return 'Ouvrir le lien de paiement';
+}
 
 export type ScanResult =
   | { result: 'ok' | 'already' | 'waitlist' | 'not_registered' | 'not_issued' | 'tickets_off'; person: TicketPerson }

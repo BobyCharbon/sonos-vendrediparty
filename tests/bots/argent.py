@@ -252,7 +252,7 @@ def phase_reponses(browser, origin, only):
                         page.wait_for_timeout(3000)
                     p.log(f"réponse en base après {time.time() - start:.0f} s")
             open_event(p, "e_paid")
-            pay = page.get_by_role("button", name=re.compile(r"^Payer l’organisateur · 20 CHF"))
+            pay = page.get_by_role("button", name=re.compile(r"^Payer .+ · 20 CHF"))
             check(p, p.see(pay, "« Payer l'organisateur · 20 CHF »"), "🔴", "billets éteints : « Payer l'organisateur · 20 CHF » visible")
             check(p, page.get_by_label("Afficher ton billet à montrer à l’entrée").count() == 0 and
                   page.get_by_test_id("ticket-pending").count() == 0, "🔴", "billets éteints : aucun billet ni attente affiché")

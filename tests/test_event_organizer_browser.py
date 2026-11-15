@@ -203,7 +203,10 @@ def test_advanced_form_sends_every_option(browser, events_origin):
         field(frame, 'Adresse').fill('Route du Col 3')
         field(frame, 'Lien (site, carte…)').fill('https://chalet.example')
         field(frame, 'Prix / pers. (CHF)').fill('25,50')
-        field(frame, 'Paiement').fill('TWINT')
+        # Comment on paie (maquette du 15.11) : « On me paie » par défaut, puis « Paiement en ligne », lien exigé.
+        pw.expect(frame.get_by_role('radio', name='On me paie', exact=False)).to_have_attribute('aria-checked', 'true')
+        frame.get_by_role('radio', name='Paiement en ligne', exact=False).click()
+        field(frame, 'Précision (facultatif)').fill('TWINT')
         frame.get_by_role('switch', name='Billets QR', exact=True).click()
         pw.expect(frame.get_by_role('button', name='✓ Publique + lien', exact=True)).to_be_visible()  # public par défaut
         field(frame, 'Nombre de places (vide = illimité)').fill('12')
@@ -226,6 +229,12 @@ def test_advanced_form_sends_every_option(browser, events_origin):
         pw.expect(frame.get_by_role('switch', name='Prévenir le groupe à la publication', exact=True)).to_have_count(0)
         shot(page, 'formulaire-avance')
         frame.get_by_role('button', name='Publier', exact=True).click()
+        pw.expect(frame.get_by_text('Paiement en ligne : ajoute le lien (billetterie, Revolut…)', exact=True).first).to_be_visible()
+        field(frame, 'Lien de paiement').fill('http://billetterie.example')
+        frame.get_by_role('button', name='Publier', exact=True).click()
+        pw.expect(frame.get_by_text('Le lien de paiement doit commencer par https://', exact=True).first).to_be_visible()
+        field(frame, 'Lien de paiement').fill('https://billetterie.example/raclette')
+        frame.get_by_role('button', name='Publier', exact=True).click()
         pw.expect(frame.get_by_role('button', name='Modifier', exact=True)).to_be_visible(timeout=10000)
         (_, row), = base.wrote('POST', 'events')
         assert row['category_id'] == CATEGORY and row['description'] == 'Fromage à volonté'
@@ -235,6 +244,7 @@ def test_advanced_form_sends_every_option(browser, events_origin):
         assert (row['visibility'], row['public_link'], row['tickets_enabled']) == ('all', True, True)
         assert row['pot_enabled'] is True and row['forum_enabled'] is False and row['notify_on_publish'] is False
         assert row['location_url'] == 'https://chalet.example'
+        assert (row['payment_mode'], row['payment_url']) == ('online', 'https://billetterie.example/raclette')
         assert [b for _, b in base.wrote('POST', 'event_tags')] == [[{'event_id': NEW, 'tag_id': TAG}]]
         assert [b for _, b in base.wrote('POST', 'event_organizers')] == [[{'event_id': NEW, 'user_id': LEA}]]
         (_, poll), = base.wrote('POST', 'polls')

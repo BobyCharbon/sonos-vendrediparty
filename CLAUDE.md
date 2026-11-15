@@ -93,6 +93,11 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Étape 2 « Qui est invité », carte « 👥 Des groupes » (avis 8eb031acd60f, 13.11) : on coche les Membres Vendredi Party et/ou
   un ou plusieurs groupes, puis « Publier pour … » (jamais de publication au premier toucher pour les groupes) ; un seul
   « Prévenir » pour tous les groupes cochés. Public et « Sur invitation » publient toujours d'un toucher.
+- Paiement (maquette validée le 15.11, migration 20261115120000) : l'organisateur choisit « On me paie » (défaut, lien
+  facultatif : Revolut…), « Paiement en ligne » (lien https obligatoire : billetterie) ou « Sur place » (`events.payment_mode`,
+  `payment_url`). Les deux premiers : la personne note « J'ai payé », l'organisateur confirme « Reçu ✓ » (jamais payé sur sa
+  seule parole : une place payée remet le billet QR). Sur place : aucun bouton, `declare_ticket_payment` refuse. L'IA ne
+  choisit jamais le mode. Tests : `tests/supabase_live/test_paiement_mode_live.py`, `test_event_tickets_browser.py`.
 - Covoiturage (avis 34d5c07f2e56, 13.11, migration 20261113090000) : option de l'organisateur (`events.carpool_enabled`,
   éteinte par défaut, jamais allumée par l'IA) ; seuls les participants (Présent / Peut-être) et les organisateurs y prennent
   part, tout par les fonctions `carpool*` (table sans accès direct, places comptées sous verrou, ville filtrée comme un nom,

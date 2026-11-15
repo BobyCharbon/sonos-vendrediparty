@@ -111,7 +111,7 @@ def launch(browser, origin, rsvps, mine='ok', enabled=True, user_agent=IPHONE, *
 def test_option_off_means_no_qr_and_no_wallet(browser, origin):
     context, page, frame, _, errors = launch(browser, origin, [MINE_YES], mine='off', enabled=False)
     try:
-        pw.expect(frame.get_by_role('button', name='Payer l’organisateur · 20 CHF', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(frame.get_by_role('button', name='Payer Compte de démonstration · 20 CHF', exact=True)).to_be_visible(timeout=15000)
         page.wait_for_timeout(500)
         assert frame.get_by_text('Ton billet', exact=True).count() == 0
         assert frame.get_by_role('button', name=BADGE, exact=True).count() == 0
@@ -125,7 +125,7 @@ def test_option_on_but_not_handed_out_says_to_wait(browser, origin):
     context, page, frame, _, errors = launch(browser, origin, [MINE_YES], mine='pending')
     try:
         pw.expect(frame.get_by_text('Ton billet arrivera quand l’organisateur l’aura validé.', exact=True)).to_be_visible(timeout=15000)
-        pw.expect(frame.get_by_role('button', name='Payer l’organisateur · 20 CHF', exact=True)).to_be_visible()
+        pw.expect(frame.get_by_role('button', name='Payer Compte de démonstration · 20 CHF', exact=True)).to_be_visible()
         page.wait_for_timeout(500)
         assert frame.get_by_role('button', name=BADGE, exact=True).count() == 0
         assert frame.get_by_role('button', name='Afficher ton billet à montrer à l’entrée', exact=True).count() == 0

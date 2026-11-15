@@ -231,7 +231,7 @@ def test_on_a_short_screen_the_finger_reaches_the_bottom_of_the_ticket_and_pay_w
         ticket.get_by_role('button', name='Fermer', exact=True).click()
         pw.expect(ticket).to_have_count(0)
 
-        pay = frame.get_by_role('button', name='Payer l’organisateur · 20 CHF', exact=True)
+        pay = frame.get_by_role('button', name='Payer Compte de démonstration · 20 CHF', exact=True)
         assert finger_reaches(page, cdp, pay, (195, SHORT['height'] * 0.6))
         pay.click()
         declare = frame.get_by_role('button', name='J’ai payé', exact=True)
@@ -373,7 +373,7 @@ def test_every_window_has_a_close_button_and_closes_when_pulled_down(browser, v2
         finger_down(page, 195, x_box['y'] + x_box['height'] / 2, 400)
         pw.expect(ticket).to_have_count(0, timeout=3000)
         # Payer l'organisateur : ✕.
-        pay = frame.get_by_role('button', name='Payer l’organisateur · 20 CHF', exact=True)
+        pay = frame.get_by_role('button', name='Payer Compte de démonstration · 20 CHF', exact=True)
         assert finger_reaches(page, cdp, pay, (195, page.viewport_size['height'] * 0.6))
         pay.click()
         window = frame.get_by_label('Payer l’organisateur', exact=True)
