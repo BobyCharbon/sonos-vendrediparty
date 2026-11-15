@@ -461,10 +461,9 @@ export function EventForm({ eventId }: { eventId?: string }) {
         const created = must(await supabase.from('date_options').insert({ event_id: id, starts_at: sl.iso, proposed_by: me.id }).select('id').single());
         nonEmptySlots[index]!.id = created.id as string;
       }
-    } else {
-      check(await supabase.from('date_options').delete().eq('event_id', id));
-      d.slots = d.slots.map((sl) => ({ text: sl.text }));
     }
+    // Date fixe : les créneaux du sondage et leurs votes sont GARDÉS (cachés). Les effacer ici a perdu tous les votes du
+    // paintball (prod, 13.11.2026 : date fixée par erreur puis événement modifié) ; repasser en « Sondage » les retrouve.
 
     // Sondages : suppression des retirés, ajout des nouveaux (les existants gardent leurs votes)
     const keptPolls = new Set(d.polls.filter((p) => p.id).map((p) => p.id!));

@@ -377,6 +377,40 @@ def test_edit_after_publication_keeps_it_published_and_updates_wallet(browser, e
         context.close()
 
 
+def test_editing_a_fixed_date_keeps_the_poll_dates_and_their_votes(browser, events_origin):
+    """Paintball (prod, 13.11.2026) : date fixée par erreur, puis l'événement modifié ; l'enregistrement effaçait tous
+    les créneaux du sondage, et leurs votes avec. Ils restent maintenant, et repasser en « Sondage » les retrouve."""
+    ev = published(date_mode='fixed')
+    ev['date_options'] = [{'id': 'opt-1', 'event_id': NEW, 'starts_at': '2030-11-14T18:00:00Z', 'proposed_by': USER,
+                           'created_at': '2026-11-04T08:00:00Z', 'date_votes': [{'option_id': 'opt-1', 'user_id': LEA, 'vote': 'yes'}]},
+                          {'id': 'opt-2', 'event_id': NEW, 'starts_at': '2030-11-21T18:00:00Z', 'proposed_by': USER,
+                           'created_at': '2026-11-04T08:00:00Z', 'date_votes': [{'option_id': 'opt-2', 'user_id': LEA, 'vote': 'no'}]}]
+    context, page, frame, base, errors = launch(browser, events_origin, event=ev)
+    try:
+        open_event(frame)
+        frame.get_by_role('button', name='Modifier', exact=True).click()
+        pw.expect(field(frame, 'Titre')).to_have_value('Soirée publiée', timeout=10000)
+        field(frame, 'Titre').fill('Paintball')
+        frame.get_by_role('button', name='Enregistrer', exact=True).click()
+        pw.expect(frame.get_by_text('Paintball', exact=True)).to_be_visible(timeout=10000)
+        page.wait_for_timeout(300)
+        assert base.wrote('DELETE', 'date_options') == []
+        # Repasser en sondage : les deux créneaux reviennent dans le formulaire, avec leurs identifiants (votes gardés).
+        frame.get_by_role('button', name='Modifier', exact=True).click()
+        pw.expect(field(frame, 'Titre')).to_have_value('Paintball', timeout=10000)
+        if frame.get_by_role('tab', name='Avancé', exact=True).count():
+            frame.get_by_role('tab', name='Avancé', exact=True).click()
+        frame.get_by_role('tab', name='Date à définir', exact=True).click()
+        pw.expect(frame.get_by_label('Créneau 2 : jour', exact=True)).to_be_visible()
+        frame.get_by_role('button', name='Enregistrer', exact=True).click()
+        page.wait_for_timeout(800)
+        assert base.wrote('DELETE', 'date_options') == [] and base.wrote('POST', 'date_options') == []
+        assert {q for q, _ in base.wrote('PATCH', 'date_options')} >= {'id=eq.opt-1', 'id=eq.opt-2'}
+        assert not errors
+    finally:
+        context.close()
+
+
 def test_cancel_asks_for_confirmation(browser, events_origin):
     context, page, frame, base, errors = launch(browser, events_origin, event=published())
     try:
