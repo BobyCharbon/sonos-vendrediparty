@@ -80,6 +80,7 @@ struct PartyNoticeView: View {
             Image(systemName: notice.symbol)
                 .font(.system(size: 44, weight: .semibold))
                 .foregroundStyle(Palette.accent)
+                .accessibilityHidden(true)  // décor : VoiceOver lit le titre, pas le nom du symbole
             Text(notice.title).font(.title2.weight(.bold)).multilineTextAlignment(.center)
             if !notice.message.isEmpty {
                 Text(notice.message).font(.body).foregroundStyle(.secondary).multilineTextAlignment(.center)
@@ -108,6 +109,7 @@ struct PartyNoticeView: View {
             Image(systemName: notice.symbol)
                 .font(.title3)
                 .foregroundStyle(notice.kind == .info ? Color.secondary : Palette.accent)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(notice.kind == .maintenance ? "\(notice.title) · affiché à tous" : notice.title)
                     .font(.subheadline.weight(.semibold))
@@ -122,7 +124,10 @@ struct PartyNoticeView: View {
                     Image(systemName: "xmark").font(.footnote.weight(.bold))
                         .frame(width: 30, height: 30)
                         .background(.thinMaterial, in: Circle())
+                        .frame(width: 44, height: 44)  // zone de toucher de 44 pt (la pastille reste petite)
+                        .contentShape(Rectangle())
                 }
+                .padding(-7)
                 .accessibilityLabel("Masquer ce message")
             } else if notice.admin {
                 Button("Gérer", action: manage)

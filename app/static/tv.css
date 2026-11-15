@@ -118,7 +118,8 @@ body.waiting .tv-side h2, body.waiting .tv-list { display: none; }
 .tv-login p { margin: 0; color: var(--muted); }
 .tv-login input, .tv-login button { font: inherit; padding: 0.7em 1em; border-radius: 12px; border: 0; }
 .tv-login input { background: #241d35; color: var(--text); text-align: center; letter-spacing: 0.3em; }
-.tv-login button { background: var(--accent); color: #fff; font-weight: 700; cursor: pointer; }
+/* Rose un ton plus profond que l'accent : texte blanc lisible (AA, comme les boutons de Party). */
+.tv-login button { background: #d92a73; color: #fff; font-weight: 700; cursor: pointer; }
 .tv-error { color: #ff6b6b; min-height: 1.3em; }
 
 /* Écran étroit (essai sur un portable ou un téléphone) : une colonne, sans débordement. */

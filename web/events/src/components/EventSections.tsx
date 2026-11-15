@@ -754,7 +754,8 @@ export function BringSection({
 
 const st = StyleSheet.create({
   undecided: { gap: 2, padding: 10, borderRadius: radius.md, backgroundColor: colors.coralDim },
-  pill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(255,79,154,0.16)' },
+  // Fond rose sombre plein : « À répondre » en rose se lit (AA, 5:1 ; le voile rose translucide ne donnait que 4,3:1).
+  pill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.accentDim },
   // Texte sombre sur néon plein (sur le fond translucide, « EN TÊTE » était illisible : contraste 1,2).
   // Rose foncé du thème (texte blanc lisible), plus l'ancien rose néon.
   pillLead: { backgroundColor: colors.action },

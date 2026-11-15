@@ -19,6 +19,7 @@ struct OfflineView: View {
             Image(systemName: busy ? "wrench.and.screwdriver.fill" : "wifi.exclamationmark")
                 .font(.system(size: 44, weight: .semibold))
                 .foregroundStyle(busy ? Palette.accent : .secondary)
+                .accessibilityHidden(true)  // décor : VoiceOver lit le titre, pas le nom du symbole
             Text(busy ? "Mise à jour en cours" : "Party ne répond pas")
                 .font(.title3.weight(.semibold))
             Text(busy ? "Party revient tout seul dans une minute. Ta partie est gardée."

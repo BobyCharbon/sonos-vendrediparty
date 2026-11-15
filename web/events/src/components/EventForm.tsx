@@ -679,7 +679,8 @@ export function EventForm({ eventId }: { eventId?: string }) {
                 <View style={{ flex: 1 }}>
                   <DateTimeField label={`Créneau ${i + 1}`} value={sl.text} onChangeText={(text) => set({ slots: d.slots.map((x, j) => (j === i ? { ...x, text } : x)) })} />
                 </View>
-                <Button small variant="secondary" label="✕" onPress={() => set({ slots: d.slots.filter((_, j) => j !== i) })} />
+                <Button small variant="secondary" label="✕" accessibilityLabel={`Retirer le créneau ${i + 1}`}
+                  onPress={() => set({ slots: d.slots.filter((_, j) => j !== i) })} />
               </Reveal>
             ))}
             <Button small variant="ghost" label="+ Ajouter un créneau" onPress={() => set({ slots: [...d.slots, { text: '' }] })} />
@@ -809,6 +810,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
               <Reveal key={b.id ?? `new-${i}`} kind={bringGrew ? 'rise' : null} style={s.row}>
                 <Input
                   placeholder="Fromage, pain…"
+                  accessibilityLabel={`Objet ${i + 1} à amener`}
                   value={b.label}
                   onChangeText={(label) => set({ bring: d.bring.map((x, j) => (j === i ? { ...x, label } : x)) })}
                   style={{ flex: 1 }}
@@ -822,7 +824,8 @@ export function EventForm({ eventId }: { eventId?: string }) {
                   onChangeText={(quantity) => set({ bring: d.bring.map((x, j) => (j === i ? { ...x, quantity: quantity.replace(/\D/g, '') } : x)) })}
                   style={{ width: 64 }}
                 />
-                <Button small variant="secondary" label="✕" onPress={() => set({ bring: d.bring.filter((_, j) => j !== i) })} />
+                <Button small variant="secondary" label="✕" accessibilityLabel={`Retirer ${b.label || 'cet objet'}`}
+                  onPress={() => set({ bring: d.bring.filter((_, j) => j !== i) })} />
               </Reveal>
             ))}
             <Button small variant="ghost" label="+ Ajouter un objet" onPress={() => set({ bring: [...d.bring, { label: '' }] })} />

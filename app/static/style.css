@@ -1470,6 +1470,8 @@ button { background: linear-gradient(180deg, #d92a73, #cf2568); }
 button.secondary { background: var(--card-2); }
 button.danger { background: #4a1f2a; }
 .tabs button, .seg button:not(.on) { background: transparent; }
+/* Focus au clavier : le halo revient sur les boutons sans ombre (onglets, segments, puces) */
+.tabs button:focus-visible, .seg button:focus-visible, .chips button:focus-visible, .g-help:focus-visible, .py-icon:focus-visible { box-shadow: var(--focus); }
 input::placeholder, textarea::placeholder { color: #a39bbd; }
 /* Message non lu : fond teinté et pastille, au lieu d'une épaisse bordure latérale */
 .msg.unread { border-left: 0; background: rgba(255, 181, 71, .1); box-shadow: inset 0 0 0 1px rgba(255, 181, 71, .25); }

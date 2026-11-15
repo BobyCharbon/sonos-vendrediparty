@@ -52,7 +52,9 @@ export function TemplateList({ meId, canDeleteAll, onApply }: Props & { onApply:
             </Pressable>
             {removable ? (
               <Button small variant={confirming === t.id ? 'dangerSolid' : 'danger'}
-                label={confirming === t.id ? 'Supprimer ?' : '🗑'} onPress={() => remove(t)} />
+                label={confirming === t.id ? 'Supprimer ?' : '🗑'}
+                accessibilityLabel={confirming === t.id ? undefined : `Supprimer le modèle ${t.name}`}
+                onPress={() => remove(t)} />
             ) : null}
           </View>
         );

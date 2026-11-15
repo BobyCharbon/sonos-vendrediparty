@@ -285,7 +285,7 @@ def fill_advanced(p, title: str) -> None:
         page.get_by_placeholder("Fromage, pain…").last.fill(label)
         if qty:
             page.get_by_label(re.compile("^Quantité de")).last.fill(qty)
-    p.tap(page.get_by_role("button", name="✕").last, "retirer « À retirer »")
+    p.tap(page.get_by_role("button", name="Retirer À retirer"), "retirer « À retirer »")
     f.toggle(p, "Forum de l’événement", False)
 
 
@@ -372,7 +372,7 @@ def phase_sondage(browser, origin, only=None):
         f.set_date(p, "Créneau 3", f.day(14), "20:30")
         p.tap(page.get_by_role("button", name="+ Ajouter un créneau"), "+ Ajouter un créneau (4)")
         f.set_date(p, "Créneau 4", f.day(15), "18:00")
-        p.tap(page.get_by_role("button", name="✕").nth(1), "retirer le créneau 2")
+        p.tap(page.get_by_role("button", name="Retirer le créneau 2"), "retirer le créneau 2")
         f.set_date(p, "Fin du vote (optionnel)", f.day(10), "20:00")
         f.toggle(p, "Les membres peuvent proposer des dates", False)
         f.toggle(p, "Fixer la date automatiquement", True)
@@ -935,7 +935,7 @@ def phase_modele(browser, origin, only=None):
         open_form(p)
         page.wait_for_timeout(2000)
         row = page.get_by_role("button", name=f"Remplir avec le modèle {TPL_NAME}").locator("xpath=..")
-        p.tap(row.get_by_role("button", name="🗑"), "🗑 modèle")
+        p.tap(row.get_by_role("button", name=f"Supprimer le modèle {TPL_NAME}"), "🗑 modèle")
         p.tap(row.get_by_role("button", name="Supprimer ?"), "Supprimer ?")
         page.wait_for_timeout(2000)
         note("modèle supprimé par l'écran", sql(f"select count(*) n from event_templates where name = {q(TPL_NAME)}"))

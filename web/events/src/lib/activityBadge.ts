@@ -65,5 +65,6 @@ export function useImportantUnread(refreshKey?: unknown): number {
   return count;
 }
 
-/** Rouge des pastilles iOS (cloche de l'accueil et nouveautés importantes). */
-export const BADGE_RED = '#FF3B30';
+/** Rouge des pastilles (cloche de l'accueil et nouveautés importantes) : le rouge iOS un ton plus profond, pour que
+ * le chiffre blanc se lise (AA, 4,6:1 ; #FF3B30 ne donnait que 3,5:1). */
+export const BADGE_RED = '#E0282E';
