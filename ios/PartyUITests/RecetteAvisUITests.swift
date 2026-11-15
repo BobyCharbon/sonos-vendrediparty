@@ -151,22 +151,26 @@ final class RecetteAvisUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Admin test"].waitForExistence(timeout: 30), "connecté en Admin test")
     }
 
+    /// Réglages › « Se connecter » en Admin test (code fixe, aucun SMS) si l'app n'est pas déjà connectée.
+    private func signInAdminIfNeeded() {
+        settingsTab()
+        guard app.staticTexts["Se connecter"].exists else { return }
+        XCTAssertTrue(openRow("Se connecter"))
+        let field = app.textFields["login-phone"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "champ du numéro")
+        field.tap()
+        app.typeText("0790000004")
+        app.buttons["login-send"].tap()
+        let code = app.textFields["login-code"]
+        XCTAssertTrue(code.waitForExistence(timeout: 20), "champ du code")
+        code.tap()
+        app.typeText("123456")
+        XCTAssertTrue(app.staticTexts["Admin test"].waitForExistence(timeout: 30), "connecté en Admin test")
+    }
+
     func test3AdminSettingsAndGroups() {
         launch()
-        settingsTab()
-        if app.staticTexts["Se connecter"].exists {
-            XCTAssertTrue(openRow("Se connecter"))
-            let field = app.textFields["login-phone"]
-            XCTAssertTrue(field.waitForExistence(timeout: 10), "champ du numéro")
-            field.tap()
-            app.typeText("0790000004")
-            app.buttons["login-send"].tap()
-            let code = app.textFields["login-code"]
-            XCTAssertTrue(code.waitForExistence(timeout: 20), "champ du code")
-            code.tap()
-            app.typeText("123456")
-            XCTAssertTrue(app.staticTexts["Admin test"].waitForExistence(timeout: 30), "connecté en Admin test")
-        }
+        signInAdminIfNeeded()
         shot("admin/reglages")
 
         // Connexions récentes (avis 0abef7ffe7ba)
@@ -370,5 +374,65 @@ final class RecetteAvisUITests: XCTestCase {
         let created = web("Événement créé le")
         XCTAssertTrue(reveal(created), "« Événement créé le … » tout en bas")
         shot("lieu/cree-le-en-bas")
+    }
+
+    // MARK: 10. « + Ajouter » dans un groupe (demande de l'admin du 14.11) : chercher, inviter, lien, QR
+
+    func test10GroupAddSheet() {
+        launch("localStorage.setItem('vp_tab','events');")  // une salle de jeux restée ouverte (test 7) ne prend pas l'écran
+        signInAdminIfNeeded()
+        settingsTab()
+        guard openRow("Groupes") else { return }
+        let name = app.textFields["new-group-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 15), "champ « Nom du nouveau groupe »")
+        name.tap()
+        app.typeText("Recette 14.11")
+        app.buttons["new-group-create"].tap()
+        let add = app.buttons["group-add"]
+        XCTAssertTrue(add.waitForExistence(timeout: 25), "« + Ajouter » en haut du groupe")
+        shot("ajouter/groupe")
+        add.tap()
+        XCTAssertTrue(app.navigationBars["Ajouter au groupe"].waitForExistence(timeout: 10), "feuille « Ajouter au groupe »")
+        XCTAssertTrue(app.buttons["group-add-share"].waitForExistence(timeout: 20), "lien du groupe prêt (Partager)")
+        shot("ajouter/feuille")
+
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 5), "recherche")
+        search.tap()
+        app.typeText("Bot")
+        let found = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Bot'"))
+        XCTAssertTrue(found.firstMatch.waitForExistence(timeout: 10), "une personne trouvée (« Bot … »)")
+        shot("ajouter/recherche")
+        // La page du groupe, sous la feuille, a aussi des « Bot … » : on touche une ligne de la feuille, visible.
+        guard let person = found.allElementsBoundByIndex.first(where: { $0.isHittable }) else {
+            return XCTFail("aucune ligne « Bot … » touchable dans la feuille")
+        }
+        person.tap()
+        let sent = app.staticTexts.matching(NSPredicate(format: "label ENDSWITH 'a reçu ton invitation'")).firstMatch
+        XCTAssertTrue(sent.waitForExistence(timeout: 15), "« … a reçu ton invitation »")
+        XCTAssertTrue(app.staticTexts["Invité"].waitForExistence(timeout: 5), "la ligne passe à « Invité »")
+        shot("ajouter/invite")
+
+        let qr = app.buttons["Montrer le QR code"]
+        for _ in 0..<4 where !(qr.exists && qr.isHittable) { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(qr.exists, "« Montrer le QR code »")
+        qr.tap()
+        XCTAssertTrue(app.images["QR code du lien du groupe"].waitForExistence(timeout: 5), "QR code affiché")
+        XCTAssertTrue(app.buttons["Copier le lien"].exists, "« Copier le lien »")
+        shot("ajouter/qr")
+
+        // Recherche encore ouverte : son ✕ d'iOS (« Close ») la referme, puis le ✕ « Fermer » de la feuille.
+        if !app.buttons["Fermer"].exists, app.buttons["Close"].exists { app.buttons["Close"].firstMatch.tap() }
+        XCTAssertTrue(app.buttons["Fermer"].waitForExistence(timeout: 5), "✕ « Fermer » de la feuille")
+        app.buttons["Fermer"].firstMatch.tap()
+        sleep(2)
+        let delete = app.buttons["Supprimer le groupe"]
+        for _ in 0..<8 where !(delete.exists && delete.isHittable) { app.swipeUp(velocity: .slow) }
+        if delete.exists {
+            delete.tap()
+            let confirm = app.buttons.matching(NSPredicate(format: "label == 'Supprimer'")).firstMatch
+            if confirm.waitForExistence(timeout: 5) { confirm.tap() }
+            sleep(2)
+        }
     }
 }

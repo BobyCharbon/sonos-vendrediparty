@@ -81,10 +81,10 @@ def test_the_creator_deletes_a_cancelled_event():
 def test_the_invite_card_names_the_inviter_with_the_whole_nickname():
     admin = Session(ADMIN).uid  # organisateur avec events.manage_all (créer un lien), transaction annulée
     out = as_user(admin, """
-      update public.profiles set display_name = 'Bot Olga Test' where id = auth.uid();
+      update public.profiles set display_name = 'Bot Olga T.' where id = auth.uid();  -- 12 caractères au plus (14.11)
       insert into public.events (title, status, visibility, public_link, notify_on_publish, starts_at)
         values ('Test carte', 'published', 'invited', false, false, now() + interval '30 days') returning id into e;
       r := public.create_event_invite(e, 1, null, null);
       raise exception 'résultat: %', public.invite_preview((r->>'token')::uuid, false)->>'inviter';""",
                  grants=('events.create', 'events.publish_direct'))
-    assert 'résultat: Bot Olga Test' in out, out
+    assert 'résultat: Bot Olga T.' in out, out
