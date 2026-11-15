@@ -59,6 +59,18 @@ def test_online_needs_a_link_and_still_waits_for_the_organizer(party):
     admin.rpc('confirm_ticket_payment', e=eid, member=a.uid, received=False)
 
 
+def test_switching_to_on_site_lets_a_pending_payment_be_cancelled(party):
+    """« J'ai payé » noté, puis l'organisateur passe en « Sur place » : la personne peut encore l'annuler (sinon elle
+    reste « en attente de confirmation » pour toujours, l'organisateur n'ayant plus la liste des paiements à confirmer)."""
+    admin, a, eid = party
+    assert patch(admin, eid, payment_mode='organizer', payment_url=None).status_code in (200, 204)
+    assert a.rpc('declare_ticket_payment', e=eid, declared=True).json()['pay_pending'] is True
+    assert patch(admin, eid, payment_mode='on_site').status_code in (200, 204)
+    r = a.rpc('declare_ticket_payment', e=eid, declared=False)
+    assert r.status_code == 200, r.text
+    assert r.json().get('pay_pending') is not True
+
+
 def test_on_site_has_nothing_to_note(party):
     admin, a, eid = party
     assert patch(admin, eid, payment_mode='on_site', payment_url=None).status_code in (200, 204)
