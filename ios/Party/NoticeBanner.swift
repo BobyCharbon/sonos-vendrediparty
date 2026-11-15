@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Bandeau bref en bas de l'écran (titre ajouté, enregistré, erreur…), le même partout dans l'app native.
 /// Il monte en glissant, s'efface tout seul, et son apparition s'accompagne du retour haptique qui va avec
@@ -70,6 +71,8 @@ struct NoticeBanner: View {
     }
 
     private func feedback(_ notice: Notice) {
+        // Le bandeau s'efface après quelques secondes : VoiceOver le lit dès son apparition.
+        UIAccessibility.post(notification: .announcement, argument: notice.text)
         switch notice.tone {
         case .success: Haptics.success()
         case .error: Haptics.error()

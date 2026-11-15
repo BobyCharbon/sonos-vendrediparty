@@ -272,7 +272,7 @@ function Chat({ id }: { id: string }) {
         {replyTo ? (
           <View style={[s.rowBetween, { paddingHorizontal: 12, paddingTop: 8 }, enter('drop')]}>
             <T muted size={12} numberOfLines={1} style={{ flex: 1 }}>↪ Réponse à {names.get(replyTo.user_id)} : {replyTo.body}</T>
-            <Button small variant="ghost" label="✕" onPress={() => setReplyTo(null)} />
+            <Button small variant="ghost" label="✕" accessibilityLabel="Ne plus répondre à ce message" onPress={() => setReplyTo(null)} />
           </View>
         ) : null}
         <MentionSuggestions suggestions={suggestions} onPick={(sug) => pickMention(sug.label)} />

@@ -814,7 +814,7 @@ def phase_modeles(browser, origin):
             if vip.count() and f.selected(vip.first):
                 p.flag("🟠", "modèle appliqué : « Vendredi Party » coché")
         with p.step("Supprimer le modèle (🗑 → Supprimer ?)"):
-            row = page.get_by_role("button", name="🗑")
+            row = page.get_by_role("button", name=f"Supprimer le modèle {PREFIX} Modèle")
             p.tap(row.first, "🗑")
             p.tap(btn(p, "Supprimer ?"), "Supprimer ?")
             page.wait_for_timeout(2000)

@@ -414,7 +414,7 @@ export function GroupChat({ id, direct = false }: { id: string; direct?: boolean
             {replyTo ? (
               <View style={[s.rowBetween, { paddingHorizontal: 12, paddingTop: 8 }, enter('drop')]}>
                 <T muted size={12} numberOfLines={1} style={{ flex: 1 }}>↪ Réponse à {shownName(replyTo.user_id)} : {replyTo.body || '📷 Photo'}</T>
-                <Button small variant="ghost" label="✕" onPress={() => setReplyTo(null)} />
+                <Button small variant="ghost" label="✕" accessibilityLabel="Ne plus répondre à ce message" onPress={() => setReplyTo(null)} />
               </View>
             ) : null}
             <MentionSuggestions suggestions={suggestions} onPick={(sug) => pickMention(sug.label)} />
@@ -428,7 +428,7 @@ export function GroupChat({ id, direct = false }: { id: string; direct?: boolean
               </View>
             ) : (
               <View style={[s.row, { padding: 12, borderTopWidth: 1, borderTopColor: colors.line }]}>
-                {Platform.OS === 'web' ? <Button small variant="secondary" label="📷" onPress={() => void sendPhoto()} disabled={sending} /> : null}
+                {Platform.OS === 'web' ? <Button small variant="secondary" label="📷" accessibilityLabel="Envoyer une photo" onPress={() => void sendPhoto()} disabled={sending} /> : null}
                 <Input inputRef={input} accessibilityLabel="Message" placeholder={direct ? 'Message…' : 'Message… (@ pour citer, @tout, @annonce)'}
                   value={text} onChangeText={(v) => { setText(v); setCursor(v.length); }}
                   onSelectionChange={(e) => setCursor(e.nativeEvent.selection.end)} multiline editable={!sending} maxLength={2000}
@@ -436,7 +436,7 @@ export function GroupChat({ id, direct = false }: { id: string; direct?: boolean
                 {text.trim() ? (
                   <Button small label="Envoyer" onPress={() => void send()} loading={sending} />
                 ) : (
-                  <Button small variant="secondary" label="🎤" onPress={() => void startRecording()} disabled={sending} />
+                  <Button small variant="secondary" label="🎤" accessibilityLabel="Enregistrer un message vocal" onPress={() => void startRecording()} disabled={sending} />
                 )}
               </View>
             )}

@@ -703,7 +703,7 @@ def phase_modeles(browser, origin):
                 p.flag("🟠", "modèle appliqué : « Vendredi Party » coché")
             p.log("date du modèle : " + str(page.get_by_label("Début").first.input_value() if page.get_by_label("Début").count() else None))
         with p.step("Supprimer le modèle (🗑 → Supprimer ?)"):
-            p.tap(page.get_by_role("button", name="🗑").first, "🗑")
+            p.tap(page.get_by_role("button", name=f"Supprimer le modèle {PREFIX} Modèle").first, "🗑")
             p.tap(btn(p, "Supprimer ?"), "Supprimer ?")
             page.wait_for_timeout(2000)
         left = sql(f"select count(*) n from public.event_templates where name = {q(PREFIX + ' Modèle')}")[0]["n"]
