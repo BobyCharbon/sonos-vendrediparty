@@ -3,7 +3,7 @@ revote décidé par l'animateur, dilemme proposé par un joueur puis validé, t�
 import pytest
 pytest.importorskip('playwright.sync_api')
 from playwright.sync_api import expect
-from tests.e2e.helpers import Phone, Server, wait_state
+from tests.e2e.helpers import Phone, Server, show_game_cards, wait_state
 
 
 @pytest.fixture
@@ -146,6 +146,7 @@ def test_home_card_rules(phones):
 def test_wtf_theme_is_unchecked_by_default_and_the_host_can_add_it(phones):
     alice = phones('Alice')
     alice.open_games()
+    show_game_cards(alice.page)
     card = alice.page.locator('#gHome .gcard:has([data-create="debate"])')
     wtf = card.locator('[data-opt-group="cats"] [data-val="wtf"]')
     expect(wtf).not_to_have_class('on')
@@ -162,6 +163,7 @@ def test_wtf_theme_is_unchecked_by_default_and_the_host_can_add_it(phones):
 def test_new_badge_marks_only_this_game_on_the_home_cards(phones):
     alice = phones('Alice')
     alice.open_games()
+    show_game_cards(alice.page)
     badge = alice.page.locator('#gHome .gcard:has([data-create="debate"]) .g-new')
     expect(badge).to_be_visible()
     expect(badge).to_have_text('NEW')
@@ -178,8 +180,15 @@ def test_home_and_game_room_list_games_by_category(phones):
     alice = phones('Alice')
     alice.open_games()
     page = alice.page
+    # Accueil (maquette du 15.11.2026) : la salle de jeux, puis les jeux solo ; les autres jeux se lancent dans la salle.
+    expect(page.locator('#gHome .g-cat-h:visible')).to_have_text(['🧠 Jeux solo'])
+    expect(page.locator('#gHome .g-room-card [data-create="room"]')).to_have_text('Créer une salle')
+    expect(page.locator('#gHome .g-room-card #gCode')).to_be_visible()
+    expect(page.locator('#gHome .gcard:visible:not(.g-room-card) [data-brain-open="brain"]')).to_be_visible()
+    expect(page.locator('#gHome .gcard:visible [data-create]:not([data-create="room"])')).to_have_count(0)
+    show_game_cards(page)
     heads = page.locator('#gHome .g-cat-h')
-    expect(heads).to_have_text(['✨ Chaque jour', '🍻 Alcool', '🎮 Jeux 3D', '💞 Parler vrai', '🃏 Jeux de cartes', '🎉 Ambiance'])
+    expect(heads).to_have_text(['🧠 Jeux solo', '🍻 Alcool', '🎮 Jeux 3D', '💞 Parler vrai', '🃏 Jeux de cartes', '🎉 Ambiance'])
     expect(page.locator('#gHome .g-cat[data-cat="talk"] [data-create]')).to_have_count(6)
     expect(page.locator('#gHome .g-cat[data-cat="talk"] [data-create="divan"]')).to_have_count(1)
     expect(page.locator('#gHome .g-cat[data-cat="cards"] [data-create="pyramid"]')).to_have_count(1)
@@ -187,7 +196,7 @@ def test_home_and_game_room_list_games_by_category(phones):
     expect(page.locator('#gHome .gcard:not(.g-room-card)')).to_have_count(24)  # beer pong, Masque, Reflet, Méninges et Compagnon compris
     expect(page.locator('#gHome .g-cat[data-cat="cards"] .gcard:has([data-create="pyramid"]) .g-drink')).to_be_visible()
     expect(page.locator('#gHome .g-cat[data-cat="drinks"] .g-drink')).to_have_count(0)
-    # Le bouton d'une carte rangée crée toujours la partie.
+    # Créer une salle : tous les jeux à plusieurs y sont, par catégorie.
     page.locator('#gHome [data-create="room"]').click()
     expect(page.locator('#gamePlay')).to_be_visible()
     expect(page.locator('.g-room-cat-h')).to_have_text(['🍻 Alcool', '🎮 Jeux 3D', '💞 Parler vrai', '🃏 Jeux de cartes', '🎉 Ambiance'])

@@ -160,6 +160,11 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Une partie en plein écran ne vaut que dans l'onglet Jeux : `showTab` appelle `syncGameChrome()` à chaque changement
   d'onglet (sinon « Se connecter » d'un jeu laissait un écran vide sans barre d'onglets, native comprise ; avis 8d5ec90f63da).
   Test : `tests/e2e/test_purity_game.py`.
+- Accueil des Jeux (maquette approuvée le 15.11.2026) : carte « Salle de jeux » (Créer une salle / ou rejoindre + code),
+  puis « 🧠 Jeux solo » (Méninges). Les jeux à plusieurs ne se lancent que dans la salle : leurs cartes restent dans
+  `#gHome`, sections cachées (`hidden`), car `openRoomSheet` les recopie. Dans un jeu de la salle, « 🎮 Changer de jeu »
+  (`#gRoomSwitch`, animateur seulement) = « Terminer ce jeu et revenir à la salle ». Tests : `test_room_votes_ui.py`,
+  helper `show_game_cards` pour les tests d'une partie seule.
 - Tout prénom ou texte saisi par un joueur passe par `esc()` avant d'entrer dans du HTML, attributs compris
   (test : `tests/e2e/test_names_escaped.py`).
 - Tout texte libre d'un jeu montré aux autres (prénom ajouté par l'animateur, roue, réponse écrite, règle, devinette)

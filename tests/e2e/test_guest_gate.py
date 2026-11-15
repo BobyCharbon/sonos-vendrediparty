@@ -6,7 +6,7 @@ import pytest
 
 pytest.importorskip("playwright.sync_api")
 from playwright.sync_api import expect  # noqa: E402
-from tests.e2e.helpers import ADMIN_PIN, FakeSupabase, Phone, Server, sign_in, wait_state  # noqa: E402
+from tests.e2e.helpers import ADMIN_PIN, FakeSupabase, Phone, Server, show_game_cards, sign_in, wait_state  # noqa: E402
 
 HOST = "acct-" + "2" * 40  # l'animateur a un compte : ses parties ne comptent pas
 
@@ -119,6 +119,7 @@ def test_production_limit_three_games_then_creating_or_a_room_game_asks_for_an_a
             lea.join(host_game(server))
             assert wait_state(lea, lambda s: bool(s.get("me")))["gate"]["limit"] == 3
         lea.open_games()
+        show_game_cards(lea.page)  # partie seule : carte cachée à l'accueil depuis le 15.11 (le serveur refuse toujours)
         lea.page.locator('#gHome .gcard [data-create="whoof"]').click()
         gate = lea.page.locator('#gateModal [data-gate="games"]')
         expect(gate).to_be_visible(timeout=8000)

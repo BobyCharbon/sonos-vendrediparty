@@ -230,6 +230,11 @@ details[open] > summary h2::after { content: " ▾"; }
 .g-room-help:active { transform: scale(.88); }
 /* Catégories de l'écran Jeux et de la salle de jeux. */
 .g-cat { margin-top: 26px; }
+/* Accueil des Jeux (maquette du 15.11.2026) : créer ou rejoindre une salle dans la même carte ; « Changer de jeu » dans une salle. */
+.g-room-card .g-sep { margin: 18px 0 12px; }
+.g-room-card .g-code { margin: 0; background: rgba(0, 0, 0, .18); }
+#gRoomSwitch .g-room-switch { display: block; width: 100%; margin: 0 0 14px; background: linear-gradient(180deg, #ffe27a, #ffc93c); color: #2a1a00; }
+#gRoomSwitch:empty { display: none; }
 .g-cat-h { margin: 0 4px 12px; font: 800 1.35rem/1.15 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: -0.01em; }
 .g-drink { display: inline-block; margin-left: 8px; font-size: .8em; vertical-align: .1em; }
 .g-room-cat + .g-room-cat { margin-top: 14px; }
