@@ -208,8 +208,11 @@ def answer_time(iso: str) -> str:
 
 def test_a_new_account_joins_a_group_by_its_invite_link_then_leaves_it(browser, party, admin):  # noqa: F811
     phone = PHONES[0]
+    # Nom propre à ce passage : le compte Admin de test a souvent d'autres groupes (autres passages, autres tests), chacun
+    # avec sa carte « Inviter avec un lien » en haut ; on vise la carte de CE groupe.
+    name = f'{PREFIX} groupe {os.urandom(3).hex()}'
     r = httpx.post(f'{TEST_URL}/rest/v1/member_groups', headers={**admin.headers, 'Prefer': 'return=representation'}, timeout=30,
-                   json={'name': f'{PREFIX} groupe', 'created_by': admin.uid})
+                   json={'name': name, 'created_by': admin.uid})
     assert r.status_code == 201, r.text
     group = r.json()[0]['id']
     admin.made['groups'].append(group)
@@ -218,8 +221,8 @@ def test_a_new_account_joins_a_group_by_its_invite_link_then_leaves_it(browser, 
     context, page, errors = signed_in_page(browser, party, admin.auth)
     try:
         page.goto(f'{party}/events/groups?open={group}', wait_until='domcontentloaded')
-        pw.expect(page.get_by_text('👋 Inviter avec un lien', exact=True)).to_be_visible(timeout=30000)
-        card = page.get_by_label(f'Inviter dans {PREFIX} groupe')
+        card = page.get_by_label(f'Inviter dans {name}')
+        pw.expect(card.get_by_text('👋 Inviter avec un lien', exact=True)).to_be_visible(timeout=30000)
         pw.expect(card).to_contain_text('/events/group-invite/', timeout=15000)
         url = re.search(r'http\S+/events/group-invite/[0-9a-zA-Z_-]+', card.inner_text()).group(0)
         assert url.startswith(party), url
@@ -239,7 +242,7 @@ def test_a_new_account_joins_a_group_by_its_invite_link_then_leaves_it(browser, 
         shot(page, '03-groupe-profil-complet')
         # Profil complet : il rejoint directement, et arrive sur ses groupes.
         page.wait_for_url('**/events/groups', timeout=30000)
-        pw.expect(page.get_by_text(f'{PREFIX} groupe', exact=True)).to_be_visible(timeout=20000)
+        pw.expect(page.get_by_text(name, exact=True)).to_be_visible(timeout=20000)
         token = browser_token(page)
         me = httpx.get(f'{TEST_URL}/auth/v1/user', headers=headers_of(token), timeout=30).json()['id']
         members = admin.get(f'member_group_members?select=user_id&group_id=eq.{group}').json()
@@ -249,7 +252,7 @@ def test_a_new_account_joins_a_group_by_its_invite_link_then_leaves_it(browser, 
         # Il quitte le groupe lui-même.
         page.get_by_role('button', name='Quitter le groupe').click()
         page.get_by_role('button', name='Confirmer : quitter le groupe').click()
-        pw.expect(page.get_by_text(f'{PREFIX} groupe', exact=True)).to_have_count(0, timeout=20000)
+        pw.expect(page.get_by_text(name, exact=True)).to_have_count(0, timeout=20000)
         assert admin.get(f'member_group_members?select=user_id&group_id=eq.{group}').json() == [{'user_id': admin.uid}]
         shot(page, '05-groupe-quitte')
 

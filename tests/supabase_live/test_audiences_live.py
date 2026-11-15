@@ -15,7 +15,11 @@ ICON = Path(__file__).resolve().parents[2] / 'app/static/icon-192.png'
 
 
 def complete_profile(who: Session, nickname: str):
-    """Profil complet comme dans l'app : prénom, nom, surnom et vraie photo dans son dossier (nouvelle à chaque passage)."""
+    """Profil complet comme dans l'app : prénom, nom, surnom et vraie photo dans son dossier (nouvelle à chaque passage).
+    Comme dans l'app, les CGU sont acceptées avant le surnom (compte de test recréé ou CGU changées : 403 terms_required)."""
+    terms = who.rpc('my_terms').json()
+    if not terms.get('accepted'):
+        assert who.rpc('accept_terms', p_version=terms['version']).status_code in (200, 204)
     photo = f'{who.uid}/test-{time.time_ns()}.png'
     up = httpx.post(f'{TEST_URL}/storage/v1/object/profile-photos/{photo}', content=ICON.read_bytes(), timeout=30,
                     headers={**who.headers, 'Content-Type': 'image/png'})
