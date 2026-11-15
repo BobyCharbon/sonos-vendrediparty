@@ -3,7 +3,7 @@ import XCTest
 /// Toucher une notification, app FERMÉE, ouvre la bonne page (campagne de tests du 14.11.2026 : l'agent APNs soupçonnait
 /// que `partyOpenURL` partait avant que la vue SwiftUI l'écoute). Essai réel dans le simulateur, piloté de l'extérieur :
 ///   1. ce test ferme l'app (notifications déjà autorisées) ;
-///   2. pendant qu'il attend, `xcrun simctl push <appareil> <bundle> charge.apns` avec `"url": "/events/event/<id>"` ;
+///   2. pendant qu'il attend, `xcrun simctl push <appareil> <bundle> charge.apns` avec `"url": "/?tab=events&event=<id>"` (adresse de send-push) ;
 ///   3. ce test touche la notification dans le Centre de notifications, puis attend le titre de l'événement dans l'app.
 /// TEST_RUNNER_NOTIF_TITLE = titre de la notification, TEST_RUNNER_NOTIF_EXPECT = texte attendu sur la page ouverte.
 final class NotificationColdStartUITests: XCTestCase {
