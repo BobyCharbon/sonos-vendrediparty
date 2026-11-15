@@ -152,7 +152,11 @@ def test_remove_guest_confirm_button_is_finger_sized_with_its_whole_label(browse
         remove.click()
         confirm = page.get_by_role('button', name='Confirmer Marco Costa')
         pw.expect(confirm).to_be_visible(timeout=5000)
-        page.wait_for_timeout(400)
+        # Le défilement horizontal de la ligne peut finir après l'apparition du bouton (machine chargée) : on attend
+        # que le bouton tienne dans l'écran avant de le mesurer.
+        confirm.evaluate('e => e.scrollIntoView({block: "nearest", inline: "nearest"})')
+        page.wait_for_function('e => { const r = e.getBoundingClientRect(); return r.left >= 0 && r.right <= 391; }',
+                               arg=confirm.element_handle(), timeout=5000)
         box = confirm.bounding_box()
         assert box['height'] >= 44 and box['width'] >= 44, box
         assert confirm.evaluate('e => [...e.querySelectorAll("*")].every(c => c.scrollWidth <= c.clientWidth + 1)'), 'texte coupé'

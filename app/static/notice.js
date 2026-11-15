@@ -3,6 +3,7 @@
 // - Information / Annonce : un bandeau en haut, qu'on ferme d'un ✕ (il revient pour un nouveau message).
 // - Serveur qui redémarre (mise à jour) : l'app ne montre jamais d'erreur ; elle affiche « Mise à jour en cours »,
 //   réessaie toute seule et reprend où on était.
+// - Fin de la maintenance (ou serveur revenu) : la page se recharge toute seule, pour prendre la nouvelle version.
 // Chargé en tête de index.html et admin.html, avant tout appel au serveur. Un nouveau message arrive aussitôt par le
 // flux /api/events (index.html → PartyNotice.seen) et par chaque réponse de l'API (en-tête X-Party-Notice) ;
 // une coupure du flux ou une requête qui échoue fait vérifier si le serveur répond encore.
@@ -14,6 +15,7 @@
   var send = window.fetch.bind(window);
   var known = null;          // identifiant du message affiché ("" : aucun ; null : pas encore lu)
   var notice = null, down = false, failures = 0, sawBusy = false, timer = null, probing = false;
+  var blocked = false;       // l'écran « Mise à jour en cours » couvre l'app en ce moment
 
   function native() {
     var n = window.PartyNative && window.PartyNative.notice;
@@ -110,6 +112,11 @@
   function render() {
     var s = state(), admin = isAdmin(), app = native();
     var html = document.documentElement;
+    // Fin d'une maintenance ou d'une mise à jour : la page entière (onglets, module Événements, jeux) est rechargée,
+    // sinon elle garde l'ancienne version, dont les fichiers n'existent plus sur le serveur (pages vides).
+    var nowBlocked = blocks(s, admin);
+    if (blocked && !nowBlocked) { blocked = false; location.reload(); return; }
+    blocked = nowBlocked;
     html.classList.toggle("native-notice", !!app);
     if (root) { root.remove(); root = null; }
     if (app) {

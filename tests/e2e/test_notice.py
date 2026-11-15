@@ -3,7 +3,8 @@
 - une annonce s'affiche en haut de TOUS les onglets ; chacun la ferme d'un ✕ ;
 - une maintenance couvre toute l'app (sauf chez l'admin) ;
 - pendant une mise à jour (serveur arrêté puis relancé), on lit « Mise à jour en cours », jamais une erreur ;
-  la partie reprend toute seule et le message s'efface quand le serveur revient."""
+  la partie reprend toute seule et le message s'efface quand le serveur revient ;
+- fin de la maintenance ou serveur revenu : la page se recharge toute seule (nouvelle version, jamais de page vide)."""
 import os
 import subprocess
 import sys
@@ -88,10 +89,13 @@ def test_a_maintenance_covers_a_running_game_then_lets_it_go_on(guest, server):
     expect(cover(guest.page)).to_contain_text("Mise à jour en cours", timeout=12000)
     expect(cover(guest.page)).to_contain_text("Retour vers 18 h")
     guest.shot("notice-maintenance")
+    guest.page.evaluate("window.__avantLaMaintenance = 1")
     admin.delete("/api/admin/notice")
     guest.page.evaluate("PartyNotice.refresh()")
+    # Maintenance levée : la page se recharge toute seule (nouvelle version), la partie revient.
+    guest.page.wait_for_function("window.__avantLaMaintenance === undefined", timeout=15000)
     expect(cover(guest.page)).to_have_count(0)
-    expect(guest.page.locator("#gamePlay")).to_be_visible()
+    expect(guest.page.locator("#gamePlay")).to_be_visible(timeout=15000)
 
 
 def test_a_server_update_says_so_and_the_game_comes_back_by_itself(guest, server):
@@ -105,8 +109,10 @@ def test_a_server_update_says_so_and_the_game_comes_back_by_itself(guest, server
     expect(cover(guest.page)).to_contain_text("Mise à jour en cours")
     expect(guest.page.get_by_text("injoignable")).to_have_count(0)
     guest.shot("notice-mise-a-jour")
+    guest.page.evaluate("window.__avantLaMiseAJour = 1")
     server.start_again()
-    # Le serveur revenu efface sa maintenance ; la page le voit toute seule et la partie reprend.
+    # Le serveur revenu efface sa maintenance ; la page se recharge toute seule (nouvelle version) et la partie reprend.
+    guest.page.wait_for_function("window.__avantLaMiseAJour === undefined", timeout=20000)
     expect(cover(guest.page)).to_have_count(0, timeout=15000)
     assert httpx.get(server.url + "/api/notice").json() == {"notice": None}
     expect(guest.page.locator("#gamePlay")).to_be_visible()
