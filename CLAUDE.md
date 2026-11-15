@@ -127,6 +127,8 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   le serveur revenu l'efface ; l'annonce de l'admin est gardée à part). Serveur injoignable (502/503/504, flux coupé) :
   « Mise à jour en cours » / « Party ne répond pas », réessai tout seul ; jamais « injoignable ». iOS : `OfflineView`
   (réessai automatique, page d'erreur du relais jamais affichée).
+- Fin de la maintenance ou serveur revenu (15.11) : `notice.js` recharge TOUTE la page (`location.reload()`), web et app
+  iPhone ; sinon la page garde l'ancienne version et Jeux / Événements restent vides. Ne jamais retirer ce rechargement.
 - Tests : `tests/test_notice.py`, `tests/e2e/test_notice.py` (serveur arrêté puis relancé), `PartyNoticeTests`.
 
 ## Inscription des invités (avis 39f148377a8f, 10.11.2026) — profil complet, parcours normal
