@@ -254,7 +254,7 @@ def test_no_ticket_for_someone_not_present(browser, origin):
     context, page, frame, _, errors, _ = launch(browser, origin, [LEA_YES], my_rsvp='no')
     try:
         frame.get_by_text('Sortie de démonstration (test local)', exact=True).click()
-        pw.expect(frame.get_by_text('Tu viens ?', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(frame.get_by_text('Ta présence', exact=True)).to_be_visible(timeout=15000)
         assert frame.get_by_text('Ton billet', exact=True).count() == 0
         assert not errors
     finally:

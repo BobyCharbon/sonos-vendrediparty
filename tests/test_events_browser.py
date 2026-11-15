@@ -202,7 +202,7 @@ def test_sms_login_events_details_and_rsvp(browser,events_origin,country,width):
         folder=ROOT/'.impeccable/review';folder.mkdir(parents=True,exist_ok=True)
         page.screenshot(path=str(folder/({1280:'desktop.png',390:'mobile.png',320:'mobile-320.png',1051:'user-1051.png'}[width])),full_page=True)
         frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
-        pw.expect(frame.get_by_text('Tu viens ?',exact=True)).to_be_visible(timeout=15000)
+        pw.expect(frame.get_by_text('Ta présence',exact=True)).to_be_visible(timeout=15000)
         frame.get_by_role('button',name='Présent',exact=True).click()
         pw.expect(frame.get_by_text('C’est noté, tu viens !',exact=True)).to_be_visible(timeout=10000)
         pw.expect(frame.get_by_text('PRÉSENTS · 1',exact=True)).to_be_visible()

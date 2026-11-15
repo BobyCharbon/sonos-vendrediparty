@@ -395,11 +395,12 @@ function LinkRow({ link, spokenName, onNudge, onStop, onCopy }: {
   const arrivalNames = link.arrivals.map((a) => a.name).filter(Boolean).join(', ');
   const title = linkTitle(link);
   const asking = link.arrivals.filter((a) => a.request === 'pending').length;
-  const badge = asking && link.max_uses === 1 ? { t: 'En attente', c: colors.coral }
+  const badge = link.state === 'revoked' ? { t: 'Arrêté', c: colors.muted }
+    : asking && link.max_uses === 1 ? { t: 'En attente', c: colors.coral }
     : link.state === 'opened' && !link.arrivals.length ? { t: 'A ouvert', c: colors.coral }
     : link.state === 'pending' ? { t: 'Pas ouvert', c: UNOPENED_COLOR }
       : link.arrivals.length ? { t: unlimited(link.max_uses) ? `${link.uses} ✓` : link.max_uses > 1 ? `${link.uses}/${link.max_uses}` : 'Répondu', c: rsvpColors.yes }
-        : { t: link.state === 'revoked' ? 'Arrêté' : 'Terminé', c: colors.muted };
+        : { t: 'Terminé', c: colors.muted };
   const actions = live ? [
     ...(link.nudged_today || !onNudge ? [] : [{ label: '↻ Relancer', color: colors.lavender, fg: colors.bg, onPress: onNudge }]),
     { label: confirm ? 'Confirmer' : 'Arrêter', color: colors.red, fg: colors.onRed, onPress: () => (confirm ? onStop() : setConfirm(true)) },

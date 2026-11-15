@@ -97,13 +97,17 @@ export function RsvpCard({
   me,
   rsvps,
   onChange,
+  organizer = false,
 }: {
   event: EventRow;
   me: string;
   rsvps: Rsvp[];
   onChange: () => void;
+  /** Organisateur ou co-organisateur : il dit s'il sera là, sans être sollicité comme un invité. */
+  organizer?: boolean;
 }) {
   const mine = rsvps.find((r) => r.user_id === me);
+  const asking = !mine && !organizer;
   const waiting = onWaitlist(mine);
   // Accompagnants : réservés à qui en a le droit (un Guest n'en a pas, la base remet 0 en silence).
   const { can } = useAuth();
@@ -212,15 +216,15 @@ export function RsvpCard({
       ? `Complet : tu es sur liste d’attente (${queueSize} en attente). On te prévient dès qu’une place se libère.`
       : 'Complet : tu es sur liste d’attente, on te prévient si une place se libère.';
   const subtitle = closed
-    ? mine ? 'Les réponses sont closes.' : 'Les réponses sont closes : tu n’as pas répondu.'
+    ? mine || organizer ? 'Les réponses sont closes.' : 'Les réponses sont closes : tu n’as pas répondu.'
     : saving
       ? 'Enregistrement…'
     : picked
       ? confirmations[picked]
     : mine
       ? waiting ? waitingLine : confirmations[mine.status]
-      // L'organisateur sur sa propre fiche : « prévenir l'organisateur » ne veut rien dire (recette UX du 14.11).
-      : event.created_by === me
+      // L'organisateur ou un co-organisateur sur sa propre fiche : « prévenir l'organisateur » ne veut rien dire (14.11).
+      : organizer
         ? 'Dis aux invités si tu y seras, toi aussi.'
       : event.rsvp_deadline
         ? `Réponds avant le ${formatShort(event.rsvp_deadline)} pour que l’organisateur puisse s’organiser.`
@@ -228,9 +232,9 @@ export function RsvpCard({
 
   return (
     <Section
-      title={mine ? 'Ta réponse' : 'Tu viens ?'}
-      style={!mine && !closed ? { borderColor: 'rgba(255,79,154,0.55)', borderWidth: 1.5 } : undefined}
-      right={!mine && !closed ? <View style={st.pill}><T size={12} weight="bold" color={colors.accentSoft}>À répondre</T></View> : null}
+      title={mine ? 'Ta réponse' : organizer ? 'Ta présence' : 'Tu viens ?'}
+      style={asking && !closed ? { borderColor: 'rgba(255,79,154,0.55)', borderWidth: 1.5 } : undefined}
+      right={asking && !closed ? <View style={st.pill}><T size={12} weight="bold" color={colors.accentSoft}>À répondre</T></View> : null}
     >
       <T key={subtitle} size={14} style={enter('fade')} color={shown && !(waiting && !picked) ? rsvpChoices[shown].bg : colors.textSoft}>{subtitle}</T>
       {mine?.set_by && mine.set_by !== me ? (
