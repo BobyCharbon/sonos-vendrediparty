@@ -319,7 +319,9 @@ def test_daily_chest_odds_streak_missions_and_treasures(world):
     life, owner = grown()
     supa.seed(supa.base.users[TOK_A], life, owner)
     root = open_pet(phone)
-    # Ouvertures comptées (la pastille relit sans compter : source None)
+    # Ouvertures comptées (la pastille relit sans compter : source None) ; comptées une fois l'écran chargé (sinon
+    # la lecture arrivait parfois avant l'ouverture : liste vide, test rouge une fois sur quatre).
+    expect(root.locator('.pt-gauges')).to_be_visible()
     assert [o for o in supa.base.opens if o[1]][-1] == (supa.base.users[TOK_A], "tab")
     chest = root.locator('[data-pt="chest"]')
     expect(chest).to_contain_text('Zicou a trouvé un truc')
