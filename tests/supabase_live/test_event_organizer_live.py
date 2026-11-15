@@ -150,4 +150,5 @@ def test_fixing_the_date_of_a_poll_turns_votes_into_answers(people):
     fixed = row(admin, eid, 'date_mode,starts_at')
     assert fixed['date_mode'] == 'fixed' and fixed['starts_at']
     answers = {r['user_id']: r['status'] for r in admin.get(f'rsvps?select=user_id,status&event_id=eq.{eid}').json()}
-    assert answers[ga.uid] == 'yes' and answers[vip.uid] == 'maybe'
+    # Règle de l'admin (08.11, 20261108110000) : « Si besoin » vient aussi (Présent), comme « Oui ».
+    assert answers[ga.uid] == 'yes' and answers[vip.uid] == 'yes'
