@@ -181,6 +181,22 @@ struct ContentView: View {
                     .presentationDragIndicator(.visible)
             }
         }
+        // Discussion d'un événement (16.11) : écran natif façon WhatsApp, par-dessus la page ; « ‹ » ramène à la fiche.
+        .fullScreenCover(isPresented: Binding(get: { model.eventChatID != nil }, set: { if !$0 { model.eventChatID = nil } })) {
+            if let id = model.eventChatID, let store = model.eventChats {
+                NavigationStack {
+                    ConversationView(store: store, group: id)
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarLeading) {
+                                Button { model.eventChatID = nil } label: { Image(systemName: "chevron.backward").font(.body.weight(.semibold)) }
+                                    .accessibilityLabel("Retour à l'événement")
+                                    .accessibilityIdentifier("event-chat-close")
+                            }
+                        }
+                }
+                .preferredColorScheme(.dark)
+            }
+        }
         .sheet(isPresented: $model.ticketScanOpen, onDismiss: { model.finishTicketScan(nil) }) {
             QRScannerSheet(title: "Scanner un billet",
                            fallback: "Caméra indisponible : autorise-la pour Party ! dans Réglages, ou tape le code du billet.") { text in

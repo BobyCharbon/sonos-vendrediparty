@@ -151,6 +151,18 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   publiée comme un événement neuf (invités un à un prévenus, public silencieux, jamais d'annonce au groupe). Mois comptés
   depuis la 1re date, heure de Suisse. Fiche « 🔁 … · la suivante s'affiche après celle-ci », carte 🔁.
   Tests : `tests/supabase_live/test_evenements_recurrents_live.py`, `test_a_weekly_event_is_set_from_the_form…`.
+- Discussion de l'événement façon WhatsApp (demande du 16.11, migration 20261116180000) : app iPhone = écran NATIF
+  (`ConversationView`, le même que Discussions : `ChatsStore(forEvents: true)`, routes `/api/account/event-chat/*`,
+  app/event_chats.py) ouvert par `PartyNative.chat.openEvent(id)` (fiche › Discussion, page `/event/<id>/chat`, notification
+  `?tab=events&event=<id>&chat=1` : send-push / send-web-push) ; web = `GroupChat` mode `event`. Séparateurs de jours,
+  séries par personne, heure dans la bulle, @citations en couleur, citation → message d'origine, bouton ↓, bandeau des
+  annonces et épinglés (1/N), annonce en carte, photos et vocaux (dossier `<événement>/` de chat-photos).
+  @toutlemonde (invités + participants) et @present (Présent / Peut-être) : organisation de l'événement et admins /
+  co-admins seulement (`private.event_chat_staff`) ; annonce = 📣 ou @annonce (épinglée, notifiée à tous). La base décide
+  d'après le texte (`guard_message_change`), l'app ne fait que proposer. Les invités sans réponse ne sont listés qu'à
+  l'organisation (`event_chat_people`). Temps réel natif : signal `event:<id>`. Tests : `test_discussion_evenement_live.py`,
+  `test_discussion_evenement_browser_live.py`, `tests/test_event_chats_native.py`, `tests/test_event_chat_browser.py`,
+  `EventChatTests`, recette `RecetteDiscussionUITests` (Release + serveur local + base de TEST).
 - Public par défaut (formulaire et IA) ; un événement public ne prévient JAMAIS personne à sa publication (base : `events_public_silent`, 20261106200000).
 
 ## Avis du 13.11.2026 (à garder)

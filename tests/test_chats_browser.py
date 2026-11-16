@@ -186,9 +186,9 @@ def test_announcement_is_highlighted_on_top_and_an_admin_removes_it_with_a_long_
     page, errors = phone
     frame, state = open_chats(page, events_origin, admin=True)
     frame.get_by_role('button', name='Discussion Les amis').click()
-    banner = frame.get_by_role('button', name='Annonce : Tom, @annonce Soirée samedi 20h chez Léa')
+    banner = frame.get_by_role('button', name='Annonce : Tom, Soirée samedi 20h chez Léa')
     pw.expect(banner).to_be_visible(timeout=15000)
-    assert frame.get_by_text('📣 Annonce').first.is_visible()
+    assert frame.get_by_text('📣 ANNONCE').first.is_visible()  # la carte de l'annonce dans le fil
     banner.click(delay=900)  # appui long
     frame.get_by_role('button', name='Retirer l’annonce').click()
     pw.expect(banner).to_have_count(0)
@@ -197,7 +197,7 @@ def test_announcement_is_highlighted_on_top_and_an_admin_removes_it_with_a_long_
     field = frame.get_by_label('Message', exact=True)
     field.fill('@annonce Apportez des chips')
     frame.get_by_role('button', name='Envoyer', exact=True).click()
-    pw.expect(frame.get_by_role('button', name='Annonce : Compte de démonstration, @annonce Apportez des chips')).to_be_visible()
+    pw.expect(frame.get_by_role('button', name='Annonce : Compte de démonstration, Apportez des chips')).to_be_visible()
     assert not errors, errors
 
 
@@ -205,7 +205,7 @@ def test_a_simple_member_sees_the_announcement_cannot_remove_it_and_is_told_befo
     page, errors = phone
     frame, state = open_chats(page, events_origin, admin=False)
     frame.get_by_role('button', name='Discussion Les amis').click()
-    banner = frame.get_by_role('button', name='Annonce : Tom, @annonce Soirée samedi 20h chez Léa')
+    banner = frame.get_by_role('button', name='Annonce : Tom, Soirée samedi 20h chez Léa')
     pw.expect(banner).to_be_visible(timeout=15000)
     banner.click(delay=900)
     pw.expect(frame.get_by_role('button', name='Retirer l’annonce')).to_have_count(0)
@@ -214,7 +214,7 @@ def test_a_simple_member_sees_the_announcement_cannot_remove_it_and_is_told_befo
     pw.expect(frame.get_by_text('ton message partira comme un message normal', exact=False)).to_be_visible()
     frame.get_by_role('button', name='Envoyer', exact=True).click()
     pw.expect(frame.get_by_text('@annonce moi aussi', exact=True)).to_be_visible()
-    pw.expect(frame.get_by_role('button', name='Annonce : Compte de démonstration, @annonce moi aussi')).to_have_count(0)
+    pw.expect(frame.get_by_role('button', name='Annonce : Compte de démonstration, moi aussi')).to_have_count(0)
     assert not errors, errors
 
 
@@ -227,7 +227,7 @@ def test_an_organizer_announces_and_removes_announcements(phone, events_origin):
     field.press_sequentially('@ann')
     frame.get_by_role('menuitem', name='@annonce : Annonce épinglée en haut du groupe').click()
     pw.expect(field).to_have_value('@annonce ')
-    banner = frame.get_by_role('button', name='Annonce : Tom, @annonce Soirée samedi 20h chez Léa')
+    banner = frame.get_by_role('button', name='Annonce : Tom, Soirée samedi 20h chez Léa')
     banner.click(delay=900)
     frame.get_by_role('button', name='Retirer l’annonce').click()
     pw.expect(banner).to_have_count(0)

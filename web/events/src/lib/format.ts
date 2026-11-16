@@ -27,6 +27,12 @@ export function formatMessageTime(iso: string): string {
   return msgFmt.format(new Date(iso));
 }
 
+const clockFmt = new Intl.DateTimeFormat('fr-CH', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
+/** « 19:46 » : l'heure seule, dans une bulle (le jour est dans le séparateur au-dessus). */
+export function formatClock(iso: string): string {
+  return clockFmt.format(new Date(iso));
+}
+
 const answerDayFmt = new Intl.DateTimeFormat('fr-CH', { timeZone: TZ, day: '2-digit', month: '2-digit' });
 
 /** Moment d'une réponse ou d'un vote, en petit sous le nom (avis 2f5abe63e8ff) : « 13.11 · 21:17 » ; vide sans heure. */

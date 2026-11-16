@@ -40,6 +40,7 @@ from .group_admin import ROLE_KEY, GroupAdmin
 from .app_invites import JOIN_PAGE as APP_JOIN_PAGE, AppInvites, join_meta
 from . import event_invites, event_preview
 from .contact_names import MAX_FRIENDS as CONTACT_MAX_FRIENDS, MAX_HASHES as CONTACT_MAX_HASHES, ContactNames
+from .event_chats import EventChats
 from .group_chats import LEVELS as CHAT_LEVELS, PHOTO_MAX as CHAT_PHOTO_MAX, GroupChats
 from .moderation import ContentRefused, require_clean
 from .moderation_api import Moderation, router as moderation_router
@@ -1635,6 +1636,7 @@ def presence(body: Presence, request: Request):
 accounts = Accounts(_secret())
 group_admin = GroupAdmin(accounts)
 group_chats = GroupChats(group_admin)
+event_chats = EventChats(group_chats)
 # Modération commune (Signaler, blocage, CGU, écran Signalements) : relais pour l'app iOS native.
 app.include_router(moderation_router(Moderation(group_admin, group_chats)))
 contact_names = ContactNames(accounts)
@@ -2698,6 +2700,80 @@ def account_chat_organizer(body: ChatAdmin):
 def account_chat_everyone(body: ChatEveryone):
     """Qui peut écrire @tout dans ce groupe (choix des admins du groupe)."""
     return chats_call(body.token, lambda: group_chats.set_everyone(body.token, body.group_id, body.who))
+
+
+# Discussion d'un événement (écran natif de l'app iPhone, 16.11.2026) : toujours ouverte (elle existait avant les
+# Discussions de groupe), même forme qu'une discussion de groupe ; la base décide de chaque droit (app/event_chats.py).
+class EventChatRef(MemberToken):
+    event_id: str = Field(pattern=UUID)
+
+
+class EventChatSend(EventChatRef):
+    body: str = Field(default="", max_length=4000)
+    reply_to: str | None = Field(default=None, pattern=UUID)
+    photo_path: str | None = Field(default=None, max_length=200, pattern=r"^[0-9a-f-]{36}/[0-9]+-[0-9a-f]{10}\.(jpg|png)$")
+    mentions: list[Annotated[str, Field(pattern=UUID)]] | None = Field(default=None, max_length=200)
+    id: str | None = Field(default=None, pattern=UUID)
+    audio_path: str | None = Field(default=None, max_length=200, pattern=r"^[0-9a-f-]{36}/[0-9]+-[0-9a-f]{10}\.(m4a|webm|ogg)$")
+    audio_seconds: float | None = Field(default=None, ge=0, le=600)
+    announcement: bool = False
+
+
+class EventChatFile(EventChatRef):
+    photo: str = Field(min_length=1, max_length=CHAT_PHOTO_MAX * 4 // 3 + 8)  # base64
+
+
+class EventChatNotify(EventChatRef):
+    level: Literal["all", "none"]
+
+
+def event_chat_file(body: EventChatFile, upload):
+    try:
+        data = base64.b64decode(body.photo, validate=True)
+    except ValueError:
+        raise HTTPException(400, "Fichier illisible") from None
+    return account_call(lambda: upload(body.token, body.event_id, data))
+
+
+@app.post("/api/account/event-chat/open")
+def account_event_chat_open(body: EventChatRef):
+    return account_call(lambda: event_chats.conversation(body.token, body.event_id))
+
+
+@app.post("/api/account/event-chat/send")
+def account_event_chat_send(body: EventChatSend):
+    return account_call(lambda: event_chats.send(body.token, body.event_id, body.body.strip(), body.reply_to, body.photo_path,
+                                                 body.mentions, body.id, body.audio_path, body.audio_seconds, body.announcement))
+
+
+@app.post("/api/account/event-chat/photo")
+def account_event_chat_photo(body: EventChatFile):
+    return event_chat_file(body, event_chats.upload_photo)
+
+
+@app.post("/api/account/event-chat/audio")
+def account_event_chat_audio(body: EventChatFile):
+    return event_chat_file(body, event_chats.upload_audio)
+
+
+@app.post("/api/account/event-chat/react")
+def account_event_chat_react(body: ChatReact):
+    return account_call(lambda: event_chats.react(body.token, body.id, body.emoji, body.on))
+
+
+@app.post("/api/account/event-chat/pin")
+def account_event_chat_pin(body: ChatPin):
+    return account_call(lambda: event_chats.pin(body.token, body.id, body.pin))
+
+
+@app.post("/api/account/event-chat/delete")
+def account_event_chat_delete(body: ChatMessage):
+    return account_call(lambda: event_chats.delete(body.token, body.id))
+
+
+@app.post("/api/account/event-chat/notify")
+def account_event_chat_notify(body: EventChatNotify):
+    return account_call(lambda: event_chats.notify(body.token, body.event_id, body.level))
 
 
 @app.post("/api/account/chats/read")

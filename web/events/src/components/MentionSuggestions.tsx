@@ -23,7 +23,7 @@ export function MentionSuggestions({ suggestions, onPick }: Props) {
             transition('background-color', duration.fast), pressed && { backgroundColor: colors.fill }]}>
           {sug.id ? <Avatar id={sug.id} name={sug.label} photo={sug.photo ?? null} size={28} profile={false} />
             : <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.accentDim, alignItems: 'center', justifyContent: 'center' }}>
-                <T size={14}>{sug.key === 'tout' ? '👥' : '📣'}</T>
+                <T size={14}>{sug.key === 'annonce' ? '📣' : sug.key === 'present' ? '✅' : '👥'}</T>
               </View>}
           <T weight="semibold" style={{ flex: 1 }} numberOfLines={1}>@{sug.label}</T>
           {sug.hint ? <T muted size={12} numberOfLines={1}>{sug.hint}</T> : null}

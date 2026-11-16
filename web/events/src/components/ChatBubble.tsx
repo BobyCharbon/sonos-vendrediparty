@@ -2,9 +2,10 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Image, PanResponder, Pressable, View } from 'react-native';
 
+import { LinkedText } from './LinkedText';
 import { Avatar, T } from './ui';
-import { deletedLabel, REACTIONS, voiceClock, type GroupMessage, type Reaction } from '@/lib/chats';
-import { formatMessageTime } from '@/lib/format';
+import { deletedLabel, nameColor, REACTIONS, voiceClock, withoutAnnounceTag, type GroupMessage, type Reaction } from '@/lib/chats';
+import { formatClock } from '@/lib/format';
 import { duration, enter, pressTransition, transition, useChangedSinceMount } from '@/lib/motion';
 import { colors } from '@/lib/theme';
 
@@ -15,7 +16,7 @@ type Props = {
   mine: boolean;
   me: string;
   author: Person;
-  quoted: { name: string; text: string } | null;
+  quoted: { name: string; text: string; author?: string } | null;
   photoUrl: string | null;
   audioUrl?: string | null;
   reactions: Reaction[];
@@ -33,14 +34,43 @@ type Props = {
   onReport?: () => void;
   /** Message arrivé pendant que la discussion est ouverte : la bulle monte (pas à l'ouverture ni au défilement). */
   fresh?: boolean;
+  /** Série d'une même personne (fil façon WhatsApp) : nom en tête de la première bulle, photo à côté de la dernière. */
+  first?: boolean;
+  last?: boolean;
+  /** Groupe ou événement : nom et photo des autres (pas dans un message direct). */
+  showAuthor?: boolean;
+  /** Surnoms des membres : leurs « @surnom » en gras et en couleur. */
+  names?: string[];
+  /** Toucher la citation : remonter au message d'origine. */
+  onQuote?: () => void;
+  /** Message montré par un toucher (citation, bandeau) : il clignote. */
+  flash?: boolean;
 };
 
 /** Distance à glisser vers la droite pour répondre (comme WhatsApp). */
 const REPLY_SWIPE = 64;
+const AVATAR = 28;
 
-/** Une bulle façon WhatsApp : glisser vers la droite pour répondre ; appui long (ou ⋯) pour réagir, répondre,
- * épingler ou retirer une annonce (admins), ou supprimer. Un message en cours d'envoi s'affiche déjà, avec « Envoi… ». */
-export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, audioUrl, reactions, canWrite, isAdmin, isStaff = isAdmin, canPin = isAdmin, onReply, onReact, onPin, onDelete, onReport, fresh = false }: Props) {
+/** Texte d'un message : liens touchables (comme partout) et @citations en gras et en couleur. */
+export function MentionText({ body, names, color, mentionColor, size = 15 }: { body: string; names: string[]; color: string; mentionColor: string; size?: number }) {
+  return <LinkedText text={body} size={size} color={color} linkColor={mentionColor} mentions={{ names, color: mentionColor }} />;
+}
+
+/** Heure (« modifié », « Envoi… », coche une fois reçu) : en bas à droite, DANS la bulle, jamais par-dessus le texte. */
+function Meta({ m, mine, deleted, light }: { m: GroupMessage; mine: boolean; deleted: boolean; light?: boolean }) {
+  const color = light ? '#fff' : mine && !deleted ? 'rgba(36,10,24,0.62)' : colors.muted;
+  return (
+    <T size={11} color={color} style={{ fontVariant: ['tabular-nums'] }}>
+      {m.edited_at && !deleted ? 'modifié ' : ''}{m.pending ? 'Envoi…' : formatClock(m.created_at)}{mine && !deleted ? (m.pending ? ' 🕓' : ' ✓') : ''}
+    </T>
+  );
+}
+
+/** Une bulle façon WhatsApp : glisser vers la droite pour répondre ; appui long (ou ⋯ à côté) pour réagir, répondre,
+ * épingler ou retirer une annonce, supprimer, signaler. Dans un groupe, le nom (en couleur) en tête de la série et la
+ * photo à côté de la dernière bulle ; l'heure dans la bulle. Un message en cours d'envoi s'affiche déjà (« Envoi… »). */
+export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, audioUrl, reactions, canWrite, isAdmin, isStaff = isAdmin, canPin = isAdmin,
+  onReply, onReact, onPin, onDelete, onReport, fresh = false, first = true, last = true, showAuthor = true, names = [], onQuote, flash = false }: Props) {
   const [open, setOpen] = useState(false);
   // Fixé à l'apparition : la bulle ne remonte pas quand un autre message arrive.
   const [arrive] = useState(() => (fresh ? enter(mine ? 'bubbleMine' : 'bubbleTheirs') : undefined));
@@ -68,81 +98,157 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
   const textColor = deleted ? colors.muted : mine ? colors.onAccent : colors.text;
   const actions = (canWrite || (!mine && !!onReport)) && !deleted && !m.pending;
   const announced = Boolean(m.announcement && m.pinned) && !deleted;
+  const showName = showAuthor && first && !mine;
+  const photoOnly = Boolean(photoUrl) && !m.body && !deleted;
+  // Coin côté auteur plus serré en tête de série (la « queue » des messageries).
+  const corners = mine ? { borderTopRightRadius: first ? 5 : 18 } : { borderTopLeftRadius: first ? 5 : 18 };
+
+  if (announced) {
+    return (
+      <View style={[arrive, { gap: 6, paddingVertical: 4 }]}>
+        <Pressable onLongPress={() => actions && setOpen((v) => !v)} accessibilityRole="summary"
+          accessibilityLabel={`Annonce de ${mine ? 'toi' : author.name} : ${withoutAnnounceTag(m.body) || 'Photo'}`}
+          style={[{ padding: 14, borderRadius: 18, gap: 8, backgroundColor: colors.accentDim, borderWidth: 1.5, borderColor: colors.accent },
+            flash && { backgroundColor: '#5A1F45' }, transition('background-color', duration.base), m.pending && { opacity: 0.72 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <T size={12} weight="bold" color={colors.accent}>📣 ANNONCE</T>
+            <T size={12} weight="semibold" muted numberOfLines={1} style={{ flex: 1 }}>· {mine ? 'toi' : author.name}</T>
+            <Meta m={m} mine={false} deleted={false} />
+            {actions ? <MoreButton onPress={() => setOpen((v) => !v)} style={{ marginBottom: 0 }} /> : null}
+          </View>
+          {photoUrl ? <Image accessibilityLabel={`Photo de ${author.name}`} source={{ uri: photoUrl }} resizeMode="cover"
+            style={{ width: '100%', height: 220, borderRadius: 12, backgroundColor: colors.surface2 }} /> : null}
+          {m.audio_seconds != null ? <VoicePlayer url={audioUrl ?? null} seconds={m.audio_seconds} color={colors.text} /> : null}
+          {withoutAnnounceTag(m.body) ? <MentionText body={withoutAnnounceTag(m.body)} names={names} color={colors.text} mentionColor={colors.accent} size={16} /> : null}
+        </Pressable>
+        <Reactions counts={counts} reacted={reacted} canWrite={canWrite} onReact={onReact} align="flex-start" />
+        {open ? <ActionMenu canWrite={canWrite} mine={mine} announced isStaff={isStaff} canPin={canPin} isAdmin={isAdmin} pinned={m.pinned}
+          onClose={() => setOpen(false)} onReact={onReact} onReply={onReply} onPin={onPin} onDelete={onDelete} onReport={onReport} /> : null}
+      </View>
+    );
+  }
 
   return (
     <View {...pan.panHandlers} style={arrive}>
     <Animated.Text accessibilityElementsHidden style={{ position: 'absolute', left: 0, top: '40%', fontSize: 20, color: colors.accent,
       opacity: swipe.interpolate({ inputRange: [0, REPLY_SWIPE], outputRange: [0, 1], extrapolate: 'clamp' }) }}>↩︎</Animated.Text>
-    <Animated.View style={{ transform: [{ translateX: swipe }], flexDirection: 'row', gap: 8, alignItems: 'flex-end', justifyContent: mine ? 'flex-end' : 'flex-start' }}>
-      {!mine ? <Avatar id={m.user_id} name={author.name} photo={author.photo} /> : null}
-      <View style={{ maxWidth: '80%', gap: 4, alignItems: mine ? 'flex-end' : 'flex-start' }}>
-        {!mine ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={`Profil de ${author.name}`} onPress={() => router.push(`/member/${m.user_id}`)}>
-            <T size={12} weight="bold" color={colors.lavender}>{author.name}</T>
-          </Pressable>
-        ) : null}
+    <Animated.View style={{ transform: [{ translateX: swipe }], flexDirection: 'row', gap: 6, alignItems: 'flex-end', justifyContent: mine ? 'flex-end' : 'flex-start' }}>
+      {!mine && showAuthor ? (last ? <Avatar id={m.user_id} name={author.name} photo={author.photo} size={AVATAR} /> : <View style={{ width: AVATAR }} />) : null}
+      {mine && actions ? <MoreButton onPress={() => setOpen((v) => !v)} /> : null}
+      <View style={{ maxWidth: '78%', alignItems: mine ? 'flex-end' : 'flex-start' }}>
         <Pressable onLongPress={() => actions && setOpen((v) => !v)} accessibilityHint={actions ? 'Appui long pour réagir ou répondre' : undefined}
-          style={({ pressed }) => [{ padding: photoUrl ? 4 : 10, borderRadius: 16, backgroundColor: bubbleColor, gap: 6 },
-            announced && { borderWidth: 2, borderColor: mine ? colors.onAccent : colors.accent },
+          style={({ pressed }) => [{ paddingHorizontal: photoUrl ? 4 : 12, paddingVertical: photoUrl ? 4 : 8, borderRadius: 18, backgroundColor: bubbleColor, gap: 5 },
+            corners, flash && { backgroundColor: mine ? '#FF7DB6' : colors.surface2 },
             transition('transform, opacity, background-color', duration.base), m.pending && { opacity: 0.72 }, pressed && { transform: [{ scale: 0.98 }] }]}>
-          {m.pinned && !deleted ? <T size={11} weight="bold" color={mine ? colors.onAccent : colors.accent}>{announced ? '📣 Annonce' : '📌 Épinglé'}</T> : null}
-          {quoted && !deleted ? (
-            <View style={{ padding: 6, borderRadius: 8, backgroundColor: mine ? 'rgba(0,0,0,0.12)' : colors.surface2 }}>
-              <T size={12} color={mine ? colors.onAccent : colors.muted} numberOfLines={2}>↪ {quoted.name} : {quoted.text}</T>
-            </View>
-          ) : null}
-          {photoUrl && !deleted ? (
-            <Image accessibilityLabel={`Photo de ${author.name}`} source={{ uri: photoUrl }} resizeMode="cover"
-              style={{ width: 240, height: 240, borderRadius: 12, backgroundColor: colors.surface2 }} />
-          ) : null}
-          {m.audio_seconds != null && !deleted ? <VoicePlayer url={audioUrl ?? null} seconds={m.audio_seconds} color={textColor} /> : null}
-          {deleted ? <T size={14} color={textColor} style={{ fontStyle: 'italic' }}>🚫 {deletedLabel(m)}</T>
-            : m.body ? <T size={15} color={textColor} style={photoUrl ? { paddingHorizontal: 6, paddingBottom: 4 } : undefined}>{m.body}</T> : null}
-        </Pressable>
-        {counts.size ? (
-          <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
-            {[...counts].map(([emoji, c]) => (
-              <Pressable key={`${emoji}-${c.n}-${c.mine}`} accessibilityRole="button" accessibilityLabel={`${emoji} ${c.n}${c.mine ? ', retirer ma réaction' : ''}`}
-                disabled={!canWrite} onPress={() => onReact(emoji)}
-                style={({ pressed }) => [{ flexDirection: 'row', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 12,
-                  backgroundColor: c.mine ? colors.accentDim : colors.surface2, borderWidth: 1, borderColor: c.mine ? colors.accent : 'transparent' },
-                  reacted ? enter('pop') : null, pressTransition, pressed && { transform: [{ scale: 0.92 }] }]}>
-                <T size={13}>{emoji}</T>
-                <T size={12} muted>{c.n}</T>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
-        <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-          <T muted size={12}>{m.pending ? 'Envoi…' : formatMessageTime(m.created_at)}{m.edited_at && !deleted ? ' · modifié' : ''}</T>
-          {actions ? (
-            <Pressable accessibilityRole="button" accessibilityLabel="Actions du message" hitSlop={8} onPress={() => setOpen((v) => !v)}>
-              <T muted size={13}>⋯</T>
+          {showName ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={`Profil de ${author.name}`} onPress={() => router.push(`/member/${m.user_id}`)}
+              style={photoUrl ? { paddingHorizontal: 8, paddingTop: 4 } : undefined}>
+              <T size={13} weight="bold" color={nameColor(m.user_id)} numberOfLines={1}>{author.name}</T>
             </Pressable>
           ) : null}
-        </View>
-        {open ? (
-          <View style={[{ gap: 6, padding: 8, borderRadius: 14, backgroundColor: colors.surface2 }, enter('drop')]}>
-            {canWrite ? <View style={{ flexDirection: 'row', gap: 6 }}>
-              {REACTIONS.map((emoji) => (
-                <Pressable key={emoji} accessibilityRole="button" accessibilityLabel={`Réagir ${emoji}`} hitSlop={4}
-                  onPress={() => { setOpen(false); onReact(emoji); }}
-                  style={({ pressed }) => [pressTransition, pressed && { transform: [{ scale: 1.25 }] }]}>
-                  <T size={22}>{emoji}</T>
-                </Pressable>
-              ))}
-            </View> : null}
-            <View style={{ flexDirection: 'row', gap: 14, flexWrap: 'wrap' }}>
-              {canWrite ? <Action label="Répondre" onPress={() => { setOpen(false); onReply(); }} /> : null}
-              {announced ? (isStaff ? <Action label="Retirer l’annonce" onPress={() => { setOpen(false); onPin(); }} /> : null)
-                : canPin ? <Action label={m.pinned ? 'Désépingler' : 'Épingler'} onPress={() => { setOpen(false); onPin(); }} /> : null}
-              {mine || isAdmin ? <Action label="Supprimer" danger onPress={() => { setOpen(false); onDelete(); }} /> : null}
-              {!mine && onReport ? <Action label="Signaler" danger onPress={() => { setOpen(false); onReport(); }} /> : null}
+          {m.pinned && !deleted ? <T size={11} weight="bold" color={mine ? colors.onAccent : colors.accent} style={photoUrl ? { paddingHorizontal: 8 } : undefined}>📌 Épinglé</T> : null}
+          {quoted && !deleted ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={`Réponse à ${quoted.name} : ${quoted.text}`} accessibilityHint="Montre le message d’origine"
+              onPress={onQuote} disabled={!onQuote}
+              style={{ flexDirection: 'row', gap: 8, padding: 6, borderRadius: 8, backgroundColor: mine ? 'rgba(0,0,0,0.12)' : 'rgba(0,0,0,0.25)' }}>
+              <View style={{ width: 3, borderRadius: 2, backgroundColor: mine ? colors.onAccent : nameColor(quoted.author ?? quoted.name) }} />
+              <View style={{ flexShrink: 1 }}>
+                <T size={12} weight="bold" color={mine ? colors.onAccent : nameColor(quoted.author ?? quoted.name)} numberOfLines={1}>{quoted.name}</T>
+                <T size={12} color={mine ? colors.onAccent : colors.muted} numberOfLines={2}>{quoted.text}</T>
+              </View>
+            </Pressable>
+          ) : null}
+          {photoUrl && !deleted ? (
+            <View>
+              <Image accessibilityLabel={`Photo de ${author.name}`} source={{ uri: photoUrl }} resizeMode="cover"
+                style={{ width: 240, height: 240, borderRadius: 14, backgroundColor: colors.surface2 }} />
+              {photoOnly ? (
+                <View style={{ position: 'absolute', right: 6, bottom: 6, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                  <Meta m={m} mine={mine} deleted={false} light />
+                </View>
+              ) : null}
             </View>
-          </View>
-        ) : null}
+          ) : null}
+          {m.audio_seconds != null && !deleted ? <VoicePlayer url={audioUrl ?? null} seconds={m.audio_seconds} color={textColor} /> : null}
+          {deleted ? (
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
+              <T size={14} color={textColor} style={{ fontStyle: 'italic', flexShrink: 1 }}>🚫 {deletedLabel(m)}</T>
+              <Meta m={m} mine={mine} deleted />
+            </View>
+          ) : m.body ? (
+            // Le texte puis l'heure, à droite, sur la dernière ligne quand elle a la place, sinon dessous : rien ne se chevauche.
+            <View style={[{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', columnGap: 8 },
+              photoUrl ? { paddingHorizontal: 8, paddingBottom: 4 } : null]}>
+              <View style={{ flexShrink: 1 }}>
+                <MentionText body={m.body} names={names} color={textColor} mentionColor={mine ? colors.onAccent : colors.accent} />
+              </View>
+              <View style={{ marginLeft: 'auto' }}><Meta m={m} mine={mine} deleted={false} /></View>
+            </View>
+          ) : !photoUrl ? <Meta m={m} mine={mine} deleted={false} /> : null}
+        </Pressable>
+        <Reactions counts={counts} reacted={reacted} canWrite={canWrite} onReact={onReact} align={mine ? 'flex-end' : 'flex-start'} />
+        {open ? <ActionMenu canWrite={canWrite} mine={mine} announced={false} isStaff={isStaff} canPin={canPin} isAdmin={isAdmin} pinned={m.pinned}
+          onClose={() => setOpen(false)} onReact={onReact} onReply={onReply} onPin={onPin} onDelete={onDelete} onReport={onReport} /> : null}
       </View>
+      {!mine && actions ? <MoreButton onPress={() => setOpen((v) => !v)} /> : null}
     </Animated.View>
+    </View>
+  );
+}
+
+/** « ⋯ » à côté de la bulle (pas dessus) : ouvre les actions du message. */
+function MoreButton({ onPress, style }: { onPress: () => void; style?: object }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel="Actions du message" hitSlop={8} onPress={onPress}
+      style={({ pressed }) => [{ width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+        backgroundColor: pressed ? colors.surface2 : 'transparent' }, style]}>
+      <T muted size={14}>⋯</T>
+    </Pressable>
+  );
+}
+
+/** Réactions sous la bulle, sans la recouvrir : un toucher ajoute ou retire la mienne. */
+function Reactions({ counts, reacted, canWrite, onReact, align }: { counts: Map<string, { n: number; mine: boolean }>; reacted: boolean;
+  canWrite: boolean; onReact: (emoji: string) => void; align: 'flex-start' | 'flex-end' }) {
+  if (!counts.size) return null;
+  return (
+    <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap', marginTop: 4, alignSelf: align }}>
+      {[...counts].map(([emoji, c]) => (
+        <Pressable key={`${emoji}-${c.n}-${c.mine}`} accessibilityRole="button" accessibilityLabel={`${emoji} ${c.n}${c.mine ? ', retirer ma réaction' : ''}`}
+          disabled={!canWrite} onPress={() => onReact(emoji)}
+          style={({ pressed }) => [{ flexDirection: 'row', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 12,
+            backgroundColor: c.mine ? colors.accentDim : colors.surface2, borderWidth: 1, borderColor: c.mine ? colors.accent : 'transparent' },
+            reacted ? enter('pop') : null, pressTransition, pressed && { transform: [{ scale: 0.92 }] }]}>
+          <T size={13}>{emoji}</T>
+          {c.n > 1 ? <T size={12} muted>{c.n}</T> : null}
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+/** Actions d'un message, sous la bulle : réactions en tête, puis Répondre, Copier, Épingler, Supprimer, Signaler. */
+function ActionMenu({ canWrite, mine, announced, isStaff, canPin, isAdmin, pinned, onClose, onReact, onReply, onPin, onDelete, onReport }: {
+  canWrite: boolean; mine: boolean; announced: boolean; isStaff: boolean; canPin: boolean; isAdmin: boolean; pinned: boolean; onClose: () => void;
+  onReact: (emoji: string) => void; onReply: () => void; onPin: () => void; onDelete: () => void; onReport?: () => void }) {
+  const run = (f: () => void) => () => { onClose(); f(); };
+  return (
+    <View accessibilityRole="menu" style={[{ gap: 8, padding: 10, marginTop: 6, borderRadius: 14, backgroundColor: colors.surface2, alignSelf: mine ? 'flex-end' : 'flex-start' }, enter('drop')]}>
+      {canWrite ? <View style={{ flexDirection: 'row', gap: 8 }}>
+        {REACTIONS.map((emoji) => (
+          <Pressable key={emoji} accessibilityRole="button" accessibilityLabel={`Réagir ${emoji}`} hitSlop={4} onPress={run(() => onReact(emoji))}
+            style={({ pressed }) => [pressTransition, pressed && { transform: [{ scale: 1.25 }] }]}>
+            <T size={22}>{emoji}</T>
+          </Pressable>
+        ))}
+      </View> : null}
+      <View style={{ flexDirection: 'row', gap: 16, flexWrap: 'wrap' }}>
+        {canWrite ? <Action label="Répondre" onPress={run(onReply)} /> : null}
+        {announced ? (isStaff ? <Action label="Retirer l’annonce" onPress={run(onPin)} /> : null)
+          : canPin ? <Action label={pinned ? 'Désépingler' : 'Épingler'} onPress={run(onPin)} /> : null}
+        {mine || isAdmin ? <Action label="Supprimer" danger onPress={run(onDelete)} /> : null}
+        {!mine && onReport ? <Action label="Signaler" danger onPress={run(onReport)} /> : null}
+      </View>
     </View>
   );
 }

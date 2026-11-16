@@ -73,7 +73,109 @@ export function mentionQuery(text: string, cursor: number = text.length): string
 }
 
 /** Ce que je peux écrire dans ce groupe : @tout (choix du groupe), @annonce (admins et organisateurs). */
-export type MentionRights = { everyone: boolean; announce: boolean };
+export type MentionRights = { everyone: boolean; announce: boolean;
+  /** Discussion d'un événement : les citations de l'organisation (@toutlemonde, @present, @annonce) à la place de
+   * @tout et @annonce ; vide pour un invité. */
+  tags?: MentionSuggestion[] };
+
+/** Citations de l'organisation d'un événement (migration 20261116180000 : la base décide d'après le texte). */
+export const EVENT_TAGS: MentionSuggestion[] = [
+  { key: 'toutlemonde', label: 'toutlemonde', hint: 'Tout le monde : invités et participants', id: null },
+  { key: 'present', label: 'present', hint: 'Les présents et les peut-être', id: null },
+  { key: 'annonce', label: 'annonce', hint: 'Annonce épinglée en haut, envoyée à tous', id: null },
+];
+
+/** @toutlemonde, @present (@présents…) ou @annonce dans le texte, même règle que la base (guard_message_change). */
+export function eventTag(body: string): string | null {
+  for (const tag of ['toutlemonde', 'pr[eé]sents?', 'annonce']) {
+    if (new RegExp(`(^|[^\\p{L}\\p{N}_])@${tag}($|[^\\p{L}\\p{N}_])`, 'iu').test(body)) return tag;
+  }
+  return null;
+}
+
+/** Texte d'une bulle découpé : les « @surnom » des membres et les citations spéciales à part (gras, couleur). */
+export function mentionParts(body: string, names: string[]): { text: string; mention: boolean }[] {
+  const words = [...new Set([...names, 'toutlemonde', 'tout', 'présents', 'presents', 'présent', 'present', 'annonce']
+    .filter(Boolean).map(fold))].sort((a, b) => b.length - a.length);
+  const parts: { text: string; mention: boolean }[] = [];
+  let plain = '';
+  let i = 0;
+  while (i < body.length) {
+    if (body[i] === '@' && (i === 0 || !/[\p{L}\p{N}_]/u.test(body[i - 1]))) {
+      const word = words.find((w) => fold(body.slice(i + 1, i + 1 + w.length)) === w
+        && !/[\p{L}\p{N}_]/u.test(body[i + 1 + w.length] ?? ' '));
+      if (word) {
+        if (plain) parts.push({ text: plain, mention: false });
+        plain = '';
+        parts.push({ text: body.slice(i, i + 1 + word.length), mention: true });
+        i += 1 + word.length;
+        continue;
+      }
+    }
+    plain += body[i];
+    i += 1;
+  }
+  if (plain) parts.push({ text: plain, mention: false });
+  return parts;
+}
+
+/** « @annonce » retiré du texte d'une annonce (la carte le dit déjà). */
+export function withoutAnnounceTag(body: string): string {
+  return body.replace(/(^|\s)@annonce(?=$|[^\p{L}\p{N}_])/giu, '$1').trim();
+}
+
+/** Fil façon WhatsApp : un séparateur par jour, et les messages d'une même personne regroupés (même jour, moins de
+ * 5 min, pas une annonce) : nom en tête de la série, photo en bas. */
+export type TimelineRow<M> = { key: string; day: string } | { key: string; message: M; first: boolean; last: boolean };
+const SERIES_MS = 5 * 60 * 1000;
+type TimelineMessage = { id: string; user_id: string; created_at: string; announcement?: boolean; pinned?: boolean };
+
+function sameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+export function joins(a: TimelineMessage | undefined, b: TimelineMessage | undefined): boolean {
+  if (!a || !b || a.user_id !== b.user_id) return false;
+  if ((a.announcement && a.pinned) || (b.announcement && b.pinned)) return false;
+  const da = new Date(a.created_at), db = new Date(b.created_at);
+  return sameDay(da, db) && Math.abs(db.getTime() - da.getTime()) < SERIES_MS;
+}
+
+export function dayLabel(date: Date, now: Date = new Date()): string {
+  if (sameDay(date, now)) return 'Aujourd’hui';
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (sameDay(date, yesterday)) return 'Hier';
+  const weekAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+  if (date >= weekAgo && date <= now) {
+    const day = date.toLocaleDateString('fr-CH', { weekday: 'long' });
+    return day.charAt(0).toUpperCase() + day.slice(1);
+  }
+  return date.toLocaleDateString('fr-CH', date.getFullYear() === now.getFullYear()
+    ? { day: 'numeric', month: 'long' } : { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+export function chatTimeline<M extends TimelineMessage>(messages: M[], now: Date = new Date()): TimelineRow<M>[] {
+  const rows: TimelineRow<M>[] = [];
+  let day: Date | null = null;
+  messages.forEach((m, i) => {
+    const date = new Date(m.created_at);
+    if (!day || !sameDay(day, date)) {
+      day = date;
+      rows.push({ key: `day-${m.id}`, day: dayLabel(date, now) });
+    }
+    rows.push({ key: m.id, message: m, first: !joins(messages[i - 1], m), last: !joins(m, messages[i + 1]) });
+  });
+  return rows;
+}
+
+/** Couleur du nom d'un auteur : stable, lisible sur fond sombre (même palette que l'app iPhone). */
+const NAME_COLORS = ['#BAA6FF', '#73D9F2', '#FF9E73', '#8CE68C', '#FF8CBF', '#FFD166', '#80B3FF', '#D99AF2'];
+export function nameColor(id: string): string {
+  let sum = 5381;
+  for (const c of id) sum = ((sum * 33) + c.codePointAt(0)!) >>> 0;
+  return NAME_COLORS[sum % NAME_COLORS.length];
+}
 
 /** Membres du groupe (moi exclu) dont le surnom (ou un de ses mots) commence par les lettres tapées, puis @tout et
  * @annonce quand j'y ai droit. */
@@ -87,7 +189,8 @@ export function mentionSuggestions(query: string, people: { id: string; display_
     .sort((a, b) => Number(!fold(a.display_name).startsWith(q)) - Number(!fold(b.display_name).startsWith(q))
       || a.display_name.localeCompare(b.display_name, 'fr'))
     .map((p) => ({ key: p.id, label: p.display_name, hint: contacts[p.id] ?? '', id: p.id, photo: p.avatar_url ?? null }));
-  const specials = SPECIAL_TAGS.filter((t) => t.label.startsWith(q) && (t.key === 'tout' ? rights.everyone : rights.announce));
+  const specials = (rights.tags ?? SPECIAL_TAGS.filter((t) => (t.key === 'tout' ? rights.everyone : rights.announce)))
+    .filter((t) => fold(t.label).startsWith(q));
   return [...members.slice(0, MAX_SUGGESTIONS - specials.length), ...specials];
 }
 

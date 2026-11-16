@@ -26,9 +26,13 @@ final class ChatsStore: ObservableObject {
     private var pending: [Conversation.Message] = []
     private var refreshing: Task<Void, Never>?
 
-    init(api: PartyAPI, web: WebStorage?) {
+    /// Discussion d'un événement (écran natif ouvert depuis sa fiche) : mêmes écrans, routes /api/account/event-chat/*.
+    let forEvents: Bool
+
+    init(api: PartyAPI, web: WebStorage?, forEvents: Bool = false) {
         self.api = api
         self.web = web
+        self.forEvents = forEvents
     }
 
     /// Pause des notifications de toutes les Discussions (bouton en haut de la liste) ; même réglage que
@@ -139,21 +143,25 @@ final class ChatsStore: ObservableObject {
             conversation = await account().flatMap { ChatsCache.load(Conversation.self, account: $0, name: "chat-" + group) }
         }
         await run(loading: conversation == nil) { token in
-            let fresh = try await api.openChat(token: token, group: group, direct: isDirect(group))
+            let fresh = forEvents ? try await api.openEventChat(token: token, event: group)
+                                  : try await api.openChat(token: token, group: group, direct: isDirect(group))
+            if let live = fresh.realtime { endpoint = live }
             if let account = ChatsCache.account(of: token) { ChatsCache.save(fresh, account: account, name: "chat-" + group) }
             let changed = fresh.messages.last?.id != conversation?.messages.filter { !$0.pending }.last?.id || conversation == nil
             pending.removeAll { p in fresh.messages.contains { $0.id == p.id } }
             let shown = pending.isEmpty ? fresh : fresh.with(messages: fresh.messages + pending)
             if shown != conversation { conversation = shown }
-            if changed && fresh.member { try? await api.readChat(token: token, group: group, direct: fresh.isDirect) }
+            if changed && fresh.member && !forEvents { try? await api.readChat(token: token, group: group, direct: fresh.isDirect) }
         }
         if chatLive == nil, conversation?.id == group { await startChatLive(group) }
     }
 
     private func startChatLive(_ group: String) async {
-        if endpoint == nil { await loadList() }
+        if endpoint == nil && !forEvents { await loadList() }
         guard let endpoint, let token = await web?.accountToken() else { return }
-        let live = ChatRealtime(endpoint: endpoint, token: token, group: group, direct: isDirect(group)) { [weak self] in self?.refreshSoon(group) }
+        let live = forEvents
+            ? ChatRealtime(endpoint: endpoint, token: token, event: group) { [weak self] in self?.refreshSoon(group) }
+            : ChatRealtime(endpoint: endpoint, token: token, group: group, direct: isDirect(group)) { [weak self] in self?.refreshSoon(group) }
         chatLive = live
         live.start()
     }
@@ -176,18 +184,25 @@ final class ChatsStore: ObservableObject {
     }
 
     /// Texte : affiché tout de suite, envoyé en un seul appel (citations calculées ici). Photo : envoyée d'abord.
-    func send(_ text: String, replyTo: String?, photo: Data? = nil) async -> Bool {
+    /// announce : interrupteur 📣 de l'organisation d'un événement (vaut « @annonce »).
+    func send(_ text: String, replyTo: String?, photo: Data? = nil, announce: Bool = false) async -> Bool {
         guard let chat = conversation else { return false }
         let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty || photo != nil else { return false }
         let id = UUID().uuidString.lowercased()
-        if photo == nil { show(Self.draft(id: id, body: body, replyTo: replyTo, in: chat)) } else { sending = true }
+        if photo == nil { show(Self.draft(id: id, body: body, replyTo: replyTo, in: chat, announce: announce)) } else { sending = true }
         defer { sending = false }
         var sent = false
         await run { token in
-            let path = try await photo.asyncMap { try await api.uploadChatPhoto(token: token, group: chat.id, jpeg: $0) }
-            try await api.sendChat(token: token, group: chat.id, body: body, replyTo: replyTo, photoPath: path,
-                                   mentions: chat.mentions(in: body, me: chat.me), id: id, direct: chat.isDirect)
+            if forEvents {
+                let path = try await photo.asyncMap { try await api.uploadEventChatFile(token: token, event: chat.id, data: $0, audio: false) }
+                try await api.sendEventChat(token: token, event: chat.id, body: body, replyTo: replyTo, photoPath: path,
+                                            mentions: chat.mentions(in: body, me: chat.me), id: id, announcement: announce)
+            } else {
+                let path = try await photo.asyncMap { try await api.uploadChatPhoto(token: token, group: chat.id, jpeg: $0) }
+                try await api.sendChat(token: token, group: chat.id, body: body, replyTo: replyTo, photoPath: path,
+                                       mentions: chat.mentions(in: body, me: chat.me), id: id, direct: chat.isDirect)
+            }
             sent = true
         }
         if !sent { drop(id) }
@@ -205,9 +220,15 @@ final class ChatsStore: ObservableObject {
         show(draft)
         var sent = false
         await run { token in
-            let path = try await api.uploadChatAudio(token: token, group: chat.id, audio: data)
-            try await api.sendChat(token: token, group: chat.id, body: "", replyTo: replyTo, photoPath: nil, mentions: [],
-                                   id: id, audioPath: path, audioSeconds: seconds, direct: chat.isDirect)
+            if forEvents {
+                let path = try await api.uploadEventChatFile(token: token, event: chat.id, data: data, audio: true)
+                try await api.sendEventChat(token: token, event: chat.id, body: "", replyTo: replyTo, photoPath: nil, mentions: [],
+                                            id: id, audioPath: path, audioSeconds: seconds)
+            } else {
+                let path = try await api.uploadChatAudio(token: token, group: chat.id, audio: data)
+                try await api.sendChat(token: token, group: chat.id, body: "", replyTo: replyTo, photoPath: nil, mentions: [],
+                                       id: id, audioPath: path, audioSeconds: seconds, direct: chat.isDirect)
+            }
             sent = true
         }
         if !sent { drop(id) }
@@ -224,10 +245,11 @@ final class ChatsStore: ObservableObject {
         if let chat = conversation { conversation = chat.with(messages: chat.messages.filter { $0.id != id }) }
     }
 
-    nonisolated static func draft(id: String, body: String, replyTo: String?, in chat: Conversation) -> Conversation.Message {
+    nonisolated static func draft(id: String, body: String, replyTo: String?, in chat: Conversation,
+                                  announce: Bool = false) -> Conversation.Message {
         let quoted = replyTo.flatMap { r in chat.messages.first { $0.id == r } }
         let me = chat.members.first { $0.id == chat.me }
-        let announced = chat.isStaff && Mentions.isAnnouncement(body)  // d'un simple membre : message normal
+        let announced = chat.isStaff && (announce || Mentions.isAnnouncement(body))  // d'un simple membre : message normal
         return Conversation.Message(
             id: id, author: chat.me ?? "", authorName: me?.name ?? "Moi", authorPhoto: me?.photo, mine: true,
             at: ISO8601DateFormatter().string(from: Date()), edited: false, body: body, deleted: false, photo: nil,
@@ -238,29 +260,44 @@ final class ChatsStore: ObservableObject {
     func react(_ message: Conversation.Message, _ emoji: String) async {
         let on = !message.reactions.contains { $0.emoji == emoji && $0.mine }
         let direct = conversation?.isDirect == true
-        await act { token in try await api.reactChat(token: token, message: message.id, emoji: emoji, on: on, direct: direct) }
+        await act { token in
+            if forEvents { try await api.reactEventChat(token: token, message: message.id, emoji: emoji, on: on) }
+            else { try await api.reactChat(token: token, message: message.id, emoji: emoji, on: on, direct: direct) }
+        }
     }
 
     func pin(_ message: Conversation.Message) async {
-        let direct = conversation?.isDirect == true
-        await act { token in try await api.pinChat(token: token, message: message.id, pin: !message.pinned, direct: direct) }
+        await setPinned(message.id, !message.pinned)
     }
 
     /// Retire une annonce (ou un épinglé) du bandeau : admins du groupe, d'un appui long sur le bandeau.
     func unpin(_ id: String) async {
+        await setPinned(id, false)
+    }
+
+    private func setPinned(_ id: String, _ pin: Bool) async {
         let direct = conversation?.isDirect == true
-        await act { token in try await api.pinChat(token: token, message: id, pin: false, direct: direct) }
+        await act { token in
+            if forEvents { try await api.pinEventChat(token: token, message: id, pin: pin) }
+            else { try await api.pinChat(token: token, message: id, pin: pin, direct: direct) }
+        }
     }
 
     func delete(_ message: Conversation.Message) async {
         let direct = conversation?.isDirect == true
-        await act { token in try await api.deleteChat(token: token, message: message.id, direct: direct) }
+        await act { token in
+            if forEvents { try await api.deleteEventChat(token: token, message: message.id) }
+            else { try await api.deleteChat(token: token, message: message.id, direct: direct) }
+        }
     }
 
     func setNotify(_ level: ChatNotify) async {
         guard let group = conversation?.id else { return }
         let direct = conversation?.isDirect == true
-        await act { token in try await api.notifyChat(token: token, group: group, level: level, direct: direct) }
+        await act { token in
+            if forEvents { try await api.notifyEventChat(token: token, event: group, level: level) }
+            else { try await api.notifyChat(token: token, group: group, level: level, direct: direct) }
+        }
     }
 
     func setOrganizer(_ member: Conversation.Member, _ on: Bool) async {
@@ -291,7 +328,7 @@ final class ChatsStore: ObservableObject {
     /// loading : premier chargement, l'erreur prend la place de l'écran ; sinon bandeau.
     private func run(loading: Bool = false, _ work: (String) async throws -> Void) async {
         guard let token = await web?.accountToken() else {
-            error = "Connecte-toi pour discuter avec tes groupes"
+            error = forEvents ? "Connecte-toi pour discuter avec les invités" : "Connecte-toi pour discuter avec tes groupes"
             return
         }
         do {

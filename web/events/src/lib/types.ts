@@ -155,6 +155,11 @@ export type Message = {
   pinned: boolean;
   created_at: string;
   deleted_at: string | null;
+  /** Discussion façon WhatsApp (16.11.2026) : photo, vocal, annonce de l'organisation. */
+  photo_path?: string | null;
+  audio_path?: string | null;
+  audio_seconds?: number | null;
+  announcement?: boolean;
 };
 
 export type NotificationPrefs = {

@@ -115,10 +115,11 @@ struct AppStoreReadinessTests {
         let types = (plist["NSPrivacyCollectedDataTypes"] as? [[String: Any]] ?? []).compactMap { $0["NSPrivacyCollectedDataType"] as? String }
         #expect(types.contains("NSPrivacyCollectedDataTypeOtherFinancialInfo"))
         #expect(types.contains("NSPrivacyCollectedDataTypePhoneNumber"))
-        // Exigence Apple du 09.11 : identifiant de l'appareil déclaré ; plus d'audio (dictée faite par Apple).
+        // Exigence Apple du 09.11 : identifiant de l'appareil déclaré. Contrôle du 16.11 : messages vocaux des Discussions
+        // (et de la discussion d'un événement) envoyés aux autres : audio déclaré, lié au compte, pour l'app seulement.
         #expect(types.contains("NSPrivacyCollectedDataTypeDeviceID"))
         #expect(types.contains("NSPrivacyCollectedDataTypeGameplayContent"))
-        #expect(!types.contains("NSPrivacyCollectedDataTypeAudioData"))
+        #expect(types.contains("NSPrivacyCollectedDataTypeAudioData"))
     }
 
     // ── Réglages › Confidentialité : accord IA pour tous les comptes ──
