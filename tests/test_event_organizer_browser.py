@@ -233,6 +233,9 @@ def test_advanced_form_sends_every_option(browser, events_origin):
         field(frame, 'Lien de paiement').fill('http://billetterie.example')
         frame.get_by_role('button', name='Publier', exact=True).click()
         pw.expect(frame.get_by_text('Le lien de paiement doit commencer par https://', exact=True).first).to_be_visible()
+        field(frame, 'Lien de paiement').fill('https://billetterie.example/ra clette')  # recette du 15.11 : la phrase dit l'espace
+        frame.get_by_role('button', name='Publier', exact=True).click()
+        pw.expect(frame.get_by_text('Le lien de paiement ne doit pas contenir d’espace', exact=True).first).to_be_visible()
         field(frame, 'Lien de paiement').fill('https://billetterie.example/raclette')
         frame.get_by_role('button', name='Publier', exact=True).click()
         pw.expect(frame.get_by_role('button', name='Modifier', exact=True)).to_be_visible(timeout=10000)

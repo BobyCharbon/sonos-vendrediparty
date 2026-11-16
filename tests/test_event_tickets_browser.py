@@ -346,19 +346,22 @@ def test_friends_payment_the_guest_pays_then_waits_for_the_organizer(browser, or
 
 
 def test_the_event_payment_link_comes_first_in_the_pay_sheet(browser, origin):
-    """« On me paie » avec un lien choisi pour l'événement (maquette du 15.11) : il passe en tête, sans doublon."""
+    """« On me paie » avec un lien choisi pour l'événement (maquette du 15.11) : il passe en tête, sans doublon ; il remplace le
+    Revolut du profil (recette réelle du 15.11 : deux « Payer avec Revolut » vers deux comptes, lequel toucher ?)."""
     link = 'https://revolut.me/boby-paintball'
     context, page, frame, state, errors, _ = launch(browser, origin, [MINE_YES], extra={'payment_mode': 'organizer', 'payment_url': link})
     page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/rpc/event_pay_info', lambda r: r.fulfill(
         status=200, content_type='application/json', headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*'},
         body=json.dumps({'organizer_id': USER, 'organizer_name': 'Compte de démonstration', 'amount': 20, 'payment_info': None,
-                         'mode': 'organizer', 'payment_url': link, 'iban': None, 'holder': None, 'links': {'revolut': link},
+                         'mode': 'organizer', 'payment_url': link, 'iban': None, 'holder': None,
+                         'links': {'revolut': 'https://revolut.me/boby', 'paypal': 'https://paypal.me/boby'},
                          'note': None, 'reference': 'Party · Sortie'})))
     try:
         frame.get_by_text('Sortie de démonstration (test local)', exact=True).click()
         pw.expect(frame.get_by_text('À payer à l’organisateur', exact=True)).to_be_visible(timeout=10000)
         frame.get_by_role('button', name='Payer Compte de démonstration · 20 CHF', exact=True).click()
         pw.expect(frame.get_by_role('button', name='Payer avec Revolut', exact=True)).to_have_count(1, timeout=10000)
+        pw.expect(frame.get_by_role('button', name='Payer avec PayPal', exact=True)).to_have_count(1)  # autre service : gardé
         context.route('https://revolut.me/**', lambda r: r.fulfill(status=200, body='ok'))  # jamais le vrai site
         with page.expect_popup() as popup:
             frame.get_by_role('button', name='Payer avec Revolut', exact=True).click()

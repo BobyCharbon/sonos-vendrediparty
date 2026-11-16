@@ -41,7 +41,9 @@ export function CopyRow({ label, value, shown = value }: { label: string; value:
 function PaySheet({ info, onDeclare, onClose, busy, error }: { info: PayInfo; onDeclare: () => void; onClose: () => void; busy: boolean; error: string | null }) {
   const twint = info.links.twint;
   const eventLink = info.payment_url ? safeLink(info.payment_url) : null;  // le lien choisi pour CET événement d'abord
-  const links = Object.entries(info.links).filter(([k, v]) => k !== 'twint' && safeLink(v) && v !== eventLink);
+  // Le lien de l'événement remplace celui du même service dans le profil (deux « Payer avec Revolut » : lequel ?).
+  const links = Object.entries(info.links).filter(([k, v]) => k !== 'twint' && safeLink(v)
+    && !(eventLink && (v === eventLink || (LINK_LABELS[k] ?? LINK_LABELS.other) === payLinkLabel(eventLink))));
   const nothing = !twint && !eventLink && !links.length && !info.iban && !info.payment_info;
   const card = useRef<View>(null);
   const overlay = useRef<View>(null);
