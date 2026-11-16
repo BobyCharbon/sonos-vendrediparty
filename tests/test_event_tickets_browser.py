@@ -375,7 +375,8 @@ def test_the_event_payment_link_comes_first_in_the_pay_sheet(browser, origin):
         context.close()
 
 
-def test_online_payment_opens_the_link_then_the_guest_notes_it_and_waits(browser, origin):
+def test_online_payment_opens_the_link_and_has_nothing_to_note(browser, origin):
+    # Avis du 16.11 : le site de paiement n'appartient pas à l'organisateur, il ne peut rien confirmer : ni « J'ai payé » ni « Reçu ✓ ».
     link = 'https://billetterie.example.ch/paintball'
     context, page, frame, state, errors, _ = launch(browser, origin, [MINE_YES], extra={
         'payment_mode': 'online', 'payment_url': link, 'payment_info': 'Choisis « Paintball 2 h »'})
@@ -392,10 +393,8 @@ def test_online_payment_opens_the_link_then_the_guest_notes_it_and_waits(browser
         assert popup.value.url.startswith(link)
         popup.value.close()
         shot(page, 'payer-en-ligne')
-        frame.get_by_role('button', name='J’ai payé', exact=True).click()
-        pw.expect(frame.get_by_text('Payé · en attente de confirmation', exact=True).first).to_be_visible(timeout=10000)
-        pw.expect(frame.get_by_text('L’organisateur confirme dès qu’il a vérifié ton paiement.', exact=True)).to_be_visible()
-        assert state['declared'] == [True]
+        pw.expect(frame.get_by_role('button', name='J’ai payé', exact=True)).to_have_count(0)
+        assert not state.get('declared')
         assert not errors
     finally:
         context.close()

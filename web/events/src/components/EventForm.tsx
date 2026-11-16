@@ -943,7 +943,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
 const PAY_MODES: { key: PaymentMode; icon: string; label: string; hint: string }[] = [
   // Espaces insécables dans les guillemets : jamais un « seul en fin de ligne.
   { key: 'organizer', icon: '🙋', label: 'On me paie', hint: 'Revolut, Twint, virement. Chacun note « J’ai payé », tu confirmes chaque paiement reçu.' },
-  { key: 'online', icon: '🔗', label: 'Paiement en ligne', hint: 'Billetterie ou lien de paiement. Chacun note « J’ai payé », tu confirmes.' },
+  { key: 'online', icon: '🔗', label: 'Paiement en ligne', hint: 'Billetterie ou site de paiement : chacun paie sur le site, rien à confirmer dans Party.' },
   { key: 'on_site', icon: '📍', label: 'Sur place', hint: 'Le jour J. Rien à suivre dans Party.' },
 ];
 

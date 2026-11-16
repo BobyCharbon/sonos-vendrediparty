@@ -44,19 +44,17 @@ def test_by_default_the_organizer_is_paid_and_confirms(party):
     admin.rpc('confirm_ticket_payment', e=eid, member=a.uid, received=False)
 
 
-def test_online_needs_a_link_and_still_waits_for_the_organizer(party):
+def test_online_needs_a_link_and_has_nothing_to_note_in_party(party):
     admin, a, eid = party
     refused = patch(admin, eid, payment_mode='online', payment_url=None)
     assert refused.status_code == 400 and 'events_payment_online_url_check' in refused.text
     assert patch(admin, eid, payment_url='http://pas-sur.ch').status_code == 400
     assert patch(admin, eid, payment_mode='online', payment_url='https://billetterie.example.ch/paintball').status_code in (200, 204)
     assert a.rpc('event_pay_info', e=eid).json()['mode'] == 'online'
-    a.rpc('declare_ticket_payment', e=eid, declared=False)
-    declared = a.rpc('declare_ticket_payment', e=eid, declared=True).json()
-    assert declared['pay_pending'] is True and declared['paid'] is False   # jamais payé sur sa seule parole
-    assert any('en ligne' in n['body'] for n in notes(admin, eid, 'ticket_pay_declared'))
-    assert admin.rpc('confirm_ticket_payment', e=eid, member=a.uid, received=True).json()['paid'] is True
-    admin.rpc('confirm_ticket_payment', e=eid, member=a.uid, received=False)
+    # Le site n'est pas à l'organisateur (avis du 16.11) : pas de « J'ai payé », donc rien à confirmer.
+    refused = a.rpc('declare_ticket_payment', e=eid, declared=True)
+    assert refused.status_code == 400 and 'en ligne' in refused.text, refused.text
+    assert a.rpc('declare_ticket_payment', e=eid, declared=False).status_code == 200  # annuler une déclaration d'avant
 
 
 def test_switching_to_on_site_lets_a_pending_payment_be_cancelled(party):
@@ -95,14 +93,14 @@ def test_payment_prepared_but_not_open_yet_shows_no_link_and_refuses_i_paid(part
     # Avis du 16.11 : l'organisateur prépare tout, coche « Paiement ouvert » quand c'est prêt.
     admin, a, eid = party
     a.rpc('declare_ticket_payment', e=eid, declared=False)
-    assert patch(admin, eid, payment_mode='online', payment_url='https://billetterie.example.ch/x', payment_open=False).status_code in (200, 204)
+    assert patch(admin, eid, payment_mode='organizer', payment_url='https://revolut.me/x', payment_open=False).status_code in (200, 204)
     assert a.rpc('event_pay_info', e=eid).json() is None            # aucun lien avant l'ouverture
     assert admin.rpc('event_pay_info', e=eid).json()['open'] is False  # l'organisateur voit tout pour préparer
     r = a.rpc('declare_ticket_payment', e=eid, declared=True)
     assert r.status_code == 400 and 'pas encore ouvert' in r.text, r.text
     assert patch(admin, eid, payment_open=True).status_code in (200, 204)
     info = a.rpc('event_pay_info', e=eid).json()
-    assert info['open'] is True and info['payment_url'] == 'https://billetterie.example.ch/x'
+    assert info['open'] is True and info['payment_url'] == 'https://revolut.me/x'
     assert a.rpc('declare_ticket_payment', e=eid, declared=True).json()['pay_pending'] is True
     a.rpc('declare_ticket_payment', e=eid, declared=False)
     patch(admin, eid, payment_mode='organizer', payment_url=None)

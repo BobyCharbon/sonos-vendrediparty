@@ -288,17 +288,22 @@ def test_3_published_event_switched_to_online_with_qr_tickets(pages, party, peop
         online.click()
     assert popup.value.url.startswith(TICKETING)
     popup.value.close()
-    page.get_by_role('button', name='J’ai payé', exact=True).click()
-    pw.expect(page.get_by_text('L’organisateur confirme dès qu’il a vérifié ton paiement.', exact=True)).to_be_visible(timeout=15000)
-    shot(page, '15-invite-en-ligne-en-attente')
+    # Avis du 16.11 : rien à noter dans Party (le site n'est pas à l'organisateur) ; l'entrée coche « payé ».
+    pw.expect(page.get_by_role('button', name='J’ai payé', exact=True)).to_have_count(0)
+    shot(page, '15-invite-en-ligne-rien-a-noter')
     assert not errors, errors
-    bodies = [n['body'] for n in notes(people['admin'], eid, 'ticket_pay_declared')]
-    assert any(b.startswith(f"{name(people['b'])} dit avoir payé sa place en ligne (25 CHF)") for b in bodies), bodies
+    refused = people['b'].rpc('declare_ticket_payment', e=eid, declared=True)
+    assert refused.status_code == 400 and 'en ligne' in refused.text, refused.text
 
     page, errors = pages('admin')
     open_event(page, party, eid)
-    person_row(page, people['b'], 'Reçu ✓').get_by_role('button', name='Reçu ✓', exact=True).click()
-    pw.expect(page.get_by_text('Aucun paiement à confirmer. Quand quelqu’un touche « J’ai payé », il apparaît ici.', exact=True)).to_be_visible(timeout=15000)
+    pw.expect(page.get_by_text('Paiement en ligne · Choisis « Paintball 2 h »', exact=True)).to_be_visible(timeout=15000)
+    assert page.get_by_text('Aucun paiement à confirmer. Quand quelqu’un touche « J’ai payé », il apparaît ici.', exact=True).count() == 0
+    page.goto(f'{party}/events/event/{eid}/scan', wait_until='domcontentloaded')
+    row = person_row(page, people['b'], 'Payé ?')
+    pw.expect(row).to_be_visible(timeout=20000)
+    row.get_by_role('button', name='Payé ?', exact=True).click()
+    pw.expect(person_row(page, people['b'], 'Payé ✓')).to_be_visible(timeout=15000)
     mine = ticket(people['b'], eid)
     assert mine['paid'] is True and mine['state'] == 'ok' and mine.get('code'), mine  # place payée = billet remis
 

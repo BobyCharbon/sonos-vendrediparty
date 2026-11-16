@@ -88,7 +88,7 @@ export function TicketCard({ event, me, answerKey }: Props) {
             <T weight="bold" size={16}>Ton billet</T>
             <T muted size={14}>Ton billet arrivera quand l’organisateur l’aura validé.</T>
             {/* Payé ou en attente de confirmation : dit une seule fois, par la carte de paiement juste dessous. */}
-            {ticket.price_chf && !ticket.paid && !ticket.pay_pending && pay.mode !== 'on_site' ? (
+            {ticket.price_chf && !ticket.paid && !ticket.pay_pending && pay.mode === 'organizer' ? (
               <T size={12} color={colors.coralSoft}>Paie ta place : le billet arrive dès que l’organisateur a reçu ton paiement.</T>
             ) : null}
           </View>

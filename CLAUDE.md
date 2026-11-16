@@ -95,8 +95,10 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   « Prévenir » pour tous les groupes cochés. Public et « Sur invitation » publient toujours d'un toucher.
 - Paiement (maquette validée le 15.11, migration 20261115120000) : l'organisateur choisit « On me paie » (défaut, lien
   facultatif : Revolut…), « Paiement en ligne » (lien https obligatoire : billetterie) ou « Sur place » (`events.payment_mode`,
-  `payment_url`). Les deux premiers : la personne note « J'ai payé », l'organisateur confirme « Reçu ✓ » (jamais payé sur sa
-  seule parole : une place payée remet le billet QR). Sur place : aucun bouton, `declare_ticket_payment` refuse « J'ai payé » (annuler une déclaration d'avant reste possible). L'IA ne
+  `payment_url`). « On me paie » : la personne note « J'ai payé », l'organisateur confirme « Reçu ✓ » (jamais payé sur sa
+  seule parole : une place payée remet le billet QR). En ligne et sur place : aucun « J'ai payé » ni « Reçu ✓ » (le site de
+  paiement n'est pas à l'organisateur, avis du 16.11, migration 20261116190000), `declare_ticket_payment` refuse (annuler une
+  déclaration d'avant reste possible) ; l'entrée peut cocher « payé ». Un organisateur qui encaisse sur son site : « On me paie » + son lien. L'IA ne
   choisit jamais le mode. Le lien de l'événement remplace celui du même service dans le profil (un seul « Payer avec Revolut »).
   Tests : `tests/supabase_live/test_paiement_mode_live.py`, `test_paiement_mode_browser_live.py` (recette réelle),
   `test_event_tickets_browser.py`.
