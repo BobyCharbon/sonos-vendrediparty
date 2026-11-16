@@ -114,7 +114,7 @@ WHOOF_HOT = [
     "aurait la plus grosse surprise dans sa table de nuit", "serait le plus gêné dans un sex-shop", "passerait le plus de temps dans un sex-shop",
     "ferait le meilleur massage", "aurait le plus envie d'essayer le tantrisme", "serait le plus partant pour un week-end coquin improvisé",
     "a la meilleure technique de séduction", "craque le plus facilement", "a le plus de tension sexuelle avec quelqu'un ici",
-    "est le plus sexy au réveil", "aurait le plus de mal à dire non à un ex", "a le plus de chances de finir la nuit chez un inconnu",
+    "aurait le plus de mal à dire non à un ex", "a le plus de chances de finir la nuit chez un inconnu",
     "a le regard le plus séducteur", "danse le plus sensuellement", "serait le plus partant pour un bain de minuit tout nu",
     "aurait le plus de mal à tenir un mois d'abstinence", "serait le plus jaloux d'un ex au lit", "parle le plus de sexe en soirée",
     "invente le plus d'histoires sur sa vie sexuelle", "est le plus pudique", "est le moins pudique", "aurait le plus d'imagination au lit",
@@ -142,8 +142,8 @@ WHOOF_HOT = [
     "dirait le plus facilement ses préférences au lit", "aurait le plus de mal à résister à un ex en soirée", "serait le meilleur partenaire de slow",
     "ferait le meilleur lap dance", "serait le plus partant pour un jacuzzi coquin", "rendrait le plus jaloux son ou sa partenaire",
     "a le plus de chances de faire un bisou à quelqu'un ici avant la fin de la soirée", "aimerait le plus qu'on lui écrive un poème érotique",
-    "a le plus de charme dans la voix", "a le meilleur décolleté ou le meilleur torse", "porte le plus souvent des sous-vêtements assortis",
-    "a la tenue la plus sexy ce soir", "serait le plus partant pour une soirée déguisée coquine", "a le plus d'expérience en matière de plans à plusieurs",
+    "a le plus de charme dans la voix", "porte le plus souvent des sous-vêtements assortis",
+    "serait le plus partant pour une soirée déguisée coquine", "a le plus d'expérience en matière de plans à plusieurs",
 ]
 
 # ── Je n'ai jamais… ─────────────────────────────────────────────────────────────────────────────────────────

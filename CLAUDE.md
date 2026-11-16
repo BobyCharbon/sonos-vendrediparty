@@ -117,7 +117,7 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   « Gérer le bar » → qui a pris quoi (articles, quantités), montant, remboursé, reste dû ; par article ; barmans ; tris
   (doit le plus, a pris le plus, plus commandé…) ; en direct toute la soirée ; « Exporter en PDF » (lib/pdf.ts, écrit à la
   main, aucune bibliothèque : partagé sur téléphone, téléchargé sinon). Tests : `test_bar_recap_live.py`,
-  `test_bar_options_browser.py`. Bar pas en prod : ses migrations (devise, récap) partiront avec lui.
+  `test_bar_options_browser.py`. Bar et Discussions allumés en prod le 16.11.2026 (BAR_ENABLED / DISCUSSIONS_ENABLED dans compose.yaml de la stack) ; migrations du bar appliquées.
   Notification « verre servi » (16.11, migration 20261116120000) : titre « 🍹 Barman : −2 Vodka Red Bull », texte « Servi par
   … · 9 CHF · à rembourser : … · soirée » : se comprend sans l'ouvrir ; coupable (« Bar : verres servis », web et iPhone).
 - Temps réel de l'événement (avis du 16.11, migration 20261116110000) : bar, billets, paiements et covoiturage passent par
@@ -276,6 +276,16 @@ l'admin. Toujours :
   Distribution (décision de l'admin du 09.11.2026) : les 26 pays francophones de l'App Store (Suisse, France, Belgique,
   Luxembourg, Canada, Afrique francophone, Maghreb, Liban, Maurice, Seychelles, Vanuatu) ; tout autre pays ou une app
   Android publique → nouvelle revue. UE (France, Belgique, Luxembourg) : statut DSA déclaré et RGPD dans la politique.
+
+## Revue Apple du 16.11.2026 (bar et Discussions ouverts en prod) — à garder
+- Dossier de soumission : `docs/app-store/` (notes, tutoriel, fiche, checklist) ; `ios/appstore/review-notes.txt` = partie A
+  (≤ 4 000 caractères, `tests/test_ios_app.py`). Données de démo en prod : « Soirée démo Vendredi Party » (Apple-test
+  co-organisateur, bar ouvert) et groupe « Démo Apple » (`supabase/prod/2026-11-16-demo-apple-bar-discussions-*.sql`).
+- Bloquer (`set_direct_block`) masque aussitôt les messages de la personne (événement, groupes web `GroupChat.tsx` et natif
+  `group_chats.py`) ET la signale aux modérateurs (une fois). Bar : ni tabac ni drogue (`bar_item_allowed`) ; bar PAYANT
+  seulement sur un événement non public (`bar_private_only`, `event_public_bar_guard`). Jeux : classement aux points,
+  jamais aux gorgées. CGU 2026-11-16 (18 ans et plus, « Paiements, billets et bar »). Pas de mise en prod pendant une revue.
+  Tests : `tests/test_compliance_1611.py`, `tests/supabase_live/test_conformite_app_store_live.py`.
 
 ## Zicou : bêta seulement (décision de l'admin, 04.11.2026)
 - Zicou est ÉTEINT hors site de test par `compagnon_enabled()` (`app/features.py` : `COMPAGNON_ENABLED`

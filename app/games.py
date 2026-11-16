@@ -2767,7 +2767,8 @@ def room_view(room: dict, gid: str, child: dict | None) -> dict:
     ids = set(room["rtally"]) | set(room["rpts"]) | {p["id"] for p in room["players"]}
     board = [{"name": names.get(i, "?"), "me": i == gid, "drink": room["rtally"].get(i, {}).get("drink", 0),
               "give": room["rtally"].get(i, {}).get("give", 0), "pts": room["rpts"].get(i, 0)} for i in ids if i in names]
-    board.sort(key=lambda r: (-r["pts"], -r["drink"], r["name"]))
+    # Classement aux points seulement, jamais aux gorgées (App Store 1.4.3 : ne jamais récompenser le fait de boire).
+    board.sort(key=lambda r: (-r["pts"], r["name"]))
     return {"current": {"code": child["code"], "type": child["type"], "name": GAMES[child["type"]], "phase": child["phase"],
                         "players": len(child["players"])} if child else None,
             "history": list(reversed(room["rhistory"][-12:])), "board": board,

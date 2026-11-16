@@ -69,6 +69,9 @@ def reactions_of(message_id: str, reactions: list, me: str) -> list[dict]:
     return list(counts.values())
 
 
+BLOCKED_TEXT = "Message masqué (personne bloquée)"
+
+
 class GroupChats:
     def __init__(self, admin: GroupAdmin):
         self.admin = admin
@@ -232,12 +235,17 @@ class GroupChats:
             "phones": POOL.submit(self.admin._rpc, token, "group_chat_phones", {"grp": group_id}, "Les membres n'ont pas pu être lus."),
             # Surnoms et photos des personnes du groupe (fonction dédiée : un Guest ne lit pas le profil d'un admin).
             "profiles": POOL.submit(self.admin._rpc, token, "group_chat_people", {"grp": group_id}, "Les membres n'ont pas pu être lus."),
+            "blocks": POOL.submit(self._rows, "/rest/v1/direct_blocks?select=blocked_id", token),
         }
         got = {k: f.result() for k, f in jobs.items()}
         me, chat, group = got["me"], got["chat"], got["group"]
         if not group:
             raise AccountError("Cette discussion n'est pas accessible.")
-        messages = list(reversed(got["messages"]))
+        # Personnes que j'ai bloquées (App Store 1.2) : texte, photo et vocal masqués aussitôt, épinglés retirés.
+        hidden = {b.get("blocked_id") for b in got["blocks"] or []}
+        messages = [{**m, "body": BLOCKED_TEXT, "photo_path": None, "audio_path": None} if m.get("user_id") in hidden else m
+                    for m in reversed(got["messages"])]
+        got["highlights"] = [m for m in got["highlights"] or [] if m.get("user_id") not in hidden]
         admins = {a["user_id"] for a in got["admins"]}
         organizers = got["organizers"]
         phones = {p["id"]: p["phone"] for p in got["phones"] or []}
