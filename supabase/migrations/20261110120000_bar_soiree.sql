@@ -769,15 +769,16 @@ begin
 end $$;
 
 -- 9. Notifications : les Guests reçoivent aussi celles du bar ; chaque type a son interrupteur ---------------------
-create or replace function private.may_receive_push(uid uuid, kind text) returns boolean
-language sql stable security definer set search_path = '' as $$
-  select private.is_member(uid)
-    or (kind in ('pet_daily', 'pet_alert', 'pet_gift', 'pet_streak', 'pet_bar') and private.is_account_active(uid))
-    or (kind in ('group_message', 'group_invite', 'group_join', 'link_join', 'referral_join', 'direct_message', 'moderation_notice', 'report_new',
-                 'private_invite', 'announce_request', 'announce_accepted', 'announce_refused', 'group_event_request', 'group_event_accepted', 'group_event_refused', 'event_changed', 'date_fixed', 'reminder', 'waitlist',
-                 'coorganizer_added', 'bar_served', 'bar_changed', 'bar_refund_declared', 'bar_refund_confirmed')
-        and private.is_account_active(uid));
-$$;
+-- Ajout aux types déjà permis, jamais une réécriture : d'autres migrations en ajoutent aussi (prod, 16.11).
+do $$ declare def text;
+begin
+  def := pg_get_functiondef('private.may_receive_push(uuid, text)'::regprocedure);
+  if position('''bar_served''' in def) = 0 then
+    if position('''coorganizer_added''' in def) = 0 then raise exception 'may_receive_push : ancre coorganizer_added introuvable'; end if;
+    def := replace(def, '''coorganizer_added''', '''coorganizer_added'', ''bar_served'', ''bar_changed'', ''bar_refund_declared'', ''bar_refund_confirmed''');
+    execute def;
+  end if;
+end $$;
 
 do $$ declare def text; anchor text := $a$    when 'ticket_issued' then coalesce(prefs.ticket_issued, true)$a$;
 begin
