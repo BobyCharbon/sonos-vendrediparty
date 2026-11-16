@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { draftOf, parseItemDraft, type AgeMin, type BarItem, type ItemDraft, type ItemInput } from '@/lib/bar';
+import { barUnit, draftOf, parseItemDraft, type AgeMin, type BarItem, type ItemDraft, type ItemInput } from '@/lib/bar';
 import { CATEGORIES } from '@/lib/barOptions';
 
 import { Button, Chip, ErrorText, Field, s, Section, T, ToggleRow } from '../ui';
@@ -41,7 +41,7 @@ export function ItemForm({ item, onSave, onCancel }: {
           <Field label="Emoji" value={draft.emoji} onChangeText={(emoji) => set({ emoji })} placeholder="🍸" />
         </View>
         <View style={{ flex: 1 }}>
-          <Field label="Prix (CHF)" value={draft.price} onChangeText={(price) => set({ price })} inputMode="decimal" keyboardType="decimal-pad" placeholder="4.50" />
+          <Field label={`Prix (${barUnit()})`} value={draft.price} onChangeText={(price) => set({ price })} inputMode="decimal" keyboardType="decimal-pad" placeholder="4.50" />
         </View>
       </View>
       <View style={{ gap: 6 }}>

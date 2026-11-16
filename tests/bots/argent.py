@@ -321,7 +321,7 @@ def phase_payer(browser, origin, only):
             check(p, clip == "0790000104", "🟡", "numéro Twint copié", clip)
         with p.step("Revolut : lien sûr"):
             with page.context.expect_page(timeout=5000) as popup:
-                p.tap(btn(p, "Payer avec Revolut"), "Payer avec Revolut")
+                p.tap(page.get_by_role("link", name="Payer avec Revolut", exact=True), "Payer avec Revolut")
             url = popup.value.url
             p.log(f"Revolut ouvre {url}")
             check(p, url.startswith("https://revolut.me/botoscar"), "🟠", "Revolut ouvre revolut.me/botoscar", url)

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Linking, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { pressTransition } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
@@ -58,10 +58,10 @@ function PaySheet({ info, onDeclare, onClose, busy, error }: { info: PayInfo; on
         <T style={st.amount}>{chf(info.amount)}</T>
         {info.payment_info ? <LinkedText size={14} color={colors.textSoft} text={info.payment_info} /> : null}
         {info.note ? <T size={13} muted>« {info.note} »</T> : null}
-        {eventLink ? <Button variant="secondary" label={payLinkLabel(eventLink)} onPress={() => Linking.openURL(eventLink)} /> : null}
+        {eventLink ? <Button variant="secondary" label={payLinkLabel(eventLink)} href={eventLink} /> : null}
         {twint ? <CopyRow label="Twint : numéro à copier dans l’app Twint" value={twint} /> : null}
         {links.map(([kind, url]) => (
-          <Button key={kind} variant="secondary" label={LINK_LABELS[kind] ?? 'Ouvrir le lien de paiement'} onPress={() => Linking.openURL(url)} />
+          <Button key={kind} variant="secondary" label={LINK_LABELS[kind] ?? 'Ouvrir le lien de paiement'} href={url} />
         ))}
         {info.iban ? (
           <>
@@ -151,7 +151,7 @@ export function PayOrganizer({ eventId, ticket, onTicket, pay }: { eventId: stri
   if (online) {
     return (
       <View style={{ gap: 6 }}>
-        <Button label={`Payer en ligne · ${chf(price)} ↗`} onPress={() => Linking.openURL(online)} />
+        <Button label={`Payer en ligne · ${chf(price)} ↗`} href={online} />
         <T size={12} muted>{(() => { try { return new URL(online).hostname.replace(/^www\./, ''); } catch { return ''; } })()}{pay.info ? ` · ${pay.info}` : ''}</T>
         <Button variant="secondary" label="J’ai payé" loading={busy} onPress={() => declare(true)} />
         <ErrorText error={error} />

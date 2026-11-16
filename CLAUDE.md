@@ -100,6 +100,12 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   choisit jamais le mode. Le lien de l'événement remplace celui du même service dans le profil (un seul « Payer avec Revolut »).
   Tests : `tests/supabase_live/test_paiement_mode_live.py`, `test_paiement_mode_browser_live.py` (recette réelle),
   `test_event_tickets_browser.py`.
+  Tout lien de paiement est un vrai lien (`Button href` → `<a target="_blank">`), jamais `Linking.openURL` / `window.open`
+  depuis un toucher : Safari en navigation privée l'ignorait (avis du 16.11). La fiche reste ouverte derrière.
+- Bar : devise du bar par événement, francs (défaut) ou euros (« Options » › Devise, `event_bars.currency`,
+  `bar_set_currency`, migration 20261116090000), choisie avant les premières commandes payantes ; montants affichés
+  (`barChf` / `barUnit`), messages de la base (`private.bar_chf(n, e)`) et carte Wallet suivent. Tests :
+  `test_bar_options_live.py`, `test_bar_options_browser.py`, `test_bar_wallet.py`.
 - Covoiturage (avis 34d5c07f2e56, 13.11, migration 20261113090000) : option de l'organisateur (`events.carpool_enabled`,
   éteinte par défaut, jamais allumée par l'IA) ; seuls les participants (Présent / Peut-être) et les organisateurs y prennent
   part, tout par les fonctions `carpool*` (table sans accès direct, places comptées sous verrou, ville filtrée comme un nom,

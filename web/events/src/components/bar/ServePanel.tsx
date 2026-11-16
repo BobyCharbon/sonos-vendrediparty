@@ -28,7 +28,7 @@ type Person = Extract<BarScan, { result: 'ok' }>;
 function pricesLabel(l: ScanLine): string {
   const prices = (l.prices ?? [l.price_chf]).map(Number);
   const lo = Math.min(...prices), hi = Math.max(...prices);
-  return lo === hi ? barChf(lo) : `${barChf(lo).replace(/\s*CHF$/, '')}–${barChf(hi)}`;
+  return lo === hi ? barChf(lo) : `${amount(lo)}–${barChf(hi)}`;
 }
 
 /** Ce que le barman sert sans commande : lignes, nombre et montant (prix de la carte, 0 en bar offert). */

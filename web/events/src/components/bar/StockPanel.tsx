@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import {
-  barChf, barItemAction, barSaveItem, barStaffItems, errorCode, errorText, type BarItem, type BarRights, type ItemAction, type ItemInput,
+  barChf, barItemAction, barUnit, barSaveItem, barStaffItems, errorCode, errorText, type BarItem, type BarRights, type ItemAction, type ItemInput,
 } from '@/lib/bar';
 import { useQuery } from '@/lib/data';
 import { colors, radius } from '@/lib/theme';
@@ -13,7 +13,7 @@ import { ItemForm } from './ItemForm';
 import { stockLogText } from './StockLog';
 
 type Ask = { item: string; action: 'remaining' | 'restock' | 'price' } | null;
-const ASK_LABEL = { remaining: 'Il en reste', restock: 'Réassort : combien en plus ?', price: 'Nouveau prix (CHF)' } as const;
+const ASK_LABEL = { remaining: 'Il en reste', restock: 'Réassort : combien en plus ?', price: 'Nouveau prix' } as const;
 
 /** Une ligne de la carte pour le barman : ce qui reste, et les gestes que l'organisateur lui permet. */
 function StockRow({ item, rights, busy, ask, onAsk, onAct, onEdit }: {
@@ -56,7 +56,7 @@ function StockRow({ item, rights, busy, ask, onAsk, onAct, onEdit }: {
       {asking ? (
         <View style={[s.row, { alignItems: 'flex-end' }]}>
           <View style={{ flex: 1 }}>
-            <Field label={`${ASK_LABEL[asking]} · ${item.name}`} value={value} onChangeText={setValue} autoFocus
+            <Field label={`${ASK_LABEL[asking]}${asking === 'price' ? ` (${barUnit()})` : ''} · ${item.name}`} value={value} onChangeText={setValue} autoFocus
               inputMode={asking === 'price' ? 'decimal' : 'numeric'} keyboardType={asking === 'price' ? 'decimal-pad' : 'number-pad'}
               placeholder={asking === 'price' ? String(item.price_chf) : asking === 'remaining' ? String(left ?? '') : '12'}
               onSubmitEditing={submit} />

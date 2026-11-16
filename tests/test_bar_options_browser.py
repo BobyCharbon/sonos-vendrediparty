@@ -29,7 +29,7 @@ BIERE, COCA, VODKA = ('b1000000-0000-4000-8000-000000000001', 'b1000000-0000-400
 LEA = '5b0c7e1e-1d3a-4c8e-9a51-6f2f4b9d0a11'
 OPTIONS = {'guest_orders': True, 'counter_serve': False, 'show_stock': True, 'free_bar': False, 'limit_glasses': None,
            'limit_chf': None, 'staff_adjust_stock': True, 'staff_unavailable': True, 'staff_correct': True, 'staff_prices': False,
-           'staff_items': False}
+           'staff_items': False, 'currency': 'CHF'}
 RIGHTS = {'adjust_stock': True, 'unavailable': True, 'correct': True, 'prices': False, 'items': False}
 CORS = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*'}
 
@@ -111,6 +111,9 @@ def bar_backend(page, options=None, manage=True, serve=True):
         calls.append((name, args))
         if name == 'bar_save_settings':
             opts.update({k: v for k, v in args['settings'].items() if k in opts})
+            body = overview()
+        elif name == 'bar_set_currency':
+            opts['currency'] = args['currency']
             body = overview()
         elif name == 'bar_overview':
             body = overview()
@@ -275,6 +278,31 @@ def test_the_barman_counts_what_is_left_marks_unavailable_and_serves_without_ord
         page.get_by_role('button', name='Servir 2 articles · 4 CHF').click()
         pw.expect(page.get_by_text('Servi à Léa', exact=True)).to_be_visible(timeout=10000)
         assert sent(calls, 'bar_serve')[-1]['lines'] == [{'item': COCA, 'qty': 0, 'extra': 2}]
+        assert not errors, errors
+    finally:
+        context.close()
+
+
+def test_the_organizer_picks_euros_and_every_amount_of_the_bar_follows(browser, origin):
+    # Demande de l'admin du 16.11 : la devise du bar se choisit dans ses options (francs ou euros).
+    context, page, calls, errors = open_bar(browser, origin, '/manage')
+    try:
+        page.get_by_role('tab', name='Options').click()
+        pw.expect(page.get_by_role('button', name='Francs (CHF)')).to_be_visible(timeout=15000)
+        page.get_by_role('button', name='Euros (€)').click()
+        page.wait_for_timeout(500)
+        assert sent(calls, 'bar_set_currency')[-1] == {'e': EVENT, 'currency': 'EUR'}
+        pw.expect(page.get_by_label('€ au plus')).to_be_visible()
+        page.get_by_role('tab', name='Articles').click()
+        pw.expect(page.get_by_text('4 €', exact=False).first).to_be_visible()
+        assert not errors, errors
+    finally:
+        context.close()
+    context, page, calls, errors = open_bar(browser, origin, '', options={'currency': 'EUR'}, manage=False, serve=False)
+    try:
+        pw.expect(page.get_by_text('Bière blonde').first).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_text('4 €', exact=True).first).to_be_visible()
+        assert page.get_by_text('CHF', exact=False).count() == 0
         assert not errors, errors
     finally:
         context.close()

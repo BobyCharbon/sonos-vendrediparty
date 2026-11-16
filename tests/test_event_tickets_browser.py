@@ -331,7 +331,7 @@ def test_friends_payment_the_guest_pays_then_waits_for_the_organizer(browser, or
         frame.get_by_role('button', name='Copier Twint : numéro à copier dans l’app Twint : +41791234567', exact=True).click()
         pw.expect(frame.get_by_text('Copié ✓', exact=True)).to_be_visible()
         pw.expect(frame.get_by_text('CH93 0076 2011 6238 5295 7', exact=True)).to_be_visible()
-        pw.expect(frame.get_by_role('button', name='Payer avec Revolut', exact=True)).to_be_visible()
+        pw.expect(frame.get_by_role('link', name='Payer avec Revolut', exact=True)).to_be_visible()
         pw.expect(frame.get_by_text('Party · Sortie de démonstration (test local)', exact=True)).to_be_visible()
         shot(page, 'payer-organisateur')
         frame.get_by_role('button', name='J’ai payé', exact=True).click()
@@ -360,11 +360,11 @@ def test_the_event_payment_link_comes_first_in_the_pay_sheet(browser, origin):
         frame.get_by_text('Sortie de démonstration (test local)', exact=True).click()
         pw.expect(frame.get_by_text('À payer à l’organisateur', exact=True)).to_be_visible(timeout=10000)
         frame.get_by_role('button', name='Payer Compte de démonstration · 20 CHF', exact=True).click()
-        pw.expect(frame.get_by_role('button', name='Payer avec Revolut', exact=True)).to_have_count(1, timeout=10000)
-        pw.expect(frame.get_by_role('button', name='Payer avec PayPal', exact=True)).to_have_count(1)  # autre service : gardé
+        pw.expect(frame.get_by_role('link', name='Payer avec Revolut', exact=True)).to_have_count(1, timeout=10000)
+        pw.expect(frame.get_by_role('link', name='Payer avec PayPal', exact=True)).to_have_count(1)  # autre service : gardé
         context.route('https://revolut.me/**', lambda r: r.fulfill(status=200, body='ok'))  # jamais le vrai site
         with page.expect_popup() as popup:
-            frame.get_by_role('button', name='Payer avec Revolut', exact=True).click()
+            frame.get_by_role('link', name='Payer avec Revolut', exact=True).click()
         assert popup.value.url.startswith(link)
         frame.get_by_role('button', name='J’ai payé', exact=True).click()
         pw.expect(frame.get_by_text('Payé · en attente de confirmation', exact=True).first).to_be_visible(timeout=10000)
@@ -380,9 +380,11 @@ def test_online_payment_opens_the_link_then_the_guest_notes_it_and_waits(browser
         'payment_mode': 'online', 'payment_url': link, 'payment_info': 'Choisis « Paintball 2 h »'})
     try:
         frame.get_by_text('Sortie de démonstration (test local)', exact=True).click()
-        button = frame.get_by_role('button', name='Payer en ligne · 20 CHF ↗', exact=True)
+        button = frame.get_by_role('link', name='Payer en ligne · 20 CHF ↗', exact=True)
         pw.expect(button).to_be_visible(timeout=10000)
         pw.expect(frame.get_by_text('billetterie.example.ch · Choisis « Paintball 2 h »', exact=True)).to_be_visible()
+        # Un vrai lien qui ouvre un nouvel onglet : Safari (navigation privée comprise) ignorait window.open (avis du 16.11)
+        assert button.get_attribute('target') == '_blank' and button.get_attribute('href') == link
         context.route('https://billetterie.example.ch/**', lambda r: r.fulfill(status=200, body='ok'))
         with page.expect_popup() as popup:
             button.click()

@@ -93,9 +93,10 @@ def test_options_have_safe_defaults_and_the_organizer_saves_them():
         + note("les_deux_eteints", "perform public.bar_save_settings(e, '{\"guest_orders\": false, \"counter_serve\": false}'::jsonb)")
         + note("limite_folle", "perform public.bar_save_settings(e, '{\"limit_glasses\": 0}'::jsonb)")
         + as_bot("valentin") + note("barman_regle", "perform public.bar_save_settings(e, '{\"free_bar\": true}'::jsonb)"))
-    assert ('defaut={"free_bar": false, "limit_chf": null, "show_stock": true, "staff_items": false, "guest_orders": true, '
-            '"staff_prices": false, "counter_serve": false, "limit_glasses": null, "staff_correct": true, '
-            '"staff_unavailable": true, "staff_adjust_stock": true}') in out, out
+    defaut = json.loads(out.split('defaut=', 1)[1].split(' | ', 1)[0])
+    assert defaut == {"free_bar": False, "limit_chf": None, "show_stock": True, "staff_items": False, "guest_orders": True,
+                      "staff_prices": False, "counter_serve": False, "limit_glasses": None, "staff_correct": True,
+                      "staff_unavailable": True, "staff_adjust_stock": True, "currency": "CHF"}, out
     assert '"limit_chf": 30' in out and '"show_stock": false' in out and '"limit_glasses": 6' in out, out
     assert 'les_deux_eteints=Sans commande dans l’app, le service au comptoir doit rester allumé' in out.replace("'", '’'), out
     assert 'limite_folle=Limite de verres' in out, out
@@ -275,3 +276,23 @@ def test_undoing_a_counter_service_cancels_the_glasses_instead_of_leaving_them_w
         + keep("etats", "(select string_agg(status || ':' || coalesce(cancel_reason, '-'), ',' order by status) from public.event_bar_units where event_id = e and user_id = ada)"))
     assert "annule=3" in out and "solde=0" in out, out
     assert "etats=cancelled:undone,cancelled:undone,pending:-" in out, out
+
+
+def test_the_organizer_picks_euros_before_the_first_paid_glass_and_the_messages_follow():
+    # Demande de l'admin du 16.11 : francs ou euros, réglé dans les options du bar ; jamais changé une fois des verres payants
+    # commandés (une dette de 4.50 CHF ne devient pas 4.50 € en douce).
+    out = run(BAR + as_bot("valentin") + note("barman_devise", "perform public.bar_set_currency(e, 'EUR')")
+        + as_bot("olga") + note("devise_folle", "perform public.bar_set_currency(e, 'USD')") + """
+      perform public.bar_save_settings(e, '{"counter_serve": true}'::jsonb);
+      r := public.bar_set_currency(e, 'EUR');""" + keep("options", "r->'options'->>'currency'")
+        + pledge_of("ada") + keep("carte_invite", "r->'options'->>'currency'") + """
+      perform public.bar_pledge(e, pt, pv);""" + as_bot("valentin") + f"""
+      perform public.bar_serve(e, ada, {lines('vrb', 0, 1)}, gen_random_uuid()::text);""" + as_postgres()
+        + keep("message", "(select body from public.notifications where user_id = ada and kind = 'bar_served' order by created_at desc limit 1)")
+        + keep("wallet", "private.wallet_payload(e, ada)->'bar'->>'currency'")
+        + as_bot("olga") + note("apres_service", "perform public.bar_set_currency(e, 'CHF')"))
+    assert "barman_devise=forbidden" in out, out
+    assert "devise_folle=Devise : francs (CHF) ou euros (EUR)." in out, out
+    assert "options=EUR" in out and "carte_invite=EUR" in out, out
+    assert "4.50 €" in out and "4.50 CHF" not in out, out
+    assert "apres_service=Des verres payants sont déjà commandés ou servis" in out, out

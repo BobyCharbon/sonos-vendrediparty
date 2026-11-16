@@ -5,7 +5,6 @@ import { friendlyError } from './errors';
 import { formatShort } from './format';
 import { isTermsError } from './moderation';
 import { must, supabase } from './supabase';
-import { chf } from './tickets';
 
 /**
  * Bar de la soirée (migration 20261110120000, maquettes v6 du 10.11) : tables fermées, tout passe par les fonctions
@@ -20,7 +19,10 @@ export type CancelReason = 'mine' | 'organizer' | 'closed' | 'removed' | 'absent
 export type BarCategory = 'softs' | 'bieres' | 'vins' | 'cocktails' | 'shots' | 'autre';
 
 /** Options de l'organisateur (migration 20261110160000) ; absentes d'une base pas encore migrée (valeurs par défaut). */
+/** Devise du bar (réglage « Options », avant les premières commandes payantes). */
+export type BarCurrency = 'CHF' | 'EUR';
 export type BarOptions = {
+  currency: BarCurrency;
   guest_orders: boolean; counter_serve: boolean; show_stock: boolean; free_bar: boolean;
   limit_glasses: number | null; limit_chf: number | null;
   staff_adjust_stock: boolean; staff_unavailable: boolean; staff_correct: boolean; staff_prices: boolean; staff_items: boolean;
@@ -28,7 +30,7 @@ export type BarOptions = {
 /** Ce que je peux faire pendant la soirée (barman : ce que l'organisateur permet ; organisateur : tout). */
 export type BarRights = { adjust_stock: boolean; unavailable: boolean; correct: boolean; prices: boolean; items: boolean };
 export const DEFAULT_OPTIONS: BarOptions = {
-  guest_orders: true, counter_serve: false, show_stock: true, free_bar: false, limit_glasses: null, limit_chf: null,
+  currency: 'CHF', guest_orders: true, counter_serve: false, show_stock: true, free_bar: false, limit_glasses: null, limit_chf: null,
   staff_adjust_stock: true, staff_unavailable: true, staff_correct: true, staff_prices: false, staff_items: false,
 };
 export const optionsOf = (x: { options?: BarOptions | null }): BarOptions => ({ ...DEFAULT_OPTIONS, ...(x.options ?? {}) });
@@ -157,15 +159,25 @@ export const errorText = (e: unknown, fallback: string): string => (e instanceof
 async function call<T>(name: string, args: Record<string, unknown>, fallback: string): Promise<T> {
   const { data, error } = await supabase.rpc(name, args);
   if (error) throw barError(error.message, fallback);
-  return data as T;
+  return remember(data) as T;
 }
+
+// Devise du bar affiché : chaque lecture du bar (my_bar, bar_overview…) porte ses options ; les montants suivent.
+let shownCurrency: BarCurrency = 'CHF';
+function remember<T>(data: T): T {
+  const c = (data as { options?: { currency?: BarCurrency } } | null)?.options?.currency;
+  if (c === 'CHF' || c === 'EUR') shownCurrency = c;
+  return data;
+}
+/** « CHF » ou « € » : l'unité du bar affiché. */
+export const barUnit = () => (shownCurrency === 'EUR' ? '€' : 'CHF');
 
 /** Bar de l'événement vu par moi ; null : pas de bar (ou base pas encore migrée). */
 export async function fetchMyBar(e: string): Promise<MyBar | null> {
   const { data, error } = await supabase.rpc('my_bar', { e });
   if (error && (error as { code?: string }).code === MISSING_FUNCTION) return null;
   if (error) throw barError(error.message, 'Le bar n’a pas pu être lu.');
-  return (data as MyBar | null) ?? null;
+  return remember((data as MyBar | null) ?? null);
 }
 
 export const barOrder = (e: string, lines: { item: string; qty: number }[], pledgeText: string | null, pledgeVersion: number | null) =>
@@ -185,6 +197,8 @@ export const barOverview = (e: string) => call<BarOverview | null>('bar_overview
 export const barCreate = (e: string) => call<BarOverview>('bar_create', { e }, 'Le bar n’a pas pu être créé.');
 export const barSaveItem = (e: string, item: ItemInput) =>
   call<{ id: string; overbooked: number; name: string }>('bar_save_item', { e, item }, 'L’article n’a pas pu être enregistré.');
+export const barSetCurrency = (e: string, currency: BarCurrency) =>
+  call<BarOverview>('bar_set_currency', { e, currency }, 'La devise n’a pas pu être enregistrée.');
 export const barSaveSettings = (e: string, settings: BarSettings) =>
   call<BarOverview>('bar_save_settings', { e, settings }, 'Les réglages n’ont pas pu être enregistrés.');
 export const barSetStaff = (e: string, member: string, barman: boolean) =>
@@ -213,7 +227,7 @@ export const barCorrectUnit = (e: string, unit: string) =>
 /** Au centime (4.06 × 3 = 12.18, jamais 12.180000000000001). */
 export const round2 = (n: number) => Math.round(n * 100) / 100;
 /** « 4.50 CHF », « 3 CHF » (chf() des billets, arrondi au centime). */
-export const barChf = (n: number) => chf(round2(n));
+export const barChf = (n: number) => `${amount(n)} ${barUnit()}`;
 /** Montant sans « CHF », pour le grand chiffre : « 4.06 », « 0 ». */
 export function amount(n: number): string {
   const r = round2(n);
@@ -373,7 +387,7 @@ export function parseItemDraft(d: ItemDraft, id?: string): { input: ItemInput } 
   const priceText = d.price.trim().replace(',', '.');
   const price = Number(priceText);
   if (!priceText || !Number.isFinite(price) || price < 0 || price > 500 || round2(price) !== price) {
-    return { error: 'Prix : de 0 à 500 CHF, au centime près (par exemple 4.50).' };
+    return { error: `Prix : de 0 à 500 ${barUnit()}, au centime près (par exemple 4.50).` };
   }
   const stockText = d.stock.trim();
   if (stockText && (!WHOLE.test(stockText) || Number(stockText) > 100000)) return { error: 'Stock : un nombre entier, ou vide pour illimité.' };

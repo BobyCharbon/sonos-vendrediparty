@@ -197,7 +197,7 @@ def test_2_on_me_paie_the_guest_notes_it_and_the_organizer_confirms(pages, party
     pay.scroll_into_view_if_needed()
     shot(page, '06-invite-on-me-paie')
     pay.click()
-    revolut = page.get_by_role('button', name='Payer avec Revolut', exact=True)
+    revolut = page.get_by_role('link', name='Payer avec Revolut', exact=True)
     pw.expect(revolut).to_have_count(1, timeout=10000)
     shot(page, '07-feuille-payer')
     with page.expect_popup() as popup:
@@ -279,7 +279,7 @@ def test_3_published_event_switched_to_online_with_qr_tickets(pages, party, peop
     open_event(page, party, eid)
     pw.expect(page.get_by_text('Paiement en ligne · Choisis « Paintball 2 h »', exact=True)).to_be_visible()
     page.get_by_role('button', name='Présent', exact=True).click()
-    online = page.get_by_role('button', name='Payer en ligne · 25 CHF ↗', exact=True)
+    online = page.get_by_role('link', name='Payer en ligne · 25 CHF ↗', exact=True)
     pw.expect(online).to_be_visible(timeout=15000)
     pw.expect(page.get_by_text('billetterie.example.ch · Choisis « Paintball 2 h »', exact=True)).to_be_visible()
     online.scroll_into_view_if_needed()

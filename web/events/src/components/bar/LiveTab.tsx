@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { amount, barChf, barConfirmRefund, errorText, optionsOf, round2, stockParts, type BarItem, type BarOverview, type BarPerson } from '@/lib/bar';
+import { amount, barChf, barUnit, barConfirmRefund, errorText, optionsOf, round2, stockParts, type BarItem, type BarOverview, type BarPerson } from '@/lib/bar';
 import { formatTime, plural } from '@/lib/format';
 import { colors, font, radius } from '@/lib/theme';
 
@@ -75,8 +75,8 @@ export function LiveTab({ eventId, overview, onOverview }: { eventId: string; ov
           <View style={st.stat}><Text style={[st.big, { color: colors.mint }]}>{t.served}</Text><T muted size={12} style={st.center}>offerts (bar offert)</T></View>
         ) : (
           <>
-            <View style={st.stat}><Text style={[st.big, { color: colors.coral }]}>{amount(due)}</Text><T muted size={12} style={st.center}>CHF à recevoir</T></View>
-            <View style={st.stat}><Text style={[st.big, { color: colors.mint }]}>{amount(t.refunded_chf)}</Text><T muted size={12} style={st.center}>CHF remboursés</T></View>
+            <View style={st.stat}><Text style={[st.big, { color: colors.coral }]}>{amount(due)}</Text><T muted size={12} style={st.center}>{barUnit()} à recevoir</T></View>
+            <View style={st.stat}><Text style={[st.big, { color: colors.mint }]}>{amount(t.refunded_chf)}</Text><T muted size={12} style={st.center}>{barUnit()} remboursés</T></View>
           </>
         )}
       </View>

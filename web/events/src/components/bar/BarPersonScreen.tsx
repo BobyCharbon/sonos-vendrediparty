@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { amount, barCancelUnits, barChf, barCorrectUnit, barPerson, errorText, itemLabel, useBarRefresh, type BarPersonDetail, type BarUnit } from '@/lib/bar';
+import { amount, barCancelUnits, barChf, barCorrectUnit, barPerson, barUnit, errorText, itemLabel, useBarRefresh, type BarPersonDetail, type BarUnit } from '@/lib/bar';
 import { useQuery } from '@/lib/data';
 import { formatMessageTime, formatTime, plural } from '@/lib/format';
 import { colors, font, radius } from '@/lib/theme';
@@ -71,7 +71,7 @@ export function BarPersonScreen({ eventId, member }: { eventId: string; member: 
           </T>
         </View>
         <Text style={st.amount}>{amount(Math.abs(person.balance))}</Text>
-        <T size={14} weight="bold" color={colors.textSoft}>CHF</T>
+        <T size={14} weight="bold" color={colors.textSoft}>{barUnit()}</T>
       </View>
 
       <Section title="Réservé, pas encore servi">

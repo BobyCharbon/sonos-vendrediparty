@@ -187,9 +187,11 @@ def _fields(event: dict, ticket: dict, holder: str) -> dict:
             "secondaryFields": secondary, "auxiliaryFields": auxiliary + _status_fields(ticket), "backFields": back}
 
 
-def _chf(amount) -> str:
+def _chf(amount, currency: str | None = "CHF") -> str:
+    """« 10.56 CHF » ; bar en euros (réglage de l'organisateur) : « 10.56 € »."""
     value = round(float(amount or 0), 2)
-    return f"{int(value)} CHF" if value == int(value) else f"{value:.2f} CHF"
+    unit = "€" if currency == "EUR" else "CHF"
+    return f"{int(value)} {unit}" if value == int(value) else f"{value:.2f} {unit}"
 
 
 def _bar_date(iso: str | None) -> str:
@@ -216,7 +218,7 @@ def _with_bar(fields: dict, bar: dict) -> dict:
             "headerFields": [{"key": "bar_pending", "label": "À SERVIR", "value": f"{pending} article{'s' if pending > 1 else ''}",
                               "changeMessage": "À servir : %@"}],
             "primaryFields": [{"key": "bar_balance", "label": "À TE RENDRE" if credit else "À REMBOURSER",
-                               "value": _chf(abs(balance)),
+                               "value": _chf(abs(balance), bar.get("currency")),
                                "changeMessage": "Nouveau solde : %@"}],
             "secondaryFields": [title, *fields.get("secondaryFields", [])][:3],
             "backFields": [*fields.get("backFields", []), {"key": "bar_terms", "label": "Bar de la soirée", "value": terms}]}

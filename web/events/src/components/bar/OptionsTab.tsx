@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { barSaveSettings, errorText, optionsOf, type BarOptions, type BarOverview, type BarSettings } from '@/lib/bar';
+import { barSaveSettings, barSetCurrency, barUnit, errorText, optionsOf, type BarCurrency, type BarOptions, type BarOverview, type BarSettings } from '@/lib/bar';
 import { colors } from '@/lib/theme';
 
-import { Button, ErrorText, Field, s, Section, T, ToggleRow } from '../ui';
+import { Button, Chip, ErrorText, Field, s, Section, T, ToggleRow } from '../ui';
 
-type Flag = Exclude<keyof BarOptions, 'limit_glasses' | 'limit_chf'>;
+type Flag = Exclude<keyof BarOptions, 'limit_glasses' | 'limit_chf' | 'currency'>;
 type Row = { key: Flag; label: string; hint: string };
 
 const ORDERS: Row[] = [
@@ -25,6 +25,8 @@ const STAFF: Row[] = [
   { key: 'staff_items', label: 'Ajouter ou modifier des articles', hint: 'Nom, emoji, catégorie, stock, limites : comme l’organisateur.' },
 ];
 
+const CURRENCIES: [BarCurrency, string][] = [['CHF', 'Francs (CHF)'], ['EUR', 'Euros (€)']];
+
 const limitText = (n: number | null) => (n == null ? '' : String(n));
 
 /** Limites par personne pour la soirée (servis + en attente) : verres et/ou CHF, vide = sans limite. */
@@ -38,7 +40,7 @@ function Limits({ options, busy, onSave }: { options: BarOptions; busy: boolean;
     const g = glasses.trim();
     const c = chf.trim().replace(',', '.');
     if (g && (!/^\d+$/.test(g) || Number(g) < 1 || Number(g) > 200)) return setError('Verres : de 1 à 200, ou vide pour sans limite.');
-    if (c && (!/^\d+(\.\d{1,2})?$/.test(c) || Number(c) < 1 || Number(c) > 5000)) return setError('CHF : de 1 à 5000, ou vide pour sans limite.');
+    if (c && (!/^\d+(\.\d{1,2})?$/.test(c) || Number(c) < 1 || Number(c) > 5000)) return setError(`${barUnit()} : de 1 à 5000, ou vide pour sans limite.`);
     setError(null);
     onSave({ limit_glasses: g ? Number(g) : null, limit_chf: c ? Number(c) : null });
   }
@@ -52,7 +54,7 @@ function Limits({ options, busy, onSave }: { options: BarOptions; busy: boolean;
         </View>
         {options.free_bar ? null : (
           <View style={{ flex: 1 }}>
-            <Field label="CHF au plus" value={chf} onChangeText={setChf} inputMode="decimal" keyboardType="decimal-pad" placeholder="Sans limite" />
+            <Field label={`${barUnit()} au plus`} value={chf} onChangeText={setChf} inputMode="decimal" keyboardType="decimal-pad" placeholder="Sans limite" />
           </View>
         )}
       </View>
@@ -71,11 +73,11 @@ export function OptionsTab({ eventId, overview, onOverview }: { eventId: string;
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function save(key: string, settings: BarSettings) {
+  async function save(key: string, settings: BarSettings, currency?: BarCurrency) {
     setBusy(key);
     setError(null);
     try {
-      onOverview(await barSaveSettings(eventId, settings));
+      onOverview(await (currency ? barSetCurrency(eventId, currency) : barSaveSettings(eventId, settings)));
     } catch (e) {
       setError(errorText(e, 'L’option n’a pas pu être enregistrée. Réessaie.'));
     } finally {
@@ -96,6 +98,15 @@ export function OptionsTab({ eventId, overview, onOverview }: { eventId: string;
 
   return (
     <>
+      <Section title="Devise">
+        <View style={[s.row, { flexWrap: 'wrap' }]}>
+          {CURRENCIES.map(([c, label]) => (
+            <Chip key={c} label={label} selected={options.currency === c} disabled={!!busy}
+              onPress={() => (options.currency === c ? undefined : void save('currency', {}, c))} />
+          ))}
+        </View>
+        <T muted size={13}>Prix, soldes et remboursements du bar. Se choisit avant les premières commandes payantes.</T>
+      </Section>
       <Section title="Options du bar">
         {row(ORDERS[0])}
         {row(ORDERS[1], !options.guest_orders,
@@ -106,7 +117,7 @@ export function OptionsTab({ eventId, overview, onOverview }: { eventId: string;
         <ToggleRow label="Bar offert" value={options.free_bar} disabled={!!busy}
           hint="Rien à rembourser : prix cachés aux invités, pas d’engagement à cocher, pas de solde. Tu gardes le compte des verres servis."
           onChange={(v) => toggle('free_bar', v)} />
-        {options.free_bar ? <T size={13} color={colors.mint}>Les verres sont à 0 CHF. Le nombre servi reste dans « Direct ».</T> : null}
+        {options.free_bar ? <T size={13} color={colors.mint}>Les verres sont à 0 {barUnit()}. Le nombre servi reste dans « Direct ».</T> : null}
       </Section>
       <Limits key={`${options.limit_glasses}|${options.limit_chf}`} options={options} busy={busy === 'limits'}
         onSave={(l) => void save('limits', l)} />

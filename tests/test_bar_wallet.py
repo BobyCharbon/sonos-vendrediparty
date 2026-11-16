@@ -38,3 +38,10 @@ def test_a_negative_balance_reads_as_money_to_give_back_never_as_minus_to_repay(
 
     # Assert
     assert fields["primaryFields"][0]["label"] == "À TE RENDRE" and fields["primaryFields"][0]["value"] == "8 CHF"
+
+
+def test_a_bar_in_euros_shows_the_balance_in_euros():
+    # Arrange : l'organisateur a choisi « Euros (€) » dans les options du bar (demande de l'admin du 16.11)
+    data = build(bar={**BAR, "currency": "EUR"})
+    # Assert
+    assert data["eventTicket"]["primaryFields"][0]["value"] == "10.56 €"
