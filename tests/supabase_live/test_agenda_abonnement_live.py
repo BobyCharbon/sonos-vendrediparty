@@ -82,6 +82,29 @@ def test_the_subscribed_calendar_follows_my_votes_then_the_fixed_date():
     assert "résultat: sondage=2 actif=true mode=fixed venir=yes inconnu=vide" in out, out
 
 
+def test_a_date_fixed_by_the_form_never_puts_the_event_in_the_agenda_of_someone_who_only_voted():
+    """Date fixée par le formulaire : les votes du sondage restent en base, cachés (caf0e37). Un vote Oui pour une AUTRE
+    date ne dit pas « je viens » : l'événement n'entre pas dans l'agenda (ni « déjà ajouté ») tant qu'on n'a pas répondu.
+    Repassé en sondage, le vote compte de nouveau."""
+    out = run(POLL + as_bot("victor") + f"""
+      insert into public.date_votes (option_id, user_id, vote) values ({opt(1)}, victor, 'yes');
+      perform set_config('party.t', public.calendar_feed_token(e, false)->>'token', true);
+      {AS_ANON}
+      n := jsonb_array_length(public.calendar_feed(current_setting('party.t'))->'events');
+      {as_bot('olga')}
+      update public.events set date_mode = 'fixed', starts_at = now() + interval '40 days' where id = e;
+      {AS_ANON}
+      m := jsonb_array_length(public.calendar_feed(current_setting('party.t'))->'events');
+      {as_bot('victor')}
+      r := public.calendar_feed_token(e, false);
+      {as_bot('olga')}
+      update public.events set date_mode = 'poll', starts_at = null where id = e;
+      {AS_ANON}
+      raise exception 'résultat: sondage=% fixee=% ajoute=% retour=%', n, m, r->>'added',
+        jsonb_array_length(public.calendar_feed(current_setting('party.t'))->'events');""")
+    assert "résultat: sondage=1 fixee=0 ajoute=false retour=1" in out, out
+
+
 def test_one_link_per_person_any_event_follows_its_changes_and_knows_when_subscribed():
     out = run(FRESH_VICTOR + olga_event(announce=False) + as_bot("victor") + f"""
       r := public.calendar_feed_token(e, true);

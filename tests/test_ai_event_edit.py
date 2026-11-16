@@ -150,3 +150,16 @@ def test_an_event_with_its_place_to_be_defined_stays_so_and_can_get_one_later(tm
     patch = next(body for m, p, body in accounts.calls if m == "PATCH" and p.startswith("/rest/v1/events"))
     assert patch["location_name"] == "Lieu à définir" and patch["location_address"] is None
     assert "Lieu : lieu à définir" in out["changes"]
+
+
+def test_a_fixed_date_keeps_its_hidden_poll_dates_out_of_the_ai_and_of_the_changes(tmp_path):
+    """Date fixée : les créneaux de l'ancien sondage restent en base, cachés (votes gardés, caf0e37). L'IA ne les voit pas
+    et la liste des changements (envoyée aux invités) n'annonce jamais « Dates à voter : − … » pour un simple titre."""
+    hidden = [{"starts_at": (START + timedelta(days=7)).isoformat()}, {"starts_at": (START + timedelta(days=14)).isoformat()}]
+    fixed = {**EVENT, "date_options": hidden}
+    e, _, _ = editor(tmp_path, {}, event=fixed)
+    asked = {**e.load("ok", "e1")["draft"], "title": "Raclette géante"}
+    assert asked["date_options"] == []
+    e, accounts, _ = editor(tmp_path, asked, event=fixed)
+    assert e.save("ok", "e1", asked, None, announce=True)["changes"] == ["Titre : Raclette géante"]
+    assert "Dates à voter" not in next(b for m, p, b in accounts.calls if p == "/rest/v1/messages")["body"]

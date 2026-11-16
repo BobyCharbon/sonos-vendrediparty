@@ -105,7 +105,9 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   Tests : `tests/supabase_live/test_covoiturage_live.py`, `test_covoiturage_browser_live.py`, `tests/test_covoiturage_browser.py`.
 - Date fixée (bouton « Fixer » ou formulaire) : les créneaux du sondage et leurs votes ne sont JAMAIS effacés (cachés ;
   repasser en « Date à définir » les retrouve). Le formulaire les effaçait : votes du paintball perdus (prod, 13.11).
-  Test : `test_editing_a_fixed_date_keeps_the_poll_dates_and_their_votes`.
+  Test : `test_editing_a_fixed_date_keeps_the_poll_dates_and_their_votes`. Ces créneaux cachés ne comptent nulle part en date
+  fixe : agenda (votes pris seulement en sondage, migration 20261115230000), IA de modification (`draft_of`). Recette réelle :
+  `tests/supabase_live/test_sondage_date_fixee_browser_live.py`.
 - Public par défaut (formulaire et IA) ; un événement public ne prévient JAMAIS personne à sa publication (base : `events_public_silent`, 20261106200000).
 
 ## Avis du 13.11.2026 (à garder)
