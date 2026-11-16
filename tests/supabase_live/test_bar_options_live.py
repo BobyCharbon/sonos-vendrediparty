@@ -166,7 +166,7 @@ def test_free_bar_needs_no_pledge_costs_nothing_and_still_counts_the_glasses():
     assert "prix_vus=0,0" in out and "paiement=null" in out, out
     assert "solde=0" in out and "engagements=0" in out, out
     served_note = out.split("note=")[1].split(" | ")[0]
-    assert "Bar offert" in served_note and "rembourser" not in served_note, out
+    assert "bar offert" in served_note and "rembourser" not in served_note, out
     assert "servis=2" in out, out
     assert "payant_sans_engagement=terms_changed" in out, out
     assert "offert_apres_payant=Des verres payants" in out, out

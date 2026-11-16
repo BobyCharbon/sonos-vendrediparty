@@ -65,7 +65,7 @@ def order(who: Session, event: str, lines: list, pledge: dict | None = None) -> 
 
 
 def notes(who: Session, event: str, kind: str) -> list:
-    return sql(f"select body from public.notifications where user_id = '{who.uid}' and event_id = '{event}' and kind = '{kind}' order by created_at")
+    return sql(f"select title, body from public.notifications where user_id = '{who.uid}' and event_id = '{event}' and kind = '{kind}' order by created_at")
 
 
 def test_only_organizers_create_and_manage_the_bar_and_only_present_full_profiles_order(people):
@@ -152,7 +152,8 @@ def test_serving_debits_the_balance_once_with_undo_within_15_seconds_and_correct
     again = ok(barman.rpc('bar_serve', e=event, member=ga.uid, lines=[{'item': vrb, 'qty': 1}], client_key=key))
     assert again['replayed'] is True and float(ok(ga.rpc('my_bar', e=event))['balance']) == 6.5  # rien de servi deux fois
     note = notes(ga, event, 'bar_served')
-    assert len(note) == 1 and '1 Vodka Red Bull' in note[0]['body'] and 'À rembourser : 6.50 CHF' in note[0]['body']
+    # Lisible sans l'ouvrir (avis du 16.11) : « 🍹 Barman : −1 Vodka Red Bull, … » ; dessous le total à rembourser
+    assert len(note) == 1 and note[0]['title'].startswith('🍹 Barman : −1 Vodka Red Bull') and 'à rembourser : 6.50 CHF' in note[0]['body'], note
     # Annuler pendant 15 s : les verres repassent en attente, le solde revient.
     ok(barman.rpc('bar_undo_serve', e=event, serve=served['serve_id']))
     mine = ok(ga.rpc('my_bar', e=event))

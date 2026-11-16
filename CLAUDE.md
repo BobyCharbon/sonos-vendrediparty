@@ -114,6 +114,8 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   (doit le plus, a pris le plus, plus commandé…) ; en direct toute la soirée ; « Exporter en PDF » (lib/pdf.ts, écrit à la
   main, aucune bibliothèque : partagé sur téléphone, téléchargé sinon). Tests : `test_bar_recap_live.py`,
   `test_bar_options_browser.py`. Bar pas en prod : ses migrations (devise, récap) partiront avec lui.
+  Notification « verre servi » (16.11, migration 20261116120000) : titre « 🍹 Barman : −2 Vodka Red Bull », texte « Servi par
+  … · 9 CHF · à rembourser : … · soirée » : se comprend sans l'ouvrir ; coupable (« Bar : verres servis », web et iPhone).
 - Temps réel de l'événement (avis du 16.11, migration 20261116110000) : bar, billets, paiements et covoiturage passent par
   des fonctions, invisibles du temps réel Supabase. Chaque changement écrit un signal `live_pings` (personne, événement,
   sans contenu ; RLS : on ne lit que les siens) pour chaque personne concernée ; `useLivePing(eventId, reload)` (lib/data.ts)

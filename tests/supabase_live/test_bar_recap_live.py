@@ -55,3 +55,12 @@ def test_a_served_glass_signals_the_guest_the_organizer_and_the_barman_right_awa
     assert "pings=Bot Ada,Bot Côme,Bot Olga,Bot Valentin" in out, out
     assert "vus_par_ada=1" in out, out
     assert "ecrire=permission denied" in out, out
+
+
+def test_the_served_notification_reads_at_a_glance():
+    # Avis du 16.11 : « 🍹 Barman : −2 Vodka Red Bull » en titre ; dessous qui a servi, combien, le total à rembourser.
+    out = run(SOIREE + as_postgres()
+              + keep("notes", "(select string_agg(title || ' // ' || body, ' ## ' order by created_at, title) from public.notifications "
+                              "where user_id = ada and kind = 'bar_served' and event_id = e)"))
+    assert "🍹 Barman : −2 Vodka Red Bull // Servi par Bot Valentin · 9 CHF · à rembourser : 9 CHF · [Recette] Options du bar" in out, out
+    assert "🍹 Barman : −1 Coca // Servi par Bot Valentin · 2 CHF · à rembourser : 11 CHF · [Recette] Options du bar" in out, out
