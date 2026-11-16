@@ -114,8 +114,7 @@ has a **fixed code** (also in "Sign-in information", Password field): no SMS is 
 | Item | What it is |
 |---|---|
 | Demo account | Nickname "Apple-test" (Apple Review), complete profile. Ordinary member role (its new events wait for an admin's approval, see B4.3). |
-| Event **"Soirée démo"** | Organised by us, invitation only, the demo account is invited: answer, ticket and Wallet, payment, carpool, event discussion, and an **open party bar** (order a drink). |
-| Event **"Démo Apple · Sondage"** | Organised by us, the demo account is invited: a date poll to vote on. |
+| Event **"Soirée démo Vendredi Party"** (12 Dec.) | Organised by us, invitation only; the demo account is invited AND co-organiser: answer, event discussion, and an **open party bar** (answer **Présent**, then order a drink; organiser side: ZONE ORGANISATEUR › **Gérer le bar**, recap, **Scanner au bar**). Tickets, payment and carpool are off on this event (options of the organiser, described below for completeness). |
 | Group **"Démo Apple"** | The demo account + one of our admins, with a few messages. |
 | Direct message | One message from our admin to the demo account. |
 
@@ -212,7 +211,7 @@ Absent removes you from the carpool.
 
 #### B4.7 Vote on a date poll
 
-Événements › **Sondages** › "Démo Apple · Sondage" › for each date **Oui** / **Si besoin** / **Non** ›
+On an event whose date is still a poll (none is prepared in the demo data) › for each date **Oui** / **Si besoin** / **Non** ›
 **Valider mes dates**. The organiser later taps **Fixer cette date**: "Oui" and "Si besoin" become "Présent".
 
 #### B4.8 Add to calendar
@@ -224,13 +223,13 @@ the date is fixed.
 
 #### B4.9 Carpool
 
-On "Soirée démo" (organiser's option, off by default), card **Covoiturage**: **🚗 Je conduis** (offer seats, optional
+On an event where the organiser turned it on (option off by default; off on the demo event), card **Covoiturage**: **🚗 Je conduis** (offer seats, optional
 departure town) or **🙋 Je cherche une place**, then **Monter** / **Prendre**. Only participants and organisers take
 part. No money, no cost sharing.
 
 #### B4.10 QR ticket and Apple Wallet
 
-On "Soirée démo" (option "Billets QR"), once your ticket is handed to you, card **Ton billet** › **Afficher ›**: the QR
+On an event with the option "Billets QR" (off on the demo event), once your ticket is handed to you, card **Ton billet** › **Afficher ›**: the QR
 code to show at the door, and the badge **Ajouter à Cartes Apple** (native PassKit sheet). Organisers hand a ticket with
 **Remettre le billet**, or it arrives automatically when they confirm a payment; they check tickets at the door with
 **📷 Scanner les billets** (ZONE ORGANISATEUR, Apple's native QR reader). A ticket never exists unless the organiser
@@ -244,7 +243,7 @@ people pay:
 - **Paiement en ligne**: a ticketing / payment page of a third party (https link);
 - **Sur place**: cash or card on the day — nothing to do in the app.
 
-Guest side, on "Soirée démo" after **Présent**: **Payer [organiser] · 10 CHF** opens the organiser's details; a payment
+Guest side, on a priced event after **Présent** (the demo event is free): **Payer [organiser] · 10 CHF** opens the organiser's details; a payment
 link opens **outside the app (Safari or the provider's app)**. Back in Party, **J'ai payé** is only a note to the organiser.
 Organiser side: **Reçu ✓** / **Pas reçu**. While "Paiement ouvert" is off, guests only see "paiement bientôt possible".
 
@@ -257,7 +256,7 @@ is involved.
 An organiser's option, off by default, for the **physical drinks served at the party**. A paid bar exists only on
 non-public events; a free bar ("bar offert") is possible on any event. Tobacco and drug items are refused.
 
-Guest side (you are "Présent" on "Soirée démo"):
+Guest side (you are "Présent" on "Soirée démo Vendredi Party"):
 1. Card **🍹 Bar de la soirée** › **Ouvrir le bar ›**: the menu (price, "16+"/"18+" badge, stock), your QR code, your
    balance.
 2. Before the first drink, read and accept the commitment to repay (**J'accepte l'engagement**).
@@ -265,7 +264,7 @@ Guest side (you are "Présent" on "Soirée démo"):
    actually served.
 4. Repay the organiser **outside the app** (Revolut, Twint or IBAN shown in the card) › **J'ai remboursé**.
 
-Organiser / barman side (on an event you organise; on "Soirée démo" you are a guest):
+Organiser / barman side (on "Soirée démo Vendredi Party" you are also co-organiser: ZONE ORGANISATEUR › **Gérer le bar**):
 - ZONE ORGANISATEUR › **🍹 Gérer le bar**: tabs **Articles** (name, price, stock, minimum age **Aucun / 16+ / 18+**,
   limits per person), **Options**, **Rembourser**, **Barmans**, **Direct** (live orders), and
   **📄 Récapitulatif de la soirée** (who owes what, export to PDF).
@@ -404,7 +403,7 @@ No location, no tracking, no App Tracking Transparency prompt (nothing to track)
 ### B9. What is not in this app
 
 No in-app purchase, no subscription, no ads, no tracking or analytics SDK, no gambling or simulated gambling, no loot
-box, no contest or prize, no cryptocurrency, no virtual currency for sale, no rewards for ratings or reviews. No
+box, no prize, sweepstake or lottery, no cryptocurrency, no virtual currency for sale, no rewards for ratings or reviews. No
 third-party sign-in (phone + SMS code only, so Sign in with Apple is not required by 4.8). The Apple TV app shares this
 record but is not part of this submission.
 

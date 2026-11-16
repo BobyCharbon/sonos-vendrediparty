@@ -35,7 +35,7 @@
 
 ## 3. Fiche de la version (localisation Français)
 
-- [ ] Nom : **Vendredi Party** · Sous-titre : **Soirées, invitations et jeux**.
+- [ ] Nom : **Vendredi Party** · Sous-titre : **Événements, soirées et jeux**.
 - [ ] Texte promotionnel, description, mots-clés : copiés de `fiche-app-store.md`.
 - [ ] Nouveautés : rien (1re version, Apple n'affiche pas ce champ).
 - [ ] URL d'assistance : `https://party.bobycharbon.ch/events/terms` · URL de confidentialité :

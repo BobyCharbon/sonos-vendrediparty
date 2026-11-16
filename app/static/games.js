@@ -649,7 +649,7 @@ document.getElementById("gamesRoot").innerHTML = `
         </div>
         <p class="g-desc">Le Roi des cartes et les dés du Biskit réunis : tire une carte, rouge ou noire, chacune a son effet (cascade, duel, potes de boisson, règles inventées, réflexes…). Le 4e Roi boit la coupe !</p>
         <div class="g-chips"><span>2+ joueurs, même table</span><span>52 cartes + dés</span><span>Plein écran</span></div>
-        <label class="g-opt"><span>🍻 Avec alcool <small>sinon des points de gage</small></span><input type="checkbox" class="switch" data-opt="bkalcohol" checked></label>
+        <label class="g-opt"><span>🍻 Avec alcool <small>sinon des points de gage</small></span><input type="checkbox" class="switch" data-opt="bkalcohol"></label>
         <div class="g-label">Gorgées</div>
         <div class="g-modes" data-opt-group="bkmult">
           <button type="button" data-val="1" class="on">×1 · normal</button><button type="button" data-val="2">×2 · hard</button>

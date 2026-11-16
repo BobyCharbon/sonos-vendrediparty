@@ -48,10 +48,6 @@ struct EndTV: View {
             .frame(height: 120, alignment: .leading)
             HStack(alignment: .bottom, spacing: 40) {
                 if hasPodium { podium }
-                VStack(alignment: .leading, spacing: 26) {
-                    award("🍻 Le plus assoiffé", most("drink"), TV.coral)
-                    award("🎁 Le plus généreux", most("give"), TV.lavender)
-                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -97,29 +93,6 @@ struct EndTV: View {
                 }
                 .frame(height: Self.heights[0] + 230, alignment: .bottom)
             }
-        }
-    }
-
-    /// Celui qui a le plus bu (ou distribué) ; à égalité, tous les ex æquo (« Tout le monde » si personne ne se détache).
-    private func most(_ key: String) -> (name: String, n: Int)? {
-        let all = players.map { ($0["name"].string ?? "?", $0[key].int ?? 0) }
-        guard let best = all.map(\.1).max(), best > 0 else { return nil }
-        let top = all.filter { $0.1 == best }.map(\.0)
-        return (top.count == all.count && all.count > 1 ? "Tout le monde" : top.joined(separator: " & "), best)
-    }
-
-    @ViewBuilder private func award(_ title: String, _ who: (name: String, n: Int)?, _ color: Color) -> some View {
-        if let who {
-            let on = step >= 4
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title.uppercased()).font(.system(size: 28, weight: .heavy)).foregroundStyle(color)
-                Text(who.name).font(.system(size: 70, weight: .black)).lineLimit(1).minimumScaleFactor(0.5)
-                Text(sips(who.n)).font(.system(size: 36, weight: .bold)).foregroundStyle(TV.muted)
-            }
-            .padding(30)
-            .frame(minWidth: 360, alignment: .leading)
-            .background(color.opacity(0.16), in: RoundedRectangle(cornerRadius: 34, style: .continuous))
-            .scaleEffect(on || Motion.reduced ? 1 : 0.6).opacity(on ? 1 : 0)
         }
     }
 }
