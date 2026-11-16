@@ -1,4 +1,4 @@
-# Party entre amis — Notes for App Review (iOS 1.0.0)
+# Vendredi Party — Notes for App Review (iOS 1.0.0)
 
 > ## ⚠️ À FAIRE AVANT ENVOI (pour l'admin — à retirer avant d'exporter ce fichier en PDF)
 >
@@ -38,7 +38,7 @@
 
 ```text
 ABOUT
-"Party entre amis" (icon "Party"): free app by friends in Switzerland (our association "Vendredi Party" lives inside): real-world events, party games, party music, group chats. French, 18+. No ads, no tracking, no in-app purchase. Full step-by-step guide attached (PDF).
+"Vendredi Party" (icon "Party !"): free app made by the Swiss association Vendredi Party, for groups of friends and associations organising events: real-world events, party games, party music, group chats. French, 18+. No ads, no tracking, no in-app purchase. Full step-by-step guide attached (PDF).
 
 SIGN-IN
 Phone + 6-digit SMS code, no password. Demo account "Apple-test": number and code: see the App Review Information sign-in fields (fixed code, no SMS). Last tab "Se connecter" > "Se connecter" > "Suisse +41" > number > code. Please keep the account.
@@ -86,7 +86,7 @@ Settings > "Gérer mon compte" > type SUPPRIMER > "Supprimer définitivement mon
 
 ### B1. What Party is
 
-Party ("Party entre amis" on the App Store, "Party" under the icon) is a free, non-commercial app made by a group of
+Party ("Vendredi Party" on the App Store, "Party !" under the icon) is a free, non-commercial app made by a group of
 friends in Switzerland. Our association, **Vendredi Party**, uses it to organise its evenings, and anyone can use it to
 organise their own real-world events with friends.
 
