@@ -30,6 +30,18 @@ LEA = '5b0c7e1e-1d3a-4c8e-9a51-6f2f4b9d0a11'
 OPTIONS = {'guest_orders': True, 'counter_serve': False, 'show_stock': True, 'free_bar': False, 'limit_glasses': None,
            'limit_chf': None, 'staff_adjust_stock': True, 'staff_unavailable': True, 'staff_correct': True, 'staff_prices': False,
            'staff_items': False, 'currency': 'CHF'}
+RECAP = {'title': 'Paintball de Noël', 'starts_at': '2030-11-14T18:00:00Z', 'closed_at': '2030-11-15T03:00:00Z',
+         'generated_at': '2030-11-15T09:30:00Z', 'currency': 'CHF', 'free_bar': False,
+         'totals': {'served': 9, 'amount': 34, 'pending': 0, 'refunded': 13.5, 'due': 20.5, 'people': 2},
+         'items': [{'name': 'Vodka Red Bull', 'emoji': '🍸', 'detail': None, 'qty': 6, 'amount': 27},
+                   {'name': 'Bière blonde', 'emoji': None, 'detail': '33 cl', 'qty': 2, 'amount': 5},
+                   {'name': 'Coca', 'emoji': None, 'detail': None, 'qty': 1, 'amount': 2}],
+         'people': [{'id': LEA, 'name': 'Léa Dupont', 'served': 6, 'amount': 27, 'pending': 0, 'refunded': 13.5, 'balance': 13.5,
+                     'items': [{'name': 'Vodka Red Bull', 'emoji': '🍸', 'qty': 6, 'amount': 27}]},
+                    {'id': USER, 'name': 'Marc « Le Roi » Müller', 'served': 3, 'amount': 7, 'pending': 0, 'refunded': 0, 'balance': 7,
+                     'items': [{'name': 'Bière blonde', 'emoji': None, 'qty': 2, 'amount': 5},
+                               {'name': 'Coca', 'emoji': None, 'qty': 1, 'amount': 2}]}],
+         'staff': [{'name': 'Valentin', 'served': 9}]}
 RIGHTS = {'adjust_stock': True, 'unavailable': True, 'correct': True, 'prices': False, 'items': False}
 CORS = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*'}
 
@@ -112,6 +124,8 @@ def bar_backend(page, options=None, manage=True, serve=True):
         if name == 'bar_save_settings':
             opts.update({k: v for k, v in args['settings'].items() if k in opts})
             body = overview()
+        elif name == 'bar_recap':
+            body = RECAP
         elif name == 'bar_set_currency':
             opts['currency'] = args['currency']
             body = overview()
@@ -309,6 +323,34 @@ def test_the_organizer_picks_euros_and_every_amount_of_the_bar_follows(browser, 
         pw.expect(page.get_by_text('Bière blonde').first).to_be_visible(timeout=15000)
         pw.expect(page.get_by_text('4 €', exact=True).first).to_be_visible()
         assert page.get_by_text('CHF', exact=False).count() == 0
+        assert not errors, errors
+    finally:
+        context.close()
+
+
+def test_the_organizer_reads_who_had_what_and_exports_the_recap_as_a_pdf(browser, origin, tmp_path):
+    # Demande de l'admin du 16.11 : à la fin de la soirée, tout le récapitulatif (qui a pris quoi, combien) dans l'app et en PDF.
+    context, page, calls, errors = open_bar(browser, origin, '/manage')
+    try:
+        page.get_by_role('button', name='📄 Récapitulatif de la soirée').click()
+        pw.expect(page.get_by_text('Par personne (2)', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_text('Léa Dupont', exact=True)).to_be_visible()
+        pw.expect(page.get_by_text('6 × 🍸 Vodka Red Bull', exact=True)).to_be_visible()
+        pw.expect(page.get_by_text('Remboursé 13.50 CHF · reste dû 13.50 CHF', exact=True)).to_be_visible()
+        pw.expect(page.get_by_text('Bière blonde (33 cl)', exact=True)).to_be_visible()
+        if os.environ.get('PARTY_RECAP_SHOT'):
+            page.screenshot(path=os.environ['PARTY_RECAP_SHOT'], full_page=True)
+        with page.expect_download() as download:
+            page.get_by_role('button', name='📄 Exporter en PDF').click()
+        assert download.value.suggested_filename == 'bar-paintball-de-noel-14-11-2030.pdf'
+        pdf = tmp_path / 'recap.pdf'
+        download.value.save_as(pdf)
+        data = pdf.read_bytes()
+        assert data.startswith(b'%PDF-1.4') and data.rstrip().endswith(b'%%EOF'), data[:40]
+        if os.environ.get('PARTY_RECAP_PDF'):  # pour le regarder (sips -s format png …)
+            Path(os.environ['PARTY_RECAP_PDF']).write_bytes(data)
+        # Accents en WinAnsi échappés en octal (« é » = \\351), emojis retirés
+        assert b'(R\\351capitulatif du bar)' in data and b'(L\\351a Dupont)' in data and b'(Vodka Red Bull)' in data, data[:2000]
         assert not errors, errors
     finally:
         context.close()

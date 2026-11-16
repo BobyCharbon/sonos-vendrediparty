@@ -229,6 +229,18 @@ export const barPledge = (e: string, pledgeText: string, pledgeVersion: number) 
 export const barConfirmRefund = (e: string, refund: string, received: boolean, member?: string) =>
   call<BarOverview>('bar_confirm_refund', { e, refund, received }, 'La réponse n’a pas pu être enregistrée.')
     .then(walletAfter(e, () => member));
+/** Récapitulatif de la soirée (organisateurs) : qui a pris quoi, combien, remboursé, reste dû ; par article ; par barman. */
+export type RecapLine = { name: string; emoji: string | null; qty: number; amount: number; detail?: string | null };
+export type RecapPerson = {
+  id: string; name: string; served: number; amount: number; pending: number; refunded: number; balance: number; items: RecapLine[];
+};
+export type BarRecap = {
+  title: string; starts_at: string | null; closed_at: string | null; generated_at: string; currency: BarCurrency; free_bar: boolean;
+  totals: { served: number; amount: number; pending: number; refunded: number; due: number; people: number };
+  items: RecapLine[]; people: RecapPerson[]; staff: { name: string; served: number }[];
+};
+export const barRecap = (e: string) =>
+  call<BarRecap>('bar_recap', { e }, 'Le récapitulatif n’a pas pu être lu.').then((r) => remember({ ...r, options: { currency: r.currency } }));
 export const barPerson = (e: string, member: string) => call<BarPersonDetail>('bar_person', { e, member }, 'La fiche n’a pas pu être lue.');
 export const barCancelUnits = (e: string, member: string, item: string, qty: number) =>
   call<BarPersonDetail>('bar_cancel_units', { e, member, item, qty }, 'L’annulation n’a pas pu être enregistrée.')

@@ -71,6 +71,8 @@ export function BarManage({ eventId }: { eventId: string }) {
           bg={overview.phase === 'open' ? colors.mint : colors.surface2} />
         <T muted size={13} style={{ flex: 1 }}>{phaseLine(overview)}</T>
       </View>
+      <Button small variant={overview.phase === 'closed' ? 'primary' : 'secondary'} label="📄 Récapitulatif de la soirée"
+        onPress={() => router.push(`/event/${eventId}/bar/recap`)} />
       <Segmented options={TABS} value={tab} onChange={setTab} />
       {tab === 'items' ? <ItemsTab {...props} reload={() => void reload()} /> : null}
       {tab === 'options' ? <OptionsTab {...props} /> : null}
