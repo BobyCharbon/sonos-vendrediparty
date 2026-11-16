@@ -142,6 +142,14 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   Test : `test_editing_a_fixed_date_keeps_the_poll_dates_and_their_votes`. Ces créneaux cachés ne comptent nulle part en date
   fixe : agenda (votes pris seulement en sondage, migration 20261115230000), IA de modification (`draft_of`). Recette réelle :
   `tests/supabase_live/test_sondage_date_fixee_browser_live.py`.
+- Événements récurrents (demande du 16.11, migration 20261116170000) : « Répéter » sous la date (chaque jour, semaine,
+  2 semaines, mois, année ; « Jusqu'au » facultatif), `set_event_recurrence` (organisateurs ; la règle part de CET événement).
+  UNE seule date à la fois : `private.spawn_series` (pg_cron, 5 min) crée la suivante seulement quand la précédente est
+  terminée (sa fin, sinon le lendemain 0 h), en recopiant la DERNIÈRE (options, groupes, invités un à un, co-organisateurs,
+  étiquettes, « qui amène quoi » de l'organisateur ; jamais réponses, votes, messages, billets, bar, covoiturage, liens) ;
+  publiée comme un événement neuf (invités un à un prévenus, public silencieux, jamais d'annonce au groupe). Mois comptés
+  depuis la 1re date, heure de Suisse. Fiche « 🔁 … · la suivante s'affiche après celle-ci », carte 🔁.
+  Tests : `tests/supabase_live/test_evenements_recurrents_live.py`, `test_a_weekly_event_is_set_from_the_form…`.
 - Public par défaut (formulaire et IA) ; un événement public ne prévient JAMAIS personne à sa publication (base : `events_public_silent`, 20261106200000).
 
 ## Avis du 13.11.2026 (à garder)

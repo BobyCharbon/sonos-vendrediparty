@@ -66,6 +66,8 @@ export type EventRow = {
   payment_url?: string | null;
   /** Paiement ouvert aux invités (migration 20261116130000) ; éteint : tout est prêt, « Paiement bientôt possible ». */
   payment_open?: boolean;
+  /** Événement récurrent (16.11) : série dont il est la date en cours. */
+  series_id?: string | null;
   max_participants: number | null;
   waitlist_enabled: boolean;
   allow_plus_ones: boolean;

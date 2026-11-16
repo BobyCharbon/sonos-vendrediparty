@@ -7,6 +7,7 @@ import { fetchTaxonomy, useQuery } from '@/lib/data';
 import { dateProblem, placesProblem, plusOnesProblem, priceProblem } from '@/lib/eventChecks';
 import { useLeaveGuard } from './LeaveGuard';
 import { parseLocalDateTime, toLocalInput } from '@/lib/format';
+import { NO_REPEAT, REPEAT_CHOICES, repeatLabel, repeatOf, untilDate, type Repeat, type Series } from '@/lib/recurrence';
 import { friendlyError } from '@/lib/errors';
 import { dbMessage } from '@/lib/moderation';
 import { useTermsGate } from './TermsSheet';
@@ -78,6 +79,8 @@ type Draft = {
   polls: PollDraft[];
   /** quantity : texte du champ « Qté » ; vide ou 1 = un seul objet, pris en entier par une personne. */
   bring: { id?: string; label: string; quantity?: string }[];
+  /** Répétition (16.11) : la suivante apparaît une fois celle-ci terminée. */
+  repeat: Repeat;
 };
 
 const emptyDraft: Draft = {
@@ -118,6 +121,7 @@ const emptyDraft: Draft = {
   announce_group: false,
   polls: [],
   bring: [],
+  repeat: NO_REPEAT,
 };
 
 // Rappels : chacun choisit les siens (Réglages → Notifications) ; l'événement les propose tous.
@@ -185,7 +189,7 @@ async function loadDraft(eventId: string): Promise<Draft> {
   const res = await supabase
     .from('events')
     .select(
-      '*, event_tags(tag_id), event_organizers(user_id), event_invites(user_id, via_group), event_groups(group_id), event_phone_invites(phone), date_options(id, starts_at), polls(*, poll_options(*)), bring_items(id, label, sort, quantity)',
+      '*, event_tags(tag_id), event_organizers(user_id), event_invites(user_id, via_group), event_groups(group_id), event_phone_invites(phone), date_options(id, starts_at), polls(*, poll_options(*)), bring_items(id, label, sort, quantity), series:event_series(frequency, every, until, stopped_at)',
     )
     .eq('id', eventId)
     .single();
@@ -198,6 +202,7 @@ async function loadDraft(eventId: string): Promise<Draft> {
     date_options: { id: string; starts_at: string }[];
     polls: (Poll & { poll_options: PollOption[] })[];
     bring_items: { id: string; label: string; sort: number; quantity: number | null }[];
+    series?: Series | null;
   };
   return {
     title: e.title,
@@ -248,6 +253,7 @@ async function loadDraft(eventId: string): Promise<Draft> {
         results_after_vote: p.results_after_vote,
       })),
     bring: e.bring_items.sort((a, b) => a.sort - b.sort).map((b) => ({ id: b.id, label: b.label, quantity: b.quantity ? String(b.quantity) : '' })),
+    repeat: repeatOf(e.series),
   };
 }
 
@@ -363,6 +369,11 @@ export function EventForm({ eventId }: { eventId?: string }) {
     if (errors.length) return errors[0]!;
     if (starts && ends && ends <= starts) return 'La fin doit être après le début';
     if (starts && ends && ends < starts) return 'La fin est avant le début';
+    if (d.date_mode === 'fixed' && d.repeat.frequency !== 'none' && d.repeat.until.trim()) {
+      const until = untilDate(d.repeat.until);
+      if (!until) return 'Répétition : date de fin attendue JJ.MM.AAAA';
+      if (starts && until < starts.slice(0, 10)) return 'La répétition doit finir après la première date';
+    }
 
     const slots: { id?: string; iso: string }[] = [];
     if (d.date_mode === 'poll') {
@@ -573,6 +584,14 @@ export function EventForm({ eventId }: { eventId?: string }) {
       }
       if (createdNow && !asDraft) orphanDraft.current = id;
       await syncChildren(id, v.slots, snapshot, previous);
+      // Répétition : seulement si elle change (ou la date de la série) ; elle repart de CET événement.
+      const repeat = snapshot.date_mode === 'fixed' ? snapshot.repeat : NO_REPEAT;
+      const before = previous?.repeat ?? NO_REPEAT;
+      if (JSON.stringify(repeat) !== JSON.stringify(before) || (repeat.frequency !== 'none' && snapshot.starts_at !== previous?.starts_at)) {
+        check(await supabase.rpc('set_event_recurrence', {
+          e: id, frequency: repeat.frequency, every: repeat.every, until: untilDate(repeat.until),
+        }));
+      }
       const status = ctx!.status;
       const needsSubmit = !eventId || status === 'draft' || status === 'rejected';
       if (needsSubmit && !asDraft) {
@@ -694,6 +713,24 @@ export function EventForm({ eventId }: { eventId?: string }) {
           <>
             <DateTimeField label="Début" value={d.starts_at} onChangeText={(starts_at) => set({ starts_at })} />
             <DateTimeField label="Fin (optionnel)" optional min={d.starts_at} value={d.ends_at} onChangeText={(ends_at) => set({ ends_at })} />
+            <T muted size={13} weight="medium">Répéter</T>
+            <View style={s.wrap} accessibilityRole="radiogroup" accessibilityLabel="Répéter">
+              {REPEAT_CHOICES.map((c) => (
+                <Chip key={c.label} label={c.label}
+                  selected={d.repeat.frequency === c.frequency && (c.frequency === 'none' || d.repeat.every === c.every)}
+                  onPress={() => set({ repeat: { ...d.repeat, frequency: c.frequency, every: c.every } })} />
+              ))}
+            </View>
+            {d.repeat.frequency !== 'none' ? (
+              <>
+                <T size={13} color={colors.textSoft}>
+                  🔁 {repeatLabel({ ...d.repeat, until: untilDate(d.repeat.until) }, parseLocalDateTime(d.starts_at))}. Une seule date à la fois : la suivante
+                  s’affiche quand celle-ci est terminée, avec les mêmes réglages et les mêmes invités (sans leurs réponses).
+                </T>
+                <DateTimeField label="Jusqu’au (facultatif)" optional min={d.starts_at} value={d.repeat.until}
+                  onChangeText={(until) => set({ repeat: { ...d.repeat, until } })} />
+              </>
+            ) : null}
           </>
         ) : (
           <>

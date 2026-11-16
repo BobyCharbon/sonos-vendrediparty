@@ -177,7 +177,7 @@ export function EventCard({
             {isPoll
               ? `${plural(event.date_options.length, 'date proposée', 'dates proposées')}${event.poll_deadline ? ` · vote avant ${formatShort(event.poll_deadline)}` : ''}`
               : event.starts_at
-                ? `${relativeDay(event.starts_at)} · ${formatTime(event.starts_at)}${event.location_name ? ` · ${event.location_name}` : ''}`
+                ? `${event.series_id ? '🔁 ' : ''}${relativeDay(event.starts_at)} · ${formatTime(event.starts_at)}${event.location_name ? ` · ${event.location_name}` : ''}`
                 : 'Date à définir'}
           </T>
           {tags.length ? (

@@ -626,3 +626,41 @@ def test_terms_are_asked_before_a_new_event_then_it_is_created(browser, events_o
         assert not errors, errors
     finally:
         context.close()
+
+
+def test_a_weekly_event_is_set_from_the_form_and_shown_on_the_event_page(browser, events_origin):
+    """Événements récurrents (demande du 16.11) : « Chaque semaine » sous la date ; la règle part de cet événement
+    (set_event_recurrence) ; la fiche dit « 🔁 Chaque semaine, le jeudi à 19:00 · la suivante s'affiche après celle-ci »."""
+    context, page, frame, base, errors = launch(browser, events_origin)
+    calls = []
+
+    def recurrence(route):
+        if route.request.method == 'OPTIONS':
+            return route.fulfill(status=204, headers=HEADERS)
+        body = json.loads(route.request.post_data)
+        calls.append(body)
+        base.event = {**base.event, 'series_id': 's-1',
+                      'series': {'frequency': body['frequency'], 'every': body['every'], 'until': body['until'], 'stopped_at': None}}
+        FakeBase.reply(route, {'id': 's-1', 'frequency': body['frequency']})
+    page.route(REST + 'rpc/set_event_recurrence*', recurrence)
+    try:
+        open_form(frame, 'Simple')
+        field(frame, 'Titre').fill('Sbire du jeudi')
+        fill_date(frame, 'Début', '2030-12-12', '19:00')
+        assert frame.get_by_text('Jusqu’au (facultatif)', exact=True).count() == 0
+        frame.get_by_role('button', name='Chaque semaine', exact=True).click()
+        pw.expect(frame.get_by_text('Chaque semaine, le jeudi à 19:00', exact=False)).to_be_visible()
+        pw.expect(frame.get_by_text('la suivante', exact=False).first).to_be_visible()
+        frame.get_by_label('Jusqu’au (facultatif) : jour', exact=True).fill('2031-03-27')
+        shot(page, 'formulaire-repetition')
+        frame.get_by_role('button', name='Publier', exact=True).click()
+        pw.expect(frame.get_by_role('button', name='Modifier', exact=True)).to_be_visible(timeout=10000)
+        assert calls == [{'e': NEW, 'frequency': 'weekly', 'every': 1, 'until': '2031-03-27'}]
+        # Publié APRÈS la répétition : la série existe avant les invitations.
+        assert base.event['status'] == 'published'
+        pw.expect(frame.get_by_text('🔁 Chaque semaine, le jeudi à 19:00 · jusqu’au 27 mars 2031 · la suivante s’affiche après celle-ci',
+                                    exact=True)).to_be_visible(timeout=10000)
+        shot(page, 'fiche-repetition')
+        assert not errors
+    finally:
+        context.close()

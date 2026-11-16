@@ -35,6 +35,7 @@ import { safeHref } from '@/lib/links';
 import { createdLine, formatLongDay, formatMessageTime, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
 import type { ReportTarget } from '@/lib/moderation';
 import { must, supabase } from '@/lib/supabase';
+import { repeatLabel, type Series } from '@/lib/recurrence';
 import { colors, radius } from '@/lib/theme';
 import { ticketRelevant, chf } from '@/lib/tickets';
 import type { BringItem, Category, DateOption, DateVoteRow, EventRow, Message, Poll, PollOption, Rsvp, Tag } from '@/lib/types';
@@ -104,7 +105,7 @@ export default function EventScreen() {
       supabase
         .from('events')
         .select(
-          '*, category:categories(*), author:profiles!events_created_by_fkey(id, display_name), event_tags(tags(*)), event_organizers(user_id), rsvps(*), date_options(*, date_votes(*)), polls(*, poll_options(*)), bring_items(*, bring_claims(user_id, quantity)), event_groups(group_id)',
+          '*, category:categories(*), author:profiles!events_created_by_fkey(id, display_name), event_tags(tags(*)), event_organizers(user_id), rsvps(*), date_options(*, date_votes(*)), polls(*, poll_options(*)), bring_items(*, bring_claims(user_id, quantity)), event_groups(group_id), series:event_series(frequency, every, until, stopped_at)',
         )
         .eq('id', id)
         .single(),
@@ -232,6 +233,8 @@ export default function EventScreen() {
         : supabase.from('event_mutes').insert({ event_id: ev.id, user_id: me.id }),
     );
 
+  // Événement récurrent (16.11) : une date à la fois, la suivante après celle-ci.
+  const series = (ev as { series?: Series | null }).series ?? null;
   const people = data.attendance ?? localAttendance(ev.rsvps, data.names);
   const heads = people.going;
   const past = !!ev.starts_at && new Date(ev.ends_at ?? ev.starts_at).getTime() < data.loadedAt - 6 * 3600_000;
@@ -326,6 +329,9 @@ export default function EventScreen() {
               <T muted size={13}>
                 {relativeDay(ev.starts_at)}{ev.ends_at ? ` · jusqu’à ${formatShort(ev.ends_at)}` : ''}
               </T>
+              {series && !series.stopped_at ? (
+                <T size={13} color={colors.textSoft}>🔁 {repeatLabel(series, ev.starts_at)} · la suivante s’affiche après celle-ci</T>
+              ) : null}
             </View>
           </View>
         ) : null}
