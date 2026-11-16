@@ -5,6 +5,7 @@ import { friendlyError } from './errors';
 import { formatShort } from './format';
 import { isTermsError } from './moderation';
 import { must, supabase } from './supabase';
+import { notifyWallet } from './wallet';
 
 /**
  * Bar de la soirée (migration 20261110120000, maquettes v6 du 10.11) : tables fermées, tout passe par les fonctions
@@ -180,27 +181,41 @@ export async function fetchMyBar(e: string): Promise<MyBar | null> {
   return remember((data as MyBar | null) ?? null);
 }
 
+// Carte Cartes (Apple Wallet) : la base redate le pass à chaque verre commandé, servi, annulé ou remboursé, mais l'iPhone
+// ne le relit que si on le prévient. Chaque geste qui change le solde ou « À servir » le prévient aussitôt (bug du 16.11 :
+// 6 verres en attente, 1 servi, la carte disait encore 6 plusieurs minutes après).
+function walletAfter<T>(e: string, member: () => string | null | undefined | Promise<string | null | undefined>) {
+  return (result: T): T => {
+    void Promise.resolve(member()).then((m) => notifyWallet(e, m ?? null)).catch(() => undefined);
+    return result;
+  };
+}
+const me = async () => (await supabase.auth.getSession()).data.session?.user.id;
+
 export const barOrder = (e: string, lines: { item: string; qty: number }[], pledgeText: string | null, pledgeVersion: number | null) =>
-  call<MyBar>('bar_order', { e, lines, pledge_text: pledgeText, pledge_version: pledgeVersion }, 'La commande n’a pas pu être envoyée.');
+  call<MyBar>('bar_order', { e, lines, pledge_text: pledgeText, pledge_version: pledgeVersion }, 'La commande n’a pas pu être envoyée.')
+    .then(walletAfter(e, me));
 export const barCancelMine = (e: string, item: string, qty: number) =>
-  call<MyBar>('bar_cancel_mine', { e, item, qty }, 'L’annulation n’a pas pu être enregistrée.');
+  call<MyBar>('bar_cancel_mine', { e, item, qty }, 'L’annulation n’a pas pu être enregistrée.').then(walletAfter(e, me));
 export const barDeclareRefund = (e: string, amount: number) =>
   call<MyBar>('bar_declare_refund', { e, amount }, 'Le remboursement n’a pas pu être annoncé.');
 
 export const barScan = (e: string, scanned: string) => call<BarScan>('bar_scan', { e, scanned }, 'Le QR n’a pas pu être lu.');
 export const barServe = (e: string, member: string, lines: { item: string; qty: number; extra?: number }[], clientKey: string) =>
-  call<ServeResult>('bar_serve', { e, member, lines, client_key: clientKey }, 'Le service n’a pas pu être enregistré.');
-export const barUndoServe = (e: string, serve: string) =>
-  call<{ undone: number; balance: number }>('bar_undo_serve', { e, serve }, 'L’annulation n’a pas pu être enregistrée.');
+  call<ServeResult>('bar_serve', { e, member, lines, client_key: clientKey }, 'Le service n’a pas pu être enregistré.')
+    .then(walletAfter(e, () => member));
+export const barUndoServe = (e: string, serve: string, member?: string) =>
+  call<{ undone: number; balance: number }>('bar_undo_serve', { e, serve }, 'L’annulation n’a pas pu être enregistrée.')
+    .then(walletAfter(e, () => member));
 
 export const barOverview = (e: string) => call<BarOverview | null>('bar_overview', { e }, 'Le bar n’a pas pu être lu.');
 export const barCreate = (e: string) => call<BarOverview>('bar_create', { e }, 'Le bar n’a pas pu être créé.');
 export const barSaveItem = (e: string, item: ItemInput) =>
   call<{ id: string; overbooked: number; name: string }>('bar_save_item', { e, item }, 'L’article n’a pas pu être enregistré.');
 export const barSetCurrency = (e: string, currency: BarCurrency) =>
-  call<BarOverview>('bar_set_currency', { e, currency }, 'La devise n’a pas pu être enregistrée.');
+  call<BarOverview>('bar_set_currency', { e, currency }, 'La devise n’a pas pu être enregistrée.').then(walletAfter(e, () => null));
 export const barSaveSettings = (e: string, settings: BarSettings) =>
-  call<BarOverview>('bar_save_settings', { e, settings }, 'Les réglages n’ont pas pu être enregistrés.');
+  call<BarOverview>('bar_save_settings', { e, settings }, 'Les réglages n’ont pas pu être enregistrés.').then(walletAfter(e, () => null));
 export const barSetStaff = (e: string, member: string, barman: boolean) =>
   call<BarOverview>('bar_set_staff', { e, member, barman }, 'Le barman n’a pas pu être enregistré.');
 /** Gestes de la soirée sur un article : « Il en reste… », « + Réassort », « Indisponible », « De nouveau dispo », « Prix ». */
@@ -211,16 +226,20 @@ export const barStaffItems = (e: string) =>
   call<{ rights: BarRights | null; items: BarItem[] }>('bar_staff_items', { e }, 'La carte n’a pas pu être lue.');
 export const barPledge = (e: string, pledgeText: string, pledgeVersion: number) =>
   call<MyBar>('bar_pledge', { e, pledge_text: pledgeText, pledge_version: pledgeVersion }, 'L’engagement n’a pas pu être enregistré.');
-export const barConfirmRefund = (e: string, refund: string, received: boolean) =>
-  call<BarOverview>('bar_confirm_refund', { e, refund, received }, 'La réponse n’a pas pu être enregistrée.');
+export const barConfirmRefund = (e: string, refund: string, received: boolean, member?: string) =>
+  call<BarOverview>('bar_confirm_refund', { e, refund, received }, 'La réponse n’a pas pu être enregistrée.')
+    .then(walletAfter(e, () => member));
 export const barPerson = (e: string, member: string) => call<BarPersonDetail>('bar_person', { e, member }, 'La fiche n’a pas pu être lue.');
 export const barCancelUnits = (e: string, member: string, item: string, qty: number) =>
-  call<BarPersonDetail>('bar_cancel_units', { e, member, item, qty }, 'L’annulation n’a pas pu être enregistrée.');
+  call<BarPersonDetail>('bar_cancel_units', { e, member, item, qty }, 'L’annulation n’a pas pu être enregistrée.')
+    .then(walletAfter(e, () => member));
 /** Barman autorisé : annuler un verre en attente de la personne servie (la base répond { cancelled }). */
 export const barStaffCancel = (e: string, member: string, item: string, qty = 1) =>
-  call<{ cancelled: number }>('bar_cancel_units', { e, member, item, qty }, 'L’annulation n’a pas pu être enregistrée.');
+  call<{ cancelled: number }>('bar_cancel_units', { e, member, item, qty }, 'L’annulation n’a pas pu être enregistrée.')
+    .then(walletAfter(e, () => member));
 export const barCorrectUnit = (e: string, unit: string) =>
-  call<BarPersonDetail>('bar_correct_unit', { e, unit }, 'La correction n’a pas pu être enregistrée.');
+  call<BarPersonDetail>('bar_correct_unit', { e, unit }, 'La correction n’a pas pu être enregistrée.')
+    .then((r) => walletAfter<BarPersonDetail>(e, () => r?.id)(r));
 
 // --- Fonctions pures ------------------------------------------------------------------------------------------------
 

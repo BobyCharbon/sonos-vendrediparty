@@ -260,6 +260,9 @@ def test_counter_only_the_menu_is_read_only_and_the_pledge_is_accepted_once(brow
 
 def test_the_barman_counts_what_is_left_marks_unavailable_and_serves_without_order(browser, origin):
     context, page, calls, errors = open_bar(browser, origin, '/scan', options={'counter_serve': True}, manage=False, serve=True)
+    wallet: list = []
+    page.route('**/api/wallet/notify', lambda r: (wallet.append(json.loads(r.request.post_data or '{}')),
+                                                  r.fulfill(status=200, content_type='application/json', body='{"devices": 1}')))
     try:
         page.get_by_role('button', name='Ouvrir la carte et le stock').click()
         page.get_by_role('button', name='Il en reste : Coca').click()
@@ -278,6 +281,9 @@ def test_the_barman_counts_what_is_left_marks_unavailable_and_serves_without_ord
         page.get_by_role('button', name='Servir 2 articles · 4 CHF').click()
         pw.expect(page.get_by_text('Servi à Léa', exact=True)).to_be_visible(timeout=10000)
         assert sent(calls, 'bar_serve')[-1]['lines'] == [{'item': COCA, 'qty': 0, 'extra': 2}]
+        # Carte Cartes de Léa prévenue aussitôt (bug du 16.11 : le solde y restait l'ancien plusieurs minutes)
+        page.wait_for_timeout(800)
+        assert any(w.get('event_id') == EVENT and w.get('member') == LEA for w in wallet), wallet
         assert not errors, errors
     finally:
         context.close()

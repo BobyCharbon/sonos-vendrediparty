@@ -55,11 +55,11 @@ export function LiveTab({ eventId, overview, onOverview }: { eventId: string; ov
   const due = round2(overview.people.reduce((sum, p) => sum + Math.max(p.balance, 0), 0));
   const people = [...overview.people].sort((a, b) => (b.declared?.length ?? 0) - (a.declared?.length ?? 0) || b.balance - a.balance);
 
-  async function confirm(refund: string, received: boolean) {
+  async function confirm(refund: string, received: boolean, member?: string) {
     setBusy(refund);
     setError(null);
     try {
-      onOverview(await barConfirmRefund(eventId, refund, received));
+      onOverview(await barConfirmRefund(eventId, refund, received, member));
     } catch (e) {
       setError(errorText(e, 'La réponse n’a pas pu être enregistrée. Réessaie.'));
     } finally {
@@ -126,9 +126,9 @@ export function LiveTab({ eventId, overview, onOverview }: { eventId: string; ov
                 <View key={d.id} style={st.refund}>
                   <T size={13} style={{ width: '100%' }}>{p.name} dit avoir remboursé {barChf(d.amount)} : reçu ?</T>
                   <Button small label="Confirmer" accessibilityLabel={`Confirmer le remboursement de ${p.name}`} loading={busy === d.id}
-                    onPress={() => void confirm(d.id, true)} />
+                    onPress={() => void confirm(d.id, true, p.id)} />
                   <Button small variant="ghost" label="Pas reçu" accessibilityLabel={`Remboursement de ${p.name} pas reçu`}
-                    disabled={busy === d.id} onPress={() => void confirm(d.id, false)} />
+                    disabled={busy === d.id} onPress={() => void confirm(d.id, false, p.id)} />
                 </View>
               ))}
             </View>

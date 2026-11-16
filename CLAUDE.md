@@ -106,6 +106,9 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   `bar_set_currency`, migration 20261116090000), choisie avant les premières commandes payantes ; montants affichés
   (`barChf` / `barUnit`), messages de la base (`private.bar_chf(n, e)`) et carte Wallet suivent. Tests :
   `test_bar_options_live.py`, `test_bar_options_browser.py`, `test_bar_wallet.py`.
+  Carte Wallet du bar : chaque geste qui change le solde ou « À servir » (commande, service, annulation, correction,
+  remboursement confirmé, réglages) prévient l'iPhone aussitôt (`walletAfter` dans lib/bar.ts → `/api/wallet/notify`) ;
+  la base redate le pass, mais sans ce signal Cartes gardait l'ancien solde (bug du 16.11).
 - Covoiturage (avis 34d5c07f2e56, 13.11, migration 20261113090000) : option de l'organisateur (`events.carpool_enabled`,
   éteinte par défaut, jamais allumée par l'IA) ; seuls les participants (Présent / Peut-être) et les organisateurs y prennent
   part, tout par les fonctions `carpool*` (table sans accès direct, places comptées sous verrou, ville filtrée comme un nom,

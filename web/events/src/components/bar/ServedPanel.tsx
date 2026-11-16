@@ -36,7 +36,7 @@ export function ServedPanel({ eventId, served, onUndone, onNext }: {
     setBusy(true);
     setError(null);
     try {
-      await barUndoServe(eventId, served.serveId);
+      await barUndoServe(eventId, served.serveId, served.member);
       onUndone();
     } catch (e) {
       setError(errorText(e, 'L’annulation n’a pas pu être enregistrée.'));
