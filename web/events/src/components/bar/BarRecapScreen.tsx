@@ -13,7 +13,7 @@ import { BarHeader } from './BarHeader';
 
 type PeopleSort = 'due' | 'served' | 'amount' | 'name';
 type ItemSort = 'qty' | 'amount' | 'name';
-const PEOPLE_SORTS: [PeopleSort, string][] = [['due', 'Doit le plus'], ['served', 'A pris le plus'], ['amount', 'A dépensé le plus'], ['name', 'Nom']];
+const PEOPLE_SORTS: [PeopleSort, string][] = [['due', 'Doit le plus'], ['served', 'Le plus d’articles'], ['amount', 'A dépensé le plus'], ['name', 'Nom']];
 const ITEM_SORTS: [ItemSort, string][] = [['qty', 'Plus commandé'], ['amount', 'Plus gros montant'], ['name', 'Nom']];
 const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' });
 const PEOPLE_ORDER: Record<PeopleSort, (a: RecapPerson, b: RecapPerson) => number> = {
@@ -136,7 +136,7 @@ export function BarRecapScreen({ eventId }: { eventId: string }) {
   useBarRefresh(reload, !!raw, eventId);
   const [people, setPeople] = useState<PeopleSort>('due');
   const [items, setItems] = useState<ItemSort>('qty');
-  const recap = raw ? sortedRecap(raw, raw.free_bar && (people === 'due' || people === 'amount') ? 'served' : people, items) : null;
+  const recap = raw ? sortedRecap(raw, raw.free_bar && (people === 'due' || people === 'amount') ? 'name' : people, items) : null;
   const [busy, setBusy] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);

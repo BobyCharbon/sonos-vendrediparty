@@ -1,15 +1,18 @@
 import SwiftUI
 
-/// Conditions d'utilisation (version 2026-11-04) : même texte que le module web (web/events/src/lib/terms.ts).
+/// Conditions d'utilisation (version 2026-11-16) : même texte que le module web (web/events/src/lib/terms.ts).
 struct TermsView: View {
     @ObservedObject var store: ModerationStore
 
-    static let updated = "4 novembre 2026"
+    static let updated = "16 novembre 2026"
     /// Responsable et contact de Party (web/events/src/lib/contact.ts) ; l'admin peut en afficher un autre.
     static let supportEmail = "support@vendrediparty.ch"
     static let sections: [(String, [String])] = [
         ("Party, entre amis", [
             "Party sert à organiser des soirées et des événements, à jouer et à discuter entre amis. En créant un compte et en publiant quoi que ce soit (message, surnom, nom de groupe, photo, réponse de jeu), tu acceptes ces conditions.",
+        ]),
+        ("Réservé aux adultes", [
+            "Party est réservée aux personnes de 18 ans ou plus. En acceptant ces conditions, tu confirmes avoir 18 ans ou plus.",
         ]),
         ("Le respect avant tout", [
             "Pas de harcèlement : ni insultes répétées, ni menaces, ni moqueries visant une personne, ni messages insistants à quelqu'un qui ne veut pas te répondre.",
@@ -20,6 +23,11 @@ struct TermsView: View {
         ("Le jeu n'a aucune valeur en argent", [
             "Les pièces, objets, cartes et récompenses des jeux de Party n'ont aucune valeur monétaire. Ils ne s'achètent pas, ne se vendent pas et ne s'échangent pas contre de l'argent ou un service, ni dans Party ni ailleurs.",
             "Toute vente, achat ou proposition de vente d'un objet ou d'un compte est interdite. Le paiement entre amis et les billets d'événement ne concernent jamais un objet du jeu.",
+        ]),
+        ("Paiements, billets et bar", [
+            "Party ne vend rien et ne touche jamais d'argent : ni paiement, ni portefeuille, ni commission. Un organisateur peut indiquer un prix et un moyen de payer qui est le sien (Revolut, billetterie, sur place) ; le paiement se fait en dehors de Party, entre personnes. Un « J'ai payé » n'est confirmé que par l'organisateur.",
+            "Le bar de la soirée est une option de l'organisateur pour une soirée privée entre amis, offerte ou à prix coûtant. Party note seulement qui a pris quoi et qui doit combien ; l'engagement à rembourser est une promesse entre personnes. L'organisateur est seul responsable de ses prix, de ce qu'il sert et du respect de la loi, en particulier sur l'alcool (âge minimum, pas d'alcool à une personne ivre). Tabac et drogues sont interdits.",
+            "Boire n'est jamais obligatoire ni récompensé : dans les jeux, un verre d'eau compte toujours et personne n'est classé selon ce qu'il boit.",
         ]),
         ("Signaler et bloquer", [
             "« Signaler » existe sur chaque message, profil, photo et réponse de jeu montrée à la table. Un modérateur reçoit le signalement avec une copie du contenu concerné (pour un message direct : ce seul message) ; la personne signalée ne sait pas qui l'a signalée. Les signalements sont traités sous 24 heures.",

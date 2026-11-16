@@ -2784,10 +2784,11 @@ function roomPickHtml(g, R, lead, cur, votes, named) {
 }
 // Jeu en cours à rejoindre, tableau de la soirée et jeux déjà joués.
 function roomTallyHtml(R, resume) {
-  const board = (R.board || []).filter((r) => r.pts || r.drink || r.give);
+  // Points seulement : les gorgées ne classent personne (App Store 1.4.3).
+  const board = (R.board || []).filter((r) => r.pts);
   const tally = board.length ? `<div class="g-room-block"><div class="g-room-h">🏆 Tableau de la soirée</div>
       ${board.map((r, i) => `<div class="g-room-row ${r.me ? "me" : ""}"><span class="qz-rank r${i + 1}">${i + 1}</span><b>${esc(r.name)}</b>
-        ${r.pts ? `<span class="g-room-pts">${r.pts.toLocaleString("fr-CH")} pts</span>` : ""}${r.drink ? `<span class="g-room-sips">🍻 ${r.drink}</span>` : ""}</div>`).join("")}</div>` : "";
+        <span class="g-room-pts">${r.pts.toLocaleString("fr-CH")} pts</span></div>`).join("")}</div>` : "";
   const hist = (R.history || []).length ? `<div class="g-room-block"><div class="g-room-h">Déjà joué ce soir</div><div class="g-room-hist">
       ${R.history.map((h) => `<span class="g-room-chip ${GAME_THEME[h.type] || ""}"><i>${GAME_ICONS[h.type] || ""}</i>${esc(h.name)}${h.winner ? ` · 🏆 ${esc(h.winner)}` : ""}</span>`).join("")}</div></div>` : "";
   return resume + tally + hist;

@@ -2,7 +2,8 @@
 
 À saisir ou à vérifier avant « Ajouter pour vérification ». Contrôlé dans le code le 09.11.2026 (develop, 99e16c1),
 drapeaux de prod lus sur https://party.bobycharbon.ch/api/features : `compagnon: false`, `discussions: false`,
-`invites_v2: true`.
+`invites_v2: true`. **Mis à jour le 16.11.2026** : `discussions: true` et `bar: true` en production ; dossier complet et
+à jour dans `docs/app-store/` (checklist-envoi.md fait foi pour App Privacy et le questionnaire d'âge).
 
 ## 1. Fiche de la version
 
@@ -72,7 +73,7 @@ Résultat attendu : **18+**. Libellés anglais d'App Store Connect (ils peuvent 
 | Prolonged Graphic or Sadistic Realistic Violence | Aucun | |
 | Guns or Other Weapons | Aucun | |
 | Simulated Gambling | **Aucun** | Casino et Blackjack masqués et refusés par le serveur dans l'app App Store (`STORE_APP_MARK`). « Roulette » = roue de prénoms, sans mise. À garder ainsi. |
-| Contests | Aucun | Aucun concours ni tirage (Zicou éteint) |
+| Contests | **Fréquent** (16.11) | Quiz et classements entre joueurs (définition Apple « compete for rankings… trivia ») ; aucun tirage ni prix |
 | Gambling (argent réel) | Non | |
 | Loot Boxes | Non | Coffres de Zicou absents (bêta seulement) |
 
@@ -105,14 +106,15 @@ publicité, aucun SDK d'analyse. Pour chaque type ci-dessous : **lié à l'ident
 Pas collecté (à laisser décoché) : e-mail, adresse postale, localisation (aucun CoreLocation ; les adresses d'événement
 et la ville du covoiturage sont du contenu), santé, historique de navigation, historique de recherche (la recherche de
 titres n'est pas gardée), données sensibles (les profils par catégorie de Purify Test ne sont jamais gardés,
-`purity.scrub`), audio (la dictée est faite par Apple ; les messages vocaux n'existent que dans Discussions, éteintes),
+`purity.scrub`), audio : **à cocher depuis le 16.11** (Audio Data : messages vocaux des Discussions, allumées en prod),
 Crash Data / Performance Data, publicité.
 
 **État au 14.11.2026** : le manifeste `ios/Party/PrivacyInfo.xcprivacy` déclare exactement ces 12 types (Phone,
 Name, Photos, Contacts, Emails/Text, Other User Content, Gameplay Content, User ID, Device ID, Product Interaction,
 Other Diagnostic Data, Other Financial Info), tous liés à l'identité, sans suivi, pour le fonctionnement de l'app.
 Cocher **exactement** les mêmes dans App Store Connect (**Other Diagnostic Data est à cocher en plus**, 14.11).
-Purchase History : non déclaré (couvert par Other Financial Info + Other User Content).
+**16.11.2026** : + Audio Data (vocaux des Discussions), Purchase History (commandes du bar liées au compte), Customer
+Support (« Ton avis ») : 15 types, à cocher aussi dans App Store Connect.
 L'écran natif Réglages › Confidentialité est daté du 14 novembre 2026 comme la politique web, et l'accord IA s'y
 retire (« IA de Party ») pour tous les comptes.
 

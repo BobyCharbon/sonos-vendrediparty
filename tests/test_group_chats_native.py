@@ -13,7 +13,7 @@ M1, M2, M3 = ("aaaaaaaa-0000-0000-0000-00000000000" + str(i) for i in (1, 2, 3))
 JPEG = bytes.fromhex("ffd8ffe000104a46494600010100000100010000ffd9")
 
 
-def fake(admin=False, rank=1, creator=LEA, write_status=201, organizer=LEA):
+def fake(admin=False, rank=1, creator=LEA, write_status=201, organizer=LEA, blocked=()):
     seen = []
 
     def handler(request: httpx.Request):
@@ -48,6 +48,8 @@ def fake(admin=False, rank=1, creator=LEA, write_status=201, organizer=LEA):
                                              {"message_id": M1, "user_id": TOM, "emoji": "😂"}])
         if path == "/rest/v1/group_message_reactions":
             return httpx.Response(201 if request.method == "POST" else 204)
+        if path == "/rest/v1/direct_blocks":
+            return httpx.Response(200, json=[{"blocked_id": b} for b in blocked])
         if path == "/rest/v1/group_admins":
             return httpx.Response(200, json=[{"user_id": TOM}])
         if path == "/rest/v1/group_organizers":
@@ -276,3 +278,12 @@ def test_admins_name_organizers_and_choose_who_writes_everyone(monkeypatch):
     assert c.post("/api/account/chats/everyone", json={"token": "t", "group_id": GRP, "who": "staff"}).status_code == 200
     assert c.post("/api/account/chats/everyone", json={"token": "t", "group_id": GRP, "who": "moi"}).status_code == 422
     assert calls == [("org", "t", GRP, member, True), ("all", "t", GRP, "staff")]
+
+
+def test_messages_of_someone_i_blocked_are_masked_in_a_group():
+    """App Store 1.2 : bloquer quelqu'un masque aussitôt ses messages (texte, photo, vocal) et ses épinglés dans les groupes."""
+    chats, _seen = fake(blocked=(LEA,))
+    conv = chats.conversation("tok", GRP)
+    lea = [m for m in conv["messages"] if m.get("author_name") == "Léa" and not m.get("deleted")]
+    assert lea and all(m["body"] == gc.BLOCKED_TEXT and not m.get("photo") and not m.get("audio") for m in lea), lea
+    assert all(h["author_name"] != "Léa" for h in conv["highlights"])

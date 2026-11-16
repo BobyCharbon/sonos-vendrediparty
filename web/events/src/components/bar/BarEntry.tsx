@@ -60,6 +60,9 @@ export function BarEntry({ eventId, zone, answer = '' }: { eventId: string; zone
               setBusy(false);
             }
           }} />
+          <T muted size={12}>Soirée privée entre amis, offerte ou à prix coûtant (un bar payant n’existe pas sur un événement public).
+            Party ne vend rien : tu restes responsable de tes prix et de la loi sur l’alcool (pas d’alcool aux moins de 16 ans,
+            pas de spiritueux aux moins de 18 ans, rien à une personne ivre). Ni tabac ni drogue.</T>
           <ErrorText error={createError} />
         </View>
       );

@@ -93,7 +93,8 @@ struct TermsAcceptSheet: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Sur Party, on se respecte : pas de harcèlement, pas de propos haineux ni de contenu sexuel, pas d'arnaque ni de vente. Les objets du jeu n'ont aucune valeur en argent. Tout contenu peut être signalé ; un modérateur peut le masquer, avertir, suspendre ou bannir un compte.")
+                    Text("Sur Party, on se respecte : pas de harcèlement, pas de propos haineux ni de contenu sexuel, pas d'arnaque ni de vente. Les objets du jeu n'ont aucune valeur en argent. Tout contenu peut être signalé ; un modérateur peut le masquer, avertir, suspendre ou bannir un compte. Party ne vend rien et ne touche jamais d'argent.")
+                    Text("Party est réservée aux 18 ans et plus : en touchant « J'accepte », tu confirmes avoir 18 ans ou plus.").bold()
                     NavigationLink { TermsView(store: store) } label: { Text("Lire les conditions d'utilisation") }
                 }
                 if let error = store.error {

@@ -80,7 +80,7 @@ export default function PrivacySettings() {
         <T muted size={13}>{accepted ? `Acceptées${acceptedAt ? ` le ${acceptedAt}` : ''}.` : 'Pas encore acceptées : elles te seront demandées avant ton premier message ou ton premier nom.'}</T>
         <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
           <Button small variant="secondary" label="Lire les conditions" onPress={() => router.push(TERMS_PATH)} />
-          {terms.status && !accepted ? <Button small label="J’accepte les conditions" onPress={() => void accept()} /> : null}
+          {terms.status && !accepted ? <Button small label="J’ai 18 ans ou plus · J’accepte les conditions" onPress={() => void accept()} /> : null}
         </View>
       </Section>
       <Section title="IA de Party">

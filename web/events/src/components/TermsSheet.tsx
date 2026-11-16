@@ -60,7 +60,8 @@ export function useTermsGate(title = 'Avant de publier') {
           <T weight="bold" size={18}>{title}</T>
           <T size={14}>Sur Party, on se respecte : pas de harcèlement, pas de propos haineux ni de contenu sexuel, pas
             d’arnaque ni de vente. Les objets du jeu n’ont aucune valeur en argent. Tout contenu peut être signalé ; un
-            modérateur peut le masquer, avertir, suspendre ou bannir un compte.</T>
+            modérateur peut le masquer, avertir, suspendre ou bannir un compte. Party ne vend rien et ne touche jamais d’argent.</T>
+          <T size={14} weight="bold">Party est réservée aux 18 ans et plus : en touchant « J’accepte », tu confirmes avoir 18 ans ou plus.</T>
           <Button small variant="ghost" label="Lire les conditions d’utilisation" onPress={() => { finish(false); router.push(TERMS_PATH); }} />
           <ErrorText error={error} />
           <View style={{ flexDirection: 'row', gap: 8 }}>

@@ -115,7 +115,7 @@ export function OptionsTab({ eventId, overview, onOverview }: { eventId: string;
       </Section>
       <Section title="Bar offert">
         <ToggleRow label="Bar offert" value={options.free_bar} disabled={!!busy}
-          hint="Rien à rembourser : prix cachés aux invités, pas d’engagement à cocher, pas de solde. Tu gardes le compte des verres servis."
+          hint="Rien à rembourser : prix cachés aux invités, pas d’engagement à cocher, pas de solde. Tu gardes le compte des verres servis. Sur un événement public, le bar est toujours offert."
           onChange={(v) => toggle('free_bar', v)} />
         {options.free_bar ? <T size={13} color={colors.mint}>Les verres sont à 0 {barUnit()}. Le nombre servi reste dans « Direct ».</T> : null}
       </Section>

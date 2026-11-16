@@ -29,6 +29,9 @@ const HIGHLIGHTS = 20;
 type Profile = { id: string; display_name: string; avatar_url: string | null; member?: boolean };
 type ChatGroup = { id: string; name: string; created_by: string | null; everyone_tag?: EveryoneBy; member_group_members: { user_id: string }[] };
 
+/** Message d'une personne bloquée : ni texte, ni photo, ni vocal (App Store 1.2). */
+const masked = (m: GroupMessage): GroupMessage => ({ ...m, body: 'Message masqué (personne bloquée)', photo_path: null, audio_path: null });
+
 /** Message direct (conversation privée à deux, 4.11) : mêmes données qu'un groupe, lues dans les tables direct_*
  * (règles : les deux personnes seulement). Pas d'admin, d'organisateur, d'@tout ni d'@annonce. */
 async function loadDirect(id: string, me: string) {
@@ -89,7 +92,7 @@ export function GroupChat({ id, direct = false }: { id: string; direct?: boolean
 
   const { data, loading, error: loadError, reload } = useQuery(async () => {
     if (direct) return loadDirect(id, me.id);
-    const [group, msgs, people, admins, chats, phones, pins, organizers] = await Promise.all([
+    const [group, msgs, people, admins, chats, phones, pins, organizers, blocks] = await Promise.all([
       // « * » : everyone_tag (qui peut écrire @tout) quand la base le connaît.
       supabase.from('member_groups').select('*, member_group_members(user_id)').eq('id', id).single(),
       supabase.from('group_messages').select('*').eq('group_id', id).order('created_at', { ascending: false }).limit(PAGE),
@@ -100,8 +103,12 @@ export function GroupChat({ id, direct = false }: { id: string; direct?: boolean
       supabase.from('group_messages').select('*').eq('group_id', id).eq('pinned', true).is('deleted_at', null)
         .order('created_at', { ascending: false }).limit(HIGHLIGHTS),
       supabase.from('group_organizers').select('user_id').eq('group_id', id),
+      supabase.from('direct_blocks').select('blocked_id'),
     ]);
-    const messages = (must(msgs) as GroupMessage[]).reverse();
+    // Personnes que j'ai bloquées (App Store 1.2) : leurs messages, photos et vocaux sont masqués aussitôt, comme dans la
+    // discussion d'un événement ; leurs messages épinglés ne s'affichent pas.
+    const hidden = new Set(((blocks.data as { blocked_id: string }[] | null) ?? []).map((b) => b.blocked_id));
+    const messages = (must(msgs) as GroupMessage[]).reverse().map((m) => (hidden.has(m.user_id) ? masked(m) : m));
     const reactions = messages.length
       ? must(await supabase.from('group_message_reactions').select('message_id, user_id, emoji').in('message_id', messages.map((m) => m.id))) as Reaction[]
       : [];
@@ -109,7 +116,7 @@ export function GroupChat({ id, direct = false }: { id: string; direct?: boolean
     return {
       group: must(group) as ChatGroup,
       messages, reactions, chat, other: null as string | null, blocked: false,
-      highlights: ((pins.data as GroupMessage[] | null) ?? []).filter((m) => m.pinned && !m.deleted_at),
+      highlights: ((pins.data as GroupMessage[] | null) ?? []).filter((m) => m.pinned && !m.deleted_at && !hidden.has(m.user_id)),
       people: must(people) as Profile[],
       admins: new Set((must(admins) as { user_id: string }[]).map((a) => a.user_id)),
       organizers: new Set(((organizers.data as { user_id: string }[] | null) ?? []).map((o) => o.user_id)),

@@ -277,6 +277,16 @@ l'admin. Toujours :
   Luxembourg, Canada, Afrique francophone, Maghreb, Liban, Maurice, Seychelles, Vanuatu) ; tout autre pays ou une app
   Android publique → nouvelle revue. UE (France, Belgique, Luxembourg) : statut DSA déclaré et RGPD dans la politique.
 
+## Revue Apple du 16.11.2026 (bar et Discussions ouverts en prod) — à garder
+- Dossier de soumission : `docs/app-store/` (notes, tutoriel, fiche, checklist) ; `ios/appstore/review-notes.txt` = partie A
+  (≤ 4 000 caractères, `tests/test_ios_app.py`). Données de démo en prod : « Soirée démo Vendredi Party » (Apple-test
+  co-organisateur, bar ouvert) et groupe « Démo Apple » (`supabase/prod/2026-11-16-demo-apple-bar-discussions-*.sql`).
+- Bloquer (`set_direct_block`) masque aussitôt les messages de la personne (événement, groupes web `GroupChat.tsx` et natif
+  `group_chats.py`) ET la signale aux modérateurs (une fois). Bar : ni tabac ni drogue (`bar_item_allowed`) ; bar PAYANT
+  seulement sur un événement non public (`bar_private_only`, `event_public_bar_guard`). Jeux : classement aux points,
+  jamais aux gorgées. CGU 2026-11-16 (18 ans et plus, « Paiements, billets et bar »). Pas de mise en prod pendant une revue.
+  Tests : `tests/test_compliance_1611.py`, `tests/supabase_live/test_conformite_app_store_live.py`.
+
 ## Zicou : bêta seulement (décision de l'admin, 04.11.2026)
 - Zicou est ÉTEINT hors site de test par `compagnon_enabled()` (`app/features.py` : `COMPAGNON_ENABLED`
   "1"/"0", sinon allumé seulement si l'adresse publique est `partytest.bobycharbon.ch`). Éteint : `/api/pet/*`,
