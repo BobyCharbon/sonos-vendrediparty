@@ -1,6 +1,6 @@
-# Checklist d'envoi à Apple — Party entre amis 1.0.0
+# Checklist d'envoi à Apple — Vendredi Party 1.0.0
 
-À cocher dans l'ordre, dans App Store Connect (appstoreconnect.apple.com › Apps › Party entre amis, id 6827221948,
+À cocher dans l'ordre, dans App Store Connect (appstoreconnect.apple.com › Apps › Vendredi Party, id 6827221948,
 `ch.bobycharbon.party`). Textes prêts : `fiche-app-store.md` (fiche), `notes-for-review.md` (notes + guide joint),
 `tutoriel-reviewer-fr.md` (relecture en français).
 
@@ -35,7 +35,7 @@
 
 ## 3. Fiche de la version (localisation Français)
 
-- [ ] Nom : **Party entre amis** · Sous-titre : **Soirées, invitations et jeux**.
+- [ ] Nom : **Vendredi Party** · Sous-titre : **Événements, soirées et jeux**.
 - [ ] Texte promotionnel, description, mots-clés : copiés de `fiche-app-store.md`.
 - [ ] Nouveautés : rien (1re version, Apple n'affiche pas ce champ).
 - [ ] URL d'assistance : `https://party.bobycharbon.ch/events/terms` · URL de confidentialité :

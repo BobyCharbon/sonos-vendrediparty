@@ -1,4 +1,4 @@
-# Fiche App Store — Party entre amis (iOS 1.0.0, français)
+# Fiche App Store — Vendredi Party (iOS 1.0.0, français)
 
 Textes à saisir dans App Store Connect › l'app › version 1.0.0 › Localisation **Français**. Longueurs comptées par
 script le 16.11.2026. Vérifié dans le code (develop) et sur la prod en lecture seule : `/api/features` =
@@ -8,8 +8,8 @@ script le 16.11.2026. Vérifié dans le code (develop) et sur la prod en lecture
 
 | Champ | Valeur | Source / remarque |
 |---|---|---|
-| Nom (30 car.) | **Party entre amis** (16) | Déjà choisi (commit 1580f6a : « Party » et « Party ! » sont pris). Sous l'icône : « Party » (`PARTY_DISPLAY_NAME`, project.yml). |
-| Sous-titre (30 car.) | **Soirées, invitations et jeux** (28) | |
+| Nom (30 car.) | **Vendredi Party** (14) | Choix de l'admin du 16.11 (« Party » et « Party ! » seuls sont pris, commit 1580f6a). Secours si refusé : « Party ! Événements & soirées » (28). Sous l'icône : « Party ! » (`PARTY_DISPLAY_NAME`, project.yml). |
+| Sous-titre (30 car.) | **Événements, soirées et jeux** (27) | Pour une bande d'amis comme pour une association qui organise des événements. |
 | Identifiant de lot | `ch.bobycharbon.party` | project.yml (Release) |
 | SKU | `party-ios` | ios/README.md |
 | Version | 1.0.0 | `MARKETING_VERSION` |
@@ -38,7 +38,7 @@ script le 16.11.2026. Vérifié dans le code (develop) et sur la prod en lecture
 ## Description (4 000 car.)
 
 ```text
-Party réunit tes soirées entre amis dans une seule app : on s'organise, on s'invite, on joue et on choisit la musique ensemble. C'est l'app de notre association, Vendredi Party, ouverte à tous ceux qui organisent des soirées avec leurs amis.
+Vendredi Party réunit tes soirées et tes événements dans une seule app, pour une bande d'amis comme pour une association qui organise des événements : on s'organise, on s'invite, on joue et on choisit la musique ensemble.
 
 ÉVÉNEMENTS
 • Crée un événement avec le formulaire, ou décris-le simplement à l'assistant IA (texte, voix ou photo d'une affiche) : il prépare la fiche, tu vérifies et tu publies.
@@ -80,10 +80,10 @@ et les billets n'existent que si l'organisateur les allume.
 ## Mots-clés (100 car.)
 
 ```text
-fête,soirée,événement,invitation,sondage,agenda,quiz,apéro,anniversaire,covoiturage,billet
+fête,soirée,événement,association,invitation,sondage,quiz,apéro,anniversaire,covoiturage,billet
 ```
 
-(90 caractères, 95 octets ; sans espaces ; ni « party », ni « amis », déjà dans le nom ; aucune marque : ni Spotify, Sonos, YouTube, Twint, Revolut,
+(95 caractères ; sans espaces ; ni « party » ni « vendredi », déjà dans le nom ; aucune marque : ni Spotify, Sonos, YouTube, Twint, Revolut,
 Claude, Apple — règle 2.3.7 ; aucun mot d'alcool.)
 
 ## Nouveautés de cette version

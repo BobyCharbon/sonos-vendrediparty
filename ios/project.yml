@@ -32,7 +32,7 @@ settings:
     Release:
       PARTY_BUNDLE_SUFFIX: ""
       PARTY_HOST: party.bobycharbon.ch
-      PARTY_DISPLAY_NAME: "Party"
+      PARTY_DISPLAY_NAME: "Party !"
       PARTY_SWIFT_CONDITIONS: ""
       SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(PARTY_SWIFT_CONDITIONS)"
 

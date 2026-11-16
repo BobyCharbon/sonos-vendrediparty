@@ -200,8 +200,7 @@ struct SideBoard: View {
         case "president": return ("Points", list(g["president"]["seats"].array.sorted { ($0["points"].int ?? 0) > ($1["points"].int ?? 0) }) { "\($0["points"].int ?? 0)" })
         case "room" where game["current"].isNull: return nil
         default:
-            let sips = g["players"].array.filter { ($0["drink"].int ?? 0) > 0 }.sorted { ($0["drink"].int ?? 0) > ($1["drink"].int ?? 0) }
-            return sips.isEmpty ? nil : ("🍻 Gorgées bues", list(sips) { "\($0["drink"].int ?? 0)" })
+            return nil  // jamais de classement aux gorgées (App Store 1.4.3)
         }
     }
 
