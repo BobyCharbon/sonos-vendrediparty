@@ -66,3 +66,14 @@ def test_on_site_has_nothing_to_note(party):
     r = a.rpc('declare_ticket_payment', e=eid, declared=True)
     assert r.status_code == 400 and 'sur place' in r.text
     assert ticket(a, eid).get('pay_pending') is not True
+
+
+def test_a_guest_cannot_change_how_the_event_is_paid(party):
+    """Revue du 15.11 : un invité ne détourne jamais le paiement (son propre lien, « sur place »…) ; jamais de javascript:."""
+    admin, a, eid = party
+    before = admin.get(f'events?id=eq.{eid}&select=payment_mode,payment_url').json()[0]
+    r = httpx.patch(f'{TEST_URL}/rest/v1/events?id=eq.{eid}', headers={**a.headers, 'Prefer': 'return=representation'},
+                    json={'payment_mode': 'organizer', 'payment_url': 'https://revolut.me/pas-l-organisateur'}, timeout=30)
+    assert r.status_code == 200 and r.json() == [], r.text  # aucune ligne modifiable (RLS)
+    assert admin.get(f'events?id=eq.{eid}&select=payment_mode,payment_url').json()[0] == before
+    assert patch(admin, eid, payment_mode='organizer', payment_url='javascript:alert(1)').status_code == 400

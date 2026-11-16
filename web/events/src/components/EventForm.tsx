@@ -400,7 +400,8 @@ export function EventForm({ eventId }: { eventId?: string }) {
     if (paid && d.payment_mode === 'online' && !payLink) return 'Paiement en ligne : ajoute le lien (billetterie, Revolut…)';
     if (payLink) {
       try {
-        if (new URL(payLink).protocol !== 'https:' || /\s/.test(payLink)) return 'Le lien de paiement doit commencer par https://';
+        if (new URL(payLink).protocol !== 'https:') return 'Le lien de paiement doit commencer par https://';
+        if (/\s/.test(payLink)) return 'Le lien de paiement ne doit pas contenir d’espace';
       } catch {
         return 'Le lien de paiement doit être une adresse complète (ex. https://revolut.me/…)';
       }
@@ -428,7 +429,8 @@ export function EventForm({ eventId }: { eventId?: string }) {
         location_address: d.location_address.trim() || null,
         location_url: d.location_url.trim() || null,
         price_chf: price,
-        payment_info: d.payment_info.trim() || null,
+        // Gratuit : la précision du paiement (cachée dans le formulaire) ne reste pas sous « Gratuit » sur la fiche.
+        payment_info: paid ? d.payment_info.trim() || null : null,
         payment_mode: paid ? d.payment_mode : 'organizer',
         payment_url: payLink || null,
         max_participants: max,
@@ -892,8 +894,9 @@ export function EventForm({ eventId }: { eventId?: string }) {
 }
 
 const PAY_MODES: { key: PaymentMode; icon: string; label: string; hint: string }[] = [
-  { key: 'organizer', icon: '🙋', label: 'On me paie', hint: 'Revolut, Twint, virement. Chacun note « J’ai payé », tu confirmes chaque paiement reçu.' },
-  { key: 'online', icon: '🔗', label: 'Paiement en ligne', hint: 'Billetterie ou lien de paiement. Chacun note « J’ai payé », tu confirmes.' },
+  // Espaces insécables dans les guillemets : jamais un « seul en fin de ligne.
+  { key: 'organizer', icon: '🙋', label: 'On me paie', hint: 'Revolut, Twint, virement. Chacun note « J’ai payé », tu confirmes chaque paiement reçu.' },
+  { key: 'online', icon: '🔗', label: 'Paiement en ligne', hint: 'Billetterie ou lien de paiement. Chacun note « J’ai payé », tu confirmes.' },
   { key: 'on_site', icon: '📍', label: 'Sur place', hint: 'Le jour J. Rien à suivre dans Party.' },
 ];
 
