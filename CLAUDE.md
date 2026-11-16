@@ -143,7 +143,8 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   fixe : agenda (votes pris seulement en sondage, migration 20261115230000), IA de modification (`draft_of`). Recette réelle :
   `tests/supabase_live/test_sondage_date_fixee_browser_live.py`.
 - Événements récurrents (demande du 16.11, migration 20261116170000) : « Répéter » sous la date (chaque jour, semaine,
-  2 semaines, mois, année ; « Jusqu'au » facultatif), `set_event_recurrence` (organisateurs ; la règle part de CET événement).
+  2 semaines, mois, année ; « Jusqu'au » facultatif), `set_event_recurrence` (organisateurs de l'événement ET droit `events.recurring` : Admin, Co-admin, Organisateur au départ,
+  réglable dans Rôles et droits ; l'arrêter : tout organisateur ; la règle part de CET événement).
   UNE seule date à la fois : `private.spawn_series` (pg_cron, 5 min) crée la suivante seulement quand la précédente est
   terminée (sa fin, sinon le lendemain 0 h), en recopiant la DERNIÈRE (options, groupes, invités un à un, co-organisateurs,
   étiquettes, « qui amène quoi » de l'organisateur ; jamais réponses, votes, messages, billets, bar, covoiturage, liens) ;
