@@ -30,6 +30,23 @@ create policy "série d'un événement visible" on public.event_series for selec
 revoke insert, update, delete on public.event_series from anon, authenticated;
 grant select on public.event_series to authenticated;
 
+-- Droit « Créer des événements récurrents » (précision de l'admin du 16.11) : Admin, Co-admin et Organisateur seulement
+-- au départ ; réglable ensuite dans Rôles et droits.
+insert into public.permissions (key, grp, label, hint, sort) values
+  ('events.recurring', 'Événements', 'Créer des événements récurrents',
+   'Répéter un événement chaque jour, semaine, mois ou année (une seule date visible à la fois)', 16)
+on conflict (key) do update set grp = excluded.grp, label = excluded.label, hint = excluded.hint;
+
+do $$
+begin
+  if exists (select 1 from private.one_time_changes where name = 'events_recurring_2026_11_16') then return; end if;
+  insert into public.role_permissions (role, perm)
+    select r, 'events.recurring' from unnest(array['admin', 'coadmin', 'organizer']) r
+    where exists (select 1 from public.roles where key = r)
+  on conflict do nothing;
+  insert into private.one_time_changes (name) values ('events_recurring_2026_11_16');
+end $$;
+
 -- Début (heure de Suisse → instant) de l'occurrence n de la règle.
 create or replace function private.series_start(s public.event_series, n int) returns timestamptz
 language sql stable set search_path = '' as $$
@@ -45,7 +62,7 @@ language sql stable set search_path = '' as $$
               else (((coalesce(ev.ends_at, ev.starts_at) at time zone 'Europe/Zurich')::date + 1)::timestamp) at time zone 'Europe/Zurich' end;
 $$;
 
--- Répétition d'un événement, par ceux qui peuvent le modifier. frequency 'none' (ou null) : la répétition s'arrête
+-- Répétition d'un événement, par ceux qui peuvent le modifier ET ont le droit events.recurring (l'arrêter : tout organisateur). frequency 'none' (ou null) : la répétition s'arrête
 -- (l'occurrence en cours reste). Sinon la règle part de CET événement (sa date et son heure) : modifier la date de la
 -- dernière occurrence dans le formulaire déplace aussi les suivantes.
 create or replace function public.set_event_recurrence(e uuid, frequency text, every int default 1, until date default null)
@@ -61,6 +78,9 @@ begin
   if ev.series_id is not null then
     select * into s from public.event_series where id = ev.series_id;
     select x.id into latest from public.events x where x.series_id = ev.series_id order by x.starts_at desc nulls last limit 1;
+  end if;
+  if coalesce(frequency, 'none') <> 'none' and not private.user_has(auth.uid(), 'events.recurring') then
+    raise exception 'forbidden: les événements récurrents sont réservés aux admins, co-admins et organisateurs' using errcode = '42501';
   end if;
   if coalesce(frequency, 'none') = 'none' then
     if s.id is not null and s.stopped_at is null then update public.event_series set stopped_at = now() where id = s.id; end if;

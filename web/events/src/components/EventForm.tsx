@@ -263,6 +263,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
   const terms = useTermsGate();
   const { can } = useAuth();
   const isAdmin = can('events.publish_direct');  // publie sans passer par la validation
+  const canRepeat = can('events.recurring');  // Admin, Co-admin, Organisateur (Rôles et droits)
   const [draft, setDraft] = useState<Draft | null>(eventId ? null : emptyDraft);
   // Ce qui était là à l'ouverture : la base de « changements non enregistrés » et du « début changé ».
   const [initial, setInitial] = useState<Draft | null>(eventId ? null : emptyDraft);
@@ -587,7 +588,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
       // Répétition : seulement si elle change (ou la date de la série) ; elle repart de CET événement.
       const repeat = snapshot.date_mode === 'fixed' ? snapshot.repeat : NO_REPEAT;
       const before = previous?.repeat ?? NO_REPEAT;
-      if (JSON.stringify(repeat) !== JSON.stringify(before) || (repeat.frequency !== 'none' && snapshot.starts_at !== previous?.starts_at)) {
+      if (canRepeat && (JSON.stringify(repeat) !== JSON.stringify(before) || (repeat.frequency !== 'none' && snapshot.starts_at !== previous?.starts_at))) {
         check(await supabase.rpc('set_event_recurrence', {
           e: id, frequency: repeat.frequency, every: repeat.every, until: untilDate(repeat.until),
         }));
@@ -713,6 +714,8 @@ export function EventForm({ eventId }: { eventId?: string }) {
           <>
             <DateTimeField label="Début" value={d.starts_at} onChangeText={(starts_at) => set({ starts_at })} />
             <DateTimeField label="Fin (optionnel)" optional min={d.starts_at} value={d.ends_at} onChangeText={(ends_at) => set({ ends_at })} />
+            {/* Événements récurrents : droit events.recurring (Admin, Co-admin, Organisateur ; précision du 16.11). */}
+            {canRepeat ? (<>
             <T muted size={13} weight="medium">Répéter</T>
             <View style={s.wrap} accessibilityRole="radiogroup" accessibilityLabel="Répéter">
               {REPEAT_CHOICES.map((c) => (
@@ -730,6 +733,9 @@ export function EventForm({ eventId }: { eventId?: string }) {
                 <DateTimeField label="Jusqu’au (facultatif)" optional min={d.starts_at} value={d.repeat.until}
                   onChangeText={(until) => set({ repeat: { ...d.repeat, until } })} />
               </>
+            ) : null}
+            </>) : d.repeat.frequency !== 'none' ? (
+              <T size={13} color={colors.textSoft}>🔁 {repeatLabel({ ...d.repeat, until: untilDate(d.repeat.until) }, parseLocalDateTime(d.starts_at))}</T>
             ) : null}
           </>
         ) : (

@@ -81,7 +81,7 @@ def mock_services(page, pending=False, events=1, people=(), roles=None, unread=(
     event['rsvps'] = rsvps if isinstance(rsvps, list) else [dict(r) for r in rsvps]  # liste : le test peut l'allonger
     # Droits du compte (catalogue réel : migration 20261020160100) ; un invité ne voit pas les sorties.
     perms = ['games.create', 'music.add'] if pending else ['events.view', 'events.rsvp', 'events.plus_ones', 'events.create', 'events.publish_direct',
-             'events.edit_own_published', 'events.manage_all', 'events.approve', 'events.see_participants', 'polls.create', 'chat.write', 'chat.moderate',
+             'events.edit_own_published', 'events.manage_all', 'events.approve', 'events.see_participants', 'events.recurring', 'polls.create', 'chat.write', 'chat.moderate',
              'taxonomy.manage', 'announcements.publish', 'group.settings', 'members.approve', 'members.view_identity', 'members.roles', 'members.ban',
              'roles.manage', 'games.create', 'music.add']
     join = {}

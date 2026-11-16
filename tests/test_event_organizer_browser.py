@@ -664,3 +664,42 @@ def test_a_weekly_event_is_set_from_the_form_and_shown_on_the_event_page(browser
         assert not errors
     finally:
         context.close()
+
+
+def test_without_the_right_there_is_no_repeat_choice(browser, events_origin):
+    """Précision de l'admin (16.11) : seuls Admin, Co-admin et Organisateur (droit events.recurring) répètent un événement."""
+    context, page, frame, base, errors = launch_without(browser, events_origin, 'events.recurring')
+    try:
+        open_form(frame, 'Simple')
+        fill_date(frame, 'Début', '2030-12-12', '19:00')
+        pw.expect(frame.get_by_text('Fin (optionnel)', exact=True)).to_be_visible()
+        assert frame.get_by_text('Répéter', exact=True).count() == 0
+        assert frame.get_by_role('button', name='Chaque semaine', exact=True).count() == 0
+        assert not errors
+    finally:
+        context.close()
+
+
+def launch_without(browser, origin, perm: str):
+    """Comme launch, avec un compte qui n'a pas `perm` (my_permissions réécrit avant l'ouverture)."""
+    context = browser.new_context(viewport={'width': 390, 'height': 844})
+    page = context.new_page()
+    errors: list[str] = []
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    mock_services(page, people=[{'id': LEA, 'display_name': 'Léa'}])
+    base = FakeBase(page, None)
+
+    def perms(route):
+        if route.request.method == 'OPTIONS':
+            return route.fulfill(status=204, headers=HEADERS)
+        everything = ['events.view', 'events.rsvp', 'events.plus_ones', 'events.create', 'events.publish_direct',
+                      'events.edit_own_published', 'events.manage_all', 'events.approve', 'events.see_participants',
+                      'events.recurring', 'polls.create', 'chat.write', 'games.create', 'music.add']
+        FakeBase.reply(route, [p for p in everything if p != perm])
+    page.route(REST + 'rpc/my_permissions*', perms)
+    page.goto(origin, wait_until='domcontentloaded')
+    page.get_by_role('button', name='Événements', exact=True).click()
+    frame = page.frame_locator('#eventsFrame')
+    login(frame)
+    pw.expect(frame.get_by_role('button', name='Proposer un événement', exact=True)).to_be_visible(timeout=15000)
+    return context, page, frame, base, errors

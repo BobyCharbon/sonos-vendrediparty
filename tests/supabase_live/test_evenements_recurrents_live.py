@@ -78,3 +78,15 @@ def test_each_month_counts_from_the_first_date_in_swiss_time():
               + keep("mar", f"to_char(private.series_start({rule}, 2) at time zone 'Europe/Zurich', 'YYYY-MM-DD HH24:MI')")
               + keep("apr", f"to_char(private.series_start({rule}, 3) at time zone 'Europe/Zurich', 'YYYY-MM-DD HH24:MI')"))
     assert "feb=2026-02-28 20:00" in out and "mar=2026-03-31 20:00" in out and "apr=2026-04-30 20:00" in out, out
+
+
+def test_a_plain_member_cannot_make_his_own_event_recurring_but_may_stop_it():
+    """Précision de l'admin (16.11) : Admin, Co-admin et Organisateur seulement (droit events.recurring)."""
+    out = run(as_postgres() + """
+      insert into public.events (title, status, visibility, notify_on_publish, starts_at, created_by)
+        values ('[Recette] Le mien', 'published', 'invited', false, now() + interval '1 day', victor) returning id into e;"""
+              + as_bot("victor") + note("member", "perform public.set_event_recurrence(e, 'weekly', 1, null)")
+              + note("member_stop", "perform public.set_event_recurrence(e, 'none')")
+              + as_postgres() + keep("rights", "(select string_agg(role, ',' order by role) from public.role_permissions where perm = 'events.recurring')"))
+    assert "member=forbidden: les événements récurrents sont réservés" in out and "member_stop=ok" in out, out
+    assert "rights=admin,coadmin,organizer" in out, out
