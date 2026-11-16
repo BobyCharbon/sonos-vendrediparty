@@ -2,7 +2,7 @@ import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
 import { IMPORTANT_KINDS } from './activityBadge';
-import { fetchEventList, needsAnswer, useRealtime } from './data';
+import { fetchEventList, needsAnswer, useRealtime, useSignal } from './data';
 import { supabase } from './supabase';
 
 /** Les notifications ne passent pas par le temps réel : relecture régulière tant que le module est ouvert. */
@@ -93,4 +93,5 @@ export function usePendingSync(me: string) {
   }, [load]);
 
   useRealtime('pending', [{ table: 'rsvps' }, { table: 'date_votes' }, { table: 'events' }], load);
+  useSignal(['events', 'access'], load);
 }

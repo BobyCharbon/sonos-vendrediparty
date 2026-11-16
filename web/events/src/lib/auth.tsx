@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState, Platform } from 'react-native';
 
 import { belowVip, roleBook, setRoleBook, type Role } from './roles';
+import { useSignal } from './data';
 import { supabase } from './supabase';
 import { ADMIN_PERMS, type Profile } from './types';
 import { syncWebPush, unregisterPushToken } from './push';
@@ -91,6 +92,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const task = setTimeout(() => { void loadProfile(session?.user.id); }, 0);
     return () => clearTimeout(task);
   }, [sessionReady, session?.user.id, loadProfile]);
+
+  // Droits en direct (avis du 16.11) : rôle donné (Membre VIP…), compte suspendu, droits d'un rôle changés → relus aussitôt.
+  const uid = session?.user.id;
+  useSignal(uid ? [`user:${uid}`, 'access'] : [], () => loadProfile(uid));
 
   const loading = !sessionReady || (!!session && profile?.id !== session.user.id && !profileError);
 

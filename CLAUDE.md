@@ -126,6 +126,12 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   relit l'écran aussitôt (fiche, billet, tous les écrans du bar). Toute nouvelle table « par fonctions » visible sur la fiche
   ou dans le bar = un déclencheur `live_ping`. La relecture régulière reste en secours. Test : verre servi visible chez
   l'invité en ~1 s (`test_a_served_glass_shows_on_the_guest_screen_without_reloading`, `test_bar_recap_live.py`).
+  TOUT l'événement en temps réel (avis du 16.11, migration 20261116140000) : chaque table de l'événement a le déclencheur
+  `event_changed` → signal sans contenu sur le canal public `event:<id>` (`private.party_signal`, une fois par transaction),
+  suppressions comprises (le temps réel par tables ne voit pas une suppression filtrée : vote ou « J'amène » retiré). Liste :
+  canal `events` ; rôle / statut / groupes d'une personne : `user:<id>` (`access_changed`, droits relus par auth.tsx) ;
+  droits des rôles : `access`. Côté web : `useSignal` / `useLivePing` (lib/data.ts). Toute nouvelle table de l'événement
+  = ajoutée à la liste de `event_changed`. Test réel : `tests/supabase_live/test_temps_reel_tout_browser_live.py` (~0,9 s).
 - Covoiturage (avis 34d5c07f2e56, 13.11, migration 20261113090000) : option de l'organisateur (`events.carpool_enabled`,
   éteinte par défaut, jamais allumée par l'IA) ; seuls les participants (Présent / Peut-être) et les organisateurs y prennent
   part, tout par les fonctions `carpool*` (table sans accès direct, places comptées sous verrou, ville filtrée comme un nom,
