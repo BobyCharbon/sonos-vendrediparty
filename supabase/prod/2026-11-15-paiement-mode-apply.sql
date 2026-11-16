@@ -65,7 +65,8 @@ begin
   end if;
   select * into ev from public.events where id = e;
   if coalesce(ev.price_chf, 0) <= 0 then raise exception 'Cet événement est gratuit.' using errcode = '22023'; end if;
-  if ev.payment_mode = 'on_site' then
+  -- Sur place : on ne note plus « J'ai payé », mais on annule toujours une déclaration d'avant le changement de mode.
+  if declared and ev.payment_mode = 'on_site' then
     raise exception 'Cet événement se paie sur place : rien à noter dans Party.' using errcode = '22023';
   end if;
   t := private.ensure_ticket(e, me);
