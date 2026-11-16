@@ -214,3 +214,35 @@ def test_the_organizer_manages_items_and_sees_who_owes_what(browser, party, bar)
         assert not errors, errors
     finally:
         actx.close()
+
+
+def test_a_served_glass_shows_on_the_guest_screen_without_reloading(browser, party, bar):
+    """Temps réel (avis du 16.11, migration 20261116110000) : l'invité a « Mon bar » ouvert, le barman sert depuis son
+    téléphone ; le solde change aussitôt, sans recharger la page (la relecture de secours ne passe que toutes les 10 s)."""
+    if not LOCAL_TEST:
+        time.sleep(61)  # un code SMS par minute et par numéro : l'invité s'est connecté au premier test
+    _admin, guest, barman, event = bar
+    mine = guest.rpc('my_bar', e=event).json()
+    coca = next(i['id'] for i in mine['items'] if i['name'] == 'Coca')
+    order = guest.rpc('bar_order', e=event, lines=[{'item': coca, 'qty': 1}], pledge_text=mine['pledge_text'],
+                      pledge_version=mine['pledge_version'])
+    assert order.status_code == 200, order.text
+    errors: list = []
+    gctx, g = signed_in_page(browser, GUEST_A, party, event, errors)
+    try:
+        g.goto(f'{party}/events/event/{event}/bar')
+        balance = g.get_by_test_id('bar-balance').first
+        pw.expect(balance).to_be_visible(timeout=30000)
+        g.wait_for_timeout(2500)  # abonnement au temps réel établi
+        before = balance.inner_text()
+        served = barman.rpc('bar_serve', e=event, member=guest.uid, lines=[{'item': coca, 'qty': 1}], client_key=f'rt-{time.time()}')
+        assert served.status_code == 200, served.text
+        started = time.monotonic()
+        pw.expect(balance).not_to_have_text(before, timeout=6000)
+        took = time.monotonic() - started
+        shot(g, '09-invite-temps-reel')
+        print(f"temps réel : solde changé en {took:.1f} s")
+        assert took < 6, took
+        assert not errors, errors
+    finally:
+        gctx.close()

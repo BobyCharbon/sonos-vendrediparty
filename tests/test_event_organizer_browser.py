@@ -203,7 +203,14 @@ def test_advanced_form_sends_every_option(browser, events_origin):
         field(frame, 'Adresse').fill('Route du Col 3')
         field(frame, 'Lien (site, carte…)').fill('https://chalet.example')
         field(frame, 'Prix / pers. (CHF)').fill('25,50')
-        field(frame, 'Paiement').fill('TWINT')
+        # Comment on paie (maquette du 15.11) : « On me paie » par défaut, puis « Paiement en ligne », lien exigé.
+        pw.expect(frame.get_by_role('radio', name='On me paie', exact=False)).to_have_attribute('aria-checked', 'true')
+        frame.get_by_role('radio', name='Paiement en ligne', exact=False).click()
+        field(frame, 'Précision (facultatif)').fill('TWINT')
+        # Paiement préparé, pas encore ouvert (avis du 16.11) : allumé par défaut, on l'éteint
+        pw.expect(frame.get_by_role('switch', name='Paiement ouvert', exact=True)).to_be_checked()
+        frame.get_by_role('switch', name='Paiement ouvert', exact=True).click()
+        pw.expect(frame.get_by_text('Paiement bientôt possible', exact=False).first).to_be_visible()
         frame.get_by_role('switch', name='Billets QR', exact=True).click()
         pw.expect(frame.get_by_role('button', name='✓ Publique + lien', exact=True)).to_be_visible()  # public par défaut
         field(frame, 'Nombre de places (vide = illimité)').fill('12')
@@ -226,6 +233,15 @@ def test_advanced_form_sends_every_option(browser, events_origin):
         pw.expect(frame.get_by_role('switch', name='Prévenir le groupe à la publication', exact=True)).to_have_count(0)
         shot(page, 'formulaire-avance')
         frame.get_by_role('button', name='Publier', exact=True).click()
+        pw.expect(frame.get_by_text('Paiement en ligne : ajoute le lien (billetterie, Revolut…)', exact=True).first).to_be_visible()
+        field(frame, 'Lien de paiement').fill('http://billetterie.example')
+        frame.get_by_role('button', name='Publier', exact=True).click()
+        pw.expect(frame.get_by_text('Le lien de paiement doit commencer par https://', exact=True).first).to_be_visible()
+        field(frame, 'Lien de paiement').fill('https://billetterie.example/ra clette')  # recette du 15.11 : la phrase dit l'espace
+        frame.get_by_role('button', name='Publier', exact=True).click()
+        pw.expect(frame.get_by_text('Le lien de paiement ne doit pas contenir d’espace', exact=True).first).to_be_visible()
+        field(frame, 'Lien de paiement').fill('https://billetterie.example/raclette')
+        frame.get_by_role('button', name='Publier', exact=True).click()
         pw.expect(frame.get_by_role('button', name='Modifier', exact=True)).to_be_visible(timeout=10000)
         (_, row), = base.wrote('POST', 'events')
         assert row['category_id'] == CATEGORY and row['description'] == 'Fromage à volonté'
@@ -235,6 +251,7 @@ def test_advanced_form_sends_every_option(browser, events_origin):
         assert (row['visibility'], row['public_link'], row['tickets_enabled']) == ('all', True, True)
         assert row['pot_enabled'] is True and row['forum_enabled'] is False and row['notify_on_publish'] is False
         assert row['location_url'] == 'https://chalet.example'
+        assert (row['payment_mode'], row['payment_url'], row['payment_open']) == ('online', 'https://billetterie.example/raclette', False)
         assert [b for _, b in base.wrote('POST', 'event_tags')] == [[{'event_id': NEW, 'tag_id': TAG}]]
         assert [b for _, b in base.wrote('POST', 'event_organizers')] == [[{'event_id': NEW, 'user_id': LEA}]]
         (_, poll), = base.wrote('POST', 'polls')
@@ -372,6 +389,40 @@ def test_edit_after_publication_keeps_it_published_and_updates_wallet(browser, e
         assert base.event['status'] == 'published'
         page.wait_for_timeout(300)
         assert wallet  # les billets déjà dans Cartes se mettent à jour
+        assert not errors
+    finally:
+        context.close()
+
+
+def test_editing_a_fixed_date_keeps_the_poll_dates_and_their_votes(browser, events_origin):
+    """Paintball (prod, 13.11.2026) : date fixée par erreur, puis l'événement modifié ; l'enregistrement effaçait tous
+    les créneaux du sondage, et leurs votes avec. Ils restent maintenant, et repasser en « Sondage » les retrouve."""
+    ev = published(date_mode='fixed')
+    ev['date_options'] = [{'id': 'opt-1', 'event_id': NEW, 'starts_at': '2030-11-14T18:00:00Z', 'proposed_by': USER,
+                           'created_at': '2026-11-04T08:00:00Z', 'date_votes': [{'option_id': 'opt-1', 'user_id': LEA, 'vote': 'yes'}]},
+                          {'id': 'opt-2', 'event_id': NEW, 'starts_at': '2030-11-21T18:00:00Z', 'proposed_by': USER,
+                           'created_at': '2026-11-04T08:00:00Z', 'date_votes': [{'option_id': 'opt-2', 'user_id': LEA, 'vote': 'no'}]}]
+    context, page, frame, base, errors = launch(browser, events_origin, event=ev)
+    try:
+        open_event(frame)
+        frame.get_by_role('button', name='Modifier', exact=True).click()
+        pw.expect(field(frame, 'Titre')).to_have_value('Soirée publiée', timeout=10000)
+        field(frame, 'Titre').fill('Paintball')
+        frame.get_by_role('button', name='Enregistrer', exact=True).click()
+        pw.expect(frame.get_by_text('Paintball', exact=True)).to_be_visible(timeout=10000)
+        page.wait_for_timeout(300)
+        assert base.wrote('DELETE', 'date_options') == []
+        # Repasser en sondage : les deux créneaux reviennent dans le formulaire, avec leurs identifiants (votes gardés).
+        frame.get_by_role('button', name='Modifier', exact=True).click()
+        pw.expect(field(frame, 'Titre')).to_have_value('Paintball', timeout=10000)
+        if frame.get_by_role('tab', name='Avancé', exact=True).count():
+            frame.get_by_role('tab', name='Avancé', exact=True).click()
+        frame.get_by_role('tab', name='Date à définir', exact=True).click()
+        pw.expect(frame.get_by_label('Créneau 2 : jour', exact=True)).to_be_visible()
+        frame.get_by_role('button', name='Enregistrer', exact=True).click()
+        page.wait_for_timeout(800)
+        assert base.wrote('DELETE', 'date_options') == [] and base.wrote('POST', 'date_options') == []
+        assert {q for q, _ in base.wrote('PATCH', 'date_options')} >= {'id=eq.opt-1', 'id=eq.opt-2'}
         assert not errors
     finally:
         context.close()

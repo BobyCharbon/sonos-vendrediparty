@@ -155,9 +155,11 @@ def test_store_app_hides_simulated_gambling_games(browser, server, store):
     page.goto("/")
     page.wait_for_function("window.__tabStates.length > 0")
     page.evaluate("PartyTabs.select('games')")
-    page.wait_for_selector('[data-create="whoof"]', state="visible")
+    # Les jeux à plusieurs se lancent dans la salle de jeux (accueil du 15.11.2026).
+    page.locator('#gHome [data-create="room"]').click()
+    page.wait_for_selector('[data-room-pick="whoof"]', state="visible")
     for kind in ("casino", "blackjack"):
-        assert page.locator(f'[data-create="{kind}"]').is_visible() is not store
+        assert page.locator(f'[data-room-pick="{kind}"]').count() == (0 if store else 1)
     ctx.close()
 
 

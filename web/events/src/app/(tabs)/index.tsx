@@ -11,7 +11,7 @@ import { useImportantUnread } from '@/lib/activityBadge';
 import { useAuth, useMe } from '@/lib/auth';
 import { type Attendance, fetchAttendance } from '@/lib/attendance';
 import { inTab, type ListTab } from '@/lib/eventTime';
-import { fetchEventList, fetchTaxonomy, needsAnswer, useQuery, useRealtime } from '@/lib/data';
+import { fetchEventList, fetchTaxonomy, needsAnswer, useQuery, useRealtime, useSignal } from '@/lib/data';
 import { plural } from '@/lib/format';
 import { must, supabase } from '@/lib/supabase';
 import { duration, ease, enter, pressTransition, transition } from '@/lib/motion';
@@ -66,6 +66,8 @@ export default function Home() {
     { table: 'event_groups' },
     { table: 'rsvps', filter: `user_id=eq.${me.id}` },
   ], reload);
+  // Tout le reste aussitôt (avis du 16.11) : événement retiré, droits changés (Membre VIP…), groupe quitté.
+  useSignal(['events', `user:${me.id}`, 'access'], reload);
   // Avis ead4902642da : la réponse d'un autre (« Présent »…) change aussitôt la pastille des présents de sa carte.
   const [attendanceTick, setAttendanceTick] = useState(0);
   useRealtime('events-attendance', [{ table: 'rsvps' }], () => setAttendanceTick((n) => n + 1));

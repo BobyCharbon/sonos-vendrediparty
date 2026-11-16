@@ -135,6 +135,15 @@ class Server:
         self.log.close()
 
 
+SHOW_GAME_CARDS = "document.querySelectorAll('#gHome section.g-cat[hidden]').forEach((s) => s.removeAttribute('hidden'))"
+
+
+def show_game_cards(page):
+    """Accueil des jeux (15.11.2026) : seuls la salle et les jeux solo sont montrés ; les cartes des autres jeux
+    restent dans la page, cachées, et la salle les recopie dans sa feuille « Lancer ». Les montre pour un test."""
+    page.evaluate(SHOW_GAME_CARDS)
+
+
 class Phone:
     """Un invité avec son navigateur : il touche les vrais boutons de l'app."""
 
@@ -167,9 +176,12 @@ class Phone:
         expect(self.page.locator("#gHome")).to_be_visible()
 
     def create(self, kind: str, **options) -> str:
-        """Crée une partie depuis l'accueil des jeux (carte du jeu → bouton de création)."""
+        """Crée une partie seule depuis la carte du jeu (bouton de création).
+        Depuis le 15.11.2026, l'accueil ne montre que la salle et les jeux solo : les cartes des autres jeux restent
+        dans la page, cachées (la salle les recopie) ; on les montre le temps de créer la partie, comme avant."""
         self.open_games()
         card = self.page.locator(f'#gHome .gcard:has([data-create="{kind}"])')
+        show_game_cards(self.page)
         for opt, value in options.items():
             toggle = card.locator(f'[data-opt="{opt}"]')
             if toggle.count() and toggle.is_checked() != value:

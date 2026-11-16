@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { amount, barChf, optionsOf, payeeLine, type MyBar } from '@/lib/bar';
+import { amount, barChf, barUnit, optionsOf, payeeLine, type MyBar } from '@/lib/bar';
 import { plural } from '@/lib/format';
 import { colors, font, radius } from '@/lib/theme';
 
@@ -37,7 +37,7 @@ export function BarBalance({ bar, compact = false }: Props) {
       <T size={12} weight="bold" color={colors.coralSoft} style={st.label}>{label}</T>
       <View style={st.amountRow} accessibilityLabel={`${label.toLowerCase()} : ${barChf(Math.abs(bar.balance))}`}>
         <Text testID="bar-balance" style={[st.amount, compact && st.amountCompact]}>{amount(Math.abs(bar.balance))}</Text>
-        <Text style={st.unit}>CHF</Text>
+        <Text style={st.unit}>{barUnit()}</Text>
       </View>
       <T size={compact ? 13 : 14} color={colors.textSoft}>{payeeLine(bar.payee)}</T>
       {bar.pending_total > 0 ? (

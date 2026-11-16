@@ -53,7 +53,7 @@ function PhaseCard({ bar }: { bar: MyBar }) {
  */
 export function MyBarScreen({ eventId }: { eventId: string }) {
   const { data: bar, error, loading, reload, setData } = useQuery(() => fetchMyBar(eventId), [eventId]);
-  useBarRefresh(reload, !!bar);
+  useBarRefresh(reload, !!bar, eventId);
   const [cart, setCart] = useState<Cart>({});
   const [sheet, setSheet] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);

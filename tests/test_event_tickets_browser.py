@@ -5,6 +5,7 @@
 Module construit ailleurs que web/events/dist : EVENTS_TEST_DIST=<dossier> (sinon web/events/dist)."""
 import json
 import os
+import re
 from pathlib import Path
 import socket
 import subprocess
@@ -154,7 +155,7 @@ def with_rsvps(page, rsvps, **extra):
     return event  # modifiable par un test (l'option « Billets QR » allumée, par exemple)
 
 
-def launch(browser, origin, rsvps, native_scan=None, **backend):
+def launch(browser, origin, rsvps, native_scan=None, extra=None, **backend):
     context = browser.new_context(viewport={'width': 390, 'height': 844})
     page = context.new_page()
     if native_scan:  # app iPhone : le pont natif existe dès le chargement (cadre du module compris)
@@ -162,7 +163,7 @@ def launch(browser, origin, rsvps, native_scan=None, **backend):
     errors = []
     page.on('pageerror', lambda e: errors.append(str(e)))
     calls = mock_services(page, people=[{'id': LEA, 'display_name': 'Léa'}])
-    with_rsvps(page, rsvps)
+    with_rsvps(page, rsvps, **(extra or {}))
     state = tickets_backend(page, **backend)
     page.goto(origin, wait_until='domcontentloaded')
     page.get_by_role('button', name='Événements', exact=True).click()
@@ -326,21 +327,106 @@ def test_friends_payment_the_guest_pays_then_waits_for_the_organizer(browser, or
     context.grant_permissions(['clipboard-read', 'clipboard-write'])
     try:
         frame.get_by_text('Sortie de démonstration (test local)', exact=True).click()
-        frame.get_by_role('button', name='Payer l’organisateur · 20 CHF', exact=True).click()
+        frame.get_by_role('button', name='Payer Compte de démonstration · 20 CHF', exact=True).click()
         pw.expect(frame.get_by_text('20 CHF', exact=True)).to_be_visible(timeout=10000)
         frame.get_by_role('button', name='Copier Twint : numéro à copier dans l’app Twint : +41791234567', exact=True).click()
         pw.expect(frame.get_by_text('Copié ✓', exact=True)).to_be_visible()
         pw.expect(frame.get_by_text('CH93 0076 2011 6238 5295 7', exact=True)).to_be_visible()
-        pw.expect(frame.get_by_role('button', name='Payer avec Revolut', exact=True)).to_be_visible()
+        pw.expect(frame.get_by_role('link', name='Payer avec Revolut', exact=True)).to_be_visible()
         pw.expect(frame.get_by_text('Party · Sortie de démonstration (test local)', exact=True)).to_be_visible()
         shot(page, 'payer-organisateur')
         frame.get_by_role('button', name='J’ai payé', exact=True).click()
         pw.expect(frame.get_by_text('Payé · en attente de confirmation', exact=True).first).to_be_visible(timeout=10000)
         assert state['declared'] == [True]
         frame.get_by_role('button', name='Annuler', exact=True).click()
-        pw.expect(frame.get_by_role('button', name='Payer l’organisateur · 20 CHF', exact=True)).to_be_visible(timeout=10000)
+        pw.expect(frame.get_by_role('button', name='Payer Compte de démonstration · 20 CHF', exact=True)).to_be_visible(timeout=10000)
         assert state['declared'] == [True, False]
         assert not errors
+    finally:
+        context.close()
+
+
+def test_the_event_payment_link_comes_first_in_the_pay_sheet(browser, origin):
+    """« On me paie » avec un lien choisi pour l'événement (maquette du 15.11) : il passe en tête, sans doublon ; il remplace le
+    Revolut du profil (recette réelle du 15.11 : deux « Payer avec Revolut » vers deux comptes, lequel toucher ?)."""
+    link = 'https://revolut.me/boby-paintball'
+    context, page, frame, state, errors, _ = launch(browser, origin, [MINE_YES], extra={'payment_mode': 'organizer', 'payment_url': link})
+    page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/rpc/event_pay_info', lambda r: r.fulfill(
+        status=200, content_type='application/json', headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*'},
+        body=json.dumps({'organizer_id': USER, 'organizer_name': 'Compte de démonstration', 'amount': 20, 'payment_info': None,
+                         'mode': 'organizer', 'payment_url': link, 'iban': None, 'holder': None,
+                         'links': {'revolut': 'https://revolut.me/boby', 'paypal': 'https://paypal.me/boby'},
+                         'note': None, 'reference': 'Party · Sortie'})))
+    try:
+        frame.get_by_text('Sortie de démonstration (test local)', exact=True).click()
+        pw.expect(frame.get_by_text('À payer à l’organisateur', exact=True)).to_be_visible(timeout=10000)
+        frame.get_by_role('button', name='Payer Compte de démonstration · 20 CHF', exact=True).click()
+        pw.expect(frame.get_by_role('link', name='Payer avec Revolut', exact=True)).to_have_count(1, timeout=10000)
+        pw.expect(frame.get_by_role('link', name='Payer avec PayPal', exact=True)).to_have_count(1)  # autre service : gardé
+        context.route('https://revolut.me/**', lambda r: r.fulfill(status=200, body='ok'))  # jamais le vrai site
+        with page.expect_popup() as popup:
+            frame.get_by_role('link', name='Payer avec Revolut', exact=True).click()
+        assert popup.value.url.startswith(link)
+        frame.get_by_role('button', name='J’ai payé', exact=True).click()
+        pw.expect(frame.get_by_text('Payé · en attente de confirmation', exact=True).first).to_be_visible(timeout=10000)
+        assert state['declared'] == [True]
+        assert not errors
+    finally:
+        context.close()
+
+
+def test_online_payment_opens_the_link_then_the_guest_notes_it_and_waits(browser, origin):
+    link = 'https://billetterie.example.ch/paintball'
+    context, page, frame, state, errors, _ = launch(browser, origin, [MINE_YES], extra={
+        'payment_mode': 'online', 'payment_url': link, 'payment_info': 'Choisis « Paintball 2 h »'})
+    try:
+        frame.get_by_text('Sortie de démonstration (test local)', exact=True).click()
+        button = frame.get_by_role('link', name='Payer en ligne · 20 CHF ↗', exact=True)
+        pw.expect(button).to_be_visible(timeout=10000)
+        pw.expect(frame.get_by_text('billetterie.example.ch · Choisis « Paintball 2 h »', exact=True)).to_be_visible()
+        # Un vrai lien qui ouvre un nouvel onglet : Safari (navigation privée comprise) ignorait window.open (avis du 16.11)
+        assert button.get_attribute('target') == '_blank' and button.get_attribute('href') == link
+        context.route('https://billetterie.example.ch/**', lambda r: r.fulfill(status=200, body='ok'))
+        with page.expect_popup() as popup:
+            button.click()
+        assert popup.value.url.startswith(link)
+        popup.value.close()
+        shot(page, 'payer-en-ligne')
+        frame.get_by_role('button', name='J’ai payé', exact=True).click()
+        pw.expect(frame.get_by_text('Payé · en attente de confirmation', exact=True).first).to_be_visible(timeout=10000)
+        pw.expect(frame.get_by_text('L’organisateur confirme dès qu’il a vérifié ton paiement.', exact=True)).to_be_visible()
+        assert state['declared'] == [True]
+        assert not errors
+    finally:
+        context.close()
+
+
+def test_payment_prepared_but_not_open_shows_coming_soon_without_any_button(browser, origin):
+    # Avis du 16.11 : tout est prêt (mode, lien), l'organisateur n'a pas encore coché « Paiement ouvert ».
+    context, page, frame, state, errors, _ = launch(browser, origin, [MINE_YES], extra={
+        'payment_mode': 'online', 'payment_url': 'https://billetterie.example.ch/paintball', 'payment_open': False})
+    try:
+        frame.get_by_text('Sortie de démonstration (test local)', exact=True).click()
+        pw.expect(frame.get_by_text('⏳ 20 CHF · paiement bientôt possible', exact=True)).to_be_visible(timeout=10000)
+        pw.expect(frame.get_by_role('link', name=re.compile('^Payer'))).to_have_count(0)
+        pw.expect(frame.get_by_role('button', name='J’ai payé', exact=True)).to_have_count(0)
+        shot(page, 'paiement-bientot')
+        assert not errors
+    finally:
+        context.close()
+
+
+def test_on_site_shows_the_price_without_any_button(browser, origin):
+    context, page, frame, state, errors, _ = launch(browser, origin, [MINE_YES], extra={
+        'payment_mode': 'on_site', 'payment_info': 'Cash ou carte à l’accueil'})
+    try:
+        frame.get_by_text('Sortie de démonstration (test local)', exact=True).click()
+        pw.expect(frame.get_by_text('📍 20 CHF · à payer sur place', exact=True)).to_be_visible(timeout=10000)
+        pw.expect(frame.get_by_text('À payer sur place · Cash ou carte à l’accueil', exact=True)).to_be_visible()
+        assert frame.get_by_role('button', name='J’ai payé', exact=True).count() == 0
+        assert frame.get_by_role('button', name='Payer Compte de démonstration · 20 CHF', exact=True).count() == 0
+        shot(page, 'payer-sur-place')
+        assert state['declared'] == [] and not errors
     finally:
         context.close()
 

@@ -184,7 +184,7 @@ const GAME_RULES = {
     <p>Une <b>salle de jeux</b> réunit tout le monde pour la soirée, avec <b>un seul code</b> (et un seul QR). On la rejoint une fois.</p>
     <h3>Pour l'animateur</h3>
     <p>Choisis un jeu dans la salle, règle ses options, puis <b>« Lancer pour toute la salle »</b> : chaque téléphone bascule tout seul dans le jeu, avec tous les joueurs déjà inscrits (y compris ceux sans téléphone).</p>
-    <p>Quand le jeu est fini, <b>☰ → « Terminer ce jeu et revenir à la salle »</b> : tout le monde revient à la salle, prêt pour le suivant.</p>
+    <p>Pour passer au jeu suivant, l'animateur touche <b>« 🎮 Changer de jeu »</b> (ou ☰ → « Terminer ce jeu et revenir à la salle ») : tout le monde revient à la salle, prêt pour le suivant.</p>
     <h3>Le tableau de la soirée</h3>
     <p>Les points du Quiz et les gorgées de tous les jeux s'additionnent d'un jeu à l'autre.</p>
     <h3>Arriver en retard</h3>
@@ -381,23 +381,22 @@ document.getElementById("gamesRoot").innerHTML = `
       <h1 class="g-h1">On joue à quoi&nbsp;?</h1>
       <div id="gamesAdmin" class="admin-games hidden"></div>
 
-      <form id="gJoinForm" class="g-code">
-        <label for="gCode">Code d'une partie</label>
-        <input id="gCode" type="text" spellcheck="false" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="• • • •" autocomplete="off">
-      </form>
-
       <div class="gcard g-rm g-room-card">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.room}</div>
-          <div class="g-meta"><div class="g-title">Salle de jeux</div><div class="g-tag">Un seul code pour toute la soirée.</div></div>
+          <div class="g-meta"><div class="g-title">Salle de jeux</div><div class="g-tag">Multijoueurs · un seul code pour toute la soirée</div></div>
           ${helpBtn("room")}
         </div>
-        <p class="g-desc">Tout le monde rejoint une fois. L'animateur lance les jeux les uns après les autres : chaque téléphone bascule tout seul, puis revient à la salle, avec le tableau de la soirée.</p>
-        <div class="g-chips"><span>✨ Recommandé</span><span>Tous les jeux</span><span>Tableau de la soirée</span></div>
+        <p class="g-desc">Crée la salle ou rejoins celle de tes amis. Dedans, l'animateur passe d'un jeu à l'autre : personne n'a besoin de quitter.</p>
+        <div class="g-chips"><span>✨ Recommandé</span><span>Tous les jeux à plusieurs</span><span>Tableau de la soirée</span></div>
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
-        <button class="g-go" data-create="room">Ouvrir une salle</button>
+        <button class="g-go" data-create="room">Créer une salle</button>
+        <div class="g-sep"><span>ou rejoindre</span></div>
+        <form id="gJoinForm" class="g-code">
+          <label for="gCode">Code de la salle</label>
+          <input id="gCode" type="text" spellcheck="false" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="• • • •" autocomplete="off">
+        </form>
       </div>
-      <div class="g-sep"><span>ou une partie seule</span></div>
 
       <div class="gcard g-hs">
         <div class="g-head"><div class="g-icon">${GAME_ICONS.heist}</div><div class="g-meta"><div class="g-title">Braquage en miniature</div><div class="g-tag">Petits voleurs. Grand coup.</div></div>${helpBtn("heist")}</div>
@@ -767,6 +766,7 @@ document.getElementById("gamesRoot").innerHTML = `
         <div class="wheel-wrap"><div class="wheel-pointer" aria-hidden="true"></div><svg id="wheel" viewBox="-100 -100 200 200" role="img" aria-label="Roue"></svg></div>
         <div id="rouletteResult" class="roulette-result" aria-live="polite"></div>
       </div>
+      <div id="gRoomSwitch"></div>
       <div id="gameHost"></div>
     </div>
 
@@ -831,7 +831,9 @@ document.addEventListener("click", (ev) => {
   document.head.append(css, skinJs);
 });
 
-// Range les cartes de l'accueil par catégorie (une section titrée par catégorie, sous la carte de la salle de jeux).
+// Range les cartes de l'accueil par catégorie, sous la carte de la salle de jeux (maquette approuvée le 15.11.2026) :
+// l'accueil ne montre que « Jeux solo » ; les jeux à plusieurs se lancent dans la salle, qui recopie leur carte
+// (openRoomSheet) : leurs sections restent donc dans la page, cachées.
 (function groupHomeCards() {
   const home = document.getElementById("gHome");
   let after = home.querySelector(".g-room-card");
@@ -840,7 +842,8 @@ document.addEventListener("click", (ev) => {
     sec.className = "g-cat";
     sec.dataset.cat = id;
     sec.setAttribute("aria-labelledby", `gCat-${id}`);
-    sec.innerHTML = `<h2 class="g-cat-h" id="gCat-${id}">${label}</h2>`;
+    sec.hidden = id !== "brain";
+    sec.innerHTML = `<h2 class="g-cat-h" id="gCat-${id}">${id === "brain" ? "🧠 Jeux solo" : label}</h2>`;
     for (const type of types) {
       // Méninges (entraînement solo, sans partie) s'ouvre par data-brain-open au lieu de data-create.
       // Compagnon (personnage à entretenir, app/static/pet/) s'ouvre par data-pet-open.
@@ -898,7 +901,8 @@ async function gapi(path, body) {
 function setGame(code) {
   // Une nouvelle partie (créée, rejointe par code ou par QR) s'ouvre toujours en plein écran.
   if (code && code !== myGame) pyrFull = true;
-  if (code !== myGame) gSeq++;
+  // Autre partie (jeu lancé dans la salle, retour à la salle…) : elle s'ouvre en haut, pas au défilement de la précédente.
+  if (code !== myGame) { gSeq++; if ($("gamePlay")) $("gamePlay").scrollTop = 0; }
   myGame = code; store("vp_game", code); $("gameDot")?.classList.toggle("hidden", !code);
   if (!code) syncGameChrome();
 }
@@ -1116,6 +1120,10 @@ function renderGame(g) {
   const nameOf = (pid) => esc(g.players.find((p) => p.pid === pid)?.name || "?");
   $("game").className = "card game " + (GAME_THEME[g.type] || "");
   if (g.me || g.is_owner || g.kicked) autoJoin = false;  // déjà dans la partie (ou banni) : plus de « rejoindre » automatique
+  // Jeu lancé dans une salle : l'animateur passe au jeu suivant sans passer par le menu ☰ (même action que
+  // « Terminer ce jeu et revenir à la salle »).
+  patch.gRoomSwitch = g.room && g.is_host && !g.kicked && !["island", "neon", "heist"].includes(g.type)
+    ? `<button type="button" class="g-go g-room-switch" data-exit="end">🎮 Changer de jeu</button>` : "";
   if (g.kicked || (g.excluded && !autoJoin)) return renderKicked(g);
   renderCasino(g);  // avant le texte : il dépend de l'état de la bille (en train de rouler ou arrêtée)
   const title = `<div class="g-head g-play-head"><div class="g-icon">${GAME_ICONS[g.type] || ""}</div>
@@ -3086,7 +3094,7 @@ document.addEventListener("click", async (ev) => {
     return toast(`${p.name} anime maintenant la partie`, "ok");
   }
   if (a === "end") {
-    const msg = game.room ? "Terminer ce jeu ? Tout le monde revient à la salle." : game.type === "room" ? "Fermer la salle pour tout le monde ?" : "Fermer la partie pour tout le monde ?";
+    const msg = game.room ? "Changer de jeu ? Celui-ci se termine et tout le monde revient à la salle pour choisir le suivant." : game.type === "room" ? "Fermer la salle pour tout le monde ?" : "Fermer la partie pour tout le monde ?";
     if (confirm(msg)) { closeDrawer(); gameAction("end"); }
     return;
   }
@@ -3153,7 +3161,7 @@ document.addEventListener("click", async (ev) => {
 });
 async function joinByCode() {
   const code = $("gCode").value.trim();
-  if (!/^\d{4}$/.test(code)) return;
+  if (!/^\d{4}$/.test(code)) return toast("Le code de la salle a 4 chiffres.", "err");
   $("gCode").value = ""; $("gCode").blur();
   setGame(code); autoJoin = true;
   await refreshGame();

@@ -11,7 +11,7 @@ import { Avatar, Button, ErrorText, HeaderBack, Input, s, T } from '@/components
 import { useAuth, useMe } from '@/lib/auth';
 import { insertMention, mentionQuery, mentionSuggestions } from '@/lib/chats';
 import { useContactNames, withContactNames } from '@/lib/contactNames';
-import { useQuery, useRealtime } from '@/lib/data';
+import { useLivePing, useQuery, useRealtime } from '@/lib/data';
 import { formatMessageTime } from '@/lib/format';
 import { enter } from '@/lib/motion';
 import { dbMessage, type ReportTarget } from '@/lib/moderation';
@@ -86,6 +86,8 @@ function Chat({ id }: { id: string }) {
   }, [id]);
 
   useRealtime(`chat-${id}`, [{ table: 'messages', filter: `event_id=eq.${id}` }], reload);
+  // Réactions, messages retirés, réglages de l'événement : signal de la base (migration 20261116140000).
+  useLivePing(id, reload);
 
   // Affichage : app iPhone, « Nom du contact · pseudo » (les @ restent sur les pseudos).
   const contacts = useContactNames();

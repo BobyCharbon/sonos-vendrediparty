@@ -10,79 +10,21 @@ drop function if exists public.bar_item_action(uuid, uuid, text, numeric), publi
 -- 20261110140000 bar_corrections : déclencheur des réponses « Absent » (sur rsvps, table qui reste).
 drop trigger if exists bar_cancel_absent on public.rsvps;
 drop function if exists private.bar_cancel_absent();
-create or replace function private.may_receive_push(uid uuid, kind text) returns boolean
-language sql stable security definer set search_path = '' as $$
-  select private.is_member(uid)
-    or (kind in ('pet_daily', 'pet_alert', 'pet_gift', 'pet_streak', 'pet_bar') and private.is_account_active(uid))
-    or (kind in ('group_message', 'group_invite', 'group_join', 'link_join', 'referral_join', 'direct_message', 'moderation_notice', 'report_new',
-                 'private_invite', 'announce_request', 'announce_accepted', 'announce_refused', 'group_event_request', 'group_event_accepted', 'group_event_refused', 'event_changed', 'date_fixed', 'reminder', 'waitlist',
-                 'coorganizer_added')
-        and private.is_account_active(uid));
-$$;
-
-create or replace function private.web_push_allowed(notification public.notifications) returns boolean
-language plpgsql stable security definer set search_path = '' as $$
-declare prefs public.notification_prefs; ev public.events;
+-- Retire seulement les types du bar (les autres ajouts, faits depuis, restent).
+do $$ declare def text;
 begin
-  if not exists(select 1 from public.profiles where id=notification.user_id and private.may_receive_push(id, notification.kind)) then return false; end if;
-  if notification.kind in ('web_push_test', 'push_test') then return true; end if;
-  select * into prefs from public.notification_prefs where user_id=notification.user_id;
-  if notification.kind='admin_announcement' then
-    return exists(select 1 from public.admin_announcements where id::text=notification.data->>'announcement_id')
-      and coalesce(prefs.announcements, true);
-  end if;
-  if prefs.user_id is null or not prefs.push_enabled then return false; end if;
-  if notification.event_id is not null then
-    select * into ev from public.events where id=notification.event_id;
-    if ev.id is null or exists(select 1 from public.event_mutes where event_id=ev.id and user_id=notification.user_id) then return false; end if;
-    if not (exists(select 1 from public.profiles where id=notification.user_id and private.user_has(id, 'events.manage_all'))
-      or ev.created_by=notification.user_id
-      or exists(select 1 from public.event_organizers where event_id=ev.id and user_id=notification.user_id)
-      or (ev.status in ('published','cancelled') and (ev.visibility='all'
-        or exists(select 1 from public.event_invites where event_id=ev.id and user_id=notification.user_id)))) then return false; end if;
-  end if;
-  return case notification.kind
-    when 'new_event' then prefs.new_event='all' or (prefs.new_event='subscribed' and (
-      exists(select 1 from public.category_subscriptions where user_id=notification.user_id and category_id=ev.category_id)
-      or exists(select 1 from public.tag_subscriptions t join public.event_tags e on e.tag_id=t.tag_id where e.event_id=ev.id and t.user_id=notification.user_id)))
-    when 'event_changed' then prefs.event_changed
-    when 'poll_new' then prefs.poll_new
-    when 'date_fixed' then prefs.date_fixed
-    when 'poll_nudge' then prefs.poll_nudge
-    when 'waitlist' then prefs.waitlist
-    when 'proposal' then prefs.proposals
-    when 'rsvp' then prefs.rsvp_mine
-    when 'message' then prefs.chat='all' or (prefs.chat='mentions' and coalesce((notification.data->>'mentioned')::boolean,false))
-    when 'reminder' then split_part(notification.dedupe_key,':',3)=any(prefs.reminders)
-    when 'rsvp_set' then prefs.rsvp_set
-    when 'private_invite' then prefs.invites
-    when 'coorganizer_added' then coalesce(prefs.invites, true)
-    when 'approved' then prefs.proposal_result
-    when 'rejected' then prefs.proposal_result
-    when 'link_join' then prefs.link_join
-    when 'group_message' then prefs.group_messages
-    when 'group_invite' then prefs.group_invites
-    when 'group_join' then prefs.group_joins
-    when 'report_new' then coalesce(prefs.moderation_reports, true)
-    when 'moderation_notice' then coalesce(prefs.moderation_notices, true)
-    when 'pet_daily' then coalesce(prefs.pet_daily, true)
-    when 'pet_alert' then coalesce(prefs.pet_alerts, true)
-    when 'pet_gift' then coalesce(prefs.pet_gifts, true)
-    when 'pet_streak' then coalesce(prefs.pet_streaks, true)
-    when 'pet_bar' then coalesce(prefs.pet_bar, true)
-    when 'referral_join' then coalesce(prefs.referral_joins, true)
-    when 'ticket_pay_declared' then coalesce(prefs.ticket_pay_declared, true)
-    when 'ticket_pay_confirmed' then coalesce(prefs.ticket_pay_confirmed, true)
-    when 'ticket_issued' then coalesce(prefs.ticket_issued, true)
-    when 'direct_message' then coalesce(prefs.direct_messages, true)
-    when 'announce_request' then coalesce(prefs.announce_requests, true)
-    when 'announce_accepted' then coalesce(prefs.announce_results, true)
-    when 'announce_refused' then coalesce(prefs.announce_results, true)
-    when 'group_event_request' then coalesce(prefs.group_event_requests, true)
-    when 'group_event_accepted' then coalesce(prefs.announce_results, true)
-    when 'group_event_refused' then coalesce(prefs.announce_results, true)
-    else true end;
+  def := pg_get_functiondef('private.may_receive_push(uuid, text)'::regprocedure);
+  def := replace(def, ', ''bar_served'', ''bar_changed'', ''bar_refund_declared'', ''bar_refund_confirmed''', '');
+  execute def;
+  def := pg_get_functiondef('private.web_push_allowed(public.notifications)'::regprocedure);
+  def := replace(def, $a$
+    when 'bar_served' then coalesce(prefs.bar_served, true)
+    when 'bar_changed' then coalesce(prefs.bar_changed, true)
+    when 'bar_refund_declared' then coalesce(prefs.bar_refund_declared, true)
+    when 'bar_refund_confirmed' then coalesce(prefs.bar_refund_confirmed, true)$a$, '');
+  execute def;
 end $$;
+
 
 create or replace function private.wallet_payload(e uuid, member uuid) returns jsonb
 language sql stable security definer set search_path = '' as $$

@@ -7,7 +7,7 @@ import { audienceFromEvent, audienceToEvent, choosableGroups, mayUseVip, saveAud
 import { Button, Card, ErrorText, HeaderBack, Loading, Screen, T, Title } from './ui';
 import { PublishChoice, VISIBILITIES, withVisibility, type Visibility } from './VisibilityChoice';
 import { useAuth, useMe } from '@/lib/auth';
-import { useQuery } from '@/lib/data';
+import { useLivePing, useQuery } from '@/lib/data';
 import { invitesV2On } from '@/lib/features';
 import { dbMessage } from '@/lib/moderation';
 import { check, must, supabase } from '@/lib/supabase';
@@ -91,6 +91,8 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
     const stored = ((kept.data as { ai_suggested?: string[] } | null)?.ai_suggested ?? []).filter((id) => parseIds(id).length);
     return { event, groups, vipOk, stored, approval: !!(must(settings) as { require_approval: boolean }).require_approval };
   }, [eventId]);
+  // Invités, groupes, demandes « À accepter » ajoutés ailleurs (un autre organisateur, un lien) : aussitôt.
+  useLivePing(eventId, reload);
 
   if (!data) {
     return (

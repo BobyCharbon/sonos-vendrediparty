@@ -27,7 +27,7 @@ import { fetchAttendance, localAttendance } from '@/lib/attendance';
 import { datesToAdd, settleNativeDates } from '@/lib/calendar';
 import { useAuth, useMe } from '@/lib/auth';
 import { personLabel, useContactNames, withContactNames } from '@/lib/contactNames';
-import { useQuery, useRealtime } from '@/lib/data';
+import { useLivePing, useQuery, useRealtime } from '@/lib/data';
 import { GONE_TEXT, isGoneError, isNetworkError } from '@/lib/errors';
 import { eventPeopleIds, undecidedNames } from '@/lib/eventPeople';
 import { useLiveRefresh, useOnline, usePaymentsTick, useSlowLoad } from '@/lib/connectivity';
@@ -57,6 +57,8 @@ type Full = EventRow & {
 /** Le temps réel accepte au plus 100 valeurs dans un filtre « in ». */
 /** Le lieu que met l'IA quand on le dit « à définir » (app/ai_events.py LATER_PLACE). */
 const PLACE_LATER = 'Lieu à définir';
+/** Comment on paie (réglage de l'organisateur, 15.11.2026), sous le prix de la fiche. */
+const PAY_MODE_LINE = { organizer: 'À payer à l’organisateur', online: 'Paiement en ligne', on_site: 'À payer sur place' } as const;
 const REALTIME_IN_MAX = 100;
 /** Relecture de la fiche tant qu'elle est visible : covoiturage, demandes à accepter (hors temps réel). */
 const LIVE_REFRESH_MS = 45_000;
@@ -169,6 +171,8 @@ export default function EventScreen() {
   // Quantités « Qui amène quoi » dans leur propre canal : une table hors de la publication fait échouer tout son canal
   // (base sans la migration 20261114110000) ; seules les quantités attendraient alors la relecture (tests/test_realtime_channels.py).
   useRealtime(`event-${id}-quantities`, bringIds.length ? [{ table: 'bring_claims', filter: `item_id=in.(${bringIds.join(',')})` }] : [], reload);
+  // Bar, billets, paiements, covoiturage : la base envoie un signal à chaque personne concernée (migration 20261116110000).
+  useLivePing(id, reload);
   // Retour sur l'app (veille) et relecture régulière de ce qui ne passe pas par le temps réel.
   useLiveRefresh(reload, LIVE_REFRESH_MS);
 
@@ -243,7 +247,9 @@ export default function EventScreen() {
   const showCalendar = published && mine?.status !== 'no' && (ev.date_mode === 'fixed' ? !!ev.starts_at : pollDates.length > 0);
 
   const infoRows = [
-    ev.price_chf != null ? { k: 'Prix', v: ev.price_chf === 0 ? 'Gratuit' : `${chf(ev.price_chf)} / personne`, sub: ev.payment_info } : null,
+    ev.price_chf != null ? { k: 'Prix', v: ev.price_chf === 0 ? 'Gratuit' : `${chf(ev.price_chf)} / personne`,
+      sub: [ev.price_chf > 0 ? PAY_MODE_LINE[ev.payment_mode ?? 'organizer'] : null,
+        ev.price_chf > 0 && ev.payment_mode !== 'on_site' && ev.payment_open === false ? 'paiement bientôt possible' : null, ev.payment_info].filter(Boolean).join(' · ') || null } : null,
     ev.max_participants
       ? { k: 'Places', v: `${heads} / ${ev.max_participants}`, sub: heads >= ev.max_participants ? (ev.waitlist_enabled ? 'Complet · liste d’attente ouverte' : 'Complet') : plural(ev.max_participants - heads, 'place libre', 'places libres') }
       : ev.date_mode === 'fixed' ? { k: 'Places', v: '∞ Illimité', sub: plural(heads, 'personne inscrite', 'personnes inscrites') } : null,
@@ -450,7 +456,7 @@ export default function EventScreen() {
         <TicketsManager eventId={ev.id} enabled={!!ev.tickets_enabled} canToggle onToggled={reload}
           refreshKey={`${paymentsSeen}|${ev.rsvps.map((r) => `${r.user_id}:${r.status}:${r.waitlisted}`).join(',')}`} />
       ) : null}
-      {ev.date_mode === 'fixed' && published && canManage && (ev.price_chf ?? 0) > 0 ? (
+      {ev.date_mode === 'fixed' && published && canManage && (ev.price_chf ?? 0) > 0 && ev.payment_mode !== 'on_site' ? (
         <PendingPayments eventId={ev.id} price={ev.price_chf!} refreshKey={`${paymentsTick}|${ev.rsvps.map((r) => `${r.user_id}:${r.status}`).join(',')}`}
           onConfirmed={() => setPaymentsSeen((n) => n + 1)} />
       ) : null}

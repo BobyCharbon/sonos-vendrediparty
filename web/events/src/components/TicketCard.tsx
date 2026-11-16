@@ -1,18 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Modal, Pressable, StyleSheet, View } from 'react-native';
 
+import { useLivePing } from '@/lib/data';
 import { formatLongDay, formatTime, plural } from '@/lib/format';
 import { enter, pressTransition } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
 import { fetchMyTicket, prettyCode, qrDataUri, renewMyTicket, ticketLink, type MyTicket, chf } from '@/lib/tickets';
 
-import { PayOrganizer } from './PayOrganizer';
+import { PayOrganizer, type PaySetup } from './PayOrganizer';
+import type { PaymentMode } from '@/lib/types';
 import { WalletButton } from './WalletButton';
 import { SheetBackdrop, SheetTop, useSheetDrag, useSheetTop } from './SheetGesture';
 import { Avatar, Button, ConfirmButton, ErrorText, T } from './ui';
 
 type Props = {
-  event: { id: string; title: string; starts_at: string | null; location_name: string | null };
+  event: { id: string; title: string; starts_at: string | null; location_name: string | null;
+    payment_mode?: PaymentMode; payment_url?: string | null; payment_info?: string | null; payment_open?: boolean; author?: { display_name: string } | null };
   me: { id: string; display_name: string; avatar_url: string | null };
   /** Change quand ma réponse change (Présent, accompagnants, liste d'attente) : le billet est relu. */
   answerKey: string;
@@ -37,14 +40,18 @@ export function TicketCard({ event, me, answerKey }: Props) {
   const sheetTop = useSheetTop();
   useSheetDrag(open, () => setOpen(false), card, overlay);
   const [error, setError] = useState<string | null>(null);
+  const pay: PaySetup = { mode: event.payment_mode ?? 'organizer', url: event.payment_url ?? null,
+    organizer: event.author?.display_name ?? null, info: event.payment_info ?? null, open: event.payment_open !== false };
 
   const load = useCallback(() => fetchMyTicket(event.id).then(
     (t) => { setTicket(t); setError(null); },
     (e: unknown) => setError(e instanceof Error ? e.message : 'Le billet ne se charge pas. Réessaie.'),
   ), [event.id]);
 
-  // Relu à l'ouverture et quand ma réponse change (answerKey).
+  // Relu à l'ouverture et quand ma réponse change (answerKey) ; aussitôt quand l'organisateur remet le billet, confirme
+  // le paiement ou scanne l'entrée (signal de la base).
   useEffect(() => { void load(); }, [load, answerKey]);
+  useLivePing(event.id, load);
 
   const waiting = open && ticket?.state === 'ok' && !ticket.checked_in_at;
   useEffect(() => {
@@ -71,7 +78,7 @@ export function TicketCard({ event, me, answerKey }: Props) {
     );
   }
   // Option « Billets QR » éteinte : pas de billet, seulement payer sa place si l'événement est payant.
-  if (ticket.state === 'off') return <PayOrganizer eventId={event.id} ticket={ticket} onTicket={setTicket} />;
+  if (ticket.state === 'off') return <PayOrganizer eventId={event.id} ticket={ticket} onTicket={setTicket} pay={pay} />;
   if (ticket.state === 'pending') {
     return (
       <View style={{ gap: 8 }}>
@@ -81,12 +88,12 @@ export function TicketCard({ event, me, answerKey }: Props) {
             <T weight="bold" size={16}>Ton billet</T>
             <T muted size={14}>Ton billet arrivera quand l’organisateur l’aura validé.</T>
             {/* Payé ou en attente de confirmation : dit une seule fois, par la carte de paiement juste dessous. */}
-            {ticket.price_chf && !ticket.paid && !ticket.pay_pending ? (
+            {ticket.price_chf && !ticket.paid && !ticket.pay_pending && pay.mode !== 'on_site' ? (
               <T size={12} color={colors.coralSoft}>Paie ta place : le billet arrive dès que l’organisateur a reçu ton paiement.</T>
             ) : null}
           </View>
         </View>
-        <PayOrganizer eventId={event.id} ticket={ticket} onTicket={setTicket} />
+        <PayOrganizer eventId={event.id} ticket={ticket} onTicket={setTicket} pay={pay} />
       </View>
     );
   }
@@ -120,7 +127,7 @@ export function TicketCard({ event, me, answerKey }: Props) {
       </Pressable>
       {/* Nouveau QR : bouton remis à neuf (erreur effacée). */}
       <WalletButton key={ticket.token} eventId={event.id} />
-      <PayOrganizer eventId={event.id} ticket={ticket} onTicket={setTicket} />
+      <PayOrganizer eventId={event.id} ticket={ticket} onTicket={setTicket} pay={pay} />
 
       {/* Fenêtre au-dessus de toute la page (la page derrière garde sa hauteur). */}
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
@@ -147,7 +154,7 @@ export function TicketCard({ event, me, answerKey }: Props) {
             </View>
             {priced ? (
               <T size={14} weight="semibold" color={payColor} style={{ textAlign: 'center' }}>
-                {ticket.paid ? '✓ Place payée' : ticket.pay_pending ? 'Payé · en attente de confirmation' : `${chf(ticket.price_chf ?? 0)} à payer à l’organisateur`}
+                {ticket.paid ? '✓ Place payée' : ticket.pay_pending ? 'Payé · en attente de confirmation' : `${chf(ticket.price_chf ?? 0)} à payer ${pay.mode === 'on_site' ? 'sur place' : pay.mode === 'online' ? 'en ligne' : 'à l’organisateur'}`}
               </T>
             ) : null}
             <Button label="Fermer" onPress={() => setOpen(false)} />

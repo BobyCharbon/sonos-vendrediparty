@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { amount, barChf, barConfirmRefund, errorText, optionsOf, round2, stockParts, type BarItem, type BarOverview, type BarPerson } from '@/lib/bar';
+import { amount, barChf, barUnit, barConfirmRefund, errorText, optionsOf, round2, stockParts, type BarItem, type BarOverview, type BarPerson } from '@/lib/bar';
 import { formatTime, plural } from '@/lib/format';
 import { colors, font, radius } from '@/lib/theme';
 
@@ -55,11 +55,11 @@ export function LiveTab({ eventId, overview, onOverview }: { eventId: string; ov
   const due = round2(overview.people.reduce((sum, p) => sum + Math.max(p.balance, 0), 0));
   const people = [...overview.people].sort((a, b) => (b.declared?.length ?? 0) - (a.declared?.length ?? 0) || b.balance - a.balance);
 
-  async function confirm(refund: string, received: boolean) {
+  async function confirm(refund: string, received: boolean, member?: string) {
     setBusy(refund);
     setError(null);
     try {
-      onOverview(await barConfirmRefund(eventId, refund, received));
+      onOverview(await barConfirmRefund(eventId, refund, received, member));
     } catch (e) {
       setError(errorText(e, 'La réponse n’a pas pu être enregistrée. Réessaie.'));
     } finally {
@@ -75,8 +75,8 @@ export function LiveTab({ eventId, overview, onOverview }: { eventId: string; ov
           <View style={st.stat}><Text style={[st.big, { color: colors.mint }]}>{t.served}</Text><T muted size={12} style={st.center}>offerts (bar offert)</T></View>
         ) : (
           <>
-            <View style={st.stat}><Text style={[st.big, { color: colors.coral }]}>{amount(due)}</Text><T muted size={12} style={st.center}>CHF à recevoir</T></View>
-            <View style={st.stat}><Text style={[st.big, { color: colors.mint }]}>{amount(t.refunded_chf)}</Text><T muted size={12} style={st.center}>CHF remboursés</T></View>
+            <View style={st.stat}><Text style={[st.big, { color: colors.coral }]}>{amount(due)}</Text><T muted size={12} style={st.center}>{barUnit()} à recevoir</T></View>
+            <View style={st.stat}><Text style={[st.big, { color: colors.mint }]}>{amount(t.refunded_chf)}</Text><T muted size={12} style={st.center}>{barUnit()} remboursés</T></View>
           </>
         )}
       </View>
@@ -126,9 +126,9 @@ export function LiveTab({ eventId, overview, onOverview }: { eventId: string; ov
                 <View key={d.id} style={st.refund}>
                   <T size={13} style={{ width: '100%' }}>{p.name} dit avoir remboursé {barChf(d.amount)} : reçu ?</T>
                   <Button small label="Confirmer" accessibilityLabel={`Confirmer le remboursement de ${p.name}`} loading={busy === d.id}
-                    onPress={() => void confirm(d.id, true)} />
+                    onPress={() => void confirm(d.id, true, p.id)} />
                   <Button small variant="ghost" label="Pas reçu" accessibilityLabel={`Remboursement de ${p.name} pas reçu`}
-                    disabled={busy === d.id} onPress={() => void confirm(d.id, false)} />
+                    disabled={busy === d.id} onPress={() => void confirm(d.id, false, p.id)} />
                 </View>
               ))}
             </View>

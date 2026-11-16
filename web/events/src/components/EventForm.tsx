@@ -12,8 +12,8 @@ import { dbMessage } from '@/lib/moderation';
 import { useTermsGate } from './TermsSheet';
 import { enter, pressTransition, useChangedSinceMount } from '@/lib/motion';
 import { check, must, supabase } from '@/lib/supabase';
-import { colors } from '@/lib/theme';
-import type { DateMode, EventRow, MemberGroup, Poll, PollOption, Reminder } from '@/lib/types';
+import { colors, radius } from '@/lib/theme';
+import type { DateMode, EventRow, MemberGroup, PaymentMode, Poll, PollOption, Reminder } from '@/lib/types';
 import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
 import { Button, Cascade, Chip, ErrorText, Field, HeaderBack, Input, Reveal, Rows, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
@@ -55,6 +55,9 @@ type Draft = {
   location_url: string;
   price_chf: string;
   payment_info: string;
+  payment_mode: PaymentMode;
+  payment_url: string;
+  payment_open: boolean;
   max_participants: string;
   waitlist_enabled: boolean;
   allow_plus_ones: boolean;
@@ -94,6 +97,9 @@ const emptyDraft: Draft = {
   location_url: '',
   price_chf: '',
   payment_info: '',
+  payment_mode: 'organizer',
+  payment_url: '',
+  payment_open: true,
   max_participants: '',
   waitlist_enabled: true,
   allow_plus_ones: true,   // nouvel événement : accompagnants autorisés, sans limite (max vide = illimité)
@@ -212,6 +218,9 @@ async function loadDraft(eventId: string): Promise<Draft> {
     location_url: e.location_url ?? '',
     price_chf: e.price_chf?.toString() ?? '',
     payment_info: e.payment_info ?? '',
+    payment_mode: e.payment_mode ?? 'organizer',
+    payment_url: e.payment_url ?? '',
+    payment_open: e.payment_open !== false,
     max_participants: e.max_participants?.toString() ?? '',
     waitlist_enabled: e.waitlist_enabled,
     allow_plus_ones: e.allow_plus_ones,
@@ -388,6 +397,18 @@ export function EventForm({ eventId }: { eventId?: string }) {
         return 'Le lien doit être une adresse complète (ex. https://…)';
       }
     }
+    // Paiement (maquette du 15.11) : « en ligne » exige un lien ; tout lien de paiement est une adresse https complète.
+    const paid = (price ?? 0) > 0;
+    const payLink = paid && d.payment_mode !== 'on_site' ? d.payment_url.trim() : '';
+    if (paid && d.payment_mode === 'online' && !payLink) return 'Paiement en ligne : ajoute le lien (billetterie, Revolut…)';
+    if (payLink) {
+      try {
+        if (new URL(payLink).protocol !== 'https:') return 'Le lien de paiement doit commencer par https://';
+        if (/\s/.test(payLink)) return 'Le lien de paiement ne doit pas contenir d’espace';
+      } catch {
+        return 'Le lien de paiement doit être une adresse complète (ex. https://revolut.me/…)';
+      }
+    }
     const audienceProblem = audienceError(d.who);
     if (audienceProblem) return audienceProblem;
     for (const p of d.polls) {
@@ -411,7 +432,11 @@ export function EventForm({ eventId }: { eventId?: string }) {
         location_address: d.location_address.trim() || null,
         location_url: d.location_url.trim() || null,
         price_chf: price,
-        payment_info: d.payment_info.trim() || null,
+        // Gratuit : la précision du paiement (cachée dans le formulaire) ne reste pas sous « Gratuit » sur la fiche.
+        payment_info: paid ? d.payment_info.trim() || null : null,
+        payment_mode: paid ? d.payment_mode : 'organizer',
+        payment_url: payLink || null,
+        payment_open: paid && d.payment_mode !== 'on_site' ? d.payment_open : true,
         max_participants: max,
         waitlist_enabled: d.waitlist_enabled,
         allow_plus_ones: d.allow_plus_ones,
@@ -461,10 +486,9 @@ export function EventForm({ eventId }: { eventId?: string }) {
         const created = must(await supabase.from('date_options').insert({ event_id: id, starts_at: sl.iso, proposed_by: me.id }).select('id').single());
         nonEmptySlots[index]!.id = created.id as string;
       }
-    } else {
-      check(await supabase.from('date_options').delete().eq('event_id', id));
-      d.slots = d.slots.map((sl) => ({ text: sl.text }));
     }
+    // Date fixe : les créneaux du sondage et leurs votes sont GARDÉS (cachés). Les effacer ici a perdu tous les votes du
+    // paintball (prod, 13.11.2026 : date fixée par erreur puis événement modifié) ; repasser en « Sondage » les retrouve.
 
     // Sondages : suppression des retirés, ajout des nouveaux (les existants gardent leurs votes)
     const keptPolls = new Set(d.polls.filter((p) => p.id).map((p) => p.id!));
@@ -705,14 +729,8 @@ export function EventForm({ eventId }: { eventId?: string }) {
           <>
             <Field label="Adresse" value={d.location_address} onChangeText={(location_address) => set({ location_address })} />
             <Field label="Lien (site, carte…)" autoCapitalize="none" keyboardType="url" value={d.location_url} onChangeText={(location_url) => set({ location_url })} />
-            <View style={s.row}>
-              <View style={{ flex: 1 }}>
-                <Field label="Prix / pers. (CHF)" keyboardType="decimal-pad" value={d.price_chf} onChangeText={(price_chf) => set({ price_chf })} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field label="Paiement" placeholder="TWINT, sur place" value={d.payment_info} onChangeText={(payment_info) => set({ payment_info })} />
-              </View>
-            </View>
+            <Field label="Prix / pers. (CHF)" keyboardType="decimal-pad" value={d.price_chf} onChangeText={(price_chf) => set({ price_chf })} />
+            {Number(d.price_chf.replace(',', '.')) > 0 ? <PaymentChoice d={d} set={set} /> : null}
             <ToggleRow
               label="Billets QR"
               hint="Tu remets son billet à chaque présent (ou il arrive avec la place payée) ; il le montre à l’entrée. Modifiable à tout moment."
@@ -878,3 +896,52 @@ export function EventForm({ eventId }: { eventId?: string }) {
     </Screen>
   );
 }
+
+const PAY_MODES: { key: PaymentMode; icon: string; label: string; hint: string }[] = [
+  // Espaces insécables dans les guillemets : jamais un « seul en fin de ligne.
+  { key: 'organizer', icon: '🙋', label: 'On me paie', hint: 'Revolut, Twint, virement. Chacun note « J’ai payé », tu confirmes chaque paiement reçu.' },
+  { key: 'online', icon: '🔗', label: 'Paiement en ligne', hint: 'Billetterie ou lien de paiement. Chacun note « J’ai payé », tu confirmes.' },
+  { key: 'on_site', icon: '📍', label: 'Sur place', hint: 'Le jour J. Rien à suivre dans Party.' },
+];
+
+/** « Comment on paie ? » (maquette validée le 15.11.2026) : trois choix, le lien de paiement, une précision. */
+function PaymentChoice({ d, set }: { d: Draft; set: (patch: Partial<Draft>) => void }) {
+  return (
+    <View style={{ gap: 8 }}>
+      <T muted size={13}>Comment on paie ?</T>
+      <View accessibilityRole="radiogroup" style={{ gap: 8 }}>
+        {PAY_MODES.map((m) => {
+          const on = d.payment_mode === m.key;
+          return (
+            <Pressable key={m.key} accessibilityRole="radio" accessibilityState={{ checked: on }} aria-checked={on} accessibilityLabel={`${m.label} : ${m.hint}`}
+              onPress={() => set({ payment_mode: m.key })}
+              style={({ pressed }) => [payStyle.choice, on && payStyle.on, pressTransition, pressed && { opacity: 0.85 }]}>
+              <T size={18}>{m.icon}</T>
+              <View style={{ flex: 1, gap: 2 }}>
+                <T weight="semibold">{m.label}</T>
+                <T muted size={12}>{m.hint}</T>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+      {d.payment_mode !== 'on_site' ? (
+        <Field label={d.payment_mode === 'online' ? 'Lien de paiement' : 'Lien de paiement (facultatif)'} autoCapitalize="none" keyboardType="url"
+          placeholder={d.payment_mode === 'online' ? 'https://billetterie…' : 'https://revolut.me/…'}
+          value={d.payment_url} onChangeText={(payment_url) => set({ payment_url })} />
+      ) : null}
+      {d.payment_mode !== 'on_site' ? (
+        <ToggleRow label="Paiement ouvert" value={d.payment_open} onChange={(payment_open) => set({ payment_open })}
+          hint={d.payment_open ? 'Les invités voient le bouton pour payer.'
+            : 'Tout est prêt, mais pas encore de bouton : les invités voient « Paiement bientôt possible ». Allume-le quand c’est bon.'} />
+      ) : null}
+      <Field label="Précision (facultatif)" placeholder={d.payment_mode === 'on_site' ? 'Cash ou carte à l’accueil' : d.payment_mode === 'online' ? 'Choisis « Paintball 2 h »' : 'Twint ou Revolut, avant le jour J'}
+        value={d.payment_info} onChangeText={(payment_info) => set({ payment_info })} />
+    </View>
+  );
+}
+
+const payStyle = {
+  choice: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: radius.md, backgroundColor: colors.fill, borderWidth: 1, borderColor: 'transparent' },
+  on: { borderColor: colors.accent, backgroundColor: colors.accentDim },
+} as const;

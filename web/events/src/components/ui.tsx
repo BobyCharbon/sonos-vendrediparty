@@ -109,9 +109,13 @@ export function Button({
   style,
   small,
   accessibilityLabel,
+  href,
 }: {
   label: string;
   onPress?: () => void;
+  /** Lien externe (paiement…) : un vrai <a target="_blank">, que Safari ouvre toujours dans un nouvel onglet (navigation
+   * privée comprise ; window.open depuis le toucher y était ignoré). La page de l'événement reste ouverte derrière. */
+  href?: string;
   variant?: ButtonVariant;
   disabled?: boolean;
   loading?: boolean;
@@ -121,12 +125,14 @@ export function Button({
   accessibilityLabel?: string;
 }) {
   const v = buttonVariants[variant];
+  const link = href && !disabled ? ({ href, hrefAttrs: { target: '_blank', rel: 'noopener noreferrer' } } as object) : {};
   return (
     <Pressable
-      accessibilityRole="button"
+      {...link}
+      accessibilityRole={href ? 'link' : 'button'}
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading }}
-      onPress={onPress}
+      onPress={href ? undefined : onPress}
       disabled={disabled || loading}
       style={({ pressed }) => [
         s.button,

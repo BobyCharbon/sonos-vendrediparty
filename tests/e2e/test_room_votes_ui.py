@@ -76,3 +76,74 @@ def test_a_participant_reads_the_rules_of_a_game_before_voting(phones):
     if new.count():
         cell = new.locator('xpath=ancestor::div[contains(@class,"g-room-cell")]').bounding_box()
         assert new.bounding_box()['x'] < cell['x'] + cell['width'] / 2
+
+
+def test_home_creates_or_joins_a_room_and_the_host_changes_game(phones):
+    """Maquette approuvée le 15.11.2026 : l'accueil des Jeux propose « Créer une salle » ou son code, puis les jeux
+    solo ; dans un jeu de la salle, « 🎮 Changer de jeu » (animateur seulement) ramène tout le monde à la salle."""
+    boby = phones('Boby')
+    boby.open_games()
+    expect(boby.page.locator('#gHome .g-cat-h:visible')).to_have_text(['🧠 Jeux solo'])
+    boby.page.locator('#gHome .g-room-card [data-create="room"]').click()
+    expect(boby.page.locator('#gamePlay')).to_be_visible()
+    room = boby.page.locator('#gameCode').inner_text().strip()
+    # Léa rejoint avec le code tapé dans la carte de la salle.
+    lea = phones('Lea')
+    lea.open_games()
+    lea.page.locator('#gHome .g-room-card #gCode').fill(room)
+    lea.page.locator('#gHome .g-room-card #gCode').press('Enter')
+    expect(lea.page.locator('#gamePlay')).to_be_visible()
+    lea.act('join')
+    boby.tap('#gamePlay [data-room-pick="likely"]')
+    boby.tap('.g-room-sheet [data-create="likely"]')
+    wait_state(lea, lambda g: g.get('type') == 'likely', timeout=10)
+    wait_state(boby, lambda g: g.get('type') == 'likely', timeout=10)
+    expect(boby.page.locator('#gRoomSwitch button')).to_have_text('🎮 Changer de jeu')
+    expect(lea.page.locator('#gRoomSwitch button')).to_have_count(0)
+    boby.page.on('dialog', lambda d: d.accept())
+    boby.tap('#gRoomSwitch button')
+    for p in (boby, lea):
+        wait_state(p, lambda g: g.get('type') == 'room', timeout=10)
+    expect(boby.page.locator('#gamePlay [data-room-pick="likely"]')).to_be_visible()
+    expect(boby.page.locator('#gRoomSwitch button')).to_have_count(0)
+
+
+SCROLL = "document.getElementById('gamePlay').scrollTop"
+
+
+def test_a_game_launched_from_the_room_opens_at_the_top_and_so_does_the_room_after(phones):
+    """Recette du 15.11.2026 : le plein écran (#gamePlay) gardait le défilement d'un écran à l'autre. L'animateur qui
+    lançait le Quiz depuis le bas du catalogue de la salle arrivait au milieu des réglages (QR et code cachés), les
+    joueurs aussi ; après « Changer de jeu » (tout en bas du jeu), la salle s'ouvrait au milieu du catalogue."""
+    boby, lea = phones('Boby'), phones('Lea')
+    boby.open_games()
+    boby.page.locator('#gHome [data-create="room"]').click()
+    expect(boby.page.locator('#gamePlay [data-room-pick="quiz"]')).to_be_visible()
+    lea.join(boby.page.locator('#gameCode').inner_text().strip())
+    expect(lea.page.locator('#gamePlay [data-room-vote="quiz"]')).to_be_visible()
+    lea.page.locator('#gamePlay [data-room-vote="quiz"]').scroll_into_view_if_needed()
+    boby.page.locator('#gamePlay [data-room-pick="quiz"]').scroll_into_view_if_needed()
+    assert boby.page.evaluate(SCROLL) > 200 and lea.page.evaluate(SCROLL) > 200
+    boby.tap('#gamePlay [data-room-pick="quiz"]')
+    boby.tap('.g-room-sheet [data-create="quiz"]')
+    for p in (boby, lea):
+        wait_state(p, lambda g: g.get('type') == 'quiz', timeout=10)
+        expect(p.page.locator('#gTop')).to_contain_text('Quiz')
+        assert p.page.evaluate(SCROLL) == 0, p.name
+    boby.page.locator('#gRoomSwitch button').scroll_into_view_if_needed()
+    assert boby.page.evaluate(SCROLL) > 200
+    boby.page.on('dialog', lambda d: d.accept())
+    boby.tap('#gRoomSwitch button')
+    expect(boby.page.locator('#gamePlay [data-room-pick="quiz"]')).to_be_attached(timeout=10000)
+    assert boby.page.evaluate(SCROLL) == 0
+
+
+def test_an_incomplete_room_code_says_so_on_enter(phones):
+    """Recette du 15.11.2026 : « Entrée » avec un code de moins de 4 chiffres (ou vide) ne faisait rien, sans un mot."""
+    lea = phones('Lea')
+    lea.open_games()
+    field = lea.page.locator('#gHome .g-room-card #gCode')
+    field.press_sequentially('12')
+    field.press('Enter')
+    expect(lea.page.get_by_text('Le code de la salle a 4 chiffres.')).to_be_visible()
+    expect(lea.page.locator('#gHome')).to_be_visible()

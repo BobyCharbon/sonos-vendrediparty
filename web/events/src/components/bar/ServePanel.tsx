@@ -15,7 +15,7 @@ import { counterMax, CounterPicks } from './CounterPicks';
 import { Stepper } from './Stepper';
 
 export type Served = {
-  serveId: string; name: string; total: number; before: number; after: number;
+  serveId: string; member?: string; name: string; total: number; before: number; after: number;
   lines: { label: string; qty: number; total: number }[];
   /** Bar offert : ni montant ni solde. */
   free?: boolean;
@@ -28,7 +28,7 @@ type Person = Extract<BarScan, { result: 'ok' }>;
 function pricesLabel(l: ScanLine): string {
   const prices = (l.prices ?? [l.price_chf]).map(Number);
   const lo = Math.min(...prices), hi = Math.max(...prices);
-  return lo === hi ? barChf(lo) : `${barChf(lo).replace(/\s*CHF$/, '')}–${barChf(hi)}`;
+  return lo === hi ? barChf(lo) : `${amount(lo)}–${barChf(hi)}`;
 }
 
 /** Ce que le barman sert sans commande : lignes, nombre et montant (prix de la carte, 0 en bar offert). */
@@ -83,7 +83,7 @@ export function ServePanel({ eventId, person, onServed, onStale, onNext }: {
       gesture.current = null;
       const debited = Number(r.total);
       onServed({
-        serveId: r.serve_id, name: who, total: debited, before: r.balance_before ?? round2(Number(r.balance) - debited), after: Number(r.balance),
+        serveId: r.serve_id, member: person.member, name: who, total: debited, before: r.balance_before ?? round2(Number(r.balance) - debited), after: Number(r.balance),
         lines: [...ordered.lines.map((l) => ({ label: itemLabel(l.line), qty: l.qty, total: serveAmount(l.line, l.qty) })),
           ...counter.lines.map((l) => ({ label: `${itemLabel(l.item)} (comptoir)`, qty: l.qty, total: round2(l.qty * Number(l.item.price_chf)) }))],
         free, canUndo: person.rights?.correct !== false,

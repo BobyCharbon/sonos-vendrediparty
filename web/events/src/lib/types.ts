@@ -4,6 +4,9 @@
 export type MemberRole = string;
 export type MemberStatus = 'pending' | 'active' | 'banned';
 export type EventStatus = 'draft' | 'pending' | 'published' | 'rejected' | 'cancelled';
+/** « On me paie », « Paiement en ligne », « Sur place ». */
+export type PaymentMode = 'organizer' | 'online' | 'on_site';
+
 export type DateMode = 'fixed' | 'poll';
 export type RsvpStatus = 'yes' | 'maybe' | 'no';
 export type DateVote = 'yes' | 'if_needed' | 'no';
@@ -57,6 +60,12 @@ export type EventRow = {
   location_url: string | null;
   price_chf: number | null;
   payment_info: string | null;
+  /** Comment on paie (migration 20261115120000 ; absente avant : « On me paie »). */
+  payment_mode?: PaymentMode;
+  /** Lien de paiement (Revolut, billetterie…), https ; obligatoire « en ligne ». */
+  payment_url?: string | null;
+  /** Paiement ouvert aux invités (migration 20261116130000) ; éteint : tout est prêt, « Paiement bientôt possible ». */
+  payment_open?: boolean;
   max_participants: number | null;
   waitlist_enabled: boolean;
   allow_plus_ones: boolean;

@@ -34,7 +34,7 @@ function sharedMyBar(eventId: string, answer: string): Promise<MyBar | null> {
  */
 export function BarEntry({ eventId, zone, answer = '' }: { eventId: string; zone: 'guest' | 'organizer'; answer?: string }) {
   const { data: bar, error, loading, reload } = useQuery(() => sharedMyBar(eventId, answer), [eventId, answer]);
-  useBarRefresh(reload, barOn && !!bar && bar.phase !== 'closed');
+  useBarRefresh(reload, barOn && !!bar && bar.phase !== 'closed', eventId);
   const [busy, setBusy] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 

@@ -44,6 +44,7 @@ def phone(browser, server):
 
 def test_game_card_buttons_are_readable(phone):
     phone.open_games()
+    phone.page.evaluate("document.querySelectorAll('#gHome section.g-cat[hidden]').forEach((s) => s.removeAttribute('hidden'))")
     measured = phone.page.evaluate(CONTRAST, "#gHome .g-go, #gHome .g-modes button.on")
     assert {"Lancer le test", "Créer un quiz"} <= {m["text"] for m in measured}
     low = [m for m in measured if m["ratio"] < 4.5]

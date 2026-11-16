@@ -93,11 +93,55 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Étape 2 « Qui est invité », carte « 👥 Des groupes » (avis 8eb031acd60f, 13.11) : on coche les Membres Vendredi Party et/ou
   un ou plusieurs groupes, puis « Publier pour … » (jamais de publication au premier toucher pour les groupes) ; un seul
   « Prévenir » pour tous les groupes cochés. Public et « Sur invitation » publient toujours d'un toucher.
+- Paiement (maquette validée le 15.11, migration 20261115120000) : l'organisateur choisit « On me paie » (défaut, lien
+  facultatif : Revolut…), « Paiement en ligne » (lien https obligatoire : billetterie) ou « Sur place » (`events.payment_mode`,
+  `payment_url`). Les deux premiers : la personne note « J'ai payé », l'organisateur confirme « Reçu ✓ » (jamais payé sur sa
+  seule parole : une place payée remet le billet QR). Sur place : aucun bouton, `declare_ticket_payment` refuse « J'ai payé » (annuler une déclaration d'avant reste possible). L'IA ne
+  choisit jamais le mode. Le lien de l'événement remplace celui du même service dans le profil (un seul « Payer avec Revolut »).
+  Tests : `tests/supabase_live/test_paiement_mode_live.py`, `test_paiement_mode_browser_live.py` (recette réelle),
+  `test_event_tickets_browser.py`.
+  « Paiement ouvert » (16.11, migration 20261116130000, `events.payment_open`, allumé par défaut) : l'organisateur prépare
+  tout puis l'allume ; éteint, les invités voient « ⏳ paiement bientôt possible » sans lien ni bouton, `event_pay_info`
+  ne donne aucun lien, `declare_ticket_payment` refuse « J'ai payé ». Tests : `test_paiement_mode_live.py`,
+  `test_event_tickets_browser.py`, `test_event_organizer_browser.py`.
+  Tout lien de paiement est un vrai lien (`Button href` → `<a target="_blank">`), jamais `Linking.openURL` / `window.open`
+  depuis un toucher : Safari en navigation privée l'ignorait (avis du 16.11). La fiche reste ouverte derrière.
+- Bar : devise du bar par événement, francs (défaut) ou euros (« Options » › Devise, `event_bars.currency`,
+  `bar_set_currency`, migration 20261116090000), choisie avant les premières commandes payantes ; montants affichés
+  (`barChf` / `barUnit`), messages de la base (`private.bar_chf(n, e)`) et carte Wallet suivent. Tests :
+  `test_bar_options_live.py`, `test_bar_options_browser.py`, `test_bar_wallet.py`.
+  Carte Wallet du bar : chaque geste qui change le solde ou « À servir » (commande, service, annulation, correction,
+  remboursement confirmé, réglages) prévient l'iPhone aussitôt (`walletAfter` dans lib/bar.ts → `/api/wallet/notify`) ;
+  la base redate le pass, mais sans ce signal Cartes gardait l'ancien solde (bug du 16.11).
+  Récapitulatif de la soirée (organisateurs, 16.11, migration 20261116100000) : « 📄 Récapitulatif de la soirée » dans
+  « Gérer le bar » → qui a pris quoi (articles, quantités), montant, remboursé, reste dû ; par article ; barmans ; tris
+  (doit le plus, a pris le plus, plus commandé…) ; en direct toute la soirée ; « Exporter en PDF » (lib/pdf.ts, écrit à la
+  main, aucune bibliothèque : partagé sur téléphone, téléchargé sinon). Tests : `test_bar_recap_live.py`,
+  `test_bar_options_browser.py`. Bar pas en prod : ses migrations (devise, récap) partiront avec lui.
+  Notification « verre servi » (16.11, migration 20261116120000) : titre « 🍹 Barman : −2 Vodka Red Bull », texte « Servi par
+  … · 9 CHF · à rembourser : … · soirée » : se comprend sans l'ouvrir ; coupable (« Bar : verres servis », web et iPhone).
+- Temps réel de l'événement (avis du 16.11, migration 20261116110000) : bar, billets, paiements et covoiturage passent par
+  des fonctions, invisibles du temps réel Supabase. Chaque changement écrit un signal `live_pings` (personne, événement,
+  sans contenu ; RLS : on ne lit que les siens) pour chaque personne concernée ; `useLivePing(eventId, reload)` (lib/data.ts)
+  relit l'écran aussitôt (fiche, billet, tous les écrans du bar). Toute nouvelle table « par fonctions » visible sur la fiche
+  ou dans le bar = un déclencheur `live_ping`. La relecture régulière reste en secours. Test : verre servi visible chez
+  l'invité en ~1 s (`test_a_served_glass_shows_on_the_guest_screen_without_reloading`, `test_bar_recap_live.py`).
+  TOUT l'événement en temps réel (avis du 16.11, migration 20261116140000) : chaque table de l'événement a le déclencheur
+  `event_changed` → signal sans contenu sur le canal public `event:<id>` (`private.party_signal`, une fois par transaction),
+  suppressions comprises (le temps réel par tables ne voit pas une suppression filtrée : vote ou « J'amène » retiré). Liste :
+  canal `events` ; rôle / statut / groupes d'une personne : `user:<id>` (`access_changed`, droits relus par auth.tsx) ;
+  droits des rôles : `access`. Côté web : `useSignal` / `useLivePing` (lib/data.ts). Toute nouvelle table de l'événement
+  = ajoutée à la liste de `event_changed`. Test réel : `tests/supabase_live/test_temps_reel_tout_browser_live.py` (~0,9 s).
 - Covoiturage (avis 34d5c07f2e56, 13.11, migration 20261113090000) : option de l'organisateur (`events.carpool_enabled`,
   éteinte par défaut, jamais allumée par l'IA) ; seuls les participants (Présent / Peut-être) et les organisateurs y prennent
   part, tout par les fonctions `carpool*` (table sans accès direct, places comptées sous verrou, ville filtrée comme un nom,
   CGU) ; « Pas présent » fait quitter le covoiturage. Carte `CarpoolCard`. Aucun argent ni partage de frais ici.
   Tests : `tests/supabase_live/test_covoiturage_live.py`, `test_covoiturage_browser_live.py`, `tests/test_covoiturage_browser.py`.
+- Date fixée (bouton « Fixer » ou formulaire) : les créneaux du sondage et leurs votes ne sont JAMAIS effacés (cachés ;
+  repasser en « Date à définir » les retrouve). Le formulaire les effaçait : votes du paintball perdus (prod, 13.11).
+  Test : `test_editing_a_fixed_date_keeps_the_poll_dates_and_their_votes`. Ces créneaux cachés ne comptent nulle part en date
+  fixe : agenda (votes pris seulement en sondage, migration 20261115230000), IA de modification (`draft_of`). Recette réelle :
+  `tests/supabase_live/test_sondage_date_fixee_browser_live.py`.
 - Public par défaut (formulaire et IA) ; un événement public ne prévient JAMAIS personne à sa publication (base : `events_public_silent`, 20261106200000).
 
 ## Avis du 13.11.2026 (à garder)
@@ -127,6 +171,8 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   le serveur revenu l'efface ; l'annonce de l'admin est gardée à part). Serveur injoignable (502/503/504, flux coupé) :
   « Mise à jour en cours » / « Party ne répond pas », réessai tout seul ; jamais « injoignable ». iOS : `OfflineView`
   (réessai automatique, page d'erreur du relais jamais affichée).
+- Fin de la maintenance ou serveur revenu (15.11) : `notice.js` recharge TOUTE la page (`location.reload()`), web et app
+  iPhone ; sinon la page garde l'ancienne version et Jeux / Événements restent vides. Ne jamais retirer ce rechargement.
 - Tests : `tests/test_notice.py`, `tests/e2e/test_notice.py` (serveur arrêté puis relancé), `PartyNoticeTests`.
 
 ## Inscription des invités (avis 39f148377a8f, 10.11.2026) — profil complet, parcours normal
@@ -158,6 +204,11 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Une partie en plein écran ne vaut que dans l'onglet Jeux : `showTab` appelle `syncGameChrome()` à chaque changement
   d'onglet (sinon « Se connecter » d'un jeu laissait un écran vide sans barre d'onglets, native comprise ; avis 8d5ec90f63da).
   Test : `tests/e2e/test_purity_game.py`.
+- Accueil des Jeux (maquette approuvée le 15.11.2026) : carte « Salle de jeux » (Créer une salle / ou rejoindre + code),
+  puis « 🧠 Jeux solo » (Méninges). Les jeux à plusieurs ne se lancent que dans la salle : leurs cartes restent dans
+  `#gHome`, sections cachées (`hidden`), car `openRoomSheet` les recopie. Dans un jeu de la salle, « 🎮 Changer de jeu »
+  (`#gRoomSwitch`, animateur seulement) = « Terminer ce jeu et revenir à la salle ». Tests : `test_room_votes_ui.py`,
+  helper `show_game_cards` pour les tests d'une partie seule.
 - Tout prénom ou texte saisi par un joueur passe par `esc()` avant d'entrer dans du HTML, attributs compris
   (test : `tests/e2e/test_names_escaped.py`).
 - Tout texte libre d'un jeu montré aux autres (prénom ajouté par l'animateur, roue, réponse écrite, règle, devinette)

@@ -66,6 +66,83 @@ export function useRealtime(channel: string, tables: { table: string; filter?: s
   }, [channel, key]));
 }
 
+/**
+ * Signal « recharge cet événement » écrit par la base pour chaque personne concernée (verre servi, remboursement, billet,
+ * covoiturage… : ce que le temps réel ne voit pas, migration 20261116110000). Chacun n'écoute que SES signaux ; la page
+ * se relit aussitôt (avis du 16.11 : le verre servi n'apparaissait chez l'invité qu'à la relecture suivante).
+ */
+export function useLivePing(eventId: string | null | undefined, onPing: () => unknown) {
+  const latest = useRef(onPing);
+  useEffect(() => { latest.current = onPing; }, [onPing]);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  const fire = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => { timer.current = null; void latest.current(); }, 250);
+  }, []);
+  // Tout changement de l'événement (réponses, votes, messages, réactions, sondages, détails, invités…), suppressions
+  // comprises : un signal de la base sur `event:<id>` (migration 20261116140000).
+  useSignal(eventId ? [`event:${eventId}`] : [], fire);
+  useFocusEffect(useCallback(() => {
+    if (!eventId) return undefined;
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+    let closed = false;
+    void supabase.auth.getSession().then(({ data }) => {
+      const uid = data.session?.user.id;
+      if (!uid || closed) return;
+      ch = supabase.channel(`live-${eventId}-${++realtimeSubscriptionSequence}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'live_pings', filter: `user_id=eq.${uid}` }, (payload) => {
+          if ((payload.new as { event_id?: string }).event_id !== eventId) return;
+          fire();
+        });
+      ch.subscribe();
+    });
+    return () => {
+      closed = true;
+      if (ch) void supabase.removeChannel(ch);
+    };
+  }, [eventId, fire]));
+}
+
+/**
+ * Signaux « changed » de la base (sans contenu, migration 20261116140000) : `event:<id>` (tout l'événement), `events` (la
+ * liste), `user:<id>` (mon rôle, mes groupes), `access` (droits des rôles). Un seul canal par sujet pour toute l'app,
+ * partagé entre les écrans qui l'écoutent.
+ */
+const signalHub = new Map<string, { channel: ReturnType<typeof supabase.channel>; listeners: Set<() => void> }>();
+
+function listenSignal(topic: string, listener: () => void): () => void {
+  let entry = signalHub.get(topic);
+  if (!entry) {
+    const listeners = new Set<() => void>();
+    const channel = supabase.channel(topic).on('broadcast', { event: 'changed' }, () => listeners.forEach((l) => l()));
+    channel.subscribe();
+    entry = { channel, listeners };
+    signalHub.set(topic, entry);
+  }
+  entry.listeners.add(listener);
+  return () => {
+    const e = signalHub.get(topic);
+    if (!e) return;
+    e.listeners.delete(listener);
+    if (!e.listeners.size) {
+      signalHub.delete(topic);
+      void supabase.removeChannel(e.channel);
+    }
+  };
+}
+
+export function useSignal(topics: string[], onSignal: () => unknown) {
+  const latest = useRef(onSignal);
+  useEffect(() => { latest.current = onSignal; }, [onSignal]);
+  const key = topics.join(',');
+  useEffect(() => {
+    if (!key) return undefined;
+    const stops = key.split(',').map((t) => listenSignal(t, () => { void latest.current(); }));
+    return () => stops.forEach((stop) => stop());
+  }, [key]);
+}
+
 export type Taxonomy = { categories: Category[]; tags: Tag[] };
 
 export async function fetchTaxonomy(includeArchived = false): Promise<Taxonomy> {

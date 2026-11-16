@@ -53,7 +53,10 @@ def draft_of(e: dict, o: Options) -> dict:
     return {
         "status": "ready", "questions": [], "title": e.get("title") or "", "description": e.get("description") or "",
         "date_mode": e.get("date_mode") or "fixed", "start": _local(e.get("starts_at")), "end": _local(e.get("ends_at")),
-        "date_options": sorted(_local(d["starts_at"]) for d in e.get("date_options") or []),
+        # Date fixée : les créneaux de l'ancien sondage restent en base, cachés (leurs votes sont gardés) ; ni l'IA ni la
+        # liste des changements ne les voient (sinon « Dates à voter : − … » annoncé aux invités à chaque modification).
+        "date_options": sorted(_local(d["starts_at"]) for d in e.get("date_options") or [])
+        if e.get("date_mode") == "poll" else [],
         "poll_deadline": _local(e.get("poll_deadline")),
         "place_kind": "later" if later else ("home" if home else "venue") if place else "none",
         "place_query": place, "place_name": e.get("location_name") or "", "place_broad": "",
