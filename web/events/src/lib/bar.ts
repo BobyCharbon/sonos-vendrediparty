@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { friendlyError } from './errors';
 import { formatShort } from './format';
 import { isTermsError } from './moderation';
+import { useLivePing } from './data';
 import { must, supabase } from './supabase';
 import { notifyWallet } from './wallet';
 
@@ -473,7 +474,8 @@ export function stockParts(i: Pick<BarItem, 'stock' | 'served' | 'pending'>): { 
 export const BAR_REFRESH_MS = 10_000;
 
 /** Relecture toutes les 10 s tant que l'écran est affiché (arrêtée hors de l'écran ou onglet caché). */
-export function useBarRefresh(reload: () => unknown, active = true) {
+export function useBarRefresh(reload: () => unknown, active = true, eventId?: string) {
+  useLivePing(active ? eventId : null, reload);  // aussitôt : verre servi, annulé, remboursé (signal de la base)
   const latest = useRef(reload);
   useEffect(() => { latest.current = reload; }, [reload]);
   useFocusEffect(useCallback(() => {

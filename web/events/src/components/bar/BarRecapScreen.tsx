@@ -1,15 +1,45 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { amount, barRecap, errorText, type BarRecap, type RecapLine } from '@/lib/bar';
+import { amount, barRecap, errorText, useBarRefresh, type BarRecap, type RecapLine, type RecapPerson } from '@/lib/bar';
 import { money, recapFilename, recapPdf } from '@/lib/barRecapPdf';
 import { useQuery } from '@/lib/data';
 import { formatShort, plural } from '@/lib/format';
 import { savePdf } from '@/lib/pdf';
 import { colors, font, radius } from '@/lib/theme';
 
-import { Button, Empty, ErrorText, Loading, Screen, Section, T, Toast } from '../ui';
+import { Button, Chip, Empty, ErrorText, Loading, Screen, Section, T, Toast } from '../ui';
 import { BarHeader } from './BarHeader';
+
+type PeopleSort = 'due' | 'served' | 'amount' | 'name';
+type ItemSort = 'qty' | 'amount' | 'name';
+const PEOPLE_SORTS: [PeopleSort, string][] = [['due', 'Doit le plus'], ['served', 'A pris le plus'], ['amount', 'A dépensé le plus'], ['name', 'Nom']];
+const ITEM_SORTS: [ItemSort, string][] = [['qty', 'Plus commandé'], ['amount', 'Plus gros montant'], ['name', 'Nom']];
+const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' });
+const PEOPLE_ORDER: Record<PeopleSort, (a: RecapPerson, b: RecapPerson) => number> = {
+  due: (a, b) => b.balance - a.balance || byName(a, b),
+  served: (a, b) => b.served - a.served || b.amount - a.amount || byName(a, b),
+  amount: (a, b) => b.amount - a.amount || byName(a, b),
+  name: byName,
+};
+const ITEM_ORDER: Record<ItemSort, (a: RecapLine, b: RecapLine) => number> = {
+  qty: (a, b) => b.qty - a.qty || byName(a, b),
+  amount: (a, b) => b.amount - a.amount || byName(a, b),
+  name: byName,
+};
+
+/** Le récapitulatif dans l'ordre choisi (écran et PDF identiques). */
+export function sortedRecap(r: BarRecap, people: PeopleSort, items: ItemSort): BarRecap {
+  return { ...r, people: [...r.people].sort(PEOPLE_ORDER[people]), items: [...r.items].sort(ITEM_ORDER[items]) };
+}
+
+function Sorts<K extends string>({ options, value, onChange }: { options: [K, string][]; value: K; onChange: (k: K) => void }) {
+  return (
+    <View style={st.sorts} accessibilityRole="radiogroup">
+      {options.map(([k, text]) => <Chip key={k} label={text} selected={value === k} onPress={() => onChange(k)} />)}
+    </View>
+  );
+}
 
 const label = (i: RecapLine) => `${i.emoji ? `${i.emoji} ` : ''}${i.name}${i.detail ? ` (${i.detail})` : ''}`;
 
@@ -22,7 +52,9 @@ function Stat({ value, label: text, color = colors.text }: { value: string; labe
   );
 }
 
-function Recap({ r }: { r: BarRecap }) {
+function Recap({ r, people, items, onPeople, onItems }: {
+  r: BarRecap; people: PeopleSort; items: ItemSort; onPeople: (s: PeopleSort) => void; onItems: (s: ItemSort) => void;
+}) {
   const cur = (n: number) => money(n, r.currency);
   const unit = r.currency === 'EUR' ? '€' : 'CHF';
   const free = r.free_bar;
@@ -43,6 +75,7 @@ function Recap({ r }: { r: BarRecap }) {
       ) : null}
 
       <Section title={`Par personne (${r.people.length})`}>
+        <Sorts options={free ? PEOPLE_SORTS.filter(([k]) => k === 'served' || k === 'name') : PEOPLE_SORTS} value={people} onChange={onPeople} />
         {r.people.length === 0 ? <T muted size={14}>Personne n’a rien pris.</T> : null}
         {r.people.map((p) => (
           <View key={p.id} style={st.person} accessibilityLabel={`${p.name} : ${plural(p.served, 'article')}${free ? '' : `, ${cur(p.amount)}`}`}>
@@ -68,6 +101,7 @@ function Recap({ r }: { r: BarRecap }) {
       </Section>
 
       <Section title="Par article">
+        <Sorts options={free ? ITEM_SORTS.filter(([k]) => k !== 'amount') : ITEM_SORTS} value={items} onChange={onItems} />
         {r.items.length === 0 ? <T muted size={14}>Aucun article servi.</T> : null}
         {r.items.map((i) => (
           <View key={i.name} style={st.rowBetween}>
@@ -97,7 +131,12 @@ function Recap({ r }: { r: BarRecap }) {
  * par article ; par barman. « Exporter en PDF » : le même récapitulatif en A4 (partagé sur téléphone, téléchargé sinon).
  */
 export function BarRecapScreen({ eventId }: { eventId: string }) {
-  const { data: recap, error, loading } = useQuery(() => barRecap(eventId), [eventId]);
+  const { data: raw, error, loading, reload } = useQuery(() => barRecap(eventId), [eventId]);
+  // En direct toute la soirée : chaque verre servi, annulé ou remboursé relit le récapitulatif (et toutes les 10 s).
+  useBarRefresh(reload, !!raw, eventId);
+  const [people, setPeople] = useState<PeopleSort>('due');
+  const [items, setItems] = useState<ItemSort>('qty');
+  const recap = raw ? sortedRecap(raw, raw.free_bar && (people === 'due' || people === 'amount') ? 'served' : people, items) : null;
   const [busy, setBusy] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -119,20 +158,20 @@ export function BarRecapScreen({ eventId }: { eventId: string }) {
     <>
       <Screen edges={[]}>
         <BarHeader title="Récapitulatif du bar" eventId={eventId} />
-        {loading ? <Loading /> : null}
-        {!loading && error ? <ErrorText error={error} /> : null}
+        {loading && !recap ? <Loading /> : null}
+        {!recap && !loading && error ? <ErrorText error={error} /> : null}
         {!loading && !error && !recap ? <Empty>Pas de bar pour cet événement.</Empty> : null}
         {recap ? (
           <>
             <View style={{ gap: 2 }}>
               <T size={18} weight="bold">{recap.title}</T>
               <T muted size={13}>
-                {recap.starts_at ? formatShort(recap.starts_at) : 'Date à définir'} · {recap.closed_at ? 'bar fermé' : 'bar encore ouvert : les chiffres peuvent encore bouger'}
+                {recap.starts_at ? formatShort(recap.starts_at) : 'Date à définir'} · {recap.closed_at ? 'bar fermé' : '🟢 bar ouvert · mis à jour en direct'}
               </T>
             </View>
             <Button label="📄 Exporter en PDF" loading={busy} onPress={() => void exportPdf(recap)} />
             <ErrorText error={exportError} />
-            <Recap r={recap} />
+            <Recap r={recap} people={people} items={items} onPeople={setPeople} onItems={setItems} />
           </>
         ) : null}
       </Screen>
@@ -148,6 +187,7 @@ const st = StyleSheet.create({
   center: { textAlign: 'center' },
   person: { gap: 4, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.line },
   rowBetween: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sorts: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   qty: { color: colors.muted, fontVariant: ['tabular-nums'] },
   num: { width: 36, textAlign: 'right', fontVariant: ['tabular-nums'] },
   amount: { width: 84, textAlign: 'right', fontVariant: ['tabular-nums'] },

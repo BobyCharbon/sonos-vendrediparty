@@ -29,7 +29,7 @@ function reservedOf(units: BarUnit[]): Reserved[] {
  */
 export function BarPersonScreen({ eventId, member }: { eventId: string; member: string }) {
   const { data: person, error, loading, reload, setData } = useQuery(() => barPerson(eventId, member), [eventId, member]);
-  useBarRefresh(reload, !!person);
+  useBarRefresh(reload, !!person, eventId);
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 

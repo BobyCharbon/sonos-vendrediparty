@@ -338,6 +338,14 @@ def test_the_organizer_reads_who_had_what_and_exports_the_recap_as_a_pdf(browser
         pw.expect(page.get_by_text('6 × 🍸 Vodka Red Bull', exact=True)).to_be_visible()
         pw.expect(page.get_by_text('Remboursé 13.50 CHF · reste dû 13.50 CHF', exact=True)).to_be_visible()
         pw.expect(page.get_by_text('Bière blonde (33 cl)', exact=True)).to_be_visible()
+        # Tris : « Doit le plus » d'abord ; articles : le plus commandé d'abord, puis par nom
+        pw.expect(page.get_by_role('button', name='Doit le plus')).to_be_visible()
+        y = lambda text: page.get_by_text(text, exact=True).bounding_box()['y']  # noqa: E731
+        assert y('🍸 Vodka Red Bull') < y('Bière blonde (33 cl)')
+        page.get_by_role('button', name='Nom', exact=True).last.click()
+        page.wait_for_timeout(300)
+        assert y('Bière blonde (33 cl)') < y('🍸 Vodka Red Bull')
+        page.get_by_role('button', name='Plus commandé', exact=True).click()
         if os.environ.get('PARTY_RECAP_SHOT'):
             page.screenshot(path=os.environ['PARTY_RECAP_SHOT'], full_page=True)
         with page.expect_download() as download:

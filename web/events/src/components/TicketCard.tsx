@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Modal, Pressable, StyleSheet, View } from 'react-native';
 
+import { useLivePing } from '@/lib/data';
 import { formatLongDay, formatTime, plural } from '@/lib/format';
 import { enter, pressTransition } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
@@ -47,8 +48,10 @@ export function TicketCard({ event, me, answerKey }: Props) {
     (e: unknown) => setError(e instanceof Error ? e.message : 'Le billet ne se charge pas. Réessaie.'),
   ), [event.id]);
 
-  // Relu à l'ouverture et quand ma réponse change (answerKey).
+  // Relu à l'ouverture et quand ma réponse change (answerKey) ; aussitôt quand l'organisateur remet le billet, confirme
+  // le paiement ou scanne l'entrée (signal de la base).
   useEffect(() => { void load(); }, [load, answerKey]);
+  useLivePing(event.id, load);
 
   const waiting = open && ticket?.state === 'ok' && !ticket.checked_in_at;
   useEffect(() => {

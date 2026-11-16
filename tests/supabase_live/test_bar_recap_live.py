@@ -42,3 +42,16 @@ def test_only_the_organizers_read_the_recap():
     out = run(SOIREE + as_bot("valentin") + note("barman", "perform public.bar_recap(e)")
               + as_bot("victor") + note("invite", "perform public.bar_recap(e)"))
     assert "barman=forbidden" in out and "invite=forbidden" in out, out  # Bot Ada et Bot Côme sont admins sur TEST
+
+
+def test_a_served_glass_signals_the_guest_the_organizer_and_the_barman_right_away():
+    # Temps réel (migration 20261116110000, avis du 16.11) : le verre servi recharge aussitôt la page de l'invité, de
+    # l'organisatrice et du barman ; chacun ne lit que SES signaux (RLS), sans aucun contenu.
+    out = run(SOIREE + as_postgres()
+              + keep("pings", "(select string_agg(p.display_name, ',' order by p.display_name) from public.live_pings l "
+                              "join public.profiles p on p.id = l.user_id where l.event_id = e)")
+              + as_bot("ada") + keep("vus_par_ada", "(select count(distinct user_id) from public.live_pings where event_id = e)")
+              + note("ecrire", "insert into public.live_pings (user_id, event_id) values (ada, e)"))
+    assert "pings=Bot Ada,Bot Côme,Bot Olga,Bot Valentin" in out, out
+    assert "vus_par_ada=1" in out, out
+    assert "ecrire=permission denied" in out, out

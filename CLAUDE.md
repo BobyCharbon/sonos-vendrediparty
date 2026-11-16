@@ -109,6 +109,17 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   Carte Wallet du bar : chaque geste qui change le solde ou « À servir » (commande, service, annulation, correction,
   remboursement confirmé, réglages) prévient l'iPhone aussitôt (`walletAfter` dans lib/bar.ts → `/api/wallet/notify`) ;
   la base redate le pass, mais sans ce signal Cartes gardait l'ancien solde (bug du 16.11).
+  Récapitulatif de la soirée (organisateurs, 16.11, migration 20261116100000) : « 📄 Récapitulatif de la soirée » dans
+  « Gérer le bar » → qui a pris quoi (articles, quantités), montant, remboursé, reste dû ; par article ; barmans ; tris
+  (doit le plus, a pris le plus, plus commandé…) ; en direct toute la soirée ; « Exporter en PDF » (lib/pdf.ts, écrit à la
+  main, aucune bibliothèque : partagé sur téléphone, téléchargé sinon). Tests : `test_bar_recap_live.py`,
+  `test_bar_options_browser.py`. Bar pas en prod : ses migrations (devise, récap) partiront avec lui.
+- Temps réel de l'événement (avis du 16.11, migration 20261116110000) : bar, billets, paiements et covoiturage passent par
+  des fonctions, invisibles du temps réel Supabase. Chaque changement écrit un signal `live_pings` (personne, événement,
+  sans contenu ; RLS : on ne lit que les siens) pour chaque personne concernée ; `useLivePing(eventId, reload)` (lib/data.ts)
+  relit l'écran aussitôt (fiche, billet, tous les écrans du bar). Toute nouvelle table « par fonctions » visible sur la fiche
+  ou dans le bar = un déclencheur `live_ping`. La relecture régulière reste en secours. Test : verre servi visible chez
+  l'invité en ~1 s (`test_a_served_glass_shows_on_the_guest_screen_without_reloading`, `test_bar_recap_live.py`).
 - Covoiturage (avis 34d5c07f2e56, 13.11, migration 20261113090000) : option de l'organisateur (`events.carpool_enabled`,
   éteinte par défaut, jamais allumée par l'IA) ; seuls les participants (Présent / Peut-être) et les organisateurs y prennent
   part, tout par les fonctions `carpool*` (table sans accès direct, places comptées sous verrou, ville filtrée comme un nom,

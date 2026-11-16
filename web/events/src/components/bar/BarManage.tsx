@@ -44,7 +44,7 @@ function NoBar({ eventId, onCreated }: { eventId: string; onCreated: (o: BarOver
  */
 export function BarManage({ eventId }: { eventId: string }) {
   const { data: overview, error, loading, reload, setData } = useQuery(() => barOverview(eventId), [eventId]);
-  useBarRefresh(reload, !!overview);
+  useBarRefresh(reload, !!overview, eventId);
   const { data: people } = useQuery(() => fetchEventPeople(eventId), [eventId]);
   const [tab, setTab] = useState<Tab>('items');
   const [toast, setToast] = useState<string | null>(null);

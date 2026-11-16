@@ -27,7 +27,7 @@ import { fetchAttendance, localAttendance } from '@/lib/attendance';
 import { datesToAdd, settleNativeDates } from '@/lib/calendar';
 import { useAuth, useMe } from '@/lib/auth';
 import { personLabel, useContactNames, withContactNames } from '@/lib/contactNames';
-import { useQuery, useRealtime } from '@/lib/data';
+import { useLivePing, useQuery, useRealtime } from '@/lib/data';
 import { GONE_TEXT, isGoneError, isNetworkError } from '@/lib/errors';
 import { eventPeopleIds, undecidedNames } from '@/lib/eventPeople';
 import { useLiveRefresh, useOnline, usePaymentsTick, useSlowLoad } from '@/lib/connectivity';
@@ -171,6 +171,8 @@ export default function EventScreen() {
   // Quantités « Qui amène quoi » dans leur propre canal : une table hors de la publication fait échouer tout son canal
   // (base sans la migration 20261114110000) ; seules les quantités attendraient alors la relecture (tests/test_realtime_channels.py).
   useRealtime(`event-${id}-quantities`, bringIds.length ? [{ table: 'bring_claims', filter: `item_id=in.(${bringIds.join(',')})` }] : [], reload);
+  // Bar, billets, paiements, covoiturage : la base envoie un signal à chaque personne concernée (migration 20261116110000).
+  useLivePing(id, reload);
   // Retour sur l'app (veille) et relecture régulière de ce qui ne passe pas par le temps réel.
   useLiveRefresh(reload, LIVE_REFRESH_MS);
 
