@@ -2,6 +2,7 @@ import { useMemo, type ReactNode } from 'react';
 import { Linking, Platform, Text, type StyleProp, type TextStyle } from 'react-native';
 
 import { T } from '@/components/ui';
+import { mentionParts } from '@/lib/chats';
 import { linkify, type Segment } from '@/lib/links';
 import { colors, type FontWeight } from '@/lib/theme';
 
@@ -24,6 +25,8 @@ interface LinkedTextProps {
   numberOfLines?: number;
   /** Placé avant le texte, dans la même ligne (ex. le prénom en gras devant une note). */
   prefix?: ReactNode;
+  /** Discussions : les « @surnom » (et @toutlemonde, @present…) en gras et dans cette couleur. */
+  mentions?: { names: string[]; color: string };
 }
 
 /** Web : une longue adresse se coupe n'importe où plutôt que d'élargir sa bulle au-delà de l'écran (le lien aussi :
@@ -53,12 +56,17 @@ function Link({ segment, color }: { segment: Segment; color: string }) {
   );
 }
 
-export function LinkedText({ text, linkColor = colors.accent, prefix, style, ...rest }: LinkedTextProps) {
+export function LinkedText({ text, linkColor = colors.accent, prefix, style, mentions, ...rest }: LinkedTextProps) {
   const segments = useMemo(() => linkify(text), [text]);
+  const plain = (value: string, key: number) => (mentions
+    ? mentionParts(value, mentions.names).map((p, j) => (p.mention
+      ? <Text key={`${key}-${j}`} style={{ fontWeight: '700', color: mentions.color }}>{p.text}</Text>
+      : p.text))
+    : value);
   return (
     <T {...rest} style={[breakAnywhere, style]}>
       {prefix}
-      {segments.map((seg, i) => (seg.href ? <Link key={i} segment={seg} color={linkColor} /> : seg.text))}
+      {segments.map((seg, i) => (seg.href ? <Link key={i} segment={seg} color={linkColor} /> : plain(seg.text, i)))}
     </T>
   );
 }

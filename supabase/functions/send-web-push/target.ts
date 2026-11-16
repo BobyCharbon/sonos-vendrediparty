@@ -17,6 +17,8 @@ export function notificationTarget(row: {
   } else if (row.event_id) {
     target.searchParams.set('tab', 'events');
     target.searchParams.set('event', row.event_id);
+    // Message de la discussion d'un événement : le toucher ouvre la discussion (native dans l'app iPhone).
+    if (row.kind === 'message') target.searchParams.set('chat', '1');
   } else {
     const own = typeof row.url === 'string' && /^\/(?![/\\])/.test(row.url) ? new URL(row.url, row.origin) : null;
     if (own && own.origin === target.origin) return own.href;  // ex. « Nouveau compte » → /?tab=account

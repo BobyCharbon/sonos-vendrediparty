@@ -12,6 +12,7 @@ enum NativeBridge {
     static let tabsHandler = "partyTabs"
     static let aiHandler = "partyAI"
     static let scanHandler = "partyScan"
+    static let chatHandler = "partyChat"
 
     /// `PartyNative.zicou` : présent seulement dans la BETA (Zicou compilé) ; ailleurs null, la page garde sa pastille.
     private static let zicouScript = AppConfig.zicouBuild
@@ -64,6 +65,12 @@ enum NativeBridge {
             try { window.webkit.messageHandlers.\(aiHandler).postMessage("edit:" + id); } catch (e) {}
           }
         },
+        // Discussion d'un événement (16.11) : écran natif façon WhatsApp, ouvert par-dessus la page.
+        chat: {
+          openEvent: function (id) {
+            try { window.webkit.messageHandlers.\(chatHandler).postMessage("event:" + id); } catch (e) {}
+          }
+        },
         // « Scanner les billets » (Événements) : lecteur QR d'Apple ; promesse du texte lu, ou null si l'on ferme.
         scan: {
           qr: function () { return window.webkit.messageHandlers.\(scanHandler).postMessage("qr"); }
@@ -113,6 +120,7 @@ enum NativeBridge {
         controller.add(PartyNoticeHandler(model: model), name: PartyNoticeHandler.handler)
         controller.add(SecretCardsHandler(model: model), name: SecretCardsHandler.handler)
         controller.add(AIHandler(model: model), name: aiHandler)
+        controller.add(ChatHandler(model: model), name: chatHandler)
         controller.addScriptMessageHandler(ScanHandler(model: model), contentWorld: .page, name: scanHandler)
         controller.addScriptMessageHandler(WalletHandler(), contentWorld: .page, name: NativeWallet.handler)
         controller.addScriptMessageHandler(ContactNamesBridge(), contentWorld: .page, name: ContactNamesBridge.handler)
@@ -160,6 +168,22 @@ private final class AIHandler: NSObject, WKScriptMessageHandler {
             return
         }
         model?.aiEventOpen = true
+    }
+}
+
+/// « Discussion » d'un événement (module Événements, cadre compris) → écran natif de la discussion.
+private final class ChatHandler: NSObject, WKScriptMessageHandler {
+    private weak var model: WebModel?
+
+    init(model: WebModel) {
+        self.model = model
+    }
+
+    @MainActor
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard AppConfig.isInternal(message.frameInfo.securityOrigin.url), let body = message.body as? String,
+              body.hasPrefix("event:"), let id = UUID(uuidString: String(body.dropFirst(6))) else { return }
+        model?.openEventChat(id.uuidString)  // la base vérifie que la personne peut lire cette discussion
     }
 }
 

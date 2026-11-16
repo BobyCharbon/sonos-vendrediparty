@@ -35,6 +35,8 @@ import { safeHref } from '@/lib/links';
 import { createdLine, formatLongDay, formatMessageTime, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
 import type { ReportTarget } from '@/lib/moderation';
 import { must, supabase } from '@/lib/supabase';
+import { nameColor, withoutAnnounceTag } from '@/lib/chats';
+import { openEventChat } from '@/lib/nativeChat';
 import { colors, radius } from '@/lib/theme';
 import { ticketRelevant, chf } from '@/lib/tickets';
 import type { BringItem, Category, DateOption, DateVoteRow, EventRow, Message, Poll, PollOption, Rsvp, Tag } from '@/lib/types';
@@ -481,15 +483,24 @@ export default function EventScreen() {
       <BringSection items={ev.bring_items} me={me.id} eventId={ev.id} names={data.names} canParticipate={published} onChange={reload} />
 
       {ev.forum_enabled && published ? (
-        <Pressable onPress={() => router.push(`/event/${ev.id}/chat`)} accessibilityRole="link" style={({ pressed }) => pressed && { opacity: 0.85 }}>
-          <Section title="Discussion" right={<T size={13} weight="semibold" color={colors.accent}>Ouvrir ›</T>}>
+        // Dans l'app iPhone : la discussion native (façon WhatsApp) ; ailleurs, sa page.
+        <Pressable onPress={() => openEventChat(ev.id, (path) => router.push(path))} accessibilityRole="link" accessibilityLabel="Ouvrir la discussion"
+          style={({ pressed }) => pressed && { opacity: 0.85 }}>
+          <Section title="💬 Discussion" right={<T size={13} weight="semibold" color={colors.accent}>Ouvrir ›</T>}>
             {data.messages.length === 0 ? <T muted size={14}>Aucun message. Lance la discussion !</T> : null}
+            {/* Nom et heure sur une ligne, le message dessous : rien ne se chevauche, même sur un petit écran. */}
             {[...data.messages].reverse().map((m) => (
-              <T key={m.id} size={14} color={colors.textSoft} numberOfLines={2}>
-                <T size={14} weight="bold">{data.names.get(m.user_id)} </T>
-                {m.body}
-                <T muted size={12}>  {formatMessageTime(m.created_at)}</T>
-              </T>
+              <View key={m.id} style={{ gap: 2 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
+                  <T size={13} weight="bold" color={nameColor(m.user_id)} numberOfLines={1} style={{ flexShrink: 1 }}>
+                    {m.announcement && m.pinned ? '📣 ' : ''}{data.names.get(m.user_id) ?? '?'}
+                  </T>
+                  <T muted size={11} style={{ marginLeft: 'auto' }}>{formatMessageTime(m.created_at)}</T>
+                </View>
+                <T size={14} color={colors.textSoft} numberOfLines={2}>
+                  {withoutAnnounceTag(m.body) || (m.audio_seconds != null ? '🎤 Message vocal' : '📷 Photo')}
+                </T>
+              </View>
             ))}
           </Section>
         </Pressable>

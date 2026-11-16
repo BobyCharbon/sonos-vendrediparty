@@ -17,6 +17,10 @@ final class WebModel: ObservableObject {
     @Published var aiEditEventId: String?
     /// « Scanner les billets » (module Événements) : lecteur QR natif ouvert, le texte lu revient à la page.
     @Published var ticketScanOpen = false
+    /// Discussion d'un événement ouverte en natif (« Discussion » sur sa fiche, notification) : l'id de l'événement.
+    @Published var eventChatID: String?
+    /// Données de cette discussion (même écran que Discussions, routes de l'événement).
+    private(set) var eventChats: ChatsStore?
     private var ticketScanReply: CheckedContinuation<String?, Never>?
     private var chatsPreloaded = false
     /// « Ajouter un titre » choisi avant que la page ait décrit ses onglets (lancement à froid).
@@ -100,6 +104,7 @@ final class WebModel: ObservableObject {
         hostMusic = HostMusicStore(api: api, web: self)
         feedbackAdmin = FeedbackAdminStore(api: api, web: self)
         chats = ChatsStore(api: api, web: self)
+        eventChats = ChatsStore(api: api, web: self, forEvents: true)
         // Noms des contacts (« Nom · pseudo ») : reconnaissance au lancement, puis à chaque changement du répertoire.
         ContactNames.shared.configure(api: api, web: self)
         settings = SettingsStore(api: api, web: self, isHost: { [weak self] in self?.isHost ?? false },
@@ -151,7 +156,16 @@ final class WebModel: ObservableObject {
             selectTab("account")
             return
         }
-        let target = AppConfig.isInternal(url) ? url : start
+        var target = AppConfig.isInternal(url) ? url : start
+        // Notification d'un message d'événement (?tab=events&event=<id>&chat=1) : la fiche dans la page, la discussion
+        // en natif par-dessus.
+        if let event = Self.eventChatRequested(in: target) {
+            openEventChat(event)
+            var parts = URLComponents(url: target, resolvingAgainstBaseURL: true)
+            let kept = parts?.queryItems?.filter { $0.name != "chat" }
+            parts?.queryItems = kept
+            target = parts?.url ?? target
+        }
         // Notification de discussion (?tab=chats&chat=<groupe>) : l'écran natif ouvre la conversation.
         if discussions { chats?.requested = Self.chatRequested(in: target) ?? chats?.requested }
         guard let webView else {
@@ -299,6 +313,20 @@ final class WebModel: ObservableObject {
         guard awaitingTabs else { return }
         awaitingTabs = false
         tabs = nil
+    }
+
+    nonisolated static func eventChatRequested(in url: URL) -> String? {
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: true)?.queryItems ?? []
+        func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
+        guard value("tab") == "events", value("chat") == "1", let id = value("event"),
+              id.range(of: "^[0-9a-fA-F-]{36}$", options: .regularExpression) != nil else { return nil }
+        return id.lowercased()
+    }
+
+    /// « Discussion » d'un événement (sa fiche, une notification) : l'écran natif façon WhatsApp, par-dessus la page.
+    func openEventChat(_ id: String) {
+        guard id.range(of: "^[0-9a-fA-F-]{36}$", options: .regularExpression) != nil, eventChats != nil else { return }
+        Motion.animate(Motion.smooth) { eventChatID = id.lowercased() }
     }
 
     /// Événement créé par l'assistant IA : l'onglet Événements l'ouvre.

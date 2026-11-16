@@ -35,6 +35,7 @@ def test_the_notification_url_is_followed_on_the_same_site_only():
         {**row, "kind": "event_changed", "event_id": EVENT, "url": "/?tab=account"},
         {**row, "kind": "group_message", "group_id": GROUP},
         {**row, "kind": "pet_daily", "url": "/?tab=games&pet=1"},
+        {**row, "kind": "message", "event_id": EVENT},
     ]) == [
         f"{ORIGIN}/?tab=account",
         f"{ORIGIN}/?tab=events&activity=1",
@@ -45,6 +46,7 @@ def test_the_notification_url_is_followed_on_the_same_site_only():
         f"{ORIGIN}/?tab=events&event={EVENT}",
         f"{ORIGIN}/?tab=chats&chat={GROUP}",
         f"{ORIGIN}/?tab=games&pet=1&src=notif",
+        f"{ORIGIN}/?tab=events&event={EVENT}&chat=1",
     ]
 
 

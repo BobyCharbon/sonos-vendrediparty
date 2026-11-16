@@ -84,7 +84,7 @@ def test_conversation_is_oldest_first_with_names_photos_replies_and_reactions():
     assert first["author_name"] == "Léa" and first["pinned"] and not first["mine"]
     assert first["reactions"] == [{"emoji": "👍", "count": 2, "mine": True}, {"emoji": "😂", "count": 1, "mine": False}]
     assert mine["mine"] and mine["edited"] and mine["photo"].endswith(f"/chat-photos/{GRP}/1-abc.jpg?t=1")
-    assert mine["reply"] == {"name": "Léa", "text": "Tu viens ?"}
+    assert mine["reply"] == {"id": M1, "author": LEA, "name": "Léa", "text": "Tu viens ?"}
     assert mine["author_photo"].endswith("/profile-photos/me.jpg?t=1")
     # Supprimé par un admin : le texte le dit, plus d'épingle ni de photo
     assert removed["deleted"] and removed["body"] == "Message supprimé par un admin" and not removed["pinned"]

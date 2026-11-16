@@ -1,3 +1,4 @@
+import SwiftUI
 import UIKit
 
 /// Discussions de groupe (avis n°10), relayées par le serveur (app/group_chats.py) avec la session du compte.
@@ -75,6 +76,10 @@ struct Conversation: Codable, Equatable {
     struct Reply: Codable, Equatable {
         let name: String
         let text: String
+        /// Message cité : un toucher sur la citation y remonte (absent d'un ancien serveur ou du cache) ; son auteur
+        /// (couleur de son nom).
+        var id: String? = nil
+        var author: String? = nil
     }
 
     struct Message: Codable, Equatable, Identifiable {
@@ -132,6 +137,10 @@ struct Conversation: Codable, Equatable {
         var organizer: Bool? = nil
         /// Numéro montré dans ce groupe (« +41790000001 ») : un toucher appelle.
         var phone: String? = nil
+        /// Discussion d'un événement : sa réponse (yes, maybe, no ; nil sans réponse) ; invité sans réponse (vu par
+        /// l'organisation seulement).
+        var rsvp: String? = nil
+        var invited: Bool? = nil
 
         /// Lien d'appel, seulement pour un numéro valide (chiffres, avec ou sans +).
         var call: URL? {
@@ -157,18 +166,31 @@ struct Conversation: Codable, Equatable {
     var organizer: Bool? = nil
     /// Qui peut écrire @tout : "all" (tous les membres) ou "staff" (admins et organisateurs).
     var everyone: String? = nil
+    /// Citation spéciale (discussion d'un événement, organisation seulement) : @toutlemonde, @present, @annonce.
+    struct Tag: Codable, Equatable {
+        let tag: String
+        let hint: String
+    }
+
     /// Message direct (conversation privée à deux) : l'autre personne, sa photo, bloquée par moi (absent : un groupe).
     var direct: Bool? = nil
     var userID: String? = nil
     var photo: String? = nil
     var blocked: Bool? = nil
+    /// Discussion d'un événement (app/event_chats.py) : citations spéciales permises (vide : aucune).
+    var event: Bool? = nil
+    var tags: [Tag]? = nil
+    /// Temps réel de l'événement (adresse et clé publiques de Supabase), donné avec la discussion d'un événement.
+    var realtime: ChatRealtime.Endpoint? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, name, member, admin, notify, reactions, members, messages, me, highlights, organizer, everyone, direct, photo, blocked
+        case event, tags, realtime
         case canNameAdmins = "can_name_admins", userID = "user_id"
     }
 
     var isDirect: Bool { direct == true }
+    var isEvent: Bool { event == true }
 
     /// Admin ou organisateur : fait des annonces (@annonce) et les retire.
     var isStaff: Bool { admin || (member && organizer == true) }
@@ -177,6 +199,10 @@ struct Conversation: Codable, Equatable {
     /// Prévenu avant l'envoi : @annonce d'un simple membre (message normal), @tout réservé par le groupe.
     func tagNote(for text: String) -> String? {
         if isDirect { return nil }  // à deux : ni @tout ni @annonce
+        if isEvent {
+            guard !isStaff, Mentions.eventTag(in: text) != nil else { return nil }
+            return "@toutlemonde, @present et les annonces sont réservés à l'organisation de l'événement : ton message partira sans prévenir personne."
+        }
         if Mentions.isAnnouncement(text) && !isStaff {
             return "Seuls les admins et organisateurs du groupe font des annonces : ton message partira comme un message normal."
         }
@@ -184,6 +210,19 @@ struct Conversation: Codable, Equatable {
             return "Dans ce groupe, seuls les admins et organisateurs peuvent écrire @tout : personne ne sera prévenu."
         }
         return nil
+    }
+
+    /// Bandeau du haut, façon WhatsApp : annonces puis messages épinglés, les plus récents d'abord ; un toucher montre
+    /// le message et passe au suivant. Message envoyé en annonce pas encore confirmé : montré aussitôt.
+    var pins: [Highlight] {
+        let pendingAnnouncement = messages.filter { $0.pending && $0.isAnnouncement }.map {
+            Highlight(id: $0.id, authorName: $0.authorName, at: $0.at, text: $0.preview, announcement: true)
+        }
+        let list = (highlights ?? messages.filter { $0.pinned && !$0.deleted }.map {
+            Highlight(id: $0.id, authorName: $0.authorName, at: $0.at, text: $0.preview, announcement: $0.isAnnouncement)
+        }) + pendingAnnouncement
+        let newest = Array(list.reversed())
+        return newest.filter(\.announcement) + newest.filter { !$0.announcement }
     }
 
     /// Dernier message épinglé : affiché en bandeau en haut de la conversation.
@@ -207,7 +246,8 @@ struct Conversation: Codable, Equatable {
     func with(messages: [Message]) -> Conversation {
         Conversation(id: id, name: name, member: member, admin: admin, notify: notify, canNameAdmins: canNameAdmins,
                      me: me, reactions: reactions, members: members, messages: messages, highlights: highlights,
-                     organizer: organizer, everyone: everyone, direct: direct, userID: userID, photo: photo, blocked: blocked)
+                     organizer: organizer, everyone: everyone, direct: direct, userID: userID, photo: photo, blocked: blocked,
+                     event: event, tags: tags, realtime: realtime)
     }
 
     /// Membres cités par « @surnom » (sans accents ni casse) dans le texte (sauf moi) : envoyés avec le message,
@@ -250,7 +290,8 @@ enum Mentions {
     /// everyone : je peux écrire @tout ; announce : je peux faire une annonce (admins et organisateurs).
     /// contacts : noms du répertoire (app iPhone) ; « @mar » trouve aussi le membre enregistré « Marie » dans mes contacts.
     static func suggestions(for query: String, members: [Conversation.Member], me: String?,
-                            everyone: Bool = true, announce: Bool = true, contacts: [String: String] = [:]) -> [Suggestion] {
+                            everyone: Bool = true, announce: Bool = true, contacts: [String: String] = [:],
+                            tags: [Conversation.Tag]? = nil) -> [Suggestion] {
         let q = fold(query)
         func starts(_ name: String) -> Bool {
             let n = fold(name)
@@ -262,8 +303,11 @@ enum Mentions {
                 return pa != pb ? pa : a.name.localizedCompare(b.name) == .orderedAscending
             }
             .map { Suggestion(id: $0.id, label: $0.name, hint: contacts[$0.id] ?? "", member: $0) }
-        let tags = specials.filter { $0.label.hasPrefix(q) && ($0.label == "tout" ? everyone : announce) }
-        return Array(found.prefix(maxShown - tags.count)) + tags
+        // Événement : les citations de l'organisation (@toutlemonde, @present, @annonce) ; groupe : @tout et @annonce.
+        let special = tags.map { $0.map { Suggestion(id: "@" + $0.tag, label: $0.tag, hint: $0.hint, member: nil) } }
+            ?? specials.filter { $0.label == "tout" ? everyone : announce }
+        let shownTags = special.filter { fold($0.label).hasPrefix(q) }
+        return Array(found.prefix(maxShown - shownTags.count)) + shownTags
     }
 
     /// Remplace l'@ en cours par « @Surnom » suivi d'une espace.
@@ -272,9 +316,135 @@ enum Mentions {
         return String(text[..<at]) + "@" + label + " "
     }
 
+    /// Citation de l'organisation d'un événement dans le texte (@toutlemonde, @present, @annonce), même règle que la
+    /// base (guard_message_change) ; nil s'il n'y en a pas.
+    static func eventTag(in body: String) -> String? {
+        for tag in ["toutlemonde", "pr[eé]sents?", "annonce"] {
+            if body.range(of: "(^|[^\\p{L}\\p{N}_])@\(tag)($|[^\\p{L}\\p{N}_])", options: [.regularExpression, .caseInsensitive]) != nil {
+                return tag
+            }
+        }
+        return nil
+    }
+
+    /// Texte d'une bulle : chaque « @surnom » d'un membre (et @tout, @toutlemonde, @present, @annonce) en gras et en
+    /// couleur, comme WhatsApp ; le reste tel quel (liens détectés par Text).
+    static func highlighted(_ body: String, names: [String], color: Color) -> AttributedString {
+        let words = Array(Set((names + ["toutlemonde", "tout", "presents", "present", "annonce"]).filter { !$0.isEmpty }.map(fold)))
+            .sorted { $0.count > $1.count }
+        func wordChar(_ c: Character) -> Bool { c.isLetter || c.isNumber || c == "_" }
+        var out = AttributedString()
+        var plain = ""
+        var i = body.startIndex
+        while i < body.endIndex {
+            if body[i] == "@", i == body.startIndex || !wordChar(body[body.index(before: i)]) {
+                let rest = body[body.index(after: i)...]
+                let hit = words.lazy.compactMap { w -> String.Index? in
+                    guard let end = rest.index(rest.startIndex, offsetBy: w.count, limitedBy: rest.endIndex),
+                          fold(String(rest[..<end])) == w, end == rest.endIndex || !wordChar(rest[end]) else { return nil }
+                    return end
+                }.first
+                if let end = hit {
+                    out += AttributedString(plain)
+                    plain = ""
+                    var tagged = AttributedString(String(body[i..<end]))
+                    tagged.foregroundColor = color
+                    tagged.inlinePresentationIntent = .stronglyEmphasized
+                    out += tagged
+                    i = end
+                    continue
+                }
+            }
+            plain.append(body[i])
+            i = body.index(after: i)
+        }
+        out += AttributedString(plain)
+        return linked(out)
+    }
+
+    /// Adresses web, e-mails et numéros du message : des liens touchables (comme la version web, LinkedText).
+    static func linked(_ text: AttributedString) -> AttributedString {
+        let plain = String(text.characters)
+        guard plain.contains(where: { $0 == "." || $0 == "@" || $0.isNumber }),
+              let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue
+                                                 | NSTextCheckingResult.CheckingType.phoneNumber.rawValue) else { return text }
+        let matches = detector.matches(in: plain, range: NSRange(plain.startIndex..., in: plain))
+        guard !matches.isEmpty else { return text }
+        let ns = NSMutableAttributedString(text)
+        for match in matches {
+            let url = match.url ?? match.phoneNumber.flatMap { URL(string: "tel:" + $0.filter { $0.isNumber || $0 == "+" }) }
+            guard let url, ["http", "https", "mailto", "tel"].contains(url.scheme?.lowercased() ?? "") else { continue }
+            ns.addAttribute(.link, value: url, range: match.range)
+            ns.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: match.range)
+        }
+        return (try? AttributedString(ns, including: \.swiftUI)) ?? text
+    }
+
     /// « @annonce » en mot entier, sans casse (même règle que la base, guard_group_message).
     static func isAnnouncement(_ body: String) -> Bool {
         body.range(of: "(^|[^\\p{L}\\p{N}_])@annonce($|[^\\p{L}\\p{N}_])", options: [.regularExpression, .caseInsensitive]) != nil
+    }
+}
+
+/// Fil de la discussion, façon WhatsApp : un séparateur par jour (« Aujourd'hui », « Hier », « lundi », « 12 novembre »)
+/// et les messages d'une même personne regroupés (moins de 5 min d'écart, même jour) : nom en tête de la série,
+/// photo en bas, bulles rapprochées.
+enum ChatTimeline {
+    struct Row: Identifiable, Equatable {
+        enum Kind: Equatable {
+            case day(String)
+            case message(Conversation.Message, first: Bool, last: Bool)
+        }
+
+        let id: String
+        let kind: Kind
+    }
+
+    static let series: TimeInterval = 5 * 60
+
+    static func rows(_ messages: [Conversation.Message], now: Date = Date(), calendar: Calendar = .current) -> [Row] {
+        var rows: [Row] = []
+        var day: Date?
+        for (i, m) in messages.enumerated() {
+            let date = m.date ?? now
+            if day.map({ !calendar.isDate($0, inSameDayAs: date) }) ?? true {
+                day = date
+                rows.append(Row(id: "day-" + m.id, kind: .day(label(for: date, now: now, calendar: calendar))))
+            }
+            let previous = i > 0 ? messages[i - 1] : nil
+            let next = i + 1 < messages.count ? messages[i + 1] : nil
+            rows.append(Row(id: m.id, kind: .message(m, first: !joins(previous, m, calendar), last: !joins(m, next, calendar))))
+        }
+        return rows
+    }
+
+    /// Deux messages de la même série : même auteur, même jour, moins de 5 min, ni l'un ni l'autre une annonce.
+    static func joins(_ a: Conversation.Message?, _ b: Conversation.Message?, _ calendar: Calendar = .current) -> Bool {
+        guard let a, let b, a.author == b.author, !a.isAnnouncement, !b.isAnnouncement else { return false }
+        guard let da = a.date, let db = b.date else { return true }
+        return calendar.isDate(da, inSameDayAs: db) && abs(db.timeIntervalSince(da)) < series
+    }
+
+    static func label(for date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
+        if calendar.isDate(date, inSameDayAs: now) { return "Aujourd'hui" }
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) { return "Hier" }
+        let fr = Locale(identifier: "fr_CH")
+        if let week = calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: now)), date >= week, date <= now {
+            return date.formatted(.dateTime.weekday(.wide).locale(fr)).capitalized(with: fr)
+        }
+        let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
+        return sameYear ? date.formatted(.dateTime.day().month(.wide).locale(fr))
+                        : date.formatted(.dateTime.day().month(.wide).year().locale(fr))
+    }
+
+    /// Couleur du nom d'un auteur dans un groupe : stable d'un lancement à l'autre, lisible sur fond sombre.
+    static func nameColor(for id: String) -> Color {
+        let palette: [Color] = [Color(red: 0.73, green: 0.65, blue: 1), Color(red: 0.45, green: 0.85, blue: 0.95),
+                                Color(red: 1, green: 0.62, blue: 0.45), Color(red: 0.55, green: 0.9, blue: 0.55),
+                                Color(red: 1, green: 0.55, blue: 0.75), Color(red: 1, green: 0.82, blue: 0.4),
+                                Color(red: 0.5, green: 0.7, blue: 1), Color(red: 0.85, green: 0.6, blue: 0.95)]
+        let sum = id.unicodeScalars.reduce(UInt32(5381)) { ($0 &* 33) &+ $1.value }
+        return palette[Int(sum % UInt32(palette.count))]
     }
 }
 
@@ -393,6 +563,44 @@ extension PartyAPI {
 
     func setChatEveryone(token: String, group: String, who: String) async throws {
         try await post("/api/account/chats/everyone", body: ["token": token, "group_id": group, "who": who])
+    }
+
+    // Discussion d'un événement (/api/account/event-chat/*, app/event_chats.py) : mêmes gestes, autres routes.
+    func openEventChat(token: String, event: String) async throws -> Conversation {
+        try await postDecoding("/api/account/event-chat/open", body: ["token": token, "event_id": event])
+    }
+
+    func sendEventChat(token: String, event: String, body: String, replyTo: String?, photoPath: String?, mentions: [String],
+                       id: String, audioPath: String? = nil, audioSeconds: Double? = nil, announcement: Bool = false) async throws {
+        var payload: [String: Any] = ["token": token, "event_id": event, "body": body, "mentions": mentions, "id": id,
+                                      "announcement": announcement]
+        if let audioPath { payload["audio_path"] = audioPath }
+        if let audioSeconds { payload["audio_seconds"] = (audioSeconds * 10).rounded() / 10 }
+        if let replyTo { payload["reply_to"] = replyTo }
+        if let photoPath { payload["photo_path"] = photoPath }
+        try await post("/api/account/event-chat/send", body: payload)
+    }
+
+    func uploadEventChatFile(token: String, event: String, data: Data, audio: Bool) async throws -> String {
+        let r: PhotoPath = try await postDecoding(audio ? "/api/account/event-chat/audio" : "/api/account/event-chat/photo",
+                                                  body: ["token": token, "event_id": event, "photo": data.base64EncodedString()])
+        return r.path
+    }
+
+    func reactEventChat(token: String, message: String, emoji: String, on: Bool) async throws {
+        try await post("/api/account/event-chat/react", body: ["token": token, "id": message, "emoji": emoji, "on": on])
+    }
+
+    func pinEventChat(token: String, message: String, pin: Bool) async throws {
+        try await post("/api/account/event-chat/pin", body: ["token": token, "id": message, "pin": pin])
+    }
+
+    func deleteEventChat(token: String, message: String) async throws {
+        try await post("/api/account/event-chat/delete", body: ["token": token, "id": message])
+    }
+
+    func notifyEventChat(token: String, event: String, level: ChatNotify) async throws {
+        try await post("/api/account/event-chat/notify", body: ["token": token, "event_id": event, "level": level == .none ? "none" : "all"])
     }
 
     func readChat(token: String, group: String, direct: Bool = false) async throws {

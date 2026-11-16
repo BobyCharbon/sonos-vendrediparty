@@ -20,6 +20,12 @@ struct MotionDemo: View {
                             .tint(Palette.accent)
                             .padding(.top, proxy.safeAreaInsets.top)
                     }
+                case "eventchat":
+                    if let chats = model.eventChats {
+                        NavigationStack { ConversationView(store: chats, group: "event-demo") }
+                            .tint(Palette.accent)
+                            .padding(.top, proxy.safeAreaInsets.top)
+                    }
                 case "chats":
                     if let chats = model.chats { ChatsView(store: chats, topInset: proxy.safeAreaInsets.top) }
                 default:
@@ -36,6 +42,7 @@ struct MotionDemo: View {
             case "music": await playMusic()
             case "chat": await playChat()
             case "chats": await playList()
+            case "eventchat", "eventchat-top": playEventChat(top: wanted == "eventchat-top")
             default: assertionFailure("PARTY_DEBUG_MOTION inconnu : \(wanted)")
             }
         }
@@ -146,6 +153,50 @@ struct MotionDemo: View {
             return copy
         })
         return chat
+    }
+
+    // MARK: Discussion d'un événement (16.11) : annonce, épinglé, citations, réponse, réactions, plusieurs jours
+
+    /// top : seulement le début (annonce, épinglé, changement de jour), pour le voir sans défiler.
+    private func playEventChat(top: Bool = false) {
+        guard let store = model.eventChats else { return }
+        func m(_ id: String, _ who: String, _ body: String, _ minutes: Double, mine: Bool = false) -> [String: Any] {
+            var row = Self.message(id, who, body, minutesAgo: minutes, mine: mine)
+            row["author"] = "id-" + who
+            return row
+        }
+        var a = m("a1", "Léa", "@annonce Rendez-vous 19 h devant la salle, parking derrière 🚗", 1500)
+        a["pinned"] = true
+        a["announcement"] = true
+        var p = m("p1", "Tom", "Code de la porte : 4521", 1450)
+        p["pinned"] = true
+        var r = m("r3", "Moi", "Je prends les verres et la glace 🧊", 30, mine: true)
+        r["reply"] = ["id": "q2", "author": "id-Zoé", "name": "Zoé", "text": "Qui amène les verres ?"]
+        var t = m("t1", "Tom", "@toutlemonde on lance le blind test à 21 h, préparez vos playlists !", 3)
+        t["reactions"] = [["emoji": "🔥", "count": 3, "mine": true], ["emoji": "😂", "count": 1, "mine": false]]
+        let messages: [[String: Any]] = [
+            a, p,
+            m("q1", "Zoé", "Trop hâte !!", 1440),
+            m("q2", "Zoé", "Qui amène les verres ?", 34),
+            m("q3", "Zoé", "Et des pailles si possible", 33),
+            r,
+            m("r4", "Moi", "@Léa tu as encore la sono ?", 29, mine: true),
+            m("l1", "Léa", "Oui, je la prends 👍", 12),
+            t,
+        ]
+        let json: [String: Any] = [
+            "id": "event-demo", "name": "Soirée blind test", "member": true, "admin": true, "organizer": true, "event": true,
+            "notify": "all", "can_name_admins": false, "me": "Moi", "reactions": ["👍", "❤️", "😂", "😮", "😢", "🔥"],
+            "tags": [["tag": "toutlemonde", "hint": "Tout le monde : invités et participants"],
+                     ["tag": "present", "hint": "Les présents et les peut-être"], ["tag": "annonce", "hint": "Annonce épinglée"]],
+            "members": [["id": "Moi", "name": "Moi", "admin": false, "creator": false, "rsvp": "yes"],
+                        ["id": "id-Léa", "name": "Léa", "admin": false, "creator": false, "organizer": true],
+                        ["id": "id-Tom", "name": "Tom", "admin": false, "creator": false, "rsvp": "yes"],
+                        ["id": "id-Zoé", "name": "Zoé", "admin": false, "creator": false, "rsvp": "maybe"]],
+            "messages": top ? Array(messages.prefix(5)) : messages,
+        ]
+        store.showDemo(conversation: Self.decode(json) as Conversation)
+        scene = "eventchat"
     }
 
     // MARK: Liste des discussions

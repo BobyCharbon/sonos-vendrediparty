@@ -7,6 +7,8 @@ window.PartyEvents = {
     const ticket = params.get('ticket') || '';
     const validId = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id);
     if (validId && /^[a-f0-9]{64}$/i.test(ticket)) return '/events/event/' + id + '/scan/' + ticket.toLowerCase();
+    // Notification d'un message de la discussion (?chat=1) : la discussion de l'événement.
+    if (validId && params.get('chat') === '1') return '/events/event/' + id + '/chat';
     if (validId) return '/events/event/' + id;
     if (params.get('activity') === '1') return '/events/activity';
     return admin ? '/events/admin' : '/events/';

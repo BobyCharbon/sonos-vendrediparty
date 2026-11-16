@@ -72,7 +72,7 @@ def test_direct_conversation_looks_like_a_group_with_the_other_person_and_no_sta
     assert c["direct"] is True and c["name"] == "Léa" and c["user_id"] == LEA and c["photo"].endswith("/profile-photos/lea.jpg?t=1")
     assert c["notify"] == "none" and not c["admin"] and not c["organizer"] and c["everyone"] == "staff" and not c["can_name_admins"]
     assert [m["id"] for m in c["messages"]] == [M1, M2]
-    assert c["messages"][1]["reply"] == {"name": "Léa", "text": "Tu viens ?"} and c["messages"][1]["mine"]
+    assert c["messages"][1]["reply"] == {"id": M1, "author": LEA, "name": "Léa", "text": "Tu viens ?"} and c["messages"][1]["mine"]
     assert c["messages"][0]["reactions"] == [{"emoji": "❤️", "count": 1, "mine": True}]
     assert c["highlights"] == [{"id": M1, "author_name": "Léa", "at": "2026-11-04T10:00:00Z", "text": "Tu viens ?", "announcement": False}]
     assert {m["id"] for m in c["members"]} == {ME, LEA} and c["blocked"] is False

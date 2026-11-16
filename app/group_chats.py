@@ -310,7 +310,7 @@ class GroupChats:
             "pinned": bool(m.get("pinned")) and not deleted,
             "announcement": bool(m.get("announcement")) and bool(m.get("pinned")) and not deleted,
             "reply": None if not quoted or deleted else {
-                "name": name(quoted["user_id"]),
+                "id": quoted["id"], "author": quoted["user_id"], "name": name(quoted["user_id"]),
                 "text": deleted_label(quoted) if quoted.get("deleted_at") else quoted.get("body") or "📷 Photo"},
             "reactions": reactions_of(m["id"], reactions, me),
         }

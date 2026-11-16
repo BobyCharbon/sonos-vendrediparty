@@ -225,7 +225,7 @@ def test_a_double_tap_on_send_while_the_terms_are_read_sends_one_message(browser
         pw.expect(page.get_by_text('Salut tout le monde', exact=True)).to_be_visible(timeout=15000)
         state['accepted'] = True  # acceptées ailleurs entre-temps : la relecture des CGU laisse passer les deux touchers
         page.get_by_label('Message', exact=True).fill('Coucou')
-        page.get_by_role('button', name='Envoyer').dblclick()
+        page.get_by_role('button', name='Envoyer', exact=True).dblclick()
         page.wait_for_timeout(2500)
         assert len(posts) == 1, posts
     finally:
@@ -388,7 +388,7 @@ def test_forum_hides_blocked_people_and_suggests_names_after_at(browser, v2_orig
         pw.expect(page.get_by_role('menuitem', name='Citer Bot Gus')).to_have_count(0)
         suggestion.click()
         assert field.input_value() == 'Salut @Bot Victor '
-        page.get_by_role('button', name='Envoyer').click()
+        page.get_by_role('button', name='Envoyer', exact=True).click()
         page.wait_for_timeout(1000)
         assert posts and VICTOR in posts[0], posts
     finally:

@@ -44,6 +44,8 @@ export function tapPath(data: Record<string, unknown>): string {
   if (typeof data.kind === 'string' && data.kind.startsWith('pet_')) return '/?tab=games&pet=1&src=notif';
   if ((data.kind === 'group_message' || data.kind === 'direct_message') && typeof data.group_id === 'string' && UUID.test(data.group_id)) return `/?tab=chats&chat=${data.group_id}`;
   const event = typeof data.event_id === 'string' && /^[0-9a-f-]{36}$/.test(data.event_id) ? data.event_id : null;
+  // Message de la discussion d'un événement : le toucher ouvre la discussion (écran natif de l'app iPhone).
+  if (event && data.kind === 'message') return `/?tab=events&event=${event}&chat=1`;
   return event ? `/?tab=events&event=${event}` : '/?tab=events&activity=1';
 }
 

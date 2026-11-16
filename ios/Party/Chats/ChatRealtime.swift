@@ -6,7 +6,7 @@ import Foundation
 /// ce que le compte a le droit de lire. Coupé ou refusé : l'écran garde son rafraîchissement de secours.
 @MainActor
 final class ChatRealtime {
-    struct Endpoint: Decodable, Equatable {
+    struct Endpoint: Codable, Equatable {
         let url: String
         let key: String
     }
@@ -19,6 +19,9 @@ final class ChatRealtime {
     private let topic: String
     private let filter: String?
     private let direct: Bool
+    /// Discussion d'un événement : on écoute son signal (canal public « event:<id> », sans contenu), qui couvre
+    /// messages, réactions, épingles et suppressions (migration 20261116140000).
+    private let broadcast: Bool
     private let changed: () -> Void
     private var socket: URLSessionWebSocketTask?
     private var tasks: [Task<Void, Never>] = []
@@ -33,6 +36,17 @@ final class ChatRealtime {
         self.topic = "realtime:party-chat-\(group ?? "list")-\(UUID().uuidString.prefix(8))"
         self.filter = group.map { direct ? "chat_id=eq.\($0)" : "group_id=eq.\($0)" }
         self.direct = direct
+        self.broadcast = false
+        self.changed = changed
+    }
+
+    init(endpoint: Endpoint, token: String, event: String, changed: @escaping () -> Void) {
+        self.endpoint = endpoint
+        self.token = token
+        self.topic = "realtime:event:\(event)"
+        self.filter = nil
+        self.direct = false
+        self.broadcast = true
         self.changed = changed
     }
 
@@ -61,7 +75,8 @@ final class ChatRealtime {
         let socket = URLSession.shared.webSocketTask(with: url)
         self.socket = socket
         socket.resume()
-        send(Self.joinMessage(topic: topic, filter: filter, token: token, ref: nextRef(), direct: direct))
+        send(broadcast ? Self.signalJoin(topic: topic, token: token, ref: nextRef())
+                       : Self.joinMessage(topic: topic, filter: filter, token: token, ref: nextRef(), direct: direct))
         tasks.append(Task { [weak self] in await self?.listen(socket) })
         tasks.append(Task { [weak self] in
             while !Task.isCancelled {
@@ -89,6 +104,13 @@ final class ChatRealtime {
         ]
     }
 
+    /// Abonnement au signal d'un événement (diffusion publique, aucune donnée de la base).
+    nonisolated static func signalJoin(topic: String, token: String, ref: String) -> [String: Any] {
+        ["topic": topic, "event": "phx_join", "ref": ref, "join_ref": ref,
+         "payload": ["config": ["broadcast": ["self": false], "presence": ["key": ""], "postgres_changes": [Any](), "private": false],
+                     "access_token": token]]
+    }
+
     private func send(_ message: [String: Any]) {
         guard let data = try? JSONSerialization.data(withJSONObject: message), let text = String(data: data, encoding: .utf8) else { return }
         socket?.send(.string(text)) { _ in }
@@ -112,6 +134,6 @@ final class ChatRealtime {
     nonisolated static func isChange(_ text: String) -> Bool {
         guard let data = text.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
-        return json["event"] as? String == "postgres_changes"
+        return ["postgres_changes", "broadcast"].contains(json["event"] as? String ?? "")
     }
 }
