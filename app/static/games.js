@@ -901,7 +901,8 @@ async function gapi(path, body) {
 function setGame(code) {
   // Une nouvelle partie (créée, rejointe par code ou par QR) s'ouvre toujours en plein écran.
   if (code && code !== myGame) pyrFull = true;
-  if (code !== myGame) gSeq++;
+  // Autre partie (jeu lancé dans la salle, retour à la salle…) : elle s'ouvre en haut, pas au défilement de la précédente.
+  if (code !== myGame) { gSeq++; if ($("gamePlay")) $("gamePlay").scrollTop = 0; }
   myGame = code; store("vp_game", code); $("gameDot")?.classList.toggle("hidden", !code);
   if (!code) syncGameChrome();
 }
@@ -3160,7 +3161,7 @@ document.addEventListener("click", async (ev) => {
 });
 async function joinByCode() {
   const code = $("gCode").value.trim();
-  if (!/^\d{4}$/.test(code)) return;
+  if (!/^\d{4}$/.test(code)) return toast("Le code de la salle a 4 chiffres.", "err");
   $("gCode").value = ""; $("gCode").blur();
   setGame(code); autoJoin = true;
   await refreshGame();
