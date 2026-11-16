@@ -248,7 +248,8 @@ export default function EventScreen() {
 
   const infoRows = [
     ev.price_chf != null ? { k: 'Prix', v: ev.price_chf === 0 ? 'Gratuit' : `${chf(ev.price_chf)} / personne`,
-      sub: [ev.price_chf > 0 ? PAY_MODE_LINE[ev.payment_mode ?? 'organizer'] : null, ev.payment_info].filter(Boolean).join(' · ') || null } : null,
+      sub: [ev.price_chf > 0 ? PAY_MODE_LINE[ev.payment_mode ?? 'organizer'] : null,
+        ev.price_chf > 0 && ev.payment_mode !== 'on_site' && ev.payment_open === false ? 'paiement bientôt possible' : null, ev.payment_info].filter(Boolean).join(' · ') || null } : null,
     ev.max_participants
       ? { k: 'Places', v: `${heads} / ${ev.max_participants}`, sub: heads >= ev.max_participants ? (ev.waitlist_enabled ? 'Complet · liste d’attente ouverte' : 'Complet') : plural(ev.max_participants - heads, 'place libre', 'places libres') }
       : ev.date_mode === 'fixed' ? { k: 'Places', v: '∞ Illimité', sub: plural(heads, 'personne inscrite', 'personnes inscrites') } : null,

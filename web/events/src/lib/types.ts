@@ -64,6 +64,8 @@ export type EventRow = {
   payment_mode?: PaymentMode;
   /** Lien de paiement (Revolut, billetterie…), https ; obligatoire « en ligne ». */
   payment_url?: string | null;
+  /** Paiement ouvert aux invités (migration 20261116130000) ; éteint : tout est prêt, « Paiement bientôt possible ». */
+  payment_open?: boolean;
   max_participants: number | null;
   waitlist_enabled: boolean;
   allow_plus_ones: boolean;

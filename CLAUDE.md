@@ -100,6 +100,10 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   choisit jamais le mode. Le lien de l'événement remplace celui du même service dans le profil (un seul « Payer avec Revolut »).
   Tests : `tests/supabase_live/test_paiement_mode_live.py`, `test_paiement_mode_browser_live.py` (recette réelle),
   `test_event_tickets_browser.py`.
+  « Paiement ouvert » (16.11, migration 20261116130000, `events.payment_open`, allumé par défaut) : l'organisateur prépare
+  tout puis l'allume ; éteint, les invités voient « ⏳ paiement bientôt possible » sans lien ni bouton, `event_pay_info`
+  ne donne aucun lien, `declare_ticket_payment` refuse « J'ai payé ». Tests : `test_paiement_mode_live.py`,
+  `test_event_tickets_browser.py`, `test_event_organizer_browser.py`.
   Tout lien de paiement est un vrai lien (`Button href` → `<a target="_blank">`), jamais `Linking.openURL` / `window.open`
   depuis un toucher : Safari en navigation privée l'ignorait (avis du 16.11). La fiche reste ouverte derrière.
 - Bar : devise du bar par événement, francs (défaut) ou euros (« Options » › Devise, `event_bars.currency`,

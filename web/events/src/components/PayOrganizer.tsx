@@ -81,7 +81,7 @@ function PaySheet({ info, onDeclare, onClose, busy, error }: { info: PayInfo; on
 }
 
 /** Comment payer cet événement (réglage de l'organisateur, maquette du 15.11.2026). */
-export type PaySetup = { mode: PaymentMode; url: string | null; organizer: string | null; info: string | null };
+export type PaySetup = { mode: PaymentMode; url: string | null; organizer: string | null; info: string | null; open?: boolean };
 
 /**
  * Paiement « entre amis » sur le billet (avec ou sans QR : option « Billets QR » éteinte ou billet pas encore remis) : à payer → « Payer l'organisateur » ; payé, en attente de confirmation ;
@@ -143,6 +143,17 @@ export function PayOrganizer({ eventId, ticket, onTicket, pay }: { eventId: stri
         <View style={{ flex: 1, gap: 2 }}>
           <T size={14} weight="bold" color={colors.coralSoft}>📍 {chf(price)} · à payer sur place</T>
           {pay.info ? <LinkedText size={12} color={colors.muted} text={pay.info} /> : null}
+        </View>
+      </View>
+    );
+  }
+  // Paiement préparé mais pas encore ouvert par l'organisateur (avis du 16.11) : ni bouton ni lien.
+  if (pay.open === false) {
+    return (
+      <View style={[st.status, st.onSite]} accessibilityRole="text">
+        <View style={{ flex: 1, gap: 2 }}>
+          <T size={14} weight="bold" color={colors.coralSoft}>⏳ {chf(price)} · paiement bientôt possible</T>
+          <T size={12} muted>L’organisateur ouvre le paiement ici dès que c’est prêt. Rien à faire pour l’instant.</T>
         </View>
       </View>
     );

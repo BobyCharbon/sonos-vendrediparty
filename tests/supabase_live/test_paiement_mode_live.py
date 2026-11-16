@@ -89,3 +89,20 @@ def test_a_guest_cannot_change_how_the_event_is_paid(party):
     assert r.status_code == 200 and r.json() == [], r.text  # aucune ligne modifiable (RLS)
     assert admin.get(f'events?id=eq.{eid}&select=payment_mode,payment_url').json()[0] == before
     assert patch(admin, eid, payment_mode='organizer', payment_url='javascript:alert(1)').status_code == 400
+
+
+def test_payment_prepared_but_not_open_yet_shows_no_link_and_refuses_i_paid(party):
+    # Avis du 16.11 : l'organisateur prépare tout, coche « Paiement ouvert » quand c'est prêt.
+    admin, a, eid = party
+    a.rpc('declare_ticket_payment', e=eid, declared=False)
+    assert patch(admin, eid, payment_mode='online', payment_url='https://billetterie.example.ch/x', payment_open=False).status_code in (200, 204)
+    assert a.rpc('event_pay_info', e=eid).json() is None            # aucun lien avant l'ouverture
+    assert admin.rpc('event_pay_info', e=eid).json()['open'] is False  # l'organisateur voit tout pour préparer
+    r = a.rpc('declare_ticket_payment', e=eid, declared=True)
+    assert r.status_code == 400 and 'pas encore ouvert' in r.text, r.text
+    assert patch(admin, eid, payment_open=True).status_code in (200, 204)
+    info = a.rpc('event_pay_info', e=eid).json()
+    assert info['open'] is True and info['payment_url'] == 'https://billetterie.example.ch/x'
+    assert a.rpc('declare_ticket_payment', e=eid, declared=True).json()['pay_pending'] is True
+    a.rpc('declare_ticket_payment', e=eid, declared=False)
+    patch(admin, eid, payment_mode='organizer', payment_url=None)

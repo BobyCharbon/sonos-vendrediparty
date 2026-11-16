@@ -207,6 +207,10 @@ def test_advanced_form_sends_every_option(browser, events_origin):
         pw.expect(frame.get_by_role('radio', name='On me paie', exact=False)).to_have_attribute('aria-checked', 'true')
         frame.get_by_role('radio', name='Paiement en ligne', exact=False).click()
         field(frame, 'Précision (facultatif)').fill('TWINT')
+        # Paiement préparé, pas encore ouvert (avis du 16.11) : allumé par défaut, on l'éteint
+        pw.expect(frame.get_by_role('switch', name='Paiement ouvert', exact=True)).to_be_checked()
+        frame.get_by_role('switch', name='Paiement ouvert', exact=True).click()
+        pw.expect(frame.get_by_text('Paiement bientôt possible', exact=False).first).to_be_visible()
         frame.get_by_role('switch', name='Billets QR', exact=True).click()
         pw.expect(frame.get_by_role('button', name='✓ Publique + lien', exact=True)).to_be_visible()  # public par défaut
         field(frame, 'Nombre de places (vide = illimité)').fill('12')
@@ -247,7 +251,7 @@ def test_advanced_form_sends_every_option(browser, events_origin):
         assert (row['visibility'], row['public_link'], row['tickets_enabled']) == ('all', True, True)
         assert row['pot_enabled'] is True and row['forum_enabled'] is False and row['notify_on_publish'] is False
         assert row['location_url'] == 'https://chalet.example'
-        assert (row['payment_mode'], row['payment_url']) == ('online', 'https://billetterie.example/raclette')
+        assert (row['payment_mode'], row['payment_url'], row['payment_open']) == ('online', 'https://billetterie.example/raclette', False)
         assert [b for _, b in base.wrote('POST', 'event_tags')] == [[{'event_id': NEW, 'tag_id': TAG}]]
         assert [b for _, b in base.wrote('POST', 'event_organizers')] == [[{'event_id': NEW, 'user_id': LEA}]]
         (_, poll), = base.wrote('POST', 'polls')

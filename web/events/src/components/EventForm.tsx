@@ -57,6 +57,7 @@ type Draft = {
   payment_info: string;
   payment_mode: PaymentMode;
   payment_url: string;
+  payment_open: boolean;
   max_participants: string;
   waitlist_enabled: boolean;
   allow_plus_ones: boolean;
@@ -98,6 +99,7 @@ const emptyDraft: Draft = {
   payment_info: '',
   payment_mode: 'organizer',
   payment_url: '',
+  payment_open: true,
   max_participants: '',
   waitlist_enabled: true,
   allow_plus_ones: true,   // nouvel événement : accompagnants autorisés, sans limite (max vide = illimité)
@@ -218,6 +220,7 @@ async function loadDraft(eventId: string): Promise<Draft> {
     payment_info: e.payment_info ?? '',
     payment_mode: e.payment_mode ?? 'organizer',
     payment_url: e.payment_url ?? '',
+    payment_open: e.payment_open !== false,
     max_participants: e.max_participants?.toString() ?? '',
     waitlist_enabled: e.waitlist_enabled,
     allow_plus_ones: e.allow_plus_ones,
@@ -433,6 +436,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
         payment_info: paid ? d.payment_info.trim() || null : null,
         payment_mode: paid ? d.payment_mode : 'organizer',
         payment_url: payLink || null,
+        payment_open: paid && d.payment_mode !== 'on_site' ? d.payment_open : true,
         max_participants: max,
         waitlist_enabled: d.waitlist_enabled,
         allow_plus_ones: d.allow_plus_ones,
@@ -925,6 +929,11 @@ function PaymentChoice({ d, set }: { d: Draft; set: (patch: Partial<Draft>) => v
         <Field label={d.payment_mode === 'online' ? 'Lien de paiement' : 'Lien de paiement (facultatif)'} autoCapitalize="none" keyboardType="url"
           placeholder={d.payment_mode === 'online' ? 'https://billetterie…' : 'https://revolut.me/…'}
           value={d.payment_url} onChangeText={(payment_url) => set({ payment_url })} />
+      ) : null}
+      {d.payment_mode !== 'on_site' ? (
+        <ToggleRow label="Paiement ouvert" value={d.payment_open} onChange={(payment_open) => set({ payment_open })}
+          hint={d.payment_open ? 'Les invités voient le bouton pour payer.'
+            : 'Tout est prêt, mais pas encore de bouton : les invités voient « Paiement bientôt possible ». Allume-le quand c’est bon.'} />
       ) : null}
       <Field label="Précision (facultatif)" placeholder={d.payment_mode === 'on_site' ? 'Cash ou carte à l’accueil' : d.payment_mode === 'online' ? 'Choisis « Paintball 2 h »' : 'Twint ou Revolut, avant le jour J'}
         value={d.payment_info} onChangeText={(payment_info) => set({ payment_info })} />

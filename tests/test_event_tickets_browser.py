@@ -5,6 +5,7 @@
 Module construit ailleurs que web/events/dist : EVENTS_TEST_DIST=<dossier> (sinon web/events/dist)."""
 import json
 import os
+import re
 from pathlib import Path
 import socket
 import subprocess
@@ -395,6 +396,21 @@ def test_online_payment_opens_the_link_then_the_guest_notes_it_and_waits(browser
         pw.expect(frame.get_by_text('Payé · en attente de confirmation', exact=True).first).to_be_visible(timeout=10000)
         pw.expect(frame.get_by_text('L’organisateur confirme dès qu’il a vérifié ton paiement.', exact=True)).to_be_visible()
         assert state['declared'] == [True]
+        assert not errors
+    finally:
+        context.close()
+
+
+def test_payment_prepared_but_not_open_shows_coming_soon_without_any_button(browser, origin):
+    # Avis du 16.11 : tout est prêt (mode, lien), l'organisateur n'a pas encore coché « Paiement ouvert ».
+    context, page, frame, state, errors, _ = launch(browser, origin, [MINE_YES], extra={
+        'payment_mode': 'online', 'payment_url': 'https://billetterie.example.ch/paintball', 'payment_open': False})
+    try:
+        frame.get_by_text('Sortie de démonstration (test local)', exact=True).click()
+        pw.expect(frame.get_by_text('⏳ 20 CHF · paiement bientôt possible', exact=True)).to_be_visible(timeout=10000)
+        pw.expect(frame.get_by_role('link', name=re.compile('^Payer'))).to_have_count(0)
+        pw.expect(frame.get_by_role('button', name='J’ai payé', exact=True)).to_have_count(0)
+        shot(page, 'paiement-bientot')
         assert not errors
     finally:
         context.close()

@@ -15,7 +15,7 @@ import { Avatar, Button, ConfirmButton, ErrorText, T } from './ui';
 
 type Props = {
   event: { id: string; title: string; starts_at: string | null; location_name: string | null;
-    payment_mode?: PaymentMode; payment_url?: string | null; payment_info?: string | null; author?: { display_name: string } | null };
+    payment_mode?: PaymentMode; payment_url?: string | null; payment_info?: string | null; payment_open?: boolean; author?: { display_name: string } | null };
   me: { id: string; display_name: string; avatar_url: string | null };
   /** Change quand ma réponse change (Présent, accompagnants, liste d'attente) : le billet est relu. */
   answerKey: string;
@@ -41,7 +41,7 @@ export function TicketCard({ event, me, answerKey }: Props) {
   useSheetDrag(open, () => setOpen(false), card, overlay);
   const [error, setError] = useState<string | null>(null);
   const pay: PaySetup = { mode: event.payment_mode ?? 'organizer', url: event.payment_url ?? null,
-    organizer: event.author?.display_name ?? null, info: event.payment_info ?? null };
+    organizer: event.author?.display_name ?? null, info: event.payment_info ?? null, open: event.payment_open !== false };
 
   const load = useCallback(() => fetchMyTicket(event.id).then(
     (t) => { setTicket(t); setError(null); },
