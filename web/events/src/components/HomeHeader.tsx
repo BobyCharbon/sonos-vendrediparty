@@ -1,5 +1,6 @@
+import { router } from 'expo-router';
 import { createElement } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { Title } from '@/components/ui';
 import { BADGE_RED } from '@/lib/activityBadge';
@@ -23,15 +24,33 @@ type HeaderProps = {
   onToggleSearch: () => void;
   important: number;
   onBell: () => void;
+  /** Demandes de rendez-vous en attente (Agenda) : pastille du bouton « 📅 Agenda ». */
+  agendaPending?: number;
 };
 
-/** « Événements » sur une ligne, loupe et cloche à bulle rouge (nouveautés importantes non lues). */
-export function HomeHeader({ searchOpen, onToggleSearch, important, onBell }: HeaderProps) {
+/** « Événements » sur une ligne, « 📅 Agenda » (texte, pas une icône seule ; pastille des demandes de rendez-vous),
+ * loupe et cloche à bulle rouge (nouveautés importantes non lues). */
+export function HomeHeader({ searchOpen, onToggleSearch, important, onBell, agendaPending = 0 }: HeaderProps) {
   const many = important > 1 ? 's' : '';
   const bellLabel = important ? `Activité, ${important} nouveauté${many} importante${many}` : 'Activité';
+  const { width } = useWindowDimensions();
+  // Le titre cède un peu de place au bouton Agenda sur un téléphone (jamais coupé : « Événem… »).
+  const titleSize = width < 380 ? 22 : width < 430 ? 24 : 28;
+  const many2 = agendaPending > 1 ? 's' : '';
   return (
     <View style={st.header}>
-      <Title level={1} style={st.title}>Événements</Title>
+      <Title level={1} size={titleSize} style={st.title}>Événements</Title>
+      <Pressable accessibilityRole="button" testID="home-agenda"
+        accessibilityLabel={agendaPending ? `Agenda, ${agendaPending} demande${many2} de rendez-vous` : 'Agenda'}
+        onPress={() => router.push('/agenda')} style={({ pressed }) => [st.agenda, pressTransition, pressed && st.pressed]}>
+        {/* Très petit écran (320 px) : l’icône seule, VoiceOver lit toujours « Agenda ». */}
+        <Text style={st.agendaText}>{width < 360 ? '📅' : '📅 Agenda'}</Text>
+        {agendaPending ? (
+          <View key={agendaPending} testID="home-agenda-badge" style={[st.badge, enter('pop')]}>
+            <Text style={st.badgeText}>{agendaPending > 99 ? '99+' : agendaPending}</Text>
+          </View>
+        ) : null}
+      </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={searchOpen ? 'Fermer la recherche' : 'Rechercher'}
         accessibilityState={{ expanded: searchOpen }} testID="home-search" onPress={onToggleSearch}
         style={({ pressed }) => [st.round, searchOpen && st.roundOn, pressTransition, pressed && st.pressed]}>
@@ -78,7 +97,10 @@ export function HomePills<K extends string>({ items, onPress }: { items: PillIte
 }
 
 const st = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  agenda: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingHorizontal: 11, borderRadius: 22, backgroundColor: colors.surface,
+    borderWidth: 1, borderColor: 'rgba(255,79,154,0.55)' },
+  agendaText: { color: colors.text, fontSize: 14, ...font.semibold },
   title: { flex: 1, minWidth: 0 },
   round: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'transparent' },

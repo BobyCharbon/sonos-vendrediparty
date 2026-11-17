@@ -396,7 +396,7 @@ réglage de prod :
 - Tests : `tests/supabase_live/test_invites_groupe_live.py`, `test_invites_groupe_browser_live.py` (recette réelle),
   `tests/test_invites_groupe.py`, `tests/test_invites_groupe_browser.py`, `GuestGroupTests` (iOS).
 
-## Agenda (17.11, migration 20261117140000) — base, serveur et page publique ; écrans web et iPhone à suivre
+## Agenda (17.11, migration 20261117140000) — base, serveur, page publique, écrans web ; écrans iPhone à suivre
 - Rendez-vous créés dans Party : `agenda_items` (propriétaire seul, RLS), calendriers `agenda_calendars` (« Mes soirées
   Party », « Juste pour moi », agendas .ics à adresse secrète, lus par le serveur pour leur seul propriétaire :
   `POST /api/account/agenda/ics`, app/agenda_ics.py, https seulement, jamais une adresse privée). Contrat complet des
@@ -420,4 +420,15 @@ réglage de prod :
   point d'accroche `mail_state`, statut `to_confirm` et `private.agenda_settings.double_opt_in`.
 - Tests : `tests/test_agenda.py`, `tests/supabase_live/test_agenda_live.py`, `test_agenda_page_browser_live.py` (vrai
   navigateur : grille, liste, demande, réservée, acceptée).
+- Écrans web (module Événements, `/agenda`, direction A validée) : semaine en jours empilés (par défaut, puis la dernière
+  vue), jour avec trous « Libre · 1 h + Ajouter », mois ; `item` (titre, jour, heures ; « Plus d'options » ; « Juste pour
+  moi ») ; `calendars` (« Voir ici » / « Partager », agendas .ics) ; `share` (tout décoché, groupe par groupe, le bouton
+  compte les groupes) ; `free` (« Le mieux » dès 3 qui partagent, Disponible / Occupé en mots + rayures, « Les autres
+  membres » grisés SANS texte ; « Organiser » → `/event/new?group&title&start&end`, « Faire voter » → `&poll=<iso,…>`) ;
+  `links` (6B avant chaque lien, modèles, plages, champs Non / Facultatif / Obligatoire, aperçu) ; `requests` (Accepter,
+  Refuser, Signaler → `agenda_booking_report` via ReportSheet `send`, Bloquer, Couper). Code : `lib/agenda.ts` (heure de
+  Suisse, `rankDays`, `personState`, pont `nativeAgenda()` facultatif), `components/agenda/`. Entrées : « 📅 Agenda » de
+  l'en-tête d'Événements et Réglages › Autres apps › Agenda (web : Settings.tsx), pastille `useAgendaBadge` (signal
+  `user:<id>`). Web : plages des agendas .ics cochés → `agenda_set_busy('web')` (jamais de titre). Tests :
+  `tests/test_agenda_browser.py` (base simulée), `tests/supabase_live/test_agenda_web_browser_live.py` (recette réelle).
 - Avant la prod : privacy.tsx (section publique des demandes), CGU, App Privacy (e-mail), phrase EventKit, notes de revue.

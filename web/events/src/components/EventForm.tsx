@@ -264,17 +264,28 @@ async function loadDraft(eventId: string): Promise<Draft> {
   };
 }
 
-/** group : « Créer un événement pour le groupe » (page du groupe, 17.11) : ce groupe déjà coché, sans prévenir le groupe. */
-export function EventForm({ eventId, group }: { eventId?: string; group?: string }) {
+/** Préremplissage d'un nouvel événement depuis l'Agenda (« Qui est libre ? ») : titre, date fixée, ou dates d'un sondage. */
+export type EventPrefill = { title?: string; starts?: string; ends?: string; poll?: string[] };
+
+function prefilled(p?: EventPrefill): Draft {
+  if (!p) return emptyDraft;
+  const d: Draft = { ...emptyDraft, title: p.title ?? '' };
+  if (p.poll) return { ...d, date_mode: 'poll', slots: p.poll.length ? p.poll.map((iso) => ({ text: toLocalInput(iso) })) : emptyDraft.slots };
+  return { ...d, starts_at: toLocalInput(p.starts), ends_at: toLocalInput(p.ends) };
+}
+
+/** group : « Créer un événement pour le groupe » (page du groupe, 17.11) : ce groupe déjà coché, sans prévenir le groupe.
+ * prefill : « Organiser le sam. 28 » / « Faire voter le groupe » de l'Agenda (titre, date ou dates du sondage). */
+export function EventForm({ eventId, group, prefill }: { eventId?: string; group?: string; prefill?: EventPrefill }) {
   const me = useMe();
   // CGU exigées en prod (terms_enforced) : un nouvel événement les fait accepter avant d'être enregistré.
   const terms = useTermsGate();
   const { can } = useAuth();
   const isAdmin = can('events.publish_direct');  // publie sans passer par la validation
   const canRepeat = can('events.recurring');  // Admin, Co-admin, Organisateur (Rôles et droits)
-  const [draft, setDraft] = useState<Draft | null>(eventId ? null : emptyDraft);
+  const [draft, setDraft] = useState<Draft | null>(() => (eventId ? null : prefilled(prefill)));
   // Ce qui était là à l'ouverture : la base de « changements non enregistrés » et du « début changé ».
-  const [initial, setInitial] = useState<Draft | null>(eventId ? null : emptyDraft);
+  const [initial, setInitial] = useState<Draft | null>(() => (eventId ? null : prefilled(prefill)));
   const savedEventId = useRef(eventId);
   const groupPreset = useRef(!eventId && !!group);
   const saving = useRef(false);

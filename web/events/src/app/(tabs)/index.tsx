@@ -9,6 +9,7 @@ import { SignedIn } from '@/components/SignedIn';
 import { HomeHeader, HomePills } from '@/components/HomeHeader';
 import { Button, Chip, Empty, ErrorText, Input, Reveal, s, Skeleton, T } from '@/components/ui';
 import { useImportantUnread } from '@/lib/activityBadge';
+import { useAgendaBadge } from '@/lib/agenda';
 import { useAuth, useMe } from '@/lib/auth';
 import { type Attendance, fetchAttendance } from '@/lib/attendance';
 import { inTab, type ListTab } from '@/lib/eventTime';
@@ -141,6 +142,7 @@ export default function Home() {
     : { only: null, title: `${openPolls.length} sondages attendent ton vote`, body: openPolls.map((e) => e.title).join(' · '),
       label: `${openPolls.length} sondages attendent ton vote. Voter` };
   const important = useImportantUnread(data?.loadedAt);
+  const agendaPending = useAgendaBadge(me.id);
   const filterName = filter.kind === 'subscribed' ? 'Mes abonnements'
     : filter.kind === 'category' ? data?.categories.find((c) => c.id === filter.id)?.name
     : filter.kind === 'tag' ? `#${data?.tags.find((t) => t.id === filter.id)?.name ?? ''}` : null;
@@ -168,6 +170,7 @@ export default function Home() {
           onToggleSearch={() => { if (searchOpen) setSearch(''); setSearchOpen(!searchOpen); }}
           important={important}
           onBell={() => router.push('/activity')}
+          agendaPending={agendaPending}
         />
 
         {data && !searchOpen ? <GroupBubbles groups={data.groups.filter((g) => g.member)} /> : null}

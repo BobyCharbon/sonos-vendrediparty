@@ -10,11 +10,13 @@ import { colors, radius } from '@/lib/theme';
 type Props = {
   target: ReportTarget | null;
   onClose: (sent: boolean) => void;
+  /** Envoi propre à un contenu hors de report_content (demande de rendez-vous : agenda_booking_report). */
+  send?: (reason: ReportReason, comment: string) => Promise<void>;
 };
 
 /** « Signaler » (Apple 1.2, Google UGC) : une raison, un commentaire facultatif ; la file des modérateurs le reçoit.
  * La personne signalée n'est pas prévenue ; la base garde une copie du contenu au moment du signalement. */
-export function ReportSheet({ target, onClose }: Props) {
+export function ReportSheet({ target, onClose, send: sendOwn }: Props) {
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
@@ -40,7 +42,8 @@ export function ReportSheet({ target, onClose }: Props) {
     setBusy(true);
     setError(null);
     try {
-      await reportContent(target, reason, comment);
+      if (sendOwn) await sendOwn(reason, comment);
+      else await reportContent(target, reason, comment);
       setSent(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Le signalement n’a pas pu être envoyé. Réessaie.');
