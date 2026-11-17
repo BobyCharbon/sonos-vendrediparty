@@ -1,6 +1,6 @@
 // deno test supabase/functions/send-push/apns_test.ts : envoi APNs de l'app native, sans réseau (fetch simulé).
 import { assert, assertEquals } from 'jsr:@std/assert@1';
-import { apnsConfig, apsFor, sendApns, tapPath } from './apns.ts';
+import { apnsConfig, apsFor, categoryFor, sendApns, tapPath, threadFor } from './apns.ts';
 
 const TOKEN = 'apns:' + 'ab'.repeat(32);
 
@@ -81,4 +81,40 @@ Deno.test("jeton d'un build Xcode (sandbox) : l'autre serveur d'Apple avant d'ou
   assertEquals(hosts, ['api.push.apple.com', 'api.sandbox.push.apple.com']);
   globalThis.fetch = (() => Promise.resolve(new Response(JSON.stringify({ reason: 'BadDeviceToken' }), { status: 400 }))) as typeof fetch;
   assertEquals(await sendApns(cfg, TOKEN, 'n6', 't', 'b', {}), { ok: false, code: 'DeviceNotRegistered', permanent: true });
+});
+
+const EVENT = '11111111-2222-3333-4444-555555555555';
+
+Deno.test("discussion d'événement façon WhatsApp : une pile par discussion, actions Répondre / Marquer comme lu", async () => {
+  const { cfg } = await config();
+  let sent: { aps: Record<string, unknown>; url: string; event_id?: string } | null = null;
+  globalThis.fetch = ((_: string, init: RequestInit) => { sent = JSON.parse(init.body as string); return Promise.resolve(new Response(null, { status: 200 })); }) as typeof fetch;
+  const data = { kind: 'message', event_id: EVENT, message_id: '99999999-2222-3333-4444-555555555555', thread: `event-chat:${EVENT}` };
+  await sendApns(cfg, TOKEN, 'n7', 'Soirée raclette', 'Léa : On amène quoi ?', data);
+  assertEquals(sent!.aps['thread-id'], `event-chat:${EVENT}`);
+  assertEquals(sent!.aps.category, 'EVENT_CHAT');
+  assertEquals(sent!.aps.alert, { title: 'Soirée raclette', body: 'Léa : On amène quoi ?' });
+  assertEquals(sent!.event_id, EVENT);
+  assertEquals(sent!.url, `/?tab=events&event=${EVENT}&chat=1`);
+  // « Organisation seulement » et pas de l'organisation : « Marquer comme lu » seul, jamais « Répondre ».
+  await sendApns(cfg, TOKEN, 'n9', 'Soirée raclette', 'Léa : Rendez-vous à 20 h', { ...data, can_reply: false });
+  assertEquals(sent!.aps.category, 'EVENT_CHAT_READONLY');
+  // Autre notification de l'événement : ni catégorie ni event_id, regroupée par adresse comme avant.
+  await sendApns(cfg, TOKEN, 'n8', 'Soirée raclette', 'Date choisie', { kind: 'event_changed', event_id: EVENT });
+  assertEquals(sent!.aps.category, undefined);
+  assertEquals(sent!.event_id, undefined);
+  assertEquals(sent!.aps['thread-id'], `/?tab=events&event=${EVENT}`);
+});
+
+Deno.test('thread-id et catégorie : data.thread, sinon déduits du message ; rien de forgé', () => {
+  assertEquals(threadFor({ kind: 'message', event_id: EVENT }), `event-chat:${EVENT}`);   // base d'avant 20261117190000
+  assertEquals(threadFor({ kind: 'message', event_id: EVENT, thread: `event-chat:${EVENT}` }), `event-chat:${EVENT}`);
+  assertEquals(threadFor({ kind: 'message', event_id: EVENT, thread: 'x"><b>' }), `event-chat:${EVENT}`);
+  assertEquals(threadFor({ kind: 'group_message', group_id: EVENT }), `/?tab=chats&chat=${EVENT}`);
+  assertEquals(categoryFor({ kind: 'message', event_id: EVENT }), 'EVENT_CHAT');
+  assertEquals(categoryFor({ kind: 'message', event_id: EVENT, can_reply: true }), 'EVENT_CHAT');
+  assertEquals(categoryFor({ kind: 'message', event_id: EVENT, can_reply: false }), 'EVENT_CHAT_READONLY');
+  assertEquals(categoryFor({ kind: 'message', event_id: '../admin' }), null);
+  assertEquals(categoryFor({ kind: 'event_changed', event_id: EVENT }), null);
+  assertEquals(categoryFor({ kind: 'group_message', group_id: EVENT }), null);
 });

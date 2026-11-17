@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
 
-import { notificationTarget } from './target.ts';
+import { notificationTag, notificationTarget } from './target.ts';
 
 type Keys = { publicKey: string; privateKey: string };
 type Delivery = {
@@ -52,7 +52,7 @@ Deno.serve(async (req: Request) => {
               || !hosts.some((host) => endpoint.hostname === host || (host !== 'fcm.googleapis.com' && endpoint.hostname.endsWith('.' + host)))) throw new Error('Invalid endpoint');
             const payload = JSON.stringify({
               title: row.title.slice(0, 100), body: row.body.slice(0, 180),
-              tag: 'party-event-' + row.notification_id, url: notificationTarget({ ...row, url: urls.get(row.notification_id) }), silent: row.silent === true,
+              tag: notificationTag(row), url: notificationTarget({ ...row, url: urls.get(row.notification_id) }), silent: row.silent === true,
             });
             const request = webpush.generateRequestDetails(row.subscription, payload, {
               vapidDetails: { ...keys!, subject: 'https://party.bobycharbon.ch' },
