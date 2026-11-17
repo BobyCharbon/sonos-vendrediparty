@@ -69,6 +69,10 @@ enum NativeBridge {
         chat: {
           openEvent: function (id) {
             try { window.webkit.messageHandlers.\(chatHandler).postMessage("event:" + id); } catch (e) {}
+          },
+          // Page d'un groupe › « Discussion » (17.11) : la discussion du groupe dans l'onglet Discussions natif.
+          openGroup: function (id) {
+            try { window.webkit.messageHandlers.\(chatHandler).postMessage("group:" + id); } catch (e) {}
           }
         },
         // « Scanner les billets » (Événements) : lecteur QR d'Apple ; promesse du texte lu, ou null si l'on ferme.
@@ -181,8 +185,12 @@ private final class ChatHandler: NSObject, WKScriptMessageHandler {
 
     @MainActor
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard AppConfig.isInternal(message.frameInfo.securityOrigin.url), let body = message.body as? String,
-              body.hasPrefix("event:"), let id = UUID(uuidString: String(body.dropFirst(6))) else { return }
+        guard AppConfig.isInternal(message.frameInfo.securityOrigin.url), let body = message.body as? String else { return }
+        if body.hasPrefix("group:"), let id = UUID(uuidString: String(body.dropFirst(6))) {
+            model?.openGroupChat(id.uuidString)  // la base vérifie que la personne fait partie du groupe
+            return
+        }
+        guard body.hasPrefix("event:"), let id = UUID(uuidString: String(body.dropFirst(6))) else { return }
         model?.openEventChat(id.uuidString)  // la base vérifie que la personne peut lire cette discussion
     }
 }

@@ -85,7 +85,7 @@ function JoinInvite({ kind, token }: { kind: 'event' | 'group'; token: string })
 
   const event = kind === 'event' ? (data as EventPreview | null) : null;
   const cancelled = event?.status === 'cancelled';
-  const target = (kind === 'event' && data ? `/event/${data.id}` : '/groups') as Href;
+  const target = (kind === 'event' && data ? `/event/${data.id}` : data ? `/group/${data.id}` : '/groups') as Href;
 
   useEffect(() => {
     if (!data || cancelled || started.current) return;

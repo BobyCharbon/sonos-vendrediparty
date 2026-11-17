@@ -1,10 +1,9 @@
 import { router, Stack } from 'expo-router';
-import { useState } from 'react';
 import { FlatList, Pressable, View } from 'react-native';
 
 import { ChatsOff } from '@/components/ChatsOff';
 import { ChatsPause } from '@/components/NotificationPause';
-import { NewGroupForm } from '@/components/NewGroupForm';
+import { GroupTile } from '@/components/GroupBits';
 import { usePersonText } from '@/components/PersonName';
 import { Avatar, Empty, ErrorText, Loading, s, T } from '@/components/ui';
 import type { ChatSummary } from '@/lib/chats';
@@ -23,7 +22,6 @@ export default function ChatsRoute() {
 /** Une discussion par groupe, la plus récente en haut, comme WhatsApp ; « Nouveau groupe » (même formulaire que
  * Réglages › Groupes) le crée, son créateur dedans, et ouvre sa discussion. */
 function ChatsList() {
-  const [creating, setCreating] = useState(false);
   const { data, loading, error, reload } = useQuery(async () => {
     const { data, error } = await supabase.rpc('my_chats');
     if (error) throw new Error('Les discussions n’ont pas pu être chargées.');
@@ -35,14 +33,8 @@ function ChatsList() {
   return (
     <View style={s.screen}>
       <Stack.Screen options={{ title: 'Discussions' }} />
-      {/* En tête de liste, comme « Nouveau groupe » dans WhatsApp (le module n'a pas d'en-tête dans Party). */}
-      <NewGroupRow open={creating} onToggle={() => setCreating((v) => !v)} />
-      {creating ? (
-        <View style={[{ paddingHorizontal: 16, paddingBottom: 12, gap: 6 }, enter('drop')]}>
-          <NewGroupForm autoFocus onCreated={(id) => { setCreating(false); reload(); router.push(`/chats/${id}`); }} />
-          <T muted size={13}>Le même groupe que dans Réglages › Groupes. Tu en fais partie d’office, comme Créateur · Admin ; ajoute ensuite des membres depuis les infos du groupe.</T>
-        </View>
-      ) : null}
+      {/* En tête de liste, comme « Nouveau groupe » dans WhatsApp : la création en 2 étapes (17.11). */}
+      <NewGroupRow />
       <ErrorText error={error} />
       {/* En haut de la liste : sourdine des Discussions des groupes (30 min, 1 h, 2 h, 8 h ; messages sans son). */}
       <ChatsPause scope="chats" compact />
@@ -50,22 +42,22 @@ function ChatsList() {
         data={data ?? []}
         keyExtractor={(c) => c.id}
         ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: colors.line, marginLeft: 76 }} />}
-        ListEmptyComponent={creating ? null : <Empty>Rejoins ou crée un groupe pour discuter avec ses membres, ou écris à quelqu’un depuis sa fiche.</Empty>}
+        ListEmptyComponent={<Empty>Rejoins ou crée un groupe pour discuter avec ses membres, ou écris à quelqu’un depuis sa fiche.</Empty>}
         renderItem={({ item: c }) => <ChatRow chat={c} />}
       />
     </View>
   );
 }
 
-function NewGroupRow({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+function NewGroupRow() {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel="Nouveau groupe" accessibilityState={{ expanded: open }} onPress={onToggle}
+    <Pressable accessibilityRole="button" accessibilityLabel="Nouveau groupe" onPress={() => router.push('/group/new')}
       style={({ pressed }) => [{ flexDirection: 'row', gap: 12, alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
         transition('background-color', duration.fast), pressed && { backgroundColor: colors.fill }]}>
       <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accentDim, alignItems: 'center', justifyContent: 'center' }}>
-        <T size={22} weight="bold" color={colors.accent}>{open ? '×' : '+'}</T>
+        <T size={22} weight="bold" color={colors.accent}>+</T>
       </View>
-      <T weight="semibold" color={colors.accent}>{open ? 'Fermer' : 'Nouveau groupe'}</T>
+      <T weight="semibold" color={colors.accent}>Nouveau groupe</T>
     </Pressable>
   );
 }
@@ -81,7 +73,7 @@ function ChatRow({ chat }: { chat: ChatSummary }) {
       style={({ pressed }) => [{ flexDirection: 'row', gap: 12, alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
         transition('background-color', duration.fast), pressed && { backgroundColor: colors.fill }]}>
       {direct ? <Avatar id={chat.user_id!} name={name} photo={chat.avatar_url ?? null} size={48} profile={false} />
-        : <Avatar id={chat.id} name={chat.name} size={48} profile={false} />}
+        : <GroupTile group={{ emoji: chat.emoji ?? '👯', color: chat.color ?? 'pink' }} size={48} />}
       <View style={{ flex: 1, gap: 3 }}>
         <View style={s.rowBetween}>
           <T weight="semibold" numberOfLines={1} style={{ flex: 1 }}>{name}</T>

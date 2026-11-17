@@ -124,7 +124,9 @@ def test_home_has_no_profile_or_activity_tabs_and_is_compact(browser, events_ori
         pills = [frame.get_by_test_id(f'pill-{k}').bounding_box() for k in ('upcoming', 'polls', 'drafts', 'past', 'filters')]
         assert all(p['height'] >= 40 for p in pills)
         assert len({round(p['y']) for p in pills}) == 1, 'les pastilles tiennent sur une ligne'
-        assert pills[0]['y'] - (bell['y'] + bell['height']) < 24
+        # Entre les deux : les bulles « Tes groupes » (17.11), puis les pastilles juste dessous.
+        bubbles = frame.get_by_test_id('group-bubbles').bounding_box()
+        assert bubbles['y'] - (bell['y'] + bell['height']) < 24 and pills[0]['y'] - (bubbles['y'] + bubbles['height']) < 24
         # Recherche fermée par défaut (gain de place).
         pw.expect(frame.get_by_label('Rechercher un événement', exact=True)).to_have_count(0)
         assert page.frame(url=events_origin + '/events/').evaluate('document.documentElement.scrollWidth <= innerWidth')

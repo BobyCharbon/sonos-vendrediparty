@@ -8,41 +8,41 @@ from urllib.parse import parse_qs, urlparse
 
 from tests.test_c2_acces_browser import mock_terms
 from tests.test_events_browser import EVENT, USER, browser, events_origin, mock_services, pw  # noqa: F401 (fixtures)
-from tests.test_groups_browser import INSIDE, MINE, VIP, open_groups, phone  # noqa: F401 (fixture phone)
+from tests.test_groups_browser import DISCO, FOOT, MALIK, TOM, group_row, group_services, phone, signed_in  # noqa: F401 (fixture phone)
 from tests.test_invitations_v2_browser import CARD, TOKEN, mock_invites, v2_origin  # noqa: F401 (fixture)
 from tests.test_events_browser import login
 
 
 def test_a_member_leaves_a_group_he_did_not_create(phone, events_origin):  # noqa: F811
+    """Nouveau graphisme (17.11) : « Quitter le groupe » est dans les réglages de la page du groupe."""
     page, errors = phone
-    deletes = []
-    frame = open_groups(page, events_origin, rank=1, groups=[MINE, INSIDE, {**VIP, 'member_group_members': [{'user_id': USER}]}])
-    # Déclarée après les simulations communes : c'est elle qui répond.
-    page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/member_group_members*',
-               lambda route: (deletes.append(parse_qs(urlparse(route.request.url).query)) if route.request.method == 'DELETE' else None,
-                              route.fulfill(status=200, content_type='application/json', body=json.dumps({'user_id': USER}),
-                                            headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*',
-                                                     'Access-Control-Allow-Methods': '*'})))
-    # Rando (créé par Tom, j'en fais partie) : « Quitter » ; Mes potes (le mien) et Vendredi Party : jamais.
-    pw.expect(frame.get_by_role('button', name='Quitter le groupe', exact=True)).to_have_count(1)
-    frame.get_by_role('button', name='Quitter le groupe', exact=True).click()
-    frame.get_by_role('button', name='Confirmer : quitter le groupe', exact=True).click()
-    page.wait_for_timeout(800)
-    assert deletes and deletes[0]['group_id'] == [f'eq.{INSIDE["id"]}'] and deletes[0]['user_id'] == [f'eq.{USER}'], deletes
+    state = group_services(page, row_for=lambda gid: group_row(gid, created_by=TOM if gid == DISCO else USER), rank=1)
+    # Mon groupe (Les potes du foot, créé par moi) : jamais « Quitter ».
+    signed_in(page, events_origin, f'/group/{FOOT}/settings')
+    pw.expect(page.get_by_role('button', name='Supprimer le groupe')).to_be_visible(timeout=15000)
+    pw.expect(page.get_by_role('button', name='Quitter le groupe', exact=True)).to_have_count(0)
+    # Celui de Tom, dont je fais partie : « Quitter ».
+    page.goto(f'{events_origin}/events/group/{DISCO}/settings', wait_until='domcontentloaded')
+    page.get_by_role('button', name='Quitter le groupe', exact=True).click(timeout=15000)
+    page.get_by_role('button', name='Confirmer : quitter le groupe', exact=True).click()
+    page.wait_for_url('**/events/groups')
+    assert state['deleted'][0]['group_id'] == [f'eq.{DISCO}'] and state['deleted'][0]['user_id'] == [f'eq.{USER}'], state['deleted']
     assert not errors, errors
 
 
 def test_creating_a_group_without_the_terms_shows_the_terms_sheet_first(phone, events_origin):  # noqa: F811
     page, errors = phone
-    calls, created = [], []
-    # CGU pas encore acceptées, dès l'ouverture (posée après les simulations communes : c'est elle qui répond).
-    frame = open_groups(page, events_origin, rank=1, groups=[MINE], before_open=lambda p: mock_terms(p, calls, accepted=False))
-    page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/member_groups*',
-               lambda route: (created.append(1), route.fallback()) if route.request.method == 'POST' else route.fallback())
-    frame.get_by_placeholder('Ex. Les footeux').press_sequentially('Les footeux')
-    frame.get_by_role('button', name='Créer', exact=True).click()
-    pw.expect(frame.get_by_role('button', name='J’accepte')).to_be_visible(timeout=10000)
-    assert not created, 'rien n’est créé avant les CGU'
+    calls = []
+    state = group_services(page)
+    mock_terms(page, calls, accepted=False)  # posée après : c'est elle qui répond
+    signed_in(page, events_origin, '/group/new')
+    page.get_by_label('Nom du groupe').fill('Les footeux', timeout=15000)
+    page.get_by_role('button', name='Continuer').click()
+    pw.expect(page.get_by_role('button', name='J’accepte')).to_be_visible(timeout=10000)
+    assert not state['inserted'], 'rien n’est créé avant les CGU'
+    page.get_by_role('button', name='J’accepte').click()
+    pw.expect(page.get_by_test_id('group-invite-panel')).to_be_visible(timeout=10000)
+    assert [i['name'] for i in state['inserted']] == ['Les footeux'] and any(c[0] == 'accept_terms' for c in calls)
     assert not errors, errors
 
 
@@ -141,19 +141,15 @@ def test_an_expired_link_for_several_people_no_longer_counts_places(browser, v2_
 
 
 def test_touching_someone_in_my_group_sends_an_invitation_instead_of_adding_him(phone, events_origin):  # noqa: F811
+    """« Inviter » (page du groupe) : une invitation (invite_to_group) qu'il accepte, jamais un ajout d'office."""
     page, errors = phone
-    calls, inserts = [], []
-    cors = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*'}
-
-    def extra(p):
-        p.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/rpc/invite_to_group*',
-                lambda route: (calls.append(route.request.post_data) if route.request.method == 'POST' else None,
-                               route.fulfill(status=200, content_type='application/json', body='{"invited":"member"}', headers=cors)))
-        p.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/member_group_members*',
-                lambda route: (inserts.append(1) if route.request.method == 'POST' else None, route.fallback()))
-    frame = open_groups(page, events_origin, rank=1, groups=[MINE], before_open=extra)
-    frame.get_by_role('button', name='Modifier', exact=True).click()
-    frame.get_by_role('button', name='Tom', exact=True).click()
-    pw.expect(frame.get_by_text('Tom a reçu ton invitation', exact=False)).to_be_visible(timeout=10000)
-    assert calls and json.loads(calls[0])['member'] and not inserts, (calls, inserts)
+    inserts = []
+    state = group_services(page)
+    page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/member_group_members*',
+               lambda route: (inserts.append(1) if route.request.method == 'POST' else None, route.fallback()))
+    signed_in(page, events_origin, f'/group/{FOOT}/invite')
+    page.get_by_role('checkbox', name='Ajouter Malik').click(timeout=15000)
+    page.get_by_role('button', name='Inviter Malik').click()
+    pw.expect(page.get_by_text('Malik : invitation envoyée', exact=False)).to_be_visible(timeout=10000)
+    assert [i['member'] for i in state['invites']] == [MALIK] and not inserts, (state['invites'], inserts)
     assert not errors, errors

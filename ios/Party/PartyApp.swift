@@ -174,6 +174,8 @@ struct ContentView: View {
         // Fiche d'un membre › son Zicou : visite (ami) ou « Adopter le mien », dans l'onglet Zicou de la page.
         .environment(\.openZicou, OpenZicouAction { visit in model.openZicou(visit: visit) })
         .environment(\.writeDirect, model.canWriteDirect ? WriteDirectAction { user in await model.writeDirect(to: user) } : nil)
+        // Groupes (17.11) : « Gérer le groupe », ✎ « Nouveau groupe », Réglages › Groupes → pages du module Événements.
+        .environment(\.openGroupPage, OpenGroupPageAction { target in model.openGroupPage(target) })
         .sheet(isPresented: $model.aiEventOpen, onDismiss: { model.aiEditEventId = nil }) {
             if let settings = model.settings {
                 AIEventView(store: settings.aiEvent, editing: model.aiEditEventId,

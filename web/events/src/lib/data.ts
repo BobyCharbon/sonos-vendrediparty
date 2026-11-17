@@ -161,14 +161,20 @@ export type EventListItem = EventRow & {
   event_tags: { tag_id: string }[];
   rsvps: Pick<Rsvp, 'user_id' | 'status' | 'waitlisted' | 'plus_ones'>[];
   date_options: { id: string; date_votes: { user_id: string }[] }[];
+  /** Groupes de l'événement (étiquette sur la carte : seulement ceux dont je fais partie). */
+  event_groups?: { group_id: string }[];
 };
 
-export async function fetchEventList(): Promise<EventListItem[]> {
-  const res = await supabase
+/** Liste des événements ; ids : seulement ceux-là (page d'un groupe, base : group_events). */
+export async function fetchEventList(ids?: string[]): Promise<EventListItem[]> {
+  if (ids && !ids.length) return [];
+  let q = supabase
     .from('events')
     .select(
-      '*, category:categories(*), event_tags(tag_id), rsvps(user_id, status, waitlisted, plus_ones), date_options(id, date_votes(user_id))',
-    )
+      '*, category:categories(*), event_tags(tag_id), rsvps(user_id, status, waitlisted, plus_ones), date_options(id, date_votes(user_id)), event_groups(group_id)',
+    );
+  if (ids) q = q.in('id', ids);
+  const res = await q
     .order('starts_at', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false });
   return must(res) as unknown as EventListItem[];

@@ -137,17 +137,17 @@ def phone(browser):
 
 
 def test_new_group_from_discussions_includes_me_and_opens_its_chat(phone, events_origin):
+    """Nouveau graphisme (17.11) : « Nouveau groupe » ouvre la création en 2 étapes (nom, emoji, couleur, puis Inviter) ;
+    son créateur en fait partie d'office."""
     page, errors = phone
     frame, state = open_chats(page, events_origin)
     frame.get_by_role('button', name='Nouveau groupe', exact=True).first.click()
-    frame.get_by_label('Nom du groupe', exact=True).fill('Apéro du jeudi')
-    frame.get_by_role('button', name='Créer', exact=True).click()
-    # Même création que Réglages › Groupes, avec moi dedans d'office, puis la discussion du nouveau groupe s'ouvre.
-    pw.expect(frame.get_by_text('Aucun message pour l’instant. Lance la discussion !')).to_be_visible(timeout=15000)
-    pw.expect(frame.get_by_role('button', name='Ajouter des membres')).to_be_visible()
-    assert ('group', {'name': 'Apéro du jeudi', 'created_by': USER}) in state['posts']
+    frame.get_by_label('Nom du groupe', exact=True).fill('Apéro du jeudi', timeout=15000)
+    frame.get_by_role('radio', name='Emoji 🍻').click()
+    frame.get_by_role('button', name='Continuer', exact=True).click()
+    pw.expect(frame.get_by_text('Invite ta bande', exact=True)).to_be_visible(timeout=15000)
+    assert ('group', {'name': 'Apéro du jeudi', 'emoji': '🍻', 'color': 'pink', 'created_by': USER}) in state['posts']
     assert ('member', {'group_id': NEW_GROUP, 'user_id': USER}) in state['posts']
-    pw.expect(frame.get_by_label('Message', exact=True)).to_be_visible()
     assert not errors, errors
 
 

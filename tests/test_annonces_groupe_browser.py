@@ -188,8 +188,9 @@ def test_the_group_creator_sets_both_rules(browser, v2_origin):  # noqa: F811
         mock_services(page)
         group = {'id': SKI, 'name': 'Ski', 'created_by': USER, 'system_key': None, 'events_need_approval': False, 'announce_mode': 'request',
                  'member_group_members': [{'user_id': USER}]}
+        single = lambda r: 'vnd.pgrst.object' in (r.request.headers.get('accept') or '')  # noqa: E731
         page.route(f'{BASE}/member_groups*', lambda r: r.fulfill(status=204, headers=CORS) if r.request.method == 'OPTIONS' else r.fulfill(
-            status=200, content_type='application/json', headers=CORS, body=json.dumps([group])))
+            status=200, content_type='application/json', headers=CORS, body=json.dumps(group if single(r) else [group])))
         calls: list = []
         rpc(page, 'set_group_event_rules', None, calls)
         rpc(page, 'my_privacy', {'phone_groups': []})
@@ -197,7 +198,7 @@ def test_the_group_creator_sets_both_rules(browser, v2_origin):  # noqa: F811
         page.goto(f'{v2_origin}/events/', wait_until='domcontentloaded')
         login(page)
         pw.expect(page.get_by_role('button', name='Rechercher', exact=True)).to_be_visible(timeout=15000)
-        page.goto(f'{v2_origin}/events/groups?open={SKI}', wait_until='domcontentloaded')
+        page.goto(f'{v2_origin}/events/group/{SKI}/settings', wait_until='domcontentloaded')  # réglages du groupe (17.11)
         pw.expect(page.get_by_text('Les membres créent des événements pour le groupe', exact=True)).to_be_visible(timeout=15000)
         pw.expect(page.get_by_text('Notifications des événements', exact=True)).to_be_visible()
         pw.expect(page.get_by_text('Sans réponse sous 48 h, l’annonce part automatiquement.', exact=False)).to_be_visible()

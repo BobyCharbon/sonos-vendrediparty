@@ -28,7 +28,8 @@ def fake(admin=False, rank=1, creator=LEA, write_status=201, organizer=LEA, bloc
             return httpx.Response(200, json=rank)
         if path == "/rest/v1/rpc/my_chats":
             return httpx.Response(200, json=[{"id": GRP, "name": "Les amis", "member": True, "admin": admin, "notify": "mentions",
-                                              "unread": 2, "last": "Léa : Salut", "last_at": "2026-10-29T10:00:00Z"}])
+                                              "unread": 2, "last": "Léa : Salut", "last_at": "2026-10-29T10:00:00Z",
+                                              "kind": "group", "emoji": "⚽", "color": "mint"}])
         if path == "/rest/v1/member_groups":
             return httpx.Response(200, json=[{"id": GRP, "name": "Les amis", "created_by": creator, "everyone_tag": "staff",
                                               "member_group_members": [{"user_id": ME}, {"user_id": LEA}, {"user_id": TOM}]}])
@@ -94,6 +95,12 @@ def test_conversation_is_oldest_first_with_names_photos_replies_and_reactions():
     assert gc.dialable("+41 79 000 00 01") == "+41790000001" and gc.dialable("12") is None and gc.dialable(None) is None
     assert c["notify"] == "mentions" and c["member"] and not c["admin"] and not c["can_name_admins"]
     assert c["reactions"] == list(gc.REACTIONS)
+
+
+def test_chat_list_keeps_the_group_emoji_and_color_for_the_app():
+    """Nouveau graphisme des groupes (17.11) : la ligne de Discussions de l'app porte l'emoji et la couleur du groupe."""
+    row = fake()[0].chats("jeton")["chats"][0]
+    assert row["emoji"] == "⚽" and row["color"] == "mint" and row["unread"] == 2
 
 
 def test_creator_and_site_admins_name_group_admins():

@@ -12,6 +12,8 @@ import { colors, font, radius } from '@/lib/theme';
 import type { RsvpStatus, Tag } from '@/lib/types';
 
 import { AttendeesBadge } from './AttendeesBadge';
+import { GroupTag } from './GroupBits';
+import type { GroupLook } from '@/lib/groups';
 import { RsvpButtons } from './RsvpButtons';
 import { Badge, ErrorText, T } from './ui';
 
@@ -69,6 +71,7 @@ export function EventCard({
   now,
   index = 0,
   attendance,
+  groups = [],
 }: {
   event: EventListItem;
   me: string;
@@ -82,6 +85,8 @@ export function EventCard({
   index?: number;
   /** Totaux exacts de la base (pastille des présents) ; sinon décompte des réponses lisibles. */
   attendance?: Attendance;
+  /** Groupes de l'événement dont je fais partie : leur étiquette (emoji + nom, couleur du groupe). */
+  groups?: GroupLook[];
 }) {
   const [busy, setBusy] = useState<RsvpStatus | null>(null);
   // Choix enregistré, gardé à l’écran jusqu’au rechargement de la liste (sinon il s’éteindrait un instant).
@@ -180,6 +185,9 @@ export function EventCard({
                 ? `${event.series_id ? '🔁 ' : ''}${relativeDay(event.starts_at)} · ${formatTime(event.starts_at)}${event.location_name ? ` · ${event.location_name}` : ''}`
                 : 'Date à définir'}
           </T>
+          {groups.length ? (
+            <View style={st.badges}>{groups.map((g) => <GroupTag key={g.id} group={g} />)}</View>
+          ) : null}
           {tags.length ? (
             <View style={st.badges}>
               {tags.map((t) => (

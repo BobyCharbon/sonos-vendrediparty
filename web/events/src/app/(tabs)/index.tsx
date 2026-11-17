@@ -4,6 +4,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-n
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EventCard } from '@/components/EventCard';
+import { GroupBubbles } from '@/components/GroupBits';
 import { SignedIn } from '@/components/SignedIn';
 import { HomeHeader, HomePills } from '@/components/HomeHeader';
 import { Button, Chip, Empty, ErrorText, Input, Reveal, s, Skeleton, T } from '@/components/ui';
@@ -13,6 +14,7 @@ import { type Attendance, fetchAttendance } from '@/lib/attendance';
 import { inTab, type ListTab } from '@/lib/eventTime';
 import { fetchEventList, fetchTaxonomy, needsAnswer, useQuery, useRealtime, useSignal } from '@/lib/data';
 import { plural } from '@/lib/format';
+import { fetchMyGroups, type GroupOverview } from '@/lib/groups';
 import { must, supabase } from '@/lib/supabase';
 import { duration, ease, enter, pressTransition, transition } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
@@ -44,14 +46,17 @@ export default function Home() {
   const lastY = useRef(0);
 
   const { data, error, loading, reload } = useQuery(async () => {
-    const [events, taxonomy, tagSubs, catSubs] = await Promise.all([
+    const [events, taxonomy, tagSubs, catSubs, groups] = await Promise.all([
       fetchEventList(),
       fetchTaxonomy(),
       supabase.from('tag_subscriptions').select('tag_id').eq('user_id', me.id),
       supabase.from('category_subscriptions').select('category_id').eq('user_id', me.id),
+      // Bulles « Tes groupes » (17.11) : sans elles (base pas encore à jour), la liste s'affiche quand même.
+      fetchMyGroups().catch((): GroupOverview[] => []),
     ]);
     return {
       events,
+      groups,
       loadedAt: Date.now(),
       ...taxonomy,
       subscribedTags: new Set(must(tagSubs).map((r) => r.tag_id as string)),
@@ -84,6 +89,10 @@ export default function Home() {
   }, [eventIds, data?.loadedAt, attendanceTick]);
 
   const tagsById = useMemo(() => new Map((data?.tags ?? []).map((t) => [t.id, t])), [data?.tags]);
+  // Étiquette du groupe sur les cartes : seulement mes groupes (jamais le nom d'un groupe dont je ne fais pas partie).
+  const groupsById = useMemo(() => new Map((data?.groups ?? []).map((g) => [g.id, g])), [data?.groups]);
+  const groupsOf = (e: { event_groups?: { group_id: string }[] }) =>
+    (e.event_groups ?? []).map((g) => groupsById.get(g.group_id)).filter((g): g is GroupOverview => !!g);
 
   const visible = useMemo(() => {
     if (!data) return [];
@@ -160,6 +169,8 @@ export default function Home() {
           important={important}
           onBell={() => router.push('/activity')}
         />
+
+        {data && !searchOpen ? <GroupBubbles groups={data.groups.filter((g) => g.member)} /> : null}
 
         {searchOpen ? (
           <Input
@@ -264,13 +275,13 @@ export default function Home() {
           <View style={{ gap: 10 }}>
             <T size={13} weight="bold" color={colors.mint} style={st.label}>TU Y VAS</T>
             {goingList.map((e, i) => (
-              <EventCard key={e.id} index={i} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp now={data!.loadedAt} attendance={attendance.get(e.id)} />
+              <EventCard key={e.id} index={i} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp now={data!.loadedAt} attendance={attendance.get(e.id)} groups={groupsOf(e)} />
             ))}
           </View>
         ) : null}
         {goingList.length && rest.length ? <T size={13} weight="bold" color={colors.muted} style={[st.label, { marginTop: 6 }]}>À VENIR</T> : null}
         {rest.map((e, i) => (
-          <EventCard key={e.id} index={goingList.length + i} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp={tab === 'polls' || tab === 'upcoming'} now={data!.loadedAt} attendance={attendance.get(e.id)} />
+          <EventCard key={e.id} index={goingList.length + i} event={e} me={me.id} tagsById={tagsById} onChanged={reload} quickRsvp={tab === 'polls' || tab === 'upcoming'} now={data!.loadedAt} attendance={attendance.get(e.id)} groups={groupsOf(e)} />
         ))}
       </ScrollView>
 

@@ -52,7 +52,7 @@ function inPartyShell(): boolean {
   return typeof window !== 'undefined' && window.parent !== window;
 }
 
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/invite|\/gifts|\/scan(?:\/[a-f0-9]{64})?|\/bar(?:\/scan|\/manage|\/person\/[a-f0-9-]{36})?)?|share\/[a-f0-9-]{36}|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|chats(?:\/[a-f0-9-]{36})?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/invite|\/gifts|\/scan(?:\/[a-f0-9]{64})?|\/bar(?:\/scan|\/manage|\/person\/[a-f0-9-]{36})?)?|share\/[a-f0-9-]{36}|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|group\/(?:new|[a-f0-9-]{36}(?:\/settings|\/invite)?)|chats(?:\/[a-f0-9-]{36})?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
 /** Pages de passage (accueil du module, connexion, « Faisons connaissance ») : seules à reprendre l'intention gardée. */
 const transitPath = /^\/?(?:sign-in|welcome)?$/i;
 
@@ -198,7 +198,12 @@ function Gate() {
         <Stack.Screen name="event/[id]/invite" options={{ title: 'Qui est invité' }} />
         <Stack.Screen name="settings/notifications" options={{ title: 'Notifications et abonnements' }} />
         <Stack.Screen name="settings/subscriptions" options={{ title: 'Notifications et abonnements' }} />
-        <Stack.Screen name="groups" options={{ title: 'Groupes' }} />
+        {/* Groupes (nouveau graphisme du 17.11) : liste, création en 2 étapes, page du groupe, ses réglages, Inviter. */}
+        <Stack.Screen name="groups" options={{ headerShown: false, title: 'Groupes' }} />
+        <Stack.Screen name="group/new" options={{ title: 'Nouveau groupe', presentation: 'modal' }} />
+        <Stack.Screen name="group/[id]/index" options={{ headerShown: false, title: 'Groupe' }} />
+        <Stack.Screen name="group/[id]/settings" options={{ title: 'Réglages du groupe' }} />
+        <Stack.Screen name="group/[id]/invite" options={{ title: 'Inviter' }} />
         <Stack.Screen name="chats/index" options={{ title: 'Discussions', headerShown: !inPartyShell() }} />
         <Stack.Screen name="chats/[id]" options={{ title: 'Discussion' }} />
         <Stack.Screen name="member/[id]" options={{ title: 'Profil', presentation: 'modal' }} />
