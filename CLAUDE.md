@@ -395,3 +395,29 @@ réglage de prod :
   « Absent », groupe dans Discussions, bandeau Quitter, Réglages › Groupes, page du groupe).
 - Tests : `tests/supabase_live/test_invites_groupe_live.py`, `test_invites_groupe_browser_live.py` (recette réelle),
   `tests/test_invites_groupe.py`, `tests/test_invites_groupe_browser.py`, `GuestGroupTests` (iOS).
+
+## Agenda (17.11, migration 20261117140000) — base, serveur et page publique ; écrans web et iPhone à suivre
+- Rendez-vous créés dans Party : `agenda_items` (propriétaire seul, RLS), calendriers `agenda_calendars` (« Mes soirées
+  Party », « Juste pour moi », agendas .ics à adresse secrète, lus par le serveur pour leur seul propriétaire :
+  `POST /api/account/agenda/ics`, app/agenda_ics.py, https seulement, jamais une adresse privée). Contrat complet des
+  fonctions : `agenda_*` (relais iPhone `POST /api/account/agenda/rpc`, liste blanche `RELAY` d'app/agenda.py).
+- Partage des dispos : groupe par groupe (`agenda_set_sharing`, tout décoché, accord daté, jamais Membres Vendredi Party
+  d'office), bloqués exclus, quitter le groupe = arrêt (déclencheur), arrêter = tout effacé ; le serveur ne reçoit que des
+  plages « pris » arrondies à 30 min sur 60 jours (`agenda_set_busy`, jamais titre ni lieu). « Qui est libre ? » :
+  `agenda_group_free` (ceux qui ne partagent pas : `shares: false`, sans état, jamais « N'a pas partagé »).
+- Liens publics (`private.agenda_links`, jeton 144 bits, 10 au plus, 90 jours, arrêter / rallumer à la même adresse, vues
+  pour le propriétaire seul) ; page `GET /d/<jeton>` rendue par le serveur (app/agenda.py) : vouvoiement, polices système,
+  aucune ressource externe (CSP nonce), noindex / no-referrer, même 404 neutre pour inconnu / arrêté / expiré, rien le jour
+  même (dès demain, ≥ 12 h), 60 jours au plus. Toute adresse depuis PARTY_PUBLIC_URL, jamais un domaine en dur.
+- Demandes de rendez-vous (option du lien, éteinte par défaut) : créneau réservé 48 h, 5 en attente par lien, 1 par e-mail /
+  téléphone, 3 / h par IP hachée (24 h), 20 / jour par lien, champ piège + 3 s de saisie, filtre (lien refusé dans le
+  message, motif dit à l'inconnu), Accepter / Refuser / Signaler (`content_reports` : `booking_request`, `agenda_link`) /
+  Bloquer l'expéditeur (empreintes) / Couper ; suivi par lien secret `/d/r/<secret>` (Annuler, Effacer mes données, .ics).
+  Effacé aussitôt si refus / annulation / 48 h sans réponse, 30 jours après le rendez-vous sinon (pg_cron `agenda-tick`) ;
+  l'agenda du membre garde « Rendez-vous · Prénom N. ». Jamais de SMS, d'appel ni de rapprochement avec un compte Party.
+- Notification `booking_request` / `booking_cancelled` sans coordonnée ni texte libre, interrupteur
+  `notification_prefs.booking_requests` (allumé) ; pastille `agenda_badge()` + signal `user:<id>`. E-mails : pas en v1,
+  point d'accroche `mail_state`, statut `to_confirm` et `private.agenda_settings.double_opt_in`.
+- Tests : `tests/test_agenda.py`, `tests/supabase_live/test_agenda_live.py`, `test_agenda_page_browser_live.py` (vrai
+  navigateur : grille, liste, demande, réservée, acceptée).
+- Avant la prod : privacy.tsx (section publique des demandes), CGU, App Privacy (e-mail), phrase EventKit, notes de revue.

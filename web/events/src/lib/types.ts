@@ -201,6 +201,7 @@ export type NotificationPrefs = {
   group_joins: boolean;
   /** « Tu es dans le groupe X » (migration 20261117110000 ; absent avant : reçue). */
   group_added?: boolean;
+  booking_requests?: boolean;
   /** Annonces et @tout des groupes de Discussions (absent avant la migration : reçues). */
   group_broadcasts?: boolean;
   /** Billets payants (migration 20261103130000 ; absent avant : reçues) : quelqu'un dit avoir payé ma place / mon paiement confirmé. */
