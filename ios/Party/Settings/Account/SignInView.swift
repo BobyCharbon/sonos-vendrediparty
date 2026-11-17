@@ -166,7 +166,7 @@ struct DeleteAccountView: View {
 /// Confidentialité : le texte du module web, en natif, et l'accord pour l'IA (tous les comptes connectés).
 struct PrivacyView: View {
     /// Même texte que la politique du module web (web/events/src/app/privacy.tsx) : changer les deux ensemble.
-    static let updated = "16 novembre 2026"
+    static let updated = "18 novembre 2026"
     static let sections: [(String, [String])] = [
         ("Qui est responsable ?", [
             "Party (Vendredi Party : l'app iPhone, l'app Apple TV et le site) est édité par Ludovic Trombert, en Suisse, responsable du traitement de tes données au sens de la loi fédérale sur la protection des données (nLPD).",
@@ -202,6 +202,7 @@ struct PrivacyView: View {
             "Pendant une soirée, ton prénom et tes réponses de jeu sont visibles par les joueurs de la partie (et sur l'écran de la soirée). Les titres que tu proposes sont envoyés à Spotify pour être recherchés et joués sur le compte de l'hôte, avec ton prénom visible dans la file.",
             "Stats de jeux (Quiz, Méninges, Purify Test) : gardées avec ton compte pour te montrer tes progrès et les classements.",
             "Purify Test : tes réponses aux questions ne sont jamais enregistrées. Seul ton score global l'est ; ton profil par catégorie se voit à la fin du test, puis disparaît. Tu n'apparais dans le classement général que si tu l'actives (Réglages › Mes stats de jeu).",
+            "Pronos : tes pronos, tes réponses, les patates que tu plantes et ta récolte, l'historique de ton sac (toi seul le vois), tes contestations, tes avis sur un résultat contesté et tes réactions. Avant le dévoilement, les autres joueurs voient seulement que tu as joué ; après, ils voient ta réponse et ta récolte. Le classement de la saison montre le rang et les patates de chacun, jamais ce que l'un a pris à l'autre. Rien de tout cela n'est envoyé à un tiers.",
             "Invités sans compte : un compteur de parties jouées est gardé avec l'identifiant de ton appareil (jamais ton adresse IP), effacé après 6 mois sans visite.",
         ]),
         ("L'IA (Anthropic, Claude)", [
@@ -232,11 +233,11 @@ struct PrivacyView: View {
             "Le serveur de Party est hébergé en Suisse. Twilio, Anthropic, GitHub, Spotify, Apple et Google peuvent traiter des données hors de Suisse, notamment aux États-Unis, avec les garanties prévues par la nLPD (Swiss-U.S. Data Privacy Framework ou clauses contractuelles types).",
         ]),
         ("Combien de temps", [
-            "Ton compte et ce qui s'y rattache : jusqu'à ce que tu le supprimes. Notifications : 90 jours. Signalements traités : un an. Compteur des invités : 6 mois sans visite. Compte créé seulement pour répondre à une invitation (prénom et numéro, sans l'app ni profil complété) : effacé avec ses réponses 7 jours après le dernier événement auquel il était invité. Activité de la soirée : le temps de la soirée et au plus 3 jours. Covoiturage, demandes d'accord et liens d'invitation : jusqu'à la suppression de l'événement (ou de ton compte). Bar de la soirée : 6 mois après sa fermeture.",
+            "Ton compte et ce qui s'y rattache : jusqu'à ce que tu le supprimes. Notifications : 90 jours. Signalements traités : un an. Compteur des invités : 6 mois sans visite. Compte créé seulement pour répondre à une invitation (prénom et numéro, sans l'app ni profil complété) : effacé avec ses réponses 7 jours après le dernier événement auquel il était invité. Activité de la soirée : le temps de la soirée et au plus 3 jours. Covoiturage, demandes d'accord et liens d'invitation : jusqu'à la suppression de l'événement (ou de ton compte). Bar de la soirée : 6 mois après sa fermeture. Pronos (réponses, patates plantées, contestations, réactions) : jusqu'à la suppression du prono, de son groupe ou de son événement. Ton sac de patates et son historique : jusqu'à la suppression de ton compte.",
             "Les textes écrits par d'autres membres peuvent encore citer ton surnom après la suppression de ton compte.",
         ]),
         ("Tes droits", [
-            "Tu peux à tout moment : voir et corriger tes données dans l'app ; retirer un accord (IA, contacts, notifications) ; supprimer ton compte dans Réglages › Gérer mon compte. La suppression efface ton compte, tes photos de profil, tes contenus (réponses, votes, covoiturage, demandes, ton calendrier abonné), les événements que tu as créés, tes stats de jeux, tes accords pour l'IA et le journal de tes appels à l'IA ; tes avis sur l'app restent, sans ton nom.",
+            "Tu peux à tout moment : voir et corriger tes données dans l'app ; retirer un accord (IA, contacts, notifications) ; supprimer ton compte dans Réglages › Gérer mon compte. La suppression efface ton compte, tes photos de profil, tes contenus (réponses, votes, pronos et patates, covoiturage, demandes, ton calendrier abonné), les événements que tu as créés, tes stats de jeux, tes accords pour l'IA et le journal de tes appels à l'IA ; tes avis sur l'app restent, sans ton nom.",
             "Pour obtenir une copie de tes données ou toute autre demande : support@vendrediparty.ch. Tu peux aussi t'adresser au Préposé fédéral à la protection des données et à la transparence (PFPDT).",
         ]),
         ("Si tu vis dans l'Union européenne (RGPD, DSA)", [

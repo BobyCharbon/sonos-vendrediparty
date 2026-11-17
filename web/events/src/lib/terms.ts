@@ -1,7 +1,7 @@
-/** Texte des conditions d'utilisation (version 2026-11-16, = private.moderation_settings.terms_version).
+/** Texte des conditions d'utilisation (version 2026-11-18, = private.moderation_settings.terms_version).
  * Le même texte est repris dans l'app iPhone (ios/Party/Settings/Moderation/TermsView.swift) : changer les deux,
  * puis la version dans la base (les comptes acceptent alors la nouvelle version avant leur prochain contenu). */
-export const TERMS_UPDATED = '16 novembre 2026';
+export const TERMS_UPDATED = '18 novembre 2026';
 
 export const TERMS_SECTIONS: { title: string; paragraphs: string[] }[] = [
   {
@@ -30,6 +30,15 @@ export const TERMS_SECTIONS: { title: string; paragraphs: string[] }[] = [
     paragraphs: [
       'Les pièces, objets, cartes et récompenses des jeux de Party n’ont aucune valeur monétaire. Ils ne s’achètent pas, ne se vendent pas et ne s’échangent pas contre de l’argent ou un service, ni dans Party ni ailleurs.',
       'Toute vente, achat ou proposition de vente d’un objet ou d’un compte est interdite. Le paiement entre amis et les billets d’événement ne concernent jamais un objet du jeu.',
+    ],
+  },
+  {
+    title: 'Pronos et patates',
+    paragraphs: [
+      'Les Pronos se jouent entre amis, pour l’honneur : on devine, on marque des points et, dans un groupe ou un événement, on plante des patates pour rire. Apple et Google ne sont ni organisateurs ni sponsors des Pronos.',
+      'Les patates sont gratuites et n’ont aucune valeur. Elles ne s’achètent pas, ne se vendent pas, ne s’échangent pas et ne se transfèrent pas d’une personne à une autre. Elles ne se convertissent en rien (ni argent, ni boisson, ni objet du jeu) et aucun lot ne récompense le classement.',
+      'Il est interdit de régler un prono ou des patates en argent, en boissons, en objets ou en services, dans Party ou ailleurs, et de proposer d’acheter ou de vendre des patates. Jamais de prono sur l’alcool ni sur ce que boit quelqu’un.',
+      'Un compte qui détourne les Pronos ou les patates (argent, boissons, vente, triche) peut être suspendu, et ses patates retirées. Un résultat qui te semble injuste se conteste ou se signale.',
     ],
   },
   {
