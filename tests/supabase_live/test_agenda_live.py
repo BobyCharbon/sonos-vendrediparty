@@ -237,6 +237,40 @@ def test_margins_before_and_after_and_old_app_ranges_count_for_every_link(people
     sql(f"delete from private.agenda_links where user_id = '{owner.uid}'")
 
 
+def test_a_readable_address_agenda_name_link(people):
+    """Migration 20261117170000 : /agenda/<nom>/<lien> ; nom unique sur le site, réservés et filtre ; nom du lien unique
+    pour soi ; lien arrêté ou nom changé : plus rien ; l'adresse en lettres marche toujours."""
+    owner, friend, _ = people
+    ok(owner.rpc('agenda_handle_set', handle=''))
+    ok(friend.rpc('agenda_handle_set', handle=''))
+    link = ok(owner.rpc('agenda_link_save', link=link_body(name='Semaine')))
+    refused(owner.rpc('agenda_link_set_slug', id=link['id'], slug='semaine'), 'forbidden')        # nom d'abord
+    for bad, code in (('ab', 'invalid'), ('Ludo Vic', 'invalid'), ('a--b', 'invalid'), ('admin-party', 'duplicate'), ('vendrediparty', 'duplicate')):
+        refused(owner.rpc('agenda_handle_set', handle=bad), code)
+    assert ok(owner.rpc('agenda_handle_set', handle='Recette-Lea'))['handle'] == 'recette-lea'
+    refused(friend.rpc('agenda_handle_set', handle='recette-lea'), 'duplicate')                  # unique sur le site
+    nice = ok(owner.rpc('agenda_link_set_slug', id=link['id'], slug='Semaine'))
+    assert nice['slug'] == 'semaine' and nice['nice_path'] == '/agenda/recette-lea/semaine'
+    assert ok(anon('agenda_resolve', handle='Recette-Lea', slug='semaine')) == link['token']
+    other = ok(owner.rpc('agenda_link_save', link=link_body(name='Autre')))
+    refused(owner.rpc('agenda_link_set_slug', id=other['id'], slug='semaine'), 'duplicate')       # unique pour soi
+    ok(friend.rpc('agenda_handle_set', handle='recette-marc'))
+    friend_link = ok(friend.rpc('agenda_link_save', link=link_body(name='Semaine')))
+    assert ok(friend.rpc('agenda_link_set_slug', id=friend_link['id'], slug='semaine'))['nice_path'] == '/agenda/recette-marc/semaine'
+    assert ok(owner.rpc('agenda_links'))['handle'] == 'recette-lea'
+    ok(owner.rpc('agenda_link_set', id=link['id'], action='stop'))
+    assert anon('agenda_resolve', handle='recette-lea', slug='semaine').json() is None           # arrêté
+    ok(owner.rpc('agenda_link_set', id=link['id'], action='restart'))
+    ok(owner.rpc('agenda_handle_set', handle='recette-lea-2'))
+    assert anon('agenda_resolve', handle='recette-lea', slug='semaine').json() is None           # ancien nom : plus rien
+    assert ok(anon('agenda_resolve', handle='recette-lea-2', slug='semaine')) == link['token']
+    assert anon('agenda_public_page', t=link['token']).json()                                    # en lettres : toujours
+    assert ok(owner.rpc('agenda_link_set_slug', id=link['id'], slug=''))['nice_path'] is None
+    ok(owner.rpc('agenda_handle_set', handle=''))
+    ok(friend.rpc('agenda_handle_set', handle=''))
+    sql(f"delete from private.agenda_links where user_id in ('{owner.uid}', '{friend.uid}')")
+
+
 def test_a_link_can_be_permanent(people):
     owner, _, _ = people
     link = ok(owner.rpc('agenda_link_save', link=link_body(permanent=True)))

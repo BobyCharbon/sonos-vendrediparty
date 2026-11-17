@@ -46,7 +46,7 @@ def agenda_services(page, links=None, pending=1, welcome_seen=False):
         'id': '8a000000-0000-4000-8000-000000000001', 'calendar_id': PERSONAL_CAL, 'title': 'Dentiste', 'place': None, 'notes': None,
         'starts_at': iso(at(0, 12, 15)), 'ends_at': iso(at(0, 13, 0)), 'all_day': False, 'repeat': 'none', 'repeat_until': None,
         'alert_minutes': None, 'busy': True, 'series_start': iso(at(0, 12, 15)), 'booking': None}],
-        'prefs': {'welcome_seen': welcome_seen}, 'shared': [], 'links': links if links is not None else [], 'pending': pending,
+        'prefs': {'welcome_seen': welcome_seen}, 'shared': [], 'links': links if links is not None else [], 'pending': pending, 'handle': None,
         'bookings': [{
             'id': BOOKING, 'link_id': LINK, 'link_name': 'Rendez-vous pro', 'link_emoji': '💼', 'starts_at': iso(at(3, 10)),
             'ends_at': iso(at(3, 11)), 'status': 'pending', 'created_at': iso(at(0, 0)), 'expires_at': iso(at(2, 0)), 'decided_at': None,
@@ -75,7 +75,8 @@ def agenda_services(page, links=None, pending=1, welcome_seen=False):
                 'booking_enabled': body.get('booking_enabled', False), 'booking_fields': body.get('booking_fields'),
                 'message_label': body.get('message_label'), 'status': 'active',
                 'expires_at': None if body.get('permanent') else iso(at(90, 0)), 'permanent': bool(body.get('permanent')),
-                'calendars': body.get('calendars'), 'stopped_at': None,
+                'calendars': body.get('calendars'), 'stopped_at': None, 'slug': None, 'nice_path': None,
+                'buffer_before_min': body.get('buffer_before_min', 0), 'buffer_after_min': body.get('buffer_after_min', 0),
                 'views': 0, 'last_viewed_at': None, 'pending': 0, 'created_at': iso(at(0, 9))}
 
     def handle(route):
@@ -125,7 +126,15 @@ def agenda_services(page, links=None, pending=1, welcome_seen=False):
                           {'id': LEA, 'name': 'Léa', 'avatar_url': None, 'me': False, 'shares': True, 'busy': evenings({2, 3})},
                           {'id': SAM, 'name': 'Sam', 'avatar_url': None, 'me': False, 'shares': False}]}
         elif name == 'agenda_links':
-            result = {'links': state['links'], 'max': 10, 'missing': None, 'notify': True, 'pending': state['pending']}
+            result = {'links': state['links'], 'max': 10, 'missing': None, 'notify': True, 'pending': state['pending'], 'handle': state['handle']}
+        elif name == 'agenda_handle_set':
+            state['handle'] = body['handle'] or None
+            result = {'handle': state['handle']}
+        elif name == 'agenda_link_set_slug':
+            row = state['links'][0]
+            row['slug'] = body['slug']
+            row['nice_path'] = f"/agenda/{state['handle']}/{body['slug']}" if body['slug'] else None
+            result = row
         elif name == 'agenda_link_preview':
             result = {'slots': [[iso(at(1, 18)), iso(at(1, 19))], [iso(at(1, 20, 30)), iso(at(1, 23))], [iso(at(2, 18)), iso(at(2, 20))]], 'tz': 'Europe/Zurich'}
         elif name == 'agenda_link_save':
@@ -333,8 +342,18 @@ def test_links_empty_state_model_explainer_settings_and_preview(phone, events_or
     assert rpc_calls(state, 'agenda_link_preview')[-1]['link']['calendars'] == [PARTY_CAL]
     page.get_by_text('Ce qui te rend occupé').scroll_into_view_if_needed()
     shot(page, 'agenda-14b-lien-calendriers.png')
+    # Adresse lisible (17.11) : lisible au départ ; le nom vient du surnom, le nom du lien du nom choisi (sans accent).
+    pw.expect(page.get_by_role('tab', name='Lisible')).to_have_attribute('aria-selected', 'true')
+    page.get_by_label('Ton nom d’adresse').fill('Ludovic')
+    pw.expect(page.get_by_label('Ton nom d’adresse')).to_have_value('ludovic')
+    page.get_by_label('Nom du lien dans l’adresse').fill('Général Soir')
+    pw.expect(page.get_by_test_id('link-nice-address')).to_contain_text('/agenda/ludovic/general-soir')
+    page.get_by_test_id('link-nice-address').scroll_into_view_if_needed()
+    shot(page, 'agenda-14c-lien-adresse.png')
     page.get_by_role('button', name='Créer le lien').click()
-    pw.expect(page.get_by_test_id('link-address')).to_contain_text('/d/k7Qm2xV9abcdefghijklmnop', timeout=15000)
+    pw.expect(page.get_by_test_id('link-address')).to_contain_text('/agenda/ludovic/general-soir', timeout=15000)
+    assert rpc_calls(state, 'agenda_handle_set')[-1] == {'handle': 'ludovic'}
+    assert rpc_calls(state, 'agenda_link_set_slug')[-1]['slug'] == 'general-soir'
     saved = rpc_calls(state, 'agenda_link_save')[-1]['link']
     assert saved['calendars'] == [PARTY_CAL] and saved['permanent'] is True and saved['buffer_before_min'] == 30 and saved['buffer_after_min'] == 30
     assert saved['rules'] == [{'days': [1, 2, 3, 4, 5], 'from': '18:00', 'to': '23:00'}]

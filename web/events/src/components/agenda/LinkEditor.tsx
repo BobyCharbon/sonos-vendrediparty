@@ -7,8 +7,8 @@ import { useTermsGate } from '@/components/TermsSheet';
 import { Button, Chip, ConfirmButton, ErrorText, Input, Segmented, T, Toast, ToggleRow } from '@/components/ui';
 import {
   addDays, agoText, calColor, dateShort, DEFAULT_FIELDS, durationText, errorText, FIELD_LABELS, iosKey, isProfile, isTerms, linkUrl, MODELS,
-  nativeAgenda, rpc, rulesText, spanText, syncBusyNow, tinyDay, dayKey, WEEK_LETTERS, type BookingFields, type Calendar, type Link, type Model,
-  type NativeCalendar, type Rule,
+  nativeAgenda, rpc, rulesText, slugify, spanText, syncBusyNow, tinyDay, dayKey, WEEK_LETTERS, type BookingFields, type Calendar, type Link, type Model,
+  type Links, type NativeCalendar, type Rule,
 } from '@/lib/agenda';
 import { useMe } from '@/lib/auth';
 import { enter, pressTransition } from '@/lib/motion';
@@ -127,9 +127,23 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
   const [cals, setCals] = useState<{ party: Calendar[]; phone: NativeCalendar[] | null } | null>(null);
   const [picked, setPicked] = useState<Set<string> | null>(link?.calendars ? new Set(link.calendars) : null);
   const native = nativeAgenda();
+  // Adresse lisible (/agenda/<nom>/<lien>) : le nom est choisi une fois pour tous les liens, le nom du lien ici.
+  const [readable, setReadable] = useState(link ? !!link.slug : true);
+  const [handle, setHandle] = useState<string | null>(null);
+  const [serverHandle, setServerHandle] = useState<string | null | undefined>(undefined);
+  const [editHandle, setEditHandle] = useState(false);
+  const [slug, setSlug] = useState(link?.slug ?? slugify(name));
+  const [slugTouched, setSlugTouched] = useState(!!link?.slug);
+  const [taken, setTaken] = useState<string[]>([]);
+  const savedId = useRef<string | null>(link?.id ?? null);
 
   useEffect(() => {
-    void rpc<{ notify: boolean }>('agenda_links').then((l) => setNotify(l.notify !== false)).catch(() => undefined);
+    void rpc<Links>('agenda_links').then((l) => {
+      setNotify(l.notify !== false);
+      setServerHandle(l.handle ?? null);
+      setHandle(l.handle ?? slugify(me.display_name || me.first_name || '', 30));
+      setTaken(l.links.filter((x) => x.id !== link?.id && x.slug).map((x) => x.slug!));
+    }).catch(() => setServerHandle(null));
     void notifyState().then((s) => setDeviceOff(s !== 'on')).catch(() => undefined);
     void (async () => {
       const party = await rpc<Calendar[]>('agenda_calendars_list').catch((): Calendar[] => []);
@@ -163,7 +177,10 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
     const def = MODELS.find((x) => x.key === m)!;
     if (m !== 'custom') setRules(def.rules);
     setEmoji(def.emoji);
-    if (!name.trim() || MODELS.some((x) => x.name === name)) setName(m === 'custom' ? name : def.name);
+    if (!name.trim() || MODELS.some((x) => x.name === name)) {
+      setName(m === 'custom' ? name : def.name);
+      if (!slugTouched) setSlug(slugify(m === 'custom' ? name : def.name));
+    }
   }
   function setRule(i: number, patch: Partial<Rule>) {
     setRules((r) => r.map((x, j) => (j === i ? { ...x, ...patch } : x)));
@@ -178,17 +195,33 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
     setNeedProfile(false);
     if (!rules.length || rules.some((r) => !r.days.length || r.to <= r.from)) { setError('Choisis au moins un jour et des heures (la fin après le début).'); return; }
     if (pro && !display.trim()) { setError('Écris le nom que verra la personne.'); return; }
+    const h = slugify(handle ?? '', 30), sl = slugify(slug);
+    if (readable) {
+      if (h.length < 3) { setError('Ton nom d’adresse : 3 lettres au moins (lettres, chiffres, tirets).'); return; }
+      if (!sl) { setError('Donne un nom au lien, par exemple « semaine ».'); return; }
+      if (taken.includes(sl)) { setError(`Tu as déjà un lien « ${sl} ». Choisis un autre nom.`); return; }
+    }
     const body = { name: name.trim() || 'Mes dispos', emoji, display_name: pro ? display.trim() : myFirst || null, rules, horizon_days: horizon,
       duration_min: durationMin, booking_enabled: booking, booking_fields: { ...fields, first_name: 'required' }, message_label: label.trim() || null,
       permanent, buffer_before_min: before, buffer_after_min: after, ...(picked ? { calendars: [...picked] } : {}) };
     if (!link && !(await terms.ensure())) return;
     setBusy(true);
     try {
+      // Le nom d'adresse d'abord (déjà pris : rien n'est créé), puis le lien, puis son nom.
+      if (readable && h !== serverHandle) {
+        await rpc('agenda_handle_set', { handle: h });
+        setServerHandle(h);
+      }
+      const args = () => (savedId.current ? { link: body, id: savedId.current } : { link: body });
       let saved: Link;
-      try { saved = await rpc<Link>('agenda_link_save', link ? { link: body, id: link.id } : { link: body }); }
+      try { saved = await rpc<Link>('agenda_link_save', args()); }
       catch (e) {
         if (!isTerms(e) || !(await terms.ensure())) throw e;
-        saved = await rpc<Link>('agenda_link_save', link ? { link: body, id: link.id } : { link: body });
+        saved = await rpc<Link>('agenda_link_save', args());
+      }
+      savedId.current = saved.id;
+      if ((readable ? sl : null) !== (saved.slug ?? null)) {
+        saved = await rpc<Link>('agenda_link_set_slug', { id: saved.id, slug: readable ? sl : null });
       }
       // Les plages des calendriers choisis partent tout de suite (sinon : à la prochaine ouverture de Party).
       await syncBusyNow();
@@ -224,7 +257,7 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
     <View style={{ gap: 12 }}>
       <View style={st.nameBox}>
         <T size={12} weight="bold" color={colors.muted} style={{ letterSpacing: 0.8 }}>NOM DU LIEN (POUR TOI)</T>
-        <Input accessibilityLabel="Nom du lien (pour toi)" placeholder="Pro – semaine" value={name} onChangeText={setName} maxLength={40} style={st.nameInput} />
+        <Input accessibilityLabel="Nom du lien (pour toi)" placeholder="Pro – semaine" value={name} onChangeText={(v) => { setName(v); if (!slugTouched) setSlug(slugify(v)); }} maxLength={40} style={st.nameInput} />
       </View>
 
       <Label>Commence par un modèle</Label>
@@ -320,6 +353,42 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
           </View>
         ) : null}
       </View>
+
+      <Label>Adresse du lien</Label>
+      <Segmented<'nice' | 'secret'> value={readable ? 'nice' : 'secret'} onChange={(v) => setReadable(v === 'nice')}
+        options={[{ key: 'nice', label: 'Lisible' }, { key: 'secret', label: 'En lettres' }]} />
+      {readable ? (
+        <View style={[st.card, enter('drop')]}>
+          {serverHandle && !editHandle ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <T muted size={14} style={{ flex: 1 }}>Ton nom : <Text style={{ color: colors.text, ...font.bold }}>{serverHandle}</Text></T>
+              <Pressable accessibilityRole="button" onPress={() => setEditHandle(true)} style={{ minHeight: 44, justifyContent: 'center' }}>
+                <T size={14} weight="bold" color={colors.accent}>Changer</T>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={{ gap: 6 }}>
+              <T size={12} weight="bold" color={colors.muted} style={{ letterSpacing: 0.8 }}>TON NOM (POUR TOUS TES LIENS)</T>
+              <Input accessibilityLabel="Ton nom d’adresse" placeholder="ludovic" value={handle ?? ''} autoCapitalize="none" autoCorrect={false}
+                onChangeText={(v) => setHandle(slugify(v, 30, true))} maxLength={30} />
+              {serverHandle ? <Note>Changer ton nom change l’adresse de tous tes liens lisibles. Les anciennes ne marchent plus.</Note> : null}
+            </View>
+          )}
+          <View style={{ gap: 6 }}>
+            <T size={12} weight="bold" color={colors.muted} style={{ letterSpacing: 0.8 }}>NOM DU LIEN</T>
+            <Input accessibilityLabel="Nom du lien dans l’adresse" placeholder="semaine" value={slug} autoCapitalize="none" autoCorrect={false}
+              onChangeText={(v) => { setSlugTouched(true); setSlug(slugify(v, 40, true)); }} maxLength={40} />
+          </View>
+          <View style={st.address} testID="link-nice-address">
+            <T size={14} weight="semibold" numberOfLines={2}>
+              {(typeof location !== 'undefined' ? location.host : '')}/agenda/{slugify(handle ?? '', 30) || 'ton-nom'}/{slugify(slug) || 'lien'}
+            </T>
+          </View>
+        </View>
+      ) : null}
+      <Note>{readable
+        ? 'Facile à dire et à retenir, mais quelqu’un qui connaît ton nom peut la deviner. L’adresse en lettres marche aussi.'
+        : 'Une suite de lettres au hasard : impossible à deviner. Pour un lien que tu veux garder discret.'}</Note>
 
       <Label>Ce qui te rend occupé</Label>
       <Group>
@@ -500,6 +569,7 @@ const st = StyleSheet.create({
   qr: { width: 240, height: 240, alignSelf: 'center', borderRadius: 12 },
   intro: { gap: 14, padding: 18, borderRadius: 24, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.lineStrong },
   calDot: { width: 12, height: 12, borderRadius: 6 },
+  address: { padding: 12, borderRadius: radius.md, backgroundColor: colors.fill },
   introIcon: { alignSelf: 'center', width: 64, height: 64, borderRadius: 18, backgroundColor: colors.action, alignItems: 'center', justifyContent: 'center',
     shadowColor: colors.accent, shadowOpacity: 0.5, shadowRadius: 18 },
   introRow: { flexDirection: 'row', gap: 12, padding: 12, alignItems: 'flex-start' },

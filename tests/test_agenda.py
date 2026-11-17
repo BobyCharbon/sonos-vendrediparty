@@ -221,3 +221,24 @@ def test_an_ics_link_must_be_public_https():
         agenda_ics.fetch("https://127.0.0.1/a.ics")
     with pytest.raises(agenda_ics.IcsError):
         agenda_ics.fetch("https://localhost/a.ics")
+
+
+def test_a_readable_address_serves_the_same_page_without_showing_the_token(db, client):
+    """Adresse lisible (17.11) : /agenda/<nom>/<lien> → même page, demande et signalement ; le jeton n'apparaît jamais ;
+    inconnue, arrêtée ou mal écrite : la même page neutre."""
+    calls, answers = db
+    answers["agenda_resolve"] = lambda args: (200, TOKEN if (args["handle"], args["slug"]) == ("ludovic", "semaine") else None)
+    answers["agenda_public_page"] = (200, PAGE)
+    r = client.get("/agenda/Ludovic/semaine", headers={"user-agent": "Mozilla/5.0"})
+    assert r.status_code == 200 and "Prendre rendez-vous avec" in r.text
+    assert TOKEN not in r.text and "/agenda/ludovic/semaine/apercu.png" in r.text
+    assert ("agenda_public_page", {"t": TOKEN, "count_view": True}) in [c[:2] for c in calls]
+    for bad in ("/agenda/ludovic/autre", "/agenda/inconnu/semaine", "/agenda/l%20v/semaine"):
+        assert client.get(bad).status_code == 404
+    answers["agenda_booking_request"] = (200, {"secret": SECRET, "status": "pending"})
+    sent = client.post("/agenda/ludovic/semaine/demande", json={"starts_at": "2026-11-23T08:00:00Z", "answers": {"first_name": "Marc"},
+                                                                 "site": "", "elapsed": 9})
+    assert sent.json()["url"] == f"/d/r/{SECRET}"
+    assert client.post("/agenda/ludovic/autre/demande", json={"starts_at": "2026-11-23T08:00:00Z", "answers": {}, "site": "", "elapsed": 9}).status_code == 404
+    assert client.get("/agenda/ludovic/semaine/apercu.png").headers["content-type"] == "image/png"
+    assert "agenda_handle_set" in agenda.RELAY and "agenda_link_set_slug" in agenda.RELAY

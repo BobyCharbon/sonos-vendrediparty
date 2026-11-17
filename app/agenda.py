@@ -4,6 +4,8 @@ ici on lit et on affiche, sans rien garder.
 - Page publique d'un lien de dispo : GET /d/<jeton> (sobre, vouvoiement, vue graphique + « Voir en liste », demande de
   rendez-vous si le lien l'accepte). Même page neutre 404 pour un lien inconnu, arrêté ou expiré. noindex, nofollow,
   noarchive ; no-referrer ; aucune ressource externe (polices système, script et style en ligne avec nonce).
+- Adresse lisible (17.11) : /agenda/<nom>/<lien> (agenda_resolve) sert la même page, ses demandes, son signalement et
+  son aperçu, sans jamais montrer le jeton ; lien inconnu, arrêté ou expiré : la même page neutre.
 - POST /d/<jeton>/demande (JSON) : la demande (champ piège, temps de saisie minimal, IP passée à la base qui la hache) ;
   POST /d/<jeton>/signaler : « Signaler cette page » sans compte ; GET /d/<jeton>/apercu.png : image de l'aperçu.
 - Suivi de l'inconnu : GET /d/r/<secret> ; POST …/annuler, …/effacer, …/confirmer (e-mails futurs) ; GET …/rendez-vous.ics.
@@ -45,6 +47,7 @@ RELAY = {
     "agenda_calendars_list", "agenda_calendar_save", "agenda_calendar_delete", "agenda_prefs_get", "agenda_prefs_save",
     "agenda_window", "agenda_item_save", "agenda_item_delete", "agenda_sharing", "agenda_set_sharing", "agenda_stop_sharing",
     "agenda_set_busy", "agenda_group_free", "agenda_links", "agenda_link_save", "agenda_link_set", "agenda_link_preview",
+    "agenda_handle", "agenda_handle_set", "agenda_link_set_slug",
     "agenda_booking_requests", "agenda_badge", "agenda_booking_decide", "agenda_booking_owner_cancel",
     "agenda_booking_report", "agenda_booking_block", "agenda_unblock_senders",
 }
@@ -456,14 +459,15 @@ def noscript_list(data: dict) -> str:
                    + "".join(f"<li>Disponible de {esc(x)}</li>" for x in xs) + "</ul></section>" for day, xs in by_day.items())
 
 
-def link_page(data: dict, token: str, base: str, nonce: str) -> str:
+def link_page(data: dict, path: str, base: str, nonce: str) -> str:
+    """path : adresse de la page (/d/<jeton> ou /agenda/<nom>/<lien>) ; l'adresse lisible ne montre jamais le jeton."""
     name, booking = data["name"], data.get("booking")
     over = "Prendre rendez-vous avec" if booking else "Disponibilités de"
     title = f"{over} {name}"
     h, m = divmod(int(data["duration_min"]), 60)
     dur = (f"{h} h" if h else "") + (f" {m:02d}" if h and m else f"{m} min" if m else "")
     meta = _og(f"{'Prendre rendez-vous' if booking else 'Disponibilités'}", f"{name} — {data['link_name']}",
-               f"{base}/d/{token}/apercu.png")
+               f"{base}{path}/apercu.png")
     form = ""
     if booking:
         fields = booking["fields"]
@@ -697,8 +701,37 @@ def agenda_router(accounts: Accounts, public_url: Callable[[], str], client_ip: 
     def preview_neutral():
         return Response(preview_png("Lien d’agenda", None, None), media_type="image/png", headers=plain_headers())
 
+    NICE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
+
+    def resolve(handle: str, slug: str) -> str:
+        """Jeton d'une adresse lisible active ; « » sinon (page neutre, comme un jeton inconnu)."""
+        handle, slug = handle.lower(), slug.lower()
+        if not (NICE.fullmatch(handle) and NICE.fullmatch(slug)):
+            return ""
+        status, data = db.call("agenda_resolve", {"handle": handle, "slug": slug})
+        return data if status == 200 and isinstance(data, str) and TOKEN.fullmatch(data) else ""
+
+    @router.get("/agenda/{handle}/{slug}")
+    def nice_link(handle: str, slug: str, request: Request):
+        return link(resolve(handle, slug), request, f"/agenda/{handle.lower()}/{slug.lower()}")
+
+    @router.get("/agenda/{handle}/{slug}/apercu.png")
+    def nice_preview(handle: str, slug: str):
+        return link_preview(resolve(handle, slug))
+
+    @router.post("/agenda/{handle}/{slug}/demande")
+    def nice_request(handle: str, slug: str, body: BookingBody, request: Request):
+        return booking_request(resolve(handle, slug), body, request)
+
+    @router.post("/agenda/{handle}/{slug}/signaler")
+    def nice_report(handle: str, slug: str, body: ReportBody, request: Request):
+        return report(resolve(handle, slug), body, request)
+
     @router.get("/d/{token}")
-    def link(token: str, request: Request):
+    def token_link(token: str, request: Request):
+        return link(token, request)
+
+    def link(token: str, request: Request, path: str | None = None):
         nonce = secrets.token_urlsafe(12)
         if not TOKEN.fullmatch(token):
             return gone(nonce)
@@ -708,7 +741,7 @@ def agenda_router(accounts: Accounts, public_url: Callable[[], str], client_ip: 
             return html_response(gone_page(nonce, public_url(), "Réessayez dans un instant", "Le service ne répond pas."), nonce, 503)
         if not isinstance(data, dict):
             return gone(nonce)
-        return html_response(link_page(data, token, public_url(), nonce), nonce)
+        return html_response(link_page(data, path or f"/d/{token}", public_url(), nonce), nonce)
 
     @router.get("/d/{token}/apercu.png")
     def link_preview(token: str):

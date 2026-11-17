@@ -508,8 +508,16 @@ export type Link = {
   permanent: boolean;
   /** Marges : pas disponible N minutes avant / après chaque rendez-vous (0 à 240). */
   buffer_before_min: number; buffer_after_min: number;
+  /** Adresse lisible : nom du lien (« semaine ») et chemin complet (« /agenda/ludovic/semaine ») ; null sans adresse lisible. */
+  slug: string | null; nice_path: string | null;
 };
-export type Links = { links: Link[]; max: number; missing: null | 'profile' | 'terms'; notify: boolean; pending: number };
+export type Links = { links: Link[]; max: number; missing: null | 'profile' | 'terms'; notify: boolean; pending: number; handle: string | null };
+
+/** « Général · Après-midi » → « general-apres-midi » (lettres, chiffres, tirets ; `typing` garde le tiret final). */
+export function slugify(text: string, max = 40, typing = false): string {
+  const s = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, max);
+  return typing ? s : s.replace(/-+$/, '');
+}
 
 export const FIELD_LABELS: { key: keyof BookingFields; label: string }[] = [
   { key: 'first_name', label: 'Prénom' }, { key: 'last_name', label: 'Nom' }, { key: 'email', label: 'Adresse e-mail' },
@@ -540,10 +548,10 @@ export function rulesText(rules: Rule[]): string {
   }).join(' · ');
 }
 
-export function linkUrl(link: Pick<Link, 'path'>): string {
-  // Jamais un domaine écrit en dur : l'adresse du site ouvert (PUBLIC_URL).
+export function linkUrl(link: Pick<Link, 'path'> & { nice_path?: string | null }): string {
+  // Jamais un domaine écrit en dur : l'adresse du site ouvert (PUBLIC_URL). L'adresse lisible d'abord, si elle existe.
   const origin = typeof location !== 'undefined' ? location.origin : '';
-  return `${origin}${link.path}`;
+  return `${origin}${link.nice_path || link.path}`;
 }
 
 export type Booking = {

@@ -423,7 +423,13 @@ réglage de prod :
   (`syncBusyNow`). Les demandes de rendez-vous rendent toujours occupé. Plages SANS calendrier (`cal = ''`, app d'avant le
   build 199) : comptent pour tous les liens (bug du 17.11, lien toujours libre). Marges par lien : `buffer_before_min` /
   `buffer_after_min` (0 à 240, par 5 ; écran : Aucune, 30 min, 1 h, 1 h 30, car les plages sont arrondies à 30 min) autour de tout ce qui rend occupé
-  (`private.agenda_link_busy`, migration 20261117160000). Tests : `test_each_link_chooses_the_calendars_*`,
+  (`private.agenda_link_busy`, migration 20261117160000).
+- Adresse lisible (migration 20261117170000) : `<site>/agenda/<nom>/<lien>` (app/agenda.py, `agenda_resolve` → même page,
+  demande, signalement, aperçu ; le jeton n'apparaît jamais dans la page). Nom choisi une fois (`private.agenda_handles`,
+  unique sur le site, 3–30, réservés `agenda_handle_reserved`, filtré comme un surnom ; `agenda_handle_set`) ; nom du lien
+  `agenda_links.slug` unique pour soi (`agenda_link_set_slug`). Écran : « Adresse du lien » Lisible (défaut) / En lettres.
+  `/d/<jeton>` marche toujours. Nom changé / lien arrêté : l'adresse lisible ne montre plus rien. Tests : `test_agenda.py`,
+  `test_a_readable_address_agenda_name_link`, `test_links_empty_state_*`. Tests : `test_each_link_chooses_the_calendars_*`,
   `test_a_link_can_be_permanent`, `test_in_the_iphone_app_a_link_picks_iphone_calendars_*`, `AgendaTests`.
 - Notification `booking_request` / `booking_cancelled` sans coordonnée ni texte libre, interrupteur
   `notification_prefs.booking_requests` (allumé) ; pastille `agenda_badge()` + signal `user:<id>`. E-mails : pas en v1,
