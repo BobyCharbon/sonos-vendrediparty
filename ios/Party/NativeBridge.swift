@@ -65,10 +65,15 @@ enum NativeBridge {
             try { window.webkit.messageHandlers.\(aiHandler).postMessage("edit:" + id); } catch (e) {}
           }
         },
-        // Discussion d'un événement (16.11) : écran natif façon WhatsApp, ouvert par-dessus la page.
+        // Discussion d'un événement : écran natif façon WhatsApp, poussé par-dessus la fiche (16.11). version 2 (17.11) :
+        // l'écran de la discussion DANS l'événement (en-tête, cloche des notifications), et ses réglages ouverts d'emblée.
         chat: {
+          version: 2,
           openEvent: function (id) {
             try { window.webkit.messageHandlers.\(chatHandler).postMessage("event:" + id); } catch (e) {}
+          },
+          openEventSettings: function (id) {
+            try { window.webkit.messageHandlers.\(chatHandler).postMessage("settings:" + id); } catch (e) {}
           }
         },
         // « Scanner les billets » (Événements) : lecteur QR d'Apple ; promesse du texte lu, ou null si l'on ferme.
@@ -182,8 +187,17 @@ private final class ChatHandler: NSObject, WKScriptMessageHandler {
     @MainActor
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         guard AppConfig.isInternal(message.frameInfo.securityOrigin.url), let body = message.body as? String,
-              body.hasPrefix("event:"), let id = UUID(uuidString: String(body.dropFirst(6))) else { return }
-        model?.openEventChat(id.uuidString)  // la base vérifie que la personne peut lire cette discussion
+              let request = Self.parse(body) else { return }
+        model?.openEventChat(request.id, info: request.settings)  // la base vérifie que la personne peut lire cette discussion
+    }
+
+    /// « event:<id> » : la discussion ; « settings:<id> » : la discussion, ses infos et réglages ouverts.
+    nonisolated static func parse(_ body: String) -> (id: String, settings: Bool)? {
+        for (prefix, settings) in [("event:", false), ("settings:", true)] where body.hasPrefix(prefix) {
+            guard let id = UUID(uuidString: String(body.dropFirst(prefix.count))) else { return nil }
+            return (id.uuidString.lowercased(), settings)
+        }
+        return nil
     }
 }
 

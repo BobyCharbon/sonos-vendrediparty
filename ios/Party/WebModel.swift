@@ -19,6 +19,8 @@ final class WebModel: ObservableObject {
     @Published var ticketScanOpen = false
     /// Discussion d'un événement ouverte en natif (« Discussion » sur sa fiche, notification) : l'id de l'événement.
     @Published var eventChatID: String?
+    /// Ses infos ouvertes d'emblée (« Réglages » de la fiche : PartyNative.chat.openEventSettings).
+    @Published var eventChatInfo = false
     /// Données de cette discussion (même écran que Discussions, routes de l'événement).
     private(set) var eventChats: ChatsStore?
     private var ticketScanReply: CheckedContinuation<String?, Never>?
@@ -157,6 +159,14 @@ final class WebModel: ObservableObject {
             return
         }
         var target = AppConfig.isInternal(url) ? url : start
+        // Lien de la discussion d'un événement (/events/event/<id>/chat) : la fiche dans la page Party, la discussion
+        // en natif par-dessus (même chemin que la notification).
+        if AppConfig.isInternal(url), let event = Self.eventChatPath(in: url),
+           var parts = URLComponents(url: start, resolvingAgainstBaseURL: true) {
+            parts.queryItems = [URLQueryItem(name: "tab", value: "events"), URLQueryItem(name: "event", value: event),
+                                URLQueryItem(name: "chat", value: "1")]
+            target = parts.url ?? target
+        }
         // Notification d'un message d'événement (?tab=events&event=<id>&chat=1) : la fiche dans la page, la discussion
         // en natif par-dessus.
         if let event = Self.eventChatRequested(in: target) {
@@ -323,10 +333,27 @@ final class WebModel: ObservableObject {
         return id.lowercased()
     }
 
-    /// « Discussion » d'un événement (sa fiche, une notification) : l'écran natif façon WhatsApp, par-dessus la page.
-    func openEventChat(_ id: String) {
+    /// « Discussion » d'un événement (sa fiche, une notification, un lien /events/event/<id>/chat) : l'écran natif façon
+    /// WhatsApp, poussé par-dessus la page ; `info` : ses infos et réglages s'ouvrent d'emblée.
+    func openEventChat(_ id: String, info: Bool = false) {
         guard id.range(of: "^[0-9a-fA-F-]{36}$", options: .regularExpression) != nil, eventChats != nil else { return }
+        eventChatInfo = info
         Motion.animate(Motion.smooth) { eventChatID = id.lowercased() }
+    }
+
+    /// « ‹ » ou glissé depuis le bord : retour à la fiche de l'événement.
+    func closeEventChat() {
+        eventChatInfo = false
+        eventChatID = nil
+    }
+
+    /// Lien vers la discussion d'un événement (/events/event/<id>/chat) : l'id de l'événement.
+    nonisolated static func eventChatPath(in url: URL) -> String? {
+        let parts = url.pathComponents
+        guard parts.count == 5, parts[1] == "events", parts[2] == "event", parts[4] == "chat",
+              parts[3].range(of: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", options: .regularExpression) != nil
+        else { return nil }
+        return parts[3].lowercased()
     }
 
     /// Événement créé par l'assistant IA : l'onglet Événements l'ouvre.
@@ -368,6 +395,13 @@ final class WebModel: ObservableObject {
     /// Lien interne « ?tab=chats&chat=<id> » suivi dans la page déjà chargée (fiche d'un joueur › Écrire, toucher
     /// d'une notification) : l'écran natif ouvre la conversation, la page ne se recharge pas.
     func openNativeChat(_ url: URL) -> Bool {
+        // Discussion d'un événement (?tab=events&event=<id>&chat=1 ou /events/event/<id>/chat) : la fiche derrière, sans
+        // recharger la page, et l'écran natif par-dessus.
+        if tabs != nil, let event = Self.eventChatRequested(in: url) ?? Self.eventChatPath(in: url), eventChats != nil {
+            openEvent(event)
+            openEventChat(event)
+            return true
+        }
         guard discussions, tabs != nil, let chats, let chat = Self.chatRequested(in: url) else { return false }
         chats.requested = chat
         selectTab("chats")
