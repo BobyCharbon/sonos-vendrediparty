@@ -865,7 +865,9 @@ export function GroupChat({ id, direct = false, event = false }: { id: string; d
                     // Le champ grandit avec le texte : à hauteur fixe, la 2e ligne rognait le haut du texte.
                     onContentSizeChange={onComposerSize}
                     style={{ flex: 1, height: text ? composerHeight : COMPOSER_MIN, paddingTop: 12, paddingBottom: 12, paddingHorizontal: 6,
-                      borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent' }} />
+                      borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent',
+                      // Pas de cadre carré du navigateur dans le champ arrondi (la bulle arrondie autour montre le champ).
+                      outlineStyle: 'none', outlineWidth: 0 } as object} />
                   {!text.trim() && Platform.OS === 'web' ? (
                     <IconButton label="Prendre une photo" onPress={() => void sendPhoto(true)} disabled={sending}><T size={18}>📷</T></IconButton>
                   ) : null}

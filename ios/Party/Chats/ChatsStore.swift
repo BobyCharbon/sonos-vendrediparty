@@ -129,7 +129,7 @@ final class ChatsStore: ObservableObject {
         listLive = nil
     }
 
-    #if DEBUG
+    #if DEBUG || E2E_HOOKS
     /// Simulateur : PARTY_DEBUG_MOTION=chat rejoue une conversation figée (MotionDemo) pour regarder les animations.
     private(set) var demo = false
 
