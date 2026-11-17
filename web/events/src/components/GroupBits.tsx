@@ -1,11 +1,11 @@
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { Avatar, T } from './ui';
 import { BADGE_RED } from '@/lib/activityBadge';
 import { dateTile, plural } from '@/lib/format';
-import { GROUP_EMOJIS, gradient, groupName, palette, type GroupLook, type GroupOverview } from '@/lib/groups';
+import { GROUP_EMOJIS, gradient, groupName, palette, useGroupImage, type GroupLook, type GroupOverview } from '@/lib/groups';
 import { ease, enter, pressTransition, reducedMotion } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
 
@@ -44,15 +44,23 @@ export function loop(kind: keyof typeof loops, delayMs = 0): ViewStyle | undefin
   return delayMs ? ([loops[kind], web({ animationDelay: `${delayMs}ms` })] as unknown as ViewStyle) : loops[kind];
 }
 
-/** Tuile du groupe : son emoji sur le dégradé de sa couleur, liseré clair, ombre colorée. */
-export function GroupTile({ group, size = 52, style }: { group: { emoji: string; color?: string | null }; size?: number; style?: StyleProp<ViewStyle> }) {
+type TileGroup = { emoji: string; color?: string | null; photo?: string | null; photo_path?: string | null;
+  system?: boolean | null; system_key?: string | null };
+
+/** Tuile du groupe : sa photo (ou le logo de Party pour Membres Vendredi Party), sinon son emoji sur le dégradé de sa
+ * couleur ; liseré clair, ombre colorée. */
+export function GroupTile({ group, size = 52, style, src }: { group: TileGroup; size?: number; style?: StyleProp<ViewStyle>; src?: string | null }) {
   const p = palette(group.color);
+  const fromGroup = useGroupImage(group);
+  const image = src ?? fromGroup;  // src : photo choisie, pas encore envoyée
   return (
     <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
       style={[{ width: size, height: size, borderRadius: size * 0.3, alignItems: 'center', justifyContent: 'center',
         borderWidth: 2, borderColor: 'rgba(255,255,255,0.28)', shadowColor: p.to, shadowOpacity: 0.45, shadowRadius: size * 0.22,
         shadowOffset: { width: 0, height: size * 0.08 } }, gradient(group.color), style]}>
-      <Text style={{ fontSize: size * 0.5, lineHeight: size * 0.62 }}>{group.emoji}</Text>
+      {image
+        ? <Image source={{ uri: image }} testID="group-photo" style={{ width: '100%', height: '100%', borderRadius: size * 0.3 - 2 }} resizeMode="cover" />
+        : <Text style={{ fontSize: size * 0.5, lineHeight: size * 0.62 }}>{group.emoji}</Text>}
     </View>
   );
 }
@@ -267,6 +275,17 @@ function Bubble({ label, children, onPress, ring, a11y, badge = 0, index }: {
   );
 }
 
+/** Intérieur d'une bulle : la photo du groupe (ou le logo de Party), sinon son emoji. */
+function BubbleFace({ group }: { group: GroupOverview }) {
+  const image = useGroupImage(group);
+  return (
+    <View style={[st.plus, { backgroundColor: palette(group.color).dim, overflow: 'hidden' }]}>
+      {image ? <Image source={{ uri: image }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+        : <Text style={{ fontSize: 28 }}>{group.emoji}</Text>}
+    </View>
+  );
+}
+
 /** Bulles « Tes groupes » en haut de l'onglet Événements (direction B) : « + Crée ton groupe » d'abord, puis mes groupes. */
 export function GroupBubbles({ groups }: { groups: GroupOverview[] }) {
   return (
@@ -281,7 +300,7 @@ export function GroupBubbles({ groups }: { groups: GroupOverview[] }) {
           <Bubble key={g.id} index={i + 1} label={groupName(g)} badge={g.unread}
             a11y={`Groupe ${groupName(g)}${g.unread ? `, ${g.unread} non lus` : ''}`} onPress={() => router.push(`/group/${g.id}`)}
             ring={{ ...gradient(g.color), borderColor: 'transparent' }}>
-            <View style={[st.plus, { backgroundColor: palette(g.color).dim }]}><Text style={{ fontSize: 28 }}>{g.emoji}</Text></View>
+            <BubbleFace group={g} />
           </Bubble>
         ))}
         <Bubble label="Tout voir" a11y="Tous mes groupes" index={groups.length + 1} onPress={() => router.push('/groups')}

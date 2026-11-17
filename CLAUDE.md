@@ -349,7 +349,12 @@ réglage de prod :
 ## Groupes : nouveau graphisme (17.11)
 - Maquette A « Néon & couvertures » + bulles et QR de B. Chaque groupe a un emoji (liste fermée) et une des 6 couleurs
   (`member_groups.emoji` / `color`, contraintes + `private.group_look_guard`, migration 20261117100000) ; couverture =
-  dégradé de la couleur + emoji, JAMAIS de photo de couverture (contenu à modérer). Membres Vendredi Party : 🎉 lavande fixe.
+  dégradé de la couleur + emoji. Photo FACULTATIVE (demande du 17.11, migration 20261117130000) : `member_groups.photo_path`
+  (compartiment privé `group-photos`, dossier = le groupe ; écrire : qui le gère ; lire : ses membres + modérateurs ; garde
+  `private.group_photo_guard`, CGU) remplace l'emoji et devient la couverture ; « Signaler la photo du groupe » (`group_photo`,
+  « Masquer » la retire, fichier retiré par l'appli). Membres Vendredi Party : JAMAIS de photo, son image = le logo officiel
+  de Party (`/static/icon-192.png`), personne ne la change ; 🎉 lavande fixe. Tests : `test_groupes_photo_live.py`,
+  `test_groupes_photo_browser_live.py`.
   Mêmes listes : `web/events/src/lib/groups.ts`, `ios/Party/Chats/GroupLook.swift`.
 - Web : `/groups` (liste façon WhatsApp, `my_groups_overview`), `/group/new` (2 étapes : nom/emoji/couleur avec CGU, puis
   Inviter : lien WhatsApp/Copier/Autre + QR + `group_invite_suggestions` = personnes croisées à un événement, jamais tout

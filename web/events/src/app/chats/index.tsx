@@ -73,7 +73,7 @@ function ChatRow({ chat }: { chat: ChatSummary }) {
       style={({ pressed }) => [{ flexDirection: 'row', gap: 12, alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
         transition('background-color', duration.fast), pressed && { backgroundColor: colors.fill }]}>
       {direct ? <Avatar id={chat.user_id!} name={name} photo={chat.avatar_url ?? null} size={48} profile={false} />
-        : <GroupTile group={{ emoji: chat.emoji ?? '👯', color: chat.color ?? 'pink' }} size={48} />}
+        : <GroupTile group={{ emoji: chat.emoji ?? '👯', color: chat.color ?? 'pink', photo_path: chat.photo_path, system: chat.system }} size={48} />}
       <View style={{ flex: 1, gap: 3 }}>
         <View style={s.rowBetween}>
           <T weight="semibold" numberOfLines={1} style={{ flex: 1 }}>{name}</T>

@@ -43,7 +43,7 @@ export default function GroupsScreen() {
       fetchMyGroups(),
       supabase.rpc('my_group_invitations'),
       siteAdmin
-        ? supabase.from('member_groups').select('id, name, emoji, color, system_key, created_by, member_group_members(user_id)').order('name')
+        ? supabase.from('member_groups').select('id, name, emoji, color, photo_path, system_key, created_by, member_group_members(user_id)').order('name')
         : Promise.resolve({ data: [] as OtherGroup[] }),
     ]);
     const mine = new Set(groups.map((g) => g.id));

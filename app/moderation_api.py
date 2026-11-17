@@ -100,7 +100,10 @@ class Moderation:
         rows = self.admin._rpc(token, "moderation_queue", {"p_status": status, "p_limit": QUEUE_LIMIT},
                                "Les signalements n'ont pas pu être lus.") or []
         snaps = [r.get("snapshot") or {} for r in rows]
-        photos = self.chats._sign([p for s in snaps for p in (s.get("photo_path"),) if p and not s.get("place") == "Profil"], token)
+        group = [s.get("photo_path") for s in snaps if s.get("place") == "Photo du groupe"]
+        photos = {**self.chats._sign([p for s in snaps for p in (s.get("photo_path"),)
+                                      if p and s.get("place") not in ("Profil", "Photo du groupe")], token),
+                  **self.admin._photos(group, token, "group-photos")}
         avatars = self.admin._photos([s.get("photo_path") for s in snaps if s.get("place") == "Profil"]
                                      + [(r.get("target_user") or {}).get("avatar_url") for r in rows], token)
         return {"reports": [self._report(r, photos, avatars) for r in rows],
@@ -130,8 +133,10 @@ class Moderation:
         done = self.admin._rpc(token, "moderation_act", {"p_report": report_id, "p_action": action,
                                                          "p_note": note.strip() or None, "p_days": days},
                                "L'action n'a pas été enregistrée.") or {}
-        if done.get("remove_photo"):
-            r = self.admin._call("DELETE", "/storage/v1/object/profile-photos", token, json={"prefixes": [done["remove_photo"]]})
+        if done.get("remove_photo") or done.get("remove_group_photo"):
+            bucket = "profile-photos" if done.get("remove_photo") else "group-photos"
+            path = done.get("remove_photo") or done.get("remove_group_photo")
+            r = self.admin._call("DELETE", f"/storage/v1/object/{bucket}", token, json={"prefixes": [path]})
             if r.status_code not in (200, 204):
                 raise AccountError("La photo n'a pas pu être retirée. Réessaie.")
         return self.queue(token, status)

@@ -111,6 +111,12 @@ class GroupChats:
         faces = self._cached_sign("profile-photos", [c.get("avatar_url") for c in rows if c.get("kind") == "direct"],
                                   lambda paths: self.admin._photos(paths, token))
         rows = [{**c, "photo": faces.get(c.get("avatar_url") or "")} if c.get("kind") == "direct" else c for c in rows]
+        # Groupes : leur photo (17.11, compartiment group-photos, lisible par leurs membres) ; Membres Vendredi Party : le
+        # logo de Party, affiché par l'app elle-même.
+        covers = self._cached_sign("group-photos", [c.get("photo_path") for c in rows if c.get("kind") != "direct"],
+                                   lambda paths: self.admin._photos(paths, token, "group-photos"))
+        rows = [{**c, "photo": covers.get(c.get("photo_path") or "")} if c.get("kind") != "direct" and c.get("photo_path") else c
+                for c in rows]
         # Temps réel (adresse et clé publiques de Supabase) : l'app reçoit les nouveaux messages sans attendre.
         return {"chats": rows, "realtime": {"url": SUPABASE_URL.replace("https://", "wss://", 1) + "/realtime/v1/websocket",
                                             "key": SUPABASE_ANON_KEY}}

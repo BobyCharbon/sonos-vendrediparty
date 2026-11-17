@@ -34,4 +34,14 @@ struct GroupLookTests {
         let keys = ["pink", "coral", "mint", "sky", "lavender", "lemon"]
         #expect(Set(keys.map { "\(GroupLook.gradient($0).to)" }).count == keys.count)
     }
+
+    @Test func aGroupRowCarriesItsPhotoAndTheSystemGroupIsMarked() throws {
+        let row = try JSONDecoder().decode(ChatSummary.self, from: Data(#"""
+        {"id":"g3","name":"Foot","kind":"group","emoji":"⚽","color":"mint","photo":"https://x.supabase.co/sign/g3.jpg","system":false}
+        """#.utf8))
+        #expect(row.photo == "https://x.supabase.co/sign/g3.jpg" && !row.system)
+        let vp = try JSONDecoder().decode(ChatSummary.self, from: Data(#"{"id":"vp","name":"Vendredi Party","kind":"group","system":true}"#.utf8))
+        #expect(vp.system)
+        #expect(try JSONDecoder().decode(ChatSummary.self, from: JSONEncoder().encode(vp)).system)
+    }
 }

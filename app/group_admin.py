@@ -197,12 +197,12 @@ class GroupAdmin:
                 "full": rank >= lv["admin"], "site_admin": rank >= lv["coadmin"],
                 "roles": [{**r, "assignable": r["rank"] < rank} for r in book]}
 
-    def _photos(self, paths: list, token: str) -> dict[str, str]:
-        """Liens signés des photos de profil, en une seule requête."""
+    def _photos(self, paths: list, token: str, bucket: str = "profile-photos") -> dict[str, str]:
+        """Liens signés des photos de profil (ou d'un autre compartiment : group-photos), en une seule requête."""
         paths = sorted({p for p in paths if p})
         if not paths:
             return {}
-        r = self._call("POST", "/storage/v1/object/sign/profile-photos", token, json={"expiresIn": PHOTO_TTL, "paths": paths})
+        r = self._call("POST", f"/storage/v1/object/sign/{bucket}", token, json={"expiresIn": PHOTO_TTL, "paths": paths})
         rows = r.json() if r.status_code == 200 else []
         return {row["path"]: SUPABASE_URL + "/storage/v1" + row["signedURL"]
                 for row in rows if isinstance(row, dict) and row.get("signedURL") and row.get("path")}

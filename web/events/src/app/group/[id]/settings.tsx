@@ -4,19 +4,20 @@ import { View } from 'react-native';
 
 import { ColorPicker, EmojiPicker, GroupTile } from '@/components/GroupBits';
 import { GroupEventRules } from '@/components/GroupEventRules';
+import { GroupPhotoField } from '@/components/GroupPhotoField';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
 import { usePersonText } from '@/components/PersonName';
 import { useTermsGate } from '@/components/TermsSheet';
 import { Avatar, Button, ConfirmButton, ErrorText, Input, Loading, Screen, Section, T, Toast, ToggleRow } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
-import { GROUP_COLOR_KEYS, groupName, type GroupColor } from '@/lib/groups';
+import { GROUP_COLOR_KEYS, GROUP_PHOTOS, groupName, saveGroupPhoto, type GroupColor } from '@/lib/groups';
 import { dbMessage } from '@/lib/moderation';
 import { roleRank } from '@/lib/roles';
 import { must, supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 
-type Row = { id: string; name: string; emoji: string; color: GroupColor; created_by: string | null; system_key: string | null;
+type Row = { id: string; name: string; emoji: string; color: GroupColor; photo_path: string | null; created_by: string | null; system_key: string | null;
   events_need_approval: boolean; announce_mode: 'request' | 'free'; member_group_members: { user_id: string }[] };
 
 /**
@@ -37,7 +38,7 @@ export default function GroupSettings() {
 
   const { data, loading, error: loadError, reload } = useQuery(async () => {
     const [row, privacy] = await Promise.all([
-      supabase.from('member_groups').select('id, name, emoji, color, created_by, system_key, events_need_approval, announce_mode, member_group_members(user_id)')
+      supabase.from('member_groups').select('id, name, emoji, color, photo_path, created_by, system_key, events_need_approval, announce_mode, member_group_members(user_id)')
         .eq('id', id).maybeSingle(),
       supabase.rpc('my_privacy'),
     ]);
@@ -82,6 +83,20 @@ export default function GroupSettings() {
     void reload();
   }
 
+  async function changePhoto(uri: string | null) {
+    if (uri && !(await terms.ensure())) return;  // une photo est un contenu (CGU)
+    setBusy(true);
+    try {
+      await saveGroupPhoto(group.id, uri, group.photo_path);
+      setError(null);
+      setNote(uri ? 'Photo enregistrée' : 'Photo retirée');
+    } catch (e) {
+      setError(e instanceof Error && !('code' in e) ? e.message : dbMessage((e as { message?: string }).message, 'La photo n’a pas été enregistrée. Réessaie.'));
+    }
+    setBusy(false);
+    void reload();
+  }
+
   return (
     <Screen edges={[]}>
       {terms.sheet}
@@ -91,7 +106,7 @@ export default function GroupSettings() {
       {manage ? (
         <Section title="Modifier le groupe">
           <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-            <GroupTile group={look} size={56} />
+            <GroupTile group={{ ...look, photo_path: group.photo_path }} size={56} />
             <Input accessibilityLabel="Nom du groupe" value={look.name} maxLength={60} style={{ flex: 1 }}
               onChangeText={(name) => setDraft({ ...look, name })} />
           </View>
@@ -100,6 +115,8 @@ export default function GroupSettings() {
           <T size={14} weight="semibold" color={colors.textSoft}>Une couleur</T>
           <ColorPicker value={look.color} onChange={(c) => setDraft({ ...look, color: c as GroupColor })} colorsList={GROUP_COLOR_KEYS} />
           <Button label="Enregistrer" disabled={!changed || !look.name.trim()} loading={busy} onPress={() => void saveLook()} />
+          <GroupPhotoField has={!!group.photo_path} disabled={busy} onPicked={(uri) => void changePhoto(uri)}
+            onRemove={() => void changePhoto(null)} />
         </Section>
       ) : (
         <Section title={groupName(group)}>
@@ -107,7 +124,7 @@ export default function GroupSettings() {
             <GroupTile group={group} size={56} />
             <T muted size={13} style={{ flex: 1 }}>{system
               ? 'Tous les Membres VIP et au-dessus, tenu à jour tout seul : passer quelqu’un Membre VIP l’ajoute, le remettre Guest le retire (Administration → Membres).'
-              : 'Seul le créateur du groupe change son nom, son emoji et sa couleur.'}</T>
+              : 'Seul le créateur du groupe change son nom, son emoji, sa couleur et sa photo.'}</T>
           </View>
         </Section>
       )}
@@ -156,7 +173,13 @@ export default function GroupSettings() {
       {manage ? (
         <View style={{ gap: 6 }}>
           <ConfirmButton label="Supprimer le groupe" confirmLabel="Confirmer la suppression"
-            onConfirm={async () => { if (await run(supabase.from('member_groups').delete().eq('id', group.id))) router.replace('/groups'); }} />
+            onConfirm={async () => {
+              const photo = group.photo_path;
+              if (await run(supabase.from('member_groups').delete().eq('id', group.id))) {
+                if (photo) void supabase.storage.from(GROUP_PHOTOS).remove([photo]);  // la photo part avec le groupe
+                router.replace('/groups');
+              }
+            }} />
           <T muted size={13}>Les invités qui ont déjà répondu gardent l’accès à leurs événements.</T>
         </View>
       ) : null}

@@ -5,7 +5,7 @@ import { supabase } from './supabase';
 /** Modération commune à toute l'app (4.11, Apple 1.2 / Google UGC) : Signaler, blocage, conditions d'utilisation.
  * La base décide de tout (filtre, droits, limites) ; ces fonctions ne font que l'appeler. */
 
-export type ReportKind = 'group_message' | 'direct_message' | 'event_message' | 'profile' | 'profile_photo' | 'event'
+export type ReportKind = 'group_message' | 'direct_message' | 'event_message' | 'profile' | 'profile_photo' | 'group_photo' | 'event'
   | 'rsvp_note' | 'poll' | 'poll_option' | 'bring_item'
   | 'pet_name' | 'pet_item' | 'pet_offer' | 'pet_showcase' | 'pet_word';
 export type ReportReason = 'harassment' | 'shocking' | 'spam' | 'scam' | 'other';

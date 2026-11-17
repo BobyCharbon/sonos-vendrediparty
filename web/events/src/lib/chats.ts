@@ -15,6 +15,8 @@ export type ChatSummary = {
   kind?: 'group' | 'direct'; user_id?: string; avatar_url?: string | null; blocked?: boolean;
   /** Groupe : son emoji et sa couleur (nouveau graphisme du 17.11). */
   emoji?: string; color?: string;
+  /** Groupe : chemin de sa photo (group-photos), 17.11. */
+  photo_path?: string | null;
 };
 /** Message direct tel que lu dans direct_messages, présenté comme un message de groupe (même bulle, même écran). */
 export type DirectMessageRow = Omit<GroupMessage, 'group_id' | 'mentions' | 'mention_all' | 'deleted_by_admin' | 'announcement'> & { chat_id: string };

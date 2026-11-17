@@ -1,6 +1,6 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EventCard } from '@/components/EventCard';
@@ -8,18 +8,20 @@ import { FaceStack, FloatingEmojis, GroupTile, UnreadBadge } from '@/components/
 import { Icon } from '@/components/HomeHeader';
 import { Avatar, Button, ErrorText, Loading, Reveal, T } from '@/components/ui';
 import { usePersonText } from '@/components/PersonName';
+import { ReportSheet } from '@/components/ReportSheet';
 import { useAuth, useMe } from '@/lib/auth';
 import { fetchEventList, fetchTaxonomy, useQuery, useRealtime, useSignal } from '@/lib/data';
 import { discussionsOn } from '@/lib/features';
 import { createdLine, plural } from '@/lib/format';
-import { coverGradient, fetchGroupEventIds, fetchMyGroups, groupName, palette, type GroupColor } from '@/lib/groups';
+import { coverGradient, fetchGroupEventIds, fetchMyGroups, groupName, palette, useGroupImage, type GroupColor } from '@/lib/groups';
+import type { ReportTarget } from '@/lib/moderation';
 import { enter, pressTransition } from '@/lib/motion';
 import { openGroupChat } from '@/lib/nativeChat';
 import { roleRank } from '@/lib/roles';
 import { must, supabase } from '@/lib/supabase';
 import { colors, font, radius } from '@/lib/theme';
 
-type Row = { id: string; name: string; emoji: string; color: GroupColor; created_by: string | null; created_at: string;
+type Row = { id: string; name: string; emoji: string; color: GroupColor; photo_path: string | null; created_by: string | null; created_at: string;
   system_key: string | null; member_group_members: { user_id: string; added_at: string | null }[] };
 type Person = { id: string; display_name: string; avatar_url: string | null };
 
@@ -34,6 +36,18 @@ const MEMBERS_SHOWN = 12;
  * « Discussion », prochains événements (seulement ceux que je peux voir : group_events), membres ; ⚙ ouvre les réglages
  * (Modifier, lien, quitter…). Réservée aux membres (et aux Admins du site) : la base ne renvoie le groupe qu'à eux.
  */
+/** Couverture en photo : la photo du groupe plein cadre, qui se fond dans la nuit de Party (rien sans photo). */
+function PhotoCover({ group }: { group: Row }) {
+  const image = useGroupImage(group);
+  if (!image || group.system_key) return null;
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Image source={{ uri: image }} style={StyleSheet.absoluteFill} resizeMode="cover" accessibilityLabel={`Photo du groupe ${group.name}`} />
+      <View style={[StyleSheet.absoluteFill, { backgroundImage: 'linear-gradient(180deg, rgba(21,16,42,0.35) 0%, rgba(21,16,42,0) 35%, rgba(21,16,42,0.55) 75%, #15102A 100%)' } as object]} />
+    </View>
+  );
+}
+
 export default function GroupPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const me = useMe();
@@ -42,11 +56,12 @@ export default function GroupPage() {
   const personText = usePersonText();
   const [allMembers, setAllMembers] = useState(false);
   const [showPast, setShowPast] = useState(false);
+  const [report, setReport] = useState<ReportTarget | null>(null);
 
   const { data, error, loading, reload } = useQuery(async () => {
     const [mine, row, eventIds, taxonomy] = await Promise.all([
       fetchMyGroups(),
-      supabase.from('member_groups').select('id, name, emoji, color, created_by, created_at, system_key, member_group_members(user_id, added_at)')
+      supabase.from('member_groups').select('id, name, emoji, color, photo_path, created_by, created_at, system_key, member_group_members(user_id, added_at)')
         .eq('id', id).maybeSingle(),
       fetchGroupEventIds(id),
       fetchTaxonomy(),
@@ -96,12 +111,13 @@ export default function GroupPage() {
       <ScrollView contentContainerStyle={{ paddingBottom: 48 }} testID="group-page">
         {/* Couverture : dégradé de la couleur du groupe, son emoji en motif qui flotte doucement. */}
         <View style={[st.cover, coverGradient(group.color), { paddingTop: insets.top + 8 }]}>
-          <FloatingEmojis items={[
+          <PhotoCover group={group} />
+          {group.photo_path ? null : <FloatingEmojis items={[
             { emoji: group.emoji, top: insets.top + 30, left: '38%', size: 22, opacity: 0.22 },
             { emoji: group.emoji, top: insets.top + 74, left: '66%', size: 26, opacity: 0.2, delay: 700 },
             { emoji: group.emoji, top: insets.top + 120, left: '22%', size: 20, opacity: 0.18, delay: 1300 },
             { emoji: group.emoji, top: insets.top + 150, right: 28, size: 24, opacity: 0.2, delay: 400 },
-          ]} />
+          ]} />}
           <View style={st.coverBar}>
             <Pressable accessibilityRole="button" accessibilityLabel="Retour" onPress={back}
               style={({ pressed }) => [st.coverBtn, pressTransition, pressed && st.pressed]}>
@@ -196,8 +212,13 @@ export default function GroupPage() {
             <Button small variant="ghost" label={allMembers ? 'Moins de membres' : `Voir les ${members.length} membres`} onPress={() => setAllMembers(!allMembers)} />
           ) : null}
           <T muted size={12} style={{ textAlign: 'center' }}>{createdLine(false, group.created_at, null).replace('Événement', 'Groupe')}</T>
+          {group.photo_path && !system && !manage ? (
+            <Button small variant="ghost" label="Signaler la photo du groupe"
+              onPress={() => setReport({ kind: 'group_photo', id: group.id, label: 'la photo du groupe' })} />
+          ) : null}
         </View>
       </ScrollView>
+      <ReportSheet target={report} onClose={() => setReport(null)} />
     </View>
   );
 }

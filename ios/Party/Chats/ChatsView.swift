@@ -161,7 +161,7 @@ private struct ChatRow: View {
                 Initials(name: chat.direct ? contacts.label(for: chat.userID, pseudo: chat.name).primary : chat.name,
                          photo: chat.direct ? chat.photo : nil, size: 48)
             } else {
-                GroupTile(emoji: chat.emoji ?? "👯", color: chat.color, size: 48)
+                GroupTile(emoji: chat.emoji ?? "👯", color: chat.color, photo: chat.photo, system: chat.system, size: 48)
             }
             VStack(alignment: .leading, spacing: 3) {
                 HStack {

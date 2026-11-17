@@ -5,6 +5,7 @@ import { Image, View } from 'react-native';
 import { Avatar, Badge, Button, Card, Chip, Empty, ErrorText, Field, Input, Loading, Screen, Section, Segmented, T, ToggleRow } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { signedPhotos } from '@/lib/chats';
+import { GROUP_PHOTOS, signGroupPhoto } from '@/lib/groups';
 import { useQuery } from '@/lib/data';
 import { dbMessage, moderationInfo, REPORT_REASONS, type PublicInfo } from '@/lib/moderation';
 import { roleRank } from '@/lib/roles';
@@ -25,7 +26,7 @@ type Report = {
 
 const KIND_LABELS: Record<string, string> = {
   group_message: 'Message de groupe', direct_message: 'Message direct', event_message: 'Discussion d’événement',
-  profile: 'Profil', profile_photo: 'Photo de profil', event: 'Événement',
+  profile: 'Profil', profile_photo: 'Photo de profil', group_photo: 'Photo de groupe', event: 'Événement',
   rsvp_note: 'Petit mot', poll: 'Sondage', poll_option: 'Choix de sondage', bring_item: 'Objet à amener', pet_name: 'Nom du Zicou', pet_item: 'Objet de Zicou',
   pet_offer: 'Offre d’échange', pet_showcase: 'Vitrine', pet_word: 'Mot de Zicou',
 };
@@ -56,8 +57,11 @@ export default function ReportsScreen() {
   }, [status]);
   const [photos, setPhotos] = useState<Map<string, string>>(new Map());
   useEffect(() => {
-    const paths = (data ?? []).filter((r) => r.kind !== 'profile_photo').map((r) => r.snapshot.photo_path).filter((p): p is string => !!p);
-    void signedPhotos(paths).then(setPhotos).catch(() => {});
+    const paths = (data ?? []).filter((r) => r.kind !== 'profile_photo' && r.kind !== 'group_photo').map((r) => r.snapshot.photo_path).filter((p): p is string => !!p);
+    const groupPaths = (data ?? []).filter((r) => r.kind === 'group_photo').map((r) => r.snapshot.photo_path).filter((p): p is string => !!p);
+    void Promise.all([signedPhotos(paths), ...groupPaths.map(async (p) => [p, await signGroupPhoto(p)] as const)])
+      .then(([chat, ...groups]) => setPhotos(new Map([...chat, ...groups.filter((g): g is readonly [string, string] => !!g[1])])))
+      .catch(() => {});
   }, [data]);
 
   if (!can('moderation.reports')) {
@@ -95,8 +99,11 @@ function ReportCard({ report: r, photo, canBan, onDone }: { report: Report; phot
     const { data, error } = await supabase.rpc('moderation_act', {
       p_report: r.id, p_action: action, p_note: note.trim() || null, p_days: action === 'suspend' ? days : null,
     });
-    if (!error && (data as { remove_photo?: string } | null)?.remove_photo) {
-      const removed = await supabase.storage.from('profile-photos').remove([(data as { remove_photo: string }).remove_photo]);
+    const done = data as { remove_photo?: string; remove_group_photo?: string } | null;
+    if (!error && (done?.remove_photo || done?.remove_group_photo)) {
+      const removed = done.remove_photo
+        ? await supabase.storage.from('profile-photos').remove([done.remove_photo])
+        : await supabase.storage.from(GROUP_PHOTOS).remove([done.remove_group_photo!]);
       if (removed.error) setError('La photo n’a pas pu être retirée. Réessaie.');
     }
     setBusy(null);

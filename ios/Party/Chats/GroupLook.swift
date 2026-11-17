@@ -26,18 +26,37 @@ enum GroupLook {
     }
 }
 
-/// Tuile d'un groupe (lignes de Discussions) : son emoji sur le dégradé de sa couleur, liseré clair.
+/// Tuile d'un groupe (lignes de Discussions) : sa photo (lien signé, 17.11) ou, pour Membres Vendredi Party, le logo
+/// officiel de Party ; sinon son emoji sur le dégradé de sa couleur ; liseré clair.
 struct GroupTile: View {
     let emoji: String
     let color: String?
+    var photo: String? = nil
+    var system = false
     var size: CGFloat = 48
+
+    /// Image du groupe : le logo de Party (servi par le site) pour le groupe du système, sa photo sinon.
+    private var imageURL: URL? {
+        system ? AppConfig.baseURL.appendingPathComponent("static/icon-192.png") : photo.flatMap(URL.init(string:))
+    }
 
     var body: some View {
         let g = GroupLook.gradient(color)
-        RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)
+        shape
             .fill(LinearGradient(colors: [g.from, g.to], startPoint: .topLeading, endPoint: .bottomTrailing))
-            .overlay(RoundedRectangle(cornerRadius: size * 0.3, style: .continuous).strokeBorder(.white.opacity(0.28), lineWidth: 1.5))
-            .overlay(Text(emoji).font(.system(size: size * 0.5)))
+            .overlay {
+                if let url = imageURL {
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image { image.resizable().scaledToFill() } else { Text(emoji).font(.system(size: size * 0.5)) }
+                    }
+                    .frame(width: size, height: size)
+                    .clipShape(shape)
+                } else {
+                    Text(emoji).font(.system(size: size * 0.5))
+                }
+            }
+            .overlay(shape.strokeBorder(.white.opacity(0.28), lineWidth: 1.5))
             .frame(width: size, height: size)
             .shadow(color: g.to.opacity(0.4), radius: size * 0.15, y: size * 0.06)
             .accessibilityHidden(true)

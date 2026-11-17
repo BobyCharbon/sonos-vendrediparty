@@ -8,7 +8,7 @@ const OUT = 1024; // côté de la photo envoyée (px) : nette sur tous les écra
  * Recadrage libre dans un cercle : glisser pour déplacer, pincer (ou molette) pour zoomer de très loin à très près,
  * pivoter par quarts de tour. Le résultat est une image carrée de 1024 px, prête à être envoyée.
  */
-export function PhotoCropper({ src, onCancel, onDone }: { src: string; onCancel: () => void; onDone: (uri: string) => void }) {
+export function PhotoCropper({ src, onCancel, onDone, label = 'Recadrer ta photo de profil' }: { src: string; onCancel: () => void; onDone: (uri: string) => void; label?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +82,7 @@ export function PhotoCropper({ src, onCancel, onDone }: { src: string; onCancel:
   );
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Recadrer ta photo de profil"
+    <div role="dialog" aria-modal="true" aria-label={label}
       style={{ position: 'fixed', inset: 0, zIndex: 50, background: colors.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24, color: colors.text, fontFamily: font.medium.fontFamily, fontWeight: 500 }}>
       <div style={{ fontSize: 20, fontWeight: 800 }}>Recadre ta photo</div>
       <div style={{ fontSize: 13, color: colors.muted, textAlign: 'center', maxWidth: size }}>Glisse pour déplacer, pince ou utilise le curseur pour zoomer.</div>
