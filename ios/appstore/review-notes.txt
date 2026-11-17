@@ -26,7 +26,7 @@ PARTY BAR
 Organiser's option, off by default; a paid bar only on private events (a free bar anywhere). Physical drinks; items 16+/18+, the barman checks age in person; tobacco/drugs refused; no ranking or prompt to drink. Barman scans the guest's QR; balance in a Wallet card. Party only records who owes what, repaid to the organiser outside the app.
 
 DISCUSSIONS (1.2)
-Group chats and DMs between people sharing a group or event; verified phone. Terms before the first message, word filter, "Signaler" on messages, profiles, photos, events, polls. "Bloquer" hides that person's messages at once and notifies moderators (Settings > Confidentialité > "Personnes bloquées"). Reports handled within 24 h. Contact: support@vendrediparty.ch.
+Group chats, event chats (event > "Discussion": mentions-only alerts by default, mute, reply from notification) and DMs between people sharing a group or event; verified phone. Terms before the first message, word filter, "Signaler" on messages, profiles, photos, events, polls. "Bloquer" hides that person's messages at once and notifies moderators (Settings > Confidentialité > "Personnes bloquées"). Reports handled within 24 h. Contact: support@vendrediparty.ch.
 
 AI (5.1.2(i))
 "Avec l'IA", "Ton avis" and receipt reading send data to Anthropic (Claude) only after "J'accepte"; all works without AI; phone never sent. Withdraw: Settings > Confidentialité > "IA de Party".
