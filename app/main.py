@@ -30,6 +30,7 @@ from . import beerpong, brain, brain_game, calendar_ics, debate, games, heist, i
 from . import pet, pet_coll_store, pet_reactions, pet_store
 from . import tv_zicou
 from . import calendar_feed
+from .agenda import agenda_router
 from . import pet_pot, tv_star
 # Adresse du déploiement et fonctions en bêta (Compagnon : allumé sur le site de test seulement).
 from .features import COMPAGNON_SOON, TEST_SITE_HOST, bar_enabled, compagnon_enabled, configured_public_url, discussions_enabled, invites_v2_enabled
@@ -1639,6 +1640,8 @@ group_chats = GroupChats(group_admin)
 event_chats = EventChats(group_chats)
 # Modération commune (Signaler, blocage, CGU, écran Signalements) : relais pour l'app iOS native.
 app.include_router(moderation_router(Moderation(group_admin, group_chats)))
+# Agenda (17.11) : page publique des liens de dispo (/d/<jeton>), suivi des demandes (/d/r/<secret>), relais iPhone.
+app.include_router(agenda_router(accounts, configured_public_url, client_ip))
 contact_names = ContactNames(accounts)
 app_invites = AppInvites(accounts, configured_public_url)
 # Billets dans Apple Wallet : certificats dans WALLET_DIR (par défaut DATA_DIR/wallet) ; sans eux, bouton masqué.
