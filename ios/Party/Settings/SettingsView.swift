@@ -32,13 +32,6 @@ struct SettingsView: View {
                                     hint: "Musique, jeux, avis et événements ; catégories et tags suivis")
                     }
                     if store.account != nil {
-                        NavigationLink {
-                            TricountListView(store: store.tricount, myName: store.account?.name ?? "")
-                        } label: {
-                            SettingsRow(symbol: "banknote.fill", tint: .green, title: "Pot commun",
-                                        hint: "Dépenses partagées : qui a payé, qui doit quoi, remboursements")
-                        }
-                        .accessibilityIdentifier("settings-tricount")
                         if let openGroupPage {
                             // Nouvelle liste des groupes (17.11) : celle du module Événements, façon WhatsApp.
                             Button { openGroupPage.open(nil) } label: {
@@ -63,6 +56,24 @@ struct SettingsView: View {
                         }
                         .accessibilityIdentifier("settings-friends")
                     }
+                }
+                if store.account != nil {
+                    // « Autres apps » (17.11) : des apps à part entière dans Party (Pot commun, bientôt Agenda), pas des
+                    // réglages ; plus tard peut-être un lanceur dans la barre d'onglets.
+                    Section {
+                        NavigationLink {
+                            TricountListView(store: store.tricount, myName: store.account?.name ?? "")
+                        } label: {
+                            SettingsRow(symbol: "banknote.fill", tint: .green, title: "Pot commun",
+                                        hint: "Dépenses partagées : qui a payé, qui doit quoi, remboursements")
+                        }
+                        .accessibilityIdentifier("settings-tricount")
+                    } header: {
+                        Text("Autres apps")
+                    } footer: {
+                        Text("Des apps à part entière dans Party, à côté des soirées.")
+                    }
+                    .accessibilityIdentifier("settings-other-apps")
                 }
                 if zicouAvailable {
                     Section {
