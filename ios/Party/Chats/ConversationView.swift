@@ -35,6 +35,9 @@ struct ConversationView: View {
     @State private var jumpTo: String?
     @State private var flashing: String?
     @State private var pinIndex = 0
+    /// Entré avec sa réponse à un événement (17.11) : bandeau gardé tant que l'écran est ouvert (la base ne le rend qu'une fois).
+    @State private var joinNote: Conversation.JoinNote?
+    @State private var confirmLeave = false
 
     private var chat: Conversation? { store.conversation?.id == group ? store.conversation : nil }
     private var accent: Color { Color(uiColor: AppConfig.uiAccent) }
@@ -55,6 +58,9 @@ struct ConversationView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if let note = joinNote {
+                joinBanner(note).motionTransition(.unfold)
+            }
             if let chat {
                 let pins = chat.pins
                 if !pins.isEmpty {
@@ -119,6 +125,46 @@ struct ConversationView: View {
         }
         .onDisappear { store.close(); player.stop(); micLocked = false; _ = recorder.stop(send: false) }
         .onChange(of: picked) { item in Task { await sendPhoto(item) } }
+        .onChange(of: chat?.joinNote) { note in if joinNote == nil, let note { Motion.animate(Motion.snappy) { joinNote = note } } }
+    }
+
+    // MARK: Bandeau « Tu es dans le groupe » (entrée par une réponse à un événement, 17.11)
+
+    private func joinBanner(_ note: Conversation.JoinNote) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: "person.2.fill").foregroundStyle(Color(red: 0.725, green: 0.655, blue: 1))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Tu es dans le groupe « \(note.groupName) »").font(.subheadline.weight(.semibold)).lineLimit(2)
+                Text(Self.joinLine(note)).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            }
+            Spacer(minLength: 0)
+            if note.creator != true {
+                Button("Quitter", role: .destructive) { confirmLeave = true }
+                    .buttonStyle(.bordered).controlSize(.small)
+                    .accessibilityIdentifier("group-join-leave")
+            }
+            Button { Motion.animate(Motion.snappy) { joinNote = nil } } label: {
+                Image(systemName: "xmark").font(.caption.weight(.bold)).frame(width: 30, height: 30)
+            }
+            .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("Fermer")
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .bottom) { Color.white.opacity(0.08).frame(height: 1) }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("group-join-note")
+        .confirmationDialog("Quitter « \(note.groupName) » ?", isPresented: $confirmLeave, titleVisibility: .visible) {
+            Button("Quitter le groupe", role: .destructive) {
+                Task { if await store.leaveGroup() { Motion.animate(Motion.snappy) { joinNote = nil } } }
+            }
+        } message: {
+            Text("Personne n'est prévenu. Tu ne seras plus remis dans ce groupe sans ton propre geste.")
+        }
+    }
+
+    /// « Ajouté avec ta réponse à « Raclette » de Ludo ».
+    static func joinLine(_ note: Conversation.JoinNote) -> String {
+        "Ajouté avec ta réponse à « \(note.eventTitle) »" + (note.owner.map { " de \($0)" } ?? "")
     }
 
     /// Descend en bas du fil, après la mise en page de la liste (sinon la liste ne descend pas toujours).

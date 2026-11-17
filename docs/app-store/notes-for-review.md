@@ -294,6 +294,19 @@ Each event can also have its own **Discussion** (organiser's option "Forum de l'
 Réglages › **Groupes**: your groups, **Nouveau groupe**, members, **Inviter avec un lien** (QR, copy, share),
 "Montrer mon numéro dans ce groupe" (hidden by default), leave a group.
 
+**Event guests in a group (organiser option, off by default).** In step 2 "Qui est invité" or in the event's guest card
+("Régler"), the organiser can pick one group they manage and belong to, or "Nouveau groupe" (name filtered, terms
+required); "Membres Vendredi Party" can never be chosen. Each guest then sees, right under the answer buttons, a large
+**unticked** box "Rejoindre aussi le groupe « … » de …" that explains what members will see (nickname, name, photo; the
+phone number stays hidden), that they can write in the group chat and invite them to future events, and that they can
+leave at any time. Only a guest who ticks the box joins (whatever the answer); the answer never depends on the box.
+A guest who answered without ticking keeps a "Rejoindre le groupe" button on the event page (no reminder, no
+notification). After joining, a personal notification "Tu es dans le groupe X" (own switch in Réglages › Notifications)
+and a banner in the group chat with **Quitter**; group members are not notified. Someone who left is never put back
+without their own action; blocked people are never added. Day after the event, the organiser may see "🎉 Garder cette
+bande ?": it only sends **invitations** to the group, once per event, which each person accepts or declines. No reward
+of any kind is attached to joining.
+
 #### B4.15 Games
 
 Tab **Jeux**:

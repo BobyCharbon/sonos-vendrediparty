@@ -19,6 +19,8 @@ import type { BringItem, DateOption, DateVote, DateVoteRow, EventRow, Poll, Poll
 import { UNLIMITED_PLUS_ONES } from '@/lib/types';
 
 import { ValidateDates } from './ValidateDates';
+import { GuestGroupCheck, GuestGroupJoin } from './GuestGroup';
+import { fetchEventGuestGroup, setGuestGroupChoice } from '@/lib/guestGroup';
 import { SharedBringRow } from './BringShared';
 import { DateTimeField } from './DateTimeField';
 import { LinkedText } from './LinkedText';
@@ -151,6 +153,11 @@ export function RsvpCard({
   const shown = saving ? null : picked ?? mine?.status ?? null;
   const plusChanged = useChangedSinceMount(guests);
   const answering = useRef(false);
+  // « Rejoindre aussi le groupe » (17.11) : décochée par défaut ; son état part avec la PREMIÈRE réponse.
+  const { data: guestGroup, reload: reloadGuestGroup } = useQuery(async () => (event.guest_group
+    ? fetchEventGuestGroup(event.id).catch(() => null) : null), [event.id, event.guest_group, mine?.status]);
+  const [joinGroup, setJoinGroup] = useState(false);
+  const askGroup = !mine && !!guestGroup?.offer && !!guestGroup.group;
 
   async function upsert(key: string, patch: Parameters<typeof saveRsvp>[3]): Promise<boolean> {
     if (answering.current) return false;
@@ -160,6 +167,11 @@ export function RsvpCard({
       await saveRsvp(event.id, me, mine, patch);
       if (patch.status) setPicked(patch.status);
       setError(null);
+      // La réponse est enregistrée quoi qu'il arrive ; le choix du groupe suit (true / false, jamais décidé sans elle).
+      if (patch.status && askGroup) {
+        await setGuestGroupChoice(event.id, joinGroup).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+        reloadGuestGroup();
+      }
       onChange();
       return true;
     } catch (e) {
@@ -252,6 +264,8 @@ export function RsvpCard({
         disabled={closed}
         onSelect={(k) => upsert(k, { status: k })}
       />
+      {askGroup && !closed ? <GuestGroupCheck card={guestGroup!.group!} value={joinGroup} onChange={setJoinGroup} disabled={!!busy} /> : null}
+      {mine && guestGroup && !organizer ? <GuestGroupJoin eventId={event.id} data={guestGroup} onJoined={reloadGuestGroup} /> : null}
       {plusOnes && mine?.status === 'yes' ? (
         <Reveal kind="drop" style={[s.rowBetween, st.subRow]}>
           <View style={{ flex: 1 }}>

@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 
 import { AIEventSteps } from './AIEventSteps';
+import { GuestGroupSettingCard, useSaveGuestGroup } from './GuestGroup';
 import { audienceFromEvent, audienceToEvent, choosableGroups, mayUseVip, saveAudience } from './AudiencePicker';
 import { Button, Card, ErrorText, HeaderBack, Loading, Screen, T, Title } from './ui';
 import { PublishChoice, VISIBILITIES, withVisibility, type Visibility } from './VisibilityChoice';
@@ -11,6 +12,7 @@ import { useLivePing, useQuery } from '@/lib/data';
 import { invitesV2On } from '@/lib/features';
 import { dbMessage } from '@/lib/moderation';
 import { check, must, supabase } from '@/lib/supabase';
+import { fetchEventGuestGroup, type GuestGroupSetting } from '@/lib/guestGroup';
 import type { EventRow, MemberGroup } from '@/lib/types';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -74,22 +76,28 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
   const [announce, setAnnounce] = useState(false);  // « Prévenir » les groupes cochés : éteint par défaut
   const publishing = useRef(false);  // double toucher : une seule publication
   const [error, setError] = useState<string | null>(null);
+  // « Réunir tes invités dans un groupe » (17.11) : éteint par défaut, appliqué à la publication.
+  const [guestGroup, setGuestGroup] = useState<GuestGroupSetting | null>(null);
+  const guestSaver = useSaveGuestGroup();
 
   const { data, error: loadError, reload } = useQuery(async () => {
-    const [ev, allGroups, settings, kept] = await Promise.all([
+    const [ev, allGroups, settings, kept, managed] = await Promise.all([
       supabase.from('events').select('id, title, status, created_by, starts_at, ends_at, all_day, visibility, public_link, event_groups(group_id), event_invites(user_id, via_group), event_phone_invites(phone)')
         .eq('id', eventId).single(),
       supabase.from('member_groups').select('id, name, created_by, system_key, member_group_members(user_id)').order('name'),
       supabase.from('group_settings').select('require_approval').single(),
       // Personnes citées à l'IA, gardées avec le brouillon (étape rouverte depuis la fiche) ; base sans la colonne : rien.
       supabase.from('events').select('ai_suggested').eq('id', eventId).maybeSingle(),
+      // Groupes qu'il gère et dont il fait partie (base sans la migration du 17.11 : pas de carte).
+      fetchEventGuestGroup(eventId).catch(() => null),
     ]);
     const event = must(ev) as unknown as Draft;
     const every = must(allGroups) as MemberGroup[];
     const groups = choosableGroups(every, me.id, can('events.manage_all'));
     const vipOk = mayUseVip(every, me.id, can('events.manage_all'));
     const stored = ((kept.data as { ai_suggested?: string[] } | null)?.ai_suggested ?? []).filter((id) => parseIds(id).length);
-    return { event, groups, vipOk, stored, approval: !!(must(settings) as { require_approval: boolean }).require_approval };
+    return { event, groups, vipOk, stored, approval: !!(must(settings) as { require_approval: boolean }).require_approval,
+      managed: managed?.groups ?? null };
   }, [eventId]);
   // Invités, groupes, demandes « À accepter » ajoutés ailleurs (un autre organisateur, un lien) : aussitôt.
   useLivePing(eventId, reload);
@@ -122,6 +130,11 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
       // Public ou sur invitation : jamais d'annonce au groupe ; la base fait valider la demande d'un simple membre.
       // Écrit avec le statut, en dernier : un échec en route ne laisse jamais « Prévenir » allumé sur le brouillon.
       const announceGroup = (kind === 'vip' || kind === 'group') && announce;
+      if (guestGroup?.on) {
+        // « Nouveau groupe » créé : un nouvel essai après un échec reprend CE groupe, jamais un second.
+        const saved = await guestSaver.save(ev.id, guestGroup);
+        if (saved?.group) setGuestGroup({ ...guestGroup, group: saved.group.id });
+      }
       check(await supabase.from('events').update(audienceToEvent(who)).eq('id', ev.id));
       await saveAudience(ev.id, { ...who, invitees: [], phones: [] }, { people: false });
       const status = proposing ? 'pending' : 'published';
@@ -162,6 +175,14 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
         <T muted size={13}>Brouillon enregistré · encore invisible pour les autres</T>
         <Title size={26}>{ev.title}</Title>
       </View>
+
+      {guestSaver.sheet}
+      {data.managed ? (
+        <Card>
+          <GuestGroupSettingCard value={guestGroup ?? { on: false, group: 'new', name: ev.title }} groups={data.managed} disabled={busy}
+            onChange={setGuestGroup} />
+        </Card>
+      ) : null}
 
       <Card>
         <T weight="bold" size={17}>Qui voit l’événement ?</T>

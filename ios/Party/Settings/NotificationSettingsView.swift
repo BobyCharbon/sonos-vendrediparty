@@ -190,6 +190,8 @@ struct NotificationSettingsView: View {
                             "Quand quelqu'un écrit @tout ou fait une annonce dans un de tes groupes", p.groupBroadcasts != false)
                 eventToggle("group_invites", "person.badge.plus", .blue, "Invitation dans un groupe", "Quelqu'un t'ajoute à un groupe", p.groupInvites != false)
                 eventToggle("group_joins", "person.2.fill", .teal, "Quelqu'un rejoint mon groupe", "Un membre entre dans un groupe que tu as créé", p.groupJoins != false)
+                eventToggle("group_added", "person.crop.circle.badge.checkmark", .purple, "Ajouté à un groupe avec ta réponse",
+                            "« Tu es dans le groupe X » quand tu as coché « Rejoindre aussi le groupe » en répondant", p.groupAdded != false)
             }
         }
 

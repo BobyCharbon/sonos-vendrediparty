@@ -134,6 +134,17 @@ struct Conversation: Codable, Equatable {
         enum CodingKeys: String, CodingKey { case id, at, text, announcement, authorName = "author_name" }
     }
 
+    /// Entré dans le groupe avec sa réponse à un événement (17.11) : bandeau « Tu es dans le groupe X · Quitter »,
+    /// rendu une seule fois par la base (première ouverture).
+    struct JoinNote: Codable, Equatable {
+        let eventTitle: String
+        let groupName: String
+        let owner: String?
+        let creator: Bool?
+
+        enum CodingKeys: String, CodingKey { case owner, creator, eventTitle = "event_title", groupName = "group_name" }
+    }
+
     struct Member: Codable, Equatable, Identifiable {
         let id: String
         let name: String
@@ -189,10 +200,11 @@ struct Conversation: Codable, Equatable {
     var tags: [Tag]? = nil
     /// Temps réel de l'événement (adresse et clé publiques de Supabase), donné avec la discussion d'un événement.
     var realtime: ChatRealtime.Endpoint? = nil
+    var joinNote: JoinNote? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, name, member, admin, notify, reactions, members, messages, me, highlights, organizer, everyone, direct, photo, blocked
-        case event, tags, realtime
+        case event, tags, realtime, joinNote = "join_note"
         case canNameAdmins = "can_name_admins", userID = "user_id"
     }
 
@@ -254,7 +266,7 @@ struct Conversation: Codable, Equatable {
         Conversation(id: id, name: name, member: member, admin: admin, notify: notify, canNameAdmins: canNameAdmins,
                      me: me, reactions: reactions, members: members, messages: messages, highlights: highlights,
                      organizer: organizer, everyone: everyone, direct: direct, userID: userID, photo: photo, blocked: blocked,
-                     event: event, tags: tags, realtime: realtime)
+                     event: event, tags: tags, realtime: realtime, joinNote: joinNote)
     }
 
     /// Membres cités par « @surnom » (sans accents ni casse) dans le texte (sauf moi) : envoyés avec le message,
@@ -554,6 +566,11 @@ extension PartyAPI {
 
     func deleteChat(token: String, message: String, direct: Bool = false) async throws {
         try await post("/api/account/chats/delete", body: ["token": token, "id": message, "direct": direct])
+    }
+
+    /// Quitter le groupe (bandeau d'entrée par un événement) : la base note la date du départ, rien d'autre.
+    func leaveGroup(token: String, group: String, me: String) async throws {
+        try await post("/api/account/groups/member", body: ["token": token, "group_id": group, "user_id": me, "on": false])
     }
 
     func notifyChat(token: String, group: String, level: ChatNotify, direct: Bool = false) async throws {

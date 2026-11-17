@@ -80,6 +80,8 @@ export type EventRow = {
   pot_enabled?: boolean;
   /** Covoiturage (migration 20261113090000 ; absente avant : éteint). */
   carpool_enabled?: boolean;
+  /** Groupe proposé aux invités (migration 20261117110000 ; absent : option éteinte). */
+  guest_group?: string | null;
   /** Billets QR (migration 20261104233000 ; absente avant : éteinte) : l'organisateur l'active et remet les billets. */
   tickets_enabled?: boolean;
   forum_enabled: boolean;
@@ -196,6 +198,8 @@ export type NotificationPrefs = {
   group_messages: boolean;
   group_invites: boolean;
   group_joins: boolean;
+  /** « Tu es dans le groupe X » (migration 20261117110000 ; absent avant : reçue). */
+  group_added?: boolean;
   /** Annonces et @tout des groupes de Discussions (absent avant la migration : reçues). */
   group_broadcasts?: boolean;
   /** Billets payants (migration 20261103130000 ; absent avant : reçues) : quelqu'un dit avoir payé ma place / mon paiement confirmé. */

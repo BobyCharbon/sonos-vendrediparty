@@ -15,7 +15,8 @@ import { duration, pressTransition, transition } from '@/lib/motion';
 import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
 
-type Item = { id: string; kind: string; title: string; body: string; event_id: string | null; created_at: string; read_at: string | null };
+type Item = { id: string; kind: string; title: string; body: string; event_id: string | null; created_at: string; read_at: string | null;
+  data?: { group_id?: string } | null };
 type Filter = 'important' | 'all';
 
 /** Fermer : retour à l'accueil (ouverte depuis la cloche) ou, ouverte d'une notification, l'accueil à sa place. */
@@ -30,7 +31,7 @@ export default function Activity() {
   const { data, error, reload } = useQuery(async () => {
     const res = await supabase
       .from('notifications')
-      .select('id, kind, title, body, event_id, created_at, read_at')
+      .select('id, kind, title, body, event_id, created_at, read_at, data')
       .neq('kind', HIDDEN_KIND)
       .order('created_at', { ascending: false })
       .limit(100);
@@ -45,6 +46,8 @@ export default function Activity() {
     if (n.event_id) router.push(`/event/${n.event_id}`);
     // Nouveau compte (admins, avis 662065a54b22) : la liste des inscrits, connexions récentes en haut.
     else if (n.kind === 'member_signup') router.push('/admin/users');
+    // « Tu es dans le groupe X » (17.11) : la discussion du groupe, son bandeau et « Quitter ».
+    else if (n.kind === 'group_added' && /^[0-9a-f-]{36}$/.test(n.data?.group_id ?? '')) router.push(`/chats/${n.data!.group_id}`);
     else reload();
   }
 

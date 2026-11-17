@@ -4,7 +4,7 @@ export function notificationTarget(row: {
   origin: string; kind: string; event_id: string | null; group_id?: string | null; url?: unknown;
 }): string {
   const target = new URL('/', row.origin);
-  if ((row.kind === 'group_message' || row.kind === 'direct_message') && row.group_id && /^[0-9a-f-]{36}$/.test(row.group_id)) {
+  if ((row.kind === 'group_message' || row.kind === 'direct_message' || row.kind === 'group_added') && row.group_id && /^[0-9a-f-]{36}$/.test(row.group_id)) {
     // Discussion de groupe (avis n°10) ou message direct (4.11) : le toucher ouvre la conversation.
     target.searchParams.set('tab', 'chats');
     target.searchParams.set('chat', row.group_id);

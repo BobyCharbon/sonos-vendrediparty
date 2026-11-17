@@ -7,6 +7,7 @@ import { ChatBubble } from './ChatBubble';
 import { DirectChatSettings } from './DirectChatSettings';
 import { EventChatSettings, type EventPerson } from './EventChatSettings';
 import { GroupChatSettings } from './GroupChatSettings';
+import { GroupJoinNote } from './GuestGroup';
 import { MentionSuggestions } from './MentionSuggestions';
 import { ReportSheet } from './ReportSheet';
 import { useTermsGate } from './TermsSheet';
@@ -493,6 +494,8 @@ export function GroupChat({ id, direct = false, event = false }: { id: string; d
     <SafeAreaView style={s.screen} edges={['bottom']}>
       {header}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+        {/* Entré par sa réponse à un événement (17.11) : d'où il vient et « Quitter », à la première ouverture. */}
+        {direct || event ? null : <GroupJoinNote groupId={id} me={me.id} onLeft={reload} />}
         {banner ? (
           <View style={enter('drop')}>
             <Pressable accessibilityRole="button"

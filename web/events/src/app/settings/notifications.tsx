@@ -223,6 +223,7 @@ export default function NotificationSettings() {
         </> : null}
         <ToggleRow disabled={saving} label="Invitation dans un groupe" hint="Quelqu’un t’ajoute à un groupe" value={prefs.group_invites !== false} onChange={(v) => update({ group_invites: v })} />
         <ToggleRow disabled={saving} label="Quelqu’un rejoint mon groupe" hint="Un membre entre dans un groupe que tu as créé" value={prefs.group_joins !== false} onChange={(v) => update({ group_joins: v })} />
+        <ToggleRow disabled={saving} label="Ajouté à un groupe avec ta réponse" hint="« Tu es dans le groupe X » quand tu as coché « Rejoindre aussi le groupe » en répondant à un événement" value={prefs.group_added !== false} onChange={(v) => update({ group_added: v })} />
       </Section>
 
       {/* Mes amis dans Party : chaque type a son interrupteur, aussi dans les Réglages de l'app iPhone. */}

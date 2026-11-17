@@ -10,8 +10,20 @@ const MAX_AGE_MS = 10 * 60 * 1000;
 export type PendingAnswer = 'yes' | 'maybe' | 'no' | 'poll';
 const ANSWERS: readonly PendingAnswer[] = ['yes', 'maybe', 'no', 'poll'];
 
-export function rememberInviteAnswer(token: string, answer: PendingAnswer, now: number = Date.now()): void {
-  try { sessionStorage.setItem(KEY, JSON.stringify({ token, answer, at: now })); } catch { /* Stockage indisponible. */ }
+/** join : état de la case « Rejoindre aussi le groupe » (17.11), gardé avec la réponse ; absent si la case n'était pas montrée. */
+export function rememberInviteAnswer(token: string, answer: PendingAnswer, now: number = Date.now(), join?: boolean): void {
+  try { sessionStorage.setItem(KEY, JSON.stringify({ token, answer, at: now, join })); } catch { /* Stockage indisponible. */ }
+}
+
+/** La case gardée avec la réponse de CE lien (même fraîcheur que la réponse) ; undefined si elle n'était pas montrée. */
+export function peekInviteJoin(token: string, now: number = Date.now()): boolean | undefined {
+  if (!peekInviteAnswer(token, now)) return undefined;
+  try {
+    const join = (JSON.parse(sessionStorage.getItem(KEY) ?? '{}') as { join?: unknown }).join;
+    return typeof join === 'boolean' ? join : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** La réponse gardée pour CE lien (encore fraîche), sans l'effacer : la lire deux fois rend la même chose. */
