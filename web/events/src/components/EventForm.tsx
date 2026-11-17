@@ -59,6 +59,9 @@ type Draft = {
   payment_mode: PaymentMode;
   payment_url: string;
   payment_open: boolean;
+  /** « Prévenir les participants à l'ouverture » (events.payment_open_notify) ; payment_was_open : état enregistré. */
+  payment_notify: boolean;
+  payment_was_open: boolean;
   max_participants: string;
   waitlist_enabled: boolean;
   allow_plus_ones: boolean;
@@ -103,6 +106,8 @@ const emptyDraft: Draft = {
   payment_mode: 'organizer',
   payment_url: '',
   payment_open: true,
+  payment_notify: true,
+  payment_was_open: true,
   max_participants: '',
   waitlist_enabled: true,
   allow_plus_ones: true,   // nouvel événement : accompagnants autorisés, sans limite (max vide = illimité)
@@ -226,6 +231,8 @@ async function loadDraft(eventId: string): Promise<Draft> {
     payment_mode: e.payment_mode ?? 'organizer',
     payment_url: e.payment_url ?? '',
     payment_open: e.payment_open !== false,
+    payment_notify: e.payment_open_notify !== false,
+    payment_was_open: e.payment_open !== false,
     max_participants: e.max_participants?.toString() ?? '',
     waitlist_enabled: e.waitlist_enabled,
     allow_plus_ones: e.allow_plus_ones,
@@ -463,6 +470,7 @@ export function EventForm({ eventId, group }: { eventId?: string; group?: string
         payment_mode: paid ? d.payment_mode : 'organizer',
         payment_url: payLink || null,
         payment_open: paid && d.payment_mode !== 'on_site' ? d.payment_open : true,
+        payment_open_notify: d.payment_notify,
         max_participants: max,
         waitlist_enabled: d.waitlist_enabled,
         allow_plus_ones: d.allow_plus_ones,
@@ -991,6 +999,12 @@ function PaymentChoice({ d, set }: { d: Draft; set: (patch: Partial<Draft>) => v
         <ToggleRow label="Paiement ouvert" value={d.payment_open} onChange={(payment_open) => set({ payment_open })}
           hint={d.payment_open ? 'Les invités voient le bouton pour payer.'
             : 'Tout est prêt, mais pas encore de bouton : les invités voient « Paiement bientôt possible ». Allume-le quand c’est bon.'} />
+      ) : null}
+      {d.payment_mode !== 'on_site' && (!d.payment_open || !d.payment_was_open) ? (
+        <ToggleRow label="Prévenir les participants à l’ouverture" value={d.payment_notify} onChange={(payment_notify) => set({ payment_notify })}
+          hint={!d.payment_notify ? 'Personne ne reçoit de notification : ils verront le bouton en ouvrant l’événement.'
+            : d.payment_open ? 'À l’enregistrement, les « Présent » pas encore payés reçoivent « 💳 Le paiement est ouvert ».'
+            : 'Quand tu allumeras « Paiement ouvert », les « Présent » pas encore payés recevront « 💳 Le paiement est ouvert ».'} />
       ) : null}
       <Field label="Précision (facultatif)" placeholder={d.payment_mode === 'on_site' ? 'Cash ou carte à l’accueil' : d.payment_mode === 'online' ? 'Choisis « Paintball 2 h »' : 'Twint ou Revolut, avant le jour J'}
         value={d.payment_info} onChangeText={(payment_info) => set({ payment_info })} />

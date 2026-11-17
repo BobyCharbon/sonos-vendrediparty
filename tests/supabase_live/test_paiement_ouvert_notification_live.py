@@ -1,6 +1,6 @@
 """« Paiement ouvert » prévient les participants (17.11.2026, migration 20261117135000), sur la VRAIE base de test :
 l'organisateur allume « Paiement ouvert » → chaque « Présent » qui n'a pas encore payé reçoit « 💳 Le paiement est ouvert »
-(une seule fois : éteindre puis rallumer ne renvoie rien) ; « Sur place » ne prévient personne ; jamais l'organisateur.
+(une seule fois : éteindre puis rallumer ne renvoie rien) ; l'organisateur peut choisir de ne prévenir personne ; « Sur place » ne prévient personne ; jamais l'organisateur.
 Événement « sur invitation », sans annonce : seuls les comptes de test le voient.
 Lancement : SUPABASE_LIVE_TESTS=1 python -m pytest tests/supabase_live/test_paiement_ouvert_notification_live.py -q"""
 import httpx
@@ -52,5 +52,12 @@ def test_opening_the_payment_tells_the_participants_once(event):
 def test_paying_on_site_tells_nobody(event):
     admin, _, eid = event
     patch(admin, eid, payment_mode='on_site')
+    patch(admin, eid, payment_open=True)
+    assert sent(eid) == []
+
+
+def test_the_organizer_can_choose_not_to_notify(event):
+    admin, _, eid = event
+    patch(admin, eid, payment_open_notify=False)
     patch(admin, eid, payment_open=True)
     assert sent(eid) == []
