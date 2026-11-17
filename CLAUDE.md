@@ -420,7 +420,10 @@ réglage de prod :
   pour l'iPhone, jamais un nom ; null = tout, liens d'avant ; nouveau lien : tout coché). Les plages arrivent par calendrier
   (`agenda_busy.cal`, `for_groups`) : « Qui est libre ? » ne lit que les calendriers qui comptent pour les groupes ; l'iPhone
   envoie aussi ceux choisis par un lien actif (`AgendaStore.linkCalendars`), aussitôt après l'enregistrement du lien
-  (`syncBusyNow`). Les demandes de rendez-vous rendent toujours occupé. Tests : `test_each_link_chooses_the_calendars_*`,
+  (`syncBusyNow`). Les demandes de rendez-vous rendent toujours occupé. Plages SANS calendrier (`cal = ''`, app d'avant le
+  build 199) : comptent pour tous les liens (bug du 17.11, lien toujours libre). Marges par lien : `buffer_before_min` /
+  `buffer_after_min` (0 à 240, par 5 ; écran : Aucune, 30 min, 1 h, 1 h 30, car les plages sont arrondies à 30 min) autour de tout ce qui rend occupé
+  (`private.agenda_link_busy`, migration 20261117160000). Tests : `test_each_link_chooses_the_calendars_*`,
   `test_a_link_can_be_permanent`, `test_in_the_iphone_app_a_link_picks_iphone_calendars_*`, `AgendaTests`.
 - Notification `booking_request` / `booking_cancelled` sans coordonnée ni texte libre, interrupteur
   `notification_prefs.booking_requests` (allumé) ; pastille `agenda_badge()` + signal `user:<id>`. E-mails : pas en v1,

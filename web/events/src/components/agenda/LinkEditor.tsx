@@ -21,6 +21,7 @@ import { colors, font, radius } from '@/lib/theme';
 const HALF = Array.from({ length: 49 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`);
 const HORIZONS = [{ days: 14, label: '2 semaines' }, { days: 28, label: '4 semaines' }, { days: 60, label: '60 jours' }];
 const DURATIONS = [30, 60, 90, 120];
+const MARGINS = [0, 30, 60, 90]; // demi-heures : les plages « pris » sont arrondies à 30 min
 
 function modelOf(rules: Rule[]): Model {
   const same = (a: Rule[], b: Rule[]) => JSON.stringify(a) === JSON.stringify(b);
@@ -119,6 +120,8 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
   const [error, setError] = useState<string | null>(null);
   const [needProfile, setNeedProfile] = useState(false);
   const [permanent, setPermanent] = useState(link ? link.permanent : true);
+  const [before, setBefore] = useState(link?.buffer_before_min ?? 0);
+  const [after, setAfter] = useState(link?.buffer_after_min ?? 0);
   // Calendriers qui rendent occupé : ceux de Party et des agendas ajoutés avec un lien, et ceux de l'iPhone (app seulement,
   // noms lus sur l'iPhone). Nouveau lien : tout coché. null tant qu'ils ne sont pas lus (rien n'est alors envoyé : « tout »).
   const [cals, setCals] = useState<{ party: Calendar[]; phone: NativeCalendar[] | null } | null>(null);
@@ -149,11 +152,11 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
     const n = ++ask.current;
     const t = setTimeout(() => {
       void rpc<{ slots: [string, string][] }>('agenda_link_preview', { link: { rules, horizon_days: horizon, duration_min: durationMin, booking_enabled: booking,
-        calendars: picked ? [...picked] : null } })
+        calendars: picked ? [...picked] : null, buffer_before_min: before, buffer_after_min: after } })
         .then((r) => { if (n === ask.current) setPreview(r.slots ?? []); }).catch(() => { if (n === ask.current) setPreview([]); });
     }, 350);
     return () => clearTimeout(t);
-  }, [rules, horizon, durationMin, booking, picked]);
+  }, [rules, horizon, durationMin, booking, picked, before, after]);
 
   function pickModel(m: Model) {
     setModel(m);
@@ -177,7 +180,7 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
     if (pro && !display.trim()) { setError('Écris le nom que verra la personne.'); return; }
     const body = { name: name.trim() || 'Mes dispos', emoji, display_name: pro ? display.trim() : myFirst || null, rules, horizon_days: horizon,
       duration_min: durationMin, booking_enabled: booking, booking_fields: { ...fields, first_name: 'required' }, message_label: label.trim() || null,
-      permanent, ...(picked ? { calendars: [...picked] } : {}) };
+      permanent, buffer_before_min: before, buffer_after_min: after, ...(picked ? { calendars: [...picked] } : {}) };
     if (!link && !(await terms.ensure())) return;
     setBusy(true);
     try {
@@ -342,6 +345,21 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
       ) : null}
       {phoneElsewhere ? <Note icon="📱">Et {phoneElsewhere} calendrier{phoneElsewhere > 1 ? 's' : ''} de ton iPhone, choisi{phoneElsewhere > 1 ? 's' : ''} dans l’app Party.</Note> : null}
       <Note>Un rendez-vous dans un calendrier coché te rend occupé sur ce lien. Seules les heures partent, jamais le titre. Les demandes de rendez-vous comptent toujours.</Note>
+
+      <Label>Marges autour de tes rendez-vous</Label>
+      <View style={st.card}>
+        {([['Avant', before, setBefore], ['Après', after, setAfter]] as const).map(([word, value, set]) => (
+          <View key={word} style={{ gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel={`Marge ${word.toLowerCase()} chaque rendez-vous`}>
+            <T size={12} weight="bold" color={colors.muted} style={{ letterSpacing: 0.8 }}>{word.toUpperCase()} CHAQUE RENDEZ-VOUS</T>
+            <View style={st.wrap}>
+              {MARGINS.map((m) => <Chip key={m} label={m ? durationText(m) : 'Aucune'} selected={value === m} onPress={() => set(m)} />)}
+            </View>
+          </View>
+        ))}
+      </View>
+      <Note>{before || after
+        ? `Pas disponible ${[before ? `${durationText(before)} avant` : '', after ? `${durationText(after)} après` : ''].filter(Boolean).join(' et ')} chaque rendez-vous : le temps d’arriver, de souffler.`
+        : 'Aucune marge : un créneau peut commencer dès la fin d’un rendez-vous.'}</Note>
 
       <Label>Durée du lien</Label>
       <Segmented<'forever' | 'days'> value={permanent ? 'forever' : 'days'} onChange={(v) => setPermanent(v === 'forever')}

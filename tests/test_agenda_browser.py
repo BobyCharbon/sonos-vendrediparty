@@ -324,6 +324,10 @@ def test_links_empty_state_model_explainer_settings_and_preview(phone, events_or
     personal_cal.click()
     pw.expect(personal_cal).to_have_attribute('aria-checked', 'false')
     pw.expect(page.get_by_role('tab', name='Permanent')).to_have_attribute('aria-selected', 'true')
+    # Marges (17.11) : 30 min avant et après chaque rendez-vous.
+    page.get_by_role('radiogroup', name='Marge avant chaque rendez-vous').get_by_role('button', name='30 min').click()
+    page.get_by_role('radiogroup', name='Marge après chaque rendez-vous').get_by_role('button', name='30 min').click()
+    pw.expect(page.get_by_text('Pas disponible 30 min avant et 30 min après chaque rendez-vous', exact=False)).to_be_visible()
     pw.expect(page.get_by_text('Il marche jusqu’à ce que tu l’arrêtes.')).to_be_visible()
     page.wait_for_timeout(1000)  # l'aperçu est relu 350 ms après chaque changement
     assert rpc_calls(state, 'agenda_link_preview')[-1]['link']['calendars'] == [PARTY_CAL]
@@ -332,7 +336,7 @@ def test_links_empty_state_model_explainer_settings_and_preview(phone, events_or
     page.get_by_role('button', name='Créer le lien').click()
     pw.expect(page.get_by_test_id('link-address')).to_contain_text('/d/k7Qm2xV9abcdefghijklmnop', timeout=15000)
     saved = rpc_calls(state, 'agenda_link_save')[-1]['link']
-    assert saved['calendars'] == [PARTY_CAL] and saved['permanent'] is True
+    assert saved['calendars'] == [PARTY_CAL] and saved['permanent'] is True and saved['buffer_before_min'] == 30 and saved['buffer_after_min'] == 30
     assert saved['rules'] == [{'days': [1, 2, 3, 4, 5], 'from': '18:00', 'to': '23:00'}]
     assert saved['booking_enabled'] is True and saved['booking_fields']['phone'] == 'optional' and saved['booking_fields']['first_name'] == 'required'
     shot(page, 'agenda-15-lien-cree.png')

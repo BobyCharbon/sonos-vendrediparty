@@ -506,6 +506,8 @@ export type Link = {
   calendars: string[] | null;
   /** Sans fin : il ne s'arrête que quand on l'arrête. */
   permanent: boolean;
+  /** Marges : pas disponible N minutes avant / après chaque rendez-vous (0 à 240). */
+  buffer_before_min: number; buffer_after_min: number;
 };
 export type Links = { links: Link[]; max: number; missing: null | 'profile' | 'terms'; notify: boolean; pending: number };
 

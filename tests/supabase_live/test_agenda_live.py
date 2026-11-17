@@ -211,6 +211,32 @@ def test_each_link_chooses_the_calendars_that_make_me_busy(people, group):
     sql(f"delete from public.agenda_items where user_id = '{owner.uid}'")
 
 
+def test_margins_before_and_after_and_old_app_ranges_count_for_every_link(people, group):
+    """Migration 20261117160000 : marges par lien (30 min avant, 30 min après chaque rendez-vous) ; plages envoyées
+    sans calendrier par l'app d'avant (bug du 17.11 : lien qui choisit ses calendriers toujours libre)."""
+    owner, _, _ = people
+    ok(owner.rpc('agenda_set_sharing', groups=[group]))
+    day = (datetime.now(SWISS) + timedelta(days=3)).replace(hour=12, minute=0, second=0, microsecond=0)
+    plain = ok(owner.rpc('agenda_link_save', link=link_body(name='Sans marge', calendars=['ios:TRAVAIL-1'])))
+    margin = ok(owner.rpc('agenda_link_save', link=link_body(name='Marges', calendars=['ios:TRAVAIL-1'],
+                                                             buffer_before_min=30, buffer_after_min=30)))
+    assert margin['buffer_before_min'] == 30 and margin['buffer_after_min'] == 30
+    # L'app d'avant : ni « c » ni « g ».
+    ok(owner.rpc('agenda_set_busy', source='device', blocks=[{'s': day.isoformat(), 'e': (day + timedelta(hours=1)).isoformat()}]))
+    assert not free_at(plain['token'], day)                                         # compte même sans calendrier
+    assert free_at(plain['token'], day - timedelta(minutes=30)) and free_at(plain['token'], day + timedelta(hours=1))
+    assert not free_at(margin['token'], day - timedelta(minutes=30))                # 11 h 30 – 12 h : marge avant
+    assert not free_at(margin['token'], day + timedelta(hours=1, minutes=15))       # 13 h – 13 h 30 : marge après
+    assert free_at(margin['token'], day + timedelta(hours=1, minutes=30))
+    assert free_at(margin['token'], day - timedelta(minutes=31))
+    # Changer seulement le nom garde les marges ; valeurs hors limites refusées.
+    assert ok(owner.rpc('agenda_link_save', link={'name': 'Renommé'}, id=margin['id']))['buffer_after_min'] == 30
+    refused(owner.rpc('agenda_link_save', link={'buffer_before_min': 7}, id=margin['id']), 'forbidden')
+    refused(owner.rpc('agenda_link_save', link={'buffer_after_min': 300}, id=margin['id']), 'forbidden')
+    ok(owner.rpc('agenda_stop_sharing'))
+    sql(f"delete from private.agenda_links where user_id = '{owner.uid}'")
+
+
 def test_a_link_can_be_permanent(people):
     owner, _, _ = people
     link = ok(owner.rpc('agenda_link_save', link=link_body(permanent=True)))
