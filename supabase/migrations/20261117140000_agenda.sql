@@ -797,7 +797,8 @@ begin
   values (k.owner_id, kind, null,
     case kind when 'booking_request' then 'Nouvelle demande de rendez-vous' else 'Rendez-vous annulé' end,
     coalesce(lname, 'Lien de dispo') || ' · ' || private.agenda_short_date(k.starts_at),
-    jsonb_build_object('kind', kind, 'booking_id', k.id, 'link_id', k.link_id),
+    -- url : le toucher d'une notification web ouvre la demande (send-web-push lit data.url).
+    jsonb_build_object('kind', kind, 'booking_id', k.id, 'link_id', k.link_id, 'url', '/?tab=events&booking=' || k.id),
     kind || ':' || k.id)
   on conflict (user_id, dedupe_key) where dedupe_key is not null do nothing;
 end $$;

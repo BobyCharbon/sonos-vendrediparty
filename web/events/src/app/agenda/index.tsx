@@ -21,7 +21,10 @@ import { colors, font, radius } from '@/lib/theme';
  */
 export default function AgendaScreen() {
   const me = useMe();
-  const params = useLocalSearchParams<{ from?: string; day?: string }>();
+  const params = useLocalSearchParams<{ from?: string; day?: string; booking?: string }>();
+  // Notification « Nouvelle demande de rendez-vous » (app iPhone : /events/agenda?booking=<id>) : la demande elle-même.
+  const booking = typeof params.booking === 'string' && /^[0-9a-f-]{36}$/i.test(params.booking) ? params.booking.toLowerCase() : null;
+  useEffect(() => { if (booking) router.replace(`/agenda/requests/${booking}` as Href); }, [booking]);
   const backLabel = params.from === 'settings' ? 'Réglages' : 'Événements';
   const backPath = params.from === 'settings' ? '/account' : '/';
   const today = dayKey(new Date());

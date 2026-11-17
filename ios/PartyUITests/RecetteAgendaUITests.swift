@@ -58,11 +58,10 @@ final class RecetteAgendaUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Admin test"].waitForExistence(timeout: 30), "connecté en Admin test")
     }
 
-    /// La page de l'Agenda dans le module Événements (écrans web), ou, tant qu'ils n'existent pas, la page « introuvable »
-    /// du module : dans les deux cas, /events/agenda s'est ouvert dans l'onglet Événements.
+    /// La page de l'Agenda dans le module Événements (écrans web), jamais « Page introuvable ».
     private func agendaPageOpened() -> Bool {
-        any("label CONTAINS 'Qui est libre' OR label CONTAINS 'Mes liens de dispo' OR label CONTAINS 'Page introuvable'")
-            .waitForExistence(timeout: 30)
+        let opened = any("label CONTAINS 'Qui est libre' OR label CONTAINS 'Mes liens de dispo'").waitForExistence(timeout: 30)
+        return opened && !any("label CONTAINS 'Page introuvable'").exists
     }
 
     func testAgendaRowBadgeOpensTheAgenda() {
@@ -96,7 +95,8 @@ final class RecetteAgendaUITests: XCTestCase {
         // Toucher d'une notification booking_request, app fermée : l'adresse de send-push (tapPath).
         launch("if(!sessionStorage.recette){sessionStorage.recette='1';location.replace('/?tab=events&booking=\(booking)');}")
         XCTAssertTrue(app.tabBars.buttons["Événements"].waitForExistence(timeout: 30))
-        XCTAssertTrue(agendaPageOpened(), "la demande s'ouvre dans l'Agenda")
+        XCTAssertTrue(any("label CONTAINS 'Accepter'").waitForExistence(timeout: 30), "la demande s'ouvre (Accepter / Refuser)")
+        XCTAssertFalse(any("label CONTAINS 'Page introuvable'").exists)
         sleep(2)
         shot("notification-demande")
     }
@@ -129,14 +129,14 @@ final class RecetteAgendaUITests: XCTestCase {
         // Demande d'iOS (accès complet), puis feuille « Nouvel événement » d'iOS : « Ajouter ».
         var answered = false, added = false
         for _ in 0..<60 where !box.label.contains("\"done\"") && !box.label.contains("\"error\"") {
-            if !answered {
-                let allow = springboard.alerts.buttons.matching(NSPredicate(
-                    format: "label IN {'Autoriser l’accès complet', 'Autoriser l\\'accès complet', 'Allow Full Access', 'OK', 'Autoriser'}")).firstMatch
-                if allow.exists {
-                    shot("demande-ios")
-                    allow.tap()
-                    answered = true
-                }
+            // Chaque demande d'iOS (l'accès complet peut se confirmer en deux temps) : on autorise tant qu'il en reste.
+            let allow = springboard.alerts.buttons.matching(NSPredicate(
+                format: "label IN {'Autoriser l’accès complet', 'Autoriser l\\'accès complet', 'Allow Full Access', 'OK', 'Autoriser'}")).firstMatch
+            if allow.exists {
+                if !answered { shot("demande-ios") }
+                sleep(1)  // fin de l'animation : un toucher pendant l'apparition ne compte pas
+                if allow.exists { allow.tap() }
+                answered = true
             }
             if !added {
                 // iOS 26 : « ✓ » à droite de « Nouvel évènement » (libellé selon la version) ; sinon « Ajouter ».
