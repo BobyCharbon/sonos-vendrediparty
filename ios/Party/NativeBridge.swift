@@ -97,6 +97,9 @@ enum NativeBridge {
           settle: function (req) { return window.webkit.messageHandlers.\(NativeCalendarBridge.handler).postMessage(Object.assign({ action: "settle" }, req || {})); },
           pending: function () { return window.webkit.messageHandlers.\(NativeCalendarBridge.handler).postMessage({ action: "pending" }); }
         },
+        // Agenda (17.11) : calendriers de l'iPhone (EventKit) ; préférences et rendez-vous restent sur l'iPhone, seules
+        // les plages « pris » arrondies partent, envoyées par l'app (syncBusy) quand le partage est actif.
+        agenda: \(AgendaBridge.script),
         // « Ajouter à l'app Cartes Apple » (billet) : feuille d'ajout PassKit ; promesse résolue à sa fermeture.
         // Bulle de Zicou native (BETA) : la page la décrit (pet/zicou-home.js), l'app la dessine et la déplace.
         zicou: \(zicouScript),
@@ -129,6 +132,7 @@ enum NativeBridge {
         controller.addScriptMessageHandler(WalletHandler(), contentWorld: .page, name: NativeWallet.handler)
         controller.addScriptMessageHandler(ContactNamesBridge(), contentWorld: .page, name: ContactNamesBridge.handler)
         controller.addScriptMessageHandler(NativeCalendarBridge(), contentWorld: .page, name: NativeCalendarBridge.handler)
+        controller.addScriptMessageHandler(AgendaBridge(model: model), contentWorld: .page, name: AgendaBridge.handler)
         // Zicou → widgets et Live Activity de l'éclosion (lecture des réponses /api/pet/* de la page).
         if AppConfig.zicouBuild {
             PetWidgetBridge.install(in: controller)

@@ -29,7 +29,7 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
 from . import agenda_ics, calendar_ics
-from .accounts import SUPABASE_ANON_KEY, AccountError, Accounts
+from .accounts import SUPABASE_ANON_KEY, SUPABASE_URL, AccountError, Accounts
 
 SWISS = ZoneInfo("Europe/Zurich")
 TOKEN = re.compile(r"^[A-Za-z0-9_-]{20,64}$")
@@ -764,6 +764,9 @@ def agenda_router(accounts: Accounts, public_url: Callable[[], str], client_ip: 
             raise HTTPException(404, "Fonction inconnue")
         status, data = db.call(body.fn, body.args, body.token)
         if status in (200, 204):
+            if body.fn == "agenda_badge":  # pastille de l'app iPhone : elle écoute ensuite le signal user:<id>
+                return JSONResponse({"result": data, "realtime": {
+                    "url": SUPABASE_URL.replace("https://", "wss://", 1) + "/realtime/v1/websocket", "key": SUPABASE_ANON_KEY}})
             return JSONResponse({"result": data})
         if status == 401:
             raise HTTPException(401, "Ta connexion a expiré. Reconnecte-toi.")

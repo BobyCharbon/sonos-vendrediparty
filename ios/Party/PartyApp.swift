@@ -21,6 +21,8 @@ struct PartyApp: App {
                     if phase == .active, let link = SharedSession.takePendingEvent() { model.startAIEvent(link: link) }
                     // Noms des contacts : accès changé dans Réglages, ou reconnaissance ancienne (12 h).
                     if phase == .active { ContactNames.shared.appBecameActive() }
+                    // Agenda : pastille des demandes relue ; plages « pris » renvoyées si cet iPhone partage ses dispos.
+                    if phase == .active, let agenda = model.settings?.agenda { Task { await agenda.appBecameActive() } }
                     // Action rapide de l'icône (lancement à froid compris) ; éclosion de Zicou finie app fermée.
                     if phase == .active, let action = QuickAction.take() { model.perform(action) }
                     if phase == .active && AppConfig.zicouBuild { PetWidgetBridge.appBecameActive() }

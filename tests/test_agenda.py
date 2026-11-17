@@ -153,7 +153,11 @@ def test_the_iphone_relay_only_reaches_agenda_functions(db, client):
     assert client.post("/api/account/agenda/rpc", json={"token": "t", "fn": "delete_my_account"}).status_code == 404
     answers["agenda_badge"] = (200, {"pending": 1})
     r = client.post("/api/account/agenda/rpc", json={"token": "jwt", "fn": "agenda_badge", "args": {}})
-    assert r.json() == {"result": {"pending": 1}} and calls[-1] == ("agenda_badge", {}, "jwt")
+    assert r.json()["result"] == {"pending": 1} and calls[-1] == ("agenda_badge", {}, "jwt")
+    # Pastille de l'app iPhone : l'adresse du temps réel pour écouter le signal user:<id> (et seulement pour agenda_badge).
+    assert r.json()["realtime"]["url"].startswith("wss://") and r.json()["realtime"]["url"].endswith("/realtime/v1/websocket")
+    answers["agenda_sharing"] = (200, {"groups": []})
+    assert client.post("/api/account/agenda/rpc", json={"token": "jwt", "fn": "agenda_sharing"}).json() == {"result": {"groups": []}}
     answers["agenda_link_save"] = (400, {"message": "profile_incomplete: Complète ton profil (prénom, nom, surnom) pour créer un lien."})
     r = client.post("/api/account/agenda/rpc", json={"token": "jwt", "fn": "agenda_link_save", "args": {"link": {}}})
     assert r.status_code == 403 and r.json()["code"] == "profile_incomplete"
