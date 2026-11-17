@@ -55,6 +55,8 @@ final class SettingsStore: ObservableObject {
     /// Réglages › Groupes (même session de compte).
     private(set) lazy var groups = GroupsStore(api: api, web: web)
     private(set) lazy var tricount = TricountStore(api: api, web: web)
+    /// Réglages › Autres apps › Agenda : pastille des demandes de rendez-vous, calendriers de l'iPhone (PartyNative.agenda).
+    private(set) lazy var agenda = AgendaStore(api: api, web: web)
     private(set) lazy var aiEvent: AIEventStore = {
         let store = AIEventStore(api: api, web: web)
         store.moderation = moderation  // CGU exigées : feuille « Avant de publier » puis nouvel essai
@@ -398,6 +400,7 @@ final class SettingsStore: ObservableObject {
         case ("group_invites", let v as Bool): p.groupInvites = v
         case ("group_joins", let v as Bool): p.groupJoins = v
         case ("group_added", let v as Bool): p.groupAdded = v
+        case ("booking_requests", let v as Bool): p.bookingRequests = v
         case ("ticket_pay_declared", let v as Bool): p.ticketPayDeclared = v
         case ("ticket_pay_confirmed", let v as Bool): p.ticketPayConfirmed = v
         case ("ticket_issued", let v as Bool): p.ticketIssued = v

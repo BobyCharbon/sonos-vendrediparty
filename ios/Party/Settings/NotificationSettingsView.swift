@@ -195,6 +195,14 @@ struct NotificationSettingsView: View {
             }
         }
 
+        // Agenda (17.11) : le même interrupteur que « Me prévenir des demandes » d'un lien de dispo (allumé par défaut).
+        Section("📅 Agenda") {
+            eventToggle("booking_requests", "calendar.badge.clock", .purple, "Demandes de rendez-vous",
+                        "Quelqu'un demande (ou annule) un rendez-vous par un de tes liens de dispo ; ses coordonnées restent dans Party",
+                        p.bookingRequests != false)
+                .accessibilityIdentifier("notif-booking-requests")
+        }
+
         // Mes amis dans Party : chaque type a son interrupteur (aussi sur le web).
         Section("Amis") {
             eventToggle("referral_joins", "envelope.open.fill", .purple, "Quelqu'un rejoint Party grâce à moi",

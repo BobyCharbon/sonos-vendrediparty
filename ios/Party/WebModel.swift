@@ -85,6 +85,8 @@ final class WebModel: ObservableObject {
         case tab(String)
         /// Page /admin de la soirée.
         case admin
+        /// Agenda (17.11) : /events/agenda dans l'onglet Événements (Réglages › Autres apps › Agenda).
+        case agenda
     }
 
     func attach(_ webView: WKWebView) {
@@ -157,6 +159,12 @@ final class WebModel: ObservableObject {
             return
         }
         var target = AppConfig.isInternal(url) ? url : start
+        // Demande de rendez-vous (Agenda) : page déjà prête → ouverte dans le module ; sinon la page la lit au chargement
+        // (events-shell.js, PartyEvents.target).
+        if tabs != nil, webView != nil, let booking = Self.bookingRequested(in: target) {
+            openAgenda(booking: booking)
+            return
+        }
         // Notification d'un message d'événement (?tab=events&event=<id>&chat=1) : la fiche dans la page, la discussion
         // en natif par-dessus.
         if let event = Self.eventChatRequested(in: target) {
@@ -263,6 +271,8 @@ final class WebModel: ObservableObject {
             selectTab(id)
         case .admin:
             open(start.appendingPathComponent("admin"))
+        case .agenda:
+            openAgenda(booking: nil)
         }
     }
 
@@ -334,6 +344,28 @@ final class WebModel: ObservableObject {
         guard let path = GroupLook.pagePath(target) else { return }
         selectTab("events")
         webView?.evaluateJavaScript("window.PartyEvents && PartyEvents.open('\(path)')")
+    }
+
+    /// Agenda (17.11) : la page de l'Agenda, ou une demande de rendez-vous (toucher de la notification booking_request),
+    /// dans l'onglet Événements, sans recharger Party.
+    func openAgenda(booking: String?) {
+        guard let path = Self.agendaPath(booking: booking) else { return }
+        selectTab("events")
+        webView?.evaluateJavaScript("window.PartyEvents && PartyEvents.open('\(path)')")
+    }
+
+    nonisolated static func agendaPath(booking: String?) -> String? {
+        guard let booking else { return "/events/agenda" }
+        guard let id = UUID(uuidString: booking) else { return nil }
+        return "/events/agenda?booking=\(id.uuidString.lowercased())"
+    }
+
+    /// Notification d'une demande de rendez-vous : « /?tab=events&booking=<id> » (send-push, tapPath).
+    nonisolated static func bookingRequested(in url: URL) -> String? {
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: true)?.queryItems ?? []
+        guard items.first(where: { $0.name == "tab" })?.value == "events",
+              let id = items.first(where: { $0.name == "booking" })?.value.flatMap(UUID.init(uuidString:)) else { return nil }
+        return id.uuidString.lowercased()
     }
 
     /// « Discussion » de la page d'un groupe (module Événements) : sa discussion dans l'onglet Discussions natif.

@@ -46,6 +46,8 @@ struct EventNotificationPrefs: Codable, Equatable {
     var groupJoins: Bool?
     /// « Tu es dans le groupe X » (migration 20261117110000 ; absent avant : reçue).
     var groupAdded: Bool?
+    /// Agenda (migration 20261117140000 ; absent avant : reçue) : demande de rendez-vous reçue ou annulée par un lien de dispo.
+    var bookingRequests: Bool?
     /// Annonces et @tout des groupes de Discussions (absent avant la migration : reçues).
     var groupBroadcasts: Bool?
     /// Billets payants (migration 20261103130000 ; absents avant : reçues) : quelqu'un dit avoir payé ma place /
@@ -93,6 +95,7 @@ struct EventNotificationPrefs: Codable, Equatable {
         case eventChatsMutedUntil = "event_chats_muted_until", announcements, rsvpSet = "rsvp_set", invites
         case proposalResult = "proposal_result", linkJoin = "link_join", groupMessages = "group_messages"
         case groupInvites = "group_invites", groupJoins = "group_joins", groupAdded = "group_added"
+        case bookingRequests = "booking_requests"
         case ticketPayDeclared = "ticket_pay_declared", ticketPayConfirmed = "ticket_pay_confirmed"
         case ticketIssued = "ticket_issued"
         case barServed = "bar_served", barChanged = "bar_changed", barRefundConfirmed = "bar_refund_confirmed"

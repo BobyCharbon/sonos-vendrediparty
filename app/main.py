@@ -1868,6 +1868,8 @@ class NotificationPatch(BaseModel):
     group_joins: bool | None = None
     # « Tu es dans le groupe X » (17.11) : entrée dans le groupe d'un événement, case cochée avec sa réponse.
     group_added: bool | None = None
+    # Agenda (17.11, migration 20261117140000) : demande de rendez-vous reçue ou annulée par un lien de dispo.
+    booking_requests: bool | None = None
     # Billets payants (migration 20261103130000) : quelqu'un dit avoir payé ; mon paiement est confirmé.
     ticket_pay_declared: bool | None = None
     ticket_pay_confirmed: bool | None = None

@@ -40,10 +40,15 @@ final class ChatRealtime {
         self.changed = changed
     }
 
-    init(endpoint: Endpoint, token: String, event: String, changed: @escaping () -> Void) {
+    convenience init(endpoint: Endpoint, token: String, event: String, changed: @escaping () -> Void) {
+        self.init(endpoint: endpoint, token: token, signal: "event:\(event)", changed: changed)
+    }
+
+    /// Signal public sans contenu : « event:<id> » (discussion d'un événement) ou « user:<id> » (pastille de l'Agenda).
+    init(endpoint: Endpoint, token: String, signal: String, changed: @escaping () -> Void) {
         self.endpoint = endpoint
         self.token = token
-        self.topic = "realtime:event:\(event)"
+        self.topic = "realtime:\(signal)"
         self.filter = nil
         self.direct = false
         self.broadcast = true

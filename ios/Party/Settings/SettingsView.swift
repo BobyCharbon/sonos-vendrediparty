@@ -58,9 +58,11 @@ struct SettingsView: View {
                     }
                 }
                 if store.account != nil {
-                    // « Autres apps » (17.11) : des apps à part entière dans Party (Pot commun, bientôt Agenda), pas des
+                    // « Autres apps » (17.11) : des apps à part entière dans Party (Agenda, Pot commun), pas des
                     // réglages ; plus tard peut-être un lanceur dans la barre d'onglets.
                     Section {
+                        // Agenda (17.11) : la page /events/agenda dans l'onglet Événements ; pastille = demandes en attente.
+                        AgendaRow(agenda: store.agenda) { open(.agenda) }
                         NavigationLink {
                             TricountListView(store: store.tricount, myName: store.account?.name ?? "")
                         } label: {
@@ -338,6 +340,42 @@ private struct SessionNotice: View {
     @ObservedObject var store: AccountStore
 
     var body: some View { AdminNotice(notice: $store.notice) }
+}
+
+/// Réglages › Autres apps › « Agenda » : ouvre /events/agenda ; pastille rouge = demandes de rendez-vous en attente,
+/// relue à l'affichage, au signal temps réel user:<id> et au retour au premier plan (AgendaStore).
+struct AgendaRow: View {
+    @ObservedObject var agenda: AgendaStore
+    let open: () -> Void
+
+    var body: some View {
+        Button(action: open) {
+            HStack {
+                SettingsRow(symbol: "calendar.badge.clock", tint: .indigo, title: "Agenda", hint: "Ta semaine et qui est libre")
+                Spacer(minLength: 0)
+                if let badge = Self.badge(agenda.pending) {
+                    Text(badge)
+                        .font(.footnote.weight(.semibold)).foregroundStyle(.white)
+                        .padding(.horizontal, 7).frame(minWidth: 22, minHeight: 22)
+                        .background(Color.red, in: Capsule())
+                        .accessibilityLabel(agenda.pending == 1 ? "1 demande de rendez-vous" : "\(agenda.pending) demandes de rendez-vous")
+                        .accessibilityIdentifier("settings-agenda-badge")
+                        .transition(.scale.combined(with: .opacity))
+                }
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+            .motion(Motion.snappy, value: agenda.pending)
+        }
+        .foregroundStyle(.primary)
+        .accessibilityIdentifier("settings-agenda")
+        .task { await agenda.startLive() }
+        .onDisappear { agenda.stopLive() }
+    }
+
+    /// « 1 », « 2 »… ; « 99+ » au-delà ; rien à 0.
+    static func badge(_ pending: Int) -> String? {
+        pending <= 0 ? nil : pending > 99 ? "99+" : String(pending)
+    }
 }
 
 private struct TricountLink: Identifiable { let id: String }
