@@ -31,6 +31,9 @@ struct EventChatScreen: View {
             .offset(x: dragX)
         }
         .sheet(isPresented: showInfo) { EventChatInfoView(store: store) }
+        // Pas de bannière pour la discussion qu'on lit (agent G).
+        .onAppear { ChatNotificationActions.visibleThread = "event-chat:\(eventID)" }
+        .onDisappear { ChatNotificationActions.visibleThread = nil }
     }
 
     // MARK: En-tête façon WhatsApp

@@ -107,6 +107,13 @@ final class WebModel: ObservableObject {
         feedbackAdmin = FeedbackAdminStore(api: api, web: self)
         chats = ChatsStore(api: api, web: self)
         eventChats = ChatsStore(api: api, web: self, forEvents: true)
+        // « Répondre » depuis une notification de discussion : le jeton du compte vient de la page (agent G).
+        ChatNotificationActions.web = self
+        // Notification touchée avant que l'app soit prête (lancement à froid) : la discussion s'ouvre maintenant.
+        if let waiting = waitingEventChat {
+            waitingEventChat = nil
+            openEventChat(waiting.id, info: waiting.info)
+        }
         // Noms des contacts (« Nom · pseudo ») : reconnaissance au lancement, puis à chaque changement du répertoire.
         ContactNames.shared.configure(api: api, web: self)
         settings = SettingsStore(api: api, web: self, isHost: { [weak self] in self?.isHost ?? false },
@@ -336,7 +343,8 @@ final class WebModel: ObservableObject {
     /// « Discussion » d'un événement (sa fiche, une notification, un lien /events/event/<id>/chat) : l'écran natif façon
     /// WhatsApp, poussé par-dessus la page ; `info` : ses infos et réglages s'ouvrent d'emblée.
     func openEventChat(_ id: String, info: Bool = false) {
-        guard id.range(of: "^[0-9a-fA-F-]{36}$", options: .regularExpression) != nil, eventChats != nil else { return }
+        guard id.range(of: "^[0-9a-fA-F-]{36}$", options: .regularExpression) != nil else { return }
+        guard eventChats != nil else { waitingEventChat = (id, info); return }
         eventChatInfo = info
         Motion.animate(Motion.smooth) { eventChatID = id.lowercased() }
     }
@@ -345,7 +353,15 @@ final class WebModel: ObservableObject {
     func closeEventChat() {
         eventChatInfo = false
         eventChatID = nil
+        // La fiche relit sa pastille des non-lus (EventChatEntry écoute « party-native-chat:closed »), cadre compris.
+        webView?.evaluateJavaScript(Self.chatClosedScript)
     }
+
+    nonisolated static let chatClosedScript = "(function(){var e='party-native-chat:closed';window.dispatchEvent(new Event(e));"
+        + "var f=document.getElementById('eventsFrame');try{f&&f.contentWindow&&f.contentWindow.dispatchEvent(new Event(e));}catch(x){}})()"
+
+    /// Discussion demandée avant que l'app soit prête (notification touchée au lancement).
+    private var waitingEventChat: (id: String, info: Bool)?
 
     /// Lien vers la discussion d'un événement (/events/event/<id>/chat) : l'id de l'événement.
     nonisolated static func eventChatPath(in url: URL) -> String? {
