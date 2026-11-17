@@ -389,7 +389,7 @@ def phase_notifs(browser, origin):
             m.shot("interrupteurs")
             gone = ["Nouveau sondage", "Rappel pour voter", "Un organisateur répond pour moi", "Paiement de ma place confirmé",
                     "Billet prêt", "Réponses à mes événements", "Ma proposition validée ou refusée", "Quelqu’un dit avoir payé",
-                    "Messages des discussions"]
+                    "Discussions des événements"]
             shown = [t for t in gone if m.page.get_by_text(t, exact=True).count()]
             ok(m, not shown, f"{key} : interrupteurs jamais honorés masqués (encore là : {shown})")
             ok(m, m.page.get_by_text("Place libérée", exact=True).count() > 0, f"{key} : « Place libérée » (honoré) reste")

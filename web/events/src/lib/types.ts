@@ -229,7 +229,7 @@ export type NotificationPrefs = {
 };
 
 /** Réglage d'une discussion d'événement (table event_chat_prefs, RLS : ses lignes), lu par Réglages › Notifications. */
-export type EventChatPref = { event_id: string; level: ChatMode; muted_until: string | null; events: { title: string } | null };
+export type EventChatPref = { event_id: string; level: ChatMode; custom?: boolean; muted_until: string | null; events: { title: string } | null };
 
 /** Pause des notifications : 'all' = la lune, 'chats' = Discussions des groupes, 'event_chats' = discussions des événements. */
 export type PauseScope = 'all' | 'chats' | 'event_chats';

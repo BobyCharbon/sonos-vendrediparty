@@ -313,10 +313,11 @@ function EventChatOverrides({ fallback }: { fallback: ChatMode }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { data, reload } = useQuery(async () => {
-    const { data: rows, error: e } = await supabase.from('event_chat_prefs').select('event_id, level, muted_until, events(title)');
+    const { data: rows, error: e } = await supabase.from('event_chat_prefs').select('event_id, level, custom, muted_until, events(title)');
     return e ? [] : ((rows ?? []) as unknown as EventChatPref[]);
   }, []);
-  const rows = (data ?? []).filter((r) => r.level !== fallback || muteText(r.muted_until));
+  // Une ligne créée par « lu » ou la sourdine (custom = false) suit le défaut : seul un niveau choisi exprès compte.
+  const rows = (data ?? []).filter((r) => (r.custom !== false && r.level !== fallback) || muteText(r.muted_until));
   if (!rows.length) return null;
 
   async function reset(r: EventChatPref) {

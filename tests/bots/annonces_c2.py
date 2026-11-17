@@ -963,7 +963,7 @@ def phase_masques(browser, origin, only):
             p.shot("reglages", full=True)
             shown = [l for l in LABELS if page.get_by_label(l, exact=True).count()]
             bad = [l for l in HIDDEN_FOR_MEMBERS if (l in shown) == want_hidden]
-            sections = {t: page.get_by_text(t, exact=False).count() for t in ("Nouveaux événements", "Messages des discussions")}
+            sections = {t: page.get_by_text(t, exact=False).count() for t in ("Nouveaux événements", "Discussions des événements")}
             p.log(f"affichés : {shown} ; sections : {sections}")
             report(key, not bad, "🟠", f"interrupteurs {'masqués' if want_hidden else 'présents'} ({BY_KEY[key].role})", {"en trop/manquants": bad, "sections": sections})
             for l in shown:  # chaque interrupteur affiché à un non-VIP doit pouvoir partir
