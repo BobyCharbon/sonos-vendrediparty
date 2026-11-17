@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 TEST_SITE_HOST = "partytest.bobycharbon.ch"
 COMPAGNON_SOON = "Zicou arrive bientôt."
+PATATES_SOON = "Bientôt"
 
 
 def configured_public_url() -> str:
@@ -49,3 +50,9 @@ def bar_enabled() -> bool:
     """Bar de la soirée (articles, stock, commandes, QR, barmans ; maquettes v6 du 10.11) : BAR_ENABLED ("1" / "0") si elle
     est définie ; sinon allumé sur le site de test seulement (en construction : la prod après recette et « Ok prod »)."""
     return _flag("BAR_ENABLED")
+
+
+def patates_enabled() -> bool:
+    """Patates des Pronos v2 (monnaie fictive, gratuite, sans valeur ; 18.11) : PATATES_ENABLED ("1" / "0") si elle est
+    définie ; sinon allumées sur le site de test seulement. Éteintes : les pronos restent pour l'honneur (points)."""
+    return _flag("PATATES_ENABLED")

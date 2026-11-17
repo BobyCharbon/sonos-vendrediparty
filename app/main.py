@@ -34,7 +34,7 @@ from .agenda import agenda_router
 from .pronos import pronos_router
 from . import pet_pot, tv_star
 # Adresse du déploiement et fonctions en bêta (Compagnon : allumé sur le site de test seulement).
-from .features import COMPAGNON_SOON, TEST_SITE_HOST, bar_enabled, compagnon_enabled, configured_public_url, discussions_enabled, invites_v2_enabled
+from .features import COMPAGNON_SOON, TEST_SITE_HOST, bar_enabled, compagnon_enabled, configured_public_url, discussions_enabled, invites_v2_enabled, patates_enabled
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts, ServiceUnavailable, TermsRequired
 from .account_auth import AccountAuth
@@ -5423,7 +5423,8 @@ def features():
     """Fonctions en bêta pour les apps natives (la page web les lit sur <html data-compagnon> / data-discussions) :
     Compagnon (Zicou) et Discussions (groupes, messages directs)."""
     return JSONResponse({"compagnon": compagnon_enabled(), "discussions": discussions_enabled(),
-                         "invites_v2": invites_v2_enabled(), "bar": bar_enabled()}, headers=NO_CACHE)
+                         "invites_v2": invites_v2_enabled(), "bar": bar_enabled(), "patates": patates_enabled()},
+                        headers=NO_CACHE)
 
 
 # En-têtes de sécurité de toutes les réponses (campagne du 14.11.2026). Cadre : seulement Party elle-même (la page met le

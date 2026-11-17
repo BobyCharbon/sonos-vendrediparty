@@ -86,7 +86,7 @@ def test_honour_only_no_stake_no_money_word_on_screen():
         visible = " ".join(re.findall(r"[\"'«`]([^\"'`»]{3,})[\"'»`]", text)).lower()
         for word in ("parier", "pariez", "cagnotte", "pot commun", "jackpot", "cote ", "miser", "enjeu", "twint", "revolut", "payer"):
             assert word not in visible, word
-        assert "stake" not in text and "payment" not in text
+        assert "payment" not in text  # « stake » (patates plantées, v2) est un nom de champ, jamais un mot à l'écran
     sql = read("supabase/migrations/20261117180000_pronos.sql")
     assert "stake" not in sql and "amount" not in sql
     # L'IA, les pièces de Zicou, le bar et le Pot commun ne touchent jamais un prono.

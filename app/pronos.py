@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from .accounts import SUPABASE_ANON_KEY, SUPABASE_URL, AccountError, Accounts
 from .agenda import ERROR_STATUS, Db, refusal
+from .features import PATATES_SOON, patates_enabled
 
 TOKEN = re.compile(r"^[A-Za-z0-9_-]{20,40}$")
 # Fonctions que l'app iPhone appelle par le serveur.
@@ -22,7 +23,13 @@ RELAY = {
     "prono_set_link", "prono_link_info", "prono_join", "prono_answer", "prono_close_now", "prono_result", "prono_cancel",
     "prono_delete", "prono_board", "prono_board_reset", "prono_report_answer", "report_content",
     "my_groups_overview",  # « Qui joue » : mes groupes
+    # Pronos v2 (18.11) : sac de patates, saison, contestation, réactions, trophée (se retirer), modèles.
+    "prono_bag", "prono_bag_history", "prono_season", "prono_contest", "prono_contest_vote", "prono_react",
+    "prono_optout", "prono_templates",
 }
+# Drapeau « patates » éteint : ces fonctions n'existent pas pour l'app, et aucune patate n'entre par les autres.
+PATATES_ONLY = {"prono_bag", "prono_bag_history", "prono_season"}
+PATATES_KEYS = {"prono_answer": ("answer", "stake"), "prono_create": ("body", "patates"), "prono_update": ("body", "patates")}
 STATUS = {**ERROR_STATUS, "locked": 409, "profile_required": 403}
 SIGNED_TTL = 3600       # lien d'une photo de profil
 SIGNED_REUSE = 40 * 60  # le même lien d'une réponse à l'autre (pas de rechargement des photos)
@@ -83,6 +90,14 @@ def pronos_router(accounts: Accounts) -> APIRouter:
             raise HTTPException(404, "Fonction inconnue")
         if body.fn == "report_content" and not str(body.args.get("p_kind", "")) == "prono":
             raise HTTPException(404, "Fonction inconnue")  # signaler un prono seulement (le reste a ses écrans)
+        if not patates_enabled():
+            if body.fn in PATATES_ONLY:
+                raise HTTPException(404, PATATES_SOON)
+            if body.fn in PATATES_KEYS:
+                inner, key = PATATES_KEYS[body.fn]
+                body.args.pop(key, None)
+                if isinstance(body.args.get(inner), dict):
+                    body.args[inner].pop(key, None)
         status, data = db.call(body.fn, body.args, body.token)
         if status in (200, 204):
             sign_faces(data, body.token)
