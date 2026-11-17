@@ -76,6 +76,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        // Discussion d'un événement : « Répondre » / « Marquer comme lu » sur ses notifications (catégories de send-push).
+        ChatNotificationActions.register()
         // Secouer le téléphone (Biskit, jeux) ne doit jamais ouvrir « Annuler la saisie » (avis 51dbdb4c1957).
         application.applicationSupportsShakeToEdit = false
         Task { @MainActor in TrackActivities.watchAtLaunch() }
@@ -98,14 +100,18 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         Task { @MainActor in PushRegistrar.shared.fail(error) }
     }
 
-    /// App ouverte : la notification s'affiche quand même, comme sur la PWA.
+    /// App ouverte : la notification s'affiche quand même, comme sur la PWA ; sauf celle de la discussion ouverte à
+    /// l'écran (WhatsApp : le message y apparaît déjà).
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async
         -> UNNotificationPresentationOptions {
-        [.banner, .sound, .list]
+        if ChatNotificationActions.hides(notification) { return [] }
+        return [.banner, .sound, .list]
     }
 
     /// Toucher d'une notification : on ouvre son adresse (`"url"` dans la charge utile APNs, comme `data.url` en Web Push).
+    /// « Répondre » / « Marquer comme lu » (discussion d'un événement) : traités sans ouvrir l'app.
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        if await ChatNotificationActions.handle(response) { return }
         let info = response.notification.request.content.userInfo
         guard let raw = info["url"] as? String,
               let url = URL(string: raw, relativeTo: AppConfig.baseURL)?.absoluteURL else { return }

@@ -50,9 +50,31 @@ def test_the_notification_url_is_followed_on_the_same_site_only():
     ]
 
 
+@pytest.mark.skipif(not shutil.which("node"), reason="Node absent")
+def test_event_chat_messages_replace_each_other_per_discussion():
+    """Façon WhatsApp : un message de la discussion d'un événement remplace le précédent (même étiquette), sw.js le
+    refait sonner ; toute autre notification garde sa propre étiquette (party-event-…, sans renotify)."""
+    script = ("import(process.argv[1]).then(({ notificationTag }) => "
+              "console.log(JSON.stringify(JSON.parse(process.argv[2]).map(notificationTag))))")
+    rows = [
+        {"kind": "message", "event_id": EVENT, "notification_id": "n1"},
+        {"kind": "message", "event_id": EVENT, "notification_id": "n2"},
+        {"kind": "message", "event_id": "../x", "notification_id": "n3"},
+        {"kind": "event_changed", "event_id": EVENT, "notification_id": "n4"},
+        {"kind": "group_message", "event_id": None, "notification_id": "n5"},
+    ]
+    out = subprocess.run(["node", "-e", script, (FUNCTION / "target.ts").as_uri(), json.dumps(rows)],
+                         capture_output=True, text=True, check=True, timeout=30)
+    assert json.loads(out.stdout) == [f"event-chat-{EVENT}", f"event-chat-{EVENT}", "party-event-n3",
+                                      "party-event-n4", "party-event-n5"]
+    assert "tag: notificationTag(row)," in (FUNCTION / "index.ts").read_text()
+    sw = (ROOT / "app/static/sw.js").read_text()
+    assert 'renotify: d.silent !== true && !!d.tag && !String(d.tag).startsWith("party-event-")' in sw
+
+
 def test_the_function_sends_the_notification_url():
     source = (FUNCTION / "index.ts").read_text()
-    assert "import { notificationTarget } from './target.ts';" in source
+    assert "import { notificationTag, notificationTarget } from './target.ts';" in source
     assert "db.from('notifications').select('id, data')" in source
     assert "url: notificationTarget({ ...row, url: urls.get(row.notification_id) })" in source
 
