@@ -29,6 +29,8 @@ const KIND_LABELS: Record<string, string> = {
   profile: 'Profil', profile_photo: 'Photo de profil', group_photo: 'Photo de groupe', event: 'Événement',
   rsvp_note: 'Petit mot', poll: 'Sondage', poll_option: 'Choix de sondage', bring_item: 'Objet à amener', pet_name: 'Nom du Zicou', pet_item: 'Objet de Zicou',
   pet_offer: 'Offre d’échange', pet_showcase: 'Vitrine', pet_word: 'Mot de Zicou',
+  // Agenda (17.11) : demande d'une personne sans compte (« Masquer » l'efface) ; page publique d'un lien (« Masquer » l'arrête).
+  booking_request: 'Demande de rendez-vous (personne sans compte)', agenda_link: 'Lien de dispo (page publique)',
 };
 /** Contenus rattachés à un événement : « Ouvrir l'événement » mène au contexte (la copie garde event_id). */
 const EVENT_KINDS = new Set(['event', 'event_message', 'rsvp_note', 'poll', 'poll_option', 'bring_item']);
@@ -134,7 +136,7 @@ function ReportCard({ report: r, photo, canBan, onDone }: { report: Report; phot
             <T muted size={12}>{r.user_reports} signalement(s) sur ce compte{r.same_target > 1 ? ` · ${r.same_target} sur ce contenu` : ''}</T>
           </View>
         </View>
-      ) : <T muted size={12}>Compte supprimé</T>}
+      ) : <T muted size={12}>{r.kind === 'booking_request' ? 'Écrit par une personne sans compte (par un lien de dispo)' : 'Compte supprimé'}</T>}
       <View style={{ padding: 10, borderRadius: 12, backgroundColor: colors.fill, gap: 6 }}>
         {r.kind === 'profile_photo' && r.snapshot.photo_path && user ? (
           <Avatar id={user.id} name={user.name} photo={r.snapshot.photo_path} size={120} profile={false} />

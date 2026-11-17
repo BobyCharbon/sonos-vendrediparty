@@ -16,7 +16,7 @@ import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
 
 type Item = { id: string; kind: string; title: string; body: string; event_id: string | null; created_at: string; read_at: string | null;
-  data?: { group_id?: string } | null };
+  data?: { group_id?: string; booking_id?: string } | null };
 type Filter = 'important' | 'all';
 
 /** Fermer : retour à l'accueil (ouverte depuis la cloche) ou, ouverte d'une notification, l'accueil à sa place. */
@@ -48,6 +48,8 @@ export default function Activity() {
     else if (n.kind === 'member_signup') router.push('/admin/users');
     // « Tu es dans le groupe X » (17.11) : la discussion du groupe, son bandeau et « Quitter ».
     else if (n.kind === 'group_added' && /^[0-9a-f-]{36}$/.test(n.data?.group_id ?? '')) router.push(`/chats/${n.data!.group_id}`);
+    // Agenda (17.11) : « Nouvelle demande de rendez-vous » / « Rendez-vous annulé » ouvrent la demande.
+    else if ((n.kind === 'booking_request' || n.kind === 'booking_cancelled') && /^[0-9a-f-]{36}$/.test(n.data?.booking_id ?? '')) router.push(`/agenda/requests/${n.data!.booking_id}`);
     else reload();
   }
 

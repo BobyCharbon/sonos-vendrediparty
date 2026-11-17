@@ -1,6 +1,7 @@
 import { router, type Href } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
+import { useAgendaBadge } from '@/lib/agenda';
 import { useAuth } from '@/lib/auth';
 import { discussionsOn } from '@/lib/features';
 import { useShellFeedback } from '@/lib/shellFeedback';
@@ -25,6 +26,7 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
   const { profile, signOut, can, rank, isAdmin, eventsOpen } = useAuth();
   const pause = usePause();
   const feedback = useShellFeedback();
+  const agendaPending = useAgendaBadge(profile && eventsOpen && hasCompleteIdentity(profile) ? profile.id : null);
   if (!profile) return null;
   const complete = hasCompleteIdentity(profile);
   const active = eventsOpen && complete;
@@ -72,6 +74,17 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
 
       {/* Inviter des amis dans Party (avis 84fab3987f68) : tout rôle qui a le droit « Inviter dans Party ». */}
       {complete && can('members.invite') ? <AppInviteCard /> : null}
+
+      {/* Autres apps (17.11) : ce ne sont pas des réglages mais des apps de Party, à part (iOS : SettingsView, même section). */}
+      {active ? (
+        <View style={{ gap: 6 }} testID="settings-other-apps">
+          <T size={12} weight="bold" color={colors.muted} style={{ letterSpacing: 1, paddingHorizontal: 4 }}>AUTRES APPS</T>
+          <Card style={{ gap: 0, paddingVertical: 4 }}>
+            <LinkRow icon="📅" tint="#D92A73" label="Agenda" hint={agendaPending ? `${agendaPending} demande${agendaPending > 1 ? 's' : ''} de rendez-vous` : 'Ta semaine et qui est libre'}
+              badge={agendaPending ? String(agendaPending > 99 ? '99+' : agendaPending) : null} onPress={() => router.push('/agenda?from=settings')} />
+          </Card>
+        </View>
+      ) : null}
 
       <Card style={{ gap: 0, paddingVertical: 4 }}>
         {active ? (

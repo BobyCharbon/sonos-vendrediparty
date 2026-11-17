@@ -52,7 +52,7 @@ function inPartyShell(): boolean {
   return typeof window !== 'undefined' && window.parent !== window;
 }
 
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/invite|\/gifts|\/scan(?:\/[a-f0-9]{64})?|\/bar(?:\/scan|\/manage|\/person\/[a-f0-9-]{36})?)?|share\/[a-f0-9-]{36}|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|group\/(?:new|[a-f0-9-]{36}(?:\/settings|\/invite)?)|chats(?:\/[a-f0-9-]{36})?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/invite|\/gifts|\/scan(?:\/[a-f0-9]{64})?|\/bar(?:\/scan|\/manage|\/person\/[a-f0-9-]{36})?)?|share\/[a-f0-9-]{36}|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|group\/(?:new|[a-f0-9-]{36}(?:\/settings|\/invite)?)|chats(?:\/[a-f0-9-]{36})?|agenda(?:\/(?:calendars|share|free|links(?:\/(?:new|[a-f0-9-]{36}))?|requests(?:\/[a-f0-9-]{36})?))?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
 /** Pages de passage (accueil du module, connexion, « Faisons connaissance ») : seules à reprendre l'intention gardée. */
 const transitPath = /^\/?(?:sign-in|welcome)?$/i;
 
@@ -204,6 +204,17 @@ function Gate() {
         <Stack.Screen name="group/[id]/index" options={{ headerShown: false, title: 'Groupe' }} />
         <Stack.Screen name="group/[id]/settings" options={{ title: 'Réglages du groupe' }} />
         <Stack.Screen name="group/[id]/invite" options={{ title: 'Inviter' }} />
+        {/* Agenda (17.11, maquettes A validées) : semaine, jour, mois ; calendriers ; partage ; qui est libre ; liens ; demandes. */}
+        <Stack.Screen name="agenda/index" options={{ headerShown: false, title: 'Agenda' }} />
+        <Stack.Screen name="agenda/item" options={{ headerShown: false, title: 'Rendez-vous', presentation: 'modal' }} />
+        <Stack.Screen name="agenda/calendars" options={{ headerShown: false, title: 'Calendriers' }} />
+        <Stack.Screen name="agenda/share" options={{ headerShown: false, title: 'Partager mes dispos' }} />
+        <Stack.Screen name="agenda/free" options={{ headerShown: false, title: 'Qui est libre ?' }} />
+        <Stack.Screen name="agenda/links/index" options={{ headerShown: false, title: 'Mes liens de dispo' }} />
+        <Stack.Screen name="agenda/links/new" options={{ headerShown: false, title: 'Nouveau lien', presentation: 'modal' }} />
+        <Stack.Screen name="agenda/links/[id]" options={{ headerShown: false, title: 'Lien de dispo' }} />
+        <Stack.Screen name="agenda/requests/index" options={{ headerShown: false, title: 'Demandes reçues' }} />
+        <Stack.Screen name="agenda/requests/[id]" options={{ headerShown: false, title: 'Demande reçue' }} />
         <Stack.Screen name="chats/index" options={{ title: 'Discussions', headerShown: !inPartyShell() }} />
         <Stack.Screen name="chats/[id]" options={{ title: 'Discussion' }} />
         <Stack.Screen name="member/[id]" options={{ title: 'Profil', presentation: 'modal' }} />

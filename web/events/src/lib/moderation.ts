@@ -7,7 +7,8 @@ import { supabase } from './supabase';
 
 export type ReportKind = 'group_message' | 'direct_message' | 'event_message' | 'profile' | 'profile_photo' | 'group_photo' | 'event'
   | 'rsvp_note' | 'poll' | 'poll_option' | 'bring_item'
-  | 'pet_name' | 'pet_item' | 'pet_offer' | 'pet_showcase' | 'pet_word';
+  | 'pet_name' | 'pet_item' | 'pet_offer' | 'pet_showcase' | 'pet_word'
+  | 'booking_request' | 'agenda_link';
 export type ReportReason = 'harassment' | 'shocking' | 'spam' | 'scam' | 'other';
 export type ReportTarget = { kind: ReportKind; id: string; label: string };
 
